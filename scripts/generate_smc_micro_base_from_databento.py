@@ -5,7 +5,7 @@ import json
 import logging
 import os
 import sys
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -217,161 +217,53 @@ def _make_fmp_client(api_key: str) -> Any:
     return FMPClient(api_key=api_key, retry_attempts=2, timeout_seconds=12)
 
 
-def _fetch_regime_data(fmp: Any) -> dict[str, Any]:
-    """Fetch VIX + sector performance from FMP, return regime dict."""
-    vix_level: float | None = None
-    macro_bias = 0.0
-    sectors: list[dict[str, Any]] = []
-    stale: list[str] = []
-
-    try:
-        vix_row = fmp.get_index_quote("^VIX")
-        raw = vix_row.get("price")
-        if raw is not None:
-            vix_level = float(raw)
-    except Exception:
-        logger.warning("FMP VIX fetch failed — using default", exc_info=True)
-        stale.append("fmp_vix")
-
-    try:
-        sectors = fmp.get_sector_performance()
-    except Exception:
-        logger.warning("FMP sector-performance fetch failed — using default", exc_info=True)
-        stale.append("fmp_sectors")
-
-    regime = classify_market_regime(vix_level, macro_bias, sectors)
-    regime["stale_providers"] = stale
-    return regime
-
-
-def _fetch_news_data(fmp: Any, symbols: list[str]) -> dict[str, Any]:
-    """Fetch latest stock news from FMP and score sentiment."""
-    stale: list[str] = []
-    articles: list[dict[str, Any]] = []
-
-    try:
-        raw = fmp.get_stock_latest_news(limit=100)
-        for item in raw:
-            headline = item.get("title") or item.get("headline") or ""
-            tickers = item.get("tickers") or []
-            if isinstance(tickers, str):
-                tickers = [t.strip() for t in tickers.split(",") if t.strip()]
-            symbol_field = item.get("symbol") or ""
-            if symbol_field and not tickers:
-                tickers = [symbol_field]
-            articles.append({"headline": headline, "tickers": tickers})
-    except Exception:
-        logger.warning("FMP news fetch failed — using default", exc_info=True)
-        stale.append("fmp_news")
-
-    result = compute_news_sentiment(symbols, articles)
-    result["stale_providers"] = stale
-    return result
-
-
-def _fetch_calendar_data(fmp: Any, symbols: list[str]) -> dict[str, Any]:
-    """Fetch earnings calendar and macro events from FMP."""
-    stale: list[str] = []
-    earnings: list[dict[str, Any]] = []
-    macro_events: list[dict[str, Any]] = []
-    today = date.today()
-    tomorrow = today + timedelta(days=1)
-
-    try:
-        raw = fmp.get_earnings_calendar(today, tomorrow)
-        for row in raw:
-            sym = row.get("symbol") or ""
-            d = row.get("date") or ""
-            timing = (row.get("time") or "").lower()
-            if timing in ("bmo", "amc"):
-                pass  # keep as-is
-            elif timing.startswith("before"):
-                timing = "bmo"
-            elif timing.startswith("after"):
-                timing = "amc"
-            earnings.append({"symbol": sym, "date": d, "timing": timing})
-    except Exception:
-        logger.warning("FMP earnings-calendar fetch failed — using default", exc_info=True)
-        stale.append("fmp_earnings")
-
-    try:
-        raw_macro = fmp.get_macro_calendar(today, today)
-        for evt in raw_macro:
-            name = evt.get("event") or evt.get("name") or ""
-            time_utc = evt.get("date") or evt.get("time_utc") or ""
-            macro_events.append({"name": name, "time_utc": time_utc})
-    except Exception:
-        logger.warning("FMP macro-calendar fetch failed — using default", exc_info=True)
-        stale.append("fmp_macro")
-
-    result = collect_earnings_and_macro(symbols, earnings, macro_events, reference_date=today)
-    result["stale_providers"] = stale
-    return result
-
-
-def _fetch_technical_summary(fmp: Any, symbol: str = "SPY") -> tuple[float, str]:
-    """Fetch a rough directional strength + bias from RSI for *symbol*."""
-    try:
-        data = fmp.get_technical_indicator(symbol, "1day", "rsi", indicator_period=14)
-        rsi_val = data.get("rsi") if data else None
-        if rsi_val is not None:
-            rsi = float(rsi_val)
-            strength = abs(rsi - 50.0) / 50.0
-            bias = "BULLISH" if rsi > 55 else ("BEARISH" if rsi < 45 else "NEUTRAL")
-            return (min(strength, 1.0), bias)
-    except Exception:
-        logger.warning("FMP technical fetch failed — using default", exc_info=True)
-    return (0.5, "NEUTRAL")
-
-
 def build_enrichment(
     *,
     fmp_api_key: str,
     symbols: list[str],
+    benzinga_api_key: str = "",
     enrich_regime: bool = False,
     enrich_news: bool = False,
     enrich_calendar: bool = False,
     enrich_layering: bool = False,
 ) -> EnrichmentDict | None:
-    """Build the enrichment dict by calling the AP-1..AP-5 helpers.
+    """Build the enrichment dict using the v4 provider policy matrix.
 
-    Each block is wrapped in its own try/except — on failure the block
-    uses neutral defaults and the failing provider is recorded in
-    ``stale_providers``.
+    Each domain runs through its explicit provider chain (primary →
+    fallback) as defined in ``smc_provider_policy``.  Every failure path
+    records the stale provider and falls through to the next candidate
+    or to safe defaults.  Provenance is recorded per-domain.
     """
     if not any([enrich_regime, enrich_news, enrich_calendar, enrich_layering]):
         return None
 
+    from scripts.smc_provider_policy import resolve_domain
+
     fmp = _make_fmp_client(fmp_api_key) if fmp_api_key else None
     enrichment: dict[str, Any] = {}
     all_stale: list[str] = []
+    provenance: dict[str, str] = {}
 
     # ── Regime ──────────────────────────────────────────────────
     regime_result: dict[str, Any] = {"regime": "NEUTRAL"}
     if enrich_regime:
-        if fmp is not None:
-            try:
-                regime_result = _fetch_regime_data(fmp)
-                all_stale.extend(regime_result.pop("stale_providers", []))
-            except Exception:
-                logger.warning("Regime enrichment failed — using defaults", exc_info=True)
-                all_stale.append("regime")
-        else:
-            all_stale.append("fmp_missing")
+        pr = resolve_domain("regime", fmp=fmp, symbols=symbols)
+        all_stale.extend(pr.stale)
+        if pr.ok:
+            regime_result = pr.data
+        provenance["regime_provider"] = pr.provider
         enrichment["regime"] = regime_result
 
     # ── News ────────────────────────────────────────────────────
     news_result: dict[str, Any] = {}
     if enrich_news:
-        if fmp is not None:
-            try:
-                news_result = _fetch_news_data(fmp, symbols)
-                all_stale.extend(news_result.pop("stale_providers", []))
-            except Exception:
-                logger.warning("News enrichment failed — using defaults", exc_info=True)
-                all_stale.append("news")
-        else:
-            all_stale.append("fmp_missing")
+        pr = resolve_domain(
+            "news", fmp=fmp, benzinga_api_key=benzinga_api_key, symbols=symbols,
+        )
+        all_stale.extend(pr.stale)
+        if pr.ok:
+            news_result = pr.data
+        provenance["news_provider"] = pr.provider
         enrichment["news"] = {
             "bullish_tickers": news_result.get("bullish_tickers", []),
             "bearish_tickers": news_result.get("bearish_tickers", []),
@@ -383,15 +275,13 @@ def build_enrichment(
     # ── Calendar ────────────────────────────────────────────────
     calendar_result: dict[str, Any] = {}
     if enrich_calendar:
-        if fmp is not None:
-            try:
-                calendar_result = _fetch_calendar_data(fmp, symbols)
-                all_stale.extend(calendar_result.pop("stale_providers", []))
-            except Exception:
-                logger.warning("Calendar enrichment failed — using defaults", exc_info=True)
-                all_stale.append("calendar")
-        else:
-            all_stale.append("fmp_missing")
+        pr = resolve_domain(
+            "calendar", fmp=fmp, benzinga_api_key=benzinga_api_key, symbols=symbols,
+        )
+        all_stale.extend(pr.stale)
+        if pr.ok:
+            calendar_result = pr.data
+        provenance["calendar_provider"] = pr.provider
         enrichment["calendar"] = {
             "earnings_today_tickers": calendar_result.get("earnings_today_tickers", ""),
             "earnings_tomorrow_tickers": calendar_result.get("earnings_tomorrow_tickers", ""),
@@ -405,14 +295,12 @@ def build_enrichment(
     # ── Layering ────────────────────────────────────────────────
     if enrich_layering:
         tech_strength, tech_bias = (0.5, "NEUTRAL")
-        if fmp is not None:
-            try:
-                tech_strength, tech_bias = _fetch_technical_summary(fmp)
-            except Exception:
-                logger.warning("Technical fetch for layering failed — using defaults", exc_info=True)
-                all_stale.append("fmp_technical")
-        else:
-            all_stale.append("fmp_missing")
+        pr = resolve_domain("technical", fmp=fmp, symbols=symbols)
+        all_stale.extend(pr.stale)
+        if pr.ok:
+            tech_strength = pr.data.get("strength", 0.5)
+            tech_bias = pr.data.get("bias", "NEUTRAL")
+        provenance["technical_provider"] = pr.provider
 
         # Determine news tone for layering
         bullish_count = len(news_result.get("bullish_tickers", []))
@@ -443,8 +331,17 @@ def build_enrichment(
         enrichment["layering"] = layering
 
     # ── Providers ───────────────────────────────────────────────
+    active_providers = {v for v in provenance.values() if v != "none"}
     enrichment["providers"] = {
+        "provider_count": len(active_providers),
         "stale_providers": ",".join(sorted(set(all_stale))),
+        **provenance,
+    }
+
+    # ── Meta ────────────────────────────────────────────────────
+    enrichment["meta"] = {
+        "asof_time": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "refresh_count": 0,
     }
 
     return enrichment
@@ -456,6 +353,7 @@ def finalize_pipeline(
     schema_path: Path,
     output_root: Path,
     fmp_api_key: str = "",
+    benzinga_api_key: str = "",
     library_owner: str = "preuss_steffen",
     library_version: int = 1,
     enrich_regime: bool = False,
@@ -477,6 +375,7 @@ def finalize_pipeline(
     # ── Enrichment ──────────────────────────────────────────────
     enrichment = build_enrichment(
         fmp_api_key=fmp_api_key,
+        benzinga_api_key=benzinga_api_key,
         symbols=symbols,
         enrich_regime=enrich_regime,
         enrich_news=enrich_news,
@@ -537,6 +436,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--enrich-calendar", action="store_true", help="Add earnings/macro calendar enrichment (FMP)")
     parser.add_argument("--enrich-layering", action="store_true", help="Add pre-computed layering signals (smc_core)")
     parser.add_argument("--enrich-all", action="store_true", help="Enable all enrichment blocks")
+    parser.add_argument("--benzinga-api-key", default=os.getenv("BENZINGA_API_KEY", ""), help="Benzinga API key for news/calendar fallback")
     return parser
 
 
@@ -544,11 +444,13 @@ def main() -> None:
     args = build_parser().parse_args()
     enrich_regime, enrich_news, enrich_calendar, enrich_layering = _resolve_enrichment_flags(args)
     fmp_api_key = str(args.fmp_api_key).strip()
+    benzinga_api_key = str(getattr(args, 'benzinga_api_key', '') or '').strip()
 
     finalize_kwargs = dict(
         schema_path=args.schema,
         output_root=args.export_dir,
         fmp_api_key=fmp_api_key,
+        benzinga_api_key=benzinga_api_key,
         library_owner=str(args.library_owner).strip(),
         library_version=int(args.library_version),
         enrich_regime=enrich_regime,

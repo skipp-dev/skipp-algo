@@ -75,13 +75,18 @@ def _full_enrichment() -> dict[str, Any]:
             "low_tickers": ["AMZN"],
             "holiday_suspect_tickers": [],
         },
+        "meta": {
+            "asof_time": "2026-03-28T14:30:00Z",
+            "refresh_count": 3,
+        },
     }
 
 
 # All exported Pine fields that must appear in every generated library
 EXPECTED_FIELDS = [
-    # Core
-    "ASOF_DATE", "UNIVERSE_ID", "LOOKBACK_DAYS", "UNIVERSE_SIZE",
+    # Core + Meta
+    "ASOF_DATE", "ASOF_TIME", "UNIVERSE_ID", "LOOKBACK_DAYS", "UNIVERSE_SIZE",
+    "REFRESH_COUNT",
     # Lists
     "CLEAN_RECLAIM_TICKERS", "STOP_HUNT_PRONE_TICKERS",
     "MIDDAY_DEAD_TICKERS", "RTH_ONLY_TICKERS",
@@ -155,26 +160,31 @@ class TestFullPipelineGeneratesCompleteLibrary:
 # ── Test 2: Pipeline with provider failure ──────────────────────
 
 class TestPipelineWithProviderFailure:
-    @patch("scripts.generate_smc_micro_base_from_databento._make_fmp_client")
-    @patch("scripts.generate_smc_micro_base_from_databento._fetch_regime_data")
-    @patch("scripts.generate_smc_micro_base_from_databento._fetch_news_data")
-    @patch("scripts.generate_smc_micro_base_from_databento._fetch_calendar_data")
+    @patch("scripts.smc_provider_policy.resolve_domain")
     def test_fmp_regime_failure_produces_defaults_and_stale(
-        self, mock_cal, mock_news, mock_regime, mock_fmp
+        self, mock_resolve,
     ):
-        mock_fmp.return_value = MagicMock()
-        mock_regime.side_effect = RuntimeError("FMP timeout")
-        mock_news.return_value = {
-            "bullish_tickers": [], "bearish_tickers": [],
-            "neutral_tickers": [], "news_heat_global": 0.0,
-            "ticker_heat_map": "",
-        }
-        mock_cal.return_value = {
-            "earnings_today_tickers": "", "earnings_tomorrow_tickers": "",
-            "earnings_bmo_tickers": "", "earnings_amc_tickers": "",
-            "high_impact_macro_today": False,
-            "macro_event_name": "", "macro_event_time": "",
-        }
+        from scripts.smc_provider_policy import ProviderResult
+
+        def _side_effect(domain, **kwargs):
+            if domain == "regime":
+                return ProviderResult(data={}, provider="none", ok=False, stale=["fmp"])
+            if domain == "news":
+                return ProviderResult(data={
+                    "bullish_tickers": [], "bearish_tickers": [],
+                    "neutral_tickers": [], "news_heat_global": 0.0,
+                    "ticker_heat_map": "",
+                }, provider="fmp")
+            if domain == "calendar":
+                return ProviderResult(data={
+                    "earnings_today_tickers": "", "earnings_tomorrow_tickers": "",
+                    "earnings_bmo_tickers": "", "earnings_amc_tickers": "",
+                    "high_impact_macro_today": False,
+                    "macro_event_name": "", "macro_event_time": "",
+                }, provider="fmp")
+            return ProviderResult(data={}, provider="none", ok=False, stale=[])
+
+        mock_resolve.side_effect = _side_effect
 
         enrichment = build_enrichment(
             fmp_api_key="fake-key",
@@ -184,22 +194,18 @@ class TestPipelineWithProviderFailure:
             enrich_calendar=True,
         )
         assert enrichment is not None
-        # Regime block falls back to the default dict (regime_result
-        # stays {"regime": "NEUTRAL"}) because the exception is caught
         assert enrichment["regime"]["regime"] == "NEUTRAL"
-        assert "regime" in enrichment["providers"]["stale_providers"]
+        assert "fmp" in enrichment["providers"]["stale_providers"]
 
-    @patch("scripts.generate_smc_micro_base_from_databento._make_fmp_client")
-    @patch("scripts.generate_smc_micro_base_from_databento._fetch_regime_data")
-    @patch("scripts.generate_smc_micro_base_from_databento._fetch_news_data")
-    @patch("scripts.generate_smc_micro_base_from_databento._fetch_calendar_data")
+    @patch("scripts.smc_provider_policy.resolve_domain")
     def test_failure_enrichment_still_generates_valid_library(
-        self, mock_cal, mock_news, mock_regime, mock_fmp, tmp_path: Path
+        self, mock_resolve, tmp_path: Path
     ):
-        mock_fmp.return_value = MagicMock()
-        mock_regime.side_effect = RuntimeError("boom")
-        mock_news.side_effect = RuntimeError("boom")
-        mock_cal.side_effect = RuntimeError("boom")
+        from scripts.smc_provider_policy import ProviderResult
+
+        mock_resolve.return_value = ProviderResult(
+            data={}, provider="none", ok=False, stale=["fmp"],
+        )
 
         enrichment = build_enrichment(
             fmp_api_key="fake-key",
@@ -221,17 +227,21 @@ class TestPipelineWithProviderFailure:
         for field in EXPECTED_FIELDS:
             assert field in text, f"Missing field after failure: {field}"
 
-    @patch("scripts.generate_smc_micro_base_from_databento._make_fmp_client")
-    def test_missing_fmp_key_records_stale(self, mock_fmp):
-        mock_fmp.return_value = None
+    def test_missing_fmp_key_records_stale(self):
+        with patch("scripts.smc_provider_policy.resolve_domain") as mock_resolve:
+            from scripts.smc_provider_policy import ProviderResult
 
-        enrichment = build_enrichment(
-            fmp_api_key="",
-            symbols=["AAPL"],
-            enrich_regime=True,
-        )
-        assert enrichment is not None
-        assert "fmp_missing" in enrichment["providers"]["stale_providers"]
+            mock_resolve.return_value = ProviderResult(
+                data={}, provider="none", ok=False, stale=["fmp"],
+            )
+
+            enrichment = build_enrichment(
+                fmp_api_key="",
+                symbols=["AAPL"],
+                enrich_regime=True,
+            )
+            assert enrichment is not None
+            assert "fmp" in enrichment["providers"]["stale_providers"]
 
 
 # ── Test 3: Library Pine syntax is valid ────────────────────────

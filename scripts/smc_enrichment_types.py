@@ -54,11 +54,21 @@ class LayeringBlock(TypedDict, total=False):
 class ProviderBlock(TypedDict, total=False):
     provider_count: int
     stale_providers: str  # comma-separated provider names
+    # Per-domain provenance: which provider actually delivered data
+    regime_provider: str
+    news_provider: str
+    calendar_provider: str
+    technical_provider: str
 
 
 class VolumeRegimeBlock(TypedDict, total=False):
     low_tickers: list[str]
     holiday_suspect_tickers: list[str]
+
+
+class MetaBlock(TypedDict, total=False):
+    asof_time: str        # ISO-8601 UTC timestamp of generation, e.g. "2026-03-28T14:30:00Z"
+    refresh_count: int    # monotonically increasing generation counter
 
 
 class EnrichmentDict(TypedDict, total=False):
@@ -75,3 +85,4 @@ class EnrichmentDict(TypedDict, total=False):
     layering: LayeringBlock
     providers: ProviderBlock
     volume_regime: VolumeRegimeBlock
+    meta: MetaBlock

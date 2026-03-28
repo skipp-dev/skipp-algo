@@ -525,9 +525,11 @@ def write_pine_library(
         'library("smc_micro_profiles_generated")',
         "",
         f'export const string ASOF_DATE = "{asof_date}"',
+        f'export const string ASOF_TIME = "{(enr.get("meta") or {}).get("asof_time") or ""}"',
         'export const string UNIVERSE_ID = "us_equities_v1"',
         "export const int LOOKBACK_DAYS = 20",
         f"export const int UNIVERSE_SIZE = {universe_size}",
+        f"export const int REFRESH_COUNT = {int((enr.get('meta') or {}).get('refresh_count') or 0)}",
         "",
     ]
     for list_name in LISTS:
@@ -742,6 +744,7 @@ def write_manifest(
     library_owner: str,
     library_version: int,
     recommended_import_path: str,
+    enrichment: EnrichmentDict | None = None,
 ) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = {
@@ -764,6 +767,8 @@ def write_manifest(
         "universe_size": universe_size,
         "exported_lists": LIST_EXPORTS,
         "list_counts": {name: len(symbols) for name, symbols in lists.items()},
+        "enrichment_blocks": sorted((enrichment or {}).keys()),
+        "library_field_version": "v4",
     }
     path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
 

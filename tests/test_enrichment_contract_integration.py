@@ -25,6 +25,9 @@ SCHEMA_PATH = resolve_microstructure_schema_path()
 # ── All enrichment-related Pine constants ───────────────────────
 
 ENRICHMENT_FIELDS = [
+    # Meta
+    "ASOF_TIME", "REFRESH_COUNT",
+    # Regime
     "MARKET_REGIME", "VIX_LEVEL", "MACRO_BIAS", "SECTOR_BREADTH",
     "NEWS_BULLISH_TICKERS", "NEWS_BEARISH_TICKERS",
     "NEWS_NEUTRAL_TICKERS", "NEWS_HEAT_GLOBAL", "TICKER_HEAT_MAP",
@@ -38,7 +41,7 @@ ENRICHMENT_FIELDS = [
 
 LIST_FIELDS = [f"{n.upper()}_TICKERS" for n in LISTS]
 
-CORE_FIELDS = ["ASOF_DATE", "UNIVERSE_ID", "LOOKBACK_DAYS", "UNIVERSE_SIZE"]
+CORE_FIELDS = ["ASOF_DATE", "ASOF_TIME", "UNIVERSE_ID", "LOOKBACK_DAYS", "UNIVERSE_SIZE", "REFRESH_COUNT"]
 
 
 # ── Fixtures ────────────────────────────────────────────────────
@@ -136,6 +139,10 @@ def _full_enrichment() -> EnrichmentDict:
             "low_tickers": ["TSLA"],
             "holiday_suspect_tickers": [],
         },
+        "meta": {
+            "asof_time": "2026-03-28T14:30:00Z",
+            "refresh_count": 5,
+        },
     }
 
 
@@ -221,6 +228,11 @@ class TestNoEnrichment:
         text = _run_pipeline(base_csv, tmp_path, enrichment=None)
         assert 'STALE_PROVIDERS = ""' in text
 
+    def test_meta_defaults(self, base_csv: Path, tmp_path: Path):
+        text = _run_pipeline(base_csv, tmp_path, enrichment=None)
+        assert 'ASOF_TIME = ""' in text
+        assert "REFRESH_COUNT = 0" in text
+
 
 # ── Test 2: Full enrichment → values render correctly ───────────
 
@@ -265,6 +277,11 @@ class TestFullEnrichment:
         bool_lines = [l for l in text.splitlines() if "const bool " in l]
         for line in bool_lines:
             assert "True" not in line and "False" not in line, f"Python bool in: {line}"
+
+    def test_meta_values(self, base_csv: Path, tmp_path: Path):
+        text = _run_pipeline(base_csv, tmp_path, enrichment=_full_enrichment())
+        assert 'ASOF_TIME = "2026-03-28T14:30:00Z"' in text
+        assert "REFRESH_COUNT = 5" in text
 
 
 # ── Test 3: Partial enrichment (regime only) ────────────────────
@@ -348,3 +365,126 @@ class TestReturnContract:
         )
         for name, path in result.items():
             assert path.exists(), f"Artifact {name!r} not written: {path}"
+
+
+# ── Test 6: V4 field inventory is complete and deterministic ────
+
+# Canonical list of every export const that the v4 library must contain.
+V4_FIELD_INVENTORY = [
+    # Core + Meta
+    "ASOF_DATE", "ASOF_TIME", "UNIVERSE_ID", "LOOKBACK_DAYS", "UNIVERSE_SIZE",
+    "REFRESH_COUNT",
+    # Microstructure lists
+    "CLEAN_RECLAIM_TICKERS", "STOP_HUNT_PRONE_TICKERS",
+    "MIDDAY_DEAD_TICKERS", "RTH_ONLY_TICKERS",
+    "WEAK_PREMARKET_TICKERS", "WEAK_AFTERHOURS_TICKERS",
+    "FAST_DECAY_TICKERS",
+    # Regime
+    "MARKET_REGIME", "VIX_LEVEL", "MACRO_BIAS", "SECTOR_BREADTH",
+    # News
+    "NEWS_BULLISH_TICKERS", "NEWS_BEARISH_TICKERS",
+    "NEWS_NEUTRAL_TICKERS", "NEWS_HEAT_GLOBAL", "TICKER_HEAT_MAP",
+    # Calendar
+    "EARNINGS_TODAY_TICKERS", "EARNINGS_TOMORROW_TICKERS",
+    "EARNINGS_BMO_TICKERS", "EARNINGS_AMC_TICKERS",
+    "HIGH_IMPACT_MACRO_TODAY", "MACRO_EVENT_NAME", "MACRO_EVENT_TIME",
+    # Layering
+    "GLOBAL_HEAT", "GLOBAL_STRENGTH", "TONE", "TRADE_STATE",
+    # Providers
+    "PROVIDER_COUNT", "STALE_PROVIDERS",
+    # Volume
+    "VOLUME_LOW_TICKERS", "HOLIDAY_SUSPECT_TICKERS",
+]
+
+
+class TestV4FieldInventory:
+    """Ensures every v4 field is present regardless of enrichment state."""
+
+    def test_all_v4_fields_with_full_enrichment(self, base_csv: Path, tmp_path: Path):
+        text = _run_pipeline(base_csv, tmp_path, enrichment=_full_enrichment())
+        for field in V4_FIELD_INVENTORY:
+            assert field in text, f"Missing v4 field: {field}"
+
+    def test_all_v4_fields_without_enrichment(self, base_csv: Path, tmp_path: Path):
+        text = _run_pipeline(base_csv, tmp_path, enrichment=None)
+        for field in V4_FIELD_INVENTORY:
+            assert field in text, f"Missing v4 field (no enrichment): {field}"
+
+    def test_all_v4_fields_with_partial_enrichment(self, base_csv: Path, tmp_path: Path):
+        text = _run_pipeline(base_csv, tmp_path, enrichment=_regime_only_enrichment())
+        for field in V4_FIELD_INVENTORY:
+            assert field in text, f"Missing v4 field (partial): {field}"
+
+    def test_field_count_matches_inventory(self, base_csv: Path, tmp_path: Path):
+        text = _run_pipeline(base_csv, tmp_path, enrichment=_full_enrichment())
+        export_lines = [l for l in text.splitlines() if l.startswith("export const")]
+        assert len(export_lines) == len(V4_FIELD_INVENTORY), (
+            f"Expected {len(V4_FIELD_INVENTORY)} export fields, got {len(export_lines)}"
+        )
+
+    def test_no_unexpected_export_fields(self, base_csv: Path, tmp_path: Path):
+        text = _run_pipeline(base_csv, tmp_path, enrichment=_full_enrichment())
+        export_lines = [l for l in text.splitlines() if l.startswith("export const")]
+        found_names = set()
+        for line in export_lines:
+            # "export const TYPE NAME = ..." -> extract NAME
+            parts = line.split(" = ", 1)[0].split()
+            if len(parts) >= 4:
+                found_names.add(parts[3])
+        expected_names = set(V4_FIELD_INVENTORY)
+        unexpected = found_names - expected_names
+        assert not unexpected, f"Unexpected export fields: {unexpected}"
+
+    def test_output_deterministic(self, base_csv: Path, tmp_path: Path):
+        """Two generations with the same inputs produce identical output."""
+        out1 = tmp_path / "run1"
+        out2 = tmp_path / "run2"
+        out1.mkdir()
+        out2.mkdir()
+        enr = _full_enrichment()
+        text1 = _run_pipeline(base_csv, out1, enrichment=enr)
+        text2 = _run_pipeline(base_csv, out2, enrichment=enr)
+        assert text1 == text2
+
+
+# ── Test 7: Manifest tracks enrichment ──────────────────────────
+
+class TestManifestEnrichment:
+    def test_manifest_contains_library_field_version(self, base_csv: Path, tmp_path: Path):
+        import json
+        generate_pine_library_from_base(
+            base_csv_path=base_csv,
+            schema_path=SCHEMA_PATH,
+            output_root=tmp_path,
+            enrichment=_full_enrichment(),
+        )
+        manifest_files = list(tmp_path.rglob("*manifest*.json"))
+        assert manifest_files, "No manifest file generated"
+        manifest = json.loads(manifest_files[0].read_text(encoding="utf-8"))
+        assert manifest.get("library_field_version") == "v4"
+
+    def test_manifest_enrichment_blocks(self, base_csv: Path, tmp_path: Path):
+        import json
+        generate_pine_library_from_base(
+            base_csv_path=base_csv,
+            schema_path=SCHEMA_PATH,
+            output_root=tmp_path,
+            enrichment=_full_enrichment(),
+        )
+        manifest_files = list(tmp_path.rglob("*manifest*.json"))
+        manifest = json.loads(manifest_files[0].read_text(encoding="utf-8"))
+        blocks = manifest.get("enrichment_blocks", [])
+        assert "regime" in blocks
+        assert "meta" in blocks
+
+    def test_manifest_no_enrichment_blocks_empty(self, base_csv: Path, tmp_path: Path):
+        import json
+        generate_pine_library_from_base(
+            base_csv_path=base_csv,
+            schema_path=SCHEMA_PATH,
+            output_root=tmp_path,
+            enrichment=None,
+        )
+        manifest_files = list(tmp_path.rglob("*manifest*.json"))
+        manifest = json.loads(manifest_files[0].read_text(encoding="utf-8"))
+        assert manifest.get("enrichment_blocks") == []
