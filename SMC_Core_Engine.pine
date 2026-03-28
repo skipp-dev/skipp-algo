@@ -1591,12 +1591,14 @@ resolve_trade_gate_reason(bool session_structure_gate_ok, bool micro_session_gat
         trade_gate_reason := 'Blocked: Overhead'
     trade_gate_reason
 
-resolve_environment_gate_reason(bool market_regime_gate_ok, bool vola_regime_gate_safe) =>
+resolve_environment_gate_reason(bool market_regime_gate_ok, bool vola_regime_gate_safe, bool event_risk_gate_ok_param) =>
     string environment_gate_reason = 'Env OK'
     if not market_regime_gate_ok
         environment_gate_reason := 'Blocked: Market Gate'
     else if not vola_regime_gate_safe
         environment_gate_reason := 'Blocked: Vola Gate'
+    else if not event_risk_gate_ok_param
+        environment_gate_reason := 'Blocked: Event Risk'
     environment_gate_reason
 
 // Long engine architecture
@@ -1609,8 +1611,8 @@ resolve_environment_gate_reason(bool market_regime_gate_ok, bool vola_regime_gat
 // - Signal mode controls realtime vs close-safe alert behavior.
 // - Strict sequence/sweep/confirm toggles decide how demanding the higher execution tiers are.
 // - Context quality, overhead, and microstructure switches decide how much market filtering is required before entry.
-compute_long_environment_context(bool market_regime_gate_ok, bool vola_regime_gate_safe, bool context_quality_gate_ok, bool session_structure_gate_ok, bool micro_session_gate_ok, bool micro_freshness_gate_ok, bool overhead_zone_ok) =>
-    bool helper_environment_hard_gate_ok = market_regime_gate_ok and vola_regime_gate_safe
+compute_long_environment_context(bool market_regime_gate_ok, bool vola_regime_gate_safe, bool context_quality_gate_ok, bool session_structure_gate_ok, bool micro_session_gate_ok, bool micro_freshness_gate_ok, bool overhead_zone_ok, bool event_risk_gate_ok_param) =>
+    bool helper_environment_hard_gate_ok = market_regime_gate_ok and vola_regime_gate_safe and event_risk_gate_ok_param
     bool helper_quality_gate_ok = context_quality_gate_ok
     bool helper_microstructure_entry_gate_ok = micro_session_gate_ok and micro_freshness_gate_ok
     bool helper_trade_hard_gate_ok = session_structure_gate_ok and micro_session_gate_ok and micro_freshness_gate_ok and overhead_zone_ok
@@ -1619,6 +1621,8 @@ compute_long_environment_context(bool market_regime_gate_ok, bool vola_regime_ga
         helper_long_environment_focus_display := 'Market Block'
     else if not vola_regime_gate_safe
         helper_long_environment_focus_display := 'Vola Block'
+    else if not event_risk_gate_ok_param
+        helper_long_environment_focus_display := 'Event Block'
     [helper_environment_hard_gate_ok, helper_quality_gate_ok, helper_microstructure_entry_gate_ok, helper_trade_hard_gate_ok, helper_long_environment_focus_display]
 
 resolve_long_ready_lifecycle_reason(bool long_ready_state, bool long_setup_confirmed, bool close_safe_mode, bool ready_bar_gap_ok, bool long_confirm_expired, bool ready_is_fresh, bool long_confirm_bearish_guard_ok, bool require_main_break_for_ready, bool bull_bos_sig, bool main_bos_recent) =>
@@ -1648,7 +1652,7 @@ resolve_long_ready_gate_reason(bool setup_hard_gate_ok, bool session_structure_g
     else if not session_structure_gate_ok or not micro_session_gate_ok or not micro_freshness_gate_ok or not overhead_zone_ok
         ready_gate_reason := resolve_trade_gate_reason(session_structure_gate_ok, micro_session_gate_ok, micro_freshness_gate_ok, overhead_zone_ok)
     else if not market_regime_gate_ok or not vola_regime_gate_safe
-        ready_gate_reason := resolve_environment_gate_reason(market_regime_gate_ok, vola_regime_gate_safe)
+        ready_gate_reason := resolve_environment_gate_reason(market_regime_gate_ok, vola_regime_gate_safe, true)
     else if not quality_gate_ok
         ready_gate_reason := 'Blocked: Context Score'
     else if not accel_ready_gate_ok
@@ -2130,6 +2134,25 @@ resolve_bus_quality_strict_row(bool long_entry_strict_state, bool strict_entry_l
         pack_bus_row(-1, 8)
     else
         pack_bus_row(-1, 9)
+
+// ── Event Risk BUS Row ──
+// Reason codes: 1=CLEAR, 2=PRE_EVENT(soft), 3=COOLDOWN(soft), 4=BLOCKED_MARKET(hard),
+//               5=BLOCKED_SYMBOL(hard), 6=MACRO_HIGH, 7=EARNINGS
+resolve_bus_event_risk_row(bool event_risk_gate_ok_param, bool hard_block, bool soft_block, bool market_blocked, bool symbol_blocked, string window_state, string risk_level) =>
+    if not event_risk_gate_ok_param and market_blocked
+        pack_bus_row(-1, 4)
+    else if not event_risk_gate_ok_param and symbol_blocked
+        pack_bus_row(-1, 5)
+    else if not event_risk_gate_ok_param
+        pack_bus_row(-1, 6)
+    else if soft_block and window_state == "COOLDOWN"
+        pack_bus_row(2, 3)
+    else if soft_block and window_state == "PRE_EVENT"
+        pack_bus_row(2, 2)
+    else if risk_level == "LOW"
+        pack_bus_row(4, 1)
+    else
+        pack_bus_row(5, 1)
 
 resolve_bus_close_strength_row(bool use_strong_close_filter, bool bull_close_strong) =>
     if not use_strong_close_filter
@@ -3160,6 +3183,21 @@ bool lib_has_macro_event  = mp.HIGH_IMPACT_MACRO_TODAY
 bool lib_news_bearish = str.contains(mp.NEWS_BEARISH_TICKERS, syminfo.ticker)
 bool lib_news_bullish = str.contains(mp.NEWS_BULLISH_TICKERS, syminfo.ticker)
 bool lib_low_volume   = str.contains(mp.VOLUME_LOW_TICKERS, syminfo.ticker)
+
+// ── Event Risk (v5) ──
+string lib_event_window_state = mp.EVENT_WINDOW_STATE
+string lib_event_risk_level   = mp.EVENT_RISK_LEVEL
+string lib_next_event_name    = mp.NEXT_EVENT_NAME
+string lib_next_event_time    = mp.NEXT_EVENT_TIME
+string lib_next_event_impact  = mp.NEXT_EVENT_IMPACT
+bool   lib_market_event_blocked = mp.MARKET_EVENT_BLOCKED
+bool   lib_symbol_event_blocked = mp.SYMBOL_EVENT_BLOCKED and str.contains(mp.EARNINGS_SOON_TICKERS, syminfo.ticker)
+bool   lib_event_cooldown       = mp.EVENT_COOLDOWN_ACTIVE
+// Hard block: market-wide event active OR symbol-specific earnings block
+bool   event_risk_hard_block    = lib_market_event_blocked or lib_symbol_event_blocked
+// Soft discourage: cooldown active OR incoming medium+ risk
+bool   event_risk_soft_block    = lib_event_cooldown or (lib_event_window_state == "PRE_EVENT" and (lib_event_risk_level == "ELEVATED" or lib_event_risk_level == "HIGH"))
+bool   event_risk_gate_ok       = not event_risk_hard_block
 
 var string micro_midday_block_session = input.session('1130-1330', 'Midday block', group = g_micro, display = display.none)
 var string micro_premarket_session = input.session('0400-0929', 'Premarket', group = g_micro, display = display.none)
@@ -5709,7 +5747,7 @@ compute_overhead_context() =>
 
 [long_planned_stop_level, planned_risk, headroom_to_overhead, overhead_zone_ok] = compute_overhead_context()
 [context_quality_score, context_quality_gate_ok, htf_alignment_ok, strict_entry_ltf_ok, effective_min_context_quality_score, effective_context_quality_max_score] = compute_context_quality()
-[environment_hard_gate_ok, quality_gate_ok, microstructure_entry_gate_ok, trade_hard_gate_ok, long_environment_focus_display] = compute_long_environment_context(market_regime_gate_ok, vola_regime_gate_safe, context_quality_gate_ok, session_structure_gate_ok, micro_session_gate_ok, micro_freshness_gate_ok, overhead_zone_ok)
+[environment_hard_gate_ok, quality_gate_ok, microstructure_entry_gate_ok, trade_hard_gate_ok, long_environment_focus_display] = compute_long_environment_context(market_regime_gate_ok, vola_regime_gate_safe, context_quality_gate_ok, session_structure_gate_ok, micro_session_gate_ok, micro_freshness_gate_ok, overhead_zone_ok, event_risk_gate_ok)
 string freshness_text = describe_long_freshness(long_state.armed, long_state.confirmed, ready_is_fresh, confirm_is_fresh)
 string source_state_text = describe_long_source_state(long_source_tracked, long_source_alive, long_source_broken)
 long_validation_source := resolve_long_validation_source(long_state.locked_source_kind)
@@ -5859,6 +5897,7 @@ plot(pack_bus_trend_set(structure_display_trend, mtf_trend_1, mtf_trend_2, mtf_t
 plot(pack_bus_meta(resolve_bus_freshness_code(long_state.armed, long_state.confirmed, ready_is_fresh, confirm_is_fresh), resolve_bus_source_state_code(long_source_tracked, long_source_alive, long_source_broken), resolve_bus_reclaim_code(reclaim_recent, bull_reclaim_internal_low_strict, bull_reclaim_swing_low_strict, bull_reclaim_fvg_strict, bull_reclaim_ob_strict), resolve_bus_zone_code(long_zone_active, in_bull_ob_zone, in_bull_fvg_zone)), 'BUS MetaPack', display = display.none)
 plot(pack_bus_four(resolve_bus_session_row(intraday_time_chart, use_trade_session_gate, use_opening_range_gate, session_structure_gate_ok, session_gate_ok), resolve_bus_market_row(use_index_gate, use_sector_gate, use_breadth_symbol_gate, market_symbols_missing, block_on_missing_market_symbol, market_regime_gate_ok, index_gate_effective_ok, sector_gate_effective_ok), resolve_bus_vola_row(use_vola_compression_gate, vola_regime_gate_safe, vola_expansion_now, vola_compression_recent), resolve_bus_micro_session_row(use_microstructure_profiles, intraday_time_chart, micro_session_gate_ok, micro_rth_gate_ok, micro_midday_gate_ok, micro_premarket_gate_ok)), 'BUS HardGatesPackA', display = display.none)
 plot(pack_bus_four(resolve_bus_micro_fresh_row(use_microstructure_profiles, micro_freshness_gate_ok), resolve_bus_volume_data_row(volume_current_bar_ok, volume_feed_quality_ok, ltf_sampling_active, ltf_price_ok, ltf_volume_ok, ltf_price_only), resolve_bus_quality_env_row(environment_hard_gate_ok, market_regime_gate_ok, vola_regime_gate_safe), resolve_bus_quality_strict_row(long_entry_strict_state, strict_entry_ltf_ok, htf_alignment_ok, accel_strict_entry_gate_ok, sd_entry_strict_gate_ok, vol_entry_strict_context_ok_safe, stretch_entry_strict_context_ok, ddvi_entry_strict_ok_safe)), 'BUS HardGatesPackB', display = display.none)
+plot(resolve_bus_event_risk_row(event_risk_gate_ok, event_risk_hard_block, event_risk_soft_block, lib_market_event_blocked, lib_symbol_event_blocked, lib_event_window_state, lib_event_risk_level), 'BUS EventRiskRow', display = display.none)
 plot(pack_bus_four(resolve_bus_close_strength_row(use_strong_close_filter, bull_close_strong), resolve_bus_ema_support_row(show_ema_support, ema_support_ok), resolve_bus_adx_row(use_adx, adx_data_ok, plus_di, minus_di, adx_strong, adx_value, adx_trend_min), resolve_bus_relvol_row(use_rel_volume, relvol_data_ok, allow_relvol_without_volume_data, relvol_ok)), 'BUS QualityPackA', display = display.none)
 plot(pack_bus_four(resolve_bus_vwap_row(use_vwap_filter, intraday_time_chart, vwap_session_active, vwap_filter_ok), resolve_bus_context_quality_row(use_context_quality_score_eff, context_quality_gate_ok), resolve_bus_quality_clean_row(long_quality_clean_tier), resolve_bus_quality_score_row(context_quality_gate_ok)), 'BUS QualityPackB', display = display.none)
 plot(effective_min_context_quality_score * 100.0 + effective_context_quality_max_score, 'BUS QualityBoundsPack', display = display.none)

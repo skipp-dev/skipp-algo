@@ -20,6 +20,7 @@ src_trend_pack = input.source(close, "BUS TrendPack")
 src_meta_pack = input.source(close, "BUS MetaPack")
 src_hard_gates_pack_a = input.source(close, "BUS HardGatesPackA")
 src_hard_gates_pack_b = input.source(close, "BUS HardGatesPackB")
+src_event_risk_row = input.source(close, "BUS EventRiskRow")
 src_quality_pack_a = input.source(close, "BUS QualityPackA")
 src_quality_pack_b = input.source(close, "BUS QualityPackB")
 src_quality_bounds_pack = input.source(close, "BUS QualityBoundsPack")
@@ -311,6 +312,23 @@ decode_volume_data_text(int row_code) =>
         label_text := "Price-only LTF"
     else if reason_code == 5 or reason_code == 0
         label_text := "No current bar volume"
+    label_text
+
+decode_event_risk_text(int row_code) =>
+    int reason_code = row_reason(row_code)
+    string label_text = "Blocked"
+    if reason_code == 1
+        label_text := row_status(row_code) >= 4 ? "OK" : "Low"
+    else if reason_code == 2
+        label_text := "Incoming Event"
+    else if reason_code == 3
+        label_text := "Cooldown"
+    else if reason_code == 4
+        label_text := "Market Event Blocked"
+    else if reason_code == 5
+        label_text := "Symbol Earnings Blocked"
+    else if reason_code == 6
+        label_text := "High Macro Risk"
     label_text
 
 decode_quality_env_text(int row_code) =>
@@ -675,6 +693,7 @@ int micro_fresh_row_code = pack_slot(src_hard_gates_pack_b, 0)
 int volume_data_row_code = pack_slot(src_hard_gates_pack_b, 1)
 int quality_env_row_code = pack_slot(src_hard_gates_pack_b, 2)
 int quality_strict_row_code = pack_slot(src_hard_gates_pack_b, 3)
+int event_risk_row_code = int(math.round(nz(src_event_risk_row, 0.0)))
 int close_row_code = pack_slot(src_quality_pack_a, 0)
 int ema_row_code = pack_slot(src_quality_pack_a, 1)
 int adx_row_code = pack_slot(src_quality_pack_a, 2)
@@ -716,7 +735,7 @@ plot(show_risk_lines ? src_trigger : na, "Core Trigger", color = color.new(color
 plot(show_risk_lines ? src_invalidation : na, "Core Invalidation", color = color.new(color.orange, 0), linewidth = 2, style = plot.style_linebr)
 bgcolor(show_state_bg and state_code >= 5 ? color.new(color.green, 90) : na)
 
-var table smc_dashboard = table.new(position.bottom_right, 2, 49, border_width = 0)
+var table smc_dashboard = table.new(position.bottom_right, 2, 50, border_width = 0)
 
 if show_table and barstate.islast
     color txt = chart.fg_color
@@ -738,37 +757,38 @@ if show_table and barstate.islast
     dashboard_row(smc_dashboard, 14, "Micro Session", decode_micro_session_text(micro_session_row_code), status_bg(row_status(micro_session_row_code)), txt)
     dashboard_row(smc_dashboard, 15, "Micro Fresh", decode_micro_fresh_text(micro_fresh_row_code, freshness_code, source_state_code), status_bg(row_status(micro_fresh_row_code)), txt)
     dashboard_row(smc_dashboard, 16, "Volume Data", decode_volume_data_text(volume_data_row_code), status_bg(row_status(volume_data_row_code)), txt)
-    section_row(smc_dashboard, 17, "[ Quality ] Primary trade signal metrics vs diagnostics", header_bg, txt)
-    dashboard_row(smc_dashboard, 18, "Primary | Quality Env", decode_quality_env_text(quality_env_row_code), primary_metric_bg(row_status(quality_env_row_code)), txt)
-    dashboard_row(smc_dashboard, 19, "Diag | Quality Strict", decode_quality_strict_text(quality_strict_row_code), diagnostic_metric_bg(row_status(quality_strict_row_code)), txt)
-    dashboard_row(smc_dashboard, 20, "Diag | Close Strength", decode_close_text(close_row_code), diagnostic_metric_bg(row_status(close_row_code)), txt)
-    dashboard_row(smc_dashboard, 21, "Diag | EMA Support", decode_ema_text(ema_row_code), diagnostic_metric_bg(row_status(ema_row_code)), txt)
-    dashboard_row(smc_dashboard, 22, "Diag | ADX", decode_adx_text(adx_row_code), diagnostic_metric_bg(row_status(adx_row_code)), txt)
-    dashboard_row(smc_dashboard, 23, "Diag | Rel Volume", decode_relvol_text(relvol_row_code), diagnostic_metric_bg(row_status(relvol_row_code)), txt)
-    dashboard_row(smc_dashboard, 24, "Diag | VWAP Filter", decode_vwap_text(vwap_row_code), diagnostic_metric_bg(row_status(vwap_row_code)), txt)
-    dashboard_row(smc_dashboard, 25, "Diag | Context Quality", decode_context_quality_text(context_quality_row_code), diagnostic_metric_bg(row_status(context_quality_row_code)), txt)
-    dashboard_row(smc_dashboard, 26, "Primary | Quality Score", quality_bounds_text(src_quality_score, src_quality_bounds_pack), primary_metric_bg(row_status(quality_score_row_code)), txt)
-    dashboard_row(smc_dashboard, 27, "Primary | Quality Clean", decode_quality_clean_text(quality_clean_row_code), primary_metric_bg(row_status(quality_clean_row_code)), txt)
-    section_row(smc_dashboard, 28, "[ Modules ]", header_bg, txt)
-    dashboard_row(smc_dashboard, 29, "SD Confluence", decode_sd_confluence_text(sd_confluence_row_code), status_bg(row_status(sd_confluence_row_code)), txt)
-    dashboard_row(smc_dashboard, 30, "SD Osc", decode_sd_osc_text(sd_osc_row_code), status_bg(row_status(sd_osc_row_code)), txt)
-    dashboard_row(smc_dashboard, 31, "Vol Regime", decode_vol_regime_text(vol_regime_row_code), status_bg(row_status(vol_regime_row_code)), txt)
-    dashboard_row(smc_dashboard, 32, "Vol Squeeze", decode_vol_squeeze_text(vol_squeeze_row_code), status_bg(row_status(vol_squeeze_row_code)), txt)
-    dashboard_row(smc_dashboard, 33, "Vol Expand", decode_vol_expand_text(vol_expand_row_code), status_bg(row_status(vol_expand_row_code)), txt)
-    dashboard_row(smc_dashboard, 34, "Stretch", decode_stretch_text(stretch_row_code), status_bg(row_status(stretch_row_code)), txt)
-    dashboard_row(smc_dashboard, 35, "DDVI", decode_ddvi_text(ddvi_row_code), status_bg(row_status(ddvi_row_code)), txt)
-    dashboard_row(smc_dashboard, 36, "LTF Bias", decode_ltf_bias_text(ltf_bias_row_code), status_bg(row_status(ltf_bias_row_code)), txt)
-    dashboard_row(smc_dashboard, 37, "LTF Delta", decode_ltf_delta_text(ltf_delta_row_code), status_bg(row_status(ltf_delta_row_code)), txt)
-    dashboard_row(smc_dashboard, 38, "Objects", decode_objects_text(objects_row_code), status_bg(row_status(objects_row_code)), txt)
-    dashboard_row(smc_dashboard, 39, "Swing H/L", decode_swing_text(swing_row_code), status_bg(row_status(swing_row_code)), txt)
-    dashboard_row(smc_dashboard, 40, "Long Zones", zone_reason_text(row_reason(long_zones_row_code)), status_bg(row_status(long_zones_row_code)), txt)
-    dashboard_row(smc_dashboard, 41, "Long Triggers", trigger_text(row_status(long_triggers_row_code) == 5, src_trigger, src_invalidation), status_bg(row_status(long_triggers_row_code)), txt)
-    dashboard_row(smc_dashboard, 42, "Micro Profile", decode_micro_profile_text(micro_profile_row_code, micro_modifier_mask), status_bg(row_status(micro_profile_row_code)), txt)
-    dashboard_row(smc_dashboard, 43, "Risk Plan", plan_text(row_status(risk_plan_row_code) == 5, src_trigger, src_stop_level, src_target_1, src_target_2), status_bg(row_status(risk_plan_row_code)), txt)
-    section_row(smc_dashboard, 44, "[ Engine ]", header_bg, txt)
-    dashboard_row(smc_dashboard, 45, "Ready Gate", decode_ready_gate_text(ready_gate_row_code), status_bg(row_status(ready_gate_row_code)), txt)
-    dashboard_row(smc_dashboard, 46, "Strict Gate", decode_strict_gate_text(strict_gate_row_code), status_bg(row_status(strict_gate_row_code)), txt)
-    dashboard_row(smc_dashboard, 47, "Debug Flags", decode_debug_flags_text(debug_flags_row_code), status_bg(row_status(debug_flags_row_code)), txt)
-    dashboard_row(smc_dashboard, 48, "Long Debug", long_debug_text, status_bg(row_status(long_debug_row_code)), txt)
+    dashboard_row(smc_dashboard, 17, "Event Risk", decode_event_risk_text(event_risk_row_code), status_bg(row_status(event_risk_row_code)), txt)
+    section_row(smc_dashboard, 18, "[ Quality ] Primary trade signal metrics vs diagnostics", header_bg, txt)
+    dashboard_row(smc_dashboard, 19, "Primary | Quality Env", decode_quality_env_text(quality_env_row_code), primary_metric_bg(row_status(quality_env_row_code)), txt)
+    dashboard_row(smc_dashboard, 20, "Diag | Quality Strict", decode_quality_strict_text(quality_strict_row_code), diagnostic_metric_bg(row_status(quality_strict_row_code)), txt)
+    dashboard_row(smc_dashboard, 21, "Diag | Close Strength", decode_close_text(close_row_code), diagnostic_metric_bg(row_status(close_row_code)), txt)
+    dashboard_row(smc_dashboard, 22, "Diag | EMA Support", decode_ema_text(ema_row_code), diagnostic_metric_bg(row_status(ema_row_code)), txt)
+    dashboard_row(smc_dashboard, 23, "Diag | ADX", decode_adx_text(adx_row_code), diagnostic_metric_bg(row_status(adx_row_code)), txt)
+    dashboard_row(smc_dashboard, 24, "Diag | Rel Volume", decode_relvol_text(relvol_row_code), diagnostic_metric_bg(row_status(relvol_row_code)), txt)
+    dashboard_row(smc_dashboard, 25, "Diag | VWAP Filter", decode_vwap_text(vwap_row_code), diagnostic_metric_bg(row_status(vwap_row_code)), txt)
+    dashboard_row(smc_dashboard, 26, "Diag | Context Quality", decode_context_quality_text(context_quality_row_code), diagnostic_metric_bg(row_status(context_quality_row_code)), txt)
+    dashboard_row(smc_dashboard, 27, "Primary | Quality Score", quality_bounds_text(src_quality_score, src_quality_bounds_pack), primary_metric_bg(row_status(quality_score_row_code)), txt)
+    dashboard_row(smc_dashboard, 28, "Primary | Quality Clean", decode_quality_clean_text(quality_clean_row_code), primary_metric_bg(row_status(quality_clean_row_code)), txt)
+    section_row(smc_dashboard, 29, "[ Modules ]", header_bg, txt)
+    dashboard_row(smc_dashboard, 30, "SD Confluence", decode_sd_confluence_text(sd_confluence_row_code), status_bg(row_status(sd_confluence_row_code)), txt)
+    dashboard_row(smc_dashboard, 31, "SD Osc", decode_sd_osc_text(sd_osc_row_code), status_bg(row_status(sd_osc_row_code)), txt)
+    dashboard_row(smc_dashboard, 32, "Vol Regime", decode_vol_regime_text(vol_regime_row_code), status_bg(row_status(vol_regime_row_code)), txt)
+    dashboard_row(smc_dashboard, 33, "Vol Squeeze", decode_vol_squeeze_text(vol_squeeze_row_code), status_bg(row_status(vol_squeeze_row_code)), txt)
+    dashboard_row(smc_dashboard, 34, "Vol Expand", decode_vol_expand_text(vol_expand_row_code), status_bg(row_status(vol_expand_row_code)), txt)
+    dashboard_row(smc_dashboard, 35, "Stretch", decode_stretch_text(stretch_row_code), status_bg(row_status(stretch_row_code)), txt)
+    dashboard_row(smc_dashboard, 36, "DDVI", decode_ddvi_text(ddvi_row_code), status_bg(row_status(ddvi_row_code)), txt)
+    dashboard_row(smc_dashboard, 37, "LTF Bias", decode_ltf_bias_text(ltf_bias_row_code), status_bg(row_status(ltf_bias_row_code)), txt)
+    dashboard_row(smc_dashboard, 38, "LTF Delta", decode_ltf_delta_text(ltf_delta_row_code), status_bg(row_status(ltf_delta_row_code)), txt)
+    dashboard_row(smc_dashboard, 39, "Objects", decode_objects_text(objects_row_code), status_bg(row_status(objects_row_code)), txt)
+    dashboard_row(smc_dashboard, 40, "Swing H/L", decode_swing_text(swing_row_code), status_bg(row_status(swing_row_code)), txt)
+    dashboard_row(smc_dashboard, 41, "Long Zones", zone_reason_text(row_reason(long_zones_row_code)), status_bg(row_status(long_zones_row_code)), txt)
+    dashboard_row(smc_dashboard, 42, "Long Triggers", trigger_text(row_status(long_triggers_row_code) == 5, src_trigger, src_invalidation), status_bg(row_status(long_triggers_row_code)), txt)
+    dashboard_row(smc_dashboard, 43, "Micro Profile", decode_micro_profile_text(micro_profile_row_code, micro_modifier_mask), status_bg(row_status(micro_profile_row_code)), txt)
+    dashboard_row(smc_dashboard, 44, "Risk Plan", plan_text(row_status(risk_plan_row_code) == 5, src_trigger, src_stop_level, src_target_1, src_target_2), status_bg(row_status(risk_plan_row_code)), txt)
+    section_row(smc_dashboard, 45, "[ Engine ]", header_bg, txt)
+    dashboard_row(smc_dashboard, 46, "Ready Gate", decode_ready_gate_text(ready_gate_row_code), status_bg(row_status(ready_gate_row_code)), txt)
+    dashboard_row(smc_dashboard, 47, "Strict Gate", decode_strict_gate_text(strict_gate_row_code), status_bg(row_status(strict_gate_row_code)), txt)
+    dashboard_row(smc_dashboard, 48, "Debug Flags", decode_debug_flags_text(debug_flags_row_code), status_bg(row_status(debug_flags_row_code)), txt)
+    dashboard_row(smc_dashboard, 49, "Long Debug", long_debug_text, status_bg(row_status(long_debug_row_code)), txt)
 else if barstate.islast
-    table.clear(smc_dashboard, 0, 0, 1, 48)
+    table.clear(smc_dashboard, 0, 0, 1, 49)
