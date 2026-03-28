@@ -1,4 +1,4 @@
-"""Tests for scripts/smc_alert_notifier.py — v4 signal alert rules + suppression."""
+"""Tests for scripts/smc_alert_notifier.py — v5 event-risk aware alert rules + suppression."""
 
 from __future__ import annotations
 
@@ -9,6 +9,12 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from scripts.smc_alert_notifier import (
+    RULE_EVENT_COOLDOWN_END,
+    RULE_EVENT_COOLDOWN_START,
+    RULE_EVENT_INCOMING,
+    RULE_EVENT_MARKET_BLOCKED,
+    RULE_EVENT_RELEASE,
+    RULE_EVENT_SYMBOL_BLOCKED,
     RULE_MACRO_EVENT,
     RULE_PROVIDER_DEGRADED,
     RULE_RISK_OFF,
@@ -39,6 +45,15 @@ def _pine_content(**overrides: str) -> str:
         "GLOBAL_HEAT": "0.3",
         "PROVIDER_COUNT": "3",
         "STALE_PROVIDERS": "",
+        "EVENT_WINDOW_STATE": "CLEAR",
+        "EVENT_RISK_LEVEL": "NONE",
+        "NEXT_EVENT_NAME": "",
+        "NEXT_EVENT_TIME": "",
+        "NEXT_EVENT_IMPACT": "NONE",
+        "MARKET_EVENT_BLOCKED": "false",
+        "SYMBOL_EVENT_BLOCKED": "false",
+        "EVENT_COOLDOWN_ACTIVE": "false",
+        "EARNINGS_SOON_TICKERS": "",
     }
     defaults.update(overrides)
     lines = ['//@version=6', 'library("smc_micro_profiles_generated")', ""]
@@ -69,6 +84,15 @@ def _state_from(**overrides: str) -> dict[str, str]:
         "GLOBAL_HEAT": "0.3",
         "PROVIDER_COUNT": "3",
         "STALE_PROVIDERS": "",
+        "EVENT_WINDOW_STATE": "CLEAR",
+        "EVENT_RISK_LEVEL": "NONE",
+        "NEXT_EVENT_NAME": "",
+        "NEXT_EVENT_TIME": "",
+        "NEXT_EVENT_IMPACT": "NONE",
+        "MARKET_EVENT_BLOCKED": "false",
+        "SYMBOL_EVENT_BLOCKED": "false",
+        "EVENT_COOLDOWN_ACTIVE": "false",
+        "EARNINGS_SOON_TICKERS": "",
     }
     defaults.update(overrides)
     return defaults
@@ -136,8 +160,8 @@ class TestNoAlert:
         state = _state_from(PROVIDER_COUNT="3", STALE_PROVIDERS="")
         assert evaluate_alerts(state, provider_alerts_enabled=True) == []
 
-    def test_macro_false_no_alert(self) -> None:
-        state = _state_from(HIGH_IMPACT_MACRO_TODAY="false")
+    def test_no_alerts_with_clear_event_state(self) -> None:
+        state = _state_from(EVENT_WINDOW_STATE="CLEAR")
         assert evaluate_alerts(state) == []
 
 
@@ -214,6 +238,197 @@ class TestProviderDegradedAlert:
         assert "fmp_vix,fmp_news" in degraded[0]["detail"]
 
 
+# ── Alert evaluation: event-risk incoming ─────────────────────────
+
+class TestEventIncomingAlert:
+    def test_pre_event_high_fires(self) -> None:
+        state = _state_from(
+            EVENT_WINDOW_STATE="PRE_EVENT",
+            EVENT_RISK_LEVEL="HIGH",
+            NEXT_EVENT_NAME="FOMC Rate Decision",
+            NEXT_EVENT_TIME="14:00",
+        )
+        alerts = evaluate_alerts(state)
+        incoming = [a for a in alerts if a["rule"] == RULE_EVENT_INCOMING]
+        assert len(incoming) == 1
+        assert incoming[0]["severity"] == "warning"
+        assert "HIGH" in incoming[0]["title"]
+        assert "FOMC" in incoming[0]["detail"]
+        assert "14:00" in incoming[0]["detail"]
+
+    def test_pre_event_elevated_fires(self) -> None:
+        state = _state_from(
+            EVENT_WINDOW_STATE="PRE_EVENT",
+            EVENT_RISK_LEVEL="ELEVATED",
+            NEXT_EVENT_NAME="CPI",
+            NEXT_EVENT_TIME="08:30",
+        )
+        alerts = evaluate_alerts(state)
+        incoming = [a for a in alerts if a["rule"] == RULE_EVENT_INCOMING]
+        assert len(incoming) == 1
+
+    def test_pre_event_low_no_alert(self) -> None:
+        state = _state_from(
+            EVENT_WINDOW_STATE="PRE_EVENT",
+            EVENT_RISK_LEVEL="LOW",
+        )
+        alerts = evaluate_alerts(state)
+        incoming = [a for a in alerts if a["rule"] == RULE_EVENT_INCOMING]
+        assert incoming == []
+
+    def test_pre_event_none_risk_no_alert(self) -> None:
+        state = _state_from(
+            EVENT_WINDOW_STATE="PRE_EVENT",
+            EVENT_RISK_LEVEL="NONE",
+        )
+        alerts = evaluate_alerts(state)
+        incoming = [a for a in alerts if a["rule"] == RULE_EVENT_INCOMING]
+        assert incoming == []
+
+
+# ── Alert evaluation: event release window ────────────────────────
+
+class TestEventReleaseAlert:
+    def test_active_window_fires(self) -> None:
+        state = _state_from(
+            EVENT_WINDOW_STATE="ACTIVE",
+            NEXT_EVENT_NAME="NFP",
+            NEXT_EVENT_TIME="08:30",
+        )
+        alerts = evaluate_alerts(state)
+        release = [a for a in alerts if a["rule"] == RULE_EVENT_RELEASE]
+        assert len(release) == 1
+        assert release[0]["severity"] == "warning"
+        assert "NFP" in release[0]["detail"]
+
+    def test_clear_window_no_release(self) -> None:
+        state = _state_from(EVENT_WINDOW_STATE="CLEAR")
+        alerts = evaluate_alerts(state)
+        release = [a for a in alerts if a["rule"] == RULE_EVENT_RELEASE]
+        assert release == []
+
+
+# ── Alert evaluation: cooldown start / end ────────────────────────
+
+class TestEventCooldownAlerts:
+    def test_cooldown_window_fires_start(self) -> None:
+        state = _state_from(
+            EVENT_WINDOW_STATE="COOLDOWN",
+            EVENT_COOLDOWN_ACTIVE="true",
+            NEXT_EVENT_NAME="FOMC",
+            NEXT_EVENT_TIME="14:00",
+        )
+        alerts = evaluate_alerts(state)
+        cd = [a for a in alerts if a["rule"] == RULE_EVENT_COOLDOWN_START]
+        assert len(cd) == 1
+        assert cd[0]["severity"] == "info"
+
+    def test_cooldown_active_without_window_fires(self) -> None:
+        state = _state_from(
+            EVENT_WINDOW_STATE="CLEAR",
+            EVENT_COOLDOWN_ACTIVE="true",
+        )
+        alerts = evaluate_alerts(state)
+        cd = [a for a in alerts if a["rule"] == RULE_EVENT_COOLDOWN_START]
+        assert len(cd) == 1
+
+    def test_cooldown_end_fires_on_transition(self) -> None:
+        state = _state_from(
+            EVENT_WINDOW_STATE="CLEAR",
+            EVENT_COOLDOWN_ACTIVE="false",
+        )
+        prev = {
+            "EVENT_WINDOW_STATE": "COOLDOWN",
+            "EVENT_COOLDOWN_ACTIVE": "true",
+        }
+        alerts = evaluate_alerts(state, previous_event_state=prev)
+        end = [a for a in alerts if a["rule"] == RULE_EVENT_COOLDOWN_END]
+        assert len(end) == 1
+        assert end[0]["severity"] == "info"
+        assert "clear" in end[0]["title"].lower()
+
+    def test_cooldown_end_from_active_window(self) -> None:
+        state = _state_from(
+            EVENT_WINDOW_STATE="CLEAR",
+            EVENT_COOLDOWN_ACTIVE="false",
+        )
+        prev = {"EVENT_WINDOW_STATE": "ACTIVE", "EVENT_COOLDOWN_ACTIVE": "false"}
+        alerts = evaluate_alerts(state, previous_event_state=prev)
+        end = [a for a in alerts if a["rule"] == RULE_EVENT_COOLDOWN_END]
+        assert len(end) == 1
+
+    def test_no_cooldown_end_when_still_clear(self) -> None:
+        state = _state_from()
+        prev = {"EVENT_WINDOW_STATE": "CLEAR", "EVENT_COOLDOWN_ACTIVE": "false"}
+        alerts = evaluate_alerts(state, previous_event_state=prev)
+        end = [a for a in alerts if a["rule"] == RULE_EVENT_COOLDOWN_END]
+        assert end == []
+
+
+# ── Alert evaluation: market event blocked ────────────────────────
+
+class TestEventMarketBlockedAlert:
+    def test_market_blocked_fires(self) -> None:
+        state = _state_from(
+            MARKET_EVENT_BLOCKED="true",
+            NEXT_EVENT_NAME="FOMC",
+            NEXT_EVENT_TIME="14:00",
+            EVENT_RISK_LEVEL="HIGH",
+            NEXT_EVENT_IMPACT="HIGH",
+        )
+        alerts = evaluate_alerts(state)
+        blocked = [a for a in alerts if a["rule"] == RULE_EVENT_MARKET_BLOCKED]
+        assert len(blocked) == 1
+        assert blocked[0]["severity"] == "critical"
+        assert "FOMC" in blocked[0]["detail"]
+        assert "HIGH" in blocked[0]["detail"]
+
+    def test_market_not_blocked_no_alert(self) -> None:
+        state = _state_from(MARKET_EVENT_BLOCKED="false")
+        alerts = evaluate_alerts(state)
+        blocked = [a for a in alerts if a["rule"] == RULE_EVENT_MARKET_BLOCKED]
+        assert blocked == []
+
+
+# ── Alert evaluation: symbol event blocked ────────────────────────
+
+class TestEventSymbolBlockedAlert:
+    def test_symbol_blocked_fires(self) -> None:
+        state = _state_from(
+            SYMBOL_EVENT_BLOCKED="true",
+            EARNINGS_SOON_TICKERS="AAPL,MSFT",
+        )
+        alerts = evaluate_alerts(state)
+        blocked = [a for a in alerts if a["rule"] == RULE_EVENT_SYMBOL_BLOCKED]
+        assert len(blocked) == 1
+        assert blocked[0]["severity"] == "critical"
+        assert "AAPL,MSFT" in blocked[0]["detail"]
+
+    def test_symbol_not_blocked_no_alert(self) -> None:
+        state = _state_from(SYMBOL_EVENT_BLOCKED="false")
+        alerts = evaluate_alerts(state)
+        blocked = [a for a in alerts if a["rule"] == RULE_EVENT_SYMBOL_BLOCKED]
+        assert blocked == []
+
+
+# ── V5 neutral defaults preserve v4 behavior ─────────────────────
+
+class TestV5NeutralDefaults:
+    def test_clear_defaults_produce_no_event_alerts(self) -> None:
+        state = _state_from()
+        alerts = evaluate_alerts(state)
+        event_rules = {
+            RULE_EVENT_INCOMING,
+            RULE_EVENT_RELEASE,
+            RULE_EVENT_COOLDOWN_START,
+            RULE_EVENT_COOLDOWN_END,
+            RULE_EVENT_MARKET_BLOCKED,
+            RULE_EVENT_SYMBOL_BLOCKED,
+        }
+        event_alerts = [a for a in alerts if a["rule"] in event_rules]
+        assert event_alerts == []
+
+
 # ── Alert evaluation: multiple simultaneous ───────────────────────
 
 class TestMultipleAlerts:
@@ -230,6 +445,26 @@ class TestMultipleAlerts:
 
 # ── Duplicate suppression ─────────────────────────────────────────
 
+_BASE_FP = {
+    "MARKET_REGIME": "NEUTRAL",
+    "HIGH_IMPACT_MACRO_TODAY": "false",
+    "TRADE_STATE": "ALLOWED",
+    "PROVIDER_COUNT": "3",
+    "STALE_PROVIDERS": "",
+    "EVENT_WINDOW_STATE": "CLEAR",
+    "EVENT_RISK_LEVEL": "NONE",
+    "EVENT_COOLDOWN_ACTIVE": "false",
+    "MARKET_EVENT_BLOCKED": "false",
+    "SYMBOL_EVENT_BLOCKED": "false",
+    "NEXT_EVENT_NAME": "",
+    "NEXT_EVENT_TIME": "",
+}
+
+
+def _fp(**overrides: str) -> dict[str, str]:
+    return {**_BASE_FP, **overrides}
+
+
 class TestDuplicateSuppression:
     def test_first_run_sends_everything(self) -> None:
         state = _state_from(MARKET_REGIME="RISK_OFF")
@@ -240,55 +475,68 @@ class TestDuplicateSuppression:
     def test_same_state_suppresses(self) -> None:
         state = _state_from(MARKET_REGIME="RISK_OFF")
         alerts = evaluate_alerts(state)
-        prev_fp = {
-            "MARKET_REGIME": "RISK_OFF",
-            "HIGH_IMPACT_MACRO_TODAY": "false",
-            "TRADE_STATE": "ALLOWED",
-            "PROVIDER_COUNT": "3",
-            "STALE_PROVIDERS": "",
-        }
-        result = suppress_duplicates(alerts, state, prev_fp)
+        result = suppress_duplicates(alerts, state, _fp(MARKET_REGIME="RISK_OFF"))
         assert result == []
 
     def test_changed_regime_fires(self) -> None:
         state = _state_from(MARKET_REGIME="RISK_OFF")
         alerts = evaluate_alerts(state)
-        prev_fp = {
-            "MARKET_REGIME": "NEUTRAL",
-            "HIGH_IMPACT_MACRO_TODAY": "false",
-            "TRADE_STATE": "ALLOWED",
-            "PROVIDER_COUNT": "3",
-            "STALE_PROVIDERS": "",
-        }
-        result = suppress_duplicates(alerts, state, prev_fp)
+        result = suppress_duplicates(alerts, state, _fp(MARKET_REGIME="NEUTRAL"))
         assert len(result) == 1
         assert result[0]["rule"] == RULE_RISK_OFF
 
     def test_macro_transition_fires(self) -> None:
         state = _state_from(HIGH_IMPACT_MACRO_TODAY="true")
         alerts = evaluate_alerts(state)
-        prev_fp = {
-            "MARKET_REGIME": "NEUTRAL",
-            "HIGH_IMPACT_MACRO_TODAY": "false",
-            "TRADE_STATE": "ALLOWED",
-            "PROVIDER_COUNT": "3",
-            "STALE_PROVIDERS": "",
-        }
-        result = suppress_duplicates(alerts, state, prev_fp)
+        result = suppress_duplicates(alerts, state, _fp())
         assert len(result) == 1
 
     def test_provider_change_fires(self) -> None:
         state = _state_from(STALE_PROVIDERS="fmp_vix")
         alerts = evaluate_alerts(state, provider_alerts_enabled=True)
-        prev_fp = {
-            "MARKET_REGIME": "NEUTRAL",
-            "HIGH_IMPACT_MACRO_TODAY": "false",
-            "TRADE_STATE": "ALLOWED",
-            "PROVIDER_COUNT": "3",
-            "STALE_PROVIDERS": "",
-        }
-        result = suppress_duplicates(alerts, state, prev_fp)
+        result = suppress_duplicates(alerts, state, _fp())
         assert len(result) == 1
+
+    def test_event_incoming_suppressed_when_unchanged(self) -> None:
+        state = _state_from(
+            EVENT_WINDOW_STATE="PRE_EVENT",
+            EVENT_RISK_LEVEL="HIGH",
+            NEXT_EVENT_NAME="FOMC",
+        )
+        alerts = evaluate_alerts(state)
+        prev = _fp(
+            EVENT_WINDOW_STATE="PRE_EVENT",
+            EVENT_RISK_LEVEL="HIGH",
+        )
+        result = suppress_duplicates(alerts, state, prev)
+        incoming = [a for a in result if a["rule"] == RULE_EVENT_INCOMING]
+        assert incoming == []
+
+    def test_event_incoming_fires_on_window_change(self) -> None:
+        state = _state_from(
+            EVENT_WINDOW_STATE="PRE_EVENT",
+            EVENT_RISK_LEVEL="HIGH",
+            NEXT_EVENT_NAME="FOMC",
+        )
+        alerts = evaluate_alerts(state)
+        result = suppress_duplicates(alerts, state, _fp(EVENT_WINDOW_STATE="CLEAR"))
+        incoming = [a for a in result if a["rule"] == RULE_EVENT_INCOMING]
+        assert len(incoming) == 1
+
+    def test_market_blocked_suppressed_when_unchanged(self) -> None:
+        state = _state_from(MARKET_EVENT_BLOCKED="true")
+        alerts = evaluate_alerts(state)
+        prev = _fp(MARKET_EVENT_BLOCKED="true")
+        result = suppress_duplicates(alerts, state, prev)
+        blocked = [a for a in result if a["rule"] == RULE_EVENT_MARKET_BLOCKED]
+        assert blocked == []
+
+    def test_market_blocked_fires_on_change(self) -> None:
+        state = _state_from(MARKET_EVENT_BLOCKED="true")
+        alerts = evaluate_alerts(state)
+        result = suppress_duplicates(alerts, state, _fp())
+        blocked = [a for a in result if a["rule"] == RULE_EVENT_MARKET_BLOCKED]
+        assert len(blocked) == 1
 
 
 # ── Fingerprint persistence ──────────────────────────────────────
@@ -300,6 +548,19 @@ class TestFingerprint:
         save_fingerprint(fp_path, state)
         loaded = load_previous_fingerprint(fp_path)
         assert loaded["MARKET_REGIME"] == "RISK_OFF"
+
+    def test_save_includes_event_risk_fields(self, tmp_path: Path) -> None:
+        fp_path = tmp_path / "fp.json"
+        state = _state_from(
+            EVENT_WINDOW_STATE="PRE_EVENT",
+            EVENT_RISK_LEVEL="HIGH",
+            MARKET_EVENT_BLOCKED="true",
+        )
+        save_fingerprint(fp_path, state)
+        loaded = load_previous_fingerprint(fp_path)
+        assert loaded["EVENT_WINDOW_STATE"] == "PRE_EVENT"
+        assert loaded["EVENT_RISK_LEVEL"] == "HIGH"
+        assert loaded["MARKET_EVENT_BLOCKED"] == "true"
 
     def test_load_missing_returns_empty(self, tmp_path: Path) -> None:
         assert load_previous_fingerprint(tmp_path / "nope.json") == {}
@@ -327,6 +588,11 @@ class TestFormatMessage:
         alerts = [{"severity": "warning", "title": "Warn", "detail": "d"}]
         msg = _format_message(alerts, "T")
         assert "🟡" in msg
+
+    def test_info_icon(self) -> None:
+        alerts = [{"severity": "info", "title": "Info", "detail": "d"}]
+        msg = _format_message(alerts, "T")
+        assert "ℹ️" in msg
 
 
 # ── End-to-end via CLI ────────────────────────────────────────────

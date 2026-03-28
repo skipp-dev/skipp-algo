@@ -1,4 +1,4 @@
-"""SMC Alert Notifier — v4 signal alerting for generated library state changes.
+"""SMC Alert Notifier — v5 event-risk aware alerting for generated library state changes.
 
 Reads the generated Pine library (or its accompanying manifest) and fires
 alerts when critical state changes are detected:
@@ -7,6 +7,8 @@ alerts when critical state changes are detected:
 - HIGH_IMPACT_MACRO_TODAY = true
 - TRADE_STATE → BLOCKED
 - Provider count drops to zero or stale providers appear
+- EVENT_WINDOW_STATE transitions (PRE_EVENT, COOLDOWN, CLEAR)
+- MARKET_EVENT_BLOCKED / SYMBOL_EVENT_BLOCKED activated
 
 Duplicate suppression: a tiny JSON state file tracks the last-alerted values.
 An alert only fires when the relevant field *changes* relative to the
@@ -39,6 +41,12 @@ RULE_RISK_OFF = "risk_off"
 RULE_MACRO_EVENT = "macro_event"
 RULE_TRADE_BLOCKED = "trade_blocked"
 RULE_PROVIDER_DEGRADED = "provider_degraded"
+RULE_EVENT_INCOMING = "event_incoming"
+RULE_EVENT_RELEASE = "event_release"
+RULE_EVENT_COOLDOWN_START = "event_cooldown_start"
+RULE_EVENT_COOLDOWN_END = "event_cooldown_end"
+RULE_EVENT_MARKET_BLOCKED = "event_market_blocked"
+RULE_EVENT_SYMBOL_BLOCKED = "event_symbol_blocked"
 
 
 def _parse_pine_exports(text: str) -> dict[str, str]:
@@ -77,11 +85,17 @@ def evaluate_alerts(
     state: dict[str, str],
     *,
     provider_alerts_enabled: bool = False,
+    previous_event_state: dict[str, str] | None = None,
 ) -> list[dict[str, Any]]:
     """Return a list of alert dicts for any triggered rules.
 
     Each alert dict has keys: ``rule``, ``severity``, ``title``, ``detail``.
+
+    *previous_event_state* is needed to detect cooldown-end transitions;
+    pass the previous fingerprint or ``{}`` for first run.
     """
+    if previous_event_state is None:
+        previous_event_state = {}
     alerts: list[dict[str, Any]] = []
 
     regime = state.get("MARKET_REGIME", "NEUTRAL")
@@ -126,6 +140,70 @@ def evaluate_alerts(
                           f"Stale={stale or 'none'}",
             })
 
+    # ── v5 Event-risk rules ───────────────────────────────────────
+    window_state = state.get("EVENT_WINDOW_STATE", "CLEAR")
+    risk_level = state.get("EVENT_RISK_LEVEL", "NONE")
+    next_name = state.get("NEXT_EVENT_NAME", "")
+    next_time = state.get("NEXT_EVENT_TIME", "")
+    next_impact = state.get("NEXT_EVENT_IMPACT", "NONE")
+    market_blocked = _to_bool(state.get("MARKET_EVENT_BLOCKED", "false"))
+    symbol_blocked = _to_bool(state.get("SYMBOL_EVENT_BLOCKED", "false"))
+
+    event_detail = f"{next_name} at {next_time}" if next_name else "Details unavailable"
+
+    if market_blocked:
+        alerts.append({
+            "rule": RULE_EVENT_MARKET_BLOCKED,
+            "severity": "critical",
+            "title": "Market-wide event block active",
+            "detail": f"{event_detail} | Impact={next_impact}, Risk={risk_level}",
+        })
+
+    if symbol_blocked:
+        tickers = state.get("EARNINGS_SOON_TICKERS", "")
+        alerts.append({
+            "rule": RULE_EVENT_SYMBOL_BLOCKED,
+            "severity": "critical",
+            "title": "Symbol event block active",
+            "detail": f"Tickers={tickers or '?'} | {event_detail}",
+        })
+
+    if window_state == "PRE_EVENT" and risk_level in ("HIGH", "ELEVATED"):
+        alerts.append({
+            "rule": RULE_EVENT_INCOMING,
+            "severity": "warning",
+            "title": f"High-impact event incoming ({risk_level})",
+            "detail": event_detail,
+        })
+
+    if window_state == "ACTIVE":
+        alerts.append({
+            "rule": RULE_EVENT_RELEASE,
+            "severity": "warning",
+            "title": "Event release window active",
+            "detail": event_detail,
+        })
+
+    cooldown_active = _to_bool(state.get("EVENT_COOLDOWN_ACTIVE", "false"))
+    if window_state == "COOLDOWN" or cooldown_active:
+        alerts.append({
+            "rule": RULE_EVENT_COOLDOWN_START,
+            "severity": "info",
+            "title": "Event cooldown started",
+            "detail": event_detail,
+        })
+
+    if window_state == "CLEAR" and not cooldown_active and not market_blocked and not symbol_blocked:
+        prev_window = previous_event_state.get("EVENT_WINDOW_STATE", "CLEAR")
+        prev_cooldown = previous_event_state.get("EVENT_COOLDOWN_ACTIVE", "false")
+        if prev_window in ("COOLDOWN", "ACTIVE") or prev_cooldown == "true":
+            alerts.append({
+                "rule": RULE_EVENT_COOLDOWN_END,
+                "severity": "info",
+                "title": "Event cooldown ended — trading clear",
+                "detail": "All event restrictions lifted",
+            })
+
     return alerts
 
 
@@ -137,6 +215,13 @@ _TRACKED_FIELDS = [
     "TRADE_STATE",
     "PROVIDER_COUNT",
     "STALE_PROVIDERS",
+    "EVENT_WINDOW_STATE",
+    "EVENT_RISK_LEVEL",
+    "EVENT_COOLDOWN_ACTIVE",
+    "MARKET_EVENT_BLOCKED",
+    "SYMBOL_EVENT_BLOCKED",
+    "NEXT_EVENT_NAME",
+    "NEXT_EVENT_TIME",
 ]
 
 
@@ -187,6 +272,26 @@ def suppress_duplicates(
                 or current_fp.get("STALE_PROVIDERS") != previous_fp.get("STALE_PROVIDERS")
             ):
                 kept.append(alert)
+        elif rule in (
+            RULE_EVENT_INCOMING,
+            RULE_EVENT_RELEASE,
+            RULE_EVENT_COOLDOWN_START,
+            RULE_EVENT_COOLDOWN_END,
+            RULE_EVENT_MARKET_BLOCKED,
+            RULE_EVENT_SYMBOL_BLOCKED,
+        ):
+            event_keys = (
+                "EVENT_WINDOW_STATE",
+                "EVENT_RISK_LEVEL",
+                "EVENT_COOLDOWN_ACTIVE",
+                "MARKET_EVENT_BLOCKED",
+                "SYMBOL_EVENT_BLOCKED",
+            )
+            if any(
+                current_fp.get(k) != previous_fp.get(k)
+                for k in event_keys
+            ):
+                kept.append(alert)
         else:
             kept.append(alert)  # unknown rule — always send
     return kept
@@ -197,7 +302,8 @@ def suppress_duplicates(
 def _format_message(alerts: list[dict[str, Any]], ts: str) -> str:
     lines = [f"🔔 SMC Library Alert — {ts}", ""]
     for a in alerts:
-        icon = "🔴" if a["severity"] == "critical" else "🟡"
+        sev = a["severity"]
+        icon = "🔴" if sev == "critical" else "🟡" if sev == "warning" else "ℹ️"
         lines.append(f"{icon} {a['title']}")
         lines.append(f"   {a['detail']}")
         lines.append("")
@@ -309,16 +415,19 @@ def main() -> int:
         logger.warning("Empty library state — nothing to evaluate.")
         return 0
 
+    state_path = Path(args.state_file)
+    prev_fp = load_previous_fingerprint(state_path)
+
     raw_alerts = evaluate_alerts(
         state,
         provider_alerts_enabled=args.provider_alerts,
+        previous_event_state=prev_fp,
     )
     if not raw_alerts:
         logger.info("No alert conditions detected.")
+        save_fingerprint(state_path, state)
         return 0
 
-    state_path = Path(args.state_file)
-    prev_fp = load_previous_fingerprint(state_path)
     alerts = suppress_duplicates(raw_alerts, state, prev_fp)
 
     # Always persist current fingerprint
