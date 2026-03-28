@@ -129,6 +129,17 @@ def evaluate_governance(
 
     allowed = is_initial or auto_commit_allowed(effective_change)
 
+    # Cross-check: if the manifest itself already says auto_commit_allowed
+    # is false, honor that (fail-closed).  The generator embeds this field
+    # at render time, so it's the earliest governance signal.
+    manifest_allowed = new_manifest.get("auto_commit_allowed")
+    if manifest_allowed is False and allowed:
+        allowed = False
+        reasons.append(
+            "manifest auto_commit_allowed=false overrides computed decision (fail-closed)"
+        )
+        effective_change = VersionChangeType.MAJOR
+
     return {
         "schema_version_old": old_schema,
         "schema_version_new": new_schema,
@@ -136,6 +147,7 @@ def evaluate_governance(
         "effective_change_type": effective_change.value,
         "auto_commit_allowed": allowed,
         "pr_required": not allowed,
+        "manifest_auto_commit_allowed": manifest_allowed,
         "field_version_old": old_field_ver,
         "field_version_new": new_field_ver,
         "field_count_old": old_field_count,

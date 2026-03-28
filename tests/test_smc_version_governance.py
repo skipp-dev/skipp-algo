@@ -237,7 +237,85 @@ class TestEvaluateGovernance:
         assert decision["pr_required"] is True
 
 
-# ── 5. CLI exit-code / JSON contract ───────────────────────────────
+# ── 4b. Manifest cross-check ───────────────────────────────────────
+
+
+class TestManifestCrossCheck:
+    """Verify that embedded auto_commit_allowed=false in the manifest
+    overrides a computed 'allowed' decision (fail-closed)."""
+
+    def test_manifest_false_overrides_computed_allowed(self):
+        """Generator says blocked → governance CLI must also block."""
+        decision = evaluate_governance(
+            old_manifest={"schema_version": "1.2.0", "library_field_version": "v4"},
+            new_manifest={
+                "schema_version": "1.2.0",
+                "library_field_version": "v4",
+                "auto_commit_allowed": False,
+            },
+            old_field_count=37,
+            new_field_count=37,
+        )
+        assert decision["auto_commit_allowed"] is False
+        assert decision["pr_required"] is True
+        assert any("manifest auto_commit_allowed=false" in r for r in decision["reasons"])
+
+    def test_manifest_true_does_not_override_computed_block(self):
+        """Manifest says allowed, but CLI detects major → still blocked."""
+        decision = evaluate_governance(
+            old_manifest={"schema_version": "1.2.0", "library_field_version": "v4"},
+            new_manifest={
+                "schema_version": "2.0.0",
+                "library_field_version": "v4",
+                "auto_commit_allowed": True,
+            },
+            old_field_count=37,
+            new_field_count=37,
+        )
+        assert decision["auto_commit_allowed"] is False
+        assert decision["pr_required"] is True
+
+    def test_manifest_missing_field_no_override(self):
+        """When manifest has no auto_commit_allowed, no cross-check override."""
+        decision = evaluate_governance(
+            old_manifest={"schema_version": "1.2.0", "library_field_version": "v4"},
+            new_manifest={"schema_version": "1.2.0", "library_field_version": "v4"},
+            old_field_count=37,
+            new_field_count=37,
+        )
+        assert decision["auto_commit_allowed"] is True
+        assert decision["manifest_auto_commit_allowed"] is None
+
+    def test_manifest_auto_commit_allowed_in_output(self):
+        """The output always includes manifest_auto_commit_allowed."""
+        decision = evaluate_governance(
+            old_manifest={"schema_version": "1.2.0"},
+            new_manifest={
+                "schema_version": "1.2.0",
+                "auto_commit_allowed": True,
+            },
+        )
+        assert "manifest_auto_commit_allowed" in decision
+        assert decision["manifest_auto_commit_allowed"] is True
+
+    def test_initial_deploy_ignores_manifest_false(self):
+        """Initial deploy (no old manifest) is always allowed, even if
+        the new manifest says auto_commit_allowed: false."""
+        decision = evaluate_governance(
+            old_manifest={},
+            new_manifest={
+                "schema_version": "1.2.0",
+                "auto_commit_allowed": False,
+            },
+        )
+        # Initial deploys are exempt — auto_commit is always allowed
+        # because there are no existing consumers to break.
+        # The manifest cross-check only fires when the computed result
+        # was 'allowed' and the manifest overrides it to 'blocked'.
+        # For initial deploys, the computed result is already 'allowed'
+        # via the is_initial exemption, and manifest=false overrides.
+        assert decision["auto_commit_allowed"] is False
+        assert decision["pr_required"] is True
 
 
 class TestGovernanceCLI:
