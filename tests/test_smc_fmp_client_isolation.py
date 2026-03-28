@@ -1,9 +1,10 @@
-"""Tests proving the v4 pipeline runs without importing open_prep.
+"""Tests proving the v5 pipeline runs without importing open_prep.
 
 Validates:
 - SMCFMPClient is method-compatible with the provider-policy adapters
-- build_enrichment() never imports open_prep
+- build_enrichment() never imports open_prep (including event-risk path)
 - The standalone client handles errors identically to the original
+- All v5 canonical modules are open_prep-free
 """
 
 from __future__ import annotations
@@ -112,6 +113,53 @@ class TestNoOpenPrepImport:
             sys.meta_path.remove(blocker)
             sys.modules.update(saved)
 
+    def test_build_enrichment_event_risk_without_open_prep(self):
+        """build_enrichment with enrich_event_risk=True works without open_prep."""
+        from scripts.smc_provider_policy import ProviderResult
+
+        def _mock_resolve(domain, **kw):
+            if domain == "calendar":
+                return ProviderResult(
+                    data={"earnings_today_tickers": "AAPL",
+                          "high_impact_macro_today": False},
+                    provider="fmp",
+                )
+            if domain == "news":
+                return ProviderResult(
+                    data={"bullish_tickers": [], "bearish_tickers": [],
+                          "neutral_tickers": [], "news_heat_global": 0.0,
+                          "ticker_heat_map": ""},
+                    provider="fmp",
+                )
+            return ProviderResult(data={"regime": "NEUTRAL"}, provider="fmp")
+
+        saved = {}
+        for key in list(sys.modules):
+            if key == "open_prep" or key.startswith("open_prep."):
+                saved[key] = sys.modules.pop(key)
+
+        blocker = _ImportBlocker("open_prep")
+        sys.meta_path.insert(0, blocker)
+        try:
+            with patch("scripts.smc_provider_policy.resolve_domain", side_effect=_mock_resolve):
+                from scripts.generate_smc_micro_base_from_databento import build_enrichment
+
+                result = build_enrichment(
+                    fmp_api_key="test",
+                    symbols=["AAPL"],
+                    enrich_regime=True,
+                    enrich_news=True,
+                    enrich_calendar=True,
+                    enrich_event_risk=True,
+                )
+                assert result is not None
+                assert "event_risk" in result
+                assert result["event_risk"]["EVENT_PROVIDER_STATUS"] == "ok"
+                assert result["providers"]["event_risk_provider"] == "smc_event_risk_builder"
+        finally:
+            sys.meta_path.remove(blocker)
+            sys.modules.update(saved)
+
     def test_provider_policy_has_no_open_prep_imports(self):
         """smc_provider_policy.py never references open_prep."""
         import scripts.smc_provider_policy as mod
@@ -124,26 +172,29 @@ class TestNoOpenPrepImport:
 
 # ── 2b. Canonical v4 modules contain no open_prep imports ──────
 
-# These are the four runtime modules the v4 doc requires to be canonical,
-# plus the orchestrator, profile generator, and all smc_core / smc_integration
-# packages.
+# These are the canonical runtime modules the v5 doc requires to be
+# open_prep-free, plus all smc_core / smc_integration packages.
 
-_V4_CANONICAL_MODULES = [
+_V5_CANONICAL_MODULES = [
     "scripts.smc_regime_classifier",
     "scripts.smc_news_scorer",
     "scripts.smc_calendar_collector",
     "scripts.smc_library_layering",
     "scripts.smc_fmp_client",
     "scripts.smc_provider_policy",
+    "scripts.smc_enrichment_types",
+    "scripts.smc_event_risk_builder",
+    "scripts.smc_alert_notifier",
     "scripts.generate_smc_micro_base_from_databento",
     "scripts.generate_smc_micro_profiles",
+    "scripts.smc_microstructure_base_runtime",
 ]
 
 
 class TestCanonicalModulesOpenPrepFree:
-    """Every canonical v4 runtime module is free of open_prep imports."""
+    """Every canonical v5 runtime module is free of open_prep imports."""
 
-    @pytest.mark.parametrize("module_name", _V4_CANONICAL_MODULES)
+    @pytest.mark.parametrize("module_name", _V5_CANONICAL_MODULES)
     def test_no_open_prep_import_statement(self, module_name: str):
         """Source scan: no ``from open_prep`` or ``import open_prep``."""
         import re
