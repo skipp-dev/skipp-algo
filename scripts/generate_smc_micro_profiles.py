@@ -745,8 +745,18 @@ def write_manifest(
     library_version: int,
     recommended_import_path: str,
     enrichment: EnrichmentDict | None = None,
+    relative_to: Path | None = None,
 ) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
+
+    def _rel(p: Path) -> str:
+        if relative_to is not None:
+            try:
+                return str(p.relative_to(relative_to))
+            except ValueError:
+                pass
+        return str(p)
+
     payload = {
         "schema_version": SCHEMA_VERSION,
         "asof_date": asof_date,
@@ -756,14 +766,14 @@ def write_manifest(
         "recommended_import_path": recommended_import_path,
         "library_publish_required": True,
         "deployment_note": "Publish the generated Pine library in TradingView before importing it into SMC_Core_Engine.",
-        "input_path": str(input_path),
-        "schema_path": str(schema_path),
-        "features_csv": str(features_path),
-        "lists_csv": str(lists_path),
-        "state_csv": str(state_path),
-        "diff_report_md": str(diff_report_path),
-        "pine_library": str(pine_path),
-        "core_import_snippet": str(core_import_snippet_path),
+        "input_path": _rel(input_path),
+        "schema_path": _rel(schema_path),
+        "features_csv": _rel(features_path),
+        "lists_csv": _rel(lists_path),
+        "state_csv": _rel(state_path),
+        "diff_report_md": _rel(diff_report_path),
+        "pine_library": _rel(pine_path),
+        "core_import_snippet": _rel(core_import_snippet_path),
         "universe_size": universe_size,
         "exported_lists": LIST_EXPORTS,
         "list_counts": {name: len(symbols) for name, symbols in lists.items()},

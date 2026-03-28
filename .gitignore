@@ -42,6 +42,13 @@ node_modules/
 
 # Databento generated cache/runtime artifacts
 artifacts/databento_volatility_cache/
+
+# Generator intermediate outputs (created by refresh_generated_artifacts)
+data/output/
+
+# Temporary structure artifacts from tests
+reports/_tmp_structure_*/
+reports/smc_structure_artifacts/
 artifacts/smc_microstructure_exports/
 artifacts/tradingview/*.json
 artifacts/ops_run_report.json

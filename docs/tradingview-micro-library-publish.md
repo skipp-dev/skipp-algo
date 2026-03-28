@@ -81,6 +81,27 @@ This produces a valid 37-field library with safe neutral defaults for all enrich
 ./.venv/bin/python scripts/generate_smc_micro_base_from_databento.py <bundle-or-workbook>
 ```
 
+### Checked-in Artifact Refresh
+
+The three artifacts under `pine/generated/` are version-controlled reference
+outputs generated from a deterministic seed fixture.  After any change to
+the generator code, refresh them:
+
+```bash
+python -m scripts.refresh_generated_artifacts
+```
+
+This runs `run_generation()` against `tests/fixtures/seed_base_snapshot.csv`
+with `enrichment=None` and overwrites:
+
+- `pine/generated/smc_micro_profiles_generated.pine`
+- `pine/generated/smc_micro_profiles_generated.json`
+- `pine/generated/smc_micro_profiles_core_import_snippet.pine`
+
+Commit the updated artifacts.  The anti-drift test
+`tests/test_generated_artifact_drift.py` fails if checked-in artifacts
+diverge from the generator output.
+
 ## Contract Check
 
 Run the contract verifier before any TradingView publish step:

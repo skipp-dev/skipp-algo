@@ -90,7 +90,7 @@
     "lists_csv": "data/output/microstructure_lists_{asof_date}.csv",
     "diff_report_md": "data/output/microstructure_diff_{asof_date}.md",
     "pine_library": "pine/generated/smc_micro_profiles_generated.pine",
-    "manifest_json": "pine/generated/smc_micro_profiles_manifest.json",
+    "manifest_json": "pine/generated/smc_micro_profiles_generated.json",
     "core_import_snippet": "pine/generated/smc_micro_profiles_core_import_snippet.pine"
   },
   "value_ranges": {

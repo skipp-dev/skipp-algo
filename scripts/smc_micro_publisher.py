@@ -84,6 +84,7 @@ def publish_generation_result(
         library_version=library_version,
         recommended_import_path=recommended_import_path,
         enrichment=enrichment,
+        relative_to=output_root,
     )
 
     return {
