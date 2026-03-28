@@ -1,4 +1,8 @@
-# Daily SMC Library Refresh
+# SMC Library Intraday Refresh (v4)
+#
+# Runs 4x per trading day at 12:30 / 14:30 / 16:30 / 18:30 UTC on weekdays.
+# Each run: generate → gate → detect changes → diff report → publish → commit.
+# Skips publish/version-bump/commit when the library content is unchanged.
 #
 # Required secrets:
 #   FMP_API_KEY        – Financial Modeling Prep API key (enrichment data)
@@ -11,9 +15,14 @@ name: smc-library-refresh
 
 on:
   schedule:
-    # Mo-Fr 12:30 UTC = 13:30 CET, before US pre-market
-    - cron: "30 12 * * 1-5"
+    - cron: "30 12 * * 1-5"   # 12:30 UTC – pre-market
+    - cron: "30 14 * * 1-5"   # 14:30 UTC – market open
+    - cron: "30 16 * * 1-5"   # 16:30 UTC – midday
+    - cron: "30 18 * * 1-5"   # 18:30 UTC – late session
   workflow_dispatch:
+
+env:
+  REFRESH_DATE: ""   # set dynamically in the date step
 
 jobs:
   refresh:
@@ -21,6 +30,12 @@ jobs:
     timeout-minutes: 30
 
     steps:
+      # ── Metadata ────────────────────────────────────────────────
+      - name: Set refresh date
+        run: |
+          echo "REFRESH_DATE=$(date -u +%Y-%m-%d)" >> "$GITHUB_ENV"
+          echo "REFRESH_TS=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_ENV"
+
       # ── Checkout ────────────────────────────────────────────────
       - name: Checkout
         uses: actions/checkout@v4
@@ -48,6 +63,15 @@ jobs:
 
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
+
+      # ── Snapshot pre-generation state ───────────────────────────
+      - name: Snapshot library before generation
+        run: |
+          if [ -f pine/generated/smc_micro_profiles_generated.pine ]; then
+            cp pine/generated/smc_micro_profiles_generated.pine /tmp/library_before.pine
+          else
+            touch /tmp/library_before.pine
+          fi
 
       # ── Library generation with enrichment ──────────────────────
       - name: Generate SMC library with enrichment
@@ -84,28 +108,50 @@ jobs:
             --input-glob "artifacts/ci/smc_*_report.json" \
             --output artifacts/ci/smc_refresh_evidence_summary.json
 
-      - name: Upload gate evidence
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: smc-library-refresh-evidence
-          path: |
-            artifacts/ci/
-            pine/generated/
-
       - name: Abort on gate failure
         if: steps.gates.outcome == 'failure'
         run: |
           echo "::error::Evidence gates failed — library will NOT be published."
+          echo "GATE_STATUS=failed" >> "$GITHUB_ENV"
           exit 1
 
-      # ── Publish to TradingView ──────────────────────────────────
+      # ── Change detection ────────────────────────────────────────
+      - name: Detect library changes
+        id: diff
+        run: |
+          LIBRARY="pine/generated/smc_micro_profiles_generated.pine"
+          if diff -q /tmp/library_before.pine "$LIBRARY" > /dev/null 2>&1; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Library content unchanged — skipping publish/commit."
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            # Generate unified diff report
+            mkdir -p artifacts/ci
+            diff -u /tmp/library_before.pine "$LIBRARY" \
+              > artifacts/ci/library_diff_${REFRESH_DATE}.patch || true
+            echo "::notice::Library content changed — proceeding to publish."
+          fi
+
+      # ── Dated artifact upload ───────────────────────────────────
+      - name: Upload gate evidence + library artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smc-refresh-${{ env.REFRESH_DATE }}-${{ github.run_number }}
+          path: |
+            artifacts/ci/
+            pine/generated/
+          retention-days: 90
+
+      # ── Publish to TradingView (skip when unchanged) ────────────
       - name: Write TradingView storage state
+        if: steps.diff.outputs.changed == 'true'
         run: |
           mkdir -p automation/tradingview/auth
           echo '${{ secrets.TV_STORAGE_STATE }}' > automation/tradingview/auth/storage-state.json
 
       - name: Publish library to TradingView
+        if: steps.diff.outputs.changed == 'true'
         env:
           TV_STORAGE_STATE: automation/tradingview/auth/storage-state.json
         run: |
@@ -114,16 +160,48 @@ jobs:
             --core SMC_Core_Engine.pine \
             --release-manifest artifacts/tradingview/library_release_manifest.json
 
-      # ── Version bump + commit ───────────────────────────────────
+      # ── Version bump + commit (skip when unchanged) ─────────────
       - name: Bump library version in SMC_Core_Engine.pine
+        if: steps.diff.outputs.changed == 'true'
         run: |
           NEW_VERSION=$(jq -r '.library_version' pine/generated/smc_micro_profiles_generated.json)
           sed -i "s|import preuss_steffen/smc_micro_profiles_generated/[0-9]*|import preuss_steffen/smc_micro_profiles_generated/${NEW_VERSION}|" SMC_Core_Engine.pine
 
       - name: Commit and push changes
+        if: steps.diff.outputs.changed == 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add pine/generated/ SMC_Core_Engine.pine
-          git diff --cached --quiet || git commit -m "chore: daily library refresh $(date -u +%Y-%m-%d)"
+          git diff --cached --quiet || git commit -m "chore: library refresh ${REFRESH_DATE} (run ${{ github.run_number }})"
           git push
+
+      # ── Status notification ─────────────────────────────────────
+      - name: Emit workflow summary
+        if: always()
+        run: |
+          {
+            echo "## SMC Library Refresh — ${REFRESH_TS}"
+            echo ""
+            echo "| Step | Status |"
+            echo "|------|--------|"
+            echo "| Generation | ${{ steps.gates.outcome != 'skipped' && '✅' || '❌ skipped' }} |"
+            echo "| Evidence gates | ${{ steps.gates.outcome == 'success' && '✅ passed' || '❌ failed' }} |"
+            echo "| Library changed | ${{ steps.diff.outputs.changed == 'true' && '✅ yes' || '⏭️ no' }} |"
+            if [ "${{ steps.diff.outputs.changed }}" = "true" ]; then
+              echo "| Publish | ✅ |"
+              echo "| Commit | ✅ |"
+            else
+              echo "| Publish | ⏭️ skipped (no changes) |"
+              echo "| Commit | ⏭️ skipped (no changes) |"
+            fi
+            echo ""
+            if [ -f artifacts/ci/library_diff_${REFRESH_DATE}.patch ]; then
+              echo "<details><summary>Library diff</summary>"
+              echo ""
+              echo '```diff'
+              head -200 "artifacts/ci/library_diff_${REFRESH_DATE}.patch"
+              echo '```'
+              echo "</details>"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
