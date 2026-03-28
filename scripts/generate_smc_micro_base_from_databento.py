@@ -268,15 +268,21 @@ def build_enrichment(
     enrich_news: bool = False,
     enrich_calendar: bool = False,
     enrich_layering: bool = False,
+    enrich_event_risk: bool = False,
     base_snapshot: pd.DataFrame | None = None,
     manifest_path: Path | None = None,
 ) -> EnrichmentDict | None:
-    """Build the enrichment dict using the v4 provider policy matrix.
+    """Build the enrichment dict using the v5 provider policy matrix.
 
     Each domain runs through its explicit provider chain (primary →
     fallback) as defined in ``smc_provider_policy``.  Every failure path
     records the stale provider and falls through to the next candidate
     or to safe defaults.  Provenance is recorded per-domain.
+
+    When ``enrich_event_risk`` is *True* the v5 event-risk layer is
+    derived from the calendar + news results already obtained in
+    earlier stages.  ``EVENT_PROVIDER_STATUS`` reflects real runtime
+    provider conditions.
 
     Parameters
     ----------
@@ -288,7 +294,7 @@ def build_enrichment(
         Path to the previously-written manifest JSON.  When provided,
         ``refresh_count`` is read from it and incremented by 1.
     """
-    if not any([enrich_regime, enrich_news, enrich_calendar, enrich_layering]):
+    if not any([enrich_regime, enrich_news, enrich_calendar, enrich_layering, enrich_event_risk]):
         return None
 
     from scripts.smc_provider_policy import resolve_domain
@@ -387,6 +393,29 @@ def build_enrichment(
             all_stale.append("layering")
         enrichment["layering"] = layering
 
+    # ── Event risk (v5) ─────────────────────────────────────────
+    if enrich_event_risk:
+        from scripts.smc_event_risk_builder import build_event_risk
+
+        event_risk = build_event_risk(
+            calendar=enrichment.get("calendar", {}),
+            news=enrichment.get("news", {}),
+        )
+        # Override builder's internal status with runtime-aware logic:
+        # only flag degradation when the domain was *requested* but failed.
+        cal_stale = enrich_calendar and provenance.get("calendar_provider") == "none"
+        news_stale = enrich_news and provenance.get("news_provider") == "none"
+        if cal_stale and news_stale:
+            event_risk["EVENT_PROVIDER_STATUS"] = "no_data"
+        elif cal_stale:
+            event_risk["EVENT_PROVIDER_STATUS"] = "calendar_missing"
+        elif news_stale:
+            event_risk["EVENT_PROVIDER_STATUS"] = "news_missing"
+        else:
+            event_risk["EVENT_PROVIDER_STATUS"] = "ok"
+        enrichment["event_risk"] = event_risk
+        provenance["event_risk_provider"] = "smc_event_risk_builder"
+
     # ── Providers ───────────────────────────────────────────────
     active_providers = {v for v in provenance.values() if v != "none"}
     enrichment["providers"] = {
@@ -421,6 +450,7 @@ def finalize_pipeline(
     enrich_news: bool = False,
     enrich_calendar: bool = False,
     enrich_layering: bool = False,
+    enrich_event_risk: bool = False,
 ) -> dict[str, Any]:
     """Shared post-base orchestration: enrichment + Pine library generation.
 
@@ -446,6 +476,7 @@ def finalize_pipeline(
         enrich_news=enrich_news,
         enrich_calendar=enrich_calendar,
         enrich_layering=enrich_layering,
+        enrich_event_risk=enrich_event_risk,
         base_snapshot=snapshot_df,
         manifest_path=manifest_path,
     )
@@ -502,6 +533,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--enrich-news", action="store_true", help="Add news-sentiment enrichment (FMP stock news)")
     parser.add_argument("--enrich-calendar", action="store_true", help="Add earnings/macro calendar enrichment (FMP)")
     parser.add_argument("--enrich-layering", action="store_true", help="Add pre-computed layering signals (smc_core)")
+    parser.add_argument("--enrich-event-risk", action="store_true", help="Add v5 event-risk layer (derived from calendar + news)")
     parser.add_argument("--enrich-all", action="store_true", help="Enable all enrichment blocks")
     parser.add_argument("--benzinga-api-key", default=os.getenv("BENZINGA_API_KEY", ""), help="Benzinga API key for news/calendar fallback")
     return parser
@@ -509,7 +541,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main() -> None:
     args = build_parser().parse_args()
-    enrich_regime, enrich_news, enrich_calendar, enrich_layering = _resolve_enrichment_flags(args)
+    enrich_regime, enrich_news, enrich_calendar, enrich_layering, enrich_event_risk = _resolve_enrichment_flags(args)
     fmp_api_key = str(args.fmp_api_key).strip()
     benzinga_api_key = str(getattr(args, 'benzinga_api_key', '') or '').strip()
 
@@ -524,6 +556,7 @@ def main() -> None:
         enrich_news=enrich_news,
         enrich_calendar=enrich_calendar,
         enrich_layering=enrich_layering,
+        enrich_event_risk=enrich_event_risk,
     )
 
     if args.run_scan:
@@ -578,15 +611,16 @@ def main() -> None:
     report_json.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
 
 
-def _resolve_enrichment_flags(args: argparse.Namespace) -> tuple[bool, bool, bool, bool]:
-    """Return (regime, news, calendar, layering) booleans."""
+def _resolve_enrichment_flags(args: argparse.Namespace) -> tuple[bool, bool, bool, bool, bool]:
+    """Return (regime, news, calendar, layering, event_risk) booleans."""
     if args.enrich_all:
-        return True, True, True, True
+        return True, True, True, True, True
     return (
         bool(args.enrich_regime),
         bool(args.enrich_news),
         bool(args.enrich_calendar),
         bool(args.enrich_layering),
+        bool(args.enrich_event_risk),
     )
 
 

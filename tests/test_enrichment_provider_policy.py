@@ -702,3 +702,248 @@ class TestBuildEnrichmentFallbackPaths:
         assert "volume_regime" in enrichment
         assert "low_tickers" in enrichment["volume_regime"]
         assert "holiday_suspect_tickers" in enrichment["volume_regime"]
+
+
+# ── Test: Event-risk v5 wiring through build_enrichment ─────────
+
+
+class TestEventRiskWiring:
+    """Integration tests for the v5 event-risk layer wired through build_enrichment."""
+
+    @patch("scripts.smc_provider_policy.resolve_domain")
+    def test_event_risk_populated_when_enabled(self, mock_resolve):
+        """Event-risk block is present when enrich_event_risk=True."""
+        from scripts.generate_smc_micro_base_from_databento import build_enrichment
+
+        mock_resolve.return_value = ProviderResult(
+            data={"regime": "NEUTRAL"}, provider="fmp",
+        )
+
+        enrichment = build_enrichment(
+            fmp_api_key="key", symbols=["AAPL"],
+            enrich_regime=True, enrich_event_risk=True,
+        )
+        assert enrichment is not None
+        assert "event_risk" in enrichment
+        assert enrichment["event_risk"]["EVENT_WINDOW_STATE"] == "CLEAR"
+        assert enrichment["event_risk"]["EVENT_PROVIDER_STATUS"] == "ok"
+        assert enrichment["providers"]["event_risk_provider"] == "smc_event_risk_builder"
+
+    @patch("scripts.smc_provider_policy.resolve_domain")
+    def test_event_risk_absent_when_disabled(self, mock_resolve):
+        """No event_risk key when enrich_event_risk is False."""
+        from scripts.generate_smc_micro_base_from_databento import build_enrichment
+
+        mock_resolve.return_value = ProviderResult(
+            data={"regime": "NEUTRAL"}, provider="fmp",
+        )
+
+        enrichment = build_enrichment(
+            fmp_api_key="key", symbols=["AAPL"], enrich_regime=True,
+        )
+        assert enrichment is not None
+        assert "event_risk" not in enrichment
+        assert "event_risk_provider" not in enrichment["providers"]
+
+    @patch("scripts.smc_provider_policy.resolve_domain")
+    def test_event_risk_derives_from_calendar_and_news(self, mock_resolve):
+        """Event-risk builder receives actual calendar + news data from prior stages."""
+        from scripts.generate_smc_micro_base_from_databento import build_enrichment
+
+        def _side_effect(domain, **kw):
+            if domain == "calendar":
+                return ProviderResult(
+                    data={
+                        "earnings_today_tickers": "AAPL",
+                        "earnings_tomorrow_tickers": "",
+                        "earnings_bmo_tickers": "",
+                        "earnings_amc_tickers": "",
+                        "high_impact_macro_today": True,
+                        "macro_event_name": "FOMC",
+                        "macro_event_time": "14:00",
+                    },
+                    provider="fmp",
+                )
+            if domain == "news":
+                return ProviderResult(
+                    data={
+                        "bullish_tickers": [], "bearish_tickers": ["AAPL"],
+                        "neutral_tickers": [], "news_heat_global": 0.9,
+                        "ticker_heat_map": "AAPL:0.9",
+                    },
+                    provider="fmp",
+                )
+            return ProviderResult(data={"regime": "NEUTRAL"}, provider="fmp")
+
+        mock_resolve.side_effect = _side_effect
+
+        enrichment = build_enrichment(
+            fmp_api_key="key", symbols=["AAPL"],
+            enrich_regime=True, enrich_news=True,
+            enrich_calendar=True, enrich_event_risk=True,
+        )
+        assert enrichment is not None
+        er = enrichment["event_risk"]
+        # FOMC should trigger macro detection
+        assert er["NEXT_EVENT_CLASS"] == "MACRO"
+        assert er["NEXT_EVENT_NAME"] == "FOMC"
+        assert er["NEXT_EVENT_IMPACT"] == "HIGH"
+        assert er["EVENT_RISK_LEVEL"] == "HIGH"
+        # AAPL has earnings and is bearish — both should appear
+        assert "AAPL" in er["EARNINGS_SOON_TICKERS"]
+        assert "AAPL" in er["HIGH_RISK_EVENT_TICKERS"]
+        assert er["EVENT_PROVIDER_STATUS"] == "ok"
+
+    @patch("scripts.smc_provider_policy.resolve_domain")
+    def test_event_risk_calendar_missing_status(self, mock_resolve):
+        """EVENT_PROVIDER_STATUS='calendar_missing' when calendar provider fails."""
+        from scripts.generate_smc_micro_base_from_databento import build_enrichment
+
+        def _side_effect(domain, **kw):
+            if domain == "calendar":
+                return ProviderResult(
+                    data={}, provider="none", ok=False, stale=["fmp", "benzinga"],
+                )
+            if domain == "news":
+                return ProviderResult(
+                    data={"bullish_tickers": [], "bearish_tickers": [],
+                          "neutral_tickers": [], "news_heat_global": 0.0,
+                          "ticker_heat_map": ""},
+                    provider="fmp",
+                )
+            return ProviderResult(data={"regime": "NEUTRAL"}, provider="fmp")
+
+        mock_resolve.side_effect = _side_effect
+
+        enrichment = build_enrichment(
+            fmp_api_key="key", symbols=["AAPL"],
+            enrich_regime=True, enrich_news=True,
+            enrich_calendar=True, enrich_event_risk=True,
+        )
+        assert enrichment is not None
+        assert enrichment["event_risk"]["EVENT_PROVIDER_STATUS"] == "calendar_missing"
+
+    @patch("scripts.smc_provider_policy.resolve_domain")
+    def test_event_risk_news_missing_status(self, mock_resolve):
+        """EVENT_PROVIDER_STATUS='news_missing' when news provider fails."""
+        from scripts.generate_smc_micro_base_from_databento import build_enrichment
+
+        def _side_effect(domain, **kw):
+            if domain == "news":
+                return ProviderResult(
+                    data={}, provider="none", ok=False, stale=["fmp", "benzinga"],
+                )
+            if domain == "calendar":
+                return ProviderResult(
+                    data={"earnings_today_tickers": "", "high_impact_macro_today": False},
+                    provider="fmp",
+                )
+            return ProviderResult(data={"regime": "NEUTRAL"}, provider="fmp")
+
+        mock_resolve.side_effect = _side_effect
+
+        enrichment = build_enrichment(
+            fmp_api_key="key", symbols=["AAPL"],
+            enrich_regime=True, enrich_news=True,
+            enrich_calendar=True, enrich_event_risk=True,
+        )
+        assert enrichment is not None
+        assert enrichment["event_risk"]["EVENT_PROVIDER_STATUS"] == "news_missing"
+
+    @patch("scripts.smc_provider_policy.resolve_domain")
+    def test_event_risk_no_data_when_both_fail(self, mock_resolve):
+        """EVENT_PROVIDER_STATUS='no_data' when both calendar and news fail."""
+        from scripts.generate_smc_micro_base_from_databento import build_enrichment
+
+        def _side_effect(domain, **kw):
+            if domain in ("news", "calendar"):
+                return ProviderResult(
+                    data={}, provider="none", ok=False, stale=["fmp"],
+                )
+            return ProviderResult(data={"regime": "NEUTRAL"}, provider="fmp")
+
+        mock_resolve.side_effect = _side_effect
+
+        enrichment = build_enrichment(
+            fmp_api_key="key", symbols=["AAPL"],
+            enrich_regime=True, enrich_news=True,
+            enrich_calendar=True, enrich_event_risk=True,
+        )
+        assert enrichment is not None
+        assert enrichment["event_risk"]["EVENT_PROVIDER_STATUS"] == "no_data"
+
+    @patch("scripts.smc_provider_policy.resolve_domain")
+    def test_event_risk_provider_counted_in_active(self, mock_resolve):
+        """event_risk_provider is counted in provider_count."""
+        from scripts.generate_smc_micro_base_from_databento import build_enrichment
+
+        mock_resolve.return_value = ProviderResult(
+            data={"regime": "NEUTRAL"}, provider="fmp",
+        )
+
+        enrichment = build_enrichment(
+            fmp_api_key="key", symbols=["AAPL"],
+            enrich_regime=True, enrich_event_risk=True,
+        )
+        assert enrichment is not None
+        # databento (base_scan) + fmp (regime) + smc_event_risk_builder = 3
+        assert enrichment["providers"]["provider_count"] == 3
+
+    @patch("scripts.smc_provider_policy.resolve_domain")
+    def test_event_risk_with_benzinga_fallback(self, mock_resolve):
+        """Event-risk correctly derives from Benzinga-provided calendar + news."""
+        from scripts.generate_smc_micro_base_from_databento import build_enrichment
+
+        def _side_effect(domain, **kw):
+            if domain == "calendar":
+                return ProviderResult(
+                    data={
+                        "earnings_today_tickers": "TSLA",
+                        "earnings_tomorrow_tickers": "",
+                        "earnings_bmo_tickers": "",
+                        "earnings_amc_tickers": "",
+                        "high_impact_macro_today": False,
+                        "macro_event_name": "",
+                        "macro_event_time": "",
+                    },
+                    provider="benzinga",
+                    stale=["fmp"],
+                )
+            if domain == "news":
+                return ProviderResult(
+                    data={"bullish_tickers": ["TSLA"], "bearish_tickers": [],
+                          "neutral_tickers": [], "news_heat_global": 0.2,
+                          "ticker_heat_map": "TSLA:0.2"},
+                    provider="benzinga",
+                    stale=["fmp"],
+                )
+            return ProviderResult(data={"regime": "NEUTRAL"}, provider="fmp")
+
+        mock_resolve.side_effect = _side_effect
+
+        enrichment = build_enrichment(
+            fmp_api_key="key", symbols=["TSLA"],
+            enrich_regime=True, enrich_news=True,
+            enrich_calendar=True, enrich_event_risk=True,
+        )
+        assert enrichment is not None
+        er = enrichment["event_risk"]
+        assert "TSLA" in er["EARNINGS_SOON_TICKERS"]
+        assert er["SYMBOL_EVENT_BLOCKED"] is True
+        assert er["EVENT_PROVIDER_STATUS"] == "ok"
+        assert enrichment["providers"]["calendar_provider"] == "benzinga"
+        assert enrichment["providers"]["news_provider"] == "benzinga"
+
+    def test_event_risk_alone_triggers_enrichment(self):
+        """enrich_event_risk=True alone (no other flags) returns enrichment."""
+        from scripts.generate_smc_micro_base_from_databento import build_enrichment
+
+        enrichment = build_enrichment(
+            fmp_api_key="", symbols=["AAPL"],
+            enrich_event_risk=True,
+        )
+        assert enrichment is not None
+        assert "event_risk" in enrichment
+        # With no calendar or news data, safe defaults apply
+        assert enrichment["event_risk"]["EVENT_WINDOW_STATE"] == "CLEAR"
+        assert enrichment["event_risk"]["EVENT_RISK_LEVEL"] == "NONE"

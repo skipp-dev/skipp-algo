@@ -59,6 +59,7 @@ class ProviderBlock(TypedDict, total=False):
     news_provider: str
     calendar_provider: str
     technical_provider: str
+    event_risk_provider: str
 
 
 class VolumeRegimeBlock(TypedDict, total=False):
