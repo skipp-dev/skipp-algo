@@ -10,6 +10,15 @@
 #   DATABENTO_API_KEY  – Databento API key (base data generation)
 #   TV_STORAGE_STATE   – TradingView Playwright storage-state JSON (publish)
 #   GH_PAT             – GitHub PAT with push rights (auto-commit)
+#
+# Optional secrets (alerting):
+#   TELEGRAM_BOT_TOKEN – Telegram bot token for alert delivery
+#   TELEGRAM_CHAT_ID   – Telegram chat/channel ID for alerts
+#   SMTP_HOST          – SMTP server hostname for email alerts
+#   SMTP_USER          – SMTP login username
+#   SMTP_PASS          – SMTP login password
+#   ALERT_EMAIL_FROM   – Sender address for email alerts
+#   ALERT_EMAIL_TO     – Recipient address for email alerts
 
 name: smc-library-refresh
 
@@ -176,6 +185,32 @@ jobs:
           git diff --cached --quiet || git commit -m "chore: library refresh ${REFRESH_DATE} (run ${{ github.run_number }})"
           git push
 
+      # ── Signal alerts (non-blocking) ────────────────────────────
+      - name: Evaluate and send alerts
+        id: alerts
+        if: steps.diff.outputs.changed == 'true'
+        continue-on-error: true
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          ALERT_EMAIL_FROM: ${{ secrets.ALERT_EMAIL_FROM }}
+          ALERT_EMAIL_TO: ${{ secrets.ALERT_EMAIL_TO }}
+        run: |
+          python scripts/smc_alert_notifier.py \
+            --library pine/generated/smc_micro_profiles_generated.pine \
+            --state-file artifacts/ci/alert_last_state.json \
+            --provider-alerts \
+            ${TELEGRAM_BOT_TOKEN:+--telegram-bot-token "$TELEGRAM_BOT_TOKEN"} \
+            ${TELEGRAM_CHAT_ID:+--telegram-chat-id "$TELEGRAM_CHAT_ID"} \
+            ${SMTP_HOST:+--smtp-host "$SMTP_HOST"} \
+            ${SMTP_USER:+--smtp-user "$SMTP_USER"} \
+            ${SMTP_PASS:+--smtp-pass "$SMTP_PASS"} \
+            ${ALERT_EMAIL_FROM:+--email-from "$ALERT_EMAIL_FROM"} \
+            ${ALERT_EMAIL_TO:+--email-to "$ALERT_EMAIL_TO"}
+
       # ── Status notification ─────────────────────────────────────
       - name: Emit workflow summary
         if: always()
@@ -191,9 +226,11 @@ jobs:
             if [ "${{ steps.diff.outputs.changed }}" = "true" ]; then
               echo "| Publish | ✅ |"
               echo "| Commit | ✅ |"
+              echo "| Alerts | ${{ steps.alerts.outcome == 'success' && '✅ evaluated' || '⚠️ error (non-blocking)' }} |"
             else
               echo "| Publish | ⏭️ skipped (no changes) |"
               echo "| Commit | ⏭️ skipped (no changes) |"
+              echo "| Alerts | ⏭️ skipped (no changes) |"
             fi
             echo ""
             if [ -f artifacts/ci/library_diff_${REFRESH_DATE}.patch ]; then
