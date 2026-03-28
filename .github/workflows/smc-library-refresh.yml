@@ -324,3 +324,46 @@ jobs:
               -d text="${MSG}" \
               -d parse_mode=HTML || true
           fi
+
+      # ── End-of-run status notification ──────────────────────────
+      - name: Send end-of-run status notification
+        if: always()
+        continue-on-error: true
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          if [ -z "$TELEGRAM_BOT_TOKEN" ] || [ -z "$TELEGRAM_CHAT_ID" ]; then
+            echo "::notice::Telegram secrets not configured — skipping status notification."
+            exit 0
+          fi
+
+          GATE="${{ steps.gates.outcome }}"
+          CHANGED="${{ steps.diff.outputs.changed }}"
+          BREAKING="${{ steps.breaking.outputs.breaking }}"
+          ALERTS="${{ steps.alerts.outcome }}"
+
+          if [ "$GATE" = "failure" ]; then
+            ICON="❌"
+            HEADLINE="Evidence gates failed"
+          elif [ "$CHANGED" != "true" ]; then
+            ICON="⏭️"
+            HEADLINE="No library changes"
+          elif [ "$BREAKING" = "true" ]; then
+            ICON="🛑"
+            HEADLINE="Breaking change — publish blocked"
+          else
+            ICON="✅"
+            HEADLINE="Library published"
+          fi
+
+          MSG="${ICON} <b>SMC Refresh</b> — ${HEADLINE}%0A🕐 ${REFRESH_TS}  •  Run #${{ github.run_number }}"
+          if [ "$ALERTS" = "success" ]; then
+            MSG="${MSG}%0A📡 Signal alerts evaluated"
+          fi
+
+          curl -sf -X POST \
+            "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            -d chat_id="${TELEGRAM_CHAT_ID}" \
+            -d text="${MSG}" \
+            -d parse_mode=HTML || true
