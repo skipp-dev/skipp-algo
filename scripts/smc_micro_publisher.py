@@ -20,6 +20,7 @@ from scripts.generate_smc_micro_profiles import (
     write_pine_library,
     write_readiness_report,
 )
+from scripts.smc_enrichment_types import EnrichmentDict
 from scripts.smc_micro_generator import GenerationResult
 
 
@@ -29,7 +30,7 @@ def publish_generation_result(
     output_root: Path,
     library_owner: str = "preuss_steffen",
     library_version: int = 1,
-    enrichment: dict[str, Any] | None = None,
+    enrichment: EnrichmentDict | None = None,
 ) -> dict[str, Path]:
     """Write all generator output artifacts to disk.
 

@@ -1588,6 +1588,39 @@ def generate_pine_library_from_base(
     library_version: int = 1,
     enrichment: dict[str, Any] | None = None,
 ) -> dict[str, Path]:
+    """Generate a Pine library from a base snapshot CSV.
+
+    Thin wrapper around :func:`scripts.generate_smc_micro_profiles.run_generation`
+    that provides the stable public API for callers like ``finalize_pipeline()``
+    and the Streamlit UI.
+
+    Parameters
+    ----------
+    base_csv_path:
+        Path to a validated microstructure base snapshot CSV.
+    schema_path:
+        Path to the JSON microstructure schema.
+    output_root:
+        Directory for all generated artifacts (Pine, state CSV, manifest, etc.).
+    overrides_path:
+        Optional per-run membership overrides CSV.
+    library_owner:
+        TradingView owner name emitted in the import snippet.
+    library_version:
+        TradingView library version for import metadata.
+    enrichment:
+        Optional enrichment dict produced by ``build_enrichment()``.
+        When provided, the generated Pine library includes extra
+        ``export const`` blocks for regime, news, calendar, layering,
+        provider status, and volume-regime data.  When ``None``, all
+        enrichment constants receive safe neutral defaults.
+
+    Returns
+    -------
+    dict[str, Path]
+        Mapping of artifact names to their written file paths
+        (e.g. ``{"pine_path": Path(...), "features_path": Path(...), ...}``).
+    """
     return run_generation(
         schema_path=schema_path,
         input_path=base_csv_path,

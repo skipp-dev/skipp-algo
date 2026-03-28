@@ -28,6 +28,7 @@ from scripts.smc_microstructure_base_runtime import (
 from scripts.smc_regime_classifier import classify_market_regime
 from scripts.smc_news_scorer import compute_news_sentiment
 from scripts.smc_calendar_collector import collect_earnings_and_macro
+from scripts.smc_enrichment_types import EnrichmentDict
 from scripts.smc_library_layering import compute_library_layering
 
 logger = logging.getLogger(__name__)
@@ -331,7 +332,7 @@ def build_enrichment(
     enrich_news: bool = False,
     enrich_calendar: bool = False,
     enrich_layering: bool = False,
-) -> dict[str, Any] | None:
+) -> EnrichmentDict | None:
     """Build the enrichment dict by calling the AP-1..AP-5 helpers.
 
     Each block is wrapped in its own try/except — on failure the block

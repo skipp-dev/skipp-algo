@@ -9,6 +9,7 @@ from typing import Any, cast
 import pandas as pd
 
 from smc_core.schema_version import SCHEMA_VERSION
+from scripts.smc_enrichment_types import EnrichmentDict
 
 
 LISTS = [
@@ -499,7 +500,7 @@ def write_pine_library(
     lists: dict[str, list[str]],
     asof_date: str,
     universe_size: int,
-    enrichment: dict[str, Any] | None = None,
+    enrichment: EnrichmentDict | None = None,
 ) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     enr = enrichment or {}
@@ -775,7 +776,7 @@ def run_generation(
     output_root: Path | None = None,
     library_owner: str = "preuss_steffen",
     library_version: int = 1,
-    enrichment: dict[str, Any] | None = None,
+    enrichment: EnrichmentDict | None = None,
 ) -> dict[str, Path]:
     """Orchestrate generate → validate → publish in sequence.
 
