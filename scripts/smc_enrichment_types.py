@@ -71,6 +71,23 @@ class MetaBlock(TypedDict, total=False):
     refresh_count: int    # monotonically increasing generation counter
 
 
+class EventRiskBlock(TypedDict, total=False):
+    EVENT_WINDOW_STATE: str        # "CLEAR" | "PRE_EVENT" | "ACTIVE" | "COOLDOWN"
+    EVENT_RISK_LEVEL: str          # "NONE" | "LOW" | "ELEVATED" | "HIGH"
+    NEXT_EVENT_CLASS: str          # "MACRO" | "EARNINGS" | ""
+    NEXT_EVENT_NAME: str           # e.g. "FOMC Rate Decision"
+    NEXT_EVENT_TIME: str           # e.g. "14:00"
+    NEXT_EVENT_IMPACT: str         # "NONE" | "LOW" | "MEDIUM" | "HIGH"
+    EVENT_RESTRICT_BEFORE_MIN: int
+    EVENT_RESTRICT_AFTER_MIN: int
+    EVENT_COOLDOWN_ACTIVE: bool
+    MARKET_EVENT_BLOCKED: bool
+    SYMBOL_EVENT_BLOCKED: bool
+    EARNINGS_SOON_TICKERS: str     # CSV, e.g. "AAPL,MSFT"
+    HIGH_RISK_EVENT_TICKERS: str   # CSV
+    EVENT_PROVIDER_STATUS: str     # "ok" | "no_data" | "calendar_missing" | "news_missing"
+
+
 class EnrichmentDict(TypedDict, total=False):
     """Top-level enrichment payload flowing through the Pine generation chain.
 
@@ -85,4 +102,5 @@ class EnrichmentDict(TypedDict, total=False):
     layering: LayeringBlock
     providers: ProviderBlock
     volume_regime: VolumeRegimeBlock
+    event_risk: EventRiskBlock
     meta: MetaBlock
