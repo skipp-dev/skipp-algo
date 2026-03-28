@@ -34,9 +34,6 @@ jobs:
       - name: Run deeper provider and smoke health checks
         run: |
           python scripts/run_smc_ci_health_checks.py \
-            --symbols "USAR,TMQ" \
-            --timeframes "5m,15m" \
-            --stale-after-seconds 7776000 \
             --output artifacts/ci/smc_deeper_health_report.json
 
       - name: Run deeper SMC test matrix
