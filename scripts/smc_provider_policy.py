@@ -248,8 +248,13 @@ def fetch_technical_fmp(fmp: Any, symbol: str = "SPY") -> ProviderResult:
 
 
 def fetch_technical_tradingview(symbol: str = "SPY") -> ProviderResult:
-    """Fetch technical summary via TradingView (fallback for technical domain)."""
-    from terminal_fmp_technicals import fetch_fmp_technicals  # local TV→FMP shim
+    """Fetch technical summary via the TradingView-style fallback path.
+
+    Currently backed by ``terminal_fmp_technicals.fetch_fmp_technicals``
+    which returns summary buy/sell/neutral counts.  When a direct
+    TradingView adapter becomes available this shim will be replaced.
+    """
+    from terminal_fmp_technicals import fetch_fmp_technicals
 
     data = fetch_fmp_technicals(symbol, "1D")
     if data is None or data.get("error"):

@@ -766,7 +766,7 @@ def write_manifest(
     def _rel(p: Path) -> str:
         if relative_to is not None:
             try:
-                return str(p.relative_to(relative_to))
+                return str(p.resolve().relative_to(relative_to.resolve()))
             except ValueError:
                 pass
         return str(p)

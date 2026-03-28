@@ -36,6 +36,11 @@ EXACT_ARTIFACTS = [
 _PATH_KEYS = {
     "input_path", "schema_path", "features_csv", "lists_csv",
     "state_csv", "diff_report_md", "pine_library", "core_import_snippet",
+    # Governance fields depend on whether a prior manifest exists at the
+    # target path.  When regenerating to a temp directory no prior exists,
+    # so schema_version_previous / version_change_type / auto_commit_allowed
+    # will differ from the checked-in manifest.
+    "schema_version_previous", "version_change_type", "auto_commit_allowed",
 }
 
 
@@ -124,3 +129,12 @@ class TestGeneratedArtifactDrift:
         assert "asof_time" in manifest
         assert "refresh_count" in manifest
         assert "enrichment_blocks" in manifest
+
+    def test_manifest_has_governance_fields(self, regenerated: Path):
+        """Manifest must include governance metadata from the version policy."""
+        manifest = json.loads(
+            (regenerated / "pine" / "generated" / "smc_micro_profiles_generated.json").read_text()
+        )
+        for key in ("schema_version", "schema_version_previous",
+                     "version_change_type", "auto_commit_allowed"):
+            assert key in manifest, f"Manifest missing governance field: {key}"

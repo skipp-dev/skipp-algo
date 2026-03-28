@@ -107,7 +107,7 @@ class TestNoOpenPrepImport:
                     enrich_regime=True,
                 )
                 assert result is not None
-                assert result["providers"]["provider_count"] == 1
+                assert result["providers"]["provider_count"] == 2
         finally:
             sys.meta_path.remove(blocker)
             sys.modules.update(saved)

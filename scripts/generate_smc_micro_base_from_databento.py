@@ -298,6 +298,9 @@ def build_enrichment(
     all_stale: list[str] = []
     provenance: dict[str, str] = {}
 
+    # ── Base scan (Databento) — always the canonical source ─────
+    provenance["base_scan_provider"] = "databento"
+
     # ── Regime ──────────────────────────────────────────────────
     regime_result: dict[str, Any] = {"regime": "NEUTRAL"}
     if enrich_regime:

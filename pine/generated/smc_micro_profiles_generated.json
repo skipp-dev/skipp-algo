@@ -1,5 +1,7 @@
 {
   "schema_version": "1.2.0",
+  "schema_version_previous": "1.2.0",
+  "version_change_type": "unchanged",
   "asof_date": "2026-03-23",
   "library_name": "smc_micro_profiles_generated",
   "library_owner": "preuss_steffen",
@@ -36,6 +38,7 @@
   },
   "enrichment_blocks": [],
   "library_field_version": "v4",
+  "auto_commit_allowed": true,
   "asof_time": "",
   "refresh_count": 0
 }

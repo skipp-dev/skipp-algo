@@ -297,8 +297,10 @@ class TestProviderCountAndStale:
             fmp_api_key="key", symbols=["AAPL"], enrich_regime=True,
         )
         assert enrichment is not None
-        assert enrichment["providers"]["provider_count"] == 1
+        # databento (base_scan) + fmp (regime) = 2
+        assert enrichment["providers"]["provider_count"] == 2
         assert enrichment["providers"]["regime_provider"] == "fmp"
+        assert enrichment["providers"]["base_scan_provider"] == "databento"
 
     @patch("scripts.smc_provider_policy.resolve_domain")
     def test_stale_providers_sorted_and_deduplicated(self, mock_resolve):
@@ -336,7 +338,8 @@ class TestProviderCountAndStale:
             fmp_api_key="key", symbols=["AAPL"], enrich_regime=True,
         )
         assert enrichment is not None
-        assert enrichment["providers"]["provider_count"] == 0
+        # databento (base_scan) is always counted
+        assert enrichment["providers"]["provider_count"] == 1
 
     @patch("scripts.smc_provider_policy.resolve_domain")
     def test_multiple_domains_count_unique_providers(self, mock_resolve):
@@ -371,8 +374,8 @@ class TestProviderCountAndStale:
             enrich_layering=True,
         )
         assert enrichment is not None
-        # fmp (regime, calendar, technical) + benzinga (news) = 2 unique providers
-        assert enrichment["providers"]["provider_count"] == 2
+        # databento + fmp (regime, calendar, technical) + benzinga (news) = 3 unique
+        assert enrichment["providers"]["provider_count"] == 3
         assert enrichment["providers"]["regime_provider"] == "fmp"
         assert enrichment["providers"]["news_provider"] == "benzinga"
         assert enrichment["providers"]["calendar_provider"] == "fmp"
@@ -494,3 +497,208 @@ class TestDomainPolicy:
         p = DomainPolicy("test", primary="a", fallbacks=())
         with pytest.raises(AttributeError):
             p.primary = "b"  # type: ignore[misc]
+
+
+# ── Test 10: Databento base-scan provenance ─────────────────────
+
+
+class TestBaseScanProvenance:
+    """build_enrichment always records Databento as the base-scan provider."""
+
+    @patch("scripts.smc_provider_policy.resolve_domain")
+    def test_base_scan_provider_always_databento(self, mock_resolve):
+        from scripts.generate_smc_micro_base_from_databento import build_enrichment
+
+        mock_resolve.return_value = ProviderResult(
+            data={"regime": "NEUTRAL"}, provider="fmp",
+        )
+        enrichment = build_enrichment(
+            fmp_api_key="key", symbols=["AAPL"], enrich_regime=True,
+        )
+        assert enrichment is not None
+        assert enrichment["providers"]["base_scan_provider"] == "databento"
+
+    @patch("scripts.smc_provider_policy.resolve_domain")
+    def test_provider_count_includes_databento(self, mock_resolve):
+        from scripts.generate_smc_micro_base_from_databento import build_enrichment
+
+        mock_resolve.return_value = ProviderResult(
+            data={"regime": "NEUTRAL"}, provider="fmp",
+        )
+        enrichment = build_enrichment(
+            fmp_api_key="key", symbols=["AAPL"], enrich_regime=True,
+        )
+        assert enrichment is not None
+        # databento (base_scan) + fmp (regime) = 2
+        assert enrichment["providers"]["provider_count"] == 2
+
+    @patch("scripts.smc_provider_policy.resolve_domain")
+    def test_provider_count_with_all_domains(self, mock_resolve):
+        from scripts.generate_smc_micro_base_from_databento import build_enrichment
+
+        call_map = {
+            "regime": ProviderResult(data={"regime": "NEUTRAL"}, provider="fmp"),
+            "news": ProviderResult(
+                data={"bullish_tickers": [], "bearish_tickers": [],
+                      "neutral_tickers": [], "news_heat_global": 0.0,
+                      "ticker_heat_map": ""},
+                provider="benzinga",
+            ),
+            "calendar": ProviderResult(
+                data={"earnings_today_tickers": ""}, provider="fmp",
+            ),
+            "technical": ProviderResult(
+                data={"strength": 0.5, "bias": "NEUTRAL"}, provider="tradingview",
+            ),
+        }
+        mock_resolve.side_effect = lambda domain, **kw: call_map[domain]
+
+        enrichment = build_enrichment(
+            fmp_api_key="key", symbols=["AAPL"],
+            enrich_regime=True, enrich_news=True,
+            enrich_calendar=True, enrich_layering=True,
+        )
+        assert enrichment is not None
+        # databento + fmp + benzinga + tradingview = 4 unique
+        assert enrichment["providers"]["provider_count"] == 4
+        assert enrichment["providers"]["base_scan_provider"] == "databento"
+
+
+# ── Test 11: End-to-end fallback through build_enrichment ───────
+
+
+class TestBuildEnrichmentFallbackPaths:
+    """Integration tests exercising full domain fallback through build_enrichment."""
+
+    @patch("scripts.smc_provider_policy.resolve_domain")
+    def test_news_falls_back_to_benzinga_provenance(self, mock_resolve):
+        from scripts.generate_smc_micro_base_from_databento import build_enrichment
+
+        def _side_effect(domain, **kw):
+            if domain == "news":
+                return ProviderResult(
+                    data={"bullish_tickers": ["NVDA"], "bearish_tickers": [],
+                          "neutral_tickers": [], "news_heat_global": 0.3,
+                          "ticker_heat_map": "NVDA:0.3"},
+                    provider="benzinga",
+                    stale=["fmp"],
+                )
+            return ProviderResult(data={"regime": "NEUTRAL"}, provider="fmp")
+
+        mock_resolve.side_effect = _side_effect
+
+        enrichment = build_enrichment(
+            fmp_api_key="key", symbols=["NVDA"],
+            enrich_regime=True, enrich_news=True,
+        )
+        assert enrichment is not None
+        assert enrichment["providers"]["news_provider"] == "benzinga"
+        assert enrichment["providers"]["regime_provider"] == "fmp"
+        assert "fmp" in enrichment["providers"]["stale_providers"]
+        assert enrichment["news"]["bullish_tickers"] == ["NVDA"]
+
+    @patch("scripts.smc_provider_policy.resolve_domain")
+    def test_calendar_falls_back_to_benzinga(self, mock_resolve):
+        from scripts.generate_smc_micro_base_from_databento import build_enrichment
+
+        def _side_effect(domain, **kw):
+            if domain == "calendar":
+                return ProviderResult(
+                    data={"earnings_today_tickers": "AAPL"},
+                    provider="benzinga",
+                    stale=["fmp"],
+                )
+            return ProviderResult(data={"regime": "NEUTRAL"}, provider="fmp")
+
+        mock_resolve.side_effect = _side_effect
+
+        enrichment = build_enrichment(
+            fmp_api_key="key", symbols=["AAPL"],
+            enrich_regime=True, enrich_calendar=True,
+        )
+        assert enrichment is not None
+        assert enrichment["providers"]["calendar_provider"] == "benzinga"
+        assert enrichment["calendar"]["earnings_today_tickers"] == "AAPL"
+
+    @patch("scripts.smc_provider_policy.resolve_domain")
+    def test_technical_falls_back_to_tradingview(self, mock_resolve):
+        from scripts.generate_smc_micro_base_from_databento import build_enrichment
+
+        def _side_effect(domain, **kw):
+            if domain == "technical":
+                return ProviderResult(
+                    data={"strength": 0.7, "bias": "BULLISH"},
+                    provider="tradingview",
+                    stale=["fmp"],
+                )
+            return ProviderResult(data={"regime": "RISK_ON"}, provider="fmp")
+
+        mock_resolve.side_effect = _side_effect
+
+        enrichment = build_enrichment(
+            fmp_api_key="key", symbols=["AAPL"],
+            enrich_regime=True, enrich_layering=True,
+        )
+        assert enrichment is not None
+        assert enrichment["providers"]["technical_provider"] == "tradingview"
+        assert "fmp" in enrichment["providers"]["stale_providers"]
+
+    @patch("scripts.smc_provider_policy.resolve_domain")
+    def test_all_domains_fail_gives_zero_enrichment_providers(self, mock_resolve):
+        from scripts.generate_smc_micro_base_from_databento import build_enrichment
+
+        mock_resolve.return_value = ProviderResult(
+            data={}, provider="none", ok=False, stale=["fmp"],
+        )
+
+        enrichment = build_enrichment(
+            fmp_api_key="key", symbols=["AAPL"],
+            enrich_regime=True, enrich_news=True,
+            enrich_calendar=True, enrich_layering=True,
+        )
+        assert enrichment is not None
+        # Only databento (base_scan) should be active — all domains returned "none"
+        assert enrichment["providers"]["provider_count"] == 1
+        assert enrichment["providers"]["base_scan_provider"] == "databento"
+        stale = enrichment["providers"]["stale_providers"]
+        assert "fmp" in stale
+
+    @patch("scripts.smc_provider_policy.resolve_domain")
+    def test_guaranteed_defaults_on_total_failure(self, mock_resolve):
+        from scripts.generate_smc_micro_base_from_databento import build_enrichment
+
+        mock_resolve.return_value = ProviderResult(
+            data={}, provider="none", ok=False, stale=["fmp", "benzinga"],
+        )
+
+        enrichment = build_enrichment(
+            fmp_api_key="key", symbols=["AAPL"],
+            enrich_regime=True, enrich_news=True,
+            enrich_calendar=True, enrich_layering=True,
+        )
+        assert enrichment is not None
+        # Regime falls back to safe default
+        assert enrichment["regime"]["regime"] == "NEUTRAL"
+        # News defaults
+        assert enrichment["news"]["bullish_tickers"] == []
+        assert enrichment["news"]["bearish_tickers"] == []
+        assert enrichment["news"]["news_heat_global"] == 0.0
+        # Calendar defaults
+        assert enrichment["calendar"]["earnings_today_tickers"] == ""
+        # Layering defaults (computation may succeed with neutral inputs)
+        assert "layering" in enrichment
+
+    @patch("scripts.smc_provider_policy.resolve_domain")
+    def test_volume_regime_emitted_regardless_of_provider_state(self, mock_resolve):
+        from scripts.generate_smc_micro_base_from_databento import build_enrichment
+
+        mock_resolve.return_value = ProviderResult(
+            data={"regime": "NEUTRAL"}, provider="fmp",
+        )
+        enrichment = build_enrichment(
+            fmp_api_key="key", symbols=["AAPL"], enrich_regime=True,
+        )
+        assert enrichment is not None
+        assert "volume_regime" in enrichment
+        assert "low_tickers" in enrichment["volume_regime"]
+        assert "holiday_suspect_tickers" in enrichment["volume_regime"]
