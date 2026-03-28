@@ -212,9 +212,13 @@ def build_default_output_paths(workbook_path: Path, asof_date: str) -> tuple[Pat
 # ── FMP enrichment helpers ──────────────────────────────────────────
 
 def _make_fmp_client(api_key: str) -> Any:
-    """Lazy-import FMPClient to avoid hard dependency when enrichment is off."""
-    from open_prep.macro import FMPClient
-    return FMPClient(api_key=api_key, retry_attempts=2, timeout_seconds=12)
+    """Create a standalone FMP client for the v4 enrichment pipeline.
+
+    Uses ``scripts.smc_fmp_client.SMCFMPClient`` — no ``open_prep``
+    dependency at runtime.
+    """
+    from scripts.smc_fmp_client import SMCFMPClient
+    return SMCFMPClient(api_key=api_key, retry_attempts=2, timeout_seconds=12)
 
 
 def _derive_volume_regime(
