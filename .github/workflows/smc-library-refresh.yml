@@ -1,12 +1,23 @@
-# SMC Library Intraday Refresh (v4)
+# SMC Library Intraday Refresh (v5)
 #
 # Runs 4x per trading day at 12:30 / 14:30 / 16:30 / 18:30 UTC on weekdays.
-# Each run: generate → gate → detect changes → diff report → publish → commit.
+# Each run: generate → event-risk → gate → detect changes → diff report →
+#           governance → publish → commit → alerts.
 # Skips publish/version-bump/commit when the library content is unchanged.
+#
+# v5 stages:
+#   1. Base data scan (Databento)
+#   2. Enrichment (regime, news, calendar, layering, event-risk)
+#   3. Evidence gates (integration / structure / core tests)
+#   4. Change detection (diff against previous library)
+#   5. Version governance (breaking-change detection)
+#   6. Publish to TradingView
+#   7. Commit artifacts
+#   8. Signal + event-risk alerts (Telegram / email)
 #
 # Required secrets:
 #   FMP_API_KEY        – Financial Modeling Prep API key (enrichment data)
-#   BENZINGA_API_KEY   – Benzinga API key (earnings calendar fallback)
+#   BENZINGA_API_KEY   – Benzinga API key (news/calendar fallback)
 #   DATABENTO_API_KEY  – Databento API key (base data generation)
 #   TV_STORAGE_STATE   – TradingView Playwright storage-state JSON (publish)
 #   GH_PAT             – GitHub PAT with push rights (auto-commit)
@@ -19,6 +30,11 @@
 #   SMTP_PASS          – SMTP login password
 #   ALERT_EMAIL_FROM   – Sender address for email alerts
 #   ALERT_EMAIL_TO     – Recipient address for email alerts
+#
+# Secret compatibility note (v4 → v5):
+#   Secret names are unchanged from v4 — no reconfiguration needed.
+#   The v5 architecture adds the event-risk enrichment stage which
+#   derives from existing calendar + news data; no new secrets required.
 
 name: smc-library-refresh
 
@@ -87,8 +103,8 @@ jobs:
             echo '{}' > /tmp/manifest_before.json
           fi
 
-      # ── Library generation with enrichment ──────────────────────
-      - name: Generate SMC library with enrichment
+      # ── Library generation with enrichment (v5) ─────────────────
+      - name: Generate SMC library with v5 enrichment
         env:
           FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
           BENZINGA_API_KEY: ${{ secrets.BENZINGA_API_KEY }}
@@ -275,27 +291,28 @@ jobs:
         if: always()
         run: |
           {
-            echo "## SMC Library Refresh — ${REFRESH_TS}"
+            echo "## SMC Library Refresh (v5) — ${REFRESH_TS}"
             echo ""
             echo "| Step | Status |"
             echo "|------|--------|"
-            echo "| Generation | ${{ steps.gates.outcome != 'skipped' && '✅' || '❌ skipped' }} |"
+            echo "| Generation (base + enrichment + event-risk) | ${{ steps.gates.outcome != 'skipped' && '✅' || '❌ skipped' }} |"
             echo "| Evidence gates | ${{ steps.gates.outcome == 'success' && '✅ passed' || '❌ failed' }} |"
             echo "| Library changed | ${{ steps.diff.outputs.changed == 'true' && '✅ yes' || '⏭️ no' }} |"
             echo "| Publish contract | ${{ steps.contract.outcome == 'success' && '✅' || steps.contract.outcome == 'skipped' && '⏭️ skipped' || '❌ failed' }} |"
             if [ "${{ steps.breaking.outputs.breaking }}" = "true" ]; then
-              echo "| ⚠️ Breaking change | 🛑 ${{ steps.breaking.outputs.reason }} |"
+              echo "| ⚠️ Breaking-change governance | 🛑 ${{ steps.breaking.outputs.reason }} |"
               echo "| Publish | 🛑 blocked (breaking change) |"
               echo "| Commit | 🛑 blocked (breaking change) |"
-              echo "| Alerts | 🛑 blocked (breaking change) |"
+              echo "| Signal + event-risk alerts | 🛑 blocked (breaking change) |"
             elif [ "${{ steps.diff.outputs.changed }}" = "true" ]; then
+              echo "| Breaking-change governance | ✅ compatible |"
               echo "| Publish | ✅ |"
               echo "| Commit | ✅ |"
-              echo "| Alerts | ${{ steps.alerts.outcome == 'success' && '✅ evaluated' || '⚠️ error (non-blocking)' }} |"
+              echo "| Signal + event-risk alerts | ${{ steps.alerts.outcome == 'success' && '✅ evaluated' || '⚠️ error (non-blocking)' }} |"
             else
               echo "| Publish | ⏭️ skipped (no changes) |"
               echo "| Commit | ⏭️ skipped (no changes) |"
-              echo "| Alerts | ⏭️ skipped (no changes) |"
+              echo "| Signal + event-risk alerts | ⏭️ skipped (no changes) |"
             fi
             echo ""
             if [ -f artifacts/ci/library_diff_${REFRESH_DATE}.patch ]; then

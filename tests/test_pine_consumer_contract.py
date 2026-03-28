@@ -2,7 +2,7 @@
 
 Three layers:
 1. **Field-consumer matrix** — programmatically parse ``mp.FIELD`` references from
-   SMC_Core_Engine.pine and assert each one exists in the canonical V4_FIELD_INVENTORY.
+   SMC_Core_Engine.pine and assert each one exists in the canonical V5_FIELD_INVENTORY.
 2. **BUS channel contract** — ensure Dashboard and Strategy BUS channels are a subset
    of those published by the Engine, and that neither imports the library directly.
 3. **Fixture-based output validation** — full/degraded/stale enrichment generates
@@ -25,7 +25,7 @@ ROOT = Path(__file__).resolve().parent.parent
 
 # ── Canonical field inventory (source of truth) ─────────────────
 
-V4_FIELD_INVENTORY: set[str] = {
+V5_FIELD_INVENTORY: set[str] = {
     # Core + Meta
     "ASOF_DATE", "ASOF_TIME", "UNIVERSE_ID", "LOOKBACK_DAYS", "UNIVERSE_SIZE",
     "REFRESH_COUNT",
@@ -49,6 +49,12 @@ V4_FIELD_INVENTORY: set[str] = {
     "PROVIDER_COUNT", "STALE_PROVIDERS",
     # Volume
     "VOLUME_LOW_TICKERS", "HOLIDAY_SUSPECT_TICKERS",
+    # Event Risk (v5)
+    "EVENT_WINDOW_STATE", "EVENT_RISK_LEVEL",
+    "NEXT_EVENT_CLASS", "NEXT_EVENT_NAME", "NEXT_EVENT_TIME", "NEXT_EVENT_IMPACT",
+    "EVENT_RESTRICT_BEFORE_MIN", "EVENT_RESTRICT_AFTER_MIN",
+    "EVENT_COOLDOWN_ACTIVE", "MARKET_EVENT_BLOCKED", "SYMBOL_EVENT_BLOCKED",
+    "EARNINGS_SOON_TICKERS", "HIGH_RISK_EVENT_TICKERS", "EVENT_PROVIDER_STATUS",
 }
 
 # Fields the Engine actually reads via ``mp.FIELD``
@@ -62,6 +68,11 @@ ENGINE_CONSUMED_FIELDS: set[str] = {
     "EARNINGS_TODAY_TICKERS", "HIGH_IMPACT_MACRO_TODAY",
     "NEWS_BEARISH_TICKERS", "NEWS_BULLISH_TICKERS",
     "VOLUME_LOW_TICKERS",
+    # Event Risk (v5)
+    "EVENT_WINDOW_STATE", "EVENT_RISK_LEVEL",
+    "NEXT_EVENT_NAME", "NEXT_EVENT_TIME", "NEXT_EVENT_IMPACT",
+    "EVENT_COOLDOWN_ACTIVE", "MARKET_EVENT_BLOCKED", "SYMBOL_EVENT_BLOCKED",
+    "EARNINGS_SOON_TICKERS",
 }
 
 # BUS channels published by SMC_Core_Engine.pine
@@ -75,6 +86,7 @@ ENGINE_BUS_CHANNELS: set[str] = {
     "ModulePackA", "ModulePackB", "ModulePackC", "ModulePackD",
     "EnginePack",
     "StopLevel", "Target1", "Target2",
+    "EventRiskRow",
 }
 
 # BUS channels consumed by Dashboard and Strategy
@@ -88,6 +100,7 @@ DASHBOARD_BUS_CHANNELS: set[str] = {
     "ModulePackA", "ModulePackB", "ModulePackC", "ModulePackD",
     "EnginePack",
     "StopLevel", "Target1", "Target2",
+    "EventRiskRow",
 }
 
 STRATEGY_BUS_CHANNELS: set[str] = {
@@ -256,7 +269,7 @@ def _run_pipeline(
 
 class TestFieldConsumerMatrix:
     """Parse mp.FIELD references from SMC_Core_Engine.pine and validate
-    them against the canonical V4 field inventory."""
+    them against the canonical V5 field inventory."""
 
     def test_engine_mp_fields_match_declared_set(self):
         """Fields parsed from the Pine source match ENGINE_CONSUMED_FIELDS."""
@@ -269,12 +282,12 @@ class TestFieldConsumerMatrix:
         )
 
     def test_all_consumed_fields_in_inventory(self):
-        """Every field the Engine reads must exist in V4_FIELD_INVENTORY."""
+        """Every field the Engine reads must exist in V5_FIELD_INVENTORY."""
         text = _read_pine("SMC_Core_Engine.pine")
         consumed = _extract_mp_fields(text)
-        missing = consumed - V4_FIELD_INVENTORY
+        missing = consumed - V5_FIELD_INVENTORY
         assert not missing, (
-            f"Engine references fields not in V4 inventory: {missing}"
+            f"Engine references fields not in V5 inventory: {missing}"
         )
 
     def test_consumed_is_subset_of_produced(self, base_csv: Path, tmp_path: Path):
@@ -437,7 +450,7 @@ class TestConsumerFieldDefaults:
 class TestCIConsumerFieldGuard:
     """CI-friendly guard: if a developer adds a new ``mp.FIELD`` reference
     to the Engine, these tests force an update to both
-    ENGINE_CONSUMED_FIELDS and V4_FIELD_INVENTORY."""
+    ENGINE_CONSUMED_FIELDS and V5_FIELD_INVENTORY."""
 
     def test_engine_pine_has_no_unknown_mp_references(self):
         """Fail if Engine references an mp.FIELD not in ENGINE_CONSUMED_FIELDS.
@@ -450,21 +463,21 @@ class TestCIConsumerFieldGuard:
             f"ENGINE_CONSUMED_FIELDS — update the contract: {unknown}"
         )
 
-    def test_consumed_fields_all_in_v4_inventory(self):
-        """Fail if ENGINE_CONSUMED_FIELDS has a field not in V4_FIELD_INVENTORY.
+    def test_consumed_fields_all_in_v5_inventory(self):
+        """Fail if ENGINE_CONSUMED_FIELDS has a field not in V5_FIELD_INVENTORY.
         Forces the developer to keep the inventory in sync."""
-        orphan = ENGINE_CONSUMED_FIELDS - V4_FIELD_INVENTORY
+        orphan = ENGINE_CONSUMED_FIELDS - V5_FIELD_INVENTORY
         assert not orphan, (
             f"ENGINE_CONSUMED_FIELDS contains fields not in "
-            f"V4_FIELD_INVENTORY: {orphan}"
+            f"V5_FIELD_INVENTORY: {orphan}"
         )
 
     def test_inventory_covers_all_consumer_fields(self):
         """Redundant cross-check: parse + compare in one assertion."""
         text = _read_pine("SMC_Core_Engine.pine")
         consumed = _extract_mp_fields(text)
-        missing = consumed - V4_FIELD_INVENTORY
+        missing = consumed - V5_FIELD_INVENTORY
         assert not missing, (
-            f"CI FAIL: engine reads mp.{{field}} not in V4_FIELD_INVENTORY. "
+            f"CI FAIL: engine reads mp.{{field}} not in V5_FIELD_INVENTORY. "
             f"Either add {missing} to the inventory or remove the reference."
         )

@@ -51,9 +51,9 @@ from scripts.smc_schema_resolver import resolve_microstructure_schema_path
 SCHEMA_PATH = resolve_microstructure_schema_path()
 
 
-# ── Canonical v4+v5 field inventory (must stay in sync with contract) ──
+# ── Canonical v5 field inventory (must stay in sync with contract) ──
 
-V4_FIELD_INVENTORY = [
+V5_FIELD_INVENTORY = [
     # Core + Meta
     "ASOF_DATE", "ASOF_TIME", "UNIVERSE_ID", "LOOKBACK_DAYS",
     "UNIVERSE_SIZE", "REFRESH_COUNT",
@@ -484,8 +484,8 @@ class TestFinalizePipelineE2E:
             enrich_layering=True,
         )
         pine_text = Path(result["pine_paths"]["pine_path"]).read_text(encoding="utf-8")
-        for field in V4_FIELD_INVENTORY:
-            assert field in pine_text, f"finalize_pipeline missing v4 field: {field}"
+        for field in V5_FIELD_INVENTORY:
+            assert field in pine_text, f"finalize_pipeline missing v5 field: {field}"
 
     @patch("scripts.generate_smc_micro_base_from_databento._make_fmp_client")
     def test_stale_providers_in_return(self, mock_make, base_result, tmp_path):
@@ -571,8 +571,8 @@ class TestGeneratePineWithRealEnrichment:
             enrichment=enrichment,
         )
         pine_text = result["pine_path"].read_text(encoding="utf-8")
-        for field in V4_FIELD_INVENTORY:
-            assert field in pine_text, f"Missing v4 field from real enrichment: {field}"
+        for field in V5_FIELD_INVENTORY:
+            assert field in pine_text, f"Missing v5 field from real enrichment: {field}"
 
     @patch("scripts.generate_smc_micro_base_from_databento._make_fmp_client")
     def test_rendered_regime_matches_enrichment(self, mock_make, base_csv, tmp_path):
@@ -745,14 +745,14 @@ class TestSmokeFullV4Pipeline:
 
         pine_text = result["pine_path"].read_text(encoding="utf-8")
 
-        # 3. Verify all v4 fields
-        for field in V4_FIELD_INVENTORY:
-            assert field in pine_text, f"Smoke: missing v4 field: {field}"
+        # 3. Verify all v5 fields
+        for field in V5_FIELD_INVENTORY:
+            assert field in pine_text, f"Smoke: missing v5 field: {field}"
 
         # 4. Verify field count
         export_lines = [l for l in pine_text.splitlines() if l.startswith("export const")]
-        assert len(export_lines) == len(V4_FIELD_INVENTORY), (
-            f"Expected {len(V4_FIELD_INVENTORY)} exports, got {len(export_lines)}"
+        assert len(export_lines) == len(V5_FIELD_INVENTORY), (
+            f"Expected {len(V5_FIELD_INVENTORY)} exports, got {len(export_lines)}"
         )
 
     @patch("scripts.generate_smc_micro_base_from_databento._make_fmp_client")
@@ -780,7 +780,7 @@ class TestSmokeFullV4Pipeline:
             parts = line.split(" = ", 1)[0].split()
             if len(parts) >= 4:
                 found_names.add(parts[3])
-        unexpected = found_names - set(V4_FIELD_INVENTORY)
+        unexpected = found_names - set(V5_FIELD_INVENTORY)
         assert not unexpected, f"Unexpected export fields: {unexpected}"
 
     @patch("scripts.generate_smc_micro_base_from_databento._make_fmp_client")
@@ -879,7 +879,7 @@ class TestSmokeFullV4Pipeline:
         # Verify Pine content
         pine_text = Path(result["pine_paths"]["pine_path"]).read_text(encoding="utf-8")
         export_lines = [l for l in pine_text.splitlines() if l.startswith("export const")]
-        assert len(export_lines) == len(V4_FIELD_INVENTORY)
+        assert len(export_lines) == len(V5_FIELD_INVENTORY)
 
         # Verify manifest
         manifest_files = list(tmp_path.rglob("smc_micro_profiles_generated.json"))

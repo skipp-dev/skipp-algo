@@ -109,23 +109,23 @@ class TestGeneratedArtifactDrift:
             f"  generator  keys: {sorted(fresh_filtered.keys())}"
         )
 
-    def test_v4_field_count(self, regenerated: Path):
-        """Sanity check: the Pine library contains the expected 37 v4 fields."""
+    def test_v5_field_count(self, regenerated: Path):
+        """Sanity check: the Pine library contains the expected 51 v5 fields."""
         pine = (regenerated / "pine" / "generated" / "smc_micro_profiles_generated.pine").read_text()
         exports = [l for l in pine.splitlines() if l.startswith("export const")]
-        assert len(exports) == 37, (
-            f"Expected 37 export const fields, got {len(exports)}"
+        assert len(exports) == 51, (
+            f"Expected 51 export const fields, got {len(exports)}"
         )
 
-    def test_manifest_has_v4_meta_keys(self, regenerated: Path):
-        """Manifest must contain the v4 top-level meta fields."""
+    def test_manifest_has_v5_meta_keys(self, regenerated: Path):
+        """Manifest must contain the v5 top-level meta fields."""
         import json
 
         manifest = json.loads(
             (regenerated / "pine" / "generated" / "smc_micro_profiles_generated.json").read_text()
         )
         assert "library_field_version" in manifest
-        assert manifest["library_field_version"] == "v4"
+        assert manifest["library_field_version"] == "v5"
         assert "asof_time" in manifest
         assert "refresh_count" in manifest
         assert "enrichment_blocks" in manifest

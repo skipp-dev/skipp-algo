@@ -367,10 +367,10 @@ class TestReturnContract:
             assert path.exists(), f"Artifact {name!r} not written: {path}"
 
 
-# ── Test 6: V4 field inventory is complete and deterministic ────
+# ── Test 6: V5 field inventory is complete and deterministic ────
 
-# Canonical list of every export const that the v4 library must contain.
-V4_FIELD_INVENTORY = [
+# Canonical list of every export const that the v5 library must contain.
+V5_FIELD_INVENTORY = [
     # Core + Meta
     "ASOF_DATE", "ASOF_TIME", "UNIVERSE_ID", "LOOKBACK_DAYS", "UNIVERSE_SIZE",
     "REFRESH_COUNT",
@@ -403,29 +403,29 @@ V4_FIELD_INVENTORY = [
 ]
 
 
-class TestV4FieldInventory:
-    """Ensures every v4 field is present regardless of enrichment state."""
+class TestV5FieldInventory:
+    """Ensures every v5 field is present regardless of enrichment state."""
 
-    def test_all_v4_fields_with_full_enrichment(self, base_csv: Path, tmp_path: Path):
+    def test_all_v5_fields_with_full_enrichment(self, base_csv: Path, tmp_path: Path):
         text = _run_pipeline(base_csv, tmp_path, enrichment=_full_enrichment())
-        for field in V4_FIELD_INVENTORY:
-            assert field in text, f"Missing v4 field: {field}"
+        for field in V5_FIELD_INVENTORY:
+            assert field in text, f"Missing v5 field: {field}"
 
-    def test_all_v4_fields_without_enrichment(self, base_csv: Path, tmp_path: Path):
+    def test_all_v5_fields_without_enrichment(self, base_csv: Path, tmp_path: Path):
         text = _run_pipeline(base_csv, tmp_path, enrichment=None)
-        for field in V4_FIELD_INVENTORY:
-            assert field in text, f"Missing v4 field (no enrichment): {field}"
+        for field in V5_FIELD_INVENTORY:
+            assert field in text, f"Missing v5 field (no enrichment): {field}"
 
-    def test_all_v4_fields_with_partial_enrichment(self, base_csv: Path, tmp_path: Path):
+    def test_all_v5_fields_with_partial_enrichment(self, base_csv: Path, tmp_path: Path):
         text = _run_pipeline(base_csv, tmp_path, enrichment=_regime_only_enrichment())
-        for field in V4_FIELD_INVENTORY:
-            assert field in text, f"Missing v4 field (partial): {field}"
+        for field in V5_FIELD_INVENTORY:
+            assert field in text, f"Missing v5 field (partial): {field}"
 
     def test_field_count_matches_inventory(self, base_csv: Path, tmp_path: Path):
         text = _run_pipeline(base_csv, tmp_path, enrichment=_full_enrichment())
         export_lines = [l for l in text.splitlines() if l.startswith("export const")]
-        assert len(export_lines) == len(V4_FIELD_INVENTORY), (
-            f"Expected {len(V4_FIELD_INVENTORY)} export fields, got {len(export_lines)}"
+        assert len(export_lines) == len(V5_FIELD_INVENTORY), (
+            f"Expected {len(V5_FIELD_INVENTORY)} export fields, got {len(export_lines)}"
         )
 
     def test_no_unexpected_export_fields(self, base_csv: Path, tmp_path: Path):
@@ -437,7 +437,7 @@ class TestV4FieldInventory:
             parts = line.split(" = ", 1)[0].split()
             if len(parts) >= 4:
                 found_names.add(parts[3])
-        expected_names = set(V4_FIELD_INVENTORY)
+        expected_names = set(V5_FIELD_INVENTORY)
         unexpected = found_names - expected_names
         assert not unexpected, f"Unexpected export fields: {unexpected}"
 
