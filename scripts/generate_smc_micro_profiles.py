@@ -769,6 +769,8 @@ def write_manifest(
         "list_counts": {name: len(symbols) for name, symbols in lists.items()},
         "enrichment_blocks": sorted((enrichment or {}).keys()),
         "library_field_version": "v4",
+        "asof_time": ((enrichment or {}).get("meta") or {}).get("asof_time", ""),
+        "refresh_count": int(((enrichment or {}).get("meta") or {}).get("refresh_count", 0)),
     }
     path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
 

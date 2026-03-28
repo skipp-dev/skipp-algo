@@ -1868,6 +1868,7 @@ def run_streamlit_micro_base_app() -> None:
                         # Symbols from the selected base CSV
                         base_df = pd.read_csv(action_base_csv)
                         symbols = sorted(base_df["symbol"].dropna().unique().tolist()) if "symbol" in base_df.columns else []
+                        manifest_path = repo_root / "pine" / "generated" / "smc_micro_profiles_generated.json"
                         enrichment = build_enrichment(
                             fmp_api_key=str(fmp_api_key),
                             symbols=symbols,
@@ -1875,6 +1876,8 @@ def run_streamlit_micro_base_app() -> None:
                             enrich_news=enrich_news,
                             enrich_calendar=enrich_calendar,
                             enrich_layering=enrich_layering,
+                            base_snapshot=base_df,
+                            manifest_path=manifest_path,
                         )
                         add_log(f"Enrichment collected: {list(enrichment.keys()) if enrichment else 'none'}")
                     except Exception as exc:

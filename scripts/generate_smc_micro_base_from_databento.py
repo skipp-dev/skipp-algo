@@ -217,6 +217,44 @@ def _make_fmp_client(api_key: str) -> Any:
     return FMPClient(api_key=api_key, retry_attempts=2, timeout_seconds=12)
 
 
+def _derive_volume_regime(
+    base_snapshot: pd.DataFrame | None,
+    adv_threshold: float = 5_000_000,
+) -> dict[str, Any]:
+    """Derive volume-regime tickers from base snapshot data.
+
+    * **low_tickers**: symbols whose ``adv_dollar_rth_20d`` is below
+      *adv_threshold* (schema eligibility floor).
+    * **holiday_suspect_tickers**: symbols whose ``adv_dollar_rth_20d``
+      is below 20 % of the universe median — a heuristic that flags
+      unusually thin trading days (holidays, half-days).
+    """
+    if base_snapshot is None or base_snapshot.empty:
+        return {"low_tickers": [], "holiday_suspect_tickers": []}
+    if "adv_dollar_rth_20d" not in base_snapshot.columns:
+        return {"low_tickers": [], "holiday_suspect_tickers": []}
+    adv = pd.to_numeric(base_snapshot["adv_dollar_rth_20d"], errors="coerce")
+    syms = base_snapshot["symbol"].astype(str).str.upper()
+    low = sorted(syms[adv < adv_threshold].dropna().tolist())
+    median_adv = adv.median()
+    if pd.notna(median_adv) and median_adv > 0:
+        holiday = sorted(syms[adv < 0.2 * median_adv].dropna().tolist())
+    else:
+        holiday = []
+    return {"low_tickers": low, "holiday_suspect_tickers": holiday}
+
+
+def _read_previous_refresh_count(manifest_path: Path | None) -> int:
+    """Read refresh_count from a previously-written manifest, or 0."""
+    if manifest_path is None or not manifest_path.exists():
+        return 0
+    try:
+        data = json.loads(manifest_path.read_text(encoding="utf-8"))
+        return int(data.get("refresh_count", 0))
+    except Exception:
+        return 0
+
+
 def build_enrichment(
     *,
     fmp_api_key: str,
@@ -226,6 +264,8 @@ def build_enrichment(
     enrich_news: bool = False,
     enrich_calendar: bool = False,
     enrich_layering: bool = False,
+    base_snapshot: pd.DataFrame | None = None,
+    manifest_path: Path | None = None,
 ) -> EnrichmentDict | None:
     """Build the enrichment dict using the v4 provider policy matrix.
 
@@ -233,6 +273,16 @@ def build_enrichment(
     fallback) as defined in ``smc_provider_policy``.  Every failure path
     records the stale provider and falls through to the next candidate
     or to safe defaults.  Provenance is recorded per-domain.
+
+    Parameters
+    ----------
+    base_snapshot:
+        Optional base snapshot DataFrame.  When provided, volume-regime
+        tickers (``VOLUME_LOW_TICKERS``, ``HOLIDAY_SUSPECT_TICKERS``)
+        are derived from ``adv_dollar_rth_20d``.
+    manifest_path:
+        Path to the previously-written manifest JSON.  When provided,
+        ``refresh_count`` is read from it and incremented by 1.
     """
     if not any([enrich_regime, enrich_news, enrich_calendar, enrich_layering]):
         return None
@@ -338,10 +388,14 @@ def build_enrichment(
         **provenance,
     }
 
+    # ── Volume regime ───────────────────────────────────────────
+    enrichment["volume_regime"] = _derive_volume_regime(base_snapshot)
+
     # ── Meta ────────────────────────────────────────────────────
+    prev_count = _read_previous_refresh_count(manifest_path)
     enrichment["meta"] = {
         "asof_time": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
-        "refresh_count": 0,
+        "refresh_count": prev_count + 1,
     }
 
     return enrichment
@@ -368,9 +422,13 @@ def finalize_pipeline(
     dict that downstream gates / CI can consume directly.
     """
     base_csv = Path(base_result["output_paths"]["base_csv"])
+    snapshot_df = base_result["base_snapshot"]
     symbols = sorted(
-        base_result["base_snapshot"]["symbol"].dropna().unique().tolist()
+        snapshot_df["symbol"].dropna().unique().tolist()
     )
+
+    # Resolve manifest path for refresh_count persistence
+    manifest_path = output_root / "pine" / "generated" / "smc_micro_profiles_generated.json"
 
     # ── Enrichment ──────────────────────────────────────────────
     enrichment = build_enrichment(
@@ -381,6 +439,8 @@ def finalize_pipeline(
         enrich_news=enrich_news,
         enrich_calendar=enrich_calendar,
         enrich_layering=enrich_layering,
+        base_snapshot=snapshot_df,
+        manifest_path=manifest_path,
     )
 
     # ── Pine library generation ─────────────────────────────────
