@@ -11,6 +11,7 @@ import pandas as pd
 import pytest
 
 import scripts.smc_microstructure_base_runtime as runtime
+import scripts.smc_databento_session_detail as session_detail
 from scripts.smc_microstructure_base_runtime import (
     _consistency_score,
     _setup_decay_half_life_30m_buckets,
@@ -394,10 +395,10 @@ def test_collect_full_universe_session_minute_detail_excludes_runtime_unsupporte
         warnings.warn("The streaming request had one or more symbols which did not resolve: AACB")
         return FakeStore()
 
-    monkeypatch.setattr(runtime, "_make_databento_client", lambda api_key: object())
-    monkeypatch.setattr(runtime, "_get_schema_available_end", lambda client, dataset, schema: pd.Timestamp("2026-02-11T03:00:00Z"))
-    monkeypatch.setattr(runtime, "_databento_get_range_with_retry", fake_get_range)
-    monkeypatch.setattr(runtime, "_store_to_frame", lambda store, count, context: store.to_df(count=count))
+    monkeypatch.setattr(session_detail, "_make_databento_client", lambda api_key: object())
+    monkeypatch.setattr(session_detail, "_get_schema_available_end", lambda client, dataset, schema: pd.Timestamp("2026-02-11T03:00:00Z"))
+    monkeypatch.setattr(session_detail, "_databento_get_range_with_retry", fake_get_range)
+    monkeypatch.setattr(session_detail, "_store_to_frame", lambda store, count, context: store.to_df(count=count))
 
     with caplog.at_level("WARNING"):
         output = collect_full_universe_session_minute_detail(
@@ -433,10 +434,10 @@ def test_collect_full_universe_session_minute_detail_uses_day_specific_expected_
                 ]
             )
 
-    monkeypatch.setattr(runtime, "_make_databento_client", lambda api_key: object())
-    monkeypatch.setattr(runtime, "_get_schema_available_end", lambda client, dataset, schema: pd.Timestamp("2026-02-11T03:00:00Z"))
-    monkeypatch.setattr(runtime, "_databento_get_range_with_retry", lambda *args, **kwargs: FakeStore())
-    monkeypatch.setattr(runtime, "_store_to_frame", lambda store, count, context: store.to_df(count=count))
+    monkeypatch.setattr(session_detail, "_make_databento_client", lambda api_key: object())
+    monkeypatch.setattr(session_detail, "_get_schema_available_end", lambda client, dataset, schema: pd.Timestamp("2026-02-11T03:00:00Z"))
+    monkeypatch.setattr(session_detail, "_databento_get_range_with_retry", lambda *args, **kwargs: FakeStore())
+    monkeypatch.setattr(session_detail, "_store_to_frame", lambda store, count, context: store.to_df(count=count))
 
     output = collect_full_universe_session_minute_detail(
         "dummy-key",
@@ -489,10 +490,10 @@ def test_collect_full_universe_session_minute_detail_runtime_unsupported_symbols
             )
         )
 
-    monkeypatch.setattr(runtime, "_make_databento_client", lambda api_key: object())
-    monkeypatch.setattr(runtime, "_get_schema_available_end", lambda client, dataset, schema: pd.Timestamp("2026-02-12T03:00:00Z"))
-    monkeypatch.setattr(runtime, "_databento_get_range_with_retry", fake_get_range)
-    monkeypatch.setattr(runtime, "_store_to_frame", lambda store, count, context: store.to_df(count=count))
+    monkeypatch.setattr(session_detail, "_make_databento_client", lambda api_key: object())
+    monkeypatch.setattr(session_detail, "_get_schema_available_end", lambda client, dataset, schema: pd.Timestamp("2026-02-12T03:00:00Z"))
+    monkeypatch.setattr(session_detail, "_databento_get_range_with_retry", fake_get_range)
+    monkeypatch.setattr(session_detail, "_store_to_frame", lambda store, count, context: store.to_df(count=count))
 
     output = collect_full_universe_session_minute_detail(
         "dummy-key",
@@ -927,15 +928,15 @@ def test_collect_full_universe_session_minute_detail_cache_coverage_uses_runtime
         ]
     )
 
-    monkeypatch.setattr(runtime, "_make_databento_client", lambda api_key: object())
-    monkeypatch.setattr(runtime, "_get_schema_available_end", lambda client, dataset, schema: pd.Timestamp("2026-02-11T03:00:00Z"))
-    monkeypatch.setattr(runtime, "build_cache_path", lambda *args, **kwargs: cache_path)
-    monkeypatch.setattr(runtime, "_read_cached_frame", lambda *args, **kwargs: cached_frame.copy())
+    monkeypatch.setattr(session_detail, "_make_databento_client", lambda api_key: object())
+    monkeypatch.setattr(session_detail, "_get_schema_available_end", lambda client, dataset, schema: pd.Timestamp("2026-02-11T03:00:00Z"))
+    monkeypatch.setattr(session_detail, "build_cache_path", lambda *args, **kwargs: cache_path)
+    monkeypatch.setattr(session_detail, "_read_cached_frame", lambda *args, **kwargs: cached_frame.copy())
 
     def fail_fetch(*args: Any, **kwargs: Any) -> Any:
         raise AssertionError("fetch should not run when cache coverage passes with unresolved sidecar")
 
-    monkeypatch.setattr(runtime, "_databento_get_range_with_retry", fail_fetch)
+    monkeypatch.setattr(session_detail, "_databento_get_range_with_retry", fail_fetch)
 
     output = collect_full_universe_session_minute_detail(
         "dummy-key",
@@ -1021,14 +1022,14 @@ def test_collect_full_universe_session_minute_detail_writes_unresolved_cache_sid
         warnings.warn("The streaming request had one or more symbols which did not resolve: AACB")
         return EmptyStore()
 
-    monkeypatch.setattr(runtime, "_make_databento_client", lambda api_key: object())
-    monkeypatch.setattr(runtime, "_get_schema_available_end", lambda client, dataset, schema: pd.Timestamp("2026-02-11T03:00:00Z"))
-    monkeypatch.setattr(runtime, "build_cache_path", lambda *args, **kwargs: cache_path)
-    monkeypatch.setattr(runtime, "_read_cached_frame", lambda *args, **kwargs: None)
-    monkeypatch.setattr(runtime, "_databento_get_range_with_retry", fake_get_range)
-    monkeypatch.setattr(runtime, "_store_to_frame", lambda store, count, context: store.to_df(count=count))
+    monkeypatch.setattr(session_detail, "_make_databento_client", lambda api_key: object())
+    monkeypatch.setattr(session_detail, "_get_schema_available_end", lambda client, dataset, schema: pd.Timestamp("2026-02-11T03:00:00Z"))
+    monkeypatch.setattr(session_detail, "build_cache_path", lambda *args, **kwargs: cache_path)
+    monkeypatch.setattr(session_detail, "_read_cached_frame", lambda *args, **kwargs: None)
+    monkeypatch.setattr(session_detail, "_databento_get_range_with_retry", fake_get_range)
+    monkeypatch.setattr(session_detail, "_store_to_frame", lambda store, count, context: store.to_df(count=count))
     monkeypatch.setattr(
-        runtime,
+        session_detail,
         "_write_cached_frame",
         lambda *args, **kwargs: wrote_parquet.__setitem__("value", True),
     )
