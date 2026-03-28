@@ -74,12 +74,17 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       # ── Snapshot pre-generation state ───────────────────────────
-      - name: Snapshot library before generation
+      - name: Snapshot library + manifest before generation
         run: |
           if [ -f pine/generated/smc_micro_profiles_generated.pine ]; then
             cp pine/generated/smc_micro_profiles_generated.pine /tmp/library_before.pine
           else
             touch /tmp/library_before.pine
+          fi
+          if [ -f pine/generated/smc_micro_profiles_generated.json ]; then
+            cp pine/generated/smc_micro_profiles_generated.json /tmp/manifest_before.json
+          else
+            echo '{}' > /tmp/manifest_before.json
           fi
 
       # ── Library generation with enrichment ──────────────────────
@@ -129,19 +134,81 @@ jobs:
         id: diff
         run: |
           LIBRARY="pine/generated/smc_micro_profiles_generated.pine"
+          MANIFEST="pine/generated/smc_micro_profiles_generated.json"
+          mkdir -p artifacts/ci
+
           if diff -q /tmp/library_before.pine "$LIBRARY" > /dev/null 2>&1; then
             echo "changed=false" >> "$GITHUB_OUTPUT"
             echo "::notice::Library content unchanged — skipping publish/commit."
           else
             echo "changed=true" >> "$GITHUB_OUTPUT"
-            # Generate unified diff report
-            mkdir -p artifacts/ci
             diff -u /tmp/library_before.pine "$LIBRARY" \
               > artifacts/ci/library_diff_${REFRESH_DATE}.patch || true
             echo "::notice::Library content changed — proceeding to publish."
           fi
 
-      # ── Dated artifact upload ───────────────────────────────────
+      # ── Schema / version breaking-change safety ─────────────────
+      - name: Check for breaking schema or version changes
+        id: breaking
+        if: steps.diff.outputs.changed == 'true'
+        run: |
+          MANIFEST="pine/generated/smc_micro_profiles_generated.json"
+          PREV="/tmp/manifest_before.json"
+
+          NEW_FIELD_VER=$(jq -r '.library_field_version // ""' "$MANIFEST")
+          OLD_FIELD_VER=$(jq -r '.library_field_version // ""' "$PREV")
+
+          NEW_LIB_VER=$(jq -r '.library_version // 0' "$MANIFEST")
+          OLD_LIB_VER=$(jq -r '.library_version // 0' "$PREV")
+
+          NEW_FIELD_COUNT=$(grep -c 'export const' pine/generated/smc_micro_profiles_generated.pine || echo 0)
+          OLD_FIELD_COUNT=$(grep -c 'export const' /tmp/library_before.pine || echo 0)
+
+          BREAKING="false"
+          REASON=""
+
+          if [ -n "$OLD_FIELD_VER" ] && [ "$OLD_FIELD_VER" != "$NEW_FIELD_VER" ]; then
+            BREAKING="true"
+            REASON="library_field_version changed: ${OLD_FIELD_VER} → ${NEW_FIELD_VER}"
+          fi
+
+          if [ "$OLD_FIELD_COUNT" -gt 0 ] && [ "$NEW_FIELD_COUNT" -ne "$OLD_FIELD_COUNT" ]; then
+            BREAKING="true"
+            REASON="${REASON:+$REASON; }export field count changed: ${OLD_FIELD_COUNT} → ${NEW_FIELD_COUNT}"
+          fi
+
+          echo "breaking=${BREAKING}" >> "$GITHUB_OUTPUT"
+          echo "reason=${REASON}" >> "$GITHUB_OUTPUT"
+
+          if [ "$BREAKING" = "true" ]; then
+            echo "::warning::Breaking change detected — auto-commit blocked. ${REASON}"
+          fi
+
+      # ── Publish-contract verification ────────────────────────────
+      - name: Verify publish contract
+        id: contract
+        if: steps.diff.outputs.changed == 'true'
+        run: |
+          python scripts/verify_smc_micro_publish_contract.py \
+            --manifest pine/generated/smc_micro_profiles_generated.json \
+            --core SMC_Core_Engine.pine
+
+      # ── Dated snapshot archival ─────────────────────────────────
+      - name: Archive dated library snapshot
+        if: steps.diff.outputs.changed == 'true'
+        run: |
+          SNAP_DIR="artifacts/snapshots/${REFRESH_DATE}"
+          mkdir -p "$SNAP_DIR"
+          cp pine/generated/smc_micro_profiles_generated.pine \
+             "${SNAP_DIR}/smc_micro_profiles_generated_run${{ github.run_number }}.pine"
+          cp pine/generated/smc_micro_profiles_generated.json \
+             "${SNAP_DIR}/smc_micro_profiles_generated_run${{ github.run_number }}.json"
+          if [ -f pine/generated/smc_micro_profiles_core_import.pine ]; then
+            cp pine/generated/smc_micro_profiles_core_import.pine \
+               "${SNAP_DIR}/smc_micro_profiles_core_import_run${{ github.run_number }}.pine"
+          fi
+
+      # ── Upload CI artifacts ─────────────────────────────────────
       - name: Upload gate evidence + library artifacts
         if: always()
         uses: actions/upload-artifact@v4
@@ -149,18 +216,19 @@ jobs:
           name: smc-refresh-${{ env.REFRESH_DATE }}-${{ github.run_number }}
           path: |
             artifacts/ci/
+            artifacts/snapshots/
             pine/generated/
           retention-days: 90
 
-      # ── Publish to TradingView (skip when unchanged) ────────────
+      # ── Publish to TradingView (skip when unchanged or breaking) ─
       - name: Write TradingView storage state
-        if: steps.diff.outputs.changed == 'true'
+        if: steps.diff.outputs.changed == 'true' && steps.breaking.outputs.breaking != 'true'
         run: |
           mkdir -p automation/tradingview/auth
           echo '${{ secrets.TV_STORAGE_STATE }}' > automation/tradingview/auth/storage-state.json
 
       - name: Publish library to TradingView
-        if: steps.diff.outputs.changed == 'true'
+        if: steps.diff.outputs.changed == 'true' && steps.breaking.outputs.breaking != 'true'
         env:
           TV_STORAGE_STATE: automation/tradingview/auth/storage-state.json
         run: |
@@ -169,15 +237,15 @@ jobs:
             --core SMC_Core_Engine.pine \
             --release-manifest artifacts/tradingview/library_release_manifest.json
 
-      # ── Version bump + commit (skip when unchanged) ─────────────
+      # ── Version bump + commit (skip when unchanged or breaking) ─
       - name: Bump library version in SMC_Core_Engine.pine
-        if: steps.diff.outputs.changed == 'true'
+        if: steps.diff.outputs.changed == 'true' && steps.breaking.outputs.breaking != 'true'
         run: |
           NEW_VERSION=$(jq -r '.library_version' pine/generated/smc_micro_profiles_generated.json)
           sed -i "s|import preuss_steffen/smc_micro_profiles_generated/[0-9]*|import preuss_steffen/smc_micro_profiles_generated/${NEW_VERSION}|" SMC_Core_Engine.pine
 
       - name: Commit and push changes
-        if: steps.diff.outputs.changed == 'true'
+        if: steps.diff.outputs.changed == 'true' && steps.breaking.outputs.breaking != 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -188,7 +256,7 @@ jobs:
       # ── Signal alerts (non-blocking) ────────────────────────────
       - name: Evaluate and send alerts
         id: alerts
-        if: steps.diff.outputs.changed == 'true'
+        if: steps.diff.outputs.changed == 'true' && steps.breaking.outputs.breaking != 'true'
         continue-on-error: true
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
@@ -211,7 +279,7 @@ jobs:
             ${ALERT_EMAIL_FROM:+--email-from "$ALERT_EMAIL_FROM"} \
             ${ALERT_EMAIL_TO:+--email-to "$ALERT_EMAIL_TO"}
 
-      # ── Status notification ─────────────────────────────────────
+      # ── Status summary ─────────────────────────────────────────
       - name: Emit workflow summary
         if: always()
         run: |
@@ -223,7 +291,13 @@ jobs:
             echo "| Generation | ${{ steps.gates.outcome != 'skipped' && '✅' || '❌ skipped' }} |"
             echo "| Evidence gates | ${{ steps.gates.outcome == 'success' && '✅ passed' || '❌ failed' }} |"
             echo "| Library changed | ${{ steps.diff.outputs.changed == 'true' && '✅ yes' || '⏭️ no' }} |"
-            if [ "${{ steps.diff.outputs.changed }}" = "true" ]; then
+            echo "| Publish contract | ${{ steps.contract.outcome == 'success' && '✅' || steps.contract.outcome == 'skipped' && '⏭️ skipped' || '❌ failed' }} |"
+            if [ "${{ steps.breaking.outputs.breaking }}" = "true" ]; then
+              echo "| ⚠️ Breaking change | 🛑 ${{ steps.breaking.outputs.reason }} |"
+              echo "| Publish | 🛑 blocked (breaking change) |"
+              echo "| Commit | 🛑 blocked (breaking change) |"
+              echo "| Alerts | 🛑 blocked (breaking change) |"
+            elif [ "${{ steps.diff.outputs.changed }}" = "true" ]; then
               echo "| Publish | ✅ |"
               echo "| Commit | ✅ |"
               echo "| Alerts | ${{ steps.alerts.outcome == 'success' && '✅ evaluated' || '⚠️ error (non-blocking)' }} |"
@@ -242,3 +316,20 @@ jobs:
               echo "</details>"
             fi
           } >> "$GITHUB_STEP_SUMMARY"
+
+      # ── Breaking-change notification ────────────────────────────
+      - name: Notify on breaking change
+        if: steps.breaking.outputs.breaking == 'true'
+        continue-on-error: true
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          MSG="🛑 SMC Library breaking change detected (${REFRESH_TS})%0A${{ steps.breaking.outputs.reason }}%0AArtifacts archived but auto-commit blocked."
+          if [ -n "$TELEGRAM_BOT_TOKEN" ] && [ -n "$TELEGRAM_CHAT_ID" ]; then
+            curl -sf -X POST \
+              "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+              -d chat_id="${TELEGRAM_CHAT_ID}" \
+              -d text="${MSG}" \
+              -d parse_mode=HTML || true
+          fi
