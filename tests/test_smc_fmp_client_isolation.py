@@ -122,6 +122,80 @@ class TestNoOpenPrepImport:
         assert "open_prep" not in source
 
 
+# ── 2b. Canonical v4 modules contain no open_prep imports ──────
+
+# These are the four runtime modules the v4 doc requires to be canonical,
+# plus the orchestrator, profile generator, and all smc_core / smc_integration
+# packages.
+
+_V4_CANONICAL_MODULES = [
+    "scripts.smc_regime_classifier",
+    "scripts.smc_news_scorer",
+    "scripts.smc_calendar_collector",
+    "scripts.smc_library_layering",
+    "scripts.smc_fmp_client",
+    "scripts.smc_provider_policy",
+    "scripts.generate_smc_micro_base_from_databento",
+    "scripts.generate_smc_micro_profiles",
+]
+
+
+class TestCanonicalModulesOpenPrepFree:
+    """Every canonical v4 runtime module is free of open_prep imports."""
+
+    @pytest.mark.parametrize("module_name", _V4_CANONICAL_MODULES)
+    def test_no_open_prep_import_statement(self, module_name: str):
+        """Source scan: no ``from open_prep`` or ``import open_prep``."""
+        import re
+
+        mod = importlib.import_module(module_name)
+        spec = importlib.util.find_spec(mod.__name__)
+        assert spec is not None and spec.origin is not None
+        source = open(spec.origin, encoding="utf-8").read()
+        hits = re.findall(
+            r"^\s*(from|import)\s+open_prep\b", source, re.MULTILINE
+        )
+        assert hits == [], f"{module_name} has open_prep imports: {hits}"
+
+
+class TestV4PackagesOpenPrepFree:
+    """smc_core and smc_integration packages have zero open_prep dependency."""
+
+    @staticmethod
+    def _scan_package(pkg_path: str) -> list[str]:
+        """Return any .py files under *pkg_path* that contain open_prep imports."""
+        import re
+        from pathlib import Path
+
+        violations: list[str] = []
+        for py in sorted(Path(pkg_path).rglob("*.py")):
+            source = py.read_text(encoding="utf-8")
+            if re.search(r"^\s*(from|import)\s+open_prep\b", source, re.MULTILINE):
+                violations.append(str(py))
+        return violations
+
+    def test_smc_core_no_open_prep(self):
+        from pathlib import Path
+
+        pkg = Path(__file__).resolve().parent.parent / "smc_core"
+        violations = self._scan_package(str(pkg))
+        assert violations == [], f"smc_core files with open_prep: {violations}"
+
+    def test_smc_integration_no_open_prep(self):
+        from pathlib import Path
+
+        pkg = Path(__file__).resolve().parent.parent / "smc_integration"
+        violations = self._scan_package(str(pkg))
+        assert violations == [], f"smc_integration files with open_prep: {violations}"
+
+    def test_newsstack_fmp_no_open_prep(self):
+        from pathlib import Path
+
+        pkg = Path(__file__).resolve().parent.parent / "newsstack_fmp"
+        violations = self._scan_package(str(pkg))
+        assert violations == [], f"newsstack_fmp files with open_prep: {violations}"
+
+
 class _ImportBlocker:
     """Meta-path finder that raises ImportError for a blocked package."""
 
