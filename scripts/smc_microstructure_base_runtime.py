@@ -1680,6 +1680,34 @@ def run_streamlit_micro_base_app() -> None:
         write_xlsx = st.checkbox("Write Base workbook (.xlsx)", value=True)
         library_owner = st.text_input("TradingView owner", value="preuss_steffen")
         library_version = st.number_input("TradingView library version", min_value=1, max_value=99, value=1)
+        st.divider()
+        st.subheader("Enrichment")
+        enrich_regime = st.checkbox(
+            "Regime (VIX, Macro, Sectors)",
+            value=bool(fmp_api_key),
+            help="Fügt MARKET_REGIME, VIX_LEVEL, MACRO_BIAS, SECTOR_BREADTH hinzu. Benötigt FMP API Key.",
+            disabled=not bool(fmp_api_key),
+        )
+        enrich_news = st.checkbox(
+            "News/Sentiment",
+            value=bool(fmp_api_key),
+            help="Fügt NEWS_BULLISH_TICKERS, NEWS_BEARISH_TICKERS, TICKER_HEAT_MAP hinzu. Benötigt FMP API Key.",
+            disabled=not bool(fmp_api_key),
+        )
+        enrich_calendar = st.checkbox(
+            "Earnings/Macro Calendar",
+            value=bool(fmp_api_key),
+            help="Fügt EARNINGS_TODAY_TICKERS, HIGH_IMPACT_MACRO_TODAY hinzu. Benötigt FMP API Key.",
+            disabled=not bool(fmp_api_key),
+        )
+        enrich_layering = st.checkbox(
+            "Pre-computed Layering",
+            value=bool(fmp_api_key),
+            help="Fügt GLOBAL_HEAT, GLOBAL_STRENGTH, TONE, TRADE_STATE hinzu. Benötigt Regime + News.",
+            disabled=not bool(fmp_api_key),
+        )
+        if not fmp_api_key and any([enrich_regime, enrich_news, enrich_calendar, enrich_layering]):
+            st.caption("⚠️ FMP API Key erforderlich für Enrichment.")
         st.caption("SMC_Core_Engine.pine is already wired to import the generated TradingView library path.")
 
     export_dir = Path(export_dir_raw).expanduser()
@@ -1798,6 +1826,29 @@ def run_streamlit_micro_base_app() -> None:
         if action_base_csv is None:
             st.error(str(action_base_csv_error))
         else:
+            # Build enrichment dict if any enrichment checkbox is active
+            enrichment = None
+            if any([enrich_regime, enrich_news, enrich_calendar, enrich_layering]):
+                with st.spinner("Collecting enrichment data (Regime, News, Calendar)..."):
+                    try:
+                        from scripts.generate_smc_micro_base_from_databento import build_enrichment
+                        # Symbols from the selected base CSV
+                        base_df = pd.read_csv(action_base_csv)
+                        symbols = sorted(base_df["symbol"].dropna().unique().tolist()) if "symbol" in base_df.columns else []
+                        enrichment = build_enrichment(
+                            fmp_api_key=str(fmp_api_key),
+                            symbols=symbols,
+                            enrich_regime=enrich_regime,
+                            enrich_news=enrich_news,
+                            enrich_calendar=enrich_calendar,
+                            enrich_layering=enrich_layering,
+                        )
+                        add_log(f"Enrichment collected: {list(enrichment.keys()) if enrichment else 'none'}")
+                    except Exception as exc:
+                        add_log(f"Enrichment failed (continuing without): {exc}")
+                        st.warning(f"Enrichment partially failed: {exc}. Library will use defaults.")
+                        enrichment = None
+
             try:
                 pine_result = generate_pine_library_from_base(
                     base_csv_path=action_base_csv,
@@ -1806,6 +1857,7 @@ def run_streamlit_micro_base_app() -> None:
                     overrides_path=overrides_path if overrides_path.exists() else None,
                     library_owner=str(library_owner),
                     library_version=int(library_version),
+                    enrichment=enrichment,
                 )
             except Exception as exc:
                 add_log(f"Pine generation failed: {type(exc).__name__}: {exc}")
