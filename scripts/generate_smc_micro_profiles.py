@@ -8,7 +8,7 @@ from typing import Any, cast
 
 import pandas as pd
 
-from smc_core.schema_version import SCHEMA_VERSION
+from smc_core.schema_version import SCHEMA_VERSION, VersionChangeType, classify_version_change
 from scripts.smc_enrichment_types import EnrichmentDict
 
 
@@ -749,6 +749,20 @@ def write_manifest(
 ) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
 
+    # Read previous manifest to record governance metadata
+    prev_schema = ""
+    if path.exists():
+        try:
+            prev = json.loads(path.read_text(encoding="utf-8"))
+            prev_schema = prev.get("schema_version", "")
+        except Exception:
+            pass
+
+    if prev_schema:
+        change_type = classify_version_change(prev_schema, SCHEMA_VERSION).value
+    else:
+        change_type = "initial"
+
     def _rel(p: Path) -> str:
         if relative_to is not None:
             try:
@@ -759,6 +773,8 @@ def write_manifest(
 
     payload = {
         "schema_version": SCHEMA_VERSION,
+        "schema_version_previous": prev_schema,
+        "version_change_type": change_type,
         "asof_date": asof_date,
         "library_name": "smc_micro_profiles_generated",
         "library_owner": library_owner,
@@ -779,6 +795,7 @@ def write_manifest(
         "list_counts": {name: len(symbols) for name, symbols in lists.items()},
         "enrichment_blocks": sorted((enrichment or {}).keys()),
         "library_field_version": "v4",
+        "auto_commit_allowed": change_type in ("unchanged", "patch", "minor", "initial"),
         "asof_time": ((enrichment or {}).get("meta") or {}).get("asof_time", ""),
         "refresh_count": int(((enrichment or {}).get("meta") or {}).get("refresh_count", 0)),
     }

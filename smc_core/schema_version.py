@@ -10,7 +10,18 @@ Bump instructions: see docs/schema_versioning.md
 
 from __future__ import annotations
 
+from enum import Enum
+
 SCHEMA_VERSION = "1.2.0"
+
+
+class VersionChangeType(str, Enum):
+    """Classification of a semver transition."""
+
+    UNCHANGED = "unchanged"
+    PATCH = "patch"
+    MINOR = "minor"
+    MAJOR = "major"
 
 
 def parse_semver(version: str) -> tuple[int, int, int]:
@@ -31,3 +42,38 @@ def is_compatible(producer: str, consumer: str) -> bool:
     p = parse_semver(producer)
     c = parse_semver(consumer)
     return p[0] == c[0] and p[1] >= c[1]
+
+
+def classify_version_change(
+    old_version: str, new_version: str,
+) -> VersionChangeType:
+    """Classify a semver transition as unchanged / patch / minor / major.
+
+    Rules:
+    - Same triple → UNCHANGED
+    - Same major + minor, different patch → PATCH
+    - Same major, different minor → MINOR
+    - Different major → MAJOR
+    """
+    old = parse_semver(old_version)
+    new = parse_semver(new_version)
+    if old == new:
+        return VersionChangeType.UNCHANGED
+    if old[0] != new[0]:
+        return VersionChangeType.MAJOR
+    if old[1] != new[1]:
+        return VersionChangeType.MINOR
+    return VersionChangeType.PATCH
+
+
+def auto_commit_allowed(change_type: VersionChangeType) -> bool:
+    """Whether the automation path may auto-commit for this change type.
+
+    - UNCHANGED / PATCH / MINOR → allowed (additive, backward-compatible)
+    - MAJOR → blocked (requires PR or explicit operator review)
+    """
+    return change_type in (
+        VersionChangeType.UNCHANGED,
+        VersionChangeType.PATCH,
+        VersionChangeType.MINOR,
+    )

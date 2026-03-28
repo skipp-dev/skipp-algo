@@ -84,3 +84,75 @@ All of these import from `smc_core.schema_version`:
 - `tests/helpers/smc_test_artifacts.py` (test fixture helpers)
 
 Do **not** add `SCHEMA_VERSION = "..."` anywhere else.
+
+## Workflow Governance Decision Flow
+
+The CI workflow (`smc-library-refresh.yml`) uses `scripts/smc_version_governance.py`
+to make an automated governance decision after every library regeneration.
+
+### Decision matrix
+
+| schema\_version change | library\_field\_version change | export field count change | Decision | Action |
+|------------------------|-------------------------------|--------------------------|----------|--------|
+| unchanged              | unchanged                     | unchanged                | auto-commit | Normal publish path |
+| patch                  | unchanged                     | unchanged                | auto-commit | Normal publish path |
+| minor                  | unchanged                     | unchanged                | auto-commit | Additive fields — consumers ignore extras |
+| major                  | *any*                         | *any*                    | PR required | Auto-commit blocked; operator review |
+| *any non-major*        | **changed**                   | *any*                    | PR required | Escalated — field layout changed without major bump |
+| *any non-major*        | unchanged                     | **changed**              | PR required | Escalated — export count mismatch detected |
+
+### Normal publish (auto-commit allowed)
+
+This is the default 4×/day automation path:
+
+1. Workflow generates the library with current enrichment data.
+2. Evidence gates pass.
+3. `smc_version_governance.py` runs → exit code 0.
+4. Library is published to TradingView.
+5. Version bump + commit + push happen automatically.
+6. Signal alerts are evaluated and sent.
+
+No operator action needed.
+
+### Breaking-change publish (PR required)
+
+When the governance check returns exit code 1:
+
+1. Workflow generates the library.
+2. Evidence gates pass.
+3. `smc_version_governance.py` runs → exit code 1 (breaking).
+4. **Auto-commit, publish, and alerts are all blocked.**
+5. Telegram notification sent with the reason.
+6. Artifacts are archived (dated snapshot) and uploaded as CI artifacts.
+
+**Operator steps to resolve:**
+
+1. Review the governance decision: `artifacts/ci/version_governance_YYYY-MM-DD.json`.
+2. Review the library diff: `artifacts/ci/library_diff_YYYY-MM-DD.patch`.
+3. Confirm the breaking change is intentional.
+4. Create a PR with the schema version bump (edit `smc_core/schema_version.py`).
+5. Update spec examples and `CHANGELOG.md`.
+6. Run `pytest tests/test_smc_schema_version_enforcement.py -v` locally.
+7. After PR review and merge, the next scheduled run will auto-commit normally.
+
+### Manifest governance metadata
+
+Every generated manifest now includes:
+
+```json
+{
+  "schema_version": "1.2.0",
+  "schema_version_previous": "1.1.0",
+  "version_change_type": "minor",
+  "auto_commit_allowed": true,
+  "library_field_version": "v4"
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `schema_version` | Current version from `smc_core.schema_version.SCHEMA_VERSION` |
+| `schema_version_previous` | Version from the manifest that was overwritten (empty on first run) |
+| `version_change_type` | Semver transition: `initial`, `unchanged`, `patch`, `minor`, `major` |
+| `auto_commit_allowed` | Whether the automation path may auto-commit |
+| `library_field_version` | Pine export field layout version (e.g. `"v4"`) |

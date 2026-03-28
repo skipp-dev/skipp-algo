@@ -147,42 +147,33 @@ jobs:
             echo "::notice::Library content changed — proceeding to publish."
           fi
 
-      # ── Schema / version breaking-change safety ─────────────────
-      - name: Check for breaking schema or version changes
+      # ── Schema / version governance ─────────────────────────────
+      - name: Evaluate version governance
         id: breaking
         if: steps.diff.outputs.changed == 'true'
         run: |
-          MANIFEST="pine/generated/smc_micro_profiles_generated.json"
-          PREV="/tmp/manifest_before.json"
+          set +e
+          DECISION=$(python scripts/smc_version_governance.py \
+            --old-manifest /tmp/manifest_before.json \
+            --new-manifest pine/generated/smc_micro_profiles_generated.json \
+            --old-library /tmp/library_before.pine \
+            --library pine/generated/smc_micro_profiles_generated.pine)
+          RC=$?
+          set -e
 
-          NEW_FIELD_VER=$(jq -r '.library_field_version // ""' "$MANIFEST")
-          OLD_FIELD_VER=$(jq -r '.library_field_version // ""' "$PREV")
+          echo "$DECISION" | tee artifacts/ci/version_governance_${REFRESH_DATE}.json
 
-          NEW_LIB_VER=$(jq -r '.library_version // 0' "$MANIFEST")
-          OLD_LIB_VER=$(jq -r '.library_version // 0' "$PREV")
-
-          NEW_FIELD_COUNT=$(grep -c 'export const' pine/generated/smc_micro_profiles_generated.pine || echo 0)
-          OLD_FIELD_COUNT=$(grep -c 'export const' /tmp/library_before.pine || echo 0)
-
-          BREAKING="false"
-          REASON=""
-
-          if [ -n "$OLD_FIELD_VER" ] && [ "$OLD_FIELD_VER" != "$NEW_FIELD_VER" ]; then
+          if [ "$RC" -ne 0 ]; then
             BREAKING="true"
-            REASON="library_field_version changed: ${OLD_FIELD_VER} → ${NEW_FIELD_VER}"
-          fi
-
-          if [ "$OLD_FIELD_COUNT" -gt 0 ] && [ "$NEW_FIELD_COUNT" -ne "$OLD_FIELD_COUNT" ]; then
-            BREAKING="true"
-            REASON="${REASON:+$REASON; }export field count changed: ${OLD_FIELD_COUNT} → ${NEW_FIELD_COUNT}"
+            REASON=$(echo "$DECISION" | jq -r '.reasons | join("; ")')
+            echo "::warning::Breaking change detected — auto-commit blocked. ${REASON}"
+          else
+            BREAKING="false"
+            REASON=""
           fi
 
           echo "breaking=${BREAKING}" >> "$GITHUB_OUTPUT"
           echo "reason=${REASON}" >> "$GITHUB_OUTPUT"
-
-          if [ "$BREAKING" = "true" ]; then
-            echo "::warning::Breaking change detected — auto-commit blocked. ${REASON}"
-          fi
 
       # ── Publish-contract verification ────────────────────────────
       - name: Verify publish contract

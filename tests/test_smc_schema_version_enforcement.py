@@ -171,8 +171,8 @@ def test_no_hardcoded_stale_schema_versions_in_tests() -> None:
     test_dir = _REPO_ROOT / "tests"
     violations: list[str] = []
     for py in test_dir.rglob("*.py"):
-        if py.name == "test_smc_schema_version_enforcement.py":
-            continue  # skip self — we reference old versions in compatibility tests
+        if py.name in ("test_smc_schema_version_enforcement.py", "test_smc_version_governance.py"):
+            continue  # skip — these files reference multiple versions for comparison testing
         text = py.read_text(encoding="utf-8")
         for i, line in enumerate(text.splitlines(), 1):
             # Match "schema_version": "X.Y.Z" where X.Y.Z != SCHEMA_VERSION
