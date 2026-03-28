@@ -1,14 +1,16 @@
 //@version=6
 library("smc_micro_profiles_generated")
 
-export const string ASOF_DATE = "2026-03-23"
+export const string ASOF_DATE = "2026-03-28"
+export const string ASOF_TIME = ""
 export const string UNIVERSE_ID = "us_equities_v1"
 export const int LOOKBACK_DAYS = 20
 export const int UNIVERSE_SIZE = 3
+export const int REFRESH_COUNT = 0
 
-export const string CLEAN_RECLAIM_TICKERS = "AAPL,SPY"
+export const string CLEAN_RECLAIM_TICKERS = ""
 
-export const string STOP_HUNT_PRONE_TICKERS = "TSLA"
+export const string STOP_HUNT_PRONE_TICKERS = ""
 
 export const string MIDDAY_DEAD_TICKERS = ""
 
@@ -18,4 +20,40 @@ export const string WEAK_PREMARKET_TICKERS = ""
 
 export const string WEAK_AFTERHOURS_TICKERS = ""
 
-export const string FAST_DECAY_TICKERS = "TSLA"
+export const string FAST_DECAY_TICKERS = ""
+
+// ── Market Regime ──
+export const string MARKET_REGIME = "NEUTRAL"
+export const float VIX_LEVEL = 0.0
+export const float MACRO_BIAS = 0.0
+export const float SECTOR_BREADTH = 0.0
+
+// ── News Sentiment ──
+export const string NEWS_BULLISH_TICKERS = ""
+export const string NEWS_BEARISH_TICKERS = ""
+export const string NEWS_NEUTRAL_TICKERS = ""
+export const float NEWS_HEAT_GLOBAL = 0.0
+export const string TICKER_HEAT_MAP = ""
+
+// ── Earnings & Macro Calendar ──
+export const string EARNINGS_TODAY_TICKERS = ""
+export const string EARNINGS_TOMORROW_TICKERS = ""
+export const string EARNINGS_BMO_TICKERS = ""
+export const string EARNINGS_AMC_TICKERS = ""
+export const bool HIGH_IMPACT_MACRO_TODAY = false
+export const string MACRO_EVENT_NAME = ""
+export const string MACRO_EVENT_TIME = ""
+
+// ── Layering / Global Tone ──
+export const float GLOBAL_HEAT = 0.0
+export const float GLOBAL_STRENGTH = 0.0
+export const string TONE = "NEUTRAL"
+export const string TRADE_STATE = "ALLOWED"
+
+// ── Provider Status ──
+export const int PROVIDER_COUNT = 0
+export const string STALE_PROVIDERS = ""
+
+// ── Volume Regime ──
+export const string VOLUME_LOW_TICKERS = ""
+export const string HOLIDAY_SUSPECT_TICKERS = ""

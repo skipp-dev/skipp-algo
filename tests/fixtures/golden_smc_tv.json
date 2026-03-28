@@ -5,5 +5,11 @@
   "sweeps": "1709252700|96.5|BUY;1709253000|103.2|SELL",
   "regime": "NORMAL",
   "tech": 0.68,
-  "news": 0.42
+  "news": 0.42,
+  "enrichment": {
+    "market_regime": "RISK-ON",
+    "trade_state": "ACTIVE-LONG",
+    "provider_count": 4,
+    "stale_providers": ""
+  }
 }

@@ -162,9 +162,12 @@ This will:
 3. update persistent membership state with hysteresis
 4. apply overrides if present
 5. write list CSVs and diff report
-6. write the generated Pine library
-7. write the generated import snippet
-8. write the generated library manifest
+6. run v4 enrichment: query the provider policy matrix (FMP, Benzinga, TradingView, Databento) for market regime, news, calendar, and technical data
+7. write the generated Pine library with all 37 `export const` fields
+8. write the generated import snippet
+9. write the generated library manifest (includes `library_field_version: "v4"` and `enrichment_blocks`)
+
+If any enrichment provider is unreachable, the library is still generated with all 37 fields — affected enrichment fields receive safe neutral defaults (e.g. `UNKNOWN` regime, empty event strings, `provider_count = 0`).
 
 Expected result:
 

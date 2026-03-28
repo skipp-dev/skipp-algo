@@ -19,5 +19,11 @@
   "regime": {"volume_regime": "NORMAL", "thin_fraction": 0.0},
   "technicalscore": 0.68,
   "technicalsignal": "BULLISH",
-  "newsscore": 0.42
+  "newsscore": 0.42,
+  "enrichment": {
+    "market_regime": "RISK-ON",
+    "trade_state": "ACTIVE-LONG",
+    "provider_count": 4,
+    "stale_providers": ""
+  }
 }

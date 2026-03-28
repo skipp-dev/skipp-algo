@@ -16,6 +16,6 @@
   "producer_debug": {
     "liquidity_levels_count": 0,
     "structure_profile_used": "hybrid_default",
-    "event_logic_version": "v2"
+    "event_logic_version": "v4"
   }
 }

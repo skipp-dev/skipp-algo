@@ -23,6 +23,7 @@ Use these files as the starting point before changing the split architecture or 
 - [smc-microstructure-ui-audit.md](smc-microstructure-ui-audit.md)
 - [smc-microstructure-ui-operator-runbook.md](smc-microstructure-ui-operator-runbook.md)
 - [smc-microstructure-ui-architecture.md](smc-microstructure-ui-architecture.md)
+- [v4-enrichment-migration.md](v4-enrichment-migration.md)
 
 Machine-readable TradingView release tracking artifact:
 
