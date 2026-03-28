@@ -449,6 +449,65 @@ def build_enrichment(
     return enrichment
 
 
+def finalize_pipeline(
+    *,
+    base_result: dict[str, Any],
+    schema_path: Path,
+    output_root: Path,
+    fmp_api_key: str = "",
+    library_owner: str = "preuss_steffen",
+    library_version: int = 1,
+    enrich_regime: bool = False,
+    enrich_news: bool = False,
+    enrich_calendar: bool = False,
+    enrich_layering: bool = False,
+) -> dict[str, Any]:
+    """Shared post-base orchestration: enrichment + Pine library generation.
+
+    Called by both the ``--run-scan`` and ``--bundle`` CLI paths as well
+    as UI-triggered flows.  Returns a structured, machine-readable result
+    dict that downstream gates / CI can consume directly.
+    """
+    base_csv = Path(base_result["output_paths"]["base_csv"])
+    symbols = sorted(
+        base_result["base_snapshot"]["symbol"].dropna().unique().tolist()
+    )
+
+    # ── Enrichment ──────────────────────────────────────────────
+    enrichment = build_enrichment(
+        fmp_api_key=fmp_api_key,
+        symbols=symbols,
+        enrich_regime=enrich_regime,
+        enrich_news=enrich_news,
+        enrich_calendar=enrich_calendar,
+        enrich_layering=enrich_layering,
+    )
+
+    # ── Pine library generation ─────────────────────────────────
+    pine_paths = generate_pine_library_from_base(
+        base_csv_path=base_csv,
+        schema_path=schema_path,
+        output_root=output_root,
+        library_owner=library_owner,
+        library_version=library_version,
+        enrichment=enrichment,
+    )
+
+    return {
+        "status": "ok",
+        "base_csv": str(base_csv),
+        "symbols_count": len(symbols),
+        "enrichment_keys": list(enrichment.keys()) if enrichment else [],
+        "stale_providers": (
+            enrichment.get("providers", {}).get("stale_providers", "")
+            if enrichment
+            else ""
+        ),
+        "pine_paths": {k: str(v) for k, v in pine_paths.items()},
+        "base_result_keys": list(base_result.keys()),
+    }
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Generate an SMC microstructure base snapshot from a Databento workbook, an export bundle, or a fresh Databento full-universe scan."
@@ -485,10 +544,22 @@ def main() -> None:
     enrich_regime, enrich_news, enrich_calendar, enrich_layering = _resolve_enrichment_flags(args)
     fmp_api_key = str(args.fmp_api_key).strip()
 
+    finalize_kwargs = dict(
+        schema_path=args.schema,
+        output_root=args.export_dir,
+        fmp_api_key=fmp_api_key,
+        library_owner=str(args.library_owner).strip(),
+        library_version=int(args.library_version),
+        enrich_regime=enrich_regime,
+        enrich_news=enrich_news,
+        enrich_calendar=enrich_calendar,
+        enrich_layering=enrich_layering,
+    )
+
     if args.run_scan:
         if not args.databento_api_key:
             raise ValueError("Databento API key is required when using --run-scan")
-        run_databento_base_scan_pipeline(
+        base_result = run_databento_base_scan_pipeline(
             databento_api_key=str(args.databento_api_key).strip(),
             fmp_api_key=fmp_api_key,
             dataset=str(args.dataset).strip(),
@@ -504,6 +575,8 @@ def main() -> None:
             library_owner=str(args.library_owner).strip(),
             library_version=int(args.library_version),
         )
+        result = finalize_pipeline(base_result=base_result, **finalize_kwargs)
+        logger.info("Pipeline complete: %s", json.dumps(result, indent=2))
         return
 
     if args.bundle is not None:
@@ -516,25 +589,8 @@ def main() -> None:
             library_owner=str(args.library_owner).strip(),
             library_version=int(args.library_version),
         )
-        # Generate Pine library (with optional enrichment)
-        base_csv = bundle_result["output_paths"]["base_csv"]
-        symbols = sorted(bundle_result["base_snapshot"]["symbol"].dropna().unique().tolist())
-        enrichment = build_enrichment(
-            fmp_api_key=fmp_api_key,
-            symbols=symbols,
-            enrich_regime=enrich_regime,
-            enrich_news=enrich_news,
-            enrich_calendar=enrich_calendar,
-            enrich_layering=enrich_layering,
-        )
-        generate_pine_library_from_base(
-            base_csv_path=base_csv,
-            schema_path=args.schema,
-            output_root=args.export_dir,
-            library_owner=str(args.library_owner).strip(),
-            library_version=int(args.library_version),
-            enrichment=enrichment,
-        )
+        result = finalize_pipeline(base_result=bundle_result, **finalize_kwargs)
+        logger.info("Pipeline complete: %s", json.dumps(result, indent=2))
         return
 
     if args.workbook is None:
