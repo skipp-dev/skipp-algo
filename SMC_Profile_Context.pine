@@ -1,0 +1,79 @@
+// This Pine Script® code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © preuss_steffen
+
+//@version=6
+
+// ─────────────────────────────────────────────────────────────────
+// SMC Profile Context Overlay — lightweight companion to SMC Core Engine
+//
+// Visualizes profile + ticker-quality fields from the v5.2 enrichment layer:
+//   • Ticker grade badge (A / B / C / D)
+//   • VWAP position (above / below / at)
+//   • Spread regime (TIGHT / NORMAL / WIDE)
+//   • Profile context score bar
+//   • Session bias / RTH dominance metrics
+//
+// Reads mp.* fields from the generated micro-profiles library.
+// Keep on a separate pane — independent of trade signals.
+// ─────────────────────────────────────────────────────────────────
+
+indicator("SMC Profile Context", "Prof.Ctx", overlay = false, max_labels_count = 50)
+
+import preuss_steffen/smc_micro_profiles_generated/1 as mp
+
+// ── Inputs ──────────────────────────────────────────────────────
+
+var g_pc = "Profile Context"
+var bool show_grade       = input.bool(true,  "Show ticker grade",       group = g_pc)
+var bool show_vwap        = input.bool(true,  "Show VWAP position",     group = g_pc)
+var bool show_spread      = input.bool(true,  "Show spread regime",     group = g_pc)
+var bool show_score       = input.bool(true,  "Show context score bar", group = g_pc)
+var color col_grade_a     = input.color(color.new(color.green, 20),  "Grade A",  group = g_pc)
+var color col_grade_b     = input.color(color.new(color.lime, 30),   "Grade B",  group = g_pc)
+var color col_grade_c     = input.color(color.new(color.orange, 30), "Grade C",  group = g_pc)
+var color col_grade_d     = input.color(color.new(color.red, 30),    "Grade D",  group = g_pc)
+var color col_neutral     = input.color(color.new(color.gray, 50),   "Neutral",  group = g_pc)
+
+// ── Profile fields ──────────────────────────────────────────────
+
+string pc_grade        = mp.PROFILE_TICKER_GRADE
+string pc_vwap_pos     = mp.PROFILE_VWAP_POSITION
+float  pc_vwap_dist    = mp.PROFILE_VWAP_DISTANCE_PCT
+string pc_spread       = mp.PROFILE_SPREAD_REGIME
+float  pc_avg_spread   = mp.PROFILE_AVG_SPREAD_BPS
+string pc_sess_bias    = mp.PROFILE_SESSION_BIAS
+float  pc_rth_dom      = mp.PROFILE_RTH_DOMINANCE_PCT
+float  pc_pm_q         = mp.PROFILE_PM_QUALITY
+float  pc_ah_q         = mp.PROFILE_AH_QUALITY
+float  pc_midday_eff   = mp.PROFILE_MIDDAY_EFFICIENCY
+float  pc_clean        = mp.PROFILE_CLEAN_SCORE
+float  pc_wick         = mp.PROFILE_WICKINESS
+int    pc_ctx_score    = mp.PROFILE_CONTEXT_SCORE
+
+// ── Grade color helper ──────────────────────────────────────────
+
+color gc = pc_grade == "A" ? col_grade_a : pc_grade == "B" ? col_grade_b : pc_grade == "C" ? col_grade_c : col_grade_d
+
+// ── Context score bar ───────────────────────────────────────────
+
+plot(show_score ? pc_ctx_score : na, "Context Score", gc, 2, plot.style_columns)
+hline(3, "Score mid",  color.new(color.gray, 70), hline.style_dotted)
+
+// ── Clean score line ────────────────────────────────────────────
+
+plot(show_score ? pc_clean * 5 : na, "Clean Score", color.new(color.teal, 40), 1, plot.style_line)
+
+// ── VWAP position markers ───────────────────────────────────────
+
+plotshape(show_vwap and pc_vwap_pos == "ABOVE" ? pc_ctx_score : na, "VWAP Above", shape.triangleup,   location.bottom, color.new(color.green, 30), size = size.tiny)
+plotshape(show_vwap and pc_vwap_pos == "BELOW" ? pc_ctx_score : na, "VWAP Below", shape.triangledown, location.top,    color.new(color.red, 30),   size = size.tiny)
+
+// ── Spread regime background ────────────────────────────────────
+
+bgcolor(show_spread and pc_spread == "TIGHT" ? color.new(color.green, 92) : show_spread and pc_spread == "WIDE" ? color.new(color.red, 92) : na, title = "Spread regime bg")
+
+// ── Status label ────────────────────────────────────────────────
+
+if barstate.islast
+    string info = pc_grade + " | VWAP:" + pc_vwap_pos + " " + str.tostring(pc_vwap_dist, "#.##") + "% | Sprd:" + pc_spread + " " + str.tostring(pc_avg_spread, "#.#") + "bps | Sess:" + pc_sess_bias + " | RTH:" + str.tostring(pc_rth_dom, "#") + "% | Score:" + str.tostring(pc_ctx_score)
+    label.new(bar_index, pc_ctx_score + 0.5, info, color = color.new(color.black, 80), textcolor = chart.fg_color, size = size.small, style = label.style_label_down)

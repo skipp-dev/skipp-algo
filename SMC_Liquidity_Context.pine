@@ -1,0 +1,107 @@
+// This Pine Script® code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © preuss_steffen
+
+//@version=6
+
+// ─────────────────────────────────────────────────────────────────
+// SMC Liquidity Context Overlay — lightweight companion to SMC Core Engine
+//
+// Visualizes zone intelligence fields from the v5.1 enrichment layer:
+//   • Primary support/resistance levels as horizontal rays
+//   • Zone strength badges
+//   • Zone bias context (support-heavy / resistance-heavy / neutral)
+//   • Sweep + mitigation counts
+//
+// Reads mp.* fields from the generated micro-profiles library.
+// ─────────────────────────────────────────────────────────────────
+
+indicator("SMC Liquidity Context", "Liq.Ctx", overlay = true, max_labels_count = 50, max_lines_count = 50)
+
+import preuss_steffen/smc_micro_profiles_generated/1 as mp
+
+// ── Inputs ──────────────────────────────────────────────────────
+
+var g_zn = "Zone Context"
+var bool show_primary_levels  = input.bool(true,  "Show primary S/R levels",    group = g_zn)
+var bool show_zone_label      = input.bool(true,  "Show zone context label",    group = g_zn)
+var bool show_sweep_markers   = input.bool(true,  "Show sweep/mitigation info", group = g_zn)
+var color col_support         = input.color(color.new(color.green, 30), "Support color",    group = g_zn)
+var color col_resistance      = input.color(color.new(color.red, 30),   "Resistance color", group = g_zn)
+
+// ── Library fields ──────────────────────────────────────────────
+
+int    zn_support_cnt       = mp.ACTIVE_SUPPORT_COUNT
+int    zn_resist_cnt        = mp.ACTIVE_RESISTANCE_COUNT
+int    zn_active_cnt        = mp.ACTIVE_ZONE_COUNT
+float  zn_support_level     = mp.PRIMARY_SUPPORT_LEVEL
+float  zn_resist_level      = mp.PRIMARY_RESISTANCE_LEVEL
+int    zn_support_strength  = mp.PRIMARY_SUPPORT_STRENGTH
+int    zn_resist_strength   = mp.PRIMARY_RESISTANCE_STRENGTH
+int    zn_support_sweeps    = mp.SUPPORT_SWEEP_COUNT
+int    zn_resist_sweeps     = mp.RESISTANCE_SWEEP_COUNT
+float  zn_support_mitig     = mp.SUPPORT_MITIGATION_PCT
+float  zn_resist_mitig      = mp.RESISTANCE_MITIGATION_PCT
+string zn_context_bias      = mp.ZONE_CONTEXT_BIAS
+float  zn_liq_imbalance     = mp.ZONE_LIQUIDITY_IMBALANCE
+
+// ── Primary support/resistance lines ────────────────────────────
+
+var line ln_support  = na
+var line ln_resist   = na
+var label lbl_support = na
+var label lbl_resist  = na
+
+if barstate.islast and show_primary_levels
+    // Support level
+    if zn_support_level > 0.0
+        if not na(ln_support)
+            line.delete(ln_support)
+        if not na(lbl_support)
+            label.delete(lbl_support)
+        ln_support := line.new(bar_index - 20, zn_support_level, bar_index + 10, zn_support_level,
+             xloc.bar_index, extend.none, col_support, line.style_solid, 2)
+        lbl_support := label.new(bar_index + 11, zn_support_level,
+             "S " + str.tostring(zn_support_level, format.mintick) + " [" + str.tostring(zn_support_strength) + "]",
+             xloc.bar_index, yloc.price, col_support, label.style_label_left,
+             color.white, size.small)
+
+    // Resistance level
+    if zn_resist_level > 0.0
+        if not na(ln_resist)
+            line.delete(ln_resist)
+        if not na(lbl_resist)
+            label.delete(lbl_resist)
+        ln_resist := line.new(bar_index - 20, zn_resist_level, bar_index + 10, zn_resist_level,
+             xloc.bar_index, extend.none, col_resistance, line.style_solid, 2)
+        lbl_resist := label.new(bar_index + 11, zn_resist_level,
+             "R " + str.tostring(zn_resist_level, format.mintick) + " [" + str.tostring(zn_resist_strength) + "]",
+             xloc.bar_index, yloc.price, col_resistance, label.style_label_left,
+             color.white, size.small)
+
+// ── Zone context label ──────────────────────────────────────────
+
+var label lbl_context = na
+if barstate.islast and show_zone_label
+    if not na(lbl_context)
+        label.delete(lbl_context)
+
+    string bias_icon = zn_context_bias == "SUPPORT_HEAVY" ? "🟢" :
+         zn_context_bias == "RESISTANCE_HEAVY" ? "🔴" : "⚪"
+    string ctx_text = bias_icon + " " + zn_context_bias +
+         "\nZones: " + str.tostring(zn_active_cnt) +
+         " (S:" + str.tostring(zn_support_cnt) + " R:" + str.tostring(zn_resist_cnt) + ")" +
+         "\nSweeps: S:" + str.tostring(zn_support_sweeps) + " R:" + str.tostring(zn_resist_sweeps) +
+         "\nMitig: S:" + str.tostring(zn_support_mitig, "#.#") + "% R:" + str.tostring(zn_resist_mitig, "#.#") + "%"
+
+    color ctx_color = zn_context_bias == "SUPPORT_HEAVY" ? color.new(color.green, 20) :
+         zn_context_bias == "RESISTANCE_HEAVY" ? color.new(color.red, 20) :
+         color.new(color.gray, 20)
+
+    lbl_context := label.new(bar_index + 15, close,
+         ctx_text, xloc.bar_index, yloc.price,
+         ctx_color, label.style_label_left, color.white, size.small)
+
+// ── Status line ─────────────────────────────────────────────────
+
+string zone_summary = zn_context_bias + " Z:" + str.tostring(zn_active_cnt) + " Imb:" + str.tostring(zn_liq_imbalance, "#.##")
+plotchar(0, "Zone Summary", "•", location.absolute, size = size.tiny, display = display.status_line, char = zone_summary)

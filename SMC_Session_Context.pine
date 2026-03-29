@@ -1,0 +1,65 @@
+// This Pine Script® code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © preuss_steffen
+
+//@version=6
+
+// ─────────────────────────────────────────────────────────────────
+// SMC Session Context Overlay — lightweight companion to SMC Core Engine
+//
+// Visualizes session context fields from the v5.2 enrichment layer:
+//   • Current session label (ASIA / LONDON / NY_AM / NY_PM)
+//   • Killzone highlight background
+//   • Session MSS markers (bull / bear)
+//   • Direction bias label
+//   • Context score bar
+//
+// Reads mp.* fields from the generated micro-profiles library.
+// Keep on a separate pane — independent of trade signals.
+// ─────────────────────────────────────────────────────────────────
+
+indicator("SMC Session Context", "Sess.Ctx", overlay = false, max_labels_count = 50)
+
+import preuss_steffen/smc_micro_profiles_generated/1 as mp
+
+// ── Inputs ──────────────────────────────────────────────────────
+
+var g_sc = "Session Context"
+var bool show_session_label  = input.bool(true,  "Show session label",     group = g_sc)
+var bool show_killzone_bg    = input.bool(true,  "Show killzone background", group = g_sc)
+var bool show_mss_markers    = input.bool(true,  "Show MSS markers",       group = g_sc)
+var bool show_context_score  = input.bool(true,  "Show context score bar", group = g_sc)
+var color col_bullish        = input.color(color.new(color.green, 30), "Bullish color",  group = g_sc)
+var color col_bearish        = input.color(color.new(color.red, 30),   "Bearish color",  group = g_sc)
+var color col_neutral        = input.color(color.new(color.gray, 50),  "Neutral color",  group = g_sc)
+var color col_killzone       = input.color(color.new(color.yellow, 85), "Killzone bg",   group = g_sc)
+
+// ── Library fields ──────────────────────────────────────────────
+
+string sc_session       = mp.SESSION_CONTEXT
+bool   sc_killzone      = mp.IN_KILLZONE
+bool   sc_mss_bull      = mp.SESSION_MSS_BULL
+bool   sc_mss_bear      = mp.SESSION_MSS_BEAR
+string sc_direction     = mp.SESSION_DIRECTION_BIAS
+int    sc_score         = mp.SESSION_CONTEXT_SCORE
+
+// ── Context score plot ──────────────────────────────────────────
+
+color score_color = sc_score >= 4 ? col_bullish : sc_score >= 2 ? col_neutral : col_bearish
+plot(show_context_score ? sc_score : na, "Context Score", score_color, 2, plot.style_columns)
+hline(3, "Score mid", color.new(color.gray, 70), hline.style_dotted)
+
+// ── Killzone background ─────────────────────────────────────────
+
+bgcolor(show_killzone_bg and sc_killzone ? col_killzone : na, title = "Killzone BG")
+
+// ── MSS markers ─────────────────────────────────────────────────
+
+plotshape(show_mss_markers and sc_mss_bull ? sc_score : na, "MSS Bull", shape.triangleup, location.bottom, col_bullish, size = size.tiny)
+plotshape(show_mss_markers and sc_mss_bear ? sc_score : na, "MSS Bear", shape.triangledown, location.top, col_bearish, size = size.tiny)
+
+// ── Status line ─────────────────────────────────────────────────
+
+var string status_line = ""
+if barstate.islast and show_session_label
+    status_line := sc_session + " | " + sc_direction + " | Score:" + str.tostring(sc_score)
+    label.new(bar_index, sc_score + 0.5, status_line, color = color.new(color.black, 80), textcolor = chart.fg_color, size = size.small, style = label.style_label_down)

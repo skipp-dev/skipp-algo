@@ -4,7 +4,7 @@ library("smc_micro_profiles_generated")
 // ── Usage ──────────────────────────────────────────────────────
 // import preuss_steffen/smc_micro_profiles_generated/1 as mp
 //
-// Fields are grouped into seven sections (v5, 51 fields total):
+// Fields are grouped into twenty-three sections (v5.3, 256 fields total):
 //   Core/Meta       — ASOF_DATE, ASOF_TIME, UNIVERSE_ID, LOOKBACK_DAYS, UNIVERSE_SIZE, REFRESH_COUNT
 //   Microstructure  — *_TICKERS lists (clean_reclaim, stop_hunt_prone, …)
 //   Regime          — MARKET_REGIME, VIX_LEVEL, MACRO_BIAS, SECTOR_BREADTH
@@ -14,30 +14,44 @@ library("smc_micro_profiles_generated")
 //   Providers       — PROVIDER_COUNT, STALE_PROVIDERS
 //   Volume          — VOLUME_LOW_TICKERS, HOLIDAY_SUSPECT_TICKERS
 //   Event Risk (v5) — EVENT_WINDOW_STATE … EVENT_PROVIDER_STATUS (14 fields)
+//   Flow Qualifier (v5.1)  — REL_VOL … ATS_BEARISH_SEQUENCE (14 fields)
+//   Compression (v5.1)     — SQUEEZE_ON … ATR_RATIO (5 fields)
+//   Zone Intelligence (v5.1) — ACTIVE_SUPPORT_COUNT … ZONE_LIQUIDITY_IMBALANCE (13 fields)
+//   Reversal Context (v5.1)  — REVERSAL_CONTEXT_ACTIVE … RETRACE_OK (12 fields)
+//   Session Context (v5.2)   — SESSION_CONTEXT … SESSION_CONTEXT_SCORE (10 fields)
+//   Liquidity Sweeps (v5.2)  — RECENT_BULL_SWEEP … SWEEP_QUALITY_SCORE (9 fields)
+//   Liquidity Pools (v5.2)   — BUY_SIDE_POOL_LEVEL … POOL_QUALITY_SCORE (11 fields)
+//   Order Blocks (v5.2)      — NEAREST_BULL_OB_LEVEL … OB_CONTEXT_SCORE (13 fields)
+//   Zone Projection (v5.2)   — ZONE_PROJ_TARGET_BULL … ZONE_PROJ_SCORE (10 fields)
+//   Profile Context (v5.2)   — PROFILE_VOLUME_NODE … PROFILE_CONTEXT_SCORE (18 fields)
+//   Structure State (v5.3)   — STRUCTURE_STATE … RESISTANCE_ACTIVE (14 fields)
+//   Imbalance Lifecycle (v5.3) — BULL_FVG_ACTIVE … IMBALANCE_STATE (23 fields)
+//   Session Structure (v5.3)  — SESS_HIGH … SESS_STRUCT_SCORE (14 fields)
+//   Range Regime (v5.3)       — RANGE_REGIME … RANGE_REGIME_SCORE (11 fields)
 //
 // All fields are export const — safe to read as mp.FIELD_NAME.
 // ───────────────────────────────────────────────────────────────
 
-export const string ASOF_DATE = "2026-03-23"
+export const string ASOF_DATE = "2026-01-01"
 export const string ASOF_TIME = ""
 export const string UNIVERSE_ID = "us_equities_v1"
 export const int LOOKBACK_DAYS = 20
-export const int UNIVERSE_SIZE = 3
+export const int UNIVERSE_SIZE = 0
 export const int REFRESH_COUNT = 0
 
-export const string CLEAN_RECLAIM_TICKERS = "AAA"
+export const string CLEAN_RECLAIM_TICKERS = ""
 
-export const string STOP_HUNT_PRONE_TICKERS = "BBB"
+export const string STOP_HUNT_PRONE_TICKERS = ""
 
-export const string MIDDAY_DEAD_TICKERS = "CCC"
+export const string MIDDAY_DEAD_TICKERS = ""
 
-export const string RTH_ONLY_TICKERS = "CCC"
+export const string RTH_ONLY_TICKERS = ""
 
-export const string WEAK_PREMARKET_TICKERS = "CCC"
+export const string WEAK_PREMARKET_TICKERS = ""
 
-export const string WEAK_AFTERHOURS_TICKERS = "CCC"
+export const string WEAK_AFTERHOURS_TICKERS = ""
 
-export const string FAST_DECAY_TICKERS = "BBB"
+export const string FAST_DECAY_TICKERS = ""
 
 // ── Market Regime ──
 export const string MARKET_REGIME = "NEUTRAL"
@@ -90,3 +104,238 @@ export const bool SYMBOL_EVENT_BLOCKED = false
 export const string EARNINGS_SOON_TICKERS = ""
 export const string HIGH_RISK_EVENT_TICKERS = ""
 export const string EVENT_PROVIDER_STATUS = "ok"
+
+// ── Flow Qualifier ──
+export const float REL_VOL = 1.0
+export const float REL_ACTIVITY = 1.0
+export const float REL_SIZE = 1.0
+export const float DELTA_PROXY_PCT = 0.0
+export const bool FLOW_LONG_OK = true
+export const bool FLOW_SHORT_OK = true
+export const float ATS_VALUE = 0.0
+export const float ATS_CHANGE_PCT = 0.0
+export const float ATS_ZSCORE = 0.0
+export const string ATS_STATE = "NEUTRAL"
+export const bool ATS_SPIKE_UP = false
+export const bool ATS_SPIKE_DOWN = false
+export const bool ATS_BULLISH_SEQUENCE = false
+export const bool ATS_BEARISH_SEQUENCE = false
+
+// ── Compression / ATR Regime ──
+export const bool SQUEEZE_ON = false
+export const bool SQUEEZE_RELEASED = false
+export const string SQUEEZE_MOMENTUM_BIAS = "NEUTRAL"
+export const string ATR_REGIME = "NORMAL"
+export const float ATR_RATIO = 1.0
+
+// ── Zone Intelligence ──
+export const int ACTIVE_SUPPORT_COUNT = 0
+export const int ACTIVE_RESISTANCE_COUNT = 0
+export const int ACTIVE_ZONE_COUNT = 0
+export const float PRIMARY_SUPPORT_LEVEL = 0.0
+export const float PRIMARY_RESISTANCE_LEVEL = 0.0
+export const int PRIMARY_SUPPORT_STRENGTH = 0
+export const int PRIMARY_RESISTANCE_STRENGTH = 0
+export const int SUPPORT_SWEEP_COUNT = 0
+export const int RESISTANCE_SWEEP_COUNT = 0
+export const float SUPPORT_MITIGATION_PCT = 0.0
+export const float RESISTANCE_MITIGATION_PCT = 0.0
+export const string ZONE_CONTEXT_BIAS = "NEUTRAL"
+export const float ZONE_LIQUIDITY_IMBALANCE = 0.0
+
+// ── Reversal Context ──
+export const bool REVERSAL_CONTEXT_ACTIVE = false
+export const int SETUP_SCORE = 0
+export const int CONFIRM_SCORE = 0
+export const int FOLLOW_THROUGH_SCORE = 0
+export const bool HTF_STRUCTURE_OK = false
+export const bool HTF_BULLISH_PATTERN = false
+export const bool HTF_BEARISH_PATTERN = false
+export const bool HTF_BULLISH_DIVERGENCE = false
+export const bool HTF_BEARISH_DIVERGENCE = false
+export const bool FVG_CONFIRM_OK = false
+export const bool VWAP_HOLD_OK = false
+export const bool RETRACE_OK = false
+
+// ── Session Context ──
+export const string SESSION_CONTEXT = "NONE"
+export const bool IN_KILLZONE = false
+export const bool SESSION_MSS_BULL = false
+export const bool SESSION_MSS_BEAR = false
+export const string SESSION_STRUCTURE_STATE = "NEUTRAL"
+export const bool SESSION_FVG_BULL_ACTIVE = false
+export const bool SESSION_FVG_BEAR_ACTIVE = false
+export const bool SESSION_BPR_ACTIVE = false
+export const float SESSION_RANGE_TOP = 0.0
+export const float SESSION_RANGE_BOTTOM = 0.0
+export const float SESSION_MEAN = 0.0
+export const float SESSION_VWAP = 0.0
+export const float SESSION_TARGET_BULL = 0.0
+export const float SESSION_TARGET_BEAR = 0.0
+export const string SESSION_DIRECTION_BIAS = "NEUTRAL"
+export const int SESSION_CONTEXT_SCORE = 0
+
+// ── Liquidity Sweeps ──
+export const bool RECENT_BULL_SWEEP = false
+export const bool RECENT_BEAR_SWEEP = false
+export const string SWEEP_TYPE = "NONE"
+export const string SWEEP_DIRECTION = "NONE"
+export const float SWEEP_ZONE_TOP = 0.0
+export const float SWEEP_ZONE_BOTTOM = 0.0
+export const bool SWEEP_RECLAIM_ACTIVE = false
+export const string LIQUIDITY_TAKEN_DIRECTION = "NONE"
+export const int SWEEP_QUALITY_SCORE = 0
+
+// ── Liquidity Pools ──
+export const float BUY_SIDE_POOL_LEVEL = 0.0
+export const float SELL_SIDE_POOL_LEVEL = 0.0
+export const int BUY_SIDE_POOL_STRENGTH = 0
+export const int SELL_SIDE_POOL_STRENGTH = 0
+export const float POOL_PROXIMITY_PCT = 0.0
+export const int POOL_CLUSTER_DENSITY = 0
+export const int UNTESTED_BUY_POOLS = 0
+export const int UNTESTED_SELL_POOLS = 0
+export const float POOL_IMBALANCE = 0.0
+export const string POOL_MAGNET_DIRECTION = "NONE"
+export const int POOL_QUALITY_SCORE = 0
+
+// ── Order Blocks ──
+export const float NEAREST_BULL_OB_LEVEL = 0.0
+export const float NEAREST_BEAR_OB_LEVEL = 0.0
+export const int BULL_OB_FRESHNESS = 0
+export const int BEAR_OB_FRESHNESS = 0
+export const bool BULL_OB_MITIGATED = false
+export const bool BEAR_OB_MITIGATED = false
+export const bool BULL_OB_FVG_CONFLUENCE = false
+export const bool BEAR_OB_FVG_CONFLUENCE = false
+export const int OB_DENSITY = 0
+export const string OB_BIAS = "NEUTRAL"
+export const float OB_NEAREST_DISTANCE_PCT = 0.0
+export const int OB_STRENGTH_SCORE = 0
+export const int OB_CONTEXT_SCORE = 0
+
+// ── Zone Projection ──
+export const float ZONE_PROJ_TARGET_BULL = 0.0
+export const float ZONE_PROJ_TARGET_BEAR = 0.0
+export const bool ZONE_PROJ_RETEST_EXPECTED = false
+export const string ZONE_PROJ_TRAP_RISK = "NONE"
+export const string ZONE_PROJ_SPREAD_QUALITY = "NORMAL"
+export const bool ZONE_PROJ_HTF_ALIGNED = false
+export const string ZONE_PROJ_BIAS = "NEUTRAL"
+export const int ZONE_PROJ_CONFIDENCE = 0
+export const int ZONE_PROJ_DECAY_BARS = 0
+export const int ZONE_PROJ_SCORE = 0
+
+// ── Profile Context ──
+export const string PROFILE_VOLUME_NODE = "NONE"
+export const string PROFILE_VWAP_POSITION = "AT"
+export const float PROFILE_VWAP_DISTANCE_PCT = 0.0
+export const string PROFILE_SPREAD_REGIME = "NORMAL"
+export const float PROFILE_AVG_SPREAD_BPS = 0.0
+export const string PROFILE_SESSION_BIAS = "NEUTRAL"
+export const float PROFILE_RTH_DOMINANCE_PCT = 0.0
+export const string PROFILE_PM_QUALITY = "NORMAL"
+export const string PROFILE_AH_QUALITY = "NORMAL"
+export const float PROFILE_MIDDAY_EFFICIENCY = 0.0
+export const float PROFILE_DECAY_HALFLIFE = 0.0
+export const float PROFILE_CONSISTENCY = 0.0
+export const float PROFILE_WICKINESS = 0.0
+export const float PROFILE_CLEAN_SCORE = 0.0
+export const float PROFILE_RECLAIM_RATE = 0.0
+export const float PROFILE_STOP_HUNT_RATE = 0.0
+export const string PROFILE_TICKER_GRADE = "C"
+export const int PROFILE_CONTEXT_SCORE = 0
+
+// ── Structure State ──
+export const string STRUCTURE_STATE = "NEUTRAL"
+export const bool STRUCTURE_BULL_ACTIVE = false
+export const bool STRUCTURE_BEAR_ACTIVE = false
+export const bool CHOCH_BULL = false
+export const bool CHOCH_BEAR = false
+export const bool BOS_BULL = false
+export const bool BOS_BEAR = false
+export const string STRUCTURE_LAST_EVENT = "NONE"
+export const int STRUCTURE_EVENT_AGE_BARS = 0
+export const bool STRUCTURE_FRESH = false
+export const float ACTIVE_SUPPORT = 0.0
+export const float ACTIVE_RESISTANCE = 0.0
+export const bool SUPPORT_ACTIVE = false
+export const bool RESISTANCE_ACTIVE = false
+
+// ── Imbalance Lifecycle ──
+export const bool BULL_FVG_ACTIVE = false
+export const bool BEAR_FVG_ACTIVE = false
+export const float BULL_FVG_TOP = 0.0
+export const float BULL_FVG_BOTTOM = 0.0
+export const float BEAR_FVG_TOP = 0.0
+export const float BEAR_FVG_BOTTOM = 0.0
+export const bool BULL_FVG_PARTIAL_MITIGATION = false
+export const bool BEAR_FVG_PARTIAL_MITIGATION = false
+export const bool BULL_FVG_FULL_MITIGATION = false
+export const bool BEAR_FVG_FULL_MITIGATION = false
+export const int BULL_FVG_COUNT = 0
+export const int BEAR_FVG_COUNT = 0
+export const float BULL_FVG_MITIGATION_PCT = 0.0
+export const float BEAR_FVG_MITIGATION_PCT = 0.0
+export const bool BPR_ACTIVE = false
+export const string BPR_DIRECTION = "NONE"
+export const float BPR_TOP = 0.0
+export const float BPR_BOTTOM = 0.0
+export const bool LIQ_VOID_BULL_ACTIVE = false
+export const bool LIQ_VOID_BEAR_ACTIVE = false
+export const float LIQ_VOID_TOP = 0.0
+export const float LIQ_VOID_BOTTOM = 0.0
+export const string IMBALANCE_STATE = "NONE"
+
+// ── Session Structure ──
+export const float SESS_HIGH = 0.0
+export const float SESS_LOW = 0.0
+export const float SESS_OPEN_RANGE_HIGH = 0.0
+export const float SESS_OPEN_RANGE_LOW = 0.0
+export const string SESS_OPEN_RANGE_BREAK = "NONE"
+export const string SESS_IMPULSE_DIR = "NONE"
+export const int SESS_IMPULSE_STRENGTH = 0
+export const int SESS_INTRA_BOS_COUNT = 0
+export const bool SESS_INTRA_CHOCH = false
+export const float SESS_PDH = 0.0
+export const float SESS_PDL = 0.0
+export const bool SESS_PDH_SWEPT = false
+export const bool SESS_PDL_SWEPT = false
+export const int SESS_STRUCT_SCORE = 0
+
+// ── Range Regime ──
+export const string RANGE_REGIME = "UNKNOWN"
+export const float RANGE_WIDTH_PCT = 0.0
+export const string RANGE_POSITION = "MID"
+export const float RANGE_HIGH = 0.0
+export const float RANGE_LOW = 0.0
+export const int RANGE_DURATION_BARS = 0
+export const float RANGE_VPOC_LEVEL = 0.0
+export const float RANGE_VAH_LEVEL = 0.0
+export const float RANGE_VAL_LEVEL = 0.0
+export const string RANGE_BALANCE_STATE = "BALANCED"
+export const int RANGE_REGIME_SCORE = 0
+
+// ── Range Profile Regime ──
+export const bool RANGE_ACTIVE = false
+export const float RANGE_TOP = 0.0
+export const float RANGE_BOTTOM = 0.0
+export const float RANGE_MID = 0.0
+export const float RANGE_WIDTH_ATR = 0.0
+export const string RANGE_BREAK_DIRECTION = "NONE"
+export const float PROFILE_POC = 0.0
+export const float PROFILE_VALUE_AREA_TOP = 0.0
+export const float PROFILE_VALUE_AREA_BOTTOM = 0.0
+export const bool PROFILE_VALUE_AREA_ACTIVE = false
+export const float PROFILE_BULLISH_SENTIMENT = 0.0
+export const float PROFILE_BEARISH_SENTIMENT = 0.0
+export const string PROFILE_SENTIMENT_BIAS = "NEUTRAL"
+export const float LIQUIDITY_ABOVE_PCT = 0.0
+export const float LIQUIDITY_BELOW_PCT = 0.0
+export const float LIQUIDITY_IMBALANCE = 0.0
+export const float PRED_RANGE_MID = 0.0
+export const float PRED_RANGE_UPPER_1 = 0.0
+export const float PRED_RANGE_UPPER_2 = 0.0
+export const float PRED_RANGE_LOWER_1 = 0.0
+export const float PRED_RANGE_LOWER_2 = 0.0
+export const bool IN_PREDICTIVE_RANGE_EXTREME = false

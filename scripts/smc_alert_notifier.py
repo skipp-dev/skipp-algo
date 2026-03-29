@@ -47,6 +47,12 @@ RULE_EVENT_COOLDOWN_START = "event_cooldown_start"
 RULE_EVENT_COOLDOWN_END = "event_cooldown_end"
 RULE_EVENT_MARKET_BLOCKED = "event_market_blocked"
 RULE_EVENT_SYMBOL_BLOCKED = "event_symbol_blocked"
+# v5.3 rules
+RULE_STRUCTURE_SHIFT = "structure_shift"
+RULE_IMBALANCE_SHIFT = "imbalance_shift"
+RULE_SESSION_CONTEXT_SHIFT = "session_context_shift"
+RULE_RANGE_BREAKOUT = "range_breakout"
+RULE_SENTIMENT_SHIFT = "sentiment_shift"
 
 
 def _parse_pine_exports(text: str) -> dict[str, str]:
@@ -204,6 +210,67 @@ def evaluate_alerts(
                 "detail": "All event restrictions lifted",
             })
 
+    # ── v5.3 Structure / Imbalance / Session / Range rules ────────
+    struct_state = state.get("STRUCTURE_STATE", "NEUTRAL")
+    struct_event = state.get("STRUCTURE_LAST_EVENT", "NONE")
+    prev_struct = previous_event_state.get("STRUCTURE_STATE", "NEUTRAL")
+    if struct_state != prev_struct and struct_state != "NEUTRAL":
+        alerts.append({
+            "rule": RULE_STRUCTURE_SHIFT,
+            "severity": "warning",
+            "title": f"Structure shift → {struct_state}",
+            "detail": f"Last event={struct_event}, "
+                      f"Fresh={state.get('STRUCTURE_FRESH', '?')}",
+        })
+
+    imb_state = state.get("IMBALANCE_STATE", "NONE")
+    prev_imb = previous_event_state.get("IMBALANCE_STATE", "NONE")
+    if imb_state != prev_imb and imb_state != "NONE":
+        bpr = state.get("BPR_ACTIVE", "false")
+        liq_void = _to_bool(state.get("LIQ_VOID_BULL_ACTIVE", "false")) or _to_bool(state.get("LIQ_VOID_BEAR_ACTIVE", "false"))
+        alerts.append({
+            "rule": RULE_IMBALANCE_SHIFT,
+            "severity": "info",
+            "title": f"Imbalance state → {imb_state}",
+            "detail": f"BPR={bpr}, LiqVoid={'active' if liq_void else 'none'}",
+        })
+
+    sess_ctx = state.get("SESSION_CONTEXT", "NONE")
+    sess_kz = _to_bool(state.get("IN_KILLZONE", "false"))
+    sess_mss_bull = _to_bool(state.get("SESSION_MSS_BULL", "false"))
+    sess_mss_bear = _to_bool(state.get("SESSION_MSS_BEAR", "false"))
+    prev_sess = previous_event_state.get("SESSION_CONTEXT", "NONE")
+    if sess_ctx != prev_sess and sess_ctx != "NONE":
+        alerts.append({
+            "rule": RULE_SESSION_CONTEXT_SHIFT,
+            "severity": "info",
+            "title": f"Session context → {sess_ctx}",
+            "detail": f"KZ={'yes' if sess_kz else 'no'}, "
+                      f"MSS={'BULL' if sess_mss_bull else 'BEAR' if sess_mss_bear else 'none'}",
+        })
+
+    range_break = state.get("RANGE_BREAK_DIRECTION", "NONE")
+    prev_break = previous_event_state.get("RANGE_BREAK_DIRECTION", "NONE")
+    range_active = _to_bool(state.get("RANGE_ACTIVE", "false"))
+    if range_break != prev_break and range_break != "NONE" and range_active:
+        alerts.append({
+            "rule": RULE_RANGE_BREAKOUT,
+            "severity": "warning",
+            "title": f"Range breakout → {range_break}",
+            "detail": f"Width ATR={state.get('RANGE_WIDTH_ATR', '?')}",
+        })
+
+    sentiment = state.get("PROFILE_SENTIMENT_BIAS", "NEUTRAL")
+    prev_sentiment = previous_event_state.get("PROFILE_SENTIMENT_BIAS", "NEUTRAL")
+    liq_imbalance = state.get("LIQUIDITY_IMBALANCE", "0")
+    if sentiment != prev_sentiment and sentiment != "NEUTRAL":
+        alerts.append({
+            "rule": RULE_SENTIMENT_SHIFT,
+            "severity": "info",
+            "title": f"Sentiment bias → {sentiment}",
+            "detail": f"Liquidity imbalance={liq_imbalance}",
+        })
+
     return alerts
 
 
@@ -222,6 +289,21 @@ _TRACKED_FIELDS = [
     "SYMBOL_EVENT_BLOCKED",
     "NEXT_EVENT_NAME",
     "NEXT_EVENT_TIME",
+    # v5.3 structure / imbalance / session / range
+    "STRUCTURE_STATE",
+    "STRUCTURE_LAST_EVENT",
+    "IMBALANCE_STATE",
+    "BPR_ACTIVE",
+    "LIQ_VOID_BULL_ACTIVE",
+    "LIQ_VOID_BEAR_ACTIVE",
+    "SESSION_CONTEXT",
+    "IN_KILLZONE",
+    "SESSION_MSS_BULL",
+    "SESSION_MSS_BEAR",
+    "RANGE_ACTIVE",
+    "RANGE_BREAK_DIRECTION",
+    "PROFILE_SENTIMENT_BIAS",
+    "LIQUIDITY_IMBALANCE",
 ]
 
 

@@ -269,6 +269,21 @@ def build_enrichment(
     enrich_calendar: bool = False,
     enrich_layering: bool = False,
     enrich_event_risk: bool = False,
+    enrich_flow_qualifier: bool = False,
+    enrich_compression_regime: bool = False,
+    enrich_zone_intelligence: bool = False,
+    enrich_reversal_context: bool = False,
+    enrich_session_context: bool = False,
+    enrich_liquidity_sweeps: bool = False,
+    enrich_liquidity_pools: bool = False,
+    enrich_order_blocks: bool = False,
+    enrich_zone_projection: bool = False,
+    enrich_profile_context: bool = False,
+    enrich_structure_state: bool = False,
+    enrich_imbalance_lifecycle: bool = False,
+    enrich_session_structure: bool = False,
+    enrich_range_regime: bool = False,
+    enrich_range_profile_regime: bool = False,
     base_snapshot: pd.DataFrame | None = None,
     manifest_path: Path | None = None,
 ) -> EnrichmentDict | None:
@@ -294,7 +309,12 @@ def build_enrichment(
         Path to the previously-written manifest JSON.  When provided,
         ``refresh_count`` is read from it and incremented by 1.
     """
-    if not any([enrich_regime, enrich_news, enrich_calendar, enrich_layering, enrich_event_risk]):
+    if not any([enrich_regime, enrich_news, enrich_calendar, enrich_layering, enrich_event_risk,
+                enrich_flow_qualifier, enrich_compression_regime, enrich_zone_intelligence, enrich_reversal_context,
+                enrich_session_context, enrich_liquidity_sweeps, enrich_liquidity_pools,
+                enrich_order_blocks, enrich_zone_projection, enrich_profile_context,
+                enrich_structure_state, enrich_imbalance_lifecycle, enrich_session_structure, enrich_range_regime,
+                enrich_range_profile_regime]):
         return None
 
     from scripts.smc_provider_policy import resolve_domain
@@ -427,6 +447,126 @@ def build_enrichment(
     # ── Volume regime ───────────────────────────────────────────
     enrichment["volume_regime"] = _derive_volume_regime(base_snapshot)
 
+    # ── Flow Qualifier (v5.1) ───────────────────────────────────
+    if enrich_flow_qualifier:
+        from scripts.smc_flow_qualifier import build_flow_qualifier
+
+        enrichment["flow_qualifier"] = build_flow_qualifier(
+            snapshot=base_snapshot, symbol="",
+        )
+
+    # ── Compression / ATR Regime (v5.1) ─────────────────────────
+    if enrich_compression_regime:
+        from scripts.smc_compression_regime import build_compression_regime
+
+        enrichment["compression_regime"] = build_compression_regime(
+            snapshot=base_snapshot, symbol="",
+        )
+
+    # ── Zone Intelligence (v5.1) ────────────────────────────────
+    if enrich_zone_intelligence:
+        from scripts.smc_zone_intelligence import build_zone_intelligence
+
+        enrichment["zone_intelligence"] = build_zone_intelligence(
+            snapshot=base_snapshot, symbol="",
+        )
+
+    # ── Reversal Context (v5.1) ─────────────────────────────────
+    if enrich_reversal_context:
+        from scripts.smc_reversal_context import build_reversal_context
+
+        enrichment["reversal_context"] = build_reversal_context(
+            snapshot=base_snapshot, symbol="",
+        )
+
+    # ── Session Context (v5.2) ──────────────────────────────────
+    if enrich_session_context:
+        from scripts.smc_session_context_block import build_session_context_block
+
+        enrichment["session_context"] = build_session_context_block(
+            snapshot=base_snapshot, symbol="",
+        )
+
+    # ── Liquidity Sweeps (v5.2) ─────────────────────────────────
+    if enrich_liquidity_sweeps:
+        from scripts.smc_liquidity_sweeps import build_liquidity_sweeps
+
+        enrichment["liquidity_sweeps"] = build_liquidity_sweeps(
+            snapshot=base_snapshot, symbol="",
+        )
+
+    # ── Liquidity Pools (v5.2) ──────────────────────────────────
+    if enrich_liquidity_pools:
+        from scripts.smc_liquidity_pools import build_liquidity_pools
+
+        enrichment["liquidity_pools"] = build_liquidity_pools(
+            snapshot=base_snapshot, symbol="",
+        )
+
+    # ── Order Blocks (v5.2) ─────────────────────────────────────
+    if enrich_order_blocks:
+        from scripts.smc_order_blocks import build_order_blocks
+
+        enrichment["order_blocks"] = build_order_blocks(
+            snapshot=base_snapshot, symbol="",
+        )
+
+    # ── Zone Projection (v5.2) ──────────────────────────────────
+    if enrich_zone_projection:
+        from scripts.smc_zone_projection import build_zone_projection
+
+        enrichment["zone_projection"] = build_zone_projection(
+            snapshot=base_snapshot, symbol="",
+        )
+
+    # ── Profile Context (v5.2) ──────────────────────────────────
+    if enrich_profile_context:
+        from scripts.smc_profile_context import build_profile_context
+
+        enrichment["profile_context"] = build_profile_context(
+            snapshot=base_snapshot, symbol="",
+        )
+
+    # ── Structure State (v5.3) ──────────────────────────────────
+    if enrich_structure_state:
+        from scripts.smc_structure_state import build_structure_state
+
+        enrichment["structure_state"] = build_structure_state(
+            snapshot=base_snapshot, symbol="",
+        )
+
+    # ── Imbalance Lifecycle (v5.3) ──────────────────────────────
+    if enrich_imbalance_lifecycle:
+        from scripts.smc_imbalance_lifecycle import build_imbalance_lifecycle
+
+        enrichment["imbalance_lifecycle"] = build_imbalance_lifecycle(
+            snapshot=base_snapshot, symbol="",
+        )
+
+    # ── Session Structure (v5.3) ────────────────────────────────
+    if enrich_session_structure:
+        from scripts.smc_session_structure import build_session_structure
+
+        enrichment["session_structure"] = build_session_structure(
+            snapshot=base_snapshot, symbol="",
+        )
+
+    # ── Range Regime (v5.3) ─────────────────────────────────────
+    if enrich_range_regime:
+        from scripts.smc_range_regime import build_range_regime
+
+        enrichment["range_regime"] = build_range_regime(
+            snapshot=base_snapshot, symbol="",
+        )
+
+    # ── Range Profile Regime (v5.3) ─────────────────────────────
+    if enrich_range_profile_regime:
+        from scripts.smc_range_profile_regime import build_range_profile_regime
+
+        enrichment["range_profile_regime"] = build_range_profile_regime(
+            snapshot=base_snapshot, symbol="",
+        )
+
     # ── Meta ────────────────────────────────────────────────────
     prev_count = _read_previous_refresh_count(manifest_path)
     enrichment["meta"] = {
@@ -451,6 +591,21 @@ def finalize_pipeline(
     enrich_calendar: bool = False,
     enrich_layering: bool = False,
     enrich_event_risk: bool = False,
+    enrich_flow_qualifier: bool = False,
+    enrich_compression_regime: bool = False,
+    enrich_zone_intelligence: bool = False,
+    enrich_reversal_context: bool = False,
+    enrich_session_context: bool = False,
+    enrich_liquidity_sweeps: bool = False,
+    enrich_liquidity_pools: bool = False,
+    enrich_order_blocks: bool = False,
+    enrich_zone_projection: bool = False,
+    enrich_profile_context: bool = False,
+    enrich_structure_state: bool = False,
+    enrich_imbalance_lifecycle: bool = False,
+    enrich_session_structure: bool = False,
+    enrich_range_regime: bool = False,
+    enrich_range_profile_regime: bool = False,
 ) -> dict[str, Any]:
     """Shared post-base orchestration: enrichment + Pine library generation.
 
@@ -477,6 +632,21 @@ def finalize_pipeline(
         enrich_calendar=enrich_calendar,
         enrich_layering=enrich_layering,
         enrich_event_risk=enrich_event_risk,
+        enrich_flow_qualifier=enrich_flow_qualifier,
+        enrich_compression_regime=enrich_compression_regime,
+        enrich_zone_intelligence=enrich_zone_intelligence,
+        enrich_reversal_context=enrich_reversal_context,
+        enrich_session_context=enrich_session_context,
+        enrich_liquidity_sweeps=enrich_liquidity_sweeps,
+        enrich_liquidity_pools=enrich_liquidity_pools,
+        enrich_order_blocks=enrich_order_blocks,
+        enrich_zone_projection=enrich_zone_projection,
+        enrich_profile_context=enrich_profile_context,
+        enrich_structure_state=enrich_structure_state,
+        enrich_imbalance_lifecycle=enrich_imbalance_lifecycle,
+        enrich_session_structure=enrich_session_structure,
+        enrich_range_regime=enrich_range_regime,
+        enrich_range_profile_regime=enrich_range_profile_regime,
         base_snapshot=snapshot_df,
         manifest_path=manifest_path,
     )
@@ -534,6 +704,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--enrich-calendar", action="store_true", help="Add earnings/macro calendar enrichment (FMP)")
     parser.add_argument("--enrich-layering", action="store_true", help="Add pre-computed layering signals (smc_core)")
     parser.add_argument("--enrich-event-risk", action="store_true", help="Add v5 event-risk layer (derived from calendar + news)")
+    parser.add_argument("--enrich-structure-state", action="store_true", help="Add v5.3 structure state (snapshot-derived)")
+    parser.add_argument("--enrich-imbalance-lifecycle", action="store_true", help="Add v5.3 imbalance lifecycle (snapshot-derived)")
+    parser.add_argument("--enrich-session-structure", action="store_true", help="Add v5.3 session structure (snapshot-derived)")
+    parser.add_argument("--enrich-range-regime", action="store_true", help="Add v5.3 range regime (snapshot-derived)")
+    parser.add_argument("--enrich-range-profile-regime", action="store_true", help="Add v5.3 range/profile regime (snapshot-derived)")
     parser.add_argument("--enrich-all", action="store_true", help="Enable all enrichment blocks")
     parser.add_argument("--benzinga-api-key", default=os.getenv("BENZINGA_API_KEY", ""), help="Benzinga API key for news/calendar fallback")
     return parser
@@ -541,7 +716,9 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main() -> None:
     args = build_parser().parse_args()
-    enrich_regime, enrich_news, enrich_calendar, enrich_layering, enrich_event_risk = _resolve_enrichment_flags(args)
+    enrich_regime, enrich_news, enrich_calendar, enrich_layering, enrich_event_risk, \
+        enrich_structure_state, enrich_imbalance_lifecycle, enrich_session_structure, enrich_range_regime, \
+        enrich_range_profile_regime = _resolve_enrichment_flags(args)
     fmp_api_key = str(args.fmp_api_key).strip()
     benzinga_api_key = str(getattr(args, 'benzinga_api_key', '') or '').strip()
 
@@ -557,6 +734,11 @@ def main() -> None:
         enrich_calendar=enrich_calendar,
         enrich_layering=enrich_layering,
         enrich_event_risk=enrich_event_risk,
+        enrich_structure_state=enrich_structure_state,
+        enrich_imbalance_lifecycle=enrich_imbalance_lifecycle,
+        enrich_session_structure=enrich_session_structure,
+        enrich_range_regime=enrich_range_regime,
+        enrich_range_profile_regime=enrich_range_profile_regime,
     )
 
     if args.run_scan:
@@ -611,16 +793,21 @@ def main() -> None:
     report_json.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
 
 
-def _resolve_enrichment_flags(args: argparse.Namespace) -> tuple[bool, bool, bool, bool, bool]:
-    """Return (regime, news, calendar, layering, event_risk) booleans."""
+def _resolve_enrichment_flags(args: argparse.Namespace) -> tuple[bool, bool, bool, bool, bool, bool, bool, bool, bool, bool]:
+    """Return (regime, news, calendar, layering, event_risk, structure_state, imbalance_lifecycle, session_structure, range_regime, range_profile_regime) booleans."""
     if args.enrich_all:
-        return True, True, True, True, True
+        return True, True, True, True, True, True, True, True, True, True
     return (
         bool(args.enrich_regime),
         bool(args.enrich_news),
         bool(args.enrich_calendar),
         bool(args.enrich_layering),
         bool(args.enrich_event_risk),
+        bool(args.enrich_structure_state),
+        bool(args.enrich_imbalance_lifecycle),
+        bool(args.enrich_session_structure),
+        bool(args.enrich_range_regime),
+        bool(args.enrich_range_profile_regime),
     )
 
 

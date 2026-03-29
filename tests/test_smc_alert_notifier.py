@@ -15,9 +15,14 @@ from scripts.smc_alert_notifier import (
     RULE_EVENT_MARKET_BLOCKED,
     RULE_EVENT_RELEASE,
     RULE_EVENT_SYMBOL_BLOCKED,
+    RULE_IMBALANCE_SHIFT,
     RULE_MACRO_EVENT,
     RULE_PROVIDER_DEGRADED,
+    RULE_RANGE_BREAKOUT,
     RULE_RISK_OFF,
+    RULE_SENTIMENT_SHIFT,
+    RULE_SESSION_CONTEXT_SHIFT,
+    RULE_STRUCTURE_SHIFT,
     RULE_TRADE_BLOCKED,
     _format_message,
     _parse_pine_exports,
@@ -664,3 +669,101 @@ def _cli_parser(**kw: Any) -> MagicMock:
 
 
 from typing import Any
+
+
+# ── v5.3 alert rule tests ────────────────────────────────────────
+
+class TestStructureShift:
+    def test_fires_on_bullish_shift(self) -> None:
+        state = _state_from(STRUCTURE_STATE="BULLISH", STRUCTURE_LAST_EVENT="CHoCH")
+        prev = _state_from(STRUCTURE_STATE="NEUTRAL")
+        alerts = evaluate_alerts(state, previous_event_state=prev)
+        rules = [a["rule"] for a in alerts]
+        assert RULE_STRUCTURE_SHIFT in rules
+
+    def test_no_fire_when_neutral(self) -> None:
+        state = _state_from(STRUCTURE_STATE="NEUTRAL")
+        prev = _state_from(STRUCTURE_STATE="BULLISH")
+        alerts = evaluate_alerts(state, previous_event_state=prev)
+        rules = [a["rule"] for a in alerts]
+        assert RULE_STRUCTURE_SHIFT not in rules
+
+    def test_no_fire_when_unchanged(self) -> None:
+        state = _state_from(STRUCTURE_STATE="BULLISH")
+        prev = _state_from(STRUCTURE_STATE="BULLISH")
+        alerts = evaluate_alerts(state, previous_event_state=prev)
+        rules = [a["rule"] for a in alerts]
+        assert RULE_STRUCTURE_SHIFT not in rules
+
+
+class TestImbalanceShift:
+    def test_fires_on_state_change(self) -> None:
+        state = _state_from(IMBALANCE_STATE="FVG_ACTIVE")
+        prev = _state_from(IMBALANCE_STATE="NONE")
+        alerts = evaluate_alerts(state, previous_event_state=prev)
+        rules = [a["rule"] for a in alerts]
+        assert RULE_IMBALANCE_SHIFT in rules
+
+    def test_no_fire_to_none(self) -> None:
+        state = _state_from(IMBALANCE_STATE="NONE")
+        prev = _state_from(IMBALANCE_STATE="FVG_ACTIVE")
+        alerts = evaluate_alerts(state, previous_event_state=prev)
+        rules = [a["rule"] for a in alerts]
+        assert RULE_IMBALANCE_SHIFT not in rules
+
+
+class TestSessionContextShift:
+    def test_fires_on_session_change(self) -> None:
+        state = _state_from(SESSION_CONTEXT="LONDON", IN_KILLZONE="true")
+        prev = _state_from(SESSION_CONTEXT="NONE")
+        alerts = evaluate_alerts(state, previous_event_state=prev)
+        rules = [a["rule"] for a in alerts]
+        assert RULE_SESSION_CONTEXT_SHIFT in rules
+
+    def test_no_fire_to_none(self) -> None:
+        state = _state_from(SESSION_CONTEXT="NONE")
+        prev = _state_from(SESSION_CONTEXT="LONDON")
+        alerts = evaluate_alerts(state, previous_event_state=prev)
+        rules = [a["rule"] for a in alerts]
+        assert RULE_SESSION_CONTEXT_SHIFT not in rules
+
+
+class TestRangeBreakout:
+    def test_fires_on_break_up(self) -> None:
+        state = _state_from(
+            RANGE_BREAK_DIRECTION="UP", RANGE_ACTIVE="true", RANGE_WIDTH_ATR="1.5"
+        )
+        prev = _state_from(RANGE_BREAK_DIRECTION="NONE")
+        alerts = evaluate_alerts(state, previous_event_state=prev)
+        rules = [a["rule"] for a in alerts]
+        assert RULE_RANGE_BREAKOUT in rules
+
+    def test_no_fire_when_range_inactive(self) -> None:
+        state = _state_from(RANGE_BREAK_DIRECTION="UP", RANGE_ACTIVE="false")
+        prev = _state_from(RANGE_BREAK_DIRECTION="NONE")
+        alerts = evaluate_alerts(state, previous_event_state=prev)
+        rules = [a["rule"] for a in alerts]
+        assert RULE_RANGE_BREAKOUT not in rules
+
+    def test_no_fire_when_unchanged(self) -> None:
+        state = _state_from(RANGE_BREAK_DIRECTION="UP", RANGE_ACTIVE="true")
+        prev = _state_from(RANGE_BREAK_DIRECTION="UP")
+        alerts = evaluate_alerts(state, previous_event_state=prev)
+        rules = [a["rule"] for a in alerts]
+        assert RULE_RANGE_BREAKOUT not in rules
+
+
+class TestSentimentShift:
+    def test_fires_on_bullish_shift(self) -> None:
+        state = _state_from(PROFILE_SENTIMENT_BIAS="BULL", LIQUIDITY_IMBALANCE="0.6")
+        prev = _state_from(PROFILE_SENTIMENT_BIAS="NEUTRAL")
+        alerts = evaluate_alerts(state, previous_event_state=prev)
+        rules = [a["rule"] for a in alerts]
+        assert RULE_SENTIMENT_SHIFT in rules
+
+    def test_no_fire_to_neutral(self) -> None:
+        state = _state_from(PROFILE_SENTIMENT_BIAS="NEUTRAL")
+        prev = _state_from(PROFILE_SENTIMENT_BIAS="BULL")
+        alerts = evaluate_alerts(state, previous_event_state=prev)
+        rules = [a["rule"] for a in alerts]
+        assert RULE_SENTIMENT_SHIFT not in rules

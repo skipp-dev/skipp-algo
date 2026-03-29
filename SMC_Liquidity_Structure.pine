@@ -1,0 +1,75 @@
+// This Pine Script® code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © preuss_steffen
+
+//@version=6
+
+// ─────────────────────────────────────────────────────────────────
+// SMC Liquidity Structure Overlay — lightweight companion to SMC Core Engine
+//
+// Visualizes liquidity sweep + pool fields from the v5.2 enrichment layer:
+//   • Sweep events (bull / bear) with type label
+//   • Sweep reclaim markers
+//   • Pool imbalance histogram
+//   • Pool magnet direction markers
+//   • Quality score bar
+//
+// Reads mp.* fields from the generated micro-profiles library.
+// Keep on a separate pane — independent of trade signals.
+// ─────────────────────────────────────────────────────────────────
+
+indicator("SMC Liquidity Structure", "Liq.Str", overlay = false, max_labels_count = 50)
+
+import preuss_steffen/smc_micro_profiles_generated/1 as mp
+
+// ── Inputs ──────────────────────────────────────────────────────
+
+var g_ls = "Liquidity Structure"
+var bool show_sweeps       = input.bool(true,  "Show sweep markers",       group = g_ls)
+var bool show_pool_imb     = input.bool(true,  "Show pool imbalance",      group = g_ls)
+var bool show_magnet       = input.bool(true,  "Show magnet direction",    group = g_ls)
+var bool show_quality      = input.bool(true,  "Show quality score bar",   group = g_ls)
+var color col_bullish      = input.color(color.new(color.green, 30), "Bullish color",  group = g_ls)
+var color col_bearish      = input.color(color.new(color.red, 30),   "Bearish color",  group = g_ls)
+var color col_neutral      = input.color(color.new(color.gray, 50),  "Neutral color",  group = g_ls)
+
+// ── Sweep fields ────────────────────────────────────────────────
+
+bool   ls_bull_sweep    = mp.RECENT_BULL_SWEEP
+bool   ls_bear_sweep    = mp.RECENT_BEAR_SWEEP
+string ls_sweep_type    = mp.SWEEP_TYPE
+bool   ls_reclaim       = mp.SWEEP_RECLAIM_ACTIVE
+int    ls_sweep_quality = mp.SWEEP_QUALITY_SCORE
+
+// ── Pool fields ─────────────────────────────────────────────────
+
+float  ls_pool_imb      = mp.POOL_IMBALANCE
+string ls_magnet_dir    = mp.POOL_MAGNET_DIRECTION
+int    ls_pool_quality  = mp.POOL_QUALITY_SCORE
+
+// ── Sweep quality plot ──────────────────────────────────────────
+
+color sq_color = ls_sweep_quality >= 4 ? col_bullish : ls_sweep_quality >= 2 ? col_neutral : col_bearish
+plot(show_quality ? ls_sweep_quality : na, "Sweep Quality", sq_color, 2, plot.style_columns)
+
+// ── Pool imbalance histogram ────────────────────────────────────
+
+color pi_color = ls_pool_imb > 0.3 ? col_bullish : ls_pool_imb < -0.3 ? col_bearish : col_neutral
+plot(show_pool_imb ? ls_pool_imb * 5 : na, "Pool Imbalance", pi_color, 1, plot.style_histogram, display = display.pane)
+hline(0, "Imbalance zero", color.new(color.gray, 70), hline.style_dotted)
+
+// ── Sweep markers ───────────────────────────────────────────────
+
+plotshape(show_sweeps and ls_bull_sweep ? ls_sweep_quality : na, "Bull Sweep", shape.triangleup, location.bottom, col_bullish, size = size.tiny)
+plotshape(show_sweeps and ls_bear_sweep ? ls_sweep_quality : na, "Bear Sweep", shape.triangledown, location.top, col_bearish, size = size.tiny)
+plotshape(show_sweeps and ls_reclaim ? ls_sweep_quality : na, "Reclaim", shape.diamond, location.bottom, color.new(color.blue, 30), size = size.tiny)
+
+// ── Magnet direction ────────────────────────────────────────────
+
+plotshape(show_magnet and ls_magnet_dir == "UP"   ? 0.0 : na, "Magnet Up",   shape.arrowup,   location.bottom, col_bullish, size = size.tiny)
+plotshape(show_magnet and ls_magnet_dir == "DOWN" ? 0.0 : na, "Magnet Down", shape.arrowdown, location.top,    col_bearish, size = size.tiny)
+
+// ── Status line ─────────────────────────────────────────────────
+
+if barstate.islast
+    string info = ls_sweep_type + " | Magnet:" + ls_magnet_dir + " | SQ:" + str.tostring(ls_sweep_quality) + " PQ:" + str.tostring(ls_pool_quality)
+    label.new(bar_index, ls_sweep_quality + 0.5, info, color = color.new(color.black, 80), textcolor = chart.fg_color, size = size.small, style = label.style_label_down)

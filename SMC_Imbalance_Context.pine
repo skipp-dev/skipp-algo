@@ -1,0 +1,86 @@
+// This Pine Script® code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © preuss_steffen
+
+//@version=6
+
+// ─────────────────────────────────────────────────────────────────
+// SMC Imbalance Context Overlay — visualizes v5.3 imbalance lifecycle
+//
+// Reads Imbalance Lifecycle fields from the generated micro-profiles library:
+//   • FVG zones (bull / bear) with mitigation state
+//   • BPR (Balanced Price Range) zone
+//   • Liquidity voids
+//   • Composite IMBALANCE_STATE
+//
+// Keep on a separate pane or overlay — independent of trade signals.
+// ─────────────────────────────────────────────────────────────────
+
+indicator("SMC Imbalance Context", "Imbal.Ctx", overlay = true, max_boxes_count = 50, max_labels_count = 50)
+
+import preuss_steffen/smc_micro_profiles_generated/1 as mp
+
+// ── Inputs ──────────────────────────────────────────────────────
+
+var g_im = "Imbalance Context"
+var bool show_fvg_zones      = input.bool(true,  "Show FVG zones",             group = g_im)
+var bool show_bpr_zone       = input.bool(true,  "Show BPR zone",              group = g_im)
+var bool show_liq_voids      = input.bool(true,  "Show liquidity voids",       group = g_im)
+var bool show_state_label    = input.bool(true,  "Show imbalance state label", group = g_im)
+var color col_bull_fvg       = input.color(color.new(color.green, 75), "Bull FVG",      group = g_im)
+var color col_bear_fvg       = input.color(color.new(color.red, 75),   "Bear FVG",      group = g_im)
+var color col_bpr            = input.color(color.new(color.purple, 80), "BPR zone",     group = g_im)
+var color col_liq_void       = input.color(color.new(color.orange, 80), "Liquidity void", group = g_im)
+
+// ── Library fields ──────────────────────────────────────────────
+
+bool   im_bull_fvg        = mp.BULL_FVG_ACTIVE
+bool   im_bear_fvg        = mp.BEAR_FVG_ACTIVE
+float  im_bull_fvg_top    = mp.BULL_FVG_TOP
+float  im_bull_fvg_bot    = mp.BULL_FVG_BOTTOM
+float  im_bear_fvg_top    = mp.BEAR_FVG_TOP
+float  im_bear_fvg_bot    = mp.BEAR_FVG_BOTTOM
+bool   im_bull_partial     = mp.BULL_FVG_PARTIAL_MITIGATION
+bool   im_bear_partial     = mp.BEAR_FVG_PARTIAL_MITIGATION
+bool   im_bull_full        = mp.BULL_FVG_FULL_MITIGATION
+bool   im_bear_full        = mp.BEAR_FVG_FULL_MITIGATION
+int    im_bull_count       = mp.BULL_FVG_COUNT
+int    im_bear_count       = mp.BEAR_FVG_COUNT
+float  im_bull_mit_pct     = mp.BULL_FVG_MITIGATION_PCT
+float  im_bear_mit_pct     = mp.BEAR_FVG_MITIGATION_PCT
+bool   im_bpr_active       = mp.BPR_ACTIVE
+float  im_bpr_top          = mp.BPR_TOP
+float  im_bpr_bot          = mp.BPR_BOTTOM
+bool   im_lv_bull          = mp.LIQ_VOID_BULL_ACTIVE
+bool   im_lv_bear          = mp.LIQ_VOID_BEAR_ACTIVE
+float  im_lv_top           = mp.LIQ_VOID_TOP
+float  im_lv_bot           = mp.LIQ_VOID_BOTTOM
+string im_state            = mp.IMBALANCE_STATE
+int    im_fvg_net          = mp.FVG_NET_IMBALANCE
+
+// ── FVG zone boxes ──────────────────────────────────────────────
+
+var box bull_fvg_box = na
+var box bear_fvg_box = na
+
+if show_fvg_zones and im_bull_fvg and not im_bull_full
+    bull_fvg_box := box.new(bar_index - 1, im_bull_fvg_top, bar_index, im_bull_fvg_bot, border_color = col_bull_fvg, bgcolor = col_bull_fvg)
+if show_fvg_zones and im_bear_fvg and not im_bear_full
+    bear_fvg_box := box.new(bar_index - 1, im_bear_fvg_top, bar_index, im_bear_fvg_bot, border_color = col_bear_fvg, bgcolor = col_bear_fvg)
+
+// ── BPR zone ────────────────────────────────────────────────────
+
+var box bpr_box = na
+if show_bpr_zone and im_bpr_active
+    bpr_box := box.new(bar_index - 1, im_bpr_top, bar_index, im_bpr_bot, border_color = col_bpr, bgcolor = col_bpr)
+
+// ── Liquidity voids ─────────────────────────────────────────────
+
+var box lv_box = na
+if show_liq_voids and (im_lv_bull or im_lv_bear)
+    lv_box := box.new(bar_index - 1, im_lv_top, bar_index, im_lv_bot, border_color = col_liq_void, bgcolor = col_liq_void)
+
+// ── Status label ────────────────────────────────────────────────
+
+if barstate.islast and show_state_label
+    string detail = im_state + " | FVG=" + str.tostring(im_bull_count) + "/" + str.tostring(im_bear_count) + " | BPR=" + (im_bpr_active ? "ON" : "off")
+    label.new(bar_index, high, detail, color = color.new(color.black, 80), textcolor = chart.fg_color, size = size.small, style = label.style_label_down)

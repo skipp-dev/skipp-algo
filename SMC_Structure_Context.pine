@@ -1,0 +1,75 @@
+// This Pine Script® code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © preuss_steffen
+
+//@version=6
+
+// ─────────────────────────────────────────────────────────────────
+// SMC Structure Context Overlay — visualizes v5.3 structure state
+//
+// Reads Structure State fields from the generated micro-profiles library:
+//   • STRUCTURE_STATE (BULLISH / BEARISH / NEUTRAL)
+//   • CHoCH / BOS event markers
+//   • Active support / resistance levels
+//   • Structure freshness indicator
+//
+// Keep on a separate pane — independent of trade signals.
+// ─────────────────────────────────────────────────────────────────
+
+indicator("SMC Structure Context", "Struct.Ctx", overlay = true, max_labels_count = 100, max_lines_count = 50)
+
+import preuss_steffen/smc_micro_profiles_generated/1 as mp
+
+// ── Inputs ──────────────────────────────────────────────────────
+
+var g_st = "Structure Context"
+var bool show_state_label    = input.bool(true,  "Show structure state label",  group = g_st)
+var bool show_choch_markers  = input.bool(true,  "Show CHoCH markers",          group = g_st)
+var bool show_bos_markers    = input.bool(true,  "Show BOS markers",            group = g_st)
+var bool show_sr_levels      = input.bool(true,  "Show support/resistance",     group = g_st)
+var bool show_fresh_badge    = input.bool(true,  "Show freshness badge",        group = g_st)
+var color col_bullish        = input.color(color.new(color.green, 30), "Bullish color",  group = g_st)
+var color col_bearish        = input.color(color.new(color.red, 30),   "Bearish color",  group = g_st)
+var color col_neutral        = input.color(color.new(color.gray, 50),  "Neutral color",  group = g_st)
+
+// ── Library fields ──────────────────────────────────────────────
+
+string st_state          = mp.STRUCTURE_STATE
+bool   st_bull_active    = mp.STRUCTURE_BULL_ACTIVE
+bool   st_bear_active    = mp.STRUCTURE_BEAR_ACTIVE
+bool   st_choch_bull     = mp.CHOCH_BULL
+bool   st_choch_bear     = mp.CHOCH_BEAR
+bool   st_bos_bull       = mp.BOS_BULL
+bool   st_bos_bear       = mp.BOS_BEAR
+string st_last_event     = mp.STRUCTURE_LAST_EVENT
+int    st_event_age      = mp.STRUCTURE_EVENT_AGE_BARS
+bool   st_fresh          = mp.STRUCTURE_FRESH
+float  st_support        = mp.ACTIVE_SUPPORT
+float  st_resistance     = mp.ACTIVE_RESISTANCE
+bool   st_support_on     = mp.SUPPORT_ACTIVE
+bool   st_resistance_on  = mp.RESISTANCE_ACTIVE
+
+// ── State color helper ──────────────────────────────────────────
+
+color state_color = st_state == "BULLISH" ? col_bullish : st_state == "BEARISH" ? col_bearish : col_neutral
+
+// ── CHoCH / BOS markers ────────────────────────────────────────
+
+plotshape(show_choch_markers and st_choch_bull, "CHoCH Bull", shape.triangleup,   location.belowbar, col_bullish, text = "CHoCH", size = size.small)
+plotshape(show_choch_markers and st_choch_bear, "CHoCH Bear", shape.triangledown, location.abovebar, col_bearish, text = "CHoCH", size = size.small)
+plotshape(show_bos_markers   and st_bos_bull,   "BOS Bull",   shape.triangleup,   location.belowbar, col_bullish, text = "BOS",   size = size.tiny)
+plotshape(show_bos_markers   and st_bos_bear,   "BOS Bear",   shape.triangledown, location.abovebar, col_bearish, text = "BOS",   size = size.tiny)
+
+// ── Support / Resistance lines ──────────────────────────────────
+
+plot(show_sr_levels and st_support_on    ? st_support    : na, "Support",    col_bullish, 1, plot.style_linebr)
+plot(show_sr_levels and st_resistance_on ? st_resistance : na, "Resistance", col_bearish, 1, plot.style_linebr)
+
+// ── Freshness badge ─────────────────────────────────────────────
+
+plotshape(show_fresh_badge and st_fresh, "Fresh", shape.diamond, location.abovebar, color.new(color.orange, 20), size = size.tiny)
+
+// ── Status label ────────────────────────────────────────────────
+
+if barstate.islast and show_state_label
+    string lbl_text = st_state + " | " + st_last_event + " (age " + str.tostring(st_event_age) + ")"
+    label.new(bar_index, st_resistance_on ? st_resistance : close, lbl_text, color = color.new(color.black, 80), textcolor = chart.fg_color, size = size.small, style = label.style_label_down)

@@ -527,7 +527,7 @@ def write_pine_library(
         "// ── Usage ──────────────────────────────────────────────────────",
         "// import preuss_steffen/smc_micro_profiles_generated/1 as mp",
         "//",
-        "// Fields are grouped into seven sections (v5, 51 fields total):",
+        "// Fields are grouped into twenty-three sections (v5.3, 256 fields total):",
         "//   Core/Meta       — ASOF_DATE, ASOF_TIME, UNIVERSE_ID, LOOKBACK_DAYS, UNIVERSE_SIZE, REFRESH_COUNT",
         "//   Microstructure  — *_TICKERS lists (clean_reclaim, stop_hunt_prone, …)",
         "//   Regime          — MARKET_REGIME, VIX_LEVEL, MACRO_BIAS, SECTOR_BREADTH",
@@ -537,6 +537,20 @@ def write_pine_library(
         "//   Providers       — PROVIDER_COUNT, STALE_PROVIDERS",
         "//   Volume          — VOLUME_LOW_TICKERS, HOLIDAY_SUSPECT_TICKERS",
         "//   Event Risk (v5) — EVENT_WINDOW_STATE … EVENT_PROVIDER_STATUS (14 fields)",
+        "//   Flow Qualifier (v5.1)  — REL_VOL … ATS_BEARISH_SEQUENCE (14 fields)",
+        "//   Compression (v5.1)     — SQUEEZE_ON … ATR_RATIO (5 fields)",
+        "//   Zone Intelligence (v5.1) — ACTIVE_SUPPORT_COUNT … ZONE_LIQUIDITY_IMBALANCE (13 fields)",
+        "//   Reversal Context (v5.1)  — REVERSAL_CONTEXT_ACTIVE … RETRACE_OK (12 fields)",
+        "//   Session Context (v5.2)   — SESSION_CONTEXT … SESSION_CONTEXT_SCORE (10 fields)",
+        "//   Liquidity Sweeps (v5.2)  — RECENT_BULL_SWEEP … SWEEP_QUALITY_SCORE (9 fields)",
+        "//   Liquidity Pools (v5.2)   — BUY_SIDE_POOL_LEVEL … POOL_QUALITY_SCORE (11 fields)",
+        "//   Order Blocks (v5.2)      — NEAREST_BULL_OB_LEVEL … OB_CONTEXT_SCORE (13 fields)",
+        "//   Zone Projection (v5.2)   — ZONE_PROJ_TARGET_BULL … ZONE_PROJ_SCORE (10 fields)",
+        "//   Profile Context (v5.2)   — PROFILE_VOLUME_NODE … PROFILE_CONTEXT_SCORE (18 fields)",
+        "//   Structure State (v5.3)   — STRUCTURE_STATE … RESISTANCE_ACTIVE (14 fields)",
+        "//   Imbalance Lifecycle (v5.3) — BULL_FVG_ACTIVE … IMBALANCE_STATE (23 fields)",
+        "//   Session Structure (v5.3)  — SESS_HIGH … SESS_STRUCT_SCORE (14 fields)",
+        "//   Range Regime (v5.3)       — RANGE_REGIME … RANGE_REGIME_SCORE (11 fields)",
         "//",
         "// All fields are export const — safe to read as mp.FIELD_NAME.",
         "// ───────────────────────────────────────────────────────────────",
@@ -626,6 +640,316 @@ def write_pine_library(
     content.append(f'export const string EARNINGS_SOON_TICKERS = "{er.get("EARNINGS_SOON_TICKERS", _ER_DEFAULTS["EARNINGS_SOON_TICKERS"])}"')
     content.append(f'export const string HIGH_RISK_EVENT_TICKERS = "{er.get("HIGH_RISK_EVENT_TICKERS", _ER_DEFAULTS["HIGH_RISK_EVENT_TICKERS"])}"')
     content.append(f'export const string EVENT_PROVIDER_STATUS = "{er.get("EVENT_PROVIDER_STATUS", _ER_DEFAULTS["EVENT_PROVIDER_STATUS"])}"')
+
+    # ── Flow Qualifier (v5.1) ───────────────────────────────────
+    from scripts.smc_flow_qualifier import DEFAULTS as _FQ_DEFAULTS
+
+    fq = enr.get("flow_qualifier") or {}
+    content.append("")
+    content.append("// ── Flow Qualifier ──")
+    content.append(f'export const float REL_VOL = {float(fq.get("REL_VOL", _FQ_DEFAULTS["REL_VOL"]))}')
+    content.append(f'export const float REL_ACTIVITY = {float(fq.get("REL_ACTIVITY", _FQ_DEFAULTS["REL_ACTIVITY"]))}')
+    content.append(f'export const float REL_SIZE = {float(fq.get("REL_SIZE", _FQ_DEFAULTS["REL_SIZE"]))}')
+    content.append(f'export const float DELTA_PROXY_PCT = {float(fq.get("DELTA_PROXY_PCT", _FQ_DEFAULTS["DELTA_PROXY_PCT"]))}')
+    content.append(f'export const bool FLOW_LONG_OK = {_pine_bool(fq.get("FLOW_LONG_OK", _FQ_DEFAULTS["FLOW_LONG_OK"]))}')
+    content.append(f'export const bool FLOW_SHORT_OK = {_pine_bool(fq.get("FLOW_SHORT_OK", _FQ_DEFAULTS["FLOW_SHORT_OK"]))}')
+    content.append(f'export const float ATS_VALUE = {float(fq.get("ATS_VALUE", _FQ_DEFAULTS["ATS_VALUE"]))}')
+    content.append(f'export const float ATS_CHANGE_PCT = {float(fq.get("ATS_CHANGE_PCT", _FQ_DEFAULTS["ATS_CHANGE_PCT"]))}')
+    content.append(f'export const float ATS_ZSCORE = {float(fq.get("ATS_ZSCORE", _FQ_DEFAULTS["ATS_ZSCORE"]))}')
+    content.append(f'export const string ATS_STATE = "{fq.get("ATS_STATE", _FQ_DEFAULTS["ATS_STATE"])}"')
+    content.append(f'export const bool ATS_SPIKE_UP = {_pine_bool(fq.get("ATS_SPIKE_UP", _FQ_DEFAULTS["ATS_SPIKE_UP"]))}')
+    content.append(f'export const bool ATS_SPIKE_DOWN = {_pine_bool(fq.get("ATS_SPIKE_DOWN", _FQ_DEFAULTS["ATS_SPIKE_DOWN"]))}')
+    content.append(f'export const bool ATS_BULLISH_SEQUENCE = {_pine_bool(fq.get("ATS_BULLISH_SEQUENCE", _FQ_DEFAULTS["ATS_BULLISH_SEQUENCE"]))}')
+    content.append(f'export const bool ATS_BEARISH_SEQUENCE = {_pine_bool(fq.get("ATS_BEARISH_SEQUENCE", _FQ_DEFAULTS["ATS_BEARISH_SEQUENCE"]))}')
+
+    # ── Compression / ATR Regime (v5.1) ─────────────────────────
+    from scripts.smc_compression_regime import DEFAULTS as _CR_DEFAULTS
+
+    cr = enr.get("compression_regime") or {}
+    content.append("")
+    content.append("// ── Compression / ATR Regime ──")
+    content.append(f'export const bool SQUEEZE_ON = {_pine_bool(cr.get("SQUEEZE_ON", _CR_DEFAULTS["SQUEEZE_ON"]))}')
+    content.append(f'export const bool SQUEEZE_RELEASED = {_pine_bool(cr.get("SQUEEZE_RELEASED", _CR_DEFAULTS["SQUEEZE_RELEASED"]))}')
+    content.append(f'export const string SQUEEZE_MOMENTUM_BIAS = "{cr.get("SQUEEZE_MOMENTUM_BIAS", _CR_DEFAULTS["SQUEEZE_MOMENTUM_BIAS"])}"')
+    content.append(f'export const string ATR_REGIME = "{cr.get("ATR_REGIME", _CR_DEFAULTS["ATR_REGIME"])}"')
+    content.append(f'export const float ATR_RATIO = {float(cr.get("ATR_RATIO", _CR_DEFAULTS["ATR_RATIO"]))}')
+
+    # ── Zone Intelligence (v5.1) ────────────────────────────────
+    from scripts.smc_zone_intelligence import DEFAULTS as _ZI_DEFAULTS
+
+    zi = enr.get("zone_intelligence") or {}
+    content.append("")
+    content.append("// ── Zone Intelligence ──")
+    content.append(f'export const int ACTIVE_SUPPORT_COUNT = {int(zi.get("ACTIVE_SUPPORT_COUNT", _ZI_DEFAULTS["ACTIVE_SUPPORT_COUNT"]))}')
+    content.append(f'export const int ACTIVE_RESISTANCE_COUNT = {int(zi.get("ACTIVE_RESISTANCE_COUNT", _ZI_DEFAULTS["ACTIVE_RESISTANCE_COUNT"]))}')
+    content.append(f'export const int ACTIVE_ZONE_COUNT = {int(zi.get("ACTIVE_ZONE_COUNT", _ZI_DEFAULTS["ACTIVE_ZONE_COUNT"]))}')
+    content.append(f'export const float PRIMARY_SUPPORT_LEVEL = {float(zi.get("PRIMARY_SUPPORT_LEVEL", _ZI_DEFAULTS["PRIMARY_SUPPORT_LEVEL"]))}')
+    content.append(f'export const float PRIMARY_RESISTANCE_LEVEL = {float(zi.get("PRIMARY_RESISTANCE_LEVEL", _ZI_DEFAULTS["PRIMARY_RESISTANCE_LEVEL"]))}')
+    content.append(f'export const int PRIMARY_SUPPORT_STRENGTH = {int(zi.get("PRIMARY_SUPPORT_STRENGTH", _ZI_DEFAULTS["PRIMARY_SUPPORT_STRENGTH"]))}')
+    content.append(f'export const int PRIMARY_RESISTANCE_STRENGTH = {int(zi.get("PRIMARY_RESISTANCE_STRENGTH", _ZI_DEFAULTS["PRIMARY_RESISTANCE_STRENGTH"]))}')
+    content.append(f'export const int SUPPORT_SWEEP_COUNT = {int(zi.get("SUPPORT_SWEEP_COUNT", _ZI_DEFAULTS["SUPPORT_SWEEP_COUNT"]))}')
+    content.append(f'export const int RESISTANCE_SWEEP_COUNT = {int(zi.get("RESISTANCE_SWEEP_COUNT", _ZI_DEFAULTS["RESISTANCE_SWEEP_COUNT"]))}')
+    content.append(f'export const float SUPPORT_MITIGATION_PCT = {float(zi.get("SUPPORT_MITIGATION_PCT", _ZI_DEFAULTS["SUPPORT_MITIGATION_PCT"]))}')
+    content.append(f'export const float RESISTANCE_MITIGATION_PCT = {float(zi.get("RESISTANCE_MITIGATION_PCT", _ZI_DEFAULTS["RESISTANCE_MITIGATION_PCT"]))}')
+    content.append(f'export const string ZONE_CONTEXT_BIAS = "{zi.get("ZONE_CONTEXT_BIAS", _ZI_DEFAULTS["ZONE_CONTEXT_BIAS"])}"')
+    content.append(f'export const float ZONE_LIQUIDITY_IMBALANCE = {float(zi.get("ZONE_LIQUIDITY_IMBALANCE", _ZI_DEFAULTS["ZONE_LIQUIDITY_IMBALANCE"]))}')
+
+    # ── Reversal Context (v5.1) ─────────────────────────────────
+    from scripts.smc_reversal_context import DEFAULTS as _RC_DEFAULTS
+
+    rc = enr.get("reversal_context") or {}
+    content.append("")
+    content.append("// ── Reversal Context ──")
+    content.append(f'export const bool REVERSAL_CONTEXT_ACTIVE = {_pine_bool(rc.get("REVERSAL_CONTEXT_ACTIVE", _RC_DEFAULTS["REVERSAL_CONTEXT_ACTIVE"]))}')
+    content.append(f'export const int SETUP_SCORE = {int(rc.get("SETUP_SCORE", _RC_DEFAULTS["SETUP_SCORE"]))}')
+    content.append(f'export const int CONFIRM_SCORE = {int(rc.get("CONFIRM_SCORE", _RC_DEFAULTS["CONFIRM_SCORE"]))}')
+    content.append(f'export const int FOLLOW_THROUGH_SCORE = {int(rc.get("FOLLOW_THROUGH_SCORE", _RC_DEFAULTS["FOLLOW_THROUGH_SCORE"]))}')
+    content.append(f'export const bool HTF_STRUCTURE_OK = {_pine_bool(rc.get("HTF_STRUCTURE_OK", _RC_DEFAULTS["HTF_STRUCTURE_OK"]))}')
+    content.append(f'export const bool HTF_BULLISH_PATTERN = {_pine_bool(rc.get("HTF_BULLISH_PATTERN", _RC_DEFAULTS["HTF_BULLISH_PATTERN"]))}')
+    content.append(f'export const bool HTF_BEARISH_PATTERN = {_pine_bool(rc.get("HTF_BEARISH_PATTERN", _RC_DEFAULTS["HTF_BEARISH_PATTERN"]))}')
+    content.append(f'export const bool HTF_BULLISH_DIVERGENCE = {_pine_bool(rc.get("HTF_BULLISH_DIVERGENCE", _RC_DEFAULTS["HTF_BULLISH_DIVERGENCE"]))}')
+    content.append(f'export const bool HTF_BEARISH_DIVERGENCE = {_pine_bool(rc.get("HTF_BEARISH_DIVERGENCE", _RC_DEFAULTS["HTF_BEARISH_DIVERGENCE"]))}')
+    content.append(f'export const bool FVG_CONFIRM_OK = {_pine_bool(rc.get("FVG_CONFIRM_OK", _RC_DEFAULTS["FVG_CONFIRM_OK"]))}')
+    content.append(f'export const bool VWAP_HOLD_OK = {_pine_bool(rc.get("VWAP_HOLD_OK", _RC_DEFAULTS["VWAP_HOLD_OK"]))}')
+    content.append(f'export const bool RETRACE_OK = {_pine_bool(rc.get("RETRACE_OK", _RC_DEFAULTS["RETRACE_OK"]))}')
+
+    # ── Session Context (v5.2) ──────────────────────────────────
+    from scripts.smc_session_context_block import DEFAULTS as _SC_DEFAULTS
+
+    sc = enr.get("session_context") or {}
+    content.append("")
+    content.append("// ── Session Context ──")
+    content.append(f'export const string SESSION_CONTEXT = "{sc.get("SESSION_CONTEXT", _SC_DEFAULTS["SESSION_CONTEXT"])}"')
+    content.append(f'export const bool IN_KILLZONE = {_pine_bool(sc.get("IN_KILLZONE", _SC_DEFAULTS["IN_KILLZONE"]))}')
+    content.append(f'export const bool SESSION_MSS_BULL = {_pine_bool(sc.get("SESSION_MSS_BULL", _SC_DEFAULTS["SESSION_MSS_BULL"]))}')
+    content.append(f'export const bool SESSION_MSS_BEAR = {_pine_bool(sc.get("SESSION_MSS_BEAR", _SC_DEFAULTS["SESSION_MSS_BEAR"]))}')
+    content.append(f'export const string SESSION_STRUCTURE_STATE = "{sc.get("SESSION_STRUCTURE_STATE", _SC_DEFAULTS["SESSION_STRUCTURE_STATE"])}"')
+    content.append(f'export const bool SESSION_FVG_BULL_ACTIVE = {_pine_bool(sc.get("SESSION_FVG_BULL_ACTIVE", _SC_DEFAULTS["SESSION_FVG_BULL_ACTIVE"]))}')
+    content.append(f'export const bool SESSION_FVG_BEAR_ACTIVE = {_pine_bool(sc.get("SESSION_FVG_BEAR_ACTIVE", _SC_DEFAULTS["SESSION_FVG_BEAR_ACTIVE"]))}')
+    content.append(f'export const bool SESSION_BPR_ACTIVE = {_pine_bool(sc.get("SESSION_BPR_ACTIVE", _SC_DEFAULTS["SESSION_BPR_ACTIVE"]))}')
+    content.append(f'export const float SESSION_RANGE_TOP = {float(sc.get("SESSION_RANGE_TOP", _SC_DEFAULTS["SESSION_RANGE_TOP"]))}')
+    content.append(f'export const float SESSION_RANGE_BOTTOM = {float(sc.get("SESSION_RANGE_BOTTOM", _SC_DEFAULTS["SESSION_RANGE_BOTTOM"]))}')
+    content.append(f'export const float SESSION_MEAN = {float(sc.get("SESSION_MEAN", _SC_DEFAULTS["SESSION_MEAN"]))}')
+    content.append(f'export const float SESSION_VWAP = {float(sc.get("SESSION_VWAP", _SC_DEFAULTS["SESSION_VWAP"]))}')
+    content.append(f'export const float SESSION_TARGET_BULL = {float(sc.get("SESSION_TARGET_BULL", _SC_DEFAULTS["SESSION_TARGET_BULL"]))}')
+    content.append(f'export const float SESSION_TARGET_BEAR = {float(sc.get("SESSION_TARGET_BEAR", _SC_DEFAULTS["SESSION_TARGET_BEAR"]))}')
+    content.append(f'export const string SESSION_DIRECTION_BIAS = "{sc.get("SESSION_DIRECTION_BIAS", _SC_DEFAULTS["SESSION_DIRECTION_BIAS"])}"')
+    content.append(f'export const int SESSION_CONTEXT_SCORE = {int(sc.get("SESSION_CONTEXT_SCORE", _SC_DEFAULTS["SESSION_CONTEXT_SCORE"]))}')
+
+    # ── Liquidity Sweeps (v5.2) ─────────────────────────────────
+    from scripts.smc_liquidity_sweeps import DEFAULTS as _LS_DEFAULTS
+
+    ls = enr.get("liquidity_sweeps") or {}
+    content.append("")
+    content.append("// ── Liquidity Sweeps ──")
+    content.append(f'export const bool RECENT_BULL_SWEEP = {_pine_bool(ls.get("RECENT_BULL_SWEEP", _LS_DEFAULTS["RECENT_BULL_SWEEP"]))}')
+    content.append(f'export const bool RECENT_BEAR_SWEEP = {_pine_bool(ls.get("RECENT_BEAR_SWEEP", _LS_DEFAULTS["RECENT_BEAR_SWEEP"]))}')
+    content.append(f'export const string SWEEP_TYPE = "{ls.get("SWEEP_TYPE", _LS_DEFAULTS["SWEEP_TYPE"])}"')
+    content.append(f'export const string SWEEP_DIRECTION = "{ls.get("SWEEP_DIRECTION", _LS_DEFAULTS["SWEEP_DIRECTION"])}"')
+    content.append(f'export const float SWEEP_ZONE_TOP = {float(ls.get("SWEEP_ZONE_TOP", _LS_DEFAULTS["SWEEP_ZONE_TOP"]))}')
+    content.append(f'export const float SWEEP_ZONE_BOTTOM = {float(ls.get("SWEEP_ZONE_BOTTOM", _LS_DEFAULTS["SWEEP_ZONE_BOTTOM"]))}')
+    content.append(f'export const bool SWEEP_RECLAIM_ACTIVE = {_pine_bool(ls.get("SWEEP_RECLAIM_ACTIVE", _LS_DEFAULTS["SWEEP_RECLAIM_ACTIVE"]))}')
+    content.append(f'export const string LIQUIDITY_TAKEN_DIRECTION = "{ls.get("LIQUIDITY_TAKEN_DIRECTION", _LS_DEFAULTS["LIQUIDITY_TAKEN_DIRECTION"])}"')
+    content.append(f'export const int SWEEP_QUALITY_SCORE = {int(ls.get("SWEEP_QUALITY_SCORE", _LS_DEFAULTS["SWEEP_QUALITY_SCORE"]))}')
+
+    # ── Liquidity Pools (v5.2) ──────────────────────────────────
+    from scripts.smc_liquidity_pools import DEFAULTS as _LP_DEFAULTS
+
+    lp = enr.get("liquidity_pools") or {}
+    content.append("")
+    content.append("// ── Liquidity Pools ──")
+    content.append(f'export const float BUY_SIDE_POOL_LEVEL = {float(lp.get("BUY_SIDE_POOL_LEVEL", _LP_DEFAULTS["BUY_SIDE_POOL_LEVEL"]))}')
+    content.append(f'export const float SELL_SIDE_POOL_LEVEL = {float(lp.get("SELL_SIDE_POOL_LEVEL", _LP_DEFAULTS["SELL_SIDE_POOL_LEVEL"]))}')
+    content.append(f'export const int BUY_SIDE_POOL_STRENGTH = {int(lp.get("BUY_SIDE_POOL_STRENGTH", _LP_DEFAULTS["BUY_SIDE_POOL_STRENGTH"]))}')
+    content.append(f'export const int SELL_SIDE_POOL_STRENGTH = {int(lp.get("SELL_SIDE_POOL_STRENGTH", _LP_DEFAULTS["SELL_SIDE_POOL_STRENGTH"]))}')
+    content.append(f'export const float POOL_PROXIMITY_PCT = {float(lp.get("POOL_PROXIMITY_PCT", _LP_DEFAULTS["POOL_PROXIMITY_PCT"]))}')
+    content.append(f'export const int POOL_CLUSTER_DENSITY = {int(lp.get("POOL_CLUSTER_DENSITY", _LP_DEFAULTS["POOL_CLUSTER_DENSITY"]))}')
+    content.append(f'export const int UNTESTED_BUY_POOLS = {int(lp.get("UNTESTED_BUY_POOLS", _LP_DEFAULTS["UNTESTED_BUY_POOLS"]))}')
+    content.append(f'export const int UNTESTED_SELL_POOLS = {int(lp.get("UNTESTED_SELL_POOLS", _LP_DEFAULTS["UNTESTED_SELL_POOLS"]))}')
+    content.append(f'export const float POOL_IMBALANCE = {float(lp.get("POOL_IMBALANCE", _LP_DEFAULTS["POOL_IMBALANCE"]))}')
+    content.append(f'export const string POOL_MAGNET_DIRECTION = "{lp.get("POOL_MAGNET_DIRECTION", _LP_DEFAULTS["POOL_MAGNET_DIRECTION"])}"')
+    content.append(f'export const int POOL_QUALITY_SCORE = {int(lp.get("POOL_QUALITY_SCORE", _LP_DEFAULTS["POOL_QUALITY_SCORE"]))}')
+
+    # ── Order Blocks (v5.2) ─────────────────────────────────────
+    from scripts.smc_order_blocks import DEFAULTS as _OB_DEFAULTS
+
+    ob = enr.get("order_blocks") or {}
+    content.append("")
+    content.append("// ── Order Blocks ──")
+    content.append(f'export const float NEAREST_BULL_OB_LEVEL = {float(ob.get("NEAREST_BULL_OB_LEVEL", _OB_DEFAULTS["NEAREST_BULL_OB_LEVEL"]))}')
+    content.append(f'export const float NEAREST_BEAR_OB_LEVEL = {float(ob.get("NEAREST_BEAR_OB_LEVEL", _OB_DEFAULTS["NEAREST_BEAR_OB_LEVEL"]))}')
+    content.append(f'export const int BULL_OB_FRESHNESS = {int(ob.get("BULL_OB_FRESHNESS", _OB_DEFAULTS["BULL_OB_FRESHNESS"]))}')
+    content.append(f'export const int BEAR_OB_FRESHNESS = {int(ob.get("BEAR_OB_FRESHNESS", _OB_DEFAULTS["BEAR_OB_FRESHNESS"]))}')
+    content.append(f'export const bool BULL_OB_MITIGATED = {_pine_bool(ob.get("BULL_OB_MITIGATED", _OB_DEFAULTS["BULL_OB_MITIGATED"]))}')
+    content.append(f'export const bool BEAR_OB_MITIGATED = {_pine_bool(ob.get("BEAR_OB_MITIGATED", _OB_DEFAULTS["BEAR_OB_MITIGATED"]))}')
+    content.append(f'export const bool BULL_OB_FVG_CONFLUENCE = {_pine_bool(ob.get("BULL_OB_FVG_CONFLUENCE", _OB_DEFAULTS["BULL_OB_FVG_CONFLUENCE"]))}')
+    content.append(f'export const bool BEAR_OB_FVG_CONFLUENCE = {_pine_bool(ob.get("BEAR_OB_FVG_CONFLUENCE", _OB_DEFAULTS["BEAR_OB_FVG_CONFLUENCE"]))}')
+    content.append(f'export const int OB_DENSITY = {int(ob.get("OB_DENSITY", _OB_DEFAULTS["OB_DENSITY"]))}')
+    content.append(f'export const string OB_BIAS = "{ob.get("OB_BIAS", _OB_DEFAULTS["OB_BIAS"])}"')
+    content.append(f'export const float OB_NEAREST_DISTANCE_PCT = {float(ob.get("OB_NEAREST_DISTANCE_PCT", _OB_DEFAULTS["OB_NEAREST_DISTANCE_PCT"]))}')
+    content.append(f'export const int OB_STRENGTH_SCORE = {int(ob.get("OB_STRENGTH_SCORE", _OB_DEFAULTS["OB_STRENGTH_SCORE"]))}')
+    content.append(f'export const int OB_CONTEXT_SCORE = {int(ob.get("OB_CONTEXT_SCORE", _OB_DEFAULTS["OB_CONTEXT_SCORE"]))}')
+
+    # ── Zone Projection (v5.2) ──────────────────────────────────
+    from scripts.smc_zone_projection import DEFAULTS as _ZP_DEFAULTS
+
+    zp = enr.get("zone_projection") or {}
+    content.append("")
+    content.append("// ── Zone Projection ──")
+    content.append(f'export const float ZONE_PROJ_TARGET_BULL = {float(zp.get("ZONE_PROJ_TARGET_BULL", _ZP_DEFAULTS["ZONE_PROJ_TARGET_BULL"]))}')
+    content.append(f'export const float ZONE_PROJ_TARGET_BEAR = {float(zp.get("ZONE_PROJ_TARGET_BEAR", _ZP_DEFAULTS["ZONE_PROJ_TARGET_BEAR"]))}')
+    content.append(f'export const bool ZONE_PROJ_RETEST_EXPECTED = {_pine_bool(zp.get("ZONE_PROJ_RETEST_EXPECTED", _ZP_DEFAULTS["ZONE_PROJ_RETEST_EXPECTED"]))}')
+    content.append(f'export const string ZONE_PROJ_TRAP_RISK = "{zp.get("ZONE_PROJ_TRAP_RISK", _ZP_DEFAULTS["ZONE_PROJ_TRAP_RISK"])}"')
+    content.append(f'export const string ZONE_PROJ_SPREAD_QUALITY = "{zp.get("ZONE_PROJ_SPREAD_QUALITY", _ZP_DEFAULTS["ZONE_PROJ_SPREAD_QUALITY"])}"')
+    content.append(f'export const bool ZONE_PROJ_HTF_ALIGNED = {_pine_bool(zp.get("ZONE_PROJ_HTF_ALIGNED", _ZP_DEFAULTS["ZONE_PROJ_HTF_ALIGNED"]))}')
+    content.append(f'export const string ZONE_PROJ_BIAS = "{zp.get("ZONE_PROJ_BIAS", _ZP_DEFAULTS["ZONE_PROJ_BIAS"])}"')
+    content.append(f'export const int ZONE_PROJ_CONFIDENCE = {int(zp.get("ZONE_PROJ_CONFIDENCE", _ZP_DEFAULTS["ZONE_PROJ_CONFIDENCE"]))}')
+    content.append(f'export const int ZONE_PROJ_DECAY_BARS = {int(zp.get("ZONE_PROJ_DECAY_BARS", _ZP_DEFAULTS["ZONE_PROJ_DECAY_BARS"]))}')
+    content.append(f'export const int ZONE_PROJ_SCORE = {int(zp.get("ZONE_PROJ_SCORE", _ZP_DEFAULTS["ZONE_PROJ_SCORE"]))}')
+
+    # ── Profile Context (v5.2) ──────────────────────────────────
+    from scripts.smc_profile_context import DEFAULTS as _PC_DEFAULTS
+
+    pc = enr.get("profile_context") or {}
+    content.append("")
+    content.append("// ── Profile Context ──")
+    content.append(f'export const string PROFILE_VOLUME_NODE = "{pc.get("PROFILE_VOLUME_NODE", _PC_DEFAULTS["PROFILE_VOLUME_NODE"])}"')
+    content.append(f'export const string PROFILE_VWAP_POSITION = "{pc.get("PROFILE_VWAP_POSITION", _PC_DEFAULTS["PROFILE_VWAP_POSITION"])}"')
+    content.append(f'export const float PROFILE_VWAP_DISTANCE_PCT = {float(pc.get("PROFILE_VWAP_DISTANCE_PCT", _PC_DEFAULTS["PROFILE_VWAP_DISTANCE_PCT"]))}')
+    content.append(f'export const string PROFILE_SPREAD_REGIME = "{pc.get("PROFILE_SPREAD_REGIME", _PC_DEFAULTS["PROFILE_SPREAD_REGIME"])}"')
+    content.append(f'export const float PROFILE_AVG_SPREAD_BPS = {float(pc.get("PROFILE_AVG_SPREAD_BPS", _PC_DEFAULTS["PROFILE_AVG_SPREAD_BPS"]))}')
+    content.append(f'export const string PROFILE_SESSION_BIAS = "{pc.get("PROFILE_SESSION_BIAS", _PC_DEFAULTS["PROFILE_SESSION_BIAS"])}"')
+    content.append(f'export const float PROFILE_RTH_DOMINANCE_PCT = {float(pc.get("PROFILE_RTH_DOMINANCE_PCT", _PC_DEFAULTS["PROFILE_RTH_DOMINANCE_PCT"]))}')
+    content.append(f'export const string PROFILE_PM_QUALITY = "{pc.get("PROFILE_PM_QUALITY", _PC_DEFAULTS["PROFILE_PM_QUALITY"])}"')
+    content.append(f'export const string PROFILE_AH_QUALITY = "{pc.get("PROFILE_AH_QUALITY", _PC_DEFAULTS["PROFILE_AH_QUALITY"])}"')
+    content.append(f'export const float PROFILE_MIDDAY_EFFICIENCY = {float(pc.get("PROFILE_MIDDAY_EFFICIENCY", _PC_DEFAULTS["PROFILE_MIDDAY_EFFICIENCY"]))}')
+    content.append(f'export const float PROFILE_DECAY_HALFLIFE = {float(pc.get("PROFILE_DECAY_HALFLIFE", _PC_DEFAULTS["PROFILE_DECAY_HALFLIFE"]))}')
+    content.append(f'export const float PROFILE_CONSISTENCY = {float(pc.get("PROFILE_CONSISTENCY", _PC_DEFAULTS["PROFILE_CONSISTENCY"]))}')
+    content.append(f'export const float PROFILE_WICKINESS = {float(pc.get("PROFILE_WICKINESS", _PC_DEFAULTS["PROFILE_WICKINESS"]))}')
+    content.append(f'export const float PROFILE_CLEAN_SCORE = {float(pc.get("PROFILE_CLEAN_SCORE", _PC_DEFAULTS["PROFILE_CLEAN_SCORE"]))}')
+    content.append(f'export const float PROFILE_RECLAIM_RATE = {float(pc.get("PROFILE_RECLAIM_RATE", _PC_DEFAULTS["PROFILE_RECLAIM_RATE"]))}')
+    content.append(f'export const float PROFILE_STOP_HUNT_RATE = {float(pc.get("PROFILE_STOP_HUNT_RATE", _PC_DEFAULTS["PROFILE_STOP_HUNT_RATE"]))}')
+    content.append(f'export const string PROFILE_TICKER_GRADE = "{pc.get("PROFILE_TICKER_GRADE", _PC_DEFAULTS["PROFILE_TICKER_GRADE"])}"')
+    content.append(f'export const int PROFILE_CONTEXT_SCORE = {int(pc.get("PROFILE_CONTEXT_SCORE", _PC_DEFAULTS["PROFILE_CONTEXT_SCORE"]))}')
+
+    # ── Structure State (v5.3) ──────────────────────────────────
+    from scripts.smc_structure_state import DEFAULTS as _SS_DEFAULTS
+
+    ss = enr.get("structure_state") or {}
+    content.append("")
+    content.append("// ── Structure State ──")
+    content.append(f'export const string STRUCTURE_STATE = "{ss.get("STRUCTURE_STATE", _SS_DEFAULTS["STRUCTURE_STATE"])}"')
+    content.append(f'export const bool STRUCTURE_BULL_ACTIVE = {str(ss.get("STRUCTURE_BULL_ACTIVE", _SS_DEFAULTS["STRUCTURE_BULL_ACTIVE"])).lower()}')
+    content.append(f'export const bool STRUCTURE_BEAR_ACTIVE = {str(ss.get("STRUCTURE_BEAR_ACTIVE", _SS_DEFAULTS["STRUCTURE_BEAR_ACTIVE"])).lower()}')
+    content.append(f'export const bool CHOCH_BULL = {str(ss.get("CHOCH_BULL", _SS_DEFAULTS["CHOCH_BULL"])).lower()}')
+    content.append(f'export const bool CHOCH_BEAR = {str(ss.get("CHOCH_BEAR", _SS_DEFAULTS["CHOCH_BEAR"])).lower()}')
+    content.append(f'export const bool BOS_BULL = {str(ss.get("BOS_BULL", _SS_DEFAULTS["BOS_BULL"])).lower()}')
+    content.append(f'export const bool BOS_BEAR = {str(ss.get("BOS_BEAR", _SS_DEFAULTS["BOS_BEAR"])).lower()}')
+    content.append(f'export const string STRUCTURE_LAST_EVENT = "{ss.get("STRUCTURE_LAST_EVENT", _SS_DEFAULTS["STRUCTURE_LAST_EVENT"])}"')
+    content.append(f'export const int STRUCTURE_EVENT_AGE_BARS = {int(ss.get("STRUCTURE_EVENT_AGE_BARS", _SS_DEFAULTS["STRUCTURE_EVENT_AGE_BARS"]))}')
+    content.append(f'export const bool STRUCTURE_FRESH = {str(ss.get("STRUCTURE_FRESH", _SS_DEFAULTS["STRUCTURE_FRESH"])).lower()}')
+    content.append(f'export const float ACTIVE_SUPPORT = {float(ss.get("ACTIVE_SUPPORT", _SS_DEFAULTS["ACTIVE_SUPPORT"]))}')
+    content.append(f'export const float ACTIVE_RESISTANCE = {float(ss.get("ACTIVE_RESISTANCE", _SS_DEFAULTS["ACTIVE_RESISTANCE"]))}')
+    content.append(f'export const bool SUPPORT_ACTIVE = {str(ss.get("SUPPORT_ACTIVE", _SS_DEFAULTS["SUPPORT_ACTIVE"])).lower()}')
+    content.append(f'export const bool RESISTANCE_ACTIVE = {str(ss.get("RESISTANCE_ACTIVE", _SS_DEFAULTS["RESISTANCE_ACTIVE"])).lower()}')
+
+    # ── Imbalance Lifecycle (v5.3) ──────────────────────────────
+    from scripts.smc_imbalance_lifecycle import DEFAULTS as _IL_DEFAULTS
+
+    il = enr.get("imbalance_lifecycle") or {}
+    content.append("")
+    content.append("// ── Imbalance Lifecycle ──")
+    content.append(f'export const bool BULL_FVG_ACTIVE = {str(il.get("BULL_FVG_ACTIVE", _IL_DEFAULTS["BULL_FVG_ACTIVE"])).lower()}')
+    content.append(f'export const bool BEAR_FVG_ACTIVE = {str(il.get("BEAR_FVG_ACTIVE", _IL_DEFAULTS["BEAR_FVG_ACTIVE"])).lower()}')
+    content.append(f'export const float BULL_FVG_TOP = {float(il.get("BULL_FVG_TOP", _IL_DEFAULTS["BULL_FVG_TOP"]))}')
+    content.append(f'export const float BULL_FVG_BOTTOM = {float(il.get("BULL_FVG_BOTTOM", _IL_DEFAULTS["BULL_FVG_BOTTOM"]))}')
+    content.append(f'export const float BEAR_FVG_TOP = {float(il.get("BEAR_FVG_TOP", _IL_DEFAULTS["BEAR_FVG_TOP"]))}')
+    content.append(f'export const float BEAR_FVG_BOTTOM = {float(il.get("BEAR_FVG_BOTTOM", _IL_DEFAULTS["BEAR_FVG_BOTTOM"]))}')
+    content.append(f'export const bool BULL_FVG_PARTIAL_MITIGATION = {str(il.get("BULL_FVG_PARTIAL_MITIGATION", _IL_DEFAULTS["BULL_FVG_PARTIAL_MITIGATION"])).lower()}')
+    content.append(f'export const bool BEAR_FVG_PARTIAL_MITIGATION = {str(il.get("BEAR_FVG_PARTIAL_MITIGATION", _IL_DEFAULTS["BEAR_FVG_PARTIAL_MITIGATION"])).lower()}')
+    content.append(f'export const bool BULL_FVG_FULL_MITIGATION = {str(il.get("BULL_FVG_FULL_MITIGATION", _IL_DEFAULTS["BULL_FVG_FULL_MITIGATION"])).lower()}')
+    content.append(f'export const bool BEAR_FVG_FULL_MITIGATION = {str(il.get("BEAR_FVG_FULL_MITIGATION", _IL_DEFAULTS["BEAR_FVG_FULL_MITIGATION"])).lower()}')
+    content.append(f'export const int BULL_FVG_COUNT = {int(il.get("BULL_FVG_COUNT", _IL_DEFAULTS["BULL_FVG_COUNT"]))}')
+    content.append(f'export const int BEAR_FVG_COUNT = {int(il.get("BEAR_FVG_COUNT", _IL_DEFAULTS["BEAR_FVG_COUNT"]))}')
+    content.append(f'export const float BULL_FVG_MITIGATION_PCT = {float(il.get("BULL_FVG_MITIGATION_PCT", _IL_DEFAULTS["BULL_FVG_MITIGATION_PCT"]))}')
+    content.append(f'export const float BEAR_FVG_MITIGATION_PCT = {float(il.get("BEAR_FVG_MITIGATION_PCT", _IL_DEFAULTS["BEAR_FVG_MITIGATION_PCT"]))}')
+    content.append(f'export const bool BPR_ACTIVE = {str(il.get("BPR_ACTIVE", _IL_DEFAULTS["BPR_ACTIVE"])).lower()}')
+    content.append(f'export const string BPR_DIRECTION = "{il.get("BPR_DIRECTION", _IL_DEFAULTS["BPR_DIRECTION"])}"')
+    content.append(f'export const float BPR_TOP = {float(il.get("BPR_TOP", _IL_DEFAULTS["BPR_TOP"]))}')
+    content.append(f'export const float BPR_BOTTOM = {float(il.get("BPR_BOTTOM", _IL_DEFAULTS["BPR_BOTTOM"]))}')
+    content.append(f'export const bool LIQ_VOID_BULL_ACTIVE = {str(il.get("LIQ_VOID_BULL_ACTIVE", _IL_DEFAULTS["LIQ_VOID_BULL_ACTIVE"])).lower()}')
+    content.append(f'export const bool LIQ_VOID_BEAR_ACTIVE = {str(il.get("LIQ_VOID_BEAR_ACTIVE", _IL_DEFAULTS["LIQ_VOID_BEAR_ACTIVE"])).lower()}')
+    content.append(f'export const float LIQ_VOID_TOP = {float(il.get("LIQ_VOID_TOP", _IL_DEFAULTS["LIQ_VOID_TOP"]))}')
+    content.append(f'export const float LIQ_VOID_BOTTOM = {float(il.get("LIQ_VOID_BOTTOM", _IL_DEFAULTS["LIQ_VOID_BOTTOM"]))}')
+    content.append(f'export const string IMBALANCE_STATE = "{il.get("IMBALANCE_STATE", _IL_DEFAULTS["IMBALANCE_STATE"])}"')
+
+    # ── Session Structure (v5.3) ────────────────────────────────
+    from scripts.smc_session_structure import DEFAULTS as _SES_DEFAULTS
+
+    ses = enr.get("session_structure") or {}
+    content.append("")
+    content.append("// ── Session Structure ──")
+    content.append(f'export const float SESS_HIGH = {float(ses.get("SESS_HIGH", _SES_DEFAULTS["SESS_HIGH"]))}')
+    content.append(f'export const float SESS_LOW = {float(ses.get("SESS_LOW", _SES_DEFAULTS["SESS_LOW"]))}')
+    content.append(f'export const float SESS_OPEN_RANGE_HIGH = {float(ses.get("SESS_OPEN_RANGE_HIGH", _SES_DEFAULTS["SESS_OPEN_RANGE_HIGH"]))}')
+    content.append(f'export const float SESS_OPEN_RANGE_LOW = {float(ses.get("SESS_OPEN_RANGE_LOW", _SES_DEFAULTS["SESS_OPEN_RANGE_LOW"]))}')
+    content.append(f'export const string SESS_OPEN_RANGE_BREAK = "{ses.get("SESS_OPEN_RANGE_BREAK", _SES_DEFAULTS["SESS_OPEN_RANGE_BREAK"])}"')
+    content.append(f'export const string SESS_IMPULSE_DIR = "{ses.get("SESS_IMPULSE_DIR", _SES_DEFAULTS["SESS_IMPULSE_DIR"])}"')
+    content.append(f'export const int SESS_IMPULSE_STRENGTH = {int(ses.get("SESS_IMPULSE_STRENGTH", _SES_DEFAULTS["SESS_IMPULSE_STRENGTH"]))}')
+    content.append(f'export const int SESS_INTRA_BOS_COUNT = {int(ses.get("SESS_INTRA_BOS_COUNT", _SES_DEFAULTS["SESS_INTRA_BOS_COUNT"]))}')
+    content.append(f'export const bool SESS_INTRA_CHOCH = {str(ses.get("SESS_INTRA_CHOCH", _SES_DEFAULTS["SESS_INTRA_CHOCH"])).lower()}')
+    content.append(f'export const float SESS_PDH = {float(ses.get("SESS_PDH", _SES_DEFAULTS["SESS_PDH"]))}')
+    content.append(f'export const float SESS_PDL = {float(ses.get("SESS_PDL", _SES_DEFAULTS["SESS_PDL"]))}')
+    content.append(f'export const bool SESS_PDH_SWEPT = {str(ses.get("SESS_PDH_SWEPT", _SES_DEFAULTS["SESS_PDH_SWEPT"])).lower()}')
+    content.append(f'export const bool SESS_PDL_SWEPT = {str(ses.get("SESS_PDL_SWEPT", _SES_DEFAULTS["SESS_PDL_SWEPT"])).lower()}')
+    content.append(f'export const int SESS_STRUCT_SCORE = {int(ses.get("SESS_STRUCT_SCORE", _SES_DEFAULTS["SESS_STRUCT_SCORE"]))}')
+
+    # ── Range Regime (v5.3) ─────────────────────────────────────
+    from scripts.smc_range_regime import DEFAULTS as _RR_DEFAULTS
+
+    rr = enr.get("range_regime") or {}
+    content.append("")
+    content.append("// ── Range Regime ──")
+    content.append(f'export const string RANGE_REGIME = "{rr.get("RANGE_REGIME", _RR_DEFAULTS["RANGE_REGIME"])}"')
+    content.append(f'export const float RANGE_WIDTH_PCT = {float(rr.get("RANGE_WIDTH_PCT", _RR_DEFAULTS["RANGE_WIDTH_PCT"]))}')
+    content.append(f'export const string RANGE_POSITION = "{rr.get("RANGE_POSITION", _RR_DEFAULTS["RANGE_POSITION"])}"')
+    content.append(f'export const float RANGE_HIGH = {float(rr.get("RANGE_HIGH", _RR_DEFAULTS["RANGE_HIGH"]))}')
+    content.append(f'export const float RANGE_LOW = {float(rr.get("RANGE_LOW", _RR_DEFAULTS["RANGE_LOW"]))}')
+    content.append(f'export const int RANGE_DURATION_BARS = {int(rr.get("RANGE_DURATION_BARS", _RR_DEFAULTS["RANGE_DURATION_BARS"]))}')
+    content.append(f'export const float RANGE_VPOC_LEVEL = {float(rr.get("RANGE_VPOC_LEVEL", _RR_DEFAULTS["RANGE_VPOC_LEVEL"]))}')
+    content.append(f'export const float RANGE_VAH_LEVEL = {float(rr.get("RANGE_VAH_LEVEL", _RR_DEFAULTS["RANGE_VAH_LEVEL"]))}')
+    content.append(f'export const float RANGE_VAL_LEVEL = {float(rr.get("RANGE_VAL_LEVEL", _RR_DEFAULTS["RANGE_VAL_LEVEL"]))}')
+    content.append(f'export const string RANGE_BALANCE_STATE = "{rr.get("RANGE_BALANCE_STATE", _RR_DEFAULTS["RANGE_BALANCE_STATE"])}"')
+    content.append(f'export const int RANGE_REGIME_SCORE = {int(rr.get("RANGE_REGIME_SCORE", _RR_DEFAULTS["RANGE_REGIME_SCORE"]))}')
+
+    # ── Range Profile Regime (v5.3) ─────────────────────────────
+    from scripts.smc_range_profile_regime import DEFAULTS as _RPR_DEFAULTS
+
+    rpr = enr.get("range_profile_regime") or {}
+    content.append("")
+    content.append("// ── Range Profile Regime ──")
+    content.append(f'export const bool RANGE_ACTIVE = {_pine_bool(rpr.get("RANGE_ACTIVE", _RPR_DEFAULTS["RANGE_ACTIVE"]))}')
+    content.append(f'export const float RANGE_TOP = {float(rpr.get("RANGE_TOP", _RPR_DEFAULTS["RANGE_TOP"]))}')
+    content.append(f'export const float RANGE_BOTTOM = {float(rpr.get("RANGE_BOTTOM", _RPR_DEFAULTS["RANGE_BOTTOM"]))}')
+    content.append(f'export const float RANGE_MID = {float(rpr.get("RANGE_MID", _RPR_DEFAULTS["RANGE_MID"]))}')
+    content.append(f'export const float RANGE_WIDTH_ATR = {float(rpr.get("RANGE_WIDTH_ATR", _RPR_DEFAULTS["RANGE_WIDTH_ATR"]))}')
+    content.append(f'export const string RANGE_BREAK_DIRECTION = "{rpr.get("RANGE_BREAK_DIRECTION", _RPR_DEFAULTS["RANGE_BREAK_DIRECTION"])}"')
+    content.append(f'export const float PROFILE_POC = {float(rpr.get("PROFILE_POC", _RPR_DEFAULTS["PROFILE_POC"]))}')
+    content.append(f'export const float PROFILE_VALUE_AREA_TOP = {float(rpr.get("PROFILE_VALUE_AREA_TOP", _RPR_DEFAULTS["PROFILE_VALUE_AREA_TOP"]))}')
+    content.append(f'export const float PROFILE_VALUE_AREA_BOTTOM = {float(rpr.get("PROFILE_VALUE_AREA_BOTTOM", _RPR_DEFAULTS["PROFILE_VALUE_AREA_BOTTOM"]))}')
+    content.append(f'export const bool PROFILE_VALUE_AREA_ACTIVE = {_pine_bool(rpr.get("PROFILE_VALUE_AREA_ACTIVE", _RPR_DEFAULTS["PROFILE_VALUE_AREA_ACTIVE"]))}')
+    content.append(f'export const float PROFILE_BULLISH_SENTIMENT = {float(rpr.get("PROFILE_BULLISH_SENTIMENT", _RPR_DEFAULTS["PROFILE_BULLISH_SENTIMENT"]))}')
+    content.append(f'export const float PROFILE_BEARISH_SENTIMENT = {float(rpr.get("PROFILE_BEARISH_SENTIMENT", _RPR_DEFAULTS["PROFILE_BEARISH_SENTIMENT"]))}')
+    content.append(f'export const string PROFILE_SENTIMENT_BIAS = "{rpr.get("PROFILE_SENTIMENT_BIAS", _RPR_DEFAULTS["PROFILE_SENTIMENT_BIAS"])}"')
+    content.append(f'export const float LIQUIDITY_ABOVE_PCT = {float(rpr.get("LIQUIDITY_ABOVE_PCT", _RPR_DEFAULTS["LIQUIDITY_ABOVE_PCT"]))}')
+    content.append(f'export const float LIQUIDITY_BELOW_PCT = {float(rpr.get("LIQUIDITY_BELOW_PCT", _RPR_DEFAULTS["LIQUIDITY_BELOW_PCT"]))}')
+    content.append(f'export const float LIQUIDITY_IMBALANCE = {float(rpr.get("LIQUIDITY_IMBALANCE", _RPR_DEFAULTS["LIQUIDITY_IMBALANCE"]))}')
+    content.append(f'export const float PRED_RANGE_MID = {float(rpr.get("PRED_RANGE_MID", _RPR_DEFAULTS["PRED_RANGE_MID"]))}')
+    content.append(f'export const float PRED_RANGE_UPPER_1 = {float(rpr.get("PRED_RANGE_UPPER_1", _RPR_DEFAULTS["PRED_RANGE_UPPER_1"]))}')
+    content.append(f'export const float PRED_RANGE_UPPER_2 = {float(rpr.get("PRED_RANGE_UPPER_2", _RPR_DEFAULTS["PRED_RANGE_UPPER_2"]))}')
+    content.append(f'export const float PRED_RANGE_LOWER_1 = {float(rpr.get("PRED_RANGE_LOWER_1", _RPR_DEFAULTS["PRED_RANGE_LOWER_1"]))}')
+    content.append(f'export const float PRED_RANGE_LOWER_2 = {float(rpr.get("PRED_RANGE_LOWER_2", _RPR_DEFAULTS["PRED_RANGE_LOWER_2"]))}')
+    content.append(f'export const bool IN_PREDICTIVE_RANGE_EXTREME = {_pine_bool(rpr.get("IN_PREDICTIVE_RANGE_EXTREME", _RPR_DEFAULTS["IN_PREDICTIVE_RANGE_EXTREME"]))}')
 
     path.write_text("\n".join(content).rstrip() + "\n", encoding="utf-8")
 
@@ -836,7 +1160,7 @@ def write_manifest(
         "exported_lists": LIST_EXPORTS,
         "list_counts": {name: len(symbols) for name, symbols in lists.items()},
         "enrichment_blocks": sorted((enrichment or {}).keys()),
-        "library_field_version": "v5",
+        "library_field_version": "v5.3",
         "event_risk_source": "smc_event_risk_builder" if (enrichment or {}).get("event_risk") else "defaults",
         "auto_commit_allowed": change_type in ("unchanged", "patch", "minor", "initial"),
         "asof_time": ((enrichment or {}).get("meta") or {}).get("asof_time", ""),

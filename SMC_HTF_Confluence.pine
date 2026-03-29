@@ -1,0 +1,102 @@
+// This Pine Script® code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © preuss_steffen
+
+//@version=6
+
+// ─────────────────────────────────────────────────────────────────
+// SMC HTF Confluence Overlay — lightweight companion to SMC Core Engine
+//
+// Visualizes compression/ATR regime + reversal context from v5.1:
+//   • ATR regime state (compression → normal → expansion → exhaustion)
+//   • Squeeze on/released markers
+//   • Reversal context scores (setup / confirm / follow-through)
+//   • HTF structure + divergence flags
+//
+// Reads mp.* fields from the generated micro-profiles library.
+// ─────────────────────────────────────────────────────────────────
+
+indicator("SMC HTF Confluence", "HTF.Conf", overlay = false, max_labels_count = 50)
+
+import preuss_steffen/smc_micro_profiles_generated/1 as mp
+
+// ── Inputs ──────────────────────────────────────────────────────
+
+var g_htf = "HTF Confluence"
+var bool show_atr_regime     = input.bool(true,  "Show ATR regime",            group = g_htf)
+var bool show_squeeze        = input.bool(true,  "Show squeeze markers",       group = g_htf)
+var bool show_reversal       = input.bool(true,  "Show reversal context",      group = g_htf)
+var color col_compression    = input.color(color.new(color.blue, 40),   "Compression",  group = g_htf)
+var color col_expansion      = input.color(color.new(color.orange, 40), "Expansion",    group = g_htf)
+var color col_exhaustion     = input.color(color.new(color.red, 40),    "Exhaustion",   group = g_htf)
+
+// ── Library fields ──────────────────────────────────────────────
+
+bool   sq_on             = mp.SQUEEZE_ON
+bool   sq_released       = mp.SQUEEZE_RELEASED
+string sq_momentum       = mp.SQUEEZE_MOMENTUM_BIAS
+string atr_regime        = mp.ATR_REGIME
+float  atr_ratio         = mp.ATR_RATIO
+
+bool   rev_active        = mp.REVERSAL_CONTEXT_ACTIVE
+int    rev_setup         = mp.SETUP_SCORE
+int    rev_confirm       = mp.CONFIRM_SCORE
+int    rev_follow        = mp.FOLLOW_THROUGH_SCORE
+bool   htf_struct_ok     = mp.HTF_STRUCTURE_OK
+bool   htf_bull_pat      = mp.HTF_BULLISH_PATTERN
+bool   htf_bear_pat      = mp.HTF_BEARISH_PATTERN
+bool   htf_bull_div      = mp.HTF_BULLISH_DIVERGENCE
+bool   htf_bear_div      = mp.HTF_BEARISH_DIVERGENCE
+bool   fvg_confirm       = mp.FVG_CONFIRM_OK
+bool   vwap_hold         = mp.VWAP_HOLD_OK
+bool   retrace_ok        = mp.RETRACE_OK
+
+// ── ATR regime plot ─────────────────────────────────────────────
+
+float atr_plot_val = show_atr_regime ? atr_ratio : na
+color atr_color = atr_regime == "COMPRESSION" ? col_compression :
+     atr_regime == "EXPANSION"  ? col_expansion  :
+     atr_regime == "EXHAUSTION" ? col_exhaustion  :
+     color.new(color.gray, 50)
+plot(atr_plot_val, "ATR Ratio", atr_color, 2, plot.style_columns)
+hline(1.0, "ATR Baseline", color.new(color.gray, 70), hline.style_dotted)
+
+// ── Squeeze markers ─────────────────────────────────────────────
+
+plotshape(show_squeeze and sq_on,       "Squeeze On",       shape.diamond, location.bottom, col_compression, size = size.tiny)
+plotshape(show_squeeze and sq_released, "Squeeze Released", shape.circle,  location.bottom, col_expansion,   size = size.tiny)
+
+// ── Squeeze momentum background ────────────────────────────────
+
+color momentum_bg = show_squeeze and sq_on ?
+     sq_momentum == "BULLISH"  ? color.new(color.green, 92) :
+     sq_momentum == "BEARISH"  ? color.new(color.red, 92)   :
+     color.new(color.yellow, 94) :
+     na
+bgcolor(momentum_bg, title = "Squeeze Momentum")
+
+// ── Reversal context scores ─────────────────────────────────────
+
+plot(show_reversal and rev_active ? rev_setup   : na, "Setup Score",   color.new(color.blue, 40),   1, plot.style_stepline, display = display.pane)
+plot(show_reversal and rev_active ? rev_confirm : na, "Confirm Score", color.new(color.green, 40),  1, plot.style_stepline, display = display.pane)
+plot(show_reversal and rev_active ? rev_follow  : na, "Follow Score",  color.new(color.orange, 40), 1, plot.style_stepline, display = display.pane)
+
+// ── HTF flags ───────────────────────────────────────────────────
+
+plotshape(show_reversal and htf_bull_div, "HTF Bull Divergence", shape.triangleup,   location.bottom, color.new(color.green, 20), size = size.tiny)
+plotshape(show_reversal and htf_bear_div, "HTF Bear Divergence", shape.triangledown, location.top,    color.new(color.red, 20),   size = size.tiny)
+
+// ── Reversal context background ─────────────────────────────────
+
+color rev_bg = show_reversal and rev_active ?
+     rev_setup >= 4 and rev_confirm >= 3 ? color.new(color.green, 88) :
+     rev_setup >= 3                       ? color.new(color.yellow, 90) :
+     color.new(color.gray, 93) :
+     na
+bgcolor(rev_bg, title = "Reversal Context")
+
+// ── Status line ─────────────────────────────────────────────────
+
+string htf_summary = "ATR:" + atr_regime + " R:" + str.tostring(atr_ratio, "#.##") +
+     (sq_on ? " SQ" : "") + (sq_released ? " REL" : "") +
+     (rev_active ? " REV:" + str.tostring(rev_setup) + "/" + str.tostring(rev_confirm) + "/" + str.tostring(rev_follow) : "")
+plotchar(0, "HTF Summary", "•", location.absolute, size = size.tiny, display = display.status_line, char = htf_summary)
