@@ -4,7 +4,7 @@ library("smc_micro_profiles_generated")
 // ── Usage ──────────────────────────────────────────────────────
 // import preuss_steffen/smc_micro_profiles_generated/1 as mp
 //
-// Fields are grouped into twenty-three sections (v5.3, 256 fields total):
+// Fields are grouped into sections (v5.5 Lean, ~290 fields total):
 //   Core/Meta       — ASOF_DATE, ASOF_TIME, UNIVERSE_ID, LOOKBACK_DAYS, UNIVERSE_SIZE, REFRESH_COUNT
 //   Microstructure  — *_TICKERS lists (clean_reclaim, stop_hunt_prone, …)
 //   Regime          — MARKET_REGIME, VIX_LEVEL, MACRO_BIAS, SECTOR_BREADTH
@@ -13,45 +13,54 @@ library("smc_micro_profiles_generated")
 //   Layering        — GLOBAL_HEAT, GLOBAL_STRENGTH, TONE, TRADE_STATE
 //   Providers       — PROVIDER_COUNT, STALE_PROVIDERS
 //   Volume          — VOLUME_LOW_TICKERS, HOLIDAY_SUSPECT_TICKERS
-//   Event Risk (v5) — EVENT_WINDOW_STATE … EVENT_PROVIDER_STATUS (14 fields)
+//   Event Risk (v5, deprecated) — EVENT_WINDOW_STATE … EVENT_PROVIDER_STATUS (14 fields)
 //   Flow Qualifier (v5.1)  — REL_VOL … ATS_BEARISH_SEQUENCE (14 fields)
 //   Compression (v5.1)     — SQUEEZE_ON … ATR_RATIO (5 fields)
-//   Zone Intelligence (v5.1) — ACTIVE_SUPPORT_COUNT … ZONE_LIQUIDITY_IMBALANCE (13 fields)
-//   Reversal Context (v5.1)  — REVERSAL_CONTEXT_ACTIVE … RETRACE_OK (12 fields)
-//   Session Context (v5.2)   — SESSION_CONTEXT … SESSION_CONTEXT_SCORE (10 fields)
-//   Liquidity Sweeps (v5.2)  — RECENT_BULL_SWEEP … SWEEP_QUALITY_SCORE (9 fields)
-//   Liquidity Pools (v5.2)   — BUY_SIDE_POOL_LEVEL … POOL_QUALITY_SCORE (11 fields)
-//   Order Blocks (v5.2)      — NEAREST_BULL_OB_LEVEL … OB_CONTEXT_SCORE (13 fields)
-//   Zone Projection (v5.2)   — ZONE_PROJ_TARGET_BULL … ZONE_PROJ_SCORE (10 fields)
-//   Profile Context (v5.2)   — PROFILE_VOLUME_NODE … PROFILE_CONTEXT_SCORE (18 fields)
-//   Structure State (v5.3)   — STRUCTURE_STATE … RESISTANCE_ACTIVE (14 fields)
-//   Imbalance Lifecycle (v5.3) — BULL_FVG_ACTIVE … IMBALANCE_STATE (23 fields)
-//   Session Structure (v5.3)  — SESS_HIGH … SESS_STRUCT_SCORE (14 fields)
-//   Range Regime (v5.3)       — RANGE_REGIME … RANGE_REGIME_SCORE (11 fields)
+//   Zone Intelligence (v5.1, deprecated) — 13 fields
+//   Reversal Context (v5.1, deprecated)  — 12 fields
+//   Session Context (v5.2, deprecated)   — 16 fields
+//   Liquidity Sweeps (v5.2)  — 9 fields
+//   Liquidity Pools (v5.2, deprecated)   — 11 fields
+//   Order Blocks (v5.2, deprecated)      — 13 fields
+//   Zone Projection (v5.2, deprecated)   — 10 fields
+//   Profile Context (v5.2, deprecated)   — 18 fields
+//   Structure State (v5.3, deprecated)   — 14 fields
+//   Imbalance Lifecycle (v5.3, deprecated) — 23 fields
+//   Session Structure (v5.3, deprecated)  — 14 fields
+//   Range Regime (v5.3)       — 11 fields
+//   Range Profile Regime (v5.3) — 22 fields
+//
+//   ── v5.5 Lean Surface (preferred) ──
+//   Event Risk Light (v5.5)      — 7 fields
+//   Session Context Light (v5.5) — 5 fields
+//   OB Context Light (v5.5)      — 5 fields
+//   FVG Lifecycle Light (v5.5)   — 6 fields
+//   Structure State Light (v5.5) — 4 fields
+//   Signal Quality (v5.5)        — 5 fields
 //
 // All fields are export const — safe to read as mp.FIELD_NAME.
 // ───────────────────────────────────────────────────────────────
 
-export const string ASOF_DATE = "2026-01-01"
+export const string ASOF_DATE = "2026-03-23"
 export const string ASOF_TIME = ""
 export const string UNIVERSE_ID = "us_equities_v1"
 export const int LOOKBACK_DAYS = 20
-export const int UNIVERSE_SIZE = 0
+export const int UNIVERSE_SIZE = 3
 export const int REFRESH_COUNT = 0
 
-export const string CLEAN_RECLAIM_TICKERS = ""
+export const string CLEAN_RECLAIM_TICKERS = "AAA"
 
-export const string STOP_HUNT_PRONE_TICKERS = ""
+export const string STOP_HUNT_PRONE_TICKERS = "BBB"
 
-export const string MIDDAY_DEAD_TICKERS = ""
+export const string MIDDAY_DEAD_TICKERS = "CCC"
 
-export const string RTH_ONLY_TICKERS = ""
+export const string RTH_ONLY_TICKERS = "CCC"
 
-export const string WEAK_PREMARKET_TICKERS = ""
+export const string WEAK_PREMARKET_TICKERS = "CCC"
 
-export const string WEAK_AFTERHOURS_TICKERS = ""
+export const string WEAK_AFTERHOURS_TICKERS = "CCC"
 
-export const string FAST_DECAY_TICKERS = ""
+export const string FAST_DECAY_TICKERS = "BBB"
 
 // ── Market Regime ──
 export const string MARKET_REGIME = "NEUTRAL"
@@ -339,3 +348,47 @@ export const float PRED_RANGE_UPPER_2 = 0.0
 export const float PRED_RANGE_LOWER_1 = 0.0
 export const float PRED_RANGE_LOWER_2 = 0.0
 export const bool IN_PREDICTIVE_RANGE_EXTREME = false
+
+// ── Event Risk Light (v5.5) ──
+export const string EVENT_RISK_LIGHT_WINDOW_STATE = "CLEAR"
+export const string EVENT_RISK_LIGHT_LEVEL = "NONE"
+export const string EVENT_RISK_LIGHT_NEXT_NAME = ""
+export const string EVENT_RISK_LIGHT_NEXT_TIME = ""
+export const bool EVENT_RISK_LIGHT_MARKET_BLOCKED = false
+export const bool EVENT_RISK_LIGHT_SYMBOL_BLOCKED = false
+export const string EVENT_RISK_LIGHT_PROVIDER_STATUS = "ok"
+
+// ── Session Context Light (v5.5) ──
+export const string SESSION_CONTEXT_LIGHT = "NONE"
+export const bool SESSION_LIGHT_IN_KILLZONE = false
+export const string SESSION_LIGHT_DIRECTION_BIAS = "NEUTRAL"
+export const int SESSION_LIGHT_CONTEXT_SCORE = 0
+export const string SESSION_LIGHT_VOLATILITY_STATE = "NORMAL"
+
+// ── Order Block Context Light (v5.5) ──
+export const string PRIMARY_OB_SIDE = "NONE"
+export const float PRIMARY_OB_DISTANCE = 0.0
+export const bool OB_FRESH = false
+export const int OB_AGE_BARS = 0
+export const string OB_MITIGATION_STATE = "stale"
+
+// ── FVG / Imbalance Lifecycle Light (v5.5) ──
+export const string PRIMARY_FVG_SIDE = "NONE"
+export const float PRIMARY_FVG_DISTANCE = 0.0
+export const float FVG_FILL_PCT = 0.0
+export const int FVG_AGE_BARS = 0
+export const bool FVG_FRESH = false
+export const bool FVG_INVALIDATED = false
+
+// ── Structure State Light (v5.5) ──
+export const string STRUCTURE_LIGHT_LAST_EVENT = "NONE"
+export const int STRUCTURE_LIGHT_EVENT_AGE_BARS = 0
+export const bool STRUCTURE_LIGHT_FRESH = false
+export const int STRUCTURE_TREND_STRENGTH = 0
+
+// ── Signal Quality (v5.5) ──
+export const int SIGNAL_QUALITY_SCORE = 0
+export const string SIGNAL_QUALITY_TIER = "low"
+export const string SIGNAL_WARNINGS = ""
+export const string SIGNAL_BIAS_ALIGNMENT = "neutral"
+export const string SIGNAL_FRESHNESS = "stale"

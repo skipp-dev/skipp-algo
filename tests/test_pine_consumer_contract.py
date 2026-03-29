@@ -156,6 +156,27 @@ V5_FIELD_INVENTORY: set[str] = {
     "PRED_RANGE_MID", "PRED_RANGE_UPPER_1", "PRED_RANGE_UPPER_2",
     "PRED_RANGE_LOWER_1", "PRED_RANGE_LOWER_2",
     "IN_PREDICTIVE_RANGE_EXTREME",
+    # v5.5 Lean: Event Risk Light
+    "EVENT_RISK_LIGHT_WINDOW_STATE", "EVENT_RISK_LIGHT_LEVEL",
+    "EVENT_RISK_LIGHT_NEXT_NAME", "EVENT_RISK_LIGHT_NEXT_TIME",
+    "EVENT_RISK_LIGHT_MARKET_BLOCKED", "EVENT_RISK_LIGHT_SYMBOL_BLOCKED",
+    "EVENT_RISK_LIGHT_PROVIDER_STATUS",
+    # v5.5 Lean: Session Context Light
+    "SESSION_CONTEXT_LIGHT", "SESSION_LIGHT_IN_KILLZONE",
+    "SESSION_LIGHT_DIRECTION_BIAS", "SESSION_LIGHT_CONTEXT_SCORE",
+    "SESSION_LIGHT_VOLATILITY_STATE",
+    # v5.5 Lean: Order Block Context Light
+    "PRIMARY_OB_SIDE", "PRIMARY_OB_DISTANCE",
+    "OB_FRESH", "OB_AGE_BARS", "OB_MITIGATION_STATE",
+    # v5.5 Lean: FVG / Imbalance Lifecycle Light
+    "PRIMARY_FVG_SIDE", "PRIMARY_FVG_DISTANCE",
+    "FVG_FILL_PCT", "FVG_AGE_BARS", "FVG_FRESH", "FVG_INVALIDATED",
+    # v5.5 Lean: Structure State Light
+    "STRUCTURE_LIGHT_LAST_EVENT", "STRUCTURE_LIGHT_EVENT_AGE_BARS",
+    "STRUCTURE_LIGHT_FRESH", "STRUCTURE_TREND_STRENGTH",
+    # v5.5 Lean: Signal Quality
+    "SIGNAL_QUALITY_SCORE", "SIGNAL_QUALITY_TIER",
+    "SIGNAL_WARNINGS", "SIGNAL_BIAS_ALIGNMENT", "SIGNAL_FRESHNESS",
 }
 
 # Fields the Engine actually reads via ``mp.FIELD``
@@ -277,6 +298,27 @@ ENGINE_CONSUMED_FIELDS: set[str] = {
     "PRED_RANGE_MID", "PRED_RANGE_UPPER_1", "PRED_RANGE_UPPER_2",
     "PRED_RANGE_LOWER_1", "PRED_RANGE_LOWER_2",
     "IN_PREDICTIVE_RANGE_EXTREME",
+    # Event Risk Light (v5.5)
+    "EVENT_RISK_LIGHT_WINDOW_STATE", "EVENT_RISK_LIGHT_LEVEL",
+    "EVENT_RISK_LIGHT_NEXT_NAME", "EVENT_RISK_LIGHT_NEXT_TIME",
+    "EVENT_RISK_LIGHT_MARKET_BLOCKED", "EVENT_RISK_LIGHT_SYMBOL_BLOCKED",
+    "EVENT_RISK_LIGHT_PROVIDER_STATUS",
+    # Session Context Light (v5.5)
+    "SESSION_CONTEXT_LIGHT", "SESSION_LIGHT_IN_KILLZONE",
+    "SESSION_LIGHT_DIRECTION_BIAS", "SESSION_LIGHT_CONTEXT_SCORE",
+    "SESSION_LIGHT_VOLATILITY_STATE",
+    # OB Context Light (v5.5)
+    "PRIMARY_OB_SIDE", "PRIMARY_OB_DISTANCE",
+    "OB_FRESH", "OB_AGE_BARS", "OB_MITIGATION_STATE",
+    # FVG Lifecycle Light (v5.5)
+    "PRIMARY_FVG_SIDE", "PRIMARY_FVG_DISTANCE",
+    "FVG_FILL_PCT", "FVG_AGE_BARS", "FVG_FRESH", "FVG_INVALIDATED",
+    # Structure State Light (v5.5)
+    "STRUCTURE_LIGHT_LAST_EVENT", "STRUCTURE_LIGHT_EVENT_AGE_BARS",
+    "STRUCTURE_LIGHT_FRESH", "STRUCTURE_TREND_STRENGTH",
+    # Signal Quality (v5.5)
+    "SIGNAL_QUALITY_SCORE", "SIGNAL_QUALITY_TIER",
+    "SIGNAL_WARNINGS", "SIGNAL_BIAS_ALIGNMENT", "SIGNAL_FRESHNESS",
 }
 
 # BUS channels published by SMC_Core_Engine.pine
@@ -292,6 +334,8 @@ ENGINE_BUS_CHANNELS: set[str] = {
     "EnginePack",
     "StopLevel", "Target1", "Target2",
     "EventRiskRow",
+    # v5.5 Lean BUS
+    "LeanPackA", "LeanPackB",
 }
 
 # BUS channels consumed by Dashboard and Strategy
@@ -686,3 +730,78 @@ class TestCIConsumerFieldGuard:
             f"CI FAIL: engine reads mp.{{field}} not in V5_FIELD_INVENTORY. "
             f"Either add {missing} to the inventory or remove the reference."
         )
+
+
+# ═══════════════════════════════════════════════════════════════
+# v5.5 Lean Contract Validation
+# ═══════════════════════════════════════════════════════════════
+
+V55_LEAN_FAMILIES: dict[str, set[str]] = {
+    "event_risk_light": {
+        "EVENT_RISK_LIGHT_WINDOW_STATE", "EVENT_RISK_LIGHT_LEVEL",
+        "EVENT_RISK_LIGHT_NEXT_NAME", "EVENT_RISK_LIGHT_NEXT_TIME",
+        "EVENT_RISK_LIGHT_MARKET_BLOCKED", "EVENT_RISK_LIGHT_SYMBOL_BLOCKED",
+        "EVENT_RISK_LIGHT_PROVIDER_STATUS",
+    },
+    "session_context_light": {
+        "SESSION_CONTEXT_LIGHT", "SESSION_LIGHT_IN_KILLZONE",
+        "SESSION_LIGHT_DIRECTION_BIAS", "SESSION_LIGHT_CONTEXT_SCORE",
+        "SESSION_LIGHT_VOLATILITY_STATE",
+    },
+    "ob_context_light": {
+        "PRIMARY_OB_SIDE", "PRIMARY_OB_DISTANCE",
+        "OB_FRESH", "OB_AGE_BARS", "OB_MITIGATION_STATE",
+    },
+    "fvg_lifecycle_light": {
+        "PRIMARY_FVG_SIDE", "PRIMARY_FVG_DISTANCE",
+        "FVG_FILL_PCT", "FVG_AGE_BARS", "FVG_FRESH", "FVG_INVALIDATED",
+    },
+    "structure_state_light": {
+        "STRUCTURE_LIGHT_LAST_EVENT", "STRUCTURE_LIGHT_EVENT_AGE_BARS",
+        "STRUCTURE_LIGHT_FRESH", "STRUCTURE_TREND_STRENGTH",
+    },
+    "signal_quality": {
+        "SIGNAL_QUALITY_SCORE", "SIGNAL_QUALITY_TIER",
+        "SIGNAL_WARNINGS", "SIGNAL_BIAS_ALIGNMENT", "SIGNAL_FRESHNESS",
+    },
+}
+
+
+class TestV55LeanContract:
+    """Validate v5.5 lean family fields are present in all surfaces."""
+
+    def test_all_lean_fields_in_inventory(self):
+        """Every v5.5 lean field must be in V5_FIELD_INVENTORY."""
+        all_lean = set()
+        for fields in V55_LEAN_FAMILIES.values():
+            all_lean |= fields
+        missing = all_lean - V5_FIELD_INVENTORY
+        assert not missing, f"v5.5 lean fields missing from inventory: {missing}"
+
+    def test_all_lean_fields_consumed_by_engine(self):
+        """Every v5.5 lean field must be consumed by SMC_Core_Engine.pine."""
+        all_lean = set()
+        for fields in V55_LEAN_FAMILIES.values():
+            all_lean |= fields
+        missing = all_lean - ENGINE_CONSUMED_FIELDS
+        assert not missing, f"v5.5 lean fields not consumed by engine: {missing}"
+
+    def test_lean_field_count(self):
+        """v5.5 contract specifies exactly 32 lean fields across 6 families."""
+        total = sum(len(f) for f in V55_LEAN_FAMILIES.values())
+        assert total == 32, f"Expected 32 v5.5 lean fields, got {total}"
+
+    def test_lean_bus_channels_exist(self):
+        """v5.5 lean BUS channels must be declared."""
+        lean_channels = {"LeanPackA", "LeanPackB"}
+        missing = lean_channels - ENGINE_BUS_CHANNELS
+        assert not missing, f"v5.5 lean BUS channels missing: {missing}"
+
+    def test_generated_pine_has_lean_sections(self):
+        """Generated Pine library must have v5.5 section headers."""
+        text = _read_pine("pine/generated/smc_micro_profiles_generated.pine")
+        for family_name in V55_LEAN_FAMILIES:
+            section_tag = "(v5.5)"
+            assert section_tag in text, (
+                f"Generated Pine missing v5.5 section marker for {family_name}"
+            )

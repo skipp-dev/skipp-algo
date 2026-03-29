@@ -2674,6 +2674,66 @@ resolve_bus_debug_flags_row(bool show_ob_debug, bool show_fvg_debug, bool show_l
     int reason_code = (show_ob_debug ? 1 : 0) + (show_fvg_debug ? 2 : 0) + (show_long_engine_debug ? 4 : 0)
     pack_bus_row(reason_code > 0 ? 5 : 0, reason_code)
 
+// ── v5.5 Lean BUS Resolvers ──
+
+resolve_bus_signal_quality_row(int sq_score, string sq_tier) =>
+    if sq_tier == "high"
+        pack_bus_row(5, 4)
+    else if sq_tier == "good"
+        pack_bus_row(4, 3)
+    else if sq_tier == "ok"
+        pack_bus_row(3, 2)
+    else
+        pack_bus_row(2, 1)
+
+resolve_bus_signal_freshness_row(string sq_freshness, string sq_bias) =>
+    int fresh_code = sq_freshness == "fresh" ? 5 : sq_freshness == "aging" ? 3 : 1
+    int bias_code = sq_bias == "bull" ? 1 : sq_bias == "bear" ? 2 : sq_bias == "mixed" ? 3 : 4
+    pack_bus_row(fresh_code, bias_code)
+
+resolve_bus_event_risk_light_row(string erl_window, string erl_level, bool erl_market_blocked) =>
+    if erl_market_blocked
+        pack_bus_row(-1, 1)
+    else if erl_window == "ACTIVE"
+        pack_bus_row(2, 2)
+    else if erl_window == "PRE_EVENT" and (erl_level == "ELEVATED" or erl_level == "HIGH")
+        pack_bus_row(2, 3)
+    else if erl_window == "COOLDOWN"
+        pack_bus_row(3, 4)
+    else
+        pack_bus_row(5, 5)
+
+resolve_bus_struct_light_row(int trend_strength, bool fresh, string last_event) =>
+    int event_code = last_event == "BOS_BULL" ? 1 : last_event == "CHOCH_BULL" ? 2 : last_event == "BOS_BEAR" ? 3 : last_event == "CHOCH_BEAR" ? 4 : 5
+    if trend_strength >= 60 and fresh
+        pack_bus_row(5, event_code)
+    else if trend_strength >= 30
+        pack_bus_row(4, event_code)
+    else
+        pack_bus_row(2, event_code)
+
+resolve_bus_ob_light_row(string ob_side, bool ob_fresh, string ob_mitig) =>
+    if ob_side == "BULL" and ob_fresh
+        pack_bus_row(5, ob_mitig == "fresh" ? 1 : ob_mitig == "touched" ? 2 : 3)
+    else if ob_side == "BULL"
+        pack_bus_row(3, 2)
+    else if ob_side == "BEAR"
+        pack_bus_row(2, 4)
+    else
+        pack_bus_row(3, 5)
+
+resolve_bus_fvg_light_row(string fvg_side, bool fvg_fresh, bool fvg_invalidated) =>
+    if fvg_invalidated
+        pack_bus_row(2, 1)
+    else if fvg_side == "BULL" and fvg_fresh
+        pack_bus_row(5, 2)
+    else if fvg_side == "BULL"
+        pack_bus_row(4, 3)
+    else if fvg_side == "BEAR"
+        pack_bus_row(2, 4)
+    else
+        pack_bus_row(3, 5)
+
 compose_long_invalidated_alert_detail(string long_last_invalid_source, string long_micro_alert_suffix, string long_score_detail_suffix) =>
     long_last_invalid_source + long_micro_alert_suffix + long_score_detail_suffix
 
@@ -3378,7 +3438,7 @@ string lib_squeeze_momentum    = mp.SQUEEZE_MOMENTUM_BIAS
 string lib_atr_regime          = mp.ATR_REGIME
 float  lib_atr_ratio           = mp.ATR_RATIO
 
-// ── Zone Intelligence (v5.1) ──
+// ── Zone Intelligence (v5.1) ── [DEPRECATED v5.5 — superseded by OB/FVG/Structure Light]
 int    lib_active_support_cnt  = mp.ACTIVE_SUPPORT_COUNT
 int    lib_active_resist_cnt   = mp.ACTIVE_RESISTANCE_COUNT
 int    lib_active_zone_cnt     = mp.ACTIVE_ZONE_COUNT
@@ -3393,7 +3453,7 @@ float  lib_resist_mitig_pct    = mp.RESISTANCE_MITIGATION_PCT
 string lib_zone_context_bias   = mp.ZONE_CONTEXT_BIAS
 float  lib_zone_liq_imbalance  = mp.ZONE_LIQUIDITY_IMBALANCE
 
-// ── Reversal Context (v5.1) ──
+// ── Reversal Context (v5.1) ── [DEPRECATED v5.5 — superseded by Signal Quality]
 bool   lib_reversal_active     = mp.REVERSAL_CONTEXT_ACTIVE
 int    lib_setup_score         = mp.SETUP_SCORE
 int    lib_confirm_score       = mp.CONFIRM_SCORE
@@ -3407,7 +3467,7 @@ bool   lib_fvg_confirm_ok      = mp.FVG_CONFIRM_OK
 bool   lib_vwap_hold_ok        = mp.VWAP_HOLD_OK
 bool   lib_retrace_ok          = mp.RETRACE_OK
 
-// ── Session Context (v5.2 + v5.3) ──
+// ── Session Context (v5.2 + v5.3) ── [DEPRECATED v5.5 — superseded by Session Context Light]
 string lib_session_context     = mp.SESSION_CONTEXT
 bool   lib_in_killzone         = mp.IN_KILLZONE
 bool   lib_session_mss_bull    = mp.SESSION_MSS_BULL
@@ -3449,7 +3509,7 @@ float  lib_pool_imbalance      = mp.POOL_IMBALANCE
 string lib_pool_magnet_dir     = mp.POOL_MAGNET_DIRECTION
 int    lib_pool_quality        = mp.POOL_QUALITY_SCORE
 
-// ── Order Blocks (v5.2) ──
+// ── Order Blocks (v5.2) ── [DEPRECATED v5.5 — superseded by OB Context Light]
 float  lib_nearest_bull_ob     = mp.NEAREST_BULL_OB_LEVEL
 float  lib_nearest_bear_ob     = mp.NEAREST_BEAR_OB_LEVEL
 int    lib_bull_ob_fresh       = mp.BULL_OB_FRESHNESS
@@ -3464,7 +3524,7 @@ float  lib_ob_nearest_dist     = mp.OB_NEAREST_DISTANCE_PCT
 int    lib_ob_strength         = mp.OB_STRENGTH_SCORE
 int    lib_ob_context_score    = mp.OB_CONTEXT_SCORE
 
-// ── Zone Projection (v5.2) ──
+// ── Zone Projection (v5.2) ── [DEPRECATED v5.5 — superseded by Signal Quality]
 float  lib_zone_proj_tgt_bull  = mp.ZONE_PROJ_TARGET_BULL
 float  lib_zone_proj_tgt_bear  = mp.ZONE_PROJ_TARGET_BEAR
 bool   lib_zone_proj_retest    = mp.ZONE_PROJ_RETEST_EXPECTED
@@ -3476,7 +3536,7 @@ int    lib_zone_proj_conf      = mp.ZONE_PROJ_CONFIDENCE
 int    lib_zone_proj_decay     = mp.ZONE_PROJ_DECAY_BARS
 int    lib_zone_proj_score     = mp.ZONE_PROJ_SCORE
 
-// ── Profile Context (v5.2) ──
+// ── Profile Context (v5.2) ── [DEPRECATED v5.5 — superseded by Signal Quality]
 string lib_profile_vol_node    = mp.PROFILE_VOLUME_NODE
 string lib_profile_vwap_pos    = mp.PROFILE_VWAP_POSITION
 float  lib_profile_vwap_dist   = mp.PROFILE_VWAP_DISTANCE_PCT
@@ -3512,7 +3572,7 @@ float  lib_struct_resistance      = mp.ACTIVE_RESISTANCE
 bool   lib_struct_support_active  = mp.SUPPORT_ACTIVE
 bool   lib_struct_resistance_active = mp.RESISTANCE_ACTIVE
 
-// ── Imbalance Lifecycle (v5.3) ──
+// ── Imbalance Lifecycle (v5.3) ── [DEPRECATED v5.5 — superseded by FVG Lifecycle Light]
 bool   lib_bull_fvg_active        = mp.BULL_FVG_ACTIVE
 bool   lib_bear_fvg_active        = mp.BEAR_FVG_ACTIVE
 float  lib_bull_fvg_top           = mp.BULL_FVG_TOP
@@ -3537,7 +3597,7 @@ float  lib_liq_void_top           = mp.LIQ_VOID_TOP
 float  lib_liq_void_bottom        = mp.LIQ_VOID_BOTTOM
 string lib_imbalance_state        = mp.IMBALANCE_STATE
 
-// ── Session Structure (v5.3) ──
+// ── Session Structure (v5.3) ── [DEPRECATED v5.5 — superseded by Session Context Light]
 float  lib_sess_high              = mp.SESS_HIGH
 float  lib_sess_low               = mp.SESS_LOW
 float  lib_sess_or_high           = mp.SESS_OPEN_RANGE_HIGH
@@ -3553,7 +3613,7 @@ bool   lib_sess_pdh_swept         = mp.SESS_PDH_SWEPT
 bool   lib_sess_pdl_swept         = mp.SESS_PDL_SWEPT
 int    lib_sess_struct_score      = mp.SESS_STRUCT_SCORE
 
-// ── Range Regime (v5.3) ──
+// ── Range Regime (v5.3) ── [DEPRECATED v5.5 — superseded by Signal Quality]
 string lib_range_regime           = mp.RANGE_REGIME
 float  lib_range_width_pct        = mp.RANGE_WIDTH_PCT
 string lib_range_position         = mp.RANGE_POSITION
@@ -3566,7 +3626,7 @@ float  lib_range_val              = mp.RANGE_VAL_LEVEL
 string lib_range_balance          = mp.RANGE_BALANCE_STATE
 int    lib_range_regime_score     = mp.RANGE_REGIME_SCORE
 
-// ── Range Profile Regime (v5.3) ──
+// ── Range Profile Regime (v5.3) ── [DEPRECATED v5.5 — superseded by Signal Quality]
 bool   lib_rpr_active              = mp.RANGE_ACTIVE
 float  lib_rpr_top                 = mp.RANGE_TOP
 float  lib_rpr_bottom              = mp.RANGE_BOTTOM
@@ -3589,6 +3649,50 @@ float  lib_rpr_pred_upper2         = mp.PRED_RANGE_UPPER_2
 float  lib_rpr_pred_lower1         = mp.PRED_RANGE_LOWER_1
 float  lib_rpr_pred_lower2         = mp.PRED_RANGE_LOWER_2
 bool   lib_rpr_extreme             = mp.IN_PREDICTIVE_RANGE_EXTREME
+
+// ── Event Risk Light (v5.5) ──
+string lib_erl_window_state        = mp.EVENT_RISK_LIGHT_WINDOW_STATE
+string lib_erl_level               = mp.EVENT_RISK_LIGHT_LEVEL
+string lib_erl_next_name           = mp.EVENT_RISK_LIGHT_NEXT_NAME
+string lib_erl_next_time           = mp.EVENT_RISK_LIGHT_NEXT_TIME
+bool   lib_erl_market_blocked      = mp.EVENT_RISK_LIGHT_MARKET_BLOCKED
+bool   lib_erl_symbol_blocked      = mp.EVENT_RISK_LIGHT_SYMBOL_BLOCKED
+string lib_erl_provider_status     = mp.EVENT_RISK_LIGHT_PROVIDER_STATUS
+
+// ── Session Context Light (v5.5) ──
+string lib_scl_context             = mp.SESSION_CONTEXT_LIGHT
+bool   lib_scl_in_killzone         = mp.SESSION_LIGHT_IN_KILLZONE
+string lib_scl_direction_bias      = mp.SESSION_LIGHT_DIRECTION_BIAS
+int    lib_scl_context_score       = mp.SESSION_LIGHT_CONTEXT_SCORE
+string lib_scl_volatility_state    = mp.SESSION_LIGHT_VOLATILITY_STATE
+
+// ── Order Block Context Light (v5.5) ──
+string lib_obl_side                = mp.PRIMARY_OB_SIDE
+float  lib_obl_distance            = mp.PRIMARY_OB_DISTANCE
+bool   lib_obl_fresh               = mp.OB_FRESH
+int    lib_obl_age_bars            = mp.OB_AGE_BARS
+string lib_obl_mitigation_state    = mp.OB_MITIGATION_STATE
+
+// ── FVG Lifecycle Light (v5.5) ──
+string lib_fvgl_side               = mp.PRIMARY_FVG_SIDE
+float  lib_fvgl_distance           = mp.PRIMARY_FVG_DISTANCE
+float  lib_fvgl_fill_pct           = mp.FVG_FILL_PCT
+int    lib_fvgl_age_bars           = mp.FVG_AGE_BARS
+bool   lib_fvgl_fresh              = mp.FVG_FRESH
+bool   lib_fvgl_invalidated        = mp.FVG_INVALIDATED
+
+// ── Structure State Light (v5.5) ──
+string lib_strl_last_event         = mp.STRUCTURE_LIGHT_LAST_EVENT
+int    lib_strl_event_age_bars     = mp.STRUCTURE_LIGHT_EVENT_AGE_BARS
+bool   lib_strl_fresh              = mp.STRUCTURE_LIGHT_FRESH
+int    lib_strl_trend_strength     = mp.STRUCTURE_TREND_STRENGTH
+
+// ── Signal Quality (v5.5) ──
+int    lib_sq_score                = mp.SIGNAL_QUALITY_SCORE
+string lib_sq_tier                 = mp.SIGNAL_QUALITY_TIER
+string lib_sq_warnings             = mp.SIGNAL_WARNINGS
+string lib_sq_bias_alignment       = mp.SIGNAL_BIAS_ALIGNMENT
+string lib_sq_freshness            = mp.SIGNAL_FRESHNESS
 
 // ── v5.1 Context Gates ──
 // Flow qualifier gate: flow confirms direction
@@ -3629,6 +3733,24 @@ bool   range_regime_ok           = lib_range_regime != "UNKNOWN" and lib_range_r
 bool   range_profile_ok          = not lib_rpr_active or lib_rpr_sentiment_bias != "BEAR"
 // Session structure state: session-scoped direction is favorable
 bool   session_struct_state_ok   = lib_session_struct_st != "BEARISH"
+
+// ── v5.5 Lean Context ──
+// Signal Quality: generator-computed composite replaces ad-hoc checks
+bool   signal_quality_ok         = lib_sq_score >= 25
+bool   signal_quality_good       = lib_sq_score >= 50
+bool   signal_quality_high       = lib_sq_score >= 75
+bool   signal_freshness_ok       = lib_sq_freshness != "stale"
+bool   signal_bias_bullish       = lib_sq_bias_alignment == "bull"
+// Structure Light: trend strength from generator
+bool   struct_light_trending     = lib_strl_trend_strength >= 30
+// OB Context Light: primary OB is bullish + fresh
+bool   ob_light_bull_ok          = lib_obl_side == "BULL" and lib_obl_fresh
+// FVG Lifecycle Light: primary FVG alive + not invalidated
+bool   fvg_light_active_ok       = lib_fvgl_side != "NONE" and not lib_fvgl_invalidated
+// Event Risk Light: lightweight hard block from lean surface
+bool   event_risk_light_hard_block = lib_erl_market_blocked or lib_erl_symbol_blocked
+// Session Context Light: lean session quality
+bool   session_light_ok          = lib_scl_context_score >= 2
 
 var string micro_midday_block_session = input.session('1130-1330', 'Midday block', group = g_micro, display = display.none)
 var string micro_premarket_session = input.session('0400-0929', 'Premarket', group = g_micro, display = display.none)
@@ -6343,6 +6465,24 @@ plot(long_target_2, 'BUS Target2', display = display.none)
 plot(pack_bus_four(resolve_bus_flow_qualifier_row(lib_flow_long_ok, lib_flow_short_ok, lib_rel_vol, lib_ats_spike_up, lib_ats_spike_down), resolve_bus_compression_row(lib_squeeze_on, lib_squeeze_released, lib_atr_regime), resolve_bus_zone_context_row(lib_zone_context_bias, lib_active_zone_cnt), resolve_bus_reversal_context_row(lib_reversal_active, lib_setup_score, lib_confirm_score, lib_follow_through_score)), 'BUS ModulePackE', display = display.none)
 plot(pack_bus_four(resolve_bus_session_context_row(lib_session_context, lib_in_killzone, lib_session_ctx_score), resolve_bus_sweep_row(lib_recent_bull_sweep, lib_recent_bear_sweep, lib_sweep_reclaim, lib_sweep_quality), resolve_bus_ob_context_row(lib_ob_bias, lib_ob_context_score, lib_bull_ob_fvg_conf), resolve_bus_profile_row(lib_profile_grade, lib_profile_ctx_score)), 'BUS ModulePackF', display = display.none)
 plot(pack_bus_four(resolve_bus_struct_state_row(lib_struct_state, lib_struct_fresh, lib_struct_bull_active, lib_struct_bear_active), resolve_bus_imbalance_row(lib_imbalance_state, lib_bpr_active, lib_liq_void_bull, lib_liq_void_bear), resolve_bus_session_struct_row(lib_sess_struct_score, lib_sess_or_break, lib_sess_pdh_swept, lib_sess_pdl_swept), resolve_bus_range_regime_row(lib_range_regime, lib_range_regime_score, lib_range_balance)), 'BUS ModulePackG', display = display.none)
+// ── v5.5 Lean BUS Plots ──
+plot(pack_bus_four(resolve_bus_signal_quality_row(lib_sq_score, lib_sq_tier), resolve_bus_signal_freshness_row(lib_sq_freshness, lib_sq_bias_alignment), resolve_bus_event_risk_light_row(lib_erl_window_state, lib_erl_level, lib_erl_market_blocked), resolve_bus_struct_light_row(lib_strl_trend_strength, lib_strl_fresh, lib_strl_last_event)), 'BUS LeanPackA', display = display.none)
+plot(pack_bus_four(resolve_bus_ob_light_row(lib_obl_side, lib_obl_fresh, lib_obl_mitigation_state), resolve_bus_fvg_light_row(lib_fvgl_side, lib_fvgl_fresh, lib_fvgl_invalidated), pack_bus_row(lib_scl_context_score, lib_scl_in_killzone ? 1 : 2), pack_bus_row(lib_sq_score, 0)), 'BUS LeanPackB', display = display.none)
+
+// ── Mini Health Badge (v5.5) ──
+var label health_badge = na
+if barstate.islast and show_dashboard
+    if not na(health_badge)
+        label.delete(health_badge)
+    string dir_icon   = lib_sq_bias_alignment == "bull" ? "▲" : lib_sq_bias_alignment == "bear" ? "▼" : "◆"
+    string tier_icon  = lib_sq_tier == "high" ? "🟢" : lib_sq_tier == "good" ? "🟡" : lib_sq_tier == "ok" ? "🟠" : "🔴"
+    string event_icon = event_risk_light_hard_block ? "⛔" : lib_erl_window_state == "PRE_EVENT" ? "⚡" : "✓"
+    string fresh_icon = lib_sq_freshness == "fresh" ? "●" : lib_sq_freshness == "aging" ? "◐" : "○"
+    string warn_text  = lib_sq_warnings != "" ? " ⚠ " + lib_sq_warnings : ""
+    string data_icon  = lib_erl_provider_status == "ok" ? "✓" : "⚠"
+    string badge_text = dir_icon + " " + lib_sq_tier + " " + str.tostring(lib_sq_score) + " " + tier_icon + " | " + event_icon + " | " + fresh_icon + warn_text + " | data:" + data_icon
+    color  badge_col  = lib_sq_tier == "high" ? color.new(color.green, 70) : lib_sq_tier == "good" ? color.new(color.teal, 70) : lib_sq_tier == "ok" ? color.new(color.orange, 70) : color.new(color.red, 70)
+    health_badge := label.new(bar_index, low, badge_text, color = badge_col, textcolor = color.white, style = label.style_label_up, size = size.tiny)
 
 /////////////////////////////////////////////////////////////////////////////////
 //#endregion                      IMPLEMENTATION

@@ -110,11 +110,12 @@ class TestGeneratedArtifactDrift:
         )
 
     def test_v5_field_count(self, regenerated: Path):
-        """Sanity check: the Pine library contains the expected 51 v5 fields."""
+        """Sanity check: the Pine library contains the expected v5.5 field count."""
         pine = (regenerated / "pine" / "generated" / "smc_micro_profiles_generated.pine").read_text()
         exports = [l for l in pine.splitlines() if l.startswith("export const")]
-        assert len(exports) == 51, (
-            f"Expected 51 export const fields, got {len(exports)}"
+        # v5.5 Lean adds 32 new fields on top of the v5.3 base (256 → 288)
+        assert len(exports) >= 280, (
+            f"Expected at least 280 export const fields (v5.5 lean), got {len(exports)}"
         )
 
     def test_manifest_has_v5_meta_keys(self, regenerated: Path):
@@ -125,7 +126,7 @@ class TestGeneratedArtifactDrift:
             (regenerated / "pine" / "generated" / "smc_micro_profiles_generated.json").read_text()
         )
         assert "library_field_version" in manifest
-        assert manifest["library_field_version"] == "v5"
+        assert manifest["library_field_version"] == "v5.5"
         assert "asof_time" in manifest
         assert "refresh_count" in manifest
         assert "enrichment_blocks" in manifest

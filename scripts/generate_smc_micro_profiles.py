@@ -527,7 +527,7 @@ def write_pine_library(
         "// ── Usage ──────────────────────────────────────────────────────",
         "// import preuss_steffen/smc_micro_profiles_generated/1 as mp",
         "//",
-        "// Fields are grouped into twenty-three sections (v5.3, 256 fields total):",
+        "// Fields are grouped into sections (v5.5 Lean, ~290 fields total):",
         "//   Core/Meta       — ASOF_DATE, ASOF_TIME, UNIVERSE_ID, LOOKBACK_DAYS, UNIVERSE_SIZE, REFRESH_COUNT",
         "//   Microstructure  — *_TICKERS lists (clean_reclaim, stop_hunt_prone, …)",
         "//   Regime          — MARKET_REGIME, VIX_LEVEL, MACRO_BIAS, SECTOR_BREADTH",
@@ -536,21 +536,30 @@ def write_pine_library(
         "//   Layering        — GLOBAL_HEAT, GLOBAL_STRENGTH, TONE, TRADE_STATE",
         "//   Providers       — PROVIDER_COUNT, STALE_PROVIDERS",
         "//   Volume          — VOLUME_LOW_TICKERS, HOLIDAY_SUSPECT_TICKERS",
-        "//   Event Risk (v5) — EVENT_WINDOW_STATE … EVENT_PROVIDER_STATUS (14 fields)",
+        "//   Event Risk (v5, deprecated) — EVENT_WINDOW_STATE … EVENT_PROVIDER_STATUS (14 fields)",
         "//   Flow Qualifier (v5.1)  — REL_VOL … ATS_BEARISH_SEQUENCE (14 fields)",
         "//   Compression (v5.1)     — SQUEEZE_ON … ATR_RATIO (5 fields)",
-        "//   Zone Intelligence (v5.1) — ACTIVE_SUPPORT_COUNT … ZONE_LIQUIDITY_IMBALANCE (13 fields)",
-        "//   Reversal Context (v5.1)  — REVERSAL_CONTEXT_ACTIVE … RETRACE_OK (12 fields)",
-        "//   Session Context (v5.2)   — SESSION_CONTEXT … SESSION_CONTEXT_SCORE (10 fields)",
-        "//   Liquidity Sweeps (v5.2)  — RECENT_BULL_SWEEP … SWEEP_QUALITY_SCORE (9 fields)",
-        "//   Liquidity Pools (v5.2)   — BUY_SIDE_POOL_LEVEL … POOL_QUALITY_SCORE (11 fields)",
-        "//   Order Blocks (v5.2)      — NEAREST_BULL_OB_LEVEL … OB_CONTEXT_SCORE (13 fields)",
-        "//   Zone Projection (v5.2)   — ZONE_PROJ_TARGET_BULL … ZONE_PROJ_SCORE (10 fields)",
-        "//   Profile Context (v5.2)   — PROFILE_VOLUME_NODE … PROFILE_CONTEXT_SCORE (18 fields)",
-        "//   Structure State (v5.3)   — STRUCTURE_STATE … RESISTANCE_ACTIVE (14 fields)",
-        "//   Imbalance Lifecycle (v5.3) — BULL_FVG_ACTIVE … IMBALANCE_STATE (23 fields)",
-        "//   Session Structure (v5.3)  — SESS_HIGH … SESS_STRUCT_SCORE (14 fields)",
-        "//   Range Regime (v5.3)       — RANGE_REGIME … RANGE_REGIME_SCORE (11 fields)",
+        "//   Zone Intelligence (v5.1, deprecated) — 13 fields",
+        "//   Reversal Context (v5.1, deprecated)  — 12 fields",
+        "//   Session Context (v5.2, deprecated)   — 16 fields",
+        "//   Liquidity Sweeps (v5.2)  — 9 fields",
+        "//   Liquidity Pools (v5.2, deprecated)   — 11 fields",
+        "//   Order Blocks (v5.2, deprecated)      — 13 fields",
+        "//   Zone Projection (v5.2, deprecated)   — 10 fields",
+        "//   Profile Context (v5.2, deprecated)   — 18 fields",
+        "//   Structure State (v5.3, deprecated)   — 14 fields",
+        "//   Imbalance Lifecycle (v5.3, deprecated) — 23 fields",
+        "//   Session Structure (v5.3, deprecated)  — 14 fields",
+        "//   Range Regime (v5.3)       — 11 fields",
+        "//   Range Profile Regime (v5.3) — 22 fields",
+        "//",
+        "//   ── v5.5 Lean Surface (preferred) ──",
+        "//   Event Risk Light (v5.5)      — 7 fields",
+        "//   Session Context Light (v5.5) — 5 fields",
+        "//   OB Context Light (v5.5)      — 5 fields",
+        "//   FVG Lifecycle Light (v5.5)   — 6 fields",
+        "//   Structure State Light (v5.5) — 4 fields",
+        "//   Signal Quality (v5.5)        — 5 fields",
         "//",
         "// All fields are export const — safe to read as mp.FIELD_NAME.",
         "// ───────────────────────────────────────────────────────────────",
@@ -951,6 +960,80 @@ def write_pine_library(
     content.append(f'export const float PRED_RANGE_LOWER_2 = {float(rpr.get("PRED_RANGE_LOWER_2", _RPR_DEFAULTS["PRED_RANGE_LOWER_2"]))}')
     content.append(f'export const bool IN_PREDICTIVE_RANGE_EXTREME = {_pine_bool(rpr.get("IN_PREDICTIVE_RANGE_EXTREME", _RPR_DEFAULTS["IN_PREDICTIVE_RANGE_EXTREME"]))}')
 
+    # ── v5.5 Lean: Event Risk Light ─────────────────────────────
+    from scripts.smc_event_risk_light import DEFAULTS as _ERL_DEFAULTS
+
+    erl = enr.get("event_risk_light") or {}
+    content.append("")
+    content.append("// ── Event Risk Light (v5.5) ──")
+    content.append(f'export const string EVENT_RISK_LIGHT_WINDOW_STATE = "{erl.get("EVENT_WINDOW_STATE", _ERL_DEFAULTS["EVENT_WINDOW_STATE"])}"')
+    content.append(f'export const string EVENT_RISK_LIGHT_LEVEL = "{erl.get("EVENT_RISK_LEVEL", _ERL_DEFAULTS["EVENT_RISK_LEVEL"])}"')
+    content.append(f'export const string EVENT_RISK_LIGHT_NEXT_NAME = "{erl.get("NEXT_EVENT_NAME", _ERL_DEFAULTS["NEXT_EVENT_NAME"])}"')
+    content.append(f'export const string EVENT_RISK_LIGHT_NEXT_TIME = "{erl.get("NEXT_EVENT_TIME", _ERL_DEFAULTS["NEXT_EVENT_TIME"])}"')
+    content.append(f'export const bool EVENT_RISK_LIGHT_MARKET_BLOCKED = {_pine_bool(erl.get("MARKET_EVENT_BLOCKED", _ERL_DEFAULTS["MARKET_EVENT_BLOCKED"]))}')
+    content.append(f'export const bool EVENT_RISK_LIGHT_SYMBOL_BLOCKED = {_pine_bool(erl.get("SYMBOL_EVENT_BLOCKED", _ERL_DEFAULTS["SYMBOL_EVENT_BLOCKED"]))}')
+    content.append(f'export const string EVENT_RISK_LIGHT_PROVIDER_STATUS = "{erl.get("EVENT_PROVIDER_STATUS", _ERL_DEFAULTS["EVENT_PROVIDER_STATUS"])}"')
+
+    # ── v5.5 Lean: Session Context Light ────────────────────────
+    from scripts.smc_session_context_light import DEFAULTS as _SCL_DEFAULTS
+
+    scl = enr.get("session_context_light") or {}
+    content.append("")
+    content.append("// ── Session Context Light (v5.5) ──")
+    content.append(f'export const string SESSION_CONTEXT_LIGHT = "{scl.get("SESSION_CONTEXT", _SCL_DEFAULTS["SESSION_CONTEXT"])}"')
+    content.append(f'export const bool SESSION_LIGHT_IN_KILLZONE = {_pine_bool(scl.get("IN_KILLZONE", _SCL_DEFAULTS["IN_KILLZONE"]))}')
+    content.append(f'export const string SESSION_LIGHT_DIRECTION_BIAS = "{scl.get("SESSION_DIRECTION_BIAS", _SCL_DEFAULTS["SESSION_DIRECTION_BIAS"])}"')
+    content.append(f'export const int SESSION_LIGHT_CONTEXT_SCORE = {int(scl.get("SESSION_CONTEXT_SCORE", _SCL_DEFAULTS["SESSION_CONTEXT_SCORE"]))}')
+    content.append(f'export const string SESSION_LIGHT_VOLATILITY_STATE = "{scl.get("SESSION_VOLATILITY_STATE", _SCL_DEFAULTS["SESSION_VOLATILITY_STATE"])}"')
+
+    # ── v5.5 Lean: Order Block Context Light ────────────────────
+    from scripts.smc_ob_context_light import DEFAULTS as _OBL_DEFAULTS
+
+    obl = enr.get("ob_context_light") or {}
+    content.append("")
+    content.append("// ── Order Block Context Light (v5.5) ──")
+    content.append(f'export const string PRIMARY_OB_SIDE = "{obl.get("PRIMARY_OB_SIDE", _OBL_DEFAULTS["PRIMARY_OB_SIDE"])}"')
+    content.append(f'export const float PRIMARY_OB_DISTANCE = {float(obl.get("PRIMARY_OB_DISTANCE", _OBL_DEFAULTS["PRIMARY_OB_DISTANCE"]))}')
+    content.append(f'export const bool OB_FRESH = {_pine_bool(obl.get("OB_FRESH", _OBL_DEFAULTS["OB_FRESH"]))}')
+    content.append(f'export const int OB_AGE_BARS = {int(obl.get("OB_AGE_BARS", _OBL_DEFAULTS["OB_AGE_BARS"]))}')
+    content.append(f'export const string OB_MITIGATION_STATE = "{obl.get("OB_MITIGATION_STATE", _OBL_DEFAULTS["OB_MITIGATION_STATE"])}"')
+
+    # ── v5.5 Lean: FVG / Imbalance Lifecycle Light ──────────────
+    from scripts.smc_fvg_lifecycle_light import DEFAULTS as _FVGL_DEFAULTS
+
+    fvgl = enr.get("fvg_lifecycle_light") or {}
+    content.append("")
+    content.append("// ── FVG / Imbalance Lifecycle Light (v5.5) ──")
+    content.append(f'export const string PRIMARY_FVG_SIDE = "{fvgl.get("PRIMARY_FVG_SIDE", _FVGL_DEFAULTS["PRIMARY_FVG_SIDE"])}"')
+    content.append(f'export const float PRIMARY_FVG_DISTANCE = {float(fvgl.get("PRIMARY_FVG_DISTANCE", _FVGL_DEFAULTS["PRIMARY_FVG_DISTANCE"]))}')
+    content.append(f'export const float FVG_FILL_PCT = {float(fvgl.get("FVG_FILL_PCT", _FVGL_DEFAULTS["FVG_FILL_PCT"]))}')
+    content.append(f'export const int FVG_AGE_BARS = {int(fvgl.get("FVG_AGE_BARS", _FVGL_DEFAULTS["FVG_AGE_BARS"]))}')
+    content.append(f'export const bool FVG_FRESH = {_pine_bool(fvgl.get("FVG_FRESH", _FVGL_DEFAULTS["FVG_FRESH"]))}')
+    content.append(f'export const bool FVG_INVALIDATED = {_pine_bool(fvgl.get("FVG_INVALIDATED", _FVGL_DEFAULTS["FVG_INVALIDATED"]))}')
+
+    # ── v5.5 Lean: Structure State Light ────────────────────────
+    from scripts.smc_structure_state_light import DEFAULTS as _SSL_DEFAULTS
+
+    ssl = enr.get("structure_state_light") or {}
+    content.append("")
+    content.append("// ── Structure State Light (v5.5) ──")
+    content.append(f'export const string STRUCTURE_LIGHT_LAST_EVENT = "{ssl.get("STRUCTURE_LAST_EVENT", _SSL_DEFAULTS["STRUCTURE_LAST_EVENT"])}"')
+    content.append(f'export const int STRUCTURE_LIGHT_EVENT_AGE_BARS = {int(ssl.get("STRUCTURE_EVENT_AGE_BARS", _SSL_DEFAULTS["STRUCTURE_EVENT_AGE_BARS"]))}')
+    content.append(f'export const bool STRUCTURE_LIGHT_FRESH = {_pine_bool(ssl.get("STRUCTURE_FRESH", _SSL_DEFAULTS["STRUCTURE_FRESH"]))}')
+    content.append(f'export const int STRUCTURE_TREND_STRENGTH = {int(ssl.get("STRUCTURE_TREND_STRENGTH", _SSL_DEFAULTS["STRUCTURE_TREND_STRENGTH"]))}')
+
+    # ── v5.5 Lean: Signal Quality ───────────────────────────────
+    from scripts.smc_signal_quality import DEFAULTS as _SQ_DEFAULTS
+
+    sq = enr.get("signal_quality") or {}
+    content.append("")
+    content.append("// ── Signal Quality (v5.5) ──")
+    content.append(f'export const int SIGNAL_QUALITY_SCORE = {int(sq.get("SIGNAL_QUALITY_SCORE", _SQ_DEFAULTS["SIGNAL_QUALITY_SCORE"]))}')
+    content.append(f'export const string SIGNAL_QUALITY_TIER = "{sq.get("SIGNAL_QUALITY_TIER", _SQ_DEFAULTS["SIGNAL_QUALITY_TIER"])}"')
+    content.append(f'export const string SIGNAL_WARNINGS = "{sq.get("SIGNAL_WARNINGS", _SQ_DEFAULTS["SIGNAL_WARNINGS"])}"')
+    content.append(f'export const string SIGNAL_BIAS_ALIGNMENT = "{sq.get("SIGNAL_BIAS_ALIGNMENT", _SQ_DEFAULTS["SIGNAL_BIAS_ALIGNMENT"])}"')
+    content.append(f'export const string SIGNAL_FRESHNESS = "{sq.get("SIGNAL_FRESHNESS", _SQ_DEFAULTS["SIGNAL_FRESHNESS"])}"')
+
     path.write_text("\n".join(content).rstrip() + "\n", encoding="utf-8")
 
 
@@ -1160,7 +1243,15 @@ def write_manifest(
         "exported_lists": LIST_EXPORTS,
         "list_counts": {name: len(symbols) for name, symbols in lists.items()},
         "enrichment_blocks": sorted((enrichment or {}).keys()),
-        "library_field_version": "v5.3",
+        "library_field_version": "v5.5",
+        "v55_lean_blocks": [
+            "event_risk_light",
+            "session_context_light",
+            "ob_context_light",
+            "fvg_lifecycle_light",
+            "structure_state_light",
+            "signal_quality",
+        ],
         "event_risk_source": "smc_event_risk_builder" if (enrichment or {}).get("event_risk") else "defaults",
         "auto_commit_allowed": change_type in ("unchanged", "patch", "minor", "initial"),
         "asof_time": ((enrichment or {}).get("meta") or {}).get("asof_time", ""),

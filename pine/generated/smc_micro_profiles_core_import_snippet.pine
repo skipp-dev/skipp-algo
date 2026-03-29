@@ -1,20 +1,7 @@
-// Core import snippet — microstructure list bindings + v5.3 field access guide.
-// For all enrichment fields, read mp.FIELD_NAME directly from the library.
-// See the full field inventory (256 fields across 23 sections) in the library header.
-//
-// v5.3 key sections:
-//   Structure State    — mp.STRUCTURE_STATE, mp.CHOCH_BULL, mp.BOS_BEAR, …
-//   Imbalance Lifecycle — mp.IMBALANCE_STATE, mp.BPR_ACTIVE, mp.LIQ_VOID_*, …
-//   Session Context    — mp.SESSION_CONTEXT, mp.SESSION_STRUCTURE_STATE, mp.SESSION_VWAP, …
-//   Session Structure  — mp.SESS_HIGH, mp.SESS_OPEN_RANGE_BREAK, mp.SESS_PDH_SWEPT, …
-//   Range Regime       — mp.RANGE_REGIME, mp.RANGE_VPOC_LEVEL, …
-//   Range Profile      — mp.RANGE_ACTIVE, mp.PROFILE_POC, mp.PRED_RANGE_MID, …
-//
-// Companion overlays:
-//   SMC_Structure_Context.pine  — CHoCH/BOS markers, S/R levels, structure state
-//   SMC_Imbalance_Context.pine  — FVG/BPR/LiqVoid zones, imbalance state
-//   SMC_Session_Context.pine    — session label, killzone bg, MSS markers
-//   SMC_Profile_Context.pine    — profile regime, POC/VA, liquidity context
+// Core import snippet — microstructure list bindings only.
+// For regime, news, calendar, layering, and event-risk (v5) fields,
+// read mp.FIELD_NAME directly from the library. See the full field
+// inventory in the library header comment.
 import preuss_steffen/smc_micro_profiles_generated/1 as mp
 string clean_reclaim_tickers_effective = mp.CLEAN_RECLAIM_TICKERS
 string stop_hunt_tickers_effective = mp.STOP_HUNT_PRONE_TICKERS

@@ -342,6 +342,59 @@ class RangeProfileRegimeBlock(TypedDict, total=False):
     IN_PREDICTIVE_RANGE_EXTREME: bool
 
 
+# ── v5.5 Lean blocks ───────────────────────────────────────────
+
+
+class SignalQualityBlock(TypedDict, total=False):
+    SIGNAL_QUALITY_SCORE: int        # 0-100
+    SIGNAL_QUALITY_TIER: str         # "low" | "ok" | "good" | "high"
+    SIGNAL_WARNINGS: str             # pipe-separated, max 3
+    SIGNAL_BIAS_ALIGNMENT: str       # "bull" | "bear" | "mixed" | "neutral"
+    SIGNAL_FRESHNESS: str            # "fresh" | "aging" | "stale"
+
+
+class EventRiskLightBlock(TypedDict, total=False):
+    EVENT_WINDOW_STATE: str          # "CLEAR" | "PRE_EVENT" | "ACTIVE" | "COOLDOWN"
+    EVENT_RISK_LEVEL: str            # "NONE" | "LOW" | "ELEVATED" | "HIGH"
+    NEXT_EVENT_NAME: str
+    NEXT_EVENT_TIME: str
+    MARKET_EVENT_BLOCKED: bool
+    SYMBOL_EVENT_BLOCKED: bool
+    EVENT_PROVIDER_STATUS: str
+
+
+class SessionContextLightBlock(TypedDict, total=False):
+    SESSION_CONTEXT: str             # "ASIA" | "LONDON" | "NY_AM" | "NY_PM" | "NONE"
+    IN_KILLZONE: bool
+    SESSION_DIRECTION_BIAS: str      # "BULLISH" | "BEARISH" | "NEUTRAL"
+    SESSION_CONTEXT_SCORE: int
+    SESSION_VOLATILITY_STATE: str    # "LOW" | "NORMAL" | "HIGH" | "EXTREME"
+
+
+class OBContextLightBlock(TypedDict, total=False):
+    PRIMARY_OB_SIDE: str             # "BULL" | "BEAR" | "NONE"
+    PRIMARY_OB_DISTANCE: float
+    OB_FRESH: bool
+    OB_AGE_BARS: int
+    OB_MITIGATION_STATE: str         # "fresh" | "touched" | "mitigated" | "stale"
+
+
+class FVGLifecycleLightBlock(TypedDict, total=False):
+    PRIMARY_FVG_SIDE: str            # "BULL" | "BEAR" | "NONE"
+    PRIMARY_FVG_DISTANCE: float
+    FVG_FILL_PCT: float
+    FVG_AGE_BARS: int
+    FVG_FRESH: bool
+    FVG_INVALIDATED: bool
+
+
+class StructureStateLightBlock(TypedDict, total=False):
+    STRUCTURE_LAST_EVENT: str        # "NONE" | "BOS_BULL" | "BOS_BEAR" | "CHOCH_BULL" | "CHOCH_BEAR"
+    STRUCTURE_EVENT_AGE_BARS: int
+    STRUCTURE_FRESH: bool
+    STRUCTURE_TREND_STRENGTH: int    # 0-100
+
+
 class EnrichmentDict(TypedDict, total=False):
     """Top-level enrichment payload flowing through the Pine generation chain.
 
@@ -373,3 +426,10 @@ class EnrichmentDict(TypedDict, total=False):
     range_regime: RangeRegimeBlock
     range_profile_regime: RangeProfileRegimeBlock
     meta: MetaBlock
+    # v5.5 Lean blocks
+    signal_quality: SignalQualityBlock
+    event_risk_light: EventRiskLightBlock
+    session_context_light: SessionContextLightBlock
+    ob_context_light: OBContextLightBlock
+    fvg_lifecycle_light: FVGLifecycleLightBlock
+    structure_state_light: StructureStateLightBlock

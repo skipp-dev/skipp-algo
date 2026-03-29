@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from enum import Enum
 
-SCHEMA_VERSION = "1.2.0"
+SCHEMA_VERSION = "2.0.0"
 
 
 class VersionChangeType(str, Enum):

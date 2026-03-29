@@ -1,7 +1,7 @@
 {
-  "schema_version": "1.2.0",
+  "schema_version": "2.0.0",
   "schema_version_previous": "1.2.0",
-  "version_change_type": "unchanged",
+  "version_change_type": "major",
   "asof_date": "2026-03-23",
   "library_name": "smc_micro_profiles_generated",
   "library_owner": "preuss_steffen",
@@ -36,33 +36,18 @@
     "weak_afterhours": 1,
     "fast_decay": 1
   },
-  "enrichment_blocks": [
-    "regime",
-    "news",
-    "calendar",
-    "layering",
-    "providers",
-    "volume_regime",
-    "event_risk",
-    "flow_qualifier",
-    "compression_regime",
-    "zone_intelligence",
-    "reversal_context",
-    "session_context",
-    "liquidity_sweeps",
-    "liquidity_pools",
-    "order_blocks",
-    "zone_projection",
-    "profile_context",
-    "structure_state",
-    "imbalance_lifecycle",
-    "session_structure",
-    "range_regime",
-    "range_profile_regime"
+  "enrichment_blocks": [],
+  "library_field_version": "v5.5",
+  "v55_lean_blocks": [
+    "event_risk_light",
+    "session_context_light",
+    "ob_context_light",
+    "fvg_lifecycle_light",
+    "structure_state_light",
+    "signal_quality"
   ],
-  "library_field_version": "v5.3",
   "event_risk_source": "defaults",
-  "auto_commit_allowed": true,
+  "auto_commit_allowed": false,
   "asof_time": "",
   "refresh_count": 0
 }
