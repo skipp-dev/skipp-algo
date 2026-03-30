@@ -24,14 +24,14 @@ def test_committed_pine_matches_generator():
     actual = COMMITTED_PINE.read_text()
     assert "smc_micro_profiles_generated" in actual
     assert "export const string ASOF_DATE" in actual
-    assert "// ── Signal Quality (v5.5) ──" in actual
+    assert "// ── Signal Quality (v5.5a) ──" in actual
     assert "export const int SIGNAL_QUALITY_SCORE" in actual
     assert "export const string SIGNAL_QUALITY_TIER" in actual
-    assert "// ── Event Risk Light (v5.5) ──" in actual
-    assert "// ── Session Context Light (v5.5) ──" in actual
-    assert "// ── Order Block Context Light (v5.5) ──" in actual
-    assert "// ── FVG / Imbalance Lifecycle Light (v5.5) ──" in actual
-    assert "// ── Structure State Light (v5.5) ──" in actual
+    assert "// ── Event Risk Light (v5.5a) ──" in actual
+    assert "// ── Session Context Light (v5.5a) ──" in actual
+    assert "// ── Order Block Context Light (v5.5a) ──" in actual
+    assert "// ── FVG / Imbalance Lifecycle Light (v5.5a) ──" in actual
+    assert "// ── Structure State Light (v5.5a) ──" in actual
 
 
 def test_committed_manifest_version():

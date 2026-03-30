@@ -1,7 +1,7 @@
 # Legacy Removal Plan — SMC_Core_Engine.pine
 
-Status: **Phase A executed (AP6 v5.5), shadow logic removed (AP5 v5.5a), Phase B unblocked**  
-Last updated: AP7 v5.5b — Dashboard reads LeanPack A/B, Phase B fully unblocked  
+Status: **Phase A executed (AP6 v5.5), shadow logic removed (AP5 v5.5a), Phase B executed (AP6 v5.5b)**  
+Last updated: AP6 v5.5b — Phase B complete: ModulePackE/F/G + 33 BUS compat fields + 12 resolvers removed  
 See also: [RUNTIME_BUDGET.md](RUNTIME_BUDGET.md)
 
 ---
@@ -49,10 +49,10 @@ Dashboard never consumed ModulePackE/F/G; only PackA-D are still in use.
 |------|--------|
 | Update SMC_Dashboard.pine → read LeanPack A/B | ✅ DONE (AP5 v5.5b) |
 | Verify Dashboard does NOT read ModulePackE/F/G | ✅ Confirmed — only PackA-D consumed |
-| Remove BUS ModulePackE/F/G plot calls (lines 6398-6400) | ⬜ Ready |
-| Remove 33 BUS compat field declarations (lines ~3454-3551) | ⬜ Ready |
-| Remove 12 BUS E/F/G resolver functions (lines ~2166-2320) | ⬜ Ready |
-| Free 3 plot slots (35→32 of 64) | ⬜ Ready |
+| Remove BUS ModulePackE/F/G plot calls (lines 6398-6400) | ✅ DONE (AP6 v5.5b) |
+| Remove 33 BUS compat field declarations (lines ~3454-3551) | ✅ DONE (AP6 v5.5b) |
+| Remove 12 BUS E/F/G resolver functions (lines ~2166-2320) | ✅ DONE (AP6 v5.5b) |
+| Free 3 plot slots (35→32 of 64) | ✅ DONE (AP6 v5.5b) |
 
 **Concrete removal inventory (Phase B)**:
 

@@ -9,18 +9,18 @@
 
 | Metric | Count |
 |--------|-------|
-| Total lines | ~6420 |
-| `var` declarations | ~404 |
+| Total lines | ~6155 |
+| `var` declarations | ~371 |
 | `input.*` declarations | ~260 |
-| `plot()` calls | ~35 |
+| `plot()` calls | ~32 |
 | `request.security()` | 5 |
 | `request.security_lower_tf()` | 2 |
 | `ta.*` / `math.*` usages | ~191 |
 
 ### Plot Budget
 
-TradingView allows max 64 plots per script. Current usage: **35 / 64**.
-BUS protocol alone consumes ~12 plots (ModulePackA–G + LeanPackA/B + EventRisk).
+TradingView allows max 64 plots per script. Current usage: **32 / 64**.
+BUS protocol consumes ~9 plots (ModulePackA–D + LeanPackA/B + EventRisk).
 
 ---
 
@@ -40,15 +40,8 @@ These fields are read from lean families and drive the engine directly.
 | **Total** | **32** | |
 
 ### BUS Backward Compat (broad fields, Dashboard only)
-Kept for Dashboard/Strategy consumers that haven't migrated to lean.
-Dashboard reads only PackA-D; **PackE/F/G have zero consumers** (confirmed AP7 v5.5b).
-
-| BUS Pack | Fields | Status |
-|----------|--------|--------|
-| PackE | 6 | ⚠️ REMOVABLE — zero consumers |
-| PackF | 12 | ⚠️ REMOVABLE — zero consumers |
-| PackG | 15 | ⚠️ REMOVABLE — zero consumers |
-| **Total** | **33** | Phase B ready |
+All BUS PackE/F/G fields, resolvers, and plot calls **removed in Phase B (AP6 v5.5b)**.
+Dashboard reads only PackA-D + LeanPackA/B.
 
 ### Dead Inputs (declared, never consumed)
 These `input.bool` variables are defined but never referenced by any gate or plot.
@@ -72,10 +65,9 @@ Safe to remove — saves ~10 input slots.
 ## 3. Removal Roadmap
 
 ### Phase B: BUS compat fields (33 fields, 3 plot slots)
-**Status**: UNBLOCKED — Dashboard reads LeanPack A/B (AP5 v5.5b), PackE/F/G have zero consumers  
-**Effort**: Low (pure deletion, no rewiring needed)  
-**Runtime savings**: 33 field declarations, 12 resolver functions, 3 plot calls, ~265 lines total  
-**Plot budget after Phase B**: 32 / 64
+**Status**: ✅ DONE (AP6 v5.5b)  
+**Removed**: 33 field declarations, 12 resolver functions, 3 plot calls, ~265 lines total  
+**Plot budget**: 32 / 64
 
 ### Phase C: Dead inputs cleanup (10 inputs)
 **Prerequisite**: None — all verified dead  

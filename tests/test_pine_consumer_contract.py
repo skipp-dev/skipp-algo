@@ -205,49 +205,25 @@ ENGINE_CONSUMED_FIELDS: set[str] = {
     # Compression / ATR Regime (v5.1)
     "SQUEEZE_ON", "SQUEEZE_RELEASED", "SQUEEZE_MOMENTUM_BIAS",
     "ATR_REGIME", "ATR_RATIO",
-    # Zone Intelligence (v5.1) — BUS PackE compat only
-    "ZONE_CONTEXT_BIAS", "ACTIVE_ZONE_COUNT",
-    # Reversal Context (v5.1) — BUS PackE compat only
-    "REVERSAL_CONTEXT_ACTIVE", "SETUP_SCORE", "CONFIRM_SCORE", "FOLLOW_THROUGH_SCORE",
-    # Session Context (v5.2 + v5.3) — BUS PackF compat only
-    "SESSION_CONTEXT", "IN_KILLZONE", "SESSION_CONTEXT_SCORE",
-    # Liquidity Sweeps (v5.2) — BUS PackF compat only
-    "RECENT_BULL_SWEEP", "RECENT_BEAR_SWEEP",
-    "SWEEP_RECLAIM_ACTIVE", "SWEEP_QUALITY_SCORE",
-    # Order Blocks (v5.2) — BUS PackF compat only
-    "BULL_OB_FVG_CONFLUENCE", "OB_BIAS", "OB_CONTEXT_SCORE",
-    # Profile Context (v5.2) — BUS PackF compat only
-    "PROFILE_TICKER_GRADE", "PROFILE_CONTEXT_SCORE",
-    # Structure State (v5.3) — BUS PackG compat only
-    "STRUCTURE_STATE", "STRUCTURE_BULL_ACTIVE", "STRUCTURE_BEAR_ACTIVE",
-    "STRUCTURE_FRESH",
-    # Imbalance Lifecycle (v5.3) — BUS PackG compat only
-    "BPR_ACTIVE", "LIQ_VOID_BULL_ACTIVE", "LIQ_VOID_BEAR_ACTIVE",
-    "IMBALANCE_STATE",
-    # Session Structure (v5.3) — BUS PackG compat only
-    "SESS_OPEN_RANGE_BREAK", "SESS_PDH_SWEPT", "SESS_PDL_SWEPT",
-    "SESS_STRUCT_SCORE",
-    # Range Regime (v5.3) — BUS PackG compat only
-    "RANGE_REGIME", "RANGE_BALANCE_STATE", "RANGE_REGIME_SCORE",
-    # Event Risk Light (v5.5)
+    # Event Risk Light (v5.5a)
     "EVENT_RISK_LIGHT_WINDOW_STATE", "EVENT_RISK_LIGHT_LEVEL",
     "EVENT_RISK_LIGHT_NEXT_NAME", "EVENT_RISK_LIGHT_NEXT_TIME",
     "EVENT_RISK_LIGHT_MARKET_BLOCKED", "EVENT_RISK_LIGHT_SYMBOL_BLOCKED",
     "EVENT_RISK_LIGHT_PROVIDER_STATUS",
-    # Session Context Light (v5.5)
+    # Session Context Light (v5.5a)
     "SESSION_CONTEXT_LIGHT", "SESSION_LIGHT_IN_KILLZONE",
     "SESSION_LIGHT_DIRECTION_BIAS", "SESSION_LIGHT_CONTEXT_SCORE",
     "SESSION_LIGHT_VOLATILITY_STATE",
-    # OB Context Light (v5.5)
+    # OB Context Light (v5.5a)
     "PRIMARY_OB_SIDE", "PRIMARY_OB_DISTANCE",
     "OB_FRESH", "OB_AGE_BARS", "OB_MITIGATION_STATE",
-    # FVG Lifecycle Light (v5.5)
+    # FVG Lifecycle Light (v5.5a)
     "PRIMARY_FVG_SIDE", "PRIMARY_FVG_DISTANCE",
     "FVG_FILL_PCT", "FVG_MATURITY_LEVEL", "FVG_FRESH", "FVG_INVALIDATED",
-    # Structure State Light (v5.5)
+    # Structure State Light (v5.5a)
     "STRUCTURE_LIGHT_LAST_EVENT", "STRUCTURE_LIGHT_EVENT_AGE_BARS",
     "STRUCTURE_LIGHT_FRESH", "STRUCTURE_TREND_STRENGTH",
-    # Signal Quality (v5.5)
+    # Signal Quality (v5.5a)
     "SIGNAL_QUALITY_SCORE", "SIGNAL_QUALITY_TIER",
     "SIGNAL_WARNINGS", "SIGNAL_BIAS_ALIGNMENT", "SIGNAL_FRESHNESS",
 }
@@ -261,7 +237,6 @@ ENGINE_BUS_CHANNELS: set[str] = {
     "HardGatesPackA", "HardGatesPackB",
     "QualityPackA", "QualityPackB", "QualityBoundsPack",
     "ModulePackA", "ModulePackB", "ModulePackC", "ModulePackD",
-    "ModulePackE", "ModulePackF", "ModulePackG",
     "EnginePack",
     "StopLevel", "Target1", "Target2",
     "EventRiskRow",
@@ -734,7 +709,7 @@ class TestV55LeanContract:
         """Generated Pine library must have v5.5 section headers."""
         text = _read_pine("pine/generated/smc_micro_profiles_generated.pine")
         for family_name in V55_LEAN_FAMILIES:
-            section_tag = "(v5.5)"
+            section_tag = "(v5.5a)"
             assert section_tag in text, (
                 f"Generated Pine missing v5.5 section marker for {family_name}"
             )
@@ -781,14 +756,14 @@ class TestV55DriftGuard:
             "v5.5 lean context section not marked [PRIMARY]"
         )
 
-    def test_deprecated_sections_have_deprecation_comment(self):
-        """Fields marked [DEPRECATED v5.5] must exist in the engine."""
+    def test_deprecated_sections_removed_in_phase_b(self):
+        """Fields marked [DEPRECATED v5.5] should be gone after Phase B removal."""
         text = _read_pine("SMC_Core_Engine.pine")
         deprecated_markers = re.findall(
             r"\[DEPRECATED v5\.5[^\]]*\]", text
         )
-        assert len(deprecated_markers) >= 4, (
-            f"Expected >= 4 deprecated section markers, found {len(deprecated_markers)}"
+        assert len(deprecated_markers) == 0, (
+            f"Expected 0 deprecated section markers after Phase B, found {len(deprecated_markers)}: {deprecated_markers}"
         )
 
     def test_bus_event_risk_row_uses_lean_fields(self):
@@ -808,7 +783,7 @@ class TestV55DriftGuard:
     def test_gate_classification_comment_exists(self):
         """Gate classification documentation must exist in the engine."""
         text = _read_pine("SMC_Core_Engine.pine")
-        assert "Gate Classification (v5.5)" in text, (
+        assert "Gate Classification (v5.5a)" in text, (
             "Gate classification comment block not found in engine"
         )
 
@@ -966,9 +941,98 @@ class TestV55aContractSync:
         for block in V55_LEAN_FAMILIES:
             assert block in manifest["v55_lean_blocks"]
 
+    def test_reference_enrichment_values_contract_compliant(self):
+        """Reference fixture values must conform to v5.5a lean contract allowed values."""
+        import json
+        fixture = json.loads(
+            (ROOT / "tests/fixtures/reference_enrichment.json").read_text()
+        )
+        # ── Allowed value domains from docs/v5_5_lean_contract.md ──
+        erl = fixture["event_risk_light"]
+        assert erl["EVENT_WINDOW_STATE"] in ("CLEAR", "PRE_EVENT", "ACTIVE", "COOLDOWN")
+        assert erl["EVENT_RISK_LEVEL"] in ("NONE", "LOW", "ELEVATED", "HIGH")
+        assert erl["EVENT_PROVIDER_STATUS"] in ("ok", "no_data", "calendar_missing", "news_missing")
+        assert isinstance(erl["MARKET_EVENT_BLOCKED"], bool)
+        assert isinstance(erl["SYMBOL_EVENT_BLOCKED"], bool)
+
+        scl = fixture["session_context_light"]
+        assert scl["SESSION_CONTEXT"] in ("ASIA", "LONDON", "NY_AM", "NY_PM", "NONE")
+        assert isinstance(scl["IN_KILLZONE"], bool)
+        assert scl["SESSION_DIRECTION_BIAS"] in ("BULLISH", "BEARISH", "NEUTRAL")
+        assert 0 <= scl["SESSION_CONTEXT_SCORE"] <= 7
+        assert scl.get("SESSION_VOLATILITY_STATE", "NORMAL") in ("LOW", "NORMAL", "HIGH", "EXTREME")
+
+        ob = fixture["ob_context_light"]
+        assert ob["PRIMARY_OB_SIDE"] in ("BULL", "BEAR", "NONE")
+        assert isinstance(ob["PRIMARY_OB_DISTANCE"], (int, float))
+        assert isinstance(ob["OB_FRESH"], bool)
+        assert isinstance(ob["OB_AGE_BARS"], int) and ob["OB_AGE_BARS"] >= 0
+        assert ob["OB_MITIGATION_STATE"] in ("fresh", "touched", "mitigated", "stale")
+
+        fvg = fixture["fvg_lifecycle_light"]
+        assert fvg["PRIMARY_FVG_SIDE"] in ("BULL", "BEAR", "NONE")
+        assert isinstance(fvg["PRIMARY_FVG_DISTANCE"], (int, float))
+        assert 0.0 <= fvg["FVG_FILL_PCT"] <= 1.0
+        assert fvg["FVG_MATURITY_LEVEL"] in (0, 1, 2, 3)
+        assert isinstance(fvg["FVG_FRESH"], bool)
+        assert isinstance(fvg["FVG_INVALIDATED"], bool)
+
+        ssl = fixture["structure_state_light"]
+        assert ssl["STRUCTURE_LAST_EVENT"] in ("NONE", "BOS_BULL", "BOS_BEAR", "CHOCH_BULL", "CHOCH_BEAR")
+        assert isinstance(ssl["STRUCTURE_EVENT_AGE_BARS"], int) and ssl["STRUCTURE_EVENT_AGE_BARS"] >= 0
+        assert isinstance(ssl["STRUCTURE_FRESH"], bool)
+        assert 0 <= ssl["STRUCTURE_TREND_STRENGTH"] <= 100
+
+        sq = fixture["signal_quality"]
+        assert 0 <= sq["SIGNAL_QUALITY_SCORE"] <= 100
+        assert sq["SIGNAL_QUALITY_TIER"] in ("low", "ok", "good", "high")
+        assert isinstance(sq["SIGNAL_WARNINGS"], str)
+        assert sq["SIGNAL_BIAS_ALIGNMENT"] in ("bull", "bear", "mixed", "neutral")
+        assert sq["SIGNAL_FRESHNESS"] in ("fresh", "aging", "stale")
+
+        # ── Semantic coherence checks ──
+        # Score ↔ tier consistency
+        score = sq["SIGNAL_QUALITY_SCORE"]
+        tier = sq["SIGNAL_QUALITY_TIER"]
+        if score >= 75:
+            assert tier == "high", f"score {score} should map to tier 'high'"
+        elif score >= 50:
+            assert tier in ("good", "ok"), f"score {score} should be 'good' or 'ok'"
+
+        # Event risk coherence: blocked ↔ state
+        if erl["MARKET_EVENT_BLOCKED"] or erl["SYMBOL_EVENT_BLOCKED"]:
+            assert erl["EVENT_WINDOW_STATE"] != "CLEAR", "Blocked event should not be CLEAR"
+        if erl["EVENT_WINDOW_STATE"] == "CLEAR":
+            assert erl["EVENT_RISK_LEVEL"] in ("NONE", "LOW")
+
+        # Freshness ↔ fresh flags
+        if sq["SIGNAL_FRESHNESS"] == "fresh":
+            # At least one structure element should be fresh in a coherent scenario
+            assert any([ob.get("OB_FRESH"), fvg.get("FVG_FRESH"), ssl.get("STRUCTURE_FRESH")])
+
     def test_runtime_budget_doc_exists(self):
         """Runtime budget document must exist and list dead inputs."""
         doc = (ROOT / "docs/RUNTIME_BUDGET.md").read_text()
         assert "Dead Inputs" in doc
         assert "show_mtf_trend" in doc, "Dead input inventory must include show_mtf_trend"
         assert "Phase B" in doc, "Removal roadmap must include Phase B"
+
+    def test_artifact_strategy_two_classes(self):
+        """Both artifact classes must exist: seed reference and showcase fixture."""
+        import json
+        # Seed reference (generator-first, all defaults)
+        seed_pine = ROOT / "pine/generated/smc_micro_profiles_generated.pine"
+        seed_manifest = ROOT / "pine/generated/smc_micro_profiles_generated.json"
+        assert seed_pine.exists(), "Seed Pine artifact must exist"
+        assert seed_manifest.exists(), "Seed manifest must exist"
+        manifest = json.loads(seed_manifest.read_text())
+        assert manifest["enrichment_blocks"] == [], "Seed artifact must have empty enrichment_blocks"
+        assert manifest["asof_time"] == "", "Seed artifact must have empty asof_time"
+        # Showcase reference (hand-maintained, contract-compliant values)
+        fixture_path = ROOT / "tests/fixtures/reference_enrichment.json"
+        assert fixture_path.exists(), "Showcase fixture must exist"
+        fixture = json.loads(fixture_path.read_text())
+        assert fixture["meta"]["asof_time"] != "", "Showcase fixture must have populated asof_time"
+        assert fixture["meta"]["refresh_count"] > 0, "Showcase fixture must have positive refresh_count"
+        # Strategy doc
+        assert (ROOT / "docs/ARTIFACT_STRATEGY.md").exists(), "Artifact strategy doc must exist"

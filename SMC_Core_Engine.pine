@@ -1612,7 +1612,7 @@ resolve_environment_gate_reason(bool market_regime_gate_ok, bool vola_regime_gat
 // - Strict sequence/sweep/confirm toggles decide how demanding the higher execution tiers are.
 // - Context quality, overhead, and microstructure switches decide how much market filtering is required before entry.
 //
-// Gate Classification (v5.5):
+// Gate Classification (v5.5a):
 //   HARD (always required, safety):  lifecycle, environment (event_risk, market_regime, vola_regime)
 //   OPERATIONAL (toggle-gated):      session_structure, micro_session, micro_freshness, overhead, setup (touch count)
 //   SCORING (toggle-gated, opt-in):  quality, accel, sd, vol, stretch, ddvi, lean_signal_quality
@@ -2160,162 +2160,6 @@ resolve_bus_event_risk_row(bool event_risk_gate_ok_param, bool hard_block, bool 
         pack_bus_row(4, 1)
     else
         pack_bus_row(5, 1)
-
-// ── Flow Qualifier BUS Row (v5.1) ──
-// Reason: 1=NEUTRAL, 2=FLOW_LONG_OK, 3=FLOW_SHORT_OK, 4=LOW_VOL, 5=ATS_SPIKE
-resolve_bus_flow_qualifier_row(bool flow_long_ok_p, bool flow_short_ok_p, float rel_vol_p, bool ats_spike_up_p, bool ats_spike_down_p) =>
-    if rel_vol_p < 0.5
-        pack_bus_row(2, 4)
-    else if ats_spike_up_p or ats_spike_down_p
-        pack_bus_row(4, 5)
-    else if flow_long_ok_p
-        pack_bus_row(5, 2)
-    else if flow_short_ok_p
-        pack_bus_row(3, 3)
-    else
-        pack_bus_row(3, 1)
-
-// ── Compression / ATR Regime BUS Row (v5.1) ──
-// Reason: 1=NORMAL, 2=SQUEEZE_ON, 3=SQUEEZE_RELEASED, 4=COMPRESSION, 5=EXHAUSTION
-resolve_bus_compression_row(bool squeeze_on_p, bool squeeze_released_p, string atr_regime_p) =>
-    if atr_regime_p == "EXHAUSTION"
-        pack_bus_row(-1, 5)
-    else if squeeze_released_p
-        pack_bus_row(5, 3)
-    else if squeeze_on_p
-        pack_bus_row(2, 2)
-    else if atr_regime_p == "COMPRESSION"
-        pack_bus_row(3, 4)
-    else if atr_regime_p == "EXPANSION"
-        pack_bus_row(4, 1)
-    else
-        pack_bus_row(4, 1)
-
-// ── Zone Context BUS Row (v5.1) ──
-// Reason: 1=NEUTRAL, 2=SUPPORT_HEAVY, 3=RESISTANCE_HEAVY
-resolve_bus_zone_context_row(string zone_bias_p, int active_zones_p) =>
-    if active_zones_p == 0
-        pack_bus_row(3, 1)
-    else if zone_bias_p == "SUPPORT_HEAVY"
-        pack_bus_row(5, 2)
-    else if zone_bias_p == "RESISTANCE_HEAVY"
-        pack_bus_row(2, 3)
-    else
-        pack_bus_row(4, 1)
-
-// ── Reversal Context BUS Row (v5.1) ──
-// Reason: 1=INACTIVE, 2=WEAK_SETUP, 3=ACTIVE_LOW_CONFIRM, 4=ACTIVE_CONFIRMED, 5=STRONG
-resolve_bus_reversal_context_row(bool rev_active_p, int setup_score_p, int confirm_score_p, int follow_through_p) =>
-    if not rev_active_p
-        pack_bus_row(3, 1)
-    else if setup_score_p < 3
-        pack_bus_row(3, 2)
-    else if confirm_score_p < 2
-        pack_bus_row(4, 3)
-    else if follow_through_p >= 3
-        pack_bus_row(5, 5)
-    else
-        pack_bus_row(5, 4)
-
-// ── Session Context BUS Row (v5.2) ──
-// Reason: 1=NONE, 2=SESSION_ONLY, 3=KILLZONE, 4=KZ+MSS, 5=FULL_CONFLUENCE
-resolve_bus_session_context_row(string session_p, bool kz_p, int score_p) =>
-    if session_p == "NONE"
-        pack_bus_row(3, 1)
-    else if kz_p and score_p >= 4
-        pack_bus_row(5, 5)
-    else if kz_p
-        pack_bus_row(4, 3)
-    else
-        pack_bus_row(3, 2)
-
-// ── Liquidity Sweeps BUS Row (v5.2) ──
-// Reason: 1=NONE, 2=BULL_SWEEP, 3=BEAR_SWEEP, 4=RECLAIM, 5=HIGH_QUALITY
-resolve_bus_sweep_row(bool bull_sweep_p, bool bear_sweep_p, bool reclaim_p, int quality_p) =>
-    if not bull_sweep_p and not bear_sweep_p
-        pack_bus_row(3, 1)
-    else if reclaim_p and quality_p >= 4
-        pack_bus_row(5, 5)
-    else if reclaim_p
-        pack_bus_row(4, 4)
-    else if bull_sweep_p
-        pack_bus_row(4, 2)
-    else
-        pack_bus_row(2, 3)
-
-// ── Order Block Context BUS Row (v5.2) ──
-// Reason: 1=NONE, 2=BULLISH, 3=BEARISH, 4=CONFLUENCE, 5=STRONG
-resolve_bus_ob_context_row(string ob_bias_p, int ob_score_p, bool bull_fvg_conf_p) =>
-    if ob_score_p == 0
-        pack_bus_row(3, 1)
-    else if bull_fvg_conf_p and ob_score_p >= 4
-        pack_bus_row(5, 5)
-    else if ob_bias_p == "BULLISH"
-        pack_bus_row(4, 2)
-    else if ob_bias_p == "BEARISH"
-        pack_bus_row(2, 3)
-    else
-        pack_bus_row(3, 4)
-
-// ── Profile Context BUS Row (v5.2) ──
-// Reason: 1=GRADE_D, 2=GRADE_C, 3=GRADE_B, 4=GRADE_A, 5=HIGH_SCORE
-resolve_bus_profile_row(string grade_p, int score_p) =>
-    if grade_p == "A" and score_p >= 4
-        pack_bus_row(5, 5)
-    else if grade_p == "A"
-        pack_bus_row(5, 4)
-    else if grade_p == "B"
-        pack_bus_row(4, 3)
-    else if grade_p == "C"
-        pack_bus_row(3, 2)
-    else
-        pack_bus_row(2, 1)
-
-// ── Structure State BUS Row (v5.3) ──
-
-resolve_bus_struct_state_row(string state_p, bool fresh_p, bool bull_active_p, bool bear_active_p) =>
-    if state_p == "BULLISH"
-        pack_bus_row(fresh_p ? 5 : 4, bull_active_p ? 1 : 2)
-    else if state_p == "BEARISH"
-        pack_bus_row(fresh_p ? 2 : 3, bear_active_p ? 1 : 2)
-    else
-        pack_bus_row(3, 3)
-
-// ── Imbalance Lifecycle BUS Row (v5.3) ──
-
-resolve_bus_imbalance_row(string imb_state_p, bool bpr_active_p, bool liq_void_bull_p, bool liq_void_bear_p) =>
-    if imb_state_p == "BPR"
-        pack_bus_row(5, 1)
-    else if imb_state_p == "LIQ_VOID"
-        pack_bus_row(2, liq_void_bull_p ? 1 : 2)
-    else if imb_state_p == "FVG_BULL"
-        pack_bus_row(4, 1)
-    else if imb_state_p == "FVG_BEAR"
-        pack_bus_row(3, 2)
-    else
-        pack_bus_row(3, 3)
-
-// ── Session Structure BUS Row (v5.3) ──
-
-resolve_bus_session_struct_row(int score_p, string or_break_p, bool pdh_swept_p, bool pdl_swept_p) =>
-    if score_p >= 4
-        pack_bus_row(5, 1)
-    else if score_p >= 2
-        pack_bus_row(4, or_break_p != "NONE" ? 1 : 2)
-    else
-        pack_bus_row(3, pdh_swept_p or pdl_swept_p ? 2 : 3)
-
-// ── Range Regime BUS Row (v5.3) ──
-
-resolve_bus_range_regime_row(string regime_p, int score_p, string balance_p) =>
-    if regime_p == "TRENDING"
-        pack_bus_row(5, 1)
-    else if regime_p == "BREAKOUT"
-        pack_bus_row(4, score_p >= 3 ? 1 : 2)
-    else if regime_p == "RANGING"
-        pack_bus_row(3, balance_p == "BALANCED" ? 2 : 1)
-    else
-        pack_bus_row(2, 3)
 
 resolve_bus_close_strength_row(bool use_strong_close_filter, bool bull_close_strong) =>
     if not use_strong_close_filter
@@ -3449,108 +3293,7 @@ string lib_squeeze_momentum    = mp.SQUEEZE_MOMENTUM_BIAS
 string lib_atr_regime          = mp.ATR_REGIME
 float  lib_atr_ratio           = mp.ATR_RATIO
 
-// ══════════════════════════════════════════════════════════════════════
-// ── LEGACY BUS COMPAT BLOCK (v5.1/v5.2) ──────────────────────────────
-// Fields below exist ONLY for BUS ModulePackE/F backward compatibility.
-// Primary pipeline uses v5.5 lean context gates; these are NOT read
-// anywhere else. Safe to remove once SMC_Dashboard.pine migrates to
-// BUS LeanPackA/B.
-// ══════════════════════════════════════════════════════════════════════
-
-// ── Zone Intelligence (v5.1) ── [DEPRECATED v5.5 — BUS ModulePackE only]
-string lib_zone_context_bias   = mp.ZONE_CONTEXT_BIAS
-int    lib_active_zone_cnt     = mp.ACTIVE_ZONE_COUNT
-// Dead fields removed (11): ACTIVE_SUPPORT/RESISTANCE_COUNT, PRIMARY_SUPPORT/RESISTANCE_LEVEL,
-//   PRIMARY_SUPPORT/RESISTANCE_STRENGTH, SUPPORT/RESISTANCE_SWEEP_COUNT,
-//   SUPPORT/RESISTANCE_MITIGATION_PCT, ZONE_LIQUIDITY_IMBALANCE
-
-// ── Reversal Context (v5.1) ── [DEPRECATED v5.5 — BUS ModulePackE only]
-bool   lib_reversal_active     = mp.REVERSAL_CONTEXT_ACTIVE
-int    lib_setup_score         = mp.SETUP_SCORE
-int    lib_confirm_score       = mp.CONFIRM_SCORE
-int    lib_follow_through_score = mp.FOLLOW_THROUGH_SCORE
-// Dead fields removed (8): HTF_STRUCTURE_OK, HTF_BULLISH/BEARISH_PATTERN,
-//   HTF_BULLISH/BEARISH_DIVERGENCE, FVG_CONFIRM_OK, VWAP_HOLD_OK, RETRACE_OK
-
-// ── Session Context (v5.2 + v5.3) ── [DEPRECATED v5.5 — BUS ModulePackF only]
-string lib_session_context     = mp.SESSION_CONTEXT
-bool   lib_in_killzone         = mp.IN_KILLZONE
-int    lib_session_ctx_score   = mp.SESSION_CONTEXT_SCORE
-// Dead fields removed (13): SESSION_MSS_BULL/BEAR, SESSION_STRUCTURE_STATE,
-//   SESSION_FVG_BULL/BEAR_ACTIVE, SESSION_BPR_ACTIVE, SESSION_RANGE_TOP/BOTTOM,
-//   SESSION_MEAN, SESSION_VWAP, SESSION_TARGET_BULL/BEAR, SESSION_DIRECTION_BIAS
-
-// ── Liquidity Sweeps (v5.2) ── [DEPRECATED v5.5 — BUS ModulePackF only]
-bool   lib_recent_bull_sweep   = mp.RECENT_BULL_SWEEP
-bool   lib_recent_bear_sweep   = mp.RECENT_BEAR_SWEEP
-bool   lib_sweep_reclaim       = mp.SWEEP_RECLAIM_ACTIVE
-int    lib_sweep_quality       = mp.SWEEP_QUALITY_SCORE
-// Dead fields removed: SWEEP_TYPE, SWEEP_DIRECTION, SWEEP_ZONE_TOP/BOTTOM, LIQUIDITY_TAKEN_DIRECTION
-
-// ── Liquidity Pools (v5.2) ── [DEPRECATED v5.5 — no pipeline/BUS consumers]
-// All 11 fields removed: zero downstream consumers.
-// BUS ModulePackF does not use any Pool field.
-
-// ── Order Blocks (v5.2) ── [DEPRECATED v5.5 — BUS ModulePackF only]
-bool   lib_bull_ob_fvg_conf    = mp.BULL_OB_FVG_CONFLUENCE
-string lib_ob_bias             = mp.OB_BIAS
-int    lib_ob_context_score    = mp.OB_CONTEXT_SCORE
-// Dead fields removed (10): NEAREST_*_OB_LEVEL, *_OB_FRESHNESS,
-//   *_OB_MITIGATED, BEAR_OB_FVG_CONFLUENCE, OB_DENSITY, OB_NEAREST_DISTANCE_PCT, OB_STRENGTH_SCORE
-
-// ── Zone Projection (v5.2) ── [DEPRECATED v5.5 — no pipeline/BUS consumers]
-// All 10 fields removed: zero downstream consumers.
-
-// ── Profile Context (v5.2) ── [DEPRECATED v5.5 — BUS ModulePackF only]
-string lib_profile_grade       = mp.PROFILE_TICKER_GRADE
-int    lib_profile_ctx_score   = mp.PROFILE_CONTEXT_SCORE
-// Dead fields removed (16): PROFILE_VOLUME_NODE … PROFILE_STOP_HUNT_RATE
-
-// ══════════════════════════════════════════════════════════════════════
-// ── LEGACY BUS COMPAT BLOCK (v5.2/v5.3) ──────────────────────────────
-// Fields below exist ONLY for BUS ModulePackG backward compatibility.
-// Primary pipeline uses v5.5 lean context gates; these are NOT read
-// anywhere else. Safe to remove once SMC_Dashboard.pine migrates to
-// BUS LeanPackA/B.
-// ══════════════════════════════════════════════════════════════════════
-
-// ── Structure State (v5.3) ── [DEPRECATED v5.5 — BUS ModulePackG only]
-string lib_struct_state           = mp.STRUCTURE_STATE
-bool   lib_struct_bull_active     = mp.STRUCTURE_BULL_ACTIVE
-bool   lib_struct_bear_active     = mp.STRUCTURE_BEAR_ACTIVE
-bool   lib_struct_fresh           = mp.STRUCTURE_FRESH
-// Dead fields removed (10): CHOCH_BULL/BEAR, BOS_BULL/BEAR,
-//   STRUCTURE_LAST_EVENT, STRUCTURE_EVENT_AGE_BARS,
-//   ACTIVE_SUPPORT/RESISTANCE, SUPPORT/RESISTANCE_ACTIVE
-
-// ── Imbalance Lifecycle (v5.3) ── [DEPRECATED v5.5 — BUS ModulePackG only]
-string lib_imbalance_state        = mp.IMBALANCE_STATE
-bool   lib_bpr_active             = mp.BPR_ACTIVE
-bool   lib_liq_void_bull          = mp.LIQ_VOID_BULL_ACTIVE
-bool   lib_liq_void_bear          = mp.LIQ_VOID_BEAR_ACTIVE
-// Dead fields removed (19): *_FVG_ACTIVE/TOP/BOTTOM/PARTIAL_MIT/FULL_MIT/COUNT/MIT_PCT,
-//   BPR_DIRECTION/TOP/BOTTOM, LIQ_VOID_TOP/BOTTOM
-
-// ── Session Structure (v5.3) ── [DEPRECATED v5.5 — BUS ModulePackG only]
-int    lib_sess_struct_score      = mp.SESS_STRUCT_SCORE
-string lib_sess_or_break          = mp.SESS_OPEN_RANGE_BREAK
-bool   lib_sess_pdh_swept         = mp.SESS_PDH_SWEPT
-bool   lib_sess_pdl_swept         = mp.SESS_PDL_SWEPT
-// Dead fields removed (10): SESS_HIGH/LOW, SESS_OPEN_RANGE_HIGH/LOW,
-//   SESS_IMPULSE_DIR/STRENGTH, SESS_INTRA_BOS_COUNT/CHOCH, SESS_PDH/PDL
-
-// ── Range Regime (v5.3) ── [DEPRECATED v5.5 — BUS ModulePackG only]
-string lib_range_regime           = mp.RANGE_REGIME
-int    lib_range_regime_score     = mp.RANGE_REGIME_SCORE
-string lib_range_balance          = mp.RANGE_BALANCE_STATE
-// Dead fields removed (8): RANGE_WIDTH_PCT, RANGE_POSITION,
-//   RANGE_HIGH/LOW, RANGE_DURATION_BARS, RANGE_VPOC/VAH/VAL_LEVEL
-
-// ── Range Profile Regime (v5.3) ── [DEPRECATED v5.5 — no pipeline/BUS consumers]
-// All 22 fields removed: zero downstream consumers.
-// BUS ModulePackG does not use any Range Profile field.
-
-// ── Event Risk Light (v5.5) ──
+// ── Event Risk Light (v5.5a) ──
 string lib_erl_window_state        = mp.EVENT_RISK_LIGHT_WINDOW_STATE
 string lib_erl_level               = mp.EVENT_RISK_LIGHT_LEVEL
 string lib_erl_next_name           = mp.EVENT_RISK_LIGHT_NEXT_NAME
@@ -3559,21 +3302,21 @@ bool   lib_erl_market_blocked      = mp.EVENT_RISK_LIGHT_MARKET_BLOCKED
 bool   lib_erl_symbol_blocked      = mp.EVENT_RISK_LIGHT_SYMBOL_BLOCKED
 string lib_erl_provider_status     = mp.EVENT_RISK_LIGHT_PROVIDER_STATUS
 
-// ── Session Context Light (v5.5) ──
+// ── Session Context Light (v5.5a) ──
 string lib_scl_context             = mp.SESSION_CONTEXT_LIGHT
 bool   lib_scl_in_killzone         = mp.SESSION_LIGHT_IN_KILLZONE
 string lib_scl_direction_bias      = mp.SESSION_LIGHT_DIRECTION_BIAS
 int    lib_scl_context_score       = mp.SESSION_LIGHT_CONTEXT_SCORE
 string lib_scl_volatility_state    = mp.SESSION_LIGHT_VOLATILITY_STATE
 
-// ── Order Block Context Light (v5.5) ──
+// ── Order Block Context Light (v5.5a) ──
 string lib_obl_side                = mp.PRIMARY_OB_SIDE
 float  lib_obl_distance            = mp.PRIMARY_OB_DISTANCE
 bool   lib_obl_fresh               = mp.OB_FRESH
 int    lib_obl_age_bars            = mp.OB_AGE_BARS
 string lib_obl_mitigation_state    = mp.OB_MITIGATION_STATE
 
-// ── FVG Lifecycle Light (v5.5) ──
+// ── FVG Lifecycle Light (v5.5a) ──
 string lib_fvgl_side               = mp.PRIMARY_FVG_SIDE
 float  lib_fvgl_distance           = mp.PRIMARY_FVG_DISTANCE
 float  lib_fvgl_fill_pct           = mp.FVG_FILL_PCT
@@ -3581,13 +3324,13 @@ int    lib_fvgl_maturity_level      = mp.FVG_MATURITY_LEVEL
 bool   lib_fvgl_fresh              = mp.FVG_FRESH
 bool   lib_fvgl_invalidated        = mp.FVG_INVALIDATED
 
-// ── Structure State Light (v5.5) ──
+// ── Structure State Light (v5.5a) ──
 string lib_strl_last_event         = mp.STRUCTURE_LIGHT_LAST_EVENT
 int    lib_strl_event_age_bars     = mp.STRUCTURE_LIGHT_EVENT_AGE_BARS
 bool   lib_strl_fresh              = mp.STRUCTURE_LIGHT_FRESH
 int    lib_strl_trend_strength     = mp.STRUCTURE_TREND_STRENGTH
 
-// ── Signal Quality (v5.5) ──
+// ── Signal Quality (v5.5a) ──
 int    lib_sq_score                = mp.SIGNAL_QUALITY_SCORE
 string lib_sq_tier                 = mp.SIGNAL_QUALITY_TIER
 string lib_sq_warnings             = mp.SIGNAL_WARNINGS
@@ -6395,14 +6138,11 @@ plot(pack_bus_four(resolve_bus_ready_gate_row(long_ready_state, long_state.confi
 plot(long_stop_level, 'BUS StopLevel', display = display.none)
 plot(long_target_1, 'BUS Target1', display = display.none)
 plot(long_target_2, 'BUS Target2', display = display.none)
-plot(pack_bus_four(resolve_bus_flow_qualifier_row(lib_flow_long_ok, lib_flow_short_ok, lib_rel_vol, lib_ats_spike_up, lib_ats_spike_down), resolve_bus_compression_row(lib_squeeze_on, lib_squeeze_released, lib_atr_regime), resolve_bus_zone_context_row(lib_zone_context_bias, lib_active_zone_cnt), resolve_bus_reversal_context_row(lib_reversal_active, lib_setup_score, lib_confirm_score, lib_follow_through_score)), 'BUS ModulePackE', display = display.none)
-plot(pack_bus_four(resolve_bus_session_context_row(lib_session_context, lib_in_killzone, lib_session_ctx_score), resolve_bus_sweep_row(lib_recent_bull_sweep, lib_recent_bear_sweep, lib_sweep_reclaim, lib_sweep_quality), resolve_bus_ob_context_row(lib_ob_bias, lib_ob_context_score, lib_bull_ob_fvg_conf), resolve_bus_profile_row(lib_profile_grade, lib_profile_ctx_score)), 'BUS ModulePackF', display = display.none)
-plot(pack_bus_four(resolve_bus_struct_state_row(lib_struct_state, lib_struct_fresh, lib_struct_bull_active, lib_struct_bear_active), resolve_bus_imbalance_row(lib_imbalance_state, lib_bpr_active, lib_liq_void_bull, lib_liq_void_bear), resolve_bus_session_struct_row(lib_sess_struct_score, lib_sess_or_break, lib_sess_pdh_swept, lib_sess_pdl_swept), resolve_bus_range_regime_row(lib_range_regime, lib_range_regime_score, lib_range_balance)), 'BUS ModulePackG', display = display.none)
 // ── v5.5 Lean BUS Plots ──
 plot(pack_bus_four(resolve_bus_signal_quality_row(lib_sq_score, lib_sq_tier), resolve_bus_signal_freshness_row(lib_sq_freshness, lib_sq_bias_alignment), resolve_bus_event_risk_light_row(lib_erl_window_state, lib_erl_level, lib_erl_market_blocked, lib_erl_symbol_blocked), resolve_bus_struct_light_row(lib_strl_trend_strength, lib_strl_fresh, lib_strl_last_event)), 'BUS LeanPackA', display = display.none)
 plot(pack_bus_four(resolve_bus_ob_light_row(lib_obl_side, lib_obl_fresh, lib_obl_mitigation_state), resolve_bus_fvg_light_row(lib_fvgl_side, lib_fvgl_fresh, lib_fvgl_invalidated), pack_bus_row(lib_scl_context_score, lib_scl_in_killzone ? 1 : 2), pack_bus_row(lib_sq_score, 0)), 'BUS LeanPackB', display = display.none)
 
-// ── Mini Health Badge (v5.5) ──
+// ── Mini Health Badge (v5.5a) ──
 var label health_badge = na
 if barstate.islast and show_dashboard
     if not na(health_badge)

@@ -458,10 +458,10 @@ Shows which system component owns each concern for every v5.3 layer:
 
 | Layer | Python Builder | TypedDict Block | Pine Library | Pine Core Gate | BUS Channel | Overlay |
 |-------|---------------|-----------------|--------------|----------------|-------------|---------|
-| Structure State | `smc_structure_state.py` | `StructureStateBlock` | 14 fields | `struct_state_ok` | ModulePackG row 1 | `SMC_Structure_State.pine` (optional) |
-| Imbalance Lifecycle | `smc_imbalance_lifecycle.py` | `ImbalanceLifecycleBlock` | 23 fields | `imbalance_ok` | ModulePackG row 2 | — (extends `SMC_Liquidity_Structure.pine`) |
-| Session-Scoped Structure | `smc_session_structure.py` | `SessionStructureBlock` | 14 fields | `session_struct_ok` | ModulePackG row 3 | — (extends `SMC_Session_Context.pine`) |
-| Range / Profile Regime | `smc_range_regime.py` | `RangeRegimeBlock` | 11 fields | `range_regime_ok` | ModulePackG row 4 | `SMC_Range_Regime.pine` (optional) |
+| Structure State | `smc_structure_state.py` | `StructureStateBlock` | 14 fields | `struct_state_ok` | ~~ModulePackG~~ (removed Phase B) | `SMC_Structure_State.pine` (optional) |
+| Imbalance Lifecycle | `smc_imbalance_lifecycle.py` | `ImbalanceLifecycleBlock` | 23 fields | `imbalance_ok` | ~~ModulePackG~~ (removed Phase B) | — (extends `SMC_Liquidity_Structure.pine`) |
+| Session-Scoped Structure | `smc_session_structure.py` | `SessionStructureBlock` | 14 fields | `session_struct_ok` | ~~ModulePackG~~ (removed Phase B) | — (extends `SMC_Session_Context.pine`) |
+| Range / Profile Regime | `smc_range_regime.py` | `RangeRegimeBlock` | 11 fields | `range_regime_ok` | ~~ModulePackG~~ (removed Phase B) | `SMC_Range_Regime.pine` (optional) |
 
 ### Required vs Optional Components
 
@@ -474,7 +474,7 @@ Shows which system component owns each concern for every v5.3 layer:
 | V5_FIELD_INVENTORY update | **Required** | Contract tests must cover all 228 fields |
 | Pine core field reads | **Required** | Engine reads all fields |
 | Pine core context gate | **Required** | Minimum gate per layer |
-| BUS resolver + ModulePackG | **Required** | Dashboard visibility |
+| ~~BUS resolver + ModulePackG~~ | ~~Required~~ | Removed in Phase B — Dashboard uses LeanPack A/B |
 | Dedicated overlay | **Optional** | Useful for visual debugging, not required for trading logic |
 | Extending existing overlay | **Optional** | Preferred over creating new overlays when possible |
 
@@ -590,7 +590,7 @@ The engine reads all 44 v5.1 fields via `mp.*` bindings and derives:
 - **Zone context gate**: `zone_context_long_ok = lib_zone_context_bias != "RESISTANCE_HEAVY"`
 - **Reversal context boost**: `reversal_context_boost = lib_reversal_active and lib_setup_score >= 3 and lib_confirm_score >= 2`
 
-A BUS channel (`BUS ModulePackE`) publishes all 4 v5.1 context rows for dashboard consumption.
+~~A BUS channel (`BUS ModulePackE`) published all 4 v5.1 context rows for dashboard consumption.~~ Removed in Phase B — dashboard reads LeanPack A/B.
 
 ## v5.2 Engine Integration
 
@@ -602,7 +602,7 @@ The engine reads all 71 v5.2 fields via `mp.*` bindings and derives 6 additional
 - **Zone projection gate**: `zone_proj_ok = lib_zone_proj_confidence >= 2 and lib_zone_proj_trap_risk != "HIGH"`
 - **Profile quality gate**: `profile_quality_ok = lib_profile_grade != "D" and lib_profile_ctx_score >= 2`
 
-4 new BUS resolver functions (`resolve_bus_session_context_row`, `resolve_bus_sweep_row`, `resolve_bus_ob_context_row`, `resolve_bus_profile_row`) and a `BUS ModulePackF` plot channel publish v5.2 rows for dashboard consumption.
+~~4 new BUS resolver functions (`resolve_bus_session_context_row`, `resolve_bus_sweep_row`, `resolve_bus_ob_context_row`, `resolve_bus_profile_row`) and a `BUS ModulePackF` plot channel published v5.2 rows for dashboard consumption.~~ Removed in Phase B.
 
 ## v5.3 Engine Integration
 
@@ -612,7 +612,7 @@ The engine reads all 62 v5.3 fields via `mp.*` bindings and derives 4 additional
 - **Session structure gate**: `session_struct_ok = lib_sess_struct_score >= 2 and lib_sess_open_range_break != "NONE"`
 - **Range regime gate**: `range_regime_ok = lib_range_regime != "UNKNOWN" and lib_range_regime_score >= 2`
 
-4 new BUS resolver functions (`resolve_bus_struct_state_row`, `resolve_bus_imbalance_row`, `resolve_bus_session_struct_row`, `resolve_bus_range_regime_row`) and a `BUS ModulePackG` plot channel publish v5.3 rows for dashboard consumption.
+~~4 new BUS resolver functions (`resolve_bus_struct_state_row`, `resolve_bus_imbalance_row`, `resolve_bus_session_struct_row`, `resolve_bus_range_regime_row`) and a `BUS ModulePackG` plot channel published v5.3 rows for dashboard consumption.~~ Removed in Phase B.
 
 Total gates after v5.3: 15 (5 from v5.1 + 6 from v5.2 + 4 from v5.3).
 

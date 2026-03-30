@@ -72,7 +72,7 @@
     "PRIMARY_OB_DISTANCE": 0.25,
     "OB_FRESH": true,
     "OB_AGE_BARS": 5,
-    "OB_MITIGATION_STATE": "untested"
+    "OB_MITIGATION_STATE": "fresh"
   },
   "fvg_lifecycle_light": {
     "PRIMARY_FVG_SIDE": "BULL",
@@ -92,7 +92,7 @@
     "SIGNAL_QUALITY_SCORE": 68,
     "SIGNAL_QUALITY_TIER": "good",
     "SIGNAL_WARNINGS": "",
-    "SIGNAL_BIAS_ALIGNMENT": "aligned",
+    "SIGNAL_BIAS_ALIGNMENT": "bull",
     "SIGNAL_FRESHNESS": "fresh"
   }
 }
