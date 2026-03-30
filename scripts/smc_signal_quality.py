@@ -1,15 +1,18 @@
-"""V5.5 Signal Quality builder.
+"""V5.5a Signal Quality builder — lean-first.
 
-Produces a compact, explainable quality assessment from existing
-enrichment blocks.  The score is a 0-100 composite derived from:
+Produces a compact, explainable quality assessment.  Primary inputs
+come from the 5 lean support families; broad blocks serve as fallback
+only when lean data is absent.
 
-- Structure freshness (0-20)
-- Session alignment   (0-20)
-- Liquidity/sweep support (0-15)
-- Primary OB support  (0-15)
-- Primary FVG support (0-15)
-- Event risk penalty  (-15 to 0)
-- Headroom/stretch    (0-15)
+Score composition (0-100):
+
+- Structure freshness (0-20)  — from Structure State Light
+- Session alignment   (0-20)  — from Session Context Light
+- Liquidity/sweep support (0-15) — from liquidity_sweeps (support block)
+- Primary OB support  (0-15)  — from OB Context Light
+- Primary FVG support (0-15)  — from FVG Lifecycle Light
+- Event risk penalty  (-15 to 0) — from Event Risk Light
+- Compression regime  (0-15)  — squeeze/ATR-based expansion potential
 
 Tier mapping:
 - 0-25:  low
@@ -56,7 +59,7 @@ MAX_SESSION = 20
 MAX_LIQUIDITY = 15
 MAX_OB = 15
 MAX_FVG = 15
-MAX_HEADROOM = 15
+MAX_COMPRESSION = 15
 PENALTY_EVENT = -15
 
 
@@ -160,11 +163,19 @@ def build_signal_quality(
     warnings: list[str] = []
     score = 0
 
-    # ── Structure freshness (0-20) ──────────────────────────────
-    ss = enr.get("structure_state") or {}
-    structure_fresh = bool(ss.get("STRUCTURE_FRESH", False))
-    structure_age = int(ss.get("STRUCTURE_EVENT_AGE_BARS", 999))
-    structure_state = str(ss.get("STRUCTURE_STATE", "NEUTRAL"))
+    # ── Structure freshness (0-20) — lean: structure_state_light ─
+    ssl = enr.get("structure_state_light") or {}
+    ss = enr.get("structure_state") or {}  # fallback-only
+    structure_fresh = bool(ssl.get("STRUCTURE_FRESH") or ss.get("STRUCTURE_FRESH", False))
+    structure_age = int(ssl.get("STRUCTURE_EVENT_AGE_BARS") or ss.get("STRUCTURE_EVENT_AGE_BARS", 999))
+    # For bias alignment: prefer lean last_event, fallback to broad state
+    last_event = str(ssl.get("STRUCTURE_LAST_EVENT", "NONE"))
+    if last_event in ("BOS_BULL", "CHOCH_BULL"):
+        structure_state = "BULLISH"
+    elif last_event in ("BOS_BEAR", "CHOCH_BEAR"):
+        structure_state = "BEARISH"
+    else:
+        structure_state = str(ss.get("STRUCTURE_STATE", "NEUTRAL"))
 
     if structure_fresh:
         score += MAX_STRUCTURE
@@ -175,11 +186,12 @@ def build_signal_quality(
     else:
         warnings.append("structure_stale")
 
-    # ── Session alignment (0-20) ────────────────────────────────
-    sc = enr.get("session_context") or {}
-    in_killzone = bool(sc.get("IN_KILLZONE", False))
-    session_bias = str(sc.get("SESSION_DIRECTION_BIAS", "NEUTRAL"))
-    session_score_raw = int(sc.get("SESSION_CONTEXT_SCORE", 0))
+    # ── Session alignment (0-20) — lean: session_context_light ──
+    scl = enr.get("session_context_light") or {}
+    sc = enr.get("session_context") or {}  # fallback-only
+    in_killzone = bool(scl.get("SESSION_LIGHT_IN_KILLZONE") or scl.get("IN_KILLZONE") or sc.get("IN_KILLZONE", False))
+    session_bias = str(scl.get("SESSION_LIGHT_DIRECTION_BIAS") or scl.get("SESSION_DIRECTION_BIAS") or sc.get("SESSION_DIRECTION_BIAS", "NEUTRAL"))
+    session_score_raw = int(scl.get("SESSION_LIGHT_CONTEXT_SCORE") or scl.get("SESSION_CONTEXT_SCORE") or sc.get("SESSION_CONTEXT_SCORE", 0))
 
     if in_killzone and session_score_raw >= 4:
         score += MAX_SESSION
@@ -203,28 +215,28 @@ def build_signal_quality(
         score += sweep_contrib
     # No warning for missing sweep — it's optional support
 
-    # ── OB support (0-15) ───────────────────────────────────────
-    ob = enr.get("order_blocks") or {}
-    # Use the light fields if available, else derive from broad fields
+    # ── OB support (0-15) — lean: ob_context_light ────────────────
     ob_light = enr.get("ob_context_light") or {}
     ob_side = str(ob_light.get("PRIMARY_OB_SIDE", "NONE"))
     ob_fresh = bool(ob_light.get("OB_FRESH", False))
     ob_distance = float(ob_light.get("PRIMARY_OB_DISTANCE", 99.0))
     ob_mitigation = str(ob_light.get("OB_MITIGATION_STATE", "stale"))
 
-    # Fallback: derive from broad OB block
-    if ob_side == "NONE" and ob:
-        bull_dist = float(ob.get("OB_NEAREST_DISTANCE_PCT", 99.0))
-        bear_dist = float(ob.get("OB_NEAREST_DISTANCE_PCT", 99.0))
-        bull_fresh = int(ob.get("BULL_OB_FRESHNESS", 0))
-        bear_fresh = int(ob.get("BEAR_OB_FRESHNESS", 0))
-        if bull_fresh > bear_fresh:
-            ob_side = "BULL"
-            ob_fresh = bull_fresh <= 10
-        elif bear_fresh > 0:
-            ob_side = "BEAR"
-            ob_fresh = bear_fresh <= 10
-        ob_distance = bull_dist
+    # Fallback: derive from broad OB block only if lean is absent
+    if ob_side == "NONE":
+        ob = enr.get("order_blocks") or {}
+        if ob:
+            bull_dist = float(ob.get("OB_NEAREST_DISTANCE_PCT", 99.0))
+            bear_dist = float(ob.get("OB_NEAREST_DISTANCE_PCT", 99.0))
+            bull_fresh = int(ob.get("BULL_OB_FRESHNESS", 0))
+            bear_fresh = int(ob.get("BEAR_OB_FRESHNESS", 0))
+            if bull_fresh > bear_fresh:
+                ob_side = "BULL"
+                ob_fresh = bull_fresh <= 10
+            elif bear_fresh > 0:
+                ob_side = "BEAR"
+                ob_fresh = bear_fresh <= 10
+            ob_distance = bull_dist
 
     if ob_side != "NONE" and ob_fresh and ob_distance < 2.0:
         score += MAX_OB
@@ -233,26 +245,27 @@ def build_signal_quality(
     elif ob_side != "NONE":
         score += int(MAX_OB * 0.3)
 
-    # ── FVG support (0-15) ──────────────────────────────────────
-    il = enr.get("imbalance_lifecycle") or {}
+    # ── FVG support (0-15) — lean: fvg_lifecycle_light ────────────
     fvg_light = enr.get("fvg_lifecycle_light") or {}
     fvg_side = str(fvg_light.get("PRIMARY_FVG_SIDE", "NONE"))
     fvg_fresh = bool(fvg_light.get("FVG_FRESH", False))
     fvg_fill = float(fvg_light.get("FVG_FILL_PCT", 0.0))
     fvg_invalidated = bool(fvg_light.get("FVG_INVALIDATED", False))
 
-    # Fallback: derive from broad imbalance block
-    if fvg_side == "NONE" and il:
-        if il.get("BULL_FVG_ACTIVE"):
-            fvg_side = "BULL"
-            fvg_fill = float(il.get("BULL_FVG_MITIGATION_PCT", 0.0))
-            fvg_fresh = fvg_fill < 0.3
-            fvg_invalidated = bool(il.get("BULL_FVG_FULL_MITIGATION", False))
-        elif il.get("BEAR_FVG_ACTIVE"):
-            fvg_side = "BEAR"
-            fvg_fill = float(il.get("BEAR_FVG_MITIGATION_PCT", 0.0))
-            fvg_fresh = fvg_fill < 0.3
-            fvg_invalidated = bool(il.get("BEAR_FVG_FULL_MITIGATION", False))
+    # Fallback: derive from broad imbalance block only if lean is absent
+    if fvg_side == "NONE":
+        il = enr.get("imbalance_lifecycle") or {}
+        if il:
+            if il.get("BULL_FVG_ACTIVE"):
+                fvg_side = "BULL"
+                fvg_fill = float(il.get("BULL_FVG_MITIGATION_PCT", 0.0))
+                fvg_fresh = fvg_fill < 0.3
+                fvg_invalidated = bool(il.get("BULL_FVG_FULL_MITIGATION", False))
+            elif il.get("BEAR_FVG_ACTIVE"):
+                fvg_side = "BEAR"
+                fvg_fill = float(il.get("BEAR_FVG_MITIGATION_PCT", 0.0))
+                fvg_fresh = fvg_fill < 0.3
+                fvg_invalidated = bool(il.get("BEAR_FVG_FULL_MITIGATION", False))
 
     if fvg_side != "NONE" and fvg_fresh and not fvg_invalidated:
         score += MAX_FVG
@@ -261,10 +274,11 @@ def build_signal_quality(
     elif fvg_invalidated:
         warnings.append("fvg_invalidated")
 
-    # ── Event risk penalty (0 to -15) ───────────────────────────
-    er = enr.get("event_risk") or {}
-    event_blocked = bool(er.get("MARKET_EVENT_BLOCKED", False)) or bool(er.get("SYMBOL_EVENT_BLOCKED", False))
-    event_risk_level = str(er.get("EVENT_RISK_LEVEL", "NONE"))
+    # ── Event risk penalty (0 to -15) — lean: event_risk_light ──
+    erl = enr.get("event_risk_light") or {}
+    er = enr.get("event_risk") or {}  # fallback-only
+    event_blocked = bool(erl.get("MARKET_EVENT_BLOCKED") or erl.get("SYMBOL_EVENT_BLOCKED") or er.get("MARKET_EVENT_BLOCKED", False) or er.get("SYMBOL_EVENT_BLOCKED", False))
+    event_risk_level = str(erl.get("EVENT_RISK_LEVEL") or er.get("EVENT_RISK_LEVEL", "NONE"))
 
     if event_blocked:
         score += PENALTY_EVENT
@@ -273,18 +287,18 @@ def build_signal_quality(
         score += int(PENALTY_EVENT * 0.6)
         warnings.append("event_risk_high")
 
-    # ── Headroom / stretch (0-15) ───────────────────────────────
-    # Use compression regime and range data for headroom assessment
+    # ── Compression regime (0-15) ───────────────────────────────
+    # Scores expansion potential from squeeze/ATR data (not price headroom)
     cr = enr.get("compression_regime") or {}
     squeeze_on = bool(cr.get("SQUEEZE_ON", False))
     atr_regime = str(cr.get("ATR_REGIME", "NORMAL"))
 
     if squeeze_on:
-        score += int(MAX_HEADROOM * 0.8)  # squeeze = good potential
+        score += int(MAX_COMPRESSION * 0.8)  # squeeze = good expansion potential
     elif atr_regime in ("COMPRESSION",):
-        score += int(MAX_HEADROOM * 0.5)
+        score += int(MAX_COMPRESSION * 0.5)
     elif atr_regime in ("NORMAL",):
-        score += int(MAX_HEADROOM * 0.3)
+        score += int(MAX_COMPRESSION * 0.3)
     elif atr_regime in ("EXHAUSTION",):
         warnings.append("atr_exhaustion")
 

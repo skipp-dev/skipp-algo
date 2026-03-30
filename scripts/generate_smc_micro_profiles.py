@@ -1007,7 +1007,7 @@ def write_pine_library(
     content.append(f'export const string PRIMARY_FVG_SIDE = "{fvgl.get("PRIMARY_FVG_SIDE", _FVGL_DEFAULTS["PRIMARY_FVG_SIDE"])}"')
     content.append(f'export const float PRIMARY_FVG_DISTANCE = {float(fvgl.get("PRIMARY_FVG_DISTANCE", _FVGL_DEFAULTS["PRIMARY_FVG_DISTANCE"]))}')
     content.append(f'export const float FVG_FILL_PCT = {float(fvgl.get("FVG_FILL_PCT", _FVGL_DEFAULTS["FVG_FILL_PCT"]))}')
-    content.append(f'export const int FVG_AGE_BARS = {int(fvgl.get("FVG_AGE_BARS", _FVGL_DEFAULTS["FVG_AGE_BARS"]))}')
+    content.append(f'export const int FVG_MATURITY_LEVEL = {int(fvgl.get("FVG_MATURITY_LEVEL", _FVGL_DEFAULTS["FVG_MATURITY_LEVEL"]))}')
     content.append(f'export const bool FVG_FRESH = {_pine_bool(fvgl.get("FVG_FRESH", _FVGL_DEFAULTS["FVG_FRESH"]))}')
     content.append(f'export const bool FVG_INVALIDATED = {_pine_bool(fvgl.get("FVG_INVALIDATED", _FVGL_DEFAULTS["FVG_INVALIDATED"]))}')
 
@@ -1243,7 +1243,7 @@ def write_manifest(
         "exported_lists": LIST_EXPORTS,
         "list_counts": {name: len(symbols) for name, symbols in lists.items()},
         "enrichment_blocks": sorted((enrichment or {}).keys()),
-        "library_field_version": "v5.5",
+        "library_field_version": "v5.5a",
         "v55_lean_blocks": [
             "event_risk_light",
             "session_context_light",

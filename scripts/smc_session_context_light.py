@@ -1,6 +1,10 @@
-"""V5.5 Session Context Light adapter.
+"""V5.5a Session Context Light adapter.
 
-Passes through 4 existing fields and derives SESSION_VOLATILITY_STATE.
+Passes through 4 required fields and optionally derives SESSION_VOLATILITY_STATE.
+
+SESSION_VOLATILITY_STATE is optional per v5.5a contract.  When compression_regime
+data is unavailable the field defaults to "NORMAL" and the lean runtime remains
+fully functional without it.
 
 Usage::
 
@@ -18,13 +22,20 @@ from typing import Any
 
 # ── Defaults ────────────────────────────────────────────────────────
 
-DEFAULTS: dict[str, Any] = {
+# 4 required fields
+REQUIRED_DEFAULTS: dict[str, Any] = {
     "SESSION_CONTEXT": "NONE",
     "IN_KILLZONE": False,
     "SESSION_DIRECTION_BIAS": "NEUTRAL",
     "SESSION_CONTEXT_SCORE": 0,
+}
+
+# 1 optional field
+OPTIONAL_DEFAULTS: dict[str, Any] = {
     "SESSION_VOLATILITY_STATE": "NORMAL",
 }
+
+DEFAULTS: dict[str, Any] = {**REQUIRED_DEFAULTS, **OPTIONAL_DEFAULTS}
 
 
 def build_session_context_light(

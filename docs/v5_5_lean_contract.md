@@ -1,9 +1,13 @@
-# v5.5 Lean Contract Freeze
+# v5.5a Lean Contract
 
 **Status**: Active  
 **Date**: 2026-03-30  
 **Schema Version**: 2.0.0  
-**Library Field Version**: v5.5  
+**Library Field Version**: v5.5a  
+**Supersedes**: v5.5 Lean Contract Freeze  
+
+> Refinement details: see [v5_5a_lean_contract_refinement_en.md](v5_5a_lean_contract_refinement_en.md)  
+> Architecture overview: see [SMC_Unified_Lean_Architecture_v5_5a_DE_EN.md](SMC_Unified_Lean_Architecture_v5_5a_DE_EN.md)
 
 ## Design Principles
 
@@ -13,6 +17,14 @@
 4. Few, clear, user-facing fields
 5. No new heavy governance
 6. No new large platform logic
+7. **One Primary Decision Surface** — lifecycle + signal quality + event state + bias + warnings
+8. **Signal Quality Primacy** — primary interpretation layer for lean runtime
+9. **Event Risk User Semantics** — blocked / caution / clear
+10. **No Shadow Logic** — Pine must not rebuild competing interpretation layers
+11. **Field Semantics Integrity** — names must match actual computation precision
+12. **Pine Runtime Budget** — runtime efficiency is architectural, not incidental
+13. **UX Modes** — Compact Mode is the reference; Advanced Mode is optional
+14. **Support Family Admission Rule** — must prove value vs. runtime cost
 
 ## v5.5 Lean Families
 
@@ -27,14 +39,16 @@
 | SYMBOL_EVENT_BLOCKED | bool | true / false |
 | EVENT_PROVIDER_STATUS | string | ok / no_data / calendar_missing / news_missing |
 
-### 2. Session Context Light (5 fields)
-| Field | Type | Values |
-|-------|------|--------|
-| SESSION_CONTEXT | string | ASIA / LONDON / NY_AM / NY_PM / NONE |
-| IN_KILLZONE | bool | true / false |
-| SESSION_DIRECTION_BIAS | string | BULLISH / BEARISH / NEUTRAL |
-| SESSION_CONTEXT_SCORE | int | 0-7 |
-| SESSION_VOLATILITY_STATE | string | LOW / NORMAL / HIGH / EXTREME |
+### 2. Session Context Light (4 required + 1 optional)
+| Field | Type | Values | Required |
+|-------|------|--------|----------|
+| SESSION_CONTEXT | string | ASIA / LONDON / NY_AM / NY_PM / NONE | yes |
+| IN_KILLZONE | bool | true / false | yes |
+| SESSION_DIRECTION_BIAS | string | BULLISH / BEARISH / NEUTRAL | yes |
+| SESSION_CONTEXT_SCORE | int | 0-7 | yes |
+| SESSION_VOLATILITY_STATE | string | LOW / NORMAL / HIGH / EXTREME | **optional** |
+
+`SESSION_VOLATILITY_STATE` is optional. The lean runtime must remain fully functional when only the 4 required session fields are present.
 
 ### 3. Order Block Context Light (5 fields)
 | Field | Type | Values |
@@ -51,7 +65,7 @@
 | PRIMARY_FVG_SIDE | string | BULL / BEAR / NONE |
 | PRIMARY_FVG_DISTANCE | float | % distance from price |
 | FVG_FILL_PCT | float | 0.0-1.0 |
-| FVG_AGE_BARS | int | bars since creation |
+| FVG_MATURITY_LEVEL | int | 0-3 fill-derived maturity proxy (not bar age) |
 | FVG_FRESH | bool | true / false |
 | FVG_INVALIDATED | bool | true / false |
 
@@ -114,7 +128,7 @@ Plus existing canonical fields that are still needed:
 | BULL_FVG_ACTIVE, BEAR_FVG_ACTIVE | PRIMARY_FVG_SIDE | Picks nearest active FVG |
 | BULL_FVG_TOP/BOTTOM, BEAR_FVG_TOP/BOTTOM | PRIMARY_FVG_DISTANCE | Distance as pct |
 | BULL_FVG_MITIGATION_PCT, BEAR_FVG_MITIGATION_PCT | FVG_FILL_PCT | From primary FVG |
-| (new) | FVG_AGE_BARS | From primary FVG |
+| (new) | FVG_MATURITY_LEVEL | From primary FVG (fill-derived proxy, 0-3; not bar age) |
 | (new) | FVG_FRESH | Age < 10 bars |
 | BULL_FVG_FULL_MITIGATION | FVG_INVALIDATED | >= 100% filled |
 | NEAREST_BULL_OB_LEVEL, NEAREST_BEAR_OB_LEVEL | PRIMARY_OB_SIDE, PRIMARY_OB_DISTANCE | Picks nearest/freshest |
@@ -132,10 +146,49 @@ Plus existing canonical fields that are still needed:
 ## Migration Notes
 
 1. All v5.3 fields continue to be exported — no breaking changes
-2. New v5.5 fields are additive
-3. Pine consumers should migrate to reading v5.5 lean fields
+2. New v5.5a fields are additive
+3. Pine consumers should migrate to reading v5.5a lean fields
 4. Deprecated fields will show `// DEPRECATED v5.5` comments in generated Pine
 5. Signal Quality provides a single-number alternative to checking multiple gates
-6. The `library_field_version` in the manifest changes from `v5.3` to `v5.5`
-7. Schema version bumps from `1.2.0` to `2.0.0` (new families = minor version, but
-   this is a structural shift warranting a major bump)
+6. The `library_field_version` in the manifest changes from `v5.5` to `v5.5a`
+7. Schema version stays at `2.0.0` (v5.5a is a sharpening patch, not structural)
+8. `SESSION_VOLATILITY_STATE` is optional and must not be required for runtime
+9. Compact Mode is the reference UX mode for shared/public scripts
+10. No Shadow Logic: Pine must not rebuild competing interpretation layers
+
+## Compact Mode — Hero-Surface Reference
+
+Compact Mode (`compact_mode = true`) is the recommended UX for shared or
+public scripts. It suppresses secondary visual elements while retaining
+full filter and lifecycle logic.
+
+**Kept active** (Hero Surface):
+- Direction / Bias (HTF trend summary)
+- Lifecycle markers (Reclaim, Confirmation, Ready)
+- Signal Quality dashboard rows
+- Event State (blocked / caution / clear)
+- Warnings (volume quality, strict LTF)
+- Health Badge
+- Risk Levels
+- Main dashboard
+
+**Suppressed** (debug + secondary overlays):
+- OB / FVG / Engine debug labels
+- Microstructure debug markers
+- Strict debug markers
+- LTF dashboard details
+- EMA support plot lines (filter logic stays active)
+- Session VWAP plot line (VWAP filter stays active)
+- Mean-target overlay line
+
+All suppression uses `_eff` variables. Filter logic (EMA support gate,
+VWAP filter, BUS export) is **not** affected by compact mode.
+
+## Version Rationale
+
+`library_field_version` is `v5.5a` (not `v5.6`) because:
+- No new fields were added
+- No fields were removed
+- The change is semantic (hierarchy, optionality, naming precision)
+- Generator field set is identical to v5.5
+- `a` suffix signals "sharpening patch" not "new surface"

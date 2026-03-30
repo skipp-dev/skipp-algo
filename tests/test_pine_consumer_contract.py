@@ -170,7 +170,7 @@ V5_FIELD_INVENTORY: set[str] = {
     "OB_FRESH", "OB_AGE_BARS", "OB_MITIGATION_STATE",
     # v5.5 Lean: FVG / Imbalance Lifecycle Light
     "PRIMARY_FVG_SIDE", "PRIMARY_FVG_DISTANCE",
-    "FVG_FILL_PCT", "FVG_AGE_BARS", "FVG_FRESH", "FVG_INVALIDATED",
+    "FVG_FILL_PCT", "FVG_MATURITY_LEVEL", "FVG_FRESH", "FVG_INVALIDATED",
     # v5.5 Lean: Structure State Light
     "STRUCTURE_LIGHT_LAST_EVENT", "STRUCTURE_LIGHT_EVENT_AGE_BARS",
     "STRUCTURE_LIGHT_FRESH", "STRUCTURE_TREND_STRENGTH",
@@ -205,99 +205,30 @@ ENGINE_CONSUMED_FIELDS: set[str] = {
     # Compression / ATR Regime (v5.1)
     "SQUEEZE_ON", "SQUEEZE_RELEASED", "SQUEEZE_MOMENTUM_BIAS",
     "ATR_REGIME", "ATR_RATIO",
-    # Zone Intelligence (v5.1)
-    "ACTIVE_SUPPORT_COUNT", "ACTIVE_RESISTANCE_COUNT", "ACTIVE_ZONE_COUNT",
-    "PRIMARY_SUPPORT_LEVEL", "PRIMARY_RESISTANCE_LEVEL",
-    "PRIMARY_SUPPORT_STRENGTH", "PRIMARY_RESISTANCE_STRENGTH",
-    "SUPPORT_SWEEP_COUNT", "RESISTANCE_SWEEP_COUNT",
-    "SUPPORT_MITIGATION_PCT", "RESISTANCE_MITIGATION_PCT",
-    "ZONE_CONTEXT_BIAS", "ZONE_LIQUIDITY_IMBALANCE",
-    # Reversal Context (v5.1)
+    # Zone Intelligence (v5.1) — BUS PackE compat only
+    "ZONE_CONTEXT_BIAS", "ACTIVE_ZONE_COUNT",
+    # Reversal Context (v5.1) — BUS PackE compat only
     "REVERSAL_CONTEXT_ACTIVE", "SETUP_SCORE", "CONFIRM_SCORE", "FOLLOW_THROUGH_SCORE",
-    "HTF_STRUCTURE_OK", "HTF_BULLISH_PATTERN", "HTF_BEARISH_PATTERN",
-    "HTF_BULLISH_DIVERGENCE", "HTF_BEARISH_DIVERGENCE",
-    "FVG_CONFIRM_OK", "VWAP_HOLD_OK", "RETRACE_OK",
-    # Session Context (v5.2 + v5.3)
-    "SESSION_CONTEXT", "IN_KILLZONE",
-    "SESSION_MSS_BULL", "SESSION_MSS_BEAR",
-    "SESSION_STRUCTURE_STATE",
-    "SESSION_FVG_BULL_ACTIVE", "SESSION_FVG_BEAR_ACTIVE",
-    "SESSION_BPR_ACTIVE",
-    "SESSION_RANGE_TOP", "SESSION_RANGE_BOTTOM",
-    "SESSION_MEAN", "SESSION_VWAP",
-    "SESSION_TARGET_BULL", "SESSION_TARGET_BEAR",
-    "SESSION_DIRECTION_BIAS", "SESSION_CONTEXT_SCORE",
-    # Liquidity Sweeps (v5.2)
+    # Session Context (v5.2 + v5.3) — BUS PackF compat only
+    "SESSION_CONTEXT", "IN_KILLZONE", "SESSION_CONTEXT_SCORE",
+    # Liquidity Sweeps (v5.2) — BUS PackF compat only
     "RECENT_BULL_SWEEP", "RECENT_BEAR_SWEEP",
-    "SWEEP_TYPE", "SWEEP_DIRECTION",
-    "SWEEP_ZONE_TOP", "SWEEP_ZONE_BOTTOM",
-    "SWEEP_RECLAIM_ACTIVE", "LIQUIDITY_TAKEN_DIRECTION", "SWEEP_QUALITY_SCORE",
-    # Liquidity Pools (v5.2)
-    "BUY_SIDE_POOL_LEVEL", "SELL_SIDE_POOL_LEVEL",
-    "BUY_SIDE_POOL_STRENGTH", "SELL_SIDE_POOL_STRENGTH",
-    "POOL_PROXIMITY_PCT", "POOL_CLUSTER_DENSITY",
-    "UNTESTED_BUY_POOLS", "UNTESTED_SELL_POOLS",
-    "POOL_IMBALANCE", "POOL_MAGNET_DIRECTION", "POOL_QUALITY_SCORE",
-    # Order Blocks (v5.2)
-    "NEAREST_BULL_OB_LEVEL", "NEAREST_BEAR_OB_LEVEL",
-    "BULL_OB_FRESHNESS", "BEAR_OB_FRESHNESS",
-    "BULL_OB_MITIGATED", "BEAR_OB_MITIGATED",
-    "BULL_OB_FVG_CONFLUENCE", "BEAR_OB_FVG_CONFLUENCE",
-    "OB_DENSITY", "OB_BIAS", "OB_NEAREST_DISTANCE_PCT",
-    "OB_STRENGTH_SCORE", "OB_CONTEXT_SCORE",
-    # Zone Projection (v5.2)
-    "ZONE_PROJ_TARGET_BULL", "ZONE_PROJ_TARGET_BEAR",
-    "ZONE_PROJ_RETEST_EXPECTED", "ZONE_PROJ_TRAP_RISK",
-    "ZONE_PROJ_SPREAD_QUALITY", "ZONE_PROJ_HTF_ALIGNED",
-    "ZONE_PROJ_BIAS", "ZONE_PROJ_CONFIDENCE",
-    "ZONE_PROJ_DECAY_BARS", "ZONE_PROJ_SCORE",
-    # Profile Context (v5.2)
-    "PROFILE_VOLUME_NODE", "PROFILE_VWAP_POSITION", "PROFILE_VWAP_DISTANCE_PCT",
-    "PROFILE_SPREAD_REGIME", "PROFILE_AVG_SPREAD_BPS",
-    "PROFILE_SESSION_BIAS", "PROFILE_RTH_DOMINANCE_PCT",
-    "PROFILE_PM_QUALITY", "PROFILE_AH_QUALITY",
-    "PROFILE_MIDDAY_EFFICIENCY", "PROFILE_DECAY_HALFLIFE",
-    "PROFILE_CONSISTENCY", "PROFILE_WICKINESS",
-    "PROFILE_CLEAN_SCORE", "PROFILE_RECLAIM_RATE", "PROFILE_STOP_HUNT_RATE",
+    "SWEEP_RECLAIM_ACTIVE", "SWEEP_QUALITY_SCORE",
+    # Order Blocks (v5.2) — BUS PackF compat only
+    "BULL_OB_FVG_CONFLUENCE", "OB_BIAS", "OB_CONTEXT_SCORE",
+    # Profile Context (v5.2) — BUS PackF compat only
     "PROFILE_TICKER_GRADE", "PROFILE_CONTEXT_SCORE",
-    # Structure State (v5.3)
+    # Structure State (v5.3) — BUS PackG compat only
     "STRUCTURE_STATE", "STRUCTURE_BULL_ACTIVE", "STRUCTURE_BEAR_ACTIVE",
-    "CHOCH_BULL", "CHOCH_BEAR", "BOS_BULL", "BOS_BEAR",
-    "STRUCTURE_LAST_EVENT", "STRUCTURE_EVENT_AGE_BARS", "STRUCTURE_FRESH",
-    "ACTIVE_SUPPORT", "ACTIVE_RESISTANCE", "SUPPORT_ACTIVE", "RESISTANCE_ACTIVE",
-    # Imbalance Lifecycle (v5.3)
-    "BULL_FVG_ACTIVE", "BEAR_FVG_ACTIVE",
-    "BULL_FVG_TOP", "BULL_FVG_BOTTOM", "BEAR_FVG_TOP", "BEAR_FVG_BOTTOM",
-    "BULL_FVG_PARTIAL_MITIGATION", "BEAR_FVG_PARTIAL_MITIGATION",
-    "BULL_FVG_FULL_MITIGATION", "BEAR_FVG_FULL_MITIGATION",
-    "BULL_FVG_COUNT", "BEAR_FVG_COUNT",
-    "BULL_FVG_MITIGATION_PCT", "BEAR_FVG_MITIGATION_PCT",
-    "BPR_ACTIVE", "BPR_DIRECTION", "BPR_TOP", "BPR_BOTTOM",
-    "LIQ_VOID_BULL_ACTIVE", "LIQ_VOID_BEAR_ACTIVE",
-    "LIQ_VOID_TOP", "LIQ_VOID_BOTTOM", "IMBALANCE_STATE",
-    # Session Structure (v5.3)
-    "SESS_HIGH", "SESS_LOW",
-    "SESS_OPEN_RANGE_HIGH", "SESS_OPEN_RANGE_LOW", "SESS_OPEN_RANGE_BREAK",
-    "SESS_IMPULSE_DIR", "SESS_IMPULSE_STRENGTH",
-    "SESS_INTRA_BOS_COUNT", "SESS_INTRA_CHOCH",
-    "SESS_PDH", "SESS_PDL", "SESS_PDH_SWEPT", "SESS_PDL_SWEPT",
+    "STRUCTURE_FRESH",
+    # Imbalance Lifecycle (v5.3) — BUS PackG compat only
+    "BPR_ACTIVE", "LIQ_VOID_BULL_ACTIVE", "LIQ_VOID_BEAR_ACTIVE",
+    "IMBALANCE_STATE",
+    # Session Structure (v5.3) — BUS PackG compat only
+    "SESS_OPEN_RANGE_BREAK", "SESS_PDH_SWEPT", "SESS_PDL_SWEPT",
     "SESS_STRUCT_SCORE",
-    # Range Regime (v5.3)
-    "RANGE_REGIME", "RANGE_WIDTH_PCT", "RANGE_POSITION",
-    "RANGE_HIGH", "RANGE_LOW", "RANGE_DURATION_BARS",
-    "RANGE_VPOC_LEVEL", "RANGE_VAH_LEVEL", "RANGE_VAL_LEVEL",
-    "RANGE_BALANCE_STATE", "RANGE_REGIME_SCORE",
-    # Range Profile Regime (v5.3)
-    "RANGE_ACTIVE", "RANGE_TOP", "RANGE_BOTTOM", "RANGE_MID",
-    "RANGE_WIDTH_ATR", "RANGE_BREAK_DIRECTION",
-    "PROFILE_POC", "PROFILE_VALUE_AREA_TOP", "PROFILE_VALUE_AREA_BOTTOM",
-    "PROFILE_VALUE_AREA_ACTIVE",
-    "PROFILE_BULLISH_SENTIMENT", "PROFILE_BEARISH_SENTIMENT",
-    "PROFILE_SENTIMENT_BIAS",
-    "LIQUIDITY_ABOVE_PCT", "LIQUIDITY_BELOW_PCT", "LIQUIDITY_IMBALANCE",
-    "PRED_RANGE_MID", "PRED_RANGE_UPPER_1", "PRED_RANGE_UPPER_2",
-    "PRED_RANGE_LOWER_1", "PRED_RANGE_LOWER_2",
-    "IN_PREDICTIVE_RANGE_EXTREME",
+    # Range Regime (v5.3) — BUS PackG compat only
+    "RANGE_REGIME", "RANGE_BALANCE_STATE", "RANGE_REGIME_SCORE",
     # Event Risk Light (v5.5)
     "EVENT_RISK_LIGHT_WINDOW_STATE", "EVENT_RISK_LIGHT_LEVEL",
     "EVENT_RISK_LIGHT_NEXT_NAME", "EVENT_RISK_LIGHT_NEXT_TIME",
@@ -312,7 +243,7 @@ ENGINE_CONSUMED_FIELDS: set[str] = {
     "OB_FRESH", "OB_AGE_BARS", "OB_MITIGATION_STATE",
     # FVG Lifecycle Light (v5.5)
     "PRIMARY_FVG_SIDE", "PRIMARY_FVG_DISTANCE",
-    "FVG_FILL_PCT", "FVG_AGE_BARS", "FVG_FRESH", "FVG_INVALIDATED",
+    "FVG_FILL_PCT", "FVG_MATURITY_LEVEL", "FVG_FRESH", "FVG_INVALIDATED",
     # Structure State Light (v5.5)
     "STRUCTURE_LIGHT_LAST_EVENT", "STRUCTURE_LIGHT_EVENT_AGE_BARS",
     "STRUCTURE_LIGHT_FRESH", "STRUCTURE_TREND_STRENGTH",
@@ -754,7 +685,7 @@ V55_LEAN_FAMILIES: dict[str, set[str]] = {
     },
     "fvg_lifecycle_light": {
         "PRIMARY_FVG_SIDE", "PRIMARY_FVG_DISTANCE",
-        "FVG_FILL_PCT", "FVG_AGE_BARS", "FVG_FRESH", "FVG_INVALIDATED",
+        "FVG_FILL_PCT", "FVG_MATURITY_LEVEL", "FVG_FRESH", "FVG_INVALIDATED",
     },
     "structure_state_light": {
         "STRUCTURE_LIGHT_LAST_EVENT", "STRUCTURE_LIGHT_EVENT_AGE_BARS",
@@ -832,13 +763,13 @@ class TestV55DriftGuard:
             f"event_risk_gate_ok must use lean lib_erl_* fields, found: {gate_decl}"
         )
 
-    def test_legacy_gates_marked(self):
-        """Old v5.1-v5.3 context gate sections must be marked [LEGACY]."""
+    def test_legacy_gates_removed(self):
+        """Old v5.1-v5.3 context gate sections were removed in AP6 v5.5 cleanup."""
         text = _read_pine("SMC_Core_Engine.pine")
         for version in ("v5.1", "v5.2", "v5.3"):
-            pattern = rf"──\s*{version}\s+Context Gates\s+\[LEGACY"
-            assert re.search(pattern, text), (
-                f"{version} context gates section not marked [LEGACY]"
+            pattern = rf"──\s*{version}\s+Context Gates"
+            assert not re.search(pattern, text), (
+                f"{version} context gates section should have been removed in v5.5 cleanup"
             )
 
     def test_lean_context_section_marked_primary(self):
@@ -864,7 +795,7 @@ class TestV55DriftGuard:
         bus_lines = [
             line.strip()
             for line in text.splitlines()
-            if "BUS EventRiskRow" in line
+            if "BUS EventRiskRow" in line and line.strip().startswith("plot(")
         ]
         assert bus_lines, "BUS EventRiskRow plot not found"
         bus_call = bus_lines[0]
@@ -878,3 +809,121 @@ class TestV55DriftGuard:
         assert "Gate Classification (v5.5)" in text, (
             "Gate classification comment block not found in engine"
         )
+
+
+class TestV55aContractSync:
+    """Ensure repo docs, generator, and manifest stay aligned at v5.5a."""
+
+    def test_manifest_field_version_is_v55a(self):
+        import json
+        manifest = json.loads(
+            (ROOT / "pine/generated/smc_micro_profiles_generated.json").read_text()
+        )
+        assert manifest["library_field_version"] == "v5.5a", (
+            f"Manifest library_field_version should be v5.5a, got {manifest['library_field_version']}"
+        )
+
+    def test_contract_doc_references_v55a(self):
+        text = (ROOT / "docs/v5_5_lean_contract.md").read_text()
+        assert "v5.5a" in text, "Contract doc must reference v5.5a"
+        assert "Signal Quality Primacy" in text, "Contract doc must list Signal Quality Primacy principle"
+        assert "No Shadow Logic" in text, "Contract doc must list No Shadow Logic principle"
+
+    def test_session_volatility_state_marked_optional(self):
+        text = (ROOT / "docs/v5_5_lean_contract.md").read_text()
+        assert "optional" in text.lower(), "SESSION_VOLATILITY_STATE must be marked optional"
+
+    def test_lean_family_count_32(self):
+        """v5.5a still has exactly 32 lean fields across 6 families."""
+        total = sum(len(f) for f in V55_LEAN_FAMILIES.values())
+        assert total == 32
+
+    def test_fvg_maturity_level_not_age_bars(self):
+        """FVG uses FVG_MATURITY_LEVEL (proxy), never FVG_AGE_BARS."""
+        assert "FVG_MATURITY_LEVEL" in V55_LEAN_FAMILIES["fvg_lifecycle_light"]
+        assert "FVG_AGE_BARS" not in V55_LEAN_FAMILIES["fvg_lifecycle_light"]
+        # Also verify docs match
+        text = (ROOT / "docs/v5_5_lean_contract.md").read_text()
+        assert "FVG_MATURITY_LEVEL" in text
+        assert "FVG_AGE_BARS" not in text
+
+    def test_no_shadow_event_risk_blocks(self):
+        """Dead shadow logic (event_risk_hard_block/soft_block) must stay removed."""
+        text = _read_pine("SMC_Core_Engine.pine")
+        assert "event_risk_hard_block" not in text or "REMOVED" in text, (
+            "event_risk_hard_block was removed in v5.5a — must not reappear"
+        )
+        assert "event_risk_soft_block" not in text or "REMOVED" in text, (
+            "event_risk_soft_block was removed in v5.5a — must not reappear"
+        )
+
+    def test_no_shadow_logic_policy_exists(self):
+        """No Shadow Logic policy document must exist."""
+        assert (ROOT / "docs/NO_SHADOW_LOGIC_POLICY.md").exists()
+
+    def test_compact_mode_hero_surface(self):
+        """Compact mode must suppress all expected _eff flags and secondary overlays."""
+        text = _read_pine("SMC_Core_Engine.pine")
+        # Must suppress these in compact_mode if-block
+        expected_suppressions = [
+            "show_ob_debug_eff := false",
+            "show_fvg_debug_eff := false",
+            "show_long_engine_debug_eff := false",
+            "show_microstructure_debug_eff := false",
+            "show_strict_debug_markers_eff := false",
+            "show_dashboard_ltf_eff := false",
+            "show_ema_support_eff := false",
+            "show_session_vwap_eff := false",
+            "show_mean_target_overlay_eff := false",
+        ]
+        for s in expected_suppressions:
+            assert s in text, f"compact_mode must contain: {s}"
+        # Visual plots must use _eff versions (not raw input)
+        assert "show_session_vwap_eff and intraday_time_chart" in text
+        assert "show_ema_support_eff ? ema_fast" in text
+        assert "show_mean_target_overlay_eff and not na" in text
+        # Contract doc must describe Hero-Surface
+        doc = (ROOT / "docs/v5_5_lean_contract.md").read_text()
+        assert "Hero-Surface" in doc
+
+    def test_compact_mode_preserves_filter_logic(self):
+        """Compact mode must not suppress EMA/VWAP filter logic — only visual plots."""
+        text = _read_pine("SMC_Core_Engine.pine")
+        # EMA support filter must still use raw show_ema_support (not _eff)
+        # The BUS row resolver uses show_ema_support as parameter name
+        assert "resolve_bus_ema_support_row(show_ema_support," in text, (
+            "BUS EMA support row must use raw show_ema_support, not _eff"
+        )
+
+    def test_reference_enrichment_fixture(self):
+        """Reference enrichment fixture must load and contain all lean blocks."""
+        import json
+        fixture = json.loads(
+            (ROOT / "tests/fixtures/reference_enrichment.json").read_text()
+        )
+        for block in V55_LEAN_FAMILIES:
+            assert block in fixture, f"Reference enrichment must contain {block}"
+        assert "meta" in fixture
+        assert fixture["meta"]["asof_time"], "asof_time must not be empty"
+        assert fixture["meta"]["refresh_count"] > 0
+
+    def test_manifest_enrichment_blocks_populated(self):
+        """Committed manifest must list realistic enrichment blocks."""
+        import json
+        manifest = json.loads(
+            (ROOT / "pine/generated/smc_micro_profiles_generated.json").read_text()
+        )
+        blocks = manifest["enrichment_blocks"]
+        assert len(blocks) > 0, "enrichment_blocks must not be empty"
+        for block in V55_LEAN_FAMILIES:
+            assert block in blocks, f"Manifest must list {block} in enrichment_blocks"
+        assert manifest["event_risk_source"] != "defaults"
+        assert manifest["asof_time"] != ""
+        assert manifest["refresh_count"] > 0
+
+    def test_runtime_budget_doc_exists(self):
+        """Runtime budget document must exist and list dead inputs."""
+        doc = (ROOT / "docs/RUNTIME_BUDGET.md").read_text()
+        assert "Dead Inputs" in doc
+        assert "show_mtf_trend" in doc, "Dead input inventory must include show_mtf_trend"
+        assert "Phase B" in doc, "Removal roadmap must include Phase B"

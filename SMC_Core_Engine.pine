@@ -1616,6 +1616,7 @@ resolve_environment_gate_reason(bool market_regime_gate_ok, bool vola_regime_gat
 //   HARD (always required, safety):  lifecycle, environment (event_risk, market_regime, vola_regime)
 //   OPERATIONAL (toggle-gated):      session_structure, micro_session, micro_freshness, overhead, setup (touch count)
 //   SCORING (toggle-gated, opt-in):  quality, accel, sd, vol, stretch, ddvi, lean_signal_quality
+//     → with use_scoring_over_blocking: SCORING gates bypass Ready, count as penalty; still block Best/Strict
 //   INFO ONLY (not in pipeline):     v5.1-v5.3 context gates (session_context_ok, struct_state_ok, etc.) — BUS compat only
 compute_long_environment_context(bool market_regime_gate_ok, bool vola_regime_gate_safe, bool context_quality_gate_ok, bool session_structure_gate_ok, bool micro_session_gate_ok, bool micro_freshness_gate_ok, bool overhead_zone_ok, bool event_risk_gate_ok_param) =>
     bool helper_environment_hard_gate_ok = market_regime_gate_ok and vola_regime_gate_safe and event_risk_gate_ok_param
@@ -2697,9 +2698,11 @@ resolve_bus_signal_freshness_row(string sq_freshness, string sq_bias) =>
     int bias_code = sq_bias == "bull" ? 1 : sq_bias == "bear" ? 2 : sq_bias == "mixed" ? 3 : 4
     pack_bus_row(fresh_code, bias_code)
 
-resolve_bus_event_risk_light_row(string erl_window, string erl_level, bool erl_market_blocked) =>
+resolve_bus_event_risk_light_row(string erl_window, string erl_level, bool erl_market_blocked, bool erl_symbol_blocked) =>
     if erl_market_blocked
         pack_bus_row(-1, 1)
+    else if erl_symbol_blocked
+        pack_bus_row(-1, 6)
     else if erl_window == "ACTIVE"
         pack_bus_row(2, 2)
     else if erl_window == "PRE_EVENT" and (erl_level == "ELEVATED" or erl_level == "HIGH")
@@ -3313,7 +3316,7 @@ update_latched_flag(bool current_latched, bool event_active, bool live_mode, boo
 var g_mode = 'Execution Mode'
 var ct.SignalMode signal_mode = input.enum(ct.SignalMode.CONFIRMED_ONLY, 'Signal Mode', group = g_mode, tooltip = 'Confirmed only is the safer non-repainting mode. Aggressive live allows intrabar high/low driven updates and alerts, so states can change before candle close, are not fully reconstructable after reload, and should be treated as realtime-only until the bar confirms.', display = display.status_line)
 var string long_user_preset = input.string('Standard', 'User Preset', options = ['Easy', 'Standard', 'Pro'], group = g_mode, tooltip = 'Easy keeps the long engine permissive and easier to operate. Standard preserves the current balanced workflow. Pro enables stricter lifecycle and execution gating for cleaner but rarer setups.', display = display.status_line)
-var bool compact_mode = input.bool(false, 'Compact / Shared-Script Mode', group = g_mode, tooltip = 'Enables compact-first UX: hides all debug labels, activates lean scoring, and minimizes visual overhead for shared or published scripts.')
+var bool compact_mode = input.bool(false, 'Compact / Shared-Script Mode', group = g_mode, tooltip = 'Hero-Surface UX for sharing or solo operation. Suppresses: all debug overlays (OB, FVG, Engine, Microstructure, Strict markers), LTF dashboard details, EMA support lines, session VWAP line, mean-target overlay. Keeps active: Direction, Lifecycle markers, Signal Quality, Event Status, Bias, Warnings, Health Badge, Risk Levels. Filter logic is not affected — only visual elements are suppressed.')
 
 var g_ltf = 'Lower Timeframe'
 var bool enable_ltf_sampling = input.bool(true, 'Use lower timeframe sampling', group = g_ltf, tooltip = 'Uses request.security_lower_tf() to summarize intrabar participation and pressure.')
@@ -3416,14 +3419,12 @@ string lib_next_event_impact  = mp.NEXT_EVENT_IMPACT
 bool   lib_market_event_blocked = mp.MARKET_EVENT_BLOCKED
 bool   lib_symbol_event_blocked = mp.SYMBOL_EVENT_BLOCKED and str.contains(mp.EARNINGS_SOON_TICKERS, syminfo.ticker)
 bool   lib_event_cooldown       = mp.EVENT_COOLDOWN_ACTIVE
-// [LEGACY] Hard block from old broad fields — kept for BUS backward compat
-bool   event_risk_hard_block    = lib_market_event_blocked or lib_symbol_event_blocked
-// [LEGACY] Soft discourage from old broad fields
-bool   event_risk_soft_block    = lib_event_cooldown or (lib_event_window_state == "PRE_EVENT" and (lib_event_risk_level == "ELEVATED" or lib_event_risk_level == "HIGH"))
-// [v5.5 PRIMARY] event risk gate now derived from lean Event Risk Light surface
+// [v5.5 PRIMARY] event risk gate — single lean-derived hard block
 bool   event_risk_gate_ok       = not (lib_erl_market_blocked or lib_erl_symbol_blocked)
-// [v5.5] Simplified event risk states: blocked / caution / clear
-string event_risk_state         = lib_erl_market_blocked or lib_erl_symbol_blocked ? "blocked" : lib_erl_window_state == "PRE_EVENT" and (lib_erl_level == "HIGH" or lib_erl_level == "ELEVATED") ? "caution" : "clear"
+// [v5.5 PRIMARY] event risk state: blocked / caution / clear — lean semantics only
+string event_risk_state         = lib_erl_market_blocked or lib_erl_symbol_blocked ? "blocked" : (lib_erl_window_state == "COOLDOWN" or (lib_erl_window_state == "PRE_EVENT" and (lib_erl_level == "HIGH" or lib_erl_level == "ELEVATED"))) ? "caution" : "clear"
+// [REMOVED v5.5a — No Shadow Logic] event_risk_hard_block / event_risk_soft_block
+// were dead code: computed from broad fields but never consumed after lean rewiring.
 
 // ── Flow Qualifier (v5.1) ──
 float  lib_rel_vol             = mp.REL_VOL
@@ -3448,217 +3449,106 @@ string lib_squeeze_momentum    = mp.SQUEEZE_MOMENTUM_BIAS
 string lib_atr_regime          = mp.ATR_REGIME
 float  lib_atr_ratio           = mp.ATR_RATIO
 
-// ── Zone Intelligence (v5.1) ── [DEPRECATED v5.5 — superseded by OB/FVG/Structure Light]
-int    lib_active_support_cnt  = mp.ACTIVE_SUPPORT_COUNT
-int    lib_active_resist_cnt   = mp.ACTIVE_RESISTANCE_COUNT
-int    lib_active_zone_cnt     = mp.ACTIVE_ZONE_COUNT
-float  lib_primary_support     = mp.PRIMARY_SUPPORT_LEVEL
-float  lib_primary_resist      = mp.PRIMARY_RESISTANCE_LEVEL
-int    lib_support_strength    = mp.PRIMARY_SUPPORT_STRENGTH
-int    lib_resist_strength     = mp.PRIMARY_RESISTANCE_STRENGTH
-int    lib_support_sweep_cnt   = mp.SUPPORT_SWEEP_COUNT
-int    lib_resist_sweep_cnt    = mp.RESISTANCE_SWEEP_COUNT
-float  lib_support_mitig_pct   = mp.SUPPORT_MITIGATION_PCT
-float  lib_resist_mitig_pct    = mp.RESISTANCE_MITIGATION_PCT
-string lib_zone_context_bias   = mp.ZONE_CONTEXT_BIAS
-float  lib_zone_liq_imbalance  = mp.ZONE_LIQUIDITY_IMBALANCE
+// ══════════════════════════════════════════════════════════════════════
+// ── LEGACY BUS COMPAT BLOCK (v5.1/v5.2) ──────────────────────────────
+// Fields below exist ONLY for BUS ModulePackE/F backward compatibility.
+// Primary pipeline uses v5.5 lean context gates; these are NOT read
+// anywhere else. Safe to remove once SMC_Dashboard.pine migrates to
+// BUS LeanPackA/B.
+// ══════════════════════════════════════════════════════════════════════
 
-// ── Reversal Context (v5.1) ── [DEPRECATED v5.5 — superseded by Signal Quality]
+// ── Zone Intelligence (v5.1) ── [DEPRECATED v5.5 — BUS ModulePackE only]
+string lib_zone_context_bias   = mp.ZONE_CONTEXT_BIAS
+int    lib_active_zone_cnt     = mp.ACTIVE_ZONE_COUNT
+// Dead fields removed (11): ACTIVE_SUPPORT/RESISTANCE_COUNT, PRIMARY_SUPPORT/RESISTANCE_LEVEL,
+//   PRIMARY_SUPPORT/RESISTANCE_STRENGTH, SUPPORT/RESISTANCE_SWEEP_COUNT,
+//   SUPPORT/RESISTANCE_MITIGATION_PCT, ZONE_LIQUIDITY_IMBALANCE
+
+// ── Reversal Context (v5.1) ── [DEPRECATED v5.5 — BUS ModulePackE only]
 bool   lib_reversal_active     = mp.REVERSAL_CONTEXT_ACTIVE
 int    lib_setup_score         = mp.SETUP_SCORE
 int    lib_confirm_score       = mp.CONFIRM_SCORE
 int    lib_follow_through_score = mp.FOLLOW_THROUGH_SCORE
-bool   lib_htf_structure_ok    = mp.HTF_STRUCTURE_OK
-bool   lib_htf_bull_pattern    = mp.HTF_BULLISH_PATTERN
-bool   lib_htf_bear_pattern    = mp.HTF_BEARISH_PATTERN
-bool   lib_htf_bull_divergence = mp.HTF_BULLISH_DIVERGENCE
-bool   lib_htf_bear_divergence = mp.HTF_BEARISH_DIVERGENCE
-bool   lib_fvg_confirm_ok      = mp.FVG_CONFIRM_OK
-bool   lib_vwap_hold_ok        = mp.VWAP_HOLD_OK
-bool   lib_retrace_ok          = mp.RETRACE_OK
+// Dead fields removed (8): HTF_STRUCTURE_OK, HTF_BULLISH/BEARISH_PATTERN,
+//   HTF_BULLISH/BEARISH_DIVERGENCE, FVG_CONFIRM_OK, VWAP_HOLD_OK, RETRACE_OK
 
-// ── Session Context (v5.2 + v5.3) ── [DEPRECATED v5.5 — superseded by Session Context Light]
+// ── Session Context (v5.2 + v5.3) ── [DEPRECATED v5.5 — BUS ModulePackF only]
 string lib_session_context     = mp.SESSION_CONTEXT
 bool   lib_in_killzone         = mp.IN_KILLZONE
-bool   lib_session_mss_bull    = mp.SESSION_MSS_BULL
-bool   lib_session_mss_bear    = mp.SESSION_MSS_BEAR
-string lib_session_struct_st   = mp.SESSION_STRUCTURE_STATE
-bool   lib_session_fvg_bull    = mp.SESSION_FVG_BULL_ACTIVE
-bool   lib_session_fvg_bear    = mp.SESSION_FVG_BEAR_ACTIVE
-bool   lib_session_bpr_active  = mp.SESSION_BPR_ACTIVE
-float  lib_session_range_top   = mp.SESSION_RANGE_TOP
-float  lib_session_range_bot   = mp.SESSION_RANGE_BOTTOM
-float  lib_session_mean        = mp.SESSION_MEAN
-float  lib_session_vwap        = mp.SESSION_VWAP
-float  lib_session_tgt_bull    = mp.SESSION_TARGET_BULL
-float  lib_session_tgt_bear    = mp.SESSION_TARGET_BEAR
-string lib_session_dir_bias    = mp.SESSION_DIRECTION_BIAS
 int    lib_session_ctx_score   = mp.SESSION_CONTEXT_SCORE
+// Dead fields removed (13): SESSION_MSS_BULL/BEAR, SESSION_STRUCTURE_STATE,
+//   SESSION_FVG_BULL/BEAR_ACTIVE, SESSION_BPR_ACTIVE, SESSION_RANGE_TOP/BOTTOM,
+//   SESSION_MEAN, SESSION_VWAP, SESSION_TARGET_BULL/BEAR, SESSION_DIRECTION_BIAS
 
-// ── Liquidity Sweeps (v5.2) ──
+// ── Liquidity Sweeps (v5.2) ── [DEPRECATED v5.5 — BUS ModulePackF only]
 bool   lib_recent_bull_sweep   = mp.RECENT_BULL_SWEEP
 bool   lib_recent_bear_sweep   = mp.RECENT_BEAR_SWEEP
-string lib_sweep_type          = mp.SWEEP_TYPE
-string lib_sweep_direction     = mp.SWEEP_DIRECTION
-float  lib_sweep_zone_top      = mp.SWEEP_ZONE_TOP
-float  lib_sweep_zone_bottom   = mp.SWEEP_ZONE_BOTTOM
 bool   lib_sweep_reclaim       = mp.SWEEP_RECLAIM_ACTIVE
-string lib_liq_taken_dir       = mp.LIQUIDITY_TAKEN_DIRECTION
 int    lib_sweep_quality       = mp.SWEEP_QUALITY_SCORE
+// Dead fields removed: SWEEP_TYPE, SWEEP_DIRECTION, SWEEP_ZONE_TOP/BOTTOM, LIQUIDITY_TAKEN_DIRECTION
 
-// ── Liquidity Pools (v5.2) ──
-float  lib_buy_pool_level      = mp.BUY_SIDE_POOL_LEVEL
-float  lib_sell_pool_level     = mp.SELL_SIDE_POOL_LEVEL
-int    lib_buy_pool_strength   = mp.BUY_SIDE_POOL_STRENGTH
-int    lib_sell_pool_strength  = mp.SELL_SIDE_POOL_STRENGTH
-float  lib_pool_prox_pct       = mp.POOL_PROXIMITY_PCT
-int    lib_pool_cluster        = mp.POOL_CLUSTER_DENSITY
-int    lib_untested_buy_pools  = mp.UNTESTED_BUY_POOLS
-int    lib_untested_sell_pools = mp.UNTESTED_SELL_POOLS
-float  lib_pool_imbalance      = mp.POOL_IMBALANCE
-string lib_pool_magnet_dir     = mp.POOL_MAGNET_DIRECTION
-int    lib_pool_quality        = mp.POOL_QUALITY_SCORE
+// ── Liquidity Pools (v5.2) ── [DEPRECATED v5.5 — no pipeline/BUS consumers]
+// All 11 fields removed: zero downstream consumers.
+// BUS ModulePackF does not use any Pool field.
 
-// ── Order Blocks (v5.2) ── [DEPRECATED v5.5 — superseded by OB Context Light]
-float  lib_nearest_bull_ob     = mp.NEAREST_BULL_OB_LEVEL
-float  lib_nearest_bear_ob     = mp.NEAREST_BEAR_OB_LEVEL
-int    lib_bull_ob_fresh       = mp.BULL_OB_FRESHNESS
-int    lib_bear_ob_fresh       = mp.BEAR_OB_FRESHNESS
-bool   lib_bull_ob_mitigated   = mp.BULL_OB_MITIGATED
-bool   lib_bear_ob_mitigated   = mp.BEAR_OB_MITIGATED
+// ── Order Blocks (v5.2) ── [DEPRECATED v5.5 — BUS ModulePackF only]
 bool   lib_bull_ob_fvg_conf    = mp.BULL_OB_FVG_CONFLUENCE
-bool   lib_bear_ob_fvg_conf    = mp.BEAR_OB_FVG_CONFLUENCE
-int    lib_ob_density          = mp.OB_DENSITY
 string lib_ob_bias             = mp.OB_BIAS
-float  lib_ob_nearest_dist     = mp.OB_NEAREST_DISTANCE_PCT
-int    lib_ob_strength         = mp.OB_STRENGTH_SCORE
 int    lib_ob_context_score    = mp.OB_CONTEXT_SCORE
+// Dead fields removed (10): NEAREST_*_OB_LEVEL, *_OB_FRESHNESS,
+//   *_OB_MITIGATED, BEAR_OB_FVG_CONFLUENCE, OB_DENSITY, OB_NEAREST_DISTANCE_PCT, OB_STRENGTH_SCORE
 
-// ── Zone Projection (v5.2) ── [DEPRECATED v5.5 — superseded by Signal Quality]
-float  lib_zone_proj_tgt_bull  = mp.ZONE_PROJ_TARGET_BULL
-float  lib_zone_proj_tgt_bear  = mp.ZONE_PROJ_TARGET_BEAR
-bool   lib_zone_proj_retest    = mp.ZONE_PROJ_RETEST_EXPECTED
-string lib_zone_proj_trap      = mp.ZONE_PROJ_TRAP_RISK
-string lib_zone_proj_spread    = mp.ZONE_PROJ_SPREAD_QUALITY
-bool   lib_zone_proj_htf       = mp.ZONE_PROJ_HTF_ALIGNED
-string lib_zone_proj_bias      = mp.ZONE_PROJ_BIAS
-int    lib_zone_proj_conf      = mp.ZONE_PROJ_CONFIDENCE
-int    lib_zone_proj_decay     = mp.ZONE_PROJ_DECAY_BARS
-int    lib_zone_proj_score     = mp.ZONE_PROJ_SCORE
+// ── Zone Projection (v5.2) ── [DEPRECATED v5.5 — no pipeline/BUS consumers]
+// All 10 fields removed: zero downstream consumers.
 
-// ── Profile Context (v5.2) ── [DEPRECATED v5.5 — superseded by Signal Quality]
-string lib_profile_vol_node    = mp.PROFILE_VOLUME_NODE
-string lib_profile_vwap_pos    = mp.PROFILE_VWAP_POSITION
-float  lib_profile_vwap_dist   = mp.PROFILE_VWAP_DISTANCE_PCT
-string lib_profile_spread      = mp.PROFILE_SPREAD_REGIME
-float  lib_profile_avg_spread  = mp.PROFILE_AVG_SPREAD_BPS
-string lib_profile_sess_bias   = mp.PROFILE_SESSION_BIAS
-float  lib_profile_rth_dom     = mp.PROFILE_RTH_DOMINANCE_PCT
-string lib_profile_pm_quality  = mp.PROFILE_PM_QUALITY
-string lib_profile_ah_quality  = mp.PROFILE_AH_QUALITY
-float  lib_profile_midday_eff  = mp.PROFILE_MIDDAY_EFFICIENCY
-float  lib_profile_decay_hl    = mp.PROFILE_DECAY_HALFLIFE
-float  lib_profile_consistency = mp.PROFILE_CONSISTENCY
-float  lib_profile_wickiness   = mp.PROFILE_WICKINESS
-float  lib_profile_clean       = mp.PROFILE_CLEAN_SCORE
-float  lib_profile_reclaim     = mp.PROFILE_RECLAIM_RATE
-float  lib_profile_stop_hunt   = mp.PROFILE_STOP_HUNT_RATE
+// ── Profile Context (v5.2) ── [DEPRECATED v5.5 — BUS ModulePackF only]
 string lib_profile_grade       = mp.PROFILE_TICKER_GRADE
 int    lib_profile_ctx_score   = mp.PROFILE_CONTEXT_SCORE
+// Dead fields removed (16): PROFILE_VOLUME_NODE … PROFILE_STOP_HUNT_RATE
 
-// ── Structure State (v5.3) ──
+// ══════════════════════════════════════════════════════════════════════
+// ── LEGACY BUS COMPAT BLOCK (v5.2/v5.3) ──────────────────────────────
+// Fields below exist ONLY for BUS ModulePackG backward compatibility.
+// Primary pipeline uses v5.5 lean context gates; these are NOT read
+// anywhere else. Safe to remove once SMC_Dashboard.pine migrates to
+// BUS LeanPackA/B.
+// ══════════════════════════════════════════════════════════════════════
+
+// ── Structure State (v5.3) ── [DEPRECATED v5.5 — BUS ModulePackG only]
 string lib_struct_state           = mp.STRUCTURE_STATE
 bool   lib_struct_bull_active     = mp.STRUCTURE_BULL_ACTIVE
 bool   lib_struct_bear_active     = mp.STRUCTURE_BEAR_ACTIVE
-bool   lib_choch_bull             = mp.CHOCH_BULL
-bool   lib_choch_bear             = mp.CHOCH_BEAR
-bool   lib_bos_bull               = mp.BOS_BULL
-bool   lib_bos_bear               = mp.BOS_BEAR
-string lib_struct_last_event      = mp.STRUCTURE_LAST_EVENT
-int    lib_struct_event_age       = mp.STRUCTURE_EVENT_AGE_BARS
 bool   lib_struct_fresh           = mp.STRUCTURE_FRESH
-float  lib_struct_support         = mp.ACTIVE_SUPPORT
-float  lib_struct_resistance      = mp.ACTIVE_RESISTANCE
-bool   lib_struct_support_active  = mp.SUPPORT_ACTIVE
-bool   lib_struct_resistance_active = mp.RESISTANCE_ACTIVE
+// Dead fields removed (10): CHOCH_BULL/BEAR, BOS_BULL/BEAR,
+//   STRUCTURE_LAST_EVENT, STRUCTURE_EVENT_AGE_BARS,
+//   ACTIVE_SUPPORT/RESISTANCE, SUPPORT/RESISTANCE_ACTIVE
 
-// ── Imbalance Lifecycle (v5.3) ── [DEPRECATED v5.5 — superseded by FVG Lifecycle Light]
-bool   lib_bull_fvg_active        = mp.BULL_FVG_ACTIVE
-bool   lib_bear_fvg_active        = mp.BEAR_FVG_ACTIVE
-float  lib_bull_fvg_top           = mp.BULL_FVG_TOP
-float  lib_bull_fvg_bottom        = mp.BULL_FVG_BOTTOM
-float  lib_bear_fvg_top           = mp.BEAR_FVG_TOP
-float  lib_bear_fvg_bottom        = mp.BEAR_FVG_BOTTOM
-bool   lib_bull_fvg_partial_mit   = mp.BULL_FVG_PARTIAL_MITIGATION
-bool   lib_bear_fvg_partial_mit   = mp.BEAR_FVG_PARTIAL_MITIGATION
-bool   lib_bull_fvg_full_mit      = mp.BULL_FVG_FULL_MITIGATION
-bool   lib_bear_fvg_full_mit      = mp.BEAR_FVG_FULL_MITIGATION
-int    lib_bull_fvg_count         = mp.BULL_FVG_COUNT
-int    lib_bear_fvg_count         = mp.BEAR_FVG_COUNT
-float  lib_bull_fvg_mit_pct       = mp.BULL_FVG_MITIGATION_PCT
-float  lib_bear_fvg_mit_pct       = mp.BEAR_FVG_MITIGATION_PCT
+// ── Imbalance Lifecycle (v5.3) ── [DEPRECATED v5.5 — BUS ModulePackG only]
+string lib_imbalance_state        = mp.IMBALANCE_STATE
 bool   lib_bpr_active             = mp.BPR_ACTIVE
-string lib_bpr_direction          = mp.BPR_DIRECTION
-float  lib_bpr_top                = mp.BPR_TOP
-float  lib_bpr_bottom             = mp.BPR_BOTTOM
 bool   lib_liq_void_bull          = mp.LIQ_VOID_BULL_ACTIVE
 bool   lib_liq_void_bear          = mp.LIQ_VOID_BEAR_ACTIVE
-float  lib_liq_void_top           = mp.LIQ_VOID_TOP
-float  lib_liq_void_bottom        = mp.LIQ_VOID_BOTTOM
-string lib_imbalance_state        = mp.IMBALANCE_STATE
+// Dead fields removed (19): *_FVG_ACTIVE/TOP/BOTTOM/PARTIAL_MIT/FULL_MIT/COUNT/MIT_PCT,
+//   BPR_DIRECTION/TOP/BOTTOM, LIQ_VOID_TOP/BOTTOM
 
-// ── Session Structure (v5.3) ── [DEPRECATED v5.5 — superseded by Session Context Light]
-float  lib_sess_high              = mp.SESS_HIGH
-float  lib_sess_low               = mp.SESS_LOW
-float  lib_sess_or_high           = mp.SESS_OPEN_RANGE_HIGH
-float  lib_sess_or_low            = mp.SESS_OPEN_RANGE_LOW
+// ── Session Structure (v5.3) ── [DEPRECATED v5.5 — BUS ModulePackG only]
+int    lib_sess_struct_score      = mp.SESS_STRUCT_SCORE
 string lib_sess_or_break          = mp.SESS_OPEN_RANGE_BREAK
-string lib_sess_impulse_dir       = mp.SESS_IMPULSE_DIR
-int    lib_sess_impulse_str       = mp.SESS_IMPULSE_STRENGTH
-int    lib_sess_intra_bos         = mp.SESS_INTRA_BOS_COUNT
-bool   lib_sess_intra_choch       = mp.SESS_INTRA_CHOCH
-float  lib_sess_pdh               = mp.SESS_PDH
-float  lib_sess_pdl               = mp.SESS_PDL
 bool   lib_sess_pdh_swept         = mp.SESS_PDH_SWEPT
 bool   lib_sess_pdl_swept         = mp.SESS_PDL_SWEPT
-int    lib_sess_struct_score      = mp.SESS_STRUCT_SCORE
+// Dead fields removed (10): SESS_HIGH/LOW, SESS_OPEN_RANGE_HIGH/LOW,
+//   SESS_IMPULSE_DIR/STRENGTH, SESS_INTRA_BOS_COUNT/CHOCH, SESS_PDH/PDL
 
-// ── Range Regime (v5.3) ── [DEPRECATED v5.5 — superseded by Signal Quality]
+// ── Range Regime (v5.3) ── [DEPRECATED v5.5 — BUS ModulePackG only]
 string lib_range_regime           = mp.RANGE_REGIME
-float  lib_range_width_pct        = mp.RANGE_WIDTH_PCT
-string lib_range_position         = mp.RANGE_POSITION
-float  lib_range_high             = mp.RANGE_HIGH
-float  lib_range_low              = mp.RANGE_LOW
-int    lib_range_duration         = mp.RANGE_DURATION_BARS
-float  lib_range_vpoc             = mp.RANGE_VPOC_LEVEL
-float  lib_range_vah              = mp.RANGE_VAH_LEVEL
-float  lib_range_val              = mp.RANGE_VAL_LEVEL
-string lib_range_balance          = mp.RANGE_BALANCE_STATE
 int    lib_range_regime_score     = mp.RANGE_REGIME_SCORE
+string lib_range_balance          = mp.RANGE_BALANCE_STATE
+// Dead fields removed (8): RANGE_WIDTH_PCT, RANGE_POSITION,
+//   RANGE_HIGH/LOW, RANGE_DURATION_BARS, RANGE_VPOC/VAH/VAL_LEVEL
 
-// ── Range Profile Regime (v5.3) ── [DEPRECATED v5.5 — superseded by Signal Quality]
-bool   lib_rpr_active              = mp.RANGE_ACTIVE
-float  lib_rpr_top                 = mp.RANGE_TOP
-float  lib_rpr_bottom              = mp.RANGE_BOTTOM
-float  lib_rpr_mid                 = mp.RANGE_MID
-float  lib_rpr_width_atr           = mp.RANGE_WIDTH_ATR
-string lib_rpr_break_dir           = mp.RANGE_BREAK_DIRECTION
-float  lib_rpr_poc                 = mp.PROFILE_POC
-float  lib_rpr_va_top              = mp.PROFILE_VALUE_AREA_TOP
-float  lib_rpr_va_bottom           = mp.PROFILE_VALUE_AREA_BOTTOM
-bool   lib_rpr_va_active           = mp.PROFILE_VALUE_AREA_ACTIVE
-float  lib_rpr_bull_sentiment      = mp.PROFILE_BULLISH_SENTIMENT
-float  lib_rpr_bear_sentiment      = mp.PROFILE_BEARISH_SENTIMENT
-string lib_rpr_sentiment_bias      = mp.PROFILE_SENTIMENT_BIAS
-float  lib_rpr_liq_above           = mp.LIQUIDITY_ABOVE_PCT
-float  lib_rpr_liq_below           = mp.LIQUIDITY_BELOW_PCT
-float  lib_rpr_liq_imbalance       = mp.LIQUIDITY_IMBALANCE
-float  lib_rpr_pred_mid            = mp.PRED_RANGE_MID
-float  lib_rpr_pred_upper1         = mp.PRED_RANGE_UPPER_1
-float  lib_rpr_pred_upper2         = mp.PRED_RANGE_UPPER_2
-float  lib_rpr_pred_lower1         = mp.PRED_RANGE_LOWER_1
-float  lib_rpr_pred_lower2         = mp.PRED_RANGE_LOWER_2
-bool   lib_rpr_extreme             = mp.IN_PREDICTIVE_RANGE_EXTREME
+// ── Range Profile Regime (v5.3) ── [DEPRECATED v5.5 — no pipeline/BUS consumers]
+// All 22 fields removed: zero downstream consumers.
+// BUS ModulePackG does not use any Range Profile field.
 
 // ── Event Risk Light (v5.5) ──
 string lib_erl_window_state        = mp.EVENT_RISK_LIGHT_WINDOW_STATE
@@ -3687,7 +3577,7 @@ string lib_obl_mitigation_state    = mp.OB_MITIGATION_STATE
 string lib_fvgl_side               = mp.PRIMARY_FVG_SIDE
 float  lib_fvgl_distance           = mp.PRIMARY_FVG_DISTANCE
 float  lib_fvgl_fill_pct           = mp.FVG_FILL_PCT
-int    lib_fvgl_age_bars           = mp.FVG_AGE_BARS
+int    lib_fvgl_maturity_level      = mp.FVG_MATURITY_LEVEL
 bool   lib_fvgl_fresh              = mp.FVG_FRESH
 bool   lib_fvgl_invalidated        = mp.FVG_INVALIDATED
 
@@ -3717,33 +3607,20 @@ bool   struct_light_trending     = lib_strl_trend_strength >= 30
 bool   ob_light_bull_ok          = lib_obl_side == "BULL" and lib_obl_fresh
 // FVG Lifecycle Light: primary FVG alive + not invalidated
 bool   fvg_light_active_ok       = lib_fvgl_side != "NONE" and not lib_fvgl_invalidated
-// Event Risk Light: lightweight hard block from lean surface
-bool   event_risk_light_hard_block = lib_erl_market_blocked or lib_erl_symbol_blocked
+// Event Risk Light: derived from primary event_risk_gate_ok (avoids duplication)
+bool   event_risk_light_hard_block = not event_risk_gate_ok
 // Session Context Light: lean session quality
 bool   session_light_ok          = lib_scl_context_score >= 2
 
-// ── v5.1 Context Gates [LEGACY — not wired into pipeline, kept for BUS compat] ──
-bool   flow_quality_ok          = lib_flow_long_ok and lib_rel_vol >= 0.5
-bool   compression_entry_ok     = not lib_squeeze_on or lib_squeeze_released
-bool   atr_regime_ok            = lib_atr_regime != "EXHAUSTION"
-bool   zone_context_long_ok     = lib_zone_context_bias != "RESISTANCE_HEAVY"
-bool   reversal_context_boost   = lib_reversal_active and lib_setup_score >= 3 and lib_confirm_score >= 2
-
-// ── v5.2 Context Gates [LEGACY — not wired into pipeline, kept for BUS compat] ──
-bool   session_context_ok       = lib_session_ctx_score >= 2
-bool   sweep_context_long_ok    = not lib_recent_bear_sweep or lib_sweep_reclaim
-bool   pool_magnet_long_ok      = lib_pool_magnet_dir != "DOWN"
-bool   ob_context_long_ok       = lib_ob_bias != "BEARISH"
-bool   zone_proj_ok             = lib_zone_proj_trap != "HIGH"
-bool   profile_quality_ok       = lib_profile_grade == "A" or lib_profile_grade == "B"
-
-// ── v5.3 Context Gates [LEGACY — not wired into pipeline, kept for BUS compat] ──
-bool   struct_state_ok           = lib_struct_state != "NEUTRAL" and lib_struct_fresh
-bool   imbalance_ok              = (lib_bull_fvg_active or lib_bear_fvg_active) and not (lib_bull_fvg_full_mit and lib_bear_fvg_full_mit)
-bool   session_struct_ok         = lib_sess_struct_score >= 2 and lib_sess_or_break != "NONE"
-bool   range_regime_ok           = lib_range_regime != "UNKNOWN" and lib_range_regime_score >= 2
-bool   range_profile_ok          = not lib_rpr_active or lib_rpr_sentiment_bias != "BEAR"
-bool   session_struct_state_ok   = lib_session_struct_st != "BEARISH"
+// ── Legacy context gates REMOVED in v5.5 ──
+// 17 gates (flow_quality_ok, compression_entry_ok, atr_regime_ok,
+//   zone_context_long_ok, reversal_context_boost, session_context_ok,
+//   sweep_context_long_ok, pool_magnet_long_ok, ob_context_long_ok,
+//   zone_proj_ok, profile_quality_ok, struct_state_ok, imbalance_ok,
+//   session_struct_ok, range_regime_ok, range_profile_ok,
+//   session_struct_state_ok) were declared but never consumed.
+// They derived from deprecated v5.1-v5.3 fields; pipeline uses
+// v5.5 lean context gates above exclusively. Removed to reduce noise.
 
 var string micro_midday_block_session = input.session('1130-1330', 'Midday block', group = g_micro, display = display.none)
 var string micro_premarket_session = input.session('0400-0929', 'Premarket', group = g_micro, display = display.none)
@@ -3824,6 +3701,7 @@ var bool use_context_quality_score = input.bool(true, 'Use Context Quality Score
 var int min_context_quality_score = input.int(7, 'Min Context Score', minval = 1, maxval = 15, group = g_quality, inline = 'q1')
 var bool use_lean_signal_quality_gate = input.bool(false, 'Use Lean Signal Quality Gate', tooltip = 'When enabled, adds v5.5 Signal Quality score as additional quality requirement (scoring over blocking). Requires signal_quality_ok (score >= 25).', group = g_quality, inline = 'q2')
 var bool use_lean_context_gates = input.bool(false, 'Use Lean Context Gates', tooltip = 'When enabled, v5.5 Session/OB/FVG/Structure Light gates contribute to quality scoring. Adds lean consensus bonus to context quality.', group = g_quality, inline = 'q2')
+var bool use_scoring_over_blocking = input.bool(false, 'Scoring over Blocking (v5.5)', tooltip = 'When enabled, SCORING-class gates (accel, sd, vol, stretch, ddvi) no longer hard-block at Ready. Instead, failures count as quality tier penalty. Gates still apply at Best/Strict tiers.', group = g_quality, inline = 'q3')
 var int score_weight_structure = input.int(2, 'Structure', minval = 0, maxval = 3, group = g_quality, inline = 'qw1')
 var int score_weight_htf = input.int(2, 'HTF', minval = 0, maxval = 3, group = g_quality, inline = 'qw1')
 var int score_weight_ema = input.int(1, 'EMA', minval = 0, maxval = 3, group = g_quality, inline = 'qw2')
@@ -4106,15 +3984,28 @@ if performance_mode_light
 else if performance_mode_debug
     long_engine_debug_mode_eff := 'Full'
 
-// [v5.5] Compact / Shared-Script Mode overrides: suppress debug, enable lean scoring
+// [v5.5a] Compact / Shared-Script Mode overrides: Hero-Surface UX
+// Suppresses all debug overlays + secondary visual overlays.
+// Filter logic is unchanged — only rendering affected.
 bool show_ob_debug_eff = show_ob_debug
 bool show_fvg_debug_eff = show_fvg_debug
 bool show_long_engine_debug_eff = show_long_engine_debug
+bool show_microstructure_debug_eff = show_microstructure_debug
+bool show_strict_debug_markers_eff = show_strict_debug_markers
+bool show_ema_support_eff = show_ema_support
+bool show_session_vwap_eff = show_session_vwap
+bool show_mean_target_overlay_eff = show_mean_target_overlay
 if compact_mode
     show_ob_debug_eff := false
     show_fvg_debug_eff := false
     show_long_engine_debug_eff := false
+    show_microstructure_debug_eff := false
+    show_strict_debug_markers_eff := false
+    show_dashboard_ltf_eff := false
     long_engine_debug_mode_eff := 'Compact'
+    show_ema_support_eff := false
+    show_session_vwap_eff := false
+    show_mean_target_overlay_eff := false
 
 active_break_mode = ct.LevelBreakMode.HIGHLOW
 if signal_mode == ct.SignalMode.CONFIRMED_ONLY
@@ -4423,10 +4314,10 @@ bool vwap_filter_ok = true
 if use_vwap_filter and intraday_time_chart and vwap_session_active
     vwap_filter_ok := not na(session_vwap) and close >= session_vwap
 
-plot(show_session_vwap and intraday_time_chart ? session_vwap : na, 'Session VWAP', color = color.new(color.blue, 0), linewidth = 2)
+plot(show_session_vwap_eff and intraday_time_chart ? session_vwap : na, 'Session VWAP', color = color.new(color.blue, 0), linewidth = 2)
 
-plot(show_ema_support ? ema_fast : na, 'EMA Fast', color = color.new(color.lime, 0), linewidth = 2)
-plot(show_ema_support ? ema_slow : na, 'EMA Slow', color = color.new(color.teal, 0), linewidth = 2)
+plot(show_ema_support_eff ? ema_fast : na, 'EMA Fast', color = color.new(color.lime, 0), linewidth = 2)
+plot(show_ema_support_eff ? ema_slow : na, 'EMA Slow', color = color.new(color.teal, 0), linewidth = 2)
 
 [plus_di, minus_di, adx_value] = ta.dmi(adx_len, adx_len)
 bool adx_data_ok = false
@@ -6377,10 +6268,29 @@ if long_state.armed and long_internal_structure_ok and not long_state.confirmed
 bool ready_bar_gap_ok = false
 if not na(long_state.confirm_bar_index)
     ready_bar_gap_ok := bar_index > long_state.confirm_bar_index
-[lifecycle_ready_ok, long_ready_state] = compute_long_ready_state(close_safe_mode, long_state.confirmed, ready_bar_gap_ok, long_confirm_expired, ready_is_fresh, long_confirm_bearish_guard_ok, require_main_break_for_ready_eff, bull_bos_sig, main_bos_recent, setup_hard_gate_ok, trade_hard_gate_ok, environment_hard_gate_ok, quality_gate_ok, accel_ready_gate_ok, sd_ready_gate_ok, vol_ready_context_ok, stretch_ready_context_ok, ddvi_ready_ok_safe)
+// [v5.5] Scoring over Blocking: when enabled, SCORING-class gates bypass Ready (still apply at Best/Strict)
+bool scoring_accel_ready  = use_scoring_over_blocking ? true : accel_ready_gate_ok
+bool scoring_sd_ready     = use_scoring_over_blocking ? true : sd_ready_gate_ok
+bool scoring_vol_ready    = use_scoring_over_blocking ? true : vol_ready_context_ok
+bool scoring_stretch_ready = use_scoring_over_blocking ? true : stretch_ready_context_ok
+bool scoring_ddvi_ready   = use_scoring_over_blocking ? true : ddvi_ready_ok_safe
+// [v5.5] Count scoring gate failures as quality tier penalty
+int scoring_penalty_count = 0
+if use_scoring_over_blocking
+    if not accel_ready_gate_ok
+        scoring_penalty_count += 1
+    if not sd_ready_gate_ok
+        scoring_penalty_count += 1
+    if not vol_ready_context_ok
+        scoring_penalty_count += 1
+    if not stretch_ready_context_ok
+        scoring_penalty_count += 1
+    if not ddvi_ready_ok_safe
+        scoring_penalty_count += 1
+[lifecycle_ready_ok, long_ready_state] = compute_long_ready_state(close_safe_mode, long_state.confirmed, ready_bar_gap_ok, long_confirm_expired, ready_is_fresh, long_confirm_bearish_guard_ok, require_main_break_for_ready_eff, bull_bos_sig, main_bos_recent, setup_hard_gate_ok, trade_hard_gate_ok, environment_hard_gate_ok, quality_gate_ok, scoring_accel_ready, scoring_sd_ready, scoring_vol_ready, scoring_stretch_ready, scoring_ddvi_ready)
 bool long_entry_best_state = compute_long_entry_best_state(long_ready_state, accel_entry_best_gate_ok, sd_entry_best_gate_ok, vol_entry_best_context_ok_safe, stretch_entry_best_context_ok, ddvi_entry_best_ok_safe)
 bool long_entry_strict_state = compute_long_entry_strict_state(long_ready_state, strict_entry_ltf_ok, htf_alignment_ok, accel_strict_entry_gate_ok, sd_entry_strict_gate_ok, vol_entry_strict_context_ok_safe, stretch_entry_strict_context_ok, ddvi_entry_strict_ok_safe)
-string long_ready_blocker_text = resolve_long_ready_blocker_text(long_ready_state, long_state.confirmed, close_safe_mode, ready_bar_gap_ok, long_confirm_expired, ready_is_fresh, long_confirm_bearish_guard_ok, require_main_break_for_ready_eff, bull_bos_sig, main_bos_recent, setup_hard_gate_ok, session_structure_gate_ok, micro_session_gate_ok, micro_freshness_gate_ok, overhead_zone_ok, market_regime_gate_ok, vola_regime_gate_safe, quality_gate_ok, accel_ready_gate_ok, sd_ready_gate_ok, vol_ready_context_ok, stretch_ready_context_ok, ddvi_ready_ok_safe)
+string long_ready_blocker_text = resolve_long_ready_blocker_text(long_ready_state, long_state.confirmed, close_safe_mode, ready_bar_gap_ok, long_confirm_expired, ready_is_fresh, long_confirm_bearish_guard_ok, require_main_break_for_ready_eff, bull_bos_sig, main_bos_recent, setup_hard_gate_ok, session_structure_gate_ok, micro_session_gate_ok, micro_freshness_gate_ok, overhead_zone_ok, market_regime_gate_ok, vola_regime_gate_safe, quality_gate_ok, scoring_accel_ready, scoring_sd_ready, scoring_vol_ready, scoring_stretch_ready, scoring_ddvi_ready)
 string long_strict_blocker_text = resolve_long_strict_blocker_text(long_entry_strict_state, long_ready_state, long_ready_blocker_text, strict_entry_ltf_ok, htf_alignment_ok, accel_strict_entry_gate_ok, sd_entry_strict_gate_ok, vol_entry_strict_context_ok_safe, stretch_entry_strict_context_ok, ddvi_entry_strict_ok_safe)
 // Clean is a diagnostic alert/dashboard tier, not lifecycle progression.
 bool long_quality_clean_tier = false
@@ -6393,7 +6303,7 @@ if long_plan_active
     long_target_2 := long_state.trigger + long_risk_r * target2_r
 
 float long_mean_target = na
-if long_plan_active and show_mean_target_overlay and not na(stretch_mean)
+if long_plan_active and show_mean_target_overlay_eff and not na(stretch_mean)
     if stretch_mean > long_state.trigger
         long_mean_target := stretch_mean
 
@@ -6473,7 +6383,7 @@ plot(pack_bus_trend_set(structure_display_trend, mtf_trend_1, mtf_trend_2, mtf_t
 plot(pack_bus_meta(resolve_bus_freshness_code(long_state.armed, long_state.confirmed, ready_is_fresh, confirm_is_fresh), resolve_bus_source_state_code(long_source_tracked, long_source_alive, long_source_broken), resolve_bus_reclaim_code(reclaim_recent, bull_reclaim_internal_low_strict, bull_reclaim_swing_low_strict, bull_reclaim_fvg_strict, bull_reclaim_ob_strict), resolve_bus_zone_code(long_zone_active, in_bull_ob_zone, in_bull_fvg_zone)), 'BUS MetaPack', display = display.none)
 plot(pack_bus_four(resolve_bus_session_row(intraday_time_chart, use_trade_session_gate, use_opening_range_gate, session_structure_gate_ok, session_gate_ok), resolve_bus_market_row(use_index_gate, use_sector_gate, use_breadth_symbol_gate, market_symbols_missing, block_on_missing_market_symbol, market_regime_gate_ok, index_gate_effective_ok, sector_gate_effective_ok), resolve_bus_vola_row(use_vola_compression_gate, vola_regime_gate_safe, vola_expansion_now, vola_compression_recent), resolve_bus_micro_session_row(use_microstructure_profiles, intraday_time_chart, micro_session_gate_ok, micro_rth_gate_ok, micro_midday_gate_ok, micro_premarket_gate_ok)), 'BUS HardGatesPackA', display = display.none)
 plot(pack_bus_four(resolve_bus_micro_fresh_row(use_microstructure_profiles, micro_freshness_gate_ok), resolve_bus_volume_data_row(volume_current_bar_ok, volume_feed_quality_ok, ltf_sampling_active, ltf_price_ok, ltf_volume_ok, ltf_price_only), resolve_bus_quality_env_row(environment_hard_gate_ok, market_regime_gate_ok, vola_regime_gate_safe), resolve_bus_quality_strict_row(long_entry_strict_state, strict_entry_ltf_ok, htf_alignment_ok, accel_strict_entry_gate_ok, sd_entry_strict_gate_ok, vol_entry_strict_context_ok_safe, stretch_entry_strict_context_ok, ddvi_entry_strict_ok_safe)), 'BUS HardGatesPackB', display = display.none)
-plot(resolve_bus_event_risk_row(event_risk_gate_ok, event_risk_light_hard_block, event_risk_soft_block, lib_erl_market_blocked, lib_erl_symbol_blocked, lib_erl_window_state, lib_erl_level), 'BUS EventRiskRow', display = display.none)
+plot(resolve_bus_event_risk_row(event_risk_gate_ok, not event_risk_gate_ok, event_risk_state == "caution", lib_erl_market_blocked, lib_erl_symbol_blocked, lib_erl_window_state, lib_erl_level), 'BUS EventRiskRow', display = display.none)
 plot(pack_bus_four(resolve_bus_close_strength_row(use_strong_close_filter, bull_close_strong), resolve_bus_ema_support_row(show_ema_support, ema_support_ok), resolve_bus_adx_row(use_adx, adx_data_ok, plus_di, minus_di, adx_strong, adx_value, adx_trend_min), resolve_bus_relvol_row(use_rel_volume, relvol_data_ok, allow_relvol_without_volume_data, relvol_ok)), 'BUS QualityPackA', display = display.none)
 plot(pack_bus_four(resolve_bus_vwap_row(use_vwap_filter, intraday_time_chart, vwap_session_active, vwap_filter_ok), resolve_bus_context_quality_row(use_context_quality_score_eff, context_quality_gate_ok), resolve_bus_quality_clean_row(long_quality_clean_tier), resolve_bus_quality_score_row(context_quality_gate_ok)), 'BUS QualityPackB', display = display.none)
 plot(effective_min_context_quality_score * 100.0 + effective_context_quality_max_score, 'BUS QualityBoundsPack', display = display.none)
@@ -6489,7 +6399,7 @@ plot(pack_bus_four(resolve_bus_flow_qualifier_row(lib_flow_long_ok, lib_flow_sho
 plot(pack_bus_four(resolve_bus_session_context_row(lib_session_context, lib_in_killzone, lib_session_ctx_score), resolve_bus_sweep_row(lib_recent_bull_sweep, lib_recent_bear_sweep, lib_sweep_reclaim, lib_sweep_quality), resolve_bus_ob_context_row(lib_ob_bias, lib_ob_context_score, lib_bull_ob_fvg_conf), resolve_bus_profile_row(lib_profile_grade, lib_profile_ctx_score)), 'BUS ModulePackF', display = display.none)
 plot(pack_bus_four(resolve_bus_struct_state_row(lib_struct_state, lib_struct_fresh, lib_struct_bull_active, lib_struct_bear_active), resolve_bus_imbalance_row(lib_imbalance_state, lib_bpr_active, lib_liq_void_bull, lib_liq_void_bear), resolve_bus_session_struct_row(lib_sess_struct_score, lib_sess_or_break, lib_sess_pdh_swept, lib_sess_pdl_swept), resolve_bus_range_regime_row(lib_range_regime, lib_range_regime_score, lib_range_balance)), 'BUS ModulePackG', display = display.none)
 // ── v5.5 Lean BUS Plots ──
-plot(pack_bus_four(resolve_bus_signal_quality_row(lib_sq_score, lib_sq_tier), resolve_bus_signal_freshness_row(lib_sq_freshness, lib_sq_bias_alignment), resolve_bus_event_risk_light_row(lib_erl_window_state, lib_erl_level, lib_erl_market_blocked), resolve_bus_struct_light_row(lib_strl_trend_strength, lib_strl_fresh, lib_strl_last_event)), 'BUS LeanPackA', display = display.none)
+plot(pack_bus_four(resolve_bus_signal_quality_row(lib_sq_score, lib_sq_tier), resolve_bus_signal_freshness_row(lib_sq_freshness, lib_sq_bias_alignment), resolve_bus_event_risk_light_row(lib_erl_window_state, lib_erl_level, lib_erl_market_blocked, lib_erl_symbol_blocked), resolve_bus_struct_light_row(lib_strl_trend_strength, lib_strl_fresh, lib_strl_last_event)), 'BUS LeanPackA', display = display.none)
 plot(pack_bus_four(resolve_bus_ob_light_row(lib_obl_side, lib_obl_fresh, lib_obl_mitigation_state), resolve_bus_fvg_light_row(lib_fvgl_side, lib_fvgl_fresh, lib_fvgl_invalidated), pack_bus_row(lib_scl_context_score, lib_scl_in_killzone ? 1 : 2), pack_bus_row(lib_sq_score, 0)), 'BUS LeanPackB', display = display.none)
 
 // ── Mini Health Badge (v5.5) ──
@@ -6499,7 +6409,7 @@ if barstate.islast and show_dashboard
         label.delete(health_badge)
     string dir_icon   = lib_sq_bias_alignment == "bull" ? "▲" : lib_sq_bias_alignment == "bear" ? "▼" : "◆"
     string tier_icon  = lib_sq_tier == "high" ? "🟢" : lib_sq_tier == "good" ? "🟡" : lib_sq_tier == "ok" ? "🟠" : "🔴"
-    string event_icon = event_risk_light_hard_block ? "⛔" : lib_erl_window_state == "PRE_EVENT" ? "⚡" : "✓"
+    string event_icon = event_risk_state == "blocked" ? "⛔" : event_risk_state == "caution" ? "⚡" : "✓"
     string fresh_icon = lib_sq_freshness == "fresh" ? "●" : lib_sq_freshness == "aging" ? "◐" : "○"
     string warn_text  = lib_sq_warnings != "" ? " ⚠ " + lib_sq_warnings : ""
     string data_icon  = lib_erl_provider_status == "ok" ? "✓" : "⚠"

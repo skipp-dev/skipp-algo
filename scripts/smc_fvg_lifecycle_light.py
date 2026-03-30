@@ -4,6 +4,13 @@ Derives 6 compact user-facing fields from the broad v5.3 imbalance
 lifecycle block.  Picks the *primary* (most relevant) FVG and surfaces
 its key attributes.
 
+Note: FVG_MATURITY_LEVEL is a fill-derived proxy (0-3), not actual bar age.
+True bar-age is not available from the broad block.  The proxy levels are:
+  0 = minimal fill (<20%)  → likely fresh
+  1 = moderate fill (20-50%) → aging
+  2 = heavy fill (50-80%)   → mature
+  3 = near-full fill (≥80%) → expiring
+
 Usage::
 
     from scripts.smc_fvg_lifecycle_light import build_fvg_lifecycle_light, DEFAULTS
@@ -21,12 +28,14 @@ DEFAULTS: dict[str, Any] = {
     "PRIMARY_FVG_SIDE": "NONE",        # BULL | BEAR | NONE
     "PRIMARY_FVG_DISTANCE": 0.0,       # pct distance from price
     "FVG_FILL_PCT": 0.0,               # 0.0-1.0
-    "FVG_AGE_BARS": 0,
+    "FVG_MATURITY_LEVEL": 0,           # 0-3 fill-derived maturity proxy
     "FVG_FRESH": False,
     "FVG_INVALIDATED": False,
 }
 
-FRESHNESS_MAX_BARS = 10
+# Maturity thresholds (fill-based)
+MATURITY_FRESH_MAX = 1  # maturity 0-1 = fresh
+FRESHNESS_MAX_BARS = 10  # kept for backward compat in tests
 
 
 def build_fvg_lifecycle_light(
@@ -105,25 +114,24 @@ def build_fvg_lifecycle_light(
         full_mit = bool(il.get("BEAR_FVG_FULL_MITIGATION", False))
         distance = round(bear_dist, 4)
 
-    # FVG age: not directly in broad block, derive from freshness heuristic
-    # If mitigation is zero, it's likely fresh
-    age_bars = 0
+    # FVG maturity: fill-derived proxy (not actual bar age)
+    maturity = 0
     if mit_pct >= 0.8:
-        age_bars = 30  # heavily filled = old
+        maturity = 3  # near-full → expiring
     elif mit_pct >= 0.5:
-        age_bars = 15
+        maturity = 2  # heavy fill → mature
     elif mit_pct >= 0.2:
-        age_bars = 8
+        maturity = 1  # moderate fill → aging
     else:
-        age_bars = 3  # minimal fill = likely fresh
+        maturity = 0  # minimal fill → likely fresh
 
-    fresh = age_bars <= FRESHNESS_MAX_BARS and not full_mit
+    fresh = maturity <= MATURITY_FRESH_MAX and not full_mit
     invalidated = full_mit
 
     result["PRIMARY_FVG_SIDE"] = side
     result["PRIMARY_FVG_DISTANCE"] = distance
     result["FVG_FILL_PCT"] = round(mit_pct, 4)
-    result["FVG_AGE_BARS"] = age_bars
+    result["FVG_MATURITY_LEVEL"] = maturity
     result["FVG_FRESH"] = fresh
     result["FVG_INVALIDATED"] = invalidated
 

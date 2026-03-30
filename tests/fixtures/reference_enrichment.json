@@ -1,0 +1,97 @@
+{
+  "meta": {
+    "asof_time": "2026-03-30T14:30:00Z",
+    "refresh_count": 42
+  },
+  "regime": {
+    "MARKET_REGIME": "RISK-ON",
+    "VIX_LEVEL": 18.5,
+    "MACRO_BIAS": "BULLISH",
+    "SECTOR_BREADTH": 0.72
+  },
+  "news": {
+    "NEWS_BULLISH_TICKERS": "AAPL,NVDA",
+    "NEWS_BEARISH_TICKERS": "",
+    "NEWS_NEUTRAL_TICKERS": "MSFT",
+    "NEWS_HEAT_GLOBAL": 0.35,
+    "TICKER_HEAT_MAP": "AAPL:0.6,NVDA:0.5,MSFT:0.1"
+  },
+  "calendar": {
+    "EARNINGS_TODAY_TICKERS": "",
+    "EARNINGS_TOMORROW_TICKERS": "MSFT",
+    "EARNINGS_BMO_TICKERS": "MSFT",
+    "EARNINGS_AMC_TICKERS": "",
+    "HIGH_IMPACT_MACRO_TODAY": false,
+    "MACRO_EVENT_NAME": "",
+    "MACRO_EVENT_TIME": ""
+  },
+  "layering": {
+    "GLOBAL_HEAT": 0.35,
+    "GLOBAL_STRENGTH": 0.68,
+    "TONE": "CAUTIOUS-BULLISH",
+    "TRADE_STATE": "ACTIVE-LONG"
+  },
+  "providers": {
+    "PROVIDER_COUNT": 4,
+    "STALE_PROVIDERS": ""
+  },
+  "event_risk": {
+    "EVENT_WINDOW_STATE": "CLEAR",
+    "EVENT_RISK_LEVEL": "NONE",
+    "NEXT_EVENT_CLASS": "",
+    "NEXT_EVENT_NAME": "",
+    "NEXT_EVENT_TIME": "",
+    "NEXT_EVENT_IMPACT": "NONE",
+    "EVENT_RESTRICT_BEFORE_MIN": 0,
+    "EVENT_RESTRICT_AFTER_MIN": 0,
+    "EVENT_COOLDOWN_ACTIVE": false,
+    "MARKET_EVENT_BLOCKED": false,
+    "SYMBOL_EVENT_BLOCKED": false,
+    "EARNINGS_SOON_TICKERS": "",
+    "HIGH_RISK_EVENT_TICKERS": "",
+    "EVENT_PROVIDER_STATUS": "ok"
+  },
+  "event_risk_light": {
+    "EVENT_WINDOW_STATE": "CLEAR",
+    "EVENT_RISK_LEVEL": "NONE",
+    "NEXT_EVENT_CLASS": "",
+    "NEXT_EVENT_NAME": "",
+    "NEXT_EVENT_TIME": "",
+    "NEXT_EVENT_IMPACT": "NONE",
+    "EVENT_RESTRICT_BEFORE_MIN": 0
+  },
+  "session_context_light": {
+    "SESSION_CONTEXT": "NY_AM",
+    "IN_KILLZONE": true,
+    "SESSION_DIRECTION_BIAS": "BULLISH",
+    "SESSION_CONTEXT_SCORE": 3
+  },
+  "ob_context_light": {
+    "OB_SIDE": "BULL",
+    "OB_FRESHNESS": 5,
+    "OB_FVG_CONFLUENCE": true,
+    "OB_PROXIMITY_PCT": 0.3,
+    "OB_CONTEXT_SCORE": 4
+  },
+  "fvg_lifecycle_light": {
+    "FVG_SIDE": "BULL",
+    "FVG_ACTIVE": true,
+    "FVG_PARTIAL_MITIGATION": false,
+    "FVG_MATURITY_LEVEL": "FRESH",
+    "FVG_BPR_ACTIVE": false,
+    "FVG_CONTEXT_SCORE": 4
+  },
+  "structure_state_light": {
+    "STRUCTURE_STATE": "BULLISH",
+    "STRUCTURE_LAST_EVENT": "BOS_BULL",
+    "STRUCTURE_TREND_STRENGTH": 3,
+    "STRUCTURE_FRESH": true
+  },
+  "signal_quality": {
+    "SIGNAL_QUALITY_SCORE": 4,
+    "SIGNAL_QUALITY_LABEL": "GOOD",
+    "SIGNAL_STRUCTURE_OK": true,
+    "SIGNAL_EVENT_OK": true,
+    "SIGNAL_CONTEXT_SCORE": 3
+  }
+}

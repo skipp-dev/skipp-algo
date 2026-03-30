@@ -99,7 +99,7 @@ Lean support families such as Session Context Light, Order Block Context Light, 
 | PRIMARY_FVG_SIDE | string | BULL / BEAR / NONE |
 | PRIMARY_FVG_DISTANCE | float | % distance from price |
 | FVG_FILL_PCT | float | 0.0-1.0 |
-| FVG_AGE_BARS | int | bars since creation |
+| FVG_MATURITY_LEVEL | int | 0-3 fill-derived maturity proxy (not bar age) |
 | FVG_FRESH | bool | true / false |
 | FVG_INVALIDATED | bool | true / false |
 
@@ -146,7 +146,7 @@ If a field represents a heuristic maturity proxy, it should be named accordingly
 
 This applies especially to:
 - OB_AGE_BARS
-- FVG_AGE_BARS
+- FVG_MATURITY_LEVEL
 - STRUCTURE_EVENT_AGE_BARS
 - SIGNAL_FRESHNESS
 

@@ -162,10 +162,10 @@ class TestSnapshotScenarios:
     """Known-good input→output pairs. Update snapshots intentionally."""
 
     def test_empty_enrichment(self):
-        """No enrichment → low tier with baseline headroom."""
+        """No enrichment → low tier with baseline compression."""
         result = build_signal_quality(enrichment={})
         assert result["SIGNAL_QUALITY_TIER"] == "low"
-        assert result["SIGNAL_QUALITY_SCORE"] == 4  # NORMAL atr headroom only
+        assert result["SIGNAL_QUALITY_SCORE"] == 4  # NORMAL atr compression only
         assert result["SIGNAL_FRESHNESS"] == "stale"
         assert "structure_stale" in result["SIGNAL_WARNINGS"]
 
@@ -214,7 +214,7 @@ class TestSnapshotScenarios:
         )
         result = build_signal_quality(enrichment=enr)
         assert "event_blocked" in result["SIGNAL_WARNINGS"]
-        # Structure(20) + headroom(4 NORMAL) - event(-15) = 9
+        # Structure(20) + compression(4 NORMAL) - event(-15) = 9
         assert result["SIGNAL_QUALITY_SCORE"] <= 25
 
     def test_moderate_mixed_setup(self):
@@ -233,8 +233,8 @@ class TestSnapshotScenarios:
         assert result["SIGNAL_QUALITY_TIER"] in ("ok", "good")
         assert result["SIGNAL_QUALITY_SCORE"] >= 26
 
-    def test_squeeze_headroom_boost(self):
-        """Squeeze active → full headroom component."""
+    def test_squeeze_compression_boost(self):
+        """Squeeze active → full compression component."""
         base = _make_enrichment(
             structure_state="NEUTRAL",
             structure_age=999,
@@ -247,11 +247,11 @@ class TestSnapshotScenarios:
             squeeze_on=True,
         )
         result_squeeze = build_signal_quality(enrichment=squeeze)
-        # Squeeze should contribute more headroom
+        # Squeeze should contribute more compression score
         assert result_squeeze["SIGNAL_QUALITY_SCORE"] > result_normal["SIGNAL_QUALITY_SCORE"]
 
     def test_atr_exhaustion_warning(self):
-        """ATR exhaustion → warning, no headroom contribution."""
+        """ATR exhaustion → warning, no compression contribution."""
         enr = _make_enrichment(atr_regime="EXHAUSTION")
         result = build_signal_quality(enrichment=enr)
         assert "atr_exhaustion" in result["SIGNAL_WARNINGS"]
@@ -310,23 +310,163 @@ class TestComponentContributions:
     def test_structure_fresh_max(self):
         enr = _make_enrichment(structure_fresh=True, structure_age=1)
         result = build_signal_quality(enrichment=enr)
-        # Structure(20) + headroom(NORMAL=4) = 24
+        # Structure(20) + compression(NORMAL=4) = 24
         assert result["SIGNAL_QUALITY_SCORE"] >= 20
 
     def test_session_killzone_high_score(self):
         enr = _make_enrichment(in_killzone=True, session_score=5)
         result = build_signal_quality(enrichment=enr)
-        # Session(20) + headroom(4) = 24
+        # Session(20) + compression(4) = 24
         assert result["SIGNAL_QUALITY_SCORE"] >= 20
 
     def test_ob_fresh_close_max(self):
         enr = _make_enrichment(ob_side="BULL", ob_fresh=True, ob_distance=0.5)
         result = build_signal_quality(enrichment=enr)
-        # OB(15) + headroom(4) = 19
+        # OB(15) + compression(4) = 19
         assert result["SIGNAL_QUALITY_SCORE"] >= 15
 
     def test_fvg_fresh_active_max(self):
         enr = _make_enrichment(fvg_side="BULL", fvg_fresh=True, fvg_invalidated=False)
         result = build_signal_quality(enrichment=enr)
-        # FVG(15) + headroom(4) = 19
+        # FVG(15) + compression(4) = 19
         assert result["SIGNAL_QUALITY_SCORE"] >= 15
+
+    def test_caution_pre_event_penalty(self):
+        """Elevated event risk applies partial penalty without blocking."""
+        enr = _make_enrichment(
+            structure_state="BULLISH",
+            structure_fresh=True,
+            structure_age=3,
+            event_risk_level="ELEVATED",
+        )
+        result = build_signal_quality(enrichment=enr)
+        assert "event_risk_high" in result["SIGNAL_WARNINGS"]
+        # Structure(20) + compression(4) - event_elevated(-9) = 15
+        assert result["SIGNAL_QUALITY_SCORE"] == 15
+
+    def test_fresh_ob_fvg_confluence(self):
+        """Fresh OB + fresh FVG confluence → strong score."""
+        enr = _make_enrichment(
+            structure_state="BULLISH",
+            structure_fresh=True,
+            structure_age=2,
+            in_killzone=True,
+            session_score=4,
+            ob_side="BULL",
+            ob_fresh=True,
+            ob_distance=1.0,
+            fvg_side="BULL",
+            fvg_fresh=True,
+            fvg_invalidated=False,
+        )
+        result = build_signal_quality(enrichment=enr)
+        # Structure(20) + Session(20) + OB(15) + FVG(15) + compression(4) = 74
+        assert result["SIGNAL_QUALITY_TIER"] in ("good", "high")
+        assert result["SIGNAL_QUALITY_SCORE"] >= 70
+        assert result["SIGNAL_FRESHNESS"] == "fresh"
+
+    def test_compression_regime_scoring(self):
+        """COMPRESSION ATR regime → mid compression score."""
+        enr = _make_enrichment(atr_regime="COMPRESSION")
+        result = build_signal_quality(enrichment=enr)
+        # compression contributes int(15*0.5) = 7
+        assert result["SIGNAL_QUALITY_SCORE"] >= 7
+
+
+class TestOptionalVolatilityState:
+    """v5.5a: Signal Quality must work without SESSION_VOLATILITY_STATE."""
+
+    def test_no_session_light_block(self):
+        """Signal quality works when session_context_light is absent."""
+        enr = _make_enrichment(
+            structure_state="BULLISH", structure_fresh=True, structure_age=3,
+            in_killzone=True, session_score=4,
+        )
+        # Remove session_context_light entirely
+        enr.pop("session_context_light", None)
+        result = build_signal_quality(enrichment=enr)
+        assert result["SIGNAL_QUALITY_TIER"] in ("ok", "good", "high")
+        assert result["SIGNAL_QUALITY_SCORE"] > 0
+
+    def test_session_light_without_volatility(self):
+        """Signal quality works when session_context_light has no volatility."""
+        enr = _make_enrichment(
+            structure_state="BULLISH", structure_fresh=True, structure_age=3,
+        )
+        # Provide session light without volatility
+        enr["session_context_light"] = {
+            "SESSION_LIGHT_IN_KILLZONE": True,
+            "SESSION_LIGHT_DIRECTION_BIAS": "BULLISH",
+            "SESSION_LIGHT_CONTEXT_SCORE": 5,
+        }
+        result = build_signal_quality(enrichment=enr)
+        assert result["SIGNAL_QUALITY_SCORE"] > 0
+        assert result["SIGNAL_QUALITY_TIER"] != ""
+
+
+class TestLeanFirstPriority:
+    """v5.5a: lean families are primary; broad blocks are fallback-only."""
+
+    def test_structure_light_is_primary(self):
+        """Structure State Light is preferred over broad structure_state."""
+        enr = {
+            "structure_state_light": {
+                "STRUCTURE_FRESH": True,
+                "STRUCTURE_EVENT_AGE_BARS": 2,
+                "STRUCTURE_LAST_EVENT": "BOS_BULL",
+            },
+            "structure_state": {
+                "STRUCTURE_FRESH": False,
+                "STRUCTURE_EVENT_AGE_BARS": 999,
+                "STRUCTURE_STATE": "BEARISH",
+            },
+        }
+        result = build_signal_quality(enrichment=enr)
+        # Should use lean (fresh, age=2) not broad (stale, age=999)
+        assert result["SIGNAL_FRESHNESS"] != "stale"
+        assert result["SIGNAL_BIAS_ALIGNMENT"] == "bull"
+
+    def test_ob_light_is_primary(self):
+        """OB Context Light is preferred over broad order_blocks."""
+        enr = {
+            "ob_context_light": {
+                "PRIMARY_OB_SIDE": "BULL",
+                "OB_FRESH": True,
+                "PRIMARY_OB_DISTANCE": 0.5,
+            },
+            "order_blocks": {
+                "OB_NEAREST_DISTANCE_PCT": 99.0,
+                "BULL_OB_FRESHNESS": 100,
+            },
+        }
+        result = build_signal_quality(enrichment=enr)
+        assert result["SIGNAL_QUALITY_SCORE"] >= 15  # OB contribution
+
+    def test_fvg_light_is_primary(self):
+        """FVG Lifecycle Light is preferred over broad imbalance_lifecycle."""
+        enr = {
+            "fvg_lifecycle_light": {
+                "PRIMARY_FVG_SIDE": "BULL",
+                "FVG_FRESH": True,
+                "FVG_FILL_PCT": 0.1,
+                "FVG_INVALIDATED": False,
+            },
+            "imbalance_lifecycle": {
+                "BULL_FVG_ACTIVE": False,
+            },
+        }
+        result = build_signal_quality(enrichment=enr)
+        assert result["SIGNAL_QUALITY_SCORE"] >= 15  # FVG contribution
+
+    def test_event_risk_light_is_primary(self):
+        """Event Risk Light is preferred over broad event_risk."""
+        enr = {
+            "event_risk_light": {
+                "MARKET_EVENT_BLOCKED": True,
+            },
+            "event_risk": {
+                "MARKET_EVENT_BLOCKED": False,
+            },
+        }
+        result = build_signal_quality(enrichment=enr)
+        assert "event_blocked" in result["SIGNAL_WARNINGS"]

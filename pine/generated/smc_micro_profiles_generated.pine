@@ -376,7 +376,7 @@ export const string OB_MITIGATION_STATE = "stale"
 export const string PRIMARY_FVG_SIDE = "NONE"
 export const float PRIMARY_FVG_DISTANCE = 0.0
 export const float FVG_FILL_PCT = 0.0
-export const int FVG_AGE_BARS = 0
+export const int FVG_MATURITY_LEVEL = 0
 export const bool FVG_FRESH = false
 export const bool FVG_INVALIDATED = false
 

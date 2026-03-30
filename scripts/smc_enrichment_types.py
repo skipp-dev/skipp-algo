@@ -383,7 +383,7 @@ class FVGLifecycleLightBlock(TypedDict, total=False):
     PRIMARY_FVG_SIDE: str            # "BULL" | "BEAR" | "NONE"
     PRIMARY_FVG_DISTANCE: float
     FVG_FILL_PCT: float
-    FVG_AGE_BARS: int
+    FVG_MATURITY_LEVEL: int          # 0-3 fill-derived maturity proxy
     FVG_FRESH: bool
     FVG_INVALIDATED: bool
 
