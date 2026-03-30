@@ -805,3 +805,76 @@ class TestV55LeanContract:
             assert section_tag in text, (
                 f"Generated Pine missing v5.5 section marker for {family_name}"
             )
+
+
+class TestV55DriftGuard:
+    """Prevent lean fields from being accidentally replaced by old broad fields.
+
+    These tests ensure that v5.5 lean integration is maintained and not
+    silently reverted during refactoring.
+    """
+
+    def test_event_risk_gate_uses_lean_fields(self):
+        """event_risk_gate_ok must derive from lean Event Risk Light fields."""
+        text = _read_pine("SMC_Core_Engine.pine")
+        # Must use lib_erl_* (lean) not lib_market_event_blocked/lib_symbol_event_blocked (old)
+        gate_lines = [
+            line.strip()
+            for line in text.splitlines()
+            if "event_risk_gate_ok" in line
+            and ":=" not in line
+            and "bool" in line
+            and "not" in line
+        ]
+        assert gate_lines, "event_risk_gate_ok declaration not found"
+        gate_decl = gate_lines[0]
+        assert "lib_erl_" in gate_decl, (
+            f"event_risk_gate_ok must use lean lib_erl_* fields, found: {gate_decl}"
+        )
+
+    def test_legacy_gates_marked(self):
+        """Old v5.1-v5.3 context gate sections must be marked [LEGACY]."""
+        text = _read_pine("SMC_Core_Engine.pine")
+        for version in ("v5.1", "v5.2", "v5.3"):
+            pattern = rf"──\s*{version}\s+Context Gates\s+\[LEGACY"
+            assert re.search(pattern, text), (
+                f"{version} context gates section not marked [LEGACY]"
+            )
+
+    def test_lean_context_section_marked_primary(self):
+        """v5.5 lean context section must be marked [PRIMARY]."""
+        text = _read_pine("SMC_Core_Engine.pine")
+        assert re.search(r"v5\.5\s+Lean\s+Context\s+\[PRIMARY\]", text), (
+            "v5.5 lean context section not marked [PRIMARY]"
+        )
+
+    def test_deprecated_sections_have_deprecation_comment(self):
+        """Fields marked [DEPRECATED v5.5] must exist in the engine."""
+        text = _read_pine("SMC_Core_Engine.pine")
+        deprecated_markers = re.findall(
+            r"\[DEPRECATED v5\.5[^\]]*\]", text
+        )
+        assert len(deprecated_markers) >= 4, (
+            f"Expected >= 4 deprecated section markers, found {len(deprecated_markers)}"
+        )
+
+    def test_bus_event_risk_row_uses_lean_fields(self):
+        """BUS EventRiskRow call must pass lean lib_erl_* fields."""
+        text = _read_pine("SMC_Core_Engine.pine")
+        bus_lines = [
+            line.strip()
+            for line in text.splitlines()
+            if "BUS EventRiskRow" in line
+        ]
+        assert bus_lines, "BUS EventRiskRow plot not found"
+        bus_call = bus_lines[0]
+        assert "lib_erl_" in bus_call, (
+            f"BUS EventRiskRow must use lean lib_erl_* fields, found: {bus_call}"
+        )
+
+    def test_gate_classification_comment_exists(self):
+        """Gate classification documentation must exist in the engine."""
+        text = _read_pine("SMC_Core_Engine.pine")
+        assert "Gate Classification (v5.5)" in text, (
+            "Gate classification comment block not found in engine"
+        )

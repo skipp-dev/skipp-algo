@@ -1611,6 +1611,12 @@ resolve_environment_gate_reason(bool market_regime_gate_ok, bool vola_regime_gat
 // - Signal mode controls realtime vs close-safe alert behavior.
 // - Strict sequence/sweep/confirm toggles decide how demanding the higher execution tiers are.
 // - Context quality, overhead, and microstructure switches decide how much market filtering is required before entry.
+//
+// Gate Classification (v5.5):
+//   HARD (always required, safety):  lifecycle, environment (event_risk, market_regime, vola_regime)
+//   OPERATIONAL (toggle-gated):      session_structure, micro_session, micro_freshness, overhead, setup (touch count)
+//   SCORING (toggle-gated, opt-in):  quality, accel, sd, vol, stretch, ddvi, lean_signal_quality
+//   INFO ONLY (not in pipeline):     v5.1-v5.3 context gates (session_context_ok, struct_state_ok, etc.) — BUS compat only
 compute_long_environment_context(bool market_regime_gate_ok, bool vola_regime_gate_safe, bool context_quality_gate_ok, bool session_structure_gate_ok, bool micro_session_gate_ok, bool micro_freshness_gate_ok, bool overhead_zone_ok, bool event_risk_gate_ok_param) =>
     bool helper_environment_hard_gate_ok = market_regime_gate_ok and vola_regime_gate_safe and event_risk_gate_ok_param
     bool helper_quality_gate_ok = context_quality_gate_ok
@@ -3307,6 +3313,7 @@ update_latched_flag(bool current_latched, bool event_active, bool live_mode, boo
 var g_mode = 'Execution Mode'
 var ct.SignalMode signal_mode = input.enum(ct.SignalMode.CONFIRMED_ONLY, 'Signal Mode', group = g_mode, tooltip = 'Confirmed only is the safer non-repainting mode. Aggressive live allows intrabar high/low driven updates and alerts, so states can change before candle close, are not fully reconstructable after reload, and should be treated as realtime-only until the bar confirms.', display = display.status_line)
 var string long_user_preset = input.string('Standard', 'User Preset', options = ['Easy', 'Standard', 'Pro'], group = g_mode, tooltip = 'Easy keeps the long engine permissive and easier to operate. Standard preserves the current balanced workflow. Pro enables stricter lifecycle and execution gating for cleaner but rarer setups.', display = display.status_line)
+var bool compact_mode = input.bool(false, 'Compact / Shared-Script Mode', group = g_mode, tooltip = 'Enables compact-first UX: hides all debug labels, activates lean scoring, and minimizes visual overhead for shared or published scripts.')
 
 var g_ltf = 'Lower Timeframe'
 var bool enable_ltf_sampling = input.bool(true, 'Use lower timeframe sampling', group = g_ltf, tooltip = 'Uses request.security_lower_tf() to summarize intrabar participation and pressure.')
@@ -3409,11 +3416,14 @@ string lib_next_event_impact  = mp.NEXT_EVENT_IMPACT
 bool   lib_market_event_blocked = mp.MARKET_EVENT_BLOCKED
 bool   lib_symbol_event_blocked = mp.SYMBOL_EVENT_BLOCKED and str.contains(mp.EARNINGS_SOON_TICKERS, syminfo.ticker)
 bool   lib_event_cooldown       = mp.EVENT_COOLDOWN_ACTIVE
-// Hard block: market-wide event active OR symbol-specific earnings block
+// [LEGACY] Hard block from old broad fields — kept for BUS backward compat
 bool   event_risk_hard_block    = lib_market_event_blocked or lib_symbol_event_blocked
-// Soft discourage: cooldown active OR incoming medium+ risk
+// [LEGACY] Soft discourage from old broad fields
 bool   event_risk_soft_block    = lib_event_cooldown or (lib_event_window_state == "PRE_EVENT" and (lib_event_risk_level == "ELEVATED" or lib_event_risk_level == "HIGH"))
-bool   event_risk_gate_ok       = not event_risk_hard_block
+// [v5.5 PRIMARY] event risk gate now derived from lean Event Risk Light surface
+bool   event_risk_gate_ok       = not (lib_erl_market_blocked or lib_erl_symbol_blocked)
+// [v5.5] Simplified event risk states: blocked / caution / clear
+string event_risk_state         = lib_erl_market_blocked or lib_erl_symbol_blocked ? "blocked" : lib_erl_window_state == "PRE_EVENT" and (lib_erl_level == "HIGH" or lib_erl_level == "ELEVATED") ? "caution" : "clear"
 
 // ── Flow Qualifier (v5.1) ──
 float  lib_rel_vol             = mp.REL_VOL
@@ -3694,47 +3704,7 @@ string lib_sq_warnings             = mp.SIGNAL_WARNINGS
 string lib_sq_bias_alignment       = mp.SIGNAL_BIAS_ALIGNMENT
 string lib_sq_freshness            = mp.SIGNAL_FRESHNESS
 
-// ── v5.1 Context Gates ──
-// Flow qualifier gate: flow confirms direction
-bool   flow_quality_ok          = lib_flow_long_ok and lib_rel_vol >= 0.5
-// Compression gate: avoid entries during squeeze (wait for release)
-bool   compression_entry_ok     = not lib_squeeze_on or lib_squeeze_released
-// ATR regime gate: avoid exhaustion entries
-bool   atr_regime_ok            = lib_atr_regime != "EXHAUSTION"
-// Zone context: support zone proximity is favorable for longs
-bool   zone_context_long_ok     = lib_zone_context_bias != "RESISTANCE_HEAVY"
-// Reversal context bonus: boosts confidence when active with good scores
-bool   reversal_context_boost   = lib_reversal_active and lib_setup_score >= 3 and lib_confirm_score >= 2
-
-// ── v5.2 Context Gates ──
-// Session context: killzone active + directional bias = favorable
-bool   session_context_ok       = lib_session_ctx_score >= 2
-// Sweep context: recent bull sweep with reclaim = favorable for longs
-bool   sweep_context_long_ok    = not lib_recent_bear_sweep or lib_sweep_reclaim
-// Pool magnet: price drawn toward buy-side liquidity = favorable
-bool   pool_magnet_long_ok      = lib_pool_magnet_dir != "DOWN"
-// OB context: fresh unmitigated bull OB = favorable for longs
-bool   ob_context_long_ok       = lib_ob_bias != "BEARISH"
-// Zone projection: no high trap risk
-bool   zone_proj_ok             = lib_zone_proj_trap != "HIGH"
-// Profile quality: ticker grade A/B = favorable
-bool   profile_quality_ok       = lib_profile_grade == "A" or lib_profile_grade == "B"
-
-// ── v5.3 Context Gates ──
-// Structure state: confirmed trend direction is favorable
-bool   struct_state_ok           = lib_struct_state != "NEUTRAL" and lib_struct_fresh
-// Imbalance lifecycle: active FVGs with lifecycle awareness
-bool   imbalance_ok              = (lib_bull_fvg_active or lib_bear_fvg_active) and not (lib_bull_fvg_full_mit and lib_bear_fvg_full_mit)
-// Session structure: intra-session structural score is favorable
-bool   session_struct_ok         = lib_sess_struct_score >= 2 and lib_sess_or_break != "NONE"
-// Range regime: identifiable regime with adequate score
-bool   range_regime_ok           = lib_range_regime != "UNKNOWN" and lib_range_regime_score >= 2
-// Range profile: active range + sentiment not opposing longs
-bool   range_profile_ok          = not lib_rpr_active or lib_rpr_sentiment_bias != "BEAR"
-// Session structure state: session-scoped direction is favorable
-bool   session_struct_state_ok   = lib_session_struct_st != "BEARISH"
-
-// ── v5.5 Lean Context ──
+// ── v5.5 Lean Context [PRIMARY] ──
 // Signal Quality: generator-computed composite replaces ad-hoc checks
 bool   signal_quality_ok         = lib_sq_score >= 25
 bool   signal_quality_good       = lib_sq_score >= 50
@@ -3751,6 +3721,29 @@ bool   fvg_light_active_ok       = lib_fvgl_side != "NONE" and not lib_fvgl_inva
 bool   event_risk_light_hard_block = lib_erl_market_blocked or lib_erl_symbol_blocked
 // Session Context Light: lean session quality
 bool   session_light_ok          = lib_scl_context_score >= 2
+
+// ── v5.1 Context Gates [LEGACY — not wired into pipeline, kept for BUS compat] ──
+bool   flow_quality_ok          = lib_flow_long_ok and lib_rel_vol >= 0.5
+bool   compression_entry_ok     = not lib_squeeze_on or lib_squeeze_released
+bool   atr_regime_ok            = lib_atr_regime != "EXHAUSTION"
+bool   zone_context_long_ok     = lib_zone_context_bias != "RESISTANCE_HEAVY"
+bool   reversal_context_boost   = lib_reversal_active and lib_setup_score >= 3 and lib_confirm_score >= 2
+
+// ── v5.2 Context Gates [LEGACY — not wired into pipeline, kept for BUS compat] ──
+bool   session_context_ok       = lib_session_ctx_score >= 2
+bool   sweep_context_long_ok    = not lib_recent_bear_sweep or lib_sweep_reclaim
+bool   pool_magnet_long_ok      = lib_pool_magnet_dir != "DOWN"
+bool   ob_context_long_ok       = lib_ob_bias != "BEARISH"
+bool   zone_proj_ok             = lib_zone_proj_trap != "HIGH"
+bool   profile_quality_ok       = lib_profile_grade == "A" or lib_profile_grade == "B"
+
+// ── v5.3 Context Gates [LEGACY — not wired into pipeline, kept for BUS compat] ──
+bool   struct_state_ok           = lib_struct_state != "NEUTRAL" and lib_struct_fresh
+bool   imbalance_ok              = (lib_bull_fvg_active or lib_bear_fvg_active) and not (lib_bull_fvg_full_mit and lib_bear_fvg_full_mit)
+bool   session_struct_ok         = lib_sess_struct_score >= 2 and lib_sess_or_break != "NONE"
+bool   range_regime_ok           = lib_range_regime != "UNKNOWN" and lib_range_regime_score >= 2
+bool   range_profile_ok          = not lib_rpr_active or lib_rpr_sentiment_bias != "BEAR"
+bool   session_struct_state_ok   = lib_session_struct_st != "BEARISH"
 
 var string micro_midday_block_session = input.session('1130-1330', 'Midday block', group = g_micro, display = display.none)
 var string micro_premarket_session = input.session('0400-0929', 'Premarket', group = g_micro, display = display.none)
@@ -3829,6 +3822,8 @@ var bool require_expansion_on_confirm_or_ready = input.bool(true, 'Require expan
 var g_quality = 'Context Quality'
 var bool use_context_quality_score = input.bool(true, 'Use Context Quality Score', group = g_quality, inline = 'q1')
 var int min_context_quality_score = input.int(7, 'Min Context Score', minval = 1, maxval = 15, group = g_quality, inline = 'q1')
+var bool use_lean_signal_quality_gate = input.bool(false, 'Use Lean Signal Quality Gate', tooltip = 'When enabled, adds v5.5 Signal Quality score as additional quality requirement (scoring over blocking). Requires signal_quality_ok (score >= 25).', group = g_quality, inline = 'q2')
+var bool use_lean_context_gates = input.bool(false, 'Use Lean Context Gates', tooltip = 'When enabled, v5.5 Session/OB/FVG/Structure Light gates contribute to quality scoring. Adds lean consensus bonus to context quality.', group = g_quality, inline = 'q2')
 var int score_weight_structure = input.int(2, 'Structure', minval = 0, maxval = 3, group = g_quality, inline = 'qw1')
 var int score_weight_htf = input.int(2, 'HTF', minval = 0, maxval = 3, group = g_quality, inline = 'qw1')
 var int score_weight_ema = input.int(1, 'EMA', minval = 0, maxval = 3, group = g_quality, inline = 'qw2')
@@ -4110,6 +4105,16 @@ if performance_mode_light
     long_engine_debug_mode_eff := 'Compact'
 else if performance_mode_debug
     long_engine_debug_mode_eff := 'Full'
+
+// [v5.5] Compact / Shared-Script Mode overrides: suppress debug, enable lean scoring
+bool show_ob_debug_eff = show_ob_debug
+bool show_fvg_debug_eff = show_fvg_debug
+bool show_long_engine_debug_eff = show_long_engine_debug
+if compact_mode
+    show_ob_debug_eff := false
+    show_fvg_debug_eff := false
+    show_long_engine_debug_eff := false
+    long_engine_debug_mode_eff := 'Compact'
 
 active_break_mode = ct.LevelBreakMode.HIGHLOW
 if signal_mode == ct.SignalMode.CONFIRMED_ONLY
@@ -6300,7 +6305,25 @@ compute_overhead_context() =>
 
 [long_planned_stop_level, planned_risk, headroom_to_overhead, overhead_zone_ok] = compute_overhead_context()
 [context_quality_score, context_quality_gate_ok, htf_alignment_ok, strict_entry_ltf_ok, effective_min_context_quality_score, effective_context_quality_max_score] = compute_context_quality()
-[environment_hard_gate_ok, quality_gate_ok, microstructure_entry_gate_ok, trade_hard_gate_ok, long_environment_focus_display] = compute_long_environment_context(market_regime_gate_ok, vola_regime_gate_safe, context_quality_gate_ok, session_structure_gate_ok, micro_session_gate_ok, micro_freshness_gate_ok, overhead_zone_ok, event_risk_gate_ok)
+// [v5.5] Lean Signal Quality gate: when enabled, adds generator-computed quality as additional requirement
+bool combined_quality_gate_ok = context_quality_gate_ok
+if use_lean_signal_quality_gate
+    combined_quality_gate_ok := context_quality_gate_ok and signal_quality_ok
+// [v5.5] Lean Context Gates: when enabled, require lean session/structure/OB/FVG consensus
+if use_lean_context_gates
+    int lean_context_count = 0
+    if session_light_ok
+        lean_context_count += 1
+    if struct_light_trending
+        lean_context_count += 1
+    if ob_light_bull_ok
+        lean_context_count += 1
+    if fvg_light_active_ok
+        lean_context_count += 1
+    // Require at least 2 of 4 lean context gates to pass (soft consensus)
+    bool lean_context_consensus_ok = lean_context_count >= 2
+    combined_quality_gate_ok := combined_quality_gate_ok and lean_context_consensus_ok
+[environment_hard_gate_ok, quality_gate_ok, microstructure_entry_gate_ok, trade_hard_gate_ok, long_environment_focus_display] = compute_long_environment_context(market_regime_gate_ok, vola_regime_gate_safe, combined_quality_gate_ok, session_structure_gate_ok, micro_session_gate_ok, micro_freshness_gate_ok, overhead_zone_ok, event_risk_gate_ok)
 string freshness_text = describe_long_freshness(long_state.armed, long_state.confirmed, ready_is_fresh, confirm_is_fresh)
 string source_state_text = describe_long_source_state(long_source_tracked, long_source_alive, long_source_broken)
 long_validation_source := resolve_long_validation_source(long_state.locked_source_kind)
@@ -6399,7 +6422,7 @@ long_visual_state := resolve_long_visual_state(long_zone_active, long_state.arme
 long_visual_text := resolve_long_visual_text(long_visual_state)
 long_bg_color := resolve_long_bg_color(long_visual_state, long_color_building)
 long_bar_color := resolve_long_bar_color(long_visual_state, long_color_building)
-validate_long_state(long_state, show_long_engine_debug)
+validate_long_state(long_state, show_long_engine_debug_eff)
 
 emit_long_engine_debug_logs() =>
     string _src = long_setup_source_display
@@ -6415,15 +6438,15 @@ emit_long_engine_debug_logs() =>
     if long_invalidate_signal
         _inv := long_debug_event_invalidation
     string _summary = compose_long_debug_summary_text(long_engine_debug_mode_eff, long_state.armed, long_state.confirmed, long_ready_state, long_setup_source_display, freshness_text, source_state_text, zone_quality_text, long_environment_focus_display, long_state.backing_zone_touch_count, long_source_upgrade_now, long_source_upgrade_reason, long_state.last_invalid_source, long_ready_blocker_text, long_strict_blocker_text)
-    if show_long_engine_debug and long_source_upgrade_now
+    if show_long_engine_debug_eff and long_source_upgrade_now
         log.info('{0}', compose_long_engine_event_log(long_engine_debug_mode_eff, 'LONG UPGRADE', _src, _trg, _inv, _tc, freshness_text, source_state_text, zone_quality_text, long_environment_focus_display, true, long_source_upgrade_reason, long_state.last_invalid_source, long_ready_blocker_text, long_strict_blocker_text))
-    if show_long_engine_debug and long_arm_signal
+    if show_long_engine_debug_eff and long_arm_signal
         log.info('{0}', compose_long_engine_event_log(long_engine_debug_mode_eff, 'LONG ARMED', _src, _trg, _inv, _tc, freshness_text, source_state_text, zone_quality_text, long_environment_focus_display, long_source_upgrade_now, long_source_upgrade_reason, long_state.last_invalid_source, long_ready_blocker_text, long_strict_blocker_text))
-    if show_long_engine_debug and long_confirm_signal
+    if show_long_engine_debug_eff and long_confirm_signal
         log.info('{0}', compose_long_engine_event_log(long_engine_debug_mode_eff, 'LONG CONFIRMED', _src, _trg, _inv, _tc, freshness_text, source_state_text, zone_quality_text, long_environment_focus_display, long_source_upgrade_now, long_source_upgrade_reason, long_state.last_invalid_source, long_ready_blocker_text, long_strict_blocker_text))
-    if show_long_engine_debug and long_ready_signal
+    if show_long_engine_debug_eff and long_ready_signal
         log.info('{0}', compose_long_engine_event_log(long_engine_debug_mode_eff, 'LONG READY', _src, _trg, _inv, _tc, freshness_text, source_state_text, zone_quality_text, long_environment_focus_display, long_source_upgrade_now, long_source_upgrade_reason, long_state.last_invalid_source, long_ready_blocker_text, long_strict_blocker_text))
-    if show_long_engine_debug and long_invalidate_signal
+    if show_long_engine_debug_eff and long_invalidate_signal
         log.info('{0}', compose_long_engine_event_log(long_engine_debug_mode_eff, 'LONG INVALID', _src, _trg, _inv, _tc, freshness_text, source_state_text, zone_quality_text, long_environment_focus_display, long_source_upgrade_now, long_source_upgrade_reason, long_state.last_invalid_source, long_ready_blocker_text, long_strict_blocker_text))
     _summary
 
@@ -6450,14 +6473,14 @@ plot(pack_bus_trend_set(structure_display_trend, mtf_trend_1, mtf_trend_2, mtf_t
 plot(pack_bus_meta(resolve_bus_freshness_code(long_state.armed, long_state.confirmed, ready_is_fresh, confirm_is_fresh), resolve_bus_source_state_code(long_source_tracked, long_source_alive, long_source_broken), resolve_bus_reclaim_code(reclaim_recent, bull_reclaim_internal_low_strict, bull_reclaim_swing_low_strict, bull_reclaim_fvg_strict, bull_reclaim_ob_strict), resolve_bus_zone_code(long_zone_active, in_bull_ob_zone, in_bull_fvg_zone)), 'BUS MetaPack', display = display.none)
 plot(pack_bus_four(resolve_bus_session_row(intraday_time_chart, use_trade_session_gate, use_opening_range_gate, session_structure_gate_ok, session_gate_ok), resolve_bus_market_row(use_index_gate, use_sector_gate, use_breadth_symbol_gate, market_symbols_missing, block_on_missing_market_symbol, market_regime_gate_ok, index_gate_effective_ok, sector_gate_effective_ok), resolve_bus_vola_row(use_vola_compression_gate, vola_regime_gate_safe, vola_expansion_now, vola_compression_recent), resolve_bus_micro_session_row(use_microstructure_profiles, intraday_time_chart, micro_session_gate_ok, micro_rth_gate_ok, micro_midday_gate_ok, micro_premarket_gate_ok)), 'BUS HardGatesPackA', display = display.none)
 plot(pack_bus_four(resolve_bus_micro_fresh_row(use_microstructure_profiles, micro_freshness_gate_ok), resolve_bus_volume_data_row(volume_current_bar_ok, volume_feed_quality_ok, ltf_sampling_active, ltf_price_ok, ltf_volume_ok, ltf_price_only), resolve_bus_quality_env_row(environment_hard_gate_ok, market_regime_gate_ok, vola_regime_gate_safe), resolve_bus_quality_strict_row(long_entry_strict_state, strict_entry_ltf_ok, htf_alignment_ok, accel_strict_entry_gate_ok, sd_entry_strict_gate_ok, vol_entry_strict_context_ok_safe, stretch_entry_strict_context_ok, ddvi_entry_strict_ok_safe)), 'BUS HardGatesPackB', display = display.none)
-plot(resolve_bus_event_risk_row(event_risk_gate_ok, event_risk_hard_block, event_risk_soft_block, lib_market_event_blocked, lib_symbol_event_blocked, lib_event_window_state, lib_event_risk_level), 'BUS EventRiskRow', display = display.none)
+plot(resolve_bus_event_risk_row(event_risk_gate_ok, event_risk_light_hard_block, event_risk_soft_block, lib_erl_market_blocked, lib_erl_symbol_blocked, lib_erl_window_state, lib_erl_level), 'BUS EventRiskRow', display = display.none)
 plot(pack_bus_four(resolve_bus_close_strength_row(use_strong_close_filter, bull_close_strong), resolve_bus_ema_support_row(show_ema_support, ema_support_ok), resolve_bus_adx_row(use_adx, adx_data_ok, plus_di, minus_di, adx_strong, adx_value, adx_trend_min), resolve_bus_relvol_row(use_rel_volume, relvol_data_ok, allow_relvol_without_volume_data, relvol_ok)), 'BUS QualityPackA', display = display.none)
 plot(pack_bus_four(resolve_bus_vwap_row(use_vwap_filter, intraday_time_chart, vwap_session_active, vwap_filter_ok), resolve_bus_context_quality_row(use_context_quality_score_eff, context_quality_gate_ok), resolve_bus_quality_clean_row(long_quality_clean_tier), resolve_bus_quality_score_row(context_quality_gate_ok)), 'BUS QualityPackB', display = display.none)
 plot(effective_min_context_quality_score * 100.0 + effective_context_quality_max_score, 'BUS QualityBoundsPack', display = display.none)
 plot(pack_bus_four(resolve_bus_sd_confluence_row(use_sd_confluence, sd_support_both_recent, sd_bullish_divergence_recent, sd_higher_lows_recent, sd_support_any_recent), resolve_bus_sd_osc_row(use_sd_confluence, sd_value, sd_above_zero, sd_rising, sd_below_zero, sd_falling), resolve_bus_vol_regime_row(use_volatility_regime, vol_regime_trend_ok), resolve_bus_vol_squeeze_row(use_volatility_regime, vol_squeeze_on, vol_squeeze_release_recent, vol_squeeze_recent)), 'BUS ModulePackA', display = display.none)
 plot(pack_bus_four(resolve_bus_vol_expand_row(use_volatility_regime, vol_momentum_expanding_long, vol_stack_spread_rising), resolve_bus_stretch_row(use_stretch_context, distance_to_mean_z, in_lower_extreme, lower_extreme_recent, anti_chase_ok_entry_best, anti_chase_ok_ready), resolve_bus_ddvi_row(use_ddvi_context, ddvi_bias_ok, ddvi_bull_divergence_any, ddvi_lower_extreme_context), resolve_bus_ltf_bias_row(show_dashboard_ltf_eff, ltf_sampling_active, ltf_price_ok, ltf_price_only, ltf_bull_share, ltf_bias_hint)), 'BUS ModulePackB', display = display.none)
 plot(pack_bus_four(resolve_bus_ltf_delta_row(show_dashboard_ltf_eff, ltf_sampling_active, ltf_price_only, ltf_volume_delta), resolve_bus_objects_row(array.size(ob_blocks_bull), array.size(fvgs_bull)), resolve_bus_swing_row(bullish_trend_safe, bearish_trend_safe), resolve_bus_micro_profile_row(use_microstructure_profiles, micro_profile_text, micro_modifier_text)), 'BUS ModulePackC', display = display.none)
-plot(pack_bus_four(resolve_bus_zone_row(long_zone_active, in_bull_ob_zone, in_bull_fvg_zone), resolve_bus_long_triggers_row(long_plan_active), resolve_bus_risk_plan_row(long_plan_active), resolve_bus_debug_flags_row(show_ob_debug, show_fvg_debug, show_long_engine_debug)), 'BUS ModulePackD', display = display.none)
+plot(pack_bus_four(resolve_bus_zone_row(long_zone_active, in_bull_ob_zone, in_bull_fvg_zone), resolve_bus_long_triggers_row(long_plan_active), resolve_bus_risk_plan_row(long_plan_active), resolve_bus_debug_flags_row(show_ob_debug_eff, show_fvg_debug_eff, show_long_engine_debug_eff)), 'BUS ModulePackD', display = display.none)
 plot(pack_bus_four(resolve_bus_ready_gate_row(long_ready_state, long_state.confirmed, lifecycle_ready_ok, setup_hard_gate_ok, trade_hard_gate_ok, environment_hard_gate_ok, close_safe_mode, ready_bar_gap_ok, long_confirm_expired, ready_is_fresh, long_confirm_bearish_guard_ok, require_main_break_for_ready_eff, bull_bos_sig, main_bos_recent, session_structure_gate_ok, micro_session_gate_ok, micro_freshness_gate_ok, overhead_zone_ok, market_regime_gate_ok, vola_regime_gate_safe, quality_gate_ok, accel_ready_gate_ok, sd_ready_gate_ok, vol_ready_context_ok, stretch_ready_context_ok, ddvi_ready_ok_safe), resolve_bus_strict_gate_row(long_entry_strict_state, long_ready_state, strict_entry_ltf_ok, htf_alignment_ok, accel_strict_entry_gate_ok, sd_entry_strict_gate_ok, vol_entry_strict_context_ok_safe, stretch_entry_strict_context_ok, ddvi_entry_strict_ok_safe), resolve_bus_debug_state_row(show_long_engine_debug, long_visual_state, long_state.armed, long_state.confirmed, long_ready_state), resolve_bus_micro_modifier_mask(micro_modifier_text)), 'BUS EnginePack', display = display.none)
 plot(long_stop_level, 'BUS StopLevel', display = display.none)
 plot(long_target_1, 'BUS Target1', display = display.none)
