@@ -32,6 +32,8 @@ src_engine_pack = input.source(close, "BUS EnginePack")
 src_stop_level = input.source(close, "BUS StopLevel")
 src_target_1 = input.source(close, "BUS Target1")
 src_target_2 = input.source(close, "BUS Target2")
+src_lean_pack_a = input.source(close, "BUS LeanPackA")
+src_lean_pack_b = input.source(close, "BUS LeanPackB")
 
 show_table = input.bool(true, "Show Dashboard")
 show_risk_lines = input.bool(true, "Show Trigger/Invalidation")
@@ -669,6 +671,76 @@ trigger_text(bool active, float trigger_level, float invalidation_level) =>
     else
         "Trig " + str.tostring(trigger_level, format.mintick) + " | Inv " + str.tostring(invalidation_level, format.mintick)
 
+// ── v5.5 Lean Surface Decoders ──
+
+decode_lean_sq_text(int row_code) =>
+    int s = row_status(row_code)
+    int r = row_reason(row_code)
+    string tier = r == 4 ? "high" : r == 3 ? "good" : r == 2 ? "ok" : "low"
+    tier
+
+decode_lean_freshness_text(int row_code) =>
+    int s = row_status(row_code)
+    int r = row_reason(row_code)
+    string freshness = s >= 5 ? "fresh" : s == 3 ? "aging" : "stale"
+    string bias = r == 1 ? "bull" : r == 2 ? "bear" : r == 3 ? "mixed" : "neutral"
+    freshness + " | " + bias
+
+decode_lean_erl_text(int row_code) =>
+    int s = row_status(row_code)
+    int r = row_reason(row_code)
+    if s == -1 and r == 1
+        "BLOCKED (Market)"
+    else if s == -1 and r == 6
+        "BLOCKED (Symbol)"
+    else if s == 2 and r == 2
+        "ACTIVE Window"
+    else if s == 2 and r == 3
+        "PRE_EVENT Caution"
+    else if s == 3 and r == 4
+        "COOLDOWN"
+    else
+        "CLEAR"
+
+decode_lean_struct_text(int row_code) =>
+    int s = row_status(row_code)
+    int r = row_reason(row_code)
+    string event = r == 1 ? "BOS_BULL" : r == 2 ? "CHOCH_BULL" : r == 3 ? "BOS_BEAR" : r == 4 ? "CHOCH_BEAR" : "NONE"
+    string strength = s >= 5 ? "Strong" : s >= 4 ? "Medium" : "Weak"
+    strength + " | " + event
+
+decode_lean_ob_text(int row_code) =>
+    int s = row_status(row_code)
+    int r = row_reason(row_code)
+    if s == 5
+        "BULL Fresh | " + (r == 1 ? "fresh" : r == 2 ? "touched" : "stale")
+    else if s == 3 and r == 2
+        "BULL Aging"
+    else if s == 2 and r == 4
+        "BEAR"
+    else
+        "None"
+
+decode_lean_fvg_text(int row_code) =>
+    int s = row_status(row_code)
+    int r = row_reason(row_code)
+    if s == 2 and r == 1
+        "Invalidated"
+    else if s == 5 and r == 2
+        "BULL Fresh"
+    else if s == 4 and r == 3
+        "BULL Aging"
+    else if s == 2 and r == 4
+        "BEAR"
+    else
+        "None"
+
+decode_lean_session_text(int row_code) =>
+    int score = row_status(row_code)
+    int kz = row_reason(row_code)
+    string kz_text = kz == 1 ? "KZ" : "noKZ"
+    str.tostring(score) + " | " + kz_text
+
 bool zone_active = state_on(src_zone_active)
 bool armed = state_on(src_armed)
 bool confirmed = state_on(src_confirmed)
@@ -722,6 +794,14 @@ int ready_gate_row_code = pack_slot(src_engine_pack, 0)
 int strict_gate_row_code = pack_slot(src_engine_pack, 1)
 int long_debug_row_code = pack_slot(src_engine_pack, 2)
 int micro_modifier_mask = pack_slot(src_engine_pack, 3)
+// v5.5 Lean Pack unpacking
+int lean_sq_row_code = pack_slot(src_lean_pack_a, 0)
+int lean_freshness_row_code = pack_slot(src_lean_pack_a, 1)
+int lean_erl_row_code = pack_slot(src_lean_pack_a, 2)
+int lean_struct_row_code = pack_slot(src_lean_pack_a, 3)
+int lean_ob_row_code = pack_slot(src_lean_pack_b, 0)
+int lean_fvg_row_code = pack_slot(src_lean_pack_b, 1)
+int lean_session_row_code = pack_slot(src_lean_pack_b, 2)
 int htf_bull_count = (trend_htf_1 == 2 ? 1 : 0) + (trend_htf_2 == 2 ? 1 : 0) + (trend_htf_3 == 2 ? 1 : 0)
 int setup_state = state_code >= 6 ? 5 : state_code == 5 or state_code == 4 ? 4 : state_code == 3 ? 3 : state_code == 2 ? 2 : state_code == 1 ? 1 : state_code == -1 ? -1 : 0
 int exec_state = state_code >= 6 ? 5 : state_code == 5 or state_code == 4 ? 4 : state_code == 2 or state_code == 3 ? 2 : state_code == 1 ? 1 : 0
@@ -735,7 +815,7 @@ plot(show_risk_lines ? src_trigger : na, "Core Trigger", color = color.new(color
 plot(show_risk_lines ? src_invalidation : na, "Core Invalidation", color = color.new(color.orange, 0), linewidth = 2, style = plot.style_linebr)
 bgcolor(show_state_bg and state_code >= 5 ? color.new(color.green, 90) : na)
 
-var table smc_dashboard = table.new(position.bottom_right, 2, 50, border_width = 0)
+var table smc_dashboard = table.new(position.bottom_right, 2, 58, border_width = 0)
 
 if show_table and barstate.islast
     color txt = chart.fg_color
@@ -790,5 +870,13 @@ if show_table and barstate.islast
     dashboard_row(smc_dashboard, 47, "Strict Gate", decode_strict_gate_text(strict_gate_row_code), status_bg(row_status(strict_gate_row_code)), txt)
     dashboard_row(smc_dashboard, 48, "Debug Flags", decode_debug_flags_text(debug_flags_row_code), status_bg(row_status(debug_flags_row_code)), txt)
     dashboard_row(smc_dashboard, 49, "Long Debug", long_debug_text, status_bg(row_status(long_debug_row_code)), txt)
+    section_row(smc_dashboard, 50, "[ Lean Surface v5.5 ]", header_bg, txt)
+    dashboard_row(smc_dashboard, 51, "Signal Quality", decode_lean_sq_text(lean_sq_row_code), status_bg(row_status(lean_sq_row_code)), txt)
+    dashboard_row(smc_dashboard, 52, "Signal Fresh", decode_lean_freshness_text(lean_freshness_row_code), status_bg(row_status(lean_freshness_row_code)), txt)
+    dashboard_row(smc_dashboard, 53, "Event Risk Light", decode_lean_erl_text(lean_erl_row_code), status_bg(row_status(lean_erl_row_code)), txt)
+    dashboard_row(smc_dashboard, 54, "Structure Light", decode_lean_struct_text(lean_struct_row_code), status_bg(row_status(lean_struct_row_code)), txt)
+    dashboard_row(smc_dashboard, 55, "OB Light", decode_lean_ob_text(lean_ob_row_code), status_bg(row_status(lean_ob_row_code)), txt)
+    dashboard_row(smc_dashboard, 56, "FVG Light", decode_lean_fvg_text(lean_fvg_row_code), status_bg(row_status(lean_fvg_row_code)), txt)
+    dashboard_row(smc_dashboard, 57, "Session Light", decode_lean_session_text(lean_session_row_code), status_bg(row_status(lean_session_row_code)), txt)
 else if barstate.islast
-    table.clear(smc_dashboard, 0, 0, 1, 49)
+    table.clear(smc_dashboard, 0, 0, 1, 57)

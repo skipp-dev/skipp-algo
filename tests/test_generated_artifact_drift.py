@@ -126,7 +126,7 @@ class TestGeneratedArtifactDrift:
             (regenerated / "pine" / "generated" / "smc_micro_profiles_generated.json").read_text()
         )
         assert "library_field_version" in manifest
-        assert manifest["library_field_version"] == "v5.5"
+        assert manifest["library_field_version"] == "v5.5a"
         assert "asof_time" in manifest
         assert "refresh_count" in manifest
         assert "enrichment_blocks" in manifest

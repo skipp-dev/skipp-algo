@@ -35,11 +35,11 @@ def test_committed_pine_matches_generator():
 
 
 def test_committed_manifest_version():
-    """Manifest must declare v5.3."""
+    """Manifest must declare v5.5a."""
     import json
 
     manifest = Path("pine/generated/smc_micro_profiles_generated.json")
     data = json.loads(manifest.read_text())
-    assert data["library_field_version"] == "v5.5", (
-        f"Manifest version is {data['library_field_version']!r}, expected 'v5.5'"
+    assert data["library_field_version"] == "v5.5a", (
+        f"Manifest version is {data['library_field_version']!r}, expected 'v5.5a'"
     )

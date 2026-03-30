@@ -1,7 +1,7 @@
 # Legacy Removal Plan — SMC_Core_Engine.pine
 
-Status: **Phase A executed (AP6 v5.5), shadow logic removed (AP5 v5.5a)**  
-Last updated: AP8 v5.5a — Runtime Budget + dead input inventory  
+Status: **Phase A executed (AP6 v5.5), shadow logic removed (AP5 v5.5a), Phase B unblocked**  
+Last updated: AP7 v5.5b — Dashboard reads LeanPack A/B, Phase B fully unblocked  
 See also: [RUNTIME_BUDGET.md](RUNTIME_BUDGET.md)
 
 ---
@@ -42,12 +42,32 @@ See also: [RUNTIME_BUDGET.md](RUNTIME_BUDGET.md)
 
 ### Phase B: Remove BUS ModulePackE/F/G + remaining 33 fields
 
-| Step | Prerequisite |
-|------|-------------|
-| Update SMC_Dashboard.pine → read LeanPack A/B | Dashboard code change |
-| Remove BUS ModulePackE/F/G plot calls | Dashboard updated |
-| Remove remaining 33 BUS compat fields | BUS packs removed |
-| Free 3 plot slots | |
+**Status**: UNBLOCKED — Dashboard reads LeanPackA/B (AP5 v5.5b).  
+Dashboard never consumed ModulePackE/F/G; only PackA-D are still in use.
+
+| Step | Status |
+|------|--------|
+| Update SMC_Dashboard.pine → read LeanPack A/B | ✅ DONE (AP5 v5.5b) |
+| Verify Dashboard does NOT read ModulePackE/F/G | ✅ Confirmed — only PackA-D consumed |
+| Remove BUS ModulePackE/F/G plot calls (lines 6398-6400) | ⬜ Ready |
+| Remove 33 BUS compat field declarations (lines ~3454-3551) | ⬜ Ready |
+| Remove 12 BUS E/F/G resolver functions (lines ~2166-2320) | ⬜ Ready |
+| Free 3 plot slots (35→32 of 64) | ⬜ Ready |
+
+**Concrete removal inventory (Phase B)**:
+
+| Category | Items | Lines saved |
+|----------|-------|-------------|
+| BUS compat field declarations | 33 fields (PackE 6, PackF 12, PackG 15) | ~107 |
+| BUS E/F/G resolver functions | 12 functions: `resolve_bus_{flow_qualifier,compression,zone_context,reversal_context,session_context,sweep,ob_context,profile,struct_state,imbalance,session_struct,range_regime}_row` | ~155 |
+| BUS plot calls | 3 plots: ModulePackE/F/G | 3 |
+| **Total** | **48 items** | **~265 lines** |
+
+**Usage verification** (all 33 BUS compat fields):
+- Each field appears exactly **2× in Engine**: 1 declaration + 1 BUS pack call
+- **Zero** internal Engine consumption (no gate, no condition, no other plot)
+- All 12 resolver functions are called **only** from PackE/F/G pack lines
+- `pack_bus_row` / `pack_bus_four` helpers are shared with PackA-D → stay
 
 ### Phase C: Old Event Risk broad fields
 

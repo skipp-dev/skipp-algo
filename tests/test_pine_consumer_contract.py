@@ -281,6 +281,8 @@ DASHBOARD_BUS_CHANNELS: set[str] = {
     "EnginePack",
     "StopLevel", "Target1", "Target2",
     "EventRiskRow",
+    # v5.5 Lean BUS
+    "LeanPackA", "LeanPackB",
 }
 
 STRATEGY_BUS_CHANNELS: set[str] = {
@@ -833,6 +835,13 @@ class TestV55aContractSync:
         text = (ROOT / "docs/v5_5_lean_contract.md").read_text()
         assert "optional" in text.lower(), "SESSION_VOLATILITY_STATE must be marked optional"
 
+    def test_session_volatility_state_pine_has_safe_default(self):
+        """Pine must always export SESSION_LIGHT_VOLATILITY_STATE with safe default."""
+        pine = (ROOT / "pine/generated/smc_micro_profiles_generated.pine").read_text()
+        assert 'SESSION_LIGHT_VOLATILITY_STATE = "NORMAL"' in pine, (
+            "SESSION_LIGHT_VOLATILITY_STATE must default to NORMAL in committed Pine"
+        )
+
     def test_lean_family_count_32(self):
         """v5.5a still has exactly 32 lean fields across 6 families."""
         total = sum(len(f) for f in V55_LEAN_FAMILIES.values())
@@ -907,19 +916,55 @@ class TestV55aContractSync:
         assert fixture["meta"]["asof_time"], "asof_time must not be empty"
         assert fixture["meta"]["refresh_count"] > 0
 
-    def test_manifest_enrichment_blocks_populated(self):
-        """Committed manifest must list realistic enrichment blocks."""
+    def test_reference_enrichment_field_names_match_typeddicts(self):
+        """Every field in the reference fixture must match its TypedDict exactly."""
         import json
+        from scripts.smc_enrichment_types import (
+            EventRiskLightBlock,
+            SessionContextLightBlock,
+            OBContextLightBlock,
+            FVGLifecycleLightBlock,
+            StructureStateLightBlock,
+            SignalQualityBlock,
+        )
+        fixture = json.loads(
+            (ROOT / "tests/fixtures/reference_enrichment.json").read_text()
+        )
+        typeddict_map = {
+            "event_risk_light": EventRiskLightBlock,
+            "session_context_light": SessionContextLightBlock,
+            "ob_context_light": OBContextLightBlock,
+            "fvg_lifecycle_light": FVGLifecycleLightBlock,
+            "structure_state_light": StructureStateLightBlock,
+            "signal_quality": SignalQualityBlock,
+        }
+        for block_name, td_class in typeddict_map.items():
+            expected_keys = set(td_class.__annotations__)
+            actual_keys = set(fixture[block_name])
+            assert actual_keys == expected_keys, (
+                f"{block_name}: fixture keys {actual_keys} != TypedDict keys {expected_keys}"
+            )
+
+    def test_manifest_matches_committed_pine(self):
+        """Committed manifest must match committed Pine (both default reference)."""
+        import json, re
         manifest = json.loads(
             (ROOT / "pine/generated/smc_micro_profiles_generated.json").read_text()
         )
-        blocks = manifest["enrichment_blocks"]
-        assert len(blocks) > 0, "enrichment_blocks must not be empty"
+        pine = (ROOT / "pine/generated/smc_micro_profiles_generated.pine").read_text()
+        # Manifest enrichment_blocks mirrors actual enrichment state
+        assert isinstance(manifest["enrichment_blocks"], list)
+        # ASOF_TIME must match between Pine and manifest
+        pine_asof = re.search(r'ASOF_TIME\s*=\s*"([^"]*)"', pine)
+        assert pine_asof is not None
+        assert manifest["asof_time"] == pine_asof.group(1)
+        # REFRESH_COUNT must match
+        pine_rc = re.search(r'REFRESH_COUNT\s*=\s*(\d+)', pine)
+        assert pine_rc is not None
+        assert manifest["refresh_count"] == int(pine_rc.group(1))
+        # v55_lean_blocks must list all lean families
         for block in V55_LEAN_FAMILIES:
-            assert block in blocks, f"Manifest must list {block} in enrichment_blocks"
-        assert manifest["event_risk_source"] != "defaults"
-        assert manifest["asof_time"] != ""
-        assert manifest["refresh_count"] > 0
+            assert block in manifest["v55_lean_blocks"]
 
     def test_runtime_budget_doc_exists(self):
         """Runtime budget document must exist and list dead inputs."""

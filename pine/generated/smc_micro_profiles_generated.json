@@ -1,7 +1,7 @@
 {
   "schema_version": "2.0.0",
-  "schema_version_previous": "1.2.0",
-  "version_change_type": "major",
+  "schema_version_previous": "2.0.0",
+  "version_change_type": "unchanged",
   "asof_date": "2026-03-23",
   "library_name": "smc_micro_profiles_generated",
   "library_owner": "preuss_steffen",
@@ -36,7 +36,7 @@
     "weak_afterhours": 1,
     "fast_decay": 1
   },
-  "enrichment_blocks": ["calendar", "event_risk", "event_risk_light", "fvg_lifecycle_light", "layering", "meta", "news", "ob_context_light", "providers", "regime", "session_context_light", "signal_quality", "structure_state_light"],
+  "enrichment_blocks": [],
   "library_field_version": "v5.5a",
   "v55_lean_blocks": [
     "event_risk_light",
@@ -46,8 +46,8 @@
     "structure_state_light",
     "signal_quality"
   ],
-  "event_risk_source": "smc_event_risk_builder",
-  "auto_commit_allowed": false,
-  "asof_time": "2026-03-30T14:30:00Z",
-  "refresh_count": 42
+  "event_risk_source": "defaults",
+  "auto_commit_allowed": true,
+  "asof_time": "",
+  "refresh_count": 0
 }

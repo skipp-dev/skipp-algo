@@ -1,7 +1,7 @@
 # Runtime Budget — SMC_Core_Engine.pine v5.5a
 
 **Status**: Active inventory  
-**Last updated**: AP8 v5.5a
+**Last updated**: AP7 v5.5b — Phase B unblocked
 
 ---
 
@@ -41,13 +41,14 @@ These fields are read from lean families and drive the engine directly.
 
 ### BUS Backward Compat (broad fields, Dashboard only)
 Kept for Dashboard/Strategy consumers that haven't migrated to lean.
+Dashboard reads only PackA-D; **PackE/F/G have zero consumers** (confirmed AP7 v5.5b).
 
-| BUS Pack | Fields | Removable when |
-|----------|--------|----------------|
-| PackE | 6 | Dashboard reads LeanPack |
-| PackF | 12 | Dashboard reads LeanPack |
-| PackG | 15 | Dashboard reads LeanPack |
-| **Total** | **33** | Phase B |
+| BUS Pack | Fields | Status |
+|----------|--------|--------|
+| PackE | 6 | ⚠️ REMOVABLE — zero consumers |
+| PackF | 12 | ⚠️ REMOVABLE — zero consumers |
+| PackG | 15 | ⚠️ REMOVABLE — zero consumers |
+| **Total** | **33** | Phase B ready |
 
 ### Dead Inputs (declared, never consumed)
 These `input.bool` variables are defined but never referenced by any gate or plot.
@@ -71,9 +72,10 @@ Safe to remove — saves ~10 input slots.
 ## 3. Removal Roadmap
 
 ### Phase B: BUS compat fields (33 fields, 3 plot slots)
-**Prerequisite**: SMC_Dashboard.pine migrated to LeanPack A/B  
-**Effort**: Medium (Dashboard code change)  
-**Runtime savings**: 33 field declarations, 3 plot calls, ~50 lines packing logic
+**Status**: UNBLOCKED — Dashboard reads LeanPack A/B (AP5 v5.5b), PackE/F/G have zero consumers  
+**Effort**: Low (pure deletion, no rewiring needed)  
+**Runtime savings**: 33 field declarations, 12 resolver functions, 3 plot calls, ~265 lines total  
+**Plot budget after Phase B**: 32 / 64
 
 ### Phase C: Dead inputs cleanup (10 inputs)
 **Prerequisite**: None — all verified dead  
