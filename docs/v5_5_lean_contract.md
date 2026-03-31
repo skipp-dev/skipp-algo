@@ -59,6 +59,12 @@
 | OB_AGE_BARS | int | bars since creation |
 | OB_MITIGATION_STATE | string | fresh / touched / mitigated / stale |
 
+**OB_MITIGATION_STATE semantics**: States are **age-derived lifecycle stages**:
+- `fresh` — OB is ≤ 10 bars old and not mitigated
+- `touched` — OB is 11-30 bars old; this is an **aging lifecycle label**, not a price-touch event
+- `mitigated` — the broad OB block reports actual mitigation (price filled the zone)
+- `stale` — OB is > 30 bars old
+
 ### 4. FVG / Imbalance Lifecycle Light (6 fields)
 | Field | Type | Values |
 |-------|------|--------|
@@ -87,6 +93,28 @@
 | SIGNAL_FRESHNESS | string | fresh / aging / stale |
 
 ## Keep / Deprecate / Remove Later
+
+### Signal Quality — Support Block Inputs
+
+Signal Quality (Family 6) consumes lean families 1-5 as primary inputs.
+Additionally, it reads two **non-lean support blocks**:
+
+| Support Block | Fields Used | Component | Max Weight |
+|---------------|-------------|-----------|------------|
+| `liquidity_sweeps` | RECENT_BULL_SWEEP, RECENT_BEAR_SWEEP, SWEEP_QUALITY_SCORE, SWEEP_DIRECTION | Liquidity/sweep support | 15 |
+| `compression_regime` | SQUEEZE_ON, ATR_REGIME | Compression regime | 15 |
+
+**Why these are acceptable:**
+- Both blocks are **read-only inputs** from upstream enrichment — SQ does not modify them.
+- Both contribute to scoring only; neither can block or gate alone.
+- Missing data safe-defaults to zero contribution (no warning, no error).
+- Replacing them with lean fields would add complexity without improving UX or testability.
+- Session Context Light's optional `SESSION_VOLATILITY_STATE` already derives from
+  `compression_regime`, so SQ's direct read avoids double-derivation.
+
+**Admission rule** (Design Principle 14): A non-lean support block is admitted when
+it provides scoring data that cannot be derived from the 5 lean families, safe-defaults
+to neutral on absence, and does not introduce gating or blocking logic.
 
 ### KEEP (v5.5 Lean Surface)
 All fields listed above in the 6 lean families.

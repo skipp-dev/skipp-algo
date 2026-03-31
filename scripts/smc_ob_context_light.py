@@ -29,7 +29,18 @@ FRESHNESS_MAX_BARS = 10
 
 
 def _mitigation_state(freshness_bars: int, mitigated: bool) -> str:
-    """Derive mitigation state from freshness and mitigation flag."""
+    """Derive OB lifecycle state from age and mitigation flag.
+
+    States are **age-derived lifecycle stages**, not price-event signals:
+    - ``fresh``:     ≤ FRESHNESS_MAX_BARS bars old, not mitigated
+    - ``touched``:   11-30 bars old — aging lifecycle, NOT "price touched the OB"
+    - ``mitigated``: the broad OB block reports full mitigation
+    - ``stale``:     > 30 bars old — too old for reliable trading
+
+    Design decision: "touched" was kept as-is (not renamed to "aging")
+    because the term is established in the lean contract and Pine decoder.
+    The semantics are documented here and in v5_5_lean_contract.md.
+    """
     if mitigated:
         return "mitigated"
     if freshness_bars <= FRESHNESS_MAX_BARS:

@@ -341,3 +341,83 @@ class TestCrossFamilyCoherence:
             "fvg_lifecycle_light": {"FVG_FRESH": False},
         })
         assert result["SIGNAL_FRESHNESS"] == "stale"
+
+
+# ── Hero-Surface Plausibility (showcase fixture) ────────────────────
+
+class TestHeroSurfacePlausibility:
+    """End-to-end plausibility checks using the showcase fixture."""
+
+    @pytest.fixture()
+    def showcase(self):
+        import json
+        from pathlib import Path
+        fixture = Path(__file__).parent / "fixtures" / "reference_enrichment.json"
+        with open(fixture) as f:
+            return json.load(f)
+
+    def test_bullish_fixture_plausible_surface(self, showcase):
+        """Bullish showcase -> SQ tier >= ok, bias == bull, freshness == fresh."""
+        sq = showcase["signal_quality"]
+        assert sq["SIGNAL_QUALITY_TIER"] in ("ok", "good", "high")
+        assert sq["SIGNAL_BIAS_ALIGNMENT"] == "bull"
+        assert sq["SIGNAL_FRESHNESS"] == "fresh"
+
+    def test_bullish_structure_supports_hero(self, showcase):
+        """BOS_BULL + fresh structure -> Hero Surface structure is strong."""
+        ssl = showcase["structure_state_light"]
+        assert ssl["STRUCTURE_LAST_EVENT"] == "BOS_BULL"
+        assert ssl["STRUCTURE_FRESH"] is True
+        assert ssl["STRUCTURE_EVENT_AGE_BARS"] <= 10
+
+    def test_ob_fvg_coherent_with_bias(self, showcase):
+        """OB and FVG sides must match the overall bullish scenario."""
+        assert showcase["ob_context_light"]["PRIMARY_OB_SIDE"] == "BULL"
+        assert showcase["fvg_lifecycle_light"]["PRIMARY_FVG_SIDE"] == "BULL"
+
+    def test_event_risk_clear_in_bullish_scenario(self, showcase):
+        """Bullish showcase should not have event blocking."""
+        erl = showcase["event_risk_light"]
+        assert erl["EVENT_WINDOW_STATE"] == "CLEAR"
+        assert erl["MARKET_EVENT_BLOCKED"] is False
+        assert erl["SYMBOL_EVENT_BLOCKED"] is False
+
+    def test_event_blocked_degrades_sq(self):
+        """When events are blocked, SQ must penalize."""
+        from scripts.smc_signal_quality import build_signal_quality
+        baseline = build_signal_quality(enrichment={
+            "structure_state_light": {"STRUCTURE_FRESH": True, "STRUCTURE_EVENT_AGE_BARS": 2, "STRUCTURE_LAST_EVENT": "BOS_BULL"},
+            "session_context_light": {"IN_KILLZONE": True, "SESSION_CONTEXT_SCORE": 5, "SESSION_DIRECTION_BIAS": "BULLISH"},
+            "ob_context_light": {"OB_FRESH": True, "PRIMARY_OB_SIDE": "BULL", "PRIMARY_OB_DISTANCE": 0.5},
+            "fvg_lifecycle_light": {"FVG_FRESH": True, "PRIMARY_FVG_SIDE": "BULL"},
+        })
+        blocked = build_signal_quality(enrichment={
+            "structure_state_light": {"STRUCTURE_FRESH": True, "STRUCTURE_EVENT_AGE_BARS": 2, "STRUCTURE_LAST_EVENT": "BOS_BULL"},
+            "session_context_light": {"IN_KILLZONE": True, "SESSION_CONTEXT_SCORE": 5, "SESSION_DIRECTION_BIAS": "BULLISH"},
+            "ob_context_light": {"OB_FRESH": True, "PRIMARY_OB_SIDE": "BULL", "PRIMARY_OB_DISTANCE": 0.5},
+            "fvg_lifecycle_light": {"FVG_FRESH": True, "PRIMARY_FVG_SIDE": "BULL"},
+            "event_risk_light": {"MARKET_EVENT_BLOCKED": True, "EVENT_RISK_LEVEL": "HIGH", "EVENT_WINDOW_STATE": "ACTIVE"},
+        })
+        assert blocked["SIGNAL_QUALITY_SCORE"] < baseline["SIGNAL_QUALITY_SCORE"]
+        assert "event_blocked" in blocked["SIGNAL_WARNINGS"]
+
+    def test_showcase_adapter_consistency(self, showcase):
+        """Re-derive event_risk_light from broad block; must match fixture."""
+        from scripts.smc_event_risk_light import build_event_risk_light
+        derived = build_event_risk_light(event_risk=showcase.get("event_risk"))
+        fixture_erl = showcase["event_risk_light"]
+        for field in ("EVENT_WINDOW_STATE", "EVENT_RISK_LEVEL", "MARKET_EVENT_BLOCKED", "SYMBOL_EVENT_BLOCKED"):
+            assert derived[field] == fixture_erl[field], f"{field}: derived={derived[field]} != fixture={fixture_erl[field]}"
+
+    def test_ob_mitigation_state_semantics(self, showcase):
+        """OB_MITIGATION_STATE must reflect age-derived lifecycle."""
+        ob = showcase["ob_context_light"]
+        state = ob["OB_MITIGATION_STATE"]
+        age = ob["OB_AGE_BARS"]
+        fresh = ob["OB_FRESH"]
+        assert state in ALLOWED_OB_MITIGATION_STATE
+        if state == "fresh":
+            assert age <= 10
+            assert fresh is True
+        elif state == "touched":
+            assert 11 <= age <= 30

@@ -4,6 +4,11 @@ Produces a compact, explainable quality assessment.  Primary inputs
 come from the 5 lean support families; broad blocks serve as fallback
 only when lean data is absent.
 
+Non-lean support inputs (see v5_5_lean_contract.md § Support Block Inputs):
+- liquidity_sweeps  — sweep direction & quality for scoring (0-15 pts)
+- compression_regime — squeeze/ATR for expansion potential (0-15 pts)
+Both safe-default to zero contribution when absent.
+
 Score composition (0-100):
 
 - Structure freshness (0-20)  — from Structure State Light

@@ -57,3 +57,4 @@ plausible values across all lean blocks.
 2. **showcase must pass contract**: `reference_enrichment.json` values must conform to `docs/v5_5_lean_contract.md`
 3. **No third class**: Two artifact classes are sufficient. Don't add more without strong justification
 4. **Test coverage**: Both classes have dedicated tests — drift tests for seed, contract tests for showcase
+5. **Showcase artifact lane**: `scripts/generate_showcase_summary.py` re-derives adapter-verifiable blocks (event_risk_light, signal_quality) from the showcase fixture and outputs `tests/fixtures/showcase_adapter_summary.json`. This provides a generated record of what the adapters produce for the showcase scenario.
