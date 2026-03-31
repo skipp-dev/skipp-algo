@@ -1,0 +1,47 @@
+//@version=6
+// Showcase Lean Surface — generated from reference_enrichment.json
+// This file is for REVIEW ONLY, not published as a library.
+
+// ── event_risk_light ──
+export const string EVENT_WINDOW_STATE = "CLEAR"
+export const string EVENT_RISK_LEVEL = "NONE"
+export const string NEXT_EVENT_NAME = ""
+export const string NEXT_EVENT_TIME = ""
+export const bool MARKET_EVENT_BLOCKED = false
+export const bool SYMBOL_EVENT_BLOCKED = false
+export const string EVENT_PROVIDER_STATUS = "ok"
+
+// ── session_context_light ──
+export const string SESSION_CONTEXT = "NY_AM"
+export const bool IN_KILLZONE = true
+export const string SESSION_DIRECTION_BIAS = "BULLISH"
+export const int SESSION_CONTEXT_SCORE = 3
+export const string SESSION_VOLATILITY_STATE = "NORMAL"
+
+// ── ob_context_light ──
+export const string PRIMARY_OB_SIDE = "BULL"
+export const float PRIMARY_OB_DISTANCE = 0.25
+export const bool OB_FRESH = true
+export const int OB_AGE_BARS = 5
+export const string OB_MITIGATION_STATE = "fresh"
+
+// ── fvg_lifecycle_light ──
+export const string PRIMARY_FVG_SIDE = "BULL"
+export const float PRIMARY_FVG_DISTANCE = 0.18
+export const float FVG_FILL_PCT = 0.0
+export const int FVG_MATURITY_LEVEL = 1
+export const bool FVG_FRESH = true
+export const bool FVG_INVALIDATED = false
+
+// ── structure_state_light ──
+export const string STRUCTURE_LAST_EVENT = "BOS_BULL"
+export const int STRUCTURE_EVENT_AGE_BARS = 3
+export const bool STRUCTURE_FRESH = true
+export const int STRUCTURE_TREND_STRENGTH = 72
+
+// ── signal_quality ──
+export const int SIGNAL_QUALITY_SCORE = 68
+export const string SIGNAL_QUALITY_TIER = "good"
+export const string SIGNAL_WARNINGS = ""
+export const string SIGNAL_BIAS_ALIGNMENT = "bull"
+export const string SIGNAL_FRESHNESS = "fresh"

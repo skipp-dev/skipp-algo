@@ -6,6 +6,9 @@ field presence but field meaning.
 """
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 import pytest
 
 # ── Allowed value domains (from docs/v5_5_lean_contract.md) ──
@@ -513,3 +516,151 @@ class TestProductPlausibility:
             "liquidity_sweeps": {"RECENT_BULL_SWEEP": True, "SWEEP_QUALITY_SCORE": 100},
         })
         assert 0 <= maxed["SIGNAL_QUALITY_SCORE"] <= 100
+
+
+# ── Showcase Artifact Lane Tests ────────────────────────────────────
+
+
+class TestShowcaseArtifactLane:
+    """Validate generated showcase artifacts are present and consistent."""
+
+    SHOWCASE_DIR = Path(__file__).parent / "fixtures" / "generated_showcase"
+
+    def test_showcase_directory_exists(self):
+        """Showcase output directory must exist after generation."""
+        assert self.SHOWCASE_DIR.is_dir(), f"Missing: {self.SHOWCASE_DIR}"
+
+    def test_manifest_present_and_valid(self):
+        """showcase_manifest.json must exist with required keys."""
+        manifest_path = self.SHOWCASE_DIR / "showcase_manifest.json"
+        assert manifest_path.exists()
+        manifest = json.loads(manifest_path.read_text())
+        assert "schema_version" in manifest
+        assert "generated_at" in manifest
+        assert "artifacts" in manifest
+        assert "lean_families" in manifest
+        assert len(manifest["lean_families"]) == 6
+
+    def test_adapter_summary_present(self):
+        """showcase_adapter_summary.json must exist in showcase dir."""
+        path = self.SHOWCASE_DIR / "showcase_adapter_summary.json"
+        assert path.exists()
+        summary = json.loads(path.read_text())
+        assert "_meta" in summary
+        assert "event_risk_light" in summary
+        assert "signal_quality" in summary
+
+    def test_pine_surface_present(self):
+        """showcase_lean_surface.pine must exist and contain lean fields."""
+        path = self.SHOWCASE_DIR / "showcase_lean_surface.pine"
+        assert path.exists()
+        content = path.read_text()
+        assert "//@version=6" in content
+        # Must contain at least one field from each lean family
+        assert "EVENT_WINDOW_STATE" in content
+        assert "IN_KILLZONE" in content
+        assert "PRIMARY_OB_SIDE" in content
+        assert "PRIMARY_FVG_SIDE" in content
+        assert "STRUCTURE_LAST_EVENT" in content
+        assert "SIGNAL_QUALITY_SCORE" in content
+
+    def test_manifest_lists_all_artifacts(self):
+        """Manifest artifacts list must match actual files."""
+        manifest = json.loads(
+            (self.SHOWCASE_DIR / "showcase_manifest.json").read_text()
+        )
+        for artifact_name in manifest["artifacts"]:
+            assert (self.SHOWCASE_DIR / artifact_name).exists(), (
+                f"Manifest lists {artifact_name} but file missing"
+            )
+
+    def test_legacy_compat_path(self):
+        """Legacy showcase_adapter_summary.json must still exist at old path."""
+        legacy = Path(__file__).parent / "fixtures" / "showcase_adapter_summary.json"
+        assert legacy.exists()
+
+
+# ── Measurement Lane Tests ──────────────────────────────────────────
+
+
+class TestMeasurementLane:
+    """Validate benchmark/scoring module structure and output shape."""
+
+    def test_event_family_kpi_fields(self):
+        """EventFamilyKPI must have all required KPI fields."""
+        from smc_core.benchmark import EventFamilyKPI
+        kpi = EventFamilyKPI(family="OB")
+        assert hasattr(kpi, "hit_rate")
+        assert hasattr(kpi, "time_to_mitigation_mean")
+        assert hasattr(kpi, "invalidation_rate")
+        assert hasattr(kpi, "mae")
+        assert hasattr(kpi, "mfe")
+        assert hasattr(kpi, "n_events")
+
+    def test_benchmark_result_shape(self):
+        """build_benchmark must return BenchmarkResult with KPIs."""
+        from smc_core.benchmark import BenchmarkResult, build_benchmark
+        result = build_benchmark(
+            symbol="TEST",
+            timeframe="5m",
+            events_by_family={
+                "OB": [{"hit": True, "time_to_mitigation": 5.0, "invalidated": False, "mae": 0.1, "mfe": 0.3}],
+                "BOS": [],
+            },
+        )
+        assert isinstance(result, BenchmarkResult)
+        assert result.symbol == "TEST"
+        assert len(result.kpis) == 2
+        ob_kpi = next(k for k in result.kpis if k.family == "OB")
+        assert ob_kpi.hit_rate == 1.0
+        assert ob_kpi.n_events == 1
+
+    def test_benchmark_export_creates_files(self, tmp_path):
+        """export_benchmark_artifacts must create JSON + manifest."""
+        from smc_core.benchmark import build_benchmark, export_benchmark_artifacts
+        result = build_benchmark(
+            symbol="AAPL",
+            timeframe="5m",
+            events_by_family={"OB": [{"hit": True, "time_to_mitigation": 3.0, "invalidated": False, "mae": 0.05, "mfe": 0.2}]},
+        )
+        manifest = export_benchmark_artifacts(result, tmp_path)
+        assert (tmp_path / "benchmark_AAPL_5m.json").exists()
+        assert (tmp_path / "manifest.json").exists()
+        assert "benchmark_AAPL_5m.json" in manifest.artifacts
+
+    def test_scoring_brier_range(self):
+        """Brier score must be in [0, 1] for valid predictions."""
+        from smc_core.scoring import brier_score
+        assert brier_score([(0.9, True), (0.1, False)]) < 0.1  # good calibration
+        assert brier_score([(0.1, True), (0.9, False)]) > 0.5  # bad calibration
+        assert 0 <= brier_score([(0.5, True), (0.5, False)]) <= 1.0
+
+    def test_scoring_log_score_finite(self):
+        """Log score must be finite for valid predictions."""
+        from smc_core.scoring import log_score
+        import math
+        score = log_score([(0.8, True), (0.2, False)])
+        assert math.isfinite(score)
+        assert score > 0
+
+    def test_sweep_reversal_label(self):
+        """label_sweep_reversal must detect directional reversals."""
+        from smc_core.scoring import label_sweep_reversal
+        # Sell-side sweep → expect UP reversal
+        assert label_sweep_reversal(100.0, "SELL_SIDE", [100.6, 101.0])
+        assert not label_sweep_reversal(100.0, "SELL_SIDE", [100.0, 100.1])
+        # Buy-side sweep → expect DOWN reversal
+        assert label_sweep_reversal(100.0, "BUY_SIDE", [99.4, 99.0])
+        assert not label_sweep_reversal(100.0, "BUY_SIDE", [100.0, 99.9])
+
+    def test_score_events_integration(self):
+        """score_events must produce valid ScoringResult."""
+        from smc_core.scoring import ScoredEvent, score_events
+        events = [
+            ScoredEvent(event_id="1", family="SWEEP", predicted_prob=0.8, outcome=True, timestamp=1.0),
+            ScoredEvent(event_id="2", family="SWEEP", predicted_prob=0.3, outcome=False, timestamp=2.0),
+        ]
+        result = score_events(events)
+        assert result.n_events == 2
+        assert 0 <= result.brier_score <= 1
+        assert result.hit_rate == 0.5

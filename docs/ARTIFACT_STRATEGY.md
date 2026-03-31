@@ -29,6 +29,10 @@ contain safe defaults for all fields (`enrichment_blocks: []`, `asof_time: ""`,
 
 **Files**:
 - `tests/fixtures/reference_enrichment.json` — semantic reference fixture
+- `tests/fixtures/generated_showcase/showcase_adapter_summary.json` — adapter-verified summary (generated)
+- `tests/fixtures/generated_showcase/showcase_lean_surface.pine` — Pine const-block for review (generated)
+- `tests/fixtures/generated_showcase/showcase_manifest.json` — artifact registry (generated)
+- `tests/fixtures/showcase_adapter_summary.json` — legacy path (compat symlink)
 
 **Purpose**: Product/UX/architecture review and semantic contract validation.
 This fixture shows what a **realistic enriched runtime state** looks like with

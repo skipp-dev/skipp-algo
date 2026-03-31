@@ -1,0 +1,18 @@
+{
+  "schema_version": "2.0.0",
+  "generated_at": 1774960979.833833,
+  "generator": "scripts/generate_showcase_summary.py",
+  "source_fixture": "tests/fixtures/reference_enrichment.json",
+  "lean_families": [
+    "event_risk_light",
+    "session_context_light",
+    "ob_context_light",
+    "fvg_lifecycle_light",
+    "structure_state_light",
+    "signal_quality"
+  ],
+  "artifacts": [
+    "showcase_adapter_summary.json",
+    "showcase_lean_surface.pine"
+  ]
+}

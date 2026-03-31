@@ -170,6 +170,62 @@ Pine must not rebuild competing interpretation layers outside the generator chai
 
 ---
 
+## 10. Forward-Looking Extensions
+
+v5.5b ships four infrastructure modules that lay the ground for
+measurement, calibration, and probabilistic scoring **without** breaking the
+lean surface contract.
+
+### 10.1 Benchmark Artifacts (`smc_core/benchmark.py`)
+
+| Concept | Detail |
+|---------|--------|
+| KPI set | `EventFamilyKPI` — hit_rate, time_to_mitigation, invalidation_rate, MAE, MFE per family |
+| Families | BOS, OB, FVG, SWEEP |
+| Stratification | session, htf_bias, vol_regime |
+| Output | `benchmark_{symbol}_{tf}.json` + `manifest.json` in a per-run directory |
+
+Benchmark results are **versionable** — each JSON artifact carries
+`schema_version` and `generated_at`.
+
+### 10.2 Probabilistic Scoring (`smc_core/scoring.py`)
+
+| Concept | Detail |
+|---------|--------|
+| Scores | Brier Score (MSE of probabilities), Log Score (negative log-likelihood) |
+| MVP label | `label_sweep_reversal` — did a sweep produce a directional reversal within *N* bars? |
+| Output | `scoring_{symbol}_{tf}.json` per run |
+
+Scoring results feed into the SQ calibration loop once live data is
+available — they are **not** used in the Pine indicator today but are ready
+for future CI-gated quality gates.
+
+### 10.3 Vol-Regime Classification (`smc_core/vol_regime.py`)
+
+ATR-ratio bucketing into `LOW`, `NORMAL`, `HIGH`, `EXTREME`.
+Consumed by benchmark stratification and available for future
+bias-merge weighting.
+
+### 10.4 HTF/Session Bias Merge (`smc_core/bias_merge.py`)
+
+Single-source-of-truth resolution of conflicting HTF bias, session bias, and
+structure direction.  Returns the merged bias plus a confidence level.
+
+### 10.5 Calibration Roadmap
+
+| Phase | Scope | Status |
+|-------|-------|--------|
+| Phase 1 (current) | Brier/Log Score on sweep-reversal label, static thresholds | ✅ Shipped |
+| Phase 2 (next) | Platt scaling or isotonic regression on SQ score vs. observed outcomes | Planned |
+| Phase 3 | GARCH/regime-aware score adjustment, session-specific calibration | Future |
+| Phase 4 | State-space model for time-varying SQ calibration | Research |
+
+**Rule**: No calibration change may introduce new lean surface fields.
+Calibration outputs remain internal Python artifacts or Dashboard-only
+annotations.
+
+---
+
 ## Supporting Documents
 
 | Document | Scope |
@@ -179,4 +235,5 @@ Pine must not rebuild competing interpretation layers outside the generator chai
 | [NO_SHADOW_LOGIC_POLICY.md](NO_SHADOW_LOGIC_POLICY.md) | Shadow logic rules |
 | [RUNTIME_BUDGET.md](RUNTIME_BUDGET.md) | Pine runtime metrics |
 | [LEGACY_REMOVAL_PLAN.md](LEGACY_REMOVAL_PLAN.md) | Removal phases |
+| [MEASUREMENT_LANE.md](MEASUREMENT_LANE.md) | Benchmark & scoring documentation |
 | [SMC_Unified_Lean_Architecture_v5_5a_DE_EN.md](SMC_Unified_Lean_Architecture_v5_5a_DE_EN.md) | Historical architecture (DE/EN) |
