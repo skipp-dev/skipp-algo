@@ -1,4 +1,4 @@
-# Runtime Budget — SMC_Core_Engine.pine v5.5a
+# Runtime Budget — SMC_Core_Engine.pine v5.5b
 
 **Status**: Active inventory  
 **Last updated**: AP7 v5.5b — Phase B unblocked
@@ -90,7 +90,7 @@ Safe to remove — saves ~10 input slots.
 - **Compact mode**: Suppresses 9+ visual overlays. No runtime savings (inputs still evaluated),
   but reduces chart rendering load.
 
-## 5. Principles (v5.5a)
+## 5. Principles (v5.5b)
 
 1. **Pine Runtime Budget** is architectural, not incidental (Principle 12)
 2. **Support Family Admission Rule** — new families must prove value vs. runtime cost (Principle 14)

@@ -4,7 +4,7 @@ library("smc_micro_profiles_generated")
 // ── Usage ──────────────────────────────────────────────────────
 // import preuss_steffen/smc_micro_profiles_generated/1 as mp
 //
-// Fields are grouped into sections (v5.5a Lean, ~290 fields total):
+// Fields are grouped into sections (v5.5b Lean, ~290 fields total):
 //   Core/Meta       — ASOF_DATE, ASOF_TIME, UNIVERSE_ID, LOOKBACK_DAYS, UNIVERSE_SIZE, REFRESH_COUNT
 //   Microstructure  — *_TICKERS lists (clean_reclaim, stop_hunt_prone, …)
 //   Regime          — MARKET_REGIME, VIX_LEVEL, MACRO_BIAS, SECTOR_BREADTH
@@ -30,13 +30,13 @@ library("smc_micro_profiles_generated")
 //   Range Regime (v5.3)       — 11 fields
 //   Range Profile Regime (v5.3) — 22 fields
 //
-//   ── v5.5a Lean Surface (preferred) ──
-//   Event Risk Light (v5.5a)      — 7 fields
-//   Session Context Light (v5.5a) — 5 fields
-//   OB Context Light (v5.5a)      — 5 fields
-//   FVG Lifecycle Light (v5.5a)   — 6 fields
-//   Structure State Light (v5.5a) — 4 fields
-//   Signal Quality (v5.5a)        — 5 fields
+//   ── v5.5b Lean Surface (preferred) ──
+//   Event Risk Light (v5.5b)      — 7 fields
+//   Session Context Light (v5.5b) — 5 fields
+//   OB Context Light (v5.5b)      — 5 fields
+//   FVG Lifecycle Light (v5.5b)   — 6 fields
+//   Structure State Light (v5.5b) — 4 fields
+//   Signal Quality (v5.5b)        — 5 fields
 //
 // All fields are export const — safe to read as mp.FIELD_NAME.
 // ───────────────────────────────────────────────────────────────
@@ -349,7 +349,7 @@ export const float PRED_RANGE_LOWER_1 = 0.0
 export const float PRED_RANGE_LOWER_2 = 0.0
 export const bool IN_PREDICTIVE_RANGE_EXTREME = false
 
-// ── Event Risk Light (v5.5a) ──
+// ── Event Risk Light (v5.5b) ──
 export const string EVENT_RISK_LIGHT_WINDOW_STATE = "CLEAR"
 export const string EVENT_RISK_LIGHT_LEVEL = "NONE"
 export const string EVENT_RISK_LIGHT_NEXT_NAME = ""
@@ -358,21 +358,21 @@ export const bool EVENT_RISK_LIGHT_MARKET_BLOCKED = false
 export const bool EVENT_RISK_LIGHT_SYMBOL_BLOCKED = false
 export const string EVENT_RISK_LIGHT_PROVIDER_STATUS = "ok"
 
-// ── Session Context Light (v5.5a) ──
+// ── Session Context Light (v5.5b) ──
 export const string SESSION_CONTEXT_LIGHT = "NONE"
 export const bool SESSION_LIGHT_IN_KILLZONE = false
 export const string SESSION_LIGHT_DIRECTION_BIAS = "NEUTRAL"
 export const int SESSION_LIGHT_CONTEXT_SCORE = 0
 export const string SESSION_LIGHT_VOLATILITY_STATE = "NORMAL"
 
-// ── Order Block Context Light (v5.5a) ──
+// ── Order Block Context Light (v5.5b) ──
 export const string PRIMARY_OB_SIDE = "NONE"
 export const float PRIMARY_OB_DISTANCE = 0.0
 export const bool OB_FRESH = false
 export const int OB_AGE_BARS = 0
 export const string OB_MITIGATION_STATE = "stale"
 
-// ── FVG / Imbalance Lifecycle Light (v5.5a) ──
+// ── FVG / Imbalance Lifecycle Light (v5.5b) ──
 export const string PRIMARY_FVG_SIDE = "NONE"
 export const float PRIMARY_FVG_DISTANCE = 0.0
 export const float FVG_FILL_PCT = 0.0
@@ -380,13 +380,13 @@ export const int FVG_MATURITY_LEVEL = 0
 export const bool FVG_FRESH = false
 export const bool FVG_INVALIDATED = false
 
-// ── Structure State Light (v5.5a) ──
+// ── Structure State Light (v5.5b) ──
 export const string STRUCTURE_LIGHT_LAST_EVENT = "NONE"
 export const int STRUCTURE_LIGHT_EVENT_AGE_BARS = 0
 export const bool STRUCTURE_LIGHT_FRESH = false
 export const int STRUCTURE_TREND_STRENGTH = 0
 
-// ── Signal Quality (v5.5a) ──
+// ── Signal Quality (v5.5b) ──
 export const int SIGNAL_QUALITY_SCORE = 0
 export const string SIGNAL_QUALITY_TIER = "low"
 export const string SIGNAL_WARNINGS = ""

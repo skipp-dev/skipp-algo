@@ -1612,7 +1612,7 @@ resolve_environment_gate_reason(bool market_regime_gate_ok, bool vola_regime_gat
 // - Strict sequence/sweep/confirm toggles decide how demanding the higher execution tiers are.
 // - Context quality, overhead, and microstructure switches decide how much market filtering is required before entry.
 //
-// Gate Classification (v5.5a):
+// Gate Classification (v5.5b):
 //   HARD (always required, safety):  lifecycle, environment (event_risk, market_regime, vola_regime)
 //   OPERATIONAL (toggle-gated):      session_structure, micro_session, micro_freshness, overhead, setup (touch count)
 //   SCORING (toggle-gated, opt-in):  quality, accel, sd, vol, stretch, ddvi, lean_signal_quality

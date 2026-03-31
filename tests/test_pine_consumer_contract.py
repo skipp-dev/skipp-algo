@@ -205,25 +205,25 @@ ENGINE_CONSUMED_FIELDS: set[str] = {
     # Compression / ATR Regime (v5.1)
     "SQUEEZE_ON", "SQUEEZE_RELEASED", "SQUEEZE_MOMENTUM_BIAS",
     "ATR_REGIME", "ATR_RATIO",
-    # Event Risk Light (v5.5a)
+    # Event Risk Light (v5.5b)
     "EVENT_RISK_LIGHT_WINDOW_STATE", "EVENT_RISK_LIGHT_LEVEL",
     "EVENT_RISK_LIGHT_NEXT_NAME", "EVENT_RISK_LIGHT_NEXT_TIME",
     "EVENT_RISK_LIGHT_MARKET_BLOCKED", "EVENT_RISK_LIGHT_SYMBOL_BLOCKED",
     "EVENT_RISK_LIGHT_PROVIDER_STATUS",
-    # Session Context Light (v5.5a)
+    # Session Context Light (v5.5b)
     "SESSION_CONTEXT_LIGHT", "SESSION_LIGHT_IN_KILLZONE",
     "SESSION_LIGHT_DIRECTION_BIAS", "SESSION_LIGHT_CONTEXT_SCORE",
     "SESSION_LIGHT_VOLATILITY_STATE",
-    # OB Context Light (v5.5a)
+    # OB Context Light (v5.5b)
     "PRIMARY_OB_SIDE", "PRIMARY_OB_DISTANCE",
     "OB_FRESH", "OB_AGE_BARS", "OB_MITIGATION_STATE",
-    # FVG Lifecycle Light (v5.5a)
+    # FVG Lifecycle Light (v5.5b)
     "PRIMARY_FVG_SIDE", "PRIMARY_FVG_DISTANCE",
     "FVG_FILL_PCT", "FVG_MATURITY_LEVEL", "FVG_FRESH", "FVG_INVALIDATED",
-    # Structure State Light (v5.5a)
+    # Structure State Light (v5.5b)
     "STRUCTURE_LIGHT_LAST_EVENT", "STRUCTURE_LIGHT_EVENT_AGE_BARS",
     "STRUCTURE_LIGHT_FRESH", "STRUCTURE_TREND_STRENGTH",
-    # Signal Quality (v5.5a)
+    # Signal Quality (v5.5b)
     "SIGNAL_QUALITY_SCORE", "SIGNAL_QUALITY_TIER",
     "SIGNAL_WARNINGS", "SIGNAL_BIAS_ALIGNMENT", "SIGNAL_FRESHNESS",
 }
@@ -709,7 +709,7 @@ class TestV55LeanContract:
         """Generated Pine library must have v5.5 section headers."""
         text = _read_pine("pine/generated/smc_micro_profiles_generated.pine")
         for family_name in V55_LEAN_FAMILIES:
-            section_tag = "(v5.5a)"
+            section_tag = "(v5.5b)"
             assert section_tag in text, (
                 f"Generated Pine missing v5.5 section marker for {family_name}"
             )
@@ -783,26 +783,26 @@ class TestV55DriftGuard:
     def test_gate_classification_comment_exists(self):
         """Gate classification documentation must exist in the engine."""
         text = _read_pine("SMC_Core_Engine.pine")
-        assert "Gate Classification (v5.5a)" in text, (
+        assert "Gate Classification (v5.5b)" in text, (
             "Gate classification comment block not found in engine"
         )
 
 
 class TestV55aContractSync:
-    """Ensure repo docs, generator, and manifest stay aligned at v5.5a."""
+    """Ensure repo docs, generator, and manifest stay aligned at v5.5b."""
 
     def test_manifest_field_version_is_v55a(self):
         import json
         manifest = json.loads(
             (ROOT / "pine/generated/smc_micro_profiles_generated.json").read_text()
         )
-        assert manifest["library_field_version"] == "v5.5a", (
-            f"Manifest library_field_version should be v5.5a, got {manifest['library_field_version']}"
+        assert manifest["library_field_version"] == "v5.5b", (
+            f"Manifest library_field_version should be v5.5b, got {manifest['library_field_version']}"
         )
 
     def test_contract_doc_references_v55a(self):
         text = (ROOT / "docs/v5_5_lean_contract.md").read_text()
-        assert "v5.5a" in text, "Contract doc must reference v5.5a"
+        assert "v5.5b" in text, "Contract doc must reference v5.5b"
         assert "Signal Quality Primacy" in text, "Contract doc must list Signal Quality Primacy principle"
         assert "No Shadow Logic" in text, "Contract doc must list No Shadow Logic principle"
 
@@ -818,7 +818,7 @@ class TestV55aContractSync:
         )
 
     def test_lean_family_count_32(self):
-        """v5.5a still has exactly 32 lean fields across 6 families."""
+        """v5.5b still has exactly 32 lean fields across 6 families."""
         total = sum(len(f) for f in V55_LEAN_FAMILIES.values())
         assert total == 32
 
@@ -835,10 +835,10 @@ class TestV55aContractSync:
         """Dead shadow logic (event_risk_hard_block/soft_block) must stay removed."""
         text = _read_pine("SMC_Core_Engine.pine")
         assert "event_risk_hard_block" not in text or "REMOVED" in text, (
-            "event_risk_hard_block was removed in v5.5a — must not reappear"
+            "event_risk_hard_block was removed in v5.5b — must not reappear"
         )
         assert "event_risk_soft_block" not in text or "REMOVED" in text, (
-            "event_risk_soft_block was removed in v5.5a — must not reappear"
+            "event_risk_soft_block was removed in v5.5b — must not reappear"
         )
 
     def test_no_shadow_logic_policy_exists(self):
@@ -942,7 +942,7 @@ class TestV55aContractSync:
             assert block in manifest["v55_lean_blocks"]
 
     def test_reference_enrichment_values_contract_compliant(self):
-        """Reference fixture values must conform to v5.5a lean contract allowed values."""
+        """Reference fixture values must conform to v5.5b lean contract allowed values."""
         import json
         fixture = json.loads(
             (ROOT / "tests/fixtures/reference_enrichment.json").read_text()

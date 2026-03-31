@@ -1,13 +1,22 @@
-"""V5.5a Signal Quality builder — lean-first.
+"""V5.5b Signal Quality builder — lean-first.
 
 Produces a compact, explainable quality assessment.  Primary inputs
 come from the 5 lean support families; broad blocks serve as fallback
 only when lean data is absent.
 
-Non-lean support inputs (see v5_5_lean_contract.md § Support Block Inputs):
-- liquidity_sweeps  — sweep direction & quality for scoring (0-15 pts)
-- compression_regime — squeeze/ATR for expansion potential (0-15 pts)
-Both safe-default to zero contribution when absent.
+Non-lean support inputs (Admission Rule — Design Principle 14):
+
+  A non-lean support block is admitted when it provides scoring data
+  that cannot be derived from the 5 lean families, safe-defaults to
+  neutral on absence, and does not introduce gating or blocking logic.
+
+  Admitted blocks:
+  - liquidity_sweeps  — sweep direction & quality for scoring (0-15 pts)
+  - compression_regime — squeeze/ATR for expansion potential (0-15 pts)
+  Both safe-default to zero contribution when absent.
+
+  See: docs/v5_5_lean_contract.md § Support Block Inputs
+  See: docs/v5_5b_architecture.md § Signal Quality — Support Block Inputs
 
 Score composition (0-100):
 

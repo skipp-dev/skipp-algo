@@ -115,7 +115,7 @@ class TestVolatilityStateWithout:
 
 
 class TestDefaults:
-    """Verify default structure matches v5.5a contract."""
+    """Verify default structure matches v5.5b contract."""
 
     def test_required_defaults_count(self):
         assert len(REQUIRED_DEFAULTS) == 4

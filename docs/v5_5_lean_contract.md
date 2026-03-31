@@ -1,13 +1,13 @@
-# v5.5a Lean Contract
+# v5.5b Lean Contract
 
 **Status**: Active  
-**Date**: 2026-03-30  
+**Date**: 2026-04-01  
 **Schema Version**: 2.0.0  
-**Library Field Version**: v5.5a  
-**Supersedes**: v5.5 Lean Contract Freeze  
+**Library Field Version**: v5.5b  
+**Supersedes**: v5.5a Lean Contract  
 
 > Refinement details: see [v5_5a_lean_contract_refinement_en.md](v5_5a_lean_contract_refinement_en.md)  
-> Architecture overview: see [SMC_Unified_Lean_Architecture_v5_5a_DE_EN.md](SMC_Unified_Lean_Architecture_v5_5a_DE_EN.md)
+> Architecture overview: see [v5_5b_architecture.md](v5_5b_architecture.md)
 
 ## Design Principles
 
@@ -26,7 +26,7 @@
 13. **UX Modes** — Compact Mode is the reference; Advanced Mode is optional
 14. **Support Family Admission Rule** — must prove value vs. runtime cost
 
-## v5.5 Lean Families
+## v5.5b Lean Families
 
 ### 1. Event Risk Light (7 fields)
 | Field | Type | Values |
@@ -64,6 +64,11 @@
 - `touched` — OB is 11-30 bars old; this is an **aging lifecycle label**, not a price-touch event
 - `mitigated` — the broad OB block reports actual mitigation (price filled the zone)
 - `stale` — OB is > 30 bars old
+
+**Design decision**: The label `touched` was kept (not renamed to `aging`) because the
+term is established in the lean contract, Pine decoder, and test suite. The docstring
+in `smc_ob_context_light.py` documents this explicitly.
+See: [v5_5b_architecture.md § OB_MITIGATION_STATE](v5_5b_architecture.md#4-ob_mitigation_state--age-derived-lifecycle)
 
 ### 4. FVG / Imbalance Lifecycle Light (6 fields)
 | Field | Type | Values |
@@ -116,7 +121,7 @@ Additionally, it reads two **non-lean support blocks**:
 it provides scoring data that cannot be derived from the 5 lean families, safe-defaults
 to neutral on absence, and does not introduce gating or blocking logic.
 
-### KEEP (v5.5 Lean Surface)
+### KEEP (v5.5b Lean Surface)
 All fields listed above in the 6 lean families.
 
 Plus existing canonical fields that are still needed:
@@ -174,12 +179,12 @@ Plus existing canonical fields that are still needed:
 ## Migration Notes
 
 1. All v5.3 fields continue to be exported — no breaking changes
-2. New v5.5a fields are additive
-3. Pine consumers should migrate to reading v5.5a lean fields
+2. New v5.5b fields are additive
+3. Pine consumers should migrate to reading v5.5b lean fields
 4. Deprecated fields will show `// DEPRECATED v5.5` comments in generated Pine
 5. Signal Quality provides a single-number alternative to checking multiple gates
-6. The `library_field_version` in the manifest changes from `v5.5` to `v5.5a`
-7. Schema version stays at `2.0.0` (v5.5a is a sharpening patch, not structural)
+6. The `library_field_version` in the manifest changes from `v5.5a` to `v5.5b`
+7. Schema version stays at `2.0.0` (v5.5b is a sharpening patch, not structural)
 8. `SESSION_VOLATILITY_STATE` is optional and must not be required for runtime
 9. Compact Mode is the reference UX mode for shared/public scripts
 10. No Shadow Logic: Pine must not rebuild competing interpretation layers
@@ -214,9 +219,9 @@ VWAP filter, BUS export) is **not** affected by compact mode.
 
 ## Version Rationale
 
-`library_field_version` is `v5.5a` (not `v5.6`) because:
-- No new fields were added
-- No fields were removed
-- The change is semantic (hierarchy, optionality, naming precision)
-- Generator field set is identical to v5.5
-- `a` suffix signals "sharpening patch" not "new surface"
+`library_field_version` is `v5.5b` (not `v5.6`) because:
+- No new lean surface fields were added beyond the original 32
+- No fields were removed from the surface
+- Changes are infrastructure (bias merge, vol regime, scoring, benchmarks) and cleanup (Phase B)
+- Generator field set is identical to v5.5/v5.5a
+- `b` suffix signals "second sharpening patch" after v5.5a

@@ -374,7 +374,7 @@ class TestComponentContributions:
 
 
 class TestOptionalVolatilityState:
-    """v5.5a: Signal Quality must work without SESSION_VOLATILITY_STATE."""
+    """v5.5b: Signal Quality must work without SESSION_VOLATILITY_STATE."""
 
     def test_no_session_light_block(self):
         """Signal quality works when session_context_light is absent."""
@@ -405,7 +405,7 @@ class TestOptionalVolatilityState:
 
 
 class TestLeanFirstPriority:
-    """v5.5a: lean families are primary; broad blocks are fallback-only."""
+    """v5.5b: lean families are primary; broad blocks are fallback-only."""
 
     def test_structure_light_is_primary(self):
         """Structure State Light is preferred over broad structure_state."""

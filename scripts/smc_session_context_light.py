@@ -1,8 +1,8 @@
-"""V5.5a Session Context Light adapter.
+"""V5.5b Session Context Light adapter.
 
 Passes through 4 required fields and optionally derives SESSION_VOLATILITY_STATE.
 
-SESSION_VOLATILITY_STATE is optional per v5.5a contract.  When compression_regime
+SESSION_VOLATILITY_STATE is optional per v5.5b contract.  When compression_regime
 data is unavailable the field defaults to "NORMAL" and the lean runtime remains
 fully functional without it.
 

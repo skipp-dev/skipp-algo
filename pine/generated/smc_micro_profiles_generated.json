@@ -1,7 +1,7 @@
 {
   "schema_version": "2.0.0",
-  "schema_version_previous": "2.0.0",
-  "version_change_type": "unchanged",
+  "schema_version_previous": "",
+  "version_change_type": "initial",
   "asof_date": "2026-03-23",
   "library_name": "smc_micro_profiles_generated",
   "library_owner": "preuss_steffen",
@@ -10,7 +10,7 @@
   "library_publish_required": true,
   "deployment_note": "Publish the generated Pine library in TradingView before importing it into SMC_Core_Engine.",
   "input_path": "tests/fixtures/seed_base_snapshot.csv",
-  "schema_path": "spec/smc_microstructure_profile.schema.json",
+  "schema_path": "/Users/steffenpreuss/Downloads/skipp-algo/spec/smc_microstructure_profile.schema.json",
   "features_csv": "data/output/microstructure_features_2026-03-23.csv",
   "lists_csv": "data/output/microstructure_lists_2026-03-23.csv",
   "state_csv": "data/output/microstructure_profile_state.csv",
@@ -37,7 +37,7 @@
     "fast_decay": 1
   },
   "enrichment_blocks": [],
-  "library_field_version": "v5.5a",
+  "library_field_version": "v5.5b",
   "v55_lean_blocks": [
     "event_risk_light",
     "session_context_light",

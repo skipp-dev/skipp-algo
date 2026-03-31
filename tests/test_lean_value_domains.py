@@ -1,4 +1,4 @@
-"""V5.5a Lean Contract — Value Domain & Semantic Coherence Tests.
+"""V5.5b Lean Contract — Value Domain & Semantic Coherence Tests.
 
 Validates that all lean adapter outputs conform to the allowed value
 domains defined in docs/v5_5_lean_contract.md. This ensures not just
@@ -421,3 +421,95 @@ class TestHeroSurfacePlausibility:
             assert fresh is True
         elif state == "touched":
             assert 11 <= age <= 30
+
+
+# ── Product-Plausibility: Tier Monotonicity & Warning Propagation ───
+
+class TestProductPlausibility:
+    """v5.5b product-level semantic coherence tests."""
+
+    def test_tier_monotonicity(self):
+        """Improving components must not degrade the tier."""
+        from scripts.smc_signal_quality import build_signal_quality
+
+        baseline = build_signal_quality()
+        improved = build_signal_quality(enrichment={
+            "structure_state_light": {
+                "STRUCTURE_FRESH": True,
+                "STRUCTURE_EVENT_AGE_BARS": 2,
+                "STRUCTURE_LAST_EVENT": "BOS_BULL",
+            },
+            "session_context_light": {
+                "IN_KILLZONE": True,
+                "SESSION_CONTEXT_SCORE": 5,
+                "SESSION_DIRECTION_BIAS": "BULLISH",
+            },
+        })
+        tier_order = ["low", "ok", "good", "high"]
+        assert tier_order.index(improved["SIGNAL_QUALITY_TIER"]) >= tier_order.index(
+            baseline["SIGNAL_QUALITY_TIER"]
+        ), "Adding positive components must not lower tier"
+
+    def test_warning_propagation_event_blocked(self):
+        """MARKET_EVENT_BLOCKED must produce 'event_blocked' warning."""
+        from scripts.smc_signal_quality import build_signal_quality
+
+        result = build_signal_quality(enrichment={
+            "event_risk_light": {
+                "MARKET_EVENT_BLOCKED": True,
+                "EVENT_RISK_LEVEL": "HIGH",
+                "EVENT_WINDOW_STATE": "ACTIVE",
+            },
+        })
+        assert "event_blocked" in result["SIGNAL_WARNINGS"]
+
+    def test_bearish_scenario_coherent(self):
+        """All-bearish inputs → bear bias alignment, fresh freshness."""
+        from scripts.smc_signal_quality import build_signal_quality
+
+        result = build_signal_quality(enrichment={
+            "structure_state_light": {
+                "STRUCTURE_LAST_EVENT": "BOS_BEAR",
+                "STRUCTURE_EVENT_AGE_BARS": 2,
+                "STRUCTURE_FRESH": True,
+            },
+            "session_context_light": {"SESSION_DIRECTION_BIAS": "BEARISH"},
+            "ob_context_light": {"PRIMARY_OB_SIDE": "BEAR"},
+            "fvg_lifecycle_light": {"PRIMARY_FVG_SIDE": "BEAR"},
+        })
+        assert result["SIGNAL_BIAS_ALIGNMENT"] == "bear"
+        assert result["SIGNAL_FRESHNESS"] == "fresh"
+
+    def test_freshness_degrades_with_aging(self):
+        """As all components age, freshness must degrade from fresh → stale."""
+        from scripts.smc_signal_quality import build_signal_quality
+
+        fresh = build_signal_quality(enrichment={
+            "structure_state_light": {"STRUCTURE_FRESH": True, "STRUCTURE_EVENT_AGE_BARS": 2},
+            "ob_context_light": {"OB_FRESH": True},
+            "fvg_lifecycle_light": {"FVG_FRESH": True},
+        })
+        stale = build_signal_quality(enrichment={
+            "structure_state_light": {"STRUCTURE_FRESH": False, "STRUCTURE_EVENT_AGE_BARS": 200},
+            "ob_context_light": {"OB_FRESH": False},
+            "fvg_lifecycle_light": {"FVG_FRESH": False},
+        })
+        freshness_order = ["stale", "aging", "fresh"]
+        assert freshness_order.index(fresh["SIGNAL_FRESHNESS"]) > freshness_order.index(
+            stale["SIGNAL_FRESHNESS"]
+        ), "Aging components must degrade freshness"
+
+    def test_sq_score_bounded(self):
+        """Score must always be 0-100 regardless of extreme inputs."""
+        from scripts.smc_signal_quality import build_signal_quality
+
+        # Maximally positive scenario
+        maxed = build_signal_quality(enrichment={
+            "structure_state_light": {"STRUCTURE_FRESH": True, "STRUCTURE_EVENT_AGE_BARS": 1, "STRUCTURE_LAST_EVENT": "BOS_BULL"},
+            "session_context_light": {"IN_KILLZONE": True, "SESSION_CONTEXT_SCORE": 7, "SESSION_DIRECTION_BIAS": "BULLISH"},
+            "ob_context_light": {"OB_FRESH": True, "PRIMARY_OB_SIDE": "BULL", "OB_AGE_BARS": 1, "PRIMARY_OB_DISTANCE": 0.1},
+            "fvg_lifecycle_light": {"FVG_FRESH": True, "PRIMARY_FVG_SIDE": "BULL", "FVG_MATURITY_LEVEL": 0},
+            "compression": {"SQUEEZE_RELEASED": True, "ATR_REGIME": "EXPANSION"},
+            "liquidity_sweeps": {"RECENT_BULL_SWEEP": True, "SWEEP_QUALITY_SCORE": 100},
+        })
+        assert 0 <= maxed["SIGNAL_QUALITY_SCORE"] <= 100
