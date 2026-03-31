@@ -12,6 +12,7 @@ from smc_adapters import (
     snapshot_to_pine_payload,
 )
 from smc_core import apply_layering, snapshot_to_dict
+from smc_core.bias_merge import merge_bias
 from smc_core.types import SmcSnapshot
 from scripts.load_databento_export_bundle import load_export_bundle
 from scripts.smc_htf_context import build_htf_bias_context
@@ -214,6 +215,8 @@ def build_snapshot_bundle_for_symbol_timeframe(
         session_context = build_session_liquidity_context(bars, tz="America/New_York")
         htf_context = build_htf_bias_context(bars, timeframe=timeframe, htf_frames=None)
 
+    bias_verdict = merge_bias(htf_context or None, session_context or None)
+
     structure_context = normalized_structure_context
 
     out = {
@@ -226,6 +229,14 @@ def build_snapshot_bundle_for_symbol_timeframe(
         "structure_qualifiers": structure_qualifiers,
         "session_context": session_context,
         "htf_context": htf_context,
+        "bias_verdict": {
+            "direction": bias_verdict.direction,
+            "confidence": bias_verdict.confidence,
+            "htf_direction": bias_verdict.htf_direction,
+            "session_direction": bias_verdict.session_direction,
+            "conflict": bias_verdict.conflict,
+            "source": bias_verdict.source,
+        },
         "meta_domains_present": raw_meta.get("meta_domains_present", []),
         "meta_domains_missing": raw_meta.get("meta_domains_missing", []),
         "meta_domain_diagnostics": raw_meta.get("meta_domain_diagnostics", {}),

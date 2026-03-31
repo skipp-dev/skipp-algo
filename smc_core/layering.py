@@ -279,6 +279,11 @@ def _base_zone_style(global_heat: float, global_strength: float, base_reasons: l
 
 
 def _apply_regime_overlay(style: ZoneStyle, volume_regime: str) -> ZoneStyle:
+    """Apply volume-regime overlay using *qualify, don't block* policy.
+
+    Hard blocks are reserved for data/health failures (provider_health).
+    Volume regimes only tier-downgrade + warn.
+    """
     reasons = list(style.reason_codes)
     if volume_regime == "HOLIDAY_SUSPECT":
         reasons.append("REGIME_HOLIDAY_SUSPECT")
@@ -286,12 +291,12 @@ def _apply_regime_overlay(style: ZoneStyle, volume_regime: str) -> ZoneStyle:
             opacity=min(style.opacity, 0.10),
             line_width=style.line_width,
             render_state="DIMMED",
-            trade_state="BLOCKED",
+            trade_state="DISCOURAGED",
             bias=style.bias,
-            strength=style.strength,
+            strength=max(0.0, style.strength * 0.5),
             heat=style.heat,
             tone="WARNING",
-            emphasis=style.emphasis,
+            emphasis="LOW",
             reason_codes=_dedupe_reasons(reasons),
         )
 
@@ -335,17 +340,17 @@ def _apply_event_risk_overlay(style: ZoneStyle, normalized: NormalizedMeta) -> Z
     reasons = list(style.reason_codes)
     if sev == "HIGH":
         reasons.append("EVENT_RISK_HIGH")
-        next_trade: Literal["ALLOWED", "DISCOURAGED", "BLOCKED"] = "BLOCKED"
+        next_trade: Literal["ALLOWED", "DISCOURAGED", "BLOCKED"] = "DISCOURAGED"
         return ZoneStyle(
             opacity=min(style.opacity, 0.15),
             line_width=style.line_width,
             render_state="DIMMED",
             trade_state=next_trade,
             bias=style.bias,
-            strength=style.strength,
+            strength=max(0.0, style.strength * 0.6),
             heat=style.heat,
             tone="WARNING",
-            emphasis=style.emphasis,
+            emphasis="LOW",
             reason_codes=_dedupe_reasons(reasons),
         )
     if sev == "MODERATE":

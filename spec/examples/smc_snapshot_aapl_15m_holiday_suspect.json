@@ -2,7 +2,7 @@
   "symbol": "AAPL",
   "timeframe": "15m",
   "generated_at": 1709300000,
-  "schema_version": "1.2.0",
+  "schema_version": "2.0.0",
   "structure": {
     "bos": [],
     "orderblocks": [
@@ -54,7 +54,7 @@
         "opacity": 0.1,
         "line_width": 1,
         "render_state": "DIMMED",
-        "trade_state": "BLOCKED",
+        "trade_state": "DISCOURAGED",
         "bias": "NEUTRAL",
         "strength": 0.3,
         "heat": 0.0,
