@@ -501,9 +501,12 @@ def write_pine_library(
     asof_date: str,
     universe_size: int,
     enrichment: EnrichmentDict | None = None,
+    snapshot: pd.DataFrame | None = None,
 ) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    enr = enrichment or {}
+    from scripts.smc_v55_lean_normalization import normalize_v55_lean_enrichment
+
+    enr = normalize_v55_lean_enrichment(enrichment, snapshot=snapshot) or {}
 
     def render_list(name: str, symbols: list[str]) -> str:
         const_name = name.upper()
@@ -1198,6 +1201,10 @@ def write_manifest(
 ) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
 
+    from scripts.smc_v55_lean_normalization import normalize_v55_lean_enrichment
+
+    normalized_enrichment = normalize_v55_lean_enrichment(enrichment)
+
     # Read previous manifest to record governance metadata
     prev_schema = ""
     if path.exists():
@@ -1242,7 +1249,7 @@ def write_manifest(
         "universe_size": universe_size,
         "exported_lists": LIST_EXPORTS,
         "list_counts": {name: len(symbols) for name, symbols in lists.items()},
-        "enrichment_blocks": sorted((enrichment or {}).keys()),
+        "enrichment_blocks": sorted((normalized_enrichment or {}).keys()),
         "library_field_version": "v5.5b",
         "v55_lean_blocks": [
             "event_risk_light",
@@ -1252,10 +1259,10 @@ def write_manifest(
             "structure_state_light",
             "signal_quality",
         ],
-        "event_risk_source": "smc_event_risk_builder" if (enrichment or {}).get("event_risk") else "defaults",
+        "event_risk_source": "smc_event_risk_builder" if (normalized_enrichment or {}).get("event_risk") else "defaults",
         "auto_commit_allowed": change_type in ("unchanged", "patch", "minor", "initial"),
-        "asof_time": ((enrichment or {}).get("meta") or {}).get("asof_time", ""),
-        "refresh_count": int(((enrichment or {}).get("meta") or {}).get("refresh_count", 0)),
+        "asof_time": ((normalized_enrichment or {}).get("meta") or {}).get("asof_time", ""),
+        "refresh_count": int(((normalized_enrichment or {}).get("meta") or {}).get("refresh_count", 0)),
     }
     path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
 

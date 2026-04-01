@@ -16,23 +16,28 @@ The TradingView release tracking artifact is:
 
 The import path must stay identical in all three places.
 
-The manifest carries `library_field_version: "v4"` and lists all active `enrichment_blocks`.
+The manifest carries `library_field_version: "v5.5b"` and lists all active `enrichment_blocks`.
+When broad v5/v5.1-v5.3 enrichment is present, the generator normalizes the
+six v5.5b lean blocks before export so the Pine artifact and manifest stay in sync.
 
-## v4 Library Field Contract
+## v5.5b Library Field Contract
 
-The generated Pine library exports exactly **37 `export const` fields** organized in seven sections:
+The generated Pine library exports the full compatibility surface used by
+SMC_Core_Engine.pine: legacy v5-v5.3 fields remain available, and the
+preferred v5.5b lean surface is exported alongside them.
 
-| Section | Fields | Count |
-|---------|--------|-------|
-| Core + Meta | ASOF_DATE, ASOF_TIME, UNIVERSE_ID, LOOKBACK_DAYS, UNIVERSE_SIZE, REFRESH_COUNT | 6 |
-| Microstructure Lists | CLEAN_RECLAIM_TICKERS, STOP_HUNT_PRONE_TICKERS, MIDDAY_DEAD_TICKERS, RTH_ONLY_TICKERS, WEAK_PREMARKET_TICKERS, WEAK_AFTERHOURS_TICKERS, FAST_DECAY_TICKERS | 7 |
-| Regime | MARKET_REGIME, VIX_LEVEL, MACRO_BIAS, SECTOR_BREADTH | 4 |
-| News | NEWS_BULLISH_TICKERS, NEWS_BEARISH_TICKERS, NEWS_NEUTRAL_TICKERS, NEWS_HEAT_GLOBAL, TICKER_HEAT_MAP | 5 |
-| Calendar | EARNINGS_TODAY_TICKERS, EARNINGS_TOMORROW_TICKERS, EARNINGS_BMO_TICKERS, EARNINGS_AMC_TICKERS, HIGH_IMPACT_MACRO_TODAY, MACRO_EVENT_NAME, MACRO_EVENT_TIME | 7 |
-| Layering | GLOBAL_HEAT, GLOBAL_STRENGTH, TONE, TRADE_STATE | 4 |
-| Providers + Volume | PROVIDER_COUNT, STALE_PROVIDERS, VOLUME_LOW_TICKERS, HOLIDAY_SUSPECT_TICKERS | 4 |
+Preferred lean families:
 
-Of these, SMC_Core_Engine.pine reads **15 fields** via `mp.FIELD`. The remaining 22 are reserved for future consumer use or dashboard forwarding.
+- Event Risk Light: 7 fields
+- Session Context Light: 5 fields
+- Order Block Context Light: 5 fields
+- FVG / Imbalance Lifecycle Light: 6 fields
+- Structure State Light: 4 fields
+- Signal Quality: 5 fields
+
+The executable contract is defined by the generator output under
+`pine/generated/` plus the consumer-contract tests in
+`tests/test_pine_consumer_contract.py`, not by a fixed field-count number in this runbook.
 
 ## Local Refresh
 
@@ -46,7 +51,7 @@ streamlit run streamlit_smc_micro_base_generator.py
 
 1. Configure Databento + FMP API keys in the sidebar.
 2. Click `Run SMC Base Scan` to generate the base snapshot.
-3. Click `Generate Pine Library` — this produces the 37-field v4 library with enrichment data from FMP/Benzinga.
+3. Click `Generate Pine Library` — this produces the v5.5b library surface with normalized lean blocks and any selected enrichment data from FMP/Benzinga.
 4. Review the manifest contract in the UI.
 5. Click `Publish To TradingView` when the publish guard is green.
 
@@ -54,7 +59,7 @@ streamlit run streamlit_smc_micro_base_generator.py
 
 The GitHub Actions workflow `.github/workflows/smc-library-refresh.yml` runs 4x per trading day (12:30/14:30/16:30/18:30 UTC). Each run:
 
-1. Generates the base + v4 enrichment library via `scripts/generate_smc_micro_base_from_databento.py --run-scan --enrich-all`
+1. Generates the base + v5.5b enrichment library via `scripts/generate_smc_micro_base_from_databento.py --run-scan --enrich-all`
 2. Runs evidence gate tests
 3. Detects whether the library content changed
 4. Publishes to TradingView only when changed

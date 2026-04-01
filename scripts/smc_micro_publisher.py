@@ -58,7 +58,14 @@ def publish_generation_result(
     write_diff_report(diff_report_path, result.previous_state, result.state_df, result.asof_date)
 
     # Write Pine artifacts
-    write_pine_library(pine_path, result.lists, result.asof_date, result.universe_size, enrichment=enrichment)
+    write_pine_library(
+        pine_path,
+        result.lists,
+        result.asof_date,
+        result.universe_size,
+        enrichment=enrichment,
+        snapshot=result.features_df,
+    )
     recommended_import_path = write_core_import_snippet(
         core_import_snippet_path,
         library_owner=library_owner,

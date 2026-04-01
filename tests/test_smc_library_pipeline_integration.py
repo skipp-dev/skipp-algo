@@ -9,13 +9,13 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
-from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from scripts.generate_smc_micro_profiles import LISTS, write_pine_library
 from scripts.generate_smc_micro_base_from_databento import build_enrichment
+from scripts.smc_enrichment_types import EnrichmentDict
 
 
 # ── Helpers ─────────────────────────────────────────────────────
@@ -36,7 +36,7 @@ def _sample_lists() -> dict[str, list[str]]:
     }
 
 
-def _full_enrichment() -> dict[str, Any]:
+def _full_enrichment() -> EnrichmentDict:
     """Enrichment dict matching the contract that write_pine_library expects."""
     return {
         "regime": {
@@ -272,7 +272,7 @@ class TestLibraryPineSyntaxValid:
         ]
         assert len(export_lines) > 0
         type_pattern = re.compile(
-            r'^export const (string|int|float|bool) [A-Z_]+ = .+'
+            r'^export const (string|int|float|bool) [A-Z0-9_]+ = .+'
         )
         for line in export_lines:
             assert type_pattern.match(line), f"Bad export line: {line}"

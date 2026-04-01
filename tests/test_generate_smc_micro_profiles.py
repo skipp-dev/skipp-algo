@@ -23,6 +23,7 @@ from scripts.generate_smc_micro_profiles import (
     write_readiness_report,
 )
 
+from scripts.smc_enrichment_types import EnrichmentDict
 from scripts.smc_schema_resolver import resolve_microstructure_schema_path
 
 
@@ -342,7 +343,7 @@ def test_write_library_without_enrichment(tmp_path: Path) -> None:
 
 def test_write_library_with_full_enrichment(tmp_path: Path) -> None:
     out = tmp_path / "lib.pine"
-    enrichment = {
+    enrichment: EnrichmentDict = {
         "regime": {"regime": "RISK_ON", "vix_level": 18.5, "macro_bias": 0.35, "sector_breadth": 0.72},
         "news": {
             "bullish_tickers": ["AAPL", "MSFT"],
@@ -388,7 +389,7 @@ def test_write_library_with_full_enrichment(tmp_path: Path) -> None:
 
 def test_write_library_partial_enrichment(tmp_path: Path) -> None:
     out = tmp_path / "lib.pine"
-    enrichment = {
+    enrichment: EnrichmentDict = {
         "regime": {"regime": "RISK_OFF", "vix_level": 35.0, "macro_bias": -0.4, "sector_breadth": 0.25},
     }
     write_pine_library(out, _EMPTY_LISTS, "2026-03-28", 50, enrichment=enrichment)
@@ -408,9 +409,126 @@ def test_write_library_partial_enrichment(tmp_path: Path) -> None:
     assert "PROVIDER_COUNT = 0" in text
 
 
+def test_write_library_derives_v55_lean_blocks_from_broad_enrichment(tmp_path: Path) -> None:
+    out = tmp_path / "lib.pine"
+    snapshot = pd.DataFrame([
+        {
+            "symbol": "AAPL",
+            "day_close": 102.0,
+        }
+    ])
+    enrichment: EnrichmentDict = {
+        "event_risk": {
+            "EVENT_WINDOW_STATE": "ACTIVE",
+            "EVENT_RISK_LEVEL": "HIGH",
+            "NEXT_EVENT_NAME": "CPI",
+            "NEXT_EVENT_TIME": "14:00",
+            "MARKET_EVENT_BLOCKED": False,
+            "SYMBOL_EVENT_BLOCKED": False,
+            "EVENT_PROVIDER_STATUS": "ok",
+        },
+        "session_context": {
+            "SESSION_CONTEXT": "NY_AM",
+            "IN_KILLZONE": True,
+            "SESSION_DIRECTION_BIAS": "BULLISH",
+            "SESSION_CONTEXT_SCORE": 5,
+        },
+        "compression_regime": {
+            "SQUEEZE_ON": True,
+            "ATR_REGIME": "COMPRESSION",
+        },
+        "order_blocks": {
+            "NEAREST_BULL_OB_LEVEL": 100.0,
+            "NEAREST_BEAR_OB_LEVEL": 110.0,
+            "BULL_OB_FRESHNESS": 5,
+            "BEAR_OB_FRESHNESS": 1,
+            "BULL_OB_MITIGATED": False,
+            "BEAR_OB_MITIGATED": False,
+        },
+        "imbalance_lifecycle": {
+            "BULL_FVG_ACTIVE": True,
+            "BULL_FVG_TOP": 104.0,
+            "BULL_FVG_BOTTOM": 100.0,
+            "BULL_FVG_MITIGATION_PCT": 0.1,
+            "BULL_FVG_FULL_MITIGATION": False,
+        },
+        "structure_state": {
+            "STRUCTURE_STATE": "BULLISH",
+            "STRUCTURE_LAST_EVENT": "BOS_BULL",
+            "STRUCTURE_EVENT_AGE_BARS": 2,
+            "STRUCTURE_FRESH": True,
+            "BOS_BULL": True,
+            "SUPPORT_ACTIVE": True,
+            "RESISTANCE_ACTIVE": True,
+        },
+        "liquidity_sweeps": {
+            "RECENT_BULL_SWEEP": True,
+            "RECENT_BEAR_SWEEP": False,
+            "SWEEP_QUALITY_SCORE": 8,
+            "SWEEP_DIRECTION": "BULL",
+        },
+    }
+
+    write_pine_library(
+        out,
+        _EMPTY_LISTS,
+        "2026-03-28",
+        5,
+        enrichment=enrichment,
+        snapshot=snapshot,
+    )
+    text = out.read_text(encoding="utf-8")
+
+    assert 'EVENT_RISK_LIGHT_LEVEL = "HIGH"' in text
+    assert 'SESSION_CONTEXT_LIGHT = "NY_AM"' in text
+    assert 'SESSION_LIGHT_VOLATILITY_STATE = "LOW"' in text
+    assert 'PRIMARY_OB_SIDE = "BEAR"' in text
+    assert 'PRIMARY_OB_DISTANCE = 7.8431' in text
+    assert 'PRIMARY_FVG_SIDE = "BULL"' in text
+    assert 'STRUCTURE_LIGHT_LAST_EVENT = "BOS_BULL"' in text
+    assert 'SIGNAL_QUALITY_TIER = "good"' in text
+
+
+def test_manifest_lists_derived_v55_lean_blocks(tmp_path: Path) -> None:
+    outputs = run_generation(
+        schema_path=Path(SCHEMA_PATH),
+        input_path=Path("tests/fixtures/seed_base_snapshot.csv"),
+        output_root=tmp_path,
+        enrichment={
+            "event_risk": {
+                "EVENT_WINDOW_STATE": "ACTIVE",
+                "EVENT_RISK_LEVEL": "ELEVATED",
+                "NEXT_EVENT_NAME": "CPI",
+                "NEXT_EVENT_TIME": "14:00",
+                "MARKET_EVENT_BLOCKED": False,
+                "SYMBOL_EVENT_BLOCKED": False,
+                "EVENT_PROVIDER_STATUS": "ok",
+            },
+            "session_context": {
+                "SESSION_CONTEXT": "NY_AM",
+                "IN_KILLZONE": True,
+                "SESSION_DIRECTION_BIAS": "BULLISH",
+                "SESSION_CONTEXT_SCORE": 5,
+            },
+            "compression_regime": {
+                "SQUEEZE_ON": True,
+                "ATR_REGIME": "COMPRESSION",
+            },
+        },
+    )
+    manifest = json.loads(outputs["manifest_path"].read_text(encoding="utf-8"))
+    enrichment_blocks = set(manifest["enrichment_blocks"])
+
+    assert "event_risk" in enrichment_blocks
+    assert "event_risk_light" in enrichment_blocks
+    assert "session_context" in enrichment_blocks
+    assert "session_context_light" in enrichment_blocks
+    assert "signal_quality" in enrichment_blocks
+
+
 def test_write_library_pine_bool_format(tmp_path: Path) -> None:
     out = tmp_path / "lib.pine"
-    enrichment = {
+    enrichment: EnrichmentDict = {
         "calendar": {"high_impact_macro_today": True},
     }
     write_pine_library(out, _EMPTY_LISTS, "2026-03-28", 10, enrichment=enrichment)
@@ -419,7 +537,7 @@ def test_write_library_pine_bool_format(tmp_path: Path) -> None:
     assert "True" not in text  # Python bool must not leak
 
     out2 = tmp_path / "lib2.pine"
-    enrichment2 = {
+    enrichment2: EnrichmentDict = {
         "calendar": {"high_impact_macro_today": False},
     }
     write_pine_library(out2, _EMPTY_LISTS, "2026-03-28", 10, enrichment=enrichment2)
@@ -546,7 +664,7 @@ def test_write_library_event_risk_defaults(tmp_path: Path) -> None:
 def test_write_library_active_macro_block(tmp_path: Path) -> None:
     """A HIGH macro event with ACTIVE window should emit blocked state."""
     out = tmp_path / "lib.pine"
-    enrichment = {
+    enrichment: EnrichmentDict = {
         "event_risk": {
             "EVENT_WINDOW_STATE": "ACTIVE",
             "EVENT_RISK_LEVEL": "HIGH",
@@ -581,7 +699,7 @@ def test_write_library_active_macro_block(tmp_path: Path) -> None:
 def test_write_library_symbol_event_block(tmp_path: Path) -> None:
     """Earnings-only event should block at symbol level, not market level."""
     out = tmp_path / "lib.pine"
-    enrichment = {
+    enrichment: EnrichmentDict = {
         "event_risk": {
             "EVENT_WINDOW_STATE": "CLEAR",
             "EVENT_RISK_LEVEL": "ELEVATED",

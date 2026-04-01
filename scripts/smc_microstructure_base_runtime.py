@@ -16,6 +16,7 @@ from databento_utils import US_EASTERN_TZ
 from scripts.databento_production_export import run_production_export_pipeline
 from scripts.generate_smc_micro_profiles import load_schema, run_generation
 from scripts.load_databento_export_bundle import load_export_bundle
+from scripts.smc_enrichment_types import EnrichmentDict
 
 # ── Re-exports from extracted modules (backward compatibility) ──────
 from scripts.smc_micro_publish_guard import (  # noqa: F401
@@ -1146,7 +1147,7 @@ def generate_pine_library_from_base(
     overrides_path: Path | None = None,
     library_owner: str = "preuss_steffen",
     library_version: int = 1,
-    enrichment: dict[str, Any] | None = None,
+    enrichment: EnrichmentDict | None = None,
 ) -> dict[str, Path]:
     """Generate a Pine library from a base snapshot CSV.
 

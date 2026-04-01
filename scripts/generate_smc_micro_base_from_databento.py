@@ -7,7 +7,7 @@ import os
 import sys
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import pandas as pd
 
@@ -318,6 +318,7 @@ def build_enrichment(
         return None
 
     from scripts.smc_provider_policy import resolve_domain
+    from scripts.smc_v55_lean_normalization import normalize_v55_lean_enrichment
 
     fmp = _make_fmp_client(fmp_api_key) if fmp_api_key else None
     enrichment: dict[str, Any] = {}
@@ -574,7 +575,7 @@ def build_enrichment(
         "refresh_count": prev_count + 1,
     }
 
-    return enrichment
+    return normalize_v55_lean_enrichment(cast(EnrichmentDict, enrichment), snapshot=base_snapshot)
 
 
 def finalize_pipeline(
