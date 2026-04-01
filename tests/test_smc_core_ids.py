@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from smc_core.ids import bos_id, fvg_id, ob_id, quantize_price, quantize_time_to_tf, sweep_id
+from smc_core.ids import bos_id, fvg_id, ob_id, quantize_price, quantize_time_to_tf, sweep_id, SYMBOL_TICKSIZE
 
 
 def test_ob_id_deterministic() -> None:
@@ -92,3 +92,67 @@ def test_all_id_types_deterministic_same_inputs() -> None:
                fvg_id("AAPL", "15m", 1709250123, "BULL", 186.0, 186.5)
         assert sweep_id("AAPL", "5m", 1709349600, "SELL_SIDE", 189.8) == \
                sweep_id("AAPL", "5m", 1709349600, "SELL_SIDE", 189.8)
+
+
+# ── Teil C: ticksize-/symbol-aware ID quantization ───────────────────
+
+
+class TestTicksizeAwareIDs:
+    """Test that event-ID functions use symbol-aware tick quantization."""
+
+    def test_equity_defaults_two_decimals(self) -> None:
+        """AAPL (equity, no special ticksize) → 2-decimal default."""
+        eid = bos_id("AAPL", "15m", 1709250000, "BOS", "UP", 185.123)
+        assert eid.endswith(":185.12")
+
+    def test_futures_es_quarter_tick(self) -> None:
+        """ES (futures, ticksize=0.25) → snaps to nearest 0.25."""
+        eid = bos_id("ES", "15m", 1709250000, "BOS", "UP", 5123.13)
+        assert eid.endswith(":5123.25")  # 5123.13 rounds to 5123.25
+
+    def test_futures_gc_dime_tick(self) -> None:
+        """GC (gold, ticksize=0.10) → snaps to nearest 0.10."""
+        eid = ob_id("GC", "1H", 1709250000, "BULL", 2044.03, 2044.97)
+        assert ":2044.0:" in eid
+        assert eid.endswith(":2045.0")
+
+    def test_crypto_btc_whole_dollar(self) -> None:
+        """BTC (crypto, ticksize=1.0) → snaps to whole dollars."""
+        eid = fvg_id("BTC", "15m", 1709250000, "BULL", 67234.4, 67289.6)
+        assert ":67234:" in eid
+        assert eid.endswith(":67290")
+
+    def test_crypto_eth_cent_tick(self) -> None:
+        """ETH (crypto, ticksize=0.01) → 2 decimals."""
+        eid = sweep_id("ETH", "5m", 1709349600, "SELL_SIDE", 3456.789)
+        assert eid.endswith(":3456.79")
+
+    def test_explicit_ticksize_overrides_symbol(self) -> None:
+        """Explicit ticksize parameter takes priority over symbol lookup."""
+        eid = bos_id("ES", "15m", 1709250000, "BOS", "UP", 5123.13, ticksize=0.50)
+        assert eid.endswith(":5123.0")  # 5123.13 → nearest 0.50 = 5123.0
+
+    def test_unknown_symbol_uses_default_decimals(self) -> None:
+        """Unknown symbols fall back to 2-decimal default."""
+        eid = ob_id("XYZUNKNOWN", "15m", 1709250000, "BEAR", 99.999, 100.111)
+        assert ":100.00:" in eid
+        assert eid.endswith(":100.11")
+
+    def test_deterministic_across_calls(self) -> None:
+        """Same inputs always produce the same ID, even with ticksize."""
+        for _ in range(5):
+            a = bos_id("ES", "15m", 1709250000, "BOS", "UP", 5123.13)
+            b = bos_id("ES", "15m", 1709250000, "BOS", "UP", 5123.13)
+            assert a == b
+
+    def test_all_id_types_with_es(self) -> None:
+        """All four ID types work with ES tick quantization."""
+        b = bos_id("ES", "15m", 1709250000, "BOS", "UP", 5100.37)
+        o = ob_id("ES", "15m", 1709250000, "BULL", 5100.37, 5101.13)
+        f = fvg_id("ES", "15m", 1709250000, "BULL", 5100.37, 5101.13)
+        s = sweep_id("ES", "5m", 1709349600, "SELL_SIDE", 5100.37)
+        # 5100.37 → nearest 0.25 = 5100.25
+        assert b.endswith(":5100.25")
+        assert ":5100.25:" in o
+        assert ":5100.25:" in f
+        assert s.endswith(":5100.25")

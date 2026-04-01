@@ -9,9 +9,18 @@
 
 ## 1. Scope
 
-Phase C removes declared-but-never-consumed `input.bool` variables from
+Phase C has two tiers:
+
+### Tier 1 — Dead Input Removal (immediate, low risk)
+
+Remove declared-but-never-consumed `input.bool` variables from
 `SMC_Core_Engine.pine`. These inputs occupy UI slots and settings rows but
 have zero runtime effect — no gate, plot, or export references them.
+
+### Tier 2 — Structural Lightweighting Preparation (roadmap, no rewrite)
+
+Identify categories of helper functions in the ~6162-line Pine core that
+could be separated or reduced in future phases without breaking runtime.
 
 ---
 
@@ -38,19 +47,72 @@ not listed in the original RUNTIME_BUDGET.md dead inputs table.
 
 ---
 
-## 3. Impact Assessment
+## 3. Structural Categories — Lightweighting Candidates
 
-| Metric | Before | After |
-|--------|--------|-------|
-| `input.*` declarations | ~260 | ~249 |
-| UI settings rows saved | — | 11 |
-| Lines removed | — | ~11 (declarations only) |
-| Runtime behavior change | — | **None** |
-| Plot budget change | — | **None** (32/64 unchanged) |
+Analysis of the ~6162-line Pine core reveals three structural categories.
+The table below classifies helper functions by their lightweighting potential.
+
+### Category A — Runtime Core (KEEP LOCAL)
+
+These functions are integral to trade logic and must remain in the core:
+
+| Function Group | Lines | Example Functions |
+|----------------|-------|-------------------|
+| Structure detection | ~1166–1350 | `detect_swings`, `detect_pivot`, `detect_structure`, `detect_equal_level` |
+| Order block tracking | ~552–1120 | `create_ob`, `track_obs`, `update_broken`, `ob_quality_score` |
+| Profile calculation | ~391–550 | `create_profile`, `profile_data_ready` |
+| MA/ATR/BB/DMI libs | ~34–75 | `smc_lib_atr`, `smc_lib_ehma`, `smc_lib_bb`, `smc_lib_dmi` |
+| Divergence detection | ~75–142 | `smc_lib_detect_divergence` |
+| Long engine state | ~1790–1900 | Zone preference, confirmation, invalidation logic |
+
+**Decision**: These stay. No outsourcing.
+
+### Category B — Dashboard/Decoder/Display (CANDIDATE for extraction)
+
+~775 references to dashboard/debug/display/BUS patterns. Specific candidates:
+
+| Candidate | Lines (approx) | Risk | Notes |
+|-----------|----------------|------|-------|
+| `compose_long_debug_*` helpers (10+ functions) | ~1723–1790 | Low | Pure string formatting, no state |
+| `compose_long_engine_debug_label_text` | ~1761–1778 | Low | Multi-line debug label builder |
+| `compose_long_engine_event_log` | ~1780–1790 | Low | Event log text formatter |
+| `resolve_long_ready_blocker_text` | ~1706–1712 | Low | Blocker reason string builder |
+| `resolve_long_strict_blocker_text` | ~1713–1722 | Low | Strict mode blocker text |
+| `compose_enabled_debug_modules_text` | ~1560–1577 | Low | Debug modules label text |
+| `compose_zone_summary_text` | ~1550–1558 | Low | Zone summary for display |
+| `compose_long_setup_text` | ~1879–1904 | Low | Setup state text |
+| `resolve_long_visual_text` | ~1904+ | Low | Visual state label |
+| `resolve_long_source_text` | ~1425 | Low | Source kind → text |
+
+**Total estimate**: ~200–250 lines of pure text-formatting helpers.
+
+**Extraction path**: These could move to the `d` (display) library import
+or a new `debug_text` helper library without any runtime impact.
+
+### Category C — BUS Formatting (CANDIDATE for later reduction)
+
+| Candidate | Scope | Notes |
+|-----------|-------|-------|
+| BUS row formatting | Dashboard table | Uses `table.cell`, `table.set` — ~2 table calls remain after Phase B |
+| Alert text composing | `compose_long_invalidated_alert_detail` | ~2590, pure alert text |
+| Plot helpers | `plot_pivot_points`, `plot_swing_levels`, `plot_structure` | ~1251–1290, visual only |
+
+**Decision**: Lower priority. BUS formatting is interleaved with state reads.
 
 ---
 
-## 4. Risk Assessment
+## 4. Impact Assessment
+
+| Metric | Before | After Tier 1 | After Tier 1+2 |
+|--------|--------|-------------|----------------|
+| `input.*` declarations | ~260 | ~249 | ~249 |
+| Lines (core) | ~6162 | ~6151 | ~5900–5950 |
+| UI settings rows saved | — | 11 | 11 |
+| Runtime behavior change | — | **None** | **None** |
+
+---
+
+## 5. Risk Assessment
 
 | Risk | Level | Mitigation |
 |------|-------|------------|
@@ -58,21 +120,29 @@ not listed in the original RUNTIME_BUDGET.md dead inputs table.
 | Compile error | **None** | No code references these variables. |
 | User confusion (missing setting) | **Low** | All 11 were vestigial — removing them simplifies the settings panel. |
 | Pine version compatibility | **None** | Removing unused `input.bool` is backward-safe in Pine v6. |
+| Category B extraction risk | **Low** | Pure text formatters with no state dependencies. |
 
 ---
 
-## 5. Execution Checklist
+## 6. Execution Checklist — Tier 1
 
 - [ ] Remove 11 `input.bool` declarations from SMC_Core_Engine.pine
 - [ ] Update RUNTIME_BUDGET.md: Phase C status → ✅ done, input count → ~249
 - [ ] Update `color_long_bars` into the dead inputs table in RUNTIME_BUDGET.md
 - [ ] Run Pine compiler check (TradingView save)
 - [ ] Verify dashboard and lifecycle markers still render correctly
-- [ ] Commit with message: `Phase C: remove 11 dead input.bool declarations`
+- [ ] Commit with message: `Phase C Tier 1: remove 11 dead input.bool declarations`
+
+## 7. Execution Checklist — Tier 2 (future)
+
+- [ ] Extract Category B text helpers (~10 functions, ~200–250 lines) into display library
+- [ ] Verify all debug labels still render correctly
+- [ ] No runtime/trade logic changes
+- [ ] Commit with message: `Phase C Tier 2: extract debug text helpers to display lib`
 
 ---
 
-## 6. Phase D Preview
+## 8. Phase D Preview
 
 After Phase C, the next cleanup target is **Phase D**: old broad event risk
 fields. Prerequisites:
@@ -84,9 +154,9 @@ fields. Prerequisites:
 
 ---
 
-## 7. Live Input Inventory
+## 9. Live Input Inventory
 
-After Phase C: **~249 `input.*` declarations**, of which:
+After Phase C Tier 1: **~249 `input.*` declarations**, of which:
 - 78 live `input.bool` variables with active references
 - Remaining `input.int`, `input.float`, `input.string`, `input.source`, etc.
 

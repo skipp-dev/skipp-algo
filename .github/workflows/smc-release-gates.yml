@@ -42,6 +42,8 @@ jobs:
             tests/test_explicit_structure_*.py
             tests/test_smc_core_*.py
             tests/test_smc_adapters_*.py
+            tests/test_smc_benchmark.py
+            tests/test_smc_scoring.py
           )
           if [ ${#tests[@]} -eq 0 ]; then
             echo "No release-gate tests matched the configured patterns." >&2

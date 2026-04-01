@@ -13,6 +13,9 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from scripts.verify_smc_micro_publish_contract import verify_publish_contract
+from smc_core.benchmark import BenchmarkResult, build_benchmark, export_benchmark_artifacts
+from smc_core.scoring import ScoredEvent, export_scoring_artifact, score_events
+from smc_core.schema_version import SCHEMA_VERSION
 from smc_integration.release_policy import (
     RELEASE_REFERENCE_SYMBOLS,
     RELEASE_REFERENCE_TIMEFRAMES,
@@ -145,6 +148,80 @@ def _run_reference_bundle_gate(symbol: str, timeframe: str, generated_at: float)
     }
 
 
+def _run_measurement_gate(symbol: str, timeframe: str) -> dict[str, Any]:
+    """Generate benchmark + scoring artifacts and validate their structure.
+
+    This gate is *soft* — it reports warnings but never blocks the release.
+    It validates:
+      - benchmark artifact can be produced and has valid structure
+      - scoring artifact can be produced and has valid structure
+      - brier_score is finite and in [0, 1] (if present)
+      - log_score is finite and >= 0 (if present)
+    """
+    import math
+    import tempfile
+
+    warnings: list[str] = []
+    details: dict[str, Any] = {
+        "symbol": symbol,
+        "timeframe": timeframe,
+        "measurement_artifacts_present": False,
+        "scoring_artifacts_present": False,
+    }
+
+    # -- Benchmark artifact -------------------------------------------------
+    try:
+        # Build a minimal benchmark with empty event families
+        benchmark_result = build_benchmark(
+            symbol,
+            timeframe,
+            events_by_family={"BOS": [], "OB": [], "FVG": [], "SWEEP": []},
+        )
+        with tempfile.TemporaryDirectory() as tmpdir:
+            from pathlib import Path as _P
+            manifest = export_benchmark_artifacts(benchmark_result, _P(tmpdir))
+            details["measurement_artifacts_present"] = True
+            details["benchmark_families"] = len(benchmark_result.kpis)
+            details["benchmark_schema_version"] = benchmark_result.schema_version
+    except Exception as exc:
+        warnings.append(f"benchmark artifact generation failed: {exc}")
+
+    # -- Scoring artifact ---------------------------------------------------
+    try:
+        scoring_result = score_events([])
+        with tempfile.TemporaryDirectory() as tmpdir:
+            from pathlib import Path as _P
+            export_scoring_artifact(
+                scoring_result,
+                symbol=symbol,
+                timeframe=timeframe,
+                output_dir=_P(tmpdir),
+                schema_version=SCHEMA_VERSION,
+            )
+            details["scoring_artifacts_present"] = True
+
+        bs = scoring_result.brier_score
+        ls = scoring_result.log_score
+        if math.isfinite(bs) and not (0.0 <= bs <= 1.0):
+            warnings.append(f"brier_score {bs:.6f} outside expected range [0, 1]")
+        if math.isfinite(ls) and ls < 0:
+            warnings.append(f"log_score {ls:.6f} is negative (expected >= 0)")
+        details["brier_finite"] = math.isfinite(bs) if not math.isnan(bs) else "nan_empty"
+        details["log_finite"] = math.isfinite(ls) if not math.isnan(ls) else "nan_empty"
+    except Exception as exc:
+        warnings.append(f"scoring artifact generation failed: {exc}")
+
+    details["warnings"] = warnings
+    # Measurement gate is soft — always "ok" or "warn", never "fail"
+    status = "warn" if warnings else "ok"
+    return {
+        "name": "measurement_lane",
+        "status": status,
+        "blocking": False,
+        "details": details,
+    }
+
+
 def _render(report: dict[str, Any], output: str) -> None:
     rendered = json.dumps(report, indent=2, sort_keys=True)
     if output == "-":
@@ -255,7 +332,10 @@ def main() -> int:
     if not args.skip_publish_contract:
         gates.append(_run_publish_contract_gate(args))
 
-    has_fail = any(gate.get("status") == "fail" for gate in gates)
+    # Measurement gate — soft, non-blocking
+    gates.append(_run_measurement_gate(symbols[0], timeframes[0]))
+
+    has_fail = any(gate.get("status") == "fail" for gate in gates if gate.get("blocking", True))
     overall_status = "fail" if has_fail else "ok"
     exit_code = 1 if has_fail else 0
 

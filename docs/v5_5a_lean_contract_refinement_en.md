@@ -1,6 +1,6 @@
 # v5.5a Lean Contract Refinement
 
-**Status**: Active  
+**Status**: Supporting (superseded by v5.5b — see [v5_5b_architecture.md](v5_5b_architecture.md))  
 **Date**: 2026-03-30  
 **Schema Version**: 2.0.0  
 **Library Field Version**: v5.5a  

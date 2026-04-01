@@ -228,12 +228,13 @@ annotations.
 
 ## Supporting Documents
 
-| Document | Scope |
-|----------|-------|
-| [v5_5_lean_contract.md](v5_5_lean_contract.md) | Field definitions, value domains, mapping |
-| [ARTIFACT_STRATEGY.md](ARTIFACT_STRATEGY.md) | Artifact classes, rules |
-| [NO_SHADOW_LOGIC_POLICY.md](NO_SHADOW_LOGIC_POLICY.md) | Shadow logic rules |
-| [RUNTIME_BUDGET.md](RUNTIME_BUDGET.md) | Pine runtime metrics |
-| [LEGACY_REMOVAL_PLAN.md](LEGACY_REMOVAL_PLAN.md) | Removal phases |
-| [MEASUREMENT_LANE.md](MEASUREMENT_LANE.md) | Benchmark & scoring documentation |
-| [SMC_Unified_Lean_Architecture_v5_5a_DE_EN.md](SMC_Unified_Lean_Architecture_v5_5a_DE_EN.md) | Historical architecture (DE/EN) |
+| Document | Scope | Status |
+|----------|-------|--------|
+| [v5_5_lean_contract.md](v5_5_lean_contract.md) | Field definitions, value domains, mapping | Active |
+| [ARTIFACT_STRATEGY.md](ARTIFACT_STRATEGY.md) | Artifact classes, rules | Active (v5.5b) |
+| [NO_SHADOW_LOGIC_POLICY.md](NO_SHADOW_LOGIC_POLICY.md) | Shadow logic rules | Active |
+| [RUNTIME_BUDGET.md](RUNTIME_BUDGET.md) | Pine runtime metrics | Active |
+| [LEGACY_REMOVAL_PLAN.md](LEGACY_REMOVAL_PLAN.md) | Removal phases | Active |
+| [MEASUREMENT_LANE.md](MEASUREMENT_LANE.md) | Benchmark & scoring documentation | Active (v5.5b) |
+| [SMC_Unified_Lean_Architecture_v5_5a_DE_EN.md](SMC_Unified_Lean_Architecture_v5_5a_DE_EN.md) | Historical architecture (DE/EN) | Supporting |
+| [v5_5a_lean_contract_refinement_en.md](v5_5a_lean_contract_refinement_en.md) | Contract refinement notes | Supporting |

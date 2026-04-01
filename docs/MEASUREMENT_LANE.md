@@ -1,7 +1,7 @@
 # Measurement Lane — v5.5b
 
 **Status**: Active  
-**Date**: 2025-07-21
+**Date**: 2026-04-01
 
 ## Purpose
 
@@ -63,11 +63,28 @@ single merged bias + confidence level.
 
 ## Integration Points
 
-- **CI**: Benchmark + scoring scripts can be invoked by
-  `scripts/run_smc_release_gates.py` (or the GitHub Actions workflow).
-- **Tests**: `test_lean_value_domains.py` validates KPI structure and range.
+- **CI**: Benchmark + scoring artifacts are generated and structure-validated
+  by the `measurement_lane` gate in `scripts/run_smc_release_gates.py`.
+  The gate is **soft** (non-blocking) — it reports `ok` or `warn` but never
+  `fail`. This means measurement failures produce warnings in the release
+  report without preventing a release.
+- **Release Report**: The JSON report includes:
+  - `measurement_artifacts_present` — benchmark artifact generated successfully
+  - `scoring_artifacts_present` — scoring artifact generated successfully
+  - `brier_finite` / `log_finite` — metric validity checks
+- **Tests**: `test_smc_benchmark.py` and `test_smc_scoring.py` validate KPI
+  structure and range. These tests are included in the release-gate test matrix.
 - **Architecture doc**: See [v5_5b_architecture.md §10](v5_5b_architecture.md)
   for the canonical forward-looking reference.
+
+### What is intentionally NOT blocking
+
+- Score quality thresholds (e.g. "Brier must be < 0.3") — not enforced yet.
+  The gate only validates artifact *structure* and metric *finiteness*.
+- Mandatory event data — the gate runs with empty event families, so KPIs are
+  zero-valued placeholders. Real event data will be wired in Phase 2.
+- Hard release blocks — the measurement gate sets `"blocking": false` so it
+  never contributes to `overall_status: "fail"`.
 
 ## Rules
 

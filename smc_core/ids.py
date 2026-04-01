@@ -1,3 +1,15 @@
+"""Deterministic event-ID generation with symbol-aware price quantization.
+
+Price quantization resolution order (same for all ID functions):
+1. Explicit ``ticksize`` kwarg → snap to nearest multiple.
+2. Symbol lookup in ``SYMBOL_TICKSIZE`` → derive decimals from tick.
+3. Fall back to 2 decimals (backward-compatible default for equities).
+
+This means ``bos_id("ES", ...)`` automatically snaps to 0.25 ticks,
+``bos_id("BTC", ...)`` snaps to whole dollars, and unknown symbols
+fall back to 2 decimals.
+"""
+
 from __future__ import annotations
 
 from decimal import Decimal, ROUND_HALF_UP
@@ -115,6 +127,36 @@ def quantize_time_to_tf(
     return float(seconds - (seconds % block))
 
 
+def _quantize_for_id(
+    price: float,
+    *,
+    symbol: str | None = None,
+    ticksize: float | None = None,
+) -> str:
+    """Quantize *price* for use in event IDs.
+
+    Resolution order:
+    1. Explicit *ticksize*  →  ``quantize_price(price, ticksize=ticksize)``
+    2. *symbol* lookup      →  ``quantize_price(price, symbol=symbol)``
+    3. Fall back to 2 decimals (backward-compatible default).
+
+    Returns a string representation with appropriate decimal precision.
+    """
+    if ticksize is not None:
+        q = quantize_price(price, ticksize=ticksize)
+        d = _decimals_for_ticksize(ticksize)
+        return f"{q:.{d}f}"
+    if symbol is not None:
+        sym = _norm_symbol(symbol)
+        ts = SYMBOL_TICKSIZE.get(sym)
+        if ts is not None:
+            q = quantize_price(price, ticksize=ts)
+            d = _decimals_for_ticksize(ts)
+            return f"{q:.{d}f}"
+    q = quantize_price(price, 2)
+    return f"{q:.2f}"
+
+
 def bos_id(
     symbol: str,
     timeframe: str,
@@ -122,11 +164,13 @@ def bos_id(
     kind: BosEventKind,
     dir: BosDir,
     price: float,
+    *,
+    ticksize: float | None = None,
 ) -> str:
     sym = _norm_symbol(symbol)
     t_anchor = int(quantize_time_to_tf(anchor_ts, timeframe))
-    p = quantize_price(price, 2)
-    return f"bos:{sym}:{timeframe}:{t_anchor}:{kind}:{dir}:{p:.2f}"
+    p = _quantize_for_id(price, symbol=sym, ticksize=ticksize)
+    return f"bos:{sym}:{timeframe}:{t_anchor}:{kind}:{dir}:{p}"
 
 
 def ob_id(
@@ -136,12 +180,14 @@ def ob_id(
     dir: ObDir,
     low: float,
     high: float,
+    *,
+    ticksize: float | None = None,
 ) -> str:
     sym = _norm_symbol(symbol)
     t_anchor = int(quantize_time_to_tf(anchor_ts, timeframe))
-    lo = quantize_price(low, 2)
-    hi = quantize_price(high, 2)
-    return f"ob:{sym}:{timeframe}:{t_anchor}:{dir}:{lo:.2f}:{hi:.2f}"
+    lo = _quantize_for_id(low, symbol=sym, ticksize=ticksize)
+    hi = _quantize_for_id(high, symbol=sym, ticksize=ticksize)
+    return f"ob:{sym}:{timeframe}:{t_anchor}:{dir}:{lo}:{hi}"
 
 
 def fvg_id(
@@ -151,12 +197,14 @@ def fvg_id(
     dir: FvgDir,
     low: float,
     high: float,
+    *,
+    ticksize: float | None = None,
 ) -> str:
     sym = _norm_symbol(symbol)
     t_anchor = int(quantize_time_to_tf(anchor_ts, timeframe))
-    lo = quantize_price(low, 2)
-    hi = quantize_price(high, 2)
-    return f"fvg:{sym}:{timeframe}:{t_anchor}:{dir}:{lo:.2f}:{hi:.2f}"
+    lo = _quantize_for_id(low, symbol=sym, ticksize=ticksize)
+    hi = _quantize_for_id(high, symbol=sym, ticksize=ticksize)
+    return f"fvg:{sym}:{timeframe}:{t_anchor}:{dir}:{lo}:{hi}"
 
 
 def sweep_id(
@@ -165,8 +213,10 @@ def sweep_id(
     anchor_ts: float,
     side: SweepSide,
     price: float,
+    *,
+    ticksize: float | None = None,
 ) -> str:
     sym = _norm_symbol(symbol)
     t_anchor = int(quantize_time_to_tf(anchor_ts, timeframe))
-    p = quantize_price(price, 2)
-    return f"sweep:{sym}:{timeframe}:{t_anchor}:{side}:{p:.2f}"
+    p = _quantize_for_id(price, symbol=sym, ticksize=ticksize)
+    return f"sweep:{sym}:{timeframe}:{t_anchor}:{side}:{p}"

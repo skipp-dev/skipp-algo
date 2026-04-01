@@ -1,10 +1,13 @@
 # SMC Unified Lean Architecture v5.5a
 
+> **Historical / Supporting** — canonical reference is now
+> [v5_5b_architecture.md](v5_5b_architecture.md).
+
 ## Deutsch
 
 ## Status
 
-Aktive Zielarchitektur.
+Historisches Referenzdokument (abgelöst durch v5.5b).
 
 Version v5.5a ist keine neue breite Plattformversion, sondern eine gezielte Schärfung von v5.5.  
 Sie hält am leanen Grundmodell fest und verbessert vor allem Priorisierung, Klarheit, Produktform und semantische Strenge.

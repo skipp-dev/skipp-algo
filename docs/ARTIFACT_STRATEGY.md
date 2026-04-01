@@ -1,7 +1,7 @@
-# Artifact Strategy — v5.5a
+# Artifact Strategy — v5.5b
 
 **Status**: Active  
-**Date**: 2026-03-30
+**Date**: 2026-04-01
 
 ## Two Artifact Classes
 
@@ -39,7 +39,7 @@ This fixture shows what a **realistic enriched runtime state** looks like with
 plausible values across all lean blocks.
 
 **Properties**:
-- All lean field values are v5.5a contract-compliant (validated by test)
+- All lean field values are v5.5b contract-compliant (validated by test)
 - Logically coherent scenario (bullish setup with consistent signals)
 - Used by `test_pine_consumer_contract.py` (field names, allowed values, semantic coherence)
 - Hand-maintained — updated when contract evolves

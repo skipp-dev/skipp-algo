@@ -13,6 +13,7 @@ from smc_adapters import (
 )
 from smc_core import apply_layering, snapshot_to_dict
 from smc_core.bias_merge import merge_bias
+from smc_core.vol_regime import compute_vol_regime
 from smc_core.types import SmcSnapshot
 from scripts.load_databento_export_bundle import load_export_bundle
 from scripts.smc_htf_context import build_htf_bias_context
@@ -217,6 +218,9 @@ def build_snapshot_bundle_for_symbol_timeframe(
 
     bias_verdict = merge_bias(htf_context or None, session_context or None)
 
+    # Vol-regime classification (additive, degrades to NORMAL on empty bars)
+    vol_regime_result = compute_vol_regime(bars)
+
     structure_context = normalized_structure_context
 
     out = {
@@ -236,6 +240,17 @@ def build_snapshot_bundle_for_symbol_timeframe(
             "session_direction": bias_verdict.session_direction,
             "conflict": bias_verdict.conflict,
             "source": bias_verdict.source,
+        },
+        "vol_regime": {
+            "label": vol_regime_result.label,
+            "raw_atr_ratio": vol_regime_result.raw_atr_ratio,
+            "confidence": vol_regime_result.confidence,
+            "bars_used": vol_regime_result.bars_used,
+        },
+        "measurement_refs": {
+            "benchmark_artifact": f"benchmark_{symbol}_{timeframe}.json",
+            "scoring_artifact": f"scoring_{symbol}_{timeframe}.json",
+            "status": "placeholder",
         },
         "meta_domains_present": raw_meta.get("meta_domains_present", []),
         "meta_domains_missing": raw_meta.get("meta_domains_missing", []),
