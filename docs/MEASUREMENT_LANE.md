@@ -15,7 +15,7 @@ no new lean surface fields are introduced.
 ### 1. `smc_core/benchmark.py` — Event Family KPIs
 
 | KPI | Unit | Families |
-|-----|------|----------|
+| --- | --- | --- |
 | `hit_rate` | 0–1 ratio | BOS, OB, FVG, SWEEP |
 | `time_to_mitigation_mean` | bars | BOS, OB, FVG, SWEEP |
 | `invalidation_rate` | 0–1 ratio | BOS, OB, FVG, SWEEP |
@@ -31,7 +31,7 @@ no new lean surface fields are introduced.
 ### 2. `smc_core/scoring.py` — Probabilistic Calibration
 
 | Metric | Range | Description |
-|--------|-------|-------------|
+| --- | --- | --- |
 | Brier Score | [0, 1] | MSE of predicted probability vs outcome (lower = better) |
 | Log Score | [0, ∞) | Negative log-likelihood per prediction (lower = better) |
 | Hit Rate | [0, 1] | Fraction of events that realized |
@@ -55,7 +55,7 @@ single merged bias + confidence level.
 ## Calibration Roadmap
 
 | Phase | Scope | Status |
-|-------|-------|--------|
+| --- | --- | --- |
 | Phase 1 | Brier/Log Score on sweep-reversal label, static thresholds | ✅ Shipped |
 | Phase 2 | Platt scaling or isotonic regression on SQ score vs. observed outcomes | Planned |
 | Phase 3 | GARCH/regime-aware score adjustment, session-specific calibration | Future |
@@ -68,6 +68,11 @@ single merged bias + confidence level.
   The gate is **soft** (non-blocking) — it reports `ok` or `warn` but never
   `fail`. This means measurement failures produce warnings in the release
   report without preventing a release.
+- **Evidence path**: When a structure artifact and canonical export bars are
+  available for the reference symbol/timeframe, the gate evaluates real
+  BOS/OB/FVG/SWEEP evidence and real sweep-reversal scoring inputs instead of
+  placeholder empty families. Empty persisted families may fall back to the
+  explicitly recomputed structure from those same bars.
 - **Release Report**: The JSON report includes:
   - `measurement_artifacts_present` — benchmark artifact generated successfully
   - `scoring_artifacts_present` — scoring artifact generated successfully
@@ -81,8 +86,9 @@ single merged bias + confidence level.
 
 - Score quality thresholds (e.g. "Brier must be < 0.3") — not enforced yet.
   The gate only validates artifact *structure* and metric *finiteness*.
-- Mandatory event data — the gate runs with empty event families, so KPIs are
-  zero-valued placeholders. Real event data will be wired in Phase 2.
+- Artifact/data availability — the gate now evaluates real structure artifacts
+  against canonical export bars when those inputs are present. Missing
+  artifacts, missing bars, or evidence-resolution drift only produce warnings.
 - Hard release blocks — the measurement gate sets `"blocking": false` so it
   never contributes to `overall_status: "fail"`.
 

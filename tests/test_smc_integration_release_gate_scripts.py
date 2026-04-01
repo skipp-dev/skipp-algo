@@ -4,6 +4,8 @@ from argparse import Namespace
 
 from scripts import run_smc_ci_health_checks as ci_script
 from scripts import run_smc_release_gates as release_script
+from smc_core.scoring import ScoredEvent
+from smc_integration.measurement_evidence import MeasurementEvidence
 
 
 class _Parser:
@@ -139,3 +141,39 @@ def test_release_runner_report_and_exit_are_deterministic(monkeypatch) -> None:
     assert rc_one == 0
     assert rc_two == 0
     assert captured_reports[0] == captured_reports[1]
+
+
+def test_measurement_gate_uses_real_evidence(monkeypatch) -> None:
+    evidence = MeasurementEvidence(
+        events_by_family={
+            "BOS": [{"hit": True, "time_to_mitigation": 1.0, "invalidated": False, "mae": 0.01, "mfe": 0.03}],
+            "OB": [],
+            "FVG": [],
+            "SWEEP": [{"hit": True, "time_to_mitigation": 2.0, "invalidated": False, "mae": 0.005, "mfe": 0.02}],
+        },
+        stratified_events={
+            "htf_bias:BULLISH": {
+                "BOS": [{"hit": True, "time_to_mitigation": 1.0, "invalidated": False, "mae": 0.01, "mfe": 0.03}],
+                "OB": [],
+                "FVG": [],
+                "SWEEP": [{"hit": True, "time_to_mitigation": 2.0, "invalidated": False, "mae": 0.005, "mfe": 0.02}],
+            }
+        },
+        scored_events=[ScoredEvent("sw1", "SWEEP", 0.65, True, 1700000000.0)],
+        details={
+            "measurement_evidence_present": True,
+            "evaluated_event_counts": {"BOS": 1, "OB": 0, "FVG": 0, "SWEEP": 1},
+            "bars_source_mode": "synthetic_bundle",
+        },
+        warnings=[],
+    )
+    monkeypatch.setattr(release_script, "build_measurement_evidence", lambda symbol, timeframe: evidence)
+
+    gate = release_script._run_measurement_gate("AAPL", "15m")
+
+    assert gate["status"] == "ok"
+    assert gate["details"]["measurement_evidence_present"] is True
+    assert gate["details"]["benchmark_event_counts"]["BOS"] == 1
+    assert gate["details"]["benchmark_event_counts"]["SWEEP"] == 1
+    assert gate["details"]["scoring_event_count"] == 1
+    assert gate["details"]["brier_finite"] is True

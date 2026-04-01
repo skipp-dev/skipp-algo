@@ -13,9 +13,10 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from scripts.verify_smc_micro_publish_contract import verify_publish_contract
-from smc_core.benchmark import BenchmarkResult, build_benchmark, export_benchmark_artifacts
-from smc_core.scoring import ScoredEvent, export_scoring_artifact, score_events
+from smc_core.benchmark import build_benchmark, export_benchmark_artifacts
+from smc_core.scoring import export_scoring_artifact, score_events
 from smc_core.schema_version import SCHEMA_VERSION
+from smc_integration.measurement_evidence import build_measurement_evidence
 from smc_integration.release_policy import (
     RELEASE_REFERENCE_SYMBOLS,
     RELEASE_REFERENCE_TIMEFRAMES,
@@ -167,28 +168,41 @@ def _run_measurement_gate(symbol: str, timeframe: str) -> dict[str, Any]:
         "timeframe": timeframe,
         "measurement_artifacts_present": False,
         "scoring_artifacts_present": False,
+        "measurement_evidence_present": False,
     }
+
+    try:
+        evidence = build_measurement_evidence(symbol, timeframe)
+        details.update(evidence.details)
+        warnings.extend(evidence.warnings)
+    except Exception as exc:
+        evidence = None
+        warnings.append(f"measurement evidence generation failed: {exc}")
 
     # -- Benchmark artifact -------------------------------------------------
     try:
-        # Build a minimal benchmark with empty event families
         benchmark_result = build_benchmark(
             symbol,
             timeframe,
-            events_by_family={"BOS": [], "OB": [], "FVG": [], "SWEEP": []},
+            events_by_family=evidence.events_by_family if evidence is not None else {"BOS": [], "OB": [], "FVG": [], "SWEEP": []},
+            stratified_events=evidence.stratified_events if evidence is not None and evidence.stratified_events else None,
         )
         with tempfile.TemporaryDirectory() as tmpdir:
             from pathlib import Path as _P
-            manifest = export_benchmark_artifacts(benchmark_result, _P(tmpdir))
+            export_benchmark_artifacts(benchmark_result, _P(tmpdir))
             details["measurement_artifacts_present"] = True
             details["benchmark_families"] = len(benchmark_result.kpis)
             details["benchmark_schema_version"] = benchmark_result.schema_version
+            details["benchmark_event_counts"] = {
+                kpi.family: int(kpi.n_events)
+                for kpi in benchmark_result.kpis
+            }
     except Exception as exc:
         warnings.append(f"benchmark artifact generation failed: {exc}")
 
     # -- Scoring artifact ---------------------------------------------------
     try:
-        scoring_result = score_events([])
+        scoring_result = score_events(evidence.scored_events if evidence is not None else [])
         with tempfile.TemporaryDirectory() as tmpdir:
             from pathlib import Path as _P
             export_scoring_artifact(
@@ -199,6 +213,7 @@ def _run_measurement_gate(symbol: str, timeframe: str) -> dict[str, Any]:
                 schema_version=SCHEMA_VERSION,
             )
             details["scoring_artifacts_present"] = True
+            details["scoring_event_count"] = int(scoring_result.n_events)
 
         bs = scoring_result.brier_score
         ls = scoring_result.log_score
