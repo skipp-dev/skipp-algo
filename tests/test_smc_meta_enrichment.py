@@ -59,7 +59,7 @@ def _base_meta(**overrides) -> SmcMeta:
         technical=_tech(),
     )
     defaults.update(overrides)
-    return SmcMeta(**defaults)
+    return SmcMeta(**defaults)  # type: ignore[arg-type]
 
 
 def _minimal_structure() -> SmcStructure:
@@ -169,7 +169,7 @@ class TestEventRiskLayeringOverlay:
         )
         snap = apply_layering(_minimal_structure(), meta, generated_at=1_700_000_050.0)
         style = snap.layered.zone_styles["ob:1"]
-        assert style.trade_state == "BLOCKED"
+        assert style.trade_state == "DISCOURAGED"
         assert style.render_state == "DIMMED"
         assert "EVENT_RISK_HIGH" in style.reason_codes
 

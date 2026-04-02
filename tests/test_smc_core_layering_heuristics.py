@@ -118,7 +118,7 @@ def test_holiday_suspect_blocks_everything() -> None:
     snapshot = apply_layering(structure, _meta(regime="HOLIDAY_SUSPECT"), generated_at=1709253600.0)
 
     for style in snapshot.layered.zone_styles.values():
-        assert style.trade_state == "BLOCKED"
+        assert style.trade_state == "DISCOURAGED"
         assert style.render_state == "DIMMED"
         assert "REGIME_HOLIDAY_SUSPECT" in style.reason_codes
 

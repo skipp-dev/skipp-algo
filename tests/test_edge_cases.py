@@ -17,6 +17,10 @@ import re
 import unittest
 from pathlib import Path
 
+MATH_LIBRARY_PATH = Path(__file__).parent.parent / "pine" / "skipp_math.pine"
+CALIBRATION_LIBRARY_PATH = Path(__file__).parent.parent / "pine" / "skipp_calibration.pine"
+SCORING_LIBRARY_PATH = Path(__file__).parent.parent / "pine" / "skipp_scoring.pine"
+
 
 class TestEdgeCases(unittest.TestCase):
     """Tests for edge case handling in both Indicator and Strategy."""
@@ -31,6 +35,16 @@ class TestEdgeCases(unittest.TestCase):
         
         with open(base_path / "SkippALGO_Strategy.pine", "r") as f:
             cls.strategy = f.read()
+        cls.skipp_math = MATH_LIBRARY_PATH.read_text()
+        cls.skipp_calibration = CALIBRATION_LIBRARY_PATH.read_text()
+        cls.skipp_scoring = SCORING_LIBRARY_PATH.read_text()
+
+    def _assert_local_or_library(self, content, local_pattern, wrapper_pattern, library_content, library_pattern, message):
+        if re.search(local_pattern, content):
+            return
+
+        self.assertRegex(content, wrapper_pattern, message)
+        self.assertRegex(library_content, library_pattern, message)
     
     # ========================================
     # DIVISION BY ZERO PROTECTION
@@ -38,32 +52,71 @@ class TestEdgeCases(unittest.TestCase):
     
     def test_f_prob_handles_zero_denominator(self):
         """f_prob must return 0.5 when denominator is zero."""
-        # Pattern: denom == 0.0 ? 0.5
-        pattern = r'f_prob\([^)]+\)\s*=>\s*\n\s*denom\s*=.*\n\s*denom\s*==\s*0\.0\s*\?\s*0\.5'
-        
-        self.assertRegex(self.indicator, pattern,
-            "Indicator f_prob missing zero-denominator guard")
-        self.assertRegex(self.strategy, pattern,
-            "Strategy f_prob missing zero-denominator guard")
+        local_pattern = r'f_prob\([^)]+\)\s*=>[\s\S]+?denom\s*==\s*0\.0\s*\?\s*0\.5'
+        wrapper_pattern = r'f_prob\([^)]+\)\s*=>\s*cal\.prob\('
+        library_pattern = r'export\s+prob\([^)]+\)\s*=>[\s\S]+?denom\s*==\s*0\.0\s*\?\s*0\.5'
+
+        self._assert_local_or_library(
+            self.indicator,
+            local_pattern,
+            wrapper_pattern,
+            self.skipp_calibration,
+            library_pattern,
+            "Indicator f_prob missing zero-denominator guard",
+        )
+        self._assert_local_or_library(
+            self.strategy,
+            local_pattern,
+            wrapper_pattern,
+            self.skipp_calibration,
+            library_pattern,
+            "Strategy f_prob missing zero-denominator guard",
+        )
     
     def test_f_pct_rank_handles_hi_equals_lo(self):
         """f_pct_rank must return 0.5 when hi == lo (no range)."""
         # This happens in thin markets with no price movement
-        pattern = r'hi\s*==\s*lo\s*\?\s*0\.5'
-        
-        self.assertRegex(self.indicator, pattern,
-            "Indicator f_pct_rank missing hi==lo guard")
-        self.assertRegex(self.strategy, pattern,
-            "Strategy f_pct_rank missing hi==lo guard")
+        local_pattern = r'hi\s*==\s*lo\s*\?\s*0\.5'
+        wrapper_pattern = r'f_pct_rank\([^)]+\)\s*=>\s*m\.pct_rank\('
+
+        self._assert_local_or_library(
+            self.indicator,
+            local_pattern,
+            wrapper_pattern,
+            self.skipp_math,
+            local_pattern,
+            "Indicator f_pct_rank missing hi==lo guard",
+        )
+        self._assert_local_or_library(
+            self.strategy,
+            local_pattern,
+            wrapper_pattern,
+            self.skipp_math,
+            local_pattern,
+            "Strategy f_pct_rank missing hi==lo guard",
+        )
     
     def test_f_ensemble_handles_zero_weights(self):
         """f_ensemble must guard against sum of weights being zero."""
-        pattern = r'den\s*==\s*0\s*\?\s*0\.0'
-        
-        self.assertRegex(self.indicator, pattern,
-            "Indicator f_ensemble missing zero-weight guard")
-        self.assertRegex(self.strategy, pattern,
-            "Strategy f_ensemble missing zero-weight guard")
+        local_pattern = r'den\s*==\s*0(?:\.0)?\s*\?\s*0\.0'
+        wrapper_pattern = r'f_ensemble4\([^)]+\)\s*=>\s*sc\.ensemble4\('
+
+        self._assert_local_or_library(
+            self.indicator,
+            local_pattern,
+            wrapper_pattern,
+            self.skipp_scoring,
+            local_pattern,
+            "Indicator f_ensemble missing zero-weight guard",
+        )
+        self._assert_local_or_library(
+            self.strategy,
+            local_pattern,
+            wrapper_pattern,
+            self.skipp_scoring,
+            local_pattern,
+            "Strategy f_ensemble missing zero-weight guard",
+        )
     
     def test_gapPct_handles_zero_prevClose(self):
         """gapPct calculation must handle zero or NA previous close."""
@@ -173,19 +226,26 @@ class TestEdgeCases(unittest.TestCase):
     
     def test_ci_halfwidth_returns_na_for_zero_n(self):
         """CI half-width must return NA when n <= 0."""
-        pattern = (
-            r'f_ci95_halfwidth\([^)]+\)\s*=>\s*\n'
-            r'(?:'
-            r'\s*n\s*<=\s*0\s*\?\s*na'
-            r'|'
-            r'\s*if[^\n]*n\s*<=\s*0[^\n]*\n\s*na'
-            r')'
+        local_pattern = r'f_ci95_halfwidth\([^)]+\)\s*=>[\s\S]+?n\s*<=\s*0(?:\.0)?'
+        wrapper_pattern = r'f_ci95_halfwidth\([^)]+\)\s*=>\s*m\.ci95_halfwidth\('
+        library_pattern = r'export\s+ci95_halfwidth\([^)]+\)\s*=>[\s\S]+?n\s*<=\s*0\.0'
+
+        self._assert_local_or_library(
+            self.indicator,
+            local_pattern,
+            wrapper_pattern,
+            self.skipp_math,
+            library_pattern,
+            "Indicator f_ci95_halfwidth missing zero-n guard",
         )
-        
-        self.assertRegex(self.indicator, pattern,
-            "Indicator f_ci95_halfwidth missing zero-n guard")
-        self.assertRegex(self.strategy, pattern,
-            "Strategy f_ci95_halfwidth missing zero-n guard")
+        self._assert_local_or_library(
+            self.strategy,
+            local_pattern,
+            wrapper_pattern,
+            self.skipp_math,
+            library_pattern,
+            "Strategy f_ci95_halfwidth missing zero-n guard",
+        )
     
     # ========================================
     # BOUNDARY VALUE CASES
@@ -193,12 +253,26 @@ class TestEdgeCases(unittest.TestCase):
     
     def test_f_clamp01_exists(self):
         """f_clamp01 must exist for probability clamping."""
-        pattern = r'f_clamp01\([^)]+\)\s*=>\s*\n\s*math\.max\(0\.0,\s*math\.min\(1\.0'
-        
-        self.assertRegex(self.indicator, pattern,
-            "Indicator missing f_clamp01")
-        self.assertRegex(self.strategy, pattern,
-            "Strategy missing f_clamp01")
+        local_pattern = r'f_clamp01\([^)]+\)\s*=>[\s\S]+?math\.max\(0\.0,\s*math\.min\(1\.0'
+        wrapper_pattern = r'f_clamp01\([^)]+\)\s*=>\s*m\.clamp01\('
+        library_pattern = r'export\s+clamp01\([^)]+\)\s*=>[\s\S]+?math\.max\(0\.0,\s*math\.min\(1\.0'
+
+        self._assert_local_or_library(
+            self.indicator,
+            local_pattern,
+            wrapper_pattern,
+            self.skipp_math,
+            library_pattern,
+            "Indicator missing f_clamp01",
+        )
+        self._assert_local_or_library(
+            self.strategy,
+            local_pattern,
+            wrapper_pattern,
+            self.skipp_math,
+            library_pattern,
+            "Strategy missing f_clamp01",
+        )
     
     def test_f_clamp_exists(self):
         """f_clamp must exist for arbitrary range clamping."""
@@ -211,12 +285,26 @@ class TestEdgeCases(unittest.TestCase):
     
     def test_prob_eps_clamping_in_logit(self):
         """f_logit must clamp probability to avoid log(0)."""
-        pattern = r'math\.max\(PROB_EPS.*math\.min\(1\.0\s*-\s*PROB_EPS'
-        
-        self.assertRegex(self.indicator, pattern,
-            "Indicator f_logit missing PROB_EPS clamping")
-        self.assertRegex(self.strategy, pattern,
-            "Strategy f_logit missing PROB_EPS clamping")
+        local_pattern = r'math\.max\(PROB_EPS(?:\(\))?.*math\.min\(1\.0\s*-\s*PROB_EPS(?:\(\))?'
+        wrapper_pattern = r'f_logit\([^)]+\)\s*=>\s*m\.logit\('
+        library_pattern = r'export\s+logit\([^)]+\)\s*=>[\s\S]+?math\.max\(PROB_EPS\(\),\s*math\.min\(1\.0\s*-\s*PROB_EPS\(\),\s*p\)\)'
+
+        self._assert_local_or_library(
+            self.indicator,
+            local_pattern,
+            wrapper_pattern,
+            self.skipp_math,
+            library_pattern,
+            "Indicator f_logit missing PROB_EPS clamping",
+        )
+        self._assert_local_or_library(
+            self.strategy,
+            local_pattern,
+            wrapper_pattern,
+            self.skipp_math,
+            library_pattern,
+            "Strategy f_logit missing PROB_EPS clamping",
+        )
     
     def test_eps_clamp_function_exists(self):
         """Epsilon clamping must exist for probability calculations.
@@ -237,7 +325,7 @@ class TestEdgeCases(unittest.TestCase):
     def test_bin_index_clamping(self):
         """Binning must clamp indices to valid range in both files."""
         pattern_quantile = r'math\.max\(0,\s*math\.min\(bins\s*-\s*1,\s*b\)\)'
-        pattern_fixed = r'b\s*<\s*0\s*\?\s*0\s*:\s*b\s*>\s*\(bins\s*-\s*1\)\s*\?\s*\(bins\s*-\s*1\)\s*:\s*b'
+        pattern_fixed = r'(b\s*<\s*0\s*\?\s*0\s*:\s*b\s*>\s*\(bins\s*-\s*1\)\s*\?\s*\(bins\s*-\s*1\)\s*:\s*b)|(idx\s*<\s*0\s*\?\s*0\s*:\s*idx\s*>\s*maxIdx\s*\?\s*maxIdx\s*:\s*idx)'
         
         for content, name in ((self.indicator, "Indicator"), (self.strategy, "Strategy")):
             self.assertTrue(
@@ -274,12 +362,25 @@ class TestEdgeCases(unittest.TestCase):
     
     def test_ensemble_output_bounded(self):
         """f_ensemble output must be clamped to [-1, 1]."""
-        pattern = r'math\.max\(-1\.0,\s*math\.min\(1\.0,\s*val\)\)'
-        
-        self.assertRegex(self.indicator, pattern,
-            "Indicator f_ensemble output not bounded")
-        self.assertRegex(self.strategy, pattern,
-            "Strategy f_ensemble output not bounded")
+        local_pattern = r'math\.max\(-1\.0,\s*math\.min\(1\.0,\s*val\)\)'
+        wrapper_pattern = r'f_ensemble4\([^)]+\)\s*=>\s*sc\.ensemble4\('
+
+        self._assert_local_or_library(
+            self.indicator,
+            local_pattern,
+            wrapper_pattern,
+            self.skipp_scoring,
+            local_pattern,
+            "Indicator f_ensemble output not bounded",
+        )
+        self._assert_local_or_library(
+            self.strategy,
+            local_pattern,
+            wrapper_pattern,
+            self.skipp_scoring,
+            local_pattern,
+            "Strategy f_ensemble output not bounded",
+        )
     
     # ========================================
     # EXTREME MARKET CONDITIONS
@@ -369,11 +470,23 @@ class TestEdgeCases(unittest.TestCase):
         pattern_ind = r'if\s*array\.size\(buf\)\s*>\s*maxLen'
         # Strategy pattern (uses specific names OR generic function if harmonized)
         pattern_strat = r'if\s*array\.size\((evBrier|buf)\)\s*>\s*(rollScore|maxLen)'
-        
-        self.assertRegex(self.indicator, pattern_ind,
-            "Indicator missing rolling buffer max enforcement")
-        self.assertRegex(self.strategy, pattern_strat,
-            "Strategy missing rolling buffer max enforcement")
+
+        self._assert_local_or_library(
+            self.indicator,
+            pattern_ind,
+            r'f_roll_add\([^)]+\)\s*=>\s*cal\.roll_add\(',
+            self.skipp_calibration,
+            pattern_ind,
+            "Indicator missing rolling buffer max enforcement",
+        )
+        self._assert_local_or_library(
+            self.strategy,
+            pattern_strat,
+            r'f_roll_add\([^)]+\)\s*=>\s*cal\.roll_add\(',
+            self.skipp_calibration,
+            pattern_ind,
+            "Strategy missing rolling buffer max enforcement",
+        )
     
     # ========================================
     # FLOATING POINT SAFETY
@@ -381,12 +494,26 @@ class TestEdgeCases(unittest.TestCase):
     
     def test_fp_drift_recalculation_interval(self):
         """Periodic recalculation must exist to prevent FP drift."""
-        pattern = r'bar_index\s*%\s*ROLL_RECALC_INTERVAL\s*==\s*0'
-        
-        self.assertRegex(self.indicator, pattern,
-            "Indicator missing FP drift recalculation")
-        self.assertRegex(self.strategy, pattern,
-            "Strategy missing FP drift recalculation")
+        local_pattern = r'bar_index\s*%\s*ROLL_RECALC_INTERVAL\s*==\s*0'
+        wrapper_pattern = r'f_roll_add\([^)]+\)\s*=>\s*cal\.roll_add\([^)]+ROLL_RECALC_INTERVAL\)'
+        library_pattern = r'bar_index\s*%\s*recalcInterval\s*==\s*0'
+
+        self._assert_local_or_library(
+            self.indicator,
+            local_pattern,
+            wrapper_pattern,
+            self.skipp_calibration,
+            library_pattern,
+            "Indicator missing FP drift recalculation",
+        )
+        self._assert_local_or_library(
+            self.strategy,
+            local_pattern,
+            wrapper_pattern,
+            self.skipp_calibration,
+            library_pattern,
+            "Strategy missing FP drift recalculation",
+        )
     
     def test_array_sum_for_recalculation(self):
         """Array sum must be used for drift correction.
@@ -397,22 +524,48 @@ class TestEdgeCases(unittest.TestCase):
         pattern_ind = r'array\.set\(sumArr,\s*0,\s*array\.sum\(buf\)\)'
         # Strategy pattern (inline OR helper function)
         pattern_strat = r'(sb\s*:=\s*array\.sum\(evBrier\))|(array\.set\([^,]+,\s*0,\s*array\.sum\([^)]+\)\))'
-        
-        self.assertRegex(self.indicator, pattern_ind,
-            "Indicator missing array.sum for recalculation")
-        self.assertRegex(self.strategy, pattern_strat,
-            "Strategy missing array.sum for recalculation")
+
+        self._assert_local_or_library(
+            self.indicator,
+            pattern_ind,
+            r'f_roll_add\([^)]+\)\s*=>\s*cal\.roll_add\(',
+            self.skipp_calibration,
+            pattern_ind,
+            "Indicator missing array.sum for recalculation",
+        )
+        self._assert_local_or_library(
+            self.strategy,
+            pattern_strat,
+            r'f_roll_add\([^)]+\)\s*=>\s*cal\.roll_add\(',
+            self.skipp_calibration,
+            pattern_ind,
+            "Strategy missing array.sum for recalculation",
+        )
     
     def test_logloss_clamping(self):
         """LogLoss calculation must clamp probability before log."""
         # Prevents log(0) or log(negative)
         # Updated to check for general usage of PROB_EPS in max() clamping, matching f_safe_log logic
-        pattern = r'math\.max\(PROB_EPS'
-        
-        self.assertRegex(self.indicator, pattern,
-            "Indicator LogLoss missing probability clamping")
-        self.assertRegex(self.strategy, pattern,
-            "Strategy LogLoss missing probability clamping")
+        local_pattern = r'math\.max\(PROB_EPS(?:\(\))?'
+        wrapper_pattern = r'f_epsClamp\(p\)\s*=>\s*m\.eps_clamp\('
+        library_pattern = r'export\s+eps_clamp\([^)]+\)\s*=>[\s\S]+?math\.max\(eps,\s*math\.min\(1\.0\s*-\s*eps,\s*p\)\)'
+
+        self._assert_local_or_library(
+            self.indicator,
+            local_pattern,
+            wrapper_pattern,
+            self.skipp_math,
+            library_pattern,
+            "Indicator LogLoss missing probability clamping",
+        )
+        self._assert_local_or_library(
+            self.strategy,
+            local_pattern,
+            wrapper_pattern,
+            self.skipp_math,
+            library_pattern,
+            "Strategy LogLoss missing probability clamping",
+        )
     
     # ========================================
     # INITIALIZATION SAFETY
@@ -504,7 +657,7 @@ class TestThinMarketScenarios(unittest.TestCase):
     
     def test_base_rate_pooling(self):
         """Base rate pooling must exist for sparse bins."""
-        pattern = r'pBase\s*=.*f_prob\(uBase,\s*nBase'
+        pattern = r'pBase\s*=.*(?:f_prob|cal\.prob)\(uBase,\s*nBase'
         
         self.assertRegex(self.indicator, pattern,
             "Indicator missing base rate pooling")

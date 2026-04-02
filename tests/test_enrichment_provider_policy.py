@@ -149,10 +149,14 @@ class TestProviderUnavailable:
         assert "fmp" in result.stale
         assert "benzinga" in result.stale
 
-    def test_technical_all_fail_returns_safe_default(self):
+    @patch("scripts.smc_provider_policy.fetch_technical_tradingview")
+    def test_technical_all_fail_returns_safe_default(self, mock_tradingview):
+        mock_tradingview.side_effect = RuntimeError("TradingView fallback unavailable")
         result = resolve_domain("technical", fmp=None)
         assert result.ok is False
+        assert result.provider == "none"
         assert "fmp" in result.stale
+        assert "tradingview" in result.stale
 
     def test_unknown_domain_raises(self):
         with pytest.raises(ValueError, match="Unknown enrichment domain"):

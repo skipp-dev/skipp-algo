@@ -57,6 +57,7 @@ def test_discover_composite_source_plan_auto_and_explicit() -> None:
         "volume": "fmp_watchlist_json",
         "technical": "fmp_watchlist_json",
         "news": "fmp_watchlist_json",
+        "structure_resolution_mode": "n/a",
     }
 
 

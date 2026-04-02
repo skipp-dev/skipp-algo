@@ -17,6 +17,7 @@ from tests.pine_sim import Bar, BarSignals, SimConfig, SkippAlgoSim
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 INDICATOR_PATH = ROOT / "SkippALGO.pine"
 STRATEGY_PATH = ROOT / "SkippALGO_Strategy.pine"
+LABELS_PATH = ROOT / "pine" / "skipp_labels.pine"
 
 
 def derive_virtual_labels(res) -> list[str]:
@@ -36,10 +37,13 @@ def derive_virtual_labels(res) -> list[str]:
 
 
 class TestLabelDisplayContractSource(unittest.TestCase):
+    labels: str = ""
+
     @classmethod
     def setUpClass(cls):
         cls.ind = INDICATOR_PATH.read_text(encoding="utf-8")
         cls.strat = STRATEGY_PATH.read_text(encoding="utf-8")
+        cls.labels = LABELS_PATH.read_text(encoding="utf-8")
 
     def _assert_contract(self, text: str, name: str):
         compact_mode = name == "Strategy" and "Strategy token budget safeguard" in text
@@ -55,7 +59,10 @@ class TestLabelDisplayContractSource(unittest.TestCase):
             f"{name}: safe label text guard/helper contract missing"
         )
         if has_safe_helper:
-            self.assertIn("_max = 120", text, f"{name}: label max length guard missing")
+            self.assertTrue(
+                "_max = 120" in text or "_max = 120" in type(self).labels,
+                f"{name}: label max length guard missing",
+            )
 
         # PRE labels payload contract
         if not compact_mode:

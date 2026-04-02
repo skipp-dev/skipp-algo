@@ -22,6 +22,9 @@ import os
 
 INDICATOR_PATH = os.path.join(os.path.dirname(__file__), '..', 'SkippALGO.pine')
 STRATEGY_PATH = os.path.join(os.path.dirname(__file__), '..', 'SkippALGO_Strategy.pine')
+MATH_LIBRARY_PATH = os.path.join(os.path.dirname(__file__), '..', 'pine', 'skipp_math.pine')
+CALIBRATION_LIBRARY_PATH = os.path.join(os.path.dirname(__file__), '..', 'pine', 'skipp_calibration.pine')
+SCORING_LIBRARY_PATH = os.path.join(os.path.dirname(__file__), '..', 'pine', 'skipp_scoring.pine')
 
 
 class TestIndicatorStrategyConsistency(unittest.TestCase):
@@ -33,6 +36,32 @@ class TestIndicatorStrategyConsistency(unittest.TestCase):
             cls.indicator = f.read()
         with open(STRATEGY_PATH, 'r') as f:
             cls.strategy = f.read()
+        with open(MATH_LIBRARY_PATH, 'r') as f:
+            cls.skipp_math = f.read()
+        with open(CALIBRATION_LIBRARY_PATH, 'r') as f:
+            cls.skipp_calibration = f.read()
+        with open(SCORING_LIBRARY_PATH, 'r') as f:
+            cls.skipp_scoring = f.read()
+
+    def _resolve_math_constant(self, content, name):
+        direct_match = re.search(rf'{name}\s*=\s*([\d.]+)', content)
+        if direct_match:
+            return direct_match.group(1)
+
+        delegated_match = re.search(rf'{name}\s*=\s*m\.{name}\(\)', content)
+        if delegated_match:
+            library_match = re.search(rf'export\s+{name}\(\)\s*=>\s*([\d.]+)', self.skipp_math)
+            if library_match:
+                return library_match.group(1)
+
+        return None
+
+    def _assert_local_or_library(self, content, local_pattern, wrapper_pattern, library_content, library_pattern, message):
+        if re.search(local_pattern, content):
+            return
+
+        self.assertRegex(content, wrapper_pattern, message)
+        self.assertRegex(library_content, library_pattern, message)
     
     # ========================================
     # CONSTANTS CONSISTENCY
@@ -49,14 +78,21 @@ class TestIndicatorStrategyConsistency(unittest.TestCase):
         ]
         
         for name, pattern in constants:
-            ind_match = re.search(pattern, self.indicator)
-            strat_match = re.search(pattern, self.strategy)
-            
-            self.assertIsNotNone(ind_match, f"Indicator missing constant: {name}")
-            self.assertIsNotNone(strat_match, f"Strategy missing constant: {name}")
-            
-            ind_val = ind_match.group(1)
-            strat_val = strat_match.group(1)
+            if name in {'PROB_EPS', 'Z_95'}:
+                ind_val = self._resolve_math_constant(self.indicator, name)
+                strat_val = self._resolve_math_constant(self.strategy, name)
+            else:
+                ind_match = re.search(pattern, self.indicator)
+                strat_match = re.search(pattern, self.strategy)
+
+                self.assertIsNotNone(ind_match, f"Indicator missing constant: {name}")
+                self.assertIsNotNone(strat_match, f"Strategy missing constant: {name}")
+
+                ind_val = ind_match.group(1)
+                strat_val = strat_match.group(1)
+
+            self.assertIsNotNone(ind_val, f"Indicator missing constant: {name}")
+            self.assertIsNotNone(strat_val, f"Strategy missing constant: {name}")
             self.assertEqual(ind_val, strat_val, 
                 f"Constant {name} mismatch: Indicator={ind_val}, Strategy={strat_val}")
     
@@ -108,27 +144,49 @@ class TestIndicatorStrategyConsistency(unittest.TestCase):
     
     def test_f_prob_logic_match(self):
         """f_prob division guard must be identical."""
-        pattern = r'f_prob\([^)]+\)\s*=>\s*\n\s*([^\n]+denom[^\n]+)\n\s*([^\n]+)'
-        
-        ind_match = re.search(pattern, self.indicator)
-        strat_match = re.search(pattern, self.strategy)
-        
-        self.assertIsNotNone(ind_match, "Indicator missing f_prob")
-        self.assertIsNotNone(strat_match, "Strategy missing f_prob")
-        
-        # Both should have the denom == 0.0 check
-        self.assertIn('denom == 0.0 ? 0.5', self.indicator)
-        self.assertIn('denom == 0.0 ? 0.5', self.strategy)
+        local_pattern = r'f_prob\([^)]+\)\s*=>[\s\S]+?denom\s*==\s*0\.0\s*\?\s*0\.5'
+        wrapper_pattern = r'f_prob\([^)]+\)\s*=>\s*cal\.prob\('
+        library_pattern = r'export\s+prob\([^)]+\)\s*=>[\s\S]+?denom\s*==\s*0\.0\s*\?\s*0\.5'
+
+        self._assert_local_or_library(
+            self.indicator,
+            local_pattern,
+            wrapper_pattern,
+            self.skipp_calibration,
+            library_pattern,
+            "Indicator missing f_prob zero-denominator guard",
+        )
+        self._assert_local_or_library(
+            self.strategy,
+            local_pattern,
+            wrapper_pattern,
+            self.skipp_calibration,
+            library_pattern,
+            "Strategy missing f_prob zero-denominator guard",
+        )
     
     def test_f_logit_uses_prob_eps(self):
         """f_logit must use PROB_EPS constant in both files."""
-        # Check for PROB_EPS usage in f_logit
-        pattern = r'f_logit\([^)]+\)\s*=>\s*\n\s*pc\s*=\s*math\.max\(PROB_EPS'
-        
-        self.assertRegex(self.indicator, pattern, 
-            "Indicator f_logit should use PROB_EPS")
-        self.assertRegex(self.strategy, pattern, 
-            "Strategy f_logit should use PROB_EPS")
+        local_pattern = r'f_logit\([^)]+\)\s*=>[\s\S]+?math\.max\(PROB_EPS(?:\(\))?[,)]'
+        wrapper_pattern = r'f_logit\([^)]+\)\s*=>\s*m\.logit\('
+        library_pattern = r'export\s+logit\([^)]+\)\s*=>[\s\S]+?math\.max\(PROB_EPS\(\),\s*math\.min\(1\.0\s*-\s*PROB_EPS\(\),\s*p\)\)'
+
+        self._assert_local_or_library(
+            self.indicator,
+            local_pattern,
+            wrapper_pattern,
+            self.skipp_math,
+            library_pattern,
+            "Indicator f_logit should use PROB_EPS",
+        )
+        self._assert_local_or_library(
+            self.strategy,
+            local_pattern,
+            wrapper_pattern,
+            self.skipp_math,
+            library_pattern,
+            "Strategy f_logit should use PROB_EPS",
+        )
     
     def test_f_bin2D_boundary_logic_match(self):
         """f_bin2D must use quantile bins + regime binning in both files."""
@@ -145,21 +203,47 @@ class TestIndicatorStrategyConsistency(unittest.TestCase):
     
     def test_f_pct_rank_division_guard(self):
         """f_pct_rank must have hi==lo guard in both."""
-        pattern = r'hi\s*==\s*lo\s*\?\s*0\.5'
-        
-        self.assertRegex(self.indicator, pattern, 
-            "Indicator f_pct_rank should have hi==lo guard")
-        self.assertRegex(self.strategy, pattern, 
-            "Strategy f_pct_rank should have hi==lo guard")
+        local_pattern = r'hi\s*==\s*lo\s*\?\s*0\.5'
+        wrapper_pattern = r'f_pct_rank\([^)]+\)\s*=>\s*m\.pct_rank\('
+
+        self._assert_local_or_library(
+            self.indicator,
+            local_pattern,
+            wrapper_pattern,
+            self.skipp_math,
+            local_pattern,
+            "Indicator f_pct_rank should have hi==lo guard",
+        )
+        self._assert_local_or_library(
+            self.strategy,
+            local_pattern,
+            wrapper_pattern,
+            self.skipp_math,
+            local_pattern,
+            "Strategy f_pct_rank should have hi==lo guard",
+        )
     
     def test_f_ensemble_division_guard(self):
         """f_ensemble must have den==0 guard in both."""
-        pattern = r'den\s*==\s*0\s*\?\s*0\.0'
-        
-        self.assertRegex(self.indicator, pattern, 
-            "Indicator f_ensemble should have den==0 guard")
-        self.assertRegex(self.strategy, pattern, 
-            "Strategy f_ensemble should have den==0 guard")
+        local_pattern = r'den\s*==\s*0(?:\.0)?\s*\?\s*0\.0'
+        wrapper_pattern = r'f_ensemble4\([^)]+\)\s*=>\s*sc\.ensemble4\('
+
+        self._assert_local_or_library(
+            self.indicator,
+            local_pattern,
+            wrapper_pattern,
+            self.skipp_scoring,
+            local_pattern,
+            "Indicator f_ensemble should have den==0 guard",
+        )
+        self._assert_local_or_library(
+            self.strategy,
+            local_pattern,
+            wrapper_pattern,
+            self.skipp_scoring,
+            local_pattern,
+            "Strategy f_ensemble should have den==0 guard",
+        )
     
     def test_f_clamp_exists_in_both(self):
         """f_clamp(val, lo, hi) must exist in both files."""
@@ -275,12 +359,26 @@ class TestIndicatorStrategyConsistency(unittest.TestCase):
     
     def test_fp_drift_prevention_exists(self):
         """FP drift prevention (ROLL_RECALC_INTERVAL) must be used in both."""
-        pattern = r'bar_index\s*%\s*ROLL_RECALC_INTERVAL\s*==\s*0'
-        
-        self.assertRegex(self.indicator, pattern, 
-            "Indicator missing FP drift prevention")
-        self.assertRegex(self.strategy, pattern, 
-            "Strategy missing FP drift prevention")
+        local_pattern = r'bar_index\s*%\s*ROLL_RECALC_INTERVAL\s*==\s*0'
+        wrapper_pattern = r'f_roll_add\([^)]+\)\s*=>\s*cal\.roll_add\([^)]+ROLL_RECALC_INTERVAL\)'
+        library_pattern = r'bar_index\s*%\s*recalcInterval\s*==\s*0'
+
+        self._assert_local_or_library(
+            self.indicator,
+            local_pattern,
+            wrapper_pattern,
+            self.skipp_calibration,
+            library_pattern,
+            "Indicator missing FP drift prevention",
+        )
+        self._assert_local_or_library(
+            self.strategy,
+            local_pattern,
+            wrapper_pattern,
+            self.skipp_calibration,
+            library_pattern,
+            "Strategy missing FP drift prevention",
+        )
     
     # ========================================
     # TARGET CONFIGURATION CONSISTENCY

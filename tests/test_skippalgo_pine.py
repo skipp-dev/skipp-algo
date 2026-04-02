@@ -9,6 +9,7 @@ import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 INDICATOR_PATH = ROOT / "SkippALGO.pine"
+LABELS_PATH = ROOT / "pine" / "skipp_labels.pine"
 
 class TestSkippAlgoIndicator(unittest.TestCase):
     """Basic structure tests for the indicator script."""
@@ -20,6 +21,7 @@ class TestSkippAlgoIndicator(unittest.TestCase):
     def setUpClass(cls):
         cls.text = INDICATOR_PATH.read_text(encoding="utf-8")
         cls.lines = cls.text.splitlines()
+        cls.labels_text = LABELS_PATH.read_text(encoding="utf-8")
 
     def test_version_6(self):
         """Verify Pine Script version 6."""
@@ -226,7 +228,12 @@ class TestSkippAlgoIndicator(unittest.TestCase):
         self.assertIn("MAX_PRE_LABELS = 100", self.text)
         self.assertIn("f_pre_label(x, y, txt, sty, txtCol, bgCol) =>", self.text)
         self.assertIn("f_safe_label_text(txt)", self.text)
-        self.assertIn("lbl = label.new(x, y, f_safe_label_text(txt), style=sty, textcolor=txtCol, color=bgCol, size=size.small)", self.text)
+        direct_helper = "lbl = label.new(x, y, f_safe_label_text(txt), style=sty, textcolor=txtCol, color=bgCol, size=size.small)" in self.text
+        delegated_helper = (
+            "lbl.capped_label(_preLabels, x, y, txt, sty, txtCol, bgCol, MAX_PRE_LABELS)" in self.text and
+            "label lbl = label.new(x, y, safe_label_text(txt), style = sty, textcolor = txtCol, color = bgCol, size = sz)" in self.labels_text
+        )
+        self.assertTrue(direct_helper or delegated_helper)
         self.assertIn('"PRE-BUY\\nGap: " + _gapTxt + "\\npU: " + _pTxt + "\\nConf: " + _cTxt', self.text)
         self.assertIn('"PRE-SHORT\\nGap: " + _gapTxt + "\\npD: " + _pTxt + "\\nConf: " + _cTxt', self.text)
         self.assertNotIn('plotshape(preBuyPulse, title="PRE-BUY"', self.text)

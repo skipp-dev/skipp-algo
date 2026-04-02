@@ -19,6 +19,36 @@ import re
 import math
 from pathlib import Path
 
+BASE_PATH = Path(__file__).parent.parent
+MATH_LIBRARY_PATH = BASE_PATH / "pine" / "skipp_math.pine"
+CALIBRATION_LIBRARY_PATH = BASE_PATH / "pine" / "skipp_calibration.pine"
+SCORING_LIBRARY_PATH = BASE_PATH / "pine" / "skipp_scoring.pine"
+
+MATH_LIBRARY_CONTENT = MATH_LIBRARY_PATH.read_text() if MATH_LIBRARY_PATH.exists() else ""
+CALIBRATION_LIBRARY_CONTENT = CALIBRATION_LIBRARY_PATH.read_text() if CALIBRATION_LIBRARY_PATH.exists() else ""
+SCORING_LIBRARY_CONTENT = SCORING_LIBRARY_PATH.read_text() if SCORING_LIBRARY_PATH.exists() else ""
+
+
+def resolve_numeric_constant(content, name):
+    direct_match = re.search(rf'{name}\s*=\s*(?:input\.(?:float|int)\s*\(\s*)?([\d.]+)', content)
+    if direct_match:
+        return float(direct_match.group(1))
+
+    delegated_match = re.search(rf'{name}\s*=\s*m\.{name}\(\)', content)
+    if delegated_match and MATH_LIBRARY_CONTENT:
+        library_match = re.search(rf'export\s+{name}\(\)\s*=>\s*([\d.]+)', MATH_LIBRARY_CONTENT)
+        if library_match:
+            return float(library_match.group(1))
+
+    return None
+
+
+def matches_local_or_library(content, local_pattern, wrapper_pattern, library_content, library_pattern):
+    return bool(
+        re.search(local_pattern, content)
+        or (re.search(wrapper_pattern, content) and re.search(library_pattern, library_content))
+    )
+
 
 class TestNumericalConstants(unittest.TestCase):
     """Verify all numerical constants remain unchanged."""
@@ -47,9 +77,8 @@ class TestNumericalConstants(unittest.TestCase):
         for name, content in self.files.items():
             if not content:
                 continue
-            match = re.search(r'PROB_EPS\s*=\s*([\d.]+)', content)
-            self.assertIsNotNone(match, f"{name}: PROB_EPS not found")
-            value = float(match.group(1))
+            value = resolve_numeric_constant(content, 'PROB_EPS')
+            self.assertIsNotNone(value, f"{name}: PROB_EPS not found")
             self.assertEqual(value, 0.0001, 
                 f"{name}: PROB_EPS changed from 0.0001 to {value}")
     
@@ -58,9 +87,8 @@ class TestNumericalConstants(unittest.TestCase):
         for name, content in self.files.items():
             if not content:
                 continue
-            match = re.search(r'PROB_EPS\s*=\s*([\d.]+)', content)
-            if match:
-                value = float(match.group(1))
+            value = resolve_numeric_constant(content, 'PROB_EPS')
+            if value is not None:
                 self.assertLess(value, 0.001,
                     f"{name}: PROB_EPS={value} too large, would distort probabilities")
     
@@ -69,9 +97,8 @@ class TestNumericalConstants(unittest.TestCase):
         for name, content in self.files.items():
             if not content:
                 continue
-            match = re.search(r'PROB_EPS\s*=\s*([\d.]+)', content)
-            if match:
-                value = float(match.group(1))
+            value = resolve_numeric_constant(content, 'PROB_EPS')
+            if value is not None:
                 self.assertGreater(value, 0,
                     f"{name}: PROB_EPS must be positive, got {value}")
     
@@ -135,9 +162,8 @@ class TestNumericalConstants(unittest.TestCase):
         for name, content in self.files.items():
             if not content:
                 continue
-            match = re.search(r'Z_95\s*=\s*([\d.]+)', content)
-            self.assertIsNotNone(match, f"{name}: Z_95 not found")
-            value = float(match.group(1))
+            value = resolve_numeric_constant(content, 'Z_95')
+            self.assertIsNotNone(value, f"{name}: Z_95 not found")
             self.assertEqual(value, 1.96,
                 f"{name}: Z_95 changed from 1.96 to {value}")
     
@@ -149,9 +175,8 @@ class TestNumericalConstants(unittest.TestCase):
         for name, content in self.files.items():
             if not content:
                 continue
-            match = re.search(r'Z_95\s*=\s*([\d.]+)', content)
-            if match:
-                value = float(match.group(1))
+            value = resolve_numeric_constant(content, 'Z_95')
+            if value is not None:
                 self.assertAlmostEqual(value, expected_z95, delta=tolerance,
                     msg=f"{name}: Z_95={value} not close to theoretical 1.96")
     
@@ -370,8 +395,13 @@ class TestFormulaRegression(unittest.TestCase):
         for name, content in self.files.items():
             if not content:
                 continue
-            # Log loss requires math.log
-            has_log = re.search(r'math\.log\s*\(', content)
+            has_log = matches_local_or_library(
+                content,
+                r'math\.log\s*\(',
+                r'f_logloss\([^)]+\)\s*=>\s*m\.logloss\(',
+                MATH_LIBRARY_CONTENT,
+                r'export\s+logloss\([^)]+\)\s*=>[\s\S]+?math\.log\s*\(',
+            )
             self.assertTrue(has_log, f"{name}: math.log not found for log loss")
     
     def test_logloss_protected_by_eps(self):
@@ -379,15 +409,12 @@ class TestFormulaRegression(unittest.TestCase):
         for name, content in self.files.items():
             if not content:
                 continue
-            # Look for log with epsilon protection
-            # Patterns: math.log(p + eps), math.log(math.max(p, eps)), f_clamp before log
-            protected = (
-                re.search(r'math\.log\s*\([^)]*\+\s*(?:PROB_)?[eE]ps', content) or
-                re.search(r'math\.log\s*\(\s*math\.max\s*\(', content) or
-                re.search(r'math\.log\s*\(\s*nz\s*\(', content) or
-                re.search(r'f_clamp\s*\([^)]+\)[^\n]*\n[^\n]*math\.log', content) or
-                re.search(r'pClip\s*=\s*f_clamp', content) or  # Strategy uses f_clamp then log
-                re.search(r'pLL\s*=\s*math\.max\s*\(\s*PROB_EPS', content)  # Strategy pattern
+            protected = matches_local_or_library(
+                content,
+                r'(f_epsClamp\(p\))|(math\.max\(PROB_EPS(?:\(\))?)|(pClip\s*=\s*f_clamp)',
+                r'f_logloss\([^)]+\)\s*=>\s*m\.logloss\(',
+                MATH_LIBRARY_CONTENT,
+                r'export\s+logloss\([^)]+\)\s*=>[\s\S]+?(eps_clamp\(p\)|math\.max\(PROB_EPS\(\))',
             )
             self.assertTrue(protected, f"{name}: Log loss not protected against log(0)")
     
@@ -400,8 +427,13 @@ class TestFormulaRegression(unittest.TestCase):
         for name, content in self.files.items():
             if not content:
                 continue
-            # CI should reference Z_95
-            has_z95_usage = re.search(r'Z_95\s*\*', content)
+            has_z95_usage = matches_local_or_library(
+                content,
+                r'Z_95(?:\(\))?\s*\*',
+                r'f_ci95_halfwidth\([^)]+\)\s*=>\s*m\.ci95_halfwidth\(',
+                MATH_LIBRARY_CONTENT,
+                r'export\s+ci95_halfwidth\([^)]+\)\s*=>[\s\S]+?Z_95\(\)\s*\*',
+            )
             self.assertTrue(has_z95_usage, 
                 f"{name}: Z_95 not used in confidence interval calculation")
     
@@ -410,7 +442,13 @@ class TestFormulaRegression(unittest.TestCase):
         for name, content in self.files.items():
             if not content:
                 continue
-            has_sqrt = re.search(r'math\.sqrt\s*\(', content)
+            has_sqrt = matches_local_or_library(
+                content,
+                r'math\.sqrt\s*\(',
+                r'f_ci95_halfwidth\([^)]+\)\s*=>\s*m\.ci95_halfwidth\(',
+                MATH_LIBRARY_CONTENT,
+                r'export\s+ci95_halfwidth\([^)]+\)\s*=>[\s\S]+?math\.sqrt\s*\(',
+            )
             self.assertTrue(has_sqrt, f"{name}: math.sqrt not found for CI calculation")
     
     def test_wilson_score_formula_present(self):
@@ -420,8 +458,20 @@ class TestFormulaRegression(unittest.TestCase):
                 continue
             # Wilson score uses: p + z²/2n ± z*sqrt(p(1-p)/n + z²/4n²) / (1 + z²/n)
             # Key components: z², sqrt, division by n
-            has_z_squared = re.search(r'Z_95\s*\*\s*Z_95', content)
-            has_sqrt = re.search(r'math\.sqrt', content)
+            has_z_squared = matches_local_or_library(
+                content,
+                r'Z_95(?:\(\))?\s*\*\s*Z_95(?:\(\))?',
+                r'f_ci95_halfwidth\([^)]+\)\s*=>\s*m\.ci95_halfwidth\(',
+                MATH_LIBRARY_CONTENT,
+                r'export\s+ci95_halfwidth\([^)]+\)\s*=>[\s\S]+?Z_95\(\)\s*\*\s*Z_95\(\)',
+            )
+            has_sqrt = matches_local_or_library(
+                content,
+                r'math\.sqrt',
+                r'f_ci95_halfwidth\([^)]+\)\s*=>\s*m\.ci95_halfwidth\(',
+                MATH_LIBRARY_CONTENT,
+                r'export\s+ci95_halfwidth\([^)]+\)\s*=>[\s\S]+?math\.sqrt',
+            )
 
             self.assertTrue(has_z_squared, f"{name}: Z_95^2 term not found (needed for CI)")
             self.assertTrue(has_sqrt, f"{name}: sqrt not found (needed for CI)")
@@ -435,10 +485,12 @@ class TestFormulaRegression(unittest.TestCase):
         for name, content in self.files.items():
             if not content:
                 continue
-            # Look for sigmoid pattern
-            has_sigmoid = (
-                re.search(r'1\s*/\s*\(\s*1\s*\+\s*math\.exp', content) or
-                re.search(r'1\.0\s*/\s*\(\s*1\.0\s*\+\s*math\.exp', content)
+            has_sigmoid = matches_local_or_library(
+                content,
+                r'1(?:\.0)?\s*/\s*\(\s*1(?:\.0)?\s*\+\s*math\.exp',
+                r'f_sigmoid\([^)]+\)\s*=>\s*m\.sigmoid\(',
+                MATH_LIBRARY_CONTENT,
+                r'export\s+sigmoid\([^)]+\)\s*=>[\s\S]+?1\.0\s*/\s*\(\s*1\.0\s*\+\s*math\.exp',
             )
             self.assertTrue(has_sigmoid, f"{name}: Platt scaling sigmoid form not found")
     
@@ -575,12 +627,12 @@ class TestNumericalBoundaries(unittest.TestCase):
         for name, content in self.files.items():
             if not content:
                 continue
-            # Should have 1 - PROB_EPS or similar protection
-            # Patterns: 1 - PROB_EPS, math.min(p, 1 - eps)
-            has_one_protection = (
-                re.search(r'1\s*-\s*PROB_EPS', content) or
-                re.search(r'1\.0\s*-\s*PROB_EPS', content) or
-                re.search(r'math\.min\s*\([^)]+,\s*1\s*-', content)
+            has_one_protection = matches_local_or_library(
+                content,
+                r'(1(?:\.0)?\s*-\s*PROB_EPS)|(math\.min\s*\([^)]+,\s*1\s*-)',
+                r'f_epsClamp\([^)]+\)\s*=>\s*m\.eps_clamp\(',
+                MATH_LIBRARY_CONTENT,
+                r'export\s+eps_clamp\([^)]+\)\s*=>[\s\S]+?1\.0\s*-\s*eps',
             )
             self.assertTrue(has_one_protection,
                 f"{name}: Missing protection against p == 1.0 in log(1-p)")
@@ -817,10 +869,8 @@ class TestSpecificNumericalValues(unittest.TestCase):
         for name, content in self.files.items():
             if not content:
                 continue
-            # Z_95 = 1.96 corresponds to 95% CI
-            match = re.search(r'Z_95\s*=\s*([\d.]+)', content)
-            if match:
-                z = float(match.group(1))
+            z = resolve_numeric_constant(content, 'Z_95')
+            if z is not None:
                 # Z = 1.96 → 95% CI, Z = 1.645 → 90% CI, Z = 2.576 → 99% CI
                 self.assertAlmostEqual(z, 1.96, delta=0.1,
                     msg=f"{name}: Z_95={z} doesn't correspond to 95% CI")

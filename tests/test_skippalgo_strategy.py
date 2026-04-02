@@ -6,6 +6,7 @@ import unittest
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 PINE_PATH = ROOT / "SkippALGO_Strategy.pine"
 INDICATOR_PATH = ROOT / "SkippALGO.pine"
+SCORING_PATH = ROOT / "pine" / "skipp_scoring.pine"
 
 
 class TestSkippAlgoStrategy(unittest.TestCase):
@@ -18,6 +19,7 @@ class TestSkippAlgoStrategy(unittest.TestCase):
         cls.text = PINE_PATH.read_text(encoding="utf-8")
         cls.lines = cls.text.splitlines()
         cls.indicator_text = INDICATOR_PATH.read_text(encoding="utf-8")
+        cls.scoring_text = SCORING_PATH.read_text(encoding="utf-8")
 
     def test_version_6(self):
         self.assertRegex(self.text, r"//@version=6")
@@ -112,10 +114,20 @@ class TestSkippAlgoStrategy(unittest.TestCase):
 
     def test_ensemble_implementation_matches_indicator(self):
         # Strategy should use the same normalized weighted average as indicator
-        self.assertIn("num = wA * sA + wB * sB + wC * sC", self.text)
-        self.assertIn("den = wA + wB + wC", self.text)
-        self.assertIn("val = den == 0 ? 0.0 : num / den", self.text)
-        self.assertIn("math.max(-1.0, math.min(1.0, val))", self.text)
+        inline_impl = (
+            "num = wA * sA + wB * sB + wC * sC" in self.text and
+            "den = wA + wB + wC" in self.text and
+            "val = den == 0 ? 0.0 : num / den" in self.text and
+            "math.max(-1.0, math.min(1.0, val))" in self.text
+        )
+        delegated_impl = (
+            "f_ensemble4(sA, sB, sC, sD, wA, wB, wC, wD) => sc.ensemble4(sA, sB, sC, sD, wA, wB, wC, wD)" in self.text and
+            "float num = wA * sA + wB * sB + wC * sC + wD * sD" in self.scoring_text and
+            "float den = wA + wB + wC + wD" in self.scoring_text and
+            "float val = den == 0.0 ? 0.0 : num / den" in self.scoring_text and
+            "math.max(-1.0, math.min(1.0, val))" in self.scoring_text
+        )
+        self.assertTrue(inline_impl or delegated_impl)
 
         # Ensure old non-linear mapping is not present
         self.assertNotIn("f_clamp01((raw + 1.0) * 0.5) * 2.0 - 1.0", self.text)

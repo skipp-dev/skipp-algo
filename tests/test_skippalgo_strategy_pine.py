@@ -743,7 +743,7 @@ class TestSkippAlgoStrategyChochParity(unittest.TestCase):
     def test_choch_mode_and_ping_inputs_exist(self):
         """Strategy exposes ChoCH mode and ping marker controls."""
         self.assertIn('chochSignalMode  = input.string("Ping+Verify", "ChoCH signal mode", options=["Ping (Fast)", "Verify (Safer)", "Ping+Verify"]', self.text)
-        self.assertIn('showChochPing    = input.bool(true, "Show ChoCH Ping markers")', self.text)
+        self.assertRegex(self.text, r'showChochPing\s*=\s*input\.bool\(true,\s*"Show ChoCH Ping markers"')
 
     def test_choch_fast_presets_define_effective_runtime_vars(self):
         """Fast/Fast+Safer presets should drive effective runtime structure variables."""

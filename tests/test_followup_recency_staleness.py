@@ -303,9 +303,10 @@ def test_diagnostics_consistency(monkeypatch, tmp_path: Path) -> None:
 def test_volume_fresh_not_stale(monkeypatch, tmp_path: Path) -> None:
     """A recent volume CSV → volume_stale=False."""
     vol_csv = tmp_path / "vol.csv"
+    fresh_trade_date = time.strftime("%Y-%m-%d", time.gmtime(_fresh_ts()))
     # trade_date is recent → asof_ts will be fresh
     vol_csv.write_text(
-        "symbol,trade_date,watchlist_rank\nAAPL,2026-03-27,1\n",
+        f"symbol,trade_date,watchlist_rank\nAAPL,{fresh_trade_date},1\n",
         encoding="utf-8",
     )
     monkeypatch.setattr(databento_watchlist_csv, "WATCHLIST_CSV", vol_csv)
@@ -313,7 +314,7 @@ def test_volume_fresh_not_stale(monkeypatch, tmp_path: Path) -> None:
     fmp_path = tmp_path / "fmp.json"
     _write_source(fmp_path, [{
         "symbol": "AAPL",
-        "trade_date": "2026-03-27",
+        "trade_date": fresh_trade_date,
         "asof_ts": _fresh_ts(),
         "volume_regime": "NORMAL",
         "thin_fraction": 0.1,

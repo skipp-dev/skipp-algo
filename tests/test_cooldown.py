@@ -27,7 +27,7 @@ class TestCooldownHardening(unittest.TestCase):
 
     def test_input_defaults(self):
         """Verify cooldownTriggers input exists and defaults to ExitsOnly."""
-        pattern = r'cooldownTriggers\s*=\s*input\.string\("ExitsOnly",\s*"Cooldown triggers",\s*options=\["ExitsOnly",\s*"AllSignals",\s*"EntriesOnly"\]\)'
+        pattern = r'cooldownTriggers\s*=\s*input\.string\("ExitsOnly",\s*"Cooldown triggers",\s*options=\["ExitsOnly",\s*"AllSignals",\s*"EntriesOnly"\][^)]*\)'
         
         self._assert_contains(self.indicator_text, pattern, "Indicator: cooldownTriggers input missing or incorrect default")
         self._assert_contains(self.strategy_text, pattern, "Strategy: cooldownTriggers input missing or incorrect default")

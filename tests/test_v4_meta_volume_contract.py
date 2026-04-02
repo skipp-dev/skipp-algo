@@ -258,8 +258,7 @@ class TestPineRendering:
             universe_size=10, enrichment=enrichment,
         )
         text = out.read_text()
-        line = [l for l in text.splitlines() if "REFRESH_COUNT" in l][0]
-        assert "export const int REFRESH_COUNT = 42" == line
+        assert re.search(r"^export const int REFRESH_COUNT = 42$", text, re.MULTILINE)
 
     def test_volume_low_tickers_rendered(self, tmp_path: Path):
         out = tmp_path / "lib.pine"
@@ -295,8 +294,7 @@ class TestPineRendering:
             universe_size=10, enrichment=enrichment,
         )
         text = out.read_text()
-        line = [l for l in text.splitlines() if "PROVIDER_COUNT" in l][0]
-        assert "export const int PROVIDER_COUNT = 4" == line
+        assert re.search(r"^export const int PROVIDER_COUNT = 4$", text, re.MULTILINE)
 
     def test_defaults_when_no_enrichment(self, tmp_path: Path):
         out = tmp_path / "lib.pine"

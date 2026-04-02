@@ -1092,7 +1092,7 @@ def test_indicator_resource_caps_match_runtime_history_behavior() -> None:
     assert 'max_lines_count = 300' in source
     assert 'max_boxes_count = 300' in source
     assert 'max_labels_count = 500' in source
-    assert "var int long_marker_history_limit = input.int(100, 'Marker History Limit', minval = 0, maxval = 500, group = g_long, inline = 'viz2')" in source
+    assert re.search(r"var int long_marker_history_limit = input\.int\(100, 'Marker History Limit', minval = 0, maxval = 500, group = g_long, inline = 'viz2'(?:, display = display\.none)?\)", source)
     assert 'u.trim_label_history(reclaim_marker_history, show_reclaim_markers ? long_marker_history_limit_eff : 0)' in source
     assert 'u.trim_label_history(long_state_marker_history, show_long_confirmation_markers ? long_marker_history_limit_eff : 0)' in source
     assert 'u.trim_label_history(long_ready_marker_history, show_long_confirmation_markers ? long_marker_history_limit_eff : 0)' in source
