@@ -14,7 +14,7 @@ previously distributed across multiple policy and contract documents.
 ## 1. Design Principles
 
 | # | Principle | Detail |
-|---|-----------|--------|
+| --- | --- | --- |
 | 1 | **One Primary Decision Surface** | Lifecycle + Signal Quality + Event State + Bias + Warnings. No secondary decision layers. |
 | 2 | **Signal Quality Primacy** | Signal Quality (Family 6) is the single composite interpretation layer. All other families are inputs. |
 | 3 | **Event Risk User Semantics** | Three user-facing states: blocked / caution / clear. Internal fields (cooldown timers, impact classes) stay hidden. |
@@ -31,7 +31,7 @@ previously distributed across multiple policy and contract documents.
 ## 2. Lean Surface — 6 Families, 32 Fields
 
 | Family | Fields | Purpose |
-|--------|--------|---------|
+| --- | --- | --- |
 | Event Risk Light | 7 | Market/symbol event gating, blocked/caution/clear |
 | Session Context Light | 4+1 | Session, killzone, bias, score; optional volatility state |
 | OB Context Light | 5 | Nearest OB side, distance, freshness, age, mitigation lifecycle |
@@ -49,7 +49,7 @@ Signal Quality reads lean families 1-5 as primary inputs. Additionally it
 reads two non-lean support blocks under Principle 8 (Admission Rule):
 
 | Support Block | Component | Max Weight | Rationale |
-|---------------|-----------|------------|-----------|
+| --- | --- | --- | --- |
 | `liquidity_sweeps` | Liquidity/sweep support | 15 pts | Sweep data is not derivable from lean families. |
 | `compression_regime` | Compression regime | 15 pts | ATR regime enriches scoring; `SESSION_VOLATILITY_STATE` already derives from it, so SQ's direct read avoids double-derivation. |
 
@@ -64,7 +64,7 @@ Both blocks are read-only, scoring-only, and safe-default to zero on absence.
 States are **age-derived lifecycle stages**, not price-event signals:
 
 | State | Condition | Semantics |
-|-------|-----------|-----------|
+| --- | --- | --- |
 | `fresh` | ≤ 10 bars, not mitigated | Recently created OB |
 | `touched` | 11-30 bars, not mitigated | **Aging lifecycle label** — NOT a "price touched the OB" event |
 | `mitigated` | Broad block reports actual mitigation | Price filled the OB zone |
@@ -83,6 +83,7 @@ Compact Mode (`compact_mode = true`) is the recommended UX. The Hero Surface
 occupies Dashboard rows 10-17:
 
 **Active** (Hero Surface):
+
 - Direction / Bias (HTF trend summary)
 - Lifecycle markers (Reclaim, Confirmation, Ready)
 - Signal Quality dashboard rows
@@ -91,6 +92,7 @@ occupies Dashboard rows 10-17:
 - Health Badge, Risk Levels, Main Dashboard
 
 **Suppressed** (debug + secondary overlays):
+
 - OB / FVG / Engine debug labels
 - Microstructure debug markers
 - LTF dashboard details
@@ -105,7 +107,7 @@ All suppression uses `_eff` variables. Filter logic is **not** affected.
 Two artifact classes; no third class allowed:
 
 | Class | Source | Purpose |
-|-------|--------|---------|
+| --- | --- | --- |
 | **Seed Reference** | `generate_smc_micro_profiles.py` | Default/generated artifact, must pass contract |
 | **Showcase Reference** | `generate_showcase_summary.py` + `reference_enrichment.json` | Enriched example, must pass contract |
 
@@ -119,7 +121,7 @@ through adapters for consistency verification.
 ## 7. Runtime Budget
 
 | Metric | Value |
-|--------|-------|
+| --- | --- |
 | Total lines | ~6155 |
 | `var` declarations | ~371 |
 | `input.*` declarations | ~260 |
@@ -132,6 +134,7 @@ Phase C candidate queue is maintained separately and must be re-audited
 before deletion.
 
 **Removal Roadmap**:
+
 - Phase A: Legacy field cleanup — ✅ done (~173 lines)
 - Phase B: BUS compat fields — ✅ done (~265 lines, 33 fields, 12 resolvers, 3 plots)
 - Phase C: Rebased to non-behavioural cleanup only; current candidate inventory and guard live in [PHASE_C_ANALYSIS.md](PHASE_C_ANALYSIS.md) and `tests/test_smc_core_engine_phase_c_audit.py`
@@ -146,7 +149,7 @@ before deletion.
 Pine must not rebuild competing interpretation layers outside the generator chain.
 
 | Allowed | Forbidden |
-|---------|-----------|
+| --- | --- |
 | Visualization (colors, labels) | Parallel computation of scores |
 | Lifecycle labels (bar-level aging) | Reconstruction of composite metrics |
 | Runtime constraints (clamping) | Duplicate scoring logic |
@@ -159,12 +162,13 @@ Pine must not rebuild competing interpretation layers outside the generator chai
 ## 9. Version History
 
 | Version | Change | Commit |
-|---------|--------|--------|
+| --- | --- | --- |
 | v5.5 | Lean Contract Freeze — 32 fields, 6 families | — |
 | v5.5a | Semantic sharpening — hierarchy, optionality, naming precision | — |
 | v5.5b | Migration packages — schema-drift fix, bias merge, vol regime, scoring, benchmarks, Phase B cleanup | 1a99c757 |
 
 **Why v5.5b (not v5.6)**:
+
 - No new lean fields added to the surface
 - No fields removed from the surface
 - Changes are infrastructure/scoring/cleanup, not surface-breaking
@@ -181,7 +185,7 @@ lean surface contract.
 ### 10.1 Benchmark Artifacts (`smc_core/benchmark.py`)
 
 | Concept | Detail |
-|---------|--------|
+| --- | --- |
 | KPI set | `EventFamilyKPI` — hit_rate, time_to_mitigation, invalidation_rate, MAE, MFE per family |
 | Families | BOS, OB, FVG, SWEEP |
 | Stratification | session, htf_bias, vol_regime |
@@ -193,7 +197,7 @@ Benchmark results are **versionable** — each JSON artifact carries
 ### 10.2 Probabilistic Scoring (`smc_core/scoring.py`)
 
 | Concept | Detail |
-|---------|--------|
+| --- | --- |
 | Scores | Brier Score (MSE of probabilities), Log Score (negative log-likelihood) |
 | MVP label | `label_sweep_reversal` — did a sweep produce a directional reversal within *N* bars? |
 | Output | `scoring_{symbol}_{tf}.json` per run |
@@ -216,7 +220,7 @@ structure direction.  Returns the merged bias plus a confidence level.
 ### 10.5 Calibration Roadmap
 
 | Phase | Scope | Status |
-|-------|-------|--------|
+| --- | --- | --- |
 | Phase 1 (current) | Brier/Log Score on sweep-reversal label, static thresholds | ✅ Shipped |
 | Phase 2 (next) | Platt scaling or isotonic regression on SQ score vs. observed outcomes | Planned |
 | Phase 3 | GARCH/regime-aware score adjustment, session-specific calibration | Future |
@@ -231,7 +235,7 @@ annotations.
 ## Supporting Documents
 
 | Document | Scope | Status |
-|----------|-------|--------|
+| --- | --- | --- |
 | [v5_5_lean_contract.md](v5_5_lean_contract.md) | Field definitions, value domains, mapping | Active |
 | [ARTIFACT_STRATEGY.md](ARTIFACT_STRATEGY.md) | Artifact classes, rules | Active (v5.5b) |
 | [NO_SHADOW_LOGIC_POLICY.md](NO_SHADOW_LOGIC_POLICY.md) | Shadow logic rules | Active |
