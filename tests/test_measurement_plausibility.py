@@ -14,6 +14,7 @@ import pytest
 
 from smc_core.benchmark import (
     BenchmarkResult,
+    EventFamily,
     EventFamilyKPI,
     build_benchmark,
     export_benchmark_artifacts,
@@ -37,7 +38,7 @@ class TestBenchmarkArtifactPlausibility:
 
     @pytest.fixture()
     def sample_benchmark(self) -> BenchmarkResult:
-        events = {
+        events: dict[EventFamily, list[dict[str, float | bool]]] = {
             "BOS": [
                 {"hit": True, "time_to_mitigation": 3, "invalidated": False, "mae": 0.01, "mfe": 0.04},
                 {"hit": False, "time_to_mitigation": 12, "invalidated": True, "mae": 0.03, "mfe": 0.01},
@@ -105,9 +106,9 @@ class TestScoringArtifactPlausibility:
     def sample_scoring(self) -> ScoringResult:
         events = [
             ScoredEvent("s1", "SWEEP", 0.8, True, 1.0),
-            ScoredEvent("s2", "SWEEP", 0.3, False, 2.0),
-            ScoredEvent("s3", "SWEEP", 0.6, True, 3.0),
-            ScoredEvent("s4", "SWEEP", 0.1, False, 4.0),
+            ScoredEvent("b1", "BOS", 0.3, False, 2.0),
+            ScoredEvent("o1", "OB", 0.6, True, 3.0),
+            ScoredEvent("f1", "FVG", 0.1, False, 4.0),
         ]
         return score_events(events)
 
@@ -125,6 +126,7 @@ class TestScoringArtifactPlausibility:
 
     def test_n_events_matches(self, sample_scoring: ScoringResult) -> None:
         assert sample_scoring.n_events == 4
+        assert set(sample_scoring.family_metrics) == {"BOS", "OB", "FVG", "SWEEP"}
 
     def test_empty_scoring_produces_nan(self) -> None:
         result = score_events([])
@@ -145,10 +147,13 @@ class TestScoringArtifactPlausibility:
         assert data["schema_version"] == SCHEMA_VERSION
         assert data["symbol"] == "SPY"
         assert data["timeframe"] == "1H"
+        assert isinstance(data["generated_at"], float)
         assert math.isfinite(data["brier_score"])
         assert 0.0 <= data["brier_score"] <= 1.0
         assert math.isfinite(data["log_score"])
         assert data["log_score"] >= 0.0
+        assert data["aggregate"]["n_events"] == 4
+        assert set(data["family_metrics"]) == {"BOS", "OB", "FVG", "SWEEP"}
 
 
 # ── Brier/Log score edge-case plausibility ───────────────────────────

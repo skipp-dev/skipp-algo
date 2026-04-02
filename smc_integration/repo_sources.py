@@ -409,6 +409,7 @@ def load_raw_meta_input_composite(
     timeframe: str,
     *,
     source: str = "auto",
+    reference_time: float | None = None,
 ) -> dict[str, Any]:
     normalized = source.strip().lower()
     auto_mode = normalized == "auto"
@@ -462,7 +463,7 @@ def load_raw_meta_input_composite(
     }
 
     # Per-domain recency / staleness (B-F1).
-    now = time.time()
+    now = float(reference_time) if reference_time is not None else time.time()
     for domain, domain_meta in [("volume", volume_meta), ("technical", technical_meta), ("news", news_meta)]:
         if domain_meta is None:
             diagnostics[f"{domain}_asof_ts"] = None
@@ -490,7 +491,7 @@ def load_raw_meta_input_composite(
         raise ValueError("merged raw_meta has invalid asof_ts value")
 
     stale_threshold_secs = 90 * 24 * 60 * 60
-    if merged_asof_ts_f < (time.time() - stale_threshold_secs):
+    if merged_asof_ts_f < (now - stale_threshold_secs):
         provenance = merged.get("provenance", [])
         if not isinstance(provenance, list):
             provenance = []

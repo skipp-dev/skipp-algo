@@ -113,15 +113,63 @@ def _diagnostics_counts(
     }
 
 
-def _compose_common(bars: pd.DataFrame, symbol: str, timeframe: str, pivot_lookup: int) -> ProfileResult:
+def _compose_common(
+    bars: pd.DataFrame,
+    symbol: str,
+    timeframe: str,
+    pivot_lookup: int,
+    *,
+    ticksize: float | None = None,
+    asset_class: str | None = None,
+    session_tz: str | None = None,
+) -> ProfileResult:
     if bars.empty:
         return _empty_result()
 
-    bos = _dedupe_by_id(detect_bos_choch_events(bars, symbol=symbol, timeframe=timeframe, pivot_lookup=pivot_lookup))
-    orderblocks, ob_diag = detect_orderblocks_makuchaku(bars, symbol=symbol, timeframe=timeframe)
-    fvg, fvg_diag = detect_fvg_classic(bars, symbol=symbol, timeframe=timeframe)
-    liquidity_lines = detect_liquidity_lines_pivot3(bars, symbol=symbol, timeframe=timeframe)
-    liquidity_sweeps = detect_liquidity_sweeps_from_lines(bars, liquidity_lines=liquidity_lines, symbol=symbol, timeframe=timeframe)
+    bos = _dedupe_by_id(
+        detect_bos_choch_events(
+            bars,
+            symbol=symbol,
+            timeframe=timeframe,
+            pivot_lookup=pivot_lookup,
+            ticksize=ticksize,
+            asset_class=asset_class,
+            session_tz=session_tz,
+        )
+    )
+    orderblocks, ob_diag = detect_orderblocks_makuchaku(
+        bars,
+        symbol=symbol,
+        timeframe=timeframe,
+        ticksize=ticksize,
+        asset_class=asset_class,
+        session_tz=session_tz,
+    )
+    fvg, fvg_diag = detect_fvg_classic(
+        bars,
+        symbol=symbol,
+        timeframe=timeframe,
+        ticksize=ticksize,
+        asset_class=asset_class,
+        session_tz=session_tz,
+    )
+    liquidity_lines = detect_liquidity_lines_pivot3(
+        bars,
+        symbol=symbol,
+        timeframe=timeframe,
+        ticksize=ticksize,
+        asset_class=asset_class,
+        session_tz=session_tz,
+    )
+    liquidity_sweeps = detect_liquidity_sweeps_from_lines(
+        bars,
+        liquidity_lines=liquidity_lines,
+        symbol=symbol,
+        timeframe=timeframe,
+        ticksize=ticksize,
+        asset_class=asset_class,
+        session_tz=session_tz,
+    )
 
     session_ranges = build_session_ranges(bars)
     session_pivots = build_session_pivots(session_ranges)
@@ -187,6 +235,9 @@ def build_structure_profile(
     timeframe: str,
     profile: str = "hybrid_default",
     pivot_lookup: int = 1,
+    ticksize: float | None = None,
+    asset_class: str | None = None,
+    session_tz: str | None = None,
 ) -> ProfileResult:
     bars = normalize_bars(df)
     if bars.empty:
@@ -195,7 +246,15 @@ def build_structure_profile(
     tf = canonical_timeframe(timeframe)
     profile_name = validate_structure_profile(profile)
 
-    base = _compose_common(bars, symbol=symbol, timeframe=tf, pivot_lookup=pivot_lookup)
+    base = _compose_common(
+        bars,
+        symbol=symbol,
+        timeframe=tf,
+        pivot_lookup=pivot_lookup,
+        ticksize=ticksize,
+        asset_class=asset_class,
+        session_tz=session_tz,
+    )
 
     if profile_name == "classic_makuchaku":
         base.diagnostics["structure_profile_used"] = "classic_makuchaku"

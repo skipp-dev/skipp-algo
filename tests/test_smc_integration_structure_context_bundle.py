@@ -3,6 +3,8 @@ from __future__ import annotations
 import pandas as pd
 
 from smc_integration import service
+from smc_core.scoring import ScoredEvent
+from smc_integration.measurement_evidence import MeasurementEvidence
 
 
 class _FakeSourceDescriptor:
@@ -43,6 +45,22 @@ def test_delivery_bundle_adds_optional_structure_context_without_snapshot_pollut
     monkeypatch.setattr(service, "build_structure_qualifiers", lambda *args, **kwargs: {"ppdd": []})
     monkeypatch.setattr(service, "build_session_liquidity_context", lambda *args, **kwargs: {"killzones": []})
     monkeypatch.setattr(service, "build_htf_bias_context", lambda *args, **kwargs: {"selected_ipda_htf": "D"})
+    monkeypatch.setattr(
+        service,
+        "build_measurement_evidence",
+        lambda *_args, **_kwargs: MeasurementEvidence(
+            events_by_family={"BOS": [], "OB": [], "FVG": [], "SWEEP": []},
+            stratified_events={},
+            scored_events=[ScoredEvent("bos-1", "BOS", 0.75, True, 1.0)],
+            details={
+                "measurement_evidence_present": True,
+                "bars_source_mode": "synthetic_bundle",
+                "evaluated_event_counts": {"BOS": 0, "OB": 0, "FVG": 0, "SWEEP": 0},
+                "ensemble_quality": {"available_components": ["bias", "scoring", "vol_regime"], "score": 0.81},
+            },
+            warnings=[],
+        ),
+    )
     monkeypatch.setattr(
         service.structure_artifact_json,
         "load_structure_context_input",

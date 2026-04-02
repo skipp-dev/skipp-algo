@@ -1,0 +1,35 @@
+name: smc-measurement-benchmark
+
+on:
+  workflow_dispatch:
+
+jobs:
+  measurement-benchmark:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pytest
+
+      - name: Run measurement benchmark harness
+        run: |
+          python scripts/run_smc_measurement_benchmark.py \
+            --output-dir artifacts/ci/measurement_benchmark
+
+      - name: Upload measurement benchmark artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smc-measurement-benchmark
+          path: artifacts/ci/measurement_benchmark/

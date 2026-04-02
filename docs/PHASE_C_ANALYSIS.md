@@ -1,163 +1,149 @@
-# Phase C Analysis — Dead Input & Lightweight Cleanup
+# Phase C Analysis — Rebased After AP1-AP5
 
-**Status**: Ready for execution  
-**Date**: 2026-04-01  
-**Prerequisite**: Phase B ✅ done  
-**Reference**: [RUNTIME_BUDGET.md](RUNTIME_BUDGET.md), [LEGACY_REMOVAL_PLAN.md](LEGACY_REMOVAL_PLAN.md)
-
----
-
-## 1. Scope
-
-Phase C has two tiers:
-
-### Tier 1 — Dead Input Removal (immediate, low risk)
-
-Remove declared-but-never-consumed `input.bool` variables from
-`SMC_Core_Engine.pine`. These inputs occupy UI slots and settings rows but
-have zero runtime effect — no gate, plot, or export references them.
-
-### Tier 2 — Structural Lightweighting Preparation (roadmap, no rewrite)
-
-Identify categories of helper functions in the ~6162-line Pine core that
-could be separated or reduced in future phases without breaking runtime.
+**Status**: Prepared, but not execution-ready on stale evidence  
+**Date**: 2026-04-02  
+**Prerequisite**: AP1-AP5 complete  
+**References**: [RUNTIME_BUDGET.md](RUNTIME_BUDGET.md), [LEGACY_REMOVAL_PLAN.md](LEGACY_REMOVAL_PLAN.md), [smc_deep_research_migration_plan_copilot.md](smc_deep_research_migration_plan_copilot.md)
 
 ---
 
-## 2. Dead Inputs — Confirmed (11 variables)
+## 1. Why This Document Was Rebased
 
-All verified with full-file grep: each appears exactly once (declaration only).
+The previous Phase C write-up assumed the next best move was immediate dead-input
+deletion. That assumption is now stale.
 
-| # | Variable | Line | Default | Original Group |
-|---|----------|------|---------|----------------|
-| 1 | `show_mtf_trend` | 3175 | true | MTF Trend overlay |
-| 2 | `show_risk_levels` | 3203 | true | Risk level overlays |
-| 3 | `show_reclaim_markers` | 3396 | true | Reclaim/lifecycle markers |
-| 4 | `show_long_confirmation_markers` | 3397 | true | Confirmation markers |
-| 5 | `show_long_background` | 3400 | true | Background coloring |
-| 6 | `color_long_bars` | 3401 | — | Bar coloring |
-| 7 | `show_accel_debug` | 3498 | false | Acceleration debug |
-| 8 | `show_sd_debug` | 3514 | false | Standard deviation debug |
-| 9 | `show_vol_regime_debug` | 3536 | false | Volatility regime debug |
-| 10 | `show_stretch_overlay` | 3550 | true | Stretch overlay |
-| 11 | `show_lower_extreme_bg` | 3552 | false | Lower extreme background |
+The repo has since completed a higher-leverage architecture-faithfulness wave:
 
-**Note**: `color_long_bars` (#6) was discovered during this audit and is
-not listed in the original RUNTIME_BUDGET.md dead inputs table.
+1. Signal Quality is now the primary long-engine interpretation layer.
+2. Lean field names are canonical across generator, artifacts, tests, and Pine consumers.
+3. The measurement lane is operationalized in scripts and CI workflows.
+4. Event IDs are ticksize-/session-aware end-to-end, including liquidity IDs.
+5. The service bundle exposes bias, vol-regime, and measurement summary visibly.
+
+Result: Phase C should now be treated as **non-behavioural cleanup only**.
+It should not reopen AP1-AP5 class changes under a cleanup label.
 
 ---
 
-## 3. Structural Categories — Lightweighting Candidates
+## 2. Closed Before Phase C
 
-Analysis of the ~6162-line Pine core reveals three structural categories.
-The table below classifies helper functions by their lightweighting potential.
+These are no longer valid Phase C targets:
 
-### Category A — Runtime Core (KEEP LOCAL)
+1. Signal-quality primacy rewiring
+2. Lean contract naming cleanup
+3. Measurement-lane operationalization
+4. Ticksize-/session-aware ID hardening
+5. Service-bundle context visibility for bias / vol / measurement
 
-These functions are integral to trade logic and must remain in the core:
-
-| Function Group | Lines | Example Functions |
-|----------------|-------|-------------------|
-| Structure detection | ~1166–1350 | `detect_swings`, `detect_pivot`, `detect_structure`, `detect_equal_level` |
-| Order block tracking | ~552–1120 | `create_ob`, `track_obs`, `update_broken`, `ob_quality_score` |
-| Profile calculation | ~391–550 | `create_profile`, `profile_data_ready` |
-| MA/ATR/BB/DMI libs | ~34–75 | `smc_lib_atr`, `smc_lib_ehma`, `smc_lib_bb`, `smc_lib_dmi` |
-| Divergence detection | ~75–142 | `smc_lib_detect_divergence` |
-| Long engine state | ~1790–1900 | Zone preference, confirmation, invalidation logic |
-
-**Decision**: These stay. No outsourcing.
-
-### Category B — Dashboard/Decoder/Display (CANDIDATE for extraction)
-
-~775 references to dashboard/debug/display/BUS patterns. Specific candidates:
-
-| Candidate | Lines (approx) | Risk | Notes |
-|-----------|----------------|------|-------|
-| `compose_long_debug_*` helpers (10+ functions) | ~1723–1790 | Low | Pure string formatting, no state |
-| `compose_long_engine_debug_label_text` | ~1761–1778 | Low | Multi-line debug label builder |
-| `compose_long_engine_event_log` | ~1780–1790 | Low | Event log text formatter |
-| `resolve_long_ready_blocker_text` | ~1706–1712 | Low | Blocker reason string builder |
-| `resolve_long_strict_blocker_text` | ~1713–1722 | Low | Strict mode blocker text |
-| `compose_enabled_debug_modules_text` | ~1560–1577 | Low | Debug modules label text |
-| `compose_zone_summary_text` | ~1550–1558 | Low | Zone summary for display |
-| `compose_long_setup_text` | ~1879–1904 | Low | Setup state text |
-| `resolve_long_visual_text` | ~1904+ | Low | Visual state label |
-| `resolve_long_source_text` | ~1425 | Low | Source kind → text |
-
-**Total estimate**: ~200–250 lines of pure text-formatting helpers.
-
-**Extraction path**: These could move to the `d` (display) library import
-or a new `debug_text` helper library without any runtime impact.
-
-### Category C — BUS Formatting (CANDIDATE for later reduction)
-
-| Candidate | Scope | Notes |
-|-----------|-------|-------|
-| BUS row formatting | Dashboard table | Uses `table.cell`, `table.set` — ~2 table calls remain after Phase B |
-| Alert text composing | `compose_long_invalidated_alert_detail` | ~2590, pure alert text |
-| Plot helpers | `plot_pivot_points`, `plot_swing_levels`, `plot_structure` | ~1251–1290, visual only |
-
-**Decision**: Lower priority. BUS formatting is interleaved with state reads.
+Any future Phase C work must preserve these results and remain strictly additive
+or subtractive at the display/debug layer.
 
 ---
 
-## 4. Impact Assessment
+## 3. Rebased Phase C Scope
 
-| Metric | Before | After Tier 1 | After Tier 1+2 |
-|--------|--------|-------------|----------------|
-| `input.*` declarations | ~260 | ~249 | ~249 |
-| Lines (core) | ~6162 | ~6151 | ~5900–5950 |
-| UI settings rows saved | — | 11 | 11 |
-| Runtime behavior change | — | **None** | **None** |
+### C1 — Refresh the Dead-Input Audit
+
+The old dead-input list is still a useful candidate queue, but it should no longer
+be treated as auto-approved removal work. We now have a current regression guard
+for the candidate set, and deletion should happen only after a fresh compile-safe audit.
+
+Current candidate queue in `SMC_Core_Engine.pine`:
+
+| # | Variable | Current Line | Current Status |
+| --- | --- | --- | --- |
+| 1 | `show_mtf_trend` | 3184 | declaration-only candidate |
+| 2 | `show_risk_levels` | 3212 | declaration-only candidate |
+| 3 | `show_reclaim_markers` | 3404 | declaration-only candidate |
+| 4 | `show_long_confirmation_markers` | 3405 | declaration-only candidate |
+| 5 | `show_long_background` | 3408 | declaration-only candidate |
+| 6 | `color_long_bars` | 3409 | declaration-only candidate |
+| 7 | `show_accel_debug` | 3506 | declaration-only candidate |
+| 8 | `show_sd_debug` | 3522 | declaration-only candidate |
+| 9 | `show_vol_regime_debug` | 3544 | declaration-only candidate |
+| 10 | `show_stretch_overlay` | 3558 | declaration-only candidate |
+| 11 | `show_lower_extreme_bg` | 3560 | declaration-only candidate |
+
+Deletion preconditions:
+
+1. Current full-file proof remains declaration-only.
+2. No split-core dashboard/alert consumer depends on the variable indirectly.
+3. No compact-mode or rendering regression appears after removal.
+4. TradingView compile/save check is run after the actual deletion batch.
+
+### C2 — Extract Display-/Debug-Only Helpers
+
+These remain good lightweighting candidates because they are formatting or display
+helpers rather than trade-state owners:
+
+1. `resolve_long_source_text`
+2. `compose_zone_summary_text`
+3. `compose_enabled_debug_modules_text`
+4. `resolve_long_ready_blocker_text`
+5. `resolve_long_strict_blocker_text`
+6. `compose_long_engine_debug_label_text`
+7. `compose_long_engine_event_log`
+8. `compose_long_setup_text`
+9. `resolve_long_visual_text`
+
+Guardrails for C2:
+
+1. No state transitions, gates, or lifecycle variables may move.
+2. No alert eligibility logic may move.
+3. Only string/display composition is in scope.
+
+### C3 — Decide the Legacy Parallel Path Explicitly
+
+One important repo fact now needs to be carried into Phase C planning:
+
+1. `tests/test_smc_long_dip_regressions.py` targets `SMC++.pine`, not `SMC_Core_Engine.pine`.
+2. Split-core assertions belong in split-core tests only.
+3. Future cleanup must decide whether `SMC++.pine` is still maintained, frozen, or headed for deprecation.
+
+That decision should happen before broad cleanup work starts crossing both engines again.
 
 ---
 
-## 5. Risk Assessment
+## 4. Not In Scope For Phase C
 
-| Risk | Level | Mitigation |
-|------|-------|------------|
-| Breaking existing charts | **None** | Inputs are never read; removing them removes a settings row but no chart behavior changes. |
-| Compile error | **None** | No code references these variables. |
-| User confusion (missing setting) | **Low** | All 11 were vestigial — removing them simplifies the settings panel. |
-| Pine version compatibility | **None** | Removing unused `input.bool` is backward-safe in Pine v6. |
-| Category B extraction risk | **Low** | Pure text formatters with no state dependencies. |
+The following should be treated as closed and regression-only:
 
----
+1. Signal-quality gate semantics
+2. Lean contract field naming
+3. Measurement-lane behavior and governance
+4. Vol-regime model behavior
+5. Service-bundle context exposure
+6. Any new quality/blocking rewiring in Pine
 
-## 6. Execution Checklist — Tier 1
-
-- [ ] Remove 11 `input.bool` declarations from SMC_Core_Engine.pine
-- [ ] Update RUNTIME_BUDGET.md: Phase C status → ✅ done, input count → ~249
-- [ ] Update `color_long_bars` into the dead inputs table in RUNTIME_BUDGET.md
-- [ ] Run Pine compiler check (TradingView save)
-- [ ] Verify dashboard and lifecycle markers still render correctly
-- [ ] Commit with message: `Phase C Tier 1: remove 11 dead input.bool declarations`
-
-## 7. Execution Checklist — Tier 2 (future)
-
-- [ ] Extract Category B text helpers (~10 functions, ~200–250 lines) into display library
-- [ ] Verify all debug labels still render correctly
-- [ ] No runtime/trade logic changes
-- [ ] Commit with message: `Phase C Tier 2: extract debug text helpers to display lib`
+If a task changes long-engine behavior, it is almost certainly **not** Phase C anymore.
 
 ---
 
-## 8. Phase D Preview
+## 5. Readiness Verdict
 
-After Phase C, the next cleanup target is **Phase D**: old broad event risk
-fields. Prerequisites:
-
-- BUS EventRiskRow must read from lean fields only (not broad `lib_event_*`)
-- Fields: `lib_event_cooldown`, remaining broad event risk references
-- See [LEGACY_REMOVAL_PLAN.md](LEGACY_REMOVAL_PLAN.md) Phase C (labeled "Phase C"
-  in that document but corresponds to Phase D here)
+| Item | Status | Notes |
+| --- | --- | --- |
+| Dead-input deletion batch | Yellow | candidate list is current, but actual removal still needs compile-safe execution |
+| Display/debug extraction | Green-after-C1 | low-risk once the candidate audit is refreshed |
+| Legacy parallel-path cleanup | Yellow | requires explicit ownership decision for `SMC++.pine` |
+| Full Phase C execution now | Yellow | do not execute from the old plan blindly |
 
 ---
 
-## 9. Live Input Inventory
+## 6. Preparation Outputs Landed
 
-After Phase C Tier 1: **~249 `input.*` declarations**, of which:
-- 78 live `input.bool` variables with active references
-- Remaining `input.int`, `input.float`, `input.string`, `input.source`, etc.
+This AP6 re-evaluation leaves Phase C in a materially better state than the old note:
 
-No further dead `input.bool` variables were found during this audit.
+1. The scope is rebased away from AP1-AP5 topics.
+2. The dead-input candidate list has a fresh current-line inventory.
+3. `tests/test_smc_core_engine_phase_c_audit.py` guards the current declaration-only candidate set.
+4. The legacy split-core vs. `SMC++.pine` boundary is explicitly documented as a planning constraint.
+
+---
+
+## 7. Recommended First Execution Order
+
+1. Remove only the declaration-only candidates in one isolated commit.
+2. Re-run Pine compile/save plus the Phase C audit test after that deletion batch.
+3. Perform display/debug helper extraction in a separate no-logic-change commit.
+4. Decide whether `SMC++.pine` remains a maintained parallel engine before broader cleanup resumes.

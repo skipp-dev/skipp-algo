@@ -14,14 +14,25 @@ from scripts.smc_session_context import build_session_liquidity_context
 from scripts.smc_session_context_block import build_session_context_block
 from smc_core.bias_merge import merge_bias
 from smc_core.benchmark import EventFamily
-from smc_core.scoring import ScoredEvent, label_sweep_reversal
+from smc_core.ensemble_quality import build_ensemble_quality, serialize_ensemble_quality
+from smc_core.scoring import (
+    ScoredEvent,
+    label_bos_follow_through,
+    label_fvg_mitigation,
+    label_orderblock_mitigation,
+    label_sweep_reversal,
+    score_events,
+)
 from smc_core.vol_regime import compute_vol_regime
 from smc_integration.artifact_resolution import resolve_structure_artifact_inputs
 from smc_integration.sources import structure_artifact_json
 
 
 _FAMILIES: tuple[EventFamily, ...] = ("BOS", "OB", "FVG", "SWEEP")
+_BOS_LOOKAHEAD_BARS = 8
+_ZONE_LOOKAHEAD_BARS = 12
 _SWEEP_LOOKAHEAD_BARS = 8
+_BOS_FOLLOW_THROUGH_THRESHOLD_PCT = 0.003
 _SWEEP_REVERSAL_THRESHOLD_PCT = 0.005
 
 
@@ -255,16 +266,107 @@ def _expected_reversal_direction(side: str) -> str:
     return "BULLISH" if str(side).upper() == "SELL_SIDE" else "BEARISH"
 
 
-def _sweep_probability(side: str, *, bias_direction: str, bias_confidence: float) -> float:
-    expected_direction = _expected_reversal_direction(side)
+def _normalize_direction(raw: str) -> str:
+    normalized = str(raw).strip().upper()
+    if normalized in {"UP", "BULL", "BULLISH"}:
+        return "BULLISH"
+    if normalized in {"DOWN", "BEAR", "BEARISH"}:
+        return "BEARISH"
+    return "NEUTRAL"
+
+
+def _directional_probability(expected_direction: str, *, bias_direction: str, bias_confidence: float) -> float:
     normalized_bias = str(bias_direction).upper()
+    normalized_expected = _normalize_direction(expected_direction)
     confidence = max(float(bias_confidence), 0.0)
-    if normalized_bias == "NEUTRAL":
+    if normalized_expected == "NEUTRAL" or normalized_bias == "NEUTRAL":
         return 0.5
     adjustment = min(0.15, 0.15 * max(confidence, 0.5))
-    if normalized_bias == expected_direction:
+    if normalized_bias == normalized_expected:
         return round(min(0.95, 0.5 + adjustment), 4)
     return round(max(0.05, 0.5 - adjustment), 4)
+
+
+def _sweep_probability(side: str, *, bias_direction: str, bias_confidence: float) -> float:
+    expected_direction = _expected_reversal_direction(side)
+    return _directional_probability(expected_direction, bias_direction=bias_direction, bias_confidence=bias_confidence)
+
+
+def _future_price_lists(bars: pd.DataFrame, *, anchor_idx: int, lookahead_bars: int) -> tuple[list[float], list[float], list[float]]:
+    future = bars.iloc[anchor_idx + 1 : anchor_idx + 1 + lookahead_bars].reset_index(drop=True)
+    highs = [float(value) for value in pd.to_numeric(future.get("high", []), errors="coerce").dropna().tolist()]
+    lows = [float(value) for value in pd.to_numeric(future.get("low", []), errors="coerce").dropna().tolist()]
+    closes = [float(value) for value in pd.to_numeric(future.get("close", []), errors="coerce").dropna().tolist()]
+    return highs, lows, closes
+
+
+def _score_bos_event(
+    event: dict[str, Any],
+    bars: pd.DataFrame,
+    *,
+    bias_direction: str,
+    bias_confidence: float,
+) -> ScoredEvent | None:
+    price = float(event.get("price", 0.0) or 0.0)
+    anchor_ts = float(event.get("time", event.get("anchor_ts", 0.0)) or 0.0)
+    direction = str(event.get("dir", "UP")).upper()
+    if price <= 0 or anchor_ts <= 0:
+        return None
+
+    anchor_idx = _find_bar_index(bars, anchor_ts)
+    if anchor_idx is None or anchor_idx >= len(bars) - 1:
+        return None
+
+    highs, lows, _ = _future_price_lists(bars, anchor_idx=anchor_idx, lookahead_bars=_BOS_LOOKAHEAD_BARS)
+    if not highs and not lows:
+        return None
+
+    return ScoredEvent(
+        event_id=str(event.get("id", "")).strip(),
+        family="BOS",
+        predicted_prob=_directional_probability(direction, bias_direction=bias_direction, bias_confidence=bias_confidence),
+        outcome=label_bos_follow_through(
+            price,
+            direction,
+            highs,
+            lows,
+            threshold_pct=_BOS_FOLLOW_THROUGH_THRESHOLD_PCT,
+        ),
+        timestamp=float(anchor_ts),
+    )
+
+
+def _score_zone_event(
+    event: dict[str, Any],
+    bars: pd.DataFrame,
+    *,
+    family: EventFamily,
+    bias_direction: str,
+    bias_confidence: float,
+) -> ScoredEvent | None:
+    low = float(event.get("low", 0.0) or 0.0)
+    high = float(event.get("high", 0.0) or 0.0)
+    anchor_ts = float(event.get("anchor_ts", event.get("time", 0.0)) or 0.0)
+    direction = str(event.get("dir", "BULL")).upper()
+    if low <= 0 or high <= 0 or anchor_ts <= 0 or high < low:
+        return None
+
+    anchor_idx = _find_bar_index(bars, anchor_ts)
+    if anchor_idx is None or anchor_idx >= len(bars) - 1:
+        return None
+
+    highs, lows, closes = _future_price_lists(bars, anchor_idx=anchor_idx, lookahead_bars=_ZONE_LOOKAHEAD_BARS)
+    if not highs and not lows and not closes:
+        return None
+
+    label_fn = label_orderblock_mitigation if family == "OB" else label_fvg_mitigation
+    return ScoredEvent(
+        event_id=str(event.get("id", "")).strip(),
+        family=family,
+        predicted_prob=_directional_probability(direction, bias_direction=bias_direction, bias_confidence=bias_confidence),
+        outcome=label_fn(low, high, direction, highs, lows, closes),
+        timestamp=float(anchor_ts),
+    )
 
 
 def _evaluate_sweep_event(
@@ -449,6 +551,12 @@ def build_measurement_evidence(symbol: str, timeframe: str) -> MeasurementEviden
     details["bias_direction"] = bias_verdict.direction
     details["bias_confidence"] = bias_verdict.confidence
     details["vol_regime"] = vol_regime.label
+    details["vol_regime_confidence"] = vol_regime.confidence
+    details["vol_regime_model_source"] = vol_regime.model_source
+    details["vol_regime_fallback_reason"] = vol_regime.fallback_reason
+    details["vol_regime_forecast_volatility"] = vol_regime.forecast_volatility
+    details["vol_regime_baseline_volatility"] = vol_regime.baseline_volatility
+    details["vol_regime_forecast_ratio"] = vol_regime.forecast_ratio
     details["measurement_evidence_present"] = True
     skipped_counts = {family: 0 for family in _FAMILIES}
 
@@ -458,6 +566,14 @@ def build_measurement_evidence(symbol: str, timeframe: str) -> MeasurementEviden
             skipped_counts["BOS"] += 1
             continue
         events_by_family["BOS"].append(evaluated)
+        scored_event = _score_bos_event(
+            event,
+            resampled_bars,
+            bias_direction=bias_verdict.direction,
+            bias_confidence=bias_verdict.confidence,
+        )
+        if scored_event is not None:
+            scored_events.append(scored_event)
         anchor_ts = float(event.get("time", event.get("anchor_ts", 0.0)) or 0.0)
         _append_stratified_event(stratified_events, _event_session_key(anchor_ts, timeframe), "BOS", evaluated)
         _append_stratified_event(stratified_events, f"htf_bias:{bias_verdict.direction}", "BOS", evaluated)
@@ -469,6 +585,15 @@ def build_measurement_evidence(symbol: str, timeframe: str) -> MeasurementEviden
             skipped_counts["OB"] += 1
             continue
         events_by_family["OB"].append(evaluated)
+        scored_event = _score_zone_event(
+            event,
+            resampled_bars,
+            family="OB",
+            bias_direction=bias_verdict.direction,
+            bias_confidence=bias_verdict.confidence,
+        )
+        if scored_event is not None:
+            scored_events.append(scored_event)
         anchor_ts = float(event.get("anchor_ts", event.get("time", 0.0)) or 0.0)
         _append_stratified_event(stratified_events, _event_session_key(anchor_ts, timeframe), "OB", evaluated)
         _append_stratified_event(stratified_events, f"htf_bias:{bias_verdict.direction}", "OB", evaluated)
@@ -480,6 +605,15 @@ def build_measurement_evidence(symbol: str, timeframe: str) -> MeasurementEviden
             skipped_counts["FVG"] += 1
             continue
         events_by_family["FVG"].append(evaluated)
+        scored_event = _score_zone_event(
+            event,
+            resampled_bars,
+            family="FVG",
+            bias_direction=bias_verdict.direction,
+            bias_confidence=bias_verdict.confidence,
+        )
+        if scored_event is not None:
+            scored_events.append(scored_event)
         anchor_ts = float(event.get("anchor_ts", event.get("time", 0.0)) or 0.0)
         _append_stratified_event(stratified_events, _event_session_key(anchor_ts, timeframe), "FVG", evaluated)
         _append_stratified_event(stratified_events, f"htf_bias:{bias_verdict.direction}", "FVG", evaluated)
@@ -506,6 +640,26 @@ def build_measurement_evidence(symbol: str, timeframe: str) -> MeasurementEviden
     details["evaluated_event_counts"] = {family: len(events_by_family[family]) for family in _FAMILIES}
     details["skipped_event_counts"] = skipped_counts
     details["scoring_event_count"] = len(scored_events)
+    details["scoring_event_counts_by_family"] = {
+        family: sum(1 for event in scored_events if event.family == family)
+        for family in _FAMILIES
+    }
+    scoring_result = score_events(scored_events)
+    ensemble_generated_at = None
+    if not resampled_bars.empty:
+        try:
+            ensemble_generated_at = float(resampled_bars["timestamp"].iloc[-1])
+        except (TypeError, ValueError):
+            ensemble_generated_at = None
+    ensemble_quality = build_ensemble_quality(
+        generated_at=ensemble_generated_at,
+        bias_direction=bias_verdict.direction,
+        bias_confidence=bias_verdict.confidence,
+        vol_regime_label=vol_regime.label,
+        vol_regime_confidence=vol_regime.confidence,
+        scoring_result=scoring_result,
+    )
+    details["ensemble_quality"] = serialize_ensemble_quality(ensemble_quality)
     details["stratification_keys"] = sorted(stratified_events.keys())
     details["warnings"] = list(warnings)
     return MeasurementEvidence(events_by_family, stratified_events, scored_events, details, warnings)

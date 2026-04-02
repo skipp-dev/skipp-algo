@@ -141,6 +141,333 @@ def test_gate_evidence_detects_unresolved_stale_failure(monkeypatch, tmp_path: P
     assert captured[-1]["stale_trend"].get("STALE_MANIFEST_GENERATED_AT") == 1
 
 
+def test_gate_evidence_aggregates_measurement_artifacts(monkeypatch, tmp_path: Path) -> None:
+    now_ts = 1_700_000_000.0
+    monkeypatch.setattr(evidence_script.time, "time", lambda: now_ts)
+
+    measurement_dir = tmp_path / "measurement" / "AAPL" / "15m"
+    measurement_dir.mkdir(parents=True)
+    _write_json(
+        measurement_dir / "benchmark_AAPL_15m.json",
+        {
+            "schema_version": "2.0.0",
+            "symbol": "AAPL",
+            "timeframe": "15m",
+            "generated_at": now_ts - 60.0,
+            "kpis": [
+                {"family": "BOS", "n_events": 1},
+                {"family": "OB", "n_events": 0},
+                {"family": "FVG", "n_events": 0},
+                {"family": "SWEEP", "n_events": 1},
+            ],
+            "stratified": {
+                "htf_bias:BULLISH": [
+                    {"family": "BOS", "n_events": 1},
+                    {"family": "SWEEP", "n_events": 1},
+                ],
+                "session:NY_AM": [
+                    {"family": "BOS", "n_events": 1},
+                ],
+            },
+        },
+    )
+    _write_json(
+        measurement_dir / "manifest.json",
+        {
+            "schema_version": "2.0.0",
+            "generated_at": now_ts - 60.0,
+            "artifacts": ["benchmark_AAPL_15m.json"],
+        },
+    )
+    _write_json(
+        measurement_dir / "scoring_AAPL_15m.json",
+        {
+            "schema_version": "2.0.0",
+            "symbol": "AAPL",
+            "timeframe": "15m",
+            "generated_at": now_ts - 60.0,
+            "n_events": 2,
+            "brier_score": 0.125,
+            "log_score": 0.5,
+            "hit_rate": 0.5,
+            "aggregate": {
+                "n_events": 2,
+                "brier_score": 0.125,
+                "log_score": 0.5,
+                "hit_rate": 0.5,
+            },
+            "family_metrics": {
+                "BOS": {"family": "BOS", "n_events": 1, "brier_score": 0.16, "log_score": 0.6, "hit_rate": 0.0},
+                "SWEEP": {"family": "SWEEP", "n_events": 1, "brier_score": 0.09, "log_score": 0.4, "hit_rate": 1.0},
+            },
+        },
+    )
+    _write_json(
+        measurement_dir / "measurement_manifest.json",
+        {
+            "schema_version": "2.0.0",
+            "generated_at": now_ts - 60.0,
+            "symbol": "AAPL",
+            "timeframe": "15m",
+            "measurement_evidence_present": True,
+            "artifacts": {
+                "benchmark": {
+                    "present": True,
+                    "artifact_path": "benchmark_AAPL_15m.json",
+                    "manifest_path": "manifest.json",
+                },
+                "scoring": {
+                    "present": True,
+                    "artifact_path": "scoring_AAPL_15m.json",
+                },
+            },
+            "quality_summary": {
+                "benchmark_event_counts": {"BOS": 1, "OB": 0, "FVG": 0, "SWEEP": 1},
+                "stratification_coverage": {
+                    "bucket_count": 2,
+                    "populated_bucket_count": 2,
+                    "dimensions_present": ["htf_bias", "session"],
+                    "bucket_event_counts": {
+                        "htf_bias:BULLISH": 2,
+                        "session:NY_AM": 1,
+                    },
+                },
+                "n_events": 2,
+                "brier_score": 0.125,
+                "log_score": 0.5,
+                "hit_rate": 0.5,
+                "family_metrics": {
+                    "BOS": {"n_events": 1, "brier_score": 0.16, "log_score": 0.6, "hit_rate": 0.0},
+                    "SWEEP": {"n_events": 1, "brier_score": 0.09, "log_score": 0.4, "hit_rate": 1.0},
+                },
+            },
+            "warnings": [],
+        },
+    )
+    _write_json(
+        tmp_path / "release_measurement.json",
+        {
+            "report_kind": "release_gates",
+            "checked_at": now_ts - 30.0,
+            "overall_status": "ok",
+            "reference_symbols": _BROAD_SYMBOLS,
+            "reference_timeframes": _BROAD_TIMEFRAMES,
+            "runtime_metadata": {"git_commit": "sha-measurement"},
+            "gates": [
+                {"name": "provider_health", "status": "ok", "details": {}},
+                {
+                    "name": "measurement_lane",
+                    "status": "ok",
+                    "blocking": False,
+                    "details": {
+                        "symbol": "AAPL",
+                        "timeframe": "15m",
+                        "measurement_manifest_present": True,
+                        "measurement_manifest_path": "measurement/AAPL/15m/measurement_manifest.json",
+                        "measurement_artifacts_present": True,
+                        "scoring_artifacts_present": True,
+                    },
+                },
+            ],
+        },
+    )
+
+    captured: list[dict] = []
+    monkeypatch.setattr(
+        evidence_script,
+        "build_parser",
+        lambda: _Parser(
+            Namespace(
+                input_glob=str(tmp_path / "*.json"),
+                lookback_days=14,
+                min_deeper_ok_runs=0,
+                min_release_ok_runs=0,
+                fail_on_not_ready=False,
+                output="-",
+            )
+        ),
+    )
+    monkeypatch.setattr(evidence_script, "_render", lambda report, output: captured.append(report))
+
+    rc = evidence_script.main()
+
+    assert rc == 0
+    measurement_history = captured[-1]["measurement_history"]
+    assert measurement_history["runs_with_measurement_gate"] == 1
+    assert measurement_history["artifact_load_failures"] == []
+    latest = measurement_history["latest_by_pair"]["AAPL/15m"]
+    assert latest["measurement_manifest_present"] is True
+    assert latest["benchmark_artifact_present"] is True
+    assert latest["scoring_artifact_present"] is True
+    assert latest["brier_score"] == 0.125
+    assert latest["log_score"] == 0.5
+    assert latest["n_events"] == 2
+    assert latest["benchmark_event_counts"]["SWEEP"] == 1
+    assert latest["stratification_coverage"]["bucket_count"] == 2
+    assert latest["stratification_coverage"]["dimensions_present"] == ["htf_bias", "session"]
+    assert latest["family_metrics"]["BOS"]["n_events"] == 1
+    assert latest["family_metrics"]["SWEEP"]["hit_rate"] == 1.0
+    assert latest["measurement_shadow_baseline"]["available"] is False
+    assert latest["measurement_degradations_detected"] == []
+    assert measurement_history["shadow_degradations_detected"] == []
+    assert captured[-1]["runs"][0]["measurement"]["measurement_manifest_path"] == "measurement/AAPL/15m/measurement_manifest.json"
+
+
+def test_gate_evidence_detects_measurement_history_regression(monkeypatch, tmp_path: Path) -> None:
+    now_ts = 1_700_000_000.0
+    monkeypatch.setattr(evidence_script.time, "time", lambda: now_ts)
+
+    def _write_measurement_run(prefix: str, *, checked_at: float, brier: float, log_score: float, n_events: int, populated_buckets: int) -> None:
+        measurement_dir = tmp_path / prefix / "AAPL" / "15m"
+        measurement_dir.mkdir(parents=True)
+        _write_json(
+            measurement_dir / "benchmark_AAPL_15m.json",
+            {
+                "schema_version": "2.0.0",
+                "symbol": "AAPL",
+                "timeframe": "15m",
+                "generated_at": checked_at,
+                "kpis": [
+                    {"family": "BOS", "n_events": n_events},
+                ],
+                "stratified": {
+                    **{f"htf_bias:BULLISH:{idx}": [{"family": "BOS", "n_events": 1}] for idx in range(populated_buckets)},
+                },
+            },
+        )
+        _write_json(
+            measurement_dir / "manifest.json",
+            {
+                "schema_version": "2.0.0",
+                "generated_at": checked_at,
+                "artifacts": ["benchmark_AAPL_15m.json"],
+            },
+        )
+        _write_json(
+            measurement_dir / "scoring_AAPL_15m.json",
+            {
+                "schema_version": "2.0.0",
+                "symbol": "AAPL",
+                "timeframe": "15m",
+                "generated_at": checked_at,
+                "n_events": n_events,
+                "brier_score": brier,
+                "log_score": log_score,
+                "hit_rate": 0.5,
+                "aggregate": {
+                    "n_events": n_events,
+                    "brier_score": brier,
+                    "log_score": log_score,
+                    "hit_rate": 0.5,
+                },
+                "family_metrics": {
+                    "BOS": {"family": "BOS", "n_events": n_events, "brier_score": brier, "log_score": log_score, "hit_rate": 0.5},
+                },
+            },
+        )
+        _write_json(
+            measurement_dir / "measurement_manifest.json",
+            {
+                "schema_version": "2.0.0",
+                "generated_at": checked_at,
+                "symbol": "AAPL",
+                "timeframe": "15m",
+                "measurement_evidence_present": True,
+                "artifacts": {
+                    "benchmark": {
+                        "present": True,
+                        "artifact_path": "benchmark_AAPL_15m.json",
+                        "manifest_path": "manifest.json",
+                    },
+                    "scoring": {
+                        "present": True,
+                        "artifact_path": "scoring_AAPL_15m.json",
+                    },
+                },
+                "quality_summary": {
+                    "benchmark_event_counts": {"BOS": n_events},
+                    "stratification_coverage": {
+                        "bucket_count": populated_buckets,
+                        "populated_bucket_count": populated_buckets,
+                        "dimensions_present": ["htf_bias"],
+                        "bucket_event_counts": {f"htf_bias:BULLISH:{idx}": 1 for idx in range(populated_buckets)},
+                    },
+                    "n_events": n_events,
+                    "brier_score": brier,
+                    "log_score": log_score,
+                    "hit_rate": 0.5,
+                    "family_metrics": {
+                        "BOS": {"n_events": n_events, "brier_score": brier, "log_score": log_score, "hit_rate": 0.5},
+                    },
+                },
+                "warnings": [],
+            },
+        )
+        _write_json(
+            tmp_path / f"{prefix}.json",
+            {
+                "report_kind": "release_gates",
+                "checked_at": checked_at,
+                "overall_status": "ok",
+                "reference_symbols": _BROAD_SYMBOLS,
+                "reference_timeframes": _BROAD_TIMEFRAMES,
+                "runtime_metadata": {"git_commit": f"sha-{prefix}"},
+                "gates": [
+                    {"name": "provider_health", "status": "ok", "details": {}},
+                    {
+                        "name": "measurement_lane",
+                        "status": "ok",
+                        "blocking": False,
+                        "details": {
+                            "symbol": "AAPL",
+                            "timeframe": "15m",
+                            "measurement_manifest_present": True,
+                            "measurement_manifest_path": f"{prefix}/AAPL/15m/measurement_manifest.json",
+                            "measurement_artifacts_present": True,
+                            "scoring_artifacts_present": True,
+                        },
+                    },
+                ],
+            },
+        )
+
+    _write_measurement_run("measurement_prev1", checked_at=now_ts - 180.0, brier=0.10, log_score=0.30, n_events=10, populated_buckets=3)
+    _write_measurement_run("measurement_prev2", checked_at=now_ts - 120.0, brier=0.12, log_score=0.34, n_events=9, populated_buckets=3)
+    _write_measurement_run("measurement_latest", checked_at=now_ts - 60.0, brier=0.29, log_score=0.72, n_events=3, populated_buckets=1)
+
+    captured: list[dict] = []
+    monkeypatch.setattr(
+        evidence_script,
+        "build_parser",
+        lambda: _Parser(
+            Namespace(
+                input_glob=str(tmp_path / "*.json"),
+                lookback_days=14,
+                min_deeper_ok_runs=0,
+                min_release_ok_runs=0,
+                fail_on_not_ready=False,
+                output="-",
+            )
+        ),
+    )
+    monkeypatch.setattr(evidence_script, "_render", lambda report, output: captured.append(report))
+
+    rc = evidence_script.main()
+
+    assert rc == 0
+    latest = captured[-1]["measurement_history"]["latest_by_pair"]["AAPL/15m"]
+    assert latest["measurement_shadow_baseline"]["available"] is True
+    codes = {row["code"] for row in latest["measurement_degradations_detected"]}
+    assert codes == {
+        "MEASUREMENT_BRIER_REGRESSION",
+        "MEASUREMENT_LOG_SCORE_REGRESSION",
+        "MEASUREMENT_EVENT_COVERAGE_REGRESSION",
+        "MEASUREMENT_STRATIFICATION_COVERAGE_REGRESSION",
+    }
+    assert captured[-1]["measurement_history"]["pairs_with_shadow_degradations"] == ["AAPL/15m"]
+    assert len(captured[-1]["measurement_degradations_detected"]) == 4
+
+
 # ---------------------------------------------------------------------------
 # Domain-Staleness aggregation in evidence summary
 # ---------------------------------------------------------------------------

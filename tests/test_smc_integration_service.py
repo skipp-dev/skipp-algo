@@ -98,9 +98,11 @@ def test_snapshot_bundle_source_plan_and_structure_status_are_present() -> None:
     bundle = build_snapshot_bundle_for_symbol_timeframe(symbol, "15m", generated_at=1709253600.0)
 
     assert set(["source_plan", "structure_status", "source", "snapshot", "dashboard_payload", "pine_payload"]).issubset(set(bundle.keys()))
+    assert set(["measurement_summary", "market_context"]).issubset(set(bundle.keys()))
     assert bundle["source_plan"]["volume"] == "databento_watchlist_csv"
     assert "selected_structure_source" in bundle["structure_status"]
     assert bundle["dashboard_payload"]["source_plan"] == bundle["source_plan"]
     assert bundle["pine_payload"]["source_plan"] == bundle["source_plan"]
     assert bundle["dashboard_payload"]["structure_status"]["selected_structure_source"] == bundle["structure_status"]["selected_structure_source"]
     assert bundle["pine_payload"]["structure_status"]["selected_structure_source"] == bundle["structure_status"]["selected_structure_source"]
+    assert bundle["measurement_refs"]["status"] in {"available", "unavailable", "error"}

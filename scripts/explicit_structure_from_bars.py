@@ -4,6 +4,7 @@ from typing import Any
 
 import pandas as pd
 
+from smc_core.ids import liquidity_id
 from scripts.explicit_structure_detectors import detect_liquidity_sweeps_from_lines
 from scripts.explicit_structure_profiles import build_structure_profile, validate_structure_profile
 from scripts.smc_price_action_engine import (
@@ -99,19 +100,53 @@ def _prepare_symbol_resampled_bars(df: pd.DataFrame, symbol: str, timeframe: str
     return bars, canonical_tf
 
 
-def build_bos_events_from_bars(df: pd.DataFrame, symbol: str, timeframe: str) -> list[dict]:
+def build_bos_events_from_bars(
+    df: pd.DataFrame,
+    symbol: str,
+    timeframe: str,
+    *,
+    ticksize: float | None = None,
+    asset_class: str | None = None,
+    session_tz: str | None = None,
+) -> list[dict]:
     bars, canonical_tf = _prepare_symbol_resampled_bars(df, symbol=symbol, timeframe=timeframe)
     if bars.empty:
         return []
-    payload = build_structure_profile(bars, symbol=str(symbol), timeframe=canonical_tf, profile="hybrid_default", pivot_lookup=1)
+    payload = build_structure_profile(
+        bars,
+        symbol=str(symbol),
+        timeframe=canonical_tf,
+        profile="hybrid_default",
+        pivot_lookup=1,
+        ticksize=ticksize,
+        asset_class=asset_class,
+        session_tz=session_tz,
+    )
     return _dedupe_by_id(payload.bos)
 
 
-def build_liquidity_sweeps_from_bars(df: pd.DataFrame, symbol: str, timeframe: str) -> list[dict]:
+def build_liquidity_sweeps_from_bars(
+    df: pd.DataFrame,
+    symbol: str,
+    timeframe: str,
+    *,
+    ticksize: float | None = None,
+    asset_class: str | None = None,
+    session_tz: str | None = None,
+) -> list[dict]:
     bars, canonical_tf = _prepare_symbol_resampled_bars(df, symbol=symbol, timeframe=timeframe)
     if bars.empty:
         return []
-    payload = build_structure_profile(bars, symbol=str(symbol), timeframe=canonical_tf, profile="hybrid_default", pivot_lookup=1)
+    payload = build_structure_profile(
+        bars,
+        symbol=str(symbol),
+        timeframe=canonical_tf,
+        profile="hybrid_default",
+        pivot_lookup=1,
+        ticksize=ticksize,
+        asset_class=asset_class,
+        session_tz=session_tz,
+    )
     sweeps = _dedupe_by_id(payload.liquidity_sweeps)
     if sweeps:
         return sweeps
@@ -125,7 +160,16 @@ def build_liquidity_sweeps_from_bars(df: pd.DataFrame, symbol: str, timeframe: s
         low = float(row["low"])
         legacy_lines.append(
             {
-                "id": f"liq:{symbol_name}:{canonical_tf}:{ts}:BUY_SIDE:{high:.2f}",
+                "id": liquidity_id(
+                    symbol=symbol_name,
+                    timeframe=canonical_tf,
+                    anchor_ts=float(ts),
+                    side="BUY_SIDE",
+                    price=high,
+                    ticksize=ticksize,
+                    asset_class=asset_class,
+                    session_tz=session_tz,
+                ),
                 "anchor_ts": ts,
                 "price": high,
                 "side": "BUY_SIDE",
@@ -136,7 +180,16 @@ def build_liquidity_sweeps_from_bars(df: pd.DataFrame, symbol: str, timeframe: s
         )
         legacy_lines.append(
             {
-                "id": f"liq:{symbol_name}:{canonical_tf}:{ts}:SELL_SIDE:{low:.2f}",
+                "id": liquidity_id(
+                    symbol=symbol_name,
+                    timeframe=canonical_tf,
+                    anchor_ts=float(ts),
+                    side="SELL_SIDE",
+                    price=low,
+                    ticksize=ticksize,
+                    asset_class=asset_class,
+                    session_tz=session_tz,
+                ),
                 "anchor_ts": ts,
                 "price": low,
                 "side": "SELL_SIDE",
@@ -151,23 +204,60 @@ def build_liquidity_sweeps_from_bars(df: pd.DataFrame, symbol: str, timeframe: s
         liquidity_lines=legacy_lines,
         symbol=symbol_name,
         timeframe=canonical_tf,
+        ticksize=ticksize,
+        asset_class=asset_class,
+        session_tz=session_tz,
     )
     return _dedupe_by_id(fallback)
 
 
-def build_fvg_from_bars(df: pd.DataFrame, symbol: str, timeframe: str) -> list[dict]:
+def build_fvg_from_bars(
+    df: pd.DataFrame,
+    symbol: str,
+    timeframe: str,
+    *,
+    ticksize: float | None = None,
+    asset_class: str | None = None,
+    session_tz: str | None = None,
+) -> list[dict]:
     bars, canonical_tf = _prepare_symbol_resampled_bars(df, symbol=symbol, timeframe=timeframe)
     if bars.empty:
         return []
-    payload = build_structure_profile(bars, symbol=str(symbol), timeframe=canonical_tf, profile="hybrid_default", pivot_lookup=1)
+    payload = build_structure_profile(
+        bars,
+        symbol=str(symbol),
+        timeframe=canonical_tf,
+        profile="hybrid_default",
+        pivot_lookup=1,
+        ticksize=ticksize,
+        asset_class=asset_class,
+        session_tz=session_tz,
+    )
     return _dedupe_by_id(payload.fvg)
 
 
-def build_orderblocks_from_bars(df: pd.DataFrame, symbol: str, timeframe: str) -> list[dict]:
+def build_orderblocks_from_bars(
+    df: pd.DataFrame,
+    symbol: str,
+    timeframe: str,
+    *,
+    ticksize: float | None = None,
+    asset_class: str | None = None,
+    session_tz: str | None = None,
+) -> list[dict]:
     bars, canonical_tf = _prepare_symbol_resampled_bars(df, symbol=symbol, timeframe=timeframe)
     if bars.empty:
         return []
-    payload = build_structure_profile(bars, symbol=str(symbol), timeframe=canonical_tf, profile="hybrid_default", pivot_lookup=1)
+    payload = build_structure_profile(
+        bars,
+        symbol=str(symbol),
+        timeframe=canonical_tf,
+        profile="hybrid_default",
+        pivot_lookup=1,
+        ticksize=ticksize,
+        asset_class=asset_class,
+        session_tz=session_tz,
+    )
     orderblocks = _dedupe_by_id(payload.orderblocks)
     # Backward-compatible ordering for helper callers that inspect the first zone.
     orderblocks.sort(key=lambda row: (bool(row.get("valid", True)), int(row.get("anchor_ts", 0))), reverse=True)
@@ -180,6 +270,10 @@ def build_explicit_structure_from_bars(
     timeframe: str,
     pivot_lookup: int = 1,
     structure_profile: str = "hybrid_default",
+    *,
+    ticksize: float | None = None,
+    asset_class: str | None = None,
+    session_tz: str | None = None,
 ) -> dict:
     canonical_tf = _canonical_timeframe(timeframe)
     normalized_profile = validate_structure_profile(structure_profile)
@@ -198,6 +292,9 @@ def build_explicit_structure_from_bars(
         timeframe=canonical_tf,
         profile=normalized_profile,
         pivot_lookup=pivot_lookup,
+        ticksize=ticksize,
+        asset_class=asset_class,
+        session_tz=session_tz,
     )
 
     return {
@@ -215,13 +312,25 @@ def build_explicit_structure_from_bars(
     }
 
 
-def build_full_structure_from_bars(df: pd.DataFrame, symbol: str, timeframe: str, structure_profile: str = "hybrid_default") -> dict:
+def build_full_structure_from_bars(
+    df: pd.DataFrame,
+    symbol: str,
+    timeframe: str,
+    structure_profile: str = "hybrid_default",
+    *,
+    ticksize: float | None = None,
+    asset_class: str | None = None,
+    session_tz: str | None = None,
+) -> dict:
     payload = build_explicit_structure_from_bars(
         df,
         symbol=symbol,
         timeframe=timeframe,
         pivot_lookup=1,
         structure_profile=structure_profile,
+        ticksize=ticksize,
+        asset_class=asset_class,
+        session_tz=session_tz,
     )
     return {
         "bos": payload["bos"],

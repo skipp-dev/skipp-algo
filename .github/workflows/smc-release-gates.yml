@@ -42,6 +42,10 @@ jobs:
             tests/test_explicit_structure_*.py
             tests/test_smc_core_*.py
             tests/test_smc_adapters_*.py
+            tests/test_measurement_*.py
+            tests/test_release_policy.py
+            tests/test_smc_vol_regime.py
+            tests/test_smc_bias_merge.py
             tests/test_smc_benchmark.py
             tests/test_smc_scoring.py
           )
@@ -64,6 +68,7 @@ jobs:
         with:
           name: smc-release-gates-report
           path: |
+            artifacts/ci/measurement/
             artifacts/ci/smc_pre_release_artifact_refresh_report.json
             artifacts/ci/smc_release_gates_report.json
             artifacts/ci/smc_release_evidence_summary.json

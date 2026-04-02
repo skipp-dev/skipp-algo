@@ -1,8 +1,11 @@
 from __future__ import annotations
 
-import pytest
+from datetime import datetime, timezone
 
-from smc_core.ids import bos_id, fvg_id, ob_id, quantize_price, quantize_time_to_tf, sweep_id, SYMBOL_TICKSIZE
+import pytest
+from zoneinfo import ZoneInfo
+
+from smc_core.ids import DEFAULT_SESSION_TZ, bos_id, fvg_id, ob_id, quantize_price, quantize_time_to_tf, sweep_id, SYMBOL_TICKSIZE
 
 
 def test_ob_id_deterministic() -> None:
@@ -13,10 +16,14 @@ def test_ob_id_deterministic() -> None:
 
 def test_quantize_time_to_tf_alignment() -> None:
     t = 1709250123
-    for tf, minutes in [("5m", 5), ("15m", 15), ("1H", 60), ("4H", 240), ("1D", 1440)]:
+    for tf, minutes in [("5m", 5), ("15m", 15), ("1H", 60), ("4H", 240)]:
         anchor = quantize_time_to_tf(t, tf)
         block = minutes * 60
         assert int(anchor) % block == 0
+
+    daily_anchor = quantize_time_to_tf(t, "1D")
+    session_dt = datetime.fromtimestamp(daily_anchor, tz=timezone.utc).astimezone(ZoneInfo(DEFAULT_SESSION_TZ))
+    assert (session_dt.hour, session_dt.minute, session_dt.second) == (0, 0, 0)
 
 
 def test_quantize_price_stable() -> None:

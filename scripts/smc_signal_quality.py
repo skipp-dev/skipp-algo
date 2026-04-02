@@ -77,6 +77,12 @@ MAX_COMPRESSION = 15
 PENALTY_EVENT = -15
 
 
+def _prefer_lean_value(primary: dict[str, Any], fallback: dict[str, Any], key: str, default: Any) -> Any:
+    if key in primary:
+        return primary[key]
+    return fallback.get(key, default)
+
+
 def _score_tier(score: int) -> str:
     if score <= TIER_LOW:
         return "low"
@@ -180,10 +186,10 @@ def build_signal_quality(
     # ── Structure freshness (0-20) — lean: structure_state_light ─
     ssl = enr.get("structure_state_light") or {}
     ss = enr.get("structure_state") or {}  # fallback-only
-    structure_fresh = bool(ssl.get("STRUCTURE_FRESH") or ss.get("STRUCTURE_FRESH", False))
-    structure_age = int(ssl.get("STRUCTURE_EVENT_AGE_BARS") or ss.get("STRUCTURE_EVENT_AGE_BARS", 999))
+    structure_fresh = bool(_prefer_lean_value(ssl, ss, "STRUCTURE_FRESH", False))
+    structure_age = int(_prefer_lean_value(ssl, ss, "STRUCTURE_EVENT_AGE_BARS", 999))
     # For bias alignment: prefer lean last_event, fallback to broad state
-    last_event = str(ssl.get("STRUCTURE_LAST_EVENT", "NONE"))
+    last_event = str(_prefer_lean_value(ssl, ss, "STRUCTURE_LAST_EVENT", "NONE"))
     if last_event in ("BOS_BULL", "CHOCH_BULL"):
         structure_state = "BULLISH"
     elif last_event in ("BOS_BEAR", "CHOCH_BEAR"):
@@ -203,9 +209,9 @@ def build_signal_quality(
     # ── Session alignment (0-20) — lean: session_context_light ──
     scl = enr.get("session_context_light") or {}
     sc = enr.get("session_context") or {}  # fallback-only
-    in_killzone = bool(scl.get("SESSION_LIGHT_IN_KILLZONE") or scl.get("IN_KILLZONE") or sc.get("IN_KILLZONE", False))
-    session_bias = str(scl.get("SESSION_LIGHT_DIRECTION_BIAS") or scl.get("SESSION_DIRECTION_BIAS") or sc.get("SESSION_DIRECTION_BIAS", "NEUTRAL"))
-    session_score_raw = int(scl.get("SESSION_LIGHT_CONTEXT_SCORE") or scl.get("SESSION_CONTEXT_SCORE") or sc.get("SESSION_CONTEXT_SCORE", 0))
+    in_killzone = bool(_prefer_lean_value(scl, sc, "IN_KILLZONE", False))
+    session_bias = str(_prefer_lean_value(scl, sc, "SESSION_DIRECTION_BIAS", "NEUTRAL"))
+    session_score_raw = int(_prefer_lean_value(scl, sc, "SESSION_CONTEXT_SCORE", 0))
 
     if in_killzone and session_score_raw >= 4:
         score += MAX_SESSION
@@ -291,8 +297,11 @@ def build_signal_quality(
     # ── Event risk penalty (0 to -15) — lean: event_risk_light ──
     erl = enr.get("event_risk_light") or {}
     er = enr.get("event_risk") or {}  # fallback-only
-    event_blocked = bool(erl.get("MARKET_EVENT_BLOCKED") or erl.get("SYMBOL_EVENT_BLOCKED") or er.get("MARKET_EVENT_BLOCKED", False) or er.get("SYMBOL_EVENT_BLOCKED", False))
-    event_risk_level = str(erl.get("EVENT_RISK_LEVEL") or er.get("EVENT_RISK_LEVEL", "NONE"))
+    if "MARKET_EVENT_BLOCKED" in erl or "SYMBOL_EVENT_BLOCKED" in erl:
+        event_blocked = bool(erl.get("MARKET_EVENT_BLOCKED", False) or erl.get("SYMBOL_EVENT_BLOCKED", False))
+    else:
+        event_blocked = bool(er.get("MARKET_EVENT_BLOCKED", False) or er.get("SYMBOL_EVENT_BLOCKED", False))
+    event_risk_level = str(_prefer_lean_value(erl, er, "EVENT_RISK_LEVEL", "NONE"))
 
     if event_blocked:
         score += PENALTY_EVENT

@@ -3,6 +3,7 @@ from __future__ import annotations
 import pandas as pd
 
 from smc_integration import measurement_evidence
+from smc_core.vol_regime import VolRegimeResult
 
 
 def _daily_bars() -> pd.DataFrame:
@@ -95,6 +96,21 @@ def test_build_measurement_evidence_uses_contract_and_real_bars(monkeypatch) -> 
         "build_session_liquidity_context",
         lambda df, tz="America/New_York": {"killzones": []},
     )
+    monkeypatch.setattr(
+        measurement_evidence,
+        "compute_vol_regime",
+        lambda df: VolRegimeResult(
+            label="NORMAL",
+            raw_atr_ratio=1.02,
+            confidence=0.91,
+            bars_used=len(df),
+            model_source="arch_garch",
+            fallback_reason=None,
+            forecast_volatility=0.02,
+            baseline_volatility=0.019,
+            forecast_ratio=1.0526,
+        ),
+    )
 
     evidence = measurement_evidence.build_measurement_evidence("AAPL", "1D")
 
@@ -106,9 +122,20 @@ def test_build_measurement_evidence_uses_contract_and_real_bars(monkeypatch) -> 
     assert evidence.events_by_family["BOS"][0]["invalidated"] is True
     assert evidence.events_by_family["OB"][0]["hit"] is True
     assert evidence.events_by_family["FVG"][0]["hit"] is True
-    assert evidence.scored_events[0].family == "SWEEP"
-    assert evidence.scored_events[0].outcome is True
-    assert evidence.scored_events[0].predicted_prob > 0.5
+    assert [event.family for event in evidence.scored_events] == ["BOS", "OB", "FVG", "SWEEP"]
+    assert all(event.outcome is True for event in evidence.scored_events)
+    assert all(event.predicted_prob > 0.5 for event in evidence.scored_events)
+    assert evidence.details["scoring_event_count"] == 4
+    assert evidence.details["scoring_event_counts_by_family"] == {"BOS": 1, "OB": 1, "FVG": 1, "SWEEP": 1}
+    assert evidence.details["vol_regime"] == "NORMAL"
+    assert evidence.details["vol_regime_confidence"] == 0.91
+    assert evidence.details["vol_regime_model_source"] == "arch_garch"
+    assert evidence.details["vol_regime_fallback_reason"] is None
+    assert evidence.details["vol_regime_forecast_volatility"] == 0.02
+    assert evidence.details["vol_regime_baseline_volatility"] == 0.019
+    assert evidence.details["vol_regime_forecast_ratio"] == 1.0526
+    assert evidence.details["ensemble_quality"]["available_components"] == ["bias", "scoring", "vol_regime"]
+    assert 0.0 <= evidence.details["ensemble_quality"]["score"] <= 1.0
     assert "session:NONE" in evidence.stratified_events
     assert "htf_bias:BULLISH" in evidence.stratified_events
     assert "vol_regime:NORMAL" in evidence.stratified_events

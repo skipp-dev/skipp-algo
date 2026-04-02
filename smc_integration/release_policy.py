@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import math
 import os
+from dataclasses import asdict, dataclass
+from statistics import median
 import subprocess
 from typing import Any, Iterable
 
@@ -57,6 +60,239 @@ REASON_INSUFFICIENT_RUNS = "INSUFFICIENT_SUCCESSFUL_RUNS"
 REASON_PROVIDER_FAILURE = "PROVIDER_FAILURE"
 REASON_SMOKE_FAILURE = "SMOKE_FAILURE"
 REASON_MISSING_ARTIFACT = "MISSING_ARTIFACT"
+REASON_MEASUREMENT_QUALITY = "MEASUREMENT_QUALITY_REGRESSION"
+
+
+@dataclass(slots=True, frozen=True)
+class MeasurementShadowThresholds:
+    """Warn-only measurement governance thresholds.
+
+    The defaults are deliberately conservative so the shadow lane remains
+    additive until operators have sufficient history to tighten them.
+    """
+
+    max_brier_score: float = 0.60
+    max_log_score: float = 1.20
+    min_scoring_events: int = 1
+    min_populated_stratification_buckets: int = 1
+    min_history_runs: int = 2
+    max_brier_regression_abs: float = 0.08
+    max_log_regression_abs: float = 0.20
+    min_event_coverage_ratio: float = 0.50
+    min_stratification_coverage_ratio: float = 0.50
+
+
+MEASUREMENT_SHADOW_THRESHOLDS = MeasurementShadowThresholds()
+
+
+def get_measurement_shadow_thresholds() -> MeasurementShadowThresholds:
+    return MEASUREMENT_SHADOW_THRESHOLDS
+
+
+def serialize_measurement_shadow_thresholds(
+    thresholds: MeasurementShadowThresholds | None = None,
+) -> dict[str, float | int]:
+    return asdict(thresholds or MEASUREMENT_SHADOW_THRESHOLDS)
+
+
+def _finite_metric(value: Any) -> float | None:
+    try:
+        metric = float(value)
+    except (TypeError, ValueError):
+        return None
+    return metric if math.isfinite(metric) else None
+
+
+def _int_metric(value: Any) -> int | None:
+    try:
+        return int(value or 0)
+    except (TypeError, ValueError):
+        return None
+
+
+def _populated_bucket_count(entry: dict[str, Any]) -> int | None:
+    raw = entry.get("stratification_coverage")
+    if not isinstance(raw, dict):
+        return None
+    return _int_metric(raw.get("populated_bucket_count", 0))
+
+
+def _median_metric(values: list[float]) -> float | None:
+    if not values:
+        return None
+    return float(median(values))
+
+
+def _median_int_metric(values: list[int]) -> int | None:
+    if not values:
+        return None
+    return int(round(float(median(values))))
+
+
+def build_measurement_shadow_baseline(
+    history_entries: list[dict[str, Any]],
+    *,
+    thresholds: MeasurementShadowThresholds | None = None,
+) -> dict[str, Any]:
+    resolved = thresholds or MEASUREMENT_SHADOW_THRESHOLDS
+    history_rows = [row for row in history_entries if isinstance(row, dict)]
+
+    brier_values = [value for value in (_finite_metric(row.get("brier_score")) for row in history_rows) if value is not None]
+    log_values = [value for value in (_finite_metric(row.get("log_score")) for row in history_rows) if value is not None]
+    event_values = [value for value in (_int_metric(row.get("n_events")) for row in history_rows) if value is not None]
+    bucket_values = [value for value in (_populated_bucket_count(row) for row in history_rows) if value is not None]
+
+    return {
+        "available": len(history_rows) >= resolved.min_history_runs,
+        "history_runs": len(history_rows),
+        "required_history_runs": resolved.min_history_runs,
+        "brier_score": _median_metric(brier_values),
+        "log_score": _median_metric(log_values),
+        "n_events": _median_int_metric(event_values),
+        "populated_bucket_count": _median_int_metric(bucket_values),
+    }
+
+
+def assess_measurement_shadow_degradations(
+    current_entry: dict[str, Any],
+    history_entries: list[dict[str, Any]],
+    *,
+    thresholds: MeasurementShadowThresholds | None = None,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Compare a current measurement row against static and historical baselines."""
+
+    resolved = thresholds or MEASUREMENT_SHADOW_THRESHOLDS
+    degradations: list[dict[str, Any]] = []
+    baseline = build_measurement_shadow_baseline(history_entries, thresholds=resolved)
+
+    current_brier = _finite_metric(current_entry.get("brier_score"))
+    current_log = _finite_metric(current_entry.get("log_score"))
+    current_events = _int_metric(current_entry.get("n_events"))
+    current_buckets = _populated_bucket_count(current_entry)
+
+    if current_brier is not None and current_brier > resolved.max_brier_score:
+        degradations.append(
+            {
+                "code": "MEASUREMENT_BRIER_ABOVE_THRESHOLD",
+                "basis": "absolute_threshold",
+                "metric": "brier_score",
+                "current_value": round(current_brier, 6),
+                "threshold_value": round(resolved.max_brier_score, 6),
+                "detail": f"brier_score {current_brier:.6f} exceeds warn threshold {resolved.max_brier_score:.6f}",
+            }
+        )
+
+    if current_log is not None and current_log > resolved.max_log_score:
+        degradations.append(
+            {
+                "code": "MEASUREMENT_LOG_SCORE_ABOVE_THRESHOLD",
+                "basis": "absolute_threshold",
+                "metric": "log_score",
+                "current_value": round(current_log, 6),
+                "threshold_value": round(resolved.max_log_score, 6),
+                "detail": f"log_score {current_log:.6f} exceeds warn threshold {resolved.max_log_score:.6f}",
+            }
+        )
+
+    if current_events is not None and current_events < resolved.min_scoring_events:
+        degradations.append(
+            {
+                "code": "MEASUREMENT_EVENT_COVERAGE_LOW",
+                "basis": "absolute_threshold",
+                "metric": "n_events",
+                "current_value": current_events,
+                "threshold_value": resolved.min_scoring_events,
+                "detail": f"n_events {current_events} below warn floor {resolved.min_scoring_events}",
+            }
+        )
+
+    if current_buckets is not None and current_buckets < resolved.min_populated_stratification_buckets:
+        degradations.append(
+            {
+                "code": "MEASUREMENT_STRATIFICATION_COVERAGE_LOW",
+                "basis": "absolute_threshold",
+                "metric": "populated_bucket_count",
+                "current_value": current_buckets,
+                "threshold_value": resolved.min_populated_stratification_buckets,
+                "detail": (
+                    f"populated stratification buckets {current_buckets} below warn floor "
+                    f"{resolved.min_populated_stratification_buckets}"
+                ),
+            }
+        )
+
+    if not baseline["available"]:
+        return degradations, baseline
+
+    baseline_brier = _finite_metric(baseline.get("brier_score"))
+    if current_brier is not None and baseline_brier is not None:
+        delta = current_brier - baseline_brier
+        if delta > resolved.max_brier_regression_abs:
+            degradations.append(
+                {
+                    "code": "MEASUREMENT_BRIER_REGRESSION",
+                    "basis": "history_baseline",
+                    "metric": "brier_score",
+                    "current_value": round(current_brier, 6),
+                    "baseline_value": round(baseline_brier, 6),
+                    "delta_value": round(delta, 6),
+                    "threshold_value": round(resolved.max_brier_regression_abs, 6),
+                    "detail": f"brier_score regressed by {delta:.6f} versus historical median",
+                }
+            )
+
+    baseline_log = _finite_metric(baseline.get("log_score"))
+    if current_log is not None and baseline_log is not None:
+        delta = current_log - baseline_log
+        if delta > resolved.max_log_regression_abs:
+            degradations.append(
+                {
+                    "code": "MEASUREMENT_LOG_SCORE_REGRESSION",
+                    "basis": "history_baseline",
+                    "metric": "log_score",
+                    "current_value": round(current_log, 6),
+                    "baseline_value": round(baseline_log, 6),
+                    "delta_value": round(delta, 6),
+                    "threshold_value": round(resolved.max_log_regression_abs, 6),
+                    "detail": f"log_score regressed by {delta:.6f} versus historical median",
+                }
+            )
+
+    baseline_events = _int_metric(baseline.get("n_events"))
+    if current_events is not None and baseline_events is not None and baseline_events > 0:
+        ratio = current_events / float(baseline_events)
+        if ratio < resolved.min_event_coverage_ratio:
+            degradations.append(
+                {
+                    "code": "MEASUREMENT_EVENT_COVERAGE_REGRESSION",
+                    "basis": "history_baseline",
+                    "metric": "n_events",
+                    "current_value": current_events,
+                    "baseline_value": baseline_events,
+                    "ratio_value": round(ratio, 6),
+                    "threshold_value": round(resolved.min_event_coverage_ratio, 6),
+                    "detail": f"n_events ratio {ratio:.6f} below historical coverage floor",
+                }
+            )
+
+    baseline_buckets = _int_metric(baseline.get("populated_bucket_count"))
+    if current_buckets is not None and baseline_buckets is not None and baseline_buckets > 0:
+        ratio = current_buckets / float(baseline_buckets)
+        if ratio < resolved.min_stratification_coverage_ratio:
+            degradations.append(
+                {
+                    "code": "MEASUREMENT_STRATIFICATION_COVERAGE_REGRESSION",
+                    "basis": "history_baseline",
+                    "metric": "populated_bucket_count",
+                    "current_value": current_buckets,
+                    "baseline_value": baseline_buckets,
+                    "ratio_value": round(ratio, 6),
+                    "threshold_value": round(resolved.min_stratification_coverage_ratio, 6),
+                    "detail": "populated stratification coverage regressed versus historical median",
+                }
+            )
+
+    return degradations, baseline
 
 
 def csv_from_values(values: Iterable[str]) -> str:
@@ -224,6 +460,8 @@ def _classify_code(code: str, row: dict[str, Any], add_fn: Any) -> None:
         add_fn(REASON_STALE_DATA, detail)
     elif "MISSING_ARTIFACT" in upper:
         add_fn(REASON_MISSING_ARTIFACT, code)
+    elif upper.startswith("MEASUREMENT_"):
+        add_fn(REASON_MEASUREMENT_QUALITY, code)
     elif "MISSING_SMOKE" in upper or "SMOKE" in upper:
         detail = code
         symbol = row.get("symbol", "")

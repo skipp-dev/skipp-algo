@@ -350,20 +350,12 @@ export const float PRED_RANGE_LOWER_2 = 0.0
 export const bool IN_PREDICTIVE_RANGE_EXTREME = false
 
 // ── Event Risk Light (v5.5b) ──
-export const string EVENT_RISK_LIGHT_WINDOW_STATE = "CLEAR"
-export const string EVENT_RISK_LIGHT_LEVEL = "NONE"
-export const string EVENT_RISK_LIGHT_NEXT_NAME = ""
-export const string EVENT_RISK_LIGHT_NEXT_TIME = ""
-export const bool EVENT_RISK_LIGHT_MARKET_BLOCKED = false
-export const bool EVENT_RISK_LIGHT_SYMBOL_BLOCKED = false
-export const string EVENT_RISK_LIGHT_PROVIDER_STATUS = "ok"
+// Canonical lean exports are shared with the Event Risk block above.
 
 // ── Session Context Light (v5.5b) ──
-export const string SESSION_CONTEXT_LIGHT = "NONE"
-export const bool SESSION_LIGHT_IN_KILLZONE = false
-export const string SESSION_LIGHT_DIRECTION_BIAS = "NEUTRAL"
-export const int SESSION_LIGHT_CONTEXT_SCORE = 0
-export const string SESSION_LIGHT_VOLATILITY_STATE = "NORMAL"
+// SESSION_CONTEXT / IN_KILLZONE / SESSION_DIRECTION_BIAS / SESSION_CONTEXT_SCORE
+// are exported canonically from the Session Context block above.
+export const string SESSION_VOLATILITY_STATE = "NORMAL"
 
 // ── Order Block Context Light (v5.5b) ──
 export const string PRIMARY_OB_SIDE = "NONE"
@@ -381,9 +373,8 @@ export const bool FVG_FRESH = false
 export const bool FVG_INVALIDATED = false
 
 // ── Structure State Light (v5.5b) ──
-export const string STRUCTURE_LIGHT_LAST_EVENT = "NONE"
-export const int STRUCTURE_LIGHT_EVENT_AGE_BARS = 0
-export const bool STRUCTURE_LIGHT_FRESH = false
+// STRUCTURE_LAST_EVENT / STRUCTURE_EVENT_AGE_BARS / STRUCTURE_FRESH
+// are exported canonically from the Structure State block above.
 export const int STRUCTURE_TREND_STRENGTH = 0
 
 // ── Signal Quality (v5.5b) ──

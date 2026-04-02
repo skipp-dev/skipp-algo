@@ -9,6 +9,7 @@ from smc_core.ids import (
     SYMBOL_TICKSIZE,
     bos_id,
     fvg_id,
+    liquidity_id,
     ob_id,
     quantize_price,
     quantize_time_to_tf,
@@ -67,6 +68,15 @@ def test_quantize_price_symbol_lookup() -> None:
     assert quantize_price(4505.12, symbol="ES") == 4505.0   # nearest 0.25
     assert quantize_price(4505.13, symbol="ES") == 4505.25  # nearest 0.25
     assert quantize_price(42345.6, symbol="BTC") == 42346.0
+
+
+def test_quantize_price_forex_symbol_inference() -> None:
+    assert quantize_price(1.23456, symbol="EURUSD") == 1.2346
+    assert quantize_price(1.23454, symbol="EUR/USD") == 1.2345
+
+
+def test_quantize_price_asset_class_fallback() -> None:
+    assert quantize_price(1.23456, symbol="UNKNOWN_FX", asset_class="forex") == 1.2346
 
 
 def test_quantize_price_unknown_symbol_falls_through() -> None:
@@ -180,6 +190,18 @@ def test_sweep_id_deterministic() -> None:
     id1 = sweep_id("AAPL", "5m", 1709349600.0, "SELL_SIDE", 189.80)
     id2 = sweep_id("AAPL", "5m", 1709349600.0, "SELL_SIDE", 189.80)
     assert id1 == id2
+
+
+def test_liquidity_id_preserves_intraday_anchor() -> None:
+    eid = liquidity_id("ES", "15m", 1709250123.4, "BUY_SIDE", 5123.13)
+    assert eid == "liq:ES:15m:1709250123:BUY_SIDE:5123.25"
+
+
+def test_bos_id_1d_session_override_changes_anchor() -> None:
+    default_id = bos_id("AAPL", "1D", 1709305800.0, "BOS", "UP", 185.25)
+    utc_id = bos_id("AAPL", "1D", 1709305800.0, "BOS", "UP", 185.25, session_tz="UTC")
+    assert default_id == "bos:AAPL:1D:1709269200:BOS:UP:185.25"
+    assert utc_id == "bos:AAPL:1D:1709251200:BOS:UP:185.25"
 
 
 def test_unsupported_timeframe_raises() -> None:

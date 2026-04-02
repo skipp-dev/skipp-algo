@@ -12,6 +12,37 @@ LEGACY_CORE_PATHS = [
     ROOT / 'SMC Core + Zones.pine',
     ROOT / 'SMC_Core_Zones.pine',
 ]
+EXPECTED_BUS_LABELS = [
+    'BUS ZoneActive',
+    'BUS Armed',
+    'BUS Confirmed',
+    'BUS Ready',
+    'BUS EntryBest',
+    'BUS EntryStrict',
+    'BUS Trigger',
+    'BUS Invalidation',
+    'BUS QualityScore',
+    'BUS SourceKind',
+    'BUS StateCode',
+    'BUS TrendPack',
+    'BUS MetaPack',
+    'BUS HardGatesPackA',
+    'BUS HardGatesPackB',
+    'BUS EventRiskRow',
+    'BUS QualityPackA',
+    'BUS QualityPackB',
+    'BUS QualityBoundsPack',
+    'BUS ModulePackA',
+    'BUS ModulePackB',
+    'BUS ModulePackC',
+    'BUS ModulePackD',
+    'BUS EnginePack',
+    'BUS StopLevel',
+    'BUS Target1',
+    'BUS Target2',
+    'BUS LeanPackA',
+    'BUS LeanPackB',
+]
 
 
 def _read(path: pathlib.Path) -> str:
@@ -22,33 +53,9 @@ def test_dashboard_is_a_bus_only_consumer() -> None:
     source = _read(DASHBOARD_PATH)
 
     assert 'indicator("SMC Dashboard", "SMC Dash", overlay = true' in source
-    assert source.count('input.source(') == 26
-    assert 'BUS ZoneActive' in source
-    assert 'BUS Armed' in source
-    assert 'BUS Confirmed' in source
-    assert 'BUS Ready' in source
-    assert 'BUS EntryBest' in source
-    assert 'BUS EntryStrict' in source
-    assert 'BUS Trigger' in source
-    assert 'BUS Invalidation' in source
-    assert 'BUS QualityScore' in source
-    assert 'BUS SourceKind' in source
-    assert 'BUS StateCode' in source
-    assert 'BUS TrendPack' in source
-    assert 'BUS MetaPack' in source
-    assert 'BUS HardGatesPackA' in source
-    assert 'BUS HardGatesPackB' in source
-    assert 'BUS QualityPackA' in source
-    assert 'BUS QualityPackB' in source
-    assert 'BUS QualityBoundsPack' in source
-    assert 'BUS ModulePackA' in source
-    assert 'BUS ModulePackB' in source
-    assert 'BUS ModulePackC' in source
-    assert 'BUS ModulePackD' in source
-    assert 'BUS EnginePack' in source
-    assert 'BUS StopLevel' in source
-    assert 'BUS Target1' in source
-    assert 'BUS Target2' in source
+    assert source.count('input.source(') == len(EXPECTED_BUS_LABELS)
+    for label in EXPECTED_BUS_LABELS:
+        assert label in source
     assert 'n/a - not on bus' not in source
 
     assert 'import preuss_steffen/' not in source
@@ -82,7 +89,7 @@ def test_core_remains_the_only_active_producer() -> None:
     bus_export_calls = re.findall(r"plot\(bus_[^\n]+display\s*=\s*display\.none\)", source)
     assert len(bus_export_calls) == 0
     hidden_bus_calls = re.findall(r"plot\([^\n]+display\s*=\s*display\.none\)", source)
-    assert len(hidden_bus_calls) == 26
+    assert len(hidden_bus_calls) == len(EXPECTED_BUS_LABELS)
     assert 'alertcondition(' not in source
     assert 'dashboard_header(' not in source
 

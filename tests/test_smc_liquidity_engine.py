@@ -51,3 +51,20 @@ def test_detect_sell_side_sweep_against_pivot_low() -> None:
     levels = detect_liquidity_levels(df, "AAPL", "15m")
     sweeps = detect_liquidity_sweeps(df, levels, "AAPL", "15m")
     assert any(x["side"] == "SELL_SIDE" for x in sweeps)
+
+
+def test_detect_liquidity_levels_use_ticksize_aware_ids() -> None:
+    df = make_bars(
+        [
+            {"timestamp": 1, "open": 10.0, "high": 11.0, "low": 9.2, "close": 10.0, "volume": 100},
+            {"timestamp": 2, "open": 10.0, "high": 13.13, "low": 9.51, "close": 12.0, "volume": 100},
+            {"timestamp": 3, "open": 12.0, "high": 11.5, "low": 9.01, "close": 10.2, "volume": 100},
+            {"timestamp": 4, "open": 10.3, "high": 11.0, "low": 8.12, "close": 9.0, "volume": 100},
+            {"timestamp": 5, "open": 9.0, "high": 10.8, "low": 8.91, "close": 10.0, "volume": 100},
+        ]
+    )
+    levels = detect_liquidity_levels(df, "ES", "15m")
+
+    ids = {str(item["id"]) for item in levels}
+    assert "liq:ES:15m:2:BUY_SIDE:13.25" in ids
+    assert "liq:ES:15m:4:SELL_SIDE:8.00" in ids

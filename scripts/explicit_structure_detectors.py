@@ -4,7 +4,7 @@ from typing import Any
 
 import pandas as pd
 
-from smc_core.ids import fvg_id, ob_id, sweep_id
+from smc_core.ids import fvg_id, liquidity_id, ob_id, sweep_id
 from scripts.smc_price_action_engine import canonical_timeframe, detect_bos_from_pivots, normalize_bars
 
 
@@ -28,7 +28,15 @@ def _dedupe_by_id(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return out
 
 
-def detect_orderblocks_makuchaku(df: pd.DataFrame, symbol: str, timeframe: str) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+def detect_orderblocks_makuchaku(
+    df: pd.DataFrame,
+    symbol: str,
+    timeframe: str,
+    *,
+    ticksize: float | None = None,
+    asset_class: str | None = None,
+    session_tz: str | None = None,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     bars = normalize_bars(df)
     tf = canonical_timeframe(timeframe)
     symbol_name = str(symbol).strip().upper()
@@ -54,7 +62,17 @@ def detect_orderblocks_makuchaku(df: pd.DataFrame, symbol: str, timeframe: str) 
         if _is_down(prev_open, prev_close) and _is_up(cur_open, cur_close) and cur_close > prev_high:
             low = float(min(prev_low, cur_low))
             high = float(prev_high)
-            zone_id = ob_id(symbol=symbol_name, timeframe=tf, anchor_ts=cur_ts, dir="BULL", low=low, high=high)
+            zone_id = ob_id(
+                symbol=symbol_name,
+                timeframe=tf,
+                anchor_ts=cur_ts,
+                dir="BULL",
+                low=low,
+                high=high,
+                ticksize=ticksize,
+                asset_class=asset_class,
+                session_tz=session_tz,
+            )
             valid = True
             mitigated = False
             mitigated_ts: int | None = None
@@ -94,10 +112,20 @@ def detect_orderblocks_makuchaku(df: pd.DataFrame, symbol: str, timeframe: str) 
         if _is_up(prev_open, prev_close) and _is_down(cur_open, cur_close) and cur_close < prev_low:
             high = float(max(prev_high, cur_high))
             low = float(prev_low)
-            zone_id = ob_id(symbol=symbol_name, timeframe=tf, anchor_ts=cur_ts, dir="BEAR", low=low, high=high)
+            zone_id = ob_id(
+                symbol=symbol_name,
+                timeframe=tf,
+                anchor_ts=cur_ts,
+                dir="BEAR",
+                low=low,
+                high=high,
+                ticksize=ticksize,
+                asset_class=asset_class,
+                session_tz=session_tz,
+            )
             valid = True
             mitigated = False
-            mitigated_ts: int | None = None
+            mitigated_ts = None
             for j in range(i + 1, len(bars)):
                 probe = bars.iloc[j]
                 probe_close = float(probe["close"])
@@ -134,7 +162,15 @@ def detect_orderblocks_makuchaku(df: pd.DataFrame, symbol: str, timeframe: str) 
     return _dedupe_by_id(out), diagnostics
 
 
-def detect_fvg_classic(df: pd.DataFrame, symbol: str, timeframe: str) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+def detect_fvg_classic(
+    df: pd.DataFrame,
+    symbol: str,
+    timeframe: str,
+    *,
+    ticksize: float | None = None,
+    asset_class: str | None = None,
+    session_tz: str | None = None,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     bars = normalize_bars(df)
     tf = canonical_timeframe(timeframe)
     symbol_name = str(symbol).strip().upper()
@@ -155,7 +191,17 @@ def detect_fvg_classic(df: pd.DataFrame, symbol: str, timeframe: str) -> tuple[l
         if b0_low > b2_high:
             low = b2_high
             high = b0_low
-            zone_id = fvg_id(symbol=symbol_name, timeframe=tf, anchor_ts=anchor_ts, dir="BULL", low=low, high=high)
+            zone_id = fvg_id(
+                symbol=symbol_name,
+                timeframe=tf,
+                anchor_ts=anchor_ts,
+                dir="BULL",
+                low=low,
+                high=high,
+                ticksize=ticksize,
+                asset_class=asset_class,
+                session_tz=session_tz,
+            )
             mitigated = False
             mitigated_ts: int | None = None
             valid = True
@@ -195,9 +241,19 @@ def detect_fvg_classic(df: pd.DataFrame, symbol: str, timeframe: str) -> tuple[l
         if b0_high < b2_low:
             low = b0_high
             high = b2_low
-            zone_id = fvg_id(symbol=symbol_name, timeframe=tf, anchor_ts=anchor_ts, dir="BEAR", low=low, high=high)
+            zone_id = fvg_id(
+                symbol=symbol_name,
+                timeframe=tf,
+                anchor_ts=anchor_ts,
+                dir="BEAR",
+                low=low,
+                high=high,
+                ticksize=ticksize,
+                asset_class=asset_class,
+                session_tz=session_tz,
+            )
             mitigated = False
-            mitigated_ts: int | None = None
+            mitigated_ts = None
             valid = True
             for j in range(i + 1, len(bars)):
                 probe = bars.iloc[j]
@@ -235,7 +291,15 @@ def detect_fvg_classic(df: pd.DataFrame, symbol: str, timeframe: str) -> tuple[l
     return _dedupe_by_id(out), diagnostics
 
 
-def detect_liquidity_lines_pivot3(df: pd.DataFrame, symbol: str, timeframe: str) -> list[dict[str, Any]]:
+def detect_liquidity_lines_pivot3(
+    df: pd.DataFrame,
+    symbol: str,
+    timeframe: str,
+    *,
+    ticksize: float | None = None,
+    asset_class: str | None = None,
+    session_tz: str | None = None,
+) -> list[dict[str, Any]]:
     bars = normalize_bars(df)
     tf = canonical_timeframe(timeframe)
     symbol_name = str(symbol).strip().upper()
@@ -252,7 +316,16 @@ def detect_liquidity_lines_pivot3(df: pd.DataFrame, symbol: str, timeframe: str)
             ts = int(mid["timestamp"])
             out.append(
                 {
-                    "id": f"liq:{symbol_name}:{tf}:{ts}:BUY_SIDE:{price:.2f}",
+                    "id": liquidity_id(
+                        symbol=symbol_name,
+                        timeframe=tf,
+                        anchor_ts=float(ts),
+                        side="BUY_SIDE",
+                        price=price,
+                        ticksize=ticksize,
+                        asset_class=asset_class,
+                        session_tz=session_tz,
+                    ),
                     "side": "BUY_SIDE",
                     "price": price,
                     "anchor_ts": ts,
@@ -267,7 +340,16 @@ def detect_liquidity_lines_pivot3(df: pd.DataFrame, symbol: str, timeframe: str)
             ts = int(mid["timestamp"])
             out.append(
                 {
-                    "id": f"liq:{symbol_name}:{tf}:{ts}:SELL_SIDE:{price:.2f}",
+                    "id": liquidity_id(
+                        symbol=symbol_name,
+                        timeframe=tf,
+                        anchor_ts=float(ts),
+                        side="SELL_SIDE",
+                        price=price,
+                        ticksize=ticksize,
+                        asset_class=asset_class,
+                        session_tz=session_tz,
+                    ),
                     "side": "SELL_SIDE",
                     "price": price,
                     "anchor_ts": ts,
@@ -280,7 +362,16 @@ def detect_liquidity_lines_pivot3(df: pd.DataFrame, symbol: str, timeframe: str)
     return _dedupe_by_id(out)
 
 
-def detect_liquidity_sweeps_from_lines(df: pd.DataFrame, liquidity_lines: list[dict[str, Any]], symbol: str, timeframe: str) -> list[dict[str, Any]]:
+def detect_liquidity_sweeps_from_lines(
+    df: pd.DataFrame,
+    liquidity_lines: list[dict[str, Any]],
+    symbol: str,
+    timeframe: str,
+    *,
+    ticksize: float | None = None,
+    asset_class: str | None = None,
+    session_tz: str | None = None,
+) -> list[dict[str, Any]]:
     bars = normalize_bars(df)
     tf = canonical_timeframe(timeframe)
     symbol_name = str(symbol).strip().upper()
@@ -310,7 +401,16 @@ def detect_liquidity_sweeps_from_lines(df: pd.DataFrame, liquidity_lines: list[d
             if sell_side_sweep:
                 out.append(
                     {
-                        "id": sweep_id(symbol=symbol_name, timeframe=tf, anchor_ts=float(ts), side="SELL_SIDE", price=price),
+                        "id": sweep_id(
+                            symbol=symbol_name,
+                            timeframe=tf,
+                            anchor_ts=float(ts),
+                            side="SELL_SIDE",
+                            price=price,
+                            ticksize=ticksize,
+                            asset_class=asset_class,
+                            session_tz=session_tz,
+                        ),
                         "time": float(ts),
                         "price": price,
                         "side": "SELL_SIDE",
@@ -324,7 +424,16 @@ def detect_liquidity_sweeps_from_lines(df: pd.DataFrame, liquidity_lines: list[d
             if buy_side_sweep:
                 out.append(
                     {
-                        "id": sweep_id(symbol=symbol_name, timeframe=tf, anchor_ts=float(ts), side="BUY_SIDE", price=price),
+                        "id": sweep_id(
+                            symbol=symbol_name,
+                            timeframe=tf,
+                            anchor_ts=float(ts),
+                            side="BUY_SIDE",
+                            price=price,
+                            ticksize=ticksize,
+                            asset_class=asset_class,
+                            session_tz=session_tz,
+                        ),
                         "time": float(ts),
                         "price": price,
                         "side": "BUY_SIDE",
@@ -343,7 +452,16 @@ def detect_liquidity_sweeps_from_lines(df: pd.DataFrame, liquidity_lines: list[d
     return _dedupe_by_id(out)
 
 
-def detect_bos_choch_events(df: pd.DataFrame, symbol: str, timeframe: str, pivot_lookup: int = 1) -> list[dict[str, Any]]:
+def detect_bos_choch_events(
+    df: pd.DataFrame,
+    symbol: str,
+    timeframe: str,
+    pivot_lookup: int = 1,
+    *,
+    ticksize: float | None = None,
+    asset_class: str | None = None,
+    session_tz: str | None = None,
+) -> list[dict[str, Any]]:
     return detect_bos_from_pivots(
         df,
         symbol=symbol,
@@ -351,4 +469,7 @@ def detect_bos_choch_events(df: pd.DataFrame, symbol: str, timeframe: str, pivot
         pivot_lookup=pivot_lookup,
         use_high_low_for_bullish=False,
         use_high_low_for_bearish=False,
+        ticksize=ticksize,
+        asset_class=asset_class,
+        session_tz=session_tz,
     )

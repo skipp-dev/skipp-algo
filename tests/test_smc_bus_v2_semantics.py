@@ -265,8 +265,8 @@ def decode_volume_data_text(row_code: int) -> str:
 
 
 def quality_bounds(score_value: float, bounds_pack: int) -> tuple[int, int, str]:
-    min_score = bounds_pack // 100
-    max_score = bounds_pack % 100
+    min_score = bounds_pack // 1000
+    max_score = bounds_pack % 1000
     return min_score, max_score, f'{score_value:.2f}'.rstrip('0').rstrip('.') + f'/{max_score} | min {min_score}'
 
 
@@ -282,7 +282,7 @@ def test_original_10_core_channels_remain_present_in_order() -> None:
     assert 'plot(long_entry_strict_state ? 1.0 : 0.0, \'BUS EntryStrict\'' in source
     assert 'plot(long_state.trigger, \'BUS Trigger\'' in source
     assert 'plot(long_state.invalidation_level, \'BUS Invalidation\'' in source
-    assert 'plot(context_quality_score, \'BUS QualityScore\'' in source
+    assert 'plot(lib_sq_score, \'BUS QualityScore\'' in source
 
 
 def test_strategy_contract_channels_remain_unchanged() -> None:
@@ -368,12 +368,12 @@ def test_lifecycle_rows_reconstruct_from_state_and_meta_contract() -> None:
 def test_hard_gate_decoders_reproduce_current_bus_v2_contract() -> None:
     dashboard_source = _read(DASHBOARD_PATH)
 
-    assert 'dashboard_row(smc_dashboard, 11, "Session", decode_session_text(session_row_code)' in dashboard_source
-    assert 'dashboard_row(smc_dashboard, 12, "Market Gate", decode_market_text(market_row_code)' in dashboard_source
-    assert 'dashboard_row(smc_dashboard, 13, "Vola Regime", decode_vola_text(vola_row_code)' in dashboard_source
-    assert 'dashboard_row(smc_dashboard, 14, "Micro Session", decode_micro_session_text(micro_session_row_code)' in dashboard_source
-    assert 'dashboard_row(smc_dashboard, 15, "Micro Fresh", decode_micro_fresh_text(micro_fresh_row_code, freshness_code, source_state_code)' in dashboard_source
-    assert 'dashboard_row(smc_dashboard, 16, "Volume Data", decode_volume_data_text(volume_data_row_code)' in dashboard_source
+    assert 'dashboard_row(smc_dashboard, 19, "Session", decode_session_text(session_row_code)' in dashboard_source
+    assert 'dashboard_row(smc_dashboard, 20, "Market Gate", decode_market_text(market_row_code)' in dashboard_source
+    assert 'dashboard_row(smc_dashboard, 21, "Vola Regime", decode_vola_text(vola_row_code)' in dashboard_source
+    assert 'dashboard_row(smc_dashboard, 22, "Micro Session", decode_micro_session_text(micro_session_row_code)' in dashboard_source
+    assert 'dashboard_row(smc_dashboard, 23, "Micro Fresh", decode_micro_fresh_text(micro_fresh_row_code, freshness_code, source_state_code)' in dashboard_source
+    assert 'dashboard_row(smc_dashboard, 24, "Volume Data", decode_volume_data_text(volume_data_row_code)' in dashboard_source
 
     assert decode_session_text(pack_bus_row(0, 1)) == 'n/a'
     assert decode_session_text(pack_bus_row(0, 2)) == 'off'
@@ -412,16 +412,16 @@ def test_quality_bounds_pack_remains_logically_consistent_with_quality_score() -
     core_source = _read(CORE_PATH)
     dashboard_source = _read(DASHBOARD_PATH)
 
-    assert 'plot(effective_min_context_quality_score * 100.0 + effective_context_quality_max_score, \'BUS QualityBoundsPack\'' in core_source
+    assert 'plot(25.0 * 1000.0 + 100.0, \'BUS QualityBoundsPack\'' in core_source
     assert 'quality_bounds_text(float score_value, float bounds_pack) =>' in dashboard_source
-    assert 'int min_score = int(math.floor(packed / 100))' in dashboard_source
-    assert 'int max_score = packed % 100' in dashboard_source
+    assert 'int min_score = int(math.floor(packed / 1000))' in dashboard_source
+    assert 'int max_score = packed % 1000' in dashboard_source
     assert 'str.tostring(score_value, "#.##") + "/" + str.tostring(max_score) + " | min " + str.tostring(min_score)' in dashboard_source
 
-    min_score, max_score, rendered = quality_bounds(7.25, 308)
-    assert min_score == 3
-    assert max_score == 8
-    assert rendered == '7.25/8 | min 3'
+    min_score, max_score, rendered = quality_bounds(74.0, 25_100)
+    assert min_score == 25
+    assert max_score == 100
+    assert rendered == '74/100 | min 25'
 
 
 def test_dashboard_and_strategy_contracts_share_same_strategy_relevant_channels() -> None:

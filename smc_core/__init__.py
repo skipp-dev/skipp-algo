@@ -1,4 +1,5 @@
 from .schema_version import SCHEMA_VERSION
+from .ensemble_quality import EnsembleQualityResult, build_ensemble_quality, serialize_ensemble_quality
 from .layering import apply_layering, derive_base_signals, normalize_meta
 from .serialization import snapshot_to_dict
 from .types import (
@@ -35,6 +36,7 @@ from .types import (
 
 __all__ = [
     "SCHEMA_VERSION",
+    "EnsembleQualityResult",
     "BaseLayerSignals",
     "BosDir",
     "BosEvent",
@@ -65,7 +67,9 @@ __all__ = [
     "VolumeRegime",
     "ZoneStyle",
     "apply_layering",
+    "build_ensemble_quality",
     "derive_base_signals",
     "normalize_meta",
+    "serialize_ensemble_quality",
     "snapshot_to_dict",
 ]

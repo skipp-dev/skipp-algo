@@ -36,6 +36,13 @@ jobs:
           python scripts/run_smc_ci_health_checks.py \
             --output artifacts/ci/smc_deeper_health_report.json
 
+      - name: Run deeper measurement lane export
+        continue-on-error: true
+        run: |
+          python scripts/run_smc_release_gates.py \
+            --skip-publish-contract \
+            --output artifacts/ci/smc_deeper_measurement_report.json
+
       - name: Run deeper SMC test matrix
         run: |
           shopt -s nullglob
@@ -44,6 +51,10 @@ jobs:
             tests/test_explicit_structure_*.py
             tests/test_smc_core_*.py
             tests/test_smc_adapters_*.py
+            tests/test_measurement_*.py
+            tests/test_release_policy.py
+            tests/test_smc_vol_regime.py
+            tests/test_smc_bias_merge.py
           )
           if [ ${#tests[@]} -eq 0 ]; then
             echo "No deeper-gate tests matched the configured patterns." >&2
@@ -64,6 +75,8 @@ jobs:
         with:
           name: smc-deeper-gate-evidence
           path: |
+            artifacts/ci/measurement/
             artifacts/ci/smc_deeper_refresh_report.json
             artifacts/ci/smc_deeper_health_report.json
+            artifacts/ci/smc_deeper_measurement_report.json
             artifacts/ci/smc_deeper_evidence_summary.json

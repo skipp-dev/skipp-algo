@@ -48,130 +48,23 @@ from scripts.smc_microstructure_base_runtime import generate_pine_library_from_b
 from scripts.smc_provider_policy import ProviderResult
 from scripts.smc_schema_resolver import resolve_microstructure_schema_path
 
+ROOT = Path(__file__).resolve().parents[1]
 SCHEMA_PATH = resolve_microstructure_schema_path()
+CONTRACT_PINE_PATH = ROOT / "pine" / "generated" / "smc_micro_profiles_generated.pine"
 
 
-# ── Canonical v5 field inventory (must stay in sync with contract) ──
+def _load_contract_field_inventory() -> list[str]:
+    text = CONTRACT_PINE_PATH.read_text(encoding="utf-8")
+    return [
+        line.split(" = ", 1)[0].split()[-1]
+        for line in text.splitlines()
+        if line.startswith("export const")
+    ]
 
-V5_FIELD_INVENTORY = [
-    # Core + Meta
-    "ASOF_DATE", "ASOF_TIME", "UNIVERSE_ID", "LOOKBACK_DAYS",
-    "UNIVERSE_SIZE", "REFRESH_COUNT",
-    # Microstructure lists
-    "CLEAN_RECLAIM_TICKERS", "STOP_HUNT_PRONE_TICKERS",
-    "MIDDAY_DEAD_TICKERS", "RTH_ONLY_TICKERS",
-    "WEAK_PREMARKET_TICKERS", "WEAK_AFTERHOURS_TICKERS",
-    "FAST_DECAY_TICKERS",
-    # Regime
-    "MARKET_REGIME", "VIX_LEVEL", "MACRO_BIAS", "SECTOR_BREADTH",
-    # News
-    "NEWS_BULLISH_TICKERS", "NEWS_BEARISH_TICKERS",
-    "NEWS_NEUTRAL_TICKERS", "NEWS_HEAT_GLOBAL", "TICKER_HEAT_MAP",
-    # Calendar
-    "EARNINGS_TODAY_TICKERS", "EARNINGS_TOMORROW_TICKERS",
-    "EARNINGS_BMO_TICKERS", "EARNINGS_AMC_TICKERS",
-    "HIGH_IMPACT_MACRO_TODAY", "MACRO_EVENT_NAME", "MACRO_EVENT_TIME",
-    # Layering
-    "GLOBAL_HEAT", "GLOBAL_STRENGTH", "TONE", "TRADE_STATE",
-    # Providers
-    "PROVIDER_COUNT", "STALE_PROVIDERS",
-    # Volume
-    "VOLUME_LOW_TICKERS", "HOLIDAY_SUSPECT_TICKERS",
-    # Event Risk (v5)
-    "EVENT_WINDOW_STATE", "EVENT_RISK_LEVEL",
-    "NEXT_EVENT_CLASS", "NEXT_EVENT_NAME", "NEXT_EVENT_TIME", "NEXT_EVENT_IMPACT",
-    "EVENT_RESTRICT_BEFORE_MIN", "EVENT_RESTRICT_AFTER_MIN",
-    "EVENT_COOLDOWN_ACTIVE", "MARKET_EVENT_BLOCKED", "SYMBOL_EVENT_BLOCKED",
-    "EARNINGS_SOON_TICKERS", "HIGH_RISK_EVENT_TICKERS", "EVENT_PROVIDER_STATUS",
-    # Flow Qualifier (v5.1)
-    "REL_VOL", "REL_ACTIVITY", "REL_SIZE", "DELTA_PROXY_PCT",
-    "FLOW_LONG_OK", "FLOW_SHORT_OK",
-    "ATS_VALUE", "ATS_CHANGE_PCT", "ATS_ZSCORE", "ATS_STATE",
-    "ATS_SPIKE_UP", "ATS_SPIKE_DOWN",
-    "ATS_BULLISH_SEQUENCE", "ATS_BEARISH_SEQUENCE",
-    # Compression / ATR Regime (v5.1)
-    "SQUEEZE_ON", "SQUEEZE_RELEASED", "SQUEEZE_MOMENTUM_BIAS",
-    "ATR_REGIME", "ATR_RATIO",
-    # Zone Intelligence (v5.1)
-    "ACTIVE_SUPPORT_COUNT", "ACTIVE_RESISTANCE_COUNT", "ACTIVE_ZONE_COUNT",
-    "PRIMARY_SUPPORT_LEVEL", "PRIMARY_RESISTANCE_LEVEL",
-    "PRIMARY_SUPPORT_STRENGTH", "PRIMARY_RESISTANCE_STRENGTH",
-    "SUPPORT_SWEEP_COUNT", "RESISTANCE_SWEEP_COUNT",
-    "SUPPORT_MITIGATION_PCT", "RESISTANCE_MITIGATION_PCT",
-    "ZONE_CONTEXT_BIAS", "ZONE_LIQUIDITY_IMBALANCE",
-    # Reversal Context (v5.1)
-    "REVERSAL_CONTEXT_ACTIVE", "SETUP_SCORE", "CONFIRM_SCORE", "FOLLOW_THROUGH_SCORE",
-    "HTF_STRUCTURE_OK", "HTF_BULLISH_PATTERN", "HTF_BEARISH_PATTERN",
-    "HTF_BULLISH_DIVERGENCE", "HTF_BEARISH_DIVERGENCE",
-    "FVG_CONFIRM_OK", "VWAP_HOLD_OK", "RETRACE_OK",
-    # Session Context (v5.2)
-    "SESSION_CONTEXT", "IN_KILLZONE",
-    "SESSION_MSS_BULL", "SESSION_MSS_BEAR",
-    "SESSION_FVG_BULL_ACTIVE", "SESSION_FVG_BEAR_ACTIVE",
-    "SESSION_TARGET_BULL", "SESSION_TARGET_BEAR",
-    "SESSION_DIRECTION_BIAS", "SESSION_CONTEXT_SCORE",
-    # Liquidity Sweeps (v5.2)
-    "RECENT_BULL_SWEEP", "RECENT_BEAR_SWEEP",
-    "SWEEP_TYPE", "SWEEP_DIRECTION",
-    "SWEEP_ZONE_TOP", "SWEEP_ZONE_BOTTOM",
-    "SWEEP_RECLAIM_ACTIVE", "LIQUIDITY_TAKEN_DIRECTION",
-    "SWEEP_QUALITY_SCORE",
-    # Liquidity Pools (v5.2)
-    "BUY_SIDE_POOL_LEVEL", "SELL_SIDE_POOL_LEVEL",
-    "BUY_SIDE_POOL_STRENGTH", "SELL_SIDE_POOL_STRENGTH",
-    "POOL_PROXIMITY_PCT", "POOL_CLUSTER_DENSITY",
-    "UNTESTED_BUY_POOLS", "UNTESTED_SELL_POOLS",
-    "POOL_IMBALANCE", "POOL_MAGNET_DIRECTION", "POOL_QUALITY_SCORE",
-    # Order Blocks (v5.2)
-    "NEAREST_BULL_OB_LEVEL", "NEAREST_BEAR_OB_LEVEL",
-    "BULL_OB_FRESHNESS", "BEAR_OB_FRESHNESS",
-    "BULL_OB_MITIGATED", "BEAR_OB_MITIGATED",
-    "BULL_OB_FVG_CONFLUENCE", "BEAR_OB_FVG_CONFLUENCE",
-    "OB_DENSITY", "OB_BIAS", "OB_NEAREST_DISTANCE_PCT",
-    "OB_STRENGTH_SCORE", "OB_CONTEXT_SCORE",
-    # Zone Projection (v5.2)
-    "ZONE_PROJ_TARGET_BULL", "ZONE_PROJ_TARGET_BEAR",
-    "ZONE_PROJ_RETEST_EXPECTED", "ZONE_PROJ_TRAP_RISK",
-    "ZONE_PROJ_SPREAD_QUALITY", "ZONE_PROJ_HTF_ALIGNED",
-    "ZONE_PROJ_BIAS", "ZONE_PROJ_CONFIDENCE",
-    "ZONE_PROJ_DECAY_BARS", "ZONE_PROJ_SCORE",
-    # Profile Context (v5.2)
-    "PROFILE_VOLUME_NODE", "PROFILE_VWAP_POSITION", "PROFILE_VWAP_DISTANCE_PCT",
-    "PROFILE_SPREAD_REGIME", "PROFILE_AVG_SPREAD_BPS",
-    "PROFILE_SESSION_BIAS", "PROFILE_RTH_DOMINANCE_PCT",
-    "PROFILE_PM_QUALITY", "PROFILE_AH_QUALITY",
-    "PROFILE_MIDDAY_EFFICIENCY", "PROFILE_DECAY_HALFLIFE",
-    "PROFILE_CONSISTENCY", "PROFILE_WICKINESS", "PROFILE_CLEAN_SCORE",
-    "PROFILE_RECLAIM_RATE", "PROFILE_STOP_HUNT_RATE",
-    "PROFILE_TICKER_GRADE", "PROFILE_CONTEXT_SCORE",
-    # Structure State (v5.3)
-    "STRUCTURE_STATE", "STRUCTURE_BULL_ACTIVE", "STRUCTURE_BEAR_ACTIVE",
-    "CHOCH_BULL", "CHOCH_BEAR", "BOS_BULL", "BOS_BEAR",
-    "STRUCTURE_LAST_EVENT", "STRUCTURE_EVENT_AGE_BARS", "STRUCTURE_FRESH",
-    "ACTIVE_SUPPORT", "ACTIVE_RESISTANCE", "SUPPORT_ACTIVE", "RESISTANCE_ACTIVE",
-    # Imbalance Lifecycle (v5.3)
-    "BULL_FVG_ACTIVE", "BEAR_FVG_ACTIVE",
-    "BULL_FVG_TOP", "BULL_FVG_BOTTOM", "BEAR_FVG_TOP", "BEAR_FVG_BOTTOM",
-    "BULL_FVG_PARTIAL_MITIGATION", "BEAR_FVG_PARTIAL_MITIGATION",
-    "BULL_FVG_FULL_MITIGATION", "BEAR_FVG_FULL_MITIGATION",
-    "BULL_FVG_COUNT", "BEAR_FVG_COUNT",
-    "BULL_FVG_MITIGATION_PCT", "BEAR_FVG_MITIGATION_PCT",
-    "BPR_ACTIVE", "BPR_DIRECTION", "BPR_TOP", "BPR_BOTTOM",
-    "LIQ_VOID_BULL_ACTIVE", "LIQ_VOID_BEAR_ACTIVE",
-    "LIQ_VOID_TOP", "LIQ_VOID_BOTTOM", "IMBALANCE_STATE",
-    # Session Structure (v5.3)
-    "SESS_HIGH", "SESS_LOW",
-    "SESS_OPEN_RANGE_HIGH", "SESS_OPEN_RANGE_LOW", "SESS_OPEN_RANGE_BREAK",
-    "SESS_IMPULSE_DIR", "SESS_IMPULSE_STRENGTH",
-    "SESS_INTRA_BOS_COUNT", "SESS_INTRA_CHOCH",
-    "SESS_PDH", "SESS_PDL", "SESS_PDH_SWEPT", "SESS_PDL_SWEPT",
-    "SESS_STRUCT_SCORE",
-    # Range Regime (v5.3)
-    "RANGE_REGIME", "RANGE_WIDTH_PCT", "RANGE_POSITION",
-    "RANGE_HIGH", "RANGE_LOW", "RANGE_DURATION_BARS",
-    "RANGE_VPOC_LEVEL", "RANGE_VAH_LEVEL", "RANGE_VAL_LEVEL",
-    "RANGE_BALANCE_STATE", "RANGE_REGIME_SCORE",
-]
+
+# ── Canonical generated field inventory (checked-in artifact is source of truth) ──
+
+V5_FIELD_INVENTORY = _load_contract_field_inventory()
 
 
 # ── Shared helpers ──────────────────────────────────────────────────
@@ -615,7 +508,7 @@ class TestFinalizePipelineE2E:
         manifest_files = list(tmp_path.rglob("smc_micro_profiles_generated.json"))
         assert manifest_files, "No manifest file written by finalize_pipeline"
         manifest = json.loads(manifest_files[0].read_text(encoding="utf-8"))
-        assert manifest.get("library_field_version") == "v5.3"
+        assert manifest.get("library_field_version") == "v5.5b"
 
     @patch("scripts.generate_smc_micro_base_from_databento._make_fmp_client")
     def test_no_enrichment_still_generates_pine(self, mock_make, base_result, tmp_path):
@@ -891,7 +784,7 @@ class TestSmokeFullV4Pipeline:
         )
         pine_text = result["pine_path"].read_text(encoding="utf-8")
         assert pine_text.startswith("//@version=6\n")
-        export_pat = re.compile(r'^export const (string|int|float|bool) [A-Z_]+ = .+')
+        export_pat = re.compile(r'^export const (string|int|float|bool) [A-Z0-9_]+ = .+')
         for line in pine_text.splitlines():
             if line.startswith("export const"):
                 assert export_pat.match(line), f"Invalid export syntax: {line}"
@@ -973,4 +866,4 @@ class TestSmokeFullV4Pipeline:
         manifest_files = list(tmp_path.rglob("smc_micro_profiles_generated.json"))
         assert manifest_files
         manifest = json.loads(manifest_files[0].read_text(encoding="utf-8"))
-        assert manifest.get("library_field_version") == "v5.3"
+        assert manifest.get("library_field_version") == "v5.5b"

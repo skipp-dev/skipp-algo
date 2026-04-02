@@ -13,6 +13,9 @@ from smc_core.scoring import (
     ScoringResult,
     brier_score,
     export_scoring_artifact,
+    label_bos_follow_through,
+    label_fvg_mitigation,
+    label_orderblock_mitigation,
     label_sweep_reversal,
     log_score,
     score_events,
@@ -81,24 +84,52 @@ class TestLabelSweepReversal:
         assert label_sweep_reversal(100.0, "SELL_SIDE", []) is False
 
 
+class TestLabelBosFollowThrough:
+    def test_bullish_follow_through(self) -> None:
+        assert label_bos_follow_through(100.0, "UP", [100.4, 100.7], [99.9, 100.1]) is True
+
+    def test_bearish_follow_through(self) -> None:
+        assert label_bos_follow_through(100.0, "DOWN", [100.1, 99.8], [99.5, 99.2]) is True
+
+    def test_empty_paths(self) -> None:
+        assert label_bos_follow_through(100.0, "UP", [], []) is False
+
+
+class TestZoneMitigationLabels:
+    def test_orderblock_mitigation_before_invalidation(self) -> None:
+        assert label_orderblock_mitigation(99.0, 100.0, "BULL", [101.0, 100.5], [100.4, 99.6], [100.8, 99.9]) is True
+
+    def test_orderblock_invalidation_before_touch(self) -> None:
+        assert label_orderblock_mitigation(99.0, 100.0, "BULL", [101.0, 101.2], [100.5, 100.4], [98.7, 99.4]) is False
+
+    def test_fvg_bearish_mitigation(self) -> None:
+        assert label_fvg_mitigation(100.0, 101.0, "BEAR", [100.6, 100.8], [99.7, 99.9], [100.4, 100.7]) is True
+
+
 # --- Score Events ---
 
 
 class TestScoreEvents:
     def test_score_events_basic(self) -> None:
         events = [
-            ScoredEvent("s1", "SWEEP", 0.8, True, 1.0),
-            ScoredEvent("s2", "SWEEP", 0.2, False, 2.0),
+            ScoredEvent("b1", "BOS", 0.8, True, 1.0),
+            ScoredEvent("b2", "BOS", 0.3, False, 2.0),
+            ScoredEvent("s1", "SWEEP", 0.7, True, 3.0),
         ]
         result = score_events(events)
-        assert result.n_events == 2
+        assert result.n_events == 3
         assert math.isfinite(result.brier_score)
         assert math.isfinite(result.log_score)
-        assert result.hit_rate == 0.5
+        assert result.hit_rate == 0.6667
+        assert set(result.family_metrics) == {"BOS", "SWEEP"}
+        assert result.family_metrics["BOS"].n_events == 2
+        assert result.family_metrics["SWEEP"].n_events == 1
+        assert math.isfinite(result.family_metrics["BOS"].brier_score)
 
     def test_empty_events(self) -> None:
         result = score_events([])
         assert result.n_events == 0
+        assert result.family_metrics == {}
 
 
 # --- Export Artifact ---
@@ -106,7 +137,10 @@ class TestScoreEvents:
 
 class TestExportArtifact:
     def test_writes_json(self, tmp_path: Path) -> None:
-        events = [ScoredEvent("s1", "SWEEP", 0.7, True, 1.0)]
+        events = [
+            ScoredEvent("s1", "SWEEP", 0.7, True, 1.0),
+            ScoredEvent("b1", "BOS", 0.6, False, 2.0),
+        ]
         result = score_events(events)
         path = export_scoring_artifact(
             result,
@@ -119,5 +153,9 @@ class TestExportArtifact:
         data = json.loads(path.read_text(encoding="utf-8"))
         assert data["symbol"] == "AAPL"
         assert data["schema_version"] == "2.0.0"
-        assert data["n_events"] == 1
+        assert isinstance(data["generated_at"], float)
+        assert data["n_events"] == 2
         assert math.isfinite(data["brier_score"])
+        assert data["aggregate"]["n_events"] == 2
+        assert set(data["family_metrics"]) == {"BOS", "SWEEP"}
+        assert data["family_metrics"]["BOS"]["n_events"] == 1

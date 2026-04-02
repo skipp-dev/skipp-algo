@@ -156,15 +156,8 @@ V5_FIELD_INVENTORY: set[str] = {
     "PRED_RANGE_MID", "PRED_RANGE_UPPER_1", "PRED_RANGE_UPPER_2",
     "PRED_RANGE_LOWER_1", "PRED_RANGE_LOWER_2",
     "IN_PREDICTIVE_RANGE_EXTREME",
-    # v5.5 Lean: Event Risk Light
-    "EVENT_RISK_LIGHT_WINDOW_STATE", "EVENT_RISK_LIGHT_LEVEL",
-    "EVENT_RISK_LIGHT_NEXT_NAME", "EVENT_RISK_LIGHT_NEXT_TIME",
-    "EVENT_RISK_LIGHT_MARKET_BLOCKED", "EVENT_RISK_LIGHT_SYMBOL_BLOCKED",
-    "EVENT_RISK_LIGHT_PROVIDER_STATUS",
-    # v5.5 Lean: Session Context Light
-    "SESSION_CONTEXT_LIGHT", "SESSION_LIGHT_IN_KILLZONE",
-    "SESSION_LIGHT_DIRECTION_BIAS", "SESSION_LIGHT_CONTEXT_SCORE",
-    "SESSION_LIGHT_VOLATILITY_STATE",
+    # v5.5 Lean: shared canonical exports remain listed above
+    "SESSION_VOLATILITY_STATE",
     # v5.5 Lean: Order Block Context Light
     "PRIMARY_OB_SIDE", "PRIMARY_OB_DISTANCE",
     "OB_FRESH", "OB_AGE_BARS", "OB_MITIGATION_STATE",
@@ -172,8 +165,7 @@ V5_FIELD_INVENTORY: set[str] = {
     "PRIMARY_FVG_SIDE", "PRIMARY_FVG_DISTANCE",
     "FVG_FILL_PCT", "FVG_MATURITY_LEVEL", "FVG_FRESH", "FVG_INVALIDATED",
     # v5.5 Lean: Structure State Light
-    "STRUCTURE_LIGHT_LAST_EVENT", "STRUCTURE_LIGHT_EVENT_AGE_BARS",
-    "STRUCTURE_LIGHT_FRESH", "STRUCTURE_TREND_STRENGTH",
+    "STRUCTURE_TREND_STRENGTH",
     # v5.5 Lean: Signal Quality
     "SIGNAL_QUALITY_SCORE", "SIGNAL_QUALITY_TIER",
     "SIGNAL_WARNINGS", "SIGNAL_BIAS_ALIGNMENT", "SIGNAL_FRESHNESS",
@@ -205,24 +197,24 @@ ENGINE_CONSUMED_FIELDS: set[str] = {
     # Compression / ATR Regime (v5.1)
     "SQUEEZE_ON", "SQUEEZE_RELEASED", "SQUEEZE_MOMENTUM_BIAS",
     "ATR_REGIME", "ATR_RATIO",
-    # Event Risk Light (v5.5b)
-    "EVENT_RISK_LIGHT_WINDOW_STATE", "EVENT_RISK_LIGHT_LEVEL",
-    "EVENT_RISK_LIGHT_NEXT_NAME", "EVENT_RISK_LIGHT_NEXT_TIME",
-    "EVENT_RISK_LIGHT_MARKET_BLOCKED", "EVENT_RISK_LIGHT_SYMBOL_BLOCKED",
-    "EVENT_RISK_LIGHT_PROVIDER_STATUS",
-    # Session Context Light (v5.5b)
-    "SESSION_CONTEXT_LIGHT", "SESSION_LIGHT_IN_KILLZONE",
-    "SESSION_LIGHT_DIRECTION_BIAS", "SESSION_LIGHT_CONTEXT_SCORE",
-    "SESSION_LIGHT_VOLATILITY_STATE",
+    # Event Risk Light (v5.5b canonical exports)
+    "EVENT_WINDOW_STATE", "EVENT_RISK_LEVEL",
+    "NEXT_EVENT_NAME", "NEXT_EVENT_TIME",
+    "MARKET_EVENT_BLOCKED", "SYMBOL_EVENT_BLOCKED",
+    "EVENT_PROVIDER_STATUS",
+    # Session Context Light (v5.5b canonical exports)
+    "SESSION_CONTEXT", "IN_KILLZONE",
+    "SESSION_DIRECTION_BIAS", "SESSION_CONTEXT_SCORE",
+    "SESSION_VOLATILITY_STATE",
     # OB Context Light (v5.5b)
     "PRIMARY_OB_SIDE", "PRIMARY_OB_DISTANCE",
     "OB_FRESH", "OB_AGE_BARS", "OB_MITIGATION_STATE",
     # FVG Lifecycle Light (v5.5b)
     "PRIMARY_FVG_SIDE", "PRIMARY_FVG_DISTANCE",
     "FVG_FILL_PCT", "FVG_MATURITY_LEVEL", "FVG_FRESH", "FVG_INVALIDATED",
-    # Structure State Light (v5.5b)
-    "STRUCTURE_LIGHT_LAST_EVENT", "STRUCTURE_LIGHT_EVENT_AGE_BARS",
-    "STRUCTURE_LIGHT_FRESH", "STRUCTURE_TREND_STRENGTH",
+    # Structure State Light (v5.5b canonical exports)
+    "STRUCTURE_LAST_EVENT", "STRUCTURE_EVENT_AGE_BARS",
+    "STRUCTURE_FRESH", "STRUCTURE_TREND_STRENGTH",
     # Signal Quality (v5.5b)
     "SIGNAL_QUALITY_SCORE", "SIGNAL_QUALITY_TIER",
     "SIGNAL_WARNINGS", "SIGNAL_BIAS_ALIGNMENT", "SIGNAL_FRESHNESS",
@@ -646,15 +638,15 @@ class TestCIConsumerFieldGuard:
 
 V55_LEAN_FAMILIES: dict[str, set[str]] = {
     "event_risk_light": {
-        "EVENT_RISK_LIGHT_WINDOW_STATE", "EVENT_RISK_LIGHT_LEVEL",
-        "EVENT_RISK_LIGHT_NEXT_NAME", "EVENT_RISK_LIGHT_NEXT_TIME",
-        "EVENT_RISK_LIGHT_MARKET_BLOCKED", "EVENT_RISK_LIGHT_SYMBOL_BLOCKED",
-        "EVENT_RISK_LIGHT_PROVIDER_STATUS",
+        "EVENT_WINDOW_STATE", "EVENT_RISK_LEVEL",
+        "NEXT_EVENT_NAME", "NEXT_EVENT_TIME",
+        "MARKET_EVENT_BLOCKED", "SYMBOL_EVENT_BLOCKED",
+        "EVENT_PROVIDER_STATUS",
     },
     "session_context_light": {
-        "SESSION_CONTEXT_LIGHT", "SESSION_LIGHT_IN_KILLZONE",
-        "SESSION_LIGHT_DIRECTION_BIAS", "SESSION_LIGHT_CONTEXT_SCORE",
-        "SESSION_LIGHT_VOLATILITY_STATE",
+        "SESSION_CONTEXT", "IN_KILLZONE",
+        "SESSION_DIRECTION_BIAS", "SESSION_CONTEXT_SCORE",
+        "SESSION_VOLATILITY_STATE",
     },
     "ob_context_light": {
         "PRIMARY_OB_SIDE", "PRIMARY_OB_DISTANCE",
@@ -665,8 +657,8 @@ V55_LEAN_FAMILIES: dict[str, set[str]] = {
         "FVG_FILL_PCT", "FVG_MATURITY_LEVEL", "FVG_FRESH", "FVG_INVALIDATED",
     },
     "structure_state_light": {
-        "STRUCTURE_LIGHT_LAST_EVENT", "STRUCTURE_LIGHT_EVENT_AGE_BARS",
-        "STRUCTURE_LIGHT_FRESH", "STRUCTURE_TREND_STRENGTH",
+        "STRUCTURE_LAST_EVENT", "STRUCTURE_EVENT_AGE_BARS",
+        "STRUCTURE_FRESH", "STRUCTURE_TREND_STRENGTH",
     },
     "signal_quality": {
         "SIGNAL_QUALITY_SCORE", "SIGNAL_QUALITY_TIER",
@@ -787,11 +779,33 @@ class TestV55DriftGuard:
             "Gate classification comment block not found in engine"
         )
 
+    def test_prefixed_lean_aliases_stay_removed(self):
+        """Legacy *_LIGHT_* aliases must not return for shared lean families."""
+        text = _read_pine("SMC_Core_Engine.pine")
+        for field in {
+            "EVENT_RISK_LIGHT_WINDOW_STATE",
+            "EVENT_RISK_LIGHT_LEVEL",
+            "EVENT_RISK_LIGHT_NEXT_NAME",
+            "EVENT_RISK_LIGHT_NEXT_TIME",
+            "EVENT_RISK_LIGHT_MARKET_BLOCKED",
+            "EVENT_RISK_LIGHT_SYMBOL_BLOCKED",
+            "EVENT_RISK_LIGHT_PROVIDER_STATUS",
+            "SESSION_CONTEXT_LIGHT",
+            "SESSION_LIGHT_IN_KILLZONE",
+            "SESSION_LIGHT_DIRECTION_BIAS",
+            "SESSION_LIGHT_CONTEXT_SCORE",
+            "SESSION_LIGHT_VOLATILITY_STATE",
+            "STRUCTURE_LIGHT_LAST_EVENT",
+            "STRUCTURE_LIGHT_EVENT_AGE_BARS",
+            "STRUCTURE_LIGHT_FRESH",
+        }:
+            assert field not in text, f"Legacy alias reappeared in engine: {field}"
 
-class TestV55aContractSync:
+
+class TestV55bContractSync:
     """Ensure repo docs, generator, and manifest stay aligned at v5.5b."""
 
-    def test_manifest_field_version_is_v55a(self):
+    def test_manifest_field_version_is_v55b(self):
         import json
         manifest = json.loads(
             (ROOT / "pine/generated/smc_micro_profiles_generated.json").read_text()
@@ -800,7 +814,7 @@ class TestV55aContractSync:
             f"Manifest library_field_version should be v5.5b, got {manifest['library_field_version']}"
         )
 
-    def test_contract_doc_references_v55a(self):
+    def test_contract_doc_references_v55b(self):
         text = (ROOT / "docs/v5_5_lean_contract.md").read_text()
         assert "v5.5b" in text, "Contract doc must reference v5.5b"
         assert "Signal Quality Primacy" in text, "Contract doc must list Signal Quality Primacy principle"
@@ -811,10 +825,10 @@ class TestV55aContractSync:
         assert "optional" in text.lower(), "SESSION_VOLATILITY_STATE must be marked optional"
 
     def test_session_volatility_state_pine_has_safe_default(self):
-        """Pine must always export SESSION_LIGHT_VOLATILITY_STATE with safe default."""
+        """Pine must always export SESSION_VOLATILITY_STATE with safe default."""
         pine = (ROOT / "pine/generated/smc_micro_profiles_generated.pine").read_text()
-        assert 'SESSION_LIGHT_VOLATILITY_STATE = "NORMAL"' in pine, (
-            "SESSION_LIGHT_VOLATILITY_STATE must default to NORMAL in committed Pine"
+        assert 'SESSION_VOLATILITY_STATE = "NORMAL"' in pine, (
+            "SESSION_VOLATILITY_STATE must default to NORMAL in committed Pine"
         )
 
     def test_lean_family_count_32(self):

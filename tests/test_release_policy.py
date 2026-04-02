@@ -8,17 +8,21 @@ from typing import Any
 import pytest
 
 from smc_integration.release_policy import (
+    MeasurementShadowThresholds,
     EVIDENCE_MIN_SYMBOL_COVERAGE,
     EVIDENCE_MIN_TIMEFRAME_COVERAGE,
     REASON_INSUFFICIENT_RUNS,
     REASON_INSUFFICIENT_SYMBOLS,
     REASON_INSUFFICIENT_TIMEFRAMES,
+    REASON_MEASUREMENT_QUALITY,
     REASON_MISSING_ARTIFACT,
     REASON_SMOKE_FAILURE,
     REASON_STALE_DATA,
     RELEASE_REFERENCE_SYMBOLS,
     RELEASE_REFERENCE_TIMEFRAMES,
     RELEASE_STALE_AFTER_SECONDS,
+    assess_measurement_shadow_degradations,
+    build_measurement_shadow_baseline,
     diagnose_gate_failure,
     parse_csv,
     resolve_release_policy,
@@ -193,6 +197,80 @@ class TestDiagnoseGateFailure:
         reasons = diagnose_gate_failure(report)
         stale = [r for r in reasons if r["reason"] == REASON_STALE_DATA]
         assert len(stale) == 1
+
+    def test_measurement_quality_degradation_classified(self) -> None:
+        report: dict[str, Any] = {
+            "gates": [
+                {
+                    "name": "measurement_lane",
+                    "status": "warn",
+                    "details": {
+                        "degradations_detected": [
+                            {"code": "MEASUREMENT_BRIER_REGRESSION"},
+                        ],
+                    },
+                }
+            ],
+        }
+        reasons = diagnose_gate_failure(report)
+        assert any(r["reason"] == REASON_MEASUREMENT_QUALITY for r in reasons)
+
+
+class TestMeasurementShadowGovernance:
+    def test_shadow_baseline_requires_history(self) -> None:
+        baseline = build_measurement_shadow_baseline(
+            [{"brier_score": 0.12, "n_events": 8, "stratification_coverage": {"populated_bucket_count": 2}}]
+        )
+        assert baseline["available"] is False
+        assert baseline["history_runs"] == 1
+
+    def test_shadow_degradations_detect_historical_regressions(self) -> None:
+        thresholds = MeasurementShadowThresholds(
+            max_brier_score=0.60,
+            max_log_score=1.20,
+            min_scoring_events=1,
+            min_populated_stratification_buckets=1,
+            min_history_runs=2,
+            max_brier_regression_abs=0.05,
+            max_log_regression_abs=0.10,
+            min_event_coverage_ratio=0.60,
+            min_stratification_coverage_ratio=0.60,
+        )
+        current = {
+            "brier_score": 0.31,
+            "log_score": 0.74,
+            "n_events": 3,
+            "stratification_coverage": {"populated_bucket_count": 1},
+        }
+        history = [
+            {
+                "brier_score": 0.11,
+                "log_score": 0.33,
+                "n_events": 10,
+                "stratification_coverage": {"populated_bucket_count": 3},
+            },
+            {
+                "brier_score": 0.13,
+                "log_score": 0.35,
+                "n_events": 8,
+                "stratification_coverage": {"populated_bucket_count": 3},
+            },
+        ]
+
+        degradations, baseline = assess_measurement_shadow_degradations(
+            current,
+            history,
+            thresholds=thresholds,
+        )
+
+        assert baseline["available"] is True
+        codes = {row["code"] for row in degradations}
+        assert codes == {
+            "MEASUREMENT_BRIER_REGRESSION",
+            "MEASUREMENT_LOG_SCORE_REGRESSION",
+            "MEASUREMENT_EVENT_COVERAGE_REGRESSION",
+            "MEASUREMENT_STRATIFICATION_COVERAGE_REGRESSION",
+        }
 
 
 # ---------------------------------------------------------------------------

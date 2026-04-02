@@ -479,14 +479,18 @@ def test_write_library_derives_v55_lean_blocks_from_broad_enrichment(tmp_path: P
     )
     text = out.read_text(encoding="utf-8")
 
-    assert 'EVENT_RISK_LIGHT_LEVEL = "HIGH"' in text
-    assert 'SESSION_CONTEXT_LIGHT = "NY_AM"' in text
-    assert 'SESSION_LIGHT_VOLATILITY_STATE = "LOW"' in text
+    assert 'EVENT_RISK_LEVEL = "HIGH"' in text
+    assert 'SESSION_CONTEXT = "NY_AM"' in text
+    assert 'SESSION_VOLATILITY_STATE = "LOW"' in text
     assert 'PRIMARY_OB_SIDE = "BEAR"' in text
     assert 'PRIMARY_OB_DISTANCE = 7.8431' in text
     assert 'PRIMARY_FVG_SIDE = "BULL"' in text
-    assert 'STRUCTURE_LIGHT_LAST_EVENT = "BOS_BULL"' in text
+    assert 'STRUCTURE_LAST_EVENT = "BOS_BULL"' in text
     assert 'SIGNAL_QUALITY_TIER = "good"' in text
+    assert 'EVENT_RISK_LIGHT_LEVEL' not in text
+    assert 'SESSION_CONTEXT_LIGHT' not in text
+    assert 'SESSION_LIGHT_VOLATILITY_STATE' not in text
+    assert 'STRUCTURE_LIGHT_LAST_EVENT' not in text
 
 
 def test_manifest_lists_derived_v55_lean_blocks(tmp_path: Path) -> None:

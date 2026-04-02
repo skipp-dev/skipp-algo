@@ -113,6 +113,10 @@ def detect_bos_from_pivots(
     pivot_lookup: int = 1,
     use_high_low_for_bullish: bool = False,
     use_high_low_for_bearish: bool = False,
+    *,
+    ticksize: float | None = None,
+    asset_class: str | None = None,
+    session_tz: str | None = None,
 ) -> list[dict]:
     bars = normalize_bars(df)
     tf = canonical_timeframe(timeframe)
@@ -152,7 +156,17 @@ def detect_bos_from_pivots(
                 ts = float(row["timestamp"])
                 out.append(
                     {
-                        "id": bos_id(symbol=str(symbol), timeframe=tf, anchor_ts=ts, kind=kind, dir="UP", price=level),
+                        "id": bos_id(
+                            symbol=str(symbol),
+                            timeframe=tf,
+                            anchor_ts=ts,
+                            kind=kind,
+                            dir="UP",
+                            price=level,
+                            ticksize=ticksize,
+                            asset_class=asset_class,
+                            session_tz=session_tz,
+                        ),
                         "time": ts,
                         "price": level,
                         "kind": kind,
@@ -173,7 +187,17 @@ def detect_bos_from_pivots(
                 ts = float(row["timestamp"])
                 out.append(
                     {
-                        "id": bos_id(symbol=str(symbol), timeframe=tf, anchor_ts=ts, kind=kind, dir="DOWN", price=level),
+                        "id": bos_id(
+                            symbol=str(symbol),
+                            timeframe=tf,
+                            anchor_ts=ts,
+                            kind=kind,
+                            dir="DOWN",
+                            price=level,
+                            ticksize=ticksize,
+                            asset_class=asset_class,
+                            session_tz=session_tz,
+                        ),
                         "time": ts,
                         "price": level,
                         "kind": kind,
@@ -192,7 +216,15 @@ def detect_bos_from_pivots(
     return dedup
 
 
-def detect_orderblocks_two_candle(df: pd.DataFrame, symbol: str, timeframe: str) -> list[dict]:
+def detect_orderblocks_two_candle(
+    df: pd.DataFrame,
+    symbol: str,
+    timeframe: str,
+    *,
+    ticksize: float | None = None,
+    asset_class: str | None = None,
+    session_tz: str | None = None,
+) -> list[dict]:
     bars = normalize_bars(df)
     tf = canonical_timeframe(timeframe)
     out: list[dict[str, Any]] = []
@@ -207,7 +239,17 @@ def detect_orderblocks_two_candle(df: pd.DataFrame, symbol: str, timeframe: str)
             ts = float(cur["timestamp"])
             out.append(
                 {
-                    "id": ob_id(symbol=str(symbol), timeframe=tf, anchor_ts=ts, dir="BULL", low=low, high=high),
+                    "id": ob_id(
+                        symbol=str(symbol),
+                        timeframe=tf,
+                        anchor_ts=ts,
+                        dir="BULL",
+                        low=low,
+                        high=high,
+                        ticksize=ticksize,
+                        asset_class=asset_class,
+                        session_tz=session_tz,
+                    ),
                     "low": low,
                     "high": high,
                     "dir": "BULL",
@@ -223,7 +265,17 @@ def detect_orderblocks_two_candle(df: pd.DataFrame, symbol: str, timeframe: str)
             ts = float(cur["timestamp"])
             out.append(
                 {
-                    "id": ob_id(symbol=str(symbol), timeframe=tf, anchor_ts=ts, dir="BEAR", low=low, high=high),
+                    "id": ob_id(
+                        symbol=str(symbol),
+                        timeframe=tf,
+                        anchor_ts=ts,
+                        dir="BEAR",
+                        low=low,
+                        high=high,
+                        ticksize=ticksize,
+                        asset_class=asset_class,
+                        session_tz=session_tz,
+                    ),
                     "low": low,
                     "high": high,
                     "dir": "BEAR",
@@ -243,7 +295,15 @@ def detect_orderblocks_two_candle(df: pd.DataFrame, symbol: str, timeframe: str)
     return dedup
 
 
-def detect_fvg_three_candle(df: pd.DataFrame, symbol: str, timeframe: str) -> list[dict]:
+def detect_fvg_three_candle(
+    df: pd.DataFrame,
+    symbol: str,
+    timeframe: str,
+    *,
+    ticksize: float | None = None,
+    asset_class: str | None = None,
+    session_tz: str | None = None,
+) -> list[dict]:
     bars = normalize_bars(df)
     tf = canonical_timeframe(timeframe)
     out: list[dict[str, Any]] = []
@@ -258,7 +318,17 @@ def detect_fvg_three_candle(df: pd.DataFrame, symbol: str, timeframe: str) -> li
             ts = float(cur["timestamp"])
             out.append(
                 {
-                    "id": fvg_id(symbol=str(symbol), timeframe=tf, anchor_ts=ts, dir="BULL", low=low, high=high),
+                    "id": fvg_id(
+                        symbol=str(symbol),
+                        timeframe=tf,
+                        anchor_ts=ts,
+                        dir="BULL",
+                        low=low,
+                        high=high,
+                        ticksize=ticksize,
+                        asset_class=asset_class,
+                        session_tz=session_tz,
+                    ),
                     "low": low,
                     "high": high,
                     "dir": "BULL",
@@ -274,7 +344,17 @@ def detect_fvg_three_candle(df: pd.DataFrame, symbol: str, timeframe: str) -> li
             ts = float(cur["timestamp"])
             out.append(
                 {
-                    "id": fvg_id(symbol=str(symbol), timeframe=tf, anchor_ts=ts, dir="BEAR", low=low, high=high),
+                    "id": fvg_id(
+                        symbol=str(symbol),
+                        timeframe=tf,
+                        anchor_ts=ts,
+                        dir="BEAR",
+                        low=low,
+                        high=high,
+                        ticksize=ticksize,
+                        asset_class=asset_class,
+                        session_tz=session_tz,
+                    ),
                     "low": low,
                     "high": high,
                     "dir": "BEAR",
@@ -391,13 +471,43 @@ def detect_ob_fvg_stack(df: pd.DataFrame) -> list[dict]:
     return out
 
 
-def build_price_action_structure_v2(df: pd.DataFrame, symbol: str, timeframe: str) -> dict:
+def build_price_action_structure_v2(
+    df: pd.DataFrame,
+    symbol: str,
+    timeframe: str,
+    *,
+    ticksize: float | None = None,
+    asset_class: str | None = None,
+    session_tz: str | None = None,
+) -> dict:
     bars = normalize_bars(df)
 
     structure = {
-        "bos": detect_bos_from_pivots(bars, symbol=symbol, timeframe=timeframe, pivot_lookup=1),
-        "orderblocks": detect_orderblocks_two_candle(bars, symbol=symbol, timeframe=timeframe),
-        "fvg": detect_fvg_three_candle(bars, symbol=symbol, timeframe=timeframe),
+        "bos": detect_bos_from_pivots(
+            bars,
+            symbol=symbol,
+            timeframe=timeframe,
+            pivot_lookup=1,
+            ticksize=ticksize,
+            asset_class=asset_class,
+            session_tz=session_tz,
+        ),
+        "orderblocks": detect_orderblocks_two_candle(
+            bars,
+            symbol=symbol,
+            timeframe=timeframe,
+            ticksize=ticksize,
+            asset_class=asset_class,
+            session_tz=session_tz,
+        ),
+        "fvg": detect_fvg_three_candle(
+            bars,
+            symbol=symbol,
+            timeframe=timeframe,
+            ticksize=ticksize,
+            asset_class=asset_class,
+            session_tz=session_tz,
+        ),
     }
 
     qualifiers = {

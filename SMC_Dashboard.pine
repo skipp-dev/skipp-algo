@@ -655,8 +655,8 @@ decode_strict_gate_text(int row_code) =>
 
 quality_bounds_text(float score_value, float bounds_pack) =>
     int packed = int(math.round(nz(bounds_pack, 0.0)))
-    int min_score = int(math.floor(packed / 100))
-    int max_score = packed % 100
+    int min_score = int(math.floor(packed / 1000))
+    int max_score = packed % 1000
     str.tostring(score_value, "#.##") + "/" + str.tostring(max_score) + " | min " + str.tostring(min_score)
 
 plan_text(bool active, float trigger_level, float stop_level, float target_1, float target_2) =>
@@ -820,7 +820,7 @@ var table smc_dashboard = table.new(position.bottom_right, 2, 58, border_width =
 if show_table and barstate.islast
     color txt = chart.fg_color
     color header_bg = color.new(color.black, 100)
-    dashboard_row(smc_dashboard, 0, "SMC Dashboard", "v5.5a Hero Surface", header_bg, txt)
+    dashboard_row(smc_dashboard, 0, "SMC Dashboard", "v5.5b Hero Surface", header_bg, txt)
     // ── PRIMARY: Lifecycle + Hero Surface ──
     section_row(smc_dashboard, 1, "[ Lifecycle ]", header_bg, txt)
     dashboard_row(smc_dashboard, 2, "Trend", trend_text(trend_now), status_bg(trend_now == 2 ? 5 : trend_now == 0 ? -1 : 0), txt)
@@ -831,7 +831,7 @@ if show_table and barstate.islast
     dashboard_row(smc_dashboard, 7, "Setup Age", setup_age_text(state_code, freshness_code), status_bg(setup_age_state), txt)
     dashboard_row(smc_dashboard, 8, "Long Visual", long_visual_text(state_code), status_bg(state_code), txt)
     dashboard_row(smc_dashboard, 9, "Exec Tier", exec_tier_text(state_code), status_bg(exec_state), txt)
-    section_row(smc_dashboard, 10, "[ Hero Surface v5.5a ]", header_bg, txt)
+    section_row(smc_dashboard, 10, "[ Hero Surface v5.5b ]", header_bg, txt)
     dashboard_row(smc_dashboard, 11, "Signal Quality", decode_lean_sq_text(lean_sq_row_code), status_bg(row_status(lean_sq_row_code)), txt)
     dashboard_row(smc_dashboard, 12, "Signal Fresh", decode_lean_freshness_text(lean_freshness_row_code), status_bg(row_status(lean_freshness_row_code)), txt)
     dashboard_row(smc_dashboard, 13, "Event Risk Light", decode_lean_erl_text(lean_erl_row_code), status_bg(row_status(lean_erl_row_code)), txt)
@@ -857,7 +857,7 @@ if show_table and barstate.islast
     dashboard_row(smc_dashboard, 32, "Diag | Rel Volume", decode_relvol_text(relvol_row_code), diagnostic_metric_bg(row_status(relvol_row_code)), txt)
     dashboard_row(smc_dashboard, 33, "Diag | VWAP Filter", decode_vwap_text(vwap_row_code), diagnostic_metric_bg(row_status(vwap_row_code)), txt)
     dashboard_row(smc_dashboard, 34, "Diag | Context Quality", decode_context_quality_text(context_quality_row_code), diagnostic_metric_bg(row_status(context_quality_row_code)), txt)
-    dashboard_row(smc_dashboard, 35, "Primary | Quality Score", quality_bounds_text(src_quality_score, src_quality_bounds_pack), primary_metric_bg(row_status(quality_score_row_code)), txt)
+    dashboard_row(smc_dashboard, 35, "Primary | Signal Quality", quality_bounds_text(src_quality_score, src_quality_bounds_pack), primary_metric_bg(row_status(quality_score_row_code)), txt)
     dashboard_row(smc_dashboard, 36, "Primary | Quality Clean", decode_quality_clean_text(quality_clean_row_code), primary_metric_bg(row_status(quality_clean_row_code)), txt)
     section_row(smc_dashboard, 37, "[ Modules — Diagnostic ]", header_bg, txt)
     dashboard_row(smc_dashboard, 38, "SD Confluence", decode_sd_confluence_text(sd_confluence_row_code), status_bg(row_status(sd_confluence_row_code)), txt)

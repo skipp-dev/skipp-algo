@@ -4,11 +4,20 @@ from typing import Any
 
 import pandas as pd
 
-from smc_core.ids import sweep_id
+from smc_core.ids import liquidity_id, sweep_id
 from scripts.smc_price_action_engine import canonical_timeframe, normalize_bars
 
 
-def detect_liquidity_levels(df: pd.DataFrame, symbol: str, timeframe: str, pivot_lookup: int = 1) -> list[dict]:
+def detect_liquidity_levels(
+    df: pd.DataFrame,
+    symbol: str,
+    timeframe: str,
+    pivot_lookup: int = 1,
+    *,
+    ticksize: float | None = None,
+    asset_class: str | None = None,
+    session_tz: str | None = None,
+) -> list[dict]:
     bars = normalize_bars(df)
     tf = canonical_timeframe(timeframe)
     out: list[dict[str, Any]] = []
@@ -27,7 +36,16 @@ def detect_liquidity_levels(df: pd.DataFrame, symbol: str, timeframe: str, pivot
             ts = int(mid["timestamp"])
             out.append(
                 {
-                    "id": f"liq:{str(symbol).upper()}:{tf}:{ts}:BUY_SIDE:{price:.2f}",
+                    "id": liquidity_id(
+                        symbol=str(symbol),
+                        timeframe=tf,
+                        anchor_ts=float(ts),
+                        side="BUY_SIDE",
+                        price=price,
+                        ticksize=ticksize,
+                        asset_class=asset_class,
+                        session_tz=session_tz,
+                    ),
                     "time": ts,
                     "price": price,
                     "side": "BUY_SIDE",
@@ -40,7 +58,16 @@ def detect_liquidity_levels(df: pd.DataFrame, symbol: str, timeframe: str, pivot
             ts = int(mid["timestamp"])
             out.append(
                 {
-                    "id": f"liq:{str(symbol).upper()}:{tf}:{ts}:SELL_SIDE:{price:.2f}",
+                    "id": liquidity_id(
+                        symbol=str(symbol),
+                        timeframe=tf,
+                        anchor_ts=float(ts),
+                        side="SELL_SIDE",
+                        price=price,
+                        ticksize=ticksize,
+                        asset_class=asset_class,
+                        session_tz=session_tz,
+                    ),
                     "time": ts,
                     "price": price,
                     "side": "SELL_SIDE",
@@ -51,7 +78,16 @@ def detect_liquidity_levels(df: pd.DataFrame, symbol: str, timeframe: str, pivot
     return out
 
 
-def detect_liquidity_sweeps(df: pd.DataFrame, liquidity_levels: list[dict], symbol: str, timeframe: str) -> list[dict]:
+def detect_liquidity_sweeps(
+    df: pd.DataFrame,
+    liquidity_levels: list[dict],
+    symbol: str,
+    timeframe: str,
+    *,
+    ticksize: float | None = None,
+    asset_class: str | None = None,
+    session_tz: str | None = None,
+) -> list[dict]:
     bars = normalize_bars(df)
     tf = canonical_timeframe(timeframe)
     out: list[dict[str, Any]] = []
@@ -71,7 +107,16 @@ def detect_liquidity_sweeps(df: pd.DataFrame, liquidity_levels: list[dict], symb
                 if float(row["high"]) > level_price and float(row["close"]) < level_price:
                     out.append(
                         {
-                            "id": sweep_id(symbol=str(symbol), timeframe=tf, anchor_ts=float(ts), side="BUY_SIDE", price=level_price),
+                            "id": sweep_id(
+                                symbol=str(symbol),
+                                timeframe=tf,
+                                anchor_ts=float(ts),
+                                side="BUY_SIDE",
+                                price=level_price,
+                                ticksize=ticksize,
+                                asset_class=asset_class,
+                                session_tz=session_tz,
+                            ),
                             "time": float(ts),
                             "price": level_price,
                             "side": "BUY_SIDE",
@@ -84,7 +129,16 @@ def detect_liquidity_sweeps(df: pd.DataFrame, liquidity_levels: list[dict], symb
                 if float(row["low"]) < level_price and float(row["close"]) > level_price:
                     out.append(
                         {
-                            "id": sweep_id(symbol=str(symbol), timeframe=tf, anchor_ts=float(ts), side="SELL_SIDE", price=level_price),
+                            "id": sweep_id(
+                                symbol=str(symbol),
+                                timeframe=tf,
+                                anchor_ts=float(ts),
+                                side="SELL_SIDE",
+                                price=level_price,
+                                ticksize=ticksize,
+                                asset_class=asset_class,
+                                session_tz=session_tz,
+                            ),
                             "time": float(ts),
                             "price": level_price,
                             "side": "SELL_SIDE",

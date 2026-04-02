@@ -69,3 +69,11 @@ def test_conservative_profile_filters_invalid_zones() -> None:
     assert result.diagnostics["structure_profile_used"] == "conservative"
     assert all(bool(row.get("valid", True)) for row in result.orderblocks)
     assert all(bool(row.get("valid", True)) for row in result.fvg)
+
+
+def test_profile_forwards_asset_class_to_liquidity_lines() -> None:
+    result = build_structure_profile(_bars(symbol="EURUSD"), symbol="EURUSD", timeframe="15m", profile="hybrid_default", asset_class="forex")
+
+    liquidity_lines = list(result.auxiliary["liquidity_lines"])
+    assert liquidity_lines
+    assert all(len(str(row["id"]).rsplit(":", 1)[1].split(".")[1]) == 4 for row in liquidity_lines)

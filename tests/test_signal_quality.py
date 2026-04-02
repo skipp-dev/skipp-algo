@@ -395,9 +395,9 @@ class TestOptionalVolatilityState:
         )
         # Provide session light without volatility
         enr["session_context_light"] = {
-            "SESSION_LIGHT_IN_KILLZONE": True,
-            "SESSION_LIGHT_DIRECTION_BIAS": "BULLISH",
-            "SESSION_LIGHT_CONTEXT_SCORE": 5,
+            "IN_KILLZONE": True,
+            "SESSION_DIRECTION_BIAS": "BULLISH",
+            "SESSION_CONTEXT_SCORE": 5,
         }
         result = build_signal_quality(enrichment=enr)
         assert result["SIGNAL_QUALITY_SCORE"] > 0
@@ -470,3 +470,20 @@ class TestLeanFirstPriority:
         }
         result = build_signal_quality(enrichment=enr)
         assert "event_blocked" in result["SIGNAL_WARNINGS"]
+
+    def test_event_risk_light_false_does_not_fallback_to_broad_true(self):
+        """Lean event risk must win even when broad fallback disagrees."""
+        enr = {
+            "event_risk_light": {
+                "MARKET_EVENT_BLOCKED": False,
+                "SYMBOL_EVENT_BLOCKED": False,
+                "EVENT_RISK_LEVEL": "NONE",
+            },
+            "event_risk": {
+                "MARKET_EVENT_BLOCKED": True,
+                "EVENT_RISK_LEVEL": "HIGH",
+            },
+        }
+        result = build_signal_quality(enrichment=enr)
+        assert "event_blocked" not in result["SIGNAL_WARNINGS"]
+        assert "event_risk_high" not in result["SIGNAL_WARNINGS"]

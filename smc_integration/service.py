@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from typing import Any
 from pathlib import Path
 
@@ -11,8 +12,11 @@ from smc_adapters import (
     snapshot_to_dashboard_payload,
     snapshot_to_pine_payload,
 )
-from smc_core import apply_layering, snapshot_to_dict
+from smc_core import apply_layering, derive_base_signals, normalize_meta, snapshot_to_dict
+from smc_core.benchmark import BenchmarkResult, build_benchmark
 from smc_core.bias_merge import merge_bias
+from smc_core.ensemble_quality import build_ensemble_quality, serialize_ensemble_quality
+from smc_core.scoring import score_events
 from smc_core.vol_regime import compute_vol_regime
 from smc_core.types import SmcSnapshot
 from scripts.load_databento_export_bundle import load_export_bundle
@@ -20,6 +24,7 @@ from scripts.smc_htf_context import build_htf_bias_context
 from scripts.smc_session_context import build_session_liquidity_context
 from scripts.smc_structure_qualifiers import build_structure_qualifiers
 from smc_integration.sources import structure_artifact_json
+from smc_integration.measurement_evidence import build_measurement_evidence
 
 from .repo_sources import (
     discover_composite_source_plan,
@@ -31,6 +36,150 @@ from .repo_sources import (
 
 
 _DEFAULT_EXPORT_DIR = Path("artifacts") / "smc_microstructure_exports"
+
+
+def _safe_float(value: Any) -> float | None:
+    try:
+        numeric = float(value)
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(numeric):
+        return None
+    return numeric
+
+
+def _serialize_bias_verdict(bias_verdict: Any) -> dict[str, Any]:
+    return {
+        "direction": bias_verdict.direction,
+        "confidence": bias_verdict.confidence,
+        "htf_direction": bias_verdict.htf_direction,
+        "session_direction": bias_verdict.session_direction,
+        "conflict": bias_verdict.conflict,
+        "source": bias_verdict.source,
+    }
+
+
+def _serialize_vol_regime(vol_regime_result: Any) -> dict[str, Any]:
+    return {
+        "label": vol_regime_result.label,
+        "raw_atr_ratio": vol_regime_result.raw_atr_ratio,
+        "confidence": vol_regime_result.confidence,
+        "bars_used": vol_regime_result.bars_used,
+        "model_source": vol_regime_result.model_source,
+        "fallback_reason": vol_regime_result.fallback_reason,
+        "forecast_volatility": vol_regime_result.forecast_volatility,
+        "baseline_volatility": vol_regime_result.baseline_volatility,
+        "forecast_ratio": vol_regime_result.forecast_ratio,
+    }
+
+
+def _serialize_scoring_family_metrics(scoring_result: Any) -> dict[str, dict[str, Any]]:
+    raw_metrics = getattr(scoring_result, "family_metrics", None)
+    if not isinstance(raw_metrics, dict):
+        return {}
+
+    metrics: dict[str, dict[str, Any]] = {}
+    for family, item in sorted(raw_metrics.items()):
+        metrics[str(family)] = {
+            "n_events": int(getattr(item, "n_events", 0) or 0),
+            "brier_score": _safe_float(getattr(item, "brier_score", None)),
+            "log_score": _safe_float(getattr(item, "log_score", None)),
+            "hit_rate": _safe_float(getattr(item, "hit_rate", None)),
+        }
+    return metrics
+
+
+def _summarize_stratification(benchmark_result: BenchmarkResult) -> dict[str, Any]:
+    bucket_event_counts: dict[str, int] = {}
+    dimensions_present: set[str] = set()
+    populated_bucket_count = 0
+
+    for bucket_key, bucket_kpis in sorted(benchmark_result.stratified.items()):
+        dimension = str(bucket_key).split(":", 1)[0]
+        dimensions_present.add(dimension)
+        event_count = sum(int(kpi.n_events or 0) for kpi in bucket_kpis)
+        bucket_event_counts[str(bucket_key)] = event_count
+        if event_count > 0:
+            populated_bucket_count += 1
+
+    return {
+        "bucket_count": len(bucket_event_counts),
+        "populated_bucket_count": populated_bucket_count,
+        "dimensions_present": sorted(dimensions_present),
+        "bucket_event_counts": bucket_event_counts,
+    }
+
+
+def _benchmark_event_counts(benchmark_result: BenchmarkResult) -> dict[str, int]:
+    return {
+        kpi.family: int(kpi.n_events or 0)
+        for kpi in benchmark_result.kpis
+    }
+
+
+def _build_measurement_summary(symbol: str, timeframe: str) -> dict[str, Any]:
+    empty_summary = {
+        "available": False,
+        "status": "unavailable",
+        "measurement_evidence_present": False,
+        "bars_source_mode": None,
+        "evaluated_event_counts": {},
+        "benchmark_event_counts": {},
+        "stratification_coverage": {
+            "bucket_count": 0,
+            "populated_bucket_count": 0,
+            "dimensions_present": [],
+            "bucket_event_counts": {},
+        },
+        "scoring": {
+            "n_events": 0,
+            "brier_score": None,
+            "log_score": None,
+            "hit_rate": None,
+            "families_present": [],
+            "family_metrics": {},
+        },
+        "ensemble_quality": {},
+        "warnings": [],
+    }
+    try:
+        evidence = build_measurement_evidence(symbol, timeframe)
+    except Exception as exc:
+        return {
+            **empty_summary,
+            "status": "error",
+            "warnings": [f"measurement summary unavailable: {exc}"],
+        }
+
+    benchmark_result = build_benchmark(
+        str(symbol).strip().upper(),
+        str(timeframe).strip(),
+        events_by_family=evidence.events_by_family,
+        stratified_events=evidence.stratified_events,
+    )
+    scoring_result = score_events(evidence.scored_events)
+    scoring_family_metrics = _serialize_scoring_family_metrics(scoring_result)
+    available = bool(evidence.details.get("measurement_evidence_present"))
+
+    return {
+        "available": available,
+        "status": "available" if available else "unavailable",
+        "measurement_evidence_present": available,
+        "bars_source_mode": evidence.details.get("bars_source_mode"),
+        "evaluated_event_counts": dict(evidence.details.get("evaluated_event_counts", {})),
+        "benchmark_event_counts": _benchmark_event_counts(benchmark_result),
+        "stratification_coverage": _summarize_stratification(benchmark_result),
+        "scoring": {
+            "n_events": int(getattr(scoring_result, "n_events", 0) or 0),
+            "brier_score": _safe_float(getattr(scoring_result, "brier_score", None)),
+            "log_score": _safe_float(getattr(scoring_result, "log_score", None)),
+            "hit_rate": _safe_float(getattr(scoring_result, "hit_rate", None)),
+            "families_present": sorted(scoring_family_metrics.keys()),
+            "family_metrics": scoring_family_metrics,
+        },
+        "ensemble_quality": dict(evidence.details.get("ensemble_quality", {})),
+        "warnings": list(evidence.warnings),
+    }
 
 
 def _load_symbol_bars_for_context(symbol: str, timeframe: str) -> pd.DataFrame:
@@ -119,6 +268,7 @@ def build_snapshot_for_symbol_timeframe(
         symbol,
         timeframe,
         source=source,
+        reference_time=generated_at,
     )
     return _build_snapshot_from_loaded_raw(raw_structure, raw_meta, generated_at=generated_at)
 
@@ -182,6 +332,7 @@ def build_snapshot_bundle_for_symbol_timeframe(
         symbol,
         timeframe,
         source=source,
+        reference_time=generated_at,
     )
     snapshot = _build_snapshot_from_loaded_raw(raw_structure, raw_meta, generated_at=generated_at)
     dashboard_payload = snapshot_to_dashboard_payload(
@@ -220,8 +371,27 @@ def build_snapshot_bundle_for_symbol_timeframe(
 
     # Vol-regime classification (additive, degrades to NORMAL on empty bars)
     vol_regime_result = compute_vol_regime(bars)
+    heuristic_quality = derive_base_signals(normalize_meta(snapshot.meta))["global_strength"]
+    ensemble_quality = build_ensemble_quality(
+        generated_at=float(snapshot.generated_at),
+        heuristic_quality=heuristic_quality,
+        bias_direction=bias_verdict.direction,
+        bias_confidence=bias_verdict.confidence,
+        vol_regime_label=vol_regime_result.label,
+        vol_regime_confidence=vol_regime_result.confidence,
+    )
 
     structure_context = normalized_structure_context
+    bias_payload = _serialize_bias_verdict(bias_verdict)
+    vol_regime_payload = _serialize_vol_regime(vol_regime_result)
+    measurement_summary = _build_measurement_summary(symbol, timeframe)
+    measurement_refs = {
+        "artifact_dir": f"measurement/{symbol}/{timeframe}",
+        "benchmark_artifact": f"benchmark_{symbol}_{timeframe}.json",
+        "scoring_artifact": f"scoring_{symbol}_{timeframe}.json",
+        "summary_artifact": f"measurement_summary_{symbol}_{timeframe}.json",
+        "status": measurement_summary["status"],
+    }
 
     out = {
         "source_plan": composite,
@@ -233,24 +403,20 @@ def build_snapshot_bundle_for_symbol_timeframe(
         "structure_qualifiers": structure_qualifiers,
         "session_context": session_context,
         "htf_context": htf_context,
-        "bias_verdict": {
-            "direction": bias_verdict.direction,
-            "confidence": bias_verdict.confidence,
-            "htf_direction": bias_verdict.htf_direction,
-            "session_direction": bias_verdict.session_direction,
-            "conflict": bias_verdict.conflict,
-            "source": bias_verdict.source,
-        },
-        "vol_regime": {
-            "label": vol_regime_result.label,
-            "raw_atr_ratio": vol_regime_result.raw_atr_ratio,
-            "confidence": vol_regime_result.confidence,
-            "bars_used": vol_regime_result.bars_used,
-        },
-        "measurement_refs": {
-            "benchmark_artifact": f"benchmark_{symbol}_{timeframe}.json",
-            "scoring_artifact": f"scoring_{symbol}_{timeframe}.json",
-            "status": "placeholder",
+        "bias_verdict": bias_payload,
+        "vol_regime": vol_regime_payload,
+        "ensemble_quality": serialize_ensemble_quality(ensemble_quality),
+        "measurement_refs": measurement_refs,
+        "measurement_summary": measurement_summary,
+        "market_context": {
+            "bias_direction": bias_payload["direction"],
+            "bias_confidence": bias_payload["confidence"],
+            "vol_regime_label": vol_regime_payload["label"],
+            "vol_regime_confidence": vol_regime_payload["confidence"],
+            "measurement_status": measurement_summary["status"],
+            "measurement_events": measurement_summary["scoring"]["n_events"],
+            "measurement_brier_score": measurement_summary["scoring"]["brier_score"],
+            "measurement_log_score": measurement_summary["scoring"]["log_score"],
         },
         "meta_domains_present": raw_meta.get("meta_domains_present", []),
         "meta_domains_missing": raw_meta.get("meta_domains_missing", []),

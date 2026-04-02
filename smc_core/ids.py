@@ -3,11 +3,12 @@
 Price quantization resolution order (same for all ID functions):
 1. Explicit ``ticksize`` kwarg → snap to nearest multiple.
 2. Symbol lookup in ``SYMBOL_TICKSIZE`` → derive decimals from tick.
-3. Fall back to 2 decimals (backward-compatible default for equities).
+3. Explicit or inferred asset class → shared class ticksize.
+4. Fall back to 2 decimals.
 
-This means ``bos_id("ES", ...)`` automatically snaps to 0.25 ticks,
-``bos_id("BTC", ...)`` snaps to whole dollars, and unknown symbols
-fall back to 2 decimals.
+This means known futures/crypto symbols quantize to their contract tick,
+forex pairs can infer 4-decimal pip precision, and callers can still force
+asset-class defaults or explicit tick sizes end-to-end.
 """
 
 from __future__ import annotations
@@ -33,6 +34,8 @@ _ASSET_CLASS_TICKSIZE: dict[str, float] = {
     "crypto": 0.01,
     "forex": 0.0001,
 }
+
+_FOREX_CODES = {"AUD", "CAD", "CHF", "EUR", "GBP", "JPY", "NZD", "USD"}
 
 # Per-symbol tick-size overrides (extend as needed).
 SYMBOL_TICKSIZE: dict[str, float] = {
@@ -69,33 +72,71 @@ def _decimals_for_ticksize(ticksize: float) -> int:
     return len(s.split(".")[1])
 
 
+def _normalize_asset_class(asset_class: str) -> str:
+    normalized = str(asset_class).strip().lower()
+    if normalized not in _ASSET_CLASS_TICKSIZE:
+        known = ", ".join(sorted(_ASSET_CLASS_TICKSIZE))
+        raise ValueError(f"unsupported asset class: {asset_class!r}; expected one of: {known}")
+    return normalized
+
+
+def _infer_asset_class(symbol: str) -> str | None:
+    compact = _norm_symbol(symbol).replace("/", "")
+    if len(compact) == 6 and compact.isalpha() and compact[:3] in _FOREX_CODES and compact[3:] in _FOREX_CODES:
+        return "forex"
+    return None
+
+
+def _resolve_ticksize(
+    *,
+    ticksize: float | None = None,
+    symbol: str | None = None,
+    asset_class: str | None = None,
+) -> float | None:
+    if ticksize is not None:
+        if ticksize <= 0:
+            raise ValueError("ticksize must be > 0")
+        return ticksize
+
+    if symbol is not None:
+        sym = _norm_symbol(symbol)
+        resolved = SYMBOL_TICKSIZE.get(sym)
+        if resolved is not None:
+            return resolved
+
+    if asset_class is not None:
+        return _ASSET_CLASS_TICKSIZE[_normalize_asset_class(asset_class)]
+
+    if symbol is not None:
+        inferred = _infer_asset_class(symbol)
+        if inferred is not None:
+            return _ASSET_CLASS_TICKSIZE[inferred]
+
+    return None
+
+
 def quantize_price(
     price: float,
     decimals: int = 2,
     *,
     ticksize: float | None = None,
     symbol: str | None = None,
+    asset_class: str | None = None,
 ) -> float:
     """Quantize *price* to the nearest tick or decimal.
 
     Resolution order:
     1. Explicit *ticksize* parameter  →  snap to nearest multiple.
     2. *symbol* lookup in SYMBOL_TICKSIZE  →  derive decimals.
-    3. Fall back to *decimals* parameter (backward-compatible default).
+    3. *asset_class* default or inferred asset class  →  use class ticksize.
+    4. Fall back to *decimals* parameter (backward-compatible default).
     """
-    if ticksize is not None:
-        if ticksize <= 0:
-            raise ValueError("ticksize must be > 0")
-        d = _decimals_for_ticksize(ticksize)
-        tick_d = Decimal(str(ticksize))
+    resolved_ticksize = _resolve_ticksize(ticksize=ticksize, symbol=symbol, asset_class=asset_class)
+    if resolved_ticksize is not None:
+        d = _decimals_for_ticksize(resolved_ticksize)
+        tick_d = Decimal(str(resolved_ticksize))
         quantized = (Decimal(str(price)) / tick_d).quantize(Decimal(1), rounding=ROUND_HALF_UP) * tick_d
         return float(quantized.quantize(Decimal(1).scaleb(-d), rounding=ROUND_HALF_UP))
-
-    if symbol is not None:
-        sym = _norm_symbol(symbol)
-        ts = SYMBOL_TICKSIZE.get(sym)
-        if ts is not None:
-            return quantize_price(price, ticksize=ts)
 
     if decimals < 0:
         raise ValueError("decimals must be >= 0")
@@ -132,29 +173,45 @@ def _quantize_for_id(
     *,
     symbol: str | None = None,
     ticksize: float | None = None,
+    asset_class: str | None = None,
 ) -> str:
     """Quantize *price* for use in event IDs.
 
     Resolution order:
     1. Explicit *ticksize*  →  ``quantize_price(price, ticksize=ticksize)``
     2. *symbol* lookup      →  ``quantize_price(price, symbol=symbol)``
-    3. Fall back to 2 decimals (backward-compatible default).
+    3. *asset_class* or inferred asset class → shared default ticksize.
+    4. Fall back to 2 decimals (backward-compatible default).
 
     Returns a string representation with appropriate decimal precision.
     """
-    if ticksize is not None:
-        q = quantize_price(price, ticksize=ticksize)
-        d = _decimals_for_ticksize(ticksize)
+    resolved_ticksize = _resolve_ticksize(ticksize=ticksize, symbol=symbol, asset_class=asset_class)
+    if resolved_ticksize is not None:
+        q = quantize_price(price, ticksize=resolved_ticksize)
+        d = _decimals_for_ticksize(resolved_ticksize)
         return f"{q:.{d}f}"
-    if symbol is not None:
-        sym = _norm_symbol(symbol)
-        ts = SYMBOL_TICKSIZE.get(sym)
-        if ts is not None:
-            q = quantize_price(price, ticksize=ts)
-            d = _decimals_for_ticksize(ts)
-            return f"{q:.{d}f}"
     q = quantize_price(price, 2)
     return f"{q:.2f}"
+
+
+def liquidity_id(
+    symbol: str,
+    timeframe: str,
+    anchor_ts: float,
+    side: SweepSide,
+    price: float,
+    *,
+    ticksize: float | None = None,
+    asset_class: str | None = None,
+    session_tz: str | None = None,
+) -> str:
+    sym = _norm_symbol(symbol)
+    _validate_timeframe(timeframe)
+    t_anchor = int(anchor_ts)
+    if timeframe == "1D":
+        t_anchor = int(quantize_time_to_tf(anchor_ts, timeframe, session_tz=session_tz))
+    p = _quantize_for_id(price, symbol=sym, ticksize=ticksize, asset_class=asset_class)
+    return f"liq:{sym}:{timeframe}:{t_anchor}:{side}:{p}"
 
 
 def bos_id(
@@ -166,10 +223,12 @@ def bos_id(
     price: float,
     *,
     ticksize: float | None = None,
+    asset_class: str | None = None,
+    session_tz: str | None = None,
 ) -> str:
     sym = _norm_symbol(symbol)
-    t_anchor = int(quantize_time_to_tf(anchor_ts, timeframe))
-    p = _quantize_for_id(price, symbol=sym, ticksize=ticksize)
+    t_anchor = int(quantize_time_to_tf(anchor_ts, timeframe, session_tz=session_tz))
+    p = _quantize_for_id(price, symbol=sym, ticksize=ticksize, asset_class=asset_class)
     return f"bos:{sym}:{timeframe}:{t_anchor}:{kind}:{dir}:{p}"
 
 
@@ -182,11 +241,13 @@ def ob_id(
     high: float,
     *,
     ticksize: float | None = None,
+    asset_class: str | None = None,
+    session_tz: str | None = None,
 ) -> str:
     sym = _norm_symbol(symbol)
-    t_anchor = int(quantize_time_to_tf(anchor_ts, timeframe))
-    lo = _quantize_for_id(low, symbol=sym, ticksize=ticksize)
-    hi = _quantize_for_id(high, symbol=sym, ticksize=ticksize)
+    t_anchor = int(quantize_time_to_tf(anchor_ts, timeframe, session_tz=session_tz))
+    lo = _quantize_for_id(low, symbol=sym, ticksize=ticksize, asset_class=asset_class)
+    hi = _quantize_for_id(high, symbol=sym, ticksize=ticksize, asset_class=asset_class)
     return f"ob:{sym}:{timeframe}:{t_anchor}:{dir}:{lo}:{hi}"
 
 
@@ -199,11 +260,13 @@ def fvg_id(
     high: float,
     *,
     ticksize: float | None = None,
+    asset_class: str | None = None,
+    session_tz: str | None = None,
 ) -> str:
     sym = _norm_symbol(symbol)
-    t_anchor = int(quantize_time_to_tf(anchor_ts, timeframe))
-    lo = _quantize_for_id(low, symbol=sym, ticksize=ticksize)
-    hi = _quantize_for_id(high, symbol=sym, ticksize=ticksize)
+    t_anchor = int(quantize_time_to_tf(anchor_ts, timeframe, session_tz=session_tz))
+    lo = _quantize_for_id(low, symbol=sym, ticksize=ticksize, asset_class=asset_class)
+    hi = _quantize_for_id(high, symbol=sym, ticksize=ticksize, asset_class=asset_class)
     return f"fvg:{sym}:{timeframe}:{t_anchor}:{dir}:{lo}:{hi}"
 
 
@@ -215,8 +278,10 @@ def sweep_id(
     price: float,
     *,
     ticksize: float | None = None,
+    asset_class: str | None = None,
+    session_tz: str | None = None,
 ) -> str:
     sym = _norm_symbol(symbol)
-    t_anchor = int(quantize_time_to_tf(anchor_ts, timeframe))
-    p = _quantize_for_id(price, symbol=sym, ticksize=ticksize)
+    t_anchor = int(quantize_time_to_tf(anchor_ts, timeframe, session_tz=session_tz))
+    p = _quantize_for_id(price, symbol=sym, ticksize=ticksize, asset_class=asset_class)
     return f"sweep:{sym}:{timeframe}:{t_anchor}:{side}:{p}"

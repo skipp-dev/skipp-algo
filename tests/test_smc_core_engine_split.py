@@ -6,6 +6,37 @@ import re
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 CORE_PATH = ROOT / 'SMC_Core_Engine.pine'
+EXPECTED_BUS_LABELS = [
+    'BUS ZoneActive',
+    'BUS Armed',
+    'BUS Confirmed',
+    'BUS Ready',
+    'BUS EntryBest',
+    'BUS EntryStrict',
+    'BUS Trigger',
+    'BUS Invalidation',
+    'BUS QualityScore',
+    'BUS SourceKind',
+    'BUS StateCode',
+    'BUS TrendPack',
+    'BUS MetaPack',
+    'BUS HardGatesPackA',
+    'BUS HardGatesPackB',
+    'BUS EventRiskRow',
+    'BUS QualityPackA',
+    'BUS QualityPackB',
+    'BUS QualityBoundsPack',
+    'BUS ModulePackA',
+    'BUS ModulePackB',
+    'BUS ModulePackC',
+    'BUS ModulePackD',
+    'BUS EnginePack',
+    'BUS StopLevel',
+    'BUS Target1',
+    'BUS Target2',
+    'BUS LeanPackA',
+    'BUS LeanPackB',
+]
 
 
 def _read_core_source() -> str:
@@ -122,44 +153,41 @@ def test_core_engine_last_element_array_gets_are_guarded() -> None:
 def test_core_engine_exports_exact_hidden_bus() -> None:
     source = _read_core_source()
 
-    expected_bus_labels = [
-        'BUS ZoneActive',
-        'BUS Armed',
-        'BUS Confirmed',
-        'BUS Ready',
-        'BUS EntryBest',
-        'BUS EntryStrict',
-        'BUS Trigger',
-        'BUS Invalidation',
-        'BUS QualityScore',
-        'BUS SourceKind',
-        'BUS StateCode',
-        'BUS TrendPack',
-        'BUS MetaPack',
-        'BUS HardGatesPackA',
-        'BUS HardGatesPackB',
-        'BUS QualityPackA',
-        'BUS QualityPackB',
-        'BUS QualityBoundsPack',
-        'BUS ModulePackA',
-        'BUS ModulePackB',
-        'BUS ModulePackC',
-        'BUS ModulePackD',
-        'BUS EnginePack',
-        'BUS StopLevel',
-        'BUS Target1',
-        'BUS Target2',
-    ]
-
     hidden_bus_calls = re.findall(r"plot\([^\n]+display\s*=\s*display\.none\)", source)
-    assert len(hidden_bus_calls) == len(expected_bus_labels)
+    assert len(hidden_bus_calls) == len(EXPECTED_BUS_LABELS)
 
-    for label in expected_bus_labels:
+    for label in EXPECTED_BUS_LABELS:
         assert f"'{label}'" in source
 
     assert 'pack_bus_row(' in source
     assert 'pack_bus_four(' in source
     assert 'pack_bus_trend_set(' in source
+
+
+def test_core_engine_uses_signal_quality_as_primary_gate() -> None:
+    source = _read_core_source()
+
+    assert "var bool use_lean_signal_quality_gate = input.bool(true, 'Use Signal Quality Gate'" in source
+    assert "var bool use_lean_signal_quality_gate = input.bool(false, 'Use Signal Quality Gate'" not in source
+    assert '[context_quality_score, context_quality_gate_ok, htf_alignment_ok, strict_entry_ltf_ok, effective_min_context_quality_score, effective_context_quality_max_score] = compute_context_quality()' in source
+    assert '// [v5.5b] Signal Quality is the primary quality surface; local context quality stays diagnostic only.' in source
+    assert 'bool primary_quality_gate_ok = not use_lean_signal_quality_gate or signal_quality_ok' in source
+    assert 'bool best_signal_quality_gate_ok = not use_lean_signal_quality_gate or signal_quality_good' in source
+    assert 'bool strict_signal_quality_gate_ok = not use_lean_signal_quality_gate or signal_quality_high' in source
+    assert 'compute_long_environment_context(bool market_regime_gate_ok, bool vola_regime_gate_safe, bool primary_quality_gate_ok, bool session_structure_gate_ok, bool micro_session_gate_ok, bool micro_freshness_gate_ok, bool overhead_zone_ok, bool event_risk_gate_ok_param) =>' in source
+    assert '[environment_hard_gate_ok, quality_gate_ok, microstructure_entry_gate_ok, trade_hard_gate_ok, long_environment_focus_display] = compute_long_environment_context(market_regime_gate_ok, vola_regime_gate_safe, primary_quality_gate_ok, session_structure_gate_ok, micro_session_gate_ok, micro_freshness_gate_ok, overhead_zone_ok, event_risk_gate_ok)' in source
+    assert 'compute_long_environment_context(bool market_regime_gate_ok, bool vola_regime_gate_safe, bool context_quality_gate_ok, bool session_structure_gate_ok, bool micro_session_gate_ok, bool micro_freshness_gate_ok, bool overhead_zone_ok) =>' not in source
+    assert '[environment_hard_gate_ok, quality_gate_ok, microstructure_entry_gate_ok, trade_hard_gate_ok, long_environment_focus_display] = compute_long_environment_context(market_regime_gate_ok, vola_regime_gate_safe, context_quality_gate_ok, session_structure_gate_ok, micro_session_gate_ok, micro_freshness_gate_ok, overhead_zone_ok)' not in source
+    assert 'compute_long_entry_best_state(bool long_ready_state, bool best_signal_quality_gate_ok, bool accel_entry_best_gate_ok, bool sd_entry_best_gate_ok, bool vol_entry_best_context_ok_safe, bool stretch_entry_best_context_ok, bool ddvi_entry_best_ok_safe) =>' in source
+    assert 'bool long_entry_best_state = compute_long_entry_best_state(long_ready_state, best_signal_quality_gate_ok, accel_entry_best_gate_ok, sd_entry_best_gate_ok, vol_entry_best_context_ok_safe, stretch_entry_best_context_ok, ddvi_entry_best_ok_safe)' in source
+    assert 'compute_long_entry_best_state(bool long_ready_state, bool accel_entry_best_gate_ok, bool sd_entry_best_gate_ok, bool vol_entry_best_context_ok_safe, bool stretch_entry_best_context_ok, bool ddvi_entry_best_ok_safe) =>' not in source
+    assert 'bool long_entry_best_state = compute_long_entry_best_state(long_ready_state, accel_entry_best_gate_ok, sd_entry_best_gate_ok, vol_entry_best_context_ok_safe, stretch_entry_best_context_ok, ddvi_entry_best_ok_safe)' not in source
+    assert 'compute_long_entry_strict_state(bool long_ready_state, bool strict_signal_quality_gate_ok, bool strict_entry_ltf_ok, bool htf_alignment_ok, bool accel_strict_entry_gate_ok, bool sd_entry_strict_gate_ok, bool vol_entry_strict_context_ok_safe, bool stretch_entry_strict_context_ok, bool ddvi_entry_strict_ok_safe) =>' in source
+    assert 'bool long_entry_strict_state = compute_long_entry_strict_state(long_ready_state, strict_signal_quality_gate_ok, strict_entry_ltf_ok, htf_alignment_ok, accel_strict_entry_gate_ok, sd_entry_strict_gate_ok, vol_entry_strict_context_ok_safe, stretch_entry_strict_context_ok, ddvi_entry_strict_ok_safe)' in source
+    assert 'compute_long_entry_strict_state(bool long_ready_state, bool strict_entry_ltf_ok, bool htf_alignment_ok, bool accel_strict_entry_gate_ok, bool sd_entry_strict_gate_ok, bool vol_entry_strict_context_ok_safe, bool stretch_entry_strict_context_ok, bool ddvi_entry_strict_ok_safe) =>' not in source
+    assert 'bool long_entry_strict_state = compute_long_entry_strict_state(long_ready_state, strict_entry_ltf_ok, htf_alignment_ok, accel_strict_entry_gate_ok, sd_entry_strict_gate_ok, vol_entry_strict_context_ok_safe, stretch_entry_strict_context_ok, ddvi_entry_strict_ok_safe)' not in source
+    assert 'bool combined_quality_gate_ok' not in source
+    assert 'signal_bias_bullish' not in source
 
 
 def test_core_engine_has_no_dashboard_or_alert_transport_layer() -> None:
@@ -181,6 +209,6 @@ def test_core_engine_has_no_dashboard_or_alert_transport_layer() -> None:
 def test_core_engine_ends_at_hidden_bus_boundary() -> None:
     source = _read_core_source().rstrip()
 
-    assert "plot(long_target_2, 'BUS Target2', display = display.none)" in source
+    assert "plot(pack_bus_four(resolve_bus_ob_light_row(lib_obl_side, lib_obl_fresh, lib_obl_mitigation_state), resolve_bus_fvg_light_row(lib_fvgl_side, lib_fvgl_fresh, lib_fvgl_invalidated), pack_bus_row(lib_scl_context_score, lib_scl_in_killzone ? 1 : 2), pack_bus_row(lib_sq_score, 0)), 'BUS LeanPackB', display = display.none)" in source
     assert source.endswith('/////////////////////////////////////////////////////////////////////////////////')
-    assert "plot(long_target_2, 'BUS Target2', display = display.none)\n\n/////////////////////////////////////////////////////////////////////////////////\n//#endregion                      IMPLEMENTATION\n/////////////////////////////////////////////////////////////////////////////////" in source
+    assert "'BUS LeanPackB', display = display.none)\n\n// ── Mini Health Badge (v5.5a) ──" in source

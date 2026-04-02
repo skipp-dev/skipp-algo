@@ -637,21 +637,29 @@ def write_pine_library(
     from scripts.smc_event_risk_builder import DEFAULTS as _ER_DEFAULTS
 
     er = enr.get("event_risk") or {}
+    erl = enr.get("event_risk_light") or {}
+    event_window_state = erl.get("EVENT_WINDOW_STATE", er.get("EVENT_WINDOW_STATE", _ER_DEFAULTS["EVENT_WINDOW_STATE"]))
+    event_risk_level = erl.get("EVENT_RISK_LEVEL", er.get("EVENT_RISK_LEVEL", _ER_DEFAULTS["EVENT_RISK_LEVEL"]))
+    next_event_name = erl.get("NEXT_EVENT_NAME", er.get("NEXT_EVENT_NAME", _ER_DEFAULTS["NEXT_EVENT_NAME"]))
+    next_event_time = erl.get("NEXT_EVENT_TIME", er.get("NEXT_EVENT_TIME", _ER_DEFAULTS["NEXT_EVENT_TIME"]))
+    market_event_blocked = erl.get("MARKET_EVENT_BLOCKED", er.get("MARKET_EVENT_BLOCKED", _ER_DEFAULTS["MARKET_EVENT_BLOCKED"]))
+    symbol_event_blocked = erl.get("SYMBOL_EVENT_BLOCKED", er.get("SYMBOL_EVENT_BLOCKED", _ER_DEFAULTS["SYMBOL_EVENT_BLOCKED"]))
+    event_provider_status = erl.get("EVENT_PROVIDER_STATUS", er.get("EVENT_PROVIDER_STATUS", _ER_DEFAULTS["EVENT_PROVIDER_STATUS"]))
     content.append("// ── Event Risk ──")
-    content.append(f'export const string EVENT_WINDOW_STATE = "{er.get("EVENT_WINDOW_STATE", _ER_DEFAULTS["EVENT_WINDOW_STATE"])}"')
-    content.append(f'export const string EVENT_RISK_LEVEL = "{er.get("EVENT_RISK_LEVEL", _ER_DEFAULTS["EVENT_RISK_LEVEL"])}"')
+    content.append(f'export const string EVENT_WINDOW_STATE = "{event_window_state}"')
+    content.append(f'export const string EVENT_RISK_LEVEL = "{event_risk_level}"')
     content.append(f'export const string NEXT_EVENT_CLASS = "{er.get("NEXT_EVENT_CLASS", _ER_DEFAULTS["NEXT_EVENT_CLASS"])}"')
-    content.append(f'export const string NEXT_EVENT_NAME = "{er.get("NEXT_EVENT_NAME", _ER_DEFAULTS["NEXT_EVENT_NAME"])}"')
-    content.append(f'export const string NEXT_EVENT_TIME = "{er.get("NEXT_EVENT_TIME", _ER_DEFAULTS["NEXT_EVENT_TIME"])}"')
+    content.append(f'export const string NEXT_EVENT_NAME = "{next_event_name}"')
+    content.append(f'export const string NEXT_EVENT_TIME = "{next_event_time}"')
     content.append(f'export const string NEXT_EVENT_IMPACT = "{er.get("NEXT_EVENT_IMPACT", _ER_DEFAULTS["NEXT_EVENT_IMPACT"])}"')
     content.append(f'export const int EVENT_RESTRICT_BEFORE_MIN = {int(er.get("EVENT_RESTRICT_BEFORE_MIN", _ER_DEFAULTS["EVENT_RESTRICT_BEFORE_MIN"]))}')
     content.append(f'export const int EVENT_RESTRICT_AFTER_MIN = {int(er.get("EVENT_RESTRICT_AFTER_MIN", _ER_DEFAULTS["EVENT_RESTRICT_AFTER_MIN"]))}')
     content.append(f'export const bool EVENT_COOLDOWN_ACTIVE = {_pine_bool(er.get("EVENT_COOLDOWN_ACTIVE", _ER_DEFAULTS["EVENT_COOLDOWN_ACTIVE"]))}')
-    content.append(f'export const bool MARKET_EVENT_BLOCKED = {_pine_bool(er.get("MARKET_EVENT_BLOCKED", _ER_DEFAULTS["MARKET_EVENT_BLOCKED"]))}')
-    content.append(f'export const bool SYMBOL_EVENT_BLOCKED = {_pine_bool(er.get("SYMBOL_EVENT_BLOCKED", _ER_DEFAULTS["SYMBOL_EVENT_BLOCKED"]))}')
+    content.append(f'export const bool MARKET_EVENT_BLOCKED = {_pine_bool(market_event_blocked)}')
+    content.append(f'export const bool SYMBOL_EVENT_BLOCKED = {_pine_bool(symbol_event_blocked)}')
     content.append(f'export const string EARNINGS_SOON_TICKERS = "{er.get("EARNINGS_SOON_TICKERS", _ER_DEFAULTS["EARNINGS_SOON_TICKERS"])}"')
     content.append(f'export const string HIGH_RISK_EVENT_TICKERS = "{er.get("HIGH_RISK_EVENT_TICKERS", _ER_DEFAULTS["HIGH_RISK_EVENT_TICKERS"])}"')
-    content.append(f'export const string EVENT_PROVIDER_STATUS = "{er.get("EVENT_PROVIDER_STATUS", _ER_DEFAULTS["EVENT_PROVIDER_STATUS"])}"')
+    content.append(f'export const string EVENT_PROVIDER_STATUS = "{event_provider_status}"')
 
     # ── Flow Qualifier (v5.1) ───────────────────────────────────
     from scripts.smc_flow_qualifier import DEFAULTS as _FQ_DEFAULTS
@@ -729,10 +737,15 @@ def write_pine_library(
     from scripts.smc_session_context_block import DEFAULTS as _SC_DEFAULTS
 
     sc = enr.get("session_context") or {}
+    scl = enr.get("session_context_light") or {}
+    session_context = scl.get("SESSION_CONTEXT", sc.get("SESSION_CONTEXT", _SC_DEFAULTS["SESSION_CONTEXT"]))
+    in_killzone = scl.get("IN_KILLZONE", sc.get("IN_KILLZONE", _SC_DEFAULTS["IN_KILLZONE"]))
+    session_direction_bias = scl.get("SESSION_DIRECTION_BIAS", sc.get("SESSION_DIRECTION_BIAS", _SC_DEFAULTS["SESSION_DIRECTION_BIAS"]))
+    session_context_score = scl.get("SESSION_CONTEXT_SCORE", sc.get("SESSION_CONTEXT_SCORE", _SC_DEFAULTS["SESSION_CONTEXT_SCORE"]))
     content.append("")
     content.append("// ── Session Context ──")
-    content.append(f'export const string SESSION_CONTEXT = "{sc.get("SESSION_CONTEXT", _SC_DEFAULTS["SESSION_CONTEXT"])}"')
-    content.append(f'export const bool IN_KILLZONE = {_pine_bool(sc.get("IN_KILLZONE", _SC_DEFAULTS["IN_KILLZONE"]))}')
+    content.append(f'export const string SESSION_CONTEXT = "{session_context}"')
+    content.append(f'export const bool IN_KILLZONE = {_pine_bool(in_killzone)}')
     content.append(f'export const bool SESSION_MSS_BULL = {_pine_bool(sc.get("SESSION_MSS_BULL", _SC_DEFAULTS["SESSION_MSS_BULL"]))}')
     content.append(f'export const bool SESSION_MSS_BEAR = {_pine_bool(sc.get("SESSION_MSS_BEAR", _SC_DEFAULTS["SESSION_MSS_BEAR"]))}')
     content.append(f'export const string SESSION_STRUCTURE_STATE = "{sc.get("SESSION_STRUCTURE_STATE", _SC_DEFAULTS["SESSION_STRUCTURE_STATE"])}"')
@@ -745,8 +758,8 @@ def write_pine_library(
     content.append(f'export const float SESSION_VWAP = {float(sc.get("SESSION_VWAP", _SC_DEFAULTS["SESSION_VWAP"]))}')
     content.append(f'export const float SESSION_TARGET_BULL = {float(sc.get("SESSION_TARGET_BULL", _SC_DEFAULTS["SESSION_TARGET_BULL"]))}')
     content.append(f'export const float SESSION_TARGET_BEAR = {float(sc.get("SESSION_TARGET_BEAR", _SC_DEFAULTS["SESSION_TARGET_BEAR"]))}')
-    content.append(f'export const string SESSION_DIRECTION_BIAS = "{sc.get("SESSION_DIRECTION_BIAS", _SC_DEFAULTS["SESSION_DIRECTION_BIAS"])}"')
-    content.append(f'export const int SESSION_CONTEXT_SCORE = {int(sc.get("SESSION_CONTEXT_SCORE", _SC_DEFAULTS["SESSION_CONTEXT_SCORE"]))}')
+    content.append(f'export const string SESSION_DIRECTION_BIAS = "{session_direction_bias}"')
+    content.append(f'export const int SESSION_CONTEXT_SCORE = {int(session_context_score)}')
 
     # ── Liquidity Sweeps (v5.2) ─────────────────────────────────
     from scripts.smc_liquidity_sweeps import DEFAULTS as _LS_DEFAULTS
@@ -964,30 +977,18 @@ def write_pine_library(
     content.append(f'export const bool IN_PREDICTIVE_RANGE_EXTREME = {_pine_bool(rpr.get("IN_PREDICTIVE_RANGE_EXTREME", _RPR_DEFAULTS["IN_PREDICTIVE_RANGE_EXTREME"]))}')
 
     # ── v5.5b Lean: Event Risk Light ─────────────────────────────
-    from scripts.smc_event_risk_light import DEFAULTS as _ERL_DEFAULTS
-
-    erl = enr.get("event_risk_light") or {}
     content.append("")
     content.append("// ── Event Risk Light (v5.5b) ──")
-    content.append(f'export const string EVENT_RISK_LIGHT_WINDOW_STATE = "{erl.get("EVENT_WINDOW_STATE", _ERL_DEFAULTS["EVENT_WINDOW_STATE"])}"')
-    content.append(f'export const string EVENT_RISK_LIGHT_LEVEL = "{erl.get("EVENT_RISK_LEVEL", _ERL_DEFAULTS["EVENT_RISK_LEVEL"])}"')
-    content.append(f'export const string EVENT_RISK_LIGHT_NEXT_NAME = "{erl.get("NEXT_EVENT_NAME", _ERL_DEFAULTS["NEXT_EVENT_NAME"])}"')
-    content.append(f'export const string EVENT_RISK_LIGHT_NEXT_TIME = "{erl.get("NEXT_EVENT_TIME", _ERL_DEFAULTS["NEXT_EVENT_TIME"])}"')
-    content.append(f'export const bool EVENT_RISK_LIGHT_MARKET_BLOCKED = {_pine_bool(erl.get("MARKET_EVENT_BLOCKED", _ERL_DEFAULTS["MARKET_EVENT_BLOCKED"]))}')
-    content.append(f'export const bool EVENT_RISK_LIGHT_SYMBOL_BLOCKED = {_pine_bool(erl.get("SYMBOL_EVENT_BLOCKED", _ERL_DEFAULTS["SYMBOL_EVENT_BLOCKED"]))}')
-    content.append(f'export const string EVENT_RISK_LIGHT_PROVIDER_STATUS = "{erl.get("EVENT_PROVIDER_STATUS", _ERL_DEFAULTS["EVENT_PROVIDER_STATUS"])}"')
+    content.append("// Canonical lean exports are shared with the Event Risk block above.")
 
     # ── v5.5b Lean: Session Context Light ────────────────────────
     from scripts.smc_session_context_light import DEFAULTS as _SCL_DEFAULTS
 
-    scl = enr.get("session_context_light") or {}
     content.append("")
     content.append("// ── Session Context Light (v5.5b) ──")
-    content.append(f'export const string SESSION_CONTEXT_LIGHT = "{scl.get("SESSION_CONTEXT", _SCL_DEFAULTS["SESSION_CONTEXT"])}"')
-    content.append(f'export const bool SESSION_LIGHT_IN_KILLZONE = {_pine_bool(scl.get("IN_KILLZONE", _SCL_DEFAULTS["IN_KILLZONE"]))}')
-    content.append(f'export const string SESSION_LIGHT_DIRECTION_BIAS = "{scl.get("SESSION_DIRECTION_BIAS", _SCL_DEFAULTS["SESSION_DIRECTION_BIAS"])}"')
-    content.append(f'export const int SESSION_LIGHT_CONTEXT_SCORE = {int(scl.get("SESSION_CONTEXT_SCORE", _SCL_DEFAULTS["SESSION_CONTEXT_SCORE"]))}')
-    content.append(f'export const string SESSION_LIGHT_VOLATILITY_STATE = "{scl.get("SESSION_VOLATILITY_STATE", _SCL_DEFAULTS["SESSION_VOLATILITY_STATE"])}"')
+    content.append("// SESSION_CONTEXT / IN_KILLZONE / SESSION_DIRECTION_BIAS / SESSION_CONTEXT_SCORE")
+    content.append("// are exported canonically from the Session Context block above.")
+    content.append(f'export const string SESSION_VOLATILITY_STATE = "{scl.get("SESSION_VOLATILITY_STATE", _SCL_DEFAULTS["SESSION_VOLATILITY_STATE"])}"')
 
     # ── v5.5b Lean: Order Block Context Light ────────────────────
     from scripts.smc_ob_context_light import DEFAULTS as _OBL_DEFAULTS
@@ -1020,9 +1021,8 @@ def write_pine_library(
     ssl = enr.get("structure_state_light") or {}
     content.append("")
     content.append("// ── Structure State Light (v5.5b) ──")
-    content.append(f'export const string STRUCTURE_LIGHT_LAST_EVENT = "{ssl.get("STRUCTURE_LAST_EVENT", _SSL_DEFAULTS["STRUCTURE_LAST_EVENT"])}"')
-    content.append(f'export const int STRUCTURE_LIGHT_EVENT_AGE_BARS = {int(ssl.get("STRUCTURE_EVENT_AGE_BARS", _SSL_DEFAULTS["STRUCTURE_EVENT_AGE_BARS"]))}')
-    content.append(f'export const bool STRUCTURE_LIGHT_FRESH = {_pine_bool(ssl.get("STRUCTURE_FRESH", _SSL_DEFAULTS["STRUCTURE_FRESH"]))}')
+    content.append("// STRUCTURE_LAST_EVENT / STRUCTURE_EVENT_AGE_BARS / STRUCTURE_FRESH")
+    content.append("// are exported canonically from the Structure State block above.")
     content.append(f'export const int STRUCTURE_TREND_STRENGTH = {int(ssl.get("STRUCTURE_TREND_STRENGTH", _SSL_DEFAULTS["STRUCTURE_TREND_STRENGTH"]))}')
 
     # ── v5.5b Lean: Signal Quality ───────────────────────────────

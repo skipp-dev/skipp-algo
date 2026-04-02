@@ -28,6 +28,11 @@
 
 ## v5.5b Lean Families
 
+Event Risk Light, Session Context Light, and Structure State Light reuse
+their existing canonical Pine export names. The generator and Pine consumers
+must not emit or depend on parallel `*_LIGHT_*` aliases for those shared
+fields.
+
 ### 1. Event Risk Light (7 fields)
 | Field | Type | Values |
 |-------|------|--------|
@@ -167,7 +172,7 @@ Plus existing canonical fields that are still needed:
 | NEAREST_BULL_OB_LEVEL, NEAREST_BEAR_OB_LEVEL | PRIMARY_OB_SIDE, PRIMARY_OB_DISTANCE | Picks nearest/freshest |
 | BULL_OB_FRESHNESS, BEAR_OB_FRESHNESS | OB_AGE_BARS, OB_FRESH | From primary OB |
 | BULL_OB_MITIGATED, BEAR_OB_MITIGATED | OB_MITIGATION_STATE | Lifecycle states |
-| EVENT_* (7 of 14) | EVENT_* Light (7) | Surface subset |
+| EVENT_* (7 of 14) | Same canonical EVENT_* names | Lean block reuses canonical exports; no `*_LIGHT_*` alias surface |
 | SESSION_CONTEXT, IN_KILLZONE, SESSION_DIRECTION_BIAS, SESSION_CONTEXT_SCORE | Same names | Direct pass-through |
 | (new) | SESSION_VOLATILITY_STATE | Derived from ATR/session range |
 | (new) | SIGNAL_QUALITY_SCORE | New composite |
@@ -180,7 +185,7 @@ Plus existing canonical fields that are still needed:
 
 1. All v5.3 fields continue to be exported — no breaking changes
 2. New v5.5b fields are additive
-3. Pine consumers should migrate to reading v5.5b lean fields
+3. Pine consumers should migrate to the canonical v5.5b lean fields; shared event/session/structure fields keep their existing names
 4. Deprecated fields will show `// DEPRECATED v5.5` comments in generated Pine
 5. Signal Quality provides a single-number alternative to checking multiple gates
 6. The `library_field_version` in the manifest changes from `v5.5a` to `v5.5b`
