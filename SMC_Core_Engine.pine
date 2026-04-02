@@ -3181,7 +3181,6 @@ var string ltf_timeframe = input.timeframe(DEFAULT_LTF_TIMEFRAME, 'Lower timefra
 var float ltf_bias_hint = input.float(0.55, 'Bull share hint', minval = 0.5, maxval = 1.0, step = 0.05, group = g_ltf)
 
 var g_mtf = 'Higher Timeframe Trend'
-var bool show_mtf_trend = input.bool(true, 'Show HTF trend summary', group = g_mtf)
 var string mtf_trend_tf1 = input.timeframe(DEFAULT_TREND_TF_1, 'Trend TF 1', group = g_mtf, inline = 'mtf1', display = display.status_line)
 var string mtf_trend_tf2 = input.timeframe(DEFAULT_TREND_TF_2, 'Trend TF 2', group = g_mtf, inline = 'mtf2', display = display.status_line)
 var string mtf_trend_tf3 = input.timeframe(DEFAULT_TREND_TF_3, 'Trend TF 3', group = g_mtf, inline = 'mtf3', display = display.status_line)
@@ -3209,7 +3208,6 @@ var int min_nonzero_volume_bars = input.int(10, 'Min Non-Zero Volume Bars', minv
 var bool allow_relvol_without_volume_data = input.bool(false, 'Ignore RelVol when volume unavailable', group = g_data, display = display.none, tooltip = 'Optional fallback. When enabled, non-strict stages do not fail solely because the feed provides sparse or zero volume. RelVol falls back, DDVI watchlist/ready/best gates stop hard-blocking, and score thresholds shrink by the unavailable RelVol component. Strict still prefers confirmed volume-backed context, but can be partially relaxed when the dedicated strict-entry LTF fallback is also enabled.')
 
 var g_risk = 'Risk / Exits'
-var bool show_risk_levels = input.bool(true, 'Show Risk Levels', group = g_risk)
 var float stop_buffer_atr_mult = input.float(0.25, 'Stop Buffer ATR x', minval = 0.0, step = 0.05, group = g_risk)
 var float target1_r = input.float(1.0, 'Target 1 (R)', minval = 0.25, step = 0.25, group = g_risk)
 var float target2_r = input.float(2.0, 'Target 2 (R)', minval = 0.5, step = 0.25, group = g_risk)
@@ -3401,12 +3399,8 @@ var int market_gate_slow_len = input.int(50, 'Slow EMA', minval = 3, group = g_m
 
 var g_long = 'Long Dip Tools'
 // Visuals
-var bool show_reclaim_markers = input.bool(true, 'Show Reclaim Markers', group = g_long, inline = 'viz1')
-var bool show_long_confirmation_markers = input.bool(true, 'Show Long Confirmation Markers', group = g_long, inline = 'viz1')
 var bool show_long_engine_debug = input.bool(false, 'Show long engine debug', group = g_long, inline = 'vizd')
 var string long_engine_debug_mode = input.string('Compact', 'Detail', options = ['Compact', 'Full'], group = g_long, inline = 'vizd')
-var bool show_long_background = input.bool(true, 'Show Long-only Background', group = g_long, inline = 'viz2')
-var bool color_long_bars = input.bool(false, 'Color Bars', group = g_long, inline = 'viz2')
 var int long_marker_history_limit = input.int(100, 'Marker History Limit', minval = 0, maxval = 500, group = g_long, inline = 'viz2')
 var bool auto_scale_marker_gaps = input.bool(true, 'Auto Scale Gaps', group = g_long, inline = 'viz3')
 var int reclaim_marker_spacing_bars = input.int(2, 'Reclaim Marker Gap', minval = 0, maxval = 50, group = g_long, inline = 'viz3')
@@ -3503,7 +3497,6 @@ var bool accel_use_for_early = input.bool(true, 'Map to Early', group = g_accel,
 var bool accel_use_for_ready = input.bool(true, 'Map to Ready', group = g_accel, inline = 'accmap1')
 var bool accel_use_for_entry_best = input.bool(true, 'Map to Entry Best', group = g_accel, inline = 'accmap2')
 var bool accel_use_for_entry_strict = input.bool(true, 'Map to Entry Strict', group = g_accel, inline = 'accmap2')
-var bool show_accel_debug = input.bool(false, 'Show accel debug markers', group = g_accel)
 
 var g_sd = 'Second Derivative Confluence'
 var bool use_sd_confluence = input.bool(true, 'Use second-derivative confluence', group = g_sd, tooltip = 'Preset guide:\nStacked rollout = Armed off, Confirmed off, Ready on, Entry Best adds no extra SD gate, Entry Strict requires both.\nBalanced = keep Ready on and consider Entry Best on only after observing enough flow.\nTight = enable Armed/Confirmed/Entry Best if SD should harden most long states.')
@@ -3519,7 +3512,6 @@ var bool sd_require_for_ready = input.bool(true, 'Require SD confluence for Read
 var bool sd_require_for_entry_best = input.bool(false, 'Require SD confluence for Entry Best', group = g_sd, tooltip = 'Default off means Entry Best adds no extra SD gate beyond the Ready-stage SD requirement. Turn it on only if Best itself should demand fresh SD support.')
 var bool sd_require_both_for_entry_strict = input.bool(true, 'Entry Strict requires BOTH signals', group = g_sd, tooltip = 'Recommended on. Strict then needs both bullish divergence and oscillator higher lows.')
 var bool sd_require_osc_rising_for_ready = input.bool(false, 'Ready requires oscillator rising', group = g_sd, tooltip = 'Stacked rollout recommendation: off. Ready already checks acceleration, volatility expansion, and DDVI improvement, so forcing a second-derivative rise can over-harden the same momentum turn twice.')
-var bool show_sd_debug = input.bool(false, 'Show SD debug markers', group = g_sd)
 
 var g_volreg = 'Volatility / Expansion Regime'
 var bool use_volatility_regime = input.bool(true, 'Use volatility regime filter', group = g_volreg, tooltip = 'Preset guide:\nStacked rollout = Ready squeeze off, Entry Best release off, Entry Strict release off.\nBalanced = turn Ready squeeze on once regime quality is stable.\nTight = require squeeze or release context deeper into the stack if you want fewer but cleaner entries.')
@@ -3541,7 +3533,6 @@ var bool vol_require_squeeze_for_watchlist = input.bool(false, 'Watchlist prefer
 var bool vol_require_squeeze_for_ready = input.bool(false, 'Ready requires squeeze context', group = g_volreg, tooltip = 'Stacked rollout recommendation: off. Ready already needs regime trend, momentum expansion, and spread expansion, so squeeze context is better reserved for tighter entry tiers.')
 var bool vol_require_release_for_entry_best = input.bool(false, 'Entry Best requires squeeze release', group = g_volreg)
 var bool vol_require_release_for_entry_strict = input.bool(false, 'Entry Strict requires squeeze release', group = g_volreg, tooltip = 'Stacked rollout recommendation: off. Strict already requires regime trend, rising slopes, expansion, acceleration, stretch, and DDVI/SD confluence, so mandatory squeeze release can make it unnecessarily rare.')
-var bool show_vol_regime_debug = input.bool(false, 'Show volatility regime debug markers', group = g_volreg)
 
 var g_stretch = 'Stretch / Mean Reversion Context'
 var bool use_stretch_context = input.bool(true, 'Use stretch context', group = g_stretch, tooltip = 'Preset guide:\nStacked rollout = Watchlist lower-extreme off, Ready lower-extreme off, Best off, Strict on, anti-chase active.\nBalanced = turn Ready lower-extreme on if you want more genuine deep-pullback bias.\nTight = keep Strict at 0.00 or below and keep Best tied to lower-extreme context.')
@@ -3555,9 +3546,7 @@ var bool stretch_require_lower_extreme_for_watchlist = input.bool(false, 'Watchl
 var bool stretch_require_lower_extreme_for_ready = input.bool(false, 'Ready requires lower extreme context', group = g_stretch, tooltip = 'Stacked rollout recommendation: off. Keep anti-chase active for Ready, but reserve mandatory lower-extreme context for Entry Best and Entry Strict.')
 var bool stretch_require_lower_extreme_for_entry_best = input.bool(false, 'Entry Best requires lower extreme context', group = g_stretch, tooltip = 'Stacked rollout recommendation: off. Anti-chase stays active, but Best no longer needs a fresh lower-extreme context on top of acceleration, DDVI, and regime filters.')
 var bool stretch_require_lower_extreme_for_entry_strict = input.bool(true, 'Entry Strict requires lower extreme context', group = g_stretch, tooltip = 'Recommended on. Strict should stay fully tied to real lower-extreme mean-reversion setups.')
-var bool show_stretch_overlay = input.bool(true, 'Show stretch overlays', group = g_stretch)
 var bool show_mean_target_overlay = input.bool(true, 'Show mean target overlay', group = g_stretch)
-var bool show_lower_extreme_bg = input.bool(false, 'Highlight lower extreme background', group = g_stretch)
 
 var string g_ddvi_ctx = 'DDVI Context'
 var bool use_ddvi_context = input.bool(true, 'Use DDVI context', group = g_ddvi_ctx, tooltip = 'Preset guide:\nStacked rollout = close-safe on, hidden bull on, strong bull on, lower-extreme context modestly persistent.\nBalanced = strong bull off if DDVI should mostly reward continuation-quality hidden divergence.\nTight = keep strong bull on and shorten the lower-extreme context window if DDVI should gate only the cleanest reversals.')

@@ -1,14 +1,14 @@
 # Runtime Budget — SMC_Core_Engine.pine v5.5b
 
 **Status**: Active inventory  
-**Last updated**: AP7 v5.5b — Phase B unblocked
+**Last updated**: AP7 v5.5b — Phase C C1 executed
 
 ---
 
 ## 1. Engine Metrics
 
 | Metric | Count |
-|--------|-------|
+| --- | --- |
 | Total lines | ~6155 |
 | `var` declarations | ~371 |
 | `input.*` declarations | ~260 |
@@ -27,10 +27,11 @@ BUS protocol consumes ~9 plots (ModulePackA–D + LeanPackA/B + EventRisk).
 ## 2. Field Categories
 
 ### Primary (lean-only, no fallback needed)
+
 These fields are read from lean families and drive the engine directly.
 
 | Family | Fields | Consumer |
-|--------|--------|----------|
+| --- | --- | --- |
 | Event Risk Light | 7 | event_risk gate, dashboard |
 | Session Context Light | 4 required + 1 optional | session gate, dashboard |
 | OB Context Light | 5 | OB gate, dashboard |
@@ -40,41 +41,50 @@ These fields are read from lean families and drive the engine directly.
 | **Total** | **32** | |
 
 ### BUS Backward Compat (broad fields, Dashboard only)
+
 All BUS PackE/F/G fields, resolvers, and plot calls **removed in Phase B (AP6 v5.5b)**.
 Dashboard reads only PackA-D + LeanPackA/B.
 
-### Dead Inputs (declared, never consumed)
-These `input.bool` variables are defined but never referenced by any gate or plot.
-Safe to remove — saves ~10 input slots.
+### Phase C C1: Declaration-Only Visual Input Cleanup (11 inputs)
 
-| Input | Line | Default |
-|-------|------|---------|
-| `show_mtf_trend` | 3331 | true |
-| `show_risk_levels` | 3359 | true |
-| `show_reclaim_markers` | 3653 | true |
-| `show_long_confirmation_markers` | 3654 | true |
-| `show_long_background` | 3657 | true |
-| `show_accel_debug` | 3755 | false |
-| `show_sd_debug` | 3771 | false |
-| `show_vol_regime_debug` | 3793 | false |
-| `show_stretch_overlay` | 3807 | true |
-| `show_lower_extreme_bg` | 3809 | false |
+This cleanup batch has been executed in `SMC_Core_Engine.pine`. These inputs
+were removed because they were declared but never consumed by any gate, plot,
+dashboard, or alert path in the split core.
+
+| Removed input | Former line | Former default |
+| --- | --- | --- |
+| `show_mtf_trend` | 3184 | true |
+| `show_risk_levels` | 3212 | true |
+| `show_reclaim_markers` | 3404 | true |
+| `show_long_confirmation_markers` | 3405 | true |
+| `show_long_background` | 3408 | true |
+| `color_long_bars` | 3409 | false |
+| `show_accel_debug` | 3506 | false |
+| `show_sd_debug` | 3522 | false |
+| `show_vol_regime_debug` | 3544 | false |
+| `show_stretch_overlay` | 3558 | true |
+| `show_lower_extreme_bg` | 3560 | false |
+
+Audit coverage now asserts these names remain absent from the split core.
 
 ---
 
 ## 3. Removal Roadmap
 
 ### Phase B: BUS compat fields (33 fields, 3 plot slots)
+
 **Status**: ✅ DONE (AP6 v5.5b)  
 **Removed**: 33 field declarations, 12 resolver functions, 3 plot calls, ~265 lines total  
 **Plot budget**: 32 / 64
 
-### Phase C: Dead inputs cleanup (10 inputs)
-**Prerequisite**: None — all verified dead  
-**Effort**: Low  
-**Runtime savings**: 10 input declarations (~10 lines)
+### Phase C C1: Declaration-only visual input cleanup (11 inputs)
+
+**Status**: ✅ DONE  
+**Removed**: 11 unused input declarations (~11 lines)  
+**Guard**: `tests/test_smc_core_engine_phase_c_audit.py` asserts the removed names stay absent
 
 ### Phase D: Old broad event risk fields
+
 **Prerequisite**: BUS EventRiskRow uses lean-only  
 **Effort**: Low  
 **Fields**: `lib_event_cooldown`, remaining broad event risk references  

@@ -1025,10 +1025,10 @@ class TestV55bContractSync:
             assert any([ob.get("OB_FRESH"), fvg.get("FVG_FRESH"), ssl.get("STRUCTURE_FRESH")])
 
     def test_runtime_budget_doc_exists(self):
-        """Runtime budget document must exist and list dead inputs."""
+        """Runtime budget document must exist and record the executed C1 cleanup."""
         doc = (ROOT / "docs/RUNTIME_BUDGET.md").read_text()
-        assert "Dead Inputs" in doc
-        assert "show_mtf_trend" in doc, "Dead input inventory must include show_mtf_trend"
+        assert "Phase C C1" in doc
+        assert "show_mtf_trend" in doc, "C1 removal inventory must include show_mtf_trend"
         assert "Phase B" in doc, "Removal roadmap must include Phase B"
 
     def test_artifact_strategy_two_classes(self):

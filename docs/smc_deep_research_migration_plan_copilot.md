@@ -1,9 +1,14 @@
-# SMC-Migrationsplan — Rest-Deltas nach AP1-AP6-Prep (Stand 2026-04-02)
+# SMC-Migrationsplan — Rest-Deltas nach der v5.5b-Umsetzungswelle
+
+**Status**: Supporting planning note  
+**Date**: 2026-04-02  
+**Canonical references**: [v5_5b_architecture.md](v5_5b_architecture.md), [v5_5_lean_contract.md](v5_5_lean_contract.md), [MEASUREMENT_LANE.md](MEASUREMENT_LANE.md), [PHASE_C_ANALYSIS.md](PHASE_C_ANALYSIS.md)
 
 ## Ziel dieses Dokuments
 
-Dieses Dokument beschreibt nur noch die **real verbleibenden** Deltas zwischen
-dem aktuellen Repo-Stand und `docs/deep-research-report.md`.
+Dieses Dokument ist **keine** kanonische Architekturquelle. Es beschreibt nur
+noch die **real verbleibenden** Deltas zwischen dem aktuellen Repo-Stand und
+`docs/deep-research-report.md`.
 
 Die früheren R1-R6-Arbeitspakete sind nicht mehr offen. Sie wurden in der
 aktuellen Repo-Welle bereits umgesetzt und gehören jetzt in die
@@ -11,9 +16,9 @@ Regression-/Betriebsphase, nicht mehr in die aktive Migrationsphase.
 
 Relevante Referenzen:
 
-1. `docs/deep-research-report.md`
-2. `docs/MEASUREMENT_LANE.md`
-3. `docs/PHASE_C_ANALYSIS.md`
+1. [deep-research-report.md](deep-research-report.md)
+2. [MEASUREMENT_LANE.md](MEASUREMENT_LANE.md)
+3. [PHASE_C_ANALYSIS.md](PHASE_C_ANALYSIS.md)
 4. `smc_integration/service.py`
 5. `smc_integration/measurement_evidence.py`
 6. `scripts/run_smc_measurement_benchmark.py`
@@ -37,6 +42,7 @@ Die folgenden Punkte gelten auf Basis des aktuellen Repo-Stands als geschlossen:
 9. **Lean-Namenskanon**: Generator, Artefakte, Pine und Contract-Tests sind auf den kanonischen Feldnamen ausgerichtet.
 10. **Ticksize-/Session-aware IDs**: Python-ID-Pfad ist end-to-end gehärtet.
 11. **Service-Bundle-Sichtbarkeit**: Bias, Vol-Regime und Measurement sind im Bundle sichtbar und kompakt zusammengefasst.
+12. **Phase C C1**: deklarationslose Visual-/Debug-Inputs des Split-Cores sind entfernt und per Audit-Test abgesichert.
 
 Diese Themen sollten nicht mehr als offene Migration neu gestartet werden.
 
@@ -47,7 +53,7 @@ Diese Themen sollten nicht mehr als offene Migration neu gestartet werden.
 Nach dem aktuellen Stand bleiben nur noch wenige, klar begrenzte Rest-Deltas:
 
 1. **Phase C als nicht-behaviourale Pine-Bereinigung**
-   Fokus: declaration-only Inputs, Debug-/Display-Helfer, keine Gate- oder Contract-Arbeit mehr.
+   Fokus: verbleibende Debug-/Display-Helfer und klare Nicht-Anfassen-Grenzen, keine Gate- oder Contract-Arbeit mehr.
 
 2. **Legacy-Parallelpfad `SMC++.pine` explizit einordnen**
    Die Regressionen für `SMC++.pine` laufen weiterhin separat. Es braucht eine klare Entscheidung, ob dieser Pfad aktiv gepflegt, eingefroren oder mittelfristig abgelöst wird.
@@ -61,9 +67,9 @@ Nach dem aktuellen Stand bleiben nur noch wenige, klar begrenzte Rest-Deltas:
 
 Die frühere Reihenfolge R1-R6 ist obsolet. Für den verbleibenden Delta-Rest ist die sinnvollste Reihenfolge jetzt:
 
-1. **C1** – Declaration-only Input-Audit aktualisieren und erst dann entfernen.
-2. **C2** – Debug-/Display-Helfer in getrennten, rein visuellen Commits auslagern.
-3. **C3** – `SMC++.pine` Governance festlegen (pflegen, einfrieren oder deprecaten).
+1. **C2** – Debug-/Display-Helfer in getrennten, rein visuellen Commits auslagern.
+2. **C3** – `SMC++.pine` Governance festlegen (pflegen, einfrieren oder deprecaten).
+3. **Service-Konsumenten** – neue Bundle-Zusammenfassungen opportunistisch übernehmen.
 
 Kurz gesagt: **erst bereinigen, dann entkoppeln, dann den Legacy-Pfad entscheiden**.
 
@@ -74,7 +80,7 @@ Kurz gesagt: **erst bereinigen, dann entkoppeln, dann den Legacy-Pfad entscheide
 Der verbleibende Delta-Rest gilt als geschlossen, wenn folgende Bedingungen gleichzeitig erfüllt sind:
 
 1. Phase C ist auf aktuellem Repo-Stand rebased und nicht mehr auf veraltete Vor-AP1/AP5-Annahmen gestützt.
-2. Declaration-only Input-Kandidaten sind frisch auditiert und entweder entfernt oder bewusst behalten.
+2. Die C1-Entfernung bleibt per Audit-Test stabil abgesichert.
 3. Display-/Debug-Helfer sind getrennt, ohne Runtime-/Lifecycle-Logik zu verschieben.
 4. `SMC++.pine` hat einen expliziten Status statt impliziter Parallelpflege.
 
@@ -84,8 +90,8 @@ Der verbleibende Delta-Rest gilt als geschlossen, wenn folgende Bedingungen glei
 
 Wenn Copilot für den verbleibenden Delta-Rest eingesetzt wird, sollte es **nicht** mehr die alten R1-R6-Prompts ausführen. Stattdessen sollte es sich auf diese drei Fragen konzentrieren:
 
-1. Welche Phase-C-Kandidaten sind auf dem heutigen Stand wirklich declaration-only?
-2. Welche Pine-Helfer sind nachweislich nur Display-/Debug-Code?
-3. Welchen Status soll `SMC++.pine` im Repo künftig haben?
+1. Welche Pine-Helfer sind nachweislich nur Display-/Debug-Code?
+2. Welchen Status soll `SMC++.pine` im Repo künftig haben?
+3. Welche Downstream-Konsumenten sollten `measurement_summary` und `market_context` als Erstes übernehmen?
 
 Damit ist der Migrationsplan wieder auf den tatsächlichen Repo-Iststand zurückgesetzt und vermeidet erneute Rework-Schleifen über bereits geschlossene Themen.

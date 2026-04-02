@@ -129,15 +129,15 @@ through adapters for consistency verification.
 | `request.security` | 5 (limit: 40) |
 | `request.security_lower_tf` | 2 |
 
-**Dead inputs**: no longer treated as auto-removal work. The current
-Phase C candidate queue is maintained separately and must be re-audited
-before deletion.
+**Phase C C1**: declaration-only visual inputs were removed from the split
+core. Remaining Phase C scope is limited to display/debug helper extraction
+and legacy-path governance.
 
 **Removal Roadmap**:
 
 - Phase A: Legacy field cleanup — ✅ done (~173 lines)
 - Phase B: BUS compat fields — ✅ done (~265 lines, 33 fields, 12 resolvers, 3 plots)
-- Phase C: Rebased to non-behavioural cleanup only; current candidate inventory and guard live in [PHASE_C_ANALYSIS.md](PHASE_C_ANALYSIS.md) and `tests/test_smc_core_engine_phase_c_audit.py`
+- Phase C C1: Declaration-only visual inputs removed; remaining helper/governance scope and the follow-up guard live in [PHASE_C_ANALYSIS.md](PHASE_C_ANALYSIS.md) and `tests/test_smc_core_engine_phase_c_audit.py`
 - Phase D: Old broad event risk fields — pending (requires BUS EventRiskRow lean-only)
 
 **Details**: [RUNTIME_BUDGET.md](RUNTIME_BUDGET.md), [LEGACY_REMOVAL_PLAN.md](LEGACY_REMOVAL_PLAN.md), [PHASE_C_ANALYSIS.md](PHASE_C_ANALYSIS.md)
@@ -242,5 +242,7 @@ annotations.
 | [RUNTIME_BUDGET.md](RUNTIME_BUDGET.md) | Pine runtime metrics | Active |
 | [LEGACY_REMOVAL_PLAN.md](LEGACY_REMOVAL_PLAN.md) | Removal phases | Active |
 | [MEASUREMENT_LANE.md](MEASUREMENT_LANE.md) | Benchmark & scoring documentation | Active (v5.5b) |
+| [PHASE_C_ANALYSIS.md](PHASE_C_ANALYSIS.md) | Fresh Phase C cleanup inventory | Supporting |
+| [smc_deep_research_migration_plan_copilot.md](smc_deep_research_migration_plan_copilot.md) | Remaining post-v5.5b migration / governance deltas | Supporting |
 | [SMC_Unified_Lean_Architecture_v5_5a_DE_EN.md](SMC_Unified_Lean_Architecture_v5_5a_DE_EN.md) | Historical architecture (DE/EN) | Supporting |
 | [v5_5a_lean_contract_refinement_en.md](v5_5a_lean_contract_refinement_en.md) | Contract refinement notes | Supporting |
