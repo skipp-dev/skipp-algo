@@ -127,15 +127,17 @@ through adapters for consistency verification.
 | `request.security` | 5 (limit: 40) |
 | `request.security_lower_tf` | 2 |
 
-**Dead inputs**: 10 identified, safe to remove (Phase C).
+**Dead inputs**: no longer treated as auto-removal work. The current
+Phase C candidate queue is maintained separately and must be re-audited
+before deletion.
 
 **Removal Roadmap**:
 - Phase A: Legacy field cleanup — ✅ done (~173 lines)
 - Phase B: BUS compat fields — ✅ done (~265 lines, 33 fields, 12 resolvers, 3 plots)
-- Phase C: Dead inputs — pending (10 inputs, low effort)
+- Phase C: Rebased to non-behavioural cleanup only; current candidate inventory and guard live in [PHASE_C_ANALYSIS.md](PHASE_C_ANALYSIS.md) and `tests/test_smc_core_engine_phase_c_audit.py`
 - Phase D: Old broad event risk fields — pending (requires BUS EventRiskRow lean-only)
 
-**Details**: [RUNTIME_BUDGET.md](RUNTIME_BUDGET.md), [LEGACY_REMOVAL_PLAN.md](LEGACY_REMOVAL_PLAN.md)
+**Details**: [RUNTIME_BUDGET.md](RUNTIME_BUDGET.md), [LEGACY_REMOVAL_PLAN.md](LEGACY_REMOVAL_PLAN.md), [PHASE_C_ANALYSIS.md](PHASE_C_ANALYSIS.md)
 
 ---
 
