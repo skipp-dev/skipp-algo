@@ -71,18 +71,83 @@ Post-removal guards:
 
 ### C2 — Extract Display-/Debug-Only Helpers
 
-These remain good lightweighting candidates because they are formatting or display
-helpers rather than trade-state owners:
+C2 is now active and one visual-only slice is already landed in the split-core.
+The executed helper extractions in that slice are:
 
-1. `resolve_long_source_text`
-2. `compose_zone_summary_text`
-3. `compose_enabled_debug_modules_text`
-4. `resolve_long_ready_blocker_text`
-5. `resolve_long_strict_blocker_text`
-6. `compose_long_engine_debug_label_text`
-7. `compose_long_engine_event_log`
-8. `compose_long_setup_text`
-9. `resolve_long_visual_text`
+1. `compose_long_alert_text_suffixes`
+2. `resolve_long_debug_event_values`
+3. `resolve_event_risk_state`
+4. `compose_health_badge_text`
+5. `resolve_health_badge_color`
+6. `compose_long_debug_primary_line`
+7. `compose_long_debug_full_summary_text`
+8. `compose_long_debug_label_header_text`
+9. `compose_long_debug_event_header_text`
+10. `compose_zone_range_text`
+11. `compose_combined_zone_summary_text`
+12. `resolve_long_debug_mode_suffix`
+13. `append_debug_module_text`
+14. `compose_long_debug_module_label`
+15. `resolve_long_setup_state_label`
+16. `long_setup_state_has_source_display`
+17. `compose_long_setup_state_text`
+18. `resolve_long_visual_state_label`
+19. `resolve_long_zone_source_label`
+20. `resolve_long_anchor_source_label`
+21. `compose_passed_status_text`
+22. `compose_eligible_status_text`
+23. `compose_awaiting_status_text`
+24. `compose_blocked_status_text`
+25. `compose_need_ready_status_text`
+26. `compose_long_source_invalidated_text`
+27. `compose_long_backing_zone_lost_text`
+28. `compose_long_setup_expired_text`
+29. `compose_long_confirm_expired_text`
+30. `resolve_long_environment_focus_text`
+31. `compose_long_debug_last_invalid_text`
+32. `compose_long_debug_reason_text`
+33. `resolve_long_upgrade_edge_text`
+34. `compose_long_upgrade_reason_text`
+35. `resolve_long_confirm_freshness_text`
+36. `resolve_long_armed_freshness_text`
+37. `resolve_long_source_state_text`
+38. `resolve_long_zone_quality_text`
+39. `resolve_long_overhead_alert_text`
+40. `compose_long_score_detail_suffix`
+41. `resolve_long_strict_alert_suffix`
+42. `compose_long_environment_alert_suffix`
+43. `compose_long_micro_alert_suffix`
+44. `compose_long_debug_pipe_upgrade_text`
+45. `compose_long_debug_pipe_reason_text`
+46. `compose_long_debug_newline_upgrade_text`
+47. `compose_long_debug_newline_last_invalid_text`
+48. `compose_long_debug_label_full_mode_text`
+49. `compose_long_debug_event_state_text`
+50. `append_enabled_debug_module_text`
+51. `compose_ob_zone_summary_text`
+52. `compose_fvg_zone_summary_text`
+53. `resolve_long_source_fallback_text`
+54. `compose_long_source_transition_text`
+55. `resolve_long_primary_source_text`
+56. `resolve_long_source_display_text`
+57. `resolve_long_setup_state_code`
+58. `resolve_long_visual_state_code`
+59. `resolve_long_zone_summary_display_text`
+60. `resolve_enabled_debug_modules_display_text`
+61. `resolve_long_setup_display_text`
+62. `resolve_long_source_label_text`
+63. `resolve_long_strict_blocker_display_text`
+64. `resolve_long_ready_blocker_display_text`
+65. `resolve_long_engine_debug_label_display_text`
+66. `resolve_long_engine_event_log_display_text`
+
+Those changes stay covered by split-core structural assertions. These remaining
+pre-existing helpers are still good lightweighting candidates because they are
+formatting or display helpers rather than trade-state owners:
+
+There are no further meaningful C2 extraction candidates left in this helper
+block. The bookkeeping alias `resolve_long_visual_text` was retired, and the
+single call site now uses `resolve_long_visual_state_label` directly.
 
 Guardrails for C2:
 
@@ -122,10 +187,10 @@ translate runtime state into text or compact decoder semantics:
 
 | Helper | Current Line | Recommendation |
 | --- | --- | --- |
-| `resolve_long_source_text` | 1425 | Safe decoder/helper extraction candidate |
-| `compose_zone_summary_text` | 1550 | Safe display-summary extraction candidate |
-| `compose_long_setup_text` | 1881 | Safe decoder/helper extraction candidate if inputs stay explicit |
-| `resolve_long_visual_text` | 1906 | Safe decoder/helper extraction candidate |
+| `resolve_long_source_text` | 1425 | Internal source-label mapping localized in C2; outer helper remains safe decoder surface |
+| `compose_zone_summary_text` | 1550 | Internal range formatting localized in C2; outer helper remains safe display-summary surface |
+| `compose_long_setup_text` | 1881 | Internal state-label composition localized in C2; outer helper remains safe decoder surface |
+| `resolve_long_visual_text` (retired) | n/a | Redundant alias removed in bookkeeping cleanup; call site now uses `resolve_long_visual_state_label` directly |
 
 ### Debug / Display Only — Lowest-Risk Cleanup Lane
 
@@ -135,9 +200,10 @@ transitions or decision thresholds:
 | Kind | Current Anchors | Recommendation |
 | --- | --- | --- |
 | Declaration-only visual inputs | `show_mtf_trend`, `show_risk_levels`, `show_reclaim_markers`, `show_long_confirmation_markers`, `show_long_background`, `color_long_bars`, `show_accel_debug`, `show_sd_debug`, `show_vol_regime_debug`, `show_stretch_overlay`, `show_lower_extreme_bg` | Removed in C1; keep absent |
-| Debug module summary | `compose_enabled_debug_modules_text` | Extract or localize with no logic change |
-| Ready / strict blocker strings | `resolve_long_ready_blocker_text`, `resolve_long_strict_blocker_text` | Keep semantics fixed; extraction is fine if inputs remain plain values |
-| Debug label / event-log composition | `compose_long_engine_debug_label_text`, `compose_long_engine_event_log` | Extract in a visual-only commit once C1 is settled |
+| Alert/debug/badge composition helpers | `compose_long_alert_text_suffixes`, `resolve_long_debug_event_values`, `resolve_event_risk_state`, `compose_health_badge_text`, `resolve_health_badge_color`, `compose_long_debug_primary_line`, `compose_long_debug_full_summary_text`, `compose_long_debug_label_header_text`, `compose_long_debug_event_header_text`, `resolve_long_debug_mode_suffix`, `append_debug_module_text`, `append_enabled_debug_module_text`, `compose_long_debug_module_label`, `resolve_long_setup_state_label`, `long_setup_state_has_source_display`, `compose_long_setup_state_text`, `resolve_long_setup_state_code`, `resolve_long_visual_state_code`, `resolve_long_visual_state_label`, `resolve_long_zone_source_label`, `resolve_long_anchor_source_label`, `resolve_long_primary_source_text`, `resolve_long_source_fallback_text`, `compose_long_source_invalidated_text`, `compose_long_backing_zone_lost_text`, `compose_long_setup_expired_text`, `compose_long_confirm_expired_text`, `resolve_long_environment_focus_text`, `compose_long_debug_last_invalid_text`, `compose_long_debug_reason_text`, `resolve_long_upgrade_edge_text`, `compose_long_upgrade_reason_text`, `resolve_long_confirm_freshness_text`, `resolve_long_armed_freshness_text`, `resolve_long_source_state_text`, `resolve_long_zone_quality_text`, `resolve_long_overhead_alert_text`, `compose_long_score_detail_suffix`, `resolve_long_strict_alert_suffix`, `compose_long_environment_alert_suffix`, `compose_long_micro_alert_suffix`, `compose_long_debug_pipe_upgrade_text`, `compose_long_debug_pipe_reason_text`, `compose_long_debug_newline_upgrade_text`, `compose_long_debug_newline_last_invalid_text`, `compose_long_debug_label_full_mode_text`, `compose_long_debug_event_state_text`, `compose_ob_zone_summary_text`, `compose_fvg_zone_summary_text`, `compose_long_source_transition_text`, `resolve_long_source_display_text`, `resolve_long_zone_summary_display_text` | Executed in C2 visual-only slice; keep pinned by split-core assertions |
+| Debug module summary | `compose_enabled_debug_modules_text` | Internal module-label composition localized in C2; outer helper remains visual-only |
+| Ready / strict blocker strings | `resolve_long_ready_blocker_text`, `resolve_long_strict_blocker_text` | Internal status phrase composition localized in C2; keep gate priority semantics fixed |
+| Debug label / event-log composition | `compose_long_engine_debug_label_text`, `compose_long_engine_event_log` | Keep visual-only; further extraction is fine if it reduces coupling without moving runtime state |
 
 ### Explicit Do-Not-Touch Set
 

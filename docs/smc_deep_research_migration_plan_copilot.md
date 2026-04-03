@@ -43,6 +43,7 @@ Die folgenden Punkte gelten auf Basis des aktuellen Repo-Stands als geschlossen:
 10. **Ticksize-/Session-aware IDs**: Python-ID-Pfad ist end-to-end gehärtet.
 11. **Service-Bundle-Sichtbarkeit**: Bias, Vol-Regime und Measurement sind im Bundle sichtbar und kompakt zusammengefasst.
 12. **Phase C C1**: deklarationslose Visual-/Debug-Inputs des Split-Cores sind entfernt und per Audit-Test abgesichert.
+13. **Phase C C2 erster Slice**: Alert-Suffixe, Debug-Event-Payload-Auflösung, Event-Risk-State-Mapping, Mini-Health-Badge-Formatierung, Debug-Summary-/Header-/Event-Prefix-Komposition sowie interne Alert-Score-/Strict-/Environment-/Micro-Suffix-, Freshness-, Zonen-/Zone-Branch-/Zone-Summary-Display-, Debug-Modul-/Debug-Modul-Display-, Source-/Source-Text-/Primary-Source-/Source-Display-/Source-Transition-, Source-State-, Blocker-Status-/Ready-Blocker-Display-/Strict-Blocker-Display-, Invalidation-Reason-, Last-Invalid-Reason-, Upgrade-Reason-, Pipe-/Newline-Debug-Segment-, Engine-Debug-Label-Display-/Engine-Event-Log-Display-, enable-gesteuerte Debug-Modul- sowie Setup-/Setup-Display-/Visual-State-Code- und Full-Mode-Debug-Label-/Event-State-Textbausteine und Setup-/Visual-State-Textbausteine samt Environment-Focus-Display sind in visuelle Helfer extrahiert und per Split-Core-Test fixiert; die triviale `resolve_long_visual_text`-Alias-Huelle ist zusaetzlich als reine Buchhaltungsbereinigung entfernt.
 
 Diese Themen sollten nicht mehr als offene Migration neu gestartet werden.
 
@@ -53,7 +54,7 @@ Diese Themen sollten nicht mehr als offene Migration neu gestartet werden.
 Nach dem aktuellen Stand bleiben nur noch wenige, klar begrenzte Rest-Deltas:
 
 1. **Phase C als nicht-behaviourale Pine-Bereinigung**
-   Fokus: verbleibende Debug-/Display-Helfer und klare Nicht-Anfassen-Grenzen, keine Gate- oder Contract-Arbeit mehr.
+   Fokus: verbleibender C2-Rest bei Debug-/Display-Helfern und klare Nicht-Anfassen-Grenzen, keine Gate- oder Contract-Arbeit mehr.
 
 2. **Legacy-Parallelpfad `SMC++.pine` explizit einordnen**
    Die Regressionen für `SMC++.pine` laufen weiterhin separat. Es braucht eine klare Entscheidung, ob dieser Pfad aktiv gepflegt, eingefroren oder mittelfristig abgelöst wird.
@@ -67,7 +68,7 @@ Nach dem aktuellen Stand bleiben nur noch wenige, klar begrenzte Rest-Deltas:
 
 Die frühere Reihenfolge R1-R6 ist obsolet. Für den verbleibenden Delta-Rest ist die sinnvollste Reihenfolge jetzt:
 
-1. **C2** – Debug-/Display-Helfer in getrennten, rein visuellen Commits auslagern.
+1. **C2-Rest** – verbleibende Debug-/Display-Helfer in getrennten, rein visuellen Commits auslagern.
 2. **C3** – `SMC++.pine` Governance festlegen (pflegen, einfrieren oder deprecaten).
 3. **Service-Konsumenten** – neue Bundle-Zusammenfassungen opportunistisch übernehmen.
 
