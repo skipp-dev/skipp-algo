@@ -196,6 +196,16 @@ The next executed slice continues with the remaining runtime-owned plan logic:
 4. The former local `compute_overhead_context()` main-body block is removed, making the runtime path more declarative and easier to guard with regression tests.
 5. Split-core and semantic-contract tests now pin this C6 plan/overhead/risk-plan owner boundary explicitly.
 
+### C7 - Execution Projection and BUS Publish Owners
+
+The next executed slice continues with the runtime-to-BUS ownership boundary:
+
+1. Ready-state projection now lives in a dedicated helper that owns building-state, ready-bar-gap, scoring-over-blocking projection, and the final Ready projection.
+2. Best/Strict execution-tier projection now lives in a dedicated helper instead of direct inline projection in the main lifecycle block.
+3. Ready/Strict blocker resolution and the Clean tier now live in dedicated projection helpers.
+4. Trigger, invalidation, stop, and target BUS publishing now route through a dedicated BUS-plan-level helper instead of plotting raw runtime values directly.
+5. Trigger and risk-plan row ownership in `ModulePackD` now encode execution-tier and plan-completeness state at the BUS boundary, and split/semantic contracts pin that boundary explicitly.
+
 ## 4. Fresh Inventory by Execution Surface
 
 ### Runtime Core Only — Stay Local

@@ -220,16 +220,93 @@ def test_risk_plan_contract_stays_explicit() -> None:
         assert snippet in body
 
 
+def test_ready_projection_contract_stays_explicit() -> None:
+    body = _extract_function_body(_read(CORE_PATH), "resolve_long_ready_projection_state")
+
+    for snippet in [
+        "if long_setup_armed and long_internal_structure_ok and not long_setup_confirmed",
+        "if not na(long_confirm_bar_index)",
+        "helper_ready_bar_gap_ok := current_bar_index > long_confirm_bar_index",
+        "if use_scoring_over_blocking",
+        "helper_scoring_accel_ready := true",
+        "helper_scoring_sd_ready := true",
+        "helper_scoring_vol_ready := true",
+        "helper_scoring_stretch_ready := true",
+        "helper_scoring_ddvi_ready := true",
+        "compute_long_ready_state",
+    ]:
+        assert snippet in body
+
+
+def test_entry_projection_contract_stays_explicit() -> None:
+    body = _extract_function_body(_read(CORE_PATH), "resolve_long_entry_projection_state")
+
+    for snippet in [
+        "compute_long_entry_best_state",
+        "compute_long_entry_strict_state",
+    ]:
+        assert snippet in body
+
+
+def test_execution_blocker_contract_stays_explicit() -> None:
+    body = _extract_function_body(_read(CORE_PATH), "resolve_long_execution_blocker_state")
+
+    for snippet in [
+        "resolve_long_ready_blocker_text",
+        "resolve_long_strict_blocker_text",
+    ]:
+        assert snippet in body
+
+
+def test_bus_plan_levels_contract_stays_explicit() -> None:
+    body = _extract_function_body(_read(CORE_PATH), "resolve_long_bus_plan_levels")
+
+    for snippet in [
+        "float helper_bus_trigger_level = na",
+        "float helper_bus_invalidation_level = na",
+        "float helper_bus_stop_level = na",
+        "if long_plan_active",
+        "helper_bus_trigger_level := long_trigger",
+        "helper_bus_invalidation_level := long_invalidation_level",
+        "helper_bus_stop_level := long_stop_level",
+        "helper_bus_target_1 := long_target_1",
+        "helper_bus_target_2 := long_target_2",
+    ]:
+        assert snippet in body
+
+
+def test_bus_trigger_and_risk_rows_stay_execution_owned() -> None:
+    trigger_body = _extract_function_body(_read(CORE_PATH), "resolve_bus_long_triggers_row")
+    risk_body = _extract_function_body(_read(CORE_PATH), "resolve_bus_risk_plan_row")
+
+    for snippet in [
+        "else if na(bus_trigger_level) or na(bus_invalidation_level)",
+        "else if long_entry_strict_state",
+        "else if long_entry_best_state",
+        "else if long_ready_state",
+        "else if long_setup_confirmed",
+    ]:
+        assert snippet in trigger_body
+
+    for snippet in [
+        "else if na(bus_trigger_level) or na(bus_invalidation_level)",
+        "else if not na(bus_stop_level) and not na(bus_target_1) and not na(bus_target_2)",
+    ]:
+        assert snippet in risk_body
+
+
 def test_bus_surface_stays_runtime_owned() -> None:
     source = _read(CORE_PATH)
 
     assert "plot(long_visual_state, 'BUS StateCode', display = display.none)" in source
     assert "plot(long_validation_source, 'BUS SourceKind', display = display.none)" in source
     assert "plot(lib_sq_score, 'BUS QualityScore', display = display.none)" in source
-    assert "resolve_bus_long_triggers_row(long_plan_active)" in source
-    assert "resolve_bus_risk_plan_row(long_plan_active)" in source
+    assert "resolve_bus_long_triggers_row(long_plan_active, long_setup_confirmed, long_ready_state, long_entry_best_state, long_entry_strict_state, bus_trigger_level, bus_invalidation_level)" in source
+    assert "resolve_bus_risk_plan_row(long_plan_active, bus_trigger_level, bus_invalidation_level, bus_stop_level, bus_target_1, bus_target_2)" in source
     assert "resolve_bus_ready_gate_row(long_ready_state" in source
     assert "resolve_bus_strict_gate_row(long_entry_strict_state, long_ready_state, strict_signal_quality_gate_ok" in source
+    assert "plot(bus_trigger_level, 'BUS Trigger', display = display.none)" in source
+    assert "plot(bus_stop_level, 'BUS StopLevel', display = display.none)" in source
 
 
 def test_dynamic_alert_gate_contract_stays_explicit_per_lifecycle_edge() -> None:

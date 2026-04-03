@@ -211,14 +211,45 @@ Overhead und Risk-Plan-Projektion:
 
 ---
 
-## 8. Copilot-Einsatz ab Jetzt
+## 8. C7-Paket auf aktuellem Repo-Stand
+
+Das naechste ausgefuehrte Paket zieht den naechsten Runtime-/BUS-Schnitt im
+aktiven Core:
+
+1. **Ready-/Best-/Strict-Projektion ist als eigene Runtime-Grenze gebuendelt**
+   `resolve_long_ready_projection_state(...)` und
+   `resolve_long_entry_projection_state(...)` besitzen jetzt die Projektion von
+   Lifecycle- und Gate-State in die aktiven Execution-Tiers.
+
+2. **Blocker- und Clean-Tier-Ableitung leben in eigenen Projection-Ownern**
+   `resolve_long_execution_blocker_state(...)` und
+   `resolve_long_clean_tier(...)` halten Ready-/Strict-Blocker sowie das Clean-
+   Tier aus dem Main Body heraus.
+
+3. **Die BUS-Plan-Publish-Grenze ist jetzt explizit**
+   `resolve_long_bus_plan_levels(...)` besitzt die Runtime-zu-BUS-Uebergabe fuer
+   Trigger, Invalidation, Stop und Targets, statt rohe Runtime-Werte direkt zu
+   plotten.
+
+4. **Trigger- und Risk-Plan-Row-Ownership sitzt in `ModulePackD`**
+   `resolve_bus_long_triggers_row(...)`, `resolve_bus_risk_plan_row(...)` und
+   die erweiterte `resolve_bus_module_pack_d(...)`-Signatur codieren jetzt Tier-
+   und Vollstaendigkeitszustand an der BUS-Grenze.
+
+5. **Die aktive Regression pinnt den C7-Schnitt explizit**
+   Split-Core- und Semantic-Contracts sichern jetzt die neue Execution-
+   Projektion und die BUS-Publish-Boundary gegen Rueckfall in Inline-Logik ab.
+
+---
+
+## 9. Copilot-Einsatz ab Jetzt
 
 Wenn Copilot fuer den verbleibenden Rest eingesetzt wird, sollte es **nicht**
 mehr die alten R1-R6-Prompts oder die fruehen C3-Surface-Schleifen ausfuehren.
 Stattdessen sollte es sich auf diese fuenf Fragen konzentrieren:
 
 1. Welche Ready-/Strict-Reason-Codes oder Dashboard-Decodes des aktiven Cores sind noch nicht zentral genug verankert?
-2. Welche Plan-, Overhead- oder Folgeprojektionen leben noch inline statt in eigenen Runtime-Ownern?
+2. Welche Execution-Projektionen oder BUS-Publish-Grenzen leben noch inline statt in eigenen Runtime-Ownern?
 3. Welche BUS-Packs koennen weiter von Runtime-Logik und Plot-Publikation entkoppelt werden?
 4. Wo droht noch Drift zwischen `scripts/smc_bus_manifest.py`, den Consumern und dem TradingView-Runbook?
 5. Welche sichtbaren Operator-Controls gehoeren wirklich auf die aktive Surface, und welche muessen hinter `long_user_preset` oder `compact_mode` verschwinden?
