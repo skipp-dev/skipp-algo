@@ -28,9 +28,9 @@ STRATEGY_CHANNELS = [
     'BUS Ready',
     'BUS EntryBest',
     'BUS EntryStrict',
+    'BUS QualityScore',
     'BUS Trigger',
     'BUS Invalidation',
-    'BUS QualityScore',
 ]
 
 
@@ -280,14 +280,14 @@ def test_original_10_core_channels_remain_present_in_order() -> None:
     assert 'plot(long_ready_state ? 1.0 : 0.0, \'BUS Ready\'' in source
     assert 'plot(long_entry_best_state ? 1.0 : 0.0, \'BUS EntryBest\'' in source
     assert 'plot(long_entry_strict_state ? 1.0 : 0.0, \'BUS EntryStrict\'' in source
-    assert 'plot(long_state.trigger, \'BUS Trigger\'' in source
-    assert 'plot(long_state.invalidation_level, \'BUS Invalidation\'' in source
+    assert 'plot(bus_trigger_level, \'BUS Trigger\'' in source
+    assert 'plot(bus_invalidation_level, \'BUS Invalidation\'' in source
     assert 'plot(lib_sq_score, \'BUS QualityScore\'' in source
 
 
 def test_strategy_contract_channels_remain_unchanged() -> None:
     strategy_source = _read(STRATEGY_PATH)
-    bound_labels = re.findall(r'input\.source\(close, "([^"]+)"\)', strategy_source)
+    bound_labels = re.findall(r'input\.source\(close,\s*"([^"]+)"', strategy_source)
 
     assert bound_labels == STRATEGY_CHANNELS
     assert 'bool risk_levels_ok = not na(src_trigger) and not na(src_invalidation) and src_trigger > src_invalidation' in strategy_source
@@ -412,7 +412,7 @@ def test_quality_bounds_pack_remains_logically_consistent_with_quality_score() -
     core_source = _read(CORE_PATH)
     dashboard_source = _read(DASHBOARD_PATH)
 
-    assert 'plot(25.0 * 1000.0 + 100.0, \'BUS QualityBoundsPack\'' in core_source
+    assert "plot(resolve_bus_quality_bounds_pack(25, 100), 'BUS QualityBoundsPack'" in core_source
     assert 'quality_bounds_text(float score_value, float bounds_pack) =>' in dashboard_source
     assert 'int min_score = int(math.floor(packed / 1000))' in dashboard_source
     assert 'int max_score = packed % 1000' in dashboard_source
@@ -433,9 +433,9 @@ def test_dashboard_and_strategy_contracts_share_same_strategy_relevant_channels(
         assert f"'{label}'" in core_source
         assert f'"{label}"' in strategy_source
 
-    assert 'src_state_code = input.source(close, "BUS StateCode")' in dashboard_source
+    assert 'src_state_code = input.source(close, "BUS StateCode"' in dashboard_source
     assert 'src_state_code' not in strategy_source
-    assert 'src_hard_gates_pack_a = input.source(close, "BUS HardGatesPackA")' in dashboard_source
+    assert 'src_hard_gates_pack_a = input.source(close, "BUS HardGatesPackA"' in dashboard_source
     assert 'HardGatesPackA' not in strategy_source
-    assert 'src_engine_pack = input.source(close, "BUS EnginePack")' in dashboard_source
+    assert 'src_engine_pack = input.source(close, "BUS EnginePack"' in dashboard_source
     assert 'EnginePack' not in strategy_source

@@ -30,8 +30,18 @@ Repo-Regressionen abgesichert.
 
 1. [../scripts/tv_publish_micro_library.ts](../scripts/tv_publish_micro_library.ts)
 2. [../scripts/tv_preflight.ts](../scripts/tv_preflight.ts)
-3. [../automation/tradingview/lib/tv_shared.ts](../automation/tradingview/lib/tv_shared.ts)
-4. [../scripts/smc_bus_manifest.py](../scripts/smc_bus_manifest.py)
+3. [../scripts/create_tradingview_storage_state.ts](../scripts/create_tradingview_storage_state.ts)
+4. [tradingview-auth-modes.md](tradingview-auth-modes.md)
+5. [../scripts/smc_bus_manifest.py](../scripts/smc_bus_manifest.py)
+
+## Lokaler Prereq-Check
+
+Workspace-Refresh: 2026-04-03
+
+1. Die Entry-Skripte `scripts/tv_preflight.ts`, `scripts/tv_publish_micro_library.ts` und `scripts/create_tradingview_storage_state.ts` sind lokal vorhanden.
+2. Die von diesen Skripten importierte gemeinsame TradingView-Automationsschicht unter `automation/tradingview/lib/...` ist in diesem Checkout nicht vorhanden.
+3. Weder `automation/tradingview/reports` noch ein wiederverwendbares Auth-Artefakt wie `automation/tradingview/auth/storage-state.json` sind lokal vorhanden.
+4. Folge: Ein neuer Live-Preflight ist aus diesem Arbeitsbaum derzeit nicht reproduzierbar. Dieses Runbook bleibt der manuelle externe Pfad, bis die Automationsprereqs wiederhergestellt sind.
 
 ## Empfohlene Reihenfolge In TradingView
 

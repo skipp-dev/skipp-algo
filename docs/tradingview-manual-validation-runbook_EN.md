@@ -26,7 +26,17 @@ The goal is a clear pass/fail decision for the current TradingView contract stat
 
 1. [../scripts/tv_publish_micro_library.ts](../scripts/tv_publish_micro_library.ts)
 2. [../scripts/tv_preflight.ts](../scripts/tv_preflight.ts)
-3. [../automation/tradingview/lib/tv_shared.ts](../automation/tradingview/lib/tv_shared.ts)
+3. [../scripts/create_tradingview_storage_state.ts](../scripts/create_tradingview_storage_state.ts)
+4. [tradingview-auth-modes.md](tradingview-auth-modes.md)
+
+## Local Prerequisite Check
+
+Workspace refresh: 2026-04-03
+
+1. The entry scripts `scripts/tv_preflight.ts`, `scripts/tv_publish_micro_library.ts`, and `scripts/create_tradingview_storage_state.ts` are present locally.
+2. The shared TradingView automation layer imported from `automation/tradingview/lib/...` is not present in this checkout.
+3. Neither `automation/tradingview/reports` nor a reusable auth artifact such as `automation/tradingview/auth/storage-state.json` is present locally.
+4. Result: a fresh live preflight run is not reproducible from this working tree. This runbook therefore remains the manual external path until the automation prerequisites are restored.
 
 ## Recommended Order In TradingView
 
@@ -49,7 +59,7 @@ The goal is a clear pass/fail decision for the current TradingView contract stat
 
 1. The script compiles without errors.
 2. No visible runtime errors remain in the chart overlay.
-3. The following 26 series are selectable as sources:
+3. The following 29 series are selectable as sources:
 
 - `BUS ZoneActive`
 - `BUS Armed`
@@ -66,6 +76,7 @@ The goal is a clear pass/fail decision for the current TradingView contract stat
 - `BUS MetaPack`
 - `BUS HardGatesPackA`
 - `BUS HardGatesPackB`
+- `BUS EventRiskRow`
 - `BUS QualityPackA`
 - `BUS QualityPackB`
 - `BUS QualityBoundsPack`
@@ -77,6 +88,8 @@ The goal is a clear pass/fail decision for the current TradingView contract stat
 - `BUS StopLevel`
 - `BUS Target1`
 - `BUS Target2`
+- `BUS LeanPackA`
+- `BUS LeanPackB`
 
 ### Producer Pass/Fail Criteria
 

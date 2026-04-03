@@ -302,6 +302,17 @@ def test_core_engine_tracks_c7_execution_and_bus_projection_owners() -> None:
     assert "plot(long_state.invalidation_level, 'BUS Invalidation', display = display.none)" not in source
 
 
+def test_core_engine_tracks_c8_event_edge_and_debug_owners() -> None:
+    source = _read_core_source()
+
+    assert 'resolve_long_ready_signal_state(bool long_ready_state, bool prior_bar_ready_state, int ready_state_rt_prev, bool ready_fired_this_bar, bool current_bar_is_new) =>' in source
+    assert 'emit_long_engine_debug_logs(bool show_long_engine_debug_eff, string long_engine_debug_mode_eff, bool long_source_upgrade_now, bool long_arm_signal, bool long_confirm_signal, bool long_ready_signal, bool long_invalidate_signal, bool long_state_armed, bool long_state_confirmed, bool long_ready_state, string long_setup_source_display, string long_debug_event_source_display, int long_state_backing_zone_touch_count, int long_debug_event_touch_count, float long_state_trigger, float long_debug_event_trigger, float long_state_invalidation_level, float long_debug_event_invalidation, string freshness_text, string source_state_text, string zone_quality_text, string long_environment_focus_display, string long_source_upgrade_reason, string long_last_invalid_source, string long_ready_blocker_text, string long_strict_blocker_text) =>' in source
+    assert '[long_ready_state_rt_prev, long_ready_fired_this_bar, long_ready_signal] = resolve_long_ready_signal_state(long_ready_state, long_ready_state[1], long_ready_state_rt_prev, long_ready_fired_this_bar, barstate.isnew)' in source
+    assert 'string long_debug_summary_text = emit_long_engine_debug_logs(show_long_engine_debug_eff, long_engine_debug_mode_eff, long_source_upgrade_now, long_arm_signal, long_confirm_signal, long_ready_signal, long_invalidate_signal, long_state.armed, long_state.confirmed, long_ready_state, long_setup_source_display, long_debug_event_source_display, long_state.backing_zone_touch_count, long_debug_event_touch_count, long_state.trigger, long_debug_event_trigger, long_state.invalidation_level, long_debug_event_invalidation, freshness_text, source_state_text, zone_quality_text, long_environment_focus_display, long_source_upgrade_reason, long_state.last_invalid_source, long_ready_blocker_text, long_strict_blocker_text)' in source
+    assert 'if long_ready_state and long_ready_state_rt_prev == 0 and not long_ready_fired_this_bar' not in source
+    assert 'emit_long_engine_debug_logs() =>' not in source
+
+
 def test_core_engine_extracts_remaining_display_helpers() -> None:
     source = _read_core_source()
 
@@ -374,7 +385,7 @@ def test_core_engine_extracts_remaining_display_helpers() -> None:
     assert 'compose_health_badge_text(string signal_bias_alignment, string signal_quality_tier, int signal_quality_score, string event_risk_state, string signal_freshness, string signal_warnings, string provider_status) =>' in source
     assert 'resolve_health_badge_color(string signal_quality_tier) =>' in source
     assert '[overhead_text, long_score_detail_suffix, long_strict_alert_suffix, long_environment_alert_suffix, long_micro_alert_suffix] = compose_long_alert_text_suffixes(use_overhead_zone_filter_eff, headroom_to_overhead, planned_risk, lib_sq_score, lib_sq_tier, use_strict_sequence_eff, use_strict_sweep_for_zone_reclaim_eff, use_strict_confirm_guard, use_microstructure_profiles, micro_profile_text, freshness_text, source_state_text, zone_quality_text, long_environment_focus_display)' in source
-    assert '[debug_log_source_display, debug_log_touch_count, debug_log_trigger, debug_log_invalidation] = resolve_long_debug_event_values(long_invalidate_signal, long_setup_source_display, long_debug_event_source_display, long_state.backing_zone_touch_count, long_debug_event_touch_count, long_state.trigger, long_debug_event_trigger, long_state.invalidation_level, long_debug_event_invalidation)' in source
+    assert '[debug_log_source_display, debug_log_touch_count, debug_log_trigger, debug_log_invalidation] = resolve_long_debug_event_values(long_invalidate_signal, long_setup_source_display, long_debug_event_source_display, long_state_backing_zone_touch_count, long_debug_event_touch_count, long_state_trigger, long_debug_event_trigger, long_state_invalidation_level, long_debug_event_invalidation)' in source
     assert 'string event_risk_state         = resolve_event_risk_state(lib_erl_market_blocked, lib_erl_symbol_blocked, lib_erl_window_state, lib_erl_level)' in source
     assert 'string source_text = resolve_long_zone_source_label(long_source_kind)' in source
     assert 'source_text := resolve_long_anchor_source_label(long_source_kind)' in source

@@ -242,14 +242,39 @@ aktiven Core:
 
 ---
 
-## 9. Copilot-Einsatz ab Jetzt
+## 9. C8-Paket auf aktuellem Repo-Stand
+
+Der naechste ausgefuehrte Schnitt zieht die verbleibende Event- und
+Observability-Grenze aus dem Runtime-Pfad:
+
+1. **Der Ready-Edge besitzt jetzt einen eigenen Runtime-Owner**
+   `resolve_long_ready_signal_state(...)` haelt die intrabar `varip`-Latch-
+   Semantik fuer den ersten Ready-Uebergang einer Bar zusammen, statt diese
+   Inline-Mutation im Main Body zu lassen.
+
+2. **Lifecycle-Debug-Events besitzen jetzt einen eigenen Observability-Owner**
+   `emit_long_engine_debug_logs(...)` haelt Summary-Text und Upgrade-, Arm-,
+   Confirm-, Ready- und Invalidation-Logs ausserhalb des Main Body zusammen.
+
+3. **Der Main Body bleibt auf Runtime-Entscheidung und BUS-Publish fokussiert**
+   Nach C8 liegen die letzten intrabar Event-Latches und die zugehoerige Debug-
+   Emission nicht mehr als lokale Inline-Schicht zwischen Runtime und Publish.
+
+4. **Die aktive Regression pinnt den C8-Schnitt explizit**
+   Split-Core- und Semantic-Contracts sichern jetzt sowohl die Ready-Edge-
+   Latch-Semantik als auch den Debug-Event-Owner gegen Rueckfall in lokale
+   Inline-Logik ab.
+
+---
+
+## 10. Copilot-Einsatz ab Jetzt
 
 Wenn Copilot fuer den verbleibenden Rest eingesetzt wird, sollte es **nicht**
 mehr die alten R1-R6-Prompts oder die fruehen C3-Surface-Schleifen ausfuehren.
 Stattdessen sollte es sich auf diese fuenf Fragen konzentrieren:
 
 1. Welche Ready-/Strict-Reason-Codes oder Dashboard-Decodes des aktiven Cores sind noch nicht zentral genug verankert?
-2. Welche Execution-Projektionen oder BUS-Publish-Grenzen leben noch inline statt in eigenen Runtime-Ownern?
+2. Welche Event-, Alert- oder Observability-Grenzen leben noch inline statt in eigenen Runtime-Ownern?
 3. Welche BUS-Packs koennen weiter von Runtime-Logik und Plot-Publikation entkoppelt werden?
 4. Wo droht noch Drift zwischen `scripts/smc_bus_manifest.py`, den Consumern und dem TradingView-Runbook?
 5. Welche sichtbaren Operator-Controls gehoeren wirklich auf die aktive Surface, und welche muessen hinter `long_user_preset` oder `compact_mode` verschwinden?

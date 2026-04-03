@@ -3826,6 +3826,39 @@ resolve_long_bus_plan_levels(bool long_plan_active, float long_trigger, float lo
         helper_bus_target_2 := long_target_2
     [helper_bus_trigger_level, helper_bus_invalidation_level, helper_bus_stop_level, helper_bus_target_1, helper_bus_target_2]
 
+resolve_long_ready_signal_state(bool long_ready_state, bool prior_bar_ready_state, int ready_state_rt_prev, bool ready_fired_this_bar, bool current_bar_is_new) =>
+    int helper_ready_state_rt_prev = ready_state_rt_prev
+    bool helper_ready_fired_this_bar = ready_fired_this_bar
+    if current_bar_is_new
+        helper_ready_state_rt_prev := 0
+        if prior_bar_ready_state
+            helper_ready_state_rt_prev := 1
+        helper_ready_fired_this_bar := false
+    bool helper_long_ready_signal = false
+    if long_ready_state and helper_ready_state_rt_prev == 0 and not helper_ready_fired_this_bar
+        helper_long_ready_signal := true
+    if helper_long_ready_signal
+        helper_ready_fired_this_bar := true
+    helper_ready_state_rt_prev := 0
+    if long_ready_state
+        helper_ready_state_rt_prev := 1
+    [helper_ready_state_rt_prev, helper_ready_fired_this_bar, helper_long_ready_signal]
+
+emit_long_engine_debug_logs(bool show_long_engine_debug_eff, string long_engine_debug_mode_eff, bool long_source_upgrade_now, bool long_arm_signal, bool long_confirm_signal, bool long_ready_signal, bool long_invalidate_signal, bool long_state_armed, bool long_state_confirmed, bool long_ready_state, string long_setup_source_display, string long_debug_event_source_display, int long_state_backing_zone_touch_count, int long_debug_event_touch_count, float long_state_trigger, float long_debug_event_trigger, float long_state_invalidation_level, float long_debug_event_invalidation, string freshness_text, string source_state_text, string zone_quality_text, string long_environment_focus_display, string long_source_upgrade_reason, string long_last_invalid_source, string long_ready_blocker_text, string long_strict_blocker_text) =>
+    [debug_log_source_display, debug_log_touch_count, debug_log_trigger, debug_log_invalidation] = resolve_long_debug_event_values(long_invalidate_signal, long_setup_source_display, long_debug_event_source_display, long_state_backing_zone_touch_count, long_debug_event_touch_count, long_state_trigger, long_debug_event_trigger, long_state_invalidation_level, long_debug_event_invalidation)
+    string helper_summary = compose_long_debug_summary_text(long_engine_debug_mode_eff, long_state_armed, long_state_confirmed, long_ready_state, long_setup_source_display, freshness_text, source_state_text, zone_quality_text, long_environment_focus_display, long_state_backing_zone_touch_count, long_source_upgrade_now, long_source_upgrade_reason, long_last_invalid_source, long_ready_blocker_text, long_strict_blocker_text)
+    if show_long_engine_debug_eff and long_source_upgrade_now
+        log.info('{0}', compose_long_engine_event_log(long_engine_debug_mode_eff, 'LONG UPGRADE', debug_log_source_display, debug_log_trigger, debug_log_invalidation, debug_log_touch_count, freshness_text, source_state_text, zone_quality_text, long_environment_focus_display, true, long_source_upgrade_reason, long_last_invalid_source, long_ready_blocker_text, long_strict_blocker_text))
+    if show_long_engine_debug_eff and long_arm_signal
+        log.info('{0}', compose_long_engine_event_log(long_engine_debug_mode_eff, 'LONG ARMED', debug_log_source_display, debug_log_trigger, debug_log_invalidation, debug_log_touch_count, freshness_text, source_state_text, zone_quality_text, long_environment_focus_display, long_source_upgrade_now, long_source_upgrade_reason, long_last_invalid_source, long_ready_blocker_text, long_strict_blocker_text))
+    if show_long_engine_debug_eff and long_confirm_signal
+        log.info('{0}', compose_long_engine_event_log(long_engine_debug_mode_eff, 'LONG CONFIRMED', debug_log_source_display, debug_log_trigger, debug_log_invalidation, debug_log_touch_count, freshness_text, source_state_text, zone_quality_text, long_environment_focus_display, long_source_upgrade_now, long_source_upgrade_reason, long_last_invalid_source, long_ready_blocker_text, long_strict_blocker_text))
+    if show_long_engine_debug_eff and long_ready_signal
+        log.info('{0}', compose_long_engine_event_log(long_engine_debug_mode_eff, 'LONG READY', debug_log_source_display, debug_log_trigger, debug_log_invalidation, debug_log_touch_count, freshness_text, source_state_text, zone_quality_text, long_environment_focus_display, long_source_upgrade_now, long_source_upgrade_reason, long_last_invalid_source, long_ready_blocker_text, long_strict_blocker_text))
+    if show_long_engine_debug_eff and long_invalidate_signal
+        log.info('{0}', compose_long_engine_event_log(long_engine_debug_mode_eff, 'LONG INVALID', debug_log_source_display, debug_log_trigger, debug_log_invalidation, debug_log_touch_count, freshness_text, source_state_text, zone_quality_text, long_environment_focus_display, long_source_upgrade_now, long_source_upgrade_reason, long_last_invalid_source, long_ready_blocker_text, long_strict_blocker_text))
+    helper_summary
+
 resolve_ob_top_boundary(OrderBlock block) =>
     float level = na
     if not na(block)
@@ -6518,19 +6551,8 @@ if long_plan_active and show_mean_target_overlay_eff and not na(stretch_mean)
 
 varip int long_ready_state_rt_prev = 0
 varip bool long_ready_fired_this_bar = false
-if barstate.isnew
-    long_ready_state_rt_prev := 0
-    if long_ready_state[1]
-        long_ready_state_rt_prev := 1
-    long_ready_fired_this_bar := false
 bool long_ready_signal = false
-if long_ready_state and long_ready_state_rt_prev == 0 and not long_ready_fired_this_bar
-    long_ready_signal := true
-if long_ready_signal
-    long_ready_fired_this_bar := true
-long_ready_state_rt_prev := 0
-if long_ready_state
-    long_ready_state_rt_prev := 1
+[long_ready_state_rt_prev, long_ready_fired_this_bar, long_ready_signal] = resolve_long_ready_signal_state(long_ready_state, long_ready_state[1], long_ready_state_rt_prev, long_ready_fired_this_bar, barstate.isnew)
 
 long_setup_text := compose_long_setup_text(long_zone_active, long_state.armed, long_building_state, long_state.confirmed, long_ready_state, long_entry_best_state, long_entry_strict_state, long_invalidated_now, invalidated_prior_setup, long_invalidated_this_bar, long_setup_source_display)
 
@@ -6543,22 +6565,7 @@ long_bg_color := resolve_long_bg_color(long_visual_state, long_color_building)
 long_bar_color := resolve_long_bar_color(long_visual_state, long_color_building)
 validate_long_state(long_state, show_long_engine_debug_eff)
 
-emit_long_engine_debug_logs() =>
-    [debug_log_source_display, debug_log_touch_count, debug_log_trigger, debug_log_invalidation] = resolve_long_debug_event_values(long_invalidate_signal, long_setup_source_display, long_debug_event_source_display, long_state.backing_zone_touch_count, long_debug_event_touch_count, long_state.trigger, long_debug_event_trigger, long_state.invalidation_level, long_debug_event_invalidation)
-    string _summary = compose_long_debug_summary_text(long_engine_debug_mode_eff, long_state.armed, long_state.confirmed, long_ready_state, long_setup_source_display, freshness_text, source_state_text, zone_quality_text, long_environment_focus_display, long_state.backing_zone_touch_count, long_source_upgrade_now, long_source_upgrade_reason, long_state.last_invalid_source, long_ready_blocker_text, long_strict_blocker_text)
-    if show_long_engine_debug_eff and long_source_upgrade_now
-        log.info('{0}', compose_long_engine_event_log(long_engine_debug_mode_eff, 'LONG UPGRADE', debug_log_source_display, debug_log_trigger, debug_log_invalidation, debug_log_touch_count, freshness_text, source_state_text, zone_quality_text, long_environment_focus_display, true, long_source_upgrade_reason, long_state.last_invalid_source, long_ready_blocker_text, long_strict_blocker_text))
-    if show_long_engine_debug_eff and long_arm_signal
-        log.info('{0}', compose_long_engine_event_log(long_engine_debug_mode_eff, 'LONG ARMED', debug_log_source_display, debug_log_trigger, debug_log_invalidation, debug_log_touch_count, freshness_text, source_state_text, zone_quality_text, long_environment_focus_display, long_source_upgrade_now, long_source_upgrade_reason, long_state.last_invalid_source, long_ready_blocker_text, long_strict_blocker_text))
-    if show_long_engine_debug_eff and long_confirm_signal
-        log.info('{0}', compose_long_engine_event_log(long_engine_debug_mode_eff, 'LONG CONFIRMED', debug_log_source_display, debug_log_trigger, debug_log_invalidation, debug_log_touch_count, freshness_text, source_state_text, zone_quality_text, long_environment_focus_display, long_source_upgrade_now, long_source_upgrade_reason, long_state.last_invalid_source, long_ready_blocker_text, long_strict_blocker_text))
-    if show_long_engine_debug_eff and long_ready_signal
-        log.info('{0}', compose_long_engine_event_log(long_engine_debug_mode_eff, 'LONG READY', debug_log_source_display, debug_log_trigger, debug_log_invalidation, debug_log_touch_count, freshness_text, source_state_text, zone_quality_text, long_environment_focus_display, long_source_upgrade_now, long_source_upgrade_reason, long_state.last_invalid_source, long_ready_blocker_text, long_strict_blocker_text))
-    if show_long_engine_debug_eff and long_invalidate_signal
-        log.info('{0}', compose_long_engine_event_log(long_engine_debug_mode_eff, 'LONG INVALID', debug_log_source_display, debug_log_trigger, debug_log_invalidation, debug_log_touch_count, freshness_text, source_state_text, zone_quality_text, long_environment_focus_display, long_source_upgrade_now, long_source_upgrade_reason, long_state.last_invalid_source, long_ready_blocker_text, long_strict_blocker_text))
-    _summary
-
-string long_debug_summary_text = emit_long_engine_debug_logs()
+string long_debug_summary_text = emit_long_engine_debug_logs(show_long_engine_debug_eff, long_engine_debug_mode_eff, long_source_upgrade_now, long_arm_signal, long_confirm_signal, long_ready_signal, long_invalidate_signal, long_state.armed, long_state.confirmed, long_ready_state, long_setup_source_display, long_debug_event_source_display, long_state.backing_zone_touch_count, long_debug_event_touch_count, long_state.trigger, long_debug_event_trigger, long_state.invalidation_level, long_debug_event_invalidation, freshness_text, source_state_text, zone_quality_text, long_environment_focus_display, long_source_upgrade_reason, long_state.last_invalid_source, long_ready_blocker_text, long_strict_blocker_text)
 
 if live_exec
     if not live_bull_ob_break and any_live_bull_ob_break

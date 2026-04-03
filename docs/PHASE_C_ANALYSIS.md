@@ -206,6 +206,15 @@ The next executed slice continues with the runtime-to-BUS ownership boundary:
 4. Trigger, invalidation, stop, and target BUS publishing now route through a dedicated BUS-plan-level helper instead of plotting raw runtime values directly.
 5. Trigger and risk-plan row ownership in `ModulePackD` now encode execution-tier and plan-completeness state at the BUS boundary, and split/semantic contracts pin that boundary explicitly.
 
+### C8 - Event Edge and Debug Log Owners
+
+The next executed slice continues with the remaining event-owned inline runtime layer:
+
+1. Ready-edge intrabar latch ownership now lives in a dedicated helper that owns prior-bar seeding, once-per-bar firing, and current-bar Ready-edge projection.
+2. Lifecycle debug-event emission now lives in a dedicated helper that owns summary composition plus Upgrade, Armed, Confirmed, Ready, and Invalidated log emission.
+3. The main lifecycle block no longer carries local Ready-edge mutation or a nested debug-log function between runtime decisions and BUS publication.
+4. Split-core and semantic-contract tests now pin this C8 event-edge and observability boundary explicitly.
+
 ## 4. Fresh Inventory by Execution Surface
 
 ### Runtime Core Only — Stay Local

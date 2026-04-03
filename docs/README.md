@@ -39,9 +39,13 @@ Authoritative TradingView release-layer code references:
 
 - [../scripts/tv_publish_micro_library.ts](../scripts/tv_publish_micro_library.ts)
 - [../scripts/tv_preflight.ts](../scripts/tv_preflight.ts)
-- [../automation/tradingview/lib/tv_shared.ts](../automation/tradingview/lib/tv_shared.ts)
+- [../scripts/create_tradingview_storage_state.ts](../scripts/create_tradingview_storage_state.ts)
 
 Primary TradingView automation entry points:
 
 - `npm run tv:preflight` for mutating repo-source validation
 - `npm run tv:smoke-readonly` for non-writing existing-script smoke validation
+
+Current workspace caveat:
+
+- the repo contains the TradingView entry scripts, but the shared automation layer under `automation/tradingview/lib/...` is not present in this checkout, so the documented preflight path is currently not reproducible locally

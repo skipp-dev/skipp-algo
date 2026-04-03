@@ -87,7 +87,12 @@ def test_core_remains_the_only_active_producer() -> None:
 
     assert 'indicator("SMC Core Engine", "SMC Core", overlay = true' in source
     bus_export_calls = re.findall(r"plot\(bus_[^\n]+display\s*=\s*display\.none\)", source)
-    assert len(bus_export_calls) == 0
+    assert len(bus_export_calls) == 5
+    assert "plot(bus_trigger_level, 'BUS Trigger', display = display.none)" in source
+    assert "plot(bus_invalidation_level, 'BUS Invalidation', display = display.none)" in source
+    assert "plot(bus_stop_level, 'BUS StopLevel', display = display.none)" in source
+    assert "plot(bus_target_1, 'BUS Target1', display = display.none)" in source
+    assert "plot(bus_target_2, 'BUS Target2', display = display.none)" in source
     hidden_bus_calls = re.findall(r"plot\([^\n]+display\s*=\s*display\.none\)", source)
     assert len(hidden_bus_calls) == len(EXPECTED_BUS_LABELS)
     assert 'alertcondition(' not in source

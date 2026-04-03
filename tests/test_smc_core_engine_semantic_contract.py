@@ -325,3 +325,34 @@ def test_dynamic_alert_gate_contract_stays_explicit_per_lifecycle_edge() -> None
         "if enable_dynamic_alerts and alert_long_watchlist_event",
     ]:
         assert clause in body
+
+
+def test_ready_signal_contract_stays_explicit() -> None:
+    body = _extract_function_body(_read(CORE_PATH), "resolve_long_ready_signal_state")
+
+    for snippet in [
+        "if current_bar_is_new",
+        "helper_ready_state_rt_prev := 0",
+        "if prior_bar_ready_state",
+        "helper_ready_fired_this_bar := false",
+        "if long_ready_state and helper_ready_state_rt_prev == 0 and not helper_ready_fired_this_bar",
+        "if helper_long_ready_signal",
+        "helper_ready_state_rt_prev := 1",
+    ]:
+        assert snippet in body
+
+
+def test_debug_log_owner_contract_stays_explicit() -> None:
+    body = _extract_function_body(_read(CORE_PATH), "emit_long_engine_debug_logs")
+
+    for snippet in [
+        "resolve_long_debug_event_values",
+        "compose_long_debug_summary_text",
+        "if show_long_engine_debug_eff and long_source_upgrade_now",
+        "if show_long_engine_debug_eff and long_arm_signal",
+        "if show_long_engine_debug_eff and long_confirm_signal",
+        "if show_long_engine_debug_eff and long_ready_signal",
+        "if show_long_engine_debug_eff and long_invalidate_signal",
+        "compose_long_engine_event_log",
+    ]:
+        assert snippet in body
