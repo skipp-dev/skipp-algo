@@ -60,32 +60,13 @@ def test_state_label_and_dashboard_decoders_stay_aligned() -> None:
 
 
 def test_ready_gate_reason_contract_matches_dashboard_decoder() -> None:
-    core_body = _extract_function_body(_read(CORE_PATH), "resolve_bus_ready_gate_row")
+    core_body = _extract_function_body(_read(CORE_PATH), "resolve_long_ready_reason_code")
     dashboard_body = _extract_function_body(_read(DASHBOARD_PATH), "decode_ready_gate_text")
 
     for snippet in [
-        "reason_code := 2",
-        "reason_code := 3",
-        "reason_code := 4",
-        "reason_code := long_confirm_expired ? 5 : 6",
-        "reason_code := 7",
-        "reason_code := 8",
+        "resolve_long_ready_lifecycle_reason_code",
+        "resolve_long_ready_gate_reason_code",
         "reason_code := 9",
-        "reason_code := 10",
-        "reason_code := 11",
-        "reason_code := 12",
-        "reason_code := 13",
-        "reason_code := 14",
-        "reason_code := 15",
-        "reason_code := 16",
-        "reason_code := 17",
-        "reason_code := 18",
-        "reason_code := 19",
-        "reason_code := 20",
-        "reason_code := 21",
-        "reason_code := 22",
-        "reason_code := 23",
-        "reason_code := 24",
     ]:
         assert snippet in core_body
 
@@ -118,14 +99,15 @@ def test_ready_gate_reason_contract_matches_dashboard_decoder() -> None:
 
 
 def test_strict_gate_reason_contract_matches_dashboard_decoder() -> None:
-    core_body = _extract_function_body(_read(CORE_PATH), "resolve_bus_strict_gate_row")
+    core_body = _extract_function_body(_read(CORE_PATH), "resolve_long_strict_reason_code")
     dashboard_body = _extract_function_body(_read(DASHBOARD_PATH), "decode_strict_gate_text")
 
-    for reason_code in range(2, 10):
+    for reason_code in range(2, 11):
         assert f"reason_code := {reason_code}" in core_body
 
     for label in [
         "Need Ready",
+        "Signal Quality blocked",
         "LTF blocked",
         "HTF blocked",
         "Accel blocked",
@@ -146,7 +128,7 @@ def test_bus_surface_stays_runtime_owned() -> None:
     assert "resolve_bus_long_triggers_row(long_plan_active)" in source
     assert "resolve_bus_risk_plan_row(long_plan_active)" in source
     assert "resolve_bus_ready_gate_row(long_ready_state" in source
-    assert "resolve_bus_strict_gate_row(long_entry_strict_state, long_ready_state" in source
+    assert "resolve_bus_strict_gate_row(long_entry_strict_state, long_ready_state, strict_signal_quality_gate_ok" in source
 
 
 def test_dynamic_alert_gate_contract_stays_explicit_per_lifecycle_edge() -> None:

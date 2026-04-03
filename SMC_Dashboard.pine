@@ -643,18 +643,20 @@ decode_strict_gate_text(int row_code) =>
     if reason_code == 2
         label_text := "Need Ready"
     else if reason_code == 3
-        label_text := "LTF blocked"
+        label_text := "Signal Quality blocked"
     else if reason_code == 4
-        label_text := "HTF blocked"
+        label_text := "LTF blocked"
     else if reason_code == 5
-        label_text := "Accel blocked"
+        label_text := "HTF blocked"
     else if reason_code == 6
-        label_text := "SD blocked"
+        label_text := "Accel blocked"
     else if reason_code == 7
-        label_text := "Vol blocked"
+        label_text := "SD blocked"
     else if reason_code == 8
-        label_text := "Stretch blocked"
+        label_text := "Vol blocked"
     else if reason_code == 9
+        label_text := "Stretch blocked"
+    else if reason_code == 10
         label_text := "DDVI blocked"
     label_text
 

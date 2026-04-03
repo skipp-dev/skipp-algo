@@ -2,9 +2,15 @@ from __future__ import annotations
 
 import pathlib
 import re
+import sys
 
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+
+from scripts.smc_bus_manifest import DASHBOARD_BUS_BINDINGS, STRATEGY_BUS_BINDINGS  # noqa: E402
+
+
 DASHBOARD_PATH = ROOT / "SMC_Dashboard.pine"
 STRATEGY_PATH = ROOT / "SMC_Long_Strategy.pine"
 
@@ -15,56 +21,16 @@ _GROUP_RE = re.compile(r'\bgroup\s*=\s*(?P<group>\w+)')
 
 
 EXPECTED_DASHBOARD_LABELS = [
-    "BUS ZoneActive",
-    "BUS Armed",
-    "BUS Confirmed",
-    "BUS Ready",
-    "BUS EntryBest",
-    "BUS EntryStrict",
-    "BUS Trigger",
-    "BUS Invalidation",
-    "BUS QualityScore",
-    "BUS SourceKind",
-    "BUS StateCode",
-    "BUS TrendPack",
-    "BUS MetaPack",
-    "BUS HardGatesPackA",
-    "BUS HardGatesPackB",
-    "BUS EventRiskRow",
-    "BUS QualityPackA",
-    "BUS QualityPackB",
-    "BUS QualityBoundsPack",
-    "BUS ModulePackA",
-    "BUS ModulePackB",
-    "BUS ModulePackC",
-    "BUS ModulePackD",
-    "BUS EnginePack",
-    "BUS StopLevel",
-    "BUS Target1",
-    "BUS Target2",
-    "BUS LeanPackA",
-    "BUS LeanPackB",
+    binding.label for binding in DASHBOARD_BUS_BINDINGS
 ]
 
-EXPECTED_DASHBOARD_GROUPS = (
-    ["g_bus_lifecycle"] * 13
-    + ["g_bus_diag"] * 11
-    + ["g_bus_plan"] * 3
-    + ["g_bus_lean"] * 2
-)
+EXPECTED_DASHBOARD_GROUPS = [binding.group for binding in DASHBOARD_BUS_BINDINGS]
 
 EXPECTED_STRATEGY_LABELS = [
-    "BUS Armed",
-    "BUS Confirmed",
-    "BUS Ready",
-    "BUS EntryBest",
-    "BUS EntryStrict",
-    "BUS QualityScore",
-    "BUS Trigger",
-    "BUS Invalidation",
+    binding.label for binding in STRATEGY_BUS_BINDINGS
 ]
 
-EXPECTED_STRATEGY_GROUPS = ["g_bus_entry"] * 6 + ["g_bus_plan"] * 2
+EXPECTED_STRATEGY_GROUPS = [binding.group for binding in STRATEGY_BUS_BINDINGS]
 
 
 def _extract_source_inputs(path: pathlib.Path) -> list[tuple[str, str, str | None]]:

@@ -120,17 +120,47 @@ erfuellt sind:
 
 ---
 
-## 5. Copilot-Einsatz ab Jetzt
+## 5. C4-Paket auf aktuellem Repo-Stand
+
+Das naechste Paket ist jetzt kein weiterer Surface-Cleanup mehr, sondern ein
+gezieltes C4-Hardening des aktiven Cores und seines TradingView-Vertrags:
+
+1. **Ready-/Strict-Contracts haben zentrale Reason-Code-Owner**
+   Ready- und Strict-Blocker, BUS-Reason-Codes und Dashboard-Decoder folgen
+   derselben semantischen Reihenfolge. Der Strict-Contract codiert jetzt auch
+   Signal-Quality explizit im BUS-Pfad.
+
+2. **Source-Upgrade, Source-Runtime und Invalidation sind weiter entkoppelt**
+   Der aktive Core besitzt eigene Helper fuer Source-Upgrade-Entscheidungen,
+   Locked-Source-Runtime-Zustand und die Invalidationspraezedenz.
+
+3. **Die BUS-Publication-Layer ist als eigene Composite-Schicht lesbar**
+   Composite-Packs wie `MetaPack`, `HardGatesPackA/B`, `ModulePackA-D`,
+   `EnginePack` und `LeanPackA/B` werden ueber eigene Helper gebaut statt direkt
+   inline im Plot-Block zusammengesetzt.
+
+4. **Dashboard, Strategy und Runbook haengen an einem kanonischen BUS-Manifest**
+   `scripts/smc_bus_manifest.py` ist die aktive Repo-Quelle fuer Channel-Namen,
+   Consumer-Reihenfolge, Gruppen und den manuellen TradingView-Pfad.
+
+5. **Die aktive Operator-Surface bleibt Long-Dip-first und preset-zentriert**
+   `SMC_Core_Engine.pine` haelt `long_user_preset` und `compact_mode` bewusst
+   als sichtbare Surface-Anker. Neue sichtbare Controls sollen nur dann
+   hinzukommen, wenn sie nicht in diese beiden Operator-Ebenen passen.
+
+---
+
+## 6. Copilot-Einsatz ab Jetzt
 
 Wenn Copilot fuer den verbleibenden Rest eingesetzt wird, sollte es **nicht**
-mehr die alten R1-R6-Prompts ausfuehren. Stattdessen sollte es sich auf diese
-fuenf Fragen konzentrieren:
+mehr die alten R1-R6-Prompts oder die fruehen C3-Surface-Schleifen ausfuehren.
+Stattdessen sollte es sich auf diese fuenf Fragen konzentrieren:
 
-1. Ist die Freeze-Policy fuer `SMC++.pine` in Docs, Tests und Release-Gates konsistent?
-2. Welche BUS-, StateCode- und Lifecycle-Vertraege des aktiven Cores sind semantisch abgesichert?
-3. Welche Core-Inputs muessen sichtbar bleiben und welche gehoeren in `display.none`?
-4. Wie wird das TradingView-Consumer-Setup fuer Dashboard und Strategy weniger fehleranfaellig?
-5. Welcher naechste Pine-Schnitt ist ein echter State-Owner- oder Lifecycle-Schnitt?
+1. Welche Ready-/Strict-Reason-Codes oder Dashboard-Decodes des aktiven Cores sind noch nicht zentral genug verankert?
+2. Welche Locked-Source- und Invalidationszustandsbesitzer leben noch im Main Body statt in eigenen Helpern?
+3. Welche BUS-Packs koennen weiter von Runtime-Logik und Plot-Publikation entkoppelt werden?
+4. Wo droht noch Drift zwischen `scripts/smc_bus_manifest.py`, den Consumern und dem TradingView-Runbook?
+5. Welche sichtbaren Operator-Controls gehoeren wirklich auf die aktive Surface, und welche muessen hinter `long_user_preset` oder `compact_mode` verschwinden?
 
 Damit ist der Migrationsplan auf den tatsaechlichen Repo-Iststand zurueckgesetzt
 und verhindert, dass Phase C erneut in rein kosmetische Rework-Schleifen kippt.

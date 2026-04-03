@@ -166,6 +166,16 @@ That decision is now fixed:
 5. No new feature work should resume on `SMC++.pine`; only compatibility-preserving fixes remain allowed.
 6. The first executed C3.5 state-owner split is `compute_long_freshness_state(...)`, which localizes armed/confirmed freshness aging without reopening display-only cleanup.
 
+### C4 - State-Owner and Consumer Contract Hardening
+
+The next executed package continues on that path:
+
+1. Ready and Strict gate contracts now route through central reason-code owners.
+2. Locked-source upgrade, runtime state, and invalidation state have dedicated helpers instead of living only inline in the main lifecycle block.
+3. BUS publication is separated into composite pack helpers so the publish boundary is thinner and more declarative.
+4. `scripts/smc_bus_manifest.py` is the canonical active BUS contract for engine channels, dashboard order, strategy order, and the manual TradingView runbook.
+5. The active operator surface stays anchored on `long_user_preset` and `compact_mode` rather than reopening a new visible-input expansion cycle.
+
 ## 4. Fresh Inventory by Execution Surface
 
 ### Runtime Core Only — Stay Local

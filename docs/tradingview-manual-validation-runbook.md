@@ -31,6 +31,7 @@ Repo-Regressionen abgesichert.
 1. [../scripts/tv_publish_micro_library.ts](../scripts/tv_publish_micro_library.ts)
 2. [../scripts/tv_preflight.ts](../scripts/tv_preflight.ts)
 3. [../automation/tradingview/lib/tv_shared.ts](../automation/tradingview/lib/tv_shared.ts)
+4. [../scripts/smc_bus_manifest.py](../scripts/smc_bus_manifest.py)
 
 ## Empfohlene Reihenfolge In TradingView
 
@@ -45,6 +46,7 @@ Repo-Regressionen abgesichert.
 1. Dashboard bindet in vier Gruppen: Lifecycle, Diagnostic Packs, Trade Plan, Lean Surface.
 2. Strategy bindet in zwei Gruppen: Entry States, Trade Plan.
 3. Beide Consumer werden in TradingView immer top-to-bottom an die gleichnamigen BUS-Serien des Cores gebunden.
+4. Die kanonische Quelle fuer Namen, Reihenfolge und Gruppen ist [../scripts/smc_bus_manifest.py](../scripts/smc_bus_manifest.py).
 
 ## Producer-Prüfung
 

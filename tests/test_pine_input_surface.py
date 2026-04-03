@@ -54,6 +54,14 @@ def test_visible_surface_range(script, lo, hi):
     )
 
 
+def test_active_core_operator_surface_keeps_preset_and_compact_mode():
+    inputs = _load("SMC_Core_Engine.pine")
+    visible_varnames = {inp.varname for inp in inputs if not inp.has_display_none}
+
+    assert "long_user_preset" in visible_varnames
+    assert "compact_mode" in visible_varnames
+
+
 # ── parity: indicator/strategy pairs must have ≤5 input delta ─────────
 
 @pytest.mark.parametrize("ind,strat,max_delta", [

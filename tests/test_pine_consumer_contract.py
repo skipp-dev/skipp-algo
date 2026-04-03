@@ -17,6 +17,9 @@ import pandas as pd
 import pytest
 
 from scripts.smc_enrichment_types import EnrichmentDict
+from scripts.smc_bus_manifest import DASHBOARD_BUS_CHANNELS as MANIFEST_DASHBOARD_BUS_CHANNELS
+from scripts.smc_bus_manifest import ENGINE_BUS_CHANNELS as MANIFEST_ENGINE_BUS_CHANNELS
+from scripts.smc_bus_manifest import STRATEGY_BUS_CHANNELS as MANIFEST_STRATEGY_BUS_CHANNELS
 from scripts.smc_microstructure_base_runtime import generate_pine_library_from_base
 from scripts.smc_schema_resolver import resolve_microstructure_schema_path
 
@@ -221,42 +224,12 @@ ENGINE_CONSUMED_FIELDS: set[str] = {
 }
 
 # BUS channels published by SMC_Core_Engine.pine
-ENGINE_BUS_CHANNELS: set[str] = {
-    "ZoneActive", "Armed", "Confirmed", "Ready",
-    "EntryBest", "EntryStrict", "Trigger", "Invalidation",
-    "QualityScore", "SourceKind", "StateCode",
-    "TrendPack", "MetaPack",
-    "HardGatesPackA", "HardGatesPackB",
-    "QualityPackA", "QualityPackB", "QualityBoundsPack",
-    "ModulePackA", "ModulePackB", "ModulePackC", "ModulePackD",
-    "EnginePack",
-    "StopLevel", "Target1", "Target2",
-    "EventRiskRow",
-    # v5.5 Lean BUS
-    "LeanPackA", "LeanPackB",
-}
+ENGINE_BUS_CHANNELS: set[str] = set(MANIFEST_ENGINE_BUS_CHANNELS)
 
 # BUS channels consumed by Dashboard and Strategy
-DASHBOARD_BUS_CHANNELS: set[str] = {
-    "ZoneActive", "Armed", "Confirmed", "Ready",
-    "EntryBest", "EntryStrict", "Trigger", "Invalidation",
-    "QualityScore", "SourceKind", "StateCode",
-    "TrendPack", "MetaPack",
-    "HardGatesPackA", "HardGatesPackB",
-    "QualityPackA", "QualityPackB", "QualityBoundsPack",
-    "ModulePackA", "ModulePackB", "ModulePackC", "ModulePackD",
-    "EnginePack",
-    "StopLevel", "Target1", "Target2",
-    "EventRiskRow",
-    # v5.5 Lean BUS
-    "LeanPackA", "LeanPackB",
-}
+DASHBOARD_BUS_CHANNELS: set[str] = set(MANIFEST_DASHBOARD_BUS_CHANNELS)
 
-STRATEGY_BUS_CHANNELS: set[str] = {
-    "Armed", "Confirmed", "Ready",
-    "EntryBest", "EntryStrict", "Trigger", "Invalidation",
-    "QualityScore",
-}
+STRATEGY_BUS_CHANNELS: set[str] = set(MANIFEST_STRATEGY_BUS_CHANNELS)
 
 # ── Pine-file parsing helpers ───────────────────────────────────
 
