@@ -3698,6 +3698,63 @@ resolve_fvg_alert_level(FVG gap) =>
         level := gap.fill_target_level
     level
 
+compute_long_plan_state(bool long_setup_armed, bool long_setup_confirmed, float long_trigger, float long_invalidation_level) =>
+    bool helper_long_plan_active = false
+    if (long_setup_armed or long_setup_confirmed) and not na(long_trigger) and not na(long_invalidation_level)
+        helper_long_plan_active := true
+    helper_long_plan_active
+
+compute_long_overhead_context(bool long_plan_active, float close_price, float long_trigger, float long_invalidation_level, float ob_threshold_atr, float stop_buffer_atr_mult, OrderBlock[] ob_blocks_bear_param, int bear_ob_scan_start, FVG[] fvgs_bear_param, int bear_fvg_scan_start, bool use_overhead_zone_filter, float min_headroom_r) =>
+    float helper_planned_stop_level = na
+    if long_plan_active
+        helper_planned_stop_level := long_invalidation_level - ob_threshold_atr * stop_buffer_atr_mult
+    float helper_scan_ref = close_price
+    if long_plan_active and not na(long_trigger)
+        helper_scan_ref := long_trigger
+    float helper_bear_ob_lvl = na
+    if array.size(ob_blocks_bear_param) > 0
+        for i = array.size(ob_blocks_bear_param) - 1 to bear_ob_scan_start
+            helper_blocker = array.get(ob_blocks_bear_param, i)
+            float helper_blocker_level = resolve_ob_alert_level(helper_blocker)
+            if not na(helper_blocker_level) and helper_blocker_level >= helper_scan_ref and (na(helper_bear_ob_lvl) or helper_blocker_level < helper_bear_ob_lvl)
+                helper_bear_ob_lvl := helper_blocker_level
+    float helper_bear_fvg_lvl = na
+    if array.size(fvgs_bear_param) > 0
+        for i = array.size(fvgs_bear_param) - 1 to bear_fvg_scan_start
+            helper_fblocker = array.get(fvgs_bear_param, i)
+            float helper_fblocker_level = resolve_fvg_alert_level(helper_fblocker)
+            if not na(helper_fblocker_level) and helper_fblocker_level >= helper_scan_ref and (na(helper_bear_fvg_lvl) or helper_fblocker_level < helper_bear_fvg_lvl)
+                helper_bear_fvg_lvl := helper_fblocker_level
+    float helper_overhead_level = na
+    if not na(helper_bear_ob_lvl) and not na(helper_bear_fvg_lvl)
+        helper_overhead_level := math.min(helper_bear_ob_lvl, helper_bear_fvg_lvl)
+    else
+        helper_overhead_level := helper_bear_fvg_lvl
+        if not na(helper_bear_ob_lvl)
+            helper_overhead_level := helper_bear_ob_lvl
+    float helper_planned_risk = na
+    if long_plan_active and not na(helper_planned_stop_level)
+        helper_planned_risk := math.max(long_trigger - helper_planned_stop_level, syminfo.mintick)
+    float helper_headroom_to_overhead = na
+    if long_plan_active and not na(helper_overhead_level)
+        helper_headroom_to_overhead := helper_overhead_level - long_trigger
+    bool helper_overhead_zone_ok = true
+    if use_overhead_zone_filter and not na(helper_headroom_to_overhead) and not na(helper_planned_risk)
+        helper_overhead_zone_ok := helper_headroom_to_overhead >= helper_planned_risk * min_headroom_r
+    [helper_planned_stop_level, helper_planned_risk, helper_headroom_to_overhead, helper_overhead_zone_ok]
+
+compute_long_risk_plan_state(bool long_plan_active, float long_planned_stop_level, float planned_risk, float long_trigger, float target1_r, float target2_r) =>
+    float helper_long_stop_level = na
+    float helper_long_risk_r = na
+    float helper_long_target_1 = na
+    float helper_long_target_2 = na
+    if long_plan_active and not na(long_planned_stop_level) and not na(planned_risk)
+        helper_long_stop_level := long_planned_stop_level
+        helper_long_risk_r := planned_risk
+        helper_long_target_1 := long_trigger + helper_long_risk_r * target1_r
+        helper_long_target_2 := long_trigger + helper_long_risk_r * target2_r
+    [helper_long_stop_level, helper_long_risk_r, helper_long_target_1, helper_long_target_2]
+
 resolve_ob_top_boundary(OrderBlock block) =>
     float level = na
     if not na(block)
@@ -6338,50 +6395,8 @@ if long_should_arm
 [internal_choch_since_arm, internal_bos_since_arm, long_internal_structure_ok, long_confirm_structure_ok] = resolve_long_confirm_structure_state(long_state.armed, bar_index, long_state.arm_bar_index, internal_choch_since_bars, internal_bos_since_bars, internal_bull_choch_sig, internal_bull_bos_sig, long_internal_structure_mode, require_internal_break_for_confirm_eff)
 
 // 5) Ready state + visuals
-long_plan_active := false
-if (long_state.armed or long_state.confirmed) and not na(long_state.trigger) and not na(long_state.invalidation_level)
-    long_plan_active := true
-
-compute_overhead_context() =>
-    float _stop = na
-    if long_plan_active
-        _stop := long_state.invalidation_level - ob_threshold_atr * stop_buffer_atr_mult
-    float _scan_ref = close
-    if long_plan_active and not na(long_state.trigger)
-        _scan_ref := long_state.trigger
-    float _bear_ob_lvl = na
-    if array.size(ob_blocks_bear) > 0
-        for i = array.size(ob_blocks_bear) - 1 to bear_ob_scan_start
-            _blocker = array.get(ob_blocks_bear, i)
-            float _blvl = resolve_ob_alert_level(_blocker)
-            if not na(_blvl) and _blvl >= _scan_ref and (na(_bear_ob_lvl) or _blvl < _bear_ob_lvl)
-                _bear_ob_lvl := _blvl
-    float _bear_fvg_lvl = na
-    if array.size(fvgs_bear) > 0
-        for i = array.size(fvgs_bear) - 1 to bear_fvg_scan_start
-            _fblocker = array.get(fvgs_bear, i)
-            float _flvl = resolve_fvg_alert_level(_fblocker)
-            if not na(_flvl) and _flvl >= _scan_ref and (na(_bear_fvg_lvl) or _flvl < _bear_fvg_lvl)
-                _bear_fvg_lvl := _flvl
-    float _overhead = na
-    if not na(_bear_ob_lvl) and not na(_bear_fvg_lvl)
-        _overhead := math.min(_bear_ob_lvl, _bear_fvg_lvl)
-    else
-        _overhead := _bear_fvg_lvl
-        if not na(_bear_ob_lvl)
-            _overhead := _bear_ob_lvl
-    float _risk = na
-    if long_plan_active and not na(_stop)
-        _risk := math.max(long_state.trigger - _stop, syminfo.mintick)
-    float _headroom = na
-    if not na(_overhead) and long_plan_active
-        _headroom := _overhead - long_state.trigger
-    bool _overhead_ok = true
-    if use_overhead_zone_filter_eff and not na(_headroom) and not na(_risk)
-        _overhead_ok := _headroom >= _risk * min_headroom_r
-    [_stop, _risk, _headroom, _overhead_ok]
-
-[long_planned_stop_level, planned_risk, headroom_to_overhead, overhead_zone_ok] = compute_overhead_context()
+long_plan_active := compute_long_plan_state(long_state.armed, long_state.confirmed, long_state.trigger, long_state.invalidation_level)
+[long_planned_stop_level, planned_risk, headroom_to_overhead, overhead_zone_ok] = compute_long_overhead_context(long_plan_active, close, long_state.trigger, long_state.invalidation_level, ob_threshold_atr, stop_buffer_atr_mult, ob_blocks_bear, bear_ob_scan_start, fvgs_bear, bear_fvg_scan_start, use_overhead_zone_filter_eff, min_headroom_r)
 [context_quality_score, context_quality_gate_ok, htf_alignment_ok, strict_entry_ltf_ok, effective_min_context_quality_score, effective_context_quality_max_score] = compute_context_quality()
 // [v5.5b] Signal Quality is the primary quality surface; local context quality stays diagnostic only.
 bool primary_quality_gate_ok = not use_lean_signal_quality_gate or signal_quality_ok
@@ -6455,11 +6470,7 @@ string long_strict_blocker_text = resolve_long_strict_blocker_text(long_entry_st
 bool long_quality_clean_tier = false
 if close_safe_mode and bullish_trend_safe and zone_recent and reclaim_recent and long_state.confirmed and setup_hard_gate_ok and trade_hard_gate_ok and environment_hard_gate_ok and quality_gate_ok and bull_close_strong and ema_support_ok and adx_strong and relvol_ok and vwap_filter_ok
     long_quality_clean_tier := true
-if long_plan_active
-    long_stop_level := long_planned_stop_level
-    long_risk_r := math.max(long_state.trigger - long_stop_level, syminfo.mintick)
-    long_target_1 := long_state.trigger + long_risk_r * target1_r
-    long_target_2 := long_state.trigger + long_risk_r * target2_r
+[long_stop_level, long_risk_r, long_target_1, long_target_2] = compute_long_risk_plan_state(long_plan_active, long_planned_stop_level, planned_risk, long_state.trigger, target1_r, target2_r)
 
 float long_mean_target = na
 if long_plan_active and show_mean_target_overlay_eff and not na(stretch_mean)

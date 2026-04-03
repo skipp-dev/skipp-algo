@@ -257,6 +257,20 @@ def test_core_engine_tracks_c5_arm_and_confirm_owner_helpers() -> None:
     assert 'if close_safe_mode and long_confirm_break and long_confirm_structure_ok and confirm_is_fresh and long_confirm_bearish_guard_ok\n    confirm_lifecycle_ok := true' not in source
 
 
+def test_core_engine_tracks_c6_plan_overhead_and_risk_plan_owners() -> None:
+    source = _read_core_source()
+
+    assert 'compute_long_plan_state(bool long_setup_armed, bool long_setup_confirmed, float long_trigger, float long_invalidation_level) =>' in source
+    assert 'compute_long_overhead_context(bool long_plan_active, float close_price, float long_trigger, float long_invalidation_level, float ob_threshold_atr, float stop_buffer_atr_mult, OrderBlock[] ob_blocks_bear_param, int bear_ob_scan_start, FVG[] fvgs_bear_param, int bear_fvg_scan_start, bool use_overhead_zone_filter, float min_headroom_r) =>' in source
+    assert 'compute_long_risk_plan_state(bool long_plan_active, float long_planned_stop_level, float planned_risk, float long_trigger, float target1_r, float target2_r) =>' in source
+    assert 'long_plan_active := compute_long_plan_state(long_state.armed, long_state.confirmed, long_state.trigger, long_state.invalidation_level)' in source
+    assert '[long_planned_stop_level, planned_risk, headroom_to_overhead, overhead_zone_ok] = compute_long_overhead_context(long_plan_active, close, long_state.trigger, long_state.invalidation_level, ob_threshold_atr, stop_buffer_atr_mult, ob_blocks_bear, bear_ob_scan_start, fvgs_bear, bear_fvg_scan_start, use_overhead_zone_filter_eff, min_headroom_r)' in source
+    assert '[long_stop_level, long_risk_r, long_target_1, long_target_2] = compute_long_risk_plan_state(long_plan_active, long_planned_stop_level, planned_risk, long_state.trigger, target1_r, target2_r)' in source
+    assert 'compute_overhead_context() =>' not in source
+    assert 'long_plan_active := false\nif (long_state.armed or long_state.confirmed) and not na(long_state.trigger) and not na(long_state.invalidation_level)\n    long_plan_active := true' not in source
+    assert 'if long_plan_active\n    long_stop_level := long_planned_stop_level\n    long_risk_r := math.max(long_state.trigger - long_stop_level, syminfo.mintick)\n    long_target_1 := long_state.trigger + long_risk_r * target1_r\n    long_target_2 := long_state.trigger + long_risk_r * target2_r' not in source
+
+
 def test_core_engine_extracts_remaining_display_helpers() -> None:
     source = _read_core_source()
 

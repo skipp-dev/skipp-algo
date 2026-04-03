@@ -182,6 +182,44 @@ def test_confirm_lifecycle_contract_stays_explicit() -> None:
         assert snippet in transition_body
 
 
+def test_plan_lifecycle_contract_stays_explicit() -> None:
+    body = _extract_function_body(_read(CORE_PATH), "compute_long_plan_state")
+
+    assert "if (long_setup_armed or long_setup_confirmed) and not na(long_trigger) and not na(long_invalidation_level)" in body
+
+
+def test_overhead_context_contract_stays_explicit() -> None:
+    body = _extract_function_body(_read(CORE_PATH), "compute_long_overhead_context")
+
+    for snippet in [
+        "if long_plan_active",
+        "helper_planned_stop_level := long_invalidation_level - ob_threshold_atr * stop_buffer_atr_mult",
+        "float helper_scan_ref = close_price",
+        "if long_plan_active and not na(long_trigger)",
+        "helper_scan_ref := long_trigger",
+        "if array.size(ob_blocks_bear_param) > 0",
+        "resolve_ob_alert_level",
+        "if array.size(fvgs_bear_param) > 0",
+        "resolve_fvg_alert_level",
+        "if use_overhead_zone_filter and not na(helper_headroom_to_overhead) and not na(helper_planned_risk)",
+        "helper_overhead_zone_ok := helper_headroom_to_overhead >= helper_planned_risk * min_headroom_r",
+    ]:
+        assert snippet in body
+
+
+def test_risk_plan_contract_stays_explicit() -> None:
+    body = _extract_function_body(_read(CORE_PATH), "compute_long_risk_plan_state")
+
+    for snippet in [
+        "if long_plan_active and not na(long_planned_stop_level) and not na(planned_risk)",
+        "helper_long_stop_level := long_planned_stop_level",
+        "helper_long_risk_r := planned_risk",
+        "helper_long_target_1 := long_trigger + helper_long_risk_r * target1_r",
+        "helper_long_target_2 := long_trigger + helper_long_risk_r * target2_r",
+    ]:
+        assert snippet in body
+
+
 def test_bus_surface_stays_runtime_owned() -> None:
     source = _read(CORE_PATH)
 

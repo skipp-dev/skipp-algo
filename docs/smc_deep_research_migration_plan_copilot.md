@@ -181,14 +181,44 @@ Schnitt im aktiven Core:
 
 ---
 
-## 7. Copilot-Einsatz ab Jetzt
+## 7. C6-Paket auf aktuellem Repo-Stand
+
+Das naechste ausgefuehrte Paket zieht den Lifecycle-Owner-Schnitt fuer Plan,
+Overhead und Risk-Plan-Projektion:
+
+1. **Plan-Aktivierung ist eigener Owner**
+   `compute_long_plan_state(...)` besitzt jetzt die Aktivierungsbedingung fuer
+   `long_plan_active`, statt dass diese weiter als lose Inline-Bedingung im
+   Main Body verbleibt.
+
+2. **Overhead-Kontext ist als eigener Runtime-Owner extrahiert**
+   `compute_long_overhead_context(...)` kapselt den geplanten Stop, die
+   geplante R-Distanz, den Bear-Overhead-Scan und die daraus abgeleitete
+   Headroom-/Overhead-Gate-Entscheidung.
+
+3. **Risk-Plan-Projektion ist eigener Owner**
+   `compute_long_risk_plan_state(...)` projiziert den aktiven Plan in BUS-nahe
+   Stop-, Risk- und Target-Werte statt diese Werte inline aus dem Main Body zu
+   berechnen.
+
+4. **Der Main Body konsumiert nur noch die Plan-/Overhead-/Risk-Owner**
+   Der lokale `compute_overhead_context()`-Block ist entfernt; der Lifecycle-
+   Block bindet jetzt nur noch die extrahierten Owner an den aktiven Zustand.
+
+5. **Die aktive Regression pinnt den neuen C6-Schnitt explizit**
+   Split-Core- und Semantic-Contracts sichern jetzt sowohl die neuen Signaturen
+   als auch die entscheidenden Overhead-/Risk-Formeln und Call-Sites ab.
+
+---
+
+## 8. Copilot-Einsatz ab Jetzt
 
 Wenn Copilot fuer den verbleibenden Rest eingesetzt wird, sollte es **nicht**
 mehr die alten R1-R6-Prompts oder die fruehen C3-Surface-Schleifen ausfuehren.
 Stattdessen sollte es sich auf diese fuenf Fragen konzentrieren:
 
 1. Welche Ready-/Strict-Reason-Codes oder Dashboard-Decodes des aktiven Cores sind noch nicht zentral genug verankert?
-2. Welche Lifecycle-Payloads oder State-Commit-Vorbedingungen um `long_state.arm(...)` und `long_state.confirm(...)` leben noch inline statt in eigenen Ownern?
+2. Welche Plan-, Overhead- oder Folgeprojektionen leben noch inline statt in eigenen Runtime-Ownern?
 3. Welche BUS-Packs koennen weiter von Runtime-Logik und Plot-Publikation entkoppelt werden?
 4. Wo droht noch Drift zwischen `scripts/smc_bus_manifest.py`, den Consumern und dem TradingView-Runbook?
 5. Welche sichtbaren Operator-Controls gehoeren wirklich auf die aktive Surface, und welche muessen hinter `long_user_preset` oder `compact_mode` verschwinden?

@@ -186,6 +186,16 @@ logic instead of reopening display-only work:
 3. The main lifecycle block is thinner at the Armed-to-Confirm boundary and mostly commits `long_state.arm(...)` / `long_state.confirm(...)` after helper-owned decisions.
 4. Split-core and semantic-contract tests now pin this Arm/Confirm owner boundary so future refactors do not drift back to large inline transition logic.
 
+### C6 - Plan, Overhead, and Risk-Plan Owners
+
+The next executed slice continues with the remaining runtime-owned plan logic:
+
+1. Plan activation now lives in a dedicated helper instead of an inline lifecycle check.
+2. Overhead context now lives in a dedicated helper that owns planned stop, planned risk, bear-overhead scanning, headroom, and the overhead gate.
+3. Risk-plan projection now lives in a dedicated helper that owns stop, risk, and target projection for the active BUS-facing plan.
+4. The former local `compute_overhead_context()` main-body block is removed, making the runtime path more declarative and easier to guard with regression tests.
+5. Split-core and semantic-contract tests now pin this C6 plan/overhead/risk-plan owner boundary explicitly.
+
 ## 4. Fresh Inventory by Execution Surface
 
 ### Runtime Core Only — Stay Local
