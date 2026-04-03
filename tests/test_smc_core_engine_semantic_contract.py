@@ -119,6 +119,69 @@ def test_strict_gate_reason_contract_matches_dashboard_decoder() -> None:
         assert f'label_text := "{label}"' in dashboard_body
 
 
+def test_arm_lifecycle_contract_stays_explicit() -> None:
+    source_body = _extract_function_body(_read(CORE_PATH), "resolve_long_arm_source_state")
+    trigger_body = _extract_function_body(_read(CORE_PATH), "compute_long_arm_should_trigger")
+    payload_body = _extract_function_body(_read(CORE_PATH), "resolve_long_arm_transition_payload")
+
+    for snippet in [
+        "if bull_reclaim_ob_strict",
+        "else if bull_reclaim_fvg_strict",
+        "else if bull_reclaim_swing_low_strict",
+        "else if bull_reclaim_internal_low_strict",
+        "if helper_arm_source_kind == LONG_SOURCE_SWING_LOW or helper_arm_source_kind == LONG_SOURCE_INTERNAL_LOW",
+        "if in_bull_ob_zone and in_bull_fvg_zone",
+        "if ob_more_recent",
+    ]:
+        assert snippet in source_body
+
+    for snippet in [
+        "bool helper_zone_recent_ok = zone_recent",
+        "if use_strict_sequence_eff",
+        "helper_zone_recent_ok := zone_touch_event_recent",
+        "if bull_reclaim_any_for_arm and helper_zone_recent_ok and not long_setup_armed and not long_invalidated_this_bar and micro_session_gate_ok and sd_armed_gate_ok and armed_prequality_ok",
+    ]:
+        assert snippet in trigger_body
+
+    for snippet in [
+        "select_long_arm_backing_zone_touch_count",
+        "resolve_long_zone_id",
+        "resolve_long_zone_top",
+        "resolve_long_zone_bottom",
+    ]:
+        assert snippet in payload_body
+
+
+def test_confirm_lifecycle_contract_stays_explicit() -> None:
+    break_body = _extract_function_body(_read(CORE_PATH), "resolve_long_confirm_break_state")
+    structure_body = _extract_function_body(_read(CORE_PATH), "resolve_long_confirm_structure_state")
+    transition_body = _extract_function_body(_read(CORE_PATH), "compute_long_confirm_transition_state")
+
+    for snippet in [
+        "if live_exec and effective_use_live_confirm_break",
+        "helper_long_confirm_break_src := high_price",
+        "if long_setup_armed and not long_setup_confirmed and not na(long_arm_bar_index) and current_bar_index > long_arm_bar_index",
+    ]:
+        assert snippet in break_body
+
+    for snippet in [
+        "if long_setup_armed and not na(long_arm_bar_index) and not na(internal_choch_since_bars)",
+        "if long_setup_armed and not na(long_arm_bar_index) and not na(internal_bos_since_bars)",
+        "if long_internal_structure_mode == 'Internal CHoCH only'",
+        "if not helper_long_confirm_structure_ok",
+        "helper_long_confirm_structure_ok := helper_long_internal_structure_ok",
+    ]:
+        assert snippet in structure_body
+
+    for snippet in [
+        "if micro_session_gate_ok and micro_freshness_gate_ok",
+        "if accel_confirm_gate_ok and sd_confirmed_gate_ok",
+        "if close_safe_mode and long_confirm_break and long_confirm_structure_ok and confirm_is_fresh and long_confirm_bearish_guard_ok",
+        "bool helper_long_should_confirm = helper_confirm_lifecycle_ok and helper_confirm_filters_ok",
+    ]:
+        assert snippet in transition_body
+
+
 def test_bus_surface_stays_runtime_owned() -> None:
     source = _read(CORE_PATH)
 

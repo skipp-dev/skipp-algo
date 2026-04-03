@@ -176,6 +176,16 @@ The next executed package continues on that path:
 4. `scripts/smc_bus_manifest.py` is the canonical active BUS contract for engine channels, dashboard order, strategy order, and the manual TradingView runbook.
 5. The active operator surface stays anchored on `long_user_preset` and `compact_mode` rather than reopening a new visible-input expansion cycle.
 
+### C5 - Armed and Confirm Lifecycle Owners
+
+The next executed slice continues with the remaining lifecycle-owned inline
+logic instead of reopening display-only work:
+
+1. Arm source selection, arm prequality, arm trigger gating, and arm payload assembly now live in dedicated helpers.
+2. Confirm break detection, internal-structure-since-arm evaluation, and confirm transition gating now live in dedicated helpers.
+3. The main lifecycle block is thinner at the Armed-to-Confirm boundary and mostly commits `long_state.arm(...)` / `long_state.confirm(...)` after helper-owned decisions.
+4. Split-core and semantic-contract tests now pin this Arm/Confirm owner boundary so future refactors do not drift back to large inline transition logic.
+
 ## 4. Fresh Inventory by Execution Surface
 
 ### Runtime Core Only — Stay Local

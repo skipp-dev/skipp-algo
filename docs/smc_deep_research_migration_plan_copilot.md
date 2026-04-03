@@ -148,16 +148,47 @@ gezieltes C4-Hardening des aktiven Cores und seines TradingView-Vertrags:
    als sichtbare Surface-Anker. Neue sichtbare Controls sollen nur dann
    hinzukommen, wenn sie nicht in diese beiden Operator-Ebenen passen.
 
+## 6. C5-Paket auf aktuellem Repo-Stand
+
+Das naechste ausgefuehrte Paket zieht den naechsten echten Lifecycle-Owner-
+Schnitt im aktiven Core:
+
+1. **Armed-Source-Auswahl und Armed-Prequality sind eigene Owner**
+   `resolve_long_arm_source_state(...)`,
+   `compute_long_arm_prequality_ok(...)` und
+   `compute_long_arm_should_trigger(...)` kapseln Source-Auswahl,
+   Vorqualitaet und den eigentlichen Armed-Trigger.
+
+2. **Der Armed-Payload fuer `long_state.arm(...)` wird separat gebaut**
+   `resolve_long_arm_transition_payload(...)` bereitet Touch-Count,
+   Locked-Source-ID, Bounds und Last-Touch-Zeitpunkt vor statt diese Daten
+   inline im Main Body aufzuloesen.
+
+3. **Confirm-Break, Confirm-Structure und Confirm-Transition sind getrennte Owner**
+   `resolve_long_confirm_break_state(...)`,
+   `resolve_long_confirm_structure_state(...)` und
+   `compute_long_confirm_transition_state(...)` halten den Armed-zu-Confirm-
+   Uebergang zusammen, ohne ihn weiter im Lifecycle-Block zu verstreuen.
+
+4. **Der Main Body kommittet an dieser Stelle nur noch State-Uebergaenge**
+   Im Lifecycle-Block bleiben fuer diesen Schnitt im Wesentlichen nur noch
+   `long_state.arm(...)` und `long_state.confirm(...)` als eigentliche
+   Commit-Punkte uebrig.
+
+5. **Split-Core- und Semantic-Contracts pinnen die neue Owner-Grenze**
+   Die aktive Regression prueft jetzt explizit auf Arm-/Confirm-Helper,
+   deren Call-Sites und die semantischen Bedingungen innerhalb dieser Helper.
+
 ---
 
-## 6. Copilot-Einsatz ab Jetzt
+## 7. Copilot-Einsatz ab Jetzt
 
 Wenn Copilot fuer den verbleibenden Rest eingesetzt wird, sollte es **nicht**
 mehr die alten R1-R6-Prompts oder die fruehen C3-Surface-Schleifen ausfuehren.
 Stattdessen sollte es sich auf diese fuenf Fragen konzentrieren:
 
 1. Welche Ready-/Strict-Reason-Codes oder Dashboard-Decodes des aktiven Cores sind noch nicht zentral genug verankert?
-2. Welche Locked-Source- und Invalidationszustandsbesitzer leben noch im Main Body statt in eigenen Helpern?
+2. Welche Lifecycle-Payloads oder State-Commit-Vorbedingungen um `long_state.arm(...)` und `long_state.confirm(...)` leben noch inline statt in eigenen Ownern?
 3. Welche BUS-Packs koennen weiter von Runtime-Logik und Plot-Publikation entkoppelt werden?
 4. Wo droht noch Drift zwischen `scripts/smc_bus_manifest.py`, den Consumern und dem TradingView-Runbook?
 5. Welche sichtbaren Operator-Controls gehoeren wirklich auf die aktive Surface, und welche muessen hinter `long_user_preset` oder `compact_mode` verschwinden?
