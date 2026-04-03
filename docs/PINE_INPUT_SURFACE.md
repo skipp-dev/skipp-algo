@@ -1,11 +1,12 @@
 # Pine Input Surface Reduction
 
-Reduces the visible input surface of major Pine scripts from **~4,000 raw inputs** to **~30-40 core controls** per script, improving onboarding and chart readability while preserving all engine behaviour.
+Reduces the visible input surface of major Pine scripts from **~4,000 raw inputs** to **~35-45 core controls** per script, improving onboarding and chart readability while preserving all engine behaviour.
 
 ## Summary
 
 | Script | Inputs | Grouped | display.none | **Visible** | Groups |
 |---|---:|---:|---:|---:|---:|
+| SMC_Core_Engine.pine | 249 | 249 (100%) | 206 | **43** | 23 |
 | SMC++.pine | 266 | 266 (100%) | 235 | **31** | 24 |
 | SkippALGO.pine | 359 | 359 (100%) | 320 | **39** | 37 |
 | SkippALGO_Strategy.pine | 357 | 357 (100%) | 322 | **35** | 39 |
@@ -23,6 +24,12 @@ Reduces the visible input surface of major Pine scripts from **~4,000 raw inputs
 Already had 100% grouping (24 groups) and the best-in-class **User Preset** mechanism (`Easy / Standard / Pro` overrides 9 boolean flags at runtime). This pass added `display = display.none` to **211 expert-level inputs**, keeping **31 core toggles** visible on the status line:
 
 Core visible: `signal_mode`, `long_user_preset`, `enable_ltf_sampling`, `ltf_timeframe`, `show_mtf_trend`, `mtf_trend_tf1-3`, `show_dashboard`, `enable_dynamic_alerts`, `performance_mode`, `show_risk_levels`, `target1_r`, `target2_r`, `use_vwap_filter`, `use_trade_session_gate`, `use_microstructure_profiles`, `use_index_gate`, `show_reclaim_markers`, `show_long_confirmation_markers`, `use_accel_module`, `use_sd_confluence`, `use_volatility_regime`, `use_stretch_context`, `use_ddvi_context`, `use_context_quality_score`, `show_Structure`, `show_ob`, `show_fvg`, `show_htf_fvg`, `show_eq`.
+
+### SMC_Core_Engine.pine (249 inputs)
+
+The active split-core producer now follows the same surface-governance policy as the other large Pine scripts: **100% grouped**, **43 visible operator controls**, and all lifecycle, module-tuning, debug, color, and visual-calibration parameters moved behind `display.none`.
+
+Core visible: `signal_mode`, `long_user_preset`, `compact_mode`, `enable_ltf_sampling`, `use_ltf_for_strict_entry`, `ltf_timeframe`, `mtf_trend_tf1-3`, `show_dashboard`, `enable_dynamic_alerts`, `dynamic_long_alert_mode`, `performance_mode`, `stop_buffer_atr_mult`, `target1_r`, `target2_r`, `use_vwap_filter`, `use_trade_session_gate`, `use_opening_range_gate`, `opening_range_minutes`, `use_microstructure_profiles`, `use_index_gate`, `long_signal_window`, `long_setup_expiry_bars`, `long_confirm_expiry_bars`, `max_bars_arm_to_confirm`, `max_bars_confirm_to_ready`, `max_zone_touches_for_entry`, `use_overhead_zone_filter`, `use_strict_sequence`, `use_strict_sweep_for_zone_reclaim`, `use_strict_confirm_guard`, `use_lean_signal_quality_gate`, `use_accel_module`, `use_sd_confluence`, `use_volatility_regime`, `use_stretch_context`, `use_ddvi_context`, `show_Structure`, `show_ob`, `show_fvg`, `show_htf_fvg`, `fvg_htf`.
 
 ### SkippALGO.pine (359 inputs)
 
@@ -47,8 +54,8 @@ Same grouping and `display.none` treatment as SkippALGO.pine for parity. Strateg
 ## Regression tests
 
 `tests/test_pine_input_surface.py` enforces:
-- 100% grouping for all three scripts
-- Visible surface in 25–45 range
+- 100% grouping for the active core plus the three existing Pine scripts
+- Visible surface in the configured per-script ranges, including 35–45 for `SMC_Core_Engine.pine`
 - Indicator/Strategy parity (≤5 input delta)
 - Balanced parens in all input declarations
 - Version tag present

@@ -6,14 +6,17 @@
 // Strategy orders are staged on confirmed bars via process_orders_on_close, so the backtest path does not rely on intrabar lookahead.
 strategy("SMC Long Strategy", overlay = true, pyramiding = 0, process_orders_on_close = true)
 
-src_armed = input.source(close, "BUS Armed")
-src_confirmed = input.source(close, "BUS Confirmed")
-src_ready = input.source(close, "BUS Ready")
-src_entry_best = input.source(close, "BUS EntryBest")
-src_entry_strict = input.source(close, "BUS EntryStrict")
-src_trigger = input.source(close, "BUS Trigger")
-src_invalidation = input.source(close, "BUS Invalidation")
-src_quality_score = input.source(close, "BUS QualityScore")
+var string g_bus_entry = "1. Core BUS - Entry States"
+var string g_bus_plan = "2. Core BUS - Trade Plan"
+
+src_armed = input.source(close, "BUS Armed", group = g_bus_entry, tooltip = "Bind strategy sources top-to-bottom to the matching BUS series from SMC Core Engine.")
+src_confirmed = input.source(close, "BUS Confirmed", group = g_bus_entry)
+src_ready = input.source(close, "BUS Ready", group = g_bus_entry)
+src_entry_best = input.source(close, "BUS EntryBest", group = g_bus_entry)
+src_entry_strict = input.source(close, "BUS EntryStrict", group = g_bus_entry)
+src_quality_score = input.source(close, "BUS QualityScore", group = g_bus_entry)
+src_trigger = input.source(close, "BUS Trigger", group = g_bus_plan, tooltip = "Bind plan levels after the state group so strategy setup stays deterministic.")
+src_invalidation = input.source(close, "BUS Invalidation", group = g_bus_plan)
 
 entry_mode = input.string("Strict", "Entry Mode", options = ["Armed", "Confirmed", "Ready", "Best", "Strict"])
 min_quality_score = input.float(0.0, "Min Quality Score", step = 0.25)

@@ -28,7 +28,7 @@ def _load(name: str) -> list:
 
 # ── grouping: 100 % of inputs must belong to a group ──────────────────
 
-@pytest.mark.parametrize("script", ["SMC++.pine", "SkippALGO.pine", "SkippALGO_Strategy.pine"])
+@pytest.mark.parametrize("script", ["SMC_Core_Engine.pine", "SMC++.pine", "SkippALGO.pine", "SkippALGO_Strategy.pine"])
 def test_all_inputs_grouped(script):
     inputs = _load(script)
     ungrouped = [i for i in inputs if not i.group]
@@ -41,6 +41,7 @@ def test_all_inputs_grouped(script):
 # ── visible surface: 30-45 inputs without display.none ────────────────
 
 @pytest.mark.parametrize("script,lo,hi", [
+    ("SMC_Core_Engine.pine", 35, 45),
     ("SMC++.pine", 25, 45),
     ("SkippALGO.pine", 25, 45),
     ("SkippALGO_Strategy.pine", 25, 45),
@@ -69,7 +70,7 @@ def test_parity_delta(ind, strat, max_delta):
 
 # ── balanced parens in input declarations ──────────────────────────────
 
-@pytest.mark.parametrize("script", ["SMC++.pine", "SkippALGO.pine", "SkippALGO_Strategy.pine"])
+@pytest.mark.parametrize("script", ["SMC_Core_Engine.pine", "SMC++.pine", "SkippALGO.pine", "SkippALGO_Strategy.pine"])
 def test_input_parens_balanced(script):
     inputs = _load(script)
     bad = []
@@ -87,7 +88,7 @@ def test_input_parens_balanced(script):
 
 # ── version tag present ───────────────────────────────────────────────
 
-@pytest.mark.parametrize("script", ["SMC++.pine", "SkippALGO.pine", "SkippALGO_Strategy.pine"])
+@pytest.mark.parametrize("script", ["SMC_Core_Engine.pine", "SMC++.pine", "SkippALGO.pine", "SkippALGO_Strategy.pine"])
 def test_version_tag(script):
     fp = ROOT / script
     if not fp.exists():

@@ -49,50 +49,88 @@ Diese Themen sollten nicht mehr als offene Migration neu gestartet werden.
 
 ---
 
-## 2. Real Verbleibende Deltas
+## 2. C3-Paket auf aktuellem Repo-Stand
 
-Nach dem aktuellen Stand bleiben nur noch wenige, klar begrenzte Rest-Deltas:
+Nach dem aktuellen Stand ist der verbleibende Arbeitsrest kein offener
+Migrationsnebel mehr, sondern ein klar begrenztes C3-Paket:
 
-1. **Phase C als nicht-behaviourale Pine-Bereinigung**
-   Fokus: verbleibender C2-Rest bei Debug-/Display-Helfern und klare Nicht-Anfassen-Grenzen, keine Gate- oder Contract-Arbeit mehr.
+1. **Legacy-Parallelpfad `SMC++.pine` ist eingefroren**
+   `SMC++.pine` ist ab jetzt der eingefrorene Kompatibilitaetspfad.
+   Es gibt dort keine neue Feature- oder Produktlogik mehr. Zulaessig bleiben
+   nur Compile-/Runtime-Fixes, Regressionserhalt und explizit dokumentierte
+   Kompatibilitaetskorrekturen.
 
-2. **Legacy-Parallelpfad `SMC++.pine` explizit einordnen**
-   Die Regressionen für `SMC++.pine` laufen weiterhin separat. Es braucht eine klare Entscheidung, ob dieser Pfad aktiv gepflegt, eingefroren oder mittelfristig abgelöst wird.
+2. **Semantische Split-Core-Verifikation wird erweitert**
+   Die bisherigen Split-Core-Guards bleiben erhalten, werden aber um
+   semantische Vertragspruefungen fuer StateCode, BUS-Row-Codes,
+   Lifecycle-Ableitungen und zentrale Alert-Gates ergaenzt.
 
-3. **Konsumenten auf neue Service-Zusammenfassungen ausrichten**
-   `measurement_summary` und `market_context` sind jetzt im Service-Bundle sichtbar. Downstream-Konsumenten können diese Felder opportunistisch übernehmen, aber das ist kein architektureller Blocker mehr.
+3. **Der aktive Core bekommt Input-Surface-Governance**
+   `SMC_Core_Engine.pine` wird auf dieselbe sichtbare Operator-Surface
+   gebracht wie die anderen grossen Pine-Skripte: gruppiert, bewusst kuratiert,
+   klar zwischen Core- und Expert-Controls getrennt.
+
+4. **Consumer-Setup in TradingView wird geordnet**
+   Dashboard und Strategy bleiben BUS-only, bekommen aber eine stabilere
+   Bindungsordnung, gruppierte `input.source()`-Sektionen und eine klarere
+   manuelle Setup-Konvention.
+
+5. **Die naechsten Extraktionen betreffen State-Owner**
+   Weitere Arbeit im Core zielt nicht mehr auf Debug-/Display-Shells, sondern
+   auf klar abgrenzbare Lifecycle-Teile und runtime-nahe Zustandsbesitzer.
+   Der erste umgesetzte Schnitt in diesem Paket ist
+   `compute_long_freshness_state(...)` fuer Armed-/Confirmed-Age und die daran
+   haengenden Freshness-Gates.
+
+6. **Produktgrenze wird explizit festgeschrieben**
+   `SMC_Core_Engine.pine` bleibt Long-Dip-first. Short-Paritaet ist kein stilles
+   Versprechen dieses C3-Pakets, sondern ein separater Folge-Track.
 
 ---
 
-## 3. Neue Empfohlene Reihenfolge
+## 3. Verbindliche Reihenfolge
 
-Die frühere Reihenfolge R1-R6 ist obsolet. Für den verbleibenden Delta-Rest ist die sinnvollste Reihenfolge jetzt:
+Die fruehere Reihenfolge R1-R6 ist obsolet. Fuer den verbleibenden Rest gilt
+jetzt diese Reihenfolge:
 
-1. **C2-Rest** – verbleibende Debug-/Display-Helfer in getrennten, rein visuellen Commits auslagern.
-2. **C3** – `SMC++.pine` Governance festlegen (pflegen, einfrieren oder deprecaten).
-3. **Service-Konsumenten** – neue Bundle-Zusammenfassungen opportunistisch übernehmen.
+1. **C3.1 Freeze-Policy** – `SMC++.pine` als eingefrorenen Kompatibilitaetspfad festschreiben.
+2. **C3.2 Semantic Contracts** – aktive Split-Core-Vertraege ueber reine Strukturtests hinaus absichern.
+3. **C3.3 Core Surface** – sichtbare Input-Surface des aktiven Cores auf ~30-40 Operator-Controls begrenzen.
+4. **C3.4 Consumer Setup** – BUS-Consumer fuer Dashboard und Strategy gruppieren, ordnen und dokumentieren.
+5. **C3.5 State-Owner Split** – naechste Pine-Extraktionen nur an echten Lifecycle-/State-Owner-Schnitten.
+6. **C3.6 Product Scope** – Long-Dip-first-Scope explizit festhalten; Short-Paritaet separat planen.
 
-Kurz gesagt: **erst bereinigen, dann entkoppeln, dann den Legacy-Pfad entscheiden**.
+Kurz gesagt: **erst Governance fixieren, dann Vertrage haerten, dann den aktiven
+Core und seine Consumer sauberer machen**.
 
 ---
 
-## 4. Definition of Done für den Rest-Delta-Plan
+## 4. Definition of Done fuer das C3-Paket
 
-Der verbleibende Delta-Rest gilt als geschlossen, wenn folgende Bedingungen gleichzeitig erfüllt sind:
+Das C3-Paket gilt als geschlossen, wenn folgende Bedingungen gleichzeitig
+erfuellt sind:
 
-1. Phase C ist auf aktuellem Repo-Stand rebased und nicht mehr auf veraltete Vor-AP1/AP5-Annahmen gestützt.
-2. Die C1-Entfernung bleibt per Audit-Test stabil abgesichert.
-3. Display-/Debug-Helfer sind getrennt, ohne Runtime-/Lifecycle-Logik zu verschieben.
-4. `SMC++.pine` hat einen expliziten Status statt impliziter Parallelpflege.
+1. `SMC++.pine` hat genau einen dokumentierten Status: eingefrorener Kompatibilitaetspfad.
+2. Release-Gates und Tests spiegeln diese Freeze-Policy explizit wider.
+3. Split-Core-Tests sichern BUS-Surface, StateCodes, Ready-/Strict-Reason-Codes und Alert-Gates semantisch ab.
+4. `SMC_Core_Engine.pine` erfuellt dieselbe Input-Surface-Governance wie die anderen grossen Pine-Skripte.
+5. Dashboard- und Strategy-Consumer sind gruppiert und in stabiler Bindereihenfolge dokumentiert.
+6. Mindestens ein weiterer C3-Schnitt extrahiert echte Lifecycle-/State-Owner-Logik statt nur Display-/Debug-Code. Der erste davon ist `compute_long_freshness_state(...)`.
+7. Long-Dip-first ist als Produktgrenze dokumentiert; Short-Paritaet bleibt ein expliziter Folge-Track.
 
 ---
 
 ## 5. Copilot-Einsatz ab Jetzt
 
-Wenn Copilot für den verbleibenden Delta-Rest eingesetzt wird, sollte es **nicht** mehr die alten R1-R6-Prompts ausführen. Stattdessen sollte es sich auf diese drei Fragen konzentrieren:
+Wenn Copilot fuer den verbleibenden Rest eingesetzt wird, sollte es **nicht**
+mehr die alten R1-R6-Prompts ausfuehren. Stattdessen sollte es sich auf diese
+fuenf Fragen konzentrieren:
 
-1. Welche Pine-Helfer sind nachweislich nur Display-/Debug-Code?
-2. Welchen Status soll `SMC++.pine` im Repo künftig haben?
-3. Welche Downstream-Konsumenten sollten `measurement_summary` und `market_context` als Erstes übernehmen?
+1. Ist die Freeze-Policy fuer `SMC++.pine` in Docs, Tests und Release-Gates konsistent?
+2. Welche BUS-, StateCode- und Lifecycle-Vertraege des aktiven Cores sind semantisch abgesichert?
+3. Welche Core-Inputs muessen sichtbar bleiben und welche gehoeren in `display.none`?
+4. Wie wird das TradingView-Consumer-Setup fuer Dashboard und Strategy weniger fehleranfaellig?
+5. Welcher naechste Pine-Schnitt ist ein echter State-Owner- oder Lifecycle-Schnitt?
 
-Damit ist der Migrationsplan wieder auf den tatsächlichen Repo-Iststand zurückgesetzt und vermeidet erneute Rework-Schleifen über bereits geschlossene Themen.
+Damit ist der Migrationsplan auf den tatsaechlichen Repo-Iststand zurueckgesetzt
+und verhindert, dass Phase C erneut in rein kosmetische Rework-Schleifen kippt.

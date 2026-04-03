@@ -86,6 +86,19 @@ Die Defaults koennen auf drei Ebenen ueberschrieben werden (Prioritaet: CLI > En
 
 Beispiel: `SMC_RELEASE_SYMBOLS=TSLA,NVDA python scripts/run_smc_release_gates.py`
 
+## 3.2) Freeze-Policy fuer `SMC++.pine`
+
+- `SMC_Core_Engine.pine` ist der release-verbindliche Producer fuer TradingView-Validation,
+  Dashboard-Consumer und Strategy-Consumer.
+- `SMC++.pine` bleibt eingefrorener Kompatibilitaetspfad.
+- Zulaessig fuer `SMC++.pine` sind nur Compile-/Runtime-Fixes,
+  regressionswahrende Kompatibilitaetskorrekturen und zugehoerige Doku-Anpassungen.
+- Nicht zulaessig fuer `SMC++.pine` sind neue Features, neue Produktlogik,
+  neue Parallel-Interpretationen oder neue aktive Consumer-Anbindungen.
+- Der Release-Validierungslauf muss fuer diese Freeze-Policy mindestens
+  `tests/test_smc_long_dip_regressions.py` und `tests/test_smc_legacy_governance.py`
+  enthalten.
+
 ### Evidence-Coverage-Schwellen
 
 Die Gate-Evidence-Auswertung (`scripts/collect_smc_gate_evidence.py`) prueft zusaetzlich zur
@@ -151,6 +164,7 @@ Die Evidence-Auswertung liefert analog ein `not_ready_reasons`-Array, wenn `gree
 2. Publish-Contract-Invarianten erfolgreich (im Release-Gate enthalten; basiert auf `scripts/verify_smc_micro_publish_contract.py`).
 3. Referenz-Smoke-Checks erfolgreich (im Release-Gate enthalten).
 4. Danach TradingView-Publish-Prozess gemaess Runbook starten.
+5. Der manuelle TradingView-Validierungspfad bleibt `SMC_Core_Engine.pine` -> `SMC_Dashboard.pine` -> `SMC_Long_Strategy.pine`; `SMC++.pine` ist kein aktiver Publish- oder Consumer-Pfad mehr.
 
 Bei Warnungen/Degradations:
 

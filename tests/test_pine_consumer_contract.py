@@ -262,7 +262,7 @@ STRATEGY_BUS_CHANNELS: set[str] = {
 
 _MP_FIELD_RE = re.compile(r"\bmp\.([A-Z][A-Z0-9_]+)")
 _BUS_PLOT_RE = re.compile(r"'BUS\s+(\w+)'")
-_BUS_INPUT_RE = re.compile(r"""input\.source\([^)]*"BUS\s+(\w+)"\)""")
+_BUS_INPUT_RE = re.compile(r"""input\.source\([^,]+,\s*"BUS\s+(\w+)"[^)]*\)""")
 _IMPORT_RE = re.compile(r"^\s*import\b.*smc_micro_profiles", re.MULTILINE)
 
 

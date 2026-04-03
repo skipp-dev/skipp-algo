@@ -155,15 +155,16 @@ Guardrails for C2:
 2. No alert eligibility logic may move.
 3. Only string/display composition is in scope.
 
-### C3 — Decide the Legacy Parallel Path Explicitly
+### C3 — Legacy Parallel Path Frozen Explicitly
 
-One important repo fact now needs to be carried into Phase C planning:
+That decision is now fixed:
 
-1. `tests/test_smc_long_dip_regressions.py` targets `SMC++.pine`, not `SMC_Core_Engine.pine`.
-2. Split-core assertions belong in split-core tests only.
-3. Future cleanup must decide whether `SMC++.pine` is still maintained, frozen, or headed for deprecation.
-
-That decision should happen before broad cleanup work starts crossing both engines again.
+1. `SMC++.pine` is the frozen compatibility path.
+2. `tests/test_smc_long_dip_regressions.py` remains the explicit compatibility anchor for that path.
+3. Split-core assertions stay scoped to `SMC_Core_Engine.pine`.
+4. Active TradingView producer, dashboard, strategy, and release validation target `SMC_Core_Engine.pine`.
+5. No new feature work should resume on `SMC++.pine`; only compatibility-preserving fixes remain allowed.
+6. The first executed C3.5 state-owner split is `compute_long_freshness_state(...)`, which localizes armed/confirmed freshness aging without reopening display-only cleanup.
 
 ## 4. Fresh Inventory by Execution Surface
 
@@ -239,7 +240,7 @@ If a task changes long-engine behavior, it is almost certainly **not** Phase C a
 | --- | --- | --- |
 | Dead-input deletion batch | Green | C1 executed; removed inputs are now guarded as absent |
 | Display/debug extraction | Green | next low-risk cleanup lane after C1 |
-| Legacy parallel-path cleanup | Yellow | requires explicit ownership decision for `SMC++.pine` |
+| Legacy parallel-path cleanup | Green | `SMC++.pine` freeze policy is explicit; compat regression anchor remains separate |
 | Full Phase C execution now | Yellow | do not execute from the old plan blindly |
 
 ---
@@ -259,5 +260,5 @@ This AP6 re-evaluation leaves Phase C in a materially better state than the old 
 ## 8. Recommended Next Execution Order
 
 1. Keep the C1 removal batch compile-clean and absence-guarded after nearby edits.
-2. Perform display/debug helper extraction in a separate no-logic-change commit.
-3. Decide whether `SMC++.pine` remains a maintained parallel engine before broader cleanup resumes.
+2. Extend semantic split-core, consumer-setup, and input-surface guards around the active core.
+3. Continue only with state-owner / lifecycle extraction inside `SMC_Core_Engine.pine`, not with new display-only slices.

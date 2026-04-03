@@ -14,6 +14,10 @@ Geprüft werden:
 
 Ziel ist ein klarer Pass/Fail-Entscheid für den aktuellen Vertragsstand in TradingView, ohne Änderungen an Produktionslogik.
 
+`SMC++.pine` gehoert nicht mehr zu diesem aktiven Validierungspfad. Der Legacy-
+Monolith bleibt ein eingefrorener Kompatibilitaetsanker und wird separat ueber
+Repo-Regressionen abgesichert.
+
 ## Benötigte Dateien
 
 1. [../SMC_Core_Engine.pine](../SMC_Core_Engine.pine)
@@ -31,10 +35,16 @@ Ziel ist ein klarer Pass/Fail-Entscheid für den aktuellen Vertragsstand in Trad
 ## Empfohlene Reihenfolge In TradingView
 
 1. Core öffnen und kompilieren.
-2. Dashboard hinzufügen und alle 26 `source`-Bindings auf den Core legen.
+2. Dashboard hinzufügen und alle 29 `source`-Bindings auf den Core legen.
 3. Strategy hinzufügen und alle 8 `source`-Bindings auf den Core legen.
 4. Die fünf Prüfszenarien auf demselben Symbol und Timeframe durchlaufen.
 5. Alle Beobachtungen direkt in die Report-Vorlage eintragen.
+
+### Binding-Konvention
+
+1. Dashboard bindet in vier Gruppen: Lifecycle, Diagnostic Packs, Trade Plan, Lean Surface.
+2. Strategy bindet in zwei Gruppen: Entry States, Trade Plan.
+3. Beide Consumer werden in TradingView immer top-to-bottom an die gleichnamigen BUS-Serien des Cores gebunden.
 
 ## Producer-Prüfung
 
@@ -49,7 +59,7 @@ Ziel ist ein klarer Pass/Fail-Entscheid für den aktuellen Vertragsstand in Trad
 
 1. Das Skript kompiliert ohne Fehler.
 2. Es bleiben keine sichtbaren Laufzeitfehler im Chart-Overlay zurück.
-3. Die folgenden 26 Serien sind als Source auswählbar:
+3. Die folgenden 29 Serien sind als Source auswählbar:
 
 - `BUS ZoneActive`
 - `BUS Armed`
@@ -66,6 +76,7 @@ Ziel ist ein klarer Pass/Fail-Entscheid für den aktuellen Vertragsstand in Trad
 - `BUS MetaPack`
 - `BUS HardGatesPackA`
 - `BUS HardGatesPackB`
+- `BUS EventRiskRow`
 - `BUS QualityPackA`
 - `BUS QualityPackB`
 - `BUS QualityBoundsPack`
@@ -77,6 +88,8 @@ Ziel ist ein klarer Pass/Fail-Entscheid für den aktuellen Vertragsstand in Trad
 - `BUS StopLevel`
 - `BUS Target1`
 - `BUS Target2`
+- `BUS LeanPackA`
+- `BUS LeanPackB`
 
 ### Producer Pass/Fail-Kriterien
 
@@ -84,7 +97,7 @@ Pass:
 
 1. Core kompiliert.
 2. Keine Laufzeitfehlermeldung.
-3. Alle 26 Serien sind auswählbar.
+3. Alle 29 Serien sind auswählbar.
 
 Fail:
 
@@ -97,7 +110,7 @@ Fail:
 ### Dashboard Schrittfolge
 
 1. [../SMC_Dashboard.pine](../SMC_Dashboard.pine) auf denselben Chart legen.
-2. Alle 26 `input.source()`-Felder exakt mit den Core-Serien belegen.
+2. Alle 29 `input.source()`-Felder exakt mit den Core-Serien belegen.
 3. Sichtbarkeit und Reaktion der Sektionen prüfen:
 
 - Lifecycle
@@ -111,7 +124,7 @@ Fail:
 ### Dashboard Erwartete Beobachtungen
 
 1. Dashboard kompiliert ohne Fehler.
-2. Alle 26 Bindings sind vollständig auswählbar.
+2. Alle 29 Bindings sind vollständig auswählbar.
 3. Das Dashboard bleibt sichtbar.
 4. Die Sektionen reagieren plausibel auf den Core-Zustand.
 

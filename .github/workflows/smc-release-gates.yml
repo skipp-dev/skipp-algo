@@ -38,12 +38,17 @@ jobs:
         run: |
           shopt -s nullglob
           tests=(
+            tests/test_pine_consumer_contract.py
+            tests/test_pine_consumer_setup.py
+            tests/test_pine_input_surface.py
             tests/test_smc_integration_*.py
             tests/test_explicit_structure_*.py
             tests/test_smc_core_*.py
             tests/test_smc_adapters_*.py
             tests/test_measurement_*.py
             tests/test_release_policy.py
+            tests/test_smc_long_dip_regressions.py
+            tests/test_smc_legacy_governance.py
             tests/test_smc_vol_regime.py
             tests/test_smc_bias_merge.py
             tests/test_smc_benchmark.py
