@@ -1,42 +1,29 @@
 from __future__ import annotations
 
+import importlib.util
 import pathlib
 import re
+import sys
+from types import ModuleType
 
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 CORE_PATH = ROOT / 'SMC_Core_Engine.pine'
-EXPECTED_BUS_LABELS = [
-    'BUS ZoneActive',
-    'BUS Armed',
-    'BUS Confirmed',
-    'BUS Ready',
-    'BUS EntryBest',
-    'BUS EntryStrict',
-    'BUS Trigger',
-    'BUS Invalidation',
-    'BUS QualityScore',
-    'BUS SourceKind',
-    'BUS StateCode',
-    'BUS TrendPack',
-    'BUS MetaPack',
-    'BUS HardGatesPackA',
-    'BUS HardGatesPackB',
-    'BUS EventRiskRow',
-    'BUS QualityPackA',
-    'BUS QualityPackB',
-    'BUS QualityBoundsPack',
-    'BUS ModulePackA',
-    'BUS ModulePackB',
-    'BUS ModulePackC',
-    'BUS ModulePackD',
-    'BUS EnginePack',
-    'BUS StopLevel',
-    'BUS Target1',
-    'BUS Target2',
-    'BUS LeanPackA',
-    'BUS LeanPackB',
-]
+MANIFEST_PATH = ROOT / 'scripts' / 'smc_bus_manifest.py'
+
+
+def _load_manifest() -> ModuleType:
+    spec = importlib.util.spec_from_file_location('smc_bus_manifest', MANIFEST_PATH)
+    assert spec is not None
+    assert spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+MANIFEST = _load_manifest()
+EXPECTED_BUS_LABELS = list(MANIFEST.ENGINE_BUS_LABELS)
 
 
 def _read_core_source() -> str:
@@ -211,9 +198,30 @@ def test_core_engine_has_no_dashboard_or_alert_transport_layer() -> None:
 def test_core_engine_ends_at_hidden_bus_boundary() -> None:
     source = _read_core_source().rstrip()
 
+    assert "plot(resolve_bus_sd_confluence_row(use_sd_confluence, sd_support_both_recent, sd_bullish_divergence_recent, sd_higher_lows_recent, sd_support_any_recent), 'BUS SdConfluenceRow', display = display.none)" in source
+    assert "plot(resolve_bus_sd_osc_row(use_sd_confluence, sd_value, sd_above_zero, sd_rising, sd_below_zero, sd_falling), 'BUS SdOscRow', display = display.none)" in source
+    assert "plot(resolve_bus_vol_regime_row(use_volatility_regime, vol_regime_trend_ok), 'BUS VolRegimeRow', display = display.none)" in source
+    assert "plot(resolve_bus_vol_squeeze_row(use_volatility_regime, vol_squeeze_on, vol_squeeze_release_recent, vol_squeeze_recent), 'BUS VolSqueezeRow', display = display.none)" in source
+    assert "plot(resolve_bus_vol_expand_row(use_volatility_regime, vol_momentum_expanding_long, vol_stack_spread_rising), 'BUS VolExpandRow', display = display.none)" in source
+    assert "plot(resolve_bus_ddvi_row(use_ddvi_context, ddvi_bias_ok, ddvi_bull_divergence_any, ddvi_lower_extreme_context), 'BUS DdviRow', display = display.none)" in source
+    assert "plot(resolve_bus_stretch_support_mask(use_stretch_context, in_lower_extreme, lower_extreme_recent, anti_chase_ok_ready, anti_chase_ok_entry_best), 'BUS StretchSupportMask', display = display.none)" in source
+    assert "plot(ltf_bias_hint, 'BUS LtfBiasHint', display = display.none)" in source
+    assert "'BUS ModulePackA', display = display.none" not in source
+    assert "'BUS ModulePackB', display = display.none" not in source
     assert "plot(resolve_bus_lean_pack_b(lib_obl_side, lib_obl_fresh, lib_obl_mitigation_state, lib_fvgl_side, lib_fvgl_fresh, lib_fvgl_invalidated, lib_scl_context_score, lib_scl_in_killzone, lib_sq_score), 'BUS LeanPackB', display = display.none)" in source
     assert source.endswith('/////////////////////////////////////////////////////////////////////////////////')
     assert "'BUS LeanPackB', display = display.none)\n\n// ── Mini Health Badge (v5.5a) ──" in source
+
+
+def test_core_engine_moves_secondary_overlay_lines_off_plot_budget() -> None:
+    source = _read_core_source()
+
+    assert "plot(show_session_vwap_eff and intraday_time_chart ? session_vwap : na, 'Session VWAP'" not in source
+    assert "plot(show_ema_support_eff ? ema_fast : na, 'EMA Fast'" not in source
+    assert "plot(show_ema_support_eff ? ema_slow : na, 'EMA Slow'" not in source
+    assert 'draw_overlay_line_tail(session_vwap_overlay_segments, show_session_vwap_eff and intraday_time_chart, session_vwap, color.new(color.blue, 0), 2, overlay_line_tail_segments)' in source
+    assert 'draw_overlay_line_tail(ema_fast_overlay_segments, show_ema_support_eff, ema_fast, color.new(color.lime, 0), 2, overlay_line_tail_segments)' in source
+    assert 'draw_overlay_line_tail(ema_slow_overlay_segments, show_ema_support_eff, ema_slow, color.new(color.teal, 0), 2, overlay_line_tail_segments)' in source
 
 
 def test_core_engine_tracks_c4_gate_contract_helpers() -> None:
@@ -234,8 +242,10 @@ def test_core_engine_tracks_c4_source_and_bus_pack_helpers() -> None:
     assert 'compute_long_source_upgrade_state(bool allow_armed_source_upgrade, bool long_setup_armed, bool long_setup_confirmed, bool prev_locked_source_invalid_now, int prev_locked_source_kind, int prev_locked_source_id, bool bull_reclaim_ob_strict, bool touched_bull_ob_available, int touched_bull_ob_id, float touched_bull_ob_quality, bool bull_reclaim_fvg_strict, bool touched_bull_fvg_available, int touched_bull_fvg_id, float touched_bull_fvg_quality, float long_locked_source_quality, float min_source_upgrade_quality_gain) =>' in source
     assert 'resolve_long_source_runtime_state(int long_source_kind, int long_source_id, bool ob_source_alive, bool fvg_source_alive, bool ob_source_broken, bool fvg_source_broken, bool long_setup_armed, bool long_setup_confirmed) =>' in source
     assert 'resolve_long_invalidation_state(bool long_setup_armed, bool long_setup_confirmed, int long_setup_age, int long_setup_expiry_bars, int long_confirm_age, int long_confirm_expiry_bars, bool close_safe_mode, float long_invalidation_break_src, float long_invalidation_level, float long_invalidation_buffer, bool long_source_broken, bool long_source_lost) =>' in source
-    assert 'resolve_bus_engine_pack(bool long_ready_state, bool long_setup_confirmed, bool lifecycle_ready_ok, bool setup_hard_gate_ok, bool trade_hard_gate_ok, bool environment_hard_gate_ok, bool close_safe_mode, bool ready_bar_gap_ok, bool long_confirm_expired, bool ready_is_fresh, bool long_confirm_bearish_guard_ok, bool require_main_break_for_ready, bool bull_bos_sig, bool main_bos_recent, bool session_structure_gate_ok, bool micro_session_gate_ok, bool micro_freshness_gate_ok, bool overhead_zone_ok, bool market_regime_gate_ok, bool vola_regime_gate_safe, bool quality_gate_ok, bool accel_ready_gate_ok, bool sd_ready_gate_ok, bool vol_ready_context_ok, bool stretch_ready_context_ok, bool ddvi_ready_ok_safe, bool long_entry_strict_state, bool strict_signal_quality_gate_ok, bool strict_entry_ltf_ok, bool htf_alignment_ok, bool accel_strict_entry_gate_ok, bool sd_entry_strict_gate_ok, bool vol_entry_strict_context_ok_safe, bool stretch_entry_strict_context_ok, bool ddvi_entry_strict_ok_safe, bool show_long_engine_debug, int long_visual_state, bool long_setup_armed, string micro_modifier_text) =>' in source
-    assert "plot(resolve_bus_engine_pack(long_ready_state, long_state.confirmed, lifecycle_ready_ok, setup_hard_gate_ok, trade_hard_gate_ok, environment_hard_gate_ok, close_safe_mode, ready_bar_gap_ok, long_confirm_expired, ready_is_fresh, long_confirm_bearish_guard_ok, require_main_break_for_ready_eff, bull_bos_sig, main_bos_recent, session_structure_gate_ok, micro_session_gate_ok, micro_freshness_gate_ok, overhead_zone_ok, market_regime_gate_ok, vola_regime_gate_safe, quality_gate_ok, accel_ready_gate_ok, sd_ready_gate_ok, vol_ready_context_ok, stretch_ready_context_ok, ddvi_ready_ok_safe, long_entry_strict_state, strict_signal_quality_gate_ok, strict_entry_ltf_ok, htf_alignment_ok, accel_strict_entry_gate_ok, sd_entry_strict_gate_ok, vol_entry_strict_context_ok_safe, stretch_entry_strict_context_ok, ddvi_entry_strict_ok_safe, show_long_engine_debug, long_visual_state, long_state.armed, micro_modifier_text), 'BUS EnginePack', display = display.none)" in source
+    assert 'resolve_bus_stretch_support_mask(bool use_stretch_context, bool in_lower_extreme, bool lower_extreme_recent, bool anti_chase_ok_ready, bool anti_chase_ok_entry_best) =>' in source
+    assert 'resolve_bus_module_pack_b(' not in source
+    assert 'resolve_bus_engine_pack(' not in source
+    assert "'BUS EnginePack', display = display.none" not in source
 
 
 def test_core_engine_tracks_c5_arm_and_confirm_owner_helpers() -> None:
@@ -284,7 +294,7 @@ def test_core_engine_tracks_c7_execution_and_bus_projection_owners() -> None:
     assert 'resolve_long_bus_plan_levels(bool long_plan_active, float long_trigger, float long_invalidation_level, float long_stop_level, float long_target_1, float long_target_2) =>' in source
     assert 'resolve_bus_long_triggers_row(bool long_plan_active, bool long_setup_confirmed, bool long_ready_state, bool long_entry_best_state, bool long_entry_strict_state, float bus_trigger_level, float bus_invalidation_level) =>' in source
     assert 'resolve_bus_risk_plan_row(bool long_plan_active, float bus_trigger_level, float bus_invalidation_level, float bus_stop_level, float bus_target_1, float bus_target_2) =>' in source
-    assert 'resolve_bus_module_pack_d(bool long_zone_active, bool in_bull_ob_zone, bool in_bull_fvg_zone, bool long_plan_active, bool long_setup_confirmed, bool long_ready_state, bool long_entry_best_state, bool long_entry_strict_state, float bus_trigger_level, float bus_invalidation_level, float bus_stop_level, float bus_target_1, float bus_target_2, bool show_ob_debug_eff, bool show_fvg_debug_eff, bool show_long_engine_debug_eff) =>' in source
+    assert 'resolve_bus_debug_flags_row(bool show_ob_debug, bool show_fvg_debug, bool show_long_engine_debug) =>' in source
     assert '[long_building_state, ready_bar_gap_ok, scoring_accel_ready, scoring_sd_ready, scoring_vol_ready, scoring_stretch_ready, scoring_ddvi_ready, lifecycle_ready_ok, long_ready_state] = resolve_long_ready_projection_state(long_state.armed, long_internal_structure_ok, long_state.confirmed, long_state.confirm_bar_index, bar_index, use_scoring_over_blocking, accel_ready_gate_ok, sd_ready_gate_ok, vol_ready_context_ok, stretch_ready_context_ok, ddvi_ready_ok_safe, close_safe_mode, long_confirm_expired, ready_is_fresh, long_confirm_bearish_guard_ok, require_main_break_for_ready_eff, bull_bos_sig, main_bos_recent, setup_hard_gate_ok, trade_hard_gate_ok, environment_hard_gate_ok, quality_gate_ok)' in source
     assert '[long_entry_best_state, long_entry_strict_state] = resolve_long_entry_projection_state(long_ready_state, best_signal_quality_gate_ok, accel_entry_best_gate_ok, sd_entry_best_gate_ok, vol_entry_best_context_ok_safe, stretch_entry_best_context_ok, ddvi_entry_best_ok_safe, strict_signal_quality_gate_ok, strict_entry_ltf_ok, htf_alignment_ok, accel_strict_entry_gate_ok, sd_entry_strict_gate_ok, vol_entry_strict_context_ok_safe, stretch_entry_strict_context_ok, ddvi_entry_strict_ok_safe)' in source
     assert '[long_ready_blocker_text, long_strict_blocker_text] = resolve_long_execution_blocker_state(long_ready_state, long_state.confirmed, close_safe_mode, ready_bar_gap_ok, long_confirm_expired, ready_is_fresh, long_confirm_bearish_guard_ok, require_main_break_for_ready_eff, bull_bos_sig, main_bos_recent, setup_hard_gate_ok, trade_hard_gate_ok, environment_hard_gate_ok, session_structure_gate_ok, micro_session_gate_ok, micro_freshness_gate_ok, overhead_zone_ok, market_regime_gate_ok, vola_regime_gate_safe, quality_gate_ok, scoring_accel_ready, scoring_sd_ready, scoring_vol_ready, scoring_stretch_ready, scoring_ddvi_ready, long_entry_strict_state, strict_signal_quality_gate_ok, strict_entry_ltf_ok, htf_alignment_ok, accel_strict_entry_gate_ok, sd_entry_strict_gate_ok, vol_entry_strict_context_ok_safe, stretch_entry_strict_context_ok, ddvi_entry_strict_ok_safe)' in source
@@ -295,11 +305,15 @@ def test_core_engine_tracks_c7_execution_and_bus_projection_owners() -> None:
     assert "plot(bus_stop_level, 'BUS StopLevel', display = display.none)" in source
     assert "plot(bus_target_1, 'BUS Target1', display = display.none)" in source
     assert "plot(bus_target_2, 'BUS Target2', display = display.none)" in source
-    assert "plot(resolve_bus_module_pack_d(long_zone_active, in_bull_ob_zone, in_bull_fvg_zone, long_plan_active, long_state.confirmed, long_ready_state, long_entry_best_state, long_entry_strict_state, bus_trigger_level, bus_invalidation_level, bus_stop_level, bus_target_1, bus_target_2, show_ob_debug_eff, show_fvg_debug_eff, show_long_engine_debug_eff), 'BUS ModulePackD', display = display.none)" in source
+    assert "plot(resolve_bus_long_triggers_row(long_plan_active, long_state.confirmed, long_ready_state, long_entry_best_state, long_entry_strict_state, bus_trigger_level, bus_invalidation_level), 'BUS LongTriggersRow', display = display.none)" in source
+    assert "plot(resolve_bus_risk_plan_row(long_plan_active, bus_trigger_level, bus_invalidation_level, bus_stop_level, bus_target_1, bus_target_2), 'BUS RiskPlanRow', display = display.none)" in source
+    assert "plot(resolve_bus_debug_flags_row(show_ob_debug_eff, show_fvg_debug_eff, show_long_engine_debug_eff), 'BUS DebugFlagsRow', display = display.none)" in source
     assert 'resolve_bus_long_triggers_row(long_plan_active)' not in source
     assert 'resolve_bus_risk_plan_row(long_plan_active)' not in source
+    assert 'resolve_bus_module_pack_d(' not in source
     assert "plot(long_state.trigger, 'BUS Trigger', display = display.none)" not in source
     assert "plot(long_state.invalidation_level, 'BUS Invalidation', display = display.none)" not in source
+    assert "plot(resolve_bus_module_pack_d(" not in source
 
 
 def test_core_engine_tracks_c8_event_edge_and_debug_owners() -> None:

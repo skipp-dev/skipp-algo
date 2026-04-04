@@ -849,9 +849,10 @@ class TestV55bContractSync:
         ]
         for s in expected_suppressions:
             assert s in text, f"compact_mode must contain: {s}"
-        # Visual plots must use _eff versions (not raw input)
-        assert "show_session_vwap_eff and intraday_time_chart" in text
-        assert "show_ema_support_eff ? ema_fast" in text
+        # Visible overlays must keep using _eff guards even after moving off plot() budget.
+        assert "draw_overlay_line_tail(session_vwap_overlay_segments, show_session_vwap_eff and intraday_time_chart, session_vwap" in text
+        assert "draw_overlay_line_tail(ema_fast_overlay_segments, show_ema_support_eff, ema_fast" in text
+        assert "draw_overlay_line_tail(ema_slow_overlay_segments, show_ema_support_eff, ema_slow" in text
         assert "show_mean_target_overlay_eff and not na" in text
         # Contract doc must describe Hero-Surface
         doc = (ROOT / "docs/v5_5_lean_contract.md").read_text()

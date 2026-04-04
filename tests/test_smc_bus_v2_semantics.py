@@ -1,37 +1,32 @@
 from __future__ import annotations
 
+import importlib.util
 import pathlib
 import re
+import sys
+from types import ModuleType
 
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 CORE_PATH = ROOT / 'SMC_Core_Engine.pine'
 DASHBOARD_PATH = ROOT / 'SMC_Dashboard.pine'
 STRATEGY_PATH = ROOT / 'SMC_Long_Strategy.pine'
+MANIFEST_PATH = ROOT / 'scripts' / 'smc_bus_manifest.py'
 
-LEGACY_CORE_CHANNELS = [
-    'BUS ZoneActive',
-    'BUS Armed',
-    'BUS Confirmed',
-    'BUS Ready',
-    'BUS EntryBest',
-    'BUS EntryStrict',
-    'BUS Trigger',
-    'BUS Invalidation',
-    'BUS QualityScore',
-    'BUS SourceKind',
-]
 
-STRATEGY_CHANNELS = [
-    'BUS Armed',
-    'BUS Confirmed',
-    'BUS Ready',
-    'BUS EntryBest',
-    'BUS EntryStrict',
-    'BUS QualityScore',
-    'BUS Trigger',
-    'BUS Invalidation',
-]
+def _load_manifest() -> ModuleType:
+    spec = importlib.util.spec_from_file_location('smc_bus_manifest', MANIFEST_PATH)
+    assert spec is not None
+    assert spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+MANIFEST = _load_manifest()
+LEGACY_CORE_CHANNELS = list(MANIFEST.ENGINE_BUS_LABELS[:10])
+STRATEGY_CHANNELS = list(MANIFEST.STRATEGY_BUS_LABELS)
 
 
 def _read(path: pathlib.Path) -> str:
@@ -435,7 +430,22 @@ def test_dashboard_and_strategy_contracts_share_same_strategy_relevant_channels(
 
     assert 'src_state_code = input.source(close, "BUS StateCode"' in dashboard_source
     assert 'src_state_code' not in strategy_source
-    assert 'src_hard_gates_pack_a = input.source(close, "BUS HardGatesPackA"' in dashboard_source
+    assert 'src_session_gate_row = input.source(close, "BUS SessionGateRow"' in dashboard_source
+    assert 'src_close_strength_row = input.source(close, "BUS CloseStrengthRow"' in dashboard_source
+    assert 'src_quality_score_row = input.source(close, "BUS QualityScoreRow"' in dashboard_source
+    assert 'src_vol_expand_row = input.source(close, "BUS VolExpandRow"' in dashboard_source
+    assert 'src_ddvi_row = input.source(close, "BUS DdviRow"' in dashboard_source
+    assert 'src_ready_gate_row = input.source(close, "BUS ReadyGateRow"' in dashboard_source
+    assert 'src_zone_ob_top = input.source(close, "BUS ZoneObTop"' in dashboard_source
+    assert 'src_stretch_support_mask = input.source(close, "BUS StretchSupportMask"' in dashboard_source
+    assert 'src_ltf_bias_hint = input.source(close, "BUS LtfBiasHint"' in dashboard_source
+    assert 'src_hard_gates_pack_a' not in dashboard_source
+    assert 'src_quality_pack_a' not in dashboard_source
+    assert 'src_quality_pack_b' not in dashboard_source
+    assert 'src_engine_pack' not in dashboard_source
+    assert 'src_module_pack_b' not in dashboard_source
     assert 'HardGatesPackA' not in strategy_source
-    assert 'src_engine_pack = input.source(close, "BUS EnginePack"' in dashboard_source
+    assert 'QualityPackA' not in strategy_source
+    assert 'QualityPackB' not in strategy_source
+    assert 'ModulePackB' not in strategy_source
     assert 'EnginePack' not in strategy_source

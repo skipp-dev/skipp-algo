@@ -1,7 +1,7 @@
-# Runtime Budget — SMC_Core_Engine.pine v5.5b
+# Runtime Budget - SMC_Core_Engine.pine v5.5d
 
 **Status**: Active inventory  
-**Last updated**: AP7 v5.5b — Phase C C1 executed
+**Last updated**: 2026-04-03 - ModulePackB direct cut executed
 
 ---
 
@@ -9,18 +9,25 @@
 
 | Metric | Count |
 | --- | --- |
-| Total lines | ~6155 |
-| `var` declarations | ~371 |
-| `input.*` declarations | ~260 |
-| `plot()` calls | ~32 |
-| `request.security()` | 5 |
+| Total lines | ~6650 |
+| `var` declarations | ~420 |
+| `input.*` declarations | ~249 |
+| `plot()` calls | 62 |
+| `request.security()` | 3 |
 | `request.security_lower_tf()` | 2 |
-| `ta.*` / `math.*` usages | ~191 |
+| `ta.*` / `math.*` usages | ~236 |
 
 ### Plot Budget
 
-TradingView allows max 64 plots per script. Current usage: **32 / 64**.
-BUS protocol consumes ~9 plots (ModulePackA–D + LeanPackA/B + EventRisk).
+TradingView allows max 64 plots per script. Current usage: **62 / 64**.
+The active BUS export surface now consumes 62 hidden plots, leaving only 2 free
+plot slots for the next C9 slice.
+
+The previous visible overlay plots (`Session VWAP`, `EMA Fast`, `EMA Slow`)
+have already moved to object-based line tails. The producer now spends its
+active `plot()` budget on the hidden BUS contract instead of on visible overlay
+`plot()` calls. See
+[smc-module-pack-b-direct-cut-design.md](smc-module-pack-b-direct-cut-design.md).
 
 ---
 
@@ -43,7 +50,8 @@ These fields are read from lean families and drive the engine directly.
 ### BUS Backward Compat (broad fields, Dashboard only)
 
 All BUS PackE/F/G fields, resolvers, and plot calls **removed in Phase B (AP6 v5.5b)**.
-Dashboard reads only PackA-D + LeanPackA/B.
+The active dashboard now reads all 62 producer channels: ModulePackC, direct
+row/detail channels, and LeanPackA/B.
 
 ### Phase C C1: Declaration-Only Visual Input Cleanup (11 inputs)
 
@@ -67,6 +75,17 @@ dashboard, or alert path in the split core.
 
 Audit coverage now asserts these names remain absent from the split core.
 
+### Phase C C2: ModulePackB direct cut
+
+**Status**: DONE
+**Removed**: `BUS ModulePackB`, 3 visible overlay `plot()` calls
+**Added**: `BUS VolExpandRow`, `BUS DdviRow`, `BUS StretchSupportMask`, `BUS LtfBiasHint`
+**Current plot budget**: 62 / 64
+
+The direct cut stayed plot-neutral by moving the visible `Session VWAP`,
+`EMA Fast`, and `EMA Slow` overlays to line-object tails before the new BUS
+channels were published.
+
 ---
 
 ## 3. Removal Roadmap
@@ -75,7 +94,7 @@ Audit coverage now asserts these names remain absent from the split core.
 
 **Status**: ✅ DONE (AP6 v5.5b)  
 **Removed**: 33 field declarations, 12 resolver functions, 3 plot calls, ~265 lines total  
-**Plot budget**: 32 / 64
+**Current plot budget**: 62 / 64
 
 ### Phase C C1: Declaration-only visual input cleanup (11 inputs)
 
@@ -100,7 +119,7 @@ Audit coverage now asserts these names remain absent from the split core.
 - **Compact mode**: Suppresses 9+ visual overlays. No runtime savings (inputs still evaluated),
   but reduces chart rendering load.
 
-## 5. Principles (v5.5b)
+## 5. Principles (v5.5d)
 
 1. **Pine Runtime Budget** is architectural, not incidental (Principle 12)
 2. **Support Family Admission Rule** — new families must prove value vs. runtime cost (Principle 14)

@@ -2,7 +2,7 @@
 
 **Status**: Supporting planning note  
 **Date**: 2026-04-02  
-**Canonical references**: [v5_5b_architecture.md](v5_5b_architecture.md), [v5_5_lean_contract.md](v5_5_lean_contract.md), [MEASUREMENT_LANE.md](MEASUREMENT_LANE.md), [PHASE_C_ANALYSIS.md](PHASE_C_ANALYSIS.md)
+**Canonical references**: [v5_5b_architecture.md](v5_5b_architecture.md), [v5_5_lean_contract.md](v5_5_lean_contract.md), [MEASUREMENT_LANE.md](MEASUREMENT_LANE.md), [PHASE_C_ANALYSIS.md](PHASE_C_ANALYSIS.md), [smc-lite-pro-product-cut.md](smc-lite-pro-product-cut.md)
 
 ## Ziel dieses Dokuments
 
@@ -135,13 +135,17 @@ gezieltes C4-Hardening des aktiven Cores und seines TradingView-Vertrags:
    Locked-Source-Runtime-Zustand und die Invalidationspraezedenz.
 
 3. **Die BUS-Publication-Layer ist als eigene Composite-Schicht lesbar**
-   Composite-Packs wie `MetaPack`, `HardGatesPackA/B`, `ModulePackA-D`,
-   `EnginePack` und `LeanPackA/B` werden ueber eigene Helper gebaut statt direkt
-   inline im Plot-Block zusammengesetzt.
+   Composite-Packs und direkte Row-Exports wie `MetaPack`, `ModulePackC`,
+   `SdConfluenceRow`, `SdOscRow`, `VolRegimeRow`, `VolSqueezeRow`,
+   `VolExpandRow`, `DdviRow`, `LongTriggersRow`, `RiskPlanRow`,
+   `DebugFlagsRow`, die Engine-Row-Surface und `LeanPackA/B` werden ueber
+   eigene Helper gebaut statt direkt inline im Plot-Block zusammengesetzt.
 
 4. **Dashboard, Strategy und Runbook haengen an einem kanonischen BUS-Manifest**
    `scripts/smc_bus_manifest.py` ist die aktive Repo-Quelle fuer Channel-Namen,
-   Consumer-Reihenfolge, Gruppen und den manuellen TradingView-Pfad.
+   Consumer-Reihenfolge, Gruppen und den manuellen TradingView-Pfad. Das
+   Manifest traegt jetzt auch den Executable-, Lite- und Pro-only-Schnitt als
+   kanonische Produktgrenze.
 
 5. **Die aktive Operator-Surface bleibt Long-Dip-first und preset-zentriert**
    `SMC_Core_Engine.pine` haelt `long_user_preset` und `compact_mode` bewusst
@@ -231,10 +235,12 @@ aktiven Core:
    Trigger, Invalidation, Stop und Targets, statt rohe Runtime-Werte direkt zu
    plotten.
 
-4. **Trigger- und Risk-Plan-Row-Ownership sitzt in `ModulePackD`**
+4. **Trigger-, Risk-Plan- und Debug-Flag-Row-Ownership sitzen jetzt in
+   direkten BUS-Reihen**
    `resolve_bus_long_triggers_row(...)`, `resolve_bus_risk_plan_row(...)` und
-   die erweiterte `resolve_bus_module_pack_d(...)`-Signatur codieren jetzt Tier-
-   und Vollstaendigkeitszustand an der BUS-Grenze.
+   `resolve_bus_debug_flags_row(...)` codieren jetzt Tier- und
+   Vollstaendigkeitszustand an der BUS-Grenze ohne ein verbleibendes
+   `ModulePackD`-Transportfeld.
 
 5. **Die aktive Regression pinnt den C7-Schnitt explizit**
    Split-Core- und Semantic-Contracts sichern jetzt die neue Execution-
@@ -267,7 +273,50 @@ Observability-Grenze aus dem Runtime-Pfad:
 
 ---
 
-## 10. Copilot-Einsatz ab Jetzt
+## 10. C9-Paket auf aktuellem Repo-Stand
+
+Der naechste sinnvolle Schnitt liegt nicht mehr auf der Lite- oder Strategy-
+Surface, sondern auf den Pro-only-Packs:
+
+1. **Der Lite-Contract bleibt eingefroren**
+   `scripts/smc_bus_manifest.py` unterscheidet jetzt explizit zwischen
+   Executable Core, Lite-Surface und Pro-only-Channels. C9 darf diese Grenze
+   nicht verwischen.
+
+2. **UI-Transport-Kanaele werden als eigene Rebuild-Lane behandelt**
+   `EventRiskRow`, `VolExpandRow`, `DdviRow`, `ModulePackC`,
+   `LongTriggersRow`, `RiskPlanRow`, `DebugFlagsRow` sowie die direkten
+   Engine-Reihen `ReadyGateRow`, `StrictGateRow`, `DebugStateRow` und
+   `MicroModifierMask` sind die naechsten Rebuild-Kandidaten, weil sie
+   Pro-Diagnostik stark an das aktuelle Dashboard-Wording koppeln.
+
+3. **Quality-Diagnostik wird reduziert statt neu aufgeblasen**
+   `QualityPackA/B` wurden durch direkte Quality-Rows ersetzt und sind jetzt
+   komplett aus dem Producer entfernt, ohne `BUS QualityScore` oder die
+   Lite-Surface zu verschieben.
+
+4. **Stabile Pro-Support-Channels bleiben bewusst stehen**
+   `MetaPack`, `QualityBoundsPack`, `StopLevel`, `Target1` und `Target2` sind
+   keine primaeren Rebuild-Ziele des C9-Schnitts, obwohl sie produktseitig
+   Pro-only bleiben.
+
+5. **Manifest und Regression pinnen die C9-Klassifikation**
+   Die kanonische Aufteilung des Pro-only-Bereichs lebt jetzt im Manifest und
+   ist ueber dedizierte Regression abgesichert, damit Produktgrenze und
+   Cleanup-Pfad nicht auseinanderlaufen.
+
+6. **Der Rest der Module-Lane ist jetzt vor allem plot-budget-begrenzt**
+   Nach dem Retirement der alten Compat-Exports und dem nachgelagerten
+   `ModulePackA`-Schnitt und dem inzwischen ausgefuehrten `ModulePackB`-Cut
+   liegt die Engine weiter bei `62 / 64` Plots. Die sichtbaren Overlay-Plots
+   wurden zuvor aus dem `plot()`-Budget verschoben, danach wurde
+   `ModulePackB` durch `VolExpandRow`, `DdviRow`, `StretchSupportMask` und
+   `LtfBiasHint` ersetzt. Weitere Modul-Schritte muessen deshalb weiterhin
+   plot-neutral oder mit zusaetzlichen Plot-Einsparungen geplant werden.
+
+---
+
+## 11. Copilot-Einsatz ab Jetzt
 
 Wenn Copilot fuer den verbleibenden Rest eingesetzt wird, sollte es **nicht**
 mehr die alten R1-R6-Prompts oder die fruehen C3-Surface-Schleifen ausfuehren.
@@ -278,6 +327,7 @@ Stattdessen sollte es sich auf diese fuenf Fragen konzentrieren:
 3. Welche BUS-Packs koennen weiter von Runtime-Logik und Plot-Publikation entkoppelt werden?
 4. Wo droht noch Drift zwischen `scripts/smc_bus_manifest.py`, den Consumern und dem TradingView-Runbook?
 5. Welche sichtbaren Operator-Controls gehoeren wirklich auf die aktive Surface, und welche muessen hinter `long_user_preset` oder `compact_mode` verschwinden?
+6. Welche Pro-only-Packs sind echte Domain-Stuetzen, und welche sind nur noch serialisierte Dashboard-Zeilen?
 
 Damit ist der Migrationsplan auf den tatsaechlichen Repo-Iststand zurueckgesetzt
 und verhindert, dass Phase C erneut in rein kosmetische Rework-Schleifen kippt.

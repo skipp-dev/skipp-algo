@@ -1,48 +1,36 @@
 from __future__ import annotations
 
+import importlib.util
 import pathlib
 import re
+import sys
+from types import ModuleType
 
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 CORE_PATH = ROOT / 'SMC_Core_Engine.pine'
 DASHBOARD_PATH = ROOT / 'SMC_Dashboard.pine'
 STRATEGY_PATH = ROOT / 'SMC_Long_Strategy.pine'
+MANIFEST_PATH = ROOT / 'scripts' / 'smc_bus_manifest.py'
 LEGACY_CORE_PATHS = [
     ROOT / 'SMC Core + Zones.pine',
     ROOT / 'SMC_Core_Zones.pine',
 ]
-EXPECTED_BUS_LABELS = [
-    'BUS ZoneActive',
-    'BUS Armed',
-    'BUS Confirmed',
-    'BUS Ready',
-    'BUS EntryBest',
-    'BUS EntryStrict',
-    'BUS Trigger',
-    'BUS Invalidation',
-    'BUS QualityScore',
-    'BUS SourceKind',
-    'BUS StateCode',
-    'BUS TrendPack',
-    'BUS MetaPack',
-    'BUS HardGatesPackA',
-    'BUS HardGatesPackB',
-    'BUS EventRiskRow',
-    'BUS QualityPackA',
-    'BUS QualityPackB',
-    'BUS QualityBoundsPack',
-    'BUS ModulePackA',
-    'BUS ModulePackB',
-    'BUS ModulePackC',
-    'BUS ModulePackD',
-    'BUS EnginePack',
-    'BUS StopLevel',
-    'BUS Target1',
-    'BUS Target2',
-    'BUS LeanPackA',
-    'BUS LeanPackB',
-]
+
+
+def _load_manifest() -> ModuleType:
+    spec = importlib.util.spec_from_file_location('smc_bus_manifest', MANIFEST_PATH)
+    assert spec is not None
+    assert spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+MANIFEST = _load_manifest()
+EXPECTED_ENGINE_BUS_LABELS = list(MANIFEST.ENGINE_BUS_LABELS)
+EXPECTED_DASHBOARD_BUS_LABELS = list(MANIFEST.DASHBOARD_BUS_LABELS)
 
 
 def _read(path: pathlib.Path) -> str:
@@ -53,9 +41,14 @@ def test_dashboard_is_a_bus_only_consumer() -> None:
     source = _read(DASHBOARD_PATH)
 
     assert 'indicator("SMC Dashboard", "SMC Dash", overlay = true' in source
-    assert source.count('input.source(') == len(EXPECTED_BUS_LABELS)
-    for label in EXPECTED_BUS_LABELS:
+    assert source.count('input.source(') == len(EXPECTED_DASHBOARD_BUS_LABELS)
+    for label in EXPECTED_DASHBOARD_BUS_LABELS:
         assert label in source
+    assert 'BUS HardGatesPackA' not in source
+    assert 'BUS HardGatesPackB' not in source
+    assert 'BUS QualityPackA' not in source
+    assert 'BUS QualityPackB' not in source
+    assert 'BUS EnginePack' not in source
     assert 'n/a - not on bus' not in source
 
     assert 'import preuss_steffen/' not in source
@@ -94,7 +87,7 @@ def test_core_remains_the_only_active_producer() -> None:
     assert "plot(bus_target_1, 'BUS Target1', display = display.none)" in source
     assert "plot(bus_target_2, 'BUS Target2', display = display.none)" in source
     hidden_bus_calls = re.findall(r"plot\([^\n]+display\s*=\s*display\.none\)", source)
-    assert len(hidden_bus_calls) == len(EXPECTED_BUS_LABELS)
+    assert len(hidden_bus_calls) == len(EXPECTED_ENGINE_BUS_LABELS)
     assert 'alertcondition(' not in source
     assert 'dashboard_header(' not in source
 

@@ -4,51 +4,110 @@ This checklist is for manual validation of the current split contract in Trading
 
 ## Core Producer Plots To Bind
 
-The producer exports the full hidden bus in [SMC_Core_Engine.pine](../SMC_Core_Engine.pine#L5526-L5551).
+The producer exports the full hidden bus from [SMC_Core_Engine.pine](../SMC_Core_Engine.pine).
+
+Current manual validation counts:
+
+- Producer hidden series: `62`
+- Dashboard bindings: `62`
+- Strategy bindings: `8`
 
 ### Dashboard Needs These Bindings
 
-The dashboard expects all 26 bindings declared in [SMC_Dashboard.pine](../SMC_Dashboard.pine#L7-L29):
+The dashboard expects all `62` bindings declared in [SMC_Dashboard.pine](../SMC_Dashboard.pine) and governed by [../scripts/smc_bus_manifest.py](../scripts/smc_bus_manifest.py).
 
-1. `BUS ZoneActive`
-2. `BUS Armed`
-3. `BUS Confirmed`
-4. `BUS Ready`
-5. `BUS EntryBest`
-6. `BUS EntryStrict`
-7. `BUS Trigger`
-8. `BUS Invalidation`
-9. `BUS QualityScore`
-10. `BUS SourceKind`
-11. `BUS StateCode`
-12. `BUS TrendPack`
-13. `BUS MetaPack`
-14. `BUS HardGatesPackA`
-15. `BUS HardGatesPackB`
-16. `BUS QualityPackA`
-17. `BUS QualityPackB`
-18. `BUS QualityBoundsPack`
-19. `BUS ModulePackA`
-20. `BUS ModulePackB`
-21. `BUS ModulePackC`
-22. `BUS ModulePackD`
-23. `BUS EnginePack`
-24. `BUS StopLevel`
-25. `BUS Target1`
-26. `BUS Target2`
+Lifecycle:
+
+- `BUS ZoneActive`
+- `BUS Armed`
+- `BUS Confirmed`
+- `BUS Ready`
+- `BUS EntryBest`
+- `BUS EntryStrict`
+- `BUS Trigger`
+- `BUS Invalidation`
+- `BUS QualityScore`
+- `BUS SourceKind`
+- `BUS StateCode`
+- `BUS TrendPack`
+- `BUS MetaPack`
+
+Diagnostic Rows:
+
+- `BUS SessionGateRow`
+- `BUS MarketGateRow`
+- `BUS VolaGateRow`
+- `BUS MicroSessionGateRow`
+- `BUS MicroFreshRow`
+- `BUS VolumeDataRow`
+- `BUS QualityEnvRow`
+- `BUS QualityStrictRow`
+- `BUS CloseStrengthRow`
+- `BUS EmaSupportRow`
+- `BUS AdxRow`
+- `BUS RelVolRow`
+- `BUS VwapRow`
+- `BUS ContextQualityRow`
+- `BUS QualityCleanRow`
+- `BUS QualityScoreRow`
+- `BUS SdConfluenceRow`
+- `BUS SdOscRow`
+- `BUS VolRegimeRow`
+- `BUS VolSqueezeRow`
+- `BUS VolExpandRow`
+- `BUS DdviRow`
+- `BUS LongTriggersRow`
+- `BUS RiskPlanRow`
+- `BUS DebugFlagsRow`
+- `BUS ReadyGateRow`
+- `BUS StrictGateRow`
+- `BUS DebugStateRow`
+- `BUS MicroModifierMask`
+
+Diagnostic Packs:
+
+- `BUS EventRiskRow`
+- `BUS QualityBoundsPack`
+- `BUS ModulePackC`
+
+Trade Plan:
+
+- `BUS StopLevel`
+- `BUS Target1`
+- `BUS Target2`
+
+Detail Surface:
+
+- `BUS ZoneObTop`
+- `BUS ZoneObBottom`
+- `BUS ZoneFvgTop`
+- `BUS ZoneFvgBottom`
+- `BUS SessionVwap`
+- `BUS AdxValue`
+- `BUS RelVolValue`
+- `BUS StretchZ`
+- `BUS StretchSupportMask`
+- `BUS LtfBullShare`
+- `BUS LtfBiasHint`
+- `BUS LtfVolumeDelta`
+
+Lean Surface:
+
+- `BUS LeanPackA`
+- `BUS LeanPackB`
 
 ### Strategy Needs These Bindings
 
 The strategy expects only the 8 bindings declared in [SMC_Long_Strategy.pine](../SMC_Long_Strategy.pine#L7-L14):
 
-1. `BUS Armed`
-2. `BUS Confirmed`
-3. `BUS Ready`
-4. `BUS EntryBest`
-5. `BUS EntryStrict`
-6. `BUS Trigger`
-7. `BUS Invalidation`
-8. `BUS QualityScore`
+- `BUS Armed`
+- `BUS Confirmed`
+- `BUS Ready`
+- `BUS EntryBest`
+- `BUS EntryStrict`
+- `BUS Trigger`
+- `BUS Invalidation`
+- `BUS QualityScore`
 
 ## Manual Validation Scenarios
 
@@ -72,7 +131,7 @@ Expected dashboard cues:
 
 If this fails:
 
-- `MetaPack` or `ModulePackD` decoding is wrong
+- `MetaPack` decoding, local zone-row derivation, or direct trigger/risk/debug row binding is wrong
 - `StateCode` mapping is wrong
 - one or more dashboard `input.source()` bindings point to the wrong producer plot
 
@@ -132,7 +191,7 @@ Expected dashboard cues:
 
 If this fails:
 
-- `EnginePack.slot0` decoding is wrong
+- `ReadyGateRow` binding or `decode_ready_gate_text()` mapping is wrong
 - `StateCode` mapping is wrong
 - `Trigger`, `StopLevel`, `Target1`, or `Target2` are wired incorrectly
 
@@ -169,7 +228,7 @@ If this fails:
 ## Manual Cross-Check Order
 
 1. Add `SMC_Core_Engine.pine` to the chart.
-2. Add `SMC_Dashboard.pine` and bind all 26 sources to the core plots.
+2. Add `SMC_Dashboard.pine` and bind all 62 sources to the core plots.
 3. Add `SMC_Long_Strategy.pine` and bind its 8 sources to the core plots.
 4. Validate the five scenarios above on the same symbol and timeframe.
 5. If dashboard and strategy disagree, treat the core plots as the source of truth first and inspect source bindings before changing any logic.

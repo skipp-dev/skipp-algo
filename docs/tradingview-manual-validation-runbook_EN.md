@@ -28,6 +28,7 @@ The goal is a clear pass/fail decision for the current TradingView contract stat
 2. [../scripts/tv_preflight.ts](../scripts/tv_preflight.ts)
 3. [../scripts/create_tradingview_storage_state.ts](../scripts/create_tradingview_storage_state.ts)
 4. [tradingview-auth-modes.md](tradingview-auth-modes.md)
+5. [../scripts/smc_bus_manifest.py](../scripts/smc_bus_manifest.py)
 
 ## Local Prerequisite Check
 
@@ -41,25 +42,21 @@ Workspace refresh: 2026-04-03
 ## Recommended Order In TradingView
 
 1. Open and compile the core.
-2. Add the dashboard and bind all 26 `source` inputs to the core.
+2. Add the dashboard and bind all 62 `source` inputs to the core.
 3. Add the strategy and bind all 8 `source` inputs to the core.
 4. Execute the five validation scenarios on the same symbol and timeframe.
 5. Record all observations directly in the report template.
 
-## Producer Validation
+### Binding Convention
 
-### Producer Steps
+1. The dashboard binds in six groups: Lifecycle, Diagnostic Rows, Diagnostic Packs, Trade Plan, Detail Surface, Lean Surface.
+2. The strategy binds in two groups: Entry States, Trade Plan.
+3. In TradingView, both consumers are bound top-to-bottom to the matching BUS series from the core.
+4. [../scripts/smc_bus_manifest.py](../scripts/smc_bus_manifest.py) is the canonical source for names, order, and groups.
 
-1. Open [../SMC_Core_Engine.pine](../SMC_Core_Engine.pine) in TradingView.
-2. Compile the script on the target chart.
-3. Confirm that the script remains loaded without compile-time or runtime errors.
-4. In the `source` picker of a downstream consumer, confirm that the hidden bus series are selectable.
+### Canonical BUS Order
 
-### Producer Expected Observations
-
-1. The script compiles without errors.
-2. No visible runtime errors remain in the chart overlay.
-3. The following 29 series are selectable as sources:
+The active engine publishes the hidden BUS series in this exact manifest order:
 
 - `BUS ZoneActive`
 - `BUS Armed`
@@ -74,22 +71,70 @@ Workspace refresh: 2026-04-03
 - `BUS StateCode`
 - `BUS TrendPack`
 - `BUS MetaPack`
-- `BUS HardGatesPackA`
-- `BUS HardGatesPackB`
 - `BUS EventRiskRow`
-- `BUS QualityPackA`
-- `BUS QualityPackB`
 - `BUS QualityBoundsPack`
-- `BUS ModulePackA`
-- `BUS ModulePackB`
 - `BUS ModulePackC`
-- `BUS ModulePackD`
-- `BUS EnginePack`
 - `BUS StopLevel`
 - `BUS Target1`
 - `BUS Target2`
+- `BUS SessionGateRow`
+- `BUS MarketGateRow`
+- `BUS VolaGateRow`
+- `BUS MicroSessionGateRow`
+- `BUS MicroFreshRow`
+- `BUS VolumeDataRow`
+- `BUS QualityEnvRow`
+- `BUS QualityStrictRow`
+- `BUS CloseStrengthRow`
+- `BUS EmaSupportRow`
+- `BUS AdxRow`
+- `BUS RelVolRow`
+- `BUS VwapRow`
+- `BUS ContextQualityRow`
+- `BUS QualityCleanRow`
+- `BUS QualityScoreRow`
+- `BUS SdConfluenceRow`
+- `BUS SdOscRow`
+- `BUS VolRegimeRow`
+- `BUS VolSqueezeRow`
+- `BUS VolExpandRow`
+- `BUS DdviRow`
+- `BUS LongTriggersRow`
+- `BUS RiskPlanRow`
+- `BUS DebugFlagsRow`
+- `BUS ReadyGateRow`
+- `BUS StrictGateRow`
+- `BUS DebugStateRow`
+- `BUS MicroModifierMask`
+- `BUS ZoneObTop`
+- `BUS ZoneObBottom`
+- `BUS ZoneFvgTop`
+- `BUS ZoneFvgBottom`
+- `BUS SessionVwap`
+- `BUS AdxValue`
+- `BUS RelVolValue`
+- `BUS StretchZ`
+- `BUS StretchSupportMask`
+- `BUS LtfBullShare`
+- `BUS LtfBiasHint`
+- `BUS LtfVolumeDelta`
 - `BUS LeanPackA`
 - `BUS LeanPackB`
+
+## Producer Validation
+
+### Producer Steps
+
+1. Open [../SMC_Core_Engine.pine](../SMC_Core_Engine.pine) in TradingView.
+2. Compile the script on the target chart.
+3. Confirm that the script remains loaded without compile-time or runtime errors.
+4. In the `source` picker of a downstream consumer, confirm that the hidden bus series are selectable.
+
+### Producer Expected Observations
+
+1. The script compiles without errors.
+2. No visible runtime errors remain in the chart overlay.
+3. All 62 dashboard bindings listed in [tradingview-validation-checklist.md](tradingview-validation-checklist.md) are selectable.
 
 ### Producer Pass/Fail Criteria
 
@@ -97,7 +142,7 @@ Pass:
 
 1. Core compiles.
 2. No runtime error is visible.
-3. All 26 series are selectable.
+3. All 62 series are selectable.
 
 Fail:
 
@@ -110,7 +155,7 @@ Fail:
 ### Dashboard Steps
 
 1. Add [../SMC_Dashboard.pine](../SMC_Dashboard.pine) to the same chart.
-2. Bind all 26 `input.source()` fields exactly to the core series.
+2. Bind all 62 `input.source()` fields exactly to the core series.
 3. Check visibility and response of the following sections:
 
 - Lifecycle
@@ -124,7 +169,7 @@ Fail:
 ### Dashboard Expected Observations
 
 1. The dashboard compiles without errors.
-2. All 26 bindings are fully selectable.
+2. All 62 bindings are fully selectable.
 3. The dashboard remains visible.
 4. The sections respond plausibly to the core state.
 
@@ -177,7 +222,7 @@ Expected:
 Pass:
 
 1. Dashboard compiles.
-2. All 26 bindings can be assigned.
+2. All 62 bindings can be assigned.
 3. All five scenarios show the expected response.
 4. No internal contradictions exist between lifecycle, exec tier, setup age, and risk lines.
 

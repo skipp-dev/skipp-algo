@@ -6,9 +6,11 @@
 indicator("SMC Dashboard", "SMC Dash", overlay = true, max_labels_count = 50)
 
 var string g_bus_lifecycle = "1. Core BUS - Lifecycle"
-var string g_bus_diag = "2. Core BUS - Diagnostic Packs"
-var string g_bus_plan = "3. Core BUS - Trade Plan"
-var string g_bus_lean = "4. Core BUS - Lean Surface"
+var string g_bus_diag_rows = "2. Core BUS - Diagnostic Rows"
+var string g_bus_diag = "3. Core BUS - Diagnostic Packs"
+var string g_bus_plan = "4. Core BUS - Trade Plan"
+var string g_bus_detail = "5. Core BUS - Detail Surface"
+var string g_bus_lean = "6. Core BUS - Lean Surface"
 
 src_zone_active = input.source(close, "BUS ZoneActive", group = g_bus_lifecycle, tooltip = "Bind this section top-to-bottom to the matching hidden BUS series published by SMC Core Engine.")
 src_armed = input.source(close, "BUS Armed", group = g_bus_lifecycle)
@@ -23,20 +25,53 @@ src_source_kind = input.source(close, "BUS SourceKind", group = g_bus_lifecycle)
 src_state_code = input.source(close, "BUS StateCode", group = g_bus_lifecycle)
 src_trend_pack = input.source(close, "BUS TrendPack", group = g_bus_lifecycle)
 src_meta_pack = input.source(close, "BUS MetaPack", group = g_bus_lifecycle)
-src_hard_gates_pack_a = input.source(close, "BUS HardGatesPackA", group = g_bus_diag, tooltip = "Continue binding top-to-bottom within each consumer group to keep the setup deterministic.")
-src_hard_gates_pack_b = input.source(close, "BUS HardGatesPackB", group = g_bus_diag)
+src_session_gate_row = input.source(close, "BUS SessionGateRow", group = g_bus_diag_rows, tooltip = "Continue binding top-to-bottom within each consumer group to keep the setup deterministic.")
+src_market_gate_row = input.source(close, "BUS MarketGateRow", group = g_bus_diag_rows)
+src_vola_gate_row = input.source(close, "BUS VolaGateRow", group = g_bus_diag_rows)
+src_micro_session_gate_row = input.source(close, "BUS MicroSessionGateRow", group = g_bus_diag_rows)
+src_micro_fresh_row = input.source(close, "BUS MicroFreshRow", group = g_bus_diag_rows)
+src_volume_data_row = input.source(close, "BUS VolumeDataRow", group = g_bus_diag_rows)
+src_quality_env_row = input.source(close, "BUS QualityEnvRow", group = g_bus_diag_rows)
+src_quality_strict_row = input.source(close, "BUS QualityStrictRow", group = g_bus_diag_rows)
+src_close_strength_row = input.source(close, "BUS CloseStrengthRow", group = g_bus_diag_rows)
+src_ema_support_row = input.source(close, "BUS EmaSupportRow", group = g_bus_diag_rows)
+src_adx_row = input.source(close, "BUS AdxRow", group = g_bus_diag_rows)
+src_relvol_row = input.source(close, "BUS RelVolRow", group = g_bus_diag_rows)
+src_vwap_row = input.source(close, "BUS VwapRow", group = g_bus_diag_rows)
+src_context_quality_row = input.source(close, "BUS ContextQualityRow", group = g_bus_diag_rows)
+src_quality_clean_row = input.source(close, "BUS QualityCleanRow", group = g_bus_diag_rows)
+src_quality_score_row = input.source(close, "BUS QualityScoreRow", group = g_bus_diag_rows)
+src_sd_confluence_row = input.source(close, "BUS SdConfluenceRow", group = g_bus_diag_rows)
+src_sd_osc_row = input.source(close, "BUS SdOscRow", group = g_bus_diag_rows)
+src_vol_regime_row = input.source(close, "BUS VolRegimeRow", group = g_bus_diag_rows)
+src_vol_squeeze_row = input.source(close, "BUS VolSqueezeRow", group = g_bus_diag_rows)
+src_vol_expand_row = input.source(close, "BUS VolExpandRow", group = g_bus_diag_rows)
+src_ddvi_row = input.source(close, "BUS DdviRow", group = g_bus_diag_rows)
 src_event_risk_row = input.source(close, "BUS EventRiskRow", group = g_bus_diag)
-src_quality_pack_a = input.source(close, "BUS QualityPackA", group = g_bus_diag)
-src_quality_pack_b = input.source(close, "BUS QualityPackB", group = g_bus_diag)
 src_quality_bounds_pack = input.source(close, "BUS QualityBoundsPack", group = g_bus_diag)
-src_module_pack_a = input.source(close, "BUS ModulePackA", group = g_bus_diag)
-src_module_pack_b = input.source(close, "BUS ModulePackB", group = g_bus_diag)
 src_module_pack_c = input.source(close, "BUS ModulePackC", group = g_bus_diag)
-src_module_pack_d = input.source(close, "BUS ModulePackD", group = g_bus_diag)
-src_engine_pack = input.source(close, "BUS EnginePack", group = g_bus_diag)
+src_long_triggers_row = input.source(close, "BUS LongTriggersRow", group = g_bus_diag_rows)
+src_risk_plan_row = input.source(close, "BUS RiskPlanRow", group = g_bus_diag_rows)
+src_debug_flags_row = input.source(close, "BUS DebugFlagsRow", group = g_bus_diag_rows)
+src_ready_gate_row = input.source(close, "BUS ReadyGateRow", group = g_bus_diag_rows)
+src_strict_gate_row = input.source(close, "BUS StrictGateRow", group = g_bus_diag_rows)
+src_debug_state_row = input.source(close, "BUS DebugStateRow", group = g_bus_diag_rows)
+src_micro_modifier_mask = input.source(close, "BUS MicroModifierMask", group = g_bus_diag_rows)
 src_stop_level = input.source(close, "BUS StopLevel", group = g_bus_plan, tooltip = "These trade-plan bindings stay separate so they can be checked last.")
 src_target_1 = input.source(close, "BUS Target1", group = g_bus_plan)
 src_target_2 = input.source(close, "BUS Target2", group = g_bus_plan)
+src_zone_ob_top = input.source(close, "BUS ZoneObTop", group = g_bus_detail)
+src_zone_ob_bottom = input.source(close, "BUS ZoneObBottom", group = g_bus_detail)
+src_zone_fvg_top = input.source(close, "BUS ZoneFvgTop", group = g_bus_detail)
+src_zone_fvg_bottom = input.source(close, "BUS ZoneFvgBottom", group = g_bus_detail)
+src_session_vwap = input.source(close, "BUS SessionVwap", group = g_bus_detail)
+src_adx_value = input.source(close, "BUS AdxValue", group = g_bus_detail)
+src_relvol_value = input.source(close, "BUS RelVolValue", group = g_bus_detail)
+src_stretch_z = input.source(close, "BUS StretchZ", group = g_bus_detail)
+src_stretch_support_mask = input.source(close, "BUS StretchSupportMask", group = g_bus_detail)
+src_ltf_bull_share = input.source(close, "BUS LtfBullShare", group = g_bus_detail)
+src_ltf_bias_hint = input.source(close, "BUS LtfBiasHint", group = g_bus_detail)
+src_ltf_volume_delta = input.source(close, "BUS LtfVolumeDelta", group = g_bus_detail)
 src_lean_pack_a = input.source(close, "BUS LeanPackA", group = g_bus_lean, tooltip = "Lean surface bindings are grouped last because they are additive hero-surface feeds.")
 src_lean_pack_b = input.source(close, "BUS LeanPackB", group = g_bus_lean)
 
@@ -91,6 +126,17 @@ row_status(int row_code) =>
 
 row_reason(int row_code) =>
     row_code % 100
+
+pack_bus_row(int row_state, int reason_code) =>
+    (row_state + 1) * 100 + reason_code
+
+zone_row_code(int zone_code) =>
+    int zone_state = 0
+    if zone_code == 2 or zone_code == 3
+        zone_state := 4
+    else if zone_code == 4
+        zone_state := 5
+    pack_bus_row(zone_state, zone_code)
 
 status_bg(int state_value) =>
     color bg = color.new(color.gray, 92)
@@ -378,22 +424,90 @@ decode_ema_text(int row_code) =>
     int reason_code = row_reason(row_code)
     reason_code == 1 and row_status(row_code) == 0 ? "off" : reason_code == 1 ? "OK" : "No"
 
-decode_adx_text(int row_code) =>
+format_level_text(float value) =>
+    na(value) ? "n/a" : str.tostring(value, format.mintick)
+
+format_number_text(float value) =>
+    na(value) ? "n/a" : str.tostring(value, "#.##")
+
+format_relvol_text(float value) =>
+    na(value) ? "n/a" : str.tostring(value, "#.##") + "x"
+
+format_percent_text(float value) =>
+    na(value) ? "n/a" : str.format("{0,number,percent}", value)
+
+format_percent_whole_text(float value) =>
+    na(value) ? "n/a" : str.tostring(value * 100.0, "#") + "%"
+
+format_zscore_text(float value) =>
+    na(value) ? "n/a" : str.tostring(value, "#.##") + "z"
+
+mask_has_flag(float mask_value, int flag_weight) =>
+    int mask = int(math.round(nz(mask_value, 0.0)))
+    int(math.floor(mask / flag_weight)) % 2 == 1
+
+resolve_stretch_row_code(float stretch_z, float stretch_support_mask) =>
+    bool use_stretch_context = mask_has_flag(stretch_support_mask, 1)
+    bool in_lower_extreme = mask_has_flag(stretch_support_mask, 2)
+    bool lower_extreme_recent = mask_has_flag(stretch_support_mask, 4)
+    bool anti_chase_ok_ready = mask_has_flag(stretch_support_mask, 8)
+    bool anti_chase_ok_entry_best = mask_has_flag(stretch_support_mask, 16)
+    if not use_stretch_context
+        pack_bus_row(0, 1)
+    else if na(stretch_z)
+        pack_bus_row(0, 2)
+    else if anti_chase_ok_entry_best and in_lower_extreme
+        pack_bus_row(5, 3)
+    else if anti_chase_ok_entry_best and lower_extreme_recent
+        pack_bus_row(5, 4)
+    else if anti_chase_ok_ready
+        pack_bus_row(3, 5)
+    else
+        pack_bus_row(-1, 6)
+
+resolve_ltf_bias_row_code(int ltf_delta_row_code, float ltf_bull_share, float ltf_bias_hint) =>
+    int delta_reason = row_reason(ltf_delta_row_code)
+    if delta_reason == 1
+        pack_bus_row(0, 1)
+    else if delta_reason == 2 or delta_reason == 4 or na(ltf_bull_share) or na(ltf_bias_hint)
+        pack_bus_row(0, 2)
+    else if delta_reason == 3 and ltf_bull_share >= ltf_bias_hint
+        pack_bus_row(5, 3)
+    else if ltf_bull_share >= ltf_bias_hint
+        pack_bus_row(5, 4)
+    else if ltf_bull_share >= 0.50
+        pack_bus_row(3, 5)
+    else
+        pack_bus_row(-1, 6)
+
+zone_detail_text(int zone_code, float ob_top, float ob_bottom, float fvg_top, float fvg_bottom) =>
+    bool show_ob = (zone_code == 3 or zone_code == 4) and not na(ob_top) and not na(ob_bottom)
+    bool show_fvg = (zone_code == 2 or zone_code == 4) and not na(fvg_top) and not na(fvg_bottom)
+    string label_text = zone_code == 0 ? "No Long Zones" : zone_reason_text(zone_code)
+    if show_ob and show_fvg
+        label_text := "OB " + format_level_text(ob_top) + " / " + format_level_text(ob_bottom) + " | FVG " + format_level_text(fvg_top) + " / " + format_level_text(fvg_bottom)
+    else if show_ob
+        label_text := "OB " + format_level_text(ob_top) + " / " + format_level_text(ob_bottom)
+    else if show_fvg
+        label_text := "FVG " + format_level_text(fvg_top) + " / " + format_level_text(fvg_bottom)
+    label_text
+
+decode_adx_text(int row_code, float adx_value) =>
     int reason_code = row_reason(row_code)
     string label_text = "off"
     if reason_code == 2
         label_text := "n/a"
     else if reason_code == 3
-        label_text := "Bear DI"
+        label_text := format_number_text(adx_value) + " | Bearish pressure"
     else if reason_code == 4
-        label_text := "Strong"
+        label_text := format_number_text(adx_value) + " | Strong"
     else if reason_code == 5
-        label_text := "Trend"
+        label_text := format_number_text(adx_value) + " | Trend"
     else if reason_code == 6
-        label_text := "Building"
+        label_text := format_number_text(adx_value) + " | Trend building"
     label_text
 
-decode_relvol_text(int row_code) =>
+decode_relvol_text(int row_code, float relvol_value) =>
     int reason_code = row_reason(row_code)
     string label_text = "off"
     if reason_code == 2
@@ -401,12 +515,12 @@ decode_relvol_text(int row_code) =>
     else if reason_code == 3
         label_text := "blocked"
     else if reason_code == 4
-        label_text := "OK"
+        label_text := format_relvol_text(relvol_value)
     else if reason_code == 5
-        label_text := "Weak"
+        label_text := format_relvol_text(relvol_value) + " | Weak"
     label_text
 
-decode_vwap_text(int row_code) =>
+decode_vwap_text(int row_code, float session_vwap) =>
     int reason_code = row_reason(row_code)
     string label_text = "off"
     if reason_code == 2
@@ -414,9 +528,9 @@ decode_vwap_text(int row_code) =>
     else if reason_code == 3
         label_text := "off session"
     else if reason_code == 4
-        label_text := "Above VWAP"
+        label_text := na(session_vwap) ? "Above VWAP" : "Above VWAP | " + format_level_text(session_vwap)
     else if reason_code == 5
-        label_text := "Below VWAP"
+        label_text := na(session_vwap) ? "Below VWAP" : "Below VWAP | " + format_level_text(session_vwap)
     label_text
 
 decode_context_quality_text(int row_code) =>
@@ -479,7 +593,7 @@ decode_vol_expand_text(int row_code) =>
     int reason_code = row_reason(row_code)
     reason_code == 1 ? "off" : reason_code == 2 ? "Expansion" : reason_code == 3 ? "Building" : "No Expansion"
 
-decode_stretch_text(int row_code) =>
+decode_stretch_text(int row_code, float stretch_z) =>
     int reason_code = row_reason(row_code)
     string label_text = "chasing"
     if reason_code == 1
@@ -487,11 +601,13 @@ decode_stretch_text(int row_code) =>
     else if reason_code == 2
         label_text := "n/a"
     else if reason_code == 3
-        label_text := "lower extreme"
+        label_text := format_zscore_text(stretch_z) + " | lower extreme"
     else if reason_code == 4
-        label_text := "recent extreme"
+        label_text := format_zscore_text(stretch_z) + " | recent extreme"
     else if reason_code == 5
-        label_text := "anti-chase ok"
+        label_text := format_zscore_text(stretch_z) + " | anti-chase ok"
+    else if reason_code == 6
+        label_text := format_zscore_text(stretch_z) + " | chasing"
     label_text
 
 decode_ddvi_text(int row_code) =>
@@ -509,22 +625,22 @@ decode_ddvi_text(int row_code) =>
         label_text := "Lower extreme"
     label_text
 
-decode_ltf_bias_text(int row_code) =>
+decode_ltf_bias_text(int row_code, float ltf_bull_share) =>
     int reason_code = row_reason(row_code)
     string label_text = "off"
     if reason_code == 2
         label_text := "n/a"
     else if reason_code == 3
-        label_text := "Bullish | price-only"
+        label_text := format_percent_whole_text(ltf_bull_share) + " price-only"
     else if reason_code == 4
-        label_text := "Bullish"
+        label_text := format_percent_whole_text(ltf_bull_share)
     else if reason_code == 5
-        label_text := "Balanced"
+        label_text := format_percent_whole_text(ltf_bull_share)
     else if reason_code == 6
-        label_text := "Bearish"
+        label_text := format_percent_whole_text(ltf_bull_share)
     label_text
 
-decode_ltf_delta_text(int row_code) =>
+decode_ltf_delta_text(int row_code, float ltf_volume_delta) =>
     int reason_code = row_reason(row_code)
     string label_text = "off"
     if reason_code == 2
@@ -534,9 +650,9 @@ decode_ltf_delta_text(int row_code) =>
     else if reason_code == 4
         label_text := "n/a"
     else if reason_code == 5
-        label_text := "Positive"
+        label_text := format_percent_text(ltf_volume_delta)
     else if reason_code == 6
-        label_text := "Negative"
+        label_text := format_percent_text(ltf_volume_delta)
     label_text
 
 decode_objects_text(int row_code) =>
@@ -764,43 +880,43 @@ int freshness_code = meta_slot(src_meta_pack, 0)
 int source_state_code = meta_slot(src_meta_pack, 1)
 int reclaim_code = meta_slot(src_meta_pack, 2)
 int zone_code = meta_slot(src_meta_pack, 3)
-int session_row_code = pack_slot(src_hard_gates_pack_a, 0)
-int market_row_code = pack_slot(src_hard_gates_pack_a, 1)
-int vola_row_code = pack_slot(src_hard_gates_pack_a, 2)
-int micro_session_row_code = pack_slot(src_hard_gates_pack_a, 3)
-int micro_fresh_row_code = pack_slot(src_hard_gates_pack_b, 0)
-int volume_data_row_code = pack_slot(src_hard_gates_pack_b, 1)
-int quality_env_row_code = pack_slot(src_hard_gates_pack_b, 2)
-int quality_strict_row_code = pack_slot(src_hard_gates_pack_b, 3)
+int session_row_code = int(math.round(nz(src_session_gate_row, 0.0)))
+int market_row_code = int(math.round(nz(src_market_gate_row, 0.0)))
+int vola_row_code = int(math.round(nz(src_vola_gate_row, 0.0)))
+int micro_session_row_code = int(math.round(nz(src_micro_session_gate_row, 0.0)))
+int micro_fresh_row_code = int(math.round(nz(src_micro_fresh_row, 0.0)))
+int volume_data_row_code = int(math.round(nz(src_volume_data_row, 0.0)))
+int quality_env_row_code = int(math.round(nz(src_quality_env_row, 0.0)))
+int quality_strict_row_code = int(math.round(nz(src_quality_strict_row, 0.0)))
+int close_row_code = int(math.round(nz(src_close_strength_row, 0.0)))
+int ema_row_code = int(math.round(nz(src_ema_support_row, 0.0)))
+int adx_row_code = int(math.round(nz(src_adx_row, 0.0)))
+int relvol_row_code = int(math.round(nz(src_relvol_row, 0.0)))
+int vwap_row_code = int(math.round(nz(src_vwap_row, 0.0)))
+int context_quality_row_code = int(math.round(nz(src_context_quality_row, 0.0)))
+int quality_clean_row_code = int(math.round(nz(src_quality_clean_row, 0.0)))
+int quality_score_row_code = int(math.round(nz(src_quality_score_row, 0.0)))
 int event_risk_row_code = int(math.round(nz(src_event_risk_row, 0.0)))
-int close_row_code = pack_slot(src_quality_pack_a, 0)
-int ema_row_code = pack_slot(src_quality_pack_a, 1)
-int adx_row_code = pack_slot(src_quality_pack_a, 2)
-int relvol_row_code = pack_slot(src_quality_pack_a, 3)
-int vwap_row_code = pack_slot(src_quality_pack_b, 0)
-int context_quality_row_code = pack_slot(src_quality_pack_b, 1)
-int quality_clean_row_code = pack_slot(src_quality_pack_b, 2)
-int quality_score_row_code = pack_slot(src_quality_pack_b, 3)
-int sd_confluence_row_code = pack_slot(src_module_pack_a, 0)
-int sd_osc_row_code = pack_slot(src_module_pack_a, 1)
-int vol_regime_row_code = pack_slot(src_module_pack_a, 2)
-int vol_squeeze_row_code = pack_slot(src_module_pack_a, 3)
-int vol_expand_row_code = pack_slot(src_module_pack_b, 0)
-int stretch_row_code = pack_slot(src_module_pack_b, 1)
-int ddvi_row_code = pack_slot(src_module_pack_b, 2)
-int ltf_bias_row_code = pack_slot(src_module_pack_b, 3)
+int sd_confluence_row_code = int(math.round(nz(src_sd_confluence_row, 0.0)))
+int sd_osc_row_code = int(math.round(nz(src_sd_osc_row, 0.0)))
+int vol_regime_row_code = int(math.round(nz(src_vol_regime_row, 0.0)))
+int vol_squeeze_row_code = int(math.round(nz(src_vol_squeeze_row, 0.0)))
+int vol_expand_row_code = int(math.round(nz(src_vol_expand_row, 0.0)))
 int ltf_delta_row_code = pack_slot(src_module_pack_c, 0)
+int stretch_row_code = resolve_stretch_row_code(src_stretch_z, src_stretch_support_mask)
+int ddvi_row_code = int(math.round(nz(src_ddvi_row, 0.0)))
+int ltf_bias_row_code = resolve_ltf_bias_row_code(ltf_delta_row_code, src_ltf_bull_share, src_ltf_bias_hint)
 int objects_row_code = pack_slot(src_module_pack_c, 1)
 int swing_row_code = pack_slot(src_module_pack_c, 2)
 int micro_profile_row_code = pack_slot(src_module_pack_c, 3)
-int long_zones_row_code = pack_slot(src_module_pack_d, 0)
-int long_triggers_row_code = pack_slot(src_module_pack_d, 1)
-int risk_plan_row_code = pack_slot(src_module_pack_d, 2)
-int debug_flags_row_code = pack_slot(src_module_pack_d, 3)
-int ready_gate_row_code = pack_slot(src_engine_pack, 0)
-int strict_gate_row_code = pack_slot(src_engine_pack, 1)
-int long_debug_row_code = pack_slot(src_engine_pack, 2)
-int micro_modifier_mask = pack_slot(src_engine_pack, 3)
+int long_zones_row_code = zone_row_code(zone_code)
+int long_triggers_row_code = int(math.round(nz(src_long_triggers_row, 0.0)))
+int risk_plan_row_code = int(math.round(nz(src_risk_plan_row, 0.0)))
+int debug_flags_row_code = int(math.round(nz(src_debug_flags_row, 0.0)))
+int ready_gate_row_code = int(math.round(nz(src_ready_gate_row, 0.0)))
+int strict_gate_row_code = int(math.round(nz(src_strict_gate_row, 0.0)))
+int debug_state_row_code = int(math.round(nz(src_debug_state_row, 0.0)))
+int micro_modifier_mask = int(math.round(nz(src_micro_modifier_mask, 0.0)))
 // v5.5 Lean Pack unpacking
 int lean_sq_row_code = pack_slot(src_lean_pack_a, 0)
 int lean_freshness_row_code = pack_slot(src_lean_pack_a, 1)
@@ -816,7 +932,8 @@ int setup_age_state = state_code >= 4 ? freshness_code == 1 ? 5 : 2 : state_code
 int htf_state = htf_bull_count >= 2 ? 5 : htf_bull_count == 1 ? 3 : -1
 int reclaim_state = reclaim_code >= 4 ? 5 : reclaim_code >= 2 ? 4 : reclaim_code == 1 ? 2 : 0
 string source_label = source_kind_text(source_code)
-string long_debug_text = row_status(long_debug_row_code) == 0 ? "off" : "state=" + long_visual_text(state_code) + " | src=" + source_label + " | fresh=" + freshness_text(freshness_code) + " | " + source_state_text(source_state_code)
+string long_zones_text = zone_detail_text(row_reason(long_zones_row_code), src_zone_ob_top, src_zone_ob_bottom, src_zone_fvg_top, src_zone_fvg_bottom)
+string long_debug_text = row_status(debug_state_row_code) == 0 ? "off" : "state=" + long_visual_text(state_code) + " | src=" + source_label + " | fresh=" + freshness_text(freshness_code) + " | " + source_state_text(source_state_code)
 
 plot(show_risk_lines ? src_trigger : na, "Core Trigger", color = color.new(color.aqua, 0), linewidth = 2, style = plot.style_linebr)
 plot(show_risk_lines ? src_invalidation : na, "Core Invalidation", color = color.new(color.orange, 0), linewidth = 2, style = plot.style_linebr)
@@ -827,7 +944,7 @@ var table smc_dashboard = table.new(position.bottom_right, 2, 58, border_width =
 if show_table and barstate.islast
     color txt = chart.fg_color
     color header_bg = color.new(color.black, 100)
-    dashboard_row(smc_dashboard, 0, "SMC Dashboard", "v5.5b Hero Surface", header_bg, txt)
+    dashboard_row(smc_dashboard, 0, "SMC Dashboard", "v5.5d Hero + Pro Detail", header_bg, txt)
     // ── PRIMARY: Lifecycle + Hero Surface ──
     section_row(smc_dashboard, 1, "[ Lifecycle ]", header_bg, txt)
     dashboard_row(smc_dashboard, 2, "Trend", trend_text(trend_now), status_bg(trend_now == 2 ? 5 : trend_now == 0 ? -1 : 0), txt)
@@ -838,7 +955,7 @@ if show_table and barstate.islast
     dashboard_row(smc_dashboard, 7, "Setup Age", setup_age_text(state_code, freshness_code), status_bg(setup_age_state), txt)
     dashboard_row(smc_dashboard, 8, "Long Visual", long_visual_text(state_code), status_bg(state_code), txt)
     dashboard_row(smc_dashboard, 9, "Exec Tier", exec_tier_text(state_code), status_bg(exec_state), txt)
-    section_row(smc_dashboard, 10, "[ Hero Surface v5.5b ]", header_bg, txt)
+    section_row(smc_dashboard, 10, "[ Hero Surface v5.5d ]", header_bg, txt)
     dashboard_row(smc_dashboard, 11, "Signal Quality", decode_lean_sq_text(lean_sq_row_code), status_bg(row_status(lean_sq_row_code)), txt)
     dashboard_row(smc_dashboard, 12, "Signal Fresh", decode_lean_freshness_text(lean_freshness_row_code), status_bg(row_status(lean_freshness_row_code)), txt)
     dashboard_row(smc_dashboard, 13, "Event Risk Light", decode_lean_erl_text(lean_erl_row_code), status_bg(row_status(lean_erl_row_code)), txt)
@@ -860,9 +977,9 @@ if show_table and barstate.islast
     dashboard_row(smc_dashboard, 28, "Diag | Quality Strict", decode_quality_strict_text(quality_strict_row_code), diagnostic_metric_bg(row_status(quality_strict_row_code)), txt)
     dashboard_row(smc_dashboard, 29, "Diag | Close Strength", decode_close_text(close_row_code), diagnostic_metric_bg(row_status(close_row_code)), txt)
     dashboard_row(smc_dashboard, 30, "Diag | EMA Support", decode_ema_text(ema_row_code), diagnostic_metric_bg(row_status(ema_row_code)), txt)
-    dashboard_row(smc_dashboard, 31, "Diag | ADX", decode_adx_text(adx_row_code), diagnostic_metric_bg(row_status(adx_row_code)), txt)
-    dashboard_row(smc_dashboard, 32, "Diag | Rel Volume", decode_relvol_text(relvol_row_code), diagnostic_metric_bg(row_status(relvol_row_code)), txt)
-    dashboard_row(smc_dashboard, 33, "Diag | VWAP Filter", decode_vwap_text(vwap_row_code), diagnostic_metric_bg(row_status(vwap_row_code)), txt)
+    dashboard_row(smc_dashboard, 31, "Diag | ADX", decode_adx_text(adx_row_code, src_adx_value), diagnostic_metric_bg(row_status(adx_row_code)), txt)
+    dashboard_row(smc_dashboard, 32, "Diag | Rel Volume", decode_relvol_text(relvol_row_code, src_relvol_value), diagnostic_metric_bg(row_status(relvol_row_code)), txt)
+    dashboard_row(smc_dashboard, 33, "Diag | VWAP Filter", decode_vwap_text(vwap_row_code, src_session_vwap), diagnostic_metric_bg(row_status(vwap_row_code)), txt)
     dashboard_row(smc_dashboard, 34, "Diag | Context Quality", decode_context_quality_text(context_quality_row_code), diagnostic_metric_bg(row_status(context_quality_row_code)), txt)
     dashboard_row(smc_dashboard, 35, "Primary | Signal Quality", quality_bounds_text(src_quality_score, src_quality_bounds_pack), primary_metric_bg(row_status(quality_score_row_code)), txt)
     dashboard_row(smc_dashboard, 36, "Primary | Quality Clean", decode_quality_clean_text(quality_clean_row_code), primary_metric_bg(row_status(quality_clean_row_code)), txt)
@@ -872,13 +989,13 @@ if show_table and barstate.islast
     dashboard_row(smc_dashboard, 40, "Vol Regime", decode_vol_regime_text(vol_regime_row_code), status_bg(row_status(vol_regime_row_code)), txt)
     dashboard_row(smc_dashboard, 41, "Vol Squeeze", decode_vol_squeeze_text(vol_squeeze_row_code), status_bg(row_status(vol_squeeze_row_code)), txt)
     dashboard_row(smc_dashboard, 42, "Vol Expand", decode_vol_expand_text(vol_expand_row_code), status_bg(row_status(vol_expand_row_code)), txt)
-    dashboard_row(smc_dashboard, 43, "Stretch", decode_stretch_text(stretch_row_code), status_bg(row_status(stretch_row_code)), txt)
+    dashboard_row(smc_dashboard, 43, "Stretch", decode_stretch_text(stretch_row_code, src_stretch_z), status_bg(row_status(stretch_row_code)), txt)
     dashboard_row(smc_dashboard, 44, "DDVI", decode_ddvi_text(ddvi_row_code), status_bg(row_status(ddvi_row_code)), txt)
-    dashboard_row(smc_dashboard, 45, "LTF Bias", decode_ltf_bias_text(ltf_bias_row_code), status_bg(row_status(ltf_bias_row_code)), txt)
-    dashboard_row(smc_dashboard, 46, "LTF Delta", decode_ltf_delta_text(ltf_delta_row_code), status_bg(row_status(ltf_delta_row_code)), txt)
+    dashboard_row(smc_dashboard, 45, "LTF Bias", decode_ltf_bias_text(ltf_bias_row_code, src_ltf_bull_share), status_bg(row_status(ltf_bias_row_code)), txt)
+    dashboard_row(smc_dashboard, 46, "LTF Delta", decode_ltf_delta_text(ltf_delta_row_code, src_ltf_volume_delta), status_bg(row_status(ltf_delta_row_code)), txt)
     dashboard_row(smc_dashboard, 47, "Objects", decode_objects_text(objects_row_code), status_bg(row_status(objects_row_code)), txt)
     dashboard_row(smc_dashboard, 48, "Swing H/L", decode_swing_text(swing_row_code), status_bg(row_status(swing_row_code)), txt)
-    dashboard_row(smc_dashboard, 49, "Long Zones", zone_reason_text(row_reason(long_zones_row_code)), status_bg(row_status(long_zones_row_code)), txt)
+    dashboard_row(smc_dashboard, 49, "Long Zones", long_zones_text, status_bg(row_status(long_zones_row_code)), txt)
     dashboard_row(smc_dashboard, 50, "Long Triggers", trigger_text(row_status(long_triggers_row_code) == 5, src_trigger, src_invalidation), status_bg(row_status(long_triggers_row_code)), txt)
     dashboard_row(smc_dashboard, 51, "Micro Profile", decode_micro_profile_text(micro_profile_row_code, micro_modifier_mask), status_bg(row_status(micro_profile_row_code)), txt)
     dashboard_row(smc_dashboard, 52, "Risk Plan", plan_text(row_status(risk_plan_row_code) == 5, src_trigger, src_stop_level, src_target_1, src_target_2), status_bg(row_status(risk_plan_row_code)), txt)
@@ -886,6 +1003,6 @@ if show_table and barstate.islast
     dashboard_row(smc_dashboard, 54, "Ready Gate", decode_ready_gate_text(ready_gate_row_code), status_bg(row_status(ready_gate_row_code)), txt)
     dashboard_row(smc_dashboard, 55, "Strict Gate", decode_strict_gate_text(strict_gate_row_code), status_bg(row_status(strict_gate_row_code)), txt)
     dashboard_row(smc_dashboard, 56, "Debug Flags", decode_debug_flags_text(debug_flags_row_code), status_bg(row_status(debug_flags_row_code)), txt)
-    dashboard_row(smc_dashboard, 57, "Long Debug", long_debug_text, status_bg(row_status(long_debug_row_code)), txt)
+    dashboard_row(smc_dashboard, 57, "Long Debug", long_debug_text, status_bg(row_status(debug_state_row_code)), txt)
 else if barstate.islast
     table.clear(smc_dashboard, 0, 0, 1, 57)

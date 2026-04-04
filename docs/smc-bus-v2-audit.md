@@ -4,10 +4,10 @@
 
 This document audits the current split between the producer in [SMC_Core_Engine.pine](../SMC_Core_Engine.pine#L5526-L5551), the dashboard consumer in [SMC_Dashboard.pine](../SMC_Dashboard.pine#L7-L29), and the strategy consumer in [SMC_Long_Strategy.pine](../SMC_Long_Strategy.pine#L7-L14).
 
-The current contract is a 26-channel hidden plot bus.
+The current contract is a 62-channel hidden plot bus.
 
-- The producer exports 26 hidden plots in [SMC_Core_Engine.pine](../SMC_Core_Engine.pine#L5526-L5551).
-- The dashboard binds 26 `input.source()` channels in [SMC_Dashboard.pine](../SMC_Dashboard.pine#L7-L29).
+- The producer exports 62 hidden plots in [SMC_Core_Engine.pine](../SMC_Core_Engine.pine).
+- The dashboard binds 62 `input.source()` channels in [SMC_Dashboard.pine](../SMC_Dashboard.pine).
 - The strategy binds 8 `input.source()` channels from the original contract in [SMC_Long_Strategy.pine](../SMC_Long_Strategy.pine#L7-L14).
 - The row-code transport format is defined in [SMC_Core_Engine.pine](../SMC_Core_Engine.pine#L1670-L1682) and decoded in [SMC_Dashboard.pine](../SMC_Dashboard.pine#L42-L84).
 
@@ -19,8 +19,8 @@ The audit question is not whether the packed bus compiles. It does. The question
 
 The producer exports:
 
-- 10 original lifecycle and risk channels.
-- 16 additional packed and support channels for dashboard reconstruction.
+- 14 Lite/executable channels.
+- 48 Pro-only channels spanning direct diagnostic rows, support/detail levels, and the remaining packed dashboard transport.
 
 The producer does not render dashboard UI and does not emit alert transport in its active split form, as verified by [tests/test_smc_core_engine_split.py](../tests/test_smc_core_engine_split.py).
 
@@ -48,7 +48,7 @@ The strategy does not consume any of the new dashboard packs. It uses only:
 
 See [SMC_Long_Strategy.pine](../SMC_Long_Strategy.pine#L7-L14).
 
-## Full Channel Inventory
+## Focused Channel Inventory
 
 Classification meanings:
 
@@ -71,16 +71,19 @@ Classification meanings:
 | `BUS StateCode` | [SMC_Core_Engine.pine](../SMC_Core_Engine.pine#L5536) | Dashboard lifecycle | Hybrid | Keep | Reusable, but already compresses multiple lifecycle tiers into one visual state. |
 | `BUS TrendPack` | [SMC_Core_Engine.pine](../SMC_Core_Engine.pine#L5537) | Dashboard lifecycle | Domain | Keep | Compact transport of current and HTF trend states. |
 | `BUS MetaPack` | [SMC_Core_Engine.pine](../SMC_Core_Engine.pine#L5538) | Dashboard lifecycle and hard gates | Hybrid | Keep | Packs freshness, source-state, reclaim class, zone class. Reusable but dashboard-oriented. |
-| `BUS HardGatesPackA` | [SMC_Core_Engine.pine](../SMC_Core_Engine.pine#L5539) | Dashboard hard gates | UI-Transport | Rebuild | Pure row-code transport for Session, Market, Vola, Micro Session. |
-| `BUS HardGatesPackB` | [SMC_Core_Engine.pine](../SMC_Core_Engine.pine#L5540) | Dashboard hard gates and quality | UI-Transport | Rebuild | Mixed row-code transport for Micro Fresh, Volume Data, Quality Env, Quality Strict. |
-| `BUS QualityPackA` | [SMC_Core_Engine.pine](../SMC_Core_Engine.pine#L5541) | Dashboard quality | UI-Transport | Reduce | Captures row outcomes but not the underlying ADX/RelVol detail values from the monolith. |
-| `BUS QualityPackB` | [SMC_Core_Engine.pine](../SMC_Core_Engine.pine#L5542) | Dashboard quality | UI-Transport | Reduce | Row transport for VWAP, Context Quality, Quality Clean, Quality Score Gate. |
 | `BUS QualityBoundsPack` | [SMC_Core_Engine.pine](../SMC_Core_Engine.pine#L5543) | Dashboard quality | Domain | Keep | Stable support channel for `QualityScore` min/max interpretation. |
-| `BUS ModulePackA` | [SMC_Core_Engine.pine](../SMC_Core_Engine.pine#L5544) | Dashboard modules | UI-Transport | Rebuild | Dashboard row transport for SD and volatility module rows. |
-| `BUS ModulePackB` | [SMC_Core_Engine.pine](../SMC_Core_Engine.pine#L5545) | Dashboard modules | UI-Transport | Rebuild | Dashboard row transport for Vol Expand, Stretch, DDVI, LTF Bias. |
+| `BUS SdConfluenceRow` | [SMC_Core_Engine.pine](../SMC_Core_Engine.pine) | Dashboard modules | UI-Transport | Keep | Direct row transport replacing `ModulePackA.slot0`. |
+| `BUS SdOscRow` | [SMC_Core_Engine.pine](../SMC_Core_Engine.pine) | Dashboard modules | UI-Transport | Keep | Direct row transport replacing `ModulePackA.slot1`. |
+| `BUS VolRegimeRow` | [SMC_Core_Engine.pine](../SMC_Core_Engine.pine) | Dashboard modules | UI-Transport | Keep | Direct row transport replacing `ModulePackA.slot2`. |
+| `BUS VolSqueezeRow` | [SMC_Core_Engine.pine](../SMC_Core_Engine.pine) | Dashboard modules | UI-Transport | Keep | Direct row transport replacing `ModulePackA.slot3`. |
+| `BUS VolExpandRow` | [SMC_Core_Engine.pine](../SMC_Core_Engine.pine) | Dashboard modules | UI-Transport | Rebuild | Direct row transport replacing former `ModulePackB.slot0`. |
+| `BUS DdviRow` | [SMC_Core_Engine.pine](../SMC_Core_Engine.pine) | Dashboard modules | UI-Transport | Rebuild | Direct row transport replacing former `ModulePackB.slot2`. |
+| `BUS StretchSupportMask` | [SMC_Core_Engine.pine](../SMC_Core_Engine.pine) | Dashboard modules with `StretchZ` | Hybrid | Keep | Producer-owned support mask for reconstructing `Stretch` without copying hidden engine settings into the dashboard. |
+| `BUS LtfBiasHint` | [SMC_Core_Engine.pine](../SMC_Core_Engine.pine) | Dashboard modules with `LtfBullShare` | Domain | Keep | Numeric threshold export replacing the missing `ModulePackB.slot3` support input. |
 | `BUS ModulePackC` | [SMC_Core_Engine.pine](../SMC_Core_Engine.pine#L5546) | Dashboard modules | UI-Transport | Rebuild | Dashboard row transport for LTF Delta, Objects, Swing, Micro Profile. |
-| `BUS ModulePackD` | [SMC_Core_Engine.pine](../SMC_Core_Engine.pine#L5547) | Dashboard modules and engine | UI-Transport | Rebuild | Mixes zone-row summary, trigger-available flag, risk-plan flag, debug flags. |
-| `BUS EnginePack` | [SMC_Core_Engine.pine](../SMC_Core_Engine.pine#L5548) | Dashboard engine and micro profile | UI-Transport | Rebuild | Mixes ready blocker, strict blocker, debug state, and modifier mask in one UI-shaped pack. |
+| `BUS LongTriggersRow` | [SMC_Core_Engine.pine](../SMC_Core_Engine.pine) | Dashboard modules and plan | UI-Transport | Rebuild | Direct row transport for trigger availability and execution-tier state. |
+| `BUS RiskPlanRow` | [SMC_Core_Engine.pine](../SMC_Core_Engine.pine) | Dashboard modules and plan | UI-Transport | Rebuild | Direct row transport for plan completeness while levels stay on dedicated channels. |
+| `BUS DebugFlagsRow` | [SMC_Core_Engine.pine](../SMC_Core_Engine.pine) | Dashboard modules and engine | UI-Transport | Rebuild | Direct row transport for enabled debug-module flags. |
 | `BUS StopLevel` | [SMC_Core_Engine.pine](../SMC_Core_Engine.pine#L5549) | Dashboard risk plan | Domain | Keep | Stable risk level. |
 | `BUS Target1` | [SMC_Core_Engine.pine](../SMC_Core_Engine.pine#L5550) | Dashboard risk plan | Domain | Keep | Stable target level. |
 | `BUS Target2` | [SMC_Core_Engine.pine](../SMC_Core_Engine.pine#L5551) | Dashboard risk plan | Domain | Keep | Stable target level. |
@@ -118,47 +121,47 @@ Verdict meanings:
 | --- | --- | --- | --- | --- |
 | Trend | [SMC++.pine](../SMC++.pine#L6382) | `TrendPack` -> `trend_text()` in [SMC_Dashboard.pine](../SMC_Dashboard.pine#L118-L123) | voll | None. |
 | HTF Trend | [SMC++.pine](../SMC++.pine#L6383) | `TrendPack` slots 1-3 in [SMC_Dashboard.pine](../SMC_Dashboard.pine#L656-L659) | voll | None. |
-| Pullback Zone | [SMC++.pine](../SMC++.pine#L6384) | `MetaPack.zone_code` plus `ModulePackD.long_zones_row_code` in [SMC_Dashboard.pine](../SMC_Dashboard.pine#L660-L663) and [SMC_Dashboard.pine](../SMC_Dashboard.pine#L692-L693) | teilweise | Monolith used `long_zone_text` and `compose_zone_summary_text(...)`; current dashboard shows only zone class text. |
+| Pullback Zone | [SMC++.pine](../SMC++.pine#L6384) | `MetaPack.zone_code` plus local `zone_row_code()` derivation in [SMC_Dashboard.pine](../SMC_Dashboard.pine) | teilweise | Monolith used `long_zone_text` and `compose_zone_summary_text(...)`; current dashboard shows only zone class text. |
 | Reclaim | [SMC++.pine](../SMC++.pine#L6385) | `MetaPack.reclaim_code` -> `reclaim_reason_text()` in [SMC_Dashboard.pine](../SMC_Dashboard.pine#L149-L160) | weitgehend voll | No numeric/level context, but class meaning is preserved. |
 | Long Setup | [SMC++.pine](../SMC++.pine#L6386) | `StateCode` and `SourceKind` -> `setup_text()` in [SMC_Dashboard.pine](../SMC_Dashboard.pine#L182-L197) | voll | None. |
 | Setup Age | [SMC++.pine](../SMC++.pine#L6387) | `StateCode` and `MetaPack.freshness_code` -> `setup_age_text()` in [SMC_Dashboard.pine](../SMC_Dashboard.pine#L229-L236) | teilweise | Monolith included age counts like `confirmed N`; current split keeps only freshness class. |
 | Long Visual | [SMC++.pine](../SMC++.pine#L6388) | `StateCode` -> `long_visual_text()` in [SMC_Dashboard.pine](../SMC_Dashboard.pine#L162-L173) | voll | None. |
 | Exec Tier | [SMC++.pine](../SMC++.pine#L6389) | `StateCode` -> `exec_tier_text()` in [SMC_Dashboard.pine](../SMC_Dashboard.pine#L175-L180) | voll | None. |
-| Session | [SMC++.pine](../SMC++.pine#L6394) | `HardGatesPackA.slot0` -> `decode_session_text()` in [SMC_Dashboard.pine](../SMC_Dashboard.pine#L241-L249) | weitgehend voll | Same business blocker classes, but encoded as row codes. |
-| Market Gate | [SMC++.pine](../SMC++.pine#L6395) | `HardGatesPackA.slot1` -> `decode_market_text()` in [SMC_Dashboard.pine](../SMC_Dashboard.pine#L252-L262) | weitgehend voll | Same blocker classes. |
-| Vola Regime | [SMC++.pine](../SMC++.pine#L6396) | `HardGatesPackA.slot2` -> `decode_vola_text()` in [SMC_Dashboard.pine](../SMC_Dashboard.pine#L265-L274) | weitgehend voll | Same gate categories, no raw component flags. |
-| Micro Session | [SMC++.pine](../SMC++.pine#L6397) | `HardGatesPackA.slot3` -> `decode_micro_session_text()` in [SMC_Dashboard.pine](../SMC_Dashboard.pine#L276-L286) | weitgehend voll | Same blocker classes. |
-| Micro Fresh | [SMC++.pine](../SMC++.pine#L6398) | `HardGatesPackB.slot0` plus `MetaPack` in [SMC_Dashboard.pine](../SMC_Dashboard.pine#L288-L293) | weitgehend voll | Same freshness/source-state classes, no extra context. |
-| Volume Data | [SMC++.pine](../SMC++.pine#L6399) | `HardGatesPackB.slot1` -> `decode_volume_data_text()` in [SMC_Dashboard.pine](../SMC_Dashboard.pine#L295-L308) | weitgehend voll | Same feed quality categories. |
-| Quality Env | [SMC++.pine](../SMC++.pine#L6343) | `HardGatesPackB.slot2` -> `decode_quality_env_text()` in [SMC_Dashboard.pine](../SMC_Dashboard.pine#L310-L319) | voll | Same business meaning. |
-| Quality Strict | [SMC++.pine](../SMC++.pine#L6344) | `HardGatesPackB.slot3` -> `decode_quality_strict_text()` in [SMC_Dashboard.pine](../SMC_Dashboard.pine#L321-L340) | weitgehend voll | Same blocker sequence except the monolith still had richer implicit context from live flags. |
-| Close Strength | [SMC++.pine](../SMC++.pine#L6345) | `QualityPackA.slot0` -> `decode_close_text()` in [SMC_Dashboard.pine](../SMC_Dashboard.pine#L342-L344) | voll | None. |
-| EMA Support | [SMC++.pine](../SMC++.pine#L6346) | `QualityPackA.slot1` -> `decode_ema_text()` in [SMC_Dashboard.pine](../SMC_Dashboard.pine#L346-L348) | voll | None. |
-| ADX | [SMC++.pine](../SMC++.pine#L6347) | `QualityPackA.slot2` -> `decode_adx_text()` in [SMC_Dashboard.pine](../SMC_Dashboard.pine#L350-L363) | teilweise | Monolith exposed `adx_value` and `adx_state_text`; split keeps only categorical text. |
-| Rel Volume | [SMC++.pine](../SMC++.pine#L6348) | `QualityPackA.slot3` -> `decode_relvol_text()` in [SMC_Dashboard.pine](../SMC_Dashboard.pine#L365-L377) | teilweise | Monolith exposed `relvol_text`; split uses coarse categories. |
-| VWAP Filter | [SMC++.pine](../SMC++.pine#L6349) | `QualityPackB.slot0` -> `decode_vwap_text()` in [SMC_Dashboard.pine](../SMC_Dashboard.pine#L379-L390) | teilweise | Monolith used `vwap_state_text`; split compresses to categories. |
-| Context Quality | [SMC++.pine](../SMC++.pine#L6350) | `QualityPackB.slot1` -> `decode_context_quality_text()` in [SMC_Dashboard.pine](../SMC_Dashboard.pine#L392-L394) | voll | Same business meaning. |
+| Session | [SMC++.pine](../SMC++.pine#L6394) | `SessionGateRow` -> `decode_session_text()` in [SMC_Dashboard.pine](../SMC_Dashboard.pine#L241-L249) | weitgehend voll | Same business blocker classes, but encoded as row codes. |
+| Market Gate | [SMC++.pine](../SMC++.pine#L6395) | `MarketGateRow` -> `decode_market_text()` in [SMC_Dashboard.pine](../SMC_Dashboard.pine#L252-L262) | weitgehend voll | Same blocker classes. |
+| Vola Regime | [SMC++.pine](../SMC++.pine#L6396) | `VolaGateRow` -> `decode_vola_text()` in [SMC_Dashboard.pine](../SMC_Dashboard.pine#L265-L274) | weitgehend voll | Same gate categories, no raw component flags. |
+| Micro Session | [SMC++.pine](../SMC++.pine#L6397) | `MicroSessionGateRow` -> `decode_micro_session_text()` in [SMC_Dashboard.pine](../SMC_Dashboard.pine#L276-L286) | weitgehend voll | Same blocker classes. |
+| Micro Fresh | [SMC++.pine](../SMC++.pine#L6398) | `MicroFreshRow` plus `MetaPack` in [SMC_Dashboard.pine](../SMC_Dashboard.pine#L288-L293) | weitgehend voll | Same freshness/source-state classes, no extra context. |
+| Volume Data | [SMC++.pine](../SMC++.pine#L6399) | `VolumeDataRow` -> `decode_volume_data_text()` in [SMC_Dashboard.pine](../SMC_Dashboard.pine#L295-L308) | weitgehend voll | Same feed quality categories. |
+| Quality Env | [SMC++.pine](../SMC++.pine#L6343) | `QualityEnvRow` -> `decode_quality_env_text()` in [SMC_Dashboard.pine](../SMC_Dashboard.pine#L310-L319) | voll | Same business meaning. |
+| Quality Strict | [SMC++.pine](../SMC++.pine#L6344) | `QualityStrictRow` -> `decode_quality_strict_text()` in [SMC_Dashboard.pine](../SMC_Dashboard.pine#L321-L340) | weitgehend voll | Same blocker sequence except the monolith still had richer implicit context from live flags. |
+| Close Strength | [SMC++.pine](../SMC++.pine#L6345) | `CloseStrengthRow` -> `decode_close_text()` in [SMC_Dashboard.pine](../SMC_Dashboard.pine#L342-L344) | voll | None. |
+| EMA Support | [SMC++.pine](../SMC++.pine#L6346) | `EmaSupportRow` -> `decode_ema_text()` in [SMC_Dashboard.pine](../SMC_Dashboard.pine#L346-L348) | voll | None. |
+| ADX | [SMC++.pine](../SMC++.pine#L6347) | `AdxRow` -> `decode_adx_text()` in [SMC_Dashboard.pine](../SMC_Dashboard.pine#L350-L363) | teilweise | Monolith exposed `adx_value` and `adx_state_text`; split keeps only categorical text. |
+| Rel Volume | [SMC++.pine](../SMC++.pine#L6348) | `RelVolRow` -> `decode_relvol_text()` in [SMC_Dashboard.pine](../SMC_Dashboard.pine#L365-L377) | teilweise | Monolith exposed `relvol_text`; split uses coarse categories. |
+| VWAP Filter | [SMC++.pine](../SMC++.pine#L6349) | `VwapRow` -> `decode_vwap_text()` in [SMC_Dashboard.pine](../SMC_Dashboard.pine#L379-L390) | teilweise | Monolith used `vwap_state_text`; split compresses to categories. |
+| Context Quality | [SMC++.pine](../SMC++.pine#L6350) | `ContextQualityRow` -> `decode_context_quality_text()` in [SMC_Dashboard.pine](../SMC_Dashboard.pine#L392-L394) | voll | Same business meaning. |
 | Quality Score | [SMC++.pine](../SMC++.pine#L6351) | `QualityScore` plus `QualityBoundsPack` -> `quality_bounds_text()` in [SMC_Dashboard.pine](../SMC_Dashboard.pine#L619-L623) | voll | Numeric score plus min/max remain available. |
-| Quality Clean | [SMC++.pine](../SMC++.pine#L6352) | `QualityPackB.slot2` -> `decode_quality_clean_text()` in [SMC_Dashboard.pine](../SMC_Dashboard.pine#L396-L396) | voll | None. |
-| SD Confluence | [SMC++.pine](../SMC++.pine#L6356) | `ModulePackA.slot0` -> `decode_sd_confluence_text()` in [SMC_Dashboard.pine](../SMC_Dashboard.pine#L398-L410) | weitgehend voll | Same support classes. |
-| SD Osc | [SMC++.pine](../SMC++.pine#L6357) | `ModulePackA.slot1` -> `decode_sd_osc_text()` in [SMC_Dashboard.pine](../SMC_Dashboard.pine#L412-L427) | teilweise | Monolith displayed `sd_value`; split does not. |
-| Vol Regime | [SMC++.pine](../SMC++.pine#L6358) | `ModulePackA.slot2` -> `decode_vol_regime_text()` in [SMC_Dashboard.pine](../SMC_Dashboard.pine#L429-L431) | weitgehend voll | Same regime class. |
-| Vol Squeeze | [SMC++.pine](../SMC++.pine#L6359) | `ModulePackA.slot3` -> `decode_vol_squeeze_text()` in [SMC_Dashboard.pine](../SMC_Dashboard.pine#L433-L446) | weitgehend voll | Same stage classes. |
-| Vol Expand | [SMC++.pine](../SMC++.pine#L6360) | `ModulePackB.slot0` -> `decode_vol_expand_text()` in [SMC_Dashboard.pine](../SMC_Dashboard.pine#L448-L450) | weitgehend voll | Same expansion class. |
-| Stretch | [SMC++.pine](../SMC++.pine#L6361) | `ModulePackB.slot1` -> `decode_stretch_text()` in [SMC_Dashboard.pine](../SMC_Dashboard.pine#L452-L465) | teilweise | Monolith displayed `distance_to_mean_z`; split keeps only category text. |
-| DDVI | [SMC++.pine](../SMC++.pine#L6362) | `ModulePackB.slot2` -> `decode_ddvi_text()` in [SMC_Dashboard.pine](../SMC_Dashboard.pine#L467-L480) | weitgehend voll | Same DDVI support class. |
-| LTF Bias | [SMC++.pine](../SMC++.pine#L6363) | `ModulePackB.slot3` -> `decode_ltf_bias_text()` in [SMC_Dashboard.pine](../SMC_Dashboard.pine#L482-L495) | teilweise | Monolith displayed percentage and price-only suffix; split keeps only class text. |
+| Quality Clean | [SMC++.pine](../SMC++.pine#L6352) | `QualityCleanRow` -> `decode_quality_clean_text()` in [SMC_Dashboard.pine](../SMC_Dashboard.pine#L396-L396) | voll | None. |
+| SD Confluence | [SMC++.pine](../SMC++.pine#L6356) | `SdConfluenceRow` -> `decode_sd_confluence_text()` in [SMC_Dashboard.pine](../SMC_Dashboard.pine#L398-L410) | weitgehend voll | Same support classes. |
+| SD Osc | [SMC++.pine](../SMC++.pine#L6357) | `SdOscRow` -> `decode_sd_osc_text()` in [SMC_Dashboard.pine](../SMC_Dashboard.pine#L412-L427) | teilweise | Monolith displayed `sd_value`; split does not. |
+| Vol Regime | [SMC++.pine](../SMC++.pine#L6358) | `VolRegimeRow` -> `decode_vol_regime_text()` in [SMC_Dashboard.pine](../SMC_Dashboard.pine#L429-L431) | weitgehend voll | Same regime class. |
+| Vol Squeeze | [SMC++.pine](../SMC++.pine#L6359) | `VolSqueezeRow` -> `decode_vol_squeeze_text()` in [SMC_Dashboard.pine](../SMC_Dashboard.pine#L433-L446) | weitgehend voll | Same stage classes. |
+| Vol Expand | [SMC++.pine](../SMC++.pine#L6360) | `VolExpandRow` -> `decode_vol_expand_text()` in [SMC_Dashboard.pine](../SMC_Dashboard.pine#L448-L450) | weitgehend voll | Same expansion class. |
+| Stretch | [SMC++.pine](../SMC++.pine#L6361) | `StretchZ` plus `StretchSupportMask` -> `resolve_stretch_row_code()` in [SMC_Dashboard.pine](../SMC_Dashboard.pine) | teilweise | Monolith displayed `distance_to_mean_z`; split keeps only category text plus a producer-owned support mask. |
+| DDVI | [SMC++.pine](../SMC++.pine#L6362) | `DdviRow` -> `decode_ddvi_text()` in [SMC_Dashboard.pine](../SMC_Dashboard.pine#L467-L480) | weitgehend voll | Same DDVI support class. |
+| LTF Bias | [SMC++.pine](../SMC++.pine#L6363) | `ModulePackC.slot0` (`LTF Delta`) plus `LtfBullShare` plus `LtfBiasHint` -> `resolve_ltf_bias_row_code()` in [SMC_Dashboard.pine](../SMC_Dashboard.pine) | teilweise | Monolith displayed percentage and price-only suffix; split keeps only class text. |
 | LTF Delta | [SMC++.pine](../SMC++.pine#L6364) | `ModulePackC.slot0` -> `decode_ltf_delta_text()` in [SMC_Dashboard.pine](../SMC_Dashboard.pine#L497-L510) | teilweise | Monolith displayed formatted percent if available; split keeps only sign/state category. |
 | Objects | [SMC++.pine](../SMC++.pine#L6365) | `ModulePackC.slot1` -> `decode_objects_text()` in [SMC_Dashboard.pine](../SMC_Dashboard.pine#L512-L521) | teilweise | Monolith displayed actual OB/FVG counts; split keeps only presence classes. |
 | Swing H/L | [SMC++.pine](../SMC++.pine#L6366) | `ModulePackC.slot2` -> `decode_swing_text()` in [SMC_Dashboard.pine](../SMC_Dashboard.pine#L523-L525) | schwach | Monolith displayed four concrete levels; split keeps only bullish/bearish/neutral class. |
-| Long Zones | [SMC++.pine](../SMC++.pine#L6367) | `ModulePackD.slot0` plus `zone_reason_text()` in [SMC_Dashboard.pine](../SMC_Dashboard.pine#L722) and [SMC_Dashboard.pine](../SMC_Dashboard.pine#L758) | schwach | Monolith displayed a zone summary string with levels. Split shows only zone class. |
-| Long Triggers | [SMC++.pine](../SMC++.pine#L6368) | `ModulePackD.slot1` plus `Trigger` and `Invalidation` in [SMC_Dashboard.pine](../SMC_Dashboard.pine#L624-L631) | voll | Levels remain available. |
-| Micro Profile | [SMC++.pine](../SMC++.pine#L6369) | `ModulePackC.slot3` plus `EnginePack.slot3` in [SMC_Dashboard.pine](../SMC_Dashboard.pine#L527-L544) | teilweise | Monolith displayed full modifier text; split reduces modifiers to a mask and renders only `| mod`. |
-| Risk Plan | [SMC++.pine](../SMC++.pine#L6370) | `ModulePackD.slot2` plus Stop/Target channels in [SMC_Dashboard.pine](../SMC_Dashboard.pine#L624-L631) | voll | Levels remain available. |
-| Ready Gate | [SMC++.pine](../SMC++.pine#L6374) | `EnginePack.slot0` -> `decode_ready_gate_text()` in [SMC_Dashboard.pine](../SMC_Dashboard.pine#L558-L586) | weitgehend voll | Same dominant blocker classes. |
-| Strict Gate | [SMC++.pine](../SMC++.pine#L6375) | `EnginePack.slot1` -> `decode_strict_gate_text()` in [SMC_Dashboard.pine](../SMC_Dashboard.pine#L588-L606) | weitgehend voll | Same dominant blocker classes. |
-| Debug Flags | [SMC++.pine](../SMC++.pine#L6376) | `ModulePackD.slot3` -> `decode_debug_flags_text()` in [SMC_Dashboard.pine](../SMC_Dashboard.pine#L546-L556) | teilweise | Same enabled-module list, but no debug mode detail. |
-| Long Debug | [SMC++.pine](../SMC++.pine#L6377) | `EnginePack.slot2` plus `StateCode`, `SourceKind`, `MetaPack` in [SMC_Dashboard.pine](../SMC_Dashboard.pine#L707-L707) | schwach | Monolith used `long_debug_summary_text`; split uses a shorter derived summary. |
+| Long Zones | [SMC++.pine](../SMC++.pine#L6367) | local `zone_row_code()` plus `zone_reason_text()` in [SMC_Dashboard.pine](../SMC_Dashboard.pine) | schwach | Monolith displayed a zone summary string with levels. Split shows only zone class. |
+| Long Triggers | [SMC++.pine](../SMC++.pine#L6368) | `LongTriggersRow` plus `Trigger` and `Invalidation` in [SMC_Dashboard.pine](../SMC_Dashboard.pine) | voll | Levels remain available. |
+| Micro Profile | [SMC++.pine](../SMC++.pine#L6369) | `ModulePackC.slot3` plus `MicroModifierMask` in [SMC_Dashboard.pine](../SMC_Dashboard.pine#L527-L544) | teilweise | Monolith displayed full modifier text; split reduces modifiers to a mask and renders only a trailing `mod` marker. |
+| Risk Plan | [SMC++.pine](../SMC++.pine#L6370) | `RiskPlanRow` plus Stop/Target channels in [SMC_Dashboard.pine](../SMC_Dashboard.pine) | voll | Levels remain available. |
+| Ready Gate | [SMC++.pine](../SMC++.pine#L6374) | `ReadyGateRow` -> `decode_ready_gate_text()` in [SMC_Dashboard.pine](../SMC_Dashboard.pine#L558-L586) | weitgehend voll | Same dominant blocker classes. |
+| Strict Gate | [SMC++.pine](../SMC++.pine#L6375) | `StrictGateRow` -> `decode_strict_gate_text()` in [SMC_Dashboard.pine](../SMC_Dashboard.pine#L588-L606) | weitgehend voll | Same dominant blocker classes. |
+| Debug Flags | [SMC++.pine](../SMC++.pine#L6376) | `DebugFlagsRow` -> `decode_debug_flags_text()` in [SMC_Dashboard.pine](../SMC_Dashboard.pine#L546-L556) | teilweise | Same enabled-module list, but no debug mode detail. |
+| Long Debug | [SMC++.pine](../SMC++.pine#L6377) | `DebugStateRow` plus `StateCode`, `SourceKind`, `MetaPack` in [SMC_Dashboard.pine](../SMC_Dashboard.pine#L707-L707) | schwach | Monolith used `long_debug_summary_text`; split uses a shorter derived summary. |
 
 ## Known Deviations From The Monolith
 
@@ -169,7 +172,7 @@ Verdict meanings:
 5. `Long Zones` no longer exposes the full `compose_zone_summary_text(...)` output from [SMC++.pine](../SMC++.pine#L6233).
 6. `Micro Profile` no longer exposes the full modifier text. The dashboard only knows whether modifiers exist via a bitmask from [SMC_Core_Engine.pine](../SMC_Core_Engine.pine#L2070) and renders `| mod` in [SMC_Dashboard.pine](../SMC_Dashboard.pine#L527-L544).
 7. `Long Debug` is not the monolith summary string from [SMC++.pine](../SMC++.pine#L5247) and [SMC++.pine](../SMC++.pine#L6334). It is a reconstructed compact summary from [SMC_Dashboard.pine](../SMC_Dashboard.pine#L707).
-8. The packed row channels encode a current dashboard row schema. That means a dashboard wording or section redesign would require producer changes, which is a UI-coupled contract.
+8. The row-transport channels encode a current dashboard row schema. That means a dashboard wording or section redesign would require producer changes, which is a UI-coupled contract.
 
 ## Strategy Compatibility
 
@@ -186,23 +189,26 @@ Verdict meanings:
 - `BUS Invalidation`
 - `BUS QualityScore`
 
-### New Bus-v2 Packs The Strategy Does Not Use
+### New Bus-v2 Pro Channels The Strategy Does Not Use
 
 The strategy does not bind any of the following:
 
 - `BUS StateCode`
 - `BUS TrendPack`
 - `BUS MetaPack`
-- `BUS HardGatesPackA`
-- `BUS HardGatesPackB`
-- `BUS QualityPackA`
-- `BUS QualityPackB`
 - `BUS QualityBoundsPack`
-- `BUS ModulePackA`
-- `BUS ModulePackB`
+- `BUS SdConfluenceRow`
+- `BUS SdOscRow`
+- `BUS VolRegimeRow`
+- `BUS VolSqueezeRow`
+- `BUS VolExpandRow`
+- `BUS DdviRow`
+- `BUS StretchSupportMask`
+- `BUS LtfBiasHint`
 - `BUS ModulePackC`
-- `BUS ModulePackD`
-- `BUS EnginePack`
+- `BUS LongTriggersRow`
+- `BUS RiskPlanRow`
+- `BUS DebugFlagsRow`
 - `BUS StopLevel`
 - `BUS Target1`
 - `BUS Target2`

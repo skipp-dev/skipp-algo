@@ -46,32 +46,22 @@ Workspace-Refresh: 2026-04-03
 ## Empfohlene Reihenfolge In TradingView
 
 1. Core öffnen und kompilieren.
-2. Dashboard hinzufügen und alle 29 `source`-Bindings auf den Core legen.
+2. Dashboard hinzufügen und alle 62 `source`-Bindings auf den Core legen.
 3. Strategy hinzufügen und alle 8 `source`-Bindings auf den Core legen.
 4. Die fünf Prüfszenarien auf demselben Symbol und Timeframe durchlaufen.
 5. Alle Beobachtungen direkt in die Report-Vorlage eintragen.
 
 ### Binding-Konvention
 
-1. Dashboard bindet in vier Gruppen: Lifecycle, Diagnostic Packs, Trade Plan, Lean Surface.
+1. Dashboard bindet in sechs Gruppen: Lifecycle, Diagnostic Rows, Diagnostic Packs, Trade Plan, Detail Surface, Lean Surface.
 2. Strategy bindet in zwei Gruppen: Entry States, Trade Plan.
 3. Beide Consumer werden in TradingView immer top-to-bottom an die gleichnamigen BUS-Serien des Cores gebunden.
 4. Die kanonische Quelle fuer Namen, Reihenfolge und Gruppen ist [../scripts/smc_bus_manifest.py](../scripts/smc_bus_manifest.py).
 
-## Producer-Prüfung
+### Kanonische BUS-Reihenfolge
 
-### Producer Schrittfolge
-
-1. [../SMC_Core_Engine.pine](../SMC_Core_Engine.pine) in TradingView öffnen.
-2. Das Skript auf dem Zielchart kompilieren.
-3. Im Chart prüfen, ob das Skript ohne Compile- oder Runtime-Fehler geladen bleibt.
-4. Im `source`-Picker eines nachgelagerten Consumers prüfen, ob die Hidden-Bus-Serien auswählbar sind.
-
-### Producer Erwartete Beobachtungen
-
-1. Das Skript kompiliert ohne Fehler.
-2. Es bleiben keine sichtbaren Laufzeitfehler im Chart-Overlay zurück.
-3. Die folgenden 29 Serien sind als Source auswählbar:
+Die aktive Engine publiziert die Hidden-BUS-Serien in genau dieser Manifest-
+Reihenfolge:
 
 - `BUS ZoneActive`
 - `BUS Armed`
@@ -86,22 +76,70 @@ Workspace-Refresh: 2026-04-03
 - `BUS StateCode`
 - `BUS TrendPack`
 - `BUS MetaPack`
-- `BUS HardGatesPackA`
-- `BUS HardGatesPackB`
 - `BUS EventRiskRow`
-- `BUS QualityPackA`
-- `BUS QualityPackB`
 - `BUS QualityBoundsPack`
-- `BUS ModulePackA`
-- `BUS ModulePackB`
 - `BUS ModulePackC`
-- `BUS ModulePackD`
-- `BUS EnginePack`
 - `BUS StopLevel`
 - `BUS Target1`
 - `BUS Target2`
+- `BUS SessionGateRow`
+- `BUS MarketGateRow`
+- `BUS VolaGateRow`
+- `BUS MicroSessionGateRow`
+- `BUS MicroFreshRow`
+- `BUS VolumeDataRow`
+- `BUS QualityEnvRow`
+- `BUS QualityStrictRow`
+- `BUS CloseStrengthRow`
+- `BUS EmaSupportRow`
+- `BUS AdxRow`
+- `BUS RelVolRow`
+- `BUS VwapRow`
+- `BUS ContextQualityRow`
+- `BUS QualityCleanRow`
+- `BUS QualityScoreRow`
+- `BUS SdConfluenceRow`
+- `BUS SdOscRow`
+- `BUS VolRegimeRow`
+- `BUS VolSqueezeRow`
+- `BUS VolExpandRow`
+- `BUS DdviRow`
+- `BUS LongTriggersRow`
+- `BUS RiskPlanRow`
+- `BUS DebugFlagsRow`
+- `BUS ReadyGateRow`
+- `BUS StrictGateRow`
+- `BUS DebugStateRow`
+- `BUS MicroModifierMask`
+- `BUS ZoneObTop`
+- `BUS ZoneObBottom`
+- `BUS ZoneFvgTop`
+- `BUS ZoneFvgBottom`
+- `BUS SessionVwap`
+- `BUS AdxValue`
+- `BUS RelVolValue`
+- `BUS StretchZ`
+- `BUS StretchSupportMask`
+- `BUS LtfBullShare`
+- `BUS LtfBiasHint`
+- `BUS LtfVolumeDelta`
 - `BUS LeanPackA`
 - `BUS LeanPackB`
+
+## Producer-Prüfung
+
+### Producer Schrittfolge
+
+1. [../SMC_Core_Engine.pine](../SMC_Core_Engine.pine) in TradingView öffnen.
+2. Das Skript auf dem Zielchart kompilieren.
+3. Im Chart prüfen, ob das Skript ohne Compile- oder Runtime-Fehler geladen bleibt.
+4. Im `source`-Picker eines nachgelagerten Consumers prüfen, ob die Hidden-Bus-Serien auswählbar sind.
+
+### Producer Erwartete Beobachtungen
+
+1. Das Skript kompiliert ohne Fehler.
+2. Es bleiben keine sichtbaren Laufzeitfehler im Chart-Overlay zurück.
+3. Alle 62 Dashboard-Bindings aus [tradingview-validation-checklist.md](tradingview-validation-checklist.md) sind auswählbar.
 
 ### Producer Pass/Fail-Kriterien
 
@@ -109,7 +147,7 @@ Pass:
 
 1. Core kompiliert.
 2. Keine Laufzeitfehlermeldung.
-3. Alle 29 Serien sind auswählbar.
+3. Alle 62 Serien sind auswählbar.
 
 Fail:
 
@@ -122,7 +160,7 @@ Fail:
 ### Dashboard Schrittfolge
 
 1. [../SMC_Dashboard.pine](../SMC_Dashboard.pine) auf denselben Chart legen.
-2. Alle 29 `input.source()`-Felder exakt mit den Core-Serien belegen.
+2. Alle 62 `input.source()`-Felder exakt mit den Core-Serien belegen.
 3. Sichtbarkeit und Reaktion der Sektionen prüfen:
 
 - Lifecycle
@@ -136,7 +174,7 @@ Fail:
 ### Dashboard Erwartete Beobachtungen
 
 1. Dashboard kompiliert ohne Fehler.
-2. Alle 29 Bindings sind vollständig auswählbar.
+2. Alle 62 Bindings sind vollständig auswählbar.
 3. Das Dashboard bleibt sichtbar.
 4. Die Sektionen reagieren plausibel auf den Core-Zustand.
 
@@ -189,7 +227,7 @@ Erwartung:
 Pass:
 
 1. Dashboard kompiliert.
-2. Alle 26 Bindings sind belegbar.
+2. Alle 62 Bindings sind belegbar.
 3. Alle fünf Szenarien zeigen die erwartete Reaktion.
 4. Keine internen Widersprüche zwischen Lifecycle, Exec Tier, Setup Age und Risk-Linien.
 

@@ -4,7 +4,7 @@
 **Date**: 2026-04-02  
 **Prerequisite**: v5.5b canonical state on `main`  
 **Role**: Fresh Phase C inventory for post-v5.5b cleanup only  
-**References**: [RUNTIME_BUDGET.md](RUNTIME_BUDGET.md), [LEGACY_REMOVAL_PLAN.md](LEGACY_REMOVAL_PLAN.md), [smc_deep_research_migration_plan_copilot.md](smc_deep_research_migration_plan_copilot.md)
+**References**: [RUNTIME_BUDGET.md](RUNTIME_BUDGET.md), [LEGACY_REMOVAL_PLAN.md](LEGACY_REMOVAL_PLAN.md), [smc_deep_research_migration_plan_copilot.md](smc_deep_research_migration_plan_copilot.md), [smc-lite-pro-product-cut.md](smc-lite-pro-product-cut.md)
 
 ---
 
@@ -174,7 +174,8 @@ The next executed package continues on that path:
 2. Locked-source upgrade, runtime state, and invalidation state have dedicated helpers instead of living only inline in the main lifecycle block.
 3. BUS publication is separated into composite pack helpers so the publish boundary is thinner and more declarative.
 4. `scripts/smc_bus_manifest.py` is the canonical active BUS contract for engine channels, dashboard order, strategy order, and the manual TradingView runbook.
-5. The active operator surface stays anchored on `long_user_preset` and `compact_mode` rather than reopening a new visible-input expansion cycle.
+5. That manifest now also carries the canonical Executable, Lite, Pro-only, and next-C9 pack classifications so product slicing and cleanup sequencing stay aligned.
+6. The active operator surface stays anchored on `long_user_preset` and `compact_mode` rather than reopening a new visible-input expansion cycle.
 
 ### C5 - Armed and Confirm Lifecycle Owners
 
@@ -204,7 +205,7 @@ The next executed slice continues with the runtime-to-BUS ownership boundary:
 2. Best/Strict execution-tier projection now lives in a dedicated helper instead of direct inline projection in the main lifecycle block.
 3. Ready/Strict blocker resolution and the Clean tier now live in dedicated projection helpers.
 4. Trigger, invalidation, stop, and target BUS publishing now route through a dedicated BUS-plan-level helper instead of plotting raw runtime values directly.
-5. Trigger and risk-plan row ownership in `ModulePackD` now encode execution-tier and plan-completeness state at the BUS boundary, and split/semantic contracts pin that boundary explicitly.
+5. Trigger, risk-plan, and debug-flag row ownership now live in direct BUS rows (`LongTriggersRow`, `RiskPlanRow`, `DebugFlagsRow`), and split/semantic contracts pin that boundary explicitly.
 
 ### C8 - Event Edge and Debug Log Owners
 
@@ -214,6 +215,20 @@ The next executed slice continues with the remaining event-owned inline runtime 
 2. Lifecycle debug-event emission now lives in a dedicated helper that owns summary composition plus Upgrade, Armed, Confirmed, Ready, and Invalidated log emission.
 3. The main lifecycle block no longer carries local Ready-edge mutation or a nested debug-log function between runtime decisions and BUS publication.
 4. Split-core and semantic-contract tests now pin this C8 event-edge and observability boundary explicitly.
+
+### C9 - Pro-Only Pack Decoupling Boundary
+
+The next cleanup lane after C8 should no longer touch the executable or Lite
+surface. It should stay inside the Pro-only contract.
+
+1. `EventRiskRow`, `VolExpandRow`, `DdviRow`, `ModulePackC`, `LongTriggersRow`, `RiskPlanRow`, `DebugFlagsRow`, `ReadyGateRow`, `StrictGateRow`, `DebugStateRow`, and `MicroModifierMask` are now the primary rebuild lane because they are strongly tied to current dashboard transport.
+2. `QualityPackA/B` have been fully retired from the producer after the direct quality-row cut proved stable under regression.
+3. `HardGatesPackA/B` and `EnginePack` have likewise been retired after the named-row migration held on the active dashboard contract.
+4. Removing the five legacy exports reopened enough headroom for exactly one full 4-row module cut, and that budget has now been consumed by replacing `ModulePackA` with `SdConfluenceRow`, `SdOscRow`, `VolRegimeRow`, and `VolSqueezeRow`. The engine now sits at `62 / 64` plots.
+5. The former `ModulePackB` blocker lane has now been executed: three visible overlay plots were moved off `plot()`, and `BUS ModulePackB` was replaced with `VolExpandRow`, `DdviRow`, `StretchSupportMask`, and `LtfBiasHint`. `ModulePackC` stays as the last remaining pack because `Objects` and `Swing` still lack comparable domain channels.
+6. `MetaPack`, `QualityBoundsPack`, `StopLevel`, `Target1`, and `Target2` remain stable Pro-support channels and should not be the first cut targets.
+7. `BUS QualityScore`, the strategy's 8-channel executable contract, and the Lite surface remain fixed while C9 proceeds.
+8. Manifest-backed regression should pin that partition so later refactors do not quietly move Lite/product boundaries under a cleanup label.
 
 ## 4. Fresh Inventory by Execution Surface
 
@@ -311,3 +326,4 @@ This AP6 re-evaluation leaves Phase C in a materially better state than the old 
 1. Keep the C1 removal batch compile-clean and absence-guarded after nearby edits.
 2. Extend semantic split-core, consumer-setup, and input-surface guards around the active core.
 3. Continue only with state-owner / lifecycle extraction inside `SMC_Core_Engine.pine`, not with new display-only slices.
+4. If the next runtime/BUS cleanup proceeds beyond C8, start with the C9 Pro-only pack lane and keep the Lite contract frozen.
