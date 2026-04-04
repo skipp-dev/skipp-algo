@@ -78,14 +78,15 @@ Hinzu kommen auf der aktiven Pro-Surface jetzt drei klar getrennte Lagen:
   `BUS EmaSupportRow`, `BUS AdxRow`, `BUS RelVolRow`, `BUS VwapRow`,
   `BUS ContextQualityRow`, `BUS QualityCleanRow`, `BUS QualityScoreRow`,
   `BUS SdConfluenceRow`, `BUS SdOscRow`, `BUS VolRegimeRow`,
-  `BUS VolSqueezeRow`, `BUS VolExpandRow`, `BUS DdviRow`,
+  `BUS VolSqueezeRow`, `BUS VolExpandRow`, `BUS DdviRow`, `BUS SwingRow`,
   `BUS ReadyGateRow`, `BUS StrictGateRow`,
   `BUS DebugStateRow`, `BUS MicroModifierMask`
 - direkte Detail-Channels fuer wiederhergestellte Monolith-Tiefe:
   `BUS ZoneObTop`, `BUS ZoneObBottom`, `BUS ZoneFvgTop`,
   `BUS ZoneFvgBottom`, `BUS SessionVwap`, `BUS AdxValue`,
   `BUS RelVolValue`, `BUS StretchZ`, `BUS StretchSupportMask`,
-  `BUS LtfBullShare`, `BUS LtfBiasHint`, `BUS LtfVolumeDelta`
+  `BUS LtfBullShare`, `BUS LtfBiasHint`, `BUS LtfVolumeDelta`,
+  `BUS ObjectsCountPack`
 
 Die frueheren Legacy-Compat-Exports (`BUS HardGatesPackA/B`,
 `BUS QualityPackA/B`, `BUS EnginePack`) sind inzwischen aus dem Producer
@@ -123,9 +124,9 @@ Pro umfasst:
 - `SMC_Core_Engine.pine`
 - `SMC_Dashboard.pine`
 - `SMC_Long_Strategy.pine`
-- den vollen 62-Kanal-BUS-Contract
+- den vollen 64-Kanal-BUS-Contract
 
-Das aktive Dashboard nutzt derzeit den kompletten 62-Kanal-Producer-Vertrag.
+Das aktive Dashboard nutzt derzeit den kompletten 64-Kanal-Producer-Vertrag.
 
 Pro darf bewusst mehr Friction haben, wenn diese Friction echte Diagnose- oder
 Automationsfaehigkeit liefert.
@@ -151,6 +152,7 @@ geschnitten werden:
 - `BUS EventRiskRow`
 - `BUS VolExpandRow`
 - `BUS DdviRow`
+- `BUS SwingRow`
 - `BUS ModulePackC`
 - `BUS LongTriggersRow`
 - `BUS RiskPlanRow`
@@ -168,10 +170,11 @@ die sichtbaren `Session VWAP`-, `EMA Fast`- und `EMA Slow`-Overlays aus dem
 `BUS ModulePackB` durch `BUS VolExpandRow`, `BUS DdviRow`,
 `BUS StretchSupportMask` und `BUS LtfBiasHint` ersetzt.
 
-Die Engine liegt dadurch weiter bei `62 / 64` Plots, aber jetzt mit einem
-aktiven `62`-Kanal-Pro-Vertrag ohne `ModulePackB`. Der naechste Pack-Kandidat
-bleibt `ModulePackC`, weil `Objects` und `Swing` weiterhin keine sauberen
-Domain-Channels besitzen.
+Die Engine liegt jetzt bei `64 / 64` Plots mit einem aktiven
+`64`-Kanal-Pro-Vertrag. `Swing` und `Objects` wurden ueber `BUS SwingRow` und
+`BUS ObjectsCountPack` aus `ModulePackC` herausgezogen; der verbleibende
+Pack-Kandidat ist `ModulePackC`, weil dort weiterhin `LTF Delta` und
+`Micro Profile` als UI-Transport gebuendelt bleiben.
 
 ### C9.2 Reduce-Kandidaten
 
@@ -198,6 +201,7 @@ sollen nicht leichtfertig neu zugeschnitten werden:
 
 - `BUS MetaPack`
 - `BUS QualityBoundsPack`
+- `BUS ObjectsCountPack`
 - `BUS StopLevel`
 - `BUS Target1`
 - `BUS Target2`

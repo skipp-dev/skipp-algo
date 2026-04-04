@@ -5,10 +5,11 @@ This document frames the architecture choice after the current bus-v2 audit in [
 Current repo state is already partway through that transition:
 
 - the old compat exports (`HardGatesPackA/B`, `QualityPackA/B`, `EnginePack`) have been retired from the producer
-- the active dashboard now binds the full 62-channel producer contract directly
+- the active dashboard now binds the full 64-channel producer contract directly
 - `ModulePackA` has already been cut into direct rows (`SdConfluenceRow`, `SdOscRow`, `VolRegimeRow`, `VolSqueezeRow`)
 - `ModulePackB` has already been retired into `VolExpandRow`, `DdviRow`, `StretchSupportMask`, and `LtfBiasHint`
-- the remaining row-shaped dashboard transport is concentrated in `ModulePackC` plus the direct row surface (`VolExpandRow`, `DdviRow`, `LongTriggersRow`, `RiskPlanRow`, `DebugFlagsRow`, `ReadyGateRow`, `StrictGateRow`, `DebugStateRow`, `MicroModifierMask`)
+- the first `ModulePackC` cut has landed via `SwingRow` and `ObjectsCountPack`
+- the remaining row-shaped dashboard transport is concentrated in narrowed `ModulePackC` plus the direct row surface (`VolExpandRow`, `DdviRow`, `SwingRow`, `LongTriggersRow`, `RiskPlanRow`, `DebugFlagsRow`, `ReadyGateRow`, `StrictGateRow`, `DebugStateRow`, `MicroModifierMask`)
 
 This document therefore describes the remaining architectural choice, not a greenfield template.
 
@@ -47,15 +48,16 @@ These already behave acceptably as transport for the current UI:
 - `BUS VolSqueezeRow`
 - `BUS VolExpandRow`
 - `BUS DdviRow`
+- `BUS SwingRow`
 - `BUS ModulePackC`
 - `BUS LongTriggersRow`
 - `BUS RiskPlanRow`
 - `BUS DebugFlagsRow`
 
 The previous compat exports and `ModulePackA`/`ModulePackB` transport cuts have
-already landed. The producer remains at `62 / 64` plots while exporting a full
-`62`-channel hidden bus, and only two free plot slots remain for future cleanup
-slices. The executed `ModulePackB` replacement path is documented in
+already landed. The producer now sits at `64 / 64` plots while exporting a full
+`64`-channel hidden bus, so future cleanup slices must first free budget or stay
+strictly plot-reducing. The executed `ModulePackB` replacement path is documented in
 [smc-module-pack-b-direct-cut-design.md](smc-module-pack-b-direct-cut-design.md).
 
 ### Risk Envelope Under Option A
@@ -120,38 +122,42 @@ These are the strongest replacement candidates because they are row-oriented tra
 
 - `BUS VolExpandRow`
 - `BUS DdviRow`
+- `BUS SwingRow`
 - `BUS ModulePackC`
 - `BUS LongTriggersRow`
 - `BUS RiskPlanRow`
 - `BUS DebugFlagsRow`
 
 `ModulePackA` and `ModulePackB` have already been retired in favor of direct
-rows and support/detail channels. `StretchSupportMask` and `LtfBiasHint` now
-cover the missing producer-owned support state for the former `ModulePackB`
-rows, but `ModulePackC` still contains the least reusable UI transport on the
-active bus.
+rows and support/detail channels. `StretchSupportMask`, `LtfBiasHint`, and
+`ObjectsCountPack` now cover missing producer-owned support state for the former
+packed module rows, and `SwingRow` has moved swing structure off the pack. That
+leaves `ModulePackC` as the last remaining packed UI transport on the active
+bus.
 
 ### Concrete Next Slice
 
 1. `ModulePackC` next
-   `Ltf Delta` can lean on `LtfVolumeDelta`, and `Micro Profile` already shares
-   `MicroModifierMask`, but `Objects` and `Swing` still lack equivalent domain
-   channels. That keeps `ModulePackC` as the least reusable remaining pack on
-   the active bus.
+   `Objects` and `Swing` now have direct channels (`ObjectsCountPack` and
+   `SwingRow`), so the remaining pack only carries `Ltf Delta` and
+   `Micro Profile`. That keeps `ModulePackC` as the least reusable remaining
+   pack on the active bus, but any further cut now requires freeing at least
+   one plot elsewhere because the producer already runs at `64 / 64`.
 2. Direct row transport after that
    `LongTriggersRow`, `RiskPlanRow`, `DebugFlagsRow`, and the remaining
    gate/debug rows are still UI-shaped transport. None of them currently has a
-   cleaner budget path than the executed `ModulePackB` cut, so they should only
-   move when the replacement stays plot-neutral or plot-reducing.
+   cleaner budget path than the executed `ModulePackB` and first `ModulePackC`
+   cuts, so they should only move after a plot-saving step or as part of a
+   plot-reducing replacement.
 
 ## Recommendation
 
 The recommended path is:
 
 1. Treat the current bus-v2 explicitly as a dashboard transport layer.
-2. Treat the `ModulePackA` and `ModulePackB` cuts as the intentional transport
-   cleanup steps that already reshaped the active `62 / 64` contract.
-3. Continue replacing the remaining UI-transport channels only where the change is plot-neutral or plot-reducing.
+2. Treat the `ModulePackA`, `ModulePackB`, and first `ModulePackC` cuts as the
+   intentional transport cleanup steps that already reshaped the active `64 / 64` contract.
+3. Continue replacing the remaining UI-transport channels only where the change frees plot budget first or stays plot-reducing.
 4. Keep semantic tests pinned to the manifest so retired exports do not drift back into the contract.
 5. Do not expand the remaining row packs further just to preserve old shapes.
 6. If additional consumers or richer dashboard parity are needed later, design a separate domain-first bus-v3 instead of continuing to grow UI packs.

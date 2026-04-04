@@ -8,13 +8,13 @@ The producer exports the full hidden bus from [SMC_Core_Engine.pine](../SMC_Core
 
 Current manual validation counts:
 
-- Producer hidden series: `62`
-- Dashboard bindings: `62`
+- Producer hidden series: `64`
+- Dashboard bindings: `64`
 - Strategy bindings: `8`
 
 ### Dashboard Needs These Bindings
 
-The dashboard expects all `62` bindings declared in [SMC_Dashboard.pine](../SMC_Dashboard.pine) and governed by [../scripts/smc_bus_manifest.py](../scripts/smc_bus_manifest.py).
+The dashboard expects all `64` bindings declared in [SMC_Dashboard.pine](../SMC_Dashboard.pine) and governed by [../scripts/smc_bus_manifest.py](../scripts/smc_bus_manifest.py).
 
 Lifecycle:
 
@@ -56,6 +56,7 @@ Diagnostic Rows:
 - `BUS VolSqueezeRow`
 - `BUS VolExpandRow`
 - `BUS DdviRow`
+- `BUS SwingRow`
 - `BUS LongTriggersRow`
 - `BUS RiskPlanRow`
 - `BUS DebugFlagsRow`
@@ -90,6 +91,7 @@ Detail Surface:
 - `BUS LtfBullShare`
 - `BUS LtfBiasHint`
 - `BUS LtfVolumeDelta`
+- `BUS ObjectsCountPack`
 
 Lean Surface:
 
@@ -228,7 +230,7 @@ If this fails:
 ## Manual Cross-Check Order
 
 1. Add `SMC_Core_Engine.pine` to the chart.
-2. Add `SMC_Dashboard.pine` and bind all 62 sources to the core plots.
+2. Add `SMC_Dashboard.pine` and bind all 64 sources to the core plots.
 3. Add `SMC_Long_Strategy.pine` and bind its 8 sources to the core plots.
 4. Validate the five scenarios above on the same symbol and timeframe.
 5. If dashboard and strategy disagree, treat the core plots as the source of truth first and inspect source bindings before changing any logic.

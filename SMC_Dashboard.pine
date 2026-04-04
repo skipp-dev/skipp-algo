@@ -47,6 +47,7 @@ src_vol_regime_row = input.source(close, "BUS VolRegimeRow", group = g_bus_diag_
 src_vol_squeeze_row = input.source(close, "BUS VolSqueezeRow", group = g_bus_diag_rows)
 src_vol_expand_row = input.source(close, "BUS VolExpandRow", group = g_bus_diag_rows)
 src_ddvi_row = input.source(close, "BUS DdviRow", group = g_bus_diag_rows)
+src_swing_row = input.source(close, "BUS SwingRow", group = g_bus_diag_rows)
 src_event_risk_row = input.source(close, "BUS EventRiskRow", group = g_bus_diag)
 src_quality_bounds_pack = input.source(close, "BUS QualityBoundsPack", group = g_bus_diag)
 src_module_pack_c = input.source(close, "BUS ModulePackC", group = g_bus_diag)
@@ -72,6 +73,7 @@ src_stretch_support_mask = input.source(close, "BUS StretchSupportMask", group =
 src_ltf_bull_share = input.source(close, "BUS LtfBullShare", group = g_bus_detail)
 src_ltf_bias_hint = input.source(close, "BUS LtfBiasHint", group = g_bus_detail)
 src_ltf_volume_delta = input.source(close, "BUS LtfVolumeDelta", group = g_bus_detail)
+src_objects_count_pack = input.source(close, "BUS ObjectsCountPack", group = g_bus_detail)
 src_lean_pack_a = input.source(close, "BUS LeanPackA", group = g_bus_lean, tooltip = "Lean surface bindings are grouped last because they are additive hero-surface feeds.")
 src_lean_pack_b = input.source(close, "BUS LeanPackB", group = g_bus_lean)
 
@@ -93,6 +95,15 @@ pack_slot(float packed_value, int slot) =>
         slot_value := int(math.floor(packed / 1000)) % 1000
     else
         slot_value := packed % 1000
+    slot_value
+
+count_pack_slot(float packed_value, int slot) =>
+    int packed = int(math.round(nz(packed_value, 0.0)))
+    int slot_value = 0
+    if slot == 0
+        slot_value := int(math.floor(packed / 1000000))
+    else
+        slot_value := packed % 1000000
     slot_value
 
 trend_slot(float packed_value, int slot) =>
@@ -129,6 +140,16 @@ row_reason(int row_code) =>
 
 pack_bus_row(int row_state, int reason_code) =>
     (row_state + 1) * 100 + reason_code
+
+resolve_objects_row_code(int ob_count, int fvg_count) =>
+    if ob_count > 0 and fvg_count > 0
+        pack_bus_row(5, 3)
+    else if ob_count > 0
+        pack_bus_row(3, 1)
+    else if fvg_count > 0
+        pack_bus_row(3, 2)
+    else
+        pack_bus_row(0, 4)
 
 zone_row_code(int zone_code) =>
     int zone_state = 0
@@ -655,15 +676,15 @@ decode_ltf_delta_text(int row_code, float ltf_volume_delta) =>
         label_text := format_percent_text(ltf_volume_delta)
     label_text
 
-decode_objects_text(int row_code) =>
+decode_objects_text(int row_code, int ob_count, int fvg_count) =>
     int reason_code = row_reason(row_code)
     string label_text = "No active objects"
     if reason_code == 1
-        label_text := "OB only"
+        label_text := "OB " + str.tostring(ob_count)
     else if reason_code == 2
-        label_text := "FVG only"
+        label_text := "FVG " + str.tostring(fvg_count)
     else if reason_code == 3
-        label_text := "OB + FVG"
+        label_text := "OB " + str.tostring(ob_count) + " | FVG " + str.tostring(fvg_count)
     label_text
 
 decode_swing_text(int row_code) =>
@@ -905,9 +926,11 @@ int vol_expand_row_code = int(math.round(nz(src_vol_expand_row, 0.0)))
 int ltf_delta_row_code = pack_slot(src_module_pack_c, 0)
 int stretch_row_code = resolve_stretch_row_code(src_stretch_z, src_stretch_support_mask)
 int ddvi_row_code = int(math.round(nz(src_ddvi_row, 0.0)))
+int swing_row_code = int(math.round(nz(src_swing_row, 0.0)))
 int ltf_bias_row_code = resolve_ltf_bias_row_code(ltf_delta_row_code, src_ltf_bull_share, src_ltf_bias_hint)
-int objects_row_code = pack_slot(src_module_pack_c, 1)
-int swing_row_code = pack_slot(src_module_pack_c, 2)
+int objects_ob_count = count_pack_slot(src_objects_count_pack, 0)
+int objects_fvg_count = count_pack_slot(src_objects_count_pack, 1)
+int objects_row_code = resolve_objects_row_code(objects_ob_count, objects_fvg_count)
 int micro_profile_row_code = pack_slot(src_module_pack_c, 3)
 int long_zones_row_code = zone_row_code(zone_code)
 int long_triggers_row_code = int(math.round(nz(src_long_triggers_row, 0.0)))
@@ -993,7 +1016,7 @@ if show_table and barstate.islast
     dashboard_row(smc_dashboard, 44, "DDVI", decode_ddvi_text(ddvi_row_code), status_bg(row_status(ddvi_row_code)), txt)
     dashboard_row(smc_dashboard, 45, "LTF Bias", decode_ltf_bias_text(ltf_bias_row_code, src_ltf_bull_share), status_bg(row_status(ltf_bias_row_code)), txt)
     dashboard_row(smc_dashboard, 46, "LTF Delta", decode_ltf_delta_text(ltf_delta_row_code, src_ltf_volume_delta), status_bg(row_status(ltf_delta_row_code)), txt)
-    dashboard_row(smc_dashboard, 47, "Objects", decode_objects_text(objects_row_code), status_bg(row_status(objects_row_code)), txt)
+    dashboard_row(smc_dashboard, 47, "Objects", decode_objects_text(objects_row_code, objects_ob_count, objects_fvg_count), status_bg(row_status(objects_row_code)), txt)
     dashboard_row(smc_dashboard, 48, "Swing H/L", decode_swing_text(swing_row_code), status_bg(row_status(swing_row_code)), txt)
     dashboard_row(smc_dashboard, 49, "Long Zones", long_zones_text, status_bg(row_status(long_zones_row_code)), txt)
     dashboard_row(smc_dashboard, 50, "Long Triggers", trigger_text(row_status(long_triggers_row_code) == 5, src_trigger, src_invalidation), status_bg(row_status(long_triggers_row_code)), txt)

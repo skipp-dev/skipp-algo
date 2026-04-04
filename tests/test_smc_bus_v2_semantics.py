@@ -38,12 +38,32 @@ def pack_slot(packed_value: int, slot: int) -> int:
     return packed_value % 1000
 
 
+def pack_bus_counts(primary_count: int, secondary_count: int) -> int:
+    return primary_count * 1_000_000 + secondary_count
+
+
+def count_pack_slot(packed_value: int, slot: int) -> int:
+    if slot == 0:
+        return packed_value // 1_000_000
+    return packed_value % 1_000_000
+
+
 def row_status(row_code: int) -> int:
     return row_code // 100 - 1
 
 
 def row_reason(row_code: int) -> int:
     return row_code % 100
+
+
+def resolve_objects_row_code(ob_count: int, fvg_count: int) -> int:
+    if ob_count > 0 and fvg_count > 0:
+        return pack_bus_row(5, 3)
+    if ob_count > 0:
+        return pack_bus_row(3, 1)
+    if fvg_count > 0:
+        return pack_bus_row(3, 2)
+    return pack_bus_row(0, 4)
 
 
 def normalize_bus_trend(direction: int) -> int:
@@ -304,6 +324,29 @@ def test_row_pack_and_unpack_contract_round_trips_consistently() -> None:
     assert row_reason(row_d) == 5
 
 
+def test_object_count_pack_and_module_pack_c_split_round_trip_consistently() -> None:
+    core_source = _read(CORE_PATH)
+    dashboard_source = _read(DASHBOARD_PATH)
+
+    assert 'pack_bus_counts(int primary_count, int secondary_count) =>' in core_source
+    assert 'count_pack_slot(float packed_value, int slot) =>' in dashboard_source
+    assert 'resolve_bus_module_pack_c(bool show_dashboard_ltf_eff, bool ltf_sampling_active, bool ltf_price_only, float ltf_volume_delta, bool use_microstructure_profiles, string micro_profile_text, string micro_modifier_text) =>' in core_source
+    assert 'int ltf_delta_row_code = pack_slot(src_module_pack_c, 0)' in dashboard_source
+    assert 'int micro_profile_row_code = pack_slot(src_module_pack_c, 3)' in dashboard_source
+    assert 'pack_slot(src_module_pack_c, 1)' not in dashboard_source
+    assert 'pack_slot(src_module_pack_c, 2)' not in dashboard_source
+    assert 'int swing_row_code = int(math.round(nz(src_swing_row, 0.0)))' in dashboard_source
+    assert 'int objects_row_code = resolve_objects_row_code(objects_ob_count, objects_fvg_count)' in dashboard_source
+
+    packed_counts = pack_bus_counts(3, 2)
+    assert count_pack_slot(packed_counts, 0) == 3
+    assert count_pack_slot(packed_counts, 1) == 2
+    assert resolve_objects_row_code(3, 2) == pack_bus_row(5, 3)
+    assert resolve_objects_row_code(3, 0) == pack_bus_row(3, 1)
+    assert resolve_objects_row_code(0, 2) == pack_bus_row(3, 2)
+    assert resolve_objects_row_code(0, 0) == pack_bus_row(0, 4)
+
+
 def test_trend_and_meta_packs_round_trip_consistently() -> None:
     core_source = _read(CORE_PATH)
     dashboard_source = _read(DASHBOARD_PATH)
@@ -422,10 +465,12 @@ def test_dashboard_and_strategy_contracts_share_same_strategy_relevant_channels(
     assert 'src_quality_score_row = input.source(close, "BUS QualityScoreRow"' in dashboard_source
     assert 'src_vol_expand_row = input.source(close, "BUS VolExpandRow"' in dashboard_source
     assert 'src_ddvi_row = input.source(close, "BUS DdviRow"' in dashboard_source
+    assert 'src_swing_row = input.source(close, "BUS SwingRow"' in dashboard_source
     assert 'src_ready_gate_row = input.source(close, "BUS ReadyGateRow"' in dashboard_source
     assert 'src_zone_ob_top = input.source(close, "BUS ZoneObTop"' in dashboard_source
     assert 'src_stretch_support_mask = input.source(close, "BUS StretchSupportMask"' in dashboard_source
     assert 'src_ltf_bias_hint = input.source(close, "BUS LtfBiasHint"' in dashboard_source
+    assert 'src_objects_count_pack = input.source(close, "BUS ObjectsCountPack"' in dashboard_source
     assert 'src_hard_gates_pack_a' not in dashboard_source
     assert 'src_quality_pack_a' not in dashboard_source
     assert 'src_quality_pack_b' not in dashboard_source

@@ -58,6 +58,7 @@ ENGINE_BUS_CHANNELS: tuple[str, ...] = (
     'VolSqueezeRow',
     'VolExpandRow',
     'DdviRow',
+    'SwingRow',
     'LongTriggersRow',
     'RiskPlanRow',
     'DebugFlagsRow',
@@ -77,6 +78,7 @@ ENGINE_BUS_CHANNELS: tuple[str, ...] = (
     'LtfBullShare',
     'LtfBiasHint',
     'LtfVolumeDelta',
+    'ObjectsCountPack',
     'LeanPackA',
     'LeanPackB',
 )
@@ -141,6 +143,7 @@ C9_REBUILD_BUS_CHANNELS: tuple[str, ...] = (
     'VolSqueezeRow',
     'VolExpandRow',
     'DdviRow',
+    'SwingRow',
     'LongTriggersRow',
     'RiskPlanRow',
     'DebugFlagsRow',
@@ -174,6 +177,7 @@ C9_DETAIL_BUS_CHANNELS: tuple[str, ...] = (
     'LtfBullShare',
     'LtfBiasHint',
     'LtfVolumeDelta',
+    'ObjectsCountPack',
 )
 
 C9_LEGACY_COMPAT_BUS_CHANNELS: tuple[str, ...] = ()
@@ -250,6 +254,7 @@ DASHBOARD_BUS_BINDINGS: tuple[BusBinding, ...] = (
     BusBinding('BUS VolSqueezeRow', 'g_bus_diag_rows'),
     BusBinding('BUS VolExpandRow', 'g_bus_diag_rows'),
     BusBinding('BUS DdviRow', 'g_bus_diag_rows'),
+    BusBinding('BUS SwingRow', 'g_bus_diag_rows'),
     BusBinding('BUS EventRiskRow', 'g_bus_diag'),
     BusBinding('BUS QualityBoundsPack', 'g_bus_diag'),
     BusBinding('BUS ModulePackC', 'g_bus_diag'),
@@ -275,6 +280,7 @@ DASHBOARD_BUS_BINDINGS: tuple[BusBinding, ...] = (
     BusBinding('BUS LtfBullShare', 'g_bus_detail'),
     BusBinding('BUS LtfBiasHint', 'g_bus_detail'),
     BusBinding('BUS LtfVolumeDelta', 'g_bus_detail'),
+    BusBinding('BUS ObjectsCountPack', 'g_bus_detail'),
     BusBinding('BUS LeanPackA', 'g_bus_lean'),
     BusBinding('BUS LeanPackB', 'g_bus_lean'),
 )

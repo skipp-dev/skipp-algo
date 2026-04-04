@@ -77,6 +77,7 @@ def test_dashboard_contract_moves_to_named_rows_and_detail_channels() -> None:
     assert 'VolSqueezeRow' in MANIFEST.DASHBOARD_BUS_CHANNELS
     assert 'VolExpandRow' in MANIFEST.DASHBOARD_BUS_CHANNELS
     assert 'DdviRow' in MANIFEST.DASHBOARD_BUS_CHANNELS
+    assert 'SwingRow' in MANIFEST.DASHBOARD_BUS_CHANNELS
     assert 'LongTriggersRow' in MANIFEST.DASHBOARD_BUS_CHANNELS
     assert 'RiskPlanRow' in MANIFEST.DASHBOARD_BUS_CHANNELS
     assert 'DebugFlagsRow' in MANIFEST.DASHBOARD_BUS_CHANNELS
@@ -85,6 +86,7 @@ def test_dashboard_contract_moves_to_named_rows_and_detail_channels() -> None:
     assert 'SessionVwap' in MANIFEST.DASHBOARD_BUS_CHANNELS
     assert 'StretchSupportMask' in MANIFEST.DASHBOARD_BUS_CHANNELS
     assert 'LtfBiasHint' in MANIFEST.DASHBOARD_BUS_CHANNELS
+    assert 'ObjectsCountPack' in MANIFEST.DASHBOARD_BUS_CHANNELS
     assert 'ModulePackA' not in MANIFEST.ENGINE_BUS_CHANNELS
 
 
@@ -104,6 +106,7 @@ def test_c9_cut_partitions_the_pro_only_surface() -> None:
         'VolSqueezeRow',
         'VolExpandRow',
         'DdviRow',
+        'SwingRow',
         'LongTriggersRow',
         'RiskPlanRow',
         'DebugFlagsRow',
@@ -135,6 +138,7 @@ def test_c9_cut_partitions_the_pro_only_surface() -> None:
         'LtfBullShare',
         'LtfBiasHint',
         'LtfVolumeDelta',
+        'ObjectsCountPack',
     )
     assert MANIFEST.C9_LEGACY_COMPAT_BUS_CHANNELS == ()
     assert MANIFEST.C9_STABLE_PRO_BUS_CHANNELS == (

@@ -2652,6 +2652,9 @@ pack_bus_row(int row_state, int reason_code) =>
 pack_bus_four(float value1, float value2, float value3, float value4) =>
     value1 * 1000000000.0 + value2 * 1000000.0 + value3 * 1000.0 + value4
 
+pack_bus_counts(int primary_count, int secondary_count) =>
+    float(primary_count * 1000000 + secondary_count)
+
 normalize_bus_trend(int dir) =>
     dir > 0 ? 2 : dir < 0 ? 0 : 1
 
@@ -3232,8 +3235,8 @@ resolve_bus_meta_pack(bool long_setup_armed, bool long_setup_confirmed, bool rea
 resolve_bus_quality_bounds_pack(int min_score, int max_score) =>
     float(min_score * 1000 + max_score)
 
-resolve_bus_module_pack_c(bool show_dashboard_ltf_eff, bool ltf_sampling_active, bool ltf_price_only, float ltf_volume_delta, int ob_block_count, int fvg_count, bool bullish_trend_safe, bool bearish_trend_safe, bool use_microstructure_profiles, string micro_profile_text, string micro_modifier_text) =>
-    pack_bus_four(resolve_bus_ltf_delta_row(show_dashboard_ltf_eff, ltf_sampling_active, ltf_price_only, ltf_volume_delta), resolve_bus_objects_row(ob_block_count, fvg_count), resolve_bus_swing_row(bullish_trend_safe, bearish_trend_safe), resolve_bus_micro_profile_row(use_microstructure_profiles, micro_profile_text, micro_modifier_text))
+resolve_bus_module_pack_c(bool show_dashboard_ltf_eff, bool ltf_sampling_active, bool ltf_price_only, float ltf_volume_delta, bool use_microstructure_profiles, string micro_profile_text, string micro_modifier_text) =>
+    pack_bus_four(resolve_bus_ltf_delta_row(show_dashboard_ltf_eff, ltf_sampling_active, ltf_price_only, ltf_volume_delta), 0.0, 0.0, resolve_bus_micro_profile_row(use_microstructure_profiles, micro_profile_text, micro_modifier_text))
 
 resolve_bus_lean_pack_a(int signal_quality_score, string signal_quality_tier, string signal_freshness, string signal_bias_alignment, string event_window_state, string event_risk_level, bool market_event_blocked, bool symbol_event_blocked, int structure_trend_strength, bool structure_fresh, string structure_last_event) =>
     pack_bus_four(resolve_bus_signal_quality_row(signal_quality_score, signal_quality_tier), resolve_bus_signal_freshness_row(signal_freshness, signal_bias_alignment), resolve_bus_event_risk_light_row(event_window_state, event_risk_level, market_event_blocked, symbol_event_blocked), resolve_bus_struct_light_row(structure_trend_strength, structure_fresh, structure_last_event))
@@ -6593,7 +6596,7 @@ plot(resolve_bus_trend_pack(structure_display_trend, mtf_trend_1, mtf_trend_2, m
 plot(resolve_bus_meta_pack(long_state.armed, long_state.confirmed, ready_is_fresh, confirm_is_fresh, long_source_tracked, long_source_alive, long_source_broken, reclaim_recent, bull_reclaim_internal_low_strict, bull_reclaim_swing_low_strict, bull_reclaim_fvg_strict, bull_reclaim_ob_strict, long_zone_active, in_bull_ob_zone, in_bull_fvg_zone), 'BUS MetaPack', display = display.none)
 plot(resolve_bus_event_risk_row(event_risk_gate_ok, not event_risk_gate_ok, event_risk_state == "caution", lib_erl_market_blocked, lib_erl_symbol_blocked, lib_erl_window_state, lib_erl_level), 'BUS EventRiskRow', display = display.none)
 plot(resolve_bus_quality_bounds_pack(25, 100), 'BUS QualityBoundsPack', display = display.none)
-plot(resolve_bus_module_pack_c(show_dashboard_ltf_eff, ltf_sampling_active, ltf_price_only, ltf_volume_delta, array.size(ob_blocks_bull), array.size(fvgs_bull), bullish_trend_safe, bearish_trend_safe, use_microstructure_profiles, micro_profile_text, micro_modifier_text), 'BUS ModulePackC', display = display.none)
+plot(resolve_bus_module_pack_c(show_dashboard_ltf_eff, ltf_sampling_active, ltf_price_only, ltf_volume_delta, use_microstructure_profiles, micro_profile_text, micro_modifier_text), 'BUS ModulePackC', display = display.none)
 plot(bus_stop_level, 'BUS StopLevel', display = display.none)
 plot(bus_target_1, 'BUS Target1', display = display.none)
 plot(bus_target_2, 'BUS Target2', display = display.none)
@@ -6619,6 +6622,7 @@ plot(resolve_bus_vol_regime_row(use_volatility_regime, vol_regime_trend_ok), 'BU
 plot(resolve_bus_vol_squeeze_row(use_volatility_regime, vol_squeeze_on, vol_squeeze_release_recent, vol_squeeze_recent), 'BUS VolSqueezeRow', display = display.none)
 plot(resolve_bus_vol_expand_row(use_volatility_regime, vol_momentum_expanding_long, vol_stack_spread_rising), 'BUS VolExpandRow', display = display.none)
 plot(resolve_bus_ddvi_row(use_ddvi_context, ddvi_bias_ok, ddvi_bull_divergence_any, ddvi_lower_extreme_context), 'BUS DdviRow', display = display.none)
+plot(resolve_bus_swing_row(bullish_trend_safe, bearish_trend_safe), 'BUS SwingRow', display = display.none)
 plot(resolve_bus_long_triggers_row(long_plan_active, long_state.confirmed, long_ready_state, long_entry_best_state, long_entry_strict_state, bus_trigger_level, bus_invalidation_level), 'BUS LongTriggersRow', display = display.none)
 plot(resolve_bus_risk_plan_row(long_plan_active, bus_trigger_level, bus_invalidation_level, bus_stop_level, bus_target_1, bus_target_2), 'BUS RiskPlanRow', display = display.none)
 plot(resolve_bus_debug_flags_row(show_ob_debug_eff, show_fvg_debug_eff, show_long_engine_debug_eff), 'BUS DebugFlagsRow', display = display.none)
@@ -6638,6 +6642,7 @@ plot(resolve_bus_stretch_support_mask(use_stretch_context, in_lower_extreme, low
 plot(ltf_bull_share, 'BUS LtfBullShare', display = display.none)
 plot(ltf_bias_hint, 'BUS LtfBiasHint', display = display.none)
 plot(ltf_volume_delta, 'BUS LtfVolumeDelta', display = display.none)
+plot(pack_bus_counts(array.size(ob_blocks_bull), array.size(fvgs_bull)), 'BUS ObjectsCountPack', display = display.none)
 // ── v5.5 Lean BUS Plots ──
 plot(resolve_bus_lean_pack_a(lib_sq_score, lib_sq_tier, lib_sq_freshness, lib_sq_bias_alignment, lib_erl_window_state, lib_erl_level, lib_erl_market_blocked, lib_erl_symbol_blocked, lib_strl_trend_strength, lib_strl_fresh, lib_strl_last_event), 'BUS LeanPackA', display = display.none)
 plot(resolve_bus_lean_pack_b(lib_obl_side, lib_obl_fresh, lib_obl_mitigation_state, lib_fvgl_side, lib_fvgl_fresh, lib_fvgl_invalidated, lib_scl_context_score, lib_scl_in_killzone, lib_sq_score), 'BUS LeanPackB', display = display.none)

@@ -135,6 +135,7 @@ def test_core_engine_exports_exact_hidden_bus() -> None:
 
     assert 'pack_bus_row(' in source
     assert 'pack_bus_four(' in source
+    assert 'pack_bus_counts(' in source
     assert 'pack_bus_trend_set(' in source
 
 
@@ -191,8 +192,10 @@ def test_core_engine_ends_at_hidden_bus_boundary() -> None:
     assert "plot(resolve_bus_vol_squeeze_row(use_volatility_regime, vol_squeeze_on, vol_squeeze_release_recent, vol_squeeze_recent), 'BUS VolSqueezeRow', display = display.none)" in source
     assert "plot(resolve_bus_vol_expand_row(use_volatility_regime, vol_momentum_expanding_long, vol_stack_spread_rising), 'BUS VolExpandRow', display = display.none)" in source
     assert "plot(resolve_bus_ddvi_row(use_ddvi_context, ddvi_bias_ok, ddvi_bull_divergence_any, ddvi_lower_extreme_context), 'BUS DdviRow', display = display.none)" in source
+    assert "plot(resolve_bus_swing_row(bullish_trend_safe, bearish_trend_safe), 'BUS SwingRow', display = display.none)" in source
     assert "plot(resolve_bus_stretch_support_mask(use_stretch_context, in_lower_extreme, lower_extreme_recent, anti_chase_ok_ready, anti_chase_ok_entry_best), 'BUS StretchSupportMask', display = display.none)" in source
     assert "plot(ltf_bias_hint, 'BUS LtfBiasHint', display = display.none)" in source
+    assert "plot(pack_bus_counts(array.size(ob_blocks_bull), array.size(fvgs_bull)), 'BUS ObjectsCountPack', display = display.none)" in source
     assert "'BUS ModulePackA', display = display.none" not in source
     assert "'BUS ModulePackB', display = display.none" not in source
     assert "plot(resolve_bus_lean_pack_b(lib_obl_side, lib_obl_fresh, lib_obl_mitigation_state, lib_fvgl_side, lib_fvgl_fresh, lib_fvgl_invalidated, lib_scl_context_score, lib_scl_in_killzone, lib_sq_score), 'BUS LeanPackB', display = display.none)" in source
@@ -230,6 +233,8 @@ def test_core_engine_tracks_c4_source_and_bus_pack_helpers() -> None:
     assert 'resolve_long_source_runtime_state(int long_source_kind, int long_source_id, bool ob_source_alive, bool fvg_source_alive, bool ob_source_broken, bool fvg_source_broken, bool long_setup_armed, bool long_setup_confirmed) =>' in source
     assert 'resolve_long_invalidation_state(bool long_setup_armed, bool long_setup_confirmed, int long_setup_age, int long_setup_expiry_bars, int long_confirm_age, int long_confirm_expiry_bars, bool close_safe_mode, float long_invalidation_break_src, float long_invalidation_level, float long_invalidation_buffer, bool long_source_broken, bool long_source_lost) =>' in source
     assert 'resolve_bus_stretch_support_mask(bool use_stretch_context, bool in_lower_extreme, bool lower_extreme_recent, bool anti_chase_ok_ready, bool anti_chase_ok_entry_best) =>' in source
+    assert 'resolve_bus_module_pack_c(bool show_dashboard_ltf_eff, bool ltf_sampling_active, bool ltf_price_only, float ltf_volume_delta, bool use_microstructure_profiles, string micro_profile_text, string micro_modifier_text) =>' in source
+    assert 'resolve_bus_module_pack_c(bool show_dashboard_ltf_eff, bool ltf_sampling_active, bool ltf_price_only, float ltf_volume_delta, int ob_block_count, int fvg_count, bool bullish_trend_safe, bool bearish_trend_safe, bool use_microstructure_profiles, string micro_profile_text, string micro_modifier_text) =>' not in source
     assert 'resolve_bus_module_pack_b(' not in source
     assert 'resolve_bus_engine_pack(' not in source
     assert "'BUS EnginePack', display = display.none" not in source

@@ -46,7 +46,7 @@ Workspace-Refresh: 2026-04-03
 ## Empfohlene Reihenfolge In TradingView
 
 1. Core öffnen und kompilieren.
-2. Dashboard hinzufügen und alle 62 `source`-Bindings auf den Core legen.
+2. Dashboard hinzufügen und alle 64 `source`-Bindings auf den Core legen.
 3. Strategy hinzufügen und alle 8 `source`-Bindings auf den Core legen.
 4. Die fünf Prüfszenarien auf demselben Symbol und Timeframe durchlaufen.
 5. Alle Beobachtungen direkt in die Report-Vorlage eintragen.
@@ -104,6 +104,7 @@ Reihenfolge:
 - `BUS VolSqueezeRow`
 - `BUS VolExpandRow`
 - `BUS DdviRow`
+- `BUS SwingRow`
 - `BUS LongTriggersRow`
 - `BUS RiskPlanRow`
 - `BUS DebugFlagsRow`
@@ -123,6 +124,7 @@ Reihenfolge:
 - `BUS LtfBullShare`
 - `BUS LtfBiasHint`
 - `BUS LtfVolumeDelta`
+- `BUS ObjectsCountPack`
 - `BUS LeanPackA`
 - `BUS LeanPackB`
 
@@ -139,7 +141,7 @@ Reihenfolge:
 
 1. Das Skript kompiliert ohne Fehler.
 2. Es bleiben keine sichtbaren Laufzeitfehler im Chart-Overlay zurück.
-3. Alle 62 Dashboard-Bindings aus [tradingview-validation-checklist.md](tradingview-validation-checklist.md) sind auswählbar.
+3. Alle 64 Dashboard-Bindings aus [tradingview-validation-checklist.md](tradingview-validation-checklist.md) sind auswählbar.
 
 ### Producer Pass/Fail-Kriterien
 
@@ -147,7 +149,7 @@ Pass:
 
 1. Core kompiliert.
 2. Keine Laufzeitfehlermeldung.
-3. Alle 62 Serien sind auswählbar.
+3. Alle 64 Serien sind auswählbar.
 
 Fail:
 
@@ -160,7 +162,7 @@ Fail:
 ### Dashboard Schrittfolge
 
 1. [../SMC_Dashboard.pine](../SMC_Dashboard.pine) auf denselben Chart legen.
-2. Alle 62 `input.source()`-Felder exakt mit den Core-Serien belegen.
+2. Alle 64 `input.source()`-Felder exakt mit den Core-Serien belegen.
 3. Sichtbarkeit und Reaktion der Sektionen prüfen:
 
 - Lifecycle
@@ -174,7 +176,7 @@ Fail:
 ### Dashboard Erwartete Beobachtungen
 
 1. Dashboard kompiliert ohne Fehler.
-2. Alle 62 Bindings sind vollständig auswählbar.
+2. Alle 64 Bindings sind vollständig auswählbar.
 3. Das Dashboard bleibt sichtbar.
 4. Die Sektionen reagieren plausibel auf den Core-Zustand.
 
@@ -227,7 +229,7 @@ Erwartung:
 Pass:
 
 1. Dashboard kompiliert.
-2. Alle 62 Bindings sind belegbar.
+2. Alle 64 Bindings sind belegbar.
 3. Alle fünf Szenarien zeigen die erwartete Reaktion.
 4. Keine internen Widersprüche zwischen Lifecycle, Exec Tier, Setup Age und Risk-Linien.
 
