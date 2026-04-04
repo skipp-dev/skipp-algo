@@ -8,7 +8,7 @@ import {
   type Page,
 } from "playwright";
 
-import { tvSelectors } from "../selectors.js";
+import { tvSelectors, type PineDraftKind } from "../selectors.js";
 import {
   inspectTradingViewStorageState,
   resolveTradingViewAuthResolution,
@@ -291,13 +291,12 @@ async function runTrackedStep<T>(
           const diagnostics = collectPageLifecycleDiagnostics(page);
           reject(
             new Error(
-              `Timed out after ${timeoutMs}ms during ${stepName}; lifecycle ${formatPageLifecycleDiagnostics(diagnostics)}`,
+              `Step timed out after ${timeoutMs}ms: ${stepName}; lifecycle ${formatPageLifecycleDiagnostics(diagnostics)}`,
             ),
           );
         }, timeoutMs);
       }),
     ]);
-
     const durationMs = Date.now() - startedAt;
     if (tracker) {
       pushLifecycleEvent(tracker, "step-ok", `${stepName} (${durationMs}ms)`);
@@ -1445,6 +1444,273 @@ async function hasVisibleLocatorFast(candidates: Locator[], timeoutMs = 500): Pr
   return false;
 }
 
+export async function openFreshUntitledPineDraft(page: Page, kind: PineDraftKind = "indicator"): Promise<void> {
+  await runTrackedStep(page, "openFreshUntitledPineDraft", async () => {
+    await dismissSignInModal(page).catch(() => undefined);
+    await ensurePineEditor(page);
+
+    const untitledSignals = [
+      page.getByText(/^untitled script$/i),
+      page.getByRole("button", { name: /^untitled script$/i }),
+      page.getByRole("link", { name: /^untitled script$/i }),
+    ];
+    if (await hasVisibleLocator(untitledSignals, 500)) {
+      tracePageEvent(page, "open-fresh-untitled", "already-visible");
+      return;
+    }
+
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const openedDirectly = await clickVisibleWithFallback(
+        page,
+        tvSelectors.openScript(page),
+        `open-fresh-untitled-${attempt}`,
+        2_000,
+        1_000,
+      );
+      if (openedDirectly && await hasVisibleLocator(untitledSignals, 1_000)) {
+        tracePageEvent(page, "open-fresh-untitled", `ok:${attempt}`);
+        return;
+      }
+
+      const openedMenu = await clickVisibleWithFallback(
+        page,
+        tvSelectors.currentScriptMenu(page),
+        `open-fresh-current-script-menu-${attempt}`,
+        1_500,
+        500,
+      );
+      if (!openedMenu) {
+        continue;
+      }
+
+      const createdNew = await clickVisibleWithFallback(
+        page,
+        tvSelectors.createNewScript(page),
+        `open-fresh-create-new-${attempt}`,
+        1_500,
+        500,
+      );
+      if (!createdNew) {
+        await page.keyboard.press("Escape").catch(() => undefined);
+        continue;
+      }
+
+      const pickedKind = await clickVisibleWithFallback(
+        page,
+        tvSelectors.createNewScriptKind(page, kind),
+        `open-fresh-create-kind-${kind}-${attempt}`,
+        1_500,
+        1_000,
+      );
+      if (pickedKind && await hasVisibleLocator(untitledSignals, 1_500)) {
+        tracePageEvent(page, "open-fresh-untitled", `created-${kind}:${attempt}`);
+        return;
+      }
+
+      await page.keyboard.press("Escape").catch(() => undefined);
+    }
+
+    const bodyText = normalizeUiText((await page.locator("body").innerText().catch(() => "")) || "");
+    throw new Error(`Could not open a fresh untitled Pine draft; body preview: ${bodyText.slice(0, 240)}`);
+  });
+}
+
+async function openScriptSelectionSurface(page: Page): Promise<boolean> {
+  const directOpen = await clickVisibleWithFallback(page, tvSelectors.openScript(page), "open-script-surface-direct", 2_000, 750);
+  if (directOpen) {
+    return true;
+  }
+
+  const openedMenu = await clickVisibleWithFallback(page, tvSelectors.currentScriptMenu(page), "open-script-surface-menu", 1_500, 400);
+  if (!openedMenu) {
+    return false;
+  }
+
+  const openedFromMenu = await clickVisibleWithFallback(page, tvSelectors.openScriptAction(page), "open-script-surface-action", 1_500, 750);
+  if (!openedFromMenu) {
+    await page.keyboard.press("Escape").catch(() => undefined);
+    return false;
+  }
+
+  return true;
+}
+
+async function hasPublishSurface(page: Page, timeoutMs = 500): Promise<boolean> {
+  if (
+    await hasVisibleLocatorFast(tvSelectors.publishTitleInput(page), timeoutMs)
+    || await hasVisibleLocatorFast(tvSelectors.publishDescriptionInput(page), timeoutMs)
+    || await hasVisibleLocatorFast(tvSelectors.privateVisibility(page), timeoutMs)
+  ) {
+    return true;
+  }
+
+  const publishSurface = page
+    .locator('#overlap-manager-root > [data-id], #overlap-manager-root [data-id]')
+    .filter({ hasText: /script is not on the chart|publish library|your new publication will use the current chart|continue|publish private|title|description/i });
+
+  return Boolean(await firstVisibleLocatorFast(publishSurface, timeoutMs));
+}
+
+async function waitForPublishSurface(page: Page, timeoutMs = 2_000): Promise<boolean> {
+  const startedAt = Date.now();
+
+  while (Date.now() - startedAt < timeoutMs) {
+    if (await hasPublishSurface(page, 250)) {
+      return true;
+    }
+
+    await page.waitForTimeout(100);
+  }
+
+  return hasPublishSurface(page, 500);
+}
+
+async function openPublishSurface(page: Page, timeoutMs = 4_000): Promise<boolean> {
+  for (const [index, locator] of tvSelectors.publishButtons(page).entries()) {
+    const clicked = await clickVisibleWithFallback(
+      page,
+      [locator],
+      `publish-open-candidate-${index}`,
+      timeoutMs,
+      750,
+    );
+    if (!clicked) {
+      continue;
+    }
+
+    if (await waitForPublishSurface(page, 2_000)) {
+      tracePageEvent(page, "publish-open", `surface-visible:candidate:${index}`);
+      return true;
+    }
+
+    tracePageEvent(page, "publish-open", `no-surface:candidate:${index}`);
+  }
+
+  return false;
+}
+
+async function hasPublishAddToChartGate(page: Page, timeoutMs = 500): Promise<boolean> {
+  return Boolean(
+    await firstVisibleLocatorFast(
+      page
+        .locator('#overlap-manager-root > [data-id], #overlap-manager-root [data-id]')
+        .filter({ hasText: /script is not on the chart/i }),
+      timeoutMs,
+    ),
+  );
+}
+
+export function resolvePublishNoChangeCleanupActions(options: {
+  dialogClosed: boolean;
+  publishSurfaceVisible: boolean;
+}): {
+  shouldPressDialogEscape: boolean;
+  shouldDismissPublishSurface: boolean;
+  cleanupComplete: boolean;
+} {
+  return {
+    shouldPressDialogEscape: !options.dialogClosed,
+    shouldDismissPublishSurface: options.publishSurfaceVisible,
+    cleanupComplete: options.dialogClosed && !options.publishSurfaceVisible,
+  };
+}
+
+async function waitForPublishNoChangeDialogToClose(page: Page, timeoutMs = 1_500): Promise<boolean> {
+  const startedAt = Date.now();
+
+  while (Date.now() - startedAt < timeoutMs) {
+    if (!(await findVisibleDialogByText(page, /nothing to update/i, 150))) {
+      return true;
+    }
+
+    await page.waitForTimeout(100).catch(() => undefined);
+  }
+
+  return !(await findVisibleDialogByText(page, /nothing to update/i, 150));
+}
+
+async function dismissPublishSurfaceAfterNoChange(page: Page): Promise<boolean> {
+  if (!(await hasPublishSurface(page, 150))) {
+    tracePageEvent(page, "publish-no-change", "surface-dismissed");
+    return true;
+  }
+
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    if (!(await hasPublishSurface(page, 150))) {
+      tracePageEvent(page, "publish-no-change", `surface-dismissed:${attempt}`);
+      return true;
+    }
+
+    await page.keyboard.press("Escape").catch(() => undefined);
+    await page.waitForTimeout(150).catch(() => undefined);
+  }
+
+  const surfaceStillVisible = await hasPublishSurface(page, 250);
+  tracePageEvent(page, "publish-no-change", surfaceStillVisible ? "surface-still-visible" : "surface-dismissed");
+  return !surfaceStillVisible;
+}
+
+async function capturePublishConfirmationEvidence(page: Page, scriptName?: string, timeoutMs = 4_000): Promise<{
+  versionContextTexts: string[];
+  bodyText: string;
+}> {
+  const startedAt = Date.now();
+  let bodyText = "";
+  let versionContextTexts: string[] = [];
+
+  while (Date.now() - startedAt < timeoutMs) {
+    if (scriptName) {
+      versionContextTexts = await collectPublishedVersionContextTexts(page, scriptName).catch(() => []);
+    }
+    bodyText = await page.locator("body").innerText().catch(() => "");
+
+    if (
+      (scriptName && detectPublishedVersionFromContextTexts(versionContextTexts, scriptName) !== null)
+      || detectPublishedVersionFromBody(bodyText, scriptName) !== null
+    ) {
+      break;
+    }
+
+    await page.waitForTimeout(250).catch(() => undefined);
+  }
+
+  return { versionContextTexts, bodyText };
+}
+
+async function handlePublishNoChangeDialog(page: Page, timeoutMs = 500): Promise<boolean> {
+  const noChangeDialog = await findVisibleDialogByText(page, /nothing to update/i, timeoutMs);
+  if (!noChangeDialog) {
+    return false;
+  }
+
+  tracePageEvent(page, "publish-no-change", "visible");
+  await clickVisibleWithFallback(
+    page,
+    [
+      noChangeDialog.getByRole("button", { name: /^ok$/i }),
+      noChangeDialog.getByText(/^ok$/i),
+      noChangeDialog.locator('button:has-text("OK")'),
+    ],
+    "publish-no-change-ok",
+    1_500,
+    500,
+  ).catch(() => false);
+  const dialogClosed = await waitForPublishNoChangeDialogToClose(page, 1_500);
+  tracePageEvent(page, "publish-no-change", dialogClosed ? "dialog-dismissed" : "dialog-still-visible");
+  const cleanupActions = resolvePublishNoChangeCleanupActions({
+    dialogClosed,
+    publishSurfaceVisible: await hasPublishSurface(page, 250),
+  });
+  if (cleanupActions.shouldPressDialogEscape) {
+    await page.keyboard.press("Escape").catch(() => undefined);
+    await page.waitForTimeout(150).catch(() => undefined);
+  }
+  if (cleanupActions.shouldDismissPublishSurface) {
+    await dismissPublishSurfaceAfterNoChange(page).catch(() => false);
+  }
+  return true;
+}
+
 async function dispatchDomMouseGesture(container: Locator, gesture: "click" | "dblclick"): Promise<boolean> {
   return container.evaluate((node, currentGesture) => {
     const element = node as HTMLElement | null;
@@ -2351,7 +2617,7 @@ async function closePineEditorIfVisible(page: Page): Promise<void> {
 
 export async function openExistingScript(page: Page, scriptName: string): Promise<boolean> {
   return runTrackedStep(page, `openExistingScript:${scriptName}`, async () => {
-    const openedDialog = await clickFirst(tvSelectors.openScript(page), 2_000);
+    const openedDialog = await openScriptSelectionSurface(page);
     if (!openedDialog) {
       return false;
     }
@@ -2359,17 +2625,30 @@ export async function openExistingScript(page: Page, scriptName: string): Promis
     await clickFirst(tvSelectors.myScriptsTab(page), 1_500);
     await fillFirst(scriptName, tvSelectors.scriptSearch(page), 1_500);
 
-    const clickedScript = await clickFirst(tvSelectors.scriptRow(page, scriptName), 3_000);
-    await page.waitForTimeout(1_500);
+    const clickedScript = await clickVisibleWithFallback(
+      page,
+      tvSelectors.scriptRow(page, scriptName),
+      "open-script-row",
+      3_000,
+      1_000,
+    );
+    await page.waitForTimeout(750);
 
-    if (!clickedScript) {
-      return false;
-    }
-
-    const dialogStillVisible = await hasVisibleLocator([
+    let dialogStillVisible = await hasVisibleLocator([
       ...tvSelectors.scriptSearch(page),
       ...tvSelectors.myScriptsTab(page),
     ], 750);
+
+    if ((!clickedScript || dialogStillVisible)) {
+      await page.keyboard.press("ArrowDown").catch(() => undefined);
+      await page.keyboard.press("Enter").catch(() => undefined);
+      await page.waitForTimeout(1_000);
+      dialogStillVisible = await hasVisibleLocator([
+        ...tvSelectors.scriptSearch(page),
+        ...tvSelectors.myScriptsTab(page),
+      ], 750);
+    }
+
     const editorContextTexts = await collectOpenScriptIdentityTexts(page, scriptName);
     const bodyText = await page.locator("body").innerText().catch(() => "");
 
@@ -2967,20 +3246,36 @@ export async function saveScript(page: Page, scriptName: string): Promise<void> 
       }
 
       if (saveDialog) {
-        const clickedDialogSave = await clickFirst(
+        const clickedDialogSave = await clickVisibleWithFallback(
+          page,
           [
             saveDialog.getByRole("button", { name: /^save$/i }),
             saveDialog.getByText(/^save$/i),
             saveDialog.locator('button:has-text("Save")'),
           ],
+          "save-script-dialog",
           1_500,
+          750,
         ).catch(() => false);
         if (!clickedDialogSave) {
           throw new Error(`Could not click Save inside save dialog for script: ${scriptName}`);
         }
       } else {
-        await clickFirst(tvSelectors.saveButtons(page), 1_500);
+        await clickVisibleWithFallback(page, tvSelectors.saveButtons(page), "save-script-global", 1_500, 750).catch(() => false);
       }
+
+      await clickVisibleWithFallback(
+        page,
+        [
+          page.getByRole("button", { name: /^yes$/i }),
+          page.getByText(/^yes$/i),
+          page.getByRole("button", { name: /^ok$/i }),
+          page.getByText(/^ok$/i),
+        ],
+        "save-script-confirm",
+        1_000,
+        750,
+      ).catch(() => false);
 
       await page.waitForTimeout(1_250);
       const saveDialogStillVisible = Boolean(await findVisibleDialogByText(page, /save script/i, 350));
@@ -3295,16 +3590,30 @@ export async function closeModal(page: Page): Promise<void> {
 export async function publishPrivateScript(
   page: Page,
   options: {
+    scriptName?: string;
     title?: string;
     description?: string;
   } = {},
-): Promise<void> {
-  const clickedPublish = await clickFirst(tvSelectors.publishButtons(page), 4_000);
+): Promise<{ noChangeDetected: boolean; versionContextTexts: string[]; bodyText: string }> {
+  await dismissSignInModal(page).catch(() => undefined);
+  let noChangeDetected = false;
+
+  let clickedPublish = await openPublishSurface(page, 4_000);
   if (!clickedPublish) {
     throw new Error("Could not open publish flow");
   }
 
-  await page.waitForTimeout(1_500);
+  if (await hasPublishAddToChartGate(page, 750)) {
+    tracePageEvent(page, "publish-gate", "script-not-on-chart");
+    await addCurrentScriptToChart(page, options.scriptName);
+    await page.waitForTimeout(1_500);
+    clickedPublish = await openPublishSurface(page, 4_000);
+    if (!clickedPublish) {
+      throw new Error("Could not reopen publish flow after adding script to chart");
+    }
+  }
+
+  await page.waitForTimeout(750);
 
   if (options.title) {
     await fillFirst(options.title, tvSelectors.publishTitleInput(page), 1_000);
@@ -3314,12 +3623,39 @@ export async function publishPrivateScript(
     await fillFirst(options.description, tvSelectors.publishDescriptionInput(page), 1_000);
   }
 
-  await clickFirst(tvSelectors.privateVisibility(page), 1_000);
+  for (let stepIndex = 0; stepIndex < 8; stepIndex += 1) {
+    const continued = await clickVisibleWithFallback(
+      page,
+      tvSelectors.publishContinue(page),
+      `publish-continue-${stepIndex}`,
+      2_000,
+      1_000,
+    );
+    if (!continued) {
+      break;
+    }
 
-  const confirmed = await clickFirst(tvSelectors.confirmPublish(page), 4_000);
+    if (await handlePublishNoChangeDialog(page, 750)) {
+      noChangeDetected = true;
+      return { noChangeDetected, versionContextTexts: [], bodyText: await page.locator("body").innerText().catch(() => "") };
+    }
+  }
+
+  const confirmed = await clickVisibleWithFallback(
+    page,
+    tvSelectors.confirmPublish(page),
+    "publish-confirm",
+    4_000,
+    1_000,
+  );
   if (!confirmed) {
+    if (await handlePublishNoChangeDialog(page, 750)) {
+      noChangeDetected = true;
+      return { noChangeDetected, versionContextTexts: [], bodyText: await page.locator("body").innerText().catch(() => "") };
+    }
     throw new Error("Could not confirm publish");
   }
 
-  await page.waitForTimeout(4_000);
+  const evidence = await capturePublishConfirmationEvidence(page, options.scriptName, 4_000);
+  return { noChangeDetected, versionContextTexts: evidence.versionContextTexts, bodyText: evidence.bodyText };
 }

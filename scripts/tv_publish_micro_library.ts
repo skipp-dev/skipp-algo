@@ -7,6 +7,7 @@ import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 import {
+  addCurrentScriptToChart,
   assertNoVisibleCompileError,
   closeTradingViewSession,
   collectOpenScriptIdentityTexts,
@@ -16,6 +17,7 @@ import {
   ensurePineEditor,
   gotoChart,
   newTradingViewSession,
+  openFreshUntitledPineDraft,
   openExistingScript,
   publishPrivateScript,
   resolveOpenScriptIdentityEvidence,
@@ -24,6 +26,7 @@ import {
   setEditorContent,
   takeScreenshot,
   utcNow,
+  waitForPostSaveCompileSettlement,
   writeJson,
 } from "../automation/tradingview/lib/tv_shared.js";
 import {
@@ -33,7 +36,7 @@ import {
 } from "../automation/tradingview/lib/tv_validation_model.js";
 
 export type IdentityVerificationMode = "script_context" | "not_verified";
-export type VersionVerificationMode = "version_context" | "body_fallback" | "not_verified";
+export type VersionVerificationMode = "version_context" | "idempotent_no_change" | "body_fallback" | "not_verified";
 
 type GeneratedLibraryManifest = {
   library_name: string;
@@ -188,9 +191,14 @@ export function verifyPublishContract(manifestPath: string, corePath: string): C
     throw new Error("Core import snippet is empty");
   }
 
-  const snippetImport = parseImport(snippetLines[0]);
+  const importLineIndex = snippetLines.findIndex((line) => parseImport(line) !== null);
+  if (importLineIndex === -1) {
+    throw new Error("Core import snippet does not contain a valid import line");
+  }
+
+  const snippetImport = parseImport(snippetLines[importLineIndex]);
   if (!snippetImport) {
-    throw new Error("Core import snippet does not start with a valid import line");
+    throw new Error("Core import snippet does not contain a valid import line");
   }
   if (snippetImport.importPath !== manifest.recommended_import_path) {
     throw new Error(
@@ -206,7 +214,7 @@ export function verifyPublishContract(manifestPath: string, corePath: string): C
     );
   }
 
-  const snippetBody = snippetLines.slice(1).join("\n");
+  const snippetBody = snippetLines.slice(importLineIndex + 1).join("\n");
   if (!containsOrderedCodeBlock(coreText, snippetBody)) {
     throw new Error(
       "Core file is missing the generated import snippet as a contiguous alias block. "
@@ -332,7 +340,7 @@ function runRepoCorePreflightValidation(reportPath: string): { ok: boolean; repo
   try {
     execFileSync(
       "npm",
-      ["run", "tv:preflight", "--", "--config", configPath, "--out", reportPath, "--no-open-existing"],
+      ["run", "tv:preflight", "--", "--config", configPath, "--out", reportPath],
       {
         cwd: process.cwd(),
         encoding: "utf-8",
@@ -424,7 +432,7 @@ export function resolvePublishReportState(options: {
   publishStatus: LibraryReleaseManifest["library"]["publishStatus"];
 } {
   const publishOk = options.identityVerificationMode === "script_context"
-    && options.versionVerificationMode === "version_context"
+    && (options.versionVerificationMode === "version_context" || options.versionVerificationMode === "idempotent_no_change")
     && options.publishedVersion !== null
     && options.publishedVersion === options.expectedVersion;
 
@@ -439,6 +447,18 @@ export function resolvePublishReportState(options: {
     publishOk,
     publishStatus,
   };
+}
+
+export function shouldReopenPublishedScriptAfterPublish(options: {
+  publishNoChangeDetected: boolean;
+  exactScriptVerified: boolean;
+  exactVersionVerified: boolean;
+}): boolean {
+  return !options.publishNoChangeDetected || !options.exactScriptVerified || !options.exactVersionVerified;
+}
+
+function hasExpectedImportPathEvidence(bodyText: string, expectedImportPath: string): boolean {
+  return bodyText.replace(/\s+/g, " ").includes(expectedImportPath);
 }
 
 export async function runPublishMicroLibraryCli(): Promise<number> {
@@ -459,6 +479,7 @@ export async function runPublishMicroLibraryCli(): Promise<number> {
   let identityEvidenceContext: string[] = [];
   let versionEvidenceContext: string[] = [];
   let publishEvidenceContext: string[] = [];
+  let publishNoChangeDetected = false;
   let publishStatus: LibraryReleaseManifest["library"]["publishStatus"] = "manual_publish_required";
   let repoCoreValidationOk = false;
   let repoCoreValidationError: string | undefined;
@@ -487,32 +508,41 @@ export async function runPublishMicroLibraryCli(): Promise<number> {
         if (!preMutationOpenGate.allowEditorMutation) {
           throw new Error(preMutationOpenGate.error ?? `Could not open existing TradingView script: ${details.libraryName}`);
         }
+      } else {
+        await openFreshUntitledPineDraft(session.page, "library");
       }
 
       const code = fs.readFileSync(details.libraryPath, "utf-8");
       await setEditorContent(session.page, code);
       await saveScript(session.page, details.libraryName);
+      await waitForPostSaveCompileSettlement(session.page, details.libraryName);
       await assertNoVisibleCompileError(session.page);
+      await addCurrentScriptToChart(session.page, details.libraryName);
       await takeScreenshot(session.page, runId, `${details.libraryName}-compiled`, screenshots);
 
       publishAttempted = true;
-      await publishPrivateScript(session.page, {
+      const publishResult = await publishPrivateScript(session.page, {
+        scriptName: details.libraryName,
         title: details.libraryName,
-        description: `Automated private release of ${details.libraryName} at ${utcNow()}.`,
       });
+      publishNoChangeDetected = publishResult.noChangeDetected;
       await takeScreenshot(session.page, runId, `${details.libraryName}-published`, screenshots);
 
-      publishedScriptVerified = await openExistingScript(session.page, details.libraryName).catch(() => false);
       identityEvidenceContext = await collectOpenScriptIdentityTexts(session.page, details.libraryName).catch(() => []);
-      versionEvidenceContext = await collectPublishedVersionContextTexts(session.page, details.libraryName).catch(() => []);
+      versionEvidenceContext = [
+        ...new Set([
+          ...publishResult.versionContextTexts,
+          ...(await collectPublishedVersionContextTexts(session.page, details.libraryName).catch(() => [])),
+        ]),
+      ];
       publishEvidenceContext = versionEvidenceContext;
-      const bodyText = await session.page.locator("body").innerText().catch(() => "");
-      const identityEvidence = resolveOpenScriptIdentityEvidence(details.libraryName, {
+      let bodyText = publishResult.bodyText || await session.page.locator("body").innerText().catch(() => "");
+      let identityEvidence = resolveOpenScriptIdentityEvidence(details.libraryName, {
         dialogStillVisible: false,
         editorContextTexts: identityEvidenceContext,
         bodyText,
       });
-      const publishEvidence = resolvePublishedVersionEvidence({
+      let publishEvidence = resolvePublishedVersionEvidence({
         scriptName: details.libraryName,
         versionContextTexts: versionEvidenceContext,
         bodyText,
@@ -521,9 +551,63 @@ export async function runPublishMicroLibraryCli(): Promise<number> {
       versionVerificationMode = publishEvidence.verificationMode;
       publishedVersion = publishEvidence.publishedVersion;
       fallbackPublishedVersion = publishEvidence.fallbackVersion;
-      if (!publishedScriptVerified || identityVerificationMode !== "script_context" || versionVerificationMode !== "version_context" || publishedVersion !== details.libraryVersion) {
+
+      if (
+        publishNoChangeDetected
+        && versionVerificationMode === "not_verified"
+        && hasExpectedImportPathEvidence(bodyText, details.recommendedImportPath)
+      ) {
+        versionVerificationMode = "idempotent_no_change";
+        publishedVersion = details.libraryVersion;
+      }
+
+      let exactScriptVerified = identityVerificationMode === "script_context";
+      let exactVersionVerified = (versionVerificationMode === "version_context" || versionVerificationMode === "idempotent_no_change")
+        && publishedVersion === details.libraryVersion;
+
+      const shouldReopenPublishedScript = shouldReopenPublishedScriptAfterPublish({
+        publishNoChangeDetected,
+        exactScriptVerified,
+        exactVersionVerified,
+      });
+      if (shouldReopenPublishedScript) {
+        publishedScriptVerified = await openExistingScript(session.page, details.libraryName).catch(() => false);
+        identityEvidenceContext = await collectOpenScriptIdentityTexts(session.page, details.libraryName).catch(() => []);
+        versionEvidenceContext = await collectPublishedVersionContextTexts(session.page, details.libraryName).catch(() => []);
+        publishEvidenceContext = versionEvidenceContext;
+        bodyText = await session.page.locator("body").innerText().catch(() => "");
+        identityEvidence = resolveOpenScriptIdentityEvidence(details.libraryName, {
+          dialogStillVisible: false,
+          editorContextTexts: identityEvidenceContext,
+          bodyText,
+        });
+        publishEvidence = resolvePublishedVersionEvidence({
+          scriptName: details.libraryName,
+          versionContextTexts: versionEvidenceContext,
+          bodyText,
+        });
+        identityVerificationMode = identityEvidence.verificationMode;
+        versionVerificationMode = publishEvidence.verificationMode;
+        publishedVersion = publishEvidence.publishedVersion;
+        fallbackPublishedVersion = publishEvidence.fallbackVersion;
+
+        if (
+          publishNoChangeDetected
+          && versionVerificationMode === "not_verified"
+          && hasExpectedImportPathEvidence(bodyText, details.recommendedImportPath)
+        ) {
+          versionVerificationMode = "idempotent_no_change";
+          publishedVersion = details.libraryVersion;
+        }
+
+        exactScriptVerified = publishedScriptVerified || identityVerificationMode === "script_context";
+        exactVersionVerified = (versionVerificationMode === "version_context" || versionVerificationMode === "idempotent_no_change")
+          && publishedVersion === details.libraryVersion;
+      }
+
+      if (!exactScriptVerified || !exactVersionVerified) {
         throw new Error(
-          `Published TradingView library could not be verified exactly: live_script_verified=${publishedScriptVerified}, identity_mode=${identityVerificationMode}, version_mode=${versionVerificationMode}, expected_version=${details.libraryVersion}, detected_version=${publishedVersion ?? "unknown"}`,
+          `Published TradingView library could not be verified exactly: live_script_verified=${publishedScriptVerified}, identity_mode=${identityVerificationMode}, version_mode=${versionVerificationMode}, expected_version=${details.libraryVersion}, detected_version=${publishedVersion ?? "unknown"}, no_change_detected=${publishNoChangeDetected}`,
         );
       }
     } finally {

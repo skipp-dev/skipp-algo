@@ -1,5 +1,7 @@
 import type { Locator, Page } from "playwright";
 
+export type PineDraftKind = "indicator" | "strategy" | "library";
+
 function escapeRegex(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
@@ -23,6 +25,10 @@ function publishedVersionContextPattern(scriptName: string): RegExp {
     `(^|[^a-z0-9])${escapeRegex(scriptName)}(?:\\s*[:,-]?\\s*)version\\s+\\d+\\b`,
     "i",
   );
+}
+
+function publishSurface(page: Page): Locator {
+  return page.locator('#overlap-manager-root > [data-id], #overlap-manager-root [data-id]').last();
 }
 
 export type ScriptRowLocatorSpec = {
@@ -72,6 +78,39 @@ export const tvSelectors = {
       page.getByRole("button", { name: /^open$/i }),
       page.getByRole("button", { name: /open script/i }),
       page.getByText(/^open$/i),
+    ];
+  },
+
+  currentScriptMenu(page: Page): Locator[] {
+    return [
+      page.locator('[data-name="pine-dialog"] [role="button"]').first(),
+      page.locator('#pine-editor-dialog [role="button"]').first(),
+    ];
+  },
+
+  createNewScript(page: Page): Locator[] {
+    return [
+      page.getByRole("menuitem", { name: /create new/i }),
+      page.getByRole("button", { name: /create new/i }),
+      page.getByText(/create new/i),
+    ];
+  },
+
+  createNewScriptKind(page: Page, kind: PineDraftKind): Locator[] {
+    const pattern = new RegExp(`^${escapeRegex(kind)}$`, "i");
+
+    return [
+      page.getByRole("menuitem", { name: pattern }),
+      page.getByRole("button", { name: pattern }),
+      page.getByText(pattern),
+    ];
+  },
+
+  openScriptAction(page: Page): Locator[] {
+    return [
+      page.getByRole("menuitem", { name: /open script/i }),
+      page.getByRole("button", { name: /open script/i }),
+      page.getByText(/open script/i),
     ];
   },
 
@@ -173,34 +212,56 @@ export const tvSelectors = {
   },
 
   publishTitleInput(page: Page): Locator[] {
+    const surface = publishSurface(page);
+
     return [
-      page.getByRole("textbox", { name: /title/i }),
-      page.getByPlaceholder(/title/i),
-      page.locator('input[placeholder*="title" i]'),
+      surface.getByRole("textbox", { name: /title/i }),
+      surface.getByPlaceholder(/title/i),
+      surface.locator('input[placeholder*="title" i]'),
     ];
   },
 
   publishDescriptionInput(page: Page): Locator[] {
+    const surface = publishSurface(page);
+
     return [
-      page.getByRole("textbox", { name: /description/i }),
-      page.getByPlaceholder(/description/i),
-      page.locator("textarea"),
+      surface.getByRole("textbox", { name: /description/i }),
+      surface.getByPlaceholder(/description/i),
+      surface.locator("textarea"),
     ];
   },
 
   privateVisibility(page: Page): Locator[] {
+    const surface = publishSurface(page);
+
     return [
-      page.getByRole("radio", { name: /private/i }),
-      page.getByText(/^private$/i),
-      page.locator('label:has-text("Private")'),
+      surface.getByRole("radio", { name: /private/i }),
+      surface.getByText(/^private$/i),
+      surface.locator('label:has-text("Private")'),
     ];
   },
 
   confirmPublish(page: Page): Locator[] {
+    const surface = publishSurface(page);
+
     return [
-      page.getByRole("button", { name: /^publish$/i }),
-      page.getByRole("button", { name: /publish private/i }),
-      page.getByText(/^publish$/i),
+      surface.getByRole("button", { name: /publish new version/i }).last(),
+      surface.getByRole("button", { name: /update .*library/i }).last(),
+      surface.getByRole("button", { name: /^update$/i }).last(),
+      surface.getByRole("button", { name: /publish private/i }).last(),
+      surface.getByRole("button", { name: /publish library/i }).last(),
+      surface.getByRole("button", { name: /^publish$/i }).last(),
+      surface.getByText(/publish new version/i).last(),
+      surface.getByText(/update .*library/i).last(),
+    ];
+  },
+
+  publishContinue(page: Page): Locator[] {
+    const surface = publishSurface(page);
+
+    return [
+      surface.getByRole("button", { name: /^continue$/i }).last(),
+      surface.getByText(/^continue$/i).last(),
     ];
   },
 

@@ -16,6 +16,7 @@ import {
   isScriptVisibleOnChartSurface,
   isSignInModalVisible,
   newTradingViewSession,
+  openFreshUntitledPineDraft,
   openExistingScript,
   openInputsTab,
   openSettingsForScript,
@@ -339,6 +340,16 @@ function authResolutionCanRun(authResolution: TradingViewAuthResolution): boolea
   return true;
 }
 
+function inferPineDraftKind(code: string): "indicator" | "strategy" | "library" {
+  if (/\blibrary\s*\(/i.test(code)) {
+    return "library";
+  }
+  if (/\bstrategy\s*\(/i.test(code)) {
+    return "strategy";
+  }
+  return "indicator";
+}
+
 async function main(): Promise<number> {
   const cli = parseArgs();
   const targets = loadTargets(cli.config);
@@ -394,6 +405,8 @@ async function main(): Promise<number> {
             `Could not open existing TradingView script: ${target.scriptName}. Rerun with --no-open-existing only if a fresh untitled draft is intended.`,
           );
         }
+      } else if (cli.executionMode === "mutating") {
+        await openFreshUntitledPineDraft(session.page, inferPineDraftKind(code));
       }
 
       await ensurePineEditor(session.page);

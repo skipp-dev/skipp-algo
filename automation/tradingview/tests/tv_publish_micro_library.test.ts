@@ -7,6 +7,7 @@ import test from "node:test";
 import {
   resolvePreMutationOpenGate,
   resolvePublishReportState,
+  shouldReopenPublishedScriptAfterPublish,
   verifyPublishContract,
 } from "../../../scripts/tv_publish_micro_library.js";
 
@@ -71,6 +72,20 @@ test("publish report success requires separate identity and version verification
     openGateAttempted: true,
     publishAttempted: true,
     identityVerificationMode: "script_context",
+    versionVerificationMode: "idempotent_no_change",
+    publishedVersion: 7,
+    expectedVersion: 7,
+    repoCoreValidationOk: true,
+  }), {
+    ok: true,
+    publishOk: true,
+    publishStatus: "published",
+  });
+
+  assert.deepEqual(resolvePublishReportState({
+    openGateAttempted: true,
+    publishAttempted: true,
+    identityVerificationMode: "script_context",
     versionVerificationMode: "body_fallback",
     publishedVersion: 7,
     expectedVersion: 7,
@@ -80,6 +95,32 @@ test("publish report success requires separate identity and version verification
     publishOk: false,
     publishStatus: "not_verified",
   });
+});
+
+test("idempotent no-change skips reopen only when exact verification already exists", () => {
+  assert.equal(shouldReopenPublishedScriptAfterPublish({
+    publishNoChangeDetected: true,
+    exactScriptVerified: true,
+    exactVersionVerified: true,
+  }), false);
+
+  assert.equal(shouldReopenPublishedScriptAfterPublish({
+    publishNoChangeDetected: true,
+    exactScriptVerified: false,
+    exactVersionVerified: true,
+  }), true);
+
+  assert.equal(shouldReopenPublishedScriptAfterPublish({
+    publishNoChangeDetected: true,
+    exactScriptVerified: true,
+    exactVersionVerified: false,
+  }), true);
+
+  assert.equal(shouldReopenPublishedScriptAfterPublish({
+    publishNoChangeDetected: false,
+    exactScriptVerified: true,
+    exactVersionVerified: true,
+  }), true);
 });
 
 test("body fallback version evidence never upgrades publish status even with fallback version present", () => {

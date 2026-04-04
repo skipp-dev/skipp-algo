@@ -5,6 +5,7 @@ import {
   buildScriptNamePatterns,
   countOrderedCodeBlockOccurrences,
   collectVisibleLocatorMetadata,
+  resolvePublishNoChangeCleanupActions,
   resolveOpenScriptIdentityEvidence,
   settingsDialogTitleMatchesScriptName,
   validateTradingViewStorageState,
@@ -351,6 +352,35 @@ test("resolvePublishedVersionEvidence fails closed on conflicting script-context
     publishedVersion: null,
     verificationMode: "not_verified",
     fallbackVersion: null,
+  });
+});
+
+test("resolvePublishNoChangeCleanupActions keeps no-change cleanup on escape-only fallbacks", () => {
+  assert.deepEqual(resolvePublishNoChangeCleanupActions({
+    dialogClosed: false,
+    publishSurfaceVisible: true,
+  }), {
+    shouldPressDialogEscape: true,
+    shouldDismissPublishSurface: true,
+    cleanupComplete: false,
+  });
+
+  assert.deepEqual(resolvePublishNoChangeCleanupActions({
+    dialogClosed: true,
+    publishSurfaceVisible: true,
+  }), {
+    shouldPressDialogEscape: false,
+    shouldDismissPublishSurface: true,
+    cleanupComplete: false,
+  });
+
+  assert.deepEqual(resolvePublishNoChangeCleanupActions({
+    dialogClosed: true,
+    publishSurfaceVisible: false,
+  }), {
+    shouldPressDialogEscape: false,
+    shouldDismissPublishSurface: false,
+    cleanupComplete: true,
   });
 });
 
