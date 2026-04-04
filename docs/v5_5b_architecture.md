@@ -138,7 +138,7 @@ and legacy-path governance.
 - Phase A: Legacy field cleanup — ✅ done (~173 lines)
 - Phase B: BUS compat fields — ✅ done (~265 lines, 33 fields, 12 resolvers, 3 plots)
 - Phase C C1: Declaration-only visual inputs removed; remaining helper/governance scope and the follow-up guard live in [PHASE_C_ANALYSIS.md](PHASE_C_ANALYSIS.md) and `tests/test_smc_core_engine_phase_c_audit.py`
-- Phase D: Old broad event risk fields — pending (lean-only transport now lives in `LeanPackA.slot2`)
+- Phase D: Old broad event risk fields — ✅ done (core now uses only the lean `lib_erl_*` aliases; broader event metadata remains library-local for overlay and alerting)
 
 **Details**: [RUNTIME_BUDGET.md](RUNTIME_BUDGET.md), [LEGACY_REMOVAL_PLAN.md](LEGACY_REMOVAL_PLAN.md), [PHASE_C_ANALYSIS.md](PHASE_C_ANALYSIS.md)
 

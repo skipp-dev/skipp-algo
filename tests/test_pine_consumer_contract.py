@@ -187,11 +187,10 @@ ENGINE_CONSUMED_FIELDS: set[str] = {
     "EARNINGS_TODAY_TICKERS", "HIGH_IMPACT_MACRO_TODAY",
     "NEWS_BEARISH_TICKERS", "NEWS_BULLISH_TICKERS",
     "VOLUME_LOW_TICKERS",
-    # Event Risk (v5)
+    # Event Risk Light / shared event metadata actually consumed by the Engine
     "EVENT_WINDOW_STATE", "EVENT_RISK_LEVEL",
-    "NEXT_EVENT_NAME", "NEXT_EVENT_TIME", "NEXT_EVENT_IMPACT",
-    "EVENT_COOLDOWN_ACTIVE", "MARKET_EVENT_BLOCKED", "SYMBOL_EVENT_BLOCKED",
-    "EARNINGS_SOON_TICKERS",
+    "NEXT_EVENT_NAME", "NEXT_EVENT_TIME",
+    "MARKET_EVENT_BLOCKED", "SYMBOL_EVENT_BLOCKED",
     # Flow Qualifier (v5.1)
     "REL_VOL", "REL_ACTIVITY", "REL_SIZE", "DELTA_PROXY_PCT",
     "FLOW_LONG_OK", "FLOW_SHORT_OK",
@@ -201,9 +200,6 @@ ENGINE_CONSUMED_FIELDS: set[str] = {
     "SQUEEZE_ON", "SQUEEZE_RELEASED", "SQUEEZE_MOMENTUM_BIAS",
     "ATR_REGIME", "ATR_RATIO",
     # Event Risk Light (v5.5b canonical exports)
-    "EVENT_WINDOW_STATE", "EVENT_RISK_LEVEL",
-    "NEXT_EVENT_NAME", "NEXT_EVENT_TIME",
-    "MARKET_EVENT_BLOCKED", "SYMBOL_EVENT_BLOCKED",
     "EVENT_PROVIDER_STATUS",
     # Session Context Light (v5.5b canonical exports)
     "SESSION_CONTEXT", "IN_KILLZONE",
@@ -735,6 +731,23 @@ class TestV55DriftGuard:
         """EventRiskRow should stay retired from the producer BUS."""
         text = _read_pine("SMC_Core_Engine.pine")
         assert 'BUS EventRiskRow' not in text
+
+    def test_legacy_event_risk_aliases_removed_from_core(self):
+        """Broad event-risk aliases should stay removed from the core runtime path."""
+        text = _read_pine("SMC_Core_Engine.pine")
+        assert '// ── Event Risk (v5) ──' not in text
+        for fragment in (
+            'string lib_event_window_state = mp.EVENT_WINDOW_STATE',
+            'string lib_event_risk_level   = mp.EVENT_RISK_LEVEL',
+            'string lib_next_event_name    = mp.NEXT_EVENT_NAME',
+            'string lib_next_event_time    = mp.NEXT_EVENT_TIME',
+            'string lib_next_event_impact  = mp.NEXT_EVENT_IMPACT',
+            'bool   lib_market_event_blocked = mp.MARKET_EVENT_BLOCKED',
+            'bool   lib_symbol_event_blocked = mp.SYMBOL_EVENT_BLOCKED and str.contains(mp.EARNINGS_SOON_TICKERS, syminfo.ticker)',
+            'bool   lib_event_cooldown       = mp.EVENT_COOLDOWN_ACTIVE',
+            'bool   event_risk_light_hard_block = not event_risk_gate_ok',
+        ):
+            assert fragment not in text, f'Legacy event-risk alias should stay removed: {fragment}'
 
     def test_lean_pack_a_carries_event_risk_light_fields(self):
         """LeanPackA must continue to transport the lean event-risk light inputs."""

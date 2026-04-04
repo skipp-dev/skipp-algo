@@ -444,7 +444,17 @@ def test_core_engine_extracts_remaining_display_helpers() -> None:
     assert 'resolve_health_badge_color(string signal_quality_tier) =>' in source
     assert '[overhead_text, long_score_detail_suffix, long_strict_alert_suffix, long_environment_alert_suffix, long_micro_alert_suffix] = compose_long_alert_text_suffixes(use_overhead_zone_filter_eff, headroom_to_overhead, planned_risk, lib_sq_score, lib_sq_tier, use_strict_sequence_eff, use_strict_sweep_for_zone_reclaim_eff, use_strict_confirm_guard, use_microstructure_profiles, micro_profile_text, freshness_text, source_state_text, zone_quality_text, long_environment_focus_display)' in source
     assert '[debug_log_source_display, debug_log_touch_count, debug_log_trigger, debug_log_invalidation] = resolve_long_debug_event_values(long_invalidate_signal, long_setup_source_display, long_debug_event_source_display, long_state_backing_zone_touch_count, long_debug_event_touch_count, long_state_trigger, long_debug_event_trigger, long_state_invalidation_level, long_debug_event_invalidation)' in source
-    assert 'string event_risk_state         = resolve_event_risk_state(lib_erl_market_blocked, lib_erl_symbol_blocked, lib_erl_window_state, lib_erl_level)' in source
+    assert '// ── Event Risk (v5) ──' not in source
+    assert 'string lib_event_window_state = mp.EVENT_WINDOW_STATE' not in source
+    assert 'string lib_event_risk_level   = mp.EVENT_RISK_LEVEL' not in source
+    assert 'string lib_next_event_name    = mp.NEXT_EVENT_NAME' not in source
+    assert 'string lib_next_event_time    = mp.NEXT_EVENT_TIME' not in source
+    assert 'string lib_next_event_impact  = mp.NEXT_EVENT_IMPACT' not in source
+    assert 'bool   lib_market_event_blocked = mp.MARKET_EVENT_BLOCKED' not in source
+    assert 'bool   lib_symbol_event_blocked = mp.SYMBOL_EVENT_BLOCKED and str.contains(mp.EARNINGS_SOON_TICKERS, syminfo.ticker)' not in source
+    assert 'bool   lib_event_cooldown       = mp.EVENT_COOLDOWN_ACTIVE' not in source
+    assert 'bool   event_risk_light_hard_block = not event_risk_gate_ok' not in source
+    assert 'string event_risk_state            = resolve_event_risk_state(lib_erl_market_blocked, lib_erl_symbol_blocked, lib_erl_window_state, lib_erl_level)' in source
     assert 'string source_text = resolve_long_zone_source_label(long_source_kind)' in source
     assert 'source_text := resolve_long_anchor_source_label(long_source_kind)' in source
     assert 'string source_text = resolve_long_primary_source_text(long_source_kind)' in source

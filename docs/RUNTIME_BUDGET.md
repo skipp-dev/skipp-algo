@@ -248,10 +248,10 @@ remaining packed transport on the active contract.
 
 ### Phase D: Old broad event risk fields
 
-**Prerequisite**: satisfied via LeanPackA event-risk transport  
-**Effort**: Low  
-**Fields**: `lib_event_cooldown`, remaining broad event risk references  
-**See**: [LEGACY_REMOVAL_PLAN.md](LEGACY_REMOVAL_PLAN.md) Phase C
+**Status**: ✅ DONE  
+**Removed**: `lib_event_window_state`, `lib_event_risk_level`, `lib_next_event_name`, `lib_next_event_time`, `lib_next_event_impact`, `lib_market_event_blocked`, `lib_symbol_event_blocked`, `lib_event_cooldown`  
+**Changed**: the core now reads event risk only through the lean `lib_erl_*` aliases, while broader library metadata remains available for overlay and alert consumers  
+**Guard**: `tests/test_pine_consumer_contract.py`, `tests/test_smc_core_engine_split.py`
 
 ---
 

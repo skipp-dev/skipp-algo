@@ -3915,22 +3915,6 @@ bool lib_news_bearish = str.contains(mp.NEWS_BEARISH_TICKERS, syminfo.ticker)
 bool lib_news_bullish = str.contains(mp.NEWS_BULLISH_TICKERS, syminfo.ticker)
 bool lib_low_volume   = str.contains(mp.VOLUME_LOW_TICKERS, syminfo.ticker)
 
-// ── Event Risk (v5) ──
-string lib_event_window_state = mp.EVENT_WINDOW_STATE
-string lib_event_risk_level   = mp.EVENT_RISK_LEVEL
-string lib_next_event_name    = mp.NEXT_EVENT_NAME
-string lib_next_event_time    = mp.NEXT_EVENT_TIME
-string lib_next_event_impact  = mp.NEXT_EVENT_IMPACT
-bool   lib_market_event_blocked = mp.MARKET_EVENT_BLOCKED
-bool   lib_symbol_event_blocked = mp.SYMBOL_EVENT_BLOCKED and str.contains(mp.EARNINGS_SOON_TICKERS, syminfo.ticker)
-bool   lib_event_cooldown       = mp.EVENT_COOLDOWN_ACTIVE
-// [v5.5 PRIMARY] event risk gate — single lean-derived hard block
-bool   event_risk_gate_ok       = not (lib_erl_market_blocked or lib_erl_symbol_blocked)
-// [v5.5 PRIMARY] event risk state: blocked / caution / clear — lean semantics only
-string event_risk_state         = resolve_event_risk_state(lib_erl_market_blocked, lib_erl_symbol_blocked, lib_erl_window_state, lib_erl_level)
-// [REMOVED v5.5a — No Shadow Logic] event_risk_hard_block / event_risk_soft_block
-// were dead code: computed from broad fields but never consumed after lean rewiring.
-
 // ── Flow Qualifier (v5.1) ──
 float  lib_rel_vol             = mp.REL_VOL
 float  lib_rel_activity        = mp.REL_ACTIVITY
@@ -3962,6 +3946,10 @@ string lib_erl_next_time           = mp.NEXT_EVENT_TIME
 bool   lib_erl_market_blocked      = mp.MARKET_EVENT_BLOCKED
 bool   lib_erl_symbol_blocked      = mp.SYMBOL_EVENT_BLOCKED
 string lib_erl_provider_status     = mp.EVENT_PROVIDER_STATUS
+// [v5.5 PRIMARY] event risk gate — single lean-derived hard block
+bool   event_risk_gate_ok          = not (lib_erl_market_blocked or lib_erl_symbol_blocked)
+// [v5.5 PRIMARY] event risk state: blocked / caution / clear — lean semantics only
+string event_risk_state            = resolve_event_risk_state(lib_erl_market_blocked, lib_erl_symbol_blocked, lib_erl_window_state, lib_erl_level)
 
 // ── Session Context Light (v5.5b canonical exports) ──
 string lib_scl_context             = mp.SESSION_CONTEXT
@@ -4010,8 +3998,6 @@ bool   struct_light_trending     = lib_strl_trend_strength >= 30
 bool   ob_light_bull_ok          = lib_obl_side == "BULL" and lib_obl_fresh
 // FVG Lifecycle Light: primary FVG alive + not invalidated
 bool   fvg_light_active_ok       = lib_fvgl_side != "NONE" and not lib_fvgl_invalidated
-// Event Risk Light: derived from primary event_risk_gate_ok (avoids duplication)
-bool   event_risk_light_hard_block = not event_risk_gate_ok
 // Session Context Light: lean session quality
 bool   session_light_ok          = lib_scl_context_score >= 2
 

@@ -69,7 +69,7 @@ Dashboard never consumed ModulePackE/F/G; only PackA-D are still in use.
 - All 12 resolver functions are called **only** from PackE/F/G pack lines
 - `pack_bus_row` / `pack_bus_four` helpers are shared with PackA-D → stay
 
-### Phase C: Old Event Risk broad fields
+### Phase C: Old Event Risk broad core aliases
 
 | Field | v5.5 Replacement | Blocking? |
 |-------|-------------------|-----------|
@@ -78,6 +78,8 @@ Dashboard never consumed ModulePackE/F/G; only PackA-D are still in use.
 | `lib_event_cooldown` | N/A | No — `event_risk_soft_block` removed in AP5 v5.5a |
 | ~~`event_risk_hard_block`~~ | ~~`event_risk_light_hard_block`~~ | **Removed** — AP5 v5.5a (No Shadow Logic) |
 | ~~`event_risk_soft_block`~~ | ~~`event_risk_state == "caution"`~~ | **Removed** — AP5 v5.5a (No Shadow Logic) |
+
+**Status**: ✅ done — the remaining broad event-risk aliases have been removed from `SMC_Core_Engine.pine`; the generated library still exports broader event metadata for non-core consumers like the overlay and alerting.
 
 ---
 
