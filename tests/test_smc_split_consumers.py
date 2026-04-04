@@ -1,34 +1,21 @@
 from __future__ import annotations
 
-import importlib.util
 import pathlib
 import re
-import sys
-from types import ModuleType
+
+from tests.smc_manifest_test_utils import ROOT, load_manifest
 
 
-ROOT = pathlib.Path(__file__).resolve().parents[1]
 CORE_PATH = ROOT / 'SMC_Core_Engine.pine'
 DASHBOARD_PATH = ROOT / 'SMC_Dashboard.pine'
 STRATEGY_PATH = ROOT / 'SMC_Long_Strategy.pine'
-MANIFEST_PATH = ROOT / 'scripts' / 'smc_bus_manifest.py'
 LEGACY_CORE_PATHS = [
     ROOT / 'SMC Core + Zones.pine',
     ROOT / 'SMC_Core_Zones.pine',
 ]
 
 
-def _load_manifest() -> ModuleType:
-    spec = importlib.util.spec_from_file_location('smc_bus_manifest', MANIFEST_PATH)
-    assert spec is not None
-    assert spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[spec.name] = module
-    spec.loader.exec_module(module)
-    return module
-
-
-MANIFEST = _load_manifest()
+MANIFEST = load_manifest()
 EXPECTED_ENGINE_BUS_LABELS = list(MANIFEST.ENGINE_BUS_LABELS)
 EXPECTED_DASHBOARD_BUS_LABELS = list(MANIFEST.DASHBOARD_BUS_LABELS)
 
