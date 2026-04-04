@@ -13,7 +13,7 @@
 //
 // Does NOT duplicate any core logic. Reads:
 //   • smc_micro_profiles_generated library — static event metadata
-//   • BUS EventRiskRow (from Engine) — live runtime block/cooldown state
+//   • BUS LeanPackA (from Engine) — canonical lean event-risk state in slot 2
 //
 // Keep on a separate pane or overlay — it is independent of trade signals.
 // ─────────────────────────────────────────────────────────────────
@@ -33,7 +33,7 @@ var color col_event_line       = input.color(color.new(color.orange, 20), "Event
 var color col_zone_pre         = input.color(color.new(color.orange, 88), "Pre-event zone",    group = g_ev)
 var color col_zone_post        = input.color(color.new(color.red, 88),    "Post-event zone",   group = g_ev)
 var color col_label_text       = input.color(color.white,                 "Label text color",  group = g_ev)
-src_event_risk_row             = input.source(close, "BUS EventRiskRow",  group = g_ev, tooltip = "Connect to 'BUS EventRiskRow' output of SMC Core Engine.")
+src_lean_pack_a                = input.source(close, "BUS LeanPackA",     group = g_ev, tooltip = "Connect to 'BUS LeanPackA' output of SMC Core Engine.")
 
 // ── Library fields (static per refresh) ─────────────────────────
 
@@ -51,11 +51,39 @@ string ev_earnings    = mp.EARNINGS_SOON_TICKERS
 
 // ── BUS decode helpers ──────────────────────────────────────────
 
-// EventRiskRow packing: pack_bus_row(status, reason)
-// status*10 + reason  (same convention as Engine)
-bus_row()   => int(math.round(nz(src_event_risk_row, 0.0)))
-bus_status() => bus_row() >= 0 ? bus_row() / 10 : -1
-bus_reason() => bus_row() >= 0 ? bus_row() % 10 : math.abs(bus_row()) % 10
+pack_slot(float packed_value, int slot) =>
+     int packed = int(math.round(nz(packed_value, 0.0)))
+     if slot == 0
+          int(math.floor(packed / 1000000000.0))
+     else if slot == 1
+          int(math.floor(packed / 1000000.0)) % 1000
+     else if slot == 2
+          int(math.floor(packed / 1000.0)) % 1000
+     else
+          packed % 1000
+
+row_status(int row_code) =>
+     int(math.floor(row_code / 100)) - 1
+
+row_reason(int row_code) =>
+     row_code % 100
+
+lean_erl_row_code() =>
+     pack_slot(src_lean_pack_a, 2)
+
+overlay_event_status_text(int lean_row_code) =>
+     int lean_state = row_status(lean_row_code)
+     int lean_reason = row_reason(lean_row_code)
+     if lean_state == -1 and lean_reason == 1
+          "🚫 Mkt Block"
+     else if lean_state == -1 and lean_reason == 6
+          "🚫 Earn Block"
+     else if lean_state == 2 and lean_reason == 3
+          "⏳ Incoming"
+     else if lean_state == 3 and lean_reason == 4
+          "❄ Cooldown"
+     else
+          "✓ Clear"
 
 // ── Visibility gate ─────────────────────────────────────────────
 
@@ -103,13 +131,7 @@ if show_event_label and show_any and window_just_started
 // ── Status bar (bottom-right compact) ───────────────────────────
 // Minimal real-time status from BUS — no table, just a plotchar
 
-string rt_status = bus_status() >= 4 ? "✓ Clear" :
-     bus_reason() == 2 ? "⏳ Incoming" :
-     bus_reason() == 3 ? "❄ Cooldown" :
-     bus_reason() == 4 ? "🚫 Mkt Block" :
-     bus_reason() == 5 ? "🚫 Earn Block" :
-     bus_reason() == 6 ? "⚠ Macro High" :
-     "—"
+string rt_status = overlay_event_status_text(lean_erl_row_code())
 
 plotchar(show_any ? 0 : na, "Event Status", "•", location.bottom, size = size.tiny, display = display.status_line, char = rt_status)
 

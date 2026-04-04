@@ -5,12 +5,12 @@ This document frames the architecture choice after the current bus-v2 audit in [
 Current repo state is already partway through that transition:
 
 - the old compat exports (`HardGatesPackA/B`, `QualityPackA/B`, `EnginePack`) have been retired from the producer
-- the active dashboard now binds the full 63-channel producer contract directly
+- the active dashboard now binds the full 58-channel producer contract directly
 - `ModulePackA` has already been cut into direct rows (`SdConfluenceRow`, `SdOscRow`, `VolRegimeRow`, `VolSqueezeRow`)
 - `ModulePackB` has already been retired into `VolExpandRow`, `DdviRow`, `StretchSupportMask`, and `LtfBiasHint`
-- the first `ModulePackC` cut has landed via `SwingRow` and `ObjectsCountPack`
+- `ModulePackC`, `ModulePackD`, and `ReadyStrictPack` have now been retired from the active producer contract
 - `DebugStateRow` has already been retired because the dashboard now derives that state locally
-- the remaining row-shaped dashboard transport is concentrated in narrowed `ModulePackC` plus the direct row surface (`VolExpandRow`, `DdviRow`, `SwingRow`, `LongTriggersRow`, `RiskPlanRow`, `DebugFlagsRow`, `ReadyGateRow`, `StrictGateRow`, `MicroModifierMask`)
+- the remaining dashboard-oriented transport is now concentrated in explicit support-code channels (`LtfDeltaState`, `SafeTrendState`, `MicroProfileCode`, `ReadyBlockerCode`, `StrictBlockerCode`, `VolExpansionState`, `DdviContextState`)
 
 This document therefore describes the remaining architectural choice, not a greenfield template.
 
@@ -21,13 +21,13 @@ This document therefore describes the remaining architectural choice, not a gree
 Bus v2 remains what it currently is:
 
 - a producer-exported transport layer for the current dashboard shape
-- row-code and packed-state oriented
+- row-code and support-code oriented
 - optimized for reconstructing the current display in [SMC_Dashboard.pine](../SMC_Dashboard.pine#L719-L768)
 
 ### Option A Advantages
 
 1. No immediate redesign pressure.
-2. The current dashboard continues to reconstruct its rows from the remaining packs and direct rows.
+2. The current dashboard continues to reconstruct its rows from direct rows and explicit support-code channels.
 3. The strategy remains unaffected because it does not use the dashboard packs.
 4. The current test surface is easier to keep stable because the contract is tied to concrete row outputs.
 
@@ -36,8 +36,8 @@ Bus v2 remains what it currently is:
 1. Producer and dashboard remain tightly coupled.
 2. Future dashboard wording or layout changes will continue to force producer changes.
 3. Other consumers cannot reuse most packed channels without duplicating dashboard semantics.
-4. The current row packs blur domain logic, UI wording, and display grouping.
-5. The row packs preserve category results but not the richer numeric detail that existed in [SMC++.pine](../SMC++.pine#L5968-L6264).
+4. The explicit support-code surface still blurs domain logic, UI wording, and display grouping.
+5. The support codes preserve category results but not the richer numeric detail that existed in [SMC++.pine](../SMC++.pine#L5968-L6264).
 
 ### Channels That Fit Option A Well
 
@@ -47,19 +47,18 @@ These already behave acceptably as transport for the current UI:
 - `BUS SdOscRow`
 - `BUS VolRegimeRow`
 - `BUS VolSqueezeRow`
-- `BUS VolExpandRow`
-- `BUS DdviRow`
-- `BUS SwingRow`
-- `BUS ModulePackC`
-- `BUS LongTriggersRow`
-- `BUS RiskPlanRow`
-- `BUS DebugFlagsRow`
+- `BUS LtfDeltaState`
+- `BUS SafeTrendState`
+- `BUS MicroProfileCode`
+- `BUS ReadyBlockerCode`
+- `BUS StrictBlockerCode`
+- `BUS VolExpansionState`
+- `BUS DdviContextState`
 
-The previous compat exports and `ModulePackA`/`ModulePackB` transport cuts have
-already landed. The producer now sits at `63 / 64` plots while exporting a full
-`63`-channel hidden bus, so one free slot is available again for the next
-cleanup slice, but any change that needs more than one new channel still has to
-retire another plot first. The executed `ModulePackB` replacement path is documented in
+The previous compat exports and pack-retirement cuts have already landed. The
+producer now sits at `58 / 64` plots while exporting a full `58`-channel hidden
+bus, so six free producer slots remain available. The executed `ModulePackB`
+replacement path is documented in
 [smc-module-pack-b-direct-cut-design.md](smc-module-pack-b-direct-cut-design.md).
 
 ### Risk Envelope Under Option A
@@ -108,7 +107,6 @@ These are already suitable as domain channels and should remain stable even if a
 - `BUS QualityScore`
 - `BUS SourceKind`
 - `BUS TrendPack`
-- `BUS QualityBoundsPack`
 - `BUS StopLevel`
 - `BUS Target1`
 - `BUS Target2`
@@ -118,51 +116,51 @@ These would likely survive in concept but should be reviewed for shape:
 - `BUS StateCode`
 - `BUS MetaPack`
 
-### UI-Near Packs That Option B Would Eventually Replace
+### UI-Near Support Channels That Option B Would Eventually Replace
 
 These are the strongest replacement candidates because they are row-oriented transport rather than reusable business channels:
 
-- `BUS VolExpandRow`
-- `BUS DdviRow`
-- `BUS SwingRow`
-- `BUS ModulePackC`
-- `BUS LongTriggersRow`
-- `BUS RiskPlanRow`
-- `BUS DebugFlagsRow`
+- `BUS LtfDeltaState`
+- `BUS SafeTrendState`
+- `BUS MicroProfileCode`
+- `BUS ReadyBlockerCode`
+- `BUS StrictBlockerCode`
+- `BUS VolExpansionState`
+- `BUS DdviContextState`
 
-`ModulePackA` and `ModulePackB` have already been retired in favor of direct
-rows and support/detail channels. `StretchSupportMask`, `LtfBiasHint`, and
-`ObjectsCountPack` now cover missing producer-owned support state for the former
-packed module rows, and `SwingRow` has moved swing structure off the pack. That
-leaves `ModulePackC` as the last remaining packed UI transport on the active
-bus.
+`ModulePackA`, `ModulePackB`, `ModulePackC`, `ModulePackD`, and
+`ReadyStrictPack` have already been retired in favor of direct rows and
+support/detail channels. `StretchSupportMask`, `LtfBiasHint`, and
+`ObjectsCountPack` still cover producer-owned support state, while the final
+module and blocker semantics now travel as explicit support codes rather than
+as packed dashboard transport.
+`MicroProfileCode` carries modifier presence inline, so no separate micro
+modifier support channel remains on the active bus.
+`Debug Flags` and `Long Debug` are now derived locally from dashboard mirror
+toggles, and `Long Triggers` and `Risk Plan` are now derived locally from
+executable and plan-level channels instead of traveling over dedicated transport rows.
 
 ### Concrete Next Slice
 
-1. `ModulePackC` next
-   `Objects` and `Swing` now have direct channels (`ObjectsCountPack` and
-   `SwingRow`), so the remaining pack only carries `Ltf Delta` and
-   `Micro Profile`. That keeps `ModulePackC` as the least reusable remaining
-   pack on the active bus. The recovered free slot from retiring
-   `DebugStateRow` is enough for one additional channel, but any cut that needs
-   more than that still has to retire another plot first.
-2. Direct row transport after that
-   `LongTriggersRow`, `RiskPlanRow`, `DebugFlagsRow`, and the remaining
-   gate/debug rows are still UI-shaped transport. None of them currently has a
-   cleaner budget path than the executed `ModulePackB` and first `ModulePackC`
-   cuts, so they should only move after a plot-saving step or as part of a
-   plot-reducing replacement.
+1. Rebuild lane complete
+   The remaining packed transport surfaces have been retired. The active
+   rebuild backlog is now empty, and further BUS work should focus on whether
+   the explicit support-code channels should stay frozen or eventually be
+   replaced by a domain-first bus-v3.
 
 ## Recommendation
 
 The recommended path is:
 
 1. Treat the current bus-v2 explicitly as a dashboard transport layer.
-2. Treat the `ModulePackA`, `ModulePackB`, and first `ModulePackC` cuts as the
-   intentional transport cleanup steps that already reshaped the active `63 / 64` contract.
+2. Treat the `ModulePackA`, `ModulePackB`, `ModulePackC`, `ModulePackD`, and
+   `ReadyStrictPack` retirement plus the local `DebugFlagsRow`,
+   `LongTriggersRow`, `RiskPlanRow`, and `QualityBoundsPack` localization as
+   the intentional transport cleanup steps that already reshaped the active
+   `58 / 64` contract.
 3. Continue replacing the remaining UI-transport channels only where the change frees plot budget first or stays plot-reducing.
 4. Keep semantic tests pinned to the manifest so retired exports do not drift back into the contract.
-5. Do not expand the remaining row packs further just to preserve old shapes.
+5. Do not add new packs or new standalone support rows just to preserve old shapes.
 6. If additional consumers or richer dashboard parity are needed later, design a separate domain-first bus-v3 instead of continuing to grow UI packs.
 
 This recommendation avoids churn now while keeping the architecture honest.

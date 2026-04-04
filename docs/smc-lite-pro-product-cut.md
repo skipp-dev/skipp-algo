@@ -59,12 +59,13 @@ Alles andere bleibt Pro-only. Das sind die Diagnose-, Audit- und Detailkanaele,
 die fuer Endnutzer nicht verpflichtend sein sollten:
 
 - `BUS MetaPack`
-- `BUS EventRiskRow`
-- `BUS QualityBoundsPack`
-- `BUS ModulePackC`
-- `BUS LongTriggersRow`
-- `BUS RiskPlanRow`
-- `BUS DebugFlagsRow`
+- `BUS LtfDeltaState`
+- `BUS SafeTrendState`
+- `BUS MicroProfileCode`
+- `BUS ReadyBlockerCode`
+- `BUS StrictBlockerCode`
+- `BUS VolExpansionState`
+- `BUS DdviContextState`
 - `BUS StopLevel`
 - `BUS Target1`
 - `BUS Target2`
@@ -78,9 +79,11 @@ Hinzu kommen auf der aktiven Pro-Surface jetzt drei klar getrennte Lagen:
   `BUS EmaSupportRow`, `BUS AdxRow`, `BUS RelVolRow`, `BUS VwapRow`,
   `BUS ContextQualityRow`, `BUS QualityCleanRow`, `BUS QualityScoreRow`,
   `BUS SdConfluenceRow`, `BUS SdOscRow`, `BUS VolRegimeRow`,
-  `BUS VolSqueezeRow`, `BUS VolExpandRow`, `BUS DdviRow`, `BUS SwingRow`,
-  `BUS ReadyGateRow`, `BUS StrictGateRow`,
-  `BUS MicroModifierMask`
+  `BUS VolSqueezeRow`
+- explizite Diagnostic-Support-Codes:
+  `BUS LtfDeltaState`, `BUS SafeTrendState`, `BUS MicroProfileCode`,
+  `BUS ReadyBlockerCode`, `BUS StrictBlockerCode`,
+  `BUS VolExpansionState`, `BUS DdviContextState`
 - direkte Detail-Channels fuer wiederhergestellte Monolith-Tiefe:
   `BUS ZoneObTop`, `BUS ZoneObBottom`, `BUS ZoneFvgTop`,
   `BUS ZoneFvgBottom`, `BUS SessionVwap`, `BUS AdxValue`,
@@ -124,9 +127,9 @@ Pro umfasst:
 - `SMC_Core_Engine.pine`
 - `SMC_Dashboard.pine`
 - `SMC_Long_Strategy.pine`
-- den vollen 63-Kanal-BUS-Contract
+- den vollen 58-Kanal-BUS-Contract
 
-Das aktive Dashboard nutzt derzeit den kompletten 63-Kanal-Producer-Vertrag.
+Das aktive Dashboard nutzt derzeit den kompletten 58-Kanal-Producer-Vertrag.
 
 Pro darf bewusst mehr Friction haben, wenn diese Friction echte Diagnose- oder
 Automationsfaehigkeit liefert.
@@ -146,20 +149,17 @@ Umbau des Lite-Contracts, sondern ein gezielter Pro-only-Schnitt.
 
 ### C9.1 Rebuild-Kandidaten
 
-Diese aktiven UI-Transport-Kanaele sollten als naechste Boundary neu
-geschnitten werden:
+Die gepackte Rebuild-Lane ist jetzt abgeschlossen. Die frueheren Resttransporte
+`BUS ModulePackD` und `BUS ReadyStrictPack` wurden durch explizite
+Support-Codes ersetzt:
 
-- `BUS EventRiskRow`
-- `BUS VolExpandRow`
-- `BUS DdviRow`
-- `BUS SwingRow`
-- `BUS ModulePackC`
-- `BUS LongTriggersRow`
-- `BUS RiskPlanRow`
-- `BUS DebugFlagsRow`
-- `BUS ReadyGateRow`
-- `BUS StrictGateRow`
-- `BUS MicroModifierMask`
+- `BUS LtfDeltaState`
+- `BUS SafeTrendState`
+- `BUS MicroProfileCode`
+- `BUS ReadyBlockerCode`
+- `BUS StrictBlockerCode`
+- `BUS VolExpansionState`
+- `BUS DdviContextState`
 
 `BUS ModulePackA` wurde bereits in direkte Rows fuer `BUS SdConfluenceRow`,
 `BUS SdOscRow`, `BUS VolRegimeRow` und `BUS VolSqueezeRow` ueberfuehrt.
@@ -169,13 +169,29 @@ die sichtbaren `Session VWAP`-, `EMA Fast`- und `EMA Slow`-Overlays aus dem
 `BUS ModulePackB` durch `BUS VolExpandRow`, `BUS DdviRow`,
 `BUS StretchSupportMask` und `BUS LtfBiasHint` ersetzt.
 
-Die Engine liegt jetzt bei `63 / 64` Plots mit einem aktiven
-`63`-Kanal-Pro-Vertrag. `Swing` und `Objects` wurden ueber `BUS SwingRow` und
-`BUS ObjectsCountPack` aus `ModulePackC` herausgezogen; die lokale Ableitung
-des `Long Debug`-Zustands hat zusaetzlich `BUS DebugStateRow` retired und damit
-wieder genau einen freien Plot-Slot geschaffen. Der verbleibende Pack-Kandidat
-ist `ModulePackC`, weil dort weiterhin `LTF Delta` und `Micro Profile` als
-UI-Transport gebuendelt bleiben.
+Die Engine liegt jetzt bei `58 / 64` Plots mit einem aktiven
+`58`-Kanal-Pro-Vertrag. `Swing` und `Objects` wurden zunaechst ueber
+`BUS SwingRow` und `BUS ObjectsCountPack` aus `ModulePackC` herausgezogen;
+spaetere direkte Modul-Zeilen wurden nun in `BUS ModulePackD`
+konsolidiert. Die lokale Ableitung der Zeilen `Long Debug`,
+`Debug Flags`, `Long Triggers` und `Risk Plan` hat zusaetzlich
+`BUS DebugStateRow`, `BUS DebugFlagsRow`, `BUS LongTriggersRow` und
+`BUS RiskPlanRow` retired. Danach wurde
+`BUS MicroModifierMask` in die `Micro Profile`-Semantik gefaltet, bevor
+`BUS ReadyGateRow` und `BUS StrictGateRow` zu `BUS ReadyStrictPack`
+konsolidiert wurden. Danach wurde `BUS QualityBoundsPack` als fester
+`25 / 100`-Supportkanal in lokale Dashboard-Formatierung verlagert. Danach
+wurde `BUS EventRiskRow` entfernt; Dashboard und Event Overlay leiten den
+Status jetzt lokal aus `LeanPackA.slot2` ab. Zuletzt wurden `BUS VolExpandRow`
+und `BUS DdviRow` entfernt; `BUS ReadyStrictPack` transportiert diese
+Semantik jetzt in Slot `2` und Slot `3`. Danach wurden `BUS LtfDeltaRow`,
+`BUS SwingRow` und `BUS MicroProfileRow` durch `BUS ModulePackD` ersetzt.
+Die finale Slice hat anschliessend `BUS ModulePackD` und
+`BUS ReadyStrictPack` vollstaendig retired und durch die expliziten
+Support-Codes `LtfDeltaState`, `SafeTrendState`, `MicroProfileCode`,
+`ReadyBlockerCode`, `StrictBlockerCode`, `VolExpansionState` und
+`DdviContextState` ersetzt. Es bleibt damit keine gepackte Resttransport-
+Oberflaeche mehr auf der aktiven Producer-Surface.
 
 ### C9.2 Reduce-Kandidaten
 
@@ -201,7 +217,6 @@ Diese Kanaele bleiben auch nach C9 stabile Support- oder Level-Contracts und
 sollen nicht leichtfertig neu zugeschnitten werden:
 
 - `BUS MetaPack`
-- `BUS QualityBoundsPack`
 - `BUS ObjectsCountPack`
 - `BUS StopLevel`
 - `BUS Target1`

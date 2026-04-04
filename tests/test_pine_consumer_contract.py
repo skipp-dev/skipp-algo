@@ -731,19 +731,30 @@ class TestV55DriftGuard:
             f"Expected 0 deprecated section markers after Phase B, found {len(deprecated_markers)}: {deprecated_markers}"
         )
 
-    def test_bus_event_risk_row_uses_lean_fields(self):
-        """BUS EventRiskRow call must pass lean lib_erl_* fields."""
+    def test_bus_event_risk_row_removed(self):
+        """EventRiskRow should stay retired from the producer BUS."""
+        text = _read_pine("SMC_Core_Engine.pine")
+        assert 'BUS EventRiskRow' not in text
+
+    def test_lean_pack_a_carries_event_risk_light_fields(self):
+        """LeanPackA must continue to transport the lean event-risk light inputs."""
         text = _read_pine("SMC_Core_Engine.pine")
         bus_lines = [
             line.strip()
             for line in text.splitlines()
-            if "BUS EventRiskRow" in line and line.strip().startswith("plot(")
+            if "BUS LeanPackA" in line and line.strip().startswith("plot(")
         ]
-        assert bus_lines, "BUS EventRiskRow plot not found"
+        assert bus_lines, "BUS LeanPackA plot not found"
         bus_call = bus_lines[0]
-        assert "lib_erl_" in bus_call, (
-            f"BUS EventRiskRow must use lean lib_erl_* fields, found: {bus_call}"
-        )
+        for fragment in (
+            'lib_erl_window_state',
+            'lib_erl_level',
+            'lib_erl_market_blocked',
+            'lib_erl_symbol_blocked',
+        ):
+            assert fragment in bus_call, (
+                f"BUS LeanPackA must carry lean event-risk fields, missing {fragment} in: {bus_call}"
+            )
 
     def test_gate_classification_comment_exists(self):
         """Gate classification documentation must exist in the engine."""

@@ -8,13 +8,13 @@ The producer exports the full hidden bus from [SMC_Core_Engine.pine](../SMC_Core
 
 Current manual validation counts:
 
-- Producer hidden series: `63`
-- Dashboard bindings: `63`
+- Producer hidden series: `58`
+- Dashboard bindings: `58`
 - Strategy bindings: `8`
 
 ### Dashboard Needs These Bindings
 
-The dashboard expects all `63` bindings declared in [SMC_Dashboard.pine](../SMC_Dashboard.pine) and governed by [../scripts/smc_bus_manifest.py](../scripts/smc_bus_manifest.py).
+The dashboard expects all `58` bindings declared in [SMC_Dashboard.pine](../SMC_Dashboard.pine) and governed by [../scripts/smc_bus_manifest.py](../scripts/smc_bus_manifest.py).
 
 Lifecycle:
 
@@ -54,21 +54,21 @@ Diagnostic Rows:
 - `BUS SdOscRow`
 - `BUS VolRegimeRow`
 - `BUS VolSqueezeRow`
-- `BUS VolExpandRow`
-- `BUS DdviRow`
-- `BUS SwingRow`
-- `BUS LongTriggersRow`
-- `BUS RiskPlanRow`
-- `BUS DebugFlagsRow`
-- `BUS ReadyGateRow`
-- `BUS StrictGateRow`
-- `BUS MicroModifierMask`
 
-Diagnostic Packs:
+Diagnostic Support:
 
-- `BUS EventRiskRow`
-- `BUS QualityBoundsPack`
-- `BUS ModulePackC`
+- `BUS LtfDeltaState`
+- `BUS SafeTrendState`
+- `BUS MicroProfileCode`
+- `BUS ReadyBlockerCode`
+- `BUS StrictBlockerCode`
+- `BUS VolExpansionState`
+- `BUS DdviContextState`
+
+These seven support channels replace the final packed transport layer. The
+dashboard reconstructs `LTF Delta`, `Swing`, `Micro Profile`, `Ready Gate`,
+`Strict Gate`, `Vol Expand`, and `DDVI` locally from the explicit support-code
+surface.
 
 Trade Plan:
 
@@ -96,6 +96,16 @@ Lean Surface:
 
 - `BUS LeanPackA`
 - `BUS LeanPackB`
+
+### Local Dashboard-Only Debug Mirrors
+
+These controls are not `source` bindings and are configured manually only when
+you want to validate the `Debug Flags` or `Long Debug` rows against the core's
+effective debug setup:
+
+- `OB Debug Enabled`
+- `FVG Debug Enabled`
+- `Long Engine Debug Enabled`
 
 ### Strategy Needs These Bindings
 
@@ -132,7 +142,7 @@ Expected dashboard cues:
 
 If this fails:
 
-- `MetaPack` decoding, local zone-row derivation, or direct trigger/risk/debug row binding is wrong
+- `MetaPack` decoding, local zone-row derivation, direct trigger/risk row binding, or local debug mirror settings are wrong
 - `StateCode` mapping is wrong
 - one or more dashboard `input.source()` bindings point to the wrong producer plot
 
@@ -192,7 +202,7 @@ Expected dashboard cues:
 
 If this fails:
 
-- `ReadyGateRow` binding or `decode_ready_gate_text()` mapping is wrong
+- `ReadyBlockerCode` binding, local blocker-to-row reconstruction, or `decode_ready_gate_text()` mapping is wrong
 - `StateCode` mapping is wrong
 - `Trigger`, `StopLevel`, `Target1`, or `Target2` are wired incorrectly
 
@@ -225,11 +235,13 @@ If this fails:
 5. `Quality Score` min/max text is inconsistent with the actual quality score threshold.
 6. The strategy stages entries while dashboard lifecycle rows still show no active entry tier.
 7. Dashboard risk lines do not match the strategy trigger/invalidation levels.
+8. `Vol Expand` or `DDVI` disagree with the core even though the blocker-code
+   support channels still decode plausibly.
 
 ## Manual Cross-Check Order
 
 1. Add `SMC_Core_Engine.pine` to the chart.
-2. Add `SMC_Dashboard.pine` and bind all 63 sources to the core plots.
+2. Add `SMC_Dashboard.pine` and bind all 58 sources to the core plots.
 3. Add `SMC_Long_Strategy.pine` and bind its 8 sources to the core plots.
 4. Validate the five scenarios above on the same symbol and timeframe.
 5. If dashboard and strategy disagree, treat the core plots as the source of truth first and inspect source bindings before changing any logic.

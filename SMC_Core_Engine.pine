@@ -2848,25 +2848,6 @@ resolve_bus_quality_strict_row(bool long_entry_strict_state, bool strict_entry_l
     else
         pack_bus_row(-1, 9)
 
-// ── Event Risk BUS Row ──
-// Reason codes: 1=CLEAR, 2=PRE_EVENT(soft), 3=COOLDOWN(soft), 4=BLOCKED_MARKET(hard),
-//               5=BLOCKED_SYMBOL(hard), 6=MACRO_HIGH, 7=EARNINGS
-resolve_bus_event_risk_row(bool event_risk_gate_ok_param, bool hard_block, bool soft_block, bool market_blocked, bool symbol_blocked, string window_state, string risk_level) =>
-    if not event_risk_gate_ok_param and market_blocked
-        pack_bus_row(-1, 4)
-    else if not event_risk_gate_ok_param and symbol_blocked
-        pack_bus_row(-1, 5)
-    else if not event_risk_gate_ok_param
-        pack_bus_row(-1, 6)
-    else if soft_block and window_state == "COOLDOWN"
-        pack_bus_row(2, 3)
-    else if soft_block and window_state == "PRE_EVENT"
-        pack_bus_row(2, 2)
-    else if risk_level == "LOW"
-        pack_bus_row(4, 1)
-    else
-        pack_bus_row(5, 1)
-
 resolve_bus_close_strength_row(bool use_strong_close_filter, bool bull_close_strong) =>
     if not use_strong_close_filter
         pack_bus_row(0, 1)
@@ -2990,15 +2971,15 @@ resolve_bus_vol_squeeze_row(bool use_volatility_regime, bool vol_squeeze_on, boo
     else
         pack_bus_row(0, 5)
 
-resolve_bus_vol_expand_row(bool use_volatility_regime, bool vol_momentum_expanding_long, bool vol_stack_spread_rising) =>
+resolve_bus_vol_expansion_state(bool use_volatility_regime, bool vol_momentum_expanding_long, bool vol_stack_spread_rising) =>
     if not use_volatility_regime
-        pack_bus_row(0, 1)
+        1
     else if vol_momentum_expanding_long and vol_stack_spread_rising
-        pack_bus_row(5, 2)
+        2
     else if vol_momentum_expanding_long or vol_stack_spread_rising
-        pack_bus_row(3, 3)
+        3
     else
-        pack_bus_row(0, 4)
+        4
 
 resolve_bus_stretch_row(bool use_stretch_context, float distance_to_mean_z, bool in_lower_extreme, bool lower_extreme_recent, bool anti_chase_ok_entry_best, bool anti_chase_ok_ready) =>
     if not use_stretch_context
@@ -3012,19 +2993,19 @@ resolve_bus_stretch_row(bool use_stretch_context, float distance_to_mean_z, bool
     else
         pack_bus_row(-1, 6)
 
-resolve_bus_ddvi_row(bool use_ddvi_context, bool ddvi_bias_ok, bool ddvi_bull_divergence_any, bool ddvi_lower_extreme_context) =>
+resolve_bus_ddvi_context_state(bool use_ddvi_context, bool ddvi_bias_ok, bool ddvi_bull_divergence_any, bool ddvi_lower_extreme_context) =>
     if not use_ddvi_context
-        pack_bus_row(0, 1)
+        1
     else if ddvi_bias_ok and ddvi_bull_divergence_any
-        pack_bus_row(5, 2)
+        2
     else if ddvi_bias_ok
-        pack_bus_row(4, 3)
+        3
     else if ddvi_bull_divergence_any
-        pack_bus_row(4, 4)
+        4
     else if ddvi_lower_extreme_context
-        pack_bus_row(3, 5)
+        5
     else
-        pack_bus_row(0, 6)
+        6
 
 resolve_bus_ltf_bias_row(bool show_dashboard_ltf_eff, bool ltf_sampling_active, bool ltf_price_ok, bool ltf_price_only, float ltf_bull_share, float ltf_bias_hint) =>
     if not show_dashboard_ltf_eff
@@ -3040,19 +3021,19 @@ resolve_bus_ltf_bias_row(bool show_dashboard_ltf_eff, bool ltf_sampling_active, 
     else
         pack_bus_row(-1, 6)
 
-resolve_bus_ltf_delta_row(bool show_dashboard_ltf_eff, bool ltf_sampling_active, bool ltf_price_only, float ltf_volume_delta) =>
+resolve_bus_ltf_delta_state(bool show_dashboard_ltf_eff, bool ltf_sampling_active, bool ltf_price_only, float ltf_volume_delta) =>
     if not show_dashboard_ltf_eff
-        pack_bus_row(0, 1)
+        1
     else if not ltf_sampling_active
-        pack_bus_row(0, 2)
+        2
     else if ltf_price_only
-        pack_bus_row(2, 3)
+        3
     else if na(ltf_volume_delta)
-        pack_bus_row(0, 4)
+        4
     else if ltf_volume_delta >= 0
-        pack_bus_row(5, 5)
+        5
     else
-        pack_bus_row(-1, 6)
+        6
 
 resolve_bus_objects_row(int ob_count, int fvg_count) =>
     if ob_count > 0 and fvg_count > 0
@@ -3064,88 +3045,32 @@ resolve_bus_objects_row(int ob_count, int fvg_count) =>
     else
         pack_bus_row(0, 4)
 
-resolve_bus_swing_row(bool bullish_trend_safe, bool bearish_trend_safe) =>
-    if bullish_trend_safe
-        pack_bus_row(5, 1)
-    else if bearish_trend_safe
-        pack_bus_row(-1, 2)
-    else
-        pack_bus_row(0, 3)
+resolve_bus_safe_trend_state(bool bullish_trend_safe, bool bearish_trend_safe) =>
+    bullish_trend_safe ? 1 : bearish_trend_safe ? 2 : 3
 
-resolve_bus_micro_profile_row(bool use_microstructure_profiles, string micro_profile_text, string micro_modifier_text) =>
-    int reason_code = 1
-    if micro_profile_text == 'Stop-Hunt Sensitive'
-        reason_code := 2
-    else if micro_profile_text == 'Clean Reclaim'
-        reason_code := 3
-    else if micro_profile_text == 'RTH Only'
-        reason_code := 4
-    else if micro_profile_text == 'Midday Dead'
-        reason_code := 5
-    else if micro_profile_text == 'Fast Decay'
-        reason_code := 6
-    int profile_state = 0
+resolve_bus_micro_profile_code(bool use_microstructure_profiles, string micro_profile_text, string micro_modifier_text) =>
+    int profile_code = 0
     if use_microstructure_profiles
-        profile_state := str.length(micro_modifier_text) > 0 or micro_profile_text != 'Default' ? 5 : 3
-    pack_bus_row(use_microstructure_profiles ? profile_state : 0, use_microstructure_profiles ? reason_code : 0)
+        profile_code := 1
+        if micro_profile_text == 'Stop-Hunt Sensitive'
+            profile_code := 2
+        else if micro_profile_text == 'Clean Reclaim'
+            profile_code := 3
+        else if micro_profile_text == 'RTH Only'
+            profile_code := 4
+        else if micro_profile_text == 'Midday Dead'
+            profile_code := 5
+        else if micro_profile_text == 'Fast Decay'
+            profile_code := 6
+        if str.length(micro_modifier_text) > 0
+            profile_code += 10
+    profile_code
 
-resolve_bus_micro_modifier_mask(string micro_modifier_text) =>
-    int modifier_mask = 0
-    if str.contains(micro_modifier_text, 'Stop-Hunt')
-        modifier_mask += 1
-    if str.contains(micro_modifier_text, 'Clean Reclaim')
-        modifier_mask += 2
-    if str.contains(micro_modifier_text, 'Fast Decay')
-        modifier_mask += 4
-    if str.contains(micro_modifier_text, 'RTH Only')
-        modifier_mask += 8
-    if str.contains(micro_modifier_text, 'Midday Dead')
-        modifier_mask += 16
-    if str.contains(micro_modifier_text, 'Weak Premarket')
-        modifier_mask += 32
-    if str.contains(micro_modifier_text, 'Weak Afterhours')
-        modifier_mask += 64
-    float(modifier_mask)
+resolve_bus_ready_blocker_code(bool long_ready_state, bool long_setup_confirmed, bool lifecycle_ready_ok, bool setup_hard_gate_ok, bool trade_hard_gate_ok, bool environment_hard_gate_ok, bool close_safe_mode, bool ready_bar_gap_ok, bool long_confirm_expired, bool ready_is_fresh, bool long_confirm_bearish_guard_ok, bool require_main_break_for_ready, bool bull_bos_sig, bool main_bos_recent, bool session_structure_gate_ok, bool micro_session_gate_ok, bool micro_freshness_gate_ok, bool overhead_zone_ok, bool market_regime_gate_ok, bool vola_regime_gate_safe, bool quality_gate_ok, bool accel_ready_gate_ok, bool sd_ready_gate_ok, bool vol_ready_context_ok, bool stretch_ready_context_ok, bool ddvi_ready_ok_safe) =>
+    resolve_long_ready_reason_code(long_ready_state, long_setup_confirmed, close_safe_mode, ready_bar_gap_ok, long_confirm_expired, ready_is_fresh, long_confirm_bearish_guard_ok, require_main_break_for_ready, bull_bos_sig, main_bos_recent, setup_hard_gate_ok, trade_hard_gate_ok, environment_hard_gate_ok, session_structure_gate_ok, micro_session_gate_ok, micro_freshness_gate_ok, overhead_zone_ok, market_regime_gate_ok, vola_regime_gate_safe, quality_gate_ok, accel_ready_gate_ok, sd_ready_gate_ok, vol_ready_context_ok, stretch_ready_context_ok, ddvi_ready_ok_safe)
 
-resolve_bus_long_triggers_row(bool long_plan_active, bool long_setup_confirmed, bool long_ready_state, bool long_entry_best_state, bool long_entry_strict_state, float bus_trigger_level, float bus_invalidation_level) =>
-    if not long_plan_active
-        pack_bus_row(0, 2)
-    else if na(bus_trigger_level) or na(bus_invalidation_level)
-        pack_bus_row(2, 3)
-    else if long_entry_strict_state
-        pack_bus_row(5, 5)
-    else if long_entry_best_state
-        pack_bus_row(5, 4)
-    else if long_ready_state
-        pack_bus_row(5, 3)
-    else if long_setup_confirmed
-        pack_bus_row(5, 2)
-    else
-        pack_bus_row(5, 1)
-
-resolve_bus_risk_plan_row(bool long_plan_active, float bus_trigger_level, float bus_invalidation_level, float bus_stop_level, float bus_target_1, float bus_target_2) =>
-    if not long_plan_active
-        pack_bus_row(0, 2)
-    else if na(bus_trigger_level) or na(bus_invalidation_level)
-        pack_bus_row(2, 3)
-    else if not na(bus_stop_level) and not na(bus_target_1) and not na(bus_target_2)
-        pack_bus_row(5, 1)
-    else
-        pack_bus_row(2, 4)
-
-resolve_bus_ready_gate_row(bool long_ready_state, bool long_setup_confirmed, bool lifecycle_ready_ok, bool setup_hard_gate_ok, bool trade_hard_gate_ok, bool environment_hard_gate_ok, bool close_safe_mode, bool ready_bar_gap_ok, bool long_confirm_expired, bool ready_is_fresh, bool long_confirm_bearish_guard_ok, bool require_main_break_for_ready, bool bull_bos_sig, bool main_bos_recent, bool session_structure_gate_ok, bool micro_session_gate_ok, bool micro_freshness_gate_ok, bool overhead_zone_ok, bool market_regime_gate_ok, bool vola_regime_gate_safe, bool quality_gate_ok, bool accel_ready_gate_ok, bool sd_ready_gate_ok, bool vol_ready_context_ok, bool stretch_ready_context_ok, bool ddvi_ready_ok_safe) =>
-    int reason_code = resolve_long_ready_reason_code(long_ready_state, long_setup_confirmed, close_safe_mode, ready_bar_gap_ok, long_confirm_expired, ready_is_fresh, long_confirm_bearish_guard_ok, require_main_break_for_ready, bull_bos_sig, main_bos_recent, setup_hard_gate_ok, trade_hard_gate_ok, environment_hard_gate_ok, session_structure_gate_ok, micro_session_gate_ok, micro_freshness_gate_ok, overhead_zone_ok, market_regime_gate_ok, vola_regime_gate_safe, quality_gate_ok, accel_ready_gate_ok, sd_ready_gate_ok, vol_ready_context_ok, stretch_ready_context_ok, ddvi_ready_ok_safe)
-    int row_state = resolve_long_ready_row_state(reason_code)
-    pack_bus_row(row_state, reason_code)
-
-resolve_bus_strict_gate_row(bool long_entry_strict_state, bool long_ready_state, bool strict_signal_quality_gate_ok, bool strict_entry_ltf_ok, bool htf_alignment_ok, bool accel_strict_entry_gate_ok, bool sd_entry_strict_gate_ok, bool vol_entry_strict_context_ok_safe, bool stretch_entry_strict_context_ok, bool ddvi_entry_strict_ok_safe) =>
-    int reason_code = resolve_long_strict_reason_code(long_entry_strict_state, long_ready_state, strict_signal_quality_gate_ok, strict_entry_ltf_ok, htf_alignment_ok, accel_strict_entry_gate_ok, sd_entry_strict_gate_ok, vol_entry_strict_context_ok_safe, stretch_entry_strict_context_ok, ddvi_entry_strict_ok_safe)
-    int row_state = resolve_long_strict_row_state(reason_code)
-    pack_bus_row(row_state, reason_code)
-
-resolve_bus_debug_flags_row(bool show_ob_debug, bool show_fvg_debug, bool show_long_engine_debug) =>
-    int reason_code = (show_ob_debug ? 1 : 0) + (show_fvg_debug ? 2 : 0) + (show_long_engine_debug ? 4 : 0)
-    pack_bus_row(reason_code > 0 ? 5 : 0, reason_code)
+resolve_bus_strict_blocker_code(bool long_entry_strict_state, bool long_ready_state, bool strict_signal_quality_gate_ok, bool strict_entry_ltf_ok, bool htf_alignment_ok, bool accel_strict_entry_gate_ok, bool sd_entry_strict_gate_ok, bool vol_entry_strict_context_ok_safe, bool stretch_entry_strict_context_ok, bool ddvi_entry_strict_ok_safe) =>
+    resolve_long_strict_reason_code(long_entry_strict_state, long_ready_state, strict_signal_quality_gate_ok, strict_entry_ltf_ok, htf_alignment_ok, accel_strict_entry_gate_ok, sd_entry_strict_gate_ok, vol_entry_strict_context_ok_safe, stretch_entry_strict_context_ok, ddvi_entry_strict_ok_safe)
 
 // ── v5.5 Lean BUS Resolvers ──
 
@@ -3214,12 +3139,6 @@ resolve_bus_trend_pack(int structure_display_trend, int mtf_trend_1, int mtf_tre
 
 resolve_bus_meta_pack(bool long_setup_armed, bool long_setup_confirmed, bool ready_is_fresh, bool confirm_is_fresh, bool long_source_tracked, bool long_source_alive, bool long_source_broken, bool reclaim_recent, bool bull_reclaim_internal_low_strict, bool bull_reclaim_swing_low_strict, bool bull_reclaim_fvg_strict, bool bull_reclaim_ob_strict, bool long_zone_active, bool in_bull_ob_zone, bool in_bull_fvg_zone) =>
     pack_bus_meta(resolve_bus_freshness_code(long_setup_armed, long_setup_confirmed, ready_is_fresh, confirm_is_fresh), resolve_bus_source_state_code(long_source_tracked, long_source_alive, long_source_broken), resolve_bus_reclaim_code(reclaim_recent, bull_reclaim_internal_low_strict, bull_reclaim_swing_low_strict, bull_reclaim_fvg_strict, bull_reclaim_ob_strict), resolve_bus_zone_code(long_zone_active, in_bull_ob_zone, in_bull_fvg_zone))
-
-resolve_bus_quality_bounds_pack(int min_score, int max_score) =>
-    float(min_score * 1000 + max_score)
-
-resolve_bus_module_pack_c(bool show_dashboard_ltf_eff, bool ltf_sampling_active, bool ltf_price_only, float ltf_volume_delta, bool use_microstructure_profiles, string micro_profile_text, string micro_modifier_text) =>
-    pack_bus_four(resolve_bus_ltf_delta_row(show_dashboard_ltf_eff, ltf_sampling_active, ltf_price_only, ltf_volume_delta), 0.0, 0.0, resolve_bus_micro_profile_row(use_microstructure_profiles, micro_profile_text, micro_modifier_text))
 
 resolve_bus_lean_pack_a(int signal_quality_score, string signal_quality_tier, string signal_freshness, string signal_bias_alignment, string event_window_state, string event_risk_level, bool market_event_blocked, bool symbol_event_blocked, int structure_trend_strength, bool structure_fresh, string structure_last_event) =>
     pack_bus_four(resolve_bus_signal_quality_row(signal_quality_score, signal_quality_tier), resolve_bus_signal_freshness_row(signal_freshness, signal_bias_alignment), resolve_bus_event_risk_light_row(event_window_state, event_risk_level, market_event_blocked, symbol_event_blocked), resolve_bus_struct_light_row(structure_trend_strength, structure_fresh, structure_last_event))
@@ -6577,9 +6496,9 @@ plot(long_validation_source, 'BUS SourceKind', display = display.none)
 plot(long_visual_state, 'BUS StateCode', display = display.none)
 plot(resolve_bus_trend_pack(structure_display_trend, mtf_trend_1, mtf_trend_2, mtf_trend_3), 'BUS TrendPack', display = display.none)
 plot(resolve_bus_meta_pack(long_state.armed, long_state.confirmed, ready_is_fresh, confirm_is_fresh, long_source_tracked, long_source_alive, long_source_broken, reclaim_recent, bull_reclaim_internal_low_strict, bull_reclaim_swing_low_strict, bull_reclaim_fvg_strict, bull_reclaim_ob_strict, long_zone_active, in_bull_ob_zone, in_bull_fvg_zone), 'BUS MetaPack', display = display.none)
-plot(resolve_bus_event_risk_row(event_risk_gate_ok, not event_risk_gate_ok, event_risk_state == "caution", lib_erl_market_blocked, lib_erl_symbol_blocked, lib_erl_window_state, lib_erl_level), 'BUS EventRiskRow', display = display.none)
-plot(resolve_bus_quality_bounds_pack(25, 100), 'BUS QualityBoundsPack', display = display.none)
-plot(resolve_bus_module_pack_c(show_dashboard_ltf_eff, ltf_sampling_active, ltf_price_only, ltf_volume_delta, use_microstructure_profiles, micro_profile_text, micro_modifier_text), 'BUS ModulePackC', display = display.none)
+plot(resolve_bus_ltf_delta_state(show_dashboard_ltf_eff, ltf_sampling_active, ltf_price_only, ltf_volume_delta), 'BUS LtfDeltaState', display = display.none)
+plot(resolve_bus_safe_trend_state(bullish_trend_safe, bearish_trend_safe), 'BUS SafeTrendState', display = display.none)
+plot(resolve_bus_micro_profile_code(use_microstructure_profiles, micro_profile_text, micro_modifier_text), 'BUS MicroProfileCode', display = display.none)
 plot(bus_stop_level, 'BUS StopLevel', display = display.none)
 plot(bus_target_1, 'BUS Target1', display = display.none)
 plot(bus_target_2, 'BUS Target2', display = display.none)
@@ -6603,15 +6522,10 @@ plot(resolve_bus_sd_confluence_row(use_sd_confluence, sd_support_both_recent, sd
 plot(resolve_bus_sd_osc_row(use_sd_confluence, sd_value, sd_above_zero, sd_rising, sd_below_zero, sd_falling), 'BUS SdOscRow', display = display.none)
 plot(resolve_bus_vol_regime_row(use_volatility_regime, vol_regime_trend_ok), 'BUS VolRegimeRow', display = display.none)
 plot(resolve_bus_vol_squeeze_row(use_volatility_regime, vol_squeeze_on, vol_squeeze_release_recent, vol_squeeze_recent), 'BUS VolSqueezeRow', display = display.none)
-plot(resolve_bus_vol_expand_row(use_volatility_regime, vol_momentum_expanding_long, vol_stack_spread_rising), 'BUS VolExpandRow', display = display.none)
-plot(resolve_bus_ddvi_row(use_ddvi_context, ddvi_bias_ok, ddvi_bull_divergence_any, ddvi_lower_extreme_context), 'BUS DdviRow', display = display.none)
-plot(resolve_bus_swing_row(bullish_trend_safe, bearish_trend_safe), 'BUS SwingRow', display = display.none)
-plot(resolve_bus_long_triggers_row(long_plan_active, long_state.confirmed, long_ready_state, long_entry_best_state, long_entry_strict_state, bus_trigger_level, bus_invalidation_level), 'BUS LongTriggersRow', display = display.none)
-plot(resolve_bus_risk_plan_row(long_plan_active, bus_trigger_level, bus_invalidation_level, bus_stop_level, bus_target_1, bus_target_2), 'BUS RiskPlanRow', display = display.none)
-plot(resolve_bus_debug_flags_row(show_ob_debug_eff, show_fvg_debug_eff, show_long_engine_debug_eff), 'BUS DebugFlagsRow', display = display.none)
-plot(resolve_bus_ready_gate_row(long_ready_state, long_state.confirmed, lifecycle_ready_ok, setup_hard_gate_ok, trade_hard_gate_ok, environment_hard_gate_ok, close_safe_mode, ready_bar_gap_ok, long_confirm_expired, ready_is_fresh, long_confirm_bearish_guard_ok, require_main_break_for_ready_eff, bull_bos_sig, main_bos_recent, session_structure_gate_ok, micro_session_gate_ok, micro_freshness_gate_ok, overhead_zone_ok, market_regime_gate_ok, vola_regime_gate_safe, quality_gate_ok, accel_ready_gate_ok, sd_ready_gate_ok, vol_ready_context_ok, stretch_ready_context_ok, ddvi_ready_ok_safe), 'BUS ReadyGateRow', display = display.none)
-plot(resolve_bus_strict_gate_row(long_entry_strict_state, long_ready_state, strict_signal_quality_gate_ok, strict_entry_ltf_ok, htf_alignment_ok, accel_strict_entry_gate_ok, sd_entry_strict_gate_ok, vol_entry_strict_context_ok_safe, stretch_entry_strict_context_ok, ddvi_entry_strict_ok_safe), 'BUS StrictGateRow', display = display.none)
-plot(resolve_bus_micro_modifier_mask(micro_modifier_text), 'BUS MicroModifierMask', display = display.none)
+plot(resolve_bus_ready_blocker_code(long_ready_state, long_state.confirmed, lifecycle_ready_ok, setup_hard_gate_ok, trade_hard_gate_ok, environment_hard_gate_ok, close_safe_mode, ready_bar_gap_ok, long_confirm_expired, ready_is_fresh, long_confirm_bearish_guard_ok, require_main_break_for_ready_eff, bull_bos_sig, main_bos_recent, session_structure_gate_ok, micro_session_gate_ok, micro_freshness_gate_ok, overhead_zone_ok, market_regime_gate_ok, vola_regime_gate_safe, quality_gate_ok, accel_ready_gate_ok, sd_ready_gate_ok, vol_ready_context_ok, stretch_ready_context_ok, ddvi_ready_ok_safe), 'BUS ReadyBlockerCode', display = display.none)
+plot(resolve_bus_strict_blocker_code(long_entry_strict_state, long_ready_state, strict_signal_quality_gate_ok, strict_entry_ltf_ok, htf_alignment_ok, accel_strict_entry_gate_ok, sd_entry_strict_gate_ok, vol_entry_strict_context_ok_safe, stretch_entry_strict_context_ok, ddvi_entry_strict_ok_safe), 'BUS StrictBlockerCode', display = display.none)
+plot(resolve_bus_vol_expansion_state(use_volatility_regime, vol_momentum_expanding_long, vol_stack_spread_rising), 'BUS VolExpansionState', display = display.none)
+plot(resolve_bus_ddvi_context_state(use_ddvi_context, ddvi_bias_ok, ddvi_bull_divergence_any, ddvi_lower_extreme_context), 'BUS DdviContextState', display = display.none)
 plot(active_bull_ob_top, 'BUS ZoneObTop', display = display.none)
 plot(active_bull_ob_bottom, 'BUS ZoneObBottom', display = display.none)
 plot(active_bull_fvg_top, 'BUS ZoneFvgTop', display = display.none)

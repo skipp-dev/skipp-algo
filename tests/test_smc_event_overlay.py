@@ -64,9 +64,14 @@ class TestOverlayStructure:
         src = _read(OVERLAY_PATH)
         assert "import preuss_steffen/smc_micro_profiles_generated/1 as mp" in src
 
-    def test_bus_event_risk_row_input(self):
+    def test_bus_lean_pack_a_input(self):
         src = _read(OVERLAY_PATH)
-        assert '"BUS EventRiskRow"' in src
+        assert '"BUS LeanPackA"' in src
+
+    def test_overlay_reconstructs_event_state_from_lean_slot(self):
+        src = _read(OVERLAY_PATH)
+        assert 'pack_slot(src_lean_pack_a, 2)' in src
+        assert 'overlay_event_status_text' in src
 
 
 # ═════════════════════════════════════════════════════════════════

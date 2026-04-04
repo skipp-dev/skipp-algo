@@ -35,21 +35,33 @@ def test_strategy_contract_matches_the_executable_core() -> None:
 
 
 def test_pro_only_contract_captures_diagnostic_surface() -> None:
-    assert 'SdConfluenceRow' in MANIFEST.PRO_ONLY_BUS_CHANNELS
-    assert 'VolSqueezeRow' in MANIFEST.PRO_ONLY_BUS_CHANNELS
-    assert 'VolExpandRow' in MANIFEST.PRO_ONLY_BUS_CHANNELS
-    assert 'DdviRow' in MANIFEST.PRO_ONLY_BUS_CHANNELS
+    assert 'LtfDeltaState' in MANIFEST.PRO_ONLY_BUS_CHANNELS
+    assert 'SafeTrendState' in MANIFEST.PRO_ONLY_BUS_CHANNELS
+    assert 'MicroProfileCode' in MANIFEST.PRO_ONLY_BUS_CHANNELS
+    assert 'ReadyBlockerCode' in MANIFEST.PRO_ONLY_BUS_CHANNELS
+    assert 'StrictBlockerCode' in MANIFEST.PRO_ONLY_BUS_CHANNELS
+    assert 'VolExpansionState' in MANIFEST.PRO_ONLY_BUS_CHANNELS
+    assert 'DdviContextState' in MANIFEST.PRO_ONLY_BUS_CHANNELS
     assert 'StretchSupportMask' in MANIFEST.PRO_ONLY_BUS_CHANNELS
     assert 'LtfBiasHint' in MANIFEST.PRO_ONLY_BUS_CHANNELS
+    assert 'ModulePackD' not in MANIFEST.PRO_ONLY_BUS_CHANNELS
+    assert 'ReadyStrictPack' not in MANIFEST.PRO_ONLY_BUS_CHANNELS
+    assert 'VolExpandRow' not in MANIFEST.PRO_ONLY_BUS_CHANNELS
+    assert 'DdviRow' not in MANIFEST.PRO_ONLY_BUS_CHANNELS
+    assert 'LtfDeltaRow' not in MANIFEST.PRO_ONLY_BUS_CHANNELS
+    assert 'SwingRow' not in MANIFEST.PRO_ONLY_BUS_CHANNELS
+    assert 'MicroProfileRow' not in MANIFEST.PRO_ONLY_BUS_CHANNELS
+    assert 'ReadyGateRow' not in MANIFEST.PRO_ONLY_BUS_CHANNELS
+    assert 'StrictGateRow' not in MANIFEST.PRO_ONLY_BUS_CHANNELS
     assert 'ModulePackA' not in MANIFEST.PRO_ONLY_BUS_CHANNELS
     assert 'ModulePackB' not in MANIFEST.PRO_ONLY_BUS_CHANNELS
-    assert 'LongTriggersRow' in MANIFEST.PRO_ONLY_BUS_CHANNELS
-    assert 'ReadyGateRow' in MANIFEST.PRO_ONLY_BUS_CHANNELS
-    assert 'SessionGateRow' in MANIFEST.PRO_ONLY_BUS_CHANNELS
-    assert 'ZoneObTop' in MANIFEST.PRO_ONLY_BUS_CHANNELS
-    assert 'StopLevel' in MANIFEST.PRO_ONLY_BUS_CHANNELS
-    assert 'Target1' in MANIFEST.PRO_ONLY_BUS_CHANNELS
-    assert 'Target2' in MANIFEST.PRO_ONLY_BUS_CHANNELS
+    assert 'ModulePackC' not in MANIFEST.PRO_ONLY_BUS_CHANNELS
+    assert 'QualityBoundsPack' not in MANIFEST.PRO_ONLY_BUS_CHANNELS
+    assert 'LongTriggersRow' not in MANIFEST.PRO_ONLY_BUS_CHANNELS
+    assert 'RiskPlanRow' not in MANIFEST.PRO_ONLY_BUS_CHANNELS
+    assert 'MicroModifierMask' not in MANIFEST.PRO_ONLY_BUS_CHANNELS
+    assert 'EventRiskRow' not in MANIFEST.PRO_ONLY_BUS_CHANNELS
+    assert 'DebugFlagsRow' not in MANIFEST.PRO_ONLY_BUS_CHANNELS
     assert 'HardGatesPackA' not in MANIFEST.PRO_ONLY_BUS_CHANNELS
     assert 'QualityPackA' not in MANIFEST.PRO_ONLY_BUS_CHANNELS
     assert 'EnginePack' not in MANIFEST.PRO_ONLY_BUS_CHANNELS
@@ -67,7 +79,14 @@ def test_dashboard_contract_moves_to_named_rows_and_detail_channels() -> None:
     assert 'QualityPackB' not in MANIFEST.ENGINE_BUS_CHANNELS
     assert 'ModulePackB' not in MANIFEST.ENGINE_BUS_CHANNELS
     assert 'ModulePackD' not in MANIFEST.DASHBOARD_BUS_CHANNELS
-    assert 'EnginePack' not in MANIFEST.ENGINE_BUS_CHANNELS
+    assert 'ReadyStrictPack' not in MANIFEST.DASHBOARD_BUS_CHANNELS
+    assert 'LtfDeltaState' in MANIFEST.DASHBOARD_BUS_CHANNELS
+    assert 'SafeTrendState' in MANIFEST.DASHBOARD_BUS_CHANNELS
+    assert 'MicroProfileCode' in MANIFEST.DASHBOARD_BUS_CHANNELS
+    assert 'ReadyBlockerCode' in MANIFEST.DASHBOARD_BUS_CHANNELS
+    assert 'StrictBlockerCode' in MANIFEST.DASHBOARD_BUS_CHANNELS
+    assert 'VolExpansionState' in MANIFEST.DASHBOARD_BUS_CHANNELS
+    assert 'DdviContextState' in MANIFEST.DASHBOARD_BUS_CHANNELS
     assert 'SessionGateRow' in MANIFEST.DASHBOARD_BUS_CHANNELS
     assert 'CloseStrengthRow' in MANIFEST.DASHBOARD_BUS_CHANNELS
     assert 'QualityScoreRow' in MANIFEST.DASHBOARD_BUS_CHANNELS
@@ -75,13 +94,19 @@ def test_dashboard_contract_moves_to_named_rows_and_detail_channels() -> None:
     assert 'SdOscRow' in MANIFEST.DASHBOARD_BUS_CHANNELS
     assert 'VolRegimeRow' in MANIFEST.DASHBOARD_BUS_CHANNELS
     assert 'VolSqueezeRow' in MANIFEST.DASHBOARD_BUS_CHANNELS
-    assert 'VolExpandRow' in MANIFEST.DASHBOARD_BUS_CHANNELS
-    assert 'DdviRow' in MANIFEST.DASHBOARD_BUS_CHANNELS
-    assert 'SwingRow' in MANIFEST.DASHBOARD_BUS_CHANNELS
-    assert 'LongTriggersRow' in MANIFEST.DASHBOARD_BUS_CHANNELS
-    assert 'RiskPlanRow' in MANIFEST.DASHBOARD_BUS_CHANNELS
-    assert 'DebugFlagsRow' in MANIFEST.DASHBOARD_BUS_CHANNELS
-    assert 'ReadyGateRow' in MANIFEST.DASHBOARD_BUS_CHANNELS
+    assert 'VolExpandRow' not in MANIFEST.DASHBOARD_BUS_CHANNELS
+    assert 'DdviRow' not in MANIFEST.DASHBOARD_BUS_CHANNELS
+    assert 'LtfDeltaRow' not in MANIFEST.DASHBOARD_BUS_CHANNELS
+    assert 'SwingRow' not in MANIFEST.DASHBOARD_BUS_CHANNELS
+    assert 'QualityBoundsPack' not in MANIFEST.DASHBOARD_BUS_CHANNELS
+    assert 'LongTriggersRow' not in MANIFEST.DASHBOARD_BUS_CHANNELS
+    assert 'EventRiskRow' not in MANIFEST.DASHBOARD_BUS_CHANNELS
+    assert 'MicroProfileRow' not in MANIFEST.DASHBOARD_BUS_CHANNELS
+    assert 'RiskPlanRow' not in MANIFEST.DASHBOARD_BUS_CHANNELS
+    assert 'DebugFlagsRow' not in MANIFEST.DASHBOARD_BUS_CHANNELS
+    assert 'ReadyGateRow' not in MANIFEST.DASHBOARD_BUS_CHANNELS
+    assert 'StrictGateRow' not in MANIFEST.DASHBOARD_BUS_CHANNELS
+    assert 'MicroModifierMask' not in MANIFEST.DASHBOARD_BUS_CHANNELS
     assert 'DebugStateRow' not in MANIFEST.DASHBOARD_BUS_CHANNELS
     assert 'ZoneObTop' in MANIFEST.DASHBOARD_BUS_CHANNELS
     assert 'SessionVwap' in MANIFEST.DASHBOARD_BUS_CHANNELS
@@ -92,29 +117,7 @@ def test_dashboard_contract_moves_to_named_rows_and_detail_channels() -> None:
 
 
 def test_c9_cut_partitions_the_pro_only_surface() -> None:
-    assert MANIFEST.C9_REBUILD_BUS_CHANNELS == (
-        'SessionGateRow',
-        'MarketGateRow',
-        'VolaGateRow',
-        'MicroSessionGateRow',
-        'MicroFreshRow',
-        'VolumeDataRow',
-        'QualityEnvRow',
-        'QualityStrictRow',
-        'SdConfluenceRow',
-        'SdOscRow',
-        'VolRegimeRow',
-        'VolSqueezeRow',
-        'VolExpandRow',
-        'DdviRow',
-        'SwingRow',
-        'LongTriggersRow',
-        'RiskPlanRow',
-        'DebugFlagsRow',
-        'ReadyGateRow',
-        'StrictGateRow',
-        'MicroModifierMask',
-    )
+    assert MANIFEST.C9_REBUILD_BUS_CHANNELS == ()
     assert MANIFEST.C9_REDUCE_BUS_CHANNELS == (
         'CloseStrengthRow',
         'EmaSupportRow',
@@ -143,12 +146,28 @@ def test_c9_cut_partitions_the_pro_only_surface() -> None:
     assert MANIFEST.C9_LEGACY_COMPAT_BUS_CHANNELS == ()
     assert MANIFEST.C9_STABLE_PRO_BUS_CHANNELS == (
         'MetaPack',
-        'EventRiskRow',
-        'QualityBoundsPack',
-        'ModulePackC',
+        'LtfDeltaState',
+        'SafeTrendState',
+        'MicroProfileCode',
         'StopLevel',
         'Target1',
         'Target2',
+        'SessionGateRow',
+        'MarketGateRow',
+        'VolaGateRow',
+        'MicroSessionGateRow',
+        'MicroFreshRow',
+        'VolumeDataRow',
+        'QualityEnvRow',
+        'QualityStrictRow',
+        'SdConfluenceRow',
+        'SdOscRow',
+        'VolRegimeRow',
+        'VolSqueezeRow',
+        'ReadyBlockerCode',
+        'StrictBlockerCode',
+        'VolExpansionState',
+        'DdviContextState',
     )
 
     c9_partition = (

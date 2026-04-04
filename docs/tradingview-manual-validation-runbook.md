@@ -46,17 +46,18 @@ Workspace-Refresh: 2026-04-03
 ## Empfohlene Reihenfolge In TradingView
 
 1. Core öffnen und kompilieren.
-2. Dashboard hinzufügen und alle 63 `source`-Bindings auf den Core legen.
+2. Dashboard hinzufügen und alle 58 `source`-Bindings auf den Core legen.
 3. Strategy hinzufügen und alle 8 `source`-Bindings auf den Core legen.
 4. Die fünf Prüfszenarien auf demselben Symbol und Timeframe durchlaufen.
 5. Alle Beobachtungen direkt in die Report-Vorlage eintragen.
 
 ### Binding-Konvention
 
-1. Dashboard bindet in sechs Gruppen: Lifecycle, Diagnostic Rows, Diagnostic Packs, Trade Plan, Detail Surface, Lean Surface.
+1. Dashboard bindet in sechs BUS-Gruppen: Lifecycle, Diagnostic Rows, Diagnostic Support, Trade Plan, Detail Surface, Lean Surface.
 2. Strategy bindet in zwei Gruppen: Entry States, Trade Plan.
 3. Beide Consumer werden in TradingView immer top-to-bottom an die gleichnamigen BUS-Serien des Cores gebunden.
 4. Die kanonische Quelle fuer Namen, Reihenfolge und Gruppen ist [../scripts/smc_bus_manifest.py](../scripts/smc_bus_manifest.py).
+5. Zusaetzlich gibt es im Dashboard die lokale Gruppe `Dashboard - Local Debug Mirrors` ohne `source`-Bindings. Diese drei Bool-Inputs werden nur manuell gespiegelt, wenn `Debug Flags` oder `Long Debug` gegen die effektive Core-Debug-Konfiguration geprueft werden sollen.
 
 ### Kanonische BUS-Reihenfolge
 
@@ -76,9 +77,9 @@ Reihenfolge:
 - `BUS StateCode`
 - `BUS TrendPack`
 - `BUS MetaPack`
-- `BUS EventRiskRow`
-- `BUS QualityBoundsPack`
-- `BUS ModulePackC`
+- `BUS LtfDeltaState`
+- `BUS SafeTrendState`
+- `BUS MicroProfileCode`
 - `BUS StopLevel`
 - `BUS Target1`
 - `BUS Target2`
@@ -102,15 +103,10 @@ Reihenfolge:
 - `BUS SdOscRow`
 - `BUS VolRegimeRow`
 - `BUS VolSqueezeRow`
-- `BUS VolExpandRow`
-- `BUS DdviRow`
-- `BUS SwingRow`
-- `BUS LongTriggersRow`
-- `BUS RiskPlanRow`
-- `BUS DebugFlagsRow`
-- `BUS ReadyGateRow`
-- `BUS StrictGateRow`
-- `BUS MicroModifierMask`
+- `BUS ReadyBlockerCode`
+- `BUS StrictBlockerCode`
+- `BUS VolExpansionState`
+- `BUS DdviContextState`
 - `BUS ZoneObTop`
 - `BUS ZoneObBottom`
 - `BUS ZoneFvgTop`
@@ -127,6 +123,12 @@ Reihenfolge:
 - `BUS LeanPackA`
 - `BUS LeanPackB`
 
+`BUS LtfDeltaState`, `BUS SafeTrendState`, `BUS MicroProfileCode`,
+`BUS ReadyBlockerCode`, `BUS StrictBlockerCode`, `BUS VolExpansionState` und
+`BUS DdviContextState` bilden jetzt die explizite Support-Code-Oberflaeche,
+aus der das Dashboard die frueher gepackten Modul- und Engine-Zeilen lokal
+rekonstruiert.
+
 ## Producer-Prüfung
 
 ### Producer Schrittfolge
@@ -140,7 +142,7 @@ Reihenfolge:
 
 1. Das Skript kompiliert ohne Fehler.
 2. Es bleiben keine sichtbaren Laufzeitfehler im Chart-Overlay zurück.
-3. Alle 63 Dashboard-Bindings aus [tradingview-validation-checklist.md](tradingview-validation-checklist.md) sind auswählbar.
+3. Alle 58 Dashboard-Bindings aus [tradingview-validation-checklist.md](tradingview-validation-checklist.md) sind auswählbar.
 
 ### Producer Pass/Fail-Kriterien
 
@@ -148,7 +150,7 @@ Pass:
 
 1. Core kompiliert.
 2. Keine Laufzeitfehlermeldung.
-3. Alle 63 Serien sind auswählbar.
+3. Alle 58 Serien sind auswählbar.
 
 Fail:
 
@@ -161,8 +163,9 @@ Fail:
 ### Dashboard Schrittfolge
 
 1. [../SMC_Dashboard.pine](../SMC_Dashboard.pine) auf denselben Chart legen.
-2. Alle 63 `input.source()`-Felder exakt mit den Core-Serien belegen.
-3. Sichtbarkeit und Reaktion der Sektionen prüfen:
+2. Alle 58 `input.source()`-Felder exakt mit den Core-Serien belegen.
+3. Falls `Debug Flags` oder `Long Debug` validiert werden sollen, die drei lokalen Debug-Mirror-Toggles im Dashboard passend zur effektiven Core-Konfiguration setzen.
+4. Sichtbarkeit und Reaktion der Sektionen prüfen:
 
 - Lifecycle
 - Hard Gates
@@ -175,7 +178,7 @@ Fail:
 ### Dashboard Erwartete Beobachtungen
 
 1. Dashboard kompiliert ohne Fehler.
-2. Alle 63 Bindings sind vollständig auswählbar.
+2. Alle 58 Bindings sind vollständig auswählbar.
 3. Das Dashboard bleibt sichtbar.
 4. Die Sektionen reagieren plausibel auf den Core-Zustand.
 
@@ -228,7 +231,7 @@ Erwartung:
 Pass:
 
 1. Dashboard kompiliert.
-2. Alle 63 Bindings sind belegbar.
+2. Alle 58 Bindings sind belegbar.
 3. Alle fünf Szenarien zeigen die erwartete Reaktion.
 4. Keine internen Widersprüche zwischen Lifecycle, Exec Tier, Setup Age und Risk-Linien.
 

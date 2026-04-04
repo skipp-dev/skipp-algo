@@ -275,24 +275,34 @@ def test_bus_plan_levels_contract_stays_explicit() -> None:
         assert snippet in body
 
 
-def test_bus_trigger_and_risk_rows_stay_execution_owned() -> None:
-    trigger_body = _extract_function_body(_read(CORE_PATH), "resolve_bus_long_triggers_row")
-    risk_body = _extract_function_body(_read(CORE_PATH), "resolve_bus_risk_plan_row")
+def test_support_code_surface_stays_runtime_owned() -> None:
+    ready_body = _extract_function_body(_read(CORE_PATH), "resolve_bus_ready_blocker_code")
+    strict_body = _extract_function_body(_read(CORE_PATH), "resolve_bus_strict_blocker_code")
+    ltf_body = _extract_function_body(_read(CORE_PATH), "resolve_bus_ltf_delta_state")
+    micro_body = _extract_function_body(_read(CORE_PATH), "resolve_bus_micro_profile_code")
 
     for snippet in [
-        "else if na(bus_trigger_level) or na(bus_invalidation_level)",
-        "else if long_entry_strict_state",
-        "else if long_entry_best_state",
-        "else if long_ready_state",
-        "else if long_setup_confirmed",
+        "resolve_long_ready_reason_code",
     ]:
-        assert snippet in trigger_body
+        assert snippet in ready_body
 
     for snippet in [
-        "else if na(bus_trigger_level) or na(bus_invalidation_level)",
-        "else if not na(bus_stop_level) and not na(bus_target_1) and not na(bus_target_2)",
+        "resolve_long_strict_reason_code",
     ]:
-        assert snippet in risk_body
+        assert snippet in strict_body
+
+    for snippet in [
+        "if not show_dashboard_ltf_eff",
+        "else if not ltf_sampling_active",
+        "else if ltf_price_only",
+    ]:
+        assert snippet in ltf_body
+
+    for snippet in [
+        "profile_code := 1",
+        "profile_code += 10",
+    ]:
+        assert snippet in micro_body
 
 
 def test_bus_surface_stays_runtime_owned() -> None:
@@ -301,12 +311,33 @@ def test_bus_surface_stays_runtime_owned() -> None:
     assert "plot(long_visual_state, 'BUS StateCode', display = display.none)" in source
     assert "plot(long_validation_source, 'BUS SourceKind', display = display.none)" in source
     assert "plot(lib_sq_score, 'BUS QualityScore', display = display.none)" in source
-    assert "resolve_bus_long_triggers_row(long_plan_active, long_setup_confirmed, long_ready_state, long_entry_best_state, long_entry_strict_state, bus_trigger_level, bus_invalidation_level)" in source
-    assert "resolve_bus_risk_plan_row(long_plan_active, bus_trigger_level, bus_invalidation_level, bus_stop_level, bus_target_1, bus_target_2)" in source
-    assert "resolve_bus_ready_gate_row(long_ready_state" in source
-    assert "resolve_bus_strict_gate_row(long_entry_strict_state, long_ready_state, strict_signal_quality_gate_ok" in source
+    assert "resolve_bus_long_triggers_row(" not in source
+    assert "resolve_bus_risk_plan_row(" not in source
+    assert "resolve_bus_ltf_delta_state(show_dashboard_ltf_eff, ltf_sampling_active, ltf_price_only, ltf_volume_delta)" in source
+    assert "resolve_bus_safe_trend_state(bullish_trend_safe, bearish_trend_safe)" in source
+    assert "resolve_bus_micro_profile_code(use_microstructure_profiles, micro_profile_text, micro_modifier_text)" in source
+    assert "resolve_bus_ready_blocker_code(long_ready_state" in source
+    assert "resolve_bus_strict_blocker_code(long_entry_strict_state, long_ready_state, strict_signal_quality_gate_ok" in source
+    assert "resolve_bus_vol_expansion_state(use_volatility_regime, vol_momentum_expanding_long, vol_stack_spread_rising)" in source
+    assert "resolve_bus_ddvi_context_state(use_ddvi_context, ddvi_bias_ok, ddvi_bull_divergence_any, ddvi_lower_extreme_context)" in source
     assert "plot(bus_trigger_level, 'BUS Trigger', display = display.none)" in source
     assert "plot(bus_stop_level, 'BUS StopLevel', display = display.none)" in source
+    assert "'BUS VolExpandRow', display = display.none" not in source
+    assert "'BUS DdviRow', display = display.none" not in source
+    assert "'BUS LtfDeltaRow', display = display.none" not in source
+    assert "'BUS SwingRow', display = display.none" not in source
+    assert "'BUS MicroProfileRow', display = display.none" not in source
+    assert "'BUS ReadyGateRow', display = display.none" not in source
+    assert "'BUS StrictGateRow', display = display.none" not in source
+    assert "'BUS ModulePackD', display = display.none" not in source
+    assert "'BUS ReadyStrictPack', display = display.none" not in source
+    assert "plot(resolve_bus_ltf_delta_state(show_dashboard_ltf_eff, ltf_sampling_active, ltf_price_only, ltf_volume_delta), 'BUS LtfDeltaState', display = display.none)" in source
+    assert "plot(resolve_bus_safe_trend_state(bullish_trend_safe, bearish_trend_safe), 'BUS SafeTrendState', display = display.none)" in source
+    assert "plot(resolve_bus_micro_profile_code(use_microstructure_profiles, micro_profile_text, micro_modifier_text), 'BUS MicroProfileCode', display = display.none)" in source
+    assert "plot(resolve_bus_ready_blocker_code(long_ready_state, long_state.confirmed, lifecycle_ready_ok, setup_hard_gate_ok, trade_hard_gate_ok, environment_hard_gate_ok, close_safe_mode, ready_bar_gap_ok, long_confirm_expired, ready_is_fresh, long_confirm_bearish_guard_ok, require_main_break_for_ready_eff, bull_bos_sig, main_bos_recent, session_structure_gate_ok, micro_session_gate_ok, micro_freshness_gate_ok, overhead_zone_ok, market_regime_gate_ok, vola_regime_gate_safe, quality_gate_ok, accel_ready_gate_ok, sd_ready_gate_ok, vol_ready_context_ok, stretch_ready_context_ok, ddvi_ready_ok_safe), 'BUS ReadyBlockerCode', display = display.none)" in source
+    assert "plot(resolve_bus_strict_blocker_code(long_entry_strict_state, long_ready_state, strict_signal_quality_gate_ok, strict_entry_ltf_ok, htf_alignment_ok, accel_strict_entry_gate_ok, sd_entry_strict_gate_ok, vol_entry_strict_context_ok_safe, stretch_entry_strict_context_ok, ddvi_entry_strict_ok_safe), 'BUS StrictBlockerCode', display = display.none)" in source
+    assert "plot(resolve_bus_vol_expansion_state(use_volatility_regime, vol_momentum_expanding_long, vol_stack_spread_rising), 'BUS VolExpansionState', display = display.none)" in source
+    assert "plot(resolve_bus_ddvi_context_state(use_ddvi_context, ddvi_bias_ok, ddvi_bull_divergence_any, ddvi_lower_extreme_context), 'BUS DdviContextState', display = display.none)" in source
 
 
 def test_dynamic_alert_gate_contract_stays_explicit_per_lifecycle_edge() -> None:

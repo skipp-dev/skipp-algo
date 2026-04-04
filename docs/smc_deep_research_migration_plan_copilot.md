@@ -135,11 +135,11 @@ gezieltes C4-Hardening des aktiven Cores und seines TradingView-Vertrags:
    Locked-Source-Runtime-Zustand und die Invalidationspraezedenz.
 
 3. **Die BUS-Publication-Layer ist als eigene Composite-Schicht lesbar**
-   Composite-Packs und direkte Row-Exports wie `MetaPack`, `ModulePackC`,
-   `SdConfluenceRow`, `SdOscRow`, `VolRegimeRow`, `VolSqueezeRow`,
-   `VolExpandRow`, `DdviRow`, `LongTriggersRow`, `RiskPlanRow`,
-   `DebugFlagsRow`, die Engine-Row-Surface und `LeanPackA/B` werden ueber
-   eigene Helper gebaut statt direkt inline im Plot-Block zusammengesetzt.
+   Composite-Packs und direkte Row-Exports wie `MetaPack`,
+   `SdConfluenceRow`, `SdOscRow`, `VolRegimeRow`, `VolSqueezeRow`, die
+   expliziten Diagnostic-Support-Codes, die restliche Engine-Row-Surface und
+   `LeanPackA/B` werden ueber eigene Helper gebaut statt direkt inline im
+   Plot-Block zusammengesetzt.
 
 4. **Dashboard, Strategy und Runbook haengen an einem kanonischen BUS-Manifest**
    `scripts/smc_bus_manifest.py` ist die aktive Repo-Quelle fuer Channel-Namen,
@@ -235,12 +235,11 @@ aktiven Core:
    Trigger, Invalidation, Stop und Targets, statt rohe Runtime-Werte direkt zu
    plotten.
 
-4. **Trigger-, Risk-Plan- und Debug-Flag-Row-Ownership sitzen jetzt in
-   direkten BUS-Reihen**
-   `resolve_bus_long_triggers_row(...)`, `resolve_bus_risk_plan_row(...)` und
-   `resolve_bus_debug_flags_row(...)` codieren jetzt Tier- und
-   Vollstaendigkeitszustand an der BUS-Grenze ohne ein verbleibendes
-   `ModulePackD`-Transportfeld.
+4. **Trigger-, Risk-Plan- und Debug-Flag-Ownership sind jetzt sauber vom
+   Executable Core getrennt**
+   `Long Triggers`, `Risk Plan`, `Debug Flags` und die daraus abgeleitete
+   `Long Debug`-Zeile werden auf dem aktuellen Repo-Stand im Dashboard lokal
+   rekonstruiert, statt ueber verbleibende BUS-Transportreihen zu laufen.
 
 5. **Die aktive Regression pinnt den C7-Schnitt explizit**
    Split-Core- und Semantic-Contracts sichern jetzt die neue Execution-
@@ -275,20 +274,20 @@ Observability-Grenze aus dem Runtime-Pfad:
 
 ## 10. C9-Paket auf aktuellem Repo-Stand
 
-Der naechste sinnvolle Schnitt liegt nicht mehr auf der Lite- oder Strategy-
-Surface, sondern auf den Pro-only-Packs:
+Der zuletzt ausgefuehrte C9-Schnitt lag nicht mehr auf der Lite- oder
+Strategy-Surface, sondern auf dem Pro-only-Diagnostiktransport:
 
 1. **Der Lite-Contract bleibt eingefroren**
    `scripts/smc_bus_manifest.py` unterscheidet jetzt explizit zwischen
    Executable Core, Lite-Surface und Pro-only-Channels. C9 darf diese Grenze
    nicht verwischen.
 
-2. **UI-Transport-Kanaele werden als eigene Rebuild-Lane behandelt**
-   `EventRiskRow`, `VolExpandRow`, `DdviRow`, `ModulePackC`,
-   `LongTriggersRow`, `RiskPlanRow`, `DebugFlagsRow` sowie die direkten
-   Engine-Reihen `ReadyGateRow`, `StrictGateRow` und
-   `MicroModifierMask` sind die naechsten Rebuild-Kandidaten, weil sie
-   Pro-Diagnostik stark an das aktuelle Dashboard-Wording koppeln.
+2. **UI-Transport-Kanaele wurden in explizite Support-Codes ueberfuehrt**
+   `ModulePackD` und `ReadyStrictPack` sind aus dem aktiven Producer-Vertrag
+   entfernt. An ihrer Stelle exportiert der Core jetzt `LtfDeltaState`,
+   `SafeTrendState`, `MicroProfileCode`, `ReadyBlockerCode`,
+   `StrictBlockerCode`, `VolExpansionState` und `DdviContextState`, damit die
+   Dashboard-Rekonstruktion ohne verbleibende Packs laeuft.
 
 3. **Quality-Diagnostik wird reduziert statt neu aufgeblasen**
    `QualityPackA/B` wurden durch direkte Quality-Rows ersetzt und sind jetzt
@@ -296,7 +295,7 @@ Surface, sondern auf den Pro-only-Packs:
    Lite-Surface zu verschieben.
 
 4. **Stabile Pro-Support-Channels bleiben bewusst stehen**
-   `MetaPack`, `QualityBoundsPack`, `StopLevel`, `Target1` und `Target2` sind
+   `MetaPack`, `StopLevel`, `Target1` und `Target2` sind
    keine primaeren Rebuild-Ziele des C9-Schnitts, obwohl sie produktseitig
    Pro-only bleiben.
 
@@ -305,14 +304,15 @@ Surface, sondern auf den Pro-only-Packs:
    ist ueber dedizierte Regression abgesichert, damit Produktgrenze und
    Cleanup-Pfad nicht auseinanderlaufen.
 
-6. **Der Rest der Module-Lane ist jetzt vor allem plot-budget-begrenzt**
-   Nach dem Retirement der alten Compat-Exports und dem nachgelagerten
-   `ModulePackA`-Schnitt und dem inzwischen ausgefuehrten `ModulePackB`-Cut
-   liegt die Engine weiter bei `62 / 64` Plots. Die sichtbaren Overlay-Plots
-   wurden zuvor aus dem `plot()`-Budget verschoben, danach wurde
-   `ModulePackB` durch `VolExpandRow`, `DdviRow`, `StretchSupportMask` und
-   `LtfBiasHint` ersetzt. Weitere Modul-Schritte muessen deshalb weiterhin
-   plot-neutral oder mit zusaetzlichen Plot-Einsparungen geplant werden.
+6. **Die aktuelle Pro-Lane ist jetzt support-code-basiert und weiter plot-budget-begrenzt**
+   Nach dem Retirement der alten Compat-Exports und den nachgelagerten
+   `ModulePackA`-, `ModulePackB`- und `ModulePackC`-Cuts sowie der finalen
+   Ablösung von `ModulePackD` und `ReadyStrictPack` liegt die Engine jetzt bei
+   `58 / 64` Plots. Die sichtbaren Overlay-Plots wurden zuvor aus dem
+   `plot()`-Budget verschoben; der verbleibende Pro-Diagnostikpfad laeuft
+   jetzt ueber explizite Support-Codes statt ueber gepackte Resttransporte.
+   Weitere Modul-Schritte muessen deshalb weiterhin plot-neutral oder mit
+   zusaetzlichen Plot-Einsparungen geplant werden.
 
 ---
 

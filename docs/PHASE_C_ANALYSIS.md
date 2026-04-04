@@ -205,7 +205,7 @@ The next executed slice continues with the runtime-to-BUS ownership boundary:
 2. Best/Strict execution-tier projection now lives in a dedicated helper instead of direct inline projection in the main lifecycle block.
 3. Ready/Strict blocker resolution and the Clean tier now live in dedicated projection helpers.
 4. Trigger, invalidation, stop, and target BUS publishing now route through a dedicated BUS-plan-level helper instead of plotting raw runtime values directly.
-5. Trigger, risk-plan, and debug-flag row ownership now live in direct BUS rows (`LongTriggersRow`, `RiskPlanRow`, `DebugFlagsRow`), and split/semantic contracts pin that boundary explicitly.
+5. Trigger and risk-plan presentation now reconstruct locally in the dashboard from executable plan levels, while debug flags and the derived long-debug summary now live behind local dashboard mirrors; split/semantic contracts pin that boundary explicitly.
 
 ### C8 - Event Edge and Debug Log Owners
 
@@ -216,17 +216,17 @@ The next executed slice continues with the remaining event-owned inline runtime 
 3. The main lifecycle block no longer carries local Ready-edge mutation or a nested debug-log function between runtime decisions and BUS publication.
 4. Split-core and semantic-contract tests now pin this C8 event-edge and observability boundary explicitly.
 
-### C9 - Pro-Only Pack Decoupling Boundary
+### C9 - Pro-Only Diagnostic Support Boundary
 
 The next cleanup lane after C8 should no longer touch the executable or Lite
 surface. It should stay inside the Pro-only contract.
 
-1. `EventRiskRow`, `VolExpandRow`, `DdviRow`, `ModulePackC`, `LongTriggersRow`, `RiskPlanRow`, `DebugFlagsRow`, `ReadyGateRow`, `StrictGateRow`, and `MicroModifierMask` are now the primary rebuild lane because they are strongly tied to current dashboard transport.
+1. The packed rebuild lane is now retired. The active Pro-only diagnostic support surface is the explicit support-code set `LtfDeltaState`, `SafeTrendState`, `MicroProfileCode`, `ReadyBlockerCode`, `StrictBlockerCode`, `VolExpansionState`, and `DdviContextState`.
 2. `QualityPackA/B` have been fully retired from the producer after the direct quality-row cut proved stable under regression.
 3. `HardGatesPackA/B` and `EnginePack` have likewise been retired after the named-row migration held on the active dashboard contract.
-4. Removing the five legacy exports reopened enough headroom for exactly one full 4-row module cut, and that budget has since been consumed by replacing `ModulePackA` with `SdConfluenceRow`, `SdOscRow`, `VolRegimeRow`, and `VolSqueezeRow`, then `ModulePackB` with `VolExpandRow`, `DdviRow`, `StretchSupportMask`, and `LtfBiasHint`, and finally the first `ModulePackC` cut with `SwingRow` and `ObjectsCountPack`. The later `DebugStateRow` retirement restored one slot, so the engine now sits at `63 / 64` plots.
-5. `ModulePackC` stays as the last remaining pack because only `LTF Delta` and `Micro Profile` are still bundled there; `Long Debug` state is now derived locally in the dashboard instead of traveling over its own BUS row.
-6. `MetaPack`, `QualityBoundsPack`, `StopLevel`, `Target1`, and `Target2` remain stable Pro-support channels and should not be the first cut targets.
+4. Removing the five legacy exports reopened enough headroom for exactly one full 4-row module cut, and that budget was consumed by replacing `ModulePackA` with `SdConfluenceRow`, `SdOscRow`, `VolRegimeRow`, and `VolSqueezeRow`, then `ModulePackB` with `VolExpandRow`, `DdviRow`, `StretchSupportMask`, and `LtfBiasHint`, then the first `ModulePackC` cut with `SwingRow` and `ObjectsCountPack`, then the direct replacement of `ModulePackC` with `LtfDeltaRow` and `MicroProfileRow`, then the local retirement of `DebugFlagsRow`, `LongTriggersRow`, and `RiskPlanRow`, then the fold-in of `MicroModifierMask` into `MicroProfileRow`, then the consolidation of `ReadyGateRow` plus `StrictGateRow` into `ReadyStrictPack`, then the retirement of the fixed `QualityBoundsPack` support channel into local dashboard formatting, then the retirement of `EventRiskRow` into local `LeanPackA.slot2` reconstruction, then the fold-in of `VolExpandRow` plus `DdviRow` into `ReadyStrictPack.slot2` and `slot3`, then the consolidation of `LtfDeltaRow`, `SwingRow`, and `MicroProfileRow` into `ModulePackD`, and finally the retirement of both remaining packs into the explicit support-code surface. The engine now sits at `58 / 64` plots.
+5. `Debug Flags`, `Long Debug`, `Long Triggers`, `Risk Plan`, and fixed `Signal Quality` bounds now derive locally in the dashboard. The former `ModulePackD` and `ReadyStrictPack` transports have been replaced by explicit support codes for `LTF Delta`, safe trend, micro profile, ready blocker, strict blocker, volatility expansion, and DDVI context; `Micro Profile` still carries modifier presence inline.
+6. `MetaPack`, `StopLevel`, `Target1`, and `Target2` remain stable Pro-support channels and should not be the first cut targets.
 7. `BUS QualityScore`, the strategy's 8-channel executable contract, and the Lite surface remain fixed while C9 proceeds.
 8. Manifest-backed regression should pin that partition so later refactors do not quietly move Lite/product boundaries under a cleanup label.
 

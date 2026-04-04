@@ -23,7 +23,6 @@ Consumer references:
 | `BUS StateCode` | aktiv | compressed lifecycle summary | Dashboard | mittel | später aufsplitten |
 | `BUS TrendPack` | aktiv | current plus HTF trend states | Dashboard | mittel | behalten |
 | `BUS MetaPack` | aktiv | freshness, source-state, reclaim, zone classes | Dashboard | mittel | später aufsplitten |
-| `BUS QualityBoundsPack` | aktiv | score min/max support values | Dashboard | niedrig | behalten |
 | `BUS SessionGateRow` | aktiv | direct session gate row | Dashboard | mittel | behalten |
 | `BUS MarketGateRow` | aktiv | direct market gate row | Dashboard | mittel | behalten |
 | `BUS VolaGateRow` | aktiv | direct vola gate row | Dashboard | mittel | behalten |
@@ -44,12 +43,13 @@ Consumer references:
 | `BUS SdOscRow` | aktiv | direct SD-osc row | Dashboard | mittel | behalten |
 | `BUS VolRegimeRow` | aktiv | direct volatility-regime row | Dashboard | mittel | behalten |
 | `BUS VolSqueezeRow` | aktiv | direct volatility-squeeze row | Dashboard | mittel | behalten |
-| `BUS VolExpandRow` | aktiv | direct volatility-expansion row | Dashboard | mittel | ersetzen |
-| `BUS DdviRow` | aktiv | direct DDVI row | Dashboard | mittel | ersetzen |
-| `BUS ModulePackC` | aktiv | module row transport | Dashboard | mittel | ersetzen |
-| `BUS LongTriggersRow` | aktiv | direct trigger-row transport | Dashboard | mittel | ersetzen |
-| `BUS RiskPlanRow` | aktiv | direct risk-plan row transport | Dashboard | mittel | ersetzen |
-| `BUS DebugFlagsRow` | aktiv | direct debug-flags row transport | Dashboard | mittel | ersetzen |
+| `BUS LtfDeltaState` | aktiv | explicit LTF-delta support state | Dashboard | mittel | spaeter aufsplitten |
+| `BUS SafeTrendState` | aktiv | explicit safe-trend support state for swing text | Dashboard | mittel | spaeter aufsplitten |
+| `BUS MicroProfileCode` | aktiv | explicit micro-profile support code with modifier flag | Dashboard | mittel | spaeter aufsplitten |
+| `BUS ReadyBlockerCode` | aktiv | explicit ready-blocker support code | Dashboard | mittel | spaeter aufsplitten |
+| `BUS StrictBlockerCode` | aktiv | explicit strict-blocker support code | Dashboard | mittel | spaeter aufsplitten |
+| `BUS VolExpansionState` | aktiv | explicit volatility-expansion support state | Dashboard | mittel | spaeter aufsplitten |
+| `BUS DdviContextState` | aktiv | explicit DDVI-context support state | Dashboard | mittel | spaeter aufsplitten |
 | `BUS StopLevel` | aktiv | stop level | Dashboard | niedrig | behalten |
 | `BUS Target1` | aktiv | first target level | Dashboard | niedrig | behalten |
 | `BUS Target2` | aktiv | second target level | Dashboard | niedrig | behalten |
@@ -85,3 +85,6 @@ Consumer references:
 - not currently assigned to any active consumer in the present contract and only retained temporarily for compatibility
 
 Previously retained legacy-compat channels have been retired from the current producer contract and are no longer part of this matrix.
+
+`Debug Flags` are now dashboard-local mirror state and no longer part of the
+active producer contract.

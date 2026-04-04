@@ -7,10 +7,11 @@ indicator("SMC Dashboard", "SMC Dash", overlay = true, max_labels_count = 50)
 
 var string g_bus_lifecycle = "1. Core BUS - Lifecycle"
 var string g_bus_diag_rows = "2. Core BUS - Diagnostic Rows"
-var string g_bus_diag = "3. Core BUS - Diagnostic Packs"
+var string g_bus_diag = "3. Core BUS - Diagnostic Support"
 var string g_bus_plan = "4. Core BUS - Trade Plan"
 var string g_bus_detail = "5. Core BUS - Detail Surface"
 var string g_bus_lean = "6. Core BUS - Lean Surface"
+var string g_local_debug = "7. Dashboard - Local Debug Mirrors"
 
 src_zone_active = input.source(close, "BUS ZoneActive", group = g_bus_lifecycle, tooltip = "Bind this section top-to-bottom to the matching hidden BUS series published by SMC Core Engine.")
 src_armed = input.source(close, "BUS Armed", group = g_bus_lifecycle)
@@ -45,18 +46,13 @@ src_sd_confluence_row = input.source(close, "BUS SdConfluenceRow", group = g_bus
 src_sd_osc_row = input.source(close, "BUS SdOscRow", group = g_bus_diag_rows)
 src_vol_regime_row = input.source(close, "BUS VolRegimeRow", group = g_bus_diag_rows)
 src_vol_squeeze_row = input.source(close, "BUS VolSqueezeRow", group = g_bus_diag_rows)
-src_vol_expand_row = input.source(close, "BUS VolExpandRow", group = g_bus_diag_rows)
-src_ddvi_row = input.source(close, "BUS DdviRow", group = g_bus_diag_rows)
-src_swing_row = input.source(close, "BUS SwingRow", group = g_bus_diag_rows)
-src_event_risk_row = input.source(close, "BUS EventRiskRow", group = g_bus_diag)
-src_quality_bounds_pack = input.source(close, "BUS QualityBoundsPack", group = g_bus_diag)
-src_module_pack_c = input.source(close, "BUS ModulePackC", group = g_bus_diag)
-src_long_triggers_row = input.source(close, "BUS LongTriggersRow", group = g_bus_diag_rows)
-src_risk_plan_row = input.source(close, "BUS RiskPlanRow", group = g_bus_diag_rows)
-src_debug_flags_row = input.source(close, "BUS DebugFlagsRow", group = g_bus_diag_rows)
-src_ready_gate_row = input.source(close, "BUS ReadyGateRow", group = g_bus_diag_rows)
-src_strict_gate_row = input.source(close, "BUS StrictGateRow", group = g_bus_diag_rows)
-src_micro_modifier_mask = input.source(close, "BUS MicroModifierMask", group = g_bus_diag_rows)
+src_ltf_delta_state = input.source(close, "BUS LtfDeltaState", group = g_bus_diag)
+src_safe_trend_state = input.source(close, "BUS SafeTrendState", group = g_bus_diag)
+src_micro_profile_code = input.source(close, "BUS MicroProfileCode", group = g_bus_diag)
+src_ready_blocker_code = input.source(close, "BUS ReadyBlockerCode", group = g_bus_diag)
+src_strict_blocker_code = input.source(close, "BUS StrictBlockerCode", group = g_bus_diag)
+src_vol_expansion_state = input.source(close, "BUS VolExpansionState", group = g_bus_diag)
+src_ddvi_context_state = input.source(close, "BUS DdviContextState", group = g_bus_diag)
 src_stop_level = input.source(close, "BUS StopLevel", group = g_bus_plan, tooltip = "These trade-plan bindings stay separate so they can be checked last.")
 src_target_1 = input.source(close, "BUS Target1", group = g_bus_plan)
 src_target_2 = input.source(close, "BUS Target2", group = g_bus_plan)
@@ -79,6 +75,9 @@ src_lean_pack_b = input.source(close, "BUS LeanPackB", group = g_bus_lean)
 show_table = input.bool(true, "Show Dashboard")
 show_risk_lines = input.bool(true, "Show Trigger/Invalidation")
 show_state_bg = input.bool(false, "State Background")
+local_ob_debug_enabled = input.bool(false, "OB Debug Enabled", group = g_local_debug, tooltip = "Mirror the core's effective debug flags here if you want the local Debug Flags and Long Debug rows to match the core setup.")
+local_fvg_debug_enabled = input.bool(false, "FVG Debug Enabled", group = g_local_debug)
+local_engine_debug_enabled = input.bool(false, "Long Engine Debug Enabled", group = g_local_debug)
 
 state_on(float value) =>
     not na(value) and value > 0.5
@@ -143,6 +142,10 @@ pack_bus_row(int row_state, int reason_code) =>
 debug_engine_enabled(int row_code) =>
     int(math.floor(row_reason(row_code) / 4)) % 2 == 1
 
+resolve_debug_flags_row_code(bool ob_debug_enabled, bool fvg_debug_enabled, bool engine_debug_enabled) =>
+    int reason_code = (ob_debug_enabled ? 1 : 0) + (fvg_debug_enabled ? 2 : 0) + (engine_debug_enabled ? 4 : 0)
+    pack_bus_row(reason_code > 0 ? 5 : 0, reason_code)
+
 resolve_debug_state_row_code(int debug_flags_row_code, int state_code, bool armed_state, bool confirmed_state, bool ready_state) =>
     if not debug_engine_enabled(debug_flags_row_code)
         pack_bus_row(0, 0)
@@ -152,6 +155,102 @@ resolve_debug_state_row_code(int debug_flags_row_code, int state_code, bool arme
         pack_bus_row(5, 3)
     else
         pack_bus_row(2, 4)
+
+resolve_long_triggers_row_code(float trigger_level, float invalidation_level) =>
+    if na(trigger_level) and na(invalidation_level)
+        pack_bus_row(0, 2)
+    else if na(trigger_level) or na(invalidation_level)
+        pack_bus_row(2, 3)
+    else
+        pack_bus_row(5, 1)
+
+resolve_risk_plan_row_code(float trigger_level, float invalidation_level, float stop_level, float target_1, float target_2) =>
+    if na(trigger_level) and na(invalidation_level) and na(stop_level) and na(target_1) and na(target_2)
+        pack_bus_row(0, 2)
+    else if na(trigger_level) or na(invalidation_level)
+        pack_bus_row(2, 3)
+    else if not na(stop_level) and not na(target_1) and not na(target_2)
+        pack_bus_row(5, 1)
+    else
+        pack_bus_row(2, 4)
+
+ltf_delta_row_code_from_state(int state_code) =>
+    if state_code == 2
+        pack_bus_row(0, 2)
+    else if state_code == 3
+        pack_bus_row(2, 3)
+    else if state_code == 4
+        pack_bus_row(0, 4)
+    else if state_code == 5
+        pack_bus_row(5, 5)
+    else if state_code == 6
+        pack_bus_row(-1, 6)
+    else
+        pack_bus_row(0, 1)
+
+swing_row_code_from_state(int state_code) =>
+    state_code == 1 ? pack_bus_row(5, 1) : state_code == 2 ? pack_bus_row(-1, 2) : pack_bus_row(0, 3)
+
+micro_profile_row_code_from_code(int profile_code) =>
+    if profile_code <= 0
+        pack_bus_row(0, 0)
+    else
+        bool has_modifiers = profile_code >= 10
+        int base_code = has_modifiers ? profile_code - 10 : profile_code
+        bool known_profile = base_code >= 1 and base_code <= 6
+        int profile_state = has_modifiers or base_code != 1 ? 5 : 3
+        known_profile ? pack_bus_row(profile_state, has_modifiers ? base_code + 10 : base_code) : pack_bus_row(0, 0)
+
+ready_gate_row_code_from_blocker(int blocker_code) =>
+    if blocker_code == 1
+        pack_bus_row(5, 1)
+    else if blocker_code >= 10 and blocker_code <= 24
+        pack_bus_row(-1, blocker_code)
+    else if blocker_code >= 2 and blocker_code <= 9
+        pack_bus_row(2, blocker_code)
+    else
+        pack_bus_row(2, 9)
+
+strict_gate_row_code_from_blocker(int blocker_code) =>
+    if blocker_code == 1
+        pack_bus_row(5, 1)
+    else if blocker_code == 2
+        pack_bus_row(2, 2)
+    else if blocker_code >= 3 and blocker_code <= 10
+        pack_bus_row(-1, blocker_code)
+    else
+        pack_bus_row(2, 2)
+
+vol_expand_row_code_from_state(int state_code) =>
+    state_code == 2 ? pack_bus_row(5, 2) : state_code == 3 ? pack_bus_row(3, 3) : state_code == 4 ? pack_bus_row(0, 4) : pack_bus_row(0, 1)
+
+ddvi_row_code_from_state(int state_code) =>
+    if state_code == 2
+        pack_bus_row(5, 2)
+    else if state_code == 3
+        pack_bus_row(4, 3)
+    else if state_code == 4
+        pack_bus_row(4, 4)
+    else if state_code == 5
+        pack_bus_row(3, 5)
+    else if state_code == 6
+        pack_bus_row(0, 6)
+    else
+        pack_bus_row(0, 1)
+
+resolve_event_risk_diag_row_code(int lean_erl_row_code) =>
+    int lean_state = row_status(lean_erl_row_code)
+    int lean_reason = row_reason(lean_erl_row_code)
+    if lean_state == -1 and lean_reason == 1
+        pack_bus_row(-1, 4)
+    else if lean_state == -1 and lean_reason == 6
+        pack_bus_row(-1, 5)
+    else if lean_state == 2 and lean_reason == 3
+        pack_bus_row(2, 2)
+    else if lean_state == 3 and lean_reason == 4
+        pack_bus_row(2, 3)
+    else
+        pack_bus_row(5, 1)
 
 resolve_objects_row_code(int ob_count, int fvg_count) =>
     if ob_count > 0 and fvg_count > 0
@@ -703,22 +802,24 @@ decode_swing_text(int row_code) =>
     int reason_code = row_reason(row_code)
     reason_code == 1 ? "Bullish structure" : reason_code == 2 ? "Bearish structure" : "Neutral"
 
-decode_micro_profile_text(int row_code, int modifier_mask) =>
+decode_micro_profile_text(int row_code) =>
     int reason_code = row_reason(row_code)
+    bool has_modifiers = reason_code >= 10
+    int base_reason = has_modifiers ? reason_code - 10 : reason_code
     string label_text = "off"
-    if reason_code == 1
+    if base_reason == 1
         label_text := "Default"
-    else if reason_code == 2
+    else if base_reason == 2
         label_text := "Stop-Hunt Sensitive"
-    else if reason_code == 3
+    else if base_reason == 3
         label_text := "Clean Reclaim"
-    else if reason_code == 4
+    else if base_reason == 4
         label_text := "RTH Only"
-    else if reason_code == 5
+    else if base_reason == 5
         label_text := "Midday Dead"
-    else if reason_code == 6
+    else if base_reason == 6
         label_text := "Fast Decay"
-    if modifier_mask > 0
+    if has_modifiers
         label_text += " | mod"
     label_text
 
@@ -809,11 +910,8 @@ decode_strict_gate_text(int row_code) =>
         label_text := "DDVI blocked"
     label_text
 
-quality_bounds_text(float score_value, float bounds_pack) =>
-    int packed = int(math.round(nz(bounds_pack, 0.0)))
-    int min_score = int(math.floor(packed / 1000))
-    int max_score = packed % 1000
-    str.tostring(score_value, "#.##") + "/" + str.tostring(max_score) + " | min " + str.tostring(min_score)
+quality_bounds_text(float score_value) =>
+    str.tostring(score_value, "#.##") + "/100 | min 25"
 
 plan_text(bool active, float trigger_level, float stop_level, float target_1, float target_2) =>
     if not active
@@ -929,34 +1027,40 @@ int vwap_row_code = int(math.round(nz(src_vwap_row, 0.0)))
 int context_quality_row_code = int(math.round(nz(src_context_quality_row, 0.0)))
 int quality_clean_row_code = int(math.round(nz(src_quality_clean_row, 0.0)))
 int quality_score_row_code = int(math.round(nz(src_quality_score_row, 0.0)))
-int event_risk_row_code = int(math.round(nz(src_event_risk_row, 0.0)))
 int sd_confluence_row_code = int(math.round(nz(src_sd_confluence_row, 0.0)))
 int sd_osc_row_code = int(math.round(nz(src_sd_osc_row, 0.0)))
 int vol_regime_row_code = int(math.round(nz(src_vol_regime_row, 0.0)))
 int vol_squeeze_row_code = int(math.round(nz(src_vol_squeeze_row, 0.0)))
-int vol_expand_row_code = int(math.round(nz(src_vol_expand_row, 0.0)))
-int ltf_delta_row_code = pack_slot(src_module_pack_c, 0)
+int ltf_delta_state_code = int(math.round(nz(src_ltf_delta_state, 0.0)))
+int ltf_delta_row_code = ltf_delta_row_code_from_state(ltf_delta_state_code)
 int stretch_row_code = resolve_stretch_row_code(src_stretch_z, src_stretch_support_mask)
-int ddvi_row_code = int(math.round(nz(src_ddvi_row, 0.0)))
-int swing_row_code = int(math.round(nz(src_swing_row, 0.0)))
+int safe_trend_state_code = int(math.round(nz(src_safe_trend_state, 0.0)))
+int swing_row_code = swing_row_code_from_state(safe_trend_state_code)
 int ltf_bias_row_code = resolve_ltf_bias_row_code(ltf_delta_row_code, src_ltf_bull_share, src_ltf_bias_hint)
 int objects_ob_count = count_pack_slot(src_objects_count_pack, 0)
 int objects_fvg_count = count_pack_slot(src_objects_count_pack, 1)
 int objects_row_code = resolve_objects_row_code(objects_ob_count, objects_fvg_count)
-int micro_profile_row_code = pack_slot(src_module_pack_c, 3)
+int micro_profile_encoded = int(math.round(nz(src_micro_profile_code, 0.0)))
+int micro_profile_row_code = micro_profile_row_code_from_code(micro_profile_encoded)
 int long_zones_row_code = zone_row_code(zone_code)
-int long_triggers_row_code = int(math.round(nz(src_long_triggers_row, 0.0)))
-int risk_plan_row_code = int(math.round(nz(src_risk_plan_row, 0.0)))
-int debug_flags_row_code = int(math.round(nz(src_debug_flags_row, 0.0)))
-int ready_gate_row_code = int(math.round(nz(src_ready_gate_row, 0.0)))
-int strict_gate_row_code = int(math.round(nz(src_strict_gate_row, 0.0)))
+int long_triggers_row_code = resolve_long_triggers_row_code(src_trigger, src_invalidation)
+int risk_plan_row_code = resolve_risk_plan_row_code(src_trigger, src_invalidation, src_stop_level, src_target_1, src_target_2)
+int debug_flags_row_code = resolve_debug_flags_row_code(local_ob_debug_enabled, local_fvg_debug_enabled, local_engine_debug_enabled)
+int ready_blocker_code = int(math.round(nz(src_ready_blocker_code, 0.0)))
+int strict_blocker_code = int(math.round(nz(src_strict_blocker_code, 0.0)))
+int vol_expansion_state_code = int(math.round(nz(src_vol_expansion_state, 0.0)))
+int ddvi_context_state_code = int(math.round(nz(src_ddvi_context_state, 0.0)))
+int ready_gate_row_code = ready_gate_row_code_from_blocker(ready_blocker_code)
+int strict_gate_row_code = strict_gate_row_code_from_blocker(strict_blocker_code)
+int vol_expand_row_code = vol_expand_row_code_from_state(vol_expansion_state_code)
+int ddvi_row_code = ddvi_row_code_from_state(ddvi_context_state_code)
 int debug_state_row_code = resolve_debug_state_row_code(debug_flags_row_code, state_code, armed, confirmed, ready)
-int micro_modifier_mask = int(math.round(nz(src_micro_modifier_mask, 0.0)))
 // v5.5 Lean Pack unpacking
 int lean_sq_row_code = pack_slot(src_lean_pack_a, 0)
 int lean_freshness_row_code = pack_slot(src_lean_pack_a, 1)
 int lean_erl_row_code = pack_slot(src_lean_pack_a, 2)
 int lean_struct_row_code = pack_slot(src_lean_pack_a, 3)
+int event_risk_row_code = resolve_event_risk_diag_row_code(lean_erl_row_code)
 int lean_ob_row_code = pack_slot(src_lean_pack_b, 0)
 int lean_fvg_row_code = pack_slot(src_lean_pack_b, 1)
 int lean_session_row_code = pack_slot(src_lean_pack_b, 2)
@@ -1016,7 +1120,7 @@ if show_table and barstate.islast
     dashboard_row(smc_dashboard, 32, "Diag | Rel Volume", decode_relvol_text(relvol_row_code, src_relvol_value), diagnostic_metric_bg(row_status(relvol_row_code)), txt)
     dashboard_row(smc_dashboard, 33, "Diag | VWAP Filter", decode_vwap_text(vwap_row_code, src_session_vwap), diagnostic_metric_bg(row_status(vwap_row_code)), txt)
     dashboard_row(smc_dashboard, 34, "Diag | Context Quality", decode_context_quality_text(context_quality_row_code), diagnostic_metric_bg(row_status(context_quality_row_code)), txt)
-    dashboard_row(smc_dashboard, 35, "Primary | Signal Quality", quality_bounds_text(src_quality_score, src_quality_bounds_pack), primary_metric_bg(row_status(quality_score_row_code)), txt)
+    dashboard_row(smc_dashboard, 35, "Primary | Signal Quality", quality_bounds_text(src_quality_score), primary_metric_bg(row_status(quality_score_row_code)), txt)
     dashboard_row(smc_dashboard, 36, "Primary | Quality Clean", decode_quality_clean_text(quality_clean_row_code), primary_metric_bg(row_status(quality_clean_row_code)), txt)
     section_row(smc_dashboard, 37, "[ Modules — Diagnostic ]", header_bg, txt)
     dashboard_row(smc_dashboard, 38, "SD Confluence", decode_sd_confluence_text(sd_confluence_row_code), status_bg(row_status(sd_confluence_row_code)), txt)
@@ -1032,7 +1136,7 @@ if show_table and barstate.islast
     dashboard_row(smc_dashboard, 48, "Swing H/L", decode_swing_text(swing_row_code), status_bg(row_status(swing_row_code)), txt)
     dashboard_row(smc_dashboard, 49, "Long Zones", long_zones_text, status_bg(row_status(long_zones_row_code)), txt)
     dashboard_row(smc_dashboard, 50, "Long Triggers", trigger_text(row_status(long_triggers_row_code) == 5, src_trigger, src_invalidation), status_bg(row_status(long_triggers_row_code)), txt)
-    dashboard_row(smc_dashboard, 51, "Micro Profile", decode_micro_profile_text(micro_profile_row_code, micro_modifier_mask), status_bg(row_status(micro_profile_row_code)), txt)
+    dashboard_row(smc_dashboard, 51, "Micro Profile", decode_micro_profile_text(micro_profile_row_code), status_bg(row_status(micro_profile_row_code)), txt)
     dashboard_row(smc_dashboard, 52, "Risk Plan", plan_text(row_status(risk_plan_row_code) == 5, src_trigger, src_stop_level, src_target_1, src_target_2), status_bg(row_status(risk_plan_row_code)), txt)
     section_row(smc_dashboard, 53, "[ Engine — Diagnostic ]", header_bg, txt)
     dashboard_row(smc_dashboard, 54, "Ready Gate", decode_ready_gate_text(ready_gate_row_code), status_bg(row_status(ready_gate_row_code)), txt)

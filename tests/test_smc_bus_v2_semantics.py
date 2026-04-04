@@ -70,6 +70,11 @@ def debug_engine_enabled(row_code: int) -> bool:
     return (row_reason(row_code) // 4) % 2 == 1
 
 
+def resolve_debug_flags_row_code(ob_debug_enabled: bool, fvg_debug_enabled: bool, engine_debug_enabled: bool) -> int:
+    reason_code = (1 if ob_debug_enabled else 0) + (2 if fvg_debug_enabled else 0) + (4 if engine_debug_enabled else 0)
+    return pack_bus_row(5 if reason_code > 0 else 0, reason_code)
+
+
 def resolve_debug_state_row_code(
     debug_flags_row_code: int,
     state_code: int,
@@ -84,6 +89,190 @@ def resolve_debug_state_row_code(
     if armed_state or confirmed_state or ready_state:
         return pack_bus_row(5, 3)
     return pack_bus_row(2, 4)
+
+
+def resolve_long_triggers_row_code(trigger_level: float | None, invalidation_level: float | None) -> int:
+    if trigger_level is None and invalidation_level is None:
+        return pack_bus_row(0, 2)
+    if trigger_level is None or invalidation_level is None:
+        return pack_bus_row(2, 3)
+    return pack_bus_row(5, 1)
+
+
+def resolve_risk_plan_row_code(
+    trigger_level: float | None,
+    invalidation_level: float | None,
+    stop_level: float | None,
+    target_1: float | None,
+    target_2: float | None,
+) -> int:
+    if (
+        trigger_level is None
+        and invalidation_level is None
+        and stop_level is None
+        and target_1 is None
+        and target_2 is None
+    ):
+        return pack_bus_row(0, 2)
+    if trigger_level is None or invalidation_level is None:
+        return pack_bus_row(2, 3)
+    if stop_level is not None and target_1 is not None and target_2 is not None:
+        return pack_bus_row(5, 1)
+    return pack_bus_row(2, 4)
+
+
+def resolve_ltf_delta_state(
+    show_dashboard_ltf_eff: bool,
+    ltf_sampling_active: bool,
+    ltf_price_only: bool,
+    ltf_volume_delta: float | None,
+) -> int:
+    if not show_dashboard_ltf_eff:
+        return 1
+    if not ltf_sampling_active:
+        return 2
+    if ltf_price_only:
+        return 3
+    if ltf_volume_delta is None:
+        return 4
+    if ltf_volume_delta >= 0:
+        return 5
+    return 6
+
+
+def ltf_delta_row_code_from_state(state_code: int) -> int:
+    if state_code == 2:
+        return pack_bus_row(0, 2)
+    if state_code == 3:
+        return pack_bus_row(2, 3)
+    if state_code == 4:
+        return pack_bus_row(0, 4)
+    if state_code == 5:
+        return pack_bus_row(5, 5)
+    if state_code == 6:
+        return pack_bus_row(-1, 6)
+    return pack_bus_row(0, 1)
+
+
+def resolve_safe_trend_state(bullish_trend_safe: bool, bearish_trend_safe: bool) -> int:
+    return 1 if bullish_trend_safe else 2 if bearish_trend_safe else 3
+
+
+def swing_row_code_from_state(state_code: int) -> int:
+    if state_code == 1:
+        return pack_bus_row(5, 1)
+    if state_code == 2:
+        return pack_bus_row(-1, 2)
+    return pack_bus_row(0, 3)
+
+
+def resolve_micro_profile_code(
+    use_microstructure_profiles: bool,
+    micro_profile_text: str,
+    micro_modifier_text: str,
+) -> int:
+    if not use_microstructure_profiles:
+        return 0
+
+    profile_code = 1
+    if micro_profile_text == 'Stop-Hunt Sensitive':
+        profile_code = 2
+    elif micro_profile_text == 'Clean Reclaim':
+        profile_code = 3
+    elif micro_profile_text == 'RTH Only':
+        profile_code = 4
+    elif micro_profile_text == 'Midday Dead':
+        profile_code = 5
+    elif micro_profile_text == 'Fast Decay':
+        profile_code = 6
+
+    if len(micro_modifier_text) > 0:
+        profile_code += 10
+    return profile_code
+
+
+def micro_profile_row_code_from_code(profile_code: int) -> int:
+    if profile_code <= 0:
+        return pack_bus_row(0, 0)
+
+    has_modifiers = profile_code >= 10
+    base_code = profile_code - 10 if has_modifiers else profile_code
+    if base_code < 1 or base_code > 6:
+        return pack_bus_row(0, 0)
+
+    profile_state = 5 if has_modifiers or base_code != 1 else 3
+    return pack_bus_row(profile_state, base_code + 10 if has_modifiers else base_code)
+
+
+def resolve_micro_profile_row_code(
+    use_microstructure_profiles: bool,
+    micro_profile_text: str,
+    micro_modifier_text: str,
+) -> int:
+    return micro_profile_row_code_from_code(
+        resolve_micro_profile_code(use_microstructure_profiles, micro_profile_text, micro_modifier_text)
+    )
+
+
+def ready_gate_row_code_from_blocker(blocker_code: int) -> int:
+    if blocker_code == 1:
+        return pack_bus_row(5, 1)
+    if 10 <= blocker_code <= 24:
+        return pack_bus_row(-1, blocker_code)
+    if 2 <= blocker_code <= 9:
+        return pack_bus_row(2, blocker_code)
+    return pack_bus_row(2, 9)
+
+
+def strict_gate_row_code_from_blocker(blocker_code: int) -> int:
+    if blocker_code == 1:
+        return pack_bus_row(5, 1)
+    if blocker_code == 2:
+        return pack_bus_row(2, 2)
+    if 3 <= blocker_code <= 10:
+        return pack_bus_row(-1, blocker_code)
+    return pack_bus_row(2, 2)
+
+
+def vol_expand_row_code_from_state(state_code: int) -> int:
+    if state_code == 2:
+        return pack_bus_row(5, 2)
+    if state_code == 3:
+        return pack_bus_row(3, 3)
+    if state_code == 4:
+        return pack_bus_row(0, 4)
+    return pack_bus_row(0, 1)
+
+
+def ddvi_row_code_from_state(state_code: int) -> int:
+    if state_code == 2:
+        return pack_bus_row(5, 2)
+    if state_code == 3:
+        return pack_bus_row(4, 3)
+    if state_code == 4:
+        return pack_bus_row(4, 4)
+    if state_code == 5:
+        return pack_bus_row(3, 5)
+    if state_code == 6:
+        return pack_bus_row(0, 6)
+    return pack_bus_row(0, 1)
+
+
+def decode_micro_profile_text(row_code: int) -> str:
+    reason_code = row_reason(row_code)
+    has_modifiers = reason_code >= 10
+    base_reason = reason_code - 10 if has_modifiers else reason_code
+    label_text = {
+        1: 'Default',
+        2: 'Stop-Hunt Sensitive',
+        3: 'Clean Reclaim',
+        4: 'RTH Only',
+        5: 'Midday Dead',
+        6: 'Fast Decay',
+    }.get(base_reason, 'off')
+    if has_modifiers:
+        label_text += ' | mod'
+    return label_text
 
 
 def normalize_bus_trend(direction: int) -> int:
@@ -286,10 +475,8 @@ def decode_volume_data_text(row_code: int) -> str:
     return 'No current bar volume'
 
 
-def quality_bounds(score_value: float, bounds_pack: int) -> tuple[int, int, str]:
-    min_score = bounds_pack // 1000
-    max_score = bounds_pack % 1000
-    return min_score, max_score, f'{score_value:.2f}'.rstrip('0').rstrip('.') + f'/{max_score} | min {min_score}'
+def render_quality_bounds_text(score_value: float) -> str:
+    return f'{score_value:.2f}'.rstrip('0').rstrip('.') + '/100 | min 25'
 
 
 def test_original_10_core_channels_remain_present_in_order() -> None:
@@ -344,18 +531,31 @@ def test_row_pack_and_unpack_contract_round_trips_consistently() -> None:
     assert row_reason(row_d) == 5
 
 
-def test_object_count_pack_and_module_pack_c_split_round_trip_consistently() -> None:
+def test_object_count_pack_and_support_code_exports_round_trip_consistently() -> None:
     core_source = _read(CORE_PATH)
     dashboard_source = _read(DASHBOARD_PATH)
 
     assert 'pack_bus_counts(int primary_count, int secondary_count) =>' in core_source
     assert 'count_pack_slot(float packed_value, int slot) =>' in dashboard_source
-    assert 'resolve_bus_module_pack_c(bool show_dashboard_ltf_eff, bool ltf_sampling_active, bool ltf_price_only, float ltf_volume_delta, bool use_microstructure_profiles, string micro_profile_text, string micro_modifier_text) =>' in core_source
-    assert 'int ltf_delta_row_code = pack_slot(src_module_pack_c, 0)' in dashboard_source
-    assert 'int micro_profile_row_code = pack_slot(src_module_pack_c, 3)' in dashboard_source
-    assert 'pack_slot(src_module_pack_c, 1)' not in dashboard_source
-    assert 'pack_slot(src_module_pack_c, 2)' not in dashboard_source
-    assert 'int swing_row_code = int(math.round(nz(src_swing_row, 0.0)))' in dashboard_source
+    assert 'resolve_bus_ltf_delta_state(bool show_dashboard_ltf_eff, bool ltf_sampling_active, bool ltf_price_only, float ltf_volume_delta) =>' in core_source
+    assert 'resolve_bus_safe_trend_state(bool bullish_trend_safe, bool bearish_trend_safe) =>' in core_source
+    assert 'resolve_bus_micro_profile_code(bool use_microstructure_profiles, string micro_profile_text, string micro_modifier_text) =>' in core_source
+    assert 'resolve_bus_module_pack_c(' not in core_source
+    assert 'resolve_bus_micro_modifier_mask(' not in core_source
+    assert 'src_ltf_delta_state = input.source(close, "BUS LtfDeltaState"' in dashboard_source
+    assert 'src_safe_trend_state = input.source(close, "BUS SafeTrendState"' in dashboard_source
+    assert 'src_micro_profile_code = input.source(close, "BUS MicroProfileCode"' in dashboard_source
+    assert 'src_module_pack_c = input.source(close, "BUS ModulePackC"' not in dashboard_source
+    assert 'src_micro_modifier_mask = input.source(close, "BUS MicroModifierMask"' not in dashboard_source
+    assert 'ltf_delta_row_code_from_state(int state_code) =>' in dashboard_source
+    assert 'swing_row_code_from_state(int state_code) =>' in dashboard_source
+    assert 'micro_profile_row_code_from_code(int profile_code) =>' in dashboard_source
+    assert 'int ltf_delta_state_code = int(math.round(nz(src_ltf_delta_state, 0.0)))' in dashboard_source
+    assert 'int ltf_delta_row_code = ltf_delta_row_code_from_state(ltf_delta_state_code)' in dashboard_source
+    assert 'int safe_trend_state_code = int(math.round(nz(src_safe_trend_state, 0.0)))' in dashboard_source
+    assert 'int swing_row_code = swing_row_code_from_state(safe_trend_state_code)' in dashboard_source
+    assert 'int micro_profile_encoded = int(math.round(nz(src_micro_profile_code, 0.0)))' in dashboard_source
+    assert 'int micro_profile_row_code = micro_profile_row_code_from_code(micro_profile_encoded)' in dashboard_source
     assert 'int objects_row_code = resolve_objects_row_code(objects_ob_count, objects_fvg_count)' in dashboard_source
 
     packed_counts = pack_bus_counts(3, 2)
@@ -365,25 +565,93 @@ def test_object_count_pack_and_module_pack_c_split_round_trip_consistently() -> 
     assert resolve_objects_row_code(3, 0) == pack_bus_row(3, 1)
     assert resolve_objects_row_code(0, 2) == pack_bus_row(3, 2)
     assert resolve_objects_row_code(0, 0) == pack_bus_row(0, 4)
+    assert resolve_ltf_delta_state(False, False, False, None) == 1
+    assert ltf_delta_row_code_from_state(resolve_ltf_delta_state(True, False, False, None)) == pack_bus_row(0, 2)
+    assert swing_row_code_from_state(resolve_safe_trend_state(True, False)) == pack_bus_row(5, 1)
+    assert micro_profile_row_code_from_code(resolve_micro_profile_code(True, 'RTH Only', 'Weak Afterhours')) == pack_bus_row(5, 14)
 
 
 def test_debug_state_row_reconstructs_locally_from_flags_and_lifecycle_contract() -> None:
     dashboard_source = _read(DASHBOARD_PATH)
 
     assert 'debug_engine_enabled(int row_code) =>' in dashboard_source
+    assert 'resolve_debug_flags_row_code(bool ob_debug_enabled, bool fvg_debug_enabled, bool engine_debug_enabled) =>' in dashboard_source
     assert 'resolve_debug_state_row_code(int debug_flags_row_code, int state_code, bool armed_state, bool confirmed_state, bool ready_state) =>' in dashboard_source
+    assert 'src_debug_flags_row = input.source(close, "BUS DebugFlagsRow"' not in dashboard_source
     assert 'src_debug_state_row = input.source(close, "BUS DebugStateRow"' not in dashboard_source
+    assert 'local_ob_debug_enabled = input.bool(false, "OB Debug Enabled", group = g_local_debug' in dashboard_source
+    assert 'local_fvg_debug_enabled = input.bool(false, "FVG Debug Enabled", group = g_local_debug)' in dashboard_source
+    assert 'local_engine_debug_enabled = input.bool(false, "Long Engine Debug Enabled", group = g_local_debug)' in dashboard_source
+    assert 'int debug_flags_row_code = resolve_debug_flags_row_code(local_ob_debug_enabled, local_fvg_debug_enabled, local_engine_debug_enabled)' in dashboard_source
     assert 'int debug_state_row_code = resolve_debug_state_row_code(debug_flags_row_code, state_code, armed, confirmed, ready)' in dashboard_source
 
     debug_engine_off = pack_bus_row(0, 0)
     debug_engine_on = pack_bus_row(5, 4)
 
+    assert resolve_debug_flags_row_code(False, False, False) == pack_bus_row(0, 0)
+    assert resolve_debug_flags_row_code(True, False, False) == pack_bus_row(5, 1)
+    assert resolve_debug_flags_row_code(False, True, False) == pack_bus_row(5, 2)
+    assert resolve_debug_flags_row_code(False, False, True) == pack_bus_row(5, 4)
     assert resolve_debug_state_row_code(debug_engine_off, 0, False, False, False) == pack_bus_row(0, 0)
     assert resolve_debug_state_row_code(debug_engine_on, -1, False, False, False) == pack_bus_row(-1, 2)
     assert resolve_debug_state_row_code(debug_engine_on, 2, False, False, False) == pack_bus_row(2, 4)
     assert resolve_debug_state_row_code(debug_engine_on, 2, True, False, False) == pack_bus_row(5, 3)
     assert resolve_debug_state_row_code(debug_engine_on, 4, False, True, False) == pack_bus_row(5, 3)
     assert resolve_debug_state_row_code(debug_engine_on, 5, False, False, True) == pack_bus_row(5, 3)
+
+
+def test_plan_rows_reconstruct_locally_from_existing_plan_levels() -> None:
+    dashboard_source = _read(DASHBOARD_PATH)
+
+    assert 'resolve_long_triggers_row_code(float trigger_level, float invalidation_level) =>' in dashboard_source
+    assert 'resolve_risk_plan_row_code(float trigger_level, float invalidation_level, float stop_level, float target_1, float target_2) =>' in dashboard_source
+    assert 'src_long_triggers_row = input.source(close, "BUS LongTriggersRow"' not in dashboard_source
+    assert 'src_risk_plan_row = input.source(close, "BUS RiskPlanRow"' not in dashboard_source
+    assert 'int long_triggers_row_code = resolve_long_triggers_row_code(src_trigger, src_invalidation)' in dashboard_source
+    assert 'int risk_plan_row_code = resolve_risk_plan_row_code(src_trigger, src_invalidation, src_stop_level, src_target_1, src_target_2)' in dashboard_source
+
+    assert resolve_long_triggers_row_code(None, None) == pack_bus_row(0, 2)
+    assert resolve_long_triggers_row_code(100.0, None) == pack_bus_row(2, 3)
+    assert resolve_long_triggers_row_code(100.0, 95.0) == pack_bus_row(5, 1)
+
+    assert resolve_risk_plan_row_code(None, None, None, None, None) == pack_bus_row(0, 2)
+    assert resolve_risk_plan_row_code(100.0, None, None, None, None) == pack_bus_row(2, 3)
+    assert resolve_risk_plan_row_code(100.0, 95.0, None, None, None) == pack_bus_row(2, 4)
+    assert resolve_risk_plan_row_code(100.0, 95.0, 94.0, 106.0, 112.0) == pack_bus_row(5, 1)
+
+
+def test_micro_profile_row_encodes_modifier_presence_inline() -> None:
+    core_source = _read(CORE_PATH)
+    dashboard_source = _read(DASHBOARD_PATH)
+
+    assert 'resolve_bus_micro_profile_code(bool use_microstructure_profiles, string micro_profile_text, string micro_modifier_text) =>' in core_source
+    assert 'resolve_bus_micro_modifier_mask(' not in core_source
+    assert 'decode_micro_profile_text(int row_code) =>' in dashboard_source
+    assert 'decode_micro_profile_text(int row_code, int modifier_mask) =>' not in dashboard_source
+    assert 'src_micro_modifier_mask = input.source(close, "BUS MicroModifierMask"' not in dashboard_source
+    assert 'int micro_modifier_mask = int(math.round(nz(src_micro_modifier_mask, 0.0)))' not in dashboard_source
+    assert 'src_micro_profile_code = input.source(close, "BUS MicroProfileCode"' in dashboard_source
+    assert 'micro_profile_row_code_from_code(int profile_code) =>' in dashboard_source
+    assert 'int micro_profile_encoded = int(math.round(nz(src_micro_profile_code, 0.0)))' in dashboard_source
+    assert 'int micro_profile_row_code = micro_profile_row_code_from_code(micro_profile_encoded)' in dashboard_source
+    assert 'dashboard_row(smc_dashboard, 51, "Micro Profile", decode_micro_profile_text(micro_profile_row_code), status_bg(row_status(micro_profile_row_code)), txt)' in dashboard_source
+
+    assert resolve_micro_profile_code(False, 'Default', '') == 0
+    assert resolve_micro_profile_code(True, 'Default', '') == 1
+    assert resolve_micro_profile_code(True, 'Default', 'Weak Premarket') == 11
+    assert resolve_micro_profile_code(True, 'RTH Only', '') == 4
+    assert resolve_micro_profile_code(True, 'RTH Only', 'Weak Afterhours') == 14
+    assert resolve_micro_profile_row_code(False, 'Default', '') == pack_bus_row(0, 0)
+    assert resolve_micro_profile_row_code(True, 'Default', '') == pack_bus_row(3, 1)
+    assert resolve_micro_profile_row_code(True, 'Default', 'Weak Premarket') == pack_bus_row(5, 11)
+    assert resolve_micro_profile_row_code(True, 'RTH Only', '') == pack_bus_row(5, 4)
+    assert resolve_micro_profile_row_code(True, 'RTH Only', 'Weak Afterhours') == pack_bus_row(5, 14)
+
+    assert decode_micro_profile_text(pack_bus_row(0, 0)) == 'off'
+    assert decode_micro_profile_text(pack_bus_row(3, 1)) == 'Default'
+    assert decode_micro_profile_text(pack_bus_row(5, 11)) == 'Default | mod'
+    assert decode_micro_profile_text(pack_bus_row(5, 4)) == 'RTH Only'
+    assert decode_micro_profile_text(pack_bus_row(5, 14)) == 'RTH Only | mod'
 
 
 def test_trend_and_meta_packs_round_trip_consistently() -> None:
@@ -472,20 +740,19 @@ def test_hard_gate_decoders_reproduce_current_bus_v2_contract() -> None:
     assert decode_volume_data_text(pack_bus_row(-1, 5)) == 'No current bar volume'
 
 
-def test_quality_bounds_pack_remains_logically_consistent_with_quality_score() -> None:
+def test_quality_score_uses_fixed_local_bounds_text() -> None:
     core_source = _read(CORE_PATH)
     dashboard_source = _read(DASHBOARD_PATH)
 
-    assert "plot(resolve_bus_quality_bounds_pack(25, 100), 'BUS QualityBoundsPack'" in core_source
-    assert 'quality_bounds_text(float score_value, float bounds_pack) =>' in dashboard_source
-    assert 'int min_score = int(math.floor(packed / 1000))' in dashboard_source
-    assert 'int max_score = packed % 1000' in dashboard_source
-    assert 'str.tostring(score_value, "#.##") + "/" + str.tostring(max_score) + " | min " + str.tostring(min_score)' in dashboard_source
+    assert 'resolve_bus_quality_bounds_pack(' not in core_source
+    assert "'BUS QualityBoundsPack'" not in core_source
+    assert 'src_quality_bounds_pack = input.source(close, "BUS QualityBoundsPack"' not in dashboard_source
+    assert 'quality_bounds_text(float score_value) =>' in dashboard_source
+    assert 'quality_bounds_text(float score_value, float bounds_pack) =>' not in dashboard_source
+    assert 'str.tostring(score_value, "#.##") + "/100 | min 25"' in dashboard_source
+    assert 'dashboard_row(smc_dashboard, 35, "Primary | Signal Quality", quality_bounds_text(src_quality_score), primary_metric_bg(row_status(quality_score_row_code)), txt)' in dashboard_source
 
-    min_score, max_score, rendered = quality_bounds(74.0, 25_100)
-    assert min_score == 25
-    assert max_score == 100
-    assert rendered == '74/100 | min 25'
+    assert render_quality_bounds_text(74.0) == '74/100 | min 25'
 
 
 def test_dashboard_and_strategy_contracts_share_same_strategy_relevant_channels() -> None:
@@ -502,10 +769,40 @@ def test_dashboard_and_strategy_contracts_share_same_strategy_relevant_channels(
     assert 'src_session_gate_row = input.source(close, "BUS SessionGateRow"' in dashboard_source
     assert 'src_close_strength_row = input.source(close, "BUS CloseStrengthRow"' in dashboard_source
     assert 'src_quality_score_row = input.source(close, "BUS QualityScoreRow"' in dashboard_source
-    assert 'src_vol_expand_row = input.source(close, "BUS VolExpandRow"' in dashboard_source
-    assert 'src_ddvi_row = input.source(close, "BUS DdviRow"' in dashboard_source
-    assert 'src_swing_row = input.source(close, "BUS SwingRow"' in dashboard_source
-    assert 'src_ready_gate_row = input.source(close, "BUS ReadyGateRow"' in dashboard_source
+    assert 'src_vol_expand_row = input.source(close, "BUS VolExpandRow"' not in dashboard_source
+    assert 'src_ddvi_row = input.source(close, "BUS DdviRow"' not in dashboard_source
+    assert 'src_ltf_delta_row = input.source(close, "BUS LtfDeltaRow"' not in dashboard_source
+    assert 'src_swing_row = input.source(close, "BUS SwingRow"' not in dashboard_source
+    assert 'src_quality_bounds_pack = input.source(close, "BUS QualityBoundsPack"' not in dashboard_source
+    assert 'src_module_pack_d = input.source(close, "BUS ModulePackD"' not in dashboard_source
+    assert 'src_ready_strict_pack = input.source(close, "BUS ReadyStrictPack"' not in dashboard_source
+    assert 'src_ltf_delta_state = input.source(close, "BUS LtfDeltaState"' in dashboard_source
+    assert 'src_safe_trend_state = input.source(close, "BUS SafeTrendState"' in dashboard_source
+    assert 'src_micro_profile_code = input.source(close, "BUS MicroProfileCode"' in dashboard_source
+    assert 'src_ready_blocker_code = input.source(close, "BUS ReadyBlockerCode"' in dashboard_source
+    assert 'src_strict_blocker_code = input.source(close, "BUS StrictBlockerCode"' in dashboard_source
+    assert 'src_vol_expansion_state = input.source(close, "BUS VolExpansionState"' in dashboard_source
+    assert 'src_ddvi_context_state = input.source(close, "BUS DdviContextState"' in dashboard_source
+    assert 'src_micro_profile_row = input.source(close, "BUS MicroProfileRow"' not in dashboard_source
+    assert 'src_micro_modifier_mask = input.source(close, "BUS MicroModifierMask"' not in dashboard_source
+    assert 'src_long_triggers_row = input.source(close, "BUS LongTriggersRow"' not in dashboard_source
+    assert 'src_risk_plan_row = input.source(close, "BUS RiskPlanRow"' not in dashboard_source
+    assert 'src_ready_gate_row = input.source(close, "BUS ReadyGateRow"' not in dashboard_source
+    assert 'src_strict_gate_row = input.source(close, "BUS StrictGateRow"' not in dashboard_source
+    assert 'int ltf_delta_state_code = int(math.round(nz(src_ltf_delta_state, 0.0)))' in dashboard_source
+    assert 'int ltf_delta_row_code = ltf_delta_row_code_from_state(ltf_delta_state_code)' in dashboard_source
+    assert 'int safe_trend_state_code = int(math.round(nz(src_safe_trend_state, 0.0)))' in dashboard_source
+    assert 'int swing_row_code = swing_row_code_from_state(safe_trend_state_code)' in dashboard_source
+    assert 'int micro_profile_encoded = int(math.round(nz(src_micro_profile_code, 0.0)))' in dashboard_source
+    assert 'int micro_profile_row_code = micro_profile_row_code_from_code(micro_profile_encoded)' in dashboard_source
+    assert 'int ready_blocker_code = int(math.round(nz(src_ready_blocker_code, 0.0)))' in dashboard_source
+    assert 'int strict_blocker_code = int(math.round(nz(src_strict_blocker_code, 0.0)))' in dashboard_source
+    assert 'int vol_expansion_state_code = int(math.round(nz(src_vol_expansion_state, 0.0)))' in dashboard_source
+    assert 'int ddvi_context_state_code = int(math.round(nz(src_ddvi_context_state, 0.0)))' in dashboard_source
+    assert 'int ready_gate_row_code = ready_gate_row_code_from_blocker(ready_blocker_code)' in dashboard_source
+    assert 'int strict_gate_row_code = strict_gate_row_code_from_blocker(strict_blocker_code)' in dashboard_source
+    assert 'int vol_expand_row_code = vol_expand_row_code_from_state(vol_expansion_state_code)' in dashboard_source
+    assert 'int ddvi_row_code = ddvi_row_code_from_state(ddvi_context_state_code)' in dashboard_source
     assert 'src_zone_ob_top = input.source(close, "BUS ZoneObTop"' in dashboard_source
     assert 'src_stretch_support_mask = input.source(close, "BUS StretchSupportMask"' in dashboard_source
     assert 'src_ltf_bias_hint = input.source(close, "BUS LtfBiasHint"' in dashboard_source
@@ -515,8 +812,41 @@ def test_dashboard_and_strategy_contracts_share_same_strategy_relevant_channels(
     assert 'src_quality_pack_b' not in dashboard_source
     assert 'src_engine_pack' not in dashboard_source
     assert 'src_module_pack_b' not in dashboard_source
+    assert 'src_module_pack_c' not in dashboard_source
     assert 'HardGatesPackA' not in strategy_source
     assert 'QualityPackA' not in strategy_source
     assert 'QualityPackB' not in strategy_source
     assert 'ModulePackB' not in strategy_source
     assert 'EnginePack' not in strategy_source
+
+
+def test_support_code_exports_reconstruct_row_contracts() -> None:
+    assert ltf_delta_row_code_from_state(1) == pack_bus_row(0, 1)
+    assert ltf_delta_row_code_from_state(2) == pack_bus_row(0, 2)
+    assert ltf_delta_row_code_from_state(3) == pack_bus_row(2, 3)
+    assert ltf_delta_row_code_from_state(5) == pack_bus_row(5, 5)
+    assert ltf_delta_row_code_from_state(6) == pack_bus_row(-1, 6)
+
+    assert swing_row_code_from_state(1) == pack_bus_row(5, 1)
+    assert swing_row_code_from_state(2) == pack_bus_row(-1, 2)
+    assert swing_row_code_from_state(3) == pack_bus_row(0, 3)
+
+    assert ready_gate_row_code_from_blocker(1) == pack_bus_row(5, 1)
+    assert ready_gate_row_code_from_blocker(7) == pack_bus_row(2, 7)
+    assert ready_gate_row_code_from_blocker(22) == pack_bus_row(-1, 22)
+
+    assert strict_gate_row_code_from_blocker(1) == pack_bus_row(5, 1)
+    assert strict_gate_row_code_from_blocker(2) == pack_bus_row(2, 2)
+    assert strict_gate_row_code_from_blocker(9) == pack_bus_row(-1, 9)
+
+    assert vol_expand_row_code_from_state(1) == pack_bus_row(0, 1)
+    assert vol_expand_row_code_from_state(2) == pack_bus_row(5, 2)
+    assert vol_expand_row_code_from_state(3) == pack_bus_row(3, 3)
+    assert vol_expand_row_code_from_state(4) == pack_bus_row(0, 4)
+
+    assert ddvi_row_code_from_state(1) == pack_bus_row(0, 1)
+    assert ddvi_row_code_from_state(2) == pack_bus_row(5, 2)
+    assert ddvi_row_code_from_state(3) == pack_bus_row(4, 3)
+    assert ddvi_row_code_from_state(4) == pack_bus_row(4, 4)
+    assert ddvi_row_code_from_state(5) == pack_bus_row(3, 5)
+    assert ddvi_row_code_from_state(6) == pack_bus_row(0, 6)
