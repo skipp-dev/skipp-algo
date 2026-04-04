@@ -56,7 +56,6 @@ src_risk_plan_row = input.source(close, "BUS RiskPlanRow", group = g_bus_diag_ro
 src_debug_flags_row = input.source(close, "BUS DebugFlagsRow", group = g_bus_diag_rows)
 src_ready_gate_row = input.source(close, "BUS ReadyGateRow", group = g_bus_diag_rows)
 src_strict_gate_row = input.source(close, "BUS StrictGateRow", group = g_bus_diag_rows)
-src_debug_state_row = input.source(close, "BUS DebugStateRow", group = g_bus_diag_rows)
 src_micro_modifier_mask = input.source(close, "BUS MicroModifierMask", group = g_bus_diag_rows)
 src_stop_level = input.source(close, "BUS StopLevel", group = g_bus_plan, tooltip = "These trade-plan bindings stay separate so they can be checked last.")
 src_target_1 = input.source(close, "BUS Target1", group = g_bus_plan)
@@ -140,6 +139,19 @@ row_reason(int row_code) =>
 
 pack_bus_row(int row_state, int reason_code) =>
     (row_state + 1) * 100 + reason_code
+
+debug_engine_enabled(int row_code) =>
+    int(math.floor(row_reason(row_code) / 4)) % 2 == 1
+
+resolve_debug_state_row_code(int debug_flags_row_code, int state_code, bool armed_state, bool confirmed_state, bool ready_state) =>
+    if not debug_engine_enabled(debug_flags_row_code)
+        pack_bus_row(0, 0)
+    else if state_code == -1
+        pack_bus_row(-1, 2)
+    else if armed_state or confirmed_state or ready_state
+        pack_bus_row(5, 3)
+    else
+        pack_bus_row(2, 4)
 
 resolve_objects_row_code(int ob_count, int fvg_count) =>
     if ob_count > 0 and fvg_count > 0
@@ -938,7 +950,7 @@ int risk_plan_row_code = int(math.round(nz(src_risk_plan_row, 0.0)))
 int debug_flags_row_code = int(math.round(nz(src_debug_flags_row, 0.0)))
 int ready_gate_row_code = int(math.round(nz(src_ready_gate_row, 0.0)))
 int strict_gate_row_code = int(math.round(nz(src_strict_gate_row, 0.0)))
-int debug_state_row_code = int(math.round(nz(src_debug_state_row, 0.0)))
+int debug_state_row_code = resolve_debug_state_row_code(debug_flags_row_code, state_code, armed, confirmed, ready)
 int micro_modifier_mask = int(math.round(nz(src_micro_modifier_mask, 0.0)))
 // v5.5 Lean Pack unpacking
 int lean_sq_row_code = pack_slot(src_lean_pack_a, 0)

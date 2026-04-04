@@ -3143,23 +3143,6 @@ resolve_bus_strict_gate_row(bool long_entry_strict_state, bool long_ready_state,
     int row_state = resolve_long_strict_row_state(reason_code)
     pack_bus_row(row_state, reason_code)
 
-resolve_bus_debug_state_row(bool show_long_engine_debug, int long_visual_state, bool long_setup_armed, bool long_setup_confirmed, bool long_ready_state) =>
-    int debug_state = 0
-    int reason_code = 1
-    if not show_long_engine_debug
-        debug_state := 0
-        reason_code := 0
-    else if long_visual_state == -1
-        debug_state := -1
-        reason_code := 2
-    else if long_setup_armed or long_setup_confirmed or long_ready_state
-        debug_state := 5
-        reason_code := 3
-    else
-        debug_state := 2
-        reason_code := 4
-    pack_bus_row(debug_state, reason_code)
-
 resolve_bus_debug_flags_row(bool show_ob_debug, bool show_fvg_debug, bool show_long_engine_debug) =>
     int reason_code = (show_ob_debug ? 1 : 0) + (show_fvg_debug ? 2 : 0) + (show_long_engine_debug ? 4 : 0)
     pack_bus_row(reason_code > 0 ? 5 : 0, reason_code)
@@ -6628,7 +6611,6 @@ plot(resolve_bus_risk_plan_row(long_plan_active, bus_trigger_level, bus_invalida
 plot(resolve_bus_debug_flags_row(show_ob_debug_eff, show_fvg_debug_eff, show_long_engine_debug_eff), 'BUS DebugFlagsRow', display = display.none)
 plot(resolve_bus_ready_gate_row(long_ready_state, long_state.confirmed, lifecycle_ready_ok, setup_hard_gate_ok, trade_hard_gate_ok, environment_hard_gate_ok, close_safe_mode, ready_bar_gap_ok, long_confirm_expired, ready_is_fresh, long_confirm_bearish_guard_ok, require_main_break_for_ready_eff, bull_bos_sig, main_bos_recent, session_structure_gate_ok, micro_session_gate_ok, micro_freshness_gate_ok, overhead_zone_ok, market_regime_gate_ok, vola_regime_gate_safe, quality_gate_ok, accel_ready_gate_ok, sd_ready_gate_ok, vol_ready_context_ok, stretch_ready_context_ok, ddvi_ready_ok_safe), 'BUS ReadyGateRow', display = display.none)
 plot(resolve_bus_strict_gate_row(long_entry_strict_state, long_ready_state, strict_signal_quality_gate_ok, strict_entry_ltf_ok, htf_alignment_ok, accel_strict_entry_gate_ok, sd_entry_strict_gate_ok, vol_entry_strict_context_ok_safe, stretch_entry_strict_context_ok, ddvi_entry_strict_ok_safe), 'BUS StrictGateRow', display = display.none)
-plot(resolve_bus_debug_state_row(show_long_engine_debug, long_visual_state, long_state.armed, long_state.confirmed, long_ready_state), 'BUS DebugStateRow', display = display.none)
 plot(resolve_bus_micro_modifier_mask(micro_modifier_text), 'BUS MicroModifierMask', display = display.none)
 plot(active_bull_ob_top, 'BUS ZoneObTop', display = display.none)
 plot(active_bull_ob_bottom, 'BUS ZoneObBottom', display = display.none)

@@ -8,13 +8,13 @@ The producer exports the full hidden bus from [SMC_Core_Engine.pine](../SMC_Core
 
 Current manual validation counts:
 
-- Producer hidden series: `64`
-- Dashboard bindings: `64`
+- Producer hidden series: `63`
+- Dashboard bindings: `63`
 - Strategy bindings: `8`
 
 ### Dashboard Needs These Bindings
 
-The dashboard expects all `64` bindings declared in [SMC_Dashboard.pine](../SMC_Dashboard.pine) and governed by [../scripts/smc_bus_manifest.py](../scripts/smc_bus_manifest.py).
+The dashboard expects all `63` bindings declared in [SMC_Dashboard.pine](../SMC_Dashboard.pine) and governed by [../scripts/smc_bus_manifest.py](../scripts/smc_bus_manifest.py).
 
 Lifecycle:
 
@@ -62,7 +62,6 @@ Diagnostic Rows:
 - `BUS DebugFlagsRow`
 - `BUS ReadyGateRow`
 - `BUS StrictGateRow`
-- `BUS DebugStateRow`
 - `BUS MicroModifierMask`
 
 Diagnostic Packs:
@@ -230,7 +229,7 @@ If this fails:
 ## Manual Cross-Check Order
 
 1. Add `SMC_Core_Engine.pine` to the chart.
-2. Add `SMC_Dashboard.pine` and bind all 64 sources to the core plots.
+2. Add `SMC_Dashboard.pine` and bind all 63 sources to the core plots.
 3. Add `SMC_Long_Strategy.pine` and bind its 8 sources to the core plots.
 4. Validate the five scenarios above on the same symbol and timeframe.
 5. If dashboard and strategy disagree, treat the core plots as the source of truth first and inspect source bindings before changing any logic.

@@ -82,6 +82,7 @@ def test_dashboard_contract_moves_to_named_rows_and_detail_channels() -> None:
     assert 'RiskPlanRow' in MANIFEST.DASHBOARD_BUS_CHANNELS
     assert 'DebugFlagsRow' in MANIFEST.DASHBOARD_BUS_CHANNELS
     assert 'ReadyGateRow' in MANIFEST.DASHBOARD_BUS_CHANNELS
+    assert 'DebugStateRow' not in MANIFEST.DASHBOARD_BUS_CHANNELS
     assert 'ZoneObTop' in MANIFEST.DASHBOARD_BUS_CHANNELS
     assert 'SessionVwap' in MANIFEST.DASHBOARD_BUS_CHANNELS
     assert 'StretchSupportMask' in MANIFEST.DASHBOARD_BUS_CHANNELS
@@ -112,7 +113,6 @@ def test_c9_cut_partitions_the_pro_only_surface() -> None:
         'DebugFlagsRow',
         'ReadyGateRow',
         'StrictGateRow',
-        'DebugStateRow',
         'MicroModifierMask',
     )
     assert MANIFEST.C9_REDUCE_BUS_CHANNELS == (

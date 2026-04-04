@@ -80,7 +80,7 @@ Hinzu kommen auf der aktiven Pro-Surface jetzt drei klar getrennte Lagen:
   `BUS SdConfluenceRow`, `BUS SdOscRow`, `BUS VolRegimeRow`,
   `BUS VolSqueezeRow`, `BUS VolExpandRow`, `BUS DdviRow`, `BUS SwingRow`,
   `BUS ReadyGateRow`, `BUS StrictGateRow`,
-  `BUS DebugStateRow`, `BUS MicroModifierMask`
+  `BUS MicroModifierMask`
 - direkte Detail-Channels fuer wiederhergestellte Monolith-Tiefe:
   `BUS ZoneObTop`, `BUS ZoneObBottom`, `BUS ZoneFvgTop`,
   `BUS ZoneFvgBottom`, `BUS SessionVwap`, `BUS AdxValue`,
@@ -124,9 +124,9 @@ Pro umfasst:
 - `SMC_Core_Engine.pine`
 - `SMC_Dashboard.pine`
 - `SMC_Long_Strategy.pine`
-- den vollen 64-Kanal-BUS-Contract
+- den vollen 63-Kanal-BUS-Contract
 
-Das aktive Dashboard nutzt derzeit den kompletten 64-Kanal-Producer-Vertrag.
+Das aktive Dashboard nutzt derzeit den kompletten 63-Kanal-Producer-Vertrag.
 
 Pro darf bewusst mehr Friction haben, wenn diese Friction echte Diagnose- oder
 Automationsfaehigkeit liefert.
@@ -159,7 +159,6 @@ geschnitten werden:
 - `BUS DebugFlagsRow`
 - `BUS ReadyGateRow`
 - `BUS StrictGateRow`
-- `BUS DebugStateRow`
 - `BUS MicroModifierMask`
 
 `BUS ModulePackA` wurde bereits in direkte Rows fuer `BUS SdConfluenceRow`,
@@ -170,11 +169,13 @@ die sichtbaren `Session VWAP`-, `EMA Fast`- und `EMA Slow`-Overlays aus dem
 `BUS ModulePackB` durch `BUS VolExpandRow`, `BUS DdviRow`,
 `BUS StretchSupportMask` und `BUS LtfBiasHint` ersetzt.
 
-Die Engine liegt jetzt bei `64 / 64` Plots mit einem aktiven
-`64`-Kanal-Pro-Vertrag. `Swing` und `Objects` wurden ueber `BUS SwingRow` und
-`BUS ObjectsCountPack` aus `ModulePackC` herausgezogen; der verbleibende
-Pack-Kandidat ist `ModulePackC`, weil dort weiterhin `LTF Delta` und
-`Micro Profile` als UI-Transport gebuendelt bleiben.
+Die Engine liegt jetzt bei `63 / 64` Plots mit einem aktiven
+`63`-Kanal-Pro-Vertrag. `Swing` und `Objects` wurden ueber `BUS SwingRow` und
+`BUS ObjectsCountPack` aus `ModulePackC` herausgezogen; die lokale Ableitung
+des `Long Debug`-Zustands hat zusaetzlich `BUS DebugStateRow` retired und damit
+wieder genau einen freien Plot-Slot geschaffen. Der verbleibende Pack-Kandidat
+ist `ModulePackC`, weil dort weiterhin `LTF Delta` und `Micro Profile` als
+UI-Transport gebuendelt bleiben.
 
 ### C9.2 Reduce-Kandidaten
 

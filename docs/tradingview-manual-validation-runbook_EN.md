@@ -42,7 +42,7 @@ Workspace refresh: 2026-04-03
 ## Recommended Order In TradingView
 
 1. Open and compile the core.
-2. Add the dashboard and bind all 64 `source` inputs to the core.
+2. Add the dashboard and bind all 63 `source` inputs to the core.
 3. Add the strategy and bind all 8 `source` inputs to the core.
 4. Execute the five validation scenarios on the same symbol and timeframe.
 5. Record all observations directly in the report template.
@@ -105,7 +105,6 @@ The active engine publishes the hidden BUS series in this exact manifest order:
 - `BUS DebugFlagsRow`
 - `BUS ReadyGateRow`
 - `BUS StrictGateRow`
-- `BUS DebugStateRow`
 - `BUS MicroModifierMask`
 - `BUS ZoneObTop`
 - `BUS ZoneObBottom`
@@ -136,7 +135,7 @@ The active engine publishes the hidden BUS series in this exact manifest order:
 
 1. The script compiles without errors.
 2. No visible runtime errors remain in the chart overlay.
-3. All 64 dashboard bindings listed in [tradingview-validation-checklist.md](tradingview-validation-checklist.md) are selectable.
+3. All 63 dashboard bindings listed in [tradingview-validation-checklist.md](tradingview-validation-checklist.md) are selectable.
 
 ### Producer Pass/Fail Criteria
 
@@ -144,7 +143,7 @@ Pass:
 
 1. Core compiles.
 2. No runtime error is visible.
-3. All 64 series are selectable.
+3. All 63 series are selectable.
 
 Fail:
 
@@ -157,7 +156,7 @@ Fail:
 ### Dashboard Steps
 
 1. Add [../SMC_Dashboard.pine](../SMC_Dashboard.pine) to the same chart.
-2. Bind all 64 `input.source()` fields exactly to the core series.
+2. Bind all 63 `input.source()` fields exactly to the core series.
 3. Check visibility and response of the following sections:
 
 - Lifecycle
@@ -171,7 +170,7 @@ Fail:
 ### Dashboard Expected Observations
 
 1. The dashboard compiles without errors.
-2. All 64 bindings are fully selectable.
+2. All 63 bindings are fully selectable.
 3. The dashboard remains visible.
 4. The sections respond plausibly to the core state.
 
@@ -224,7 +223,7 @@ Expected:
 Pass:
 
 1. Dashboard compiles.
-2. All 64 bindings can be assigned.
+2. All 63 bindings can be assigned.
 3. All five scenarios show the expected response.
 4. No internal contradictions exist between lifecycle, exec tier, setup age, and risk lines.
 

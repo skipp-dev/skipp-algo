@@ -4,10 +4,10 @@
 
 This document audits the current split between the producer in [SMC_Core_Engine.pine](../SMC_Core_Engine.pine#L5526-L5551), the dashboard consumer in [SMC_Dashboard.pine](../SMC_Dashboard.pine#L7-L29), and the strategy consumer in [SMC_Long_Strategy.pine](../SMC_Long_Strategy.pine#L7-L14).
 
-The current contract is a 64-channel hidden plot bus.
+The current contract is a 63-channel hidden plot bus.
 
-- The producer exports 64 hidden plots in [SMC_Core_Engine.pine](../SMC_Core_Engine.pine).
-- The dashboard binds 64 `input.source()` channels in [SMC_Dashboard.pine](../SMC_Dashboard.pine).
+- The producer exports 63 hidden plots in [SMC_Core_Engine.pine](../SMC_Core_Engine.pine).
+- The dashboard binds 63 `input.source()` channels in [SMC_Dashboard.pine](../SMC_Dashboard.pine).
 - The strategy binds 8 `input.source()` channels from the original contract in [SMC_Long_Strategy.pine](../SMC_Long_Strategy.pine#L7-L14).
 - The row-code transport format is defined in [SMC_Core_Engine.pine](../SMC_Core_Engine.pine#L1670-L1682) and decoded in [SMC_Dashboard.pine](../SMC_Dashboard.pine#L42-L84).
 
@@ -20,7 +20,7 @@ The audit question is not whether the packed bus compiles. It does. The question
 The producer exports:
 
 - 14 Lite/executable channels.
-- 50 Pro-only channels spanning direct diagnostic rows, support/detail levels, and the remaining packed dashboard transport.
+- 49 Pro-only channels spanning direct diagnostic rows, support/detail levels, and the remaining packed dashboard transport.
 
 The producer does not render dashboard UI and does not emit alert transport in its active split form, as verified by [tests/test_smc_core_engine_split.py](../tests/test_smc_core_engine_split.py).
 
@@ -164,7 +164,7 @@ Verdict meanings:
 | Ready Gate | [SMC++.pine](../SMC++.pine#L6374) | `ReadyGateRow` -> `decode_ready_gate_text()` in [SMC_Dashboard.pine](../SMC_Dashboard.pine#L558-L586) | weitgehend voll | Same dominant blocker classes. |
 | Strict Gate | [SMC++.pine](../SMC++.pine#L6375) | `StrictGateRow` -> `decode_strict_gate_text()` in [SMC_Dashboard.pine](../SMC_Dashboard.pine#L588-L606) | weitgehend voll | Same dominant blocker classes. |
 | Debug Flags | [SMC++.pine](../SMC++.pine#L6376) | `DebugFlagsRow` -> `decode_debug_flags_text()` in [SMC_Dashboard.pine](../SMC_Dashboard.pine#L546-L556) | teilweise | Same enabled-module list, but no debug mode detail. |
-| Long Debug | [SMC++.pine](../SMC++.pine#L6377) | `DebugStateRow` plus `StateCode`, `SourceKind`, `MetaPack` in [SMC_Dashboard.pine](../SMC_Dashboard.pine#L707-L707) | schwach | Monolith used `long_debug_summary_text`; split uses a shorter derived summary. |
+| Long Debug | [SMC++.pine](../SMC++.pine#L6377) | `DebugFlagsRow` plus `Armed`, `Confirmed`, `Ready`, `StateCode`, `SourceKind`, and `MetaPack` in [SMC_Dashboard.pine](../SMC_Dashboard.pine#L707-L707) | schwach | Monolith used `long_debug_summary_text`; split still uses a shorter locally derived summary. |
 
 ## Known Deviations From The Monolith
 

@@ -1,7 +1,7 @@
 # Runtime Budget - SMC_Core_Engine.pine v5.5d
 
 **Status**: Active inventory  
-**Last updated**: 2026-04-04 - ModulePackC first cut executed
+**Last updated**: 2026-04-04 - DebugStateRow retired
 
 ---
 
@@ -12,16 +12,16 @@
 | Total lines | ~6650 |
 | `var` declarations | ~420 |
 | `input.*` declarations | ~249 |
-| `plot()` calls | 64 |
+| `plot()` calls | 63 |
 | `request.security()` | 3 |
 | `request.security_lower_tf()` | 2 |
 | `ta.*` / `math.*` usages | ~236 |
 
 ### Plot Budget
 
-TradingView allows max 64 plots per script. Current usage: **64 / 64**.
-The active BUS export surface now consumes 64 hidden plots, so no free plot
-slots remain for additional transport expansion until another plot is retired.
+TradingView allows max 64 plots per script. Current usage: **63 / 64**.
+The active BUS export surface now consumes 63 hidden plots, so one free plot
+slot is available again for the next transport cleanup slice.
 
 The previous visible overlay plots (`Session VWAP`, `EMA Fast`, `EMA Slow`)
 have already moved to object-based line tails. The producer now spends its
@@ -50,7 +50,7 @@ These fields are read from lean families and drive the engine directly.
 ### BUS Backward Compat (broad fields, Dashboard only)
 
 All BUS PackE/F/G fields, resolvers, and plot calls **removed in Phase B (AP6 v5.5b)**.
-The active dashboard now reads all 64 producer channels: ModulePackC, direct
+The active dashboard now reads all 63 producer channels: ModulePackC, direct
 row/detail channels, and LeanPackA/B.
 
 ### Phase C C1: Declaration-Only Visual Input Cleanup (11 inputs)
@@ -80,7 +80,7 @@ Audit coverage now asserts these names remain absent from the split core.
 **Status**: DONE
 **Removed**: `BUS ModulePackB`, 3 visible overlay `plot()` calls
 **Added**: `BUS VolExpandRow`, `BUS DdviRow`, `BUS StretchSupportMask`, `BUS LtfBiasHint`
-**Current plot budget**: 64 / 64
+**Current plot budget**: 63 / 64
 
 The direct cut stayed plot-neutral by moving the visible `Session VWAP`,
 `EMA Fast`, and `EMA Slow` overlays to line-object tails before the new BUS
@@ -91,11 +91,21 @@ channels were published.
 **Status**: DONE
 **Added**: `BUS SwingRow`, `BUS ObjectsCountPack`
 **Changed**: `BUS ModulePackC` now carries only `LTF Delta` and `Micro Profile`
-**Current plot budget**: 64 / 64
+**Current plot budget**: 63 / 64
 
 This cut restored producer-owned `Swing` transport and exact `Objects` counts,
-but it also consumed the last two free plot slots. Further bus cleanup now
-depends on freeing budget elsewhere first.
+while a later `DebugStateRow` retirement reopened one free plot slot for the
+next cleanup slice.
+
+### Phase C C4: DebugStateRow retirement
+
+**Status**: DONE
+**Removed**: `BUS DebugStateRow`
+**Changed**: the dashboard now derives `Long Debug` state locally from `DebugFlagsRow` plus lifecycle state
+**Current plot budget**: 63 / 64
+
+This cut removed a redundant debug-state transport row and restored exactly one
+free producer plot slot without changing the rendered `Long Debug` summary.
 
 ---
 
@@ -105,7 +115,7 @@ depends on freeing budget elsewhere first.
 
 **Status**: ✅ DONE (AP6 v5.5b)  
 **Removed**: 33 field declarations, 12 resolver functions, 3 plot calls, ~265 lines total  
-**Current plot budget**: 64 / 64
+**Current plot budget**: 63 / 64
 
 ### Phase C C1: Declaration-only visual input cleanup (11 inputs)
 

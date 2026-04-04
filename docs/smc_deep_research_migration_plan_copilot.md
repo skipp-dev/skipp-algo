@@ -286,7 +286,7 @@ Surface, sondern auf den Pro-only-Packs:
 2. **UI-Transport-Kanaele werden als eigene Rebuild-Lane behandelt**
    `EventRiskRow`, `VolExpandRow`, `DdviRow`, `ModulePackC`,
    `LongTriggersRow`, `RiskPlanRow`, `DebugFlagsRow` sowie die direkten
-   Engine-Reihen `ReadyGateRow`, `StrictGateRow`, `DebugStateRow` und
+   Engine-Reihen `ReadyGateRow`, `StrictGateRow` und
    `MicroModifierMask` sind die naechsten Rebuild-Kandidaten, weil sie
    Pro-Diagnostik stark an das aktuelle Dashboard-Wording koppeln.
 

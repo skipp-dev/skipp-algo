@@ -198,7 +198,9 @@ def test_core_engine_ends_at_hidden_bus_boundary() -> None:
     assert "plot(pack_bus_counts(array.size(ob_blocks_bull), array.size(fvgs_bull)), 'BUS ObjectsCountPack', display = display.none)" in source
     assert "'BUS ModulePackA', display = display.none" not in source
     assert "'BUS ModulePackB', display = display.none" not in source
+    assert "'BUS DebugStateRow', display = display.none" not in source
     assert "plot(resolve_bus_lean_pack_b(lib_obl_side, lib_obl_fresh, lib_obl_mitigation_state, lib_fvgl_side, lib_fvgl_fresh, lib_fvgl_invalidated, lib_scl_context_score, lib_scl_in_killzone, lib_sq_score), 'BUS LeanPackB', display = display.none)" in source
+    assert 'resolve_bus_debug_state_row(' not in source
     assert source.endswith('/////////////////////////////////////////////////////////////////////////////////')
     assert "'BUS LeanPackB', display = display.none)\n\n// ── Mini Health Badge (v5.5a) ──" in source
 

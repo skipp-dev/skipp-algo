@@ -66,6 +66,26 @@ def resolve_objects_row_code(ob_count: int, fvg_count: int) -> int:
     return pack_bus_row(0, 4)
 
 
+def debug_engine_enabled(row_code: int) -> bool:
+    return (row_reason(row_code) // 4) % 2 == 1
+
+
+def resolve_debug_state_row_code(
+    debug_flags_row_code: int,
+    state_code: int,
+    armed_state: bool,
+    confirmed_state: bool,
+    ready_state: bool,
+) -> int:
+    if not debug_engine_enabled(debug_flags_row_code):
+        return pack_bus_row(0, 0)
+    if state_code == -1:
+        return pack_bus_row(-1, 2)
+    if armed_state or confirmed_state or ready_state:
+        return pack_bus_row(5, 3)
+    return pack_bus_row(2, 4)
+
+
 def normalize_bus_trend(direction: int) -> int:
     return 2 if direction > 0 else 0 if direction < 0 else 1
 
@@ -345,6 +365,25 @@ def test_object_count_pack_and_module_pack_c_split_round_trip_consistently() -> 
     assert resolve_objects_row_code(3, 0) == pack_bus_row(3, 1)
     assert resolve_objects_row_code(0, 2) == pack_bus_row(3, 2)
     assert resolve_objects_row_code(0, 0) == pack_bus_row(0, 4)
+
+
+def test_debug_state_row_reconstructs_locally_from_flags_and_lifecycle_contract() -> None:
+    dashboard_source = _read(DASHBOARD_PATH)
+
+    assert 'debug_engine_enabled(int row_code) =>' in dashboard_source
+    assert 'resolve_debug_state_row_code(int debug_flags_row_code, int state_code, bool armed_state, bool confirmed_state, bool ready_state) =>' in dashboard_source
+    assert 'src_debug_state_row = input.source(close, "BUS DebugStateRow"' not in dashboard_source
+    assert 'int debug_state_row_code = resolve_debug_state_row_code(debug_flags_row_code, state_code, armed, confirmed, ready)' in dashboard_source
+
+    debug_engine_off = pack_bus_row(0, 0)
+    debug_engine_on = pack_bus_row(5, 4)
+
+    assert resolve_debug_state_row_code(debug_engine_off, 0, False, False, False) == pack_bus_row(0, 0)
+    assert resolve_debug_state_row_code(debug_engine_on, -1, False, False, False) == pack_bus_row(-1, 2)
+    assert resolve_debug_state_row_code(debug_engine_on, 2, False, False, False) == pack_bus_row(2, 4)
+    assert resolve_debug_state_row_code(debug_engine_on, 2, True, False, False) == pack_bus_row(5, 3)
+    assert resolve_debug_state_row_code(debug_engine_on, 4, False, True, False) == pack_bus_row(5, 3)
+    assert resolve_debug_state_row_code(debug_engine_on, 5, False, False, True) == pack_bus_row(5, 3)
 
 
 def test_trend_and_meta_packs_round_trip_consistently() -> None:

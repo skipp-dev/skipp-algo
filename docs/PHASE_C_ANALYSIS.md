@@ -221,11 +221,11 @@ The next executed slice continues with the remaining event-owned inline runtime 
 The next cleanup lane after C8 should no longer touch the executable or Lite
 surface. It should stay inside the Pro-only contract.
 
-1. `EventRiskRow`, `VolExpandRow`, `DdviRow`, `ModulePackC`, `LongTriggersRow`, `RiskPlanRow`, `DebugFlagsRow`, `ReadyGateRow`, `StrictGateRow`, `DebugStateRow`, and `MicroModifierMask` are now the primary rebuild lane because they are strongly tied to current dashboard transport.
+1. `EventRiskRow`, `VolExpandRow`, `DdviRow`, `ModulePackC`, `LongTriggersRow`, `RiskPlanRow`, `DebugFlagsRow`, `ReadyGateRow`, `StrictGateRow`, and `MicroModifierMask` are now the primary rebuild lane because they are strongly tied to current dashboard transport.
 2. `QualityPackA/B` have been fully retired from the producer after the direct quality-row cut proved stable under regression.
 3. `HardGatesPackA/B` and `EnginePack` have likewise been retired after the named-row migration held on the active dashboard contract.
-4. Removing the five legacy exports reopened enough headroom for exactly one full 4-row module cut, and that budget has now been consumed by replacing `ModulePackA` with `SdConfluenceRow`, `SdOscRow`, `VolRegimeRow`, and `VolSqueezeRow`. The engine now sits at `62 / 64` plots.
-5. The former `ModulePackB` blocker lane has now been executed: three visible overlay plots were moved off `plot()`, and `BUS ModulePackB` was replaced with `VolExpandRow`, `DdviRow`, `StretchSupportMask`, and `LtfBiasHint`. `ModulePackC` stays as the last remaining pack because `Objects` and `Swing` still lack comparable domain channels.
+4. Removing the five legacy exports reopened enough headroom for exactly one full 4-row module cut, and that budget has since been consumed by replacing `ModulePackA` with `SdConfluenceRow`, `SdOscRow`, `VolRegimeRow`, and `VolSqueezeRow`, then `ModulePackB` with `VolExpandRow`, `DdviRow`, `StretchSupportMask`, and `LtfBiasHint`, and finally the first `ModulePackC` cut with `SwingRow` and `ObjectsCountPack`. The later `DebugStateRow` retirement restored one slot, so the engine now sits at `63 / 64` plots.
+5. `ModulePackC` stays as the last remaining pack because only `LTF Delta` and `Micro Profile` are still bundled there; `Long Debug` state is now derived locally in the dashboard instead of traveling over its own BUS row.
 6. `MetaPack`, `QualityBoundsPack`, `StopLevel`, `Target1`, and `Target2` remain stable Pro-support channels and should not be the first cut targets.
 7. `BUS QualityScore`, the strategy's 8-channel executable contract, and the Lite surface remain fixed while C9 proceeds.
 8. Manifest-backed regression should pin that partition so later refactors do not quietly move Lite/product boundaries under a cleanup label.

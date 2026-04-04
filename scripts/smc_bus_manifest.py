@@ -64,7 +64,6 @@ ENGINE_BUS_CHANNELS: tuple[str, ...] = (
     'DebugFlagsRow',
     'ReadyGateRow',
     'StrictGateRow',
-    'DebugStateRow',
     'MicroModifierMask',
     'ZoneObTop',
     'ZoneObBottom',
@@ -149,7 +148,6 @@ C9_REBUILD_BUS_CHANNELS: tuple[str, ...] = (
     'DebugFlagsRow',
     'ReadyGateRow',
     'StrictGateRow',
-    'DebugStateRow',
     'MicroModifierMask',
 )
 
@@ -263,7 +261,6 @@ DASHBOARD_BUS_BINDINGS: tuple[BusBinding, ...] = (
     BusBinding('BUS DebugFlagsRow', 'g_bus_diag_rows'),
     BusBinding('BUS ReadyGateRow', 'g_bus_diag_rows'),
     BusBinding('BUS StrictGateRow', 'g_bus_diag_rows'),
-    BusBinding('BUS DebugStateRow', 'g_bus_diag_rows'),
     BusBinding('BUS MicroModifierMask', 'g_bus_diag_rows'),
     BusBinding('BUS StopLevel', 'g_bus_plan'),
     BusBinding('BUS Target1', 'g_bus_plan'),
