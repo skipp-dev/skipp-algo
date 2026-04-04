@@ -18,6 +18,7 @@ then commit the updated artifacts.
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -43,6 +44,64 @@ _PATH_KEYS = {
     "schema_version_previous", "version_change_type", "auto_commit_allowed",
 }
 
+_EXPORT_RE = re.compile(r"^export const \w+ ([A-Z][A-Z0-9_]+)\b", re.MULTILINE)
+
+EVENT_RISK_EXPORTS = (
+    "EVENT_WINDOW_STATE",
+    "EVENT_RISK_LEVEL",
+    "NEXT_EVENT_CLASS",
+    "NEXT_EVENT_NAME",
+    "NEXT_EVENT_TIME",
+    "NEXT_EVENT_IMPACT",
+    "EVENT_RESTRICT_BEFORE_MIN",
+    "EVENT_RESTRICT_AFTER_MIN",
+    "EVENT_COOLDOWN_ACTIVE",
+    "MARKET_EVENT_BLOCKED",
+    "SYMBOL_EVENT_BLOCKED",
+    "EARNINGS_SOON_TICKERS",
+    "HIGH_RISK_EVENT_TICKERS",
+    "EVENT_PROVIDER_STATUS",
+)
+
+DEDICATED_V55B_LEAN_EXPORTS = (
+    "SESSION_VOLATILITY_STATE",
+    "PRIMARY_OB_SIDE",
+    "PRIMARY_OB_DISTANCE",
+    "OB_FRESH",
+    "OB_AGE_BARS",
+    "OB_MITIGATION_STATE",
+    "PRIMARY_FVG_SIDE",
+    "PRIMARY_FVG_DISTANCE",
+    "FVG_FILL_PCT",
+    "FVG_MATURITY_LEVEL",
+    "FVG_FRESH",
+    "FVG_INVALIDATED",
+    "STRUCTURE_TREND_STRENGTH",
+    "SIGNAL_QUALITY_SCORE",
+    "SIGNAL_QUALITY_TIER",
+    "SIGNAL_WARNINGS",
+    "SIGNAL_BIAS_ALIGNMENT",
+    "SIGNAL_FRESHNESS",
+)
+
+LEAN_ALIAS_PREFIXES = (
+    "EVENT_RISK_LIGHT_",
+    "SESSION_CONTEXT_LIGHT_",
+    "STRUCTURE_STATE_LIGHT_",
+    "ERL_",
+    "SCL_",
+    "STRL_",
+)
+
+
+def _extract_export_names(text: str) -> tuple[str, ...]:
+    return tuple(_EXPORT_RE.findall(text))
+
+
+def _export_block(export_names: tuple[str, ...], start_name: str, expected: tuple[str, ...]) -> tuple[str, ...]:
+    start = export_names.index(start_name)
+    return export_names[start : start + len(expected)]
+
 
 class TestGeneratedArtifactDrift:
     """Fail if checked-in artifacts diverge from generator output."""
@@ -50,7 +109,7 @@ class TestGeneratedArtifactDrift:
     @pytest.fixture(scope="class")
     def regenerated(self, tmp_path_factory: pytest.TempPathFactory) -> Path:
         """Regenerate artifacts into a temp directory once per class."""
-        tmp = tmp_path_factory.mktemp("regen")
+        tmp = Path(tmp_path_factory.mktemp("regen"))
         refresh(output_root=tmp)
         return tmp
 
@@ -113,10 +172,29 @@ class TestGeneratedArtifactDrift:
         """Sanity check: the Pine library contains the expected v5.5 field count."""
         pine = (regenerated / "pine" / "generated" / "smc_micro_profiles_generated.pine").read_text()
         exports = [l for l in pine.splitlines() if l.startswith("export const")]
-        # v5.5 Lean adds 32 new fields on top of the v5.3 base (256 → 288)
-        assert len(exports) >= 280, (
-            f"Expected at least 280 export const fields (v5.5 lean), got {len(exports)}"
+        # Shared lean families reuse canonical exports instead of duplicating
+        # Event Risk / Session Context / Structure State fields.
+        assert len(exports) == 274, (
+            f"Expected 274 export const fields for the current v5.5b shared-export contract, got {len(exports)}"
         )
+
+    def test_event_risk_exports_stay_in_canonical_order(self, regenerated: Path):
+        pine = (regenerated / "pine" / "generated" / "smc_micro_profiles_generated.pine").read_text()
+        export_names = _extract_export_names(pine)
+        assert _export_block(export_names, "EVENT_WINDOW_STATE", EVENT_RISK_EXPORTS) == EVENT_RISK_EXPORTS
+
+    def test_dedicated_v55b_lean_exports_stay_in_canonical_order(self, regenerated: Path):
+        pine = (regenerated / "pine" / "generated" / "smc_micro_profiles_generated.pine").read_text()
+        export_names = _extract_export_names(pine)
+        assert _export_block(export_names, "SESSION_VOLATILITY_STATE", DEDICATED_V55B_LEAN_EXPORTS) == DEDICATED_V55B_LEAN_EXPORTS
+
+    def test_shared_lean_families_do_not_reintroduce_alias_exports(self, regenerated: Path):
+        pine = (regenerated / "pine" / "generated" / "smc_micro_profiles_generated.pine").read_text()
+        export_names = _extract_export_names(pine)
+        for prefix in LEAN_ALIAS_PREFIXES:
+            assert not any(name.startswith(prefix) for name in export_names), (
+                f"Shared lean family alias export reintroduced: {prefix}*"
+            )
 
     def test_manifest_has_v5_meta_keys(self, regenerated: Path):
         """Manifest must contain the v5 top-level meta fields."""

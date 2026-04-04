@@ -850,3 +850,31 @@ def test_support_code_exports_reconstruct_row_contracts() -> None:
     assert ddvi_row_code_from_state(4) == pack_bus_row(4, 4)
     assert ddvi_row_code_from_state(5) == pack_bus_row(3, 5)
     assert ddvi_row_code_from_state(6) == pack_bus_row(0, 6)
+
+
+def test_support_code_reconstruction_fallbacks_stay_closed_under_unknown_codes() -> None:
+    assert ltf_delta_row_code_from_state(0) == pack_bus_row(0, 1)
+    assert ltf_delta_row_code_from_state(99) == pack_bus_row(0, 1)
+
+    assert swing_row_code_from_state(0) == pack_bus_row(0, 3)
+    assert swing_row_code_from_state(99) == pack_bus_row(0, 3)
+
+    assert micro_profile_row_code_from_code(-1) == pack_bus_row(0, 0)
+    assert micro_profile_row_code_from_code(7) == pack_bus_row(0, 0)
+    assert micro_profile_row_code_from_code(99) == pack_bus_row(0, 0)
+
+    assert ready_gate_row_code_from_blocker(0) == pack_bus_row(2, 9)
+    assert ready_gate_row_code_from_blocker(25) == pack_bus_row(2, 9)
+    assert ready_gate_row_code_from_blocker(99) == pack_bus_row(2, 9)
+
+    assert strict_gate_row_code_from_blocker(0) == pack_bus_row(2, 2)
+    assert strict_gate_row_code_from_blocker(11) == pack_bus_row(2, 2)
+    assert strict_gate_row_code_from_blocker(99) == pack_bus_row(2, 2)
+
+    assert vol_expand_row_code_from_state(0) == pack_bus_row(0, 1)
+    assert vol_expand_row_code_from_state(5) == pack_bus_row(0, 1)
+    assert vol_expand_row_code_from_state(99) == pack_bus_row(0, 1)
+
+    assert ddvi_row_code_from_state(0) == pack_bus_row(0, 1)
+    assert ddvi_row_code_from_state(7) == pack_bus_row(0, 1)
+    assert ddvi_row_code_from_state(99) == pack_bus_row(0, 1)

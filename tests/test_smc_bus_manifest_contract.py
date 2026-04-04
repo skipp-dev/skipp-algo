@@ -1,10 +1,34 @@
 from __future__ import annotations
 
+from typing import Any
 
-from tests.smc_manifest_test_utils import load_manifest
+
+from tests.smc_manifest_test_utils import (
+    ROOT,
+    extract_group_titles,
+    extract_hidden_plot_labels,
+    extract_input_bindings,
+    load_manifest,
+    read_text,
+)
 
 
 MANIFEST = load_manifest()
+CORE_PATH = ROOT / 'SMC_Core_Engine.pine'
+DASHBOARD_PATH = ROOT / 'SMC_Dashboard.pine'
+STRATEGY_PATH = ROOT / 'SMC_Long_Strategy.pine'
+
+
+def _binding_tuples(bindings: tuple[Any, ...]) -> tuple[tuple[str, str], ...]:
+    return tuple((binding.label, binding.group) for binding in bindings)
+
+
+def _consumer_group_titles(bindings: tuple[tuple[str, str], ...], group_titles: dict[str, str]) -> tuple[str, ...]:
+    ordered_groups: list[str] = []
+    for _, group in bindings:
+        if not ordered_groups or ordered_groups[-1] != group:
+            ordered_groups.append(group)
+    return tuple(group_titles[group].split(' - ', 1)[1] for group in ordered_groups)
 
 
 def test_lite_contract_stays_a_stable_engine_subset() -> None:
@@ -32,6 +56,33 @@ def test_strategy_contract_matches_the_executable_core() -> None:
     assert MANIFEST.STRATEGY_BUS_CHANNELS == MANIFEST.EXECUTABLE_BUS_CHANNELS
     assert set(MANIFEST.STRATEGY_BUS_CHANNELS).issubset(set(MANIFEST.LITE_BUS_CHANNELS))
     assert MANIFEST.EXECUTABLE_BUS_LABELS == tuple(f'BUS {channel}' for channel in MANIFEST.EXECUTABLE_BUS_CHANNELS)
+
+
+def test_engine_hidden_plot_order_matches_manifest() -> None:
+    core_source = read_text(CORE_PATH)
+    assert extract_hidden_plot_labels(core_source) == MANIFEST.ENGINE_BUS_LABELS
+
+
+def test_dashboard_binding_order_and_groups_match_manifest() -> None:
+    dashboard_source = read_text(DASHBOARD_PATH)
+    assert extract_input_bindings(dashboard_source) == _binding_tuples(MANIFEST.DASHBOARD_BUS_BINDINGS)
+
+
+def test_strategy_binding_order_and_groups_match_manifest() -> None:
+    strategy_source = read_text(STRATEGY_PATH)
+    assert extract_input_bindings(strategy_source) == _binding_tuples(MANIFEST.STRATEGY_BUS_BINDINGS)
+
+
+def test_dashboard_group_titles_match_manifest() -> None:
+    dashboard_source = read_text(DASHBOARD_PATH)
+    group_titles = extract_group_titles(dashboard_source)
+    assert _consumer_group_titles(_binding_tuples(MANIFEST.DASHBOARD_BUS_BINDINGS), group_titles) == MANIFEST.DASHBOARD_GROUP_TITLES
+
+
+def test_strategy_group_titles_match_manifest() -> None:
+    strategy_source = read_text(STRATEGY_PATH)
+    group_titles = extract_group_titles(strategy_source)
+    assert _consumer_group_titles(_binding_tuples(MANIFEST.STRATEGY_BUS_BINDINGS), group_titles) == MANIFEST.STRATEGY_GROUP_TITLES
 
 
 def test_pro_only_contract_captures_diagnostic_surface() -> None:

@@ -13,6 +13,8 @@ import re
 
 import pytest
 
+from tests.smc_manifest_test_utils import extract_group_titles, extract_input_bindings
+
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 OVERLAY_PATH = ROOT / "SMC_Event_Overlay.pine"
 ENGINE_PATH = ROOT / "SMC_Core_Engine.pine"
@@ -25,6 +27,20 @@ def _read(path: pathlib.Path) -> str:
 
 
 # Event-risk fields the overlay is allowed to reference
+EXPECTED_OVERLAY_BINDINGS = (("BUS LeanPackA", "g_ev"),)
+EXPECTED_MP_FIELDS_IN_ORDER = (
+    "EVENT_WINDOW_STATE",
+    "EVENT_RISK_LEVEL",
+    "NEXT_EVENT_NAME",
+    "NEXT_EVENT_TIME",
+    "NEXT_EVENT_IMPACT",
+    "EVENT_RESTRICT_BEFORE_MIN",
+    "EVENT_RESTRICT_AFTER_MIN",
+    "EVENT_COOLDOWN_ACTIVE",
+    "MARKET_EVENT_BLOCKED",
+    "SYMBOL_EVENT_BLOCKED",
+    "EARNINGS_SOON_TICKERS",
+)
 ALLOWED_MP_FIELDS = {
     "EVENT_WINDOW_STATE", "EVENT_RISK_LEVEL",
     "NEXT_EVENT_NAME", "NEXT_EVENT_TIME", "NEXT_EVENT_IMPACT",
@@ -37,6 +53,7 @@ ALLOWED_MP_FIELDS = {
 }
 
 _MP_FIELD_RE = re.compile(r"\bmp\.([A-Z][A-Z0-9_]+)")
+_LEAN_SLOT_RE = re.compile(r"pack_slot\(src_lean_pack_a,\s*(\d+)\)")
 
 
 # ═════════════════════════════════════════════════════════════════
@@ -68,10 +85,22 @@ class TestOverlayStructure:
         src = _read(OVERLAY_PATH)
         assert '"BUS LeanPackA"' in src
 
+    def test_overlay_bus_binding_order_and_group_are_exact(self):
+        src = _read(OVERLAY_PATH)
+        assert extract_input_bindings(src) == EXPECTED_OVERLAY_BINDINGS
+
+    def test_overlay_group_title_stays_stable(self):
+        src = _read(OVERLAY_PATH)
+        assert extract_group_titles(src)["g_ev"] == "Event Overlay"
+
     def test_overlay_reconstructs_event_state_from_lean_slot(self):
         src = _read(OVERLAY_PATH)
         assert 'pack_slot(src_lean_pack_a, 2)' in src
         assert 'overlay_event_status_text' in src
+
+    def test_overlay_uses_only_lean_slot_2_for_runtime_state(self):
+        src = _read(OVERLAY_PATH)
+        assert tuple(_LEAN_SLOT_RE.findall(src)) == ("2",)
 
 
 # ═════════════════════════════════════════════════════════════════
@@ -111,6 +140,10 @@ class TestOverlayIndependence:
 
 
 class TestOverlayFieldScope:
+    def test_event_risk_fields_referenced_in_canonical_order(self):
+        src = _read(OVERLAY_PATH)
+        assert tuple(_MP_FIELD_RE.findall(src)) == EXPECTED_MP_FIELDS_IN_ORDER
+
     def test_only_event_risk_fields_referenced(self):
         """Overlay should only read event-risk mp.FIELD values."""
         src = _read(OVERLAY_PATH)
