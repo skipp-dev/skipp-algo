@@ -130,8 +130,9 @@ through adapters for consistency verification.
 | `request.security_lower_tf` | 2 |
 
 **Phase C C1**: declaration-only visual inputs were removed from the split
-core. Remaining Phase C scope is limited to display/debug helper extraction
-and legacy-path governance.
+core. The former display/debug helper lane is no longer an active standalone
+backlog; remaining Phase C work is governance-first and should only reopen when
+it materially reduces coupling without changing runtime behavior.
 
 **Removal Roadmap**:
 

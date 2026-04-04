@@ -1,6 +1,6 @@
 # SMC Bus Roadmap
 
-This document frames the architecture choice after the current bus-v2 audit in [smc-bus-v2-audit.md](smc-bus-v2-audit.md).
+This document records the architecture decision after the current bus-v2 audit in [smc-bus-v2-audit.md](smc-bus-v2-audit.md).
 
 Current repo state is already partway through that transition:
 
@@ -12,7 +12,15 @@ Current repo state is already partway through that transition:
 - `DebugStateRow` has already been retired because the dashboard now derives that state locally
 - the remaining dashboard-oriented transport is now concentrated in explicit support-code channels (`LtfDeltaState`, `SafeTrendState`, `MicroProfileCode`, `ReadyBlockerCode`, `StrictBlockerCode`, `VolExpansionState`, `DdviContextState`)
 
-This document therefore describes the remaining architectural choice, not a greenfield template.
+This document therefore records the active bus-v2 endpoint and the trigger conditions for any later bus-v3 work, not an open redesign backlog.
+
+## Current Decision
+
+The current support-code surface is the terminal bus-v2 endpoint for this repo state.
+
+- Freeze the active 58-channel bus-v2 contract as the supported dashboard transport.
+- Do not add new packs or widen the support-code surface just to preserve old dashboard shapes.
+- Treat a later bus-v3 as a separate architecture track that opens only if a second real consumer or richer parity requirement appears.
 
 ## Option A: Keep Bus v2 As A Dashboard Transport
 
@@ -142,25 +150,25 @@ executable and plan-level channels instead of traveling over dedicated transport
 
 ### Concrete Next Slice
 
-1. Rebuild lane complete
-   The remaining packed transport surfaces have been retired. The active
-   rebuild backlog is now empty, and further BUS work should focus on whether
-   the explicit support-code channels should stay frozen or eventually be
-   replaced by a domain-first bus-v3.
+1. No further bus-v2 slice is active
+   The packed rebuild lane is complete and the remaining support-code channels
+   are now frozen as the bus-v2 endpoint.
+2. Bus-v3 is conditional, not scheduled
+   Open a domain-first bus-v3 only if another serious consumer needs the same
+   producer data without dashboard wording, or if richer numeric/domain parity
+   becomes more important than preserving the current row contract.
 
 ## Recommendation
 
 The recommended path is:
 
-1. Treat the current bus-v2 explicitly as a dashboard transport layer.
+1. Freeze the current bus-v2 explicitly as a dashboard transport layer.
 2. Treat the `ModulePackA`, `ModulePackB`, `ModulePackC`, `ModulePackD`, and
    `ReadyStrictPack` retirement plus the local `DebugFlagsRow`,
    `LongTriggersRow`, `RiskPlanRow`, and `QualityBoundsPack` localization as
-   the intentional transport cleanup steps that already reshaped the active
-   `58 / 64` contract.
-3. Continue replacing the remaining UI-transport channels only where the change frees plot budget first or stays plot-reducing.
-4. Keep semantic tests pinned to the manifest so retired exports do not drift back into the contract.
-5. Do not add new packs or new standalone support rows just to preserve old shapes.
-6. If additional consumers or richer dashboard parity are needed later, design a separate domain-first bus-v3 instead of continuing to grow UI packs.
+   the completed transport cleanup that reshaped the active `58 / 64` contract.
+3. Keep semantic tests pinned to the manifest so retired exports do not drift back into the contract.
+4. Do not add new packs, new standalone support rows, or wider bus-v2 transport just to preserve old shapes.
+5. If additional consumers or richer dashboard parity are needed later, start a separate domain-first bus-v3 instead of continuing to grow bus-v2.
 
 This recommendation avoids churn now while keeping the architecture honest.

@@ -257,6 +257,12 @@ translate runtime state into text or compact decoder semantics:
 | `compose_long_setup_text` | 1881 | Internal state-label composition localized in C2; outer helper remains safe decoder surface |
 | `resolve_long_visual_text` (retired) | n/a | Redundant alias removed in bookkeeping cleanup; call site now uses `resolve_long_visual_state_label` directly |
 
+Current decision: do not open a standalone dashboard/decoder cleanup slice from
+this list. The executed visual-only extraction already captured the low-risk
+helper work worth doing in isolation. Any further helper movement should happen
+only alongside nearby behavior-preserving edits that clearly reduce duplication
+or lower coupling.
+
 ### Debug / Display Only — Lowest-Risk Cleanup Lane
 
 These items are the best Phase C candidates because they do not own lifecycle
@@ -303,7 +309,7 @@ If a task changes long-engine behavior, it is almost certainly **not** Phase C a
 | Item | Status | Notes |
 | --- | --- | --- |
 | Dead-input deletion batch | Green | C1 executed; removed inputs are now guarded as absent |
-| Display/debug extraction | Green | next low-risk cleanup lane after C1 |
+| Display/debug extraction | Green | closed as a standalone lane; further work is opportunistic only |
 | Legacy parallel-path cleanup | Green | `SMC++.pine` freeze policy is explicit; compat regression anchor remains separate |
 | Full Phase C execution now | Yellow | do not execute from the old plan blindly |
 
@@ -325,5 +331,6 @@ This AP6 re-evaluation leaves Phase C in a materially better state than the old 
 
 1. Keep the C1 removal batch compile-clean and absence-guarded after nearby edits.
 2. Extend semantic split-core, consumer-setup, and input-surface guards around the active core.
-3. Continue only with state-owner / lifecycle extraction inside `SMC_Core_Engine.pine`, not with new display-only slices.
-4. If the next runtime/BUS cleanup proceeds beyond C8, start with the C9 Pro-only pack lane and keep the Lite contract frozen.
+3. Do not schedule a new dashboard-only cleanup slice unless it materially reduces duplication without touching behavior.
+4. Continue only with state-owner / lifecycle extraction inside `SMC_Core_Engine.pine` when a real runtime change requires it.
+5. Treat the C9 Pro-only pack lane as complete; any later bus-v3 work is a separate architecture track, not a continuation of this Phase C note.
