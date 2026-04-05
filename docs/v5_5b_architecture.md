@@ -223,13 +223,31 @@ structure direction.  Returns the merged bias plus a confidence level.
 | Phase | Scope | Status |
 | --- | --- | --- |
 | Phase 1 (current) | Brier/Log Score on sweep-reversal label, static thresholds | ✅ Shipped |
-| Phase 2 (next) | Platt scaling or isotonic regression on SQ score vs. observed outcomes | Planned |
-| Phase 3 | GARCH/regime-aware score adjustment, session-specific calibration | Future |
-| Phase 4 | State-space model for time-varying SQ calibration | Research |
+| Phase 2 | Aggregate probability calibration on scored-event probabilities (Platt preferred, beta-bin fallback) | ✅ Shipped |
+| Phase 3 | Stratified calibration summaries by session, HTF bias, vol regime | ✅ Shipped |
+| Phase 4 | Direct event-level `SIGNAL_QUALITY_SCORE` wiring + calibrated shadow governance | ✅ Shipped |
+| Phase 5 | Contextual / regime-adjusted calibration summaries | ✅ Shipped |
+| Phase 6 | Contextual recommendation output plus promotion policy | ✅ Shipped |
+| Phase 7 | State-space model for time-varying calibration | Research |
 
 **Rule**: No calibration change may introduce new lean surface fields.
 Calibration outputs remain internal Python artifacts or Dashboard-only
 annotations.
+
+**Current implementation note**: the shipped calibration lane now prefers
+event-aligned `SIGNAL_QUALITY_SCORE` through `raw_score_0_100` in the
+measurement-evidence path, while retaining `predicted_prob` as a backward-
+compatible fallback when full raw-score coverage is unavailable.
+
+The same scoring lane now also emits contextual calibration summaries by
+`session`, `htf_bias`, and `vol_regime` so operators can compare one global
+mapping against per-context adjusted mappings without introducing any new Pine
+surface fields.
+
+Evidence aggregation now goes one step further: it recommends a preferred
+contextual dimension when one dimension has enough support and consistently
+beats the global mapping, and it marks that recommendation as promotion-ready
+only when the same dimension stays stable across measurement history.
 
 ---
 

@@ -11,6 +11,36 @@ from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 from collections import defaultdict
 from typing import Any
 
+from terminal_catalyst_state import (
+    effective_catalyst_actionable,
+    effective_catalyst_age_minutes,
+    effective_catalyst_score,
+    effective_catalyst_sentiment,
+)
+from terminal_attention_state import (
+    effective_attention_active,
+    effective_attention_priority,
+    effective_attention_state,
+)
+from terminal_reaction_state import (
+    effective_reaction_actionable,
+    effective_reaction_priority,
+    effective_reaction_score,
+    effective_reaction_state,
+)
+from terminal_resolution_state import (
+    effective_resolution_actionable,
+    effective_resolution_priority,
+    effective_resolution_score,
+    effective_resolution_state,
+)
+from terminal_posture_state import (
+    effective_posture_actionable,
+    effective_posture_priority,
+    effective_posture_score,
+    effective_posture_state,
+)
+
 # ── Icon / colour maps ──────────────────────────────────────────
 
 SENTIMENT_COLORS: dict[str, str] = {
@@ -91,7 +121,7 @@ def filter_feed(
         ]
 
     if sentiment != "all":
-        filtered = [d for d in filtered if d.get("sentiment_label") == sentiment]
+        filtered = [d for d in filtered if effective_catalyst_sentiment(d) == sentiment]
 
     if category != "all":
         filtered = [d for d in filtered if d.get("category") == category]
@@ -107,7 +137,13 @@ def filter_feed(
 
     # Sort order
     if sort_by == "score":
-        filtered.sort(key=lambda d: (-d.get("news_score", 0), d.get("published_ts", 0)))
+        filtered.sort(
+            key=lambda d: (
+                -effective_attention_priority(d),
+                -effective_posture_score(d),
+                d.get("published_ts", 0),
+            )
+        )
     else:  # "newest" (default)
         filtered.sort(key=lambda d: -(d.get("published_ts", 0) or 0))
     return filtered
@@ -217,6 +253,9 @@ def canonical_article_key(d: dict[str, Any]) -> str:
     3) item_id + ticker
     """
     ticker = str(d.get("ticker") or "").strip().upper()
+    story_key = str(d.get("story_key") or "").strip()
+    if story_key:
+        return f"story:{story_key}"
     raw_url = str(d.get("url") or "").strip()
     if raw_url.lower().startswith(("http://", "https://")):
         try:
@@ -317,23 +356,37 @@ def _is_actionable_broad(d: dict[str, Any]) -> bool:
     """Broadened actionable check — matches the Actionable tab filter.
 
     True when:
+    - Explicit catalyst state says actionable, OR
     - Explicitly flagged ``is_actionable`` (recency < 60 min), OR
-    - High news score (≥ 0.65) regardless of age, OR
-    - AGING bucket (< 24 h) with moderate score (≥ 0.45).
+    - High effective score (≥ 0.65) regardless of age, OR
+    - AGING bucket (< 24 h) with moderate effective score (≥ 0.45).
     """
-    if d.get("is_actionable"):
+    explicit_attention_state = str(d.get("attention_state") or "").strip().upper()
+    if explicit_attention_state == "SUPPRESS":
+        return False
+    if effective_attention_active(d):
         return True
-    ns = 0.0
-    raw = d.get("news_score") or d.get("composite_score")
-    if raw is not None:
-        try:
-            ns = float(raw)
-        except (TypeError, ValueError):
-            pass
+    if explicit_attention_state == "BACKGROUND":
+        return False
+    if effective_posture_actionable(d):
+        return True
+    resolution_state = effective_resolution_state(d)
+    if resolution_state in {"FAILED", "REVERSAL"}:
+        return False
+    reaction_state = effective_reaction_state(d)
+    if reaction_state in {"CONFLICTED", "FADE"}:
+        return False
+    if effective_resolution_actionable(d):
+        return True
+    if effective_reaction_actionable(d):
+        return True
+    if effective_catalyst_actionable(d):
+        return True
+    ns = effective_posture_score(d)
     if ns >= 0.65:
         return True
-    bucket = (d.get("recency_bucket") or "").upper()
-    if bucket == "AGING" and ns >= 0.45:
+    age_minutes = effective_catalyst_age_minutes(d)
+    if age_minutes is not None and age_minutes <= 1440.0 and ns >= 0.45:
         return True
     return False
 
@@ -388,12 +441,40 @@ def compute_top_movers(
         if tk == "MARKET":
             continue
         prev = best_by_tk.get(tk)
-        if prev is None or d.get("news_score", 0) > prev.get("news_score", 0):
+        if prev is None or (
+            effective_attention_priority(d),
+            effective_posture_priority(d),
+            effective_resolution_priority(d),
+            effective_reaction_priority(d),
+            effective_posture_score(d),
+            effective_resolution_score(d),
+            effective_reaction_score(d),
+            effective_catalyst_score(d),
+        ) > (
+            effective_attention_priority(prev),
+            effective_posture_priority(prev),
+            effective_resolution_priority(prev),
+            effective_reaction_priority(prev),
+            effective_posture_score(prev),
+            effective_resolution_score(prev),
+            effective_reaction_score(prev),
+            effective_catalyst_score(prev),
+        ):
             best_by_tk[tk] = d
 
     sorted_movers = sorted(
         best_by_tk.values(),
-        key=lambda x: (-x.get("news_score", 0), x.get("ticker", "")),
+        key=lambda x: (
+            -effective_attention_priority(x),
+            -effective_posture_priority(x),
+            -effective_resolution_priority(x),
+            -effective_reaction_priority(x),
+            -effective_posture_score(x),
+            -effective_resolution_score(x),
+            -effective_reaction_score(x),
+            -effective_catalyst_score(x),
+            x.get("ticker", ""),
+        ),
     )
     return sorted_movers[:limit]
 

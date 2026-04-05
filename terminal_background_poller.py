@@ -25,6 +25,7 @@ import time
 from typing import Any
 
 logger = logging.getLogger(__name__)
+_UNSET = object()
 
 
 class BackgroundPoller:
@@ -55,7 +56,8 @@ class BackgroundPoller:
         self._store = store
 
         self._queue: queue.Queue[list[Any]] = queue.Queue(maxsize=500)
-        self._cursor: str | None = None
+        self._provider_cursors: dict[str, str] = {}
+        self._tv_symbols: list[str] = []
         self._lock = threading.Lock()
         self._stats_lock = threading.Lock()  # protects observable counters
         self._stop_event = threading.Event()
@@ -80,11 +82,23 @@ class BackgroundPoller:
     def is_alive(self) -> bool:
         return self._thread is not None and self._thread.is_alive()
 
-    def start(self, cursor: str | None = None) -> None:
+    def start(self, cursor: str | dict[str, str] | None = None) -> None:
         """Start the background polling thread (idempotent)."""
         if self.is_alive:
             return
-        self._cursor = cursor
+        if isinstance(cursor, dict):
+            self._provider_cursors = {
+                str(key): str(value)
+                for key, value in cursor.items()
+                if str(value or "").strip()
+            }
+        else:
+            seeded = str(cursor or "").strip()
+            self._provider_cursors = {
+                key: seeded
+                for key in ("benzinga", "fmp_stock", "fmp_press", "tv")
+                if seeded
+            }
         self._stop_event.clear()
         self._thread = threading.Thread(
             target=self._run_loop,
@@ -120,15 +134,20 @@ class BackgroundPoller:
 
     def update_adapters(
         self,
-        benzinga_adapter: Any | None = None,
-        fmp_adapter: Any | None = None,
+        benzinga_adapter: Any = _UNSET,
+        fmp_adapter: Any = _UNSET,
     ) -> None:
         """Swap adapters at runtime (e.g. after API key change)."""
         with self._lock:
-            if benzinga_adapter is not None:
+            if benzinga_adapter is not _UNSET:
                 self._benzinga = benzinga_adapter
-            if fmp_adapter is not None:
+            if fmp_adapter is not _UNSET:
                 self._fmp = fmp_adapter
+
+    def update_live_news_symbols(self, tv_symbols: list[str]) -> None:
+        """Update the tracked TradingView headline symbols at runtime."""
+        with self._lock:
+            self._tv_symbols = [str(symbol).strip().upper() for symbol in tv_symbols if str(symbol).strip()]
 
     # ── Drain results (called from Streamlit main thread) ───
 
@@ -152,12 +171,32 @@ class BackgroundPoller:
 
     @property
     def cursor(self) -> str | None:
-        return self._cursor
+        max_ts = 0.0
+        for value in self._provider_cursors.values():
+            try:
+                max_ts = max(max_ts, float(value or 0.0))
+            except (TypeError, ValueError):
+                continue
+        if max_ts <= 0:
+            return None
+        return str(int(max_ts))
 
     @cursor.setter
     def cursor(self, value: str | None) -> None:
         with self._lock:
-            self._cursor = value
+            seeded = str(value or "").strip()
+            if not seeded:
+                self._provider_cursors = {}
+                return
+            self._provider_cursors = {
+                key: seeded
+                for key in ("benzinga", "fmp_stock", "fmp_press", "tv")
+            }
+
+    @property
+    def provider_cursors(self) -> dict[str, str]:
+        with self._lock:
+            return dict(self._provider_cursors)
 
     def wake_and_reset_cursor(self) -> None:
         """Atomically reset cursor to None AND wake the poll thread.
@@ -168,7 +207,7 @@ class BackgroundPoller:
         the remaining interval.
         """
         with self._lock:
-            self._cursor = None
+            self._provider_cursors = {}
         self._wake_event.set()
 
     # ── Internal poll loop ──────────────────────────────────
@@ -181,7 +220,7 @@ class BackgroundPoller:
         """Main loop running in the background thread."""
         import re as _re
 
-        from terminal_poller import poll_and_classify_multi
+        from terminal_poller import poll_and_classify_live_bus, live_news_source_label
 
         logger.info("Background poll loop entered")
 
@@ -209,8 +248,9 @@ class BackgroundPoller:
             with self._lock:
                 bz = self._benzinga
                 fmp = self._fmp
+                tv_symbols = list(self._tv_symbols)
 
-            if bz is None and fmp is None:
+            if bz is None and fmp is None and not tv_symbols:
                 continue
 
             with self._stats_lock:
@@ -219,16 +259,17 @@ class BackgroundPoller:
             # Snapshot cursor under lock so a concurrent reset is
             # not overwritten by the new_cursor assignment below.
             with self._lock:
-                _use_cursor = self._cursor
+                _use_provider_cursors = dict(self._provider_cursors)
             try:
-                items, new_cursor = poll_and_classify_multi(
+                items, new_provider_cursors, provider_counts = poll_and_classify_live_bus(
                     benzinga_adapter=bz,
                     fmp_adapter=fmp,
                     store=self._store,
-                    cursor=_use_cursor,
+                    provider_cursors=_use_provider_cursors,
                     page_size=self._cfg.page_size,
                     channels=getattr(self._cfg, "channels", None) or None,
                     topics=getattr(self._cfg, "topics", None) or None,
+                    tv_symbols=tv_symbols,
                 )
             except Exception as exc:
                 _safe = _re.sub(
@@ -246,8 +287,8 @@ class BackgroundPoller:
 
             with self._lock:
                 # Only advance cursor if it wasn't reset while we were polling
-                if self._cursor == _use_cursor:
-                    self._cursor = new_cursor
+                if self._provider_cursors == _use_provider_cursors:
+                    self._provider_cursors = dict(new_provider_cursors)
 
             with self._stats_lock:
                 self.last_poll_duration_s = time.monotonic() - _t0
@@ -256,9 +297,7 @@ class BackgroundPoller:
                 self.total_items_ingested += len(items)
                 self.last_poll_error = ""
 
-            src = "BZ"
-            if fmp is not None:
-                src = "BZ+FMP"
+            src = live_news_source_label(provider_counts)
 
             with self._stats_lock:
                 self.last_poll_status = f"{len(items)} items [{src}]"
@@ -284,7 +323,7 @@ class BackgroundPoller:
                     # Cursor reset MUST happen even if prune failed — the
                     # cursor is the primary recovery action.
                     with self._lock:
-                        self._cursor = None
+                        self._provider_cursors = {}
                     logger.info(
                         "BG poller: reset cursor + pruned SQLite after %d empty polls",
                         _empties,
@@ -348,7 +387,7 @@ class BackgroundPoller:
                     except Exception as exc:
                         logger.warning("BG poller periodic dedup reset (%s) failed: %s", _tbl, exc, exc_info=True)
                 with self._lock:
-                    self._cursor = None
+                    self._provider_cursors = {}
                 self._last_periodic_prune_ts = _now_mono
                 logger.debug(
                     "BG poller: periodic dedup reset (every %.0fs)",

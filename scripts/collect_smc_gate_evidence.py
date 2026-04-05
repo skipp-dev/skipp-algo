@@ -25,7 +25,13 @@ from smc_integration.release_policy import (
     REASON_INSUFFICIENT_TIMEFRAMES,
     REASON_STALE_DATA,
     assess_measurement_shadow_degradations,
+    assess_contextual_calibration_promotion,
     get_measurement_shadow_thresholds,
+    get_contextual_calibration_promotion_policy,
+    get_contextual_calibration_recommendation_policy,
+    recommend_contextual_calibration,
+    serialize_contextual_calibration_promotion_policy,
+    serialize_contextual_calibration_recommendation_policy,
     serialize_measurement_shadow_thresholds,
 )
 
@@ -247,6 +253,183 @@ def _normalize_family_metrics(raw: Any) -> dict[str, dict[str, Any]]:
     return normalized
 
 
+def _normalize_calibration_bins(raw: Any) -> list[dict[str, Any]]:
+    if not isinstance(raw, list):
+        return []
+
+    normalized: list[dict[str, Any]] = []
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        normalized.append(
+            {
+                "bin_index": int(item.get("bin_index", 0) or 0),
+                "lower_bound": _finite_metric(item.get("lower_bound")),
+                "upper_bound": _finite_metric(item.get("upper_bound")),
+                "predicted_mean": _finite_metric(item.get("predicted_mean")),
+                "observed_rate": _finite_metric(item.get("observed_rate")),
+                "calibrated_mean": _finite_metric(item.get("calibrated_mean")),
+                "n_events": int(item.get("n_events", 0) or 0),
+            }
+        )
+    return normalized
+
+
+def _normalize_calibration_summary(raw: Any) -> dict[str, Any]:
+    if not isinstance(raw, dict):
+        return {}
+
+    return {
+        "method": str(raw.get("method", "identity") or "identity"),
+        "applied": bool(raw.get("applied", False)),
+        "input_kind": str(raw.get("input_kind", "predicted_prob") or "predicted_prob"),
+        "source_name": str(raw.get("source_name", "predicted_prob") or "predicted_prob"),
+        "n_events": int(raw.get("n_events", 0) or 0),
+        "positive_rate": _finite_metric(raw.get("positive_rate")),
+        "raw_brier_score": _finite_metric(raw.get("raw_brier_score")),
+        "calibrated_brier_score": _finite_metric(raw.get("calibrated_brier_score")),
+        "raw_log_score": _finite_metric(raw.get("raw_log_score")),
+        "calibrated_log_score": _finite_metric(raw.get("calibrated_log_score")),
+        "raw_ece": _finite_metric(raw.get("raw_ece")),
+        "calibrated_ece": _finite_metric(raw.get("calibrated_ece")),
+        "delta_brier_score": _finite_metric(raw.get("delta_brier_score")),
+        "delta_log_score": _finite_metric(raw.get("delta_log_score")),
+        "delta_ece": _finite_metric(raw.get("delta_ece")),
+        "bins": _normalize_calibration_bins(raw.get("bins")),
+        "parameters": dict(raw.get("parameters", {})) if isinstance(raw.get("parameters"), dict) else {},
+        "warnings": [str(item) for item in raw.get("warnings", []) if str(item).strip()] if isinstance(raw.get("warnings"), list) else [],
+    }
+
+
+def _normalize_stratified_calibration(raw: Any) -> dict[str, Any]:
+    if not isinstance(raw, dict):
+        return {
+            "dimensions_present": [],
+            "dimension_group_counts": {},
+            "dimension_populated_groups": {},
+            "dimensions": {},
+        }
+
+    if "dimensions_present" in raw:
+        return {
+            "dimensions_present": sorted(str(item) for item in raw.get("dimensions_present", []) if str(item).strip()),
+            "dimension_group_counts": {
+                str(key): int(value or 0)
+                for key, value in dict(raw.get("dimension_group_counts", {})).items()
+            },
+            "dimension_populated_groups": {
+                str(key): int(value or 0)
+                for key, value in dict(raw.get("dimension_populated_groups", {})).items()
+            },
+            "dimensions": {},
+        }
+
+    dimensions: dict[str, Any] = {}
+    for dimension, item in sorted(raw.items()):
+        if not isinstance(item, dict):
+            continue
+        groups_raw = item.get("groups")
+        groups: dict[str, Any] = {}
+        if isinstance(groups_raw, dict):
+            groups = {
+                str(group_key): _normalize_calibration_summary(group_summary)
+                for group_key, group_summary in sorted(groups_raw.items())
+                if isinstance(group_summary, dict)
+            }
+        dimensions[str(dimension)] = {
+            "total_groups": int(item.get("total_groups", len(groups)) or 0),
+            "populated_groups": int(item.get("populated_groups", len(groups)) or 0),
+            "groups": groups,
+        }
+
+    return {
+        "dimensions_present": sorted(dimensions.keys()),
+        "dimension_group_counts": {
+            dimension: int(item.get("total_groups", 0) or 0)
+            for dimension, item in sorted(dimensions.items())
+        },
+        "dimension_populated_groups": {
+            dimension: int(item.get("populated_groups", 0) or 0)
+            for dimension, item in sorted(dimensions.items())
+        },
+        "dimensions": dimensions,
+    }
+
+
+def _normalize_contextual_calibration(raw: Any) -> dict[str, Any]:
+    if not isinstance(raw, dict):
+        return {
+            "dimensions_present": [],
+            "improved_dimensions": [],
+            "best_dimension_by_adjusted_brier": None,
+            "best_dimension_by_adjusted_ece": None,
+            "dimensions": {},
+        }
+
+    if "dimensions_present" in raw:
+        return {
+            "dimensions_present": sorted(str(item) for item in raw.get("dimensions_present", []) if str(item).strip()),
+            "improved_dimensions": sorted(str(item) for item in raw.get("improved_dimensions", []) if str(item).strip()),
+            "best_dimension_by_adjusted_brier": str(raw.get("best_dimension_by_adjusted_brier") or "").strip() or None,
+            "best_dimension_by_adjusted_ece": str(raw.get("best_dimension_by_adjusted_ece") or "").strip() or None,
+            "dimensions": {},
+        }
+
+    dimensions_present = sorted(str(key) for key in raw.keys())
+    improved_dimensions: list[str] = []
+    best_dimension_by_adjusted_brier = None
+    best_dimension_by_adjusted_ece = None
+    best_brier_value = None
+    best_ece_value = None
+    dimensions: dict[str, Any] = {}
+    for dimension, item in sorted(raw.items()):
+        if not isinstance(item, dict):
+            continue
+        normalized_dimension = {
+            "dimension": str(dimension),
+            "input_kind": str(item.get("input_kind", "predicted_prob") or "predicted_prob"),
+            "source_name": str(item.get("source_name", "predicted_prob") or "predicted_prob"),
+            "n_events": int(item.get("n_events", 0) or 0),
+            "covered_events": int(item.get("covered_events", 0) or 0),
+            "coverage_ratio": _finite_metric(item.get("coverage_ratio")),
+            "total_groups": int(item.get("total_groups", 0) or 0),
+            "populated_groups": int(item.get("populated_groups", 0) or 0),
+            "raw_brier_score": _finite_metric(item.get("raw_brier_score")),
+            "adjusted_brier_score": _finite_metric(item.get("adjusted_brier_score")),
+            "raw_log_score": _finite_metric(item.get("raw_log_score")),
+            "adjusted_log_score": _finite_metric(item.get("adjusted_log_score")),
+            "raw_ece": _finite_metric(item.get("raw_ece")),
+            "adjusted_ece": _finite_metric(item.get("adjusted_ece")),
+            "delta_brier_score": _finite_metric(item.get("delta_brier_score")),
+            "delta_log_score": _finite_metric(item.get("delta_log_score")),
+            "delta_ece": _finite_metric(item.get("delta_ece")),
+            "group_method_counts": dict(item.get("group_method_counts", {})) if isinstance(item.get("group_method_counts"), dict) else {},
+            "fallback_event_count": int(item.get("fallback_event_count", 0) or 0),
+            "warnings": [str(value) for value in item.get("warnings", []) if str(value).strip()] if isinstance(item.get("warnings"), list) else [],
+        }
+        dimensions[str(dimension)] = normalized_dimension
+        delta_brier = _finite_metric(item.get("delta_brier_score"))
+        delta_ece = _finite_metric(item.get("delta_ece"))
+        adjusted_brier = _finite_metric(item.get("adjusted_brier_score"))
+        adjusted_ece = _finite_metric(item.get("adjusted_ece"))
+        if (delta_brier is not None and delta_brier > 0) or (delta_ece is not None and delta_ece > 0):
+            improved_dimensions.append(str(dimension))
+        if adjusted_brier is not None and (best_brier_value is None or adjusted_brier < best_brier_value):
+            best_brier_value = adjusted_brier
+            best_dimension_by_adjusted_brier = str(dimension)
+        if adjusted_ece is not None and (best_ece_value is None or adjusted_ece < best_ece_value):
+            best_ece_value = adjusted_ece
+            best_dimension_by_adjusted_ece = str(dimension)
+
+    return {
+        "dimensions_present": dimensions_present,
+        "improved_dimensions": sorted(improved_dimensions),
+        "best_dimension_by_adjusted_brier": best_dimension_by_adjusted_brier,
+        "best_dimension_by_adjusted_ece": best_dimension_by_adjusted_ece,
+        "dimensions": dimensions,
+    }
+
+
 def _extract_measurement_entry(
     report: dict[str, Any],
     path: Path,
@@ -396,12 +579,28 @@ def _extract_measurement_entry(
     log_score = None
     hit_rate = None
     family_metrics: dict[str, dict[str, Any]] = {}
+    calibration: dict[str, Any] = {}
+    stratified_calibration: dict[str, Any] = {
+        "dimensions_present": [],
+        "dimension_group_counts": {},
+        "dimension_populated_groups": {},
+        "dimensions": {},
+    }
+    contextual_calibration: dict[str, Any] = {
+        "dimensions_present": [],
+        "improved_dimensions": [],
+        "best_dimension_by_adjusted_brier": None,
+        "best_dimension_by_adjusted_ece": None,
+    }
     if scoring_payload is not None:
         n_events = int(scoring_payload.get("n_events", 0) or 0)
         brier_score = _finite_metric(scoring_payload.get("brier_score"))
         log_score = _finite_metric(scoring_payload.get("log_score"))
         hit_rate = _finite_metric(scoring_payload.get("hit_rate"))
         family_metrics = _normalize_family_metrics(scoring_payload.get("family_metrics"))
+        calibration = _normalize_calibration_summary(scoring_payload.get("calibration"))
+        stratified_calibration = _normalize_stratified_calibration(scoring_payload.get("stratified_calibration"))
+        contextual_calibration = _normalize_contextual_calibration(scoring_payload.get("contextual_calibration"))
     else:
         n_events = int(details.get("scoring_event_count", quality_summary.get("n_events", 0)) or 0)
         brier_score = _finite_metric(details.get("brier_score", quality_summary.get("brier_score")))
@@ -409,6 +608,13 @@ def _extract_measurement_entry(
         hit_rate = _finite_metric(details.get("scoring_hit_rate", quality_summary.get("hit_rate")))
         family_metrics = _normalize_family_metrics(
             details.get("scoring_family_metrics", quality_summary.get("family_metrics", {}))
+        )
+        calibration = _normalize_calibration_summary(details.get("calibration", quality_summary.get("calibration", {})))
+        stratified_calibration = _normalize_stratified_calibration(
+            details.get("stratified_calibration", quality_summary.get("stratified_calibration", {}))
+        )
+        contextual_calibration = _normalize_contextual_calibration(
+            details.get("contextual_calibration", quality_summary.get("contextual_calibration", {}))
         )
 
     warnings = manifest_payload.get("warnings") if isinstance(manifest_payload, dict) else details.get("warnings", [])
@@ -441,9 +647,20 @@ def _extract_measurement_entry(
         "brier_score": brier_score,
         "log_score": log_score,
         "hit_rate": hit_rate,
+        "calibration": calibration,
+        "stratified_calibration": stratified_calibration,
+        "contextual_calibration": contextual_calibration,
+        "calibrated_brier_score": calibration.get("calibrated_brier_score"),
+        "calibrated_log_score": calibration.get("calibrated_log_score"),
+        "raw_ece": calibration.get("raw_ece"),
+        "calibrated_ece": calibration.get("calibrated_ece"),
         "family_metrics": family_metrics,
         "warnings": warnings,
     }
+    entry["contextual_calibration_recommendation"] = recommend_contextual_calibration(
+        entry,
+        policy=get_contextual_calibration_recommendation_policy(),
+    )
     return entry, errors
 
 
@@ -703,7 +920,11 @@ def main() -> int:
         if rows
     }
     measurement_shadow_thresholds = get_measurement_shadow_thresholds()
+    contextual_recommendation_policy = get_contextual_calibration_recommendation_policy()
+    contextual_promotion_policy = get_contextual_calibration_promotion_policy()
     measurement_degradations_detected: list[dict[str, Any]] = []
+    contextual_recommendations_detected: list[dict[str, Any]] = []
+    contextual_promotions_ready: list[dict[str, Any]] = []
     for pair, rows in sorted(measurement_history_by_pair.items()):
         latest = rows[0]
         degradations, shadow_baseline = assess_measurement_shadow_degradations(
@@ -711,9 +932,21 @@ def main() -> int:
             rows[1:],
             thresholds=measurement_shadow_thresholds,
         )
+        contextual_recommendation = recommend_contextual_calibration(
+            latest,
+            policy=contextual_recommendation_policy,
+        )
+        contextual_promotion = assess_contextual_calibration_promotion(
+            latest,
+            rows[1:],
+            recommendation_policy=contextual_recommendation_policy,
+            promotion_policy=contextual_promotion_policy,
+        )
         latest["measurement_shadow_baseline"] = shadow_baseline
         latest["measurement_degradations_detected"] = degradations
         latest["degradations_detected"] = degradations
+        latest["contextual_calibration_recommendation"] = contextual_recommendation
+        latest["contextual_calibration_promotion"] = contextual_promotion
         if degradations:
             for degradation in degradations:
                 measurement_degradations_detected.append(
@@ -725,6 +958,32 @@ def main() -> int:
                         "checked_at_iso": latest.get("checked_at_iso"),
                     }
                 )
+        if contextual_recommendation.get("available") and contextual_recommendation.get("recommended_dimension"):
+            contextual_recommendations_detected.append(
+                {
+                    "pair": pair,
+                    "symbol": latest.get("symbol"),
+                    "timeframe": latest.get("timeframe"),
+                    "checked_at_iso": latest.get("checked_at_iso"),
+                    "recommended_dimension": contextual_recommendation.get("recommended_dimension"),
+                    "basis": contextual_recommendation.get("basis"),
+                    "metric_consensus": bool(contextual_recommendation.get("metric_consensus")),
+                    "delta_brier_score": contextual_recommendation.get("delta_brier_score"),
+                    "delta_ece": contextual_recommendation.get("delta_ece"),
+                    "coverage_ratio": contextual_recommendation.get("coverage_ratio"),
+                }
+            )
+        if contextual_promotion.get("promotion_ready") and contextual_promotion.get("recommended_dimension"):
+            contextual_promotions_ready.append(
+                {
+                    "pair": pair,
+                    "symbol": latest.get("symbol"),
+                    "timeframe": latest.get("timeframe"),
+                    "checked_at_iso": latest.get("checked_at_iso"),
+                    "recommended_dimension": contextual_promotion.get("recommended_dimension"),
+                    "recommended_run_ratio": contextual_promotion.get("recommended_run_ratio"),
+                }
+            )
 
     measurement_history = {
         "runs_with_measurement_gate": len(measurement_entries),
@@ -733,8 +992,14 @@ def main() -> int:
         "runs_with_scoring_artifact": sum(1 for entry in measurement_entries if entry.get("scoring_artifact_present")),
         "pairs_observed": sorted(measurement_history_by_pair),
         "shadow_thresholds": serialize_measurement_shadow_thresholds(measurement_shadow_thresholds),
+        "contextual_recommendation_policy": serialize_contextual_calibration_recommendation_policy(contextual_recommendation_policy),
+        "contextual_promotion_policy": serialize_contextual_calibration_promotion_policy(contextual_promotion_policy),
         "pairs_with_shadow_degradations": sorted({row["pair"] for row in measurement_degradations_detected}),
+        "pairs_with_contextual_recommendation": sorted({row["pair"] for row in contextual_recommendations_detected}),
+        "pairs_ready_for_contextual_promotion": sorted({row["pair"] for row in contextual_promotions_ready}),
         "shadow_degradations_detected": measurement_degradations_detected,
+        "contextual_recommendations_detected": contextual_recommendations_detected,
+        "contextual_promotions_ready": contextual_promotions_ready,
         "latest_by_pair": measurement_latest_by_pair,
         "history_by_pair": {
             pair: rows

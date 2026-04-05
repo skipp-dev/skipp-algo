@@ -139,6 +139,16 @@ def run_streamlit_micro_base_app() -> None:
             value=os.getenv("FMP_API_KEY", ""),
             type="password",
         )
+        benzinga_api_key = st.text_input(
+            "Benzinga API Key (optional)",
+            value=os.getenv("BENZINGA_API_KEY", ""),
+            type="password",
+        )
+        newsapi_ai_key = st.text_input(
+            "NewsAPI.ai API Key (optional)",
+            value=os.getenv("NEWSAPI_AI_KEY", ""),
+            type="password",
+        )
         export_dir_raw = st.text_input(
             "Export directory", value=str(default_export_dir)
         )
@@ -177,6 +187,8 @@ def run_streamlit_micro_base_app() -> None:
         )
         st.divider()
         st.subheader("Enrichment")
+        has_news_provider = bool(fmp_api_key or benzinga_api_key or newsapi_ai_key)
+        has_calendar_provider = bool(fmp_api_key or benzinga_api_key)
         enrich_regime = st.checkbox(
             "Regime (VIX, Macro, Sectors)",
             value=bool(fmp_api_key),
@@ -185,15 +197,15 @@ def run_streamlit_micro_base_app() -> None:
         )
         enrich_news = st.checkbox(
             "News/Sentiment",
-            value=bool(fmp_api_key),
-            help="Fügt NEWS_BULLISH_TICKERS, NEWS_BEARISH_TICKERS, TICKER_HEAT_MAP hinzu. Benötigt FMP API Key.",
-            disabled=not bool(fmp_api_key),
+            value=has_news_provider,
+            help="Fügt NEWS_BULLISH_TICKERS, NEWS_BEARISH_TICKERS und TICKER_HEAT_MAP hinzu. Nutzt FMP primär, Benzinga als Fallback und NewsAPI.ai optional als zusätzlichen News-Fallback.",
+            disabled=not has_news_provider,
         )
         enrich_calendar = st.checkbox(
             "Earnings/Macro Calendar",
-            value=bool(fmp_api_key),
-            help="Fügt EARNINGS_TODAY_TICKERS, HIGH_IMPACT_MACRO_TODAY hinzu. Benötigt FMP API Key.",
-            disabled=not bool(fmp_api_key),
+            value=has_calendar_provider,
+            help="Fügt EARNINGS_TODAY_TICKERS und HIGH_IMPACT_MACRO_TODAY hinzu. Nutzt FMP primär und Benzinga als Fallback.",
+            disabled=not has_calendar_provider,
         )
         enrich_layering = st.checkbox(
             "Pre-computed Layering",
@@ -201,10 +213,15 @@ def run_streamlit_micro_base_app() -> None:
             help="Fügt GLOBAL_HEAT, GLOBAL_STRENGTH, TONE, TRADE_STATE hinzu. Benötigt Regime + News.",
             disabled=not bool(fmp_api_key),
         )
-        if not fmp_api_key and any(
-            [enrich_regime, enrich_news, enrich_calendar, enrich_layering]
-        ):
-            st.caption("⚠️ FMP API Key erforderlich für Enrichment.")
+        derive_snapshot_blocks = st.checkbox(
+            "Snapshot-derived SMC context",
+            value=True,
+            help="Leitet die snapshot-basierten SMC-Kontextblöcke für Library/Core direkt aus dem Base-CSV ab, auch ohne externe APIs.",
+        )
+        if not has_news_provider and enrich_news:
+            st.caption("⚠️ Für News/Sentiment wird mindestens ein News-Provider benötigt.")
+        if not has_calendar_provider and enrich_calendar:
+            st.caption("⚠️ Für Earnings/Macro Calendar wird FMP oder Benzinga benötigt.")
         st.caption(
             "SMC_Core_Engine.pine is already wired to import the generated TradingView library path."
         )
@@ -359,10 +376,16 @@ def run_streamlit_micro_base_app() -> None:
         else:
             enrichment = None
             if any(
-                [enrich_regime, enrich_news, enrich_calendar, enrich_layering]
+                [
+                    enrich_regime,
+                    enrich_news,
+                    enrich_calendar,
+                    enrich_layering,
+                    derive_snapshot_blocks,
+                ]
             ):
                 with st.spinner(
-                    "Collecting enrichment data (Regime, News, Calendar)..."
+                    "Collecting enrichment data and deriving snapshot context blocks..."
                 ):
                     try:
                         from scripts.generate_smc_micro_base_from_databento import (
@@ -385,11 +408,29 @@ def run_streamlit_micro_base_app() -> None:
                         )
                         enrichment = build_enrichment(
                             fmp_api_key=str(fmp_api_key),
+                            benzinga_api_key=str(benzinga_api_key),
+                            newsapi_ai_key=str(newsapi_ai_key),
                             symbols=symbols,
                             enrich_regime=enrich_regime,
                             enrich_news=enrich_news,
                             enrich_calendar=enrich_calendar,
                             enrich_layering=enrich_layering,
+                            enrich_event_risk=bool(enrich_news or enrich_calendar),
+                            enrich_flow_qualifier=derive_snapshot_blocks,
+                            enrich_compression_regime=derive_snapshot_blocks,
+                            enrich_zone_intelligence=derive_snapshot_blocks,
+                            enrich_reversal_context=derive_snapshot_blocks,
+                            enrich_session_context=derive_snapshot_blocks,
+                            enrich_liquidity_sweeps=derive_snapshot_blocks,
+                            enrich_liquidity_pools=derive_snapshot_blocks,
+                            enrich_order_blocks=derive_snapshot_blocks,
+                            enrich_zone_projection=derive_snapshot_blocks,
+                            enrich_profile_context=derive_snapshot_blocks,
+                            enrich_structure_state=derive_snapshot_blocks,
+                            enrich_imbalance_lifecycle=derive_snapshot_blocks,
+                            enrich_session_structure=derive_snapshot_blocks,
+                            enrich_range_regime=derive_snapshot_blocks,
+                            enrich_range_profile_regime=derive_snapshot_blocks,
                             base_snapshot=base_df,
                             manifest_path=manifest_path,
                         )

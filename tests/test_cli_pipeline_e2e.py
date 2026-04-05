@@ -99,6 +99,8 @@ class TestFinalizePipeline:
             enrich_news=True,
             enrich_calendar=False,
             enrich_layering=False,
+            enrich_session_context=True,
+            enrich_order_blocks=True,
         )
 
         call_kwargs = mock_enrich.call_args.kwargs
@@ -106,6 +108,26 @@ class TestFinalizePipeline:
         assert call_kwargs["enrich_news"] is True
         assert call_kwargs["enrich_calendar"] is False
         assert call_kwargs["enrich_layering"] is False
+        assert call_kwargs["enrich_session_context"] is True
+        assert call_kwargs["enrich_order_blocks"] is True
+
+    @patch("scripts.generate_smc_micro_base_from_databento.generate_pine_library_from_base")
+    @patch("scripts.generate_smc_micro_base_from_databento.build_enrichment")
+    def test_finalize_pipeline_forwards_newsapi_key(self, mock_enrich, mock_pine, tmp_path):
+        from scripts.generate_smc_micro_base_from_databento import finalize_pipeline
+
+        mock_enrich.return_value = {"news": {}}
+        mock_pine.return_value = _fake_pine_paths()
+
+        finalize_pipeline(
+            base_result=_fake_base_result(tmp_path),
+            schema_path=Path("schema/smc_microstructure_base.json"),
+            output_root=tmp_path,
+            newsapi_ai_key="news-key",
+            enrich_news=True,
+        )
+
+        assert mock_enrich.call_args.kwargs["newsapi_ai_key"] == "news-key"
 
     @patch("scripts.generate_smc_micro_base_from_databento.generate_pine_library_from_base")
     @patch("scripts.generate_smc_micro_base_from_databento.build_enrichment")
@@ -241,6 +263,32 @@ class TestMainRunScan:
         assert call_kwargs["enrich_news"] is True
         assert call_kwargs["enrich_calendar"] is True
         assert call_kwargs["enrich_layering"] is True
+        assert call_kwargs["enrich_event_risk"] is True
+        assert call_kwargs["enrich_flow_qualifier"] is True
+        assert call_kwargs["enrich_compression_regime"] is True
+        assert call_kwargs["enrich_session_context"] is True
+        assert call_kwargs["enrich_order_blocks"] is True
+        assert call_kwargs["enrich_structure_state"] is True
+        assert call_kwargs["enrich_range_profile_regime"] is True
+
+    @patch("scripts.generate_smc_micro_base_from_databento.finalize_pipeline")
+    @patch("scripts.generate_smc_micro_base_from_databento.run_databento_base_scan_pipeline")
+    def test_run_scan_passes_newsapi_key(self, mock_scan, mock_finalize, tmp_path):
+        from scripts.generate_smc_micro_base_from_databento import main
+
+        mock_scan.return_value = _fake_base_result(tmp_path)
+        mock_finalize.return_value = {"status": "ok"}
+
+        test_args = [
+            "--run-scan",
+            "--databento-api-key", "test-key",
+            "--newsapi-ai-key", "news-key",
+            "--export-dir", str(tmp_path),
+        ]
+        with patch("sys.argv", ["prog"] + test_args):
+            main()
+
+        assert mock_finalize.call_args.kwargs["newsapi_ai_key"] == "news-key"
 
 
 class TestMainBundle:

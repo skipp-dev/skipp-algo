@@ -14,7 +14,8 @@ Run with::
 
     streamlit run streamlit_terminal.py
 
-Requires ``BENZINGA_API_KEY`` in ``.env`` or environment.
+Requires a live-news provider in ``.env`` or environment, typically
+``BENZINGA_API_KEY`` or ``FMP_API_KEY``.
 Optional: ``DATABENTO_API_KEY`` for real-time quote enrichment.
 """
 
@@ -31,6 +32,7 @@ import sys
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from contextlib import contextmanager
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -83,7 +85,7 @@ try:
 
     def _patched_make_function_key(*args: Any, **kwargs: Any) -> str:  # type: ignore[override]
         try:
-            return _orig_make_function_key(*args, **kwargs)
+            return str(_orig_make_function_key(*args, **kwargs))
         except _tokenize_mod.TokenError:
             # Fallback: re-run with bytecode by temporarily monkey-patching
             # inspect.getsource to raise OSError (which Streamlit already handles).
@@ -96,7 +98,7 @@ try:
 
             _insp.getsource = _gs_raise  # type: ignore[assignment]
             try:
-                return _orig_make_function_key(*args, **kwargs)
+                return str(_orig_make_function_key(*args, **kwargs))
             finally:
                 _insp.getsource = _real_gs  # type: ignore[assignment]
 
@@ -153,6 +155,7 @@ def _load_streamlit_secrets() -> None:
     """
     _SECRET_KEYS = (
         "BENZINGA_API_KEY",
+        "FMP_API_KEY",
         "DATABENTO_API_KEY",
         "OPENAI_API_KEY",
         "TERMINAL_WEBHOOK_URL",
@@ -175,10 +178,26 @@ _load_env_file(PROJECT_ROOT / ".env")
 _load_streamlit_secrets()
 
 from newsstack_fmp.ingest_benzinga import BenzingaRestAdapter
+from newsstack_fmp.ingest_fmp import FmpAdapter
 from newsstack_fmp.store_sqlite import SqliteStore
 from newsstack_fmp._bz_http import _WARNED_ENDPOINTS
 from open_prep.playbook import classify_recency as _classify_recency
 from terminal_background_poller import BackgroundPoller
+from terminal_catalyst_state import (
+    annotate_feed_with_ticker_catalyst_state,
+    effective_catalyst_actionable,
+    effective_catalyst_score,
+    effective_catalyst_sentiment,
+)
+from terminal_attention_state import (
+    annotate_feed_with_ticker_attention_state,
+    effective_attention_active,
+    effective_attention_dispatchable,
+    effective_attention_priority,
+    effective_attention_reason,
+    effective_attention_score,
+    effective_attention_state,
+)
 from terminal_export import (
     append_jsonl,
     fire_webhook,
@@ -188,6 +207,39 @@ from terminal_export import (
     save_vd_snapshot,
 )
 from terminal_feed_lifecycle import FeedLifecycleManager, feed_staleness_minutes, is_market_hours
+from terminal_feed_state import (
+    build_derived_feed_state,
+    merge_live_feed_rows,
+    restore_feed_state,
+    resync_feed_from_jsonl as resync_feed_from_jsonl_core,
+)
+from terminal_live_story_state import (
+    apply_live_story_state,
+    build_live_story_state_from_feed,
+    live_story_key,
+)
+from terminal_reaction_state import (
+    annotate_feed_with_ticker_reaction_state,
+    effective_reaction_actionable,
+    effective_reaction_priority,
+    effective_reaction_score,
+    effective_reaction_state,
+)
+from terminal_resolution_state import (
+    annotate_feed_with_ticker_resolution_state,
+    effective_resolution_actionable,
+    effective_resolution_priority,
+    effective_resolution_score,
+    effective_resolution_state,
+)
+from terminal_posture_state import (
+    annotate_feed_with_ticker_posture_state,
+    effective_posture_action,
+    effective_posture_actionable,
+    effective_posture_priority,
+    effective_posture_score,
+    effective_posture_state,
+)
 from terminal_status_helpers import (
     api_key_status,
     cursor_diagnostic,
@@ -213,7 +265,10 @@ from terminal_poller import (
     fetch_benzinga_delayed_quotes,
     fetch_sector_performance,
     fetch_ticker_sectors,
-    poll_and_classify_multi,
+    legacy_cursor_from_provider_cursors,
+    live_news_source_label,
+    poll_and_classify_live_bus,
+    seed_provider_cursors,
 )
 
 
@@ -239,7 +294,6 @@ from terminal_ui_helpers import (
     compute_feed_stats,
     dedup_feed_items,
     dedup_articles,
-    dedup_merge,
     filter_feed,
     format_age_string,
     format_score_badge,
@@ -656,6 +710,554 @@ def _prune_stale_items(feed: list[dict[str, Any]], max_age_s: float | None = Non
     return prune_stale_items(feed, max_age_s)
 
 
+def _collect_tv_news_symbols(cfg: TerminalConfig, feed: list[dict[str, Any]] | None = None) -> list[str]:
+    if not bool(getattr(cfg, "tv_news_enabled", True)):
+        return []
+    configured = [
+        str(symbol).strip().upper()
+        for symbol in str(getattr(cfg, "tv_news_symbols", "") or "").split(",")
+        if str(symbol).strip()
+    ]
+    dynamic: list[str] = []
+    for row in feed or []:
+        ticker = str(row.get("ticker") or "").strip().upper()
+        if ticker and ticker != "MARKET":
+            dynamic.append(ticker)
+    merged: list[str] = []
+    seen: set[str] = set()
+    max_symbols = max(1, int(getattr(cfg, "tv_news_max_symbols", 25) or 25))
+    for ticker in [*configured, *dynamic]:
+        if ticker in seen:
+            continue
+        seen.add(ticker)
+        merged.append(ticker)
+        if len(merged) >= max_symbols:
+            break
+    return merged
+
+
+def _has_live_news_provider(cfg: TerminalConfig, feed: list[dict[str, Any]] | None = None) -> bool:
+    if str(getattr(cfg, "benzinga_api_key", "") or "").strip():
+        return True
+    if bool(getattr(cfg, "fmp_enabled", False)) and str(getattr(cfg, "fmp_api_key", "") or "").strip():
+        return True
+    return bool(_collect_tv_news_symbols(cfg, feed))
+
+
+def _live_story_state_kwargs(cfg: TerminalConfig | None = None) -> dict[str, float]:
+    cfg_obj = cfg or st.session_state.get("cfg") or TerminalConfig()
+    return {
+        "ttl_s": float(getattr(cfg_obj, "live_story_ttl_s", 7200.0) or 7200.0),
+        "cooldown_s": float(getattr(cfg_obj, "live_story_cooldown_s", 900.0) or 900.0),
+    }
+
+
+def _story_key_for_feed_row(row: dict[str, Any]) -> str:
+    explicit = str(row.get("story_key") or "").strip()
+    return explicit or live_story_key(row)
+
+
+def _hydrate_feed_story_state(
+    feed: list[dict[str, Any]],
+    *,
+    cfg: TerminalConfig | None = None,
+) -> tuple[list[dict[str, Any]], dict[str, dict[str, Any]]]:
+    story_state = build_live_story_state_from_feed(
+        feed,
+        **_live_story_state_kwargs(cfg),
+    )
+    hydrated: list[dict[str, Any]] = []
+    for row in feed:
+        hydrated_row = dict(row)
+        story_key = live_story_key(hydrated_row)
+        state = story_state.get(story_key)
+        if state is None:
+            hydrated.append(hydrated_row)
+            continue
+
+        hydrated_row["story_key"] = state["story_key"]
+        hydrated_row["story_update_kind"] = str(
+            hydrated_row.get("story_update_kind") or state.get("last_action") or "restored"
+        )
+        hydrated_row["story_first_seen_ts"] = float(
+            hydrated_row.get("story_first_seen_ts") or state.get("first_seen_ts") or 0.0
+        )
+        hydrated_row["story_last_seen_ts"] = float(
+            hydrated_row.get("story_last_seen_ts")
+            or hydrated_row.get("updated_ts")
+            or hydrated_row.get("published_ts")
+            or state.get("last_seen_ts")
+            or 0.0
+        )
+        hydrated_row["story_providers_seen"] = list(
+            hydrated_row.get("story_providers_seen") or state.get("providers_seen") or []
+        )
+        hydrated_row["story_best_source"] = str(
+            hydrated_row.get("story_best_source") or state.get("best_source") or ""
+        )
+        hydrated_row["story_best_provider"] = str(
+            hydrated_row.get("story_best_provider") or state.get("best_provider") or ""
+        )
+        hydrated_row["story_cooldown_until"] = float(
+            hydrated_row.get("story_cooldown_until") or state.get("cooldown_until") or 0.0
+        )
+        hydrated_row["story_expires_at"] = float(
+            hydrated_row.get("story_expires_at") or state.get("expires_at") or 0.0
+        )
+        hydrated.append(hydrated_row)
+    return dedup_feed_items(hydrated), story_state
+
+
+def _apply_live_story_batch(
+    items: list[ClassifiedItem],
+) -> tuple[list[ClassifiedItem], list[ClassifiedItem], list[str]]:
+    result = apply_live_story_state(
+        items,
+        st.session_state.get("live_story_state"),
+        **_live_story_state_kwargs(st.session_state.get("cfg")),
+    )
+    st.session_state["live_story_state"] = result.story_state
+    return result.feed_items, result.alert_items, result.replace_story_keys
+
+
+def _rebuild_ticker_catalyst_state() -> None:
+    annotated_feed, ticker_state = annotate_feed_with_ticker_catalyst_state(st.session_state.feed)
+    st.session_state.feed = dedup_feed_items(annotated_feed)
+    st.session_state["ticker_catalyst_state"] = ticker_state
+
+
+def _rebuild_feed_states() -> None:
+    rt_quotes, db_quotes = _load_reaction_quote_context(st.session_state.feed)
+    derived = build_derived_feed_state(
+        st.session_state.feed,
+        cfg=st.session_state.get("cfg"),
+        previous_reaction_state=st.session_state.get("ticker_reaction_state") or {},
+        previous_resolution_state=st.session_state.get("ticker_resolution_state") or {},
+        rt_quotes=rt_quotes,
+        quote_map=db_quotes,
+        market_hours=is_market_hours(),
+    )
+    st.session_state.feed = derived.feed
+    st.session_state["live_story_state"] = derived.live_story_state
+    st.session_state["ticker_catalyst_state"] = derived.ticker_catalyst_state
+    st.session_state["ticker_reaction_state"] = derived.ticker_reaction_state
+    st.session_state["ticker_resolution_state"] = derived.ticker_resolution_state
+    st.session_state["ticker_posture_state"] = derived.ticker_posture_state
+    st.session_state["ticker_attention_state"] = derived.ticker_attention_state
+
+
+def _load_reaction_quote_context(
+    rows: list[dict[str, Any]] | None = None,
+) -> tuple[dict[str, dict[str, Any]], dict[str, dict[str, Any]]]:
+    current_rows = list(rows if rows is not None else st.session_state.feed)
+    tickers = sorted({
+        str(row.get("ticker") or "").strip().upper()
+        for row in current_rows
+        if str(row.get("ticker") or "").strip().upper() not in ("", "MARKET")
+    })[:200]
+    if not tickers:
+        return {}, {}
+
+    rt_quotes: dict[str, dict[str, Any]] = {}
+    try:
+        rt_quotes = load_rt_quotes(max_age_s=180.0)
+        rt_quotes = {sym: row for sym, row in rt_quotes.items() if sym in tickers}
+    except Exception:
+        logger.debug("Reaction RT quote load failed", exc_info=True)
+
+    db_quotes: dict[str, dict[str, Any]] = {}
+    missing = [sym for sym in tickers if sym not in rt_quotes]
+    if missing and databento_available():
+        try:
+            db_quotes = fetch_databento_quote_map(missing)
+        except Exception:
+            logger.debug("Reaction Databento quote load failed", exc_info=True)
+    return rt_quotes, db_quotes
+
+
+def _rebuild_ticker_reaction_state() -> None:
+    rt_quotes, db_quotes = _load_reaction_quote_context(st.session_state.feed)
+    annotated_feed, ticker_state = annotate_feed_with_ticker_reaction_state(
+        st.session_state.feed,
+        rt_quotes=rt_quotes,
+        quote_map=db_quotes,
+        previous_state=st.session_state.get("ticker_reaction_state") or {},
+    )
+    annotated_feed, resolution_state = annotate_feed_with_ticker_resolution_state(
+        annotated_feed,
+        rt_quotes=rt_quotes,
+        quote_map=db_quotes,
+        previous_state=st.session_state.get("ticker_resolution_state") or {},
+    )
+    annotated_feed, posture_state = annotate_feed_with_ticker_posture_state(annotated_feed)
+    annotated_feed, attention_state = annotate_feed_with_ticker_attention_state(annotated_feed)
+    st.session_state.feed = dedup_feed_items(annotated_feed)
+    st.session_state["ticker_reaction_state"] = ticker_state
+    st.session_state["ticker_resolution_state"] = resolution_state
+    st.session_state["ticker_posture_state"] = posture_state
+    st.session_state["ticker_attention_state"] = attention_state
+
+
+def _rebuild_ticker_resolution_state() -> None:
+    _rebuild_ticker_reaction_state()
+
+
+def _annotate_dict_rows_with_catalyst_state(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    annotated_rows, _ = annotate_feed_with_ticker_catalyst_state(
+        rows,
+        st.session_state.get("ticker_catalyst_state") or {},
+    )
+    return annotated_rows
+
+
+def _annotate_dict_rows_with_reaction_state(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    annotated_rows, _ = annotate_feed_with_ticker_reaction_state(
+        rows,
+        st.session_state.get("ticker_reaction_state") or {},
+    )
+    return annotated_rows
+
+
+def _annotate_dict_rows_with_resolution_state(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    annotated_rows, _ = annotate_feed_with_ticker_resolution_state(
+        rows,
+        st.session_state.get("ticker_resolution_state") or {},
+    )
+    return annotated_rows
+
+
+def _annotate_dict_rows_with_posture_state(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    annotated_rows, _ = annotate_feed_with_ticker_posture_state(
+        rows,
+        st.session_state.get("ticker_posture_state") or {},
+    )
+    return annotated_rows
+
+
+def _annotate_dict_rows_with_attention_state(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    annotated_rows, _ = annotate_feed_with_ticker_attention_state(
+        rows,
+        st.session_state.get("ticker_attention_state") or {},
+    )
+    return annotated_rows
+
+
+def _enrich_classified_items_with_catalyst_state(
+    items: list[ClassifiedItem],
+) -> list[ClassifiedItem]:
+    ticker_state = st.session_state.get("ticker_catalyst_state") or {}
+    enriched: list[ClassifiedItem] = []
+    for item in items:
+        state = ticker_state.get(str(item.ticker or "").strip().upper())
+        if state is None:
+            enriched.append(item)
+            continue
+        enriched.append(
+            replace(
+                item,
+                catalyst_score=float(state.get("catalyst_score", 0.0) or 0.0),
+                catalyst_direction=str(state.get("catalyst_direction", "") or ""),
+                catalyst_confidence=float(state.get("catalyst_confidence", 0.0) or 0.0),
+                catalyst_freshness=str(state.get("catalyst_freshness", "") or ""),
+                catalyst_story_count=int(state.get("catalyst_story_count", 0) or 0),
+                catalyst_provider_count=int(state.get("catalyst_provider_count", 0) or 0),
+                catalyst_best_story_key=str(state.get("catalyst_best_story_key", "") or ""),
+                catalyst_best_provider=str(state.get("catalyst_best_provider", "") or ""),
+                catalyst_best_source=str(state.get("catalyst_best_source", "") or ""),
+                catalyst_headline=str(state.get("catalyst_headline", "") or ""),
+                catalyst_actionable=bool(state.get("catalyst_actionable", False)),
+                catalyst_age_minutes=(
+                    float(state.get("catalyst_age_minutes", 0.0) or 0.0)
+                    if state.get("catalyst_age_minutes") is not None
+                    else None
+                ),
+                catalyst_last_update_ts=(
+                    float(state.get("catalyst_last_update_ts", 0.0) or 0.0)
+                    if state.get("catalyst_last_update_ts") is not None
+                    else None
+                ),
+                catalyst_expires_at=(
+                    float(state.get("catalyst_expires_at", 0.0) or 0.0)
+                    if state.get("catalyst_expires_at") is not None
+                    else None
+                ),
+                catalyst_conflict=bool(state.get("catalyst_conflict", False)),
+            )
+        )
+    return enriched
+
+
+def _enrich_classified_items_with_reaction_state(
+    items: list[ClassifiedItem],
+) -> list[ClassifiedItem]:
+    ticker_state = st.session_state.get("ticker_reaction_state") or {}
+    enriched: list[ClassifiedItem] = []
+    for item in items:
+        state = ticker_state.get(str(item.ticker or "").strip().upper())
+        if state is None:
+            enriched.append(item)
+            continue
+        enriched.append(
+            replace(
+                item,
+                reaction_state=str(state.get("reaction_state", "") or ""),
+                reaction_alignment=str(state.get("reaction_alignment", "") or ""),
+                reaction_score=(
+                    float(state.get("reaction_score", 0.0) or 0.0)
+                    if state.get("reaction_score") is not None
+                    else None
+                ),
+                reaction_confidence=(
+                    float(state.get("reaction_confidence", 0.0) or 0.0)
+                    if state.get("reaction_confidence") is not None
+                    else None
+                ),
+                reaction_price=(
+                    float(state.get("reaction_price", 0.0) or 0.0)
+                    if state.get("reaction_price") is not None
+                    else None
+                ),
+                reaction_change_pct=(
+                    float(state.get("reaction_change_pct", 0.0) or 0.0)
+                    if state.get("reaction_change_pct") is not None
+                    else None
+                ),
+                reaction_impulse_pct=(
+                    float(state.get("reaction_impulse_pct", 0.0) or 0.0)
+                    if state.get("reaction_impulse_pct") is not None
+                    else None
+                ),
+                reaction_volume_ratio=(
+                    float(state.get("reaction_volume_ratio", 0.0) or 0.0)
+                    if state.get("reaction_volume_ratio") is not None
+                    else None
+                ),
+                reaction_source=str(state.get("reaction_source", "") or ""),
+                reaction_anchor_story_key=str(state.get("reaction_anchor_story_key", "") or ""),
+                reaction_anchor_price=(
+                    float(state.get("reaction_anchor_price", 0.0) or 0.0)
+                    if state.get("reaction_anchor_price") is not None
+                    else None
+                ),
+                reaction_anchor_ts=(
+                    float(state.get("reaction_anchor_ts", 0.0) or 0.0)
+                    if state.get("reaction_anchor_ts") is not None
+                    else None
+                ),
+                reaction_peak_impulse_pct=(
+                    float(state.get("reaction_peak_impulse_pct", 0.0) or 0.0)
+                    if state.get("reaction_peak_impulse_pct") is not None
+                    else None
+                ),
+                reaction_last_update_ts=(
+                    float(state.get("reaction_last_update_ts", 0.0) or 0.0)
+                    if state.get("reaction_last_update_ts") is not None
+                    else None
+                ),
+                reaction_confirmed=(
+                    bool(state.get("reaction_confirmed"))
+                    if state.get("reaction_confirmed") is not None
+                    else None
+                ),
+                reaction_actionable=(
+                    bool(state.get("reaction_actionable"))
+                    if state.get("reaction_actionable") is not None
+                    else None
+                ),
+                reaction_reason=str(state.get("reaction_reason", "") or ""),
+            )
+        )
+    return enriched
+
+
+def _enrich_classified_items_with_resolution_state(
+    items: list[ClassifiedItem],
+) -> list[ClassifiedItem]:
+    ticker_state = st.session_state.get("ticker_resolution_state") or {}
+    enriched: list[ClassifiedItem] = []
+    for item in items:
+        state = ticker_state.get(str(item.ticker or "").strip().upper())
+        if state is None:
+            enriched.append(item)
+            continue
+        enriched.append(
+            replace(
+                item,
+                resolution_state=str(state.get("resolution_state", "") or ""),
+                resolution_score=(
+                    float(state.get("resolution_score", 0.0) or 0.0)
+                    if state.get("resolution_score") is not None
+                    else None
+                ),
+                resolution_confidence=(
+                    float(state.get("resolution_confidence", 0.0) or 0.0)
+                    if state.get("resolution_confidence") is not None
+                    else None
+                ),
+                resolution_window_minutes=(
+                    float(state.get("resolution_window_minutes", 0.0) or 0.0)
+                    if state.get("resolution_window_minutes") is not None
+                    else None
+                ),
+                resolution_elapsed_minutes=(
+                    float(state.get("resolution_elapsed_minutes", 0.0) or 0.0)
+                    if state.get("resolution_elapsed_minutes") is not None
+                    else None
+                ),
+                resolution_price=(
+                    float(state.get("resolution_price", 0.0) or 0.0)
+                    if state.get("resolution_price") is not None
+                    else None
+                ),
+                resolution_change_pct=(
+                    float(state.get("resolution_change_pct", 0.0) or 0.0)
+                    if state.get("resolution_change_pct") is not None
+                    else None
+                ),
+                resolution_impulse_pct=(
+                    float(state.get("resolution_impulse_pct", 0.0) or 0.0)
+                    if state.get("resolution_impulse_pct") is not None
+                    else None
+                ),
+                resolution_peak_impulse_pct=(
+                    float(state.get("resolution_peak_impulse_pct", 0.0) or 0.0)
+                    if state.get("resolution_peak_impulse_pct") is not None
+                    else None
+                ),
+                resolution_source=str(state.get("resolution_source", "") or ""),
+                resolution_anchor_story_key=str(state.get("resolution_anchor_story_key", "") or ""),
+                resolution_anchor_price=(
+                    float(state.get("resolution_anchor_price", 0.0) or 0.0)
+                    if state.get("resolution_anchor_price") is not None
+                    else None
+                ),
+                resolution_anchor_ts=(
+                    float(state.get("resolution_anchor_ts", 0.0) or 0.0)
+                    if state.get("resolution_anchor_ts") is not None
+                    else None
+                ),
+                resolution_last_update_ts=(
+                    float(state.get("resolution_last_update_ts", 0.0) or 0.0)
+                    if state.get("resolution_last_update_ts") is not None
+                    else None
+                ),
+                resolution_resolved=(
+                    bool(state.get("resolution_resolved"))
+                    if state.get("resolution_resolved") is not None
+                    else None
+                ),
+                resolution_actionable=(
+                    bool(state.get("resolution_actionable"))
+                    if state.get("resolution_actionable") is not None
+                    else None
+                ),
+                resolution_reason=str(state.get("resolution_reason", "") or ""),
+            )
+        )
+    return enriched
+
+
+def _enrich_classified_items_with_posture_state(
+    items: list[ClassifiedItem],
+) -> list[ClassifiedItem]:
+    ticker_state = st.session_state.get("ticker_posture_state") or {}
+    enriched: list[ClassifiedItem] = []
+    for item in items:
+        state = ticker_state.get(str(item.ticker or "").strip().upper())
+        if state is None:
+            enriched.append(item)
+            continue
+        enriched.append(
+            replace(
+                item,
+                posture_state=str(state.get("posture_state", "") or ""),
+                posture_action=str(state.get("posture_action", "") or ""),
+                posture_score=(
+                    float(state.get("posture_score", 0.0) or 0.0)
+                    if state.get("posture_score") is not None
+                    else None
+                ),
+                posture_confidence=(
+                    float(state.get("posture_confidence", 0.0) or 0.0)
+                    if state.get("posture_confidence") is not None
+                    else None
+                ),
+                posture_actionable=(
+                    bool(state.get("posture_actionable"))
+                    if state.get("posture_actionable") is not None
+                    else None
+                ),
+                posture_reason=str(state.get("posture_reason", "") or ""),
+                posture_last_update_ts=(
+                    float(state.get("posture_last_update_ts", 0.0) or 0.0)
+                    if state.get("posture_last_update_ts") is not None
+                    else None
+                ),
+            )
+        )
+    return enriched
+
+
+def _enrich_classified_items_with_attention_state(
+    items: list[ClassifiedItem],
+) -> list[ClassifiedItem]:
+    ticker_state = st.session_state.get("ticker_attention_state") or {}
+    enriched: list[ClassifiedItem] = []
+    for item in items:
+        state = ticker_state.get(str(item.ticker or "").strip().upper())
+        if state is None:
+            enriched.append(item)
+            continue
+        enriched.append(
+            replace(
+                item,
+                attention_state=str(state.get("attention_state", "") or ""),
+                attention_score=(
+                    float(state.get("attention_score", 0.0) or 0.0)
+                    if state.get("attention_score") is not None
+                    else None
+                ),
+                attention_confidence=(
+                    float(state.get("attention_confidence", 0.0) or 0.0)
+                    if state.get("attention_confidence") is not None
+                    else None
+                ),
+                attention_active=(
+                    bool(state.get("attention_active"))
+                    if state.get("attention_active") is not None
+                    else None
+                ),
+                attention_featured=(
+                    bool(state.get("attention_featured"))
+                    if state.get("attention_featured") is not None
+                    else None
+                ),
+                attention_dispatchable=(
+                    bool(state.get("attention_dispatchable"))
+                    if state.get("attention_dispatchable") is not None
+                    else None
+                ),
+                attention_reason=str(state.get("attention_reason", "") or ""),
+                attention_last_update_ts=(
+                    float(state.get("attention_last_update_ts", 0.0) or 0.0)
+                    if state.get("attention_last_update_ts") is not None
+                    else None
+                ),
+            )
+        )
+    return enriched
+
+
+def _enrich_classified_items_with_feed_state(
+    items: list[ClassifiedItem],
+) -> list[ClassifiedItem]:
+    items = _enrich_classified_items_with_catalyst_state(items)
+    items = _enrich_classified_items_with_reaction_state(items)
+    items = _enrich_classified_items_with_resolution_state(items)
+    items = _enrich_classified_items_with_posture_state(items)
+    return _enrich_classified_items_with_attention_state(items)
+
+
 # Resync interval: re-read JSONL every 120 s so long-running sessions
 # pick up items written by prior poll cycles or other sessions.
 _RESYNC_INTERVAL_S: float = 120.0
@@ -678,22 +1280,30 @@ def _resync_feed_from_jsonl() -> None:
         st.session_state.last_resync_ts = time.time()
         return
 
-    restored = load_jsonl_feed(cfg.jsonl_path)
-    if not restored:
-        # JSONL empty/missing — update timestamp so we don't retry
-        # on every 1-second rerun (unnecessary I/O).
+    rt_quotes, db_quotes = _load_reaction_quote_context(st.session_state.feed)
+    result = resync_feed_from_jsonl_core(
+        st.session_state.feed,
+        cfg.jsonl_path,
+        cfg=cfg,
+        previous_reaction_state=st.session_state.get("ticker_reaction_state") or {},
+        previous_resolution_state=st.session_state.get("ticker_resolution_state") or {},
+        rt_quotes=rt_quotes,
+        quote_map=db_quotes,
+        market_hours=is_market_hours(),
+    )
+    if not result.feed and not load_jsonl_feed(cfg.jsonl_path):
         st.session_state.last_resync_ts = time.time()
         return
 
-    merged = dedup_merge(st.session_state.feed, restored)
-    merged = dedup_feed_items(merged)
-    new_count = len(merged) - len(st.session_state.feed)
-    if new_count > 0:
-        st.session_state.feed = merged
-        logger.info("JSONL resync: merged %d items into session feed", new_count)
-
-    # Prune stale items after merge
-    st.session_state.feed = _prune_stale_items(st.session_state.feed)
+    st.session_state.feed = result.feed
+    st.session_state["live_story_state"] = result.live_story_state
+    st.session_state["ticker_catalyst_state"] = result.ticker_catalyst_state
+    st.session_state["ticker_reaction_state"] = result.ticker_reaction_state
+    st.session_state["ticker_resolution_state"] = result.ticker_resolution_state
+    st.session_state["ticker_posture_state"] = result.ticker_posture_state
+    st.session_state["ticker_attention_state"] = result.ticker_attention_state
+    if result.new_count > 0:
+        logger.info("JSONL resync: merged %d items into session feed", result.new_count)
 
     # Only advance the session cursor when the background poller is
     # NOT running.  The BG poller maintains its own cursor; overwriting
@@ -701,13 +1311,9 @@ def _resync_feed_from_jsonl() -> None:
     # (the main loop syncs session cursor back into the poller),
     # causing duplicate ingestion.
     if not st.session_state.get("use_bg_poller") or st.session_state.get("bg_poller") is None:
-        _ts_vals = [
-            d.get("updated_ts") or d.get("published_ts") or 0
-            for d in st.session_state.feed
-        ]
-        _ts_vals = [t for t in _ts_vals if isinstance(t, (int, float)) and t > 0]
-        if _ts_vals:
-            st.session_state["cursor"] = str(int(max(_ts_vals)))
+        if result.legacy_cursor:
+            st.session_state["cursor"] = result.legacy_cursor
+            st.session_state["provider_cursors"] = dict(result.provider_cursors)
 
     st.session_state.last_resync_ts = time.time()
 
@@ -716,6 +1322,8 @@ if "cfg" not in st.session_state:
     st.session_state.cfg = TerminalConfig()
 if "cursor" not in st.session_state:
     st.session_state.cursor = None
+if "provider_cursors" not in st.session_state:
+    st.session_state.provider_cursors = {}
 if "feed" not in st.session_state:
     _restored = load_jsonl_feed(TerminalConfig().jsonl_path)
     _restored = dedup_feed_items(_restored)
@@ -745,17 +1353,37 @@ if "feed" not in st.session_state:
         # Don't close — SqliteStore is a singleton; closing here would
         # break the shared connection used by the poller later.
         logger.info("Pruned SQLite dedup tables (keep_seconds=%.0f) on startup", _keep)
-    st.session_state.feed = _restored
-    if _restored:
-        # Derive cursor from restored feed so polling resumes from latest.
-        # Items use "published_ts" (float epoch) or "updated_ts".
-        _ts_vals = [
-            r.get("updated_ts") or r.get("published_ts") or 0
-            for r in _restored
-        ]
-        _ts_vals = [t for t in _ts_vals if isinstance(t, (int, float)) and t > 0]
-        if _ts_vals:
-            st.session_state["cursor"] = str(int(max(_ts_vals)))
+    _rt_quotes, _db_quotes = _load_reaction_quote_context(_restored)
+    _restore_result = restore_feed_state(
+        TerminalConfig().jsonl_path,
+        cfg=TerminalConfig(),
+        rt_quotes=_rt_quotes,
+        quote_map=_db_quotes,
+        market_hours=is_market_hours(),
+    )
+    st.session_state.feed = _restore_result.feed
+    st.session_state.live_story_state = _restore_result.live_story_state
+    st.session_state.ticker_catalyst_state = _restore_result.ticker_catalyst_state
+    st.session_state.ticker_reaction_state = _restore_result.ticker_reaction_state
+    st.session_state.ticker_resolution_state = _restore_result.ticker_resolution_state
+    st.session_state.ticker_posture_state = _restore_result.ticker_posture_state
+    st.session_state.ticker_attention_state = _restore_result.ticker_attention_state
+    if _restore_result.legacy_cursor:
+        st.session_state["cursor"] = _restore_result.legacy_cursor
+        st.session_state["provider_cursors"] = dict(_restore_result.provider_cursors)
+if "live_story_state" not in st.session_state:
+    _, _story_state = _hydrate_feed_story_state(st.session_state.feed)
+    st.session_state.live_story_state = _story_state
+if "ticker_catalyst_state" not in st.session_state:
+    _rebuild_ticker_catalyst_state()
+if "ticker_reaction_state" not in st.session_state:
+    _rebuild_ticker_reaction_state()
+if "ticker_resolution_state" not in st.session_state:
+    _rebuild_ticker_resolution_state()
+if "ticker_posture_state" not in st.session_state:
+    _rebuild_ticker_resolution_state()
+if "ticker_attention_state" not in st.session_state:
+    _rebuild_ticker_resolution_state()
 if "poll_count" not in st.session_state:
     st.session_state.poll_count = 0
 # --- Consolidated simple defaults (Item 5) ---
@@ -765,7 +1393,9 @@ _SIMPLE_DEFAULTS: dict[str, object] = {
     "last_resync_ts": 0.0,
     "consecutive_empty_polls": 0,
     "adapter": None,
+    "fmp_adapter": None,
     "store": None,
+    "provider_cursors": {},
     "auto_refresh": True,
     "last_poll_status": "—",
     "last_poll_error": "",
@@ -775,6 +1405,12 @@ _SIMPLE_DEFAULTS: dict[str, object] = {
     "bg_poller_last_failure": None,
     "bg_poller_restart_count": 0,
     "bg_poller_total_dropped": 0,
+    "live_story_state": {},
+    "ticker_catalyst_state": {},
+    "ticker_reaction_state": {},
+    "ticker_resolution_state": {},
+    "ticker_posture_state": {},
+    "ticker_attention_state": {},
     "notify_log": [],
     "intel_toggle": os.getenv("TERMINAL_OPTIONAL_INTEL", "1") != "0",
     "rt_engine_last_check_ts": 0.0,
@@ -844,6 +1480,16 @@ def _get_adapter() -> BenzingaRestAdapter | None:
     return st.session_state.adapter  # type: ignore[no-any-return]
 
 
+def _get_fmp_adapter() -> FmpAdapter | None:
+    """Lazy-init the FMP live-news adapter."""
+    cfg: TerminalConfig = st.session_state.cfg
+    if not (cfg.fmp_enabled and cfg.fmp_api_key):
+        return None
+    if st.session_state.fmp_adapter is None:
+        st.session_state.fmp_adapter = FmpAdapter(cfg.fmp_api_key)
+    return st.session_state.fmp_adapter  # type: ignore[no-any-return]
+
+
 def _get_store() -> SqliteStore:
     """Lazy-init the SQLite store."""
     if st.session_state.store is None:
@@ -886,6 +1532,7 @@ with st.sidebar:
     # API key status — re-read env vars directly so keys added after
     # session start are detected without requiring a full server restart.
     _bz_key = os.environ.get("BENZINGA_API_KEY", "") or cfg.benzinga_api_key
+    _fmp_key = os.environ.get("FMP_API_KEY", "") or cfg.fmp_api_key
     _oai_key = os.environ.get("OPENAI_API_KEY", "") or cfg.openai_api_key
     _key_statuses = api_key_status(
         benzinga_key=_bz_key,
@@ -898,14 +1545,22 @@ with st.sidebar:
         elif _ks["icon"] == "❌":
             st.error(_ks["message"])
             if _ks["name"] == "News API":
-                st.info("Set `BENZINGA_API_KEY=your_key` in `.env` and restart.")
+                st.info("Set `BENZINGA_API_KEY` for Benzinga live news or `FMP_API_KEY` for FMP live polling.")
         else:
             st.caption(f"{_ks['name']}: {_ks['message']}")
     # Patch live config so downstream code sees keys added after session start
+    _cfg_changed = False
     if _bz_key and not cfg.benzinga_api_key:
-        cfg.benzinga_api_key = _bz_key
+        cfg = replace(cfg, benzinga_api_key=_bz_key)
+        _cfg_changed = True
+    if _fmp_key and not cfg.fmp_api_key:
+        cfg = replace(cfg, fmp_api_key=_fmp_key)
+        _cfg_changed = True
     if _oai_key and not cfg.openai_api_key:
-        cfg.openai_api_key = _oai_key
+        cfg = replace(cfg, openai_api_key=_oai_key)
+        _cfg_changed = True
+    if _cfg_changed:
+        st.session_state.cfg = cfg
 
     # Poll interval
     interval = st.slider(
@@ -936,7 +1591,12 @@ with st.sidebar:
             except Exception as exc:
                 logger.warning("Cursor reset prune(%s) failed: %s", _tbl, exc, exc_info=True)
         st.session_state.cursor = None
+        st.session_state.provider_cursors = {}
         st.session_state.consecutive_empty_polls = 0
+        _bp_reset_cursor = st.session_state.get("bg_poller")
+        if _bp_reset_cursor is not None:
+            _bp_reset_cursor.consecutive_empty_polls = 0
+            _bp_reset_cursor.wake_and_reset_cursor()
         st.toast("Cursor reset — next poll will fetch latest articles", icon="🔃")
         st.rerun()
 
@@ -987,11 +1647,13 @@ with st.sidebar:
     # Data sources active
     sources = []
     if cfg.benzinga_api_key:
-        sources.append("News")
+        sources.append("BZ")
+    if cfg.fmp_enabled and cfg.fmp_api_key:
+        sources.append("FMP")
     if databento_available():
         sources.append("Databento")
-    if tv_available():
-        sources.append("📺 TV")
+    if _collect_tv_news_symbols(cfg, st.session_state.feed):
+        sources.append("TV")
     st.caption(f"Sources: {', '.join(sources) if sources else 'none'}")
 
     # TradingView health alert (with state-transition detection)
@@ -1068,7 +1730,7 @@ with st.sidebar:
             except Exception:
                 logger.debug("store.close() failed during reset", exc_info=True)
         # Close HTTP adapters to release connection pools
-        for _adapter_key in ("adapter",):
+        for _adapter_key in ("adapter", "fmp_adapter"):
             _adp = st.session_state.get(_adapter_key)
             if _adp is not None:
                 try:
@@ -1083,7 +1745,15 @@ with st.sidebar:
                 p.unlink()
         st.session_state.store = None
         st.session_state.adapter = None
+        st.session_state.fmp_adapter = None
         st.session_state.cursor = None
+        st.session_state.provider_cursors = {}
+        st.session_state.live_story_state = {}
+        st.session_state.ticker_catalyst_state = {}
+        st.session_state.ticker_reaction_state = {}
+        st.session_state.ticker_resolution_state = {}
+        st.session_state.ticker_posture_state = {}
+        st.session_state.ticker_attention_state = {}
         st.session_state.feed = []
         st.session_state.poll_count = 0
         st.session_state.total_items_ingested = 0
@@ -1381,7 +2051,16 @@ def _intel_enabled() -> bool:
     before any tab content renders, so it always reflects the current
     toggle position.
     """
-    return _INTEL_ENABLED  # type: ignore[name-defined]
+    return bool(globals().get("_INTEL_ENABLED", False))
+
+
+_ATTENTION_ICONS = {
+    "ALERT": "🚨",
+    "FOCUS": "🎯",
+    "MONITOR": "👀",
+    "BACKGROUND": "⚪",
+    "SUPPRESS": "⛔",
+}
 
 
 
@@ -1409,13 +2088,20 @@ def _evaluate_alerts(items: list[ClassifiedItem]) -> None:
     pending_webhooks: list[tuple[str, dict]] = []
 
     for ci in items:
+        if not effective_attention_active(ci):
+            continue
+
+        effective_score = effective_attention_score(ci)
+        effective_sentiment = effective_catalyst_sentiment(ci)
+        attention_state = effective_attention_state(ci)
+        attention_dispatchable = effective_attention_dispatchable(ci)
         for rule_idx, rule in enumerate(rules):
             tk_match = rule["ticker"] in ("*", ci.ticker)
             if not tk_match:
                 continue
 
             # Dedup: skip if this item already fired for this rule
-            pair_key = (ci.item_id, rule_idx)
+            pair_key = (str(ci.story_key or ci.item_id), rule_idx)
             if pair_key in seen_pairs:
                 continue
 
@@ -1425,8 +2111,8 @@ def _evaluate_alerts(items: list[ClassifiedItem]) -> None:
             if match_alert_rule(
                 rule,
                 ticker=ci.ticker,
-                news_score=ci.news_score,
-                sentiment_label=ci.sentiment_label,
+                news_score=effective_score,
+                sentiment_label=effective_sentiment,
                 materiality=ci.materiality,
                 category=ci.category,
             ):
@@ -1440,8 +2126,20 @@ def _evaluate_alerts(items: list[ClassifiedItem]) -> None:
                     "ticker": ci.ticker,
                     "headline": ci.headline[:120],
                     "rule": cond,
-                    "score": ci.news_score,
+                    "score": effective_score,
+                    "story_score": ci.news_score,
+                    "sentiment": effective_sentiment,
                     "item_id": ci.item_id,
+                    "story_key": ci.story_key,
+                    "story_update_kind": ci.story_update_kind,
+                    "attention_state": attention_state,
+                    "attention_score": effective_score,
+                    "attention_dispatchable": attention_dispatchable,
+                    "attention_reason": ci.attention_reason or effective_attention_reason(ci),
+                    "posture_state": ci.posture_state,
+                    "posture_action": effective_posture_action(ci),
+                    "reaction_state": ci.reaction_state,
+                    "resolution_state": ci.resolution_state,
                 }
                 st.session_state.alert_log.insert(0, log_entry)
                 # Cap alert log
@@ -1471,10 +2169,12 @@ def _evaluate_alerts(items: list[ClassifiedItem]) -> None:
 # ── Poll logic ──────────────────────────────────────────────────
 
 def _process_new_items(
-    items: list,
+    items: list[ClassifiedItem],
     cfg: TerminalConfig,
     *,
     src_label: str = "BZ",
+    replace_story_keys: list[str] | None = None,
+    outbound_items: list[ClassifiedItem] | None = None,
 ) -> None:
     """Shared post-poll processing for foreground and background pollers.
 
@@ -1482,30 +2182,45 @@ def _process_new_items(
     push notifications, news→chart webhook, feed trim/prune,
     VD snapshot.  Uses a single httpx.Client for all webhooks (item 14).
     """
-    if not items:
+    if not items and not outbound_items:
         return
 
-    # Convert to dicts and deduplicate BEFORE persisting to JSONL
-    new_dicts = [ci.to_dict() for ci in items]
-    # Dedup by item_id:ticker against existing feed
-    _existing_keys = {f"{d.get('item_id', '')}:{d.get('ticker', '')}" for d in st.session_state.feed}
-    # Also dedup by headline (catches near-identical articles with different item_ids)
-    _existing_headlines = {d.get("headline", "").strip().lower() for d in st.session_state.feed if d.get("headline")}
-    unique_dicts: list[dict] = []
-    _batch_keys: set[str] = set()  # dedup within the incoming batch itself
-    for d in new_dicts:
-        key = f"{d.get('item_id', '')}:{d.get('ticker', '')}"
-        hl = d.get("headline", "").strip().lower()
-        if key in _existing_keys or key in _batch_keys:
-            continue
-        if hl and hl in _existing_headlines:
-            continue
-        _batch_keys.add(key)
-        unique_dicts.append(d)
-    new_dicts = unique_dicts
+    replace_story_key_set = {
+        str(story_key).strip()
+        for story_key in (replace_story_keys or [])
+        if str(story_key).strip()
+    }
+    outbound_items = list(outbound_items if outbound_items is not None else items)
+
+    raw_new_dicts = dedup_feed_items([ci.to_dict() for ci in items])
+    new_dicts: list[dict[str, Any]] = []
+    if raw_new_dicts or replace_story_key_set:
+        rt_quotes, db_quotes = _load_reaction_quote_context(raw_new_dicts + st.session_state.feed)
+        merge_result = merge_live_feed_rows(
+            st.session_state.feed,
+            raw_new_dicts,
+            cfg=cfg,
+            replace_story_keys=sorted(replace_story_key_set),
+            previous_reaction_state=st.session_state.get("ticker_reaction_state") or {},
+            previous_resolution_state=st.session_state.get("ticker_resolution_state") or {},
+            rt_quotes=rt_quotes,
+            quote_map=db_quotes,
+            market_hours=is_market_hours(),
+        )
+        st.session_state.feed = merge_result.feed
+        st.session_state["live_story_state"] = merge_result.live_story_state
+        st.session_state["ticker_catalyst_state"] = merge_result.ticker_catalyst_state
+        st.session_state["ticker_reaction_state"] = merge_result.ticker_reaction_state
+        st.session_state["ticker_resolution_state"] = merge_result.ticker_resolution_state
+        st.session_state["ticker_posture_state"] = merge_result.ticker_posture_state
+        st.session_state["ticker_attention_state"] = merge_result.ticker_attention_state
+        new_dicts = merge_result.annotated_new_rows
+
+    outbound_items = _enrich_classified_items_with_feed_state(outbound_items)
+    outbound_dicts = dedup_feed_items([ci.to_dict() for ci in outbound_items])
 
     # JSONL batch export (item 13 — only unique items reach disk)
-    if cfg.jsonl_path:
+    if cfg.jsonl_path and new_dicts:
         _jsonl_errors = 0
         for d in new_dicts:
             try:
@@ -1523,8 +2238,6 @@ def _process_new_items(
         if _jsonl_errors > 3:
             logger.warning("JSONL append had %d total failures (suppressed after 3)", _jsonl_errors)
 
-    st.session_state.feed = dedup_feed_items(new_dicts + st.session_state.feed)
-
     # Webhooks + notifications (single shared httpx client — item 14)
     _nc_webhook_url = os.getenv("TERMINAL_NEWS_CHART_WEBHOOK_URL", cfg.webhook_url)
     _skip_dup = _nc_webhook_url == cfg.webhook_url
@@ -1540,7 +2253,7 @@ def _process_new_items(
                 # Global webhook
                 if _do_global_wh:
                     _wh_budget = 20
-                    for ci in items:
+                    for ci in outbound_items:
                         if _wh_budget <= 0:
                             logger.warning("%s global webhook budget exhausted", src_label)
                             break
@@ -1551,10 +2264,10 @@ def _process_new_items(
                 # News→Chart auto-webhook
                 if _do_nc_wh:
                     _nc_budget = 5
-                    for ci in items:
+                    for ci in outbound_items:
                         if _nc_budget <= 0:
                             break
-                        if ci.news_score >= 0.85 and ci.is_actionable:
+                        if effective_attention_dispatchable(ci) and effective_attention_score(ci) >= 0.85:
                             fire_webhook(ci, _nc_webhook_url, cfg.webhook_secret,
                                          min_score=0.85, _client=wh_client)
                             _nc_budget -= 1
@@ -1562,10 +2275,10 @@ def _process_new_items(
             logger.warning("Webhook client failed: %s", exc, exc_info=True)
 
     # Push notifications for high-score items
-    if new_dicts:
+    if outbound_dicts:
         try:
             _nr = notify_high_score_items(
-                new_dicts, config=st.session_state.notify_config,
+                outbound_dicts, config=st.session_state.notify_config,
             )
             if _nr:
                 st.session_state.notify_log = (
@@ -1573,14 +2286,6 @@ def _process_new_items(
                 )[:100]
         except Exception as exc:
             logger.warning("Push notification dispatch failed: %s", exc, exc_info=True)
-
-    # Trim feed
-    max_items = cfg.max_items
-    if len(st.session_state.feed) > max_items:
-        st.session_state.feed = st.session_state.feed[:max_items]
-
-    # Prune stale items (age-based)
-    st.session_state.feed = _prune_stale_items(st.session_state.feed)
 
     # VD snapshot with extended-hours quote fallback
     _vd_bz_quotes: list[dict[str, Any]] | None = None
@@ -1598,38 +2303,41 @@ def _process_new_items(
                 logger.debug("Extended-hours quote fetch skipped", exc_info=True)
     save_vd_snapshot(st.session_state.feed, bz_quotes=_vd_bz_quotes)
 
-    st.toast(f"📡 {len(items)} new item(s) [{src_label}]", icon="✅")
+    st.toast(f"📡 {len(items)} live story update(s) [{src_label}]", icon="✅")
 
 
 def _should_poll(poll_interval: float) -> bool:
     """Determine if we should poll this cycle."""
     cfg: TerminalConfig = st.session_state.cfg
-    if not cfg.benzinga_api_key:
+    if not _has_live_news_provider(cfg, st.session_state.feed):
         return False
     elapsed: float = time.time() - st.session_state.last_poll_ts
     return elapsed >= poll_interval  # type: ignore[no-any-return]
 
 
 def _do_poll() -> None:
-    """Execute one poll cycle (Benzinga)."""
+    """Execute one provider-neutral live-news poll cycle."""
+    cfg: TerminalConfig = st.session_state.cfg
     adapter = _get_adapter()
-    if adapter is None:
+    fmp_adapter = _get_fmp_adapter()
+    tv_symbols = _collect_tv_news_symbols(cfg, st.session_state.feed)
+    if adapter is None and fmp_adapter is None and not tv_symbols:
         return
 
     store = _get_store()
-    cfg: TerminalConfig = st.session_state.cfg
 
     st.session_state["poll_attempts"] = st.session_state.get("poll_attempts", 0) + 1
 
     try:
-        items, new_cursor = poll_and_classify_multi(
+        items, provider_cursors, provider_counts = poll_and_classify_live_bus(
             benzinga_adapter=adapter,
-            fmp_adapter=None,
+            fmp_adapter=fmp_adapter,
             store=store,
-            cursor=st.session_state.cursor,
+            provider_cursors=st.session_state.provider_cursors,
             page_size=cfg.page_size,
             channels=cfg.channels or None,
             topics=cfg.topics or None,
+            tv_symbols=tv_symbols,
         )
     except Exception as exc:
         _safe_msg = re.sub(r"(apikey|api_key|token|key)=[^&\s]+", r"\1=***", str(exc), flags=re.IGNORECASE)
@@ -1641,14 +2349,19 @@ def _do_poll() -> None:
         st.session_state.last_poll_ts = time.time()
         return
 
+    new_cursor = legacy_cursor_from_provider_cursors(provider_cursors)
+    story_feed_items, alert_items, replace_story_keys = _apply_live_story_batch(items)
+    st.session_state.provider_cursors = dict(provider_cursors)
     st.session_state.cursor = new_cursor
     st.session_state.poll_count += 1
     st.session_state.last_poll_ts = time.time()
     st.session_state.total_items_ingested += len(items)
     st.session_state.last_poll_error = ""
 
-    src_label = "BZ"
-    st.session_state.last_poll_status = f"{len(items)} items [{src_label}] (cursor={new_cursor})"
+    src_label = live_news_source_label(provider_counts)
+    st.session_state.last_poll_status = (
+        f"{len(story_feed_items)} live / {len(items)} raw [{src_label}] (cursor={new_cursor})"
+    )
 
     # Track consecutive empty polls — if the API returns items but
     # _classify_item deduplicates them all away, the cursor advances
@@ -1675,6 +2388,7 @@ def _do_poll() -> None:
             # Cursor reset MUST happen even if prune failed — the cursor
             # is the primary recovery action (API returns latest articles).
             st.session_state.cursor = None
+            st.session_state.provider_cursors = {}
             logger.info(
                 "Reset cursor + pruned SQLite (keep=%.0f) after %d consecutive empty polls",
                 _prune_keep,
@@ -1684,11 +2398,18 @@ def _do_poll() -> None:
     else:
         st.session_state.consecutive_empty_polls = 0
 
-    # Evaluate alert rules on new items
-    _evaluate_alerts(items)
-
     # Shared post-poll processing (JSONL, webhooks, notifications, trim, VD)
-    _process_new_items(items, cfg, src_label=src_label)
+    _process_new_items(
+        story_feed_items,
+        cfg,
+        src_label=src_label,
+        replace_story_keys=replace_story_keys,
+        outbound_items=alert_items,
+    )
+
+    # Evaluate alert rules after feed/state rebuild so rules see the same
+    # per-ticker feed-state interpretation as outbound webhooks/notifications.
+    _evaluate_alerts(_enrich_classified_items_with_feed_state(alert_items))
 
     # Periodically resync from JSONL so long-running sessions pick up
     # items that were deduped by the SQLite store (ingested by a prior
@@ -1740,6 +2461,13 @@ except Exception as _lc_exc:
 if _lc_result.get("feed_action") == "cleared":
     st.session_state.feed = []
     st.session_state.cursor = None
+    st.session_state.provider_cursors = {}
+    st.session_state.live_story_state = {}
+    st.session_state.ticker_catalyst_state = {}
+    st.session_state.ticker_reaction_state = {}
+    st.session_state.ticker_resolution_state = {}
+    st.session_state.ticker_posture_state = {}
+    st.session_state.ticker_attention_state = {}
     st.session_state.poll_count = 0
     _bp_sync = st.session_state.get("bg_poller")
     if _bp_sync is not None:
@@ -1747,6 +2475,13 @@ if _lc_result.get("feed_action") == "cleared":
     logger.info("Feed lifecycle: weekend data cleared")
 elif _lc_result.get("feed_action") == "stale_recovery":
     st.session_state.cursor = None
+    st.session_state.provider_cursors = {}
+    st.session_state.live_story_state = {}
+    st.session_state.ticker_catalyst_state = {}
+    st.session_state.ticker_reaction_state = {}
+    st.session_state.ticker_resolution_state = {}
+    st.session_state.ticker_posture_state = {}
+    st.session_state.ticker_attention_state = {}
     st.session_state.consecutive_empty_polls = 0
     # Clear stale items so feed_staleness_minutes() reflects the
     # recovery rather than re-measuring the same old timestamps.
@@ -1774,11 +2509,13 @@ if _effective_interval != float(interval):
 _feed_empty_needs_poll = (
     not st.session_state.feed
     and st.session_state.poll_count == 0
-    and st.session_state.cfg.benzinga_api_key
+    and _has_live_news_provider(st.session_state.cfg, st.session_state.feed)
 )
 
 # ── Background poller mode ──────────────────────────────────────
 if st.session_state.use_bg_poller:
+    _live_tv_symbols = _collect_tv_news_symbols(st.session_state.cfg, st.session_state.feed)
+    _has_live_provider = _has_live_news_provider(st.session_state.cfg, st.session_state.feed)
     # Foreground initial poll BEFORE creating the bg poller so both
     # don't race on the same SQLite store with cursor=None.
     if _feed_empty_needs_poll:
@@ -1795,57 +2532,73 @@ if st.session_state.use_bg_poller:
         st.session_state.bg_poller = None
 
     # Start background poller if not running
-    if st.session_state.bg_poller is None or not st.session_state.bg_poller.is_alive:
+    if _has_live_provider and (st.session_state.bg_poller is None or not st.session_state.bg_poller.is_alive):
         _bp = BackgroundPoller(
             cfg=st.session_state.cfg,
             benzinga_adapter=_get_adapter(),
-            fmp_adapter=None,
+            fmp_adapter=_get_fmp_adapter(),
             store=_get_store(),
         )
-        _bp.start(cursor=st.session_state.cursor)
+        _bp.update_live_news_symbols(_live_tv_symbols)
+        _bp.start(cursor=st.session_state.provider_cursors or st.session_state.cursor)
         st.session_state.bg_poller = _bp
         logger.info("Background poller initialized")
+    elif not _has_live_provider:
+        _stop_bg_poller_if_running(reason="missing_live_news_provider")
 
-    # Update interval (may have changed via slider or off-hours adjustment)
-    st.session_state.bg_poller.update_interval(_effective_interval)
+    if st.session_state.bg_poller is not None:
+        st.session_state.bg_poller.update_adapters(
+            benzinga_adapter=_get_adapter(),
+            fmp_adapter=_get_fmp_adapter(),
+        )
+        st.session_state.bg_poller.update_live_news_symbols(_live_tv_symbols)
+        # Update interval (may have changed via slider or off-hours adjustment)
+        st.session_state.bg_poller.update_interval(_effective_interval)
 
     # Drain new items from background thread
-    _bg_items = st.session_state.bg_poller.drain()
+    _bg_items = st.session_state.bg_poller.drain() if st.session_state.bg_poller is not None else []
     if _bg_items:
-        # Alert evaluation (needs ClassifiedItem objects)
-        _evaluate_alerts(_bg_items)
+        _bg_feed_items, _bg_alert_items, _bg_replace_story_keys = _apply_live_story_batch(_bg_items)
 
         # Shared post-poll processing (JSONL, webhooks, notifications, trim, VD)
-        _feed_len_before = len(st.session_state.feed)
-        _process_new_items(_bg_items, st.session_state.cfg, src_label="BG")
+        _process_new_items(
+            _bg_feed_items,
+            st.session_state.cfg,
+            src_label="BG",
+            replace_story_keys=_bg_replace_story_keys,
+            outbound_items=_bg_alert_items,
+        )
 
-        # Only record ingest time if items actually grew the feed.
-        # Re-ingested duplicates (from BG poller's dedup-prune recovery
-        # cycles) must NOT reset the staleness clock — otherwise the
-        # lifecycle stale-recovery is permanently bypassed and the feed
-        # age grows without bound.
-        if len(st.session_state.feed) > _feed_len_before:
+        # Alert evaluation after the feed-state overlays have been rebuilt.
+        _evaluate_alerts(_enrich_classified_items_with_feed_state(_bg_alert_items))
+
+        # Only record ingest time for new or upgraded live stories.
+        # Repeat/provider_seen observations do not refresh the operator
+        # feed and therefore should not reset lifecycle staleness.
+        if _bg_feed_items:
             _lm = st.session_state.get("lifecycle_mgr")
             if _lm is not None:
                 _lm.notify_ingest()
 
     # Sync status from background poller for sidebar display
     _bp = st.session_state.bg_poller
-    st.session_state.poll_count = max(st.session_state.poll_count, _bp.poll_count)
-    st.session_state["poll_attempts"] = max(
-        st.session_state.get("poll_attempts", 0), getattr(_bp, "poll_attempts", _bp.poll_count))
-    st.session_state.last_poll_ts = _bp.last_poll_ts
-    st.session_state.last_poll_status = _bp.last_poll_status
-    if _bp.last_poll_ts > 0:
-        st.session_state.last_poll_error = _bp.last_poll_error
-    st.session_state.last_poll_duration_s = getattr(_bp, "last_poll_duration_s", 0.0)
-    st.session_state.total_items_ingested = max(
-        st.session_state.total_items_ingested, _bp.total_items_ingested)
-    st.session_state["bg_poller_total_dropped"] = max(
-        int(st.session_state.get("bg_poller_total_dropped", 0) or 0),
-        int(getattr(_bp, "total_items_dropped", 0) or 0),
-    )
-    st.session_state.cursor = _bp.cursor
+    if _bp is not None:
+        st.session_state.poll_count = max(st.session_state.poll_count, _bp.poll_count)
+        st.session_state["poll_attempts"] = max(
+            st.session_state.get("poll_attempts", 0), getattr(_bp, "poll_attempts", _bp.poll_count))
+        st.session_state.last_poll_ts = _bp.last_poll_ts
+        st.session_state.last_poll_status = _bp.last_poll_status
+        if _bp.last_poll_ts > 0:
+            st.session_state.last_poll_error = _bp.last_poll_error
+        st.session_state.last_poll_duration_s = getattr(_bp, "last_poll_duration_s", 0.0)
+        st.session_state.total_items_ingested = max(
+            st.session_state.total_items_ingested, _bp.total_items_ingested)
+        st.session_state["bg_poller_total_dropped"] = max(
+            int(st.session_state.get("bg_poller_total_dropped", 0) or 0),
+            int(getattr(_bp, "total_items_dropped", 0) or 0),
+        )
+        st.session_state.provider_cursors = _bp.provider_cursors
+        st.session_state.cursor = legacy_cursor_from_provider_cursors(st.session_state.provider_cursors)
 
 else:
     _stop_bg_poller_if_running(reason="bg_mode_disabled")
@@ -1869,7 +2622,8 @@ if time.time() - st.session_state.last_resync_ts >= _RESYNC_INTERVAL_S:
 # separate cadence (every 3 min via its internal cache TTL) to avoid
 # hammering the unofficial endpoint.
 _tv_last_ts: float = st.session_state.get("tv_supplement_ts", 0.0)
-if tv_available() and time.time() - _tv_last_ts >= 180:  # 3 min cadence
+_tv_live_bus_owned = bool(_collect_tv_news_symbols(st.session_state.cfg, st.session_state.feed))
+if tv_available() and not _tv_live_bus_owned and time.time() - _tv_last_ts >= 180:  # 3 min cadence
     # Pick the 8 most-recently-seen tickers (newest feed items first)
     _tv_seen: dict[str, None] = {}  # ordered-dict trick for dedup
     for _fd in st.session_state.feed:
@@ -1918,10 +2672,9 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-if not st.session_state.cfg.benzinga_api_key:
-    _stop_bg_poller_if_running(reason="missing_benzinga_api_key")
-    st.warning("Set `BENZINGA_API_KEY` in `.env` to start polling.")
-    st.stop()
+if not _has_live_news_provider(st.session_state.cfg, st.session_state.feed):
+    _stop_bg_poller_if_running(reason="missing_live_news_provider")
+    st.warning("No live news provider is configured. Enable Benzinga, FMP, or TradingView symbols to resume polling.")
 
 feed = st.session_state.feed
 
@@ -1960,25 +2713,33 @@ else:
             _t3tk = (_t3fi.get("ticker") or "").upper().strip()
             if not _t3tk or _t3tk == "MARKET":
                 continue
-            _t3ns = _safe_float_mov(_t3fi.get("news_score") or _t3fi.get("composite_score"))
-            _t3sent = _t3fi.get("sentiment_label") or ""
+            _t3ns = effective_posture_score(_t3fi)
+            _t3sent = effective_catalyst_sentiment(_t3fi)
+            _t3attention_state = effective_attention_state(_t3fi)
+            _t3attention_score = effective_attention_score(_t3fi)
             if _t3tk in _top3_all:
-                if _t3ns > _safe_float_mov(_top3_all[_t3tk].get("news_score")):
+                if _t3attention_score > _safe_float_mov(_top3_all[_t3tk].get("attention_score")):
                     _top3_all[_t3tk]["news_score"] = _t3ns
                     _top3_all[_t3tk]["sentiment"] = _t3sent
+                    _top3_all[_t3tk]["attention_state"] = _t3attention_state
+                    _top3_all[_t3tk]["attention_score"] = _t3attention_score
             else:
                 _top3_all[_t3tk] = {
                     "symbol": _t3tk,
                     "name": (_t3fi.get("name") or _t3fi.get("company") or "")[:30],
                     "price": 0, "chg_pct": 0,
                     "news_score": _t3ns, "sentiment": _t3sent,
+                    "attention_state": _t3attention_state,
+                    "attention_score": _t3attention_score,
                 }
-        def _top3_sort(r: dict[str, Any]) -> tuple[int, float, float]:
+        def _top3_sort(r: dict[str, Any]) -> tuple[float, float, int, float, float]:
             _chg = float(r.get("chg_pct") or 0)
             _ns = float(r.get("news_score") or 0)
+            _attention_pri = float(effective_attention_priority(r))
+            _attention_score = float(r.get("attention_score") or 0)
             _sent = (r.get("sentiment") or "").lower()
             _tier = 1 if _chg > 0 or _sent == "bullish" else (-1 if _chg < 0 or _sent == "bearish" else 0)
-            return (-_tier, -_ns, -_chg)
+            return (-_attention_pri, -_attention_score, -_tier, -_ns, -_chg)
         _top3_ranked = sorted(_top3_all.values(), key=_top3_sort)[:3]
         # Databento enrichment for fallback top-3 cards
         if databento_available() and _top3_ranked:
@@ -2010,14 +2771,18 @@ else:
             _t3_sent_icon = "🟢" if _t3_sent == "bullish" else "🔴" if _t3_sent == "bearish" else "⚪"
             _t3_sent_label = _t3_sent.title() if _t3_sent else "Neutral"
             _t3_ns = _t3r.get("news_score", 0)
+            _t3_attention_state = str(_t3r.get("attention_state") or "").strip().upper()
+            _t3_attention_icon = _ATTENTION_ICONS.get(_t3_attention_state, "")
             _t3_price = _t3r.get("price", 0)
             _t3_name = _t3r.get("name", "")
             _t3_price_str = f"${_t3_price:.2f}" if _t3_price >= 1 else (f"${_t3_price:.4f}" if _t3_price > 0 else "")
             _t3_sub = f"{_t3_sent_icon} {_t3_sent_label}"
+            if _t3_attention_state:
+                _t3_sub = f"{_t3_attention_icon} {_t3_attention_state.title()} · " + _t3_sub
             if _t3_price_str:
                 _t3_sub += f" · {_t3_price_str}"
             if _t3_ns > 0:
-                _t3_sub += f" · NLP {_t3_ns:.2f}"
+                _t3_sub += f" · Catalyst {_t3_ns:.2f}"
             _t3_name_safe = safe_markdown_text(_t3_name) if _t3_name else ""
             with _t3_cols[_t3i]:
                 st.markdown(f"### #{_t3i+1} {_t3_sym}")
@@ -2041,7 +2806,7 @@ else:
         with st.expander(f"Unique tickers ({_stats['unique_tickers']})"):
             for _tk_sym in sorted(_tickers_seen):
                 _tk_items = _tickers_seen[_tk_sym]
-                _best = max(_tk_items, key=lambda x: x.get("news_score", 0))
+                _best = max(_tk_items, key=effective_catalyst_score)
                 _hl = safe_markdown_text((_best.get("headline") or "")[:100])
                 _u = safe_url(_best.get("url") or "")
                 _link = f"[{_hl}]({_u})" if _u else _hl
@@ -2055,9 +2820,13 @@ else:
                     _tk = _ai.get("ticker", "?")
                     _hl = safe_markdown_text((_ai.get("headline") or "")[:100])
                     _u = safe_url(_ai.get("url") or "")
-                    _sc = _ai.get("news_score", 0)
+                    _sc = effective_attention_score(_ai)
+                    _att = effective_attention_state(_ai)
                     _link = f"[{_hl}]({_u})" if _u else _hl
-                    st.markdown(f"**{_tk}** ({_sc:.2f}) — {_link}")
+                    if _att:
+                        st.markdown(f"**{_tk}** ({_att.title()} · {_sc:.2f}) — {_link}")
+                    else:
+                        st.markdown(f"**{_tk}** ({_sc:.2f}) — {_link}")
             else:
                 st.caption("No actionable items.")
 
@@ -2069,7 +2838,7 @@ else:
                     _tk = _hi.get("ticker", "?")
                     _hl = safe_markdown_text((_hi.get("headline") or "")[:100])
                     _u = safe_url(_hi.get("url") or "")
-                    _sc = _hi.get("news_score", 0)
+                    _sc = effective_catalyst_score(_hi)
                     _link = f"[{_hl}]({_u})" if _u else _hl
                     st.markdown(f"**{_tk}** ({_sc:.2f}) — {_link}")
             else:
@@ -2264,7 +3033,8 @@ else:
         st.divider()
 
         for d in filtered[:50]:
-            sent_icon = _SENTIMENT_COLORS.get(d.get("sentiment_label", ""), "")
+            _effective_sentiment = effective_catalyst_sentiment(d)
+            sent_icon = _SENTIMENT_COLORS.get(_effective_sentiment, "")
             mat_icon = _MATERIALITY_COLORS.get(d.get("materiality", ""), "")
 
             # Recompute recency live from published_ts
@@ -2278,7 +3048,7 @@ else:
                 rec_icon = _RECENCY_COLORS.get(d.get("recency_bucket", ""), "")
 
             ticker = d.get("ticker", "?")
-            score = d.get("news_score", 0)
+            score = effective_catalyst_score(d)
             relevance = d.get("relevance", 0)
             category = d.get("category", "other")
             headline = d.get("headline", "")
@@ -2288,7 +3058,7 @@ else:
             url = d.get("url", "")
 
             age_str = format_age_string(d.get("published_ts"))
-            score_badge = format_score_badge(score, d.get("sentiment_label", ""))
+            score_badge = format_score_badge(score, _effective_sentiment)
             prov_icon = provider_icon(_provider)
             _safe_url = safe_url(url)
             _wiim_badge = " 🔍" if d.get("is_wiim") else ""
@@ -2323,7 +3093,7 @@ else:
         _session_label_rank = _session_icons.get(_current_session, _current_session)
 
         st.header("🏆 Rankings")
-        st.caption(f"**{_session_label_rank}** — Symbols ranked by composite score (50% price + 20% news + 15% tech + 15% RT signal). Feed + RT spike + realtime signals.")
+        st.caption(f"**{_session_label_rank}** — Symbols ranked by operator attention first, then directional state and composite score (price + catalyst + tech + RT signal). Feed + RT spike + realtime signals.")
 
         # Build unified symbol map from feed + RT spikes (zero API calls)
         _rank_now = time.time()
@@ -2347,7 +3117,6 @@ else:
             _fticker = (_fi.get("ticker") or "").upper().strip()
             if not _fticker or _fticker == "MARKET" or _fticker in _rank_all:
                 continue
-            _f_score = _safe_float_mov(_fi.get("news_score") or _fi.get("composite_score"))
             _f_ts = _fi.get("published_ts") or _fi.get("created_ts") or 0
             _rank_all[_fticker] = {
                 "symbol": _fticker,
@@ -2366,14 +3135,22 @@ else:
                 _nticker = (_ni.get("ticker") or "").upper().strip()
                 if not _nticker or _nticker == "MARKET":
                     continue
-                _nscore = _safe_float_mov(_ni.get("news_score") or _ni.get("composite_score"))
+                _nscore = effective_posture_score(_ni)
                 _existing_news = _news_by_ticker.get(_nticker)
-                if not _existing_news or _nscore > _safe_float_mov(_existing_news.get("news_score")):
+                if not _existing_news or _nscore > _safe_float_mov(_existing_news.get("posture_score")):
                     _news_by_ticker[_nticker] = {
-                        "news_score": _nscore,
-                        "headline": (_ni.get("headline") or "")[:120],
+                        "news_score": effective_catalyst_score(_ni),
+                        "attention_score": effective_attention_score(_ni),
+                        "attention_state": effective_attention_state(_ni),
+                        "posture_score": _nscore,
+                        "posture_state": effective_posture_state(_ni),
+                        "reaction_score": effective_reaction_score(_ni),
+                        "reaction_state": effective_reaction_state(_ni),
+                        "resolution_score": effective_resolution_score(_ni),
+                        "resolution_state": effective_resolution_state(_ni),
+                        "headline": (_ni.get("catalyst_headline") or _ni.get("headline") or "")[:120],
                         "url": _ni.get("url") or "",
-                        "sentiment": _ni.get("sentiment_label") or "",
+                        "sentiment": effective_catalyst_sentiment(_ni),
                     }
 
             # Enrich _rank_all with news data
@@ -2382,12 +3159,28 @@ else:
                 news = _news_by_ticker.get(sym)
                 if news:
                     row["news_score"] = news["news_score"]
+                    row["attention_score"] = news["attention_score"]
+                    row["attention_state"] = news["attention_state"]
+                    row["posture_score"] = news["posture_score"]
+                    row["posture_state"] = news["posture_state"]
+                    row["reaction_score"] = news["reaction_score"]
+                    row["reaction_state"] = news["reaction_state"]
+                    row["resolution_score"] = news["resolution_score"]
+                    row["resolution_state"] = news["resolution_state"]
                     row["headline"] = news["headline"]
                     row["url"] = news["url"]
                     row["sentiment"] = news["sentiment"]
                     _news_match_count += 1
                 else:
                     row["news_score"] = 0.0
+                    row["attention_score"] = 0.0
+                    row["attention_state"] = ""
+                    row["posture_score"] = 0.0
+                    row["posture_state"] = ""
+                    row["reaction_score"] = 0.0
+                    row["reaction_state"] = ""
+                    row["resolution_score"] = 0.0
+                    row["resolution_state"] = ""
                     row["headline"] = ""
                     row["url"] = ""
                     row["sentiment"] = ""
@@ -2479,9 +3272,17 @@ else:
                 return _base + _tech_contrib + _sig_bonus
 
             # Default sort: bullish first (positive chg_pct), then best composite score
-            def _bullish_nlp_key(r: dict[str, Any]) -> tuple[int, float, float, float, float]:
+            def _bullish_nlp_key(r: dict[str, Any]) -> tuple[float, int, float, float, float, float, float, float, float, float, float, float]:
                 _chg = float(r.get("chg_pct") or 0)
                 _ns = float(r.get("news_score") or 0)
+                _attention_score = float(r.get("attention_score") or 0)
+                _attention_pri = float(effective_attention_priority(r))
+                _posture_score = float(r.get("posture_score") or 0)
+                _resolution_score = float(r.get("resolution_score") or 0)
+                _reaction_score = float(r.get("reaction_score") or 0)
+                _posture_pri = float(effective_posture_priority(r))
+                _resolution_pri = float(effective_resolution_priority(r))
+                _reaction_pri = float(effective_reaction_priority(r))
                 _sent = (r.get("sentiment") or "").lower()
                 # Tier: 1=bullish/positive move, 0=neutral, -1=bearish
                 _tier = 1 if _chg > 0 or _sent == "bullish" else (-1 if _chg < 0 or _sent == "bearish" else 0)
@@ -2489,7 +3290,7 @@ else:
                 _sig_pri = {"A0": 2.0, "A1": 1.0}.get(_rt_signals.get(r.get("symbol", ""), ""), 0.0)
                 # Composite score as final tiebreaker within same tier/signal/news
                 _cs = _composite_score(r)
-                return (-_tier, -_sig_pri, -_ns, -_chg, -_cs)
+                return (-_attention_pri, -_tier, -_attention_score, -_posture_pri, -_resolution_pri, -_sig_pri, -_posture_score, -_resolution_score, -_reaction_pri, -_reaction_score, -_ns, -_cs)
 
             _ranked = sorted(
                 _rank_all.values(),
@@ -2592,13 +3393,52 @@ else:
                 )
                 _hl_url = m.get("url", "")
                 _hl_text = m.get("headline", "")
-                _nlp_col = ""
+                _catalyst_col = ""
+                _reaction_state = str(m.get("reaction_state") or "").strip().upper()
+                _reaction_icon = {
+                    "CONFIRMED": "✅",
+                    "WATCH": "👀",
+                    "IDLE": "⏳",
+                    "FADE": "↘",
+                    "CONFLICTED": "⚠️",
+                }.get(_reaction_state, "")
+                _reaction_col = f"{_reaction_icon} {_reaction_state.title()}" if _reaction_state else ""
+                _attention_state = str(m.get("attention_state") or "").strip().upper()
+                _attention_icon = _ATTENTION_ICONS.get(_attention_state, "")
+                _attention_col = (
+                    f"{_attention_icon} {_attention_state.title()}"
+                    if _attention_state
+                    else ""
+                )
+                _posture_state = str(m.get("posture_state") or "").strip().upper()
+                _posture_icon = {
+                    "LONG": "🟢",
+                    "SHORT": "🔴",
+                    "WATCH_LONG": "👀",
+                    "WATCH_SHORT": "👀",
+                    "NEUTRAL": "⚪",
+                    "AVOID": "⛔",
+                }.get(_posture_state, "")
+                _posture_col = f"{_posture_icon} {_posture_state.replace('_', ' ').title()}" if _posture_state else ""
+                _resolution_state = str(m.get("resolution_state") or "").strip().upper()
+                _resolution_icon = {
+                    "FOLLOW_THROUGH": "🚀",
+                    "OPEN": "🕒",
+                    "STALLED": "⏸️",
+                    "FAILED": "❌",
+                    "REVERSAL": "↩️",
+                }.get(_resolution_state, "")
+                _resolution_col = (
+                    f"{_resolution_icon} {_resolution_state.replace('_', ' ').title()}"
+                    if _resolution_state
+                    else ""
+                )
                 # Use the feed item's news_score so the ranking
                 # table is consistent with the header cards.
                 _ns_fallback = float(m.get("news_score") or 0)
                 if _ns_fallback > 0:
                     _ns_icon = "🟢" if _ns_fallback > 0.6 else ("🟡" if _ns_fallback > 0.3 else "⚪")
-                    _nlp_col = f"{_ns_icon} {_ns_fallback:.2f}"
+                    _catalyst_col = f"{_ns_icon} {_ns_fallback:.2f}"
                 _r_price = m.get("price") or 0
                 _r_sym = m.get("symbol", "?")
 
@@ -2617,6 +3457,7 @@ else:
                 # Format RSI column
                 _rsi_col = ""
                 if _rt_rsi_val is not None and _rt_rsi_val != "":
+                    _rsi_v: float | None
                     try:
                         _rsi_v = float(_rt_rsi_val)
                     except (ValueError, TypeError):
@@ -2651,9 +3492,13 @@ else:
                     "Change": f"{m.get('change', 0):+.2f}",
                     "Change %": f"{m.get('chg_pct', 0):+.2f}%",
                     "Score": round(_composite_score(m), 2),
+                    "Attention": _attention_col,
                     "Age": format_age_string(m.get("_ts")),
                     "Sentiment": f"{_sent_icon} {m.get('sentiment', '')}" if m.get("sentiment") else "",
-                    "NLP": _nlp_col,
+                    "Posture": _posture_col,
+                    "Resolution": _resolution_col,
+                    "Reaction": _reaction_col,
+                    "Catalyst": _catalyst_col,
                     "Volume": f"{m.get('volume', 0):,}" if m.get("volume") else "",
                     "Name": m.get("name", ""),
                     "Headline": _hl_url if _hl_url else _hl_text,
@@ -2679,8 +3524,8 @@ else:
                 _n_rank_enriched += 1  # RT technicals layer
             st.caption(
                 f"Top {top_n} of {len(_ranked)} symbols · "
-                f"sorted: bullish first → RT signal → composite score · "
-                f"{_news_match_count} with news · "
+                f"sorted: attention → directional tier → posture → resolution → RT signal → composite score · "
+                f"{_news_match_count} with live state overlay · "
                 f"{len(_rt_signals)} RT signals · "
                 f"{_n_rank_enriched} enrichment layers"
             )
@@ -2688,12 +3533,17 @@ else:
             with st.popover("ℹ️ Column guide"):
                 st.markdown(
                     "- **Signal** — RT engine actionability tier (A0 = top conviction, A1 = secondary)\n"
+                    "- **Attention** — Operator escalation state above posture (alert/focus/monitor/background/suppress)\n"
+                    "- **Posture** — Final terminal posture derived above resolution (long/short/watch/neutral/avoid)\n"
+                    "- **Resolution** — Outcome-state overlay after the initial reaction window (follow-through/open/stalled/failed/reversal)\n"
+                    "- **Reaction** — Execution-state overlay from live quote confirmation (confirmed/watch/fade/conflicted)\n"
                     "- **Tech** — Technical indicator score (0–1, weighted: RSI 40%, MA 25%, MACD 15%, ADX 10%)\n"
                     "- **RSI** — RSI-14 (🟢 <30 oversold, 🔴 >70 overbought, 🟡 neutral)\n"
                     "- **MACD** — MACD signal direction (BUY/SELL/NEUTRAL)\n"
                     "- **Analyst** — Analyst consensus (upside %, rating)\n"
-                    "- **Score** — Composite: 50% price + 20% news + 15% technical + 15% signal\n"
-                    "- **Sentiment** — From news feed; shows when a news article matches this ticker\n"
+                    "- **Score** — Composite: 50% price + 20% catalyst + 15% technical + 15% signal\n"
+                    "- **Catalyst** — Derived per-ticker live catalyst strength from the active story state\n"
+                    "- **Sentiment** — Derived ticker-level catalyst direction when available\n"
                     "- **Volume** — Trading volume from market data source\n"
                     "- **Headline** — Latest matching news headline (clickable when URL is available)\n\n"
                     "Empty columns mean no matching data is available yet for that ticker."
@@ -2704,6 +3554,10 @@ else:
                 "Dir": st.column_config.TextColumn("Dir", width="small"),
                 "Symbol": st.column_config.TextColumn("Symbol", width="small"),
                 "Signal": st.column_config.TextColumn("Signal", width="small"),
+                "Attention": st.column_config.TextColumn("Attention", width="small"),
+                "Posture": st.column_config.TextColumn("Posture", width="small"),
+                "Resolution": st.column_config.TextColumn("Resolution", width="small"),
+                "Reaction": st.column_config.TextColumn("Reaction", width="small"),
                 "Tech": st.column_config.TextColumn("Tech", width="small"),
                 "RSI": st.column_config.TextColumn("RSI", width="small"),
                 "MACD": st.column_config.TextColumn("MACD", width="small"),
@@ -2711,7 +3565,7 @@ else:
                 "Change %": st.column_config.TextColumn("Change %", width="small"),
                 "Score": st.column_config.NumberColumn("Score", width="small"),
                 "Age": st.column_config.TextColumn("Age", width="small"),
-                "NLP": st.column_config.TextColumn("NLP Sent.", width="small"),
+                "Catalyst": st.column_config.TextColumn("Catalyst", width="small"),
                 "Volume": st.column_config.TextColumn("Volume", width="small"),
             }
             # Use LinkColumn for headlines when URLs are present
@@ -2742,13 +3596,20 @@ else:
     with tab_actionable, _tab_guard("Actionable"):
         st.header("🎯 Actionable Items")
 
-        # Broadened actionable criteria (imported from terminal_ui_helpers):
-        #  1. Explicitly flagged is_actionable (recency < 60 min), OR
-        #  2. High news score (≥ 0.65) regardless of age, OR
-        #  3. AGING bucket (< 24h) with moderate score (≥ 0.45)
+        # Broadened actionable criteria now prefer the derived ticker state
+        # overlays when present and fall back to the raw story attributes.
         _act_feed = dedup_feed_items([d for d in feed if _is_actionable_broad(d)])
-        # Sort by freshest first (highest published_ts on top)
-        _act_feed.sort(key=lambda d: d.get("published_ts") or 0, reverse=True)
+        # Sort by operator attention first, then deeper state quality and freshness.
+        _act_feed.sort(
+            key=lambda d: (
+                -effective_attention_priority(d),
+                -effective_attention_score(d),
+                -effective_posture_priority(d),
+                -effective_posture_score(d),
+                -effective_resolution_priority(d),
+                -(float(d.get("published_ts") or d.get("created_ts") or 0.0)),
+            ),
+        )
         if not _act_feed:
             st.info("No actionable items in the current feed.")
         else:
@@ -2832,15 +3693,43 @@ else:
             st.caption(
                 f"{len(_act_feed)} actionable items · "
                 f"{_n_enriched} enrichment layers · "
-                "sorted by time (freshest first)"
+                "sorted by attention, posture quality, then freshness"
             )
 
             _act_now = time.time()
             _act_rows = []
             for i, _ai in enumerate(_act_feed, 1):
                 _ai_tk = (_ai.get("ticker") or "?").upper()
-                _ai_sc = _safe_float_mov(_ai.get("news_score") or _ai.get("composite_score"))
-                _ai_sent = (_ai.get("sentiment_label") or "").lower()
+                _ai_sc = effective_attention_score(_ai)
+                _ai_catalyst_sc = effective_catalyst_score(_ai)
+                _ai_sent = effective_catalyst_sentiment(_ai)
+                _ai_attention = effective_attention_state(_ai)
+                _ai_reaction = effective_reaction_state(_ai)
+                _ai_resolution = effective_resolution_state(_ai)
+                _ai_posture = effective_posture_state(_ai)
+                _ai_attention_icon = _ATTENTION_ICONS.get(_ai_attention, "")
+                _ai_posture_icon = {
+                    "LONG": "🟢",
+                    "SHORT": "🔴",
+                    "WATCH_LONG": "👀",
+                    "WATCH_SHORT": "👀",
+                    "NEUTRAL": "⚪",
+                    "AVOID": "⛔",
+                }.get(_ai_posture, "")
+                _ai_resolution_icon = {
+                    "FOLLOW_THROUGH": "🚀",
+                    "OPEN": "🕒",
+                    "STALLED": "⏸️",
+                    "FAILED": "❌",
+                    "REVERSAL": "↩️",
+                }.get(_ai_resolution, "")
+                _ai_reaction_icon = {
+                    "CONFIRMED": "✅",
+                    "WATCH": "👀",
+                    "IDLE": "⏳",
+                    "FADE": "↘",
+                    "CONFLICTED": "⚠️",
+                }.get(_ai_reaction, "")
                 _ai_sent_icon = {"bullish": "🟢", "bearish": "🔴", "neutral": "🟡"}.get(_ai_sent, "")
                 _ai_hl = (_ai.get("headline") or "")[:120]
                 _ai_url = _ai.get("url") or ""
@@ -2881,7 +3770,12 @@ else:
                     "Symbol": _ai_tk,
                     "Price": f"${_aq_price:.2f}" if _aq_price >= 1 else (f"${_aq_price:.4f}" if _aq_price > 0 else "—"),
                     "Chg%": f"{_aq_chg:+.2f}%" if _aq_chg else "—",
-                    "News Score": round(_ai_sc, 3),
+                    "Score": round(_ai_sc, 3),
+                    "Catalyst": round(_ai_catalyst_sc, 3),
+                    "Attention": f"{_ai_attention_icon} {_ai_attention.title()}" if _ai_attention else "",
+                    "Posture": f"{_ai_posture_icon} {_ai_posture.replace('_', ' ').title()}" if _ai_posture else "",
+                    "Resolution": f"{_ai_resolution_icon} {_ai_resolution.replace('_', ' ').title()}" if _ai_resolution else "",
+                    "Reaction": f"{_ai_reaction_icon} {_ai_reaction.title()}" if _ai_reaction else "",
                     "Sentiment": f"{_ai_sent_icon} {_ai_sent.title()}" if _ai_sent else "",
                     "Category": _ai_cat,
                     "Materiality": _ai_mat,
@@ -2900,7 +3794,12 @@ else:
                 "Symbol": st.column_config.TextColumn("Symbol", width="small"),
                 "Price": st.column_config.TextColumn("Price", width="small"),
                 "Chg%": st.column_config.TextColumn("Chg%", width="small"),
-                "News Score": st.column_config.NumberColumn("News Score", width="small", format="%.3f"),
+                "Score": st.column_config.NumberColumn("Score", width="small", format="%.3f"),
+                "Catalyst": st.column_config.NumberColumn("Catalyst", width="small", format="%.3f"),
+                "Attention": st.column_config.TextColumn("Attention", width="small"),
+                "Posture": st.column_config.TextColumn("Posture", width="small"),
+                "Resolution": st.column_config.TextColumn("Resolution", width="small"),
+                "Reaction": st.column_config.TextColumn("Reaction", width="small"),
                 "Sentiment": st.column_config.TextColumn("Sentiment", width="small"),
                 "Category": st.column_config.TextColumn("Category", width="small"),
                 "Materiality": st.column_config.TextColumn("Materiality", width="small"),
@@ -2911,7 +3810,7 @@ else:
                 "P/E": st.column_config.TextColumn("P/E", width="small"),
                 "Vol": st.column_config.TextColumn("Vol", width="small"),
             }
-            if any(r.get("Headline", "").startswith("http") for r in _act_rows):
+            if any(str(r.get("Headline", "")).startswith("http") for r in _act_rows):
                 _act_col_cfg["Headline"] = st.column_config.LinkColumn(
                     "Headline",
                     display_text=r"https?://[^/]+/(.{0,60}).*",
@@ -2921,6 +3820,11 @@ else:
             with st.popover("ℹ️ Column guide"):
                 st.markdown(
                     "- **Price / Chg%** — Quote from Databento (price, daily change %)\n"
+                    "- **Score** — Attention-aware ticker score used for surfacing, alerts, and prioritization\n"
+                    "- **Attention** — Operator escalation state above posture\n"
+                    "- **Posture** — Final terminal posture derived above resolution\n"
+                    "- **Resolution** — Outcome-state overlay after the initial reaction window\n"
+                    "- **Reaction** — Reaction confirmation state from live quote context\n"
                     "- **Tech** — TradingView technical signal (BUY/SELL/NEUTRAL)\n"
                     "- **Social** — Finnhub social sentiment (Reddit+Twitter icon + mention count)\n"
                     "- **Analyst** — Analyst consensus (upside %, rating)\n"
@@ -3218,16 +4122,19 @@ else:
 
             # Compute live feed sentiment (shared between both sections)
             _feed_for_outlook = feed[-200:] if feed else []
-            if _feed_for_outlook:
+            _feed_sentiment_items = list((st.session_state.get("ticker_catalyst_state") or {}).values())
+            if not _feed_sentiment_items and _feed_for_outlook:
+                _feed_sentiment_items = dedup_feed_items(_feed_for_outlook)
+            if _feed_sentiment_items:
                 _bear_c = sum(
-                    1 for it in _feed_for_outlook
-                    if str(it.get("sentiment_label") or "").lower() == "bearish"
+                    1 for it in _feed_sentiment_items
+                    if effective_catalyst_sentiment(it) == "bearish"
                 )
                 _bull_c = sum(
-                    1 for it in _feed_for_outlook
-                    if str(it.get("sentiment_label") or "").lower() == "bullish"
+                    1 for it in _feed_sentiment_items
+                    if effective_catalyst_sentiment(it) == "bullish"
                 )
-                _total_f = len(_feed_for_outlook)
+                _total_f = len(_feed_sentiment_items)
                 if _total_f > 10:
                     _bear_ratio = _bear_c / _total_f
                     _bull_ratio = _bull_c / _total_f
@@ -3885,8 +4792,9 @@ else:
 
 # ── Auto-refresh trigger ───────────────────────────────────────
 
-if st.session_state.auto_refresh and (
-    st.session_state.cfg.benzinga_api_key
+if st.session_state.auto_refresh and _has_live_news_provider(
+    st.session_state.cfg,
+    st.session_state.feed,
 ):
     # Use st.fragment with run_every for non-blocking auto-refresh.
     # We compare the poller's poll_count against a snapshot we take

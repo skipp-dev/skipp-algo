@@ -16,7 +16,12 @@ from smc_core import apply_layering, derive_base_signals, normalize_meta, snapsh
 from smc_core.benchmark import BenchmarkResult, build_benchmark
 from smc_core.bias_merge import merge_bias
 from smc_core.ensemble_quality import build_ensemble_quality, serialize_ensemble_quality
-from smc_core.scoring import score_events
+from smc_core.scoring import (
+    score_events,
+    serialize_calibration_summary,
+    summarize_contextual_calibration,
+    summarize_stratified_calibration,
+)
 from smc_core.vol_regime import compute_vol_regime
 from smc_core.types import SmcSnapshot
 from scripts.load_databento_export_bundle import load_export_bundle
@@ -138,6 +143,12 @@ def _build_measurement_summary(symbol: str, timeframe: str) -> dict[str, Any]:
             "hit_rate": None,
             "families_present": [],
             "family_metrics": {},
+            "calibration": {},
+            "stratified_calibration": {
+                "dimensions_present": [],
+                "dimension_group_counts": {},
+                "dimension_populated_groups": {},
+            },
         },
         "ensemble_quality": {},
         "warnings": [],
@@ -159,6 +170,13 @@ def _build_measurement_summary(symbol: str, timeframe: str) -> dict[str, Any]:
     )
     scoring_result = score_events(evidence.scored_events)
     scoring_family_metrics = _serialize_scoring_family_metrics(scoring_result)
+    calibration = serialize_calibration_summary(getattr(scoring_result, "calibration", None))
+    stratified_calibration = summarize_stratified_calibration(
+        getattr(scoring_result, "stratified_calibration", {}) or {}
+    )
+    contextual_calibration = summarize_contextual_calibration(
+        getattr(scoring_result, "contextual_calibration", {}) or {}
+    )
     available = bool(evidence.details.get("measurement_evidence_present"))
 
     return {
@@ -176,6 +194,9 @@ def _build_measurement_summary(symbol: str, timeframe: str) -> dict[str, Any]:
             "hit_rate": _safe_float(getattr(scoring_result, "hit_rate", None)),
             "families_present": sorted(scoring_family_metrics.keys()),
             "family_metrics": scoring_family_metrics,
+            "calibration": calibration,
+            "stratified_calibration": stratified_calibration,
+            "contextual_calibration": contextual_calibration,
         },
         "ensemble_quality": dict(evidence.details.get("ensemble_quality", {})),
         "warnings": list(evidence.warnings),

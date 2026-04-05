@@ -48,10 +48,10 @@ class TestPolicyDeclarations:
         assert POLICY_REGIME.primary == "fmp"
         assert POLICY_REGIME.fallbacks == ()
 
-    def test_news_is_fmp_primary_benzinga_fallback(self):
+    def test_news_is_fmp_primary_with_explicit_fallback_chain(self):
         assert POLICY_NEWS.primary == "fmp"
-        assert POLICY_NEWS.fallbacks == ("benzinga",)
-        assert POLICY_NEWS.all_providers == ("fmp", "benzinga")
+        assert POLICY_NEWS.fallbacks == ("benzinga", "newsapi_ai")
+        assert POLICY_NEWS.all_providers == ("fmp", "benzinga", "newsapi_ai")
 
     def test_calendar_is_fmp_primary_benzinga_fallback(self):
         assert POLICY_CALENDAR.primary == "fmp"
@@ -142,6 +142,7 @@ class TestProviderUnavailable:
         assert result.provider == "none"
         assert "fmp" in result.stale
         assert "benzinga" in result.stale
+        assert "newsapi_ai" in result.stale
 
     def test_calendar_all_fail_returns_safe_default(self):
         result = resolve_domain("calendar", fmp=None, benzinga_api_key="", symbols=["AAPL"])
@@ -185,6 +186,28 @@ class TestPartialProviderAvailability:
         assert "fmp" in result.stale
         assert result.data["bullish_tickers"] == ["NVDA"]
 
+    @patch("scripts.smc_provider_policy.fetch_news_newsapi_ai")
+    @patch("scripts.smc_provider_policy.fetch_news_benzinga")
+    @patch("scripts.smc_provider_policy.fetch_news_fmp")
+    def test_news_fmp_and_benzinga_fail_newsapi_succeeds(self, mock_fmp, mock_bz, mock_newsapi):
+        mock_fmp.side_effect = RuntimeError("FMP timeout")
+        mock_bz.side_effect = RuntimeError("Benzinga timeout")
+        mock_newsapi.return_value = ProviderResult(
+            data={"bullish_tickers": ["NVDA"], "bearish_tickers": []},
+            provider="newsapi_ai",
+        )
+        result = resolve_domain(
+            "news",
+            fmp=MagicMock(),
+            benzinga_api_key="bz-key",
+            newsapi_ai_key="news-key",
+            symbols=["NVDA"],
+        )
+        assert result.ok is True
+        assert result.provider == "newsapi_ai"
+        assert "fmp" in result.stale
+        assert "benzinga" in result.stale
+
     @patch("scripts.smc_provider_policy.fetch_calendar_benzinga")
     @patch("scripts.smc_provider_policy.fetch_calendar_fmp")
     def test_calendar_fmp_fails_benzinga_succeeds(self, mock_fmp, mock_bz):
@@ -213,18 +236,25 @@ class TestPartialProviderAvailability:
         assert result.provider == "tradingview"
         assert "fmp" in result.stale
 
+    @patch("scripts.smc_provider_policy.fetch_news_newsapi_ai")
     @patch("scripts.smc_provider_policy.fetch_news_benzinga")
     @patch("scripts.smc_provider_policy.fetch_news_fmp")
-    def test_both_news_fail_returns_empty(self, mock_fmp, mock_bz):
+    def test_all_news_providers_fail_returns_empty(self, mock_fmp, mock_bz, mock_newsapi):
         mock_fmp.side_effect = RuntimeError("FMP error")
         mock_bz.side_effect = RuntimeError("Benzinga error")
+        mock_newsapi.side_effect = RuntimeError("NewsAPI.ai error")
         result = resolve_domain(
-            "news", fmp=MagicMock(), benzinga_api_key="bz-key", symbols=["AAPL"],
+            "news",
+            fmp=MagicMock(),
+            benzinga_api_key="bz-key",
+            newsapi_ai_key="news-key",
+            symbols=["AAPL"],
         )
         assert result.ok is False
         assert result.provider == "none"
         assert "fmp" in result.stale
         assert "benzinga" in result.stale
+        assert "newsapi_ai" in result.stale
 
 
 # ── Test 5: Malformed payloads ──────────────────────────────────

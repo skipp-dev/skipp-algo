@@ -285,6 +285,7 @@ def test_measurement_gate_emits_shadow_degradations_from_baseline(monkeypatch, t
     assert gate["status"] == "fail"
     assert gate["blocking"] is True
     assert gate["details"]["measurement_shadow_baseline"]["available"] is True
+    assert gate["details"]["measurement_shadow_effective_thresholds"]["max_calibrated_brier_score"] == 0.6
     codes = {row["code"] for row in gate["details"]["measurement_degradations_detected"]}
     assert {
         "MEASUREMENT_BRIER_REGRESSION",

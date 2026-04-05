@@ -30,6 +30,7 @@
 #   SMTP_PASS          – SMTP login password
 #   ALERT_EMAIL_FROM   – Sender address for email alerts
 #   ALERT_EMAIL_TO     – Recipient address for email alerts
+#   NEWSAPI_AI_KEY     – NewsAPI.ai key for optional news fallback enrichment
 #
 # Secret compatibility note (v4 → v5):
 #   Secret names are unchanged from v4 — no reconfiguration needed.
@@ -108,6 +109,7 @@ jobs:
         env:
           FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
           BENZINGA_API_KEY: ${{ secrets.BENZINGA_API_KEY }}
+          NEWSAPI_AI_KEY: ${{ secrets.NEWSAPI_AI_KEY }}
           DATABENTO_API_KEY: ${{ secrets.DATABENTO_API_KEY }}
         run: |
           python scripts/generate_smc_micro_base_from_databento.py \

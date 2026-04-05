@@ -8,6 +8,8 @@ from typing import Any
 import pytest
 
 from smc_integration.release_policy import (
+    ContextualCalibrationPromotionPolicy,
+    ContextualCalibrationRecommendationPolicy,
     MeasurementShadowThresholds,
     EVIDENCE_MIN_SYMBOL_COVERAGE,
     EVIDENCE_MIN_TIMEFRAME_COVERAGE,
@@ -21,10 +23,12 @@ from smc_integration.release_policy import (
     RELEASE_REFERENCE_SYMBOLS,
     RELEASE_REFERENCE_TIMEFRAMES,
     RELEASE_STALE_AFTER_SECONDS,
+    assess_contextual_calibration_promotion,
     assess_measurement_shadow_degradations,
     build_measurement_shadow_baseline,
     diagnose_gate_failure,
     parse_csv,
+    recommend_contextual_calibration,
     resolve_release_policy,
 )
 
@@ -219,26 +223,127 @@ class TestDiagnoseGateFailure:
 class TestMeasurementShadowGovernance:
     def test_shadow_baseline_requires_history(self) -> None:
         baseline = build_measurement_shadow_baseline(
-            [{"brier_score": 0.12, "n_events": 8, "stratification_coverage": {"populated_bucket_count": 2}}]
+            [
+                {
+                    "brier_score": 0.12,
+                    "calibrated_brier_score": 0.10,
+                    "calibrated_ece": 0.08,
+                    "n_events": 8,
+                    "stratification_coverage": {"populated_bucket_count": 2},
+                }
+            ]
         )
         assert baseline["available"] is False
         assert baseline["history_runs"] == 1
+        assert baseline["calibrated_brier_score"] == 0.1
+        assert baseline["calibrated_ece"] == 0.08
+        assert baseline["effective_thresholds"] == {}
+        assert baseline["history_tightened_metrics"] == []
 
-    def test_shadow_degradations_detect_historical_regressions(self) -> None:
+    def test_shadow_baseline_exposes_history_tightened_effective_thresholds(self) -> None:
+        thresholds = MeasurementShadowThresholds(
+            max_calibrated_brier_score=0.60,
+            max_calibrated_ece=0.30,
+            max_calibrated_brier_regression_abs=0.05,
+            max_calibrated_ece_regression_abs=0.04,
+            min_history_runs=2,
+        )
+        current = {
+            "calibrated_brier_score": 0.19,
+            "calibrated_ece": 0.14,
+            "n_events": 8,
+            "stratification_coverage": {"populated_bucket_count": 2},
+        }
+        history = [
+            {
+                "calibrated_brier_score": 0.10,
+                "calibrated_ece": 0.07,
+                "n_events": 10,
+                "stratification_coverage": {"populated_bucket_count": 3},
+            },
+            {
+                "calibrated_brier_score": 0.12,
+                "calibrated_ece": 0.09,
+                "n_events": 9,
+                "stratification_coverage": {"populated_bucket_count": 3},
+            },
+        ]
+
+        degradations, baseline = assess_measurement_shadow_degradations(
+            current,
+            history,
+            thresholds=thresholds,
+        )
+
+        assert baseline["available"] is True
+        assert baseline["effective_thresholds"]["max_calibrated_brier_score"] == 0.16
+        assert baseline["effective_thresholds"]["max_calibrated_ece"] == 0.12
+        assert baseline["history_tightened_metrics"] == ["calibrated_brier_score", "calibrated_ece"]
+        threshold_rows = {row["metric"]: row for row in degradations if row["code"].endswith("ABOVE_THRESHOLD")}
+        assert threshold_rows["calibrated_brier_score"]["basis"] == "history_tightened_threshold"
+        assert threshold_rows["calibrated_brier_score"]["threshold_value"] == 0.16
+        assert threshold_rows["calibrated_ece"]["basis"] == "history_tightened_threshold"
+        assert threshold_rows["calibrated_ece"]["threshold_value"] == 0.12
+
+    def test_shadow_degradations_detect_calibrated_absolute_thresholds(self) -> None:
         thresholds = MeasurementShadowThresholds(
             max_brier_score=0.60,
             max_log_score=1.20,
+            max_calibrated_brier_score=0.20,
+            max_calibrated_ece=0.10,
             min_scoring_events=1,
             min_populated_stratification_buckets=1,
             min_history_runs=2,
             max_brier_regression_abs=0.05,
             max_log_regression_abs=0.10,
+            max_calibrated_brier_regression_abs=0.05,
+            max_calibrated_ece_regression_abs=0.05,
+            min_event_coverage_ratio=0.60,
+            min_stratification_coverage_ratio=0.60,
+        )
+        current = {
+            "brier_score": 0.18,
+            "log_score": 0.31,
+            "calibrated_brier_score": 0.27,
+            "calibrated_ece": 0.16,
+            "n_events": 6,
+            "stratification_coverage": {"populated_bucket_count": 2},
+        }
+
+        degradations, baseline = assess_measurement_shadow_degradations(
+            current,
+            [],
+            thresholds=thresholds,
+        )
+
+        assert baseline["available"] is False
+        codes = {row["code"] for row in degradations}
+        assert codes == {
+            "MEASUREMENT_CALIBRATED_BRIER_ABOVE_THRESHOLD",
+            "MEASUREMENT_CALIBRATED_ECE_ABOVE_THRESHOLD",
+        }
+
+    def test_shadow_degradations_detect_historical_regressions(self) -> None:
+        thresholds = MeasurementShadowThresholds(
+            max_brier_score=0.60,
+            max_log_score=1.20,
+            max_calibrated_brier_score=0.60,
+            max_calibrated_ece=0.30,
+            min_scoring_events=1,
+            min_populated_stratification_buckets=1,
+            min_history_runs=2,
+            max_brier_regression_abs=0.05,
+            max_log_regression_abs=0.10,
+            max_calibrated_brier_regression_abs=0.05,
+            max_calibrated_ece_regression_abs=0.10,
             min_event_coverage_ratio=0.60,
             min_stratification_coverage_ratio=0.60,
         )
         current = {
             "brier_score": 0.31,
             "log_score": 0.74,
+            "calibrated_brier_score": 0.25,
+            "calibrated_ece": 0.24,
             "n_events": 3,
             "stratification_coverage": {"populated_bucket_count": 1},
         }
@@ -246,12 +351,16 @@ class TestMeasurementShadowGovernance:
             {
                 "brier_score": 0.11,
                 "log_score": 0.33,
+                "calibrated_brier_score": 0.09,
+                "calibrated_ece": 0.07,
                 "n_events": 10,
                 "stratification_coverage": {"populated_bucket_count": 3},
             },
             {
                 "brier_score": 0.13,
                 "log_score": 0.35,
+                "calibrated_brier_score": 0.11,
+                "calibrated_ece": 0.09,
                 "n_events": 8,
                 "stratification_coverage": {"populated_bucket_count": 3},
             },
@@ -268,9 +377,105 @@ class TestMeasurementShadowGovernance:
         assert codes == {
             "MEASUREMENT_BRIER_REGRESSION",
             "MEASUREMENT_LOG_SCORE_REGRESSION",
+            "MEASUREMENT_CALIBRATED_BRIER_ABOVE_THRESHOLD",
+            "MEASUREMENT_CALIBRATED_ECE_ABOVE_THRESHOLD",
+            "MEASUREMENT_CALIBRATED_BRIER_REGRESSION",
+            "MEASUREMENT_CALIBRATED_ECE_REGRESSION",
             "MEASUREMENT_EVENT_COVERAGE_REGRESSION",
             "MEASUREMENT_STRATIFICATION_COVERAGE_REGRESSION",
         }
+
+
+class TestContextualCalibrationGovernance:
+    def test_recommend_contextual_calibration_prefers_consensus_dimension(self) -> None:
+        recommendation = recommend_contextual_calibration(
+            {
+                "n_events": 18,
+                "contextual_calibration": {
+                    "session": {
+                        "n_events": 18,
+                        "covered_events": 18,
+                        "coverage_ratio": 1.0,
+                        "populated_groups": 2,
+                        "delta_brier_score": 0.02,
+                        "delta_ece": 0.03,
+                        "adjusted_brier_score": 0.11,
+                        "adjusted_ece": 0.08,
+                        "fallback_event_count": 0,
+                    },
+                    "htf_bias": {
+                        "n_events": 18,
+                        "covered_events": 18,
+                        "coverage_ratio": 1.0,
+                        "populated_groups": 2,
+                        "delta_brier_score": 0.014,
+                        "delta_ece": 0.02,
+                        "adjusted_brier_score": 0.13,
+                        "adjusted_ece": 0.1,
+                        "fallback_event_count": 0,
+                    },
+                    "vol_regime": {
+                        "n_events": 18,
+                        "covered_events": 18,
+                        "coverage_ratio": 1.0,
+                        "populated_groups": 3,
+                        "delta_brier_score": 0.016,
+                        "delta_ece": 0.022,
+                        "adjusted_brier_score": 0.12,
+                        "adjusted_ece": 0.09,
+                        "fallback_event_count": 0,
+                    },
+                },
+            },
+            policy=ContextualCalibrationRecommendationPolicy(),
+        )
+
+        assert recommendation["available"] is True
+        assert recommendation["recommended_dimension"] == "session"
+        assert recommendation["basis"] == "metric_consensus"
+        assert recommendation["metric_consensus"] is True
+
+    def test_contextual_calibration_promotion_requires_stable_history(self) -> None:
+        template = {
+            "n_events": 18,
+            "contextual_calibration": {
+                "session": {
+                    "n_events": 18,
+                    "covered_events": 18,
+                    "coverage_ratio": 1.0,
+                    "populated_groups": 2,
+                    "delta_brier_score": 0.02,
+                    "delta_ece": 0.03,
+                    "adjusted_brier_score": 0.11,
+                    "adjusted_ece": 0.08,
+                    "fallback_event_count": 0,
+                },
+                "htf_bias": {
+                    "n_events": 18,
+                    "covered_events": 18,
+                    "coverage_ratio": 1.0,
+                    "populated_groups": 2,
+                    "delta_brier_score": 0.014,
+                    "delta_ece": 0.02,
+                    "adjusted_brier_score": 0.13,
+                    "adjusted_ece": 0.1,
+                    "fallback_event_count": 0,
+                },
+            },
+        }
+
+        promotion = assess_contextual_calibration_promotion(
+            template,
+            [template, template],
+            recommendation_policy=ContextualCalibrationRecommendationPolicy(),
+            promotion_policy=ContextualCalibrationPromotionPolicy(),
+        )
+
+        assert promotion["available"] is True
+        assert promotion["promotion_ready"] is True
+        assert promotion["recommended_dimension"] == "session"
+        assert promotion["recommended_run_ratio"] == 1.0
+        assert promotion["reasons"] == []
 
 
 # ---------------------------------------------------------------------------

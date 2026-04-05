@@ -15,7 +15,13 @@ if str(REPO_ROOT) not in sys.path:
 
 from scripts.verify_smc_micro_publish_contract import verify_publish_contract
 from smc_core.benchmark import EventFamily, build_benchmark, export_benchmark_artifacts
-from smc_core.scoring import export_scoring_artifact, score_events
+from smc_core.scoring import (
+    export_scoring_artifact,
+    score_events,
+    serialize_calibration_summary,
+    summarize_contextual_calibration,
+    summarize_stratified_calibration,
+)
 from smc_core.schema_version import SCHEMA_VERSION
 from smc_integration.measurement_evidence import build_measurement_evidence
 from smc_integration.release_policy import (
@@ -203,6 +209,13 @@ def _write_measurement_manifest(
             "brier_score": _finite_metric(getattr(scoring_result, "brier_score", None)),
             "log_score": _finite_metric(getattr(scoring_result, "log_score", None)),
             "hit_rate": _finite_metric(getattr(scoring_result, "hit_rate", None)),
+            "calibration": serialize_calibration_summary(getattr(scoring_result, "calibration", None)),
+            "stratified_calibration": summarize_stratified_calibration(
+                getattr(scoring_result, "stratified_calibration", {}) or {}
+            ),
+            "contextual_calibration": summarize_contextual_calibration(
+                getattr(scoring_result, "contextual_calibration", {}) or {}
+            ),
             "family_metrics": _serialize_family_metrics(scoring_result),
         },
         "warnings": list(warnings),
@@ -377,9 +390,14 @@ def _run_measurement_gate(
             "required_history_runs": get_measurement_shadow_thresholds().min_history_runs,
             "brier_score": None,
             "log_score": None,
+            "calibrated_brier_score": None,
+            "calibrated_ece": None,
             "n_events": None,
             "populated_bucket_count": None,
+            "effective_thresholds": serialize_measurement_shadow_thresholds(get_measurement_shadow_thresholds()),
+            "history_tightened_metrics": [],
         },
+        "measurement_shadow_effective_thresholds": serialize_measurement_shadow_thresholds(get_measurement_shadow_thresholds()),
         "measurement_shadow_strict": bool(strict_measurement_shadow),
         "measurement_baseline_summary_path": baseline_summary_path,
         "measurement_degradations_detected": [],
@@ -430,6 +448,18 @@ def _run_measurement_gate(
         details["scoring_event_count"] = int(scoring_result.n_events)
         details["scoring_family_metrics"] = _serialize_family_metrics(scoring_result)
         details["scoring_families_present"] = sorted(details["scoring_family_metrics"].keys())
+        details["calibration"] = serialize_calibration_summary(getattr(scoring_result, "calibration", None))
+        details["stratified_calibration"] = summarize_stratified_calibration(
+            getattr(scoring_result, "stratified_calibration", {}) or {}
+        )
+        details["contextual_calibration"] = summarize_contextual_calibration(
+            getattr(scoring_result, "contextual_calibration", {}) or {}
+        )
+        details["calibration_method"] = details["calibration"].get("method")
+        details["calibrated_brier_score"] = details["calibration"].get("calibrated_brier_score")
+        details["calibrated_log_score"] = details["calibration"].get("calibrated_log_score")
+        details["raw_ece"] = details["calibration"].get("raw_ece")
+        details["calibrated_ece"] = details["calibration"].get("calibrated_ece")
 
         bs = scoring_result.brier_score
         ls = scoring_result.log_score
@@ -481,6 +511,8 @@ def _run_measurement_gate(
         "timeframe": timeframe,
         "brier_score": details.get("brier_score"),
         "log_score": details.get("log_score"),
+        "calibrated_brier_score": details.get("calibrated_brier_score"),
+        "calibrated_ece": details.get("calibrated_ece"),
         "n_events": details.get("scoring_event_count", 0),
         "stratification_coverage": details.get("stratification_coverage", {}),
     }
@@ -490,6 +522,12 @@ def _run_measurement_gate(
         thresholds=get_measurement_shadow_thresholds(),
     )
     details["measurement_shadow_baseline"] = shadow_baseline
+    raw_effective_thresholds = shadow_baseline.get("effective_thresholds")
+    details["measurement_shadow_effective_thresholds"] = (
+        dict(raw_effective_thresholds)
+        if isinstance(raw_effective_thresholds, dict)
+        else serialize_measurement_shadow_thresholds(get_measurement_shadow_thresholds())
+    )
     details["measurement_degradations_detected"] = measurement_degradations
     details["degradations_detected"] = measurement_degradations
     for degradation in measurement_degradations:

@@ -44,7 +44,7 @@ class DomainPolicy:
 
 POLICY_BASE_SCAN = DomainPolicy("base_scan", primary="databento", fallbacks=())
 POLICY_REGIME = DomainPolicy("regime", primary="fmp", fallbacks=())
-POLICY_NEWS = DomainPolicy("news", primary="fmp", fallbacks=("benzinga",))
+POLICY_NEWS = DomainPolicy("news", primary="fmp", fallbacks=("benzinga", "newsapi_ai"))
 POLICY_CALENDAR = DomainPolicy("calendar", primary="fmp", fallbacks=("benzinga",))
 POLICY_TECHNICAL = DomainPolicy("technical", primary="fmp", fallbacks=("tradingview",))
 
@@ -142,6 +142,16 @@ def fetch_news_benzinga(api_key: str, symbols: list[str]) -> ProviderResult:
     from scripts.smc_news_scorer import compute_news_sentiment
     result = compute_news_sentiment(symbols, articles)
     return ProviderResult(data=result, provider="benzinga")
+
+
+def fetch_news_newsapi_ai(api_key: str, symbols: list[str]) -> ProviderResult:
+    """Fetch news via NewsAPI.ai / Event Registry (tertiary fallback for news)."""
+    from scripts.smc_news_scorer import compute_news_sentiment
+    from scripts.smc_newsapi_ai import fetch_newsapi_articles
+
+    articles = fetch_newsapi_articles(api_key, symbols)
+    result = compute_news_sentiment(symbols, articles)
+    return ProviderResult(data=result, provider="newsapi_ai")
 
 
 # ── Calendar adapters ───────────────────────────────────────────
@@ -284,6 +294,7 @@ def resolve_domain(
     *,
     fmp: Any | None = None,
     benzinga_api_key: str = "",
+    newsapi_ai_key: str = "",
     symbols: list[str] | None = None,
 ) -> ProviderResult:
     """Run the provider chain for *domain* and return the first success.
@@ -303,6 +314,7 @@ def resolve_domain(
         try:
             result = _call_provider(domain, provider_name, fmp=fmp,
                                     benzinga_api_key=benzinga_api_key,
+                                    newsapi_ai_key=newsapi_ai_key,
                                     symbols=syms)
             result.stale.extend(all_stale)
             return result
@@ -325,6 +337,7 @@ def _call_provider(
     *,
     fmp: Any | None,
     benzinga_api_key: str,
+    newsapi_ai_key: str,
     symbols: list[str],
 ) -> ProviderResult:
     """Dispatch to the correct adapter for *domain* × *provider_name*."""
@@ -342,6 +355,10 @@ def _call_provider(
             if not benzinga_api_key:
                 raise RuntimeError("Benzinga API key not configured")
             return fetch_news_benzinga(benzinga_api_key, symbols)
+        if provider_name == "newsapi_ai":
+            if not newsapi_ai_key:
+                raise RuntimeError("NewsAPI.ai API key not configured")
+            return fetch_news_newsapi_ai(newsapi_ai_key, symbols)
     elif domain == "calendar":
         if provider_name == "fmp":
             if fmp is None:

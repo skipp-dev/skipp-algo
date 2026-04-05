@@ -125,8 +125,14 @@ def test_build_measurement_evidence_uses_contract_and_real_bars(monkeypatch) -> 
     assert [event.family for event in evidence.scored_events] == ["BOS", "OB", "FVG", "SWEEP"]
     assert all(event.outcome is True for event in evidence.scored_events)
     assert all(event.predicted_prob > 0.5 for event in evidence.scored_events)
+    assert all(event.raw_score is not None for event in evidence.scored_events)
+    assert all(event.raw_score_name == "SIGNAL_QUALITY_SCORE" for event in evidence.scored_events)
+    assert evidence.scored_events[0].context == {"session": "NONE", "htf_bias": "BULLISH", "vol_regime": "NORMAL"}
     assert evidence.details["scoring_event_count"] == 4
     assert evidence.details["scoring_event_counts_by_family"] == {"BOS": 1, "OB": 1, "FVG": 1, "SWEEP": 1}
+    assert evidence.details["signal_quality_raw_score_name"] == "SIGNAL_QUALITY_SCORE"
+    assert evidence.details["signal_quality_raw_score_count"] == 4
+    assert evidence.details["signal_quality_raw_score_complete"] is True
     assert evidence.details["vol_regime"] == "NORMAL"
     assert evidence.details["vol_regime_confidence"] == 0.91
     assert evidence.details["vol_regime_model_source"] == "arch_garch"
@@ -140,6 +146,10 @@ def test_build_measurement_evidence_uses_contract_and_real_bars(monkeypatch) -> 
     assert "htf_bias:BULLISH" in evidence.stratified_events
     assert "vol_regime:NORMAL" in evidence.stratified_events
     assert evidence.warnings == []
+
+    scoring_result = measurement_evidence.score_events(evidence.scored_events)
+    assert scoring_result.calibration.input_kind == "raw_score_0_100"
+    assert scoring_result.calibration.source_name == "SIGNAL_QUALITY_SCORE"
 
 
 def test_build_measurement_evidence_warns_when_contract_is_missing(monkeypatch) -> None:

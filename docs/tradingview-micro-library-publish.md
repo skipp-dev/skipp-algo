@@ -60,6 +60,7 @@ streamlit run streamlit_smc_micro_base_generator.py
 The GitHub Actions workflow `.github/workflows/smc-library-refresh.yml` runs 4x per trading day (12:30/14:30/16:30/18:30 UTC). Each run:
 
 1. Generates the base + v5.5b enrichment library via `scripts/generate_smc_micro_base_from_databento.py --run-scan --enrich-all`
+  `--enrich-all` includes the snapshot-derived SMC context blocks used by the current library/core contract; when `NEWSAPI_AI_KEY` is configured it is available as an optional news fallback behind FMP and Benzinga.
 2. Runs evidence gate tests
 3. Detects whether the library content changed
 4. Publishes to TradingView only when changed

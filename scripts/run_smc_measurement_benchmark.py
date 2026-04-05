@@ -17,7 +17,16 @@ if str(REPO_ROOT) not in sys.path:
 
 from smc_core.benchmark import BenchmarkResult, build_benchmark, export_benchmark_artifacts
 from smc_core.ensemble_quality import EnsembleQualityResult, export_ensemble_quality_artifact
-from smc_core.scoring import ScoredEvent, export_scoring_artifact, score_events
+from smc_core.scoring import (
+    ScoredEvent,
+    export_scoring_artifact,
+    score_events,
+    serialize_calibration_summary,
+    serialize_contextual_calibration,
+    serialize_stratified_calibration,
+    summarize_contextual_calibration,
+    summarize_stratified_calibration,
+)
 from smc_core.schema_version import SCHEMA_VERSION
 from smc_integration.measurement_evidence import build_measurement_evidence
 from smc_integration.release_policy import (
@@ -121,7 +130,23 @@ def _kpi_rows(benchmark_result: BenchmarkResult) -> list[dict[str, Any]]:
     return rows
 
 
-def _reliability_rows(events: list[ScoredEvent], *, bin_count: int = 10) -> list[dict[str, Any]]:
+def _reliability_rows(scoring_result: Any, *, bin_count: int = 10) -> list[dict[str, Any]]:
+    calibration = getattr(scoring_result, "calibration", None)
+    calibration_bins = getattr(calibration, "bins", None) if calibration is not None else None
+    if calibration_bins:
+        return [
+            {
+                "bin_index": int(item.bin_index),
+                "bin_label": f"{item.lower_bound:.1f}-{item.upper_bound:.1f}",
+                "predicted_mean": float(item.predicted_mean),
+                "observed_rate": float(item.observed_rate),
+                "calibrated_mean": float(item.calibrated_mean),
+                "n_events": int(item.n_events),
+            }
+            for item in calibration_bins
+        ]
+
+    events = list(getattr(scoring_result, "events", []) or [])
     if not events:
         return []
 
@@ -145,14 +170,16 @@ def _reliability_rows(events: list[ScoredEvent], *, bin_count: int = 10) -> list
                 "bin_label": f"{bucket_idx / bin_count:.1f}-{(bucket_idx + 1) / bin_count:.1f}",
                 "predicted_mean": round(predicted_mean, 6),
                 "observed_rate": round(observed_rate, 6),
+                "calibrated_mean": round(predicted_mean, 6),
                 "n_events": n_events,
             }
         )
     return rows
 
 
-def _write_reliability_plot(events: list[ScoredEvent], output_path: Path) -> None:
-    rows = _reliability_rows(events)
+def _write_reliability_plot(scoring_result: Any, output_path: Path) -> None:
+    rows = _reliability_rows(scoring_result)
+    calibration = serialize_calibration_summary(scoring_result.calibration)
     figure = go.Figure()
     figure.add_trace(
         go.Scatter(
@@ -170,15 +197,32 @@ def _write_reliability_plot(events: list[ScoredEvent], output_path: Path) -> Non
                 x=[row["predicted_mean"] for row in rows],
                 y=[row["observed_rate"] for row in rows],
                 mode="lines+markers",
-                name="observed",
+                name="raw",
                 text=[f"bin={row['bin_label']}<br>n={row['n_events']}" for row in rows],
             )
         )
+        if any(abs(float(row["calibrated_mean"]) - float(row["predicted_mean"])) > 1e-9 for row in rows):
+            figure.add_trace(
+                go.Scatter(
+                    x=[row["calibrated_mean"] for row in rows],
+                    y=[row["observed_rate"] for row in rows],
+                    mode="lines+markers",
+                    name="calibrated",
+                    text=[f"bin={row['bin_label']}<br>n={row['n_events']}" for row in rows],
+                )
+            )
     else:
         figure.add_annotation(text="No scored events available", x=0.5, y=0.5, showarrow=False)
 
+    calibration_method = str(calibration.get("method", "identity"))
+    raw_ece = calibration.get("raw_ece")
+    calibrated_ece = calibration.get("calibrated_ece")
+    title = f"Reliability / Calibration ({calibration_method})"
+    if raw_ece is not None and calibrated_ece is not None:
+        title = f"{title} | ECE {raw_ece:.4f} -> {calibrated_ece:.4f}"
+
     figure.update_layout(
-        title="Reliability / Calibration",
+        title=title,
         xaxis_title="Predicted probability",
         yaxis_title="Observed hit rate",
         template="plotly_white",
@@ -226,8 +270,17 @@ def _write_pair_summary_csv(path: Path, summary: dict[str, Any]) -> None:
         "n_events": summary["scoring"]["n_events"],
         "brier_score": summary["scoring"]["brier_score"],
         "log_score": summary["scoring"]["log_score"],
+        "calibration_method": summary["scoring"]["calibration"]["method"],
+        "calibrated_brier_score": summary["scoring"]["calibration"]["calibrated_brier_score"],
+        "calibrated_log_score": summary["scoring"]["calibration"]["calibrated_log_score"],
+        "raw_ece": summary["scoring"]["calibration"]["raw_ece"],
+        "calibrated_ece": summary["scoring"]["calibration"]["calibrated_ece"],
+        "contextual_best_brier_dimension": summary["scoring"]["contextual_calibration_summary"]["best_dimension_by_adjusted_brier"],
+        "contextual_best_ece_dimension": summary["scoring"]["contextual_calibration_summary"]["best_dimension_by_adjusted_ece"],
         "hit_rate": summary["scoring"]["hit_rate"],
         "families_present": "|".join(summary["scoring"]["families_present"]),
+        "stratified_dimensions": "|".join(summary["scoring"]["stratified_calibration_summary"]["dimensions_present"]),
+        "contextual_dimensions": "|".join(summary["scoring"]["contextual_calibration_summary"]["dimensions_present"]),
         "populated_bucket_count": summary["stratification_coverage"]["populated_bucket_count"],
         "warning_count": len(summary["warnings"]),
     }
@@ -249,6 +302,19 @@ def _build_pair_summary(
     scoring_result: Any,
     artifacts: dict[str, str | None],
 ) -> dict[str, Any]:
+    calibration = serialize_calibration_summary(scoring_result.calibration)
+    stratified_calibration = serialize_stratified_calibration(
+        getattr(scoring_result, "stratified_calibration", {}) or {}
+    )
+    stratified_calibration_summary = summarize_stratified_calibration(
+        getattr(scoring_result, "stratified_calibration", {}) or {}
+    )
+    contextual_calibration = serialize_contextual_calibration(
+        getattr(scoring_result, "contextual_calibration", {}) or {}
+    )
+    contextual_calibration_summary = summarize_contextual_calibration(
+        getattr(scoring_result, "contextual_calibration", {}) or {}
+    )
     return {
         "schema_version": SCHEMA_VERSION,
         "generated_at": float(time.time()),
@@ -268,6 +334,11 @@ def _build_pair_summary(
             "hit_rate": float(getattr(scoring_result, "hit_rate", float("nan"))),
             "families_present": sorted(_serialize_scoring_family_metrics(scoring_result).keys()),
             "family_metrics": _serialize_scoring_family_metrics(scoring_result),
+            "calibration": calibration,
+            "stratified_calibration": stratified_calibration,
+            "stratified_calibration_summary": stratified_calibration_summary,
+            "contextual_calibration": contextual_calibration,
+            "contextual_calibration_summary": contextual_calibration_summary,
         },
         "ensemble_quality": dict(evidence.details.get("ensemble_quality", {})),
         "warnings": list(evidence.warnings),
@@ -316,7 +387,7 @@ def run_pair(symbol: str, timeframe: str, *, output_root: Path) -> dict[str, Any
     )
 
     reliability_plot_path = pair_dir / f"reliability_{symbol}_{timeframe}.html"
-    _write_reliability_plot(scoring_result.events, reliability_plot_path)
+    _write_reliability_plot(scoring_result, reliability_plot_path)
 
     stratification_plot_path = pair_dir / f"stratification_{symbol}_{timeframe}.html"
     _write_stratification_plot(benchmark_result, stratification_plot_path)
@@ -421,7 +492,13 @@ def main() -> int:
                 "n_events": summary["scoring"]["n_events"],
                 "brier_score": summary["scoring"]["brier_score"],
                 "log_score": summary["scoring"]["log_score"],
+                "calibration_method": summary["scoring"]["calibration"]["method"],
+                "calibrated_brier_score": summary["scoring"]["calibration"]["calibrated_brier_score"],
+                "calibrated_log_score": summary["scoring"]["calibration"]["calibrated_log_score"],
+                "raw_ece": summary["scoring"]["calibration"]["raw_ece"],
+                "calibrated_ece": summary["scoring"]["calibration"]["calibrated_ece"],
                 "hit_rate": summary["scoring"]["hit_rate"],
+                "stratified_dimensions": "|".join(summary["scoring"]["stratified_calibration_summary"]["dimensions_present"]),
                 "populated_bucket_count": summary["stratification_coverage"]["populated_bucket_count"],
                 "warning_count": len(summary["warnings"]),
             }

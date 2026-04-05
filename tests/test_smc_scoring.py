@@ -125,11 +125,69 @@ class TestScoreEvents:
         assert result.family_metrics["BOS"].n_events == 2
         assert result.family_metrics["SWEEP"].n_events == 1
         assert math.isfinite(result.family_metrics["BOS"].brier_score)
+        assert result.calibration.n_events == 3
+        assert result.calibration.method in {"platt_scaling", "beta_bin", "identity"}
+        assert result.stratified_calibration == {}
+        assert result.contextual_calibration == {}
 
     def test_empty_events(self) -> None:
         result = score_events([])
         assert result.n_events == 0
         assert result.family_metrics == {}
+        assert result.calibration.n_events == 0
+
+    def test_score_events_builds_platt_calibration_when_history_is_sufficient(self) -> None:
+        events = []
+        for idx in range(12):
+            events.append(ScoredEvent(f"low-{idx}", "BOS", 0.18 + (idx % 4) * 0.04, False, float(idx + 1)))
+        for idx in range(12):
+            events.append(ScoredEvent(f"high-{idx}", "SWEEP", 0.62 + (idx % 4) * 0.06, True, float(idx + 21)))
+
+        result = score_events(events)
+
+        assert result.calibration.method == "platt_scaling"
+        assert result.calibration.applied is True
+        assert result.calibration.n_events == 24
+        assert math.isfinite(result.calibration.raw_brier_score)
+        assert math.isfinite(result.calibration.calibrated_brier_score)
+        assert math.isfinite(result.calibration.raw_ece)
+        assert math.isfinite(result.calibration.calibrated_ece)
+        assert result.calibration.parameters["slope"] is not None
+
+    def test_score_events_builds_stratified_calibration_from_event_context(self) -> None:
+        events = [
+            ScoredEvent("ny-1", "BOS", 0.72, True, 1.0, context={"session": "NY_AM", "htf_bias": "BULLISH", "vol_regime": "NORMAL"}),
+            ScoredEvent("ny-2", "BOS", 0.35, False, 2.0, context={"session": "NY_AM", "htf_bias": "BULLISH", "vol_regime": "NORMAL"}),
+            ScoredEvent("ldn-1", "SWEEP", 0.64, True, 3.0, context={"session": "LONDON", "htf_bias": "BEARISH", "vol_regime": "HIGH_VOL"}),
+            ScoredEvent("ldn-2", "SWEEP", 0.28, False, 4.0, context={"session": "LONDON", "htf_bias": "BEARISH", "vol_regime": "HIGH_VOL"}),
+        ]
+
+        result = score_events(events)
+
+        assert set(result.stratified_calibration) == {"session", "htf_bias", "vol_regime"}
+        assert result.stratified_calibration["session"].groups["NY_AM"].n_events == 2
+        assert result.stratified_calibration["session"].groups["LONDON"].n_events == 2
+        assert result.stratified_calibration["htf_bias"].groups["BULLISH"].n_events == 2
+        assert result.stratified_calibration["vol_regime"].groups["HIGH_VOL"].n_events == 2
+        assert set(result.contextual_calibration) == {"session", "htf_bias", "vol_regime"}
+        assert result.contextual_calibration["session"].covered_events == 4
+        assert result.contextual_calibration["session"].coverage_ratio == 1.0
+        assert result.contextual_calibration["session"].group_method_counts
+
+    def test_score_events_prefers_raw_signal_quality_score_when_present(self) -> None:
+        events = [
+            ScoredEvent("sq-1", "BOS", 0.15, False, 1.0, raw_score=22.0, raw_score_name="SIGNAL_QUALITY_SCORE"),
+            ScoredEvent("sq-2", "BOS", 0.20, False, 2.0, raw_score=28.0, raw_score_name="SIGNAL_QUALITY_SCORE"),
+            ScoredEvent("sq-3", "SWEEP", 0.85, True, 3.0, raw_score=74.0, raw_score_name="SIGNAL_QUALITY_SCORE"),
+            ScoredEvent("sq-4", "SWEEP", 0.90, True, 4.0, raw_score=81.0, raw_score_name="SIGNAL_QUALITY_SCORE"),
+        ]
+
+        result = score_events(events)
+
+        assert result.calibration.input_kind == "raw_score_0_100"
+        assert result.calibration.source_name == "SIGNAL_QUALITY_SCORE"
+        assert result.calibration.n_events == 4
+        assert result.contextual_calibration == {}
 
 
 # --- Export Artifact ---
@@ -159,3 +217,7 @@ class TestExportArtifact:
         assert data["aggregate"]["n_events"] == 2
         assert set(data["family_metrics"]) == {"BOS", "SWEEP"}
         assert data["family_metrics"]["BOS"]["n_events"] == 1
+        assert data["calibration"]["n_events"] == 2
+        assert "method" in data["calibration"]
+        assert data["stratified_calibration"] == {}
+        assert data["contextual_calibration"] == {}

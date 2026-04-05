@@ -66,7 +66,16 @@ def test_bundle_contains_snapshot_projections_and_additive_contexts(monkeypatch)
                     "SWEEP": [],
                 }
             },
-            scored_events=[ScoredEvent("bos-1", "BOS", 0.75, True, 1.0)],
+            scored_events=[
+                ScoredEvent(
+                    "bos-1",
+                    "BOS",
+                    0.75,
+                    True,
+                    1.0,
+                    context={"session": "NY_AM", "htf_bias": "NEUTRAL", "vol_regime": "HIGH_VOL"},
+                )
+            ],
             details={
                 "measurement_evidence_present": True,
                 "bars_source_mode": "synthetic_bundle",
@@ -122,6 +131,9 @@ def test_bundle_contains_snapshot_projections_and_additive_contexts(monkeypatch)
     assert bundle["measurement_summary"]["benchmark_event_counts"] == {"BOS": 1, "OB": 0, "FVG": 0, "SWEEP": 0}
     assert bundle["measurement_summary"]["scoring"]["n_events"] == 1
     assert bundle["measurement_summary"]["scoring"]["families_present"] == ["BOS"]
+    assert bundle["measurement_summary"]["scoring"]["calibration"]["n_events"] == 1
+    assert bundle["measurement_summary"]["scoring"]["stratified_calibration"]["dimensions_present"] == ["htf_bias", "session", "vol_regime"]
+    assert bundle["measurement_summary"]["scoring"]["contextual_calibration"]["dimensions_present"] == ["htf_bias", "session", "vol_regime"]
     assert bundle["market_context"]["bias_direction"] == bundle["bias_verdict"]["direction"]
     assert bundle["market_context"]["vol_regime_label"] == "HIGH_VOL"
     assert bundle["market_context"]["measurement_status"] == "available"

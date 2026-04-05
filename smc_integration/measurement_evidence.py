@@ -9,9 +9,14 @@ import pandas as pd
 
 from scripts.explicit_structure_from_bars import build_explicit_structure_from_bars, resample_bars_to_timeframe
 from scripts.load_databento_export_bundle import load_export_bundle
+from scripts.smc_event_risk_light import build_event_risk_light
+from scripts.smc_signal_quality import build_signal_quality
 from scripts.smc_htf_context import build_htf_bias_context
 from scripts.smc_session_context import build_session_liquidity_context
 from scripts.smc_session_context_block import build_session_context_block
+from scripts.smc_session_context_light import build_session_context_light
+from scripts.smc_structure_state import build_structure_state
+from scripts.smc_structure_state_light import build_structure_state_light
 from smc_core.bias_merge import merge_bias
 from smc_core.benchmark import EventFamily
 from smc_core.ensemble_quality import build_ensemble_quality, serialize_ensemble_quality
@@ -34,6 +39,8 @@ _ZONE_LOOKAHEAD_BARS = 12
 _SWEEP_LOOKAHEAD_BARS = 8
 _BOS_FOLLOW_THROUGH_THRESHOLD_PCT = 0.003
 _SWEEP_REVERSAL_THRESHOLD_PCT = 0.005
+_SQ_LOOKBACK_BARS = 64
+_SQ_RAW_SCORE_NAME = "SIGNAL_QUALITY_SCORE"
 
 
 @dataclass(slots=True, frozen=True)
@@ -162,11 +169,34 @@ def _directional_excursions(reference_price: float, direction: str, future_bars:
     return round(mae, 6), round(mfe, 6)
 
 
+def _history_window(bars: pd.DataFrame, *, anchor_idx: int, lookback_bars: int = _SQ_LOOKBACK_BARS) -> pd.DataFrame:
+    start = max(0, int(anchor_idx) - int(lookback_bars) + 1)
+    return bars.iloc[start : anchor_idx + 1].reset_index(drop=True)
+
+
 def _event_session_key(anchor_ts: float, timeframe: str) -> str:
     if str(timeframe).strip().upper() == "1D":
         return "session:NONE"
     session = build_session_context_block(timestamp=datetime.fromtimestamp(float(anchor_ts), tz=UTC))
     return f"session:{session.get('SESSION_CONTEXT', 'NONE')}"
+
+
+def _event_session_label(anchor_ts: float, timeframe: str) -> str:
+    return _event_session_key(anchor_ts, timeframe).split(":", 1)[1]
+
+
+def _scored_event_context(
+    anchor_ts: float,
+    timeframe: str,
+    *,
+    bias_direction: str,
+    vol_regime_label: str,
+) -> dict[str, str]:
+    return {
+        "session": _event_session_label(anchor_ts, timeframe),
+        "htf_bias": _normalize_direction(bias_direction),
+        "vol_regime": str(vol_regime_label).strip().upper() or "NORMAL",
+    }
 
 
 def _append_stratified_event(
@@ -275,6 +305,387 @@ def _normalize_direction(raw: str) -> str:
     return "NEUTRAL"
 
 
+def _direction_vote_label(direction: str) -> str:
+    normalized = _normalize_direction(direction)
+    if normalized == "BULLISH":
+        return "BULL"
+    if normalized == "BEARISH":
+        return "BEAR"
+    return "NONE"
+
+
+def _expected_event_direction(event: dict[str, Any], family: EventFamily) -> str:
+    if family == "SWEEP":
+        return _expected_reversal_direction(str(event.get("side", "SELL_SIDE")))
+    return _normalize_direction(str(event.get("dir", "NEUTRAL")))
+
+
+def _anchor_reference_price(event: dict[str, Any], *, family: EventFamily, bars: pd.DataFrame, anchor_idx: int) -> float:
+    if family == "BOS":
+        price = float(event.get("price", 0.0) or 0.0)
+        if price > 0:
+            return price
+    if family in {"OB", "FVG"}:
+        low = float(event.get("low", 0.0) or 0.0)
+        high = float(event.get("high", 0.0) or 0.0)
+        if low > 0 and high >= low:
+            return (low + high) / 2.0
+    close = float(pd.to_numeric(bars.iloc[anchor_idx].get("close"), errors="coerce") or 0.0)
+    if close > 0:
+        return close
+    return float(event.get("price", 0.0) or 0.0)
+
+
+def _mitigation_state(*, age_bars: int, mitigated: bool) -> str:
+    if mitigated:
+        return "mitigated"
+    if age_bars <= 10:
+        return "fresh"
+    if age_bars <= 30:
+        return "touched"
+    return "stale"
+
+
+def _candidate_mitigated_at_anchor(
+    event: dict[str, Any],
+    diagnostics_by_id: dict[str, dict[str, Any]],
+    *,
+    anchor_ts: float,
+) -> bool:
+    if not bool(event.get("valid", True)):
+        return True
+    event_id = str(event.get("id", "")).strip()
+    diagnostic = diagnostics_by_id.get(event_id, {})
+    if not diagnostic.get("mitigated"):
+        return False
+    mitigated_ts = float(diagnostic.get("mitigated_ts", 0.0) or 0.0)
+    return mitigated_ts > 0.0 and mitigated_ts <= float(anchor_ts)
+
+
+def _session_context_light_for_event(
+    *,
+    anchor_ts: float,
+    family: EventFamily,
+    expected_direction: str,
+    bias_direction: str,
+    vol_regime_label: str,
+) -> dict[str, Any]:
+    session_context = build_session_context_block(timestamp=datetime.fromtimestamp(float(anchor_ts), tz=UTC))
+    normalized_bias = _normalize_direction(bias_direction)
+    aligned = (
+        expected_direction != "NEUTRAL"
+        and normalized_bias != "NEUTRAL"
+        and normalized_bias == expected_direction
+    )
+    score = 0
+    if str(session_context.get("SESSION_CONTEXT", "NONE")) != "NONE":
+        score += 1
+    if bool(session_context.get("IN_KILLZONE", False)):
+        score += 1
+    if aligned:
+        score += 2
+    elif normalized_bias == "NEUTRAL" and expected_direction != "NEUTRAL":
+        score += 1
+    if family in {"BOS", "OB", "FVG"}:
+        score += 1
+
+    compression_regime = {
+        "SQUEEZE_ON": str(vol_regime_label).strip().upper() == "LOW_VOL",
+        "ATR_REGIME": {
+            "LOW_VOL": "COMPRESSION",
+            "NORMAL": "NORMAL",
+            "HIGH_VOL": "EXPANSION",
+            "EXTREME": "EXHAUSTION",
+        }.get(str(vol_regime_label).strip().upper(), "NORMAL"),
+        "ATR_RATIO": {
+            "LOW_VOL": 0.6,
+            "NORMAL": 1.0,
+            "HIGH_VOL": 1.6,
+            "EXTREME": 2.4,
+        }.get(str(vol_regime_label).strip().upper(), 1.0),
+    }
+    broad_block = {
+        "SESSION_CONTEXT": session_context.get("SESSION_CONTEXT", "NONE"),
+        "IN_KILLZONE": session_context.get("IN_KILLZONE", False),
+        "SESSION_DIRECTION_BIAS": normalized_bias if normalized_bias != "NEUTRAL" else expected_direction,
+        "SESSION_CONTEXT_SCORE": min(score, 5),
+    }
+    return build_session_context_light(session_context=broad_block, compression_regime=compression_regime)
+
+
+def _structure_state_light_for_event(
+    *,
+    event: dict[str, Any],
+    family: EventFamily,
+    history_bars: pd.DataFrame,
+    expected_direction: str,
+) -> dict[str, Any]:
+    structure_state = build_structure_state(snapshot=history_bars)
+    if family == "BOS" and expected_direction in {"BULLISH", "BEARISH"}:
+        structure_state["STRUCTURE_STATE"] = expected_direction
+        structure_state["STRUCTURE_BULL_ACTIVE"] = expected_direction == "BULLISH"
+        structure_state["STRUCTURE_BEAR_ACTIVE"] = expected_direction == "BEARISH"
+        structure_state["BOS_BULL"] = expected_direction == "BULLISH"
+        structure_state["BOS_BEAR"] = expected_direction == "BEARISH"
+        structure_state["CHOCH_BULL"] = False
+        structure_state["CHOCH_BEAR"] = False
+        structure_state["STRUCTURE_LAST_EVENT"] = "BOS_BULL" if expected_direction == "BULLISH" else "BOS_BEAR"
+        structure_state["STRUCTURE_EVENT_AGE_BARS"] = 0
+        structure_state["STRUCTURE_FRESH"] = True
+    elif structure_state.get("STRUCTURE_LAST_EVENT") == "NONE" and expected_direction in {"BULLISH", "BEARISH"}:
+        structure_state["STRUCTURE_STATE"] = expected_direction
+        structure_state["STRUCTURE_BULL_ACTIVE"] = expected_direction == "BULLISH"
+        structure_state["STRUCTURE_BEAR_ACTIVE"] = expected_direction == "BEARISH"
+    return build_structure_state_light(structure_state=structure_state)
+
+
+def _ob_context_light_for_event(
+    *,
+    current_event: dict[str, Any],
+    family: EventFamily,
+    orderblocks: list[dict[str, Any]],
+    bars: pd.DataFrame,
+    anchor_idx: int,
+    anchor_ts: float,
+    current_price: float,
+    diagnostics_by_id: dict[str, dict[str, Any]],
+) -> dict[str, Any]:
+    best: tuple[tuple[int, int, int, float, int], dict[str, Any]] | None = None
+    current_id = str(current_event.get("id", "")).strip()
+
+    for candidate in orderblocks:
+        candidate_id = str(candidate.get("id", "")).strip()
+        candidate_anchor_ts = float(candidate.get("anchor_ts", candidate.get("time", 0.0)) or 0.0)
+        if candidate_anchor_ts <= 0 or candidate_anchor_ts > float(anchor_ts):
+            continue
+        candidate_idx = _find_bar_index(bars, candidate_anchor_ts)
+        if candidate_idx is None or candidate_idx > anchor_idx:
+            continue
+        low = float(candidate.get("low", 0.0) or 0.0)
+        high = float(candidate.get("high", 0.0) or 0.0)
+        if low <= 0 or high < low:
+            continue
+        side = _direction_vote_label(str(candidate.get("dir", "NEUTRAL")))
+        if side == "NONE":
+            continue
+        age_bars = max(anchor_idx - candidate_idx, 0)
+        mitigated = _candidate_mitigated_at_anchor(candidate, diagnostics_by_id, anchor_ts=anchor_ts)
+        midpoint = (low + high) / 2.0
+        distance = 0.0 if candidate_id == current_id and family == "OB" else abs(current_price - midpoint) / max(current_price, 1e-9) * 100.0
+        priority = (
+            0 if candidate_id == current_id and family == "OB" else 1,
+            0 if not mitigated else 1,
+            0 if age_bars <= 10 else (1 if age_bars <= 30 else 2),
+            round(distance, 6),
+            age_bars,
+        )
+        payload = {
+            "PRIMARY_OB_SIDE": side,
+            "PRIMARY_OB_DISTANCE": round(distance, 4),
+            "OB_FRESH": age_bars <= 10 and not mitigated,
+            "OB_AGE_BARS": age_bars,
+            "OB_MITIGATION_STATE": _mitigation_state(age_bars=age_bars, mitigated=mitigated),
+        }
+        if best is None or priority < best[0]:
+            best = (priority, payload)
+
+    return best[1] if best is not None else {
+        "PRIMARY_OB_SIDE": "NONE",
+        "PRIMARY_OB_DISTANCE": 0.0,
+        "OB_FRESH": False,
+        "OB_AGE_BARS": 0,
+        "OB_MITIGATION_STATE": "stale",
+    }
+
+
+def _fvg_lifecycle_light_for_event(
+    *,
+    current_event: dict[str, Any],
+    family: EventFamily,
+    fvgs: list[dict[str, Any]],
+    bars: pd.DataFrame,
+    anchor_idx: int,
+    anchor_ts: float,
+    current_price: float,
+    diagnostics_by_id: dict[str, dict[str, Any]],
+) -> dict[str, Any]:
+    best: tuple[tuple[int, int, float, int], dict[str, Any]] | None = None
+    current_id = str(current_event.get("id", "")).strip()
+
+    for candidate in fvgs:
+        candidate_id = str(candidate.get("id", "")).strip()
+        candidate_anchor_ts = float(candidate.get("anchor_ts", candidate.get("time", 0.0)) or 0.0)
+        if candidate_anchor_ts <= 0 or candidate_anchor_ts > float(anchor_ts):
+            continue
+        candidate_idx = _find_bar_index(bars, candidate_anchor_ts)
+        if candidate_idx is None or candidate_idx > anchor_idx:
+            continue
+        low = float(candidate.get("low", 0.0) or 0.0)
+        high = float(candidate.get("high", 0.0) or 0.0)
+        if low <= 0 or high < low:
+            continue
+        side = _direction_vote_label(str(candidate.get("dir", "NEUTRAL")))
+        if side == "NONE":
+            continue
+        invalidated = _candidate_mitigated_at_anchor(candidate, diagnostics_by_id, anchor_ts=anchor_ts)
+        midpoint = (low + high) / 2.0
+        distance = 0.0 if candidate_id == current_id and family == "FVG" else abs(current_price - midpoint) / max(current_price, 1e-9) * 100.0
+        fill_pct = 1.0 if invalidated else 0.0
+        maturity = 3 if invalidated else 0
+        priority = (
+            0 if candidate_id == current_id and family == "FVG" else 1,
+            0 if not invalidated else 1,
+            round(distance, 6),
+            max(anchor_idx - candidate_idx, 0),
+        )
+        payload = {
+            "PRIMARY_FVG_SIDE": side,
+            "PRIMARY_FVG_DISTANCE": round(distance, 4),
+            "FVG_FILL_PCT": round(fill_pct, 4),
+            "FVG_MATURITY_LEVEL": maturity,
+            "FVG_FRESH": not invalidated,
+            "FVG_INVALIDATED": invalidated,
+        }
+        if best is None or priority < best[0]:
+            best = (priority, payload)
+
+    return best[1] if best is not None else {
+        "PRIMARY_FVG_SIDE": "NONE",
+        "PRIMARY_FVG_DISTANCE": 0.0,
+        "FVG_FILL_PCT": 0.0,
+        "FVG_MATURITY_LEVEL": 0,
+        "FVG_FRESH": False,
+        "FVG_INVALIDATED": False,
+    }
+
+
+def _liquidity_support_for_event(
+    *,
+    current_event: dict[str, Any],
+    family: EventFamily,
+    sweeps: list[dict[str, Any]],
+    bars: pd.DataFrame,
+    anchor_idx: int,
+    anchor_ts: float,
+) -> dict[str, Any]:
+    best: tuple[tuple[int, int], dict[str, Any]] | None = None
+    current_id = str(current_event.get("id", "")).strip()
+
+    for candidate in sweeps:
+        candidate_id = str(candidate.get("id", "")).strip()
+        candidate_anchor_ts = float(candidate.get("time", candidate.get("anchor_ts", 0.0)) or 0.0)
+        if candidate_anchor_ts <= 0 or candidate_anchor_ts > float(anchor_ts):
+            continue
+        candidate_idx = _find_bar_index(bars, candidate_anchor_ts)
+        if candidate_idx is None or candidate_idx > anchor_idx:
+            continue
+        age_bars = max(anchor_idx - candidate_idx, 0)
+        side = str(candidate.get("side", "SELL_SIDE")).strip().upper()
+        if side == "SELL_SIDE":
+            bull_sweep = True
+            bear_sweep = False
+            direction = "BULL"
+        elif side == "BUY_SIDE":
+            bull_sweep = False
+            bear_sweep = True
+            direction = "BEAR"
+        else:
+            continue
+        quality = 5 if candidate_id == current_id and family == "SWEEP" else max(1, 5 - min(age_bars, 4))
+        payload = {
+            "RECENT_BULL_SWEEP": bull_sweep,
+            "RECENT_BEAR_SWEEP": bear_sweep,
+            "SWEEP_DIRECTION": direction,
+            "SWEEP_QUALITY_SCORE": quality,
+        }
+        priority = (0 if candidate_id == current_id and family == "SWEEP" else 1, age_bars)
+        if best is None or priority < best[0]:
+            best = (priority, payload)
+
+    return best[1] if best is not None else {
+        "RECENT_BULL_SWEEP": False,
+        "RECENT_BEAR_SWEEP": False,
+        "SWEEP_DIRECTION": "NONE",
+        "SWEEP_QUALITY_SCORE": 0,
+    }
+
+
+def _event_signal_quality_score(
+    *,
+    event: dict[str, Any],
+    family: EventFamily,
+    bars: pd.DataFrame,
+    anchor_idx: int,
+    anchor_ts: float,
+    bias_direction: str,
+    vol_regime_label: str,
+    orderblocks: list[dict[str, Any]],
+    fvgs: list[dict[str, Any]],
+    sweeps: list[dict[str, Any]],
+    orderblock_diagnostics: dict[str, dict[str, Any]],
+    fvg_diagnostics: dict[str, dict[str, Any]],
+) -> float:
+    history_bars = _history_window(bars, anchor_idx=anchor_idx)
+    expected_direction = _expected_event_direction(event, family)
+    current_price = _anchor_reference_price(event, family=family, bars=bars, anchor_idx=anchor_idx)
+    enrichment = {
+        "event_risk_light": build_event_risk_light(event_risk={"EVENT_PROVIDER_STATUS": "no_data"}),
+        "structure_state_light": _structure_state_light_for_event(
+            event=event,
+            family=family,
+            history_bars=history_bars,
+            expected_direction=expected_direction,
+        ),
+        "session_context_light": _session_context_light_for_event(
+            anchor_ts=anchor_ts,
+            family=family,
+            expected_direction=expected_direction,
+            bias_direction=bias_direction,
+            vol_regime_label=vol_regime_label,
+        ),
+        "ob_context_light": _ob_context_light_for_event(
+            current_event=event,
+            family=family,
+            orderblocks=orderblocks,
+            bars=bars,
+            anchor_idx=anchor_idx,
+            anchor_ts=anchor_ts,
+            current_price=current_price,
+            diagnostics_by_id=orderblock_diagnostics,
+        ),
+        "fvg_lifecycle_light": _fvg_lifecycle_light_for_event(
+            current_event=event,
+            family=family,
+            fvgs=fvgs,
+            bars=bars,
+            anchor_idx=anchor_idx,
+            anchor_ts=anchor_ts,
+            current_price=current_price,
+            diagnostics_by_id=fvg_diagnostics,
+        ),
+        "liquidity_sweeps": _liquidity_support_for_event(
+            current_event=event,
+            family=family,
+            sweeps=sweeps,
+            bars=bars,
+            anchor_idx=anchor_idx,
+            anchor_ts=anchor_ts,
+        ),
+        "compression_regime": {
+            "SQUEEZE_ON": str(vol_regime_label).strip().upper() == "LOW_VOL",
+            "ATR_REGIME": {
+                "LOW_VOL": "COMPRESSION",
+                "NORMAL": "NORMAL",
+                "HIGH_VOL": "EXPANSION",
+                "EXTREME": "EXHAUSTION",
+            }.get(str(vol_regime_label).strip().upper(), "NORMAL"),
+        },
+    }
+    signal_quality = build_signal_quality(enrichment=enrichment)
+    raw_score = float(signal_quality.get(_SQ_RAW_SCORE_NAME, 0.0) or 0.0)
+    return round(max(0.0, min(100.0, raw_score)), 4)
+
+
 def _directional_probability(expected_direction: str, *, bias_direction: str, bias_confidence: float) -> float:
     normalized_bias = str(bias_direction).upper()
     normalized_expected = _normalize_direction(expected_direction)
@@ -306,6 +717,9 @@ def _score_bos_event(
     *,
     bias_direction: str,
     bias_confidence: float,
+    event_context: dict[str, str],
+    raw_score: float | None = None,
+    raw_score_name: str | None = None,
 ) -> ScoredEvent | None:
     price = float(event.get("price", 0.0) or 0.0)
     anchor_ts = float(event.get("time", event.get("anchor_ts", 0.0)) or 0.0)
@@ -333,6 +747,9 @@ def _score_bos_event(
             threshold_pct=_BOS_FOLLOW_THROUGH_THRESHOLD_PCT,
         ),
         timestamp=float(anchor_ts),
+        context=dict(event_context),
+        raw_score=raw_score,
+        raw_score_name=raw_score_name,
     )
 
 
@@ -343,6 +760,9 @@ def _score_zone_event(
     family: EventFamily,
     bias_direction: str,
     bias_confidence: float,
+    event_context: dict[str, str],
+    raw_score: float | None = None,
+    raw_score_name: str | None = None,
 ) -> ScoredEvent | None:
     low = float(event.get("low", 0.0) or 0.0)
     high = float(event.get("high", 0.0) or 0.0)
@@ -366,6 +786,9 @@ def _score_zone_event(
         predicted_prob=_directional_probability(direction, bias_direction=bias_direction, bias_confidence=bias_confidence),
         outcome=label_fn(low, high, direction, highs, lows, closes),
         timestamp=float(anchor_ts),
+        context=dict(event_context),
+        raw_score=raw_score,
+        raw_score_name=raw_score_name,
     )
 
 
@@ -375,6 +798,9 @@ def _evaluate_sweep_event(
     *,
     bias_direction: str,
     bias_confidence: float,
+    event_context: dict[str, str],
+    raw_score: float | None = None,
+    raw_score_name: str | None = None,
 ) -> tuple[dict[str, Any], ScoredEvent] | None:
     price = float(event.get("price", 0.0) or 0.0)
     anchor_ts = float(event.get("time", event.get("anchor_ts", 0.0)) or 0.0)
@@ -418,6 +844,9 @@ def _evaluate_sweep_event(
         predicted_prob=_sweep_probability(side, bias_direction=bias_direction, bias_confidence=bias_confidence),
         outcome=outcome,
         timestamp=float(anchor_ts),
+        context=dict(event_context),
+        raw_score=raw_score,
+        raw_score_name=raw_score_name,
     )
     return {
         "hit": outcome,
@@ -566,15 +995,43 @@ def build_measurement_evidence(symbol: str, timeframe: str) -> MeasurementEviden
             skipped_counts["BOS"] += 1
             continue
         events_by_family["BOS"].append(evaluated)
+        anchor_ts = float(event.get("time", event.get("anchor_ts", 0.0)) or 0.0)
+        anchor_idx = _find_bar_index(resampled_bars, anchor_ts)
+        event_context = _scored_event_context(
+            anchor_ts,
+            timeframe,
+            bias_direction=bias_verdict.direction,
+            vol_regime_label=vol_regime.label,
+        )
+        raw_score = (
+            _event_signal_quality_score(
+                event=event,
+                family="BOS",
+                bars=resampled_bars,
+                anchor_idx=anchor_idx,
+                anchor_ts=anchor_ts,
+                bias_direction=bias_verdict.direction,
+                vol_regime_label=vol_regime.label,
+                orderblocks=effective_structure["orderblocks"],
+                fvgs=effective_structure["fvg"],
+                sweeps=effective_structure["liquidity_sweeps"],
+                orderblock_diagnostics=orderblock_diagnostics,
+                fvg_diagnostics=fvg_diagnostics,
+            )
+            if anchor_idx is not None
+            else None
+        )
         scored_event = _score_bos_event(
             event,
             resampled_bars,
             bias_direction=bias_verdict.direction,
             bias_confidence=bias_verdict.confidence,
+            event_context=event_context,
+            raw_score=raw_score,
+            raw_score_name=_SQ_RAW_SCORE_NAME if raw_score is not None else None,
         )
         if scored_event is not None:
             scored_events.append(scored_event)
-        anchor_ts = float(event.get("time", event.get("anchor_ts", 0.0)) or 0.0)
         _append_stratified_event(stratified_events, _event_session_key(anchor_ts, timeframe), "BOS", evaluated)
         _append_stratified_event(stratified_events, f"htf_bias:{bias_verdict.direction}", "BOS", evaluated)
         _append_stratified_event(stratified_events, f"vol_regime:{vol_regime.label}", "BOS", evaluated)
@@ -585,16 +1042,44 @@ def build_measurement_evidence(symbol: str, timeframe: str) -> MeasurementEviden
             skipped_counts["OB"] += 1
             continue
         events_by_family["OB"].append(evaluated)
+        anchor_ts = float(event.get("anchor_ts", event.get("time", 0.0)) or 0.0)
+        anchor_idx = _find_bar_index(resampled_bars, anchor_ts)
+        event_context = _scored_event_context(
+            anchor_ts,
+            timeframe,
+            bias_direction=bias_verdict.direction,
+            vol_regime_label=vol_regime.label,
+        )
+        raw_score = (
+            _event_signal_quality_score(
+                event=event,
+                family="OB",
+                bars=resampled_bars,
+                anchor_idx=anchor_idx,
+                anchor_ts=anchor_ts,
+                bias_direction=bias_verdict.direction,
+                vol_regime_label=vol_regime.label,
+                orderblocks=effective_structure["orderblocks"],
+                fvgs=effective_structure["fvg"],
+                sweeps=effective_structure["liquidity_sweeps"],
+                orderblock_diagnostics=orderblock_diagnostics,
+                fvg_diagnostics=fvg_diagnostics,
+            )
+            if anchor_idx is not None
+            else None
+        )
         scored_event = _score_zone_event(
             event,
             resampled_bars,
             family="OB",
             bias_direction=bias_verdict.direction,
             bias_confidence=bias_verdict.confidence,
+            event_context=event_context,
+            raw_score=raw_score,
+            raw_score_name=_SQ_RAW_SCORE_NAME if raw_score is not None else None,
         )
         if scored_event is not None:
             scored_events.append(scored_event)
-        anchor_ts = float(event.get("anchor_ts", event.get("time", 0.0)) or 0.0)
         _append_stratified_event(stratified_events, _event_session_key(anchor_ts, timeframe), "OB", evaluated)
         _append_stratified_event(stratified_events, f"htf_bias:{bias_verdict.direction}", "OB", evaluated)
         _append_stratified_event(stratified_events, f"vol_regime:{vol_regime.label}", "OB", evaluated)
@@ -605,26 +1090,83 @@ def build_measurement_evidence(symbol: str, timeframe: str) -> MeasurementEviden
             skipped_counts["FVG"] += 1
             continue
         events_by_family["FVG"].append(evaluated)
+        anchor_ts = float(event.get("anchor_ts", event.get("time", 0.0)) or 0.0)
+        anchor_idx = _find_bar_index(resampled_bars, anchor_ts)
+        event_context = _scored_event_context(
+            anchor_ts,
+            timeframe,
+            bias_direction=bias_verdict.direction,
+            vol_regime_label=vol_regime.label,
+        )
+        raw_score = (
+            _event_signal_quality_score(
+                event=event,
+                family="FVG",
+                bars=resampled_bars,
+                anchor_idx=anchor_idx,
+                anchor_ts=anchor_ts,
+                bias_direction=bias_verdict.direction,
+                vol_regime_label=vol_regime.label,
+                orderblocks=effective_structure["orderblocks"],
+                fvgs=effective_structure["fvg"],
+                sweeps=effective_structure["liquidity_sweeps"],
+                orderblock_diagnostics=orderblock_diagnostics,
+                fvg_diagnostics=fvg_diagnostics,
+            )
+            if anchor_idx is not None
+            else None
+        )
         scored_event = _score_zone_event(
             event,
             resampled_bars,
             family="FVG",
             bias_direction=bias_verdict.direction,
             bias_confidence=bias_verdict.confidence,
+            event_context=event_context,
+            raw_score=raw_score,
+            raw_score_name=_SQ_RAW_SCORE_NAME if raw_score is not None else None,
         )
         if scored_event is not None:
             scored_events.append(scored_event)
-        anchor_ts = float(event.get("anchor_ts", event.get("time", 0.0)) or 0.0)
         _append_stratified_event(stratified_events, _event_session_key(anchor_ts, timeframe), "FVG", evaluated)
         _append_stratified_event(stratified_events, f"htf_bias:{bias_verdict.direction}", "FVG", evaluated)
         _append_stratified_event(stratified_events, f"vol_regime:{vol_regime.label}", "FVG", evaluated)
 
     for event in effective_structure["liquidity_sweeps"]:
+        anchor_ts = float(event.get("time", event.get("anchor_ts", 0.0)) or 0.0)
+        anchor_idx = _find_bar_index(resampled_bars, anchor_ts)
+        event_context = _scored_event_context(
+            anchor_ts,
+            timeframe,
+            bias_direction=bias_verdict.direction,
+            vol_regime_label=vol_regime.label,
+        )
+        raw_score = (
+            _event_signal_quality_score(
+                event=event,
+                family="SWEEP",
+                bars=resampled_bars,
+                anchor_idx=anchor_idx,
+                anchor_ts=anchor_ts,
+                bias_direction=bias_verdict.direction,
+                vol_regime_label=vol_regime.label,
+                orderblocks=effective_structure["orderblocks"],
+                fvgs=effective_structure["fvg"],
+                sweeps=effective_structure["liquidity_sweeps"],
+                orderblock_diagnostics=orderblock_diagnostics,
+                fvg_diagnostics=fvg_diagnostics,
+            )
+            if anchor_idx is not None
+            else None
+        )
         sweep_evidence = _evaluate_sweep_event(
             event,
             resampled_bars,
             bias_direction=bias_verdict.direction,
             bias_confidence=bias_verdict.confidence,
+            event_context=event_context,
+            raw_score=raw_score,
+            raw_score_name=_SQ_RAW_SCORE_NAME if raw_score is not None else None,
         )
         if sweep_evidence is None:
             skipped_counts["SWEEP"] += 1
@@ -632,7 +1174,6 @@ def build_measurement_evidence(symbol: str, timeframe: str) -> MeasurementEviden
         benchmark_event, scored_event = sweep_evidence
         events_by_family["SWEEP"].append(benchmark_event)
         scored_events.append(scored_event)
-        anchor_ts = float(event.get("time", event.get("anchor_ts", 0.0)) or 0.0)
         _append_stratified_event(stratified_events, _event_session_key(anchor_ts, timeframe), "SWEEP", benchmark_event)
         _append_stratified_event(stratified_events, f"htf_bias:{bias_verdict.direction}", "SWEEP", benchmark_event)
         _append_stratified_event(stratified_events, f"vol_regime:{vol_regime.label}", "SWEEP", benchmark_event)
@@ -644,6 +1185,12 @@ def build_measurement_evidence(symbol: str, timeframe: str) -> MeasurementEviden
         family: sum(1 for event in scored_events if event.family == family)
         for family in _FAMILIES
     }
+    details["signal_quality_raw_score_name"] = _SQ_RAW_SCORE_NAME if scored_events else None
+    details["signal_quality_raw_score_count"] = sum(1 for event in scored_events if event.raw_score is not None)
+    details["signal_quality_raw_score_complete"] = bool(scored_events) and all(
+        event.raw_score is not None and event.raw_score_name == _SQ_RAW_SCORE_NAME
+        for event in scored_events
+    )
     scoring_result = score_events(scored_events)
     ensemble_generated_at = None
     if not resampled_bars.empty:

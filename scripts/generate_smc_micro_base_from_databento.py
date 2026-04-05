@@ -264,6 +264,7 @@ def build_enrichment(
     fmp_api_key: str,
     symbols: list[str],
     benzinga_api_key: str = "",
+    newsapi_ai_key: str = "",
     enrich_regime: bool = False,
     enrich_news: bool = False,
     enrich_calendar: bool = False,
@@ -342,7 +343,11 @@ def build_enrichment(
     news_result: dict[str, Any] = {}
     if enrich_news:
         pr = resolve_domain(
-            "news", fmp=fmp, benzinga_api_key=benzinga_api_key, symbols=symbols,
+            "news",
+            fmp=fmp,
+            benzinga_api_key=benzinga_api_key,
+            newsapi_ai_key=newsapi_ai_key,
+            symbols=symbols,
         )
         all_stale.extend(pr.stale)
         if pr.ok:
@@ -585,6 +590,7 @@ def finalize_pipeline(
     output_root: Path,
     fmp_api_key: str = "",
     benzinga_api_key: str = "",
+    newsapi_ai_key: str = "",
     library_owner: str = "preuss_steffen",
     library_version: int = 1,
     enrich_regime: bool = False,
@@ -627,6 +633,7 @@ def finalize_pipeline(
     enrichment = build_enrichment(
         fmp_api_key=fmp_api_key,
         benzinga_api_key=benzinga_api_key,
+        newsapi_ai_key=newsapi_ai_key,
         symbols=symbols,
         enrich_regime=enrich_regime,
         enrich_news=enrich_news,
@@ -705,6 +712,16 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--enrich-calendar", action="store_true", help="Add earnings/macro calendar enrichment (FMP)")
     parser.add_argument("--enrich-layering", action="store_true", help="Add pre-computed layering signals (smc_core)")
     parser.add_argument("--enrich-event-risk", action="store_true", help="Add v5 event-risk layer (derived from calendar + news)")
+    parser.add_argument("--enrich-flow-qualifier", action="store_true", help="Add v5.1 flow qualifier (snapshot-derived)")
+    parser.add_argument("--enrich-compression-regime", action="store_true", help="Add v5.1 compression / ATR regime (snapshot-derived)")
+    parser.add_argument("--enrich-zone-intelligence", action="store_true", help="Add v5.1 zone intelligence (snapshot-derived)")
+    parser.add_argument("--enrich-reversal-context", action="store_true", help="Add v5.1 reversal context (snapshot-derived)")
+    parser.add_argument("--enrich-session-context", action="store_true", help="Add v5.2 session context (snapshot-derived)")
+    parser.add_argument("--enrich-liquidity-sweeps", action="store_true", help="Add v5.2 liquidity sweeps (snapshot-derived)")
+    parser.add_argument("--enrich-liquidity-pools", action="store_true", help="Add v5.2 liquidity pools (snapshot-derived)")
+    parser.add_argument("--enrich-order-blocks", action="store_true", help="Add v5.2 order blocks (snapshot-derived)")
+    parser.add_argument("--enrich-zone-projection", action="store_true", help="Add v5.2 zone projection (snapshot-derived)")
+    parser.add_argument("--enrich-profile-context", action="store_true", help="Add v5.2 profile context (snapshot-derived)")
     parser.add_argument("--enrich-structure-state", action="store_true", help="Add v5.3 structure state (snapshot-derived)")
     parser.add_argument("--enrich-imbalance-lifecycle", action="store_true", help="Add v5.3 imbalance lifecycle (snapshot-derived)")
     parser.add_argument("--enrich-session-structure", action="store_true", help="Add v5.3 session structure (snapshot-derived)")
@@ -712,34 +729,26 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--enrich-range-profile-regime", action="store_true", help="Add v5.3 range/profile regime (snapshot-derived)")
     parser.add_argument("--enrich-all", action="store_true", help="Enable all enrichment blocks")
     parser.add_argument("--benzinga-api-key", default=os.getenv("BENZINGA_API_KEY", ""), help="Benzinga API key for news/calendar fallback")
+    parser.add_argument("--newsapi-ai-key", default=os.getenv("NEWSAPI_AI_KEY", ""), help="NewsAPI.ai API key for optional news fallback")
     return parser
 
 
 def main() -> None:
     args = build_parser().parse_args()
-    enrich_regime, enrich_news, enrich_calendar, enrich_layering, enrich_event_risk, \
-        enrich_structure_state, enrich_imbalance_lifecycle, enrich_session_structure, enrich_range_regime, \
-        enrich_range_profile_regime = _resolve_enrichment_flags(args)
+    enrichment_flags = _resolve_enrichment_flags(args)
     fmp_api_key = str(args.fmp_api_key).strip()
     benzinga_api_key = str(getattr(args, 'benzinga_api_key', '') or '').strip()
+    newsapi_ai_key = str(getattr(args, 'newsapi_ai_key', '') or '').strip()
 
     finalize_kwargs = dict(
         schema_path=args.schema,
         output_root=args.export_dir,
         fmp_api_key=fmp_api_key,
         benzinga_api_key=benzinga_api_key,
+        newsapi_ai_key=newsapi_ai_key,
         library_owner=str(args.library_owner).strip(),
         library_version=int(args.library_version),
-        enrich_regime=enrich_regime,
-        enrich_news=enrich_news,
-        enrich_calendar=enrich_calendar,
-        enrich_layering=enrich_layering,
-        enrich_event_risk=enrich_event_risk,
-        enrich_structure_state=enrich_structure_state,
-        enrich_imbalance_lifecycle=enrich_imbalance_lifecycle,
-        enrich_session_structure=enrich_session_structure,
-        enrich_range_regime=enrich_range_regime,
-        enrich_range_profile_regime=enrich_range_profile_regime,
+        **enrichment_flags,
     )
 
     if args.run_scan:
@@ -794,22 +803,33 @@ def main() -> None:
     report_json.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
 
 
-def _resolve_enrichment_flags(args: argparse.Namespace) -> tuple[bool, bool, bool, bool, bool, bool, bool, bool, bool, bool]:
-    """Return (regime, news, calendar, layering, event_risk, structure_state, imbalance_lifecycle, session_structure, range_regime, range_profile_regime) booleans."""
-    if args.enrich_all:
-        return True, True, True, True, True, True, True, True, True, True
-    return (
-        bool(args.enrich_regime),
-        bool(args.enrich_news),
-        bool(args.enrich_calendar),
-        bool(args.enrich_layering),
-        bool(args.enrich_event_risk),
-        bool(args.enrich_structure_state),
-        bool(args.enrich_imbalance_lifecycle),
-        bool(args.enrich_session_structure),
-        bool(args.enrich_range_regime),
-        bool(args.enrich_range_profile_regime),
+def _resolve_enrichment_flags(args: argparse.Namespace) -> dict[str, bool]:
+    """Return the resolved enrichment flags keyed for build_enrichment/finalize_pipeline."""
+    flag_names = (
+        "enrich_regime",
+        "enrich_news",
+        "enrich_calendar",
+        "enrich_layering",
+        "enrich_event_risk",
+        "enrich_flow_qualifier",
+        "enrich_compression_regime",
+        "enrich_zone_intelligence",
+        "enrich_reversal_context",
+        "enrich_session_context",
+        "enrich_liquidity_sweeps",
+        "enrich_liquidity_pools",
+        "enrich_order_blocks",
+        "enrich_zone_projection",
+        "enrich_profile_context",
+        "enrich_structure_state",
+        "enrich_imbalance_lifecycle",
+        "enrich_session_structure",
+        "enrich_range_regime",
+        "enrich_range_profile_regime",
     )
+    if args.enrich_all:
+        return {flag_name: True for flag_name in flag_names}
+    return {flag_name: bool(getattr(args, flag_name)) for flag_name in flag_names}
 
 
 if __name__ == "__main__":

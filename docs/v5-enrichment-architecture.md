@@ -622,7 +622,7 @@ Total gates after v5.3: 15 (5 from v5.1 + 6 from v5.2 + 4 from v5.3).
 |--------|---------|-----------|----------------|
 | base_scan | Databento | — | `base_scan_provider` |
 | regime | FMP | — (defaults on failure) | `regime_provider` |
-| news | FMP | Benzinga | `news_provider` |
+| news | FMP | Benzinga, NewsAPI.ai | `news_provider` |
 | calendar | FMP | Benzinga | `calendar_provider` |
 | technical | FMP | TradingView | `technical_provider` |
 | event_risk | smc_event_risk_builder (derived) | — | `event_risk_provider` |
@@ -644,6 +644,10 @@ Total gates after v5.3: 15 (5 from v5.1 + 6 from v5.2 + 4 from v5.3).
 Event risk is a **derived stage** — it reads the calendar + news results already obtained by their respective provider chains. It does not call any external API directly. `EVENT_PROVIDER_STATUS` reflects whether the upstream calendar and/or news domains delivered data.
 
 Provider provenance is surfaced via `SMC_PROVIDER_COUNT` and `SMC_STALE_PROVIDERS` in the library.
+
+For provider-role guidance beyond the raw matrix, including which lanes should
+own Databento, FMP, Benzinga, NewsAPI.ai, and TradingView, see
+[smc-ingest-strategy.md](smc-ingest-strategy.md).
 
 ## Runtime Boundary
 
@@ -671,7 +675,7 @@ The v5 generation path has **zero dependency on `open_prep`**. The FMP client is
 The GitHub Actions workflow (`.github/workflows/smc-library-refresh.yml`) runs 4× daily on weekdays (12:30, 14:30, 16:30, 18:30 UTC):
 
 1. **Base data scan** (Databento)
-2. **Enrichment** (regime, news, calendar, layering, event-risk)
+2. **Enrichment** (regime, news, calendar, layering, event-risk, plus the snapshot-derived SMC context blocks behind `--enrich-all`)
 3. **Evidence gates** (integration / structure / core tests)
 4. **Change detection** (diff against previous library)
 5. **Version governance** (breaking-change detection)
@@ -685,6 +689,7 @@ The GitHub Actions workflow (`.github/workflows/smc-library-refresh.yml`) runs 4
 |--------|----------|---------|
 | `FMP_API_KEY` | Yes | FMP enrichment data |
 | `BENZINGA_API_KEY` | Yes | News/calendar fallback |
+| `NEWSAPI_AI_KEY` | No | Optional NewsAPI.ai news fallback |
 | `DATABENTO_API_KEY` | Yes | Base data generation |
 | `TV_STORAGE_STATE` | Yes | TradingView publish |
 | `GH_PAT` | Yes | Auto-commit |

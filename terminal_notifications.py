@@ -34,6 +34,29 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 
+from terminal_catalyst_state import (
+    effective_catalyst_age_minutes,
+    effective_catalyst_score,
+    effective_catalyst_sentiment,
+)
+from terminal_attention_state import (
+    effective_attention_dispatchable,
+    effective_attention_state,
+)
+from terminal_reaction_state import (
+    effective_reaction_actionable,
+    effective_reaction_state,
+)
+from terminal_resolution_state import (
+    effective_resolution_state,
+)
+from terminal_posture_state import (
+    effective_posture_action,
+    effective_posture_actionable,
+    effective_posture_score,
+    effective_posture_state,
+)
+
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
@@ -101,15 +124,10 @@ def _is_market_hours() -> bool:
 
         now_et = datetime.now(ZoneInfo("America/New_York"))
     except Exception:
-        try:
-            from dateutil.tz import gettz
+        from datetime import timedelta, timezone
 
-            now_et = datetime.now(gettz("America/New_York"))
-        except Exception:
-            from datetime import timedelta, timezone
-
-            logger.debug("zoneinfo + dateutil unavailable, using UTC-4 fallback", exc_info=True)
-            now_et = datetime.now(timezone.utc) - timedelta(hours=4)
+        logger.debug("zoneinfo unavailable, using UTC-4 fallback", exc_info=True)
+        now_et = datetime.now(timezone.utc) - timedelta(hours=4)
 
     if now_et.weekday() >= 5:
         return False
@@ -262,21 +280,40 @@ _SENTIMENT_EMOJI = {"bullish": "🟢", "bearish": "🔴", "neutral": "🟡"}
 def _format_message(item: dict[str, Any]) -> str:
     """Format a classified item dict into a notification message."""
     ticker = item.get("ticker", "?")
-    score = item.get("news_score", 0)
-    sentiment = item.get("sentiment_label", "neutral")
+    score = effective_posture_score(item)
+    sentiment = effective_catalyst_sentiment(item)
     headline = item.get("headline", "")[:120]
     event = item.get("event_label", "N/A")
     materiality = item.get("materiality", "?")
-    age = item.get("age_minutes")
+    age = effective_catalyst_age_minutes(item)
     url = item.get("url", "")
+    posture_state = effective_posture_state(item)
+    posture_action = effective_posture_action(item)
+    attention_state = effective_attention_state(item)
+    reaction_state = effective_reaction_state(item)
+    reaction_source = str(item.get("reaction_source", "") or "").strip()
+    resolution_state = effective_resolution_state(item)
+    resolution_source = str(item.get("resolution_source", "") or "").strip()
 
     emoji = _SENTIMENT_EMOJI.get(sentiment, "⚪")
     age_str = f"{age:.0f}m" if age is not None else "N/A"
+    attention_line = f"Attention: {attention_state.title()}"
+    posture_line = f"Posture: {posture_state.replace('_', ' ').title()} ({posture_action})"
+    reaction_line = f"Reaction: {reaction_state.title()}"
+    if reaction_source:
+        reaction_line += f" ({reaction_source.upper()})"
+    resolution_line = f"Resolution: {resolution_state.title()}"
+    if resolution_source:
+        resolution_line += f" ({resolution_source.upper()})"
 
     lines = [
         f"📡 *ALERT* — {ticker}",
         f"Score: *{score:.3f}* | {emoji} {sentiment} | {materiality}",
         f"Event: {event} | Age: {age_str}",
+        attention_line,
+        posture_line,
+        reaction_line,
+        resolution_line,
         f"_{headline}_",
     ]
     if url:
@@ -287,21 +324,40 @@ def _format_message(item: dict[str, Any]) -> str:
 def _format_discord_message(item: dict[str, Any]) -> str:
     """Discord uses different markdown syntax."""
     ticker = item.get("ticker", "?")
-    score = item.get("news_score", 0)
-    sentiment = item.get("sentiment_label", "neutral")
+    score = effective_posture_score(item)
+    sentiment = effective_catalyst_sentiment(item)
     headline = item.get("headline", "")[:120]
     event = item.get("event_label", "N/A")
     materiality = item.get("materiality", "?")
-    age = item.get("age_minutes")
+    age = effective_catalyst_age_minutes(item)
     url = item.get("url", "")
+    posture_state = effective_posture_state(item)
+    posture_action = effective_posture_action(item)
+    attention_state = effective_attention_state(item)
+    reaction_state = effective_reaction_state(item)
+    reaction_source = str(item.get("reaction_source", "") or "").strip()
+    resolution_state = effective_resolution_state(item)
+    resolution_source = str(item.get("resolution_source", "") or "").strip()
 
     emoji = _SENTIMENT_EMOJI.get(sentiment, "⚪")
     age_str = f"{age:.0f}m" if age is not None else "N/A"
+    attention_line = f"Attention: {attention_state.title()}"
+    posture_line = f"Posture: {posture_state.replace('_', ' ').title()} ({posture_action})"
+    reaction_line = f"Reaction: {reaction_state.title()}"
+    if reaction_source:
+        reaction_line += f" ({reaction_source.upper()})"
+    resolution_line = f"Resolution: {resolution_state.title()}"
+    if resolution_source:
+        resolution_line += f" ({resolution_source.upper()})"
 
     lines = [
         f"📡 **ALERT** — **{ticker}**",
         f"Score: **{score:.3f}** | {emoji} {sentiment} | {materiality}",
         f"Event: {event} | Age: {age_str}",
+        attention_line,
+        posture_line,
+        reaction_line,
+        resolution_line,
         f"*{headline}*",
     ]
     if url:
@@ -351,12 +407,16 @@ def notify_high_score_items(
     now = time.time()
 
     for item in items:
-        score = item.get("news_score", 0)
+        score = effective_posture_score(item)
         if score < config.min_score:
+            continue
+        if not effective_posture_actionable(item, now=now):
+            continue
+        if not effective_attention_dispatchable(item, now=now):
             continue
 
         # Only notify fresh entries
-        age_min = item.get("age_minutes")
+        age_min = effective_catalyst_age_minutes(item)
         if age_min is not None and age_min > config.max_age_minutes:
             continue
 
@@ -369,6 +429,11 @@ def notify_high_score_items(
         result: dict[str, Any] = {
             "ticker": ticker,
             "score": score,
+            "attention_state": effective_attention_state(item),
+            "posture_state": effective_posture_state(item),
+            "posture_action": effective_posture_action(item),
+            "reaction_state": effective_reaction_state(item),
+            "resolution_state": effective_resolution_state(item),
             "channels": [],
         }
 

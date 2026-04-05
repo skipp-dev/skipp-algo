@@ -379,6 +379,28 @@ Beispiel lokal:
 
 `python scripts/collect_smc_gate_evidence.py --input-glob "artifacts/ci/smc_*_report.json" --output artifacts/ci/smc_evidence_summary.json`
 
+## 11.1) Kontext-Kalibrierung ueber Historie auswerten
+
+Script: `scripts/analyze_smc_contextual_calibration_history.py`
+
+Das Script liest die vorhandene Gate-Evidence-Summary und verdichtet die
+Kontext-Kalibrierung ueber alle historischen Measurement-Runs. Damit wird
+sichtbar:
+
+- welche Dimension (`session`, `htf_bias`, `vol_regime`) wie oft empfohlen wird,
+- welche Dimension wie oft promotion-ready ist,
+- welche Pairs ueber die Historie zwischen mehreren Empfehlungen wechseln,
+- welche Latest-Empfehlungen noch nicht promotion-ready sind.
+
+Beispiel lokal:
+
+`python scripts/analyze_smc_contextual_calibration_history.py --input artifacts/ci/smc_evidence_summary.json --output artifacts/ci/smc_contextual_history_analysis.json --markdown-output artifacts/ci/smc_contextual_history_analysis.md --pair-summary-csv artifacts/ci/smc_contextual_history_pairs.csv`
+
+Die zusaetzlichen Dateien sind bewusst operator-orientiert:
+
+- Markdown fuer den schnellen Blick auf Verteilung und Review-Pairs
+- CSV fuer Sortierung, Filterung und manuelle Schwellenanalyse pro Pair
+
 ## 12) Praktische GRUEN-Freigaberegel
 
 Ein Wechsel von GELB auf GRUEN ist operativ vertretbar, wenn im Lookback-Fenster gleichzeitig gilt:

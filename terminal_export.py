@@ -26,8 +26,40 @@ from typing import Any
 import httpx
 
 from open_prep.playbook import classify_recency
+from terminal_attention_state import (
+    effective_attention_active,
+    effective_attention_confidence,
+    effective_attention_dispatchable,
+    effective_attention_reason,
+    effective_attention_score,
+    effective_attention_state,
+)
+from terminal_catalyst_state import (
+    effective_catalyst_actionable,
+    effective_catalyst_age_minutes,
+    effective_catalyst_score,
+    effective_catalyst_sentiment,
+)
 from terminal_feed_lifecycle import is_market_hours
 from terminal_poller import ClassifiedItem
+from terminal_reaction_state import (
+    effective_reaction_actionable,
+    effective_reaction_score,
+    effective_reaction_state,
+)
+from terminal_resolution_state import (
+    effective_resolution_actionable,
+    effective_resolution_score,
+    effective_resolution_state,
+)
+from terminal_posture_state import (
+    effective_posture_action,
+    effective_posture_actionable,
+    effective_posture_confidence,
+    effective_posture_reason,
+    effective_posture_score,
+    effective_posture_state,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +71,9 @@ def _dedup_key(d: dict[str, Any]) -> str:
     Otherwise fall back to ``ticker|provider|headline`` so that distinct
     articles for the same ticker are never collapsed into one.
     """
+    story_key = str(d.get("story_key") or "").strip()
+    if story_key:
+        return f"story:{story_key}"
     item_id = str(d.get("item_id") or "").strip()
     ticker = str(d.get("ticker") or "").strip().upper()
     if item_id:
@@ -762,22 +797,39 @@ def fire_webhook(
     if not safe:
         logger.warning("Webhook URL rejected (%s) for %s", reason, item.ticker)
         return None
-    if item.news_score < min_score:
+    effective_score = effective_posture_score(item)
+    effective_sentiment = effective_catalyst_sentiment(item)
+    effective_actionable = effective_posture_actionable(item)
+    effective_age_minutes = effective_catalyst_age_minutes(item)
+    posture_state = effective_posture_state(item)
+    posture_action = effective_posture_action(item)
+    posture_confidence = effective_posture_confidence(item)
+    posture_reason = effective_posture_reason(item)
+    attention_state = effective_attention_state(item)
+    attention_score = effective_attention_score(item)
+    attention_confidence = effective_attention_confidence(item)
+    attention_active = effective_attention_active(item)
+    attention_dispatchable = effective_attention_dispatchable(item)
+    attention_reason = effective_attention_reason(item)
+    reaction_state = effective_reaction_state(item)
+    reaction_score = effective_reaction_score(item)
+    reaction_actionable = effective_reaction_actionable(item)
+    resolution_state = effective_resolution_state(item)
+    resolution_score = effective_resolution_score(item)
+    resolution_actionable = effective_resolution_actionable(item)
+    if not attention_active:
         return None
-
-    # Map sentiment to simple action hint
-    action = "watch"
-    if item.sentiment_label == "bullish" and item.news_score >= 0.80:
-        action = "buy"
-    elif item.sentiment_label == "bearish" and item.news_score >= 0.80:
-        action = "sell"
+    if effective_score < min_score:
+        return None
 
     payload: dict[str, Any] = {
         "ticker": item.ticker,
-        "action": action,
+        "action": posture_action,
         "headline": item.headline[:200],
-        "score": round(item.news_score, 4),
-        "sentiment": item.sentiment_label,
+        "score": round(effective_score, 4),
+        "story_score": round(item.news_score, 4),
+        "catalyst_score": round(effective_score, 4) if item.catalyst_score is not None else None,
+        "sentiment": effective_sentiment,
         "sentiment_score": item.sentiment_score,
         "event": item.event_label,
         "event_class": item.event_class,
@@ -785,7 +837,49 @@ def fire_webhook(
         "category": item.category,
         "source_tier": item.source_tier,
         "recency": item.recency_bucket,
-        "is_actionable": item.is_actionable,
+        "is_actionable": effective_actionable,
+        "story_actionable": item.is_actionable,
+        "catalyst_direction": item.catalyst_direction or None,
+        "catalyst_confidence": item.catalyst_confidence,
+        "catalyst_freshness": item.catalyst_freshness or None,
+        "catalyst_story_count": item.catalyst_story_count,
+        "catalyst_provider_count": item.catalyst_provider_count,
+        "catalyst_age_minutes": effective_age_minutes,
+        "attention_state": attention_state,
+        "attention_score": round(attention_score, 4),
+        "attention_confidence": round(attention_confidence, 4),
+        "attention_active": attention_active,
+        "attention_dispatchable": attention_dispatchable,
+        "attention_reason": attention_reason,
+        "posture_state": posture_state,
+        "posture_action": posture_action,
+        "posture_score": round(effective_score, 4),
+        "posture_confidence": round(posture_confidence, 4),
+        "posture_actionable": effective_actionable,
+        "posture_reason": posture_reason,
+        "reaction_state": reaction_state,
+        "reaction_score": round(reaction_score, 4),
+        "reaction_alignment": item.reaction_alignment or None,
+        "reaction_confidence": item.reaction_confidence,
+        "reaction_actionable": reaction_actionable,
+        "reaction_confirmed": item.reaction_confirmed,
+        "reaction_price": item.reaction_price,
+        "reaction_change_pct": item.reaction_change_pct,
+        "reaction_impulse_pct": item.reaction_impulse_pct,
+        "reaction_volume_ratio": item.reaction_volume_ratio,
+        "reaction_source": item.reaction_source or None,
+        "reaction_reason": item.reaction_reason or None,
+        "resolution_state": resolution_state,
+        "resolution_score": round(resolution_score, 4),
+        "resolution_confidence": item.resolution_confidence,
+        "resolution_actionable": resolution_actionable,
+        "resolution_resolved": item.resolution_resolved,
+        "resolution_price": item.resolution_price,
+        "resolution_change_pct": item.resolution_change_pct,
+        "resolution_impulse_pct": item.resolution_impulse_pct,
+        "resolution_peak_impulse_pct": item.resolution_peak_impulse_pct,
+        "resolution_source": item.resolution_source or None,
+        "resolution_reason": item.resolution_reason or None,
         "url": item.url,
         "timestamp": item.published_ts,
         "fired_at": time.time(),
@@ -804,7 +898,7 @@ def fire_webhook(
         r.raise_for_status()
         logger.info(
             "Webhook fired for %s (score=%.3f): HTTP %d",
-            item.ticker, item.news_score, r.status_code,
+            item.ticker, effective_score, r.status_code,
         )
         try:
             return dict(r.json())  # type: ignore[arg-type]

@@ -40,6 +40,8 @@ def _make_item(
     sentiment: str = "bullish",
     age_minutes: float = 5.0,
     url: str = "https://example.com/article",
+    reaction_state: str = "WATCH",
+    reaction_actionable: bool = True,
 ) -> dict:
     return {
         "ticker": ticker,
@@ -50,6 +52,14 @@ def _make_item(
         "materiality": "HIGH",
         "age_minutes": age_minutes,
         "url": url,
+        "posture_state": "LONG",
+        "posture_action": "buy",
+        "posture_actionable": True,
+        "attention_state": "ALERT",
+        "attention_dispatchable": True,
+        "reaction_state": reaction_state,
+        "reaction_actionable": reaction_actionable,
+        "reaction_source": "rt",
     }
 
 
@@ -131,6 +141,8 @@ class TestFormatting:
         assert "0.900" in msg
         assert "bullish" in msg
         assert "ALERT" in msg
+        assert "Posture: Long (buy)" in msg
+        assert "Reaction: Watch" in msg
 
     def test_format_message_with_url(self):
         item = _make_item(url="https://example.com/article")
@@ -262,6 +274,8 @@ class TestNotifyHighScoreItems:
         result = notify_high_score_items(items, config=cfg)
         assert len(result) == 1
         assert result[0]["ticker"] == "TSLA"
+        assert result[0]["posture_state"] == "LONG"
+        assert result[0]["posture_action"] == "buy"
         mock_send.assert_called_once()
 
     @patch("terminal_notifications._is_market_hours", return_value=True)
@@ -342,3 +356,76 @@ class TestNotifyHighScoreItems:
         assert len(result[0]["channels"]) == 2
         mock_tg.assert_called_once()
         mock_discord.assert_called_once()
+
+    @patch("terminal_notifications._is_market_hours", return_value=True)
+    @patch("terminal_notifications._send_telegram", return_value=True)
+    def test_catalyst_score_overrides_story_score(self, mock_send, _):
+        cfg = NotifyConfig.__new__(NotifyConfig)
+        object.__setattr__(cfg, "enabled", True)
+        object.__setattr__(cfg, "min_score", 0.85)
+        object.__setattr__(cfg, "throttle_s", 600)
+        object.__setattr__(cfg, "max_age_minutes", 20.0)
+        object.__setattr__(cfg, "telegram_bot_token", "tok")
+        object.__setattr__(cfg, "telegram_chat_id", "123")
+        object.__setattr__(cfg, "discord_webhook_url", "")
+        object.__setattr__(cfg, "pushover_app_token", "")
+        object.__setattr__(cfg, "pushover_user_key", "")
+
+        items = [_make_item(score=0.30, sentiment="neutral", age_minutes=60.0)]
+        items[0]["catalyst_score"] = 0.92
+        items[0]["catalyst_direction"] = "BULLISH"
+        items[0]["catalyst_age_minutes"] = 3.0
+
+        result = notify_high_score_items(items, config=cfg)
+        assert len(result) == 1
+        assert result[0]["score"] == pytest.approx(0.92)
+        msg = mock_send.call_args.args[2]
+        assert "0.920" in msg
+        assert "bullish" in msg.lower()
+
+    @patch("terminal_notifications._is_market_hours", return_value=True)
+    @patch("terminal_notifications._send_telegram", return_value=True)
+    def test_negative_reaction_state_skipped(self, mock_send, _):
+        cfg = NotifyConfig.__new__(NotifyConfig)
+        object.__setattr__(cfg, "enabled", True)
+        object.__setattr__(cfg, "min_score", 0.85)
+        object.__setattr__(cfg, "throttle_s", 600)
+        object.__setattr__(cfg, "max_age_minutes", 20.0)
+        object.__setattr__(cfg, "telegram_bot_token", "tok")
+        object.__setattr__(cfg, "telegram_chat_id", "123")
+        object.__setattr__(cfg, "discord_webhook_url", "")
+        object.__setattr__(cfg, "pushover_app_token", "")
+        object.__setattr__(cfg, "pushover_user_key", "")
+
+        result = notify_high_score_items(
+            [{
+                **_make_item(score=0.95, reaction_state="CONFLICTED", reaction_actionable=False),
+                "attention_state": "SUPPRESS",
+                "attention_dispatchable": False,
+            }],
+            config=cfg,
+        )
+        assert result == []
+        mock_send.assert_not_called()
+
+    @patch("terminal_notifications._is_market_hours", return_value=True)
+    @patch("terminal_notifications._send_telegram", return_value=True)
+    def test_non_dispatchable_attention_state_skipped(self, mock_send, _):
+        cfg = NotifyConfig.__new__(NotifyConfig)
+        object.__setattr__(cfg, "enabled", True)
+        object.__setattr__(cfg, "min_score", 0.85)
+        object.__setattr__(cfg, "throttle_s", 600)
+        object.__setattr__(cfg, "max_age_minutes", 20.0)
+        object.__setattr__(cfg, "telegram_bot_token", "tok")
+        object.__setattr__(cfg, "telegram_chat_id", "123")
+        object.__setattr__(cfg, "discord_webhook_url", "")
+        object.__setattr__(cfg, "pushover_app_token", "")
+        object.__setattr__(cfg, "pushover_user_key", "")
+
+        item = _make_item(score=0.95)
+        item["attention_state"] = "FOCUS"
+        item["attention_dispatchable"] = False
+
+        result = notify_high_score_items([item], config=cfg)
+        assert result == []
+        mock_send.assert_not_called()

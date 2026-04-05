@@ -21,6 +21,7 @@ from typing import Any
 
 from terminal_ui_helpers import (
     _SKIP_CHANNELS,
+    _is_actionable_broad,
     MATERIALITY_COLORS,
     MATERIALITY_EMOJI,
     RECENCY_COLORS,
@@ -210,6 +211,18 @@ class TestFilterFeed:
         assert len(result) == 1
         assert result[0]["ticker"] == "TSLA"
 
+    def test_sentiment_filter_uses_catalyst_sentiment(self):
+        feed = [
+            _item(
+                ticker="AAPL",
+                sentiment_label="neutral",
+                catalyst_direction="BULLISH",
+            ),
+        ]
+        result = filter_feed(feed, sentiment="bullish")
+        assert len(result) == 1
+        assert result[0]["ticker"] == "AAPL"
+
     def test_category_filter(self):
         result = filter_feed(self._sample(), category="tech")
         assert len(result) == 1
@@ -247,6 +260,33 @@ class TestFilterFeed:
         ]
         result = filter_feed(feed, sort_by="score")
         assert [r["ticker"] for r in result] == ["A", "C", "B"]
+
+    def test_sort_order_score_uses_catalyst_score(self):
+        now = time.time()
+        feed = [
+            _item(ticker="B", news_score=0.9, catalyst_score=0.2, published_ts=now),
+            _item(ticker="A", news_score=0.2, catalyst_score=0.8, published_ts=now),
+        ]
+        result = filter_feed(feed, sort_by="score")
+        assert [r["ticker"] for r in result] == ["A", "B"]
+
+    def test_sort_order_score_uses_reaction_score_when_present(self):
+        now = time.time()
+        feed = [
+            _item(ticker="A", news_score=0.9, reaction_score=0.3, published_ts=now),
+            _item(ticker="B", news_score=0.5, reaction_score=0.8, published_ts=now),
+        ]
+        result = filter_feed(feed, sort_by="score")
+        assert [r["ticker"] for r in result] == ["B", "A"]
+
+    def test_sort_order_score_prefers_attention_priority(self):
+        now = time.time()
+        feed = [
+            _item(ticker="A", news_score=0.9, attention_state="FOCUS", attention_score=0.9, published_ts=now),
+            _item(ticker="B", news_score=0.4, attention_state="ALERT", attention_score=0.6, published_ts=now),
+        ]
+        result = filter_feed(feed, sort_by="score")
+        assert [r["ticker"] for r in result] == ["B", "A"]
 
     def test_empty_feed(self):
         assert filter_feed([]) == []
@@ -508,6 +548,54 @@ class TestComputeFeedStats:
         assert stats["avg_relevance"] == 0
         assert stats["newest_age_min"] == 0
 
+    def test_actionable_prefers_catalyst_state(self):
+        feed = [
+            _item(ticker="AAPL", is_actionable=False, news_score=0.2, catalyst_actionable=True),
+            _item(ticker="MSFT", is_actionable=False, news_score=0.2, catalyst_actionable=False),
+        ]
+        stats = compute_feed_stats(feed)
+        assert stats["actionable"] == 1
+
+    def test_actionable_broad_suppresses_negative_reaction_states(self):
+        item = _item(
+            ticker="AAPL",
+            is_actionable=True,
+            news_score=0.95,
+            reaction_state="CONFLICTED",
+            reaction_actionable=False,
+        )
+        assert _is_actionable_broad(item) is False
+
+    def test_actionable_broad_prefers_posture_state(self):
+        item = _item(
+            ticker="AAPL",
+            is_actionable=False,
+            news_score=0.20,
+            posture_state="WATCH_LONG",
+            posture_actionable=True,
+        )
+        assert _is_actionable_broad(item) is True
+
+    def test_actionable_broad_uses_attention_active(self):
+        item = _item(
+            ticker="AAPL",
+            is_actionable=False,
+            news_score=0.20,
+            attention_state="MONITOR",
+            attention_active=True,
+        )
+        assert _is_actionable_broad(item) is True
+
+    def test_actionable_broad_drops_attention_background(self):
+        item = _item(
+            ticker="AAPL",
+            is_actionable=True,
+            news_score=0.95,
+            attention_state="BACKGROUND",
+            attention_active=False,
+        )
+        assert _is_actionable_broad(item) is False
+
 
 # ═══════════════════════════════════════════════════════════════
 # compute_top_movers
@@ -540,6 +628,70 @@ class TestComputeTopMovers:
         movers = compute_top_movers(feed, now=now)
         assert len(movers) == 1
         assert movers[0]["news_score"] == 0.9
+
+    def test_uses_catalyst_score(self):
+        now = 100000.0
+        feed = [
+            _item(ticker="AAPL", news_score=0.2, catalyst_score=0.92, published_ts=now - 60),
+            _item(ticker="MSFT", news_score=0.8, catalyst_score=0.30, published_ts=now - 60),
+        ]
+        movers = compute_top_movers(feed, now=now)
+        assert movers[0]["ticker"] == "AAPL"
+
+    def test_prioritizes_confirmed_reaction(self):
+        now = 100000.0
+        feed = [
+            _item(ticker="AAPL", news_score=0.75, reaction_state="WATCH", reaction_score=0.90, published_ts=now - 60),
+            _item(ticker="MSFT", news_score=0.60, reaction_state="CONFIRMED", reaction_score=0.70, published_ts=now - 60),
+        ]
+        movers = compute_top_movers(feed, now=now)
+        assert [row["ticker"] for row in movers[:2]] == ["MSFT", "AAPL"]
+
+    def test_prioritizes_explicit_posture_before_resolution(self):
+        now = 100000.0
+        feed = [
+            _item(
+                ticker="AAPL",
+                news_score=0.95,
+                posture_state="WATCH_LONG",
+                posture_score=0.95,
+                published_ts=now - 60,
+            ),
+            _item(
+                ticker="MSFT",
+                news_score=0.70,
+                posture_state="LONG",
+                posture_score=0.70,
+                published_ts=now - 60,
+            ),
+        ]
+        movers = compute_top_movers(feed, now=now)
+        assert [row["ticker"] for row in movers[:2]] == ["MSFT", "AAPL"]
+
+    def test_prioritizes_attention_before_posture(self):
+        now = 100000.0
+        feed = [
+            _item(
+                ticker="AAPL",
+                news_score=0.95,
+                posture_state="LONG",
+                posture_score=0.95,
+                attention_state="FOCUS",
+                attention_score=0.80,
+                published_ts=now - 60,
+            ),
+            _item(
+                ticker="MSFT",
+                news_score=0.60,
+                posture_state="WATCH_LONG",
+                posture_score=0.72,
+                attention_state="ALERT",
+                attention_score=0.88,
+                published_ts=now - 60,
+            ),
+        ]
+        movers = compute_top_movers(feed, now=now)
+        assert [row["ticker"] for row in movers[:2]] == ["MSFT", "AAPL"]
 
     def test_excludes_market(self):
         now = 100000.0

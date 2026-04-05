@@ -43,7 +43,20 @@ no new lean surface fields are introduced.
 - `label_fvg_mitigation` — did price tag/fill the gap before invalidating it?
 - `label_sweep_reversal` — did a sweep produce a directional reversal within the lookahead window?
 
-**Output**: `scoring_{symbol}_{tf}.json` per run with aggregate metrics plus `family_metrics` for BOS, OB, FVG, and SWEEP when present.
+**Output**: `scoring_{symbol}_{tf}.json` per run with aggregate metrics,
+`family_metrics`, aggregate `calibration`, and `stratified_calibration`
+summaries for BOS, OB, FVG, and SWEEP when present.
+
+**Calibration methods**:
+
+- Preferred: Platt scaling on scored-event probabilities when sample size and
+  class balance are sufficient.
+- Fallback: deterministic beta-bin shrinkage when Platt scaling would be
+  unstable.
+
+**Current input**: the measurement lane now prefers scored-event
+`raw_score_0_100` sourced from event-local `SIGNAL_QUALITY_SCORE`, with
+automatic fallback to `predicted_prob` when raw-score coverage is incomplete.
 
 ## Persistent CI Layout
 
@@ -54,7 +67,7 @@ Per measured symbol/timeframe pair the gate writes:
 - `benchmark_{symbol}_{tf}.json` — family KPIs and stratified benchmark buckets
 - `manifest.json` — benchmark artifact registry emitted by `export_benchmark_artifacts(...)`
 - `scoring_{symbol}_{tf}.json` — Brier / Log / hit-rate metrics for the scored event set
-- `measurement_manifest.json` — small measurement manifest with artifact pointers, evidence flags, warnings, and a compact quality summary
+- `measurement_manifest.json` — small measurement manifest with artifact pointers, evidence flags, warnings, a compact quality summary, and compact calibration summaries
 
 `measurement_manifest.json` is the hand-off contract for evidence aggregation. It contains:
 
@@ -65,6 +78,8 @@ Per measured symbol/timeframe pair the gate writes:
 - `quality_summary.benchmark_event_counts`
 - `quality_summary.stratification_coverage`
 - `quality_summary.n_events`, `quality_summary.brier_score`, `quality_summary.log_score`, `quality_summary.hit_rate`
+- `quality_summary.calibration`
+- `quality_summary.stratified_calibration`
 - `quality_summary.family_metrics`
 - `warnings`
 
@@ -90,9 +105,12 @@ single merged bias + confidence level.
 | Phase | Scope | Status |
 | --- | --- | --- |
 | Phase 1 | Brier/Log Score on BOS/OB/FVG/SWEEP labels, static thresholds | ✅ Shipped |
-| Phase 2 | Platt scaling or isotonic regression on SQ score vs. observed outcomes | Planned |
-| Phase 3 | GARCH/regime-aware score adjustment, session-specific calibration | Future |
-| Phase 4 | State-space model for time-varying SQ calibration | Research |
+| Phase 2 | Aggregate probability calibration (Platt preferred, beta-bin fallback) on scored-event probabilities | ✅ Shipped |
+| Phase 3 | Stratified calibration summaries by session, HTF bias, vol regime | ✅ Shipped |
+| Phase 4 | Direct event-level `SIGNAL_QUALITY_SCORE` wiring + calibrated shadow governance | ✅ Shipped |
+| Phase 5 | Contextual / regime-adjusted calibration summaries by session, HTF bias, vol regime | ✅ Shipped |
+| Phase 6 | Contextual recommendation output plus promotion policy | ✅ Shipped |
+| Phase 7 | State-space model for time-varying calibration | Research |
 
 ## Integration Points
 
@@ -120,6 +138,8 @@ single merged bias + confidence level.
   - `measurement_manifest_present` — measurement manifest written successfully
   - `measurement_manifest_path` / `benchmark_artifact_path` / `scoring_artifact_path` — report-relative artifact locations
   - `brier_score` / `log_score` / `scoring_hit_rate` — compact quality metrics copied into gate details
+  - `calibration` / `stratified_calibration` — compact aggregate and stratified calibration summaries copied into gate details
+  - `contextual_calibration` — compact contextual/regime-adjusted calibration summary copied into gate details
   - `scoring_family_metrics` / `scoring_families_present` — family-level proper scoring summaries
   - `benchmark_event_counts` / `stratification_coverage` — compact benchmark coverage summary
   - `brier_finite` / `log_finite` — metric validity checks
@@ -128,13 +148,24 @@ single merged bias + confidence level.
   build `measurement_history.latest_by_pair` and `measurement_history.history_by_pair`
   entries with Brier, Log Score, family metrics, event counts, benchmark coverage, and
   stratification coverage.
+- **Contextual recommendation surface**: the same evidence summary now computes
+  operator-facing `contextual_calibration_recommendation` and
+  `contextual_calibration_promotion` payloads per pair, plus top-level
+  `pairs_with_contextual_recommendation`,
+  `pairs_ready_for_contextual_promotion`,
+  `contextual_recommendations_detected`, and
+  `contextual_promotions_ready` summaries.
 - **Shadow Governance**: `smc_integration/release_policy.py` now centralizes
-  warn-only measurement thresholds for Brier, Log Score, event coverage, and
-  stratification coverage. Release reports expose machine-readable
+  warn-only measurement thresholds for Brier, Log Score, calibrated Brier,
+  calibrated ECE, event coverage, and stratification coverage. Release reports expose machine-readable
   `measurement_degradations_detected` / `degradations_detected` rows per
   measurement gate, while evidence summaries compute historical comparisons for
   `measurement_history.shadow_degradations_detected` and
   `measurement_degradations_detected`.
+- **History-tightened calibrated ceilings**: once enough history exists, the
+  calibrated absolute warn ceilings are tightened automatically from the
+  historical median plus regression slack and surfaced as
+  `measurement_shadow_effective_thresholds` in the release report.
 - **Optional promotion path**: `scripts/run_smc_release_gates.py` accepts
   `--measurement-baseline-summary <path>` to compare the current run against a
   prior evidence summary and `--strict-measurement-shadow` to promote those
@@ -146,6 +177,8 @@ single merged bias + confidence level.
   `reliability_{symbol}_{tf}.html`, and
   `stratification_{symbol}_{tf}.html` below an output root such as
   `artifacts/ci/measurement_benchmark/`.
+- **Reliability plot**: the harness now overlays raw and calibrated reliability
+  traces and includes the calibration method plus ECE delta in the plot title.
 - **Ensemble quality**: snapshot bundles now expose a bounded
   `ensemble_quality` payload derived from heuristic layering strength, merged
   bias, and vol-regime confidence, while measurement evidence adds the scored
@@ -192,3 +225,11 @@ artifact set without guessing filenames.
    stratified (by session, htf_bias, vol_regime).
 4. **Proper Scoring Rules**: Only Brier and Log Score. No ad-hoc accuracy
    metrics that reward overconfident predictions.
+5. **Calibration stays Python-only**: Calibrated probabilities are artifacts and
+  summaries, not new lean exports.
+
+## Detailed Calibration Doc
+
+For the full calibration contract, methods, fallback logic, artifact shape,
+and calibrated shadow-governance behavior, see
+[MEASUREMENT_CALIBRATION.md](MEASUREMENT_CALIBRATION.md).

@@ -13,8 +13,10 @@ a standalone script.
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import os
+import re
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
@@ -84,8 +86,185 @@ from open_prep.playbook import (
 logger = logging.getLogger(__name__)
 
 
+_CURSOR_KEY_BENZINGA = "benzinga"
+_CURSOR_KEY_FMP_STOCK = "fmp_stock"
+_CURSOR_KEY_FMP_PRESS = "fmp_press"
+_CURSOR_KEY_TV = "tv"
+_LIVE_CURSOR_KEYS: tuple[str, ...] = (
+    _CURSOR_KEY_BENZINGA,
+    _CURSOR_KEY_FMP_STOCK,
+    _CURSOR_KEY_FMP_PRESS,
+    _CURSOR_KEY_TV,
+)
+_CANONICAL_STORY_BUCKET_SECONDS = 900
+_HEADLINE_NORMALIZE_RE = re.compile(r"[^a-z0-9]+")
+
+
 def _make_fmp_client(api_key: str) -> FMPClient:
     return FMPClient(api_key=api_key, retry_attempts=1, timeout_seconds=12.0)
+
+
+def seed_provider_cursors(seed_cursor: str | None) -> dict[str, str]:
+    """Seed all live-provider cursors from one legacy cursor value."""
+    seeded = str(seed_cursor or "").strip()
+    if not seeded:
+        return {}
+    return {key: seeded for key in _LIVE_CURSOR_KEYS}
+
+
+def legacy_cursor_from_provider_cursors(provider_cursors: dict[str, str] | None) -> str | None:
+    """Collapse provider-specific cursors into one legacy max-timestamp cursor."""
+    if not provider_cursors:
+        return None
+    max_ts = 0.0
+    for value in provider_cursors.values():
+        try:
+            max_ts = max(max_ts, float(value or 0.0))
+        except (TypeError, ValueError):
+            continue
+    if max_ts <= 0:
+        return None
+    return str(int(max_ts))
+
+
+def live_news_source_label(provider_counts: dict[str, int] | None) -> str:
+    """Return a compact provider label for operator-facing status text."""
+    counts = provider_counts or {}
+    labels: list[str] = []
+    if _CURSOR_KEY_BENZINGA in counts:
+        labels.append("BZ")
+    if _CURSOR_KEY_FMP_STOCK in counts or _CURSOR_KEY_FMP_PRESS in counts:
+        labels.append("FMP")
+    if _CURSOR_KEY_TV in counts:
+        labels.append("TV")
+    return "+".join(labels) if labels else "NONE"
+
+
+def _item_timestamp(item: NewsItem) -> float:
+    ts = item.updated_ts or item.published_ts or 0.0
+    try:
+        return float(ts)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _cursor_timestamp(cursor: str | None) -> float:
+    try:
+        return float(cursor or 0.0)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _advance_provider_cursor(current_cursor: str | None, items: list[NewsItem]) -> str:
+    max_ts = _cursor_timestamp(current_cursor)
+    for item in items:
+        max_ts = max(max_ts, _item_timestamp(item))
+    if max_ts <= 0:
+        return str(current_cursor or "")
+    return str(int(max_ts))
+
+
+def _filter_items_by_cursor(items: list[NewsItem], current_cursor: str | None) -> list[NewsItem]:
+    current_ts = _cursor_timestamp(current_cursor)
+    if current_ts <= 0:
+        return list(items)
+    return [item for item in items if _item_timestamp(item) >= current_ts]
+
+
+def _normalize_story_headline(headline: str) -> str:
+    collapsed = _HEADLINE_NORMALIZE_RE.sub(" ", str(headline or "").lower())
+    return " ".join(collapsed.split())
+
+
+def _story_tickers(item: NewsItem) -> tuple[str, ...]:
+    return tuple(sorted({str(t).strip().upper() for t in (item.tickers or []) if str(t).strip()}))
+
+
+def _canonical_story_key(item: NewsItem) -> str:
+    headline = _normalize_story_headline(item.headline)
+    tickers = ",".join(_story_tickers(item))
+    ts = _item_timestamp(item)
+    bucket = int(ts // _CANONICAL_STORY_BUCKET_SECONDS) if ts > 0 else 0
+    base = headline or str(item.url or "").strip().lower() or str(item.item_id or "").strip().lower()
+    return hashlib.md5(
+        f"{base}|{tickers}|{bucket}".encode("utf-8", errors="replace"),
+        usedforsecurity=False,
+    ).hexdigest()
+
+
+def _raw_item_priority(item: NewsItem, fetch_order: int) -> tuple[int, int, int, int, int, int]:
+    source_info = classify_source_quality(item.source or "", item.headline)
+    source_rank = int(source_info.get("source_rank", 99) or 99)
+    return (
+        int(fetch_order),
+        source_rank,
+        0 if item.url else 1,
+        0 if item.snippet else 1,
+        -len(_story_tickers(item)),
+        -len(str(item.headline or "")),
+    )
+
+
+def _dedup_raw_items_cross_provider(items: list[tuple[int, NewsItem]]) -> list[NewsItem]:
+    best_by_story: dict[str, tuple[tuple[int, int, int, int, int, int], NewsItem]] = {}
+    for fetch_order, item in items:
+        story_key = _canonical_story_key(item)
+        priority = _raw_item_priority(item, fetch_order)
+        existing = best_by_story.get(story_key)
+        if existing is None or priority < existing[0]:
+            best_by_story[story_key] = (priority, item)
+    deduped = [entry[1] for entry in best_by_story.values()]
+    deduped.sort(key=_item_timestamp, reverse=True)
+    return deduped
+
+
+def _tv_headline_to_news_item(headline: Any) -> NewsItem:
+    item_id = str(getattr(headline, "id", "") or getattr(headline, "story_url", "") or "").strip()
+    published = float(getattr(headline, "published", 0.0) or 0.0)
+    title = str(getattr(headline, "title", "") or "").strip()
+    if not item_id:
+        item_id = (
+            f"tv_{int(published)}_"
+            f"{hashlib.md5(title.encode('utf-8', errors='replace'), usedforsecurity=False).hexdigest()[:10]}"
+        )
+    provider = str(getattr(headline, "provider", "tradingview") or "tradingview").strip().lower()
+    source = str(getattr(headline, "source", "TradingView") or "TradingView").strip()
+    tickers = [
+        str(t).strip().upper()
+        for t in (getattr(headline, "tickers", []) or [])
+        if str(t).strip()
+    ]
+    story_url = str(getattr(headline, "story_url", "") or "").strip() or None
+    return NewsItem(
+        provider=f"tv_{provider}",
+        item_id=item_id,
+        published_ts=published,
+        updated_ts=published,
+        headline=title,
+        snippet="",
+        tickers=tickers,
+        url=story_url,
+        source=source,
+        raw={
+            "tv_provider": provider,
+            "permission": str(getattr(headline, "permission", "") or ""),
+            "tags": [{"name": "TradingView"}],
+            "channels": [],
+        },
+    )
+
+
+def _fetch_tv_news_items(tickers: list[str], *, max_total: int) -> list[NewsItem]:
+    if not tickers:
+        return []
+    from terminal_tradingview_news import fetch_tv_multi
+
+    headlines = fetch_tv_multi(
+        tickers,
+        max_per_ticker=max(5, min(15, max_total)),
+        max_total=max_total,
+    )
+    return [_tv_headline_to_news_item(item) for item in headlines]
 
 
 # ── Safe env-var parsers ────────────────────────────────────────
@@ -158,6 +337,21 @@ class TerminalConfig:
     fmp_enabled: bool = field(
         default_factory=lambda: os.getenv("TERMINAL_FMP_ENABLED", "1") == "1",
     )
+    tv_news_enabled: bool = field(
+        default_factory=lambda: os.getenv("TERMINAL_TV_NEWS_ENABLED", "1") == "1",
+    )
+    tv_news_symbols: str = field(
+        default_factory=lambda: os.getenv("TERMINAL_TV_NEWS_SYMBOLS", ""),
+    )
+    tv_news_max_symbols: int = field(
+        default_factory=lambda: _env_int("TERMINAL_TV_NEWS_MAX_SYMBOLS", 25),
+    )
+    live_story_ttl_s: float = field(
+        default_factory=lambda: _env_float("TERMINAL_LIVE_STORY_TTL_S", 7200.0),
+    )
+    live_story_cooldown_s: float = field(
+        default_factory=lambda: _env_float("TERMINAL_LIVE_STORY_COOLDOWN_S", 900.0),
+    )
     feed_max_age_s: float = field(
         default_factory=lambda: _env_float("TERMINAL_FEED_MAX_AGE_S", 14400.0),  # 4 hours
     )
@@ -214,6 +408,79 @@ class ClassifiedItem:
     channels: list[str]
     tags: list[str]
     is_wiim: bool  # "Why Is It Moving" — high-signal channel
+    story_key: str = ""
+    story_update_kind: str = "new"
+    story_first_seen_ts: float | None = None
+    story_last_seen_ts: float | None = None
+    story_providers_seen: list[str] = field(default_factory=list)
+    story_best_source: str = ""
+    story_best_provider: str = ""
+    story_cooldown_until: float | None = None
+    story_expires_at: float | None = None
+    catalyst_score: float | None = None
+    catalyst_direction: str = ""
+    catalyst_confidence: float | None = None
+    catalyst_freshness: str = ""
+    catalyst_story_count: int | None = None
+    catalyst_provider_count: int | None = None
+    catalyst_best_story_key: str = ""
+    catalyst_best_provider: str = ""
+    catalyst_best_source: str = ""
+    catalyst_headline: str = ""
+    catalyst_actionable: bool | None = None
+    catalyst_age_minutes: float | None = None
+    catalyst_last_update_ts: float | None = None
+    catalyst_expires_at: float | None = None
+    catalyst_conflict: bool | None = None
+    reaction_state: str = ""
+    reaction_alignment: str = ""
+    reaction_score: float | None = None
+    reaction_confidence: float | None = None
+    reaction_price: float | None = None
+    reaction_change_pct: float | None = None
+    reaction_impulse_pct: float | None = None
+    reaction_volume_ratio: float | None = None
+    reaction_source: str = ""
+    reaction_anchor_story_key: str = ""
+    reaction_anchor_price: float | None = None
+    reaction_anchor_ts: float | None = None
+    reaction_peak_impulse_pct: float | None = None
+    reaction_last_update_ts: float | None = None
+    reaction_confirmed: bool | None = None
+    reaction_actionable: bool | None = None
+    reaction_reason: str = ""
+    resolution_state: str = ""
+    resolution_score: float | None = None
+    resolution_confidence: float | None = None
+    resolution_window_minutes: float | None = None
+    resolution_elapsed_minutes: float | None = None
+    resolution_price: float | None = None
+    resolution_change_pct: float | None = None
+    resolution_impulse_pct: float | None = None
+    resolution_peak_impulse_pct: float | None = None
+    resolution_source: str = ""
+    resolution_anchor_story_key: str = ""
+    resolution_anchor_price: float | None = None
+    resolution_anchor_ts: float | None = None
+    resolution_last_update_ts: float | None = None
+    resolution_resolved: bool | None = None
+    resolution_actionable: bool | None = None
+    resolution_reason: str = ""
+    posture_state: str = ""
+    posture_action: str = ""
+    posture_score: float | None = None
+    posture_confidence: float | None = None
+    posture_actionable: bool | None = None
+    posture_reason: str = ""
+    posture_last_update_ts: float | None = None
+    attention_state: str = ""
+    attention_score: float | None = None
+    attention_confidence: float | None = None
+    attention_active: bool | None = None
+    attention_featured: bool | None = None
+    attention_dispatchable: bool | None = None
+    attention_reason: str = ""
+    attention_last_update_ts: float | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Serialise to plain dict (for JSON export / Streamlit display)."""
@@ -250,6 +517,79 @@ class ClassifiedItem:
             "channels": self.channels,
             "tags": self.tags,
             "is_wiim": self.is_wiim,
+            "story_key": self.story_key,
+            "story_update_kind": self.story_update_kind,
+            "story_first_seen_ts": self.story_first_seen_ts,
+            "story_last_seen_ts": self.story_last_seen_ts,
+            "story_providers_seen": self.story_providers_seen,
+            "story_best_source": self.story_best_source,
+            "story_best_provider": self.story_best_provider,
+            "story_cooldown_until": self.story_cooldown_until,
+            "story_expires_at": self.story_expires_at,
+            "catalyst_score": self.catalyst_score,
+            "catalyst_direction": self.catalyst_direction,
+            "catalyst_confidence": self.catalyst_confidence,
+            "catalyst_freshness": self.catalyst_freshness,
+            "catalyst_story_count": self.catalyst_story_count,
+            "catalyst_provider_count": self.catalyst_provider_count,
+            "catalyst_best_story_key": self.catalyst_best_story_key,
+            "catalyst_best_provider": self.catalyst_best_provider,
+            "catalyst_best_source": self.catalyst_best_source,
+            "catalyst_headline": self.catalyst_headline,
+            "catalyst_actionable": self.catalyst_actionable,
+            "catalyst_age_minutes": self.catalyst_age_minutes,
+            "catalyst_last_update_ts": self.catalyst_last_update_ts,
+            "catalyst_expires_at": self.catalyst_expires_at,
+            "catalyst_conflict": self.catalyst_conflict,
+            "reaction_state": self.reaction_state,
+            "reaction_alignment": self.reaction_alignment,
+            "reaction_score": self.reaction_score,
+            "reaction_confidence": self.reaction_confidence,
+            "reaction_price": self.reaction_price,
+            "reaction_change_pct": self.reaction_change_pct,
+            "reaction_impulse_pct": self.reaction_impulse_pct,
+            "reaction_volume_ratio": self.reaction_volume_ratio,
+            "reaction_source": self.reaction_source,
+            "reaction_anchor_story_key": self.reaction_anchor_story_key,
+            "reaction_anchor_price": self.reaction_anchor_price,
+            "reaction_anchor_ts": self.reaction_anchor_ts,
+            "reaction_peak_impulse_pct": self.reaction_peak_impulse_pct,
+            "reaction_last_update_ts": self.reaction_last_update_ts,
+            "reaction_confirmed": self.reaction_confirmed,
+            "reaction_actionable": self.reaction_actionable,
+            "reaction_reason": self.reaction_reason,
+            "resolution_state": self.resolution_state,
+            "resolution_score": self.resolution_score,
+            "resolution_confidence": self.resolution_confidence,
+            "resolution_window_minutes": self.resolution_window_minutes,
+            "resolution_elapsed_minutes": self.resolution_elapsed_minutes,
+            "resolution_price": self.resolution_price,
+            "resolution_change_pct": self.resolution_change_pct,
+            "resolution_impulse_pct": self.resolution_impulse_pct,
+            "resolution_peak_impulse_pct": self.resolution_peak_impulse_pct,
+            "resolution_source": self.resolution_source,
+            "resolution_anchor_story_key": self.resolution_anchor_story_key,
+            "resolution_anchor_price": self.resolution_anchor_price,
+            "resolution_anchor_ts": self.resolution_anchor_ts,
+            "resolution_last_update_ts": self.resolution_last_update_ts,
+            "resolution_resolved": self.resolution_resolved,
+            "resolution_actionable": self.resolution_actionable,
+            "resolution_reason": self.resolution_reason,
+            "posture_state": self.posture_state,
+            "posture_action": self.posture_action,
+            "posture_score": self.posture_score,
+            "posture_confidence": self.posture_confidence,
+            "posture_actionable": self.posture_actionable,
+            "posture_reason": self.posture_reason,
+            "posture_last_update_ts": self.posture_last_update_ts,
+            "attention_state": self.attention_state,
+            "attention_score": self.attention_score,
+            "attention_confidence": self.attention_confidence,
+            "attention_active": self.attention_active,
+            "attention_featured": self.attention_featured,
+            "attention_dispatchable": self.attention_dispatchable,
+            "attention_reason": self.attention_reason,
+            "attention_last_update_ts": self.attention_last_update_ts,
         }
 
 
@@ -271,7 +611,7 @@ def _classify_item(
     raw_ts = item.updated_ts or item.published_ts
     ts = raw_ts if raw_ts and raw_ts > 0 else time.time()
 
-    # Dedup
+    # Provider-local dedup remains in place for exact repeats.
     if not store.mark_seen(item.provider, item.item_id, ts):
         return []
 
@@ -459,69 +799,125 @@ def poll_and_classify_multi(
     -------
     (items, new_cursor)
     """
-    now_utc = datetime.now(UTC)
-    raw_items: list[NewsItem] = []
-    errors: list[str] = []
+    all_classified, provider_cursors, _provider_counts = poll_and_classify_live_bus(
+        benzinga_adapter=benzinga_adapter,
+        fmp_adapter=fmp_adapter,
+        store=store,
+        provider_cursors=seed_provider_cursors(cursor),
+        page_size=page_size,
+        channels=channels,
+        topics=topics,
+        tv_symbols=None,
+    )
+    new_cursor = legacy_cursor_from_provider_cursors(provider_cursors) or (cursor or "")
+    return all_classified, new_cursor
 
-    # ── Parallel HTTP fetch (Benzinga + FMP) ────────────────
-    # Each source runs in its own thread so a slow/retrying endpoint
-    # doesn't block the others.  Typical poll drops from ~6-10s to ~3s.
-    futures: dict[Any, str] = {}
-    with ThreadPoolExecutor(max_workers=3, thread_name_prefix="poll") as pool:
+
+def poll_and_classify_live_bus(
+    benzinga_adapter: BenzingaRestAdapter | None,
+    fmp_adapter: Any | None,
+    store: SqliteStore,
+    *,
+    provider_cursors: dict[str, str] | None = None,
+    page_size: int = 100,
+    channels: str | None = None,
+    topics: str | None = None,
+    tv_symbols: list[str] | None = None,
+) -> tuple[list[ClassifiedItem], dict[str, str], dict[str, int]]:
+    """Poll all configured live-news providers in parallel.
+
+    This is the provider-neutral live lane. Each provider keeps its own
+    watermark, all sources fan out in parallel, and raw items are merged with a
+    canonical cross-provider dedup pass before classification.
+    """
+    now_utc = datetime.now(UTC)
+    provider_cursors = dict(provider_cursors or {})
+    provider_counts: dict[str, int] = {}
+    fetched_by_provider: dict[str, list[NewsItem]] = {}
+    errors: list[str] = []
+    fetch_order_items: list[tuple[int, NewsItem]] = []
+
+    futures: dict[Any, tuple[str, str]] = {}
+    with ThreadPoolExecutor(max_workers=4, thread_name_prefix="live-news") as pool:
         if benzinga_adapter is not None:
+            provider_counts[_CURSOR_KEY_BENZINGA] = 0
             futures[pool.submit(
                 benzinga_adapter.fetch_news,
-                updated_since=cursor, page_size=page_size,
-                channels=channels, topics=topics,
-            )] = "Benzinga"
+                updated_since=provider_cursors.get(_CURSOR_KEY_BENZINGA),
+                page_size=page_size,
+                channels=channels,
+                topics=topics,
+            )] = (_CURSOR_KEY_BENZINGA, "Benzinga")
         if fmp_adapter is not None:
+            provider_counts[_CURSOR_KEY_FMP_STOCK] = 0
+            provider_counts[_CURSOR_KEY_FMP_PRESS] = 0
             futures[pool.submit(
-                fmp_adapter.fetch_stock_latest, page=0, limit=page_size,
-            )] = "FMP-stock"
+                fmp_adapter.fetch_stock_latest,
+                page=0,
+                limit=page_size,
+            )] = (_CURSOR_KEY_FMP_STOCK, "FMP-stock")
             futures[pool.submit(
-                fmp_adapter.fetch_press_latest, page=0, limit=page_size,
-            )] = "FMP-press"
+                fmp_adapter.fetch_press_latest,
+                page=0,
+                limit=page_size,
+            )] = (_CURSOR_KEY_FMP_PRESS, "FMP-press")
+        tv_symbols = [str(symbol).strip().upper() for symbol in (tv_symbols or []) if str(symbol).strip()]
+        if tv_symbols:
+            provider_counts[_CURSOR_KEY_TV] = 0
+            futures[pool.submit(_fetch_tv_news_items, tv_symbols, max_total=page_size)] = (_CURSOR_KEY_TV, "TradingView")
 
+        completion_order = 0
         for fut in as_completed(futures):
-            label = futures[fut]
+            provider_key, label = futures[fut]
             try:
-                raw_items.extend(fut.result())
+                fetched = fut.result()
             except Exception as exc:
                 _msg = _sanitize_exc(exc)
                 logger.warning("%s poll failed: %s", label, _msg)
                 errors.append(f"{label}: {_msg}")
+                continue
 
-    # If ALL configured sources failed, raise so the caller can surface
-    # the error in the UI instead of showing misleading "0 items" success.
-    n_sources = (1 if benzinga_adapter else 0) + (1 if fmp_adapter else 0)
-    if errors and not raw_items and len(errors) >= n_sources:
+            fetched_items = [item for item in fetched if isinstance(item, NewsItem)]
+            fetched_by_provider[provider_key] = fetched_items
+            filtered_items = _filter_items_by_cursor(fetched_items, provider_cursors.get(provider_key))
+            provider_counts[provider_key] = len(filtered_items)
+            for item in filtered_items:
+                fetch_order_items.append((completion_order, item))
+            completion_order += 1
+
+    n_sources = len(provider_counts)
+    if errors and not fetch_order_items and len(errors) >= n_sources and n_sources > 0:
         raise RuntimeError("All sources failed: " + "; ".join(errors))
 
-    all_classified: list[ClassifiedItem] = []
-    try:
-        max_ts = float(cursor) if cursor else 0.0
-    except (ValueError, TypeError):
-        max_ts = 0.0
+    for provider_key, fetched_items in fetched_by_provider.items():
+        provider_cursors[provider_key] = _advance_provider_cursor(
+            provider_cursors.get(provider_key),
+            fetched_items,
+        )
 
+    raw_items = _dedup_raw_items_cross_provider(fetch_order_items)
+    all_classified: list[ClassifiedItem] = []
     for item in raw_items:
         try:
             classified = _classify_item(item, store, now_utc)
             all_classified.extend(classified)
         except Exception as exc:
-            logger.warning("Skipping item %s: %s", getattr(item, 'item_id', '?')[:40], type(exc).__name__, exc_info=True)
-
-        ts = item.updated_ts or item.published_ts
-        if ts and ts > 0:
-            max_ts = max(max_ts, ts)
-
-    new_cursor = str(int(max_ts)) if max_ts > 0 else (cursor or "")
+            logger.warning(
+                "Skipping item %s: %s",
+                getattr(item, "item_id", "?")[:40],
+                type(exc).__name__,
+                exc_info=True,
+            )
 
     logger.info(
-        "Terminal multi-poll: %d raw → %d classified | cursor %s → %s",
-        len(raw_items), len(all_classified), cursor or "(initial)", new_cursor,
+        "Terminal live-bus poll: %d merged raw → %d classified | providers=%s | legacy_cursor=%s",
+        len(raw_items),
+        len(all_classified),
+        live_news_source_label(provider_counts),
+        legacy_cursor_from_provider_cursors(provider_cursors) or "(initial)",
     )
 
-    return all_classified, new_cursor
+    return all_classified, provider_cursors, provider_counts
 
 
 # ── FMP Economic Calendar Fetcher ───────────────────────────────

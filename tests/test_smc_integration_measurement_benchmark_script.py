@@ -102,6 +102,9 @@ def test_measurement_benchmark_harness_writes_manifest_and_plots(monkeypatch, tm
     assert summary["benchmark_event_counts"]["BOS"] == 1
     assert summary["scoring"]["n_events"] == 3
     assert summary["scoring"]["families_present"] == ["BOS", "OB", "SWEEP"]
+    assert summary["scoring"]["calibration"]["method"] in {"platt_scaling", "beta_bin", "identity"}
+    assert summary["scoring"]["stratified_calibration_summary"]["dimensions_present"] == []
+    assert summary["scoring"]["contextual_calibration_summary"]["dimensions_present"] == []
     assert summary["artifacts"]["ensemble_quality_json"] == "ensemble_quality_AAPL_15m.json"
     assert summary["ensemble_quality"]["available_components"] == ["bias", "scoring", "vol_regime"]
     assert summary["stratification_coverage"]["populated_bucket_count"] == 2

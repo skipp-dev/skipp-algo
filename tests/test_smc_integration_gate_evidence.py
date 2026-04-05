@@ -196,6 +196,55 @@ def test_gate_evidence_aggregates_measurement_artifacts(monkeypatch, tmp_path: P
                 "log_score": 0.5,
                 "hit_rate": 0.5,
             },
+            "calibration": {
+                "method": "beta_bin",
+                "applied": True,
+                "input_kind": "predicted_prob",
+                "source_name": "predicted_prob",
+                "n_events": 2,
+                "positive_rate": 0.5,
+                "raw_brier_score": 0.125,
+                "calibrated_brier_score": 0.111111,
+                "raw_log_score": 0.5,
+                "calibrated_log_score": 0.46,
+                "raw_ece": 0.15,
+                "calibrated_ece": 0.1,
+                "delta_brier_score": 0.013889,
+                "delta_log_score": 0.04,
+                "delta_ece": 0.05,
+                "bins": [],
+                "parameters": {"bin_count": 10, "alpha": 1.0, "beta": 1.0},
+                "warnings": ["insufficient_events_for_platt_scaling"],
+            },
+            "stratified_calibration": {
+                "session": {
+                    "dimension": "session",
+                    "total_groups": 1,
+                    "populated_groups": 1,
+                    "groups": {
+                        "NY_AM": {
+                            "method": "beta_bin",
+                            "applied": True,
+                            "input_kind": "predicted_prob",
+                            "source_name": "predicted_prob",
+                            "n_events": 2,
+                            "positive_rate": 0.5,
+                            "raw_brier_score": 0.125,
+                            "calibrated_brier_score": 0.111111,
+                            "raw_log_score": 0.5,
+                            "calibrated_log_score": 0.46,
+                            "raw_ece": 0.15,
+                            "calibrated_ece": 0.1,
+                            "delta_brier_score": 0.013889,
+                            "delta_log_score": 0.04,
+                            "delta_ece": 0.05,
+                            "bins": [],
+                            "parameters": {"bin_count": 10},
+                            "warnings": [],
+                        }
+                    },
+                }
+            },
             "family_metrics": {
                 "BOS": {"family": "BOS", "n_events": 1, "brier_score": 0.16, "log_score": 0.6, "hit_rate": 0.0},
                 "SWEEP": {"family": "SWEEP", "n_events": 1, "brier_score": 0.09, "log_score": 0.4, "hit_rate": 1.0},
@@ -236,6 +285,28 @@ def test_gate_evidence_aggregates_measurement_artifacts(monkeypatch, tmp_path: P
                 "brier_score": 0.125,
                 "log_score": 0.5,
                 "hit_rate": 0.5,
+                "calibration": {
+                    "method": "beta_bin",
+                    "applied": True,
+                    "input_kind": "predicted_prob",
+                    "source_name": "predicted_prob",
+                    "n_events": 2,
+                    "positive_rate": 0.5,
+                    "raw_brier_score": 0.125,
+                    "calibrated_brier_score": 0.111111,
+                    "raw_log_score": 0.5,
+                    "calibrated_log_score": 0.46,
+                    "raw_ece": 0.15,
+                    "calibrated_ece": 0.1,
+                    "delta_brier_score": 0.013889,
+                    "delta_log_score": 0.04,
+                    "delta_ece": 0.05,
+                },
+                "stratified_calibration": {
+                    "dimensions_present": ["session"],
+                    "dimension_group_counts": {"session": 1},
+                    "dimension_populated_groups": {"session": 1},
+                },
                 "family_metrics": {
                     "BOS": {"n_events": 1, "brier_score": 0.16, "log_score": 0.6, "hit_rate": 0.0},
                     "SWEEP": {"n_events": 1, "brier_score": 0.09, "log_score": 0.4, "hit_rate": 1.0},
@@ -302,9 +373,13 @@ def test_gate_evidence_aggregates_measurement_artifacts(monkeypatch, tmp_path: P
     assert latest["brier_score"] == 0.125
     assert latest["log_score"] == 0.5
     assert latest["n_events"] == 2
+    assert latest["calibrated_brier_score"] == 0.111111
+    assert latest["calibrated_log_score"] == 0.46
+    assert latest["calibrated_ece"] == 0.1
     assert latest["benchmark_event_counts"]["SWEEP"] == 1
     assert latest["stratification_coverage"]["bucket_count"] == 2
     assert latest["stratification_coverage"]["dimensions_present"] == ["htf_bias", "session"]
+    assert latest["stratified_calibration"]["dimensions_present"] == ["session"]
     assert latest["family_metrics"]["BOS"]["n_events"] == 1
     assert latest["family_metrics"]["SWEEP"]["hit_rate"] == 1.0
     assert latest["measurement_shadow_baseline"]["available"] is False
@@ -318,6 +393,7 @@ def test_gate_evidence_detects_measurement_history_regression(monkeypatch, tmp_p
     monkeypatch.setattr(evidence_script.time, "time", lambda: now_ts)
 
     def _write_measurement_run(prefix: str, *, checked_at: float, brier: float, log_score: float, n_events: int, populated_buckets: int) -> None:
+        calibrated_ece = min(0.29, round(0.03 + (brier * 0.8), 6))
         measurement_dir = tmp_path / prefix / "AAPL" / "15m"
         measurement_dir.mkdir(parents=True)
         _write_json(
@@ -360,6 +436,55 @@ def test_gate_evidence_detects_measurement_history_regression(monkeypatch, tmp_p
                     "log_score": log_score,
                     "hit_rate": 0.5,
                 },
+                "calibration": {
+                    "method": "beta_bin",
+                    "applied": True,
+                    "input_kind": "predicted_prob",
+                    "source_name": "predicted_prob",
+                    "n_events": n_events,
+                    "positive_rate": 0.5,
+                    "raw_brier_score": brier,
+                    "calibrated_brier_score": max(0.0, round(brier - 0.02, 6)),
+                    "raw_log_score": log_score,
+                    "calibrated_log_score": max(0.0, round(log_score - 0.03, 6)),
+                    "raw_ece": 0.2,
+                    "calibrated_ece": calibrated_ece,
+                    "delta_brier_score": 0.02,
+                    "delta_log_score": 0.03,
+                    "delta_ece": 0.05,
+                    "bins": [],
+                    "parameters": {"bin_count": 10},
+                    "warnings": [],
+                },
+                "stratified_calibration": {
+                    "htf_bias": {
+                        "dimension": "htf_bias",
+                        "total_groups": 1,
+                        "populated_groups": 1,
+                        "groups": {
+                            "BULLISH": {
+                                "method": "beta_bin",
+                                "applied": True,
+                                "input_kind": "predicted_prob",
+                                "source_name": "predicted_prob",
+                                "n_events": n_events,
+                                "positive_rate": 0.5,
+                                "raw_brier_score": brier,
+                                "calibrated_brier_score": max(0.0, round(brier - 0.02, 6)),
+                                "raw_log_score": log_score,
+                                "calibrated_log_score": max(0.0, round(log_score - 0.03, 6)),
+                                "raw_ece": 0.2,
+                                "calibrated_ece": calibrated_ece,
+                                "delta_brier_score": 0.02,
+                                "delta_log_score": 0.03,
+                                "delta_ece": 0.05,
+                                "bins": [],
+                                "parameters": {"bin_count": 10},
+                                "warnings": [],
+                            }
+                        },
+                    }
+                },
                 "family_metrics": {
                     "BOS": {"family": "BOS", "n_events": n_events, "brier_score": brier, "log_score": log_score, "hit_rate": 0.5},
                 },
@@ -396,6 +521,28 @@ def test_gate_evidence_detects_measurement_history_regression(monkeypatch, tmp_p
                     "brier_score": brier,
                     "log_score": log_score,
                     "hit_rate": 0.5,
+                    "calibration": {
+                        "method": "beta_bin",
+                        "applied": True,
+                        "input_kind": "predicted_prob",
+                        "source_name": "predicted_prob",
+                        "n_events": n_events,
+                        "positive_rate": 0.5,
+                        "raw_brier_score": brier,
+                        "calibrated_brier_score": max(0.0, round(brier - 0.02, 6)),
+                        "raw_log_score": log_score,
+                        "calibrated_log_score": max(0.0, round(log_score - 0.03, 6)),
+                        "raw_ece": 0.2,
+                            "calibrated_ece": calibrated_ece,
+                        "delta_brier_score": 0.02,
+                        "delta_log_score": 0.03,
+                        "delta_ece": 0.05,
+                    },
+                    "stratified_calibration": {
+                        "dimensions_present": ["htf_bias"],
+                        "dimension_group_counts": {"htf_bias": 1},
+                        "dimension_populated_groups": {"htf_bias": 1},
+                    },
                     "family_metrics": {
                         "BOS": {"n_events": n_events, "brier_score": brier, "log_score": log_score, "hit_rate": 0.5},
                     },
@@ -461,11 +608,263 @@ def test_gate_evidence_detects_measurement_history_regression(monkeypatch, tmp_p
     assert codes == {
         "MEASUREMENT_BRIER_REGRESSION",
         "MEASUREMENT_LOG_SCORE_REGRESSION",
+            "MEASUREMENT_CALIBRATED_BRIER_ABOVE_THRESHOLD",
+            "MEASUREMENT_CALIBRATED_ECE_ABOVE_THRESHOLD",
+        "MEASUREMENT_CALIBRATED_BRIER_REGRESSION",
+        "MEASUREMENT_CALIBRATED_ECE_REGRESSION",
         "MEASUREMENT_EVENT_COVERAGE_REGRESSION",
         "MEASUREMENT_STRATIFICATION_COVERAGE_REGRESSION",
     }
     assert captured[-1]["measurement_history"]["pairs_with_shadow_degradations"] == ["AAPL/15m"]
-    assert len(captured[-1]["measurement_degradations_detected"]) == 4
+    assert len(captured[-1]["measurement_degradations_detected"]) == 8
+
+
+def test_gate_evidence_surfaces_contextual_recommendation_and_promotion(monkeypatch, tmp_path: Path) -> None:
+    now_ts = 1_700_000_000.0
+    monkeypatch.setattr(evidence_script.time, "time", lambda: now_ts)
+
+    def _contextual_payload() -> dict:
+        return {
+            "session": {
+                "dimension": "session",
+                "input_kind": "raw_score_0_100",
+                "source_name": "SIGNAL_QUALITY_SCORE",
+                "n_events": 12,
+                "covered_events": 12,
+                "coverage_ratio": 1.0,
+                "total_groups": 2,
+                "populated_groups": 2,
+                "raw_brier_score": 0.18,
+                "adjusted_brier_score": 0.14,
+                "raw_log_score": 0.42,
+                "adjusted_log_score": 0.36,
+                "raw_ece": 0.12,
+                "adjusted_ece": 0.08,
+                "delta_brier_score": 0.04,
+                "delta_log_score": 0.06,
+                "delta_ece": 0.04,
+                "group_method_counts": {"beta_bin": 2},
+                "fallback_event_count": 0,
+                "warnings": [],
+            },
+            "htf_bias": {
+                "dimension": "htf_bias",
+                "input_kind": "raw_score_0_100",
+                "source_name": "SIGNAL_QUALITY_SCORE",
+                "n_events": 12,
+                "covered_events": 12,
+                "coverage_ratio": 1.0,
+                "total_groups": 2,
+                "populated_groups": 2,
+                "raw_brier_score": 0.18,
+                "adjusted_brier_score": 0.16,
+                "raw_log_score": 0.42,
+                "adjusted_log_score": 0.39,
+                "raw_ece": 0.12,
+                "adjusted_ece": 0.1,
+                "delta_brier_score": 0.02,
+                "delta_log_score": 0.03,
+                "delta_ece": 0.02,
+                "group_method_counts": {"beta_bin": 2},
+                "fallback_event_count": 0,
+                "warnings": [],
+            },
+        }
+
+    def _write_measurement_run(prefix: str, checked_at: float) -> None:
+        measurement_dir = tmp_path / prefix / "AAPL" / "15m"
+        measurement_dir.mkdir(parents=True)
+        _write_json(
+            measurement_dir / "benchmark_AAPL_15m.json",
+            {
+                "schema_version": "2.0.0",
+                "symbol": "AAPL",
+                "timeframe": "15m",
+                "generated_at": checked_at,
+                "kpis": [{"family": "BOS", "n_events": 12}],
+                "stratified": {"session:NY_AM": [{"family": "BOS", "n_events": 6}]},
+            },
+        )
+        _write_json(
+            measurement_dir / "manifest.json",
+            {
+                "schema_version": "2.0.0",
+                "generated_at": checked_at,
+                "artifacts": ["benchmark_AAPL_15m.json"],
+            },
+        )
+        _write_json(
+            measurement_dir / "scoring_AAPL_15m.json",
+            {
+                "schema_version": "2.0.0",
+                "symbol": "AAPL",
+                "timeframe": "15m",
+                "generated_at": checked_at,
+                "n_events": 12,
+                "brier_score": 0.18,
+                "log_score": 0.42,
+                "hit_rate": 0.5,
+                "aggregate": {
+                    "n_events": 12,
+                    "brier_score": 0.18,
+                    "log_score": 0.42,
+                    "hit_rate": 0.5,
+                },
+                "calibration": {
+                    "method": "beta_bin",
+                    "applied": True,
+                    "input_kind": "raw_score_0_100",
+                    "source_name": "SIGNAL_QUALITY_SCORE",
+                    "n_events": 12,
+                    "positive_rate": 0.5,
+                    "raw_brier_score": 0.18,
+                    "calibrated_brier_score": 0.15,
+                    "raw_log_score": 0.42,
+                    "calibrated_log_score": 0.37,
+                    "raw_ece": 0.12,
+                    "calibrated_ece": 0.09,
+                    "delta_brier_score": 0.03,
+                    "delta_log_score": 0.05,
+                    "delta_ece": 0.03,
+                    "bins": [],
+                    "parameters": {"bin_count": 10},
+                    "warnings": [],
+                },
+                "stratified_calibration": {},
+                "contextual_calibration": _contextual_payload(),
+                "family_metrics": {
+                    "BOS": {"family": "BOS", "n_events": 12, "brier_score": 0.18, "log_score": 0.42, "hit_rate": 0.5},
+                },
+            },
+        )
+        _write_json(
+            measurement_dir / "measurement_manifest.json",
+            {
+                "schema_version": "2.0.0",
+                "generated_at": checked_at,
+                "symbol": "AAPL",
+                "timeframe": "15m",
+                "measurement_evidence_present": True,
+                "artifacts": {
+                    "benchmark": {
+                        "present": True,
+                        "artifact_path": "benchmark_AAPL_15m.json",
+                        "manifest_path": "manifest.json",
+                    },
+                    "scoring": {
+                        "present": True,
+                        "artifact_path": "scoring_AAPL_15m.json",
+                    },
+                },
+                "quality_summary": {
+                    "benchmark_event_counts": {"BOS": 12},
+                    "stratification_coverage": {
+                        "bucket_count": 1,
+                        "populated_bucket_count": 1,
+                        "dimensions_present": ["session"],
+                        "bucket_event_counts": {"session:NY_AM": 6},
+                    },
+                    "n_events": 12,
+                    "brier_score": 0.18,
+                    "log_score": 0.42,
+                    "hit_rate": 0.5,
+                    "calibration": {
+                        "method": "beta_bin",
+                        "applied": True,
+                        "input_kind": "raw_score_0_100",
+                        "source_name": "SIGNAL_QUALITY_SCORE",
+                        "n_events": 12,
+                        "positive_rate": 0.5,
+                        "raw_brier_score": 0.18,
+                        "calibrated_brier_score": 0.15,
+                        "raw_log_score": 0.42,
+                        "calibrated_log_score": 0.37,
+                        "raw_ece": 0.12,
+                        "calibrated_ece": 0.09,
+                        "delta_brier_score": 0.03,
+                        "delta_log_score": 0.05,
+                        "delta_ece": 0.03,
+                    },
+                    "stratified_calibration": {
+                        "dimensions_present": [],
+                        "dimension_group_counts": {},
+                        "dimension_populated_groups": {},
+                    },
+                    "contextual_calibration": {
+                        "dimensions_present": ["htf_bias", "session"],
+                        "improved_dimensions": ["htf_bias", "session"],
+                        "best_dimension_by_adjusted_brier": "session",
+                        "best_dimension_by_adjusted_ece": "session",
+                    },
+                    "family_metrics": {
+                        "BOS": {"n_events": 12, "brier_score": 0.18, "log_score": 0.42, "hit_rate": 0.5},
+                    },
+                },
+                "warnings": [],
+            },
+        )
+        _write_json(
+            tmp_path / f"{prefix}.json",
+            {
+                "report_kind": "release_gates",
+                "checked_at": checked_at,
+                "overall_status": "ok",
+                "reference_symbols": _BROAD_SYMBOLS,
+                "reference_timeframes": _BROAD_TIMEFRAMES,
+                "runtime_metadata": {"git_commit": f"sha-{prefix}"},
+                "gates": [
+                    {"name": "provider_health", "status": "ok", "details": {}},
+                    {
+                        "name": "measurement_lane",
+                        "status": "ok",
+                        "blocking": False,
+                        "details": {
+                            "symbol": "AAPL",
+                            "timeframe": "15m",
+                            "measurement_manifest_present": True,
+                            "measurement_manifest_path": f"{prefix}/AAPL/15m/measurement_manifest.json",
+                            "measurement_artifacts_present": True,
+                            "scoring_artifacts_present": True,
+                        },
+                    },
+                ],
+            },
+        )
+
+    _write_measurement_run("contextual_prev1", now_ts - 180.0)
+    _write_measurement_run("contextual_prev2", now_ts - 120.0)
+    _write_measurement_run("contextual_latest", now_ts - 60.0)
+
+    captured: list[dict] = []
+    monkeypatch.setattr(
+        evidence_script,
+        "build_parser",
+        lambda: _Parser(
+            Namespace(
+                input_glob=str(tmp_path / "*.json"),
+                lookback_days=14,
+                min_deeper_ok_runs=0,
+                min_release_ok_runs=0,
+                fail_on_not_ready=False,
+                output="-",
+            )
+        ),
+    )
+    monkeypatch.setattr(evidence_script, "_render", lambda report, output: captured.append(report))
+
+    rc = evidence_script.main()
+
+    assert rc == 0
+    measurement_history = captured[-1]["measurement_history"]
+    latest = measurement_history["latest_by_pair"]["AAPL/15m"]
+    assert measurement_history["pairs_with_contextual_recommendation"] == ["AAPL/15m"]
+    assert measurement_history["pairs_ready_for_contextual_promotion"] == ["AAPL/15m"]
+    assert latest["contextual_calibration_recommendation"]["recommended_dimension"] == "session"
+    assert latest["contextual_calibration_recommendation"]["basis"] == "metric_consensus"
+    assert latest["contextual_calibration_promotion"]["promotion_ready"] is True
+    assert latest["contextual_calibration_promotion"]["recommended_dimension"] == "session"
+    assert measurement_history["contextual_recommendations_detected"][0]["recommended_dimension"] == "session"
+    assert measurement_history["contextual_promotions_ready"][0]["recommended_dimension"] == "session"
 
 
 # ---------------------------------------------------------------------------

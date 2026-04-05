@@ -263,6 +263,144 @@ class TestPollAndClassify:
         assert len(items2) == 0  # deduped
 
 
+class TestLiveNewsBus:
+    """Tests for the provider-neutral live news bus."""
+
+    def test_live_bus_supports_fmp_only(self, tmp_db: SqliteStore) -> None:
+        from terminal_poller import legacy_cursor_from_provider_cursors, poll_and_classify_live_bus
+
+        now = time.time()
+        stock_item = NewsItem(
+            provider="fmp_stock",
+            item_id="fmp-stock-1",
+            published_ts=now - 8,
+            updated_ts=now - 5,
+            headline="Tesla wins new fleet order from major logistics customer",
+            snippet="The order expands EV deployment across a national delivery network.",
+            tickers=["TSLA"],
+            url="https://example.com/tsla-order",
+            source="BusinessWire",
+            raw={},
+        )
+        fmp_adapter = MagicMock(spec=["fetch_stock_latest", "fetch_press_latest"])
+        fmp_adapter.fetch_stock_latest.return_value = [stock_item]
+        fmp_adapter.fetch_press_latest.return_value = []
+
+        items, provider_cursors, provider_counts = poll_and_classify_live_bus(
+            benzinga_adapter=None,
+            fmp_adapter=fmp_adapter,
+            store=tmp_db,
+            provider_cursors={},
+            page_size=10,
+        )
+
+        assert len(items) == 1
+        assert items[0].ticker == "TSLA"
+        assert provider_counts == {"fmp_stock": 1, "fmp_press": 0}
+        assert provider_cursors["fmp_stock"] == str(int(stock_item.updated_ts))
+        assert legacy_cursor_from_provider_cursors(provider_cursors) == str(int(stock_item.updated_ts))
+
+    def test_live_bus_tracks_provider_cursors_independently(self, tmp_db: SqliteStore) -> None:
+        from terminal_poller import poll_and_classify_live_bus
+
+        now = time.time()
+        stock_item = NewsItem(
+            provider="fmp_stock",
+            item_id="fmp-stock-old",
+            published_ts=now - 20,
+            updated_ts=now - 18,
+            headline="Apple expands supplier agreement",
+            snippet="The company signed a multi-year extension.",
+            tickers=["AAPL"],
+            url="https://example.com/aapl-supplier",
+            source="BusinessWire",
+            raw={},
+        )
+        press_item = NewsItem(
+            provider="fmp_press",
+            item_id="fmp-press-new",
+            published_ts=now - 6,
+            updated_ts=now - 4,
+            headline="Microsoft launches new enterprise security platform",
+            snippet="The launch targets large regulated customers.",
+            tickers=["MSFT"],
+            url="https://example.com/msft-platform",
+            source="PR Newswire",
+            raw={},
+        )
+        fmp_adapter = MagicMock(spec=["fetch_stock_latest", "fetch_press_latest"])
+        fmp_adapter.fetch_stock_latest.return_value = [stock_item]
+        fmp_adapter.fetch_press_latest.return_value = [press_item]
+
+        items, provider_cursors, provider_counts = poll_and_classify_live_bus(
+            benzinga_adapter=None,
+            fmp_adapter=fmp_adapter,
+            store=tmp_db,
+            provider_cursors={
+                "fmp_stock": str(int(now - 10)),
+                "fmp_press": str(int(now - 30)),
+            },
+            page_size=10,
+        )
+
+        assert len(items) == 1
+        assert items[0].ticker == "MSFT"
+        assert provider_counts["fmp_stock"] == 0
+        assert provider_counts["fmp_press"] == 1
+        assert provider_cursors["fmp_stock"] == str(int(now - 10))
+        assert provider_cursors["fmp_press"] == str(int(press_item.updated_ts))
+
+    @patch("terminal_poller.as_completed", side_effect=lambda futures: list(futures))
+    def test_live_bus_dedups_same_story_across_providers(self, _mock_as_completed: MagicMock, tmp_db: SqliteStore) -> None:
+        from terminal_poller import poll_and_classify_live_bus
+
+        now = time.time()
+        shared_headline = "NVIDIA secures major hyperscaler AI infrastructure agreement"
+        benzinga_item = NewsItem(
+            provider="benzinga_rest",
+            item_id="bz-dup-1",
+            published_ts=now - 5,
+            updated_ts=now - 4,
+            headline=shared_headline,
+            snippet="The agreement covers next-generation GPU clusters.",
+            tickers=["NVDA"],
+            url="https://example.com/nvda-bz",
+            source="Reuters",
+            raw={"channels": [{"name": "Top Stories"}], "tags": [{"name": "AI"}]},
+        )
+        fmp_item = NewsItem(
+            provider="fmp_stock",
+            item_id="fmp-dup-1",
+            published_ts=now - 5,
+            updated_ts=now - 4,
+            headline=shared_headline,
+            snippet="The agreement covers next-generation GPU clusters.",
+            tickers=["NVDA"],
+            url="https://example.com/nvda-fmp",
+            source="Reuters",
+            raw={},
+        )
+
+        benzinga_adapter = MagicMock(spec=["fetch_news"])
+        benzinga_adapter.fetch_news.return_value = [benzinga_item]
+        fmp_adapter = MagicMock(spec=["fetch_stock_latest", "fetch_press_latest"])
+        fmp_adapter.fetch_stock_latest.return_value = [fmp_item]
+        fmp_adapter.fetch_press_latest.return_value = []
+
+        items, _provider_cursors, provider_counts = poll_and_classify_live_bus(
+            benzinga_adapter=benzinga_adapter,
+            fmp_adapter=fmp_adapter,
+            store=tmp_db,
+            provider_cursors={},
+            page_size=10,
+        )
+
+        assert len(items) == 1
+        assert items[0].item_id == "bz-dup-1"
+        assert provider_counts["benzinga"] == 1
+        assert provider_counts["fmp_stock"] == 1
+
+
 # ═════════════════════════════════════════════════════════════════
 # terminal_export tests
 # ═════════════════════════════════════════════════════════════════
@@ -409,6 +547,42 @@ class TestWebhookStub:
         body = json.loads(call_kwargs.kwargs.get("content", call_kwargs[1].get("content", b"")))
         assert body["ticker"] == "NVDA"
         assert body["action"] == "buy"  # bullish + high score
+        assert body["posture_state"] == "LONG"
+        assert body["posture_action"] == "buy"
+        assert body["reaction_state"] == "WATCH"
+
+    @patch("terminal_export.httpx.Client")
+    def test_fires_on_high_catalyst_score_when_story_score_is_low(self, mock_client_cls: MagicMock) -> None:
+        from terminal_export import fire_webhook
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"ok": True}
+        mock_client = MagicMock()
+        mock_client.post.return_value = mock_response
+        mock_client.__enter__ = MagicMock(return_value=mock_client)
+        mock_client.__exit__ = MagicMock(return_value=False)
+        mock_client_cls.return_value = mock_client
+
+        ci = self._make_ci(
+            news_score=0.30,
+            sentiment_label="neutral",
+            catalyst_score=0.91,
+            catalyst_direction="BULLISH",
+            catalyst_actionable=True,
+            catalyst_age_minutes=4.0,
+        )
+        result = fire_webhook(ci, url="https://example.com/webhook", min_score=0.70)
+        assert result == {"ok": True}
+
+        call_kwargs = mock_client.post.call_args
+        body = json.loads(call_kwargs.kwargs.get("content", call_kwargs[1].get("content", b"")))
+        assert body["score"] == pytest.approx(0.91)
+        assert body["story_score"] == pytest.approx(0.30)
+        assert body["catalyst_score"] == pytest.approx(0.91)
+        assert body["sentiment"] == "bullish"
+        assert body["posture_state"] == "LONG"
+        assert body["action"] == "buy"
 
     @patch("terminal_export.httpx.Client")
     def test_rejects_private_webhook_url(self, mock_client_cls: MagicMock) -> None:
@@ -416,6 +590,19 @@ class TestWebhookStub:
 
         ci = self._make_ci(news_score=0.95)
         result = fire_webhook(ci, url="http://127.0.0.1/webhook")
+        assert result is None
+        mock_client_cls.assert_not_called()
+
+    @patch("terminal_export.httpx.Client")
+    def test_skips_conflicted_reaction_state(self, mock_client_cls: MagicMock) -> None:
+        from terminal_export import fire_webhook
+
+        ci = self._make_ci(
+            news_score=0.95,
+            reaction_state="CONFLICTED",
+            reaction_actionable=False,
+        )
+        result = fire_webhook(ci, url="https://example.com/webhook")
         assert result is None
         mock_client_cls.assert_not_called()
 
