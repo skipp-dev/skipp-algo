@@ -14,7 +14,16 @@ function scriptNamePatterns(scriptName: string): RegExp[] {
   const exact = new RegExp(`^${escapeRegex(scriptName)}$`, "i");
   const loose = new RegExp(escapeRegex(scriptName), "i");
   const fuzzy = normalizedWords.length > 0
-    ? new RegExp(normalizedWords.map((part) => escapeRegex(part.slice(0, Math.min(part.length, 4)))).join(".*"), "i")
+    ? new RegExp(
+      normalizedWords
+        .map((part) => {
+          const fullWord = escapeRegex(part);
+          const truncatedWord = escapeRegex(part.slice(0, Math.min(part.length, 4)));
+          return `(^|[^a-z0-9])(?:${fullWord}|${truncatedWord})(?=$|[^a-z0-9])`;
+        })
+        .join(".*"),
+      "i",
+    )
     : loose;
 
   return [exact, loose, fuzzy];
@@ -28,7 +37,7 @@ function publishedVersionContextPattern(scriptName: string): RegExp {
 }
 
 function publishSurface(page: Page): Locator {
-  return page.locator('#overlap-manager-root > [data-id], #overlap-manager-root [data-id]').last();
+  return page.locator('#overlap-manager-root [role="dialog"], #overlap-manager-root [data-id], #overlap-manager-root [data-name*="dialog" i], #overlap-manager-root [class*="dialog" i], #overlap-manager-root [class*="modal" i]').last();
 }
 
 export type ScriptRowLocatorSpec = {
@@ -156,17 +165,27 @@ export const tvSelectors = {
   },
 
   openScriptIdentity(page: Page, scriptName: string): Locator[] {
-    const [exact] = scriptNamePatterns(scriptName);
+    const [exact, , fuzzy] = scriptNamePatterns(scriptName);
+    const pineDialogScope = page.locator('[data-name="pine-dialog"], #pine-editor-dialog, [id*="pine-editor" i]');
+    const titleScopes = [
+      page.locator('[data-name*="title" i]'),
+      page.locator('[data-name*="header" i]'),
+      page.locator('[data-name*="editor" i]'),
+      page.locator('[class*="title" i]'),
+      page.locator('[class*="header" i]'),
+    ];
 
     return [
       page.getByRole("button", { name: exact }),
       page.getByRole("tab", { name: exact }),
       page.getByTitle(exact),
-      page.locator('[data-name*="title" i]').getByText(exact),
-      page.locator('[data-name*="header" i]').getByText(exact),
-      page.locator('[data-name*="editor" i]').getByText(exact),
-      page.locator('[class*="title" i]').getByText(exact),
-      page.locator('[class*="header" i]').getByText(exact),
+      page.getByTitle(fuzzy),
+      pineDialogScope.getByText(exact),
+      pineDialogScope.getByText(fuzzy),
+      ...titleScopes.flatMap((locator) => [
+        locator.getByText(exact),
+        locator.getByText(fuzzy),
+      ]),
     ];
   },
 
@@ -205,9 +224,50 @@ export const tvSelectors = {
   publishButtons(page: Page): Locator[] {
     return [
       page.getByRole("button", { name: /publish script/i }),
+      page.getByRole("button", { name: /publish library/i }),
       page.getByRole("button", { name: /^publish$/i }),
+      page.locator('button:not([aria-label*="share" i]):not([data-tooltip*="share" i])').filter({ hasText: /^publish$/i }),
+      page.locator('[role="button"]:not([aria-label*="share" i]):not([data-tooltip*="share" i])').filter({ hasText: /^publish$/i }),
+      page.locator('[class*="button" i]:not([aria-label*="share" i]):not([data-tooltip*="share" i])').filter({ hasText: /^publish$/i }),
+      page.locator('[data-name*="button" i]:not([aria-label*="share" i]):not([data-tooltip*="share" i])').filter({ hasText: /^publish$/i }),
       page.getByText(/publish script/i),
+      page.getByText(/publish library/i),
       page.getByText(/^publish$/i),
+    ];
+  },
+
+  pinePublishButtons(page: Page): Locator[] {
+    const pineDialog = page.locator('[data-name="pine-dialog"], #pine-editor-dialog, [id*="pine-editor" i]').last();
+
+    return [
+      pineDialog.getByRole("button", { name: /publish script/i }),
+      pineDialog.getByRole("button", { name: /publish library/i }),
+      pineDialog.getByRole("button", { name: /^publish$/i }),
+      pineDialog.locator('button').filter({ hasText: /^publish$/i }),
+      pineDialog.locator('[role="button"]').filter({ hasText: /^publish$/i }),
+      pineDialog.locator('[class*="button" i], [data-name*="button" i]').filter({ hasText: /^publish$/i }),
+      pineDialog.getByText(/publish script/i),
+      pineDialog.getByText(/publish library/i),
+      pineDialog.getByText(/^publish$/i),
+    ];
+  },
+
+  publishScriptAction(page: Page): Locator[] {
+    const activeMenu = page.locator('#overlap-manager-root [role="menu"], #overlap-manager-root [data-name*="menu" i], #overlap-manager-root [class*="menu" i]').last();
+
+    return [
+      activeMenu.getByRole("menuitem", { name: /publish script/i }),
+      activeMenu.getByRole("menuitem", { name: /publish library/i }),
+      activeMenu.getByRole("button", { name: /publish script/i }),
+      activeMenu.getByRole("button", { name: /publish library/i }),
+      activeMenu.locator('[role="menuitem"], [role="button"], button').filter({ hasText: /publish script|publish library|update .*library/i }),
+      page.getByRole("menuitem", { name: /publish script/i }),
+      page.getByRole("menuitem", { name: /publish library/i }),
+      page.getByRole("button", { name: /publish script/i }),
+      page.getByRole("button", { name: /publish library/i }),
+      page.getByText(/publish script/i),
+      page.getByText(/publish library/i),
+      page.getByText(/update .*library/i),
     ];
   },
 
@@ -251,8 +311,19 @@ export const tvSelectors = {
       surface.getByRole("button", { name: /publish private/i }).last(),
       surface.getByRole("button", { name: /publish library/i }).last(),
       surface.getByRole("button", { name: /^publish$/i }).last(),
+      page.locator('#overlap-manager-root').getByRole("button", { name: /publish new version/i }).last(),
+      page.locator('#overlap-manager-root').getByRole("button", { name: /update .*library/i }).last(),
+      page.locator('#overlap-manager-root').getByRole("button", { name: /^update$/i }).last(),
+      page.locator('#overlap-manager-root').getByRole("button", { name: /publish private/i }).last(),
+      page.locator('#overlap-manager-root').getByRole("button", { name: /publish library/i }).last(),
+      page.locator('#overlap-manager-root').getByRole("button", { name: /^publish$/i }).last(),
+      page.locator('#overlap-manager-root button').filter({ hasText: /publish new version|update .*library|publish private|publish library|^publish$/i }).last(),
+      page.locator('#overlap-manager-root [role="button"]').filter({ hasText: /publish new version|update .*library|publish private|publish library|^publish$/i }).last(),
       surface.getByText(/publish new version/i).last(),
       surface.getByText(/update .*library/i).last(),
+      page.locator('#overlap-manager-root').getByText(/publish new version/i).last(),
+      page.locator('#overlap-manager-root').getByText(/update .*library/i).last(),
+      page.locator('#overlap-manager-root').getByText(/publish library/i).last(),
     ];
   },
 
@@ -262,6 +333,10 @@ export const tvSelectors = {
     return [
       surface.getByRole("button", { name: /^continue$/i }).last(),
       surface.getByText(/^continue$/i).last(),
+      page.locator('#overlap-manager-root').getByRole("button", { name: /^continue$/i }).last(),
+      page.locator('#overlap-manager-root button').filter({ hasText: /^continue$/i }).last(),
+      page.locator('#overlap-manager-root [role="button"]').filter({ hasText: /^continue$/i }).last(),
+      page.locator('#overlap-manager-root').getByText(/^continue$/i).last(),
     ];
   },
 
@@ -269,6 +344,15 @@ export const tvSelectors = {
     return [
       page.getByRole("button", { name: /add to chart/i }),
       page.getByText(/add to chart/i),
+    ];
+  },
+
+  indicators(page: Page): Locator[] {
+    return [
+      page.getByRole("button", { name: /^indicators$/i }),
+      page.getByRole("button", { name: /indicators/i }),
+      page.getByText(/^indicators$/i),
+      page.getByText(/indicators/i),
     ];
   },
 

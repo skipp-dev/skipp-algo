@@ -58,6 +58,37 @@ test("publishedVersionContext requires immediate version evidence for the exact 
   assert.equal(calls.every((call) => call.includes("SMC Core Engine") && call.includes("version")), true);
 });
 
+test("openScriptIdentity probes exact and fuzzy title contexts", () => {
+  const calls: string[] = [];
+  const fakeScopedLocator = {
+    getByText: (pattern: RegExp) => {
+      calls.push(`text:${pattern.source}`);
+      return { kind: "text" };
+    },
+  };
+  const fakePage = {
+    getByRole: (_role: string, options: { name: RegExp }) => {
+      calls.push(`role:${options.name.source}`);
+      return { kind: "role" };
+    },
+    getByTitle: (pattern: RegExp) => {
+      calls.push(`title:${pattern.source}`);
+      return { kind: "title" };
+    },
+    locator: (selector: string) => {
+      calls.push(`locator:${selector}`);
+      return fakeScopedLocator;
+    },
+  };
+
+  const locators = tvSelectors.openScriptIdentity(fakePage as never, "SMC Dashboard");
+
+  assert.equal(locators.length, 16);
+  assert.equal(calls.some((call) => call.includes("pine-dialog")), true);
+  assert.equal(calls.some((call) => call.startsWith("title:") && call.includes("Dash")), true);
+  assert.equal(calls.some((call) => call.startsWith("text:") && call.includes("Dash")), true);
+});
+
 test("scriptLegendContainers only anchor exact script text descendants", () => {
   const calls: string[] = [];
   const fakePage = {

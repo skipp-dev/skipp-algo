@@ -11,6 +11,7 @@ import {
   collectEditorDiagnostics,
   collectPageLifecycleDiagnostics,
   collectVisibleInputLabels,
+  diagnoseInputContract,
   ensurePineEditor,
   gotoChart,
   isScriptVisibleOnChartSurface,
@@ -22,6 +23,7 @@ import {
   openSettingsForScript,
   parseInputSourceLabels,
   probeRuntimeSmoke,
+  refreshChartScriptInstance,
   saveScript,
   setEditorContent,
   takeScreenshot,
@@ -79,6 +81,10 @@ type TargetResult = {
   expected_input_labels: string[];
   observed_input_labels: string[];
   missing_input_labels: string[];
+  legacy_input_labels: string[];
+  contract_drift_likely: boolean;
+  bindings_refresh_attempted: boolean;
+  bindings_refresh_recovered: boolean;
   screenshots: string[];
   error?: string;
   editorDiagnostics?: Awaited<ReturnType<typeof collectEditorDiagnostics>>;
@@ -187,6 +193,19 @@ function missingInputLabels(expected: string[], observed: string[]): string[] {
   return expected.filter((label) => !observedSet.has(normalizeLabel(label)));
 }
 
+function inputContractDiagnosisSuffix(
+  diagnosis: ReturnType<typeof diagnoseInputContract>,
+): string {
+  if (diagnosis.likelyDrift) {
+    const legacyPreview = diagnosis.legacyLabels.slice(0, 5).join(", ") || "none";
+    return ` Likely runtime contract drift; legacy labels: ${legacyPreview}.`;
+  }
+  if (diagnosis.likelyPartialSurface) {
+    return " TradingView appears to be surfacing only a partial subset of the expected inputs.";
+  }
+  return "";
+}
+
 function computeUiGreen(target: TargetResult): VerificationStatus {
   return combineVerificationStatuses([
     target.chart_ok,
@@ -268,6 +287,10 @@ function buildInitialTargetResult(
     expected_input_labels: expectedInputLabels,
     observed_input_labels: [],
     missing_input_labels: [],
+    legacy_input_labels: [],
+    contract_drift_likely: false,
+    bindings_refresh_attempted: false,
+    bindings_refresh_recovered: false,
     screenshots: [],
   });
 }
@@ -437,21 +460,49 @@ async function main(): Promise<number> {
         await openInputsTab(session.page);
         targetResult.inputs_tab_ok = true;
 
-        const observedInputLabels = uniqueSorted(await collectVisibleInputLabels(session.page, expectedInputLabels));
+        let observedInputLabels = uniqueSorted(await collectVisibleInputLabels(session.page, expectedInputLabels));
+        let diagnosis = diagnoseInputContract(expectedInputLabels, observedInputLabels);
+
+        if (cli.executionMode === "mutating" && diagnosis.likelyDrift) {
+          targetResult.bindings_refresh_attempted = true;
+          await closeModal(session.page).catch(() => undefined);
+          await refreshChartScriptInstance(session.page, target.scriptName);
+          targetResult.script_found_on_chart_ok = await isScriptVisibleOnChartSurface(session.page, target.scriptName);
+          if (targetResult.script_found_on_chart_ok !== true) {
+            throw new Error(`Script was not visible after refresh for ${target.scriptName}`);
+          }
+
+          const reopenedSettings = await openSettingsForScript(session.page, target.scriptName);
+          if (reopenedSettings !== true) {
+            throw new Error(`Settings reopened for the wrong TradingView script after refresh: ${target.scriptName}`);
+          }
+          targetResult.settings_open_ok = true;
+          await openInputsTab(session.page);
+          targetResult.inputs_tab_ok = true;
+          observedInputLabels = uniqueSorted(await collectVisibleInputLabels(session.page, expectedInputLabels));
+          diagnosis = diagnoseInputContract(expectedInputLabels, observedInputLabels);
+        }
+
         targetResult.observed_input_labels = observedInputLabels;
         targetResult.missing_input_labels = missingInputLabels(expectedInputLabels, observedInputLabels);
+        targetResult.legacy_input_labels = diagnosis.legacyLabels;
+        targetResult.contract_drift_likely = diagnosis.likelyDrift;
         targetResult.bindings_count_ok = observedInputLabels.length >= requiredBindingCount;
         targetResult.bindings_names_ok = targetResult.missing_input_labels.length === 0;
         targetResult.bindings_names_not_verified = false;
+        targetResult.bindings_refresh_recovered = targetResult.bindings_refresh_attempted
+          && targetResult.bindings_count_ok === true
+          && targetResult.bindings_names_ok === true
+          && !diagnosis.likelyDrift;
 
         if (targetResult.bindings_count_ok !== true) {
           throw new Error(
-            `Observed only ${observedInputLabels.length}/${requiredBindingCount} TradingView input bindings for ${target.scriptName}`,
+            `Observed only ${observedInputLabels.length}/${requiredBindingCount} TradingView input bindings for ${target.scriptName}.${inputContractDiagnosisSuffix(diagnosis)}`,
           );
         }
         if (targetResult.bindings_names_ok !== true) {
           throw new Error(
-            `TradingView input binding names are incomplete for ${target.scriptName}: missing ${targetResult.missing_input_labels.join(", ")}`,
+            `TradingView input binding names are incomplete for ${target.scriptName}: missing ${targetResult.missing_input_labels.join(", ")}.${inputContractDiagnosisSuffix(diagnosis)}`,
           );
         }
 

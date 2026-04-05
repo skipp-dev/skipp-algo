@@ -1,0 +1,403 @@
+// This Pine Script™ code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+
+//@version=6
+library("smc_bus_private", overlay = true)
+
+export pack_bus_row(int row_state, int reason_code) =>
+    float((row_state + 1) * 100 + reason_code)
+
+export pack_bus_four(float value1, float value2, float value3, float value4) =>
+    value1 * 1000000000.0 + value2 * 1000000.0 + value3 * 1000.0 + value4
+
+export pack_bus_counts(int primary_count, int secondary_count) =>
+    float(primary_count * 1000000 + secondary_count)
+
+export normalize_bus_trend(int dir) =>
+    dir > 0 ? 2 : dir < 0 ? 0 : 1
+
+export pack_bus_trend_set(int trend_now, int trend_htf_1, int trend_htf_2, int trend_htf_3) =>
+    float(normalize_bus_trend(trend_now) * 1000 + normalize_bus_trend(trend_htf_1) * 100 + normalize_bus_trend(trend_htf_2) * 10 + normalize_bus_trend(trend_htf_3))
+
+export pack_bus_meta(int freshness_code, int source_state_code, int reclaim_code, int zone_code) =>
+    float(freshness_code * 1000 + source_state_code * 100 + reclaim_code * 10 + zone_code)
+
+export resolve_bus_stretch_support_mask(bool use_stretch_context, bool in_lower_extreme, bool lower_extreme_recent, bool anti_chase_ok_ready, bool anti_chase_ok_entry_best) =>
+    int support_mask = 0
+    if use_stretch_context
+        support_mask += 1
+        if in_lower_extreme
+            support_mask += 2
+        if lower_extreme_recent
+            support_mask += 4
+        if anti_chase_ok_ready
+            support_mask += 8
+        if anti_chase_ok_entry_best
+            support_mask += 16
+    float(support_mask)
+
+export resolve_bus_freshness_code(bool long_setup_armed, bool long_setup_confirmed, bool ready_is_fresh, bool confirm_is_fresh) =>
+    int freshness_code = 0
+    if long_setup_confirmed
+        freshness_code := ready_is_fresh ? 1 : 2
+    else if long_setup_armed
+        freshness_code := confirm_is_fresh ? 3 : 4
+    freshness_code
+
+export resolve_bus_source_state_code(bool long_source_tracked, bool long_source_alive, bool long_source_broken) =>
+    int source_state_code = 0
+    if long_source_tracked
+        if long_source_alive
+            source_state_code := 1
+        else if long_source_broken
+            source_state_code := 2
+        else
+            source_state_code := 3
+    source_state_code
+
+export resolve_bus_zone_code(bool long_zone_active, bool in_bull_ob_zone, bool in_bull_fvg_zone) =>
+    int zone_code = 0
+    if long_zone_active
+        zone_code := 1
+    if in_bull_fvg_zone
+        zone_code := 2
+    if in_bull_ob_zone
+        zone_code := 3
+    if in_bull_ob_zone and in_bull_fvg_zone
+        zone_code := 4
+    zone_code
+
+export resolve_bus_zone_row(bool long_zone_active, bool in_bull_ob_zone, bool in_bull_fvg_zone) =>
+    int zone_code = resolve_bus_zone_code(long_zone_active, in_bull_ob_zone, in_bull_fvg_zone)
+    int zone_state = 0
+    if zone_code == 2 or zone_code == 3
+        zone_state := 4
+    else if zone_code == 4
+        zone_state := 5
+    pack_bus_row(zone_state, zone_code)
+
+export resolve_bus_reclaim_code(bool reclaim_recent, bool bull_reclaim_internal_low_strict, bool bull_reclaim_swing_low_strict, bool bull_reclaim_fvg_strict, bool bull_reclaim_ob_strict) =>
+    int reclaim_code = 0
+    if reclaim_recent
+        reclaim_code := 1
+    if bull_reclaim_internal_low_strict
+        reclaim_code := 2
+    if bull_reclaim_swing_low_strict
+        reclaim_code := 3
+    if bull_reclaim_fvg_strict
+        reclaim_code := 4
+    if bull_reclaim_ob_strict
+        reclaim_code := 5
+    reclaim_code
+
+export resolve_bus_reclaim_row(bool reclaim_recent, bool bull_reclaim_internal_low_strict, bool bull_reclaim_swing_low_strict, bool bull_reclaim_fvg_strict, bool bull_reclaim_ob_strict) =>
+    int reclaim_code = resolve_bus_reclaim_code(reclaim_recent, bull_reclaim_internal_low_strict, bull_reclaim_swing_low_strict, bull_reclaim_fvg_strict, bull_reclaim_ob_strict)
+    int reclaim_state = 0
+    if reclaim_code == 1
+        reclaim_state := 2
+    else if reclaim_code == 2 or reclaim_code == 3
+        reclaim_state := 4
+    else if reclaim_code == 4 or reclaim_code == 5
+        reclaim_state := 5
+    pack_bus_row(reclaim_state, reclaim_code)
+
+export resolve_bus_session_row(bool intraday_time_chart, bool use_trade_session_gate, bool use_opening_range_gate, bool session_structure_gate_ok, bool session_gate_ok) =>
+    if not intraday_time_chart
+        pack_bus_row(0, 1)
+    else if not use_trade_session_gate and not use_opening_range_gate
+        pack_bus_row(0, 2)
+    else if session_structure_gate_ok
+        pack_bus_row(5, 1)
+    else if not session_gate_ok
+        pack_bus_row(-1, 3)
+    else
+        pack_bus_row(-1, 4)
+
+export resolve_bus_market_row(bool use_index_gate, bool use_sector_gate, bool use_breadth_symbol_gate, bool market_symbols_missing, bool block_on_missing_market_symbol, bool market_regime_gate_ok, bool index_gate_effective_ok, bool sector_gate_effective_ok) =>
+    if not use_index_gate and not use_sector_gate and not use_breadth_symbol_gate
+        pack_bus_row(0, 1)
+    else if market_symbols_missing and block_on_missing_market_symbol
+        pack_bus_row(-1, 2)
+    else if market_symbols_missing
+        pack_bus_row(2, 2)
+    else if market_regime_gate_ok
+        pack_bus_row(5, 1)
+    else if not index_gate_effective_ok
+        pack_bus_row(-1, 3)
+    else if not sector_gate_effective_ok
+        pack_bus_row(-1, 4)
+    else
+        pack_bus_row(-1, 5)
+
+export resolve_bus_vola_row(bool use_vola_compression_gate, bool vola_regime_gate_safe, bool vola_expansion_now, bool vola_compression_recent) =>
+    if not use_vola_compression_gate
+        pack_bus_row(0, 1)
+    else if vola_regime_gate_safe and vola_expansion_now
+        pack_bus_row(5, 2)
+    else if vola_regime_gate_safe and vola_compression_recent
+        pack_bus_row(3, 3)
+    else if vola_regime_gate_safe
+        pack_bus_row(3, 1)
+    else
+        pack_bus_row(-1, 4)
+
+export resolve_bus_micro_session_row(bool use_microstructure_profiles, bool intraday_time_chart, bool micro_session_gate_ok, bool micro_rth_gate_ok, bool micro_midday_gate_ok, bool micro_premarket_gate_ok) =>
+    if not use_microstructure_profiles or not intraday_time_chart
+        pack_bus_row(0, 1)
+    else if micro_session_gate_ok
+        pack_bus_row(5, 1)
+    else if not micro_rth_gate_ok
+        pack_bus_row(-1, 2)
+    else if not micro_midday_gate_ok
+        pack_bus_row(-1, 3)
+    else if not micro_premarket_gate_ok
+        pack_bus_row(-1, 4)
+    else
+        pack_bus_row(-1, 5)
+
+export resolve_bus_micro_fresh_row(bool use_microstructure_profiles, bool micro_freshness_gate_ok) =>
+    if not use_microstructure_profiles
+        pack_bus_row(0, 1)
+    else if micro_freshness_gate_ok
+        pack_bus_row(5, 1)
+    else
+        pack_bus_row(-1, 2)
+
+export resolve_bus_volume_data_row(bool volume_current_bar_ok, bool volume_feed_quality_ok, bool ltf_sampling_active, bool ltf_price_ok, bool ltf_volume_ok, bool ltf_price_only) =>
+    if not volume_current_bar_ok
+        pack_bus_row(-1, 1)
+    else if not volume_feed_quality_ok
+        pack_bus_row(2, 2)
+    else if ltf_sampling_active and ltf_price_ok and not ltf_volume_ok
+        pack_bus_row(2, 3)
+    else if ltf_price_only
+        pack_bus_row(2, 4)
+    else
+        pack_bus_row(5, 1)
+
+export resolve_bus_quality_env_row(bool environment_hard_gate_ok, bool market_regime_gate_ok, bool vola_regime_gate_safe) =>
+    if environment_hard_gate_ok
+        pack_bus_row(5, 1)
+    else if not market_regime_gate_ok
+        pack_bus_row(-1, 2)
+    else if not vola_regime_gate_safe
+        pack_bus_row(-1, 3)
+    else
+        pack_bus_row(2, 4)
+
+export resolve_bus_quality_strict_row(bool long_entry_strict_state, bool strict_entry_ltf_ok, bool htf_alignment_ok, bool accel_strict_entry_gate_ok, bool sd_entry_strict_gate_ok, bool vol_entry_strict_context_ok_safe, bool stretch_entry_strict_context_ok, bool ddvi_entry_strict_ok_safe) =>
+    bool strict_quality_ok = strict_entry_ltf_ok and htf_alignment_ok and accel_strict_entry_gate_ok and sd_entry_strict_gate_ok and vol_entry_strict_context_ok_safe and stretch_entry_strict_context_ok and ddvi_entry_strict_ok_safe
+    if long_entry_strict_state
+        pack_bus_row(5, 1)
+    else if strict_quality_ok
+        pack_bus_row(4, 2)
+    else if not strict_entry_ltf_ok
+        pack_bus_row(-1, 3)
+    else if not htf_alignment_ok
+        pack_bus_row(-1, 4)
+    else if not accel_strict_entry_gate_ok
+        pack_bus_row(-1, 5)
+    else if not sd_entry_strict_gate_ok
+        pack_bus_row(-1, 6)
+    else if not vol_entry_strict_context_ok_safe
+        pack_bus_row(-1, 7)
+    else if not stretch_entry_strict_context_ok
+        pack_bus_row(-1, 8)
+    else
+        pack_bus_row(-1, 9)
+
+export resolve_bus_close_strength_row(bool use_strong_close_filter, bool bull_close_strong) =>
+    if not use_strong_close_filter
+        pack_bus_row(0, 1)
+    else if bull_close_strong
+        pack_bus_row(5, 1)
+    else
+        pack_bus_row(-1, 2)
+
+export resolve_bus_ema_support_row(bool show_ema_support, bool ema_support_ok) =>
+    if not show_ema_support
+        pack_bus_row(0, 1)
+    else if ema_support_ok
+        pack_bus_row(5, 1)
+    else
+        pack_bus_row(-1, 2)
+
+export resolve_bus_adx_row(bool use_adx, bool adx_data_ok, float plus_di, float minus_di, bool adx_strong, float adx_value, float adx_trend_min) =>
+    if not use_adx
+        pack_bus_row(0, 1)
+    else if not adx_data_ok
+        pack_bus_row(0, 2)
+    else if plus_di < minus_di
+        pack_bus_row(-1, 3)
+    else if adx_strong
+        pack_bus_row(5, 4)
+    else if adx_value >= adx_trend_min
+        pack_bus_row(3, 5)
+    else
+        pack_bus_row(2, 6)
+
+export resolve_bus_relvol_row(bool use_rel_volume, bool relvol_data_ok, bool allow_relvol_without_volume_data, bool relvol_ok) =>
+    if not use_rel_volume
+        pack_bus_row(0, 1)
+    else if not relvol_data_ok and allow_relvol_without_volume_data
+        pack_bus_row(2, 2)
+    else if not relvol_data_ok
+        pack_bus_row(-1, 3)
+    else if relvol_ok
+        pack_bus_row(5, 4)
+    else
+        pack_bus_row(-1, 5)
+
+export resolve_bus_vwap_row(bool use_vwap_filter, bool intraday_time_chart, bool vwap_session_active, bool vwap_filter_ok) =>
+    if not use_vwap_filter
+        pack_bus_row(0, 1)
+    else if not intraday_time_chart
+        pack_bus_row(0, 2)
+    else if not vwap_session_active
+        pack_bus_row(0, 3)
+    else if vwap_filter_ok
+        pack_bus_row(5, 4)
+    else
+        pack_bus_row(-1, 5)
+
+export resolve_bus_context_quality_row(bool use_context_quality_score_eff, bool context_quality_gate_ok) =>
+    if not use_context_quality_score_eff
+        pack_bus_row(0, 1)
+    else if context_quality_gate_ok
+        pack_bus_row(5, 2)
+    else
+        pack_bus_row(2, 3)
+
+export resolve_bus_quality_score_row(int signal_quality_score) =>
+    if signal_quality_score >= 75
+        pack_bus_row(5, 4)
+    else if signal_quality_score >= 50
+        pack_bus_row(5, 3)
+    else if signal_quality_score >= 25
+        pack_bus_row(4, 2)
+    else
+        pack_bus_row(2, 1)
+
+export resolve_bus_quality_clean_row(bool long_quality_clean_tier) =>
+    long_quality_clean_tier ? pack_bus_row(5, 1) : pack_bus_row(0, 2)
+
+export resolve_bus_sd_confluence_row(bool use_sd_confluence, bool sd_support_both_recent, bool sd_bullish_divergence_recent, bool sd_higher_lows_recent, bool sd_support_any_recent) =>
+    if not use_sd_confluence
+        pack_bus_row(0, 1)
+    else if sd_support_both_recent
+        pack_bus_row(5, 2)
+    else if sd_bullish_divergence_recent
+        pack_bus_row(4, 3)
+    else if sd_higher_lows_recent
+        pack_bus_row(4, 4)
+    else if sd_support_any_recent
+        pack_bus_row(4, 5)
+    else
+        pack_bus_row(0, 6)
+
+export resolve_bus_sd_osc_row(bool use_sd_confluence, float sd_value, bool sd_above_zero, bool sd_rising, bool sd_below_zero, bool sd_falling) =>
+    if not use_sd_confluence
+        pack_bus_row(0, 1)
+    else if na(sd_value)
+        pack_bus_row(0, 2)
+    else if sd_above_zero and sd_rising
+        pack_bus_row(5, 3)
+    else if sd_rising
+        pack_bus_row(3, 4)
+    else if sd_below_zero and sd_falling
+        pack_bus_row(-1, 5)
+    else
+        pack_bus_row(2, 6)
+
+export resolve_bus_vol_regime_row(bool use_volatility_regime, bool vol_regime_trend_ok) =>
+    if not use_volatility_regime
+        pack_bus_row(0, 1)
+    else if vol_regime_trend_ok
+        pack_bus_row(5, 2)
+    else
+        pack_bus_row(-1, 3)
+
+export resolve_bus_vol_squeeze_row(bool use_volatility_regime, bool vol_squeeze_on, bool vol_squeeze_release_recent, bool vol_squeeze_recent) =>
+    if not use_volatility_regime
+        pack_bus_row(0, 1)
+    else if vol_squeeze_on
+        pack_bus_row(5, 2)
+    else if vol_squeeze_release_recent
+        pack_bus_row(4, 3)
+    else if vol_squeeze_recent
+        pack_bus_row(3, 4)
+    else
+        pack_bus_row(0, 5)
+
+export resolve_bus_vol_expansion_state(bool use_volatility_regime, bool vol_momentum_expanding_long, bool vol_stack_spread_rising) =>
+    if not use_volatility_regime
+        1
+    else if vol_momentum_expanding_long and vol_stack_spread_rising
+        2
+    else if vol_momentum_expanding_long or vol_stack_spread_rising
+        3
+    else
+        4
+
+export resolve_bus_stretch_row(bool use_stretch_context, float distance_to_mean_z, bool in_lower_extreme, bool lower_extreme_recent, bool anti_chase_ok_entry_best, bool anti_chase_ok_ready) =>
+    if not use_stretch_context
+        pack_bus_row(0, 1)
+    else if na(distance_to_mean_z)
+        pack_bus_row(0, 2)
+    else if (in_lower_extreme or lower_extreme_recent) and anti_chase_ok_entry_best
+        pack_bus_row(5, in_lower_extreme ? 3 : 4)
+    else if anti_chase_ok_ready
+        pack_bus_row(3, 5)
+    else
+        pack_bus_row(-1, 6)
+
+export resolve_bus_ddvi_context_state(bool use_ddvi_context, bool ddvi_bias_ok, bool ddvi_bull_divergence_any, bool ddvi_lower_extreme_context) =>
+    if not use_ddvi_context
+        1
+    else if ddvi_bias_ok and ddvi_bull_divergence_any
+        2
+    else if ddvi_bias_ok
+        3
+    else if ddvi_bull_divergence_any
+        4
+    else if ddvi_lower_extreme_context
+        5
+    else
+        6
+
+export resolve_bus_ltf_bias_row(bool show_dashboard_ltf_eff, bool ltf_sampling_active, bool ltf_price_ok, bool ltf_price_only, float ltf_bull_share, float ltf_bias_hint) =>
+    if not show_dashboard_ltf_eff
+        pack_bus_row(0, 1)
+    else if not ltf_sampling_active or not ltf_price_ok
+        pack_bus_row(0, 2)
+    else if ltf_bull_share >= ltf_bias_hint and ltf_price_only
+        pack_bus_row(5, 3)
+    else if ltf_bull_share >= ltf_bias_hint
+        pack_bus_row(5, 4)
+    else if ltf_bull_share >= 0.50
+        pack_bus_row(3, 5)
+    else
+        pack_bus_row(-1, 6)
+
+export resolve_bus_ltf_delta_state(bool show_dashboard_ltf_eff, bool ltf_sampling_active, bool ltf_price_only, float ltf_volume_delta) =>
+    if not show_dashboard_ltf_eff
+        1
+    else if not ltf_sampling_active
+        2
+    else if ltf_price_only
+        3
+    else if na(ltf_volume_delta)
+        4
+    else if ltf_volume_delta >= 0
+        5
+    else
+        6
+
+export resolve_bus_objects_row(int ob_count, int fvg_count) =>
+    if ob_count > 0 and fvg_count > 0
+        pack_bus_row(5, 3)
+    else if ob_count > 0
+        pack_bus_row(3, 1)
+    else if fvg_count > 0
+        pack_bus_row(3, 2)
+    else
+        pack_bus_row(0, 4)

@@ -6,6 +6,9 @@ import pathlib
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 CORE_PATH = ROOT / "SMC_Core_Engine.pine"
 DASHBOARD_PATH = ROOT / "SMC_Dashboard.pine"
+LIFECYCLE_PRIVATE_PATH = ROOT / "SMC++" / "smc_lifecycle_private.pine"
+BUS_PRIVATE_PATH = ROOT / "SMC++" / "smc_bus_private.pine"
+OBSERVABILITY_PRIVATE_PATH = ROOT / "SMC++" / "smc_observability_private.pine"
 
 
 def _read(path: pathlib.Path) -> str:
@@ -60,15 +63,19 @@ def test_state_label_and_dashboard_decoders_stay_aligned() -> None:
 
 
 def test_ready_gate_reason_contract_matches_dashboard_decoder() -> None:
-    core_body = _extract_function_body(_read(CORE_PATH), "resolve_long_ready_reason_code")
+    core_source = _read(CORE_PATH)
+    lifecycle_body = _extract_function_body(_read(LIFECYCLE_PRIVATE_PATH), "resolve_long_ready_reason_code")
     dashboard_body = _extract_function_body(_read(DASHBOARD_PATH), "decode_ready_gate_text")
+
+    assert "import preuss_steffen/smc_lifecycle_private/1 as ll" in core_source
+    assert "ll.resolve_long_ready_reason_code(" in core_source
 
     for snippet in [
         "resolve_long_ready_lifecycle_reason_code",
         "resolve_long_ready_gate_reason_code",
         "reason_code := 9",
     ]:
-        assert snippet in core_body
+        assert snippet in lifecycle_body
 
     for label in [
         "Need confirmed setup",
@@ -99,11 +106,14 @@ def test_ready_gate_reason_contract_matches_dashboard_decoder() -> None:
 
 
 def test_strict_gate_reason_contract_matches_dashboard_decoder() -> None:
-    core_body = _extract_function_body(_read(CORE_PATH), "resolve_long_strict_reason_code")
+    core_source = _read(CORE_PATH)
+    lifecycle_body = _extract_function_body(_read(LIFECYCLE_PRIVATE_PATH), "resolve_long_strict_reason_code")
     dashboard_body = _extract_function_body(_read(DASHBOARD_PATH), "decode_strict_gate_text")
 
+    assert "ll.resolve_long_strict_reason_code(" in core_source
+
     for reason_code in range(2, 11):
-        assert f"reason_code := {reason_code}" in core_body
+        assert f"reason_code := {reason_code}" in lifecycle_body
 
     for label in [
         "Need Ready",
@@ -120,9 +130,12 @@ def test_strict_gate_reason_contract_matches_dashboard_decoder() -> None:
 
 
 def test_arm_lifecycle_contract_stays_explicit() -> None:
-    source_body = _extract_function_body(_read(CORE_PATH), "resolve_long_arm_source_state")
-    trigger_body = _extract_function_body(_read(CORE_PATH), "compute_long_arm_should_trigger")
-    payload_body = _extract_function_body(_read(CORE_PATH), "resolve_long_arm_transition_payload")
+    core_source = _read(CORE_PATH)
+    source_body = _extract_function_body(core_source, "resolve_long_arm_source_state")
+    trigger_body = _extract_function_body(_read(LIFECYCLE_PRIVATE_PATH), "compute_long_arm_should_trigger")
+    payload_body = _extract_function_body(core_source, "resolve_long_arm_transition_payload")
+
+    assert "ll.compute_long_arm_should_trigger(" in core_source
 
     for snippet in [
         "if bull_reclaim_ob_strict",
@@ -153,9 +166,15 @@ def test_arm_lifecycle_contract_stays_explicit() -> None:
 
 
 def test_confirm_lifecycle_contract_stays_explicit() -> None:
-    break_body = _extract_function_body(_read(CORE_PATH), "resolve_long_confirm_break_state")
-    structure_body = _extract_function_body(_read(CORE_PATH), "resolve_long_confirm_structure_state")
-    transition_body = _extract_function_body(_read(CORE_PATH), "compute_long_confirm_transition_state")
+    core_source = _read(CORE_PATH)
+    lifecycle_source = _read(LIFECYCLE_PRIVATE_PATH)
+    break_body = _extract_function_body(lifecycle_source, "resolve_long_confirm_break_state")
+    structure_body = _extract_function_body(lifecycle_source, "resolve_long_confirm_structure_state")
+    transition_body = _extract_function_body(lifecycle_source, "compute_long_confirm_transition_state")
+
+    assert "ll.resolve_long_confirm_break_state(" in core_source
+    assert "ll.resolve_long_confirm_structure_state(" in core_source
+    assert "ll.compute_long_confirm_transition_state(" in core_source
 
     for snippet in [
         "if live_exec and effective_use_live_confirm_break",
@@ -183,7 +202,10 @@ def test_confirm_lifecycle_contract_stays_explicit() -> None:
 
 
 def test_plan_lifecycle_contract_stays_explicit() -> None:
-    body = _extract_function_body(_read(CORE_PATH), "compute_long_plan_state")
+    core_source = _read(CORE_PATH)
+    body = _extract_function_body(_read(LIFECYCLE_PRIVATE_PATH), "compute_long_plan_state")
+
+    assert "ll.compute_long_plan_state(" in core_source
 
     assert "if (long_setup_armed or long_setup_confirmed) and not na(long_trigger) and not na(long_invalidation_level)" in body
 
@@ -208,7 +230,10 @@ def test_overhead_context_contract_stays_explicit() -> None:
 
 
 def test_risk_plan_contract_stays_explicit() -> None:
-    body = _extract_function_body(_read(CORE_PATH), "compute_long_risk_plan_state")
+    core_source = _read(CORE_PATH)
+    body = _extract_function_body(_read(LIFECYCLE_PRIVATE_PATH), "compute_long_risk_plan_state")
+
+    assert "ll.compute_long_risk_plan_state(" in core_source
 
     for snippet in [
         "if long_plan_active and not na(long_planned_stop_level) and not na(planned_risk)",
@@ -221,7 +246,10 @@ def test_risk_plan_contract_stays_explicit() -> None:
 
 
 def test_ready_projection_contract_stays_explicit() -> None:
-    body = _extract_function_body(_read(CORE_PATH), "resolve_long_ready_projection_state")
+    core_source = _read(CORE_PATH)
+    body = _extract_function_body(_read(LIFECYCLE_PRIVATE_PATH), "resolve_long_ready_projection_state")
+
+    assert "ll.resolve_long_ready_projection_state(" in core_source
 
     for snippet in [
         "if long_setup_armed and long_internal_structure_ok and not long_setup_confirmed",
@@ -239,7 +267,10 @@ def test_ready_projection_contract_stays_explicit() -> None:
 
 
 def test_entry_projection_contract_stays_explicit() -> None:
-    body = _extract_function_body(_read(CORE_PATH), "resolve_long_entry_projection_state")
+    core_source = _read(CORE_PATH)
+    body = _extract_function_body(_read(LIFECYCLE_PRIVATE_PATH), "resolve_long_entry_projection_state")
+
+    assert "ll.resolve_long_entry_projection_state(" in core_source
 
     for snippet in [
         "compute_long_entry_best_state",
@@ -249,7 +280,10 @@ def test_entry_projection_contract_stays_explicit() -> None:
 
 
 def test_execution_blocker_contract_stays_explicit() -> None:
-    body = _extract_function_body(_read(CORE_PATH), "resolve_long_execution_blocker_state")
+    core_source = _read(CORE_PATH)
+    body = _extract_function_body(_read(LIFECYCLE_PRIVATE_PATH), "resolve_long_execution_blocker_state")
+
+    assert "ll.resolve_long_execution_blocker_state(" in core_source
 
     for snippet in [
         "resolve_long_ready_blocker_text",
@@ -259,7 +293,10 @@ def test_execution_blocker_contract_stays_explicit() -> None:
 
 
 def test_bus_plan_levels_contract_stays_explicit() -> None:
-    body = _extract_function_body(_read(CORE_PATH), "resolve_long_bus_plan_levels")
+    core_source = _read(CORE_PATH)
+    body = _extract_function_body(_read(LIFECYCLE_PRIVATE_PATH), "resolve_long_bus_plan_levels")
+
+    assert "ll.resolve_long_bus_plan_levels(" in core_source
 
     for snippet in [
         "float helper_bus_trigger_level = na",
@@ -276,10 +313,22 @@ def test_bus_plan_levels_contract_stays_explicit() -> None:
 
 
 def test_support_code_surface_stays_runtime_owned() -> None:
-    ready_body = _extract_function_body(_read(CORE_PATH), "resolve_bus_ready_blocker_code")
-    strict_body = _extract_function_body(_read(CORE_PATH), "resolve_bus_strict_blocker_code")
-    ltf_body = _extract_function_body(_read(CORE_PATH), "resolve_bus_ltf_delta_state")
-    micro_body = _extract_function_body(_read(CORE_PATH), "resolve_bus_micro_profile_code")
+    core_source = _read(CORE_PATH)
+    bus_source = _read(BUS_PRIVATE_PATH)
+    ready_body = _extract_function_body(core_source, "resolve_bus_ready_blocker_code")
+    strict_body = _extract_function_body(core_source, "resolve_bus_strict_blocker_code")
+    ltf_body = _extract_function_body(bus_source, "resolve_bus_ltf_delta_state")
+    micro_body = _extract_function_body(core_source, "resolve_bus_micro_profile_code")
+
+    assert "import preuss_steffen/smc_bus_private/1 as bp" in core_source
+    assert "bp.resolve_bus_ready_blocker_code(" not in core_source
+    assert "bp.resolve_bus_strict_blocker_code(" not in core_source
+    assert "bp.resolve_bus_ltf_delta_state(" in core_source
+    assert "bp.resolve_bus_micro_profile_code(" not in core_source
+    assert "import preuss_steffen/smc_lifecycle_private/1 as ll" not in bus_source
+    assert "resolve_bus_ready_blocker_code(" not in bus_source
+    assert "resolve_bus_strict_blocker_code(" not in bus_source
+    assert "resolve_bus_micro_profile_code(" not in bus_source
 
     for snippet in [
         "resolve_long_ready_reason_code",
@@ -299,8 +348,9 @@ def test_support_code_surface_stays_runtime_owned() -> None:
         assert snippet in ltf_body
 
     for snippet in [
-        "profile_code := 1",
-        "profile_code += 10",
+        "int base_code =",
+        "int modifier_code =",
+        "use_microstructure_profiles ? base_code + modifier_code : 0",
     ]:
         assert snippet in micro_body
 
@@ -359,7 +409,11 @@ def test_dynamic_alert_gate_contract_stays_explicit_per_lifecycle_edge() -> None
 
 
 def test_ready_signal_contract_stays_explicit() -> None:
-    body = _extract_function_body(_read(CORE_PATH), "resolve_long_ready_signal_state")
+    core_source = _read(CORE_PATH)
+    body = _extract_function_body(_read(OBSERVABILITY_PRIVATE_PATH), "resolve_long_ready_signal_state")
+
+    assert "import preuss_steffen/smc_observability_private/1 as obv" in core_source
+    assert "obv.resolve_long_ready_signal_state(" in core_source
 
     for snippet in [
         "if current_bar_is_new",
@@ -374,7 +428,10 @@ def test_ready_signal_contract_stays_explicit() -> None:
 
 
 def test_debug_log_owner_contract_stays_explicit() -> None:
-    body = _extract_function_body(_read(CORE_PATH), "emit_long_engine_debug_logs")
+    core_source = _read(CORE_PATH)
+    body = _extract_function_body(_read(OBSERVABILITY_PRIVATE_PATH), "emit_long_engine_debug_logs")
+
+    assert "obv.emit_long_engine_debug_logs(" in core_source
 
     for snippet in [
         "resolve_long_debug_event_values",

@@ -1,0 +1,17 @@
+{
+  "targets": [
+    {
+      "file": "SMC_Core_Engine.pine",
+      "scriptName": "SMC Core Engine",
+      "checkInputs": false,
+      "addToChart": false
+    },
+    {
+      "file": "SMC_Dashboard.pine",
+      "scriptName": "SMC Dashboard",
+      "checkInputs": true,
+      "addToChart": true,
+      "minInputs": 26
+    }
+  ]
+}

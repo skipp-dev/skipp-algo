@@ -461,6 +461,21 @@ function hasExpectedImportPathEvidence(bodyText: string, expectedImportPath: str
   return bodyText.replace(/\s+/g, " ").includes(expectedImportPath);
 }
 
+export function shouldPromoteNoChangeVersionEvidence(options: {
+  publishNoChangeDetected: boolean;
+  identityVerificationMode: IdentityVerificationMode;
+  versionVerificationMode: VersionVerificationMode;
+  bodyText: string;
+  expectedImportPath: string;
+}): boolean {
+  return options.publishNoChangeDetected
+    && options.versionVerificationMode === "not_verified"
+    && (
+      options.identityVerificationMode === "script_context"
+      || hasExpectedImportPathEvidence(options.bodyText, options.expectedImportPath)
+    );
+}
+
 export async function runPublishMicroLibraryCli(): Promise<number> {
   const cli = parseArgs();
   const runId = utcNow().replace(/[:.]/g, "-");
@@ -552,13 +567,61 @@ export async function runPublishMicroLibraryCli(): Promise<number> {
       publishedVersion = publishEvidence.publishedVersion;
       fallbackPublishedVersion = publishEvidence.fallbackVersion;
 
-      if (
-        publishNoChangeDetected
-        && versionVerificationMode === "not_verified"
-        && hasExpectedImportPathEvidence(bodyText, details.recommendedImportPath)
-      ) {
+      if (shouldPromoteNoChangeVersionEvidence({
+        publishNoChangeDetected,
+        identityVerificationMode,
+        versionVerificationMode,
+        bodyText,
+        expectedImportPath: details.recommendedImportPath,
+      })) {
         versionVerificationMode = "idempotent_no_change";
         publishedVersion = details.libraryVersion;
+      }
+
+      if (!publishNoChangeDetected && identityVerificationMode === "script_context" && versionVerificationMode === "not_verified") {
+        await ensurePineEditor(session.page);
+        const retryPublishResult = await publishPrivateScript(session.page, {
+          scriptName: details.libraryName,
+          title: details.libraryName,
+        });
+        publishNoChangeDetected = publishNoChangeDetected || retryPublishResult.noChangeDetected;
+        await takeScreenshot(session.page, runId, `${details.libraryName}-published-retry`, screenshots);
+
+        identityEvidenceContext = await collectOpenScriptIdentityTexts(session.page, details.libraryName).catch(() => []);
+        versionEvidenceContext = [
+          ...new Set([
+            ...versionEvidenceContext,
+            ...retryPublishResult.versionContextTexts,
+            ...(await collectPublishedVersionContextTexts(session.page, details.libraryName).catch(() => [])),
+          ]),
+        ];
+        publishEvidenceContext = versionEvidenceContext;
+        bodyText = retryPublishResult.bodyText || await session.page.locator("body").innerText().catch(() => "");
+        identityEvidence = resolveOpenScriptIdentityEvidence(details.libraryName, {
+          dialogStillVisible: false,
+          editorContextTexts: identityEvidenceContext,
+          bodyText,
+        });
+        publishEvidence = resolvePublishedVersionEvidence({
+          scriptName: details.libraryName,
+          versionContextTexts: versionEvidenceContext,
+          bodyText,
+        });
+        identityVerificationMode = identityEvidence.verificationMode;
+        versionVerificationMode = publishEvidence.verificationMode;
+        publishedVersion = publishEvidence.publishedVersion;
+        fallbackPublishedVersion = publishEvidence.fallbackVersion;
+
+        if (shouldPromoteNoChangeVersionEvidence({
+          publishNoChangeDetected,
+          identityVerificationMode,
+          versionVerificationMode,
+          bodyText,
+          expectedImportPath: details.recommendedImportPath,
+        })) {
+          versionVerificationMode = "idempotent_no_change";
+          publishedVersion = details.libraryVersion;
+        }
       }
 
       let exactScriptVerified = identityVerificationMode === "script_context";
@@ -591,11 +654,13 @@ export async function runPublishMicroLibraryCli(): Promise<number> {
         publishedVersion = publishEvidence.publishedVersion;
         fallbackPublishedVersion = publishEvidence.fallbackVersion;
 
-        if (
-          publishNoChangeDetected
-          && versionVerificationMode === "not_verified"
-          && hasExpectedImportPathEvidence(bodyText, details.recommendedImportPath)
-        ) {
+        if (shouldPromoteNoChangeVersionEvidence({
+          publishNoChangeDetected,
+          identityVerificationMode,
+          versionVerificationMode,
+          bodyText,
+          expectedImportPath: details.recommendedImportPath,
+        })) {
           versionVerificationMode = "idempotent_no_change";
           publishedVersion = details.libraryVersion;
         }

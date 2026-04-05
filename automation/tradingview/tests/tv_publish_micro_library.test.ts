@@ -7,6 +7,7 @@ import test from "node:test";
 import {
   resolvePreMutationOpenGate,
   resolvePublishReportState,
+  shouldPromoteNoChangeVersionEvidence,
   shouldReopenPublishedScriptAfterPublish,
   verifyPublishContract,
 } from "../../../scripts/tv_publish_micro_library.js";
@@ -121,6 +122,36 @@ test("idempotent no-change skips reopen only when exact verification already exi
     exactScriptVerified: true,
     exactVersionVerified: true,
   }), true);
+});
+
+test("no-change version promotion accepts exact script identity without import-path body evidence", () => {
+  assert.equal(shouldPromoteNoChangeVersionEvidence({
+    publishNoChangeDetected: true,
+    identityVerificationMode: "script_context",
+    versionVerificationMode: "not_verified",
+    bodyText: "publish dialog without import path",
+    expectedImportPath: "owner_a/smc_micro_profiles_generated/2",
+  }), true);
+});
+
+test("no-change version promotion still accepts import-path body evidence without exact identity", () => {
+  assert.equal(shouldPromoteNoChangeVersionEvidence({
+    publishNoChangeDetected: true,
+    identityVerificationMode: "not_verified",
+    versionVerificationMode: "not_verified",
+    bodyText: "visible import owner_a/smc_micro_profiles_generated/2 as mp",
+    expectedImportPath: "owner_a/smc_micro_profiles_generated/2",
+  }), true);
+});
+
+test("no-change version promotion rejects missing identity and missing import-path evidence", () => {
+  assert.equal(shouldPromoteNoChangeVersionEvidence({
+    publishNoChangeDetected: true,
+    identityVerificationMode: "not_verified",
+    versionVerificationMode: "not_verified",
+    bodyText: "no exact publish evidence here",
+    expectedImportPath: "owner_a/smc_micro_profiles_generated/2",
+  }), false);
 });
 
 test("body fallback version evidence never upgrades publish status even with fallback version present", () => {

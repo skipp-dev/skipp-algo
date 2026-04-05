@@ -164,11 +164,57 @@ test("verifyOpenScriptIdentity fails for similar-name match only", () => {
   }), false);
 });
 
+test("verifyOpenScriptIdentity passes for truncated canonical title", () => {
+  assert.equal(verifyOpenScriptIdentity("SMC Dashboard", {
+    dialogStillVisible: false,
+    editorContextTexts: ["SMC Dash"],
+    bodyText: "Workspace body SMC Dashboard",
+  }), true);
+});
+
 test("verifyOpenScriptIdentity passes for exact name in editor context", () => {
   assert.equal(verifyOpenScriptIdentity("SMC Core Engine", {
     dialogStillVisible: false,
     editorContextTexts: ["SMC Core Engine"],
     bodyText: "Workspace body SMC Core Engine",
+  }), true);
+});
+
+test("verifyOpenScriptIdentity tolerates short-title companion context", () => {
+  assert.equal(verifyOpenScriptIdentity("SMC Core Engine", {
+    dialogStillVisible: false,
+    editorContextTexts: ["SMC Core Engine", "SMC Core"],
+    bodyText: "Workspace body SMC Core Engine",
+  }), true);
+});
+
+test("verifyOpenScriptIdentity tolerates spaced-letter companion context", () => {
+  assert.equal(verifyOpenScriptIdentity("SMC Core Engine", {
+    dialogStillVisible: false,
+    editorContextTexts: ["SMC Core Engine", "S M C C o r e E n g i n e"],
+    bodyText: "Workspace body SMC Core Engine",
+  }), true);
+});
+
+test("verifyOpenScriptIdentity tolerates version-metadata companion context", () => {
+  assert.equal(verifyOpenScriptIdentity("smc_micro_profiles_generated", {
+    dialogStillVisible: false,
+    editorContextTexts: [
+      "smc_micro_profiles_generated",
+      "s m c _ m i c r o _ p r o f i l e s _ g e n e r a t e d Version: 13.0 (05.04.2026 19:43)",
+    ],
+    bodyText: "Workspace body smc_micro_profiles_generated",
+  }), true);
+});
+
+test("verifyOpenScriptIdentity tolerates import-line companion context", () => {
+  assert.equal(verifyOpenScriptIdentity("smc_micro_profiles_generated", {
+    dialogStillVisible: false,
+    editorContextTexts: [
+      "smc_micro_profiles_generated",
+      "// import preuss_steffen/smc_micro_profiles_generated/1 as mp",
+    ],
+    bodyText: "Workspace body smc_micro_profiles_generated",
   }), true);
 });
 
@@ -206,6 +252,14 @@ test("verifyOpenScriptIdentity treats copy suffix as conflict", () => {
   assert.equal(verifyOpenScriptIdentity("SMC Core Engine", {
     dialogStillVisible: false,
     editorContextTexts: ["SMC Core Engine", "SMC Core Engine - copy"],
+  }), false);
+});
+
+test("verifyOpenScriptIdentity rejects lone copy suffix", () => {
+  assert.equal(verifyOpenScriptIdentity("SMC Core Engine", {
+    dialogStillVisible: false,
+    editorContextTexts: ["SMC Core Engine - copy"],
+    bodyText: "Workspace body SMC Core Engine",
   }), false);
 });
 

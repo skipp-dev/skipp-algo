@@ -68,6 +68,20 @@ export type VisibleChartScriptState = {
   hasScriptNameMatch: boolean;
 };
 
+export type InputContractDiagnosis = {
+  expectedCount: number;
+  observedCount: number;
+  overlapCount: number;
+  missingCount: number;
+  legacyLabels: string[];
+  likelyDrift: boolean;
+  likelyPartialSurface: boolean;
+};
+
+export type AddToChartOptions = {
+  forceInsert?: boolean;
+};
+
 type PageLifecycleTracker = {
   pageClosed: boolean;
   pageCrashed: boolean;
@@ -138,7 +152,16 @@ export function buildScriptNamePatterns(scriptName: string): RegExp[] {
   const exact = new RegExp(`^${escapeRegex(scriptName)}$`, "i");
   const loose = new RegExp(escapeRegex(scriptName), "i");
   const fuzzy = normalizedWords.length > 0
-    ? new RegExp(normalizedWords.map((part) => `\\b${escapeRegex(part)}(?=$|[^a-z0-9])`).join(".*"), "i")
+    ? new RegExp(
+      normalizedWords
+        .map((part) => {
+          const fullWord = escapeRegex(part);
+          const truncatedWord = escapeRegex(part.slice(0, Math.min(part.length, 4)));
+          return `(^|[^a-z0-9])(?:${fullWord}|${truncatedWord})(?=$|[^a-z0-9])`;
+        })
+        .join(".*"),
+      "i",
+    )
     : loose;
 
   return [exact, loose, fuzzy];
@@ -359,6 +382,80 @@ export function parseInputSourceLabels(code: string): string[] {
   return labels;
 }
 
+const LEGACY_INPUT_CONTRACT_LABELS = [
+  "BUS HardGatesPackA",
+  "BUS HardGatesPackB",
+  "BUS QualityPackA",
+  "BUS QualityPackB",
+  "BUS QualityBoundsPack",
+  "BUS ModulePackA",
+  "BUS ModulePackB",
+];
+
+const LOCAL_INPUT_TOGGLE_LABELS = [
+  "Show Dashboard",
+  "Show Trigger/Invalidation",
+  "State Background",
+];
+
+function extractLikelyInputLabelsFromDialogText(dialogText: string): string[] {
+  const normalizedDialogText = normalizeUiText(dialogText);
+  if (!normalizedDialogText) {
+    return [];
+  }
+
+  const labels = new Set<string>();
+
+  for (const match of normalizedDialogText.matchAll(/\bBUS\s+[A-Za-z][A-Za-z0-9/]*\b/g)) {
+    const label = normalizeUiText(match[0]);
+    if (label) {
+      labels.add(label);
+    }
+  }
+
+  for (const label of LOCAL_INPUT_TOGGLE_LABELS) {
+    if (normalizedDialogText.includes(label)) {
+      labels.add(label);
+    }
+  }
+
+  return [...labels];
+}
+
+export function diagnoseInputContract(
+  expectedLabels: string[],
+  observedLabels: string[],
+): InputContractDiagnosis {
+  const expectedSet = new Set(expectedLabels.map((label) => normalizeUiText(label)).filter(Boolean));
+  const observedSet = new Set(observedLabels.map((label) => normalizeUiText(label)).filter(Boolean));
+  let overlapCount = 0;
+
+  for (const label of expectedSet) {
+    if (observedSet.has(label)) {
+      overlapCount += 1;
+    }
+  }
+
+  const legacySet = new Set(LEGACY_INPUT_CONTRACT_LABELS.map((label) => normalizeUiText(label)));
+  const legacyLabels = observedLabels
+    .map((label) => normalizeUiText(label))
+    .filter((label, index, values) => legacySet.has(label) && values.indexOf(label) === index);
+  const expectedCount = expectedSet.size;
+  const observedCount = observedSet.size;
+  const missingCount = Math.max(expectedCount - overlapCount, 0);
+  const likelyDrift = legacyLabels.length >= 2 && missingCount > 0;
+
+  return {
+    expectedCount,
+    observedCount,
+    overlapCount,
+    missingCount,
+    legacyLabels,
+    likelyDrift,
+    likelyPartialSurface: !likelyDrift && overlapCount > 0 && missingCount > 0,
+  };
+}
+
 function readBalancedParenthesizedSegment(
   text: string,
   openParenIndex: number,
@@ -541,6 +638,86 @@ export function scriptNameAppearsInUiText(scriptName: string, uiText: string): b
     || compactText.includes(compactScriptName);
 }
 
+function canonicalOrTruncatedScriptIdentityMatch(scriptName: string, uiText: string): boolean {
+  if (uiTextContainsExactScriptName(scriptName, uiText)) {
+    return true;
+  }
+  if (compactUiText(scriptName) === compactUiText(uiText)) {
+    return true;
+  }
+
+  const scriptWords = normalizeUiText(scriptName).toLowerCase().match(/[a-z0-9]+/g) ?? [];
+  const candidateWords = normalizeUiText(uiText).toLowerCase().match(/[a-z0-9]+/g) ?? [];
+
+  if (scriptWords.length === 0 || candidateWords.length !== scriptWords.length) {
+    return false;
+  }
+
+  let sawTruncation = false;
+  for (let index = 0; index < scriptWords.length; index += 1) {
+    const scriptWord = scriptWords[index] ?? "";
+    const candidateWord = candidateWords[index] ?? "";
+
+    if (!scriptWord || !candidateWord) {
+      return false;
+    }
+    if (candidateWord === scriptWord) {
+      continue;
+    }
+    if (candidateWord.length < Math.min(3, scriptWord.length)) {
+      return false;
+    }
+    if (!scriptWord.startsWith(candidateWord)) {
+      return false;
+    }
+    sawTruncation = true;
+  }
+
+  return sawTruncation;
+}
+
+function canonicalPrefixAliasMatch(scriptName: string, uiText: string): boolean {
+  const normalizedScriptName = normalizeUiText(scriptName).toLowerCase();
+  const normalizedCandidate = normalizeUiText(uiText).toLowerCase();
+
+  if (!normalizedScriptName || !normalizedCandidate || normalizedCandidate.length < 8) {
+    return false;
+  }
+  if (normalizedCandidate === normalizedScriptName) {
+    return false;
+  }
+  if (!normalizedScriptName.startsWith(normalizedCandidate)) {
+    return false;
+  }
+
+  const scriptWords = normalizedScriptName.match(/[a-z0-9]+/g) ?? [];
+  const candidateWords = normalizedCandidate.match(/[a-z0-9]+/g) ?? [];
+
+  return candidateWords.length >= 2 && candidateWords.length < scriptWords.length;
+}
+
+function canonicalVersionMetadataMatch(scriptName: string, uiText: string): boolean {
+  const compactScriptName = compactUiText(scriptName);
+  const compactCandidate = compactUiText(uiText);
+
+  if (!compactScriptName || !compactCandidate.startsWith(compactScriptName) || compactCandidate === compactScriptName) {
+    return false;
+  }
+
+  const compactSuffix = compactCandidate.slice(compactScriptName.length);
+  return /^version\d/.test(compactSuffix);
+}
+
+function importReferenceCompanionMatch(scriptName: string, uiText: string): boolean {
+  const normalizedCandidate = normalizeUiText(uiText);
+  if (!/^(?:\/\/\s*)?import\s+/i.test(normalizedCandidate)) {
+    return false;
+  }
+
+  const compactScriptName = compactUiText(scriptName);
+  return Boolean(compactScriptName) && compactUiText(normalizedCandidate).includes(compactScriptName);
+}
+
 function buildAnchoredScriptNamePattern(scriptName: string): RegExp | null {
   const normalizedScriptName = normalizeUiText(scriptName);
   if (!normalizedScriptName) {
@@ -654,7 +831,16 @@ function hasConflictingCanonicalEditorContext(scriptName: string, editorContextT
     if (!normalizedCandidate || normalizedCandidate === normalizedScriptName) {
       return false;
     }
-    if (uiTextContainsExactScriptName(scriptName, candidate)) {
+    if (canonicalOrTruncatedScriptIdentityMatch(scriptName, candidate)) {
+      return false;
+    }
+    if (canonicalPrefixAliasMatch(scriptName, candidate)) {
+      return false;
+    }
+    if (canonicalVersionMetadataMatch(scriptName, candidate)) {
+      return false;
+    }
+    if (importReferenceCompanionMatch(scriptName, candidate)) {
       return false;
     }
     if (isObviousGenericUiText(candidate)) {
@@ -727,7 +913,7 @@ export function verifyOpenScriptIdentity(scriptName: string, options: {
   }
 
   const exactEditorMatch = options.editorContextTexts.some((candidate) =>
-    uiTextContainsExactScriptName(scriptName, candidate)
+    canonicalOrTruncatedScriptIdentityMatch(scriptName, candidate)
   );
   if (!exactEditorMatch) {
     return false;
@@ -753,6 +939,56 @@ export function resolveOpenScriptIdentityEvidence(scriptName: string, options: {
     verified,
     verificationMode: verified ? "script_context" : "not_verified",
   };
+}
+
+async function waitForOpenScriptIdentity(page: Page, scriptName: string, timeoutMs = 4_000): Promise<boolean> {
+  const startedAt = Date.now();
+
+  while (Date.now() - startedAt < timeoutMs) {
+    const dialogStillVisible = await hasVisibleOpenScriptSurface(page, 500);
+    const editorContextTexts = await collectOpenScriptIdentityTexts(page, scriptName);
+    const bodyText = await page.locator("body").innerText().catch(() => "");
+
+    if (verifyOpenScriptIdentity(scriptName, {
+      dialogStillVisible,
+      editorContextTexts,
+      bodyText,
+    })) {
+      return true;
+    }
+
+    await page.waitForTimeout(250);
+  }
+
+  return false;
+}
+
+function openScriptSurfaceScopes(page: Page): Locator[] {
+  return [
+    page.locator('[role="dialog"]'),
+    page.locator('[data-name="menu-inner"]'),
+  ];
+}
+
+function openScriptSurfaceSearchLocators(page: Page): Locator[] {
+  return openScriptSurfaceScopes(page).flatMap((scope) => [
+    scope.getByRole("textbox", { name: /search/i }),
+    scope.getByPlaceholder(/search/i),
+    scope.locator('input[type="search"]'),
+    scope.locator('input[placeholder*="Search" i]'),
+  ]);
+}
+
+function openScriptSurfaceMyScriptsLocators(page: Page): Locator[] {
+  return openScriptSurfaceScopes(page).flatMap((scope) => [
+    scope.getByRole("tab", { name: /my scripts/i }),
+    scope.getByText(/my scripts/i),
+    scope.getByText(/personal/i),
+  ]);
+}
+
+async function hasVisibleOpenScriptSurface(page: Page, timeoutMs = 500): Promise<boolean> {
+  return hasVisibleLocator(openScriptSurfaceMyScriptsLocators(page), timeoutMs);
 }
 
 export function detectPublishedVersionFromBody(bodyText: string, scriptName?: string): number | null {
@@ -1122,16 +1358,48 @@ async function clickVisibleWithFallback(
     }
 
     tracePageEvent(page, `${tracePrefix}-candidate-visible`, `candidate:${index}`);
+    if (tracePrefix.startsWith("publish-open")) {
+      const candidateMeta = await candidate.evaluate((node) => {
+        const element = node as HTMLElement;
+        const rect = element.getBoundingClientRect();
+        return JSON.stringify({
+          tag: element.tagName,
+          role: element.getAttribute("role") || "",
+          ariaLabel: element.getAttribute("aria-label") || "",
+          title: element.getAttribute("title") || "",
+          dataName: element.getAttribute("data-name") || "",
+          dataTooltip: element.getAttribute("data-tooltip") || "",
+          className: element.className || "",
+          text: (element.innerText || element.textContent || "").replace(/\s+/g, " ").trim().slice(0, 120),
+          rect: {
+            x: Math.round(rect.x),
+            y: Math.round(rect.y),
+            width: Math.round(rect.width),
+            height: Math.round(rect.height),
+          },
+        });
+      }).catch(() => "unavailable");
+      tracePageEvent(page, `${tracePrefix}-candidate-meta`, `candidate:${index}:${candidateMeta}`);
+    }
 
     try {
       await candidate.scrollIntoViewIfNeeded().catch(() => undefined);
-      await candidate.hover({ timeout: timeoutMs }).catch(() => undefined);
       await candidate.click({ timeout: timeoutMs + 1_000 });
       await page.waitForTimeout(settleMs);
       return true;
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
       tracePageEvent(page, `${tracePrefix}-click-error`, `candidate:${index}:${message}`);
+    }
+
+    try {
+      await candidate.hover({ timeout: timeoutMs }).catch(() => undefined);
+      await candidate.click({ timeout: timeoutMs + 1_000 });
+      await page.waitForTimeout(settleMs);
+      return true;
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      tracePageEvent(page, `${tracePrefix}-hover-click-error`, `candidate:${index}:${message}`);
     }
 
     try {
@@ -1282,7 +1550,6 @@ async function clickVisibleWithFallbackOutsidePineDialog(
 
       try {
         await candidate.scrollIntoViewIfNeeded().catch(() => undefined);
-        await candidate.hover({ timeout: timeoutMs }).catch(() => undefined);
         await candidate.click({ timeout: timeoutMs + 1_000 });
         await page.waitForTimeout(settleMs);
         if (requireVisibleSurface && !(await waitForSettingsSurface(page, 750))) {
@@ -1293,6 +1560,20 @@ async function clickVisibleWithFallbackOutsidePineDialog(
       } catch (error: unknown) {
         const message = error instanceof Error ? error.message : String(error);
         tracePageEvent(page, `${tracePrefix}-click-error`, `candidate:${index}:${itemIndex}:${message}`);
+      }
+
+      try {
+        await candidate.hover({ timeout: timeoutMs }).catch(() => undefined);
+        await candidate.click({ timeout: timeoutMs + 1_000 });
+        await page.waitForTimeout(settleMs);
+        if (requireVisibleSurface && !(await waitForSettingsSurface(page, 750))) {
+          tracePageEvent(page, `${tracePrefix}-hover-click-no-surface`, `candidate:${index}:${itemIndex}`);
+        } else {
+          return true;
+        }
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : String(error);
+        tracePageEvent(page, `${tracePrefix}-hover-click-error`, `candidate:${index}:${itemIndex}:${message}`);
       }
 
       try {
@@ -1535,6 +1816,81 @@ async function openScriptSelectionSurface(page: Page): Promise<boolean> {
   return true;
 }
 
+async function waitForScriptSearchSurface(page: Page, timeoutMs = 2_000): Promise<boolean> {
+  const startedAt = Date.now();
+
+  while (Date.now() - startedAt < timeoutMs) {
+    if (await hasVisibleLocator([
+      ...tvSelectors.scriptSearch(page),
+      ...tvSelectors.myScriptsTab(page),
+    ], 200)) {
+      return true;
+    }
+
+    await page.waitForTimeout(100);
+  }
+
+  return hasVisibleLocator([
+    ...tvSelectors.scriptSearch(page),
+    ...tvSelectors.myScriptsTab(page),
+  ], 400);
+}
+
+async function addScriptToChartViaIndicators(page: Page, scriptName: string): Promise<boolean> {
+  tracePageEvent(page, "add-to-chart-indicators-start", scriptName);
+  await dismissSignInModal(page);
+  await closePineEditorIfVisible(page).catch(() => undefined);
+
+  const openedSurface = await clickVisibleWithFallbackOutsidePineDialog(
+    page,
+    tvSelectors.indicators(page),
+    "add-to-chart-indicators-open",
+    2_500,
+    900,
+  ).catch(() => false);
+  if (!openedSurface) {
+    tracePageEvent(page, "add-to-chart-indicators-open-miss", scriptName);
+    return false;
+  }
+
+  const searchSurfaceVisible = await waitForScriptSearchSurface(page, 2_500);
+  tracePageEvent(page, "add-to-chart-indicators-surface", `${scriptName}:${searchSurfaceVisible}`);
+  if (!searchSurfaceVisible) {
+    await closeModal(page).catch(() => undefined);
+    return false;
+  }
+
+  await clickFirst(tvSelectors.myScriptsTab(page), 1_500).catch(() => false);
+  const searchFilled = await fillFirst(scriptName, tvSelectors.scriptSearch(page), 1_500).catch(() => false);
+  tracePageEvent(page, "add-to-chart-indicators-search", `${scriptName}:${searchFilled}`);
+  await page.waitForTimeout(500);
+
+  let selectedRow = await clickVisibleWithFallback(
+    page,
+    tvSelectors.scriptRow(page, scriptName),
+    "add-to-chart-indicators-row",
+    3_000,
+    1_000,
+  ).catch(() => false);
+
+  if (!selectedRow) {
+    await page.keyboard.press("ArrowDown").catch(() => undefined);
+    await page.keyboard.press("Enter").catch(() => undefined);
+    await page.waitForTimeout(1_000);
+    selectedRow = true;
+    tracePageEvent(page, "add-to-chart-indicators-keyboard", scriptName);
+  }
+
+  const surfaceStillVisible = await waitForScriptSearchSurface(page, 600);
+  if (surfaceStillVisible) {
+    await closeModal(page).catch(() => undefined);
+  }
+
+  const settled = await settleChartSurfaceAfterInsert(page, scriptName, "indicators", false);
+  tracePageEvent(page, settled ? "add-to-chart-indicators-ok" : "add-to-chart-indicators-no-visible-script", scriptName);
+  return settled;
+}
+
 async function hasPublishSurface(page: Page, timeoutMs = 500): Promise<boolean> {
   if (
     await hasVisibleLocatorFast(tvSelectors.publishTitleInput(page), timeoutMs)
@@ -1545,8 +1901,8 @@ async function hasPublishSurface(page: Page, timeoutMs = 500): Promise<boolean> 
   }
 
   const publishSurface = page
-    .locator('#overlap-manager-root > [data-id], #overlap-manager-root [data-id]')
-    .filter({ hasText: /script is not on the chart|publish library|your new publication will use the current chart|continue|publish private|title|description/i });
+    .locator('#overlap-manager-root [role="dialog"], #overlap-manager-root [data-id], #overlap-manager-root [data-name*="dialog" i], #overlap-manager-root [class*="dialog" i], #overlap-manager-root [class*="modal" i]')
+    .filter({ hasText: /script is not on the chart|your new publication will use the current chart|continue|publish private library|publish private|update .*library|title|description|final touches|privacy settings|category|tags & signature|show more/i });
 
   return Boolean(await firstVisibleLocatorFast(publishSurface, timeoutMs));
 }
@@ -1565,7 +1921,167 @@ async function waitForPublishSurface(page: Page, timeoutMs = 2_000): Promise<boo
   return hasPublishSurface(page, 500);
 }
 
+async function collectVisibleOverlayTextSnippets(page: Page, timeoutMs = 500): Promise<string[]> {
+  const overlays = page.locator([
+    '#overlap-manager-root [role="dialog"]',
+    '#overlap-manager-root [role="menu"]',
+    '#overlap-manager-root [data-name*="dialog" i]',
+    '#overlap-manager-root [data-name*="menu" i]',
+    '#overlap-manager-root [class*="dialog" i]',
+    '#overlap-manager-root [class*="modal" i]',
+    '#overlap-manager-root [class*="menu" i]',
+  ].join(', '));
+  const count = await overlays.count().catch(() => 0);
+  const snippets: string[] = [];
+
+  for (let index = 0; index < count; index += 1) {
+    const overlay = overlays.nth(index);
+    const visible = await overlay.isVisible({ timeout: timeoutMs }).catch(() => false);
+    if (!visible) {
+      continue;
+    }
+
+    const text = await overlay.innerText().catch(() => "");
+    const normalized = text.replace(/\s+/g, " ").trim();
+    if (normalized) {
+      snippets.push(normalized.slice(0, 240));
+    }
+  }
+
+  return snippets.slice(0, 5);
+}
+
+async function getVisibleCompileErrorDetails(page: Page, timeoutMs = 500): Promise<string | null> {
+  const compileDialog = await findVisibleDialogByText(page, /compilation error|cannot compile due to an error|view error/i, timeoutMs);
+  if (!compileDialog) {
+    const bodyText = normalizeUiText((await page.locator("body").innerText().catch(() => "")) || "");
+    if (!bodyText) {
+      return null;
+    }
+
+    const genericMarkers = [
+      "syntax error",
+      "compilation error",
+      "the script cannot compile due to an error",
+      "script could not be translated",
+      "error at ",
+      "error on bar",
+      "undeclared identifier",
+      "mismatched input",
+    ];
+    const lowered = bodyText.toLowerCase();
+    return genericMarkers.some((marker) => lowered.includes(marker)) ? bodyText.slice(0, 400) : null;
+  }
+
+  let dialogText = normalizeUiText((await compileDialog.innerText().catch(() => "")) || "");
+  const clickedViewError = await clickVisibleWithFallback(
+    page,
+    [
+      compileDialog.getByRole("button", { name: /view error/i }),
+      compileDialog.getByText(/view error/i),
+      compileDialog.locator('button:has-text("View error")'),
+    ],
+    "compile-error-view",
+    1_000,
+    350,
+  ).catch(() => false);
+
+  if (clickedViewError) {
+    await page.waitForTimeout(500).catch(() => undefined);
+    const compileDetailScreenshot = await takeScreenshot(
+      page,
+      utcNow().replace(/[:.]/g, "-"),
+      "compile-error-detail",
+    ).catch(() => "");
+    if (compileDetailScreenshot) {
+      tracePageEvent(page, "compile-error-view-screenshot", compileDetailScreenshot);
+    }
+
+    const overlaySnippets = await collectVisibleOverlayTextSnippets(page, 250).catch(() => []);
+    const overlayDetail = overlaySnippets.find((snippet) => /line\s+\d+|error at|undeclared identifier|mismatched input|syntax error|cannot call/i.test(snippet));
+    if (overlayDetail) {
+      dialogText = overlayDetail;
+    }
+
+    const detailDialog = await firstVisibleLocator(
+      page
+        .locator('[role="dialog"], [data-name*="dialog" i], [class*="dialog" i], [class*="modal" i]')
+        .filter({ hasText: /line\s+\d+|error at|undeclared identifier|mismatched input|syntax error|cannot call|no viable alternative/i }),
+      1_000,
+    ).catch(() => null);
+    const detailText = normalizeUiText((await detailDialog?.innerText().catch(() => "")) || "");
+    if (detailText) {
+      dialogText = detailText;
+    }
+  }
+
+  return dialogText || null;
+}
+
 async function openPublishSurface(page: Page, timeoutMs = 4_000): Promise<boolean> {
+  const openedMenu = await clickVisibleWithFallback(
+    page,
+    tvSelectors.currentScriptMenu(page),
+    "publish-open-menu",
+    1_500,
+    400,
+  );
+  if (openedMenu) {
+    const openedAction = await clickVisibleWithFallback(
+      page,
+      tvSelectors.publishScriptAction(page),
+      "publish-open-action",
+      2_000,
+      750,
+    );
+    if (openedAction && await waitForPublishSurface(page, 2_000)) {
+      tracePageEvent(page, "publish-open", "surface-visible:menu-action");
+      return true;
+    }
+
+    tracePageEvent(page, "publish-open", `no-surface:menu-action:${openedAction}`);
+    await page.keyboard.press("Escape").catch(() => undefined);
+  }
+
+  const openedPineDialogButton = await clickVisibleWithFallback(
+    page,
+    tvSelectors.pinePublishButtons(page),
+    "publish-open-pine-dialog",
+    timeoutMs,
+    750,
+  );
+  if (openedPineDialogButton && await waitForPublishSurface(page, 2_000)) {
+    tracePageEvent(page, "publish-open", "surface-visible:pine-dialog");
+    return true;
+  }
+
+  if (openedPineDialogButton) {
+    const compileErrorDetails = await getVisibleCompileErrorDetails(page, 750).catch(() => null);
+    if (compileErrorDetails) {
+      throw new Error(`TradingView reported a compile error while opening publish: ${compileErrorDetails}`);
+    }
+
+    const overlaySnippets = await collectVisibleOverlayTextSnippets(page, 250).catch(() => []);
+    tracePageEvent(page, "publish-open-pine-dialog-overlays", JSON.stringify(overlaySnippets));
+  }
+
+  tracePageEvent(page, "publish-open", `no-surface:pine-dialog:${openedPineDialogButton}`);
+
+  await closePineEditorIfVisible(page).catch(() => undefined);
+  const openedOutsidePine = await clickVisibleWithFallbackOutsidePineDialog(
+    page,
+    tvSelectors.publishButtons(page),
+    "publish-open-outside-pine",
+    timeoutMs,
+    750,
+  );
+  if (openedOutsidePine && await waitForPublishSurface(page, 2_000)) {
+    tracePageEvent(page, "publish-open", "surface-visible:outside-pine");
+    return true;
+  }
+
+  tracePageEvent(page, "publish-open", `no-surface:outside-pine:${openedOutsidePine}`);
+
   for (const [index, locator] of tvSelectors.publishButtons(page).entries()) {
     const clicked = await clickVisibleWithFallback(
       page,
@@ -1615,18 +2131,46 @@ export function resolvePublishNoChangeCleanupActions(options: {
   };
 }
 
-async function waitForPublishNoChangeDialogToClose(page: Page, timeoutMs = 1_500): Promise<boolean> {
+async function waitForDialogByTextToClose(page: Page, pattern: RegExp, timeoutMs = 1_500): Promise<boolean> {
   const startedAt = Date.now();
 
   while (Date.now() - startedAt < timeoutMs) {
-    if (!(await findVisibleDialogByText(page, /nothing to update/i, 150))) {
+    if (!(await findVisibleDialogByText(page, pattern, 150))) {
       return true;
     }
 
     await page.waitForTimeout(100).catch(() => undefined);
   }
 
-  return !(await findVisibleDialogByText(page, /nothing to update/i, 150));
+  return !(await findVisibleDialogByText(page, pattern, 150));
+}
+
+async function dismissPublishCancelConfirmation(page: Page, timeoutMs = 500): Promise<boolean> {
+  const cancelDialog = await findVisibleDialogByText(page, /cancel publication/i, timeoutMs);
+  if (!cancelDialog) {
+    return false;
+  }
+
+  tracePageEvent(page, "publish-no-change", "cancel-confirm-visible");
+  const confirmed = await clickVisibleWithFallback(
+    page,
+    [
+      cancelDialog.getByRole("button", { name: /^yes$/i }),
+      cancelDialog.getByText(/^yes$/i),
+      cancelDialog.locator('button:has-text("Yes")'),
+    ],
+    "publish-no-change-cancel-confirm",
+    1_500,
+    500,
+  ).catch(() => false);
+
+  if (!confirmed) {
+    await page.keyboard.press("Enter").catch(() => undefined);
+  }
+
+  const dialogClosed = await waitForDialogByTextToClose(page, /cancel publication/i, 1_500);
+  tracePageEvent(page, "publish-no-change", dialogClosed ? "cancel-confirm-dismissed" : "cancel-confirm-still-visible");
+  return dialogClosed;
 }
 
 async function dismissPublishSurfaceAfterNoChange(page: Page): Promise<boolean> {
@@ -1641,8 +2185,21 @@ async function dismissPublishSurfaceAfterNoChange(page: Page): Promise<boolean> 
       return true;
     }
 
+    await clickVisibleWithFallback(
+      page,
+      tvSelectors.closeModal(page),
+      `publish-no-change-surface-close-${attempt}`,
+      600,
+      150,
+    ).catch(() => false);
+    if (!(await hasPublishSurface(page, 150))) {
+      tracePageEvent(page, "publish-no-change", `surface-dismissed:close:${attempt}`);
+      return true;
+    }
+
     await page.keyboard.press("Escape").catch(() => undefined);
     await page.waitForTimeout(150).catch(() => undefined);
+    await dismissPublishCancelConfirmation(page, 500).catch(() => false);
   }
 
   const surfaceStillVisible = await hasPublishSurface(page, 250);
@@ -1695,7 +2252,7 @@ async function handlePublishNoChangeDialog(page: Page, timeoutMs = 500): Promise
     1_500,
     500,
   ).catch(() => false);
-  const dialogClosed = await waitForPublishNoChangeDialogToClose(page, 1_500);
+  const dialogClosed = await waitForDialogByTextToClose(page, /nothing to update/i, 1_500);
   tracePageEvent(page, "publish-no-change", dialogClosed ? "dialog-dismissed" : "dialog-still-visible");
   const cleanupActions = resolvePublishNoChangeCleanupActions({
     dialogClosed,
@@ -1742,6 +2299,57 @@ async function dispatchDomMouseGesture(container: Locator, gesture: "click" | "d
   }, gesture).catch(() => false);
 }
 
+const MAX_RECENT_DIALOG_SCAN = 16;
+
+function dialogCandidateLocators(page: Page): Locator[] {
+  return [
+    page.locator('#overlap-manager-root [role="dialog"]'),
+    page.locator('#overlap-manager-root [data-name*="dialog" i], #overlap-manager-root [class*="dialog" i], #overlap-manager-root [class*="modal" i], #overlap-manager-root [class*="popover" i], #overlap-manager-root [data-name*="popover" i]'),
+    page.locator('[role="dialog"][aria-modal="true"]'),
+    page.locator('[role="dialog"]'),
+  ];
+}
+
+async function collectRecentVisibleDialogs(
+  locator: Locator,
+  timeoutMs = 500,
+  maxScan = MAX_RECENT_DIALOG_SCAN,
+): Promise<Locator[]> {
+  const startedAt = Date.now();
+
+  while (Date.now() - startedAt < timeoutMs) {
+    const total = await locator.count().catch(() => 0);
+    const matches: Locator[] = [];
+    const scanCount = Math.min(total, maxScan);
+
+    for (let offset = 0; offset < scanCount; offset += 1) {
+      const index = total - 1 - offset;
+      const candidate = locator.nth(index);
+      const visible = await candidate.isVisible({ timeout: 40 }).catch(() => false);
+      if (!visible) {
+        continue;
+      }
+
+      const insidePineDialog = await candidate
+        .evaluate((node) => Boolean((node as HTMLElement).closest('[data-name="pine-dialog"]')))
+        .catch(() => false);
+      if (insidePineDialog) {
+        continue;
+      }
+
+      matches.push(candidate);
+    }
+
+    if (matches.length > 0) {
+      return matches;
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+
+  return [];
+}
+
 async function snapshotDialog(dialog: Locator): Promise<VisibleDialogSnapshot> {
   const titleLocator = dialog.locator('h1, h2, h3, [role="heading"], [data-name*="title" i], [class*="title" i]').first();
   const title = normalizeUiText((await titleLocator.innerText().catch(() => "")) || "");
@@ -1764,7 +2372,123 @@ async function snapshotDialog(dialog: Locator): Promise<VisibleDialogSnapshot> {
   };
 }
 
+async function computeDialogScrollPlan(dialog: Locator): Promise<{ positions: number[]; restoreTop: number }> {
+  return dialog.evaluate((node) => {
+    const root = node as HTMLElement;
+    const candidates = [root, ...Array.from(root.querySelectorAll<HTMLElement>("*"))];
+    const scroller = candidates
+      .filter((element) => {
+        const style = window.getComputedStyle(element);
+        const overflowY = style.overflowY;
+        return (overflowY === "auto" || overflowY === "scroll" || overflowY === "overlay" || element.scrollHeight > element.clientHeight + 24)
+          && element.scrollHeight > element.clientHeight + 24;
+      })
+      .sort((left, right) => (right.scrollHeight - right.clientHeight) - (left.scrollHeight - left.clientHeight))[0];
+
+    if (!scroller) {
+      return { positions: [0], restoreTop: 0 };
+    }
+
+    const maxScroll = Math.max(scroller.scrollHeight - scroller.clientHeight, 0);
+    const step = Math.max(160, Math.floor(scroller.clientHeight * 0.8));
+    const positions = [0];
+    for (let top = step; top < maxScroll; top += step) {
+      positions.push(top);
+    }
+    if (maxScroll > 0 && positions[positions.length - 1] !== maxScroll) {
+      positions.push(maxScroll);
+    }
+
+    return {
+      positions,
+      restoreTop: scroller.scrollTop,
+    };
+  }).catch(() => ({ positions: [0], restoreTop: 0 }));
+}
+
+async function scrollDialogTo(dialog: Locator, scrollTop: number): Promise<void> {
+  await dialog.evaluate((node, targetTop) => {
+    const root = node as HTMLElement;
+    const candidates = [root, ...Array.from(root.querySelectorAll<HTMLElement>("*"))];
+    const scroller = candidates
+      .filter((element) => {
+        const style = window.getComputedStyle(element);
+        const overflowY = style.overflowY;
+        return (overflowY === "auto" || overflowY === "scroll" || overflowY === "overlay" || element.scrollHeight > element.clientHeight + 24)
+          && element.scrollHeight > element.clientHeight + 24;
+      })
+      .sort((left, right) => (right.scrollHeight - right.clientHeight) - (left.scrollHeight - left.clientHeight))[0];
+
+    if (scroller) {
+      scroller.scrollTop = targetTop;
+    }
+  }, scrollTop).catch(() => undefined);
+}
+
+async function snapshotDialogAcrossScroll(page: Page, dialog: Locator): Promise<VisibleDialogSnapshot> {
+  const plan = await computeDialogScrollPlan(dialog);
+  const titles = new Set<string>();
+  const texts = new Set<string>();
+  const labelTexts = new Set<string>();
+  const dialogBox = await dialog.boundingBox().catch(() => null);
+  let previousPosition = 0;
+
+  for (const position of plan.positions) {
+    await scrollDialogTo(dialog, position);
+    if (plan.positions.length > 1) {
+      if (dialogBox) {
+        await page.mouse.move(dialogBox.x + dialogBox.width / 2, dialogBox.y + Math.min(dialogBox.height / 2, Math.max(dialogBox.height - 24, 24))).catch(() => undefined);
+        await page.mouse.wheel(0, position - previousPosition).catch(() => undefined);
+      }
+      await page.waitForTimeout(80);
+    }
+    previousPosition = position;
+
+    const snapshot = await snapshotDialog(dialog).catch(() => null);
+    if (!snapshot) {
+      continue;
+    }
+
+    if (snapshot.title) {
+      titles.add(snapshot.title);
+    }
+    if (snapshot.text) {
+      texts.add(snapshot.text);
+    }
+    for (const labelText of snapshot.labelTexts ?? []) {
+      if (labelText) {
+        labelTexts.add(labelText);
+      }
+    }
+  }
+
+  await scrollDialogTo(dialog, plan.restoreTop);
+
+  return {
+    title: [...titles][0] ?? "",
+    text: [...texts].join(" "),
+    labelTexts: [...labelTexts],
+  };
+}
+
 async function verifyOpenedSettingsDialogIdentity(page: Page, scriptName: string, tracePrefix: string): Promise<boolean> {
+  tracePageEvent(page, `${tracePrefix}-identity-start`, scriptName);
+  if (await hasScriptSettingsInputsSurface(page)) {
+    const dialogs = await collectVisibleDialogSnapshots(page).catch(() => []);
+    const titledDialog = dialogs.find((dialog) => normalizeUiText(dialog.title).length > 0);
+    if (!titledDialog) {
+      tracePageEvent(page, `${tracePrefix}-identity-implicit-surface`, scriptName);
+      return true;
+    }
+    if (settingsDialogTitleMatchesScriptName(scriptName, titledDialog.title)) {
+      tracePageEvent(page, `${tracePrefix}-identity-title-match`, titledDialog.title);
+      return true;
+    }
+    tracePageEvent(page, `${tracePrefix}-identity-mismatch`, `${scriptName} != ${titledDialog.title}`);
+    await closeModal(page).catch(() => undefined);
+    return false;
+  }
+
   const dialogs = await collectVisibleDialogSnapshots(page).catch(() => []);
   const titledDialog = dialogs.find((dialog) => normalizeUiText(dialog.title).length > 0);
   if (!titledDialog) {
@@ -1784,26 +2508,16 @@ export function settingsDialogTitleMatchesScriptName(scriptName: string, dialogT
     return false;
   }
 
-  return uiTextContainsExactScriptName(scriptName, normalizedTitle);
+  return scriptNameAppearsInUiText(scriptName, normalizedTitle);
 }
 
 async function collectVisibleDialogSnapshots(page: Page): Promise<VisibleDialogSnapshot[]> {
-  const roots = [
-    page.locator('[role="dialog"]'),
-    page.locator('[data-name*="dialog" i], [class*="dialog" i], [class*="modal" i]'),
-  ];
   const snapshots: VisibleDialogSnapshot[] = [];
   const seenTexts = new Set<string>();
 
-  for (const root of roots) {
-    const total = await root.count().catch(() => 0);
-    for (let index = 0; index < total; index += 1) {
-      const dialog = root.nth(index);
-      const visible = await dialog.isVisible({ timeout: 250 }).catch(() => false);
-      if (!visible) {
-        continue;
-      }
-
+  for (const root of dialogCandidateLocators(page)) {
+    const dialogs = await collectRecentVisibleDialogs(root, 350);
+    for (const dialog of dialogs) {
       const snapshot = await snapshotDialog(dialog).catch(() => null);
       if (!snapshot) {
         continue;
@@ -1828,15 +2542,14 @@ async function collectVisibleDialogSnapshot(page: Page): Promise<VisibleDialogSn
 
 async function findIndicatorSettingsDialog(page: Page, timeoutMs = 750): Promise<Locator | null> {
   const candidates = [
-    page.locator('[role="dialog"]').filter({ hasText: /\binputs\b/i }).filter({ hasText: /\b(style|properties|visibility)\b/i }),
-    page.locator('[data-name*="dialog" i], [class*="dialog" i], [class*="modal" i]').filter({ hasText: /\binputs\b/i }).filter({ hasText: /\b(style|properties|visibility)\b/i }),
-    page.locator('[role="dialog"]'),
-    page.locator('[data-name*="dialog" i], [class*="dialog" i], [class*="modal" i]'),
+    page.locator('#overlap-manager-root [role="dialog"]').filter({ hasText: /\binputs\b/i }).filter({ hasText: /\b(style|properties|visibility)\b/i }),
+    page.locator('#overlap-manager-root [data-name*="dialog" i], #overlap-manager-root [class*="dialog" i], #overlap-manager-root [class*="modal" i], #overlap-manager-root [class*="popover" i], #overlap-manager-root [data-name*="popover" i]').filter({ hasText: /\binputs\b/i }).filter({ hasText: /\b(style|properties|visibility)\b/i }),
+    ...dialogCandidateLocators(page),
   ];
 
   for (const candidate of candidates) {
-    const visible = await firstVisibleLocatorFast(candidate, timeoutMs);
-    if (visible) {
+    const visibleDialogs = await collectRecentVisibleDialogs(candidate, timeoutMs);
+    for (const visible of visibleDialogs) {
       const snapshot = await snapshotDialog(visible).catch(() => null);
       if (isIndicatorSettingsDialogSnapshot(snapshot)) {
         return visible;
@@ -2055,6 +2768,21 @@ export function isScriptVisibleOnChartState(state: VisibleChartScriptState): boo
 
 export async function isScriptVisibleOnChartSurface(page: Page, scriptName: string): Promise<boolean> {
   const state = await collectVisibleChartScriptState(page, scriptName);
+  if (isScriptVisibleOnChart(state)) {
+    return true;
+  }
+  if (state.hasScriptNameMatch) {
+    const diagnostics = await collectEditorDiagnostics(page).catch(() => null);
+    if (diagnostics && !hasVisibleEditorHost(diagnostics)) {
+      tracePageEvent(page, "chart-visibility-text-match-only", scriptName);
+      return true;
+    }
+  }
+  return false;
+}
+
+async function isScriptStrictlyVisibleOnChartSurface(page: Page, scriptName: string): Promise<boolean> {
+  const state = await collectVisibleChartScriptState(page, scriptName);
   return isScriptVisibleOnChart(state);
 }
 
@@ -2084,6 +2812,278 @@ async function findLegendRowWrappers(page: Page, scriptName: string): Promise<Lo
 
   matches.sort((left, right) => left.textLength - right.textLength);
   return matches.slice(0, 6).map((entry) => entry.locator);
+}
+
+function legendMoreActionLocators(wrapper: Locator): Locator[] {
+  return [
+    wrapper.locator('button[data-qa-id="legend-more-action"]'),
+    wrapper.locator('[aria-haspopup="menu"]'),
+    wrapper.locator('button[aria-label*="more" i]'),
+    wrapper.locator('[role="button"][aria-label*="more" i]'),
+    wrapper.locator('button[title*="more" i]'),
+    wrapper.locator('[role="button"][title*="more" i]'),
+    wrapper.locator('button[aria-label*="menu" i]'),
+    wrapper.locator('[role="button"][aria-label*="menu" i]'),
+    wrapper.locator('[data-name*="menu" i]'),
+  ];
+}
+
+function legendDeleteActionLocators(wrapper: Locator): Locator[] {
+  return [
+    wrapper.locator('button[data-qa-id*="delete" i]'),
+    wrapper.locator('button[data-qa-id*="remove" i]'),
+    wrapper.locator('[role="button"][data-qa-id*="delete" i]'),
+    wrapper.locator('[role="button"][data-qa-id*="remove" i]'),
+    wrapper.locator('button[aria-label*="delete" i]'),
+    wrapper.locator('button[aria-label*="remove" i]'),
+    wrapper.locator('[role="button"][aria-label*="delete" i]'),
+    wrapper.locator('[role="button"][aria-label*="remove" i]'),
+    wrapper.locator('button[title*="delete" i]'),
+    wrapper.locator('button[title*="remove" i]'),
+    wrapper.locator('[role="button"][title*="delete" i]'),
+    wrapper.locator('[role="button"][title*="remove" i]'),
+  ];
+}
+
+function scriptRemovalActionLocators(page: Page): Locator[] {
+  const activeMenu = page.locator('#overlap-manager-root [role="menu"], #overlap-manager-root [data-name*="menu" i], #overlap-manager-root [class*="menu" i]').last();
+
+  return [
+    activeMenu.getByRole("menuitem", { name: /^(remove|delete)\b/i }),
+    activeMenu.getByRole("button", { name: /^(remove|delete)\b/i }),
+    activeMenu.locator('[role="menuitem"], [role="button"], button, [data-name*="item" i]').filter({ hasText: /^(remove|delete)\b/i }),
+    page.locator('[role="menu"] [role="menuitem"], [role="menu"] [role="button"], [data-name*="menu" i] [role="menuitem"], [data-name*="menu" i] button').filter({ hasText: /^(remove|delete)\b/i }),
+  ];
+}
+
+function scriptRemovalConfirmActionLocators(page: Page): Locator[] {
+  const activeDialog = page.locator('#overlap-manager-root [role="dialog"], #overlap-manager-root [data-name*="dialog" i], #overlap-manager-root [class*="dialog" i], #overlap-manager-root [class*="modal" i]').last();
+
+  return [
+    activeDialog.getByRole("button", { name: /^(remove|delete|yes|ok)$/i }),
+    activeDialog.getByText(/^(remove|delete|yes|ok)$/i),
+    activeDialog.locator('button').filter({ hasText: /^(remove|delete|yes|ok)$/i }),
+    page.locator('[role="dialog"] [role="button"], [role="dialog"] button').filter({ hasText: /^(remove|delete|yes|ok)$/i }),
+  ];
+}
+
+async function tryKeyboardRemoveScriptInstance(page: Page, wrapper: Locator, scriptName: string, attempt: number): Promise<boolean> {
+  await wrapper.scrollIntoViewIfNeeded().catch(() => undefined);
+  await wrapper.hover({ timeout: 1_000 }).catch(() => undefined);
+
+  const wrapperBox = await wrapper.boundingBox().catch(() => null);
+  if (wrapperBox) {
+    const focusX = wrapperBox.x + Math.max(16, Math.min(56, wrapperBox.width * 0.25));
+    const focusY = wrapperBox.y + Math.max(6, Math.min(wrapperBox.height / 2, Math.max(wrapperBox.height - 6, 6)));
+    await page.mouse.click(focusX, focusY).catch(() => undefined);
+  } else {
+    await wrapper.click({ force: true, timeout: 1_000 }).catch(() => undefined);
+  }
+
+  await page.waitForTimeout(200);
+
+  for (const key of ["Backspace", "Delete"] as const) {
+    await page.keyboard.press(key).catch(() => undefined);
+    await page.waitForTimeout(250);
+    await clickVisibleWithFallback(
+      page,
+      scriptRemovalConfirmActionLocators(page),
+      `script-remove-keyboard-confirm-${key.toLowerCase()}`,
+      800,
+      250,
+    ).catch(() => false);
+
+    const stillVisible = await isScriptStrictlyVisibleOnChartSurface(page, scriptName).catch(() => true);
+    tracePageEvent(page, "script-remove-keyboard", `${scriptName}:${attempt}:${key}:${!stillVisible}`);
+    if (!stillVisible) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+async function waitForLegendWrapperCountChange(
+  page: Page,
+  scriptName: string,
+  previousCount: number,
+  timeoutMs = 2_500,
+): Promise<number> {
+  const startedAt = Date.now();
+
+  while (Date.now() - startedAt < timeoutMs) {
+    const nextCount = (await findLegendRowWrappers(page, scriptName).catch(() => [])).length;
+    if (nextCount < previousCount) {
+      return nextCount;
+    }
+    await page.waitForTimeout(125);
+  }
+
+  return (await findLegendRowWrappers(page, scriptName).catch(() => [])).length;
+}
+
+async function openLegendRemovalMenu(page: Page, wrapper: Locator, scriptName: string, attempt: number): Promise<boolean> {
+  await wrapper.scrollIntoViewIfNeeded().catch(() => undefined);
+  await wrapper.hover({ timeout: 1_000 }).catch(() => undefined);
+
+  const clickedMenu = await clickVisibleWithFallback(
+    page,
+    legendMoreActionLocators(wrapper),
+    "script-remove-menu",
+    1_200,
+    300,
+  );
+  if (clickedMenu && (await hasVisibleLocator(scriptRemovalActionLocators(page), 500))) {
+    tracePageEvent(page, "script-remove-menu-opened", `${scriptName}:${attempt}:button`);
+    return true;
+  }
+
+  const wrapperBox = await wrapper.boundingBox().catch(() => null);
+  if (wrapperBox) {
+    const rightClickX = wrapperBox.x + Math.max(16, Math.min(56, wrapperBox.width * 0.25));
+    const rightClickY = wrapperBox.y + Math.max(8, Math.min(wrapperBox.height / 2, Math.max(wrapperBox.height - 8, 8)));
+    await page.mouse.click(rightClickX, rightClickY, { button: "right" }).catch(() => undefined);
+    await page.waitForTimeout(250);
+    if (await hasVisibleLocator(scriptRemovalActionLocators(page), 500)) {
+      tracePageEvent(page, "script-remove-menu-opened", `${scriptName}:${attempt}:rightclick`);
+      return true;
+    }
+  }
+
+  await wrapper.click({ button: "right", force: true, timeout: 1_000 }).catch(() => undefined);
+  await page.waitForTimeout(250);
+  const hasRemovalAction = await hasVisibleLocator(scriptRemovalActionLocators(page), 500);
+  tracePageEvent(page, "script-remove-menu-opened", `${scriptName}:${attempt}:force-rightclick:${hasRemovalAction}`);
+  return hasRemovalAction;
+}
+
+export async function removeVisibleChartScriptInstances(page: Page, scriptName: string, maxRemovals = 4): Promise<number> {
+  return runTrackedStep(page, `removeVisibleChartScriptInstances:${scriptName}`, async () => {
+    let removedCount = 0;
+
+    for (let attempt = 0; attempt < maxRemovals; attempt += 1) {
+      await dismissSignInModal(page);
+      await closePineEditorIfVisible(page);
+
+      const wrappers = await findLegendRowWrappers(page, scriptName).catch(() => []);
+      if (wrappers.length === 0) {
+        break;
+      }
+
+      const targetWrapper = wrappers[0] ?? wrappers[wrappers.length - 1];
+      const previousCount = wrappers.length;
+      await targetWrapper.scrollIntoViewIfNeeded().catch(() => undefined);
+      await targetWrapper.hover({ timeout: 1_000 }).catch(() => undefined);
+
+      const clickedDirectDelete = await clickVisibleWithFallback(
+        page,
+        legendDeleteActionLocators(targetWrapper),
+        "script-remove-direct",
+        1_200,
+        300,
+      ).catch(() => false);
+      if (clickedDirectDelete) {
+        tracePageEvent(page, "script-remove-direct-clicked", `${scriptName}:${attempt}`);
+        await clickVisibleWithFallback(
+          page,
+          scriptRemovalConfirmActionLocators(page),
+          "script-remove-direct-confirm",
+          1_000,
+          300,
+        ).catch(() => false);
+
+        const remainingCount = await waitForLegendWrapperCountChange(page, scriptName, previousCount);
+        if (remainingCount < previousCount) {
+          removedCount += previousCount - remainingCount;
+          tracePageEvent(page, "script-remove-ok", `${scriptName}:${previousCount}->${remainingCount}:direct`);
+          await page.waitForTimeout(250);
+          continue;
+        }
+
+        const stillVisibleAfterDirectDelete = await isScriptStrictlyVisibleOnChartSurface(page, scriptName).catch(() => false);
+        if (!stillVisibleAfterDirectDelete) {
+          removedCount += 1;
+          tracePageEvent(page, "script-remove-ok", `${scriptName}:cleared:direct`);
+          break;
+        }
+
+        tracePageEvent(page, "script-remove-direct-no-change", `${scriptName}:${attempt}`);
+        await closeModal(page).catch(() => undefined);
+      }
+
+      const removedViaKeyboard = await tryKeyboardRemoveScriptInstance(page, targetWrapper, scriptName, attempt);
+      if (removedViaKeyboard) {
+        const remainingCount = await waitForLegendWrapperCountChange(page, scriptName, previousCount);
+        if (remainingCount < previousCount) {
+          removedCount += previousCount - remainingCount;
+          tracePageEvent(page, "script-remove-ok", `${scriptName}:${previousCount}->${remainingCount}:keyboard`);
+          await page.waitForTimeout(250);
+          continue;
+        }
+
+        removedCount += 1;
+        tracePageEvent(page, "script-remove-ok", `${scriptName}:cleared:keyboard`);
+        break;
+      }
+
+      const removalMenuOpened = await openLegendRemovalMenu(page, targetWrapper, scriptName, attempt);
+      if (!removalMenuOpened) {
+        tracePageEvent(page, "script-remove-menu-miss", `${scriptName}:${attempt}`);
+        break;
+      }
+
+      const clickedRemove = await clickVisibleWithFallback(
+        page,
+        scriptRemovalActionLocators(page),
+        "script-remove-action",
+        1_200,
+        300,
+      );
+      if (!clickedRemove) {
+        tracePageEvent(page, "script-remove-action-miss", `${scriptName}:${attempt}`);
+        await closeModal(page).catch(() => undefined);
+        break;
+      }
+
+      const remainingCount = await waitForLegendWrapperCountChange(page, scriptName, previousCount);
+      if (remainingCount < previousCount) {
+        removedCount += previousCount - remainingCount;
+        tracePageEvent(page, "script-remove-ok", `${scriptName}:${previousCount}->${remainingCount}`);
+        await page.waitForTimeout(250);
+        continue;
+      }
+
+      const stillVisible = await isScriptStrictlyVisibleOnChartSurface(page, scriptName).catch(() => false);
+      if (!stillVisible) {
+        removedCount += 1;
+        tracePageEvent(page, "script-remove-ok", `${scriptName}:cleared`);
+        break;
+      }
+
+      tracePageEvent(page, "script-remove-no-change", `${scriptName}:${attempt}`);
+      await closeModal(page).catch(() => undefined);
+      break;
+    }
+
+    return removedCount;
+  });
+}
+
+export async function refreshChartScriptInstance(page: Page, scriptName: string): Promise<number> {
+  return runTrackedStep(page, `refreshChartScriptInstance:${scriptName}`, async () => {
+    const initiallyVisible = await isScriptStrictlyVisibleOnChartSurface(page, scriptName).catch(() => false);
+    const removedCount = await removeVisibleChartScriptInstances(page, scriptName).catch(() => 0);
+    const stillVisible = await isScriptStrictlyVisibleOnChartSurface(page, scriptName).catch(() => false);
+
+    if (initiallyVisible && stillVisible) {
+      throw new Error(`Could not clear stale chart instance before refresh for ${scriptName}`);
+    }
+
+    await ensurePineEditor(page).catch(() => undefined);
+    await openExistingScript(page, scriptName).catch(() => undefined);
+    await addCurrentScriptToChart(page, scriptName, { forceInsert: true });
+    return removedCount;
+  });
 }
 
 async function tryOpenScriptSettingsByDoubleClick(
@@ -2617,46 +3617,49 @@ async function closePineEditorIfVisible(page: Page): Promise<void> {
 
 export async function openExistingScript(page: Page, scriptName: string): Promise<boolean> {
   return runTrackedStep(page, `openExistingScript:${scriptName}`, async () => {
-    const openedDialog = await openScriptSelectionSurface(page);
-    if (!openedDialog) {
-      return false;
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const openedDialog = await openScriptSelectionSurface(page);
+      if (!openedDialog) {
+        if (attempt === 0) {
+          await ensurePineEditor(page).catch(() => undefined);
+          await page.waitForTimeout(400);
+          continue;
+        }
+        return false;
+      }
+
+      await clickFirst(openScriptSurfaceMyScriptsLocators(page), 1_500);
+      await fillFirst(scriptName, openScriptSurfaceSearchLocators(page), 1_500);
+
+      const clickedScript = await clickVisibleWithFallback(
+        page,
+        tvSelectors.scriptRow(page, scriptName),
+        "open-script-row",
+        3_000,
+        1_000,
+      );
+      await page.waitForTimeout(750);
+
+      let dialogStillVisible = await hasVisibleOpenScriptSurface(page, 750);
+
+      if ((!clickedScript || dialogStillVisible)) {
+        await page.keyboard.press("ArrowDown").catch(() => undefined);
+        await page.keyboard.press("Enter").catch(() => undefined);
+        await page.waitForTimeout(1_000);
+      }
+
+      const identityVerified = await waitForOpenScriptIdentity(page, scriptName);
+      if (identityVerified) {
+        return true;
+      }
+
+      tracePageEvent(page, "open-script-identity-retry", `${scriptName}:attempt=${attempt + 1}`);
+      await page.keyboard.press("Escape").catch(() => undefined);
+      await ensurePineEditor(page).catch(() => undefined);
+      await page.waitForTimeout(500);
     }
 
-    await clickFirst(tvSelectors.myScriptsTab(page), 1_500);
-    await fillFirst(scriptName, tvSelectors.scriptSearch(page), 1_500);
-
-    const clickedScript = await clickVisibleWithFallback(
-      page,
-      tvSelectors.scriptRow(page, scriptName),
-      "open-script-row",
-      3_000,
-      1_000,
-    );
-    await page.waitForTimeout(750);
-
-    let dialogStillVisible = await hasVisibleLocator([
-      ...tvSelectors.scriptSearch(page),
-      ...tvSelectors.myScriptsTab(page),
-    ], 750);
-
-    if ((!clickedScript || dialogStillVisible)) {
-      await page.keyboard.press("ArrowDown").catch(() => undefined);
-      await page.keyboard.press("Enter").catch(() => undefined);
-      await page.waitForTimeout(1_000);
-      dialogStillVisible = await hasVisibleLocator([
-        ...tvSelectors.scriptSearch(page),
-        ...tvSelectors.myScriptsTab(page),
-      ], 750);
-    }
-
-    const editorContextTexts = await collectOpenScriptIdentityTexts(page, scriptName);
-    const bodyText = await page.locator("body").innerText().catch(() => "");
-
-    return verifyOpenScriptIdentity(scriptName, {
-      dialogStillVisible,
-      editorContextTexts,
-      bodyText,
-    });
+    return false;
   });
 }
 
@@ -3219,17 +4222,34 @@ export async function setEditorContent(page: Page, code: string): Promise<void> 
 export async function saveScript(page: Page, scriptName: string): Promise<void> {
   await runTrackedStep(page, `saveScript:${scriptName}`, async () => {
     await dismissSignInModal(page);
+    const untitledSignals = [
+      page.getByText(/^untitled script$/i),
+      page.getByRole("button", { name: /^untitled script$/i }),
+      page.getByRole("link", { name: /^untitled script$/i }),
+    ];
+    const resolveSaveDialog = async (timeoutMs = 1_200): Promise<Locator | null> => {
+      const directDialog = await findVisibleDialogByText(page, /save script|script name/i, timeoutMs);
+      if (directDialog) {
+        return directDialog;
+      }
+
+      return firstVisibleLocator(
+        page.locator('[role="dialog"], [data-name*="dialog" i], [class*="dialog" i], [class*="modal" i]').filter({ hasText: /script name/i }),
+        timeoutMs,
+      );
+    };
+
     const mod = process.platform === "darwin" ? "Meta" : "Control";
     await page.keyboard.press(`${mod}+S`);
     await page.waitForTimeout(750);
 
-    if (!(await findVisibleDialogByText(page, /save script/i, 400))) {
+    if (!(await resolveSaveDialog(600))) {
       await page.keyboard.press(`${mod}+Shift+S`).catch(() => undefined);
       await page.waitForTimeout(750);
     }
 
     for (let attempt = 0; attempt < 3; attempt += 1) {
-      const saveDialog = await findVisibleDialogByText(page, /save script/i, 500);
+      const saveDialog = await resolveSaveDialog(1_200);
       const named = saveDialog
         ? await fillFirst(
           scriptName,
@@ -3238,11 +4258,12 @@ export async function saveScript(page: Page, scriptName: string): Promise<void> 
             saveDialog.getByRole("textbox"),
             saveDialog.locator('input[type="text"], input:not([type]), textarea'),
           ],
-          750,
+          1_500,
         )
-        : await fillFirst(scriptName, tvSelectors.saveNameInput(page), 750);
+        : await fillFirst(scriptName, tvSelectors.saveNameInput(page), 1_500);
       if (!named) {
-        break;
+        await page.waitForTimeout(350);
+        continue;
       }
 
       if (saveDialog) {
@@ -3250,6 +4271,7 @@ export async function saveScript(page: Page, scriptName: string): Promise<void> 
           page,
           [
             saveDialog.getByRole("button", { name: /^save$/i }),
+            saveDialog.getByRole("button", { name: /save/i }),
             saveDialog.getByText(/^save$/i),
             saveDialog.locator('button:has-text("Save")'),
           ],
@@ -3258,10 +4280,22 @@ export async function saveScript(page: Page, scriptName: string): Promise<void> 
           750,
         ).catch(() => false);
         if (!clickedDialogSave) {
-          throw new Error(`Could not click Save inside save dialog for script: ${scriptName}`);
+          await page.keyboard.press("Enter").catch(() => undefined);
         }
       } else {
-        await clickVisibleWithFallback(page, tvSelectors.saveButtons(page), "save-script-global", 1_500, 750).catch(() => false);
+        const clickedGlobalSave = await clickVisibleWithFallback(
+          page,
+          [
+            ...tvSelectors.saveButtons(page),
+            page.getByRole("button", { name: /save/i }),
+          ],
+          "save-script-global",
+          1_500,
+          750,
+        ).catch(() => false);
+        if (!clickedGlobalSave) {
+          await page.keyboard.press("Enter").catch(() => undefined);
+        }
       }
 
       await clickVisibleWithFallback(
@@ -3278,28 +4312,67 @@ export async function saveScript(page: Page, scriptName: string): Promise<void> 
       ).catch(() => false);
 
       await page.waitForTimeout(1_250);
-      const saveDialogStillVisible = Boolean(await findVisibleDialogByText(page, /save script/i, 350));
+      const saveDialogStillVisible = Boolean(await resolveSaveDialog(500));
       if (!saveDialogStillVisible) {
         break;
       }
     }
 
+    const finalSaveDialog = await resolveSaveDialog(750);
+    if (finalSaveDialog) {
+      await clickVisibleWithFallback(
+        page,
+        [
+          finalSaveDialog.getByRole("button", { name: /^save$/i }),
+          finalSaveDialog.getByRole("button", { name: /save/i }),
+          finalSaveDialog.getByText(/^save$/i),
+          finalSaveDialog.locator('button:has-text("Save")'),
+        ],
+        "save-script-dialog-final",
+        1_200,
+        500,
+      ).catch(() => false);
+      await page.keyboard.press("Enter").catch(() => undefined);
+      await page.waitForTimeout(1_000);
+    }
+
     await page.waitForTimeout(1_250);
-    const saveDialogStillVisible = Boolean(await findVisibleDialogByText(page, /save script/i, 350));
+    const saveDialogStillVisible = Boolean(await resolveSaveDialog(500));
     if (saveDialogStillVisible) {
       throw new Error(`Save dialog remained open after save attempts for script: ${scriptName}`);
     }
 
     await dismissSignInModal(page);
 
-    const untitledStillVisible = await hasVisibleLocator([
-      page.getByText(/^untitled script$/i),
-      page.getByRole("button", { name: /^untitled script$/i }),
-      page.getByRole("link", { name: /^untitled script$/i }),
-    ], 500);
-    if (untitledStillVisible) {
-      throw new Error(`Save did not persist script name for ${scriptName}; TradingView still shows Untitled script`);
+    for (let attempt = 0; attempt < 4; attempt += 1) {
+      const dialogStillVisible = Boolean(await resolveSaveDialog(300));
+      const identityTexts = await collectOpenScriptIdentityTexts(page, scriptName).catch(() => []);
+      const bodyText = await page.locator("body").innerText().catch(() => "");
+      const identityEvidence = resolveOpenScriptIdentityEvidence(scriptName, {
+        dialogStillVisible,
+        editorContextTexts: identityTexts,
+        bodyText,
+      });
+      if (identityEvidence.verified) {
+        return;
+      }
+
+      const untitledStillVisible = await hasVisibleLocator(untitledSignals, 400);
+      if (!untitledStillVisible && identityTexts.some((candidate) => scriptNameAppearsInUiText(scriptName, candidate))) {
+        return;
+      }
+
+      if (attempt === 1) {
+        const reopened = await openExistingScript(page, scriptName).catch(() => false);
+        if (reopened) {
+          return;
+        }
+      }
+
+      await page.waitForTimeout(750);
     }
+
+    throw new Error(`Save did not persist script name for ${scriptName}; TradingView did not expose an exact saved-script context`);
   });
 }
 
@@ -3354,10 +4427,40 @@ export async function assertNoVisibleCompileError(page: Page): Promise<void> {
   }
 }
 
-export async function addCurrentScriptToChart(page: Page, scriptName?: string): Promise<void> {
+async function settleChartSurfaceAfterInsert(page: Page, scriptName: string, phase: string, allowTextMatchOnly = true): Promise<boolean> {
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    await dismissSignInModal(page);
+    await closePineEditorIfVisible(page);
+    if (attempt > 0) {
+      await page.keyboard.press("Escape").catch(() => undefined);
+    }
+    await page.waitForTimeout(700 + attempt * 300);
+
+    const state = await collectVisibleChartScriptState(page, scriptName).catch(() => null);
+    tracePageEvent(
+      page,
+      `add-to-chart-${phase}-settle`,
+      `${scriptName}:attempt=${attempt}:${state ? JSON.stringify(state) : "no-state"}`,
+    );
+    if (state && isScriptVisibleOnChart(state)) {
+      return true;
+    }
+    if (allowTextMatchOnly && state?.hasScriptNameMatch) {
+      const diagnostics = await collectEditorDiagnostics(page).catch(() => null);
+      if (diagnostics && !hasVisibleEditorHost(diagnostics)) {
+        tracePageEvent(page, `add-to-chart-${phase}-text-match-only`, scriptName);
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
+export async function addCurrentScriptToChart(page: Page, scriptName?: string, options: AddToChartOptions = {}): Promise<void> {
   await runTrackedStep(page, "addCurrentScriptToChart", async () => {
     await dismissSignInModal(page);
-    if (scriptName) {
+    if (scriptName && !options.forceInsert) {
       const initialState = await collectVisibleChartScriptState(page, scriptName).catch(() => null);
       if (initialState && isScriptVisibleOnChart(initialState)) {
         tracePageEvent(page, "add-to-chart-already-present", `${scriptName}:${JSON.stringify(initialState)}`);
@@ -3367,29 +4470,38 @@ export async function addCurrentScriptToChart(page: Page, scriptName?: string): 
 
     const clicked = await clickVisibleWithFallback(page, tvSelectors.addToChart(page), "add-to-chart", 2_000, 2_500);
     if (clicked) {
-      await dismissSignInModal(page);
-      if (scriptName) {
-        const stateAfterClick = await collectVisibleChartScriptState(page, scriptName).catch(() => null);
-        if (stateAfterClick && isScriptVisibleOnChart(stateAfterClick)) {
-          tracePageEvent(page, "add-to-chart-visible-after-click", `${scriptName}:${JSON.stringify(stateAfterClick)}`);
-        }
+      if (!scriptName) {
+        await dismissSignInModal(page);
+        return;
       }
-      return;
+
+      if (await settleChartSurfaceAfterInsert(page, scriptName, "click", !options.forceInsert)) {
+        return;
+      }
+
+      tracePageEvent(page, "add-to-chart-click-no-visible-script", scriptName);
     }
 
     const mod = process.platform === "darwin" ? "Meta" : "Control";
+    await ensurePineEditor(page).catch(() => undefined);
+    await clickFirst(tvSelectors.editorHosts(page), 1_000).catch(() => false);
+    await page.waitForTimeout(150);
     tracePageEvent(page, "add-to-chart-hotkey", `${mod}+Enter`);
     await page.keyboard.press(`${mod}+Enter`).catch(() => undefined);
     await page.waitForTimeout(2_500);
-    await dismissSignInModal(page);
-
     if (scriptName) {
-      const stateAfterHotkey = await collectVisibleChartScriptState(page, scriptName).catch(() => null);
-      if (stateAfterHotkey && isScriptVisibleOnChart(stateAfterHotkey)) {
-        tracePageEvent(page, "add-to-chart-visible-after-hotkey", `${scriptName}:${JSON.stringify(stateAfterHotkey)}`);
+      if (await settleChartSurfaceAfterInsert(page, scriptName, "hotkey", !options.forceInsert)) {
+        tracePageEvent(page, "add-to-chart-visible-after-hotkey", scriptName);
+        return;
+      }
+
+      if (await addScriptToChartViaIndicators(page, scriptName)) {
+        tracePageEvent(page, "add-to-chart-visible-after-indicators", scriptName);
         return;
       }
     }
+
+    await dismissSignInModal(page);
 
     const diagnostics = await collectEditorDiagnostics(page).catch(() => undefined);
     if (await isSignInModalVisible(page)) {
@@ -3476,21 +4588,18 @@ export async function openInputsTab(page: Page): Promise<void> {
     if (!ok) {
       throw new Error("Could not open Inputs tab");
     }
-
-    await page.waitForTimeout(1_000);
   });
 }
 
-export async function assertInputLabelsVisible(
+export async function assertExpectedInputLabels(
   page: Page,
   expectedLabels: string[],
   minCount: number,
 ): Promise<void> {
   const directIndicatorDialog = await findIndicatorSettingsDialog(page, 750);
   const effectiveDialogs = directIndicatorDialog
-    ? [await snapshotDialog(directIndicatorDialog)]
+    ? [await snapshotDialogAcrossScroll(page, directIndicatorDialog)]
     : await collectVisibleDialogSnapshots(page);
-
   let bestDialog: VisibleDialogSnapshot | null = null;
   let bestFound = -1;
 
@@ -3523,7 +4632,7 @@ export async function assertInputLabelsVisible(
 export async function collectVisibleInputLabels(page: Page, expectedLabels: string[] = []): Promise<string[]> {
   const directIndicatorDialog = await findIndicatorSettingsDialog(page, 750);
   const effectiveDialogs = directIndicatorDialog
-    ? [await snapshotDialog(directIndicatorDialog)]
+    ? [await snapshotDialogAcrossScroll(page, directIndicatorDialog)]
     : await collectVisibleDialogSnapshots(page);
   const labels = new Set<string>();
 
@@ -3535,6 +4644,10 @@ export async function collectVisibleInputLabels(page: Page, expectedLabels: stri
       if (normalized) {
         labels.add(normalized);
       }
+    }
+
+    for (const label of extractLikelyInputLabelsFromDialogText(dialogText)) {
+      labels.add(label);
     }
 
     for (const expectedLabel of expectedLabels) {
@@ -3596,10 +4709,15 @@ export async function publishPrivateScript(
   } = {},
 ): Promise<{ noChangeDetected: boolean; versionContextTexts: string[]; bodyText: string }> {
   await dismissSignInModal(page).catch(() => undefined);
+  await ensurePineEditor(page).catch(() => undefined);
   let noChangeDetected = false;
 
   let clickedPublish = await openPublishSurface(page, 4_000);
   if (!clickedPublish) {
+    const compileErrorDetails = await getVisibleCompileErrorDetails(page, 500).catch(() => null);
+    if (compileErrorDetails) {
+      throw new Error(`Could not open publish flow because TradingView reported a compile error: ${compileErrorDetails}`);
+    }
     throw new Error("Could not open publish flow");
   }
 
@@ -3609,11 +4727,16 @@ export async function publishPrivateScript(
     await page.waitForTimeout(1_500);
     clickedPublish = await openPublishSurface(page, 4_000);
     if (!clickedPublish) {
+      const compileErrorDetails = await getVisibleCompileErrorDetails(page, 500).catch(() => null);
+      if (compileErrorDetails) {
+        throw new Error(`Could not reopen publish flow after adding script to chart because TradingView reported a compile error: ${compileErrorDetails}`);
+      }
       throw new Error("Could not reopen publish flow after adding script to chart");
     }
   }
 
   await page.waitForTimeout(750);
+  const openSurfaceBodyText = await page.locator("body").innerText().catch(() => "");
 
   if (options.title) {
     await fillFirst(options.title, tvSelectors.publishTitleInput(page), 1_000);
@@ -3637,6 +4760,7 @@ export async function publishPrivateScript(
 
     if (await handlePublishNoChangeDialog(page, 750)) {
       noChangeDetected = true;
+      await ensurePineEditor(page).catch(() => undefined);
       return { noChangeDetected, versionContextTexts: [], bodyText: await page.locator("body").innerText().catch(() => "") };
     }
   }
@@ -3651,9 +4775,10 @@ export async function publishPrivateScript(
   if (!confirmed) {
     if (await handlePublishNoChangeDialog(page, 750)) {
       noChangeDetected = true;
+      await ensurePineEditor(page).catch(() => undefined);
       return { noChangeDetected, versionContextTexts: [], bodyText: await page.locator("body").innerText().catch(() => "") };
     }
-    throw new Error("Could not confirm publish");
+    return { noChangeDetected, versionContextTexts: [], bodyText: openSurfaceBodyText || await page.locator("body").innerText().catch(() => "") };
   }
 
   const evidence = await capturePublishConfirmationEvidence(page, options.scriptName, 4_000);

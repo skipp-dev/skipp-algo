@@ -9,6 +9,9 @@ import preuss_steffen/smc_core_types/1 as ct
 import preuss_steffen/smc_utils/1 as u
 import preuss_steffen/smc_draw/1 as d
 import preuss_steffen/smc_micro_profiles_generated/1 as mp
+import preuss_steffen/smc_lifecycle_private/1 as ll
+import preuss_steffen/smc_bus_private/1 as bp
+import preuss_steffen/smc_observability_private/1 as obv
 
 // High-level architecture:
 // - Market structure, OB/FVG engines, dashboards, alerts, and the long-dip lifecycle are coordinated locally.
@@ -1621,19 +1624,10 @@ resolve_long_arm_source_state(bool bull_reclaim_ob_strict, float touched_bull_ob
     [helper_arm_source_kind, helper_arm_invalidation_candidate, helper_arm_backing_zone_kind, helper_arm_backing_zone_id]
 
 compute_long_arm_prequality_ok(bool tighten_armed_stage_eff, bool bullish_trend_safe, bool micro_session_gate_ok, bool zone_touch_quality_ok, bool bull_close_strong, bool ema_support_ok) =>
-    bool helper_armed_prequality_ok = true
-    if tighten_armed_stage_eff
-        helper_armed_prequality_ok := bullish_trend_safe and micro_session_gate_ok and zone_touch_quality_ok and bull_close_strong and ema_support_ok
-    helper_armed_prequality_ok
+    ll.compute_long_arm_prequality_ok(tighten_armed_stage_eff, bullish_trend_safe, micro_session_gate_ok, zone_touch_quality_ok, bull_close_strong, ema_support_ok)
 
 compute_long_arm_should_trigger(bool bull_reclaim_any_for_arm, bool use_strict_sequence_eff, bool zone_touch_event_recent, bool zone_recent, bool long_setup_armed, bool long_invalidated_this_bar, bool micro_session_gate_ok, bool sd_armed_gate_ok, bool armed_prequality_ok) =>
-    bool helper_zone_recent_ok = zone_recent
-    if use_strict_sequence_eff
-        helper_zone_recent_ok := zone_touch_event_recent
-    bool helper_long_should_arm = false
-    if bull_reclaim_any_for_arm and helper_zone_recent_ok and not long_setup_armed and not long_invalidated_this_bar and micro_session_gate_ok and sd_armed_gate_ok and armed_prequality_ok
-        helper_long_should_arm := true
-    helper_long_should_arm
+    ll.compute_long_arm_should_trigger(bull_reclaim_any_for_arm, use_strict_sequence_eff, zone_touch_event_recent, zone_recent, long_setup_armed, long_invalidated_this_bar, micro_session_gate_ok, sd_armed_gate_ok, armed_prequality_ok)
 
 resolve_long_arm_transition_payload(int arm_backing_zone_kind, int arm_backing_zone_id, int active_ob_touch_id, int active_ob_touch_count, int touched_bull_ob_id, int touched_bull_ob_touch_count, int active_fvg_touch_id, int active_fvg_touch_count, int touched_bull_fvg_id, int touched_bull_fvg_touch_count, int active_bull_ob_id, float active_bull_ob_top, float active_bull_ob_bottom, int active_bull_fvg_id, float active_bull_fvg_top, float active_bull_fvg_bottom, float touched_bull_ob_top, float touched_bull_ob_bottom, float touched_bull_fvg_top, float touched_bull_fvg_bottom, int current_bar_index) =>
     int helper_long_arm_backing_zone_touch_count = select_long_arm_backing_zone_touch_count(arm_backing_zone_kind, arm_backing_zone_id, active_ob_touch_id, active_ob_touch_count, touched_bull_ob_id, touched_bull_ob_touch_count, active_fvg_touch_id, active_fvg_touch_count, touched_bull_fvg_id, touched_bull_fvg_touch_count)
@@ -1646,48 +1640,13 @@ resolve_long_arm_transition_payload(int arm_backing_zone_kind, int arm_backing_z
     [helper_long_arm_backing_zone_touch_count, helper_long_arm_locked_source_id, helper_long_arm_locked_source_top, helper_long_arm_locked_source_bottom, helper_long_arm_locked_source_last_touch_bar_index]
 
 resolve_long_confirm_break_state(bool live_exec, bool effective_use_live_confirm_break, float close_price, float high_price, bool long_setup_armed, bool long_setup_confirmed, int current_bar_index, int long_arm_bar_index, float long_trigger) =>
-    float helper_long_confirm_break_src = close_price
-    if live_exec and effective_use_live_confirm_break
-        helper_long_confirm_break_src := high_price
-    bool helper_long_confirm_break = false
-    if long_setup_armed and not long_setup_confirmed and not na(long_arm_bar_index) and current_bar_index > long_arm_bar_index
-        helper_long_confirm_break := helper_long_confirm_break_src > long_trigger
-    [helper_long_confirm_break_src, helper_long_confirm_break]
+    ll.resolve_long_confirm_break_state(live_exec, effective_use_live_confirm_break, close_price, high_price, long_setup_armed, long_setup_confirmed, current_bar_index, long_arm_bar_index, long_trigger)
 
 resolve_long_confirm_structure_state(bool long_setup_armed, int current_bar_index, int long_arm_bar_index, int internal_choch_since_bars, int internal_bos_since_bars, bool internal_bull_choch_sig, bool internal_bull_bos_sig, string long_internal_structure_mode, bool require_internal_break_for_confirm_eff) =>
-    bool helper_internal_choch_since_arm = false
-    if long_setup_armed and not na(long_arm_bar_index) and not na(internal_choch_since_bars)
-        helper_internal_choch_since_arm := internal_choch_since_bars <= current_bar_index - long_arm_bar_index
-    bool helper_internal_bos_since_arm = false
-    if long_setup_armed and not na(long_arm_bar_index) and not na(internal_bos_since_bars)
-        helper_internal_bos_since_arm := internal_bos_since_bars <= current_bar_index - long_arm_bar_index
-    bool helper_long_internal_structure_ok = false
-    if internal_bull_choch_sig or internal_bull_bos_sig or helper_internal_choch_since_arm or helper_internal_bos_since_arm
-        helper_long_internal_structure_ok := true
-    if long_internal_structure_mode == 'Internal CHoCH only'
-        helper_long_internal_structure_ok := false
-        if internal_bull_choch_sig or helper_internal_choch_since_arm
-            helper_long_internal_structure_ok := true
-    bool helper_long_confirm_structure_ok = not require_internal_break_for_confirm_eff
-    if not helper_long_confirm_structure_ok
-        helper_long_confirm_structure_ok := helper_long_internal_structure_ok
-    [helper_internal_choch_since_arm, helper_internal_bos_since_arm, helper_long_internal_structure_ok, helper_long_confirm_structure_ok]
+    ll.resolve_long_confirm_structure_state(long_setup_armed, current_bar_index, long_arm_bar_index, internal_choch_since_bars, internal_bos_since_bars, internal_bull_choch_sig, internal_bull_bos_sig, long_internal_structure_mode, require_internal_break_for_confirm_eff)
 
 compute_long_confirm_transition_state(bool close_safe_mode, bool long_confirm_break, bool long_confirm_structure_ok, bool confirm_is_fresh, bool long_confirm_bearish_guard_ok, bool micro_session_gate_ok, bool micro_freshness_gate_ok, bool accel_confirm_gate_ok, bool sd_confirmed_gate_ok) =>
-    bool helper_confirm_hard_gate_ok = false
-    if micro_session_gate_ok and micro_freshness_gate_ok
-        helper_confirm_hard_gate_ok := true
-    bool helper_confirm_upgrade_gate_ok = false
-    if accel_confirm_gate_ok and sd_confirmed_gate_ok
-        helper_confirm_upgrade_gate_ok := true
-    bool helper_confirm_lifecycle_ok = false
-    if close_safe_mode and long_confirm_break and long_confirm_structure_ok and confirm_is_fresh and long_confirm_bearish_guard_ok
-        helper_confirm_lifecycle_ok := true
-    bool helper_confirm_filters_ok = false
-    if helper_confirm_hard_gate_ok and helper_confirm_upgrade_gate_ok
-        helper_confirm_filters_ok := true
-    bool helper_long_should_confirm = helper_confirm_lifecycle_ok and helper_confirm_filters_ok
-    [helper_confirm_hard_gate_ok, helper_confirm_upgrade_gate_ok, helper_confirm_lifecycle_ok, helper_confirm_filters_ok, helper_long_should_confirm]
+    ll.compute_long_confirm_transition_state(close_safe_mode, long_confirm_break, long_confirm_structure_ok, confirm_is_fresh, long_confirm_bearish_guard_ok, micro_session_gate_ok, micro_freshness_gate_ok, accel_confirm_gate_ok, sd_confirmed_gate_ok)
 
 compose_long_source_invalidated_text(string source_text) =>
     source_text + ' source invalidated'
@@ -1716,39 +1675,10 @@ resolve_long_invalidation_reason(bool long_source_broken, bool long_source_lost,
     invalidation_reason
 
 resolve_long_source_runtime_state(int long_source_kind, int long_source_id, bool ob_source_alive, bool fvg_source_alive, bool ob_source_broken, bool fvg_source_broken, bool long_setup_armed, bool long_setup_confirmed) =>
-    bool source_tracked = not na(long_source_id)
-    bool source_alive = false
-    if long_source_kind == LONG_SOURCE_OB
-        source_alive := ob_source_alive
-    else if long_source_kind == LONG_SOURCE_FVG
-        source_alive := fvg_source_alive
-    bool source_broken = false
-    if long_source_kind == LONG_SOURCE_OB
-        source_broken := ob_source_broken
-    else if long_source_kind == LONG_SOURCE_FVG
-        source_broken := fvg_source_broken
-    bool source_lost = false
-    if (long_setup_armed or long_setup_confirmed) and source_tracked
-        source_lost := not source_alive and not source_broken
-    bool source_invalid_now = false
-    if source_tracked
-        source_invalid_now := source_broken or source_lost
-    [source_tracked, source_alive, source_broken, source_lost, source_invalid_now]
+    ll.resolve_long_source_runtime_state(long_source_kind, long_source_id, ob_source_alive, fvg_source_alive, ob_source_broken, fvg_source_broken, long_setup_armed, long_setup_confirmed)
 
 resolve_long_invalidation_state(bool long_setup_armed, bool long_setup_confirmed, int long_setup_age, int long_setup_expiry_bars, int long_confirm_age, int long_confirm_expiry_bars, bool close_safe_mode, float long_invalidation_break_src, float long_invalidation_level, float long_invalidation_buffer, bool long_source_broken, bool long_source_lost) =>
-    bool helper_long_setup_expired = false
-    if long_setup_armed and not long_setup_confirmed
-        helper_long_setup_expired := long_setup_age > long_setup_expiry_bars
-    bool helper_long_confirm_expired = false
-    if long_setup_confirmed
-        helper_long_confirm_expired := long_confirm_age > long_confirm_expiry_bars
-    bool helper_long_broken_down = false
-    if not na(long_invalidation_level)
-        helper_long_broken_down := long_invalidation_break_src < long_invalidation_level - long_invalidation_buffer
-    bool helper_long_invalidated_now = long_source_broken or long_source_lost
-    if close_safe_mode
-        helper_long_invalidated_now := helper_long_invalidated_now or helper_long_broken_down or helper_long_setup_expired or helper_long_confirm_expired
-    [helper_long_setup_expired, helper_long_confirm_expired, helper_long_broken_down, helper_long_invalidated_now]
+    ll.resolve_long_invalidation_state(long_setup_armed, long_setup_confirmed, long_setup_age, long_setup_expiry_bars, long_confirm_age, long_confirm_expiry_bars, close_safe_mode, long_invalidation_break_src, long_invalidation_level, long_invalidation_buffer, long_source_broken, long_source_lost)
 
 compose_long_source_transition_text(string long_entry_origin_source_text, string long_validation_source_text) =>
     long_entry_origin_source_text + ' -> ' + long_validation_source_text
@@ -1892,75 +1822,16 @@ resolve_long_environment_focus_text(bool market_regime_gate_ok, bool vola_regime
 //     → with use_scoring_over_blocking: SCORING gates bypass Ready, count as penalty; still block Best/Strict
 //   INFO ONLY (not in pipeline):     v5.1-v5.3 context gates (session_context_ok, struct_state_ok, etc.) — BUS compat only
 compute_long_environment_context(bool market_regime_gate_ok, bool vola_regime_gate_safe, bool primary_quality_gate_ok, bool session_structure_gate_ok, bool micro_session_gate_ok, bool micro_freshness_gate_ok, bool overhead_zone_ok, bool event_risk_gate_ok_param) =>
-    bool helper_environment_hard_gate_ok = market_regime_gate_ok and vola_regime_gate_safe and event_risk_gate_ok_param
-    bool helper_quality_gate_ok = primary_quality_gate_ok
-    bool helper_microstructure_entry_gate_ok = micro_session_gate_ok and micro_freshness_gate_ok
-    bool helper_trade_hard_gate_ok = session_structure_gate_ok and micro_session_gate_ok and micro_freshness_gate_ok and overhead_zone_ok
-    string helper_long_environment_focus_display = resolve_long_environment_focus_text(market_regime_gate_ok, vola_regime_gate_safe, event_risk_gate_ok_param)
-    [helper_environment_hard_gate_ok, helper_quality_gate_ok, helper_microstructure_entry_gate_ok, helper_trade_hard_gate_ok, helper_long_environment_focus_display]
+    ll.compute_long_environment_context(market_regime_gate_ok, vola_regime_gate_safe, primary_quality_gate_ok, session_structure_gate_ok, micro_session_gate_ok, micro_freshness_gate_ok, overhead_zone_ok, event_risk_gate_ok_param)
 
 resolve_long_ready_lifecycle_reason_code(bool long_ready_state, bool long_setup_confirmed, bool close_safe_mode, bool ready_bar_gap_ok, bool long_confirm_expired, bool ready_is_fresh, bool long_confirm_bearish_guard_ok, bool require_main_break_for_ready, bool bull_bos_sig, bool main_bos_recent) =>
-    int reason_code = 0
-    if long_ready_state
-        reason_code := 1
-    else if not long_setup_confirmed
-        reason_code := 2
-    else if not close_safe_mode
-        reason_code := 3
-    else if not ready_bar_gap_ok
-        reason_code := 4
-    else if long_confirm_expired
-        reason_code := 5
-    else if not ready_is_fresh
-        reason_code := 6
-    else if not long_confirm_bearish_guard_ok
-        reason_code := 7
-    else if require_main_break_for_ready and not (bull_bos_sig or main_bos_recent)
-        reason_code := 8
-    reason_code
+    ll.resolve_long_ready_lifecycle_reason_code(long_ready_state, long_setup_confirmed, close_safe_mode, ready_bar_gap_ok, long_confirm_expired, ready_is_fresh, long_confirm_bearish_guard_ok, require_main_break_for_ready, bull_bos_sig, main_bos_recent)
 
 resolve_long_ready_gate_reason_code(bool setup_hard_gate_ok, bool trade_hard_gate_ok, bool environment_hard_gate_ok, bool session_structure_gate_ok, bool micro_session_gate_ok, bool micro_freshness_gate_ok, bool overhead_zone_ok, bool market_regime_gate_ok, bool vola_regime_gate_safe, bool quality_gate_ok, bool accel_ready_gate_ok, bool sd_ready_gate_ok, bool vol_ready_context_ok, bool stretch_ready_context_ok, bool ddvi_ready_ok_safe) =>
-    int reason_code = 1
-    if not setup_hard_gate_ok
-        reason_code := 10
-    else if not session_structure_gate_ok
-        reason_code := 11
-    else if not micro_session_gate_ok
-        reason_code := 12
-    else if not micro_freshness_gate_ok
-        reason_code := 13
-    else if not overhead_zone_ok
-        reason_code := 14
-    else if not trade_hard_gate_ok
-        reason_code := 15
-    else if not market_regime_gate_ok
-        reason_code := 16
-    else if not vola_regime_gate_safe
-        reason_code := 17
-    else if not environment_hard_gate_ok
-        reason_code := 18
-    else if not quality_gate_ok
-        reason_code := 19
-    else if not accel_ready_gate_ok
-        reason_code := 20
-    else if not sd_ready_gate_ok
-        reason_code := 21
-    else if not vol_ready_context_ok
-        reason_code := 22
-    else if not stretch_ready_context_ok
-        reason_code := 23
-    else if not ddvi_ready_ok_safe
-        reason_code := 24
-    reason_code
+    ll.resolve_long_ready_gate_reason_code(setup_hard_gate_ok, trade_hard_gate_ok, environment_hard_gate_ok, session_structure_gate_ok, micro_session_gate_ok, micro_freshness_gate_ok, overhead_zone_ok, market_regime_gate_ok, vola_regime_gate_safe, quality_gate_ok, accel_ready_gate_ok, sd_ready_gate_ok, vol_ready_context_ok, stretch_ready_context_ok, ddvi_ready_ok_safe)
 
 resolve_long_ready_reason_code(bool long_ready_state, bool long_setup_confirmed, bool close_safe_mode, bool ready_bar_gap_ok, bool long_confirm_expired, bool ready_is_fresh, bool long_confirm_bearish_guard_ok, bool require_main_break_for_ready, bool bull_bos_sig, bool main_bos_recent, bool setup_hard_gate_ok, bool trade_hard_gate_ok, bool environment_hard_gate_ok, bool session_structure_gate_ok, bool micro_session_gate_ok, bool micro_freshness_gate_ok, bool overhead_zone_ok, bool market_regime_gate_ok, bool vola_regime_gate_safe, bool quality_gate_ok, bool accel_ready_gate_ok, bool sd_ready_gate_ok, bool vol_ready_context_ok, bool stretch_ready_context_ok, bool ddvi_ready_ok_safe) =>
-    int lifecycle_reason_code = resolve_long_ready_lifecycle_reason_code(long_ready_state, long_setup_confirmed, close_safe_mode, ready_bar_gap_ok, long_confirm_expired, ready_is_fresh, long_confirm_bearish_guard_ok, require_main_break_for_ready, bull_bos_sig, main_bos_recent)
-    int reason_code = lifecycle_reason_code
-    if reason_code == 0
-        reason_code := resolve_long_ready_gate_reason_code(setup_hard_gate_ok, trade_hard_gate_ok, environment_hard_gate_ok, session_structure_gate_ok, micro_session_gate_ok, micro_freshness_gate_ok, overhead_zone_ok, market_regime_gate_ok, vola_regime_gate_safe, quality_gate_ok, accel_ready_gate_ok, sd_ready_gate_ok, vol_ready_context_ok, stretch_ready_context_ok, ddvi_ready_ok_safe)
-    if not long_ready_state and reason_code == 1
-        reason_code := 9
-    reason_code
+    ll.resolve_long_ready_reason_code(long_ready_state, long_setup_confirmed, close_safe_mode, ready_bar_gap_ok, long_confirm_expired, ready_is_fresh, long_confirm_bearish_guard_ok, require_main_break_for_ready, bull_bos_sig, main_bos_recent, setup_hard_gate_ok, trade_hard_gate_ok, environment_hard_gate_ok, session_structure_gate_ok, micro_session_gate_ok, micro_freshness_gate_ok, overhead_zone_ok, market_regime_gate_ok, vola_regime_gate_safe, quality_gate_ok, accel_ready_gate_ok, sd_ready_gate_ok, vol_ready_context_ok, stretch_ready_context_ok, ddvi_ready_ok_safe)
 
 resolve_long_ready_row_state(int reason_code) =>
     int row_state = 2
@@ -2021,79 +1892,10 @@ resolve_long_ready_reason_label(int reason_code) =>
     label_text
 
 resolve_long_ready_blocker_text_from_reason_code(int reason_code) =>
-    string ready_blocker_text = compose_passed_status_text()
-    if reason_code == 2
-        ready_blocker_text := compose_awaiting_status_text('Confirm')
-    else if reason_code == 3
-        ready_blocker_text := compose_awaiting_status_text('Close')
-    else if reason_code == 4
-        ready_blocker_text := compose_awaiting_status_text('Next Bar')
-    else if reason_code == 5
-        ready_blocker_text := compose_blocked_status_text('Confirm Expired')
-    else if reason_code == 6
-        ready_blocker_text := compose_blocked_status_text('Confirm Stale')
-    else if reason_code == 7
-        ready_blocker_text := compose_blocked_status_text('Bearish Guard')
-    else if reason_code == 8
-        ready_blocker_text := compose_awaiting_status_text('Main Break')
-    else if reason_code == 9
-        ready_blocker_text := compose_awaiting_status_text('Lifecycle')
-    else if reason_code == 10
-        ready_blocker_text := compose_blocked_status_text('Touch Count')
-    else if reason_code == 11
-        ready_blocker_text := compose_blocked_status_text('Session Gate')
-    else if reason_code == 12
-        ready_blocker_text := compose_blocked_status_text('Micro Session')
-    else if reason_code == 13
-        ready_blocker_text := compose_blocked_status_text('Micro Freshness')
-    else if reason_code == 14
-        ready_blocker_text := compose_blocked_status_text('Overhead')
-    else if reason_code == 15
-        ready_blocker_text := compose_blocked_status_text('Trade Gate')
-    else if reason_code == 16
-        ready_blocker_text := compose_blocked_status_text('Market Gate')
-    else if reason_code == 17
-        ready_blocker_text := compose_blocked_status_text('Vola Gate')
-    else if reason_code == 18
-        ready_blocker_text := compose_blocked_status_text('Event Risk')
-    else if reason_code == 19
-        ready_blocker_text := compose_blocked_status_text('Quality')
-    else if reason_code == 20
-        ready_blocker_text := compose_blocked_status_text('Acceleration')
-    else if reason_code == 21
-        ready_blocker_text := compose_blocked_status_text('SD Confluence')
-    else if reason_code == 22
-        ready_blocker_text := compose_blocked_status_text('Volatility Context')
-    else if reason_code == 23
-        ready_blocker_text := compose_blocked_status_text('Stretch Context')
-    else if reason_code == 24
-        ready_blocker_text := compose_blocked_status_text('DDVI Context')
-    ready_blocker_text
+    ll.resolve_long_ready_blocker_text_from_reason_code(reason_code)
 
 resolve_long_strict_reason_code(bool long_entry_strict_state, bool long_ready_state, bool strict_signal_quality_gate_ok, bool strict_entry_ltf_ok, bool htf_alignment_ok, bool accel_strict_entry_gate_ok, bool sd_entry_strict_gate_ok, bool vol_entry_strict_context_ok_safe, bool stretch_entry_strict_context_ok, bool ddvi_entry_strict_ok_safe) =>
-    int reason_code = 1
-    if not long_entry_strict_state
-        if not long_ready_state
-            reason_code := 2
-        else if not strict_signal_quality_gate_ok
-            reason_code := 3
-        else if not strict_entry_ltf_ok
-            reason_code := 4
-        else if not htf_alignment_ok
-            reason_code := 5
-        else if not accel_strict_entry_gate_ok
-            reason_code := 6
-        else if not sd_entry_strict_gate_ok
-            reason_code := 7
-        else if not vol_entry_strict_context_ok_safe
-            reason_code := 8
-        else if not stretch_entry_strict_context_ok
-            reason_code := 9
-        else if not ddvi_entry_strict_ok_safe
-            reason_code := 10
-        else
-            reason_code := 3
-    reason_code
+    ll.resolve_long_strict_reason_code(long_entry_strict_state, long_ready_state, strict_signal_quality_gate_ok, strict_entry_ltf_ok, htf_alignment_ok, accel_strict_entry_gate_ok, sd_entry_strict_gate_ok, vol_entry_strict_context_ok_safe, stretch_entry_strict_context_ok, ddvi_entry_strict_ok_safe)
 
 resolve_long_strict_row_state(int reason_code) =>
     int row_state = -1
@@ -2126,85 +1928,25 @@ resolve_long_strict_reason_label(int reason_code) =>
     label_text
 
 resolve_long_strict_blocker_text_from_reason_code(int reason_code, string long_ready_blocker_text) =>
-    string strict_blocker_text = compose_passed_status_text()
-    if reason_code == 2
-        strict_blocker_text := compose_need_ready_status_text(long_ready_blocker_text)
-    else if reason_code == 3
-        strict_blocker_text := compose_blocked_status_text('Signal Quality')
-    else if reason_code == 4
-        strict_blocker_text := compose_blocked_status_text('LTF Confirmation')
-    else if reason_code == 5
-        strict_blocker_text := compose_blocked_status_text('HTF Alignment')
-    else if reason_code == 6
-        strict_blocker_text := compose_blocked_status_text('Acceleration')
-    else if reason_code == 7
-        strict_blocker_text := compose_blocked_status_text('SD Confluence')
-    else if reason_code == 8
-        strict_blocker_text := compose_blocked_status_text('Volatility Context')
-    else if reason_code == 9
-        strict_blocker_text := compose_blocked_status_text('Stretch Context')
-    else if reason_code == 10
-        strict_blocker_text := compose_blocked_status_text('DDVI Context')
-    strict_blocker_text
+    ll.resolve_long_strict_blocker_text_from_reason_code(reason_code, long_ready_blocker_text)
 
 compute_long_ready_state(bool close_safe_mode, bool long_setup_confirmed, bool ready_bar_gap_ok, bool long_confirm_expired, bool ready_is_fresh, bool long_confirm_bearish_guard_ok, bool require_main_break_for_ready, bool bull_bos_sig, bool main_bos_recent, bool setup_hard_gate_ok, bool trade_hard_gate_ok, bool environment_hard_gate_ok, bool quality_gate_ok, bool accel_ready_gate_ok, bool sd_ready_gate_ok, bool vol_ready_context_ok, bool stretch_ready_context_ok, bool ddvi_ready_ok_safe) =>
-    bool helper_lifecycle_ready_ok = close_safe_mode and long_setup_confirmed and ready_bar_gap_ok and not long_confirm_expired and ready_is_fresh and long_confirm_bearish_guard_ok and (not require_main_break_for_ready or bull_bos_sig or main_bos_recent)
-    bool helper_long_ready_state = helper_lifecycle_ready_ok and setup_hard_gate_ok and trade_hard_gate_ok and environment_hard_gate_ok and quality_gate_ok and accel_ready_gate_ok and sd_ready_gate_ok and vol_ready_context_ok and stretch_ready_context_ok and ddvi_ready_ok_safe
-    [helper_lifecycle_ready_ok, helper_long_ready_state]
+    ll.compute_long_ready_state(close_safe_mode, long_setup_confirmed, ready_bar_gap_ok, long_confirm_expired, ready_is_fresh, long_confirm_bearish_guard_ok, require_main_break_for_ready, bull_bos_sig, main_bos_recent, setup_hard_gate_ok, trade_hard_gate_ok, environment_hard_gate_ok, quality_gate_ok, accel_ready_gate_ok, sd_ready_gate_ok, vol_ready_context_ok, stretch_ready_context_ok, ddvi_ready_ok_safe)
 
 compute_long_freshness_state(bool long_setup_armed, bool long_setup_confirmed, int current_bar_index, int long_arm_bar_index, int long_confirm_bar_index, int max_bars_arm_to_confirm, int max_bars_confirm_to_ready, bool use_microstructure_profiles, bool micro_is_fast_decay, int effective_fast_decay_setup_age_max, int effective_fast_decay_confirm_age_max) =>
-    int helper_long_setup_age = 0
-    if long_setup_armed and not na(long_arm_bar_index)
-        helper_long_setup_age := current_bar_index - long_arm_bar_index
-    int helper_long_confirm_age = 0
-    if long_setup_confirmed and not na(long_confirm_bar_index)
-        helper_long_confirm_age := current_bar_index - long_confirm_bar_index
-    bool helper_confirm_is_fresh = false
-    if long_setup_armed and not na(long_arm_bar_index) and helper_long_setup_age <= max_bars_arm_to_confirm
-        helper_confirm_is_fresh := true
-    bool helper_ready_is_fresh = false
-    if long_setup_confirmed and not na(long_confirm_bar_index) and helper_long_confirm_age <= max_bars_confirm_to_ready
-        helper_ready_is_fresh := true
-    bool helper_micro_setup_fresh_enough = true
-    if use_microstructure_profiles and micro_is_fast_decay and long_setup_armed and not long_setup_confirmed
-        helper_micro_setup_fresh_enough := helper_long_setup_age <= effective_fast_decay_setup_age_max
-    bool helper_micro_confirm_fresh_enough = true
-    if use_microstructure_profiles and micro_is_fast_decay and long_setup_confirmed
-        helper_micro_confirm_fresh_enough := helper_long_confirm_age <= effective_fast_decay_confirm_age_max
-    bool helper_micro_freshness_gate_ok = helper_micro_setup_fresh_enough and helper_micro_confirm_fresh_enough
-    [helper_long_setup_age, helper_long_confirm_age, helper_confirm_is_fresh, helper_ready_is_fresh, helper_micro_setup_fresh_enough, helper_micro_confirm_fresh_enough, helper_micro_freshness_gate_ok]
+    ll.compute_long_freshness_state(long_setup_armed, long_setup_confirmed, current_bar_index, long_arm_bar_index, long_confirm_bar_index, max_bars_arm_to_confirm, max_bars_confirm_to_ready, use_microstructure_profiles, micro_is_fast_decay, effective_fast_decay_setup_age_max, effective_fast_decay_confirm_age_max)
 
 compute_long_entry_best_state(bool long_ready_state, bool best_signal_quality_gate_ok, bool accel_entry_best_gate_ok, bool sd_entry_best_gate_ok, bool vol_entry_best_context_ok_safe, bool stretch_entry_best_context_ok, bool ddvi_entry_best_ok_safe) =>
-    long_ready_state and best_signal_quality_gate_ok and accel_entry_best_gate_ok and sd_entry_best_gate_ok and vol_entry_best_context_ok_safe and stretch_entry_best_context_ok and ddvi_entry_best_ok_safe
+    ll.compute_long_entry_best_state(long_ready_state, best_signal_quality_gate_ok, accel_entry_best_gate_ok, sd_entry_best_gate_ok, vol_entry_best_context_ok_safe, stretch_entry_best_context_ok, ddvi_entry_best_ok_safe)
 
 compute_long_entry_strict_state(bool long_ready_state, bool strict_signal_quality_gate_ok, bool strict_entry_ltf_ok, bool htf_alignment_ok, bool accel_strict_entry_gate_ok, bool sd_entry_strict_gate_ok, bool vol_entry_strict_context_ok_safe, bool stretch_entry_strict_context_ok, bool ddvi_entry_strict_ok_safe) =>
-    long_ready_state and strict_signal_quality_gate_ok and strict_entry_ltf_ok and htf_alignment_ok and accel_strict_entry_gate_ok and sd_entry_strict_gate_ok and vol_entry_strict_context_ok_safe and stretch_entry_strict_context_ok and ddvi_entry_strict_ok_safe
+    ll.compute_long_entry_strict_state(long_ready_state, strict_signal_quality_gate_ok, strict_entry_ltf_ok, htf_alignment_ok, accel_strict_entry_gate_ok, sd_entry_strict_gate_ok, vol_entry_strict_context_ok_safe, stretch_entry_strict_context_ok, ddvi_entry_strict_ok_safe)
 
 resolve_long_ready_projection_state(bool long_setup_armed, bool long_internal_structure_ok, bool long_setup_confirmed, int long_confirm_bar_index, int current_bar_index, bool use_scoring_over_blocking, bool accel_ready_gate_ok, bool sd_ready_gate_ok, bool vol_ready_context_ok, bool stretch_ready_context_ok, bool ddvi_ready_ok_safe, bool close_safe_mode, bool long_confirm_expired, bool ready_is_fresh, bool long_confirm_bearish_guard_ok, bool require_main_break_for_ready, bool bull_bos_sig, bool main_bos_recent, bool setup_hard_gate_ok, bool trade_hard_gate_ok, bool environment_hard_gate_ok, bool quality_gate_ok) =>
-    bool helper_long_building_state = false
-    if long_setup_armed and long_internal_structure_ok and not long_setup_confirmed
-        helper_long_building_state := true
-    bool helper_ready_bar_gap_ok = false
-    if not na(long_confirm_bar_index)
-        helper_ready_bar_gap_ok := current_bar_index > long_confirm_bar_index
-    bool helper_scoring_accel_ready = accel_ready_gate_ok
-    bool helper_scoring_sd_ready = sd_ready_gate_ok
-    bool helper_scoring_vol_ready = vol_ready_context_ok
-    bool helper_scoring_stretch_ready = stretch_ready_context_ok
-    bool helper_scoring_ddvi_ready = ddvi_ready_ok_safe
-    if use_scoring_over_blocking
-        helper_scoring_accel_ready := true
-        helper_scoring_sd_ready := true
-        helper_scoring_vol_ready := true
-        helper_scoring_stretch_ready := true
-        helper_scoring_ddvi_ready := true
-    [helper_lifecycle_ready_ok, helper_long_ready_state] = compute_long_ready_state(close_safe_mode, long_setup_confirmed, helper_ready_bar_gap_ok, long_confirm_expired, ready_is_fresh, long_confirm_bearish_guard_ok, require_main_break_for_ready, bull_bos_sig, main_bos_recent, setup_hard_gate_ok, trade_hard_gate_ok, environment_hard_gate_ok, quality_gate_ok, helper_scoring_accel_ready, helper_scoring_sd_ready, helper_scoring_vol_ready, helper_scoring_stretch_ready, helper_scoring_ddvi_ready)
-    [helper_long_building_state, helper_ready_bar_gap_ok, helper_scoring_accel_ready, helper_scoring_sd_ready, helper_scoring_vol_ready, helper_scoring_stretch_ready, helper_scoring_ddvi_ready, helper_lifecycle_ready_ok, helper_long_ready_state]
+    ll.resolve_long_ready_projection_state(long_setup_armed, long_internal_structure_ok, long_setup_confirmed, long_confirm_bar_index, current_bar_index, use_scoring_over_blocking, accel_ready_gate_ok, sd_ready_gate_ok, vol_ready_context_ok, stretch_ready_context_ok, ddvi_ready_ok_safe, close_safe_mode, long_confirm_expired, ready_is_fresh, long_confirm_bearish_guard_ok, require_main_break_for_ready, bull_bos_sig, main_bos_recent, setup_hard_gate_ok, trade_hard_gate_ok, environment_hard_gate_ok, quality_gate_ok)
 
 resolve_long_entry_projection_state(bool long_ready_state, bool best_signal_quality_gate_ok, bool accel_entry_best_gate_ok, bool sd_entry_best_gate_ok, bool vol_entry_best_context_ok_safe, bool stretch_entry_best_context_ok, bool ddvi_entry_best_ok_safe, bool strict_signal_quality_gate_ok, bool strict_entry_ltf_ok, bool htf_alignment_ok, bool accel_strict_entry_gate_ok, bool sd_entry_strict_gate_ok, bool vol_entry_strict_context_ok_safe, bool stretch_entry_strict_context_ok, bool ddvi_entry_strict_ok_safe) =>
-    bool helper_long_entry_best_state = compute_long_entry_best_state(long_ready_state, best_signal_quality_gate_ok, accel_entry_best_gate_ok, sd_entry_best_gate_ok, vol_entry_best_context_ok_safe, stretch_entry_best_context_ok, ddvi_entry_best_ok_safe)
-    bool helper_long_entry_strict_state = compute_long_entry_strict_state(long_ready_state, strict_signal_quality_gate_ok, strict_entry_ltf_ok, htf_alignment_ok, accel_strict_entry_gate_ok, sd_entry_strict_gate_ok, vol_entry_strict_context_ok_safe, stretch_entry_strict_context_ok, ddvi_entry_strict_ok_safe)
-    [helper_long_entry_best_state, helper_long_entry_strict_state]
+    ll.resolve_long_entry_projection_state(long_ready_state, best_signal_quality_gate_ok, accel_entry_best_gate_ok, sd_entry_best_gate_ok, vol_entry_best_context_ok_safe, stretch_entry_best_context_ok, ddvi_entry_best_ok_safe, strict_signal_quality_gate_ok, strict_entry_ltf_ok, htf_alignment_ok, accel_strict_entry_gate_ok, sd_entry_strict_gate_ok, vol_entry_strict_context_ok_safe, stretch_entry_strict_context_ok, ddvi_entry_strict_ok_safe)
 
 resolve_long_ready_blocker_display_text(bool long_ready_state, bool long_setup_confirmed, bool close_safe_mode, bool ready_bar_gap_ok, bool long_confirm_expired, bool ready_is_fresh, bool long_confirm_bearish_guard_ok, bool require_main_break_for_ready, bool bull_bos_sig, bool main_bos_recent, bool setup_hard_gate_ok, bool trade_hard_gate_ok, bool environment_hard_gate_ok, bool session_structure_gate_ok, bool micro_session_gate_ok, bool micro_freshness_gate_ok, bool overhead_zone_ok, bool market_regime_gate_ok, bool vola_regime_gate_safe, bool quality_gate_ok, bool accel_ready_gate_ok, bool sd_ready_gate_ok, bool vol_ready_context_ok, bool stretch_ready_context_ok, bool ddvi_ready_ok_safe) =>
     int reason_code = resolve_long_ready_reason_code(long_ready_state, long_setup_confirmed, close_safe_mode, ready_bar_gap_ok, long_confirm_expired, ready_is_fresh, long_confirm_bearish_guard_ok, require_main_break_for_ready, bull_bos_sig, main_bos_recent, setup_hard_gate_ok, trade_hard_gate_ok, environment_hard_gate_ok, session_structure_gate_ok, micro_session_gate_ok, micro_freshness_gate_ok, overhead_zone_ok, market_regime_gate_ok, vola_regime_gate_safe, quality_gate_ok, accel_ready_gate_ok, sd_ready_gate_ok, vol_ready_context_ok, stretch_ready_context_ok, ddvi_ready_ok_safe)
@@ -2221,15 +1963,10 @@ resolve_long_strict_blocker_text(bool long_entry_strict_state, bool long_ready_s
     resolve_long_strict_blocker_display_text(long_entry_strict_state, long_ready_state, long_ready_blocker_text, strict_signal_quality_gate_ok, strict_entry_ltf_ok, htf_alignment_ok, accel_strict_entry_gate_ok, sd_entry_strict_gate_ok, vol_entry_strict_context_ok_safe, stretch_entry_strict_context_ok, ddvi_entry_strict_ok_safe)
 
 resolve_long_execution_blocker_state(bool long_ready_state, bool long_setup_confirmed, bool close_safe_mode, bool ready_bar_gap_ok, bool long_confirm_expired, bool ready_is_fresh, bool long_confirm_bearish_guard_ok, bool require_main_break_for_ready, bool bull_bos_sig, bool main_bos_recent, bool setup_hard_gate_ok, bool trade_hard_gate_ok, bool environment_hard_gate_ok, bool session_structure_gate_ok, bool micro_session_gate_ok, bool micro_freshness_gate_ok, bool overhead_zone_ok, bool market_regime_gate_ok, bool vola_regime_gate_safe, bool quality_gate_ok, bool accel_ready_gate_ok, bool sd_ready_gate_ok, bool vol_ready_context_ok, bool stretch_ready_context_ok, bool ddvi_ready_ok_safe, bool long_entry_strict_state, bool strict_signal_quality_gate_ok, bool strict_entry_ltf_ok, bool htf_alignment_ok, bool accel_strict_entry_gate_ok, bool sd_entry_strict_gate_ok, bool vol_entry_strict_context_ok_safe, bool stretch_entry_strict_context_ok, bool ddvi_entry_strict_ok_safe) =>
-    string helper_long_ready_blocker_text = resolve_long_ready_blocker_text(long_ready_state, long_setup_confirmed, close_safe_mode, ready_bar_gap_ok, long_confirm_expired, ready_is_fresh, long_confirm_bearish_guard_ok, require_main_break_for_ready, bull_bos_sig, main_bos_recent, setup_hard_gate_ok, trade_hard_gate_ok, environment_hard_gate_ok, session_structure_gate_ok, micro_session_gate_ok, micro_freshness_gate_ok, overhead_zone_ok, market_regime_gate_ok, vola_regime_gate_safe, quality_gate_ok, accel_ready_gate_ok, sd_ready_gate_ok, vol_ready_context_ok, stretch_ready_context_ok, ddvi_ready_ok_safe)
-    string helper_long_strict_blocker_text = resolve_long_strict_blocker_text(long_entry_strict_state, long_ready_state, helper_long_ready_blocker_text, strict_signal_quality_gate_ok, strict_entry_ltf_ok, htf_alignment_ok, accel_strict_entry_gate_ok, sd_entry_strict_gate_ok, vol_entry_strict_context_ok_safe, stretch_entry_strict_context_ok, ddvi_entry_strict_ok_safe)
-    [helper_long_ready_blocker_text, helper_long_strict_blocker_text]
+    ll.resolve_long_execution_blocker_state(long_ready_state, long_setup_confirmed, close_safe_mode, ready_bar_gap_ok, long_confirm_expired, ready_is_fresh, long_confirm_bearish_guard_ok, require_main_break_for_ready, bull_bos_sig, main_bos_recent, setup_hard_gate_ok, trade_hard_gate_ok, environment_hard_gate_ok, session_structure_gate_ok, micro_session_gate_ok, micro_freshness_gate_ok, overhead_zone_ok, market_regime_gate_ok, vola_regime_gate_safe, quality_gate_ok, accel_ready_gate_ok, sd_ready_gate_ok, vol_ready_context_ok, stretch_ready_context_ok, ddvi_ready_ok_safe, long_entry_strict_state, strict_signal_quality_gate_ok, strict_entry_ltf_ok, htf_alignment_ok, accel_strict_entry_gate_ok, sd_entry_strict_gate_ok, vol_entry_strict_context_ok_safe, stretch_entry_strict_context_ok, ddvi_entry_strict_ok_safe)
 
 resolve_long_clean_tier(bool close_safe_mode, bool bullish_trend_safe, bool zone_recent, bool reclaim_recent, bool long_setup_confirmed, bool setup_hard_gate_ok, bool trade_hard_gate_ok, bool environment_hard_gate_ok, bool quality_gate_ok, bool bull_close_strong, bool ema_support_ok, bool adx_strong, bool relvol_ok, bool vwap_filter_ok) =>
-    bool helper_long_quality_clean_tier = false
-    if close_safe_mode and bullish_trend_safe and zone_recent and reclaim_recent and long_setup_confirmed and setup_hard_gate_ok and trade_hard_gate_ok and environment_hard_gate_ok and quality_gate_ok and bull_close_strong and ema_support_ok and adx_strong and relvol_ok and vwap_filter_ok
-        helper_long_quality_clean_tier := true
-    helper_long_quality_clean_tier
+    ll.resolve_long_clean_tier(close_safe_mode, bullish_trend_safe, zone_recent, reclaim_recent, long_setup_confirmed, setup_hard_gate_ok, trade_hard_gate_ok, environment_hard_gate_ok, quality_gate_ok, bull_close_strong, ema_support_ok, adx_strong, relvol_ok, vwap_filter_ok)
 
 compose_long_debug_compact_text(string long_setup_source_display, string long_ready_blocker_text, string long_strict_blocker_text) =>
     'src=' + long_setup_source_display + ' | rdy=' + long_ready_blocker_text + ' | st=' + long_strict_blocker_text
@@ -2288,28 +2025,11 @@ compose_long_debug_primary_line(bool debug_mode_full, string long_setup_source_d
         primary_line := compose_long_debug_source_touch_text(long_setup_source_display, long_setup_backing_zone_touch_count)
     primary_line
 
-compose_long_debug_full_summary_text(string long_setup_source_display, int long_setup_backing_zone_touch_count, string freshness_text, string source_state_text, string zone_quality_text, string long_environment_focus_display, string long_ready_blocker_text, string long_strict_blocker_text) =>
-    compose_long_debug_source_touch_text(long_setup_source_display, long_setup_backing_zone_touch_count) + ' | ' + compose_long_debug_fresh_source_text(freshness_text, source_state_text) + ' | ' + compose_long_debug_zone_env_text(zone_quality_text, long_environment_focus_display) + ' | ' + compose_long_debug_ready_strict_text(long_ready_blocker_text, long_strict_blocker_text)
-
 compose_long_debug_label_header_text(string long_engine_debug_mode, string long_setup_text, string long_visual_text) =>
     'Long Engine (' + long_engine_debug_mode + ')\nsetup=' + long_setup_text + ' | visual=' + long_visual_text
 
 compose_long_debug_event_header_text(string event_name, string long_setup_source_display, float long_setup_trigger, float long_invalidation_level) =>
     event_name + ' | src=' + long_setup_source_display + ' | trig=' + u.format_level(long_setup_trigger) + ' | inv=' + u.format_level(long_invalidation_level)
-
-compose_long_debug_summary_text(string long_engine_debug_mode, bool long_setup_armed, bool long_setup_confirmed, bool long_ready_state, string long_setup_source_display, string freshness_text, string source_state_text, string zone_quality_text, string long_environment_focus_display, int long_setup_backing_zone_touch_count, bool long_source_upgrade_now, string long_source_upgrade_reason, string long_last_invalid_source, string long_ready_blocker_text, string long_strict_blocker_text) =>
-    string debug_text = 'idle'
-    bool debug_mode_full = debug_mode_is_full(long_engine_debug_mode)
-    if long_setup_armed or long_setup_confirmed or long_ready_state
-        if debug_mode_full
-            debug_text := compose_long_debug_full_summary_text(long_setup_source_display, long_setup_backing_zone_touch_count, freshness_text, source_state_text, zone_quality_text, long_environment_focus_display, long_ready_blocker_text, long_strict_blocker_text)
-        else
-            debug_text := compose_long_debug_primary_line(debug_mode_full, long_setup_source_display, long_setup_backing_zone_touch_count, long_ready_blocker_text, long_strict_blocker_text)
-    else if long_last_invalid_source != 'None'
-        debug_text := compose_long_debug_last_invalid_text(long_last_invalid_source)
-    if long_source_upgrade_now
-        debug_text += compose_long_debug_pipe_upgrade_text(long_source_upgrade_reason)
-    debug_text
 
 resolve_long_engine_debug_label_display_text(string long_engine_debug_mode, string long_setup_text, string long_visual_text, string long_setup_source_display, string freshness_text, string source_state_text, string zone_quality_text, string long_environment_focus_display, string overhead_text, float long_setup_trigger, float long_invalidation_level, int long_setup_backing_zone_touch_count, bool long_source_upgrade_now, string long_source_upgrade_reason, string long_last_invalid_source, string long_ready_blocker_text, string long_strict_blocker_text) =>
     bool debug_mode_full = debug_mode_is_full(long_engine_debug_mode)
@@ -2335,24 +2055,6 @@ resolve_long_engine_event_log_display_text(string long_engine_debug_mode, string
     if long_last_invalid_source != 'None'
         event_text += compose_long_debug_pipe_reason_text(long_last_invalid_source)
     event_text
-
-compose_long_engine_event_log(string long_engine_debug_mode, string event_name, string long_setup_source_display, float long_setup_trigger, float long_invalidation_level, int long_setup_backing_zone_touch_count, string freshness_text, string source_state_text, string zone_quality_text, string long_environment_focus_display, bool long_source_upgrade_now, string long_source_upgrade_reason, string long_last_invalid_source, string long_ready_blocker_text, string long_strict_blocker_text) =>
-    resolve_long_engine_event_log_display_text(long_engine_debug_mode, event_name, long_setup_source_display, long_setup_trigger, long_invalidation_level, long_setup_backing_zone_touch_count, freshness_text, source_state_text, zone_quality_text, long_environment_focus_display, long_source_upgrade_now, long_source_upgrade_reason, long_last_invalid_source, long_ready_blocker_text, long_strict_blocker_text)
-
-resolve_long_debug_event_values(bool long_invalidate_signal, string long_setup_source_display, string long_debug_event_source_display, int long_setup_backing_zone_touch_count, int long_debug_event_touch_count, float long_setup_trigger, float long_debug_event_trigger, float long_invalidation_level, float long_debug_event_invalidation) =>
-    string debug_log_source_display = long_setup_source_display
-    if long_invalidate_signal
-        debug_log_source_display := long_debug_event_source_display
-    int debug_log_touch_count = long_setup_backing_zone_touch_count
-    if long_invalidate_signal
-        debug_log_touch_count := long_debug_event_touch_count
-    float debug_log_trigger = long_setup_trigger
-    if long_invalidate_signal
-        debug_log_trigger := long_debug_event_trigger
-    float debug_log_invalidation = long_invalidation_level
-    if long_invalidate_signal
-        debug_log_invalidation := long_debug_event_invalidation
-    [debug_log_source_display, debug_log_touch_count, debug_log_trigger, debug_log_invalidation]
 
 resolve_long_upgrade_edge_text(bool ob_source_upgrade_ok, bool fvg_source_upgrade_ok) =>
     string edge_text = 'beat locked source confluence'
@@ -2647,424 +2349,129 @@ resolve_health_badge_color(string signal_quality_tier) =>
     badge_color
 
 pack_bus_row(int row_state, int reason_code) =>
-    float((row_state + 1) * 100 + reason_code)
+    bp.pack_bus_row(row_state, reason_code)
 
 pack_bus_four(float value1, float value2, float value3, float value4) =>
-    value1 * 1000000000.0 + value2 * 1000000.0 + value3 * 1000.0 + value4
+    bp.pack_bus_four(value1, value2, value3, value4)
 
 pack_bus_counts(int primary_count, int secondary_count) =>
-    float(primary_count * 1000000 + secondary_count)
+    bp.pack_bus_counts(primary_count, secondary_count)
 
 normalize_bus_trend(int dir) =>
-    dir > 0 ? 2 : dir < 0 ? 0 : 1
+    bp.normalize_bus_trend(dir)
 
 pack_bus_trend_set(int trend_now, int trend_htf_1, int trend_htf_2, int trend_htf_3) =>
-    float(normalize_bus_trend(trend_now) * 1000 + normalize_bus_trend(trend_htf_1) * 100 + normalize_bus_trend(trend_htf_2) * 10 + normalize_bus_trend(trend_htf_3))
+    bp.pack_bus_trend_set(trend_now, trend_htf_1, trend_htf_2, trend_htf_3)
 
 pack_bus_meta(int freshness_code, int source_state_code, int reclaim_code, int zone_code) =>
-    float(freshness_code * 1000 + source_state_code * 100 + reclaim_code * 10 + zone_code)
+    bp.pack_bus_meta(freshness_code, source_state_code, reclaim_code, zone_code)
 
 resolve_bus_stretch_support_mask(bool use_stretch_context, bool in_lower_extreme, bool lower_extreme_recent, bool anti_chase_ok_ready, bool anti_chase_ok_entry_best) =>
-    int support_mask = 0
-    if use_stretch_context
-        support_mask += 1
-        if in_lower_extreme
-            support_mask += 2
-        if lower_extreme_recent
-            support_mask += 4
-        if anti_chase_ok_ready
-            support_mask += 8
-        if anti_chase_ok_entry_best
-            support_mask += 16
-    float(support_mask)
+    bp.resolve_bus_stretch_support_mask(use_stretch_context, in_lower_extreme, lower_extreme_recent, anti_chase_ok_ready, anti_chase_ok_entry_best)
 
 resolve_bus_freshness_code(bool long_setup_armed, bool long_setup_confirmed, bool ready_is_fresh, bool confirm_is_fresh) =>
-    int freshness_code = 0
-    if long_setup_confirmed
-        freshness_code := ready_is_fresh ? 1 : 2
-    else if long_setup_armed
-        freshness_code := confirm_is_fresh ? 3 : 4
-    freshness_code
+    bp.resolve_bus_freshness_code(long_setup_armed, long_setup_confirmed, ready_is_fresh, confirm_is_fresh)
 
 resolve_bus_source_state_code(bool long_source_tracked, bool long_source_alive, bool long_source_broken) =>
-    int source_state_code = 0
-    if long_source_tracked
-        if long_source_alive
-            source_state_code := 1
-        else if long_source_broken
-            source_state_code := 2
-        else
-            source_state_code := 3
-    source_state_code
+    bp.resolve_bus_source_state_code(long_source_tracked, long_source_alive, long_source_broken)
 
 resolve_bus_zone_code(bool long_zone_active, bool in_bull_ob_zone, bool in_bull_fvg_zone) =>
-    int zone_code = 0
-    if long_zone_active
-        zone_code := 1
-    if in_bull_fvg_zone
-        zone_code := 2
-    if in_bull_ob_zone
-        zone_code := 3
-    if in_bull_ob_zone and in_bull_fvg_zone
-        zone_code := 4
-    zone_code
+    bp.resolve_bus_zone_code(long_zone_active, in_bull_ob_zone, in_bull_fvg_zone)
 
 resolve_bus_zone_row(bool long_zone_active, bool in_bull_ob_zone, bool in_bull_fvg_zone) =>
-    int zone_code = resolve_bus_zone_code(long_zone_active, in_bull_ob_zone, in_bull_fvg_zone)
-    int zone_state = 0
-    if zone_code == 2 or zone_code == 3
-        zone_state := 4
-    else if zone_code == 4
-        zone_state := 5
-    pack_bus_row(zone_state, zone_code)
+    bp.resolve_bus_zone_row(long_zone_active, in_bull_ob_zone, in_bull_fvg_zone)
 
 resolve_bus_reclaim_code(bool reclaim_recent, bool bull_reclaim_internal_low_strict, bool bull_reclaim_swing_low_strict, bool bull_reclaim_fvg_strict, bool bull_reclaim_ob_strict) =>
-    int reclaim_code = 0
-    if reclaim_recent
-        reclaim_code := 1
-    if bull_reclaim_internal_low_strict
-        reclaim_code := 2
-    if bull_reclaim_swing_low_strict
-        reclaim_code := 3
-    if bull_reclaim_fvg_strict
-        reclaim_code := 4
-    if bull_reclaim_ob_strict
-        reclaim_code := 5
-    reclaim_code
+    bp.resolve_bus_reclaim_code(reclaim_recent, bull_reclaim_internal_low_strict, bull_reclaim_swing_low_strict, bull_reclaim_fvg_strict, bull_reclaim_ob_strict)
 
 resolve_bus_reclaim_row(bool reclaim_recent, bool bull_reclaim_internal_low_strict, bool bull_reclaim_swing_low_strict, bool bull_reclaim_fvg_strict, bool bull_reclaim_ob_strict) =>
-    int reclaim_code = resolve_bus_reclaim_code(reclaim_recent, bull_reclaim_internal_low_strict, bull_reclaim_swing_low_strict, bull_reclaim_fvg_strict, bull_reclaim_ob_strict)
-    int reclaim_state = 0
-    if reclaim_code == 1
-        reclaim_state := 2
-    else if reclaim_code == 2 or reclaim_code == 3
-        reclaim_state := 4
-    else if reclaim_code == 4 or reclaim_code == 5
-        reclaim_state := 5
-    pack_bus_row(reclaim_state, reclaim_code)
+    bp.resolve_bus_reclaim_row(reclaim_recent, bull_reclaim_internal_low_strict, bull_reclaim_swing_low_strict, bull_reclaim_fvg_strict, bull_reclaim_ob_strict)
 
 resolve_bus_session_row(bool intraday_time_chart, bool use_trade_session_gate, bool use_opening_range_gate, bool session_structure_gate_ok, bool session_gate_ok) =>
-    if not intraday_time_chart
-        pack_bus_row(0, 1)
-    else if not use_trade_session_gate and not use_opening_range_gate
-        pack_bus_row(0, 2)
-    else if session_structure_gate_ok
-        pack_bus_row(5, 1)
-    else if not session_gate_ok
-        pack_bus_row(-1, 3)
-    else
-        pack_bus_row(-1, 4)
+    bp.resolve_bus_session_row(intraday_time_chart, use_trade_session_gate, use_opening_range_gate, session_structure_gate_ok, session_gate_ok)
 
 resolve_bus_market_row(bool use_index_gate, bool use_sector_gate, bool use_breadth_symbol_gate, bool market_symbols_missing, bool block_on_missing_market_symbol, bool market_regime_gate_ok, bool index_gate_effective_ok, bool sector_gate_effective_ok) =>
-    if not use_index_gate and not use_sector_gate and not use_breadth_symbol_gate
-        pack_bus_row(0, 1)
-    else if market_symbols_missing and block_on_missing_market_symbol
-        pack_bus_row(-1, 2)
-    else if market_symbols_missing
-        pack_bus_row(2, 2)
-    else if market_regime_gate_ok
-        pack_bus_row(5, 1)
-    else if not index_gate_effective_ok
-        pack_bus_row(-1, 3)
-    else if not sector_gate_effective_ok
-        pack_bus_row(-1, 4)
-    else
-        pack_bus_row(-1, 5)
+    bp.resolve_bus_market_row(use_index_gate, use_sector_gate, use_breadth_symbol_gate, market_symbols_missing, block_on_missing_market_symbol, market_regime_gate_ok, index_gate_effective_ok, sector_gate_effective_ok)
 
 resolve_bus_vola_row(bool use_vola_compression_gate, bool vola_regime_gate_safe, bool vola_expansion_now, bool vola_compression_recent) =>
-    if not use_vola_compression_gate
-        pack_bus_row(0, 1)
-    else if vola_regime_gate_safe and vola_expansion_now
-        pack_bus_row(5, 2)
-    else if vola_regime_gate_safe and vola_compression_recent
-        pack_bus_row(3, 3)
-    else if vola_regime_gate_safe
-        pack_bus_row(3, 1)
-    else
-        pack_bus_row(-1, 4)
+    bp.resolve_bus_vola_row(use_vola_compression_gate, vola_regime_gate_safe, vola_expansion_now, vola_compression_recent)
 
 resolve_bus_micro_session_row(bool use_microstructure_profiles, bool intraday_time_chart, bool micro_session_gate_ok, bool micro_rth_gate_ok, bool micro_midday_gate_ok, bool micro_premarket_gate_ok) =>
-    if not use_microstructure_profiles or not intraday_time_chart
-        pack_bus_row(0, 1)
-    else if micro_session_gate_ok
-        pack_bus_row(5, 1)
-    else if not micro_rth_gate_ok
-        pack_bus_row(-1, 2)
-    else if not micro_midday_gate_ok
-        pack_bus_row(-1, 3)
-    else if not micro_premarket_gate_ok
-        pack_bus_row(-1, 4)
-    else
-        pack_bus_row(-1, 5)
+    bp.resolve_bus_micro_session_row(use_microstructure_profiles, intraday_time_chart, micro_session_gate_ok, micro_rth_gate_ok, micro_midday_gate_ok, micro_premarket_gate_ok)
 
 resolve_bus_micro_fresh_row(bool use_microstructure_profiles, bool micro_freshness_gate_ok) =>
-    if not use_microstructure_profiles
-        pack_bus_row(0, 1)
-    else if micro_freshness_gate_ok
-        pack_bus_row(5, 1)
-    else
-        pack_bus_row(-1, 2)
+    bp.resolve_bus_micro_fresh_row(use_microstructure_profiles, micro_freshness_gate_ok)
 
 resolve_bus_volume_data_row(bool volume_current_bar_ok, bool volume_feed_quality_ok, bool ltf_sampling_active, bool ltf_price_ok, bool ltf_volume_ok, bool ltf_price_only) =>
-    if not volume_current_bar_ok
-        pack_bus_row(-1, 1)
-    else if not volume_feed_quality_ok
-        pack_bus_row(2, 2)
-    else if ltf_sampling_active and ltf_price_ok and not ltf_volume_ok
-        pack_bus_row(2, 3)
-    else if ltf_price_only
-        pack_bus_row(2, 4)
-    else
-        pack_bus_row(5, 1)
+    bp.resolve_bus_volume_data_row(volume_current_bar_ok, volume_feed_quality_ok, ltf_sampling_active, ltf_price_ok, ltf_volume_ok, ltf_price_only)
 
 resolve_bus_quality_env_row(bool environment_hard_gate_ok, bool market_regime_gate_ok, bool vola_regime_gate_safe) =>
-    if environment_hard_gate_ok
-        pack_bus_row(5, 1)
-    else if not market_regime_gate_ok
-        pack_bus_row(-1, 2)
-    else if not vola_regime_gate_safe
-        pack_bus_row(-1, 3)
-    else
-        pack_bus_row(2, 4)
+    bp.resolve_bus_quality_env_row(environment_hard_gate_ok, market_regime_gate_ok, vola_regime_gate_safe)
 
 resolve_bus_quality_strict_row(bool long_entry_strict_state, bool strict_entry_ltf_ok, bool htf_alignment_ok, bool accel_strict_entry_gate_ok, bool sd_entry_strict_gate_ok, bool vol_entry_strict_context_ok_safe, bool stretch_entry_strict_context_ok, bool ddvi_entry_strict_ok_safe) =>
-    bool strict_quality_ok = strict_entry_ltf_ok and htf_alignment_ok and accel_strict_entry_gate_ok and sd_entry_strict_gate_ok and vol_entry_strict_context_ok_safe and stretch_entry_strict_context_ok and ddvi_entry_strict_ok_safe
-    if long_entry_strict_state
-        pack_bus_row(5, 1)
-    else if strict_quality_ok
-        pack_bus_row(4, 2)
-    else if not strict_entry_ltf_ok
-        pack_bus_row(-1, 3)
-    else if not htf_alignment_ok
-        pack_bus_row(-1, 4)
-    else if not accel_strict_entry_gate_ok
-        pack_bus_row(-1, 5)
-    else if not sd_entry_strict_gate_ok
-        pack_bus_row(-1, 6)
-    else if not vol_entry_strict_context_ok_safe
-        pack_bus_row(-1, 7)
-    else if not stretch_entry_strict_context_ok
-        pack_bus_row(-1, 8)
-    else
-        pack_bus_row(-1, 9)
+    bp.resolve_bus_quality_strict_row(long_entry_strict_state, strict_entry_ltf_ok, htf_alignment_ok, accel_strict_entry_gate_ok, sd_entry_strict_gate_ok, vol_entry_strict_context_ok_safe, stretch_entry_strict_context_ok, ddvi_entry_strict_ok_safe)
 
 resolve_bus_close_strength_row(bool use_strong_close_filter, bool bull_close_strong) =>
-    if not use_strong_close_filter
-        pack_bus_row(0, 1)
-    else if bull_close_strong
-        pack_bus_row(5, 1)
-    else
-        pack_bus_row(-1, 2)
+    bp.resolve_bus_close_strength_row(use_strong_close_filter, bull_close_strong)
 
 resolve_bus_ema_support_row(bool show_ema_support, bool ema_support_ok) =>
-    if not show_ema_support
-        pack_bus_row(0, 1)
-    else if ema_support_ok
-        pack_bus_row(5, 1)
-    else
-        pack_bus_row(-1, 2)
+    bp.resolve_bus_ema_support_row(show_ema_support, ema_support_ok)
 
 resolve_bus_adx_row(bool use_adx, bool adx_data_ok, float plus_di, float minus_di, bool adx_strong, float adx_value, float adx_trend_min) =>
-    if not use_adx
-        pack_bus_row(0, 1)
-    else if not adx_data_ok
-        pack_bus_row(0, 2)
-    else if plus_di < minus_di
-        pack_bus_row(-1, 3)
-    else if adx_strong
-        pack_bus_row(5, 4)
-    else if adx_value >= adx_trend_min
-        pack_bus_row(3, 5)
-    else
-        pack_bus_row(2, 6)
+    bp.resolve_bus_adx_row(use_adx, adx_data_ok, plus_di, minus_di, adx_strong, adx_value, adx_trend_min)
 
 resolve_bus_relvol_row(bool use_rel_volume, bool relvol_data_ok, bool allow_relvol_without_volume_data, bool relvol_ok) =>
-    if not use_rel_volume
-        pack_bus_row(0, 1)
-    else if not relvol_data_ok and allow_relvol_without_volume_data
-        pack_bus_row(2, 2)
-    else if not relvol_data_ok
-        pack_bus_row(-1, 3)
-    else if relvol_ok
-        pack_bus_row(5, 4)
-    else
-        pack_bus_row(-1, 5)
+    bp.resolve_bus_relvol_row(use_rel_volume, relvol_data_ok, allow_relvol_without_volume_data, relvol_ok)
 
 resolve_bus_vwap_row(bool use_vwap_filter, bool intraday_time_chart, bool vwap_session_active, bool vwap_filter_ok) =>
-    if not use_vwap_filter
-        pack_bus_row(0, 1)
-    else if not intraday_time_chart
-        pack_bus_row(0, 2)
-    else if not vwap_session_active
-        pack_bus_row(0, 3)
-    else if vwap_filter_ok
-        pack_bus_row(5, 4)
-    else
-        pack_bus_row(-1, 5)
+    bp.resolve_bus_vwap_row(use_vwap_filter, intraday_time_chart, vwap_session_active, vwap_filter_ok)
 
 resolve_bus_context_quality_row(bool use_context_quality_score_eff, bool context_quality_gate_ok) =>
-    if not use_context_quality_score_eff
-        pack_bus_row(0, 1)
-    else if context_quality_gate_ok
-        pack_bus_row(5, 2)
-    else
-        pack_bus_row(2, 3)
+    bp.resolve_bus_context_quality_row(use_context_quality_score_eff, context_quality_gate_ok)
 
 resolve_bus_quality_score_row(int signal_quality_score) =>
-    if signal_quality_score >= 75
-        pack_bus_row(5, 4)
-    else if signal_quality_score >= 50
-        pack_bus_row(5, 3)
-    else if signal_quality_score >= 25
-        pack_bus_row(4, 2)
-    else
-        pack_bus_row(2, 1)
+    bp.resolve_bus_quality_score_row(signal_quality_score)
 
 resolve_bus_quality_clean_row(bool long_quality_clean_tier) =>
-    long_quality_clean_tier ? pack_bus_row(5, 1) : pack_bus_row(0, 2)
+    bp.resolve_bus_quality_clean_row(long_quality_clean_tier)
 
 resolve_bus_sd_confluence_row(bool use_sd_confluence, bool sd_support_both_recent, bool sd_bullish_divergence_recent, bool sd_higher_lows_recent, bool sd_support_any_recent) =>
-    if not use_sd_confluence
-        pack_bus_row(0, 1)
-    else if sd_support_both_recent
-        pack_bus_row(5, 2)
-    else if sd_bullish_divergence_recent
-        pack_bus_row(4, 3)
-    else if sd_higher_lows_recent
-        pack_bus_row(4, 4)
-    else if sd_support_any_recent
-        pack_bus_row(4, 5)
-    else
-        pack_bus_row(0, 6)
+    bp.resolve_bus_sd_confluence_row(use_sd_confluence, sd_support_both_recent, sd_bullish_divergence_recent, sd_higher_lows_recent, sd_support_any_recent)
 
 resolve_bus_sd_osc_row(bool use_sd_confluence, float sd_value, bool sd_above_zero, bool sd_rising, bool sd_below_zero, bool sd_falling) =>
-    if not use_sd_confluence
-        pack_bus_row(0, 1)
-    else if na(sd_value)
-        pack_bus_row(0, 2)
-    else if sd_above_zero and sd_rising
-        pack_bus_row(5, 3)
-    else if sd_rising
-        pack_bus_row(3, 4)
-    else if sd_below_zero and sd_falling
-        pack_bus_row(-1, 5)
-    else
-        pack_bus_row(2, 6)
+    bp.resolve_bus_sd_osc_row(use_sd_confluence, sd_value, sd_above_zero, sd_rising, sd_below_zero, sd_falling)
 
 resolve_bus_vol_regime_row(bool use_volatility_regime, bool vol_regime_trend_ok) =>
-    if not use_volatility_regime
-        pack_bus_row(0, 1)
-    else if vol_regime_trend_ok
-        pack_bus_row(5, 2)
-    else
-        pack_bus_row(-1, 3)
+    bp.resolve_bus_vol_regime_row(use_volatility_regime, vol_regime_trend_ok)
 
 resolve_bus_vol_squeeze_row(bool use_volatility_regime, bool vol_squeeze_on, bool vol_squeeze_release_recent, bool vol_squeeze_recent) =>
-    if not use_volatility_regime
-        pack_bus_row(0, 1)
-    else if vol_squeeze_on
-        pack_bus_row(5, 2)
-    else if vol_squeeze_release_recent
-        pack_bus_row(4, 3)
-    else if vol_squeeze_recent
-        pack_bus_row(3, 4)
-    else
-        pack_bus_row(0, 5)
+    bp.resolve_bus_vol_squeeze_row(use_volatility_regime, vol_squeeze_on, vol_squeeze_release_recent, vol_squeeze_recent)
 
 resolve_bus_vol_expansion_state(bool use_volatility_regime, bool vol_momentum_expanding_long, bool vol_stack_spread_rising) =>
-    if not use_volatility_regime
-        1
-    else if vol_momentum_expanding_long and vol_stack_spread_rising
-        2
-    else if vol_momentum_expanding_long or vol_stack_spread_rising
-        3
-    else
-        4
+    bp.resolve_bus_vol_expansion_state(use_volatility_regime, vol_momentum_expanding_long, vol_stack_spread_rising)
 
 resolve_bus_stretch_row(bool use_stretch_context, float distance_to_mean_z, bool in_lower_extreme, bool lower_extreme_recent, bool anti_chase_ok_entry_best, bool anti_chase_ok_ready) =>
-    if not use_stretch_context
-        pack_bus_row(0, 1)
-    else if na(distance_to_mean_z)
-        pack_bus_row(0, 2)
-    else if (in_lower_extreme or lower_extreme_recent) and anti_chase_ok_entry_best
-        pack_bus_row(5, in_lower_extreme ? 3 : 4)
-    else if anti_chase_ok_ready
-        pack_bus_row(3, 5)
-    else
-        pack_bus_row(-1, 6)
+    bp.resolve_bus_stretch_row(use_stretch_context, distance_to_mean_z, in_lower_extreme, lower_extreme_recent, anti_chase_ok_entry_best, anti_chase_ok_ready)
 
 resolve_bus_ddvi_context_state(bool use_ddvi_context, bool ddvi_bias_ok, bool ddvi_bull_divergence_any, bool ddvi_lower_extreme_context) =>
-    if not use_ddvi_context
-        1
-    else if ddvi_bias_ok and ddvi_bull_divergence_any
-        2
-    else if ddvi_bias_ok
-        3
-    else if ddvi_bull_divergence_any
-        4
-    else if ddvi_lower_extreme_context
-        5
-    else
-        6
+    bp.resolve_bus_ddvi_context_state(use_ddvi_context, ddvi_bias_ok, ddvi_bull_divergence_any, ddvi_lower_extreme_context)
 
 resolve_bus_ltf_bias_row(bool show_dashboard_ltf_eff, bool ltf_sampling_active, bool ltf_price_ok, bool ltf_price_only, float ltf_bull_share, float ltf_bias_hint) =>
-    if not show_dashboard_ltf_eff
-        pack_bus_row(0, 1)
-    else if not ltf_sampling_active or not ltf_price_ok
-        pack_bus_row(0, 2)
-    else if ltf_bull_share >= ltf_bias_hint and ltf_price_only
-        pack_bus_row(5, 3)
-    else if ltf_bull_share >= ltf_bias_hint
-        pack_bus_row(5, 4)
-    else if ltf_bull_share >= 0.50
-        pack_bus_row(3, 5)
-    else
-        pack_bus_row(-1, 6)
+    bp.resolve_bus_ltf_bias_row(show_dashboard_ltf_eff, ltf_sampling_active, ltf_price_ok, ltf_price_only, ltf_bull_share, ltf_bias_hint)
 
 resolve_bus_ltf_delta_state(bool show_dashboard_ltf_eff, bool ltf_sampling_active, bool ltf_price_only, float ltf_volume_delta) =>
-    if not show_dashboard_ltf_eff
-        1
-    else if not ltf_sampling_active
-        2
-    else if ltf_price_only
-        3
-    else if na(ltf_volume_delta)
-        4
-    else if ltf_volume_delta >= 0
-        5
-    else
-        6
+    bp.resolve_bus_ltf_delta_state(show_dashboard_ltf_eff, ltf_sampling_active, ltf_price_only, ltf_volume_delta)
 
 resolve_bus_objects_row(int ob_count, int fvg_count) =>
-    if ob_count > 0 and fvg_count > 0
-        pack_bus_row(5, 3)
-    else if ob_count > 0
-        pack_bus_row(3, 1)
-    else if fvg_count > 0
-        pack_bus_row(3, 2)
-    else
-        pack_bus_row(0, 4)
+    bp.resolve_bus_objects_row(ob_count, fvg_count)
 
 resolve_bus_safe_trend_state(bool bullish_trend_safe, bool bearish_trend_safe) =>
     bullish_trend_safe ? 1 : bearish_trend_safe ? 2 : 3
 
 resolve_bus_micro_profile_code(bool use_microstructure_profiles, string micro_profile_text, string micro_modifier_text) =>
-    int profile_code = 0
-    if use_microstructure_profiles
-        profile_code := 1
-        if micro_profile_text == 'Stop-Hunt Sensitive'
-            profile_code := 2
-        else if micro_profile_text == 'Clean Reclaim'
-            profile_code := 3
-        else if micro_profile_text == 'RTH Only'
-            profile_code := 4
-        else if micro_profile_text == 'Midday Dead'
-            profile_code := 5
-        else if micro_profile_text == 'Fast Decay'
-            profile_code := 6
-        if str.length(micro_modifier_text) > 0
-            profile_code += 10
-    profile_code
+    int base_code = micro_profile_text == 'Stop-Hunt Sensitive' ? 2 : micro_profile_text == 'Clean Reclaim' ? 3 : micro_profile_text == 'RTH Only' ? 4 : micro_profile_text == 'Midday Dead' ? 5 : micro_profile_text == 'Fast Decay' ? 6 : 1
+    int modifier_code = micro_modifier_text != '' ? 10 : 0
+    use_microstructure_profiles ? base_code + modifier_code : 0
 
 resolve_bus_ready_blocker_code(bool long_ready_state, bool long_setup_confirmed, bool lifecycle_ready_ok, bool setup_hard_gate_ok, bool trade_hard_gate_ok, bool environment_hard_gate_ok, bool close_safe_mode, bool ready_bar_gap_ok, bool long_confirm_expired, bool ready_is_fresh, bool long_confirm_bearish_guard_ok, bool require_main_break_for_ready, bool bull_bos_sig, bool main_bos_recent, bool session_structure_gate_ok, bool micro_session_gate_ok, bool micro_freshness_gate_ok, bool overhead_zone_ok, bool market_regime_gate_ok, bool vola_regime_gate_safe, bool quality_gate_ok, bool accel_ready_gate_ok, bool sd_ready_gate_ok, bool vol_ready_context_ok, bool stretch_ready_context_ok, bool ddvi_ready_ok_safe) =>
     resolve_long_ready_reason_code(long_ready_state, long_setup_confirmed, close_safe_mode, ready_bar_gap_ok, long_confirm_expired, ready_is_fresh, long_confirm_bearish_guard_ok, require_main_break_for_ready, bull_bos_sig, main_bos_recent, setup_hard_gate_ok, trade_hard_gate_ok, environment_hard_gate_ok, session_structure_gate_ok, micro_session_gate_ok, micro_freshness_gate_ok, overhead_zone_ok, market_regime_gate_ok, vola_regime_gate_safe, quality_gate_ok, accel_ready_gate_ok, sd_ready_gate_ok, vol_ready_context_ok, stretch_ready_context_ok, ddvi_ready_ok_safe)
@@ -3664,10 +3071,7 @@ resolve_fvg_alert_level(FVG gap) =>
     level
 
 compute_long_plan_state(bool long_setup_armed, bool long_setup_confirmed, float long_trigger, float long_invalidation_level) =>
-    bool helper_long_plan_active = false
-    if (long_setup_armed or long_setup_confirmed) and not na(long_trigger) and not na(long_invalidation_level)
-        helper_long_plan_active := true
-    helper_long_plan_active
+    ll.compute_long_plan_state(long_setup_armed, long_setup_confirmed, long_trigger, long_invalidation_level)
 
 compute_long_overhead_context(bool long_plan_active, float close_price, float long_trigger, float long_invalidation_level, float ob_threshold_atr, float stop_buffer_atr_mult, OrderBlock[] ob_blocks_bear_param, int bear_ob_scan_start, FVG[] fvgs_bear_param, int bear_fvg_scan_start, bool use_overhead_zone_filter, float min_headroom_r) =>
     float helper_planned_stop_level = na
@@ -3709,63 +3113,10 @@ compute_long_overhead_context(bool long_plan_active, float close_price, float lo
     [helper_planned_stop_level, helper_planned_risk, helper_headroom_to_overhead, helper_overhead_zone_ok]
 
 compute_long_risk_plan_state(bool long_plan_active, float long_planned_stop_level, float planned_risk, float long_trigger, float target1_r, float target2_r) =>
-    float helper_long_stop_level = na
-    float helper_long_risk_r = na
-    float helper_long_target_1 = na
-    float helper_long_target_2 = na
-    if long_plan_active and not na(long_planned_stop_level) and not na(planned_risk)
-        helper_long_stop_level := long_planned_stop_level
-        helper_long_risk_r := planned_risk
-        helper_long_target_1 := long_trigger + helper_long_risk_r * target1_r
-        helper_long_target_2 := long_trigger + helper_long_risk_r * target2_r
-    [helper_long_stop_level, helper_long_risk_r, helper_long_target_1, helper_long_target_2]
+    ll.compute_long_risk_plan_state(long_plan_active, long_planned_stop_level, planned_risk, long_trigger, target1_r, target2_r)
 
 resolve_long_bus_plan_levels(bool long_plan_active, float long_trigger, float long_invalidation_level, float long_stop_level, float long_target_1, float long_target_2) =>
-    float helper_bus_trigger_level = na
-    float helper_bus_invalidation_level = na
-    float helper_bus_stop_level = na
-    float helper_bus_target_1 = na
-    float helper_bus_target_2 = na
-    if long_plan_active
-        helper_bus_trigger_level := long_trigger
-        helper_bus_invalidation_level := long_invalidation_level
-        helper_bus_stop_level := long_stop_level
-        helper_bus_target_1 := long_target_1
-        helper_bus_target_2 := long_target_2
-    [helper_bus_trigger_level, helper_bus_invalidation_level, helper_bus_stop_level, helper_bus_target_1, helper_bus_target_2]
-
-resolve_long_ready_signal_state(bool long_ready_state, bool prior_bar_ready_state, int ready_state_rt_prev, bool ready_fired_this_bar, bool current_bar_is_new) =>
-    int helper_ready_state_rt_prev = ready_state_rt_prev
-    bool helper_ready_fired_this_bar = ready_fired_this_bar
-    if current_bar_is_new
-        helper_ready_state_rt_prev := 0
-        if prior_bar_ready_state
-            helper_ready_state_rt_prev := 1
-        helper_ready_fired_this_bar := false
-    bool helper_long_ready_signal = false
-    if long_ready_state and helper_ready_state_rt_prev == 0 and not helper_ready_fired_this_bar
-        helper_long_ready_signal := true
-    if helper_long_ready_signal
-        helper_ready_fired_this_bar := true
-    helper_ready_state_rt_prev := 0
-    if long_ready_state
-        helper_ready_state_rt_prev := 1
-    [helper_ready_state_rt_prev, helper_ready_fired_this_bar, helper_long_ready_signal]
-
-emit_long_engine_debug_logs(bool show_long_engine_debug_eff, string long_engine_debug_mode_eff, bool long_source_upgrade_now, bool long_arm_signal, bool long_confirm_signal, bool long_ready_signal, bool long_invalidate_signal, bool long_state_armed, bool long_state_confirmed, bool long_ready_state, string long_setup_source_display, string long_debug_event_source_display, int long_state_backing_zone_touch_count, int long_debug_event_touch_count, float long_state_trigger, float long_debug_event_trigger, float long_state_invalidation_level, float long_debug_event_invalidation, string freshness_text, string source_state_text, string zone_quality_text, string long_environment_focus_display, string long_source_upgrade_reason, string long_last_invalid_source, string long_ready_blocker_text, string long_strict_blocker_text) =>
-    [debug_log_source_display, debug_log_touch_count, debug_log_trigger, debug_log_invalidation] = resolve_long_debug_event_values(long_invalidate_signal, long_setup_source_display, long_debug_event_source_display, long_state_backing_zone_touch_count, long_debug_event_touch_count, long_state_trigger, long_debug_event_trigger, long_state_invalidation_level, long_debug_event_invalidation)
-    string helper_summary = compose_long_debug_summary_text(long_engine_debug_mode_eff, long_state_armed, long_state_confirmed, long_ready_state, long_setup_source_display, freshness_text, source_state_text, zone_quality_text, long_environment_focus_display, long_state_backing_zone_touch_count, long_source_upgrade_now, long_source_upgrade_reason, long_last_invalid_source, long_ready_blocker_text, long_strict_blocker_text)
-    if show_long_engine_debug_eff and long_source_upgrade_now
-        log.info('{0}', compose_long_engine_event_log(long_engine_debug_mode_eff, 'LONG UPGRADE', debug_log_source_display, debug_log_trigger, debug_log_invalidation, debug_log_touch_count, freshness_text, source_state_text, zone_quality_text, long_environment_focus_display, true, long_source_upgrade_reason, long_last_invalid_source, long_ready_blocker_text, long_strict_blocker_text))
-    if show_long_engine_debug_eff and long_arm_signal
-        log.info('{0}', compose_long_engine_event_log(long_engine_debug_mode_eff, 'LONG ARMED', debug_log_source_display, debug_log_trigger, debug_log_invalidation, debug_log_touch_count, freshness_text, source_state_text, zone_quality_text, long_environment_focus_display, long_source_upgrade_now, long_source_upgrade_reason, long_last_invalid_source, long_ready_blocker_text, long_strict_blocker_text))
-    if show_long_engine_debug_eff and long_confirm_signal
-        log.info('{0}', compose_long_engine_event_log(long_engine_debug_mode_eff, 'LONG CONFIRMED', debug_log_source_display, debug_log_trigger, debug_log_invalidation, debug_log_touch_count, freshness_text, source_state_text, zone_quality_text, long_environment_focus_display, long_source_upgrade_now, long_source_upgrade_reason, long_last_invalid_source, long_ready_blocker_text, long_strict_blocker_text))
-    if show_long_engine_debug_eff and long_ready_signal
-        log.info('{0}', compose_long_engine_event_log(long_engine_debug_mode_eff, 'LONG READY', debug_log_source_display, debug_log_trigger, debug_log_invalidation, debug_log_touch_count, freshness_text, source_state_text, zone_quality_text, long_environment_focus_display, long_source_upgrade_now, long_source_upgrade_reason, long_last_invalid_source, long_ready_blocker_text, long_strict_blocker_text))
-    if show_long_engine_debug_eff and long_invalidate_signal
-        log.info('{0}', compose_long_engine_event_log(long_engine_debug_mode_eff, 'LONG INVALID', debug_log_source_display, debug_log_trigger, debug_log_invalidation, debug_log_touch_count, freshness_text, source_state_text, zone_quality_text, long_environment_focus_display, long_source_upgrade_now, long_source_upgrade_reason, long_last_invalid_source, long_ready_blocker_text, long_strict_blocker_text))
-    helper_summary
+    ll.resolve_long_bus_plan_levels(long_plan_active, long_trigger, long_invalidation_level, long_stop_level, long_target_1, long_target_2)
 
 resolve_ob_top_boundary(OrderBlock block) =>
     float level = na
@@ -6448,7 +5799,7 @@ if long_plan_active and show_mean_target_overlay_eff and not na(stretch_mean)
 varip int long_ready_state_rt_prev = 0
 varip bool long_ready_fired_this_bar = false
 bool long_ready_signal = false
-[long_ready_state_rt_prev, long_ready_fired_this_bar, long_ready_signal] = resolve_long_ready_signal_state(long_ready_state, long_ready_state[1], long_ready_state_rt_prev, long_ready_fired_this_bar, barstate.isnew)
+[long_ready_state_rt_prev, long_ready_fired_this_bar, long_ready_signal] = obv.resolve_long_ready_signal_state(long_ready_state, long_ready_state[1], long_ready_state_rt_prev, long_ready_fired_this_bar, barstate.isnew)
 
 long_setup_text := compose_long_setup_text(long_zone_active, long_state.armed, long_building_state, long_state.confirmed, long_ready_state, long_entry_best_state, long_entry_strict_state, long_invalidated_now, invalidated_prior_setup, long_invalidated_this_bar, long_setup_source_display)
 
@@ -6461,7 +5812,7 @@ long_bg_color := resolve_long_bg_color(long_visual_state, long_color_building)
 long_bar_color := resolve_long_bar_color(long_visual_state, long_color_building)
 validate_long_state(long_state, show_long_engine_debug_eff)
 
-string long_debug_summary_text = emit_long_engine_debug_logs(show_long_engine_debug_eff, long_engine_debug_mode_eff, long_source_upgrade_now, long_arm_signal, long_confirm_signal, long_ready_signal, long_invalidate_signal, long_state.armed, long_state.confirmed, long_ready_state, long_setup_source_display, long_debug_event_source_display, long_state.backing_zone_touch_count, long_debug_event_touch_count, long_state.trigger, long_debug_event_trigger, long_state.invalidation_level, long_debug_event_invalidation, freshness_text, source_state_text, zone_quality_text, long_environment_focus_display, long_source_upgrade_reason, long_state.last_invalid_source, long_ready_blocker_text, long_strict_blocker_text)
+string long_debug_summary_text = obv.emit_long_engine_debug_logs(show_long_engine_debug_eff, long_engine_debug_mode_eff, long_source_upgrade_now, long_arm_signal, long_confirm_signal, long_ready_signal, long_invalidate_signal, long_state.armed, long_state.confirmed, long_ready_state, long_setup_source_display, long_debug_event_source_display, long_state.backing_zone_touch_count, long_debug_event_touch_count, long_state.trigger, long_debug_event_trigger, long_state.invalidation_level, long_debug_event_invalidation, freshness_text, source_state_text, zone_quality_text, long_environment_focus_display, long_source_upgrade_reason, long_state.last_invalid_source, long_ready_blocker_text, long_strict_blocker_text)
 
 if live_exec
     if not live_bull_ob_break and any_live_bull_ob_break

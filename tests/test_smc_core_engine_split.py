@@ -7,6 +7,8 @@ from tests.smc_manifest_test_utils import ROOT, load_manifest
 
 
 CORE_PATH = ROOT / 'SMC_Core_Engine.pine'
+LIFECYCLE_PRIVATE_PATH = ROOT / 'SMC++' / 'smc_lifecycle_private.pine'
+OBSERVABILITY_PRIVATE_PATH = ROOT / 'SMC++' / 'smc_observability_private.pine'
 
 
 MANIFEST = load_manifest()
@@ -15,6 +17,14 @@ EXPECTED_BUS_LABELS = list(MANIFEST.ENGINE_BUS_LABELS)
 
 def _read_core_source() -> str:
     return CORE_PATH.read_text(encoding = 'utf-8')
+
+
+def _read_lifecycle_private_source() -> str:
+    return LIFECYCLE_PRIVATE_PATH.read_text(encoding = 'utf-8')
+
+
+def _read_observability_private_source() -> str:
+    return OBSERVABILITY_PRIVATE_PATH.read_text(encoding = 'utf-8')
 
 
 def _nonempty_lines_before(lines: list[str], index: int, count: int = 3) -> list[str]:
@@ -362,20 +372,27 @@ def test_core_engine_tracks_c7_execution_and_bus_projection_owners() -> None:
 
 def test_core_engine_tracks_c8_event_edge_and_debug_owners() -> None:
     source = _read_core_source()
+    observability_source = _read_observability_private_source()
 
-    assert 'resolve_long_ready_signal_state(bool long_ready_state, bool prior_bar_ready_state, int ready_state_rt_prev, bool ready_fired_this_bar, bool current_bar_is_new) =>' in source
-    assert 'emit_long_engine_debug_logs(bool show_long_engine_debug_eff, string long_engine_debug_mode_eff, bool long_source_upgrade_now, bool long_arm_signal, bool long_confirm_signal, bool long_ready_signal, bool long_invalidate_signal, bool long_state_armed, bool long_state_confirmed, bool long_ready_state, string long_setup_source_display, string long_debug_event_source_display, int long_state_backing_zone_touch_count, int long_debug_event_touch_count, float long_state_trigger, float long_debug_event_trigger, float long_state_invalidation_level, float long_debug_event_invalidation, string freshness_text, string source_state_text, string zone_quality_text, string long_environment_focus_display, string long_source_upgrade_reason, string long_last_invalid_source, string long_ready_blocker_text, string long_strict_blocker_text) =>' in source
-    assert '[long_ready_state_rt_prev, long_ready_fired_this_bar, long_ready_signal] = resolve_long_ready_signal_state(long_ready_state, long_ready_state[1], long_ready_state_rt_prev, long_ready_fired_this_bar, barstate.isnew)' in source
-    assert 'string long_debug_summary_text = emit_long_engine_debug_logs(show_long_engine_debug_eff, long_engine_debug_mode_eff, long_source_upgrade_now, long_arm_signal, long_confirm_signal, long_ready_signal, long_invalidate_signal, long_state.armed, long_state.confirmed, long_ready_state, long_setup_source_display, long_debug_event_source_display, long_state.backing_zone_touch_count, long_debug_event_touch_count, long_state.trigger, long_debug_event_trigger, long_state.invalidation_level, long_debug_event_invalidation, freshness_text, source_state_text, zone_quality_text, long_environment_focus_display, long_source_upgrade_reason, long_state.last_invalid_source, long_ready_blocker_text, long_strict_blocker_text)' in source
+    assert 'import preuss_steffen/smc_observability_private/1 as obv' in source
+    assert 'export resolve_long_ready_signal_state(bool long_ready_state, bool prior_bar_ready_state, int ready_state_rt_prev, bool ready_fired_this_bar, bool current_bar_is_new) =>' in observability_source
+    assert 'export emit_long_engine_debug_logs(bool show_long_engine_debug_eff, string long_engine_debug_mode_eff, bool long_source_upgrade_now, bool long_arm_signal, bool long_confirm_signal, bool long_ready_signal, bool long_invalidate_signal, bool long_state_armed, bool long_state_confirmed, bool long_ready_state, string long_setup_source_display, string long_debug_event_source_display, int long_state_backing_zone_touch_count, int long_debug_event_touch_count, float long_state_trigger, float long_debug_event_trigger, float long_state_invalidation_level, float long_debug_event_invalidation, string freshness_text, string source_state_text, string zone_quality_text, string long_environment_focus_display, string long_source_upgrade_reason, string long_last_invalid_source, string long_ready_blocker_text, string long_strict_blocker_text) =>' in observability_source
+    assert '[long_ready_state_rt_prev, long_ready_fired_this_bar, long_ready_signal] = obv.resolve_long_ready_signal_state(long_ready_state, long_ready_state[1], long_ready_state_rt_prev, long_ready_fired_this_bar, barstate.isnew)' in source
+    assert 'string long_debug_summary_text = obv.emit_long_engine_debug_logs(show_long_engine_debug_eff, long_engine_debug_mode_eff, long_source_upgrade_now, long_arm_signal, long_confirm_signal, long_ready_signal, long_invalidate_signal, long_state.armed, long_state.confirmed, long_ready_state, long_setup_source_display, long_debug_event_source_display, long_state.backing_zone_touch_count, long_debug_event_touch_count, long_state.trigger, long_debug_event_trigger, long_state.invalidation_level, long_debug_event_invalidation, freshness_text, source_state_text, zone_quality_text, long_environment_focus_display, long_source_upgrade_reason, long_state.last_invalid_source, long_ready_blocker_text, long_strict_blocker_text)' in source
+    assert 'resolve_long_ready_signal_state(bool long_ready_state, bool prior_bar_ready_state, int ready_state_rt_prev, bool ready_fired_this_bar, bool current_bar_is_new) =>' not in source
     assert 'if long_ready_state and long_ready_state_rt_prev == 0 and not long_ready_fired_this_bar' not in source
-    assert 'emit_long_engine_debug_logs() =>' not in source
+    assert 'emit_long_engine_debug_logs(bool show_long_engine_debug_eff' not in source
 
 
 def test_core_engine_extracts_remaining_display_helpers() -> None:
     source = _read_core_source()
+    lifecycle_source = _read_lifecycle_private_source()
+    observability_source = _read_observability_private_source()
 
     assert 'compose_long_alert_text_suffixes(bool use_overhead_zone_filter, float headroom_to_overhead, float planned_risk, int signal_quality_score, string signal_quality_tier, bool use_strict_sequence, bool use_strict_sweep_for_zone_reclaim, bool use_strict_confirm_guard, bool use_microstructure_profiles, string micro_profile_text, string freshness_text, string source_state_text, string zone_quality_text, string long_environment_focus_display) =>' in source
-    assert 'resolve_long_debug_event_values(bool long_invalidate_signal, string long_setup_source_display, string long_debug_event_source_display, int long_setup_backing_zone_touch_count, int long_debug_event_touch_count, float long_setup_trigger, float long_debug_event_trigger, float long_invalidation_level, float long_debug_event_invalidation) =>' in source
+    assert 'export resolve_long_debug_event_values(bool long_invalidate_signal, string long_setup_source_display, string long_debug_event_source_display, int long_setup_backing_zone_touch_count, int long_debug_event_touch_count, float long_setup_trigger, float long_debug_event_trigger, float long_invalidation_level, float long_debug_event_invalidation) =>' in observability_source
+    assert 'export compose_long_debug_summary_text(string long_engine_debug_mode, bool long_setup_armed, bool long_setup_confirmed, bool long_ready_state, string long_setup_source_display, string freshness_text, string source_state_text, string zone_quality_text, string long_environment_focus_display, int long_setup_backing_zone_touch_count, bool long_source_upgrade_now, string long_source_upgrade_reason, string long_last_invalid_source, string long_ready_blocker_text, string long_strict_blocker_text) =>' in observability_source
+    assert 'export compose_long_engine_event_log(string long_engine_debug_mode, string event_name, string long_setup_source_display, float long_setup_trigger, float long_invalidation_level, int long_setup_backing_zone_touch_count, string freshness_text, string source_state_text, string zone_quality_text, string long_environment_focus_display, bool long_source_upgrade_now, string long_source_upgrade_reason, string long_last_invalid_source, string long_ready_blocker_text, string long_strict_blocker_text) =>' in observability_source
     assert 'resolve_event_risk_state(bool market_event_blocked, bool symbol_event_blocked, string event_window_state, string event_risk_level) =>' in source
     assert 'compute_long_freshness_state(bool long_setup_armed, bool long_setup_confirmed, int current_bar_index, int long_arm_bar_index, int long_confirm_bar_index, int max_bars_arm_to_confirm, int max_bars_confirm_to_ready, bool use_microstructure_profiles, bool micro_is_fast_decay, int effective_fast_decay_setup_age_max, int effective_fast_decay_confirm_age_max) =>' in source
     assert 'resolve_long_zone_source_label(int long_source_kind) =>' in source
@@ -418,7 +435,7 @@ def test_core_engine_extracts_remaining_display_helpers() -> None:
     assert 'resolve_long_engine_debug_label_display_text(string long_engine_debug_mode, string long_setup_text, string long_visual_text, string long_setup_source_display, string freshness_text, string source_state_text, string zone_quality_text, string long_environment_focus_display, string overhead_text, float long_setup_trigger, float long_invalidation_level, int long_setup_backing_zone_touch_count, bool long_source_upgrade_now, string long_source_upgrade_reason, string long_last_invalid_source, string long_ready_blocker_text, string long_strict_blocker_text) =>' in source
     assert 'resolve_long_engine_event_log_display_text(string long_engine_debug_mode, string event_name, string long_setup_source_display, float long_setup_trigger, float long_invalidation_level, int long_setup_backing_zone_touch_count, string freshness_text, string source_state_text, string zone_quality_text, string long_environment_focus_display, bool long_source_upgrade_now, string long_source_upgrade_reason, string long_last_invalid_source, string long_ready_blocker_text, string long_strict_blocker_text) =>' in source
     assert 'compose_long_debug_primary_line(bool debug_mode_full, string long_setup_source_display, int long_setup_backing_zone_touch_count, string long_ready_blocker_text, string long_strict_blocker_text) =>' in source
-    assert 'compose_long_debug_full_summary_text(string long_setup_source_display, int long_setup_backing_zone_touch_count, string freshness_text, string source_state_text, string zone_quality_text, string long_environment_focus_display, string long_ready_blocker_text, string long_strict_blocker_text) =>' in source
+    assert 'compose_long_debug_full_summary_text(string long_setup_source_display, int long_setup_backing_zone_touch_count, string freshness_text, string source_state_text, string zone_quality_text, string long_environment_focus_display, string long_ready_blocker_text, string long_strict_blocker_text) =>' in observability_source
     assert 'compose_long_debug_label_header_text(string long_engine_debug_mode, string long_setup_text, string long_visual_text) =>' in source
     assert 'compose_long_debug_event_header_text(string event_name, string long_setup_source_display, float long_setup_trigger, float long_invalidation_level) =>' in source
     assert 'compose_long_debug_last_invalid_text(string long_last_invalid_source) =>' in source
@@ -442,8 +459,10 @@ def test_core_engine_extracts_remaining_display_helpers() -> None:
     assert 'compose_long_debug_event_state_text(bool debug_mode_full, int long_setup_backing_zone_touch_count, string freshness_text, string source_state_text, string zone_quality_text, string long_environment_focus_display, string long_ready_blocker_text, string long_strict_blocker_text) =>' in source
     assert 'compose_health_badge_text(string signal_bias_alignment, string signal_quality_tier, int signal_quality_score, string event_risk_state, string signal_freshness, string signal_warnings, string provider_status) =>' in source
     assert 'resolve_health_badge_color(string signal_quality_tier) =>' in source
+    assert 'import preuss_steffen/smc_lifecycle_private/1 as ll' in source
+    assert 'import preuss_steffen/smc_observability_private/1 as obv' in source
     assert '[overhead_text, long_score_detail_suffix, long_strict_alert_suffix, long_environment_alert_suffix, long_micro_alert_suffix] = compose_long_alert_text_suffixes(use_overhead_zone_filter_eff, headroom_to_overhead, planned_risk, lib_sq_score, lib_sq_tier, use_strict_sequence_eff, use_strict_sweep_for_zone_reclaim_eff, use_strict_confirm_guard, use_microstructure_profiles, micro_profile_text, freshness_text, source_state_text, zone_quality_text, long_environment_focus_display)' in source
-    assert '[debug_log_source_display, debug_log_touch_count, debug_log_trigger, debug_log_invalidation] = resolve_long_debug_event_values(long_invalidate_signal, long_setup_source_display, long_debug_event_source_display, long_state_backing_zone_touch_count, long_debug_event_touch_count, long_state_trigger, long_debug_event_trigger, long_state_invalidation_level, long_debug_event_invalidation)' in source
+    assert 'string long_debug_summary_text = obv.emit_long_engine_debug_logs(show_long_engine_debug_eff, long_engine_debug_mode_eff, long_source_upgrade_now, long_arm_signal, long_confirm_signal, long_ready_signal, long_invalidate_signal, long_state.armed, long_state.confirmed, long_ready_state, long_setup_source_display, long_debug_event_source_display, long_state.backing_zone_touch_count, long_debug_event_touch_count, long_state.trigger, long_debug_event_trigger, long_state.invalidation_level, long_debug_event_invalidation, freshness_text, source_state_text, zone_quality_text, long_environment_focus_display, long_source_upgrade_reason, long_state.last_invalid_source, long_ready_blocker_text, long_strict_blocker_text)' in source
     assert '// ── Event Risk (v5) ──' not in source
     assert 'string lib_event_window_state = mp.EVENT_WINDOW_STATE' not in source
     assert 'string lib_event_risk_level   = mp.EVENT_RISK_LEVEL' not in source
@@ -476,11 +495,15 @@ def test_core_engine_extracts_remaining_display_helpers() -> None:
     assert 'debug_text := append_enabled_debug_module_text(debug_text, show_long_engine_debug, compose_long_debug_module_label(long_engine_debug_mode))' in source
     assert "trade_gate_reason := compose_blocked_status_text('Session Gate')" in source
     assert "environment_gate_reason := compose_blocked_status_text('Market Gate')" in source
-    assert "reason_code := 2" in source
-    assert "ready_blocker_text := compose_blocked_status_text('Touch Count')" in source
-    assert "strict_blocker_text := compose_blocked_status_text('Signal Quality')" in source
-    assert 'strict_blocker_text := compose_need_ready_status_text(long_ready_blocker_text)' in source
-    assert 'string helper_long_environment_focus_display = resolve_long_environment_focus_text(market_regime_gate_ok, vola_regime_gate_safe, event_risk_gate_ok_param)' in source
+    assert 'll.compute_long_environment_context(' in source
+    assert 'll.resolve_long_ready_reason_code(' in source
+    assert 'll.resolve_long_strict_reason_code(' in source
+    assert 'll.resolve_long_execution_blocker_state(' in source
+    assert "reason_code := 2" in lifecycle_source
+    assert "ready_blocker_text := compose_blocked_status_text('Touch Count')" in lifecycle_source
+    assert "strict_blocker_text := compose_blocked_status_text('Signal Quality')" in lifecycle_source
+    assert 'strict_blocker_text := compose_need_ready_status_text(long_ready_blocker_text)' in lifecycle_source
+    assert 'string helper_long_environment_focus_display = resolve_long_environment_focus_text(market_regime_gate_ok, vola_regime_gate_safe, event_risk_gate_ok_param)' in lifecycle_source
     assert 'resolve_long_ready_blocker_display_text(long_ready_state, long_setup_confirmed, close_safe_mode, ready_bar_gap_ok, long_confirm_expired, ready_is_fresh, long_confirm_bearish_guard_ok, require_main_break_for_ready, bull_bos_sig, main_bos_recent, setup_hard_gate_ok, trade_hard_gate_ok, environment_hard_gate_ok, session_structure_gate_ok, micro_session_gate_ok, micro_freshness_gate_ok, overhead_zone_ok, market_regime_gate_ok, vola_regime_gate_safe, quality_gate_ok, accel_ready_gate_ok, sd_ready_gate_ok, vol_ready_context_ok, stretch_ready_context_ok, ddvi_ready_ok_safe)' in source
     assert 'int state_code = resolve_long_setup_state_code(long_zone_active, long_setup_armed, long_building_state, long_setup_confirmed, long_ready_state, long_entry_best_state, long_entry_strict_state, invalidated_prior_setup, long_invalidated_now, long_invalidated_this_bar)' in source
     assert 'resolve_long_setup_display_text(long_zone_active, long_setup_armed, long_building_state, long_setup_confirmed, long_ready_state, long_entry_best_state, long_entry_strict_state, long_invalidated_now, invalidated_prior_setup, long_invalidated_this_bar, long_setup_source_display)' in source
@@ -489,13 +512,13 @@ def test_core_engine_extracts_remaining_display_helpers() -> None:
     assert 'long_visual_text := resolve_long_visual_state_label(long_visual_state)' in source
     assert 'resolve_long_visual_state_label(long_visual_state)' in source
     assert 'resolve_long_strict_blocker_display_text(long_entry_strict_state, long_ready_state, long_ready_blocker_text, strict_signal_quality_gate_ok, strict_entry_ltf_ok, htf_alignment_ok, accel_strict_entry_gate_ok, sd_entry_strict_gate_ok, vol_entry_strict_context_ok_safe, stretch_entry_strict_context_ok, ddvi_entry_strict_ok_safe)' in source
-    assert 'debug_text := compose_long_debug_full_summary_text(long_setup_source_display, long_setup_backing_zone_touch_count, freshness_text, source_state_text, zone_quality_text, long_environment_focus_display, long_ready_blocker_text, long_strict_blocker_text)' in source
+    assert 'debug_text := compose_long_debug_full_summary_text(long_setup_source_display, long_setup_backing_zone_touch_count, freshness_text, source_state_text, zone_quality_text, long_environment_focus_display, long_ready_blocker_text, long_strict_blocker_text)' in observability_source
     assert 'resolve_long_engine_debug_label_display_text(long_engine_debug_mode, long_setup_text, long_visual_text, long_setup_source_display, freshness_text, source_state_text, zone_quality_text, long_environment_focus_display, overhead_text, long_setup_trigger, long_invalidation_level, long_setup_backing_zone_touch_count, long_source_upgrade_now, long_source_upgrade_reason, long_last_invalid_source, long_ready_blocker_text, long_strict_blocker_text)' in source
-    assert 'resolve_long_engine_event_log_display_text(long_engine_debug_mode, event_name, long_setup_source_display, long_setup_trigger, long_invalidation_level, long_setup_backing_zone_touch_count, freshness_text, source_state_text, zone_quality_text, long_environment_focus_display, long_source_upgrade_now, long_source_upgrade_reason, long_last_invalid_source, long_ready_blocker_text, long_strict_blocker_text)' in source
+    assert 'resolve_long_engine_event_log_display_text(long_engine_debug_mode, event_name, long_setup_source_display, long_setup_trigger, long_invalidation_level, long_setup_backing_zone_touch_count, freshness_text, source_state_text, zone_quality_text, long_environment_focus_display, long_source_upgrade_now, long_source_upgrade_reason, long_last_invalid_source, long_ready_blocker_text, long_strict_blocker_text)' not in source
     assert "string debug_text = compose_long_debug_label_header_text(long_engine_debug_mode, long_setup_text, long_visual_text)" in source
     assert "debug_text += '\\n' + compose_long_debug_primary_line(debug_mode_full, long_setup_source_display, long_setup_backing_zone_touch_count, long_ready_blocker_text, long_strict_blocker_text)" in source
     assert 'string event_text = compose_long_debug_event_header_text(event_name, long_setup_source_display, long_setup_trigger, long_invalidation_level)' in source
-    assert 'debug_text := compose_long_debug_last_invalid_text(long_last_invalid_source)' in source
+    assert 'debug_text := compose_long_debug_last_invalid_text(long_last_invalid_source)' in observability_source
     assert 'debug_text += compose_long_debug_newline_last_invalid_text(long_last_invalid_source)' in source
     assert 'event_text += compose_long_debug_pipe_reason_text(long_last_invalid_source)' in source
     assert 'string edge_text = resolve_long_upgrade_edge_text(ob_source_upgrade_ok, fvg_source_upgrade_ok)' in source
@@ -509,13 +532,14 @@ def test_core_engine_extracts_remaining_display_helpers() -> None:
     assert 'string strict_suffix = resolve_long_strict_alert_suffix(use_strict_sequence, use_strict_sweep_for_zone_reclaim, use_strict_confirm_guard)' in source
     assert 'string environment_suffix = compose_long_environment_alert_suffix(long_environment_focus_display, overhead_text)' in source
     assert 'micro_suffix := compose_long_micro_alert_suffix(micro_profile_text, freshness_text, source_state_text, zone_quality_text)' in source
-    assert 'debug_text += compose_long_debug_pipe_upgrade_text(long_source_upgrade_reason)' in source
+    assert 'debug_text += compose_long_debug_pipe_upgrade_text(long_source_upgrade_reason)' in observability_source
     assert 'debug_text += compose_long_debug_newline_upgrade_text(long_source_upgrade_reason)' in source
     assert 'debug_text += compose_long_debug_newline_last_invalid_text(long_last_invalid_source)' in source
     assert 'event_text += compose_long_debug_pipe_upgrade_text(long_source_upgrade_reason)' in source
     assert 'event_text += compose_long_debug_pipe_reason_text(long_last_invalid_source)' in source
     assert 'debug_text += compose_long_debug_label_full_mode_text(freshness_text, source_state_text, zone_quality_text, long_environment_focus_display, long_ready_blocker_text, long_strict_blocker_text, long_setup_trigger, long_invalidation_level, overhead_text)' in source
     assert 'event_text += compose_long_debug_event_state_text(debug_mode_full, long_setup_backing_zone_touch_count, freshness_text, source_state_text, zone_quality_text, long_environment_focus_display, long_ready_blocker_text, long_strict_blocker_text)' in source
+    assert 'compose_long_debug_full_summary_text(string long_setup_source_display, int long_setup_backing_zone_touch_count, string freshness_text, string source_state_text, string zone_quality_text, string long_environment_focus_display, string long_ready_blocker_text, string long_strict_blocker_text) =>' not in source
     assert "resolve_long_source_text(int long_source_kind) =>\n    string source_text = resolve_long_zone_source_label(long_source_kind)\n    if source_text == ''\n        source_text := resolve_long_anchor_source_label(long_source_kind)\n    source_text := resolve_long_source_fallback_text(source_text)\n    source_text" not in source
     assert "resolve_long_source_text(int long_source_kind) =>\n    string source_text = resolve_long_primary_source_text(long_source_kind)\n    source_text := resolve_long_source_fallback_text(source_text)\n    source_text" not in source
     assert "compose_long_setup_source_display(int long_entry_origin_source, int long_validation_source) =>\n    string long_entry_origin_source_text = resolve_long_source_text(long_entry_origin_source)\n    string long_validation_source_text = resolve_long_source_text(long_validation_source)\n    string source_display = long_validation_source_text\n    if long_entry_origin_source == LONG_SOURCE_NONE\n        source_display := long_validation_source_text\n    else if long_validation_source == LONG_SOURCE_NONE or long_entry_origin_source == long_validation_source\n        source_display := long_entry_origin_source_text\n    else\n        source_display := long_entry_origin_source_text + ' -> ' + long_validation_source_text\n    source_display" not in source
