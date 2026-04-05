@@ -48,4 +48,4 @@ Primary TradingView automation entry points:
 
 Current workspace caveat:
 
-- the repo contains the TradingView entry scripts, but the shared automation layer under `automation/tradingview/lib/...` is not present in this checkout, so the documented preflight path is currently not reproducible locally
+- the TradingView automation layer, reports path, and auth artifacts are present in this checkout, so the documented preflight and micro-library publish paths are reproducible locally again; inspect the latest staged report before assuming every run covered binding and runtime scopes

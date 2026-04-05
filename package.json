@@ -8,6 +8,7 @@
     "smc:pre-release-refresh": "python3 scripts/run_smc_pre_release_artifact_refresh.py --output -",
     "smc:release-gates": "python3 scripts/run_smc_release_gates.py --output -",
     "smc:collect-gate-evidence": "python3 scripts/collect_smc_gate_evidence.py --output -",
+    "smc:live-news-snapshot": "python3 scripts/export_smc_live_news_snapshot.py",
     "tv:publish-lifecycle-library": "tsx scripts/tv_publish_lifecycle_library.ts",
     "tv:publish-lifecycle-library:profile": "TV_PERSISTENT_PROFILE_DIR=automation/tradingview/auth/chromium-profile tsx scripts/tv_publish_lifecycle_library.ts",
     "tv:publish-observability-library": "tsx scripts/tv_publish_observability_library.ts",

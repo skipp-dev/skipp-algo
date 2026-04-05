@@ -40,6 +40,67 @@ def _fake_pine_paths() -> dict[str, Path]:
 class TestFinalizePipeline:
     """Unit tests for the finalize_pipeline orchestration helper."""
 
+    @patch("scripts.generate_smc_micro_base_from_databento.export_live_news_snapshot")
+    @patch("scripts.generate_smc_micro_base_from_databento.resolve_live_news_symbols")
+    @patch("scripts.generate_smc_micro_base_from_databento.generate_pine_library_from_base")
+    @patch("scripts.generate_smc_micro_base_from_databento.build_enrichment")
+    def test_live_news_sidecar_emitted_when_enabled(self, mock_enrich, mock_pine, mock_resolve, mock_export, tmp_path):
+        from scripts.generate_smc_micro_base_from_databento import finalize_pipeline
+
+        mock_enrich.return_value = None
+        mock_pine.return_value = _fake_pine_paths()
+        mock_resolve.return_value = (["AAPL", "MSFT"], {"mode": "base_csv"})
+        mock_export.return_value = {
+            "summary": {
+                "active_story_count": 2,
+                "new_story_count": 1,
+                "actionable_symbols": ["AAPL"],
+            },
+            "providers": {
+                "benzinga": {"error": ""},
+                "fmp_stock": {"error": ""},
+            },
+            "symbol_scope": {"mode": "base_csv"},
+        }
+        base_result = _fake_base_result(tmp_path)
+
+        result = finalize_pipeline(
+            base_result=base_result,
+            schema_path=Path("schema/smc_microstructure_base.json"),
+            output_root=tmp_path,
+            emit_live_news_snapshot=True,
+        )
+
+        assert result["live_news_snapshot"]["status"] == "ok"
+        assert result["live_news_snapshot"]["active_story_count"] == 2
+        assert result["live_news_snapshot"]["actionable_symbols"] == ["AAPL"]
+        assert mock_resolve.call_args.kwargs["base_csv_path"] == base_result["output_paths"]["base_csv"]
+        assert mock_export.call_args.kwargs["output_path"] == tmp_path / "smc_live_news_snapshot.json"
+        assert mock_export.call_args.kwargs["state_path"] == tmp_path / "smc_live_news_state.json"
+
+    @patch("scripts.generate_smc_micro_base_from_databento.export_live_news_snapshot")
+    @patch("scripts.generate_smc_micro_base_from_databento.resolve_live_news_symbols")
+    @patch("scripts.generate_smc_micro_base_from_databento.generate_pine_library_from_base")
+    @patch("scripts.generate_smc_micro_base_from_databento.build_enrichment")
+    def test_live_news_sidecar_failure_is_non_blocking(self, mock_enrich, mock_pine, mock_resolve, mock_export, tmp_path):
+        from scripts.generate_smc_micro_base_from_databento import finalize_pipeline
+
+        mock_enrich.return_value = None
+        mock_pine.return_value = _fake_pine_paths()
+        mock_resolve.return_value = (["AAPL"], {"mode": "base_csv"})
+        mock_export.side_effect = RuntimeError("live lane down")
+
+        result = finalize_pipeline(
+            base_result=_fake_base_result(tmp_path),
+            schema_path=Path("schema/smc_microstructure_base.json"),
+            output_root=tmp_path,
+            emit_live_news_snapshot=True,
+        )
+
+        assert result["status"] == "ok"
+        assert result["live_news_snapshot"]["status"] == "error"
+        assert "RuntimeError: live lane down" in result["live_news_snapshot"]["error"]
+
     @patch("scripts.generate_smc_micro_base_from_databento.generate_pine_library_from_base")
     @patch("scripts.generate_smc_micro_base_from_databento.build_enrichment")
     def test_returns_structured_result(self, mock_enrich, mock_pine, tmp_path):
@@ -217,6 +278,7 @@ class TestMainRunScan:
         mock_finalize.assert_called_once()
         call_kwargs = mock_finalize.call_args.kwargs
         assert call_kwargs["base_result"] is mock_scan.return_value
+        assert call_kwargs["emit_live_news_snapshot"] is True
 
     @patch("scripts.generate_smc_micro_base_from_databento.finalize_pipeline")
     @patch("scripts.generate_smc_micro_base_from_databento.run_databento_base_scan_pipeline")
@@ -313,6 +375,7 @@ class TestMainBundle:
         mock_finalize.assert_called_once()
         call_kwargs = mock_finalize.call_args.kwargs
         assert call_kwargs["base_result"] is mock_bundle.return_value
+        assert call_kwargs["emit_live_news_snapshot"] is True
 
 
 class TestMainMissingArgs:

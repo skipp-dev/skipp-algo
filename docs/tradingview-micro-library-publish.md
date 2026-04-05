@@ -177,7 +177,7 @@ The release manifest under `artifacts/tradingview/library_release_manifest.json`
 The automated refresh workflow fires alerts when enrichment state changes (e.g. MARKET_REGIME → RISK_OFF, TRADE_STATE → BLOCKED, provider degradation). Two channels are supported:
 
 | Secret | Purpose |
-|--------|---------|
+| --- | --- |
 | `TELEGRAM_BOT_TOKEN` | Telegram bot token for alert delivery |
 | `TELEGRAM_CHAT_ID` | Telegram chat/channel ID |
 | `SMTP_HOST` | SMTP server hostname for email alerts |
@@ -200,8 +200,8 @@ Both channels are optional. Alerts can also be run locally:
 
 After a successful publish:
 
-1. The TradingView library must contain exactly 37 `export const` fields.
-2. The manifest `library_field_version` must be `"v4"`.
-3. SMC_Core_Engine.pine reads 15 of the 37 fields via `mp.FIELD`.
-4. Dashboard and Strategy consume data only via BUS channels (26 and 8 respectively) — they never import the library directly.
-5. If any enrichment provider fails, the library still contains all 37 fields with safe neutral defaults.
+1. The executable library contract is defined by `pine/generated/smc_micro_profiles_generated.json`, `pine/generated/smc_micro_profiles_generated.pine`, and `tests/test_pine_consumer_contract.py`, not by a fixed export-count constant in this runbook.
+2. The manifest `library_field_version` must be `"v5.5b"` for the current lean contract.
+3. The preferred lean families remain `event_risk_light`, `session_context_light`, `ob_context_light`, `fvg_lifecycle_light`, `structure_state_light`, and `signal_quality`.
+4. Compatibility exports remain available alongside the lean surface so `SMC_Core_Engine.pine` can keep consuming the active library/core contract while Dashboard and Strategy stay BUS-driven.
+5. If any enrichment provider fails, the generator still emits the full current contract surface with safe neutral defaults plus provider provenance/degradation metadata.

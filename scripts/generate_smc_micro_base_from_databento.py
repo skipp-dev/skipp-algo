@@ -30,6 +30,7 @@ from scripts.smc_news_scorer import compute_news_sentiment
 from scripts.smc_calendar_collector import collect_earnings_and_macro
 from scripts.smc_enrichment_types import EnrichmentDict
 from scripts.smc_library_layering import compute_library_layering
+from scripts.smc_live_news_bus import DEFAULT_SYMBOL_LIMIT, export_live_news_snapshot, resolve_live_news_symbols
 
 logger = logging.getLogger(__name__)
 
@@ -583,6 +584,62 @@ def build_enrichment(
     return normalize_v55_lean_enrichment(cast(EnrichmentDict, enrichment), snapshot=base_snapshot)
 
 
+def _export_live_news_sidecar(
+    *,
+    base_result: dict[str, Any],
+    base_csv: Path,
+    output_root: Path,
+    fmp_api_key: str,
+    benzinga_api_key: str,
+) -> dict[str, Any]:
+    output_path = output_root / "smc_live_news_snapshot.json"
+    state_path = output_root / "smc_live_news_state.json"
+    output_paths = base_result.get("output_paths") if isinstance(base_result, dict) else None
+    raw_manifest_path = output_paths.get("base_manifest") if isinstance(output_paths, dict) else None
+    base_manifest_path = Path(raw_manifest_path) if raw_manifest_path else None
+
+    try:
+        symbols, scope_metadata = resolve_live_news_symbols(
+            base_csv_path=base_csv,
+            base_manifest_path=base_manifest_path,
+            symbol_limit=DEFAULT_SYMBOL_LIMIT,
+        )
+        snapshot = export_live_news_snapshot(
+            symbols=symbols,
+            output_path=output_path,
+            state_path=state_path,
+            fmp_api_key=fmp_api_key,
+            benzinga_api_key=benzinga_api_key,
+            scope_metadata=scope_metadata,
+        )
+    except Exception as exc:
+        logger.warning("Failed to export live news snapshot sidecar", exc_info=True)
+        return {
+            "status": "error",
+            "snapshot_path": str(output_path),
+            "state_path": str(state_path),
+            "error": f"{type(exc).__name__}: {exc}",
+        }
+
+    provider_errors = {
+        provider: str(payload.get("error") or "")
+        for provider, payload in (snapshot.get("providers") or {}).items()
+        if str(payload.get("error") or "").strip()
+    }
+    summary = snapshot.get("summary") or {}
+    return {
+        "status": "ok",
+        "snapshot_path": str(output_path),
+        "state_path": str(state_path),
+        "symbol_count": len(symbols),
+        "active_story_count": int(summary.get("active_story_count") or 0),
+        "new_story_count": int(summary.get("new_story_count") or 0),
+        "actionable_symbols": list(summary.get("actionable_symbols") or []),
+        "provider_errors": provider_errors,
+        "symbol_scope": snapshot.get("symbol_scope") or scope_metadata,
+    }
+
+
 def finalize_pipeline(
     *,
     base_result: dict[str, Any],
@@ -613,6 +670,7 @@ def finalize_pipeline(
     enrich_session_structure: bool = False,
     enrich_range_regime: bool = False,
     enrich_range_profile_regime: bool = False,
+    emit_live_news_snapshot: bool = False,
 ) -> dict[str, Any]:
     """Shared post-base orchestration: enrichment + Pine library generation.
 
@@ -669,7 +727,17 @@ def finalize_pipeline(
         enrichment=enrichment,
     )
 
-    return {
+    live_news_result = None
+    if emit_live_news_snapshot:
+        live_news_result = _export_live_news_sidecar(
+            base_result=base_result,
+            base_csv=base_csv,
+            output_root=output_root,
+            fmp_api_key=fmp_api_key,
+            benzinga_api_key=benzinga_api_key,
+        )
+
+    result = {
         "status": "ok",
         "base_csv": str(base_csv),
         "symbols_count": len(symbols),
@@ -682,6 +750,9 @@ def finalize_pipeline(
         "pine_paths": {k: str(v) for k, v in pine_paths.items()},
         "base_result_keys": list(base_result.keys()),
     }
+    if live_news_result is not None:
+        result["live_news_snapshot"] = live_news_result
+    return result
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -748,6 +819,7 @@ def main() -> None:
         newsapi_ai_key=newsapi_ai_key,
         library_owner=str(args.library_owner).strip(),
         library_version=int(args.library_version),
+        emit_live_news_snapshot=True,
         **enrichment_flags,
     )
 

@@ -167,7 +167,7 @@ This will:
 8. write the generated import snippet
 9. write the generated library manifest (includes `library_field_version: "v5.5b"` and `enrichment_blocks`)
 
-If any enrichment provider is unreachable, the library is still generated with all 37 fields — affected enrichment fields receive safe neutral defaults (e.g. `UNKNOWN` regime, empty event strings, `provider_count = 0`).
+If any enrichment provider is unreachable, the library is still generated with the full current contract surface — including the v5.5b lean blocks plus compatibility exports. Affected enrichment/context fields receive safe neutral defaults (e.g. `UNKNOWN` regime, empty event strings, `provider_count = 0`).
 
 Expected result:
 

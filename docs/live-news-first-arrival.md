@@ -122,6 +122,23 @@ That gives the system a correct foundation for:
 - cleaner provider failover
 - future score adjustments based on live catalyst arrival
 
+## Current Repo Implementation
+
+The repository now includes a first live-sidecar implementation of this lane:
+
+- `scripts/smc_live_news_bus.py` provides the provider-neutral polling bus
+- `scripts/export_smc_live_news_snapshot.py` emits a JSON sidecar artifact plus persistent cursor/story state
+- `npm run smc:live-news-snapshot` is the default operator-facing entrypoint
+
+The emitted files are:
+
+- `artifacts/smc_microstructure_exports/smc_live_news_snapshot.json`
+- `artifacts/smc_microstructure_exports/smc_live_news_state.json`
+
+`scripts/generate_smc_micro_base_from_databento.py` now emits the same sidecar files automatically from the `--run-scan` and `--bundle` finalize flow as a best-effort live lane, without changing the deterministic batch enrichment contract.
+
+This lane is intentionally separate from `resolve_domain("news")` and does not alter the deterministic batch enrichment contract used by the base generator, manual UI path, or CI refresh runs.
+
 ## Guardrails
 
 - Do not reuse batch provider ordering as the live decision model.

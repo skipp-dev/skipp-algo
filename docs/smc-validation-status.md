@@ -29,24 +29,24 @@ It does not change:
 
 ## Current Workspace Status
 
-Refresh date: 2026-04-03
+Refresh date: 2026-04-05
 
-- live TradingView validation is currently blocked in this checkout
-- present locally: `scripts/tv_preflight.ts`, `scripts/tv_publish_micro_library.ts`, `scripts/create_tradingview_storage_state.ts`
-- missing locally: the shared TradingView automation layer imported from `automation/tradingview/lib/...`, the `automation/tradingview/reports` folder, and a reusable auth artifact such as `automation/tradingview/auth/storage-state.json`
-- consequence: the historical TradingView passes documented below are not reproducible from this workspace snapshot until those prerequisites are restored
-- static split-contract validation for the active SMC path remains the current source of truth in this checkout
+- live TradingView automation prerequisites are present in this checkout
+- present locally: `scripts/tv_preflight.ts`, `scripts/tv_publish_micro_library.ts`, `scripts/create_tradingview_storage_state.ts`, the shared automation layer under `automation/tradingview/lib/...`, the `automation/tradingview/reports` folder, and auth artifacts under `automation/tradingview/auth/...`
+- consequence: repo-side mutating preflight and automated micro-library publish runs are reproducible from this workspace snapshot again
+- caveat: staged preflight artifacts must still be read per-scope; some runs only prove auth/ui/compile and leave binding/runtime scopes as `not_run`
+- static split-contract validation for the active SMC path remains the code-level source of truth in this checkout
 
 ## Current Decision Status
 
 - validation/reporting layer: updated
-- historical live TradingView evidence: previously documented at `automation/tradingview/reports/preflight-2026-03-24T04-39-33-983Z.json`, but the artifact is not present locally anymore
-- first staged-format preflight artifact: previously documented at `automation/tradingview/reports/preflight-2026-03-24T05-44-44-193Z.json`, but the artifact is not present locally anymore
-- latest staged-format authenticated preflight artifact: previously documented at `automation/tradingview/reports/preflight-2026-03-24T09-10-25-787Z.json`, but the artifact is not present locally anymore
-- current shell auth result: no reusable TradingView auth artifact is present in this workspace snapshot
-- current live validation decision in this checkout: blocked pending restoration of the automation layer, reports path, and auth artifact
+- latest staged-format authenticated preflight artifact: `automation/tradingview/reports/preflight-micro-library-2026-04-04T07-50-33-373Z.json`
+- latest automated micro-library publish artifact: `automation/tradingview/reports/publish-micro-library-2026-04-04T07-50-33-372Z.json`
+- current shell auth result: reusable TradingView auth artifacts are present in this workspace snapshot
+- current repo-side preflight reading: auth/ui/compile are green for the active core target; report-root `overall_preflight_ok` remains false on that pass because binding/runtime scopes were not run
+- current live validation decision in this checkout: repo-side preflight and publish evidence are present; full binding/runtime confidence still depends on running those scopes explicitly
 - library publish tracking artifact: present
-- automated micro-library publish path: documented, but not reproducible from this workspace snapshot while the TradingView automation prerequisites are absent
+- automated micro-library publish path: reproducible from this workspace snapshot
 
 ## Read This Next
 
