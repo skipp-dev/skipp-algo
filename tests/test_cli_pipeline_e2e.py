@@ -35,6 +35,130 @@ def _fake_pine_paths() -> dict[str, Path]:
     return {"library": Path("out/library.pine"), "indicator": Path("out/indicator.pine")}
 
 
+def _write_real_bundle(tmp_path: Path) -> Path:
+    bundle_dir = tmp_path / "bundle"
+    bundle_dir.mkdir(parents=True, exist_ok=True)
+    base_prefix = "databento_volatility_production_fake"
+    manifest_path = bundle_dir / f"{base_prefix}_manifest.json"
+
+    daily_features = pd.DataFrame(
+        [
+            {
+                "trade_date": "2026-03-19",
+                "symbol": "AAA",
+                "exchange": "NASDAQ",
+                "company_name": "Alpha Holdings",
+                "asset_type": "stock",
+                "market_cap": 3_200_000_000,
+                "day_open": 10.0,
+                "day_high": 10.8,
+                "day_low": 9.7,
+                "day_close": 10.5,
+                "day_volume": 1_500_000,
+                "previous_close": 9.8,
+                "close_trade_hygiene_score": 0.82,
+                "reclaimed_start_price_within_30s": True,
+                "early_dip_pct_10s": -0.8,
+                "open_to_current_pct": 1.6,
+                "window_return_pct": 1.6,
+                "close_preclose_return_pct": 0.4,
+            },
+            {
+                "trade_date": "2026-03-20",
+                "symbol": "AAA",
+                "exchange": "NASDAQ",
+                "company_name": "Alpha Holdings",
+                "asset_type": "stock",
+                "market_cap": 3_200_000_000,
+                "day_open": 10.7,
+                "day_high": 11.2,
+                "day_low": 10.1,
+                "day_close": 10.4,
+                "day_volume": 1_900_000,
+                "previous_close": 10.5,
+                "close_trade_hygiene_score": 0.76,
+                "reclaimed_start_price_within_30s": False,
+                "early_dip_pct_10s": -1.0,
+                "open_to_current_pct": -0.5,
+                "window_return_pct": -0.5,
+                "close_preclose_return_pct": -0.3,
+            },
+        ]
+    )
+    daily_bars = daily_features[
+        ["trade_date", "symbol", "day_open", "day_high", "day_low", "day_close", "day_volume", "previous_close"]
+    ].rename(
+        columns={
+            "day_open": "open",
+            "day_high": "high",
+            "day_low": "low",
+            "day_close": "close",
+            "day_volume": "volume",
+        }
+    )
+    session_minute_detail = pd.DataFrame(
+        [
+            {
+                "trade_date": "2026-03-19",
+                "symbol": "AAA",
+                "timestamp": pd.Timestamp("2026-03-19T13:30:00Z"),
+                "session": "regular",
+                "open": 10.0,
+                "high": 10.2,
+                "low": 9.9,
+                "close": 10.1,
+                "volume": 50_000,
+                "trade_count": 75,
+            },
+            {
+                "trade_date": "2026-03-19",
+                "symbol": "AAA",
+                "timestamp": pd.Timestamp("2026-03-19T21:10:00Z"),
+                "session": "afterhours",
+                "open": 10.5,
+                "high": 10.55,
+                "low": 10.45,
+                "close": 10.48,
+                "volume": 18_000,
+                "trade_count": 20,
+            },
+            {
+                "trade_date": "2026-03-20",
+                "symbol": "AAA",
+                "timestamp": pd.Timestamp("2026-03-20T13:30:00Z"),
+                "session": "regular",
+                "open": 10.7,
+                "high": 10.8,
+                "low": 10.5,
+                "close": 10.6,
+                "volume": 80_000,
+                "trade_count": 95,
+            },
+            {
+                "trade_date": "2026-03-20",
+                "symbol": "AAA",
+                "timestamp": pd.Timestamp("2026-03-20T21:25:00Z"),
+                "session": "afterhours",
+                "open": 10.35,
+                "high": 10.4,
+                "low": 10.2,
+                "close": 10.28,
+                "volume": 21_000,
+                "trade_count": 22,
+            },
+        ]
+    )
+
+    manifest_path.write_text(
+        json.dumps({"trade_dates_covered": ["2026-03-19", "2026-03-20"]}, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    daily_bars.to_parquet(bundle_dir / f"{base_prefix}__daily_bars.parquet", index=False)
+    daily_features.to_parquet(bundle_dir / f"{base_prefix}__daily_symbol_features_full_universe.parquet", index=False)
+    session_minute_detail.to_parquet(bundle_dir / f"{base_prefix}__session_minute_detail_full_universe.parquet", index=False)
+    return manifest_path
+
+
 # ── finalize_pipeline unit tests ────────────────────────────────
 
 class TestFinalizePipeline:
@@ -356,26 +480,51 @@ class TestMainRunScan:
 class TestMainBundle:
     """Verify --bundle path also flows through finalize_pipeline."""
 
-    @patch("scripts.generate_smc_micro_base_from_databento.finalize_pipeline")
-    @patch("scripts.generate_smc_micro_base_from_databento.generate_base_from_bundle")
-    def test_bundle_calls_finalize(self, mock_bundle, mock_finalize, tmp_path):
-        from scripts.generate_smc_micro_base_from_databento import main
+    def test_bundle_runs_real_generation_before_finalize(self, tmp_path, monkeypatch):
+        from scripts import generate_smc_micro_base_from_databento as cli
 
-        mock_bundle.return_value = _fake_base_result(tmp_path)
-        mock_finalize.return_value = {"status": "ok"}
+        manifest_path = _write_real_bundle(tmp_path)
+        output_dir = tmp_path / "output"
+        captured: dict[str, Path] = {}
+
+        def _fake_generate_pine_library_from_base(*, base_csv_path: Path, output_root: Path, **_: Any) -> dict[str, Path]:
+            captured["base_csv_path"] = base_csv_path
+            library_path = output_root / "pine" / "generated" / "smc_micro_profiles_generated.pine"
+            library_path.parent.mkdir(parents=True, exist_ok=True)
+            library_path.write_text("// synthetic test library\n", encoding="utf-8")
+            return {"library": library_path}
+
+        monkeypatch.setattr(cli, "build_enrichment", lambda **_: None)
+        monkeypatch.setattr(cli, "generate_pine_library_from_base", _fake_generate_pine_library_from_base)
+        monkeypatch.setattr(
+            cli,
+            "_export_live_news_sidecar",
+            lambda **_: {"status": "ok", "snapshot_path": str(output_dir / "smc_live_news_snapshot.json")},
+        )
 
         test_args = [
-            "--bundle", str(tmp_path / "some_bundle"),
-            "--export-dir", str(tmp_path),
+            "--bundle", str(manifest_path),
+            "--export-dir", str(output_dir),
         ]
         with patch("sys.argv", ["prog"] + test_args):
-            main()
+            cli.main()
 
-        mock_bundle.assert_called_once()
-        mock_finalize.assert_called_once()
-        call_kwargs = mock_finalize.call_args.kwargs
-        assert call_kwargs["base_result"] is mock_bundle.return_value
-        assert call_kwargs["emit_live_news_snapshot"] is True
+        base_csv_candidates = sorted(output_dir.glob("*__smc_microstructure_base_*.csv"))
+        base_manifest_candidates = sorted(output_dir.glob("*__smc_microstructure_base_manifest.json"))
+        mapping_candidates = sorted(output_dir.glob("*__smc_microstructure_mapping_*.json"))
+
+        assert len(base_csv_candidates) == 1
+        assert len(base_manifest_candidates) == 1
+        assert len(mapping_candidates) == 1
+        assert captured["base_csv_path"] == base_csv_candidates[0]
+
+        base_frame = pd.read_csv(base_csv_candidates[0])
+        assert list(base_frame["symbol"]) == ["AAA"]
+        assert int(base_frame.loc[0, "history_coverage_days_20d"]) == 2
+
+        manifest_payload = json.loads(base_manifest_candidates[0].read_text(encoding="utf-8"))
+        assert manifest_payload["canonical_upstream_artifact"] == "databento_production_export_bundle"
+        assert manifest_payload["bundle_manifest_path"].endswith("databento_volatility_production_fake_manifest.json")
 
 
 class TestMainMissingArgs:

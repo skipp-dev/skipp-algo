@@ -55,10 +55,19 @@ def load_schema(path: Path) -> dict[str, Any]:
 def coerce_input_frame(df: pd.DataFrame) -> pd.DataFrame:
     out = df.copy()
     out["asof_date"] = pd.to_datetime(out["asof_date"], errors="coerce").dt.strftime("%Y-%m-%d")
-    out["symbol"] = out["symbol"].astype(str).str.strip().str.upper()
-    out["exchange"] = out["exchange"].astype(str).str.strip().str.upper()
-    out["asset_type"] = out["asset_type"].astype(str).str.strip()
-    out["universe_bucket"] = out["universe_bucket"].astype(str).str.strip()
+
+    def _normalize_string_column(column: str, *, upper: bool = False) -> None:
+        values = out[column]
+        normalized = values.astype("string").str.strip()
+        if upper:
+            normalized = normalized.str.upper()
+        out[column] = normalized.where(values.notna(), pd.NA)
+
+    _normalize_string_column("symbol", upper=True)
+    _normalize_string_column("exchange", upper=True)
+    _normalize_string_column("asset_type")
+    _normalize_string_column("universe_bucket")
+
     for column in out.columns:
         if column in {"asof_date", "symbol", "exchange", "asset_type", "universe_bucket"}:
             continue
@@ -66,16 +75,94 @@ def coerce_input_frame(df: pd.DataFrame) -> pd.DataFrame:
     return out
 
 
+def _primary_key_columns(schema: dict[str, Any]) -> list[str]:
+    return [str(column) for column in schema["primary_key"]]
+
+
+def _primary_key_null_mask(df: pd.DataFrame, primary_key: list[str]) -> pd.Series:
+    mask = pd.Series(False, index=df.index, dtype=bool)
+    for column in primary_key:
+        mask = mask | df[column].isnull()
+    return mask
+
+
+def _duplicate_primary_key_mask(df: pd.DataFrame, primary_key: list[str]) -> pd.Series:
+    key_rows = list(zip(*(df[column].tolist() for column in primary_key), strict=False))
+    return pd.Series(key_rows, index=df.index, dtype="object").duplicated(keep=False)
+
+
+def _normalize_group_key(value: object) -> object:
+    return None if pd.isna(value) else value
+
+
+def _iter_group_frames(df: pd.DataFrame, column: str) -> list[tuple[object, pd.DataFrame]]:
+    grouped_rows: dict[object, list[dict[str, Any]]] = {}
+    ordered_keys: list[object] = []
+    for record in df.to_dict("records"):
+        key = _normalize_group_key(record.get(column))
+        if key not in grouped_rows:
+            grouped_rows[key] = []
+            ordered_keys.append(key)
+        grouped_rows[key].append(record)
+    return [
+        (key, pd.DataFrame(grouped_rows[key], columns=df.columns))
+        for key in ordered_keys
+    ]
+
+
+def _bucket_stat_series(df: pd.DataFrame, column: str, reducer: str, *, quantile: float | None = None) -> pd.Series:
+    bucket_keys = [_normalize_group_key(value) for value in df["universe_bucket"].tolist()]
+    grouped_values: dict[object, list[float]] = {}
+    for key, value in zip(bucket_keys, df[column].tolist(), strict=False):
+        grouped_values.setdefault(key, []).append(value)
+
+    stats: dict[object, float] = {}
+    for key, values in grouped_values.items():
+        series = pd.Series(values, dtype=float)
+        if reducer == "quantile":
+            stats[key] = float(series.quantile(float(quantile)))
+        elif reducer == "median":
+            stats[key] = float(series.median())
+        else:
+            raise ValueError(f"Unsupported bucket reducer: {reducer}")
+
+    return pd.Series([stats[key] for key in bucket_keys], index=df.index, dtype=float)
+
+
+def _filtered_records_frame(
+    frame: pd.DataFrame,
+    *,
+    predicate: Any,
+    columns: list[str] | None = None,
+) -> pd.DataFrame:
+    selected_columns = list(columns or frame.columns)
+    rows: list[dict[str, Any]] = []
+    for record in frame.to_dict("records"):
+        if predicate(record):
+            rows.append({column: record.get(column) for column in selected_columns})
+    return pd.DataFrame(rows, columns=selected_columns)
+
+
 def validate_schema(df: pd.DataFrame, schema: dict[str, Any]) -> None:
     missing = [column for column in schema["required_columns"] if column not in df.columns]
     if missing:
         fail(f"Missing required columns: {missing}")
 
-    if df[list(schema["primary_key"])].isnull().any().any():
+    primary_key = _primary_key_columns(schema)
+    null_primary_key_mask = _primary_key_null_mask(df, primary_key)
+    if bool(null_primary_key_mask.any()):
         fail("Primary key columns cannot contain null values")
 
-    if df.duplicated(subset=schema["primary_key"]).any():
-        duplicates = df.loc[df.duplicated(subset=schema["primary_key"], keep=False), schema["primary_key"]]
+    duplicate_primary_key_mask = _duplicate_primary_key_mask(df, primary_key)
+    if bool(duplicate_primary_key_mask.any()):
+        duplicate_flags = duplicate_primary_key_mask.tolist()
+        records = df.to_dict("records")
+        duplicates = pd.DataFrame(
+            {
+                column: [record.get(column) for record, is_duplicate in zip(records, duplicate_flags, strict=False) if is_duplicate]
+                for column in primary_key
+            }
+        )
         fail(f"Duplicate primary keys found:\n{duplicates.to_string(index=False)}")
 
     if df["asof_date"].nunique() != 1:
@@ -111,7 +198,7 @@ def ipr(series: pd.Series) -> pd.Series:
 def add_bucket_features(df: pd.DataFrame, schema: dict[str, Any]) -> pd.DataFrame:
     eligibility = schema["eligibility"]
     buckets: list[pd.DataFrame] = []
-    for _, group in df.groupby("universe_bucket", dropna=False):
+    for _, group in _iter_group_frames(df, "universe_bucket"):
         current = group.copy()
         current["eligible_core"] = (
             (current["history_coverage_days_20d"] >= eligibility["min_history_days"])
@@ -188,11 +275,11 @@ def add_bucket_features(df: pd.DataFrame, schema: dict[str, Any]) -> pd.DataFram
 
 
 def _bucket_quantile(df: pd.DataFrame, column: str, quantile: float) -> pd.Series:
-    return df.groupby("universe_bucket")[column].transform(lambda series: series.quantile(quantile))
+    return _bucket_stat_series(df, column, "quantile", quantile=quantile)
 
 
 def _bucket_median(df: pd.DataFrame, column: str) -> pd.Series:
-    return df.groupby("universe_bucket")[column].transform("median")
+    return _bucket_stat_series(df, column, "median")
 
 
 def apply_candidate_rules(df: pd.DataFrame, schema: dict[str, Any]) -> pd.DataFrame:
@@ -471,9 +558,13 @@ def apply_overrides(state: pd.DataFrame, overrides: pd.DataFrame, asof_date: str
 
 def build_lists_from_state(state: pd.DataFrame) -> dict[str, list[str]]:
     output: dict[str, list[str]] = {name: [] for name in LISTS}
-    active = state.loc[state["is_active"] == 1]
-    for list_name, group in active.groupby("list_name"):
-        output[list_name] = sorted(group["symbol"].astype(str).unique().tolist())
+    active = _filtered_records_frame(
+        state,
+        predicate=lambda record: _safe_bool(record.get("is_active")),
+    )
+    for list_name, group in _iter_group_frames(active, "list_name"):
+        if list_name in output:
+            output[str(list_name)] = sorted(group["symbol"].astype(str).unique().tolist())
     return output
 
 
@@ -1046,12 +1137,15 @@ def render_output_path(root: Path, template: str, asof_date: str) -> Path:
 
 def write_lists_csv(path: Path, state: pd.DataFrame, asof_date: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    active = state.loc[
-        state["is_active"] == 1,
-        ["symbol", "list_name", "active_since", "last_score", "decision_source", "decision_reason"],
-    ].copy()
+    active = _filtered_records_frame(
+        state,
+        predicate=lambda record: _safe_bool(record.get("is_active")),
+        columns=["symbol", "list_name", "active_since", "last_score", "decision_source", "decision_reason"],
+    )
+    rows = active.to_dict("records")
+    rows.sort(key=lambda record: (str(record.get("list_name", "")), str(record.get("symbol", ""))))
+    active = pd.DataFrame(rows, columns=["symbol", "list_name", "active_since", "last_score", "decision_source", "decision_reason"])
     active.insert(0, "asof_date", asof_date)
-    active = active.sort_values(["list_name", "symbol"]).reset_index(drop=True)
     active.to_csv(path, index=False)
 
 
@@ -1062,12 +1156,13 @@ def write_diff_report(path: Path, previous_state: pd.DataFrame, new_state: pd.Da
         mapping: dict[str, dict[str, dict[str, str]]] = {name: {} for name in LISTS}
         if frame.empty:
             return mapping
-        active = frame.loc[
-            frame["is_active"] == 1,
-            ["symbol", "list_name", "decision_source", "decision_reason"],
-        ].copy()
-        for list_name, group in active.groupby("list_name"):
-            mapping[list_name] = {
+        active = _filtered_records_frame(
+            frame,
+            predicate=lambda record: _safe_bool(record.get("is_active")),
+            columns=["symbol", "list_name", "decision_source", "decision_reason"],
+        )
+        for list_name, group in _iter_group_frames(active, "list_name"):
+            mapping[str(list_name)] = {
                 str(record["symbol"]): {
                     "decision_source": str(record.get("decision_source", "generator")),
                     "decision_reason": str(record.get("decision_reason", "")),

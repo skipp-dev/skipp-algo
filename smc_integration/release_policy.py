@@ -176,6 +176,13 @@ def _median_int_metric(values: list[int]) -> int | None:
     return int(round(float(median(values))))
 
 
+def _optional_stripped_string(value: Any) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text or None
+
+
 def _coerce_contextual_calibration_dimensions(raw: Any) -> dict[str, dict[str, Any]]:
     if not isinstance(raw, dict):
         return {}
@@ -195,8 +202,8 @@ def _coerce_contextual_calibration_dimensions(raw: Any) -> dict[str, dict[str, A
 
 def _best_contextual_dimension(raw: Any, dimensions: dict[str, dict[str, Any]], *, metric_name: str) -> str | None:
     if isinstance(raw, dict):
-        direct = str(raw.get(metric_name, "")).strip()
-        if direct:
+        direct = _optional_stripped_string(raw.get(metric_name))
+        if direct is not None:
             return direct
 
     best_dimension = None
@@ -358,10 +365,10 @@ def assess_contextual_calibration_promotion(
     eligible_recommendations = [
         item
         for item in all_recommendations
-        if bool(item.get("available")) and str(item.get("recommended_dimension", "")).strip()
+        if bool(item.get("available")) and _optional_stripped_string(item.get("recommended_dimension")) is not None
     ]
 
-    recommended_dimension = str(current_recommendation.get("recommended_dimension", "")).strip() or None
+    recommended_dimension = _optional_stripped_string(current_recommendation.get("recommended_dimension"))
     recommended_run_count = (
         sum(1 for item in eligible_recommendations if item.get("recommended_dimension") == recommended_dimension)
         if recommended_dimension is not None

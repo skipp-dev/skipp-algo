@@ -136,7 +136,7 @@ def _collect_artifact_health(
     missing_artifacts: list[dict[str, Any]] = []
     stale_artifacts: list[dict[str, Any]] = []
 
-    summary = structure_artifact_json.discover_normalized_contract_summary()
+    summary = structure_artifact_json.discover_normalized_contract_summary(repo_state_only=True)
     raw_health = summary.get("health", {}) if isinstance(summary, dict) else {}
     health_issues = raw_health.get("issues", []) if isinstance(raw_health, dict) else []
     health_issue_rows = [item for item in health_issues if isinstance(item, dict)]

@@ -84,8 +84,14 @@ disallow_untyped_defs = false
 check_untyped_defs = false
 
 [tool.coverage.run]
-source = ["newsstack_fmp", "open_prep", "terminal_poller.py", "terminal_export.py"]
-omit = ["tests/*", "scripts/*", "*.pine"]
+source = [
+    "newsstack_fmp",
+    "open_prep",
+    "smc_core",
+    "smc_integration",
+    "scripts",
+]
+omit = ["tests/*", "*.pine"]
 
 [tool.coverage.report]
 show_missing = true

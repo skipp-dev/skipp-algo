@@ -285,28 +285,25 @@ class TestBuildEnrichmentE2E:
         assert "PENNY" in vol["low_tickers"]
         assert "AAPL" not in vol["low_tickers"]
 
-    @patch("scripts.generate_smc_micro_base_from_databento._make_fmp_client")
-    def test_refresh_count_increments_from_manifest(self, mock_make, tmp_path: Path):
+    def test_refresh_count_increments_from_manifest(self, tmp_path: Path):
         """refresh_count reads from a prior manifest and increments by 1."""
-        mock_make.return_value = _make_mock_fmp()
         manifest_path = tmp_path / "pine" / "generated" / "smc_micro_profiles_generated.json"
         manifest_path.parent.mkdir(parents=True, exist_ok=True)
         manifest_path.write_text(
             json.dumps({"refresh_count": 7}), encoding="utf-8",
         )
         result = build_enrichment(
-            fmp_api_key="test-key",
+            fmp_api_key="",
             symbols=["AAPL"],
             enrich_regime=True,
             manifest_path=manifest_path,
         )
+        assert result is not None
         assert result["meta"]["refresh_count"] == 8
 
-    @patch("scripts.generate_smc_micro_base_from_databento._make_fmp_client")
-    def test_no_domains_enabled_returns_none(self, mock_make):
-        mock_make.return_value = _make_mock_fmp()
+    def test_no_domains_enabled_returns_none(self):
         result = build_enrichment(
-            fmp_api_key="test-key",
+            fmp_api_key="",
             symbols=["AAPL"],
         )
         assert result is None
@@ -510,9 +507,7 @@ class TestFinalizePipelineE2E:
         manifest = json.loads(manifest_files[0].read_text(encoding="utf-8"))
         assert manifest.get("library_field_version") == "v5.5b"
 
-    @patch("scripts.generate_smc_micro_base_from_databento._make_fmp_client")
-    def test_no_enrichment_still_generates_pine(self, mock_make, base_result, tmp_path):
-        mock_make.return_value = _make_mock_fmp()
+    def test_no_enrichment_still_generates_pine(self, base_result, tmp_path):
         result = finalize_pipeline(
             base_result=base_result,
             schema_path=SCHEMA_PATH,
@@ -523,6 +518,27 @@ class TestFinalizePipelineE2E:
         pine_text = Path(result["pine_paths"]["pine_path"]).read_text(encoding="utf-8")
         assert pine_text.startswith("//@version=6\n")
 
+    def test_finalize_pipeline_without_credentials_writes_default_provider_artifacts(self, base_result, tmp_path):
+        result = finalize_pipeline(
+            base_result=base_result,
+            schema_path=SCHEMA_PATH,
+            output_root=tmp_path,
+            enrich_regime=True,
+            enrich_news=True,
+            enrich_calendar=True,
+        )
+
+        assert result["status"] == "ok"
+        assert result["stale_providers"] == "benzinga,fmp,newsapi_ai"
+
+        pine_text = Path(result["pine_paths"]["pine_path"]).read_text(encoding="utf-8")
+        assert "PROVIDER_COUNT = 1" in pine_text
+        assert 'STALE_PROVIDERS = "benzinga,fmp,newsapi_ai"' in pine_text
+
+        manifest_path = Path(result["pine_paths"]["manifest_path"])
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        assert manifest["enrichment_blocks"] == ["calendar", "meta", "news", "providers", "regime", "volume_regime"]
+
 
 # ── 4. generate_pine_library_from_base with real enrichment ─────────
 
@@ -532,6 +548,36 @@ class TestGeneratePineWithRealEnrichment:
     (not a synthetic dict) into ``generate_pine_library_from_base()``
     and verifies the generated Pine artifact.
     """
+
+    def test_uncredentialed_enrichment_renders_default_provider_metadata(self, base_csv, tmp_path):
+        enrichment = build_enrichment(
+            fmp_api_key="",
+            symbols=["AAPL", "TSLA", "META"],
+            enrich_regime=True,
+            enrich_news=True,
+            enrich_calendar=True,
+            base_snapshot=_snapshot_df(),
+        )
+
+        assert enrichment is not None
+        providers = enrichment["providers"]
+        assert providers["provider_count"] == 1
+        assert providers["base_scan_provider"] == "databento"
+        assert providers["regime_provider"] == "none"
+        assert providers["news_provider"] == "none"
+        assert providers["calendar_provider"] == "none"
+        assert providers["stale_providers"] == "benzinga,fmp,newsapi_ai"
+
+        result = generate_pine_library_from_base(
+            base_csv_path=base_csv,
+            schema_path=SCHEMA_PATH,
+            output_root=tmp_path,
+            enrichment=enrichment,
+        )
+        pine_text = result["pine_path"].read_text(encoding="utf-8")
+
+        assert "PROVIDER_COUNT = 1" in pine_text
+        assert 'STALE_PROVIDERS = "benzinga,fmp,newsapi_ai"' in pine_text
 
     @patch("scripts.generate_smc_micro_base_from_databento._make_fmp_client")
     def test_real_enrichment_renders_to_pine(self, mock_make, base_csv, tmp_path):

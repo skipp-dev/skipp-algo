@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 import pandas as pd
 
 from smc_integration import measurement_evidence
@@ -228,3 +230,135 @@ def test_build_measurement_evidence_falls_back_to_recomputed_families(monkeypatc
     assert evidence.details["effective_event_counts"] == {"BOS": 1, "OB": 1, "FVG": 1, "SWEEP": 1}
     assert evidence.details["structure_fallback_families"] == ["BOS", "OB", "FVG", "SWEEP"]
     assert evidence.details["evaluated_event_counts"] == {"BOS": 1, "OB": 1, "FVG": 1, "SWEEP": 1}
+
+
+def test_load_source_bars_prefers_canonical_bundle_over_daily_workbook_fallback(monkeypatch, tmp_path: Path) -> None:
+    workbook_path = tmp_path / "production.xlsx"
+    with pd.ExcelWriter(workbook_path, engine="openpyxl") as writer:
+        pd.DataFrame(
+            [
+                {
+                    "trade_date": "2024-01-02",
+                    "symbol": "AAPL",
+                    "open": 91.0,
+                    "high": 92.0,
+                    "low": 90.0,
+                    "close": 91.5,
+                    "volume": 500.0,
+                }
+            ]
+        ).to_excel(writer, sheet_name="daily_bars", index=False)
+
+    monkeypatch.setattr(
+        measurement_evidence,
+        "load_export_bundle",
+        lambda *_args, **_kwargs: {
+            "frames": {
+                "daily_bars": pd.DataFrame(
+                    [
+                        {
+                            "trade_date": "2024-01-02",
+                            "symbol": "aapl",
+                            "open": 101.0,
+                            "high": 103.0,
+                            "low": 100.0,
+                            "close": 102.5,
+                            "volume": 1500.0,
+                        }
+                    ]
+                )
+            }
+        },
+    )
+
+    bars, source = measurement_evidence._load_source_bars(
+        "AAPL",
+        "1D",
+        resolved_inputs={"export_bundle_root": tmp_path, "workbook_path": workbook_path},
+    )
+
+    assert source == "canonical_export_bundle"
+    assert len(bars) == 1
+    assert float(bars.loc[0, "open"]) == 101.0
+    assert float(bars.loc[0, "volume"]) == 1500.0
+
+
+def test_load_source_bars_uses_daily_workbook_fallback_when_bundle_has_no_matching_rows(monkeypatch, tmp_path: Path) -> None:
+    workbook_path = tmp_path / "production.xlsx"
+    with pd.ExcelWriter(workbook_path, engine="openpyxl") as writer:
+        pd.DataFrame(
+            [
+                {
+                    "trade_date": "2024-01-03",
+                    "symbol": "AAPL",
+                    "open": 111.0,
+                    "high": 112.0,
+                    "low": 109.5,
+                    "close": 110.5,
+                    "volume": 2000.0,
+                }
+            ]
+        ).to_excel(writer, sheet_name="daily_bars", index=False)
+
+    monkeypatch.setattr(
+        measurement_evidence,
+        "load_export_bundle",
+        lambda *_args, **_kwargs: {
+            "frames": {
+                "daily_bars": pd.DataFrame(
+                    [
+                        {
+                            "trade_date": "2024-01-03",
+                            "symbol": "MSFT",
+                            "open": 201.0,
+                            "high": 202.0,
+                            "low": 199.0,
+                            "close": 200.5,
+                            "volume": 3000.0,
+                        }
+                    ]
+                )
+            }
+        },
+    )
+
+    bars, source = measurement_evidence._load_source_bars(
+        "AAPL",
+        "1D",
+        resolved_inputs={"export_bundle_root": tmp_path, "workbook_path": workbook_path},
+    )
+
+    assert source == "workbook_fallback"
+    assert len(bars) == 1
+    assert float(bars.loc[0, "open"]) == 111.0
+    assert float(bars.loc[0, "close"]) == 110.5
+
+
+def test_to_epoch_seconds_drops_invalid_timestamp_rows() -> None:
+    frame = pd.DataFrame(
+        [
+            {
+                "symbol": "AAPL",
+                "timestamp": "2024-01-02T00:00:00Z",
+                "open": 100.0,
+                "high": 101.0,
+                "low": 99.5,
+                "close": 100.5,
+                "volume": 1000.0,
+            },
+            {
+                "symbol": "AAPL",
+                "timestamp": "not-a-timestamp",
+                "open": 101.0,
+                "high": 102.0,
+                "low": 100.5,
+                "close": 101.5,
+                "volume": 1200.0,
+            },
+        ]
+    )
+
+    normalized = measurement_evidence._to_epoch_seconds(frame)
+
+    assert len(normalized) == 1
+    assert int(normalized.loc[0, "timestamp"]) == int(pd.Timestamp("2024-01-02T00:00:00Z").timestamp())

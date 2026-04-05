@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from scripts.export_smc_structure_artifact import export_structure_artifact
+from smc_integration import artifact_resolution
 from smc_integration.structure_batch import write_structure_artifacts_from_workbook
 from smc_adapters import build_structure_from_raw
 from smc_core.schema_version import SCHEMA_VERSION
@@ -268,3 +269,183 @@ def test_discover_normalized_contract_summary_reports_manifest_health_issues(mon
         assert summary["health"]["issue_count"] >= 1
         codes = {str(item.get("code", "")) for item in summary["health"]["issues"]}
         assert "INVALID_MANIFEST_JSON" in codes
+
+
+def test_discover_normalized_contract_summary_prefers_legacy_over_orphan_deterministic_artifacts(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+        artifact_dir = tmp_path / "reports" / "smc_structure_artifacts"
+        artifact_dir.mkdir(parents=True, exist_ok=True)
+
+        legacy_path = tmp_path / "reports" / "smc_structure_artifact.json"
+        legacy_path.parent.mkdir(parents=True, exist_ok=True)
+        legacy_path.write_text(
+                json.dumps({
+                    "entries": [
+                        {
+                            "symbol": "AAPL",
+                            "timeframe": "15m",
+                            "structure": {
+                                "bos": [
+                                    {
+                                        "id": "bos:AAPL:15m:1",
+                                        "time": 1,
+                                        "price": 100.0,
+                                        "kind": "BOS",
+                                        "dir": "UP",
+                                    }
+                                ],
+                                "orderblocks": [],
+                                "fvg": [],
+                                "liquidity_sweeps": [],
+                            },
+                            "auxiliary": {},
+                            "diagnostics": {"structure_profile_used": "hybrid_default", "event_logic_version": "v2"},
+                        }
+                    ]
+                }, indent=4) + "\n",
+                encoding="utf-8",
+        )
+
+        (artifact_dir / "AAPL_15m.structure.json").write_text(
+                json.dumps({
+                    "symbol": "AAPL",
+                    "timeframe": "15m",
+                    "structure": {
+                        "bos": [
+                            {
+                                "id": "bos:AAPL:15m:2",
+                                "time": 2,
+                                "price": 101.0,
+                                "kind": "CHOCH",
+                                "dir": "DOWN",
+                            }
+                        ],
+                        "orderblocks": [{"id": "ob:AAPL:15m:1", "low": 99.0, "high": 100.0, "dir": "UP", "valid": True}],
+                        "fvg": [{"id": "fvg:AAPL:15m:1", "low": 100.0, "high": 101.0, "dir": "UP", "valid": True}],
+                        "liquidity_sweeps": [{"id": "sweep:AAPL:15m:1", "time": 2, "price": 101.0, "side": "BUY"}],
+                    },
+                    "auxiliary": {},
+                    "diagnostics": {"structure_profile_used": "hybrid_default", "event_logic_version": "v2"},
+                }, indent=4) + "\n",
+                encoding="utf-8",
+        )
+
+        monkeypatch.setattr(structure_artifact_json, "REPO_ROOT", tmp_path)
+        monkeypatch.setattr(structure_artifact_json, "STRUCTURE_ARTIFACTS_DIR", artifact_dir)
+        monkeypatch.setattr(structure_artifact_json, "STRUCTURE_ARTIFACT_JSON", legacy_path)
+
+        summary = structure_artifact_json.discover_normalized_contract_summary()
+
+        assert summary["mapped_structure_categories"] == {
+            "bos": True,
+            "choch": True,
+            "orderblocks": False,
+            "fvg": False,
+            "liquidity_sweeps": False,
+        }
+        assert summary["health"]["issue_count"] == 0
+
+
+def test_discover_normalized_contract_summary_repo_state_only_rejects_noncanonical_manifest_provenance(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+        artifact_dir = tmp_path / "reports" / "smc_structure_artifacts"
+        artifact_dir.mkdir(parents=True, exist_ok=True)
+
+        canonical_export_root = tmp_path / "artifacts" / "smc_microstructure_exports"
+        canonical_export_root.mkdir(parents=True, exist_ok=True)
+        canonical_workbook = canonical_export_root / "databento_volatility_production_20260405_080817.xlsx"
+        canonical_workbook.write_text("workbook", encoding="utf-8")
+
+        legacy_path = tmp_path / "reports" / "smc_structure_artifact.json"
+        legacy_path.parent.mkdir(parents=True, exist_ok=True)
+        legacy_path.write_text(
+                json.dumps({
+                    "entries": [
+                        {
+                            "symbol": "AAPL",
+                            "timeframe": "15m",
+                            "structure": {
+                                "bos": [
+                                    {
+                                        "id": "bos:AAPL:15m:1",
+                                        "time": 1,
+                                        "price": 100.0,
+                                        "kind": "BOS",
+                                        "dir": "UP",
+                                    }
+                                ],
+                                "orderblocks": [],
+                                "fvg": [],
+                                "liquidity_sweeps": [],
+                            },
+                            "auxiliary": {},
+                            "diagnostics": {"structure_profile_used": "hybrid_default", "event_logic_version": "v2"},
+                        }
+                    ]
+                }, indent=4) + "\n",
+                encoding="utf-8",
+        )
+
+        (artifact_dir / "AAPL_15m.structure.json").write_text(
+                json.dumps({
+                    "symbol": "AAPL",
+                    "timeframe": "15m",
+                    "structure": {
+                        "bos": [{"id": "bos:AAPL:15m:2", "time": 2, "price": 101.0, "kind": "CHOCH", "dir": "DOWN"}],
+                        "orderblocks": [{"id": "ob:AAPL:15m:1", "low": 99.0, "high": 100.0, "dir": "UP", "valid": True}],
+                        "fvg": [{"id": "fvg:AAPL:15m:1", "low": 100.0, "high": 101.0, "dir": "UP", "valid": True}],
+                        "liquidity_sweeps": [{"id": "sweep:AAPL:15m:1", "time": 2, "price": 101.0, "side": "BUY"}],
+                    },
+                    "auxiliary": {},
+                    "diagnostics": {"structure_profile_used": "hybrid_default", "event_logic_version": "v2"},
+                }, indent=4) + "\n",
+                encoding="utf-8",
+        )
+
+        (artifact_dir / "manifest_15m.json").write_text(
+                json.dumps({
+                    "schema_version": "2.0.0",
+                    "generated_at": 1709254000.0,
+                    "timeframe": "15m",
+                    "producer": {
+                        "name": "smc_price_action_engine_v2",
+                        "upstream": str((tmp_path / "pytest-temp" / "noncanonical.xlsx").as_posix()),
+                    },
+                    "resolved_inputs": {
+                        "workbook_path": str((tmp_path / "pytest-temp" / "noncanonical.xlsx").as_posix()),
+                        "export_bundle_root": str(canonical_export_root.as_posix()),
+                    },
+                    "artifacts": [
+                        {
+                            "symbol": "AAPL",
+                            "timeframe": "15m",
+                            "artifact_path": "reports/smc_structure_artifacts/AAPL_15m.structure.json",
+                        }
+                    ],
+                    "errors": [],
+                    "warnings": [],
+                }, indent=4) + "\n",
+                encoding="utf-8",
+        )
+
+        monkeypatch.setattr(structure_artifact_json, "REPO_ROOT", tmp_path)
+        monkeypatch.setattr(structure_artifact_json, "STRUCTURE_ARTIFACTS_DIR", artifact_dir)
+        monkeypatch.setattr(structure_artifact_json, "STRUCTURE_ARTIFACT_JSON", legacy_path)
+        monkeypatch.setattr(artifact_resolution, "REPO_ROOT", tmp_path)
+        monkeypatch.setattr(artifact_resolution, "resolve_production_workbook_path", lambda explicit_path=None: canonical_workbook)
+
+        summary = structure_artifact_json.discover_normalized_contract_summary(repo_state_only=True)
+
+        assert summary["mapped_structure_categories"] == {
+            "bos": True,
+            "choch": True,
+            "orderblocks": False,
+            "fvg": False,
+            "liquidity_sweeps": False,
+        }
+        codes = {str(item.get("code", "")) for item in summary["health"]["issues"]}
+        assert "NONCANONICAL_MANIFEST_WORKBOOK_PATH" in codes

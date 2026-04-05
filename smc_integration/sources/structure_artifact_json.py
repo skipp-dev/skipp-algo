@@ -74,6 +74,78 @@ def _load_payload() -> dict[str, Any]:
     return _load_json(STRUCTURE_ARTIFACT_JSON)
 
 
+def _optional_path(raw: Any) -> Path | None:
+    text = str(raw).strip() if raw is not None else ""
+    if not text:
+        return None
+    return Path(text).expanduser().resolve()
+
+
+def _repo_state_paths_match_defaults() -> bool:
+    default_artifacts_dir = (REPO_ROOT / "reports" / "smc_structure_artifacts").resolve()
+    default_single_artifact = (REPO_ROOT / "reports" / "smc_structure_artifact.json").resolve()
+    return STRUCTURE_ARTIFACTS_DIR.resolve() == default_artifacts_dir and STRUCTURE_ARTIFACT_JSON.resolve() == default_single_artifact
+
+
+def _manifest_repo_state_health_issues(payload: dict[str, Any], *, manifest_path: Path) -> list[dict[str, Any]]:
+    from smc_integration import artifact_resolution
+
+    if not _repo_state_paths_match_defaults():
+        return []
+
+    expected_workbook = artifact_resolution.resolve_production_workbook_path()
+    if expected_workbook is None:
+        return []
+
+    resolved_inputs_raw = payload.get("resolved_inputs")
+    producer_raw = payload.get("producer")
+    resolved_inputs: dict[str, Any] = resolved_inputs_raw if isinstance(resolved_inputs_raw, dict) else {}
+    producer: dict[str, Any] = producer_raw if isinstance(producer_raw, dict) else {}
+
+    actual_workbook = _optional_path(resolved_inputs.get("workbook_path"))
+    producer_upstream = _optional_path(producer.get("upstream"))
+    expected_workbook = expected_workbook.resolve()
+
+    issues: list[dict[str, Any]] = []
+    if actual_workbook is not None and producer_upstream is not None and actual_workbook != producer_upstream:
+        issues.append(
+            _health_issue(
+                "INCONSISTENT_MANIFEST_WORKBOOK_PROVENANCE",
+                (
+                    "manifest workbook provenance is internally inconsistent: "
+                    f"resolved_inputs.workbook_path={actual_workbook.as_posix()} "
+                    f"producer.upstream={producer_upstream.as_posix()}"
+                ),
+                path=manifest_path,
+            )
+        )
+
+    observed_workbook = actual_workbook or producer_upstream
+    if observed_workbook is None:
+        issues.append(
+            _health_issue(
+                "MISSING_MANIFEST_WORKBOOK_PROVENANCE",
+                "manifest does not declare resolved_inputs.workbook_path or producer.upstream",
+                path=manifest_path,
+            )
+        )
+        return issues
+
+    if observed_workbook != expected_workbook:
+        issues.append(
+            _health_issue(
+                "NONCANONICAL_MANIFEST_WORKBOOK_PATH",
+                (
+                    "manifest workbook provenance does not match the canonical production workbook: "
+                    f"observed={observed_workbook.as_posix()} expected={expected_workbook.as_posix()}"
+                ),
+                path=manifest_path,
+            )
+        )
+
+    return issues
+
+
 def _manifest_path_for_timeframe(timeframe: str) -> Path:
     tf = str(timeframe).strip()
     return STRUCTURE_ARTIFACTS_DIR / f"manifest_{tf}.json"
@@ -193,13 +265,14 @@ def has_any_structure_artifact() -> bool:
     return False
 
 
-def _iter_manifest_artifacts() -> tuple[list[Path], list[dict[str, Any]]]:
+def _iter_manifest_artifacts(*, repo_state_only: bool = False) -> tuple[list[Path], list[dict[str, Any]]]:
     if not STRUCTURE_ARTIFACTS_DIR.exists():
         return [], []
 
     artifacts: list[Path] = []
     issues: list[dict[str, Any]] = []
-    for manifest_path in sorted(STRUCTURE_ARTIFACTS_DIR.glob("manifest_*.json")):
+    manifest_paths = sorted(STRUCTURE_ARTIFACTS_DIR.glob("manifest_*.json"))
+    for manifest_path in manifest_paths:
         try:
             payload = _load_json(manifest_path)
         except Exception as exc:
@@ -211,6 +284,11 @@ def _iter_manifest_artifacts() -> tuple[list[Path], list[dict[str, Any]]]:
                 )
             )
             continue
+        if repo_state_only:
+            provenance_issues = _manifest_repo_state_health_issues(payload, manifest_path=manifest_path)
+            issues.extend(provenance_issues)
+            if provenance_issues:
+                continue
         rows = payload.get("artifacts")
         if not isinstance(rows, list):
             issues.append(
@@ -242,15 +320,21 @@ def _iter_manifest_artifacts() -> tuple[list[Path], list[dict[str, Any]]]:
     if artifacts:
         return artifacts, issues
 
-    # Fallback for deterministic artifact naming when manifest rows are missing.
-    return sorted(STRUCTURE_ARTIFACTS_DIR.glob("*.structure.json")), issues
+    if manifest_paths:
+        return [], issues
+
+    deterministic_artifacts = sorted(STRUCTURE_ARTIFACTS_DIR.glob("*.structure.json"))
+    if deterministic_artifacts and not STRUCTURE_ARTIFACT_JSON.exists():
+        return deterministic_artifacts, issues
+
+    return [], issues
 
 
-def _iter_normalized_contracts() -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+def _iter_normalized_contracts(*, repo_state_only: bool = False) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     contracts: list[dict[str, Any]] = []
     health_issues: list[dict[str, Any]] = []
 
-    artifact_paths, manifest_issues = _iter_manifest_artifacts()
+    artifact_paths, manifest_issues = _iter_manifest_artifacts(repo_state_only=repo_state_only)
     health_issues.extend(manifest_issues)
 
     for artifact_path in artifact_paths:
@@ -297,8 +381,8 @@ def _iter_normalized_contracts() -> tuple[list[dict[str, Any]], list[dict[str, A
     return contracts, health_issues
 
 
-def discover_normalized_contract_summary() -> dict[str, Any]:
-    contracts, health_issues = _iter_normalized_contracts()
+def discover_normalized_contract_summary(*, repo_state_only: bool = False) -> dict[str, Any]:
+    contracts, health_issues = _iter_normalized_contracts(repo_state_only=repo_state_only)
     if not contracts:
         return {
             "mapped_structure_categories": {
@@ -367,8 +451,8 @@ def discover_contract_capabilities() -> dict[str, Any]:
     return discover_normalized_contract_summary()
 
 
-def discover_contract_health() -> dict[str, Any]:
-    summary = discover_normalized_contract_summary()
+def discover_contract_health(*, repo_state_only: bool = False) -> dict[str, Any]:
+    summary = discover_normalized_contract_summary(repo_state_only=repo_state_only)
     health = summary.get("health", {})
     return dict(health) if isinstance(health, dict) else {"issue_count": 0, "issues": [], "contracts_loaded": 0}
 
@@ -399,8 +483,8 @@ def load_normalized_structure_contract_input(symbol: str, timeframe: str) -> dic
     return None
 
 
-def discover_category_coverage() -> dict[str, bool]:
-    summary = discover_normalized_contract_summary()
+def discover_category_coverage(*, repo_state_only: bool = False) -> dict[str, bool]:
+    summary = discover_normalized_contract_summary(repo_state_only=repo_state_only)
     return dict(summary.get("mapped_structure_categories", {}))
 
 

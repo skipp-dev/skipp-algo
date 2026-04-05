@@ -133,8 +133,10 @@ def _canonical_event_counts(contract: dict[str, Any]) -> dict[EventFamily, int]:
 
 def _to_epoch_seconds(frame: pd.DataFrame) -> pd.DataFrame:
     out = frame.copy()
-    out["timestamp"] = pd.to_datetime(out["timestamp"], utc=True, errors="coerce").astype("int64") // 10**9
-    return out.dropna(subset=["timestamp", "open", "high", "low", "close"]).reset_index(drop=True)
+    out["timestamp"] = pd.to_datetime(out["timestamp"], utc=True, errors="coerce")
+    out = out.dropna(subset=["timestamp", "open", "high", "low", "close"]).copy()
+    out["timestamp"] = out["timestamp"].astype("int64") // 10**9
+    return out.reset_index(drop=True)
 
 
 def _find_bar_index(bars: pd.DataFrame, event_ts: float) -> int | None:

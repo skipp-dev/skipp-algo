@@ -144,7 +144,7 @@ def discover_structure_source_candidates() -> list[dict[str, Any]]:
 def discover_structure_category_coverage() -> dict[str, dict[str, Any]]:
     from .sources import structure_artifact_json
 
-    summary = structure_artifact_json.discover_normalized_contract_summary()
+    summary = structure_artifact_json.discover_normalized_contract_summary(repo_state_only=True)
 
     mapped_categories = {
         category: False
@@ -240,7 +240,7 @@ def build_structure_gap_report() -> dict[str, Any]:
     category_coverage = discover_structure_category_coverage()
     from .sources import structure_artifact_json
 
-    contract = structure_artifact_json.discover_normalized_contract_summary()
+    contract = structure_artifact_json.discover_normalized_contract_summary(repo_state_only=True)
     registered_structure_sources = [
         {
             "name": source.name,

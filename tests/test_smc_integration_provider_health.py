@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+from pathlib import Path
 
 from smc_integration import provider_health
 
@@ -15,7 +16,7 @@ def _stub_structure_status(**_: object) -> dict[str, object]:
     }
 
 
-def _stub_contract_summary() -> dict[str, object]:
+def _stub_contract_summary(**_: object) -> dict[str, object]:
     return {
         "mapped_structure_categories": {
             "bos": "bos",
@@ -36,6 +37,138 @@ def _stub_smoke_ok(**_: object) -> dict[str, object]:
         "failures": [],
         "degradations": [],
     }
+
+
+def _write_real_manifest_artifact_fixture(tmp_path: Path, *, observed_workbook: Path, generated_at: float = 95.0) -> Path:
+    artifact_dir = tmp_path / "reports" / "smc_structure_artifacts"
+    artifact_dir.mkdir(parents=True, exist_ok=True)
+
+    artifact_path = artifact_dir / "AAPL_15m.structure.json"
+    artifact_path.write_text(
+        json.dumps(
+            {
+                "symbol": "AAPL",
+                "timeframe": "15m",
+                "structure": {
+                    "bos": [
+                        {
+                            "id": "bos:AAPL:15m:1",
+                            "time": 1.0,
+                            "price": 100.0,
+                            "kind": "BOS",
+                            "dir": "UP",
+                        }
+                    ],
+                    "orderblocks": [],
+                    "fvg": [],
+                    "liquidity_sweeps": [],
+                },
+                "auxiliary": {},
+                "diagnostics": {
+                    "structure_profile_used": "hybrid_default",
+                    "event_logic_version": "v2",
+                },
+            },
+            indent=2,
+        ) + "\n",
+        encoding="utf-8",
+    )
+
+    manifest_path = artifact_dir / "manifest_15m.json"
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "schema_version": "2.0.0",
+                "generated_at": generated_at,
+                "timeframe": "15m",
+                "producer": {
+                    "name": "smc_price_action_engine_v2",
+                    "upstream": observed_workbook.as_posix(),
+                },
+                "resolved_inputs": {
+                    "workbook_path": observed_workbook.as_posix(),
+                    "export_bundle_root": (tmp_path / "artifacts" / "smc_microstructure_exports").as_posix(),
+                },
+                "artifacts": [
+                    {
+                        "symbol": "AAPL",
+                        "timeframe": "15m",
+                        "artifact_path": "reports/smc_structure_artifacts/AAPL_15m.structure.json",
+                    }
+                ],
+                "errors": [],
+                "warnings": [],
+            },
+            indent=2,
+        ) + "\n",
+        encoding="utf-8",
+    )
+    os.utime(manifest_path, (generated_at, generated_at))
+    return artifact_dir
+
+
+def _patch_real_artifact_environment(monkeypatch, tmp_path: Path, artifact_dir: Path, canonical_workbook: Path) -> None:
+    from smc_integration import artifact_resolution
+
+    monkeypatch.setattr(provider_health, "discover_provider_matrix", lambda: [])
+    monkeypatch.setattr(provider_health, "discover_structure_source_status", _stub_structure_status)
+    monkeypatch.setattr(provider_health, "_run_smoke_checks", _stub_smoke_ok)
+    monkeypatch.setattr(provider_health.structure_artifact_json, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(provider_health.structure_artifact_json, "STRUCTURE_ARTIFACTS_DIR", artifact_dir)
+    monkeypatch.setattr(
+        provider_health.structure_artifact_json,
+        "STRUCTURE_ARTIFACT_JSON",
+        tmp_path / "reports" / "smc_structure_artifact.json",
+    )
+    monkeypatch.setattr(artifact_resolution, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(artifact_resolution, "resolve_production_workbook_path", lambda explicit_path=None: canonical_workbook)
+
+
+def test_run_provider_health_real_canonical_manifest_is_ok(monkeypatch, tmp_path):
+    canonical_workbook = tmp_path / "artifacts" / "smc_microstructure_exports" / "canonical.xlsx"
+    canonical_workbook.parent.mkdir(parents=True, exist_ok=True)
+    canonical_workbook.write_text("workbook\n", encoding="utf-8")
+
+    artifact_dir = _write_real_manifest_artifact_fixture(tmp_path, observed_workbook=canonical_workbook)
+    _patch_real_artifact_environment(monkeypatch, tmp_path, artifact_dir, canonical_workbook)
+
+    report = provider_health.run_provider_health_check(
+        symbols=["AAPL"],
+        timeframes=["15m"],
+        checked_at=100.0,
+        stale_after_seconds=30,
+    )
+
+    assert report["overall_status"] == "ok"
+    assert report["warnings"] == []
+    assert report["failures"] == []
+    assert report["artifact_health"]["health_issue_count"] == 0
+    assert report["artifact_health"]["contract_summary"]["mapped_structure_categories"]["bos"] is True
+
+
+def test_run_provider_health_real_manifest_surfaces_noncanonical_provenance(monkeypatch, tmp_path):
+    canonical_workbook = tmp_path / "artifacts" / "smc_microstructure_exports" / "canonical.xlsx"
+    canonical_workbook.parent.mkdir(parents=True, exist_ok=True)
+    canonical_workbook.write_text("workbook\n", encoding="utf-8")
+
+    observed_workbook = tmp_path / "pytest-temp" / "noncanonical.xlsx"
+    observed_workbook.parent.mkdir(parents=True, exist_ok=True)
+    observed_workbook.write_text("noncanonical\n", encoding="utf-8")
+
+    artifact_dir = _write_real_manifest_artifact_fixture(tmp_path, observed_workbook=observed_workbook)
+    _patch_real_artifact_environment(monkeypatch, tmp_path, artifact_dir, canonical_workbook)
+
+    report = provider_health.run_provider_health_check(
+        symbols=["AAPL"],
+        timeframes=["15m"],
+        checked_at=100.0,
+        stale_after_seconds=30,
+    )
+
+    assert report["overall_status"] == "warn"
+    codes = {str(item.get("code", "")) for item in report["warnings"]}
+    assert "NONCANONICAL_MANIFEST_WORKBOOK_PATH" in codes
+    assert report["artifact_health"]["contract_summary"]["mapped_structure_categories"]["bos"] is False
 
 
 def test_run_provider_health_missing_artifact_visible(monkeypatch, tmp_path):

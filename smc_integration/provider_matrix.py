@@ -141,7 +141,7 @@ def _current_mapping_for_provider(name: str) -> ProviderCurrentMapping:
     ]
 
     if name == "structure_artifact_json":
-        contract = structure_artifact_json.discover_normalized_contract_summary()
+        contract = structure_artifact_json.discover_normalized_contract_summary(repo_state_only=True)
         category_coverage = dict(contract.get("mapped_structure_categories", {}))
 
         mapped_fields: list[str] = []
@@ -308,8 +308,8 @@ def _known_gaps_for_provider(name: str) -> list[str]:
     ]
 
     if name == "structure_artifact_json":
-        coverage = structure_artifact_json.discover_category_coverage()
-        health = structure_artifact_json.discover_contract_health()
+        coverage = structure_artifact_json.discover_category_coverage(repo_state_only=True)
+        health = structure_artifact_json.discover_contract_health(repo_state_only=True)
         issues = health.get("issues", []) if isinstance(health, dict) else []
         gaps: list[str] = []
         if not coverage.get("bos"):

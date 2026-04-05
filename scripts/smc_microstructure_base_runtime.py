@@ -251,6 +251,104 @@ def _setup_decay_half_life_30m_buckets(frame: pd.DataFrame) -> float:
     return float(int(hit.index[0]))
 
 
+def _empty_group_metrics(group_columns: list[str], columns: list[str]) -> pd.DataFrame:
+    return pd.DataFrame(columns=columns, index=pd.MultiIndex.from_tuples([], names=group_columns))
+
+
+def _window_efficiency_from_aggregates(
+    open_price: pd.Series,
+    close_price: pd.Series,
+    high_price: pd.Series,
+    low_price: pd.Series,
+) -> pd.Series:
+    total_range = high_price - low_price
+    efficiency = np.where(
+        np.isfinite(open_price)
+        & np.isfinite(close_price)
+        & np.isfinite(total_range)
+        & (total_range > 0),
+        np.abs(close_price - open_price) / total_range,
+        0.0,
+    )
+    return pd.Series(efficiency, index=open_price.index).clip(lower=0.0, upper=1.0)
+
+
+def _aggregate_window_metrics(
+    frame: pd.DataFrame,
+    mask: pd.Series,
+    *,
+    group_columns: list[str],
+    available_minutes: int,
+) -> pd.DataFrame:
+    columns = [
+        "dollar_volume",
+        "trade_proxy",
+        "active_minutes",
+        "active_minutes_share",
+        "spread_bps",
+        "wickiness",
+        "efficiency",
+        "open_price",
+        "close_price",
+    ]
+    subset = frame.loc[
+        mask,
+        group_columns + [
+            "timestamp",
+            "open",
+            "high",
+            "low",
+            "close",
+            "dollar_volume",
+            "trade_proxy",
+            "active_minute",
+            "spread_bps_proxy",
+            "wickiness_proxy",
+        ],
+    ]
+    if subset.empty:
+        return _empty_group_metrics(group_columns, columns)
+
+    aggregated = subset.groupby(group_columns, sort=False).agg(
+        dollar_volume=("dollar_volume", "sum"),
+        trade_proxy=("trade_proxy", "sum"),
+        active_minutes=("active_minute", "sum"),
+        spread_bps=("spread_bps_proxy", "mean"),
+        wickiness=("wickiness_proxy", "mean"),
+        open_price=("open", "first"),
+        close_price=("close", "last"),
+        high_price=("high", "max"),
+        low_price=("low", "min"),
+    )
+    aggregated["active_minutes_share"] = aggregated["active_minutes"].map(
+        lambda value: _safe_ratio(value, available_minutes, default=0.0)
+    )
+    aggregated["efficiency"] = _window_efficiency_from_aggregates(
+        aggregated["open_price"],
+        aggregated["close_price"],
+        aggregated["high_price"],
+        aggregated["low_price"],
+    )
+    return aggregated[columns]
+
+
+def _aggregate_open_close_metrics(
+    frame: pd.DataFrame,
+    mask: pd.Series,
+    *,
+    group_columns: list[str],
+) -> pd.DataFrame:
+    columns = ["dollar_volume", "open_price", "close_price"]
+    subset = frame.loc[mask, group_columns + ["timestamp", "open", "close", "dollar_volume"]]
+    if subset.empty:
+        return _empty_group_metrics(group_columns, columns)
+    return subset.groupby(group_columns, sort=False).agg(
+        dollar_volume=("dollar_volume", "sum"),
+        open_price=("open", "first"),
+        close_price=("close", "last"),
+    )
+
+
 def build_symbol_day_microstructure_feature_frame(
     session_minute_detail: pd.DataFrame,
     daily_symbol_features: pd.DataFrame,
@@ -353,107 +451,190 @@ def build_symbol_day_microstructure_feature_frame(
                 - minute_frame["timestamp"].dt.tz_convert(US_EASTERN_TZ).dt.normalize()
                 - pd.Timedelta(hours=9, minutes=30)
             ).dt.total_seconds() / 60.0
+            minute_frame = minute_frame.sort_values(["trade_date", "symbol", "timestamp"]).reset_index(drop=True)
+            group_columns = ["trade_date", "symbol"]
+            group_index = minute_frame[group_columns].drop_duplicates().set_index(group_columns)
 
-            null_activity_keys: list[tuple[date, str]] = []
-            for (trade_day, symbol), group in minute_frame.groupby(["trade_date", "symbol"], sort=False):
-                close_series = pd.to_numeric(group.get("close"), errors="coerce")
-                volume_series = pd.to_numeric(group.get("volume"), errors="coerce").fillna(0.0)
-                close_missing = close_series.isna().all()
-                volume_inactive = bool((volume_series <= 0).all())
-                if close_missing or volume_inactive:
+            grouped = minute_frame.groupby(group_columns, sort=False)
+            close_missing = grouped["close"].count().eq(0)
+            volume_inactive = grouped["volume"].max().le(0)
+            null_activity = pd.DataFrame(
+                {
+                    "close_missing": close_missing,
+                    "volume_inactive": volume_inactive,
+                }
+            )
+            null_activity = null_activity.loc[null_activity.any(axis=1)]
+            if not null_activity.empty:
+                for trade_day, symbol in null_activity.index.tolist():
                     logger.warning(
                         "Symbol %s on %s has no usable close/volume activity; marking all minute bars inactive.",
                         symbol,
                         trade_day,
                     )
-                    null_activity_keys.append((trade_day, symbol))
+                null_mask = pd.MultiIndex.from_frame(minute_frame[group_columns]).isin(null_activity.index)
+                minute_frame.loc[null_mask, "active_minute"] = False
+                minute_frame.loc[null_mask, "trade_proxy"] = 0.0
+                minute_frame.loc[null_mask, "dollar_volume"] = 0.0
 
-            if null_activity_keys:
-                null_activity_index = pd.MultiIndex.from_tuples(null_activity_keys, names=["trade_date", "symbol"])
-                minute_index = pd.MultiIndex.from_frame(minute_frame[["trade_date", "symbol"]])
-                inactive_mask = minute_index.isin(null_activity_index)
-                minute_frame.loc[inactive_mask, "active_minute"] = False
-                minute_frame.loc[inactive_mask, "trade_proxy"] = 0.0
-                minute_frame.loc[inactive_mask, "dollar_volume"] = 0.0
+            et_time = minute_frame["et_time"]
+            is_pm = et_time.ge(PREMARKET_START_ET) & et_time.lt(REGULAR_OPEN_ET)
+            is_rth = et_time.ge(REGULAR_OPEN_ET) & et_time.lt(REGULAR_CLOSE_ET)
+            is_open_30 = et_time.ge(REGULAR_OPEN_ET) & et_time.lt(OPEN_30M_END_ET)
+            is_midday = et_time.ge(MIDDAY_START_ET) & et_time.lt(MIDDAY_END_ET)
+            is_late = et_time.ge(LATE_START_ET) & et_time.lt(REGULAR_CLOSE_ET)
+            is_close_60 = et_time.ge(CLOSE_60M_START_ET) & et_time.lt(REGULAR_CLOSE_ET)
+            is_ah = et_time.ge(REGULAR_CLOSE_ET) & et_time.lt(AFTERHOURS_END_ET)
 
-            rows: list[dict[str, Any]] = []
-            for (trade_day, symbol), group in minute_frame.groupby(["trade_date", "symbol"], sort=False):
-                ordered = group.sort_values("timestamp").reset_index(drop=True)
-                pm = _session_slice(ordered, PREMARKET_START_ET, REGULAR_OPEN_ET)
-                rth = _session_slice(ordered, REGULAR_OPEN_ET, REGULAR_CLOSE_ET)
-                open_30 = _session_slice(ordered, REGULAR_OPEN_ET, OPEN_30M_END_ET)
-                midday = _session_slice(ordered, MIDDAY_START_ET, MIDDAY_END_ET)
-                late = _session_slice(ordered, LATE_START_ET, REGULAR_CLOSE_ET)
-                close_60 = _session_slice(ordered, CLOSE_60M_START_ET, REGULAR_CLOSE_ET)
-                ah = _session_slice(ordered, REGULAR_CLOSE_ET, AFTERHOURS_END_ET)
+            pm_stats = _aggregate_window_metrics(
+                minute_frame,
+                is_pm,
+                group_columns=group_columns,
+                available_minutes=PREMARKET_MINUTES,
+            )
+            rth_stats = _aggregate_window_metrics(
+                minute_frame,
+                is_rth,
+                group_columns=group_columns,
+                available_minutes=REGULAR_MINUTES,
+            )
+            midday_stats = _aggregate_window_metrics(
+                minute_frame,
+                is_midday,
+                group_columns=group_columns,
+                available_minutes=MIDDAY_MINUTES,
+            )
+            ah_stats = _aggregate_window_metrics(
+                minute_frame,
+                is_ah,
+                group_columns=group_columns,
+                available_minutes=AFTERHOURS_MINUTES,
+            )
+            open_30_stats = _aggregate_open_close_metrics(
+                minute_frame,
+                is_open_30,
+                group_columns=group_columns,
+            )
+            late_stats = _aggregate_open_close_metrics(
+                minute_frame,
+                is_late,
+                group_columns=group_columns,
+            )
+            close_60_stats = _aggregate_open_close_metrics(
+                minute_frame,
+                is_close_60,
+                group_columns=group_columns,
+            )
 
-                pm_stats = _session_stats(pm, available_minutes=PREMARKET_MINUTES)
-                rth_stats = _session_stats(rth, available_minutes=REGULAR_MINUTES)
-                midday_stats = _session_stats(midday, available_minutes=MIDDAY_MINUTES)
-                ah_stats = _session_stats(ah, available_minutes=AFTERHOURS_MINUTES)
-
-                total_day_dollar = pm_stats["dollar_volume"] + rth_stats["dollar_volume"] + ah_stats["dollar_volume"]
-                total_day_trades = pm_stats["trade_proxy"] + rth_stats["trade_proxy"] + ah_stats["trade_proxy"]
-
-                early_return = 0.0
-                if not open_30.empty:
-                    early_open = _safe_float(open_30.iloc[0].get("open"), default=np.nan)
-                    early_close = _safe_float(open_30.iloc[-1].get("close"), default=np.nan)
-                    if np.isfinite(early_open) and early_open > 0 and np.isfinite(early_close):
-                        early_return = abs((early_close / early_open) - 1.0)
-
-                late_return = 0.0
-                if not late.empty:
-                    late_open = _safe_float(late.iloc[0].get("open"), default=np.nan)
-                    late_close = _safe_float(late.iloc[-1].get("close"), default=np.nan)
-                    if np.isfinite(late_open) and late_open > 0 and np.isfinite(late_close):
-                        late_return = abs((late_close / late_open) - 1.0)
-
-                rth_open = _safe_float(rth.iloc[0].get("open"), default=np.nan) if not rth.empty else np.nan
-                rth_close = _safe_float(rth.iloc[-1].get("close"), default=np.nan) if not rth.empty else np.nan
-                rth_net_return_abs = abs((rth_close / rth_open) - 1.0) if np.isfinite(rth_open) and rth_open > 0 and np.isfinite(rth_close) else 0.0
-
-                rows.append(
-                    {
-                        "trade_date": trade_day,
-                        "symbol": symbol,
-                        "daily_rth_dollar_volume": rth_stats["dollar_volume"],
-                        "daily_avg_spread_bps_rth": rth_stats["spread_bps"],
-                        "daily_rth_active_minutes_share": rth_stats["active_minutes_share"],
-                        "daily_open_30m_dollar_share": _safe_ratio(open_30["dollar_volume"].sum(), rth_stats["dollar_volume"], default=0.0),
-                        "daily_close_60m_dollar_share": _safe_ratio(close_60["dollar_volume"].sum(), rth_stats["dollar_volume"], default=0.0),
-                        "daily_rth_wickiness": rth_stats["wickiness"],
-                        "daily_pm_dollar_share": _safe_ratio(pm_stats["dollar_volume"], total_day_dollar, default=0.0),
-                        "daily_pm_trades_share": _safe_ratio(pm_stats["trade_proxy"], total_day_trades, default=0.0),
-                        "daily_pm_active_minutes_share": pm_stats["active_minutes_share"],
-                        "daily_pm_spread_bps": pm_stats["spread_bps"],
-                        "daily_pm_wickiness": pm_stats["wickiness"],
-                        "daily_midday_dollar_share": _safe_ratio(midday_stats["dollar_volume"], rth_stats["dollar_volume"], default=0.0),
-                        "daily_midday_trades_share": _safe_ratio(midday_stats["trade_proxy"], rth_stats["trade_proxy"], default=0.0),
-                        "daily_midday_active_minutes_share": midday_stats["active_minutes_share"],
-                        "daily_midday_spread_bps": midday_stats["spread_bps"],
-                        "daily_midday_efficiency": midday_stats["efficiency"],
-                        "daily_ah_dollar_share": _safe_ratio(ah_stats["dollar_volume"], total_day_dollar, default=0.0),
-                        "daily_ah_trades_share": _safe_ratio(ah_stats["trade_proxy"], total_day_trades, default=0.0),
-                        "daily_ah_active_minutes_share": ah_stats["active_minutes_share"],
-                        "daily_ah_spread_bps": ah_stats["spread_bps"],
-                        "daily_ah_wickiness": ah_stats["wickiness"],
-                        "daily_setup_decay_half_life_bars": _setup_decay_half_life_30m_buckets(rth),
-                        "daily_early_vs_late_followthrough_ratio": _safe_ratio(early_return, max(late_return, 1e-6), default=0.0),
-                        "daily_rth_efficiency": rth_stats["efficiency"],
-                        "daily_rth_net_return_abs": rth_net_return_abs,
-                        "missing_regular_session_detail": bool(rth.empty and (not pm.empty or not ah.empty)),
-                        "missing_premarket_detail": bool(pm.empty and (not rth.empty or not ah.empty)),
-                        "missing_afterhours_detail": bool(ah.empty and (not pm.empty or not rth.empty)),
-                    }
+            if is_rth.any():
+                rth_half_life = minute_frame.loc[is_rth, group_columns + ["minutes_from_open", "dollar_volume"]]
+                rth_half_life = rth_half_life.groupby(group_columns, sort=False)[["minutes_from_open", "dollar_volume"]].apply(
+                    lambda group: _setup_decay_half_life_30m_buckets(group.reset_index(drop=True))
                 )
-                if rth.empty and (not pm.empty or not ah.empty):
+            else:
+                rth_half_life = pd.Series(dtype=float)
+
+            minute_metrics = group_index.copy()
+            minute_metrics["daily_rth_dollar_volume"] = rth_stats["dollar_volume"]
+            minute_metrics["daily_avg_spread_bps_rth"] = rth_stats["spread_bps"]
+            minute_metrics["daily_rth_active_minutes_share"] = rth_stats["active_minutes_share"]
+            minute_metrics["daily_rth_wickiness"] = rth_stats["wickiness"]
+            minute_metrics["daily_rth_efficiency"] = rth_stats["efficiency"]
+
+            total_day_dollar = pm_stats["dollar_volume"].add(rth_stats["dollar_volume"], fill_value=0.0).add(
+                ah_stats["dollar_volume"], fill_value=0.0
+            )
+            total_day_trades = pm_stats["trade_proxy"].add(rth_stats["trade_proxy"], fill_value=0.0).add(
+                ah_stats["trade_proxy"], fill_value=0.0
+            )
+
+            minute_metrics["daily_open_30m_dollar_share"] = open_30_stats["dollar_volume"].combine(
+                rth_stats["dollar_volume"],
+                lambda numerator, denominator: _safe_ratio(numerator, denominator, default=0.0),
+            )
+            minute_metrics["daily_close_60m_dollar_share"] = close_60_stats["dollar_volume"].combine(
+                rth_stats["dollar_volume"],
+                lambda numerator, denominator: _safe_ratio(numerator, denominator, default=0.0),
+            )
+
+            minute_metrics["daily_pm_dollar_share"] = pm_stats["dollar_volume"].combine(
+                total_day_dollar,
+                lambda numerator, denominator: _safe_ratio(numerator, denominator, default=0.0),
+            )
+            minute_metrics["daily_pm_trades_share"] = pm_stats["trade_proxy"].combine(
+                total_day_trades,
+                lambda numerator, denominator: _safe_ratio(numerator, denominator, default=0.0),
+            )
+            minute_metrics["daily_pm_active_minutes_share"] = pm_stats["active_minutes_share"]
+            minute_metrics["daily_pm_spread_bps"] = pm_stats["spread_bps"]
+            minute_metrics["daily_pm_wickiness"] = pm_stats["wickiness"]
+
+            minute_metrics["daily_midday_dollar_share"] = midday_stats["dollar_volume"].combine(
+                rth_stats["dollar_volume"],
+                lambda numerator, denominator: _safe_ratio(numerator, denominator, default=0.0),
+            )
+            minute_metrics["daily_midday_trades_share"] = midday_stats["trade_proxy"].combine(
+                rth_stats["trade_proxy"],
+                lambda numerator, denominator: _safe_ratio(numerator, denominator, default=0.0),
+            )
+            minute_metrics["daily_midday_active_minutes_share"] = midday_stats["active_minutes_share"]
+            minute_metrics["daily_midday_spread_bps"] = midday_stats["spread_bps"]
+            minute_metrics["daily_midday_efficiency"] = midday_stats["efficiency"]
+
+            minute_metrics["daily_ah_dollar_share"] = ah_stats["dollar_volume"].combine(
+                total_day_dollar,
+                lambda numerator, denominator: _safe_ratio(numerator, denominator, default=0.0),
+            )
+            minute_metrics["daily_ah_trades_share"] = ah_stats["trade_proxy"].combine(
+                total_day_trades,
+                lambda numerator, denominator: _safe_ratio(numerator, denominator, default=0.0),
+            )
+            minute_metrics["daily_ah_active_minutes_share"] = ah_stats["active_minutes_share"]
+            minute_metrics["daily_ah_spread_bps"] = ah_stats["spread_bps"]
+            minute_metrics["daily_ah_wickiness"] = ah_stats["wickiness"]
+            minute_metrics["daily_setup_decay_half_life_bars"] = rth_half_life
+
+            early_return = open_30_stats["close_price"].combine(
+                open_30_stats["open_price"],
+                lambda close_price, open_price: abs((close_price / open_price) - 1.0)
+                if np.isfinite(open_price) and open_price > 0 and np.isfinite(close_price)
+                else 0.0,
+            )
+            late_return = late_stats["close_price"].combine(
+                late_stats["open_price"],
+                lambda close_price, open_price: abs((close_price / open_price) - 1.0)
+                if np.isfinite(open_price) and open_price > 0 and np.isfinite(close_price)
+                else 0.0,
+            )
+            minute_metrics["daily_early_vs_late_followthrough_ratio"] = early_return.combine(
+                late_return,
+                lambda numerator, denominator: _safe_ratio(numerator, max(denominator, 1e-6), default=0.0),
+            )
+            minute_metrics["daily_rth_net_return_abs"] = rth_stats["close_price"].combine(
+                rth_stats["open_price"],
+                lambda close_price, open_price: abs((close_price / open_price) - 1.0)
+                if np.isfinite(open_price) and open_price > 0 and np.isfinite(close_price)
+                else 0.0,
+            )
+
+            has_pm = minute_metrics.index.isin(pm_stats.index)
+            has_rth = minute_metrics.index.isin(rth_stats.index)
+            has_ah = minute_metrics.index.isin(ah_stats.index)
+            minute_metrics["missing_regular_session_detail"] = (~has_rth) & (has_pm | has_ah)
+            minute_metrics["missing_premarket_detail"] = (~has_pm) & (has_rth | has_ah)
+            minute_metrics["missing_afterhours_detail"] = (~has_ah) & (has_pm | has_rth)
+
+            missing_regular = minute_metrics.loc[minute_metrics["missing_regular_session_detail"]]
+            if not missing_regular.empty:
+                for trade_day, symbol in missing_regular.index.tolist():
                     logger.warning(
                         "Symbol %s on %s has minute detail for non-regular sessions but no regular-session bars; regular-session derived metrics will be 0.0.",
                         symbol,
                         trade_day,
                     )
-            minute_metrics = pd.DataFrame(rows, columns=metric_columns)
+
+            minute_metrics = minute_metrics.reset_index()
+            minute_metrics = minute_metrics[metric_columns]
 
     merged = daily.merge(minute_metrics, on=["trade_date", "symbol"], how="left")
     minute_metric_value_columns = [
@@ -665,6 +846,7 @@ def build_base_snapshot_from_bundle_payload(
     trailing = trailing.sort_values(["symbol", "trade_date"]).groupby("symbol", group_keys=False).tail(20)
 
     latest = trailing.sort_values(["symbol", "trade_date"]).groupby("symbol", group_keys=False).tail(1)
+    latest_by_symbol = latest.set_index("symbol", drop=False)
     rows: list[dict[str, Any]] = []
     minute_derived_aggregate_columns = {
         "daily_avg_spread_bps_rth",
@@ -694,20 +876,8 @@ def build_base_snapshot_from_bundle_payload(
         "daily_rth_dollar_volume",
     }
 
-    def _metric_group(group: pd.DataFrame, symbol: str, column: str) -> pd.DataFrame:
-        if column in minute_derived_aggregate_columns:
-            filtered = group.loc[~group.get("minute_detail_missing", False).map(_coerce_bool)].copy()
-            if filtered.empty:
-                logger.warning(
-                    "Symbol %s has no symbol-day rows with minute detail coverage for minute-derived aggregation column %s; falling back to 0.0.",
-                    symbol,
-                    column,
-                )
-            return filtered
-        return group
-
     for symbol, group in trailing.groupby("symbol", sort=True):
-        latest_row = latest.loc[latest["symbol"] == symbol].iloc[0]
+        latest_row = latest_by_symbol.loc[symbol]
         coverage_days = int(group["trade_date"].nunique())
         coverage_days_min = 5
         if coverage_days < coverage_days_min:
@@ -717,10 +887,25 @@ def build_base_snapshot_from_bundle_payload(
                 symbol,
                 coverage_days,
             )
+        covered_group = group.loc[~group.get("minute_detail_missing", False).map(_coerce_bool)].copy()
+        warned_missing_minute_detail = False
+
+        def _group_for_metric(column: str) -> pd.DataFrame:
+            nonlocal warned_missing_minute_detail
+            if column not in minute_derived_aggregate_columns:
+                return group
+            if covered_group.empty and not warned_missing_minute_detail:
+                logger.warning(
+                    "Symbol %s has no symbol-day rows with minute detail coverage for minute-derived 20d aggregation; minute-derived metrics will fall back to 0.0.",
+                    symbol,
+                )
+                warned_missing_minute_detail = True
+            return covered_group
+
         daily_close = pd.to_numeric(group.get("day_close"), errors="coerce")
         day_volume = pd.to_numeric(group.get("day_volume"), errors="coerce")
         adv_fallback = (daily_close * day_volume).replace([np.inf, -np.inf], np.nan)
-        adv_group = _metric_group(group, symbol, "daily_rth_dollar_volume")
+        adv_group = _group_for_metric("daily_rth_dollar_volume")
         adv_rth = pd.to_numeric(adv_group.get("daily_rth_dollar_volume"), errors="coerce")
         adv_dollar = adv_rth.where(adv_rth > 0).combine_first(adv_fallback)
 
@@ -736,51 +921,51 @@ def build_base_snapshot_from_bundle_payload(
                 ),
                 "history_coverage_days_20d": coverage_days,
                 "adv_dollar_rth_20d": _mean_or_default(adv_dollar, default=0.0),
-                "avg_spread_bps_rth_20d": _mean_or_default(_metric_group(group, symbol, "daily_avg_spread_bps_rth")["daily_avg_spread_bps_rth"], default=0.0),
+                "avg_spread_bps_rth_20d": _mean_or_default(_group_for_metric("daily_avg_spread_bps_rth")["daily_avg_spread_bps_rth"], default=0.0),
                 "rth_active_minutes_share_20d": _clip01(
-                    _mean_or_default(_metric_group(group, symbol, "daily_rth_active_minutes_share")["daily_rth_active_minutes_share"], default=0.0)
+                    _mean_or_default(_group_for_metric("daily_rth_active_minutes_share")["daily_rth_active_minutes_share"], default=0.0)
                 ),
                 "open_30m_dollar_share_20d": _clip01(
-                    _mean_or_default(_metric_group(group, symbol, "daily_open_30m_dollar_share")["daily_open_30m_dollar_share"], default=0.0)
+                    _mean_or_default(_group_for_metric("daily_open_30m_dollar_share")["daily_open_30m_dollar_share"], default=0.0)
                 ),
                 "close_60m_dollar_share_20d": _clip01(
-                    _mean_or_default(_metric_group(group, symbol, "daily_close_60m_dollar_share")["daily_close_60m_dollar_share"], default=0.0)
+                    _mean_or_default(_group_for_metric("daily_close_60m_dollar_share")["daily_close_60m_dollar_share"], default=0.0)
                 ),
                 "clean_intraday_score_20d": _clip01(
-                    _mean_or_default(_metric_group(group, symbol, "daily_clean_intraday_score")["daily_clean_intraday_score"], default=0.0)
+                    _mean_or_default(_group_for_metric("daily_clean_intraday_score")["daily_clean_intraday_score"], default=0.0)
                 ),
-                "consistency_score_20d": _clip01(_consistency_score(_metric_group(group, symbol, "daily_clean_intraday_score"))),
+                "consistency_score_20d": _clip01(_consistency_score(_group_for_metric("daily_clean_intraday_score"))),
                 "close_hygiene_20d": _clip01(_mean_or_default(group["daily_close_hygiene"], default=0.0)),
-                "wickiness_20d": _clip01(_mean_or_default(_metric_group(group, symbol, "daily_rth_wickiness")["daily_rth_wickiness"], default=0.0)),
-                "pm_dollar_share_20d": _clip01(_mean_or_default(_metric_group(group, symbol, "daily_pm_dollar_share")["daily_pm_dollar_share"], default=0.0)),
-                "pm_trades_share_20d": _clip01(_mean_or_default(_metric_group(group, symbol, "daily_pm_trades_share")["daily_pm_trades_share"], default=0.0)),
+                "wickiness_20d": _clip01(_mean_or_default(_group_for_metric("daily_rth_wickiness")["daily_rth_wickiness"], default=0.0)),
+                "pm_dollar_share_20d": _clip01(_mean_or_default(_group_for_metric("daily_pm_dollar_share")["daily_pm_dollar_share"], default=0.0)),
+                "pm_trades_share_20d": _clip01(_mean_or_default(_group_for_metric("daily_pm_trades_share")["daily_pm_trades_share"], default=0.0)),
                 "pm_active_minutes_share_20d": _clip01(
-                    _mean_or_default(_metric_group(group, symbol, "daily_pm_active_minutes_share")["daily_pm_active_minutes_share"], default=0.0)
+                    _mean_or_default(_group_for_metric("daily_pm_active_minutes_share")["daily_pm_active_minutes_share"], default=0.0)
                 ),
-                "pm_spread_bps_20d": _mean_or_default(_metric_group(group, symbol, "daily_pm_spread_bps")["daily_pm_spread_bps"], default=0.0),
-                "pm_wickiness_20d": _clip01(_mean_or_default(_metric_group(group, symbol, "daily_pm_wickiness")["daily_pm_wickiness"], default=0.0)),
+                "pm_spread_bps_20d": _mean_or_default(_group_for_metric("daily_pm_spread_bps")["daily_pm_spread_bps"], default=0.0),
+                "pm_wickiness_20d": _clip01(_mean_or_default(_group_for_metric("daily_pm_wickiness")["daily_pm_wickiness"], default=0.0)),
                 "midday_dollar_share_20d": _clip01(
-                    _mean_or_default(_metric_group(group, symbol, "daily_midday_dollar_share")["daily_midday_dollar_share"], default=0.0)
+                    _mean_or_default(_group_for_metric("daily_midday_dollar_share")["daily_midday_dollar_share"], default=0.0)
                 ),
                 "midday_trades_share_20d": _clip01(
-                    _mean_or_default(_metric_group(group, symbol, "daily_midday_trades_share")["daily_midday_trades_share"], default=0.0)
+                    _mean_or_default(_group_for_metric("daily_midday_trades_share")["daily_midday_trades_share"], default=0.0)
                 ),
                 "midday_active_minutes_share_20d": _clip01(
-                    _mean_or_default(_metric_group(group, symbol, "daily_midday_active_minutes_share")["daily_midday_active_minutes_share"], default=0.0)
+                    _mean_or_default(_group_for_metric("daily_midday_active_minutes_share")["daily_midday_active_minutes_share"], default=0.0)
                 ),
                 "midday_spread_bps_20d": _mean_or_default(
-                    _metric_group(group, symbol, "daily_midday_spread_bps")["daily_midday_spread_bps"], default=0.0
+                    _group_for_metric("daily_midday_spread_bps")["daily_midday_spread_bps"], default=0.0
                 ),
                 "midday_efficiency_20d": _clip01(
-                    _mean_or_default(_metric_group(group, symbol, "daily_midday_efficiency")["daily_midday_efficiency"], default=0.0)
+                    _mean_or_default(_group_for_metric("daily_midday_efficiency")["daily_midday_efficiency"], default=0.0)
                 ),
-                "ah_dollar_share_20d": _clip01(_mean_or_default(_metric_group(group, symbol, "daily_ah_dollar_share")["daily_ah_dollar_share"], default=0.0)),
-                "ah_trades_share_20d": _clip01(_mean_or_default(_metric_group(group, symbol, "daily_ah_trades_share")["daily_ah_trades_share"], default=0.0)),
+                "ah_dollar_share_20d": _clip01(_mean_or_default(_group_for_metric("daily_ah_dollar_share")["daily_ah_dollar_share"], default=0.0)),
+                "ah_trades_share_20d": _clip01(_mean_or_default(_group_for_metric("daily_ah_trades_share")["daily_ah_trades_share"], default=0.0)),
                 "ah_active_minutes_share_20d": _clip01(
-                    _mean_or_default(_metric_group(group, symbol, "daily_ah_active_minutes_share")["daily_ah_active_minutes_share"], default=0.0)
+                    _mean_or_default(_group_for_metric("daily_ah_active_minutes_share")["daily_ah_active_minutes_share"], default=0.0)
                 ),
-                "ah_spread_bps_20d": _mean_or_default(_metric_group(group, symbol, "daily_ah_spread_bps")["daily_ah_spread_bps"], default=0.0),
-                "ah_wickiness_20d": _clip01(_mean_or_default(_metric_group(group, symbol, "daily_ah_wickiness")["daily_ah_wickiness"], default=0.0)),
+                "ah_spread_bps_20d": _mean_or_default(_group_for_metric("daily_ah_spread_bps")["daily_ah_spread_bps"], default=0.0),
+                "ah_wickiness_20d": _clip01(_mean_or_default(_group_for_metric("daily_ah_wickiness")["daily_ah_wickiness"], default=0.0)),
                 "reclaim_respect_rate_20d": _clip01(_mean_or_default(group["daily_reclaim_respect_flag"], default=0.0)),
                 "reclaim_failure_rate_20d": _clip01(_mean_or_default(group["daily_reclaim_failure_flag"], default=0.0)),
                 "reclaim_followthrough_r_20d": _mean_or_default(group["daily_reclaim_followthrough_r"], default=0.0),
@@ -790,10 +975,10 @@ def build_base_snapshot_from_bundle_payload(
                 "fvg_sweep_depth_p75_20d": _quantile_or_default(group["daily_fvg_sweep_depth"], 0.75, default=0.0),
                 "stop_hunt_rate_20d": _clip01(_mean_or_default(group["daily_stop_hunt_flag"], default=0.0)),
                 "setup_decay_half_life_bars_20d": _mean_or_default(
-                    _metric_group(group, symbol, "daily_setup_decay_half_life_bars")["daily_setup_decay_half_life_bars"], default=0.0
+                    _group_for_metric("daily_setup_decay_half_life_bars")["daily_setup_decay_half_life_bars"], default=0.0
                 ),
                 "early_vs_late_followthrough_ratio_20d": _mean_or_default(
-                    _metric_group(group, symbol, "daily_early_vs_late_followthrough_ratio")["daily_early_vs_late_followthrough_ratio"], default=0.0
+                    _group_for_metric("daily_early_vs_late_followthrough_ratio")["daily_early_vs_late_followthrough_ratio"], default=0.0
                 ),
                 "stale_fail_rate_20d": _clip01(_mean_or_default(group["daily_stale_fail_flag"], default=0.0)),
             }

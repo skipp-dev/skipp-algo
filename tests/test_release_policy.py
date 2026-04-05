@@ -2,7 +2,6 @@
 evidence coverage, and failure diagnostics."""
 from __future__ import annotations
 
-import os
 from typing import Any
 
 import pytest
@@ -18,6 +17,7 @@ from smc_integration.release_policy import (
     REASON_INSUFFICIENT_TIMEFRAMES,
     REASON_MEASUREMENT_QUALITY,
     REASON_MISSING_ARTIFACT,
+    REASON_PROVIDER_FAILURE,
     REASON_SMOKE_FAILURE,
     REASON_STALE_DATA,
     RELEASE_REFERENCE_SYMBOLS,
@@ -115,6 +115,12 @@ class TestResolvePolicy:
         monkeypatch.delenv("SMC_RELEASE_SYMBOLS", raising=False)
         policy = resolve_release_policy(symbols=" AAPL , msft ,AAPL ")
         assert policy["symbols"] == ["AAPL", "MSFT"]
+
+    def test_parse_csv_uppercases_and_deduplicates(self) -> None:
+        assert parse_csv(" aapl ,, msft , AAPL , meta ", normalize_upper=True) == ["AAPL", "MSFT", "META"]
+
+    def test_parse_csv_preserves_non_uppercase_tokens(self) -> None:
+        assert parse_csv("5m, 15m,5m, 1H") == ["5m", "15m", "1H"]
 
 
 # ---------------------------------------------------------------------------
@@ -218,6 +224,15 @@ class TestDiagnoseGateFailure:
         }
         reasons = diagnose_gate_failure(report)
         assert any(r["reason"] == REASON_MEASUREMENT_QUALITY for r in reasons)
+
+    def test_provider_failure_classified(self) -> None:
+        report: dict[str, Any] = {
+            "failures": [{"code": "PROVIDER_MATRIX_REFRESH_FAILED"}],
+            "reference_symbols": [f"SYM{i}" for i in range(EVIDENCE_MIN_SYMBOL_COVERAGE)],
+            "reference_timeframes": [f"tf{i}" for i in range(EVIDENCE_MIN_TIMEFRAME_COVERAGE)],
+        }
+        reasons = diagnose_gate_failure(report)
+        assert {"reason": REASON_PROVIDER_FAILURE, "detail": "PROVIDER_MATRIX_REFRESH_FAILED"} in reasons
 
 
 class TestMeasurementShadowGovernance:
@@ -385,8 +400,44 @@ class TestMeasurementShadowGovernance:
             "MEASUREMENT_STRATIFICATION_COVERAGE_REGRESSION",
         }
 
+    def test_shadow_degradations_detect_low_coverage_floors(self) -> None:
+        thresholds = MeasurementShadowThresholds(
+            min_scoring_events=5,
+            min_populated_stratification_buckets=2,
+            min_history_runs=2,
+        )
+
+        degradations, baseline = assess_measurement_shadow_degradations(
+            {
+                "n_events": 3,
+                "stratification_coverage": {"populated_bucket_count": 1},
+            },
+            [],
+            thresholds=thresholds,
+        )
+
+        assert baseline["available"] is False
+        codes = {row["code"] for row in degradations}
+        assert codes == {
+            "MEASUREMENT_EVENT_COVERAGE_LOW",
+            "MEASUREMENT_STRATIFICATION_COVERAGE_LOW",
+        }
+
 
 class TestContextualCalibrationGovernance:
+    def test_recommend_contextual_calibration_reports_missing_dimensions(self) -> None:
+        recommendation = recommend_contextual_calibration(
+            {
+                "n_events": 12,
+                "contextual_calibration": {"dimensions_present": ["session"]},
+            }
+        )
+
+        assert recommendation["available"] is False
+        assert recommendation["reason"] == "no_contextual_calibration_dimensions"
+        assert recommendation["candidate_dimensions"] == []
+        assert recommendation["eligible_dimensions"] == []
+
     def test_recommend_contextual_calibration_prefers_consensus_dimension(self) -> None:
         recommendation = recommend_contextual_calibration(
             {
@@ -435,6 +486,43 @@ class TestContextualCalibrationGovernance:
         assert recommendation["basis"] == "metric_consensus"
         assert recommendation["metric_consensus"] is True
 
+    def test_recommend_contextual_calibration_rejects_ineligible_dimensions(self) -> None:
+        recommendation = recommend_contextual_calibration(
+            {
+                "n_events": 12,
+                "contextual_calibration": {
+                    "session": {
+                        "n_events": 12,
+                        "covered_events": 5,
+                        "coverage_ratio": 0.416667,
+                        "populated_groups": 1,
+                        "delta_brier_score": 0.0005,
+                        "delta_ece": 0.001,
+                        "adjusted_brier_score": 0.18,
+                        "adjusted_ece": 0.12,
+                        "fallback_event_count": 7,
+                    },
+                    "htf_bias": {
+                        "n_events": 12,
+                        "covered_events": 12,
+                        "coverage_ratio": 1.0,
+                        "populated_groups": 2,
+                        "delta_brier_score": 0.0002,
+                        "delta_ece": 0.0004,
+                        "adjusted_brier_score": 0.17,
+                        "adjusted_ece": 0.11,
+                        "fallback_event_count": 0,
+                    },
+                },
+            },
+            policy=ContextualCalibrationRecommendationPolicy(),
+        )
+
+        assert recommendation["available"] is False
+        assert recommendation["reason"] == "no_dimension_met_recommendation_policy"
+        assert recommendation["candidate_dimensions"] == ["htf_bias", "session"]
+        assert recommendation["eligible_dimensions"] == []
+
     def test_contextual_calibration_promotion_requires_stable_history(self) -> None:
         template = {
             "n_events": 18,
@@ -476,6 +564,119 @@ class TestContextualCalibrationGovernance:
         assert promotion["recommended_dimension"] == "session"
         assert promotion["recommended_run_ratio"] == 1.0
         assert promotion["reasons"] == []
+
+    def test_contextual_calibration_promotion_requires_current_recommendation(self) -> None:
+        current = {
+            "n_events": 12,
+            "contextual_calibration": {
+                "session": {
+                    "n_events": 12,
+                    "covered_events": 4,
+                    "coverage_ratio": 0.333333,
+                    "populated_groups": 1,
+                    "delta_brier_score": 0.0004,
+                    "delta_ece": 0.0005,
+                    "adjusted_brier_score": 0.18,
+                    "adjusted_ece": 0.12,
+                    "fallback_event_count": 8,
+                },
+            },
+        }
+        history = [
+            {
+                "n_events": 18,
+                "contextual_calibration": {
+                    "session": {
+                        "n_events": 18,
+                        "covered_events": 18,
+                        "coverage_ratio": 1.0,
+                        "populated_groups": 2,
+                        "delta_brier_score": 0.02,
+                        "delta_ece": 0.03,
+                        "adjusted_brier_score": 0.11,
+                        "adjusted_ece": 0.08,
+                        "fallback_event_count": 0,
+                    },
+                    "htf_bias": {
+                        "n_events": 18,
+                        "covered_events": 18,
+                        "coverage_ratio": 1.0,
+                        "populated_groups": 2,
+                        "delta_brier_score": 0.015,
+                        "delta_ece": 0.02,
+                        "adjusted_brier_score": 0.13,
+                        "adjusted_ece": 0.1,
+                        "fallback_event_count": 0,
+                    },
+                },
+            }
+        ]
+
+        promotion = assess_contextual_calibration_promotion(
+            current,
+            history,
+            recommendation_policy=ContextualCalibrationRecommendationPolicy(),
+            promotion_policy=ContextualCalibrationPromotionPolicy(
+                min_history_runs=1,
+                min_recommended_run_ratio=0.5,
+                require_metric_consensus=False,
+            ),
+        )
+
+        assert promotion["available"] is False
+        assert promotion["promotion_ready"] is False
+        assert promotion["recommended_dimension"] is None
+        assert promotion["reasons"] == ["current_run_has_no_contextual_recommendation"]
+
+    def test_contextual_calibration_promotion_detects_unstable_history(self) -> None:
+        def _entry(preferred_dimension: str) -> dict[str, Any]:
+            if preferred_dimension == "session":
+                preferred_scores = (0.11, 0.08)
+                alternate_scores = (0.13, 0.1)
+            else:
+                preferred_scores = (0.11, 0.08)
+                alternate_scores = (0.13, 0.1)
+
+            return {
+                "n_events": 18,
+                "contextual_calibration": {
+                    preferred_dimension: {
+                        "n_events": 18,
+                        "covered_events": 18,
+                        "coverage_ratio": 1.0,
+                        "populated_groups": 2,
+                        "delta_brier_score": 0.02,
+                        "delta_ece": 0.03,
+                        "adjusted_brier_score": preferred_scores[0],
+                        "adjusted_ece": preferred_scores[1],
+                        "fallback_event_count": 0,
+                    },
+                    ("htf_bias" if preferred_dimension == "session" else "session"): {
+                        "n_events": 18,
+                        "covered_events": 18,
+                        "coverage_ratio": 1.0,
+                        "populated_groups": 2,
+                        "delta_brier_score": 0.015,
+                        "delta_ece": 0.02,
+                        "adjusted_brier_score": alternate_scores[0],
+                        "adjusted_ece": alternate_scores[1],
+                        "fallback_event_count": 0,
+                    },
+                },
+            }
+
+        promotion = assess_contextual_calibration_promotion(
+            _entry("session"),
+            [_entry("htf_bias"), _entry("htf_bias")],
+            recommendation_policy=ContextualCalibrationRecommendationPolicy(),
+            promotion_policy=ContextualCalibrationPromotionPolicy(),
+        )
+
+        assert promotion["available"] is True
+        assert promotion["promotion_ready"] is False
+        assert promotion["recommended_dimension"] == "session"
+        assert promotion["recommended_run_ratio"] == pytest.approx(1.0 / 3.0, rel=0.0, abs=1e-6)
+        assert promotion["reasons"] == ["recommended_dimension_not_stable_across_history"]
 
 
 # ---------------------------------------------------------------------------

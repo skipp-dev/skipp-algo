@@ -233,7 +233,7 @@ def discover_structure_source_status(*, source: str = "auto", symbol: str = "", 
 
     selected_health_issues: list[dict[str, Any]] = []
     if structure_name == "structure_artifact_json":
-        contract_summary = structure_artifact_json.discover_normalized_contract_summary()
+        contract_summary = structure_artifact_json.discover_normalized_contract_summary(repo_state_only=True)
         health = contract_summary.get("health", {}) if isinstance(contract_summary, dict) else {}
         raw_issues = health.get("issues", []) if isinstance(health, dict) else []
         if isinstance(raw_issues, list):

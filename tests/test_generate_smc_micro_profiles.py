@@ -167,10 +167,19 @@ def _base_rows() -> list[dict[str, object]]:
 def test_validate_schema_rejects_duplicate_primary_keys() -> None:
     schema = load_schema(Path(SCHEMA_PATH))
     df = pd.DataFrame(_base_rows())
-    duplicate = pd.concat([df, df.iloc[[0]]], ignore_index=True)
+    duplicate = pd.DataFrame([*df.to_dict("records"), dict(df.to_dict("records")[0])])
 
     with pytest.raises(RuntimeError, match="Duplicate primary keys"):
         validate_schema(coerce_input_frame(duplicate), schema)
+
+
+def test_validate_schema_rejects_null_primary_key_values() -> None:
+    schema = load_schema(Path(SCHEMA_PATH))
+    df = pd.DataFrame(_base_rows())
+    df.loc[0, "symbol"] = None
+
+    with pytest.raises(RuntimeError, match="Primary key columns cannot contain null values"):
+        validate_schema(coerce_input_frame(df), schema)
 
 
 def test_update_membership_state_bootstraps_first_snapshot() -> None:
@@ -237,7 +246,7 @@ def test_update_membership_state_uses_remove_threshold_for_active_rows() -> None
     )
 
     updated = update_membership_state(df, previous_state, "2026-03-23", schema)
-    row = updated.loc[updated["list_name"] == "clean_reclaim"].iloc[0]
+    row = next(record for record in updated.to_dict("records") if record["list_name"] == "clean_reclaim")
 
     assert row["is_active"] == 1
     assert row["remove_streak"] == 0
