@@ -15,6 +15,7 @@ import scripts.smc_databento_session_detail as session_detail
 from scripts.smc_microstructure_base_runtime import (
     _clip01,
     _consistency_score,
+    _grouped_setup_decay_half_life_30m_buckets,
     _safe_float,
     _setup_decay_half_life_30m_buckets,
     build_base_snapshot_from_bundle_payload,
@@ -130,6 +131,35 @@ def test_setup_decay_half_life_30m_buckets_returns_zero_when_first_bucket_zero()
     )
 
     assert _setup_decay_half_life_30m_buckets(frame) == 0.0
+
+
+def test_setup_decay_half_life_30m_buckets_returns_bucket_count_when_threshold_not_hit() -> None:
+    frame = pd.DataFrame(
+        [
+            {"minutes_from_open": 0, "dollar_volume": 10.0},
+            {"minutes_from_open": 30, "dollar_volume": 9.0},
+            {"minutes_from_open": 60, "dollar_volume": 8.0},
+        ]
+    )
+
+    assert _setup_decay_half_life_30m_buckets(frame) == 3.0
+
+
+def test_grouped_setup_decay_half_life_matches_scalar_helper() -> None:
+    frame = pd.DataFrame(
+        [
+            {"trade_date": "2026-03-20", "symbol": "AAA", "minutes_from_open": 0, "dollar_volume": 10.0},
+            {"trade_date": "2026-03-20", "symbol": "AAA", "minutes_from_open": 30, "dollar_volume": 4.0},
+            {"trade_date": "2026-03-20", "symbol": "BBB", "minutes_from_open": 0, "dollar_volume": 10.0},
+            {"trade_date": "2026-03-20", "symbol": "BBB", "minutes_from_open": 30, "dollar_volume": 9.0},
+            {"trade_date": "2026-03-20", "symbol": "BBB", "minutes_from_open": 60, "dollar_volume": 8.0},
+        ]
+    )
+
+    grouped = _grouped_setup_decay_half_life_30m_buckets(frame, group_columns=["trade_date", "symbol"])
+
+    assert grouped.loc[("2026-03-20", "AAA")] == pytest.approx(1.0)
+    assert grouped.loc[("2026-03-20", "BBB")] == pytest.approx(3.0)
 
 
 def test_safe_float_handles_scalar_strings_and_missing_values() -> None:
@@ -358,6 +388,143 @@ def test_build_symbol_day_microstructure_feature_frame_marks_null_activity_day_i
     assert output.loc[0, "daily_rth_active_minutes_share"] == pytest.approx(0.0)
     assert output.loc[0, "daily_rth_dollar_volume"] == pytest.approx(0.0)
     assert "marking all minute bars inactive" in caplog.text
+
+
+def test_build_symbol_day_microstructure_feature_frame_preserves_input_order_for_duplicate_timestamps() -> None:
+    daily_features = pd.DataFrame(
+        [
+            {
+                "trade_date": "2026-03-20",
+                "symbol": "AAA",
+                "exchange": "NASDAQ",
+                "company_name": "Alpha Holdings",
+                "asset_type": "stock",
+                "market_cap": 3_200_000_000,
+                "day_open": 10.0,
+                "day_high": 10.4,
+                "day_low": 9.9,
+                "day_close": 10.2,
+                "day_volume": 1_500_000,
+                "previous_close": 9.8,
+                "close_trade_hygiene_score": 0.82,
+                "reclaimed_start_price_within_30s": True,
+                "early_dip_pct_10s": -0.8,
+                "open_to_current_pct": 1.6,
+                "window_return_pct": 1.6,
+                "close_preclose_return_pct": 0.4,
+            }
+        ]
+    )
+    session_minute_detail = pd.DataFrame(
+        [
+            {
+                "trade_date": "2026-03-20",
+                "symbol": "AAA",
+                "timestamp": pd.Timestamp("2026-03-20T13:30:00Z"),
+                "session": "regular",
+                "open": 10.0,
+                "high": 10.1,
+                "low": 9.9,
+                "close": 10.05,
+                "volume": 100,
+                "trade_count": 10,
+            },
+            {
+                "trade_date": "2026-03-20",
+                "symbol": "AAA",
+                "timestamp": pd.Timestamp("2026-03-20T13:30:00Z"),
+                "session": "regular",
+                "open": 10.05,
+                "high": 10.2,
+                "low": 10.0,
+                "close": 10.15,
+                "volume": 200,
+                "trade_count": 20,
+            },
+            {
+                "trade_date": "2026-03-20",
+                "symbol": "AAA",
+                "timestamp": pd.Timestamp("2026-03-20T19:50:00Z"),
+                "session": "regular",
+                "open": 10.1,
+                "high": 10.3,
+                "low": 10.0,
+                "close": 10.2,
+                "volume": 300,
+                "trade_count": 30,
+            },
+        ]
+    )
+
+    output = build_symbol_day_microstructure_feature_frame(session_minute_detail, daily_features)
+
+    row = output.iloc[0]
+    expected_early_return = abs((10.15 / 10.0) - 1.0)
+    expected_late_return = abs((10.2 / 10.1) - 1.0)
+    assert row["daily_early_vs_late_followthrough_ratio"] == pytest.approx(expected_early_return / expected_late_return)
+
+
+def test_build_symbol_day_microstructure_feature_frame_keeps_partial_ohlc_null_day_usable() -> None:
+    daily_features = pd.DataFrame(
+        [
+            {
+                "trade_date": "2026-03-20",
+                "symbol": "AAA",
+                "exchange": "NASDAQ",
+                "company_name": "Alpha Holdings",
+                "asset_type": "stock",
+                "market_cap": 3_200_000_000,
+                "day_open": 10.0,
+                "day_high": 10.4,
+                "day_low": 9.9,
+                "day_close": 10.2,
+                "day_volume": 1_500_000,
+                "previous_close": 9.8,
+                "close_trade_hygiene_score": 0.82,
+                "reclaimed_start_price_within_30s": True,
+                "early_dip_pct_10s": -0.8,
+                "open_to_current_pct": 1.6,
+                "window_return_pct": 1.6,
+                "close_preclose_return_pct": 0.4,
+            }
+        ]
+    )
+    session_minute_detail = pd.DataFrame(
+        [
+            {
+                "trade_date": "2026-03-20",
+                "symbol": "AAA",
+                "timestamp": pd.Timestamp("2026-03-20T13:30:00Z"),
+                "session": "regular",
+                "open": 10.0,
+                "high": None,
+                "low": None,
+                "close": None,
+                "volume": 100,
+                "trade_count": 10,
+            },
+            {
+                "trade_date": "2026-03-20",
+                "symbol": "AAA",
+                "timestamp": pd.Timestamp("2026-03-20T19:50:00Z"),
+                "session": "regular",
+                "open": 10.2,
+                "high": 10.3,
+                "low": 10.1,
+                "close": 10.25,
+                "volume": 200,
+                "trade_count": 20,
+            },
+        ]
+    )
+
+    output = build_symbol_day_microstructure_feature_frame(session_minute_detail, daily_features)
+
+    row = output.iloc[0]
+    assert bool(row["minute_detail_missing"]) is False
+    assert row["daily_rth_dollar_volume"] == pytest.approx(10.25 * 200.0)
+    assert row["daily_rth_active_minutes_share"] > 0.0
+    assert 0.0 <= float(row["daily_rth_efficiency"]) <= 1.0
 
 
 def test_collect_full_universe_session_minute_detail_returns_empty_frame_for_empty_universe() -> None:

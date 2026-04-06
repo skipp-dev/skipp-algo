@@ -258,6 +258,47 @@ def _setup_decay_half_life_30m_buckets(frame: pd.DataFrame) -> float:
     return float(int(hit.index[0]))
 
 
+def _grouped_setup_decay_half_life_30m_buckets(
+    frame: pd.DataFrame,
+    *,
+    group_columns: list[str],
+) -> pd.Series:
+    if frame.empty:
+        return pd.Series(dtype=float)
+
+    bucket_frame = frame.loc[:, group_columns + ["minutes_from_open", "dollar_volume"]].copy()
+    bucket_frame["bucket_index"] = ((bucket_frame["minutes_from_open"] // 30).astype(int)).clip(lower=0)
+    bucket_frame = (
+        bucket_frame.groupby(group_columns + ["bucket_index"], sort=False)["dollar_volume"]
+        .sum()
+        .rename("bucket_dollar")
+        .reset_index()
+        .sort_values(group_columns + ["bucket_index"])
+        .reset_index(drop=True)
+    )
+
+    grouped = bucket_frame.groupby(group_columns, sort=False)
+    summary = grouped.agg(
+        first_bucket_dollar=("bucket_dollar", "first"),
+        bucket_count=("bucket_index", "size"),
+    )
+
+    result = summary["bucket_count"].clip(lower=1).astype(float)
+    zero_first_bucket = summary["first_bucket_dollar"].le(0)
+    if bool(zero_first_bucket.any()):
+        result.loc[zero_first_bucket] = 0.0
+
+    first_bucket_index = grouped["bucket_index"].transform("first")
+    first_bucket_dollar = grouped["bucket_dollar"].transform("first")
+    later_hit_mask = bucket_frame["bucket_index"].ne(first_bucket_index) & bucket_frame["bucket_dollar"].le(first_bucket_dollar * 0.5)
+    if bool(later_hit_mask.any()):
+        first_hits = bucket_frame.loc[later_hit_mask].groupby(group_columns, sort=False)["bucket_index"].first().astype(float)
+        positive_hit_index = first_hits.index.intersection(summary.index[~zero_first_bucket])
+        result.loc[positive_hit_index] = first_hits.loc[positive_hit_index]
+
+    return result
+
+
 def _empty_group_metrics(group_columns: list[str], columns: list[str]) -> pd.DataFrame:
     return pd.DataFrame(columns=columns, index=pd.MultiIndex.from_tuples([], names=group_columns))
 
@@ -458,7 +499,7 @@ def build_symbol_day_microstructure_feature_frame(
                 - minute_frame["timestamp"].dt.tz_convert(US_EASTERN_TZ).dt.normalize()
                 - pd.Timedelta(hours=9, minutes=30)
             ).dt.total_seconds() / 60.0
-            minute_frame = minute_frame.sort_values(["trade_date", "symbol", "timestamp"]).reset_index(drop=True)
+            minute_frame = minute_frame.sort_values(["trade_date", "symbol", "timestamp"], kind="mergesort").reset_index(drop=True)
             group_columns = ["trade_date", "symbol"]
             group_index = minute_frame[group_columns].drop_duplicates().set_index(group_columns)
 
@@ -534,9 +575,9 @@ def build_symbol_day_microstructure_feature_frame(
             )
 
             if is_rth.any():
-                rth_half_life = minute_frame.loc[is_rth, group_columns + ["minutes_from_open", "dollar_volume"]]
-                rth_half_life = rth_half_life.groupby(group_columns, sort=False)[["minutes_from_open", "dollar_volume"]].apply(
-                    lambda group: _setup_decay_half_life_30m_buckets(group.reset_index(drop=True))
+                rth_half_life = _grouped_setup_decay_half_life_30m_buckets(
+                    minute_frame.loc[is_rth, group_columns + ["minutes_from_open", "dollar_volume"]],
+                    group_columns=group_columns,
                 )
             else:
                 rth_half_life = pd.Series(dtype=float)
