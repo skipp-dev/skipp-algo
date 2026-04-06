@@ -119,6 +119,14 @@ def _clip01(value: Any) -> float:
     return float(max(0.0, min(1.0, numeric)))
 
 
+def _clip01_series(series: pd.Series) -> pd.Series:
+    numeric = pd.to_numeric(series, errors="coerce").to_numpy(dtype=float)
+    result = np.zeros(len(series), dtype=float)
+    valid = np.isfinite(numeric)
+    result[valid] = np.clip(numeric[valid], 0.0, 1.0)
+    return pd.Series(result, index=series.index, name=series.name)
+
+
 def _safe_float(value: Any, default: float = 0.0) -> float:
     if isinstance(value, str):
         value = value.strip()
@@ -817,13 +825,17 @@ def build_symbol_day_microstructure_feature_frame(
     close_hygiene = pd.Series(close_hygiene, index=merged.index).fillna(0.0).clip(lower=0.0, upper=1.0)
     merged["daily_close_hygiene"] = close_hygiene
 
+    clipped_rth_active_minutes_share = _clip01_series(merged["daily_rth_active_minutes_share"])
+    clipped_rth_efficiency = _clip01_series(merged["daily_rth_efficiency"])
+    clipped_rth_wickiness = _clip01_series(merged["daily_rth_wickiness"])
+    clipped_close_hygiene = _clip01_series(merged["daily_close_hygiene"])
     spread_component = 1.0 / (1.0 + (pd.to_numeric(merged["daily_avg_spread_bps_rth"], errors="coerce").fillna(0.0) / 25.0))
     merged["daily_clean_intraday_score"] = (
-        merged["daily_rth_active_minutes_share"].map(_clip01)
-        + merged["daily_rth_efficiency"].map(_clip01)
+        clipped_rth_active_minutes_share
+        + clipped_rth_efficiency
         + spread_component.clip(lower=0.0, upper=1.0)
-        + (1.0 - merged["daily_rth_wickiness"].map(_clip01))
-        + merged["daily_close_hygiene"].map(_clip01)
+        + (1.0 - clipped_rth_wickiness)
+        + clipped_close_hygiene
     ) / 5.0
 
     reclaim_flag = _series_from_frame(merged, "reclaimed_start_price_within_30s", False).map(_coerce_bool)

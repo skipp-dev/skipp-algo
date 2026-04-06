@@ -15,6 +15,7 @@ import scripts.smc_databento_session_detail as session_detail
 from scripts.smc_microstructure_base_runtime import (
     _abs_return_series_for_index,
     _clip01,
+    _clip01_series,
     _consistency_score,
     _et_minutes_since_midnight,
     _grouped_setup_decay_half_life_30m_buckets,
@@ -177,6 +178,15 @@ def test_clip01_clamps_invalid_and_out_of_range_scalars() -> None:
     assert _clip01("1.5") == pytest.approx(1.0)
     assert _clip01("-0.2") == pytest.approx(0.0)
     assert _clip01(pd.NA) == pytest.approx(0.0)
+
+
+def test_clip01_series_matches_map_semantics() -> None:
+    series = pd.Series([1.5, "0.4", -0.2, pd.NA, "bad"], index=["AAA", "BBB", "CCC", "DDD", "EEE"])
+
+    expected = series.map(_clip01).astype(float)
+    result = _clip01_series(series)
+
+    pd.testing.assert_series_equal(result, expected, check_names=False)
 
 
 def test_safe_ratio_series_for_index_matches_combine_semantics() -> None:
