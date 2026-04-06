@@ -14,6 +14,7 @@ import scripts.smc_microstructure_base_runtime as runtime
 import scripts.smc_databento_session_detail as session_detail
 from scripts.smc_microstructure_base_runtime import (
     _abs_return_series_for_index,
+    _column_nanmeans_or_zero,
     _clip01,
     _clip01_series,
     _coerce_bool,
@@ -252,6 +253,24 @@ def test_consistency_score_matches_previous_pandas_semantics() -> None:
     expected = 0.0 if not expected_components else float(np.clip(np.mean(expected_components), 0.0, 1.0))
 
     assert _consistency_score(group) == pytest.approx(expected)
+
+
+def test_column_nanmeans_or_zero_matches_per_column_mean_defaults() -> None:
+    frame = pd.DataFrame(
+        {
+            "alpha": [1.0, np.nan, 3.0],
+            "beta": [np.nan, np.nan, np.nan],
+            "gamma": [1, 0, 1],
+        }
+    )
+
+    result = _column_nanmeans_or_zero(frame, ["alpha", "beta", "gamma"])
+
+    assert result.tolist() == pytest.approx([
+        _mean_or_default(frame["alpha"], default=0.0),
+        0.0,
+        _mean_or_default(frame["gamma"], default=0.0),
+    ])
 
 
 def test_safe_ratio_series_for_index_matches_combine_semantics() -> None:
