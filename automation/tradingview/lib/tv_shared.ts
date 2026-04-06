@@ -638,11 +638,33 @@ export function scriptNameAppearsInUiText(scriptName: string, uiText: string): b
     || compactText.includes(compactScriptName);
 }
 
+function canonicalSemanticVersionSuffixMatch(scriptName: string, uiText: string): boolean {
+  const normalizedScriptName = normalizeUiText(scriptName);
+  const normalizedCandidate = normalizeUiText(uiText);
+
+  if (!normalizedScriptName || !normalizedCandidate || normalizedCandidate === normalizedScriptName) {
+    return false;
+  }
+
+  if (!normalizedCandidate.startsWith(`${normalizedScriptName} `)) {
+    return false;
+  }
+
+  const suffix = normalizedCandidate.slice(normalizedScriptName.length).trim();
+  return /^(?:v\d+(?:\.\d+){1,3}|version\s+\d+(?:\.\d+){1,3})$/i.test(suffix);
+}
+
 function canonicalOrTruncatedScriptIdentityMatch(scriptName: string, uiText: string): boolean {
   if (uiTextContainsExactScriptName(scriptName, uiText)) {
     return true;
   }
   if (compactUiText(scriptName) === compactUiText(uiText)) {
+    return true;
+  }
+  if (canonicalSemanticVersionSuffixMatch(scriptName, uiText)) {
+    return true;
+  }
+  if (canonicalVersionMetadataMatch(scriptName, uiText)) {
     return true;
   }
 
@@ -3088,11 +3110,26 @@ export async function refreshChartScriptInstance(page: Page, scriptName: string)
 
 async function tryOpenScriptSettingsByDoubleClick(
   page: Page,
-  box: { x: number; y: number; width: number; height: number } | null,
+  target: Locator,
   traceStartEvent: string,
   traceOkEvent: string,
   traceDetail: string,
 ): Promise<boolean> {
+  const settleSettingsOpen = async (): Promise<boolean> => {
+    if (await waitForScriptSettingsInputsSurface(page, 2_500)) {
+      tracePageEvent(page, traceOkEvent, traceDetail);
+      return true;
+    }
+
+    if (await resolveOpenedSettingsSurfaceToIndicatorDialog(page, `${traceStartEvent}-surface`, 2_000)) {
+      tracePageEvent(page, traceOkEvent, `${traceDetail}:surface`);
+      return true;
+    }
+
+    return false;
+  };
+
+  const box = await target.boundingBox().catch(() => null);
   if (!box) {
     return false;
   }
@@ -3102,8 +3139,24 @@ async function tryOpenScriptSettingsByDoubleClick(
   tracePageEvent(page, traceStartEvent, traceDetail);
   await page.mouse.dblclick(doubleClickX, doubleClickY).catch(() => undefined);
   await page.waitForTimeout(350);
-  if (await waitForScriptSettingsInputsSurface(page, 1_500)) {
-    tracePageEvent(page, traceOkEvent, traceDetail);
+  if (await settleSettingsOpen()) {
+    return true;
+  }
+
+  const domDblClicked = await dispatchDomMouseGesture(target, "dblclick").catch(() => false);
+  if (domDblClicked) {
+    tracePageEvent(page, `${traceStartEvent}-dom`, traceDetail);
+    await page.waitForTimeout(350);
+    if (await settleSettingsOpen()) {
+      tracePageEvent(page, `${traceOkEvent}-dom`, traceDetail);
+      return true;
+    }
+  }
+
+  await target.click({ force: true, clickCount: 2, timeout: 1_000 }).catch(() => undefined);
+  await page.waitForTimeout(350);
+  if (await settleSettingsOpen()) {
+    tracePageEvent(page, `${traceOkEvent}-force`, traceDetail);
     return true;
   }
 
@@ -3123,10 +3176,9 @@ async function openSettingsFromLegendContainer(page: Page, scriptName: string): 
     await wrapper.scrollIntoViewIfNeeded().catch(() => undefined);
     await wrapper.hover({ timeout: 1_000 }).catch(() => undefined);
 
-    const wrapperBox = await wrapper.boundingBox().catch(() => null);
     if (await tryOpenScriptSettingsByDoubleClick(
       page,
-      wrapperBox,
+      wrapper,
       "script-settings-legend-wrapper-dblclick-start",
       "script-settings-legend-wrapper-dblclick-ok",
       scriptName,
@@ -3199,10 +3251,9 @@ async function openSettingsFromLegendContainer(page: Page, scriptName: string): 
       await targetContainer.scrollIntoViewIfNeeded().catch(() => undefined);
       await targetContainer.hover({ timeout: 1_000 }).catch(() => undefined);
 
-      const targetBox = await targetContainer.boundingBox().catch(() => null);
       if (await tryOpenScriptSettingsByDoubleClick(
         page,
-        targetBox,
+        targetContainer,
         "script-settings-legend-container-dblclick-start",
         "script-settings-legend-container-dblclick-ok",
         `${scriptName}:${containerIndex}`,
@@ -3245,7 +3296,7 @@ async function openSettingsFromLegendContainer(page: Page, scriptName: string): 
         tracePageEvent(page, "script-settings-legend-container-no-surface", `${scriptName}:${containerIndex}`);
       }
 
-      const box = targetBox ?? await targetContainer.boundingBox().catch(() => null);
+      const box = await targetContainer.boundingBox().catch(() => null);
       if (box) {
         const targetX = Math.max(box.x + 8, box.x + box.width - 14);
         const targetY = box.y + Math.max(6, Math.min(box.height / 2, Math.max(box.height - 6, 6)));
@@ -3312,10 +3363,9 @@ async function openSettingsFromScriptText(page: Page, scriptName: string): Promi
 
       await ancestor.scrollIntoViewIfNeeded().catch(() => undefined);
       await ancestor.hover({ timeout: 750 }).catch(() => undefined);
-      const ancestorBox = await ancestor.boundingBox().catch(() => null);
       if (await tryOpenScriptSettingsByDoubleClick(
         page,
-        ancestorBox,
+        ancestor,
         "script-settings-text-ancestor-dblclick-start",
         "script-settings-text-ancestor-dblclick-ok",
         `${scriptName}:${level}`,

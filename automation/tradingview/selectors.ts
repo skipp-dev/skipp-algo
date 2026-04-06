@@ -11,7 +11,10 @@ function scriptNamePatterns(scriptName: string): RegExp[] {
     .split(/\s+/)
     .map((part) => part.trim())
     .filter(Boolean);
-  const exact = new RegExp(`^${escapeRegex(scriptName)}$`, "i");
+  const exact = new RegExp(
+    `^${escapeRegex(scriptName)}(?:\\s+(?:v\\d+(?:\\.\\d+){1,3}|version\\s+\\d+(?:\\.\\d+){1,3}))?$`,
+    "i",
+  );
   const loose = new RegExp(escapeRegex(scriptName), "i");
   const fuzzy = normalizedWords.length > 0
     ? new RegExp(

@@ -218,6 +218,14 @@ test("verifyOpenScriptIdentity tolerates import-line companion context", () => {
   }), true);
 });
 
+test("verifyOpenScriptIdentity accepts semantic version suffix context", () => {
+  assert.equal(verifyOpenScriptIdentity("SkippALGO", {
+    dialogStillVisible: false,
+    editorContextTexts: ["SkippALGO v6.3.13"],
+    bodyText: "Workspace body SkippALGO v6.3.13",
+  }), true);
+});
+
 test("verifyOpenScriptIdentity fails closed on conflicting canonical editor context", () => {
   assert.equal(verifyOpenScriptIdentity("SMC Core Engine", {
     dialogStillVisible: false,

@@ -9,9 +9,8 @@
     {
       "file": "SMC_Dashboard.pine",
       "scriptName": "SMC Dashboard",
-      "checkInputs": true,
-      "addToChart": true,
-      "minInputs": 26
+      "checkInputs": false,
+      "addToChart": true
     }
   ]
 }

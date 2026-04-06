@@ -103,5 +103,27 @@ test("scriptLegendContainers only anchor exact script text descendants", () => {
   const locators = tvSelectors.scriptLegendContainers(fakePage as never, "SMC Core Engine");
 
   assert.equal(locators.length, 4);
-  assert.deepEqual(calls, ["^SMC Core Engine$", "^SMC Core Engine$", "^SMC Core Engine$", "^SMC Core Engine$"]);
+  assert.deepEqual(calls, [
+    "^SMC Core Engine(?:\\s+(?:v\\d+(?:\\.\\d+){1,3}|version\\s+\\d+(?:\\.\\d+){1,3}))?$",
+    "^SMC Core Engine(?:\\s+(?:v\\d+(?:\\.\\d+){1,3}|version\\s+\\d+(?:\\.\\d+){1,3}))?$",
+    "^SMC Core Engine(?:\\s+(?:v\\d+(?:\\.\\d+){1,3}|version\\s+\\d+(?:\\.\\d+){1,3}))?$",
+    "^SMC Core Engine(?:\\s+(?:v\\d+(?:\\.\\d+){1,3}|version\\s+\\d+(?:\\.\\d+){1,3}))?$",
+  ]);
+});
+
+test("scriptRow exact locator tolerates semantic version suffixes", () => {
+  const calls: string[] = [];
+  const fakeScope = {
+    getByText: (pattern: RegExp) => {
+      calls.push(pattern.source);
+      return { kind: "text" };
+    },
+  };
+  const fakePage = {
+    locator: (_selector: string) => fakeScope,
+  };
+
+  tvSelectors.scriptRow(fakePage as never, "SkippALGO");
+
+  assert.equal(calls.some((call) => call.includes("SkippALGO") && call.includes("version") && call.includes("v\\d+")), true);
 });

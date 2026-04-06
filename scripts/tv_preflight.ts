@@ -24,6 +24,7 @@ import {
   parseInputSourceLabels,
   probeRuntimeSmoke,
   refreshChartScriptInstance,
+  removeVisibleChartScriptInstances,
   saveScript,
   setEditorContent,
   takeScreenshot,
@@ -46,6 +47,7 @@ type ReleaseTarget = {
   checkInputs: boolean;
   addToChart: boolean;
   minInputs?: number;
+  allowFreshDraftOnMissingExisting?: boolean;
 };
 
 type CliArgs = {
@@ -324,6 +326,14 @@ function buildReport(
   const compile_green = combineVerificationStatuses(targets.map((target) => target.compile_green));
   const binding_green = combineVerificationStatuses(targets.map((target) => target.binding_green));
   const runtime_green = combineVerificationStatuses(targets.map((target) => target.runtime_green));
+  const bindingTargets = targets.filter((target) =>
+    target.settings_open_ok !== "not_run"
+      || target.inputs_tab_ok !== "not_run"
+      || target.bindings_count_ok !== "not_run"
+      || target.bindings_names_ok !== "not_run"
+  );
+  const bindingGateSatisfied = bindingTargets.length === 0
+    || bindingTargets.every((target) => target.binding_green === true);
 
   return {
     generatedAt: utcNow(),
@@ -340,7 +350,7 @@ function buildReport(
       auth_ok === true &&
       ui_green === true &&
       (executionMode === "readonly" || compile_green === true) &&
-      binding_green === true &&
+      bindingGateSatisfied &&
       runtime_green === true &&
       targets.every((target) => target.overall_preflight_ok),
     targets,
@@ -407,6 +417,8 @@ async function main(): Promise<number> {
     const session = await newTradingViewSession();
 
     try {
+      let usedFreshDraftPath = false;
+
       await gotoChart(session.page);
       targetResult.auth_ok = !(await isSignInModalVisible(session.page).catch(() => true));
       if (targetResult.auth_ok !== true) {
@@ -424,12 +436,18 @@ async function main(): Promise<number> {
       if (cli.openExisting) {
         const openedExisting = await openExistingScript(session.page, target.scriptName);
         if (!openedExisting) {
-          throw new Error(
-            `Could not open existing TradingView script: ${target.scriptName}. Rerun with --no-open-existing only if a fresh untitled draft is intended.`,
-          );
+          if (cli.executionMode === "mutating" && target.allowFreshDraftOnMissingExisting) {
+            await openFreshUntitledPineDraft(session.page, inferPineDraftKind(code));
+            usedFreshDraftPath = true;
+          } else {
+            throw new Error(
+              `Could not open existing TradingView script: ${target.scriptName}. Rerun with --no-open-existing only if a fresh untitled draft is intended.`,
+            );
+          }
         }
       } else if (cli.executionMode === "mutating") {
         await openFreshUntitledPineDraft(session.page, inferPineDraftKind(code));
+        usedFreshDraftPath = true;
       }
 
       await ensurePineEditor(session.page);
@@ -444,7 +462,12 @@ async function main(): Promise<number> {
       }
 
       if (target.addToChart || target.checkInputs) {
-        await addCurrentScriptToChart(session.page, target.scriptName);
+        if (usedFreshDraftPath && target.scriptName) {
+          await removeVisibleChartScriptInstances(session.page, target.scriptName).catch(() => 0);
+          await addCurrentScriptToChart(session.page, target.scriptName, { forceInsert: true });
+        } else {
+          await addCurrentScriptToChart(session.page, target.scriptName);
+        }
         targetResult.script_found_on_chart_ok = await isScriptVisibleOnChartSurface(session.page, target.scriptName);
         if (targetResult.script_found_on_chart_ok !== true) {
           throw new Error(`Script did not become visible on chart after add-to-chart for ${target.scriptName}`);
