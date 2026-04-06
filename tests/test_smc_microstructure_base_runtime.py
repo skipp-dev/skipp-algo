@@ -1191,6 +1191,70 @@ def test_build_symbol_day_microstructure_feature_frame_warns_when_regular_sessio
     assert "no regular-session bars" in caplog.text
 
 
+def test_build_symbol_day_microstructure_feature_frame_warns_when_midday_detail_is_missing_with_regular_session_activity(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    daily_features = pd.DataFrame(
+        [
+            {
+                "trade_date": "2026-03-20",
+                "symbol": "AAA",
+                "exchange": "NASDAQ",
+                "company_name": "Alpha Holdings",
+                "asset_type": "stock",
+                "market_cap": 3_200_000_000,
+                "day_open": 10.0,
+                "day_high": 10.8,
+                "day_low": 9.7,
+                "day_close": 10.5,
+                "day_volume": 1_500_000,
+                "previous_close": 9.8,
+                "close_trade_hygiene_score": 0.82,
+                "reclaimed_start_price_within_30s": True,
+                "early_dip_pct_10s": -0.8,
+                "open_to_current_pct": 1.6,
+                "window_return_pct": 1.6,
+                "close_preclose_return_pct": 0.4,
+            }
+        ]
+    )
+    session_minute_detail = pd.DataFrame(
+        [
+            {
+                "trade_date": "2026-03-20",
+                "symbol": "AAA",
+                "timestamp": pd.Timestamp("2026-03-20T13:30:00Z"),
+                "session": "regular",
+                "open": 10.0,
+                "high": 10.2,
+                "low": 9.9,
+                "close": 10.1,
+                "volume": 50_000,
+                "trade_count": 75,
+            },
+            {
+                "trade_date": "2026-03-20",
+                "symbol": "AAA",
+                "timestamp": pd.Timestamp("2026-03-20T19:50:00Z"),
+                "session": "regular",
+                "open": 10.42,
+                "high": 10.48,
+                "low": 10.25,
+                "close": 10.35,
+                "volume": 60_000,
+                "trade_count": 90,
+            },
+        ]
+    )
+
+    with caplog.at_level("WARNING"):
+        output = build_symbol_day_microstructure_feature_frame(session_minute_detail, daily_features)
+
+    row = output.iloc[0]
+    assert bool(row["missing_midday_detail"]) is True
+    assert "no midday bars" in caplog.text
+
+
 def test_build_symbol_day_microstructure_feature_frame_falls_back_to_window_return_when_open_to_current_missing() -> None:
     daily_features = pd.DataFrame(
         [
@@ -1345,6 +1409,186 @@ def test_build_base_snapshot_from_bundle_payload_excludes_missing_minute_detail_
     expected_single_day_ratio = float(day_rows.loc[0, "daily_open_30m_dollar_share"])
     actual_ratio = float(base_snapshot.loc[0, "open_30m_dollar_share_20d"])
     assert actual_ratio == pytest.approx(expected_single_day_ratio)
+
+
+def test_build_base_snapshot_from_bundle_payload_excludes_missing_regular_session_rows_from_minute_derived_20d_means(
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    bundle_payload, _ = _make_bundle_payload(tmp_path)
+    frames = cast(dict[str, Any], bundle_payload["frames"])
+    daily_features = cast(pd.DataFrame, frames["daily_symbol_features_full_universe"]).copy()
+    frames["daily_symbol_features_full_universe"] = daily_features
+    frames["daily_bars"] = daily_features[
+        ["trade_date", "symbol", "day_open", "day_high", "day_low", "day_close", "day_volume", "previous_close"]
+    ].rename(
+        columns={
+            "day_open": "open",
+            "day_high": "high",
+            "day_low": "low",
+            "day_close": "close",
+            "day_volume": "volume",
+        }
+    )
+
+    session_minute_detail = pd.DataFrame(
+        [
+            {
+                "trade_date": "2026-03-19",
+                "symbol": "AAA",
+                "timestamp": pd.Timestamp("2026-03-19T13:30:00Z"),
+                "session": "regular",
+                "open": 10.0,
+                "high": 10.1,
+                "low": 9.95,
+                "close": 10.05,
+                "volume": 1000,
+                "trade_count": 10,
+            },
+            {
+                "trade_date": "2026-03-20",
+                "symbol": "AAA",
+                "timestamp": pd.Timestamp("2026-03-20T08:15:00Z"),
+                "session": "premarket",
+                "open": 10.55,
+                "high": 10.6,
+                "low": 10.45,
+                "close": 10.5,
+                "volume": 22_000,
+                "trade_count": 35,
+            },
+            {
+                "trade_date": "2026-03-20",
+                "symbol": "AAA",
+                "timestamp": pd.Timestamp("2026-03-20T21:25:00Z"),
+                "session": "afterhours",
+                "open": 10.35,
+                "high": 10.4,
+                "low": 10.2,
+                "close": 10.28,
+                "volume": 21_000,
+                "trade_count": 22,
+            },
+        ]
+    )
+
+    with caplog.at_level("WARNING"):
+        base_snapshot, _, symbol_day = build_base_snapshot_from_bundle_payload(
+            bundle_payload,
+            schema_path=SCHEMA_PATH,
+            session_minute_detail=session_minute_detail,
+            asof_date="2026-03-20",
+        )
+
+    day_rows = symbol_day.loc[symbol_day["symbol"] == "AAA"].sort_values("trade_date").reset_index(drop=True)
+    assert bool(day_rows.loc[1, "missing_regular_session_detail"]) is True
+
+    expected_rth_share = float(day_rows.loc[0, "daily_rth_active_minutes_share"])
+    actual_rth_share = float(base_snapshot.loc[0, "rth_active_minutes_share_20d"])
+    assert actual_rth_share == pytest.approx(expected_rth_share)
+    assert "excluded 1 symbol-day rows from minute-derived 20d aggregation" in caplog.text
+
+
+def test_build_base_snapshot_from_bundle_payload_excludes_missing_midday_rows_from_minute_derived_20d_means(
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    bundle_payload, _ = _make_bundle_payload(tmp_path)
+    frames = cast(dict[str, Any], bundle_payload["frames"])
+    daily_features = cast(pd.DataFrame, frames["daily_symbol_features_full_universe"]).copy()
+    frames["daily_symbol_features_full_universe"] = daily_features
+    frames["daily_bars"] = daily_features[
+        ["trade_date", "symbol", "day_open", "day_high", "day_low", "day_close", "day_volume", "previous_close"]
+    ].rename(
+        columns={
+            "day_open": "open",
+            "day_high": "high",
+            "day_low": "low",
+            "day_close": "close",
+            "day_volume": "volume",
+        }
+    )
+
+    session_minute_detail = pd.DataFrame(
+        [
+            {
+                "trade_date": "2026-03-19",
+                "symbol": "AAA",
+                "timestamp": pd.Timestamp("2026-03-19T13:30:00Z"),
+                "session": "regular",
+                "open": 10.0,
+                "high": 10.2,
+                "low": 9.9,
+                "close": 10.1,
+                "volume": 50_000,
+                "trade_count": 75,
+            },
+            {
+                "trade_date": "2026-03-19",
+                "symbol": "AAA",
+                "timestamp": pd.Timestamp("2026-03-19T16:15:00Z"),
+                "session": "regular",
+                "open": 10.2,
+                "high": 10.5,
+                "low": 10.1,
+                "close": 10.4,
+                "volume": 45_000,
+                "trade_count": 65,
+            },
+            {
+                "trade_date": "2026-03-19",
+                "symbol": "AAA",
+                "timestamp": pd.Timestamp("2026-03-19T19:45:00Z"),
+                "session": "regular",
+                "open": 10.45,
+                "high": 10.6,
+                "low": 10.35,
+                "close": 10.5,
+                "volume": 55_000,
+                "trade_count": 80,
+            },
+            {
+                "trade_date": "2026-03-20",
+                "symbol": "AAA",
+                "timestamp": pd.Timestamp("2026-03-20T13:30:00Z"),
+                "session": "regular",
+                "open": 10.7,
+                "high": 10.8,
+                "low": 10.5,
+                "close": 10.6,
+                "volume": 80_000,
+                "trade_count": 95,
+            },
+            {
+                "trade_date": "2026-03-20",
+                "symbol": "AAA",
+                "timestamp": pd.Timestamp("2026-03-20T19:50:00Z"),
+                "session": "regular",
+                "open": 10.42,
+                "high": 10.48,
+                "low": 10.25,
+                "close": 10.35,
+                "volume": 60_000,
+                "trade_count": 90,
+            },
+        ]
+    )
+
+    with caplog.at_level("WARNING"):
+        base_snapshot, _, symbol_day = build_base_snapshot_from_bundle_payload(
+            bundle_payload,
+            schema_path=SCHEMA_PATH,
+            session_minute_detail=session_minute_detail,
+            asof_date="2026-03-20",
+        )
+
+    day_rows = symbol_day.loc[symbol_day["symbol"] == "AAA"].sort_values("trade_date").reset_index(drop=True)
+    assert bool(day_rows.loc[1, "missing_midday_detail"]) is True
+
+    expected_midday_efficiency = float(day_rows.loc[0, "daily_midday_efficiency"])
+    actual_midday_efficiency = float(base_snapshot.loc[0, "midday_efficiency_20d"])
+    assert actual_midday_efficiency == pytest.approx(expected_midday_efficiency)
+    assert "no midday bars" in caplog.text
 
 
 def test_collect_full_universe_session_minute_detail_cache_coverage_uses_runtime_unsupported_sidecar(

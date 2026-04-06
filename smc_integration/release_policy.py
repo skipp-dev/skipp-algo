@@ -499,7 +499,7 @@ def assess_measurement_shadow_degradations(
     current_calibrated_ece = _finite_metric(current_entry.get("calibrated_ece"))
     current_events = _int_metric(current_entry.get("n_events"))
     current_buckets = _populated_bucket_count(current_entry)
-    calibrated_thresholds_eligible = current_events is not None and current_events >= resolved.min_history_runs
+    calibrated_thresholds_eligible = current_events is not None and current_events >= resolved.min_scoring_events
 
     if current_brier is not None and current_brier > resolved.max_brier_score:
         degradations.append(

@@ -338,6 +338,32 @@ class TestMeasurementShadowGovernance:
             "MEASUREMENT_CALIBRATED_ECE_ABOVE_THRESHOLD",
         }
 
+    def test_shadow_degradations_apply_calibrated_thresholds_using_scoring_event_floor(self) -> None:
+        thresholds = MeasurementShadowThresholds(
+            max_calibrated_brier_score=0.20,
+            max_calibrated_ece=0.10,
+            min_scoring_events=1,
+            min_history_runs=5,
+        )
+
+        degradations, baseline = assess_measurement_shadow_degradations(
+            {
+                "calibrated_brier_score": 0.27,
+                "calibrated_ece": 0.16,
+                "n_events": 1,
+                "stratification_coverage": {"populated_bucket_count": 2},
+            },
+            [],
+            thresholds=thresholds,
+        )
+
+        assert baseline["available"] is False
+        codes = {row["code"] for row in degradations}
+        assert codes == {
+            "MEASUREMENT_CALIBRATED_BRIER_ABOVE_THRESHOLD",
+            "MEASUREMENT_CALIBRATED_ECE_ABOVE_THRESHOLD",
+        }
+
     def test_shadow_degradations_detect_historical_regressions(self) -> None:
         thresholds = MeasurementShadowThresholds(
             max_brier_score=0.60,

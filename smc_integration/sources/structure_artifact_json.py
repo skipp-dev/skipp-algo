@@ -157,6 +157,23 @@ def _artifact_path_for_symbol_timeframe(symbol: str, timeframe: str) -> Path:
     return STRUCTURE_ARTIFACTS_DIR / f"{safe_symbol}_{safe_tf}.structure.json"
 
 
+def _assert_manifest_repo_state_provenance_ok(timeframe: str) -> None:
+    manifest_path = _manifest_path_for_timeframe(timeframe)
+    if not manifest_path.exists():
+        return
+
+    payload = _load_json(manifest_path)
+    issues = _manifest_repo_state_health_issues(payload, manifest_path=manifest_path)
+    if not issues:
+        return
+
+    codes = ", ".join(sorted({str(item.get("code", "UNKNOWN")) for item in issues}))
+    details = "; ".join(str(item.get("message", "")).strip() for item in issues if str(item.get("message", "")).strip())
+    raise ValueError(
+        f"manifest provenance check failed for {manifest_path}: {codes}{': ' + details if details else ''}"
+    )
+
+
 def _resolve_from_manifest(symbol: str, timeframe: str) -> Path | None:
     manifest_path = _manifest_path_for_timeframe(timeframe)
     if not manifest_path.exists():
@@ -465,8 +482,17 @@ def load_structure_context_input(symbol: str, timeframe: str) -> dict[str, Any] 
 
 
 def load_normalized_structure_contract_input(symbol: str, timeframe: str) -> dict[str, Any] | None:
-    artifact_file = _resolve_artifact_file(symbol, timeframe)
+    artifact_file = _resolve_from_manifest(symbol, timeframe)
     if artifact_file is not None:
+        _assert_manifest_repo_state_provenance_ok(timeframe)
+        payload = _load_json(artifact_file)
+        contract = normalize_structure_contract(payload)
+        contract_payload = contract_to_dict(contract)
+        _validate_contract_identity(contract_payload, symbol=symbol, timeframe=timeframe, path=artifact_file)
+        return contract_payload
+
+    artifact_file = _artifact_path_for_symbol_timeframe(symbol, timeframe)
+    if artifact_file.exists():
         payload = _load_json(artifact_file)
         contract = normalize_structure_contract(payload)
         contract_payload = contract_to_dict(contract)

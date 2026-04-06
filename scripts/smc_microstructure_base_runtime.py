@@ -659,6 +659,7 @@ def build_symbol_day_microstructure_feature_frame(
         "daily_rth_efficiency",
         "daily_rth_net_return_abs",
         "missing_regular_session_detail",
+        "missing_midday_detail",
         "missing_premarket_detail",
         "missing_afterhours_detail",
     ]
@@ -875,8 +876,22 @@ def build_symbol_day_microstructure_feature_frame(
 
             has_pm = minute_metrics.index.isin(pm_stats.index)
             has_rth = minute_metrics.index.isin(rth_stats.index)
+            has_midday = minute_metrics.index.isin(midday_stats.index)
+            has_pre_midday_rth = minute_metrics.index.isin(
+                minute_frame.loc[
+                    is_rth & et_minute.lt(MIDDAY_START_MINUTE),
+                    group_columns,
+                ].drop_duplicates().set_index(group_columns).index
+            )
+            has_post_midday_rth = minute_metrics.index.isin(
+                minute_frame.loc[
+                    is_rth & et_minute.ge(MIDDAY_END_MINUTE),
+                    group_columns,
+                ].drop_duplicates().set_index(group_columns).index
+            )
             has_ah = minute_metrics.index.isin(ah_stats.index)
             minute_metrics["missing_regular_session_detail"] = (~has_rth) & (has_pm | has_ah)
+            minute_metrics["missing_midday_detail"] = has_pre_midday_rth & has_post_midday_rth & (~has_midday)
             minute_metrics["missing_premarket_detail"] = (~has_pm) & (has_rth | has_ah)
             minute_metrics["missing_afterhours_detail"] = (~has_ah) & (has_pm | has_rth)
 
@@ -884,7 +899,16 @@ def build_symbol_day_microstructure_feature_frame(
             if not missing_regular.empty:
                 for trade_day, symbol in missing_regular.index.tolist():
                     logger.warning(
-                        "Symbol %s on %s has minute detail for non-regular sessions but no regular-session bars; regular-session derived metrics will be 0.0.",
+                        "Symbol %s on %s has minute detail for non-regular sessions but no regular-session bars; regular-session derived metrics will be 0.0 and excluded from 20d minute aggregation.",
+                        symbol,
+                        trade_day,
+                    )
+
+            missing_midday = minute_metrics.loc[minute_metrics["missing_midday_detail"]]
+            if not missing_midday.empty:
+                for trade_day, symbol in missing_midday.index.tolist():
+                    logger.warning(
+                        "Symbol %s on %s has regular-session bars on both sides of the midday window but no midday bars; midday-derived metrics will be 0.0 and excluded from 20d minute aggregation.",
                         symbol,
                         trade_day,
                     )
@@ -903,6 +927,7 @@ def build_symbol_day_microstructure_feature_frame(
             "trade_date",
             "symbol",
             "missing_regular_session_detail",
+            "missing_midday_detail",
             "missing_premarket_detail",
             "missing_afterhours_detail",
         }
@@ -925,6 +950,7 @@ def build_symbol_day_microstructure_feature_frame(
             )
     for bool_column in (
         "missing_regular_session_detail",
+        "missing_midday_detail",
         "missing_premarket_detail",
         "missing_afterhours_detail",
     ):
@@ -934,6 +960,7 @@ def build_symbol_day_microstructure_feature_frame(
             "trade_date",
             "symbol",
             "missing_regular_session_detail",
+            "missing_midday_detail",
             "missing_premarket_detail",
             "missing_afterhours_detail",
         }:
@@ -1107,6 +1134,12 @@ def build_base_snapshot_from_bundle_payload(
     trailing = symbol_day_features.loc[symbol_day_features["trade_date"] <= resolved_asof].copy()
     trailing = trailing.sort_values(["symbol", "trade_date"]).groupby("symbol", group_keys=False).tail(20)
     trailing["minute_detail_missing_bool"] = _coerce_bool_series(_series_from_frame(trailing, "minute_detail_missing", False))
+    trailing["missing_regular_session_detail_bool"] = _coerce_bool_series(
+        _series_from_frame(trailing, "missing_regular_session_detail", False)
+    )
+    trailing["missing_midday_detail_bool"] = _coerce_bool_series(
+        _series_from_frame(trailing, "missing_midday_detail", False)
+    )
 
     latest = trailing.sort_values(["symbol", "trade_date"]).groupby("symbol", group_keys=False).tail(1)
     latest_by_symbol = latest.set_index("symbol", drop=False)
@@ -1183,7 +1216,20 @@ def build_base_snapshot_from_bundle_payload(
                 symbol,
                 coverage_days,
             )
-        covered_mask = ~group["minute_detail_missing_bool"].to_numpy(dtype=bool, copy=False)
+        coverage_gap_mask = (
+            group["missing_regular_session_detail_bool"].to_numpy(dtype=bool, copy=False)
+            | group["missing_midday_detail_bool"].to_numpy(dtype=bool, copy=False)
+        )
+        if bool(coverage_gap_mask.any()):
+            logger.warning(
+                "Symbol %s excluded %d symbol-day rows from minute-derived 20d aggregation due missing regular-session or midday detail.",
+                symbol,
+                int(coverage_gap_mask.sum()),
+            )
+        covered_mask = ~(
+            group["minute_detail_missing_bool"].to_numpy(dtype=bool, copy=False)
+            | coverage_gap_mask
+        )
         covered_group = group.loc[covered_mask]
         if covered_group.empty:
             logger.warning(
