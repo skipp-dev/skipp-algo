@@ -223,6 +223,24 @@ def _et_minutes_since_midnight(timestamp: pd.Series) -> pd.Series:
     return pd.Series(minutes, index=timestamp.index)
 
 
+def _coerce_trade_date_series(values: pd.Series) -> pd.Series:
+    codes, uniques = pd.factorize(values, sort=False)
+    parsed_uniques = np.asarray(
+        [
+            pd.NaT
+            if pd.isna(parsed := pd.to_datetime(pd.Index([value]), errors="coerce")[0])
+            else parsed.date()
+            for value in uniques
+        ],
+        dtype=object,
+    )
+    parsed_values = np.empty(len(codes), dtype=object)
+    valid = codes >= 0
+    parsed_values[valid] = parsed_uniques[codes[valid]]
+    parsed_values[~valid] = pd.NaT
+    return pd.Series(parsed_values, index=values.index, name=values.name)
+
+
 def _coerce_bool(value: Any) -> bool:
     if pd.isna(value):
         return False
@@ -571,7 +589,7 @@ def build_symbol_day_microstructure_feature_frame(
     if daily.empty:
         return pd.DataFrame()
 
-    daily["trade_date"] = pd.to_datetime(daily["trade_date"], errors="coerce").dt.date
+    daily["trade_date"] = _coerce_trade_date_series(daily["trade_date"])
     daily["symbol"] = daily["symbol"].astype(str).str.upper()
     daily = daily.dropna(subset=["trade_date", "symbol"]).copy()
     daily = daily.sort_values(["symbol", "trade_date"]).reset_index(drop=True)
@@ -639,7 +657,7 @@ def build_symbol_day_microstructure_feature_frame(
     minute_metrics = pd.DataFrame(columns=metric_columns)
     if not session_minute_detail.empty:
         minute_frame = session_minute_detail.copy()
-        minute_frame["trade_date"] = pd.to_datetime(minute_frame["trade_date"], errors="coerce").dt.date
+        minute_frame["trade_date"] = _coerce_trade_date_series(minute_frame["trade_date"])
         minute_frame["symbol"] = minute_frame["symbol"].astype(str).str.upper()
         minute_frame["timestamp"] = pd.to_datetime(minute_frame["timestamp"], errors="coerce", utc=True)
         minute_frame = minute_frame.dropna(subset=["trade_date", "symbol", "timestamp"]).copy()
@@ -1535,7 +1553,7 @@ def run_databento_base_scan_pipeline(
             "and no fallback trade_date values were available in daily_symbol_features_full_universe."
         )
     intraday_expected = daily_feature_frame.copy()
-    intraday_expected["trade_date"] = pd.to_datetime(intraday_expected.get("trade_date"), errors="coerce").dt.date
+    intraday_expected["trade_date"] = _coerce_trade_date_series(intraday_expected["trade_date"])
     intraday_expected["symbol"] = intraday_expected.get("symbol", pd.Series(index=intraday_expected.index, dtype=object)).astype(str).str.upper()
     has_intraday_available = "has_intraday" in intraday_expected.columns
     if has_intraday_available:

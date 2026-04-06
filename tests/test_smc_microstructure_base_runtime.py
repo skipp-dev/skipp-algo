@@ -20,6 +20,7 @@ from scripts.smc_microstructure_base_runtime import (
     _consistency_score_from_numeric_values,
     _coerce_bool,
     _coerce_bool_series,
+    _coerce_trade_date_series,
     _consistency_score,
     _et_minutes_since_midnight,
     _grouped_setup_decay_half_life_30m_buckets,
@@ -201,6 +202,31 @@ def test_coerce_bool_series_matches_map_semantics() -> None:
 
     expected = series.map(_coerce_bool).astype(bool)
     result = _coerce_bool_series(series)
+
+    pd.testing.assert_series_equal(result, expected, check_names=False)
+
+
+def test_coerce_trade_date_series_matches_pandas_semantics() -> None:
+    series = pd.Series(
+        [
+            "2026-03-20",
+            "2026-03-20",
+            date(2026, 3, 21),
+            pd.Timestamp("2026-03-24T12:00:00Z"),
+            "bad-date",
+            None,
+            pd.NA,
+        ]
+    )
+
+    expected = series.map(
+        lambda value: (
+            pd.NaT
+            if pd.isna(pd.to_datetime(pd.Index([value]), errors="coerce")[0])
+            else pd.to_datetime(pd.Index([value]), errors="coerce")[0].date()
+        )
+    )
+    result = _coerce_trade_date_series(series)
 
     pd.testing.assert_series_equal(result, expected, check_names=False)
 
