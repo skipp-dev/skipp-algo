@@ -218,8 +218,9 @@ def _abs_return_series_for_index(close_price: pd.Series, open_price: pd.Series, 
 
 def _et_minutes_since_midnight(timestamp: pd.Series) -> pd.Series:
     et_timestamp = timestamp.dt.tz_convert(US_EASTERN_TZ)
-    minutes = (et_timestamp.dt.hour * 60) + et_timestamp.dt.minute
-    return pd.Series(minutes.to_numpy(dtype=np.int16, copy=False), index=timestamp.index)
+    local_ns = et_timestamp.array._local_timestamps().astype(np.int64, copy=False)
+    minutes = ((local_ns // 60_000_000_000) % (24 * 60)).astype(np.int16, copy=False)
+    return pd.Series(minutes, index=timestamp.index)
 
 
 def _coerce_bool(value: Any) -> bool:
@@ -490,7 +491,6 @@ def _aggregate_window_metrics(
     subset = frame.loc[
         mask,
         group_columns + [
-            "timestamp",
             "open",
             "high",
             "low",
@@ -537,7 +537,7 @@ def _aggregate_open_close_metrics(
     group_columns: list[str],
 ) -> pd.DataFrame:
     columns = ["dollar_volume", "open_price", "close_price"]
-    subset = frame.loc[mask, group_columns + ["timestamp", "open", "close", "dollar_volume"]]
+    subset = frame.loc[mask, group_columns + ["open", "close", "dollar_volume"]]
     if subset.empty:
         return _empty_group_metrics(group_columns, columns)
     return subset.groupby(group_columns, sort=False).agg(
