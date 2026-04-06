@@ -16,6 +16,8 @@ from scripts.smc_microstructure_base_runtime import (
     _abs_return_series_for_index,
     _clip01,
     _clip01_series,
+    _coerce_bool,
+    _coerce_bool_series,
     _consistency_score,
     _et_minutes_since_midnight,
     _grouped_setup_decay_half_life_30m_buckets,
@@ -185,6 +187,15 @@ def test_clip01_series_matches_map_semantics() -> None:
 
     expected = series.map(_clip01).astype(float)
     result = _clip01_series(series)
+
+    pd.testing.assert_series_equal(result, expected, check_names=False)
+
+
+def test_coerce_bool_series_matches_map_semantics() -> None:
+    series = pd.Series([True, False, 2, 0, " yes ", "false", pd.NA, None], index=list("ABCDEFGH"))
+
+    expected = series.map(_coerce_bool).astype(bool)
+    result = _coerce_bool_series(series)
 
     pd.testing.assert_series_equal(result, expected, check_names=False)
 

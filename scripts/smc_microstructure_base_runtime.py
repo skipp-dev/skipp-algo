@@ -230,6 +230,21 @@ def _coerce_bool(value: Any) -> bool:
     return bool(value)
 
 
+def _coerce_bool_series(series: pd.Series) -> pd.Series:
+    result = pd.Series(False, index=series.index, dtype=bool, name=series.name)
+    if series.empty:
+        return result
+
+    non_null = ~series.isna()
+    if not bool(non_null.any()):
+        return result
+
+    values = series.loc[non_null]
+    mapping = {value: _coerce_bool(value) for value in pd.unique(values).tolist()}
+    result.loc[non_null] = values.map(mapping).fillna(False).astype(bool).to_numpy()
+    return result
+
+
 def _mean_or_default(series: pd.Series, default: float = 0.0) -> float:
     numeric = pd.to_numeric(series, errors="coerce")
     if numeric.dropna().empty:
@@ -808,7 +823,7 @@ def build_symbol_day_microstructure_feature_frame(
         "missing_premarket_detail",
         "missing_afterhours_detail",
     ):
-        merged[bool_column] = merged.get(bool_column, False).map(_coerce_bool)
+        merged[bool_column] = _coerce_bool_series(_series_from_frame(merged, bool_column, False))
     for column in metric_columns:
         if column in {
             "trade_date",
@@ -838,7 +853,7 @@ def build_symbol_day_microstructure_feature_frame(
         + clipped_close_hygiene
     ) / 5.0
 
-    reclaim_flag = _series_from_frame(merged, "reclaimed_start_price_within_30s", False).map(_coerce_bool)
+    reclaim_flag = _coerce_bool_series(_series_from_frame(merged, "reclaimed_start_price_within_30s", False))
     early_dip_pct = pd.to_numeric(_series_from_frame(merged, "early_dip_pct_10s"), errors="coerce").fillna(0.0)
     followthrough_pct = pd.to_numeric(_series_from_frame(merged, "open_to_current_pct"), errors="coerce").fillna(
         pd.to_numeric(_series_from_frame(merged, "window_return_pct"), errors="coerce").fillna(0.0)
@@ -1029,7 +1044,7 @@ def build_base_snapshot_from_bundle_payload(
                 symbol,
                 coverage_days,
             )
-        covered_group = group.loc[~group.get("minute_detail_missing", False).map(_coerce_bool)].copy()
+        covered_group = group.loc[~_coerce_bool_series(_series_from_frame(group, "minute_detail_missing", False))].copy()
         warned_missing_minute_detail = False
 
         def _group_for_metric(column: str) -> pd.DataFrame:
@@ -1401,7 +1416,7 @@ def run_databento_base_scan_pipeline(
     intraday_expected["symbol"] = intraday_expected.get("symbol", pd.Series(index=intraday_expected.index, dtype=object)).astype(str).str.upper()
     has_intraday_available = "has_intraday" in intraday_expected.columns
     if has_intraday_available:
-        intraday_expected["has_intraday"] = intraday_expected["has_intraday"].map(_coerce_bool)
+        intraday_expected["has_intraday"] = _coerce_bool_series(intraday_expected["has_intraday"])
     else:
         intraday_expected["has_intraday"] = pd.Series(True, index=intraday_expected.index, dtype=bool)
         logger.warning(
