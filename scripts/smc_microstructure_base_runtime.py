@@ -245,18 +245,24 @@ def _coerce_bool_series(series: pd.Series) -> pd.Series:
     return result
 
 
+def _numeric_values(series: pd.Series) -> np.ndarray:
+    if pd.api.types.is_numeric_dtype(series.dtype):
+        return series.to_numpy(dtype=float, na_value=np.nan)
+    return pd.to_numeric(series, errors="coerce").to_numpy(dtype=float)
+
+
 def _mean_or_default(series: pd.Series, default: float = 0.0) -> float:
-    numeric = pd.to_numeric(series, errors="coerce")
-    if numeric.dropna().empty:
+    numeric_values = _numeric_values(series)
+    if numeric_values.size == 0 or np.isnan(numeric_values).all():
         return float(default)
-    return float(numeric.mean())
+    return float(np.nanmean(numeric_values))
 
 
 def _quantile_or_default(series: pd.Series, quantile: float, default: float = 0.0) -> float:
-    numeric = pd.to_numeric(series, errors="coerce").dropna()
-    if numeric.empty:
+    numeric_values = _numeric_values(series)
+    if numeric_values.size == 0 or np.isnan(numeric_values).all():
         return float(default)
-    return float(numeric.quantile(quantile))
+    return float(np.nanquantile(numeric_values, quantile))
 
 
 def _build_trade_date_scope(manifest: dict[str, Any]) -> list[date]:

@@ -21,6 +21,8 @@ from scripts.smc_microstructure_base_runtime import (
     _consistency_score,
     _et_minutes_since_midnight,
     _grouped_setup_decay_half_life_30m_buckets,
+    _mean_or_default,
+    _quantile_or_default,
     _safe_float,
     _safe_ratio,
     _safe_ratio_to_constant_series,
@@ -198,6 +200,26 @@ def test_coerce_bool_series_matches_map_semantics() -> None:
     result = _coerce_bool_series(series)
 
     pd.testing.assert_series_equal(result, expected, check_names=False)
+
+
+def test_mean_or_default_matches_previous_pandas_semantics() -> None:
+    series = pd.Series([1.0, "2.5", pd.NA, "bad", np.nan])
+
+    expected_numeric = pd.to_numeric(series, errors="coerce")
+    expected = 0.0 if expected_numeric.dropna().empty else float(expected_numeric.mean())
+
+    assert _mean_or_default(series, default=0.0) == pytest.approx(expected)
+    assert _mean_or_default(pd.Series([pd.NA, "bad"]), default=7.0) == pytest.approx(7.0)
+
+
+def test_quantile_or_default_matches_previous_pandas_semantics() -> None:
+    series = pd.Series([1.0, "2.5", pd.NA, "bad", 5.0])
+
+    expected_numeric = pd.to_numeric(series, errors="coerce").dropna()
+    expected = 0.0 if expected_numeric.empty else float(expected_numeric.quantile(0.75))
+
+    assert _quantile_or_default(series, 0.75, default=0.0) == pytest.approx(expected)
+    assert _quantile_or_default(pd.Series([pd.NA, "bad"]), 0.5, default=9.0) == pytest.approx(9.0)
 
 
 def test_safe_ratio_series_for_index_matches_combine_semantics() -> None:
