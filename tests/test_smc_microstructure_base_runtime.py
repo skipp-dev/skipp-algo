@@ -13,7 +13,9 @@ import pytest
 import scripts.smc_microstructure_base_runtime as runtime
 import scripts.smc_databento_session_detail as session_detail
 from scripts.smc_microstructure_base_runtime import (
+    _clip01,
     _consistency_score,
+    _safe_float,
     _setup_decay_half_life_30m_buckets,
     build_base_snapshot_from_bundle_payload,
     build_symbol_day_microstructure_feature_frame,
@@ -128,6 +130,18 @@ def test_setup_decay_half_life_30m_buckets_returns_zero_when_first_bucket_zero()
     )
 
     assert _setup_decay_half_life_30m_buckets(frame) == 0.0
+
+
+def test_safe_float_handles_scalar_strings_and_missing_values() -> None:
+    assert _safe_float(" 1.25 ") == pytest.approx(1.25)
+    assert _safe_float(pd.NA, default=7.0) == pytest.approx(7.0)
+    assert _safe_float("not-a-number", default=3.0) == pytest.approx(3.0)
+
+
+def test_clip01_clamps_invalid_and_out_of_range_scalars() -> None:
+    assert _clip01("1.5") == pytest.approx(1.0)
+    assert _clip01("-0.2") == pytest.approx(0.0)
+    assert _clip01(pd.NA) == pytest.approx(0.0)
 
 
 def test_build_base_snapshot_from_bundle_payload_warns_when_asof_is_stale(

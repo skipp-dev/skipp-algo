@@ -114,6 +114,8 @@ def _bucket_stat_series(df: pd.DataFrame, column: str, reducer: str, *, quantile
     bucket_keys = [_normalize_group_key(value) for value in df["universe_bucket"].tolist()]
     grouped_values: dict[object, list[float]] = {}
     for key, value in zip(bucket_keys, df[column].tolist(), strict=False):
+        if key is None:
+            continue
         grouped_values.setdefault(key, []).append(value)
 
     stats: dict[object, float] = {}
@@ -126,7 +128,11 @@ def _bucket_stat_series(df: pd.DataFrame, column: str, reducer: str, *, quantile
         else:
             raise ValueError(f"Unsupported bucket reducer: {reducer}")
 
-    return pd.Series([stats[key] for key in bucket_keys], index=df.index, dtype=float)
+    return pd.Series(
+        [stats.get(key, float("nan")) if key is not None else float("nan") for key in bucket_keys],
+        index=df.index,
+        dtype=float,
+    )
 
 
 def _filtered_records_frame(

@@ -113,17 +113,24 @@ def infer_universe_bucket(asset_type: str, market_cap: float | None) -> str:
 
 
 def _clip01(value: Any) -> float:
-    numeric = pd.to_numeric(pd.Series([value]), errors="coerce").iloc[0]
-    if pd.isna(numeric):
+    numeric = _safe_float(value, default=np.nan)
+    if not np.isfinite(numeric):
         return 0.0
-    return float(max(0.0, min(1.0, float(numeric))))
+    return float(max(0.0, min(1.0, numeric)))
 
 
 def _safe_float(value: Any, default: float = 0.0) -> float:
-    numeric = pd.to_numeric(pd.Series([value]), errors="coerce").iloc[0]
+    if isinstance(value, str):
+        value = value.strip()
+    if pd.isna(value):
+        return default
+    try:
+        numeric = float(value)
+    except (TypeError, ValueError):
+        return default
     if pd.isna(numeric):
         return default
-    return float(numeric)
+    return numeric
 
 
 def _series_from_frame(frame: pd.DataFrame, column: str, default: Any = np.nan) -> pd.Series:

@@ -8,6 +8,8 @@ import pytest
 
 from scripts.generate_smc_micro_profiles import (
     LISTS,
+    _bucket_median,
+    _bucket_quantile,
     _safe_bool,
     add_bucket_features,
     assess_csv_against_schema,
@@ -180,6 +182,25 @@ def test_validate_schema_rejects_null_primary_key_values() -> None:
 
     with pytest.raises(RuntimeError, match="Primary key columns cannot contain null values"):
         validate_schema(coerce_input_frame(df), schema)
+
+
+def test_bucket_stats_preserve_nan_for_missing_universe_bucket() -> None:
+    df = pd.DataFrame(
+        {
+            "universe_bucket": ["bucket_a", None, None, "bucket_a"],
+            "sample_metric": [1.0, 10.0, 20.0, 3.0],
+        }
+    )
+
+    median = _bucket_median(df, "sample_metric")
+    quantile = _bucket_quantile(df, "sample_metric", 0.5)
+
+    assert median.tolist()[0] == pytest.approx(2.0)
+    assert quantile.tolist()[0] == pytest.approx(2.0)
+    assert pd.isna(median.tolist()[1])
+    assert pd.isna(median.tolist()[2])
+    assert pd.isna(quantile.tolist()[1])
+    assert pd.isna(quantile.tolist()[2])
 
 
 def test_update_membership_state_bootstraps_first_snapshot() -> None:
