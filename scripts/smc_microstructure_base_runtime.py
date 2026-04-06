@@ -260,17 +260,21 @@ def _nanmean_or_default(values: np.ndarray, default: float = 0.0) -> float:
     return float(np.nansum(values) / valid_count)
 
 
+def _nanmean_columns_or_zero(values: np.ndarray) -> np.ndarray:
+    if values.shape[0] == 0:
+        return np.zeros(values.shape[1], dtype=float)
+
+    counts = np.count_nonzero(~np.isnan(values), axis=0)
+    sums = np.nansum(values, axis=0)
+    return np.divide(sums, counts, out=np.zeros(values.shape[1], dtype=float), where=counts > 0)
+
+
 def _column_nanmeans_or_zero(frame: pd.DataFrame, columns: list[str]) -> np.ndarray:
     if not columns:
         return np.empty(0, dtype=float)
 
     values = frame[columns].to_numpy(dtype=float, copy=False)
-    if values.shape[0] == 0:
-        return np.zeros(len(columns), dtype=float)
-
-    counts = np.count_nonzero(~np.isnan(values), axis=0)
-    sums = np.nansum(values, axis=0)
-    return np.divide(sums, counts, out=np.zeros(len(columns), dtype=float), where=counts > 0)
+    return _nanmean_columns_or_zero(values)
 
 
 def _consistency_score_from_numeric_values(values: np.ndarray) -> float:
@@ -301,11 +305,16 @@ def _mean_or_default(series: pd.Series, default: float = 0.0) -> float:
     return _nanmean_or_default(_numeric_values(series), default)
 
 
-def _quantile_or_default(series: pd.Series, quantile: float, default: float = 0.0) -> float:
-    numeric_values = _numeric_values(series)
-    if numeric_values.size == 0 or np.isnan(numeric_values).all():
+def _nanquantile_or_default(values: np.ndarray, quantile: float, default: float = 0.0) -> float:
+    if values.size == 0:
         return float(default)
-    return float(np.nanquantile(numeric_values, quantile))
+    if np.isnan(values).all():
+        return float(default)
+    return float(np.nanquantile(values, quantile))
+
+
+def _quantile_or_default(series: pd.Series, quantile: float, default: float = 0.0) -> float:
+    return _nanquantile_or_default(_numeric_values(series), quantile, default)
 
 
 def _build_trade_date_scope(manifest: dict[str, Any]) -> list[date]:
@@ -1097,6 +1106,24 @@ def build_base_snapshot_from_bundle_payload(
         "daily_stop_hunt_flag",
         "daily_stale_fail_flag",
     ]
+    trailing_numeric_columns: list[str] = []
+    for column in minute_mean_columns + group_mean_columns + [
+        "daily_rth_dollar_volume",
+        "daily_ob_sweep_depth",
+        "daily_fvg_sweep_depth",
+        "day_close",
+        "day_volume",
+    ]:
+        if column not in trailing_numeric_columns:
+            trailing_numeric_columns.append(column)
+    minute_mean_indices = [trailing_numeric_columns.index(column) for column in minute_mean_columns]
+    group_mean_indices = [trailing_numeric_columns.index(column) for column in group_mean_columns]
+    consistency_score_indices = [trailing_numeric_columns.index(column) for column in consistency_score_columns]
+    adv_rth_index = trailing_numeric_columns.index("daily_rth_dollar_volume")
+    ob_sweep_depth_index = trailing_numeric_columns.index("daily_ob_sweep_depth")
+    fvg_sweep_depth_index = trailing_numeric_columns.index("daily_fvg_sweep_depth")
+    day_close_index = trailing_numeric_columns.index("day_close")
+    day_volume_index = trailing_numeric_columns.index("day_volume")
 
     for symbol, group in trailing.groupby("symbol", sort=True):
         latest_row = latest_by_symbol.loc[symbol]
@@ -1117,8 +1144,10 @@ def build_base_snapshot_from_bundle_payload(
                 symbol,
             )
 
-        minute_means = _column_nanmeans_or_zero(covered_group, minute_mean_columns)
-        group_means = _column_nanmeans_or_zero(group, group_mean_columns)
+        numeric_values = group[trailing_numeric_columns].to_numpy(dtype=float, copy=False)
+        covered_numeric_values = numeric_values[covered_mask]
+        minute_means = _nanmean_columns_or_zero(covered_numeric_values[:, minute_mean_indices])
+        group_means = _nanmean_columns_or_zero(numeric_values[:, group_mean_indices])
         (
             avg_spread_bps_rth_20d,
             rth_active_minutes_share_20d,
@@ -1155,16 +1184,16 @@ def build_base_snapshot_from_bundle_payload(
             stale_fail_rate_20d,
         ) = group_means
 
-        daily_close = group["day_close"].to_numpy(dtype=float, copy=False)
-        day_volume = group["day_volume"].to_numpy(dtype=float, copy=False)
+        daily_close = numeric_values[:, day_close_index]
+        day_volume = numeric_values[:, day_volume_index]
         adv_fallback = daily_close * day_volume
         adv_fallback[~np.isfinite(adv_fallback)] = np.nan
-        adv_rth = group["daily_rth_dollar_volume"].to_numpy(dtype=float, copy=False)
+        adv_rth = numeric_values[:, adv_rth_index]
         adv_dollar = np.where(covered_mask & (adv_rth > 0.0) & np.isfinite(adv_rth), adv_rth, adv_fallback)
-        consistency_values = covered_group[consistency_score_columns].to_numpy(dtype=float, copy=False)
+        consistency_values = covered_numeric_values[:, consistency_score_indices]
         consistency_score = _consistency_score_from_numeric_values(consistency_values)
-        ob_sweep_depth_p75_20d = _quantile_or_default(group["daily_ob_sweep_depth"], 0.75, default=0.0)
-        fvg_sweep_depth_p75_20d = _quantile_or_default(group["daily_fvg_sweep_depth"], 0.75, default=0.0)
+        ob_sweep_depth_p75_20d = _nanquantile_or_default(numeric_values[:, ob_sweep_depth_index], 0.75, default=0.0)
+        fvg_sweep_depth_p75_20d = _nanquantile_or_default(numeric_values[:, fvg_sweep_depth_index], 0.75, default=0.0)
 
         rows.append(
             {

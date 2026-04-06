@@ -24,6 +24,7 @@ from scripts.smc_microstructure_base_runtime import (
     _et_minutes_since_midnight,
     _grouped_setup_decay_half_life_30m_buckets,
     _mean_or_default,
+    _nanquantile_or_default,
     _quantile_or_default,
     _safe_float,
     _safe_ratio,
@@ -272,6 +273,15 @@ def test_column_nanmeans_or_zero_matches_per_column_mean_defaults() -> None:
         0.0,
         _mean_or_default(frame["gamma"], default=0.0),
     ])
+
+
+def test_nanquantile_or_default_matches_series_helper_semantics() -> None:
+    values = np.array([1.0, 2.5, np.nan, 5.0])
+
+    assert _nanquantile_or_default(values, 0.75, default=0.0) == pytest.approx(
+        _quantile_or_default(pd.Series(values), 0.75, default=0.0)
+    )
+    assert _nanquantile_or_default(np.array([np.nan, np.nan]), 0.5, default=9.0) == pytest.approx(9.0)
 
 
 def test_consistency_score_from_numeric_values_matches_generic_helper() -> None:
