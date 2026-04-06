@@ -33,11 +33,10 @@ def test_discover_repo_source_paths_returns_transparent_mapping() -> None:
 
 
 def test_load_raw_structure_input_is_ingest_compatible() -> None:
-    info = discover_repo_source_paths()
-    selected = info["selected_source"]
-    symbol = "AAPL"
+    csv_path = Path(__file__).resolve().parents[1] / "reports" / "databento_watchlist_top5_pre1530.csv"
+    symbol = _first_symbol_from_watchlist(csv_path)
 
-    raw_structure = load_raw_structure_input(symbol, "15m")
+    raw_structure = load_raw_structure_input(symbol, "15m", source="databento_watchlist_csv")
     structure = build_structure_from_raw(raw_structure)
 
     assert set(raw_structure.keys()) == {"bos", "orderblocks", "fvg", "liquidity_sweeps"}

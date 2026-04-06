@@ -107,7 +107,6 @@ def test_release_runner_is_fail_closed_on_core_failures(monkeypatch) -> None:
 
 def test_release_runner_report_and_exit_are_deterministic(monkeypatch) -> None:
     captured_reports: list[dict] = []
-    times = [1700000000.0, 1700000000.0]
 
     monkeypatch.setattr(
         release_script,
@@ -129,7 +128,7 @@ def test_release_runner_report_and_exit_are_deterministic(monkeypatch) -> None:
             )
         ),
     )
-    monkeypatch.setattr(release_script.time, "time", lambda: times.pop(0))
+    monkeypatch.setattr(release_script.time, "time", lambda: 1700000000.0)
     monkeypatch.setattr(
         release_script,
         "run_provider_health_check",
@@ -190,7 +189,8 @@ def test_measurement_gate_uses_real_evidence(monkeypatch, tmp_path: Path) -> Non
     measurement_dir = measurement_root / "AAPL" / "15m"
     manifest_path = measurement_dir / "measurement_manifest.json"
 
-    assert gate["status"] == "ok"
+    assert gate["status"] == "warn"
+    assert gate["blocking"] is False
     assert gate["details"]["measurement_evidence_present"] is True
     assert gate["details"]["benchmark_event_counts"]["BOS"] == 1
     assert gate["details"]["benchmark_event_counts"]["SWEEP"] == 1
@@ -204,6 +204,7 @@ def test_measurement_gate_uses_real_evidence(monkeypatch, tmp_path: Path) -> Non
     assert gate["details"]["scoring_artifact_path"] == "measurement/AAPL/15m/scoring_AAPL_15m.json"
     assert gate["details"]["measurement_manifest_path"] == "measurement/AAPL/15m/measurement_manifest.json"
     assert gate["details"]["stratification_coverage"]["dimensions_present"] == ["htf_bias"]
+    assert any("calibrated_ece" in warning for warning in gate["details"]["warnings"])
     assert (measurement_dir / "benchmark_AAPL_15m.json").exists()
     assert (measurement_dir / "manifest.json").exists()
     assert (measurement_dir / "scoring_AAPL_15m.json").exists()

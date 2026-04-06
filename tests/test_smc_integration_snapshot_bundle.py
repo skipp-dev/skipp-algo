@@ -48,6 +48,7 @@ def test_bundle_contains_snapshot_projections_and_additive_contexts(monkeypatch)
     monkeypatch.setattr(service, "build_structure_qualifiers", lambda *args, **kwargs: {"ppdd": []})
     monkeypatch.setattr(service, "build_session_liquidity_context", lambda *args, **kwargs: {"killzones": []})
     monkeypatch.setattr(service, "build_htf_bias_context", lambda *args, **kwargs: {"selected_ipda_htf": "D"})
+    monkeypatch.setattr(service.structure_artifact_json, "load_structure_context_input", lambda *args, **kwargs: {"coverage": {"has_bos": True}})
     monkeypatch.setattr(
         service,
         "build_measurement_evidence",

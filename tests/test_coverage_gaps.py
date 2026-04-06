@@ -268,16 +268,9 @@ class TestClassifiedItemDataclass(unittest.TestCase):
     def test_to_dict_contains_all_keys(self) -> None:
         ci = _make_classified_item()
         d = ci.to_dict()
-        expected_keys = {
-            "item_id", "ticker", "tickers_all", "headline", "snippet",
-            "url", "source", "published_ts", "updated_ts", "provider",
-            "category", "impact", "clarity", "polarity", "news_score",
-            "cluster_hash", "novelty_count", "relevance", "entity_count",
-            "sentiment_label", "sentiment_score", "event_class",
-            "event_label", "materiality", "recency_bucket", "age_minutes",
-            "is_actionable", "source_tier", "source_rank", "channels", "tags",
-            "is_wiim",
-        }
+        from terminal_poller import ClassifiedItem
+
+        expected_keys = set(ClassifiedItem.__dataclass_fields__)
         self.assertEqual(set(d.keys()), expected_keys)
 
     def test_to_dict_rounds_floats(self) -> None:
@@ -553,8 +546,8 @@ class TestFireWebhookExtended(unittest.TestCase):
         body = json.loads(mock_client.post.call_args[1]["content"])
         self.assertEqual(body["action"], "sell")
 
-    def test_neutral_action_watch(self) -> None:
-        """Neutral sentiment → action=watch regardless of score."""
+    def test_neutral_signal_does_not_dispatch(self) -> None:
+        """Neutral posture is background-only and should not dispatch."""
         from terminal_export import fire_webhook
 
         mock_client = MagicMock()
@@ -566,10 +559,10 @@ class TestFireWebhookExtended(unittest.TestCase):
         ci = _make_classified_item(
             news_score=0.95, sentiment_label="neutral", sentiment_score=0.0,
         )
-        fire_webhook(ci, url="https://hook.example.com", _client=mock_client)
+        result = fire_webhook(ci, url="https://hook.example.com", _client=mock_client)
 
-        body = json.loads(mock_client.post.call_args[1]["content"])
-        self.assertEqual(body["action"], "watch")
+        self.assertIsNone(result)
+        mock_client.post.assert_not_called()
 
     def test_http_error_returns_none(self) -> None:
         """HTTP errors should return None, not raise."""

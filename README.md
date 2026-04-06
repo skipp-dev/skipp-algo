@@ -787,6 +787,7 @@ skipp-algo/
 - [SMC / SkippALGO Screen Specification](docs/smc-tradingview-screen-spec.md)
 - [SMC / SkippALGO First-Release Ticketset](docs/smc-tradingview-first-release-ticketset.md)
 - [SMC / SkippALGO First UI Cut Implementation Preparation](docs/smc-tradingview-first-ui-cut-implementation.md)
+- [SMC / SkippALGO R1.1 Migration and Operator Guide](docs/smc-tradingview-r1-1-migration-and-operator-guide.md)
 
 ### Architecture & Planning
 

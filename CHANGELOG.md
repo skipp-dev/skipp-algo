@@ -6,6 +6,13 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Changed (2026-04-06)
+
+- **TradingView decision-first R1.1 hardening:**
+  - Regrouped the `SMC_Dashboard.pine` Pro diagnostics surface into clearer operator-facing sections without changing the underlying BUS binding order or diagnostic row contracts.
+  - Added explicit migration/operator guidance for the decision-first rollout, including safe-default expectations for `compact_mode`, `surface_mode`, and `surfaceMode` plus the operator-only BUS binding workflow for the dashboard companion script.
+  - Kept the decision-first visual modes as presentation changes only; no additional engine gating is introduced by the new Lite/Pro defaults.
+
 ### Added — Pine Library Modularization (Task 3)
 
 - **Five new Pine Script v6 libraries** (`pine/` folder) extracting shared logic

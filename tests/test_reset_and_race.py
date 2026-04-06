@@ -68,10 +68,10 @@ class _FakeItem:
 class TestBackgroundPollerStop:
     """Verify that stop() cleanly halts the polling thread."""
 
-    @patch("terminal_poller.poll_and_classify_multi")
+    @patch("terminal_poller.poll_and_classify_live_bus")
     def test_stop_prevents_further_polls(self, mock_poll):
         """After stop(), the thread exits and no more polls fire."""
-        mock_poll.return_value = ([], "cursor-1")
+        mock_poll.return_value = ([], {"benzinga": "cursor-1"}, {"benzinga": 0})
 
         bp = BackgroundPoller(
             cfg=_FakeCfg(poll_interval_s=0.05),
@@ -81,8 +81,7 @@ class TestBackgroundPollerStop:
         )
         bp.start()
         time.sleep(0.15)
-        bp.stop()
-        time.sleep(0.2)
+        bp.stop_and_join(timeout=1.0)
 
         assert bp.is_alive is False
         count_at_stop = mock_poll.call_count
@@ -91,10 +90,10 @@ class TestBackgroundPollerStop:
         time.sleep(0.2)
         assert mock_poll.call_count == count_at_stop
 
-    @patch("terminal_poller.poll_and_classify_multi")
+    @patch("terminal_poller.poll_and_classify_live_bus")
     def test_stop_idempotent(self, mock_poll):
         """Calling stop() multiple times does not raise."""
-        mock_poll.return_value = ([], "c")
+        mock_poll.return_value = ([], {"benzinga": "c"}, {"benzinga": 0})
 
         bp = BackgroundPoller(
             cfg=_FakeCfg(poll_interval_s=0.05),
@@ -106,7 +105,7 @@ class TestBackgroundPollerStop:
         time.sleep(0.1)
         bp.stop()
         bp.stop()  # second call — must not raise
-        time.sleep(0.15)
+        bp.stop_and_join(timeout=1.0)
         assert bp.is_alive is False
 
     def test_stop_before_start_no_error(self):
@@ -184,14 +183,20 @@ class TestForegroundPollBeforeBgPoller:
     the cursor before BackgroundPoller starts.
     """
 
-    @patch("terminal_poller.poll_and_classify_multi")
+    @patch("terminal_poller.poll_and_classify_live_bus")
     def test_bg_poller_uses_foreground_cursor(self, mock_poll):
         """When started with a cursor from a prior foreground poll,
         the BackgroundPoller should not re-fetch the same batch.
         """
         # Simulate foreground poll producing cursor "fg-cursor"
         fg_cursor = "fg-cursor-12345"
-        mock_poll.return_value = ([_FakeItem()], fg_cursor)
+        seeded_cursors = {
+            "benzinga": fg_cursor,
+            "fmp_stock": fg_cursor,
+            "fmp_press": fg_cursor,
+            "tv": fg_cursor,
+        }
+        mock_poll.return_value = ([_FakeItem()], seeded_cursors, {"benzinga": 1})
 
         # BackgroundPoller starts with the foreground cursor
         bp = BackgroundPoller(
@@ -202,19 +207,13 @@ class TestForegroundPollBeforeBgPoller:
         )
         bp.start(cursor=fg_cursor)
         time.sleep(0.15)
-        bp.stop()
-        time.sleep(0.15)
+        bp.stop_and_join(timeout=1.0)
 
-        # Verify that poll_and_classify_multi was called with the
-        # cursor from the foreground poll, not None
-        for call_args in mock_poll.call_args_list:
-            _, kwargs = call_args
-            # First call from bg poller should use fg_cursor
-            assert kwargs.get("cursor") == fg_cursor or (
-                len(call_args.args) > 0
-            )
+        assert mock_poll.call_args_list
+        first_kwargs = mock_poll.call_args_list[0].kwargs
+        assert first_kwargs["provider_cursors"] == seeded_cursors
 
-    @patch("terminal_poller.poll_and_classify_multi")
+    @patch("terminal_poller.poll_and_classify_live_bus")
     def test_bg_poller_with_none_cursor_causes_overlap(self, mock_poll):
         """Document the race: if both use cursor=None, they mark_seen
         the same items — the second caller gets 0 items.
@@ -226,10 +225,10 @@ class TestForegroundPollBeforeBgPoller:
             nonlocal call_count
             call_count += 1
             # First call gets items, second gets nothing (simulating
-            # the mark_seen race)
+            # the mark_seen race while provider cursors stay empty)
             if call_count == 1:
-                return (items_first_call, "cursor-1")
-            return ([], "cursor-1")
+                return (items_first_call, {}, {"benzinga": 1})
+            return ([], {}, {"benzinga": 0})
 
         mock_poll.side_effect = _side_effect
 
@@ -242,12 +241,12 @@ class TestForegroundPollBeforeBgPoller:
         # Start with None cursor — simulates the old bug
         bp.start(cursor=None)
         time.sleep(0.2)
-        bp.stop()
-        time.sleep(0.15)
+        bp.stop_and_join(timeout=1.0)
 
         drained = bp.drain()
         # Only first poll got items, second got 0 (the race)
         assert mock_poll.call_count >= 2
+        assert mock_poll.call_args_list[0].kwargs["provider_cursors"] == {}
         assert len(drained) <= len(items_first_call)
 
 
@@ -355,12 +354,12 @@ class TestMetaRowStaleThreshold:
 class TestResetAdapterLifecycle:
     """Verify the correct shutdown sequence: stop poller → close adapters."""
 
-    @patch("terminal_poller.poll_and_classify_multi")
+    @patch("terminal_poller.poll_and_classify_live_bus")
     def test_stop_then_close_no_error(self, mock_poll):
         """Stopping poller before closing adapters prevents
         'client has been closed' errors.
         """
-        mock_poll.return_value = ([], "c")
+        mock_poll.return_value = ([], {"benzinga": "c"}, {"benzinga": 0})
 
         adapter = MagicMock()
         bp = BackgroundPoller(
@@ -373,14 +372,13 @@ class TestResetAdapterLifecycle:
         time.sleep(0.15)
 
         # Correct sequence: stop first, then close adapter
-        bp.stop()
-        time.sleep(0.2)
+        bp.stop_and_join(timeout=1.0)
         adapter.close()  # safe — poller no longer using it
 
         assert bp.is_alive is False
         adapter.close.assert_called_once()
 
-    @patch("terminal_poller.poll_and_classify_multi")
+    @patch("terminal_poller.poll_and_classify_live_bus")
     def test_close_without_stop_causes_error(self, mock_poll):
         """Document the old bug: closing adapter while poller runs
         causes RuntimeError on next poll cycle.
@@ -394,7 +392,7 @@ class TestResetAdapterLifecycle:
             if call_count > 2:
                 # Simulate what happens when adapter is closed mid-poll
                 raise RuntimeError("Cannot send a request, as the client has been closed.")
-            return ([], "c")
+            return ([], {"benzinga": "c"}, {"benzinga": 0})
 
         mock_poll.side_effect = _poll_side_effect
 
@@ -409,5 +407,4 @@ class TestResetAdapterLifecycle:
 
         # The error is caught by the poller's error handler
         assert "client has been closed" in bp.last_poll_error
-        bp.stop()
-        time.sleep(0.15)
+        bp.stop_and_join(timeout=1.0)
