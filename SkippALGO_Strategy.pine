@@ -4493,10 +4493,24 @@ alertExitCond  = exitEventLive
 alertCoverCond = coverEventLive
 alertPreBuyCond   = preBuyEventLive
 alertPreShortCond = preShortEventLive
+alertEnterLongCond = alertBuyCond or alertRevBuyCond
+alertEnterShortCond = alertShortCond or alertRevShortCond
+alertReduceRiskCond = alertExitCond or alertCoverCond
+alertReadyLongCond = alertPreBuyCond
+alertReadyShortCond = alertPreShortCond
 alertChochBullCond = isChoCH_Long
 alertChochBearCond = isChoCH_Short
 alertConsolidationCond = sidewaysVisual and not sidewaysVisual[1]
+alertAvoidCond = alertConsolidationCond
+alertBlockedCond = pos == 0 and not alertEnterLongCond and not alertEnterShortCond and not alertReadyLongCond and not alertReadyShortCond and (blockNearClose or not cooldownOk)
 
+alertcondition((not useAlertCalls) and alertReadyLongCond, title="SMC READY LONG", message="READY LONG {{ticker}} {{close}} {{time}}")
+alertcondition((not useAlertCalls) and alertReadyShortCond, title="SMC READY SHORT", message="READY SHORT {{ticker}} {{close}} {{time}}")
+alertcondition((not useAlertCalls) and alertEnterLongCond, title="SMC ENTER LONG", message="ENTER LONG {{ticker}} {{close}} {{time}}")
+alertcondition((not useAlertCalls) and alertEnterShortCond, title="SMC ENTER SHORT", message="ENTER SHORT {{ticker}} {{close}} {{time}}")
+alertcondition((not useAlertCalls) and alertReduceRiskCond, title="SMC REDUCE RISK", message="REDUCE RISK {{ticker}} {{close}} {{time}}")
+alertcondition((not useAlertCalls) and alertAvoidCond, title="SMC AVOID", message="AVOID {{ticker}} {{close}} {{time}}")
+alertcondition((not useAlertCalls) and alertBlockedCond, title="SMC BLOCKED", message="BLOCKED {{ticker}} {{close}} {{time}}")
 alertcondition((not useAlertCalls) and alertBuyCond,   title="BUY",   message="BUY {{ticker}} {{close}} {{time}}")
 alertcondition((not useAlertCalls) and alertShortCond, title="SHORT", message="SHORT {{ticker}} {{close}} {{time}}")
 alertcondition((not useAlertCalls) and alertRevBuyCond,   title="REV-BUY",   message="REV-BUY {{ticker}} {{close}} {{time}}")

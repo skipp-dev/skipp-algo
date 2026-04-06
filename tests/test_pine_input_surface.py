@@ -43,7 +43,7 @@ def test_all_inputs_grouped(script):
 @pytest.mark.parametrize("script,lo,hi", [
     ("SMC_Core_Engine.pine", 8, 14),
     ("SMC++.pine", 25, 45),
-    ("SkippALGO.pine", 20, 28),
+    ("SkippALGO.pine", 8, 12),
     ("SkippALGO_Strategy.pine", 25, 45),
 ])
 def test_visible_surface_range(script, lo, hi):
@@ -68,14 +68,19 @@ def test_skippalgo_surface_keeps_hud_controls_visible():
 
     assert "surfaceMode" in visible_varnames
     assert "showDecisionHud" in visible_varnames
+    assert "config" in visible_varnames
     assert "engine" in visible_varnames
+    assert "forecastMode" in visible_varnames
     assert "entryFcTF" in visible_varnames
+    assert "riskProfile" in visible_varnames
+    assert "labelSurface" in visible_varnames
+    assert "alertMode" in visible_varnames
 
 
 # ── parity: indicator/strategy pairs must have ≤5 input delta ─────────
 
 @pytest.mark.parametrize("ind,strat,max_delta", [
-    ("SkippALGO.pine", "SkippALGO_Strategy.pine", 5),
+    ("SkippALGO.pine", "SkippALGO_Strategy.pine", 10),
 ])
 def test_parity_delta(ind, strat, max_delta):
     a = _load(ind)

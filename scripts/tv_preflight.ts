@@ -403,7 +403,7 @@ async function main(): Promise<number> {
     const code = fs.readFileSync(filePath, "utf-8");
     const expectedInputLabels = uniqueSorted(parseInputSourceLabels(code));
     const targetResult = buildInitialTargetResult(target, filePath, expectedInputLabels, authResolution, cli.executionMode);
-    const requiredBindingCount = Math.min(target.minInputs ?? expectedInputLabels.length, expectedInputLabels.length);
+    const requiredBindingCount = target.minInputs ?? expectedInputLabels.length;
     const session = await newTradingViewSession();
 
     try {

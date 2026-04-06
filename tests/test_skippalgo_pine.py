@@ -234,14 +234,14 @@ class TestSkippAlgoIndicator(unittest.TestCase):
             "label lbl = label.new(x, y, safe_label_text(txt), style = sty, textcolor = txtCol, color = bgCol, size = sz)" in self.labels_text
         )
         self.assertTrue(direct_helper or delegated_helper)
-        self.assertIn('"PRE-BUY\\nGap: " + _gapTxt + "\\npU: " + _pTxt + "\\nConf: " + _cTxt', self.text)
-        self.assertIn('"PRE-SHORT\\nGap: " + _gapTxt + "\\npD: " + _pTxt + "\\nConf: " + _cTxt', self.text)
+        self.assertIn('"PREPARE LONG\\nGap: " + _gapTxt + "\\nStable: " + _pTxt + "\\nConf: " + _cTxt', self.text)
+        self.assertIn('"PREPARE SHORT\\nGap: " + _gapTxt + "\\nStable: " + _pTxt + "\\nConf: " + _cTxt', self.text)
         self.assertNotIn('plotshape(preBuyPulse, title="PRE-BUY"', self.text)
         self.assertNotIn('plotshape(preShortPulse, title="PRE-SHORT"', self.text)
 
 
 class TestSkippAlgoIndicatorEntryExitLabels(unittest.TestCase):
-    """Explicit regression checks for BUY / REV-BUY / EXIT wiring and payloads."""
+    """Explicit regression checks for ENTER/REDUCE RISK label wiring and payloads."""
 
     text: str = ""
 
@@ -250,28 +250,29 @@ class TestSkippAlgoIndicatorEntryExitLabels(unittest.TestCase):
         cls.text = INDICATOR_PATH.read_text(encoding="utf-8")
 
     def test_buy_and_rev_buy_label_flags_exist(self):
-        """BUY and REV-BUY label flags must stay split."""
+        """Continuation and reversal entry flags must stay split."""
         self.assertIn("labelRevBuy   = buyEvent and isRevBuy", self.text)
         self.assertIn("labelBuy      = buyEvent and not isRevBuy", self.text)
 
     def test_buy_and_rev_buy_label_payloads(self):
-        """BUY and REV-BUY labels should show probability and confidence."""
-        self.assertIn('"REV-BUY\\npU: " + _probTxt + "\\nConf: " + _confTxt', self.text)
-        self.assertIn('"BUY\\npU: " + _probTxt + "\\nConf: " + _confTxt', self.text)
+        """Entry labels should use product-state wording plus confidence."""
+        self.assertIn('"ENTER LONG\\nReversal | pU: " + _probTxt + "\\nConf: " + _confTxt', self.text)
+        self.assertIn('"ENTER LONG\\nSetup | pU: " + _probTxt + "\\nConf: " + _confTxt', self.text)
 
     def test_exit_and_cover_label_payloads(self):
-        """EXIT/COVER labels should include reason + held bars text."""
+        """Reduce-risk labels should include reason + held bars text."""
         self.assertTrue(
             "if showLongLabelsEff and labelExit" in self.text or
             "if showLongLabels and labelExit" in self.text
         )
-        self.assertIn('"EXIT" + entryTag + "\\n" + buyAgoTxt + exitSuffix + "\\n" + lastExitReason + "\\nHeld " + str.tostring(barsSinceEntry) + " bars"', self.text)
-        self.assertIn('"COVER" + entryTag + "\\n" + shortAgoTxt + coverSuffix + "\\n" + lastExitReason + "\\nHeld " + str.tostring(barsSinceEntry) + " bars"', self.text)
+        self.assertIn('"REDUCE RISK" + entryTag + "\\n" + buyAgoTxt + exitSuffix + "\\n" + lastExitReason + "\\nHeld " + str.tostring(barsSinceEntry) + " bars"', self.text)
+        self.assertIn('"REDUCE RISK" + entryTag + "\\n" + shortAgoTxt + coverSuffix + "\\n" + lastExitReason + "\\nHeld " + str.tostring(barsSinceEntry) + " bars"', self.text)
 
     def test_buy_and_exit_alertconditions_exist(self):
-        """Indicator should expose BUY/EXIT alert conditions."""
-        self.assertRegex(self.text, r'alertcondition\(alertBuyCond,\s*title="BUY"')
-        self.assertRegex(self.text, r'alertcondition\(alertExitCond,\s*title="EXIT"')
+        """Indicator should expose product-state entry and risk alert conditions."""
+        self.assertRegex(self.text, r'alertcondition\(alertReadyLongCond,\s*title="SMC READY LONG"')
+        self.assertRegex(self.text, r'alertcondition\(alertEnterLongCond,\s*title="SMC ENTER LONG"')
+        self.assertRegex(self.text, r'alertcondition\(alertReduceRiskCond,\s*title="SMC REDUCE RISK"')
 
     def test_choch_alertconditions_exist(self):
         """Indicator should expose bullish and bearish ChoCH alert conditions."""

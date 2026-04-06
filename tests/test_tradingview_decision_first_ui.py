@@ -41,11 +41,17 @@ def test_skippalgo_has_decision_hud_and_product_alert_action() -> None:
 
     assert 'surfaceMode = input.string("Lite"' in source
     assert 'showDecisionHud = input.bool(true, "Show decision HUD"' in source
+    assert 'forecastMode = input.string("Trade Gate", "Forecast mode"' in source
+    assert 'riskProfile = input.string("Balanced", "Risk profile"' in source
     assert "resolve_skipp_product_state(" in source
     assert "resolve_skipp_alert_action(" in source
     assert 'var table decisionHud = table.new(position.top_right, 2, 11, border_width = 1)' in source
     assert 'table.cell(decisionHud, 0, 0, "SkippALGO Decision HUD"' in source
-    assert 'msg := "SkippALGO | action=" + actionText + " | legacy=" + labels' in source
+    assert 'f_hud_row(decisionHud, 2, "Trade Threshold", hudThreshold' in source
+    assert 'f_hud_row(decisionHud, 6, "Main Risk", hudMainRisk' in source
+    assert 'alertcondition(alertReadyLongCond, title="SMC READY LONG"' in source
+    assert 'alertcondition(alertEnterLongCond, title="SMC ENTER LONG"' in source
+    assert 'msg := "SkippALGO | action=" + actionText + " | why=" + hudWhyNow + " | risk=" + hudMainRisk + " | legacy=" + labels' in source
 
 
 def test_r11_migration_and_operator_guide_is_linked_and_explicit() -> None:

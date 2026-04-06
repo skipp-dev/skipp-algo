@@ -484,7 +484,7 @@ class TestSignalParity(unittest.TestCase):
     def test_useInfiniteTP_guards_tp_on_entry(self):
         """Both files must set tpPx := useInfiniteTP ? na : ... on entry."""
         for name, content in [("Indicator", self.indicator), ("Strategy", self.strategy)]:
-            hits = re.findall(r'tpPx\s*:=\s*useInfiniteTP\s*\?\s*na\s*:', content)
+            hits = re.findall(r'tpPx\s*:=\s*useInfiniteTP(?:Eff)?\s*\?\s*na\s*:', content)
             self.assertEqual(len(hits), 2,
                 f"{name}: expected 2 useInfiniteTP guards on entry (long+short), found {len(hits)}")
 

@@ -2,7 +2,7 @@
 
 ## Status
 
-Draft
+Released
 
 ## Zweck
 
@@ -35,6 +35,10 @@ Deshalb gelten fuer die erste Migration diese Regeln:
 4. Bestehende Risk-, Forecast- und Gate-Inputs werden durch die neuen
    Default-Surfaces nicht neu verdrahtet. Die Lite/Pro-Auswahl darf keine
    zusaetzlichen Handelsgates aktivieren.
+5. Die produktartige Lite-Steuerung in `SkippALGO.pine` laeuft ueber die
+   Wrapper `forecastMode`, `riskProfile`, `labelSurface` und `alertMode`.
+   Diese ersetzen die breite sichtbare Tuning-Flaeche, ohne `surfaceMode`
+   selbst in einen Engine-Schalter zu verwandeln.
 
 ## Safe-Default Summary
 

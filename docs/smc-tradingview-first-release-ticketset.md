@@ -2,7 +2,7 @@
 
 ## Status
 
-Draft
+Released
 
 ## Zweck
 
@@ -67,13 +67,13 @@ auslieferbaren UX-Cut.
 | FR-07 | P0 | Label And Alert Parity | Core, SkippALGO | Chart, Header und Alerts duerfen nicht drei Sprachen sprechen. |
 | FR-08 | P0 | Release Validation And Documentation | alle drei, Docs | Ohne Visual QA und Guide-Abgleich ist der UX-Cut nicht release-faehig. |
 
-## Hold For R1.1
+## Delivered In R1.1
 
-| ID | Prioritaet | Ticket | Grund fuer spaeter |
+| ID | Prioritaet | Ticket | Repo-Status |
 | --- | --- | --- | --- |
-| FR-09 | P1 | Dashboard Pro Row Regrouping | Wertvoll, aber nicht noetig fuer den ersten Lite-Release-Cut. |
-| FR-10 | P1 | Preset Migration Hardening | Wichtig fuer Stabilisierung, aber nicht fuer die erste sichtbare Produktverbesserung. |
-| FR-11 | P1 | Operator Binding Workflow Cleanup | Relevant fuer Betrieb, nicht fuer die Nutzerwirkung des First Release. |
+| FR-09 | P1 | Dashboard Pro Row Regrouping | Ausgeliefert ueber die R1.1-Pro-Sektionsgliederung in `SMC_Dashboard.pine`. |
+| FR-10 | P1 | Preset Migration Hardening | Ausgeliefert ueber die Safe-Default- und Decision-First-Migrationshaertung fuer Lite/Pro-Surfaces. |
+| FR-11 | P1 | Operator Binding Workflow Cleanup | Ausgeliefert ueber Guide-, BUS-Binding- und Companion-Workflow-Dokumentation. |
 
 ## FR-01 - Shared Action And Trust Contract
 

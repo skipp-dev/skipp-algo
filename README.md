@@ -4,7 +4,7 @@ Pine Script v6 Signal Engine · Real-Time News Intelligence Dashboard · Pre-Ope
 
 SkippALGO is a modular trading intelligence platform combining three core systems:
 
-1. **SkippALGO Pine Script** — non-repainting signal engine with multi-timeframe Outlook/Forecast dashboard for TradingView.
+1. **SkippALGO Pine Script** — non-repainting signal engine with a decision-first HUD plus Lite Outlook and Forecast panels for TradingView.
 2. **Real-Time News Intelligence Dashboard** — an AI-supported **Research & Monitoring Terminal** with 19 tabs for **News Intelligence + Alerting** and operational market monitoring.
 3. **Open-Prep Pipeline** — automated pre-open briefing system with ranked candidates, macro context, and structured trade cards.
 
@@ -56,6 +56,7 @@ Run the shared validation and release jobs:
 
 ```bash
 npm run tv:preflight
+npm run tv:preflight:decision-first
 npm run tv:publish-micro-library
 ```
 
@@ -596,8 +597,8 @@ Pine Script v6 signal engine with non-repainting core logic and intrabar alerts/
 
 ### Signal Modes
 
-- **Intrabar (default):** `Alerts: bar close only = false` — preview alerts/labels before candle close
-- **Bar-close only:** `Alerts: bar close only = true` — confirmed signals only
+- **Realtime (default):** `Alert mode = Realtime` — preview alerts and labels before candle close
+- **Bar-close only:** `Alert mode = Bar Close` — confirmed signals only
 - **Entry presets:** Manual, Intraday, Swing — drive effective score thresholds/weights
 - **Engines:** Hybrid, Breakout, Trend+Pullback, Loose
 - **Score Engine (Option C):** High-quality setup scoring independent of rigid engine logic
@@ -610,8 +611,9 @@ Pine Script v6 signal engine with non-repainting core logic and intrabar alerts/
 
 ### Key Features
 
-- Multi-timeframe Outlook with bias, score, components (Trend/Momentum/Location)
-- Forecast block with Pred(N)/Pred(1) plus calibrated P(Up)
+- Decision header with Action, Trade Threshold, Position, Last Action, Why now, and Main risk
+- Lite Outlook panel with TF, Bias, Strength, and State note
+- Lite Forecast panel with Stable Forecast, Early Forecast, Evidence, and Risk Hint
 - USI (Ultimate Stacking Indicator) trend state and entry gating
 - ChoCH (Change of Character) structure detection
 - Same-bar ChoCH verification (fast confirmation path)

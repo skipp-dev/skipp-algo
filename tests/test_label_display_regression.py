@@ -25,13 +25,11 @@ def derive_virtual_labels(res) -> list[str]:
     labels: list[str] = []
 
     if res.did_buy:
-        labels.append("REV-BUY" if res.rev_buy_global else "BUY")
+        labels.append("ENTER LONG")
     if res.did_short:
-        labels.append("REV-SHORT" if res.rev_short_global else "SHORT")
-    if res.did_exit:
-        labels.append("EXIT")
-    if res.did_cover:
-        labels.append("COVER")
+        labels.append("ENTER SHORT")
+    if res.did_exit or res.did_cover:
+        labels.append("REDUCE RISK")
 
     return labels
 
@@ -66,10 +64,16 @@ class TestLabelDisplayContractSource(unittest.TestCase):
 
         # PRE labels payload contract
         if not compact_mode:
-            self.assertIn('"PRE-BUY\\nGap: " + _gapTxt + "\\npU: " + _pTxt + "\\nConf: " + _cTxt', text,
-                          f"{name}: PRE-BUY payload contract missing")
-            self.assertIn('"PRE-SHORT\\nGap: " + _gapTxt + "\\npD: " + _pTxt + "\\nConf: " + _cTxt', text,
-                          f"{name}: PRE-SHORT payload contract missing")
+            self.assertTrue(
+                '"PREPARE LONG\\nGap: " + _gapTxt + "\\nStable: " + _pTxt + "\\nConf: " + _cTxt' in text or
+                '"PRE-BUY\\nGap: " + _gapTxt + "\\npU: " + _pTxt + "\\nConf: " + _cTxt' in text,
+                f"{name}: long PRE payload contract missing",
+            )
+            self.assertTrue(
+                '"PREPARE SHORT\\nGap: " + _gapTxt + "\\nStable: " + _pTxt + "\\nConf: " + _cTxt' in text or
+                '"PRE-SHORT\\nGap: " + _gapTxt + "\\npD: " + _pTxt + "\\nConf: " + _cTxt' in text,
+                f"{name}: short PRE payload contract missing",
+            )
             self.assertIn("label.style_label_up", text, f"{name}: missing label up style")
             self.assertIn("label.style_label_down", text, f"{name}: missing label down style")
 
@@ -82,10 +86,16 @@ class TestLabelDisplayContractSource(unittest.TestCase):
 
         # Exit/Cover payload contract
         if not compact_mode:
-            self.assertIn('"EXIT" + entryTag + "\\n" + buyAgoTxt + exitSuffix + "\\n" + lastExitReason + "\\nHeld " + str.tostring(barsSinceEntry) + " bars"',
-                          text, f"{name}: EXIT payload contract missing")
-            self.assertIn('"COVER" + entryTag + "\\n" + shortAgoTxt + coverSuffix + "\\n" + lastExitReason + "\\nHeld " + str.tostring(barsSinceEntry) + " bars"',
-                          text, f"{name}: COVER payload contract missing")
+            self.assertTrue(
+                '"REDUCE RISK" + entryTag + "\\n" + buyAgoTxt + exitSuffix + "\\n" + lastExitReason + "\\nHeld " + str.tostring(barsSinceEntry) + " bars"' in text or
+                '"EXIT" + entryTag + "\\n" + buyAgoTxt + exitSuffix + "\\n" + lastExitReason + "\\nHeld " + str.tostring(barsSinceEntry) + " bars"' in text,
+                f"{name}: long reduce-risk payload contract missing",
+            )
+            self.assertTrue(
+                '"REDUCE RISK" + entryTag + "\\n" + shortAgoTxt + coverSuffix + "\\n" + lastExitReason + "\\nHeld " + str.tostring(barsSinceEntry) + " bars"' in text or
+                '"COVER" + entryTag + "\\n" + shortAgoTxt + coverSuffix + "\\n" + lastExitReason + "\\nHeld " + str.tostring(barsSinceEntry) + " bars"' in text,
+                f"{name}: short reduce-risk payload contract missing",
+            )
 
         # Strict display markers may be either enabled (legacy) or removed (newer token-budget variants).
         has_strict_markers = (
@@ -113,7 +123,7 @@ class TestLabelDisplayContractBehavior(unittest.TestCase):
     def test_virtual_label_buy_family(self):
         sim = SkippAlgoSim(SimConfig(engine="Hybrid", hybrid_long_trigger=True))
         r = sim.process_bar(Bar(), BarSignals())
-        self.assertEqual(derive_virtual_labels(r), ["BUY"])
+        self.assertEqual(derive_virtual_labels(r), ["ENTER LONG"])
 
     def test_virtual_label_rev_buy_family(self):
         sim = SkippAlgoSim(SimConfig(
@@ -123,12 +133,12 @@ class TestLabelDisplayContractBehavior(unittest.TestCase):
             in_rev_open_window_long=False,
         ))
         r = sim.process_bar(Bar(), BarSignals(is_choch_long=True))
-        self.assertEqual(derive_virtual_labels(r), ["REV-BUY"])
+        self.assertEqual(derive_virtual_labels(r), ["ENTER LONG"])
 
     def test_virtual_label_short_family(self):
         sim = SkippAlgoSim(SimConfig(engine="Hybrid", hybrid_short_trigger=True, enable_shorts=True))
         r = sim.process_bar(Bar(), BarSignals())
-        self.assertEqual(derive_virtual_labels(r), ["SHORT"])
+        self.assertEqual(derive_virtual_labels(r), ["ENTER SHORT"])
 
     def test_virtual_label_rev_short_family(self):
         sim = SkippAlgoSim(SimConfig(
@@ -139,14 +149,14 @@ class TestLabelDisplayContractBehavior(unittest.TestCase):
             in_rev_open_window_short=False,
         ))
         r = sim.process_bar(Bar(), BarSignals(is_choch_short=True))
-        self.assertEqual(derive_virtual_labels(r), ["REV-SHORT"])
+        self.assertEqual(derive_virtual_labels(r), ["ENTER SHORT"])
 
     def test_virtual_label_exit_and_cover_family(self):
         # EXIT path
         sim_long = SkippAlgoSim(SimConfig(allow_neural_reversals=True, exit_grace_bars=0))
         sim_long.process_bar(Bar(), BarSignals(is_choch_long=True))
         r_exit = sim_long.process_bar(Bar(), BarSignals(risk_hit=True, risk_msg="SL"))
-        self.assertEqual(derive_virtual_labels(r_exit), ["EXIT"])
+        self.assertEqual(derive_virtual_labels(r_exit), ["REDUCE RISK"])
 
         # COVER path
         sim_short = SkippAlgoSim(SimConfig(
@@ -158,7 +168,7 @@ class TestLabelDisplayContractBehavior(unittest.TestCase):
         ))
         sim_short.process_bar(Bar(), BarSignals(is_choch_short=True))
         r_cover = sim_short.process_bar(Bar(), BarSignals(risk_hit=True, risk_msg="SL"))
-        self.assertEqual(derive_virtual_labels(r_cover), ["COVER"])
+        self.assertEqual(derive_virtual_labels(r_cover), ["REDUCE RISK"])
 
 
 if __name__ == "__main__":
