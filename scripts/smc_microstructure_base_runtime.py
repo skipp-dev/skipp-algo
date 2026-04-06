@@ -217,9 +217,18 @@ def _abs_return_series_for_index(close_price: pd.Series, open_price: pd.Series, 
 
 
 def _et_minutes_since_midnight(timestamp: pd.Series) -> pd.Series:
-    et_timestamp = timestamp.dt.tz_convert(US_EASTERN_TZ)
+    if timestamp.empty:
+        return pd.Series(dtype=np.int16, index=timestamp.index)
+
+    codes, uniques = pd.factorize(timestamp, sort=False)
+    unique_timestamp = pd.Series(pd.DatetimeIndex(uniques), copy=False)
+    et_timestamp = unique_timestamp.dt.tz_convert(US_EASTERN_TZ)
     local_ns = et_timestamp.array._local_timestamps().astype(np.int64, copy=False)
-    minutes = ((local_ns // 60_000_000_000) % (24 * 60)).astype(np.int16, copy=False)
+    unique_minutes = ((local_ns // 60_000_000_000) % (24 * 60)).astype(np.int16, copy=False)
+    minutes = np.empty(len(codes), dtype=np.int16)
+    valid = codes >= 0
+    minutes[valid] = unique_minutes[codes[valid]]
+    minutes[~valid] = -1
     return pd.Series(minutes, index=timestamp.index)
 
 

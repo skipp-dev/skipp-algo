@@ -425,6 +425,21 @@ def test_et_minutes_since_midnight_preserves_eastern_clock_minutes_across_dst() 
     assert result.tolist() == [570, 570, 985]
 
 
+def test_et_minutes_since_midnight_reuses_repeated_timestamp_minutes() -> None:
+    timestamps = pd.Series(
+        [
+            pd.Timestamp("2026-03-09T13:30:00Z"),
+            pd.Timestamp("2026-03-09T13:30:00Z"),
+            pd.Timestamp("2026-03-09T20:25:00Z"),
+            pd.Timestamp("2026-03-09T20:25:00Z"),
+        ]
+    )
+
+    result = _et_minutes_since_midnight(timestamps)
+
+    assert result.tolist() == [570, 570, 985, 985]
+
+
 def test_build_base_snapshot_from_bundle_payload_warns_when_asof_is_stale(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
