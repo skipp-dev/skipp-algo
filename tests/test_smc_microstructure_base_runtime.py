@@ -16,6 +16,7 @@ from scripts.smc_microstructure_base_runtime import (
     _abs_return_series_for_index,
     _clip01,
     _consistency_score,
+    _et_minutes_since_midnight,
     _grouped_setup_decay_half_life_30m_buckets,
     _safe_float,
     _safe_ratio,
@@ -236,6 +237,20 @@ def test_abs_return_series_for_index_matches_combine_semantics() -> None:
     result = _abs_return_series_for_index(close_price, open_price, index=index)
 
     pd.testing.assert_series_equal(result, expected, check_names=False)
+
+
+def test_et_minutes_since_midnight_preserves_eastern_clock_minutes_across_dst() -> None:
+    timestamps = pd.Series(
+        [
+            pd.Timestamp("2026-03-06T14:30:00Z"),
+            pd.Timestamp("2026-03-09T13:30:00Z"),
+            pd.Timestamp("2026-03-09T20:25:00Z"),
+        ]
+    )
+
+    result = _et_minutes_since_midnight(timestamps)
+
+    assert result.tolist() == [570, 570, 985]
 
 
 def test_build_base_snapshot_from_bundle_payload_warns_when_asof_is_stale(

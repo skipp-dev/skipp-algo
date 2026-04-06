@@ -147,6 +147,21 @@ def _safe_ratio(numerator: Any, denominator: Any, *, default: float = 0.0) -> fl
     return float(numerator_value / denominator_value)
 
 
+def _clock_minutes(clock_time: time) -> int:
+    return (clock_time.hour * 60) + clock_time.minute
+
+
+PREMARKET_START_MINUTE = _clock_minutes(PREMARKET_START_ET)
+REGULAR_OPEN_MINUTE = _clock_minutes(REGULAR_OPEN_ET)
+OPEN_30M_END_MINUTE = _clock_minutes(OPEN_30M_END_ET)
+MIDDAY_START_MINUTE = _clock_minutes(MIDDAY_START_ET)
+MIDDAY_END_MINUTE = _clock_minutes(MIDDAY_END_ET)
+LATE_START_MINUTE = _clock_minutes(LATE_START_ET)
+CLOSE_60M_START_MINUTE = _clock_minutes(CLOSE_60M_START_ET)
+REGULAR_CLOSE_MINUTE = _clock_minutes(REGULAR_CLOSE_ET)
+AFTERHOURS_END_MINUTE = _clock_minutes(AFTERHOURS_END_ET)
+
+
 def _series_numeric_values(series: pd.Series, index: pd.Index) -> np.ndarray:
     return pd.to_numeric(series.reindex(index), errors="coerce").to_numpy(dtype=float)
 
@@ -180,6 +195,12 @@ def _abs_return_series_for_index(close_price: pd.Series, open_price: pd.Series, 
     valid = np.isfinite(open_values) & (open_values > 0) & np.isfinite(close_values)
     result[valid] = np.abs((close_values[valid] / open_values[valid]) - 1.0)
     return pd.Series(result, index=index)
+
+
+def _et_minutes_since_midnight(timestamp: pd.Series) -> pd.Series:
+    et_timestamp = timestamp.dt.tz_convert(US_EASTERN_TZ)
+    minutes = (et_timestamp.dt.hour * 60) + et_timestamp.dt.minute
+    return pd.Series(minutes.to_numpy(dtype=np.int16, copy=False), index=timestamp.index)
 
 
 def _coerce_bool(value: Any) -> bool:
@@ -519,7 +540,7 @@ def build_symbol_day_microstructure_feature_frame(
             minute_frame["close"] = pd.to_numeric(minute_frame.get("close"), errors="coerce")
             minute_frame["volume"] = pd.to_numeric(minute_frame.get("volume"), errors="coerce").fillna(0.0)
             minute_frame["trade_count"] = pd.to_numeric(minute_frame.get("trade_count"), errors="coerce")
-            minute_frame["et_time"] = minute_frame["timestamp"].dt.tz_convert(US_EASTERN_TZ).dt.time
+            minute_frame["et_minute"] = _et_minutes_since_midnight(minute_frame["timestamp"])
             minute_frame["dollar_volume"] = minute_frame["close"] * minute_frame["volume"]
             minute_frame["spread_bps_proxy"] = _bar_spread_bps(minute_frame)
             minute_frame["wickiness_proxy"] = _bar_wickiness(minute_frame)
@@ -529,11 +550,7 @@ def build_symbol_day_microstructure_feature_frame(
                 np.where(minute_frame["volume"] > 0, 1.0, 0.0),
             )
             minute_frame["active_minute"] = (minute_frame["volume"] > 0) | (minute_frame["trade_proxy"] > 0)
-            minute_frame["minutes_from_open"] = (
-                minute_frame["timestamp"].dt.tz_convert(US_EASTERN_TZ)
-                - minute_frame["timestamp"].dt.tz_convert(US_EASTERN_TZ).dt.normalize()
-                - pd.Timedelta(hours=9, minutes=30)
-            ).dt.total_seconds() / 60.0
+            minute_frame["minutes_from_open"] = minute_frame["et_minute"].astype(float) - float(REGULAR_OPEN_MINUTE)
             minute_frame = minute_frame.sort_values(["trade_date", "symbol", "timestamp"], kind="mergesort").reset_index(drop=True)
             group_columns = ["trade_date", "symbol"]
             group_index = minute_frame[group_columns].drop_duplicates().set_index(group_columns)
@@ -560,14 +577,14 @@ def build_symbol_day_microstructure_feature_frame(
                 minute_frame.loc[null_mask, "trade_proxy"] = 0.0
                 minute_frame.loc[null_mask, "dollar_volume"] = 0.0
 
-            et_time = minute_frame["et_time"]
-            is_pm = et_time.ge(PREMARKET_START_ET) & et_time.lt(REGULAR_OPEN_ET)
-            is_rth = et_time.ge(REGULAR_OPEN_ET) & et_time.lt(REGULAR_CLOSE_ET)
-            is_open_30 = et_time.ge(REGULAR_OPEN_ET) & et_time.lt(OPEN_30M_END_ET)
-            is_midday = et_time.ge(MIDDAY_START_ET) & et_time.lt(MIDDAY_END_ET)
-            is_late = et_time.ge(LATE_START_ET) & et_time.lt(REGULAR_CLOSE_ET)
-            is_close_60 = et_time.ge(CLOSE_60M_START_ET) & et_time.lt(REGULAR_CLOSE_ET)
-            is_ah = et_time.ge(REGULAR_CLOSE_ET) & et_time.lt(AFTERHOURS_END_ET)
+            et_minute = minute_frame["et_minute"]
+            is_pm = et_minute.ge(PREMARKET_START_MINUTE) & et_minute.lt(REGULAR_OPEN_MINUTE)
+            is_rth = et_minute.ge(REGULAR_OPEN_MINUTE) & et_minute.lt(REGULAR_CLOSE_MINUTE)
+            is_open_30 = et_minute.ge(REGULAR_OPEN_MINUTE) & et_minute.lt(OPEN_30M_END_MINUTE)
+            is_midday = et_minute.ge(MIDDAY_START_MINUTE) & et_minute.lt(MIDDAY_END_MINUTE)
+            is_late = et_minute.ge(LATE_START_MINUTE) & et_minute.lt(REGULAR_CLOSE_MINUTE)
+            is_close_60 = et_minute.ge(CLOSE_60M_START_MINUTE) & et_minute.lt(REGULAR_CLOSE_MINUTE)
+            is_ah = et_minute.ge(REGULAR_CLOSE_MINUTE) & et_minute.lt(AFTERHOURS_END_MINUTE)
 
             pm_stats = _aggregate_window_metrics(
                 minute_frame,
