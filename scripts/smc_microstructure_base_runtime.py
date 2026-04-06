@@ -505,28 +505,39 @@ def _aggregate_window_metrics(
     if subset.empty:
         return _empty_group_metrics(group_columns, columns)
 
-    aggregated = subset.groupby(group_columns, sort=False, observed=True).agg(
-        dollar_volume=("dollar_volume", "sum"),
-        trade_proxy=("trade_proxy", "sum"),
-        active_minutes=("active_minute", "sum"),
-        spread_bps=("spread_bps_proxy", "mean"),
-        wickiness=("wickiness_proxy", "mean"),
-        open_price=("open", "first"),
-        close_price=("close", "last"),
-        high_price=("high", "max"),
-        low_price=("low", "min"),
+    grouped = subset.groupby(group_columns, sort=False, observed=True)
+    dollar_volume = grouped["dollar_volume"].sum()
+    trade_proxy = grouped["trade_proxy"].sum()
+    active_minutes = grouped["active_minute"].sum()
+    spread_bps = grouped["spread_bps_proxy"].mean()
+    wickiness = grouped["wickiness_proxy"].mean()
+    open_price = grouped["open"].first()
+    close_price = grouped["close"].last()
+    high_price = grouped["high"].max()
+    low_price = grouped["low"].min()
+    aggregated = pd.DataFrame(
+        {
+            "dollar_volume": dollar_volume.to_numpy(),
+            "trade_proxy": trade_proxy.to_numpy(),
+            "active_minutes": active_minutes.to_numpy(),
+            "spread_bps": spread_bps.to_numpy(),
+            "wickiness": wickiness.to_numpy(),
+            "open_price": open_price.to_numpy(),
+            "close_price": close_price.to_numpy(),
+        },
+        index=open_price.index,
     )
     aggregated["active_minutes_share"] = _safe_ratio_to_constant_series(
-        aggregated["active_minutes"],
+        active_minutes,
         denominator=float(available_minutes),
         default=0.0,
-    )
+    ).to_numpy()
     aggregated["efficiency"] = _window_efficiency_from_aggregates(
-        aggregated["open_price"],
-        aggregated["close_price"],
-        aggregated["high_price"],
-        aggregated["low_price"],
-    )
+        open_price,
+        close_price,
+        high_price,
+        low_price,
+    ).to_numpy()
     return aggregated[columns]
 
 
@@ -540,10 +551,15 @@ def _aggregate_open_close_metrics(
     subset = frame.loc[mask, group_columns + ["open", "close", "dollar_volume"]]
     if subset.empty:
         return _empty_group_metrics(group_columns, columns)
-    return subset.groupby(group_columns, sort=False, observed=True).agg(
-        dollar_volume=("dollar_volume", "sum"),
-        open_price=("open", "first"),
-        close_price=("close", "last"),
+    grouped = subset.groupby(group_columns, sort=False, observed=True)
+    open_price = grouped["open"].first()
+    return pd.DataFrame(
+        {
+            "dollar_volume": grouped["dollar_volume"].sum().to_numpy(),
+            "open_price": open_price.to_numpy(),
+            "close_price": grouped["close"].last().to_numpy(),
+        },
+        index=open_price.index,
     )
 
 
