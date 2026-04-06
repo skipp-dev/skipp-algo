@@ -147,6 +147,17 @@ def _safe_ratio(numerator: Any, denominator: Any, *, default: float = 0.0) -> fl
     return float(numerator_value / denominator_value)
 
 
+def _safe_ratio_to_constant_series(series: pd.Series, *, denominator: float, default: float = 0.0) -> pd.Series:
+    result = np.full(len(series), float(default), dtype=float)
+    if not np.isfinite(denominator) or denominator <= 0:
+        return pd.Series(result, index=series.index, name=series.name)
+
+    numerator_values = pd.to_numeric(series, errors="coerce").to_numpy(dtype=float)
+    valid = np.isfinite(numerator_values)
+    result[valid] = numerator_values[valid] / float(denominator)
+    return pd.Series(result, index=series.index, name=series.name)
+
+
 def _clock_minutes(clock_time: time) -> int:
     return (clock_time.hour * 60) + clock_time.minute
 
@@ -424,8 +435,10 @@ def _aggregate_window_metrics(
         high_price=("high", "max"),
         low_price=("low", "min"),
     )
-    aggregated["active_minutes_share"] = aggregated["active_minutes"].map(
-        lambda value: _safe_ratio(value, available_minutes, default=0.0)
+    aggregated["active_minutes_share"] = _safe_ratio_to_constant_series(
+        aggregated["active_minutes"],
+        denominator=float(available_minutes),
+        default=0.0,
     )
     aggregated["efficiency"] = _window_efficiency_from_aggregates(
         aggregated["open_price"],

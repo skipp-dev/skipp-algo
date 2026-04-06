@@ -20,6 +20,7 @@ from scripts.smc_microstructure_base_runtime import (
     _grouped_setup_decay_half_life_30m_buckets,
     _safe_float,
     _safe_ratio,
+    _safe_ratio_to_constant_series,
     _safe_ratio_series_for_index,
     _setup_decay_half_life_30m_buckets,
     build_base_snapshot_from_bundle_payload,
@@ -213,6 +214,22 @@ def test_safe_ratio_series_for_index_matches_combine_semantics() -> None:
     )
 
     pd.testing.assert_series_equal(result_with_floor, expected_with_floor, check_names=False)
+
+
+def test_safe_ratio_to_constant_series_matches_map_semantics() -> None:
+    series = pd.Series([6.0, "3.0", pd.NA, "bad"], index=["AAA", "BBB", "CCC", "DDD"])
+
+    expected = series.map(lambda value: _safe_ratio(value, 12.0, default=0.0)).astype(float)
+    result = _safe_ratio_to_constant_series(series, denominator=12.0, default=0.0)
+
+    pd.testing.assert_series_equal(result, expected, check_names=False)
+
+    zero_denominator = _safe_ratio_to_constant_series(series, denominator=0.0, default=0.0)
+    pd.testing.assert_series_equal(
+        zero_denominator,
+        pd.Series(0.0, index=series.index, dtype=float),
+        check_names=False,
+    )
 
 
 def test_abs_return_series_for_index_matches_combine_semantics() -> None:
