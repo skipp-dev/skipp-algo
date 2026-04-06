@@ -273,6 +273,30 @@ def _column_nanmeans_or_zero(frame: pd.DataFrame, columns: list[str]) -> np.ndar
     return np.divide(sums, counts, out=np.zeros(len(columns), dtype=float), where=counts > 0)
 
 
+def _consistency_score_from_numeric_values(values: np.ndarray) -> float:
+    if values.shape[0] == 0:
+        return 0.0
+
+    valid = ~np.isnan(values)
+    counts = valid.sum(axis=0)
+    valid_columns = counts > 0
+    if not bool(valid_columns.any()):
+        return 0.0
+
+    sums = np.nansum(values, axis=0)
+    means = np.divide(sums, counts, out=np.zeros(values.shape[1], dtype=float), where=valid_columns)
+    centered = np.where(valid, values - means, 0.0)
+    variances = np.divide(
+        np.square(centered).sum(axis=0),
+        counts,
+        out=np.zeros(values.shape[1], dtype=float),
+        where=valid_columns,
+    )
+    baselines = np.maximum(np.abs(means[valid_columns]), 0.01)
+    components = 1.0 / (1.0 + (np.sqrt(variances[valid_columns]) / baselines))
+    return float(np.clip(components.mean(), 0.0, 1.0))
+
+
 def _mean_or_default(series: pd.Series, default: float = 0.0) -> float:
     return _nanmean_or_default(_numeric_values(series), default)
 
@@ -1031,6 +1055,13 @@ def build_base_snapshot_from_bundle_payload(
     latest = trailing.sort_values(["symbol", "trade_date"]).groupby("symbol", group_keys=False).tail(1)
     latest_by_symbol = latest.set_index("symbol", drop=False)
     rows: list[dict[str, Any]] = []
+    consistency_score_columns = [
+        "daily_clean_intraday_score",
+        "daily_open_30m_dollar_share",
+        "daily_close_60m_dollar_share",
+        "daily_midday_efficiency",
+        "daily_close_hygiene",
+    ]
     minute_mean_columns = [
         "daily_avg_spread_bps_rth",
         "daily_rth_active_minutes_share",
@@ -1130,6 +1161,8 @@ def build_base_snapshot_from_bundle_payload(
         adv_fallback[~np.isfinite(adv_fallback)] = np.nan
         adv_rth = group["daily_rth_dollar_volume"].to_numpy(dtype=float, copy=False)
         adv_dollar = np.where(covered_mask & (adv_rth > 0.0) & np.isfinite(adv_rth), adv_rth, adv_fallback)
+        consistency_values = covered_group[consistency_score_columns].to_numpy(dtype=float, copy=False)
+        consistency_score = _consistency_score_from_numeric_values(consistency_values)
         ob_sweep_depth_p75_20d = _quantile_or_default(group["daily_ob_sweep_depth"], 0.75, default=0.0)
         fvg_sweep_depth_p75_20d = _quantile_or_default(group["daily_fvg_sweep_depth"], 0.75, default=0.0)
 
@@ -1150,7 +1183,7 @@ def build_base_snapshot_from_bundle_payload(
                 "open_30m_dollar_share_20d": _clip01(open_30m_dollar_share_20d),
                 "close_60m_dollar_share_20d": _clip01(close_60m_dollar_share_20d),
                 "clean_intraday_score_20d": _clip01(clean_intraday_score_20d),
-                "consistency_score_20d": _clip01(_consistency_score(covered_group)),
+                "consistency_score_20d": _clip01(consistency_score),
                 "close_hygiene_20d": _clip01(close_hygiene_20d),
                 "wickiness_20d": _clip01(wickiness_20d),
                 "pm_dollar_share_20d": _clip01(pm_dollar_share_20d),

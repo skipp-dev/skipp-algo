@@ -17,6 +17,7 @@ from scripts.smc_microstructure_base_runtime import (
     _column_nanmeans_or_zero,
     _clip01,
     _clip01_series,
+    _consistency_score_from_numeric_values,
     _coerce_bool,
     _coerce_bool_series,
     _consistency_score,
@@ -271,6 +272,30 @@ def test_column_nanmeans_or_zero_matches_per_column_mean_defaults() -> None:
         0.0,
         _mean_or_default(frame["gamma"], default=0.0),
     ])
+
+
+def test_consistency_score_from_numeric_values_matches_generic_helper() -> None:
+    group = pd.DataFrame(
+        {
+            "daily_clean_intraday_score": [0.6, 0.8, np.nan],
+            "daily_open_30m_dollar_share": [0.2, 0.25, 0.3],
+            "daily_close_60m_dollar_share": [0.15, 0.12, np.nan],
+            "daily_midday_efficiency": [0.4, 0.5, 0.45],
+            "daily_close_hygiene": [0.9, 0.7, 0.8],
+        }
+    )
+
+    values = group[
+        [
+            "daily_clean_intraday_score",
+            "daily_open_30m_dollar_share",
+            "daily_close_60m_dollar_share",
+            "daily_midday_efficiency",
+            "daily_close_hygiene",
+        ]
+    ].to_numpy(dtype=float, copy=False)
+
+    assert _consistency_score_from_numeric_values(values) == pytest.approx(_consistency_score(group))
 
 
 def test_safe_ratio_series_for_index_matches_combine_semantics() -> None:
