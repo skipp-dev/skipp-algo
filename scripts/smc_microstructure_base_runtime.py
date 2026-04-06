@@ -925,11 +925,11 @@ def _consistency_score(group: pd.DataFrame) -> float:
     ]
     components: list[float] = []
     for column in score_columns:
-        numeric = pd.to_numeric(group.get(column), errors="coerce").dropna()
-        if numeric.empty:
+        numeric_values = _numeric_values(group[column])
+        if numeric_values.size == 0 or np.isnan(numeric_values).all():
             continue
-        baseline = max(float(abs(numeric.mean())), 0.01)
-        cv = float(numeric.std(ddof=0) / baseline)
+        baseline = max(float(abs(np.nanmean(numeric_values))), 0.01)
+        cv = float(np.nanstd(numeric_values, ddof=0) / baseline)
         components.append(1.0 / (1.0 + cv))
     if not components:
         return 0.0
@@ -1007,37 +1007,11 @@ def build_base_snapshot_from_bundle_payload(
 
     trailing = symbol_day_features.loc[symbol_day_features["trade_date"] <= resolved_asof].copy()
     trailing = trailing.sort_values(["symbol", "trade_date"]).groupby("symbol", group_keys=False).tail(20)
+    trailing["minute_detail_missing_bool"] = _coerce_bool_series(_series_from_frame(trailing, "minute_detail_missing", False))
 
     latest = trailing.sort_values(["symbol", "trade_date"]).groupby("symbol", group_keys=False).tail(1)
     latest_by_symbol = latest.set_index("symbol", drop=False)
     rows: list[dict[str, Any]] = []
-    minute_derived_aggregate_columns = {
-        "daily_avg_spread_bps_rth",
-        "daily_rth_active_minutes_share",
-        "daily_open_30m_dollar_share",
-        "daily_close_60m_dollar_share",
-        "daily_clean_intraday_score",
-        "daily_rth_wickiness",
-        "daily_pm_dollar_share",
-        "daily_pm_trades_share",
-        "daily_pm_active_minutes_share",
-        "daily_pm_spread_bps",
-        "daily_pm_wickiness",
-        "daily_midday_dollar_share",
-        "daily_midday_trades_share",
-        "daily_midday_active_minutes_share",
-        "daily_midday_spread_bps",
-        "daily_midday_efficiency",
-        "daily_ah_dollar_share",
-        "daily_ah_trades_share",
-        "daily_ah_active_minutes_share",
-        "daily_ah_spread_bps",
-        "daily_ah_wickiness",
-        "daily_setup_decay_half_life_bars",
-        "daily_early_vs_late_followthrough_ratio",
-        "daily_rth_efficiency",
-        "daily_rth_dollar_volume",
-    }
 
     for symbol, group in trailing.groupby("symbol", sort=True):
         latest_row = latest_by_symbol.loc[symbol]
@@ -1050,26 +1024,17 @@ def build_base_snapshot_from_bundle_payload(
                 symbol,
                 coverage_days,
             )
-        covered_group = group.loc[~_coerce_bool_series(_series_from_frame(group, "minute_detail_missing", False))].copy()
-        warned_missing_minute_detail = False
-
-        def _group_for_metric(column: str) -> pd.DataFrame:
-            nonlocal warned_missing_minute_detail
-            if column not in minute_derived_aggregate_columns:
-                return group
-            if covered_group.empty and not warned_missing_minute_detail:
-                logger.warning(
-                    "Symbol %s has no symbol-day rows with minute detail coverage for minute-derived 20d aggregation; minute-derived metrics will fall back to 0.0.",
-                    symbol,
-                )
-                warned_missing_minute_detail = True
-            return covered_group
+        covered_group = group.loc[~group["minute_detail_missing_bool"]]
+        if covered_group.empty:
+            logger.warning(
+                "Symbol %s has no symbol-day rows with minute detail coverage for minute-derived 20d aggregation; minute-derived metrics will fall back to 0.0.",
+                symbol,
+            )
 
         daily_close = pd.to_numeric(group.get("day_close"), errors="coerce")
         day_volume = pd.to_numeric(group.get("day_volume"), errors="coerce")
         adv_fallback = (daily_close * day_volume).replace([np.inf, -np.inf], np.nan)
-        adv_group = _group_for_metric("daily_rth_dollar_volume")
-        adv_rth = pd.to_numeric(adv_group.get("daily_rth_dollar_volume"), errors="coerce")
+        adv_rth = pd.to_numeric(covered_group.get("daily_rth_dollar_volume"), errors="coerce")
         adv_dollar = adv_rth.where(adv_rth > 0).combine_first(adv_fallback)
 
         rows.append(
@@ -1084,51 +1049,49 @@ def build_base_snapshot_from_bundle_payload(
                 ),
                 "history_coverage_days_20d": coverage_days,
                 "adv_dollar_rth_20d": _mean_or_default(adv_dollar, default=0.0),
-                "avg_spread_bps_rth_20d": _mean_or_default(_group_for_metric("daily_avg_spread_bps_rth")["daily_avg_spread_bps_rth"], default=0.0),
+                "avg_spread_bps_rth_20d": _mean_or_default(covered_group["daily_avg_spread_bps_rth"], default=0.0),
                 "rth_active_minutes_share_20d": _clip01(
-                    _mean_or_default(_group_for_metric("daily_rth_active_minutes_share")["daily_rth_active_minutes_share"], default=0.0)
+                    _mean_or_default(covered_group["daily_rth_active_minutes_share"], default=0.0)
                 ),
                 "open_30m_dollar_share_20d": _clip01(
-                    _mean_or_default(_group_for_metric("daily_open_30m_dollar_share")["daily_open_30m_dollar_share"], default=0.0)
+                    _mean_or_default(covered_group["daily_open_30m_dollar_share"], default=0.0)
                 ),
                 "close_60m_dollar_share_20d": _clip01(
-                    _mean_or_default(_group_for_metric("daily_close_60m_dollar_share")["daily_close_60m_dollar_share"], default=0.0)
+                    _mean_or_default(covered_group["daily_close_60m_dollar_share"], default=0.0)
                 ),
                 "clean_intraday_score_20d": _clip01(
-                    _mean_or_default(_group_for_metric("daily_clean_intraday_score")["daily_clean_intraday_score"], default=0.0)
+                    _mean_or_default(covered_group["daily_clean_intraday_score"], default=0.0)
                 ),
-                "consistency_score_20d": _clip01(_consistency_score(_group_for_metric("daily_clean_intraday_score"))),
+                "consistency_score_20d": _clip01(_consistency_score(covered_group)),
                 "close_hygiene_20d": _clip01(_mean_or_default(group["daily_close_hygiene"], default=0.0)),
-                "wickiness_20d": _clip01(_mean_or_default(_group_for_metric("daily_rth_wickiness")["daily_rth_wickiness"], default=0.0)),
-                "pm_dollar_share_20d": _clip01(_mean_or_default(_group_for_metric("daily_pm_dollar_share")["daily_pm_dollar_share"], default=0.0)),
-                "pm_trades_share_20d": _clip01(_mean_or_default(_group_for_metric("daily_pm_trades_share")["daily_pm_trades_share"], default=0.0)),
+                "wickiness_20d": _clip01(_mean_or_default(covered_group["daily_rth_wickiness"], default=0.0)),
+                "pm_dollar_share_20d": _clip01(_mean_or_default(covered_group["daily_pm_dollar_share"], default=0.0)),
+                "pm_trades_share_20d": _clip01(_mean_or_default(covered_group["daily_pm_trades_share"], default=0.0)),
                 "pm_active_minutes_share_20d": _clip01(
-                    _mean_or_default(_group_for_metric("daily_pm_active_minutes_share")["daily_pm_active_minutes_share"], default=0.0)
+                    _mean_or_default(covered_group["daily_pm_active_minutes_share"], default=0.0)
                 ),
-                "pm_spread_bps_20d": _mean_or_default(_group_for_metric("daily_pm_spread_bps")["daily_pm_spread_bps"], default=0.0),
-                "pm_wickiness_20d": _clip01(_mean_or_default(_group_for_metric("daily_pm_wickiness")["daily_pm_wickiness"], default=0.0)),
+                "pm_spread_bps_20d": _mean_or_default(covered_group["daily_pm_spread_bps"], default=0.0),
+                "pm_wickiness_20d": _clip01(_mean_or_default(covered_group["daily_pm_wickiness"], default=0.0)),
                 "midday_dollar_share_20d": _clip01(
-                    _mean_or_default(_group_for_metric("daily_midday_dollar_share")["daily_midday_dollar_share"], default=0.0)
+                    _mean_or_default(covered_group["daily_midday_dollar_share"], default=0.0)
                 ),
                 "midday_trades_share_20d": _clip01(
-                    _mean_or_default(_group_for_metric("daily_midday_trades_share")["daily_midday_trades_share"], default=0.0)
+                    _mean_or_default(covered_group["daily_midday_trades_share"], default=0.0)
                 ),
                 "midday_active_minutes_share_20d": _clip01(
-                    _mean_or_default(_group_for_metric("daily_midday_active_minutes_share")["daily_midday_active_minutes_share"], default=0.0)
+                    _mean_or_default(covered_group["daily_midday_active_minutes_share"], default=0.0)
                 ),
-                "midday_spread_bps_20d": _mean_or_default(
-                    _group_for_metric("daily_midday_spread_bps")["daily_midday_spread_bps"], default=0.0
-                ),
+                "midday_spread_bps_20d": _mean_or_default(covered_group["daily_midday_spread_bps"], default=0.0),
                 "midday_efficiency_20d": _clip01(
-                    _mean_or_default(_group_for_metric("daily_midday_efficiency")["daily_midday_efficiency"], default=0.0)
+                    _mean_or_default(covered_group["daily_midday_efficiency"], default=0.0)
                 ),
-                "ah_dollar_share_20d": _clip01(_mean_or_default(_group_for_metric("daily_ah_dollar_share")["daily_ah_dollar_share"], default=0.0)),
-                "ah_trades_share_20d": _clip01(_mean_or_default(_group_for_metric("daily_ah_trades_share")["daily_ah_trades_share"], default=0.0)),
+                "ah_dollar_share_20d": _clip01(_mean_or_default(covered_group["daily_ah_dollar_share"], default=0.0)),
+                "ah_trades_share_20d": _clip01(_mean_or_default(covered_group["daily_ah_trades_share"], default=0.0)),
                 "ah_active_minutes_share_20d": _clip01(
-                    _mean_or_default(_group_for_metric("daily_ah_active_minutes_share")["daily_ah_active_minutes_share"], default=0.0)
+                    _mean_or_default(covered_group["daily_ah_active_minutes_share"], default=0.0)
                 ),
-                "ah_spread_bps_20d": _mean_or_default(_group_for_metric("daily_ah_spread_bps")["daily_ah_spread_bps"], default=0.0),
-                "ah_wickiness_20d": _clip01(_mean_or_default(_group_for_metric("daily_ah_wickiness")["daily_ah_wickiness"], default=0.0)),
+                "ah_spread_bps_20d": _mean_or_default(covered_group["daily_ah_spread_bps"], default=0.0),
+                "ah_wickiness_20d": _clip01(_mean_or_default(covered_group["daily_ah_wickiness"], default=0.0)),
                 "reclaim_respect_rate_20d": _clip01(_mean_or_default(group["daily_reclaim_respect_flag"], default=0.0)),
                 "reclaim_failure_rate_20d": _clip01(_mean_or_default(group["daily_reclaim_failure_flag"], default=0.0)),
                 "reclaim_followthrough_r_20d": _mean_or_default(group["daily_reclaim_followthrough_r"], default=0.0),
@@ -1138,10 +1101,10 @@ def build_base_snapshot_from_bundle_payload(
                 "fvg_sweep_depth_p75_20d": _quantile_or_default(group["daily_fvg_sweep_depth"], 0.75, default=0.0),
                 "stop_hunt_rate_20d": _clip01(_mean_or_default(group["daily_stop_hunt_flag"], default=0.0)),
                 "setup_decay_half_life_bars_20d": _mean_or_default(
-                    _group_for_metric("daily_setup_decay_half_life_bars")["daily_setup_decay_half_life_bars"], default=0.0
+                    covered_group["daily_setup_decay_half_life_bars"], default=0.0
                 ),
                 "early_vs_late_followthrough_ratio_20d": _mean_or_default(
-                    _group_for_metric("daily_early_vs_late_followthrough_ratio")["daily_early_vs_late_followthrough_ratio"], default=0.0
+                    covered_group["daily_early_vs_late_followthrough_ratio"], default=0.0
                 ),
                 "stale_fail_rate_20d": _clip01(_mean_or_default(group["daily_stale_fail_flag"], default=0.0)),
             }

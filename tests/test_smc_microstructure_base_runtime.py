@@ -222,6 +222,38 @@ def test_quantile_or_default_matches_previous_pandas_semantics() -> None:
     assert _quantile_or_default(pd.Series([pd.NA, "bad"]), 0.5, default=9.0) == pytest.approx(9.0)
 
 
+def test_consistency_score_matches_previous_pandas_semantics() -> None:
+    group = pd.DataFrame(
+        {
+            "daily_clean_intraday_score": [0.6, "0.8", pd.NA],
+            "daily_open_30m_dollar_share": [0.2, 0.25, 0.3],
+            "daily_close_60m_dollar_share": [0.15, 0.12, "bad"],
+            "daily_midday_efficiency": [0.4, 0.5, 0.45],
+            "daily_close_hygiene": [0.9, 0.7, 0.8],
+        }
+    )
+
+    score_columns = [
+        "daily_clean_intraday_score",
+        "daily_open_30m_dollar_share",
+        "daily_close_60m_dollar_share",
+        "daily_midday_efficiency",
+        "daily_close_hygiene",
+    ]
+    expected_components: list[float] = []
+    for column in score_columns:
+        numeric = pd.to_numeric(group.get(column), errors="coerce").dropna()
+        if numeric.empty:
+            continue
+        baseline = max(float(abs(numeric.mean())), 0.01)
+        cv = float(numeric.std(ddof=0) / baseline)
+        expected_components.append(1.0 / (1.0 + cv))
+
+    expected = 0.0 if not expected_components else float(np.clip(np.mean(expected_components), 0.0, 1.0))
+
+    assert _consistency_score(group) == pytest.approx(expected)
+
+
 def test_safe_ratio_series_for_index_matches_combine_semantics() -> None:
     index = pd.MultiIndex.from_tuples(
         [
