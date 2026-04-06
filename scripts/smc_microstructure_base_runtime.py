@@ -418,7 +418,7 @@ def _grouped_setup_decay_half_life_30m_buckets(
     bucket_frame = frame.loc[:, group_columns + ["minutes_from_open", "dollar_volume"]].copy()
     bucket_frame["bucket_index"] = ((bucket_frame["minutes_from_open"] // 30).astype(int)).clip(lower=0)
     bucket_frame = (
-        bucket_frame.groupby(group_columns + ["bucket_index"], sort=False)["dollar_volume"]
+        bucket_frame.groupby(group_columns + ["bucket_index"], sort=False, observed=True)["dollar_volume"]
         .sum()
         .rename("bucket_dollar")
         .reset_index()
@@ -426,7 +426,7 @@ def _grouped_setup_decay_half_life_30m_buckets(
         .reset_index(drop=True)
     )
 
-    grouped = bucket_frame.groupby(group_columns, sort=False)
+    grouped = bucket_frame.groupby(group_columns, sort=False, observed=True)
     summary = grouped.agg(
         first_bucket_dollar=("bucket_dollar", "first"),
         bucket_count=("bucket_index", "size"),
@@ -441,7 +441,7 @@ def _grouped_setup_decay_half_life_30m_buckets(
     first_bucket_dollar = grouped["bucket_dollar"].transform("first")
     later_hit_mask = bucket_frame["bucket_index"].ne(first_bucket_index) & bucket_frame["bucket_dollar"].le(first_bucket_dollar * 0.5)
     if bool(later_hit_mask.any()):
-        first_hits = bucket_frame.loc[later_hit_mask].groupby(group_columns, sort=False)["bucket_index"].first().astype(float)
+        first_hits = bucket_frame.loc[later_hit_mask].groupby(group_columns, sort=False, observed=True)["bucket_index"].first().astype(float)
         positive_hit_index = first_hits.index.intersection(summary.index[~zero_first_bucket])
         result.loc[positive_hit_index] = first_hits.loc[positive_hit_index]
 
@@ -505,7 +505,7 @@ def _aggregate_window_metrics(
     if subset.empty:
         return _empty_group_metrics(group_columns, columns)
 
-    aggregated = subset.groupby(group_columns, sort=False).agg(
+    aggregated = subset.groupby(group_columns, sort=False, observed=True).agg(
         dollar_volume=("dollar_volume", "sum"),
         trade_proxy=("trade_proxy", "sum"),
         active_minutes=("active_minute", "sum"),
@@ -540,7 +540,7 @@ def _aggregate_open_close_metrics(
     subset = frame.loc[mask, group_columns + ["open", "close", "dollar_volume"]]
     if subset.empty:
         return _empty_group_metrics(group_columns, columns)
-    return subset.groupby(group_columns, sort=False).agg(
+    return subset.groupby(group_columns, sort=False, observed=True).agg(
         dollar_volume=("dollar_volume", "sum"),
         open_price=("open", "first"),
         close_price=("close", "last"),
@@ -646,10 +646,12 @@ def build_symbol_day_microstructure_feature_frame(
             minute_frame["active_minute"] = (minute_frame["volume"] > 0) | (minute_frame["trade_proxy"] > 0)
             minute_frame["minutes_from_open"] = minute_frame["et_minute"].astype(float) - float(REGULAR_OPEN_MINUTE)
             minute_frame = minute_frame.sort_values(["trade_date", "symbol", "timestamp"], kind="mergesort").reset_index(drop=True)
+            minute_frame["trade_date"] = pd.Categorical(minute_frame["trade_date"])
+            minute_frame["symbol"] = pd.Categorical(minute_frame["symbol"])
             group_columns = ["trade_date", "symbol"]
             group_index = minute_frame[group_columns].drop_duplicates().set_index(group_columns)
 
-            grouped = minute_frame.groupby(group_columns, sort=False)
+            grouped = minute_frame.groupby(group_columns, sort=False, observed=True)
             close_missing = grouped["close"].count().eq(0)
             volume_inactive = grouped["volume"].max().le(0)
             null_activity = pd.DataFrame(
@@ -845,6 +847,8 @@ def build_symbol_day_microstructure_feature_frame(
                     )
 
             minute_metrics = minute_metrics.reset_index()
+            minute_metrics["trade_date"] = minute_metrics["trade_date"].astype(object)
+            minute_metrics["symbol"] = minute_metrics["symbol"].astype(str)
             minute_metrics = minute_metrics[metric_columns]
 
     merged = daily.merge(minute_metrics, on=["trade_date", "symbol"], how="left")
