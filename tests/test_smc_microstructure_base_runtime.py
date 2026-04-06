@@ -13,10 +13,13 @@ import pytest
 import scripts.smc_microstructure_base_runtime as runtime
 import scripts.smc_databento_session_detail as session_detail
 from scripts.smc_microstructure_base_runtime import (
+    _abs_return_series_for_index,
     _clip01,
     _consistency_score,
     _grouped_setup_decay_half_life_30m_buckets,
     _safe_float,
+    _safe_ratio,
+    _safe_ratio_series_for_index,
     _setup_decay_half_life_30m_buckets,
     build_base_snapshot_from_bundle_payload,
     build_symbol_day_microstructure_feature_frame,
@@ -172,6 +175,67 @@ def test_clip01_clamps_invalid_and_out_of_range_scalars() -> None:
     assert _clip01("1.5") == pytest.approx(1.0)
     assert _clip01("-0.2") == pytest.approx(0.0)
     assert _clip01(pd.NA) == pytest.approx(0.0)
+
+
+def test_safe_ratio_series_for_index_matches_combine_semantics() -> None:
+    index = pd.MultiIndex.from_tuples(
+        [
+            ("2026-03-20", "AAA"),
+            ("2026-03-20", "BBB"),
+            ("2026-03-20", "CCC"),
+        ],
+        names=["trade_date", "symbol"],
+    )
+    numerator = pd.Series([6.0, 0.25], index=index[:2])
+    denominator = pd.Series([12.0, 0.0, 2.0], index=index)
+
+    expected = numerator.combine(
+        denominator,
+        lambda left, right: _safe_ratio(left, right, default=0.0),
+    ).reindex(index).fillna(0.0)
+
+    result = _safe_ratio_series_for_index(numerator, denominator, index=index, default=0.0)
+
+    pd.testing.assert_series_equal(result, expected, check_names=False)
+
+    expected_with_floor = numerator.combine(
+        denominator,
+        lambda left, right: _safe_ratio(left, max(right, 1e-6), default=0.0),
+    ).reindex(index).fillna(0.0)
+
+    result_with_floor = _safe_ratio_series_for_index(
+        numerator,
+        denominator,
+        index=index,
+        default=0.0,
+        minimum_denominator=1e-6,
+    )
+
+    pd.testing.assert_series_equal(result_with_floor, expected_with_floor, check_names=False)
+
+
+def test_abs_return_series_for_index_matches_combine_semantics() -> None:
+    index = pd.MultiIndex.from_tuples(
+        [
+            ("2026-03-20", "AAA"),
+            ("2026-03-20", "BBB"),
+            ("2026-03-20", "CCC"),
+        ],
+        names=["trade_date", "symbol"],
+    )
+    close_price = pd.Series([10.5, 11.0], index=index[:2])
+    open_price = pd.Series([10.0, 0.0, 4.0], index=index)
+
+    expected = close_price.combine(
+        open_price,
+        lambda close_value, open_value: abs((close_value / open_value) - 1.0)
+        if np.isfinite(open_value) and open_value > 0 and np.isfinite(close_value)
+        else 0.0,
+    ).reindex(index).fillna(0.0)
+
+    result = _abs_return_series_for_index(close_price, open_price, index=index)
+
+    pd.testing.assert_series_equal(result, expected, check_names=False)
 
 
 def test_build_base_snapshot_from_bundle_payload_warns_when_asof_is_stale(

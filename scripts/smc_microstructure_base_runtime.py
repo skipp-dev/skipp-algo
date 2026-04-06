@@ -147,6 +147,41 @@ def _safe_ratio(numerator: Any, denominator: Any, *, default: float = 0.0) -> fl
     return float(numerator_value / denominator_value)
 
 
+def _series_numeric_values(series: pd.Series, index: pd.Index) -> np.ndarray:
+    return pd.to_numeric(series.reindex(index), errors="coerce").to_numpy(dtype=float)
+
+
+def _safe_ratio_series_for_index(
+    numerator: pd.Series,
+    denominator: pd.Series,
+    *,
+    index: pd.Index,
+    default: float = 0.0,
+    minimum_denominator: float | None = None,
+) -> pd.Series:
+    numerator_values = _series_numeric_values(numerator, index)
+    denominator_values = _series_numeric_values(denominator, index)
+    if minimum_denominator is not None:
+        denominator_values = np.where(
+            np.isfinite(denominator_values),
+            np.maximum(denominator_values, minimum_denominator),
+            denominator_values,
+        )
+    result = np.full(len(index), float(default), dtype=float)
+    valid = np.isfinite(numerator_values) & np.isfinite(denominator_values) & (denominator_values > 0)
+    np.divide(numerator_values, denominator_values, out=result, where=valid)
+    return pd.Series(result, index=index)
+
+
+def _abs_return_series_for_index(close_price: pd.Series, open_price: pd.Series, *, index: pd.Index) -> pd.Series:
+    close_values = _series_numeric_values(close_price, index)
+    open_values = _series_numeric_values(open_price, index)
+    result = np.zeros(len(index), dtype=float)
+    valid = np.isfinite(open_values) & (open_values > 0) & np.isfinite(close_values)
+    result[valid] = np.abs((close_values[valid] / open_values[valid]) - 1.0)
+    return pd.Series(result, index=index)
+
+
 def _coerce_bool(value: Any) -> bool:
     if pd.isna(value):
         return False
@@ -588,6 +623,7 @@ def build_symbol_day_microstructure_feature_frame(
             minute_metrics["daily_rth_active_minutes_share"] = rth_stats["active_minutes_share"]
             minute_metrics["daily_rth_wickiness"] = rth_stats["wickiness"]
             minute_metrics["daily_rth_efficiency"] = rth_stats["efficiency"]
+            metric_index = minute_metrics.index
 
             total_day_dollar = pm_stats["dollar_volume"].add(rth_stats["dollar_volume"], fill_value=0.0).add(
                 ah_stats["dollar_volume"], fill_value=0.0
@@ -596,73 +632,89 @@ def build_symbol_day_microstructure_feature_frame(
                 ah_stats["trade_proxy"], fill_value=0.0
             )
 
-            minute_metrics["daily_open_30m_dollar_share"] = open_30_stats["dollar_volume"].combine(
+            minute_metrics["daily_open_30m_dollar_share"] = _safe_ratio_series_for_index(
+                open_30_stats["dollar_volume"],
                 rth_stats["dollar_volume"],
-                lambda numerator, denominator: _safe_ratio(numerator, denominator, default=0.0),
+                index=metric_index,
+                default=0.0,
             )
-            minute_metrics["daily_close_60m_dollar_share"] = close_60_stats["dollar_volume"].combine(
+            minute_metrics["daily_close_60m_dollar_share"] = _safe_ratio_series_for_index(
+                close_60_stats["dollar_volume"],
                 rth_stats["dollar_volume"],
-                lambda numerator, denominator: _safe_ratio(numerator, denominator, default=0.0),
+                index=metric_index,
+                default=0.0,
             )
 
-            minute_metrics["daily_pm_dollar_share"] = pm_stats["dollar_volume"].combine(
+            minute_metrics["daily_pm_dollar_share"] = _safe_ratio_series_for_index(
+                pm_stats["dollar_volume"],
                 total_day_dollar,
-                lambda numerator, denominator: _safe_ratio(numerator, denominator, default=0.0),
+                index=metric_index,
+                default=0.0,
             )
-            minute_metrics["daily_pm_trades_share"] = pm_stats["trade_proxy"].combine(
+            minute_metrics["daily_pm_trades_share"] = _safe_ratio_series_for_index(
+                pm_stats["trade_proxy"],
                 total_day_trades,
-                lambda numerator, denominator: _safe_ratio(numerator, denominator, default=0.0),
+                index=metric_index,
+                default=0.0,
             )
             minute_metrics["daily_pm_active_minutes_share"] = pm_stats["active_minutes_share"]
             minute_metrics["daily_pm_spread_bps"] = pm_stats["spread_bps"]
             minute_metrics["daily_pm_wickiness"] = pm_stats["wickiness"]
 
-            minute_metrics["daily_midday_dollar_share"] = midday_stats["dollar_volume"].combine(
+            minute_metrics["daily_midday_dollar_share"] = _safe_ratio_series_for_index(
+                midday_stats["dollar_volume"],
                 rth_stats["dollar_volume"],
-                lambda numerator, denominator: _safe_ratio(numerator, denominator, default=0.0),
+                index=metric_index,
+                default=0.0,
             )
-            minute_metrics["daily_midday_trades_share"] = midday_stats["trade_proxy"].combine(
+            minute_metrics["daily_midday_trades_share"] = _safe_ratio_series_for_index(
+                midday_stats["trade_proxy"],
                 rth_stats["trade_proxy"],
-                lambda numerator, denominator: _safe_ratio(numerator, denominator, default=0.0),
+                index=metric_index,
+                default=0.0,
             )
             minute_metrics["daily_midday_active_minutes_share"] = midday_stats["active_minutes_share"]
             minute_metrics["daily_midday_spread_bps"] = midday_stats["spread_bps"]
             minute_metrics["daily_midday_efficiency"] = midday_stats["efficiency"]
 
-            minute_metrics["daily_ah_dollar_share"] = ah_stats["dollar_volume"].combine(
+            minute_metrics["daily_ah_dollar_share"] = _safe_ratio_series_for_index(
+                ah_stats["dollar_volume"],
                 total_day_dollar,
-                lambda numerator, denominator: _safe_ratio(numerator, denominator, default=0.0),
+                index=metric_index,
+                default=0.0,
             )
-            minute_metrics["daily_ah_trades_share"] = ah_stats["trade_proxy"].combine(
+            minute_metrics["daily_ah_trades_share"] = _safe_ratio_series_for_index(
+                ah_stats["trade_proxy"],
                 total_day_trades,
-                lambda numerator, denominator: _safe_ratio(numerator, denominator, default=0.0),
+                index=metric_index,
+                default=0.0,
             )
             minute_metrics["daily_ah_active_minutes_share"] = ah_stats["active_minutes_share"]
             minute_metrics["daily_ah_spread_bps"] = ah_stats["spread_bps"]
             minute_metrics["daily_ah_wickiness"] = ah_stats["wickiness"]
             minute_metrics["daily_setup_decay_half_life_bars"] = rth_half_life
 
-            early_return = open_30_stats["close_price"].combine(
+            early_return = _abs_return_series_for_index(
+                open_30_stats["close_price"],
                 open_30_stats["open_price"],
-                lambda close_price, open_price: abs((close_price / open_price) - 1.0)
-                if np.isfinite(open_price) and open_price > 0 and np.isfinite(close_price)
-                else 0.0,
+                index=metric_index,
             )
-            late_return = late_stats["close_price"].combine(
+            late_return = _abs_return_series_for_index(
+                late_stats["close_price"],
                 late_stats["open_price"],
-                lambda close_price, open_price: abs((close_price / open_price) - 1.0)
-                if np.isfinite(open_price) and open_price > 0 and np.isfinite(close_price)
-                else 0.0,
+                index=metric_index,
             )
-            minute_metrics["daily_early_vs_late_followthrough_ratio"] = early_return.combine(
+            minute_metrics["daily_early_vs_late_followthrough_ratio"] = _safe_ratio_series_for_index(
+                early_return,
                 late_return,
-                lambda numerator, denominator: _safe_ratio(numerator, max(denominator, 1e-6), default=0.0),
+                index=metric_index,
+                default=0.0,
+                minimum_denominator=1e-6,
             )
-            minute_metrics["daily_rth_net_return_abs"] = rth_stats["close_price"].combine(
+            minute_metrics["daily_rth_net_return_abs"] = _abs_return_series_for_index(
+                rth_stats["close_price"],
                 rth_stats["open_price"],
-                lambda close_price, open_price: abs((close_price / open_price) - 1.0)
-                if np.isfinite(open_price) and open_price > 0 and np.isfinite(close_price)
-                else 0.0,
+                index=metric_index,
             )
 
             has_pm = minute_metrics.index.isin(pm_stats.index)
