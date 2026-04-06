@@ -1,11 +1,11 @@
 """Regression tests for Pine input surface-area constraints.
 
 Verifies that major Pine scripts maintain:
-  - 100% grouped inputs (all inputs in a group)
-  - Status-line visible count within 30-45 range
-  - Parity between indicator/strategy pairs
-  - Input declarations have balanced parens
-  - Version tags present
+    - 100% grouped inputs (all inputs in a group)
+    - Decision-first visible surface counts stay bounded
+    - Parity between indicator/strategy pairs
+    - Input declarations have balanced parens
+    - Version tags present
 """
 from __future__ import annotations
 
@@ -38,12 +38,12 @@ def test_all_inputs_grouped(script):
     )
 
 
-# ── visible surface: 30-45 inputs without display.none ────────────────
+# ── visible surface: decision-first lite ranges ───────────────────────
 
 @pytest.mark.parametrize("script,lo,hi", [
-    ("SMC_Core_Engine.pine", 35, 45),
+    ("SMC_Core_Engine.pine", 8, 14),
     ("SMC++.pine", 25, 45),
-    ("SkippALGO.pine", 25, 45),
+    ("SkippALGO.pine", 20, 28),
     ("SkippALGO_Strategy.pine", 25, 45),
 ])
 def test_visible_surface_range(script, lo, hi):
@@ -60,6 +60,16 @@ def test_active_core_operator_surface_keeps_preset_and_compact_mode():
 
     assert "long_user_preset" in visible_varnames
     assert "compact_mode" in visible_varnames
+
+
+def test_skippalgo_surface_keeps_hud_controls_visible():
+    inputs = _load("SkippALGO.pine")
+    visible_varnames = {inp.varname for inp in inputs if not inp.has_display_none}
+
+    assert "surfaceMode" in visible_varnames
+    assert "showDecisionHud" in visible_varnames
+    assert "engine" in visible_varnames
+    assert "entryFcTF" in visible_varnames
 
 
 # ── parity: indicator/strategy pairs must have ≤5 input delta ─────────

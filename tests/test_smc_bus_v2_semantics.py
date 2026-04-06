@@ -583,8 +583,8 @@ def test_debug_state_row_reconstructs_locally_from_flags_and_lifecycle_contract(
     assert 'src_debug_flags_row = input.source(close, "BUS DebugFlagsRow"' not in dashboard_source
     assert 'src_debug_state_row = input.source(close, "BUS DebugStateRow"' not in dashboard_source
     assert 'local_ob_debug_enabled = input.bool(false, "OB Debug Enabled", group = g_local_debug' in dashboard_source
-    assert 'local_fvg_debug_enabled = input.bool(false, "FVG Debug Enabled", group = g_local_debug)' in dashboard_source
-    assert 'local_engine_debug_enabled = input.bool(false, "Long Engine Debug Enabled", group = g_local_debug)' in dashboard_source
+    assert 'local_fvg_debug_enabled = input.bool(false, "FVG Debug Enabled", group = g_local_debug, display = display.none)' in dashboard_source
+    assert 'local_engine_debug_enabled = input.bool(false, "Long Engine Debug Enabled", group = g_local_debug, display = display.none)' in dashboard_source
     assert 'int debug_flags_row_code = resolve_debug_flags_row_code(local_ob_debug_enabled, local_fvg_debug_enabled, local_engine_debug_enabled)' in dashboard_source
     assert 'int debug_state_row_code = resolve_debug_state_row_code(debug_flags_row_code, state_code, armed, confirmed, ready)' in dashboard_source
 
