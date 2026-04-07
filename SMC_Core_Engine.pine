@@ -2006,6 +2006,12 @@ compose_long_debug_newline_upgrade_text(string long_source_upgrade_reason) =>
 compose_long_debug_newline_last_invalid_text(string long_last_invalid_source) =>
     '\n' + compose_long_debug_last_invalid_text(long_last_invalid_source)
 
+compose_long_debug_levels_text(float long_setup_trigger, float long_invalidation_level, string overhead_text) =>
+    'trig=' + u.format_level(long_setup_trigger) + ' | inv=' + u.format_level(long_invalidation_level) + ' | overhead=' + overhead_text
+
+compose_long_debug_event_context_text(int long_setup_backing_zone_touch_count, string freshness_text, string source_state_text, string zone_quality_text, string long_environment_focus_display) =>
+    'touch=' + str.tostring(long_setup_backing_zone_touch_count) + ' | ' + compose_long_debug_fresh_source_text(freshness_text, source_state_text) + ' | ' + compose_long_debug_zone_env_text(zone_quality_text, long_environment_focus_display)
+
 compose_long_debug_label_full_mode_text(string freshness_text, string source_state_text, string zone_quality_text, string long_environment_focus_display, string long_ready_blocker_text, string long_strict_blocker_text, float long_setup_trigger, float long_invalidation_level, string overhead_text) =>
     '\n' + compose_long_debug_fresh_source_text(freshness_text, source_state_text) + '\n' + compose_long_debug_zone_env_text(zone_quality_text, long_environment_focus_display) + '\n' + compose_long_debug_ready_strict_text(long_ready_blocker_text, long_strict_blocker_text) + '\n' + compose_long_debug_levels_text(long_setup_trigger, long_invalidation_level, overhead_text)
 
@@ -2014,12 +2020,6 @@ compose_long_debug_event_state_text(bool debug_mode_full, int long_setup_backing
     if debug_mode_full
         event_state_text := ' | ' + compose_long_debug_event_context_text(long_setup_backing_zone_touch_count, freshness_text, source_state_text, zone_quality_text, long_environment_focus_display) + event_state_text
     event_state_text
-
-compose_long_debug_event_context_text(int long_setup_backing_zone_touch_count, string freshness_text, string source_state_text, string zone_quality_text, string long_environment_focus_display) =>
-    'touch=' + str.tostring(long_setup_backing_zone_touch_count) + ' | ' + compose_long_debug_fresh_source_text(freshness_text, source_state_text) + ' | ' + compose_long_debug_zone_env_text(zone_quality_text, long_environment_focus_display)
-
-compose_long_debug_levels_text(float long_setup_trigger, float long_invalidation_level, string overhead_text) =>
-    'trig=' + u.format_level(long_setup_trigger) + ' | inv=' + u.format_level(long_invalidation_level) + ' | overhead=' + overhead_text
 
 compose_long_debug_primary_line(bool debug_mode_full, string long_setup_source_display, int long_setup_backing_zone_touch_count, string long_ready_blocker_text, string long_strict_blocker_text) =>
     string primary_line = compose_long_debug_compact_text(long_setup_source_display, long_ready_blocker_text, long_strict_blocker_text)
@@ -2384,18 +2384,31 @@ resolve_core_bias_text(string signal_bias_alignment) =>
         bias_text := 'Bearish'
     bias_text
 
-compose_why_now_text(string product_state, string long_setup_source_display, string signal_freshness, string signal_warnings, string long_environment_focus_display) =>
-    string why_now = 'No setup is active yet'
-    if product_state == 'ENTER LONG' or product_state == 'READY LONG'
-        why_now := long_setup_source_display + ' aligned with ' + long_environment_focus_display
+compose_why_now_text(string product_state, string long_setup_source_display, string signal_freshness, string signal_warnings, string long_ready_blocker_text, string long_strict_blocker_text, float long_trigger) =>
+    string why_now = 'Wait for a fresh reclaim into a valid pullback zone'
+    string ready_text = str.lower(long_ready_blocker_text)
+    string strict_text = str.lower(long_strict_blocker_text)
+    if product_state == 'ENTER LONG'
+        why_now := 'Trigger is live; execution conditions passed'
+    else if product_state == 'READY LONG'
+        why_now := 'Confirmed setup is ready'
+        if not na(long_trigger)
+            why_now += '; watch ' + u.format_level(long_trigger)
     else if product_state == 'PREPARE LONG'
-        why_now := long_setup_source_display + ' is building'
-    if signal_freshness == 'fresh'
-        why_now += ' | fresh'
-    else if signal_freshness == 'aging'
-        why_now += ' | aging'
+        why_now := long_setup_source_display == 'None' ? 'Wait for reclaim confirmation' : long_setup_source_display + ' is building; wait for reclaim confirmation'
+    else if product_state == 'BLOCKED'
+        if long_ready_blocker_text != '' and ready_text != 'ready'
+            why_now := long_ready_blocker_text
+        else if long_strict_blocker_text != '' and strict_text != 'strict'
+            why_now := long_strict_blocker_text
+        else
+            why_now := 'Setup invalidated; wait for a fresh reclaim'
+    if signal_freshness == 'fresh' and product_state != 'WAIT' and product_state != 'BLOCKED'
+        why_now += ' | fresh setup'
+    else if signal_freshness == 'aging' and product_state != 'WAIT' and product_state != 'BLOCKED'
+        why_now += ' | aging setup'
     if signal_warnings != ''
-        why_now += ' | ' + signal_warnings
+        why_now += ' | caution: ' + signal_warnings
     why_now
 
 compose_main_risk_text(string event_risk_state, string long_ready_blocker_text, string long_strict_blocker_text, string long_last_invalid_source, string signal_warnings, string provider_status) =>
@@ -2419,7 +2432,7 @@ compose_main_risk_text(string event_risk_state, string long_ready_blocker_text, 
     main_risk
 
 compose_trade_threshold_text(string trust_tier, int signal_quality_score) =>
-    trust_tier + ' (' + str.tostring(signal_quality_score) + '/100)'
+    'Trust: ' + trust_tier + ' | Score ' + str.tostring(signal_quality_score) + '/100'
 
 resolve_core_hero_color(string product_state) =>
     color hero_color = color.new(color.gray, 70)
@@ -2655,34 +2668,34 @@ resolve_bus_lean_pack_b(string ob_side, bool ob_fresh, string ob_mitigation_stat
     pack_bus_four(resolve_bus_ob_light_row(ob_side, ob_fresh, ob_mitigation_state), resolve_bus_fvg_light_row(fvg_side, fvg_fresh, fvg_invalidated), pack_bus_row(session_context_score, in_killzone ? 1 : 2), pack_bus_row(signal_quality_score, 0))
 
 compose_long_invalidated_alert_detail(string long_last_invalid_source, string long_micro_alert_suffix, string long_score_detail_suffix) =>
-    long_last_invalid_source + long_micro_alert_suffix + long_score_detail_suffix
+    'BLOCKED. ' + long_last_invalid_source + long_micro_alert_suffix + long_score_detail_suffix
 
 compose_long_entry_strict_alert_detail(string long_micro_alert_suffix, string long_score_detail_suffix) =>
-    'Entry Strict. Ready live, strict upgrades passed' + long_micro_alert_suffix + long_score_detail_suffix
+    'ENTER LONG. Strict execution conditions passed' + long_micro_alert_suffix + long_score_detail_suffix
 
 compose_long_entry_best_alert_detail(string long_micro_alert_suffix, string long_score_detail_suffix) =>
-    'Entry Best. Ready live, best upgrades passed' + long_micro_alert_suffix + long_score_detail_suffix
+    'ENTER LONG. Best execution conditions passed' + long_micro_alert_suffix + long_score_detail_suffix
 
 compose_long_ready_alert_detail(string long_setup_source_display, string long_strict_alert_suffix, string long_environment_alert_suffix, string long_micro_alert_suffix, string long_score_detail_suffix) =>
-    'Ready for ' + long_setup_source_display + ': lifecycle, gates, context, upgrades passed' + long_strict_alert_suffix + long_environment_alert_suffix + long_micro_alert_suffix + long_score_detail_suffix
+    'READY LONG. Confirmed setup from ' + long_setup_source_display + ' is ready for the trigger break' + long_strict_alert_suffix + long_environment_alert_suffix + long_micro_alert_suffix + long_score_detail_suffix
 
 compose_long_confirmed_alert_detail(string long_setup_source_display, string long_strict_alert_suffix, string long_environment_alert_suffix, string long_micro_alert_suffix, string long_score_detail_suffix) =>
-    'Confirmed from ' + long_setup_source_display + ': confirm lifecycle and filters passed' + long_strict_alert_suffix + long_environment_alert_suffix + long_micro_alert_suffix + long_score_detail_suffix
+    'PREPARE LONG. Setup confirmed from ' + long_setup_source_display + '; wait for READY LONG' + long_strict_alert_suffix + long_environment_alert_suffix + long_micro_alert_suffix + long_score_detail_suffix
 
 compose_long_clean_alert_detail(string long_environment_alert_suffix, string long_micro_alert_suffix, string long_score_detail_suffix) =>
-    'Clean. Confirmed setup with supportive gate context' + long_environment_alert_suffix + long_micro_alert_suffix + long_score_detail_suffix
+    'PREPARE LONG. Confirmed setup with supportive context' + long_environment_alert_suffix + long_micro_alert_suffix + long_score_detail_suffix
 
 compose_long_early_alert_detail(string long_micro_alert_suffix, string long_score_detail_suffix) =>
-    'Early. Strict reclaim in, internal confirmation starting' + long_micro_alert_suffix + long_score_detail_suffix
+    'PREPARE LONG. Strict reclaim is in; confirmation is starting' + long_micro_alert_suffix + long_score_detail_suffix
 
 compose_long_armed_plus_alert_detail(string long_micro_alert_suffix, string long_score_detail_suffix) =>
-    'Armed+. Strict reclaim in, setup armed' + long_micro_alert_suffix + long_score_detail_suffix
+    'PREPARE LONG. Strict reclaim is in; setup armed' + long_micro_alert_suffix + long_score_detail_suffix
 
 compose_long_armed_alert_detail(string long_setup_source_display, string long_micro_alert_suffix, string long_score_detail_suffix) =>
-    'Armed from ' + long_setup_source_display + ': reclaim and zone confirmation in' + long_micro_alert_suffix + long_score_detail_suffix
+    'PREPARE LONG. ' + long_setup_source_display + ' armed after reclaim confirmation' + long_micro_alert_suffix + long_score_detail_suffix
 
 compose_long_watchlist_alert_detail(string long_micro_alert_suffix, string long_score_detail_suffix) =>
-    'Watchlist. Bullish trend plus active pullback zone' + long_micro_alert_suffix + long_score_detail_suffix
+    'PREPARE LONG. Bullish trend plus active pullback zone' + long_micro_alert_suffix + long_score_detail_suffix
 
 compute_bullish_dynamic_alert_gates(bool enable_dynamic_alerts, bool bull_bos_sig, bool bull_choch_sig, OrderBlock new_ob_bull, bool bullish_fvg_alert, bool bullish_fvg_filled_alert, bool enable_live_break_alerts, bool live_exec, bool live_bull_ob_break, bool live_bull_fvg_fill, bool use_sd_confluence, bool sd_bullish_divergence_event, bool sd_higher_lows_event) =>
     bool dynamic_bull_bos_alert_active = false
@@ -3274,9 +3287,9 @@ update_latched_flag(bool current_latched, bool event_active, bool live_mode, boo
 
 
 var g_mode = 'Execution Mode'
-var ct.SignalMode signal_mode = input.enum(ct.SignalMode.CONFIRMED_ONLY, 'Signal Mode', group = g_mode, tooltip = 'Confirmed only is the safer non-repainting mode. Aggressive live allows intrabar high/low driven updates and alerts, so states can change before candle close, are not fully reconstructable after reload, and should be treated as realtime-only until the bar confirms.', display = display.status_line)
-var string long_user_preset = input.string('Standard', 'User Preset', options = ['Easy', 'Standard', 'Pro'], group = g_mode, tooltip = 'Easy keeps the long engine permissive and easier to operate. Standard preserves the current balanced workflow. Pro enables stricter lifecycle and execution gating for cleaner but rarer setups.', display = display.status_line)
-var bool compact_mode = input.bool(false, 'Visual Mode (Lite Hero)', group = g_mode, tooltip = 'Lite Hero surface for solo operation or sharing. Suppresses debug overlays and keeps a single decision-first surface. Engine logic is unchanged; only the visible surface is reduced.')
+var ct.SignalMode signal_mode = input.enum(ct.SignalMode.CONFIRMED_ONLY, 'Signal Mode', group = g_mode, tooltip = 'Choose between safer closed-bar confirmation and faster realtime updates. Confirmed only is the safer non-repainting mode. Aggressive live allows intrabar high/low driven updates and alerts, so states can change before candle close, are not fully reconstructable after reload, and should be treated as realtime-only until the bar confirms.', display = display.status_line)
+var string long_user_preset = input.string('Standard', 'User Preset', options = ['Easy', 'Standard', 'Pro'], group = g_mode, tooltip = 'Primary Lite operating layer. Easy keeps the long engine permissive and easier to operate. Standard preserves the current balanced workflow. Pro enables stricter lifecycle and execution gating for cleaner but rarer setups.', display = display.status_line)
+var bool compact_mode = input.bool(false, 'Lite Surface', group = g_mode, tooltip = 'Primary Lite surface for solo operation or sharing. Suppresses debug overlays and keeps a single decision-first surface. Engine logic is unchanged; only the visible surface is reduced.')
 
 var g_ltf = 'Lower Timeframe'
 var bool enable_ltf_sampling = input.bool(true, 'Use lower timeframe sampling', group = g_ltf, display = display.none, tooltip = 'Uses request.security_lower_tf() to summarize intrabar participation and pressure.')
@@ -3293,7 +3306,7 @@ var string mtf_trend_tf2 = input.timeframe(DEFAULT_TREND_TF_2, 'Trend TF 2', gro
 var string mtf_trend_tf3 = input.timeframe(DEFAULT_TREND_TF_3, 'Trend TF 3', group = g_mtf, inline = 'mtf3', display = display.none)
 
 var g_dashboard = 'Dashboard'
-var bool show_dashboard = input.bool(true, 'Show decision detail', group = g_dashboard, tooltip = 'Shows the companion detail surface. In Lite mode the hero card remains the primary surface.')
+var bool show_dashboard = input.bool(true, 'Show companion detail', group = g_dashboard, tooltip = 'Shows the companion detail surface. The core remains the only Lite-primary surface; this toggle adds explanatory context only.')
 var bool show_dashboard_ltf = input.bool(true, 'Show LTF details', group = g_dashboard, display = display.none)
 
 var g_alerts = 'Alerts'
@@ -3682,6 +3695,7 @@ var bull_ob_css = input.color(color.new(#3668f2, 80), '', group = g_ob, inline =
 var bull_ob_css_line = input.color(color.new(#3668f2, 15), '', group = g_ob, inline = 'OB', display = display.none)
 var ob_showlast = input.int(DEFAULT_OB_SHOW_LAST, 'Show last', minval = 1, group = g_ob, inline = 'OB', display = display.none)
 var bool show_ob_debug = input.bool(false, 'Show OB debug', group = g_ob, display = display.none)
+var bool show_fvg_debug = input.bool(false, 'Show FVG debug', group = 'Fair Value Gaps', display = display.none)
 var ob_filter_min_mult = input.float(DEFAULT_OB_FILTER_MIN_MULT, 'Size Filter (ATR x) Min', minval = 0, step = 0.1, group = g_ob, inline = 'OB Filter', display = display.none)
 var ob_filter_max_mult = input.float(DEFAULT_OB_FILTER_MAX_MULT, 'Max', minval = 1, step = 0.1, group = g_ob, inline = 'OB Filter', display = display.none, tooltip = 'Order Block size filter based on ATR multiples. Blocks smaller than the minimum or larger than the maximum are ignored.')
 var show_ob_id = false
@@ -5074,7 +5088,6 @@ var fvg_showlast = input.int(DEFAULT_FVG_SHOW_LAST, 'Show last', minval = 1, gro
 var fvg_extend_until_filled = input.bool(true, 'Extend until filled', group = g_fvg, inline = 'ext', display = display.none)
 var fvg_keep_filled = input.bool(true, 'Keep filled', group = g_fvg, inline = 'keep filled', display = display.none)
 var fvg_keep_filled_max = input.int(DEFAULT_KEEP_HISTORY, '', minval = 1, group = g_fvg, inline = 'keep filled', display = display.none)
-var bool show_fvg_debug = input.bool(false, 'Show FVG debug', group = g_fvg, display = display.none)
 var bull_fvg_css = input.color(color.new(#00ff68, 90), '', group = g_fvg, inline = 'show', display = display.none)
 var bull_fvg_line_css = input.color(color.new(#00ff68, 25), '', group = g_fvg, inline = 'show', display = display.none)
 var bull_fvg_css_filled = input.color(color.new(color.gray, 80), '', group = g_fvg, inline = 'keep filled', display = display.none)
@@ -5928,6 +5941,9 @@ plot(long_state.confirmed ? 1.0 : 0.0, 'BUS Confirmed', display = display.none)
 plot(long_ready_state ? 1.0 : 0.0, 'BUS Ready', display = display.none)
 plot(long_entry_best_state ? 1.0 : 0.0, 'BUS EntryBest', display = display.none)
 plot(long_entry_strict_state ? 1.0 : 0.0, 'BUS EntryStrict', display = display.none)
+bool core_plan_visible = long_visual_state >= 5 and not na(long_state.trigger) and not na(long_state.invalidation_level)
+plot(core_plan_visible ? long_state.trigger : na, 'Core Trigger', color = color.new(color.aqua, 0), linewidth = 2, style = plot.style_linebr)
+plot(core_plan_visible ? long_state.invalidation_level : na, 'Core Invalidation', color = color.new(color.orange, 0), linewidth = 2, style = plot.style_linebr)
 plot(bus_trigger_level, 'BUS Trigger', display = display.none)
 plot(bus_invalidation_level, 'BUS Invalidation', display = display.none)
 plot(lib_sq_score, 'BUS QualityScore', display = display.none)
@@ -5991,7 +6007,7 @@ if barstate.islast and compact_mode
     string core_bias_text = resolve_core_bias_text(lib_sq_bias_alignment)
     string core_trust_tier = resolve_trust_tier(lib_sq_tier, lib_sq_freshness, lib_erl_provider_status)
     string core_trade_threshold = compose_trade_threshold_text(core_trust_tier, lib_sq_score)
-    string core_why_now = compose_why_now_text(core_product_state, long_setup_source_display, lib_sq_freshness, lib_sq_warnings, long_environment_focus_display)
+    string core_why_now = compose_why_now_text(core_product_state, long_setup_source_display, lib_sq_freshness, lib_sq_warnings, long_ready_blocker_text, long_strict_blocker_text, long_state.trigger)
     string core_main_risk = compose_main_risk_text(event_risk_state, long_ready_blocker_text, long_strict_blocker_text, long_state.last_invalid_source, lib_sq_warnings, lib_erl_provider_status)
     string core_hero_text = compose_core_hero_text(core_product_state, core_bias_text, core_trade_threshold, core_why_now, core_main_risk)
     float core_hero_y = high + nz(atr, high * 0.01) * 1.15

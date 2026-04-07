@@ -27,13 +27,15 @@ Die Decision-First-Umstellung darf keine stillen Engine-Forks einfuehren.
 Deshalb gelten fuer die erste Migration diese Regeln:
 
 1. `compact_mode` bleibt die bestehende Kernvariable in `SMC_Core_Engine.pine`.
-   Die sichtbare Bezeichnung wurde in Richtung Lite-Hero umformuliert, aber der
+   Die sichtbare Bezeichnung lautet jetzt `Lite Surface`, aber der
    Schalter bleibt visual-only.
 2. `surface_mode` in `SMC_Dashboard.pine` bleibt ein Visualisierungsmodus.
-   `Compact Detail` ist die Default-Surface, `Pro Diagnostics` ist opt-in.
+   `Companion Summary` ist die Default-Surface, `Pro Diagnostics` ist opt-in.
 3. `entry_mode`, `min_quality_score`, `take_profit_r` und `use_take_profit` in
-   `SMC_Long_Strategy.pine` bleiben Wrapper-Controls. Sie aendern den
-   Strategy-Wrapper, aber nicht den Core-BUS-Contract.
+   `SMC_Long_Strategy.pine` bleiben Wrapper-Controls. Sichtbar heissen sie
+   `Execution Stage`, `Minimum Quality Score`, `Take Profit (R)` und
+   `Use Take Profit`. Sie aendern den Strategy-Wrapper, aber nicht den
+   Core-BUS-Contract.
 4. Bestehende BUS-Bindings fuer Dashboard und Strategy werden durch die neuen
    Default-Surfaces nicht neu verdrahtet. Die Visual-Umstellung darf keine
    zusaetzlichen Core-Gates aktivieren.
@@ -44,8 +46,8 @@ Deshalb gelten fuer die erste Migration diese Regeln:
 
 | Surface | Default | Hard Rule |
 | --- | --- | --- |
-| `SMC_Core_Engine.pine` | `compact_mode = false` mit Decision-First-Lite als klare Visual-Option | Visual-only, keine neue Engine-Semantik |
-| `SMC_Dashboard.pine` | `surface_mode = "Compact Detail"` | BUS binding order bleibt unveraendert |
+| `SMC_Core_Engine.pine` | `compact_mode = false` mit `Lite Surface` als klarer Visual-Option | Visual-only, keine neue Engine-Semantik |
+| `SMC_Dashboard.pine` | `surface_mode = "Companion Summary"` | BUS binding order bleibt unveraendert |
 | `SMC_Long_Strategy.pine` | `entry_mode = "Strict"`, `use_take_profit = true` | Wrapper-Control, kein neuer Producer |
 
 ## Operator-Only Companion Workflow
@@ -59,11 +61,12 @@ Das bedeutet:
    Public-Setup-Strecke verstehen.
 2. Die BUS binding order wird weiterhin strikt top-to-bottom anhand des
    Manifests gebunden.
-3. Die neue Compact Detail Surface erscheint erst nach korrekter Bindung als
+3. Die neue Companion Summary Surface erscheint erst nach korrekter Bindung als
    nutzbare Entscheidungserklaerung.
 4. `Pro Diagnostics` ist fuer Operatoren und Audit gedacht, nicht als
    Default-Startpunkt fuer neue Nutzer.
-5. `SMC_Long_Strategy.pine` ist ein Wrapper fuer Orders und Backtests, nicht
+5. `SMC_Long_Strategy.pine` ist die Execution-Surface fuer Orders und
+   Backtests, nicht
    die Quelle neuer Signallogik.
 
 ## Binding Workflow
@@ -75,8 +78,8 @@ Das bedeutet:
 4. `SMC_Long_Strategy.pine` hinzufuegen.
 5. Die acht Strategy-`input.source(...)`-Kanaele exakt top-to-bottom an dieselben
    Core-BUS-Serien binden.
-6. Danach zuerst `Compact Detail` fuer die schnelle Leseflaeche nutzen.
-7. `Entry Mode`, `Min Quality Score`, `Take Profit R` und `Use Take Profit`
+6. Danach zuerst `Companion Summary` fuer die schnelle Companion-Leseflaeche nutzen.
+7. `Execution Stage`, `Minimum Quality Score`, `Take Profit (R)` und `Use Take Profit`
    nur als Wrapper-Steuerung verstehen.
 
 ## Validation Hooks
@@ -97,10 +100,10 @@ Diese Tests sichern insbesondere:
 
 ## Operator Notes
 
-- `Compact Detail` ist fuer schnelle Entscheidungserklaerung gedacht.
+- `Companion Summary` ist fuer schnelle Entscheidungserklaerung gedacht.
 - `Pro Diagnostics` ist eine operator-only Diagnoseflaeche.
-- `SMC_Long_Strategy.pine` ist ein Wrapper fuer Execution und Backtest auf dem
-   Core-BUS.
+- `SMC_Long_Strategy.pine` ist die Execution-Surface fuer Backtest und
+   Ausfuehrungsplanung auf dem Core-BUS.
 - Wenn Binding-Drift vermutet wird, immer zuerst die Contract-Tests laufen
   lassen statt Bindings manuell umzubenennen.
 

@@ -8,6 +8,12 @@ All notable changes to this project are documented in this file.
 
 ### Changed (2026-04-07)
 
+- **SMC mainline surface implementation wave:**
+  - Renamed the visible Core/Dashboard/Strategy controls to the new Lite, Companion, and Execution-surface language in `SMC_Core_Engine.pine`, `SMC_Dashboard.pine`, and `SMC_Long_Strategy.pine`.
+  - Added actionable trigger and invalidation lines directly to the Core so `READY LONG` and `ENTER LONG` remain legible without switching to a second script.
+  - Reordered the dashboard summary first fold around action, blocker reason, and risk plan, and replaced terse blocker copy with clearer trader-facing text.
+  - Aligned the strategy guide, migration guide, and manual validation runbooks with the new `Lite Surface`, `Companion Summary`, and `Execution Stage` terminology.
+
 - **SMC post-cut documentation cleanup:**
   - Clarified the post-cut cleanup guardrails in `docs/smc-lite-pro-product-cut.md` so the remaining follow-up items read as later architecture rules rather than open release blockers.
   - Added a UX-review-derived surface concept, concrete copy deltas, and a prioritized implementation backlog for the SMC Core, Dashboard, and Long Strategy mainline surfaces in `docs/smc-lite-pro-product-cut.md`.

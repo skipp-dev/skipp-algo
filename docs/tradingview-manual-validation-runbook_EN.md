@@ -165,8 +165,9 @@ Fail:
 
 1. Add [../SMC_Dashboard.pine](../SMC_Dashboard.pine) to the same chart.
 2. Bind all 58 `input.source()` fields exactly to the core series.
-3. If you want to validate `Debug Flags` or `Long Debug`, set the three local debug mirror toggles in the dashboard to match the core's effective debug configuration.
-4. Check visibility and response of the following sections:
+3. Confirm that `Surface Mode = Companion Summary` is active and that `Show Companion Table` plus `Show Trade Levels` produce the expected companion cut.
+4. If you want to validate `Debug Flags` or `Long Debug`, set the three local debug mirror toggles in the dashboard to match the core's effective debug configuration.
+5. Check visibility and response of the following sections:
 
 - Lifecycle
 - Hard Gates
@@ -181,7 +182,8 @@ Fail:
 1. The dashboard compiles without errors.
 2. All 58 bindings are fully selectable.
 3. The dashboard remains visible.
-4. The sections respond plausibly to the core state.
+4. The default companion surface shows `SMC Pro Companion` with the row order `Action`, `Why Now / Why Blocked`, `Risk Plan`, `Structure`, `Session`, `Event Risk`, `Data Quality`, `Short-term Flow`.
+5. The sections respond plausibly to the core state.
 
 ### Dashboard Scenario Validation
 
@@ -249,7 +251,7 @@ Fail:
 
 1. Add [../SMC_Long_Strategy.pine](../SMC_Long_Strategy.pine) to the same chart.
 2. Bind the 8 `input.source()` fields exactly to the core series.
-3. Validate `Entry Mode`, `Trigger`, `Invalidation`, `Stop`, and `Targets` against the documented contract.
+3. Validate `Execution Stage`, `Trigger`, `Invalidation`, `Stop`, and `Targets` against the documented contract.
 
 ### Strategy Expected Observations
 

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This guide documents `SMC_Long_Strategy.pine` as the execution wrapper of the
+This guide documents `SMC_Long_Strategy.pine` as the execution surface of the
 active SMC TradingView mainline.
 
 The active mainline is:
@@ -12,7 +12,7 @@ The active mainline is:
 2. [../SMC_Dashboard.pine](../SMC_Dashboard.pine) as the Pro diagnostics
    companion.
 3. [../SMC_Long_Strategy.pine](../SMC_Long_Strategy.pine) as the Pro execution
-   wrapper on the frozen 8-channel executable contract.
+  surface on the frozen 8-channel executable contract.
 
 The product-cut background and the current guardrails are documented in
 [smc-lite-pro-product-cut.md](smc-lite-pro-product-cut.md).
@@ -20,7 +20,8 @@ The product-cut background and the current guardrails are documented in
 ## What The Strategy Is
 
 - A thin consumer of the core BUS, not a second producer.
-- The TradingView wrapper for backtests, alerts, and execution-plan display.
+- The TradingView execution surface for backtests, alerts, and execution-plan
+  display.
 - A surface with a small visible setup layer plus operator-only `input.source()`
   bindings.
 - Bound to the executable subset of the core contract rather than to the full
@@ -67,11 +68,14 @@ decision explicitly reopens it.
 
 The visible product surface of the strategy is intentionally small:
 
-- `entry_mode` selects which already-exported execution tier the wrapper uses.
-- `min_quality_score` adds a wrapper-level threshold on top of the exported
-  core quality score.
-- `take_profit_r` controls the wrapper take-profit plan distance.
-- `use_take_profit` toggles the wrapper take-profit behavior.
+- `Execution Stage` (`entry_mode`) selects which already-exported execution
+  tier the surface uses.
+- `Minimum Quality Score` (`min_quality_score`) adds a wrapper-level threshold
+  on top of the exported core quality score.
+- `Take Profit (R)` (`take_profit_r`) controls the wrapper take-profit plan
+  distance.
+- `Use Take Profit` (`use_take_profit`) toggles the wrapper take-profit
+  behavior.
 
 These controls change wrapper behavior only. They do not widen the core BUS and
 do not introduce a second logic family.
@@ -110,7 +114,7 @@ For an external or independent cross-check, use:
 - `SMC_Core_Engine.pine` remains the only Lite-primary surface.
 - A dedicated Lite consumer is intentionally deferred until it can exist
   without a logic fork, a second producer, or a new binding workflow.
-- `SMC_Long_Strategy.pine` remains a Pro execution wrapper on the frozen
+- `SMC_Long_Strategy.pine` remains a Pro execution surface on the frozen
   8-channel contract.
 - Dashboard-only or Pro-only cleanup work must not silently widen the Lite
   contract or mutate the strategy bindings.
@@ -121,7 +125,8 @@ For an external or independent cross-check, use:
 ## Operator Notes
 
 - Bind sources strictly top-to-bottom; do not rename or reorder BUS labels.
-- Use the dashboard for diagnostics and the strategy for execution/backtest.
+- Use the dashboard for companion diagnostics and the strategy for
+  execution/backtest.
 - If binding drift is suspected, run the contract tests before touching source
   labels or guide text.
 - The authoritative operator workflow is further detailed in

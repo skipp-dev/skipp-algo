@@ -171,8 +171,11 @@ Fail:
 
 1. [../SMC_Dashboard.pine](../SMC_Dashboard.pine) auf denselben Chart legen.
 2. Alle 58 `input.source()`-Felder exakt mit den Core-Serien belegen.
-3. Falls `Debug Flags` oder `Long Debug` validiert werden sollen, die drei lokalen Debug-Mirror-Toggles im Dashboard passend zur effektiven Core-Konfiguration setzen.
-4. Sichtbarkeit und Reaktion der Sektionen prüfen:
+3. Sicherstellen, dass `Surface Mode = Companion Summary` aktiv ist und die
+   Toggles `Show Companion Table` sowie `Show Trade Levels` den erwarteten
+   Companion-Zuschnitt zeigen.
+4. Falls `Debug Flags` oder `Long Debug` validiert werden sollen, die drei lokalen Debug-Mirror-Toggles im Dashboard passend zur effektiven Core-Konfiguration setzen.
+5. Sichtbarkeit und Reaktion der Sektionen prüfen:
 
 - Lifecycle
 - Hard Gates
@@ -187,7 +190,10 @@ Fail:
 1. Dashboard kompiliert ohne Fehler.
 2. Alle 58 Bindings sind vollständig auswählbar.
 3. Das Dashboard bleibt sichtbar.
-4. Die Sektionen reagieren plausibel auf den Core-Zustand.
+4. Die Default-Companion-Flaeche zeigt `SMC Pro Companion` mit der Reihenfolge
+   `Action`, `Why Now / Why Blocked`, `Risk Plan`, `Structure`, `Session`,
+   `Event Risk`, `Data Quality`, `Short-term Flow`.
+5. Die Sektionen reagieren plausibel auf den Core-Zustand.
 
 ### Dashboard Szenario-Prüfung
 
@@ -255,7 +261,7 @@ Fail:
 
 1. [../SMC_Long_Strategy.pine](../SMC_Long_Strategy.pine) auf denselben Chart legen.
 2. Die 8 `input.source()`-Felder exakt mit den Core-Serien belegen.
-3. `Entry Mode`, `Trigger`, `Invalidation`, `Stop` und `Targets` gegen den dokumentierten Vertrag prüfen.
+3. `Execution Stage`, `Trigger`, `Invalidation`, `Stop` und `Targets` gegen den dokumentierten Vertrag prüfen.
 
 ### Strategy Erwartete Beobachtungen
 

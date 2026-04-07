@@ -3,7 +3,7 @@
 
 //@version=6
 
-// Product role: pro-primary diagnostics companion. Hidden BUS bindings remain operator-only; the visible surface mode controls the user-facing dashboard cut.
+// Product role: pro companion surface. Hidden BUS bindings remain operator-only; the visible surface mode controls the user-facing dashboard cut.
 
 indicator("SMC Dashboard", "SMC Dash", overlay = true, max_labels_count = 50)
 
@@ -75,9 +75,9 @@ src_objects_count_pack = input.source(close, "BUS ObjectsCountPack", group = g_b
 src_lean_pack_a = input.source(close, "BUS LeanPackA", group = g_bus_lean, display = display.none, tooltip = "Lean surface bindings are grouped last because they are additive hero-surface feeds.")
 src_lean_pack_b = input.source(close, "BUS LeanPackB", group = g_bus_lean, display = display.none)
 
-surface_mode = input.string("Compact Detail", "Surface Mode", options = ["Compact Detail", "Pro Diagnostics"], group = g_surface, tooltip = "Compact Detail is the default Lite surface. Pro Diagnostics keeps the full operator table.")
-show_table = input.bool(true, "Show Decision Detail", group = g_surface)
-show_risk_lines = input.bool(true, "Show Trigger/Invalidation", group = g_surface)
+surface_mode = input.string("Companion Summary", "Surface Mode", options = ["Companion Summary", "Pro Diagnostics"], group = g_surface, tooltip = "Companion Summary is the default companion surface. Pro Diagnostics keeps the full operator table for operator audit.")
+show_table = input.bool(true, "Show Companion Table", group = g_surface)
+show_risk_lines = input.bool(true, "Show Trade Levels", group = g_surface)
 show_state_bg = input.bool(false, "Highlight Actionable State", group = g_surface)
 local_ob_debug_enabled = input.bool(false, "OB Debug Enabled", group = g_local_debug, display = display.none, tooltip = "Mirror the core's effective debug flags here if you want the local Debug Flags and Long Debug rows to match the core setup.")
 local_fvg_debug_enabled = input.bool(false, "FVG Debug Enabled", group = g_local_debug, display = display.none)
@@ -389,13 +389,13 @@ decode_lean_session_text(int row_code) =>
 zone_reason_text(int zone_code) =>
     string label_text = "No Long Zone"
     if zone_code == 1
-        label_text := "Zone touched"
+        label_text := "Pullback zone touched"
     else if zone_code == 2
-        label_text := "In FVG Zone"
+        label_text := "In fair value gap zone (FVG)"
     else if zone_code == 3
-        label_text := "In OB Zone"
+        label_text := "In order block zone (OB)"
     else if zone_code == 4
-        label_text := "In OB + FVG Zone"
+        label_text := "In order block + fair value gap zone"
     label_text
 
 plan_text(bool active, float trigger_level, float stop_level, float target_1, float target_2) =>
@@ -408,29 +408,44 @@ trigger_text(bool active, float trigger_level, float invalidation_level) =>
     if not active
         "n/a"
     else
-        "Trig " + str.tostring(trigger_level, format.mintick) + " | Inv " + str.tostring(invalidation_level, format.mintick)
+        "Trigger " + str.tostring(trigger_level, format.mintick) + " | Invalidation " + str.tostring(invalidation_level, format.mintick)
 
-dashboard_compact_why_now_text(int state_code, int zone_code, int lean_struct_row_code, int lean_ob_row_code, int lean_fvg_row_code) =>
-    string why_text = "No reclaim confirmation yet"
-    if state_code >= 5
-        why_text := decode_lean_struct_text(lean_struct_row_code)
+dashboard_compact_why_now_text(int state_code, int zone_code, int lean_struct_row_code, int lean_ob_row_code, int lean_fvg_row_code, int ready_blocker_code, int strict_blocker_code) =>
+    string why_text = "Waiting for reclaim confirmation"
+    string ready_blocker_text = decode_ready_gate_text(ready_blocker_code)
+    string strict_blocker_text = decode_strict_gate_text(strict_blocker_code)
+    if state_code >= 6
+        why_text := "Execution conditions passed; follow the trade levels"
+    else if state_code == 5
+        why_text := "Confirmed setup is ready; watch the trigger break"
+    else if state_code == -1
+        if ready_blocker_text != "Ready"
+            why_text := ready_blocker_text
+        else if strict_blocker_text != "Strict"
+            why_text := strict_blocker_text
+        else
+            why_text := "Setup invalidated; wait for a fresh reclaim"
+    else if state_code == 4
+        why_text := ready_blocker_text != "Ready" ? ready_blocker_text : "Confirmed setup; wait for READY LONG"
     else if zone_code > 0
         why_text := zone_reason_text(zone_code)
     else if row_status(lean_ob_row_code) > 0
         why_text := decode_lean_ob_text(lean_ob_row_code)
     else if row_status(lean_fvg_row_code) > 0
         why_text := decode_lean_fvg_text(lean_fvg_row_code)
+    else if row_status(lean_struct_row_code) > 0
+        why_text := decode_lean_struct_text(lean_struct_row_code)
     why_text
 
 dashboard_compact_risk_plan_text(bool actionable_state, float trigger_level, float stop_level, float target_1, float target_2) =>
-    actionable_state ? plan_text(true, trigger_level, stop_level, target_1, target_2) : "Hidden until READY"
+    actionable_state ? plan_text(true, trigger_level, stop_level, target_1, target_2) : "Available from READY LONG"
 
 source_kind_text(int source_code) =>
     string label_text = "None"
     if source_code == 1
-        label_text := "OB"
+        label_text := "Order Block (OB)"
     else if source_code == 2
-        label_text := "FVG"
+        label_text := "Fair Value Gap (FVG)"
     else if source_code == 3
         label_text := "Swing Low"
     else if source_code == 4
@@ -634,30 +649,30 @@ decode_quality_env_text(int row_code) =>
     if reason_code == 1
         label_text := "Passed"
     else if reason_code == 2
-        label_text := "Market Gate Blocked"
+        label_text := "Market context blocked"
     else if reason_code == 3
-        label_text := "Vola Gate Blocked"
+        label_text := "Volatility regime blocked"
     label_text
 
 decode_quality_strict_text(int row_code) =>
     int reason_code = row_reason(row_code)
-    string label_text = "DDVI Blocked"
+    string label_text = "Volume divergence blocked (DDVI)"
     if reason_code == 1
         label_text := "Passed"
     else if reason_code == 2
         label_text := "Eligible"
     else if reason_code == 3
-        label_text := "LTF Blocked"
+        label_text := "Lower-timeframe support blocked (LTF)"
     else if reason_code == 4
-        label_text := "HTF Blocked"
+        label_text := "Higher-timeframe trend blocked (HTF)"
     else if reason_code == 5
-        label_text := "Accel Blocked"
+        label_text := "Flow acceleration blocked"
     else if reason_code == 6
-        label_text := "SD Blocked"
+        label_text := "Divergence support blocked (SD)"
     else if reason_code == 7
-        label_text := "Vol Blocked"
+        label_text := "Volatility context blocked"
     else if reason_code == 8
-        label_text := "Stretch Blocked"
+        label_text := "Stretch context blocked"
     label_text
 
 decode_close_text(int row_code) =>
@@ -980,23 +995,23 @@ decode_ready_gate_text(int row_code) =>
     else if reason_code == 15
         label_text := "Trade hard gate"
     else if reason_code == 16
-        label_text := "Market gate"
+        label_text := "Market context blocked"
     else if reason_code == 17
-        label_text := "Vola gate"
+        label_text := "Volatility regime blocked"
     else if reason_code == 18
-        label_text := "Environment gate"
+        label_text := "Environment blocked"
     else if reason_code == 19
-        label_text := "Quality gate"
+        label_text := "Signal quality blocked"
     else if reason_code == 20
-        label_text := "Accel gate"
+        label_text := "Flow acceleration blocked"
     else if reason_code == 21
-        label_text := "SD gate"
+        label_text := "Divergence support blocked (SD)"
     else if reason_code == 22
-        label_text := "Vol gate"
+        label_text := "Volatility context blocked"
     else if reason_code == 23
-        label_text := "Stretch gate"
+        label_text := "Stretch context blocked"
     else if reason_code == 24
-        label_text := "DDVI gate"
+        label_text := "Volume divergence blocked (DDVI)"
     label_text
 
 decode_strict_gate_text(int row_code) =>
@@ -1007,19 +1022,19 @@ decode_strict_gate_text(int row_code) =>
     else if reason_code == 3
         label_text := "Signal Quality blocked"
     else if reason_code == 4
-        label_text := "LTF blocked"
+        label_text := "Lower-timeframe support blocked (LTF)"
     else if reason_code == 5
-        label_text := "HTF blocked"
+        label_text := "Higher-timeframe trend blocked (HTF)"
     else if reason_code == 6
-        label_text := "Accel blocked"
+        label_text := "Flow acceleration blocked"
     else if reason_code == 7
-        label_text := "SD blocked"
+        label_text := "Divergence support blocked (SD)"
     else if reason_code == 8
-        label_text := "Vol blocked"
+        label_text := "Volatility context blocked"
     else if reason_code == 9
-        label_text := "Stretch blocked"
+        label_text := "Stretch context blocked"
     else if reason_code == 10
-        label_text := "DDVI blocked"
+        label_text := "Volume divergence blocked (DDVI)"
     label_text
 
 quality_bounds_text(float score_value) =>
@@ -1106,8 +1121,8 @@ string long_debug_text = row_status(debug_state_row_code) == 0 ? "off" : "state=
 
 bool actionable_state = state_code >= 5
 
-plot(show_risk_lines and actionable_state ? src_trigger : na, "Core Trigger", color = color.new(color.aqua, 0), linewidth = 2, style = plot.style_linebr)
-plot(show_risk_lines and actionable_state ? src_invalidation : na, "Core Invalidation", color = color.new(color.orange, 0), linewidth = 2, style = plot.style_linebr)
+plot(show_risk_lines and actionable_state ? src_trigger : na, "Trade Trigger", color = color.new(color.aqua, 0), linewidth = 2, style = plot.style_linebr)
+plot(show_risk_lines and actionable_state ? src_invalidation : na, "Trade Invalidation", color = color.new(color.orange, 0), linewidth = 2, style = plot.style_linebr)
 bgcolor(show_state_bg and state_code >= 5 ? color.new(color.green, 90) : na)
 
 var table smc_dashboard = table.new(position.bottom_right, 2, 58, border_width = 0)
@@ -1115,19 +1130,19 @@ var table smc_dashboard = table.new(position.bottom_right, 2, 58, border_width =
 if show_table and barstate.islast
     color txt = chart.fg_color
     color header_bg = color.new(color.black, 100)
-    if surface_mode == "Compact Detail"
-        dashboard_row(smc_dashboard, 0, "SMC Decision Detail", "Compact | Operator bindings hidden", header_bg, txt)
+    if surface_mode == "Companion Summary"
+        dashboard_row(smc_dashboard, 0, "SMC Pro Companion", "Companion Summary | Operator bindings hidden", header_bg, txt)
         dashboard_row(smc_dashboard, 1, "Action", dashboard_product_state_text(state_code), status_bg(state_code), txt)
-        dashboard_row(smc_dashboard, 2, "Structure", setup_text(state_code, source_code), status_bg(setup_state), txt)
-        dashboard_row(smc_dashboard, 3, "Session", decode_session_text(session_row_code), status_bg(row_status(session_row_code)), txt)
-        dashboard_row(smc_dashboard, 4, "Event Risk", decode_event_risk_text(event_risk_row_code), status_bg(row_status(event_risk_row_code)), txt)
-        dashboard_row(smc_dashboard, 5, "Data Quality", decode_lean_sq_text(lean_sq_row_code), status_bg(row_status(lean_sq_row_code)), txt)
-        dashboard_row(smc_dashboard, 6, "Short-term Pressure", decode_ltf_delta_text(ltf_delta_row_code, src_ltf_volume_delta), status_bg(row_status(ltf_delta_row_code)), txt)
-        dashboard_row(smc_dashboard, 7, "Why Now", dashboard_compact_why_now_text(state_code, zone_code, lean_struct_row_code, lean_ob_row_code, lean_fvg_row_code), status_bg(actionable_state ? 5 : state_code >= 2 ? 3 : 0), txt)
-        dashboard_row(smc_dashboard, 8, "Risk Plan", dashboard_compact_risk_plan_text(actionable_state, src_trigger, src_stop_level, src_target_1, src_target_2), status_bg(actionable_state ? 5 : 0), txt)
+        dashboard_row(smc_dashboard, 2, "Why Now / Why Blocked", dashboard_compact_why_now_text(state_code, zone_code, lean_struct_row_code, lean_ob_row_code, lean_fvg_row_code, ready_gate_row_code, strict_gate_row_code), status_bg(actionable_state ? 5 : state_code >= 2 ? 3 : row_status(ready_gate_row_code)), txt)
+        dashboard_row(smc_dashboard, 3, "Risk Plan", dashboard_compact_risk_plan_text(actionable_state, src_trigger, src_stop_level, src_target_1, src_target_2), status_bg(actionable_state ? 5 : 0), txt)
+        dashboard_row(smc_dashboard, 4, "Structure", setup_text(state_code, source_code), status_bg(setup_state), txt)
+        dashboard_row(smc_dashboard, 5, "Session", decode_session_text(session_row_code), status_bg(row_status(session_row_code)), txt)
+        dashboard_row(smc_dashboard, 6, "Event Risk", decode_event_risk_text(event_risk_row_code), status_bg(row_status(event_risk_row_code)), txt)
+        dashboard_row(smc_dashboard, 7, "Data Quality", decode_lean_sq_text(lean_sq_row_code), status_bg(row_status(lean_sq_row_code)), txt)
+        dashboard_row(smc_dashboard, 8, "Short-term Flow", decode_ltf_delta_text(ltf_delta_row_code, src_ltf_volume_delta), status_bg(row_status(ltf_delta_row_code)), txt)
         table.clear(smc_dashboard, 0, 9, 1, 57)
     else
-        dashboard_row(smc_dashboard, 0, "SMC Dashboard", "v5.5d Pro Diagnostics | operator companion", header_bg, txt)
+        dashboard_row(smc_dashboard, 0, "SMC Pro Companion", "v5.5d Pro Diagnostics | operator companion", header_bg, txt)
         // ── PRO: decision lifecycle first, then mirrored lite summaries, then full diagnostics ──
         section_row(smc_dashboard, 1, "[ Decision Lifecycle ]", header_bg, txt)
         dashboard_row(smc_dashboard, 2, "Trend", trend_text(trend_now), status_bg(trend_now == 2 ? 5 : trend_now == 0 ? -1 : 0), txt)
