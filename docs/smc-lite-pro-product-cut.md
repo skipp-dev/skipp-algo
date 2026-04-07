@@ -32,6 +32,24 @@ relevanten Haupt- und Nebenflaechen geschlossen.
 - Verifiziert wurde das Ganze mit fokussierten Python- und TypeScript-Tests
   sowie einem `tsc --noEmit`-Lauf.
 
+## Post-Cut Cleanup Update 2026-04-07
+
+Die Folgepunkte am Dokumentende sind jetzt als Doku- und Betriebsregeln
+nachgezogen. Sie sind kein neuer Closure-Blocker fuer den aktiven
+SMC-Hauptpfad.
+
+- Der Lite-Contract bleibt als eingefrorene kanonische Teilmenge im
+  Product-Cut-Manifest verankert und ist der Referenzpunkt fuer Release-,
+  Preflight- und Wrapper-Doku.
+- `SMC_Core_Engine.pine` bleibt die einzige Lite-Primary-Surface. Eine neue
+  Lite-Consumer-Surface wird bewusst nicht vorgezogen, solange sie nicht ohne
+  Logikfork, neuen Producer oder neue Binding-Strecke auskommt.
+- Die Pro-only-Transportbereinigung bleibt ein separater spaeterer
+  Architekturpfad. Sie ist kein stiller Teil des aktiven Mainline-Contracts.
+- Die begleitende Doku wurde auf diesen Stand gezogen: der Strategy-Guide,
+  die manuellen Validation-Runbooks, der Doku-Index und die README-Verweise
+  spiegeln jetzt denselben Mainline- und Guardrail-Stand.
+
 ## Archivierter Vorzustand 2026-04-06 22:20:48 CEST
 
 Die folgende Bestandsaufnahme ist der unmittelbar vor dem Closure Update
@@ -771,8 +789,17 @@ sollen nicht leichtfertig neu zugeschnitten werden:
 
 ## Naechste Umsetzung nach diesem Cut
 
+Diese Punkte bleiben Guardrails fuer spaetere Folgeslices, nicht offene
+Release-Blocker fuer den aktuellen Product-Cut.
+
 1. Den Lite-Contract im Manifest als kanonische Teilmenge stabil halten.
+  Status 2026-04-07: aktiv eingefroren; Aenderungen daran brauchen einen
+  separaten Product-Cut-Entscheid statt stiller Scope-Ausweitung.
 2. Eine dedizierte Lite-Consumer-Surface nur dann bauen, wenn sie ohne neue
-   Logikforks auskommt.
+  Logikforks auskommt.
+  Status 2026-04-07: bewusst nicht aktiv; `SMC_Core_Engine.pine` bleibt die
+  normale Lite-Surface.
 3. Pro-only Packs spaeter separat entkoppeln oder neu schneiden, ohne den
   Lite-Contract zu verwackeln.
+  Status 2026-04-07: als spaeterer Domain-/Bus-Folgepfad dokumentiert, nicht
+  als laufende Mainline-Aenderung.

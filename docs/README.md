@@ -4,6 +4,8 @@ This index anchors the current producer/consumer contract documentation for the 
 
 Use these files as the starting point before changing the split architecture or the bus contract:
 
+- [smc-lite-pro-product-cut.md](smc-lite-pro-product-cut.md)
+- [TRADINGVIEW_STRATEGY_GUIDE.md](TRADINGVIEW_STRATEGY_GUIDE.md)
 - [smc-validation-status.md](smc-validation-status.md)
 - [structure_contract_architecture.md](structure_contract_architecture.md)
 - [adr/0001-structure-contract-normalization.md](adr/0001-structure-contract-normalization.md)
@@ -28,6 +30,7 @@ Use these files as the starting point before changing the split architecture or 
 Machine-readable TradingView release tracking artifact:
 
 - [../artifacts/tradingview/library_release_manifest.json](../artifacts/tradingview/library_release_manifest.json)
+- [../artifacts/tradingview/smc_product_cut_manifest.json](../artifacts/tradingview/smc_product_cut_manifest.json)
 
 Authoritative code references for the current contract:
 
@@ -44,6 +47,7 @@ Authoritative TradingView release-layer code references:
 Primary TradingView automation entry points:
 
 - `npm run tv:preflight` for mutating repo-source validation
+- `npm run tv:preflight:smc-mainline` for the canonical SMC mainline gate
 - `npm run tv:smoke-readonly` for non-writing existing-script smoke validation
 
 Current workspace caveat:

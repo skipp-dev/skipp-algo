@@ -6,6 +6,14 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Changed (2026-04-07)
+
+- **SMC post-cut documentation cleanup:**
+  - Clarified the post-cut cleanup guardrails in `docs/smc-lite-pro-product-cut.md` so the remaining follow-up items read as later architecture rules rather than open release blockers.
+  - Replaced the stale SkippALGO strategy guide with an SMC mainline wrapper guide in `docs/TRADINGVIEW_STRATEGY_GUIDE.md`.
+  - Refreshed the German and English TradingView manual validation runbooks to reflect that the canonical `tv:preflight:smc-mainline` gate is reproducible from this workspace again.
+  - Updated `docs/README.md` and the root `README.md` to point at the canonical SMC mainline gate and product-cut references.
+
 ### Changed (2026-04-06)
 
 - **TradingView decision-first first-release closure:**

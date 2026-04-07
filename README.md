@@ -56,9 +56,21 @@ Run the shared validation and release jobs:
 
 ```bash
 npm run tv:preflight
+npm run tv:preflight:smc-mainline
 npm run tv:preflight:decision-first
 npm run tv:publish-micro-library
 ```
+
+The canonical SMC TradingView gate is `npm run tv:preflight:smc-mainline`.
+It validates the active mainline path `SMC_Core_Engine.pine` +
+`SMC_Dashboard.pine` + `SMC_Long_Strategy.pine` against the product-cut
+manifest.
+
+Product-cut reference docs:
+
+- `docs/smc-lite-pro-product-cut.md`
+- `docs/TRADINGVIEW_STRATEGY_GUIDE.md`
+- `docs/smc-validation-status.md`
 
 The TradingView publish flow is fail-closed: reopening the published script must resolve the exact script identity from canonical editor context, version evidence must come from exact script-bound version context, and body-level version text is retained only as diagnostic fallback. The local publish contract also requires the generated contiguous alias block to appear exactly once in the core consumer. The legacy `scripts/99_full_release.ts` path is intentionally blocked.
 

@@ -32,12 +32,19 @@ The goal is a clear pass/fail decision for the current TradingView contract stat
 
 ## Local Prerequisite Check
 
-Workspace refresh: 2026-04-03
+Workspace refresh: 2026-04-07
 
 1. The entry scripts `scripts/tv_preflight.ts`, `scripts/tv_publish_micro_library.ts`, and `scripts/create_tradingview_storage_state.ts` are present locally.
-2. The shared TradingView automation layer imported from `automation/tradingview/lib/...` is not present in this checkout.
-3. Neither `automation/tradingview/reports` nor a reusable auth artifact such as `automation/tradingview/auth/storage-state.json` is present locally.
-4. Result: a fresh live preflight run is not reproducible from this working tree. This runbook therefore remains the manual external path until the automation prerequisites are restored.
+2. The shared TradingView automation layer under `automation/tradingview/lib/...` is present in this checkout.
+3. `automation/tradingview/reports` and reusable auth artifacts under `automation/tradingview/auth/...` are present in this workspace.
+4. Result: the canonical repo-side live check is reproducible again from this working tree via `npm run tv:preflight:smc-mainline`.
+5. This runbook remains the manual cross-check for external review runs, symbol/timeframe-specific observations, and independently documented validation.
+
+## Recommended Gate Order
+
+1. Run `npm run tv:preflight:smc-mainline` first as the canonical mainline gate.
+2. Use this runbook afterwards when you need a manual cross-check or an externally documented review run.
+3. Use `scripts/smc_bus_manifest.py` plus `artifacts/tradingview/smc_product_cut_manifest.json` as the canonical source for roles, scope, and binding order.
 
 ## Recommended Order In TradingView
 

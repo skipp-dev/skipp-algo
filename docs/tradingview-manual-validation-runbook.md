@@ -36,12 +36,19 @@ Repo-Regressionen abgesichert.
 
 ## Lokaler Prereq-Check
 
-Workspace-Refresh: 2026-04-03
+Workspace-Refresh: 2026-04-07
 
 1. Die Entry-Skripte `scripts/tv_preflight.ts`, `scripts/tv_publish_micro_library.ts` und `scripts/create_tradingview_storage_state.ts` sind lokal vorhanden.
-2. Die von diesen Skripten importierte gemeinsame TradingView-Automationsschicht unter `automation/tradingview/lib/...` ist in diesem Checkout nicht vorhanden.
-3. Weder `automation/tradingview/reports` noch ein wiederverwendbares Auth-Artefakt wie `automation/tradingview/auth/storage-state.json` sind lokal vorhanden.
-4. Folge: Ein neuer Live-Preflight ist aus diesem Arbeitsbaum derzeit nicht reproduzierbar. Dieses Runbook bleibt der manuelle externe Pfad, bis die Automationsprereqs wiederhergestellt sind.
+2. Die gemeinsame TradingView-Automationsschicht unter `automation/tradingview/lib/...` ist in diesem Checkout vorhanden.
+3. `automation/tradingview/reports` sowie wiederverwendbare Auth-Artefakte unter `automation/tradingview/auth/...` sind in diesem Workspace vorhanden.
+4. Folge: Der kanonische Repo-Live-Check ist aus diesem Arbeitsbaum wieder reproduzierbar, und zwar ueber `npm run tv:preflight:smc-mainline`.
+5. Dieses Runbook bleibt der manuelle Gegencheck fuer externe Review-Laeufe, symbol-/timeframe-spezifische Beobachtungen und unabhaengige Reproduktion.
+
+## Empfohlene Gate-Reihenfolge
+
+1. Zuerst `npm run tv:preflight:smc-mainline` als kanonischen Mainline-Gate-Lauf ausfuehren.
+2. Danach dieses Runbook nutzen, wenn ein manueller Gegencheck oder ein extern dokumentierter Review-Lauf gebraucht wird.
+3. Fuer die kanonische Rollen-, Scope- und Binding-Quelle immer `scripts/smc_bus_manifest.py` plus `artifacts/tradingview/smc_product_cut_manifest.json` heranziehen.
 
 ## Empfohlene Reihenfolge In TradingView
 
