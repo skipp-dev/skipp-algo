@@ -2432,7 +2432,7 @@ compose_main_risk_text(string event_risk_state, string long_ready_blocker_text, 
     main_risk
 
 compose_trade_threshold_text(string trust_tier, int signal_quality_score) =>
-    'Trust: ' + trust_tier + ' | Score ' + str.tostring(signal_quality_score) + '/100'
+    trust_tier
 
 resolve_core_hero_color(string product_state) =>
     color hero_color = color.new(color.gray, 70)
@@ -2447,7 +2447,7 @@ resolve_core_hero_color(string product_state) =>
     hero_color
 
 compose_core_hero_text(string product_state, string bias_text, string trade_threshold_text, string why_now, string main_risk) =>
-    'Action: ' + product_state + '\nBias: ' + bias_text + '\nQuality: ' + trade_threshold_text + '\nWhy now: ' + why_now + '\nMain risk: ' + main_risk
+    'Action: ' + product_state + '\nBias: ' + bias_text + '\nConfidence: ' + trade_threshold_text + '\nWhy now: ' + why_now + '\nMain risk: ' + main_risk
 
 resolve_core_alert_action_name(string event_name) =>
     string action_name = 'WAIT'
@@ -3288,8 +3288,8 @@ update_latched_flag(bool current_latched, bool event_active, bool live_mode, boo
 
 var g_mode = 'Execution Mode'
 var ct.SignalMode signal_mode = input.enum(ct.SignalMode.CONFIRMED_ONLY, 'Signal Mode', group = g_mode, tooltip = 'Choose between safer closed-bar confirmation and faster realtime updates. Confirmed only is the safer non-repainting mode. Aggressive live allows intrabar high/low driven updates and alerts, so states can change before candle close, are not fully reconstructable after reload, and should be treated as realtime-only until the bar confirms.', display = display.status_line)
-var string long_user_preset = input.string('Standard', 'User Preset', options = ['Easy', 'Standard', 'Pro'], group = g_mode, tooltip = 'Primary Lite operating layer. Easy keeps the long engine permissive and easier to operate. Standard preserves the current balanced workflow. Pro enables stricter lifecycle and execution gating for cleaner but rarer setups.', display = display.status_line)
-var bool compact_mode = input.bool(false, 'Lite Surface', group = g_mode, tooltip = 'Primary Lite surface for solo operation or sharing. Suppresses debug overlays and keeps a single decision-first surface. Engine logic is unchanged; only the visible surface is reduced.')
+var string long_user_preset = input.string('Standard', 'Trading Style', options = ['Easy', 'Standard', 'Pro'], group = g_mode, tooltip = 'Primary Lite operating layer. Easy keeps the long engine permissive and easier to operate. Standard preserves the current balanced workflow. Pro enables stricter lifecycle and execution gating for cleaner but rarer setups.', display = display.status_line)
+var bool compact_mode = input.bool(false, 'Focus View', group = g_mode, tooltip = 'Primary Lite surface for solo operation or sharing. Suppresses debug overlays and keeps a single decision-first surface. Engine logic is unchanged; only the visible surface is reduced.')
 
 var g_ltf = 'Lower Timeframe'
 var bool enable_ltf_sampling = input.bool(true, 'Use lower timeframe sampling', group = g_ltf, display = display.none, tooltip = 'Uses request.security_lower_tf() to summarize intrabar participation and pressure.')
@@ -3306,7 +3306,7 @@ var string mtf_trend_tf2 = input.timeframe(DEFAULT_TREND_TF_2, 'Trend TF 2', gro
 var string mtf_trend_tf3 = input.timeframe(DEFAULT_TREND_TF_3, 'Trend TF 3', group = g_mtf, inline = 'mtf3', display = display.none)
 
 var g_dashboard = 'Dashboard'
-var bool show_dashboard = input.bool(true, 'Show companion detail', group = g_dashboard, tooltip = 'Shows the companion detail surface. The core remains the only Lite-primary surface; this toggle adds explanatory context only.')
+var bool show_dashboard = input.bool(true, 'Show Decision Brief', group = g_dashboard, tooltip = 'Shows the linked decision brief surface. The core remains the only Lite-primary surface; this toggle adds explanatory context only.')
 var bool show_dashboard_ltf = input.bool(true, 'Show LTF details', group = g_dashboard, display = display.none)
 
 var g_alerts = 'Alerts'

@@ -14,6 +14,19 @@ This document tracks only the TradingView automation validation layer:
 
 It does not declare new producer, dashboard, strategy, or bus behavior.
 
+## Product-Evidence Rule
+
+Release-quality runtime evidence now requires rendered chart captures for the
+public and expert product surfaces:
+
+1. Core first-run chart
+2. Dashboard in `Decision Brief`
+3. Dashboard in `Audit View`
+4. Strategy execution chart with `Entry Price`, `Stop Loss`, and `Profit Target`
+
+Pine editor screenshots and settings-only captures are still useful for
+debugging, but they are not sufficient as product-surface evidence.
+
 ## Current Evidence
 
 Latest live staged-format authenticated report in this checkout:

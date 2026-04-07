@@ -24,7 +24,7 @@ It now anchors and propagates product metadata across:
 - preflight scopes now resolve from the canonical product-cut artifact, including the mainline path `SMC_Core_Engine.pine` + `SMC_Dashboard.pine` + `SMC_Long_Strategy.pine`
 - dashboard, strategy, companion, bridge, and legacy surfaces are explicitly classified in code and artifact form
 - dashboard/pine payloads and the delivery bundle now carry `product_cut` metadata
-- the long-strategy wrapper now separates visible setup from operator-only BUS bindings and exposes execution-plan outputs with product terminology
+- the long-strategy wrapper now separates visible setup from operator-only BUS bindings and exposes entry-price, stop-loss, and profit-target outputs with public terminology
 - focused contract tests cover schema, aggregation, auth priority, and manifest requirements
 
 ## What Remains Unchanged

@@ -1371,7 +1371,7 @@ def test_armed_stage_can_be_optionally_tightened() -> None:
 def test_user_presets_and_performance_modes_drive_effective_runtime_layers() -> None:
     source = _read_smc_source()
 
-    assert "var string long_user_preset = input.string('Standard', 'User Preset', options = ['Easy', 'Standard', 'Pro']" in source
+    assert "var string long_user_preset = input.string('Standard', 'Trading Style', options = ['Easy', 'Standard', 'Pro']" in source
     assert "var string performance_mode = input.string('Balanced', 'Performance Mode', options = ['Light', 'Balanced', 'Pro', 'Debug']" in source
     assert "tooltip = 'Easy keeps the long engine permissive and easier to operate. Standard preserves the current balanced workflow. Pro enables stricter lifecycle and execution gating for cleaner but rarer setups.'" in source
     assert "tooltip = 'Light cuts rendering and lower-timeframe workload. Balanced preserves the manual limits. Pro raises object and sampling budgets. Debug keeps the richest diagnostics and history.'" in source

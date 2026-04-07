@@ -2,6 +2,21 @@
 
 This checklist is for manual validation of the current split contract in TradingView without changing the implementation.
 
+## Product-Surface Evidence Pack
+
+Required screenshot set for release-quality validation:
+
+1. Rendered Core first-run chart with the public decision surface visible.
+2. Rendered Dashboard in `Decision Brief` view.
+3. Rendered Dashboard in `Audit View`.
+4. Rendered Strategy chart with `Entry Price`, `Stop Loss`, and `Profit Target` visible when a plan is active.
+
+Invalid evidence for product review:
+
+- Pine editor screenshots
+- settings-only screenshots without the chart surface
+- cropped screenshots that hide the actual user-facing surface
+
 ## Core Producer Plots To Bind
 
 The producer exports the full hidden bus from [SMC_Core_Engine.pine](../SMC_Core_Engine.pine).
@@ -119,6 +134,15 @@ The strategy expects only the 8 bindings declared in [SMC_Long_Strategy.pine](..
 - `BUS Trigger`
 - `BUS Invalidation`
 - `BUS QualityScore`
+
+## Public Label Checks
+
+Before validating any scenarios, confirm the visible product copy is aligned:
+
+1. Core uses `Trading Style`, `Focus View`, and `Show Decision Brief`.
+2. Dashboard uses `View`, `Decision Brief`, `Audit View`, `Show Brief Panel`, `Show Trade Plan`, and `Highlight Live Setup`.
+3. Strategy uses `Entry Stage`, `Minimum Setup Quality`, `Profit Target (R)`, and `Enable Profit Target`.
+4. Strategy chart outputs read `Entry Price`, `Stop Loss`, and `Profit Target`.
 
 ## Manual Validation Scenarios
 
@@ -240,8 +264,9 @@ If this fails:
 
 ## Manual Cross-Check Order
 
-1. Add `SMC_Core_Engine.pine` to the chart.
-2. Add `SMC_Dashboard.pine` and bind all 58 sources to the core plots.
-3. Add `SMC_Long_Strategy.pine` and bind its 8 sources to the core plots.
-4. Validate the five scenarios above on the same symbol and timeframe.
-5. If dashboard and strategy disagree, treat the core plots as the source of truth first and inspect source bindings before changing any logic.
+1. Add `SMC_Core_Engine.pine` to the chart and capture a rendered first-run Core screenshot.
+2. Add `SMC_Dashboard.pine`, set `View = Decision Brief`, bind all 58 sources to the core plots, and capture the rendered brief surface.
+3. Switch the Dashboard to `Audit View` and capture the rendered expert surface.
+4. Add `SMC_Long_Strategy.pine`, bind its 8 sources to the core plots, and capture a rendered execution screenshot when a plan is active.
+5. Validate the five scenarios above on the same symbol and timeframe.
+6. If dashboard and strategy disagree, treat the core plots as the source of truth first and inspect source bindings before changing any logic.

@@ -28,9 +28,11 @@ Dashboard compiles: yes/no
 
 Strategy compiles: yes/no
 
-26 dashboard bindings fully selectable: yes/no
+58 dashboard bindings fully selectable: yes/no
 
 8 strategy bindings fully selectable: yes/no
+
+Visible public labels checked: yes/no
 
 Scenario 1 neutral: pass/fail
 
@@ -50,6 +52,13 @@ Artifact paths reviewed:
 
 Screenshots / captures:
 
+- Core first-run:
+- Dashboard Decision Brief:
+- Dashboard Audit View:
+- Strategy execution:
+
 Screenshots available: yes/no
+
+Editor screenshots excluded: yes/no
 
 Final assessment: pass/fail

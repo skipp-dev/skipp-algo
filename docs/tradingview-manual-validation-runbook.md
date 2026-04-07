@@ -171,8 +171,8 @@ Fail:
 
 1. [../SMC_Dashboard.pine](../SMC_Dashboard.pine) auf denselben Chart legen.
 2. Alle 58 `input.source()`-Felder exakt mit den Core-Serien belegen.
-3. Sicherstellen, dass `Surface Mode = Companion Summary` aktiv ist und die
-   Toggles `Show Companion Table` sowie `Show Trade Levels` den erwarteten
+3. Sicherstellen, dass `View = Decision Brief` aktiv ist und die
+   Toggles `Show Brief Panel` sowie `Show Trade Plan` den erwarteten
    Companion-Zuschnitt zeigen.
 4. Falls `Debug Flags` oder `Long Debug` validiert werden sollen, die drei lokalen Debug-Mirror-Toggles im Dashboard passend zur effektiven Core-Konfiguration setzen.
 5. Sichtbarkeit und Reaktion der Sektionen prüfen:
@@ -184,16 +184,23 @@ Fail:
 - Engine
 
 1. Die fünf Szenarien aus [tradingview-validation-checklist.md](tradingview-validation-checklist.md) nacheinander prüfen.
+2. Zusätzlich die geforderte Product-Surface-Evidence sichern:
+
+- gerenderter Core-First-Run-Screen
+- gerenderter Dashboard-Screen in `Decision Brief`
+- gerenderter Dashboard-Screen in `Audit View`
+- gerenderter Strategy-Screen mit `Entry Price`, `Stop Loss` und `Profit Target`, wenn ein Plan aktiv ist
 
 ### Dashboard Erwartete Beobachtungen
 
 1. Dashboard kompiliert ohne Fehler.
 2. Alle 58 Bindings sind vollständig auswählbar.
 3. Das Dashboard bleibt sichtbar.
-4. Die Default-Companion-Flaeche zeigt `SMC Pro Companion` mit der Reihenfolge
-   `Action`, `Why Now / Why Blocked`, `Risk Plan`, `Structure`, `Session`,
-   `Event Risk`, `Data Quality`, `Short-term Flow`.
+4. Die Default-Companion-Flaeche zeigt `SMC Decision Board` mit der Reihenfolge
+   `Action`, `Why now`, `Risk Plan`, `Structure`, `Session`,
+   `Event Risk`, `Data Quality`, `Short-term Pressure`.
 5. Die Sektionen reagieren plausibel auf den Core-Zustand.
+6. Fuer den Expert-View ist `Audit View | Expert review` sichtbar.
 
 ### Dashboard Szenario-Prüfung
 
@@ -261,7 +268,7 @@ Fail:
 
 1. [../SMC_Long_Strategy.pine](../SMC_Long_Strategy.pine) auf denselben Chart legen.
 2. Die 8 `input.source()`-Felder exakt mit den Core-Serien belegen.
-3. `Execution Stage`, `Trigger`, `Invalidation`, `Stop` und `Targets` gegen den dokumentierten Vertrag prüfen.
+3. `Entry Stage`, `Entry Price`, `Stop Loss` und `Profit Target` gegen den dokumentierten Vertrag prüfen.
 
 ### Strategy Erwartete Beobachtungen
 
@@ -278,7 +285,7 @@ Fail:
 - `BUS QualityScore`
 
 1. Die Strategy hängt nur von diesen 8 Kanälen ab.
-2. Trigger und Invalidation sind konsistent.
+2. Entry Price und Stop Loss sind konsistent.
 3. Stop und Take-Profit verhalten sich konsistent zur Risk-Struktur.
 
 ### Strategy Pass/Fail-Kriterien
@@ -302,4 +309,5 @@ Fail:
 1. Alle drei Skripte auf demselben Symbol und Timeframe prüfen.
 2. Abweichungen nur als Beobachtung festhalten, keine Ad-hoc-Logikänderungen vornehmen.
 3. Nach jedem Fail möglichst einen Screenshot sichern.
-4. Den Lauf mit [tradingview-manual-validation-report-template.md](tradingview-manual-validation-report-template.md) abschließen.
+4. Editor-Screenshots gelten nicht als Produkt-Evidence.
+5. Den Lauf mit [tradingview-manual-validation-report-template.md](tradingview-manual-validation-report-template.md) abschließen.

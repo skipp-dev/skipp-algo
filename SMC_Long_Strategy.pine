@@ -9,24 +9,24 @@
 // Strategy orders are staged on confirmed bars via process_orders_on_close, so the backtest path does not rely on intrabar lookahead.
 strategy("SMC Long Strategy", overlay = true, pyramiding = 0, process_orders_on_close = true)
 
-var string g_setup = "1. Strategy Setup"
-var string g_trade_plan = "2. Wrapper Trade Plan"
-var string g_bus_entry = "3. Strategy - Operator Bindings - Entry States"
-var string g_bus_plan = "4. Strategy - Operator Bindings - Trade Plan"
+var string g_setup = "1. Execution Setup"
+var string g_trade_plan = "2. Trade Plan"
+var string g_bus_entry = "3. Expert Mapping - Entry States"
+var string g_bus_plan = "4. Expert Mapping - Trade Plan"
 
-src_armed = input.source(close, "BUS Armed", group = g_bus_entry, tooltip = "Bind strategy sources top-to-bottom to the matching BUS series from SMC Core Engine.")
+src_armed = input.source(close, "BUS Armed", group = g_bus_entry, tooltip = "Bind expert mapping sources top-to-bottom to the matching BUS series from SMC Core Engine.")
 src_confirmed = input.source(close, "BUS Confirmed", group = g_bus_entry)
 src_ready = input.source(close, "BUS Ready", group = g_bus_entry)
 src_entry_best = input.source(close, "BUS EntryBest", group = g_bus_entry)
 src_entry_strict = input.source(close, "BUS EntryStrict", group = g_bus_entry)
 src_quality_score = input.source(close, "BUS QualityScore", group = g_bus_entry)
-src_trigger = input.source(close, "BUS Trigger", group = g_bus_plan, tooltip = "Bind plan levels after the state group so strategy setup stays deterministic.")
+src_trigger = input.source(close, "BUS Trigger", group = g_bus_plan, tooltip = "Bind expert plan levels after the state group so execution setup stays deterministic.")
 src_invalidation = input.source(close, "BUS Invalidation", group = g_bus_plan)
 
-entry_mode = input.string("Strict", "Execution Stage", options = ["Armed", "Confirmed", "Ready", "Best", "Strict"], group = g_setup, tooltip = "Choose which executable core stage is allowed to stage the long entry.")
-min_quality_score = input.float(0.0, "Minimum Quality Score", step = 0.25, group = g_setup, tooltip = "Execution-surface quality threshold applied to the executable BUS contract.")
-take_profit_r = input.float(2.0, "Take Profit (R)", minval = 0.0, step = 0.25, group = g_trade_plan, tooltip = "Take-profit multiple measured from trigger to invalidation.")
-use_take_profit = input.bool(true, "Use Take Profit", group = g_trade_plan, tooltip = "Enable execution-surface take-profit staging on top of the core trigger/invalidation plan.")
+entry_mode = input.string("Strict", "Entry Stage", options = ["Armed", "Confirmed", "Ready", "Best", "Strict"], group = g_setup, tooltip = "Choose which executable core stage is allowed to stage the long entry.")
+min_quality_score = input.float(0.0, "Minimum Setup Quality", step = 0.25, group = g_setup, tooltip = "Execution-surface quality threshold applied to the executable BUS contract.")
+take_profit_r = input.float(2.0, "Profit Target (R)", minval = 0.0, step = 0.25, group = g_trade_plan, tooltip = "Profit-target multiple measured from trigger to invalidation.")
+use_take_profit = input.bool(true, "Enable Profit Target", group = g_trade_plan, tooltip = "Enable execution-surface profit-target staging on top of the core trigger/invalidation plan.")
 
 state_on(float value) =>
     not na(value) and value > 0.5
@@ -84,6 +84,6 @@ else
     active_invalidation := na
     active_take_profit := na
 
-plot(src_trigger, "Execution Trigger", color = color.new(color.aqua, 0), linewidth = 2, style = plot.style_linebr)
-plot(src_invalidation, "Execution Invalidation", color = color.new(color.orange, 0), linewidth = 2, style = plot.style_linebr)
-plot(use_take_profit ? (strategy.position_size > 0 ? active_take_profit : take_profit_price) : na, "Execution Take Profit", color = color.new(color.green, 0), linewidth = 1, style = plot.style_linebr)
+plot(src_trigger, "Entry Price", color = color.new(color.aqua, 0), linewidth = 2, style = plot.style_linebr)
+plot(src_invalidation, "Stop Loss", color = color.new(color.orange, 0), linewidth = 2, style = plot.style_linebr)
+plot(use_take_profit ? (strategy.position_size > 0 ? active_take_profit : take_profit_price) : na, "Profit Target", color = color.new(color.green, 0), linewidth = 1, style = plot.style_linebr)

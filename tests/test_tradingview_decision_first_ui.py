@@ -17,8 +17,8 @@ def test_core_has_decision_first_hero_contract() -> None:
     assert "resolve_trust_tier(" in source
     assert "compose_core_hero_text(" in source
     assert "var label core_hero_card = na" in source
-    assert 'Lite Surface' in source
-    assert 'Trust: ' in source
+    assert 'Focus View' in source
+    assert 'Confidence: ' in source
     assert "plot(core_plan_visible ? long_state.trigger : na, 'Core Trigger'" in source
     assert "plot(core_plan_visible ? long_state.invalidation_level : na, 'Core Invalidation'" in source
 
@@ -26,15 +26,15 @@ def test_core_has_decision_first_hero_contract() -> None:
 def test_dashboard_has_companion_summary_and_pro_diagnostics() -> None:
     source = _read("SMC_Dashboard.pine")
 
-    assert 'surface_mode = input.string("Companion Summary"' in source
+    assert 'surface_mode = input.string("Decision Brief"' in source
     assert "dashboard_product_state_text(" in source
-    assert 'dashboard_row(smc_dashboard, 0, "SMC Pro Companion", "Companion Summary | Operator bindings hidden"' in source
-    assert 'dashboard_row(smc_dashboard, 0, "SMC Pro Companion", "v5.5d Pro Diagnostics | operator companion", header_bg, txt)' in source
-    assert 'dashboard_row(smc_dashboard, 2, "Why Now / Why Blocked"' in source
-    assert 'dashboard_row(smc_dashboard, 8, "Short-term Flow"' in source
-    assert 'v5.5d Pro Diagnostics' in source
+    assert 'dashboard_row(smc_dashboard, 0, "SMC Decision Board", "Decision Brief | Linked setup active"' in source
+    assert 'dashboard_row(smc_dashboard, 0, "SMC Decision Board", "Audit View | Expert review", header_bg, txt)' in source
+    assert 'dashboard_row(smc_dashboard, 2, "Why now"' in source
+    assert 'dashboard_row(smc_dashboard, 8, "Short-term Pressure"' in source
+    assert 'Audit View | Expert review' in source
     assert 'section_row(smc_dashboard, 1, "[ Decision Lifecycle ]", header_bg, txt)' in source
-    assert 'section_row(smc_dashboard, 10, "[ Lite Surface Mirrors ]", header_bg, txt)' in source
+    assert 'section_row(smc_dashboard, 10, "[ Core View Mirrors ]", header_bg, txt)' in source
     assert 'section_row(smc_dashboard, 18, "[ Context Gates ]", header_bg, txt)' in source
     assert 'section_row(smc_dashboard, 26, "[ Quality Detail ]", header_bg, txt)' in source
     assert 'section_row(smc_dashboard, 37, "[ Modules, Pressure & Plan ]", header_bg, txt)' in source
@@ -45,19 +45,19 @@ def test_long_strategy_has_wrapper_controls_and_core_plan_outputs() -> None:
     source = _read("SMC_Long_Strategy.pine")
 
     assert 'strategy("SMC Long Strategy", overlay = true' in source
-    assert 'var string g_setup = "1. Strategy Setup"' in source
-    assert 'var string g_bus_entry = "3. Strategy - Operator Bindings - Entry States"' in source
+    assert 'var string g_setup = "1. Execution Setup"' in source
+    assert 'var string g_bus_entry = "3. Expert Mapping - Entry States"' in source
     assert 'src_armed = input.source(close, "BUS Armed"' in source
     assert 'src_entry_strict = input.source(close, "BUS EntryStrict"' in source
     assert 'src_trigger = input.source(close, "BUS Trigger"' in source
     assert 'src_invalidation = input.source(close, "BUS Invalidation"' in source
-    assert 'entry_mode = input.string("Strict", "Execution Stage", options = ["Armed", "Confirmed", "Ready", "Best", "Strict"], group = g_setup' in source
-    assert 'min_quality_score = input.float(0.0, "Minimum Quality Score", step = 0.25, group = g_setup' in source
-    assert 'take_profit_r = input.float(2.0, "Take Profit (R)", minval = 0.0, step = 0.25, group = g_trade_plan' in source
-    assert 'use_take_profit = input.bool(true, "Use Take Profit", group = g_trade_plan' in source
-    assert 'plot(src_trigger, "Execution Trigger"' in source
-    assert 'plot(src_invalidation, "Execution Invalidation"' in source
-    assert 'plot(use_take_profit ? (strategy.position_size > 0 ? active_take_profit : take_profit_price) : na, "Execution Take Profit"' in source
+    assert 'entry_mode = input.string("Strict", "Entry Stage", options = ["Armed", "Confirmed", "Ready", "Best", "Strict"], group = g_setup' in source
+    assert 'min_quality_score = input.float(0.0, "Minimum Setup Quality", step = 0.25, group = g_setup' in source
+    assert 'take_profit_r = input.float(2.0, "Profit Target (R)", minval = 0.0, step = 0.25, group = g_trade_plan' in source
+    assert 'use_take_profit = input.bool(true, "Enable Profit Target", group = g_trade_plan' in source
+    assert 'plot(src_trigger, "Entry Price"' in source
+    assert 'plot(src_invalidation, "Stop Loss"' in source
+    assert 'plot(use_take_profit ? (strategy.position_size > 0 ? active_take_profit : take_profit_price) : na, "Profit Target"' in source
 
 
 def test_r11_migration_and_operator_guide_is_linked_and_explicit() -> None:
@@ -72,5 +72,5 @@ def test_r11_migration_and_operator_guide_is_linked_and_explicit() -> None:
     assert "operator-only" in guide
     assert "BUS binding order" in guide
     assert "visual-only" in guide
-    assert "Companion Summary" in guide
-    assert "Execution Stage" in guide
+    assert "Decision Brief" in guide
+    assert "Entry Stage" in guide

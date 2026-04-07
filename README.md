@@ -800,8 +800,10 @@ skipp-algo/
 - [SMC Decision-First UX Backlog](docs/smc-tradingview-decision-first-backlog.md)
 - [SMC Screen Specification](docs/smc-tradingview-screen-spec.md)
 - [SMC First-Release Ticketset](docs/smc-tradingview-first-release-ticketset.md)
+- [SMC R1.2 Ticketset](docs/smc-tradingview-r1-2-ticketset.md)
 - [SMC First UI Cut Implementation Preparation](docs/smc-tradingview-first-ui-cut-implementation.md)
 - [SMC R1.1 Migration and Operator Guide](docs/smc-tradingview-r1-1-migration-and-operator-guide.md)
+- [SMC Product Rescue Playbook](docs/smc-product-rescue-playbook.md)
 
 ### Architecture & Planning
 

@@ -68,13 +68,13 @@ decision explicitly reopens it.
 
 The visible product surface of the strategy is intentionally small:
 
-- `Execution Stage` (`entry_mode`) selects which already-exported execution
+- `Entry Stage` (`entry_mode`) selects which already-exported execution
   tier the surface uses.
-- `Minimum Quality Score` (`min_quality_score`) adds a wrapper-level threshold
+- `Minimum Setup Quality` (`min_quality_score`) adds a wrapper-level threshold
   on top of the exported core quality score.
-- `Take Profit (R)` (`take_profit_r`) controls the wrapper take-profit plan
+- `Profit Target (R)` (`take_profit_r`) controls the wrapper take-profit plan
   distance.
-- `Use Take Profit` (`use_take_profit`) toggles the wrapper take-profit
+- `Enable Profit Target` (`use_take_profit`) toggles the wrapper take-profit
   behavior.
 
 These controls change wrapper behavior only. They do not widen the core BUS and
@@ -85,9 +85,9 @@ do not introduce a second logic family.
 The strategy exposes the current execution plan with product terminology on the
 chart:
 
-- `Execution Trigger`
-- `Execution Invalidation`
-- `Execution Take Profit`
+- `Entry Price`
+- `Stop Loss`
+- `Profit Target`
 
 Those plots make the wrapper plan legible without turning the strategy into a
 second diagnostics surface.

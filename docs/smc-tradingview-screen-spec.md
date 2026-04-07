@@ -141,12 +141,13 @@ Es ist eine UI-Spezifikation, kein Architektur- oder Feature-Fork.
 - Audience: alle Lite-Nutzer.
 - Mode: Lite.
 - Visible inputs:
-  - User Preset
+  - Trading Style
   - Signal Mode
   - Risk Profile
   - HTF Mode
   - Alerts
-  - Visual Mode
+  - Focus View
+  - Show Decision Brief
 - Hidden inputs:
   - tiefe per-stage gates
   - LTF guardrails
@@ -156,7 +157,7 @@ Es ist eine UI-Spezifikation, kein Architektur- oder Feature-Fork.
 
 ```text
 General
-- User Preset
+- Trading Style
 - Signal Mode
 
 Risk
@@ -167,7 +168,8 @@ Context
 
 Output
 - Alerts
-- Visual Mode
+- Focus View
+- Show Decision Brief
 
 Advanced Settings [collapsed by default]
 ```
@@ -180,7 +182,7 @@ Advanced Settings [collapsed by default]
 
 - Goal: Die Hero-Entscheidung erklaeren, ohne in die volle Diagnose abzurutschen.
 - Audience: Nutzer, die mehr Kontext wollen, aber keine Pro-Diagnose brauchen.
-- Mode: Compact Detail.
+- Mode: Decision Brief.
 - Primary action: keine neue Hauptaktion; dieser Screen erklaert den Hero State.
 - Visible blocks:
   - Structure
@@ -221,7 +223,7 @@ Advanced Settings [collapsed by default]
 - Goal: Die bestehende Diagnosetiefe fuer Audit, Tuning und Debug sichtbar
   halten.
 - Audience: Power-User und Operatoren.
-- Mode: Pro.
+- Mode: Audit View.
 - Visible blocks:
   - Lifecycle
   - Lean Surface
@@ -267,10 +269,10 @@ Advanced Settings [collapsed by default]
   ueberfuehren.
 - Mode: Wrapper setup.
 - Visible controls:
-  - `Entry Mode`
-  - `Min Quality Score`
-  - `Take Profit R`
-  - `Use Take Profit`
+  - `Entry Stage`
+  - `Minimum Setup Quality`
+  - `Profit Target (R)`
+  - `Enable Profit Target`
 - Hidden or visually separated:
   - BUS source inputs
 - Acceptance criteria:
@@ -284,9 +286,9 @@ Advanced Settings [collapsed by default]
 - Audience: Nutzer waehrend Entry-Staging, aktiver Position und Backtest-Review.
 - Mode: Actionable / active position.
 - Visible blocks:
-  - Trigger
-  - Invalidation
-  - Take-profit line
+  - Entry Price
+  - Stop Loss
+  - Profit Target line
 - Behavior rules:
   - Entries werden auf bestaetigten Bars gestaged.
   - Die Wrapper-Ausgabe widerspricht dem Core-Plan nicht.

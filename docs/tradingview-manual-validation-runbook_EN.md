@@ -165,7 +165,7 @@ Fail:
 
 1. Add [../SMC_Dashboard.pine](../SMC_Dashboard.pine) to the same chart.
 2. Bind all 58 `input.source()` fields exactly to the core series.
-3. Confirm that `Surface Mode = Companion Summary` is active and that `Show Companion Table` plus `Show Trade Levels` produce the expected companion cut.
+3. Confirm that `View = Decision Brief` is active and that `Show Brief Panel` plus `Show Trade Plan` produce the expected companion cut.
 4. If you want to validate `Debug Flags` or `Long Debug`, set the three local debug mirror toggles in the dashboard to match the core's effective debug configuration.
 5. Check visibility and response of the following sections:
 
@@ -176,14 +176,21 @@ Fail:
 - Engine
 
 1. Check the five scenarios from [tradingview-validation-checklist.md](tradingview-validation-checklist.md) in order.
+2. Capture the required product-surface evidence pack:
+
+- rendered Core first-run screen
+- rendered Dashboard screen in `Decision Brief`
+- rendered Dashboard screen in `Audit View`
+- rendered Strategy screen with `Entry Price`, `Stop Loss`, and `Profit Target` when a plan is active
 
 ### Dashboard Expected Observations
 
 1. The dashboard compiles without errors.
 2. All 58 bindings are fully selectable.
 3. The dashboard remains visible.
-4. The default companion surface shows `SMC Pro Companion` with the row order `Action`, `Why Now / Why Blocked`, `Risk Plan`, `Structure`, `Session`, `Event Risk`, `Data Quality`, `Short-term Flow`.
+4. The default companion surface shows `SMC Decision Board` with the row order `Action`, `Why now`, `Risk Plan`, `Structure`, `Session`, `Event Risk`, `Data Quality`, `Short-term Pressure`.
 5. The sections respond plausibly to the core state.
+6. The expert surface shows `Audit View | Expert review`.
 
 ### Dashboard Scenario Validation
 
@@ -251,7 +258,7 @@ Fail:
 
 1. Add [../SMC_Long_Strategy.pine](../SMC_Long_Strategy.pine) to the same chart.
 2. Bind the 8 `input.source()` fields exactly to the core series.
-3. Validate `Execution Stage`, `Trigger`, `Invalidation`, `Stop`, and `Targets` against the documented contract.
+3. Validate `Entry Stage`, `Entry Price`, `Stop Loss`, and `Profit Target` against the documented contract.
 
 ### Strategy Expected Observations
 
@@ -268,7 +275,7 @@ Fail:
 - `BUS QualityScore`
 
 1. The strategy depends only on these 8 channels.
-2. Trigger and invalidation are consistent.
+2. Entry price and stop loss are consistent.
 3. Stop and take-profit behavior is consistent with the risk structure.
 
 ### Strategy Pass/Fail Criteria
@@ -292,4 +299,5 @@ Fail:
 1. Validate all three scripts on the same symbol and timeframe.
 2. Record deviations as observations only; do not make ad-hoc logic changes during the run.
 3. Save a screenshot after each fail when possible.
-4. Close the run using [tradingview-manual-validation-report-template_EN.md](tradingview-manual-validation-report-template_EN.md).
+4. Pine editor screenshots do not count as product evidence.
+5. Close the run using [tradingview-manual-validation-report-template_EN.md](tradingview-manual-validation-report-template_EN.md).

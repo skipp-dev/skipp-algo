@@ -75,10 +75,10 @@ src_objects_count_pack = input.source(close, "BUS ObjectsCountPack", group = g_b
 src_lean_pack_a = input.source(close, "BUS LeanPackA", group = g_bus_lean, display = display.none, tooltip = "Lean surface bindings are grouped last because they are additive hero-surface feeds.")
 src_lean_pack_b = input.source(close, "BUS LeanPackB", group = g_bus_lean, display = display.none)
 
-surface_mode = input.string("Companion Summary", "Surface Mode", options = ["Companion Summary", "Pro Diagnostics"], group = g_surface, tooltip = "Companion Summary is the default companion surface. Pro Diagnostics keeps the full operator table for operator audit.")
-show_table = input.bool(true, "Show Companion Table", group = g_surface)
-show_risk_lines = input.bool(true, "Show Trade Levels", group = g_surface)
-show_state_bg = input.bool(false, "Highlight Actionable State", group = g_surface)
+surface_mode = input.string("Decision Brief", "View", options = ["Decision Brief", "Audit View"], group = g_surface, tooltip = "Decision Brief is the default linked companion surface. Audit View keeps the full expert table for review.")
+show_table = input.bool(true, "Show Brief Panel", group = g_surface)
+show_risk_lines = input.bool(true, "Show Trade Plan", group = g_surface)
+show_state_bg = input.bool(false, "Highlight Live Setup", group = g_surface)
 local_ob_debug_enabled = input.bool(false, "OB Debug Enabled", group = g_local_debug, display = display.none, tooltip = "Mirror the core's effective debug flags here if you want the local Debug Flags and Long Debug rows to match the core setup.")
 local_fvg_debug_enabled = input.bool(false, "FVG Debug Enabled", group = g_local_debug, display = display.none)
 local_engine_debug_enabled = input.bool(false, "Long Engine Debug Enabled", group = g_local_debug, display = display.none)
@@ -1131,19 +1131,19 @@ var table smc_dashboard = table.new(position.bottom_right, 2, 58, border_width =
 if show_table and barstate.islast
     color txt = chart.fg_color
     color header_bg = color.new(color.black, 100)
-    if surface_mode == "Companion Summary"
-        dashboard_row(smc_dashboard, 0, "SMC Pro Companion", "Companion Summary | Operator bindings hidden", header_bg, txt)
+    if surface_mode == "Decision Brief"
+        dashboard_row(smc_dashboard, 0, "SMC Decision Board", "Decision Brief | Linked setup active", header_bg, txt)
         dashboard_row(smc_dashboard, 1, "Action", dashboard_product_state_text(state_code), status_bg(state_code), txt)
-        dashboard_row(smc_dashboard, 2, "Why Now / Why Blocked", dashboard_compact_why_now_text(state_code, zone_code, lean_struct_row_code, lean_ob_row_code, lean_fvg_row_code, ready_gate_row_code, strict_gate_row_code), status_bg(actionable_state ? 5 : state_code >= 2 ? 3 : row_status(ready_gate_row_code)), txt)
+        dashboard_row(smc_dashboard, 2, "Why now", dashboard_compact_why_now_text(state_code, zone_code, lean_struct_row_code, lean_ob_row_code, lean_fvg_row_code, ready_gate_row_code, strict_gate_row_code), status_bg(actionable_state ? 5 : state_code >= 2 ? 3 : row_status(ready_gate_row_code)), txt)
         dashboard_row(smc_dashboard, 3, "Risk Plan", dashboard_compact_risk_plan_text(actionable_state, src_trigger, src_stop_level, src_target_1, src_target_2), status_bg(actionable_state ? 5 : 0), txt)
         dashboard_row(smc_dashboard, 4, "Structure", setup_text(state_code, source_code), status_bg(setup_state), txt)
         dashboard_row(smc_dashboard, 5, "Session", decode_session_text(session_row_code), status_bg(row_status(session_row_code)), txt)
         dashboard_row(smc_dashboard, 6, "Event Risk", decode_event_risk_text(event_risk_row_code), status_bg(row_status(event_risk_row_code)), txt)
         dashboard_row(smc_dashboard, 7, "Data Quality", decode_lean_sq_text(lean_sq_row_code), status_bg(row_status(lean_sq_row_code)), txt)
-        dashboard_row(smc_dashboard, 8, "Short-term Flow", decode_ltf_delta_text(ltf_delta_row_code, src_ltf_volume_delta), status_bg(row_status(ltf_delta_row_code)), txt)
+        dashboard_row(smc_dashboard, 8, "Short-term Pressure", decode_ltf_delta_text(ltf_delta_row_code, src_ltf_volume_delta), status_bg(row_status(ltf_delta_row_code)), txt)
         table.clear(smc_dashboard, 0, 9, 1, 57)
     else
-        dashboard_row(smc_dashboard, 0, "SMC Pro Companion", "v5.5d Pro Diagnostics | operator companion", header_bg, txt)
+        dashboard_row(smc_dashboard, 0, "SMC Decision Board", "Audit View | Expert review", header_bg, txt)
         // ── PRO: decision lifecycle first, then mirrored lite summaries, then full diagnostics ──
         section_row(smc_dashboard, 1, "[ Decision Lifecycle ]", header_bg, txt)
         dashboard_row(smc_dashboard, 2, "Trend", trend_text(trend_now), status_bg(trend_now == 2 ? 5 : trend_now == 0 ? -1 : 0), txt)
@@ -1154,7 +1154,7 @@ if show_table and barstate.islast
         dashboard_row(smc_dashboard, 7, "Setup Age", setup_age_text(state_code, freshness_code), status_bg(setup_age_state), txt)
         dashboard_row(smc_dashboard, 8, "Long Visual", long_visual_text(state_code), status_bg(state_code), txt)
         dashboard_row(smc_dashboard, 9, "Exec Tier", exec_tier_text(state_code), status_bg(exec_state), txt)
-        section_row(smc_dashboard, 10, "[ Lite Surface Mirrors ]", header_bg, txt)
+        section_row(smc_dashboard, 10, "[ Core View Mirrors ]", header_bg, txt)
         dashboard_row(smc_dashboard, 11, "Signal Quality", decode_lean_sq_text(lean_sq_row_code), status_bg(row_status(lean_sq_row_code)), txt)
         dashboard_row(smc_dashboard, 12, "Signal Fresh", decode_lean_freshness_text(lean_freshness_row_code), status_bg(row_status(lean_freshness_row_code)), txt)
         dashboard_row(smc_dashboard, 13, "Event Risk Light", decode_lean_erl_text(lean_erl_row_code), status_bg(row_status(lean_erl_row_code)), txt)
