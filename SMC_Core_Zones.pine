@@ -4,6 +4,8 @@
 
 //@version=6
 
+// Product role: legacy split prototype retained only for historical comparison.
+
 indicator("DEPRECATED SMC Core Prototype", "SMC Core OLD", overlay = true, max_bars_back = 500, max_lines_count = 300, max_boxes_count = 300, max_labels_count = 500)
 
 import preuss_steffen/smc_core_types/1 as ct

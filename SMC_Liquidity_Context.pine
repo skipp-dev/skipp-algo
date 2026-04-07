@@ -3,6 +3,8 @@
 
 //@version=6
 
+// Product role: companion_operator_only. Pro-only liquidity-context companion outside the Lite default surface.
+
 // ─────────────────────────────────────────────────────────────────
 // SMC Liquidity Context Overlay — lightweight companion to SMC Core Engine
 //

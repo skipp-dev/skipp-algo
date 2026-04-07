@@ -2,7 +2,7 @@
 
 Verifies that major Pine scripts maintain:
     - 100% grouped inputs (all inputs in a group)
-    - Decision-first visible surface counts stay bounded
+    - Visible surface counts stay bounded
     - Parity between indicator/strategy pairs
     - Input declarations have balanced parens
     - Version tags present
@@ -38,12 +38,12 @@ def test_all_inputs_grouped(script):
     )
 
 
-# ── visible surface: decision-first lite ranges ───────────────────────
+# ── visible surface: script-specific ranges ───────────────────────────
 
 @pytest.mark.parametrize("script,lo,hi", [
     ("SMC_Core_Engine.pine", 8, 14),
     ("SMC++.pine", 25, 45),
-    ("SkippALGO.pine", 8, 12),
+    ("SkippALGO.pine", 25, 45),
     ("SkippALGO_Strategy.pine", 25, 45),
 ])
 def test_visible_surface_range(script, lo, hi):
@@ -62,25 +62,10 @@ def test_active_core_operator_surface_keeps_preset_and_compact_mode():
     assert "compact_mode" in visible_varnames
 
 
-def test_skippalgo_surface_keeps_hud_controls_visible():
-    inputs = _load("SkippALGO.pine")
-    visible_varnames = {inp.varname for inp in inputs if not inp.has_display_none}
-
-    assert "surfaceMode" in visible_varnames
-    assert "showDecisionHud" in visible_varnames
-    assert "config" in visible_varnames
-    assert "engine" in visible_varnames
-    assert "forecastMode" in visible_varnames
-    assert "entryFcTF" in visible_varnames
-    assert "riskProfile" in visible_varnames
-    assert "labelSurface" in visible_varnames
-    assert "alertMode" in visible_varnames
-
-
 # ── parity: indicator/strategy pairs must have ≤5 input delta ─────────
 
 @pytest.mark.parametrize("ind,strat,max_delta", [
-    ("SkippALGO.pine", "SkippALGO_Strategy.pine", 10),
+    ("SkippALGO.pine", "SkippALGO_Strategy.pine", 5),
 ])
 def test_parity_delta(ind, strat, max_delta):
     a = _load(ind)

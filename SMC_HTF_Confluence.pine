@@ -3,6 +3,8 @@
 
 //@version=6
 
+// Product role: companion_operator_only. Pro-only HTF-context companion outside the Lite default surface.
+
 // ─────────────────────────────────────────────────────────────────
 // SMC HTF Confluence Overlay — lightweight companion to SMC Core Engine
 //

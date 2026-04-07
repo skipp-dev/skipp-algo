@@ -36,22 +36,23 @@ def test_dashboard_has_compact_detail_and_pro_diagnostics() -> None:
     assert 'section_row(smc_dashboard, 53, "[ Engine Detail ]", header_bg, txt)' in source
 
 
-def test_skippalgo_has_decision_hud_and_product_alert_action() -> None:
-    source = _read("SkippALGO.pine")
+def test_long_strategy_has_wrapper_controls_and_core_plan_outputs() -> None:
+    source = _read("SMC_Long_Strategy.pine")
 
-    assert 'surfaceMode = input.string("Lite"' in source
-    assert 'showDecisionHud = input.bool(true, "Show decision HUD"' in source
-    assert 'forecastMode = input.string("Trade Gate", "Forecast mode"' in source
-    assert 'riskProfile = input.string("Balanced", "Risk profile"' in source
-    assert "resolve_skipp_product_state(" in source
-    assert "resolve_skipp_alert_action(" in source
-    assert 'var table decisionHud = table.new(position.top_right, 2, 11, border_width = 1)' in source
-    assert 'table.cell(decisionHud, 0, 0, "SkippALGO Decision HUD"' in source
-    assert 'f_hud_row(decisionHud, 2, "Trade Threshold", hudThreshold' in source
-    assert 'f_hud_row(decisionHud, 6, "Main Risk", hudMainRisk' in source
-    assert 'alertcondition(alertReadyLongCond, title="SMC READY LONG"' in source
-    assert 'alertcondition(alertEnterLongCond, title="SMC ENTER LONG"' in source
-    assert 'msg := "SkippALGO | action=" + actionText + " | why=" + hudWhyNow + " | risk=" + hudMainRisk + " | legacy=" + labels' in source
+    assert 'strategy("SMC Long Strategy", overlay = true' in source
+    assert 'var string g_setup = "1. Strategy Setup"' in source
+    assert 'var string g_bus_entry = "3. Strategy - Operator Bindings - Entry States"' in source
+    assert 'src_armed = input.source(close, "BUS Armed"' in source
+    assert 'src_entry_strict = input.source(close, "BUS EntryStrict"' in source
+    assert 'src_trigger = input.source(close, "BUS Trigger"' in source
+    assert 'src_invalidation = input.source(close, "BUS Invalidation"' in source
+    assert 'entry_mode = input.string("Strict", "Entry Mode", options = ["Armed", "Confirmed", "Ready", "Best", "Strict"], group = g_setup' in source
+    assert 'min_quality_score = input.float(0.0, "Min Quality Score", step = 0.25, group = g_setup' in source
+    assert 'take_profit_r = input.float(2.0, "Take Profit R", minval = 0.0, step = 0.25, group = g_trade_plan' in source
+    assert 'use_take_profit = input.bool(true, "Use Take Profit", group = g_trade_plan' in source
+    assert 'plot(src_trigger, "Execution Trigger"' in source
+    assert 'plot(src_invalidation, "Execution Invalidation"' in source
+    assert 'plot(use_take_profit ? (strategy.position_size > 0 ? active_take_profit : take_profit_price) : na, "Execution Take Profit"' in source
 
 
 def test_r11_migration_and_operator_guide_is_linked_and_explicit() -> None:
@@ -61,7 +62,8 @@ def test_r11_migration_and_operator_guide_is_linked_and_explicit() -> None:
     assert "docs/smc-tradingview-r1-1-migration-and-operator-guide.md" in readme
     assert "compact_mode" in guide
     assert "surface_mode" in guide
-    assert "surfaceMode" in guide
+    assert "entry_mode" in guide
+    assert "SMC_Long_Strategy.pine" in guide
     assert "operator-only" in guide
     assert "BUS binding order" in guide
     assert "visual-only" in guide

@@ -312,6 +312,15 @@ For the current SMC long strategy wrapper, the default backtest path is bar-clos
 
 This does not remove the explicit aggressive live / preview semantics elsewhere in the codebase, but it keeps the default strategy path aligned with close-confirmed historical evaluation.
 
+### L.2) Productized wrapper surface
+
+For the current SMC long strategy wrapper, the visible and operator-only areas are now separated explicitly:
+
+* `Strategy Setup` contains wrapper-side entry selection and minimum quality.
+* `Wrapper Trade Plan` contains take-profit staging controls.
+* `Strategy - Operator Bindings - Entry States` and `Strategy - Operator Bindings - Trade Plan` remain the explicit BUS-binding groups.
+* The charted wrapper plan now uses `Execution Trigger`, `Execution Invalidation`, and `Execution Take Profit` as the visible output names.
+
 ### M) Sideways/Chop semantics (naming + intent)
 
 To avoid confusion, the codebase now treats three concepts separately:

@@ -784,12 +784,12 @@ skipp-algo/
 - [Deep Technical Documentation (v6.2.22)](docs/SkippALGO_Deep_Technical_Documentation_v6.2.22.md)
 - [Market Structure Guide](docs/SkippALGO_Market_Structure.md)
 - [SMC++ Dashboard Guide (DE)](docs/SMC_Dashboard_Long_Dip_Guide_DE.md)
-- [SMC / SkippALGO Decision-First UX PRD](docs/smc-tradingview-decision-first-prd.md)
-- [SMC / SkippALGO Decision-First UX Backlog](docs/smc-tradingview-decision-first-backlog.md)
-- [SMC / SkippALGO Screen Specification](docs/smc-tradingview-screen-spec.md)
-- [SMC / SkippALGO First-Release Ticketset](docs/smc-tradingview-first-release-ticketset.md)
-- [SMC / SkippALGO First UI Cut Implementation Preparation](docs/smc-tradingview-first-ui-cut-implementation.md)
-- [SMC / SkippALGO R1.1 Migration and Operator Guide](docs/smc-tradingview-r1-1-migration-and-operator-guide.md)
+- [SMC Decision-First UX PRD](docs/smc-tradingview-decision-first-prd.md)
+- [SMC Decision-First UX Backlog](docs/smc-tradingview-decision-first-backlog.md)
+- [SMC Screen Specification](docs/smc-tradingview-screen-spec.md)
+- [SMC First-Release Ticketset](docs/smc-tradingview-first-release-ticketset.md)
+- [SMC First UI Cut Implementation Preparation](docs/smc-tradingview-first-ui-cut-implementation.md)
+- [SMC R1.1 Migration and Operator Guide](docs/smc-tradingview-r1-1-migration-and-operator-guide.md)
 
 ### Architecture & Planning
 

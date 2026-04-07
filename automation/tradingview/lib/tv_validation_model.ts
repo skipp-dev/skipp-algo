@@ -47,6 +47,25 @@ export type TradingViewAuthResolution = {
 
 export type LibraryReleasePublishMode = "manual" | "automated";
 
+export type LibraryReleaseConsumerRole =
+  | "producer"
+  | "dashboard_companion"
+  | "execution_wrapper"
+  | "companion_operator_only"
+  | "internal"
+  | "legacy";
+
+export type ProductCutSummary = {
+  manifestPath: string;
+  source: string;
+  mainlineFiles: string[];
+  litePrimaryFiles: string[];
+  proPrimaryFiles: string[];
+  companionOperatorOnlyFiles: string[];
+  internalFiles: string[];
+  legacyFiles: string[];
+};
+
 export type LibraryReleaseManifest = {
   generatedAt: string;
   publishMode: LibraryReleasePublishMode;
@@ -64,8 +83,9 @@ export type LibraryReleaseManifest = {
   consumers: Array<{
     scriptName: string;
     file: string;
-    role: "producer" | "consumer";
+    role: LibraryReleaseConsumerRole;
   }>;
+  productCut: ProductCutSummary;
   lastPreflightReport: string | null;
   notes: string[];
 };
@@ -299,6 +319,34 @@ export function getRequiredLibraryReleaseManifestFields(
   }
   if (!Array.isArray(manifest.consumers) || manifest.consumers.length === 0) {
     missing.push("consumers");
+  }
+  if (!manifest.productCut) {
+    missing.push("productCut");
+  } else {
+    if (!manifest.productCut.manifestPath) {
+      missing.push("productCut.manifestPath");
+    }
+    if (!manifest.productCut.source) {
+      missing.push("productCut.source");
+    }
+    if (!Array.isArray(manifest.productCut.mainlineFiles) || manifest.productCut.mainlineFiles.length === 0) {
+      missing.push("productCut.mainlineFiles");
+    }
+    if (!Array.isArray(manifest.productCut.litePrimaryFiles) || manifest.productCut.litePrimaryFiles.length === 0) {
+      missing.push("productCut.litePrimaryFiles");
+    }
+    if (!Array.isArray(manifest.productCut.proPrimaryFiles) || manifest.productCut.proPrimaryFiles.length === 0) {
+      missing.push("productCut.proPrimaryFiles");
+    }
+    if (!Array.isArray(manifest.productCut.companionOperatorOnlyFiles)) {
+      missing.push("productCut.companionOperatorOnlyFiles");
+    }
+    if (!Array.isArray(manifest.productCut.internalFiles)) {
+      missing.push("productCut.internalFiles");
+    }
+    if (!Array.isArray(manifest.productCut.legacyFiles)) {
+      missing.push("productCut.legacyFiles");
+    }
   }
   if (!("lastPreflightReport" in manifest)) {
     missing.push("lastPreflightReport");

@@ -104,10 +104,13 @@ def test_bundle_contains_snapshot_projections_and_additive_contexts(monkeypatch)
 
     bundle = service.build_snapshot_bundle_for_symbol_timeframe("AAPL", "15m", source="auto", generated_at=1709253600.0)
 
-    assert set(["source_plan", "structure_status", "snapshot", "dashboard_payload", "pine_payload"]).issubset(set(bundle.keys()))
+    assert set(["source_plan", "structure_status", "product_cut", "snapshot", "dashboard_payload", "pine_payload"]).issubset(set(bundle.keys()))
     assert set(["structure_qualifiers", "session_context", "htf_context"]).issubset(set(bundle.keys()))
 
     snapshot = bundle["snapshot"]
+    assert snapshot["product_cut"] == bundle["product_cut"]
+    assert bundle["dashboard_payload"]["product_cut"] == bundle["product_cut"]
+    assert bundle["pine_payload"]["product_cut"] == bundle["product_cut"]
     assert set(snapshot["structure"].keys()) == {"bos", "orderblocks", "fvg", "liquidity_sweeps"}
     assert "structure_qualifiers" not in snapshot["structure"]
     assert "session_context" not in snapshot["structure"]

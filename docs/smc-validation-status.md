@@ -2,13 +2,16 @@
 
 ## Current Scope
 
-The current completed work is limited to the TradingView validation, reporting, and runtime-assurance layer.
+The current completed work now covers the TradingView validation/reporting layer plus the canonical SMC Lite/Pro product-cut contract.
 
-It does not change:
+It now anchors and propagates product metadata across:
 
 - [../SMC_Core_Engine.pine](../SMC_Core_Engine.pine)
 - [../SMC_Dashboard.pine](../SMC_Dashboard.pine)
 - [../SMC_Long_Strategy.pine](../SMC_Long_Strategy.pine)
+- [../scripts/smc_bus_manifest.py](../scripts/smc_bus_manifest.py)
+- [../artifacts/tradingview/smc_product_cut_manifest.json](../artifacts/tradingview/smc_product_cut_manifest.json)
+- [../artifacts/tradingview/library_release_manifest.json](../artifacts/tradingview/library_release_manifest.json)
 
 ## What Changed In This Phase
 
@@ -17,35 +20,43 @@ It does not change:
 - binding verification is split into count and name checks
 - runtime smoke validation is explicit and minimal
 - library release tracking now has a machine-readable manifest under [../artifacts/tradingview/library_release_manifest.json](../artifacts/tradingview/library_release_manifest.json)
+- the SMC product boundary now has a machine-readable artifact under [../artifacts/tradingview/smc_product_cut_manifest.json](../artifacts/tradingview/smc_product_cut_manifest.json)
+- preflight scopes now resolve from the canonical product-cut artifact, including the mainline path `SMC_Core_Engine.pine` + `SMC_Dashboard.pine` + `SMC_Long_Strategy.pine`
+- dashboard, strategy, companion, bridge, and legacy surfaces are explicitly classified in code and artifact form
+- dashboard/pine payloads and the delivery bundle now carry `product_cut` metadata
+- the long-strategy wrapper now separates visible setup from operator-only BUS bindings and exposes execution-plan outputs with product terminology
 - focused contract tests cover schema, aggregation, auth priority, and manifest requirements
 
 ## What Remains Unchanged
 
-- producer logic
-- dashboard logic
-- strategy logic
+- producer trading logic
+- dashboard decision logic
+- strategy order logic
 - bus versioning
 - explicit TradingView library owner/version contract
 
 ## Current Workspace Status
 
-Refresh date: 2026-04-05
+Refresh date: 2026-04-07
 
 - live TradingView automation prerequisites are present in this checkout
 - present locally: `scripts/tv_preflight.ts`, `scripts/tv_publish_micro_library.ts`, `scripts/create_tradingview_storage_state.ts`, the shared automation layer under `automation/tradingview/lib/...`, the `automation/tradingview/reports` folder, and auth artifacts under `automation/tradingview/auth/...`
 - consequence: repo-side mutating preflight and automated micro-library publish runs are reproducible from this workspace snapshot again
-- caveat: staged preflight artifacts must still be read per-scope; some runs only prove auth/ui/compile and leave binding/runtime scopes as `not_run`
+- canonical mainline preflight scope is now available through `npm run tv:preflight:smc-mainline`
+- caveat: older staged artifacts can still represent partial scopes; the current mainline report is the authoritative live read for full auth/ui/compile/binding/runtime status
 - static split-contract validation for the active SMC path remains the code-level source of truth in this checkout
 
 ## Current Decision Status
 
 - validation/reporting layer: updated
-- latest staged-format authenticated preflight artifact: `automation/tradingview/reports/preflight-micro-library-2026-04-04T07-50-33-373Z.json`
+- product-cut contract layer: updated
+- latest staged-format authenticated preflight artifact: `automation/tradingview/reports/preflight-2026-04-07T13-29-40-066Z.json`
 - latest automated micro-library publish artifact: `automation/tradingview/reports/publish-micro-library-2026-04-04T07-50-33-372Z.json`
 - current shell auth result: reusable TradingView auth artifacts are present in this workspace snapshot
-- current repo-side preflight reading: auth/ui/compile are green for the active core target; report-root `overall_preflight_ok` remains false on that pass because binding/runtime scopes were not run
-- current live validation decision in this checkout: repo-side preflight and publish evidence are present; full binding/runtime confidence still depends on running those scopes explicitly
+- current repo-side preflight reading: the canonical `tv:preflight:smc-mainline` path is green across auth, ui, compile, binding, runtime, and report-root `overall_preflight_ok`
+- current live validation decision in this checkout: the active SMC mainline path is fully green and review-ready in TradingView live automation
 - library publish tracking artifact: present
+- product-cut artifact: present
 - automated micro-library publish path: reproducible from this workspace snapshot
 
 ## Read This Next

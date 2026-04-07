@@ -216,9 +216,19 @@ test("library release manifest helper enforces required fields", () => {
       {
         scriptName: "SMC Core Engine",
         file: "SMC_Core_Engine.pine",
-        role: "consumer",
+        role: "producer",
       },
     ],
+    productCut: {
+      manifestPath: "artifacts/tradingview/smc_product_cut_manifest.json",
+      source: "scripts/smc_bus_manifest.py",
+      mainlineFiles: ["SMC_Core_Engine.pine", "SMC_Dashboard.pine", "SMC_Long_Strategy.pine"],
+      litePrimaryFiles: ["SMC_Core_Engine.pine"],
+      proPrimaryFiles: ["SMC_Dashboard.pine", "SMC_Long_Strategy.pine"],
+      companionOperatorOnlyFiles: ["SMC_Event_Overlay.pine"],
+      internalFiles: ["SMC_TV_Bridge.pine"],
+      legacyFiles: ["SMC++.pine"],
+    },
     lastPreflightReport: "automation/tradingview/reports/preflight-2026-03-24T04-39-33-983Z.json",
     notes: ["TradingView publish remains a manual step."],
   };
@@ -229,6 +239,7 @@ test("library release manifest helper enforces required fields", () => {
     "manifestVersion",
     "library",
     "consumers",
+    "productCut",
     "lastPreflightReport",
     "notes",
   ]);
@@ -253,9 +264,19 @@ test("library release manifest helper accepts automated publish mode", () => {
       {
         scriptName: "SMC Core Engine",
         file: "SMC_Core_Engine.pine",
-        role: "consumer",
+        role: "producer",
       },
     ],
+    productCut: {
+      manifestPath: "artifacts/tradingview/smc_product_cut_manifest.json",
+      source: "scripts/smc_bus_manifest.py",
+      mainlineFiles: ["SMC_Core_Engine.pine", "SMC_Dashboard.pine", "SMC_Long_Strategy.pine"],
+      litePrimaryFiles: ["SMC_Core_Engine.pine"],
+      proPrimaryFiles: ["SMC_Dashboard.pine", "SMC_Long_Strategy.pine"],
+      companionOperatorOnlyFiles: ["SMC_Event_Overlay.pine"],
+      internalFiles: ["SMC_TV_Bridge.pine"],
+      legacyFiles: ["SMC++.pine"],
+    },
     lastPreflightReport: "automation/tradingview/reports/preflight-2026-03-24T09-10-25-787Z.json",
     notes: ["Automated publish completed and core validation stayed green."],
   };

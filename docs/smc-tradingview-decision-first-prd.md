@@ -1,4 +1,4 @@
-# SMC / SkippALGO TradingView UX PRD (Decision-First)
+# SMC TradingView UX PRD (Decision-First)
 
 ## Status
 
@@ -7,7 +7,7 @@ Draft
 ## Ziel
 
 Dieses PRD beschreibt den Produkt- und UX-Umbau der TradingView-Surface fuer
-`SMC_Core_Engine.pine`, `SMC_Dashboard.pine` und `SkippALGO.pine`.
+`SMC_Core_Engine.pine`, `SMC_Dashboard.pine` und `SMC_Long_Strategy.pine`.
 
 Das Ziel ist nicht eine neue Signal-Engine, sondern eine klarere Produktform:
 
@@ -23,7 +23,7 @@ Die Pro-Surface bleibt Diagnose-, Audit- und Tuning-Lage.
 - `docs/smc-lite-pro-product-cut.md`
 - `docs/SMC_Unified_Lean_Architecture_v5_5a_DE_EN.md`
 - `docs/SMC_Dashboard_Long_Dip_Guide_DE.md`
-- `docs/SkippALGO_Deep_Technical_Documentation.md`
+- `docs/TRADINGVIEW_STRATEGY_GUIDE.md`
 - `docs/smc-tradingview-decision-first-backlog.md`
 - `docs/smc-tradingview-screen-spec.md`
 - `docs/smc-tradingview-first-release-ticketset.md`
@@ -408,9 +408,9 @@ die Hero-Surface verwenden.
 | --- | --- |
 | `SMC_Core_Engine.pine` | Referenz fuer Lite-Operator-Surface und State-Ableitung |
 | `SMC_Dashboard.pine` | Compact Detail und Pro Diagnostics |
-| `SkippALGO.pine` | Decision-first Statusblock, Forecast-/Trust-Uebersetzung |
+| `SMC_Long_Strategy.pine` | ausfuehrbarer Long-Wrapper auf Basis des Core-BUS |
 | `docs/SMC_Dashboard_Long_Dip_Guide_DE.md` | Nutzererklaerung und Terminologie |
-| `docs/SkippALGO_Deep_Technical_Documentation.md` | technische Referenz fuer Forecast-/Trust-Semantik |
+| `docs/TRADINGVIEW_STRATEGY_GUIDE.md` | Strategie-Setup, Binding und Backtest-Kontext |
 
 ## Delivery Phasen
 
@@ -451,7 +451,7 @@ die Hero-Surface verwenden.
 ## Offene Fragen
 
 1. Welche Surface wird als Flaggschiff priorisiert: `SMC_Core_Engine.pine` oder
-   `SkippALGO.pine`?
+   `SMC_Long_Strategy.pine`?
 2. Soll `SHORT` in der Lite-Surface von Anfang an voll gleichwertig sein oder
    bleibt Long-Dip-first die erste Produktgrenze?
 3. Soll Pro Diagnostics als separates Companion-Skript publiziert werden oder

@@ -3,6 +3,8 @@
 
 //@version=6
 
+// Product role: pro-primary diagnostics companion. Hidden BUS bindings remain operator-only; the visible surface mode controls the user-facing dashboard cut.
+
 indicator("SMC Dashboard", "SMC Dash", overlay = true, max_labels_count = 50)
 
 var string g_bus_lifecycle = "1. Core BUS - Lifecycle"
@@ -12,7 +14,7 @@ var string g_bus_plan = "4. Core BUS - Trade Plan"
 var string g_bus_detail = "5. Core BUS - Detail Surface"
 var string g_bus_lean = "6. Core BUS - Lean Surface"
 var string g_local_debug = "7. Dashboard - Local Debug Mirrors"
-var string g_surface = "8. Dashboard Surface"
+var string g_surface = "8. Product Surface"
 
 src_zone_active = input.source(close, "BUS ZoneActive", group = g_bus_lifecycle, display = display.none, tooltip = "Bind this section top-to-bottom to the matching hidden BUS series published by SMC Core Engine.")
 src_armed = input.source(close, "BUS Armed", group = g_bus_lifecycle, display = display.none)
@@ -315,6 +317,99 @@ dashboard_product_state_text(int state_code) =>
         state_text := "PREPARE LONG"
     state_text
 
+// Pine helper resolution is order-sensitive here; keep these decoders above compact helper callers.
+decode_lean_sq_text(int row_code) =>
+    int s = row_status(row_code)
+    int r = row_reason(row_code)
+    string tier = r == 4 ? "high" : r == 3 ? "good" : r == 2 ? "ok" : "low"
+    tier
+
+decode_lean_freshness_text(int row_code) =>
+    int s = row_status(row_code)
+    int r = row_reason(row_code)
+    string freshness = s >= 5 ? "fresh" : s == 3 ? "aging" : "stale"
+    string bias = r == 1 ? "bull" : r == 2 ? "bear" : r == 3 ? "mixed" : "neutral"
+    freshness + " | " + bias
+
+decode_lean_erl_text(int row_code) =>
+    int s = row_status(row_code)
+    int r = row_reason(row_code)
+    if s == -1 and r == 1
+        "BLOCKED (Market)"
+    else if s == -1 and r == 6
+        "BLOCKED (Symbol)"
+    else if s == 2 and r == 2
+        "ACTIVE Window"
+    else if s == 2 and r == 3
+        "PRE_EVENT Caution"
+    else if s == 3 and r == 4
+        "COOLDOWN"
+    else
+        "CLEAR"
+
+decode_lean_struct_text(int row_code) =>
+    int s = row_status(row_code)
+    int r = row_reason(row_code)
+    string event = r == 1 ? "BOS_BULL" : r == 2 ? "CHOCH_BULL" : r == 3 ? "BOS_BEAR" : r == 4 ? "CHOCH_BEAR" : "NONE"
+    string strength = s >= 5 ? "Strong" : s >= 4 ? "Medium" : "Weak"
+    strength + " | " + event
+
+decode_lean_ob_text(int row_code) =>
+    int s = row_status(row_code)
+    int r = row_reason(row_code)
+    if s == 5
+        "BULL Fresh | " + (r == 1 ? "fresh" : r == 2 ? "touched" : "stale")
+    else if s == 3 and r == 2
+        "BULL Aging"
+    else if s == 2 and r == 4
+        "BEAR"
+    else
+        "None"
+
+decode_lean_fvg_text(int row_code) =>
+    int s = row_status(row_code)
+    int r = row_reason(row_code)
+    if s == 2 and r == 1
+        "Invalidated"
+    else if s == 5 and r == 2
+        "BULL Fresh"
+    else if s == 4 and r == 3
+        "BULL Aging"
+    else if s == 2 and r == 4
+        "BEAR"
+    else
+        "None"
+
+decode_lean_session_text(int row_code) =>
+    int score = row_status(row_code)
+    int kz = row_reason(row_code)
+    string kz_text = kz == 1 ? "KZ" : "noKZ"
+    str.tostring(score) + " | " + kz_text
+
+zone_reason_text(int zone_code) =>
+    string label_text = "No Long Zone"
+    if zone_code == 1
+        label_text := "Zone touched"
+    else if zone_code == 2
+        label_text := "In FVG Zone"
+    else if zone_code == 3
+        label_text := "In OB Zone"
+    else if zone_code == 4
+        label_text := "In OB + FVG Zone"
+    label_text
+
+plan_text(bool active, float trigger_level, float stop_level, float target_1, float target_2) =>
+    if not active
+        "n/a"
+    else
+        "Entry " + str.tostring(trigger_level, format.mintick) + " | Stop " + str.tostring(stop_level, format.mintick) + " | T1 " + str.tostring(target_1, format.mintick) + " | T2 " + str.tostring(target_2, format.mintick)
+
+trigger_text(bool active, float trigger_level, float invalidation_level) =>
+    if not active
+        "n/a"
+    else
+        "Trig " + str.tostring(trigger_level, format.mintick) + " | Inv " + str.tostring(invalidation_level, format.mintick)
+
 dashboard_compact_why_now_text(int state_code, int zone_code, int lean_struct_row_code, int lean_ob_row_code, int lean_fvg_row_code) =>
     string why_text = "No reclaim confirmation yet"
     if state_code >= 5
@@ -370,18 +465,6 @@ source_state_text(int source_state_code) =>
         label_text := "source invalid"
     else if source_state_code == 3
         label_text := "source lost"
-    label_text
-
-zone_reason_text(int zone_code) =>
-    string label_text = "No Long Zone"
-    if zone_code == 1
-        label_text := "Zone touched"
-    else if zone_code == 2
-        label_text := "In FVG Zone"
-    else if zone_code == 3
-        label_text := "In OB Zone"
-    else if zone_code == 4
-        label_text := "In OB + FVG Zone"
     label_text
 
 reclaim_reason_text(int reclaim_code) =>
@@ -941,88 +1024,6 @@ decode_strict_gate_text(int row_code) =>
 
 quality_bounds_text(float score_value) =>
     str.tostring(score_value, "#.##") + "/100 | min 25"
-
-plan_text(bool active, float trigger_level, float stop_level, float target_1, float target_2) =>
-    if not active
-        "n/a"
-    else
-        "Entry " + str.tostring(trigger_level, format.mintick) + " | Stop " + str.tostring(stop_level, format.mintick) + " | T1 " + str.tostring(target_1, format.mintick) + " | T2 " + str.tostring(target_2, format.mintick)
-
-trigger_text(bool active, float trigger_level, float invalidation_level) =>
-    if not active
-        "n/a"
-    else
-        "Trig " + str.tostring(trigger_level, format.mintick) + " | Inv " + str.tostring(invalidation_level, format.mintick)
-
-// ── v5.5 Lean Surface Decoders ──
-
-decode_lean_sq_text(int row_code) =>
-    int s = row_status(row_code)
-    int r = row_reason(row_code)
-    string tier = r == 4 ? "high" : r == 3 ? "good" : r == 2 ? "ok" : "low"
-    tier
-
-decode_lean_freshness_text(int row_code) =>
-    int s = row_status(row_code)
-    int r = row_reason(row_code)
-    string freshness = s >= 5 ? "fresh" : s == 3 ? "aging" : "stale"
-    string bias = r == 1 ? "bull" : r == 2 ? "bear" : r == 3 ? "mixed" : "neutral"
-    freshness + " | " + bias
-
-decode_lean_erl_text(int row_code) =>
-    int s = row_status(row_code)
-    int r = row_reason(row_code)
-    if s == -1 and r == 1
-        "BLOCKED (Market)"
-    else if s == -1 and r == 6
-        "BLOCKED (Symbol)"
-    else if s == 2 and r == 2
-        "ACTIVE Window"
-    else if s == 2 and r == 3
-        "PRE_EVENT Caution"
-    else if s == 3 and r == 4
-        "COOLDOWN"
-    else
-        "CLEAR"
-
-decode_lean_struct_text(int row_code) =>
-    int s = row_status(row_code)
-    int r = row_reason(row_code)
-    string event = r == 1 ? "BOS_BULL" : r == 2 ? "CHOCH_BULL" : r == 3 ? "BOS_BEAR" : r == 4 ? "CHOCH_BEAR" : "NONE"
-    string strength = s >= 5 ? "Strong" : s >= 4 ? "Medium" : "Weak"
-    strength + " | " + event
-
-decode_lean_ob_text(int row_code) =>
-    int s = row_status(row_code)
-    int r = row_reason(row_code)
-    if s == 5
-        "BULL Fresh | " + (r == 1 ? "fresh" : r == 2 ? "touched" : "stale")
-    else if s == 3 and r == 2
-        "BULL Aging"
-    else if s == 2 and r == 4
-        "BEAR"
-    else
-        "None"
-
-decode_lean_fvg_text(int row_code) =>
-    int s = row_status(row_code)
-    int r = row_reason(row_code)
-    if s == 2 and r == 1
-        "Invalidated"
-    else if s == 5 and r == 2
-        "BULL Fresh"
-    else if s == 4 and r == 3
-        "BULL Aging"
-    else if s == 2 and r == 4
-        "BEAR"
-    else
-        "None"
-
-decode_lean_session_text(int row_code) =>
-    int score = row_status(row_code)
-    int kz = row_reason(row_code)
-    string kz_text = kz == 1 ? "KZ" : "noKZ"
-    str.tostring(score) + " | " + kz_text
 
 bool zone_active = state_on(src_zone_active)
 bool armed = state_on(src_armed)

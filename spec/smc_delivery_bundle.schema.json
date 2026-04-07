@@ -3,7 +3,7 @@
   "$id": "https://skipp-algo.local/spec/smc_delivery_bundle.schema.json",
   "title": "SmcDeliveryBundle",
   "type": "object",
-  "required": ["source_plan", "structure_status", "snapshot", "dashboard_payload", "pine_payload"],
+  "required": ["source_plan", "structure_status", "product_cut", "snapshot", "dashboard_payload", "pine_payload"],
   "additionalProperties": true,
   "properties": {
     "source_plan": {
@@ -40,6 +40,63 @@
         "selected_missing_categories": {
           "type": "array",
           "items": { "type": "string", "enum": ["bos", "choch", "orderblocks", "fvg", "liquidity_sweeps"] }
+        }
+      }
+    },
+    "product_cut": {
+      "type": "object",
+      "required": ["source", "artifactPath", "mainlineSurfaceFiles", "litePrimaryFiles", "proPrimaryFiles", "companionOperatorOnlyFiles", "internalFiles", "legacyFiles", "surfaceRoles"],
+      "additionalProperties": true,
+      "properties": {
+        "source": { "type": "string", "minLength": 1 },
+        "artifactPath": { "type": "string", "minLength": 1 },
+        "mainlineSurfaceFiles": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "litePrimaryFiles": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "proPrimaryFiles": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "companionOperatorOnlyFiles": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "internalFiles": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "legacyFiles": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "surfaceRoles": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["file", "script_name", "surface_role", "contract_tier", "consumer_role", "validation_target", "notes"],
+            "additionalProperties": true,
+            "properties": {
+              "file": { "type": "string", "minLength": 1 },
+              "script_name": { "type": "string", "minLength": 1 },
+              "surface_role": { "type": "string", "enum": ["lite_primary", "pro_primary", "companion_operator_only", "internal", "legacy"] },
+              "contract_tier": { "type": "string", "enum": ["lite_and_pro", "pro", "execution", "internal", "legacy"] },
+              "consumer_role": { "type": "string", "enum": ["producer", "dashboard_companion", "execution_wrapper", "overlay_companion", "context_companion", "bridge", "legacy_monolith", "legacy_split"] },
+              "validation_target": { "type": "boolean" },
+              "notes": {
+                "type": "array",
+                "items": { "type": "string" }
+              }
+            }
+          }
         }
       }
     },

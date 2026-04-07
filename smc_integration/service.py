@@ -25,6 +25,7 @@ from smc_core.scoring import (
 from smc_core.vol_regime import compute_vol_regime
 from smc_core.types import SmcSnapshot
 from scripts.load_databento_export_bundle import load_export_bundle
+from scripts.smc_bus_manifest import build_product_cut_manifest_payload
 from scripts.smc_htf_context import build_htf_bias_context
 from scripts.smc_session_context import build_session_liquidity_context
 from scripts.smc_structure_qualifiers import build_structure_qualifiers
@@ -303,6 +304,7 @@ def build_dashboard_payload_for_symbol_timeframe(
 ) -> dict:
     source_plan = discover_composite_source_plan(source=source, symbol=symbol, timeframe=timeframe)
     structure_status = discover_structure_source_status(source=source, symbol=symbol, timeframe=timeframe)
+    product_cut = build_product_cut_manifest_payload()
     snapshot = build_snapshot_for_symbol_timeframe(
         symbol,
         timeframe,
@@ -313,6 +315,7 @@ def build_dashboard_payload_for_symbol_timeframe(
         snapshot,
         source_plan=source_plan,
         structure_status=structure_status,
+        product_cut=product_cut,
     )
 
 
@@ -325,6 +328,7 @@ def build_pine_payload_for_symbol_timeframe(
 ) -> dict:
     source_plan = discover_composite_source_plan(source=source, symbol=symbol, timeframe=timeframe)
     structure_status = discover_structure_source_status(source=source, symbol=symbol, timeframe=timeframe)
+    product_cut = build_product_cut_manifest_payload()
     snapshot = build_snapshot_for_symbol_timeframe(
         symbol,
         timeframe,
@@ -335,6 +339,7 @@ def build_pine_payload_for_symbol_timeframe(
         snapshot,
         source_plan=source_plan,
         structure_status=structure_status,
+        product_cut=product_cut,
     )
 
 
@@ -348,6 +353,7 @@ def build_snapshot_bundle_for_symbol_timeframe(
     selected = select_best_structure_source() if source.strip().lower() == "auto" else None
     composite = discover_composite_source_plan(source=source, symbol=symbol, timeframe=timeframe)
     structure_status = discover_structure_source_status(source=source, symbol=symbol, timeframe=timeframe)
+    product_cut = build_product_cut_manifest_payload()
     raw_structure, normalized_structure_context = _load_structure_input_and_context(symbol, timeframe, source=source)
     raw_meta = load_raw_meta_input_composite(
         symbol,
@@ -360,11 +366,13 @@ def build_snapshot_bundle_for_symbol_timeframe(
         snapshot,
         source_plan=composite,
         structure_status=structure_status,
+        product_cut=product_cut,
     )
     pine_payload = snapshot_to_pine_payload(
         snapshot,
         source_plan=composite,
         structure_status=structure_status,
+        product_cut=product_cut,
     )
 
     source_descriptor = selected if selected is not None else None
@@ -417,8 +425,9 @@ def build_snapshot_bundle_for_symbol_timeframe(
     out = {
         "source_plan": composite,
         "structure_status": structure_status,
+        "product_cut": product_cut,
         "source": source_descriptor.to_dict(),
-        "snapshot": snapshot_to_dict(snapshot),
+        "snapshot": snapshot_to_dict(snapshot, product_cut=product_cut),
         "dashboard_payload": dashboard_payload,
         "pine_payload": pine_payload,
         "structure_qualifiers": structure_qualifiers,

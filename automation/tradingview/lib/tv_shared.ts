@@ -1725,6 +1725,131 @@ async function clickVisibleWithFallbackOutsidePineDialog(
   return false;
 }
 
+async function clickLegendControlWithFallback(
+  page: Page,
+  candidates: Locator[],
+  tracePrefix: string,
+  timeoutMs = 500,
+  settleMs = 150,
+  effectCheck?: () => Promise<boolean>,
+): Promise<boolean> {
+  const settleLegendControlEffect = async (effectDetail: string): Promise<boolean> => {
+    await page.waitForTimeout(settleMs);
+    if (!effectCheck) {
+      return true;
+    }
+
+    const effectVisible = await effectCheck().catch(() => false);
+    if (effectVisible) {
+      tracePageEvent(page, `${tracePrefix}-effect-ok`, effectDetail);
+      return true;
+    }
+
+    tracePageEvent(page, `${tracePrefix}-no-effect`, effectDetail);
+    return false;
+  };
+
+  for (const [index, locator] of candidates.entries()) {
+    const candidate = await firstVisibleLocatorFast(locator, timeoutMs);
+    if (!candidate) {
+      tracePageEvent(page, `${tracePrefix}-candidate-missing`, `candidate:${index}`);
+      continue;
+    }
+
+    tracePageEvent(page, `${tracePrefix}-candidate-visible`, `candidate:${index}`);
+    await candidate.scrollIntoViewIfNeeded().catch(() => undefined);
+    await candidate.hover({ timeout: timeoutMs }).catch(() => undefined);
+
+    try {
+      await candidate.click({ timeout: timeoutMs, force: true });
+      tracePageEvent(page, `${tracePrefix}-force-ok`, `candidate:${index}`);
+      if (await settleLegendControlEffect(`candidate:${index}:force`)) {
+        return true;
+      }
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      tracePageEvent(page, `${tracePrefix}-force-error`, `candidate:${index}:${message}`);
+    }
+
+    try {
+      const pointerBypassed = await candidate.evaluate((node) => {
+        const element = node as HTMLElement;
+        const rect = element.getBoundingClientRect();
+        const x = rect.left + Math.max(2, Math.min(rect.width / 2, rect.width - 2));
+        const y = rect.top + Math.max(2, Math.min(rect.height / 2, rect.height - 2));
+        const patched: Array<{ element: HTMLElement; value: string }> = [];
+
+        let hit = document.elementFromPoint(x, y) as HTMLElement | null;
+        while (hit && hit !== element && !element.contains(hit) && patched.length < 6) {
+          patched.push({ element: hit, value: hit.style.pointerEvents });
+          hit.style.pointerEvents = 'none';
+          hit = document.elementFromPoint(x, y) as HTMLElement | null;
+        }
+
+        const targetReady = hit === element || Boolean(hit && element.contains(hit));
+        if (targetReady) {
+          for (const eventType of ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click']) {
+            element.dispatchEvent(
+              new MouseEvent(eventType, {
+                bubbles: true,
+                cancelable: true,
+                composed: true,
+                clientX: x,
+                clientY: y,
+                view: window,
+              }),
+            );
+          }
+          element.click();
+        }
+
+        for (const entry of patched.reverse()) {
+          entry.element.style.pointerEvents = entry.value;
+        }
+
+        return targetReady;
+      });
+      if (pointerBypassed) {
+        tracePageEvent(page, `${tracePrefix}-pointer-bypass-ok`, `candidate:${index}`);
+        if (await settleLegendControlEffect(`candidate:${index}:pointer-bypass`)) {
+          return true;
+        }
+      }
+      tracePageEvent(page, `${tracePrefix}-pointer-bypass-miss`, `candidate:${index}`);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      tracePageEvent(page, `${tracePrefix}-pointer-bypass-error`, `candidate:${index}:${message}`);
+    }
+
+    try {
+      await candidate.evaluate((node) => {
+        const element = node as HTMLElement;
+        element.scrollIntoView({ block: 'center', inline: 'center' });
+        for (const eventType of ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click']) {
+          element.dispatchEvent(
+            new MouseEvent(eventType, {
+              bubbles: true,
+              cancelable: true,
+              composed: true,
+              view: window,
+            }),
+          );
+        }
+        element.click();
+      });
+      tracePageEvent(page, `${tracePrefix}-dom-ok`, `candidate:${index}`);
+      if (await settleLegendControlEffect(`candidate:${index}:dom`)) {
+        return true;
+      }
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      tracePageEvent(page, `${tracePrefix}-dom-error`, `candidate:${index}:${message}`);
+    }
+  }
+
+  return false;
+}
+
 async function hasVisibleLocator(candidates: Locator[], timeoutMs = 500): Promise<boolean> {
   for (const locator of candidates) {
     const candidate = await firstVisibleLocator(locator, timeoutMs);
@@ -2671,10 +2796,20 @@ async function waitForScriptSettingsInputsSurface(page: Page, timeoutMs = 2_000)
     if (await hasQuickVisibleScriptSettingsSurface(page)) {
       return true;
     }
+    if (await hasVisibleLocatorFast(tvSelectors.inputsTab(page), 120)) {
+      return true;
+    }
     await page.waitForTimeout(100);
   }
 
-  return hasScriptSettingsInputsSurface(page);
+  if (await hasQuickVisibleScriptSettingsSurface(page)) {
+    return true;
+  }
+  if (await hasVisibleLocatorFast(tvSelectors.inputsTab(page), 150)) {
+    return true;
+  }
+
+  return Boolean(await findIndicatorSettingsDialog(page, Math.min(250, Math.max(100, timeoutMs))));
 }
 
 async function findVisibleDialogByText(page: Page, pattern: RegExp, timeoutMs = 750): Promise<Locator | null> {
@@ -2729,15 +2864,17 @@ async function resolveOpenedSettingsSurfaceToIndicatorDialog(
     return false;
   }
 
+  const actionClickTimeoutMs = Math.max(250, Math.min(600, timeoutMs));
+  const actionSettleMs = Math.max(100, Math.min(250, Math.floor(actionClickTimeoutMs / 2)));
   const clickedSettings = await clickVisibleWithFallback(
     page,
     tvSelectors.settingsAction(page),
     `${tracePrefix}-action`,
-    1_200,
-    350,
+    actionClickTimeoutMs,
+    actionSettleMs,
   );
   tracePageEvent(page, `${tracePrefix}-action-result`, String(clickedSettings));
-  if (clickedSettings && (await waitForScriptSettingsInputsSurface(page, 1_500))) {
+  if (clickedSettings && (await waitForScriptSettingsInputsSurface(page, Math.max(250, Math.min(600, timeoutMs))))) {
     tracePageEvent(page, `${tracePrefix}-script-settings-after-action`);
     return true;
   }
@@ -3104,6 +3241,7 @@ export async function refreshChartScriptInstance(page: Page, scriptName: string)
     await ensurePineEditor(page).catch(() => undefined);
     await openExistingScript(page, scriptName).catch(() => undefined);
     await addCurrentScriptToChart(page, scriptName, { forceInsert: true });
+    await page.waitForTimeout(1_250);
     return removedCount;
   });
 }
@@ -3115,13 +3253,16 @@ async function tryOpenScriptSettingsByDoubleClick(
   traceOkEvent: string,
   traceDetail: string,
 ): Promise<boolean> {
+  const quickInputsSurfaceTimeoutMs = 300;
+  const quickDialogResolveTimeoutMs = 350;
+
   const settleSettingsOpen = async (): Promise<boolean> => {
-    if (await waitForScriptSettingsInputsSurface(page, 2_500)) {
+    if (await waitForScriptSettingsInputsSurface(page, quickInputsSurfaceTimeoutMs)) {
       tracePageEvent(page, traceOkEvent, traceDetail);
       return true;
     }
 
-    if (await resolveOpenedSettingsSurfaceToIndicatorDialog(page, `${traceStartEvent}-surface`, 2_000)) {
+    if (await resolveOpenedSettingsSurfaceToIndicatorDialog(page, `${traceStartEvent}-surface`, quickDialogResolveTimeoutMs)) {
       tracePageEvent(page, traceOkEvent, `${traceDetail}:surface`);
       return true;
     }
@@ -3186,33 +3327,35 @@ async function openSettingsFromLegendContainer(page: Page, scriptName: string): 
       return verifyOpenedSettingsDialogIdentity(page, scriptName, "script-settings-legend-wrapper-dblclick");
     }
 
-    const clickedDirectSettings = await clickVisibleWithFallback(
+    const clickedDirectSettings = await clickLegendControlWithFallback(
       page,
       tvSelectors.legendSettingsButtons(wrapper),
       "script-settings-legend-wrapper-direct",
-      1_200,
-      300,
+      500,
+      150,
+      async () => waitForSettingsSurface(page, 350),
     );
     if (clickedDirectSettings) {
       tracePageEvent(page, "script-settings-legend-wrapper-direct-clicked", scriptName);
-      if (await waitForScriptSettingsInputsSurface(page, 1_500)) {
+      if (await waitForScriptSettingsInputsSurface(page, 350)) {
         return verifyOpenedSettingsDialogIdentity(page, scriptName, "script-settings-legend-wrapper-direct-surface");
       }
-      if (await resolveOpenedSettingsSurfaceToIndicatorDialog(page, "script-settings-legend-wrapper-direct")) {
+      if (await resolveOpenedSettingsSurfaceToIndicatorDialog(page, "script-settings-legend-wrapper-direct", 350)) {
         return verifyOpenedSettingsDialogIdentity(page, scriptName, "script-settings-legend-wrapper-direct-dialog");
       }
     }
 
-    const clickedMenu = await clickVisibleWithFallback(
+    const clickedMenu = await clickLegendControlWithFallback(
       page,
       tvSelectors.legendMenuButtons(wrapper),
       "script-settings-legend-wrapper-menu",
-      1_200,
-      300,
+      500,
+      150,
+      async () => waitForSettingsSurface(page, 350),
     );
     if (clickedMenu) {
       tracePageEvent(page, "script-settings-legend-wrapper-menu-clicked", scriptName);
-      if (await resolveOpenedSettingsSurfaceToIndicatorDialog(page, "script-settings-legend-wrapper-menu")) {
+      if (await resolveOpenedSettingsSurfaceToIndicatorDialog(page, "script-settings-legend-wrapper-menu", 350)) {
         return verifyOpenedSettingsDialogIdentity(page, scriptName, "script-settings-legend-wrapper-menu-dialog");
       }
     }
@@ -3261,36 +3404,38 @@ async function openSettingsFromLegendContainer(page: Page, scriptName: string): 
         return verifyOpenedSettingsDialogIdentity(page, scriptName, "script-settings-legend-container-dblclick");
       }
 
-      const clickedDirectSettings = await clickVisibleWithFallback(
+      const clickedDirectSettings = await clickLegendControlWithFallback(
         page,
         tvSelectors.legendSettingsButtons(targetContainer),
         "script-settings-legend-direct",
-        1_200,
-        300,
+        500,
+        150,
+        async () => waitForSettingsSurface(page, 350),
       );
       if (clickedDirectSettings) {
         tracePageEvent(page, "script-settings-legend-direct-clicked", `${scriptName}:${containerIndex}`);
-        await page.waitForTimeout(250);
-        if (await waitForScriptSettingsInputsSurface(page, 1_500)) {
+        await page.waitForTimeout(150);
+        if (await waitForScriptSettingsInputsSurface(page, 350)) {
           return verifyOpenedSettingsDialogIdentity(page, scriptName, "script-settings-legend-direct-surface");
         }
-        if (await resolveOpenedSettingsSurfaceToIndicatorDialog(page, `script-settings-legend-direct:${scriptName}:${containerIndex}`)) {
+        if (await resolveOpenedSettingsSurfaceToIndicatorDialog(page, `script-settings-legend-direct:${scriptName}:${containerIndex}`, 350)) {
           return verifyOpenedSettingsDialogIdentity(page, scriptName, "script-settings-legend-direct-dialog");
         }
         tracePageEvent(page, "script-settings-legend-direct-no-surface", `${scriptName}:${containerIndex}`);
       }
 
-      const clickedMenu = await clickVisibleWithFallback(
+      const clickedMenu = await clickLegendControlWithFallback(
         page,
         tvSelectors.legendMenuButtons(targetContainer),
         "script-settings-legend",
-        1_200,
-        300,
+        500,
+        150,
+        async () => waitForSettingsSurface(page, 350),
       );
       if (clickedMenu) {
         tracePageEvent(page, "script-settings-legend-container-clicked", `${scriptName}:${containerIndex}`);
-        await page.waitForTimeout(250);
-        if (await resolveOpenedSettingsSurfaceToIndicatorDialog(page, `script-settings-legend-menu:${scriptName}:${containerIndex}`)) {
+        await page.waitForTimeout(150);
+        if (await resolveOpenedSettingsSurfaceToIndicatorDialog(page, `script-settings-legend-menu:${scriptName}:${containerIndex}`, 350)) {
           return verifyOpenedSettingsDialogIdentity(page, scriptName, "script-settings-legend-menu-dialog");
         }
         tracePageEvent(page, "script-settings-legend-container-no-surface", `${scriptName}:${containerIndex}`);

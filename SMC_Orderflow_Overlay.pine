@@ -3,6 +3,8 @@
 
 //@version=6
 
+// Product role: companion_operator_only. Pro-only orderflow overlay outside the Lite default surface.
+
 // ─────────────────────────────────────────────────────────────────
 // SMC Orderflow Overlay — lightweight companion to SMC Core Engine
 //

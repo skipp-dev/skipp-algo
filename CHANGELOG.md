@@ -8,11 +8,11 @@ All notable changes to this project are documented in this file.
 
 ### Changed (2026-04-06)
 
-- **SMC / SkippALGO first-release closure:**
-  - Finished the SkippALGO decision-first Lite surface with a 10-control input gate, wrapper-based risk/forecast/label/alert controls, a true Decision Header, and Lite Outlook/Forecast panels.
-  - Aligned SkippALGO chart labels and product alert titles to the shared decision-first vocabulary while keeping legacy alert aliases for compatibility.
-  - Added a decision-first TradingView preflight config for `SMC_Core_Engine.pine`, `SMC_Dashboard.pine`, and `SkippALGO.pine`, plus npm wiring for repeatable release validation.
-  - Marked the first-release ticketset and R1.1 migration guide as released and updated the README to reflect the shipped SkippALGO surface.
+- **TradingView decision-first first-release closure:**
+  - Finished the SMC decision-first surface work for `SMC_Core_Engine.pine` and `SMC_Dashboard.pine`, and aligned the released docs to the Core/Dashboard/Long Strategy scope.
+  - Kept the shipped SkippALGO HUD work documented as a separate TradingView surface change, not as part of the SMC architecture scope.
+  - Added a decision-first TradingView preflight config for `SMC_Core_Engine.pine`, `SMC_Dashboard.pine`, `SMC_Long_Strategy.pine`, and companion TradingView automation, plus npm wiring for repeatable release validation.
+  - Marked the first-release ticketset and R1.1 migration guide as released and updated the README to reflect the corrected SMC scope.
 
 ### Changed (2026-04-06)
 

@@ -3,6 +3,8 @@
 
 //@version=6
 
+// Product role: companion_operator_only. Pro-only session-context companion outside the Lite default surface.
+
 // ─────────────────────────────────────────────────────────────────
 // SMC Session Context Overlay — lightweight companion to SMC Core Engine
 //

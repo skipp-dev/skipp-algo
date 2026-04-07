@@ -170,7 +170,7 @@ The auth capture step should only be considered valid if it finishes without the
 
 The repo-side guardrail is the contract verifier plus the generated manifest.
 
-The release manifest under `artifacts/tradingview/library_release_manifest.json` records the expected import path, expected version, published version, last referenced preflight report, and whether the current status is still manual, not yet verified, or fully published.
+The release manifest under `artifacts/tradingview/library_release_manifest.json` records the expected import path, expected version, published version, last referenced preflight report, the canonical mainline roles, and whether the current status is still manual, not yet verified, or fully published.
 
 ## Alert Secrets
 

@@ -1,4 +1,4 @@
-# SMC / SkippALGO TradingView Screen Specification
+# SMC TradingView Screen Specification
 
 ## Status
 
@@ -10,7 +10,7 @@ Dieses Dokument zerlegt das Decision-First-PRD in konkrete Screens fuer:
 
 - `SMC_Core_Engine.pine`
 - `SMC_Dashboard.pine`
-- `SkippALGO.pine`
+- `SMC_Long_Strategy.pine`
 
 Es ist eine UI-Spezifikation, kein Architektur- oder Feature-Fork.
 
@@ -50,11 +50,9 @@ Es ist eine UI-Spezifikation, kein Architektur- oder Feature-Fork.
 | DB-1 | `SMC_Dashboard.pine` | Compact detail dashboard |
 | DB-2 | `SMC_Dashboard.pine` | Pro diagnostics dashboard |
 | DB-3 | `SMC_Dashboard.pine` | Operator binding screen |
-| SK-1 | `SkippALGO.pine` | Decision header |
-| SK-2 | `SkippALGO.pine` | Outlook panel |
-| SK-3 | `SkippALGO.pine` | Forecast panel |
-| SK-4 | `SkippALGO.pine` | Labels and alerts |
-| SK-5 | `SkippALGO.pine` | Settings surface |
+| LS-1 | `SMC_Long_Strategy.pine` | Strategy setup surface |
+| LS-2 | `SMC_Long_Strategy.pine` | Strategy actionable chart |
+| LS-3 | `SMC_Long_Strategy.pine` | Strategy binding screen |
 
 ## CE-1 - SMC Core Lite Chart Default
 
@@ -261,181 +259,60 @@ Advanced Settings [collapsed by default]
   - Endnutzer muessen diese Surface nicht verstehen, um das Produkt zu nutzen.
   - Die Bindung ist in Doku oder Workflow klar als operator-only markiert.
 
-## SK-1 - SkippALGO Decision Header
+## LS-1 - SMC Long Strategy Setup Surface
 
-- Goal: Den heutigen Statusblock in eine echte Decision Header Surface
-  verwandeln.
-- Audience: alle SkippALGO-Nutzer.
-- Mode: Lite default.
-- Primary action: `WAIT`, `PREPARE`, `READY`, `ENTER`, `REDUCE RISK`, `AVOID`,
-  `BLOCKED`.
+- Goal: Die sichtbare Strategy-Wrapper-Flaeche auf klare Setup-Steuerung
+  fokussieren.
+- Audience: Operatoren und Nutzer, die den Core-BUS in Orders oder Backtests
+  ueberfuehren.
+- Mode: Wrapper setup.
+- Visible controls:
+  - `Entry Mode`
+  - `Min Quality Score`
+  - `Take Profit R`
+  - `Use Take Profit`
+- Hidden or visually separated:
+  - BUS source inputs
+- Acceptance criteria:
+  - Die Surface liest sich wie Strategy-Setup.
+  - Wrapper-Controls sind von den Bindings klar getrennt.
+
+## LS-2 - SMC Long Strategy Actionable Chart
+
+- Goal: Die aus dem Core abgeleiteten Ausfuehrungslevel klar auf dem Chart
+  zeigen.
+- Audience: Nutzer waehrend Entry-Staging, aktiver Position und Backtest-Review.
+- Mode: Actionable / active position.
 - Visible blocks:
-  - Action
-  - Trade Threshold
-  - Position
-  - Last Action
-  - Why now
-  - Main risk
-- Secondary blocks:
-  - Confidence tier
-  - optional quick strength
-- Low-fidelity wireframe:
-
-```text
-+---------------------------------------------------+
-| ACTION        READY LONG        TRUST   Usable    |
-| Why now       HTF aligned + trigger near         |
-| Main risk     Early forecast still thin          |
-| Position      FLAT             Last action COVER  |
-+---------------------------------------------------+
-```
-
-- Copy rules:
-  - `MinTrust` -> `Trade Threshold`
-  - `LastSig` -> `Last Action`
-  - `Confidence` bleibt sekundar gegenueber `Action`
-- Acceptance criteria:
-  - Statusheader ist in 5 Sekunden lesbar.
-  - Action und Main Risk schlagen numerische Metriken in der Hierarchie.
-
-## SK-2 - SkippALGO Outlook Panel
-
-- Goal: Outlook als schnelle State-Lesehilfe statt als Diagnosegitter zeigen.
-- Audience: alle SkippALGO-Nutzer.
-- Mode: Lite.
-- Visible columns:
-  - TF
-  - Bias
-  - Strength
-  - State note
-- Hidden or moved to advanced:
-  - tiefe T/M/L-Debugdaten als Primaeransicht
-  - zu viele gleich laute Mikrospalten
-- Low-fidelity wireframe:
-
-```text
-OUTLOOK
-TF   Bias   Strength   Note
-1M   Bull   Medium     early support
-5M   Bull   Strong     aligned
-15M  Mixed  Thin       conflicting
-1H   Bear   Medium     higher TF headwind
-```
-
+  - Trigger
+  - Invalidation
+  - Take-profit line
 - Behavior rules:
-  - Bias ist primaer.
-  - Strength ist sekundar.
-  - State note erklaert nur die relevanteste Lesart.
+  - Entries werden auf bestaetigten Bars gestaged.
+  - Die Wrapper-Ausgabe widerspricht dem Core-Plan nicht.
 - Acceptance criteria:
-  - Outlook wirkt wie eine Regimehilfe, nicht wie ein Debug-Board.
+  - Entry- und Exit-Plan sind visuell nachvollziehbar.
+  - Strategy-Level bleiben deterministisch lesbar.
 
-## SK-3 - SkippALGO Forecast Panel
+## LS-3 - SMC Long Strategy Binding Screen
 
-- Goal: Forecast-Nutzen kommunizieren, nicht Modellsprache.
-- Audience: Nutzer, die Wahrscheinlichkeit lesen, aber nicht Kalibrationsjargon
-  wollen.
-- Mode: Lite.
-- Visible columns:
-  - TF
-  - Stable Forecast
-  - Early Forecast
-  - Evidence
-  - Risk Hint
-- Hidden or moved to advanced:
-  - `Pred(N)` / `Pred(1)`
-  - rohe Bin-/Calibration-Begriffe
-  - mehrspaltige Modellselbsterklaerung in der Primaeransicht
-- Low-fidelity wireframe:
-
-```text
-FORECAST
-TF   Stable Forecast   Early Forecast   Evidence   Risk Hint
-5M   Up                Up               Strong     OK
-15M  Flat              Down             Thin       wait
-1H   Down              Down             Usable     headwind
-```
-
-- Copy rules:
-  - `warmup` wird als `Provisional` oder `No evidence yet` gezeigt
-  - Evidence nutzt `Strong`, `Usable`, `Thin`, `Provisional`
-  - Risk Hint ist handlungsbezogen: `OK`, `wait`, `thin`, `conflict`
+- Goal: Die BUS-Bindungsflaeche fuer den Wrapper deterministisch halten.
+- Audience: nur Operatoren oder interne Nutzer.
+- Mode: Operator only.
+- Visible groups:
+  - entry state bindings
+  - trade plan bindings
+- UX rule:
+  - dieser Screen ist kein Endnutzer-Screen
+  - public documentation muss klar sagen, dass dies kein normales Lite-Setup ist
 - Acceptance criteria:
-  - Nutzer versteht den Unterschied zwischen stabil und frueh.
-  - Niedrige Evidenz ist sofort sichtbar.
-
-## SK-4 - SkippALGO Labels And Alerts
-
-- Goal: Labels und Alerts auf denselben State-Wortschatz bringen wie die
-  Lite-Surface.
-- Audience: Chart-Nutzer und Alert-Consumer.
-- Mode: Lite and Pro.
-- Visible chart labels in Lite:
-  - maximal ein primaeres Entry-/Exit-Label pro Bar
-  - PRE-Labels nur, wenn sie klar als Vorstufe markiert sind
-  - keine konkurrierenden Diagnose-Labels auf derselben Bar
-- Alert title set:
-  - `SMC READY LONG`
-  - `SMC READY SHORT`
-  - `SMC ENTER LONG`
-  - `SMC ENTER SHORT`
-  - `SMC REDUCE RISK`
-  - `SMC AVOID`
-  - `SMC BLOCKED`
-- Alert body rule:
-  - state
-  - why now
-  - main risk
-  - optional trigger / invalidation only when actionable
-- Acceptance criteria:
-  - Alerts und Labels widersprechen der Hero-Surface nicht.
-  - PRE-, READY- und ENTER-Zustaende sind klar getrennt.
-
-## SK-5 - SkippALGO Settings Surface
-
-- Goal: Settings in eine produktartige Bedienflaeche ueberfuehren.
-- Audience: Standardnutzer und Power-User.
-- Mode: Lite with Advanced toggle.
-- Visible Lite groups:
-  - General
-  - Risk
-  - Forecast
-  - Alerts
-  - Visual Mode
-- Hidden by default:
-  - Kalibrations-Internals
-  - tiefe score weights
-  - raw forecast target internals
-  - advanced strictness tuning
-  - debug surfaces
-- Low-fidelity wireframe:
-
-```text
-General
-- Configuration
-- Signal engine
-
-Risk
-- Risk profile
-
-Forecast
-- Forecast mode
-- Evidence sensitivity
-
-Output
-- Alerts
-- Visual mode
-
-Advanced Settings [collapsed]
-```
-
-- Acceptance criteria:
-  - Lite-Einstellungen fuehlen sich wie Produktsteuerung an.
-  - Tiefe Kalibrations- und Score-Parameter sind nicht mehr Standardflaeche.
+  - Die top-to-bottom Binding-Reihenfolge ist eindeutig.
+  - Der Wrapper ist klar als Consumer des Core-BUS erkennbar.
 
 ## Global Acceptance Criteria
 
 1. Jede Lite-Surface kommuniziert zuerst `Action`, dann `Why`, dann `Risk`.
 2. Kein Lite-Screen zeigt interne BUS-, Pack- oder Debug-Begriffe.
 3. Die Default-Visualisierung ist klarer als die heutige Screenshot-Lage.
-4. Alerts, Labels, Headers und Guide-Texte sprechen dieselbe Sprache.
+4. Core, Dashboard, Wrapper und Guide-Texte sprechen dieselbe Sprache.
 5. Pro Diagnostics bleibt verfuegbar, aber klar getrennt.

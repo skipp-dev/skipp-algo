@@ -54,7 +54,7 @@ Workspace-Refresh: 2026-04-03
 ### Binding-Konvention
 
 1. Dashboard bindet in sechs BUS-Gruppen: Lifecycle, Diagnostic Rows, Diagnostic Support, Trade Plan, Detail Surface, Lean Surface.
-2. Strategy bindet in zwei Gruppen: Entry States, Trade Plan.
+2. Strategy bindet in zwei Gruppen: Operator Bindings - Entry States, Operator Bindings - Trade Plan.
 3. Beide Consumer werden in TradingView immer top-to-bottom an die gleichnamigen BUS-Serien des Cores gebunden.
 4. Die kanonische Quelle fuer Namen, Reihenfolge und Gruppen ist [../scripts/smc_bus_manifest.py](../scripts/smc_bus_manifest.py).
 5. Zusaetzlich gibt es im Dashboard die lokale Gruppe `Dashboard - Local Debug Mirrors` ohne `source`-Bindings. Diese drei Bool-Inputs werden nur manuell gespiegelt, wenn `Debug Flags` oder `Long Debug` gegen die effektive Core-Debug-Konfiguration geprueft werden sollen.

@@ -13,7 +13,6 @@ import preuss_steffen/skipp_labels/1 as lbl
 
 // ── Input Groups ─────────────────────────────────────────
 var string g_core = "Core"
-var string g_surface = "Decision Surface"
 var string g_entry_gates = "Entry Gates"
 var string g_risk_management = "Risk Management"
 var string g_structure_breakout = "Structure / Breakout"
@@ -37,21 +36,17 @@ var string g_trade_policies = "Trade Policies"
 var string g_forecast_eval = "Forecast Evaluation"
 
 
-surfaceMode = input.string("Lite", "Surface mode", options=["Lite", "Pro Diagnostics"], group = g_surface)
-showDecisionHud = input.bool(true, "Show decision HUD", group = g_surface)
-
 config = input.string("V2 Alpha", "Configuration", options=["Standard", "Pro", "V2 Essential", "V2 Proficient", "V2 Alpha"], group = g_core)
 
 engine       = input.string("Hybrid", "Signal engine", options=["Hybrid","Breakout","Trend+Pullback","Loose"], group = g_core)
-allowNeuralReversals = input.bool(true, "Allow Neural Reversals (ChoCH)", tooltip="Allows early ChoCH-based reversals. Off = only standard engine entries.", group = g_core, display = display.none)
+allowNeuralReversals = input.bool(true, "Allow Neural Reversals (ChoCH)", tooltip="Allows early ChoCH-based reversals. Off = only standard engine entries.", group = g_core)
 
-forecastMode = input.string("Trade Gate", "Forecast mode", options=["Trade Gate", "Guidance Only", "Off"], group = g_entry_gates)
-useForecastGateEntry = input.bool(true, "Entry gate: require forecast edge (3-way)", group = g_entry_gates, display = display.none)
-entryFcTF    = input.string("F3", "Forecast horizon", options=["F1","F2","F3","F4","F5","F6","F7"], group = g_entry_gates)
+useForecastGateEntry = input.bool(true, "Entry gate: require forecast edge (3-way)", group = g_entry_gates)
+entryFcTF    = input.string("F3", "Entry horizon", options=["F1","F2","F3","F4","F5","F6","F7"], group = g_entry_gates)
 minEdgePP    = input.float(0.10, "Min edge (pp) vs mid", minval=0.00, maxval=0.50, step=0.01, group = g_entry_gates, display = display.none)
 requireRelOk = input.bool(false, "Entry gate: require bin reliability ok/strong", group = g_entry_gates, display = display.none)
 requirePathTargetEntry = input.bool(true, "Entry gate: require PathTPvsSL target", group = g_entry_gates, display = display.none)
-useChopAbstain = input.bool(true, "Chop abstain when Flat high", group = g_entry_gates, display = display.none)
+useChopAbstain = input.bool(true, "Chop abstain when Flat high", group = g_entry_gates)
 flatAbstainThr = input.float(0.55, "Chop abstain: Flat prob ≥", minval=0.34, maxval=0.80, step=0.01, group = g_entry_gates, display = display.none)
 
 requireSET   = input.bool(false, "Entry gate: require SET (CRSI confluence)", group = g_entry_gates, display = display.none)
@@ -60,15 +55,14 @@ pbLookback = input.int(12, "Pullback lookback", minval=2, group = g_pullback_det
 pbMinATR   = input.float(0.20, "Pullback min depth (ATR)", minval=0.0, step=0.05, group = g_pullback_detection, display = display.none)
 pbMaxATR   = input.float(3.00, "Pullback max depth (ATR)", minval=0.1, step=0.05, group = g_pullback_detection, display = display.none)
 
-useVolConfirm = input.bool(false, "Volume confirmation", group = g_pullback_detection, display = display.none)
+useVolConfirm = input.bool(false, "Volume confirmation", group = g_pullback_detection)
 volLen   = input.int(20, "Volume SMA len", minval=2, group = g_pullback_detection, display = display.none)
 volMult  = input.float(1.20, "Volume mult", minval=0.1, step=0.05, group = g_pullback_detection, display = display.none)
 
-riskProfile = input.string("Balanced", "Risk profile", options=["Balanced", "Protected", "Open Ended", "Custom"], group = g_risk_management)
-useAtrRisk = input.bool(true, "ATR Risk Model (Stops/TP/Trail)", group = g_risk_management, display = display.none)
-stopATR  = input.float(2.00, "Stop ATR (Initial)", minval=0.1, step=0.10, tooltip="Initial Hard Stop. Wide to survive entry noise.", group = g_risk_management, display = display.none)
-tpATR    = input.float(5.00, "Take Profit ATR (Initial)", minval=0.1, step=0.10, group = g_risk_management, display = display.none)
-useInfiniteTP = input.bool(false, "Infinite TP (Trailing Stop Only)", tooltip="No fixed TP. Trade exits via SL/Trail and other enabled exit rules.", group = g_risk_management, display = display.none)
+useAtrRisk = input.bool(true, "ATR Risk Model (Stops/TP/Trail)", group = g_risk_management)
+stopATR  = input.float(2.00, "Stop ATR (Initial)", minval=0.1, step=0.10, tooltip="Initial Hard Stop. Wide to survive entry noise.", group = g_risk_management)
+tpATR    = input.float(5.00, "Take Profit ATR (Initial)", minval=0.1, step=0.10, group = g_risk_management)
+useInfiniteTP = input.bool(false, "Infinite TP (Trailing Stop Only)", tooltip="No fixed TP. Trade exits via SL/Trail and other enabled exit rules.", group = g_risk_management)
 useDynamicSlProfile = input.bool(true, "Dynamic SL Profile", tooltip="Adaptive stop: optional early widen, then tighten with growing R.", group = g_risk_management, display = display.none)
 dynamicSlWidenUntilR = input.float(0.30, "Dynamic SL widen until R", minval=0.0, step=0.05, tooltip="Early widening phase. 0 disables widening.", group = g_risk_management, display = display.none)
 dynamicSlMaxWidenATR = input.float(0.30, "Dynamic SL max widen ATR", minval=0.0, step=0.05, tooltip="Max ATR added to stop distance during widening.", group = g_risk_management, display = display.none)
@@ -78,7 +72,7 @@ dynamicSlMaxTightenATR = input.float(1.50, "Dynamic SL max tighten ATR", minval=
 dynamicSlRequireTrend = input.bool(true, "Dynamic SL requires trend context", tooltip="Long needs bullish trend, short needs bearish trend.", group = g_risk_management, display = display.none)
 dynamicSlRequireConf = input.bool(false, "Dynamic SL requires confidence", tooltip="Apply dynamic SL only if confidence is above threshold.", group = g_risk_management, display = display.none)
 dynamicSlMinConf = input.float(0.55, "Dynamic SL min confidence", minval=0.0, maxval=1.0, step=0.01, group = g_risk_management, display = display.none)
-dynSlPreset30m = input.string("Manual", "All-TF Dynamic SL preset", options=["Manual", "Conservative", "Balanced", "Runner", "Super Runner"], tooltip="All TFs: Conservative 1.00/2.30, Balanced 0.90/2.00, Runner 0.75/1.70, Super Runner 0.65/1.40 (Stop/Trail).", group = g_risk_management, display = display.none)
+dynSlPreset30m = input.string("Manual", "All-TF Dynamic SL preset", options=["Manual", "Conservative", "Balanced", "Runner", "Super Runner"], tooltip="All TFs: Conservative 1.00/2.30, Balanced 0.90/2.00, Runner 0.75/1.70, Super Runner 0.65/1.40 (Stop/Trail).", group = g_risk_management)
 useDynamicTpExpansion = input.bool(true, "Dynamic TP Expansion", tooltip="TP can expand outward as unrealized R grows.", group = g_risk_management, display = display.none)
 dynamicTpKickInR = input.float(1.00, "Dynamic TP starts at R", minval=0.0, step=0.10, tooltip="TP expansion starts at this unrealized R.", group = g_risk_management, display = display.none)
 dynamicTpAddATRPerR = input.float(0.50, "Dynamic TP add ATR per +1R", minval=0.0, step=0.05, tooltip="Extra TP ATR added per +1R after kick-in.", group = g_risk_management, display = display.none)
@@ -86,31 +80,31 @@ dynamicTpMaxAddATR = input.float(2.50, "Dynamic TP max extra ATR", minval=0.0, s
 dynamicTpRequireTrend = input.bool(true, "Dynamic TP requires trend context", tooltip="Long needs bullish trend, short needs bearish trend.", group = g_risk_management, display = display.none)
 dynamicTpRequireConf = input.bool(false, "Dynamic TP requires confidence", tooltip="Apply dynamic TP only if confidence is above threshold.", group = g_risk_management, display = display.none)
 dynamicTpMinConf = input.float(0.55, "Dynamic TP min confidence", minval=0.0, maxval=1.0, step=0.01, group = g_risk_management, display = display.none)
-tpPreset30m = input.string("Manual", "All-TF TP preset", options=["Manual", "Conservative", "Balanced", "Runner", "Super Runner"], tooltip="All TFs: Conservative TP2.5/SL1.1, Balanced TP3.0/SL1.0, Runner TP3.8/SL0.85, Super Runner TP4.4/SL0.75.", group = g_risk_management, display = display.none)
-trailATR = input.float(2.50, "Trail ATR", minval=0.1, step=0.10, group = g_risk_management, display = display.none)
-trailAfterR = input.float(1.50, "Trail activates after R", minval=0.0, step=0.10, group = g_risk_management, display = display.none)
+tpPreset30m = input.string("Manual", "All-TF TP preset", options=["Manual", "Conservative", "Balanced", "Runner", "Super Runner"], tooltip="All TFs: Conservative TP2.5/SL1.1, Balanced TP3.0/SL1.0, Runner TP3.8/SL0.85, Super Runner TP4.4/SL0.75.", group = g_risk_management)
+trailATR = input.float(2.50, "Trail ATR", minval=0.1, step=0.10, group = g_risk_management)
+trailAfterR = input.float(1.50, "Trail activates after R", minval=0.0, step=0.10, group = g_risk_management)
 
 useRiskDecay = input.bool(true, "Dynamic Risk Decay (Linear Tightening)", tooltip="Interpolates Stop/TP from Initial to Sustained values over N bars.", group = g_risk_management, display = display.none)
 decayStopATR = input.float(1.00, "Sustained Stop ATR", minval=0.1, group = g_risk_management, display = display.none)
 decayTpATR   = input.float(3.00, "Sustained TP ATR", minval=0.1, group = g_risk_management, display = display.none)
 decayBars    = input.int(3, "Decay Duration (Bars)", minval=1, tooltip="Time to transition from Initial Risk to Sustained Risk. Note: if decayBars < exitGraceBars, stop reaches sustained before structural exits are allowed — this is intentional to tighten risk while giving the trade time to develop.", group = g_risk_management, display = display.none)
 
-swingL = input.int(5, "Breakout swing left (L)", minval=1, maxval=20, group = g_structure_breakout, display = display.none)
-swingR = input.int(3, "Breakout swing right (R)", minval=1, maxval=20, tooltip="Lower 'R' values detect new structure levels faster.", group = g_structure_breakout, display = display.none)
+swingL = input.int(5, "Breakout swing left (L)", minval=1, maxval=20, group = g_structure_breakout)
+swingR = input.int(3, "Breakout swing right (R)", minval=1, maxval=20, tooltip="Lower 'R' values detect new structure levels faster.", group = g_structure_breakout)
 swingMaxAgeBars = input.int(0, "Breakout swing max age (bars)", minval=0, maxval=2000, tooltip="0 disables expiry of old swings", group = g_structure_breakout, display = display.none)
-breakoutSource = input.string("Close", "Breakout Source", options=["Close", "Wick"], tooltip="Determines if a breakout requires a candle Close or just a Wick cross.", group = g_structure_breakout, display = display.none)
-structureLogic = input.string("Standard", "Structure Logic", options=["Standard", "SMC+Sweep"], tooltip="Standard: ChoCH = Trend Reversal (Break of Swing Low). SMC+Sweep: ChoCH includes Failed Breakouts (Reclaim of Level).", group = g_structure_breakout, display = display.none)
-chochScalpPreset = input.bool(false, "ChoCH Scalp Fast preset", tooltip="Preset: breakoutSource=Wick, mode=Ping (Fast), swingREff=max(swingR,1). Fast+Safer has priority if both are on.", group = g_structure_breakout, display = display.none)
-chochScalpSaferPreset = input.bool(false, "ChoCH Fast+Safer preset", tooltip="Preset: breakoutSource=Wick, mode=Ping+Verify, swingREff=max(swingR,1).", group = g_structure_breakout, display = display.none)
+breakoutSource = input.string("Close", "Breakout Source", options=["Close", "Wick"], tooltip="Determines if a breakout requires a candle Close or just a Wick cross.", group = g_structure_breakout)
+structureLogic = input.string("Standard", "Structure Logic", options=["Standard", "SMC+Sweep"], tooltip="Standard: ChoCH = Trend Reversal (Break of Swing Low). SMC+Sweep: ChoCH includes Failed Breakouts (Reclaim of Level).", group = g_structure_breakout)
+chochScalpPreset = input.bool(false, "ChoCH Scalp Fast preset", tooltip="Preset: breakoutSource=Wick, mode=Ping (Fast), swingREff=max(swingR,1). Fast+Safer has priority if both are on.", group = g_structure_breakout)
+chochScalpSaferPreset = input.bool(false, "ChoCH Fast+Safer preset", tooltip="Preset: breakoutSource=Wick, mode=Ping+Verify, swingREff=max(swingR,1).", group = g_structure_breakout)
 
-useStructureTags = input.bool(true, "Show BOS / ChoCH structure tags", group = g_structure_breakout, display = display.none)
-chochSignalMode  = input.string("Ping+Verify", "ChoCH signal mode", options=["Ping (Fast)", "Verify (Safer)", "Ping+Verify"], tooltip="Manual mode if no preset is active. Fast => Ping, Fast+Safer => Ping+Verify.", group = g_structure_breakout, display = display.none)
+useStructureTags = input.bool(true, "Show BOS / ChoCH structure tags", group = g_structure_breakout)
+chochSignalMode  = input.string("Ping+Verify", "ChoCH signal mode", options=["Ping (Fast)", "Verify (Safer)", "Ping+Verify"], tooltip="Manual mode if no preset is active. Fast => Ping, Fast+Safer => Ping+Verify.", group = g_structure_breakout)
 showChochPing    = input.bool(true, "Show ChoCH Ping markers", group = g_structure_breakout, display = display.none)
 chochMinProb     = input.float(0.50, "ChoCH Min Confidence (Prob)", minval=0.34, maxval=0.95, step=0.01, group = g_structure_breakout, display = display.none)
 chochReqVol      = input.bool(true, "ChoCH Require Volume?", group = g_structure_breakout, display = display.none)
 
-enableShorts = input.bool(false, "Enable shorts (SHORT can open short)", group = g_core, display = display.none)
-cooldownBars = input.int(2, "Cooldown bars", minval=0, group = g_cooldown, display = display.none)
+enableShorts = input.bool(false, "Enable shorts (SHORT can open short)", group = g_core)
+cooldownBars = input.int(2, "Cooldown bars", minval=0, group = g_cooldown)
 
 cooldownMode = input.string("Bars", "Cooldown mode", options=["Bars", "Minutes"], group = g_cooldown, display = display.none)
 cooldownMinutes = input.int(30, "Cooldown minutes", minval=1, group = g_cooldown, display = display.none)
@@ -146,8 +140,8 @@ atrExhaustLookback = input.int(5, "ATR exhaustion lookback", minval=3, maxval=30
 enableAtrPercentile = input.bool(false, "ATR percentile context", group=grp_sigfilt, tooltip="Compute ATR percentile rank for context (0..100).", display = display.none)
 atrPercentileLookback = input.int(100, "ATR percentile lookback", minval=50, maxval=500, group=grp_sigfilt, display = display.none)
 
-useMtfConfirm = input.bool(true, "MTF confirmation", group = g_mtf_confirmation, display = display.none)
-mtfSet        = input.string("Auto", "MTF set", options=["Auto", "Short", "Medium", "Long"], group = g_mtf_confirmation, display = display.none)
+useMtfConfirm = input.bool(true, "MTF confirmation", group = g_mtf_confirmation)
+mtfSet        = input.string("Auto", "MTF set", options=["Auto", "Short", "Medium", "Long"], group = g_mtf_confirmation)
 tfShort1      = input.timeframe("5", "Short TF 1", group = g_mtf_confirmation, display = display.none)
 tfShort2      = input.timeframe("15", "Short TF 2", group = g_mtf_confirmation, display = display.none)
 tfShort3      = input.timeframe("30", "Short TF 3", group = g_mtf_confirmation, display = display.none)
@@ -225,7 +219,7 @@ rangeShockPct = input.float(0.05,   "Guardrail: range shock %", minval=0.0, step
 // Macro context
 macroPctLen         = input.int(252, "Macro pct-rank lookback", minval=20, group = g_macro_drawdown, display = display.none)
 macroPctLenIntraday = input.int(200, "Macro pct-rank intraday fallback", minval=20, group = g_macro_drawdown, display = display.none)
-macroGateMode       = input.string("Trust", "Macro context mode", options=["Off", "Trust", "Hard Gate"], group = g_macro_drawdown, display = display.none)
+macroGateMode       = input.string("Trust", "Macro context mode", options=["Off", "Trust", "Hard Gate"], group = g_macro_drawdown)
 macroLongPctThreshold  = input.float(0.35, "Macro LONG threshold (pct rank)",  minval=0.0, maxval=1.0, step=0.05, group = g_macro_drawdown, display = display.none)
 macroShortPctThreshold = input.float(0.65, "Macro SHORT threshold (pct rank)", minval=0.0, maxval=1.0, step=0.05, group = g_macro_drawdown, display = display.none)
 
@@ -237,8 +231,8 @@ ddTrustPenalty = input.float(0.20, "Drawdown trust penalty", minval=0.0, maxval=
 ddHardGate     = input.float(0.45, "Drawdown hard gate (abs)", minval=0.0, maxval=0.9, step=0.05, group = g_macro_drawdown, display = display.none)
 
 // Core lengths (trend)
-emaFastLen = input.int(21, "EMA fast", minval=1, group = g_core_indicators, display = display.none)
-emaSlowLen = input.int(55, "EMA slow", minval=1, group = g_core_indicators, display = display.none)
+emaFastLen = input.int(21, "EMA fast", minval=1, group = g_core_indicators)
+emaSlowLen = input.int(55, "EMA slow", minval=1, group = g_core_indicators)
 atrLen     = input.int(14, "ATR length", minval=1, group = g_core_indicators, display = display.none)
 volRankLen = input.int(100,"Volatility rank lookback", minval=20, group = g_core_indicators, display = display.none)
 
@@ -279,19 +273,18 @@ crsiShortOver        = input.float(90.0, "CRSI SHORT over", minval=0.0, maxval=1
 crsiShortOverMult    = input.float(0.90, "CRSI SHORT over mult", minval=0.50, maxval=1.50, step=0.01, group = g_crsi, display = display.none)
 
 // Zones
-showZones  = input.bool(true, "Show decision zones", group = g_zones_visuals)
-zoneAnchor = input.string("EMA Slow", "Zone anchor", options=["Entry", "EMA Fast", "EMA Slow", "VWAP", "MA200"], group = g_zones_visuals, display = display.none)
+showZones  = input.bool(true, "Show zones", group = g_zones_visuals)
+zoneAnchor = input.string("EMA Slow", "Zone anchor", options=["Entry", "EMA Fast", "EMA Slow", "VWAP", "MA200"], group = g_zones_visuals)
 zoneMode   = input.string("Pullback", "Zone mode", options=["Pullback", "Symmetric"], group = g_zones_visuals, display = display.none)
 zoneNeutralMult      = input.float(0.8, "Neutral zone ATR mult", minval=0.1, step=0.1, group = g_zones_visuals, display = display.none)
 zoneAggressiveMult1  = input.float(1.6, "Aggressive zone ATR mult 1", minval=0.2, step=0.1, group = g_zones_visuals, display = display.none)
 zoneAggressiveMult2  = input.float(2.4, "Aggressive zone ATR mult 2", minval=0.4, step=0.1, group = g_zones_visuals, display = display.none)
 
 // Visual controls
-labelSurface = input.string("Full", "Label surface", options=["Full", "Entries Only", "Off"], group = g_labels_display)
-showLongLabels   = input.bool(true, "Show Long labels (BUY / EXIT)", group = g_labels_display, display = display.none)
-showShortLabels  = input.bool(true, "Show Short labels (SHORT / COVER)", group = g_labels_display, display = display.none)
+showLongLabels   = input.bool(true, "Show Long labels (BUY / EXIT)", group = g_labels_display)
+showShortLabels  = input.bool(true, "Show Short labels (SHORT / COVER)", group = g_labels_display)
 // Removed showDebugLabels to cleanup user interface
-showPreEntryLabels = input.bool(true, "Show PRE labels (PRE-BUY / PRE-SHORT)", group = g_labels_display, display = display.none)
+showPreEntryLabels = input.bool(true, "Show PRE labels (PRE-BUY / PRE-SHORT)", group = g_labels_display)
 preWarnDistATR     = input.float(0.25, "PRE: proximity threshold (ATR)", minval=0.0, step=0.05, tooltip="Used for pre-warnings (Breakout / Trend+Pullback / Loose)", group = g_labels_display, display = display.none)
 preSetPulseOnly    = input.bool(true, "PRE: pulse-only SET", tooltip="When enabled, PRE labels require a fresh SET transition (pulse) instead of a steady SET state", group = g_labels_display, display = display.none)
 setPulseOnly     = input.bool(true, "SET: pulse only", tooltip="When enabled, SET prints only on the transition into a SET state", group = g_labels_display, display = display.none)
@@ -301,8 +294,7 @@ setPulseOnly     = input.bool(true, "SET: pulse only", tooltip="When enabled, SE
 labelPriceMode    = input.string("Bar Extremes", "Label price", options=["Bar Extremes","Entry Price","Close"], group = g_labels_display, display = display.none)
 
 // Alerts
-alertMode = input.string("Realtime", "Alert mode", options=["Realtime", "Bar Close"], group = g_labels_display)
-alertOnBarCloseOnly = input.bool(false,  "Alerts: bar close only", group = g_labels_display, display = display.none)
+alertOnBarCloseOnly = input.bool(false,  "Alerts: bar close only", group = g_labels_display)
 strictMtfMargin = input.float(0.02, "Strict: MTF extra margin", minval=0.0, maxval=0.20, step=0.01, tooltip="Additional margin above/below SCORE_NEUTRAL_BAND required for strict BUY/SHORT confirmation.", group = g_strict_mode, display = display.none)
 strictChochConfirmBars = input.int(1, "Strict: ChoCH confirm bars", minval=1, maxval=5, tooltip="For REV entries in strict mode, ChoCH must remain recent within this many bars on confirmation.", group = g_strict_mode, display = display.none)
 useAdaptiveStrictMargin = input.bool(false, "Strict: adaptive MTF margin", tooltip="Adapts strictMtfMargin by ATR regime: stricter in high vol, looser in calm markets.", group = g_strict_mode, display = display.none)
@@ -310,12 +302,12 @@ strictAdaptiveRange = input.float(0.02, "Strict: adaptive range", minval=0.0, ma
 strictAdaptiveLen = input.int(100, "Strict: adaptive ATR rank len", minval=20, maxval=500, group = g_strict_mode, display = display.none)
 
 // Avoid entries right before close
-useRthCloseFilter = input.bool(true, "Avoid last N minutes before RTH close", group = g_session_timing, display = display.none)
+useRthCloseFilter = input.bool(true, "Avoid last N minutes before RTH close", group = g_session_timing)
 rthCloseHour      = input.int(16, "RTH close hour (exchange tz)", minval=0, maxval=23, group = g_session_timing, display = display.none)
 rthCloseMinute    = input.int(0,  "RTH close minute", minval=0, maxval=59, group = g_session_timing, display = display.none)
 avoidCloseMins    = input.int(10, "Avoid last N minutes", minval=0, maxval=120, group = g_session_timing, display = display.none)
 
-useRevOpenWindow  = input.bool(true, "Bypass pU/pD near market open", tooltip="Allow BUY/REV-BUY/SHORT/REV-SHORT to fire regardless of directional probability (pU/pD) during a window around the stock exchange open.", group = g_session_timing, display = display.none)
+useRevOpenWindow  = input.bool(true, "Bypass pU/pD near market open", tooltip="Allow BUY/REV-BUY/SHORT/REV-SHORT to fire regardless of directional probability (pU/pD) during a window around the stock exchange open.", group = g_session_timing)
 rthOpenHour       = input.int(9,  "RTH open hour (exchange tz)", minval=0, maxval=23, group = g_session_timing, display = display.none)
 rthOpenMinute     = input.int(30, "RTH open minute", minval=0, maxval=59, group = g_session_timing, display = display.none)
 revOpenWindowLongMins = input.int(10, "Open window LONG ± min", minval=1, maxval=120, tooltip="Long-side bypass window around RTH open.", group = g_session_timing, display = display.none)
@@ -326,7 +318,7 @@ revOpenWindowEngine = input.string("All", "Open window engine scope", options=["
 //====================
 // Inputs — Forecast Calibration Enhancements
 //====================
-enableForecast = input.bool(true, "Enable Forecast calibration (probabilities)", group = g_core, display = display.none)
+enableForecast = input.bool(true, "Enable Forecast calibration (probabilities)", group = g_core)
 allowForecastOnNonFixed = input.bool(false, "Forecast: allow on non-fixed TFs", tooltip="If chart timeframe can't be resolved to seconds, allow forecast gating instead of disabling it", group = g_forecast_calibration, display = display.none)
 
 // Forecast value display
@@ -1999,9 +1991,9 @@ f_process_tf(_hid, _tf, tfBarConfirmed, sA,
 
                 array.push(st.qAge,   0)
                 array.push(st.qBias,  dirFlag)
-                array.push(st.qUseForecast, enableForecastEff and f_forecast_allowed())
+                array.push(st.qUseForecast, enableForecast and f_forecast_allowed())
                 st.enqCount += 1
-                if enableForecastEff and f_forecast_allowed()
+                if enableForecast and f_forecast_allowed()
                     st.enqCountElig += 1
 
                 array.push(st.qPUpN, pUN)
@@ -2040,9 +2032,9 @@ f_process_tf(_hid, _tf, tfBarConfirmed, sA,
 
                 array.push(st.qAge,   0)
                 array.push(st.qBias,  dirFlag)
-                array.push(st.qUseForecast, enableForecastEff and f_forecast_allowed())
+                array.push(st.qUseForecast, enableForecast and f_forecast_allowed())
                 st.enqCount += 1
-                if enableForecastEff and f_forecast_allowed()
+                if enableForecast and f_forecast_allowed()
                     st.enqCountElig += 1
 
                 array.push(st.qProbN, pNowN)
@@ -2419,22 +2411,7 @@ bool useScoreEntriesEff = presetOverridesActive ? true : useScoreEntries
 tfSecDynRisk = timeframe.in_seconds(timeframe.period)
 isFastDynRisk = (not na(tfSecDynRisk)) and tfSecDynRisk <= SEC_5M
 isMidDynRisk = (not na(tfSecDynRisk)) and tfSecDynRisk <= SEC_1H
-bool enableForecastEff = forecastMode != "Off" and enableForecast
-bool useForecastGateEntryEff = forecastMode == "Trade Gate" and useForecastGateEntry
-bool riskProfileProtected = riskProfile == "Protected"
-bool riskProfileOpenEnded = riskProfile == "Open Ended"
-bool riskProfileCustom = riskProfile == "Custom"
-bool useAtrRiskEff = riskProfileCustom ? useAtrRisk : true
-bool useInfiniteTPEff = riskProfileOpenEnded ? true : useInfiniteTP
-float stopATREff = riskProfileCustom ? stopATR : riskProfileProtected ? 2.30 : riskProfileOpenEnded ? 1.80 : 2.00
-float tpATREff = riskProfileCustom ? tpATR : riskProfileProtected ? 3.60 : riskProfileOpenEnded ? 6.00 : 5.00
-float trailATREff = riskProfileCustom ? trailATR : riskProfileProtected ? 2.20 : riskProfileOpenEnded ? 1.80 : 2.50
-float trailAfterREff = riskProfileCustom ? trailAfterR : riskProfileProtected ? 1.00 : riskProfileOpenEnded ? 0.80 : 1.50
-bool showLongLabelsEff = labelSurface != "Off" and showLongLabels
-bool showShortLabelsEff = labelSurface != "Off" and showShortLabels
-bool showPreEntryLabelsEff = labelSurface == "Full" and showPreEntryLabels
-string alertModeEff = alertMode
-[dStopEff, _dTrailEff] = f_dyn_sl_preset_vals(decayStopATR, trailATREff)
+[dStopEff, _dTrailEff] = f_dyn_sl_preset_vals(decayStopATR, trailATR)
 float dynamicDecayStopATREff = dStopEff
 bool scoreRequireDirectionalContextEff = legacyEntryBehavior ? false : scoreRequireDirectionalContext
 bool scoreChopHardVetoEff = not legacyEntryBehavior and not scalpEarlyEntryBehavior
@@ -2647,8 +2624,8 @@ f_entry_forecast_gate(isLong) =>
         true
     else
         bool ok = true
-        forecastAllowed = enableForecastEff and f_forecast_allowed()
-        if useForecastGateEntryEff and use3Way and forecastAllowed
+        forecastAllowed = enableForecast and f_forecast_allowed()
+        if useForecastGateEntry and use3Way and forecastAllowed
             [pU, pF, pD, nBin, total] = f_get_rel_vals(entryFcTF)
             binOk   = (tradeMinBinSamples <= 0) or (nBin >= tradeMinBinSamples)
             totalOk = (tradeMinTotalSamples <= 0) or (total >= tradeMinTotalSamples)
@@ -2776,7 +2753,7 @@ if doReset
     if resetWhich == "All" or resetWhich == "F7" or (resetWhich == "ChartTF" and f_is_chart_tf(tfF7))
         f_reset_tf(tf7State)
 
-doCal = enableForecastEff and barstate.isconfirmed and f_forecast_allowed() and (calibrateInBackground or showEvalSection)
+doCal = enableForecast and barstate.isconfirmed and f_forecast_allowed() and (calibrateInBackground or showEvalSection)
 if doCal
     for i = 0 to 6
         tfSel = f_idx_to_tfsel(i)
@@ -2899,7 +2876,7 @@ for i = 0 to 6
         array.set(relTot1, i, t1_tot)
 
 
-forecastAllowed = enableForecastEff and f_forecast_allowed()
+forecastAllowed = enableForecast and f_forecast_allowed()
 
 needRelVal = forecastAllowed and useRelFilter
 needEvdVal = forecastAllowed and evidenceGate
@@ -2978,7 +2955,7 @@ decisionFinal      = decisionOkSafe or isHighConf
 cooldownOkSafe     = f_fc_bool(cooldownOk)
 blockNearCloseSafe = f_fc_bool(not blockNearClose)
 
-signalOnCloseOnly = alertModeEff == "Bar Close"
+signalOnCloseOnly = alertOnBarCloseOnly
 signalGateConfirmed = barstate.isconfirmed or (not signalOnCloseOnly and barstate.isrealtime)
 
 allowEntry = signalGateConfirmed and cooldownOkSafe and blockNearCloseSafe and f_fc_bool(reliabilityOk) and f_fc_bool(evidenceOk) and f_fc_bool(evalOk) and (not abstainGate or decisionFinal)
@@ -3231,8 +3208,8 @@ var float trailPx = na
 f_set_risk_on_entry(isLong, entry, atrNow) =>
     // v6.3.0 Fix: Link Indicator Execution to Profile Inputs (Fast/Mid/Slow)
     [pFc, pK, pA, pH, pTp, pSl] = f_get_params(timeframe.period)
-    float useStopMul = nz(pSl, stopATREff)
-    float useTpMul   = nz(pTp, tpATREff)
+    float useStopMul = nz(pSl, stopATR) 
+    float useTpMul   = nz(pTp, tpATR)
 
     float stopOut  = isLong ? (entry - useStopMul * atrNow) : (entry + useStopMul * atrNow)
     float tpOut    = isLong ? (entry + useTpMul   * atrNow) : (entry - useTpMul   * atrNow)
@@ -3244,16 +3221,16 @@ f_update_trail(isLong, entry, atrNow, stopVal, trailVal) =>
     // activate trailing only after reaching +R
     denom = math.max(math.abs(entry - stopVal), PRICE_EPS)
     rNow = isLong ? ((close - entry) / denom) : ((entry - close) / denom)
-    [_, dTrailEff] = f_dyn_sl_preset_vals(decayStopATR, trailATREff)
+    [_, dTrailEff] = f_dyn_sl_preset_vals(decayStopATR, trailATR)
     trailMulEff = dTrailEff
     float trailOut = trailVal
-    if rNow >= trailAfterREff
+    if rNow >= trailAfterR
         float trailCandidate = isLong ? (close - trailMulEff * atrNow) : (close + trailMulEff * atrNow)
         trailOut := na(trailOut) ? trailCandidate : (isLong ? math.max(trailOut, trailCandidate) : math.min(trailOut, trailCandidate))
     trailOut
 
 f_risk_exit_hit(isLong, stopVal, tpVal, trailVal) =>
-    if not useAtrRiskEff or na(stopVal)
+    if not useAtrRisk or na(stopVal)
         [false, ""]
     else
         // User Request: Stop Loss on CLOSE only (ignore wicks)
@@ -3699,8 +3676,8 @@ if pos == 0 and allowEntry
 
 preBuyPrev = (preBuyNow[1] == true)
 preShortPrev = (preShortNow[1] == true)
-preBuyPulse = showPreEntryLabelsEff and preBuyNow and not preBuyPrev
-preShortPulse = showPreEntryLabelsEff and preShortNow and not preShortPrev
+preBuyPulse = showPreEntryLabels and preBuyNow and not preBuyPrev
+preShortPulse = showPreEntryLabels and preShortNow and not preShortPrev
 
 // PRE-BUY / PRE-SHORT distance in ATR units (0.00 = at trigger)
 float preGapATR_L = (not na(preGapLong)  and not na(atr) and atr > 0) ? (preGapLong  / atr) : na
@@ -3719,11 +3696,11 @@ bool canChochExit = (barsSinceEntry >= math.min(chochGraceBars, exitGraceBars))
 
 string tempExitReason = ""
 
-if useAtrRiskEff and useRiskDecay and barsSinceEntry <= decayBars and not hugeVolG
+if useAtrRisk and useRiskDecay and barsSinceEntry <= decayBars and not hugeVolG
     float w   = math.min(1.0, float(barsSinceEntry) / float(decayBars))
     [dFc, dK, dA, dH, dTp, dSl] = f_get_params(timeframe.period)
-    float baseStop = nz(dSl, stopATREff)
-    float baseTp   = nz(dTp, tpATREff)
+    float baseStop = nz(dSl, stopATR) 
+    float baseTp   = nz(dTp, tpATR)
     
     float cStopM = math.max(0.1, baseStop + (dynamicDecayStopATREff - baseStop) * w)
     float cTpM   = math.max(0.1, baseTp   + (decayTpATR   - baseTp)   * w)
@@ -3733,7 +3710,7 @@ if useAtrRiskEff and useRiskDecay and barsSinceEntry <= decayBars and not hugeVo
         targetTp   = entryPrice + (cTpM   * entryAtr)
 
         stopPx := math.max(stopPx, targetStop)
-        if not useInfiniteTPEff
+        if not useInfiniteTP
             tpPx   := math.min(tpPx, targetTp)
             
     else if pos == -1 and not na(stopPx) and not na(entryPrice) and not na(entryAtr)
@@ -3741,12 +3718,12 @@ if useAtrRiskEff and useRiskDecay and barsSinceEntry <= decayBars and not hugeVo
         targetTp   = entryPrice - (cTpM   * entryAtr)
         
         stopPx := math.min(stopPx, targetStop)
-        if not useInfiniteTPEff
+        if not useInfiniteTP
             tpPx   := math.max(tpPx, targetTp)
 
-if useAtrRiskEff and useDynamicTpExpansion and not useInfiniteTPEff and pos != 0 and not na(tpPx) and not na(entryPrice) and not na(entryAtr)
+if useAtrRisk and useDynamicTpExpansion and not useInfiniteTP and pos != 0 and not na(tpPx) and not na(entryPrice) and not na(entryAtr)
     [dtFc, dtK, dtA, dtH, dtTp, dtSl] = f_get_params(timeframe.period)
-    float initRiskAbs = math.max(PRICE_EPS, nz(dtSl, stopATREff) * entryAtr)
+    float initRiskAbs = math.max(PRICE_EPS, nz(dtSl, stopATR) * entryAtr)
     float runRNow = pos == 1 ? ((close - entryPrice) / initRiskAbs) : ((entryPrice - close) / initRiskAbs)
     bool dynTpTrendOk = pos == 1 ? trendUpSafe : trendDnSafe
     bool dynTpConfOk = na(confidence) ? false : confidence >= dynamicTpMinConf
@@ -3754,13 +3731,13 @@ if useAtrRiskEff and useDynamicTpExpansion and not useInfiniteTPEff and pos != 0
 
     if runRNow >= dynamicTpKickInREff and dynTpGateOk
         float extraAtr = math.min(dynamicTpMaxAddATREff, (runRNow - dynamicTpKickInREff) * dynamicTpAddATRPerREff)
-        float targetTpMul = math.max(0.1, nz(dtTp, tpATREff) + extraAtr)
+        float targetTpMul = math.max(0.1, nz(dtTp, tpATR) + extraAtr)
         float dynamicTpPx = pos == 1 ? (entryPrice + targetTpMul * entryAtr) : (entryPrice - targetTpMul * entryAtr)
         tpPx := pos == 1 ? math.max(tpPx, dynamicTpPx) : math.min(tpPx, dynamicTpPx)
 
-if useAtrRiskEff and useDynamicSlProfile and pos != 0 and not na(stopPx) and not na(entryPrice) and not na(entryAtr)
+if useAtrRisk and useDynamicSlProfile and pos != 0 and not na(stopPx) and not na(entryPrice) and not na(entryAtr)
     [dsFc, dsK, dsA, dsH, dsTp, dsSl] = f_get_params(timeframe.period)
-    float baseSlMul = nz(dsSl, stopATREff)
+    float baseSlMul = nz(dsSl, stopATR)
     float initRiskAbs = math.max(PRICE_EPS, baseSlMul * entryAtr)
     float runRNow = pos == 1 ? ((close - entryPrice) / initRiskAbs) : ((entryPrice - close) / initRiskAbs)
     bool dynSlTrendOk = pos == 1 ? trendUpSafe : trendDnSafe
@@ -3789,7 +3766,7 @@ if useAtrRiskEff and useDynamicSlProfile and pos != 0 and not na(stopPx) and not
                 stopPx := dynamicStopPx
 
 if pos == 1 and allowExitLong
-    if useAtrRiskEff
+    if useAtrRisk
         trailPx := f_update_trail(true, entryPrice, atr, stopPx, trailPx)
     [rHit, rMsg] = f_risk_exit_hit(true, stopPx, tpPx, trailPx)
 
@@ -3812,7 +3789,7 @@ if pos == 1 and allowExitLong
         tempExitReason := reason
 
 if pos == -1 and allowExitShort
-    if useAtrRiskEff
+    if useAtrRisk
         trailPx := f_update_trail(false, entryPrice, atr, stopPx, trailPx)
     [rHit, rMsg] = f_risk_exit_hit(false, stopPx, tpPx, trailPx)
     
@@ -3891,10 +3868,10 @@ if barstate.isconfirmed
         barsSinceEntry := 0
         lastEntryWasRev := isRevBuy
         lastBuyBarIdx := bar_index
-        if useAtrRiskEff
+        if useAtrRisk
             [newStop, newTp, newTrail] = f_set_risk_on_entry(true, entryPrice, atr)
             stopPx  := newStop
-            tpPx    := useInfiniteTPEff ? na : newTp
+            tpPx    := useInfiniteTP ? na : newTp
             trailPx := newTrail
         if cooldownTriggersEff == "AllSignals" or cooldownTriggersEff == "EntriesOnly"
             lastSignalBar  := bar_index
@@ -3910,10 +3887,10 @@ if barstate.isconfirmed
         barsSinceEntry := 0
         lastEntryWasRev := isRevShort
         lastShortBarIdx := bar_index
-        if useAtrRiskEff
+        if useAtrRisk
             [sStop, sTp, sTrail] = f_set_risk_on_entry(false, entryPrice, atr)
             stopPx  := sStop
-            tpPx    := useInfiniteTPEff ? na : sTp
+            tpPx    := useInfiniteTP ? na : sTp
             trailPx := sTrail
         if cooldownTriggersEff == "AllSignals" or cooldownTriggersEff == "EntriesOnly"
             lastSignalBar  := bar_index
@@ -3988,288 +3965,6 @@ strictShortConfirmed = strictAlertsEnabledVis and barstate.isconfirmed and short
 
 f_safe_label_text(txt) => lbl.safe_label_text(txt)
 
-format_skipp_pct(float value) =>
-    na(value) ? "n/a" : str.tostring(value * 100.0, "#.0") + "%"
-
-resolve_skipp_product_state(int pos, bool exit_event_live, bool cover_event_live, bool buy_event_live, bool short_event_live, bool pre_buy_event_live, bool pre_short_event_live, bool long_gate_ok, bool short_gate_ok, bool decision_ok, float confidence_value, bool sideways_visual, bool block_near_close, bool cooldown_ok, bool shorts_enabled) =>
-    string product_state = "WAIT"
-    if exit_event_live or cover_event_live
-        product_state := "REDUCE RISK"
-    else if pos == 1
-        product_state := "MANAGE LONG"
-    else if pos == -1
-        product_state := "MANAGE SHORT"
-    else if buy_event_live
-        product_state := "ENTER LONG"
-    else if short_event_live
-        product_state := "ENTER SHORT"
-    else if pre_buy_event_live
-        if long_gate_ok and decision_ok and confidence_value >= 0.60
-            product_state := "READY LONG"
-        else if long_gate_ok
-            product_state := "PREPARE LONG"
-        else
-            product_state := "BLOCKED"
-    else if pre_short_event_live and shorts_enabled
-        if short_gate_ok and decision_ok and confidence_value >= 0.60
-            product_state := "READY SHORT"
-        else if short_gate_ok
-            product_state := "PREPARE SHORT"
-        else
-            product_state := "BLOCKED"
-    else if sideways_visual
-        product_state := "AVOID"
-    else if block_near_close or not cooldown_ok or (not long_gate_ok and (not shorts_enabled or not short_gate_ok))
-        product_state := "BLOCKED"
-    product_state
-
-resolve_skipp_outlook_text(float mtf_score, float p_u, float p_d) =>
-    string outlook_text = "Mixed"
-    if mtf_score > SCORE_NEUTRAL_BAND or (math.abs(mtf_score) <= SCORE_NEUTRAL_BAND and not na(p_u) and not na(p_d) and p_u > p_d + 0.02)
-        outlook_text := "Bullish"
-    else if mtf_score < -SCORE_NEUTRAL_BAND or (math.abs(mtf_score) <= SCORE_NEUTRAL_BAND and not na(p_u) and not na(p_d) and p_d > p_u + 0.02)
-        outlook_text := "Bearish"
-    outlook_text
-
-resolve_skipp_trust_tier(float confidence_value, bool decision_ok, float n_bin, float total, int min_bin_samples, int min_total_samples, bool block_near_close, bool cooldown_ok) =>
-    bool bin_ok = min_bin_samples <= 0 or (not na(n_bin) and n_bin >= min_bin_samples)
-    bool total_ok = min_total_samples <= 0 or (not na(total) and total >= min_total_samples)
-    string trust_tier = "Provisional"
-    if block_near_close or not cooldown_ok
-        trust_tier := "Provisional"
-    else if confidence_value >= 0.75 and decision_ok and bin_ok and total_ok
-        trust_tier := "Strong"
-    else if confidence_value >= 0.60 and decision_ok
-        trust_tier := "Usable"
-    else if confidence_value >= 0.45
-        trust_tier := "Thin"
-    trust_tier
-
-resolve_skipp_action_color(string product_state) =>
-    color action_color = color.new(color.gray, 70)
-    if product_state == "READY LONG" or product_state == "ENTER LONG" or product_state == "MANAGE LONG"
-        action_color := color.new(color.green, 65)
-    else if product_state == "READY SHORT" or product_state == "ENTER SHORT" or product_state == "MANAGE SHORT"
-        action_color := color.new(color.red, 65)
-    else if product_state == "PREPARE LONG" or product_state == "PREPARE SHORT"
-        action_color := color.new(color.orange, 65)
-    else if product_state == "REDUCE RISK"
-        action_color := color.new(color.yellow, 55)
-    else if product_state == "BLOCKED" or product_state == "AVOID"
-        action_color := color.new(color.maroon, 45)
-    action_color
-
-compose_skipp_forecast_text(string tf_sel, bool forecast_allowed, float p_u, float p_f, float p_d, float edge_value, string decision_reason) =>
-    string forecast_text = tf_sel + " | unavailable"
-    if forecast_allowed
-        forecast_text := tf_sel + " | U " + format_skipp_pct(p_u) + " / F " + format_skipp_pct(p_f) + " / D " + format_skipp_pct(p_d)
-        if not na(edge_value)
-            forecast_text += " | edge " + str.tostring(edge_value * 100.0, "#.0") + "pp"
-        if decision_reason != ""
-            forecast_text += " | " + decision_reason
-    forecast_text
-
-compose_skipp_why_now_text(string product_state, string outlook_text, string tf_sel, bool in_open_window, bool cooldown_ok, bool block_near_close, string decision_reason) =>
-    string why_now_text = "No active setup yet"
-    if product_state == "ENTER LONG" or product_state == "READY LONG" or product_state == "PREPARE LONG"
-        why_now_text := "Bull edge on " + tf_sel + " with " + outlook_text + " alignment"
-    else if product_state == "ENTER SHORT" or product_state == "READY SHORT" or product_state == "PREPARE SHORT"
-        why_now_text := "Bear edge on " + tf_sel + " with " + outlook_text + " alignment"
-    else if product_state == "MANAGE LONG" or product_state == "MANAGE SHORT"
-        why_now_text := "Position is open and risk is being managed"
-    else if product_state == "REDUCE RISK"
-        why_now_text := "Exit logic or reversal risk is active"
-    else if product_state == "AVOID"
-        why_now_text := "Flat probability is elevated"
-    else if block_near_close
-        why_now_text := "Entry window is closing"
-    else if not cooldown_ok
-        why_now_text := "Cooldown is still active"
-    else if in_open_window
-        why_now_text := "Open-window bypass is active"
-    else if decision_reason != ""
-        why_now_text := decision_reason
-    why_now_text
-
-compose_skipp_risk_plan_text(string product_state, bool use_infinite_tp, float stop_atr_value, float tp_atr_value, float trail_atr_value, float trail_after_r_value, string last_exit_reason_value, bool cooldown_ok, bool block_near_close) =>
-    string risk_text = "Wait for a clean edge"
-    if product_state == "READY LONG" or product_state == "READY SHORT" or product_state == "ENTER LONG" or product_state == "ENTER SHORT" or product_state == "PREPARE LONG" or product_state == "PREPARE SHORT" or product_state == "MANAGE LONG" or product_state == "MANAGE SHORT"
-        risk_text := "Stop " + str.tostring(stop_atr_value, "#.##") + " ATR | " + (use_infinite_tp ? "Trail only" : "TP " + str.tostring(tp_atr_value, "#.##") + " ATR") + " | Trail after " + str.tostring(trail_after_r_value, "#.##") + "R"
-        risk_text += " | Trail ATR " + str.tostring(trail_atr_value, "#.##")
-    else if product_state == "REDUCE RISK" and last_exit_reason_value != ""
-        risk_text := last_exit_reason_value
-    else if not cooldown_ok
-        risk_text := "Cooldown active"
-    else if block_near_close
-        risk_text := "Avoid new entries near the close"
-    risk_text
-
-resolve_skipp_last_action_text(string last_signal_value) =>
-    string last_action = "WAIT"
-    if last_signal_value == "BUY"
-        last_action := "ENTER LONG"
-    else if last_signal_value == "SHORT"
-        last_action := "ENTER SHORT"
-    else if last_signal_value == "EXIT" or last_signal_value == "COVER"
-        last_action := "REDUCE RISK"
-    last_action
-
-compose_skipp_trade_threshold_text(bool decision_ok, string trust_tier, float n_bin, float total, int min_bin_samples, int min_total_samples) =>
-    string threshold_text = decision_ok ? "Clear" : trust_tier == "Usable" or trust_tier == "Thin" ? "Near" : "Wait"
-    string bin_text = na(n_bin) ? "Bin n/a" : "Bin " + str.tostring(n_bin, "#.0")
-    if min_bin_samples > 0
-        bin_text += "/" + str.tostring(min_bin_samples)
-    string total_text = na(total) ? "Total n/a" : "Total " + str.tostring(total, "#.0")
-    if min_total_samples > 0
-        total_text += "/" + str.tostring(min_total_samples)
-    threshold_text + " | " + trust_tier + " | " + bin_text + " | " + total_text
-
-compose_skipp_position_text(int pos, float entry_price, float stop_px_value, float tp_px_value, bool use_infinite_tp) =>
-    string position_text = "FLAT"
-    if pos == 1
-        position_text := "LONG @ " + str.tostring(entry_price, "#.##") + " | Stop " + str.tostring(stop_px_value, "#.##")
-        position_text += use_infinite_tp ? " | Trail open" : " | TP " + str.tostring(tp_px_value, "#.##")
-    else if pos == -1
-        position_text := "SHORT @ " + str.tostring(entry_price, "#.##") + " | Stop " + str.tostring(stop_px_value, "#.##")
-        position_text += use_infinite_tp ? " | Trail open" : " | TP " + str.tostring(tp_px_value, "#.##")
-    position_text
-
-compose_skipp_main_risk_text(string product_state, string trust_tier, bool decision_ok, bool forecast_allowed, bool cooldown_ok, bool block_near_close, bool sideways_visual, float p_f, float mtf_score) =>
-    string main_risk_text = "Risk controlled"
-    if block_near_close
-        main_risk_text := "Entry window is closing"
-    else if not cooldown_ok
-        main_risk_text := "Cooldown still active"
-    else if sideways_visual
-        main_risk_text := "Flat probability is elevated"
-    else if not forecast_allowed
-        main_risk_text := "No evidence yet"
-    else if trust_tier == "Provisional"
-        main_risk_text := "Evidence is still provisional"
-    else if trust_tier == "Thin" or not decision_ok
-        main_risk_text := "Early forecast still thin"
-    else if (product_state == "READY LONG" or product_state == "ENTER LONG" or product_state == "PREPARE LONG") and mtf_score < -SCORE_NEUTRAL_BAND
-        main_risk_text := "Higher-TF headwind remains"
-    else if (product_state == "READY SHORT" or product_state == "ENTER SHORT" or product_state == "PREPARE SHORT") and mtf_score > SCORE_NEUTRAL_BAND
-        main_risk_text := "Higher-TF squeeze risk remains"
-    else if not na(p_f) and p_f >= flatAbstainThr
-        main_risk_text := "Flat risk is still elevated"
-    main_risk_text
-
-resolve_skipp_bias_label(float score, float p_u, float p_d) =>
-    string bias_text = "Mixed"
-    if score > SCORE_NEUTRAL_BAND or (math.abs(score) <= SCORE_NEUTRAL_BAND and not na(p_u) and not na(p_d) and p_u > p_d + 0.02)
-        bias_text := "Bull"
-    else if score < -SCORE_NEUTRAL_BAND or (math.abs(score) <= SCORE_NEUTRAL_BAND and not na(p_u) and not na(p_d) and p_d > p_u + 0.02)
-        bias_text := "Bear"
-    bias_text
-
-resolve_skipp_strength_label(float score, float p_u, float p_d, float confidence_value) =>
-    float directional_edge = na(p_u) or na(p_d) ? 0.0 : math.abs(p_u - p_d)
-    string strength_text = "Thin"
-    if confidence_value >= 0.75 or math.abs(score) >= 0.75 or directional_edge >= 0.20
-        strength_text := "Strong"
-    else if confidence_value >= 0.55 or math.abs(score) >= 0.35 or directional_edge >= 0.10
-        strength_text := "Medium"
-    else if confidence_value < 0.30 and directional_edge < 0.05
-        strength_text := "Provisional"
-    strength_text
-
-resolve_skipp_state_note_text(string bias_text, float score, bool forecast_allowed) =>
-    string state_note = "aligned"
-    if not forecast_allowed
-        state_note := "no evidence yet"
-    else if bias_text == "Mixed"
-        state_note := "conflicting"
-    else if math.abs(score) <= SCORE_NEUTRAL_BAND
-        state_note := "early support"
-    else if math.abs(score) >= 0.80
-        state_note := "aligned"
-    else
-        state_note := bias_text == "Bull" ? "supporting" : "headwind"
-    state_note
-
-compose_skipp_outlook_row(string tf_label, float score, float p_u, float p_d, float confidence_value, bool forecast_allowed) =>
-    string bias_text = resolve_skipp_bias_label(score, p_u, p_d)
-    string strength_text = resolve_skipp_strength_label(score, p_u, p_d, confidence_value)
-    string state_note = resolve_skipp_state_note_text(bias_text, score, forecast_allowed)
-    tf_label + " | " + bias_text + " | " + strength_text + " | " + state_note
-
-resolve_skipp_forecast_direction(float p_u, float p_f, float p_d) =>
-    string direction_text = "No data"
-    if not na(p_u) and not na(p_f) and not na(p_d)
-        if p_f >= p_u and p_f >= p_d
-            direction_text := p_f >= 0.40 ? "Flat" : "Mixed"
-        else if p_u >= p_d
-            direction_text := p_u >= 0.45 ? "Up" : "Mixed"
-        else
-            direction_text := p_d >= 0.45 ? "Down" : "Mixed"
-    direction_text
-
-resolve_skipp_evidence_label(float focus_prob, float n_bin, float total, bool forecast_allowed, int min_bin_samples, int min_total_samples) =>
-    string evidence_text = "Provisional"
-    if forecast_allowed
-        bool can_cal = not na(total) and total > 0
-        string rel_label = f_rel_label(focus_prob, n_bin, total, can_cal)
-        if rel_label == "strong"
-            evidence_text := "Strong"
-        else if rel_label == "ok"
-            evidence_text := "Usable"
-        else if rel_label == "weak"
-            evidence_text := "Thin"
-        else if (min_bin_samples <= 0 or (not na(n_bin) and n_bin >= min_bin_samples)) and (min_total_samples <= 0 or (not na(total) and total >= min_total_samples))
-            evidence_text := "Usable"
-    evidence_text
-
-resolve_skipp_risk_hint(string stable_direction, string early_direction, string evidence_text) =>
-    string risk_hint = "wait"
-    if evidence_text == "Strong" or evidence_text == "Usable"
-        if stable_direction == early_direction and (stable_direction == "Up" or stable_direction == "Down")
-            risk_hint := "OK"
-        else if stable_direction == "Flat"
-            risk_hint := "wait"
-        else
-            risk_hint := "conflict"
-    else if evidence_text == "Thin"
-        risk_hint := "thin"
-    risk_hint
-
-compose_skipp_forecast_row(string tf_label, float stable_u, float stable_f, float stable_d, float early_u, float early_f, float early_d, float n_bin, float total, bool forecast_allowed, int min_bin_samples, int min_total_samples) =>
-    string stable_direction = resolve_skipp_forecast_direction(stable_u, stable_f, stable_d)
-    string early_direction = resolve_skipp_forecast_direction(early_u, early_f, early_d)
-    float focus_prob = stable_direction == "Down" ? stable_d : stable_direction == "Up" ? stable_u : stable_f
-    string evidence_text = resolve_skipp_evidence_label(focus_prob, n_bin, total, forecast_allowed, min_bin_samples, min_total_samples)
-    string risk_hint = resolve_skipp_risk_hint(stable_direction, early_direction, evidence_text)
-    tf_label + " | " + stable_direction + " | " + early_direction + " | " + evidence_text + " | " + risk_hint
-
-resolve_skipp_alert_action(bool alert_buy_cond, bool alert_short_cond, bool alert_rev_buy_cond, bool alert_rev_short_cond, bool alert_exit_cond, bool alert_cover_cond, bool alert_ready_long_cond, bool alert_ready_short_cond, bool alert_avoid_cond, bool alert_blocked_cond, bool alert_pre_buy_cond, bool alert_pre_short_cond, bool alert_consolidation_cond) =>
-    string action_text = "WAIT"
-    if alert_exit_cond or alert_cover_cond
-        action_text := "REDUCE RISK"
-    else if alert_rev_buy_cond or alert_buy_cond
-        action_text := "ENTER LONG"
-    else if alert_rev_short_cond or alert_short_cond
-        action_text := "ENTER SHORT"
-    else if alert_ready_long_cond
-        action_text := "READY LONG"
-    else if alert_ready_short_cond
-        action_text := "READY SHORT"
-    else if alert_avoid_cond or alert_consolidation_cond
-        action_text := "AVOID"
-    else if alert_blocked_cond
-        action_text := "BLOCKED"
-    else if alert_pre_buy_cond
-        action_text := "PREPARE LONG"
-    else if alert_pre_short_cond
-        action_text := "PREPARE SHORT"
-    else if alert_consolidation_cond
-        action_text := "AVOID"
-    action_text
-
-f_hud_row(table hud, int row, string label_text, string value_text, color value_bg) =>
-    table.cell(hud, 0, row, label_text, text_color = color.silver, bgcolor = color.new(color.black, 0))
-    table.cell(hud, 1, row, value_text, text_color = color.white, bgcolor = value_bg)
-
 var label[] _preLabels = array.new_label(0)
 MAX_PRE_LABELS = 100
 
@@ -4280,13 +3975,13 @@ if preBuyEventLive
     string _gapTxt = not na(preGapATR_L) ? str.tostring(preGapATR_L, "#.##") + " ATR" : "—"
     string _pTxt   = not na(pU) ? str.tostring(pU * 100, "#.0") + "%" : "n/a"
     string _cTxt   = str.tostring(confidence * 100.0, "#.0") + "%"
-    f_pre_label(bar_index, low, "PREPARE LONG\nGap: " + _gapTxt + "\nStable: " + _pTxt + "\nConf: " + _cTxt, label.style_label_up, color.black, color.new(color.yellow, 0))
+    f_pre_label(bar_index, low, "PRE-BUY\nGap: " + _gapTxt + "\npU: " + _pTxt + "\nConf: " + _cTxt, label.style_label_up, color.black, color.new(color.yellow, 0))
 
 if preShortEventLive
     string _gapTxt = not na(preGapATR_S) ? str.tostring(preGapATR_S, "#.##") + " ATR" : "—"
     string _pTxt   = not na(pD) ? str.tostring(pD * 100, "#.0") + "%" : "n/a"
     string _cTxt   = str.tostring(confidence * 100.0, "#.0") + "%"
-    f_pre_label(bar_index, high, "PREPARE SHORT\nGap: " + _gapTxt + "\nStable: " + _pTxt + "\nConf: " + _cTxt, label.style_label_down, color.black, color.new(color.orange, 0))
+    f_pre_label(bar_index, high, "PRE-SHORT\nGap: " + _gapTxt + "\npD: " + _pTxt + "\nConf: " + _cTxt, label.style_label_down, color.black, color.new(color.orange, 0))
 
 labelRevBuy   = buyEvent and isRevBuy
 labelRevShort = shortEvent and isRevShort
@@ -4325,19 +4020,19 @@ f_entry_label(x, y, txt, sty, txtCol, bgCol) =>
 string _probTxt = not na(pU) ? str.tostring(pU * 100, "#.0") + "%" : "n/a"
 string _probTxtD = not na(pD) ? str.tostring(pD * 100, "#.0") + "%" : "n/a"
 string _confTxt = str.tostring(confidence * 100.0, "#.0") + "%"
-string _revBuyBase = "ENTER LONG\nReversal | pU: " + _probTxt + "\nConf: " + _confTxt
-string _revShortBase = "ENTER SHORT\nReversal | pD: " + _probTxtD + "\nConf: " + _confTxt
+string _revBuyBase = "REV-BUY\npU: " + _probTxt + "\nConf: " + _confTxt
+string _revShortBase = "REV-SHORT\npD: " + _probTxtD + "\nConf: " + _confTxt
 
-string _stdBuyTxt = "ENTER LONG\nSetup | pU: " + _probTxt + "\nConf: " + _confTxt
-string _stdShortTxt = "ENTER SHORT\nSetup | pD: " + _probTxtD + "\nConf: " + _confTxt
+string _stdBuyTxt = "BUY\npU: " + _probTxt + "\nConf: " + _confTxt
+string _stdShortTxt = "SHORT\npD: " + _probTxtD + "\nConf: " + _confTxt
 
-if showLongLabelsEff and labelRevBuy
+if showLongLabels and labelRevBuy
     f_entry_label(bar_index, low, _revBuyBase, label.style_label_up, color.black, color.new(color.aqua, 0))
-if showShortLabelsEff and labelRevShort
+if showShortLabels and labelRevShort
     f_entry_label(bar_index, high, _revShortBase, label.style_label_down, color.black, color.new(color.fuchsia, 0))
-if showLongLabelsEff and labelBuy
+if showLongLabels and labelBuy
     f_entry_label(bar_index, low, _stdBuyTxt, label.style_label_up, color.white, color.new(color.green, 0))
-if showShortLabelsEff and labelShort
+if showShortLabels and labelShort
     f_entry_label(bar_index, high, _stdShortTxt, label.style_label_down, color.white, color.new(color.red, 0))
 
 var label[] _exitLabels = array.new_label(0)
@@ -4346,33 +4041,33 @@ MAX_EXIT_LABELS = 250
 f_exit_label(x, y, txt, sty, txtCol, bgCol) =>
     lbl.capped_label(_exitLabels, x, y, txt, sty, txtCol, bgCol, MAX_EXIT_LABELS, size.normal)
 
-if showLongLabelsEff and labelExit
-    string entryTag  = _wasRevEntry ? " ← ENTER LONG (rev)" : " ← ENTER LONG"
-    string exitSuffix = didShort ? " → ENTER SHORT" : ""
+if showLongLabels and labelExit
+    string entryTag  = _wasRevEntry ? " ← REV-BUY" : " ← BUY"
+    string exitSuffix = didShort ? " → SHORT" : ""
     int _buyAgo = na(lastBuyBarIdx) ? 0 : (bar_index - lastBuyBarIdx)
     string buyAgoTxt = " (" + str.tostring(_buyAgo) + " bars ago)"
     bool isExitRev = didShort
     val = isExitRev ? low : (labelPriceMode == "Entry Price" ? (na(entryPxPrev) ? close : entryPxPrev) : labelPriceMode == "Close" ? close : high)
     exitSty = isExitRev ? label.style_label_up : label.style_label_down
-    f_exit_label(bar_index, val, "REDUCE RISK" + entryTag + "\n" + buyAgoTxt + exitSuffix + "\n" + lastExitReason + "\nHeld " + str.tostring(barsSinceEntry) + " bars", exitSty, color.white, color.new(color.red, 0))
+    f_exit_label(bar_index, val, "EXIT" + entryTag + "\n" + buyAgoTxt + exitSuffix + "\n" + lastExitReason + "\nHeld " + str.tostring(barsSinceEntry) + " bars", exitSty, color.white, color.new(color.red, 0))
 
-if showShortLabelsEff and labelCover
-    string entryTag  = _wasRevEntry ? " ← ENTER SHORT (rev)" : " ← ENTER SHORT"
-    string coverSuffix = didBuy ? " → ENTER LONG" : ""
+if showShortLabels and labelCover
+    string entryTag  = _wasRevEntry ? " ← REV-SHORT" : " ← SHORT"
+    string coverSuffix = didBuy ? " → BUY" : ""
     int _shortAgo = na(lastShortBarIdx) ? 0 : (bar_index - lastShortBarIdx)
     string shortAgoTxt = " (" + str.tostring(_shortAgo) + " bars ago)"
     bool isReversal = didBuy
     val = isReversal ? high : (labelPriceMode == "Entry Price" ? (na(entryPxPrev) ? close : entryPxPrev) : labelPriceMode == "Close" ? close : low)
     labelSty = isReversal ? label.style_label_down : label.style_label_up
-    f_exit_label(bar_index, val, "REDUCE RISK" + entryTag + "\n" + shortAgoTxt + coverSuffix + "\n" + lastExitReason + "\nHeld " + str.tostring(barsSinceEntry) + " bars", labelSty, color.white, color.new(color.green, 0))
+    f_exit_label(bar_index, val, "COVER" + entryTag + "\n" + shortAgoTxt + coverSuffix + "\n" + lastExitReason + "\nHeld " + str.tostring(barsSinceEntry) + " bars", labelSty, color.white, color.new(color.green, 0))
 
-plot(useAtrRiskEff and pos == 1 ? stopPx : na,  title="Stop (Long)",  linewidth=1, color=color.new(color.red, 0))
-plot(useAtrRiskEff and not useInfiniteTPEff and pos == 1 ? tpPx   : na,  title="TP (Long)",    linewidth=1, color=color.new(color.green, 0))
-plot(useAtrRiskEff and pos == 1 ? trailPx: na,  title="Trail (Long)", linewidth=1, color=color.new(color.orange, 0))
+plot(useAtrRisk and pos == 1 ? stopPx : na,  title="Stop (Long)",  linewidth=1, color=color.new(color.red, 0))
+plot(useAtrRisk and not useInfiniteTP and pos == 1 ? tpPx   : na,  title="TP (Long)",    linewidth=1, color=color.new(color.green, 0))
+plot(useAtrRisk and pos == 1 ? trailPx: na,  title="Trail (Long)", linewidth=1, color=color.new(color.orange, 0))
 
-plot(useAtrRiskEff and pos == -1 ? stopPx : na, title="Stop (Short)", linewidth=1, color=color.new(color.red, 0))
-plot(useAtrRiskEff and not useInfiniteTPEff and pos == -1 ? tpPx   : na, title="TP (Short)",   linewidth=1, color=color.new(color.green, 0))
-plot(useAtrRiskEff and pos == -1 ? trailPx: na, title="Trail (Short)",linewidth=1, color=color.new(color.orange, 0))
+plot(useAtrRisk and pos == -1 ? stopPx : na, title="Stop (Short)", linewidth=1, color=color.new(color.red, 0))
+plot(useAtrRisk and not useInfiniteTP and pos == -1 ? tpPx   : na, title="TP (Short)",   linewidth=1, color=color.new(color.green, 0))
+plot(useAtrRisk and pos == -1 ? trailPx: na, title="Trail (Short)",linewidth=1, color=color.new(color.orange, 0))
 
 barcolor(na)
 alertcondition(bullEngulf3, title="Bullish Engulfing (3 prior opposite)", message="SkippALGO Bullish Engulfing (3 prior bearish) | {{ticker}} @ {{close}} | {{time}}")
@@ -4396,71 +4091,10 @@ var label evalHudLbl = na
 if barstate.islast
     if not na(evalHudLbl)
         label.delete(evalHudLbl)
-
-[hudPU, hudPF, hudPD, hudBin, hudTotal] = f_get_rel_vals(entryFcTF)
-[hudPU1, hudPF1, hudPD1, hudBin1, hudTotal1] = f_get_rel_vals("F1")
-[hudPU2, hudPF2, hudPD2, hudBin2, hudTotal2] = f_get_rel_vals("F2")
-[hudPU3, hudPF3, hudPD3, hudBin3, hudTotal3] = f_get_rel_vals("F3")
-[hudPU5, hudPF5, hudPD5, hudBin5, hudTotal5] = f_get_rel_vals("F5")
-[hudDecisionOk, hudDecisionReason, _, hudDecisionEdge] = f_decision_quality(hudPU, hudPF, hudPD, hudBin, hudTotal)
-hudEarlyU1 = array.get(relPU1, 0)
-hudEarlyF1 = array.get(relPF1, 0)
-hudEarlyD1 = array.get(relPD1, 0)
-hudEarlyU2 = array.get(relPU1, 1)
-hudEarlyF2 = array.get(relPF1, 1)
-hudEarlyD2 = array.get(relPD1, 1)
-hudEarlyU3 = array.get(relPU1, 2)
-hudEarlyF3 = array.get(relPF1, 2)
-hudEarlyD3 = array.get(relPD1, 2)
-hudEarlyU5 = array.get(relPU1, 4)
-hudEarlyF5 = array.get(relPF1, 4)
-hudEarlyD5 = array.get(relPD1, 4)
-hudForecastAllowed = enableForecastEff and f_forecast_allowed()
-hudLongGateOk = f_entry_forecast_gate(true)
-hudShortGateOk = enableShorts and f_entry_forecast_gate(false)
-hudAction = resolve_skipp_product_state(pos, exitEventLive, coverEventLive, buyEventLive, shortEventLive, preBuyEventLive, preShortEventLive, hudLongGateOk, hudShortGateOk, hudDecisionOk, confidence, sidewaysVisual, blockNearClose, cooldownOk, enableShorts)
-hudOutlook = resolve_skipp_outlook_text(mtfScore, hudPU, hudPD)
-hudTrust = resolve_skipp_trust_tier(confidence, hudDecisionOk, hudBin, hudTotal, tradeMinBinSamples, tradeMinTotalSamples, blockNearClose, cooldownOk)
-hudWhyNow = compose_skipp_why_now_text(hudAction, hudOutlook, entryFcTF, inRevOpenWindow, cooldownOk, blockNearClose, hudDecisionReason)
-hudRiskPlan = compose_skipp_risk_plan_text(hudAction, useInfiniteTPEff, stopATREff, tpATREff, trailATREff, trailAfterREff, lastExitReason, cooldownOk, blockNearClose)
-hudSession = blockNearClose ? "Close window blocked" : inRevOpenWindow ? "Open-window bypass active" : not cooldownOk ? "Cooldown active" : "Session clear"
-hudThreshold = compose_skipp_trade_threshold_text(hudDecisionOk, hudTrust, hudBin, hudTotal, tradeMinBinSamples, tradeMinTotalSamples)
-hudPosition = compose_skipp_position_text(pos, entryPrice, stopPx, tpPx, useInfiniteTPEff)
-hudLastAction = resolve_skipp_last_action_text(lastSig)
-hudMainRisk = compose_skipp_main_risk_text(hudAction, hudTrust, hudDecisionOk, hudForecastAllowed, cooldownOk, blockNearClose, sidewaysVisual, hudPF, mtfScore)
-hudConfidence = hudTrust + " | " + format_skipp_pct(confidence)
-hudOutlookPanel = "TF | Bias | Strength | Note\n" + compose_skipp_outlook_row(tfF1, outScore1, hudPU1, hudPD1, confidence, hudForecastAllowed)
-hudOutlookPanel += "\n" + compose_skipp_outlook_row(tfF2, outScore2, hudPU2, hudPD2, confidence, hudForecastAllowed)
-hudOutlookPanel += "\n" + compose_skipp_outlook_row(tfF3, outScore3, hudPU3, hudPD3, confidence, hudForecastAllowed)
-hudOutlookPanel += "\n" + compose_skipp_outlook_row(tfF5, outScore5, hudPU5, hudPD5, confidence, hudForecastAllowed)
-hudForecastPanel = "TF | Stable | Early | Evidence | Hint\n" + compose_skipp_forecast_row(tfF1, hudPU1, hudPF1, hudPD1, hudEarlyU1, hudEarlyF1, hudEarlyD1, hudBin1, hudTotal1, hudForecastAllowed, tradeMinBinSamples, tradeMinTotalSamples)
-hudForecastPanel += "\n" + compose_skipp_forecast_row(tfF2, hudPU2, hudPF2, hudPD2, hudEarlyU2, hudEarlyF2, hudEarlyD2, hudBin2, hudTotal2, hudForecastAllowed, tradeMinBinSamples, tradeMinTotalSamples)
-hudForecastPanel += "\n" + compose_skipp_forecast_row(tfF3, hudPU3, hudPF3, hudPD3, hudEarlyU3, hudEarlyF3, hudEarlyD3, hudBin3, hudTotal3, hudForecastAllowed, tradeMinBinSamples, tradeMinTotalSamples)
-hudForecastPanel += "\n" + compose_skipp_forecast_row(tfF5, hudPU5, hudPF5, hudPD5, hudEarlyU5, hudEarlyF5, hudEarlyD5, hudBin5, hudTotal5, hudForecastAllowed, tradeMinBinSamples, tradeMinTotalSamples)
-hudDiag = "Session: " + hudSession + " | Decision: " + hudDecisionReason
-hudEval = evalSuccessHudTxt
-var table decisionHud = table.new(position.top_right, 2, 11, border_width = 1)
-
-if barstate.islast
-    if showDecisionHud
-        headerBg = resolve_skipp_action_color(hudAction)
-        table.cell(decisionHud, 0, 0, "SkippALGO Decision HUD", text_color = color.white, bgcolor = headerBg)
-        table.cell(decisionHud, 1, 0, hudTrust, text_color = color.white, bgcolor = headerBg)
-        f_hud_row(decisionHud, 1, "Action", hudAction, headerBg)
-        f_hud_row(decisionHud, 2, "Trade Threshold", hudThreshold, hudDecisionOk ? color.new(color.green, 85) : color.new(color.orange, 85))
-        f_hud_row(decisionHud, 3, "Position", hudPosition, color.new(color.black, 0))
-        f_hud_row(decisionHud, 4, "Last Action", hudLastAction, color.new(color.black, 0))
-        f_hud_row(decisionHud, 5, "Why Now", hudWhyNow, color.new(color.black, 0))
-        f_hud_row(decisionHud, 6, "Main Risk", hudMainRisk, color.new(color.black, 0))
-        f_hud_row(decisionHud, 7, "Confidence", hudConfidence, color.new(color.teal, 80))
-        f_hud_row(decisionHud, 8, "Outlook", hudOutlookPanel, color.new(color.blue, 80))
-        f_hud_row(decisionHud, 9, "Forecast", hudForecastPanel, hudDecisionOk ? color.new(color.green, 85) : color.new(color.orange, 85))
-        if surfaceMode == "Pro Diagnostics"
-            f_hud_row(decisionHud, 10, "Diagnostics", hudDiag + "\nEval: " + hudEval + "\nPlan: " + hudRiskPlan, color.new(color.black, 0))
-        else
-            f_hud_row(decisionHud, 10, "Session", hudSession, color.new(color.black, 0))
-    else
-        table.clear(decisionHud, 0, 0, 1, 10)
+    evalHudCol = evalSuccessN >= evalMinEvents ? color.new(color.green, 75) : color.new(color.orange, 75)
+    chochPresetTxt = chochSaferPresetEff ? "Fast+Safer" : chochFastPresetEff ? "Fast" : "Manual"
+    chochHudTxt = " | ChoCH=" + chochPresetTxt + " (" + chochSignalModeEff + "," + breakoutSourceEff + ",R=" + str.tostring(swingREff) + ")"
+    evalHudLbl := label.new(bar_index, high + nz(atr) * 0.6, evalSuccessHudTxt + chochHudTxt, style=label.style_label_left, textcolor=color.white, color=evalHudCol, size=size.tiny)
 
 buyEventStrict = barstate.isconfirmed and buyEvent[1] and strictMtfLongOkVis and strictChochLongOkVis
 shortEventStrict = barstate.isconfirmed and shortEvent[1] and strictMtfShortOkVis and strictChochShortOkVis
@@ -4483,26 +4117,12 @@ alertBuyCond   = (alertBuySameBar or alertBuyDelayed) and not alertRevBuyCond
 alertShortCond = (alertShortSameBar or alertShortDelayed) and not alertRevShortCond
 alertExitCond  = exitEventLive
 alertCoverCond = coverEventLive
-alertEnterLongCond = alertRevBuyCond or alertBuyCond
-alertEnterShortCond = alertRevShortCond or alertShortCond
-alertReduceRiskCond = alertExitCond or alertCoverCond
-alertReadyLongCond = hudAction == "READY LONG" and hudAction[1] != "READY LONG"
-alertReadyShortCond = hudAction == "READY SHORT" and hudAction[1] != "READY SHORT"
-alertPreBuyCond   = preBuyEventLive and hudAction == "PREPARE LONG"
-alertPreShortCond = preShortEventLive and hudAction == "PREPARE SHORT"
+alertPreBuyCond   = preBuyEventLive
+alertPreShortCond = preShortEventLive
 alertConsolidationCond = sidewaysVisual and not sidewaysVisual[1]
-alertAvoidCond = (hudAction == "AVOID" and hudAction[1] != "AVOID") or alertConsolidationCond
-alertBlockedCond = hudAction == "BLOCKED" and hudAction[1] != "BLOCKED"
 alertChochBullCond = labelChoCH_L
 alertChochBearCond = labelChoCH_S
 
-alertcondition(alertReadyLongCond, title="SMC READY LONG", message="SkippALGO READY LONG | {{ticker}} @ {{close}} | {{time}}")
-alertcondition(alertReadyShortCond, title="SMC READY SHORT", message="SkippALGO READY SHORT | {{ticker}} @ {{close}} | {{time}}")
-alertcondition(alertEnterLongCond, title="SMC ENTER LONG", message="SkippALGO ENTER LONG | {{ticker}} @ {{close}} | {{time}}")
-alertcondition(alertEnterShortCond, title="SMC ENTER SHORT", message="SkippALGO ENTER SHORT | {{ticker}} @ {{close}} | {{time}}")
-alertcondition(alertReduceRiskCond, title="SMC REDUCE RISK", message="SkippALGO REDUCE RISK | {{ticker}} @ {{close}} | {{time}}")
-alertcondition(alertAvoidCond, title="SMC AVOID", message="SkippALGO AVOID | {{ticker}} @ {{close}} | {{time}}")
-alertcondition(alertBlockedCond, title="SMC BLOCKED", message="SkippALGO BLOCKED | {{ticker}} @ {{close}} | {{time}}")
 alertcondition(alertBuyCond,   title="BUY",   message="SkippALGO BUY | {{ticker}} @ {{close}} | {{time}}")
 alertcondition(alertShortCond, title="SHORT", message="SkippALGO SHORT | {{ticker}} @ {{close}} | {{time}}")
 alertcondition(alertRevBuyCond,   title="REV-BUY",   message="SkippALGO REV-BUY | {{ticker}} @ {{close}} | {{time}}")
@@ -4546,16 +4166,13 @@ if signalGateConfirmed and barstate.isrealtime
     if qFinalEntrySell
         array.push(_parts, "QP-SELL")
 
-    bool productStateTrigger = alertReadyLongCond or alertReadyShortCond or alertAvoidCond or alertBlockedCond or alertEnterLongCond or alertEnterShortCond or alertReduceRiskCond or alertPreBuyCond or alertPreShortCond
-
-    if array.size(_parts) > 0 or productStateTrigger
+    if array.size(_parts) > 0
         string labels = array.join(_parts, "+")
-        string actionText = resolve_skipp_alert_action(alertBuyCond, alertShortCond, alertRevBuyCond, alertRevShortCond, alertExitCond, alertCoverCond, alertReadyLongCond, alertReadyShortCond, alertAvoidCond, alertBlockedCond, alertPreBuyCond, alertPreShortCond, alertConsolidationCond)
         string msg = ""
         if useJsonAlerts
-            msg := "{\"ticker\":\"" + syminfo.ticker + "\",\"action\":\"" + actionText + "\",\"state\":\"" + actionText + "\",\"legacy_labels\":\"" + labels + "\",\"why_now\":\"" + hudWhyNow + "\",\"main_risk\":\"" + hudMainRisk + "\",\"price\":" + str.tostring(close, "#.##") + "}"
+            msg := "{\"ticker\":\"" + syminfo.ticker + "\",\"labels\":\"" + labels + "\",\"price\":" + str.tostring(close, "#.##") + "}"
         else
             modeTxtAlert = strictAlertsEnabledVis ? "strict" : "normal"
             delayTxt = strictAlertsEnabledVis and (alertBuyCond or alertShortCond) ? "1" : "0"
-            msg := "SkippALGO | action=" + actionText + " | why=" + hudWhyNow + " | risk=" + hudMainRisk + " | legacy=" + labels + " | " + syminfo.ticker + " @ " + str.tostring(close, "#.##") + " | TF=" + timeframe.period + " | Conf=" + str.tostring(nz(confidence) * 100, "#.0") + "% | mode=" + modeTxtAlert + " | confirm_delay=" + delayTxt
+            msg := "SkippALGO " + labels + " | " + syminfo.ticker + " @ " + str.tostring(close, "#.##") + " | TF=" + timeframe.period + " | Conf=" + str.tostring(nz(confidence) * 100, "#.0") + "% | mode=" + modeTxtAlert + " | confirm_delay=" + delayTxt
         alert(msg, alertFreqSafe)

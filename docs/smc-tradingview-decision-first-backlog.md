@@ -1,4 +1,4 @@
-# SMC / SkippALGO Decision-First UX Implementation Backlog
+# SMC Decision-First UX Implementation Backlog
 
 ## Status
 
@@ -7,14 +7,18 @@ Draft
 ## Zweck
 
 Dieses Dokument uebersetzt das Decision-First-PRD in einen konkreten
-Lieferplan mit Epics, Tickets und Akzeptanzkriterien.
+Lieferplan fuer die drei SMC-TradingView-Surfaces:
 
-Es ist kein Architektur-Fork und kein offener Feature-Spielplatz. Alle Tickets
-muessen die aktive Produktgrenze respektieren:
+- `SMC_Core_Engine.pine`
+- `SMC_Dashboard.pine`
+- `SMC_Long_Strategy.pine`
 
-- Lite ist die Default-Surface.
-- Pro ist optional und diagnose-lastig.
-- Es gibt keine zweite Signal-Engine.
+Es ist kein Architektur-Fork. Alle Tickets muessen die aktive Produktgrenze
+respektieren:
+
+- Core bleibt Producer und primaere Surface.
+- Dashboard bleibt Companion und Diagnose-Lage.
+- Long Strategy bleibt Wrapper auf dem Core-BUS.
 
 ## Companion Documents
 
@@ -23,339 +27,186 @@ muessen die aktive Produktgrenze respektieren:
 - `docs/smc-tradingview-first-release-ticketset.md`
 - `docs/smc-tradingview-first-ui-cut-implementation.md`
 - `docs/smc-lite-pro-product-cut.md`
-- `docs/SMC_Unified_Lean_Architecture_v5_5a_DE_EN.md`
+- `docs/TRADINGVIEW_STRATEGY_GUIDE.md`
 
 ## Delivery Rules
 
 1. Keine neue Logikfamilie fuer Lite.
-2. Keine Pro-Diagnose auf der Lite-Default-Surface.
-3. Jede UI-Aenderung braucht eine klare Nutzerfunktion.
-4. Copy, Visual Hierarchy und Alert-Semantik muessen synchron sein.
+2. Core, Dashboard und Long Strategy behalten ihre bestehenden Contracts.
+3. Dashboard- und Strategy-Bindings bleiben operator-only, solange sie nicht
+   explizit produktisiert wurden.
+4. Jede UI-Aenderung braucht eine klare Nutzerfunktion.
 5. Doku und visuelle Validierung sind Teil des Deliverables.
 
 ## Epic Overview
 
 | ID | Epic | Hauptresultat | Hauptartefakte | Prioritaet |
 | --- | --- | --- | --- | --- |
-| E1 | Shared Action Model | Einheitliche Handlungslogik und Begriffswelt | `SMC_Core_Engine.pine`, `SkippALGO.pine`, Docs | P1 |
+| E1 | Shared Product Language | Einheitliche Begriffswelt fuer Core, Dashboard und Strategy Wrapper | `SMC_Core_Engine.pine`, `SMC_Dashboard.pine`, `SMC_Long_Strategy.pine`, Docs | P1 |
 | E2 | SMC Core Lite Surface | Decision-first Hero-Surface fuer aktive Nutzung | `SMC_Core_Engine.pine` | P1 |
-| E3 | SMC Dashboard Split | Trennung zwischen Compact Detail und Pro Diagnostics | `SMC_Dashboard.pine` | P1 |
-| E4 | SkippALGO Surface Redesign | Status-, Outlook-, Forecast- und Label-Fuehrung | `SkippALGO.pine` | P1 |
-| E5 | Settings Simplification | Preset-first Bedienung statt Tuning-Labor | alle drei Pine-Skripte | P1 |
-| E6 | Trust And Evidence UX | Explizite Unsicherheit statt falscher Praezision | `SMC_Core_Engine.pine`, `SMC_Dashboard.pine`, `SkippALGO.pine` | P2 |
-| E7 | Docs And Validation | Benutzerfuehrung, Visual QA und Release-Gates | Docs, Checklists, Validation | P2 |
+| E3 | SMC Dashboard Split | Compact Detail, Pro Diagnostics und operator-only Companion sauber trennen | `SMC_Dashboard.pine` | P1 |
+| E4 | SMC Long Strategy Wrapper Surface | Strategy-Setup, Binding und Chart-Ausgabe produktisieren | `SMC_Long_Strategy.pine` | P1 |
+| E5 | Docs And Validation | Guide, Validation und Release-Gates auf dieselben drei Surfaces ausrichten | Docs, Tests, Validation | P2 |
 
-## E1 - Shared Action Model And Product Language
+## E1 - Shared Product Language
 
-### T1.1 Shared Product Action Resolver
+### T1.1 Core / Dashboard / Strategy Naming Parity
 
-- Scope: Ein gemeinsames sichtbares Aktionsmodell fuer Lite-Surfaces definieren.
-- Ergebnis: `WAIT`, `PREPARE`, `READY`, `ENTER`, `MANAGE`, `REDUCE RISK`,
-  `AVOID`, `BLOCKED`.
-- Hauptartefakte: `SMC_Core_Engine.pine`, `SkippALGO.pine`, Docs.
-- Abhaengigkeiten: keine.
+- Scope: sichtbare Begriffe fuer Action, Risk, Quality und Setup angleichen.
+- Hauptartefakte: `SMC_Core_Engine.pine`, `SMC_Dashboard.pine`,
+  `SMC_Long_Strategy.pine`, Docs.
 - Acceptance Criteria:
-  - Alle Lite-Surfaces zeigen genau einen primaeren Product State.
-  - `READY` und `ENTER` sind sichtbar von `WAIT` und `AVOID` getrennt.
-  - `BLOCKED` wird nur bei echten Hard-Blockern verwendet.
-  - Das Mapping ist in Doku und UI-Textern synchron beschrieben.
+  - Core und Dashboard sprechen dieselbe Lite-Sprache.
+  - Die Long Strategy liest sich wie Wrapper auf dieselbe Produktlogik,
+    nicht wie ein separates Teilprodukt.
+  - Lite, Pro und operator-only sind sprachlich klar getrennt.
 
-### T1.2 Shared Top-Surface Terminology Map
+### T1.2 Shared Risk And Plan Copy
 
-- Scope: Top-Surface-Begriffe auf Handlungssprache umstellen.
-- Ergebnis: technische Begriffe bleiben in Pro oder Guides, nicht in Lite.
-- Hauptartefakte: `SMC_Dashboard.pine`, `SkippALGO.pine`, Guides.
-- Abhaengigkeiten: T1.1.
+- Scope: Trigger, Invalidation, Quality und Plan-Level in allen drei Surfaces
+  konsistent beschreiben.
+- Hauptartefakte: `SMC_Core_Engine.pine`, `SMC_Dashboard.pine`,
+  `SMC_Long_Strategy.pine`.
 - Acceptance Criteria:
-  - Lite zeigt keine BUS-, Pack-, Reason- oder Debug-Namen.
-  - Begriffe wie `MinTrust`, `Pred(N)`, `Pred(1)`, `LTF Delta` sind
-    nutzerseitig uebersetzt.
-  - Die Copy ist zwischen Chart, Dashboard und Alerts konsistent.
+  - Risk-Plan-Begriffe widersprechen sich nicht.
+  - Strategy-Level zeigen dieselbe Plan-Lesart wie der Core.
 
-### T1.3 Shared Uncertainty Vocabulary
+### T1.3 Operator-Only Boundary Marking
 
-- Scope: Vertrauens- und Unsicherheitszustande vereinheitlichen.
-- Ergebnis: `Strong`, `Usable`, `Thin`, `Provisional` plus klare Risiko-Texte.
-- Hauptartefakte: `SMC_Core_Engine.pine`, `SkippALGO.pine`, Guides.
-- Abhaengigkeiten: T1.1.
+- Scope: Binding-Flaechen im Dashboard und in der Strategy explizit als
+  operator-only markieren.
+- Hauptartefakte: `SMC_Dashboard.pine`, `SMC_Long_Strategy.pine`, Guides.
 - Acceptance Criteria:
-  - Confidence ist in Lite nie nur nackte Zahl.
-  - Warmup, degraded und thin evidence sind verbal sichtbar.
-  - Exact-percent precision ist sekundar, nicht primaer.
+  - Endnutzer halten Binding-Screens nicht fuer normale Public-UI.
+  - Die Bindungsreihenfolge ist dokumentiert und deterministisch.
 
 ## E2 - SMC Core Lite Surface
 
-### T2.1 Compact Hero Card For `SMC_Core_Engine.pine`
+### T2.1 Compact Hero Card
 
-- Scope: Eine Hero-Surface fuer die aktive Nutzung implementieren.
-- Ergebnis: 5 bis 6 Zeilen mit Action, Bias, Quality, Why Now, Main Risk und
-  optional Risk Plan.
+- Scope: Hero-Surface mit `Action`, `Bias`, `Quality`, `Why now`, `Main risk`.
 - Hauptartefakt: `SMC_Core_Engine.pine`.
-- Abhaengigkeiten: E1.
 - Acceptance Criteria:
-  - Die Default-Surface ist in <= 5 Sekunden erfassbar.
-  - Action, Why Now und Main Risk sind immer sichtbar.
-  - Tiefe Diagnose ist standardmaessig nicht sichtbar.
+  - Der Core ist in <= 5 Sekunden lesbar.
+  - Action, Why now und Main risk sind die erste Lesestufe.
 
 ### T2.2 Actionable-Only Risk Presentation
 
-- Scope: Trigger, Invalidation und Risk Plan nur dann zeigen, wenn sie
-  nutzerseitig relevant sind.
-- Ergebnis: kein permanentes Linien- und Level-Rauschen ohne Setup-Reife.
+- Scope: Trigger, Invalidation und Risk Plan nur zeigen, wenn sie wirklich
+  relevant sind.
 - Hauptartefakt: `SMC_Core_Engine.pine`.
-- Abhaengigkeiten: T2.1.
 - Acceptance Criteria:
-  - Risk-Linien erscheinen nur bei `READY`, `ENTER`, `MANAGE` oder aktiver
-    Position.
   - `WAIT` und `PREPARE` erzeugen kein volles Risk-Overlay.
-  - Ein Nutzer kann aktive von vorbereitenden Zustanden visuell klar trennen.
+  - `READY`, `ENTER` und aktive Positionen zeigen Plan-Level klar.
 
 ### T2.3 Default Visual Budget Reduction
 
-- Scope: Historische Labels, tiefe Marker und additive Chart-Elemente im
-  Default reduzieren.
-- Ergebnis: mehr Prioritaet fuer Hero-Signal und aktive Zone.
+- Scope: Debug- und Diagnoseclutter auf der Default-Surface reduzieren.
 - Hauptartefakt: `SMC_Core_Engine.pine`.
-- Abhaengigkeiten: T2.1.
 - Acceptance Criteria:
-  - Default-Modus zeigt nur die fuer den aktuellen Zustand relevanten Marker.
-  - Historische Debug- oder Diagnoseobjekte sammeln sich im Lite-Modus nicht.
-  - Mobile- oder kleine Chartflaechen bleiben lesbarer als zuvor.
-
-### T2.4 Compact Detail Handoff To Dashboard
-
-- Scope: Lite-Hero und Dashboard-Detail sauber trennen.
-- Ergebnis: Core zeigt Entscheidung, Dashboard erklaert Entscheidung.
-- Hauptartefakte: `SMC_Core_Engine.pine`, `SMC_Dashboard.pine`.
-- Abhaengigkeiten: T2.1, E3.
-- Acceptance Criteria:
-  - Im Core gibt es keine Pro-Diagnose-Redundanz.
-  - Dashboard-Detail erklaert Hero-Zustand, dupliziert ihn aber nicht nur.
+  - Lite wirkt wie Produkt, nicht wie Labor.
+  - Pro-Tiefe bleibt verfuegbar, aber nachrangig.
 
 ## E3 - SMC Dashboard Split
 
-### T3.1 Compact Detail Mode For `SMC_Dashboard.pine`
+### T3.1 Compact Detail Default
 
-- Scope: Eine reduzierte Dashboard-Ansicht mit 5 bis 8 zeilenorientierten
-  Entscheidungserklaerungen schaffen.
-- Ergebnis: Structure, Session, Event/Data, Pressure, Risk Plan als
-  komprimierte Nutzererklaerung.
+- Scope: Default-Dashboard auf kompakte Entscheidungserklaerung reduzieren.
 - Hauptartefakt: `SMC_Dashboard.pine`.
-- Abhaengigkeiten: E1.
 - Acceptance Criteria:
-  - Compact Detail nutzt keine internen BUS-Namen.
-  - Maximal 8 Zeilen im Default-Detail.
-  - Jede Zeile endet in einem klaren Verdict wie `supports`, `mixed`, `blocks`.
+  - Default-Detail hat maximal 6 bis 8 Kernzeilen.
+  - BUS-Terminologie ist in Compact Detail nicht sichtbar.
 
-### T3.2 Pro Diagnostics Mode
+### T3.2 Pro Diagnostics Retention
 
-- Scope: Die aktuelle Diagnosetiefe fuer Power-User erhalten, aber explizit als
-  Pro ausweisen.
-- Ergebnis: Lifecycle, Quality, Gate, Support, Risk und Debug bleiben
-  verfuegbar, aber nicht Default.
+- Scope: die bestehende Tiefe erhalten, aber klar als Pro kennzeichnen.
 - Hauptartefakt: `SMC_Dashboard.pine`.
-- Abhaengigkeiten: T3.1.
 - Acceptance Criteria:
-  - Pro Diagnostics ist nicht die Standardansicht.
-  - Debug- und Detailzeilen bleiben funktional verfuegbar.
-  - Lite- und Pro-Texte widersprechen sich nicht.
+  - Pro Diagnostics bleibt funktional.
+  - Compact und Pro sind als zwei verschiedene Lesestufen erkennbar.
 
-### T3.3 Dashboard Row Regrouping
+### T3.3 Operator Binding Workflow
 
-- Scope: Bestehende Zeilen in Nutzerkategorien statt Technikfamilien gruppieren.
-- Ergebnis: `Decision Detail`, `Context`, `Risk`, `Diagnostics`.
-- Hauptartefakt: `SMC_Dashboard.pine`.
-- Abhaengigkeiten: T3.1, T3.2.
+- Scope: den Companion-Workflow fuer Dashboard-Bindings klar dokumentieren.
+- Hauptartefakte: `SMC_Dashboard.pine`, Guides.
 - Acceptance Criteria:
-  - Nutzer sieht zuerst Entscheidungserklaerung, erst spaeter Diagnose.
-  - Row-Gruppen sind im Code und in der Guide-Doku deckungsgleich.
+  - Binding order ist explizit beschrieben.
+  - Endnutzer muessen das Dashboard nicht manuell verdrahten, um den Core zu
+    verstehen.
 
-### T3.4 Operator-Only Binding Strategy
+## E4 - SMC Long Strategy Wrapper Surface
 
-- Scope: Die `input.source()`-Bindungsflaeche fuer den BUS als Operator-Lage
-  markieren oder spaeter automatisierbar vorbereiten.
-- Ergebnis: keine Endnutzer-Illusion, dass dies eine normale Public-UI ist.
-- Hauptartefakt: `SMC_Dashboard.pine` und Doku.
-- Abhaengigkeiten: keine.
+### T4.1 Strategy Setup Surface Simplification
+
+- Scope: sichtbare Wrapper-Steuerung auf `Entry Mode`, `Min Quality Score`,
+  `Take Profit R` und `Use Take Profit` fokussieren.
+- Hauptartefakt: `SMC_Long_Strategy.pine`.
 - Acceptance Criteria:
-  - Binding-Surface ist als operator-only dokumentiert.
-  - Public Lite-Nutzer muessen keine BUS-Reihenfolge manuell verdrahten.
+  - Die Setup-Flaeche liest sich wie Strategy-Konfiguration, nicht wie roher
+    Binding-Dump.
+  - Sichtbare Controls erklaeren den Wrapper-Zweck.
 
-## E4 - SkippALGO Surface Redesign
+### T4.2 Strategy Binding Surface Clarity
 
-### T4.1 Status Header To Decision Header
-
-- Scope: Die bestehende Statuszeilenlogik in eine klare Decision Header Surface
-  ueberfuehren.
-- Ergebnis: Action, Trade Threshold, Position, Last Action und Why/Why Not in
-  klarer Hierarchie.
-- Hauptartefakt: `SkippALGO.pine`.
-- Abhaengigkeiten: E1.
+- Scope: BUS-Bindings klar von den eigentlichen Setup-Controls trennen.
+- Hauptartefakt: `SMC_Long_Strategy.pine`.
 - Acceptance Criteria:
-  - `Confidence`, `MinTrust`, `Pos`, `LastSig` wirken nicht mehr wie vier
-    gleich laute Datenfelder.
-  - Hauptaktion und Hauptrisiko stehen vor Sekundaermetriken.
+  - Die top-to-bottom Binding-Reihenfolge ist im Code und in der Doku
+    konsistent.
+  - Operator-only Bindings sind als solche erkennbar.
 
-### T4.2 Outlook Block Simplification
+### T4.3 Strategy Chart Output Parity
 
-- Scope: Outlook von Diagnoseblock zu schneller State-Lesehilfe umbauen.
-- Ergebnis: TF, Bias, State Strength und kurzer Regimehinweis statt
-  Debug-Charakter.
-- Hauptartefakt: `SkippALGO.pine`.
-- Abhaengigkeiten: T4.1.
+- Scope: Trigger, Invalidation und Take-Profit-Linien als planbare
+  Strategy-Ausgabe positionieren.
+- Hauptartefakt: `SMC_Long_Strategy.pine`.
 - Acceptance Criteria:
-  - Ein Nutzer kann pro TF schnell bullish, bearish oder mixed lesen.
-  - Die Tabelle ist ohne Guide grob interpretierbar.
+  - Die Wrapper-Ausgabe widerspricht dem Core nicht.
+  - Entry-Staging und Exit-Plan bleiben deterministisch lesbar.
 
-### T4.3 Forecast Block Simplification
+## E5 - Docs And Validation
 
-- Scope: Forecast von Modellansicht zu nutzerseitiger Prognoseoberflaeche
-  uebersetzen.
-- Ergebnis: `Stable Forecast`, `Early Forecast`, `Evidence`, `Risk Hint`.
-- Hauptartefakt: `SkippALGO.pine`.
-- Abhaengigkeiten: T4.1, E6.
-- Acceptance Criteria:
-  - `Pred(N)` und `Pred(1)` sind auf Lite nicht mehr sichtbar.
-  - Warmup und geringe Evidenz sind klar markiert.
-  - Tabellenlayout priorisiert Nutzbarkeit vor Modellselbsterklaerung.
+### T5.1 Documentation Alignment
 
-### T4.4 Label And Alert Parity
-
-- Scope: Chart-Labels, runtime alerts und table states auf dieselbe Sprache
-  bringen.
-- Ergebnis: ein durchgaengiges Aktionsvokabular.
-- Hauptartefakte: `SkippALGO.pine`, Doku.
-- Abhaengigkeiten: T4.1 bis T4.3.
-- Acceptance Criteria:
-  - Alerts und Labels verwenden denselben Product State.
-  - `BUY` / `SHORT` ohne Kontext werden in Lite reduziert oder erklaert.
-  - `REDUCE RISK`, `AVOID` und `BLOCKED` sind alert-seitig abbildbar.
-
-## E5 - Settings Simplification
-
-### T5.1 Lite Visible Inputs Matrix
-
-- Scope: Pro Skript definieren, welche Inputs im Lite-Modus sichtbar sein
-  duerfen.
-- Ergebnis: User Preset, Signal Mode, Risk Profile, HTF Mode, Alerts,
-  Visual Mode.
-- Hauptartefakte: alle drei Pine-Skripte, Doku.
-- Abhaengigkeiten: E1.
-- Acceptance Criteria:
-  - Lite zeigt maximal 10 direkt sichtbare Standard-Inputs.
-  - Experteninputs bleiben standardmaessig versteckt.
-
-### T5.2 Advanced Settings Gate
-
-- Scope: Explizite Aktivierung fuer tiefe Tuning- und Diagnoseinputs.
-- Ergebnis: kein versehentliches Modelllabor fuer Standardnutzer.
-- Hauptartefakte: alle drei Pine-Skripte.
-- Abhaengigkeiten: T5.1.
-- Acceptance Criteria:
-  - Ohne Aktivierung von `Advanced Settings` sind Gate-Engine-Details nicht
-    sichtbar.
-  - Presets funktionieren ohne manuelles Expertenwissen.
-
-### T5.3 Preset Migration And Safe Defaults
-
-- Scope: Bestehende Nutzer in den neuen Surface-Modus ueberfuehren, ohne
-  Signalsystem still zu aendern.
-- Ergebnis: sichere Defaults plus klare Upgrade-Kommunikation.
-- Hauptartefakte: Pine-Skripte, Guides, Changelog.
-- Abhaengigkeiten: T5.1, T5.2.
-- Acceptance Criteria:
-  - Default-Verhalten bleibt nachvollziehbar.
-  - Bestehende Nutzer verlieren keine Pro-Funktionen.
-  - Migration ist dokumentiert.
-
-## E6 - Trust And Evidence UX
-
-### T6.1 Confidence Tier Presentation
-
-- Scope: Confidence in Lite als Tier plus Zweitwert zeigen.
-- Ergebnis: `Strong`, `Usable`, `Thin`, `Provisional`.
-- Hauptartefakte: `SMC_Core_Engine.pine`, `SkippALGO.pine`.
-- Abhaengigkeiten: E1.
-- Acceptance Criteria:
-  - Confidence-Tier ist primaer, Prozentwert sekundar.
-  - Hauptscreen transportiert keine falsche Praezision.
-
-### T6.2 Explicit Evidence And Data Quality Signals
-
-- Scope: Warmup, thin evidence, weak volume und degraded mode explizit machen.
-- Ergebnis: sichtbare Unsicherheits- und Datenqualitaetslayer.
-- Hauptartefakte: alle drei Pine-Skripte.
-- Abhaengigkeiten: T6.1.
-- Acceptance Criteria:
-  - Ein Nutzer erkennt, wann das System nur vorlaeufig spricht.
-  - Datenqualitaet ist auf Lite sichtbar, ohne tiefe Diagnose zu benoetigen.
-
-### T6.3 False Precision Reduction
-
-- Scope: Zahlen auf der Lite-Surface vereinfachen und priorisieren.
-- Ergebnis: weniger Prozent- und Diagnoseclutter, mehr eindeutige Verdicts.
-- Hauptartefakte: `SkippALGO.pine`, `SMC_Dashboard.pine`.
-- Abhaengigkeiten: T6.1, T6.2.
-- Acceptance Criteria:
-  - Prozentwerte sind nicht mehr die Hauptbotschaft.
-  - Lite-Oberflaeche kommuniziert zuerst Handlung, dann Genauigkeit.
-
-## E7 - Docs And Validation
-
-### T7.1 User-Facing Documentation Refresh
-
-- Scope: Guides und Nutzertexte auf die neue Surface abstimmen.
-- Ergebnis: Guide, PRD, Screen Spec und Changelog sind konsistent.
+- Scope: PRD, Screen Spec, Ticketset, Implementierungsvorbereitung und Guide
+  auf dieselben drei SMC-Surfaces ausrichten.
 - Hauptartefakte: Doku.
-- Abhaengigkeiten: E2 bis E6.
 - Acceptance Criteria:
-  - Die relevanten Guides erklaeren Lite und Pro korrekt.
-  - Screenshots und Copy stimmen mit dem Code ueberein.
+  - Kein SMC-Dokument beschreibt fremde TradingView-Skripte als Teil dieses
+    Scopes.
+  - Core, Dashboard und Long Strategy sind in allen Decision-First-Dokumenten
+    konsistent.
 
-### T7.2 Visual Validation Checklist
+### T5.2 Visual Validation Checklist
 
-- Scope: eine visuelle Validierung fuer Lite, Pro und Mobile-Nahe definieren.
-- Ergebnis: wiederholbare Screenshot- und Review-Checkliste.
+- Scope: visuelle Validation fuer Core, Dashboard und Strategy definieren.
 - Hauptartefakte: Doku, manuelle Validation.
-- Abhaengigkeiten: E2 bis E6.
 - Acceptance Criteria:
-  - Es gibt eine klare Pass/Fail-Liste fuer die neue Surface.
-  - Hero-Readability und Action Clarity werden explizit geprueft.
+  - Es gibt eine klare Pass/Fail-Liste fuer alle drei SMC-Surfaces.
 
-### T7.3 Compile And Behavior Safety Gate
+### T5.3 Compile And Behavior Safety Gate
 
-- Scope: UX-Umbau darf Semantik nicht still brechen.
-- Ergebnis: Compile-, parity- und behavior-checks als Abschlussbedingung.
+- Scope: UI-Umbau darf Semantik und BUS-Contract nicht still brechen.
 - Hauptartefakte: Tests, Validation-Doku.
-- Abhaengigkeiten: E2 bis E6.
 - Acceptance Criteria:
   - Pine compile checks bleiben gruen.
-  - Alert- und state-seitige Verhaltensregressionen sind geprueft.
-  - Lite/Pro-Surface-Aenderungen aendern nicht still die aktive Engine-Logik.
+  - Consumer- und BUS-Contracts bleiben intakt.
 
 ## Suggested Phase Order
 
-1. E1 Shared Action Model And Product Language
+1. E1 Shared Product Language
 2. E2 SMC Core Lite Surface
 3. E3 SMC Dashboard Split
-4. E4 SkippALGO Surface Redesign
-5. E5 Settings Simplification
-6. E6 Trust And Evidence UX
-7. E7 Docs And Validation
+4. E4 SMC Long Strategy Wrapper Surface
+5. E5 Docs And Validation
 
 ## Release Readiness Gate
 
 Der Decision-First-UX-Cut ist erst release-ready, wenn alle folgenden Punkte
 erfuellt sind:
 
-1. Lite-Surfaces zeigen nur eine primaere Handlungsaufforderung.
-2. Pro Diagnostics ist nicht mehr die Standardansicht.
-3. Nutzerrelevante Unsicherheit ist explizit sichtbar.
-4. Alerts, Labels, Hero-Surface und Guides sprechen dieselbe Sprache.
+1. Core kommuniziert zuerst Action, Why und Main risk.
+2. Dashboard Compact Detail ist klarer als Pro Diagnostics.
+3. Long Strategy ist als Wrapper und Binding-Surface deterministisch lesbar.
+4. Operator-only Bindings sind explizit markiert.
 5. Compile-, behavior- und visuelle Checks sind gruen.
-
-## Executive Delivery Rule
-
-Wenn ein Ticket nur mehr Technik sichtbar macht, aber keine schnellere und
-belastbarere Entscheidung fuer den Nutzer erzeugt, gehoert es nicht in diesen
-Backlog.

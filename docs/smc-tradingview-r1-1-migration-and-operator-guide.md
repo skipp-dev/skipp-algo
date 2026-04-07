@@ -1,4 +1,4 @@
-# SMC / SkippALGO R1.1 Migration and Operator Guide
+# SMC R1.1 Migration and Operator Guide
 
 ## Status
 
@@ -8,10 +8,11 @@ Released
 
 Dieses Dokument haertet die erste Decision-First-Auslieferung fuer R1.1.
 
-Es deckt zwei operative Themen ab:
+Es deckt drei operative Themen ab:
 
 1. sichere Preset- und Default-Migration fuer bestehende Nutzer,
 2. den operator-only Workflow fuer `SMC_Dashboard.pine` als Companion-Surface.
+3. den Wrapper- und Binding-Workflow fuer `SMC_Long_Strategy.pine`.
 
 ## R1.1 Scope
 
@@ -30,15 +31,14 @@ Deshalb gelten fuer die erste Migration diese Regeln:
    Schalter bleibt visual-only.
 2. `surface_mode` in `SMC_Dashboard.pine` bleibt ein Visualisierungsmodus.
    `Compact Detail` ist die Default-Surface, `Pro Diagnostics` ist opt-in.
-3. `surfaceMode` in `SkippALGO.pine` bleibt ebenfalls visual-only.
-   `Lite` ist die Default-Surface, `Pro Diagnostics` bleibt optional.
-4. Bestehende Risk-, Forecast- und Gate-Inputs werden durch die neuen
-   Default-Surfaces nicht neu verdrahtet. Die Lite/Pro-Auswahl darf keine
-   zusaetzlichen Handelsgates aktivieren.
-5. Die produktartige Lite-Steuerung in `SkippALGO.pine` laeuft ueber die
-   Wrapper `forecastMode`, `riskProfile`, `labelSurface` und `alertMode`.
-   Diese ersetzen die breite sichtbare Tuning-Flaeche, ohne `surfaceMode`
-   selbst in einen Engine-Schalter zu verwandeln.
+3. `entry_mode`, `min_quality_score`, `take_profit_r` und `use_take_profit` in
+   `SMC_Long_Strategy.pine` bleiben Wrapper-Controls. Sie aendern den
+   Strategy-Wrapper, aber nicht den Core-BUS-Contract.
+4. Bestehende BUS-Bindings fuer Dashboard und Strategy werden durch die neuen
+   Default-Surfaces nicht neu verdrahtet. Die Visual-Umstellung darf keine
+   zusaetzlichen Core-Gates aktivieren.
+5. Dashboard und Strategy bleiben Consumer des Core-BUS. R1.1 fuehrt keine
+   neue Producer-Logik ausserhalb des Core ein.
 
 ## Safe-Default Summary
 
@@ -46,11 +46,12 @@ Deshalb gelten fuer die erste Migration diese Regeln:
 | --- | --- | --- |
 | `SMC_Core_Engine.pine` | `compact_mode = false` mit Decision-First-Lite als klare Visual-Option | Visual-only, keine neue Engine-Semantik |
 | `SMC_Dashboard.pine` | `surface_mode = "Compact Detail"` | BUS binding order bleibt unveraendert |
-| `SkippALGO.pine` | `surfaceMode = "Lite"` | HUD und Alert-Sprache aendern die Signallogik nicht |
+| `SMC_Long_Strategy.pine` | `entry_mode = "Strict"`, `use_take_profit = true` | Wrapper-Control, kein neuer Producer |
 
 ## Operator-Only Companion Workflow
 
-`SMC_Dashboard.pine` bleibt ein operator-only Companion-Skript.
+`SMC_Dashboard.pine` und `SMC_Long_Strategy.pine` bleiben operator-only
+Consumer-Skripte.
 
 Das bedeutet:
 
@@ -62,6 +63,8 @@ Das bedeutet:
    nutzbare Entscheidungserklaerung.
 4. `Pro Diagnostics` ist fuer Operatoren und Audit gedacht, nicht als
    Default-Startpunkt fuer neue Nutzer.
+5. `SMC_Long_Strategy.pine` ist ein Wrapper fuer Orders und Backtests, nicht
+   die Quelle neuer Signallogik.
 
 ## Binding Workflow
 
@@ -69,8 +72,12 @@ Das bedeutet:
 2. `SMC_Dashboard.pine` als Companion hinzufuegen.
 3. Die `input.source(...)`-Kanaele exakt in der manifest-konformen BUS binding
    order von oben nach unten verbinden.
-4. Danach zuerst `Compact Detail` fuer die schnelle Leseflaeche nutzen.
-5. Nur bei Diagnosebedarf auf `Pro Diagnostics` wechseln.
+4. `SMC_Long_Strategy.pine` hinzufuegen.
+5. Die acht Strategy-`input.source(...)`-Kanaele exakt top-to-bottom an dieselben
+   Core-BUS-Serien binden.
+6. Danach zuerst `Compact Detail` fuer die schnelle Leseflaeche nutzen.
+7. `Entry Mode`, `Min Quality Score`, `Take Profit R` und `Use Take Profit`
+   nur als Wrapper-Steuerung verstehen.
 
 ## Validation Hooks
 
@@ -85,16 +92,21 @@ Diese Tests sichern insbesondere:
 - versteckte, aber exakte BUS binding order,
 - lokale Debug-Mirror-Kontrakte,
 - die neue Lite-vs-Pro Gliederung im Dashboard,
+- die Wrapper-Controls und Plot-Ausgaben der Long Strategy,
 - die Migrationserwartung, dass die neuen Surface-Modi visual-only bleiben.
 
 ## Operator Notes
 
 - `Compact Detail` ist fuer schnelle Entscheidungserklaerung gedacht.
 - `Pro Diagnostics` ist eine operator-only Diagnoseflaeche.
+- `SMC_Long_Strategy.pine` ist ein Wrapper fuer Execution und Backtest auf dem
+   Core-BUS.
 - Wenn Binding-Drift vermutet wird, immer zuerst die Contract-Tests laufen
   lassen statt Bindings manuell umzubenennen.
 
 ## Migration Rule
 
 Wenn eine neue Surface-Einstellung mehr Diagnose sichtbar macht, darf sie das
-Produktverhalten nicht veraendern. Visual-only bleibt visual-only.
+Produktverhalten des Core nicht veraendern. Wenn eine Strategy-Einstellung das
+Wrapper-Verhalten aendert, darf sie trotzdem keinen neuen Core-Contract
+einfuehren.

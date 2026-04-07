@@ -50,6 +50,7 @@ def test_build_dashboard_and_pine_payloads_return_expected_shapes() -> None:
     assert dashboard["symbol"] == symbol
     assert dashboard["timeframe"] == "15m"
     assert "summary" in dashboard
+    assert "product_cut" in dashboard
     assert "structure_coverage" in dashboard
     assert "source_plan" in dashboard
     assert "structure_status" in dashboard
@@ -58,6 +59,7 @@ def test_build_dashboard_and_pine_payloads_return_expected_shapes() -> None:
 
     assert pine["symbol"] == symbol
     assert pine["timeframe"] == "15m"
+    assert "product_cut" in pine
     assert "structure_coverage" in pine
     assert "source_plan" in pine
     assert "structure_status" in pine
@@ -97,10 +99,13 @@ def test_snapshot_bundle_source_plan_and_structure_status_are_present() -> None:
     symbol = _first_symbol()
     bundle = build_snapshot_bundle_for_symbol_timeframe(symbol, "15m", generated_at=1709253600.0)
 
-    assert set(["source_plan", "structure_status", "source", "snapshot", "dashboard_payload", "pine_payload"]).issubset(set(bundle.keys()))
+    assert set(["source_plan", "structure_status", "product_cut", "source", "snapshot", "dashboard_payload", "pine_payload"]).issubset(set(bundle.keys()))
     assert set(["measurement_summary", "market_context"]).issubset(set(bundle.keys()))
     assert bundle["source_plan"]["volume"] == "databento_watchlist_csv"
     assert "selected_structure_source" in bundle["structure_status"]
+    assert bundle["dashboard_payload"]["product_cut"] == bundle["product_cut"]
+    assert bundle["pine_payload"]["product_cut"] == bundle["product_cut"]
+    assert bundle["snapshot"]["product_cut"] == bundle["product_cut"]
     assert bundle["dashboard_payload"]["source_plan"] == bundle["source_plan"]
     assert bundle["pine_payload"]["source_plan"] == bundle["source_plan"]
     assert bundle["dashboard_payload"]["structure_status"]["selected_structure_source"] == bundle["structure_status"]["selected_structure_source"]

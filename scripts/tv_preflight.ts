@@ -50,6 +50,16 @@ type ReleaseTarget = {
   allowFreshDraftOnMissingExisting?: boolean;
 };
 
+type ProductCutManifest = {
+  preflightScopes?: Record<string, ReleaseTarget[]>;
+};
+
+type PreflightConfig = {
+  productCutScope?: string;
+  productCutManifest?: string;
+  targets?: ReleaseTarget[];
+};
+
 type CliArgs = {
   config?: string;
   out: string;
@@ -108,6 +118,9 @@ type PreflightReport = {
   targets: TargetResult[];
 };
 
+const DEFAULT_PRODUCT_CUT_MANIFEST = path.resolve("artifacts/tradingview/smc_product_cut_manifest.json");
+const DEFAULT_PRODUCT_CUT_SCOPE = "smcMainline";
+
 function parseArgs(): CliArgs {
   const args = process.argv.slice(2);
 
@@ -141,7 +154,7 @@ function parseArgs(): CliArgs {
   };
 }
 
-function defaultTargets(): ReleaseTarget[] {
+function fallbackDefaultTargets(): ReleaseTarget[] {
   return [
     {
       file: "SMC_Core_Engine.pine",
@@ -154,7 +167,7 @@ function defaultTargets(): ReleaseTarget[] {
       scriptName: "SMC Dashboard",
       checkInputs: true,
       addToChart: true,
-      minInputs: 26,
+      minInputs: 58,
     },
     {
       file: "SMC_Long_Strategy.pine",
@@ -166,14 +179,39 @@ function defaultTargets(): ReleaseTarget[] {
   ];
 }
 
+function loadProductCutTargets(scope: string, manifestPath: string): ReleaseTarget[] | null {
+  if (!fs.existsSync(manifestPath)) {
+    return null;
+  }
+
+  const payload = JSON.parse(fs.readFileSync(manifestPath, "utf-8")) as ProductCutManifest;
+  const targets = payload.preflightScopes?.[scope];
+  return Array.isArray(targets) && targets.length > 0 ? targets : null;
+}
+
+function defaultTargets(): ReleaseTarget[] {
+  return loadProductCutTargets(DEFAULT_PRODUCT_CUT_SCOPE, DEFAULT_PRODUCT_CUT_MANIFEST) ?? fallbackDefaultTargets();
+}
+
 function loadTargets(configPath?: string): ReleaseTarget[] {
   if (!configPath) {
     return defaultTargets();
   }
 
-  const payload = JSON.parse(fs.readFileSync(configPath, "utf-8")) as {
-    targets?: ReleaseTarget[];
-  };
+  const payload = JSON.parse(fs.readFileSync(configPath, "utf-8")) as PreflightConfig;
+
+  if (payload.productCutScope) {
+    const manifestPath = payload.productCutManifest
+      ? path.resolve(path.dirname(configPath), payload.productCutManifest)
+      : DEFAULT_PRODUCT_CUT_MANIFEST;
+    const targets = loadProductCutTargets(payload.productCutScope, manifestPath);
+    if (!targets) {
+      throw new Error(
+        `No product-cut scope ${payload.productCutScope} found in manifest: ${manifestPath}`,
+      );
+    }
+    return targets;
+  }
 
   if (!payload.targets || payload.targets.length === 0) {
     throw new Error(`No targets defined in config: ${configPath}`);

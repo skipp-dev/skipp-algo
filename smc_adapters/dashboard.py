@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from scripts.smc_bus_manifest import build_product_cut_manifest_payload
 from smc_core.types import BosEvent, Fvg, LiquiditySweep, Orderblock, SmcSnapshot, ZoneStyle
 
 
@@ -107,6 +108,7 @@ def snapshot_to_dashboard_payload(
     *,
     source_plan: dict[str, Any] | None = None,
     structure_status: dict[str, Any] | None = None,
+    product_cut: dict[str, Any] | None = None,
 ) -> dict:
     zones = [
         *[_zone_from_orderblock(snapshot, item) for item in snapshot.structure.orderblocks],
@@ -146,5 +148,6 @@ def snapshot_to_dashboard_payload(
         payload["source_plan"] = dict(source_plan)
     if structure_status is not None:
         payload["structure_status"] = dict(structure_status)
+    payload["product_cut"] = dict(product_cut or build_product_cut_manifest_payload())
 
     return payload

@@ -1,22 +1,3 @@
 {
-  "targets": [
-    {
-      "file": "SMC_Core_Engine.pine",
-      "scriptName": "SMC Core Engine",
-      "checkInputs": false,
-      "addToChart": false
-    },
-    {
-      "file": "SMC_Dashboard.pine",
-      "scriptName": "SMC Dashboard",
-      "checkInputs": false,
-      "addToChart": true
-    },
-    {
-      "file": "SkippALGO.pine",
-      "scriptName": "SkippALGO",
-      "addToChart": true,
-      "allowFreshDraftOnMissingExisting": true
-    }
-  ]
+  "productCutScope": "smcDecisionFirst"
 }

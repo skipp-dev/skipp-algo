@@ -46,7 +46,7 @@ def test_delivery_bundle_contains_required_top_level_keys() -> None:
     symbol = _first_symbol()
     bundle = build_snapshot_bundle_for_symbol_timeframe(symbol, "15m", generated_at=1709253600.0)
 
-    assert set(["source_plan", "structure_status", "snapshot", "dashboard_payload", "pine_payload"]).issubset(bundle.keys())
+    assert set(["source_plan", "structure_status", "product_cut", "snapshot", "dashboard_payload", "pine_payload"]).issubset(bundle.keys())
 
 
 def test_delivery_bundle_snapshot_dashboard_pine_alignment() -> None:
@@ -56,6 +56,9 @@ def test_delivery_bundle_snapshot_dashboard_pine_alignment() -> None:
     dashboard = bundle["dashboard_payload"]
     pine = bundle["pine_payload"]
 
+    assert dashboard["product_cut"] == bundle["product_cut"]
+    assert pine["product_cut"] == bundle["product_cut"]
+    assert bundle["snapshot"]["product_cut"] == bundle["product_cut"]
     assert dashboard["source_plan"] == bundle["source_plan"]
     assert pine["source_plan"] == bundle["source_plan"]
     assert dashboard["structure_status"]["selected_structure_source"] == bundle["structure_status"]["selected_structure_source"]

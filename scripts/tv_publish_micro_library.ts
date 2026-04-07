@@ -33,6 +33,7 @@ import {
   getRequiredLibraryReleaseManifestFields,
   reportProvidesRepoSourceCompileEvidence,
   type LibraryReleaseManifest,
+  type ProductCutSummary,
 } from "../automation/tradingview/lib/tv_validation_model.js";
 
 export type IdentityVerificationMode = "script_context" | "not_verified";
@@ -45,6 +46,17 @@ type GeneratedLibraryManifest = {
   recommended_import_path: string;
   pine_library: string;
   core_import_snippet: string;
+};
+
+type ProductCutManifest = {
+  source?: string;
+  artifactPath?: string;
+  mainlineSurfaceFiles?: string[];
+  litePrimaryFiles?: string[];
+  proPrimaryFiles?: string[];
+  companionOperatorOnlyFiles?: string[];
+  internalFiles?: string[];
+  legacyFiles?: string[];
 };
 
 type PreflightReport = {
@@ -111,6 +123,8 @@ type PublishReport = {
   screenshots: string[];
   error?: string;
 };
+
+const DEFAULT_PRODUCT_CUT_MANIFEST_PATH = path.resolve("artifacts/tradingview/smc_product_cut_manifest.json");
 
 function parseArgs(): CliArgs {
   const args = process.argv.slice(2);
@@ -248,19 +262,47 @@ function buildDefaultConsumers(): LibraryReleaseManifest["consumers"] {
     {
       scriptName: "SMC Core Engine",
       file: "SMC_Core_Engine.pine",
-      role: "consumer",
+      role: "producer",
     },
     {
       scriptName: "SMC Dashboard",
       file: "SMC_Dashboard.pine",
-      role: "consumer",
+      role: "dashboard_companion",
     },
     {
       scriptName: "SMC Long Strategy",
       file: "SMC_Long_Strategy.pine",
-      role: "consumer",
+      role: "execution_wrapper",
     },
   ];
+}
+
+function readProductCutSummary(): ProductCutSummary {
+  if (!fs.existsSync(DEFAULT_PRODUCT_CUT_MANIFEST_PATH)) {
+    throw new Error(`Missing product-cut manifest: ${DEFAULT_PRODUCT_CUT_MANIFEST_PATH}`);
+  }
+
+  const payload = readJson<ProductCutManifest>(DEFAULT_PRODUCT_CUT_MANIFEST_PATH);
+  const summary: ProductCutSummary = {
+    manifestPath: payload.artifactPath ?? "artifacts/tradingview/smc_product_cut_manifest.json",
+    source: payload.source ?? "scripts/smc_bus_manifest.py",
+    mainlineFiles: payload.mainlineSurfaceFiles ?? [],
+    litePrimaryFiles: payload.litePrimaryFiles ?? [],
+    proPrimaryFiles: payload.proPrimaryFiles ?? [],
+    companionOperatorOnlyFiles: payload.companionOperatorOnlyFiles ?? [],
+    internalFiles: payload.internalFiles ?? [],
+    legacyFiles: payload.legacyFiles ?? [],
+  };
+
+  if (
+    summary.mainlineFiles.length === 0
+    || summary.litePrimaryFiles.length === 0
+    || summary.proPrimaryFiles.length === 0
+  ) {
+    throw new Error(`Product-cut manifest is incomplete: ${DEFAULT_PRODUCT_CUT_MANIFEST_PATH}`);
+  }
+
+  return summary;
 }
 
 function uniqueNotes(notes: string[]): string[] {
@@ -280,6 +322,7 @@ function writeReleaseManifest(
   const existing = fs.existsSync(releaseManifestPath)
     ? readJson<Partial<LibraryReleaseManifest>>(releaseManifestPath)
     : null;
+  const productCut = readProductCutSummary();
 
   const payload: LibraryReleaseManifest = {
     generatedAt: utcNow(),
@@ -297,13 +340,15 @@ function writeReleaseManifest(
         : path.relative(path.resolve(process.cwd(), "artifacts/tradingview"), details.manifestPath).replace(/\\/g, "/"),
       sourceSnippet: path.relative(path.resolve(process.cwd(), "artifacts/tradingview"), details.snippetPath).replace(/\\/g, "/"),
     },
-    consumers: existing?.consumers && existing.consumers.length > 0 ? existing.consumers : buildDefaultConsumers(),
+    consumers: buildDefaultConsumers(),
+    productCut,
     lastPreflightReport: options.lastPreflightReport,
     notes: uniqueNotes([
       ...(existing?.notes ?? []),
       "Manifest, generated import snippet, and SMC_Core_Engine import path must stay identical.",
       "Pine library import version is explicit; TradingView does not auto-resolve the newest version in the core import.",
       "Owner/version changes require regenerating the library artifacts before publish.",
+      "Release metadata must stay aligned with the canonical SMC product-cut manifest.",
     ]),
   };
 
