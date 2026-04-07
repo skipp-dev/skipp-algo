@@ -10,6 +10,7 @@ All notable changes to this project are documented in this file.
 
 - **SMC post-cut documentation cleanup:**
   - Clarified the post-cut cleanup guardrails in `docs/smc-lite-pro-product-cut.md` so the remaining follow-up items read as later architecture rules rather than open release blockers.
+  - Added a UX-review-derived surface concept, concrete copy deltas, and a prioritized implementation backlog for the SMC Core, Dashboard, and Long Strategy mainline surfaces in `docs/smc-lite-pro-product-cut.md`.
   - Replaced the stale SkippALGO strategy guide with an SMC mainline wrapper guide in `docs/TRADINGVIEW_STRATEGY_GUIDE.md`.
   - Refreshed the German and English TradingView manual validation runbooks to reflect that the canonical `tv:preflight:smc-mainline` gate is reproducible from this workspace again.
   - Updated `docs/README.md` and the root `README.md` to point at the canonical SMC mainline gate and product-cut references.

@@ -803,3 +803,378 @@ Release-Blocker fuer den aktuellen Product-Cut.
   Lite-Contract zu verwackeln.
   Status 2026-04-07: als spaeterer Domain-/Bus-Folgepfad dokumentiert, nicht
   als laufende Mainline-Aenderung.
+
+## Oberflaechenkonzept nach PM/UX-Review 2026-04-07
+
+Dieses Zielbild aendert nicht den eingefrorenen Lite-/Pro-Contract. Es zieht
+die sichtbare Surface-Hierarchie fuer Core, Dashboard und Strategy so gerade,
+dass das Produkt aus Chart-Nutzersicht schneller lesbar, glaubwuerdiger und
+klarer differenziert wird.
+
+### Kernentscheidung
+
+- Es gibt genau eine taegliche Lite-Primary-Surface: `SMC_Core_Engine.pine`.
+- `SMC_Dashboard.pine` ist keine zweite Lite-Flaeche, sondern die explizite
+  Pro-Companion-Surface fuer Diagnose, Audit, Tuning und Review.
+- `SMC_Long_Strategy.pine` ist die explizite Execution-Surface fuer Backtest,
+  Staging und regelgebundene Ausfuehrung.
+- Die drei Flaechen teilen dieselbe Zustandslogik, aber nicht dieselbe
+  Informationstiefe.
+
+### 1. Core als einzige Lite-Primary-Surface
+
+Der Core bleibt der normale taegliche Einstieg. Ein Nutzer soll auf einem
+einzelnen Chart ohne zusaetzliche BUS-Verdrahtung verstehen koennen, ob jetzt
+Beobachten, Vorbereiten oder Handeln angebracht ist.
+
+Der sichtbare Core muss deshalb primaer diese Fragen beantworten:
+
+- Was ist die aktuelle Handlung: `WAIT`, `BLOCKED`, `PREPARE LONG`,
+  `READY LONG`, `ENTER LONG`.
+- Warum genau ist dieser Zustand aktiv.
+- Wie hoch ist das Vertrauensniveau.
+- Wo liegen Trigger und Invalidation, sobald der Zustand handlungsfaehig ist.
+
+Die Hero-Surface bleibt deshalb der Hauptanker. Sie soll in dieser Reihenfolge
+lesen:
+
+- `Action`
+- `Bias`
+- `Quality`
+- `Why now`
+- `Main risk`
+
+Fuer Lite gelten dabei diese Produktregeln:
+
+- `Show decision detail` ist kein zweiter Primary-Mode, sondern ein bewusster
+  Wechsel in erklaerende Begleitinformation.
+- Interne Diagnosekuerzel wie `LTF`, `HTF`, `SD`, `DDVI` oder `Vola` gehoeren
+  nicht in die primaere Hero-Sprache.
+- Wenn Diagnosebegriffe auf Lite sichtbar bleiben, muessen sie zuerst als
+  Trader-Sprache formuliert werden und duerfen die technische Kurzform hoechstens
+  in Klammern tragen.
+- Die Lite-Surface verkauft keine Modul- oder Gate-Tiefe als Produktkern,
+  sondern eine klare Entscheidungsfuehrung.
+
+### 2. Dashboard als explizite Pro-Companion-Surface
+
+Das Dashboard bleibt wertvoll, aber seine Rolle muss enger gezogen werden. Es
+ist nicht die zweite normale Nutzersurface, sondern die Companion-Flaeche fuer
+Nutzer, die den Zustand erklaeren, pruefen oder systematisch optimieren wollen.
+
+Die Produktrolle des Dashboards ist damit:
+
+- Zustand begruenden
+- Blocker sichtbar machen
+- Risiko- und Kontextlogik auditierbar machen
+- Modul- und Gate-Tiefe fuer Pro-Nutzer oeffnen
+
+Fuer diese Surface gelten folgende Regeln:
+
+- `Compact Detail` ist nur eine Pro-Zusammenfassung, nicht die eigentliche
+  Lite-Surface.
+- `Pro Diagnostics` bleibt operator-orientiert und darf Friction haben, aber
+  nur dort, wo sie echte Diagnosefaehigkeit liefert.
+- Die erste sichtbare Ebene soll Entscheidungs- und Blockerlogik ordnen,
+  nicht sofort die volle interne Bus-Tiefe ausbreiten.
+- Technische Codes bleiben erlaubt, aber nie ohne lesbare Klartextaussage.
+
+Produktsprachlich gilt fuer das Dashboard deshalb:
+
+- erst Klartext wie `Need confirmed setup`, `Session blocked` oder
+  `Signal Quality blocked`
+- dann optional technische Herleitung
+- nie umgekehrt
+
+### 3. Strategy als saubere Execution-Surface
+
+Die Strategy ist nicht die Signal-Discovery-Flaeche, sondern die klare
+Ausfuehrungs- und Backtest-Surface. Sie bleibt bewusst klein und wird genau
+dann geoeffnet, wenn ein Nutzer aus einem vorhandenen Signalzustand ein
+regelgebundenes Setup ableiten oder testen will.
+
+Die Strategy soll deshalb sichtbar nur vier Fragen steuern:
+
+- Welcher Entry-Zustand ist ausfuehrbar.
+- Welche Mindestqualitaet ist erlaubt.
+- Ob ein Take Profit verwendet wird.
+- Wie gross der Take-Profit-Abstand in `R` ist.
+
+Die sichtbaren Wrapper-Controls bleiben entsprechend klein:
+
+- `Entry Mode`
+- `Min Quality Score`
+- `Take Profit R`
+- `Use Take Profit`
+
+Der Chart selbst zeigt nur den ausfuehrbaren Plan:
+
+- `Execution Trigger`
+- `Execution Invalidation`
+- `Execution Take Profit`
+
+Die Strategy bleibt damit die sauberste Pro-Execution-Surface des Stacks und
+soll auch in Doku und Positionierung genau so verkauft werden.
+
+### Surface-Regeln ueber alle drei Flaechen
+
+Jede aktive Hauptflaeche bekommt genau einen Job:
+
+- Core = entscheiden
+- Dashboard = verstehen
+- Strategy = ausfuehren
+
+Fuer alle drei gilt dieselbe Zustandsleiter:
+
+- `WAIT`
+- `BLOCKED`
+- `PREPARE LONG`
+- `READY LONG`
+- `ENTER LONG`
+
+Fuer alle drei gilt dieselbe Sprachregel:
+
+- Zustand vor Technik
+- Klartext vor Kuerzel
+- Risiko vor Modul-Erklaerung
+
+Fuer alle drei gilt dieselbe Vertrauenslogik:
+
+- `Strong` = handlungsnah
+- `Usable` = brauchbar mit Restvorbehalt
+- `Thin` = nur beobachten
+- `Provisional` = Daten- oder Kontextvorsicht
+
+### UX-Definition of Done fuer den Hauptpfad
+
+Der sichtbare Hauptpfad ist erst dann wirklich produktisiert, wenn ein Nutzer
+auf einem nackten Chart in weniger als zehn Sekunden drei Fragen beantworten
+kann:
+
+1. Was soll ich jetzt tun?
+2. Warum genau jetzt oder warum noch nicht?
+3. Wo liege ich falsch, wenn ich handle?
+
+Ab dem Zustand `READY LONG` oder `ENTER LONG` muss diese Antwort ohne Wechsel
+in ein zweites Skript moeglich sein. Der Wechsel ins Dashboard oder in die
+Strategy ist dann eine bewusste Vertiefung, nicht der eigentliche Einstieg.
+
+### Umsetzungsfolge aus Produktsicht
+
+1. Die Core-Sprache und Lite-Hierarchie haerten.
+2. Das Dashboard sichtbar von einer zweiten Primaerflaeche zur Companion-
+   Surface umpositionieren.
+3. Die Strategy als Execution-Wrapper noch klarer dokumentieren und
+   positionieren.
+4. Erst danach weitere Pro-only-Diagnostik oder C9-Folgeslices an der
+   Oberflaechenwahrnehmung ausrichten.
+
+## Konkrete Copy- und Surface-Aenderungen fuer die Mainline
+
+Diese Liste ist die direkte Produktableitung aus dem PM/UX-Review. Sie
+beschreibt keine neue Engine-Logik, sondern die sichtbaren Aenderungen, die
+den bestehenden Hauptpfad schneller lesbar und sauberer positioniert machen.
+
+### 1. Core: konkrete Lite-Primary-Aenderungen
+
+#### Input-Copy
+
+- `Visual Mode (Lite Hero)` -> `Lite Surface`
+- `Show decision detail` -> `Show companion detail`
+- `Signal Mode` bleibt erhalten, aber die Tooltip-Eroeffnung soll erst den
+  Nutzertradeoff benennen und erst danach die Repaint-/Realtime-Details.
+- `User Preset` bleibt der Hauptanker, soll aber in Tooltip und Doku
+  konsequent als primaere Lite-Bedienebene beschrieben werden.
+
+#### Hero-Copy
+
+- Die Fuenf-Zeilen-Hierarchie bleibt erhalten.
+- `Action:` bleibt unveraendert.
+- `Bias:` bleibt unveraendert.
+- `Quality:` wird als Vertrauens- und Score-Aussage lesbarer gemacht:
+  Zielbild `Trust: Strong | Score 78/100` statt einer komprimierten
+  Mischform wie `Strong (78/100)`.
+- `Why now:` darf nie auf abstrakte Technikreste oder leere Platzhalter
+  hinauslaufen. Jeder Zustand braucht einen klaren Grundsatz:
+  Gelegenheit, Blocker oder naechster Trigger.
+- `Main risk:` bleibt die explizite Gegenhypothese und ist Pflichtbestandteil
+  des Lite-Vertrauensmodells.
+
+#### Lite-Surface-Regeln
+
+- Ab `READY LONG` muessen Trigger und Invalidation ohne Wechsel in ein zweites
+  Skript sichtbar sein.
+- Lite zeigt keine ungefilterten Technikkuerzel als primaere Botschaft.
+- Wenn eine Diagnosebezeichnung noetig ist, kommt erst Klartext und dann
+  optional die Kurzform.
+
+### 2. Dashboard: konkrete Pro-Companion-Aenderungen
+
+#### Input- und Header-Copy
+
+- `Surface Mode` bleibt der Schaltername.
+- `Compact Detail` -> `Companion Summary`
+- `Show Decision Detail` -> `Show Companion Table`
+- `Show Trigger/Invalidation` -> `Show Trade Levels`
+- Header `SMC Decision Detail` -> `SMC Pro Companion`
+- Die Lesart `Compact | Operator bindings hidden` wird auf Companion-Sprache
+  gezogen, damit nicht mehr der Eindruck einer zweiten Lite-Surface entsteht.
+
+#### First-Fold-Hierarchie
+
+Die erste sichtbare Companion-Ebene soll nicht primaer als Datentafel lesen,
+sondern als Begruendungs- und Blockeroberflaeche. Zielreihenfolge:
+
+1. `Action`
+2. `Why Now / Why Blocked`
+3. `Risk Plan`
+4. `Structure`
+5. `Session`
+6. `Event Risk`
+7. `Data Quality`
+8. `Short-term Flow`
+
+Daraus folgen zwei konkrete Copy-Deltas:
+
+- `Short-term Pressure` -> `Short-term Flow`
+- die Zeile `Why Now` muss blockerfaehig werden und darf nicht nur eine
+  Gelegenheitszeile sein
+
+#### Klartext-vor-Technik-Regel
+
+- `Need confirmed setup`, `Session blocked` und `Signal Quality blocked`
+  bleiben Vorbild fuer gute Companion-Sprache.
+- Fallback `No reclaim confirmation yet` wird auf eine staerkere Form gezogen:
+  `Waiting for reclaim confirmation`.
+- Technikkuerzel wie `LTF`, `HTF`, `SD`, `DDVI` und `Vola` duerfen in Pro
+  bleiben, aber nur hinter einer lesbaren Klartextzeile.
+
+### 3. Strategy: konkrete Execution-Surface-Aenderungen
+
+#### Wrapper-Copy
+
+- `Entry Mode` -> `Execution Stage`
+- `Min Quality Score` -> `Minimum Quality Score`
+- `Take Profit R` -> `Take Profit (R)`
+- `Use Take Profit` bleibt unveraendert.
+
+#### Surface-Regeln
+
+- Die Strategy bleibt bei genau vier sichtbaren Wrapper-Controls.
+- Ihre Rolle wird in Code, Guide und Positionierung explizit als
+  `Execution-Surface` formuliert, nicht als Signal-Discovery-Surface.
+- `Execution Trigger`, `Execution Invalidation` und `Execution Take Profit`
+  bleiben die einzigen sichtbaren Planlinien.
+- Die Strategy soll nur dann visuell dominant werden, wenn ein Nutzer bewusst
+  in Backtest oder regelgebundene Ausfuehrung wechselt.
+
+### 4. Gemeinsame Sprachregeln fuer alle drei Flaechen
+
+- `WAIT`, `BLOCKED`, `PREPARE LONG`, `READY LONG`, `ENTER LONG` bleiben die
+  einzige sichtbare Hauptzustandsleiter.
+- Vertrauenssprache wird ueberall identisch verwendet:
+  `Strong`, `Usable`, `Thin`, `Provisional`.
+- Alert-, Hero-, Dashboard- und Strategy-Sprache sollen denselben Nutzerjob
+  spiegeln: entscheiden, verstehen, ausfuehren.
+
+## Priorisiertes Umsetzungs-Backlog mit Ticketzuschnitt
+
+Groessenlogik fuer diese Folgeslices:
+
+- `S` = kleiner Text- oder Surface-Eingriff ohne groessere Verdrahtung
+- `M` = sichtbare Mainline-Aenderung mit begleitender Doku oder Testpflege
+- `L` = mehrteilige Surface- oder Test-Lane-Aenderung ueber mehrere Dateien
+
+### P0: Hauptpfad sofort lesbarer machen
+
+1. `P0 | M | Core Input- und Hero-Copy haerten`
+   Scope: Core-Inputlabels, Tooltips, Hero-Text und Lite-Sprachregeln.
+   Hauptdateien: `SMC_Core_Engine.pine`, `docs/TRADINGVIEW_STRATEGY_GUIDE.md`.
+   Done wenn: Lite als primaere Surface lesbar ist und die Hero-Texte keine
+   primaeren Technikkuerzel mehr tragen.
+
+2. `P0 | M | Core Ready/Enter-Level auf Lite sichern`
+   Scope: Trigger- und Invalidation-Sichtbarkeit ab handlungsfaehigem Zustand.
+   Hauptdateien: `SMC_Core_Engine.pine`.
+   Done wenn: ein Nutzer ab `READY LONG` den Kernplan ohne zweites Skript lesen
+   kann.
+
+3. `P0 | M | Dashboard zur Companion-Surface umpositionieren`
+   Scope: Surface-Mode-Copy, Header, Toggle-Copy und erste Companion-Hierarchie.
+   Hauptdateien: `SMC_Dashboard.pine`, `docs/smc-lite-pro-product-cut.md`.
+   Done wenn: das Dashboard nicht mehr wie eine zweite Lite-Surface wirkt.
+
+4. `P0 | S | Strategy als Execution-Surface sprachlich schaerfen`
+   Scope: Wrapper-Labels und klare Positionierung im Guide.
+   Hauptdateien: `SMC_Long_Strategy.pine`, `docs/TRADINGVIEW_STRATEGY_GUIDE.md`.
+   Done wenn: die Strategy sprachlich eindeutig als Backtest- und
+   Ausfuehrungsflaeche gelesen wird.
+
+### P1: Companion-Nutzen und Differenzierung verbessern
+
+1. `P1 | M | Dashboard First Fold neu ordnen`
+   Scope: sichtbare Reihenfolge der kompakten Companion-Zeilen.
+   Hauptdateien: `SMC_Dashboard.pine`.
+   Done wenn: die erste Companion-Ebene erst Handlungskontext und dann
+   Diagnosebreite zeigt.
+
+2. `P1 | M | Why-now- und Blocker-Sprache vereinheitlichen`
+   Scope: Core-Hero, Dashboard-Blocker, Compact-Why-Now und Dynamic Alerts.
+   Hauptdateien: `SMC_Core_Engine.pine`, `SMC_Dashboard.pine`.
+   Done wenn: Gelegenheit, Wartezustand und Blocker ueberall in derselben
+   Nutzerlogik formuliert sind.
+
+3. `P1 | M | Gemeinsamen Sprachcontract fuer Mainline sichern`
+   Scope: Zustand, Vertrauen, Risiko- und Surface-Rollen in Code und Docs.
+   Hauptdateien: `SMC_Core_Engine.pine`, `SMC_Dashboard.pine`,
+   `SMC_Long_Strategy.pine`, `docs/TRADINGVIEW_STRATEGY_GUIDE.md`.
+   Done wenn: dieselben Begriffe in Hero, Dashboard, Alerts und Guide exakt
+   dieselbe Produktbedeutung tragen.
+
+4. `P1 | S | Strategy-Guide und Hauptpfad-Doku auf Execution-Jobs zuschneiden`
+   Scope: Guide-Text, Product-Cut-Doku, eventuell README-Verweise.
+   Hauptdateien: `docs/TRADINGVIEW_STRATEGY_GUIDE.md`,
+   `docs/smc-lite-pro-product-cut.md`, `README.md`.
+   Done wenn: Core, Dashboard und Strategy in der Doku dieselbe Jobverteilung
+   tragen wie im Produkt.
+
+### P2: Drift verhindern und Review faelschungssicher machen
+
+1. `P2 | M | UI-Regressionen fuer Produktcopy einfuehren`
+   Scope: Tests fuer Surface-Rollen, Header-Copy und zentrale Mainline-Texte.
+   Hauptdateien: `tests/test_tradingview_decision_first_ui.py`.
+   Done wenn: eine Rueckkehr zu zweideutiger Surface-Sprache automatisch rot
+   wird.
+
+2. `P2 | M | Review-Evidence fuer neue Surface-Hierarchie erzeugen`
+    Scope: Screenshot- oder Preflight-Evidence fuer Lite, Companion und
+    Execution-Surface.
+    Hauptdateien: `automation/tradingview/`, `docs/smc-validation-status.md`.
+    Done wenn: die Produkt-Hierarchie nicht nur behauptet, sondern mit echter
+    Mainline-Evidenz belegbar ist.
+
+### Empfohlene Reihenfolge fuer die Umsetzung
+
+1. Ticket 1
+2. Ticket 2
+3. Ticket 3
+4. Ticket 4
+5. Ticket 6
+6. Ticket 5
+7. Ticket 7
+8. Ticket 8
+9. Ticket 9
+10. Ticket 10
+
+### Abschlussregel fuer diese UX-Folgeslices
+
+Diese Backlog-Welle ist erst dann geschlossen, wenn gleichzeitig gilt:
+
+1. der Core ohne Companion-Skript als klare Lite-Primary-Surface lesbar ist,
+2. das Dashboard sprachlich und visuell als Companion statt als zweite
+   Primaerflaeche auftritt,
+3. die Strategy als Execution-Surface eindeutig positioniert ist,
+4. die Hauptzustandsleiter in Core, Dashboard, Strategy und Alerts identisch
+   gelesen wird,
+5. die wichtigsten UI-Copy-Regeln durch Tests oder Review-Evidence gegen Drift
+   abgesichert sind.
