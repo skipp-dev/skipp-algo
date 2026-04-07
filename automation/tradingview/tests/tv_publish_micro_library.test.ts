@@ -12,6 +12,34 @@ import {
   verifyPublishContract,
 } from "../../../scripts/tv_publish_micro_library.js";
 
+function buildGeneratedLibraryManifest(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    library_name: "smc_micro_profiles_generated",
+    library_owner: "owner_a",
+    library_version: 2,
+    recommended_import_path: "owner_a/smc_micro_profiles_generated/2",
+    core_import_snippet: "pine/generated/smc_micro_profiles_core_import_snippet.pine",
+    pine_library: "pine/generated/smc_micro_profiles_generated.pine",
+    input_path: "data/output/microstructure_features_2026-03-24.csv",
+    universe_size: 240,
+    event_risk_source: "smc_event_risk_builder",
+    deprecated_field_policy: {
+      mode: "compatibility_only",
+      preferred_field_version: "v5.5b",
+      extension_allowed: false,
+      deprecated_groups: ["event_risk_v5"],
+    },
+    productivity_gate: {
+      publish_ready: true,
+      blocking_reasons: [],
+      fixture_input_detected: false,
+      default_event_risk_detected: false,
+      placeholder_symbols: [],
+    },
+    ...overrides,
+  };
+}
+
 test("publish aborts before editor mutation when exact open gate fails", () => {
   assert.deepEqual(resolvePreMutationOpenGate({
     openExisting: true,
@@ -212,14 +240,7 @@ test("official TS publish contract rejects duplicate real alias block", () => {
   const libraryPath = path.join(pineDir, "smc_micro_profiles_generated.pine");
   const corePath = path.join(tempDir, "SMC_Core_Engine.pine");
 
-  fs.writeFileSync(manifestPath, JSON.stringify({
-    library_name: "smc_micro_profiles_generated",
-    library_owner: "owner_a",
-    library_version: 2,
-    recommended_import_path: "owner_a/smc_micro_profiles_generated/2",
-    core_import_snippet: "pine/generated/smc_micro_profiles_core_import_snippet.pine",
-    pine_library: "pine/generated/smc_micro_profiles_generated.pine",
-  }), "utf-8");
+  fs.writeFileSync(manifestPath, JSON.stringify(buildGeneratedLibraryManifest()), "utf-8");
   fs.writeFileSync(snippetPath, [
     "import owner_a/smc_micro_profiles_generated/2 as mp",
     "string clean_reclaim_tickers_effective = mp.CLEAN_RECLAIM_TICKERS",
@@ -241,5 +262,46 @@ test("official TS publish contract rejects duplicate real alias block", () => {
   assert.throws(
     () => verifyPublishContract(manifestPath, corePath),
     /exactly once as real contiguous code/,
+  );
+});
+
+test("official TS publish contract rejects non-productive generated source", () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "tv-publish-productivity-"));
+  const pineDir = path.join(tempDir, "pine", "generated");
+  fs.mkdirSync(pineDir, { recursive: true });
+
+  const manifestPath = path.join(pineDir, "smc_micro_profiles_generated.json");
+  const snippetPath = path.join(pineDir, "smc_micro_profiles_core_import_snippet.pine");
+  const libraryPath = path.join(pineDir, "smc_micro_profiles_generated.pine");
+  const corePath = path.join(tempDir, "SMC_Core_Engine.pine");
+
+  fs.writeFileSync(manifestPath, JSON.stringify(buildGeneratedLibraryManifest({
+    input_path: "tests/fixtures/seed_base_snapshot.csv",
+    universe_size: 3,
+    event_risk_source: "defaults",
+    productivity_gate: {
+      publish_ready: false,
+      blocking_reasons: ["fixture_input", "default_event_risk", "placeholder_symbols"],
+      fixture_input_detected: true,
+      default_event_risk_detected: true,
+      placeholder_symbols: ["AAA", "BBB", "CCC"],
+    },
+  })), "utf-8");
+  fs.writeFileSync(snippetPath, [
+    "import owner_a/smc_micro_profiles_generated/2 as mp",
+    "string clean_reclaim_tickers_effective = mp.CLEAN_RECLAIM_TICKERS",
+    "",
+  ].join("\n"), "utf-8");
+  fs.writeFileSync(libraryPath, "//@version=6\nlibrary(\"smc_micro_profiles_generated\")\n", "utf-8");
+  fs.writeFileSync(corePath, [
+    "//@version=6",
+    "import owner_a/smc_micro_profiles_generated/2 as mp",
+    "string clean_reclaim_tickers_effective = mp.CLEAN_RECLAIM_TICKERS",
+    "",
+  ].join("\n"), "utf-8");
+
+  assert.throws(
+    () => verifyPublishContract(manifestPath, corePath),
+    /not publish-ready: fixture_input, default_event_risk, placeholder_symbols/,
   );
 });

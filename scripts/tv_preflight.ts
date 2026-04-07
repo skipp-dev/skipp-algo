@@ -513,7 +513,9 @@ async function main(): Promise<number> {
       }
 
       if (target.checkInputs) {
-        const settingsOpened = await openSettingsForScript(session.page, target.scriptName);
+        const settingsOpened = await openSettingsForScript(session.page, target.scriptName, {
+          allowChartRefresh: cli.executionMode === "mutating",
+        });
         if (settingsOpened !== true) {
           throw new Error(`Settings opened for the wrong TradingView script: ${target.scriptName}`);
         }
@@ -533,7 +535,9 @@ async function main(): Promise<number> {
             throw new Error(`Script was not visible after refresh for ${target.scriptName}`);
           }
 
-          const reopenedSettings = await openSettingsForScript(session.page, target.scriptName);
+          const reopenedSettings = await openSettingsForScript(session.page, target.scriptName, {
+            allowChartRefresh: cli.executionMode === "mutating",
+          });
           if (reopenedSettings !== true) {
             throw new Error(`Settings reopened for the wrong TradingView script after refresh: ${target.scriptName}`);
           }

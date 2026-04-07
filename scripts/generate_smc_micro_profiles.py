@@ -37,6 +37,22 @@ STATE_COLUMNS = [
     "decision_reason",
 ]
 
+DEPRECATED_COMPATIBILITY_GROUPS = [
+    "event_risk_v5",
+    "zone_intelligence_v5_1",
+    "reversal_context_v5_1",
+    "session_context_v5_2",
+    "liquidity_pools_v5_2",
+    "order_blocks_v5_2",
+    "zone_projection_v5_2",
+    "profile_context_v5_2",
+    "structure_state_v5_3",
+    "imbalance_lifecycle_v5_3",
+    "session_structure_v5_3",
+]
+
+PLACEHOLDER_SYMBOL_SENTINELS = {"AAA", "BBB", "CCC"}
+
 
 @dataclass(frozen=True)
 class Thresholds:
@@ -628,6 +644,7 @@ def write_pine_library(
         "// import preuss_steffen/smc_micro_profiles_generated/1 as mp",
         "//",
         "// Fields are grouped into sections (v5.5b Lean, ~290 fields total):",
+        "// Deprecated v5-v5.3 groups remain compatibility-only exports; prefer the v5.5b Lean surface for new consumers.",
         "//   Core/Meta       — ASOF_DATE, ASOF_TIME, UNIVERSE_ID, LOOKBACK_DAYS, UNIVERSE_SIZE, REFRESH_COUNT",
         "//   Microstructure  — *_TICKERS lists (clean_reclaim, stop_hunt_prone, …)",
         "//   Regime          — MARKET_REGIME, VIX_LEVEL, MACRO_BIAS, SECTOR_BREADTH",
@@ -636,20 +653,20 @@ def write_pine_library(
         "//   Layering        — GLOBAL_HEAT, GLOBAL_STRENGTH, TONE, TRADE_STATE",
         "//   Providers       — PROVIDER_COUNT, STALE_PROVIDERS",
         "//   Volume          — VOLUME_LOW_TICKERS, HOLIDAY_SUSPECT_TICKERS",
-        "//   Event Risk (v5, deprecated) — EVENT_WINDOW_STATE … EVENT_PROVIDER_STATUS (14 fields)",
+        "//   Event Risk (v5, compatibility-only deprecated) — EVENT_WINDOW_STATE … EVENT_PROVIDER_STATUS (14 fields)",
         "//   Flow Qualifier (v5.1)  — REL_VOL … ATS_BEARISH_SEQUENCE (14 fields)",
         "//   Compression (v5.1)     — SQUEEZE_ON … ATR_RATIO (5 fields)",
-        "//   Zone Intelligence (v5.1, deprecated) — 13 fields",
-        "//   Reversal Context (v5.1, deprecated)  — 12 fields",
-        "//   Session Context (v5.2, deprecated)   — 16 fields",
+        "//   Zone Intelligence (v5.1, compatibility-only deprecated) — 13 fields",
+        "//   Reversal Context (v5.1, compatibility-only deprecated)  — 12 fields",
+        "//   Session Context (v5.2, compatibility-only deprecated)   — 16 fields",
         "//   Liquidity Sweeps (v5.2)  — 9 fields",
-        "//   Liquidity Pools (v5.2, deprecated)   — 11 fields",
-        "//   Order Blocks (v5.2, deprecated)      — 13 fields",
-        "//   Zone Projection (v5.2, deprecated)   — 10 fields",
-        "//   Profile Context (v5.2, deprecated)   — 18 fields",
-        "//   Structure State (v5.3, deprecated)   — 14 fields",
-        "//   Imbalance Lifecycle (v5.3, deprecated) — 23 fields",
-        "//   Session Structure (v5.3, deprecated)  — 14 fields",
+        "//   Liquidity Pools (v5.2, compatibility-only deprecated)   — 11 fields",
+        "//   Order Blocks (v5.2, compatibility-only deprecated)      — 13 fields",
+        "//   Zone Projection (v5.2, compatibility-only deprecated)   — 10 fields",
+        "//   Profile Context (v5.2, compatibility-only deprecated)   — 18 fields",
+        "//   Structure State (v5.3, compatibility-only deprecated)   — 14 fields",
+        "//   Imbalance Lifecycle (v5.3, compatibility-only deprecated) — 23 fields",
+        "//   Session Structure (v5.3, compatibility-only deprecated)  — 14 fields",
         "//   Range Regime (v5.3)       — 11 fields",
         "//   Range Profile Regime (v5.3) — 22 fields",
         "//",
@@ -1328,6 +1345,25 @@ def write_manifest(
                 pass
         return str(p)
 
+    normalized_input_path = _rel(input_path).replace("\\", "/")
+    event_risk_source = "smc_event_risk_builder" if (normalized_enrichment or {}).get("event_risk") else "defaults"
+    fixture_input_detected = "/tests/fixtures/" in f"/{normalized_input_path.strip('/')}"
+    placeholder_symbols = sorted(
+        {
+            symbol
+            for symbols in lists.values()
+            for symbol in symbols
+            if symbol in PLACEHOLDER_SYMBOL_SENTINELS
+        }
+    )
+    blocking_reasons: list[str] = []
+    if fixture_input_detected:
+        blocking_reasons.append("fixture_input")
+    if event_risk_source == "defaults":
+        blocking_reasons.append("default_event_risk")
+    if fixture_input_detected and placeholder_symbols:
+        blocking_reasons.append("placeholder_symbols")
+
     payload = {
         "schema_version": SCHEMA_VERSION,
         "schema_version_previous": prev_schema,
@@ -1339,7 +1375,7 @@ def write_manifest(
         "recommended_import_path": recommended_import_path,
         "library_publish_required": True,
         "deployment_note": "Publish the generated Pine library in TradingView before importing it into SMC_Core_Engine.",
-        "input_path": _rel(input_path),
+        "input_path": normalized_input_path,
         "schema_path": _rel(schema_path),
         "features_csv": _rel(features_path),
         "lists_csv": _rel(lists_path),
@@ -1352,6 +1388,12 @@ def write_manifest(
         "list_counts": {name: len(symbols) for name, symbols in lists.items()},
         "enrichment_blocks": sorted((normalized_enrichment or {}).keys()),
         "library_field_version": "v5.5b",
+        "deprecated_field_policy": {
+            "mode": "compatibility_only",
+            "preferred_field_version": "v5.5b",
+            "extension_allowed": False,
+            "deprecated_groups": DEPRECATED_COMPATIBILITY_GROUPS,
+        },
         "v55_lean_blocks": [
             "event_risk_light",
             "session_context_light",
@@ -1360,7 +1402,14 @@ def write_manifest(
             "structure_state_light",
             "signal_quality",
         ],
-        "event_risk_source": "smc_event_risk_builder" if (normalized_enrichment or {}).get("event_risk") else "defaults",
+        "event_risk_source": event_risk_source,
+        "productivity_gate": {
+            "publish_ready": len(blocking_reasons) == 0,
+            "blocking_reasons": blocking_reasons,
+            "fixture_input_detected": fixture_input_detected,
+            "default_event_risk_detected": event_risk_source == "defaults",
+            "placeholder_symbols": placeholder_symbols,
+        },
         "auto_commit_allowed": change_type in ("unchanged", "patch", "minor", "initial"),
         "asof_time": ((normalized_enrichment or {}).get("meta") or {}).get("asof_time", ""),
         "refresh_count": int(((normalized_enrichment or {}).get("meta") or {}).get("refresh_count", 0)),

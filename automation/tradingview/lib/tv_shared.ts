@@ -2687,12 +2687,22 @@ async function collectVisibleDialogSnapshot(page: Page): Promise<VisibleDialogSn
   return dialogs[0] ?? null;
 }
 
-async function findIndicatorSettingsDialog(page: Page, timeoutMs = 750): Promise<Locator | null> {
-  const candidates = [
+function indicatorSettingsDialogLocators(page: Page): Locator[] {
+  return [
     page.locator('#overlap-manager-root [role="dialog"]').filter({ hasText: /\binputs\b/i }).filter({ hasText: /\b(style|properties|visibility)\b/i }),
     page.locator('#overlap-manager-root [data-name*="dialog" i], #overlap-manager-root [class*="dialog" i], #overlap-manager-root [class*="modal" i], #overlap-manager-root [class*="popover" i], #overlap-manager-root [data-name*="popover" i]').filter({ hasText: /\binputs\b/i }).filter({ hasText: /\b(style|properties|visibility)\b/i }),
-    ...dialogCandidateLocators(page),
   ];
+}
+
+async function findIndicatorSettingsDialog(page: Page, timeoutMs = 750): Promise<Locator | null> {
+  for (const candidate of indicatorSettingsDialogLocators(page)) {
+    const visible = await firstVisibleLocatorFast(candidate, Math.min(timeoutMs, 150));
+    if (visible) {
+      return visible;
+    }
+  }
+
+  const candidates = dialogCandidateLocators(page);
 
   for (const candidate of candidates) {
     const visibleDialogs = await collectRecentVisibleDialogs(candidate, timeoutMs);
@@ -2739,48 +2749,18 @@ async function hasIndicatorSettingsDialog(page: Page): Promise<boolean> {
 }
 
 async function hasQuickVisibleScriptSettingsSurface(page: Page): Promise<boolean> {
-  return page.evaluate(() => {
-    const compact = (value: string): string => value.replace(/\s+/g, " ").trim().replace(/[^a-z0-9]+/gi, "").toLowerCase();
-    const isVisible = (element: Element): boolean => {
-      const node = element as HTMLElement;
-      const style = window.getComputedStyle(node);
-      const rect = node.getBoundingClientRect();
-      return style.display !== "none" && style.visibility !== "hidden" && rect.width > 0 && rect.height > 0;
-    };
+  if (await hasVisibleLocatorFast(tvSelectors.inputsTab(page), 120)) {
+    return true;
+  }
 
-    const surfaceSelectors = [
-      '[role="dialog"]',
-      '[role="menu"]',
-      '[data-name*="dialog" i]',
-      '[class*="dialog" i]',
-      '[class*="modal" i]',
-      '[class*="popover" i]',
-      '[data-name*="popover" i]',
-    ].join(", ");
-    const tabSelectors = [
-      '[role="tab"]',
-      '[data-name*="tab" i]',
-      'button',
-      '[role="button"]',
-    ].join(", ");
+  for (const candidate of indicatorSettingsDialogLocators(page)) {
+    const visible = await firstVisibleLocatorFast(candidate, 120);
+    if (visible) {
+      return true;
+    }
+  }
 
-    const surfaceTexts = Array.from(document.querySelectorAll(surfaceSelectors))
-      .filter((element) => isVisible(element) && !(element as HTMLElement).closest('[data-name="pine-dialog"]'))
-      .map((element) => compact((element as HTMLElement).innerText || ""));
-    const tabTexts = Array.from(document.querySelectorAll(tabSelectors))
-      .filter((element) => isVisible(element) && !(element as HTMLElement).closest('[data-name="pine-dialog"]'))
-      .map((element) => compact((element as HTMLElement).innerText || (element as HTMLElement).getAttribute('aria-label') || ""))
-      .filter(Boolean);
-
-    const hasTabSet = tabTexts.some((text) => text.includes('inputs'))
-      && tabTexts.some((text) => text.includes('style') || text.includes('properties') || text.includes('visibility'));
-    const hasSurfaceText = surfaceTexts.some((text) =>
-      text.includes('inputs') && (text.includes('style') || text.includes('properties') || text.includes('visibility')),
-    );
-    const hasGenericChartSettings = surfaceTexts.some((text) => text.includes('symbolstatuslinescalesandlinescanvas'));
-
-    return (hasTabSet || hasSurfaceText) && !hasGenericChartSettings;
-  }).catch(() => false);
+  return false;
 }
 
 async function hasScriptSettingsInputsSurface(page: Page): Promise<boolean> {
@@ -3253,17 +3233,17 @@ async function tryOpenScriptSettingsByDoubleClick(
   traceOkEvent: string,
   traceDetail: string,
 ): Promise<boolean> {
-  const quickInputsSurfaceTimeoutMs = 300;
-  const quickDialogResolveTimeoutMs = 350;
+  const quickInputsSurfaceTimeoutMs = 150;
 
   const settleSettingsOpen = async (): Promise<boolean> => {
-    if (await waitForScriptSettingsInputsSurface(page, quickInputsSurfaceTimeoutMs)) {
-      tracePageEvent(page, traceOkEvent, traceDetail);
+    await page.waitForTimeout(200).catch(() => undefined);
+    if (await hasQuickVisibleScriptSettingsSurface(page)) {
+      tracePageEvent(page, `${traceOkEvent}-quick-surface`, traceDetail);
       return true;
     }
 
-    if (await resolveOpenedSettingsSurfaceToIndicatorDialog(page, `${traceStartEvent}-surface`, quickDialogResolveTimeoutMs)) {
-      tracePageEvent(page, traceOkEvent, `${traceDetail}:surface`);
+    if (await hasVisibleLocatorFast(tvSelectors.inputsTab(page), quickInputsSurfaceTimeoutMs)) {
+      tracePageEvent(page, traceOkEvent, traceDetail);
       return true;
     }
 
@@ -4710,71 +4690,114 @@ export async function addCurrentScriptToChart(page: Page, scriptName?: string, o
   });
 }
 
-export async function openSettingsForScript(page: Page, scriptName: string): Promise<boolean> {
-  return runTrackedStep(page, `openSettingsForScript:${scriptName}`, async () => {
-    await dismissSignInModal(page);
-    await closePineEditorIfVisible(page);
-    tracePageEvent(page, "script-settings-open-start", scriptName);
-    let openedMenu = await openSettingsFromLegendContainer(page, scriptName);
-    tracePageEvent(page, "script-settings-open-legend-result", `${scriptName}:${openedMenu}`);
-    if (!openedMenu) {
-      openedMenu = await openSettingsFromScriptText(page, scriptName);
-      tracePageEvent(page, "script-settings-open-text-result", `${scriptName}:${openedMenu}`);
-    }
-    if (!openedMenu) {
-      openedMenu = await clickVisibleWithFallback(
-        page,
-        tvSelectors.settingsForScript(page, scriptName),
-        "script-settings-anchor",
-        400,
-        150,
-      );
-      if (openedMenu && !(await isSettingsSurfaceVisible(page, 350))) {
-        tracePageEvent(page, "script-settings-open-anchor-no-surface", scriptName);
-        openedMenu = false;
-      }
-      tracePageEvent(page, "script-settings-open-anchor-result", `${scriptName}:${openedMenu}`);
-    }
-    if (!openedMenu) {
-      openedMenu = await openSettingsFromChartSurfaceControls(page);
-      tracePageEvent(page, "script-settings-open-surface-result", `${scriptName}:${openedMenu}`);
-    }
-    if (!openedMenu) {
-      if (await isSignInModalVisible(page)) {
-        throw new Error(`TradingView sign-in modal is blocking settings for script: ${scriptName}`);
-      }
-      throw new Error(`Could not open script menu for settings: ${scriptName}`);
-    }
-
-    if (await waitForScriptSettingsInputsSurface(page, 750)) {
-      tracePageEvent(page, "script-settings-open-indicator-dialog-visible", scriptName);
-      return verifyOpenedSettingsDialogIdentity(page, scriptName, "script-settings-open-visible-dialog");
-    }
-
-    await dismissSignInModal(page);
-    const clickedSettings = await clickVisibleWithFallback(
+async function openSettingsForScriptOnce(page: Page, scriptName: string): Promise<boolean> {
+  await dismissSignInModal(page);
+  await closePineEditorIfVisible(page);
+  tracePageEvent(page, "script-settings-open-start", scriptName);
+  let openedMenu = await openSettingsFromLegendContainer(page, scriptName);
+  tracePageEvent(page, "script-settings-open-legend-result", `${scriptName}:${openedMenu}`);
+  if (!openedMenu) {
+    openedMenu = await openSettingsFromScriptText(page, scriptName);
+    tracePageEvent(page, "script-settings-open-text-result", `${scriptName}:${openedMenu}`);
+  }
+  if (!openedMenu) {
+    openedMenu = await clickVisibleWithFallback(
       page,
-      tvSelectors.settingsAction(page),
-      "script-settings-action",
-      2_500,
-      1_500,
+      tvSelectors.settingsForScript(page, scriptName),
+      "script-settings-anchor",
+      400,
+      150,
     );
-    tracePageEvent(page, "script-settings-open-menu-action-result", `${scriptName}:${clickedSettings}`);
-    if (clickedSettings && (await waitForScriptSettingsInputsSurface(page, 2_000))) {
-      tracePageEvent(page, "script-settings-open-indicator-dialog-after-action", scriptName);
-      return verifyOpenedSettingsDialogIdentity(page, scriptName, "script-settings-open-action-dialog");
+    if (openedMenu && !(await isSettingsSurfaceVisible(page, 350))) {
+      tracePageEvent(page, "script-settings-open-anchor-no-surface", scriptName);
+      openedMenu = false;
     }
+    tracePageEvent(page, "script-settings-open-anchor-result", `${scriptName}:${openedMenu}`);
+  }
+  if (!openedMenu) {
+    openedMenu = await openSettingsFromChartSurfaceControls(page);
+    tracePageEvent(page, "script-settings-open-surface-result", `${scriptName}:${openedMenu}`);
+  }
+  if (!openedMenu) {
+    if (await isSignInModalVisible(page)) {
+      throw new Error(`TradingView sign-in modal is blocking settings for script: ${scriptName}`);
+    }
+    throw new Error(`Could not open script menu for settings: ${scriptName}`);
+  }
 
-    await closeModal(page).catch(() => undefined);
-    if (!clickedSettings) {
-      if (await isSignInModalVisible(page)) {
-        throw new Error(`TradingView sign-in modal is blocking settings action for script: ${scriptName}`);
+  if (await waitForScriptSettingsInputsSurface(page, 750)) {
+    tracePageEvent(page, "script-settings-open-indicator-dialog-visible", scriptName);
+    return verifyOpenedSettingsDialogIdentity(page, scriptName, "script-settings-open-visible-dialog");
+  }
+
+  await dismissSignInModal(page);
+  const clickedSettings = await clickVisibleWithFallback(
+    page,
+    tvSelectors.settingsAction(page),
+    "script-settings-action",
+    2_500,
+    1_500,
+  );
+  tracePageEvent(page, "script-settings-open-menu-action-result", `${scriptName}:${clickedSettings}`);
+  if (clickedSettings && (await waitForScriptSettingsInputsSurface(page, 2_000))) {
+    tracePageEvent(page, "script-settings-open-indicator-dialog-after-action", scriptName);
+    return verifyOpenedSettingsDialogIdentity(page, scriptName, "script-settings-open-action-dialog");
+  }
+
+  await closeModal(page).catch(() => undefined);
+  if (!clickedSettings) {
+    if (await isSignInModalVisible(page)) {
+      throw new Error(`TradingView sign-in modal is blocking settings action for script: ${scriptName}`);
+    }
+    throw new Error(`Could not open settings for script: ${scriptName}`);
+  }
+
+  throw new Error(`Opened generic settings instead of indicator settings for script: ${scriptName}`);
+}
+
+export async function openSettingsForScript(
+  page: Page,
+  scriptName: string,
+  options: { allowChartRefresh?: boolean } = {},
+): Promise<boolean> {
+  const allowChartRefresh = options.allowChartRefresh === true;
+  const totalTimeoutMs = allowChartRefresh ? Math.max(stepTimeoutMs(), 70_000) : stepTimeoutMs();
+
+  return runTrackedStep(page, `openSettingsForScript:${scriptName}`, async () => {
+    let lastError: unknown;
+
+    for (let attempt = 0; attempt < (allowChartRefresh ? 2 : 1); attempt += 1) {
+      if (attempt > 0) {
+        tracePageEvent(page, "script-settings-open-retry-start", `${scriptName}:attempt=${attempt + 1}`);
+        await closeModal(page).catch(() => undefined);
+        await dismissSignInModal(page).catch(() => undefined);
+        const removedCount = await refreshChartScriptInstance(page, scriptName);
+        tracePageEvent(page, "script-settings-open-refresh-ok", `${scriptName}:removed=${removedCount}`);
+        const visibleAfterRefresh = await isScriptVisibleOnChartSurface(page, scriptName).catch(() => false);
+        if (!visibleAfterRefresh) {
+          throw new Error(`Script was not visible on chart after refresh before reopening settings: ${scriptName}`);
+        }
       }
-      throw new Error(`Could not open settings for script: ${scriptName}`);
+
+      try {
+        tracePageEvent(page, "script-settings-open-attempt-start", `${scriptName}:attempt=${attempt + 1}`);
+        const opened = await openSettingsForScriptOnce(page, scriptName);
+        if (opened === true) {
+          return true;
+        }
+        throw new Error(`Settings opened for the wrong TradingView script: ${scriptName}`);
+      } catch (error: unknown) {
+        lastError = error;
+        const message = error instanceof Error ? error.message : String(error);
+        tracePageEvent(page, "script-settings-open-attempt-error", `${scriptName}:attempt=${attempt + 1}:${message}`);
+        await closeModal(page).catch(() => undefined);
+      }
     }
 
-    throw new Error(`Opened generic settings instead of indicator settings for script: ${scriptName}`);
-  });
+    throw lastError instanceof Error
+      ? lastError
+      : new Error(`Could not open settings for script after retries: ${scriptName}`);
+  }, totalTimeoutMs);
 }
 
 export async function openInputsTab(page: Page): Promise<void> {

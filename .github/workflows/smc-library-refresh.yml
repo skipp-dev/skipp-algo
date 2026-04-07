@@ -194,7 +194,7 @@ jobs:
           echo "reason=${REASON}" >> "$GITHUB_OUTPUT"
 
       # ── Publish-contract verification ────────────────────────────
-      - name: Verify publish contract
+      - name: Verify publish contract and productivity gate
         id: contract
         if: steps.diff.outputs.changed == 'true'
         run: |

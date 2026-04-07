@@ -46,9 +46,26 @@ type GeneratedLibraryManifest = {
   recommended_import_path: string;
   pine_library: string;
   core_import_snippet: string;
+  input_path?: string;
+  universe_size?: number;
+  event_risk_source?: string;
+  deprecated_field_policy?: {
+    mode?: string;
+    preferred_field_version?: string;
+    extension_allowed?: boolean;
+    deprecated_groups?: string[];
+  };
+  productivity_gate?: {
+    publish_ready?: boolean;
+    blocking_reasons?: string[];
+    fixture_input_detected?: boolean;
+    default_event_risk_detected?: boolean;
+    placeholder_symbols?: string[];
+  };
 };
 
 type ProductCutManifest = {
+  manifestVersion?: number;
   source?: string;
   artifactPath?: string;
   mainlineSurfaceFiles?: string[];
@@ -57,6 +74,9 @@ type ProductCutManifest = {
   companionOperatorOnlyFiles?: string[];
   internalFiles?: string[];
   legacyFiles?: string[];
+  contracts?: ProductCutSummary["contracts"];
+  preflightScopes?: ProductCutSummary["preflightScopes"];
+  deprecatedFieldPolicy?: ProductCutSummary["deprecatedFieldPolicy"];
 };
 
 type PreflightReport = {
@@ -92,6 +112,7 @@ type ContractDetails = {
   libraryName: string;
   libraryOwner: string;
   libraryVersion: number;
+  productivityGate: LibraryReleaseManifest["library"]["productivityGate"];
 };
 
 type PublishReport = {
@@ -184,11 +205,93 @@ function findImportPathForAlias(text: string, alias: string): string {
   throw new Error(`No import found for alias ${alias}`);
 }
 
-export function verifyPublishContract(manifestPath: string, corePath: string): ContractDetails {
+function buildLibraryProductivityGate(manifest: GeneratedLibraryManifest): LibraryReleaseManifest["library"]["productivityGate"] {
+  const gate = manifest.productivity_gate;
+  if (!gate) {
+    throw new Error("Generated manifest is missing productivity_gate metadata");
+  }
+
+  if (typeof gate.publish_ready !== "boolean") {
+    throw new Error("Generated manifest productivity_gate.publish_ready must be boolean");
+  }
+  if (!Array.isArray(gate.blocking_reasons)) {
+    throw new Error("Generated manifest productivity_gate.blocking_reasons must be an array");
+  }
+  if (typeof gate.fixture_input_detected !== "boolean") {
+    throw new Error("Generated manifest productivity_gate.fixture_input_detected must be boolean");
+  }
+  if (typeof gate.default_event_risk_detected !== "boolean") {
+    throw new Error("Generated manifest productivity_gate.default_event_risk_detected must be boolean");
+  }
+  if (!Array.isArray(gate.placeholder_symbols)) {
+    throw new Error("Generated manifest productivity_gate.placeholder_symbols must be an array");
+  }
+
+  return {
+    publishReady: gate.publish_ready,
+    blockingReasons: gate.blocking_reasons.map((reason) => String(reason)),
+    fixtureInputDetected: gate.fixture_input_detected,
+    defaultEventRiskDetected: gate.default_event_risk_detected,
+    placeholderSymbols: gate.placeholder_symbols.map((symbol) => String(symbol)),
+    inputPath: manifest.input_path ?? "",
+    universeSize: typeof manifest.universe_size === "number" ? manifest.universe_size : null,
+    eventRiskSource: manifest.event_risk_source ?? null,
+  };
+}
+
+function assertDeprecatedFieldPolicy(manifest: GeneratedLibraryManifest): void {
+  const policy = manifest.deprecated_field_policy;
+  if (!policy) {
+    throw new Error("Generated manifest is missing deprecated_field_policy metadata");
+  }
+
+  if (policy.mode !== "compatibility_only") {
+    throw new Error("Generated manifest deprecated_field_policy.mode must stay compatibility_only");
+  }
+  if (policy.preferred_field_version !== "v5.5b") {
+    throw new Error("Generated manifest deprecated_field_policy.preferred_field_version must stay v5.5b");
+  }
+  if (policy.extension_allowed !== false) {
+    throw new Error("Generated manifest deprecated_field_policy.extension_allowed must stay false");
+  }
+  if (!Array.isArray(policy.deprecated_groups) || policy.deprecated_groups.length === 0) {
+    throw new Error("Generated manifest deprecated_field_policy.deprecated_groups must stay populated");
+  }
+}
+
+function readGeneratedLibraryDetails(manifestPath: string, corePath: string): ContractDetails {
   const manifest = readJson<GeneratedLibraryManifest>(manifestPath);
   const repoRoot = path.dirname(path.resolve(corePath));
   const snippetPath = path.resolve(repoRoot, manifest.core_import_snippet);
   const libraryPath = path.resolve(repoRoot, manifest.pine_library);
+
+  assertDeprecatedFieldPolicy(manifest);
+  const productivityGate = buildLibraryProductivityGate(manifest);
+
+  return {
+    manifestPath,
+    corePath,
+    snippetPath,
+    libraryPath,
+    recommendedImportPath: manifest.recommended_import_path,
+    alias: "",
+    libraryName: manifest.library_name,
+    libraryOwner: manifest.library_owner,
+    libraryVersion: Number(manifest.library_version),
+    productivityGate,
+  };
+}
+
+function verifyPublishContractDetails(details: ContractDetails): ContractDetails {
+  const { manifestPath, corePath, snippetPath, libraryPath, productivityGate } = details;
+
+  if (!productivityGate.publishReady) {
+    const reasons = productivityGate.blockingReasons.join(", ") || "unspecified";
+    const placeholderSuffix = productivityGate.placeholderSymbols.length > 0
+      ? `; placeholder_symbols=${productivityGate.placeholderSymbols.join(",")}`
+      : "";
+    throw new Error(`Generated library source is not publish-ready: ${reasons}${placeholderSuffix}`);
+  }
 
   if (!fs.existsSync(snippetPath)) {
     throw new Error(`Missing core import snippet: ${snippetPath}`);
@@ -214,17 +317,17 @@ export function verifyPublishContract(manifestPath: string, corePath: string): C
   if (!snippetImport) {
     throw new Error("Core import snippet does not contain a valid import line");
   }
-  if (snippetImport.importPath !== manifest.recommended_import_path) {
+  if (snippetImport.importPath !== details.recommendedImportPath) {
     throw new Error(
-      `Snippet import path mismatch: expected ${manifest.recommended_import_path}, found ${snippetImport.importPath}`,
+      `Snippet import path mismatch: expected ${details.recommendedImportPath}, found ${snippetImport.importPath}`,
     );
   }
 
   const coreText = fs.readFileSync(corePath, "utf-8");
   const coreImportPath = findImportPathForAlias(coreText, snippetImport.alias);
-  if (coreImportPath !== manifest.recommended_import_path) {
+  if (coreImportPath !== details.recommendedImportPath) {
     throw new Error(
-      `Core import path mismatch for alias ${snippetImport.alias}: expected ${manifest.recommended_import_path}, found ${coreImportPath}`,
+      `Core import path mismatch for alias ${snippetImport.alias}: expected ${details.recommendedImportPath}, found ${coreImportPath}`,
     );
   }
 
@@ -245,16 +348,13 @@ export function verifyPublishContract(manifestPath: string, corePath: string): C
   }
 
   return {
-    manifestPath,
-    corePath,
-    snippetPath,
-    libraryPath,
-    recommendedImportPath: manifest.recommended_import_path,
+    ...details,
     alias: snippetImport.alias,
-    libraryName: manifest.library_name,
-    libraryOwner: manifest.library_owner,
-    libraryVersion: Number(manifest.library_version),
   };
+}
+
+export function verifyPublishContract(manifestPath: string, corePath: string): ContractDetails {
+  return verifyPublishContractDetails(readGeneratedLibraryDetails(manifestPath, corePath));
 }
 
 function buildDefaultConsumers(): LibraryReleaseManifest["consumers"] {
@@ -284,6 +384,7 @@ function readProductCutSummary(): ProductCutSummary {
 
   const payload = readJson<ProductCutManifest>(DEFAULT_PRODUCT_CUT_MANIFEST_PATH);
   const summary: ProductCutSummary = {
+    manifestVersion: payload.manifestVersion ?? 0,
     manifestPath: payload.artifactPath ?? "artifacts/tradingview/smc_product_cut_manifest.json",
     source: payload.source ?? "scripts/smc_bus_manifest.py",
     mainlineFiles: payload.mainlineSurfaceFiles ?? [],
@@ -292,12 +393,40 @@ function readProductCutSummary(): ProductCutSummary {
     companionOperatorOnlyFiles: payload.companionOperatorOnlyFiles ?? [],
     internalFiles: payload.internalFiles ?? [],
     legacyFiles: payload.legacyFiles ?? [],
+    contracts: payload.contracts ?? {
+      engine: [],
+      executable: [],
+      liteSurface: [],
+      lite: [],
+      proOnly: [],
+      dashboardBindings: [],
+      strategyBindings: [],
+    },
+    preflightScopes: payload.preflightScopes ?? {},
+    deprecatedFieldPolicy: payload.deprecatedFieldPolicy ?? {
+      mode: "compatibility_only",
+      preferredFieldVersion: "",
+      extensionAllowed: false,
+      deprecatedGroups: [],
+    },
   };
 
   if (
-    summary.mainlineFiles.length === 0
+    summary.manifestVersion <= 0
+    || summary.contracts.engine.length === 0
+    || summary.contracts.executable.length === 0
+    || summary.contracts.lite.length === 0
+    || summary.contracts.proOnly.length === 0
+    || summary.mainlineFiles.length === 0
     || summary.litePrimaryFiles.length === 0
     || summary.proPrimaryFiles.length === 0
+    || !Array.isArray(summary.preflightScopes.smcCoreDashboard)
+    || !Array.isArray(summary.preflightScopes.smcMainline)
+    || !Array.isArray(summary.preflightScopes.smcDecisionFirst)
+    || summary.deprecatedFieldPolicy.mode !== "compatibility_only"
+    || summary.deprecatedFieldPolicy.preferredFieldVersion.length === 0
+    || summary.deprecatedFieldPolicy.extensionAllowed !== false
+    || summary.deprecatedFieldPolicy.deprecatedGroups.length === 0
   ) {
     throw new Error(`Product-cut manifest is incomplete: ${DEFAULT_PRODUCT_CUT_MANIFEST_PATH}`);
   }
@@ -327,7 +456,7 @@ function writeReleaseManifest(
   const payload: LibraryReleaseManifest = {
     generatedAt: utcNow(),
     publishMode: options.publishMode,
-    manifestVersion: typeof existing?.manifestVersion === "number" ? existing.manifestVersion : 1,
+    manifestVersion: Math.max(typeof existing?.manifestVersion === "number" ? existing.manifestVersion : 1, 2),
     library: {
       scriptName: details.libraryName,
       owner: details.libraryOwner,
@@ -339,6 +468,7 @@ function writeReleaseManifest(
         ? "pine/generated/smc_micro_profiles_generated.json"
         : path.relative(path.resolve(process.cwd(), "artifacts/tradingview"), details.manifestPath).replace(/\\/g, "/"),
       sourceSnippet: path.relative(path.resolve(process.cwd(), "artifacts/tradingview"), details.snippetPath).replace(/\\/g, "/"),
+      productivityGate: details.productivityGate,
     },
     consumers: buildDefaultConsumers(),
     productCut,
@@ -349,6 +479,9 @@ function writeReleaseManifest(
       "Pine library import version is explicit; TradingView does not auto-resolve the newest version in the core import.",
       "Owner/version changes require regenerating the library artifacts before publish.",
       "Release metadata must stay aligned with the canonical SMC product-cut manifest.",
+      details.productivityGate.publishReady
+        ? "Current generated library source is publish-ready for automated TradingView release checks."
+        : `Current generated library source is blocked from automated publish until the productivity gate is green: ${details.productivityGate.blockingReasons.join(", ") || "unspecified"}.`,
     ]),
   };
 
@@ -527,6 +660,7 @@ export async function runPublishMicroLibraryCli(): Promise<number> {
   const screenshots: string[] = [];
   const preflightReportPath = path.resolve(`automation/tradingview/reports/preflight-micro-library-${runId}.json`);
   let details: ContractDetails | null = null;
+  let contractOk = false;
   let openGateAttempted = false;
   let openGateVerified = false;
   let openedExistingScript = false;
@@ -545,7 +679,9 @@ export async function runPublishMicroLibraryCli(): Promise<number> {
   let repoCoreValidationError: string | undefined;
 
   try {
-    details = verifyPublishContract(cli.manifest, cli.core);
+    details = readGeneratedLibraryDetails(cli.manifest, cli.core);
+    details = verifyPublishContractDetails(details);
+    contractOk = true;
 
     const session = await newTradingViewSession();
     try {
@@ -748,7 +884,7 @@ export async function runPublishMicroLibraryCli(): Promise<number> {
     const report: PublishReport = {
       generatedAt: utcNow(),
       ok: publishState.ok,
-      contractOk: true,
+      contractOk,
       openGateAttempted,
       openGateVerified,
       publishAttempted,
@@ -816,7 +952,7 @@ export async function runPublishMicroLibraryCli(): Promise<number> {
     const report: PublishReport = {
       generatedAt: utcNow(),
       ok: false,
-      contractOk: Boolean(details),
+      contractOk,
       openGateAttempted,
       openGateVerified,
       publishAttempted,

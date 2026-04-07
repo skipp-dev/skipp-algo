@@ -111,6 +111,9 @@ def test_bundle_contains_snapshot_projections_and_additive_contexts(monkeypatch)
     assert snapshot["product_cut"] == bundle["product_cut"]
     assert bundle["dashboard_payload"]["product_cut"] == bundle["product_cut"]
     assert bundle["pine_payload"]["product_cut"] == bundle["product_cut"]
+    assert bundle["product_cut"]["manifestVersion"] == 2
+    assert bundle["product_cut"]["deprecatedFieldPolicy"]["mode"] == "compatibility_only"
+    assert set(bundle["product_cut"]["preflightScopes"].keys()) == {"smcCoreDashboard", "smcMainline", "smcDecisionFirst"}
     assert set(snapshot["structure"].keys()) == {"bos", "orderblocks", "fvg", "liquidity_sweeps"}
     assert "structure_qualifiers" not in snapshot["structure"]
     assert "session_context" not in snapshot["structure"]

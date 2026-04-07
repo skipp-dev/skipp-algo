@@ -50,9 +50,10 @@ Refresh date: 2026-04-07
 
 - validation/reporting layer: updated
 - product-cut contract layer: updated
-- latest staged-format authenticated preflight artifact: `automation/tradingview/reports/preflight-2026-04-07T13-29-40-066Z.json`
+- latest staged-format authenticated preflight artifact: `automation/tradingview/reports/preflight-2026-04-07T19-12-02-524Z.json`
 - latest automated micro-library publish artifact: `automation/tradingview/reports/publish-micro-library-2026-04-04T07-50-33-372Z.json`
 - current shell auth result: reusable TradingView auth artifacts are present in this workspace snapshot
+- latest authenticated live artifact details: `auth_mode = persistent_profile`, `execution_mode = mutating`, all three mainline targets reached `overall_preflight_ok = true`
 - current repo-side preflight reading: the canonical `tv:preflight:smc-mainline` path is green across auth, ui, compile, binding, runtime, and report-root `overall_preflight_ok`
 - current live validation decision in this checkout: the active SMC mainline path is fully green and review-ready in TradingView live automation
 - library publish tracking artifact: present

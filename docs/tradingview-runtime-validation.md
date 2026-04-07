@@ -16,6 +16,16 @@ It does not declare new producer, dashboard, strategy, or bus behavior.
 
 ## Current Evidence
 
+Latest live staged-format authenticated report in this checkout:
+
+- Report path: `automation/tradingview/reports/preflight-2026-04-07T19-12-02-524Z.json`
+- Observed auth state in this shell: `persistent_profile`
+- Result scope in that report:
+  - SMC Core Engine compiled green
+  - SMC Dashboard compiled green, opened the correct indicator settings dialog, and matched all 58 expected BUS bindings by name
+  - SMC Long Strategy compiled green and matched all 8 expected BUS bindings by name
+- Report root result: `execution_mode = mutating`, `auth_ok = true`, `ui_green = true`, `compile_green = true`, `binding_green = true`, `runtime_green = true`, `overall_preflight_ok = true`
+
 Historical live green TradingView evidence was captured before the staged status model was introduced.
 Those report files are not present in the current checkout, so they remain historical documentation rather than locally re-runnable artifacts.
 
@@ -46,38 +56,35 @@ First staged-format report emitted from the new implementation:
 - Observed auth state in that shell: `fresh_login`
 - Result: explicit fail-fast report with `auth_ok = false` and the remaining scopes marked `not_run`
 
-Latest staged-format authenticated report:
+Earlier staged-format authenticated report:
 
 - Historical report path: `automation/tradingview/reports/preflight-2026-03-24T09-10-25-787Z.json`
 - Observed auth state in this shell: `storage_state`
 - Result: `execution_mode = mutating`, `auth_ok = true`, `ui_green = true`, `compile_green = true`, `binding_green = true`, `runtime_green = true`, `overall_preflight_ok = true`
 
-That latest green report used a portable storage-state artifact regenerated from the persistent profile with IndexedDB included, and the runtime layer now also clears TradingView's read-only historical-script editor state before writing.
+That earlier green report used a portable storage-state artifact regenerated from the persistent profile with IndexedDB included, and the runtime layer now also clears TradingView's read-only historical-script editor state before writing.
 
 ## Current Workspace Refresh
 
-Refresh date: 2026-04-03
+Refresh date: 2026-04-07
 
-The current workspace contains the documented entry scripts:
+The current workspace contains the documented entry scripts plus the live automation dependencies they import:
 
 - `scripts/tv_preflight.ts`
 - `scripts/tv_publish_micro_library.ts`
 - `scripts/create_tradingview_storage_state.ts`
+- `automation/tradingview/lib/...`
+- `automation/tradingview/reports/...`
+- reusable auth artifacts under `automation/tradingview/auth/...`
 
-But it does not currently contain:
-
-- the shared TradingView automation layer imported from `automation/tradingview/lib/...`
-- the `automation/tradingview/reports` directory referenced by the historical docs
-- a reusable auth artifact such as `automation/tradingview/auth/storage-state.json`
-
-That means a fresh live TradingView validation run is blocked in this checkout. The active repo signal is therefore static contract validation plus the external manual runbook, not a locally reproducible preflight pass.
+That means a fresh live TradingView validation run is not blocked in this checkout. The canonical locally reproducible path is `npm run tv:preflight:smc-mainline`.
 
 ## Current Status Interpretation
 
 - Validation implementation status: updated to staged reporting
 - Last emitted live report status: staged format
-- Latest proven live UI/compile/binding/runtime pass: historical yes, but not locally reproducible from the current checkout
-- Latest emitted staged-format live report in this checkout: none, because the automation prerequisites are missing
+- Latest proven live UI/compile/binding/runtime pass: yes, and locally reproducible from the current checkout
+- Latest emitted staged-format live report in this checkout: `automation/tradingview/reports/preflight-2026-04-07T19-12-02-524Z.json`
 
 ## Execution Modes
 

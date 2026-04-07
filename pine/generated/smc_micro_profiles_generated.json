@@ -38,6 +38,24 @@
   },
   "enrichment_blocks": [],
   "library_field_version": "v5.5b",
+  "deprecated_field_policy": {
+    "mode": "compatibility_only",
+    "preferred_field_version": "v5.5b",
+    "extension_allowed": false,
+    "deprecated_groups": [
+      "event_risk_v5",
+      "zone_intelligence_v5_1",
+      "reversal_context_v5_1",
+      "session_context_v5_2",
+      "liquidity_pools_v5_2",
+      "order_blocks_v5_2",
+      "zone_projection_v5_2",
+      "profile_context_v5_2",
+      "structure_state_v5_3",
+      "imbalance_lifecycle_v5_3",
+      "session_structure_v5_3"
+    ]
+  },
   "v55_lean_blocks": [
     "event_risk_light",
     "session_context_light",
@@ -47,6 +65,21 @@
     "signal_quality"
   ],
   "event_risk_source": "defaults",
+  "productivity_gate": {
+    "publish_ready": false,
+    "blocking_reasons": [
+      "fixture_input",
+      "default_event_risk",
+      "placeholder_symbols"
+    ],
+    "fixture_input_detected": true,
+    "default_event_risk_detected": true,
+    "placeholder_symbols": [
+      "AAA",
+      "BBB",
+      "CCC"
+    ]
+  },
   "auto_commit_allowed": true,
   "asof_time": "",
   "refresh_count": 0

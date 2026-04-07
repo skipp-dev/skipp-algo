@@ -57,9 +57,28 @@ CONSUMER_ROLE_VALUES: tuple[str, ...] = (
     'legacy_split',
 )
 
-PRODUCT_CUT_MANIFEST_VERSION = 1
+PRODUCT_CUT_MANIFEST_VERSION = 2
 PRODUCT_CUT_ARTIFACT_RELATIVE_PATH = 'artifacts/tradingview/smc_product_cut_manifest.json'
 PRODUCT_CUT_SOURCE = 'scripts/smc_bus_manifest.py'
+
+DEPRECATED_FIELD_POLICY: dict[str, Any] = {
+    'mode': 'compatibility_only',
+    'preferredFieldVersion': 'v5.5b',
+    'extensionAllowed': False,
+    'deprecatedGroups': [
+        'event_risk_v5',
+        'zone_intelligence_v5_1',
+        'reversal_context_v5_1',
+        'session_context_v5_2',
+        'liquidity_pools_v5_2',
+        'order_blocks_v5_2',
+        'zone_projection_v5_2',
+        'profile_context_v5_2',
+        'structure_state_v5_3',
+        'imbalance_lifecycle_v5_3',
+        'session_structure_v5_3',
+    ],
+}
 
 SURFACE_DEFINITIONS: tuple[SurfaceDefinition, ...] = (
     SurfaceDefinition(
@@ -591,4 +610,5 @@ def build_product_cut_manifest_payload() -> dict[str, Any]:
             'smcMainline': [_preflight_target_payload(target) for target in PREFLIGHT_MAINLINE_TARGETS],
             'smcDecisionFirst': [_preflight_target_payload(target) for target in PREFLIGHT_DECISION_FIRST_TARGETS],
         },
+        'deprecatedFieldPolicy': dict(DEPRECATED_FIELD_POLICY),
     }

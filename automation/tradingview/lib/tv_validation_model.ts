@@ -55,7 +55,33 @@ export type LibraryReleaseConsumerRole =
   | "internal"
   | "legacy";
 
+export type ProductCutContracts = {
+  engine: string[];
+  executable: string[];
+  liteSurface: string[];
+  lite: string[];
+  proOnly: string[];
+  dashboardBindings: string[];
+  strategyBindings: string[];
+};
+
+export type ProductCutPreflightTarget = {
+  file: string;
+  scriptName: string;
+  checkInputs: boolean;
+  addToChart: boolean;
+  minInputs?: number;
+};
+
+export type ProductCutDeprecatedFieldPolicy = {
+  mode: "compatibility_only";
+  preferredFieldVersion: string;
+  extensionAllowed: boolean;
+  deprecatedGroups: string[];
+};
+
 export type ProductCutSummary = {
+  manifestVersion: number;
   manifestPath: string;
   source: string;
   mainlineFiles: string[];
@@ -64,6 +90,20 @@ export type ProductCutSummary = {
   companionOperatorOnlyFiles: string[];
   internalFiles: string[];
   legacyFiles: string[];
+  contracts: ProductCutContracts;
+  preflightScopes: Record<string, ProductCutPreflightTarget[]>;
+  deprecatedFieldPolicy: ProductCutDeprecatedFieldPolicy;
+};
+
+export type LibraryProductivityGate = {
+  publishReady: boolean;
+  blockingReasons: string[];
+  fixtureInputDetected: boolean;
+  defaultEventRiskDetected: boolean;
+  placeholderSymbols: string[];
+  inputPath: string;
+  universeSize: number | null;
+  eventRiskSource: string | null;
 };
 
 export type LibraryReleaseManifest = {
@@ -79,6 +119,7 @@ export type LibraryReleaseManifest = {
     publishStatus: "not_verified" | "manual_publish_required" | "published";
     sourceManifest: string;
     sourceSnippet: string;
+    productivityGate: LibraryProductivityGate;
   };
   consumers: Array<{
     scriptName: string;
@@ -316,6 +357,34 @@ export function getRequiredLibraryReleaseManifestFields(
     if (!manifest.library.sourceSnippet) {
       missing.push("library.sourceSnippet");
     }
+      if (!manifest.library.productivityGate) {
+        missing.push("library.productivityGate");
+      } else {
+        if (typeof manifest.library.productivityGate.publishReady !== "boolean") {
+          missing.push("library.productivityGate.publishReady");
+        }
+        if (!Array.isArray(manifest.library.productivityGate.blockingReasons)) {
+          missing.push("library.productivityGate.blockingReasons");
+        }
+        if (typeof manifest.library.productivityGate.fixtureInputDetected !== "boolean") {
+          missing.push("library.productivityGate.fixtureInputDetected");
+        }
+        if (typeof manifest.library.productivityGate.defaultEventRiskDetected !== "boolean") {
+          missing.push("library.productivityGate.defaultEventRiskDetected");
+        }
+        if (!Array.isArray(manifest.library.productivityGate.placeholderSymbols)) {
+          missing.push("library.productivityGate.placeholderSymbols");
+        }
+        if (!manifest.library.productivityGate.inputPath) {
+          missing.push("library.productivityGate.inputPath");
+        }
+        if (!("universeSize" in manifest.library.productivityGate)) {
+          missing.push("library.productivityGate.universeSize");
+        }
+        if (!("eventRiskSource" in manifest.library.productivityGate)) {
+          missing.push("library.productivityGate.eventRiskSource");
+        }
+      }
   }
   if (!Array.isArray(manifest.consumers) || manifest.consumers.length === 0) {
     missing.push("consumers");
@@ -323,6 +392,9 @@ export function getRequiredLibraryReleaseManifestFields(
   if (!manifest.productCut) {
     missing.push("productCut");
   } else {
+      if (typeof manifest.productCut.manifestVersion !== "number") {
+        missing.push("productCut.manifestVersion");
+      }
     if (!manifest.productCut.manifestPath) {
       missing.push("productCut.manifestPath");
     }
@@ -346,6 +418,49 @@ export function getRequiredLibraryReleaseManifestFields(
     }
     if (!Array.isArray(manifest.productCut.legacyFiles)) {
       missing.push("productCut.legacyFiles");
+    }
+    if (!manifest.productCut.contracts) {
+      missing.push("productCut.contracts");
+    } else {
+      const requiredContracts = [
+        "engine",
+        "executable",
+        "liteSurface",
+        "lite",
+        "proOnly",
+        "dashboardBindings",
+        "strategyBindings",
+      ] as const;
+      for (const contract of requiredContracts) {
+        if (!Array.isArray(manifest.productCut.contracts[contract])) {
+          missing.push(`productCut.contracts.${contract}`);
+        }
+      }
+    }
+    if (!manifest.productCut.preflightScopes || typeof manifest.productCut.preflightScopes !== "object") {
+      missing.push("productCut.preflightScopes");
+    } else {
+      for (const scope of ["smcCoreDashboard", "smcMainline", "smcDecisionFirst"] as const) {
+        if (!Array.isArray(manifest.productCut.preflightScopes[scope])) {
+          missing.push(`productCut.preflightScopes.${scope}`);
+        }
+      }
+    }
+    if (!manifest.productCut.deprecatedFieldPolicy) {
+      missing.push("productCut.deprecatedFieldPolicy");
+    } else {
+      if (!manifest.productCut.deprecatedFieldPolicy.mode) {
+        missing.push("productCut.deprecatedFieldPolicy.mode");
+      }
+      if (!manifest.productCut.deprecatedFieldPolicy.preferredFieldVersion) {
+        missing.push("productCut.deprecatedFieldPolicy.preferredFieldVersion");
+      }
+      if (typeof manifest.productCut.deprecatedFieldPolicy.extensionAllowed !== "boolean") {
+        missing.push("productCut.deprecatedFieldPolicy.extensionAllowed");
+      }
+      if (!Array.isArray(manifest.productCut.deprecatedFieldPolicy.deprecatedGroups)) {
+        missing.push("productCut.deprecatedFieldPolicy.deprecatedGroups");
+      }
     }
   }
   if (!("lastPreflightReport" in manifest)) {

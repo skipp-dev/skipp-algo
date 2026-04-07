@@ -7,6 +7,8 @@ from pathlib import Path
 
 
 IMPORT_RE = re.compile(r"^\s*import\s+([A-Za-z0-9_/-]+)\s+as\s+([A-Za-z_][A-Za-z0-9_]*)\s*$")
+EXPECTED_DEPRECATED_POLICY_MODE = "compatibility_only"
+EXPECTED_DEPRECATED_FIELD_VERSION = "v5.5b"
 
 
 def _read_text(path: Path) -> str:
@@ -93,13 +95,85 @@ def _count_ordered_code_block_occurrences(haystack: list[str], needle: list[str]
     return matches
 
 
+def _load_productivity_gate(manifest: dict[str, object]) -> dict[str, object]:
+    payload = manifest.get("productivity_gate")
+    if not isinstance(payload, dict):
+        raise RuntimeError("Generated manifest is missing productivity_gate metadata")
+
+    required = (
+        "publish_ready",
+        "blocking_reasons",
+        "fixture_input_detected",
+        "default_event_risk_detected",
+        "placeholder_symbols",
+    )
+    missing = [field for field in required if field not in payload]
+    if missing:
+        raise RuntimeError(
+            "Generated manifest productivity_gate is incomplete: " + ", ".join(missing)
+        )
+
+    return payload
+
+
+def _load_deprecated_field_policy(manifest: dict[str, object]) -> dict[str, object]:
+    payload = manifest.get("deprecated_field_policy")
+    if not isinstance(payload, dict):
+        raise RuntimeError("Generated manifest is missing deprecated_field_policy metadata")
+
+    required = (
+        "mode",
+        "preferred_field_version",
+        "extension_allowed",
+        "deprecated_groups",
+    )
+    missing = [field for field in required if field not in payload]
+    if missing:
+        raise RuntimeError(
+            "Generated manifest deprecated_field_policy is incomplete: " + ", ".join(missing)
+        )
+
+    if payload.get("mode") != EXPECTED_DEPRECATED_POLICY_MODE:
+        raise RuntimeError(
+            "Generated manifest deprecated_field_policy.mode must stay compatibility_only"
+        )
+    if payload.get("preferred_field_version") != EXPECTED_DEPRECATED_FIELD_VERSION:
+        raise RuntimeError(
+            "Generated manifest deprecated_field_policy.preferred_field_version must stay v5.5b"
+        )
+    if payload.get("extension_allowed") is not False:
+        raise RuntimeError(
+            "Generated manifest deprecated_field_policy.extension_allowed must stay false"
+        )
+    if not isinstance(payload.get("deprecated_groups"), list) or not payload["deprecated_groups"]:
+        raise RuntimeError(
+            "Generated manifest deprecated_field_policy.deprecated_groups must list the compatibility-only legacy groups"
+        )
+
+    return payload
+
+
 def verify_publish_contract(manifest_path: Path, core_path: Path) -> dict[str, str]:
     repo_root = core_path.resolve().parent
     manifest = json.loads(_read_text(manifest_path))
+    productivity_gate = _load_productivity_gate(manifest)
+    deprecated_field_policy = _load_deprecated_field_policy(manifest)
 
     recommended_import_path = str(manifest["recommended_import_path"])
     snippet_path = repo_root / str(manifest["core_import_snippet"])
     library_path = repo_root / str(manifest["pine_library"])
+
+    blocking_reasons = productivity_gate.get("blocking_reasons")
+    if productivity_gate.get("publish_ready") is not True:
+        reasons_payload = blocking_reasons if isinstance(blocking_reasons, list) else []
+        reasons = ", ".join(str(reason) for reason in reasons_payload) or "unspecified"
+        placeholder_symbols = productivity_gate.get("placeholder_symbols") or []
+        placeholder_suffix = ""
+        if isinstance(placeholder_symbols, list) and placeholder_symbols:
+            placeholder_suffix = f"; placeholder_symbols={','.join(str(symbol) for symbol in placeholder_symbols)}"
+        raise RuntimeError(
+            f"Generated library source is not publish-ready: {reasons}{placeholder_suffix}"
+        )
 
     if not snippet_path.exists():
         raise RuntimeError(f"Missing core import snippet: {snippet_path}")
@@ -149,6 +223,9 @@ def verify_publish_contract(manifest_path: Path, core_path: Path) -> dict[str, s
         "library_path": str(library_path),
         "recommended_import_path": recommended_import_path,
         "alias": snippet_alias,
+        "deprecated_policy_mode": str(deprecated_field_policy["mode"]),
+        "preferred_field_version": str(deprecated_field_policy["preferred_field_version"]),
+        "publish_ready": "true",
     }
 
 

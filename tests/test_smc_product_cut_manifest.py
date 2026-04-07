@@ -42,13 +42,38 @@ def test_preflight_configs_use_canonical_product_cut_scopes() -> None:
 def test_library_release_manifest_tracks_product_cut_roles() -> None:
     payload = _load_json('artifacts/tradingview/library_release_manifest.json')
 
+    assert payload['manifestVersion'] == 2
+    assert payload['library']['productivityGate']['publishReady'] is False
+    assert payload['library']['productivityGate']['fixtureInputDetected'] is True
+    assert payload['library']['productivityGate']['defaultEventRiskDetected'] is True
+    assert payload['library']['productivityGate']['placeholderSymbols'] == ['AAA', 'BBB', 'CCC']
     assert payload['productCut']['mainlineFiles'] == [
         'SMC_Core_Engine.pine',
         'SMC_Dashboard.pine',
         'SMC_Long_Strategy.pine',
     ]
+    assert payload['productCut']['manifestVersion'] == 2
     assert payload['productCut']['litePrimaryFiles'] == ['SMC_Core_Engine.pine']
     assert payload['productCut']['proPrimaryFiles'] == ['SMC_Dashboard.pine', 'SMC_Long_Strategy.pine']
+    assert payload['productCut']['contracts']['lite'] == [
+        'BUS ZoneActive',
+        'BUS Armed',
+        'BUS Confirmed',
+        'BUS Ready',
+        'BUS EntryBest',
+        'BUS EntryStrict',
+        'BUS Trigger',
+        'BUS Invalidation',
+        'BUS QualityScore',
+        'BUS SourceKind',
+        'BUS StateCode',
+        'BUS TrendPack',
+        'BUS LeanPackA',
+        'BUS LeanPackB',
+    ]
+    assert set(payload['productCut']['preflightScopes'].keys()) == {'smcCoreDashboard', 'smcMainline', 'smcDecisionFirst'}
+    assert payload['productCut']['deprecatedFieldPolicy']['mode'] == 'compatibility_only'
+    assert payload['productCut']['deprecatedFieldPolicy']['extensionAllowed'] is False
     assert {
         item['file']: item['role']
         for item in payload['consumers']

@@ -410,6 +410,81 @@ trigger_text(bool active, float trigger_level, float invalidation_level) =>
     else
         "Trigger " + str.tostring(trigger_level, format.mintick) + " | Invalidation " + str.tostring(invalidation_level, format.mintick)
 
+// Keep gate decoders above compact dashboard helpers; TradingView resolves these order-sensitively.
+decode_ready_gate_text(int row_code) =>
+    int reason_code = row_reason(row_code)
+    string label_text = "Ready"
+    if reason_code == 2
+        label_text := "Need confirmed setup"
+    else if reason_code == 3
+        label_text := "Use close-safe mode"
+    else if reason_code == 4
+        label_text := "Wait one bar"
+    else if reason_code == 5
+        label_text := "Confirm expired"
+    else if reason_code == 6
+        label_text := "Setup stale"
+    else if reason_code == 7
+        label_text := "Bearish guard"
+    else if reason_code == 8
+        label_text := "Need main BOS"
+    else if reason_code == 9
+        label_text := "Lifecycle not ready"
+    else if reason_code == 10
+        label_text := "Setup hard gate"
+    else if reason_code == 11
+        label_text := "Session blocked"
+    else if reason_code == 12
+        label_text := "Micro session blocked"
+    else if reason_code == 13
+        label_text := "Micro fresh blocked"
+    else if reason_code == 14
+        label_text := "Overhead blocked"
+    else if reason_code == 15
+        label_text := "Trade hard gate"
+    else if reason_code == 16
+        label_text := "Market context blocked"
+    else if reason_code == 17
+        label_text := "Volatility regime blocked"
+    else if reason_code == 18
+        label_text := "Environment blocked"
+    else if reason_code == 19
+        label_text := "Signal quality blocked"
+    else if reason_code == 20
+        label_text := "Flow acceleration blocked"
+    else if reason_code == 21
+        label_text := "Divergence support blocked (SD)"
+    else if reason_code == 22
+        label_text := "Volatility context blocked"
+    else if reason_code == 23
+        label_text := "Stretch context blocked"
+    else if reason_code == 24
+        label_text := "Volume divergence blocked (DDVI)"
+    label_text
+
+decode_strict_gate_text(int row_code) =>
+    int reason_code = row_reason(row_code)
+    string label_text = "Strict"
+    if reason_code == 2
+        label_text := "Need Ready"
+    else if reason_code == 3
+        label_text := "Signal Quality blocked"
+    else if reason_code == 4
+        label_text := "Lower-timeframe support blocked (LTF)"
+    else if reason_code == 5
+        label_text := "Higher-timeframe trend blocked (HTF)"
+    else if reason_code == 6
+        label_text := "Flow acceleration blocked"
+    else if reason_code == 7
+        label_text := "Divergence support blocked (SD)"
+    else if reason_code == 8
+        label_text := "Volatility context blocked"
+    else if reason_code == 9
+        label_text := "Stretch context blocked"
+    else if reason_code == 10
+        label_text := "Volume divergence blocked (DDVI)"
+    label_text
+
 dashboard_compact_why_now_text(int state_code, int zone_code, int lean_struct_row_code, int lean_ob_row_code, int lean_fvg_row_code, int ready_blocker_code, int strict_blocker_code) =>
     string why_text = "Waiting for reclaim confirmation"
     string ready_blocker_text = decode_ready_gate_text(ready_blocker_code)
@@ -961,80 +1036,6 @@ decode_debug_flags_text(int row_code) =>
             label_text += str.length(label_text) > 0 ? " | FVG" : "FVG"
         if int(math.floor(reason_code / 4)) % 2 == 1
             label_text += str.length(label_text) > 0 ? " | Engine" : "Engine"
-    label_text
-
-decode_ready_gate_text(int row_code) =>
-    int reason_code = row_reason(row_code)
-    string label_text = "Ready"
-    if reason_code == 2
-        label_text := "Need confirmed setup"
-    else if reason_code == 3
-        label_text := "Use close-safe mode"
-    else if reason_code == 4
-        label_text := "Wait one bar"
-    else if reason_code == 5
-        label_text := "Confirm expired"
-    else if reason_code == 6
-        label_text := "Setup stale"
-    else if reason_code == 7
-        label_text := "Bearish guard"
-    else if reason_code == 8
-        label_text := "Need main BOS"
-    else if reason_code == 9
-        label_text := "Lifecycle not ready"
-    else if reason_code == 10
-        label_text := "Setup hard gate"
-    else if reason_code == 11
-        label_text := "Session blocked"
-    else if reason_code == 12
-        label_text := "Micro session blocked"
-    else if reason_code == 13
-        label_text := "Micro fresh blocked"
-    else if reason_code == 14
-        label_text := "Overhead blocked"
-    else if reason_code == 15
-        label_text := "Trade hard gate"
-    else if reason_code == 16
-        label_text := "Market context blocked"
-    else if reason_code == 17
-        label_text := "Volatility regime blocked"
-    else if reason_code == 18
-        label_text := "Environment blocked"
-    else if reason_code == 19
-        label_text := "Signal quality blocked"
-    else if reason_code == 20
-        label_text := "Flow acceleration blocked"
-    else if reason_code == 21
-        label_text := "Divergence support blocked (SD)"
-    else if reason_code == 22
-        label_text := "Volatility context blocked"
-    else if reason_code == 23
-        label_text := "Stretch context blocked"
-    else if reason_code == 24
-        label_text := "Volume divergence blocked (DDVI)"
-    label_text
-
-decode_strict_gate_text(int row_code) =>
-    int reason_code = row_reason(row_code)
-    string label_text = "Strict"
-    if reason_code == 2
-        label_text := "Need Ready"
-    else if reason_code == 3
-        label_text := "Signal Quality blocked"
-    else if reason_code == 4
-        label_text := "Lower-timeframe support blocked (LTF)"
-    else if reason_code == 5
-        label_text := "Higher-timeframe trend blocked (HTF)"
-    else if reason_code == 6
-        label_text := "Flow acceleration blocked"
-    else if reason_code == 7
-        label_text := "Divergence support blocked (SD)"
-    else if reason_code == 8
-        label_text := "Volatility context blocked"
-    else if reason_code == 9
-        label_text := "Stretch context blocked"
-    else if reason_code == 10
-        label_text := "Volume divergence blocked (DDVI)"
     label_text
 
 quality_bounds_text(float score_value) =>

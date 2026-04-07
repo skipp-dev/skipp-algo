@@ -45,9 +45,10 @@
     },
     "product_cut": {
       "type": "object",
-      "required": ["source", "artifactPath", "mainlineSurfaceFiles", "litePrimaryFiles", "proPrimaryFiles", "companionOperatorOnlyFiles", "internalFiles", "legacyFiles", "surfaceRoles"],
+      "required": ["manifestVersion", "source", "artifactPath", "mainlineSurfaceFiles", "litePrimaryFiles", "proPrimaryFiles", "companionOperatorOnlyFiles", "internalFiles", "legacyFiles", "surfaceRoles", "contracts", "preflightScopes", "deprecatedFieldPolicy"],
       "additionalProperties": true,
       "properties": {
+        "manifestVersion": { "type": "integer", "minimum": 1 },
         "source": { "type": "string", "minLength": 1 },
         "artifactPath": { "type": "string", "minLength": 1 },
         "mainlineSurfaceFiles": {
@@ -95,6 +96,90 @@
                 "type": "array",
                 "items": { "type": "string" }
               }
+            }
+          }
+        },
+        "contracts": {
+          "type": "object",
+          "required": ["engine", "executable", "liteSurface", "lite", "proOnly", "dashboardBindings", "strategyBindings"],
+          "additionalProperties": false,
+          "properties": {
+            "engine": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+            "executable": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+            "liteSurface": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+            "lite": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+            "proOnly": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+            "dashboardBindings": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+            "strategyBindings": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } }
+          }
+        },
+        "preflightScopes": {
+          "type": "object",
+          "required": ["smcCoreDashboard", "smcMainline", "smcDecisionFirst"],
+          "additionalProperties": false,
+          "properties": {
+            "smcCoreDashboard": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "required": ["file", "scriptName", "checkInputs", "addToChart"],
+                "additionalProperties": false,
+                "properties": {
+                  "file": { "type": "string", "minLength": 1 },
+                  "scriptName": { "type": "string", "minLength": 1 },
+                  "checkInputs": { "type": "boolean" },
+                  "addToChart": { "type": "boolean" },
+                  "minInputs": { "type": "integer", "minimum": 0 }
+                }
+              }
+            },
+            "smcMainline": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "required": ["file", "scriptName", "checkInputs", "addToChart"],
+                "additionalProperties": false,
+                "properties": {
+                  "file": { "type": "string", "minLength": 1 },
+                  "scriptName": { "type": "string", "minLength": 1 },
+                  "checkInputs": { "type": "boolean" },
+                  "addToChart": { "type": "boolean" },
+                  "minInputs": { "type": "integer", "minimum": 0 }
+                }
+              }
+            },
+            "smcDecisionFirst": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "required": ["file", "scriptName", "checkInputs", "addToChart"],
+                "additionalProperties": false,
+                "properties": {
+                  "file": { "type": "string", "minLength": 1 },
+                  "scriptName": { "type": "string", "minLength": 1 },
+                  "checkInputs": { "type": "boolean" },
+                  "addToChart": { "type": "boolean" },
+                  "minInputs": { "type": "integer", "minimum": 0 }
+                }
+              }
+            }
+          }
+        },
+        "deprecatedFieldPolicy": {
+          "type": "object",
+          "required": ["mode", "preferredFieldVersion", "extensionAllowed", "deprecatedGroups"],
+          "additionalProperties": false,
+          "properties": {
+            "mode": { "type": "string", "const": "compatibility_only" },
+            "preferredFieldVersion": { "type": "string", "minLength": 1 },
+            "extensionAllowed": { "type": "boolean", "const": false },
+            "deprecatedGroups": {
+              "type": "array",
+              "minItems": 1,
+              "items": { "type": "string", "minLength": 1 }
             }
           }
         }

@@ -239,3 +239,17 @@ def test_c9_cut_partitions_the_pro_only_surface() -> None:
     assert set(MANIFEST.C9_DETAIL_BUS_CHANNELS).isdisjoint(set(MANIFEST.C9_LEGACY_COMPAT_BUS_CHANNELS))
     assert set(MANIFEST.C9_DETAIL_BUS_CHANNELS).isdisjoint(set(MANIFEST.C9_STABLE_PRO_BUS_CHANNELS))
     assert set(MANIFEST.C9_LEGACY_COMPAT_BUS_CHANNELS).isdisjoint(set(MANIFEST.C9_STABLE_PRO_BUS_CHANNELS))
+
+
+def test_product_cut_payload_exports_governance_metadata() -> None:
+    payload = MANIFEST.build_product_cut_manifest_payload()
+
+    assert payload['manifestVersion'] == 2
+    assert payload['contracts']['lite'] == list(MANIFEST.LITE_BUS_LABELS)
+    assert payload['contracts']['strategyBindings'] == list(MANIFEST.STRATEGY_BUS_LABELS)
+    assert tuple(payload['preflightScopes'].keys()) == ('smcCoreDashboard', 'smcMainline', 'smcDecisionFirst')
+    assert payload['deprecatedFieldPolicy'] == MANIFEST.DEPRECATED_FIELD_POLICY
+    assert payload['deprecatedFieldPolicy']['mode'] == 'compatibility_only'
+    assert payload['deprecatedFieldPolicy']['preferredFieldVersion'] == 'v5.5b'
+    assert payload['deprecatedFieldPolicy']['extensionAllowed'] is False
+    assert 'event_risk_v5' in payload['deprecatedFieldPolicy']['deprecatedGroups']

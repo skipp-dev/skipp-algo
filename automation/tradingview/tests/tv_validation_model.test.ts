@@ -25,6 +25,56 @@ function writeJson(filePath: string, payload: unknown): void {
   fs.writeFileSync(filePath, JSON.stringify(payload, null, 2), "utf-8");
 }
 
+function makeProductivityGate(
+  overrides: Partial<LibraryReleaseManifest["library"]["productivityGate"]> = {},
+): LibraryReleaseManifest["library"]["productivityGate"] {
+  return {
+    publishReady: false,
+    blockingReasons: ["fixture_input", "default_event_risk", "placeholder_symbols"],
+    fixtureInputDetected: true,
+    defaultEventRiskDetected: true,
+    placeholderSymbols: ["AAA", "BBB", "CCC"],
+    inputPath: "tests/fixtures/seed_base_snapshot.csv",
+    universeSize: 3,
+    eventRiskSource: "defaults",
+    ...overrides,
+  };
+}
+
+function makeProductCutSummary(): LibraryReleaseManifest["productCut"] {
+  return {
+    manifestVersion: 2,
+    manifestPath: "artifacts/tradingview/smc_product_cut_manifest.json",
+    source: "scripts/smc_bus_manifest.py",
+    mainlineFiles: ["SMC_Core_Engine.pine", "SMC_Dashboard.pine", "SMC_Long_Strategy.pine"],
+    litePrimaryFiles: ["SMC_Core_Engine.pine"],
+    proPrimaryFiles: ["SMC_Dashboard.pine", "SMC_Long_Strategy.pine"],
+    companionOperatorOnlyFiles: ["SMC_Event_Overlay.pine"],
+    internalFiles: ["SMC_TV_Bridge.pine"],
+    legacyFiles: ["SMC++.pine"],
+    contracts: {
+      engine: ["BUS ZoneActive"],
+      executable: ["BUS Armed"],
+      liteSurface: ["BUS ZoneActive"],
+      lite: ["BUS ZoneActive", "BUS Armed"],
+      proOnly: ["BUS MetaPack"],
+      dashboardBindings: ["BUS ZoneActive"],
+      strategyBindings: ["BUS Armed"],
+    },
+    preflightScopes: {
+      smcCoreDashboard: [{ file: "SMC_Core_Engine.pine", scriptName: "SMC Core Engine", checkInputs: false, addToChart: false }],
+      smcMainline: [{ file: "SMC_Dashboard.pine", scriptName: "SMC Dashboard", checkInputs: true, addToChart: true, minInputs: 58 }],
+      smcDecisionFirst: [{ file: "SMC_Long_Strategy.pine", scriptName: "SMC Long Strategy", checkInputs: true, addToChart: true, minInputs: 8 }],
+    },
+    deprecatedFieldPolicy: {
+      mode: "compatibility_only",
+      preferredFieldVersion: "v5.5b",
+      extensionAllowed: false,
+      deprecatedGroups: ["event_risk_v5"],
+    },
+  };
+}
+
 test("valid storage state takes precedence over persistent profile", () => {
   const tempDir = makeTempDir("tv-auth-prefer-storage-");
   const storageStatePath = path.join(tempDir, "storage-state.json");
@@ -201,7 +251,7 @@ test("library release manifest helper enforces required fields", () => {
   const manifest: Partial<LibraryReleaseManifest> = {
     generatedAt: "2026-03-24T00:00:00.000Z",
     publishMode: "manual" as const,
-    manifestVersion: 1,
+    manifestVersion: 2,
     library: {
       scriptName: "smc_micro_profiles_generated",
       owner: "preuss_steffen",
@@ -211,6 +261,7 @@ test("library release manifest helper enforces required fields", () => {
       publishStatus: "manual_publish_required" as const,
       sourceManifest: "pine/generated/smc_micro_profiles_generated.json",
       sourceSnippet: "pine/generated/smc_micro_profiles_core_import_snippet.pine",
+      productivityGate: makeProductivityGate(),
     },
     consumers: [
       {
@@ -219,16 +270,7 @@ test("library release manifest helper enforces required fields", () => {
         role: "producer",
       },
     ],
-    productCut: {
-      manifestPath: "artifacts/tradingview/smc_product_cut_manifest.json",
-      source: "scripts/smc_bus_manifest.py",
-      mainlineFiles: ["SMC_Core_Engine.pine", "SMC_Dashboard.pine", "SMC_Long_Strategy.pine"],
-      litePrimaryFiles: ["SMC_Core_Engine.pine"],
-      proPrimaryFiles: ["SMC_Dashboard.pine", "SMC_Long_Strategy.pine"],
-      companionOperatorOnlyFiles: ["SMC_Event_Overlay.pine"],
-      internalFiles: ["SMC_TV_Bridge.pine"],
-      legacyFiles: ["SMC++.pine"],
-    },
+    productCut: makeProductCutSummary(),
     lastPreflightReport: "automation/tradingview/reports/preflight-2026-03-24T04-39-33-983Z.json",
     notes: ["TradingView publish remains a manual step."],
   };
@@ -249,7 +291,7 @@ test("library release manifest helper accepts automated publish mode", () => {
   const manifest: Partial<LibraryReleaseManifest> = {
     generatedAt: "2026-03-24T00:00:00.000Z",
     publishMode: "automated" as const,
-    manifestVersion: 1,
+    manifestVersion: 2,
     library: {
       scriptName: "smc_micro_profiles_generated",
       owner: "preuss_steffen",
@@ -259,6 +301,16 @@ test("library release manifest helper accepts automated publish mode", () => {
       publishStatus: "published" as const,
       sourceManifest: "pine/generated/smc_micro_profiles_generated.json",
       sourceSnippet: "pine/generated/smc_micro_profiles_core_import_snippet.pine",
+      productivityGate: makeProductivityGate({
+        publishReady: true,
+        blockingReasons: [],
+        fixtureInputDetected: false,
+        defaultEventRiskDetected: false,
+        placeholderSymbols: [],
+        inputPath: "data/output/microstructure_features_2026-03-24.csv",
+        universeSize: 240,
+        eventRiskSource: "smc_event_risk_builder",
+      }),
     },
     consumers: [
       {
@@ -267,16 +319,7 @@ test("library release manifest helper accepts automated publish mode", () => {
         role: "producer",
       },
     ],
-    productCut: {
-      manifestPath: "artifacts/tradingview/smc_product_cut_manifest.json",
-      source: "scripts/smc_bus_manifest.py",
-      mainlineFiles: ["SMC_Core_Engine.pine", "SMC_Dashboard.pine", "SMC_Long_Strategy.pine"],
-      litePrimaryFiles: ["SMC_Core_Engine.pine"],
-      proPrimaryFiles: ["SMC_Dashboard.pine", "SMC_Long_Strategy.pine"],
-      companionOperatorOnlyFiles: ["SMC_Event_Overlay.pine"],
-      internalFiles: ["SMC_TV_Bridge.pine"],
-      legacyFiles: ["SMC++.pine"],
-    },
+    productCut: makeProductCutSummary(),
     lastPreflightReport: "automation/tradingview/reports/preflight-2026-03-24T09-10-25-787Z.json",
     notes: ["Automated publish completed and core validation stayed green."],
   };

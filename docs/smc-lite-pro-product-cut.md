@@ -24,6 +24,10 @@ relevanten Haupt- und Nebenflaechen geschlossen.
   `automation/tradingview/` und
   `artifacts/tradingview/library_release_manifest.json` lesen bzw. spiegeln
   jetzt den kanonischen Produkt-Cut statt eines veralteten Datei-Sets.
+- Ticket 10 ist jetzt auch im Live-Betrieb geschlossen: der Mainline-Run
+  `automation/tradingview/reports/preflight-2026-04-07T19-12-02-524Z.json`
+  hat den Dashboard-Settings-Pfad wieder korrekt und vollstaendig gruen
+  bestaetigt.
 - Der kanonische Live-Check `npm run tv:preflight:smc-mainline` ist jetzt fuer
   `SMC_Core_Engine.pine`, `SMC_Dashboard.pine` und `SMC_Long_Strategy.pine`
   vollstaendig gruen, inklusive Auth, UI, Compile, Binding und Runtime.
