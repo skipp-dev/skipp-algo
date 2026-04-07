@@ -21,6 +21,10 @@ import {
   verifyOpenScriptIdentity,
 } from "../lib/tv_shared.js";
 
+const CORE_SCRIPT = "SMC Core";
+const DECISION_BOARD_SCRIPT = "SMC Decision Board";
+const DECISION_BOARD_TRUNCATED = "SMC Deci Board";
+
 test("generic script-name text alone does not count as chart presence", () => {
   assert.equal(isScriptVisibleOnChartState({
     hasLegendMatch: false,
@@ -136,63 +140,63 @@ gamma = micro.gamma()
 });
 
 test("scriptNameAppearsInUiText matches normalized UI text", () => {
-  assert.equal(scriptNameAppearsInUiText("SMC Core Engine", "Editor tab: SMC   Core Engine"), true);
-  assert.equal(scriptNameAppearsInUiText("SMC Core Engine", "Editor tab: unrelated script"), false);
+  assert.equal(scriptNameAppearsInUiText(CORE_SCRIPT, "Editor tab: SMC   Core"), true);
+  assert.equal(scriptNameAppearsInUiText(CORE_SCRIPT, "Editor tab: unrelated script"), false);
 });
 
 test("uiTextContainsExactScriptName rejects similar names", () => {
-  assert.equal(uiTextContainsExactScriptName("SMC Core Engine", "SMC Core Engine"), true);
-  assert.equal(uiTextContainsExactScriptName("SMC Core Engine", "SMC Core"), false);
-  assert.equal(uiTextContainsExactScriptName("SMC Core", "SMC Core Engine"), false);
-  assert.equal(uiTextContainsExactScriptName("SMC Core Engine", "SMC Core Engine Copy"), false);
-  assert.equal(uiTextContainsExactScriptName("SMC Core Engine", "SMC Core Engine - backup"), false);
+  assert.equal(uiTextContainsExactScriptName(CORE_SCRIPT, CORE_SCRIPT), true);
+  assert.equal(uiTextContainsExactScriptName(CORE_SCRIPT, "SMC Core Pro"), false);
+  assert.equal(uiTextContainsExactScriptName(CORE_SCRIPT, "SMC Core Suite"), false);
+  assert.equal(uiTextContainsExactScriptName(CORE_SCRIPT, "SMC Core Copy"), false);
+  assert.equal(uiTextContainsExactScriptName(CORE_SCRIPT, "SMC Core - backup"), false);
 });
 
 test("verifyOpenScriptIdentity fails when dialog closes but wrong script is open", () => {
-  assert.equal(verifyOpenScriptIdentity("SMC Core Engine", {
+  assert.equal(verifyOpenScriptIdentity(CORE_SCRIPT, {
     dialogStillVisible: false,
-    editorContextTexts: ["SMC Dashboard"],
-    bodyText: "SMC Core Engine appears in the scripts list",
+    editorContextTexts: [DECISION_BOARD_SCRIPT],
+    bodyText: "SMC Core appears in the scripts list",
   }), false);
 });
 
 test("verifyOpenScriptIdentity fails for similar-name match only", () => {
-  assert.equal(verifyOpenScriptIdentity("SMC Core Engine", {
+  assert.equal(verifyOpenScriptIdentity(CORE_SCRIPT, {
     dialogStillVisible: false,
-    editorContextTexts: ["SMC Core"],
-    bodyText: "SMC Core Engine",
+    editorContextTexts: ["SMC Core Suite"],
+    bodyText: CORE_SCRIPT,
   }), false);
 });
 
 test("verifyOpenScriptIdentity passes for truncated canonical title", () => {
-  assert.equal(verifyOpenScriptIdentity("SMC Dashboard", {
+  assert.equal(verifyOpenScriptIdentity(DECISION_BOARD_SCRIPT, {
     dialogStillVisible: false,
-    editorContextTexts: ["SMC Dash"],
-    bodyText: "Workspace body SMC Dashboard",
+    editorContextTexts: [DECISION_BOARD_TRUNCATED],
+    bodyText: `Workspace body ${DECISION_BOARD_SCRIPT}`,
   }), true);
 });
 
 test("verifyOpenScriptIdentity passes for exact name in editor context", () => {
-  assert.equal(verifyOpenScriptIdentity("SMC Core Engine", {
+  assert.equal(verifyOpenScriptIdentity(CORE_SCRIPT, {
     dialogStillVisible: false,
-    editorContextTexts: ["SMC Core Engine"],
-    bodyText: "Workspace body SMC Core Engine",
+    editorContextTexts: [CORE_SCRIPT],
+    bodyText: `Workspace body ${CORE_SCRIPT}`,
   }), true);
 });
 
-test("verifyOpenScriptIdentity tolerates short-title companion context", () => {
-  assert.equal(verifyOpenScriptIdentity("SMC Core Engine", {
+test("verifyOpenScriptIdentity tolerates truncated companion context", () => {
+  assert.equal(verifyOpenScriptIdentity(DECISION_BOARD_SCRIPT, {
     dialogStillVisible: false,
-    editorContextTexts: ["SMC Core Engine", "SMC Core"],
-    bodyText: "Workspace body SMC Core Engine",
+    editorContextTexts: [DECISION_BOARD_SCRIPT, DECISION_BOARD_TRUNCATED],
+    bodyText: `Workspace body ${DECISION_BOARD_SCRIPT}`,
   }), true);
 });
 
 test("verifyOpenScriptIdentity tolerates spaced-letter companion context", () => {
-  assert.equal(verifyOpenScriptIdentity("SMC Core Engine", {
+  assert.equal(verifyOpenScriptIdentity(CORE_SCRIPT, {
     dialogStillVisible: false,
-    editorContextTexts: ["SMC Core Engine", "S M C C o r e E n g i n e"],
-    bodyText: "Workspace body SMC Core Engine",
+    editorContextTexts: [CORE_SCRIPT, "S M C C o r e"],
+    bodyText: `Workspace body ${CORE_SCRIPT}`,
   }), true);
 });
 
@@ -227,76 +231,76 @@ test("verifyOpenScriptIdentity accepts semantic version suffix context", () => {
 });
 
 test("verifyOpenScriptIdentity fails closed on conflicting canonical editor context", () => {
-  assert.equal(verifyOpenScriptIdentity("SMC Core Engine", {
+  assert.equal(verifyOpenScriptIdentity(CORE_SCRIPT, {
     dialogStillVisible: false,
-    editorContextTexts: ["SMC Core Engine", "SMC Dashboard"],
-    bodyText: "Workspace body SMC Core Engine",
+    editorContextTexts: [CORE_SCRIPT, DECISION_BOARD_SCRIPT],
+    bodyText: `Workspace body ${CORE_SCRIPT}`,
   }), false);
 });
 
-test("verifyOpenScriptIdentity rejects similar engineering suite names", () => {
-  assert.equal(verifyOpenScriptIdentity("SMC Core Engine", {
+test("verifyOpenScriptIdentity rejects similar suite names", () => {
+  assert.equal(verifyOpenScriptIdentity(CORE_SCRIPT, {
     dialogStillVisible: false,
-    editorContextTexts: ["SMC Core Engine", "SMC Core Engineering Suite"],
+    editorContextTexts: [CORE_SCRIPT, "SMC Core Suite"],
   }), false);
 });
 
 test("verifyOpenScriptIdentity treats parenthesized version suffix as conflict", () => {
-  assert.equal(verifyOpenScriptIdentity("SMC Core Engine", {
+  assert.equal(verifyOpenScriptIdentity(CORE_SCRIPT, {
     dialogStillVisible: false,
-    editorContextTexts: ["SMC Core Engine", "SMC Core Engine (v2)"],
+    editorContextTexts: [CORE_SCRIPT, "SMC Core (v2)"],
   }), false);
 });
 
 test("verifyOpenScriptIdentity treats lone parenthesized version suffix as conflict", () => {
-  assert.equal(verifyOpenScriptIdentity("SMC Core Engine", {
+  assert.equal(verifyOpenScriptIdentity(CORE_SCRIPT, {
     dialogStillVisible: false,
-    editorContextTexts: ["SMC Core Engine (v2)"],
-    bodyText: "Workspace body SMC Core Engine",
+    editorContextTexts: ["SMC Core (v2)"],
+    bodyText: `Workspace body ${CORE_SCRIPT}`,
   }), false);
 });
 
 test("verifyOpenScriptIdentity treats copy suffix as conflict", () => {
-  assert.equal(verifyOpenScriptIdentity("SMC Core Engine", {
+  assert.equal(verifyOpenScriptIdentity(CORE_SCRIPT, {
     dialogStillVisible: false,
-    editorContextTexts: ["SMC Core Engine", "SMC Core Engine - copy"],
+    editorContextTexts: [CORE_SCRIPT, "SMC Core - copy"],
   }), false);
 });
 
 test("verifyOpenScriptIdentity rejects lone copy suffix", () => {
-  assert.equal(verifyOpenScriptIdentity("SMC Core Engine", {
+  assert.equal(verifyOpenScriptIdentity(CORE_SCRIPT, {
     dialogStillVisible: false,
-    editorContextTexts: ["SMC Core Engine - copy"],
-    bodyText: "Workspace body SMC Core Engine",
+    editorContextTexts: ["SMC Core - copy"],
+    bodyText: `Workspace body ${CORE_SCRIPT}`,
   }), false);
 });
 
 test("verifyOpenScriptIdentity fails closed for multiple similar conflicting contexts", () => {
-  assert.equal(verifyOpenScriptIdentity("SMC Core Engine", {
+  assert.equal(verifyOpenScriptIdentity(CORE_SCRIPT, {
     dialogStillVisible: false,
-    editorContextTexts: ["SMC Core Engine", "SMC Core Engine (v2)", "SMC Core Engine - copy"],
+    editorContextTexts: [CORE_SCRIPT, "SMC Core (v2)", "SMC Core - copy"],
   }), false);
 });
 
 test("verifyOpenScriptIdentity fails when body text matches accidentally but editor context is missing", () => {
-  assert.equal(verifyOpenScriptIdentity("SMC Core Engine", {
+  assert.equal(verifyOpenScriptIdentity(CORE_SCRIPT, {
     dialogStillVisible: false,
     editorContextTexts: [],
-    bodyText: "Search results still mention SMC Core Engine",
+    bodyText: "Search results still mention SMC Core",
   }), false);
 });
 
 test("resolveOpenScriptIdentityEvidence reports explicit identity mode", () => {
-  assert.deepEqual(resolveOpenScriptIdentityEvidence("SMC Core Engine", {
+  assert.deepEqual(resolveOpenScriptIdentityEvidence(CORE_SCRIPT, {
     dialogStillVisible: false,
-    editorContextTexts: ["SMC Core Engine"],
+    editorContextTexts: [CORE_SCRIPT],
   }), {
     verified: true,
     verificationMode: "script_context",
   });
-  assert.deepEqual(resolveOpenScriptIdentityEvidence("SMC Core Engine", {
+  assert.deepEqual(resolveOpenScriptIdentityEvidence(CORE_SCRIPT, {
     dialogStillVisible: false,
-    editorContextTexts: ["SMC Dashboard"],
+    editorContextTexts: [DECISION_BOARD_SCRIPT],
   }), {
     verified: false,
     verificationMode: "not_verified",
@@ -304,63 +308,63 @@ test("resolveOpenScriptIdentityEvidence reports explicit identity mode", () => {
 });
 
 test("settings dialog identity check rejects mismatched titled dialogs", () => {
-  assert.equal(settingsDialogTitleMatchesScriptName("SMC Core Engine", "SMC Dashboard"), false);
-  assert.equal(settingsDialogTitleMatchesScriptName("SMC Core Engine", "SMC Core Engine"), true);
-  assert.equal(settingsDialogTitleMatchesScriptName("SMC Core Engine", ""), false);
+  assert.equal(settingsDialogTitleMatchesScriptName(CORE_SCRIPT, DECISION_BOARD_SCRIPT), false);
+  assert.equal(settingsDialogTitleMatchesScriptName(CORE_SCRIPT, CORE_SCRIPT), true);
+  assert.equal(settingsDialogTitleMatchesScriptName(CORE_SCRIPT, ""), false);
 });
 
-test("buildScriptNamePatterns fuzzy does not match engineering suite expansion", () => {
-  const [, , fuzzyPattern] = buildScriptNamePatterns("SMC Core Engine");
+test("buildScriptNamePatterns fuzzy does not match word supersets", () => {
+  const [, , fuzzyPattern] = buildScriptNamePatterns(CORE_SCRIPT);
 
-  assert.equal(fuzzyPattern.test("SMC Core Engineering Suite"), false);
-  assert.equal(fuzzyPattern.test("SMC Core Engine"), true);
+  assert.equal(fuzzyPattern.test("SMC Corex"), false);
+  assert.equal(fuzzyPattern.test(CORE_SCRIPT), true);
 });
 
 test("detectPublishedVersionFromBody anchors version to the target script when provided", () => {
-  const bodyText = "Release notes version 99. Published SMC Core Engine version 7 successfully.";
+  const bodyText = "Release notes version 99. Published SMC Core version 7 successfully.";
 
-  assert.equal(detectPublishedVersionFromBody(bodyText, "SMC Core Engine"), 7);
-  assert.equal(detectPublishedVersionFromBody(bodyText, "SMC Dashboard"), null);
+  assert.equal(detectPublishedVersionFromBody(bodyText, CORE_SCRIPT), 7);
+  assert.equal(detectPublishedVersionFromBody(bodyText, DECISION_BOARD_SCRIPT), null);
 });
 
 test("detectPublishedVersionFromContextTexts only accepts target-script context", () => {
   assert.equal(detectPublishedVersionFromContextTexts([
-    "Published SMC Core Engine version 7 successfully.",
-  ], "SMC Core Engine"), 7);
+    "Published SMC Core version 7 successfully.",
+  ], CORE_SCRIPT), 7);
   assert.equal(detectPublishedVersionFromContextTexts([
     "Generic publish version 7 successfully.",
-  ], "SMC Core Engine"), null);
+  ], CORE_SCRIPT), null);
 });
 
 test("detectPublishedVersionFromContextTexts rejects similar-name supersets", () => {
   assert.equal(detectPublishedVersionFromContextTexts([
-    "SMC Core Engine Copy version 7",
-  ], "SMC Core Engine"), null);
+    "SMC Core Suite version 7",
+  ], CORE_SCRIPT), null);
   assert.equal(detectPublishedVersionFromContextTexts([
-    "SMC Core Engine (v2) version 7",
-  ], "SMC Core Engine"), null);
+    "SMC Core (v2) version 7",
+  ], CORE_SCRIPT), null);
   assert.equal(detectPublishedVersionFromContextTexts([
-    "Published SMC Core Engine version 7 successfully.",
-  ], "SMC Core Engine"), 7);
+    "Published SMC Core version 7 successfully.",
+  ], CORE_SCRIPT), 7);
 });
 
 test("detectPublishedVersionFromBody rejects similar-name supersets", () => {
-  assert.equal(detectPublishedVersionFromBody("SMC Core Engine Copy version 7", "SMC Core Engine"), null);
-  assert.equal(detectPublishedVersionFromBody("SMC Core Engine (v2) version 7", "SMC Core Engine"), null);
+  assert.equal(detectPublishedVersionFromBody("SMC Core Suite version 7", CORE_SCRIPT), null);
+  assert.equal(detectPublishedVersionFromBody("SMC Core (v2) version 7", CORE_SCRIPT), null);
 });
 
 test("detectPublishedVersionFromContextTexts fails closed on multiple target versions", () => {
   assert.equal(detectPublishedVersionFromContextTexts([
-    "Published SMC Core Engine version 7 successfully.",
-    "Published SMC Core Engine version 8 successfully.",
-  ], "SMC Core Engine"), null);
+    "Published SMC Core version 7 successfully.",
+    "Published SMC Core version 8 successfully.",
+  ], CORE_SCRIPT), null);
 });
 
 test("detectPublishedVersionFromBody fails closed on multiple target versions", () => {
   assert.equal(
     detectPublishedVersionFromBody(
-      "Published SMC Core Engine version 7 successfully. Later dialog repeated SMC Core Engine version 8.",
-      "SMC Core Engine",
+      "Published SMC Core version 7 successfully. Later dialog repeated SMC Core version 8.",
+      CORE_SCRIPT,
     ),
     null,
   );
@@ -368,9 +372,9 @@ test("detectPublishedVersionFromBody fails closed on multiple target versions", 
 
 test("resolvePublishedVersionEvidence marks generic body-only evidence as fallback", () => {
   assert.deepEqual(resolvePublishedVersionEvidence({
-    scriptName: "SMC Core Engine",
+    scriptName: CORE_SCRIPT,
     versionContextTexts: [],
-    bodyText: "Release notes version 99. Published SMC Core Engine version 7 successfully.",
+    bodyText: "Release notes version 99. Published SMC Core version 7 successfully.",
   }), {
     publishedVersion: 7,
     verificationMode: "body_fallback",
@@ -380,8 +384,8 @@ test("resolvePublishedVersionEvidence marks generic body-only evidence as fallba
 
 test("resolvePublishedVersionEvidence prefers script-context version evidence", () => {
   assert.deepEqual(resolvePublishedVersionEvidence({
-    scriptName: "SMC Core Engine",
-    versionContextTexts: ["SMC Core Engine version 7"],
+    scriptName: CORE_SCRIPT,
+    versionContextTexts: ["SMC Core version 7"],
     bodyText: "Release notes version 99.",
   }), {
     publishedVersion: 7,
@@ -392,7 +396,7 @@ test("resolvePublishedVersionEvidence prefers script-context version evidence", 
 
 test("resolvePublishedVersionEvidence fails closed when no reliable evidence exists", () => {
   assert.deepEqual(resolvePublishedVersionEvidence({
-    scriptName: "SMC Core Engine",
+    scriptName: CORE_SCRIPT,
     versionContextTexts: [],
     bodyText: "Published successfully.",
   }), {
@@ -404,10 +408,10 @@ test("resolvePublishedVersionEvidence fails closed when no reliable evidence exi
 
 test("resolvePublishedVersionEvidence fails closed on conflicting script-context versions", () => {
   assert.deepEqual(resolvePublishedVersionEvidence({
-    scriptName: "SMC Core Engine",
+    scriptName: CORE_SCRIPT,
     versionContextTexts: [
-      "Published SMC Core Engine version 7 successfully.",
-      "Published SMC Core Engine version 8 successfully.",
+      "Published SMC Core version 7 successfully.",
+      "Published SMC Core version 8 successfully.",
     ],
     bodyText: "Release notes version 99.",
   }), {
@@ -448,8 +452,8 @@ test("resolvePublishNoChangeCleanupActions keeps no-change cleanup on escape-onl
 
 test("collectVisibleLocatorMetadata samples all visible candidates instead of first-hit only", async () => {
   const nodes = [
-    { visible: true, text: "SMC Core Engine", ariaLabel: "", title: "" },
-    { visible: true, text: "SMC Dashboard", ariaLabel: "", title: "Dashboard" },
+    { visible: true, text: CORE_SCRIPT, ariaLabel: "", title: "" },
+    { visible: true, text: DECISION_BOARD_SCRIPT, ariaLabel: "", title: "Decision Board" },
     { visible: false, text: "ignored", ariaLabel: "", title: "" },
   ];
   const locator = {
@@ -470,8 +474,8 @@ test("collectVisibleLocatorMetadata samples all visible candidates instead of fi
   };
 
   assert.deepEqual(await collectVisibleLocatorMetadata(locator as never, 5), [
-    { text: "SMC Core Engine", ariaLabel: "", title: "" },
-    { text: "SMC Dashboard", ariaLabel: "", title: "Dashboard" },
+    { text: CORE_SCRIPT, ariaLabel: "", title: "" },
+    { text: DECISION_BOARD_SCRIPT, ariaLabel: "", title: "Decision Board" },
   ]);
 });
 

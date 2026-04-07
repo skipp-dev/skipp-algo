@@ -2,7 +2,7 @@
 
 ## Status
 
-Draft
+Delivered
 
 ## Date
 
@@ -17,6 +17,13 @@ This document turns the current product review into three concrete deliverables:
 3. a screen-by-screen first-run redesign plan for Core, Dashboard, and Strategy.
 
 It is intentionally SMC-only. It does not cover IBKR, terminal modules, or SkippALGO platform work outside the SMC TradingView mainline.
+
+## Implementation Snapshot
+
+- `SMC_Core_Engine.pine` now ships `Focus View` as the first-run default and publishes under the `SMC Core` product name.
+- `SMC_Dashboard.pine` now publishes under the `SMC Decision Board` product name.
+- `SMC_Long_Strategy.pine` now publishes under the `SMC Execution` product name.
+- Manifest, preflight defaults, and product-facing docs now use the same naming family.
 
 ## Evidence Base
 

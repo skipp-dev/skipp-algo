@@ -77,13 +77,13 @@ Validierungsregeln.
 - Der Compact-Mode ist die richtige Stelle fuer die Lite-Hero-Leselogik.
 - Dynamic Alerts muessen dieselbe Sprache sprechen wie die Hero-Surface.
 
-### SMC Dashboard
+### SMC Decision Board
 
 - Das Dashboard rendert eine tiefe Tabelle, die fuer Default zu diagnose-lastig
   ist.
 - Die BUS-Bindung ist funktional, aber klar operator-only.
 
-### SMC Long Strategy
+### SMC Execution
 
 - Die Strategy ist ein duenner Wrapper auf dem Core-BUS.
 - Sichtbare Setup-Controls und rohe BUS-Bindings liegen aktuell zu nah

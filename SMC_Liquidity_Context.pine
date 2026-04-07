@@ -6,7 +6,7 @@
 // Product role: companion_operator_only. Pro-only liquidity-context companion outside the Lite default surface.
 
 // ─────────────────────────────────────────────────────────────────
-// SMC Liquidity Context Overlay — lightweight companion to SMC Core Engine
+// SMC Liquidity Context Overlay — lightweight companion to SMC Core
 //
 // Visualizes zone intelligence fields from the v5.1 enrichment layer:
 //   • Primary support/resistance levels as horizontal rays

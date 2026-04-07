@@ -158,20 +158,20 @@ function fallbackDefaultTargets(): ReleaseTarget[] {
   return [
     {
       file: "SMC_Core_Engine.pine",
-      scriptName: "SMC Core Engine",
+      scriptName: "SMC Core",
       checkInputs: false,
       addToChart: false,
     },
     {
       file: "SMC_Dashboard.pine",
-      scriptName: "SMC Dashboard",
+      scriptName: "SMC Decision Board",
       checkInputs: true,
       addToChart: true,
       minInputs: 58,
     },
     {
       file: "SMC_Long_Strategy.pine",
-      scriptName: "SMC Long Strategy",
+      scriptName: "SMC Execution",
       checkInputs: true,
       addToChart: true,
       minInputs: 8,

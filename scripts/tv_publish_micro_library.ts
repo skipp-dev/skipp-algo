@@ -360,17 +360,17 @@ export function verifyPublishContract(manifestPath: string, corePath: string): C
 function buildDefaultConsumers(): LibraryReleaseManifest["consumers"] {
   return [
     {
-      scriptName: "SMC Core Engine",
+      scriptName: "SMC Core",
       file: "SMC_Core_Engine.pine",
       role: "producer",
     },
     {
-      scriptName: "SMC Dashboard",
+      scriptName: "SMC Decision Board",
       file: "SMC_Dashboard.pine",
       role: "dashboard_companion",
     },
     {
-      scriptName: "SMC Long Strategy",
+      scriptName: "SMC Execution",
       file: "SMC_Long_Strategy.pine",
       role: "execution_wrapper",
     },
@@ -502,7 +502,7 @@ function buildCoreOnlyPreflightConfig(tempDir: string): string {
     targets: [
       {
         file: "SMC_Core_Engine.pine",
-        scriptName: "SMC Core Engine",
+        scriptName: "SMC Core",
         checkInputs: false,
         addToChart: false,
       },

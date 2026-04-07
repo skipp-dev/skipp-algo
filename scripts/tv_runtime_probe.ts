@@ -14,7 +14,7 @@ try {
   const { page } = session;
   await gotoChart(page);
   await ensurePineEditor(page);
-  await openExistingScript(page, "SMC Dashboard");
+  await openExistingScript(page, "SMC Decision Board");
   await ensurePineEditor(page);
 
   const dashboardCode = fs.readFileSync(path.resolve("SMC_Dashboard.pine"), "utf-8");

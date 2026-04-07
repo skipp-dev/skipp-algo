@@ -6,7 +6,7 @@
 // Product role: companion_operator_only. Pro-only HTF-context companion outside the Lite default surface.
 
 // ─────────────────────────────────────────────────────────────────
-// SMC HTF Confluence Overlay — lightweight companion to SMC Core Engine
+// SMC HTF Confluence Overlay — lightweight companion to SMC Core
 //
 // Visualizes compression/ATR regime + reversal context from v5.1:
 //   • ATR regime state (compression → normal → expansion → exhaustion)

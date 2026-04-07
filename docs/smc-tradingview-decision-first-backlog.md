@@ -44,8 +44,8 @@ respektieren:
 | --- | --- | --- | --- | --- |
 | E1 | Shared Product Language | Einheitliche Begriffswelt fuer Core, Dashboard und Strategy Wrapper | `SMC_Core_Engine.pine`, `SMC_Dashboard.pine`, `SMC_Long_Strategy.pine`, Docs | P1 |
 | E2 | SMC Core Lite Surface | Decision-first Hero-Surface fuer aktive Nutzung | `SMC_Core_Engine.pine` | P1 |
-| E3 | SMC Dashboard Split | Compact Detail, Pro Diagnostics und operator-only Companion sauber trennen | `SMC_Dashboard.pine` | P1 |
-| E4 | SMC Long Strategy Wrapper Surface | Strategy-Setup, Binding und Chart-Ausgabe produktisieren | `SMC_Long_Strategy.pine` | P1 |
+| E3 | SMC Decision Board Split | Compact Detail, Pro Diagnostics und operator-only Companion sauber trennen | `SMC_Dashboard.pine` | P1 |
+| E4 | SMC Execution Surface | Strategy-Setup, Binding und Chart-Ausgabe produktisieren | `SMC_Long_Strategy.pine` | P1 |
 | E5 | Docs And Validation | Guide, Validation und Release-Gates auf dieselben drei Surfaces ausrichten | Docs, Tests, Validation | P2 |
 
 ## E1 - Shared Product Language
@@ -107,7 +107,7 @@ respektieren:
   - Lite wirkt wie Produkt, nicht wie Labor.
   - Pro-Tiefe bleibt verfuegbar, aber nachrangig.
 
-## E3 - SMC Dashboard Split
+## E3 - SMC Decision Board Split
 
 ### T3.1 Compact Detail Default
 
@@ -134,7 +134,7 @@ respektieren:
   - Endnutzer muessen das Dashboard nicht manuell verdrahten, um den Core zu
     verstehen.
 
-## E4 - SMC Long Strategy Wrapper Surface
+## E4 - SMC Execution Surface
 
 ### T4.1 Strategy Setup Surface Simplification
 
@@ -196,8 +196,8 @@ respektieren:
 
 1. E1 Shared Product Language
 2. E2 SMC Core Lite Surface
-3. E3 SMC Dashboard Split
-4. E4 SMC Long Strategy Wrapper Surface
+3. E3 SMC Decision Board Split
+4. E4 SMC Execution Surface
 5. E5 Docs And Validation
 
 ## Release Readiness Gate

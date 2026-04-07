@@ -6,7 +6,7 @@
 // Product role: companion_operator_only. Pro-only liquidity-structure companion outside the Lite default surface.
 
 // ─────────────────────────────────────────────────────────────────
-// SMC Liquidity Structure Overlay — lightweight companion to SMC Core Engine
+// SMC Liquidity Structure Overlay — lightweight companion to SMC Core
 //
 // Visualizes liquidity sweep + pool fields from the v5.2 enrichment layer:
 //   • Sweep events (bull / bear) with type label

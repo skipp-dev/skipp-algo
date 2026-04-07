@@ -6,7 +6,7 @@
 // Product role: companion_operator_only. Pro-only orderflow overlay outside the Lite default surface.
 
 // ─────────────────────────────────────────────────────────────────
-// SMC Orderflow Overlay — lightweight companion to SMC Core Engine
+// SMC Orderflow Overlay — lightweight companion to SMC Core
 //
 // Visualizes flow qualifier fields from the v5.1 enrichment layer:
 //   • Relative volume / activity / size bars

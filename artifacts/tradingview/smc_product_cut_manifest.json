@@ -1,0 +1,520 @@
+{
+  "manifestVersion": 2,
+  "source": "scripts/smc_bus_manifest.py",
+  "artifactPath": "artifacts/tradingview/smc_product_cut_manifest.json",
+  "surfaceRoles": [
+    {
+      "file": "SMC_Core_Engine.pine",
+      "script_name": "SMC Core",
+      "surface_role": "lite_primary",
+      "contract_tier": "lite_and_pro",
+      "consumer_role": "producer",
+      "validation_target": true,
+      "notes": [
+        "Primary Focus View surface for the Lite rollout.",
+        "Only active producer on the release mainline."
+      ]
+    },
+    {
+      "file": "SMC_Dashboard.pine",
+      "script_name": "SMC Decision Board",
+      "surface_role": "pro_primary",
+      "contract_tier": "pro",
+      "consumer_role": "dashboard_companion",
+      "validation_target": true,
+      "notes": [
+        "Primary linked decision companion surface.",
+        "BUS bindings remain operator-only even though the dashboard is part of the main product cut."
+      ]
+    },
+    {
+      "file": "SMC_Long_Strategy.pine",
+      "script_name": "SMC Execution",
+      "surface_role": "pro_primary",
+      "contract_tier": "execution",
+      "consumer_role": "execution_wrapper",
+      "validation_target": true,
+      "notes": [
+        "Primary execution surface on the frozen 8-channel executable contract.",
+        "Visible setup controls are product surface; BUS bindings remain operator-only."
+      ]
+    },
+    {
+      "file": "SMC_Event_Overlay.pine",
+      "script_name": "SMC Event Overlay",
+      "surface_role": "companion_operator_only",
+      "contract_tier": "pro",
+      "consumer_role": "overlay_companion",
+      "validation_target": false,
+      "notes": [
+        "Pro-only event-risk companion."
+      ]
+    },
+    {
+      "file": "SMC_Orderflow_Overlay.pine",
+      "script_name": "SMC Orderflow Overlay",
+      "surface_role": "companion_operator_only",
+      "contract_tier": "pro",
+      "consumer_role": "overlay_companion",
+      "validation_target": false,
+      "notes": [
+        "Pro-only orderflow companion."
+      ]
+    },
+    {
+      "file": "SMC_Liquidity_Context.pine",
+      "script_name": "SMC Liquidity Context",
+      "surface_role": "companion_operator_only",
+      "contract_tier": "pro",
+      "consumer_role": "context_companion",
+      "validation_target": false,
+      "notes": [
+        "Pro-only liquidity context companion."
+      ]
+    },
+    {
+      "file": "SMC_HTF_Confluence.pine",
+      "script_name": "SMC HTF Confluence",
+      "surface_role": "companion_operator_only",
+      "contract_tier": "pro",
+      "consumer_role": "context_companion",
+      "validation_target": false,
+      "notes": [
+        "Pro-only HTF context companion."
+      ]
+    },
+    {
+      "file": "SMC_Imbalance_Context.pine",
+      "script_name": "SMC Imbalance Context",
+      "surface_role": "companion_operator_only",
+      "contract_tier": "pro",
+      "consumer_role": "context_companion",
+      "validation_target": false,
+      "notes": [
+        "Pro-only imbalance context companion."
+      ]
+    },
+    {
+      "file": "SMC_Structure_Context.pine",
+      "script_name": "SMC Structure Context",
+      "surface_role": "companion_operator_only",
+      "contract_tier": "pro",
+      "consumer_role": "context_companion",
+      "validation_target": false,
+      "notes": [
+        "Pro-only structure context companion."
+      ]
+    },
+    {
+      "file": "SMC_Session_Context.pine",
+      "script_name": "SMC Session Context",
+      "surface_role": "companion_operator_only",
+      "contract_tier": "pro",
+      "consumer_role": "context_companion",
+      "validation_target": false,
+      "notes": [
+        "Pro-only session context companion."
+      ]
+    },
+    {
+      "file": "SMC_Profile_Context.pine",
+      "script_name": "SMC Profile Context",
+      "surface_role": "companion_operator_only",
+      "contract_tier": "pro",
+      "consumer_role": "context_companion",
+      "validation_target": false,
+      "notes": [
+        "Pro-only profile context companion."
+      ]
+    },
+    {
+      "file": "SMC_Liquidity_Structure.pine",
+      "script_name": "SMC Liquidity Structure",
+      "surface_role": "companion_operator_only",
+      "contract_tier": "pro",
+      "consumer_role": "context_companion",
+      "validation_target": false,
+      "notes": [
+        "Pro-only liquidity-structure companion."
+      ]
+    },
+    {
+      "file": "SMC_TV_Bridge.pine",
+      "script_name": "SMC TV Bridge",
+      "surface_role": "internal",
+      "contract_tier": "internal",
+      "consumer_role": "bridge",
+      "validation_target": false,
+      "notes": [
+        "Internal bridge helper outside the user-facing Lite/Pro rollout."
+      ]
+    },
+    {
+      "file": "SMC++.pine",
+      "script_name": "SMC++",
+      "surface_role": "legacy",
+      "contract_tier": "legacy",
+      "consumer_role": "legacy_monolith",
+      "validation_target": false,
+      "notes": [
+        "Historical monolith kept for reference, not for the active product cut."
+      ]
+    },
+    {
+      "file": "SMC_Core_Zones.pine",
+      "script_name": "SMC Core OLD",
+      "surface_role": "legacy",
+      "contract_tier": "legacy",
+      "consumer_role": "legacy_split",
+      "validation_target": false,
+      "notes": [
+        "Deprecated split prototype."
+      ]
+    },
+    {
+      "file": "SMC Core + Zones.pine",
+      "script_name": "SMC Core OLD",
+      "surface_role": "legacy",
+      "contract_tier": "legacy",
+      "consumer_role": "legacy_split",
+      "validation_target": false,
+      "notes": [
+        "Deprecated split prototype."
+      ]
+    }
+  ],
+  "surfaceRoleCounts": {
+    "lite_primary": 1,
+    "pro_primary": 2,
+    "companion_operator_only": 9,
+    "internal": 1,
+    "legacy": 3
+  },
+  "mainlineSurfaceFiles": [
+    "SMC_Core_Engine.pine",
+    "SMC_Dashboard.pine",
+    "SMC_Long_Strategy.pine"
+  ],
+  "activeValidationFiles": [
+    "SMC_Core_Engine.pine",
+    "SMC_Dashboard.pine",
+    "SMC_Long_Strategy.pine"
+  ],
+  "litePrimaryFiles": [
+    "SMC_Core_Engine.pine"
+  ],
+  "proPrimaryFiles": [
+    "SMC_Dashboard.pine",
+    "SMC_Long_Strategy.pine"
+  ],
+  "companionOperatorOnlyFiles": [
+    "SMC_Event_Overlay.pine",
+    "SMC_Orderflow_Overlay.pine",
+    "SMC_Liquidity_Context.pine",
+    "SMC_HTF_Confluence.pine",
+    "SMC_Imbalance_Context.pine",
+    "SMC_Structure_Context.pine",
+    "SMC_Session_Context.pine",
+    "SMC_Profile_Context.pine",
+    "SMC_Liquidity_Structure.pine"
+  ],
+  "internalFiles": [
+    "SMC_TV_Bridge.pine"
+  ],
+  "legacyFiles": [
+    "SMC++.pine",
+    "SMC_Core_Zones.pine",
+    "SMC Core + Zones.pine"
+  ],
+  "contracts": {
+    "engine": [
+      "BUS ZoneActive",
+      "BUS Armed",
+      "BUS Confirmed",
+      "BUS Ready",
+      "BUS EntryBest",
+      "BUS EntryStrict",
+      "BUS Trigger",
+      "BUS Invalidation",
+      "BUS QualityScore",
+      "BUS SourceKind",
+      "BUS StateCode",
+      "BUS TrendPack",
+      "BUS MetaPack",
+      "BUS LtfDeltaState",
+      "BUS SafeTrendState",
+      "BUS MicroProfileCode",
+      "BUS StopLevel",
+      "BUS Target1",
+      "BUS Target2",
+      "BUS SessionGateRow",
+      "BUS MarketGateRow",
+      "BUS VolaGateRow",
+      "BUS MicroSessionGateRow",
+      "BUS MicroFreshRow",
+      "BUS VolumeDataRow",
+      "BUS QualityEnvRow",
+      "BUS QualityStrictRow",
+      "BUS CloseStrengthRow",
+      "BUS EmaSupportRow",
+      "BUS AdxRow",
+      "BUS RelVolRow",
+      "BUS VwapRow",
+      "BUS ContextQualityRow",
+      "BUS QualityCleanRow",
+      "BUS QualityScoreRow",
+      "BUS SdConfluenceRow",
+      "BUS SdOscRow",
+      "BUS VolRegimeRow",
+      "BUS VolSqueezeRow",
+      "BUS ReadyBlockerCode",
+      "BUS StrictBlockerCode",
+      "BUS VolExpansionState",
+      "BUS DdviContextState",
+      "BUS ZoneObTop",
+      "BUS ZoneObBottom",
+      "BUS ZoneFvgTop",
+      "BUS ZoneFvgBottom",
+      "BUS SessionVwap",
+      "BUS AdxValue",
+      "BUS RelVolValue",
+      "BUS StretchZ",
+      "BUS StretchSupportMask",
+      "BUS LtfBullShare",
+      "BUS LtfBiasHint",
+      "BUS LtfVolumeDelta",
+      "BUS ObjectsCountPack",
+      "BUS LeanPackA",
+      "BUS LeanPackB"
+    ],
+    "executable": [
+      "BUS Armed",
+      "BUS Confirmed",
+      "BUS Ready",
+      "BUS EntryBest",
+      "BUS EntryStrict",
+      "BUS QualityScore",
+      "BUS Trigger",
+      "BUS Invalidation"
+    ],
+    "liteSurface": [
+      "BUS ZoneActive",
+      "BUS SourceKind",
+      "BUS StateCode",
+      "BUS TrendPack",
+      "BUS LeanPackA",
+      "BUS LeanPackB"
+    ],
+    "lite": [
+      "BUS ZoneActive",
+      "BUS Armed",
+      "BUS Confirmed",
+      "BUS Ready",
+      "BUS EntryBest",
+      "BUS EntryStrict",
+      "BUS Trigger",
+      "BUS Invalidation",
+      "BUS QualityScore",
+      "BUS SourceKind",
+      "BUS StateCode",
+      "BUS TrendPack",
+      "BUS LeanPackA",
+      "BUS LeanPackB"
+    ],
+    "proOnly": [
+      "BUS MetaPack",
+      "BUS LtfDeltaState",
+      "BUS SafeTrendState",
+      "BUS MicroProfileCode",
+      "BUS StopLevel",
+      "BUS Target1",
+      "BUS Target2",
+      "BUS SessionGateRow",
+      "BUS MarketGateRow",
+      "BUS VolaGateRow",
+      "BUS MicroSessionGateRow",
+      "BUS MicroFreshRow",
+      "BUS VolumeDataRow",
+      "BUS QualityEnvRow",
+      "BUS QualityStrictRow",
+      "BUS CloseStrengthRow",
+      "BUS EmaSupportRow",
+      "BUS AdxRow",
+      "BUS RelVolRow",
+      "BUS VwapRow",
+      "BUS ContextQualityRow",
+      "BUS QualityCleanRow",
+      "BUS QualityScoreRow",
+      "BUS SdConfluenceRow",
+      "BUS SdOscRow",
+      "BUS VolRegimeRow",
+      "BUS VolSqueezeRow",
+      "BUS ReadyBlockerCode",
+      "BUS StrictBlockerCode",
+      "BUS VolExpansionState",
+      "BUS DdviContextState",
+      "BUS ZoneObTop",
+      "BUS ZoneObBottom",
+      "BUS ZoneFvgTop",
+      "BUS ZoneFvgBottom",
+      "BUS SessionVwap",
+      "BUS AdxValue",
+      "BUS RelVolValue",
+      "BUS StretchZ",
+      "BUS StretchSupportMask",
+      "BUS LtfBullShare",
+      "BUS LtfBiasHint",
+      "BUS LtfVolumeDelta",
+      "BUS ObjectsCountPack"
+    ],
+    "dashboardBindings": [
+      "BUS ZoneActive",
+      "BUS Armed",
+      "BUS Confirmed",
+      "BUS Ready",
+      "BUS EntryBest",
+      "BUS EntryStrict",
+      "BUS Trigger",
+      "BUS Invalidation",
+      "BUS QualityScore",
+      "BUS SourceKind",
+      "BUS StateCode",
+      "BUS TrendPack",
+      "BUS MetaPack",
+      "BUS SessionGateRow",
+      "BUS MarketGateRow",
+      "BUS VolaGateRow",
+      "BUS MicroSessionGateRow",
+      "BUS MicroFreshRow",
+      "BUS VolumeDataRow",
+      "BUS QualityEnvRow",
+      "BUS QualityStrictRow",
+      "BUS CloseStrengthRow",
+      "BUS EmaSupportRow",
+      "BUS AdxRow",
+      "BUS RelVolRow",
+      "BUS VwapRow",
+      "BUS ContextQualityRow",
+      "BUS QualityCleanRow",
+      "BUS QualityScoreRow",
+      "BUS SdConfluenceRow",
+      "BUS SdOscRow",
+      "BUS VolRegimeRow",
+      "BUS VolSqueezeRow",
+      "BUS LtfDeltaState",
+      "BUS SafeTrendState",
+      "BUS MicroProfileCode",
+      "BUS ReadyBlockerCode",
+      "BUS StrictBlockerCode",
+      "BUS VolExpansionState",
+      "BUS DdviContextState",
+      "BUS StopLevel",
+      "BUS Target1",
+      "BUS Target2",
+      "BUS ZoneObTop",
+      "BUS ZoneObBottom",
+      "BUS ZoneFvgTop",
+      "BUS ZoneFvgBottom",
+      "BUS SessionVwap",
+      "BUS AdxValue",
+      "BUS RelVolValue",
+      "BUS StretchZ",
+      "BUS StretchSupportMask",
+      "BUS LtfBullShare",
+      "BUS LtfBiasHint",
+      "BUS LtfVolumeDelta",
+      "BUS ObjectsCountPack",
+      "BUS LeanPackA",
+      "BUS LeanPackB"
+    ],
+    "strategyBindings": [
+      "BUS Armed",
+      "BUS Confirmed",
+      "BUS Ready",
+      "BUS EntryBest",
+      "BUS EntryStrict",
+      "BUS QualityScore",
+      "BUS Trigger",
+      "BUS Invalidation"
+    ]
+  },
+  "preflightScopes": {
+    "smcCoreDashboard": [
+      {
+        "file": "SMC_Core_Engine.pine",
+          "scriptName": "SMC Core",
+        "checkInputs": false,
+        "addToChart": false
+      },
+      {
+        "file": "SMC_Dashboard.pine",
+          "scriptName": "SMC Decision Board",
+        "checkInputs": true,
+        "addToChart": true,
+        "minInputs": 58
+      }
+    ],
+    "smcMainline": [
+      {
+        "file": "SMC_Core_Engine.pine",
+          "scriptName": "SMC Core",
+        "checkInputs": false,
+        "addToChart": false
+      },
+      {
+        "file": "SMC_Dashboard.pine",
+          "scriptName": "SMC Decision Board",
+        "checkInputs": true,
+        "addToChart": true,
+        "minInputs": 58
+      },
+      {
+        "file": "SMC_Long_Strategy.pine",
+          "scriptName": "SMC Execution",
+        "checkInputs": true,
+        "addToChart": true,
+        "minInputs": 8
+      }
+    ],
+    "smcDecisionFirst": [
+      {
+        "file": "SMC_Core_Engine.pine",
+          "scriptName": "SMC Core",
+        "checkInputs": false,
+        "addToChart": false
+      },
+      {
+        "file": "SMC_Dashboard.pine",
+          "scriptName": "SMC Decision Board",
+        "checkInputs": true,
+        "addToChart": true,
+        "minInputs": 58
+      },
+      {
+        "file": "SMC_Long_Strategy.pine",
+          "scriptName": "SMC Execution",
+        "checkInputs": true,
+        "addToChart": true,
+        "minInputs": 8
+      }
+    ]
+  },
+  "deprecatedFieldPolicy": {
+    "mode": "compatibility_only",
+    "preferredFieldVersion": "v5.5b",
+    "extensionAllowed": false,
+    "deprecatedGroups": [
+      "event_risk_v5",
+      "zone_intelligence_v5_1",
+      "reversal_context_v5_1",
+      "session_context_v5_2",
+      "liquidity_pools_v5_2",
+      "order_blocks_v5_2",
+      "zone_projection_v5_2",
+      "profile_context_v5_2",
+      "structure_state_v5_3",
+      "imbalance_lifecycle_v5_3",
+      "session_structure_v5_3"
+    ]
+  }
+}

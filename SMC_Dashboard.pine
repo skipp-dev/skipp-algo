@@ -5,7 +5,7 @@
 
 // Product role: pro companion surface. Hidden BUS bindings remain operator-only; the visible surface mode controls the user-facing dashboard cut.
 
-indicator("SMC Dashboard", "SMC Dash", overlay = true, max_labels_count = 50)
+indicator("SMC Decision Board", "SMC Decision Board", overlay = true, max_labels_count = 50)
 
 var string g_bus_lifecycle = "1. Core BUS - Lifecycle"
 var string g_bus_diag_rows = "2. Core BUS - Diagnostic Rows"
@@ -16,7 +16,7 @@ var string g_bus_lean = "6. Core BUS - Lean Surface"
 var string g_local_debug = "7. Dashboard - Local Debug Mirrors"
 var string g_surface = "8. Product Surface"
 
-src_zone_active = input.source(close, "BUS ZoneActive", group = g_bus_lifecycle, display = display.none, tooltip = "Bind this section top-to-bottom to the matching hidden BUS series published by SMC Core Engine.")
+src_zone_active = input.source(close, "BUS ZoneActive", group = g_bus_lifecycle, display = display.none, tooltip = "Bind this section top-to-bottom to the matching hidden BUS series published by SMC Core.")
 src_armed = input.source(close, "BUS Armed", group = g_bus_lifecycle, display = display.none)
 src_confirmed = input.source(close, "BUS Confirmed", group = g_bus_lifecycle, display = display.none)
 src_ready = input.source(close, "BUS Ready", group = g_bus_lifecycle, display = display.none)

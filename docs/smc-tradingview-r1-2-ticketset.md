@@ -2,7 +2,7 @@
 
 ## Status
 
-Draft
+Delivered
 
 ## Purpose
 
@@ -51,6 +51,7 @@ few seconds:
 ### R12-01 - Core Public Copy Cut
 
 - Keep `compact_mode` visual-only.
+- Make `Focus View` the default first-run surface.
 - Upgrade visible copy so the first-run surface reads like a product.
 - Prioritize `Action`, `Bias`, `Confidence`, `Why now`, `Main risk`.
 
@@ -71,6 +72,7 @@ few seconds:
 - `SMC_Core_Engine.pine` is the only public first-run surface.
 - `SMC_Dashboard.pine` is a linked companion surface.
 - `SMC_Long_Strategy.pine` is a linked execution surface.
+- TradingView publish names align to `SMC Core`, `SMC Decision Board`, and `SMC Execution`.
 
 ### R12-05 - Product-Surface Validation Evidence
 

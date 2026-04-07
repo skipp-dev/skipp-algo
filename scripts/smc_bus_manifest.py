@@ -83,37 +83,37 @@ DEPRECATED_FIELD_POLICY: dict[str, Any] = {
 SURFACE_DEFINITIONS: tuple[SurfaceDefinition, ...] = (
     SurfaceDefinition(
         file = 'SMC_Core_Engine.pine',
-        script_name = 'SMC Core Engine',
+        script_name = 'SMC Core',
         surface_role = 'lite_primary',
         contract_tier = 'lite_and_pro',
         consumer_role = 'producer',
         validation_target = True,
         notes = (
-            'Primary operator surface for the Lite rollout.',
+            'Primary Focus View surface for the Lite rollout.',
             'Only active producer on the release mainline.',
         ),
     ),
     SurfaceDefinition(
         file = 'SMC_Dashboard.pine',
-        script_name = 'SMC Dashboard',
+        script_name = 'SMC Decision Board',
         surface_role = 'pro_primary',
         contract_tier = 'pro',
         consumer_role = 'dashboard_companion',
         validation_target = True,
         notes = (
-            'Primary Pro diagnostics surface.',
+            'Primary linked decision companion surface.',
             'BUS bindings remain operator-only even though the dashboard is part of the main product cut.',
         ),
     ),
     SurfaceDefinition(
         file = 'SMC_Long_Strategy.pine',
-        script_name = 'SMC Long Strategy',
+        script_name = 'SMC Execution',
         surface_role = 'pro_primary',
         contract_tier = 'execution',
         consumer_role = 'execution_wrapper',
         validation_target = True,
         notes = (
-            'Primary execution wrapper on the frozen 8-channel executable contract.',
+            'Primary execution surface on the frozen 8-channel executable contract.',
             'Visible setup controls are product surface; BUS bindings remain operator-only.',
         ),
     ),
@@ -292,14 +292,14 @@ LEGACY_FILES: tuple[str, ...] = tuple(
 )
 
 PREFLIGHT_CORE_DASHBOARD_TARGETS: tuple[PreflightTarget, ...] = (
-    PreflightTarget('SMC_Core_Engine.pine', 'SMC Core Engine', False, False),
-    PreflightTarget('SMC_Dashboard.pine', 'SMC Dashboard', True, True, 58),
+    PreflightTarget('SMC_Core_Engine.pine', 'SMC Core', False, False),
+    PreflightTarget('SMC_Dashboard.pine', 'SMC Decision Board', True, True, 58),
 )
 
 PREFLIGHT_MAINLINE_TARGETS: tuple[PreflightTarget, ...] = (
-    PreflightTarget('SMC_Core_Engine.pine', 'SMC Core Engine', False, False),
-    PreflightTarget('SMC_Dashboard.pine', 'SMC Dashboard', True, True, 58),
-    PreflightTarget('SMC_Long_Strategy.pine', 'SMC Long Strategy', True, True, 8),
+    PreflightTarget('SMC_Core_Engine.pine', 'SMC Core', False, False),
+    PreflightTarget('SMC_Dashboard.pine', 'SMC Decision Board', True, True, 58),
+    PreflightTarget('SMC_Long_Strategy.pine', 'SMC Execution', True, True, 8),
 )
 
 PREFLIGHT_DECISION_FIRST_TARGETS: tuple[PreflightTarget, ...] = PREFLIGHT_MAINLINE_TARGETS

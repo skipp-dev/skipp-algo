@@ -1,17 +1,17 @@
-# SMC Long Strategy Guide
+# SMC Execution Guide
 
 ## Purpose
 
-This guide documents `SMC_Long_Strategy.pine` as the execution surface of the
-active SMC TradingView mainline.
+This guide documents `SMC_Long_Strategy.pine` as the `SMC Execution` surface of
+the active SMC TradingView mainline.
 
 The active mainline is:
 
 1. [../SMC_Core_Engine.pine](../SMC_Core_Engine.pine) as the only active
-   producer and the default Lite operator surface.
-2. [../SMC_Dashboard.pine](../SMC_Dashboard.pine) as the Pro diagnostics
-   companion.
-3. [../SMC_Long_Strategy.pine](../SMC_Long_Strategy.pine) as the Pro execution
+  producer and the default `SMC Core` first-run surface.
+2. [../SMC_Dashboard.pine](../SMC_Dashboard.pine) as the `SMC Decision Board`
+  companion.
+3. [../SMC_Long_Strategy.pine](../SMC_Long_Strategy.pine) as the `SMC Execution`
   surface on the frozen 8-channel executable contract.
 
 The product-cut background and the current guardrails are documented in
@@ -114,7 +114,7 @@ For an external or independent cross-check, use:
 - `SMC_Core_Engine.pine` remains the only Lite-primary surface.
 - A dedicated Lite consumer is intentionally deferred until it can exist
   without a logic fork, a second producer, or a new binding workflow.
-- `SMC_Long_Strategy.pine` remains a Pro execution surface on the frozen
+- `SMC_Long_Strategy.pine` remains the `SMC Execution` surface on the frozen
   8-channel contract.
 - Dashboard-only or Pro-only cleanup work must not silently widen the Lite
   contract or mutate the strategy bindings.

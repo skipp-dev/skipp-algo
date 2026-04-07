@@ -62,9 +62,9 @@ function makeProductCutSummary(): LibraryReleaseManifest["productCut"] {
       strategyBindings: ["BUS Armed"],
     },
     preflightScopes: {
-      smcCoreDashboard: [{ file: "SMC_Core_Engine.pine", scriptName: "SMC Core Engine", checkInputs: false, addToChart: false }],
-      smcMainline: [{ file: "SMC_Dashboard.pine", scriptName: "SMC Dashboard", checkInputs: true, addToChart: true, minInputs: 58 }],
-      smcDecisionFirst: [{ file: "SMC_Long_Strategy.pine", scriptName: "SMC Long Strategy", checkInputs: true, addToChart: true, minInputs: 8 }],
+      smcCoreDashboard: [{ file: "SMC_Core_Engine.pine", scriptName: "SMC Core", checkInputs: false, addToChart: false }],
+      smcMainline: [{ file: "SMC_Dashboard.pine", scriptName: "SMC Decision Board", checkInputs: true, addToChart: true, minInputs: 58 }],
+      smcDecisionFirst: [{ file: "SMC_Long_Strategy.pine", scriptName: "SMC Execution", checkInputs: true, addToChart: true, minInputs: 8 }],
     },
     deprecatedFieldPolicy: {
       mode: "compatibility_only",
@@ -202,7 +202,7 @@ test("target overall preflight fails when an error is present", () => {
 test("preflight schema helpers require staged report fields", () => {
   const target = {
     file: "SMC_Dashboard.pine",
-    scriptName: "SMC Dashboard",
+    scriptName: "SMC Decision Board",
     execution_mode: "mutating",
     auth_mode: "storage_state",
     auth_source_path: "automation/tradingview/auth/storage-state.json",
@@ -265,7 +265,7 @@ test("library release manifest helper enforces required fields", () => {
     },
     consumers: [
       {
-        scriptName: "SMC Core Engine",
+        scriptName: "SMC Core",
         file: "SMC_Core_Engine.pine",
         role: "producer",
       },
@@ -314,7 +314,7 @@ test("library release manifest helper accepts automated publish mode", () => {
     },
     consumers: [
       {
-        scriptName: "SMC Core Engine",
+        scriptName: "SMC Core",
         file: "SMC_Core_Engine.pine",
         role: "producer",
       },

@@ -32,7 +32,7 @@ type ElementSnapshot = {
   centerHitText: string | null;
 };
 
-const targetScript = process.argv[2] || "SMC Dashboard";
+const targetScript = process.argv[2] || "SMC Decision Board";
 
 const session = await newTradingViewSession();
 

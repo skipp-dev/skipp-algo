@@ -13,10 +13,12 @@ def _read(name: str) -> str:
 def test_core_has_decision_first_hero_contract() -> None:
     source = _read("SMC_Core_Engine.pine")
 
+    assert 'indicator("SMC Core", "SMC Core", overlay = true' in source
     assert "resolve_core_product_state(" in source
     assert "resolve_trust_tier(" in source
     assert "compose_core_hero_text(" in source
     assert "var label core_hero_card = na" in source
+    assert "compact_mode = input.bool(true, 'Focus View'" in source
     assert 'Focus View' in source
     assert 'Confidence: ' in source
     assert "plot(core_plan_visible ? long_state.trigger : na, 'Core Trigger'" in source
@@ -44,7 +46,7 @@ def test_dashboard_has_companion_summary_and_pro_diagnostics() -> None:
 def test_long_strategy_has_wrapper_controls_and_core_plan_outputs() -> None:
     source = _read("SMC_Long_Strategy.pine")
 
-    assert 'strategy("SMC Long Strategy", overlay = true' in source
+    assert 'strategy("SMC Execution", overlay = true' in source
     assert 'var string g_setup = "1. Execution Setup"' in source
     assert 'var string g_bus_entry = "3. Expert Mapping - Entry States"' in source
     assert 'src_armed = input.source(close, "BUS Armed"' in source

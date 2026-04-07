@@ -34,9 +34,9 @@ Latest live staged-format authenticated report in this checkout:
 - Report path: `automation/tradingview/reports/preflight-2026-04-07T19-12-02-524Z.json`
 - Observed auth state in this shell: `persistent_profile`
 - Result scope in that report:
-  - SMC Core Engine compiled green
-  - SMC Dashboard compiled green, opened the correct indicator settings dialog, and matched all 58 expected BUS bindings by name
-  - SMC Long Strategy compiled green and matched all 8 expected BUS bindings by name
+  - SMC Core compiled green
+  - SMC Decision Board compiled green, opened the correct indicator settings dialog, and matched all 58 expected BUS bindings by name
+  - SMC Execution compiled green and matched all 8 expected BUS bindings by name
 - Report root result: `execution_mode = mutating`, `auth_ok = true`, `ui_green = true`, `compile_green = true`, `binding_green = true`, `runtime_green = true`, `overall_preflight_ok = true`
 
 Historical live green TradingView evidence was captured before the staged status model was introduced.
@@ -44,9 +44,9 @@ Those report files are not present in the current checkout, so they remain histo
 
 - Historical report path: `automation/tradingview/reports/preflight-2026-03-24T04-39-33-983Z.json`
 - Result scope in that legacy report:
-  - SMC Core Engine compiled
-  - SMC Dashboard compiled and its 26 input bindings were visible
-  - SMC Long Strategy compiled and its 8 input bindings were visible
+  - SMC Core compiled
+  - SMC Decision Board compiled and its 26 input bindings were visible
+  - SMC Execution compiled and its 8 input bindings were visible
 
 That report is still valid as historical runtime evidence, but it predates the new staged fields:
 

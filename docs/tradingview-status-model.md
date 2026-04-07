@@ -68,6 +68,6 @@ Every stage uses one of these values:
 
 Examples:
 
-- `SMC Core Engine` can be fully green without `settings_open_ok` because settings validation is not part of that target.
-- `SMC Dashboard` cannot be fully green if binding names are missing, even if compile already passed.
-- `SMC Long Strategy` cannot be fully green if the script compiles but does not remain visible on chart.
+- `SMC Core` can be fully green without `settings_open_ok` because settings validation is not part of that target.
+- `SMC Decision Board` cannot be fully green if binding names are missing, even if compile already passed.
+- `SMC Execution` cannot be fully green if the script compiles but does not remain visible on chart.

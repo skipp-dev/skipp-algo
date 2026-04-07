@@ -101,7 +101,7 @@ function parseArgs(): CliArgs {
     version: Number(getFlag("--version", "1")),
     description: getFlag(
       "--description",
-      "Private lifecycle, readiness, blocker, and risk-plan helpers consumed by SMC Core Engine.",
+      "Private lifecycle, readiness, blocker, and risk-plan helpers consumed by SMC Core.",
     ),
     out: path.resolve(
       getFlag(

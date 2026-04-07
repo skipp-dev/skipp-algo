@@ -6,7 +6,7 @@
 // Product role: companion_operator_only. Pro-only event-risk overlay outside the Lite default surface.
 
 // ─────────────────────────────────────────────────────────────────
-// SMC Event Overlay — lightweight optional companion to SMC Core Engine
+// SMC Event Overlay — lightweight optional companion to SMC Core
 //
 // Draws three visual elements for relevant macro/earnings events:
 //   1. Vertical event line at the expected event bar
@@ -35,7 +35,7 @@ var color col_event_line       = input.color(color.new(color.orange, 20), "Event
 var color col_zone_pre         = input.color(color.new(color.orange, 88), "Pre-event zone",    group = g_ev)
 var color col_zone_post        = input.color(color.new(color.red, 88),    "Post-event zone",   group = g_ev)
 var color col_label_text       = input.color(color.white,                 "Label text color",  group = g_ev)
-src_lean_pack_a                = input.source(close, "BUS LeanPackA",     group = g_ev, tooltip = "Connect to 'BUS LeanPackA' output of SMC Core Engine.")
+src_lean_pack_a                = input.source(close, "BUS LeanPackA",     group = g_ev, tooltip = "Connect to 'BUS LeanPackA' output of SMC Core.")
 
 // ── Library fields (static per refresh) ─────────────────────────
 

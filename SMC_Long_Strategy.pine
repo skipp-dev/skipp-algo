@@ -7,14 +7,14 @@
 // Visible setup controls tune only wrapper behavior; BUS bindings stay explicit and operator-only.
 
 // Strategy orders are staged on confirmed bars via process_orders_on_close, so the backtest path does not rely on intrabar lookahead.
-strategy("SMC Long Strategy", overlay = true, pyramiding = 0, process_orders_on_close = true)
+strategy("SMC Execution", overlay = true, pyramiding = 0, process_orders_on_close = true)
 
 var string g_setup = "1. Execution Setup"
 var string g_trade_plan = "2. Trade Plan"
 var string g_bus_entry = "3. Expert Mapping - Entry States"
 var string g_bus_plan = "4. Expert Mapping - Trade Plan"
 
-src_armed = input.source(close, "BUS Armed", group = g_bus_entry, tooltip = "Bind expert mapping sources top-to-bottom to the matching BUS series from SMC Core Engine.")
+src_armed = input.source(close, "BUS Armed", group = g_bus_entry, tooltip = "Bind expert mapping sources top-to-bottom to the matching BUS series from SMC Core.")
 src_confirmed = input.source(close, "BUS Confirmed", group = g_bus_entry)
 src_ready = input.source(close, "BUS Ready", group = g_bus_entry)
 src_entry_best = input.source(close, "BUS EntryBest", group = g_bus_entry)

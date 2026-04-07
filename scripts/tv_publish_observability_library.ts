@@ -101,7 +101,7 @@ function parseArgs(): CliArgs {
     version: Number(getFlag("--version", "1")),
     description: getFlag(
       "--description",
-      "Private ready-edge and observability helpers consumed by SMC Core Engine.",
+      "Private ready-edge and observability helpers consumed by SMC Core.",
     ),
     out: path.resolve(
       getFlag(

@@ -178,7 +178,7 @@ Advanced Settings [collapsed by default]
   - Lite zeigt maximal 10 direkt sichtbare Standard-Inputs.
   - Ein Nutzer kann ohne Expertenwissen den Default-Modus betreiben.
 
-## DB-1 - SMC Dashboard Compact Detail
+## DB-1 - SMC Decision Board Compact Detail
 
 - Goal: Die Hero-Entscheidung erklaeren, ohne in die volle Diagnose abzurutschen.
 - Audience: Nutzer, die mehr Kontext wollen, aber keine Pro-Diagnose brauchen.
@@ -218,7 +218,7 @@ Advanced Settings [collapsed by default]
   - Maximal 8 Zeilen im Default-Detail.
   - Ein normaler Nutzer muss keine Guide-Abkuerzungen kennen.
 
-## DB-2 - SMC Dashboard Pro Diagnostics
+## DB-2 - SMC Decision Board Audit View
 
 - Goal: Die bestehende Diagnosetiefe fuer Audit, Tuning und Debug sichtbar
   halten.
@@ -243,7 +243,7 @@ Advanced Settings [collapsed by default]
   - Pro bleibt tief genug fuer Audit-Zwecke.
   - Pro ist nicht mehr die implizite Standardansicht.
 
-## DB-3 - SMC Dashboard Operator Binding Screen
+## DB-3 - SMC Decision Board Operator Binding Screen
 
 - Goal: Falls `SMC_Dashboard.pine` weiter als Companion-Skript genutzt wird,
   muss die Bindung als Operator-Lage spezifiziert sein.
@@ -261,7 +261,7 @@ Advanced Settings [collapsed by default]
   - Endnutzer muessen diese Surface nicht verstehen, um das Produkt zu nutzen.
   - Die Bindung ist in Doku oder Workflow klar als operator-only markiert.
 
-## LS-1 - SMC Long Strategy Setup Surface
+## LS-1 - SMC Execution Setup Surface
 
 - Goal: Die sichtbare Strategy-Wrapper-Flaeche auf klare Setup-Steuerung
   fokussieren.
@@ -279,7 +279,7 @@ Advanced Settings [collapsed by default]
   - Die Surface liest sich wie Strategy-Setup.
   - Wrapper-Controls sind von den Bindings klar getrennt.
 
-## LS-2 - SMC Long Strategy Actionable Chart
+## LS-2 - SMC Execution Actionable Chart
 
 - Goal: Die aus dem Core abgeleiteten Ausfuehrungslevel klar auf dem Chart
   zeigen.
@@ -296,7 +296,7 @@ Advanced Settings [collapsed by default]
   - Entry- und Exit-Plan sind visuell nachvollziehbar.
   - Strategy-Level bleiben deterministisch lesbar.
 
-## LS-3 - SMC Long Strategy Binding Screen
+## LS-3 - SMC Execution Binding Screen
 
 - Goal: Die BUS-Bindungsflaeche fuer den Wrapper deterministisch halten.
 - Audience: nur Operatoren oder interne Nutzer.

@@ -52,10 +52,10 @@ test("publishedVersionContext requires immediate version evidence for the exact 
     locator: (_selector: string) => fakeLocator,
   };
 
-  const locators = tvSelectors.publishedVersionContext(fakePage as never, "SMC Core Engine");
+  const locators = tvSelectors.publishedVersionContext(fakePage as never, "SMC Core");
 
   assert.equal(locators.length, 4);
-  assert.equal(calls.every((call) => call.includes("SMC Core Engine") && call.includes("version")), true);
+  assert.equal(calls.every((call) => call.includes("SMC Core") && call.includes("version")), true);
 });
 
 test("openScriptIdentity probes exact and fuzzy title contexts", () => {
@@ -81,12 +81,12 @@ test("openScriptIdentity probes exact and fuzzy title contexts", () => {
     },
   };
 
-  const locators = tvSelectors.openScriptIdentity(fakePage as never, "SMC Dashboard");
+  const locators = tvSelectors.openScriptIdentity(fakePage as never, "SMC Decision Board");
 
   assert.equal(locators.length, 16);
   assert.equal(calls.some((call) => call.includes("pine-dialog")), true);
-  assert.equal(calls.some((call) => call.startsWith("title:") && call.includes("Dash")), true);
-  assert.equal(calls.some((call) => call.startsWith("text:") && call.includes("Dash")), true);
+  assert.equal(calls.some((call) => call.startsWith("title:") && call.includes("Board")), true);
+  assert.equal(calls.some((call) => call.startsWith("text:") && call.includes("Board")), true);
 });
 
 test("scriptLegendContainers only anchor exact script text descendants", () => {
@@ -100,14 +100,14 @@ test("scriptLegendContainers only anchor exact script text descendants", () => {
     },
   };
 
-  const locators = tvSelectors.scriptLegendContainers(fakePage as never, "SMC Core Engine");
+  const locators = tvSelectors.scriptLegendContainers(fakePage as never, "SMC Core");
 
   assert.equal(locators.length, 4);
   assert.deepEqual(calls, [
-    "^SMC Core Engine(?:\\s+(?:v\\d+(?:\\.\\d+){1,3}|version\\s+\\d+(?:\\.\\d+){1,3}))?$",
-    "^SMC Core Engine(?:\\s+(?:v\\d+(?:\\.\\d+){1,3}|version\\s+\\d+(?:\\.\\d+){1,3}))?$",
-    "^SMC Core Engine(?:\\s+(?:v\\d+(?:\\.\\d+){1,3}|version\\s+\\d+(?:\\.\\d+){1,3}))?$",
-    "^SMC Core Engine(?:\\s+(?:v\\d+(?:\\.\\d+){1,3}|version\\s+\\d+(?:\\.\\d+){1,3}))?$",
+    "^SMC Core(?:\\s+(?:v\\d+(?:\\.\\d+){1,3}|version\\s+\\d+(?:\\.\\d+){1,3}))?$",
+    "^SMC Core(?:\\s+(?:v\\d+(?:\\.\\d+){1,3}|version\\s+\\d+(?:\\.\\d+){1,3}))?$",
+    "^SMC Core(?:\\s+(?:v\\d+(?:\\.\\d+){1,3}|version\\s+\\d+(?:\\.\\d+){1,3}))?$",
+    "^SMC Core(?:\\s+(?:v\\d+(?:\\.\\d+){1,3}|version\\s+\\d+(?:\\.\\d+){1,3}))?$",
   ]);
 });
 

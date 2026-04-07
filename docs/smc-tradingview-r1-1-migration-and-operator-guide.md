@@ -28,7 +28,7 @@ Deshalb gelten fuer die erste Migration diese Regeln:
 
 1. `compact_mode` bleibt die bestehende Kernvariable in `SMC_Core_Engine.pine`.
    Die sichtbare Bezeichnung lautet jetzt `Focus View`, aber der
-   Schalter bleibt visual-only.
+   Schalter bleibt visual-only und ist fuer den First-Run jetzt standardmaessig aktiv.
 2. `surface_mode` in `SMC_Dashboard.pine` bleibt ein Visualisierungsmodus.
    `Decision Brief` ist die Default-Surface, `Audit View` ist opt-in.
 3. `entry_mode`, `min_quality_score`, `take_profit_r` und `use_take_profit` in
@@ -46,7 +46,7 @@ Deshalb gelten fuer die erste Migration diese Regeln:
 
 | Surface | Default | Hard Rule |
 | --- | --- | --- |
-| `SMC_Core_Engine.pine` | `compact_mode = false` mit `Focus View` als klarer Visual-Option | Visual-only, keine neue Engine-Semantik |
+| `SMC_Core_Engine.pine` | `compact_mode = true` mit `Focus View` als First-Run-Default | Visual-only, keine neue Engine-Semantik |
 | `SMC_Dashboard.pine` | `surface_mode = "Decision Brief"` | BUS binding order bleibt unveraendert |
 | `SMC_Long_Strategy.pine` | `entry_mode = "Strict"`, `use_take_profit = true` | Wrapper-Control, kein neuer Producer |
 
