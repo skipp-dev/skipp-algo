@@ -94,9 +94,15 @@ export const tvSelectors = {
   },
 
   currentScriptMenu(page: Page): Locator[] {
+    const pineDialog = page.locator('[data-name="pine-dialog"], #pine-editor-dialog, [id*="pine-editor" i]').last();
+    const headerPattern = /untitled|smc|skipp|usi|choch|rev/i;
+
     return [
+      pineDialog.locator('button[aria-haspopup="menu"], [role="button"][aria-haspopup="menu"]').first(),
       page.locator('[data-name="pine-dialog"] [role="button"]').first(),
       page.locator('#pine-editor-dialog [role="button"]').first(),
+      pineDialog.getByRole("button", { name: headerPattern }).first(),
+      pineDialog.getByText(headerPattern).last(),
     ];
   },
 
@@ -146,6 +152,7 @@ export const tvSelectors = {
   scriptRow(page: Page, scriptName: string): Locator[] {
     const [exact, loose] = scriptNamePatterns(scriptName);
     const dialog = page.locator('[role="dialog"]');
+    const indicatorsDialog = page.locator('[data-name="indicators-dialog"]');
     const menuInner = page.locator('[data-name="menu-inner"]');
     const patterns = { exact, loose } as const;
     const scopes = {
@@ -153,7 +160,15 @@ export const tvSelectors = {
       menu_inner: menuInner,
     } as const;
 
-    return describeScriptRowLocatorSpecs().map((spec) => scopes[spec.scope].getByText(patterns[spec.matchKind]));
+    return [
+      indicatorsDialog.locator('[data-id^="USER;"]').filter({ hasText: exact }),
+      indicatorsDialog.locator('[data-id^="USER;"]').filter({ hasText: loose }),
+      ...describeScriptRowLocatorSpecs().map((spec) => scopes[spec.scope].getByText(patterns[spec.matchKind])),
+      indicatorsDialog.getByText(exact),
+      indicatorsDialog.locator('[data-id], [class*="container" i], [class*="main" i], [class*="title" i]').filter({ hasText: exact }),
+      indicatorsDialog.getByText(loose),
+      indicatorsDialog.locator('[data-id], [class*="container" i], [class*="main" i], [class*="title" i]').filter({ hasText: loose }),
+    ];
   },
 
   publishedVersionContext(page: Page, scriptName: string): Locator[] {
@@ -182,8 +197,8 @@ export const tvSelectors = {
       page.getByRole("heading", { name: exact }),
       page.getByTitle(exact),
       ...titleScopes.flatMap((locator) => [
-        locator.getByText(exact),
-        locator.getByText(fuzzy),
+        locator.filter({ hasText: exact }),
+        locator.filter({ hasText: fuzzy }),
       ]),
     ];
   },

@@ -5,6 +5,7 @@ import {
   buildScriptNamePatterns,
   countOrderedCodeBlockOccurrences,
   collectVisibleLocatorMetadata,
+  editorDiagnosticsSuggestOpenHost,
   resolvePublishNoChangeCleanupActions,
   resolveOpenScriptIdentityEvidence,
   settingsDialogTitleMatchesScriptName,
@@ -44,6 +45,48 @@ test("legend or strategy report confirm chart presence", () => {
     hasLegendMatch: false,
     hasStrategyReportMatch: true,
     hasScriptNameMatch: false,
+  }), true);
+});
+
+test("editor diagnostics accept toolbar-only Pine editor states", () => {
+  assert.equal(editorDiagnosticsSuggestOpenHost({
+    textareaCount: { total: 0, visible: 0 },
+    contentEditableCount: { total: 0, visible: 0 },
+    monacoCount: { total: 0, visible: 0 },
+    pineContainerCount: { total: 0, visible: 0 },
+    pineButtonCount: 1,
+    pineButtons: ["Open script"],
+    pineTextCount: 3,
+    pineTexts: ["Update on chart", "Open script", "Pine Editor"],
+    relevantBodyLines: ["Update on chart", "Pine Editor"],
+  }), true);
+});
+
+test("editor diagnostics reject toolbar-free non-editor states", () => {
+  assert.equal(editorDiagnosticsSuggestOpenHost({
+    textareaCount: { total: 0, visible: 0 },
+    contentEditableCount: { total: 0, visible: 0 },
+    monacoCount: { total: 0, visible: 0 },
+    pineContainerCount: { total: 0, visible: 0 },
+    pineButtonCount: 1,
+    pineButtons: ["V2 Save"],
+    pineTextCount: 2,
+    pineTexts: ["Save", "Publish"],
+    relevantBodyLines: ["Save", "Publish"],
+  }), false);
+});
+
+test("editor diagnostics accept visible Pine editor containers", () => {
+  assert.equal(editorDiagnosticsSuggestOpenHost({
+    textareaCount: { total: 0, visible: 0 },
+    contentEditableCount: { total: 0, visible: 0 },
+    monacoCount: { total: 0, visible: 0 },
+    pineContainerCount: { total: 1, visible: 1 },
+    pineButtonCount: 0,
+    pineButtons: [],
+    pineTextCount: 0,
+    pineTexts: [],
+    relevantBodyLines: [],
   }), true);
 });
 

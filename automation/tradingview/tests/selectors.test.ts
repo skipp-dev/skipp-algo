@@ -58,12 +58,31 @@ test("publishedVersionContext requires immediate version evidence for the exact 
   assert.equal(calls.every((call) => call.includes("SMC Core") && call.includes("version")), true);
 });
 
-test("openScriptIdentity probes exact and fuzzy title contexts", () => {
+test("openScript excludes the chart indicators entry point", () => {
   const calls: string[] = [];
-  const fakeScopedLocator = {
+  const fakePage = {
+    getByRole: (_role: string, options: { name: RegExp }) => {
+      calls.push(`role:${options.name.source}`);
+      return { kind: "role" };
+    },
     getByText: (pattern: RegExp) => {
       calls.push(`text:${pattern.source}`);
       return { kind: "text" };
+    },
+  };
+
+  const locators = tvSelectors.openScript(fakePage as never);
+
+  assert.equal(locators.length, 3);
+  assert.equal(calls.some((call) => /indicators/i.test(call)), false);
+});
+
+test("openScriptIdentity probes exact and fuzzy title contexts", () => {
+  const calls: string[] = [];
+  const fakeScopedLocator = {
+    filter: (options: { hasText: RegExp }) => {
+      calls.push(`filter:${options.hasText.source}`);
+      return { kind: "filter" };
     },
   };
   const fakePage = {
@@ -87,7 +106,7 @@ test("openScriptIdentity probes exact and fuzzy title contexts", () => {
   assert.equal(calls.some((call) => call.includes("pine-dialog")), false);
   assert.equal(calls.some((call) => call.includes('[data-name*="editor" i]')), false);
   assert.equal(calls.some((call) => call.startsWith("title:") && call.includes("Board")), true);
-  assert.equal(calls.some((call) => call.startsWith("text:") && call.includes("Board")), true);
+  assert.equal(calls.some((call) => call.startsWith("filter:") && call.includes("Board")), true);
 });
 
 test("scriptLegendContainers only anchor exact script text descendants", () => {
@@ -114,11 +133,18 @@ test("scriptLegendContainers only anchor exact script text descendants", () => {
 
 test("scriptRow exact locator tolerates semantic version suffixes", () => {
   const calls: string[] = [];
+  const filteredScope = {
+    filter: (options: { hasText: RegExp }) => {
+      calls.push(options.hasText.source);
+      return { kind: "filter" };
+    },
+  };
   const fakeScope = {
     getByText: (pattern: RegExp) => {
       calls.push(pattern.source);
       return { kind: "text" };
     },
+    locator: (_selector: string) => filteredScope,
   };
   const fakePage = {
     locator: (_selector: string) => fakeScope,

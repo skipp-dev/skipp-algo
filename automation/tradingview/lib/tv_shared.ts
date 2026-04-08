@@ -32,6 +32,7 @@ export type EditorDiagnostics = {
   textareaCount: VisibleCount;
   contentEditableCount: VisibleCount;
   monacoCount: VisibleCount;
+  pineContainerCount: VisibleCount;
   pineButtonCount: number;
   pineButtons: string[];
   pineTextCount: number;
@@ -730,6 +731,23 @@ function canonicalVersionMetadataMatch(scriptName: string, uiText: string): bool
   return /^version\d/.test(compactSuffix);
 }
 
+function legacyOpenScriptNames(scriptName: string): string[] {
+  switch (normalizeUiText(scriptName).toLowerCase()) {
+    case "smc core":
+      return ["SMC Core Engine"];
+    case "smc decision board":
+      return ["SMC Dashboard"];
+    case "smc execution":
+      return ["SMC Long Strategy"];
+    default:
+      return [];
+  }
+}
+
+function openScriptIdentityNames(scriptName: string): string[] {
+  return uniqueNormalizedTexts([scriptName, ...legacyOpenScriptNames(scriptName)]);
+}
+
 function pineDeclarationCompanionMatch(scriptName: string, uiText: string): boolean {
   const normalizedCandidate = normalizeUiText(uiText);
   if (!/^(?:indicator|strategy|library)\s*\(/i.test(normalizedCandidate)) {
@@ -1006,20 +1024,23 @@ export function resolveOpenScriptIdentityEvidence(scriptName: string, options: {
   };
 }
 
-async function waitForOpenScriptIdentity(page: Page, scriptName: string, timeoutMs = 4_000): Promise<boolean> {
+async function waitForAnyOpenScriptIdentity(page: Page, scriptNames: string[], timeoutMs = 4_000): Promise<boolean> {
+  const normalizedNames = uniqueNormalizedTexts(scriptNames);
   const startedAt = Date.now();
 
   while (Date.now() - startedAt < timeoutMs) {
     const dialogStillVisible = await hasVisibleOpenScriptSurface(page, 500);
-    const editorContextTexts = await collectOpenScriptIdentityTexts(page, scriptName);
     const bodyText = await page.locator("body").innerText().catch(() => "");
 
-    if (verifyOpenScriptIdentity(scriptName, {
-      dialogStillVisible,
-      editorContextTexts,
-      bodyText,
-    })) {
-      return true;
+    for (const scriptName of normalizedNames) {
+      const editorContextTexts = await collectOpenScriptIdentityTexts(page, scriptName);
+      if (verifyOpenScriptIdentity(scriptName, {
+        dialogStillVisible,
+        editorContextTexts,
+        bodyText,
+      })) {
+        return true;
+      }
     }
 
     await page.waitForTimeout(250);
@@ -1030,26 +1051,85 @@ async function waitForOpenScriptIdentity(page: Page, scriptName: string, timeout
 
 function openScriptSurfaceScopes(page: Page): Locator[] {
   return [
+    page.locator('[data-name="indicators-dialog"]'),
     page.locator('[role="dialog"]'),
     page.locator('[data-name="menu-inner"]'),
   ];
 }
 
-function openScriptSurfaceSearchLocators(page: Page): Locator[] {
-  return openScriptSurfaceScopes(page).flatMap((scope) => [
-    scope.getByRole("textbox", { name: /search/i }),
-    scope.getByPlaceholder(/search/i),
-    scope.locator('input[type="search"]'),
-    scope.locator('input[placeholder*="Search" i]'),
-  ]);
+async function fillOpenScriptSearch(page: Page, value: string): Promise<boolean> {
+  for (const scope of openScriptSurfaceScopes(page)) {
+    const candidate = await firstVisibleLocator(scope.getByRole("textbox", { name: /search/i }), 750)
+      ?? await firstVisibleLocator(scope.getByPlaceholder(/search/i), 750)
+      ?? await firstVisibleLocator(scope.locator('input[type="search"], input[placeholder*="Search" i]'), 750);
+
+    if (!candidate) {
+      continue;
+    }
+
+    await candidate.fill(value);
+    await candidate.press("End").catch(() => undefined);
+    tracePageEvent(page, "open-script-search-fill", value);
+    await page.waitForTimeout(1_000);
+    return true;
+  }
+
+  tracePageEvent(page, "open-script-search-missing", value);
+  return false;
 }
 
 function openScriptSurfaceMyScriptsLocators(page: Page): Locator[] {
-  return openScriptSurfaceScopes(page).flatMap((scope) => [
-    scope.getByRole("tab", { name: /my scripts/i }),
-    scope.getByText(/my scripts/i),
-    scope.getByText(/personal/i),
-  ]);
+  return openScriptSurfaceScopes(page).flatMap((scope) => {
+    const myScriptsText = scope
+      .locator('[class*="title" i], [data-name*="title" i], [class*="label" i], [data-name*="label" i]')
+      .filter({ hasText: /^my scripts$/i })
+      .first();
+
+    return [
+      scope.getByRole("tab", { name: /my scripts/i }),
+      scope.getByRole("button", { name: /my scripts/i }),
+      scope.getByRole("link", { name: /my scripts/i }),
+      scope.getByRole("menuitem", { name: /my scripts/i }),
+      myScriptsText,
+      myScriptsText.locator('xpath=ancestor::*[@data-id or @role="tab" or @role="button" or @role="link" or @role="menuitem" or contains(@class, "item")][1]'),
+      scope.getByText(/^personal$/i),
+    ];
+  });
+}
+
+async function activateOpenScriptMyScriptsSection(page: Page): Promise<boolean> {
+  const clicked = await clickVisibleWithFallback(page, openScriptSurfaceMyScriptsLocators(page), "open-script-myscripts", 1_500, 600);
+
+  for (const scope of openScriptSurfaceScopes(page)) {
+    const textCandidate = await firstVisibleLocator(
+      scope
+        .locator('[class*="title" i], [data-name*="title" i], [class*="label" i], [data-name*="label" i]')
+        .filter({ hasText: /^my scripts$/i })
+        .first(),
+      500,
+    );
+    if (!textCandidate) {
+      continue;
+    }
+
+    const box = await textCandidate.boundingBox().catch(() => null);
+    if (!box || box.width <= 4 || box.height <= 4) {
+      continue;
+    }
+
+    const clickX = Math.max(4, Math.round(box.x - 24));
+    const clickY = Math.round(box.y + Math.max(3, Math.min(box.height / 2, box.height - 3)));
+
+    try {
+      await page.mouse.click(clickX, clickY);
+      await page.waitForTimeout(900);
+      return true;
+    } catch {
+      // Fall through to the generic click result.
+    }
+  }
+
+  return clicked;
 }
 
 async function hasVisibleOpenScriptSurface(page: Page, timeoutMs = 500): Promise<boolean> {
@@ -1221,6 +1301,10 @@ export async function collectEditorDiagnostics(page: Page): Promise<EditorDiagno
     page,
     '.monaco-editor, [class*="monaco-editor"], [data-name*="editor"]',
   );
+  const pineContainerCount = await countVisible(
+    page,
+    '#pine-editor-dialog, [data-name="pine-dialog"], [id*="pine-editor" i]',
+  );
   const pineButtons = compactTexts(
     await page.getByRole("button", { name: /pine|editor|save|publish/i }).allInnerTexts().catch(() => []),
     20,
@@ -1241,6 +1325,7 @@ export async function collectEditorDiagnostics(page: Page): Promise<EditorDiagno
     textareaCount,
     contentEditableCount,
     monacoCount,
+    pineContainerCount,
     pineButtonCount: pineButtons.length,
     pineButtons,
     pineTextCount: pineTexts.length,
@@ -1249,11 +1334,33 @@ export async function collectEditorDiagnostics(page: Page): Promise<EditorDiagno
   };
 }
 
+export function editorDiagnosticsSuggestOpenHost(diagnostics: EditorDiagnostics): boolean {
+  if (diagnostics.pineContainerCount.visible > 0) {
+    return true;
+  }
+
+  const toolbarSignals = [
+    ...diagnostics.pineButtons,
+    ...diagnostics.pineTexts,
+    ...diagnostics.relevantBodyLines,
+  ].map((value) => compactUiText(value));
+  const hasScriptToolbarSignal = toolbarSignals.some((value) =>
+    value.includes("pineeditor")
+    || value.includes("openscript")
+    || value.includes("updateonchart")
+    || value.includes("addtochart")
+    || value.includes("publishscript")
+  );
+
+  return hasScriptToolbarSignal;
+}
+
 function hasVisibleEditorHost(diagnostics: EditorDiagnostics): boolean {
   return (
     diagnostics.textareaCount.visible > 0 ||
     diagnostics.contentEditableCount.visible > 0 ||
-    diagnostics.monacoCount.visible > 0
+    diagnostics.monacoCount.visible > 0 ||
+    editorDiagnosticsSuggestOpenHost(diagnostics)
   );
 }
 
@@ -1262,8 +1369,10 @@ function formatEditorDiagnostics(diagnostics: EditorDiagnostics): string {
     `textarea visible ${diagnostics.textareaCount.visible}/${diagnostics.textareaCount.total}`,
     `contenteditable visible ${diagnostics.contentEditableCount.visible}/${diagnostics.contentEditableCount.total}`,
     `monaco visible ${diagnostics.monacoCount.visible}/${diagnostics.monacoCount.total}`,
+    `pine containers visible ${diagnostics.pineContainerCount.visible}/${diagnostics.pineContainerCount.total}`,
     `pine buttons ${diagnostics.pineButtonCount}`,
     `pine texts ${diagnostics.pineTextCount}`,
+    `toolbar host ${editorDiagnosticsSuggestOpenHost(diagnostics)}`,
   ].join(", ");
 }
 
@@ -1572,6 +1681,39 @@ async function clickVisibleWithFallback(
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error);
       tracePageEvent(page, `${tracePrefix}-dom-error`, `candidate:${index}:${message}`);
+    }
+  }
+
+  return false;
+}
+
+async function doubleClickVisible(page: Page, candidates: Locator[], tracePrefix: string, timeoutMs = 2_000, settleMs = 750): Promise<boolean> {
+  for (const [index, locator] of candidates.entries()) {
+    const candidate = await firstVisibleLocator(locator, timeoutMs);
+    if (!candidate) {
+      tracePageEvent(page, `${tracePrefix}-candidate-missing`, `candidate:${index}`);
+      continue;
+    }
+
+    tracePageEvent(page, `${tracePrefix}-candidate-visible`, `candidate:${index}`);
+
+    try {
+      await candidate.scrollIntoViewIfNeeded().catch(() => undefined);
+      await candidate.dblclick({ timeout: timeoutMs + 1_000 });
+      await page.waitForTimeout(settleMs);
+      return true;
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      tracePageEvent(page, `${tracePrefix}-dblclick-error`, `candidate:${index}:${message}`);
+    }
+
+    try {
+      await candidate.dblclick({ timeout: timeoutMs, force: true });
+      await page.waitForTimeout(settleMs);
+      return true;
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      tracePageEvent(page, `${tracePrefix}-force-error`, `candidate:${index}:${message}`);
     }
   }
 
@@ -1997,13 +2139,18 @@ async function openScriptSelectionSurface(page: Page): Promise<boolean> {
     return false;
   }
 
+   if (await waitForScriptSearchSurface(page, 1_200)) {
+    tracePageEvent(page, "open-script-surface-menu-direct");
+    return true;
+  }
+
   const openedFromMenu = await clickVisibleWithFallback(page, tvSelectors.openScriptAction(page), "open-script-surface-action", 1_500, 750);
   if (!openedFromMenu) {
     await page.keyboard.press("Escape").catch(() => undefined);
     return false;
   }
 
-  return true;
+  return waitForScriptSearchSurface(page, 1_500);
 }
 
 async function waitForScriptSearchSurface(page: Page, timeoutMs = 2_000): Promise<boolean> {
@@ -3835,7 +3982,17 @@ async function closePineEditorIfVisible(page: Page): Promise<void> {
 
 export async function openExistingScript(page: Page, scriptName: string): Promise<boolean> {
   return runTrackedStep(page, `openExistingScript:${scriptName}`, async () => {
-    for (let attempt = 0; attempt < 2; attempt += 1) {
+    const identityNames = openScriptIdentityNames(scriptName);
+    const searchNames = uniqueNormalizedTexts([scriptName, ...legacyOpenScriptNames(scriptName)]);
+    const totalAttempts = Math.max(2, searchNames.length);
+    const alreadyOpen = await waitForAnyOpenScriptIdentity(page, identityNames, 750).catch(() => false);
+    if (alreadyOpen) {
+      tracePageEvent(page, "open-script-identity-current", scriptName);
+      return true;
+    }
+
+    for (let attempt = 0; attempt < totalAttempts; attempt += 1) {
+      const searchName = searchNames[Math.min(attempt, searchNames.length - 1)] ?? scriptName;
       const openedDialog = await openScriptSelectionSurface(page);
       if (!openedDialog) {
         if (attempt === 0) {
@@ -3846,12 +4003,12 @@ export async function openExistingScript(page: Page, scriptName: string): Promis
         return false;
       }
 
-      await clickFirst(openScriptSurfaceMyScriptsLocators(page), 1_500);
-      await fillFirst(scriptName, openScriptSurfaceSearchLocators(page), 1_500);
+      await activateOpenScriptMyScriptsSection(page);
+      await fillOpenScriptSearch(page, searchName);
 
       const clickedScript = await clickVisibleWithFallback(
         page,
-        tvSelectors.scriptRow(page, scriptName),
+        tvSelectors.scriptRow(page, searchName),
         "open-script-row",
         3_000,
         1_000,
@@ -3860,18 +4017,26 @@ export async function openExistingScript(page: Page, scriptName: string): Promis
 
       let dialogStillVisible = await hasVisibleOpenScriptSurface(page, 750);
 
+      if (dialogStillVisible && clickedScript) {
+        await doubleClickVisible(page, tvSelectors.scriptRow(page, searchName), "open-script-row-confirm", 2_000, 1_000);
+        dialogStillVisible = await hasVisibleOpenScriptSurface(page, 750);
+      }
+
       if ((!clickedScript || dialogStillVisible)) {
         await page.keyboard.press("ArrowDown").catch(() => undefined);
         await page.keyboard.press("Enter").catch(() => undefined);
         await page.waitForTimeout(1_000);
       }
 
-      const identityVerified = await waitForOpenScriptIdentity(page, scriptName);
+      const identityVerified = await waitForAnyOpenScriptIdentity(page, identityNames);
       if (identityVerified) {
+        if (searchName !== scriptName) {
+          tracePageEvent(page, "open-script-legacy-alias", `${scriptName}<=${searchName}`);
+        }
         return true;
       }
 
-      tracePageEvent(page, "open-script-identity-retry", `${scriptName}:attempt=${attempt + 1}`);
+      tracePageEvent(page, "open-script-identity-retry", `${scriptName}:attempt=${attempt + 1}:search=${searchName}`);
       await page.keyboard.press("Escape").catch(() => undefined);
       await ensurePineEditor(page).catch(() => undefined);
       await page.waitForTimeout(500);
