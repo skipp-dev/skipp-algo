@@ -65,6 +65,7 @@ The canonical SMC TradingView gate is `npm run tv:preflight:smc-mainline`.
 It validates the active mainline path `SMC_Core_Engine.pine` +
 `SMC_Dashboard.pine` + `SMC_Long_Strategy.pine` against the product-cut
 manifest.
+The latest fully green SMC mainline evidence is `automation/tradingview/reports/preflight-2026-04-08T12-17-27-497Z.json`.
 
 Product-cut reference docs:
 

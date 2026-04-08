@@ -1524,13 +1524,18 @@ async function clickVisibleWithFallback(
   timeoutMs = 2_000,
   settleMs = 500,
 ): Promise<boolean> {
+  let missingCandidates = 0;
+
   for (const [index, locator] of candidates.entries()) {
     const candidate = await firstVisibleLocator(locator, timeoutMs);
     if (!candidate) {
-      tracePageEvent(page, `${tracePrefix}-candidate-missing`, `candidate:${index}`);
+      missingCandidates += 1;
       continue;
     }
 
+    if (missingCandidates > 0) {
+      tracePageEvent(page, `${tracePrefix}-candidate-miss-summary`, `count:${missingCandidates}`);
+    }
     tracePageEvent(page, `${tracePrefix}-candidate-visible`, `candidate:${index}`);
     if (tracePrefix.startsWith("publish-open")) {
       const candidateMeta = await candidate.evaluate((node) => {
@@ -1684,17 +1689,26 @@ async function clickVisibleWithFallback(
     }
   }
 
+  if (missingCandidates > 0) {
+    tracePageEvent(page, `${tracePrefix}-candidate-miss-summary`, `count:${missingCandidates}:no-visible-candidate`);
+  }
+
   return false;
 }
 
 async function doubleClickVisible(page: Page, candidates: Locator[], tracePrefix: string, timeoutMs = 2_000, settleMs = 750): Promise<boolean> {
+  let missingCandidates = 0;
+
   for (const [index, locator] of candidates.entries()) {
     const candidate = await firstVisibleLocator(locator, timeoutMs);
     if (!candidate) {
-      tracePageEvent(page, `${tracePrefix}-candidate-missing`, `candidate:${index}`);
+      missingCandidates += 1;
       continue;
     }
 
+    if (missingCandidates > 0) {
+      tracePageEvent(page, `${tracePrefix}-candidate-miss-summary`, `count:${missingCandidates}`);
+    }
     tracePageEvent(page, `${tracePrefix}-candidate-visible`, `candidate:${index}`);
 
     try {
@@ -1715,6 +1729,10 @@ async function doubleClickVisible(page: Page, candidates: Locator[], tracePrefix
       const message = error instanceof Error ? error.message : String(error);
       tracePageEvent(page, `${tracePrefix}-force-error`, `candidate:${index}:${message}`);
     }
+  }
+
+  if (missingCandidates > 0) {
+    tracePageEvent(page, `${tracePrefix}-candidate-miss-summary`, `count:${missingCandidates}:no-visible-candidate`);
   }
 
   return false;

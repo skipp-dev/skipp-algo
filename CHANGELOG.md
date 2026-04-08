@@ -14,8 +14,10 @@ All notable changes to this project are documented in this file.
   - Hardened Databento bundle base generation with a compatibility fallback from legacy `close` and `volume` columns when `day_close` or `day_volume` are absent in symbol-day features.
   - Fixed SMC news scoring so only actually mentioned universe tickers are exported, and hardened Pine CSV sharding so multi-part exports preserve comma boundaries instead of silently corrupting long strings.
   - Hardened TradingView exact-open verification so Pine declaration lines that carry a matching shorttitle no longer invalidate an otherwise correct `SMC Core` editor identity.
+  - Reduced TradingView open-script trace noise by collapsing repeated missing-candidate diagnostics into per-step summaries, while keeping the existing alias-based script recovery intact.
   - Decoupled micro-library publish status from the downstream repo-core preflight gate so exact/idempotent library publishes are reported as `published` while the overall command still stays failed when repo-core validation is red.
   - This removes the oversized neutral-news export path that surfaced during live micro-library validation and restores a compile-clean TradingView library generation path without changing the checked-in seed artifacts.
+  - The latest fully green SMC mainline evidence is `automation/tradingview/reports/preflight-2026-04-08T12-17-27-497Z.json`.
 
 ### Changed (2026-04-08)
 

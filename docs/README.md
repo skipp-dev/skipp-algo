@@ -53,3 +53,4 @@ Primary TradingView automation entry points:
 Current workspace caveat:
 
 - the TradingView automation layer, reports path, and auth artifacts are present in this checkout, so the documented preflight and micro-library publish paths are reproducible locally again; inspect the latest staged report before assuming every run covered binding and runtime scopes
+- latest fully green SMC mainline evidence: `automation/tradingview/reports/preflight-2026-04-08T12-17-27-497Z.json`
