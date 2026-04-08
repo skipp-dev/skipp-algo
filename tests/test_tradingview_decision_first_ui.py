@@ -28,7 +28,11 @@ def test_core_has_decision_first_hero_contract() -> None:
 def test_dashboard_has_companion_summary_and_pro_diagnostics() -> None:
     source = _read("SMC_Dashboard.pine")
 
+    assert 'var string g_surface = "1. Product Surface"' in source
+    assert 'var string g_bus_lifecycle = "2. Operator Only - Lifecycle BUS"' in source
+    assert 'var string g_local_debug = "8. Operator Only - Local Debug Mirrors"' in source
     assert 'surface_mode = input.string("Decision Brief"' in source
+    assert source.index('surface_mode = input.string("Decision Brief"') < source.index('src_zone_active = input.source(close, "BUS ZoneActive"')
     assert "dashboard_product_state_text(" in source
     assert 'dashboard_row(smc_dashboard, 0, "SMC Decision Board", "Decision Brief | Linked setup active"' in source
     assert 'dashboard_row(smc_dashboard, 0, "SMC Decision Board", "Audit View | Expert review", header_bg, txt)' in source

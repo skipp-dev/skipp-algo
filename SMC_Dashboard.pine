@@ -7,14 +7,19 @@
 
 indicator("SMC Decision Board", "SMC Decision Board", overlay = true, max_labels_count = 50)
 
-var string g_bus_lifecycle = "1. Core BUS - Lifecycle"
-var string g_bus_diag_rows = "2. Core BUS - Diagnostic Rows"
-var string g_bus_diag = "3. Core BUS - Diagnostic Support"
-var string g_bus_plan = "4. Core BUS - Trade Plan"
-var string g_bus_detail = "5. Core BUS - Detail Surface"
-var string g_bus_lean = "6. Core BUS - Lean Surface"
-var string g_local_debug = "7. Dashboard - Local Debug Mirrors"
-var string g_surface = "8. Product Surface"
+var string g_surface = "1. Product Surface"
+var string g_bus_lifecycle = "2. Operator Only - Lifecycle BUS"
+var string g_bus_diag_rows = "3. Operator Only - Diagnostic Rows"
+var string g_bus_diag = "4. Operator Only - Diagnostic Support"
+var string g_bus_plan = "5. Operator Only - Trade Plan"
+var string g_bus_detail = "6. Operator Only - Detail Surface"
+var string g_bus_lean = "7. Operator Only - Lean Surface"
+var string g_local_debug = "8. Operator Only - Local Debug Mirrors"
+
+surface_mode = input.string("Decision Brief", "View", options = ["Decision Brief", "Audit View"], group = g_surface, tooltip = "Decision Brief is the default linked companion surface. Audit View keeps the full expert table for review.")
+show_table = input.bool(true, "Show Brief Panel", group = g_surface)
+show_risk_lines = input.bool(true, "Show Trade Plan", group = g_surface)
+show_state_bg = input.bool(false, "Highlight Live Setup", group = g_surface)
 
 src_zone_active = input.source(close, "BUS ZoneActive", group = g_bus_lifecycle, display = display.none, tooltip = "Bind this section top-to-bottom to the matching hidden BUS series published by SMC Core.")
 src_armed = input.source(close, "BUS Armed", group = g_bus_lifecycle, display = display.none)
@@ -75,10 +80,6 @@ src_objects_count_pack = input.source(close, "BUS ObjectsCountPack", group = g_b
 src_lean_pack_a = input.source(close, "BUS LeanPackA", group = g_bus_lean, display = display.none, tooltip = "Lean surface bindings are grouped last because they are additive hero-surface feeds.")
 src_lean_pack_b = input.source(close, "BUS LeanPackB", group = g_bus_lean, display = display.none)
 
-surface_mode = input.string("Decision Brief", "View", options = ["Decision Brief", "Audit View"], group = g_surface, tooltip = "Decision Brief is the default linked companion surface. Audit View keeps the full expert table for review.")
-show_table = input.bool(true, "Show Brief Panel", group = g_surface)
-show_risk_lines = input.bool(true, "Show Trade Plan", group = g_surface)
-show_state_bg = input.bool(false, "Highlight Live Setup", group = g_surface)
 local_ob_debug_enabled = input.bool(false, "OB Debug Enabled", group = g_local_debug, display = display.none, tooltip = "Mirror the core's effective debug flags here if you want the local Debug Flags and Long Debug rows to match the core setup.")
 local_fvg_debug_enabled = input.bool(false, "FVG Debug Enabled", group = g_local_debug, display = display.none)
 local_engine_debug_enabled = input.bool(false, "Long Engine Debug Enabled", group = g_local_debug, display = display.none)
