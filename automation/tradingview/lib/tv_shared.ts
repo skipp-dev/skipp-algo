@@ -730,6 +730,25 @@ function canonicalVersionMetadataMatch(scriptName: string, uiText: string): bool
   return /^version\d/.test(compactSuffix);
 }
 
+function pineDeclarationCompanionMatch(scriptName: string, uiText: string): boolean {
+  const normalizedCandidate = normalizeUiText(uiText);
+  if (!/^(?:indicator|strategy|library)\s*\(/i.test(normalizedCandidate)) {
+    return false;
+  }
+
+  const declarationLabels = [...normalizedCandidate.matchAll(/["']([^"']+)["']/g)]
+    .map((match) => normalizeUiText(match[1] ?? ""))
+    .filter(Boolean);
+  const compactScriptName = compactUiText(scriptName);
+
+  return declarationLabels.some((label) =>
+    uiTextContainsExactScriptName(scriptName, label)
+    || (compactScriptName.length > 0 && compactUiText(label) === compactScriptName)
+    || canonicalSemanticVersionSuffixMatch(scriptName, label)
+    || canonicalVersionMetadataMatch(scriptName, label)
+  );
+}
+
 function importReferenceCompanionMatch(scriptName: string, uiText: string): boolean {
   const normalizedCandidate = normalizeUiText(uiText);
   if (!/^(?:\/\/\s*)?import\s+/i.test(normalizedCandidate)) {
@@ -738,6 +757,24 @@ function importReferenceCompanionMatch(scriptName: string, uiText: string): bool
 
   const compactScriptName = compactUiText(scriptName);
   return Boolean(compactScriptName) && compactUiText(normalizedCandidate).includes(compactScriptName);
+}
+
+function nonIdentityEditorCompanionMatch(uiText: string): boolean {
+  const normalizedCandidate = normalizeUiText(uiText);
+  if (!normalizedCandidate) {
+    return false;
+  }
+  if (/^[a-z0-9_.-]+(?:\/[a-z0-9_.-]+){2,}$/i.test(normalizedCandidate)) {
+    return true;
+  }
+  if (/\b[a-z_][a-z0-9_]*\.[a-z_][a-z0-9_]*\b/i.test(normalizedCandidate) && /[_/]/.test(normalizedCandidate)) {
+    return true;
+  }
+  if (/[()\[\]{}]/.test(normalizedCandidate) && /[_/]/.test(normalizedCandidate)) {
+    return true;
+  }
+
+  return false;
 }
 
 function buildAnchoredScriptNamePattern(scriptName: string): RegExp | null {
@@ -862,7 +899,13 @@ function hasConflictingCanonicalEditorContext(scriptName: string, editorContextT
     if (canonicalVersionMetadataMatch(scriptName, candidate)) {
       return false;
     }
+    if (pineDeclarationCompanionMatch(scriptName, candidate)) {
+      return false;
+    }
     if (importReferenceCompanionMatch(scriptName, candidate)) {
+      return false;
+    }
+    if (nonIdentityEditorCompanionMatch(candidate)) {
       return false;
     }
     if (isObviousGenericUiText(candidate)) {

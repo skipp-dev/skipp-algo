@@ -222,6 +222,29 @@ test("verifyOpenScriptIdentity tolerates import-line companion context", () => {
   }), true);
 });
 
+test("verifyOpenScriptIdentity tolerates Pine declaration companion context when the shorttitle matches", () => {
+  assert.equal(verifyOpenScriptIdentity(CORE_SCRIPT, {
+    dialogStillVisible: false,
+    editorContextTexts: [
+      CORE_SCRIPT,
+      'indicator("SMC Core Engine", "SMC Core", overlay = true)',
+    ],
+    bodyText: `Workspace body ${CORE_SCRIPT}`,
+  }), true);
+});
+
+test("verifyOpenScriptIdentity tolerates non-identity editor code companion context", () => {
+  assert.equal(verifyOpenScriptIdentity(CORE_SCRIPT, {
+    dialogStillVisible: false,
+    editorContextTexts: [
+      CORE_SCRIPT,
+      "preuss_steffen/smc_core_types/1",
+      "lBreakMode, ct.SignalMode) live in smc_core_types",
+    ],
+    bodyText: `Workspace body ${CORE_SCRIPT}`,
+  }), true);
+});
+
 test("verifyOpenScriptIdentity accepts semantic version suffix context", () => {
   assert.equal(verifyOpenScriptIdentity("SkippALGO", {
     dialogStillVisible: false,

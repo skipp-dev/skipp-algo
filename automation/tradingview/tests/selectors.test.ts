@@ -83,8 +83,9 @@ test("openScriptIdentity probes exact and fuzzy title contexts", () => {
 
   const locators = tvSelectors.openScriptIdentity(fakePage as never, "SMC Decision Board");
 
-  assert.equal(locators.length, 16);
-  assert.equal(calls.some((call) => call.includes("pine-dialog")), true);
+  assert.equal(locators.length, 12);
+  assert.equal(calls.some((call) => call.includes("pine-dialog")), false);
+  assert.equal(calls.some((call) => call.includes('[data-name*="editor" i]')), false);
   assert.equal(calls.some((call) => call.startsWith("title:") && call.includes("Board")), true);
   assert.equal(calls.some((call) => call.startsWith("text:") && call.includes("Board")), true);
 });

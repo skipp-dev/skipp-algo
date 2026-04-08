@@ -214,7 +214,7 @@ test("manual publish semantics remain explicit when no open gate or publish atte
   });
 });
 
-test("publish report stays not_verified when repo core validation fails despite exact identity and version", () => {
+test("publish report keeps published status but overall ok false when repo core validation fails", () => {
   assert.deepEqual(resolvePublishReportState({
     openGateAttempted: true,
     publishAttempted: true,
@@ -226,7 +226,7 @@ test("publish report stays not_verified when repo core validation fails despite 
   }), {
     ok: false,
     publishOk: true,
-    publishStatus: "not_verified",
+    publishStatus: "published",
   });
 });
 

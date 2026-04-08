@@ -169,11 +169,9 @@ export const tvSelectors = {
 
   openScriptIdentity(page: Page, scriptName: string): Locator[] {
     const [exact, , fuzzy] = scriptNamePatterns(scriptName);
-    const pineDialogScope = page.locator('[data-name="pine-dialog"], #pine-editor-dialog, [id*="pine-editor" i]');
     const titleScopes = [
       page.locator('[data-name*="title" i]'),
       page.locator('[data-name*="header" i]'),
-      page.locator('[data-name*="editor" i]'),
       page.locator('[class*="title" i]'),
       page.locator('[class*="header" i]'),
     ];
@@ -181,10 +179,8 @@ export const tvSelectors = {
     return [
       page.getByRole("button", { name: exact }),
       page.getByRole("tab", { name: exact }),
+      page.getByRole("heading", { name: exact }),
       page.getByTitle(exact),
-      page.getByTitle(fuzzy),
-      pineDialogScope.getByText(exact),
-      pineDialogScope.getByText(fuzzy),
       ...titleScopes.flatMap((locator) => [
         locator.getByText(exact),
         locator.getByText(fuzzy),

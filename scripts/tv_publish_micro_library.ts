@@ -614,7 +614,7 @@ export function resolvePublishReportState(options: {
     && options.publishedVersion !== null
     && options.publishedVersion === options.expectedVersion;
 
-  const publishStatus = publishOk && options.repoCoreValidationOk
+  const publishStatus = publishOk
     ? "published"
     : options.openGateAttempted || options.publishAttempted
       ? "not_verified"
