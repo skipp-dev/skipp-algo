@@ -145,6 +145,7 @@ the dashboard reconstructs the former module and engine transport rows locally.
 1. The script compiles without errors.
 2. No visible runtime errors remain in the chart overlay.
 3. All 58 dashboard bindings listed in [tradingview-validation-checklist.md](tradingview-validation-checklist.md) are selectable.
+4. With `Focus View` enabled, the chart keeps one hero card, hides standalone warning labels plus strong/weak swing levels, and only shows `Core Trigger` / `Core Invalidation` once the setup is at least `Ready`.
 
 ### Producer Pass/Fail Criteria
 
@@ -153,12 +154,14 @@ Pass:
 1. Core compiles.
 2. No runtime error is visible.
 3. All 58 series are selectable.
+4. `Focus View` matches the compact first-run surface contract.
 
 Fail:
 
 1. Compile error.
 2. Runtime error.
 3. Missing or incorrectly named bus series.
+4. Focus View shows duplicate warning labels, default swing levels, or pre-`Ready` trade lines.
 
 ## Dashboard Validation
 

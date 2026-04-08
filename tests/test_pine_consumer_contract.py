@@ -873,6 +873,10 @@ class TestV55bContractSync:
         ]
         for s in expected_suppressions:
             assert s in text, f"compact_mode must contain: {s}"
+        assert "bool show_swing_points_eff = show_swing_points and not compact_mode" in text
+        assert "show_chart_swing_levels := not compact_mode" in text
+        assert "if compact_mode\n        if not na(volume_quality_warning)" in text
+        assert "if compact_mode\n        if not na(strict_ltf_warning)" in text
         # Visible overlays must keep using _eff guards even after moving off plot() budget.
         assert "draw_overlay_line_tail(session_vwap_overlay_segments, show_session_vwap_eff and intraday_time_chart, session_vwap" in text
         assert "draw_overlay_line_tail(ema_fast_overlay_segments, show_ema_support_eff, ema_fast" in text

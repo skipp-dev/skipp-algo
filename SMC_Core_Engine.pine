@@ -2385,43 +2385,42 @@ resolve_core_bias_text(string signal_bias_alignment) =>
     bias_text
 
 compose_why_now_text(string product_state, string long_setup_source_display, string signal_freshness, string signal_warnings, string long_ready_blocker_text, string long_strict_blocker_text, float long_trigger) =>
-    string why_now = 'Wait for a fresh reclaim into a valid pullback zone'
+    string why_now = 'No confirmed reclaim yet'
     string ready_text = str.lower(long_ready_blocker_text)
     string strict_text = str.lower(long_strict_blocker_text)
     if product_state == 'ENTER LONG'
-        why_now := 'Trigger is live; execution conditions passed'
+        why_now := 'Trigger is live'
     else if product_state == 'READY LONG'
         why_now := 'Confirmed setup is ready'
         if not na(long_trigger)
             why_now += '; watch ' + u.format_level(long_trigger)
     else if product_state == 'PREPARE LONG'
-        why_now := long_setup_source_display == 'None' ? 'Wait for reclaim confirmation' : long_setup_source_display + ' is building; wait for reclaim confirmation'
+        why_now := long_setup_source_display == 'None' ? 'Wait for reclaim confirmation' : long_setup_source_display + ' zone is active'
     else if product_state == 'BLOCKED'
         if long_ready_blocker_text != '' and ready_text != 'ready'
             why_now := long_ready_blocker_text
         else if long_strict_blocker_text != '' and strict_text != 'strict'
             why_now := long_strict_blocker_text
         else
-            why_now := 'Setup invalidated; wait for a fresh reclaim'
-    if signal_freshness == 'fresh' and product_state != 'WAIT' and product_state != 'BLOCKED'
-        why_now += ' | fresh setup'
-    else if signal_freshness == 'aging' and product_state != 'WAIT' and product_state != 'BLOCKED'
-        why_now += ' | aging setup'
-    if signal_warnings != ''
-        why_now += ' | caution: ' + signal_warnings
+            why_now := 'Setup invalidated; wait for reset'
+    if product_state == 'READY LONG' or product_state == 'ENTER LONG'
+        if signal_freshness == 'fresh'
+            why_now += ' | fresh'
+        else if signal_freshness == 'aging'
+            why_now += ' | aging'
     why_now
 
-compose_main_risk_text(string event_risk_state, string long_ready_blocker_text, string long_strict_blocker_text, string long_last_invalid_source, string signal_warnings, string provider_status) =>
-    string main_risk = 'No active blocker'
+compose_main_risk_text(string product_state, string event_risk_state, string long_ready_blocker_text, string long_strict_blocker_text, string long_last_invalid_source, string signal_warnings, string provider_status) =>
+    string main_risk = product_state == 'BLOCKED' ? 'Setup is blocked' : ((product_state == 'READY LONG' or product_state == 'ENTER LONG') ? 'No active blocker' : 'No trade plan yet')
     string ready_text = str.lower(long_ready_blocker_text)
     string strict_text = str.lower(long_strict_blocker_text)
     if event_risk_state == 'blocked'
-        main_risk := 'Event risk is blocking entries'
+        main_risk := 'Event risk is blocking'
     else if event_risk_state == 'caution'
         main_risk := 'Event risk is elevated'
     else if long_ready_blocker_text != '' and ready_text != 'ready'
         main_risk := long_ready_blocker_text
-    else if long_strict_blocker_text != '' and strict_text != 'ready'
+    else if long_strict_blocker_text != '' and strict_text != 'strict'
         main_risk := long_strict_blocker_text
     else if long_last_invalid_source != 'None'
         main_risk := 'Last invalidation came from ' + long_last_invalid_source
@@ -2432,7 +2431,14 @@ compose_main_risk_text(string event_risk_state, string long_ready_blocker_text, 
     main_risk
 
 compose_trade_threshold_text(string trust_tier, int signal_quality_score) =>
-    trust_tier
+    string confidence_text = 'Caution'
+    if trust_tier == 'Strong'
+        confidence_text := 'High'
+    else if trust_tier == 'Usable'
+        confidence_text := 'Usable'
+    else if trust_tier == 'Thin'
+        confidence_text := 'Thin'
+    confidence_text
 
 resolve_core_hero_color(string product_state) =>
     color hero_color = color.new(color.gray, 70)
@@ -3891,7 +3897,11 @@ bool collect_ob_profile_current_bar = use_ob_profile_effective and volume_curren
 
 var label volume_quality_warning = na
 if barstate.islast
-    if not volume_current_bar_ok or not volume_feed_quality_ok
+    if compact_mode
+        if not na(volume_quality_warning)
+            label.delete(volume_quality_warning)
+            volume_quality_warning := na
+    else if not volume_current_bar_ok or not volume_feed_quality_ok
         string profile_warning_text = 'OB profiles are on'
         if not use_ob_profile
             profile_warning_text := 'OB profiles are already off'
@@ -4065,7 +4075,11 @@ if use_ltf_for_strict_entry_eff and not barstate.isrealtime and not strict_ltf_a
     strict_ltf_unverifiable := true
 var label strict_ltf_warning = na
 if barstate.islast
-    if strict_ltf_unavailable and not allow_strict_entry_without_ltf
+    if compact_mode
+        if not na(strict_ltf_warning)
+            label.delete(strict_ltf_warning)
+            strict_ltf_warning := na
+    else if strict_ltf_unavailable and not allow_strict_entry_without_ltf
         string strict_ltf_reason_text = 'LTF sampling is unavailable'
         if not enable_ltf_sampling
             strict_ltf_reason_text := 'LTF sampling is turned off'
@@ -4935,15 +4949,16 @@ if show_internals and (show_bull == 'All' or show_bull == 'CHoCH')
     show_internal_bull_choch := true
 
 // Pivot labels (HH/LH/HL/LL)
-if show_swing_points
-    plot_pivot_points(1, top_x, top, show_swing_points and not na(hh), d.LabelArgs.new(bear_css, #00000000, size = size.small, style = label.style_label_down), keep_history = keep_visual_history_eff)
-    plot_pivot_points(-1, btm_x, btm, show_swing_points and not na(ll), d.LabelArgs.new(bull_css, #00000000, size = size.small, style = label.style_label_up), keep_history = keep_visual_history_eff)
+bool show_swing_points_eff = show_swing_points and not compact_mode
+if show_swing_points_eff
+    plot_pivot_points(1, top_x, top, show_swing_points_eff and not na(hh), d.LabelArgs.new(bear_css, #00000000, size = size.small, style = label.style_label_down), keep_history = keep_visual_history_eff)
+    plot_pivot_points(-1, btm_x, btm, show_swing_points_eff and not na(ll), d.LabelArgs.new(bull_css, #00000000, size = size.small, style = label.style_label_up), keep_history = keep_visual_history_eff)
 
 // UX-Fix:
 // If the user enables swing points they usually also expect the active swing levels.
 bool show_chart_swing_levels = false
 if show_latest_swings_levels or show_swing_points
-    show_chart_swing_levels := true
+    show_chart_swing_levels := not compact_mode
 
 if show_chart_swing_levels
     plot_swing_levels(1, trail_up_x, trail_up, structure_display_trend, true, d.LabelArgs.new(bear_css, #00000000, size = size.small, style = label.style_label_left), d.LineArgs.new(bear_css, line.style_solid, 2), override_right_index = bar_index + 20)
@@ -5949,7 +5964,7 @@ plot(long_state.confirmed ? 1.0 : 0.0, 'BUS Confirmed', display = display.none)
 plot(long_ready_state ? 1.0 : 0.0, 'BUS Ready', display = display.none)
 plot(long_entry_best_state ? 1.0 : 0.0, 'BUS EntryBest', display = display.none)
 plot(long_entry_strict_state ? 1.0 : 0.0, 'BUS EntryStrict', display = display.none)
-bool core_plan_visible = long_visual_state >= 5 and not na(long_state.trigger) and not na(long_state.invalidation_level)
+bool core_plan_visible = (long_ready_state or long_entry_best_state or long_entry_strict_state) and not na(long_state.trigger) and not na(long_state.invalidation_level)
 plot(core_plan_visible ? long_state.trigger : na, 'Core Trigger', color = color.new(color.aqua, 0), linewidth = 2, style = plot.style_linebr)
 plot(core_plan_visible ? long_state.invalidation_level : na, 'Core Invalidation', color = color.new(color.orange, 0), linewidth = 2, style = plot.style_linebr)
 plot(bus_trigger_level, 'BUS Trigger', display = display.none)
@@ -6016,7 +6031,7 @@ if barstate.islast and compact_mode
     string core_trust_tier = resolve_trust_tier(lib_sq_tier, lib_sq_freshness, lib_erl_provider_status)
     string core_trade_threshold = compose_trade_threshold_text(core_trust_tier, lib_sq_score)
     string core_why_now = compose_why_now_text(core_product_state, long_setup_source_display, lib_sq_freshness, lib_sq_warnings, long_ready_blocker_text, long_strict_blocker_text, long_state.trigger)
-    string core_main_risk = compose_main_risk_text(event_risk_state, long_ready_blocker_text, long_strict_blocker_text, long_state.last_invalid_source, lib_sq_warnings, lib_erl_provider_status)
+    string core_main_risk = compose_main_risk_text(core_product_state, event_risk_state, long_ready_blocker_text, long_strict_blocker_text, long_state.last_invalid_source, lib_sq_warnings, lib_erl_provider_status)
     string core_hero_text = compose_core_hero_text(core_product_state, core_bias_text, core_trade_threshold, core_why_now, core_main_risk)
     float core_hero_y = high + nz(atr, high * 0.01) * 1.15
     core_hero_card := label.new(bar_index, core_hero_y, core_hero_text, color = resolve_core_hero_color(core_product_state), textcolor = color.white, style = label.style_label_left, size = size.small)

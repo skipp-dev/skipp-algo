@@ -32,6 +32,9 @@ def test_core_has_decision_first_hero_contract() -> None:
     assert "performance_mode = input.string('Balanced', 'Performance Mode', options = ['Light', 'Balanced', 'Pro', 'Debug'], group = g_runtime" in source
     assert 'Focus View' in source
     assert 'Confidence: ' in source
+    assert "why_now := 'Trigger is live'" in source
+    assert "string core_main_risk = compose_main_risk_text(core_product_state, event_risk_state" in source
+    assert "bool core_plan_visible = (long_ready_state or long_entry_best_state or long_entry_strict_state)" in source
     assert "plot(core_plan_visible ? long_state.trigger : na, 'Core Trigger'" in source
     assert "plot(core_plan_visible ? long_state.invalidation_level : na, 'Core Invalidation'" in source
 

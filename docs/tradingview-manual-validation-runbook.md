@@ -151,6 +151,7 @@ rekonstruiert.
 1. Das Skript kompiliert ohne Fehler.
 2. Es bleiben keine sichtbaren Laufzeitfehler im Chart-Overlay zurück.
 3. Alle 58 Dashboard-Bindings aus [tradingview-validation-checklist.md](tradingview-validation-checklist.md) sind auswählbar.
+4. Mit aktiviertem `Focus View` bleibt genau eine Hero-Card sichtbar, separate Warning-Labels sowie Strong/Weak-Swing-Level verschwinden, und `Core Trigger` / `Core Invalidation` erscheinen erst ab mindestens `Ready`.
 
 ### Producer Pass/Fail-Kriterien
 
@@ -159,12 +160,14 @@ Pass:
 1. Core kompiliert.
 2. Keine Laufzeitfehlermeldung.
 3. Alle 58 Serien sind auswählbar.
+4. `Focus View` entspricht dem kompakten First-Run-Vertrag.
 
 Fail:
 
 1. Compile-Fehler.
 2. Laufzeitfehler.
 3. Fehlende oder falsch benannte Bus-Serien.
+4. Focus View zeigt doppelte Warning-Labels, Default-Swing-Level oder Trade-Linien vor `Ready`.
 
 ## Dashboard-Prüfung
 

@@ -25,6 +25,12 @@ All notable changes to this project are documented in this file.
   - Reprioritized `SMC_Core_Engine.pine` settings into `Core Setup`, `Output`, `Trade Plan`, `Session Gate`, and `Runtime Budget`, with the remaining technical groups marked as `Advanced`.
   - Refreshed the operator guide, strategy guide, validation runbooks, and checklist so the active docs match the shipped TradingView settings surface.
 
+- **SMC core first-run hero and overlay cut:**
+  - Tightened the `SMC_Core_Engine.pine` Focus View hero copy so `Why now` and `Main risk` stay short and confidence remains tier-based instead of pseudo-precise.
+  - Made `Core Trigger` and `Core Invalidation` explicitly depend on the actionable `Ready` / entry states rather than a broader visual-state threshold.
+  - Suppressed standalone volume and strict-LTF warning labels plus default strong/weak swing overlays in Focus View so the hero stays the only primary first-run message.
+  - Updated the focused TradingView UI and contract tests plus the manual validation docs to lock the compact-surface behavior in place.
+
 ### Changed (2026-04-07)
 
 - **SMC mainline surface implementation wave:**
