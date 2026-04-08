@@ -22,7 +22,7 @@ public and expert product surfaces:
 1. Core first-run chart
 2. Dashboard in `Decision Brief`
 3. Dashboard in `Audit View`
-4. Strategy execution chart with `Entry Price`, `Stop Loss`, and `Profit Target`
+4. Strategy execution chart with `Execution Trigger`, `Execution Invalidation`, and `Execution Take Profit`
 
 Pine editor screenshots and settings-only captures are still useful for
 debugging, but they are not sufficient as product-surface evidence.

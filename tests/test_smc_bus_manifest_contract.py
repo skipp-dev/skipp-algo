@@ -253,3 +253,20 @@ def test_product_cut_payload_exports_governance_metadata() -> None:
     assert payload['deprecatedFieldPolicy']['preferredFieldVersion'] == 'v5.5b'
     assert payload['deprecatedFieldPolicy']['extensionAllowed'] is False
     assert 'event_risk_v5' in payload['deprecatedFieldPolicy']['deprecatedGroups']
+
+
+def test_product_cut_payload_exports_validation_evidence_pack() -> None:
+    payload = MANIFEST.build_product_cut_manifest_payload()
+    evidence = payload['validationEvidence']
+
+    assert evidence['captureMode'] == MANIFEST.VALIDATION_EVIDENCE_CAPTURE_MODE
+    assert evidence['editorScreenshotsAllowed'] == MANIFEST.VALIDATION_EVIDENCE_EDITOR_SCREENSHOTS_ALLOWED
+    assert evidence['editorScreenshotsAllowed'] is False
+    assert [item['report_label'] for item in evidence['requiredCaptures']] == [
+        capture.report_label
+        for capture in MANIFEST.VALIDATION_EVIDENCE_CAPTURES
+    ]
+    assert [item['file'] for item in evidence['requiredCaptures']] == [
+        capture.file
+        for capture in MANIFEST.VALIDATION_EVIDENCE_CAPTURES
+    ]

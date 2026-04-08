@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
 
 ROOT = Path(__file__).resolve().parent.parent
 
 
-def _load_json(path: str) -> dict:
+def _load_json(path: str) -> Any:
     return json.loads((ROOT / path).read_text(encoding = 'utf-8'))
 
 
@@ -37,6 +38,19 @@ def test_preflight_configs_use_canonical_product_cut_scopes() -> None:
     assert _load_json('automation/tradingview/preflight-decision-first.json') == {
         'productCutScope': 'smcDecisionFirst',
     }
+
+
+def test_product_cut_manifest_exports_validation_evidence_policy() -> None:
+    from scripts.smc_bus_manifest import VALIDATION_EVIDENCE_CAPTURES
+
+    evidence = _load_json('artifacts/tradingview/smc_product_cut_manifest.json')['validationEvidence']
+
+    assert evidence['captureMode'] == 'rendered_chart_only'
+    assert evidence['editorScreenshotsAllowed'] is False
+    assert [item['report_label'] for item in evidence['requiredCaptures']] == [
+        capture.report_label
+        for capture in VALIDATION_EVIDENCE_CAPTURES
+    ]
 
 
 def test_library_release_manifest_tracks_product_cut_roles() -> None:

@@ -68,13 +68,13 @@ decision explicitly reopens it.
 
 The visible product surface of the strategy is intentionally small:
 
-- `Entry Stage` (`entry_mode`) selects which already-exported execution
+- `Execution Stage` (`entry_mode`) selects which already-exported execution
   tier the surface uses.
-- `Minimum Setup Quality` (`min_quality_score`) adds a wrapper-level threshold
+- `Minimum Quality Score` (`min_quality_score`) adds a wrapper-level threshold
   before the linked core setup can stage an execution plan.
-- `Profit Target (R)` (`take_profit_r`) controls the wrapper take-profit plan
+- `Take Profit (R)` (`take_profit_r`) controls the wrapper take-profit plan
   distance.
-- `Enable Profit Target` (`use_take_profit`) toggles the wrapper take-profit
+- `Use Take Profit` (`use_take_profit`) toggles the wrapper take-profit
   behavior.
 
 These controls change wrapper behavior only. They do not widen the linked core
@@ -88,9 +88,9 @@ In TradingView the settings surface should expose `Execution Setup` and
 The strategy exposes the current execution plan with product terminology on the
 chart:
 
-- `Entry Price`
-- `Stop Loss`
-- `Profit Target`
+- `Execution Trigger`
+- `Execution Invalidation`
+- `Execution Take Profit`
 
 Those plots make the wrapper plan legible without turning the strategy into a
 second diagnostics surface.

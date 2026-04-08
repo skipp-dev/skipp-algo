@@ -48,7 +48,7 @@ Workspace-Refresh: 2026-04-07
 
 1. Zuerst `npm run tv:preflight:smc-mainline` als kanonischen Mainline-Gate-Lauf ausfuehren.
 2. Danach dieses Runbook nutzen, wenn ein manueller Gegencheck oder ein extern dokumentierter Review-Lauf gebraucht wird.
-3. Fuer die kanonische Rollen-, Scope- und Binding-Quelle immer `scripts/smc_bus_manifest.py` plus `artifacts/tradingview/smc_product_cut_manifest.json` heranziehen.
+3. Fuer die kanonische Rollen-, Scope-, Binding- und Product-Surface-Evidence-Quelle immer `scripts/smc_bus_manifest.py` plus `artifacts/tradingview/smc_product_cut_manifest.json` heranziehen.
 
 ## Empfohlene Reihenfolge In TradingView
 
@@ -190,10 +190,13 @@ Fail:
 1. Die fünf Szenarien aus [tradingview-validation-checklist.md](tradingview-validation-checklist.md) nacheinander prüfen.
 2. Zusätzlich die geforderte Product-Surface-Evidence sichern:
 
+Die kanonische Product-Surface-Evidence liegt im `validationEvidence`-Block des Artifacts `artifacts/tradingview/smc_product_cut_manifest.json`.
+Nur gerenderte Chart-Screenshots erfassen, keine Pine-Editor-Screenshots.
+
 - gerenderter Core-First-Run-Screen
 - gerenderter Dashboard-Screen in `Decision Brief`
 - gerenderter Dashboard-Screen in `Audit View`
-- gerenderter Strategy-Screen mit `Entry Price`, `Stop Loss` und `Profit Target`, wenn ein Plan aktiv ist
+- gerenderter Strategy-Screen mit `Execution Trigger`, `Execution Invalidation` und `Execution Take Profit`, wenn ein Plan aktiv ist
 
 ### Dashboard Erwartete Beobachtungen
 
@@ -272,7 +275,7 @@ Fail:
 
 1. [../SMC_Long_Strategy.pine](../SMC_Long_Strategy.pine) auf denselben Chart legen.
 2. Die 8 `input.source()`-Felder exakt mit den Core-Serien belegen.
-3. `Entry Stage`, `Entry Price`, `Stop Loss` und `Profit Target` gegen den dokumentierten Vertrag prüfen.
+3. `Execution Stage`, `Execution Trigger`, `Execution Invalidation` und `Execution Take Profit` gegen den dokumentierten Vertrag prüfen.
 
 ### Strategy Erwartete Beobachtungen
 
@@ -289,7 +292,7 @@ Fail:
 - `BUS QualityScore`
 
 1. Die Strategy hängt nur von diesen 8 Kanälen ab.
-2. Entry Price und Stop Loss sind konsistent.
+2. Execution Trigger und Execution Invalidation sind konsistent.
 3. Stop und Take-Profit verhalten sich konsistent zur Risk-Struktur.
 
 ### Strategy Pass/Fail-Kriterien

@@ -499,6 +499,56 @@
       }
     ]
   },
+  "validationEvidence": {
+    "captureMode": "rendered_chart_only",
+    "editorScreenshotsAllowed": false,
+    "requiredCaptures": [
+      {
+        "key": "core_first_run",
+        "file": "SMC_Core_Engine.pine",
+        "script_name": "SMC Core",
+        "report_label": "Core first-run",
+        "runbook_label_en": "rendered Core first-run screen",
+        "runbook_label_de": "gerenderter Core-First-Run-Screen",
+        "notes": [
+          "Capture the chart-rendered Focus View first-run surface."
+        ]
+      },
+      {
+        "key": "dashboard_decision_brief",
+        "file": "SMC_Dashboard.pine",
+        "script_name": "SMC Decision Board",
+        "report_label": "Dashboard Decision Brief",
+        "runbook_label_en": "rendered Dashboard screen in `Decision Brief`",
+        "runbook_label_de": "gerenderter Dashboard-Screen in `Decision Brief`",
+        "notes": [
+          "Capture the linked companion default brief surface."
+        ]
+      },
+      {
+        "key": "dashboard_audit_view",
+        "file": "SMC_Dashboard.pine",
+        "script_name": "SMC Decision Board",
+        "report_label": "Dashboard Audit View",
+        "runbook_label_en": "rendered Dashboard screen in `Audit View`",
+        "runbook_label_de": "gerenderter Dashboard-Screen in `Audit View`",
+        "notes": [
+          "Capture the expert review surface separately from the Decision Brief."
+        ]
+      },
+      {
+        "key": "strategy_execution_plan",
+        "file": "SMC_Long_Strategy.pine",
+        "script_name": "SMC Execution",
+        "report_label": "Strategy execution",
+        "runbook_label_en": "rendered Strategy screen with `Execution Trigger`, `Execution Invalidation`, and `Execution Take Profit` when a plan is active",
+        "runbook_label_de": "gerenderter Strategy-Screen mit `Execution Trigger`, `Execution Invalidation` und `Execution Take Profit`, wenn ein Plan aktiv ist",
+        "notes": [
+          "Capture the rendered execution plan, not the Pine editor state."
+        ]
+      }
+    ]
+  },
   "deprecatedFieldPolicy": {
     "mode": "compatibility_only",
     "preferredFieldVersion": "v5.5b",

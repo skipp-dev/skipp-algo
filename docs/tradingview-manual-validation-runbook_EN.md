@@ -44,7 +44,7 @@ Workspace refresh: 2026-04-07
 
 1. Run `npm run tv:preflight:smc-mainline` first as the canonical mainline gate.
 2. Use this runbook afterwards when you need a manual cross-check or an externally documented review run.
-3. Use `scripts/smc_bus_manifest.py` plus `artifacts/tradingview/smc_product_cut_manifest.json` as the canonical source for roles, scope, and binding order.
+3. Use `scripts/smc_bus_manifest.py` plus `artifacts/tradingview/smc_product_cut_manifest.json` as the canonical source for roles, scope, binding order, and the required product-surface evidence pack.
 
 ## Recommended Order In TradingView
 
@@ -182,10 +182,13 @@ Fail:
 1. Check the five scenarios from [tradingview-validation-checklist.md](tradingview-validation-checklist.md) in order.
 2. Capture the required product-surface evidence pack:
 
+The canonical product-surface evidence pack lives in the `validationEvidence` block of `artifacts/tradingview/smc_product_cut_manifest.json`.
+Capture rendered chart screenshots, not Pine editor screenshots.
+
 - rendered Core first-run screen
 - rendered Dashboard screen in `Decision Brief`
 - rendered Dashboard screen in `Audit View`
-- rendered Strategy screen with `Entry Price`, `Stop Loss`, and `Profit Target` when a plan is active
+- rendered Strategy screen with `Execution Trigger`, `Execution Invalidation`, and `Execution Take Profit` when a plan is active
 
 ### Dashboard Expected Observations
 
@@ -262,7 +265,7 @@ Fail:
 
 1. Add [../SMC_Long_Strategy.pine](../SMC_Long_Strategy.pine) to the same chart.
 2. Bind the 8 `input.source()` fields exactly to the core series.
-3. Validate `Entry Stage`, `Entry Price`, `Stop Loss`, and `Profit Target` against the documented contract.
+3. Validate `Execution Stage`, `Execution Trigger`, `Execution Invalidation`, and `Execution Take Profit` against the documented contract.
 
 ### Strategy Expected Observations
 
@@ -279,7 +282,7 @@ Fail:
 - `BUS QualityScore`
 
 1. The strategy depends only on these 8 channels.
-2. Entry price and stop loss are consistent.
+2. Execution trigger and execution invalidation are consistent.
 3. Stop and take-profit behavior is consistent with the risk structure.
 
 ### Strategy Pass/Fail Criteria

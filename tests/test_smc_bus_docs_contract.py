@@ -8,6 +8,8 @@ from tests.smc_manifest_test_utils import ROOT, load_manifest, read_text
 CHECKLIST_PATH = ROOT / 'docs' / 'tradingview-validation-checklist.md'
 RUNBOOK_DE_PATH = ROOT / 'docs' / 'tradingview-manual-validation-runbook.md'
 RUNBOOK_EN_PATH = ROOT / 'docs' / 'tradingview-manual-validation-runbook_EN.md'
+REPORT_TEMPLATE_DE_PATH = ROOT / 'docs' / 'tradingview-manual-validation-report-template.md'
+REPORT_TEMPLATE_EN_PATH = ROOT / 'docs' / 'tradingview-manual-validation-report-template_EN.md'
 AUDIT_PATH = ROOT / 'docs' / 'smc-bus-v2-audit.md'
 ROADMAP_PATH = ROOT / 'docs' / 'smc-bus-roadmap.md'
 RUNTIME_BUDGET_PATH = ROOT / 'docs' / 'RUNTIME_BUDGET.md'
@@ -43,6 +45,21 @@ def test_manual_validation_runbooks_match_manifest_counts() -> None:
     assert_contains(RUNBOOK_EN_PATH, f'Add the strategy and bind all {STRATEGY_COUNT} `source` inputs to the core.')
     assert_contains(RUNBOOK_EN_PATH, f'All {DASHBOARD_COUNT} dashboard bindings listed')
     assert_contains(RUNBOOK_EN_PATH, f'All {DASHBOARD_COUNT} series are selectable.')
+
+
+def test_manual_validation_evidence_pack_matches_manifest() -> None:
+    for capture in MANIFEST.VALIDATION_EVIDENCE_CAPTURES:
+        assert_contains(REPORT_TEMPLATE_DE_PATH, f'- {capture.report_label}:')
+        assert_contains(REPORT_TEMPLATE_EN_PATH, f'- {capture.report_label}:')
+        assert_contains(RUNBOOK_DE_PATH, f'- {capture.runbook_label_de}')
+        assert_contains(RUNBOOK_EN_PATH, f'- {capture.runbook_label_en}')
+
+    assert_contains(RUNBOOK_DE_PATH, 'Die kanonische Product-Surface-Evidence liegt im `validationEvidence`-Block des Artifacts `artifacts/tradingview/smc_product_cut_manifest.json`.')
+    assert_contains(RUNBOOK_EN_PATH, 'The canonical product-surface evidence pack lives in the `validationEvidence` block of `artifacts/tradingview/smc_product_cut_manifest.json`.')
+    assert_contains(RUNBOOK_DE_PATH, 'Nur gerenderte Chart-Screenshots erfassen, keine Pine-Editor-Screenshots.')
+    assert_contains(RUNBOOK_EN_PATH, 'Capture rendered chart screenshots, not Pine editor screenshots.')
+    assert_contains(REPORT_TEMPLATE_DE_PATH, 'Editor-Screenshots ausgeschlossen: ja/nein')
+    assert_contains(REPORT_TEMPLATE_EN_PATH, 'Editor screenshots excluded: yes/no')
 
 
 def test_core_bus_docs_match_manifest_counts() -> None:

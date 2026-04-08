@@ -33,8 +33,8 @@ Deshalb gelten fuer die erste Migration diese Regeln:
    `Decision Brief` ist die Default-Surface, `Audit View` ist opt-in.
 3. `entry_mode`, `min_quality_score`, `take_profit_r` und `use_take_profit` in
    `SMC_Long_Strategy.pine` bleiben Wrapper-Controls. Sichtbar heissen sie
-   `Entry Stage`, `Minimum Setup Quality`, `Profit Target (R)` und
-   `Enable Profit Target`. Sie aendern den Strategy-Wrapper, aber nicht den
+   `Execution Stage`, `Minimum Quality Score`, `Take Profit (R)` und
+   `Use Take Profit`. Sie aendern den Strategy-Wrapper, aber nicht den
    Core-BUS-Contract.
 4. Bestehende BUS-Bindings fuer Dashboard und Strategy werden durch die neuen
    Default-Surfaces nicht neu verdrahtet. Die Visual-Umstellung darf keine
@@ -85,8 +85,11 @@ Das bedeutet:
 5. Die acht Strategy-`input.source(...)`-Kanaele exakt top-to-bottom an dieselben
    Core-BUS-Serien binden.
 6. Danach zuerst `Decision Brief` fuer die schnelle Companion-Leseflaeche nutzen.
-7. `Entry Stage`, `Minimum Setup Quality`, `Profit Target (R)` und `Enable Profit Target`
+7. `Execution Stage`, `Minimum Quality Score`, `Take Profit (R)` und `Use Take Profit`
    nur als Wrapper-Steuerung verstehen.
+
+8. `Execution Trigger`, `Execution Invalidation` und `Execution Take Profit`
+   als Planlinien lesen, nicht als neue Core-Signalquelle.
 
 ## Validation Hooks
 

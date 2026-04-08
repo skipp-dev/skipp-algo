@@ -35,6 +35,14 @@ All notable changes to this project are documented in this file.
   - Reworded the visible `SMC_Long_Strategy.pine` setup and expert-mapping tooltips so the surface talks about linked core outputs and execution plans instead of raw BUS-contract internals.
   - Refreshed the execution guide and operator guide summary so the wrapper stays clearly operator-only without leaking unnecessary transport jargon into the visible setup path.
 
+- **SMC execution surface copy cut:**
+  - Renamed the four visible strategy controls to `Execution Stage`, `Minimum Quality Score`, `Take Profit (R)`, and `Use Take Profit` so the wrapper reads like execution setup instead of mixed setup/transport language.
+  - Renamed the visible strategy chart outputs to `Execution Trigger`, `Execution Invalidation`, and `Execution Take Profit`, and aligned the strategy guide, validation docs, screen spec, and evidence manifest to the new execution-surface terminology.
+
+- **SMC product-surface validation evidence contract:**
+  - Added a canonical `validationEvidence` block to `scripts/smc_bus_manifest.py` and the checked-in TradingView product-cut artifact so the four required rendered chart captures are defined in one machine-readable contract.
+  - Aligned the German and English manual validation runbooks plus report templates to the manifest-backed evidence pack and locked the editor-screenshot exclusion into docs/tests.
+
 ### Changed (2026-04-07)
 
 - **SMC mainline surface implementation wave:**

@@ -9,7 +9,7 @@ Required screenshot set for release-quality validation:
 1. Rendered Core first-run chart with the public decision surface visible.
 2. Rendered Dashboard in `Decision Brief` view.
 3. Rendered Dashboard in `Audit View`.
-4. Rendered Strategy chart with `Entry Price`, `Stop Loss`, and `Profit Target` visible when a plan is active.
+4. Rendered Strategy chart with `Execution Trigger`, `Execution Invalidation`, and `Execution Take Profit` visible when a plan is active.
 
 Invalid evidence for product review:
 
@@ -142,8 +142,8 @@ Before validating any scenarios, confirm the visible product copy is aligned:
 
 1. Core uses `Trading Style`, `Focus View`, and `Show Decision Brief`, starts with `Core Setup`, `Output`, `Trade Plan`, `Session Gate`, and `Runtime Budget` before any advanced groups, and in `Focus View` shows one hero card with no default swing-level or standalone warning-label duplicates before `Ready` trade lines appear.
 2. Dashboard uses `View`, `Decision Brief`, `Audit View`, `Show Brief Panel`, `Show Trade Plan`, and `Highlight Live Setup`, with `Product Surface` appearing before the operator-only binding groups.
-3. Strategy uses `Entry Stage`, `Minimum Setup Quality`, `Profit Target (R)`, and `Enable Profit Target`, with `Execution Setup` and `Trade Plan` appearing before the two `Expert Mapping` groups.
-4. Strategy chart outputs read `Entry Price`, `Stop Loss`, and `Profit Target`.
+3. Strategy uses `Execution Stage`, `Minimum Quality Score`, `Take Profit (R)`, and `Use Take Profit`, with `Execution Setup` and `Trade Plan` appearing before the two `Expert Mapping` groups.
+4. Strategy chart outputs read `Execution Trigger`, `Execution Invalidation`, and `Execution Take Profit`.
 
 ## Manual Validation Scenarios
 

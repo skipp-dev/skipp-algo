@@ -46,12 +46,17 @@ Beobachtete Binding-Abweichungen:
 
 Geprüfte Artefakt-Pfade:
 
+Geforderte Product-Surface-Evidence:
+
+- Nur gerenderte Chart-Screenshots.
+- Kanonische Quelle: `artifacts/tradingview/smc_product_cut_manifest.json` -> `validationEvidence`
+
 Screenshots / Captures:
 
-- Core First-Run:
+- Core first-run:
 - Dashboard Decision Brief:
 - Dashboard Audit View:
-- Strategy Execution:
+- Strategy execution:
 
 Screenshots vorhanden: ja/nein
 

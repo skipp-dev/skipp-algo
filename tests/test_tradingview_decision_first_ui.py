@@ -76,22 +76,26 @@ def test_long_strategy_has_wrapper_controls_and_core_plan_outputs() -> None:
     assert 'strategy("SMC Execution", overlay = true' in source
     assert 'var string g_setup = "1. Execution Setup"' in source
     assert 'var string g_bus_entry = "3. Expert Mapping - Entry States"' in source
-    assert source.index('entry_mode = input.string("Strict", "Entry Stage"') < source.index('src_armed = input.source(close, "BUS Armed"')
-    assert source.index('use_take_profit = input.bool(true, "Enable Profit Target"') < source.index('src_trigger = input.source(close, "BUS Trigger"')
+    assert source.index('entry_mode = input.string("Strict", "Execution Stage"') < source.index('src_armed = input.source(close, "BUS Armed"')
+    assert source.index('use_take_profit = input.bool(true, "Use Take Profit"') < source.index('src_trigger = input.source(close, "BUS Trigger"')
     assert 'src_armed = input.source(close, "BUS Armed"' in source
     assert 'src_entry_strict = input.source(close, "BUS EntryStrict"' in source
     assert 'src_trigger = input.source(close, "BUS Trigger"' in source
     assert 'src_invalidation = input.source(close, "BUS Invalidation"' in source
-    assert 'entry_mode = input.string("Strict", "Entry Stage", options = ["Armed", "Confirmed", "Ready", "Best", "Strict"], group = g_setup' in source
-    assert 'min_quality_score = input.float(0.0, "Minimum Setup Quality", step = 0.25, group = g_setup' in source
-    assert 'use_take_profit = input.bool(true, "Enable Profit Target", group = g_trade_plan' in source
-    assert 'take_profit_r = input.float(2.0, "Profit Target (R)", minval = 0.0, step = 0.25, group = g_trade_plan' in source
-    assert 'Minimum quality required before the linked core setup can stage an execution plan.' in source
+    assert 'entry_mode = input.string("Strict", "Execution Stage", options = ["Armed", "Confirmed", "Ready", "Best", "Strict"], group = g_setup' in source
+    assert 'min_quality_score = input.float(0.0, "Minimum Quality Score", step = 0.25, group = g_setup' in source
+    assert 'use_take_profit = input.bool(true, "Use Take Profit", group = g_trade_plan' in source
+    assert 'take_profit_r = input.float(2.0, "Take Profit (R)", minval = 0.0, step = 0.25, group = g_trade_plan' in source
+    assert 'Minimum quality score required before the linked core setup can stage an execution plan.' in source
     assert 'Bind these expert-mapping inputs top-to-bottom to the matching linked core outputs from SMC Core.' in source
     assert 'Bind these plan inputs after the state group so the linked execution plan stays deterministic.' in source
-    assert 'plot(src_trigger, "Entry Price"' in source
-    assert 'plot(src_invalidation, "Stop Loss"' in source
-    assert 'plot(use_take_profit ? (strategy.position_size > 0 ? active_take_profit : take_profit_price) : na, "Profit Target"' in source
+    assert 'plot(src_trigger, "Execution Trigger"' in source
+    assert 'plot(src_invalidation, "Execution Invalidation"' in source
+    assert 'plot(use_take_profit ? (strategy.position_size > 0 ? active_take_profit : take_profit_price) : na, "Execution Take Profit"' in source
+    assert '"Entry Stage"' not in source
+    assert '"Minimum Setup Quality"' not in source
+    assert '"Enable Profit Target"' not in source
+    assert '"Profit Target (R)"' not in source
 
 
 def test_r11_migration_and_operator_guide_is_linked_and_explicit() -> None:
@@ -107,5 +111,6 @@ def test_r11_migration_and_operator_guide_is_linked_and_explicit() -> None:
     assert "BUS binding order" in guide
     assert "visual-only" in guide
     assert "Decision Brief" in guide
-    assert "Entry Stage" in guide
+    assert "Execution Stage" in guide
+    assert "Execution Trigger" in guide
     assert "Core-Outputs" in guide

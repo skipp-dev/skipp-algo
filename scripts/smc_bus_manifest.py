@@ -30,6 +30,17 @@ class PreflightTarget:
     min_inputs: int | None = None
 
 
+@dataclass(frozen = True)
+class ValidationEvidenceCapture:
+    key: str
+    file: str
+    script_name: str
+    report_label: str
+    runbook_label_en: str
+    runbook_label_de: str
+    notes: tuple[str, ...] = ()
+
+
 SURFACE_ROLE_VALUES: tuple[str, ...] = (
     'lite_primary',
     'pro_primary',
@@ -60,6 +71,8 @@ CONSUMER_ROLE_VALUES: tuple[str, ...] = (
 PRODUCT_CUT_MANIFEST_VERSION = 2
 PRODUCT_CUT_ARTIFACT_RELATIVE_PATH = 'artifacts/tradingview/smc_product_cut_manifest.json'
 PRODUCT_CUT_SOURCE = 'scripts/smc_bus_manifest.py'
+VALIDATION_EVIDENCE_CAPTURE_MODE = 'rendered_chart_only'
+VALIDATION_EVIDENCE_EDITOR_SCREENSHOTS_ALLOWED = False
 
 DEPRECATED_FIELD_POLICY: dict[str, Any] = {
     'mode': 'compatibility_only',
@@ -304,6 +317,53 @@ PREFLIGHT_MAINLINE_TARGETS: tuple[PreflightTarget, ...] = (
 
 PREFLIGHT_DECISION_FIRST_TARGETS: tuple[PreflightTarget, ...] = PREFLIGHT_MAINLINE_TARGETS
 
+VALIDATION_EVIDENCE_CAPTURES: tuple[ValidationEvidenceCapture, ...] = (
+    ValidationEvidenceCapture(
+        key = 'core_first_run',
+        file = 'SMC_Core_Engine.pine',
+        script_name = 'SMC Core',
+        report_label = 'Core first-run',
+        runbook_label_en = 'rendered Core first-run screen',
+        runbook_label_de = 'gerenderter Core-First-Run-Screen',
+        notes = (
+            'Capture the chart-rendered Focus View first-run surface.',
+        ),
+    ),
+    ValidationEvidenceCapture(
+        key = 'dashboard_decision_brief',
+        file = 'SMC_Dashboard.pine',
+        script_name = 'SMC Decision Board',
+        report_label = 'Dashboard Decision Brief',
+        runbook_label_en = 'rendered Dashboard screen in `Decision Brief`',
+        runbook_label_de = 'gerenderter Dashboard-Screen in `Decision Brief`',
+        notes = (
+            'Capture the linked companion default brief surface.',
+        ),
+    ),
+    ValidationEvidenceCapture(
+        key = 'dashboard_audit_view',
+        file = 'SMC_Dashboard.pine',
+        script_name = 'SMC Decision Board',
+        report_label = 'Dashboard Audit View',
+        runbook_label_en = 'rendered Dashboard screen in `Audit View`',
+        runbook_label_de = 'gerenderter Dashboard-Screen in `Audit View`',
+        notes = (
+            'Capture the expert review surface separately from the Decision Brief.',
+        ),
+    ),
+    ValidationEvidenceCapture(
+        key = 'strategy_execution_plan',
+        file = 'SMC_Long_Strategy.pine',
+        script_name = 'SMC Execution',
+        report_label = 'Strategy execution',
+        runbook_label_en = 'rendered Strategy screen with `Execution Trigger`, `Execution Invalidation`, and `Execution Take Profit` when a plan is active',
+        runbook_label_de = 'gerenderter Strategy-Screen mit `Execution Trigger`, `Execution Invalidation` und `Execution Take Profit`, wenn ein Plan aktiv ist',
+        notes = (
+            'Capture the rendered execution plan, not the Pine editor state.',
+        ),
+    ),
+)
+
 
 def _surface_payload(surface: SurfaceDefinition) -> dict[str, Any]:
     payload = asdict(surface)
@@ -320,6 +380,12 @@ def _preflight_target_payload(target: PreflightTarget) -> dict[str, Any]:
     }
     if target.min_inputs is not None:
         payload['minInputs'] = target.min_inputs
+    return payload
+
+
+def _validation_evidence_capture_payload(capture: ValidationEvidenceCapture) -> dict[str, Any]:
+    payload = asdict(capture)
+    payload['notes'] = list(capture.notes)
     return payload
 
 
@@ -609,6 +675,11 @@ def build_product_cut_manifest_payload() -> dict[str, Any]:
             'smcCoreDashboard': [_preflight_target_payload(target) for target in PREFLIGHT_CORE_DASHBOARD_TARGETS],
             'smcMainline': [_preflight_target_payload(target) for target in PREFLIGHT_MAINLINE_TARGETS],
             'smcDecisionFirst': [_preflight_target_payload(target) for target in PREFLIGHT_DECISION_FIRST_TARGETS],
+        },
+        'validationEvidence': {
+            'captureMode': VALIDATION_EVIDENCE_CAPTURE_MODE,
+            'editorScreenshotsAllowed': VALIDATION_EVIDENCE_EDITOR_SCREENSHOTS_ALLOWED,
+            'requiredCaptures': [_validation_evidence_capture_payload(capture) for capture in VALIDATION_EVIDENCE_CAPTURES],
         },
         'deprecatedFieldPolicy': dict(DEPRECATED_FIELD_POLICY),
     }

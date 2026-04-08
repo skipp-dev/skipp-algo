@@ -50,6 +50,11 @@ Observed binding mismatches:
 
 Artifact paths reviewed:
 
+Required product-surface evidence pack:
+
+- Rendered chart screenshots only.
+- Canonical source: `artifacts/tradingview/smc_product_cut_manifest.json` -> `validationEvidence`
+
 Screenshots / captures:
 
 - Core first-run:

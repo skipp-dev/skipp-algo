@@ -269,10 +269,10 @@ Advanced Settings [collapsed by default]
   ueberfuehren.
 - Mode: Wrapper setup.
 - Visible controls:
-  - `Entry Stage`
-  - `Minimum Setup Quality`
-  - `Profit Target (R)`
-  - `Enable Profit Target`
+  - `Execution Stage`
+  - `Minimum Quality Score`
+  - `Take Profit (R)`
+  - `Use Take Profit`
 - Hidden or visually separated:
   - BUS source inputs
 - Acceptance criteria:
@@ -286,9 +286,9 @@ Advanced Settings [collapsed by default]
 - Audience: Nutzer waehrend Entry-Staging, aktiver Position und Backtest-Review.
 - Mode: Actionable / active position.
 - Visible blocks:
-  - Entry Price
-  - Stop Loss
-  - Profit Target line
+  - Execution Trigger
+  - Execution Invalidation
+  - Execution Take Profit line
 - Behavior rules:
   - Entries werden auf bestaetigten Bars gestaged.
   - Die Wrapper-Ausgabe widerspricht dem Core-Plan nicht.
