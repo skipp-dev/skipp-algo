@@ -19,12 +19,12 @@ The product-cut background and the current guardrails are documented in
 
 ## What The Strategy Is
 
-- A thin consumer of the core BUS, not a second producer.
+- A thin execution wrapper around linked core outputs, not a second producer.
 - The TradingView execution surface for backtests, alerts, and execution-plan
   display.
 - A surface with a small visible setup layer plus operator-only `input.source()`
   bindings.
-- Bound to the executable subset of the core contract rather than to the full
+- Bound to the executable subset of the core outputs rather than to the full
   dashboard transport.
 
 ## What The Strategy Is Not
@@ -71,14 +71,14 @@ The visible product surface of the strategy is intentionally small:
 - `Entry Stage` (`entry_mode`) selects which already-exported execution
   tier the surface uses.
 - `Minimum Setup Quality` (`min_quality_score`) adds a wrapper-level threshold
-  on top of the exported core quality score.
+  before the linked core setup can stage an execution plan.
 - `Profit Target (R)` (`take_profit_r`) controls the wrapper take-profit plan
   distance.
 - `Enable Profit Target` (`use_take_profit`) toggles the wrapper take-profit
   behavior.
 
-These controls change wrapper behavior only. They do not widen the core BUS and
-do not introduce a second logic family.
+These controls change wrapper behavior only. They do not widen the linked core
+output contract and do not introduce a second logic family.
 
 In TradingView the settings surface should expose `Execution Setup` and
 `Trade Plan` before the two `Expert Mapping` groups.

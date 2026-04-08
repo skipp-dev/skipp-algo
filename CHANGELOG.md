@@ -31,6 +31,10 @@ All notable changes to this project are documented in this file.
   - Suppressed standalone volume and strict-LTF warning labels plus default strong/weak swing overlays in Focus View so the hero stays the only primary first-run message.
   - Updated the focused TradingView UI and contract tests plus the manual validation docs to lock the compact-surface behavior in place.
 
+- **SMC execution wrapper language cleanup:**
+  - Reworded the visible `SMC_Long_Strategy.pine` setup and expert-mapping tooltips so the surface talks about linked core outputs and execution plans instead of raw BUS-contract internals.
+  - Refreshed the execution guide and operator guide summary so the wrapper stays clearly operator-only without leaking unnecessary transport jargon into the visible setup path.
+
 ### Changed (2026-04-07)
 
 - **SMC mainline surface implementation wave:**

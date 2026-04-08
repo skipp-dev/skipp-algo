@@ -54,7 +54,7 @@ Deshalb gelten fuer die erste Migration diese Regeln:
 
 - `SMC_Core_Engine.pine` startet mit `Core Setup`, `Output`, `Trade Plan`, `Session Gate` und `Runtime Budget`; alle tieferen Technikbereiche sind explizit als `Advanced` markiert.
 - `SMC_Dashboard.pine` startet mit `Product Surface`; die sechs BUS-Bindings und die lokalen Debug-Mirror-Inputs sind explizit `Operator Only`.
-- `SMC_Long_Strategy.pine` startet mit `Execution Setup` und `Trade Plan`; die beiden Binding-Bloecke bleiben klar als `Expert Mapping` markiert.
+- `SMC_Long_Strategy.pine` startet mit `Execution Setup` und `Trade Plan`; die beiden Binding-Bloecke bleiben klar als `Expert Mapping` markiert und beschreiben die verknuepften Core-Outputs statt Wrapper-Interna.
 
 ## Operator-Only Companion Workflow
 

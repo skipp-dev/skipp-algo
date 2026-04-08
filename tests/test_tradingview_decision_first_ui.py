@@ -86,6 +86,9 @@ def test_long_strategy_has_wrapper_controls_and_core_plan_outputs() -> None:
     assert 'min_quality_score = input.float(0.0, "Minimum Setup Quality", step = 0.25, group = g_setup' in source
     assert 'use_take_profit = input.bool(true, "Enable Profit Target", group = g_trade_plan' in source
     assert 'take_profit_r = input.float(2.0, "Profit Target (R)", minval = 0.0, step = 0.25, group = g_trade_plan' in source
+    assert 'Minimum quality required before the linked core setup can stage an execution plan.' in source
+    assert 'Bind these expert-mapping inputs top-to-bottom to the matching linked core outputs from SMC Core.' in source
+    assert 'Bind these plan inputs after the state group so the linked execution plan stays deterministic.' in source
     assert 'plot(src_trigger, "Entry Price"' in source
     assert 'plot(src_invalidation, "Stop Loss"' in source
     assert 'plot(use_take_profit ? (strategy.position_size > 0 ? active_take_profit : take_profit_price) : na, "Profit Target"' in source
@@ -105,3 +108,4 @@ def test_r11_migration_and_operator_guide_is_linked_and_explicit() -> None:
     assert "visual-only" in guide
     assert "Decision Brief" in guide
     assert "Entry Stage" in guide
+    assert "Core-Outputs" in guide

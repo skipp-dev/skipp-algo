@@ -4,7 +4,7 @@
 //@version=6
 
 // Product role: pro execution surface on the frozen 8-channel executable contract.
-// Visible setup controls tune only wrapper behavior; BUS bindings stay explicit and operator-only.
+// Visible setup controls tune only wrapper behavior; linked core outputs stay in explicit operator-only expert-mapping groups.
 
 // Strategy orders are staged on confirmed bars via process_orders_on_close, so the backtest path does not rely on intrabar lookahead.
 strategy("SMC Execution", overlay = true, pyramiding = 0, process_orders_on_close = true)
@@ -14,18 +14,18 @@ var string g_trade_plan = "2. Trade Plan"
 var string g_bus_entry = "3. Expert Mapping - Entry States"
 var string g_bus_plan = "4. Expert Mapping - Trade Plan"
 
-entry_mode = input.string("Strict", "Entry Stage", options = ["Armed", "Confirmed", "Ready", "Best", "Strict"], group = g_setup, tooltip = "Choose which executable core stage is allowed to stage the long entry.")
-min_quality_score = input.float(0.0, "Minimum Setup Quality", step = 0.25, group = g_setup, tooltip = "Execution-surface quality threshold applied to the executable BUS contract.")
-use_take_profit = input.bool(true, "Enable Profit Target", group = g_trade_plan, tooltip = "Enable execution-surface profit-target staging on top of the core trigger/invalidation plan.")
+entry_mode = input.string("Strict", "Entry Stage", options = ["Armed", "Confirmed", "Ready", "Best", "Strict"], group = g_setup, tooltip = "Choose which linked core stage is allowed to stage the long entry.")
+min_quality_score = input.float(0.0, "Minimum Setup Quality", step = 0.25, group = g_setup, tooltip = "Minimum quality required before the linked core setup can stage an execution plan.")
+use_take_profit = input.bool(true, "Enable Profit Target", group = g_trade_plan, tooltip = "Enable profit-target staging on top of the linked core entry and stop plan.")
 take_profit_r = input.float(2.0, "Profit Target (R)", minval = 0.0, step = 0.25, group = g_trade_plan, tooltip = "Profit-target multiple measured from trigger to invalidation.")
 
-src_armed = input.source(close, "BUS Armed", group = g_bus_entry, tooltip = "Bind expert mapping sources top-to-bottom to the matching BUS series from SMC Core.")
+src_armed = input.source(close, "BUS Armed", group = g_bus_entry, tooltip = "Bind these expert-mapping inputs top-to-bottom to the matching linked core outputs from SMC Core.")
 src_confirmed = input.source(close, "BUS Confirmed", group = g_bus_entry)
 src_ready = input.source(close, "BUS Ready", group = g_bus_entry)
 src_entry_best = input.source(close, "BUS EntryBest", group = g_bus_entry)
 src_entry_strict = input.source(close, "BUS EntryStrict", group = g_bus_entry)
 src_quality_score = input.source(close, "BUS QualityScore", group = g_bus_entry)
-src_trigger = input.source(close, "BUS Trigger", group = g_bus_plan, tooltip = "Bind expert plan levels after the state group so execution setup stays deterministic.")
+src_trigger = input.source(close, "BUS Trigger", group = g_bus_plan, tooltip = "Bind these plan inputs after the state group so the linked execution plan stays deterministic.")
 src_invalidation = input.source(close, "BUS Invalidation", group = g_bus_plan)
 
 state_on(float value) =>
