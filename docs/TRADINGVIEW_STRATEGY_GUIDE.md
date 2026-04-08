@@ -80,6 +80,9 @@ The visible product surface of the strategy is intentionally small:
 These controls change wrapper behavior only. They do not widen the core BUS and
 do not introduce a second logic family.
 
+In TradingView the settings surface should expose `Execution Setup` and
+`Trade Plan` before the two `Expert Mapping` groups.
+
 ## Chart Outputs
 
 The strategy exposes the current execution plan with product terminology on the

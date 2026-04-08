@@ -114,9 +114,10 @@ Lean Surface:
 
 ### Local Dashboard-Only Debug Mirrors
 
-These controls are not `source` bindings and are configured manually only when
-you want to validate the `Debug Flags` or `Long Debug` rows against the core's
-effective debug setup:
+These controls live under `8. Operator Only - Local Debug Mirrors`. They are
+not `source` bindings and are configured manually only when you want to
+validate the `Debug Flags` or `Long Debug` rows against the core's effective
+debug setup:
 
 - `OB Debug Enabled`
 - `FVG Debug Enabled`
@@ -139,9 +140,9 @@ The strategy expects only the 8 bindings declared in [SMC_Long_Strategy.pine](..
 
 Before validating any scenarios, confirm the visible product copy is aligned:
 
-1. Core uses `Trading Style`, `Focus View`, and `Show Decision Brief`.
-2. Dashboard uses `View`, `Decision Brief`, `Audit View`, `Show Brief Panel`, `Show Trade Plan`, and `Highlight Live Setup`.
-3. Strategy uses `Entry Stage`, `Minimum Setup Quality`, `Profit Target (R)`, and `Enable Profit Target`.
+1. Core uses `Trading Style`, `Focus View`, and `Show Decision Brief`, and starts with `Core Setup`, `Output`, `Trade Plan`, `Session Gate`, and `Runtime Budget` before any advanced groups.
+2. Dashboard uses `View`, `Decision Brief`, `Audit View`, `Show Brief Panel`, `Show Trade Plan`, and `Highlight Live Setup`, with `Product Surface` appearing before the operator-only binding groups.
+3. Strategy uses `Entry Stage`, `Minimum Setup Quality`, `Profit Target (R)`, and `Enable Profit Target`, with `Execution Setup` and `Trade Plan` appearing before the two `Expert Mapping` groups.
 4. Strategy chart outputs read `Entry Price`, `Stop Loss`, and `Profit Target`.
 
 ## Manual Validation Scenarios
@@ -265,7 +266,7 @@ If this fails:
 ## Manual Cross-Check Order
 
 1. Add `SMC_Core_Engine.pine` to the chart and capture a rendered first-run Core screenshot.
-2. Add `SMC_Dashboard.pine`, set `View = Decision Brief`, bind all 58 sources to the core plots, and capture the rendered brief surface.
+2. Add `SMC_Dashboard.pine`, set `View = Decision Brief`, and bind all 58 sources to the core plots. Capture the rendered brief surface.
 3. Switch the Dashboard to `Audit View` and capture the rendered expert surface.
 4. Add `SMC_Long_Strategy.pine`, bind its 8 sources to the core plots, and capture a rendered execution screenshot when a plan is active.
 5. Validate the five scenarios above on the same symbol and timeframe.

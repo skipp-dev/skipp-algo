@@ -60,11 +60,12 @@ Workspace-Refresh: 2026-04-07
 
 ### Binding-Konvention
 
-1. Dashboard bindet in sechs BUS-Gruppen: Lifecycle, Diagnostic Rows, Diagnostic Support, Trade Plan, Detail Surface, Lean Surface.
-2. Strategy bindet in zwei Gruppen: Operator Bindings - Entry States, Operator Bindings - Trade Plan.
-3. Beide Consumer werden in TradingView immer top-to-bottom an die gleichnamigen BUS-Serien des Cores gebunden.
-4. Die kanonische Quelle fuer Namen, Reihenfolge und Gruppen ist [../scripts/smc_bus_manifest.py](../scripts/smc_bus_manifest.py).
-5. Zusaetzlich gibt es im Dashboard die lokale Gruppe `Dashboard - Local Debug Mirrors` ohne `source`-Bindings. Diese drei Bool-Inputs werden nur manuell gespiegelt, wenn `Debug Flags` oder `Long Debug` gegen die effektive Core-Debug-Konfiguration geprueft werden sollen.
+1. Dashboard startet mit `1. Product Surface` und bindet danach in sechs operator-only BUS-Gruppen: `2. Operator Only - Lifecycle BUS`, `3. Operator Only - Diagnostic Rows`, `4. Operator Only - Diagnostic Support`, `5. Operator Only - Trade Plan`, `6. Operator Only - Detail Surface`, `7. Operator Only - Lean Surface`.
+2. Strategy startet mit `1. Execution Setup` und `2. Trade Plan`; die `source`-Bindings bleiben in `3. Expert Mapping - Entry States` und `4. Expert Mapping - Trade Plan`.
+3. Die Core-Settings priorisieren jetzt `1. Core Setup`, `2. Output`, `3. Trade Plan`, `4. Session Gate` und `5. Runtime Budget` vor den Advanced-Gruppen.
+4. Beide Consumer werden in TradingView immer top-to-bottom an die gleichnamigen BUS-Serien des Cores gebunden.
+5. Die kanonische Quelle fuer Namen, Reihenfolge und Gruppen ist [../scripts/smc_bus_manifest.py](../scripts/smc_bus_manifest.py).
+6. Zusaetzlich gibt es im Dashboard die lokale Gruppe `8. Operator Only - Local Debug Mirrors` ohne `source`-Bindings. Diese drei Bool-Inputs werden nur manuell gespiegelt, wenn `Debug Flags` oder `Long Debug` gegen die effektive Core-Debug-Konfiguration geprueft werden sollen.
 
 ### Kanonische BUS-Reihenfolge
 

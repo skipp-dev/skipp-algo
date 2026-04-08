@@ -50,6 +50,12 @@ Deshalb gelten fuer die erste Migration diese Regeln:
 | `SMC_Dashboard.pine` | `surface_mode = "Decision Brief"` | BUS binding order bleibt unveraendert |
 | `SMC_Long_Strategy.pine` | `entry_mode = "Strict"`, `use_take_profit = true` | Wrapper-Control, kein neuer Producer |
 
+## Settings Surface Order
+
+- `SMC_Core_Engine.pine` startet mit `Core Setup`, `Output`, `Trade Plan`, `Session Gate` und `Runtime Budget`; alle tieferen Technikbereiche sind explizit als `Advanced` markiert.
+- `SMC_Dashboard.pine` startet mit `Product Surface`; die sechs BUS-Bindings und die lokalen Debug-Mirror-Inputs sind explizit `Operator Only`.
+- `SMC_Long_Strategy.pine` startet mit `Execution Setup` und `Trade Plan`; die beiden Binding-Bloecke bleiben klar als `Expert Mapping` markiert.
+
 ## Operator-Only Companion Workflow
 
 `SMC_Dashboard.pine` und `SMC_Long_Strategy.pine` bleiben operator-only

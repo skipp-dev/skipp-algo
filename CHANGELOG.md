@@ -17,6 +17,14 @@ All notable changes to this project are documented in this file.
   - Decoupled micro-library publish status from the downstream repo-core preflight gate so exact/idempotent library publishes are reported as `published` while the overall command still stays failed when repo-core validation is red.
   - This removes the oversized neutral-news export path that surfaced during live micro-library validation and restores a compile-clean TradingView library generation path without changing the checked-in seed artifacts.
 
+### Changed (2026-04-08)
+
+- **SMC mainline settings hierarchy refresh:**
+  - Reordered `SMC_Dashboard.pine` so the visible `Product Surface` controls open before the hidden BUS bindings, and relabeled the remaining binding and debug sections as explicit operator-only groups.
+  - Reordered `SMC_Long_Strategy.pine` so `Execution Setup` and `Trade Plan` appear before the two `Expert Mapping` sections.
+  - Reprioritized `SMC_Core_Engine.pine` settings into `Core Setup`, `Output`, `Trade Plan`, `Session Gate`, and `Runtime Budget`, with the remaining technical groups marked as `Advanced`.
+  - Refreshed the operator guide, strategy guide, validation runbooks, and checklist so the active docs match the shipped TradingView settings surface.
+
 ### Changed (2026-04-07)
 
 - **SMC mainline surface implementation wave:**
