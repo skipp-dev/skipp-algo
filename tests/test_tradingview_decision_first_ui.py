@@ -46,16 +46,25 @@ def test_dashboard_has_companion_summary_and_pro_diagnostics() -> None:
     assert source.index('surface_mode = input.string("Decision Brief"') < source.index('src_zone_active = input.source(close, "BUS ZoneActive"')
     assert "dashboard_product_state_text(" in source
     assert 'dashboard_row(smc_dashboard, 0, "SMC Decision Board", "Decision Brief | Linked setup active"' in source
-    assert 'dashboard_row(smc_dashboard, 0, "SMC Decision Board", "Audit View | Expert review", header_bg, txt)' in source
-    assert 'dashboard_row(smc_dashboard, 2, "Why now"' in source
-    assert 'dashboard_row(smc_dashboard, 8, "Short-term Pressure"' in source
-    assert 'Audit View | Expert review' in source
-    assert 'section_row(smc_dashboard, 1, "[ Decision Lifecycle ]", header_bg, txt)' in source
-    assert 'section_row(smc_dashboard, 10, "[ Core View Mirrors ]", header_bg, txt)' in source
-    assert 'section_row(smc_dashboard, 18, "[ Context Gates ]", header_bg, txt)' in source
-    assert 'section_row(smc_dashboard, 26, "[ Quality Detail ]", header_bg, txt)' in source
-    assert 'section_row(smc_dashboard, 37, "[ Modules, Pressure & Plan ]", header_bg, txt)' in source
-    assert 'section_row(smc_dashboard, 53, "[ Engine Detail ]", header_bg, txt)' in source
+    assert 'dashboard_row(smc_dashboard, 0, "SMC Decision Board", "Audit View | Expert review only", header_bg, txt)' in source
+    assert 'dashboard_row(smc_dashboard, 1, "Structure"' in source
+    assert 'dashboard_row(smc_dashboard, 2, "Session / Market"' in source
+    assert 'dashboard_row(smc_dashboard, 3, "Event Risk"' in source
+    assert 'dashboard_row(smc_dashboard, 4, "Data Quality"' in source
+    assert 'dashboard_row(smc_dashboard, 5, "Short-term Pressure"' in source
+    assert 'dashboard_row(smc_dashboard, 6, "Risk Plan"' in source
+    assert 'dashboard_row(smc_dashboard, 1, "Action"' not in source
+    assert 'dashboard_row(smc_dashboard, 2, "Why now"' not in source
+    assert 'Audit View | Expert review only' in source
+    assert 'dashboard_row(smc_dashboard, 2, "Action"' in source
+    assert 'dashboard_row(smc_dashboard, 3, "Why now"' in source
+    assert 'section_row(smc_dashboard, 1, "[ Decision Detail ]", header_bg, txt)' in source
+    assert 'section_row(smc_dashboard, 10, "[ Lean Surface ]", header_bg, txt)' in source
+    assert 'section_row(smc_dashboard, 18, "[ Gates ]", header_bg, txt)' in source
+    assert 'section_row(smc_dashboard, 26, "[ Quality Rows ]", header_bg, txt)' in source
+    assert 'section_row(smc_dashboard, 37, "[ Support / Metrics ]", header_bg, txt)' in source
+    assert 'section_row(smc_dashboard, 48, "[ Risk / Plan ]", header_bg, txt)' in source
+    assert 'section_row(smc_dashboard, 53, "[ Debug ]", header_bg, txt)' in source
 
 
 def test_long_strategy_has_wrapper_controls_and_core_plan_outputs() -> None:

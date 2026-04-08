@@ -198,10 +198,10 @@ Fail:
 2. Alle 58 Bindings sind vollständig auswählbar.
 3. Das Dashboard bleibt sichtbar.
 4. Die Default-Companion-Flaeche zeigt `SMC Decision Board` mit der Reihenfolge
-   `Action`, `Why now`, `Risk Plan`, `Structure`, `Session`,
-   `Event Risk`, `Data Quality`, `Short-term Pressure`.
+   `Structure`, `Session / Market`, `Event Risk`, `Data Quality`,
+   `Short-term Pressure`, `Risk Plan`.
 5. Die Sektionen reagieren plausibel auf den Core-Zustand.
-6. Fuer den Expert-View ist `Audit View | Expert review` sichtbar.
+6. Fuer den Expert-View ist `Audit View | Expert review only` sichtbar, mit getrennten Review-Bloecken fuer `Decision Detail`, `Lean Surface`, `Gates`, `Quality Rows`, `Support / Metrics`, `Risk / Plan` und `Debug`.
 
 ### Dashboard Szenario-Prüfung
 

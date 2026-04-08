@@ -189,9 +189,9 @@ Fail:
 1. The dashboard compiles without errors.
 2. All 58 bindings are fully selectable.
 3. The dashboard remains visible.
-4. The default companion surface shows `SMC Decision Board` with the row order `Action`, `Why now`, `Risk Plan`, `Structure`, `Session`, `Event Risk`, `Data Quality`, `Short-term Pressure`.
+4. The default companion surface shows `SMC Decision Board` with the row order `Structure`, `Session / Market`, `Event Risk`, `Data Quality`, `Short-term Pressure`, `Risk Plan`.
 5. The sections respond plausibly to the core state.
-6. The expert surface shows `Audit View | Expert review`.
+6. The expert surface shows `Audit View | Expert review only` and keeps `Decision Detail`, `Lean Surface`, `Gates`, `Quality Rows`, `Support / Metrics`, `Risk / Plan`, and `Debug` as separate review sections.
 
 ### Dashboard Scenario Validation
 
