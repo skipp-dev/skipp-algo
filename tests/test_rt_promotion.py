@@ -15,7 +15,7 @@ from __future__ import annotations
 import copy
 import unittest
 
-from open_prep.streamlit_monitor import promote_a0a1_signals
+from open_prep.rt_promotion import promote_a0a1_signals
 
 
 def _make_ranked(symbols: list[str], base_score: float = 5.0) -> list[dict]:

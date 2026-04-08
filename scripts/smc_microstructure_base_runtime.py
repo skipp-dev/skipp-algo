@@ -1133,6 +1133,17 @@ def build_base_snapshot_from_bundle_payload(
 
     trailing = symbol_day_features.loc[symbol_day_features["trade_date"] <= resolved_asof].copy()
     trailing = trailing.sort_values(["symbol", "trade_date"]).groupby("symbol", group_keys=False).tail(20)
+    for target_column, legacy_column in (("day_close", "close"), ("day_volume", "volume")):
+        if target_column not in trailing.columns:
+            logger.warning(
+                "Bundle symbol-day features missing %s; falling back to %s for compatibility.",
+                target_column,
+                legacy_column,
+            )
+            trailing[target_column] = pd.to_numeric(
+                _series_from_frame(trailing, legacy_column, np.nan),
+                errors="coerce",
+            )
     trailing["minute_detail_missing_bool"] = _coerce_bool_series(_series_from_frame(trailing, "minute_detail_missing", False))
     trailing["missing_regular_session_detail_bool"] = _coerce_bool_series(
         _series_from_frame(trailing, "missing_regular_session_detail", False)

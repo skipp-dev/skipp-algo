@@ -17,11 +17,11 @@ import threading
 import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, cast
 
 import httpx
 
-from open_prep.macro import FMPClient
+from open_prep_boundary import FMPClientLike, make_fmp_client
 
 logger = logging.getLogger(__name__)
 
@@ -68,8 +68,8 @@ def _set_cached(key: str, text: str) -> None:
 _FMP_TIMEOUT = 12.0
 
 
-def _make_fmp_client(api_key: str) -> FMPClient:
-    return FMPClient(api_key=api_key, retry_attempts=1, timeout_seconds=_FMP_TIMEOUT)
+def _make_fmp_client(api_key: str) -> FMPClientLike:
+    return make_fmp_client(api_key, retry_attempts=1, timeout_seconds=_FMP_TIMEOUT)
 
 
 def fetch_fmp_quotes(api_key: str, tickers: list[str]) -> list[dict[str, Any]]:
@@ -78,7 +78,8 @@ def fetch_fmp_quotes(api_key: str, tickers: list[str]) -> list[dict[str, Any]]:
         return []
     try:
         symbols = [t.upper().strip() for t in tickers[:20] if t and t.strip()]
-        return _make_fmp_client(api_key).get_batch_quotes(symbols)
+        quotes = _make_fmp_client(api_key).get_batch_quotes(symbols)
+        return cast(list[dict[str, Any]], quotes or [])
     except Exception as exc:
         logger.warning("FMP quote fetch failed: %s", exc)
         return []
@@ -90,7 +91,8 @@ def fetch_fmp_profiles(api_key: str, tickers: list[str]) -> list[dict[str, Any]]
         return []
     try:
         symbols = [t.upper().strip() for t in tickers[:20] if t and t.strip()]
-        return _make_fmp_client(api_key).get_profiles(symbols)
+        profiles = _make_fmp_client(api_key).get_profiles(symbols)
+        return cast(list[dict[str, Any]], profiles or [])
     except Exception as exc:
         logger.warning("FMP profile failed: %s", exc)
         return []

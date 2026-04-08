@@ -58,7 +58,7 @@ from databento_volatility_screener import (
     run_intraday_screen,
 )
 from newsstack_fmp.ingest_benzinga import BenzingaRestAdapter
-from open_prep.macro import FMPClient
+from open_prep_boundary import make_fmp_client
 from scripts.bullish_quality_config import (
     BullishQualityConfig,
     DEFAULT_BULLISH_QUALITY_SCORE_PROFILE,
@@ -1135,7 +1135,7 @@ def _load_fundamental_reference(
         return _empty_fundamental_reference_frame()
 
     try:
-        rows = FMPClient(fmp_api_key).get_profile_bulk()
+        rows = make_fmp_client(fmp_api_key).get_profile_bulk()
     except Exception:
         logger.warning("FMP bulk profile fetch failed; fundamentals will be empty for this run", exc_info=True)
         rows = []
@@ -2583,7 +2583,7 @@ def _build_core_vs_benzinga_news_side_by_side(
     else:
         from open_prep import run_open_prep as open_prep_run
 
-        client = FMPClient(api_key=fmp_api_key)
+        client = make_fmp_client(fmp_api_key)
         core_scores, core_metrics, core_fetch_error = open_prep_run._fetch_news_context(
             client=client,
             symbols=latest_scope["symbol"].tolist(),
@@ -2896,7 +2896,7 @@ def _build_research_event_flags_full_universe_export(
         }
 
     trade_dates = sorted(set(scope["trade_date"].tolist()))
-    client = FMPClient(fmp_api_key)
+    client = make_fmp_client(fmp_api_key)
     try:
         earnings_rows = client.get_earnings_calendar(trade_dates[0], trade_dates[-1])
     except Exception as exc:

@@ -33,16 +33,22 @@ def compute_news_sentiment(
     """
     universe = {s.upper() for s in symbols}
 
-    # Accumulate polarity per ticker
-    ticker_polarities: dict[str, list[float]] = {t: [] for t in universe}
+    # Only emit tickers that are actually mentioned in the fetched articles.
+    ticker_polarities: dict[str, list[float]] = {}
 
     for article in articles:
-        result = classify_and_score(article, cluster_count=1)
         art_tickers = article.get("tickers") or []
-        for raw_ticker in art_tickers:
-            ticker = raw_ticker.upper()
-            if ticker in ticker_polarities:
-                ticker_polarities[ticker].append(result.polarity)
+        valid_tickers = {
+            raw_ticker.upper()
+            for raw_ticker in art_tickers
+            if raw_ticker and raw_ticker.upper() in universe
+        }
+        if not valid_tickers:
+            continue
+
+        result = classify_and_score(article, cluster_count=1)
+        for ticker in valid_tickers:
+            ticker_polarities.setdefault(ticker, []).append(result.polarity)
 
     # Average polarity per ticker
     ticker_scores: dict[str, float] = {}

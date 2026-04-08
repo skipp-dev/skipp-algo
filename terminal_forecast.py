@@ -15,7 +15,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Any
 
-from open_prep.macro import FMPClient
+from open_prep_boundary import FMPClientLike, make_fmp_client
 
 log = logging.getLogger(__name__)
 
@@ -34,8 +34,8 @@ except ImportError:
 # ── FMP shared client ────────────────────────────────────────────
 
 
-def _make_fmp_client(api_key: str) -> FMPClient:
-    return FMPClient(api_key=api_key, retry_attempts=1, timeout_seconds=10.0)
+def _make_fmp_client(api_key: str) -> FMPClientLike:
+    return make_fmp_client(api_key, retry_attempts=1, timeout_seconds=10.0)
 
 
 def _fmp_key() -> str:

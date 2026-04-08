@@ -15,9 +15,9 @@ class TestEmptyArticles:
         result = compute_news_sentiment(["AAPL", "TSLA"], [])
         assert result["bullish_tickers"] == []
         assert result["bearish_tickers"] == []
-        assert sorted(result["neutral_tickers"]) == ["AAPL", "TSLA"]
+        assert result["neutral_tickers"] == []
         assert result["news_heat_global"] == 0.0
-        assert result["ticker_heat_map"] == "AAPL:0.00,TSLA:0.00"
+        assert result["ticker_heat_map"] == ""
 
 
 class TestBullishTicker:
@@ -28,7 +28,7 @@ class TestBullishTicker:
         ]
         result = compute_news_sentiment(["AAPL", "MSFT"], articles)
         assert "AAPL" in result["bullish_tickers"]
-        assert "MSFT" in result["neutral_tickers"]
+        assert result["neutral_tickers"] == []
 
 
 class TestBearishTicker:
@@ -39,7 +39,7 @@ class TestBearishTicker:
         ]
         result = compute_news_sentiment(["TSLA", "GOOG"], articles)
         assert "TSLA" in result["bearish_tickers"]
-        assert "GOOG" in result["neutral_tickers"]
+        assert result["neutral_tickers"] == []
 
 
 class TestTickerHeatMapFormat:
@@ -52,10 +52,10 @@ class TestTickerHeatMapFormat:
         hmap = result["ticker_heat_map"]
         # Format: "TICKER:SCORE,TICKER:SCORE"
         parts = hmap.split(",")
-        assert len(parts) == 2
+        assert len(parts) == 1
         for part in parts:
             ticker, score = part.split(":")
-            assert ticker in ("AAPL", "MSFT")
+            assert ticker == "AAPL"
             float(score)  # must be parseable
 
 
@@ -89,7 +89,8 @@ class TestUnknownTickerIgnored:
         assert "XYZ" not in result["bullish_tickers"]
         assert "XYZ" not in result["bearish_tickers"]
         assert "XYZ" not in result["neutral_tickers"]
-        assert "AAPL" in result["neutral_tickers"]
+        assert result["neutral_tickers"] == []
+        assert result["ticker_heat_map"] == ""
 
 
 class TestReturnShape:

@@ -28,7 +28,9 @@ import threading
 import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from open_prep.macro import FMPClient
+from typing import Any
+
+from open_prep_boundary import FMPClientLike, make_fmp_client
 
 from terminal_technicals import (
     _tv_cooldown_remaining,
@@ -37,7 +39,6 @@ from terminal_technicals import (
     _tv_register_success,
     _tv_throttle,
 )
-from typing import Any
 
 log = logging.getLogger(__name__)
 
@@ -76,11 +77,11 @@ def _fmp_key() -> str:
     return os.environ.get("FMP_API_KEY", "")
 
 
-def _make_fmp_client() -> FMPClient | None:
+def _make_fmp_client() -> FMPClientLike | None:
     api_key = _fmp_key()
     if not api_key:
         return None
-    return FMPClient(api_key=api_key, retry_attempts=1, timeout_seconds=15.0)
+    return make_fmp_client(api_key, retry_attempts=1, timeout_seconds=15.0)
 
 
 # ── HTTP client singleton ────────────────────────────────────────

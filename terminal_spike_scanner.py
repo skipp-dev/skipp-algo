@@ -23,7 +23,7 @@ from datetime import datetime
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from open_prep.macro import FMPClient
+from open_prep_boundary import FMPClientLike, make_fmp_client
 
 logger = logging.getLogger(__name__)
 
@@ -31,8 +31,8 @@ logger = logging.getLogger(__name__)
 _APIKEY_RE = re.compile(r"(apikey|api_key|token|key)=[^&\s]+", re.IGNORECASE)
 
 
-def _make_fmp_client(api_key: str) -> FMPClient:
-    return FMPClient(api_key=api_key, retry_attempts=1, timeout_seconds=10.0)
+def _make_fmp_client(api_key: str) -> FMPClientLike:
+    return make_fmp_client(api_key, retry_attempts=1, timeout_seconds=10.0)
 
 # US Eastern timezone for market session detection
 _ET = ZoneInfo("America/New_York")

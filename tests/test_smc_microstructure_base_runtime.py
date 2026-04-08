@@ -564,6 +564,26 @@ def test_build_base_snapshot_from_bundle_payload_warns_when_symbol_coverage_is_t
     assert "Symbol AAA has only 3 trading days in trailing window" in caplog.text
 
 
+def test_build_base_snapshot_from_bundle_payload_uses_legacy_volume_fallback(
+    tmp_path: Path,
+) -> None:
+    bundle_payload, session_minute_detail = _make_bundle_payload(tmp_path)
+    frames = cast(dict[str, Any], bundle_payload["frames"])
+    legacy_daily_features = cast(pd.DataFrame, frames["daily_symbol_features_full_universe"]).copy()
+    legacy_daily_features["volume"] = legacy_daily_features["day_volume"]
+    legacy_daily_features = legacy_daily_features.drop(columns=["day_volume"])
+    frames["daily_symbol_features_full_universe"] = legacy_daily_features
+
+    output, payload, _ = build_base_snapshot_from_bundle_payload(
+        bundle_payload,
+        schema_path=SCHEMA_PATH,
+        session_minute_detail=session_minute_detail,
+    )
+
+    assert payload["row_count"] == 1
+    assert output.loc[0, "adv_dollar_rth_20d"] > 0.0
+
+
 def test_infer_asset_type_excludes_prefix_only_etf_names() -> None:
     assert infer_asset_type("ETFMG PRIME CYBER", None) == "stock"
 

@@ -1,16 +1,21 @@
 """Open Prep adapter implementations for the SMC TV bridge.
 
-Wraps ``open_prep.macro.FMPClient``, ``open_prep.realtime_signals.VolumeRegimeDetector``,
-and ``open_prep.realtime_signals.TechnicalScorer`` behind the protocol interfaces
-declared in ``smc_tv_bridge.adapters``.
+Wraps Open Prep-backed providers behind the protocol interfaces declared in
+``smc_tv_bridge.adapters``.
 
-All ``open_prep`` imports are lazy so the module can be imported even when
-Open Prep is absent — callers get a clear error only when they instantiate.
+All Open Prep runtime loading is delegated to ``open_prep_boundary`` so the
+module can be imported even when Open Prep is absent.
 """
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Any, cast
+
+from open_prep_boundary import (
+    make_fmp_client_from_env,
+    make_technical_scorer,
+    make_volume_regime_detector,
+)
 
 logger = logging.getLogger("smc_api.adapters_open_prep")
 
@@ -19,8 +24,7 @@ class FMPCandleProvider:
     """``CandleProvider`` backed by ``open_prep.macro.FMPClient``."""
 
     def __init__(self) -> None:
-        from open_prep.macro import FMPClient
-        self._client = FMPClient.from_env()
+        self._client = make_fmp_client_from_env()
         logger.info("FMPCandleProvider initialized")
 
     def fetch_candles(
@@ -48,28 +52,26 @@ class OpenPrepRegimeProvider:
     """``RegimeProvider`` backed by ``open_prep.realtime_signals.VolumeRegimeDetector``."""
 
     def __init__(self) -> None:
-        from open_prep.realtime_signals import VolumeRegimeDetector
-        self._detector = VolumeRegimeDetector()
+        self._detector = make_volume_regime_detector()
         logger.info("OpenPrepRegimeProvider initialized")
 
     @property
     def regime(self) -> str:
-        return self._detector.regime
+        return cast(str, self._detector.regime)
 
     @property
     def thin_fraction(self) -> float:
-        return self._detector.thin_fraction
+        return cast(float, self._detector.thin_fraction)
 
     def update(self, quotes: dict[str, dict[str, Any]]) -> str:
-        return self._detector.update(quotes)
+        return cast(str, self._detector.update(quotes))
 
 
 class OpenPrepTechnicalScoreProvider:
     """``TechnicalScoreProvider`` backed by ``open_prep.realtime_signals.TechnicalScorer``."""
 
     def __init__(self) -> None:
-        from open_prep.realtime_signals import TechnicalScorer
-        self._scorer = TechnicalScorer()
+        self._scorer = make_technical_scorer()
         logger.info("OpenPrepTechnicalScoreProvider initialized")
 
     def get_technical_data(
@@ -77,4 +79,4 @@ class OpenPrepTechnicalScoreProvider:
         symbol: str,
         interval: str,
     ) -> dict[str, Any]:
-        return self._scorer.get_technical_data(symbol, interval)
+        return cast(dict[str, Any], self._scorer.get_technical_data(symbol, interval))

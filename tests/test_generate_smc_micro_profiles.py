@@ -17,6 +17,7 @@ from scripts.generate_smc_micro_profiles import (
     build_lists_from_state,
     coerce_input_frame,
     load_schema,
+    render_csv_export,
     run_generation,
     shard_csv_string,
     update_membership_state,
@@ -325,6 +326,14 @@ def test_shard_csv_string_respects_max_chars() -> None:
     chunks = shard_csv_string(["AAAA", "BBBB", "CCCC"], max_chars=9)
 
     assert chunks == ["AAAA,BBBB", "CCCC"]
+
+
+def test_render_csv_export_preserves_chunk_boundaries() -> None:
+    rendered = render_csv_export("TEST_EXPORT", ["AAAA", "BBBB", "CCCC"], max_chars=9)
+
+    assert 'const string TEST_EXPORT_PART_1 = "AAAA,BBBB"' in rendered
+    assert 'const string TEST_EXPORT_PART_2 = "CCCC"' in rendered
+    assert 'export const string TEST_EXPORT = TEST_EXPORT_PART_1 + "," + TEST_EXPORT_PART_2' in rendered
 
 
 def test_assess_csv_against_schema_reports_missing_columns(tmp_path) -> None:

@@ -32,7 +32,7 @@ import certifi
 import numpy as np
 import pandas as pd
 
-from open_prep.macro import FMPClient
+from open_prep_boundary import FMPClientLike, make_fmp_client
 from scripts.databento_production_workbook import (
     create_excel_workbook_bytes,
     prepare_frame_for_excel,
@@ -924,7 +924,7 @@ def fetch_us_equity_universe_with_metadata(
 ) -> tuple[pd.DataFrame, dict[str, Any]]:
     requested_min_market_cap = float(min_market_cap) if min_market_cap is not None else None
     if min_market_cap is not None and fmp_api_key:
-        client = FMPClient(fmp_api_key)
+        client = make_fmp_client(fmp_api_key)
         return (
             _fetch_us_equity_universe_via_screener(
                 client,
@@ -964,7 +964,7 @@ def fetch_us_equity_universe_with_metadata(
         )
 
     if fmp_api_key:
-        client = FMPClient(fmp_api_key)
+        client = make_fmp_client(fmp_api_key)
         return (
             _fetch_us_equity_universe_via_screener(
                 client,
@@ -1002,7 +1002,7 @@ def _empty_universe_frame() -> pd.DataFrame:
 
 
 def _fetch_us_equity_universe_via_screener(
-    client: FMPClient,
+    client: FMPClientLike,
     *,
     min_market_cap: float | None = None,
     exchanges: str = "NASDAQ,NYSE,AMEX",

@@ -29,7 +29,7 @@ import threading
 import time
 from typing import Any
 
-from open_prep.macro import FMPClient
+from open_prep_boundary import FMPClientLike, make_fmp_client
 
 log = logging.getLogger(__name__)
 
@@ -49,8 +49,8 @@ _INTERVAL_TO_TIMEFRAME: dict[str, str] = {
     "1M": "1day",
 }
 
-def _make_fmp_client(api_key: str) -> FMPClient:
-    return FMPClient(api_key=api_key, retry_attempts=1, timeout_seconds=_FMP_TIMEOUT)
+def _make_fmp_client(api_key: str) -> FMPClientLike:
+    return make_fmp_client(api_key, retry_attempts=1, timeout_seconds=_FMP_TIMEOUT)
 
 
 def _get_api_key() -> str:

@@ -6,6 +6,15 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Fixed (2026-04-08)
+
+- **SMC deeper integration and micro-library hardening:**
+  - Centralized lazy Open Prep runtime construction in `open_prep_boundary.py` and rewired the Databento, terminal, and bridge FMP consumers to use the shared boundary instead of importing `open_prep.macro.FMPClient` directly.
+  - Extracted realtime A0/A1 promotion into `open_prep/rt_promotion.py` so the shared promotion logic no longer depends on Streamlit imports, and added regression coverage that locks the workflow and runtime-boundary rules in place.
+  - Hardened Databento bundle base generation with a compatibility fallback from legacy `close` and `volume` columns when `day_close` or `day_volume` are absent in symbol-day features.
+  - Fixed SMC news scoring so only actually mentioned universe tickers are exported, and hardened Pine CSV sharding so multi-part exports preserve comma boundaries instead of silently corrupting long strings.
+  - This removes the oversized neutral-news export path that surfaced during live micro-library validation and restores a compile-clean TradingView library generation path without changing the checked-in seed artifacts.
+
 ### Changed (2026-04-07)
 
 - **SMC mainline surface implementation wave:**

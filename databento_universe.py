@@ -45,6 +45,7 @@ from databento_utils import (
     _normalize_symbols,
     normalize_symbol_for_databento,
 )
+from open_prep_boundary import make_fmp_client
 
 logger = logging.getLogger(__name__)
 
@@ -397,11 +398,9 @@ def fetch_us_equity_universe_with_metadata(
     min_market_cap: float | None = None,
     exchanges: str = "NASDAQ,NYSE,AMEX",
 ) -> tuple[pd.DataFrame, dict[str, Any]]:
-    from open_prep.macro import FMPClient as _FMPClient
-
     requested_min_market_cap = float(min_market_cap) if min_market_cap is not None else None
     if min_market_cap is not None and fmp_api_key:
-        client = _FMPClient(fmp_api_key)
+        client = make_fmp_client(fmp_api_key)
         return (
             _fetch_us_equity_universe_via_screener(
                 client,
@@ -441,7 +440,7 @@ def fetch_us_equity_universe_with_metadata(
         )
 
     if fmp_api_key:
-        client = _FMPClient(fmp_api_key)
+        client = make_fmp_client(fmp_api_key)
         return (
             _fetch_us_equity_universe_via_screener(
                 client,

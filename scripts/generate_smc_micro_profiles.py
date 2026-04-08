@@ -608,6 +608,18 @@ def shard_csv_string(symbols: list[str], max_chars: int = 35000) -> list[str]:
     return chunks
 
 
+def render_csv_export(export_name: str, items: list[str], max_chars: int = 35000) -> str:
+    shards = shard_csv_string(items, max_chars=max_chars)
+    if not shards:
+        return f'export const string {export_name} = ""'
+    if len(shards) == 1:
+        return f'export const string {export_name} = "{shards[0]}"'
+    lines = [f'const string {export_name}_PART_{index} = "{chunk}"' for index, chunk in enumerate(shards, start=1)]
+    join_expression = ' + "," + '.join(f"{export_name}_PART_{index}" for index in range(1, len(shards) + 1))
+    lines.append(f"export const string {export_name} = {join_expression}")
+    return "\n".join(lines)
+
+
 def write_pine_library(
     path: Path,
     lists: dict[str, list[str]],
@@ -622,16 +634,12 @@ def write_pine_library(
     enr = normalize_v55_lean_enrichment(enrichment, snapshot=snapshot) or {}
 
     def render_list(name: str, symbols: list[str]) -> str:
-        const_name = name.upper()
-        shards = shard_csv_string(symbols)
-        if not shards:
-            return f'export const string {const_name}_TICKERS = ""'
-        if len(shards) == 1:
-            return f'export const string {const_name}_TICKERS = "{shards[0]}"'
-        lines = [f'const string {const_name}_PART_{index} = "{chunk}"' for index, chunk in enumerate(shards, start=1)]
-        join_expression = " + ".join(f"{const_name}_PART_{index}" for index in range(1, len(shards) + 1))
-        lines.append(f"export const string {const_name}_TICKERS = {join_expression}")
-        return "\n".join(lines)
+        return render_csv_export(f"{name.upper()}_TICKERS", symbols)
+
+    def split_csv_string(value: str) -> list[str]:
+        if not value:
+            return []
+        return [part for part in value.split(",") if part]
 
     def _pine_bool(val: Any) -> str:
         return "true" if val else "false"
@@ -705,11 +713,11 @@ def write_pine_library(
     # ── News enrichment ─────────────────────────────────────────
     news = enr.get("news") or {}
     content.append("// ── News Sentiment ──")
-    content.append(f'export const string NEWS_BULLISH_TICKERS = "{",".join(news.get("bullish_tickers") or [])}"')
-    content.append(f'export const string NEWS_BEARISH_TICKERS = "{",".join(news.get("bearish_tickers") or [])}"')
-    content.append(f'export const string NEWS_NEUTRAL_TICKERS = "{",".join(news.get("neutral_tickers") or [])}"')
+    content.append(render_csv_export("NEWS_BULLISH_TICKERS", news.get("bullish_tickers") or []))
+    content.append(render_csv_export("NEWS_BEARISH_TICKERS", news.get("bearish_tickers") or []))
+    content.append(render_csv_export("NEWS_NEUTRAL_TICKERS", news.get("neutral_tickers") or []))
     content.append(f'export const float NEWS_HEAT_GLOBAL = {float(news.get("news_heat_global") or 0.0)}')
-    content.append(f'export const string TICKER_HEAT_MAP = "{news.get("ticker_heat_map") or ""}"')
+    content.append(render_csv_export("TICKER_HEAT_MAP", split_csv_string(news.get("ticker_heat_map") or "")))
     content.append("")
 
     # ── Calendar enrichment ─────────────────────────────────────

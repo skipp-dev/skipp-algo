@@ -148,7 +148,7 @@ def test_build_research_event_flags_full_universe_export_derives_earnings_flags(
                 {"date": "2026-03-21", "symbol": "AAA", "time": ""},
             ]
 
-    monkeypatch.setattr(export_mod, "FMPClient", FakeFMPClient)
+    monkeypatch.setattr(export_mod, "make_fmp_client", lambda api_key: FakeFMPClient(api_key))
 
     flags, metadata = _build_research_event_flags_full_universe_export(
         daily_features=daily_features,
@@ -491,7 +491,10 @@ def test_load_fundamental_reference_caches_empty_results(monkeypatch, tmp_path) 
             call_count["n"] += 1
             return []
 
-    monkeypatch.setattr("scripts.databento_production_export.FMPClient", FakeFMPClient)
+    monkeypatch.setattr(
+        "scripts.databento_production_export.make_fmp_client",
+        lambda api_key: FakeFMPClient(api_key),
+    )
 
     first = _load_fundamental_reference(
         "key",
@@ -5231,7 +5234,10 @@ def test_fetch_us_equity_universe_falls_back_to_fmp_when_nasdaq_fails(monkeypatc
             return [{"symbol": "AAPL", "companyName": "Apple", "exchangeShortName": "NASDAQ",
                       "marketCap": 3e12, "isETF": False, "isActivelyTrading": True}]
 
-    monkeypatch.setattr("databento_volatility_screener.FMPClient", FakeFMPClient)
+    monkeypatch.setattr(
+        "databento_volatility_screener.make_fmp_client",
+        lambda api_key: FakeFMPClient(api_key),
+    )
     result = fetch_us_equity_universe("fake-fmp-key", min_market_cap=None)
     assert len(result) >= 1
     assert "AAPL" in result["symbol"].values

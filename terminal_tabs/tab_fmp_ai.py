@@ -22,6 +22,7 @@ from typing import Any
 
 import streamlit as st
 
+from open_prep_boundary import make_fmp_client
 from terminal_ai_insights import PRESET_QUESTIONS
 from terminal_fmp_insights import (
     FMPLLMResponse,
@@ -348,8 +349,7 @@ def _analysis_worker_inner(
         insider_trades: list[dict[str, Any]] | None = None
         if fmp_key:
             try:
-                from open_prep.macro import FMPClient
-                _fmp_c = FMPClient(api_key=fmp_key, timeout_seconds=10, retry_attempts=1)
+                _fmp_c = make_fmp_client(fmp_key, timeout_seconds=10, retry_attempts=1)
                 _raw_insider = _fmp_c.get_insider_trading_latest(limit=30)
                 if _raw_insider:
                     insider_trades = [
@@ -375,8 +375,7 @@ def _analysis_worker_inner(
         congress_trades: list[dict[str, Any]] | None = None
         if fmp_key:
             try:
-                from open_prep.macro import FMPClient
-                _fmp_c = FMPClient(api_key=fmp_key, timeout_seconds=10, retry_attempts=1)
+                _fmp_c = make_fmp_client(fmp_key, timeout_seconds=10, retry_attempts=1)
                 _raw_senate = _fmp_c.get_senate_trading(limit=15)
                 _raw_house = _fmp_c.get_house_trading(limit=15)
                 _combined: list[dict[str, Any]] = []

@@ -80,6 +80,7 @@ from open_prep.run_open_prep import (  # noqa: E402
     build_gap_scanner,
     generate_open_prep_result,
 )
+from open_prep.rt_promotion import promote_a0a1_signals
 
 DEFAULT_REFRESH_SECONDS = 60
 MAX_STATUS_HISTORY = 20
@@ -471,75 +472,6 @@ def _status_symbol(traffic_label: str) -> str:
     if "DEGRADED" in traffic_label:
         return "🟡"
     return "🟢"
-
-
-def promote_a0a1_signals(
-    ranked_v2: list[dict],
-    filtered_out_v2: list[dict],
-    rt_signals: list[dict],
-) -> tuple[list[dict], list[dict], set[str], dict[str, dict]]:
-    """Auto-promote A0/A1 realtime signals that fell below the top-n cutoff.
-
-    This bridges the gap between the pipeline scorer (point-in-time snapshot)
-    and the realtime engine (continuous breakout detection).  Symbols with
-    active A0/A1 signals that were scored but landed just below the cutoff
-    are promoted into ``ranked_v2`` with an ``rt_promoted=True`` marker.
-
-    Args:
-        ranked_v2: Mutable list of ranked candidate dicts from the pipeline.
-        filtered_out_v2: Mutable list of filtered-out candidate dicts.
-        rt_signals: List of realtime signal dicts (from disk/engine).
-
-    Returns:
-        A 4-tuple of ``(ranked_v2, filtered_out_v2, promoted_syms, a0a1_map)``.
-        ``promoted_syms`` is the set of symbol strings that were promoted.
-        ``a0a1_map`` maps uppercase symbol → signal dict for all A0/A1 signals
-        (used by the cross-reference section later).
-    """
-    a0a1_map: dict[str, dict] = {
-        str(s.get("symbol", "")).upper(): s
-        for s in rt_signals
-        if s.get("level") in ("A0", "A1")
-    }
-    promoted_syms: set[str] = set()
-
-    if not a0a1_map:
-        return ranked_v2, filtered_out_v2, promoted_syms, a0a1_map
-
-    v2_symbols = {str(r.get("symbol", "")).upper() for r in ranked_v2}
-    below_cutoff_map: dict[str, dict] = {}
-    for fo in filtered_out_v2:
-        if fo.get("filter_reasons") == ["below_top_n_cutoff"]:
-            sym = str(fo.get("symbol", "")).upper()
-            below_cutoff_map[sym] = fo
-
-    for sym, sig in a0a1_map.items():
-        if sym in v2_symbols:
-            continue  # already ranked
-        cutoff_entry = below_cutoff_map.get(sym)
-        if cutoff_entry is None:
-            continue  # hard-filtered or not in universe
-        promoted_row = {
-            "symbol": sym,
-            "score": cutoff_entry.get("score", 0.0),
-            "gap_pct": cutoff_entry.get("gap_pct", 0.0),
-            "price": cutoff_entry.get("price", sig.get("price", 0.0)),
-            "confidence_tier": cutoff_entry.get("confidence_tier", ""),
-            "rt_promoted": True,
-            "rt_level": sig.get("level", ""),
-            "rt_direction": sig.get("direction", ""),
-            "rt_pattern": sig.get("pattern", ""),
-            "rt_change_pct": sig.get("change_pct", 0.0),
-            "rt_volume_ratio": sig.get("volume_ratio", 0.0),
-        }
-        ranked_v2.append(promoted_row)
-        promoted_syms.add(sym)
-        filtered_out_v2 = [
-            fo for fo in filtered_out_v2
-            if str(fo.get("symbol", "")).upper() != sym
-        ]
-
-    return ranked_v2, filtered_out_v2, promoted_syms, a0a1_map
 
 
 def _update_status_history(traffic_label: str, updated_at: str) -> list[str]:

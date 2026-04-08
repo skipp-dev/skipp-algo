@@ -21,14 +21,14 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, timedelta
-from typing import Any
+from typing import Any, cast
 from zoneinfo import ZoneInfo as _ZoneInfo
 
 _ET = _ZoneInfo("America/New_York")
 
 from newsstack_fmp.common_types import NewsItem
 from newsstack_fmp._bz_http import _sanitize_exc, log_fetch_warning
-from open_prep.macro import FMPClient
+from open_prep_boundary import FMPClientLike, make_fmp_client
 from newsstack_fmp.ingest_benzinga import (
     BenzingaRestAdapter,
     fetch_benzinga_channels,
@@ -100,8 +100,8 @@ _CANONICAL_STORY_BUCKET_SECONDS = 900
 _HEADLINE_NORMALIZE_RE = re.compile(r"[^a-z0-9]+")
 
 
-def _make_fmp_client(api_key: str) -> FMPClient:
-    return FMPClient(api_key=api_key, retry_attempts=1, timeout_seconds=12.0)
+def _make_fmp_client(api_key: str) -> FMPClientLike:
+    return make_fmp_client(api_key, retry_attempts=1, timeout_seconds=12.0)
 
 
 def seed_provider_cursors(seed_cursor: str | None) -> dict[str, str]:
@@ -945,10 +945,11 @@ def fetch_economic_calendar(
         actual, previous, estimate, currency, etc.
     """
     try:
-        return _make_fmp_client(api_key).get_macro_calendar(
+        rows = _make_fmp_client(api_key).get_macro_calendar(
             date.fromisoformat(from_date),
             date.fromisoformat(to_date),
         )
+        return cast(list[dict[str, Any]], rows or [])
     except Exception as exc:
         log_fetch_warning("FMP economic calendar", exc)
         return []
@@ -1070,7 +1071,12 @@ def fetch_defense_watchlist(
         symbols = [sym.strip().upper() for sym in tickers.split(",") if sym.strip()]
         if not symbols:
             return []
-        return FMPClient(api_key=fmp_api_key, retry_attempts=1, timeout_seconds=12.0).get_batch_quotes(symbols)
+        rows = make_fmp_client(
+            fmp_api_key,
+            retry_attempts=1,
+            timeout_seconds=12.0,
+        ).get_batch_quotes(symbols)
+        return cast(list[dict[str, Any]], rows or [])
     except Exception as exc:
         log_fetch_warning("FMP defense watchlist", exc)
         return []
