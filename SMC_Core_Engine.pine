@@ -3286,12 +3286,26 @@ update_latched_flag(bool current_latched, bool event_active, bool live_mode, boo
 
 
 
-var g_mode = 'Execution Mode'
+var g_mode = '1. Core Setup'
 var ct.SignalMode signal_mode = input.enum(ct.SignalMode.CONFIRMED_ONLY, 'Signal Mode', group = g_mode, tooltip = 'Choose between safer closed-bar confirmation and faster realtime updates. Confirmed only is the safer non-repainting mode. Aggressive live allows intrabar high/low driven updates and alerts, so states can change before candle close, are not fully reconstructable after reload, and should be treated as realtime-only until the bar confirms.', display = display.status_line)
 var string long_user_preset = input.string('Standard', 'Trading Style', options = ['Easy', 'Standard', 'Pro'], group = g_mode, tooltip = 'Primary Lite operating layer. Easy keeps the long engine permissive and easier to operate. Standard preserves the current balanced workflow. Pro enables stricter lifecycle and execution gating for cleaner but rarer setups.', display = display.status_line)
 var bool compact_mode = input.bool(true, 'Focus View', group = g_mode, tooltip = 'Default first-run surface for solo operation or sharing. Suppresses debug overlays and keeps a single decision-first surface. Engine logic is unchanged; only the visible surface is reduced.')
 
-var g_ltf = 'Lower Timeframe'
+var g_output = '2. Output'
+var bool show_dashboard = input.bool(true, 'Show Decision Brief', group = g_output, tooltip = 'Shows the linked decision brief surface. The core remains the only Lite-primary surface; this toggle adds explanatory context only.')
+var bool enable_dynamic_alerts = input.bool(true, 'Enable dynamic alerts', group = g_output)
+
+var g_trade_plan = '3. Trade Plan'
+var float target1_r = input.float(1.0, 'Target 1 (R)', minval = 0.25, step = 0.25, group = g_trade_plan)
+var float target2_r = input.float(2.0, 'Target 2 (R)', minval = 0.5, step = 0.25, group = g_trade_plan)
+
+var g_session_gate = '4. Session Gate'
+var bool use_trade_session_gate = input.bool(true, 'Use Trade Session Gate', group = g_session_gate, inline = 'trade1')
+
+var g_runtime = '5. Runtime Budget'
+var string performance_mode = input.string('Balanced', 'Performance Mode', options = ['Light', 'Balanced', 'Pro', 'Debug'], group = g_runtime, tooltip = 'Light cuts rendering and lower-timeframe workload. Balanced preserves the manual limits. Pro raises object and sampling budgets. Debug keeps the richest diagnostics and history.', display = display.status_line)
+
+var g_ltf = '6. Advanced - Lower Timeframe'
 var bool enable_ltf_sampling = input.bool(true, 'Use lower timeframe sampling', group = g_ltf, display = display.none, tooltip = 'Uses request.security_lower_tf() to summarize intrabar participation and pressure.')
 var bool use_ltf_for_strict_entry = input.bool(true, 'Use LTF for strict entry', group = g_ltf, display = display.none, tooltip = 'Keeps lower-timeframe sampling active for strict-entry filters even when the dashboard and dynamic alerts are off.')
 var bool allow_strict_entry_without_ltf = input.bool(false, 'Allow strict entry without LTF when unavailable', group = g_ltf, display = display.none, tooltip = 'Optional fallback. When enabled, strict-entry alerts may still trigger when lower-timeframe sampling is unavailable or unverifiable on the current chart. Strict normally prefers confirmed LTF volume context; this fallback relaxes only that sub-requirement while the remaining strict gates stay active.')
@@ -3300,50 +3314,44 @@ var bool ltf_auto_select = input.bool(true, 'Auto-select lower timeframe', group
 var string ltf_timeframe = input.timeframe(DEFAULT_LTF_TIMEFRAME, 'Lower timeframe', group = g_ltf, display = display.status_line)
 var float ltf_bias_hint = input.float(0.55, 'Bull share hint', minval = 0.5, maxval = 1.0, step = 0.05, group = g_ltf, display = display.none)
 
-var g_mtf = 'Higher Timeframe Trend'
+var g_mtf = '7. Advanced - Higher Timeframe Trend'
 var string mtf_trend_tf1 = input.timeframe(DEFAULT_TREND_TF_1, 'Trend TF 1', group = g_mtf, inline = 'mtf1', display = display.none)
 var string mtf_trend_tf2 = input.timeframe(DEFAULT_TREND_TF_2, 'Trend TF 2', group = g_mtf, inline = 'mtf2', display = display.none)
 var string mtf_trend_tf3 = input.timeframe(DEFAULT_TREND_TF_3, 'Trend TF 3', group = g_mtf, inline = 'mtf3', display = display.none)
 
-var g_dashboard = 'Dashboard'
-var bool show_dashboard = input.bool(true, 'Show Decision Brief', group = g_dashboard, tooltip = 'Shows the linked decision brief surface. The core remains the only Lite-primary surface; this toggle adds explanatory context only.')
+var g_dashboard = '8. Advanced - Dashboard Detail'
 var bool show_dashboard_ltf = input.bool(true, 'Show LTF details', group = g_dashboard, display = display.none)
 
-var g_alerts = 'Alerts'
-var bool enable_dynamic_alerts = input.bool(true, 'Enable dynamic alerts', group = g_alerts)
+var g_alerts = '9. Advanced - Alerts'
 var bool enable_live_break_alerts = input.bool(true, 'Enable intrabar live break alerts', group = g_alerts, display = display.none)
 var string dynamic_long_alert_mode = input.string('Priority', 'Dynamic long alerts', options = ['Priority', 'All lifecycle'], group = g_alerts, display = display.none, tooltip = 'Priority sends only the highest long lifecycle message per bar. All lifecycle allows multiple long lifecycle messages on the same bar.')
 
-var g_perf = 'Performance'
-var string performance_mode = input.string('Balanced', 'Performance Mode', options = ['Light', 'Balanced', 'Pro', 'Debug'], group = g_perf, tooltip = 'Light cuts rendering and lower-timeframe workload. Balanced preserves the manual limits. Pro raises object and sampling budgets. Debug keeps the richest diagnostics and history.', display = display.status_line)
+var g_perf = '10. Advanced - Performance'
 var bool render_visible_only = input.bool(true, 'Render visible range only', group = g_perf, display = display.none, tooltip = 'Restrict object rendering to the current visible chart window to reduce clutter and improve responsiveness.')
 var bool keep_visual_history = input.bool(false, 'Keep structure label history', group = g_perf, display = display.none, tooltip = 'When off, high-frequency structure, pivot and equal-level labels do not accumulate indefinitely.')
 var int object_gc_cycle = input.int(250, 'Object GC Cycle', minval = 0, group = g_perf, display = display.none, tooltip = 'Runs periodic cleanup of insignificant OB/FVG objects. Set to 0 to disable GC.')
 var int max_ltf_ratio = input.int(60, 'Max LTF Ratio', minval = 2, maxval = 500, group = g_perf, display = display.none, tooltip = 'Disables lower timeframe sampling if chart_tf / ltf_tf exceeds this ratio.')
 var int max_ltf_samples_per_bar = input.int(300, 'Max LTF Samples / Bar', minval = 10, maxval = 1000, group = g_perf, display = display.none, tooltip = 'Additional guardrail for lower timeframe array size per chart bar.')
 
-var g_data = 'Data Quality'
+var g_data = '11. Advanced - Data Quality'
 var int volume_quality_lookback = input.int(50, 'Volume Quality Lookback', minval = 5, group = g_data, display = display.none)
 var int min_nonzero_volume_bars = input.int(10, 'Min Non-Zero Volume Bars', minval = 1, group = g_data, display = display.none)
 var bool allow_relvol_without_volume_data = input.bool(false, 'Ignore RelVol when volume unavailable', group = g_data, display = display.none, tooltip = 'Optional fallback. When enabled, non-strict stages do not fail solely because the feed provides sparse or zero volume. RelVol falls back, DDVI watchlist/ready/best gates stop hard-blocking, and score thresholds shrink by the unavailable RelVol component. Strict still prefers confirmed volume-backed context, but can be partially relaxed when the dedicated strict-entry LTF fallback is also enabled.')
 
-var g_risk = 'Risk / Exits'
+var g_risk = '12. Advanced - Risk / Exits'
 var float stop_buffer_atr_mult = input.float(0.25, 'Stop Buffer ATR x', minval = 0.0, step = 0.05, group = g_risk, display = display.none)
-var float target1_r = input.float(1.0, 'Target 1 (R)', minval = 0.25, step = 0.25, group = g_risk)
-var float target2_r = input.float(2.0, 'Target 2 (R)', minval = 0.5, step = 0.25, group = g_risk)
 
-var g_session = 'Session / VWAP'
+var g_session = '13. Advanced - Session / VWAP'
 var bool use_vwap_filter = input.bool(false, 'Use VWAP Filter', group = g_session, inline = 'vwap', display = display.none)
 var bool show_session_vwap = input.bool(false, 'Show VWAP', group = g_session, inline = 'vwap', display = display.none)
 var string vwap_session = input.session('0930-1600', 'Session', group = g_session, inline = 'session', display = display.none)
-var bool use_trade_session_gate = input.bool(true, 'Use Trade Session Gate', group = g_session, inline = 'trade1')
 var string trade_entry_session = input.session('0935-1130,1400-1530', 'Entry Session', group = g_session, inline = 'trade1', display = display.none)
 var bool block_entries_outside_session = input.bool(true, 'Block outside session', group = g_session, inline = 'trade2', display = display.none)
 var bool use_opening_range_gate = input.bool(false, 'Use Opening Range Gate', group = g_session, inline = 'or1', display = display.none)
 var int opening_range_minutes = input.int(30, 'OR min', minval = 5, maxval = 120, group = g_session, inline = 'or1', display = display.none)
 var string opening_range_bias_mode = input.string('Above OR Mid', 'Bias', options = ['Above OR Mid', 'Above OR High'], group = g_session, inline = 'or2', display = display.none)
 
-var g_micro = 'Ticker Microstructure'
+var g_micro = '14. Advanced - Ticker Microstructure'
 var bool use_microstructure_profiles = input.bool(true, 'Use ticker microstructure profiles', group = g_micro, display = display.none)
 string clean_reclaim_tickers_effective = mp.CLEAN_RECLAIM_TICKERS
 string stop_hunt_tickers_effective = mp.STOP_HUNT_PRONE_TICKERS
@@ -3490,7 +3498,7 @@ var int micro_fast_decay_setup_age_max = input.int(3, 'Fast-decay max armed age'
 var int micro_fast_decay_confirm_age_max = input.int(2, 'Fast-decay max confirmed age', minval = 1, maxval = 20, group = g_micro, display = display.none)
 var bool show_microstructure_debug = input.bool(false, 'Show microstructure debug', group = g_micro, display = display.none)
 
-var g_market = 'Market Regime / Breadth'
+var g_market = '15. Advanced - Market Regime / Breadth'
 var bool use_index_gate = input.bool(true, 'Use Index Gate', group = g_market, inline = 'm1', display = display.none)
 var string index_gate_symbol = input.symbol('AMEX:SPY', 'Index', group = g_market, inline = 'm1', display = display.none)
 var bool use_sector_gate = input.bool(false, 'Use Sector Gate', group = g_market, inline = 'm2', display = display.none)
@@ -3503,7 +3511,7 @@ var int breadth_gate_len = input.int(20, 'Breadth EMA Len', minval = 2, group = 
 var int market_gate_fast_len = input.int(20, 'Fast EMA', minval = 2, group = g_market, inline = 'm5', display = display.none)
 var int market_gate_slow_len = input.int(50, 'Slow EMA', minval = 3, group = g_market, inline = 'm5', display = display.none)
 
-var g_long = 'Long Dip Tools'
+var g_long = '16. Advanced - Long Dip Tools'
 // Visuals
 var bool show_long_engine_debug = input.bool(false, 'Show long engine debug', group = g_long, inline = 'vizd', display = display.none)
 var string long_engine_debug_mode = input.string('Compact', 'Detail', options = ['Compact', 'Full'], group = g_long, inline = 'vizd', display = display.none)
@@ -3539,7 +3547,7 @@ var float fvg_reclaim_min_penetration = input.float(0.35, 'FVG depth', minval = 
 var bool use_strict_confirm_guard = input.bool(true, 'Strict confirm guard vs bearish breaks', group = g_long, inline = 'strict4', display = display.none)
 var bool show_strict_debug_markers = input.bool(false, 'Debug markers', group = g_long, inline = 'strict4', display = display.none)
 
-var g_vola = 'Volatility Regime'
+var g_vola = '17. Advanced - Volatility Regime'
 var bool use_vola_compression_gate = input.bool(false, 'Use Compression -> Expansion Gate', group = g_vola, inline = 'v1', display = display.none)
 var int vola_baseline_len = input.int(20, 'Baseline', minval = 5, group = g_vola, inline = 'v1', display = display.none)
 var float compression_ratio_max = input.float(0.85, 'Compression max ratio', minval = 0.4, maxval = 1.2, step = 0.05, group = g_vola, inline = 'v2', display = display.none)
@@ -3547,7 +3555,7 @@ var int compression_recent_bars = input.int(8, 'Compression recent bars', minval
 var float expansion_range_mult = input.float(1.20, 'Expansion range x', minval = 1.0, step = 0.05, group = g_vola, inline = 'v3', display = display.none)
 var bool require_expansion_on_confirm_or_ready = input.bool(true, 'Require expansion now', group = g_vola, inline = 'v3', display = display.none)
 
-var g_quality = 'Context Quality'
+var g_quality = '18. Advanced - Context Quality'
 var bool use_context_quality_score = input.bool(true, 'Show Context Quality Diagnostics', group = g_quality, inline = 'q1', display = display.none)
 var int min_context_quality_score = input.int(7, 'Diag Reference Min Score', minval = 1, maxval = 15, group = g_quality, inline = 'q1', display = display.none)
 var bool use_lean_signal_quality_gate = input.bool(true, 'Use Signal Quality Gate', tooltip = 'Primary v5.5b quality gate. When enabled, Ready requires SIGNAL_QUALITY_SCORE >= 25, Best >= 50, and Strict >= 75.', group = g_quality, inline = 'q2', display = display.none)
@@ -3587,7 +3595,7 @@ var float relvol_good = input.float(1.2, 'Good x', minval = 0.1, step = 0.1, gro
 var bool use_strong_close_filter = input.bool(true, 'Use Strong Close Filter', group = g_long, inline = 'close', display = display.none)
 var float min_close_in_range_pct = input.float(0.65, 'Min Close In Range', minval = 0.50, maxval = 1.00, step = 0.05, group = g_long, inline = 'close', display = display.none)
 
-var g_accel = 'Pullback Acceleration'
+var g_accel = '19. Advanced - Pullback Acceleration'
 var bool use_accel_module = input.bool(true, 'Use acceleration timing module', group = g_accel, display = display.none, tooltip = 'Preset guide:\nStacked rollout = Confirm stays permissive, Ready accel > 0 off, per-stage accel gates on.\nBalanced = Confirm + Ready if you want acceleration to harden setup confirmation too.\nTight = Strict entries only when acceleration should mostly gate the final entry tier.')
 var int accel_len_fast = input.int(8, 'Fast length', minval = 2, group = g_accel, inline = 'acc1', display = display.none)
 var int accel_len_mid1 = input.int(13, 'Mid 1', minval = 3, group = g_accel, inline = 'acc1', display = display.none)
@@ -3604,7 +3612,7 @@ var bool accel_use_for_ready = input.bool(true, 'Map to Ready', group = g_accel,
 var bool accel_use_for_entry_best = input.bool(true, 'Map to Entry Best', group = g_accel, inline = 'accmap2', display = display.none)
 var bool accel_use_for_entry_strict = input.bool(true, 'Map to Entry Strict', group = g_accel, inline = 'accmap2', display = display.none)
 
-var g_sd = 'Second Derivative Confluence'
+var g_sd = '20. Advanced - Second Derivative Confluence'
 var bool use_sd_confluence = input.bool(true, 'Use second-derivative confluence', group = g_sd, display = display.none, tooltip = 'Preset guide:\nStacked rollout = Armed off, Confirmed off, Ready on, Entry Best adds no extra SD gate, Entry Strict requires both.\nBalanced = keep Ready on and consider Entry Best on only after observing enough flow.\nTight = enable Armed/Confirmed/Entry Best if SD should harden most long states.')
 var int sd_lr_len = input.int(14, 'LR length', minval = 3, group = g_sd, inline = 'sd1', display = display.none)
 var int sd_smooth_len = input.int(3, 'Smooth', minval = 1, group = g_sd, inline = 'sd1', display = display.none)
@@ -3619,7 +3627,7 @@ var bool sd_require_for_entry_best = input.bool(false, 'Require SD confluence fo
 var bool sd_require_both_for_entry_strict = input.bool(true, 'Entry Strict requires BOTH signals', group = g_sd, display = display.none, tooltip = 'Recommended on. Strict then needs both bullish divergence and oscillator higher lows.')
 var bool sd_require_osc_rising_for_ready = input.bool(false, 'Ready requires oscillator rising', group = g_sd, display = display.none, tooltip = 'Stacked rollout recommendation: off. Ready already checks acceleration, volatility expansion, and DDVI improvement, so forcing a second-derivative rise can over-harden the same momentum turn twice.')
 
-var g_volreg = 'Volatility / Expansion Regime'
+var g_volreg = '21. Advanced - Volatility / Expansion Regime'
 var bool use_volatility_regime = input.bool(true, 'Use volatility regime filter', group = g_volreg, display = display.none, tooltip = 'Preset guide:\nStacked rollout = Ready squeeze off, Entry Best release off, Entry Strict release off.\nBalanced = turn Ready squeeze on once regime quality is stable.\nTight = require squeeze or release context deeper into the stack if you want fewer but cleaner entries.')
 var string vol_ma_mode = input.string('EMA', 'Stack MA mode', options = ['EMA', 'QEMA-like'], group = g_volreg, display = display.none)
 var int vol_ma_len_1 = input.int(8, 'MA 1', minval = 2, group = g_volreg, inline = 'ma1', display = display.none)
@@ -3640,7 +3648,7 @@ var bool vol_require_squeeze_for_ready = input.bool(false, 'Ready requires squee
 var bool vol_require_release_for_entry_best = input.bool(false, 'Entry Best requires squeeze release', group = g_volreg, display = display.none)
 var bool vol_require_release_for_entry_strict = input.bool(false, 'Entry Strict requires squeeze release', group = g_volreg, display = display.none, tooltip = 'Stacked rollout recommendation: off. Strict already requires regime trend, rising slopes, expansion, acceleration, stretch, and DDVI/SD confluence, so mandatory squeeze release can make it unnecessarily rare.')
 
-var g_stretch = 'Stretch / Mean Reversion Context'
+var g_stretch = '22. Advanced - Stretch / Mean Reversion Context'
 var bool use_stretch_context = input.bool(true, 'Use stretch context', group = g_stretch, display = display.none, tooltip = 'Preset guide:\nStacked rollout = Watchlist lower-extreme off, Ready lower-extreme off, Best off, Strict on, anti-chase active.\nBalanced = turn Ready lower-extreme on if you want more genuine deep-pullback bias.\nTight = keep Strict at 0.00 or below and keep Best tied to lower-extreme context.')
 var int stretch_len = input.int(100, 'Mean / StdDev length', minval = 20, group = g_stretch, inline = 'dist1', display = display.none, tooltip = 'Recommended start: 100. Shorter reacts faster, longer is smoother and more stable.')
 var float lower_extreme_z = input.float(1.5, 'Lower extreme z', minval = 0.5, step = 0.1, group = g_stretch, inline = 'dist1', display = display.none, tooltip = 'Recommended start: 1.5. Higher values require deeper downside stretch before context turns favorable.')
@@ -3654,7 +3662,7 @@ var bool stretch_require_lower_extreme_for_entry_best = input.bool(false, 'Entry
 var bool stretch_require_lower_extreme_for_entry_strict = input.bool(true, 'Entry Strict requires lower extreme context', group = g_stretch, display = display.none, tooltip = 'Recommended on. Strict should stay fully tied to real lower-extreme mean-reversion setups.')
 var bool show_mean_target_overlay = input.bool(true, 'Show mean target overlay', group = g_stretch, display = display.none)
 
-var string g_ddvi_ctx = 'DDVI Context'
+var string g_ddvi_ctx = '23. Advanced - DDVI Context'
 var bool use_ddvi_context = input.bool(true, 'Use DDVI context', group = g_ddvi_ctx, display = display.none, tooltip = 'Preset guide:\nStacked rollout = close-safe on, hidden bull on, strong bull on, lower-extreme context modestly persistent.\nBalanced = strong bull off if DDVI should mostly reward continuation-quality hidden divergence.\nTight = keep strong bull on and shorten the lower-extreme context window if DDVI should gate only the cleanest reversals.')
 var int ddvi_di_length = input.int(14, 'DDVI DI Length', minval = 1, group = g_ddvi_ctx, inline = 'd1', display = display.none)
 var int ddvi_advx_smooth = input.int(14, 'ADVX Smooth', minval = 1, group = g_ddvi_ctx, inline = 'd1', display = display.none)
@@ -3675,7 +3683,7 @@ var float ddvi_eq_zone_atr_mult = input.float(0.2, 'Price ATR x', minval = 0.0, 
 var float ddvi_eq_zone_dev_mult = input.float(0.2, 'DDVI Dev x', minval = 0.0, step = 0.01, group = g_ddvi_ctx, inline = 'p3', display = display.none)
 var bool ddvi_close_safe_only = input.bool(true, 'DDVI events close-safe only', group = g_ddvi_ctx, display = display.none, tooltip = 'Recommended on. Keeps DDVI event gating aligned with the rest of the close-safe SMC++ flow.')
 
-var g_struct = 'Market Structure'
+var g_struct = '24. Advanced - Market Structure'
 var bool show_Structure = input.bool(false, 'Show Market Structure', group = g_struct, display = display.none, tooltip = 'Display market structure.')
 var string show_bull = input.string('All', 'Bullish Structure', options = ['All', 'BOS', 'CHoCH'], group = g_struct, inline = 'bull', display = display.none)
 var color bull_css = input.color(#089981, '', group = g_struct, inline = 'bull', display = display.none)
@@ -3689,7 +3697,7 @@ var bool show_latest_swings_levels = input.bool(true, 'Show Strong/Weak High/Low
 var bool show_bull_bos = show_Structure and (show_bull == 'All' or show_bull == 'BOS')
 var bool show_bull_choch = show_Structure and (show_bull == 'All' or show_bull == 'CHoCH')
 
-var g_ob = 'Order Blocks'
+var g_ob = '25. Advanced - Order Blocks'
 var show_ob = input.bool(true, 'Show Order Blocks', group = g_ob, inline = 'OB', display = display.none, tooltip = 'Display swing order blocks on the chart.\n\nThis controls how many recent swing order blocks are shown.')
 var bull_ob_css = input.color(color.new(#3668f2, 80), '', group = g_ob, inline = 'OB', display = display.none)
 var bull_ob_css_line = input.color(color.new(#3668f2, 15), '', group = g_ob, inline = 'OB', display = display.none)
@@ -5082,7 +5090,7 @@ if barstate.islast
         delete(ob_discarded_bull)
         array.clear(ob_discarded_bull)
 
-var g_fvg = 'Fair Value Gaps'
+var g_fvg = '26. Advanced - Fair Value Gaps'
 var show_fvg = input.bool(true, 'Show Fair Value Gaps', group = g_fvg, inline = 'show', display = display.none, tooltip = 'Display fair value gaps on the chart.')
 var fvg_showlast = input.int(DEFAULT_FVG_SHOW_LAST, 'Show last', minval = 1, group = g_fvg, inline = 'show2', display = display.none)
 var fvg_extend_until_filled = input.bool(true, 'Extend until filled', group = g_fvg, inline = 'ext', display = display.none)
@@ -5182,7 +5190,7 @@ fvgs_objects_htf(FVG new_bull, FVG new_bear, bool htf_is_confirmed, float size_t
 
     [buffer_bull, buffer_bear, buffer_bull_filled, buffer_bear_filled, buffer_bull_filled_new, buffer_bear_filled_new, htf_buffer_bull_discarded, htf_buffer_bear_discarded]
 
-var g_htf_fvg = 'Fair Value Gaps (Higher Timeframe)'
+var g_htf_fvg = '27. Advanced - Fair Value Gaps (Higher Timeframe)'
 var show_htf_fvg = input.bool(true, 'Show Fair Value Gaps (HTF)', group = g_htf_fvg, inline = 'show', display = display.none, tooltip = 'Display fair value gaps on the chart.\nHigher timeframe used for the higher-timeframe FVG overlay.')
 var fvg_htf = input.timeframe('1D', '', group = g_htf_fvg, inline = 'show', display = display.none)
 var htf_fvg_showlast = input.int(1, 'Show last', minval = 1, group = g_htf_fvg, inline = 'show2', display = display.none)

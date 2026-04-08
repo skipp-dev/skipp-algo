@@ -14,11 +14,22 @@ def test_core_has_decision_first_hero_contract() -> None:
     source = _read("SMC_Core_Engine.pine")
 
     assert 'indicator("SMC Core", "SMC Core", overlay = true' in source
+    assert "var g_mode = '1. Core Setup'" in source
+    assert "var g_output = '2. Output'" in source
+    assert "var g_trade_plan = '3. Trade Plan'" in source
+    assert "var g_session_gate = '4. Session Gate'" in source
+    assert "var g_runtime = '5. Runtime Budget'" in source
+    assert "var g_ltf = '6. Advanced - Lower Timeframe'" in source
     assert "resolve_core_product_state(" in source
     assert "resolve_trust_tier(" in source
     assert "compose_core_hero_text(" in source
     assert "var label core_hero_card = na" in source
     assert "compact_mode = input.bool(true, 'Focus View'" in source
+    assert "show_dashboard = input.bool(true, 'Show Decision Brief', group = g_output" in source
+    assert "enable_dynamic_alerts = input.bool(true, 'Enable dynamic alerts', group = g_output)" in source
+    assert "target1_r = input.float(1.0, 'Target 1 (R)', minval = 0.25, step = 0.25, group = g_trade_plan)" in source
+    assert "use_trade_session_gate = input.bool(true, 'Use Trade Session Gate', group = g_session_gate, inline = 'trade1')" in source
+    assert "performance_mode = input.string('Balanced', 'Performance Mode', options = ['Light', 'Balanced', 'Pro', 'Debug'], group = g_runtime" in source
     assert 'Focus View' in source
     assert 'Confidence: ' in source
     assert "plot(core_plan_visible ? long_state.trigger : na, 'Core Trigger'" in source
