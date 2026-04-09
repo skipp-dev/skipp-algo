@@ -84,6 +84,12 @@ class TestDabentoClientBehavior:
         from databento_client import _is_retryable_databento_get_range_error
         assert _is_retryable_databento_get_range_error(Exception("Read timed out"))
 
+    def test_is_retryable_streaming_disconnect(self) -> None:
+        from databento_client import _is_retryable_databento_get_range_error
+        assert _is_retryable_databento_get_range_error(
+            Exception("Error streaming response: Response ended prematurely")
+        )
+
     def test_is_not_retryable_auth(self) -> None:
         from databento_client import _is_retryable_databento_get_range_error
         assert not _is_retryable_databento_get_range_error(Exception("Invalid API key"))

@@ -4166,6 +4166,76 @@ def test_run_intraday_screen_survives_api_error(monkeypatch) -> None:
     assert call_count["n"] >= 1
 
 
+def test_run_intraday_screen_splits_retryable_batches(monkeypatch) -> None:
+    """run_intraday_screen bisects retryable failing batches instead of dropping them whole."""
+    requested_batch_sizes: list[int] = []
+    regular_ts = pd.Timestamp("2026-03-05T14:30:00Z")
+    window_ts1 = pd.Timestamp("2026-03-05T14:20:00Z")
+    window_ts2 = pd.Timestamp("2026-03-05T14:21:00Z")
+
+    def _frame_for_symbol(symbol: str, base_price: float) -> pd.DataFrame:
+        return pd.DataFrame(
+            {
+                "symbol": [symbol, symbol, symbol],
+                "open": [base_price, base_price + 1.0, base_price + 1.5],
+                "high": [base_price + 0.5, base_price + 1.5, base_price + 2.0],
+                "low": [base_price - 0.5, base_price + 0.8, base_price + 1.0],
+                "close": [base_price + 0.2, base_price + 1.2, base_price + 1.8],
+                "volume": [100, 200, 300],
+            },
+            index=pd.DatetimeIndex([regular_ts, window_ts1, window_ts2], name="ts_event"),
+        )
+
+    frames = {
+        "AAPL": _frame_for_symbol("AAPL", 150.0),
+        "MSFT": _frame_for_symbol("MSFT", 250.0),
+    }
+
+    class _FakeStore:
+        def __init__(self, symbol: str) -> None:
+            self.symbol = symbol
+
+        def to_df(self, count=None):
+            return frames[self.symbol]
+
+    class _FakeTimeseries:
+        def get_range(self, **kwargs):
+            symbols = list(kwargs["symbols"])
+            requested_batch_sizes.append(len(symbols))
+            if len(symbols) > 1:
+                raise RuntimeError("504 The remote gateway timed out")
+            return _FakeStore(symbols[0])
+
+    class _FakeClient:
+        timeseries = _FakeTimeseries()
+
+    monkeypatch.setattr(
+        "databento_volatility_screener._make_databento_client",
+        lambda key: _FakeClient(),
+    )
+    monkeypatch.setattr("databento_volatility_screener.DATABENTO_GET_RANGE_MAX_ATTEMPTS", 1)
+    monkeypatch.setattr("databento_volatility_screener.INTRADAY_SUMMARY_BATCH_SIZE", 2)
+
+    daily_bars = pd.DataFrame(
+        {
+            "trade_date": [date(2026, 3, 5), date(2026, 3, 5)],
+            "symbol": ["AAPL", "MSFT"],
+            "previous_close": [149.0, 249.0],
+        }
+    )
+
+    result = run_intraday_screen(
+        "test-key",
+        dataset="DBEQ.BASIC",
+        trading_days=[date(2026, 3, 5)],
+        universe_symbols={"AAPL", "MSFT"},
+        daily_bars=daily_bars,
+    )
+
+    assert set(result["symbol"].tolist()) == {"AAPL", "MSFT"}
+    assert requested_batch_sizes == [2, 1, 1]
+
+
 def test_run_intraday_screen_uses_incremental_cache_policy(monkeypatch, tmp_path) -> None:
     """Latest day refreshes, previous day uses short TTL, older days reuse cache indefinitely."""
     observed_ttls: list[int | None] = []

@@ -122,6 +122,7 @@ SYMBOL_SUPPORT_CACHE_TTL_SECONDS = 7 * 24 * 3600  # 7 days
 DATA_CACHE_TTL_SECONDS = 4 * 3600  # 4 hours – guards against stale intra-day caches
 RECENT_INTRADAY_CACHE_TTL_SECONDS = DATA_CACHE_TTL_SECONDS
 DATABENTO_GET_RANGE_MAX_ATTEMPTS = 3
+INTRADAY_SUMMARY_BATCH_SIZE = 500
 DATABENTO_SYMBOL_ALIASES = {
     "BRK-A": "BRK.A",
     "BRK-B": "BRK.B",
@@ -776,13 +777,17 @@ def _is_retryable_databento_get_range_error(exc: BaseException) -> bool:
         "timed out",
         "too many requests",
         "429",
+        "502",
         "503",
         "504",
+        "bad gateway",
         "service unavailable",
         "gateway timeout",
         "connection aborted",
         "connection broken",
         "connection reset",
+        "error streaming response",
+        "response ended prematurely",
         "remote end closed connection without response",
         "remotedisconnected",
         "temporarily unavailable",
@@ -1530,6 +1535,84 @@ def summarize_symbol_day(
     }
 
 
+def _load_intraday_summary_batch(
+    client: Any,
+    *,
+    dataset: str,
+    trade_day: date,
+    window: WindowDefinition,
+    available_end_1s: pd.Timestamp | None,
+    symbols_batch: list[str],
+    states: dict[str, SymbolDayState],
+    runtime_unsupported_symbols: set[str],
+) -> None:
+    try:
+        with warnings.catch_warnings(record=True) as caught_warnings:
+            warnings.simplefilter("always")
+            clamped_end_1s = _clamp_request_end(
+                _exclusive_ohlcv_1s_end(window.fetch_end_utc), available_end_1s,
+            )
+            if clamped_end_1s <= pd.Timestamp(window.fetch_start_utc):
+                return
+            store = _databento_get_range_with_retry(
+                client,
+                context="run_intraday_screen",
+                dataset=dataset,
+                symbols=symbols_batch,
+                schema="ohlcv-1s",
+                start=window.fetch_start_utc.isoformat(),
+                end=clamped_end_1s.isoformat(),
+            )
+            iterator = store.to_df(count=250_000)
+            if isinstance(iterator, pd.DataFrame):
+                _update_state_from_chunk(iterator, window=window, universe_symbols=None, states=states)
+            else:
+                for chunk in iterator:
+                    _update_state_from_chunk(chunk, window=window, universe_symbols=None, states=states)
+        runtime_unsupported_symbols.update(
+            _extract_unresolved_symbols_from_warning_messages([str(item.message) for item in caught_warnings])
+        )
+    except Exception as exc:
+        if _is_retryable_databento_get_range_error(exc) and len(symbols_batch) > 1:
+            midpoint = len(symbols_batch) // 2
+            left_batch = symbols_batch[:midpoint]
+            right_batch = symbols_batch[midpoint:]
+            logger.warning(
+                "run_intraday_screen: splitting retryable intraday batch on %s after Databento failure (%s). Batch size %d -> %d + %d.",
+                trade_day,
+                _redact_sensitive_error_text(str(exc)),
+                len(symbols_batch),
+                len(left_batch),
+                len(right_batch),
+            )
+            _load_intraday_summary_batch(
+                client,
+                dataset=dataset,
+                trade_day=trade_day,
+                window=window,
+                available_end_1s=available_end_1s,
+                symbols_batch=left_batch,
+                states=states,
+                runtime_unsupported_symbols=runtime_unsupported_symbols,
+            )
+            _load_intraday_summary_batch(
+                client,
+                dataset=dataset,
+                trade_day=trade_day,
+                window=window,
+                available_end_1s=available_end_1s,
+                symbols_batch=right_batch,
+                states=states,
+                runtime_unsupported_symbols=runtime_unsupported_symbols,
+            )
+            return
+        _warn_with_redacted_exception(
+            f"Intraday fetch failed for batch on {trade_day}, skipping batch",
+            exc,
+            include_traceback=True,
+        )
+
+
 def run_intraday_screen(
     databento_api_key: str,
     *,
@@ -1587,39 +1670,17 @@ def run_intraday_screen(
         if day_frame is None:
             states: dict[str, SymbolDayState] = {}
             active_symbols = set(universe_symbols) - runtime_unsupported_symbols
-            for symbols_batch in _iter_symbol_batches(active_symbols):
-                try:
-                    with warnings.catch_warnings(record=True) as caught_warnings:
-                        warnings.simplefilter("always")
-                        clamped_end_1s = _clamp_request_end(
-                            _exclusive_ohlcv_1s_end(window.fetch_end_utc), available_end_1s,
-                        )
-                        if clamped_end_1s <= pd.Timestamp(window.fetch_start_utc):
-                            continue
-                        store = _databento_get_range_with_retry(
-                            client,
-                            context="run_intraday_screen",
-                            dataset=dataset,
-                            symbols=symbols_batch,
-                            schema="ohlcv-1s",
-                            start=window.fetch_start_utc.isoformat(),
-                            end=clamped_end_1s.isoformat(),
-                        )
-                        iterator = store.to_df(count=250_000)
-                        if isinstance(iterator, pd.DataFrame):
-                            _update_state_from_chunk(iterator, window=window, universe_symbols=None, states=states)
-                        else:
-                            for chunk in iterator:
-                                _update_state_from_chunk(chunk, window=window, universe_symbols=None, states=states)
-                    runtime_unsupported_symbols.update(
-                        _extract_unresolved_symbols_from_warning_messages([str(item.message) for item in caught_warnings])
-                    )
-                except Exception as exc:
-                    _warn_with_redacted_exception(
-                        f"Intraday fetch failed for batch on {trade_day}, skipping batch",
-                        exc,
-                        include_traceback=True,
-                    )
+            for symbols_batch in _iter_symbol_batches(active_symbols, batch_size=INTRADAY_SUMMARY_BATCH_SIZE):
+                _load_intraday_summary_batch(
+                    client,
+                    dataset=dataset,
+                    trade_day=trade_day,
+                    window=window,
+                    available_end_1s=available_end_1s,
+                    symbols_batch=symbols_batch,
+                    states=states,
+                    runtime_unsupported_symbols=runtime_unsupported_symbols,
+                )
             day_rows = [summarize_symbol_day(state, previous_close=None) for state in states.values()]
             day_frame = pd.DataFrame(day_rows) if day_rows else _empty_intraday_frame()
             if use_file_cache and not day_frame.empty:
