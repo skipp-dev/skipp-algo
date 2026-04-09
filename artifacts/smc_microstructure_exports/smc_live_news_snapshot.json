@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-04-09T01:28:12.558572Z",
+  "generated_at": "2026-04-09T02:03:33.130425Z",
   "symbols": [
     "AAPL",
     "MSFT",
@@ -56,12 +56,12 @@
     "newsapi_ai": {
       "ok": true,
       "error": "",
-      "raw_count": 86,
-      "new_item_count": 86,
+      "raw_count": 6,
+      "new_item_count": 0,
       "cursor": 1775696772.0,
       "last_seen_news_uri": "",
-      "provider_status": "ok",
-      "status_detail": "",
+      "provider_status": "ok_no_recent_matches",
+      "status_detail": "Event Registry reachable, but no new symbol-matching NewsAPI.ai items were newer than the current cursor.",
       "error_code": ""
     },
     "tv": {
@@ -81,7 +81,7 @@
       ],
       "published_at": "2026-04-08T18:14:06Z",
       "published_ts": 1775672046.0,
-      "age_minutes": 434.1,
+      "age_minutes": 469.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -108,7 +108,7 @@
       "is_actionable": false,
       "url": "https://www.nasdaq.com/articles/see-which-recent-13f-filers-hold-msft",
       "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -119,7 +119,7 @@
       ],
       "published_at": "2026-04-09T00:19:57Z",
       "published_ts": 1775693997.0,
-      "age_minutes": 68.3,
+      "age_minutes": 103.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -146,7 +146,7 @@
       "is_actionable": false,
       "url": "https://www.morningstar.com/news/dow-jones/202604089310/dow-jones-top-company-headlines-at-7-pm-et-constellation-brands-fourth-quarter-revenue-slides-as-alcohol-demand-remains-under-pressure-meta",
       "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -157,7 +157,7 @@
       ],
       "published_at": "2026-04-09T01:06:12Z",
       "published_ts": 1775696772.0,
-      "age_minutes": 22.0,
+      "age_minutes": 57.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -184,7 +184,7 @@
       "is_actionable": false,
       "url": "https://www.ynetnews.com/tech-and-digital/article/bycs9u4nzl",
       "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -195,7 +195,7 @@
       ],
       "published_at": "2026-04-08T18:44:56Z",
       "published_ts": 1775673896.0,
-      "age_minutes": 403.3,
+      "age_minutes": 438.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -222,7 +222,7 @@
       "is_actionable": false,
       "url": "https://www.cnbc.com/2026/04/08/meta-unveils-a-new-ai-model-that-it-hopes-will-justify-its-massive-spending-plans.html",
       "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -233,7 +233,7 @@
       ],
       "published_at": "2026-04-08T22:03:39Z",
       "published_ts": 1775685819.0,
-      "age_minutes": 204.6,
+      "age_minutes": 239.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -260,7 +260,7 @@
       "is_actionable": false,
       "url": "https://crypto.news/ai-jobs-meta-cuts-200-in-california-amid-ai-push/",
       "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -271,7 +271,7 @@
       ],
       "published_at": "2026-04-08T20:41:42Z",
       "published_ts": 1775680902.0,
-      "age_minutes": 286.5,
+      "age_minutes": 321.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -298,7 +298,7 @@
       "is_actionable": false,
       "url": "https://news.bloomberglaw.com/artificial-intelligence/meta-debuts-first-ai-model-from-new-superintelligence-group-1",
       "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -309,7 +309,7 @@
       ],
       "published_at": "2026-04-08T20:22:43Z",
       "published_ts": 1775679763.0,
-      "age_minutes": 305.5,
+      "age_minutes": 340.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -336,7 +336,7 @@
       "is_actionable": false,
       "url": "https://www.newsdirectory3.com/meta-stock-surges-following-new-ai-model-launch/",
       "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -347,7 +347,7 @@
       ],
       "published_at": "2026-04-08T20:07:25Z",
       "published_ts": 1775678845.0,
-      "age_minutes": 320.8,
+      "age_minutes": 356.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -374,7 +374,7 @@
       "is_actionable": false,
       "url": "https://decrypt.co/363691/meta-muse-spark-most-capable-ai-gemini-pro-still-leads",
       "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -385,7 +385,7 @@
       ],
       "published_at": "2026-04-08T19:26:42Z",
       "published_ts": 1775676402.0,
-      "age_minutes": 361.5,
+      "age_minutes": 396.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -412,7 +412,7 @@
       "is_actionable": false,
       "url": "https://coinpaper.com/16098/meta-stock-forecast-rises-8-after-launching-muse-spark-ai-model",
       "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -423,7 +423,7 @@
       ],
       "published_at": "2026-04-08T19:15:00Z",
       "published_ts": 1775675700.0,
-      "age_minutes": 373.2,
+      "age_minutes": 408.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -450,7 +450,7 @@
       "is_actionable": false,
       "url": "https://www.morningstar.com/news/dow-jones/202604087277/dow-jones-top-company-headlines-at-3-pm-et-meta-announces-new-ai-model-in-major-test-of-companys-ambitions-paramount",
       "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -461,7 +461,7 @@
       ],
       "published_at": "2026-04-08T19:04:35Z",
       "published_ts": 1775675075.0,
-      "age_minutes": 383.6,
+      "age_minutes": 419.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -488,7 +488,7 @@
       "is_actionable": false,
       "url": "https://www.bloomberg.com/news/articles/2026-04-08/natixis-mufg-others-market-meta-s-3b-data-center-build",
       "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -499,7 +499,7 @@
       ],
       "published_at": "2026-04-08T18:05:49Z",
       "published_ts": 1775671549.0,
-      "age_minutes": 442.4,
+      "age_minutes": 477.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -526,7 +526,7 @@
       "is_actionable": false,
       "url": "https://ca.finance.yahoo.com/video/meta-launches-muse-spark-ai-bofa-raises-2026-chip-forecast-to-13t-180549134.html",
       "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -537,7 +537,7 @@
       ],
       "published_at": "2026-04-08T17:46:12Z",
       "published_ts": 1775670372.0,
-      "age_minutes": 462.0,
+      "age_minutes": 497.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -564,7 +564,7 @@
       "is_actionable": false,
       "url": "https://www.newsdirectory3.com/meta-debuts-muse-spark-llm/",
       "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -575,7 +575,7 @@
       ],
       "published_at": "2026-04-08T17:41:46Z",
       "published_ts": 1775670106.0,
-      "age_minutes": 466.4,
+      "age_minutes": 501.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -602,7 +602,7 @@
       "is_actionable": false,
       "url": "https://www.newsdirectory3.com/meta-employee-uses-custom-script-to-bypass-facebook-systems/",
       "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -613,7 +613,7 @@
       ],
       "published_at": "2026-04-08T17:37:12Z",
       "published_ts": 1775669832.0,
-      "age_minutes": 471.0,
+      "age_minutes": 506.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -640,7 +640,7 @@
       "is_actionable": false,
       "url": "https://www.firstpost.com/tech/meta-introduces-muse-spark-ai-model-how-it-stacks-up-against-deepthink-and-gpt-5-4-pro-13998166.html",
       "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -651,7 +651,7 @@
       ],
       "published_at": "2026-04-09T00:01:20Z",
       "published_ts": 1775692880.0,
-      "age_minutes": 86.9,
+      "age_minutes": 122.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -678,7 +678,7 @@
       "is_actionable": false,
       "url": "https://alltoc.com/tech/whats-new-with-metas-muse-spark-model",
       "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -689,7 +689,7 @@
       ],
       "published_at": "2026-04-08T23:51:56Z",
       "published_ts": 1775692316.0,
-      "age_minutes": 96.3,
+      "age_minutes": 131.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -716,7 +716,7 @@
       "is_actionable": false,
       "url": "https://simonwillison.net/2026/Apr/8/muse-spark/",
       "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -727,7 +727,7 @@
       ],
       "published_at": "2026-04-08T23:14:35Z",
       "published_ts": 1775690075.0,
-      "age_minutes": 133.6,
+      "age_minutes": 169.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -754,7 +754,7 @@
       "is_actionable": false,
       "url": "https://www.morningstar.com/news/dow-jones/202604088975/tech-up-as-meta-surges-on-ai-model-tech-roundup",
       "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -765,7 +765,7 @@
       ],
       "published_at": "2026-04-08T23:06:42Z",
       "published_ts": 1775689602.0,
-      "age_minutes": 141.5,
+      "age_minutes": 176.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -792,7 +792,7 @@
       "is_actionable": false,
       "url": "https://www.theregister.com/2026/04/08/meta_muse_spark/",
       "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -803,7 +803,7 @@
       ],
       "published_at": "2026-04-08T23:03:10Z",
       "published_ts": 1775689390.0,
-      "age_minutes": 145.0,
+      "age_minutes": 180.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -830,7 +830,7 @@
       "is_actionable": false,
       "url": "https://eu.desmoinesregister.com/story/news/crime-and-courts/2026/04/08/iowa-attorney-general-brenna-bird-instagram-lawsuit-meta-facebook/89524564007/",
       "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -841,7 +841,7 @@
       ],
       "published_at": "2026-04-08T22:47:21Z",
       "published_ts": 1775688441.0,
-      "age_minutes": 160.9,
+      "age_minutes": 196.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -868,7 +868,7 @@
       "is_actionable": false,
       "url": "https://www.merca20.com/what-is-muse-spark-mark-zuckerbergs-new-ai-model-heres-how-the-first-llm-from-the-meta-ai-superteam-works/",
       "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -879,7 +879,7 @@
       ],
       "published_at": "2026-04-08T22:38:37Z",
       "published_ts": 1775687917.0,
-      "age_minutes": 169.6,
+      "age_minutes": 204.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -906,7 +906,7 @@
       "is_actionable": false,
       "url": "https://americanbazaaronline.com/2026/04/08/meta-unveils-muse-ai-model-in-superintelligence-push-478539/",
       "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -917,7 +917,7 @@
       ],
       "published_at": "2026-04-08T22:18:41Z",
       "published_ts": 1775686721.0,
-      "age_minutes": 189.5,
+      "age_minutes": 224.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -944,7 +944,7 @@
       "is_actionable": false,
       "url": "https://blockonomi.com/meta-launches-muse-spark-the-ai-model-built-to-deliver-personal-superintelligence/",
       "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -955,7 +955,7 @@
       ],
       "published_at": "2026-04-08T22:16:02Z",
       "published_ts": 1775686562.0,
-      "age_minutes": 192.2,
+      "age_minutes": 227.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -982,7 +982,7 @@
       "is_actionable": false,
       "url": "https://siliconangle.com/2026/04/08/meta-debuts-muse-spark-multimodal-reasoning-model/",
       "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -993,7 +993,7 @@
       ],
       "published_at": "2026-04-08T21:57:11Z",
       "published_ts": 1775685431.0,
-      "age_minutes": 211.0,
+      "age_minutes": 246.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1020,7 +1020,7 @@
       "is_actionable": false,
       "url": "https://www.webpronews.com/whatsapps-username-gamble-why-meta-is-finally-letting-you-hide-your-phone-number/",
       "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -1031,7 +1031,7 @@
       ],
       "published_at": "2026-04-08T21:54:00Z",
       "published_ts": 1775685240.0,
-      "age_minutes": 214.2,
+      "age_minutes": 249.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1058,7 +1058,7 @@
       "is_actionable": false,
       "url": "https://www.finanznachrichten.de/nachrichten-2026-04/68151765-meta-unveils-muse-spark-ai-model-to-compete-in-generative-ai-space-020.htm",
       "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -1069,7 +1069,7 @@
       ],
       "published_at": "2026-04-08T21:48:54Z",
       "published_ts": 1775684934.0,
-      "age_minutes": 219.3,
+      "age_minutes": 254.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1096,7 +1096,7 @@
       "is_actionable": false,
       "url": "https://www.mlex.com/mlex/articles/2463228/us-ftc-fights-meta-s-fresh-attempt-to-stop-reopening-of-5bn-privacy-settlement",
       "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -1107,7 +1107,7 @@
       ],
       "published_at": "2026-04-08T21:45:06Z",
       "published_ts": 1775684706.0,
-      "age_minutes": 223.1,
+      "age_minutes": 258.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1134,7 +1134,7 @@
       "is_actionable": false,
       "url": "https://mobilesyrup.com/2026/04/08/meta-reenters-the-ai-game-with-new-muse-spark-model/",
       "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -1145,7 +1145,7 @@
       ],
       "published_at": "2026-04-08T21:34:22Z",
       "published_ts": 1775684062.0,
-      "age_minutes": 233.8,
+      "age_minutes": 269.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1172,7 +1172,7 @@
       "is_actionable": false,
       "url": "https://seekingalpha.com/article/4889355-apple-the-infrastructure-play-on-local-ai-adoption",
       "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -1183,7 +1183,7 @@
       ],
       "published_at": "2026-04-08T21:19:58Z",
       "published_ts": 1775683198.0,
-      "age_minutes": 248.2,
+      "age_minutes": 283.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1210,7 +1210,7 @@
       "is_actionable": false,
       "url": "https://www.wsj.com/livecoverage/stock-market-today-dow-sp-500-nasdaq-04-08-2026/card/meta-stock-rises-after-launch-of-new-ai-model-Ib8lUcROzj5LgvZ3RUMy",
       "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -1221,7 +1221,7 @@
       ],
       "published_at": "2026-04-08T21:17:20Z",
       "published_ts": 1775683040.0,
-      "age_minutes": 250.9,
+      "age_minutes": 286.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1248,7 +1248,7 @@
       "is_actionable": false,
       "url": "https://www.perthnow.com.au/news/technology/meta-unveils-first-ai-model-from-superintelligence-team-c-22114188",
       "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -1259,7 +1259,7 @@
       ],
       "published_at": "2026-04-08T21:17:04Z",
       "published_ts": 1775683024.0,
-      "age_minutes": 251.1,
+      "age_minutes": 286.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1286,7 +1286,7 @@
       "is_actionable": false,
       "url": "https://www.eweek.com/news/meta-muse-spark-ai-launch-multimodal-reasoning/",
       "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -1297,7 +1297,7 @@
       ],
       "published_at": "2026-04-08T21:15:03Z",
       "published_ts": 1775682903.0,
-      "age_minutes": 253.2,
+      "age_minutes": 288.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1324,7 +1324,7 @@
       "is_actionable": false,
       "url": "https://www.el-balad.com/16906428",
       "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -1335,7 +1335,7 @@
       ],
       "published_at": "2026-04-08T21:13:27Z",
       "published_ts": 1775682807.0,
-      "age_minutes": 254.8,
+      "age_minutes": 290.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1362,7 +1362,7 @@
       "is_actionable": false,
       "url": "https://gizmodo.com/?p=2000744189",
       "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -1373,7 +1373,7 @@
       ],
       "published_at": "2026-04-08T20:56:19Z",
       "published_ts": 1775681779.0,
-      "age_minutes": 271.9,
+      "age_minutes": 307.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1402,7 +1402,7 @@
       "is_actionable": false,
       "url": "https://www.gjsentinel.com/news/national/meta-releases-first-new-ai-model-since-shaking-up-team/article_5ee1e21b-3c16-54ba-805f-973078b8e9f3.html",
       "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -1413,7 +1413,7 @@
       ],
       "published_at": "2026-04-08T20:53:17Z",
       "published_ts": 1775681597.0,
-      "age_minutes": 274.9,
+      "age_minutes": 310.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1440,7 +1440,7 @@
       "is_actionable": false,
       "url": "https://www.fool.com/investing/2026/04/08/why-meta-platforms-stock-jumped-today/",
       "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -1451,7 +1451,7 @@
       ],
       "published_at": "2026-04-08T20:50:35Z",
       "published_ts": 1775681435.0,
-      "age_minutes": 277.6,
+      "age_minutes": 313.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1478,7 +1478,7 @@
       "is_actionable": false,
       "url": "https://www.socialmediatoday.com/news/meta-superintelligence-launches-muse-spark-ai-model/817026/",
       "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -1489,7 +1489,7 @@
       ],
       "published_at": "2026-04-08T20:46:39Z",
       "published_ts": 1775681199.0,
-      "age_minutes": 281.6,
+      "age_minutes": 316.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1516,7 +1516,7 @@
       "is_actionable": false,
       "url": "https://www.nextplatform.com/compute/2026/04/08/contemplating-metas-homegrown-mtia-compute-engine-roadmap/5214899",
       "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -1527,7 +1527,7 @@
       ],
       "published_at": "2026-04-08T20:41:42Z",
       "published_ts": 1775680902.0,
-      "age_minutes": 286.5,
+      "age_minutes": 321.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1554,7 +1554,7 @@
       "is_actionable": false,
       "url": "https://www.testingcatalog.com/meta-unveils-muse-spark-ai-model-and-new-contemplating-mode/",
       "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -1565,7 +1565,7 @@
       ],
       "published_at": "2026-04-08T20:34:01Z",
       "published_ts": 1775680441.0,
-      "age_minutes": 294.2,
+      "age_minutes": 329.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1592,7 +1592,7 @@
       "is_actionable": false,
       "url": "https://rocketnews.com/2026/04/goodbye-llama-meta-launches-new-proprietary-ai-model-muse-spark-first-since-superintelligence-labs-formation/",
       "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -1603,7 +1603,7 @@
       ],
       "published_at": "2026-04-08T20:28:25Z",
       "published_ts": 1775680105.0,
-      "age_minutes": 299.8,
+      "age_minutes": 335.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1630,7 +1630,7 @@
       "is_actionable": false,
       "url": "https://aibusiness.com/generative-ai/meta-releases-first-proprietary-ai-model-muse-spark",
       "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -1641,7 +1641,7 @@
       ],
       "published_at": "2026-04-08T20:25:55Z",
       "published_ts": 1775679955.0,
-      "age_minutes": 302.3,
+      "age_minutes": 337.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1668,7 +1668,7 @@
       "is_actionable": false,
       "url": "https://stockstory.org/us/stocks/nyse/xom/news/why-up-down/why-exxonmobil-xom-shares-are-falling-today",
       "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -1679,7 +1679,7 @@
       ],
       "published_at": "2026-04-08T20:13:08Z",
       "published_ts": 1775679188.0,
-      "age_minutes": 315.1,
+      "age_minutes": 350.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1706,7 +1706,7 @@
       "is_actionable": false,
       "url": "https://www.iclarified.com/100489/meta-introduces-muse-spark-nextgen-ai-with-contemplating-mode",
       "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -1717,7 +1717,7 @@
       ],
       "published_at": "2026-04-08T20:12:52Z",
       "published_ts": 1775679172.0,
-      "age_minutes": 315.3,
+      "age_minutes": 350.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1744,7 +1744,7 @@
       "is_actionable": false,
       "url": "https://www.trendingtopics.eu/muse-spark-meta-launch/",
       "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -1755,7 +1755,7 @@
       ],
       "published_at": "2026-04-08T20:09:31Z",
       "published_ts": 1775678971.0,
-      "age_minutes": 318.7,
+      "age_minutes": 354.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1782,7 +1782,7 @@
       "is_actionable": false,
       "url": "https://thenextweb.com/news/meta-muse-spark-msl-first-model",
       "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -1793,7 +1793,7 @@
       ],
       "published_at": "2026-04-08T20:00:44Z",
       "published_ts": 1775678444.0,
-      "age_minutes": 327.5,
+      "age_minutes": 362.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1820,7 +1820,7 @@
       "is_actionable": false,
       "url": "https://stockstory.org/us/stocks/nasdaq/meta/news/why-up-down/meta-meta-stock-trades-up-here-is-why-6",
       "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -1831,7 +1831,7 @@
       ],
       "published_at": "2026-04-08T19:59:10Z",
       "published_ts": 1775678350.0,
-      "age_minutes": 329.0,
+      "age_minutes": 364.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1858,7 +1858,7 @@
       "is_actionable": false,
       "url": "https://arstechnica.com/ai/2026/04/metas-superintelligence-lab-unveils-its-first-public-model-muse-spark/",
       "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -1869,7 +1869,7 @@
       ],
       "published_at": "2026-04-08T19:45:48Z",
       "published_ts": 1775677548.0,
-      "age_minutes": 342.4,
+      "age_minutes": 377.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1896,7 +1896,7 @@
       "is_actionable": false,
       "url": "https://www.baytoday.ca/obituaries/baldwin-janet-elizabeth-jean-nee-constant-12115995",
       "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -1907,7 +1907,7 @@
       ],
       "published_at": "2026-04-08T19:39:06Z",
       "published_ts": 1775677146.0,
-      "age_minutes": 349.1,
+      "age_minutes": 384.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1934,7 +1934,7 @@
       "is_actionable": false,
       "url": "https://www.investing.com/analysis/openai-shutters-sora-a-win-for-meta-platforms-amid-a-rocky-stretch-200678083",
       "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -1945,7 +1945,7 @@
       ],
       "published_at": "2026-04-08T19:37:35Z",
       "published_ts": 1775677055.0,
-      "age_minutes": 350.6,
+      "age_minutes": 386.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1972,7 +1972,7 @@
       "is_actionable": false,
       "url": "https://timesofindia.indiatimes.com/technology/tech-news/meta-releases-first-ever-ai-model-from-one-of-its-highest-paid-teams-after-spending-billions-calls-it-first-step-on-path-to-personal-/articleshow/130123011.cms",
       "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -1983,7 +1983,7 @@
       ],
       "published_at": "2026-04-08T19:35:04Z",
       "published_ts": 1775676904.0,
-      "age_minutes": 353.1,
+      "age_minutes": 388.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2010,7 +2010,7 @@
       "is_actionable": false,
       "url": "https://crypto.news/metas-muse-spark-aims-to-put-personal-superintelligence-in-your-browser/",
       "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -2021,7 +2021,7 @@
       ],
       "published_at": "2026-04-08T19:34:15Z",
       "published_ts": 1775676855.0,
-      "age_minutes": 354.0,
+      "age_minutes": 389.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2048,7 +2048,7 @@
       "is_actionable": false,
       "url": "https://beritaja.com/meta-debuts-the-muse-spark-model-in-a-ground-up-overhaul-of-its-ai-beritaja-413830.html",
       "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -2059,7 +2059,7 @@
       ],
       "published_at": "2026-04-08T19:32:41Z",
       "published_ts": 1775676761.0,
-      "age_minutes": 355.5,
+      "age_minutes": 390.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2086,7 +2086,7 @@
       "is_actionable": false,
       "url": "https://www.devdiscourse.com/article/technology/3867217-meta-enters-ai-race-with-new-muse-spark-model",
       "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -2097,7 +2097,7 @@
       ],
       "published_at": "2026-04-08T19:13:19Z",
       "published_ts": 1775675599.0,
-      "age_minutes": 374.9,
+      "age_minutes": 410.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2124,7 +2124,7 @@
       "is_actionable": false,
       "url": "https://www.timesnownews.com/technology-science/what-is-muse-spark-metas-new-ai-model-explained-article-154030415",
       "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -2135,7 +2135,7 @@
       ],
       "published_at": "2026-04-08T18:58:14Z",
       "published_ts": 1775674694.0,
-      "age_minutes": 390.0,
+      "age_minutes": 425.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2162,7 +2162,7 @@
       "is_actionable": false,
       "url": "https://www.el-balad.com/16906270",
       "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -2173,7 +2173,7 @@
       ],
       "published_at": "2026-04-08T18:57:59Z",
       "published_ts": 1775674679.0,
-      "age_minutes": 390.2,
+      "age_minutes": 425.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2200,7 +2200,7 @@
       "is_actionable": false,
       "url": "https://www.barchart.com/story/news/1204728/analysts-see-massive-upside-in-microsoft-time-to-buy-msft-stock",
       "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -2211,7 +2211,7 @@
       ],
       "published_at": "2026-04-08T18:53:19Z",
       "published_ts": 1775674399.0,
-      "age_minutes": 394.9,
+      "age_minutes": 430.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2238,7 +2238,7 @@
       "is_actionable": false,
       "url": "https://techcrunch.com/2026/04/08/meta-debuts-the-muse-spark-model-in-a-ground-up-overhaul-of-its-ai/",
       "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -2249,7 +2249,7 @@
       ],
       "published_at": "2026-04-08T18:52:40Z",
       "published_ts": 1775674360.0,
-      "age_minutes": 395.5,
+      "age_minutes": 430.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2276,7 +2276,7 @@
       "is_actionable": false,
       "url": "https://spyglass.org/meta-muse-spark-ai/",
       "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -2287,7 +2287,7 @@
       ],
       "published_at": "2026-04-08T18:52:40Z",
       "published_ts": 1775674360.0,
-      "age_minutes": 395.5,
+      "age_minutes": 430.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2314,7 +2314,7 @@
       "is_actionable": false,
       "url": "https://venturebeat.com/technology/goodbye-llama-meta-launches-new-proprietary-ai-model-muse-spark-first-since",
       "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -2325,7 +2325,7 @@
       ],
       "published_at": "2026-04-08T18:52:39Z",
       "published_ts": 1775674359.0,
-      "age_minutes": 395.6,
+      "age_minutes": 430.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2352,7 +2352,7 @@
       "is_actionable": false,
       "url": "https://the-decoder.com/metas-muse-spark-is-its-first-frontier-model-and-its-first-without-open-weights/",
       "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -2363,7 +2363,7 @@
       ],
       "published_at": "2026-04-08T18:52:39Z",
       "published_ts": 1775674359.0,
-      "age_minutes": 395.6,
+      "age_minutes": 430.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2390,7 +2390,7 @@
       "is_actionable": false,
       "url": "https://www.capitalbrief.com/briefing/meta-unveils-muse-spark-first-model-from-zuckerbergs-superintelligence-team-3e945e37-dd4e-491c-85fc-cc114dc2246b/",
       "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -2401,7 +2401,7 @@
       ],
       "published_at": "2026-04-08T18:51:22Z",
       "published_ts": 1775674282.0,
-      "age_minutes": 396.8,
+      "age_minutes": 432.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2428,7 +2428,7 @@
       "is_actionable": false,
       "url": "https://www.webpronews.com/meta-kills-the-llama-inside-the-companys-audacious-bet-on-muse-and-spark-ai/",
       "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -2439,7 +2439,7 @@
       ],
       "published_at": "2026-04-08T18:51:09Z",
       "published_ts": 1775674269.0,
-      "age_minutes": 397.1,
+      "age_minutes": 432.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2466,7 +2466,7 @@
       "is_actionable": false,
       "url": "https://www.wired.com/story/muse-spark-meta-open-source-closed-source/",
       "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -2477,7 +2477,7 @@
       ],
       "published_at": "2026-04-08T18:48:00Z",
       "published_ts": 1775674080.0,
-      "age_minutes": 400.2,
+      "age_minutes": 435.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2504,7 +2504,7 @@
       "is_actionable": false,
       "url": "https://www.geo.tv/latest/659143-meta-unveils-first-ai-model-from-costly-superintelligence-team",
       "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -2515,7 +2515,7 @@
       ],
       "published_at": "2026-04-08T18:36:50Z",
       "published_ts": 1775673410.0,
-      "age_minutes": 411.4,
+      "age_minutes": 446.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2542,7 +2542,7 @@
       "is_actionable": false,
       "url": "https://www.rte.ie/news/2026/0408/1567292-meta-rolls-out-new-ai-model/",
       "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -2553,7 +2553,7 @@
       ],
       "published_at": "2026-04-08T18:34:03Z",
       "published_ts": 1775673243.0,
-      "age_minutes": 414.2,
+      "age_minutes": 449.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2580,7 +2580,7 @@
       "is_actionable": false,
       "url": "https://www.el-balad.com/16906252",
       "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -2591,7 +2591,7 @@
       ],
       "published_at": "2026-04-08T18:23:11Z",
       "published_ts": 1775672591.0,
-      "age_minutes": 425.0,
+      "age_minutes": 460.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2618,7 +2618,7 @@
       "is_actionable": false,
       "url": "https://gizmodo.com/?p=2000744082",
       "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -2629,7 +2629,7 @@
       ],
       "published_at": "2026-04-08T18:10:49Z",
       "published_ts": 1775671849.0,
-      "age_minutes": 437.4,
+      "age_minutes": 472.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2656,7 +2656,7 @@
       "is_actionable": false,
       "url": "https://www.constellationr.com/insights/news/meta-releases-muse-spark-model-aims-get-back-llm-race",
       "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -2667,7 +2667,7 @@
       ],
       "published_at": "2026-04-08T18:10:02Z",
       "published_ts": 1775671802.0,
-      "age_minutes": 438.2,
+      "age_minutes": 473.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2694,7 +2694,7 @@
       "is_actionable": false,
       "url": "https://economictimes.indiatimes.com/news/international/us/why-meta-stock-is-rallying-after-muse-spark-launch-heres-what-investors-need-to-know-about-metas-new-ai-model/articleshow/130121365.cms",
       "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -2705,7 +2705,7 @@
       ],
       "published_at": "2026-04-08T17:55:00Z",
       "published_ts": 1775670900.0,
-      "age_minutes": 453.2,
+      "age_minutes": 488.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2732,7 +2732,7 @@
       "is_actionable": false,
       "url": "https://www.marketbeat.com/originals/openai-shutters-sora-a-win-for-meta-platforms-amid-a-rocky-stretch/",
       "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -2743,7 +2743,7 @@
       ],
       "published_at": "2026-04-08T17:53:11Z",
       "published_ts": 1775670791.0,
-      "age_minutes": 455.0,
+      "age_minutes": 490.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2770,7 +2770,7 @@
       "is_actionable": false,
       "url": "https://www.pymnts.com/metaverse/2026/meta-debuts-new-llm-muse-spark/",
       "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -2781,7 +2781,7 @@
       ],
       "published_at": "2026-04-08T17:45:12Z",
       "published_ts": 1775670312.0,
-      "age_minutes": 463.0,
+      "age_minutes": 498.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2808,7 +2808,7 @@
       "is_actionable": false,
       "url": "https://www.investors.com/news/technology/meta-stocks-muse-ai-model/",
       "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -2819,7 +2819,7 @@
       ],
       "published_at": "2026-04-08T17:00:25Z",
       "published_ts": 1775667625.0,
-      "age_minutes": 507.8,
+      "age_minutes": 543.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2846,7 +2846,7 @@
       "is_actionable": false,
       "url": "https://wtxnews.com/fidesz-bypasses-metas-political-ad-ban-ahead-of-hungarys-elections/",
       "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -2857,7 +2857,7 @@
       ],
       "published_at": "2026-04-08T22:31:11Z",
       "published_ts": 1775687471.0,
-      "age_minutes": 177.0,
+      "age_minutes": 212.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2884,7 +2884,7 @@
       "is_actionable": false,
       "url": "https://www.marketscreener.com/news/tech-up-as-meta-surges-on-ai-model-tech-roundup-ce7e50dbda8cf625",
       "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -2895,7 +2895,7 @@
       ],
       "published_at": "2026-04-08T21:35:57Z",
       "published_ts": 1775684157.0,
-      "age_minutes": 232.3,
+      "age_minutes": 267.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2922,7 +2922,7 @@
       "is_actionable": false,
       "url": "https://www.nasdaq.com/articles/meta-unveils-muse-spark-ai-model-compete-generative-ai-space",
       "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -2933,7 +2933,7 @@
       ],
       "published_at": "2026-04-08T17:46:46Z",
       "published_ts": 1775670406.0,
-      "age_minutes": 461.4,
+      "age_minutes": 496.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2960,7 +2960,7 @@
       "is_actionable": false,
       "url": "https://tech.yahoo.com/ai/meta-ai/articles/meta-finally-launches-delayed-muse-170804489.html",
       "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     }
   ],
@@ -3033,7 +3033,7 @@
   },
   "summary": {
     "active_story_count": 76,
-    "new_story_count": 76,
+    "new_story_count": 0,
     "actionable_story_count": 0,
     "actionable_symbols": [],
     "symbol_count": 5
