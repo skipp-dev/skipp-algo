@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-04-09T04:18:02.847763Z",
+  "generated_at": "2026-04-09T04:28:02.952868Z",
   "symbols": [
     "AAPL",
     "MSFT",
@@ -19,11 +19,11 @@
     "fmp_stock": 0.0,
     "fmp_press": 0.0,
     "fmp_articles": 0.0,
-    "newsapi_ai": 1775696772.0,
+    "newsapi_ai": 1775707260.0,
     "tv": 0.0,
-    "legacy_cursor": 1775696772.0
+    "legacy_cursor": 1775707260.0
   },
-  "legacy_cursor": 1775696772.0,
+  "legacy_cursor": 1775707260.0,
   "providers": {
     "benzinga": {
       "ok": false,
@@ -56,12 +56,12 @@
     "newsapi_ai": {
       "ok": true,
       "error": "",
-      "raw_count": 6,
-      "new_item_count": 0,
-      "cursor": 1775696772.0,
+      "raw_count": 90,
+      "new_item_count": 90,
+      "cursor": 1775707260.0,
       "last_seen_news_uri": "",
-      "provider_status": "ok_no_recent_matches",
-      "status_detail": "Event Registry reachable, but no new symbol-matching NewsAPI.ai items were newer than the current cursor.",
+      "provider_status": "ok",
+      "status_detail": "",
       "error_code": ""
     },
     "tv": {
@@ -81,7 +81,7 @@
       ],
       "published_at": "2026-04-08T18:14:06Z",
       "published_ts": 1775672046.0,
-      "age_minutes": 603.9,
+      "age_minutes": 613.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -107,8 +107,8 @@
       "recency_bucket": "AGING",
       "is_actionable": false,
       "url": "https://www.nasdaq.com/articles/see-which-recent-13f-filers-hold-msft",
-      "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": false,
+      "first_seen_at": "2026-04-09T04:28:02.952868Z",
+      "is_new": true,
       "provider_count": 1
     },
     {
@@ -119,7 +119,7 @@
       ],
       "published_at": "2026-04-09T00:19:57Z",
       "published_ts": 1775693997.0,
-      "age_minutes": 238.1,
+      "age_minutes": 248.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -145,19 +145,19 @@
       "recency_bucket": "AGING",
       "is_actionable": false,
       "url": "https://www.morningstar.com/news/dow-jones/202604089310/dow-jones-top-company-headlines-at-7-pm-et-constellation-brands-fourth-quarter-revenue-slides-as-alcohol-demand-remains-under-pressure-meta",
-      "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": false,
+      "first_seen_at": "2026-04-09T04:28:02.952868Z",
+      "is_new": true,
       "provider_count": 1
     },
     {
-      "story_key": "83280b061535e15ad0f0266d796c4386957d23e6:5918912",
-      "headline": "Meta unveils a new AI model that it hopes will justify its massive spending plans",
+      "story_key": "26719b3519c0de3ce1ff5c0accb70225f87d1307:5918851",
+      "headline": "Erste Group raises XOM stock earnings forecast for 2026",
       "tickers": [
-        "META"
+        "XOM"
       ],
-      "published_at": "2026-04-08T18:44:56Z",
-      "published_ts": 1775673896.0,
-      "age_minutes": 573.1,
+      "published_at": "2026-04-08T13:38:14Z",
+      "published_ts": 1775655494.0,
+      "age_minutes": 889.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -166,13 +166,431 @@
         "newsapi_ai"
       ],
       "sources": [
-        "CNBC"
+        "Rolling Out"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "earnings",
+      "event_class": "EARNINGS",
+      "event_label": "Erste Group raises XOM stock earnings forecast for 2026",
+      "sentiment_label": "bullish",
+      "polarity": 0.5,
+      "impact": 0.8,
+      "clarity": 0.8,
+      "relevance": 0.85,
+      "news_catalyst_score": 0.4084,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://rollingout.com/2026/04/08/erste-group-raises-xom-stock-earnings/",
+      "first_seen_at": "2026-04-09T04:28:02.952868Z",
+      "is_new": true,
+      "provider_count": 1
+    },
+    {
+      "story_key": "5d98d9105459ce42c0a3ecd8c8fb80950ab7e61d:5918821",
+      "headline": "Crypto markets predict Apple's (AAPL) stock price for April 30, 2026",
+      "tickers": [
+        "AAPL"
+      ],
+      "published_at": "2026-04-08T11:09:51Z",
+      "published_ts": 1775646591.0,
+      "age_minutes": 1038.2,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Finbold"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "crypto",
+      "event_class": "CRYPTO",
+      "event_label": "Crypto markets predict Apple's (AAPL) stock price for April 30, 2026",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.75,
+      "clarity": 0.8,
+      "relevance": 0.8275,
+      "news_catalyst_score": 0.3929,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://finbold.com/crypto-markets-predict-apples-aapl-stock-price-for-april-30-2026/",
+      "first_seen_at": "2026-04-09T04:28:02.952868Z",
+      "is_new": true,
+      "provider_count": 1
+    },
+    {
+      "story_key": "dfda3de3b6e5dfd397dfae7315079a28fb62da07:5919003",
+      "headline": "Exxon Mobil Stock: War Effect On Earnings (NYSE:XOM)",
+      "tickers": [
+        "XOM"
+      ],
+      "published_at": "2026-04-09T02:16:00Z",
+      "published_ts": 1775700960.0,
+      "age_minutes": 132.0,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Seeking Alpha"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "earnings",
+      "event_class": "EARNINGS",
+      "event_label": "Exxon Mobil Stock: War Effect On Earnings (NYSE:XOM)",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.8,
+      "clarity": 0.6,
+      "relevance": 0.79,
+      "news_catalyst_score": 0.3836,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://seekingalpha.com/article/4889385-exxon-mobil-war-effect-on-earnings",
+      "first_seen_at": "2026-04-09T04:28:02.952868Z",
+      "is_new": true,
+      "provider_count": 1
+    },
+    {
+      "story_key": "8a8875908de7905eb803d7f364b25046a242fc95:5918806",
+      "headline": "AMZN Stock Is Trading At 29x Earnings  --  The Lowest Valuation In A Decade. Billionaires Are Buying, Should You? | ABC Money",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_at": "2026-04-08T09:52:32Z",
+      "published_ts": 1775641952.0,
+      "age_minutes": 1115.5,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "ABC Money"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "earnings",
+      "event_class": "EARNINGS",
+      "event_label": "AMZN Stock Is Trading At 29x Earnings -- The Lowest Valuation In A Decade. Billionaires Are Buying, Should You? | ABC Mo",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.8,
+      "clarity": 0.6,
+      "relevance": 0.79,
+      "news_catalyst_score": 0.3836,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://www.abcmoney.co.uk/2026/04/amzn-stock-is-trading-at-29x-earnings-the-lowest-valuation-in-a-decade-billionaires-are-buying-should-you/",
+      "first_seen_at": "2026-04-09T04:28:02.952868Z",
+      "is_new": true,
+      "provider_count": 1
+    },
+    {
+      "story_key": "27604e7f90e4b8f8c696ee6d9d21cb68be250e5f:5918762",
+      "headline": "Why UBS Significantly Increased Its Price Target on Exxon Mobil (XOM) Stock",
+      "tickers": [
+        "XOM"
+      ],
+      "published_at": "2026-04-08T06:14:30Z",
+      "published_ts": 1775628870.0,
+      "age_minutes": 1333.5,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Markets Insider"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "analyst",
+      "event_class": "ANALYST",
+      "event_label": "Why UBS Significantly Increased Its Price Target on Exxon Mobil (XOM) Stock",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.65,
+      "clarity": 0.6,
+      "relevance": 0.7225,
+      "news_catalyst_score": 0.3372,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://markets.businessinsider.com/news/stocks/why-ubs-significantly-increased-its-price-target-on-exxon-mobil-xom-stock-1036002004",
+      "first_seen_at": "2026-04-09T04:28:02.952868Z",
+      "is_new": true,
+      "provider_count": 1
+    },
+    {
+      "story_key": "7235aae21240068686021a302ef44456427be853:5919024",
+      "headline": "Anthropic Curbs Rollout of AI Skeleton Key While Meta Regains Model Momentum",
+      "tickers": [
+        "META"
+      ],
+      "published_at": "2026-04-09T04:01:00Z",
+      "published_ts": 1775707260.0,
+      "age_minutes": 27.0,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "The Daily Upside"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Anthropic Curbs Rollout of AI Skeleton Key While Meta Regains Model Momentum",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.243,
+      "materiality": "LOW",
+      "recency_bucket": "WARM",
+      "is_actionable": false,
+      "url": "https://www.thedailyupside.com/technology/artificial-intelligence/anthropic-curbs-rollout-of-ai-skeleton-key-while-meta-regains-model-momentum/",
+      "first_seen_at": "2026-04-09T04:28:02.952868Z",
+      "is_new": true,
+      "provider_count": 1
+    },
+    {
+      "story_key": "b1525b9ef094cee40c5f97ee4ab4b7eadc5a4151:5919020",
+      "headline": "Meta takes on Claude and ChatGPT with Muse Spark AI, says it understands the world around you",
+      "tickers": [
+        "META"
+      ],
+      "published_at": "2026-04-09T03:40:16Z",
+      "published_ts": 1775706016.0,
+      "age_minutes": 47.8,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "India Today"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Meta takes on Claude and ChatGPT with Muse Spark AI, says it understands the world around you",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.243,
+      "materiality": "LOW",
+      "recency_bucket": "WARM",
+      "is_actionable": false,
+      "url": "https://www.indiatoday.in/technology/news/story/meta-takes-on-claude-and-chatgpt-with-muse-spark-ai-says-it-understands-the-world-around-you-2893519-2026-04-09",
+      "first_seen_at": "2026-04-09T04:28:02.952868Z",
+      "is_new": true,
+      "provider_count": 1
+    },
+    {
+      "story_key": "115766f4c5dea44e8f0ebb648e4c0187f8485ba8:5919017",
+      "headline": "Meta launches Muse Spark AI: What it is and what it can do",
+      "tickers": [
+        "META"
+      ],
+      "published_at": "2026-04-09T03:29:23Z",
+      "published_ts": 1775705363.0,
+      "age_minutes": 58.7,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Digit"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Meta launches Muse Spark AI: What it is and what it can do",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.243,
+      "materiality": "LOW",
+      "recency_bucket": "WARM",
+      "is_actionable": false,
+      "url": "https://www.digit.in/news/general/meta-launches-muse-spark-ai-what-it-is-and-what-it-can-do.html",
+      "first_seen_at": "2026-04-09T04:28:02.952868Z",
+      "is_new": true,
+      "provider_count": 1
+    },
+    {
+      "story_key": "c0ffb694b6ebe75377f0f4bc65a579ba4117bafd:5918899",
+      "headline": "10 Consumer Discretionary Stocks Whale Activity In Today's Session - Amazon.com (NASDAQ:AMZN), Beazer Hom",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_at": "2026-04-08T17:35:20Z",
+      "published_ts": 1775669720.0,
+      "age_minutes": 652.7,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
       ],
       "source_tier": "TIER_2",
       "source_rank": 2,
       "category": "other",
       "event_class": "UNKNOWN",
-      "event_label": "Meta unveils a new AI model that it hopes will justify its massive spending plans",
+      "event_label": "10 Consumer Discretionary Stocks Whale Activity In Today's Session - Amazon.com (NASDAQ:AMZN), Beazer Hom",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "news_catalyst_score": 0.2193,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://www.benzinga.com/insights/options/26/04/51713940/10-consumer-discretionary-stocks-whale-activity-in-todays-session",
+      "first_seen_at": "2026-04-09T04:28:02.952868Z",
+      "is_new": true,
+      "provider_count": 1
+    },
+    {
+      "story_key": "eceb9a14c71911760ac7eaad19443f08779c994d:5918848",
+      "headline": "Amazon To Rally Around 22%? Here Are 10 Top Analyst Forecasts For Wednesday - Amazon.com (NASDAQ:AMZN), C",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_at": "2026-04-08T13:24:29Z",
+      "published_ts": 1775654669.0,
+      "age_minutes": 903.6,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Amazon To Rally Around 22%? Here Are 10 Top Analyst Forecasts For Wednesday - Amazon.com (NASDAQ:AMZN), C",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "news_catalyst_score": 0.2193,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://www.benzinga.com/analyst-stock-ratings/price-target/26/04/51702642/amazon-to-rally-around-22-here-are-10-top-analyst-forecasts-for-wednesday",
+      "first_seen_at": "2026-04-09T04:28:02.952868Z",
+      "is_new": true,
+      "provider_count": 1
+    },
+    {
+      "story_key": "dc08576cd5951496a51730afa72587a03ab0413e:5918834",
+      "headline": "Apple Kills Mini-LED Era: New 2026 MacBook Pros To Trigger 33% OLED Explosion - Apple (NASDAQ:AAPL)",
+      "tickers": [
+        "AAPL"
+      ],
+      "published_at": "2026-04-08T12:13:50Z",
+      "published_ts": 1775650430.0,
+      "age_minutes": 974.2,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Apple Kills Mini-LED Era: New 2026 MacBook Pros To Trigger 33% OLED Explosion - Apple (NASDAQ:AAPL)",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "news_catalyst_score": 0.2193,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://www.benzinga.com/markets/tech/26/04/51700883/apple-kills-mini-led-era-new-2026-macbook-pros-to-trigger-33-oled-explosion",
+      "first_seen_at": "2026-04-09T04:28:02.952868Z",
+      "is_new": true,
+      "provider_count": 1
+    },
+    {
+      "story_key": "9b9a5d4433a37165d68fd27cf3822d8de3e5bdf6:5918994",
+      "headline": "Meta debuts first AI model from new superintelligence group - CNBC TV18",
+      "tickers": [
+        "META"
+      ],
+      "published_at": "2026-04-09T01:31:22Z",
+      "published_ts": 1775698282.0,
+      "age_minutes": 176.7,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "cnbctv18.com"
+      ],
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Meta debuts first AI model from new superintelligence group - CNBC TV18",
       "sentiment_label": "neutral",
       "polarity": 0.0,
       "impact": 0.1,
@@ -182,20 +600,20 @@
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
-      "url": "https://www.cnbc.com/2026/04/08/meta-unveils-a-new-ai-model-that-it-hopes-will-justify-its-massive-spending-plans.html",
-      "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": false,
+      "url": "https://www.cnbctv18.com/technology/meta-debuts-first-ai-model-from-new-superintelligence-group-ws-l-19883436.htm",
+      "first_seen_at": "2026-04-09T04:28:02.952868Z",
+      "is_new": true,
       "provider_count": 1
     },
     {
-      "story_key": "6cf92c1e0dafd67cd3b2e2755e5f8372703e7938:5918952",
-      "headline": "AI jobs: Meta cuts 200 in California amid AI push",
+      "story_key": "375e1a7e3b9fa4a3c996ff65b9966bc09ebb4dcf:5918898",
+      "headline": "Dan Ives Says Microsoft, Salesforce Sell-Off Overdone - Salesforce (NYSE:CRM), Microsoft (NASDAQ:MSFT), S",
       "tickers": [
-        "META"
+        "MSFT"
       ],
-      "published_at": "2026-04-08T22:03:39Z",
-      "published_ts": 1775685819.0,
-      "age_minutes": 374.4,
+      "published_at": "2026-04-08T17:33:10Z",
+      "published_ts": 1775669590.0,
+      "age_minutes": 654.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -204,13 +622,317 @@
         "newsapi_ai"
       ],
       "sources": [
-        "crypto.news"
+        "Benzinga"
+      ],
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Dan Ives Says Microsoft, Salesforce Sell-Off Overdone - Salesforce (NYSE:CRM), Microsoft (NASDAQ:MSFT), S",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.1946,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://www.benzinga.com/markets/tech/26/04/51713873/microsoft-salesforce-servicenow-sell-off-is-overdone-dan-ives",
+      "first_seen_at": "2026-04-09T04:28:02.952868Z",
+      "is_new": true,
+      "provider_count": 1
+    },
+    {
+      "story_key": "8e0e1743aef25bfcf5164e93b1f9e3a269aef251:5918885",
+      "headline": "Jim Cramer Says Apple Stock Goes Higher - Apple (NASDAQ:AAPL)",
+      "tickers": [
+        "AAPL"
+      ],
+      "published_at": "2026-04-08T16:25:45Z",
+      "published_ts": 1775665545.0,
+      "age_minutes": 722.3,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Jim Cramer Says Apple Stock Goes Higher - Apple (NASDAQ:AAPL)",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.1946,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://www.benzinga.com/markets/tech/26/04/51711485/jim-cramer-says-apple-stock-goes-higher-as-foldable-fears-start-to-fade",
+      "first_seen_at": "2026-04-09T04:28:02.952868Z",
+      "is_new": true,
+      "provider_count": 1
+    },
+    {
+      "story_key": "90ff7fe8aba22531413ee993fd0329648401019c:5918862",
+      "headline": "Why Is Exxon Mobil Stock Falling Today? - Exxon Mobil (NYSE:XOM)",
+      "tickers": [
+        "XOM"
+      ],
+      "published_at": "2026-04-08T14:34:41Z",
+      "published_ts": 1775658881.0,
+      "age_minutes": 833.4,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Why Is Exxon Mobil Stock Falling Today? - Exxon Mobil (NYSE:XOM)",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.1946,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://www.benzinga.com/trading-ideas/movers/26/04/51706700/why-is-exxon-mobil-stock-falling-today",
+      "first_seen_at": "2026-04-09T04:28:02.952868Z",
+      "is_new": true,
+      "provider_count": 1
+    },
+    {
+      "story_key": "6df4de49b6a46e02ca2cfc6db838a1c833f810dc:5918860",
+      "headline": "Amazon, Microsoft, Google AI Footprint Faces Pressure - Amazon.com (NASDAQ:AMZN), Alphabet (NASDAQ:GOOG)",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_at": "2026-04-08T14:20:03Z",
+      "published_ts": 1775658003.0,
+      "age_minutes": 848.0,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Amazon, Microsoft, Google AI Footprint Faces Pressure - Amazon.com (NASDAQ:AMZN), Alphabet (NASDAQ:GOOG)",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.1946,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://www.benzinga.com/markets/tech/26/04/51706010/while-amazon-microsoft-google-struggle-with-ai-on-land-china-looks-to-the-sea",
+      "first_seen_at": "2026-04-09T04:28:02.952868Z",
+      "is_new": true,
+      "provider_count": 1
+    },
+    {
+      "story_key": "6e718ae0143905139ed1b9430085156d3ff4ecb9:5918822",
+      "headline": "Apple's Foldable iPhone Reportedly Remains On Track For September Debut - Apple (NASDAQ:AAPL), Invesco QQ",
+      "tickers": [
+        "AAPL"
+      ],
+      "published_at": "2026-04-08T11:11:34Z",
+      "published_ts": 1775646694.0,
+      "age_minutes": 1036.5,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Apple's Foldable iPhone Reportedly Remains On Track For September Debut - Apple (NASDAQ:AAPL), Invesco QQ",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.1946,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://www.benzinga.com/trading-ideas/movers/26/04/51699535/apples-foldable-iphone-reportedly-remains-on-track-for-september-debut",
+      "first_seen_at": "2026-04-09T04:28:02.952868Z",
+      "is_new": true,
+      "provider_count": 1
+    },
+    {
+      "story_key": "03b977ba687af13874af766f2321b934ca345f76:5918817",
+      "headline": "Majority Of Americans Say They Pay More Than Their Fair Share In Taxes - JPMorgan Chase (NYSE:JPM)",
+      "tickers": [
+        "JPM"
+      ],
+      "published_at": "2026-04-08T10:48:52Z",
+      "published_ts": 1775645332.0,
+      "age_minutes": 1059.2,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Majority Of Americans Say They Pay More Than Their Fair Share In Taxes - JPMorgan Chase (NYSE:JPM)",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.1946,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://www.benzinga.com/personal-finance/tax/26/04/51699025/majority-of-americans-say-they-pay-more-than-their-fair-share-in-taxes",
+      "first_seen_at": "2026-04-09T04:28:02.952868Z",
+      "is_new": true,
+      "provider_count": 1
+    },
+    {
+      "story_key": "019b3b09d4a7096ff1e7251cca6b81873067ac9d:5918807",
+      "headline": "Analyzing Amazon.com In Comparison To Competitors In Broadline Retail Industry - Amazon.com (NASDAQ:AMZN)",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_at": "2026-04-08T09:58:56Z",
+      "published_ts": 1775642336.0,
+      "age_minutes": 1109.1,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Analyzing Amazon.com In Comparison To Competitors In Broadline Retail Industry - Amazon.com (NASDAQ:AMZN)",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.1946,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://www.benzinga.com/insights/news/26/04/51697942/analyzing-amazon-com-in-comparison-to-competitors-in-broadline-retail-industry",
+      "first_seen_at": "2026-04-09T04:28:02.952868Z",
+      "is_new": true,
+      "provider_count": 1
+    },
+    {
+      "story_key": "176fba4e7297c3a274bffcd53061ad0916cb83bf:5918807",
+      "headline": "Comparative Study: Microsoft And Industry Competitors In Software Industry - Microsoft (NASDAQ:MSFT)",
+      "tickers": [
+        "MSFT"
+      ],
+      "published_at": "2026-04-08T09:58:48Z",
+      "published_ts": 1775642328.0,
+      "age_minutes": 1109.2,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Comparative Study: Microsoft And Industry Competitors In Software Industry - Microsoft (NASDAQ:MSFT)",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.1946,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://www.benzinga.com/insights/news/26/04/51697928/comparative-study-microsoft-and-industry-competitors-in-software-industry",
+      "first_seen_at": "2026-04-09T04:28:02.952868Z",
+      "is_new": true,
+      "provider_count": 1
+    },
+    {
+      "story_key": "10b77c26b8f018b7c61ac3cb970adca087bdb7fe:5919013",
+      "headline": "Russian Bots, Kremlin Agitprop, and Meta's Blind Eye: The Disinformation War Over Hungary's 2026 Election",
+      "tickers": [
+        "META"
+      ],
+      "published_at": "2026-04-09T03:06:32Z",
+      "published_ts": 1775703992.0,
+      "age_minutes": 81.5,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "The Cherry Creek News"
       ],
       "source_tier": "TIER_3",
       "source_rank": 3,
       "category": "other",
       "event_class": "UNKNOWN",
-      "event_label": "AI jobs: Meta cuts 200 in California amid AI push",
+      "event_label": "Russian Bots, Kremlin Agitprop, and Meta's Blind Eye: The Disinformation War Over Hungary's 2026 Election",
       "sentiment_label": "neutral",
       "polarity": 0.0,
       "impact": 0.1,
@@ -220,20 +942,20 @@
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
-      "url": "https://crypto.news/ai-jobs-meta-cuts-200-in-california-amid-ai-push/",
-      "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": false,
+      "url": "https://thecherrycreeknews.com/hungary-election-disinformation-2026-thecherrycreeknews/",
+      "first_seen_at": "2026-04-09T04:28:02.952868Z",
+      "is_new": true,
       "provider_count": 1
     },
     {
-      "story_key": "313f906f7a897498226d7e03bb64d2e61a318380:5918936",
-      "headline": "Meta Debuts First AI Model From New Superintelligence Group (1)",
+      "story_key": "28f09932729c791dcc9099f4fb88e388580cc4db:5919006",
+      "headline": "Meta Infotech bags Rs 3-cr cloud security orders",
       "tickers": [
         "META"
       ],
-      "published_at": "2026-04-08T20:41:42Z",
-      "published_ts": 1775680902.0,
-      "age_minutes": 456.3,
+      "published_at": "2026-04-09T02:34:01Z",
+      "published_ts": 1775702041.0,
+      "age_minutes": 114.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -242,13 +964,13 @@
         "newsapi_ai"
       ],
       "sources": [
-        "news.bloomberglaw.com"
+        "Business Standard"
       ],
       "source_tier": "TIER_3",
       "source_rank": 3,
       "category": "other",
       "event_class": "UNKNOWN",
-      "event_label": "Meta Debuts First AI Model From New Superintelligence Group (1)",
+      "event_label": "Meta Infotech bags Rs 3-cr cloud security orders",
       "sentiment_label": "neutral",
       "polarity": 0.0,
       "impact": 0.1,
@@ -258,20 +980,20 @@
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
-      "url": "https://news.bloomberglaw.com/artificial-intelligence/meta-debuts-first-ai-model-from-new-superintelligence-group-1",
-      "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": false,
+      "url": "https://www.business-standard.com/markets/capital-market-news/meta-infotech-bags-rs-3-cr-cloud-security-orders-126040900120_1.html",
+      "first_seen_at": "2026-04-09T04:28:02.952868Z",
+      "is_new": true,
       "provider_count": 1
     },
     {
-      "story_key": "953a9786f7ba9b483e5a00179b288f11825183ec:5918932",
-      "headline": "Meta Stock Surges Following New AI Model Launch - News Directory 3",
+      "story_key": "e7cd0a72980d0ad69e765f335637f8d8043e7121:5918984",
+      "headline": "This Meta Strider 300 Loadout One-Shots at any Distance in Black Ops 7",
       "tickers": [
         "META"
       ],
-      "published_at": "2026-04-08T20:22:43Z",
-      "published_ts": 1775679763.0,
-      "age_minutes": 475.3,
+      "published_at": "2026-04-09T00:42:35Z",
+      "published_ts": 1775695355.0,
+      "age_minutes": 225.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -280,13 +1002,13 @@
         "newsapi_ai"
       ],
       "sources": [
-        "News Directory 3"
+        "Game Rant"
       ],
       "source_tier": "TIER_3",
       "source_rank": 3,
       "category": "other",
       "event_class": "UNKNOWN",
-      "event_label": "Meta Stock Surges Following New AI Model Launch - News Directory 3",
+      "event_label": "This Meta Strider 300 Loadout One-Shots at any Distance in Black Ops 7",
       "sentiment_label": "neutral",
       "polarity": 0.0,
       "impact": 0.1,
@@ -296,20 +1018,20 @@
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
-      "url": "https://www.newsdirectory3.com/meta-stock-surges-following-new-ai-model-launch/",
-      "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": false,
+      "url": "https://gamerant.com/call-of-duty-cod-black-ops-7-bo7-warzone-best-meta-strider-300-sniper-loadout-build/",
+      "first_seen_at": "2026-04-09T04:28:02.952868Z",
+      "is_new": true,
       "provider_count": 1
     },
     {
-      "story_key": "bb4316c73ef2fe3dd95d9c178cd00995eaa4d552:5918929",
-      "headline": "Meta Launches Muse Spark, Its Most Capable AI Yet -- But Gemini 3.1 Pro Still Leads the Pack - Decrypt",
+      "story_key": "e47bc0c32554418fefd7018825589747743b7029:5918861",
+      "headline": "Aapl Slides Below the Surface: What April 7's Close Says About Apple's Hidden Pressure",
       "tickers": [
-        "META"
+        "AAPL"
       ],
-      "published_at": "2026-04-08T20:07:25Z",
-      "published_ts": 1775678845.0,
-      "age_minutes": 490.6,
+      "published_at": "2026-04-08T14:28:14Z",
+      "published_ts": 1775658494.0,
+      "age_minutes": 839.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -318,13 +1040,13 @@
         "newsapi_ai"
       ],
       "sources": [
-        "Decrypt"
+        "El-Balad.com"
       ],
       "source_tier": "TIER_3",
       "source_rank": 3,
       "category": "other",
       "event_class": "UNKNOWN",
-      "event_label": "Meta Launches Muse Spark, Its Most Capable AI Yet -- But Gemini 3.1 Pro Still Leads the Pack - Decrypt",
+      "event_label": "Aapl Slides Below the Surface: What April 7's Close Says About Apple's Hidden Pressure",
       "sentiment_label": "neutral",
       "polarity": 0.0,
       "impact": 0.1,
@@ -334,20 +1056,20 @@
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
-      "url": "https://decrypt.co/363691/meta-muse-spark-most-capable-ai-gemini-pro-still-leads",
-      "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": false,
+      "url": "https://www.el-balad.com/16906061",
+      "first_seen_at": "2026-04-09T04:28:02.952868Z",
+      "is_new": true,
       "provider_count": 1
     },
     {
-      "story_key": "59b7109f0eee615f54ce7d41cef9a858166b922a:5918921",
-      "headline": "META Stock Forecast: Rises 8% After Launching Muse Spark AI Model",
+      "story_key": "35f6505b58c115c7bbf1a987d734e961a72de946:5918849",
+      "headline": "Exxon Mobil (XOM) Stock Plunges 6% as Iran Conflict Slashes Gulf Operations - Blockonomi",
       "tickers": [
-        "META"
+        "XOM"
       ],
-      "published_at": "2026-04-08T19:26:42Z",
-      "published_ts": 1775676402.0,
-      "age_minutes": 531.3,
+      "published_at": "2026-04-08T13:29:52Z",
+      "published_ts": 1775654992.0,
+      "age_minutes": 898.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -356,13 +1078,13 @@
         "newsapi_ai"
       ],
       "sources": [
-        "Coinpaper"
+        "Blockonomi"
       ],
       "source_tier": "TIER_3",
       "source_rank": 3,
       "category": "other",
       "event_class": "UNKNOWN",
-      "event_label": "META Stock Forecast: Rises 8% After Launching Muse Spark AI Model",
+      "event_label": "Exxon Mobil (XOM) Stock Plunges 6% as Iran Conflict Slashes Gulf Operations - Blockonomi",
       "sentiment_label": "neutral",
       "polarity": 0.0,
       "impact": 0.1,
@@ -372,20 +1094,20 @@
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
-      "url": "https://coinpaper.com/16098/meta-stock-forecast-rises-8-after-launching-muse-spark-ai-model",
-      "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": false,
+      "url": "https://blockonomi.com/exxon-mobil-xom-stock-plunges-6-as-iran-conflict-slashes-gulf-operations/",
+      "first_seen_at": "2026-04-09T04:28:02.952868Z",
+      "is_new": true,
       "provider_count": 1
     },
     {
-      "story_key": "d8932069f6df1cc66aade474378ce3b9f5df0fb2:5918919",
-      "headline": "Dow Jones Top Company Headlines at 3 PM ET: Meta Announces New AI Model in Major Test of Company's Ambitions | Paramount ...",
+      "story_key": "6b1fea143ce8636bed984a63fb868a822bfdf65e:5918839",
+      "headline": "Exxon says 6% of its worldwide production shut in Q1 from Middle East war (XOM:NYSE)",
       "tickers": [
-        "META"
+        "XOM"
       ],
-      "published_at": "2026-04-08T19:15:00Z",
-      "published_ts": 1775675700.0,
-      "age_minutes": 543.0,
+      "published_at": "2026-04-08T12:38:25Z",
+      "published_ts": 1775651905.0,
+      "age_minutes": 949.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -394,13 +1116,13 @@
         "newsapi_ai"
       ],
       "sources": [
-        "Morningstar"
+        "Seeking Alpha"
       ],
       "source_tier": "TIER_3",
       "source_rank": 3,
       "category": "other",
       "event_class": "UNKNOWN",
-      "event_label": "Dow Jones Top Company Headlines at 3 PM ET: Meta Announces New AI Model in Major Test of Company's Ambitions | Paramount",
+      "event_label": "Exxon says 6% of its worldwide production shut in Q1 from Middle East war (XOM:NYSE)",
       "sentiment_label": "neutral",
       "polarity": 0.0,
       "impact": 0.1,
@@ -410,20 +1132,20 @@
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
-      "url": "https://www.morningstar.com/news/dow-jones/202604087277/dow-jones-top-company-headlines-at-3-pm-et-meta-announces-new-ai-model-in-major-test-of-companys-ambitions-paramount",
-      "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": false,
+      "url": "https://seekingalpha.com/news/4573263-exxon-says-6-of-its-worldwide-production-shut-in-q1-from-middle-east-war",
+      "first_seen_at": "2026-04-09T04:28:02.952868Z",
+      "is_new": true,
       "provider_count": 1
     },
     {
-      "story_key": "4c34ddb1f8ca095450c45a4630f3513cbf4b0e0e:5918916",
-      "headline": "Banks Selling $3 Billion Debt for Meta's Prometheus Data Center",
+      "story_key": "a5cd0d48116701d2d8d4594b317892b64ec07528:5918774",
+      "headline": "AAPL Stock Just Dropped 5% On A Single Rumor. Is Apple's Best Days Behind It? | ABC Money",
       "tickers": [
-        "META"
+        "AAPL"
       ],
-      "published_at": "2026-04-08T19:04:35Z",
-      "published_ts": 1775675075.0,
-      "age_minutes": 553.5,
+      "published_at": "2026-04-08T07:10:30Z",
+      "published_ts": 1775632230.0,
+      "age_minutes": 1277.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -432,13 +1154,13 @@
         "newsapi_ai"
       ],
       "sources": [
-        "Bloomberg Business"
+        "ABC Money"
       ],
       "source_tier": "TIER_3",
       "source_rank": 3,
       "category": "other",
       "event_class": "UNKNOWN",
-      "event_label": "Banks Selling $3 Billion Debt for Meta's Prometheus Data Center",
+      "event_label": "AAPL Stock Just Dropped 5% On A Single Rumor. Is Apple's Best Days Behind It? | ABC Money",
       "sentiment_label": "neutral",
       "polarity": 0.0,
       "impact": 0.1,
@@ -448,20 +1170,22 @@
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
-      "url": "https://www.bloomberg.com/news/articles/2026-04-08/natixis-mufg-others-market-meta-s-3b-data-center-build",
-      "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": false,
+      "url": "https://www.abcmoney.co.uk/2026/04/aapl-stock-just-dropped-5-on-a-single-rumor-is-apples-best-days-behind-it/",
+      "first_seen_at": "2026-04-09T04:28:02.952868Z",
+      "is_new": true,
       "provider_count": 1
     },
     {
-      "story_key": "f9766929a1426a14609d9c3cc0150fd31b76557d:5918905",
-      "headline": "Meta launches Muse Spark AI, BofA raises 2026 chip forecast to $1.3T",
+      "story_key": "9f55b686374205531bc839b8a20efc8e987674cf:5918848",
+      "headline": "Trade Strategy For SPY, QQQ, AAPL, MSFT, NVDA, GOOGL, META, And TSLA",
       "tickers": [
-        "META"
+        "AAPL",
+        "META",
+        "MSFT"
       ],
-      "published_at": "2026-04-08T18:05:49Z",
-      "published_ts": 1775671549.0,
-      "age_minutes": 612.2,
+      "published_at": "2026-04-08T13:22:24Z",
+      "published_ts": 1775654544.0,
+      "age_minutes": 905.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -470,74 +1194,36 @@
         "newsapi_ai"
       ],
       "sources": [
-        "Yahoo! Finance"
+        "Benzinga"
       ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
+      "source_tier": "TIER_2",
+      "source_rank": 2,
       "category": "other",
       "event_class": "UNKNOWN",
-      "event_label": "Meta launches Muse Spark AI, BofA raises 2026 chip forecast to $1.3T",
-      "sentiment_label": "bullish",
-      "polarity": 0.5,
-      "impact": 0.1,
-      "clarity": 0.8,
-      "relevance": 0.535,
-      "news_catalyst_score": 0.1918,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://ca.finance.yahoo.com/video/meta-launches-muse-spark-ai-bofa-raises-2026-chip-forecast-to-13t-180549134.html",
-      "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "9bc23213794b0fdcd9e11f00cf39e73e498fbc04:5918901",
-      "headline": "Meta Debuts Muse Spark LLM - News Directory 3",
-      "tickers": [
-        "META"
-      ],
-      "published_at": "2026-04-08T17:46:12Z",
-      "published_ts": 1775670372.0,
-      "age_minutes": 631.8,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "News Directory 3"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Meta Debuts Muse Spark LLM - News Directory 3",
+      "event_label": "Trade Strategy For SPY, QQQ, AAPL, MSFT, NVDA, GOOGL, META, And TSLA",
       "sentiment_label": "neutral",
       "polarity": 0.0,
       "impact": 0.1,
-      "clarity": 0.8,
-      "relevance": 0.535,
-      "news_catalyst_score": 0.1918,
+      "clarity": 0.6,
+      "relevance": 0.425,
+      "news_catalyst_score": 0.1877,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
-      "url": "https://www.newsdirectory3.com/meta-debuts-muse-spark-llm/",
-      "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": false,
+      "url": "https://www.benzinga.com/Opinion/26/04/51702617/trade-strategy-for-spy-qqq-aapl-msft-nvda-googl-meta-and-tsla-3",
+      "first_seen_at": "2026-04-09T04:28:02.952868Z",
+      "is_new": true,
       "provider_count": 1
     },
     {
-      "story_key": "bae8e5440059e8359021ae9aa9692732a0857558:5918900",
-      "headline": "Meta Employee Uses Custom Script to Bypass Facebook Systems - News Directory 3",
+      "story_key": "7b76d44063c0f246cf04777b34227f38eef67ce0:5919015",
+      "headline": "Meta Launches Muse Spark: MSL's First Model Delivers Efficiency Breakthrough",
       "tickers": [
         "META"
       ],
-      "published_at": "2026-04-08T17:41:46Z",
-      "published_ts": 1775670106.0,
-      "age_minutes": 636.3,
+      "published_at": "2026-04-09T03:17:11Z",
+      "published_ts": 1775704631.0,
+      "age_minutes": 70.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -546,36 +1232,36 @@
         "newsapi_ai"
       ],
       "sources": [
-        "News Directory 3"
+        "Medium"
       ],
       "source_tier": "TIER_3",
       "source_rank": 3,
       "category": "other",
       "event_class": "UNKNOWN",
-      "event_label": "Meta Employee Uses Custom Script to Bypass Facebook Systems - News Directory 3",
+      "event_label": "Meta Launches Muse Spark: MSL's First Model Delivers Efficiency Breakthrough",
       "sentiment_label": "neutral",
       "polarity": 0.0,
       "impact": 0.1,
-      "clarity": 0.8,
-      "relevance": 0.535,
-      "news_catalyst_score": 0.1918,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.1671,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
-      "url": "https://www.newsdirectory3.com/meta-employee-uses-custom-script-to-bypass-facebook-systems/",
-      "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": false,
+      "url": "https://ai-engineering-trend.medium.com/meta-launches-muse-spark-msls-first-model-delivers-efficiency-breakthrough-a51ea2099793",
+      "first_seen_at": "2026-04-09T04:28:02.952868Z",
+      "is_new": true,
       "provider_count": 1
     },
     {
-      "story_key": "190580c327dc7ebbf127c0f60f973eeaf3f2ff4b:5918899",
-      "headline": "Meta Introduces Muse Spark AI Model: How It stacks up against DeepThink and GPT-5.4 Pro",
+      "story_key": "466e2cfd908551073418736b6fedc2c9e19a6e84:5919010",
+      "headline": "Meta unveils first AI model from costly superintelligence team",
       "tickers": [
         "META"
       ],
-      "published_at": "2026-04-08T17:37:12Z",
-      "published_ts": 1775669832.0,
-      "age_minutes": 640.8,
+      "published_at": "2026-04-09T02:50:03Z",
+      "published_ts": 1775703003.0,
+      "age_minutes": 98.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -584,25 +1270,368 @@
         "newsapi_ai"
       ],
       "sources": [
-        "Firstpost"
+        "ETTelecom.com"
       ],
       "source_tier": "TIER_3",
       "source_rank": 3,
       "category": "other",
       "event_class": "UNKNOWN",
-      "event_label": "Meta Introduces Muse Spark AI Model: How It stacks up against DeepThink and GPT-5.4 Pro",
+      "event_label": "Meta unveils first AI model from costly superintelligence team",
       "sentiment_label": "neutral",
       "polarity": 0.0,
       "impact": 0.1,
-      "clarity": 0.8,
-      "relevance": 0.535,
-      "news_catalyst_score": 0.1918,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.1671,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
-      "url": "https://www.firstpost.com/tech/meta-introduces-muse-spark-ai-model-how-it-stacks-up-against-deepthink-and-gpt-5-4-pro-13998166.html",
-      "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": false,
+      "url": "https://telecom.economictimes.indiatimes.com/news/internet/meta-introduces-muse-spark-a-game-changing-ai-model-from-superintelligence-team/130127523",
+      "first_seen_at": "2026-04-09T04:28:02.952868Z",
+      "is_new": true,
+      "provider_count": 1
+    },
+    {
+      "story_key": "d96ffdadac969eba0c597d8662e1ea9f6f317542:5919007",
+      "headline": "XOM/CVX: How Volatile Oil Prices and Global Tensions Could Impact Integrated Oil Giants.",
+      "tickers": [
+        "XOM"
+      ],
+      "published_at": "2026-04-09T02:35:00Z",
+      "published_ts": 1775702100.0,
+      "age_minutes": 113.0,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "NASDAQ Stock Market"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "XOM/CVX: How Volatile Oil Prices and Global Tensions Could Impact Integrated Oil Giants.",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.1671,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://www.nasdaq.com/articles/xom-cvx-how-volatile-oil-prices-and-global-tensions-could-impact-integrated-oil-giants",
+      "first_seen_at": "2026-04-09T04:28:02.952868Z",
+      "is_new": true,
+      "provider_count": 1
+    },
+    {
+      "story_key": "e6d1e3ba8473480236a4662cddd253ccb3e9371d:5919004",
+      "headline": "Meta launches Muse Spark AI with reasoning and native multimodal capabilities",
+      "tickers": [
+        "META"
+      ],
+      "published_at": "2026-04-09T02:21:35Z",
+      "published_ts": 1775701295.0,
+      "age_minutes": 126.5,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Neowin"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Meta launches Muse Spark AI with reasoning and native multimodal capabilities",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.1671,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://www.neowin.net/news/meta-launches-muse-spark-ai-with-reasoning-and-native-multimodal-capabilities/",
+      "first_seen_at": "2026-04-09T04:28:02.952868Z",
+      "is_new": true,
+      "provider_count": 1
+    },
+    {
+      "story_key": "390c3ddf5762f7ee5644757f39f9aac8752cd2ea:5919003",
+      "headline": "Meta and Google examined in Indonesia over alleged violations of child protection rules | MLex | Specialist news and analysis on legal risk and regulation",
+      "tickers": [
+        "META"
+      ],
+      "published_at": "2026-04-09T02:17:42Z",
+      "published_ts": 1775701062.0,
+      "age_minutes": 130.3,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "mlex.com"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Meta and Google examined in Indonesia over alleged violations of child protection rules | MLex | Specialist news and ana",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.1671,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://www.mlex.com/mlex/articles/2463293/meta-and-google-examined-in-indonesia-over-alleged-violations-of-child-protection-rules",
+      "first_seen_at": "2026-04-09T04:28:02.952868Z",
+      "is_new": true,
+      "provider_count": 1
+    },
+    {
+      "story_key": "39e2d05678f13468cdbc0db187404c7975578dbd:5919002",
+      "headline": "Smart, Ericsson & Meta Boost Messenger Call Quality Across the Philippines",
+      "tickers": [
+        "META"
+      ],
+      "published_at": "2026-04-09T02:14:30Z",
+      "published_ts": 1775700870.0,
+      "age_minutes": 133.5,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "thefastmode.com"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Smart, Ericsson & Meta Boost Messenger Call Quality Across the Philippines",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.1671,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://www.thefastmode.com/technology-solutions/48010-smart-ericsson-meta-boost-messenger-call-quality-across-the-philippines",
+      "first_seen_at": "2026-04-09T04:28:02.952868Z",
+      "is_new": true,
+      "provider_count": 1
+    },
+    {
+      "story_key": "cd44249b88c5a4dc33949183aeee0e5d04264fb3:5919001",
+      "headline": "Meta Unveils New AI Model Developed by Costly, New Superintelligence Labs",
+      "tickers": [
+        "META"
+      ],
+      "published_at": "2026-04-09T02:06:46Z",
+      "published_ts": 1775700406.0,
+      "age_minutes": 141.3,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "CNET"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Meta Unveils New AI Model Developed by Costly, New Superintelligence Labs",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.1671,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://www.cnet.com/news/meta-unveils-new-ai-model-developed-by-costly-new-superintelligence-labs/",
+      "first_seen_at": "2026-04-09T04:28:02.952868Z",
+      "is_new": true,
+      "provider_count": 1
+    },
+    {
+      "story_key": "f3c6ec7d81dcd6449020b5c41725537f6fbefe69:5919000",
+      "headline": "Legal Tales | Antisocial media: Meta, Google liable in landmark case for mental health harm",
+      "tickers": [
+        "META"
+      ],
+      "published_at": "2026-04-09T02:02:06Z",
+      "published_ts": 1775700126.0,
+      "age_minutes": 145.9,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "South China Morning Post"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Legal Tales | Antisocial media: Meta, Google liable in landmark case for mental health harm",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.1671,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://www.scmp.com/news/hong-kong/law-and-crime/article/3349448/antisocial-media-meta-google-liable-landmark-case-mental-health-harm",
+      "first_seen_at": "2026-04-09T04:28:02.952868Z",
+      "is_new": true,
+      "provider_count": 1
+    },
+    {
+      "story_key": "0b53c2471addb63ea002bbfc09a744dc0e00f40e:5919000",
+      "headline": "Meta Muse Spark Model Debuts Reasoning Capabilities for Meta AI",
+      "tickers": [
+        "META"
+      ],
+      "published_at": "2026-04-09T02:00:22Z",
+      "published_ts": 1775700022.0,
+      "age_minutes": 147.7,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Tech Times"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Meta Muse Spark Model Debuts Reasoning Capabilities for Meta AI",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.1671,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://www.techtimes.com/articles/315760/20260408/meta-muse-spark-model-debuts-reasoning-capabilities-meta-ai-superintelligence-labs-first.htm",
+      "first_seen_at": "2026-04-09T04:28:02.952868Z",
+      "is_new": true,
+      "provider_count": 1
+    },
+    {
+      "story_key": "c189569ec676f5725d2e44b4332f385a9995065d:5918997",
+      "headline": "Meta has found its footing on AI. Its rival found something much scarier",
+      "tickers": [
+        "META"
+      ],
+      "published_at": "2026-04-09T01:48:24Z",
+      "published_ts": 1775699304.0,
+      "age_minutes": 159.6,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Brisbane Times",
+        "The Age"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Meta has found its footing on AI. Its rival found something much scarier",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.1671,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://www.theage.com.au/technology/meta-has-found-its-footing-on-ai-its-rival-found-something-much-scarier-20260409-p5zmeu.html",
+      "first_seen_at": "2026-04-09T04:28:02.952868Z",
+      "is_new": true,
+      "provider_count": 1
+    },
+    {
+      "story_key": "04e9cfe4f570735af2296ee550cbf1d0214203e0:5918995",
+      "headline": "Muse Spark: Meta Unveils Its Most Advanced Multimodal AI Model Built by Superintelligence Labs; Rolling Out to WhatsApp, Instagram in Coming Weeks",
+      "tickers": [
+        "META"
+      ],
+      "published_at": "2026-04-09T01:35:11Z",
+      "published_ts": 1775698511.0,
+      "age_minutes": 172.9,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "LatestLY"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Muse Spark: Meta Unveils Its Most Advanced Multimodal AI Model Built by Superintelligence Labs; Rolling Out to WhatsApp,",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.1671,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://www.latestly.com/socially/technology/muse-spark-meta-unveils-its-most-advanced-multimodal-ai-model-built-by-superintelligence-labs-rolling-out-to-whatsapp-instagram-in-coming-weeks-7385762.html",
+      "first_seen_at": "2026-04-09T04:28:02.952868Z",
+      "is_new": true,
       "provider_count": 1
     },
     {
@@ -613,7 +1642,7 @@
       ],
       "published_at": "2026-04-09T01:06:12Z",
       "published_ts": 1775696772.0,
-      "age_minutes": 191.8,
+      "age_minutes": 201.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -639,8 +1668,8 @@
       "recency_bucket": "AGING",
       "is_actionable": false,
       "url": "https://www.ynetnews.com/tech-and-digital/article/bycs9u4nzl",
-      "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": false,
+      "first_seen_at": "2026-04-09T04:28:02.952868Z",
+      "is_new": true,
       "provider_count": 1
     },
     {
@@ -651,7 +1680,7 @@
       ],
       "published_at": "2026-04-09T00:01:20Z",
       "published_ts": 1775692880.0,
-      "age_minutes": 256.7,
+      "age_minutes": 266.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -677,8 +1706,8 @@
       "recency_bucket": "AGING",
       "is_actionable": false,
       "url": "https://alltoc.com/tech/whats-new-with-metas-muse-spark-model",
-      "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": false,
+      "first_seen_at": "2026-04-09T04:28:02.952868Z",
+      "is_new": true,
       "provider_count": 1
     },
     {
@@ -689,7 +1718,7 @@
       ],
       "published_at": "2026-04-08T23:51:56Z",
       "published_ts": 1775692316.0,
-      "age_minutes": 266.1,
+      "age_minutes": 276.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -715,8 +1744,8 @@
       "recency_bucket": "AGING",
       "is_actionable": false,
       "url": "https://simonwillison.net/2026/Apr/8/muse-spark/",
-      "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": false,
+      "first_seen_at": "2026-04-09T04:28:02.952868Z",
+      "is_new": true,
       "provider_count": 1
     },
     {
@@ -727,7 +1756,7 @@
       ],
       "published_at": "2026-04-08T23:14:35Z",
       "published_ts": 1775690075.0,
-      "age_minutes": 303.5,
+      "age_minutes": 313.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -753,8 +1782,8 @@
       "recency_bucket": "AGING",
       "is_actionable": false,
       "url": "https://www.morningstar.com/news/dow-jones/202604088975/tech-up-as-meta-surges-on-ai-model-tech-roundup",
-      "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": false,
+      "first_seen_at": "2026-04-09T04:28:02.952868Z",
+      "is_new": true,
       "provider_count": 1
     },
     {
@@ -765,7 +1794,7 @@
       ],
       "published_at": "2026-04-08T23:06:42Z",
       "published_ts": 1775689602.0,
-      "age_minutes": 311.3,
+      "age_minutes": 321.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -791,8 +1820,8 @@
       "recency_bucket": "AGING",
       "is_actionable": false,
       "url": "https://www.theregister.com/2026/04/08/meta_muse_spark/",
-      "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": false,
+      "first_seen_at": "2026-04-09T04:28:02.952868Z",
+      "is_new": true,
       "provider_count": 1
     },
     {
@@ -803,7 +1832,7 @@
       ],
       "published_at": "2026-04-08T23:03:10Z",
       "published_ts": 1775689390.0,
-      "age_minutes": 314.9,
+      "age_minutes": 324.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -829,8 +1858,8 @@
       "recency_bucket": "AGING",
       "is_actionable": false,
       "url": "https://eu.desmoinesregister.com/story/news/crime-and-courts/2026/04/08/iowa-attorney-general-brenna-bird-instagram-lawsuit-meta-facebook/89524564007/",
-      "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": false,
+      "first_seen_at": "2026-04-09T04:28:02.952868Z",
+      "is_new": true,
       "provider_count": 1
     },
     {
@@ -841,7 +1870,7 @@
       ],
       "published_at": "2026-04-08T22:47:21Z",
       "published_ts": 1775688441.0,
-      "age_minutes": 330.7,
+      "age_minutes": 340.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -867,8 +1896,8 @@
       "recency_bucket": "AGING",
       "is_actionable": false,
       "url": "https://www.merca20.com/what-is-muse-spark-mark-zuckerbergs-new-ai-model-heres-how-the-first-llm-from-the-meta-ai-superteam-works/",
-      "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": false,
+      "first_seen_at": "2026-04-09T04:28:02.952868Z",
+      "is_new": true,
       "provider_count": 1
     },
     {
@@ -879,7 +1908,7 @@
       ],
       "published_at": "2026-04-08T22:38:37Z",
       "published_ts": 1775687917.0,
-      "age_minutes": 339.4,
+      "age_minutes": 349.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -905,8 +1934,8 @@
       "recency_bucket": "AGING",
       "is_actionable": false,
       "url": "https://americanbazaaronline.com/2026/04/08/meta-unveils-muse-ai-model-in-superintelligence-push-478539/",
-      "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": false,
+      "first_seen_at": "2026-04-09T04:28:02.952868Z",
+      "is_new": true,
       "provider_count": 1
     },
     {
@@ -917,7 +1946,7 @@
       ],
       "published_at": "2026-04-08T22:18:41Z",
       "published_ts": 1775686721.0,
-      "age_minutes": 359.4,
+      "age_minutes": 369.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -943,8 +1972,8 @@
       "recency_bucket": "AGING",
       "is_actionable": false,
       "url": "https://blockonomi.com/meta-launches-muse-spark-the-ai-model-built-to-deliver-personal-superintelligence/",
-      "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": false,
+      "first_seen_at": "2026-04-09T04:28:02.952868Z",
+      "is_new": true,
       "provider_count": 1
     },
     {
@@ -955,7 +1984,7 @@
       ],
       "published_at": "2026-04-08T22:16:02Z",
       "published_ts": 1775686562.0,
-      "age_minutes": 362.0,
+      "age_minutes": 372.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -981,8 +2010,8 @@
       "recency_bucket": "AGING",
       "is_actionable": false,
       "url": "https://siliconangle.com/2026/04/08/meta-debuts-muse-spark-multimodal-reasoning-model/",
-      "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": false,
+      "first_seen_at": "2026-04-09T04:28:02.952868Z",
+      "is_new": true,
       "provider_count": 1
     },
     {
@@ -993,7 +2022,7 @@
       ],
       "published_at": "2026-04-08T21:57:11Z",
       "published_ts": 1775685431.0,
-      "age_minutes": 380.9,
+      "age_minutes": 390.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1019,122 +2048,8 @@
       "recency_bucket": "AGING",
       "is_actionable": false,
       "url": "https://www.webpronews.com/whatsapps-username-gamble-why-meta-is-finally-letting-you-hide-your-phone-number/",
-      "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "7b4593d6b6fb293eafd50dd402536acf3f1acc69:5918950",
-      "headline": "Meta Unveils Muse Spark AI Model To Compete In Generative AI Space",
-      "tickers": [
-        "META"
-      ],
-      "published_at": "2026-04-08T21:54:00Z",
-      "published_ts": 1775685240.0,
-      "age_minutes": 384.0,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "FinanzNachrichten.de"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Meta Unveils Muse Spark AI Model To Compete In Generative AI Space",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.1671,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.finanznachrichten.de/nachrichten-2026-04/68151765-meta-unveils-muse-spark-ai-model-to-compete-in-generative-ai-space-020.htm",
-      "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "8634afe78a65a72486e7703b7819a82a91384b19:5918949",
-      "headline": "US FTC fights Meta's fresh attempt to stop reopening of $5bn privacy settlement | MLex | Specialist news and analysis on legal risk and regulation",
-      "tickers": [
-        "META"
-      ],
-      "published_at": "2026-04-08T21:48:54Z",
-      "published_ts": 1775684934.0,
-      "age_minutes": 389.1,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "mlex.com"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "US FTC fights Meta's fresh attempt to stop reopening of $5bn privacy settlement | MLex | Specialist news and analysis on",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.1671,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.mlex.com/mlex/articles/2463228/us-ftc-fights-meta-s-fresh-attempt-to-stop-reopening-of-5bn-privacy-settlement",
-      "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "fd7b642b0f3d44d707a42b61d2f6aa06a758e587:5918949",
-      "headline": "Meta reenters the AI game with new 'Muse Spark' model",
-      "tickers": [
-        "META"
-      ],
-      "published_at": "2026-04-08T21:45:06Z",
-      "published_ts": 1775684706.0,
-      "age_minutes": 392.9,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "MobileSyrup"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Meta reenters the AI game with new 'Muse Spark' model",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.1671,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://mobilesyrup.com/2026/04/08/meta-reenters-the-ai-game-with-new-muse-spark-model/",
-      "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": false,
+      "first_seen_at": "2026-04-09T04:28:02.952868Z",
+      "is_new": true,
       "provider_count": 1
     },
     {
@@ -1145,7 +2060,7 @@
       ],
       "published_at": "2026-04-08T21:34:22Z",
       "published_ts": 1775684062.0,
-      "age_minutes": 403.7,
+      "age_minutes": 413.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1171,19 +2086,19 @@
       "recency_bucket": "AGING",
       "is_actionable": false,
       "url": "https://seekingalpha.com/article/4889355-apple-the-infrastructure-play-on-local-ai-adoption",
-      "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": false,
+      "first_seen_at": "2026-04-09T04:28:02.952868Z",
+      "is_new": true,
       "provider_count": 1
     },
     {
-      "story_key": "92d4c8d46d4273cd99200c85023397a1fcfd3e4d:5918943",
-      "headline": "Meta Stock Rises After Launch of New AI Model",
+      "story_key": "f5474a55767c153ab2fbccd723f070b2917b09a9:5918946",
+      "headline": "Iowa attorney general sues Meta for breaking consumer protection laws",
       "tickers": [
         "META"
       ],
-      "published_at": "2026-04-08T21:19:58Z",
-      "published_ts": 1775683198.0,
-      "age_minutes": 418.1,
+      "published_at": "2026-04-08T21:33:00Z",
+      "published_ts": 1775683980.0,
+      "age_minutes": 415.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1192,13 +2107,13 @@
         "newsapi_ai"
       ],
       "sources": [
-        "The Wall Street Journal"
+        "KIMT-TV 3 Mason City"
       ],
       "source_tier": "TIER_3",
       "source_rank": 3,
       "category": "other",
       "event_class": "UNKNOWN",
-      "event_label": "Meta Stock Rises After Launch of New AI Model",
+      "event_label": "Iowa attorney general sues Meta for breaking consumer protection laws",
       "sentiment_label": "neutral",
       "polarity": 0.0,
       "impact": 0.1,
@@ -1208,47 +2123,9 @@
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
-      "url": "https://www.wsj.com/livecoverage/stock-market-today-dow-sp-500-nasdaq-04-08-2026/card/meta-stock-rises-after-launch-of-new-ai-model-Ib8lUcROzj5LgvZ3RUMy",
-      "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "fb0121f5d749ee5b2fa4bd8b74a46d3ffbc96ddc:5918943",
-      "headline": "Meta unveils first AI model from superintelligence team",
-      "tickers": [
-        "META"
-      ],
-      "published_at": "2026-04-08T21:17:20Z",
-      "published_ts": 1775683040.0,
-      "age_minutes": 420.7,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Perth Now"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Meta unveils first AI model from superintelligence team",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.1671,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.perthnow.com.au/news/technology/meta-unveils-first-ai-model-from-superintelligence-team-c-22114188",
-      "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": false,
+      "url": "https://www.kimt.com/news/iowa-attorney-general-sues-meta-for-breaking-consumer-protection-laws/article_b5ea616b-180d-58cb-aa5b-93194c433a3d.html",
+      "first_seen_at": "2026-04-09T04:28:02.952868Z",
+      "is_new": true,
       "provider_count": 1
     },
     {
@@ -1259,7 +2136,7 @@
       ],
       "published_at": "2026-04-08T21:17:04Z",
       "published_ts": 1775683024.0,
-      "age_minutes": 421.0,
+      "age_minutes": 431.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1285,276 +2162,8 @@
       "recency_bucket": "AGING",
       "is_actionable": false,
       "url": "https://www.eweek.com/news/meta-muse-spark-ai-launch-multimodal-reasoning/",
-      "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "3da50e70c5cedcadefee5c0bb9c9b2d550f71082:5918943",
-      "headline": "Meta Launches Muse Spark, First AI Model After Hiring Alexandr Wang",
-      "tickers": [
-        "META"
-      ],
-      "published_at": "2026-04-08T21:15:03Z",
-      "published_ts": 1775682903.0,
-      "age_minutes": 423.0,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "El-Balad.com"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Meta Launches Muse Spark, First AI Model After Hiring Alexandr Wang",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.1671,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.el-balad.com/16906428",
-      "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "34da44857a573057351b222c9088486112fc8fc0:5918942",
-      "headline": "Cast Adrift, Meta Employees Have No Idea Who the 'Token Legend' Is Anymore",
-      "tickers": [
-        "META"
-      ],
-      "published_at": "2026-04-08T21:13:27Z",
-      "published_ts": 1775682807.0,
-      "age_minutes": 424.6,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Gizmodo"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Cast Adrift, Meta Employees Have No Idea Who the 'Token Legend' Is Anymore",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.1671,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://gizmodo.com/?p=2000744189",
-      "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "b08bab34833c12e14532b22a2048899de16dbf9b:5918939",
-      "headline": "Meta releases first new AI model since shaking up team",
-      "tickers": [
-        "META"
-      ],
-      "published_at": "2026-04-08T20:56:19Z",
-      "published_ts": 1775681779.0,
-      "age_minutes": 441.7,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Digital Journal",
-        "Owensboro Messenger-Inquirer",
-        "The Grand Junction Daily Sentinel"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Meta releases first new AI model since shaking up team",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.1671,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.gjsentinel.com/news/national/meta-releases-first-new-ai-model-since-shaking-up-team/article_5ee1e21b-3c16-54ba-805f-973078b8e9f3.html",
-      "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "8eb76845f5b17c2d3d96ad9412507f03afc8bc2a:5918938",
-      "headline": "Why Meta Platforms Stock Jumped Today | The Motley Fool",
-      "tickers": [
-        "META"
-      ],
-      "published_at": "2026-04-08T20:53:17Z",
-      "published_ts": 1775681597.0,
-      "age_minutes": 444.8,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "The Motley Fool"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Why Meta Platforms Stock Jumped Today | The Motley Fool",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.1671,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.fool.com/investing/2026/04/08/why-meta-platforms-stock-jumped-today/",
-      "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "38f8c342868ef3225945ed21c7e96b26bf9b6c8a:5918938",
-      "headline": "Meta Superintelligence launches Muse Spark AI model",
-      "tickers": [
-        "META"
-      ],
-      "published_at": "2026-04-08T20:50:35Z",
-      "published_ts": 1775681435.0,
-      "age_minutes": 447.5,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Social Media Today | A business community for the web's best thinkers on Social Media"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Meta Superintelligence launches Muse Spark AI model",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.1671,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.socialmediatoday.com/news/meta-superintelligence-launches-muse-spark-ai-model/817026/",
-      "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "3f9b90232af4a2e536e2da557e22cedd002c27ab:5918937",
-      "headline": "Contemplating Meta's Homegrown MTIA Compute Engine Roadmap",
-      "tickers": [
-        "META"
-      ],
-      "published_at": "2026-04-08T20:46:39Z",
-      "published_ts": 1775681199.0,
-      "age_minutes": 451.4,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "The Next Platform"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Contemplating Meta's Homegrown MTIA Compute Engine Roadmap",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.1671,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.nextplatform.com/compute/2026/04/08/contemplating-metas-homegrown-mtia-compute-engine-roadmap/5214899",
-      "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "22f04593cbe2c10bd106488b75c15ab72ec1a804:5918936",
-      "headline": "Meta unveils Muse Spark AI model and new Contemplating mode",
-      "tickers": [
-        "META"
-      ],
-      "published_at": "2026-04-08T20:41:42Z",
-      "published_ts": 1775680902.0,
-      "age_minutes": 456.3,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "TestingCatalog"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Meta unveils Muse Spark AI model and new Contemplating mode",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.1671,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.testingcatalog.com/meta-unveils-muse-spark-ai-model-and-new-contemplating-mode/",
-      "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": false,
+      "first_seen_at": "2026-04-09T04:28:02.952868Z",
+      "is_new": true,
       "provider_count": 1
     },
     {
@@ -1565,7 +2174,7 @@
       ],
       "published_at": "2026-04-08T20:34:01Z",
       "published_ts": 1775680441.0,
-      "age_minutes": 464.0,
+      "age_minutes": 474.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1591,46 +2200,8 @@
       "recency_bucket": "AGING",
       "is_actionable": false,
       "url": "https://rocketnews.com/2026/04/goodbye-llama-meta-launches-new-proprietary-ai-model-muse-spark-first-since-superintelligence-labs-formation/",
-      "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "b71f7181dae150846a2f66168b1dc9f04d32acc0:5918933",
-      "headline": "Meta Releases First Proprietary AI Model: Muse Spark",
-      "tickers": [
-        "META"
-      ],
-      "published_at": "2026-04-08T20:28:25Z",
-      "published_ts": 1775680105.0,
-      "age_minutes": 469.6,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "AI Business"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Meta Releases First Proprietary AI Model: Muse Spark",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.1671,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://aibusiness.com/generative-ai/meta-releases-first-proprietary-ai-model-muse-spark",
-      "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": false,
+      "first_seen_at": "2026-04-09T04:28:02.952868Z",
+      "is_new": true,
       "provider_count": 1
     },
     {
@@ -1641,7 +2212,7 @@
       ],
       "published_at": "2026-04-08T20:25:55Z",
       "published_ts": 1775679955.0,
-      "age_minutes": 472.1,
+      "age_minutes": 482.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1667,502 +2238,8 @@
       "recency_bucket": "AGING",
       "is_actionable": false,
       "url": "https://stockstory.org/us/stocks/nyse/xom/news/why-up-down/why-exxonmobil-xom-shares-are-falling-today",
-      "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "999f7692b738fae82c2ad1aca75b9f60e0dd4ea2:5918930",
-      "headline": "Meta Introduces 'Muse Spark' Next-Gen AI With Contemplating Mode",
-      "tickers": [
-        "META"
-      ],
-      "published_at": "2026-04-08T20:13:08Z",
-      "published_ts": 1775679188.0,
-      "age_minutes": 484.9,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "iClarified - Apple News and Tutorials"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Meta Introduces 'Muse Spark' Next-Gen AI With Contemplating Mode",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.1671,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.iclarified.com/100489/meta-introduces-muse-spark-nextgen-ai-with-contemplating-mode",
-      "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "bebd5f90217ec0993a86c51ac77f1cafc9463659:5918930",
-      "headline": "Muse Spark: Meta's New AI Model Ranks Just Behind Anthropic, OpenAI, and Google",
-      "tickers": [
-        "META"
-      ],
-      "published_at": "2026-04-08T20:12:52Z",
-      "published_ts": 1775679172.0,
-      "age_minutes": 485.2,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Trending Topics"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Muse Spark: Meta's New AI Model Ranks Just Behind Anthropic, OpenAI, and Google",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.1671,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.trendingtopics.eu/muse-spark-meta-launch/",
-      "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "0500f4f26713f5441a17da93dd197921cf20fa98:5918929",
-      "headline": "Meta's Muse Spark is here - and it's closed source",
-      "tickers": [
-        "META"
-      ],
-      "published_at": "2026-04-08T20:09:31Z",
-      "published_ts": 1775678971.0,
-      "age_minutes": 488.5,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "The Next Web"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Meta's Muse Spark is here - and it's closed source",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.1671,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://thenextweb.com/news/meta-muse-spark-msl-first-model",
-      "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "57a6fe14456ea7cc1ff4cdc27d1c2d2ae0fe91d8:5918928",
-      "headline": "Meta (META) Stock Trades Up, Here Is Why - StockStory",
-      "tickers": [
-        "META"
-      ],
-      "published_at": "2026-04-08T20:00:44Z",
-      "published_ts": 1775678444.0,
-      "age_minutes": 497.3,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "StockStory"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Meta (META) Stock Trades Up, Here Is Why - StockStory",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.1671,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://stockstory.org/us/stocks/nasdaq/meta/news/why-up-down/meta-meta-stock-trades-up-here-is-why-6",
-      "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "dcede85c55d22743da2278a0c2355ec912fa6a72:5918927",
-      "headline": "Meta's Superintelligence Lab unveils its first public model, Muse Spark",
-      "tickers": [
-        "META"
-      ],
-      "published_at": "2026-04-08T19:59:10Z",
-      "published_ts": 1775678350.0,
-      "age_minutes": 498.9,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Ars Technica"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Meta's Superintelligence Lab unveils its first public model, Muse Spark",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.1671,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://arstechnica.com/ai/2026/04/metas-superintelligence-lab-unveils-its-first-public-model-muse-spark/",
-      "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "d21f8911ed1338ea0a672573eeb0a0695a78ed66:5918925",
-      "headline": "BALDWIN, Janet Elizabeth Jean (nee Constant)",
-      "tickers": [
-        "NEE"
-      ],
-      "published_at": "2026-04-08T19:45:48Z",
-      "published_ts": 1775677548.0,
-      "age_minutes": 512.2,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "BayToday.ca"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "BALDWIN, Janet Elizabeth Jean (nee Constant)",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.1671,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.baytoday.ca/obituaries/baldwin-janet-elizabeth-jean-nee-constant-12115995",
-      "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "a4c06abe1debf67117be43a2c0e9ca8dc7dfbe6f:5918923",
-      "headline": "OpenAI Shutters Sora: A Win for Meta Platforms Amid a Rocky Stretch | Investing.com",
-      "tickers": [
-        "META"
-      ],
-      "published_at": "2026-04-08T19:39:06Z",
-      "published_ts": 1775677146.0,
-      "age_minutes": 518.9,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Investing.com"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "OpenAI Shutters Sora: A Win for Meta Platforms Amid a Rocky Stretch | Investing.com",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.1671,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.investing.com/analysis/openai-shutters-sora-a-win-for-meta-platforms-amid-a-rocky-stretch-200678083",
-      "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "3c50f85015ff86300f2fb92c1cf09f634f2e8ba2:5918923",
-      "headline": "Meta releases first-ever AI model from one of its highest-paid teams, after spending billions; calls it first step on path to personal...",
-      "tickers": [
-        "META"
-      ],
-      "published_at": "2026-04-08T19:37:35Z",
-      "published_ts": 1775677055.0,
-      "age_minutes": 520.5,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "The Times of India"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Meta releases first-ever AI model from one of its highest-paid teams, after spending billions; calls it first step on pa",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.1671,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://timesofindia.indiatimes.com/technology/tech-news/meta-releases-first-ever-ai-model-from-one-of-its-highest-paid-teams-after-spending-billions-calls-it-first-step-on-path-to-personal-/articleshow/130123011.cms",
-      "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "4fa528dd1c5ab14e9b01184a5ad792eba13fa470:5918923",
-      "headline": "Meta's Muse Spark aims to put \"personal superintelligence\" in your browser",
-      "tickers": [
-        "META"
-      ],
-      "published_at": "2026-04-08T19:35:04Z",
-      "published_ts": 1775676904.0,
-      "age_minutes": 523.0,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "crypto.news"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Meta's Muse Spark aims to put \"personal superintelligence\" in your browser",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.1671,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://crypto.news/metas-muse-spark-aims-to-put-personal-superintelligence-in-your-browser/",
-      "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "0dc29bbe4ad9c752137f543acd9545db36b8b138:5918922",
-      "headline": "Meta Debuts The Muse Spark Model In A 'ground-up Overhaul' Of Its Ai",
-      "tickers": [
-        "META"
-      ],
-      "published_at": "2026-04-08T19:34:15Z",
-      "published_ts": 1775676855.0,
-      "age_minutes": 523.8,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Beritaja"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Meta Debuts The Muse Spark Model In A 'ground-up Overhaul' Of Its Ai",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.1671,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://beritaja.com/meta-debuts-the-muse-spark-model-in-a-ground-up-overhaul-of-its-ai-beritaja-413830.html",
-      "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "c04afc45a277b1763a27813af41446c5007bea25:5918922",
-      "headline": "Meta Enters AI Race with New Muse Spark Model | Technology",
-      "tickers": [
-        "META"
-      ],
-      "published_at": "2026-04-08T19:32:41Z",
-      "published_ts": 1775676761.0,
-      "age_minutes": 525.4,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Devdiscourse"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Meta Enters AI Race with New Muse Spark Model | Technology",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.1671,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.devdiscourse.com/article/technology/3867217-meta-enters-ai-race-with-new-muse-spark-model",
-      "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "7a6639b696e95bee731c54cdedba4771b7cfe058:5918918",
-      "headline": "What Is Muse Spark? Meta's New AI Model Explained",
-      "tickers": [
-        "META"
-      ],
-      "published_at": "2026-04-08T19:13:19Z",
-      "published_ts": 1775675599.0,
-      "age_minutes": 544.7,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "TimesNow"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "What Is Muse Spark? Meta's New AI Model Explained",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.1671,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.timesnownews.com/technology-science/what-is-muse-spark-metas-new-ai-model-explained-article-154030415",
-      "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "57199fee8147a3a35fba24393b12225afd484fd0:5918915",
-      "headline": "Muse Spark lifts Meta's AI push as new model takes center stage",
-      "tickers": [
-        "META"
-      ],
-      "published_at": "2026-04-08T18:58:14Z",
-      "published_ts": 1775674694.0,
-      "age_minutes": 559.8,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "El-Balad.com"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Muse Spark lifts Meta's AI push as new model takes center stage",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.1671,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.el-balad.com/16906270",
-      "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": false,
+      "first_seen_at": "2026-04-09T04:28:02.952868Z",
+      "is_new": true,
       "provider_count": 1
     },
     {
@@ -2173,7 +2250,7 @@
       ],
       "published_at": "2026-04-08T18:57:59Z",
       "published_ts": 1775674679.0,
-      "age_minutes": 560.1,
+      "age_minutes": 570.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2199,19 +2276,19 @@
       "recency_bucket": "AGING",
       "is_actionable": false,
       "url": "https://www.barchart.com/story/news/1204728/analysts-see-massive-upside-in-microsoft-time-to-buy-msft-stock",
-      "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": false,
+      "first_seen_at": "2026-04-09T04:28:02.952868Z",
+      "is_new": true,
       "provider_count": 1
     },
     {
-      "story_key": "b1d06860a40c883796af577c707e2ca8abc6ccc3:5918914",
-      "headline": "Meta debuts the Muse Spark model in a 'ground-up overhaul' of its AI | TechCrunch",
+      "story_key": "1e3bd2cdcda2472920523e9ddc29526f93f95d27:5918899",
+      "headline": "Apple: Everyone's Wrong About The Delay (NASDAQ:AAPL)",
       "tickers": [
-        "META"
+        "AAPL"
       ],
-      "published_at": "2026-04-08T18:53:19Z",
-      "published_ts": 1775674399.0,
-      "age_minutes": 564.7,
+      "published_at": "2026-04-08T17:37:43Z",
+      "published_ts": 1775669863.0,
+      "age_minutes": 650.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2220,13 +2297,13 @@
         "newsapi_ai"
       ],
       "sources": [
-        "TechCrunch"
+        "Seeking Alpha"
       ],
       "source_tier": "TIER_3",
       "source_rank": 3,
       "category": "other",
       "event_class": "UNKNOWN",
-      "event_label": "Meta debuts the Muse Spark model in a 'ground-up overhaul' of its AI | TechCrunch",
+      "event_label": "Apple: Everyone's Wrong About The Delay (NASDAQ:AAPL)",
       "sentiment_label": "neutral",
       "polarity": 0.0,
       "impact": 0.1,
@@ -2236,20 +2313,20 @@
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
-      "url": "https://techcrunch.com/2026/04/08/meta-debuts-the-muse-spark-model-in-a-ground-up-overhaul-of-its-ai/",
-      "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": false,
+      "url": "https://seekingalpha.com/article/4889298-apple-everyone-wrong-about-the-delay",
+      "first_seen_at": "2026-04-09T04:28:02.952868Z",
+      "is_new": true,
       "provider_count": 1
     },
     {
-      "story_key": "8bf8efe1549b0c636a3dea6cd32216ee84141c08:5918914",
-      "headline": "Meta Sets the Table with Table Stakes AI",
+      "story_key": "fa43140533aab2073aa6e04f974803045bbed912:5918892",
+      "headline": "Microsoft: Buy The AI Empire (NASDAQ:MSFT)",
       "tickers": [
-        "META"
+        "MSFT"
       ],
-      "published_at": "2026-04-08T18:52:40Z",
-      "published_ts": 1775674360.0,
-      "age_minutes": 565.4,
+      "published_at": "2026-04-08T17:02:07Z",
+      "published_ts": 1775667727.0,
+      "age_minutes": 685.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2258,13 +2335,13 @@
         "newsapi_ai"
       ],
       "sources": [
-        "Spyglass"
+        "Seeking Alpha"
       ],
       "source_tier": "TIER_3",
       "source_rank": 3,
       "category": "other",
       "event_class": "UNKNOWN",
-      "event_label": "Meta Sets the Table with Table Stakes AI",
+      "event_label": "Microsoft: Buy The AI Empire (NASDAQ:MSFT)",
       "sentiment_label": "neutral",
       "polarity": 0.0,
       "impact": 0.1,
@@ -2274,20 +2351,20 @@
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
-      "url": "https://spyglass.org/meta-muse-spark-ai/",
-      "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": false,
+      "url": "https://seekingalpha.com/article/4889280-microsoft-buy-the-ai-empire",
+      "first_seen_at": "2026-04-09T04:28:02.952868Z",
+      "is_new": true,
       "provider_count": 1
     },
     {
-      "story_key": "38b912ac546d37fb1830ae68d0e9815dc3099b43:5918914",
-      "headline": "Goodbye, Llama? Meta launches new proprietary AI model Muse Spark  --  first since Superintelligence Labs' formation",
+      "story_key": "446f796ab3c3137cf11548306377d55610e6d0b7:5918882",
+      "headline": "Microsoft (MSFT) Stock: Is Wall Street's Divergence Creating a Buying Opportunity? - Blockonomi",
       "tickers": [
-        "META"
+        "MSFT"
       ],
-      "published_at": "2026-04-08T18:52:40Z",
-      "published_ts": 1775674360.0,
-      "age_minutes": 565.4,
+      "published_at": "2026-04-08T16:10:10Z",
+      "published_ts": 1775664610.0,
+      "age_minutes": 737.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2296,13 +2373,13 @@
         "newsapi_ai"
       ],
       "sources": [
-        "VentureBeat"
+        "Blockonomi"
       ],
       "source_tier": "TIER_3",
       "source_rank": 3,
       "category": "other",
       "event_class": "UNKNOWN",
-      "event_label": "Goodbye, Llama? Meta launches new proprietary AI model Muse Spark -- first since Superintelligence Labs' formation",
+      "event_label": "Microsoft (MSFT) Stock: Is Wall Street's Divergence Creating a Buying Opportunity? - Blockonomi",
       "sentiment_label": "neutral",
       "polarity": 0.0,
       "impact": 0.1,
@@ -2312,20 +2389,20 @@
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
-      "url": "https://venturebeat.com/technology/goodbye-llama-meta-launches-new-proprietary-ai-model-muse-spark-first-since",
-      "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": false,
+      "url": "https://blockonomi.com/microsoft-msft-stock-is-wall-streets-divergence-creating-a-buying-opportunity/",
+      "first_seen_at": "2026-04-09T04:28:02.952868Z",
+      "is_new": true,
       "provider_count": 1
     },
     {
-      "story_key": "eff52485c3c98e910b4e87d467ef611ca0d15f32:5918914",
-      "headline": "Meta's Muse Spark is its first frontier model and its first without open weights",
+      "story_key": "ad35623811031f0610a56dddb3b0cab1adb44011:5918872",
+      "headline": "SA analyst upgrades/downgrades: TSLA, NVO, MSFT, AEO",
       "tickers": [
-        "META"
+        "MSFT"
       ],
-      "published_at": "2026-04-08T18:52:39Z",
-      "published_ts": 1775674359.0,
-      "age_minutes": 565.4,
+      "published_at": "2026-04-08T15:20:08Z",
+      "published_ts": 1775661608.0,
+      "age_minutes": 787.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2334,13 +2411,13 @@
         "newsapi_ai"
       ],
       "sources": [
-        "THE DECODER"
+        "Seeking Alpha"
       ],
       "source_tier": "TIER_3",
       "source_rank": 3,
       "category": "other",
       "event_class": "UNKNOWN",
-      "event_label": "Meta's Muse Spark is its first frontier model and its first without open weights",
+      "event_label": "SA analyst upgrades/downgrades: TSLA, NVO, MSFT, AEO",
       "sentiment_label": "neutral",
       "polarity": 0.0,
       "impact": 0.1,
@@ -2350,20 +2427,20 @@
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
-      "url": "https://the-decoder.com/metas-muse-spark-is-its-first-frontier-model-and-its-first-without-open-weights/",
-      "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": false,
+      "url": "https://seekingalpha.com/news/4573365-sa-analyst-upgrades-downgrades-tsla-nvo-msft-aeo",
+      "first_seen_at": "2026-04-09T04:28:02.952868Z",
+      "is_new": true,
       "provider_count": 1
     },
     {
-      "story_key": "2668969199f6993c267653d088afb40ada9cdf27:5918914",
-      "headline": "Meta unveils Muse Spark, first model from Zuckerberg's superintelligence team",
+      "story_key": "d80ab921765cb12afd1732a34fec2bb3a2df6e9b:5918854",
+      "headline": "Option Activity In Microsoft Points To Higher Prices (Technical Analysis) (NASDAQ:MSFT)",
       "tickers": [
-        "META"
+        "MSFT"
       ],
-      "published_at": "2026-04-08T18:52:39Z",
-      "published_ts": 1775674359.0,
-      "age_minutes": 565.4,
+      "published_at": "2026-04-08T13:50:10Z",
+      "published_ts": 1775656210.0,
+      "age_minutes": 877.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2372,13 +2449,13 @@
         "newsapi_ai"
       ],
       "sources": [
-        "Capital Brief"
+        "Seeking Alpha"
       ],
       "source_tier": "TIER_3",
       "source_rank": 3,
       "category": "other",
       "event_class": "UNKNOWN",
-      "event_label": "Meta unveils Muse Spark, first model from Zuckerberg's superintelligence team",
+      "event_label": "Option Activity In Microsoft Points To Higher Prices (Technical Analysis) (NASDAQ:MSFT)",
       "sentiment_label": "neutral",
       "polarity": 0.0,
       "impact": 0.1,
@@ -2388,20 +2465,20 @@
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
-      "url": "https://www.capitalbrief.com/briefing/meta-unveils-muse-spark-first-model-from-zuckerbergs-superintelligence-team-3e945e37-dd4e-491c-85fc-cc114dc2246b/",
-      "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": false,
+      "url": "https://seekingalpha.com/article/4889205-option-activity-in-microsoft-points-to-higher-prices-technical-analysis",
+      "first_seen_at": "2026-04-09T04:28:02.952868Z",
+      "is_new": true,
       "provider_count": 1
     },
     {
-      "story_key": "c5e9b23f25dc5cadfcbb2c9e6b040693f89d2784:5918914",
-      "headline": "Meta Kills the Llama: Inside the Company's Audacious Bet on Muse and Spark AI",
+      "story_key": "3a07dad84a689c3a9ef57e7353b66c3bfba7618a:5918845",
+      "headline": "Apple's foldable iPhone on track for September launch, Morgan Stanley corroborates (AAPL:NASDAQ)",
       "tickers": [
-        "META"
+        "AAPL"
       ],
-      "published_at": "2026-04-08T18:51:22Z",
-      "published_ts": 1775674282.0,
-      "age_minutes": 566.7,
+      "published_at": "2026-04-08T13:09:27Z",
+      "published_ts": 1775653767.0,
+      "age_minutes": 918.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2410,13 +2487,13 @@
         "newsapi_ai"
       ],
       "sources": [
-        "WebProNews"
+        "Seeking Alpha"
       ],
       "source_tier": "TIER_3",
       "source_rank": 3,
       "category": "other",
       "event_class": "UNKNOWN",
-      "event_label": "Meta Kills the Llama: Inside the Company's Audacious Bet on Muse and Spark AI",
+      "event_label": "Apple's foldable iPhone on track for September launch, Morgan Stanley corroborates (AAPL:NASDAQ)",
       "sentiment_label": "neutral",
       "polarity": 0.0,
       "impact": 0.1,
@@ -2426,20 +2503,20 @@
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
-      "url": "https://www.webpronews.com/meta-kills-the-llama-inside-the-companys-audacious-bet-on-muse-and-spark-ai/",
-      "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": false,
+      "url": "https://seekingalpha.com/news/4573295-apples-foldable-iphone-on-track-for-september-launch-morgan-stanley-corroborates",
+      "first_seen_at": "2026-04-09T04:28:02.952868Z",
+      "is_new": true,
       "provider_count": 1
     },
     {
-      "story_key": "7d8659c8e222e9d4a10014ac0bbde5f162190f77:5918914",
-      "headline": "Meta's New AI Model Gives Mark Zuckerberg a Seat at the Big Kid's Table",
+      "story_key": "695da5b0e4a59fa1d895ae1aa790f0a76f55ea35:5918838",
+      "headline": "Amazon: Ride AWS AI Workload Acceleration Optimism (NASDAQ:AMZN)",
       "tickers": [
-        "META"
+        "AMZN"
       ],
-      "published_at": "2026-04-08T18:51:09Z",
-      "published_ts": 1775674269.0,
-      "age_minutes": 566.9,
+      "published_at": "2026-04-08T12:30:41Z",
+      "published_ts": 1775651441.0,
+      "age_minutes": 957.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2448,13 +2525,13 @@
         "newsapi_ai"
       ],
       "sources": [
-        "Wired"
+        "Seeking Alpha"
       ],
       "source_tier": "TIER_3",
       "source_rank": 3,
       "category": "other",
       "event_class": "UNKNOWN",
-      "event_label": "Meta's New AI Model Gives Mark Zuckerberg a Seat at the Big Kid's Table",
+      "event_label": "Amazon: Ride AWS AI Workload Acceleration Optimism (NASDAQ:AMZN)",
       "sentiment_label": "neutral",
       "polarity": 0.0,
       "impact": 0.1,
@@ -2464,20 +2541,20 @@
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
-      "url": "https://www.wired.com/story/muse-spark-meta-open-source-closed-source/",
-      "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": false,
+      "url": "https://seekingalpha.com/article/4889185-amazon-ride-aws-ai-workload-acceleration-optimism",
+      "first_seen_at": "2026-04-09T04:28:02.952868Z",
+      "is_new": true,
       "provider_count": 1
     },
     {
-      "story_key": "466e2cfd908551073418736b6fedc2c9e19a6e84:5918913",
-      "headline": "Meta unveils first AI model from costly superintelligence team",
+      "story_key": "e4054661816316f8781c3d7a92db26847e7011bf:5918837",
+      "headline": "Exxon (XOM), Chevron (CVX), and ConocoPhillips (COP) Stocks Plunge on Iran Ceasefire News - Blockonomi",
       "tickers": [
-        "META"
+        "XOM"
       ],
-      "published_at": "2026-04-08T18:48:00Z",
-      "published_ts": 1775674080.0,
-      "age_minutes": 570.0,
+      "published_at": "2026-04-08T12:29:44Z",
+      "published_ts": 1775651384.0,
+      "age_minutes": 958.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2486,13 +2563,51 @@
         "newsapi_ai"
       ],
       "sources": [
-        "GEO TV"
+        "Blockonomi"
       ],
       "source_tier": "TIER_3",
       "source_rank": 3,
       "category": "other",
       "event_class": "UNKNOWN",
-      "event_label": "Meta unveils first AI model from costly superintelligence team",
+      "event_label": "Exxon (XOM), Chevron (CVX), and ConocoPhillips (COP) Stocks Plunge on Iran Ceasefire News - Blockonomi",
+      "sentiment_label": "bearish",
+      "polarity": -0.5,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.1671,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://blockonomi.com/exxon-xom-chevron-cvx-and-conocophillips-cop-stocks-plunge-on-iran-ceasefire-news/",
+      "first_seen_at": "2026-04-09T04:28:02.952868Z",
+      "is_new": true,
+      "provider_count": 1
+    },
+    {
+      "story_key": "3165c903dda356eb9a983ced102ea05fb39824d3:5918822",
+      "headline": "Microsoft (MSFT) Stock Looks Mispriced as Software despite AI Leadership",
+      "tickers": [
+        "MSFT"
+      ],
+      "published_at": "2026-04-08T11:11:21Z",
+      "published_ts": 1775646681.0,
+      "age_minutes": 1036.7,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Markets Insider"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Microsoft (MSFT) Stock Looks Mispriced as Software despite AI Leadership",
       "sentiment_label": "neutral",
       "polarity": 0.0,
       "impact": 0.1,
@@ -2502,20 +2617,20 @@
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
-      "url": "https://www.geo.tv/latest/659143-meta-unveils-first-ai-model-from-costly-superintelligence-team",
-      "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": false,
+      "url": "https://markets.businessinsider.com/news/stocks/microsoft-msft-stock-looks-mispriced-as-software-despite-ai-leadership-1036002741",
+      "first_seen_at": "2026-04-09T04:28:02.952868Z",
+      "is_new": true,
       "provider_count": 1
     },
     {
-      "story_key": "b6f9c3b8d2bacc95e8db21da548510a86b00fefd:5918911",
-      "headline": "Meta rolls out new AI model",
+      "story_key": "5fe9a387039ec7623078da4dc5cbe6016b08be5a:5918817",
+      "headline": "Amazon (AMZN) Cloud Operations Under Fire: Drone Attacks Cripple AWS Middle East Infrastructure - Blockonomi",
       "tickers": [
-        "META"
+        "AMZN"
       ],
-      "published_at": "2026-04-08T18:36:50Z",
-      "published_ts": 1775673410.0,
-      "age_minutes": 581.2,
+      "published_at": "2026-04-08T10:48:03Z",
+      "published_ts": 1775645283.0,
+      "age_minutes": 1060.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2524,13 +2639,13 @@
         "newsapi_ai"
       ],
       "sources": [
-        "RTE.ie"
+        "Blockonomi"
       ],
       "source_tier": "TIER_3",
       "source_rank": 3,
       "category": "other",
       "event_class": "UNKNOWN",
-      "event_label": "Meta rolls out new AI model",
+      "event_label": "Amazon (AMZN) Cloud Operations Under Fire: Drone Attacks Cripple AWS Middle East Infrastructure - Blockonomi",
       "sentiment_label": "neutral",
       "polarity": 0.0,
       "impact": 0.1,
@@ -2540,20 +2655,20 @@
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
-      "url": "https://www.rte.ie/news/2026/0408/1567292-meta-rolls-out-new-ai-model/",
-      "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": false,
+      "url": "https://blockonomi.com/amazon-amzn-cloud-operations-under-fire-drone-attacks-cripple-aws-middle-east-infrastructure/",
+      "first_seen_at": "2026-04-09T04:28:02.952868Z",
+      "is_new": true,
       "provider_count": 1
     },
     {
-      "story_key": "bd12ad92b88d3d37be206b7254bfb43ef7a89cc4:5918910",
-      "headline": "Meta Rejoins AI Race with Innovative Muse Spark Model",
+      "story_key": "44fdc58adcdc0141f08ae83c5c3074eb6f67684c:5918793",
+      "headline": "New Buy Rating for Microsoft (MSFT), the Technology Giant",
       "tickers": [
-        "META"
+        "MSFT"
       ],
-      "published_at": "2026-04-08T18:34:03Z",
-      "published_ts": 1775673243.0,
-      "age_minutes": 584.0,
+      "published_at": "2026-04-08T08:45:04Z",
+      "published_ts": 1775637904.0,
+      "age_minutes": 1183.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2562,13 +2677,13 @@
         "newsapi_ai"
       ],
       "sources": [
-        "El-Balad.com"
+        "Markets Insider"
       ],
       "source_tier": "TIER_3",
       "source_rank": 3,
       "category": "other",
       "event_class": "UNKNOWN",
-      "event_label": "Meta Rejoins AI Race with Innovative Muse Spark Model",
+      "event_label": "New Buy Rating for Microsoft (MSFT), the Technology Giant",
       "sentiment_label": "neutral",
       "polarity": 0.0,
       "impact": 0.1,
@@ -2578,20 +2693,20 @@
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
-      "url": "https://www.el-balad.com/16906252",
-      "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": false,
+      "url": "https://markets.businessinsider.com/news/stocks/new-buy-rating-for-microsoft-msft-the-technology-giant-1036002485",
+      "first_seen_at": "2026-04-09T04:28:02.952868Z",
+      "is_new": true,
       "provider_count": 1
     },
     {
-      "story_key": "fe48dd86f9b5d6d95373c9695083cd93aa9f1c5a:5918908",
-      "headline": "Meta's First AI Model From Its Superintelligence Lab Doesn't Exactly Spark Joy",
+      "story_key": "e016fcb0a57e0ff0d851d2f95d4851a951b13436:5918785",
+      "headline": "Microsoft: The Market Is Forcing Me To Buy This Bargain (NASDAQ:MSFT)",
       "tickers": [
-        "META"
+        "MSFT"
       ],
-      "published_at": "2026-04-08T18:23:11Z",
-      "published_ts": 1775672591.0,
-      "age_minutes": 594.9,
+      "published_at": "2026-04-08T08:08:49Z",
+      "published_ts": 1775635729.0,
+      "age_minutes": 1219.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2600,13 +2715,13 @@
         "newsapi_ai"
       ],
       "sources": [
-        "Gizmodo"
+        "Seeking Alpha"
       ],
       "source_tier": "TIER_3",
       "source_rank": 3,
       "category": "other",
       "event_class": "UNKNOWN",
-      "event_label": "Meta's First AI Model From Its Superintelligence Lab Doesn't Exactly Spark Joy",
+      "event_label": "Microsoft: The Market Is Forcing Me To Buy This Bargain (NASDAQ:MSFT)",
       "sentiment_label": "neutral",
       "polarity": 0.0,
       "impact": 0.1,
@@ -2616,20 +2731,20 @@
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
-      "url": "https://gizmodo.com/?p=2000744082",
-      "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": false,
+      "url": "https://seekingalpha.com/article/4889128-microsoft-market-is-forcing-me-to-buy-this-bargain-rating-upgrade",
+      "first_seen_at": "2026-04-09T04:28:02.952868Z",
+      "is_new": true,
       "provider_count": 1
     },
     {
-      "story_key": "25df947d9679675272ce02fa2ea16d60c1857d40:5918906",
-      "headline": "Meta releases Muse Spark model, aims to get back into LLM race",
+      "story_key": "93139472ba53d0f19f81bd5a593e647ec0f03593:5918778",
+      "headline": "Apple's (AAPL) iPhone Sales Continue to Surge Worldwide",
       "tickers": [
-        "META"
+        "AAPL"
       ],
-      "published_at": "2026-04-08T18:10:49Z",
-      "published_ts": 1775671849.0,
-      "age_minutes": 607.2,
+      "published_at": "2026-04-08T07:31:29Z",
+      "published_ts": 1775633489.0,
+      "age_minutes": 1256.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2638,15 +2753,15 @@
         "newsapi_ai"
       ],
       "sources": [
-        "Constellation Research Inc."
+        "Markets Insider"
       ],
       "source_tier": "TIER_3",
       "source_rank": 3,
       "category": "other",
       "event_class": "UNKNOWN",
-      "event_label": "Meta releases Muse Spark model, aims to get back into LLM race",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
+      "event_label": "Apple's (AAPL) iPhone Sales Continue to Surge Worldwide",
+      "sentiment_label": "bullish",
+      "polarity": 0.5,
       "impact": 0.1,
       "clarity": 0.6,
       "relevance": 0.475,
@@ -2654,20 +2769,20 @@
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
-      "url": "https://www.constellationr.com/insights/news/meta-releases-muse-spark-model-aims-get-back-llm-race",
-      "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": false,
+      "url": "https://markets.businessinsider.com/news/stocks/apple-s-aapl-iphone-sales-continue-to-surge-worldwide-1036000892",
+      "first_seen_at": "2026-04-09T04:28:02.952868Z",
+      "is_new": true,
       "provider_count": 1
     },
     {
-      "story_key": "233d219f20752d77a0ad6a9cf155823bd168b7be:5918906",
-      "headline": "Why Meta stock is rallying after Muse Spark launch?  Here's what investors need to know about Meta's new AI model",
+      "story_key": "d96ffdadac969eba0c597d8662e1ea9f6f317542:5919003",
+      "headline": "XOM/CVX: How Volatile Oil Prices and Global Tensions Could Impact Integrated Oil Giants.",
       "tickers": [
-        "META"
+        "XOM"
       ],
-      "published_at": "2026-04-08T18:10:02Z",
-      "published_ts": 1775671802.0,
-      "age_minutes": 608.0,
+      "published_at": "2026-04-09T02:15:00Z",
+      "published_ts": 1775700900.0,
+      "age_minutes": 133.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2676,177 +2791,25 @@
         "newsapi_ai"
       ],
       "sources": [
-        "Economic Times"
+        "The Motley Fool"
       ],
       "source_tier": "TIER_3",
       "source_rank": 3,
       "category": "other",
       "event_class": "UNKNOWN",
-      "event_label": "Why Meta stock is rallying after Muse Spark launch? Here's what investors need to know about Meta's new AI model",
+      "event_label": "XOM/CVX: How Volatile Oil Prices and Global Tensions Could Impact Integrated Oil Giants.",
       "sentiment_label": "neutral",
       "polarity": 0.0,
       "impact": 0.1,
       "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.1671,
+      "relevance": 0.4554,
+      "news_catalyst_score": 0.1644,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
-      "url": "https://economictimes.indiatimes.com/news/international/us/why-meta-stock-is-rallying-after-muse-spark-launch-heres-what-investors-need-to-know-about-metas-new-ai-model/articleshow/130121365.cms",
-      "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "75dfa86fb7b654711fff58b3565dc3a17157be13:5918903",
-      "headline": "OpenAI Shutters Sora: A Win for Meta Platforms Amid a Rocky Stretch",
-      "tickers": [
-        "META"
-      ],
-      "published_at": "2026-04-08T17:55:00Z",
-      "published_ts": 1775670900.0,
-      "age_minutes": 623.0,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Market Beat"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "OpenAI Shutters Sora: A Win for Meta Platforms Amid a Rocky Stretch",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.1671,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.marketbeat.com/originals/openai-shutters-sora-a-win-for-meta-platforms-amid-a-rocky-stretch/",
-      "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "ea4b36a74214463e4aa30eae810c14c57565ddc6:5918902",
-      "headline": "Meta Debuts New LLM Muse Spark | PYMNTS.com",
-      "tickers": [
-        "META"
-      ],
-      "published_at": "2026-04-08T17:53:11Z",
-      "published_ts": 1775670791.0,
-      "age_minutes": 624.9,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "PYMNTS.com"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Meta Debuts New LLM Muse Spark | PYMNTS.com",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.1671,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.pymnts.com/metaverse/2026/meta-debuts-new-llm-muse-spark/",
-      "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "625d6994237ccba423393bd6999981dbf90ca25c:5918901",
-      "headline": "Meta Stock Jumps After Superintelligence Lab Reveals First AI Model",
-      "tickers": [
-        "META"
-      ],
-      "published_at": "2026-04-08T17:45:12Z",
-      "published_ts": 1775670312.0,
-      "age_minutes": 632.8,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Investor's Business Daily"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Meta Stock Jumps After Superintelligence Lab Reveals First AI Model",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.1671,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.investors.com/news/technology/meta-stocks-muse-ai-model/",
-      "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "74257eda4f7bfd22117d179674d3b1322a52ab4f:5918892",
-      "headline": "Fidesz bypasses Meta's political ad ban ahead of Hungary's elections",
-      "tickers": [
-        "META"
-      ],
-      "published_at": "2026-04-08T17:00:25Z",
-      "published_ts": 1775667625.0,
-      "age_minutes": 677.6,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "WTX News"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Fidesz bypasses Meta's political ad ban ahead of Hungary's elections",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.1671,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://wtxnews.com/fidesz-bypasses-metas-political-ad-ban-ahead-of-hungarys-elections/",
-      "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": false,
+      "url": "https://www.fool.com/investing/2026/04/08/xomcvx-how-volatile-oil-prices-and-global-tensions/",
+      "first_seen_at": "2026-04-09T04:28:02.952868Z",
+      "is_new": true,
       "provider_count": 1
     },
     {
@@ -2857,7 +2820,7 @@
       ],
       "published_at": "2026-04-08T22:31:11Z",
       "published_ts": 1775687471.0,
-      "age_minutes": 346.9,
+      "age_minutes": 356.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2883,100 +2846,50 @@
       "recency_bucket": "AGING",
       "is_actionable": false,
       "url": "https://www.marketscreener.com/news/tech-up-as-meta-surges-on-ai-model-tech-roundup-ce7e50dbda8cf625",
-      "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "7b4593d6b6fb293eafd50dd402536acf3f1acc69:5918947",
-      "headline": "Meta Unveils Muse Spark AI Model To Compete In Generative AI Space",
-      "tickers": [
-        "META"
-      ],
-      "published_at": "2026-04-08T21:35:57Z",
-      "published_ts": 1775684157.0,
-      "age_minutes": 402.1,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "NASDAQ Stock Market"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Meta Unveils Muse Spark AI Model To Compete In Generative AI Space",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.4554,
-      "news_catalyst_score": 0.1644,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.nasdaq.com/articles/meta-unveils-muse-spark-ai-model-compete-generative-ai-space",
-      "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "0936ae3f489bbd5d8f6256dc09ce064217c2f448:5918901",
-      "headline": "Meta Shares Spike After Tech Giant Launches Muse Spark -- Its AI Bid Against OpenAI, Google",
-      "tickers": [
-        "META"
-      ],
-      "published_at": "2026-04-08T17:46:46Z",
-      "published_ts": 1775670406.0,
-      "age_minutes": 631.3,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Yahoo Tech"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Meta Shares Spike After Tech Giant Launches Muse Spark -- Its AI Bid Against OpenAI, Google",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.4554,
-      "news_catalyst_score": 0.1644,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://tech.yahoo.com/ai/meta-ai/articles/meta-finally-launches-delayed-muse-170804489.html",
-      "first_seen_at": "2026-04-09T01:28:12.558572Z",
-      "is_new": false,
+      "first_seen_at": "2026-04-09T04:28:02.952868Z",
+      "is_new": true,
       "provider_count": 1
     }
   ],
   "news_catalyst_by_symbol": {
     "AAPL": {
-      "news_catalyst_score": 0.1671,
+      "news_catalyst_score": 0.5129,
       "sentiment_label": "neutral",
-      "event_class": "UNKNOWN",
-      "event_label": "Apple: The Infrastructure Play On Local AI Adoption (NASDAQ:AAPL)",
+      "event_class": "CRYPTO",
+      "event_label": "Crypto markets predict Apple's (AAPL) stock price for April 30, 2026",
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "source_tier": "TIER_3",
+      "mentions_24h": 11,
+      "is_actionable": false,
+      "first_provider": "newsapi_ai",
+      "story_key": "5d98d9105459ce42c0a3ecd8c8fb80950ab7e61d:5918821"
+    },
+    "AMZN": {
+      "news_catalyst_score": 0.5036,
+      "sentiment_label": "neutral",
+      "event_class": "EARNINGS",
+      "event_label": "AMZN Stock Is Trading At 29x Earnings -- The Lowest Valuation In A Decade. Billionaires Are Buying, Should You? | ABC Mo",
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "source_tier": "TIER_3",
+      "mentions_24h": 7,
+      "is_actionable": false,
+      "first_provider": "newsapi_ai",
+      "story_key": "8a8875908de7905eb803d7f364b25046a242fc95:5918806"
+    },
+    "JPM": {
+      "news_catalyst_score": 0.1946,
+      "sentiment_label": "neutral",
+      "event_class": "UNKNOWN",
+      "event_label": "Majority Of Americans Say They Pay More Than Their Fair Share In Taxes - JPMorgan Chase (NYSE:JPM)",
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "source_tier": "TIER_2",
       "mentions_24h": 1,
       "is_actionable": false,
       "first_provider": "newsapi_ai",
-      "story_key": "ec4c6a5ce2522b340dbde69ca83e48f652f8ca46:5918946"
+      "story_key": "03b977ba687af13874af766f2321b934ca345f76:5918817"
     },
     "META": {
       "news_catalyst_score": 0.5284,
@@ -2986,63 +2899,47 @@
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "source_tier": "TIER_3",
-      "mentions_24h": 71,
+      "mentions_24h": 34,
       "is_actionable": false,
       "first_provider": "newsapi_ai",
       "story_key": "29129c21536029650e6bcd3251168faafd369188:5918979"
     },
     "MSFT": {
-      "news_catalyst_score": 0.4415,
+      "news_catalyst_score": 0.5315,
       "sentiment_label": "neutral",
       "event_class": "INSIDER",
       "event_label": "See Which Recent 13F Filers Hold MSFT",
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "source_tier": "TIER_3",
-      "mentions_24h": 2,
+      "mentions_24h": 12,
       "is_actionable": false,
       "first_provider": "newsapi_ai",
       "story_key": "2bc77dbea57beeeb940b9953ef40f36fd81bae9d:5918906"
     },
-    "NEE": {
-      "news_catalyst_score": 0.1671,
-      "sentiment_label": "neutral",
-      "event_class": "UNKNOWN",
-      "event_label": "BALDWIN, Janet Elizabeth Jean (nee Constant)",
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "source_tier": "TIER_3",
-      "mentions_24h": 1,
-      "is_actionable": false,
-      "first_provider": "newsapi_ai",
-      "story_key": "d21f8911ed1338ea0a672573eeb0a0695a78ed66:5918925"
-    },
     "XOM": {
-      "news_catalyst_score": 0.1671,
+      "news_catalyst_score": 0.5284,
       "sentiment_label": "neutral",
-      "event_class": "UNKNOWN",
-      "event_label": "Why ExxonMobil (XOM) Shares Are Falling Today - StockStory",
+      "event_class": "EARNINGS",
+      "event_label": "Erste Group raises XOM stock earnings forecast for 2026",
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "source_tier": "TIER_3",
-      "mentions_24h": 1,
+      "mentions_24h": 10,
       "is_actionable": false,
       "first_provider": "newsapi_ai",
-      "story_key": "23d030123213871b5cd93fd3a64933c1bce9123a:5918933"
+      "story_key": "26719b3519c0de3ce1ff5c0accb70225f87d1307:5918851"
     }
   },
   "summary": {
-    "active_story_count": 76,
-    "new_story_count": 0,
+    "active_story_count": 73,
+    "new_story_count": 73,
     "actionable_story_count": 0,
     "actionable_symbols": [],
-    "symbol_count": 5
+    "symbol_count": 6
   },
   "symbol_scope": {
-    "mode": "release_policy_fallback",
-    "symbol_limit": 12,
-    "base_csv_path": null,
-    "base_manifest_path": null,
-    "export_dir": "artifacts/smc_microstructure_exports"
+    "mode": "explicit",
+    "symbol_limit": 12
   }
 }
