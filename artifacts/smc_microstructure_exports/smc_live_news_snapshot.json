@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-04-09T11:55:16.310831Z",
+  "generated_at": "2026-04-09T12:28:24.192758Z",
   "symbols": [
     "AAPL",
     "MSFT",
@@ -81,7 +81,7 @@
       ],
       "published_at": "2026-04-09T09:45:56Z",
       "published_ts": 1775727956.0,
-      "age_minutes": 129.3,
+      "age_minutes": 162.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -102,7 +102,7 @@
       "impact": 0.6,
       "clarity": 0.6,
       "relevance": 0.7,
-      "news_catalyst_score": 0.4713,
+      "news_catalyst_score": 0.4538,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
@@ -119,7 +119,7 @@
       ],
       "published_at": "2026-04-08T18:14:06Z",
       "published_ts": 1775672046.0,
-      "age_minutes": 1061.2,
+      "age_minutes": 1094.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -157,7 +157,7 @@
       ],
       "published_at": "2026-04-08T13:38:14Z",
       "published_ts": 1775655494.0,
-      "age_minutes": 1337.0,
+      "age_minutes": 1370.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -195,7 +195,7 @@
       ],
       "published_at": "2026-04-09T06:35:51Z",
       "published_ts": 1775716551.0,
-      "age_minutes": 319.4,
+      "age_minutes": 352.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -233,7 +233,7 @@
       ],
       "published_at": "2026-04-09T02:16:00Z",
       "published_ts": 1775700960.0,
-      "age_minutes": 579.3,
+      "age_minutes": 612.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -271,7 +271,7 @@
       ],
       "published_at": "2026-04-09T09:58:36Z",
       "published_ts": 1775728716.0,
-      "age_minutes": 116.7,
+      "age_minutes": 149.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -292,7 +292,7 @@
       "impact": 0.1,
       "clarity": 0.6,
       "relevance": 0.475,
-      "news_catalyst_score": 0.2663,
+      "news_catalyst_score": 0.2565,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
@@ -309,7 +309,7 @@
       ],
       "published_at": "2026-04-09T10:00:53Z",
       "published_ts": 1775728853.0,
-      "age_minutes": 114.4,
+      "age_minutes": 147.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -330,87 +330,11 @@
       "impact": 0.1,
       "clarity": 0.8,
       "relevance": 0.535,
-      "news_catalyst_score": 0.2632,
+      "news_catalyst_score": 0.2536,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
       "url": "https://markets.businessinsider.com/news/stocks/meta-stock-soars-7-what-excited-investors-and-top-analysts-1036006492",
-      "first_seen_at": "2026-04-09T10:59:12.831251Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "85c1db04a4657aaf7e059f91c601d62ba9eb5be7:5919084",
-      "headline": "Best Strider 300 loadout in Warzone -- meta one-shot build",
-      "tickers": [
-        "META"
-      ],
-      "published_at": "2026-04-09T09:03:00Z",
-      "published_ts": 1775725380.0,
-      "age_minutes": 172.3,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Dot Esports"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Best Strider 300 loadout in Warzone -- meta one-shot build",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.8,
-      "relevance": 0.535,
-      "news_catalyst_score": 0.2464,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://dotesports.com/call-of-duty/news/best-strider-300-loadout-warzone",
-      "first_seen_at": "2026-04-09T10:59:12.831251Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "fab374eceae4a879a9365915007c9ad9f0d2a84b:5919083",
-      "headline": "Meta just killed a dashboard that let employees compete to be the company's No. 1 AI token user | Fortune",
-      "tickers": [
-        "META"
-      ],
-      "published_at": "2026-04-09T08:57:13Z",
-      "published_ts": 1775725033.0,
-      "age_minutes": 178.1,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Fortune"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Meta just killed a dashboard that let employees compete to be the company's No. 1 AI token user | Fortune",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.8,
-      "relevance": 0.535,
-      "news_catalyst_score": 0.2447,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://fortune.com/2026/04/09/meta-killed-employee-ai-token-dashboard/",
       "first_seen_at": "2026-04-09T10:59:12.831251Z",
       "is_new": false,
       "provider_count": 1
@@ -423,7 +347,7 @@
       ],
       "published_at": "2026-04-09T10:50:43Z",
       "published_ts": 1775731843.0,
-      "age_minutes": 64.6,
+      "age_minutes": 97.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -444,11 +368,49 @@
       "impact": 0.1,
       "clarity": 0.6,
       "relevance": 0.475,
-      "news_catalyst_score": 0.2418,
+      "news_catalyst_score": 0.2335,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
       "url": "https://www.mobileworldlive.com/ai-cloud/meta-sparks-superintelligence-push-into-life/",
+      "first_seen_at": "2026-04-09T10:59:12.831251Z",
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
+      "story_key": "85c1db04a4657aaf7e059f91c601d62ba9eb5be7:5919084",
+      "headline": "Best Strider 300 loadout in Warzone -- meta one-shot build",
+      "tickers": [
+        "META"
+      ],
+      "published_at": "2026-04-09T09:03:00Z",
+      "published_ts": 1775725380.0,
+      "age_minutes": 205.4,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Dot Esports"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Best Strider 300 loadout in Warzone -- meta one-shot build",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "news_catalyst_score": 0.2331,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://dotesports.com/call-of-duty/news/best-strider-300-loadout-warzone",
       "first_seen_at": "2026-04-09T10:59:12.831251Z",
       "is_new": false,
       "provider_count": 1
@@ -461,7 +423,7 @@
       ],
       "published_at": "2026-04-09T10:48:13Z",
       "published_ts": 1775731693.0,
-      "age_minutes": 67.1,
+      "age_minutes": 100.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -482,7 +444,7 @@
       "impact": 0.1,
       "clarity": 0.6,
       "relevance": 0.475,
-      "news_catalyst_score": 0.2412,
+      "news_catalyst_score": 0.2328,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
@@ -499,7 +461,7 @@
       ],
       "published_at": "2026-04-09T10:41:37Z",
       "published_ts": 1775731297.0,
-      "age_minutes": 73.7,
+      "age_minutes": 106.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -520,7 +482,7 @@
       "impact": 0.1,
       "clarity": 0.6,
       "relevance": 0.475,
-      "news_catalyst_score": 0.2395,
+      "news_catalyst_score": 0.2312,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
@@ -537,7 +499,7 @@
       ],
       "published_at": "2026-04-09T10:40:35Z",
       "published_ts": 1775731235.0,
-      "age_minutes": 74.7,
+      "age_minutes": 107.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -558,11 +520,49 @@
       "impact": 0.1,
       "clarity": 0.6,
       "relevance": 0.475,
-      "news_catalyst_score": 0.2393,
+      "news_catalyst_score": 0.2309,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
       "url": "https://www.newsdrum.in/national/google-meta-asked-to-remove-defamatory-content-linking-sandesara-family-to-fraud-case-11705668",
+      "first_seen_at": "2026-04-09T10:59:12.831251Z",
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
+      "story_key": "fab374eceae4a879a9365915007c9ad9f0d2a84b:5919083",
+      "headline": "Meta just killed a dashboard that let employees compete to be the company's No. 1 AI token user | Fortune",
+      "tickers": [
+        "META"
+      ],
+      "published_at": "2026-04-09T08:57:13Z",
+      "published_ts": 1775725033.0,
+      "age_minutes": 211.2,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Fortune"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Meta just killed a dashboard that let employees compete to be the company's No. 1 AI token user | Fortune",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "news_catalyst_score": 0.2305,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://fortune.com/2026/04/09/meta-killed-employee-ai-token-dashboard/",
       "first_seen_at": "2026-04-09T10:59:12.831251Z",
       "is_new": false,
       "provider_count": 1
@@ -575,7 +575,7 @@
       ],
       "published_at": "2026-04-09T10:38:21Z",
       "published_ts": 1775731101.0,
-      "age_minutes": 76.9,
+      "age_minutes": 110.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -596,7 +596,7 @@
       "impact": 0.1,
       "clarity": 0.6,
       "relevance": 0.475,
-      "news_catalyst_score": 0.2387,
+      "news_catalyst_score": 0.2303,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
@@ -613,7 +613,7 @@
       ],
       "published_at": "2026-04-09T10:24:29Z",
       "published_ts": 1775730269.0,
-      "age_minutes": 90.8,
+      "age_minutes": 123.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -634,7 +634,7 @@
       "impact": 0.1,
       "clarity": 0.6,
       "relevance": 0.475,
-      "news_catalyst_score": 0.2352,
+      "news_catalyst_score": 0.2268,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
@@ -651,7 +651,7 @@
       ],
       "published_at": "2026-04-09T10:18:28Z",
       "published_ts": 1775729908.0,
-      "age_minutes": 96.8,
+      "age_minutes": 129.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -672,7 +672,7 @@
       "impact": 0.1,
       "clarity": 0.6,
       "relevance": 0.475,
-      "news_catalyst_score": 0.2337,
+      "news_catalyst_score": 0.2253,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
@@ -689,7 +689,7 @@
       ],
       "published_at": "2026-04-09T10:10:58Z",
       "published_ts": 1775729458.0,
-      "age_minutes": 104.3,
+      "age_minutes": 137.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -710,7 +710,7 @@
       "impact": 0.1,
       "clarity": 0.6,
       "relevance": 0.475,
-      "news_catalyst_score": 0.2318,
+      "news_catalyst_score": 0.2234,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
@@ -727,7 +727,7 @@
       ],
       "published_at": "2026-04-09T10:00:00Z",
       "published_ts": 1775728800.0,
-      "age_minutes": 115.3,
+      "age_minutes": 148.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -748,7 +748,7 @@
       "impact": 0.1,
       "clarity": 0.6,
       "relevance": 0.475,
-      "news_catalyst_score": 0.229,
+      "news_catalyst_score": 0.2206,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
@@ -765,7 +765,7 @@
       ],
       "published_at": "2026-04-09T10:00:00Z",
       "published_ts": 1775728800.0,
-      "age_minutes": 115.3,
+      "age_minutes": 148.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -786,7 +786,7 @@
       "impact": 0.1,
       "clarity": 0.6,
       "relevance": 0.475,
-      "news_catalyst_score": 0.229,
+      "news_catalyst_score": 0.2206,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
@@ -803,7 +803,7 @@
       ],
       "published_at": "2026-04-09T09:56:20Z",
       "published_ts": 1775728580.0,
-      "age_minutes": 118.9,
+      "age_minutes": 152.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -824,239 +824,11 @@
       "impact": 0.1,
       "clarity": 0.6,
       "relevance": 0.475,
-      "news_catalyst_score": 0.2281,
+      "news_catalyst_score": 0.2197,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
       "url": "https://www.storyboard18.com/digital/meta-launches-new-era-of-shopping-experiences-powered-by-ai-reels-creators-ws-l-94638.htm",
-      "first_seen_at": "2026-04-09T10:59:12.831251Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "87e6d1c06744027d39a69974d8f07afe4515ef11:5919094",
-      "headline": "Meta introduces Muse Spark, its most advanced AI model yet for personal superintelligence",
-      "tickers": [
-        "META"
-      ],
-      "published_at": "2026-04-09T09:51:36Z",
-      "published_ts": 1775728296.0,
-      "age_minutes": 123.7,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "News9live"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Meta introduces Muse Spark, its most advanced AI model yet for personal superintelligence",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.2269,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.news9live.com/technology/artificial-intelligence/meta-introduces-muse-spark-its-most-advanced-ai-model-yet-for-personal-superintelligence-2954397",
-      "first_seen_at": "2026-04-09T10:59:12.831251Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "c55975394e28fbbf3d3ca0cacf5f1f93ea9e1c78:5919092",
-      "headline": "How much Meta pays its AI talent",
-      "tickers": [
-        "META"
-      ],
-      "published_at": "2026-04-09T09:42:52Z",
-      "published_ts": 1775727772.0,
-      "age_minutes": 132.4,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "NewsBytes"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "How much Meta pays its AI talent",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.2247,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.newsbytesapp.com/news/business/how-much-meta-offers-to-lure-top-ai-talent/story",
-      "first_seen_at": "2026-04-09T10:59:12.831251Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "fb4d9ffbf4449e4aa102f4c5650e557c834e519e:5919073",
-      "headline": "Meta tightens teen safety on instagram with default 13+ account controls - Business Upturn",
-      "tickers": [
-        "META"
-      ],
-      "published_at": "2026-04-09T08:09:54Z",
-      "published_ts": 1775722194.0,
-      "age_minutes": 225.4,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Business Upturn"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Meta tightens teen safety on instagram with default 13+ account controls - Business Upturn",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.8,
-      "relevance": 0.535,
-      "news_catalyst_score": 0.2243,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.businessupturn.com/technology/meta-tightens-teen-safety-on-instagram-with-default-13-account-controls/",
-      "first_seen_at": "2026-04-09T10:59:12.831251Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "b4608de6afc58ff6880cc0bb95f545c7f9629f4b:5919090",
-      "headline": "What is Muse Spark? Everything you need to know about Meta's newly launched AI model",
-      "tickers": [
-        "META"
-      ],
-      "published_at": "2026-04-09T09:34:24Z",
-      "published_ts": 1775727264.0,
-      "age_minutes": 140.9,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "The Financial Express"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "What is Muse Spark? Everything you need to know about Meta's newly launched AI model",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.2225,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.financialexpress.com/life/technology-what-is-muse-spark-everything-you-need-to-know-about-metas-newly-launched-ai-model-4201232/",
-      "first_seen_at": "2026-04-09T10:59:12.831251Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "d96d4fee3b5037f95cb2c4890f10cca8b606f3bf:5919090",
-      "headline": "Citizens reiterates Meta stock rating on AI advertising gains By Investing.com",
-      "tickers": [
-        "META"
-      ],
-      "published_at": "2026-04-09T09:31:54Z",
-      "published_ts": 1775727114.0,
-      "age_minutes": 143.4,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Investing.com"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Citizens reiterates Meta stock rating on AI advertising gains By Investing.com",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.2219,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.investing.com/news/analyst-ratings/citizens-reiterates-meta-stock-rating-on-ai-advertising-gains-93CH-4604786",
-      "first_seen_at": "2026-04-09T10:59:12.831251Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "6071b714d8079374cd26e79064a246135c0bd75e:5919072",
-      "headline": "Meta Platforms (META) Stock Surges 7% Following Surprise Muse Spark AI Launch - Blockonomi",
-      "tickers": [
-        "META"
-      ],
-      "published_at": "2026-04-09T08:02:59Z",
-      "published_ts": 1775721779.0,
-      "age_minutes": 232.3,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Blockonomi"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Meta Platforms (META) Stock Surges 7% Following Surprise Muse Spark AI Launch - Blockonomi",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.8,
-      "relevance": 0.535,
-      "news_catalyst_score": 0.2213,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://blockonomi.com/meta-platforms-meta-stock-surges-7-following-surprise-muse-spark-ai-launch/",
       "first_seen_at": "2026-04-09T10:59:12.831251Z",
       "is_new": false,
       "provider_count": 1
@@ -1069,7 +841,7 @@
       ],
       "published_at": "2026-04-08T17:35:20Z",
       "published_ts": 1775669720.0,
-      "age_minutes": 1099.9,
+      "age_minutes": 1133.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1107,7 +879,7 @@
       ],
       "published_at": "2026-04-08T13:24:29Z",
       "published_ts": 1775654669.0,
-      "age_minutes": 1350.8,
+      "age_minutes": 1383.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1138,14 +910,14 @@
       "provider_count": 1
     },
     {
-      "story_key": "dc08576cd5951496a51730afa72587a03ab0413e:5918834",
-      "headline": "Apple Kills Mini-LED Era: New 2026 MacBook Pros To Trigger 33% OLED Explosion - Apple (NASDAQ:AAPL)",
+      "story_key": "87e6d1c06744027d39a69974d8f07afe4515ef11:5919094",
+      "headline": "Meta introduces Muse Spark, its most advanced AI model yet for personal superintelligence",
       "tickers": [
-        "AAPL"
+        "META"
       ],
-      "published_at": "2026-04-08T12:13:50Z",
-      "published_ts": 1775650430.0,
-      "age_minutes": 1421.4,
+      "published_at": "2026-04-09T09:51:36Z",
+      "published_ts": 1775728296.0,
+      "age_minutes": 156.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1154,24 +926,214 @@
         "newsapi_ai"
       ],
       "sources": [
-        "Benzinga"
+        "News9live"
       ],
-      "source_tier": "TIER_2",
-      "source_rank": 2,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
       "category": "other",
       "event_class": "UNKNOWN",
-      "event_label": "Apple Kills Mini-LED Era: New 2026 MacBook Pros To Trigger 33% OLED Explosion - Apple (NASDAQ:AAPL)",
+      "event_label": "Meta introduces Muse Spark, its most advanced AI model yet for personal superintelligence",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.2185,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://www.news9live.com/technology/artificial-intelligence/meta-introduces-muse-spark-its-most-advanced-ai-model-yet-for-personal-superintelligence-2954397",
+      "first_seen_at": "2026-04-09T10:59:12.831251Z",
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
+      "story_key": "c55975394e28fbbf3d3ca0cacf5f1f93ea9e1c78:5919092",
+      "headline": "How much Meta pays its AI talent",
+      "tickers": [
+        "META"
+      ],
+      "published_at": "2026-04-09T09:42:52Z",
+      "published_ts": 1775727772.0,
+      "age_minutes": 165.5,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "NewsBytes"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "How much Meta pays its AI talent",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.2163,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://www.newsbytesapp.com/news/business/how-much-meta-offers-to-lure-top-ai-talent/story",
+      "first_seen_at": "2026-04-09T10:59:12.831251Z",
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
+      "story_key": "b4608de6afc58ff6880cc0bb95f545c7f9629f4b:5919090",
+      "headline": "What is Muse Spark? Everything you need to know about Meta's newly launched AI model",
+      "tickers": [
+        "META"
+      ],
+      "published_at": "2026-04-09T09:34:24Z",
+      "published_ts": 1775727264.0,
+      "age_minutes": 174.0,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "The Financial Express"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "What is Muse Spark? Everything you need to know about Meta's newly launched AI model",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.2141,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://www.financialexpress.com/life/technology-what-is-muse-spark-everything-you-need-to-know-about-metas-newly-launched-ai-model-4201232/",
+      "first_seen_at": "2026-04-09T10:59:12.831251Z",
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
+      "story_key": "d96d4fee3b5037f95cb2c4890f10cca8b606f3bf:5919090",
+      "headline": "Citizens reiterates Meta stock rating on AI advertising gains By Investing.com",
+      "tickers": [
+        "META"
+      ],
+      "published_at": "2026-04-09T09:31:54Z",
+      "published_ts": 1775727114.0,
+      "age_minutes": 176.5,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Investing.com"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Citizens reiterates Meta stock rating on AI advertising gains By Investing.com",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.2135,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://www.investing.com/news/analyst-ratings/citizens-reiterates-meta-stock-rating-on-ai-advertising-gains-93CH-4604786",
+      "first_seen_at": "2026-04-09T10:59:12.831251Z",
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
+      "story_key": "fb4d9ffbf4449e4aa102f4c5650e557c834e519e:5919073",
+      "headline": "Meta tightens teen safety on instagram with default 13+ account controls - Business Upturn",
+      "tickers": [
+        "META"
+      ],
+      "published_at": "2026-04-09T08:09:54Z",
+      "published_ts": 1775722194.0,
+      "age_minutes": 258.5,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Business Upturn"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Meta tightens teen safety on instagram with default 13+ account controls - Business Upturn",
       "sentiment_label": "neutral",
       "polarity": 0.0,
       "impact": 0.1,
       "clarity": 0.8,
       "relevance": 0.535,
-      "news_catalyst_score": 0.2193,
+      "news_catalyst_score": 0.2099,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
-      "url": "https://www.benzinga.com/markets/tech/26/04/51700883/apple-kills-mini-led-era-new-2026-macbook-pros-to-trigger-33-oled-explosion",
-      "first_seen_at": "2026-04-09T06:43:17.332757Z",
+      "url": "https://www.businessupturn.com/technology/meta-tightens-teen-safety-on-instagram-with-default-13-account-controls/",
+      "first_seen_at": "2026-04-09T10:59:12.831251Z",
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
+      "story_key": "6071b714d8079374cd26e79064a246135c0bd75e:5919072",
+      "headline": "Meta Platforms (META) Stock Surges 7% Following Surprise Muse Spark AI Launch - Blockonomi",
+      "tickers": [
+        "META"
+      ],
+      "published_at": "2026-04-09T08:02:59Z",
+      "published_ts": 1775721779.0,
+      "age_minutes": 265.4,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Blockonomi"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Meta Platforms (META) Stock Surges 7% Following Surprise Muse Spark AI Launch - Blockonomi",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "news_catalyst_score": 0.2069,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://blockonomi.com/meta-platforms-meta-stock-surges-7-following-surprise-muse-spark-ai-launch/",
+      "first_seen_at": "2026-04-09T10:59:12.831251Z",
       "is_new": false,
       "provider_count": 1
     },
@@ -1183,7 +1145,7 @@
       ],
       "published_at": "2026-04-09T09:07:12Z",
       "published_ts": 1775725632.0,
-      "age_minutes": 168.1,
+      "age_minutes": 201.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1204,7 +1166,7 @@
       "impact": 0.1,
       "clarity": 0.6,
       "relevance": 0.475,
-      "news_catalyst_score": 0.2156,
+      "news_catalyst_score": 0.2046,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
@@ -1221,7 +1183,7 @@
       ],
       "published_at": "2026-04-09T09:06:28Z",
       "published_ts": 1775725588.0,
-      "age_minutes": 168.8,
+      "age_minutes": 201.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1242,7 +1204,7 @@
       "impact": 0.1,
       "clarity": 0.6,
       "relevance": 0.475,
-      "news_catalyst_score": 0.2155,
+      "news_catalyst_score": 0.2043,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
@@ -1259,7 +1221,7 @@
       ],
       "published_at": "2026-04-09T09:25:04Z",
       "published_ts": 1775726704.0,
-      "age_minutes": 150.2,
+      "age_minutes": 183.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1280,7 +1242,7 @@
       "impact": 0.1,
       "clarity": 0.6,
       "relevance": 0.425,
-      "news_catalyst_score": 0.2111,
+      "news_catalyst_score": 0.2027,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
@@ -1297,7 +1259,7 @@
       ],
       "published_at": "2026-04-09T09:00:55Z",
       "published_ts": 1775725255.0,
-      "age_minutes": 174.4,
+      "age_minutes": 207.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1318,7 +1280,7 @@
       "impact": 0.1,
       "clarity": 0.6,
       "relevance": 0.4554,
-      "news_catalyst_score": 0.2106,
+      "news_catalyst_score": 0.1989,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
@@ -1335,7 +1297,7 @@
       ],
       "published_at": "2026-04-09T08:45:44Z",
       "published_ts": 1775724344.0,
-      "age_minutes": 189.5,
+      "age_minutes": 222.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1356,125 +1318,11 @@
       "impact": 0.1,
       "clarity": 0.6,
       "relevance": 0.475,
-      "news_catalyst_score": 0.209,
+      "news_catalyst_score": 0.1964,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
       "url": "https://www.itweb.co.za/article/meta-superintelligence-labs-unleashes-new-ai-model/j5alrvQAzVpvpYQk",
-      "first_seen_at": "2026-04-09T10:59:12.831251Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "c8d259fdb675be5a247ec4b0a7d1c875958e550f:5919077",
-      "headline": "Meta Unveils Closed AI Model Muse Spark | ForkLog",
-      "tickers": [
-        "META"
-      ],
-      "published_at": "2026-04-09T08:25:21Z",
-      "published_ts": 1775723121.0,
-      "age_minutes": 209.9,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "ForkLog"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Meta Unveils Closed AI Model Muse Spark | ForkLog",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.2013,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://forklog.com/en/meta-unveils-closed-ai-model-muse-spark/",
-      "first_seen_at": "2026-04-09T10:59:12.831251Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "e10255b7f391a67f00e644cddf00fcb11e1d637a:5919076",
-      "headline": "Meta Unveils \"Muse Spark\": Everything You Need to Know About Its Latest AI Model",
-      "tickers": [
-        "META"
-      ],
-      "published_at": "2026-04-09T08:21:56Z",
-      "published_ts": 1775722916.0,
-      "age_minutes": 213.3,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "CryptoPotato"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Meta Unveils \"Muse Spark\": Everything You Need to Know About Its Latest AI Model",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.2,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://cryptopotato.com/meta-unveils-muse-spark-everything-you-need-to-know-about-its-latest-ai-model/",
-      "first_seen_at": "2026-04-09T10:59:12.831251Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "12e4f3a73842e3a3ec2a541d15331ce0919afebc:5919075",
-      "headline": "Meta Introduces New AI Model Muse Spark",
-      "tickers": [
-        "META"
-      ],
-      "published_at": "2026-04-09T08:15:26Z",
-      "published_ts": 1775722526.0,
-      "age_minutes": 219.8,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "adda247"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Meta Introduces New AI Model Muse Spark",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.1975,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://currentaffairs.adda247.com/meta-introduces-new-ai-model-muse-spark/",
       "first_seen_at": "2026-04-09T10:59:12.831251Z",
       "is_new": false,
       "provider_count": 1
@@ -1487,7 +1335,7 @@
       ],
       "published_at": "2026-04-08T17:33:10Z",
       "published_ts": 1775669590.0,
-      "age_minutes": 1102.1,
+      "age_minutes": 1135.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1525,7 +1373,7 @@
       ],
       "published_at": "2026-04-08T16:25:45Z",
       "published_ts": 1775665545.0,
-      "age_minutes": 1169.5,
+      "age_minutes": 1202.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1563,7 +1411,7 @@
       ],
       "published_at": "2026-04-08T14:34:41Z",
       "published_ts": 1775658881.0,
-      "age_minutes": 1280.6,
+      "age_minutes": 1313.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1601,7 +1449,7 @@
       ],
       "published_at": "2026-04-08T14:20:03Z",
       "published_ts": 1775658003.0,
-      "age_minutes": 1295.2,
+      "age_minutes": 1328.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1632,82 +1480,6 @@
       "provider_count": 1
     },
     {
-      "story_key": "51266c711215856b6c54bd087394b9f7e62ec367:5919072",
-      "headline": "Meta Pushes Engineers To Rework Code For AI-Led Development Systems - BW People",
-      "tickers": [
-        "META"
-      ],
-      "published_at": "2026-04-09T08:03:30Z",
-      "published_ts": 1775721810.0,
-      "age_minutes": 231.8,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "BW People"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Meta Pushes Engineers To Rework Code For AI-Led Development Systems - BW People",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.193,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.bwpeople.in/article/meta-pushes-engineers-to-rework-code-for-ai-led-development-systems-601502",
-      "first_seen_at": "2026-04-09T10:59:12.831251Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "fb0121f5d749ee5b2fa4bd8b74a46d3ffbc96ddc:5919078",
-      "headline": "Meta Unveils First AI Model From Superintelligence Team",
-      "tickers": [
-        "META"
-      ],
-      "published_at": "2026-04-09T08:31:39Z",
-      "published_ts": 1775723499.0,
-      "age_minutes": 203.6,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "BERNAMA"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Meta Unveils First AI Model From Superintelligence Team",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.4061,
-      "news_catalyst_score": 0.1921,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.bernama.com/en/news.php/?id=2542948",
-      "first_seen_at": "2026-04-09T10:59:12.831251Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
       "story_key": "c4ae85947a9bbdfde83b13c0f0f1e51b728638de:5919042",
       "headline": "Meta Stock Surges $95 Billion in Single Day as Airline Sector Rebound | Sada Elbalad",
       "tickers": [
@@ -1715,7 +1487,7 @@
       ],
       "published_at": "2026-04-09T05:30:54Z",
       "published_ts": 1775712654.0,
-      "age_minutes": 384.4,
+      "age_minutes": 417.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1753,7 +1525,7 @@
       ],
       "published_at": "2026-04-09T05:25:09Z",
       "published_ts": 1775712309.0,
-      "age_minutes": 390.1,
+      "age_minutes": 423.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1791,7 +1563,7 @@
       ],
       "published_at": "2026-04-09T05:07:31Z",
       "published_ts": 1775711251.0,
-      "age_minutes": 407.8,
+      "age_minutes": 440.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1829,7 +1601,7 @@
       ],
       "published_at": "2026-04-09T05:07:20Z",
       "published_ts": 1775711240.0,
-      "age_minutes": 407.9,
+      "age_minutes": 441.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1867,7 +1639,7 @@
       ],
       "published_at": "2026-04-09T03:51:08Z",
       "published_ts": 1775706668.0,
-      "age_minutes": 484.1,
+      "age_minutes": 517.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1905,7 +1677,7 @@
       ],
       "published_at": "2026-04-09T03:06:32Z",
       "published_ts": 1775703992.0,
-      "age_minutes": 528.7,
+      "age_minutes": 561.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1943,7 +1715,7 @@
       ],
       "published_at": "2026-04-09T02:34:01Z",
       "published_ts": 1775702041.0,
-      "age_minutes": 561.3,
+      "age_minutes": 594.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1981,7 +1753,7 @@
       ],
       "published_at": "2026-04-08T14:28:14Z",
       "published_ts": 1775658494.0,
-      "age_minutes": 1287.0,
+      "age_minutes": 1320.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2019,7 +1791,7 @@
       ],
       "published_at": "2026-04-08T13:29:52Z",
       "published_ts": 1775654992.0,
-      "age_minutes": 1345.4,
+      "age_minutes": 1378.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2057,7 +1829,7 @@
       ],
       "published_at": "2026-04-08T12:38:25Z",
       "published_ts": 1775651905.0,
-      "age_minutes": 1396.9,
+      "age_minutes": 1430.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2088,14 +1860,14 @@
       "provider_count": 1
     },
     {
-      "story_key": "268ba85355bc5b5dd738ffe7dd675fe4884793b9:5919072",
-      "headline": "Meta's Muse Spark Ignites Fresh AI Race After Internal Shake-Up",
+      "story_key": "c8d259fdb675be5a247ec4b0a7d1c875958e550f:5919077",
+      "headline": "Meta Unveils Closed AI Model Muse Spark | ForkLog",
       "tickers": [
         "META"
       ],
-      "published_at": "2026-04-09T08:00:00Z",
-      "published_ts": 1775721600.0,
-      "age_minutes": 235.3,
+      "published_at": "2026-04-09T08:25:21Z",
+      "published_ts": 1775723121.0,
+      "age_minutes": 243.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2104,23 +1876,23 @@
         "newsapi_ai"
       ],
       "sources": [
-        "Analytics Insight"
+        "ForkLog"
       ],
       "source_tier": "TIER_3",
       "source_rank": 3,
       "category": "other",
       "event_class": "UNKNOWN",
-      "event_label": "Meta's Muse Spark Ignites Fresh AI Race After Internal Shake-Up",
+      "event_label": "Meta Unveils Closed AI Model Muse Spark | ForkLog",
       "sentiment_label": "neutral",
       "polarity": 0.0,
       "impact": 0.1,
       "clarity": 0.6,
       "relevance": 0.475,
-      "news_catalyst_score": 0.1916,
+      "news_catalyst_score": 0.1887,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
-      "url": "https://www.analyticsinsight.net/news/metas-muse-spark-ignites-fresh-ai-race-after-internal-shake-up",
+      "url": "https://forklog.com/en/meta-unveils-closed-ai-model-muse-spark/",
       "first_seen_at": "2026-04-09T10:59:12.831251Z",
       "is_new": false,
       "provider_count": 1
@@ -2135,7 +1907,7 @@
       ],
       "published_at": "2026-04-08T13:22:24Z",
       "published_ts": 1775654544.0,
-      "age_minutes": 1352.9,
+      "age_minutes": 1386.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2166,6 +1938,196 @@
       "provider_count": 1
     },
     {
+      "story_key": "e10255b7f391a67f00e644cddf00fcb11e1d637a:5919076",
+      "headline": "Meta Unveils \"Muse Spark\": Everything You Need to Know About Its Latest AI Model",
+      "tickers": [
+        "META"
+      ],
+      "published_at": "2026-04-09T08:21:56Z",
+      "published_ts": 1775722916.0,
+      "age_minutes": 246.5,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "CryptoPotato"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Meta Unveils \"Muse Spark\": Everything You Need to Know About Its Latest AI Model",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.1874,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://cryptopotato.com/meta-unveils-muse-spark-everything-you-need-to-know-about-its-latest-ai-model/",
+      "first_seen_at": "2026-04-09T10:59:12.831251Z",
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
+      "story_key": "12e4f3a73842e3a3ec2a541d15331ce0919afebc:5919075",
+      "headline": "Meta Introduces New AI Model Muse Spark",
+      "tickers": [
+        "META"
+      ],
+      "published_at": "2026-04-09T08:15:26Z",
+      "published_ts": 1775722526.0,
+      "age_minutes": 253.0,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "adda247"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Meta Introduces New AI Model Muse Spark",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.1849,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://currentaffairs.adda247.com/meta-introduces-new-ai-model-muse-spark/",
+      "first_seen_at": "2026-04-09T10:59:12.831251Z",
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
+      "story_key": "51266c711215856b6c54bd087394b9f7e62ec367:5919072",
+      "headline": "Meta Pushes Engineers To Rework Code For AI-Led Development Systems - BW People",
+      "tickers": [
+        "META"
+      ],
+      "published_at": "2026-04-09T08:03:30Z",
+      "published_ts": 1775721810.0,
+      "age_minutes": 264.9,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "BW People"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Meta Pushes Engineers To Rework Code For AI-Led Development Systems - BW People",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.1804,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://www.bwpeople.in/article/meta-pushes-engineers-to-rework-code-for-ai-led-development-systems-601502",
+      "first_seen_at": "2026-04-09T10:59:12.831251Z",
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
+      "story_key": "fb0121f5d749ee5b2fa4bd8b74a46d3ffbc96ddc:5919078",
+      "headline": "Meta Unveils First AI Model From Superintelligence Team",
+      "tickers": [
+        "META"
+      ],
+      "published_at": "2026-04-09T08:31:39Z",
+      "published_ts": 1775723499.0,
+      "age_minutes": 236.8,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "BERNAMA"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Meta Unveils First AI Model From Superintelligence Team",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.4061,
+      "news_catalyst_score": 0.1802,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://www.bernama.com/en/news.php/?id=2542948",
+      "first_seen_at": "2026-04-09T10:59:12.831251Z",
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
+      "story_key": "268ba85355bc5b5dd738ffe7dd675fe4884793b9:5919072",
+      "headline": "Meta's Muse Spark Ignites Fresh AI Race After Internal Shake-Up",
+      "tickers": [
+        "META"
+      ],
+      "published_at": "2026-04-09T08:00:00Z",
+      "published_ts": 1775721600.0,
+      "age_minutes": 268.4,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Analytics Insight"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Meta's Muse Spark Ignites Fresh AI Race After Internal Shake-Up",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.1791,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://www.analyticsinsight.net/news/metas-muse-spark-ignites-fresh-ai-race-after-internal-shake-up",
+      "first_seen_at": "2026-04-09T10:59:12.831251Z",
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
       "story_key": "f5a1abe0fc911648adeff05707cacbf5e1ae597b:5919053",
       "headline": "Meta AI head Alexandr Wang to everyone calling Muse Spark AI model 'dissapointment': We are quite upfront that our model does not perform well on...",
       "tickers": [
@@ -2173,7 +2135,7 @@
       ],
       "published_at": "2026-04-09T06:28:14Z",
       "published_ts": 1775716094.0,
-      "age_minutes": 327.0,
+      "age_minutes": 360.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2211,7 +2173,7 @@
       ],
       "published_at": "2026-04-09T06:21:10Z",
       "published_ts": 1775715670.0,
-      "age_minutes": 334.1,
+      "age_minutes": 367.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2249,7 +2211,7 @@
       ],
       "published_at": "2026-04-09T06:20:44Z",
       "published_ts": 1775715644.0,
-      "age_minutes": 334.5,
+      "age_minutes": 367.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2287,7 +2249,7 @@
       ],
       "published_at": "2026-04-09T05:50:50Z",
       "published_ts": 1775713850.0,
-      "age_minutes": 364.4,
+      "age_minutes": 397.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2325,7 +2287,7 @@
       ],
       "published_at": "2026-04-09T05:50:14Z",
       "published_ts": 1775713814.0,
-      "age_minutes": 365.0,
+      "age_minutes": 398.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2363,7 +2325,7 @@
       ],
       "published_at": "2026-04-09T05:23:54Z",
       "published_ts": 1775712234.0,
-      "age_minutes": 391.4,
+      "age_minutes": 424.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2401,7 +2363,7 @@
       ],
       "published_at": "2026-04-09T05:14:29Z",
       "published_ts": 1775711669.0,
-      "age_minutes": 400.8,
+      "age_minutes": 433.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2439,7 +2401,7 @@
       ],
       "published_at": "2026-04-09T05:14:06Z",
       "published_ts": 1775711646.0,
-      "age_minutes": 401.2,
+      "age_minutes": 434.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2477,7 +2439,7 @@
       ],
       "published_at": "2026-04-09T04:54:53Z",
       "published_ts": 1775710493.0,
-      "age_minutes": 420.4,
+      "age_minutes": 453.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2515,7 +2477,7 @@
       ],
       "published_at": "2026-04-09T04:52:01Z",
       "published_ts": 1775710321.0,
-      "age_minutes": 423.3,
+      "age_minutes": 456.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2553,7 +2515,7 @@
       ],
       "published_at": "2026-04-09T04:44:00Z",
       "published_ts": 1775709840.0,
-      "age_minutes": 431.3,
+      "age_minutes": 464.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2591,7 +2553,7 @@
       ],
       "published_at": "2026-04-09T04:31:13Z",
       "published_ts": 1775709073.0,
-      "age_minutes": 444.1,
+      "age_minutes": 477.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2629,7 +2591,7 @@
       ],
       "published_at": "2026-04-09T04:29:01Z",
       "published_ts": 1775708941.0,
-      "age_minutes": 446.3,
+      "age_minutes": 479.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2667,7 +2629,7 @@
       ],
       "published_at": "2026-04-09T04:25:10Z",
       "published_ts": 1775708710.0,
-      "age_minutes": 450.1,
+      "age_minutes": 483.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2705,7 +2667,7 @@
       ],
       "published_at": "2026-04-09T04:01:00Z",
       "published_ts": 1775707260.0,
-      "age_minutes": 474.3,
+      "age_minutes": 507.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2743,7 +2705,7 @@
       ],
       "published_at": "2026-04-09T03:57:53Z",
       "published_ts": 1775707073.0,
-      "age_minutes": 477.4,
+      "age_minutes": 510.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2781,7 +2743,7 @@
       ],
       "published_at": "2026-04-09T03:54:17Z",
       "published_ts": 1775706857.0,
-      "age_minutes": 481.0,
+      "age_minutes": 514.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2819,7 +2781,7 @@
       ],
       "published_at": "2026-04-09T03:40:16Z",
       "published_ts": 1775706016.0,
-      "age_minutes": 495.0,
+      "age_minutes": 528.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2857,7 +2819,7 @@
       ],
       "published_at": "2026-04-09T03:29:23Z",
       "published_ts": 1775705363.0,
-      "age_minutes": 505.9,
+      "age_minutes": 539.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2895,7 +2857,7 @@
       ],
       "published_at": "2026-04-09T03:17:11Z",
       "published_ts": 1775704631.0,
-      "age_minutes": 518.1,
+      "age_minutes": 551.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2933,7 +2895,7 @@
       ],
       "published_at": "2026-04-09T02:35:00Z",
       "published_ts": 1775702100.0,
-      "age_minutes": 560.3,
+      "age_minutes": 593.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2971,7 +2933,7 @@
       ],
       "published_at": "2026-04-09T02:21:35Z",
       "published_ts": 1775701295.0,
-      "age_minutes": 573.7,
+      "age_minutes": 606.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -3009,7 +2971,7 @@
       ],
       "published_at": "2026-04-09T02:17:42Z",
       "published_ts": 1775701062.0,
-      "age_minutes": 577.6,
+      "age_minutes": 610.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -3047,7 +3009,7 @@
       ],
       "published_at": "2026-04-09T02:14:30Z",
       "published_ts": 1775700870.0,
-      "age_minutes": 580.8,
+      "age_minutes": 613.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -3085,7 +3047,7 @@
       ],
       "published_at": "2026-04-09T02:06:46Z",
       "published_ts": 1775700406.0,
-      "age_minutes": 588.5,
+      "age_minutes": 621.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -3123,7 +3085,7 @@
       ],
       "published_at": "2026-04-09T02:02:06Z",
       "published_ts": 1775700126.0,
-      "age_minutes": 593.2,
+      "age_minutes": 626.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -3161,7 +3123,7 @@
       ],
       "published_at": "2026-04-09T02:00:22Z",
       "published_ts": 1775700022.0,
-      "age_minutes": 594.9,
+      "age_minutes": 628.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -3199,7 +3161,7 @@
       ],
       "published_at": "2026-04-09T01:48:24Z",
       "published_ts": 1775699304.0,
-      "age_minutes": 606.9,
+      "age_minutes": 640.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -3237,7 +3199,7 @@
       ],
       "published_at": "2026-04-09T01:35:11Z",
       "published_ts": 1775698511.0,
-      "age_minutes": 620.1,
+      "age_minutes": 653.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -3275,7 +3237,7 @@
       ],
       "published_at": "2026-04-08T21:34:22Z",
       "published_ts": 1775684062.0,
-      "age_minutes": 860.9,
+      "age_minutes": 894.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -3313,7 +3275,7 @@
       ],
       "published_at": "2026-04-08T21:33:00Z",
       "published_ts": 1775683980.0,
-      "age_minutes": 862.3,
+      "age_minutes": 895.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -3351,7 +3313,7 @@
       ],
       "published_at": "2026-04-08T20:25:55Z",
       "published_ts": 1775679955.0,
-      "age_minutes": 929.4,
+      "age_minutes": 962.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -3389,7 +3351,7 @@
       ],
       "published_at": "2026-04-08T18:57:59Z",
       "published_ts": 1775674679.0,
-      "age_minutes": 1017.3,
+      "age_minutes": 1050.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -3427,7 +3389,7 @@
       ],
       "published_at": "2026-04-08T17:37:43Z",
       "published_ts": 1775669863.0,
-      "age_minutes": 1097.6,
+      "age_minutes": 1130.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -3465,7 +3427,7 @@
       ],
       "published_at": "2026-04-08T17:02:07Z",
       "published_ts": 1775667727.0,
-      "age_minutes": 1133.2,
+      "age_minutes": 1166.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -3503,7 +3465,7 @@
       ],
       "published_at": "2026-04-08T16:49:27Z",
       "published_ts": 1775666967.0,
-      "age_minutes": 1145.8,
+      "age_minutes": 1179.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -3541,7 +3503,7 @@
       ],
       "published_at": "2026-04-08T16:10:10Z",
       "published_ts": 1775664610.0,
-      "age_minutes": 1185.1,
+      "age_minutes": 1218.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -3579,7 +3541,7 @@
       ],
       "published_at": "2026-04-08T15:20:08Z",
       "published_ts": 1775661608.0,
-      "age_minutes": 1235.1,
+      "age_minutes": 1268.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -3617,7 +3579,7 @@
       ],
       "published_at": "2026-04-08T13:50:10Z",
       "published_ts": 1775656210.0,
-      "age_minutes": 1325.1,
+      "age_minutes": 1358.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -3655,7 +3617,7 @@
       ],
       "published_at": "2026-04-08T13:09:27Z",
       "published_ts": 1775653767.0,
-      "age_minutes": 1365.8,
+      "age_minutes": 1399.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -3693,7 +3655,7 @@
       ],
       "published_at": "2026-04-08T12:30:41Z",
       "published_ts": 1775651441.0,
-      "age_minutes": 1404.6,
+      "age_minutes": 1437.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -3731,7 +3693,7 @@
       ],
       "published_at": "2026-04-08T12:29:44Z",
       "published_ts": 1775651384.0,
-      "age_minutes": 1405.5,
+      "age_minutes": 1438.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -3769,7 +3731,7 @@
       ],
       "published_at": "2026-04-09T04:45:05Z",
       "published_ts": 1775709905.0,
-      "age_minutes": 430.2,
+      "age_minutes": 463.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -3807,7 +3769,7 @@
       ],
       "published_at": "2026-04-09T02:15:00Z",
       "published_ts": 1775700900.0,
-      "age_minutes": 580.3,
+      "age_minutes": 613.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -3845,7 +3807,7 @@
       ],
       "published_at": "2026-04-09T01:54:51Z",
       "published_ts": 1775699691.0,
-      "age_minutes": 600.4,
+      "age_minutes": 633.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -3883,7 +3845,7 @@
       ],
       "published_at": "2026-04-09T02:50:03Z",
       "published_ts": 1775703003.0,
-      "age_minutes": 545.2,
+      "age_minutes": 578.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -3916,17 +3878,17 @@
   ],
   "news_catalyst_by_symbol": {
     "AAPL": {
-      "news_catalyst_score": 0.3393,
+      "news_catalyst_score": 0.3146,
       "sentiment_label": "neutral",
       "event_class": "UNKNOWN",
-      "event_label": "Apple Kills Mini-LED Era: New 2026 MacBook Pros To Trigger 33% OLED Explosion - Apple (NASDAQ:AAPL)",
+      "event_label": "Jim Cramer Says Apple Stock Goes Higher - Apple (NASDAQ:AAPL)",
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "source_tier": "TIER_2",
-      "mentions_24h": 7,
+      "mentions_24h": 6,
       "is_actionable": false,
       "first_provider": "newsapi_ai",
-      "story_key": "dc08576cd5951496a51730afa72587a03ab0413e:5918834"
+      "story_key": "8e0e1743aef25bfcf5164e93b1f9e3a269aef251:5918885"
     },
     "AMZN": {
       "news_catalyst_score": 0.3093,
@@ -3942,7 +3904,7 @@
       "story_key": "c0ffb694b6ebe75377f0f4bc65a579ba4117bafd:5918899"
     },
     "CAT": {
-      "news_catalyst_score": 0.4713,
+      "news_catalyst_score": 0.4538,
       "sentiment_label": "neutral",
       "event_class": "MANAGEMENT",
       "event_label": "Caterpillar Taps Veteran Insider Kyle Epley As CFO - Caterpillar (NYSE:CAT)",
@@ -3995,7 +3957,7 @@
     }
   },
   "summary": {
-    "active_story_count": 101,
+    "active_story_count": 100,
     "new_story_count": 0,
     "actionable_story_count": 0,
     "actionable_symbols": [],
