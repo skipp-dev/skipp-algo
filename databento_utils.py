@@ -179,6 +179,12 @@ def normalize_symbol_for_databento(symbol: str) -> str:
     normalized = str(symbol).strip().upper()
     if not normalized:
         return ""
+    try:
+        from databento_reference import resolve_symbol_alias_from_cache
+
+        normalized = resolve_symbol_alias_from_cache(normalized)
+    except Exception:
+        logger.debug("Databento reference alias resolution failed.", exc_info=True)
     normalized = DATABENTO_SYMBOL_ALIASES.get(normalized, normalized)
     if _DATABENTO_INVALID_CHAR_RE.search(normalized):
         return ""
@@ -190,6 +196,12 @@ def normalize_symbol_for_databento(symbol: str) -> str:
 
 
 def _normalize_symbols(symbols: set[str] | list[str] | tuple[str, ...]) -> list[str]:
+    try:
+        from databento_reference import maybe_refresh_symbol_reference_cache
+
+        maybe_refresh_symbol_reference_cache(symbols)
+    except Exception:
+        logger.debug("Databento reference alias refresh skipped.", exc_info=True)
     normalized = {
         normalized_symbol
         for symbol in symbols
