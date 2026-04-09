@@ -663,13 +663,13 @@ def _export_live_news_sidecar(
     *,
     base_result: dict[str, Any],
     base_csv: Path,
-    output_root: Path,
+    artifacts_root: Path,
     fmp_api_key: str,
     benzinga_api_key: str,
     newsapi_ai_key: str,
 ) -> dict[str, Any]:
-    output_path = output_root / "smc_live_news_snapshot.json"
-    state_path = output_root / "smc_live_news_state.json"
+    output_path = artifacts_root / "smc_live_news_snapshot.json"
+    state_path = artifacts_root / "smc_live_news_state.json"
     output_paths = base_result.get("output_paths") if isinstance(base_result, dict) else None
     raw_manifest_path = output_paths.get("base_manifest") if isinstance(output_paths, dict) else None
     base_manifest_path = Path(raw_manifest_path) if raw_manifest_path else None
@@ -722,6 +722,7 @@ def finalize_pipeline(
     base_result: dict[str, Any],
     schema_path: Path,
     output_root: Path,
+    artifacts_root: Path | None = None,
     fmp_api_key: str = "",
     benzinga_api_key: str = "",
     newsapi_ai_key: str = "",
@@ -755,6 +756,10 @@ def finalize_pipeline(
     as UI-triggered flows.  Returns a structured, machine-readable result
     dict that downstream gates / CI can consume directly.
     """
+    output_root = Path(output_root)
+    artifacts_root = Path(artifacts_root) if artifacts_root is not None else output_root
+    artifacts_root.mkdir(parents=True, exist_ok=True)
+
     base_csv = Path(base_result["output_paths"]["base_csv"])
     snapshot_df = base_result["base_snapshot"]
     symbols = sorted(
@@ -792,7 +797,7 @@ def finalize_pipeline(
         enrich_range_profile_regime=enrich_range_profile_regime,
         base_snapshot=snapshot_df,
         manifest_path=manifest_path,
-        newsapi_feed_state_path=output_root / "newsapi_ai_feed_state.json",
+        newsapi_feed_state_path=artifacts_root / "newsapi_ai_feed_state.json",
     )
 
     # ── Pine library generation ─────────────────────────────────
@@ -810,7 +815,7 @@ def finalize_pipeline(
         live_news_result = _export_live_news_sidecar(
             base_result=base_result,
             base_csv=base_csv,
-            output_root=output_root,
+            artifacts_root=artifacts_root,
             fmp_api_key=fmp_api_key,
             benzinga_api_key=benzinga_api_key,
             newsapi_ai_key=newsapi_ai_key,
@@ -826,6 +831,8 @@ def finalize_pipeline(
             if enrichment
             else ""
         ),
+        "output_root": str(output_root),
+        "artifacts_root": str(artifacts_root),
         "pine_paths": {k: str(v) for k, v in pine_paths.items()},
         "base_result_keys": list(base_result.keys()),
     }
@@ -846,6 +853,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--dataset", default=os.getenv("DATABENTO_DATASET", "DBEQ.BASIC"), help="Databento dataset for --run-scan")
     parser.add_argument("--lookback-days", type=int, default=30, help="Trading-day lookback for --run-scan")
     parser.add_argument("--export-dir", type=Path, default=Path("artifacts/smc_microstructure_exports"), help="Output directory for bundle/base artifacts")
+    parser.add_argument("--output-root", type=Path, default=Path("."), help="Root directory for canonical generated library artifacts")
     parser.add_argument("--force-refresh", action="store_true", help="Bypass file cache during --run-scan")
     parser.add_argument("--write-xlsx", action="store_true", help="Also emit an .xlsx base workbook for bundle/scan generation")
     parser.add_argument("--library-owner", default="preuss_steffen", help="TradingView owner for the generated library import path metadata")
@@ -892,7 +900,8 @@ def main() -> None:
 
     finalize_kwargs = dict(
         schema_path=args.schema,
-        output_root=args.export_dir,
+        output_root=args.output_root,
+        artifacts_root=args.export_dir,
         fmp_api_key=fmp_api_key,
         benzinga_api_key=benzinga_api_key,
         newsapi_ai_key=newsapi_ai_key,

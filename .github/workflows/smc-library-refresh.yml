@@ -20,7 +20,11 @@
 #   BENZINGA_API_KEY   – Benzinga API key (news/calendar fallback)
 #   DATABENTO_API_KEY  – Databento API key (base data generation)
 #   TV_STORAGE_STATE   – TradingView Playwright storage-state JSON (publish)
-#   GH_PAT             – GitHub PAT with push rights (auto-commit)
+#
+# Optional secrets:
+#   GH_PAT             – Optional GitHub PAT override for checkout/push;
+#                        otherwise the workflow uses the built-in github.token
+#                        with contents:write permission.
 #
 # Optional secrets (alerting):
 #   TELEGRAM_BOT_TOKEN – Telegram bot token for alert delivery
@@ -47,6 +51,9 @@ on:
     - cron: "30 18 * * 1-5"   # 18:30 UTC – late session
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 env:
   REFRESH_DATE: ""   # set dynamically in the date step
 
@@ -66,7 +73,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          token: ${{ secrets.GH_PAT }}
+          token: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
 
       # ── Python + Node setup ─────────────────────────────────────
       - name: Set up Python
@@ -114,7 +121,16 @@ jobs:
         run: |
           python scripts/generate_smc_micro_base_from_databento.py \
             --run-scan \
-            --enrich-all
+            --enrich-all \
+            --export-dir artifacts/smc_microstructure_exports \
+            --output-root .
+
+      - name: Verify generated base manifest exists
+        run: |
+          if ! find artifacts/smc_microstructure_exports -name '*__smc_microstructure_base_manifest.json' -print -quit | grep -q .; then
+            echo "::error::Missing generated base manifest in artifacts/smc_microstructure_exports"
+            exit 1
+          fi
 
       # ── Evidence gates ──────────────────────────────────────────
       - name: Run evidence gate tests
