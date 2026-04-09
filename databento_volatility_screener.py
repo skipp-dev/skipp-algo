@@ -2819,6 +2819,7 @@ def build_daily_features_full_universe(
     premarket_anchor_et: time = time(8, 0),
     open_window_start: time | None = None,
     open_window_end: time | None = None,
+    smc_base_only: bool = False,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     expected = _build_expected_symbol_day_frame(trading_days, universe)
     if expected.empty:
@@ -2878,26 +2879,30 @@ def build_daily_features_full_universe(
         reference_open_et=time(9, 30),
         metric_prefix="",
     )
-    open_window_0800 = _build_open_window_aggregates(
-        second_detail_all,
-        trading_days=trading_days,
-        display_timezone=display_timezone,
-        open_window_start=open_window_start,
-        open_window_end=open_window_end,
-        premarket_anchor_et=premarket_anchor_et,
-        reference_open_et=time(8, 0),
-        metric_prefix="focus_0800_",
-    )
-    open_window_0400 = _build_open_window_aggregates(
-        second_detail_all,
-        trading_days=trading_days,
-        display_timezone=display_timezone,
-        open_window_start=open_window_start,
-        open_window_end=open_window_end,
-        premarket_anchor_et=premarket_anchor_et,
-        reference_open_et=time(4, 0),
-        metric_prefix="focus_0400_",
-    )
+    if smc_base_only:
+        open_window_0800 = pd.DataFrame()
+        open_window_0400 = pd.DataFrame()
+    else:
+        open_window_0800 = _build_open_window_aggregates(
+            second_detail_all,
+            trading_days=trading_days,
+            display_timezone=display_timezone,
+            open_window_start=open_window_start,
+            open_window_end=open_window_end,
+            premarket_anchor_et=premarket_anchor_et,
+            reference_open_et=time(8, 0),
+            metric_prefix="focus_0800_",
+        )
+        open_window_0400 = _build_open_window_aggregates(
+            second_detail_all,
+            trading_days=trading_days,
+            display_timezone=display_timezone,
+            open_window_start=open_window_start,
+            open_window_end=open_window_end,
+            premarket_anchor_et=premarket_anchor_et,
+            reference_open_et=time(4, 0),
+            metric_prefix="focus_0400_",
+        )
     if not open_window.empty:
         open_window["trade_date"] = pd.to_datetime(open_window["trade_date"], errors="coerce").dt.date
         open_window["symbol"] = open_window["symbol"].astype(str).str.upper()
@@ -2917,7 +2922,7 @@ def build_daily_features_full_universe(
         trading_days=trading_days,
         display_timezone=display_timezone,
     )
-    close_outcome_window = _build_close_outcome_aggregates(close_outcome_minute_detail_all)
+    close_outcome_window = pd.DataFrame() if smc_base_only else _build_close_outcome_aggregates(close_outcome_minute_detail_all)
     if not close_window.empty:
         close_window["trade_date"] = pd.to_datetime(close_window["trade_date"], errors="coerce").dt.date
         close_window["symbol"] = close_window["symbol"].astype(str).str.upper()
@@ -2985,62 +2990,65 @@ def build_daily_features_full_universe(
         features["close_trade_has_trf_activity"] = pd.Series(features["close_trade_has_trf_activity"], dtype="boolean").fillna(False).astype(bool)
     if "close_trade_has_lit_activity" in features.columns:
         features["close_trade_has_lit_activity"] = pd.Series(features["close_trade_has_lit_activity"], dtype="boolean").fillna(False).astype(bool)
-    close_ref = pd.to_numeric(features.get("close_auction_reference_price"), errors="coerce")
-    close_last_2000 = pd.to_numeric(features.get("close_last_price_2000"), errors="coerce")
-    close_high_2000 = pd.to_numeric(features.get("close_high_price_1600_2000"), errors="coerce")
-    close_low_2000 = pd.to_numeric(features.get("close_low_price_1600_2000"), errors="coerce")
-    features["close_to_2000_return_pct"] = np.where(
-        close_ref > 0,
-        ((close_last_2000 / close_ref) - 1.0) * 100.0,
-        np.nan,
-    )
-    features["close_to_2000_high_pct"] = np.where(
-        close_ref > 0,
-        ((close_high_2000 / close_ref) - 1.0) * 100.0,
-        np.nan,
-    )
-    features["close_to_2000_low_pct"] = np.where(
-        close_ref > 0,
-        ((close_low_2000 / close_ref) - 1.0) * 100.0,
-        np.nan,
-    )
-    features["next_trade_date"] = features.groupby("symbol")["trade_date"].shift(-1)
-    if "market_open_price" in features.columns:
-        next_day_open_from_intraday = pd.to_numeric(features.groupby("symbol")["market_open_price"].shift(-1), errors="coerce")
+    if smc_base_only:
+        features["has_next_day_outcome"] = False
     else:
-        next_day_open_from_intraday = pd.Series(np.nan, index=features.index, dtype=float)
-    if "day_open" in features.columns:
-        next_day_open_from_daily = pd.to_numeric(features.groupby("symbol")["day_open"].shift(-1), errors="coerce")
-    else:
-        next_day_open_from_daily = pd.Series(np.nan, index=features.index, dtype=float)
-    features["next_day_open_price"] = pd.Series(next_day_open_from_intraday).combine_first(next_day_open_from_daily)
-    if "exact_1000_price" in features.columns:
-        next_day_window_end_from_exact = pd.to_numeric(features.groupby("symbol")["exact_1000_price"].shift(-1), errors="coerce")
-    else:
-        next_day_window_end_from_exact = pd.Series(np.nan, index=features.index, dtype=float)
-    if "current_price" in features.columns:
-        next_day_window_end_from_current = pd.to_numeric(features.groupby("symbol")["current_price"].shift(-1), errors="coerce")
-    else:
-        next_day_window_end_from_current = pd.Series(np.nan, index=features.index, dtype=float)
-    features["next_day_window_end_price"] = pd.Series(next_day_window_end_from_exact).combine_first(next_day_window_end_from_current)
-    next_open = pd.to_numeric(features.get("next_day_open_price"), errors="coerce")
-    next_window_end = pd.to_numeric(features.get("next_day_window_end_price"), errors="coerce")
-    features["close_to_next_open_return_pct"] = np.where(
-        close_ref > 0,
-        ((next_open / close_ref) - 1.0) * 100.0,
-        np.nan,
-    )
-    features["next_open_to_window_end_return_pct"] = np.where(
-        next_open > 0,
-        ((next_window_end / next_open) - 1.0) * 100.0,
-        np.nan,
-    )
-    features["close_to_next_window_end_return_pct"] = np.where(
-        close_ref > 0,
-        ((next_window_end / close_ref) - 1.0) * 100.0,
-        np.nan,
-    )
-    features["has_next_day_outcome"] = features["next_trade_date"].notna() & next_open.gt(0) & next_window_end.gt(0)
+        close_ref = pd.to_numeric(features.get("close_auction_reference_price"), errors="coerce")
+        close_last_2000 = pd.to_numeric(features.get("close_last_price_2000"), errors="coerce")
+        close_high_2000 = pd.to_numeric(features.get("close_high_price_1600_2000"), errors="coerce")
+        close_low_2000 = pd.to_numeric(features.get("close_low_price_1600_2000"), errors="coerce")
+        features["close_to_2000_return_pct"] = np.where(
+            close_ref > 0,
+            ((close_last_2000 / close_ref) - 1.0) * 100.0,
+            np.nan,
+        )
+        features["close_to_2000_high_pct"] = np.where(
+            close_ref > 0,
+            ((close_high_2000 / close_ref) - 1.0) * 100.0,
+            np.nan,
+        )
+        features["close_to_2000_low_pct"] = np.where(
+            close_ref > 0,
+            ((close_low_2000 / close_ref) - 1.0) * 100.0,
+            np.nan,
+        )
+        features["next_trade_date"] = features.groupby("symbol")["trade_date"].shift(-1)
+        if "market_open_price" in features.columns:
+            next_day_open_from_intraday = pd.to_numeric(features.groupby("symbol")["market_open_price"].shift(-1), errors="coerce")
+        else:
+            next_day_open_from_intraday = pd.Series(np.nan, index=features.index, dtype=float)
+        if "day_open" in features.columns:
+            next_day_open_from_daily = pd.to_numeric(features.groupby("symbol")["day_open"].shift(-1), errors="coerce")
+        else:
+            next_day_open_from_daily = pd.Series(np.nan, index=features.index, dtype=float)
+        features["next_day_open_price"] = pd.Series(next_day_open_from_intraday).combine_first(next_day_open_from_daily)
+        if "exact_1000_price" in features.columns:
+            next_day_window_end_from_exact = pd.to_numeric(features.groupby("symbol")["exact_1000_price"].shift(-1), errors="coerce")
+        else:
+            next_day_window_end_from_exact = pd.Series(np.nan, index=features.index, dtype=float)
+        if "current_price" in features.columns:
+            next_day_window_end_from_current = pd.to_numeric(features.groupby("symbol")["current_price"].shift(-1), errors="coerce")
+        else:
+            next_day_window_end_from_current = pd.Series(np.nan, index=features.index, dtype=float)
+        features["next_day_window_end_price"] = pd.Series(next_day_window_end_from_exact).combine_first(next_day_window_end_from_current)
+        next_open = pd.to_numeric(features.get("next_day_open_price"), errors="coerce")
+        next_window_end = pd.to_numeric(features.get("next_day_window_end_price"), errors="coerce")
+        features["close_to_next_open_return_pct"] = np.where(
+            close_ref > 0,
+            ((next_open / close_ref) - 1.0) * 100.0,
+            np.nan,
+        )
+        features["next_open_to_window_end_return_pct"] = np.where(
+            next_open > 0,
+            ((next_window_end / next_open) - 1.0) * 100.0,
+            np.nan,
+        )
+        features["close_to_next_window_end_return_pct"] = np.where(
+            close_ref > 0,
+            ((next_window_end / close_ref) - 1.0) * 100.0,
+            np.nan,
+        )
+        features["has_next_day_outcome"] = features["next_trade_date"].notna() & next_open.gt(0) & next_window_end.gt(0)
 
     if "open_1m_volume" not in features.columns:
         features["open_1m_volume"] = np.nan
@@ -3065,43 +3073,44 @@ def build_daily_features_full_universe(
         if col in features.columns:
             features[f"focus_0930_{col}"] = features[col]
 
-    coalesce_pairs = [
-        ("open_window_second_rows", "focus_0800_open_window_second_rows"),
-        ("open_window_second_rows", "focus_0400_open_window_second_rows"),
-        ("open_1m_volume", "focus_0800_open_1m_volume"),
-        ("open_1m_volume", "focus_0400_open_1m_volume"),
-        ("open_5m_volume", "focus_0800_open_5m_volume"),
-        ("open_5m_volume", "focus_0400_open_5m_volume"),
-        ("open_30s_volume", "focus_0800_open_30s_volume"),
-        ("open_30s_volume", "focus_0400_open_30s_volume"),
-        ("regular_open_second_rows", "focus_0800_regular_open_second_rows"),
-        ("regular_open_second_rows", "focus_0400_regular_open_second_rows"),
-        ("regular_open_5m_second_rows", "focus_0800_regular_open_5m_second_rows"),
-        ("regular_open_5m_second_rows", "focus_0400_regular_open_5m_second_rows"),
-        ("regular_open_30s_second_rows", "focus_0800_regular_open_30s_second_rows"),
-        ("regular_open_30s_second_rows", "focus_0400_regular_open_30s_second_rows"),
-        ("regular_open_reference_price", "focus_0800_regular_open_reference_price"),
-        ("regular_open_reference_price", "focus_0400_regular_open_reference_price"),
-        ("early_dip_low_10s", "focus_0800_early_dip_low_10s"),
-        ("early_dip_low_10s", "focus_0400_early_dip_low_10s"),
-        ("early_dip_pct_10s", "focus_0800_early_dip_pct_10s"),
-        ("early_dip_pct_10s", "focus_0400_early_dip_pct_10s"),
-        ("early_dip_second", "focus_0800_early_dip_second"),
-        ("early_dip_second", "focus_0400_early_dip_second"),
-        ("reclaim_second_30s", "focus_0800_reclaim_second_30s"),
-        ("reclaim_second_30s", "focus_0400_reclaim_second_30s"),
-    ]
-    for primary, secondary in coalesce_pairs:
-        if primary in features.columns and secondary in features.columns:
-            features[primary] = features[primary].combine_first(features[secondary])
-    if "reclaimed_start_price_within_30s" in features.columns and "focus_0800_reclaimed_start_price_within_30s" in features.columns:
-        primary_bool = pd.Series(features["reclaimed_start_price_within_30s"], dtype="boolean").fillna(False)
-        secondary_bool = pd.Series(features["focus_0800_reclaimed_start_price_within_30s"], dtype="boolean").fillna(False)
-        features["reclaimed_start_price_within_30s"] = (primary_bool | secondary_bool).astype(bool)
-    if "reclaimed_start_price_within_30s" in features.columns and "focus_0400_reclaimed_start_price_within_30s" in features.columns:
-        primary_bool = pd.Series(features["reclaimed_start_price_within_30s"], dtype="boolean").fillna(False)
-        secondary_bool = pd.Series(features["focus_0400_reclaimed_start_price_within_30s"], dtype="boolean").fillna(False)
-        features["reclaimed_start_price_within_30s"] = (primary_bool | secondary_bool).astype(bool)
+    if not smc_base_only:
+        coalesce_pairs = [
+            ("open_window_second_rows", "focus_0800_open_window_second_rows"),
+            ("open_window_second_rows", "focus_0400_open_window_second_rows"),
+            ("open_1m_volume", "focus_0800_open_1m_volume"),
+            ("open_1m_volume", "focus_0400_open_1m_volume"),
+            ("open_5m_volume", "focus_0800_open_5m_volume"),
+            ("open_5m_volume", "focus_0400_open_5m_volume"),
+            ("open_30s_volume", "focus_0800_open_30s_volume"),
+            ("open_30s_volume", "focus_0400_open_30s_volume"),
+            ("regular_open_second_rows", "focus_0800_regular_open_second_rows"),
+            ("regular_open_second_rows", "focus_0400_regular_open_second_rows"),
+            ("regular_open_5m_second_rows", "focus_0800_regular_open_5m_second_rows"),
+            ("regular_open_5m_second_rows", "focus_0400_regular_open_5m_second_rows"),
+            ("regular_open_30s_second_rows", "focus_0800_regular_open_30s_second_rows"),
+            ("regular_open_30s_second_rows", "focus_0400_regular_open_30s_second_rows"),
+            ("regular_open_reference_price", "focus_0800_regular_open_reference_price"),
+            ("regular_open_reference_price", "focus_0400_regular_open_reference_price"),
+            ("early_dip_low_10s", "focus_0800_early_dip_low_10s"),
+            ("early_dip_low_10s", "focus_0400_early_dip_low_10s"),
+            ("early_dip_pct_10s", "focus_0800_early_dip_pct_10s"),
+            ("early_dip_pct_10s", "focus_0400_early_dip_pct_10s"),
+            ("early_dip_second", "focus_0800_early_dip_second"),
+            ("early_dip_second", "focus_0400_early_dip_second"),
+            ("reclaim_second_30s", "focus_0800_reclaim_second_30s"),
+            ("reclaim_second_30s", "focus_0400_reclaim_second_30s"),
+        ]
+        for primary, secondary in coalesce_pairs:
+            if primary in features.columns and secondary in features.columns:
+                features[primary] = features[primary].combine_first(features[secondary])
+        if "reclaimed_start_price_within_30s" in features.columns and "focus_0800_reclaimed_start_price_within_30s" in features.columns:
+            primary_bool = pd.Series(features["reclaimed_start_price_within_30s"], dtype="boolean").fillna(False)
+            secondary_bool = pd.Series(features["focus_0800_reclaimed_start_price_within_30s"], dtype="boolean").fillna(False)
+            features["reclaimed_start_price_within_30s"] = (primary_bool | secondary_bool).astype(bool)
+        if "reclaimed_start_price_within_30s" in features.columns and "focus_0400_reclaimed_start_price_within_30s" in features.columns:
+            primary_bool = pd.Series(features["reclaimed_start_price_within_30s"], dtype="boolean").fillna(False)
+            secondary_bool = pd.Series(features["focus_0400_reclaimed_start_price_within_30s"], dtype="boolean").fillna(False)
+            features["reclaimed_start_price_within_30s"] = (primary_bool | secondary_bool).astype(bool)
 
     reclaimed_flag = pd.Series(features["reclaimed_start_price_within_30s"], dtype="boolean")
     features["reclaimed_start_price_within_30s"] = reclaimed_flag.fillna(False).astype(bool)

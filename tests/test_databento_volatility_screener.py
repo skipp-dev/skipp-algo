@@ -5101,6 +5101,161 @@ def test_run_production_export_pipeline_smc_base_only_trims_close_detail_scope(m
     assert observed["close_trade_window"] == (time(15, 59), time(16, 0))
 
 
+def test_build_daily_features_full_universe_smc_base_only_skips_extra_focus_and_close_outcome(monkeypatch) -> None:
+    trade_day = date(2026, 3, 5)
+    observed_prefixes: list[str] = []
+
+    def fake_open_window(*args, metric_prefix: str = "", **kwargs):
+        observed_prefixes.append(metric_prefix)
+        prefix = metric_prefix
+        return pd.DataFrame(
+            {
+                "trade_date": [trade_day],
+                "symbol": ["AAPL"],
+                f"{prefix}open_window_second_rows": [1],
+                f"{prefix}open_1m_volume": [100.0],
+                f"{prefix}open_5m_volume": [200.0],
+                f"{prefix}open_30s_volume": [50.0],
+                f"{prefix}regular_open_second_rows": [1],
+                f"{prefix}regular_open_5m_second_rows": [1],
+                f"{prefix}regular_open_30s_second_rows": [1],
+                f"{prefix}regular_open_reference_price": [10.0],
+                f"{prefix}early_dip_low_10s": [9.8],
+                f"{prefix}early_dip_pct_10s": [-2.0],
+                f"{prefix}early_dip_second": [4.0],
+                f"{prefix}reclaimed_start_price_within_30s": [True],
+                f"{prefix}reclaim_second_30s": [12.0],
+            }
+        )
+
+    monkeypatch.setattr("databento_volatility_screener._build_open_window_aggregates", fake_open_window)
+    monkeypatch.setattr("databento_volatility_screener._build_close_imbalance_aggregates", lambda *args, **kwargs: pd.DataFrame())
+    monkeypatch.setattr(
+        "databento_volatility_screener._build_close_trade_aggregates",
+        lambda *args, **kwargs: pd.DataFrame(
+            {
+                "trade_date": [trade_day],
+                "symbol": ["AAPL"],
+                "close_trade_hygiene_score": [0.8],
+                "close_trade_has_lit_followthrough": [True],
+            }
+        ),
+    )
+    monkeypatch.setattr(
+        "databento_volatility_screener._build_close_outcome_aggregates",
+        lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("close-outcome aggregates should be skipped in smc_base_only mode")),
+    )
+
+    features, coverage = build_daily_features_full_universe(
+        trading_days=[trade_day],
+        universe=pd.DataFrame({"symbol": ["AAPL"], "company_name": ["Apple"], "exchange": ["NASDAQ"], "market_cap": [1_000_000.0]}),
+        daily_bars=pd.DataFrame(
+            {
+                "trade_date": [trade_day],
+                "symbol": ["AAPL"],
+                "open": [10.0],
+                "high": [10.5],
+                "low": [9.8],
+                "close": [10.2],
+                "volume": [1_000.0],
+                "previous_close": [9.8],
+            }
+        ),
+        intraday=pd.DataFrame(
+            {
+                "trade_date": [trade_day],
+                "symbol": ["AAPL"],
+                "previous_close": [9.8],
+                "market_open_price": [10.0],
+                "window_start_price": [10.0],
+                "current_price": [10.2],
+                "window_high": [10.5],
+                "window_low": [9.8],
+                "window_volume": [1_000.0],
+                "seconds_in_window": [1],
+                "window_return_pct": [2.0],
+                "window_range_pct": [7.0],
+                "realized_vol_pct": [1.0],
+            }
+        ),
+        second_detail_all=pd.DataFrame(),
+        close_detail_all=pd.DataFrame(),
+        close_trade_detail_all=pd.DataFrame({"trade_date": [trade_day], "symbol": ["AAPL"]}),
+        close_outcome_minute_detail_all=pd.DataFrame({"trade_date": [trade_day], "symbol": ["AAPL"]}),
+        smc_base_only=True,
+    )
+
+    assert observed_prefixes == [""]
+    assert features["focus_0800_open_window_second_rows"].eq(0).all()
+    assert features["focus_0400_open_window_second_rows"].eq(0).all()
+    assert features["has_next_day_outcome"].eq(False).all()
+    assert coverage["focus_0800_open_window_second_rows"].eq(0).all()
+
+
+def test_build_daily_symbol_features_export_smc_base_only_skips_structure(monkeypatch) -> None:
+    trade_day = date(2026, 3, 5)
+
+    fake_features = pd.DataFrame(
+        {
+            "trade_date": [trade_day],
+            "symbol": ["AAPL"],
+            "exchange": ["NASDAQ"],
+            "asset_type": ["listed_equity_issue"],
+            "current_price": [10.2],
+            "previous_close": [9.8],
+            "market_open_price": [10.0],
+            "window_start_price": [10.0],
+            "window_range_pct": [7.0],
+            "market_cap": [1_000_000.0],
+            "has_reference_data": [True],
+            "has_fundamentals": [False],
+        }
+    )
+    fake_coverage = pd.DataFrame(
+        {
+            "trade_date": [trade_day],
+            "symbol": ["AAPL"],
+            "has_daily_bar": [True],
+            "has_intraday_summary": [True],
+            "has_open_window_detail": [True],
+            "has_close_window_detail": [True],
+            "exclusion_reason": [""],
+        }
+    )
+
+    monkeypatch.setattr(
+        export_mod,
+        "build_daily_features_full_universe",
+        lambda **kwargs: (fake_features.copy(), fake_coverage.copy()),
+    )
+    monkeypatch.setattr(
+        export_mod,
+        "build_market_structure_feature_frame",
+        lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("structure features should be skipped in smc_base_only mode")),
+    )
+
+    features, diagnostics = _build_daily_symbol_features_full_universe_export(
+        trading_days=[trade_day],
+        raw_universe=pd.DataFrame({"symbol": ["AAPL"]}),
+        supported_universe=pd.DataFrame({"symbol": ["AAPL"]}),
+        daily_bars=pd.DataFrame(),
+        intraday=pd.DataFrame(),
+        second_detail_all=pd.DataFrame(),
+        close_detail_all=pd.DataFrame(),
+        close_trade_detail_all=pd.DataFrame(),
+        close_outcome_minute_detail_all=pd.DataFrame(),
+        display_timezone="Europe/Berlin",
+        premarket_anchor_et=time(8, 0),
+        ranking_metric="window_range_pct",
+        top_fraction=0.2,
+        smc_base_only=True,
+    )
+
+    assert not features.empty
+    assert features["structure_trend_state"].isna().all()
+    assert diagnostics["selected_top20pct_0400"].eq(False).all()
+
+
 def test_deduplicate_daily_symbol_rows_noop_without_duplicates() -> None:
     """No duplicates → frame returned unchanged."""
     frame = pd.DataFrame({

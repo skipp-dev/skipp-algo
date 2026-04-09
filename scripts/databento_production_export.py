@@ -1982,6 +1982,7 @@ def _build_daily_symbol_features_full_universe_export(
         close_outcome_minute_detail_all=close_outcome_minute_detail_all,
         display_timezone=display_timezone,
         premarket_anchor_et=premarket_anchor_et,
+        smc_base_only=smc_base_only,
     )
     if features.empty:
         return pd.DataFrame(columns=DAILY_SYMBOL_FEATURE_COLUMNS), pd.DataFrame(columns=SYMBOL_DAY_DIAGNOSTIC_COLUMNS)
@@ -2006,11 +2007,13 @@ def _build_daily_symbol_features_full_universe_export(
     if overlap_cols:
         features = features.drop(columns=list(overlap_cols))
     features = features.merge(coverage_flags, on=["trade_date", "symbol"], how="left")
-    structure_features = build_market_structure_feature_frame(
-        second_detail_all,
-        group_keys=["trade_date", "symbol"],
-        prefix="structure",
-    )
+    structure_features = pd.DataFrame()
+    if not smc_base_only:
+        structure_features = build_market_structure_feature_frame(
+            second_detail_all,
+            group_keys=["trade_date", "symbol"],
+            prefix="structure",
+        )
     if not structure_features.empty:
         features = features.merge(structure_features, on=["trade_date", "symbol"], how="left")
 
