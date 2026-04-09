@@ -207,6 +207,74 @@ def test_poll_live_news_bus_keeps_first_provider_for_existing_story() -> None:
     assert next_state["story_state"][story_key]["source_tier"] == "TIER_1"
 
 
+def test_build_story_record_keeps_early_aging_high_conviction_story_actionable() -> None:
+    published_ts = 1_775_700_960.0
+    now_ts = published_ts + 132.0 * 60.0
+
+    story = bus._build_story_record(
+        {
+            "story_key": "story-1",
+            "headline": "Exxon Mobil Stock: War Effect On Earnings (NYSE:XOM)",
+            "tickers": ["XOM"],
+            "published_ts": published_ts,
+            "first_provider": "newsapi_ai",
+            "providers": ["newsapi_ai"],
+            "provider_names": ["newsapi_ai"],
+            "sources": ["Seeking Alpha"],
+            "source_tier": "TIER_3",
+            "source_rank": 3,
+            "category": "earnings",
+            "polarity": 0.0,
+            "impact": 0.8,
+            "clarity": 0.6,
+            "relevance": 0.79,
+            "first_seen_ts": now_ts,
+        },
+        now_ts=now_ts,
+        is_new=True,
+    )
+
+    assert story["age_minutes"] == 132.0
+    assert story["recency_bucket"] == "AGING"
+    assert story["news_catalyst_score"] == 0.5162
+    assert story["materiality"] == "MEDIUM"
+    assert story["is_actionable"] is True
+
+
+def test_build_story_record_demotes_older_aging_high_conviction_story() -> None:
+    published_ts = 1_775_700_960.0
+    now_ts = published_ts + 216.0 * 60.0
+
+    story = bus._build_story_record(
+        {
+            "story_key": "story-1",
+            "headline": "Exxon Mobil Stock: War Effect On Earnings (NYSE:XOM)",
+            "tickers": ["XOM"],
+            "published_ts": published_ts,
+            "first_provider": "newsapi_ai",
+            "providers": ["newsapi_ai"],
+            "provider_names": ["newsapi_ai"],
+            "sources": ["Seeking Alpha"],
+            "source_tier": "TIER_3",
+            "source_rank": 3,
+            "category": "earnings",
+            "polarity": 0.0,
+            "impact": 0.8,
+            "clarity": 0.6,
+            "relevance": 0.79,
+            "first_seen_ts": now_ts,
+        },
+        now_ts=now_ts,
+        is_new=True,
+    )
+
+    assert story["age_minutes"] == 216.0
+    assert story["recency_bucket"] == "AGING"
+    assert story["news_catalyst_score"] == 0.4569
+    assert story["materiality"] == "LOW"
+    assert story["is_actionable"] is False
+
+
 def test_resolve_live_news_symbols_from_base_csv_uses_adv_dollar_order(tmp_path: Path) -> None:
     base_csv = tmp_path / "base.csv"
     base_csv.write_text(

@@ -53,6 +53,11 @@ _RECENCY_MULTIPLIER = {
     "STALE": 0.3,
     "UNKNOWN": 0.5,
 }
+_ACTIONABLE_RECENCY_BUCKETS = {"ULTRA_FRESH", "FRESH", "WARM"}
+_ACTIONABLE_MATERIALITY = {"HIGH", "MEDIUM"}
+_WARM_MAX_AGE_MINUTES = 60.0
+_EARLY_AGING_ACTIONABLE_MAX_MINUTES = 180.0
+_SOFT_AGING_RECENCY_MAX_MINUTES = 300.0
 _CATEGORY_TO_EVENT_CLASS = {
     "halt": "HALT",
     "offering": "OFFERING",
@@ -183,6 +188,28 @@ def _materiality(score: float) -> str:
     if score >= 0.5:
         return "MEDIUM"
     return "LOW"
+
+
+def _recency_multiplier(age_minutes: float | None) -> float:
+    recency = _recency_bucket(age_minutes)
+    default_multiplier = _RECENCY_MULTIPLIER.get(recency, 0.5)
+    if recency != "AGING" or age_minutes is None:
+        return default_multiplier
+    if age_minutes <= _EARLY_AGING_ACTIONABLE_MAX_MINUTES:
+        progress = max(min((age_minutes - _WARM_MAX_AGE_MINUTES) / (_EARLY_AGING_ACTIONABLE_MAX_MINUTES - _WARM_MAX_AGE_MINUTES), 1.0), 0.0)
+        return 0.8 - 0.1 * progress
+    if age_minutes <= _SOFT_AGING_RECENCY_MAX_MINUTES:
+        progress = (age_minutes - _EARLY_AGING_ACTIONABLE_MAX_MINUTES) / (_SOFT_AGING_RECENCY_MAX_MINUTES - _EARLY_AGING_ACTIONABLE_MAX_MINUTES)
+        return 0.7 - 0.15 * progress
+    return default_multiplier
+
+
+def _is_actionable_story(*, recency_bucket: str, materiality: str, age_minutes: float | None) -> bool:
+    if materiality not in _ACTIONABLE_MATERIALITY:
+        return False
+    if recency_bucket in _ACTIONABLE_RECENCY_BUCKETS:
+        return True
+    return recency_bucket == "AGING" and age_minutes is not None and age_minutes <= _EARLY_AGING_ACTIONABLE_MAX_MINUTES
 
 
 def _event_class(category: str) -> str:
@@ -610,8 +637,7 @@ def write_live_news_snapshot(path: Path, snapshot: dict[str, Any]) -> None:
 
 
 def _story_score(entry: dict[str, Any], *, age_minutes: float | None) -> float:
-    recency = _recency_bucket(age_minutes)
-    recency_multiplier = _RECENCY_MULTIPLIER.get(recency, 0.5)
+    recency_multiplier = _recency_multiplier(age_minutes)
     source_bonus = {
         "TIER_1": 0.15,
         "TIER_2": 0.10,
@@ -659,7 +685,11 @@ def _build_story_record(entry: dict[str, Any], *, now_ts: float, is_new: bool) -
         "news_catalyst_score": news_catalyst_score,
         "materiality": materiality,
         "recency_bucket": recency_bucket,
-        "is_actionable": recency_bucket in {"ULTRA_FRESH", "FRESH", "WARM"} and materiality in {"HIGH", "MEDIUM"},
+        "is_actionable": _is_actionable_story(
+            recency_bucket=recency_bucket,
+            materiality=materiality,
+            age_minutes=age_minutes,
+        ),
         "url": entry.get("url", ""),
         "first_seen_at": _isoformat_utc(_coerce_timestamp(entry.get("first_seen_ts"))),
         "is_new": bool(is_new),
