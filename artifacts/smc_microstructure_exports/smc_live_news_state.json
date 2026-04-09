@@ -4,9 +4,9 @@
     "fmp_stock": 0.0,
     "fmp_press": 0.0,
     "fmp_articles": 0.0,
-    "newsapi_ai": 1775707260.0,
+    "newsapi_ai": 1775716551.0,
     "tv": 0.0,
-    "legacy_cursor": 1775707260.0
+    "legacy_cursor": 1775716551.0
   },
   "provider_state": {},
   "story_state": {
@@ -18,7 +18,7 @@
         "XOM"
       ],
       "published_ts": 1775702100.0,
-      "first_seen_ts": 1775708882.952868,
+      "first_seen_ts": 1775716997.3327568,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -37,7 +37,7 @@
       "polarity": 0.0,
       "source_tier": "TIER_3",
       "source_rank": 3,
-      "last_seen_ts": 1775708882.952868
+      "last_seen_ts": 1775716997.3327568
     },
     "d96ffdadac969eba0c597d8662e1ea9f6f317542:5919003": {
       "story_key": "d96ffdadac969eba0c597d8662e1ea9f6f317542:5919003",
@@ -47,7 +47,7 @@
         "XOM"
       ],
       "published_ts": 1775700900.0,
-      "first_seen_ts": 1775708882.952868,
+      "first_seen_ts": 1775716997.3327568,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -66,7 +66,7 @@
       "polarity": 0.0,
       "source_tier": "TIER_3",
       "source_rank": 3,
-      "last_seen_ts": 1775708882.952868
+      "last_seen_ts": 1775716997.3327568
     },
     "dfda3de3b6e5dfd397dfae7315079a28fb62da07:5919003": {
       "story_key": "dfda3de3b6e5dfd397dfae7315079a28fb62da07:5919003",
@@ -76,7 +76,7 @@
         "XOM"
       ],
       "published_ts": 1775700960.0,
-      "first_seen_ts": 1775708882.952868,
+      "first_seen_ts": 1775716997.3327568,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -95,7 +95,7 @@
       "polarity": 0.0,
       "source_tier": "TIER_3",
       "source_rank": 3,
-      "last_seen_ts": 1775708882.952868
+      "last_seen_ts": 1775716997.3327568
     },
     "ec4c6a5ce2522b340dbde69ca83e48f652f8ca46:5918946": {
       "story_key": "ec4c6a5ce2522b340dbde69ca83e48f652f8ca46:5918946",
@@ -105,7 +105,7 @@
         "AAPL"
       ],
       "published_ts": 1775684062.0,
-      "first_seen_ts": 1775708882.952868,
+      "first_seen_ts": 1775716997.3327568,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -124,7 +124,7 @@
       "polarity": 0.0,
       "source_tier": "TIER_3",
       "source_rank": 3,
-      "last_seen_ts": 1775708882.952868
+      "last_seen_ts": 1775716997.3327568
     },
     "23d030123213871b5cd93fd3a64933c1bce9123a:5918933": {
       "story_key": "23d030123213871b5cd93fd3a64933c1bce9123a:5918933",
@@ -134,7 +134,7 @@
         "XOM"
       ],
       "published_ts": 1775679955.0,
-      "first_seen_ts": 1775708882.952868,
+      "first_seen_ts": 1775716997.3327568,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -153,7 +153,7 @@
       "polarity": 0.0,
       "source_tier": "TIER_3",
       "source_rank": 3,
-      "last_seen_ts": 1775708882.952868
+      "last_seen_ts": 1775716997.3327568
     },
     "f354d0bcfdeeb4d3fb34e15ef2f949c0e5f5bc05:5918915": {
       "story_key": "f354d0bcfdeeb4d3fb34e15ef2f949c0e5f5bc05:5918915",
@@ -163,7 +163,7 @@
         "MSFT"
       ],
       "published_ts": 1775674679.0,
-      "first_seen_ts": 1775708882.952868,
+      "first_seen_ts": 1775716997.3327568,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -182,7 +182,7 @@
       "polarity": 0.0,
       "source_tier": "TIER_3",
       "source_rank": 3,
-      "last_seen_ts": 1775708882.952868
+      "last_seen_ts": 1775716997.3327568
     },
     "2bc77dbea57beeeb940b9953ef40f36fd81bae9d:5918906": {
       "story_key": "2bc77dbea57beeeb940b9953ef40f36fd81bae9d:5918906",
@@ -192,7 +192,7 @@
         "MSFT"
       ],
       "published_ts": 1775672046.0,
-      "first_seen_ts": 1775708882.952868,
+      "first_seen_ts": 1775716997.3327568,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -211,7 +211,7 @@
       "polarity": 0.0,
       "source_tier": "TIER_3",
       "source_rank": 3,
-      "last_seen_ts": 1775708882.952868
+      "last_seen_ts": 1775716997.3327568
     },
     "1e3bd2cdcda2472920523e9ddc29526f93f95d27:5918899": {
       "story_key": "1e3bd2cdcda2472920523e9ddc29526f93f95d27:5918899",
@@ -221,7 +221,7 @@
         "AAPL"
       ],
       "published_ts": 1775669863.0,
-      "first_seen_ts": 1775708882.952868,
+      "first_seen_ts": 1775716997.3327568,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -240,7 +240,7 @@
       "polarity": 0.0,
       "source_tier": "TIER_3",
       "source_rank": 3,
-      "last_seen_ts": 1775708882.952868
+      "last_seen_ts": 1775716997.3327568
     },
     "c0ffb694b6ebe75377f0f4bc65a579ba4117bafd:5918899": {
       "story_key": "c0ffb694b6ebe75377f0f4bc65a579ba4117bafd:5918899",
@@ -250,7 +250,7 @@
         "AMZN"
       ],
       "published_ts": 1775669720.0,
-      "first_seen_ts": 1775708882.952868,
+      "first_seen_ts": 1775716997.3327568,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -269,7 +269,7 @@
       "polarity": 0.0,
       "source_tier": "TIER_2",
       "source_rank": 2,
-      "last_seen_ts": 1775708882.952868
+      "last_seen_ts": 1775716997.3327568
     },
     "375e1a7e3b9fa4a3c996ff65b9966bc09ebb4dcf:5918898": {
       "story_key": "375e1a7e3b9fa4a3c996ff65b9966bc09ebb4dcf:5918898",
@@ -279,7 +279,7 @@
         "MSFT"
       ],
       "published_ts": 1775669590.0,
-      "first_seen_ts": 1775708882.952868,
+      "first_seen_ts": 1775716997.3327568,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -298,7 +298,7 @@
       "polarity": 0.0,
       "source_tier": "TIER_2",
       "source_rank": 2,
-      "last_seen_ts": 1775708882.952868
+      "last_seen_ts": 1775716997.3327568
     },
     "fa43140533aab2073aa6e04f974803045bbed912:5918892": {
       "story_key": "fa43140533aab2073aa6e04f974803045bbed912:5918892",
@@ -308,7 +308,7 @@
         "MSFT"
       ],
       "published_ts": 1775667727.0,
-      "first_seen_ts": 1775708882.952868,
+      "first_seen_ts": 1775716997.3327568,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -327,7 +327,7 @@
       "polarity": 0.0,
       "source_tier": "TIER_3",
       "source_rank": 3,
-      "last_seen_ts": 1775708882.952868
+      "last_seen_ts": 1775716997.3327568
     },
     "8e0e1743aef25bfcf5164e93b1f9e3a269aef251:5918885": {
       "story_key": "8e0e1743aef25bfcf5164e93b1f9e3a269aef251:5918885",
@@ -337,7 +337,7 @@
         "AAPL"
       ],
       "published_ts": 1775665545.0,
-      "first_seen_ts": 1775708882.952868,
+      "first_seen_ts": 1775716997.3327568,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -356,7 +356,7 @@
       "polarity": 0.0,
       "source_tier": "TIER_2",
       "source_rank": 2,
-      "last_seen_ts": 1775708882.952868
+      "last_seen_ts": 1775716997.3327568
     },
     "446f796ab3c3137cf11548306377d55610e6d0b7:5918882": {
       "story_key": "446f796ab3c3137cf11548306377d55610e6d0b7:5918882",
@@ -366,7 +366,7 @@
         "MSFT"
       ],
       "published_ts": 1775664610.0,
-      "first_seen_ts": 1775708882.952868,
+      "first_seen_ts": 1775716997.3327568,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -385,7 +385,7 @@
       "polarity": 0.0,
       "source_tier": "TIER_3",
       "source_rank": 3,
-      "last_seen_ts": 1775708882.952868
+      "last_seen_ts": 1775716997.3327568
     },
     "ad35623811031f0610a56dddb3b0cab1adb44011:5918872": {
       "story_key": "ad35623811031f0610a56dddb3b0cab1adb44011:5918872",
@@ -395,7 +395,7 @@
         "MSFT"
       ],
       "published_ts": 1775661608.0,
-      "first_seen_ts": 1775708882.952868,
+      "first_seen_ts": 1775716997.3327568,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -414,7 +414,7 @@
       "polarity": 0.0,
       "source_tier": "TIER_3",
       "source_rank": 3,
-      "last_seen_ts": 1775708882.952868
+      "last_seen_ts": 1775716997.3327568
     },
     "e47bc0c32554418fefd7018825589747743b7029:5918861": {
       "story_key": "e47bc0c32554418fefd7018825589747743b7029:5918861",
@@ -424,7 +424,7 @@
         "AAPL"
       ],
       "published_ts": 1775658494.0,
-      "first_seen_ts": 1775708882.952868,
+      "first_seen_ts": 1775716997.3327568,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -443,7 +443,7 @@
       "polarity": 0.0,
       "source_tier": "TIER_3",
       "source_rank": 3,
-      "last_seen_ts": 1775708882.952868
+      "last_seen_ts": 1775716997.3327568
     },
     "90ff7fe8aba22531413ee993fd0329648401019c:5918862": {
       "story_key": "90ff7fe8aba22531413ee993fd0329648401019c:5918862",
@@ -453,7 +453,7 @@
         "XOM"
       ],
       "published_ts": 1775658881.0,
-      "first_seen_ts": 1775708882.952868,
+      "first_seen_ts": 1775716997.3327568,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -472,7 +472,7 @@
       "polarity": 0.0,
       "source_tier": "TIER_2",
       "source_rank": 2,
-      "last_seen_ts": 1775708882.952868
+      "last_seen_ts": 1775716997.3327568
     },
     "6df4de49b6a46e02ca2cfc6db838a1c833f810dc:5918860": {
       "story_key": "6df4de49b6a46e02ca2cfc6db838a1c833f810dc:5918860",
@@ -482,7 +482,7 @@
         "AMZN"
       ],
       "published_ts": 1775658003.0,
-      "first_seen_ts": 1775708882.952868,
+      "first_seen_ts": 1775716997.3327568,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -501,7 +501,7 @@
       "polarity": 0.0,
       "source_tier": "TIER_2",
       "source_rank": 2,
-      "last_seen_ts": 1775708882.952868
+      "last_seen_ts": 1775716997.3327568
     },
     "d80ab921765cb12afd1732a34fec2bb3a2df6e9b:5918854": {
       "story_key": "d80ab921765cb12afd1732a34fec2bb3a2df6e9b:5918854",
@@ -511,7 +511,7 @@
         "MSFT"
       ],
       "published_ts": 1775656210.0,
-      "first_seen_ts": 1775708882.952868,
+      "first_seen_ts": 1775716997.3327568,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -530,7 +530,7 @@
       "polarity": 0.0,
       "source_tier": "TIER_3",
       "source_rank": 3,
-      "last_seen_ts": 1775708882.952868
+      "last_seen_ts": 1775716997.3327568
     },
     "26719b3519c0de3ce1ff5c0accb70225f87d1307:5918851": {
       "story_key": "26719b3519c0de3ce1ff5c0accb70225f87d1307:5918851",
@@ -540,7 +540,7 @@
         "XOM"
       ],
       "published_ts": 1775655494.0,
-      "first_seen_ts": 1775708882.952868,
+      "first_seen_ts": 1775716997.3327568,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -559,7 +559,7 @@
       "polarity": 0.5,
       "source_tier": "TIER_3",
       "source_rank": 3,
-      "last_seen_ts": 1775708882.952868
+      "last_seen_ts": 1775716997.3327568
     },
     "35f6505b58c115c7bbf1a987d734e961a72de946:5918849": {
       "story_key": "35f6505b58c115c7bbf1a987d734e961a72de946:5918849",
@@ -569,7 +569,7 @@
         "XOM"
       ],
       "published_ts": 1775654992.0,
-      "first_seen_ts": 1775708882.952868,
+      "first_seen_ts": 1775716997.3327568,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -588,7 +588,7 @@
       "polarity": 0.0,
       "source_tier": "TIER_3",
       "source_rank": 3,
-      "last_seen_ts": 1775708882.952868
+      "last_seen_ts": 1775716997.3327568
     },
     "eceb9a14c71911760ac7eaad19443f08779c994d:5918848": {
       "story_key": "eceb9a14c71911760ac7eaad19443f08779c994d:5918848",
@@ -598,7 +598,7 @@
         "AMZN"
       ],
       "published_ts": 1775654669.0,
-      "first_seen_ts": 1775708882.952868,
+      "first_seen_ts": 1775716997.3327568,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -617,7 +617,7 @@
       "polarity": 0.0,
       "source_tier": "TIER_2",
       "source_rank": 2,
-      "last_seen_ts": 1775708882.952868
+      "last_seen_ts": 1775716997.3327568
     },
     "9f55b686374205531bc839b8a20efc8e987674cf:5918848": {
       "story_key": "9f55b686374205531bc839b8a20efc8e987674cf:5918848",
@@ -629,7 +629,7 @@
         "MSFT"
       ],
       "published_ts": 1775654544.0,
-      "first_seen_ts": 1775708882.952868,
+      "first_seen_ts": 1775716997.3327568,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -648,7 +648,7 @@
       "polarity": 0.0,
       "source_tier": "TIER_2",
       "source_rank": 2,
-      "last_seen_ts": 1775708882.952868
+      "last_seen_ts": 1775716997.3327568
     },
     "3a07dad84a689c3a9ef57e7353b66c3bfba7618a:5918845": {
       "story_key": "3a07dad84a689c3a9ef57e7353b66c3bfba7618a:5918845",
@@ -658,7 +658,7 @@
         "AAPL"
       ],
       "published_ts": 1775653767.0,
-      "first_seen_ts": 1775708882.952868,
+      "first_seen_ts": 1775716997.3327568,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -677,7 +677,7 @@
       "polarity": 0.0,
       "source_tier": "TIER_3",
       "source_rank": 3,
-      "last_seen_ts": 1775708882.952868
+      "last_seen_ts": 1775716997.3327568
     },
     "6b1fea143ce8636bed984a63fb868a822bfdf65e:5918839": {
       "story_key": "6b1fea143ce8636bed984a63fb868a822bfdf65e:5918839",
@@ -687,7 +687,7 @@
         "XOM"
       ],
       "published_ts": 1775651905.0,
-      "first_seen_ts": 1775708882.952868,
+      "first_seen_ts": 1775716997.3327568,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -706,7 +706,7 @@
       "polarity": 0.0,
       "source_tier": "TIER_3",
       "source_rank": 3,
-      "last_seen_ts": 1775708882.952868
+      "last_seen_ts": 1775716997.3327568
     },
     "695da5b0e4a59fa1d895ae1aa790f0a76f55ea35:5918838": {
       "story_key": "695da5b0e4a59fa1d895ae1aa790f0a76f55ea35:5918838",
@@ -716,7 +716,7 @@
         "AMZN"
       ],
       "published_ts": 1775651441.0,
-      "first_seen_ts": 1775708882.952868,
+      "first_seen_ts": 1775716997.3327568,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -735,7 +735,7 @@
       "polarity": 0.0,
       "source_tier": "TIER_3",
       "source_rank": 3,
-      "last_seen_ts": 1775708882.952868
+      "last_seen_ts": 1775716997.3327568
     },
     "e4054661816316f8781c3d7a92db26847e7011bf:5918837": {
       "story_key": "e4054661816316f8781c3d7a92db26847e7011bf:5918837",
@@ -745,7 +745,7 @@
         "XOM"
       ],
       "published_ts": 1775651384.0,
-      "first_seen_ts": 1775708882.952868,
+      "first_seen_ts": 1775716997.3327568,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -764,7 +764,7 @@
       "polarity": -0.5,
       "source_tier": "TIER_3",
       "source_rank": 3,
-      "last_seen_ts": 1775708882.952868
+      "last_seen_ts": 1775716997.3327568
     },
     "dc08576cd5951496a51730afa72587a03ab0413e:5918834": {
       "story_key": "dc08576cd5951496a51730afa72587a03ab0413e:5918834",
@@ -774,7 +774,7 @@
         "AAPL"
       ],
       "published_ts": 1775650430.0,
-      "first_seen_ts": 1775708882.952868,
+      "first_seen_ts": 1775716997.3327568,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -793,7 +793,7 @@
       "polarity": 0.0,
       "source_tier": "TIER_2",
       "source_rank": 2,
-      "last_seen_ts": 1775708882.952868
+      "last_seen_ts": 1775716997.3327568
     },
     "988b757bce046a8fac5ec966f0b3d3fd1566fa34:5918673": {
       "story_key": "988b757bce046a8fac5ec966f0b3d3fd1566fa34:5918673",
@@ -803,7 +803,7 @@
         "MSFT"
       ],
       "published_ts": 1775602097.0,
-      "first_seen_ts": 1775708882.952868,
+      "first_seen_ts": 1775716997.3327568,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -822,7 +822,7 @@
       "polarity": 0.0,
       "source_tier": "TIER_3",
       "source_rank": 3,
-      "last_seen_ts": 1775708882.952868
+      "last_seen_ts": 1775716997.3327568
     },
     "6e718ae0143905139ed1b9430085156d3ff4ecb9:5918822": {
       "story_key": "6e718ae0143905139ed1b9430085156d3ff4ecb9:5918822",
@@ -832,7 +832,7 @@
         "AAPL"
       ],
       "published_ts": 1775646694.0,
-      "first_seen_ts": 1775708882.952868,
+      "first_seen_ts": 1775716997.3327568,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -851,7 +851,7 @@
       "polarity": 0.0,
       "source_tier": "TIER_2",
       "source_rank": 2,
-      "last_seen_ts": 1775708882.952868
+      "last_seen_ts": 1775716997.3327568
     },
     "3165c903dda356eb9a983ced102ea05fb39824d3:5918822": {
       "story_key": "3165c903dda356eb9a983ced102ea05fb39824d3:5918822",
@@ -861,7 +861,7 @@
         "MSFT"
       ],
       "published_ts": 1775646681.0,
-      "first_seen_ts": 1775708882.952868,
+      "first_seen_ts": 1775716997.3327568,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -880,7 +880,7 @@
       "polarity": 0.0,
       "source_tier": "TIER_3",
       "source_rank": 3,
-      "last_seen_ts": 1775708882.952868
+      "last_seen_ts": 1775716997.3327568
     },
     "5d98d9105459ce42c0a3ecd8c8fb80950ab7e61d:5918821": {
       "story_key": "5d98d9105459ce42c0a3ecd8c8fb80950ab7e61d:5918821",
@@ -890,7 +890,7 @@
         "AAPL"
       ],
       "published_ts": 1775646591.0,
-      "first_seen_ts": 1775708882.952868,
+      "first_seen_ts": 1775716997.3327568,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -909,7 +909,7 @@
       "polarity": 0.0,
       "source_tier": "TIER_3",
       "source_rank": 3,
-      "last_seen_ts": 1775708882.952868
+      "last_seen_ts": 1775716997.3327568
     },
     "5fe9a387039ec7623078da4dc5cbe6016b08be5a:5918817": {
       "story_key": "5fe9a387039ec7623078da4dc5cbe6016b08be5a:5918817",
@@ -919,7 +919,7 @@
         "AMZN"
       ],
       "published_ts": 1775645283.0,
-      "first_seen_ts": 1775708882.952868,
+      "first_seen_ts": 1775716997.3327568,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -938,7 +938,7 @@
       "polarity": 0.0,
       "source_tier": "TIER_3",
       "source_rank": 3,
-      "last_seen_ts": 1775708882.952868
+      "last_seen_ts": 1775716997.3327568
     },
     "03b977ba687af13874af766f2321b934ca345f76:5918817": {
       "story_key": "03b977ba687af13874af766f2321b934ca345f76:5918817",
@@ -948,7 +948,7 @@
         "JPM"
       ],
       "published_ts": 1775645332.0,
-      "first_seen_ts": 1775708882.952868,
+      "first_seen_ts": 1775716997.3327568,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -967,7 +967,7 @@
       "polarity": 0.0,
       "source_tier": "TIER_2",
       "source_rank": 2,
-      "last_seen_ts": 1775708882.952868
+      "last_seen_ts": 1775716997.3327568
     },
     "019b3b09d4a7096ff1e7251cca6b81873067ac9d:5918807": {
       "story_key": "019b3b09d4a7096ff1e7251cca6b81873067ac9d:5918807",
@@ -977,7 +977,7 @@
         "AMZN"
       ],
       "published_ts": 1775642336.0,
-      "first_seen_ts": 1775708882.952868,
+      "first_seen_ts": 1775716997.3327568,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -996,7 +996,7 @@
       "polarity": 0.0,
       "source_tier": "TIER_2",
       "source_rank": 2,
-      "last_seen_ts": 1775708882.952868
+      "last_seen_ts": 1775716997.3327568
     },
     "176fba4e7297c3a274bffcd53061ad0916cb83bf:5918807": {
       "story_key": "176fba4e7297c3a274bffcd53061ad0916cb83bf:5918807",
@@ -1006,7 +1006,7 @@
         "MSFT"
       ],
       "published_ts": 1775642328.0,
-      "first_seen_ts": 1775708882.952868,
+      "first_seen_ts": 1775716997.3327568,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1025,7 +1025,7 @@
       "polarity": 0.0,
       "source_tier": "TIER_2",
       "source_rank": 2,
-      "last_seen_ts": 1775708882.952868
+      "last_seen_ts": 1775716997.3327568
     },
     "8a8875908de7905eb803d7f364b25046a242fc95:5918806": {
       "story_key": "8a8875908de7905eb803d7f364b25046a242fc95:5918806",
@@ -1035,7 +1035,7 @@
         "AMZN"
       ],
       "published_ts": 1775641952.0,
-      "first_seen_ts": 1775708882.952868,
+      "first_seen_ts": 1775716997.3327568,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1054,7 +1054,7 @@
       "polarity": 0.0,
       "source_tier": "TIER_3",
       "source_rank": 3,
-      "last_seen_ts": 1775708882.952868
+      "last_seen_ts": 1775716997.3327568
     },
     "44fdc58adcdc0141f08ae83c5c3074eb6f67684c:5918793": {
       "story_key": "44fdc58adcdc0141f08ae83c5c3074eb6f67684c:5918793",
@@ -1064,7 +1064,7 @@
         "MSFT"
       ],
       "published_ts": 1775637904.0,
-      "first_seen_ts": 1775708882.952868,
+      "first_seen_ts": 1775716997.3327568,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1083,7 +1083,7 @@
       "polarity": 0.0,
       "source_tier": "TIER_3",
       "source_rank": 3,
-      "last_seen_ts": 1775708882.952868
+      "last_seen_ts": 1775716997.3327568
     },
     "e016fcb0a57e0ff0d851d2f95d4851a951b13436:5918785": {
       "story_key": "e016fcb0a57e0ff0d851d2f95d4851a951b13436:5918785",
@@ -1093,7 +1093,7 @@
         "MSFT"
       ],
       "published_ts": 1775635729.0,
-      "first_seen_ts": 1775708882.952868,
+      "first_seen_ts": 1775716997.3327568,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1112,7 +1112,7 @@
       "polarity": 0.0,
       "source_tier": "TIER_3",
       "source_rank": 3,
-      "last_seen_ts": 1775708882.952868
+      "last_seen_ts": 1775716997.3327568
     },
     "93139472ba53d0f19f81bd5a593e647ec0f03593:5918778": {
       "story_key": "93139472ba53d0f19f81bd5a593e647ec0f03593:5918778",
@@ -1122,7 +1122,7 @@
         "AAPL"
       ],
       "published_ts": 1775633489.0,
-      "first_seen_ts": 1775708882.952868,
+      "first_seen_ts": 1775716997.3327568,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1141,7 +1141,7 @@
       "polarity": 0.5,
       "source_tier": "TIER_3",
       "source_rank": 3,
-      "last_seen_ts": 1775708882.952868
+      "last_seen_ts": 1775716997.3327568
     },
     "a5cd0d48116701d2d8d4594b317892b64ec07528:5918774": {
       "story_key": "a5cd0d48116701d2d8d4594b317892b64ec07528:5918774",
@@ -1151,7 +1151,7 @@
         "AAPL"
       ],
       "published_ts": 1775632230.0,
-      "first_seen_ts": 1775708882.952868,
+      "first_seen_ts": 1775716997.3327568,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1170,7 +1170,7 @@
       "polarity": 0.0,
       "source_tier": "TIER_3",
       "source_rank": 3,
-      "last_seen_ts": 1775708882.952868
+      "last_seen_ts": 1775716997.3327568
     },
     "27604e7f90e4b8f8c696ee6d9d21cb68be250e5f:5918762": {
       "story_key": "27604e7f90e4b8f8c696ee6d9d21cb68be250e5f:5918762",
@@ -1180,7 +1180,7 @@
         "XOM"
       ],
       "published_ts": 1775628870.0,
-      "first_seen_ts": 1775708882.952868,
+      "first_seen_ts": 1775716997.3327568,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1199,7 +1199,7 @@
       "polarity": 0.0,
       "source_tier": "TIER_3",
       "source_rank": 3,
-      "last_seen_ts": 1775708882.952868
+      "last_seen_ts": 1775716997.3327568
     },
     "396d57b57212df64f038861932750fc34d6038b0:5918659": {
       "story_key": "396d57b57212df64f038861932750fc34d6038b0:5918659",
@@ -1209,7 +1209,7 @@
         "AAPL"
       ],
       "published_ts": 1775597811.0,
-      "first_seen_ts": 1775708882.952868,
+      "first_seen_ts": 1775716997.3327568,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1228,7 +1228,7 @@
       "polarity": 0.0,
       "source_tier": "TIER_3",
       "source_rank": 3,
-      "last_seen_ts": 1775708882.952868
+      "last_seen_ts": 1775716997.3327568
     },
     "a29d36f0ff88940c8c3dde8d3a832400049c714f:5918726": {
       "story_key": "a29d36f0ff88940c8c3dde8d3a832400049c714f:5918726",
@@ -1238,7 +1238,7 @@
         "AAPL"
       ],
       "published_ts": 1775617838.0,
-      "first_seen_ts": 1775708882.952868,
+      "first_seen_ts": 1775716997.3327568,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1257,7 +1257,7 @@
       "polarity": 0.0,
       "source_tier": "TIER_2",
       "source_rank": 2,
-      "last_seen_ts": 1775708882.952868
+      "last_seen_ts": 1775716997.3327568
     },
     "a636c97feb10cf61eb242f5cfe9201f3d138821b:5918688": {
       "story_key": "a636c97feb10cf61eb242f5cfe9201f3d138821b:5918688",
@@ -1267,7 +1267,7 @@
         "MSFT"
       ],
       "published_ts": 1775606473.0,
-      "first_seen_ts": 1775708882.952868,
+      "first_seen_ts": 1775716997.3327568,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1286,7 +1286,7 @@
       "polarity": 0.0,
       "source_tier": "TIER_3",
       "source_rank": 3,
-      "last_seen_ts": 1775708882.952868
+      "last_seen_ts": 1775716997.3327568
     },
     "68f9dc903ff879f94b4e2376821a8a1ef8ce06c4:5918662": {
       "story_key": "68f9dc903ff879f94b4e2376821a8a1ef8ce06c4:5918662",
@@ -1296,7 +1296,7 @@
         "AAPL"
       ],
       "published_ts": 1775598692.0,
-      "first_seen_ts": 1775708882.952868,
+      "first_seen_ts": 1775716997.3327568,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1315,7 +1315,7 @@
       "polarity": 0.0,
       "source_tier": "TIER_2",
       "source_rank": 2,
-      "last_seen_ts": 1775708882.952868
+      "last_seen_ts": 1775716997.3327568
     },
     "8133928fbbeeea9c2fe31cedec2a2a3894328904:5918658": {
       "story_key": "8133928fbbeeea9c2fe31cedec2a2a3894328904:5918658",
@@ -1325,7 +1325,7 @@
         "AAPL"
       ],
       "published_ts": 1775597647.0,
-      "first_seen_ts": 1775708882.952868,
+      "first_seen_ts": 1775716997.3327568,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1344,7 +1344,7 @@
       "polarity": 0.0,
       "source_tier": "TIER_2",
       "source_rank": 2,
-      "last_seen_ts": 1775708882.952868
+      "last_seen_ts": 1775716997.3327568
     },
     "45713a50b934d4c08f4f37d8f09fa7cad594ed1a:5918639": {
       "story_key": "45713a50b934d4c08f4f37d8f09fa7cad594ed1a:5918639",
@@ -1354,7 +1354,7 @@
         "AAPL"
       ],
       "published_ts": 1775591856.0,
-      "first_seen_ts": 1775708882.952868,
+      "first_seen_ts": 1775716997.3327568,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1373,7 +1373,7 @@
       "polarity": 0.0,
       "source_tier": "TIER_3",
       "source_rank": 3,
-      "last_seen_ts": 1775708882.952868
+      "last_seen_ts": 1775716997.3327568
     },
     "05bc4577e6436ba43b9ffefb81f0793c7435b304:5918622": {
       "story_key": "05bc4577e6436ba43b9ffefb81f0793c7435b304:5918622",
@@ -1383,7 +1383,7 @@
         "JPM"
       ],
       "published_ts": 1775586755.0,
-      "first_seen_ts": 1775708882.952868,
+      "first_seen_ts": 1775716997.3327568,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1402,7 +1402,7 @@
       "polarity": 0.0,
       "source_tier": "TIER_3",
       "source_rank": 3,
-      "last_seen_ts": 1775708882.952868
+      "last_seen_ts": 1775716997.3327568
     },
     "7d2c4276c61a13bc063d4238296e669f2acdc159:5918621": {
       "story_key": "7d2c4276c61a13bc063d4238296e669f2acdc159:5918621",
@@ -1412,7 +1412,7 @@
         "AAPL"
       ],
       "published_ts": 1775586455.0,
-      "first_seen_ts": 1775708882.952868,
+      "first_seen_ts": 1775716997.3327568,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1431,7 +1431,7 @@
       "polarity": 0.0,
       "source_tier": "TIER_2",
       "source_rank": 2,
-      "last_seen_ts": 1775708882.952868
+      "last_seen_ts": 1775716997.3327568
     },
     "ebc27db063153f213cbea2280ae948d2897909d4:5918611": {
       "story_key": "ebc27db063153f213cbea2280ae948d2897909d4:5918611",
@@ -1441,7 +1441,7 @@
         "AAPL"
       ],
       "published_ts": 1775583312.0,
-      "first_seen_ts": 1775708882.952868,
+      "first_seen_ts": 1775716997.3327568,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1460,7 +1460,703 @@
       "polarity": 0.0,
       "source_tier": "TIER_2",
       "source_rank": 2,
-      "last_seen_ts": 1775708882.952868
+      "last_seen_ts": 1775716997.3327568
+    },
+    "1c8bcfda062f0534181d30a0d4fc1fdcd4220164:5919055": {
+      "story_key": "1c8bcfda062f0534181d30a0d4fc1fdcd4220164:5919055",
+      "cluster_hash": "1c8bcfda062f0534181d30a0d4fc1fdcd4220164",
+      "headline": "Start Up No.2648: Meta and Anthropic shake up AI and cybersecurity, Iran demands crypto for Hormuz, GLP-1 genetics, and more",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775716551.0,
+      "first_seen_ts": 1775716997.3327568,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "The Overspill: when there's more that I want to say"
+      ],
+      "url": "https://theoverspill.blog/2026/04/09/blue-light-phone-sleep-misinformation-start-up-2648/",
+      "category": "crypto",
+      "impact": 0.75,
+      "clarity": 0.8,
+      "relevance": 0.8275,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775716997.3327568
+    },
+    "f5a1abe0fc911648adeff05707cacbf5e1ae597b:5919053": {
+      "story_key": "f5a1abe0fc911648adeff05707cacbf5e1ae597b:5919053",
+      "cluster_hash": "f5a1abe0fc911648adeff05707cacbf5e1ae597b",
+      "headline": "Meta AI head Alexandr Wang to everyone calling Muse Spark AI model 'dissapointment': We are quite upfront that our model does not perform well on...",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775716094.0,
+      "first_seen_ts": 1775716997.3327568,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "The Times of India"
+      ],
+      "url": "https://timesofindia.indiatimes.com/technology/tech-news/meta-ai-head-alexandr-wang-to-everyone-calling-muse-spark-ai-model-dissapointment-we-are-quite-upfront-that-our-model-does-not-perform-well-on/articleshow/130130151.cms",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775716997.3327568
+    },
+    "cac6e39ff7ead188b6361d24a81e8789e4d1dc1b:5919052": {
+      "story_key": "cac6e39ff7ead188b6361d24a81e8789e4d1dc1b:5919052",
+      "cluster_hash": "cac6e39ff7ead188b6361d24a81e8789e4d1dc1b",
+      "headline": "Meta Launches Its First Major AI Model Since Investing $14B in Scale AI",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775715670.0,
+      "first_seen_ts": 1775716997.3327568,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Markets Insider"
+      ],
+      "url": "https://markets.businessinsider.com/news/stocks/meta-launches-its-first-major-ai-model-since-investing-14b-in-scale-ai-1036005228",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775716997.3327568
+    },
+    "b2404ab6e52d9cd97f273b73aeab95a56b0c97d5:5919052": {
+      "story_key": "b2404ab6e52d9cd97f273b73aeab95a56b0c97d5:5919052",
+      "cluster_hash": "b2404ab6e52d9cd97f273b73aeab95a56b0c97d5",
+      "headline": "Meta launches Muse Spark as first model from Superintelligence Labs",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775715644.0,
+      "first_seen_ts": 1775716997.3327568,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Verdict"
+      ],
+      "url": "https://www.verdict.co.uk/meta-superintelligence-labs-muse-spark/",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775716997.3327568
+    },
+    "9764794136341ee73d56aa24cc9c6ecc3917d252:5919046": {
+      "story_key": "9764794136341ee73d56aa24cc9c6ecc3917d252:5919046",
+      "cluster_hash": "9764794136341ee73d56aa24cc9c6ecc3917d252",
+      "headline": "Meta shuts down internal Claudeonomics AI tool after employees started leaking data to public",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775713850.0,
+      "first_seen_ts": 1775716997.3327568,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "India Today"
+      ],
+      "url": "https://www.indiatoday.in/technology/news/story/meta-shuts-down-internal-claudeonomics-ai-tool-after-employees-started-leaking-data-to-public-2893581-2026-04-09",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775716997.3327568
+    },
+    "b428b5780d7a19e85cbd3115e71a1c98f1ece813:5919046": {
+      "story_key": "b428b5780d7a19e85cbd3115e71a1c98f1ece813:5919046",
+      "cluster_hash": "b428b5780d7a19e85cbd3115e71a1c98f1ece813",
+      "headline": "Meta introduces Muse Spark AI model with multimodal reasoning and multi-agent capabilities",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775713814.0,
+      "first_seen_ts": 1775716997.3327568,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "FoneArena"
+      ],
+      "url": "https://www.fonearena.com/blog/479610/meta-muse-spark-features.html",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775716997.3327568
+    },
+    "0a080196948289267e5594ec77e64adbf38b2d79:5919038": {
+      "story_key": "0a080196948289267e5594ec77e64adbf38b2d79:5919038",
+      "cluster_hash": "0a080196948289267e5594ec77e64adbf38b2d79",
+      "headline": "'Muse Spark' will power Meta AI assistant on app and web: What's changing",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775711646.0,
+      "first_seen_ts": 1775716997.3327568,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Business Standard"
+      ],
+      "url": "https://www.business-standard.com/technology/tech-news/meta-muse-spark-power-ai-assistant-app-web-update-details-new-features-126040900294_1.html",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775716997.3327568
+    },
+    "fb0121f5d749ee5b2fa4bd8b74a46d3ffbc96ddc:5919032": {
+      "story_key": "fb0121f5d749ee5b2fa4bd8b74a46d3ffbc96ddc:5919032",
+      "cluster_hash": "fb0121f5d749ee5b2fa4bd8b74a46d3ffbc96ddc",
+      "headline": "Meta unveils first AI model from superintelligence team",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775709840.0,
+      "first_seen_ts": 1775716997.3327568,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "iTnews"
+      ],
+      "url": "https://www.itnews.com.au/news/meta-unveils-first-ai-model-from-superintelligence-team-624893",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775716997.3327568
+    },
+    "cdbe0279ea94f81a4d4f9b1978a284f5eb86c3ce:5919041": {
+      "story_key": "cdbe0279ea94f81a4d4f9b1978a284f5eb86c3ce:5919041",
+      "cluster_hash": "cdbe0279ea94f81a4d4f9b1978a284f5eb86c3ce",
+      "headline": "Meta Launches Muse Spark: The New Frontier of Personal Superintelligence - News Directory 3",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775712309.0,
+      "first_seen_ts": 1775716997.3327568,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "News Directory 3"
+      ],
+      "url": "https://www.newsdirectory3.com/meta-launches-muse-spark-the-new-frontier-of-personal-superintelligence/",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775716997.3327568
+    },
+    "c4ae85947a9bbdfde83b13c0f0f1e51b728638de:5919042": {
+      "story_key": "c4ae85947a9bbdfde83b13c0f0f1e51b728638de:5919042",
+      "cluster_hash": "c4ae85947a9bbdfde83b13c0f0f1e51b728638de",
+      "headline": "Meta Stock Surges $95 Billion in Single Day as Airline Sector Rebound | Sada Elbalad",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775712654.0,
+      "first_seen_ts": 1775716997.3327568,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "see.news"
+      ],
+      "url": "https://see.news/meta-stock-surges-95-billion-in-single-day-as-airline-sector-rebound",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775716997.3327568
+    },
+    "478c299dbe036e52cc5325e3339e1c5917f6f051:5919040": {
+      "story_key": "478c299dbe036e52cc5325e3339e1c5917f6f051:5919040",
+      "cluster_hash": "478c299dbe036e52cc5325e3339e1c5917f6f051",
+      "headline": "Meta unveils new AI model as it tries to catch up with Google and OpenAI after spending billions",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775712234.0,
+      "first_seen_ts": 1775716997.3327568,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "The Indian Express"
+      ],
+      "url": "https://indianexpress.com/article/technology/tech-news-technology/meta-unveils-new-ai-model-as-it-tries-to-catch-up-with-google-and-openai-after-spending-billions-10627005/",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775716997.3327568
+    },
+    "a43cce22a7f62205cd4c7b839d5f21cde4b62e9c:5918889": {
+      "story_key": "a43cce22a7f62205cd4c7b839d5f21cde4b62e9c:5918889",
+      "cluster_hash": "a43cce22a7f62205cd4c7b839d5f21cde4b62e9c",
+      "headline": "Mark Zuckerberg announces Muse Spark, the first AI model from Meta Superintelligence Labs",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775666967.0,
+      "first_seen_ts": 1775716997.3327568,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Mashable India"
+      ],
+      "url": "https://in.mashable.com/tech/108185/mark-zuckerberg-announces-muse-spark-the-first-ai-model-from-meta-superintelligence-labs",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775716997.3327568
+    },
+    "de23967ca2243bf5497f2c582425b5364970b370:5919038": {
+      "story_key": "de23967ca2243bf5497f2c582425b5364970b370:5919038",
+      "cluster_hash": "de23967ca2243bf5497f2c582425b5364970b370",
+      "headline": "Infinity Disk Is Flying Onto Meta Quest Later This Month",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775711669.0,
+      "first_seen_ts": 1775716997.3327568,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "COGconnected"
+      ],
+      "url": "https://cogconnected.com/2026/04/infinity-disk-is-flying-onto-meta-quest-later-this-month/",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775716997.3327568
+    },
+    "1832ca0a8e05a25ec48f2e37f485b82f7adfff63:5919037": {
+      "story_key": "1832ca0a8e05a25ec48f2e37f485b82f7adfff63:5919037",
+      "cluster_hash": "1832ca0a8e05a25ec48f2e37f485b82f7adfff63",
+      "headline": "Meta Launches Muse Spark AI Model to Rival Google, OpenAI and Anthropic, Shares Jump 7%",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775711240.0,
+      "first_seen_ts": 1775716997.3327568,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Republic World"
+      ],
+      "url": "https://www.republicworld.com/tech/meta-launches-muse-spark-ai-model-to-rival-google-openai-and-anthropic-shares-jump-7",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775716997.3327568
+    },
+    "fb0121f5d749ee5b2fa4bd8b74a46d3ffbc96ddc:5919033": {
+      "story_key": "fb0121f5d749ee5b2fa4bd8b74a46d3ffbc96ddc:5919033",
+      "cluster_hash": "fb0121f5d749ee5b2fa4bd8b74a46d3ffbc96ddc",
+      "headline": "Meta Unveils First AI Model From Superintelligence Team",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775709905.0,
+      "first_seen_ts": 1775716997.3327568,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "UrduPoint"
+      ],
+      "url": "https://www.urdupoint.com/en/middle-east/meta-unveils-first-ai-model-from-superintelli-2167170.html",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.45543478260869563,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775716997.3327568
+    },
+    "fdda01448d2c5b990427f165a7c28dec56c6947c:5919034": {
+      "story_key": "fdda01448d2c5b990427f165a7c28dec56c6947c:5919034",
+      "cluster_hash": "fdda01448d2c5b990427f165a7c28dec56c6947c",
+      "headline": "Meta Unveils Muse Spark, Its New AI Model Built for Billions of Users",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775710493.0,
+      "first_seen_ts": 1775716997.3327568,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "The Hans India"
+      ],
+      "url": "https://www.thehansindia.com/tech/meta-unveils-muse-spark-its-new-ai-model-built-for-billions-of-users-1063897",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775716997.3327568
+    },
+    "7bbd02a92c28e271659fb66f8d81aed864a8a708:5919037": {
+      "story_key": "7bbd02a92c28e271659fb66f8d81aed864a8a708:5919037",
+      "cluster_hash": "7bbd02a92c28e271659fb66f8d81aed864a8a708",
+      "headline": "Meta Infotech Hits 5% UC Following Rs 2.58 Cr Orders From Leading Mutual Fund Client",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775711251.0,
+      "first_seen_ts": 1775716997.3327568,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Trade Brains"
+      ],
+      "url": "https://tradebrains.in/meta-infotech-hits-5-uc-following-rs-2-58-cr-orders-from-leading-mutual-fund-client/",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775716997.3327568
+    },
+    "a30146a389950c946ce150aa3bda0954b2ea22e0:5919034": {
+      "story_key": "a30146a389950c946ce150aa3bda0954b2ea22e0:5919034",
+      "cluster_hash": "a30146a389950c946ce150aa3bda0954b2ea22e0",
+      "headline": "Meta Unveils Muse Spark, First AI Model From High-Stakes Superintelligence Labs Under Alexandr Wang: All You Need To Know",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775710321.0,
+      "first_seen_ts": 1775716997.3327568,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Free Press Journal"
+      ],
+      "url": "https://www.freepressjournal.in/tech/meta-unveils-muse-spark-first-ai-model-from-high-stakes-superintelligence-labs-under-alexandr-wang-all-you-need-to-know",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775716997.3327568
+    },
+    "050781707f974d835826cfaa401c10ce80ed5134:5919030": {
+      "story_key": "050781707f974d835826cfaa401c10ce80ed5134:5919030",
+      "cluster_hash": "050781707f974d835826cfaa401c10ce80ed5134",
+      "headline": "Meta unveils new AI model: Muse Spark",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775709073.0,
+      "first_seen_ts": 1775716997.3327568,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "NBC Bay Area"
+      ],
+      "url": "https://www.nbcbayarea.com/news/local/meta-unveils-new-ai-model-muse-spark/4066010/",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775716997.3327568
+    },
+    "df267ff57e65d293692a8667098ae3f185eb6dad:5919029": {
+      "story_key": "df267ff57e65d293692a8667098ae3f185eb6dad:5919029",
+      "cluster_hash": "df267ff57e65d293692a8667098ae3f185eb6dad",
+      "headline": "Meta unveils 'Muse Spark' in major AI reset to rival ChatGPT",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775708941.0,
+      "first_seen_ts": 1775716997.3327568,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "storyboard18.com"
+      ],
+      "url": "https://www.storyboard18.com/digital/meta-unveils-muse-spark-in-major-ai-reset-to-rival-chatgpt-ws-l-94575.htm",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775716997.3327568
+    },
+    "466e2cfd908551073418736b6fedc2c9e19a6e84:5919029": {
+      "story_key": "466e2cfd908551073418736b6fedc2c9e19a6e84:5919029",
+      "cluster_hash": "466e2cfd908551073418736b6fedc2c9e19a6e84",
+      "headline": "Meta unveils first AI model from costly superintelligence team",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775708710.0,
+      "first_seen_ts": 1775716997.3327568,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "The Indian Express"
+      ],
+      "url": "https://indianexpress.com/article/technology/tech-news-technology/meta-unveils-first-ai-model-from-costly-superintelligence-team-10626902/",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775716997.3327568
+    },
+    "d7509d421a93d9db4aebc2fc5df8bb73b8b03762:5919022": {
+      "story_key": "d7509d421a93d9db4aebc2fc5df8bb73b8b03762:5919022",
+      "cluster_hash": "d7509d421a93d9db4aebc2fc5df8bb73b8b03762",
+      "headline": "Claude Mythos leads 17 of 18 benchmarks Anthropic measured. Muse Spark put Meta back in the frontier club, and OpenAI's 'Spud' model is reportedly near launch",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775706668.0,
+      "first_seen_ts": 1775716997.3327568,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Research & Development World"
+      ],
+      "url": "https://www.rdworldonline.com/claude-mythos-leads-17-of-18-benchmarks-anthropic-measured-muse-spark-put-meta-back-in-the-frontier-club-and-openais-spud-model-is-reportedly-near-launch/",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775716997.3327568
+    },
+    "1cf626fdd7ebca8a2a873ec9658bc30341e873ed:5919022": {
+      "story_key": "1cf626fdd7ebca8a2a873ec9658bc30341e873ed:5919022",
+      "cluster_hash": "1cf626fdd7ebca8a2a873ec9658bc30341e873ed",
+      "headline": "Meta launches Muse Spark: New AI model outperforming GPT, Gemini, and Grok in multimodal reasoning",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775706857.0,
+      "first_seen_ts": 1775716997.3327568,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Techlusive"
+      ],
+      "url": "https://www.techlusive.in/news/meta-launches-muse-spark-new-ai-model-outperforming-gpt-gemini-and-grok-in-multimodal-reasoning-1656346/",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775716997.3327568
+    },
+    "466e2cfd908551073418736b6fedc2c9e19a6e84:5918998": {
+      "story_key": "466e2cfd908551073418736b6fedc2c9e19a6e84:5918998",
+      "cluster_hash": "466e2cfd908551073418736b6fedc2c9e19a6e84",
+      "headline": "Meta unveils first AI model from costly superintelligence team",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775699691.0,
+      "first_seen_ts": 1775716997.3327568,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "ETCIO.com"
+      ],
+      "url": "https://cio.economictimes.indiatimes.com/news/artificial-intelligence/meta-unveils-first-ai-model-from-costly-superintelligence-team/130123855",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.45543478260869563,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775716997.3327568
     },
     "7235aae21240068686021a302ef44456427be853:5919024": {
       "story_key": "7235aae21240068686021a302ef44456427be853:5919024",
@@ -1470,7 +2166,7 @@
         "META"
       ],
       "published_ts": 1775707260.0,
-      "first_seen_ts": 1775708882.952868,
+      "first_seen_ts": 1775716997.3327568,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1489,7 +2185,36 @@
       "polarity": 0.0,
       "source_tier": "TIER_3",
       "source_rank": 3,
-      "last_seen_ts": 1775708882.952868
+      "last_seen_ts": 1775716997.3327568
+    },
+    "9f08b0d53b4abd977072b2ec290e17f2e7603f57:5919023": {
+      "story_key": "9f08b0d53b4abd977072b2ec290e17f2e7603f57:5919023",
+      "cluster_hash": "9f08b0d53b4abd977072b2ec290e17f2e7603f57",
+      "headline": "Meta unveils Muse Spark, first AI model from superintelligence team",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775707073.0,
+      "first_seen_ts": 1775716997.3327568,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "NewsBytes"
+      ],
+      "url": "https://www.newsbytesapp.com/news/science/meta-s-muse-spark-ai-model-takes-on-google-openai/story",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775716997.3327568
     },
     "b1525b9ef094cee40c5f97ee4ab4b7eadc5a4151:5919020": {
       "story_key": "b1525b9ef094cee40c5f97ee4ab4b7eadc5a4151:5919020",
@@ -1499,7 +2224,7 @@
         "META"
       ],
       "published_ts": 1775706016.0,
-      "first_seen_ts": 1775708882.952868,
+      "first_seen_ts": 1775716997.3327568,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1518,7 +2243,7 @@
       "polarity": 0.0,
       "source_tier": "TIER_3",
       "source_rank": 3,
-      "last_seen_ts": 1775708882.952868
+      "last_seen_ts": 1775716997.3327568
     },
     "7b76d44063c0f246cf04777b34227f38eef67ce0:5919015": {
       "story_key": "7b76d44063c0f246cf04777b34227f38eef67ce0:5919015",
@@ -1528,7 +2253,7 @@
         "META"
       ],
       "published_ts": 1775704631.0,
-      "first_seen_ts": 1775708882.952868,
+      "first_seen_ts": 1775716997.3327568,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1547,7 +2272,7 @@
       "polarity": 0.0,
       "source_tier": "TIER_3",
       "source_rank": 3,
-      "last_seen_ts": 1775708882.952868
+      "last_seen_ts": 1775716997.3327568
     },
     "115766f4c5dea44e8f0ebb648e4c0187f8485ba8:5919017": {
       "story_key": "115766f4c5dea44e8f0ebb648e4c0187f8485ba8:5919017",
@@ -1557,7 +2282,7 @@
         "META"
       ],
       "published_ts": 1775705363.0,
-      "first_seen_ts": 1775708882.952868,
+      "first_seen_ts": 1775716997.3327568,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1576,7 +2301,7 @@
       "polarity": 0.0,
       "source_tier": "TIER_3",
       "source_rank": 3,
-      "last_seen_ts": 1775708882.952868
+      "last_seen_ts": 1775716997.3327568
     },
     "10b77c26b8f018b7c61ac3cb970adca087bdb7fe:5919013": {
       "story_key": "10b77c26b8f018b7c61ac3cb970adca087bdb7fe:5919013",
@@ -1586,7 +2311,7 @@
         "META"
       ],
       "published_ts": 1775703992.0,
-      "first_seen_ts": 1775708882.952868,
+      "first_seen_ts": 1775716997.3327568,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1605,7 +2330,7 @@
       "polarity": 0.0,
       "source_tier": "TIER_3",
       "source_rank": 3,
-      "last_seen_ts": 1775708882.952868
+      "last_seen_ts": 1775716997.3327568
     },
     "28f09932729c791dcc9099f4fb88e388580cc4db:5919006": {
       "story_key": "28f09932729c791dcc9099f4fb88e388580cc4db:5919006",
@@ -1615,7 +2340,7 @@
         "META"
       ],
       "published_ts": 1775702041.0,
-      "first_seen_ts": 1775708882.952868,
+      "first_seen_ts": 1775716997.3327568,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1634,7 +2359,7 @@
       "polarity": 0.0,
       "source_tier": "TIER_3",
       "source_rank": 3,
-      "last_seen_ts": 1775708882.952868
+      "last_seen_ts": 1775716997.3327568
     },
     "f5474a55767c153ab2fbccd723f070b2917b09a9:5918946": {
       "story_key": "f5474a55767c153ab2fbccd723f070b2917b09a9:5918946",
@@ -1644,7 +2369,7 @@
         "META"
       ],
       "published_ts": 1775683980.0,
-      "first_seen_ts": 1775708882.952868,
+      "first_seen_ts": 1775716997.3327568,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1663,7 +2388,7 @@
       "polarity": 0.0,
       "source_tier": "TIER_3",
       "source_rank": 3,
-      "last_seen_ts": 1775708882.952868
+      "last_seen_ts": 1775716997.3327568
     },
     "04e9cfe4f570735af2296ee550cbf1d0214203e0:5918995": {
       "story_key": "04e9cfe4f570735af2296ee550cbf1d0214203e0:5918995",
@@ -1673,7 +2398,7 @@
         "META"
       ],
       "published_ts": 1775698511.0,
-      "first_seen_ts": 1775708882.952868,
+      "first_seen_ts": 1775716997.3327568,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1692,7 +2417,7 @@
       "polarity": 0.0,
       "source_tier": "TIER_3",
       "source_rank": 3,
-      "last_seen_ts": 1775708882.952868
+      "last_seen_ts": 1775716997.3327568
     },
     "466e2cfd908551073418736b6fedc2c9e19a6e84:5919010": {
       "story_key": "466e2cfd908551073418736b6fedc2c9e19a6e84:5919010",
@@ -1702,7 +2427,7 @@
         "META"
       ],
       "published_ts": 1775703003.0,
-      "first_seen_ts": 1775708882.952868,
+      "first_seen_ts": 1775716997.3327568,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1717,11 +2442,11 @@
       "category": "other",
       "impact": 0.1,
       "clarity": 0.6,
-      "relevance": 0.475,
+      "relevance": 0.425,
       "polarity": 0.0,
       "source_tier": "TIER_3",
       "source_rank": 3,
-      "last_seen_ts": 1775708882.952868
+      "last_seen_ts": 1775716997.3327568
     },
     "39e2d05678f13468cdbc0db187404c7975578dbd:5919002": {
       "story_key": "39e2d05678f13468cdbc0db187404c7975578dbd:5919002",
@@ -1731,7 +2456,7 @@
         "META"
       ],
       "published_ts": 1775700870.0,
-      "first_seen_ts": 1775708882.952868,
+      "first_seen_ts": 1775716997.3327568,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1750,7 +2475,7 @@
       "polarity": 0.0,
       "source_tier": "TIER_3",
       "source_rank": 3,
-      "last_seen_ts": 1775708882.952868
+      "last_seen_ts": 1775716997.3327568
     },
     "e6d1e3ba8473480236a4662cddd253ccb3e9371d:5919004": {
       "story_key": "e6d1e3ba8473480236a4662cddd253ccb3e9371d:5919004",
@@ -1760,7 +2485,7 @@
         "META"
       ],
       "published_ts": 1775701295.0,
-      "first_seen_ts": 1775708882.952868,
+      "first_seen_ts": 1775716997.3327568,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1779,7 +2504,7 @@
       "polarity": 0.0,
       "source_tier": "TIER_3",
       "source_rank": 3,
-      "last_seen_ts": 1775708882.952868
+      "last_seen_ts": 1775716997.3327568
     },
     "390c3ddf5762f7ee5644757f39f9aac8752cd2ea:5919003": {
       "story_key": "390c3ddf5762f7ee5644757f39f9aac8752cd2ea:5919003",
@@ -1789,7 +2514,7 @@
         "META"
       ],
       "published_ts": 1775701062.0,
-      "first_seen_ts": 1775708882.952868,
+      "first_seen_ts": 1775716997.3327568,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1808,7 +2533,7 @@
       "polarity": 0.0,
       "source_tier": "TIER_3",
       "source_rank": 3,
-      "last_seen_ts": 1775708882.952868
+      "last_seen_ts": 1775716997.3327568
     },
     "cd44249b88c5a4dc33949183aeee0e5d04264fb3:5919001": {
       "story_key": "cd44249b88c5a4dc33949183aeee0e5d04264fb3:5919001",
@@ -1818,7 +2543,7 @@
         "META"
       ],
       "published_ts": 1775700406.0,
-      "first_seen_ts": 1775708882.952868,
+      "first_seen_ts": 1775716997.3327568,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1837,7 +2562,7 @@
       "polarity": 0.0,
       "source_tier": "TIER_3",
       "source_rank": 3,
-      "last_seen_ts": 1775708882.952868
+      "last_seen_ts": 1775716997.3327568
     },
     "f3c6ec7d81dcd6449020b5c41725537f6fbefe69:5919000": {
       "story_key": "f3c6ec7d81dcd6449020b5c41725537f6fbefe69:5919000",
@@ -1847,7 +2572,7 @@
         "META"
       ],
       "published_ts": 1775700126.0,
-      "first_seen_ts": 1775708882.952868,
+      "first_seen_ts": 1775716997.3327568,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1866,7 +2591,7 @@
       "polarity": 0.0,
       "source_tier": "TIER_3",
       "source_rank": 3,
-      "last_seen_ts": 1775708882.952868
+      "last_seen_ts": 1775716997.3327568
     },
     "c189569ec676f5725d2e44b4332f385a9995065d:5918997": {
       "story_key": "c189569ec676f5725d2e44b4332f385a9995065d:5918997",
@@ -1876,7 +2601,7 @@
         "META"
       ],
       "published_ts": 1775699304.0,
-      "first_seen_ts": 1775708882.952868,
+      "first_seen_ts": 1775716997.3327568,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1885,7 +2610,6 @@
         "newsapi_ai"
       ],
       "sources": [
-        "Brisbane Times",
         "The Age"
       ],
       "url": "https://www.theage.com.au/technology/meta-has-found-its-footing-on-ai-its-rival-found-something-much-scarier-20260409-p5zmeu.html",
@@ -1896,7 +2620,7 @@
       "polarity": 0.0,
       "source_tier": "TIER_3",
       "source_rank": 3,
-      "last_seen_ts": 1775708882.952868
+      "last_seen_ts": 1775716997.3327568
     },
     "0b53c2471addb63ea002bbfc09a744dc0e00f40e:5919000": {
       "story_key": "0b53c2471addb63ea002bbfc09a744dc0e00f40e:5919000",
@@ -1906,7 +2630,7 @@
         "META"
       ],
       "published_ts": 1775700022.0,
-      "first_seen_ts": 1775708882.952868,
+      "first_seen_ts": 1775716997.3327568,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1925,500 +2649,7 @@
       "polarity": 0.0,
       "source_tier": "TIER_3",
       "source_rank": 3,
-      "last_seen_ts": 1775708882.952868
-    },
-    "9b9a5d4433a37165d68fd27cf3822d8de3e5bdf6:5918994": {
-      "story_key": "9b9a5d4433a37165d68fd27cf3822d8de3e5bdf6:5918994",
-      "cluster_hash": "9b9a5d4433a37165d68fd27cf3822d8de3e5bdf6",
-      "headline": "Meta debuts first AI model from new superintelligence group - CNBC TV18",
-      "tickers": [
-        "META"
-      ],
-      "published_ts": 1775698282.0,
-      "first_seen_ts": 1775708882.952868,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "cnbctv18.com"
-      ],
-      "url": "https://www.cnbctv18.com/technology/meta-debuts-first-ai-model-from-new-superintelligence-group-ws-l-19883436.htm",
-      "category": "other",
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "polarity": 0.0,
-      "source_tier": "TIER_2",
-      "source_rank": 2,
-      "last_seen_ts": 1775708882.952868
-    },
-    "e7cd0a72980d0ad69e765f335637f8d8043e7121:5918984": {
-      "story_key": "e7cd0a72980d0ad69e765f335637f8d8043e7121:5918984",
-      "cluster_hash": "e7cd0a72980d0ad69e765f335637f8d8043e7121",
-      "headline": "This Meta Strider 300 Loadout One-Shots at any Distance in Black Ops 7",
-      "tickers": [
-        "META"
-      ],
-      "published_ts": 1775695355.0,
-      "first_seen_ts": 1775708882.952868,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Game Rant"
-      ],
-      "url": "https://gamerant.com/call-of-duty-cod-black-ops-7-bo7-warzone-best-meta-strider-300-sniper-loadout-build/",
-      "category": "other",
-      "impact": 0.1,
-      "clarity": 0.8,
-      "relevance": 0.535,
-      "polarity": 0.0,
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "last_seen_ts": 1775708882.952868
-    },
-    "7cb76809a4d76eda0bc27d5ef6f71122ee10073c:5918989": {
-      "story_key": "7cb76809a4d76eda0bc27d5ef6f71122ee10073c:5918989",
-      "cluster_hash": "7cb76809a4d76eda0bc27d5ef6f71122ee10073c",
-      "headline": "Meta unveils Muse Spark AI model to regain ground in race with OpenAI and Google",
-      "tickers": [
-        "META"
-      ],
-      "published_ts": 1775696772.0,
-      "first_seen_ts": 1775708882.952868,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "ynetnews"
-      ],
-      "url": "https://www.ynetnews.com/tech-and-digital/article/bycs9u4nzl",
-      "category": "other",
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "polarity": 0.0,
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "last_seen_ts": 1775708882.952868
-    },
-    "157b812b347b17645db5056e03467185fc4c40f0:5918976": {
-      "story_key": "157b812b347b17645db5056e03467185fc4c40f0:5918976",
-      "cluster_hash": "157b812b347b17645db5056e03467185fc4c40f0",
-      "headline": "What's new with Meta's Muse Spark model?",
-      "tickers": [
-        "META"
-      ],
-      "published_ts": 1775692880.0,
-      "first_seen_ts": 1775708882.952868,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "AllToc"
-      ],
-      "url": "https://alltoc.com/tech/whats-new-with-metas-muse-spark-model",
-      "category": "other",
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "polarity": 0.0,
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "last_seen_ts": 1775708882.952868
-    },
-    "29129c21536029650e6bcd3251168faafd369188:5918979": {
-      "story_key": "29129c21536029650e6bcd3251168faafd369188:5918979",
-      "cluster_hash": "29129c21536029650e6bcd3251168faafd369188",
-      "headline": "Dow Jones Top Company Headlines at 7 PM ET: Constellation Brands Fourth-Quarter Revenue Slides as Alcohol Demand Remains Under Pressure | Meta ...",
-      "tickers": [
-        "META"
-      ],
-      "published_ts": 1775693997.0,
-      "first_seen_ts": 1775708882.952868,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Morningstar"
-      ],
-      "url": "https://www.morningstar.com/news/dow-jones/202604089310/dow-jones-top-company-headlines-at-7-pm-et-constellation-brands-fourth-quarter-revenue-slides-as-alcohol-demand-remains-under-pressure-meta",
-      "category": "earnings",
-      "impact": 0.8,
-      "clarity": 0.8,
-      "relevance": 0.8500000000000001,
-      "polarity": 0.0,
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "last_seen_ts": 1775708882.952868
-    },
-    "b0cf1840044b9716c10b49c9e75cd89fa4ba413a:5918974": {
-      "story_key": "b0cf1840044b9716c10b49c9e75cd89fa4ba413a:5918974",
-      "cluster_hash": "b0cf1840044b9716c10b49c9e75cd89fa4ba413a",
-      "headline": "Meta's new model is Muse Spark, and meta.ai chat has some interesting tools",
-      "tickers": [
-        "META"
-      ],
-      "published_ts": 1775692316.0,
-      "first_seen_ts": 1775708882.952868,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Simon Willison's Weblog"
-      ],
-      "url": "https://simonwillison.net/2026/Apr/8/muse-spark/",
-      "category": "other",
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "polarity": 0.0,
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "last_seen_ts": 1775708882.952868
-    },
-    "980edd85516865e3ba26d4c5606a0d0bb9e5100c:5918966": {
-      "story_key": "980edd85516865e3ba26d4c5606a0d0bb9e5100c:5918966",
-      "cluster_hash": "980edd85516865e3ba26d4c5606a0d0bb9e5100c",
-      "headline": "Tech Up as Meta Surges on AI Model  --  Tech Roundup",
-      "tickers": [
-        "META"
-      ],
-      "published_ts": 1775690075.0,
-      "first_seen_ts": 1775708882.952868,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Morningstar"
-      ],
-      "url": "https://www.morningstar.com/news/dow-jones/202604088975/tech-up-as-meta-surges-on-ai-model-tech-roundup",
-      "category": "other",
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "polarity": 0.0,
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "last_seen_ts": 1775708882.952868
-    },
-    "54ba1af4d3d1cc88d0c3e237c7058e588f2b4411:5918964": {
-      "story_key": "54ba1af4d3d1cc88d0c3e237c7058e588f2b4411:5918964",
-      "cluster_hash": "54ba1af4d3d1cc88d0c3e237c7058e588f2b4411",
-      "headline": "Iowa attorney general sues Meta, claims Instagram is harming children",
-      "tickers": [
-        "META"
-      ],
-      "published_ts": 1775689390.0,
-      "first_seen_ts": 1775708882.952868,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Des Moines Register"
-      ],
-      "url": "https://eu.desmoinesregister.com/story/news/crime-and-courts/2026/04/08/iowa-attorney-general-brenna-bird-instagram-lawsuit-meta-facebook/89524564007/",
-      "category": "other",
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "polarity": 0.0,
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "last_seen_ts": 1775708882.952868
-    },
-    "cb410b6d03931e56df36b7e324ecdfa4c28171aa:5918965": {
-      "story_key": "cb410b6d03931e56df36b7e324ecdfa4c28171aa:5918965",
-      "cluster_hash": "cb410b6d03931e56df36b7e324ecdfa4c28171aa",
-      "headline": "Meta's new model is as open as Zuckerberg's private school",
-      "tickers": [
-        "META"
-      ],
-      "published_ts": 1775689602.0,
-      "first_seen_ts": 1775708882.952868,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "TheRegister.com"
-      ],
-      "url": "https://www.theregister.com/2026/04/08/meta_muse_spark/",
-      "category": "other",
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "polarity": 0.0,
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "last_seen_ts": 1775708882.952868
-    },
-    "dc8c671529f212cbf9c980dc49071e2557d5bfab:5918961": {
-      "story_key": "dc8c671529f212cbf9c980dc49071e2557d5bfab:5918961",
-      "cluster_hash": "dc8c671529f212cbf9c980dc49071e2557d5bfab",
-      "headline": "What is Muse Spark, Mark Zuckerberg's new AI model? Here's how the first LLM from the META AI superteam works",
-      "tickers": [
-        "META"
-      ],
-      "published_ts": 1775688441.0,
-      "first_seen_ts": 1775708882.952868,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Merca2.0 Magazine"
-      ],
-      "url": "https://www.merca20.com/what-is-muse-spark-mark-zuckerbergs-new-ai-model-heres-how-the-first-llm-from-the-meta-ai-superteam-works/",
-      "category": "other",
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "polarity": 0.0,
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "last_seen_ts": 1775708882.952868
-    },
-    "d94d149f346ea34ddb76c809d702a02699b5bcb7:5918951": {
-      "story_key": "d94d149f346ea34ddb76c809d702a02699b5bcb7:5918951",
-      "cluster_hash": "d94d149f346ea34ddb76c809d702a02699b5bcb7",
-      "headline": "WhatsApp's Username Gamble: Why Meta Is Finally Letting You Hide Your Phone Number",
-      "tickers": [
-        "META"
-      ],
-      "published_ts": 1775685431.0,
-      "first_seen_ts": 1775708882.952868,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "WebProNews"
-      ],
-      "url": "https://www.webpronews.com/whatsapps-username-gamble-why-meta-is-finally-letting-you-hide-your-phone-number/",
-      "category": "other",
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "polarity": 0.0,
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "last_seen_ts": 1775708882.952868
-    },
-    "d572ece9e6e45bedd565a7b43d11023e356c08db:5918959": {
-      "story_key": "d572ece9e6e45bedd565a7b43d11023e356c08db:5918959",
-      "cluster_hash": "d572ece9e6e45bedd565a7b43d11023e356c08db",
-      "headline": "Meta unveils 'Muse' AI model in superintelligence push",
-      "tickers": [
-        "META"
-      ],
-      "published_ts": 1775687917.0,
-      "first_seen_ts": 1775708882.952868,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "The American Bazaar"
-      ],
-      "url": "https://americanbazaaronline.com/2026/04/08/meta-unveils-muse-ai-model-in-superintelligence-push-478539/",
-      "category": "other",
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "polarity": 0.0,
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "last_seen_ts": 1775708882.952868
-    },
-    "980edd85516865e3ba26d4c5606a0d0bb9e5100c:5918958": {
-      "story_key": "980edd85516865e3ba26d4c5606a0d0bb9e5100c:5918958",
-      "cluster_hash": "980edd85516865e3ba26d4c5606a0d0bb9e5100c",
-      "headline": "Tech Up as Meta Surges on AI Model -- Tech Roundup",
-      "tickers": [
-        "META"
-      ],
-      "published_ts": 1775687471.0,
-      "first_seen_ts": 1775708882.952868,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Market Screener"
-      ],
-      "url": "https://www.marketscreener.com/news/tech-up-as-meta-surges-on-ai-model-tech-roundup-ce7e50dbda8cf625",
-      "category": "other",
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.45543478260869563,
-      "polarity": 0.0,
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "last_seen_ts": 1775708882.952868
-    },
-    "096d6c19051ec5ba17cc40033f737bf37f7d16ad:5918955": {
-      "story_key": "096d6c19051ec5ba17cc40033f737bf37f7d16ad:5918955",
-      "cluster_hash": "096d6c19051ec5ba17cc40033f737bf37f7d16ad",
-      "headline": "Meta Launches Muse Spark: The AI Model Built to Deliver Personal Superintelligence - Blockonomi",
-      "tickers": [
-        "META"
-      ],
-      "published_ts": 1775686721.0,
-      "first_seen_ts": 1775708882.952868,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Blockonomi"
-      ],
-      "url": "https://blockonomi.com/meta-launches-muse-spark-the-ai-model-built-to-deliver-personal-superintelligence/",
-      "category": "other",
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "polarity": 0.0,
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "last_seen_ts": 1775708882.952868
-    },
-    "263a171633617ad7e9503ec7dbf03462d2e7ea4f:5918955": {
-      "story_key": "263a171633617ad7e9503ec7dbf03462d2e7ea4f:5918955",
-      "cluster_hash": "263a171633617ad7e9503ec7dbf03462d2e7ea4f",
-      "headline": "Meta debuts Muse Spark multimodal reasoning model - SiliconANGLE",
-      "tickers": [
-        "META"
-      ],
-      "published_ts": 1775686562.0,
-      "first_seen_ts": 1775708882.952868,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "SiliconANGLE"
-      ],
-      "url": "https://siliconangle.com/2026/04/08/meta-debuts-muse-spark-multimodal-reasoning-model/",
-      "category": "other",
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "polarity": 0.0,
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "last_seen_ts": 1775708882.952868
-    },
-    "92bb4145d709b761d715afa6435256086b4da2f8:5918934": {
-      "story_key": "92bb4145d709b761d715afa6435256086b4da2f8:5918934",
-      "cluster_hash": "92bb4145d709b761d715afa6435256086b4da2f8",
-      "headline": "Goodbye, Llama? Meta launches new proprietary AI model Muse Spark  --  first since Superintelligence Labs' formation - RocketNews",
-      "tickers": [
-        "META"
-      ],
-      "published_ts": 1775680441.0,
-      "first_seen_ts": 1775708882.952868,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "RocketNews"
-      ],
-      "url": "https://rocketnews.com/2026/04/goodbye-llama-meta-launches-new-proprietary-ai-model-muse-spark-first-since-superintelligence-labs-formation/",
-      "category": "other",
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "polarity": 0.0,
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "last_seen_ts": 1775708882.952868
-    },
-    "e8c75d761a46f20ee4311daee1b7b838ac423ae2:5918943": {
-      "story_key": "e8c75d761a46f20ee4311daee1b7b838ac423ae2:5918943",
-      "cluster_hash": "e8c75d761a46f20ee4311daee1b7b838ac423ae2",
-      "headline": "Meta Debuts 'Muse Spark' AI, Challenging Rival Models From OpenAI, Google",
-      "tickers": [
-        "META"
-      ],
-      "published_ts": 1775683024.0,
-      "first_seen_ts": 1775708882.952868,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "eWEEK"
-      ],
-      "url": "https://www.eweek.com/news/meta-muse-spark-ai-launch-multimodal-reasoning/",
-      "category": "other",
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "polarity": 0.0,
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "last_seen_ts": 1775708882.952868
+      "last_seen_ts": 1775716997.3327568
     },
     "20bee62c772179340720e26ea48dbd5783a7da73:5918688": {
       "story_key": "20bee62c772179340720e26ea48dbd5783a7da73:5918688",
@@ -2428,7 +2659,7 @@
         "XOM"
       ],
       "published_ts": 1775606400.0,
-      "first_seen_ts": 1775708882.952868,
+      "first_seen_ts": 1775716997.3327568,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2447,7 +2678,7 @@
       "polarity": -0.5,
       "source_tier": "TIER_3",
       "source_rank": 3,
-      "last_seen_ts": 1775708882.952868
+      "last_seen_ts": 1775716997.3327568
     },
     "5baee6bdfece38c7ca3ab5e8dc4039a793f7ecd9:5918400": {
       "story_key": "5baee6bdfece38c7ca3ab5e8dc4039a793f7ecd9:5918400",
@@ -2457,7 +2688,7 @@
         "JPM"
       ],
       "published_ts": 1775520000.0,
-      "first_seen_ts": 1775708882.952868,
+      "first_seen_ts": 1775716997.3327568,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2476,7 +2707,7 @@
       "polarity": 0.0,
       "source_tier": "TIER_3",
       "source_rank": 3,
-      "last_seen_ts": 1775708882.952868
+      "last_seen_ts": 1775716997.3327568
     },
     "897445b291b97519651cf31af31c864581854fc3:5918400": {
       "story_key": "897445b291b97519651cf31af31c864581854fc3:5918400",
@@ -2486,7 +2717,7 @@
         "META"
       ],
       "published_ts": 1775520000.0,
-      "first_seen_ts": 1775708882.952868,
+      "first_seen_ts": 1775716997.3327568,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2505,7 +2736,7 @@
       "polarity": 0.0,
       "source_tier": "TIER_3",
       "source_rank": 3,
-      "last_seen_ts": 1775708882.952868
+      "last_seen_ts": 1775716997.3327568
     },
     "917e3510826ee12fd9776a84510d1d8f3f2cc674:5918400": {
       "story_key": "917e3510826ee12fd9776a84510d1d8f3f2cc674:5918400",
@@ -2515,7 +2746,7 @@
         "META"
       ],
       "published_ts": 1775520000.0,
-      "first_seen_ts": 1775708882.952868,
+      "first_seen_ts": 1775716997.3327568,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2534,7 +2765,7 @@
       "polarity": 0.0,
       "source_tier": "TIER_3",
       "source_rank": 3,
-      "last_seen_ts": 1775708882.952868
+      "last_seen_ts": 1775716997.3327568
     },
     "7c66562a946813ea0203c83f4a001ca9d530ac86:5918400": {
       "story_key": "7c66562a946813ea0203c83f4a001ca9d530ac86:5918400",
@@ -2544,7 +2775,7 @@
         "META"
       ],
       "published_ts": 1775520000.0,
-      "first_seen_ts": 1775708882.952868,
+      "first_seen_ts": 1775716997.3327568,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2563,7 +2794,7 @@
       "polarity": 0.0,
       "source_tier": "TIER_3",
       "source_rank": 3,
-      "last_seen_ts": 1775708882.952868
+      "last_seen_ts": 1775716997.3327568
     },
     "b57c80fd65a081574b38caa39915599b03cccb71:5918400": {
       "story_key": "b57c80fd65a081574b38caa39915599b03cccb71:5918400",
@@ -2573,7 +2804,7 @@
         "META"
       ],
       "published_ts": 1775520000.0,
-      "first_seen_ts": 1775708882.952868,
+      "first_seen_ts": 1775716997.3327568,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2592,7 +2823,7 @@
       "polarity": 0.0,
       "source_tier": "TIER_3",
       "source_rank": 3,
-      "last_seen_ts": 1775708882.952868
+      "last_seen_ts": 1775716997.3327568
     }
   }
 }
