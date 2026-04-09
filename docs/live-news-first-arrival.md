@@ -131,6 +131,14 @@ The repository now includes a first live-sidecar implementation of this lane:
 - `npm run smc:live-news-snapshot` is the default operator-facing entrypoint
 - `.github/workflows/smc-live-newsapi-refresh.yml` adds a lightweight 5-minute GitHub Actions lane for the NewsAPI.ai snapshot without running the full library generator / Playwright publish stack
 
+Manual `workflow_dispatch` runs on that workflow now support three operator knobs:
+
+- `symbols` for an explicit comma-separated symbol scope
+- `symbol_limit` for the manifest-derived fallback scope
+- `reset_state` for clean-state verification runs
+
+`reset_state=true` deletes only `artifacts/smc_microstructure_exports/smc_live_news_state.json` before export. Use that path when you want to validate fetch-quality changes against a fresh cursor/story state, because a normal incremental run can legitimately stay on `ok_no_recent_matches` and hide improvements that are visible in a clean-state pull.
+
 The emitted files are:
 
 - `artifacts/smc_microstructure_exports/smc_live_news_snapshot.json`
