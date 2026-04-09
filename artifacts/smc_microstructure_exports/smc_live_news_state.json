@@ -1,0 +1,2452 @@
+{
+  "provider_cursors": {
+    "benzinga": 0.0,
+    "fmp_stock": 0.0,
+    "fmp_press": 0.0,
+    "fmp_articles": 0.0,
+    "newsapi_ai": 1775696772.0,
+    "tv": 0.0,
+    "legacy_cursor": 1775696772.0
+  },
+  "provider_state": {},
+  "story_state": {
+    "7cb76809a4d76eda0bc27d5ef6f71122ee10073c:5918989": {
+      "story_key": "7cb76809a4d76eda0bc27d5ef6f71122ee10073c:5918989",
+      "cluster_hash": "7cb76809a4d76eda0bc27d5ef6f71122ee10073c",
+      "headline": "Meta unveils Muse Spark AI model to regain ground in race with OpenAI and Google",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775696772.0,
+      "first_seen_ts": 1775698092.558572,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "ynetnews"
+      ],
+      "url": "https://www.ynetnews.com/tech-and-digital/article/bycs9u4nzl",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775698092.558572
+    },
+    "157b812b347b17645db5056e03467185fc4c40f0:5918976": {
+      "story_key": "157b812b347b17645db5056e03467185fc4c40f0:5918976",
+      "cluster_hash": "157b812b347b17645db5056e03467185fc4c40f0",
+      "headline": "What's new with Meta's Muse Spark model?",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775692880.0,
+      "first_seen_ts": 1775698092.558572,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "AllToc"
+      ],
+      "url": "https://alltoc.com/tech/whats-new-with-metas-muse-spark-model",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775698092.558572
+    },
+    "29129c21536029650e6bcd3251168faafd369188:5918979": {
+      "story_key": "29129c21536029650e6bcd3251168faafd369188:5918979",
+      "cluster_hash": "29129c21536029650e6bcd3251168faafd369188",
+      "headline": "Dow Jones Top Company Headlines at 7 PM ET: Constellation Brands Fourth-Quarter Revenue Slides as Alcohol Demand Remains Under Pressure | Meta ...",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775693997.0,
+      "first_seen_ts": 1775698092.558572,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Morningstar"
+      ],
+      "url": "https://www.morningstar.com/news/dow-jones/202604089310/dow-jones-top-company-headlines-at-7-pm-et-constellation-brands-fourth-quarter-revenue-slides-as-alcohol-demand-remains-under-pressure-meta",
+      "category": "earnings",
+      "impact": 0.8,
+      "clarity": 0.8,
+      "relevance": 0.8500000000000001,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775698092.558572
+    },
+    "b0cf1840044b9716c10b49c9e75cd89fa4ba413a:5918974": {
+      "story_key": "b0cf1840044b9716c10b49c9e75cd89fa4ba413a:5918974",
+      "cluster_hash": "b0cf1840044b9716c10b49c9e75cd89fa4ba413a",
+      "headline": "Meta's new model is Muse Spark, and meta.ai chat has some interesting tools",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775692316.0,
+      "first_seen_ts": 1775698092.558572,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Simon Willison's Weblog"
+      ],
+      "url": "https://simonwillison.net/2026/Apr/8/muse-spark/",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775698092.558572
+    },
+    "980edd85516865e3ba26d4c5606a0d0bb9e5100c:5918966": {
+      "story_key": "980edd85516865e3ba26d4c5606a0d0bb9e5100c:5918966",
+      "cluster_hash": "980edd85516865e3ba26d4c5606a0d0bb9e5100c",
+      "headline": "Tech Up as Meta Surges on AI Model  --  Tech Roundup",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775690075.0,
+      "first_seen_ts": 1775698092.558572,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Morningstar"
+      ],
+      "url": "https://www.morningstar.com/news/dow-jones/202604088975/tech-up-as-meta-surges-on-ai-model-tech-roundup",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775698092.558572
+    },
+    "54ba1af4d3d1cc88d0c3e237c7058e588f2b4411:5918964": {
+      "story_key": "54ba1af4d3d1cc88d0c3e237c7058e588f2b4411:5918964",
+      "cluster_hash": "54ba1af4d3d1cc88d0c3e237c7058e588f2b4411",
+      "headline": "Iowa attorney general sues Meta, claims Instagram is harming children",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775689390.0,
+      "first_seen_ts": 1775698092.558572,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Des Moines Register"
+      ],
+      "url": "https://eu.desmoinesregister.com/story/news/crime-and-courts/2026/04/08/iowa-attorney-general-brenna-bird-instagram-lawsuit-meta-facebook/89524564007/",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775698092.558572
+    },
+    "cb410b6d03931e56df36b7e324ecdfa4c28171aa:5918965": {
+      "story_key": "cb410b6d03931e56df36b7e324ecdfa4c28171aa:5918965",
+      "cluster_hash": "cb410b6d03931e56df36b7e324ecdfa4c28171aa",
+      "headline": "Meta's new model is as open as Zuckerberg's private school",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775689602.0,
+      "first_seen_ts": 1775698092.558572,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "TheRegister.com"
+      ],
+      "url": "https://www.theregister.com/2026/04/08/meta_muse_spark/",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775698092.558572
+    },
+    "dc8c671529f212cbf9c980dc49071e2557d5bfab:5918961": {
+      "story_key": "dc8c671529f212cbf9c980dc49071e2557d5bfab:5918961",
+      "cluster_hash": "dc8c671529f212cbf9c980dc49071e2557d5bfab",
+      "headline": "What is Muse Spark, Mark Zuckerberg's new AI model? Here's how the first LLM from the META AI superteam works",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775688441.0,
+      "first_seen_ts": 1775698092.558572,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Merca2.0 Magazine"
+      ],
+      "url": "https://www.merca20.com/what-is-muse-spark-mark-zuckerbergs-new-ai-model-heres-how-the-first-llm-from-the-meta-ai-superteam-works/",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775698092.558572
+    },
+    "d94d149f346ea34ddb76c809d702a02699b5bcb7:5918951": {
+      "story_key": "d94d149f346ea34ddb76c809d702a02699b5bcb7:5918951",
+      "cluster_hash": "d94d149f346ea34ddb76c809d702a02699b5bcb7",
+      "headline": "WhatsApp's Username Gamble: Why Meta Is Finally Letting You Hide Your Phone Number",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775685431.0,
+      "first_seen_ts": 1775698092.558572,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "WebProNews"
+      ],
+      "url": "https://www.webpronews.com/whatsapps-username-gamble-why-meta-is-finally-letting-you-hide-your-phone-number/",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775698092.558572
+    },
+    "d572ece9e6e45bedd565a7b43d11023e356c08db:5918959": {
+      "story_key": "d572ece9e6e45bedd565a7b43d11023e356c08db:5918959",
+      "cluster_hash": "d572ece9e6e45bedd565a7b43d11023e356c08db",
+      "headline": "Meta unveils 'Muse' AI model in superintelligence push",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775687917.0,
+      "first_seen_ts": 1775698092.558572,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "The American Bazaar"
+      ],
+      "url": "https://americanbazaaronline.com/2026/04/08/meta-unveils-muse-ai-model-in-superintelligence-push-478539/",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775698092.558572
+    },
+    "980edd85516865e3ba26d4c5606a0d0bb9e5100c:5918958": {
+      "story_key": "980edd85516865e3ba26d4c5606a0d0bb9e5100c:5918958",
+      "cluster_hash": "980edd85516865e3ba26d4c5606a0d0bb9e5100c",
+      "headline": "Tech Up as Meta Surges on AI Model -- Tech Roundup",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775687471.0,
+      "first_seen_ts": 1775698092.558572,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Market Screener"
+      ],
+      "url": "https://www.marketscreener.com/news/tech-up-as-meta-surges-on-ai-model-tech-roundup-ce7e50dbda8cf625",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.45543478260869563,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775698092.558572
+    },
+    "096d6c19051ec5ba17cc40033f737bf37f7d16ad:5918955": {
+      "story_key": "096d6c19051ec5ba17cc40033f737bf37f7d16ad:5918955",
+      "cluster_hash": "096d6c19051ec5ba17cc40033f737bf37f7d16ad",
+      "headline": "Meta Launches Muse Spark: The AI Model Built to Deliver Personal Superintelligence - Blockonomi",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775686721.0,
+      "first_seen_ts": 1775698092.558572,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Blockonomi"
+      ],
+      "url": "https://blockonomi.com/meta-launches-muse-spark-the-ai-model-built-to-deliver-personal-superintelligence/",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775698092.558572
+    },
+    "263a171633617ad7e9503ec7dbf03462d2e7ea4f:5918955": {
+      "story_key": "263a171633617ad7e9503ec7dbf03462d2e7ea4f:5918955",
+      "cluster_hash": "263a171633617ad7e9503ec7dbf03462d2e7ea4f",
+      "headline": "Meta debuts Muse Spark multimodal reasoning model - SiliconANGLE",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775686562.0,
+      "first_seen_ts": 1775698092.558572,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "SiliconANGLE"
+      ],
+      "url": "https://siliconangle.com/2026/04/08/meta-debuts-muse-spark-multimodal-reasoning-model/",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775698092.558572
+    },
+    "92bb4145d709b761d715afa6435256086b4da2f8:5918934": {
+      "story_key": "92bb4145d709b761d715afa6435256086b4da2f8:5918934",
+      "cluster_hash": "92bb4145d709b761d715afa6435256086b4da2f8",
+      "headline": "Goodbye, Llama? Meta launches new proprietary AI model Muse Spark  --  first since Superintelligence Labs' formation - RocketNews",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775680441.0,
+      "first_seen_ts": 1775698092.558572,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "RocketNews"
+      ],
+      "url": "https://rocketnews.com/2026/04/goodbye-llama-meta-launches-new-proprietary-ai-model-muse-spark-first-since-superintelligence-labs-formation/",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775698092.558572
+    },
+    "e8c75d761a46f20ee4311daee1b7b838ac423ae2:5918943": {
+      "story_key": "e8c75d761a46f20ee4311daee1b7b838ac423ae2:5918943",
+      "cluster_hash": "e8c75d761a46f20ee4311daee1b7b838ac423ae2",
+      "headline": "Meta Debuts 'Muse Spark' AI, Challenging Rival Models From OpenAI, Google",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775683024.0,
+      "first_seen_ts": 1775698092.558572,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "eWEEK"
+      ],
+      "url": "https://www.eweek.com/news/meta-muse-spark-ai-launch-multimodal-reasoning/",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775698092.558572
+    },
+    "38f8c342868ef3225945ed21c7e96b26bf9b6c8a:5918938": {
+      "story_key": "38f8c342868ef3225945ed21c7e96b26bf9b6c8a:5918938",
+      "cluster_hash": "38f8c342868ef3225945ed21c7e96b26bf9b6c8a",
+      "headline": "Meta Superintelligence launches Muse Spark AI model",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775681435.0,
+      "first_seen_ts": 1775698092.558572,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Social Media Today | A business community for the web's best thinkers on Social Media"
+      ],
+      "url": "https://www.socialmediatoday.com/news/meta-superintelligence-launches-muse-spark-ai-model/817026/",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775698092.558572
+    },
+    "6cf92c1e0dafd67cd3b2e2755e5f8372703e7938:5918952": {
+      "story_key": "6cf92c1e0dafd67cd3b2e2755e5f8372703e7938:5918952",
+      "cluster_hash": "6cf92c1e0dafd67cd3b2e2755e5f8372703e7938",
+      "headline": "AI jobs: Meta cuts 200 in California amid AI push",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775685819.0,
+      "first_seen_ts": 1775698092.558572,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "crypto.news"
+      ],
+      "url": "https://crypto.news/ai-jobs-meta-cuts-200-in-california-amid-ai-push/",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775698092.558572
+    },
+    "92d4c8d46d4273cd99200c85023397a1fcfd3e4d:5918943": {
+      "story_key": "92d4c8d46d4273cd99200c85023397a1fcfd3e4d:5918943",
+      "cluster_hash": "92d4c8d46d4273cd99200c85023397a1fcfd3e4d",
+      "headline": "Meta Stock Rises After Launch of New AI Model",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775683198.0,
+      "first_seen_ts": 1775698092.558572,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "The Wall Street Journal"
+      ],
+      "url": "https://www.wsj.com/livecoverage/stock-market-today-dow-sp-500-nasdaq-04-08-2026/card/meta-stock-rises-after-launch-of-new-ai-model-Ib8lUcROzj5LgvZ3RUMy",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775698092.558572
+    },
+    "7b4593d6b6fb293eafd50dd402536acf3f1acc69:5918950": {
+      "story_key": "7b4593d6b6fb293eafd50dd402536acf3f1acc69:5918950",
+      "cluster_hash": "7b4593d6b6fb293eafd50dd402536acf3f1acc69",
+      "headline": "Meta Unveils Muse Spark AI Model To Compete In Generative AI Space",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775685240.0,
+      "first_seen_ts": 1775698092.558572,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "FinanzNachrichten.de"
+      ],
+      "url": "https://www.finanznachrichten.de/nachrichten-2026-04/68151765-meta-unveils-muse-spark-ai-model-to-compete-in-generative-ai-space-020.htm",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775698092.558572
+    },
+    "8634afe78a65a72486e7703b7819a82a91384b19:5918949": {
+      "story_key": "8634afe78a65a72486e7703b7819a82a91384b19:5918949",
+      "cluster_hash": "8634afe78a65a72486e7703b7819a82a91384b19",
+      "headline": "US FTC fights Meta's fresh attempt to stop reopening of $5bn privacy settlement | MLex | Specialist news and analysis on legal risk and regulation",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775684934.0,
+      "first_seen_ts": 1775698092.558572,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "mlex.com"
+      ],
+      "url": "https://www.mlex.com/mlex/articles/2463228/us-ftc-fights-meta-s-fresh-attempt-to-stop-reopening-of-5bn-privacy-settlement",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775698092.558572
+    },
+    "7b4593d6b6fb293eafd50dd402536acf3f1acc69:5918947": {
+      "story_key": "7b4593d6b6fb293eafd50dd402536acf3f1acc69:5918947",
+      "cluster_hash": "7b4593d6b6fb293eafd50dd402536acf3f1acc69",
+      "headline": "Meta Unveils Muse Spark AI Model To Compete In Generative AI Space",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775684157.0,
+      "first_seen_ts": 1775698092.558572,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "NASDAQ Stock Market"
+      ],
+      "url": "https://www.nasdaq.com/articles/meta-unveils-muse-spark-ai-model-compete-generative-ai-space",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.45543478260869563,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775698092.558572
+    },
+    "fd7b642b0f3d44d707a42b61d2f6aa06a758e587:5918949": {
+      "story_key": "fd7b642b0f3d44d707a42b61d2f6aa06a758e587:5918949",
+      "cluster_hash": "fd7b642b0f3d44d707a42b61d2f6aa06a758e587",
+      "headline": "Meta reenters the AI game with new 'Muse Spark' model",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775684706.0,
+      "first_seen_ts": 1775698092.558572,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "MobileSyrup"
+      ],
+      "url": "https://mobilesyrup.com/2026/04/08/meta-reenters-the-ai-game-with-new-muse-spark-model/",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775698092.558572
+    },
+    "ec4c6a5ce2522b340dbde69ca83e48f652f8ca46:5918946": {
+      "story_key": "ec4c6a5ce2522b340dbde69ca83e48f652f8ca46:5918946",
+      "cluster_hash": "ec4c6a5ce2522b340dbde69ca83e48f652f8ca46",
+      "headline": "Apple: The Infrastructure Play On Local AI Adoption (NASDAQ:AAPL)",
+      "tickers": [
+        "AAPL"
+      ],
+      "published_ts": 1775684062.0,
+      "first_seen_ts": 1775698092.558572,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Seeking Alpha"
+      ],
+      "url": "https://seekingalpha.com/article/4889355-apple-the-infrastructure-play-on-local-ai-adoption",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775698092.558572
+    },
+    "b08bab34833c12e14532b22a2048899de16dbf9b:5918939": {
+      "story_key": "b08bab34833c12e14532b22a2048899de16dbf9b:5918939",
+      "cluster_hash": "b08bab34833c12e14532b22a2048899de16dbf9b",
+      "headline": "Meta releases first new AI model since shaking up team",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775681779.0,
+      "first_seen_ts": 1775698092.558572,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Digital Journal",
+        "Owensboro Messenger-Inquirer",
+        "The Grand Junction Daily Sentinel"
+      ],
+      "url": "https://www.gjsentinel.com/news/national/meta-releases-first-new-ai-model-since-shaking-up-team/article_5ee1e21b-3c16-54ba-805f-973078b8e9f3.html",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775698092.558572
+    },
+    "fb0121f5d749ee5b2fa4bd8b74a46d3ffbc96ddc:5918943": {
+      "story_key": "fb0121f5d749ee5b2fa4bd8b74a46d3ffbc96ddc:5918943",
+      "cluster_hash": "fb0121f5d749ee5b2fa4bd8b74a46d3ffbc96ddc",
+      "headline": "Meta unveils first AI model from superintelligence team",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775683040.0,
+      "first_seen_ts": 1775698092.558572,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Perth Now"
+      ],
+      "url": "https://www.perthnow.com.au/news/technology/meta-unveils-first-ai-model-from-superintelligence-team-c-22114188",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775698092.558572
+    },
+    "3da50e70c5cedcadefee5c0bb9c9b2d550f71082:5918943": {
+      "story_key": "3da50e70c5cedcadefee5c0bb9c9b2d550f71082:5918943",
+      "cluster_hash": "3da50e70c5cedcadefee5c0bb9c9b2d550f71082",
+      "headline": "Meta Launches Muse Spark, First AI Model After Hiring Alexandr Wang",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775682903.0,
+      "first_seen_ts": 1775698092.558572,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "El-Balad.com"
+      ],
+      "url": "https://www.el-balad.com/16906428",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775698092.558572
+    },
+    "34da44857a573057351b222c9088486112fc8fc0:5918942": {
+      "story_key": "34da44857a573057351b222c9088486112fc8fc0:5918942",
+      "cluster_hash": "34da44857a573057351b222c9088486112fc8fc0",
+      "headline": "Cast Adrift, Meta Employees Have No Idea Who the 'Token Legend' Is Anymore",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775682807.0,
+      "first_seen_ts": 1775698092.558572,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Gizmodo"
+      ],
+      "url": "https://gizmodo.com/?p=2000744189",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775698092.558572
+    },
+    "8eb76845f5b17c2d3d96ad9412507f03afc8bc2a:5918938": {
+      "story_key": "8eb76845f5b17c2d3d96ad9412507f03afc8bc2a:5918938",
+      "cluster_hash": "8eb76845f5b17c2d3d96ad9412507f03afc8bc2a",
+      "headline": "Why Meta Platforms Stock Jumped Today | The Motley Fool",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775681597.0,
+      "first_seen_ts": 1775698092.558572,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "The Motley Fool"
+      ],
+      "url": "https://www.fool.com/investing/2026/04/08/why-meta-platforms-stock-jumped-today/",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775698092.558572
+    },
+    "23d030123213871b5cd93fd3a64933c1bce9123a:5918933": {
+      "story_key": "23d030123213871b5cd93fd3a64933c1bce9123a:5918933",
+      "cluster_hash": "23d030123213871b5cd93fd3a64933c1bce9123a",
+      "headline": "Why ExxonMobil (XOM) Shares Are Falling Today - StockStory",
+      "tickers": [
+        "XOM"
+      ],
+      "published_ts": 1775679955.0,
+      "first_seen_ts": 1775698092.558572,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "StockStory"
+      ],
+      "url": "https://stockstory.org/us/stocks/nyse/xom/news/why-up-down/why-exxonmobil-xom-shares-are-falling-today",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775698092.558572
+    },
+    "3f9b90232af4a2e536e2da557e22cedd002c27ab:5918937": {
+      "story_key": "3f9b90232af4a2e536e2da557e22cedd002c27ab:5918937",
+      "cluster_hash": "3f9b90232af4a2e536e2da557e22cedd002c27ab",
+      "headline": "Contemplating Meta's Homegrown MTIA Compute Engine Roadmap",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775681199.0,
+      "first_seen_ts": 1775698092.558572,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "The Next Platform"
+      ],
+      "url": "https://www.nextplatform.com/compute/2026/04/08/contemplating-metas-homegrown-mtia-compute-engine-roadmap/5214899",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775698092.558572
+    },
+    "22f04593cbe2c10bd106488b75c15ab72ec1a804:5918936": {
+      "story_key": "22f04593cbe2c10bd106488b75c15ab72ec1a804:5918936",
+      "cluster_hash": "22f04593cbe2c10bd106488b75c15ab72ec1a804",
+      "headline": "Meta unveils Muse Spark AI model and new Contemplating mode",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775680902.0,
+      "first_seen_ts": 1775698092.558572,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "TestingCatalog"
+      ],
+      "url": "https://www.testingcatalog.com/meta-unveils-muse-spark-ai-model-and-new-contemplating-mode/",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775698092.558572
+    },
+    "313f906f7a897498226d7e03bb64d2e61a318380:5918936": {
+      "story_key": "313f906f7a897498226d7e03bb64d2e61a318380:5918936",
+      "cluster_hash": "313f906f7a897498226d7e03bb64d2e61a318380",
+      "headline": "Meta Debuts First AI Model From New Superintelligence Group (1)",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775680902.0,
+      "first_seen_ts": 1775698092.558572,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "news.bloomberglaw.com"
+      ],
+      "url": "https://news.bloomberglaw.com/artificial-intelligence/meta-debuts-first-ai-model-from-new-superintelligence-group-1",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775698092.558572
+    },
+    "953a9786f7ba9b483e5a00179b288f11825183ec:5918932": {
+      "story_key": "953a9786f7ba9b483e5a00179b288f11825183ec:5918932",
+      "cluster_hash": "953a9786f7ba9b483e5a00179b288f11825183ec",
+      "headline": "Meta Stock Surges Following New AI Model Launch - News Directory 3",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775679763.0,
+      "first_seen_ts": 1775698092.558572,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "News Directory 3"
+      ],
+      "url": "https://www.newsdirectory3.com/meta-stock-surges-following-new-ai-model-launch/",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775698092.558572
+    },
+    "b71f7181dae150846a2f66168b1dc9f04d32acc0:5918933": {
+      "story_key": "b71f7181dae150846a2f66168b1dc9f04d32acc0:5918933",
+      "cluster_hash": "b71f7181dae150846a2f66168b1dc9f04d32acc0",
+      "headline": "Meta Releases First Proprietary AI Model: Muse Spark",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775680105.0,
+      "first_seen_ts": 1775698092.558572,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "AI Business"
+      ],
+      "url": "https://aibusiness.com/generative-ai/meta-releases-first-proprietary-ai-model-muse-spark",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775698092.558572
+    },
+    "bebd5f90217ec0993a86c51ac77f1cafc9463659:5918930": {
+      "story_key": "bebd5f90217ec0993a86c51ac77f1cafc9463659:5918930",
+      "cluster_hash": "bebd5f90217ec0993a86c51ac77f1cafc9463659",
+      "headline": "Muse Spark: Meta's New AI Model Ranks Just Behind Anthropic, OpenAI, and Google",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775679172.0,
+      "first_seen_ts": 1775698092.558572,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Trending Topics"
+      ],
+      "url": "https://www.trendingtopics.eu/muse-spark-meta-launch/",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775698092.558572
+    },
+    "57a6fe14456ea7cc1ff4cdc27d1c2d2ae0fe91d8:5918928": {
+      "story_key": "57a6fe14456ea7cc1ff4cdc27d1c2d2ae0fe91d8:5918928",
+      "cluster_hash": "57a6fe14456ea7cc1ff4cdc27d1c2d2ae0fe91d8",
+      "headline": "Meta (META) Stock Trades Up, Here Is Why - StockStory",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775678444.0,
+      "first_seen_ts": 1775698092.558572,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "StockStory"
+      ],
+      "url": "https://stockstory.org/us/stocks/nasdaq/meta/news/why-up-down/meta-meta-stock-trades-up-here-is-why-6",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775698092.558572
+    },
+    "bb4316c73ef2fe3dd95d9c178cd00995eaa4d552:5918929": {
+      "story_key": "bb4316c73ef2fe3dd95d9c178cd00995eaa4d552:5918929",
+      "cluster_hash": "bb4316c73ef2fe3dd95d9c178cd00995eaa4d552",
+      "headline": "Meta Launches Muse Spark, Its Most Capable AI Yet -- But Gemini 3.1 Pro Still Leads the Pack - Decrypt",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775678845.0,
+      "first_seen_ts": 1775698092.558572,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Decrypt"
+      ],
+      "url": "https://decrypt.co/363691/meta-muse-spark-most-capable-ai-gemini-pro-still-leads",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775698092.558572
+    },
+    "999f7692b738fae82c2ad1aca75b9f60e0dd4ea2:5918930": {
+      "story_key": "999f7692b738fae82c2ad1aca75b9f60e0dd4ea2:5918930",
+      "cluster_hash": "999f7692b738fae82c2ad1aca75b9f60e0dd4ea2",
+      "headline": "Meta Introduces 'Muse Spark' Next-Gen AI With Contemplating Mode",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775679188.0,
+      "first_seen_ts": 1775698092.558572,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "iClarified - Apple News and Tutorials"
+      ],
+      "url": "https://www.iclarified.com/100489/meta-introduces-muse-spark-nextgen-ai-with-contemplating-mode",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775698092.558572
+    },
+    "0500f4f26713f5441a17da93dd197921cf20fa98:5918929": {
+      "story_key": "0500f4f26713f5441a17da93dd197921cf20fa98:5918929",
+      "cluster_hash": "0500f4f26713f5441a17da93dd197921cf20fa98",
+      "headline": "Meta's Muse Spark is here - and it's closed source",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775678971.0,
+      "first_seen_ts": 1775698092.558572,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "The Next Web"
+      ],
+      "url": "https://thenextweb.com/news/meta-muse-spark-msl-first-model",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775698092.558572
+    },
+    "dcede85c55d22743da2278a0c2355ec912fa6a72:5918927": {
+      "story_key": "dcede85c55d22743da2278a0c2355ec912fa6a72:5918927",
+      "cluster_hash": "dcede85c55d22743da2278a0c2355ec912fa6a72",
+      "headline": "Meta's Superintelligence Lab unveils its first public model, Muse Spark",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775678350.0,
+      "first_seen_ts": 1775698092.558572,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Ars Technica"
+      ],
+      "url": "https://arstechnica.com/ai/2026/04/metas-superintelligence-lab-unveils-its-first-public-model-muse-spark/",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775698092.558572
+    },
+    "d21f8911ed1338ea0a672573eeb0a0695a78ed66:5918925": {
+      "story_key": "d21f8911ed1338ea0a672573eeb0a0695a78ed66:5918925",
+      "cluster_hash": "d21f8911ed1338ea0a672573eeb0a0695a78ed66",
+      "headline": "BALDWIN, Janet Elizabeth Jean (nee Constant)",
+      "tickers": [
+        "NEE"
+      ],
+      "published_ts": 1775677548.0,
+      "first_seen_ts": 1775698092.558572,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "BayToday.ca"
+      ],
+      "url": "https://www.baytoday.ca/obituaries/baldwin-janet-elizabeth-jean-nee-constant-12115995",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775698092.558572
+    },
+    "c8696256d1b4f85799721570e653340263d73eca:5918688": {
+      "story_key": "c8696256d1b4f85799721570e653340263d73eca:5918688",
+      "cluster_hash": "c8696256d1b4f85799721570e653340263d73eca",
+      "headline": "Meta's Muse Spark: The New AI Model with $14 Billion Investment to Catch Up to Rivals",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775606400.0,
+      "first_seen_ts": 1775698092.558572,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Android Headlines"
+      ],
+      "url": "https://www.androidheadlines.com/2026/04/meta-muse-spark-ai-model-launch-2026.html",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775698092.558572
+    },
+    "d8932069f6df1cc66aade474378ce3b9f5df0fb2:5918919": {
+      "story_key": "d8932069f6df1cc66aade474378ce3b9f5df0fb2:5918919",
+      "cluster_hash": "d8932069f6df1cc66aade474378ce3b9f5df0fb2",
+      "headline": "Dow Jones Top Company Headlines at 3 PM ET: Meta Announces New AI Model in Major Test of Company's Ambitions | Paramount ...",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775675700.0,
+      "first_seen_ts": 1775698092.558572,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Morningstar"
+      ],
+      "url": "https://www.morningstar.com/news/dow-jones/202604087277/dow-jones-top-company-headlines-at-3-pm-et-meta-announces-new-ai-model-in-major-test-of-companys-ambitions-paramount",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775698092.558572
+    },
+    "57199fee8147a3a35fba24393b12225afd484fd0:5918915": {
+      "story_key": "57199fee8147a3a35fba24393b12225afd484fd0:5918915",
+      "cluster_hash": "57199fee8147a3a35fba24393b12225afd484fd0",
+      "headline": "Muse Spark lifts Meta's AI push as new model takes center stage",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775674694.0,
+      "first_seen_ts": 1775698092.558572,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "El-Balad.com"
+      ],
+      "url": "https://www.el-balad.com/16906270",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775698092.558572
+    },
+    "3c50f85015ff86300f2fb92c1cf09f634f2e8ba2:5918923": {
+      "story_key": "3c50f85015ff86300f2fb92c1cf09f634f2e8ba2:5918923",
+      "cluster_hash": "3c50f85015ff86300f2fb92c1cf09f634f2e8ba2",
+      "headline": "Meta releases first-ever AI model from one of its highest-paid teams, after spending billions; calls it first step on path to personal...",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775677055.0,
+      "first_seen_ts": 1775698092.558572,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "The Times of India"
+      ],
+      "url": "https://timesofindia.indiatimes.com/technology/tech-news/meta-releases-first-ever-ai-model-from-one-of-its-highest-paid-teams-after-spending-billions-calls-it-first-step-on-path-to-personal-/articleshow/130123011.cms",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775698092.558572
+    },
+    "a4c06abe1debf67117be43a2c0e9ca8dc7dfbe6f:5918923": {
+      "story_key": "a4c06abe1debf67117be43a2c0e9ca8dc7dfbe6f:5918923",
+      "cluster_hash": "a4c06abe1debf67117be43a2c0e9ca8dc7dfbe6f",
+      "headline": "OpenAI Shutters Sora: A Win for Meta Platforms Amid a Rocky Stretch | Investing.com",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775677146.0,
+      "first_seen_ts": 1775698092.558572,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Investing.com"
+      ],
+      "url": "https://www.investing.com/analysis/openai-shutters-sora-a-win-for-meta-platforms-amid-a-rocky-stretch-200678083",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775698092.558572
+    },
+    "4c34ddb1f8ca095450c45a4630f3513cbf4b0e0e:5918916": {
+      "story_key": "4c34ddb1f8ca095450c45a4630f3513cbf4b0e0e:5918916",
+      "cluster_hash": "4c34ddb1f8ca095450c45a4630f3513cbf4b0e0e",
+      "headline": "Banks Selling $3 Billion Debt for Meta's Prometheus Data Center",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775675075.0,
+      "first_seen_ts": 1775698092.558572,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Bloomberg Business"
+      ],
+      "url": "https://www.bloomberg.com/news/articles/2026-04-08/natixis-mufg-others-market-meta-s-3b-data-center-build",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775698092.558572
+    },
+    "4fa528dd1c5ab14e9b01184a5ad792eba13fa470:5918923": {
+      "story_key": "4fa528dd1c5ab14e9b01184a5ad792eba13fa470:5918923",
+      "cluster_hash": "4fa528dd1c5ab14e9b01184a5ad792eba13fa470",
+      "headline": "Meta's Muse Spark aims to put \"personal superintelligence\" in your browser",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775676904.0,
+      "first_seen_ts": 1775698092.558572,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "crypto.news"
+      ],
+      "url": "https://crypto.news/metas-muse-spark-aims-to-put-personal-superintelligence-in-your-browser/",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775698092.558572
+    },
+    "0dc29bbe4ad9c752137f543acd9545db36b8b138:5918922": {
+      "story_key": "0dc29bbe4ad9c752137f543acd9545db36b8b138:5918922",
+      "cluster_hash": "0dc29bbe4ad9c752137f543acd9545db36b8b138",
+      "headline": "Meta Debuts The Muse Spark Model In A 'ground-up Overhaul' Of Its Ai",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775676855.0,
+      "first_seen_ts": 1775698092.558572,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Beritaja"
+      ],
+      "url": "https://beritaja.com/meta-debuts-the-muse-spark-model-in-a-ground-up-overhaul-of-its-ai-beritaja-413830.html",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775698092.558572
+    },
+    "c04afc45a277b1763a27813af41446c5007bea25:5918922": {
+      "story_key": "c04afc45a277b1763a27813af41446c5007bea25:5918922",
+      "cluster_hash": "c04afc45a277b1763a27813af41446c5007bea25",
+      "headline": "Meta Enters AI Race with New Muse Spark Model | Technology",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775676761.0,
+      "first_seen_ts": 1775698092.558572,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Devdiscourse"
+      ],
+      "url": "https://www.devdiscourse.com/article/technology/3867217-meta-enters-ai-race-with-new-muse-spark-model",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775698092.558572
+    },
+    "59b7109f0eee615f54ce7d41cef9a858166b922a:5918921": {
+      "story_key": "59b7109f0eee615f54ce7d41cef9a858166b922a:5918921",
+      "cluster_hash": "59b7109f0eee615f54ce7d41cef9a858166b922a",
+      "headline": "META Stock Forecast: Rises 8% After Launching Muse Spark AI Model",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775676402.0,
+      "first_seen_ts": 1775698092.558572,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Coinpaper"
+      ],
+      "url": "https://coinpaper.com/16098/meta-stock-forecast-rises-8-after-launching-muse-spark-ai-model",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775698092.558572
+    },
+    "7a6639b696e95bee731c54cdedba4771b7cfe058:5918918": {
+      "story_key": "7a6639b696e95bee731c54cdedba4771b7cfe058:5918918",
+      "cluster_hash": "7a6639b696e95bee731c54cdedba4771b7cfe058",
+      "headline": "What Is Muse Spark? Meta's New AI Model Explained",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775675599.0,
+      "first_seen_ts": 1775698092.558572,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "TimesNow"
+      ],
+      "url": "https://www.timesnownews.com/technology-science/what-is-muse-spark-metas-new-ai-model-explained-article-154030415",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775698092.558572
+    },
+    "f354d0bcfdeeb4d3fb34e15ef2f949c0e5f5bc05:5918915": {
+      "story_key": "f354d0bcfdeeb4d3fb34e15ef2f949c0e5f5bc05:5918915",
+      "cluster_hash": "f354d0bcfdeeb4d3fb34e15ef2f949c0e5f5bc05",
+      "headline": "Analysts See Massive Upside in Microsoft: Time to Buy MSFT Stock?",
+      "tickers": [
+        "MSFT"
+      ],
+      "published_ts": 1775674679.0,
+      "first_seen_ts": 1775698092.558572,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Barchart.com"
+      ],
+      "url": "https://www.barchart.com/story/news/1204728/analysts-see-massive-upside-in-microsoft-time-to-buy-msft-stock",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775698092.558572
+    },
+    "c5e9b23f25dc5cadfcbb2c9e6b040693f89d2784:5918914": {
+      "story_key": "c5e9b23f25dc5cadfcbb2c9e6b040693f89d2784:5918914",
+      "cluster_hash": "c5e9b23f25dc5cadfcbb2c9e6b040693f89d2784",
+      "headline": "Meta Kills the Llama: Inside the Company's Audacious Bet on Muse and Spark AI",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775674282.0,
+      "first_seen_ts": 1775698092.558572,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "WebProNews"
+      ],
+      "url": "https://www.webpronews.com/meta-kills-the-llama-inside-the-companys-audacious-bet-on-muse-and-spark-ai/",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775698092.558572
+    },
+    "7d8659c8e222e9d4a10014ac0bbde5f162190f77:5918914": {
+      "story_key": "7d8659c8e222e9d4a10014ac0bbde5f162190f77:5918914",
+      "cluster_hash": "7d8659c8e222e9d4a10014ac0bbde5f162190f77",
+      "headline": "Meta's New AI Model Gives Mark Zuckerberg a Seat at the Big Kid's Table",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775674269.0,
+      "first_seen_ts": 1775698092.558572,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Wired"
+      ],
+      "url": "https://www.wired.com/story/muse-spark-meta-open-source-closed-source/",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775698092.558572
+    },
+    "b1d06860a40c883796af577c707e2ca8abc6ccc3:5918914": {
+      "story_key": "b1d06860a40c883796af577c707e2ca8abc6ccc3:5918914",
+      "cluster_hash": "b1d06860a40c883796af577c707e2ca8abc6ccc3",
+      "headline": "Meta debuts the Muse Spark model in a 'ground-up overhaul' of its AI | TechCrunch",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775674399.0,
+      "first_seen_ts": 1775698092.558572,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "TechCrunch"
+      ],
+      "url": "https://techcrunch.com/2026/04/08/meta-debuts-the-muse-spark-model-in-a-ground-up-overhaul-of-its-ai/",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775698092.558572
+    },
+    "8bf8efe1549b0c636a3dea6cd32216ee84141c08:5918914": {
+      "story_key": "8bf8efe1549b0c636a3dea6cd32216ee84141c08:5918914",
+      "cluster_hash": "8bf8efe1549b0c636a3dea6cd32216ee84141c08",
+      "headline": "Meta Sets the Table with Table Stakes AI",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775674360.0,
+      "first_seen_ts": 1775698092.558572,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Spyglass"
+      ],
+      "url": "https://spyglass.org/meta-muse-spark-ai/",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775698092.558572
+    },
+    "eff52485c3c98e910b4e87d467ef611ca0d15f32:5918914": {
+      "story_key": "eff52485c3c98e910b4e87d467ef611ca0d15f32:5918914",
+      "cluster_hash": "eff52485c3c98e910b4e87d467ef611ca0d15f32",
+      "headline": "Meta's Muse Spark is its first frontier model and its first without open weights",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775674359.0,
+      "first_seen_ts": 1775698092.558572,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "THE DECODER"
+      ],
+      "url": "https://the-decoder.com/metas-muse-spark-is-its-first-frontier-model-and-its-first-without-open-weights/",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775698092.558572
+    },
+    "2668969199f6993c267653d088afb40ada9cdf27:5918914": {
+      "story_key": "2668969199f6993c267653d088afb40ada9cdf27:5918914",
+      "cluster_hash": "2668969199f6993c267653d088afb40ada9cdf27",
+      "headline": "Meta unveils Muse Spark, first model from Zuckerberg's superintelligence team",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775674359.0,
+      "first_seen_ts": 1775698092.558572,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Capital Brief"
+      ],
+      "url": "https://www.capitalbrief.com/briefing/meta-unveils-muse-spark-first-model-from-zuckerbergs-superintelligence-team-3e945e37-dd4e-491c-85fc-cc114dc2246b/",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775698092.558572
+    },
+    "38b912ac546d37fb1830ae68d0e9815dc3099b43:5918914": {
+      "story_key": "38b912ac546d37fb1830ae68d0e9815dc3099b43:5918914",
+      "cluster_hash": "38b912ac546d37fb1830ae68d0e9815dc3099b43",
+      "headline": "Goodbye, Llama? Meta launches new proprietary AI model Muse Spark  --  first since Superintelligence Labs' formation",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775674360.0,
+      "first_seen_ts": 1775698092.558572,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "VentureBeat"
+      ],
+      "url": "https://venturebeat.com/technology/goodbye-llama-meta-launches-new-proprietary-ai-model-muse-spark-first-since",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775698092.558572
+    },
+    "bd12ad92b88d3d37be206b7254bfb43ef7a89cc4:5918910": {
+      "story_key": "bd12ad92b88d3d37be206b7254bfb43ef7a89cc4:5918910",
+      "cluster_hash": "bd12ad92b88d3d37be206b7254bfb43ef7a89cc4",
+      "headline": "Meta Rejoins AI Race with Innovative Muse Spark Model",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775673243.0,
+      "first_seen_ts": 1775698092.558572,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "El-Balad.com"
+      ],
+      "url": "https://www.el-balad.com/16906252",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775698092.558572
+    },
+    "466e2cfd908551073418736b6fedc2c9e19a6e84:5918913": {
+      "story_key": "466e2cfd908551073418736b6fedc2c9e19a6e84:5918913",
+      "cluster_hash": "466e2cfd908551073418736b6fedc2c9e19a6e84",
+      "headline": "Meta unveils first AI model from costly superintelligence team",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775674080.0,
+      "first_seen_ts": 1775698092.558572,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "GEO TV"
+      ],
+      "url": "https://www.geo.tv/latest/659143-meta-unveils-first-ai-model-from-costly-superintelligence-team",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775698092.558572
+    },
+    "83280b061535e15ad0f0266d796c4386957d23e6:5918912": {
+      "story_key": "83280b061535e15ad0f0266d796c4386957d23e6:5918912",
+      "cluster_hash": "83280b061535e15ad0f0266d796c4386957d23e6",
+      "headline": "Meta unveils a new AI model that it hopes will justify its massive spending plans",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775673896.0,
+      "first_seen_ts": 1775698092.558572,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "CNBC"
+      ],
+      "url": "https://www.cnbc.com/2026/04/08/meta-unveils-a-new-ai-model-that-it-hopes-will-justify-its-massive-spending-plans.html",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "last_seen_ts": 1775698092.558572
+    },
+    "b6f9c3b8d2bacc95e8db21da548510a86b00fefd:5918911": {
+      "story_key": "b6f9c3b8d2bacc95e8db21da548510a86b00fefd:5918911",
+      "cluster_hash": "b6f9c3b8d2bacc95e8db21da548510a86b00fefd",
+      "headline": "Meta rolls out new AI model",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775673410.0,
+      "first_seen_ts": 1775698092.558572,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "RTE.ie"
+      ],
+      "url": "https://www.rte.ie/news/2026/0408/1567292-meta-rolls-out-new-ai-model/",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775698092.558572
+    },
+    "2bc77dbea57beeeb940b9953ef40f36fd81bae9d:5918906": {
+      "story_key": "2bc77dbea57beeeb940b9953ef40f36fd81bae9d:5918906",
+      "cluster_hash": "2bc77dbea57beeeb940b9953ef40f36fd81bae9d",
+      "headline": "See Which Recent 13F Filers Hold MSFT",
+      "tickers": [
+        "MSFT"
+      ],
+      "published_ts": 1775672046.0,
+      "first_seen_ts": 1775698092.558572,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "NASDAQ Stock Market"
+      ],
+      "url": "https://www.nasdaq.com/articles/see-which-recent-13f-filers-hold-msft",
+      "category": "insider",
+      "impact": 0.85,
+      "clarity": 0.7,
+      "relevance": 0.8425,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775698092.558572
+    },
+    "fe48dd86f9b5d6d95373c9695083cd93aa9f1c5a:5918908": {
+      "story_key": "fe48dd86f9b5d6d95373c9695083cd93aa9f1c5a:5918908",
+      "cluster_hash": "fe48dd86f9b5d6d95373c9695083cd93aa9f1c5a",
+      "headline": "Meta's First AI Model From Its Superintelligence Lab Doesn't Exactly Spark Joy",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775672591.0,
+      "first_seen_ts": 1775698092.558572,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Gizmodo"
+      ],
+      "url": "https://gizmodo.com/?p=2000744082",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775698092.558572
+    },
+    "0936ae3f489bbd5d8f6256dc09ce064217c2f448:5918688": {
+      "story_key": "0936ae3f489bbd5d8f6256dc09ce064217c2f448:5918688",
+      "cluster_hash": "0936ae3f489bbd5d8f6256dc09ce064217c2f448",
+      "headline": "Meta Shares Spike After Tech Giant Launches Muse Spark -- Its AI Bid Against OpenAI, Google",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775606400.0,
+      "first_seen_ts": 1775698092.558572,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Forbes"
+      ],
+      "url": "https://www.forbes.com/sites/antoniopequenoiv/2026/04/08/meta-shares-spike-after-tech-giant-launches-muse-spark-its-ai-bid-against-openai-google/",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775698092.558572
+    },
+    "75dfa86fb7b654711fff58b3565dc3a17157be13:5918903": {
+      "story_key": "75dfa86fb7b654711fff58b3565dc3a17157be13:5918903",
+      "cluster_hash": "75dfa86fb7b654711fff58b3565dc3a17157be13",
+      "headline": "OpenAI Shutters Sora: A Win for Meta Platforms Amid a Rocky Stretch",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775670900.0,
+      "first_seen_ts": 1775698092.558572,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Market Beat"
+      ],
+      "url": "https://www.marketbeat.com/originals/openai-shutters-sora-a-win-for-meta-platforms-amid-a-rocky-stretch/",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775698092.558572
+    },
+    "f9766929a1426a14609d9c3cc0150fd31b76557d:5918905": {
+      "story_key": "f9766929a1426a14609d9c3cc0150fd31b76557d:5918905",
+      "cluster_hash": "f9766929a1426a14609d9c3cc0150fd31b76557d",
+      "headline": "Meta launches Muse Spark AI, BofA raises 2026 chip forecast to $1.3T",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775671549.0,
+      "first_seen_ts": 1775698092.558572,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Yahoo! Finance"
+      ],
+      "url": "https://ca.finance.yahoo.com/video/meta-launches-muse-spark-ai-bofa-raises-2026-chip-forecast-to-13t-180549134.html",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "polarity": 0.5,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775698092.558572
+    },
+    "233d219f20752d77a0ad6a9cf155823bd168b7be:5918906": {
+      "story_key": "233d219f20752d77a0ad6a9cf155823bd168b7be:5918906",
+      "cluster_hash": "233d219f20752d77a0ad6a9cf155823bd168b7be",
+      "headline": "Why Meta stock is rallying after Muse Spark launch?  Here's what investors need to know about Meta's new AI model",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775671802.0,
+      "first_seen_ts": 1775698092.558572,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Economic Times"
+      ],
+      "url": "https://economictimes.indiatimes.com/news/international/us/why-meta-stock-is-rallying-after-muse-spark-launch-heres-what-investors-need-to-know-about-metas-new-ai-model/articleshow/130121365.cms",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775698092.558572
+    },
+    "25df947d9679675272ce02fa2ea16d60c1857d40:5918906": {
+      "story_key": "25df947d9679675272ce02fa2ea16d60c1857d40:5918906",
+      "cluster_hash": "25df947d9679675272ce02fa2ea16d60c1857d40",
+      "headline": "Meta releases Muse Spark model, aims to get back into LLM race",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775671849.0,
+      "first_seen_ts": 1775698092.558572,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Constellation Research Inc."
+      ],
+      "url": "https://www.constellationr.com/insights/news/meta-releases-muse-spark-model-aims-get-back-llm-race",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775698092.558572
+    },
+    "74257eda4f7bfd22117d179674d3b1322a52ab4f:5918892": {
+      "story_key": "74257eda4f7bfd22117d179674d3b1322a52ab4f:5918892",
+      "cluster_hash": "74257eda4f7bfd22117d179674d3b1322a52ab4f",
+      "headline": "Fidesz bypasses Meta's political ad ban ahead of Hungary's elections",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775667625.0,
+      "first_seen_ts": 1775698092.558572,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "WTX News"
+      ],
+      "url": "https://wtxnews.com/fidesz-bypasses-metas-political-ad-ban-ahead-of-hungarys-elections/",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775698092.558572
+    },
+    "190580c327dc7ebbf127c0f60f973eeaf3f2ff4b:5918899": {
+      "story_key": "190580c327dc7ebbf127c0f60f973eeaf3f2ff4b:5918899",
+      "cluster_hash": "190580c327dc7ebbf127c0f60f973eeaf3f2ff4b",
+      "headline": "Meta Introduces Muse Spark AI Model: How It stacks up against DeepThink and GPT-5.4 Pro",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775669832.0,
+      "first_seen_ts": 1775698092.558572,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Firstpost"
+      ],
+      "url": "https://www.firstpost.com/tech/meta-introduces-muse-spark-ai-model-how-it-stacks-up-against-deepthink-and-gpt-5-4-pro-13998166.html",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775698092.558572
+    },
+    "ea4b36a74214463e4aa30eae810c14c57565ddc6:5918902": {
+      "story_key": "ea4b36a74214463e4aa30eae810c14c57565ddc6:5918902",
+      "cluster_hash": "ea4b36a74214463e4aa30eae810c14c57565ddc6",
+      "headline": "Meta Debuts New LLM Muse Spark | PYMNTS.com",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775670791.0,
+      "first_seen_ts": 1775698092.558572,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "PYMNTS.com"
+      ],
+      "url": "https://www.pymnts.com/metaverse/2026/meta-debuts-new-llm-muse-spark/",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775698092.558572
+    },
+    "0936ae3f489bbd5d8f6256dc09ce064217c2f448:5918901": {
+      "story_key": "0936ae3f489bbd5d8f6256dc09ce064217c2f448:5918901",
+      "cluster_hash": "0936ae3f489bbd5d8f6256dc09ce064217c2f448",
+      "headline": "Meta Shares Spike After Tech Giant Launches Muse Spark -- Its AI Bid Against OpenAI, Google",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775670406.0,
+      "first_seen_ts": 1775698092.558572,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Yahoo Tech"
+      ],
+      "url": "https://tech.yahoo.com/ai/meta-ai/articles/meta-finally-launches-delayed-muse-170804489.html",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.45543478260869563,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775698092.558572
+    },
+    "625d6994237ccba423393bd6999981dbf90ca25c:5918901": {
+      "story_key": "625d6994237ccba423393bd6999981dbf90ca25c:5918901",
+      "cluster_hash": "625d6994237ccba423393bd6999981dbf90ca25c",
+      "headline": "Meta Stock Jumps After Superintelligence Lab Reveals First AI Model",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775670312.0,
+      "first_seen_ts": 1775698092.558572,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Investor's Business Daily"
+      ],
+      "url": "https://www.investors.com/news/technology/meta-stocks-muse-ai-model/",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775698092.558572
+    },
+    "9bc23213794b0fdcd9e11f00cf39e73e498fbc04:5918901": {
+      "story_key": "9bc23213794b0fdcd9e11f00cf39e73e498fbc04:5918901",
+      "cluster_hash": "9bc23213794b0fdcd9e11f00cf39e73e498fbc04",
+      "headline": "Meta Debuts Muse Spark LLM - News Directory 3",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775670372.0,
+      "first_seen_ts": 1775698092.558572,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "News Directory 3"
+      ],
+      "url": "https://www.newsdirectory3.com/meta-debuts-muse-spark-llm/",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775698092.558572
+    },
+    "bae8e5440059e8359021ae9aa9692732a0857558:5918900": {
+      "story_key": "bae8e5440059e8359021ae9aa9692732a0857558:5918900",
+      "cluster_hash": "bae8e5440059e8359021ae9aa9692732a0857558",
+      "headline": "Meta Employee Uses Custom Script to Bypass Facebook Systems - News Directory 3",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775670106.0,
+      "first_seen_ts": 1775698092.558572,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "News Directory 3"
+      ],
+      "url": "https://www.newsdirectory3.com/meta-employee-uses-custom-script-to-bypass-facebook-systems/",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775698092.558572
+    },
+    "20bee62c772179340720e26ea48dbd5783a7da73:5918688": {
+      "story_key": "20bee62c772179340720e26ea48dbd5783a7da73:5918688",
+      "cluster_hash": "20bee62c772179340720e26ea48dbd5783a7da73",
+      "headline": "Exxon Reports 6% Output Loss As Iran War Hits Qatar LNG Operations",
+      "tickers": [
+        "XOM"
+      ],
+      "published_ts": 1775606400.0,
+      "first_seen_ts": 1775698092.558572,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Event Registry"
+      ],
+      "url": "",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "polarity": -0.5,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775698092.558572
+    },
+    "897445b291b97519651cf31af31c864581854fc3:5918400": {
+      "story_key": "897445b291b97519651cf31af31c864581854fc3:5918400",
+      "cluster_hash": "897445b291b97519651cf31af31c864581854fc3",
+      "headline": "WhatsApp starts testing SIM-binding in India to meet regulatory requirements- Moneycontrol.com",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775520000.0,
+      "first_seen_ts": 1775698092.558572,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Event Registry"
+      ],
+      "url": "",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775698092.558572
+    },
+    "917e3510826ee12fd9776a84510d1d8f3f2cc674:5918400": {
+      "story_key": "917e3510826ee12fd9776a84510d1d8f3f2cc674:5918400",
+      "cluster_hash": "917e3510826ee12fd9776a84510d1d8f3f2cc674",
+      "headline": "Meta CEO Mark Zuckerberg has a 'bold ask' for his engineers: Rewrite company's code so AI can...",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775520000.0,
+      "first_seen_ts": 1775698092.558572,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Event Registry"
+      ],
+      "url": "",
+      "category": "management",
+      "impact": 0.6,
+      "clarity": 0.6,
+      "relevance": 0.7000000000000001,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775698092.558572
+    },
+    "7c66562a946813ea0203c83f4a001ca9d530ac86:5918400": {
+      "story_key": "7c66562a946813ea0203c83f4a001ca9d530ac86:5918400",
+      "cluster_hash": "7c66562a946813ea0203c83f4a001ca9d530ac86",
+      "headline": "Engineer With College Backlog Bags Uber, Microsoft, Meta Offers. Here's How",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775520000.0,
+      "first_seen_ts": 1775698092.558572,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Event Registry"
+      ],
+      "url": "",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775698092.558572
+    },
+    "b57c80fd65a081574b38caa39915599b03cccb71:5918400": {
+      "story_key": "b57c80fd65a081574b38caa39915599b03cccb71:5918400",
+      "cluster_hash": "b57c80fd65a081574b38caa39915599b03cccb71",
+      "headline": "Ex-Meta worker investigated for downloading private Facebook photos",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775520000.0,
+      "first_seen_ts": 1775698092.558572,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Event Registry"
+      ],
+      "url": "",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775698092.558572
+    },
+    "5baee6bdfece38c7ca3ab5e8dc4039a793f7ecd9:5918400": {
+      "story_key": "5baee6bdfece38c7ca3ab5e8dc4039a793f7ecd9:5918400",
+      "cluster_hash": "5baee6bdfece38c7ca3ab5e8dc4039a793f7ecd9",
+      "headline": "Argentine Banks Test JPM Coin as Central Bank Reviews Crypto Ban: Report",
+      "tickers": [
+        "JPM"
+      ],
+      "published_ts": 1775520000.0,
+      "first_seen_ts": 1775698092.558572,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Event Registry"
+      ],
+      "url": "",
+      "category": "crypto",
+      "impact": 0.75,
+      "clarity": 0.6,
+      "relevance": 0.7675000000000001,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775698092.558572
+    }
+  }
+}
