@@ -26,6 +26,7 @@ if str(REPO_ROOT) not in sys.path:
 from databento_volatility_screener import (
     DEFAULT_CLOSE_IMBALANCE_AFTERHOURS_END_ET,
     DEFAULT_CLOSE_IMBALANCE_AUCTION_TIME_ET,
+    DEFAULT_CLOSE_IMBALANCE_LAST_MINUTE_START_ET,
     DEFAULT_CLOSE_IMBALANCE_NEXT_DAY_OUTCOME_TIME_ET,
     DEFAULT_CLOSE_IMBALANCE_WINDOW_END_ET,
     DEFAULT_CLOSE_IMBALANCE_WINDOW_START_ET,
@@ -3287,6 +3288,24 @@ def run_production_export_pipeline(
         raise RuntimeError("No ranked results were returned for the production export run")
 
     ranked_scope = ranked[["trade_date", "symbol"]].drop_duplicates(subset=["trade_date", "symbol"]).reset_index(drop=True)
+    empty_quality_window_source_metadata = {
+        "base_dataset": str(dataset).strip().upper(),
+        "early_exchange_datasets": _normalize_quality_window_exchange_dataset_map(quality_window_early_exchange_datasets or QUALITY_OPEN_DRIVE_EARLY_EXCHANGE_DATASETS),
+        "applied_early_exchange_datasets": {},
+        "early_exchange_symbol_counts": {},
+        "quality_window_detail_rows": 0,
+        "premarket_detail_rows": 0,
+    }
+    close_trade_window_start = (
+        DEFAULT_CLOSE_IMBALANCE_LAST_MINUTE_START_ET
+        if smc_base_only
+        else DEFAULT_CLOSE_IMBALANCE_WINDOW_START_ET
+    )
+    close_trade_window_end = (
+        DEFAULT_CLOSE_IMBALANCE_AUCTION_TIME_ET
+        if smc_base_only
+        else DEFAULT_CLOSE_IMBALANCE_WINDOW_END_ET
+    )
 
     if second_detail_scope == "none":
         full_universe_second_detail_raw = pd.DataFrame()
@@ -3295,14 +3314,7 @@ def run_production_export_pipeline(
         full_universe_close_outcome_minute_raw = pd.DataFrame()
         quality_window_second_detail = pd.DataFrame()
         premarket_source_detail = pd.DataFrame()
-        quality_window_source_metadata = {
-            "base_dataset": str(dataset).strip().upper(),
-            "early_exchange_datasets": _normalize_quality_window_exchange_dataset_map(quality_window_early_exchange_datasets or QUALITY_OPEN_DRIVE_EARLY_EXCHANGE_DATASETS),
-            "applied_early_exchange_datasets": {},
-            "early_exchange_symbol_counts": {},
-            "quality_window_detail_rows": 0,
-            "premarket_detail_rows": 0,
-        }
+        quality_window_source_metadata = empty_quality_window_source_metadata
     else:
         if smc_base_only:
             _progress(
@@ -3361,6 +3373,8 @@ def run_production_export_pipeline(
             universe_symbols=universe_symbols,
             symbol_day_scope=ranked_scope if second_detail_scope == "ranked_only" else None,
             display_timezone=display_timezone,
+            window_start=close_trade_window_start,
+            window_end=close_trade_window_end,
             cache_dir=resolved_cache_dir,
             use_file_cache=use_file_cache,
             force_refresh=force_refresh,
@@ -3369,44 +3383,52 @@ def run_production_export_pipeline(
             f"Step 8/10c complete: Close-trade detail collected in {time_module.perf_counter() - close_trade_started_at:.1f}s "
             f"(rows={len(full_universe_close_trade_detail_raw)})"
         )
-        close_outcome_started_at = time_module.perf_counter()
-        full_universe_close_outcome_minute_raw = collect_full_universe_close_outcome_minute_detail(
-            databento_api_key,
-            dataset=dataset,
-            trading_days=trading_days,
-            universe_symbols=universe_symbols,
-            symbol_day_scope=ranked_scope if second_detail_scope == "ranked_only" else None,
-            display_timezone=display_timezone,
-            cache_dir=resolved_cache_dir,
-            use_file_cache=use_file_cache,
-            force_refresh=force_refresh,
-        )
-        _progress(
-            f"Step 8/10d complete: Close-outcome minute detail collected in {time_module.perf_counter() - close_outcome_started_at:.1f}s "
-            f"(rows={len(full_universe_close_outcome_minute_raw)})"
-        )
-        quality_source_started_at = time_module.perf_counter()
-        quality_window_second_detail, premarket_source_detail, quality_window_source_metadata = _collect_quality_window_source_frames(
-            databento_api_key=databento_api_key,
-            base_dataset=dataset,
-            trading_days=trading_days,
-            raw_universe=raw_universe,
-            supported_universe=supported_universe,
-            daily_bars=daily_bars,
-            symbol_day_scope=ranked_scope if second_detail_scope == "ranked_only" else None,
-            display_timezone=display_timezone,
-            window_start=window_start,
-            window_end=window_end,
-            premarket_anchor_et=premarket_anchor_et,
-            cache_dir=resolved_cache_dir,
-            use_file_cache=use_file_cache,
-            force_refresh=force_refresh,
-            early_exchange_datasets=quality_window_early_exchange_datasets or QUALITY_OPEN_DRIVE_EARLY_EXCHANGE_DATASETS,
-        )
-        _progress(
-            f"Step 8/10e complete: Quality-window source detail collected in {time_module.perf_counter() - quality_source_started_at:.1f}s "
-            f"(quality_rows={len(quality_window_second_detail)}, premarket_rows={len(premarket_source_detail)})"
-        )
+        if smc_base_only:
+            _progress("Step 8/10d: Skipping close-outcome minute detail in SMC base-only mode...")
+            full_universe_close_outcome_minute_raw = pd.DataFrame()
+            _progress("Step 8/10e: Skipping quality-window source detail in SMC base-only mode...")
+            quality_window_second_detail = pd.DataFrame()
+            premarket_source_detail = pd.DataFrame()
+            quality_window_source_metadata = empty_quality_window_source_metadata
+        else:
+            close_outcome_started_at = time_module.perf_counter()
+            full_universe_close_outcome_minute_raw = collect_full_universe_close_outcome_minute_detail(
+                databento_api_key,
+                dataset=dataset,
+                trading_days=trading_days,
+                universe_symbols=universe_symbols,
+                symbol_day_scope=ranked_scope if second_detail_scope == "ranked_only" else None,
+                display_timezone=display_timezone,
+                cache_dir=resolved_cache_dir,
+                use_file_cache=use_file_cache,
+                force_refresh=force_refresh,
+            )
+            _progress(
+                f"Step 8/10d complete: Close-outcome minute detail collected in {time_module.perf_counter() - close_outcome_started_at:.1f}s "
+                f"(rows={len(full_universe_close_outcome_minute_raw)})"
+            )
+            quality_source_started_at = time_module.perf_counter()
+            quality_window_second_detail, premarket_source_detail, quality_window_source_metadata = _collect_quality_window_source_frames(
+                databento_api_key=databento_api_key,
+                base_dataset=dataset,
+                trading_days=trading_days,
+                raw_universe=raw_universe,
+                supported_universe=supported_universe,
+                daily_bars=daily_bars,
+                symbol_day_scope=ranked_scope if second_detail_scope == "ranked_only" else None,
+                display_timezone=display_timezone,
+                window_start=window_start,
+                window_end=window_end,
+                premarket_anchor_et=premarket_anchor_et,
+                cache_dir=resolved_cache_dir,
+                use_file_cache=use_file_cache,
+                force_refresh=force_refresh,
+                early_exchange_datasets=quality_window_early_exchange_datasets or QUALITY_OPEN_DRIVE_EARLY_EXCHANGE_DATASETS,
+            )
+            _progress(
+                f"Step 8/10e complete: Quality-window source detail collected in {time_module.perf_counter() - quality_source_started_at:.1f}s "
+                f"(quality_rows={len(quality_window_second_detail)}, premarket_rows={len(premarket_source_detail)})"
+            )
     _progress("Step 9/10: Building features and exports...")
     feature_build_started_at = time_module.perf_counter()
     daily_symbol_features_full_universe, symbol_day_diagnostics = _build_daily_symbol_features_full_universe_export(
@@ -3689,7 +3711,7 @@ def run_production_export_pipeline(
         "close_last_1m_volume_share_formula": "close_last_1m_volume / close_10m_volume",
         "close_postclose_volume_share_formula": "close_postclose_5m_volume / (close_10m_volume + close_postclose_5m_volume)",
         "full_universe_close_detail_window": f"[{DEFAULT_CLOSE_IMBALANCE_WINDOW_START_ET.strftime('%H:%M:%S')}, {DEFAULT_CLOSE_IMBALANCE_WINDOW_END_ET.strftime('%H:%M:%S')}) ET",
-        "full_universe_close_trade_detail_window": f"[{DEFAULT_CLOSE_IMBALANCE_WINDOW_START_ET.strftime('%H:%M:%S')}, {DEFAULT_CLOSE_IMBALANCE_WINDOW_END_ET.strftime('%H:%M:%S')}) ET trades schema",
+        "full_universe_close_trade_detail_window": f"[{close_trade_window_start.strftime('%H:%M:%S')}, {close_trade_window_end.strftime('%H:%M:%S')}) ET trades schema",
         "full_universe_close_outcome_window": f"[{DEFAULT_CLOSE_IMBALANCE_AUCTION_TIME_ET.strftime('%H:%M:%S')}, {DEFAULT_CLOSE_IMBALANCE_AFTERHOURS_END_ET.strftime('%H:%M:%S')}) ET ohlcv-1m",
         "close_trade_hygiene_rule": "clean prints exclude rows with F_BAD_TS_RECV or F_MAYBE_BAD_BOOK and require positive size and price",
         "close_trade_venue_rule": "publisher descriptions containing 'TRF' are classified as off_exchange_trf; all other mapped publishers are treated as lit_exchange",

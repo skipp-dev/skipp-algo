@@ -109,6 +109,7 @@ _DEFAULT_OPEN_WINDOW_POST_OPEN_SECONDS = 5 * 60 + 59  # 5:59 after open
 DEFAULT_CLOSE_IMBALANCE_WINDOW_START_ET = time(15, 50)
 DEFAULT_CLOSE_IMBALANCE_AUCTION_TIME_ET = time(16, 0)
 DEFAULT_CLOSE_IMBALANCE_WINDOW_END_ET = time(16, 5)
+DEFAULT_CLOSE_IMBALANCE_LAST_MINUTE_START_ET = time(15, 59)
 DEFAULT_CLOSE_IMBALANCE_AFTERHOURS_END_ET = time(20, 0)
 DEFAULT_CLOSE_IMBALANCE_NEXT_DAY_OUTCOME_TIME_ET = time(10, 0)
 _DATABENTO_FLAG_BAD_TS_RECV = 1 << 3
@@ -2435,6 +2436,8 @@ def collect_full_universe_close_trade_detail(
     universe_symbols: set[str],
     symbol_day_scope: pd.DataFrame | None = None,
     display_timezone: str = DEFAULT_DISPLAY_TZ,
+    window_start: time = DEFAULT_CLOSE_IMBALANCE_WINDOW_START_ET,
+    window_end: time = DEFAULT_CLOSE_IMBALANCE_WINDOW_END_ET,
     cache_dir: str | Path | None = None,
     use_file_cache: bool = False,
     force_refresh: bool = False,
@@ -2460,21 +2463,28 @@ def collect_full_universe_close_trade_detail(
     all_rows: list[pd.DataFrame] = []
     runtime_unsupported_symbols: set[str] = set()
     latest_trade_day = max(trading_days) if trading_days else None
+    uses_default_window = (
+        window_start == DEFAULT_CLOSE_IMBALANCE_WINDOW_START_ET
+        and window_end == DEFAULT_CLOSE_IMBALANCE_WINDOW_END_ET
+    )
     for trade_day in trading_days:
         day_universe_symbols = scope_by_day.get(trade_day, set(universe_symbols)) if scope_by_day else set(universe_symbols)
         if not day_universe_symbols:
             continue
-        local_start = datetime.combine(trade_day, DEFAULT_CLOSE_IMBALANCE_WINDOW_START_ET, tzinfo=US_EASTERN_TZ).astimezone(display_tz)
-        local_end = datetime.combine(trade_day, DEFAULT_CLOSE_IMBALANCE_WINDOW_END_ET, tzinfo=US_EASTERN_TZ).astimezone(display_tz)
+        local_start = datetime.combine(trade_day, window_start, tzinfo=US_EASTERN_TZ).astimezone(display_tz)
+        local_end = datetime.combine(trade_day, window_end, tzinfo=US_EASTERN_TZ).astimezone(display_tz)
         fetch_start_utc = pd.Timestamp(local_start.astimezone(UTC))
         fetch_end_utc = _clamp_request_end(pd.Timestamp(local_end.astimezone(UTC)), available_end)
         if fetch_end_utc <= fetch_start_utc:
             continue
+        cache_parts = [trade_day.isoformat(), display_timezone, symbol_scope]
+        if not uses_default_window:
+            cache_parts.extend([window_start.strftime("%H%M%S"), window_end.strftime("%H%M%S")])
         cache_path = build_cache_path(
             cache_dir,
             "full_universe_close_trade_detail",
             dataset=dataset,
-            parts=[trade_day.isoformat(), display_timezone, symbol_scope],
+            parts=cache_parts,
         )
         day_frame: pd.DataFrame | None = None
         if use_file_cache and not force_refresh:

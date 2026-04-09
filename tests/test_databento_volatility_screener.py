@@ -4460,6 +4460,39 @@ def test_close_trade_detail_uses_incremental_cache_policy(monkeypatch, tmp_path)
     assert observed_ttls == [None, DATA_CACHE_TTL_SECONDS, 0]
 
 
+def test_close_trade_detail_custom_window_uses_distinct_cache_path(monkeypatch, tmp_path) -> None:
+    observed_paths: list[Path] = []
+
+    class _FakeClient:
+        class metadata:
+            @staticmethod
+            def get_dataset_range(dataset):
+                return {"start": "2026-01-01", "end": "2026-03-06", "schema": {"trades": {"end": "2026-03-06T00:00:00Z"}}}
+
+    def fake_read_cached_frame(path: Path, *, max_age_seconds: int | None = None):
+        observed_paths.append(path)
+        return pd.DataFrame()
+
+    monkeypatch.setattr("databento_volatility_screener._make_databento_client", lambda key: _FakeClient())
+    monkeypatch.setattr("databento_volatility_screener._load_databento_publisher_lookup", lambda client: {})
+    monkeypatch.setattr("databento_volatility_screener._read_cached_frame", fake_read_cached_frame)
+
+    result = collect_full_universe_close_trade_detail(
+        "test-key",
+        dataset="DBEQ.BASIC",
+        trading_days=[date(2026, 3, 5)],
+        universe_symbols={"AAPL"},
+        window_start=time(15, 59),
+        window_end=time(16, 0),
+        cache_dir=tmp_path,
+        use_file_cache=True,
+    )
+
+    assert result.empty
+    assert len(observed_paths) == 1
+    assert "__155900__160000__" in observed_paths[0].name
+
+
 def test_load_daily_bars_survives_batch_api_error(monkeypatch) -> None:
     """load_daily_bars logs and continues when a batch fails."""
     class _FakeTimeseries:
@@ -5007,6 +5040,65 @@ def test_run_production_export_pipeline_estimates_costs_only_when_explicitly_ena
 
     assert cost_called["value"] is True
     assert any("Estimating costs" in message for message in progress_messages)
+
+
+def test_run_production_export_pipeline_smc_base_only_trims_close_detail_scope(monkeypatch, tmp_path) -> None:
+    from scripts import databento_production_export as mod
+
+    observed: dict[str, Any] = {}
+    trade_day = date(2026, 3, 5)
+
+    monkeypatch.setenv("DATABENTO_UNLIMITED", "true")
+    monkeypatch.setattr(mod, "list_recent_trading_days", lambda *args, **kwargs: [trade_day])
+    monkeypatch.setattr(
+        mod,
+        "fetch_us_equity_universe_with_metadata",
+        lambda *args, **kwargs: (pd.DataFrame({"symbol": ["AAPL"]}), {}),
+    )
+    monkeypatch.setattr(mod, "_enrich_universe_with_fundamentals", lambda universe, reference: universe)
+    monkeypatch.setattr(
+        mod,
+        "filter_supported_universe_for_databento",
+        lambda *args, **kwargs: (pd.DataFrame({"symbol": ["AAPL"]}), []),
+    )
+    monkeypatch.setattr(mod, "load_daily_bars", lambda *args, **kwargs: pd.DataFrame({"trade_date": [trade_day], "symbol": ["AAPL"]}))
+    monkeypatch.setattr(mod, "run_intraday_screen", lambda *args, **kwargs: pd.DataFrame({"trade_date": [trade_day], "symbol": ["AAPL"]}))
+    monkeypatch.setattr(mod, "rank_top_fraction_per_day", lambda *args, **kwargs: pd.DataFrame({"trade_date": [trade_day], "symbol": ["AAPL"]}))
+    monkeypatch.setattr(mod, "collect_full_universe_open_window_second_detail", lambda *args, **kwargs: pd.DataFrame())
+    monkeypatch.setattr(mod, "_collect_fixed_et_second_detail", lambda *args, **kwargs: pd.DataFrame())
+
+    def fake_collect_close_trade(*args, **kwargs):
+        observed["close_trade_window"] = (kwargs.get("window_start"), kwargs.get("window_end"))
+        return pd.DataFrame()
+
+    monkeypatch.setattr(mod, "collect_full_universe_close_trade_detail", fake_collect_close_trade)
+    monkeypatch.setattr(
+        mod,
+        "collect_full_universe_close_outcome_minute_detail",
+        lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("close-outcome detail should be skipped in smc_base_only mode")),
+    )
+    monkeypatch.setattr(
+        mod,
+        "_collect_quality_window_source_frames",
+        lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("quality-window source detail should be skipped in smc_base_only mode")),
+    )
+    monkeypatch.setattr(
+        mod,
+        "_build_daily_symbol_features_full_universe_export",
+        lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("stop after base-only detail collection")),
+    )
+
+    with pytest.raises(RuntimeError, match="stop after base-only detail collection"):
+        run_production_export_pipeline(
+            databento_api_key="test-key",
+            fmp_api_key="",
+            dataset="DBEQ.BASIC",
+            cache_dir=tmp_path,
+            export_dir=tmp_path,
+            smc_base_only=True,
+        )
+
+    assert observed["close_trade_window"] == (time(15, 59), time(16, 0))
 
 
 def test_deduplicate_daily_symbol_rows_noop_without_duplicates() -> None:
