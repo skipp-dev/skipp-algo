@@ -6,6 +6,13 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Changed (2026-04-09)
+
+- **SMC / Databento / NewsAPI.ai stabilization wave:**
+  - Added a Databento reference alias-cache and identifier-change risk layer across the SMC generator, Open Prep, terminal Databento helpers, and the v5 event-risk builder so recent corporate-action ticker changes are no longer invisible to enrichment and ranking.
+  - Added NewsAPI.ai Event Registry feed-cursor persistence, provider-status export, and probe tooling so live/news fallback paths can resume incrementally and expose clearer diagnostics when the feed is reachable but has no new symbol-matching items.
+  - Added deterministic live-news regression coverage plus verified review/runbook documentation for the recent SMC hardening work; see `docs/smc-databento-change-note-2026-04-09.md` for the compact technical summary of the published mainline range.
+
 ### Fixed (2026-04-08)
 
 - **SMC deeper integration and micro-library hardening:**
