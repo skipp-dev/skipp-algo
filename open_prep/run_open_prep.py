@@ -159,6 +159,7 @@ NEWS_RECENCY_FAR_MIN = 60.0
 PENALTY_SPLIT = 1.25
 PENALTY_DIVIDEND = 0.35
 PENALTY_IPO = 0.85
+PENALTY_IDENTIFIER_CHANGE = 0.45
 
 
 @dataclass(frozen=True)
@@ -923,10 +924,37 @@ def _fetch_corporate_action_flags(
             "split_today": False,
             "dividend_today": False,
             "ipo_window": False,
+            "identifier_change_window": False,
+            "identifier_change_event_types": "",
+            "identifier_change_effective_date": None,
+            "identifier_change_aliases": "",
             "corporate_action_penalty": 0.0,
         }
         for sym in symbols
     }
+
+    reference_by_symbol: dict[str, dict[str, Any]] = {}
+    try:
+        from databento_reference import (
+            get_reference_event_risk_snapshot,
+            maybe_refresh_symbol_reference_cache,
+        )
+
+        maybe_refresh_symbol_reference_cache(symbols)
+        reference_snapshot = get_reference_event_risk_snapshot(
+            symbols,
+            as_of=today,
+            lookback_days=window_days,
+        )
+        raw_reference_by_symbol = reference_snapshot.get("by_symbol")
+        if isinstance(raw_reference_by_symbol, dict):
+            reference_by_symbol = {
+                str(symbol).strip().upper(): details
+                for symbol, details in raw_reference_by_symbol.items()
+                if isinstance(details, dict)
+            }
+    except Exception as exc:
+        logger.debug("Databento reference change lookup skipped: %s", exc)
 
     splits = client.get_splits_calendar(start, end)
     split_symbols_today: set[str] = set()
@@ -955,6 +983,11 @@ def _fetch_corporate_action_flags(
         split_today = sym in split_symbols_today
         dividend_today = sym in dividend_symbols_today
         ipo_window = sym in ipo_window_symbols
+        reference_detail = reference_by_symbol.get(sym, {})
+        identifier_change_window = bool(reference_detail)
+        identifier_change_event_types = ",".join(reference_detail.get("event_types") or [])
+        identifier_change_aliases = ",".join(reference_detail.get("aliases") or [])
+        identifier_change_effective_date = reference_detail.get("latest_effective_date") or None
         penalty = 0.0
         if split_today:
             penalty += PENALTY_SPLIT
@@ -962,10 +995,16 @@ def _fetch_corporate_action_flags(
             penalty += PENALTY_DIVIDEND
         if ipo_window:
             penalty += PENALTY_IPO
+        if identifier_change_window:
+            penalty += PENALTY_IDENTIFIER_CHANGE
         out[sym] = {
             "split_today": split_today,
             "dividend_today": dividend_today,
             "ipo_window": ipo_window,
+            "identifier_change_window": identifier_change_window,
+            "identifier_change_event_types": identifier_change_event_types,
+            "identifier_change_effective_date": identifier_change_effective_date,
+            "identifier_change_aliases": identifier_change_aliases,
             "corporate_action_penalty": round(penalty, 4),
         }
 
@@ -2162,6 +2201,10 @@ def _fetch_premarket_context(
             premarket[sym].setdefault("split_today", False)
             premarket[sym].setdefault("dividend_today", False)
             premarket[sym].setdefault("ipo_window", False)
+            premarket[sym].setdefault("identifier_change_window", False)
+            premarket[sym].setdefault("identifier_change_event_types", "")
+            premarket[sym].setdefault("identifier_change_effective_date", None)
+            premarket[sym].setdefault("identifier_change_aliases", "")
             premarket[sym].setdefault("corporate_action_penalty", 0.0)
 
     # --- Analyst catalyst ---
@@ -4526,6 +4569,10 @@ def generate_open_prep_result(
             q["split_today"] = pm.get("split_today", False)
             q["dividend_today"] = pm.get("dividend_today", False)
             q["ipo_window"] = pm.get("ipo_window", False)
+            q["identifier_change_window"] = pm.get("identifier_change_window", False)
+            q["identifier_change_event_types"] = pm.get("identifier_change_event_types", "")
+            q["identifier_change_effective_date"] = pm.get("identifier_change_effective_date")
+            q["identifier_change_aliases"] = pm.get("identifier_change_aliases", "")
             q["corporate_action_penalty"] = pm.get("corporate_action_penalty", 0.0)
             q["analyst_catalyst_score"] = pm.get("analyst_catalyst_score", 0.0)
             q["days_since_last_earnings"] = pm.get("days_since_last_earnings")

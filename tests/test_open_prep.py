@@ -110,6 +110,49 @@ class TestOpenPrep(unittest.TestCase):
         self.assertTrue(status["quote_telemetry"]["partial_quote_fetch"])
         self.assertEqual(status["quote_telemetry"]["failed_quote_symbol_count"], 1)
 
+    @patch("databento_reference.get_reference_event_risk_snapshot")
+    @patch("databento_reference.maybe_refresh_symbol_reference_cache")
+    def test_corporate_action_flags_include_reference_identifier_change(
+        self,
+        mock_refresh_reference,
+        mock_reference_snapshot,
+    ):
+        class _Client:
+            def get_splits_calendar(self, *_args, **_kwargs):
+                return []
+
+            def get_dividends_calendar(self, *_args, **_kwargs):
+                return []
+
+            def get_ipos_calendar(self, *_args, **_kwargs):
+                return []
+
+        mock_reference_snapshot.return_value = {
+            "provider_status": "ok",
+            "reference_change_tickers": ["META"],
+            "by_symbol": {
+                "META": {
+                    "event_types": ["LCC"],
+                    "latest_effective_date": "2026-04-08",
+                    "aliases": ["FB"],
+                }
+            },
+        }
+
+        result = run_open_prep._fetch_corporate_action_flags(
+            client=_Client(),
+            symbols=["META"],
+            today=date(2026, 4, 8),
+            window_days=3,
+        )
+
+        assert result["META"]["identifier_change_window"] is True
+        assert result["META"]["identifier_change_event_types"] == "LCC"
+        assert result["META"]["identifier_change_effective_date"] == "2026-04-08"
+        assert result["META"]["identifier_change_aliases"] == "FB"
+        assert result["META"]["corporate_action_penalty"] == run_open_prep.PENALTY_IDENTIFIER_CHANGE
+        mock_refresh_reference.assert_called_once()
+
     def test_filter_events_by_cutoff_utc_keeps_only_earlier_times(self):
         events = [
             {"date": "2026-02-20 13:30:00", "event": "GDP"},
@@ -3687,6 +3730,33 @@ class TestSR6_PremarketFreshnessSecMerged(unittest.TestCase):
             re.search(pattern, source),
             "premarket_freshness_sec must be assigned to quote dict (q[...])",
         )
+
+
+class TestSR6_IdentifierChangeFieldsMerged(unittest.TestCase):
+    """SR6-2b: identifier-change metadata must survive the premarket merge
+    so downstream ranking and exports can inspect Databento reference events."""
+
+    def test_merge_block_contains_identifier_change_fields(self):
+        import inspect
+        import re
+
+        source = inspect.getsource(run_open_prep.generate_open_prep_result)
+        for field in (
+            "identifier_change_window",
+            "identifier_change_event_types",
+            "identifier_change_effective_date",
+            "identifier_change_aliases",
+        ):
+            self.assertIn(
+                field,
+                source,
+                f"Merge block must copy {field} into quotes",
+            )
+            pattern = rf'q\["{field}"\]\s*='
+            self.assertTrue(
+                re.search(pattern, source),
+                f"{field} must be assigned to quote dict (q[...])",
+            )
 
 
 class TestSR6_BreakoutZeroGuards(unittest.TestCase):
