@@ -1,0 +1,72 @@
+{
+  "entry": {
+    "story_key": "dfda3de3b6e5dfd397dfae7315079a28fb62da07:5919003",
+    "headline": "Exxon Mobil Stock: War Effect On Earnings (NYSE:XOM)",
+    "tickers": [
+      "XOM"
+    ],
+    "published_ts": 1775700960.0,
+    "first_provider": "newsapi_ai",
+    "providers": [
+      "newsapi_ai"
+    ],
+    "provider_names": [
+      "newsapi_ai"
+    ],
+    "sources": [
+      "Seeking Alpha"
+    ],
+    "source_tier": "TIER_3",
+    "source_rank": 3,
+    "category": "earnings",
+    "polarity": 0.0,
+    "impact": 0.8,
+    "clarity": 0.6,
+    "relevance": 0.79,
+    "url": "https://seekingalpha.com/article/4889385-exxon-mobil-war-effect-on-earnings"
+  },
+  "historical": {
+    "local": {
+      "generated_at": "2026-04-09T02:58:45.270562Z",
+      "now_ts": 1775703525.270562,
+      "first_seen_ts": 1775703525.270562,
+      "observed": {
+        "age_minutes": 42.8,
+        "news_catalyst_score": 0.558,
+        "materiality": "MEDIUM",
+        "recency_bucket": "WARM",
+        "is_actionable": true
+      }
+    },
+    "remote": {
+      "generated_at": "2026-04-09T04:28:02.952868Z",
+      "now_ts": 1775708882.952868,
+      "first_seen_ts": 1775708882.952868,
+      "observed": {
+        "age_minutes": 132.0,
+        "news_catalyst_score": 0.3836,
+        "materiality": "LOW",
+        "recency_bucket": "AGING",
+        "is_actionable": false
+      }
+    }
+  },
+  "replay_expected": {
+    "remote": {
+      "age_minutes": 132.0,
+      "news_catalyst_score": 0.5161,
+      "materiality": "MEDIUM",
+      "recency_bucket": "AGING",
+      "is_actionable": true
+    },
+    "late_aging": {
+      "now_ts": 1775713920.0,
+      "first_seen_ts": 1775713920.0,
+      "age_minutes": 216.0,
+      "news_catalyst_score": 0.4569,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false
+    }
+  }
+}

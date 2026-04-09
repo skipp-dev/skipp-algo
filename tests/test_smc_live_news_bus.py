@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import sys
 from pathlib import Path
+from typing import Any, cast
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -11,6 +12,25 @@ from newsstack_fmp.common_types import NewsItem
 from newsstack_fmp.shared_fetch import CachedNewsBatch
 from scripts.smc_newsapi_ai import NewsApiAiProviderError
 from scripts import smc_live_news_bus as bus
+
+
+FIXTURES_DIR = Path(__file__).resolve().parent / "fixtures"
+
+
+def _load_json_fixture(name: str) -> dict[str, Any]:
+    payload = json.loads((FIXTURES_DIR / name).read_text(encoding="utf-8"))
+    return cast(dict[str, Any], payload)
+
+
+def _story_entry_for_replay(entry: dict[str, Any], *, first_seen_ts: float) -> dict[str, Any]:
+    return {
+        **entry,
+        "tickers": list(entry["tickers"]),
+        "providers": list(entry["providers"]),
+        "provider_names": list(entry["provider_names"]),
+        "sources": list(entry["sources"]),
+        "first_seen_ts": first_seen_ts,
+    }
 
 
 def _candidate(
@@ -239,6 +259,61 @@ def test_build_story_record_keeps_early_aging_high_conviction_story_actionable()
     assert story["news_catalyst_score"] == 0.5162
     assert story["materiality"] == "MEDIUM"
     assert story["is_actionable"] is True
+
+
+def test_historical_xom_replay_prevents_original_132_minute_regression() -> None:
+    fixture = _load_json_fixture("live_news_xom_132_minute_case.json")
+    base_entry = dict(fixture["entry"])
+    historical_local = fixture["historical"]["local"]
+    historical_remote = fixture["historical"]["remote"]
+    replay_expected_remote = fixture["replay_expected"]["remote"]
+
+    local_story = bus._build_story_record(
+        _story_entry_for_replay(base_entry, first_seen_ts=historical_local["first_seen_ts"]),
+        now_ts=historical_local["now_ts"],
+        is_new=True,
+    )
+    remote_story = bus._build_story_record(
+        _story_entry_for_replay(base_entry, first_seen_ts=historical_remote["first_seen_ts"]),
+        now_ts=historical_remote["now_ts"],
+        is_new=True,
+    )
+
+    assert historical_local["observed"]["is_actionable"] is True
+    assert historical_remote["observed"]["is_actionable"] is False
+
+    assert local_story["age_minutes"] == historical_local["observed"]["age_minutes"]
+    assert local_story["news_catalyst_score"] == historical_local["observed"]["news_catalyst_score"]
+    assert local_story["materiality"] == historical_local["observed"]["materiality"]
+    assert local_story["recency_bucket"] == historical_local["observed"]["recency_bucket"]
+    assert local_story["is_actionable"] is historical_local["observed"]["is_actionable"]
+
+    assert remote_story["age_minutes"] == replay_expected_remote["age_minutes"]
+    assert remote_story["news_catalyst_score"] == replay_expected_remote["news_catalyst_score"]
+    assert remote_story["materiality"] == replay_expected_remote["materiality"]
+    assert remote_story["recency_bucket"] == replay_expected_remote["recency_bucket"]
+    assert remote_story["is_actionable"] is replay_expected_remote["is_actionable"]
+    assert remote_story["news_catalyst_score"] > historical_remote["observed"]["news_catalyst_score"]
+
+
+def test_historical_xom_replay_eventually_demotes_story_after_soft_aging_window() -> None:
+    fixture = _load_json_fixture("live_news_xom_132_minute_case.json")
+    base_entry = dict(fixture["entry"])
+    replay_expected_remote = fixture["replay_expected"]["remote"]
+    replay_expected_late_aging = fixture["replay_expected"]["late_aging"]
+
+    late_aging_story = bus._build_story_record(
+        _story_entry_for_replay(base_entry, first_seen_ts=replay_expected_late_aging["first_seen_ts"]),
+        now_ts=replay_expected_late_aging["now_ts"],
+        is_new=True,
+    )
+
+    assert late_aging_story["age_minutes"] == replay_expected_late_aging["age_minutes"]
+    assert late_aging_story["news_catalyst_score"] == replay_expected_late_aging["news_catalyst_score"]
+    assert late_aging_story["materiality"] == replay_expected_late_aging["materiality"]
+    assert late_aging_story["recency_bucket"] == replay_expected_late_aging["recency_bucket"]
+    assert late_aging_story["is_actionable"] is replay_expected_late_aging["is_actionable"]
+    assert late_aging_story["news_catalyst_score"] < replay_expected_remote["news_catalyst_score"]
 
 
 def test_build_story_record_demotes_older_aging_high_conviction_story() -> None:
