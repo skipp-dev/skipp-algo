@@ -68,7 +68,7 @@ The manifest carries `library_field_version: "v5.2"`, and the `enrichment_blocks
 |-------|------|---------|-------------|
 | `EVENT_WINDOW_STATE` | string | `"CLEAR"` | `CLEAR` / `PRE_EVENT` / `ACTIVE` / `COOLDOWN` |
 | `EVENT_RISK_LEVEL` | string | `"NONE"` | `NONE` / `LOW` / `ELEVATED` / `HIGH` |
-| `NEXT_EVENT_CLASS` | string | `""` | `MACRO` / `EARNINGS` / `""` |
+| `NEXT_EVENT_CLASS` | string | `""` | `MACRO` / `EARNINGS` / `CORPORATE_ACTION` / `""` |
 | `NEXT_EVENT_NAME` | string | `""` | e.g. `"FOMC Rate Decision"` |
 | `NEXT_EVENT_TIME` | string | `""` | e.g. `"14:00"` |
 | `NEXT_EVENT_IMPACT` | string | `"NONE"` | `NONE` / `LOW` / `MEDIUM` / `HIGH` |
@@ -76,7 +76,7 @@ The manifest carries `library_field_version: "v5.2"`, and the `enrichment_blocks
 | `EVENT_RESTRICT_AFTER_MIN` | int | `0` | Minutes to restrict after event |
 | `EVENT_COOLDOWN_ACTIVE` | bool | `false` | Post-event cooldown period active |
 | `MARKET_EVENT_BLOCKED` | bool | `false` | Market-wide block active |
-| `SYMBOL_EVENT_BLOCKED` | bool | `false` | Symbol-level block active (earnings) |
+| `SYMBOL_EVENT_BLOCKED` | bool | `false` | Symbol-level block active (earnings or recent identifier change) |
 | `EARNINGS_SOON_TICKERS` | string | `""` | CSV ticker list |
 | `HIGH_RISK_EVENT_TICKERS` | string | `""` | CSV ticker list |
 | `EVENT_PROVIDER_STATUS` | string | `"ok"` | `ok` / `no_data` / `calendar_missing` / `news_missing` |

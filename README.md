@@ -222,7 +222,7 @@ The `🔍` badge marks **WIIM** (“Why It Matters”) enriched items.
 | -------- | --------------- | -------- |
 | **Benzinga** | `BENZINGA_API_KEY` | News (REST + WebSocket), calendar (ratings, earnings, economics, dividends, splits, IPOs, guidance, retail), financial data, delayed quotes, movers |
 | **FMP** | `FMP_API_KEY` | Quotes, sector performance, economic calendar, gainers/losers/actives, crypto, fear & greed, analyst targets, company profiles |
-| **NewsAPI.ai** | `NEWSAPI_AI_KEY` | Breaking events, trending concepts, NLP sentiment scoring |
+| **NewsAPI.ai** | `NEWSAPI_AI_KEY` | Event Registry article search, live article feed, event search, breaking events, trending concepts, NLP sentiment scoring |
 | **TradingView** | *(none — scraper)* | Technical analysis (oscillators, moving averages) for equities and crypto |
 | **yfinance** | *(none — free)* | Fallback historical OHLCV, market cap, company info |
 | **Finnhub** | `FINNHUB_API_KEY` | Social sentiment for crypto |
@@ -259,7 +259,9 @@ The dashboard opens at `http://localhost:8501` with a dark theme.
 | -------- | -------- | ----------- |
 | `BENZINGA_API_KEY` | Yes | Benzinga API key for primary news feed |
 | `FMP_API_KEY` | No | FMP key for quotes, calendar, sector data, crypto |
-| `NEWSAPI_AI_KEY` | No | NewsAPI.ai key for breaking/trending/NLP tabs |
+| `NEWSAPI_AI_KEY` | No | NewsAPI.ai key for Event Registry search/feed fallback, breaking/trending/NLP tabs |
+
+Live NewsAPI.ai behavior: the pollers and generator snapshot prefer `minuteStreamArticles`, persist `recentActivityArticlesNewsUpdatesAfterUri` when available, and fall back to timestamp/search polling when the cursor is older than the stream window.
 | `FINNHUB_API_KEY` | No | Finnhub key for crypto social sentiment |
 | `TERMINAL_NOTIFY_ENABLED` | No | `1` to enable push notifications |
 | `TERMINAL_NOTIFY_MIN_SCORE` | No | Minimum news score for notification (default: `0.85`) |
@@ -267,6 +269,15 @@ The dashboard opens at `http://localhost:8501` with a dark theme.
 | `TERMINAL_WEBHOOK_URL` | No | Webhook URL for alert dispatch |
 | `TERMINAL_POLL_INTERVAL` | No | Poll interval in seconds (default: `15`) |
 | `TERMINAL_TOPICS` | No | Comma-separated topic filter for Benzinga |
+
+**Optional Databento Reference Knobs**:
+
+| Variable | Required | Description |
+| -------- | -------- | ----------- |
+| `DATABENTO_REFERENCE_CACHE_DIR` | No | Cache directory for corporate-actions alias and identifier state |
+| `DATABENTO_REFERENCE_CACHE_TTL_SECONDS` | No | Success TTL for cached Databento reference state (default: `21600`) |
+| `DATABENTO_REFERENCE_FAILURE_TTL_SECONDS` | No | Backoff TTL after reference subscription / transport failures (default: `86400`) |
+| `DATABENTO_REFERENCE_EVENT_RISK_WINDOW_DAYS` | No | Lookback window for folding recent identifier changes into `event_risk` (default: `14`) |
 
 **Streamlit config** (`.streamlit/config.toml`):
 
