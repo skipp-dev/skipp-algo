@@ -12,6 +12,7 @@ Covers:
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock, patch
@@ -33,6 +34,7 @@ from scripts.smc_provider_policy import (
     fetch_technical_fmp,
     resolve_domain,
 )
+from scripts.smc_newsapi_ai import NewsApiAiProviderError
 
 
 # ── Test 1: Policy declarations ──────────────────────────────────
@@ -208,6 +210,30 @@ class TestPartialProviderAvailability:
         assert "fmp" in result.stale
         assert "benzinga" in result.stale
 
+    @patch("scripts.smc_provider_policy.fetch_news_newsapi_ai")
+    @patch("scripts.smc_provider_policy.fetch_news_benzinga")
+    @patch("scripts.smc_provider_policy.fetch_news_fmp")
+    def test_newsapi_fallback_receives_feed_cursor_state(self, mock_fmp, mock_bz, mock_newsapi):
+        mock_fmp.side_effect = RuntimeError("FMP timeout")
+        mock_bz.side_effect = RuntimeError("Benzinga timeout")
+        mock_newsapi.return_value = ProviderResult(
+            data={"bullish_tickers": [], "bearish_tickers": []},
+            provider="newsapi_ai",
+        )
+
+        resolve_domain(
+            "news",
+            fmp=MagicMock(),
+            benzinga_api_key="bz-key",
+            newsapi_ai_key="news-key",
+            symbols=["NVDA"],
+            newsapi_ai_feed_after_epoch=123.0,
+            newsapi_ai_feed_after_uri="uri-feed-1",
+        )
+
+        assert mock_newsapi.call_args.kwargs["article_feed_after_epoch"] == 123.0
+        assert mock_newsapi.call_args.kwargs["article_feed_after_uri"] == "uri-feed-1"
+
     @patch("scripts.smc_provider_policy.fetch_calendar_benzinga")
     @patch("scripts.smc_provider_policy.fetch_calendar_fmp")
     def test_calendar_fmp_fails_benzinga_succeeds(self, mock_fmp, mock_bz):
@@ -255,6 +281,30 @@ class TestPartialProviderAvailability:
         assert "fmp" in result.stale
         assert "benzinga" in result.stale
         assert "newsapi_ai" in result.stale
+
+    @patch("scripts.smc_provider_policy.fetch_news_newsapi_ai")
+    @patch("scripts.smc_provider_policy.fetch_news_benzinga")
+    @patch("scripts.smc_provider_policy.fetch_news_fmp")
+    def test_newsapi_quota_exhausted_degrades_to_none(self, mock_fmp, mock_bz, mock_newsapi):
+        mock_fmp.side_effect = RuntimeError("FMP timeout")
+        mock_bz.side_effect = RuntimeError("Benzinga timeout")
+        mock_newsapi.side_effect = NewsApiAiProviderError(
+            "quota_exhausted",
+            "Event Registry token quota exhausted or paid plan required",
+            status_code=403,
+        )
+
+        result = resolve_domain(
+            "news",
+            fmp=MagicMock(),
+            benzinga_api_key="bz-key",
+            newsapi_ai_key="news-key",
+            symbols=["NVDA"],
+        )
+
+        assert result.ok is False
+        assert result.provider == "none"
+        assert result.stale == ["fmp", "benzinga", "newsapi_ai"]
 
 
 # ── Test 5: Malformed payloads ──────────────────────────────────
@@ -317,6 +367,51 @@ class TestMalformedPayloads:
 
 class TestProviderCountAndStale:
     """build_enrichment produces deterministic provider provenance."""
+
+    @patch("scripts.smc_v55_lean_normalization.normalize_v55_lean_enrichment", side_effect=lambda enrichment, snapshot=None: enrichment)
+    @patch("scripts.smc_provider_policy.resolve_domain")
+    def test_build_enrichment_persists_newsapi_feed_state(self, mock_resolve, _mock_normalize, tmp_path):
+        from scripts.generate_smc_micro_base_from_databento import build_enrichment
+
+        state_path = tmp_path / "newsapi_ai_feed_state.json"
+        state_path.write_text(
+            json.dumps({
+                "last_seen_epoch": 100.0,
+                "last_seen_news_uri": "uri-feed-1",
+            }),
+            encoding="utf-8",
+        )
+
+        mock_resolve.return_value = ProviderResult(
+            data={
+                "bullish_tickers": ["AAPL"],
+                "bearish_tickers": [],
+                "neutral_tickers": [],
+                "news_heat_global": 0.4,
+                "ticker_heat_map": "AAPL:0.4",
+            },
+            provider="newsapi_ai",
+            meta={
+                "last_seen_epoch": 140.0,
+                "last_seen_news_uri": "uri-feed-2",
+            },
+        )
+
+        enrichment = build_enrichment(
+            fmp_api_key="",
+            newsapi_ai_key="news-key",
+            symbols=["AAPL"],
+            enrich_news=True,
+            newsapi_feed_state_path=state_path,
+        )
+
+        assert enrichment is not None
+        assert mock_resolve.call_args.kwargs["newsapi_ai_feed_after_epoch"] == 100.0
+        assert mock_resolve.call_args.kwargs["newsapi_ai_feed_after_uri"] == "uri-feed-1"
+        assert json.loads(state_path.read_text(encoding="utf-8")) == {
+            "last_seen_epoch": 140.0,
+            "last_seen_news_uri": "uri-feed-2",
+        }
 
     @patch("scripts.smc_provider_policy.resolve_domain")
     def test_provider_count_matches_active_providers(self, mock_resolve):
@@ -503,6 +598,7 @@ class TestProviderResult:
         r = ProviderResult(data={"a": 1}, provider="fmp")
         assert r.ok is True
         assert r.stale == []
+        assert r.meta == {}
 
     def test_failure(self):
         r = ProviderResult(data={}, provider="none", ok=False, stale=["fmp"])
@@ -905,6 +1001,45 @@ class TestEventRiskWiring:
         )
         assert enrichment is not None
         assert enrichment["event_risk"]["EVENT_PROVIDER_STATUS"] == "no_data"
+
+    @patch("databento_reference.get_reference_event_risk_snapshot")
+    @patch("databento_reference.maybe_refresh_symbol_reference_cache")
+    def test_event_risk_includes_reference_change_signal(
+        self,
+        mock_refresh_reference,
+        mock_reference_snapshot,
+    ):
+        """Databento reference changes are folded into event_risk even without calendar/news."""
+        from scripts.generate_smc_micro_base_from_databento import build_enrichment
+
+        mock_reference_snapshot.return_value = {
+            "provider_status": "ok",
+            "reference_change_tickers": ["META"],
+            "by_symbol": {
+                "META": {
+                    "event_types": ["LCC"],
+                    "latest_effective_date": "2026-04-08",
+                    "aliases": ["FB"],
+                }
+            },
+        }
+
+        enrichment = build_enrichment(
+            fmp_api_key="key",
+            symbols=["META"],
+            enrich_regime=False,
+            enrich_news=False,
+            enrich_calendar=False,
+            enrich_event_risk=True,
+        )
+        assert enrichment is not None
+        er = enrichment["event_risk"]
+        assert er["NEXT_EVENT_CLASS"] == "CORPORATE_ACTION"
+        assert er["NEXT_EVENT_NAME"] == "Identifier change (LCC)"
+        assert er["SYMBOL_EVENT_BLOCKED"] is True
+        assert er["HIGH_RISK_EVENT_TICKERS"] == "META"
+        assert er["EVENT_PROVIDER_STATUS"] == "ok"
+        mock_refresh_reference.assert_called_once()
 
     @patch("scripts.smc_provider_policy.resolve_domain")
     def test_event_risk_provider_counted_in_active(self, mock_resolve):

@@ -343,6 +343,27 @@ class TestCombinedScenarios:
         )
         assert result["EVENT_RISK_LEVEL"] == "ELEVATED"
 
+    def test_reference_identifier_change_sets_symbol_risk(self):
+        result = build_event_risk(
+            reference={
+                "reference_change_tickers": ["META"],
+                "by_symbol": {
+                    "META": {
+                        "event_types": ["LCC"],
+                        "latest_effective_date": "2026-04-08",
+                        "aliases": ["FB"],
+                    }
+                },
+            }
+        )
+        assert result["NEXT_EVENT_CLASS"] == "CORPORATE_ACTION"
+        assert result["NEXT_EVENT_NAME"] == "Identifier change (LCC)"
+        assert result["NEXT_EVENT_IMPACT"] == "LOW"
+        assert result["SYMBOL_EVENT_BLOCKED"] is True
+        assert result["EVENT_RISK_LEVEL"] == "LOW"
+        assert result["HIGH_RISK_EVENT_TICKERS"] == "META"
+        assert result["EVENT_PROVIDER_STATUS"] == "ok"
+
     def test_news_heat_does_not_override_market_blocked(self):
         """News heat does not set MARKET_EVENT_BLOCKED when already blocked by macro."""
         result = build_event_risk(

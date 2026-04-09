@@ -24,6 +24,8 @@ from dataclasses import dataclass, field
 from datetime import date, timedelta
 from typing import Any
 
+from scripts.smc_newsapi_ai import NewsApiAiProviderError
+
 logger = logging.getLogger(__name__)
 
 
@@ -64,6 +66,7 @@ class ProviderResult:
     provider: str               # which provider actually delivered data
     ok: bool = True             # False when default data was used
     stale: list[str] = field(default_factory=list)  # providers that were tried and failed
+    meta: dict[str, Any] = field(default_factory=dict)
 
 
 # ── Regime adapters ─────────────────────────────────────────────
@@ -144,14 +147,49 @@ def fetch_news_benzinga(api_key: str, symbols: list[str]) -> ProviderResult:
     return ProviderResult(data=result, provider="benzinga")
 
 
-def fetch_news_newsapi_ai(api_key: str, symbols: list[str]) -> ProviderResult:
+def fetch_news_newsapi_ai(
+    api_key: str,
+    symbols: list[str],
+    *,
+    article_feed_after_epoch: float | None = None,
+    article_feed_after_uri: str = "",
+) -> ProviderResult:
     """Fetch news via NewsAPI.ai / Event Registry (tertiary fallback for news)."""
+    from newsstack_fmp.normalize import normalize_newsapi_ai
     from scripts.smc_news_scorer import compute_news_sentiment
-    from scripts.smc_newsapi_ai import fetch_newsapi_articles
+    from scripts.smc_newsapi_ai import extract_newsapi_feed_article_cursor_uri, fetch_newsapi_records
 
-    articles = fetch_newsapi_articles(api_key, symbols)
+    try:
+        feed_after_epoch = float(article_feed_after_epoch or 0.0)
+    except (TypeError, ValueError):
+        feed_after_epoch = 0.0
+
+    records = fetch_newsapi_records(
+        api_key,
+        symbols,
+        prefer_article_feed=feed_after_epoch > 0.0,
+        article_feed_after_epoch=feed_after_epoch,
+        article_feed_after_uri=article_feed_after_uri,
+    )
+    normalized_items = [normalize_newsapi_ai(record) for record in records]
+
+    articles = [
+        {
+            "headline": str(item.headline or "").strip(),
+            "tickers": list(item.tickers or []),
+        }
+        for item in normalized_items
+    ]
     result = compute_news_sentiment(symbols, articles)
-    return ProviderResult(data=result, provider="newsapi_ai")
+    last_seen_epoch = max((float(item.updated_ts or item.published_ts or 0.0) for item in normalized_items), default=0.0)
+    return ProviderResult(
+        data=result,
+        provider="newsapi_ai",
+        meta={
+            "last_seen_epoch": last_seen_epoch,
+            "last_seen_news_uri": extract_newsapi_feed_article_cursor_uri(records) or "",
+        },
+    )
 
 
 # ── Calendar adapters ───────────────────────────────────────────
@@ -296,6 +334,8 @@ def resolve_domain(
     benzinga_api_key: str = "",
     newsapi_ai_key: str = "",
     symbols: list[str] | None = None,
+    newsapi_ai_feed_after_epoch: float | None = None,
+    newsapi_ai_feed_after_uri: str = "",
 ) -> ProviderResult:
     """Run the provider chain for *domain* and return the first success.
 
@@ -315,14 +355,24 @@ def resolve_domain(
             result = _call_provider(domain, provider_name, fmp=fmp,
                                     benzinga_api_key=benzinga_api_key,
                                     newsapi_ai_key=newsapi_ai_key,
-                                    symbols=syms)
+                                    symbols=syms,
+                                    newsapi_ai_feed_after_epoch=newsapi_ai_feed_after_epoch,
+                                    newsapi_ai_feed_after_uri=newsapi_ai_feed_after_uri)
             result.stale.extend(all_stale)
             return result
-        except Exception:
-            logger.warning(
-                "%s provider %r failed — trying next",
-                domain, provider_name, exc_info=True,
-            )
+        except Exception as exc:
+            if isinstance(exc, NewsApiAiProviderError):
+                logger.info(
+                    "%s provider %r degraded — %s",
+                    domain,
+                    provider_name,
+                    exc,
+                )
+            else:
+                logger.warning(
+                    "%s provider %r failed — trying next",
+                    domain, provider_name, exc_info=True,
+                )
             all_stale.append(provider_name)
 
     # All providers exhausted — return defaults
@@ -339,6 +389,8 @@ def _call_provider(
     benzinga_api_key: str,
     newsapi_ai_key: str,
     symbols: list[str],
+    newsapi_ai_feed_after_epoch: float | None,
+    newsapi_ai_feed_after_uri: str,
 ) -> ProviderResult:
     """Dispatch to the correct adapter for *domain* × *provider_name*."""
     if domain == "regime":
@@ -358,7 +410,12 @@ def _call_provider(
         if provider_name == "newsapi_ai":
             if not newsapi_ai_key:
                 raise RuntimeError("NewsAPI.ai API key not configured")
-            return fetch_news_newsapi_ai(newsapi_ai_key, symbols)
+            return fetch_news_newsapi_ai(
+                newsapi_ai_key,
+                symbols,
+                article_feed_after_epoch=newsapi_ai_feed_after_epoch,
+                article_feed_after_uri=newsapi_ai_feed_after_uri,
+            )
     elif domain == "calendar":
         if provider_name == "fmp":
             if fmp is None:

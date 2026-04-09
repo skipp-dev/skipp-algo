@@ -260,6 +260,45 @@ def _read_previous_refresh_count(manifest_path: Path | None) -> int:
         return 0
 
 
+def _coerce_non_negative_float(value: Any) -> float:
+    try:
+        return max(float(value), 0.0)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _load_newsapi_feed_state(path: Path | None) -> dict[str, Any]:
+    state = {"last_seen_epoch": 0.0, "last_seen_news_uri": ""}
+    if path is None or not path.exists():
+        return state
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        logger.warning("Failed to read NewsAPI.ai feed state: %s", path, exc_info=True)
+        return state
+    if not isinstance(payload, dict):
+        return state
+    state["last_seen_epoch"] = _coerce_non_negative_float(payload.get("last_seen_epoch"))
+    state["last_seen_news_uri"] = str(payload.get("last_seen_news_uri") or "").strip()
+    return state
+
+
+def _save_newsapi_feed_state(
+    path: Path | None,
+    *,
+    last_seen_epoch: float,
+    last_seen_news_uri: str,
+) -> None:
+    if path is None:
+        return
+    payload = {
+        "last_seen_epoch": _coerce_non_negative_float(last_seen_epoch),
+        "last_seen_news_uri": str(last_seen_news_uri or "").strip(),
+    }
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+
+
 def build_enrichment(
     *,
     fmp_api_key: str,
@@ -288,6 +327,7 @@ def build_enrichment(
     enrich_range_profile_regime: bool = False,
     base_snapshot: pd.DataFrame | None = None,
     manifest_path: Path | None = None,
+    newsapi_feed_state_path: Path | None = None,
 ) -> EnrichmentDict | None:
     """Build the enrichment dict using the v5 provider policy matrix.
 
@@ -326,6 +366,7 @@ def build_enrichment(
     enrichment: dict[str, Any] = {}
     all_stale: list[str] = []
     provenance: dict[str, str] = {}
+    newsapi_feed_state = _load_newsapi_feed_state(newsapi_feed_state_path)
 
     # ── Base scan (Databento) — always the canonical source ─────
     provenance["base_scan_provider"] = "databento"
@@ -349,10 +390,32 @@ def build_enrichment(
             benzinga_api_key=benzinga_api_key,
             newsapi_ai_key=newsapi_ai_key,
             symbols=symbols,
+            newsapi_ai_feed_after_epoch=newsapi_feed_state["last_seen_epoch"],
+            newsapi_ai_feed_after_uri=newsapi_feed_state["last_seen_news_uri"],
         )
         all_stale.extend(pr.stale)
         if pr.ok:
             news_result = pr.data
+        if pr.provider == "newsapi_ai" and newsapi_feed_state_path is not None:
+            next_epoch = _coerce_non_negative_float(pr.meta.get("last_seen_epoch"))
+            next_uri = str(pr.meta.get("last_seen_news_uri") or "").strip()
+            persisted_epoch = newsapi_feed_state["last_seen_epoch"]
+            persisted_uri = newsapi_feed_state["last_seen_news_uri"]
+            if next_epoch > persisted_epoch:
+                persisted_epoch = next_epoch
+                persisted_uri = next_uri
+            elif next_uri:
+                persisted_uri = next_uri
+            if persisted_epoch != newsapi_feed_state["last_seen_epoch"] or persisted_uri != newsapi_feed_state["last_seen_news_uri"]:
+                _save_newsapi_feed_state(
+                    newsapi_feed_state_path,
+                    last_seen_epoch=persisted_epoch,
+                    last_seen_news_uri=persisted_uri,
+                )
+                newsapi_feed_state = {
+                    "last_seen_epoch": persisted_epoch,
+                    "last_seen_news_uri": persisted_uri,
+                }
         provenance["news_provider"] = pr.provider
         enrichment["news"] = {
             "bullish_tickers": news_result.get("bullish_tickers", []),
@@ -422,11 +485,23 @@ def build_enrichment(
 
     # ── Event risk (v5) ─────────────────────────────────────────
     if enrich_event_risk:
+        from databento_reference import (
+            get_reference_event_risk_snapshot,
+            maybe_refresh_symbol_reference_cache,
+        )
         from scripts.smc_event_risk_builder import build_event_risk
+
+        reference_risk: dict[str, Any] = {}
+        try:
+            maybe_refresh_symbol_reference_cache(symbols)
+            reference_risk = get_reference_event_risk_snapshot(symbols)
+        except Exception:
+            logger.debug("Databento reference event-risk refresh skipped", exc_info=True)
 
         event_risk = build_event_risk(
             calendar=enrichment.get("calendar", {}),
             news=enrichment.get("news", {}),
+            reference=reference_risk,
         )
         # Override builder's internal status with runtime-aware logic:
         # only flag degradation when the domain was *requested* but failed.
@@ -591,6 +666,7 @@ def _export_live_news_sidecar(
     output_root: Path,
     fmp_api_key: str,
     benzinga_api_key: str,
+    newsapi_ai_key: str,
 ) -> dict[str, Any]:
     output_path = output_root / "smc_live_news_snapshot.json"
     state_path = output_root / "smc_live_news_state.json"
@@ -610,6 +686,7 @@ def _export_live_news_sidecar(
             state_path=state_path,
             fmp_api_key=fmp_api_key,
             benzinga_api_key=benzinga_api_key,
+            newsapi_ai_key=newsapi_ai_key,
             scope_metadata=scope_metadata,
         )
     except Exception as exc:
@@ -715,6 +792,7 @@ def finalize_pipeline(
         enrich_range_profile_regime=enrich_range_profile_regime,
         base_snapshot=snapshot_df,
         manifest_path=manifest_path,
+        newsapi_feed_state_path=output_root / "newsapi_ai_feed_state.json",
     )
 
     # ── Pine library generation ─────────────────────────────────
@@ -735,6 +813,7 @@ def finalize_pipeline(
             output_root=output_root,
             fmp_api_key=fmp_api_key,
             benzinga_api_key=benzinga_api_key,
+            newsapi_ai_key=newsapi_ai_key,
         )
 
     result = {

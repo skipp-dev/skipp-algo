@@ -75,7 +75,7 @@ class MetaBlock(TypedDict, total=False):
 class EventRiskBlock(TypedDict, total=False):
     EVENT_WINDOW_STATE: str        # "CLEAR" | "PRE_EVENT" | "ACTIVE" | "COOLDOWN"
     EVENT_RISK_LEVEL: str          # "NONE" | "LOW" | "ELEVATED" | "HIGH"
-    NEXT_EVENT_CLASS: str          # "MACRO" | "EARNINGS" | ""
+    NEXT_EVENT_CLASS: str          # "MACRO" | "EARNINGS" | "CORPORATE_ACTION" | ""
     NEXT_EVENT_NAME: str           # e.g. "FOMC Rate Decision"
     NEXT_EVENT_TIME: str           # e.g. "14:00"
     NEXT_EVENT_IMPACT: str         # "NONE" | "LOW" | "MEDIUM" | "HIGH"

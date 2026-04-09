@@ -66,6 +66,8 @@ _RISK_LEVEL_FROM_IMPACT: dict[str, str] = {
     "NONE": "NONE",
 }
 
+_RISK_LEVEL_ORDER = ["NONE", "LOW", "ELEVATED", "HIGH"]
+
 
 # ── Public API ──────────────────────────────────────────────────────
 
@@ -74,6 +76,7 @@ def build_event_risk(
     *,
     calendar: dict[str, Any] | None = None,
     news: dict[str, Any] | None = None,
+    reference: dict[str, Any] | None = None,
     overrides: dict[str, Any] | None = None,
     now: datetime | None = None,
 ) -> dict[str, Any]:
@@ -90,6 +93,10 @@ def build_event_risk(
     news:
         News/sentiment block from the enrichment pipeline.
         Expected keys: ``bearish_tickers``, ``news_heat_global``.
+    reference:
+        Optional Databento reference-risk block derived from cached
+        corporate-actions identifier changes. Expected keys:
+        ``reference_change_tickers`` and ``by_symbol``.
     overrides:
         Optional operator overrides.  Any key matching a field in the
         output will replace the derived value.  This is the only place
@@ -106,6 +113,7 @@ def build_event_risk(
     """
     cal = calendar or {}
     nws = news or {}
+    ref = reference or {}
     ovr = overrides or {}
     if now is None:
         now = datetime.now(UTC)
@@ -170,22 +178,29 @@ def build_event_risk(
         high_risk_from_news = [str(t).strip().upper() for t in bearish_tickers if str(t).strip()]
     # Heat > 0.8 means the overall news environment is extremely negative
     if heat_global > 0.8 and not result["MARKET_EVENT_BLOCKED"]:
-        result["EVENT_RISK_LEVEL"] = max(
-            result["EVENT_RISK_LEVEL"],
-            "ELEVATED",
-            key=lambda v: ["NONE", "LOW", "ELEVATED", "HIGH"].index(v),
-        )
+        result["EVENT_RISK_LEVEL"] = _max_risk_level(result["EVENT_RISK_LEVEL"], "ELEVATED")
+
+    reference_change_tickers = _normalize_ticker_list(ref.get("reference_change_tickers", []))
+    if reference_change_tickers:
+        result["SYMBOL_EVENT_BLOCKED"] = True
+        result["EVENT_RISK_LEVEL"] = _max_risk_level(result["EVENT_RISK_LEVEL"], "LOW")
+        if not result["NEXT_EVENT_CLASS"]:
+            result["NEXT_EVENT_CLASS"] = "CORPORATE_ACTION"
+            result["NEXT_EVENT_NAME"] = _reference_event_name(ref)
+            result["NEXT_EVENT_IMPACT"] = "LOW"
 
     high_risk_tickers = _merge_ticker_lists(
         ",".join(high_risk_from_news),
         earnings_soon,
+        ",".join(reference_change_tickers),
     )
     result["HIGH_RISK_EVENT_TICKERS"] = high_risk_tickers
 
     # ── 4. Provider status ──────────────────────────────────────
+    has_reference_signal = bool(reference_change_tickers)
     # If calendar was empty and news was empty, mark as degraded
     if not cal and not nws:
-        result["EVENT_PROVIDER_STATUS"] = "no_data"
+        result["EVENT_PROVIDER_STATUS"] = "ok" if has_reference_signal else "no_data"
     elif not cal:
         result["EVENT_PROVIDER_STATUS"] = "calendar_missing"
     elif not nws:
@@ -241,6 +256,48 @@ def _parse_event_time(raw: str) -> time | None:
         except ValueError:
             continue
     return None
+
+
+def _max_risk_level(*levels: str) -> str:
+    valid_levels = [level for level in levels if level in _RISK_LEVEL_ORDER]
+    if not valid_levels:
+        return "NONE"
+    return max(valid_levels, key=_RISK_LEVEL_ORDER.index)
+
+
+def _normalize_ticker_list(value: Any) -> list[str]:
+    if isinstance(value, str):
+        tokens = value.split(",")
+    elif isinstance(value, list):
+        tokens = value
+    else:
+        return []
+    tickers = {str(token).strip().upper() for token in tokens if str(token).strip()}
+    return sorted(tickers)
+
+
+def _reference_event_name(reference: dict[str, Any]) -> str:
+    by_symbol = reference.get("by_symbol")
+    if not isinstance(by_symbol, dict):
+        return "Identifier change"
+
+    event_codes: set[str] = set()
+    for details in by_symbol.values():
+        if not isinstance(details, dict):
+            continue
+        for event_code in details.get("event_types") or []:
+            normalized = str(event_code).strip().upper()
+            if normalized:
+                event_codes.add(normalized)
+
+    if not event_codes:
+        return "Identifier change"
+
+    display_codes = sorted(event_codes)
+    suffix = "/".join(display_codes[:2])
+    if len(display_codes) > 2:
+        suffix = f"{suffix}+"
+    return f"Identifier change ({suffix})"
 
 
 def _merge_ticker_lists(*csv_strings: str) -> str:

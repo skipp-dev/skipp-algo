@@ -23,6 +23,8 @@ _ET = _ZoneInfo("America/New_York")
 
 import pandas as pd
 from databento_volatility_screener import _make_databento_client, _get_schema_available_end, _clamp_request_end
+from databento_reference import maybe_refresh_symbol_reference_cache
+from databento_utils import normalize_symbol_for_databento
 
 logger = logging.getLogger(__name__)
 
@@ -54,8 +56,7 @@ def _get_api_key() -> str:
 
 def _normalize_symbol(symbol: str) -> str:
     """Map dash/slash ticker variants to Databento dot-notation."""
-    s = symbol.upper().strip()
-    return _SYMBOL_ALIASES.get(s, s)
+    return normalize_symbol_for_databento(symbol)
 
 
 def _reverse_symbol(db_symbol: str) -> str:
@@ -100,7 +101,9 @@ def fetch_databento_daily_bars(
         end_date = datetime.now(_ET).date()
         start_date = end_date - timedelta(days=lookback_days + 3)  # padding for weekends
 
-        db_symbols = [_normalize_symbol(s) for s in symbols]
+        maybe_refresh_symbol_reference_cache(symbols)
+
+        db_symbols = [normalized for s in symbols if (normalized := _normalize_symbol(s))]
         # Limit batch size to avoid API limits
         db_symbols = db_symbols[:200]
 

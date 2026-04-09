@@ -91,6 +91,13 @@ def _make_databento_client(api_key: str | None = None) -> Any:
     return db.Historical(api_key or os.getenv("DATABENTO_API_KEY"))
 
 
+def _make_databento_reference_client(api_key: str | None = None) -> Any:
+    """Return a ``databento.Reference`` client, normalizing TLS first."""
+    _normalize_tls_certificate_env()
+    db = _import_databento()
+    return db.Reference(api_key or os.getenv("DATABENTO_API_KEY"))
+
+
 # ── Schema / request-end helpers ────────────────────────────────────────────
 
 def _get_schema_available_end(client: Any, dataset: str, schema: str) -> pd.Timestamp | None:

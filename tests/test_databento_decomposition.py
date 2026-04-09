@@ -27,6 +27,7 @@ class TestDabentoClientSurface:
     @pytest.mark.parametrize("name", [
         "_import_databento",
         "_make_databento_client",
+        "_make_databento_reference_client",
         "_normalize_tls_certificate_env",
         "_get_schema_available_end",
         "_clamp_request_end",
