@@ -5,6 +5,7 @@ import logging
 import math
 import os
 import sys
+import time as time_module
 from datetime import UTC, date, datetime, time
 from pathlib import Path
 from typing import Any, Sequence
@@ -3235,6 +3236,7 @@ def run_production_export_pipeline(
         _progress(f"Step 6/10: Running intraday screens ({len(trading_days)} days, SMC base-only mode without fixed 10:00 ET outcome snapshot)...")
     else:
         _progress(f"Step 6/10: Running intraday screens ({len(trading_days)} days, including fixed 10:00 ET outcome snapshot)...")
+    intraday_started_at = time_module.perf_counter()
     intraday = run_intraday_screen(
         databento_api_key,
         dataset=dataset,
@@ -3248,6 +3250,10 @@ def run_production_export_pipeline(
         cache_dir=resolved_cache_dir,
         use_file_cache=use_file_cache,
         force_refresh=force_refresh,
+    )
+    _progress(
+        f"Step 6/10 complete: Intraday screens finished in {time_module.perf_counter() - intraday_started_at:.1f}s "
+        f"(rows={len(intraday)})"
     )
     intraday_close_outcome_anchor = pd.DataFrame()
     if not smc_base_only:
@@ -3308,6 +3314,7 @@ def run_production_export_pipeline(
                 f"Step 8/10: Collecting research/export detail "
                 f"(open-window, close-window, close-trade metadata; {second_detail_scope})..."
             )
+        open_detail_started_at = time_module.perf_counter()
         full_universe_second_detail_raw = collect_full_universe_open_window_second_detail(
             databento_api_key,
             dataset=dataset,
@@ -3323,6 +3330,11 @@ def run_production_export_pipeline(
             use_file_cache=use_file_cache,
             force_refresh=force_refresh,
         )
+        _progress(
+            f"Step 8/10a complete: Open-window second detail collected in {time_module.perf_counter() - open_detail_started_at:.1f}s "
+            f"(rows={len(full_universe_second_detail_raw)})"
+        )
+        close_second_started_at = time_module.perf_counter()
         full_universe_close_detail_raw = _collect_fixed_et_second_detail(
             databento_api_key,
             dataset=dataset,
@@ -3337,6 +3349,11 @@ def run_production_export_pipeline(
             use_file_cache=use_file_cache,
             force_refresh=force_refresh,
         )
+        _progress(
+            f"Step 8/10b complete: Close-window second detail collected in {time_module.perf_counter() - close_second_started_at:.1f}s "
+            f"(rows={len(full_universe_close_detail_raw)})"
+        )
+        close_trade_started_at = time_module.perf_counter()
         full_universe_close_trade_detail_raw = collect_full_universe_close_trade_detail(
             databento_api_key,
             dataset=dataset,
@@ -3348,6 +3365,11 @@ def run_production_export_pipeline(
             use_file_cache=use_file_cache,
             force_refresh=force_refresh,
         )
+        _progress(
+            f"Step 8/10c complete: Close-trade detail collected in {time_module.perf_counter() - close_trade_started_at:.1f}s "
+            f"(rows={len(full_universe_close_trade_detail_raw)})"
+        )
+        close_outcome_started_at = time_module.perf_counter()
         full_universe_close_outcome_minute_raw = collect_full_universe_close_outcome_minute_detail(
             databento_api_key,
             dataset=dataset,
@@ -3359,6 +3381,11 @@ def run_production_export_pipeline(
             use_file_cache=use_file_cache,
             force_refresh=force_refresh,
         )
+        _progress(
+            f"Step 8/10d complete: Close-outcome minute detail collected in {time_module.perf_counter() - close_outcome_started_at:.1f}s "
+            f"(rows={len(full_universe_close_outcome_minute_raw)})"
+        )
+        quality_source_started_at = time_module.perf_counter()
         quality_window_second_detail, premarket_source_detail, quality_window_source_metadata = _collect_quality_window_source_frames(
             databento_api_key=databento_api_key,
             base_dataset=dataset,
@@ -3376,7 +3403,12 @@ def run_production_export_pipeline(
             force_refresh=force_refresh,
             early_exchange_datasets=quality_window_early_exchange_datasets or QUALITY_OPEN_DRIVE_EARLY_EXCHANGE_DATASETS,
         )
+        _progress(
+            f"Step 8/10e complete: Quality-window source detail collected in {time_module.perf_counter() - quality_source_started_at:.1f}s "
+            f"(quality_rows={len(quality_window_second_detail)}, premarket_rows={len(premarket_source_detail)})"
+        )
     _progress("Step 9/10: Building features and exports...")
+    feature_build_started_at = time_module.perf_counter()
     daily_symbol_features_full_universe, symbol_day_diagnostics = _build_daily_symbol_features_full_universe_export(
         trading_days=trading_days,
         raw_universe=raw_universe,
@@ -3392,6 +3424,10 @@ def run_production_export_pipeline(
         ranking_metric=ranking_metric,
         top_fraction=top_fraction,
         smc_base_only=smc_base_only,
+    )
+    _progress(
+        f"Step 9/10a complete: Daily symbol features built in {time_module.perf_counter() - feature_build_started_at:.1f}s "
+        f"(rows={len(daily_symbol_features_full_universe)})"
     )
     research_event_flags_full_universe, research_event_flag_metadata = _build_research_event_flags_full_universe_export(
         daily_features=daily_symbol_features_full_universe,
@@ -3553,6 +3589,7 @@ def run_production_export_pipeline(
     }
 
     _progress("Step 10/10: Writing export artifacts...")
+    export_artifacts_started_at = time_module.perf_counter()
     export_generated_at = datetime.now(UTC).isoformat(timespec="seconds")
     basename = build_export_basename(prefix="databento_volatility_production")
     manifest = {
@@ -3828,6 +3865,10 @@ def run_production_export_pipeline(
     for name, path in exact_named_paths.items():
         paths[f"exact_{name}"] = path
     paths["exact_named_state"] = exact_named_state_path
+    _progress(
+        f"Step 10/10 complete: Export artifacts written in {time_module.perf_counter() - export_artifacts_started_at:.1f}s "
+        f"(artifacts={len(paths)})"
+    )
 
     return {
         "manifest": manifest,

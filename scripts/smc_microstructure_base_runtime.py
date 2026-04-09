@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import math
+import time as time_module
 import warnings
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, time
@@ -1584,6 +1585,8 @@ def run_databento_base_scan_pipeline(
         if progress_callback is not None:
             progress_callback(message)
 
+    export_started_at = time_module.perf_counter()
+    _progress("Base scan: Starting Databento production export pipeline...")
     export_result = run_production_export_pipeline(
         databento_api_key=databento_api_key,
         fmp_api_key=fmp_api_key,
@@ -1598,11 +1601,20 @@ def run_databento_base_scan_pipeline(
         smc_base_only=smc_base_only,
         progress_callback=progress_callback,
     )
+    _progress(
+        "Base scan: Databento production export pipeline complete in "
+        f"{time_module.perf_counter() - export_started_at:.1f}s"
+    )
+    bundle_load_started_at = time_module.perf_counter()
     manifest_path = Path(export_result["exported_paths"]["manifest"])
     bundle_payload = load_export_bundle(
         manifest_path,
         required_frames=REQUIRED_BUNDLE_FRAMES,
         manifest_prefix="databento_volatility_production_",
+    )
+    _progress(
+        "Base scan: Export bundle load complete in "
+        f"{time_module.perf_counter() - bundle_load_started_at:.1f}s"
     )
     trading_days = _build_trade_date_scope(bundle_payload["manifest"])
     daily_feature_frame = bundle_payload["frames"]["daily_symbol_features_full_universe"]
@@ -1646,6 +1658,7 @@ def run_databento_base_scan_pipeline(
     universe_symbols = set(daily_feature_frame["symbol"].dropna().astype(str).str.upper())
 
     _progress("Step 11/12: Collecting full-session minute detail for microstructure base derivation...")
+    session_detail_started_at = time_module.perf_counter()
     session_minute_detail = collect_full_universe_session_minute_detail(
         databento_api_key,
         dataset=dataset,
@@ -1657,12 +1670,18 @@ def run_databento_base_scan_pipeline(
         use_file_cache=use_file_cache,
         force_refresh=force_refresh,
     )
+    _progress(
+        "Step 11/12 complete: Full-session minute detail collected in "
+        f"{time_module.perf_counter() - session_detail_started_at:.1f}s "
+        f"(rows={len(session_minute_detail)})"
+    )
     output_paths = build_default_output_paths(bundle_payload["base_prefix"], export_dir, str(max(trading_days).isoformat()))
     if not session_minute_detail.empty:
         session_minute_detail.to_parquet(output_paths["session_minute_parquet"], index=False)
         bundle_payload["frames"]["session_minute_detail_full_universe"] = session_minute_detail
 
     _progress("Step 12/12: Building SMC microstructure base snapshot...")
+    base_snapshot_started_at = time_module.perf_counter()
     canonical_production_workbook = export_result.get("exported_paths", {}).get("canonical_production_workbook")
     base_result = generate_base_from_bundle(
         bundle_payload,
@@ -1672,6 +1691,11 @@ def run_databento_base_scan_pipeline(
         session_minute_detail=session_minute_detail,
         library_owner=library_owner,
         library_version=library_version,
+    )
+    _progress(
+        "Step 12/12 complete: SMC microstructure base snapshot built in "
+        f"{time_module.perf_counter() - base_snapshot_started_at:.1f}s "
+        f"(rows={len(base_result.get('base_snapshot', []))})"
     )
     base_manifest_path = base_result["output_paths"].get("base_manifest")
     if base_manifest_path is not None:

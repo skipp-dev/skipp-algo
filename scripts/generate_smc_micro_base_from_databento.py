@@ -5,6 +5,7 @@ import json
 import logging
 import os
 import sys
+import time as time_module
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any, cast
@@ -33,6 +34,10 @@ from scripts.smc_library_layering import compute_library_layering
 from scripts.smc_live_news_bus import DEFAULT_SYMBOL_LIMIT, export_live_news_snapshot, resolve_live_news_symbols
 
 logger = logging.getLogger(__name__)
+
+
+def _emit_cli_progress(message: str) -> None:
+    print(message, flush=True)
 
 
 DERIVED_FIELD_NOTES = {
@@ -749,6 +754,7 @@ def finalize_pipeline(
     enrich_range_regime: bool = False,
     enrich_range_profile_regime: bool = False,
     emit_live_news_snapshot: bool = False,
+    progress_callback: Any = None,
 ) -> dict[str, Any]:
     """Shared post-base orchestration: enrichment + Pine library generation.
 
@@ -760,6 +766,11 @@ def finalize_pipeline(
     artifacts_root = Path(artifacts_root) if artifacts_root is not None else output_root
     artifacts_root.mkdir(parents=True, exist_ok=True)
 
+    def _progress(message: str) -> None:
+        logger.info(message)
+        if progress_callback is not None:
+            progress_callback(message)
+
     base_csv = Path(base_result["output_paths"]["base_csv"])
     snapshot_df = base_result["base_snapshot"]
     symbols = sorted(
@@ -770,6 +781,8 @@ def finalize_pipeline(
     manifest_path = output_root / "pine" / "generated" / "smc_micro_profiles_generated.json"
 
     # ── Enrichment ──────────────────────────────────────────────
+    enrichment_started_at = time_module.perf_counter()
+    _progress(f"Finalize 1/3: Building enrichment for {len(symbols)} symbols...")
     enrichment = build_enrichment(
         fmp_api_key=fmp_api_key,
         benzinga_api_key=benzinga_api_key,
@@ -799,8 +812,15 @@ def finalize_pipeline(
         manifest_path=manifest_path,
         newsapi_feed_state_path=artifacts_root / "newsapi_ai_feed_state.json",
     )
+    enrichment_keys = list(enrichment.keys()) if enrichment else []
+    _progress(
+        f"Finalize 1/3 complete in {time_module.perf_counter() - enrichment_started_at:.1f}s "
+        f"(enrichment_keys={len(enrichment_keys)})"
+    )
 
     # ── Pine library generation ─────────────────────────────────
+    pine_started_at = time_module.perf_counter()
+    _progress("Finalize 2/3: Generating Pine library artifacts...")
     pine_paths = generate_pine_library_from_base(
         base_csv_path=base_csv,
         schema_path=schema_path,
@@ -809,9 +829,15 @@ def finalize_pipeline(
         library_version=library_version,
         enrichment=enrichment,
     )
+    _progress(
+        f"Finalize 2/3 complete in {time_module.perf_counter() - pine_started_at:.1f}s "
+        f"(artifacts={len(pine_paths)})"
+    )
 
     live_news_result = None
     if emit_live_news_snapshot:
+        live_news_started_at = time_module.perf_counter()
+        _progress("Finalize 3/3: Exporting live-news sidecars...")
         live_news_result = _export_live_news_sidecar(
             base_result=base_result,
             base_csv=base_csv,
@@ -819,6 +845,11 @@ def finalize_pipeline(
             fmp_api_key=fmp_api_key,
             benzinga_api_key=benzinga_api_key,
             newsapi_ai_key=newsapi_ai_key,
+        )
+        live_news_status = live_news_result.get("status") if isinstance(live_news_result, dict) else "unknown"
+        _progress(
+            f"Finalize 3/3 complete in {time_module.perf_counter() - live_news_started_at:.1f}s "
+            f"(status={live_news_status})"
         )
 
     result = {
@@ -893,6 +924,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main() -> None:
     args = build_parser().parse_args()
+    cli_progress_callback = _emit_cli_progress
     enrichment_flags = _resolve_enrichment_flags(args)
     fmp_api_key = str(args.fmp_api_key).strip()
     benzinga_api_key = str(getattr(args, 'benzinga_api_key', '') or '').strip()
@@ -908,6 +940,7 @@ def main() -> None:
         library_owner=str(args.library_owner).strip(),
         library_version=int(args.library_version),
         emit_live_news_snapshot=True,
+        progress_callback=cli_progress_callback,
         **enrichment_flags,
     )
 
@@ -929,6 +962,7 @@ def main() -> None:
             write_xlsx=bool(args.write_xlsx),
             library_owner=str(args.library_owner).strip(),
             library_version=int(args.library_version),
+            progress_callback=cli_progress_callback,
         )
         result = finalize_pipeline(base_result=base_result, **finalize_kwargs)
         logger.info("Pipeline complete: %s", json.dumps(result, indent=2))
