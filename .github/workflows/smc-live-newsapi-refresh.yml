@@ -13,6 +13,11 @@ on:
         description: "Base-manifest symbol limit when no explicit symbols are provided"
         required: false
         default: "100"
+      reset_state:
+        description: "Delete the persisted live-news state before this manual refresh"
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -45,6 +50,7 @@ jobs:
         env:
           INPUT_SYMBOLS: ${{ github.event.inputs.symbols }}
           INPUT_SYMBOL_LIMIT: ${{ github.event.inputs.symbol_limit }}
+          INPUT_RESET_STATE: ${{ github.event.inputs.reset_state }}
           NEWSAPI_AI_SHARED_CACHE_TTL_SECONDS: "25"
         run: |
           NEWSAPI_AI_KEY='${{ secrets.NEWSAPI_AI_KEY }}'
@@ -53,6 +59,11 @@ jobs:
 
           SYMBOLS="${INPUT_SYMBOLS:-}"
           SYMBOL_LIMIT="${INPUT_SYMBOL_LIMIT:-100}"
+
+          if [ "${INPUT_RESET_STATE:-false}" = "true" ]; then
+            rm -f artifacts/smc_microstructure_exports/smc_live_news_state.json
+            echo "Reset persisted live-news state before export."
+          fi
 
           python scripts/export_smc_live_news_snapshot.py \
             --symbols "$SYMBOLS" \
