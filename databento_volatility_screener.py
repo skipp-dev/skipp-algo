@@ -795,15 +795,22 @@ def _is_retryable_databento_get_range_error(exc: BaseException) -> bool:
     return any(fragment in message for fragment in retryable_fragments)
 
 
-def _databento_get_range_with_retry(client: Any, *, context: str, **kwargs: Any) -> Any:
+def _databento_get_range_with_retry(
+    client: Any,
+    *,
+    context: str,
+    max_attempts: int | None = None,
+    **kwargs: Any,
+) -> Any:
     last_exc: BaseException | None = None
-    for attempt in range(1, DATABENTO_GET_RANGE_MAX_ATTEMPTS + 1):
+    attempts = max(1, int(max_attempts or DATABENTO_GET_RANGE_MAX_ATTEMPTS))
+    for attempt in range(1, attempts + 1):
         try:
             _normalize_tls_certificate_env()
             return client.timeseries.get_range(**kwargs)
         except Exception as exc:
             last_exc = exc
-            if attempt >= DATABENTO_GET_RANGE_MAX_ATTEMPTS or not _is_retryable_databento_get_range_error(exc):
+            if attempt >= attempts or not _is_retryable_databento_get_range_error(exc):
                 raise
             wait_seconds = float(2 ** (attempt - 1))
             logger.warning(
@@ -812,7 +819,7 @@ def _databento_get_range_with_retry(client: Any, *, context: str, **kwargs: Any)
                 _redact_sensitive_error_text(str(exc)),
                 wait_seconds,
                 attempt,
-                DATABENTO_GET_RANGE_MAX_ATTEMPTS,
+                attempts,
             )
             time_module.sleep(wait_seconds)
     if last_exc is not None:
@@ -1554,9 +1561,11 @@ def _load_intraday_summary_batch(
             )
             if clamped_end_1s <= pd.Timestamp(window.fetch_start_utc):
                 return
+            retry_attempts = 1 if len(symbols_batch) > 1 else DATABENTO_GET_RANGE_MAX_ATTEMPTS
             store = _databento_get_range_with_retry(
                 client,
                 context="run_intraday_screen",
+                max_attempts=retry_attempts,
                 dataset=dataset,
                 symbols=symbols_batch,
                 schema="ohlcv-1s",
