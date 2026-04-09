@@ -3,6 +3,8 @@ from __future__ import annotations
 import csv
 import json
 import logging
+import os
+import re
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
@@ -13,17 +15,29 @@ from typing import Any
 from newsstack_fmp.common_types import NewsItem
 from newsstack_fmp.ingest_benzinga import BenzingaRestAdapter
 from newsstack_fmp.ingest_fmp import FmpAdapter
+from newsstack_fmp.normalize import normalize_newsapi_ai
 from newsstack_fmp.scoring import classify_and_score, cluster_hash
-from terminal_tradingview_news import TVHeadline, fetch_tv_multi
+from smc_integration.release_policy import RELEASE_REFERENCE_SYMBOLS
+from newsstack_fmp.shared_fetch import (
+    DEFAULT_SHARED_NEWS_CACHE_DIR,
+    DEFAULT_SHARED_NEWS_CACHE_TTL_SECONDS,
+    fetch_cached_batch,
+    tv_headline_to_news_item,
+)
+from terminal_tradingview_news import fetch_tv_multi
 
 logger = logging.getLogger(__name__)
 
-PROVIDER_ORDER = ("benzinga", "fmp_stock", "fmp_press", "tv")
+_SENSITIVE_QUERY_RE = re.compile(r"(apikey|api_key|token|key)=[^&\s]+", re.IGNORECASE)
+
+PROVIDER_ORDER = ("benzinga", "fmp_stock", "fmp_press", "fmp_articles", "newsapi_ai", "tv")
 DEFAULT_STORY_WINDOW_SECONDS = 24 * 60 * 60
 DEFAULT_STATE_RETENTION_SECONDS = 7 * 24 * 60 * 60
 DEFAULT_MAX_STATE_STORIES = 5000
 DEFAULT_SYMBOL_LIMIT = 100
 DEFAULT_TV_SYMBOL_LIMIT = 20
+_SHARED_CACHE_DIR = os.getenv("SHARED_NEWS_CACHE_DIR", DEFAULT_SHARED_NEWS_CACHE_DIR)
+_SHARED_CACHE_TTL_SECONDS = float(os.getenv("SHARED_NEWS_CACHE_TTL_SECONDS", str(DEFAULT_SHARED_NEWS_CACHE_TTL_SECONDS)))
 
 _TIER_RANK = {
     "TIER_1": 1,
@@ -81,6 +95,7 @@ class ProviderPollResult:
     raw_count: int = 0
     cursor: float = 0.0
     error: str = ""
+    meta: dict[str, Any] = field(default_factory=dict)
 
 
 def _normalize_symbols(symbols: list[str]) -> list[str]:
@@ -141,7 +156,9 @@ def _source_tier(source: str, provider_bucket: str) -> str:
         return "TIER_3"
     if provider_bucket == "benzinga":
         return "TIER_2"
-    if provider_bucket in {"fmp_stock", "fmp_press"}:
+    if provider_bucket in {"fmp_stock", "fmp_press", "fmp_articles"}:
+        return "TIER_3"
+    if provider_bucket == "newsapi_ai":
         return "TIER_3"
     if provider_bucket == "tv":
         return "TIER_2"
@@ -225,28 +242,65 @@ def _candidate_from_news_item(
     )
 
 
-def _candidate_from_tv_headline(headline: TVHeadline, universe: set[str]) -> LiveNewsCandidate | None:
-    tickers = tuple(sorted({str(ticker or "").strip().upper() for ticker in headline.tickers if str(ticker or "").strip().upper() in universe}))
-    if not tickers:
-        return None
-    title = str(headline.title or "").strip()
-    if not title:
-        return None
-    return LiveNewsCandidate(
-        provider_bucket="tv",
-        provider_name=f"tv_{str(headline.provider or 'unknown').strip().lower()}",
-        item_id=str(headline.id or ""),
-        headline=title,
-        tickers=tickers,
-        published_ts=_coerce_timestamp(headline.published),
-        updated_ts=_coerce_timestamp(headline.published),
-        url=str(headline.story_url or ""),
-        source=str(headline.source or headline.provider or "TradingView"),
+def _disabled_provider(provider: str, *, cursor: float, error: str) -> ProviderPollResult:
+    return ProviderPollResult(provider=provider, ok=False, items=[], raw_count=0, cursor=cursor, error=error)
+
+
+def _sanitize_error_text(value: Any) -> str:
+    return _SENSITIVE_QUERY_RE.sub(r"\1=***", str(value or ""))
+
+
+def _newsapi_records_from_items(items: list[NewsItem]) -> list[dict[str, Any]]:
+    return [item.raw for item in items if item.provider == "newsapi_ai" and isinstance(item.raw, dict)]
+
+
+def _next_newsapi_feed_uri(current_uri: str, items: list[NewsItem], *, cursor_advanced: bool) -> str:
+    from scripts.smc_newsapi_ai import extract_newsapi_feed_article_cursor_uri
+
+    next_uri = extract_newsapi_feed_article_cursor_uri(_newsapi_records_from_items(items))
+    if next_uri:
+        return next_uri
+    if cursor_advanced:
+        return ""
+    return str(current_uri or "").strip()
+
+
+def _newsapi_operator_status(
+    *,
+    cursor: float,
+    raw_items: list[NewsItem],
+    candidates: list[LiveNewsCandidate],
+) -> tuple[str, str]:
+    if candidates:
+        return "ok", ""
+    if cursor <= 0.0:
+        return "ok", ""
+    if raw_items:
+        return (
+            "ok_no_recent_matches",
+            "Event Registry reachable, but no new symbol-matching NewsAPI.ai items were newer than the current cursor.",
+        )
+    return (
+        "ok_no_recent_matches",
+        "Event Registry reachable, but no recent symbol-matching NewsAPI.ai items were returned for the current feed window.",
     )
 
 
-def _disabled_provider(provider: str, *, cursor: float, error: str) -> ProviderPollResult:
-    return ProviderPollResult(provider=provider, ok=False, items=[], raw_count=0, cursor=cursor, error=error)
+def _fetch_cached_live_provider_batch(
+    *,
+    provider: str,
+    scope: dict[str, Any],
+    cursor: float,
+    fetcher: Any,
+):
+    return fetch_cached_batch(
+        provider=provider,
+        scope=scope,
+        ttl_seconds=_SHARED_CACHE_TTL_SECONDS,
+        min_cursor=cursor,
+        fetcher=fetcher,
+        cache_dir=_SHARED_CACHE_DIR,
+    )
 
 
 def fetch_live_news_benzinga(
@@ -261,20 +315,23 @@ def fetch_live_news_benzinga(
     universe = set(symbols)
     adapter = BenzingaRestAdapter(api_key)
     try:
-        items = adapter.fetch_news(
-            updated_since=str(int(cursor)) if cursor > 0 else None,
-            page_size=page_size,
-            tickers=",".join(symbols) if symbols else None,
+        batch = _fetch_cached_live_provider_batch(
+            provider="benzinga_rest",
+            scope={"page_size": page_size},
+            cursor=cursor,
+            fetcher=lambda: adapter.fetch_news(
+                updated_since=None,
+                page_size=page_size,
+            ),
         )
     finally:
         adapter.client.close()
     candidates = [
         candidate
-        for item in items
+        for item in batch.items
         if (candidate := _candidate_from_news_item(item, provider_bucket="benzinga", provider_name="benzinga_rest", universe=universe)) is not None
     ]
-    next_cursor = max([cursor, *[max(item.updated_ts, item.published_ts) for item in items]], default=cursor)
-    return ProviderPollResult(provider="benzinga", ok=True, items=candidates, raw_count=len(items), cursor=next_cursor)
+    return ProviderPollResult(provider="benzinga", ok=True, items=candidates, raw_count=batch.raw_count, cursor=batch.cursor)
 
 
 def fetch_live_news_fmp_stock(
@@ -289,17 +346,20 @@ def fetch_live_news_fmp_stock(
     universe = set(symbols)
     adapter = FmpAdapter(api_key)
     try:
-        items = adapter.fetch_stock_latest(page=0, limit=page_size)
+        batch = _fetch_cached_live_provider_batch(
+            provider="fmp_stock_latest",
+            scope={"page": 0, "limit": page_size},
+            cursor=cursor,
+            fetcher=lambda: adapter.fetch_stock_latest(page=0, limit=page_size),
+        )
     finally:
         adapter.close()
     candidates = [
         candidate
-        for item in items
-        if max(item.updated_ts, item.published_ts) > cursor
+        for item in batch.items
         if (candidate := _candidate_from_news_item(item, provider_bucket="fmp_stock", provider_name=item.provider, universe=universe)) is not None
     ]
-    next_cursor = max([cursor, *[max(item.updated_ts, item.published_ts) for item in items]], default=cursor)
-    return ProviderPollResult(provider="fmp_stock", ok=True, items=candidates, raw_count=len(items), cursor=next_cursor)
+    return ProviderPollResult(provider="fmp_stock", ok=True, items=candidates, raw_count=batch.raw_count, cursor=batch.cursor)
 
 
 def fetch_live_news_fmp_press(
@@ -314,17 +374,132 @@ def fetch_live_news_fmp_press(
     universe = set(symbols)
     adapter = FmpAdapter(api_key)
     try:
-        items = adapter.fetch_press_latest(page=0, limit=page_size)
+        batch = _fetch_cached_live_provider_batch(
+            provider="fmp_press_latest",
+            scope={"page": 0, "limit": page_size},
+            cursor=cursor,
+            fetcher=lambda: adapter.fetch_press_latest(page=0, limit=page_size),
+        )
     finally:
         adapter.close()
     candidates = [
         candidate
-        for item in items
-        if max(item.updated_ts, item.published_ts) > cursor
+        for item in batch.items
         if (candidate := _candidate_from_news_item(item, provider_bucket="fmp_press", provider_name=item.provider, universe=universe)) is not None
     ]
-    next_cursor = max([cursor, *[max(item.updated_ts, item.published_ts) for item in items]], default=cursor)
-    return ProviderPollResult(provider="fmp_press", ok=True, items=candidates, raw_count=len(items), cursor=next_cursor)
+    return ProviderPollResult(provider="fmp_press", ok=True, items=candidates, raw_count=batch.raw_count, cursor=batch.cursor)
+
+
+def fetch_live_news_fmp_articles(
+    *,
+    api_key: str,
+    symbols: list[str],
+    cursor: float,
+    limit: int,
+) -> ProviderPollResult:
+    if not api_key:
+        return _disabled_provider("fmp_articles", cursor=cursor, error="missing_api_key")
+    universe = set(symbols)
+    adapter = FmpAdapter(api_key)
+    try:
+        batch = _fetch_cached_live_provider_batch(
+            provider="fmp_articles",
+            scope={"limit": limit},
+            cursor=cursor,
+            fetcher=lambda: adapter.fetch_articles(limit=limit),
+        )
+    finally:
+        adapter.close()
+    candidates = [
+        candidate
+        for item in batch.items
+        if (candidate := _candidate_from_news_item(item, provider_bucket="fmp_articles", provider_name=item.provider, universe=universe)) is not None
+    ]
+    return ProviderPollResult(provider="fmp_articles", ok=True, items=candidates, raw_count=batch.raw_count, cursor=batch.cursor)
+
+
+def fetch_live_news_newsapi_ai(
+    *,
+    api_key: str,
+    symbols: list[str],
+    cursor: float,
+    article_feed_after_uri: str = "",
+    lookback_days: int = 2,
+    articles_per_request: int = 100,
+) -> ProviderPollResult:
+    if not api_key:
+        return _disabled_provider("newsapi_ai", cursor=cursor, error="missing_api_key")
+    normalized_symbols = _normalize_symbols(symbols)
+    if not normalized_symbols:
+        return _disabled_provider("newsapi_ai", cursor=cursor, error="no_symbols")
+
+    from scripts.smc_newsapi_ai import NewsApiAiProviderError, fetch_newsapi_records
+
+    universe = set(normalized_symbols)
+    try:
+        batch = _fetch_cached_live_provider_batch(
+            provider="newsapi_ai",
+            scope={
+                "symbols": normalized_symbols,
+                "lookback_days": lookback_days,
+                "articles_per_request": articles_per_request,
+                "include_events": True,
+                "article_feed_after_uri": article_feed_after_uri.strip(),
+            },
+            cursor=cursor,
+            fetcher=lambda: [
+                normalize_newsapi_ai(article)
+                for article in fetch_newsapi_records(
+                    api_key,
+                    normalized_symbols,
+                    lookback_days=lookback_days,
+                    articles_per_request=articles_per_request,
+                    prefer_article_feed=cursor > 0.0,
+                    article_feed_after_epoch=cursor,
+                    article_feed_after_uri=article_feed_after_uri,
+                )
+            ],
+        )
+    except NewsApiAiProviderError as exc:
+        return ProviderPollResult(
+            provider="newsapi_ai",
+            ok=False,
+            items=[],
+            raw_count=0,
+            cursor=cursor,
+            error=_sanitize_error_text(str(exc)),
+            meta={
+                "provider_status": exc.provider_status,
+                "error_code": exc.error_code,
+            },
+        )
+    next_feed_uri = _next_newsapi_feed_uri(
+        article_feed_after_uri,
+        batch.items,
+        cursor_advanced=batch.cursor > cursor,
+    )
+    candidates = [
+        candidate
+        for item in batch.items
+        if (candidate := _candidate_from_news_item(item, provider_bucket="newsapi_ai", provider_name=item.provider, universe=universe)) is not None
+    ]
+    provider_status, status_detail = _newsapi_operator_status(
+        cursor=cursor,
+        raw_items=list(batch.raw_items),
+        candidates=candidates,
+    )
+    return ProviderPollResult(
+        provider="newsapi_ai",
+        ok=True,
+        items=candidates,
+        raw_count=batch.raw_count,
+        cursor=batch.cursor,
+        meta={
+            "last_seen_news_uri": next_feed_uri,
+            "provider_status": provider_status,
+            "status_detail": status_detail,
+        },
+    )
 
 
 def fetch_live_news_tv(
@@ -339,15 +514,25 @@ def fetch_live_news_tv(
     if not scoped_symbols:
         return _disabled_provider("tv", cursor=cursor, error="no_symbols")
     universe = set(scoped_symbols)
-    items = fetch_tv_multi(scoped_symbols, max_per_ticker=max_per_ticker, max_total=max_total)
+    batch = _fetch_cached_live_provider_batch(
+        provider="tradingview",
+        scope={
+            "symbols": scoped_symbols,
+            "max_per_ticker": max_per_ticker,
+            "max_total": max_total,
+        },
+        cursor=cursor,
+        fetcher=lambda: [
+            tv_headline_to_news_item(headline)
+            for headline in fetch_tv_multi(scoped_symbols, max_per_ticker=max_per_ticker, max_total=max_total)
+        ],
+    )
     candidates = [
         candidate
-        for item in items
-        if item.published > cursor
-        if (candidate := _candidate_from_tv_headline(item, universe)) is not None
+        for item in batch.items
+        if (candidate := _candidate_from_news_item(item, provider_bucket="tv", provider_name=item.provider, universe=universe)) is not None
     ]
-    next_cursor = max([cursor, *[_coerce_timestamp(item.published) for item in items]], default=cursor)
-    return ProviderPollResult(provider="tv", ok=True, items=candidates, raw_count=len(items), cursor=next_cursor)
+    return ProviderPollResult(provider="tv", ok=True, items=candidates, raw_count=batch.raw_count, cursor=batch.cursor)
 
 
 def _normalize_state(payload: dict[str, Any] | None) -> dict[str, Any]:
@@ -355,6 +540,15 @@ def _normalize_state(payload: dict[str, Any] | None) -> dict[str, Any]:
     raw_cursors = raw_payload.get("provider_cursors") if isinstance(raw_payload, dict) else None
     cursors = {provider: _coerce_timestamp((raw_cursors or {}).get(provider) if isinstance(raw_cursors, dict) else None) for provider in PROVIDER_ORDER}
     cursors["legacy_cursor"] = max(cursors.values(), default=0.0)
+
+    raw_provider_state = raw_payload.get("provider_state") if isinstance(raw_payload, dict) else None
+    provider_state: dict[str, dict[str, Any]] = {}
+    if isinstance(raw_provider_state, dict):
+        raw_newsapi_state = raw_provider_state.get("newsapi_ai")
+        if isinstance(raw_newsapi_state, dict):
+            last_seen_news_uri = str(raw_newsapi_state.get("last_seen_news_uri") or "").strip()
+            if last_seen_news_uri:
+                provider_state["newsapi_ai"] = {"last_seen_news_uri": last_seen_news_uri}
 
     raw_story_state = raw_payload.get("story_state") if isinstance(raw_payload, dict) else None
     story_state: dict[str, dict[str, Any]] = {}
@@ -390,7 +584,7 @@ def _normalize_state(payload: dict[str, Any] | None) -> dict[str, Any]:
                 "source_rank": int(raw_value.get("source_rank") or 4),
                 "last_seen_ts": _coerce_timestamp(raw_value.get("last_seen_ts")),
             }
-    return {"provider_cursors": cursors, "story_state": story_state}
+    return {"provider_cursors": cursors, "provider_state": provider_state, "story_state": story_state}
 
 
 def load_live_news_state(path: Path) -> dict[str, Any]:
@@ -523,11 +717,18 @@ def poll_live_news_bus(
     state: dict[str, Any] | None = None,
     fmp_api_key: str = "",
     benzinga_api_key: str = "",
+    newsapi_ai_key: str = "",
+    include_benzinga: bool = True,
+    include_fmp: bool = True,
+    include_newsapi_ai: bool = True,
     include_tradingview: bool = True,
+    include_fmp_articles: bool = True,
     page_size: int = 100,
     tv_max_per_ticker: int = 3,
     tv_max_total: int = 25,
     tv_symbol_limit: int = DEFAULT_TV_SYMBOL_LIMIT,
+    newsapi_lookback_days: int = 2,
+    newsapi_articles_per_request: int = 100,
     story_window_seconds: int = DEFAULT_STORY_WINDOW_SECONDS,
     state_retention_seconds: int = DEFAULT_STATE_RETENTION_SECONDS,
     max_state_stories: int = DEFAULT_MAX_STATE_STORIES,
@@ -537,40 +738,80 @@ def poll_live_news_bus(
     normalized_symbols = _normalize_symbols(symbols)
     normalized_state = _normalize_state(state)
     provider_cursors = dict(normalized_state["provider_cursors"])
+    provider_state = {
+        provider: dict(payload)
+        for provider, payload in normalized_state["provider_state"].items()
+        if isinstance(payload, dict)
+    }
     story_state = dict(normalized_state["story_state"])
 
-    fetch_specs: list[tuple[str, Any, dict[str, Any]]] = [
-        (
-            "benzinga",
-            fetch_live_news_benzinga,
-            {
-                "api_key": benzinga_api_key,
-                "symbols": normalized_symbols,
-                "cursor": provider_cursors["benzinga"],
-                "page_size": page_size,
-            },
-        ),
-        (
-            "fmp_stock",
-            fetch_live_news_fmp_stock,
-            {
-                "api_key": fmp_api_key,
-                "symbols": normalized_symbols,
-                "cursor": provider_cursors["fmp_stock"],
-                "page_size": page_size,
-            },
-        ),
-        (
-            "fmp_press",
-            fetch_live_news_fmp_press,
-            {
-                "api_key": fmp_api_key,
-                "symbols": normalized_symbols,
-                "cursor": provider_cursors["fmp_press"],
-                "page_size": page_size,
-            },
-        ),
-    ]
+    fetch_specs: list[tuple[str, Any, dict[str, Any]]] = []
+    if include_benzinga:
+        fetch_specs.append(
+            (
+                "benzinga",
+                fetch_live_news_benzinga,
+                {
+                    "api_key": benzinga_api_key,
+                    "symbols": normalized_symbols,
+                    "cursor": provider_cursors["benzinga"],
+                    "page_size": page_size,
+                },
+            )
+        )
+    if include_fmp:
+        fetch_specs.extend(
+            [
+                (
+                    "fmp_stock",
+                    fetch_live_news_fmp_stock,
+                    {
+                        "api_key": fmp_api_key,
+                        "symbols": normalized_symbols,
+                        "cursor": provider_cursors["fmp_stock"],
+                        "page_size": page_size,
+                    },
+                ),
+                (
+                    "fmp_press",
+                    fetch_live_news_fmp_press,
+                    {
+                        "api_key": fmp_api_key,
+                        "symbols": normalized_symbols,
+                        "cursor": provider_cursors["fmp_press"],
+                        "page_size": page_size,
+                    },
+                ),
+            ]
+        )
+    if include_fmp and include_fmp_articles:
+        fetch_specs.append(
+            (
+                "fmp_articles",
+                fetch_live_news_fmp_articles,
+                {
+                    "api_key": fmp_api_key,
+                    "symbols": normalized_symbols,
+                    "cursor": provider_cursors["fmp_articles"],
+                    "limit": max(page_size, 1),
+                },
+            )
+        )
+    if include_newsapi_ai:
+        fetch_specs.append(
+            (
+                "newsapi_ai",
+                fetch_live_news_newsapi_ai,
+                {
+                    "api_key": newsapi_ai_key,
+                    "symbols": normalized_symbols,
+                    "cursor": provider_cursors["newsapi_ai"],
+                    "article_feed_after_uri": str((provider_state.get("newsapi_ai") or {}).get("last_seen_news_uri") or ""),
+                    "lookback_days": max(int(newsapi_lookback_days), 1),
+                    "articles_per_request": max(int(newsapi_articles_per_request), 1),
+                },
+            )
+        )
     if include_tradingview:
         fetch_specs.append(
             (
@@ -598,8 +839,9 @@ def poll_live_news_bus(
             try:
                 provider_results[provider] = future.result()
             except Exception as exc:
-                logger.warning("Live news provider failed: %s", provider, exc_info=True)
-                provider_results[provider] = _disabled_provider(provider, cursor=fallback_cursor, error=f"{type(exc).__name__}: {exc}")
+                error_text = _sanitize_error_text(f"{type(exc).__name__}: {exc}")
+                logger.warning("Live news provider failed: %s: %s", provider, error_text)
+                provider_results[provider] = _disabled_provider(provider, cursor=fallback_cursor, error=error_text)
 
     for provider in PROVIDER_ORDER:
         provider_results.setdefault(provider, _disabled_provider(provider, cursor=provider_cursors.get(provider, 0.0), error="disabled"))
@@ -611,6 +853,14 @@ def poll_live_news_bus(
         for candidate in result.items:
             _, story_key = _story_key(candidate.headline, candidate.tickers, candidate.published_ts)
             grouped_candidates.setdefault(story_key, []).append(candidate)
+
+    newsapi_meta = provider_results["newsapi_ai"].meta
+    if "last_seen_news_uri" in newsapi_meta:
+        next_newsapi_uri = str(newsapi_meta.get("last_seen_news_uri") or "").strip()
+        if next_newsapi_uri:
+            provider_state["newsapi_ai"] = {"last_seen_news_uri": next_newsapi_uri}
+        else:
+            provider_state.pop("newsapi_ai", None)
 
     new_story_keys: set[str] = set()
     for story_key, candidates in grouped_candidates.items():
@@ -705,6 +955,16 @@ def poll_live_news_bus(
                 "raw_count": int(provider_results[provider].raw_count),
                 "new_item_count": int(len(provider_results[provider].items)),
                 "cursor": provider_cursors[provider],
+                **(
+                    {
+                        "last_seen_news_uri": str((provider_state.get(provider) or {}).get("last_seen_news_uri") or "")
+                        ,"provider_status": str(provider_results[provider].meta.get("provider_status") or ("ok" if provider_results[provider].ok else ""))
+                            ,"status_detail": str(provider_results[provider].meta.get("status_detail") or "")
+                        ,"error_code": str(provider_results[provider].meta.get("error_code") or "")
+                    }
+                    if provider == "newsapi_ai"
+                    else {}
+                ),
             }
             for provider in PROVIDER_ORDER
         },
@@ -720,6 +980,7 @@ def poll_live_news_bus(
     }
     next_state = {
         "provider_cursors": provider_cursors,
+        "provider_state": provider_state,
         "story_state": story_state,
     }
     return snapshot, next_state
@@ -780,7 +1041,10 @@ def resolve_live_news_symbols(
 
     manifest_path = base_manifest_path
     if manifest_path is None and export_dir is not None:
-        manifest_path = _resolve_manifest_path(export_dir)
+        try:
+            manifest_path = _resolve_manifest_path(export_dir)
+        except FileNotFoundError:
+            manifest_path = None
 
     resolved_base_csv = base_csv_path
     if resolved_base_csv is None and manifest_path is not None:
@@ -791,7 +1055,16 @@ def resolve_live_news_symbols(
         resolved_base_csv = _resolve_path_from_manifest(raw_base_csv_path, manifest_path)
 
     if resolved_base_csv is None:
-        raise ValueError("Provide explicit symbols, a base CSV path, a base manifest path, or an export directory")
+        fallback_symbols = list(RELEASE_REFERENCE_SYMBOLS)
+        if symbol_limit > 0:
+            fallback_symbols = fallback_symbols[:symbol_limit]
+        return fallback_symbols, {
+            "mode": "release_policy_fallback",
+            "symbol_limit": len(fallback_symbols),
+            "base_csv_path": None,
+            "base_manifest_path": str(manifest_path) if manifest_path is not None else None,
+            "export_dir": str(export_dir) if export_dir is not None else None,
+        }
 
     scope_symbols = load_symbols_from_base_csv(resolved_base_csv, symbol_limit=symbol_limit)
     return scope_symbols, {
@@ -809,11 +1082,18 @@ def export_live_news_snapshot(
     state_path: Path,
     fmp_api_key: str = "",
     benzinga_api_key: str = "",
+    newsapi_ai_key: str = "",
+    include_benzinga: bool = True,
+    include_fmp: bool = True,
+    include_newsapi_ai: bool = True,
     include_tradingview: bool = True,
+    include_fmp_articles: bool = True,
     page_size: int = 100,
     tv_max_per_ticker: int = 3,
     tv_max_total: int = 25,
     tv_symbol_limit: int = DEFAULT_TV_SYMBOL_LIMIT,
+    newsapi_lookback_days: int = 2,
+    newsapi_articles_per_request: int = 100,
     story_window_seconds: int = DEFAULT_STORY_WINDOW_SECONDS,
     now_ts: float | None = None,
     scope_metadata: dict[str, Any] | None = None,
@@ -824,11 +1104,18 @@ def export_live_news_snapshot(
         state=state,
         fmp_api_key=fmp_api_key,
         benzinga_api_key=benzinga_api_key,
+        newsapi_ai_key=newsapi_ai_key,
+        include_benzinga=include_benzinga,
+        include_fmp=include_fmp,
+        include_newsapi_ai=include_newsapi_ai,
         include_tradingview=include_tradingview,
+        include_fmp_articles=include_fmp_articles,
         page_size=page_size,
         tv_max_per_ticker=tv_max_per_ticker,
         tv_max_total=tv_max_total,
         tv_symbol_limit=tv_symbol_limit,
+        newsapi_lookback_days=newsapi_lookback_days,
+        newsapi_articles_per_request=newsapi_articles_per_request,
         story_window_seconds=story_window_seconds,
         now_ts=now_ts,
     )

@@ -7,6 +7,9 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from newsstack_fmp.common_types import NewsItem
+from newsstack_fmp.shared_fetch import CachedNewsBatch
+from scripts.smc_newsapi_ai import NewsApiAiProviderError
 from scripts import smc_live_news_bus as bus
 
 
@@ -82,6 +85,11 @@ def test_poll_live_news_bus_deduplicates_across_providers_and_tracks_cursors() -
             bus,
             "fetch_live_news_fmp_press",
             return_value=bus.ProviderPollResult(provider="fmp_press", items=[], raw_count=0, cursor=0.0),
+        ),
+        patch.object(
+            bus,
+            "fetch_live_news_fmp_articles",
+            return_value=bus.ProviderPollResult(provider="fmp_articles", items=[], raw_count=0, cursor=0.0),
         ),
         patch.object(
             bus,
@@ -177,6 +185,7 @@ def test_poll_live_news_bus_keeps_first_provider_for_existing_story() -> None:
                 cursor=now_ts - 90.0,
             ),
         ),
+        patch.object(bus, "fetch_live_news_fmp_articles", return_value=bus.ProviderPollResult(provider="fmp_articles", items=[], raw_count=0, cursor=0.0)),
         patch.object(bus, "fetch_live_news_fmp_press", return_value=bus.ProviderPollResult(provider="fmp_press", items=[], raw_count=0, cursor=0.0)),
         patch.object(bus, "fetch_live_news_tv", return_value=bus.ProviderPollResult(provider="tv", items=[], raw_count=0, cursor=0.0)),
     ):
@@ -215,6 +224,18 @@ def test_resolve_live_news_symbols_from_base_csv_uses_adv_dollar_order(tmp_path:
     assert metadata["base_csv_path"] == str(base_csv)
 
 
+def test_resolve_live_news_symbols_falls_back_to_release_policy_without_manifest(tmp_path: Path) -> None:
+    export_dir = tmp_path / "exports"
+    export_dir.mkdir(parents=True, exist_ok=True)
+
+    symbols, metadata = bus.resolve_live_news_symbols(export_dir=export_dir, symbol_limit=5)
+
+    assert symbols == ["AAPL", "MSFT", "AMZN", "JPM", "JNJ"]
+    assert metadata["mode"] == "release_policy_fallback"
+    assert metadata["base_csv_path"] is None
+    assert metadata["export_dir"] == str(export_dir)
+
+
 def test_export_live_news_snapshot_writes_snapshot_and_state(tmp_path: Path) -> None:
     output_path = tmp_path / "smc_live_news_snapshot.json"
     state_path = tmp_path / "smc_live_news_state.json"
@@ -251,3 +272,272 @@ def test_export_live_news_snapshot_writes_snapshot_and_state(tmp_path: Path) -> 
     assert snapshot["symbol_scope"] == {"mode": "explicit"}
     assert json.loads(output_path.read_text(encoding="utf-8"))["symbol_scope"] == {"mode": "explicit"}
     assert json.loads(state_path.read_text(encoding="utf-8"))["provider_cursors"]["legacy_cursor"] == 4.0
+
+
+def test_poll_live_news_bus_passes_and_persists_newsapi_feed_uri() -> None:
+    now_ts = 1_750_200_000.0
+    captured_kwargs: dict[str, object] = {}
+
+    def _fake_newsapi(**kwargs):
+        captured_kwargs.update(kwargs)
+        return bus.ProviderPollResult(
+            provider="newsapi_ai",
+            items=[
+                _candidate(
+                    "newsapi_ai",
+                    "newsapi_ai",
+                    "AAPL spikes on fresh wire",
+                    ("AAPL",),
+                    now_ts - 30.0,
+                    source="Reuters",
+                    item_id="newsapi-1",
+                )
+            ],
+            raw_count=1,
+            cursor=now_ts - 20.0,
+            meta={"last_seen_news_uri": "uri-feed-2"},
+        )
+
+    initial_state = {
+        "provider_cursors": {
+            "benzinga": 0.0,
+            "fmp_stock": 0.0,
+            "fmp_press": 0.0,
+            "fmp_articles": 0.0,
+            "newsapi_ai": now_ts - 60.0,
+            "tv": 0.0,
+            "legacy_cursor": now_ts - 60.0,
+        },
+        "provider_state": {
+            "newsapi_ai": {
+                "last_seen_news_uri": "uri-feed-1",
+            }
+        },
+        "story_state": {},
+    }
+
+    with (
+        patch.object(bus, "fetch_live_news_benzinga", return_value=bus.ProviderPollResult(provider="benzinga", items=[], raw_count=0, cursor=0.0)),
+        patch.object(bus, "fetch_live_news_fmp_stock", return_value=bus.ProviderPollResult(provider="fmp_stock", items=[], raw_count=0, cursor=0.0)),
+        patch.object(bus, "fetch_live_news_fmp_press", return_value=bus.ProviderPollResult(provider="fmp_press", items=[], raw_count=0, cursor=0.0)),
+        patch.object(bus, "fetch_live_news_fmp_articles", return_value=bus.ProviderPollResult(provider="fmp_articles", items=[], raw_count=0, cursor=0.0)),
+        patch.object(bus, "fetch_live_news_newsapi_ai", side_effect=_fake_newsapi),
+        patch.object(bus, "fetch_live_news_tv", return_value=bus.ProviderPollResult(provider="tv", items=[], raw_count=0, cursor=0.0)),
+    ):
+        snapshot, next_state = bus.poll_live_news_bus(
+            symbols=["AAPL"],
+            state=initial_state,
+            newsapi_ai_key="newsapi",
+            include_tradingview=True,
+            now_ts=now_ts,
+        )
+
+    assert captured_kwargs["article_feed_after_uri"] == "uri-feed-1"
+    assert next_state["provider_state"]["newsapi_ai"]["last_seen_news_uri"] == "uri-feed-2"
+    assert snapshot["providers"]["newsapi_ai"]["last_seen_news_uri"] == "uri-feed-2"
+
+
+def test_poll_live_news_bus_exports_newsapi_no_recent_matches_status() -> None:
+    now_ts = 1_750_250_000.0
+
+    with (
+        patch.object(bus, "fetch_live_news_benzinga", return_value=bus.ProviderPollResult(provider="benzinga", items=[], raw_count=0, cursor=0.0)),
+        patch.object(bus, "fetch_live_news_fmp_stock", return_value=bus.ProviderPollResult(provider="fmp_stock", items=[], raw_count=0, cursor=0.0)),
+        patch.object(bus, "fetch_live_news_fmp_press", return_value=bus.ProviderPollResult(provider="fmp_press", items=[], raw_count=0, cursor=0.0)),
+        patch.object(bus, "fetch_live_news_fmp_articles", return_value=bus.ProviderPollResult(provider="fmp_articles", items=[], raw_count=0, cursor=0.0)),
+        patch.object(
+            bus,
+            "fetch_live_news_newsapi_ai",
+            return_value=bus.ProviderPollResult(
+                provider="newsapi_ai",
+                ok=True,
+                items=[],
+                raw_count=14,
+                cursor=now_ts - 10.0,
+                meta={
+                    "last_seen_news_uri": "",
+                    "provider_status": "ok_no_recent_matches",
+                    "status_detail": "Event Registry reachable, but no new symbol-matching NewsAPI.ai items were newer than the current cursor.",
+                },
+            ),
+        ),
+        patch.object(bus, "fetch_live_news_tv", return_value=bus.ProviderPollResult(provider="tv", items=[], raw_count=0, cursor=0.0)),
+    ):
+        snapshot, _next_state = bus.poll_live_news_bus(
+            symbols=["AAPL"],
+            state={
+                "provider_cursors": {
+                    "benzinga": 0.0,
+                    "fmp_stock": 0.0,
+                    "fmp_press": 0.0,
+                    "fmp_articles": 0.0,
+                    "newsapi_ai": now_ts - 60.0,
+                    "tv": 0.0,
+                    "legacy_cursor": now_ts - 60.0,
+                },
+                "provider_state": {},
+                "story_state": {},
+            },
+            newsapi_ai_key="newsapi",
+            include_tradingview=True,
+            now_ts=now_ts,
+        )
+
+    provider_payload = snapshot["providers"]["newsapi_ai"]
+    assert provider_payload["provider_status"] == "ok_no_recent_matches"
+    assert provider_payload["status_detail"] == "Event Registry reachable, but no new symbol-matching NewsAPI.ai items were newer than the current cursor."
+    assert provider_payload["new_item_count"] == 0
+
+
+def test_fetch_live_news_newsapi_ai_returns_no_recent_matches_status() -> None:
+    raw_item = NewsItem(
+        provider="newsapi_ai",
+        item_id="event-1",
+        published_ts=1_750_000_000.0,
+        updated_ts=1_750_000_000.0,
+        headline="AAPL older event coverage",
+        snippet="snippet",
+        tickers=["AAPL"],
+        url=None,
+        source="Event Registry",
+        raw={
+            "uri": "event-1",
+            "newsapi_fetch_mode": "search_events",
+        },
+    )
+
+    with patch.object(
+        bus,
+        "_fetch_cached_live_provider_batch",
+        return_value=CachedNewsBatch(
+            provider="newsapi_ai",
+            scope={"symbols": ["AAPL"]},
+            items=[],
+            raw_items=[raw_item],
+            raw_count=1,
+            cursor=1_750_000_100.0,
+            fetched_at=1_750_000_100.0,
+            from_cache=False,
+        ),
+    ):
+        result = bus.fetch_live_news_newsapi_ai(
+            api_key="news-key",
+            symbols=["AAPL"],
+            cursor=1_750_000_050.0,
+        )
+
+    assert result.ok is True
+    assert result.items == []
+    assert result.meta["provider_status"] == "ok_no_recent_matches"
+    assert result.meta["status_detail"] == "Event Registry reachable, but no new symbol-matching NewsAPI.ai items were newer than the current cursor."
+    assert result.meta["last_seen_news_uri"] == ""
+
+
+def test_poll_live_news_bus_redacts_provider_error_secrets() -> None:
+    now_ts = 1_750_300_000.0
+
+    def _raise_newsapi(**_kwargs):
+        raise RuntimeError(
+            "request failed https://eventregistry.org/api/v1/article/getArticles?apiKey=secret-token&keyword=AAPL"
+        )
+
+    with (
+        patch.object(bus, "fetch_live_news_benzinga", return_value=bus.ProviderPollResult(provider="benzinga", items=[], raw_count=0, cursor=0.0)),
+        patch.object(bus, "fetch_live_news_fmp_stock", return_value=bus.ProviderPollResult(provider="fmp_stock", items=[], raw_count=0, cursor=0.0)),
+        patch.object(bus, "fetch_live_news_fmp_press", return_value=bus.ProviderPollResult(provider="fmp_press", items=[], raw_count=0, cursor=0.0)),
+        patch.object(bus, "fetch_live_news_fmp_articles", return_value=bus.ProviderPollResult(provider="fmp_articles", items=[], raw_count=0, cursor=0.0)),
+        patch.object(bus, "fetch_live_news_newsapi_ai", side_effect=_raise_newsapi),
+        patch.object(bus, "fetch_live_news_tv", return_value=bus.ProviderPollResult(provider="tv", items=[], raw_count=0, cursor=0.0)),
+    ):
+        snapshot, _next_state = bus.poll_live_news_bus(
+            symbols=["AAPL"],
+            state=None,
+            newsapi_ai_key="newsapi",
+            include_tradingview=True,
+            now_ts=now_ts,
+        )
+
+    error = snapshot["providers"]["newsapi_ai"]["error"]
+    assert "apiKey=***" in error
+    assert "secret-token" not in error
+
+
+def test_fetch_live_news_newsapi_ai_returns_quota_exhausted_status() -> None:
+    with patch.object(
+        bus,
+        "_fetch_cached_live_provider_batch",
+        side_effect=NewsApiAiProviderError(
+            "quota_exhausted",
+            "Event Registry token quota exhausted or paid plan required",
+            status_code=403,
+        ),
+    ):
+        result = bus.fetch_live_news_newsapi_ai(
+            api_key="news-key",
+            symbols=["AAPL"],
+            cursor=123.0,
+        )
+
+    assert result.ok is False
+    assert result.error == "quota_exhausted: Event Registry token quota exhausted or paid plan required"
+    assert result.meta["provider_status"] == "quota_exhausted"
+    assert result.meta["error_code"] == "quota_exhausted"
+
+
+def test_poll_live_news_bus_can_run_newsapi_only() -> None:
+    now_ts = 1_750_310_000.0
+    captured_kwargs: dict[str, object] = {}
+
+    def _fake_newsapi(**kwargs):
+        captured_kwargs.update(kwargs)
+        return bus.ProviderPollResult(
+            provider="newsapi_ai",
+            items=[
+                _candidate(
+                    "newsapi_ai",
+                    "newsapi_ai",
+                    "AAPL moves on fresh Event Registry hit",
+                    ("AAPL",),
+                    now_ts - 15.0,
+                    source="Event Registry",
+                    item_id="newsapi-only-1",
+                )
+            ],
+            raw_count=1,
+            cursor=now_ts - 10.0,
+            meta={"last_seen_news_uri": "uri-feed-3"},
+        )
+
+    with (
+        patch.object(bus, "fetch_live_news_benzinga") as mock_benzinga,
+        patch.object(bus, "fetch_live_news_fmp_stock") as mock_fmp_stock,
+        patch.object(bus, "fetch_live_news_fmp_press") as mock_fmp_press,
+        patch.object(bus, "fetch_live_news_fmp_articles") as mock_fmp_articles,
+        patch.object(bus, "fetch_live_news_newsapi_ai", side_effect=_fake_newsapi),
+        patch.object(bus, "fetch_live_news_tv") as mock_tv,
+    ):
+        snapshot, next_state = bus.poll_live_news_bus(
+            symbols=["AAPL"],
+            state=None,
+            newsapi_ai_key="newsapi",
+            include_benzinga=False,
+            include_fmp=False,
+            include_fmp_articles=False,
+            include_tradingview=False,
+            newsapi_lookback_days=1,
+            newsapi_articles_per_request=50,
+            now_ts=now_ts,
+        )
+
+    mock_benzinga.assert_not_called()
+    mock_fmp_stock.assert_not_called()
+    mock_fmp_press.assert_not_called()
+    mock_fmp_articles.assert_not_called()
+    mock_tv.assert_not_called()
+    assert captured_kwargs["lookback_days"] == 1
+    assert captured_kwargs["articles_per_request"] == 50
+    assert snapshot["providers"]["benzinga"]["error"] == "disabled"
+    assert snapshot["providers"]["fmp_stock"]["error"] == "disabled"
+    assert snapshot["providers"]["tv"]["error"] == "disabled"
+    assert snapshot["providers"]["newsapi_ai"]["new_item_count"] == 1
+    assert next_state["provider_state"]["newsapi_ai"]["last_seen_news_uri"] == "uri-feed-3"

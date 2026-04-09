@@ -17,6 +17,13 @@ logger = logging.getLogger("open_prep.streamlit_monitor")
 
 _APIKEY_RE = re.compile(r"(apikey|api_key|token|key)=[^&\s]+", re.IGNORECASE)
 
+
+def _env_int(key: str, default: int) -> int:
+    try:
+        return int(os.getenv(key, str(default)))
+    except (TypeError, ValueError):
+        return default
+
 # Code version fingerprint — bump on every deploy to auto-invalidate stale caches.
 _CODE_VERSION = "v2_diag_20260303"
 
@@ -80,6 +87,7 @@ from open_prep.run_open_prep import (  # noqa: E402
     build_gap_scanner,
     generate_open_prep_result,
 )
+from open_prep.newsstack_status import get_provider_cursor_caption, get_provider_status_notice
 from open_prep.rt_promotion import promote_a0a1_signals
 
 DEFAULT_REFRESH_SECONDS = 60
@@ -87,7 +95,7 @@ MAX_STATUS_HISTORY = 20
 BERLIN_TZ = ZoneInfo("Europe/Berlin")
 MIN_AUTO_REFRESH_SECONDS = 5
 RATE_LIMIT_COOLDOWN_SECONDS = 120
-MIN_LIVE_FETCH_INTERVAL_SECONDS = 45
+MIN_LIVE_FETCH_INTERVAL_SECONDS = max(_env_int("OPEN_PREP_MIN_LIVE_FETCH_INTERVAL_SECONDS", 30), MIN_AUTO_REFRESH_SECONDS)
 _STALE_CACHE_MAX_AGE_MIN = 5  # auto-recovery if cache older than this during market hours
 _STALE_RECOVERY_COOLDOWN_S = 300  # 5 min between auto-recovery attempts
 _ABSOLUTE_MAX_CACHE_AGE_MIN = 60  # force refresh regardless of market session detection
@@ -1670,10 +1678,11 @@ def main() -> None:
         # ===================================================================
         try:
             from newsstack_fmp.config import Config as _NSConfig
-            from newsstack_fmp.pipeline import poll_once as _newsstack_poll
+            from newsstack_fmp.pipeline import get_last_meta as _newsstack_last_meta, poll_once as _newsstack_poll
 
             _ns_cfg = _NSConfig()
             ns_candidates = _newsstack_poll(_ns_cfg)
+            ns_meta = _newsstack_last_meta()
 
             _cat_emojis = {
                 "halt": "🛑", "offering": "💰", "mna": "🤝",
@@ -1683,6 +1692,26 @@ def main() -> None:
             _src_badge = {"benzinga_rest": "BZ-REST", "benzinga_ws": "BZ-WS"}
             sources_str = ", ".join(_ns_cfg.active_sources) or "none"
             st.subheader(f"📰 News Stack  ({len(ns_candidates)} Kandidaten · {sources_str})")
+            newsapi_notice = get_provider_status_notice(
+                ns_meta,
+                provider_key="newsapi_ai",
+                provider_name="NewsAPI.ai",
+            )
+            newsapi_cursor_caption = get_provider_cursor_caption(
+                ns_meta,
+                provider_key="newsapi_ai",
+                provider_name="NewsAPI.ai",
+            )
+            if newsapi_notice is not None:
+                severity, message = newsapi_notice
+                if severity == "warning":
+                    st.warning(message)
+                elif severity == "info":
+                    st.info(message)
+                else:
+                    st.caption(message)
+            if newsapi_cursor_caption is not None:
+                st.caption(newsapi_cursor_caption)
             if ns_candidates:
                 for nc in ns_candidates[:20]:
                     tk = nc.get("ticker", "?")

@@ -129,15 +129,32 @@ The repository now includes a first live-sidecar implementation of this lane:
 - `scripts/smc_live_news_bus.py` provides the provider-neutral polling bus
 - `scripts/export_smc_live_news_snapshot.py` emits a JSON sidecar artifact plus persistent cursor/story state
 - `npm run smc:live-news-snapshot` is the default operator-facing entrypoint
+- `.github/workflows/smc-live-newsapi-refresh.yml` adds a lightweight 5-minute GitHub Actions lane for the NewsAPI.ai snapshot without running the full library generator / Playwright publish stack
 
 The emitted files are:
 
 - `artifacts/smc_microstructure_exports/smc_live_news_snapshot.json`
 - `artifacts/smc_microstructure_exports/smc_live_news_state.json`
 
+If no generated `__smc_microstructure_base_manifest.json` is present in the
+export directory yet, the live snapshot lane falls back to the canonical SMC
+release-reference symbols from `smc_integration/release_policy.py` instead of
+failing the run.
+
 `scripts/generate_smc_micro_base_from_databento.py` now emits the same sidecar files automatically from the `--run-scan` and `--bundle` finalize flow as a best-effort live lane, without changing the deterministic batch enrichment contract.
 
 This lane is intentionally separate from `resolve_domain("news")` and does not alter the deterministic batch enrichment contract used by the base generator, manual UI path, or CI refresh runs.
+
+## Low-Latency Knobs
+
+Two live-lane overrides now exist so NewsAPI.ai can run tighter than the rest
+of the shared polling surface:
+
+- `NEWSAPI_AI_SHARED_CACHE_TTL_SECONDS` overrides the shared cache TTL only for the `newsapi_ai` provider while leaving other providers on the broader default window.
+- `OPEN_PREP_MIN_LIVE_FETCH_INTERVAL_SECONDS` controls how often the Streamlit monitor is allowed to trigger a fresh live poll, independent of the UI rerender cadence.
+
+This keeps the global cache policy conservative while letting the Event
+Registry minute feed refresh on a shorter cadence.
 
 ## Guardrails
 

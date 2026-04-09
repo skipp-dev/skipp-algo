@@ -1,0 +1,88 @@
+name: smc-live-newsapi-refresh
+
+on:
+  schedule:
+    - cron: "2-57/5 * * * 1-5"
+  workflow_dispatch:
+    inputs:
+      symbols:
+        description: "Optional comma-separated explicit symbol scope"
+        required: false
+        default: ""
+      symbol_limit:
+        description: "Base-manifest symbol limit when no explicit symbols are provided"
+        required: false
+        default: "100"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: smc-live-newsapi-refresh
+  cancel-in-progress: true
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Refresh NewsAPI.ai live snapshot
+        env:
+          INPUT_SYMBOLS: ${{ github.event.inputs.symbols }}
+          INPUT_SYMBOL_LIMIT: ${{ github.event.inputs.symbol_limit }}
+          NEWSAPI_AI_SHARED_CACHE_TTL_SECONDS: "25"
+        run: |
+          NEWSAPI_AI_KEY='${{ secrets.NEWSAPI_AI_KEY }}'
+          export NEWSAPI_AI_KEY
+          test -n "${NEWSAPI_AI_KEY}" || { echo "::error::NEWSAPI_AI_KEY secret is required"; exit 1; }
+
+          SYMBOLS="${INPUT_SYMBOLS:-}"
+          SYMBOL_LIMIT="${INPUT_SYMBOL_LIMIT:-100}"
+
+          python scripts/export_smc_live_news_snapshot.py \
+            --symbols "$SYMBOLS" \
+            --export-dir artifacts/smc_microstructure_exports \
+            --symbol-limit "$SYMBOL_LIMIT" \
+            --newsapi-only \
+            --newsapi-lookback-days 2 \
+            --newsapi-articles-per-request 100 \
+            --story-window-hours 24 \
+            --output artifacts/smc_microstructure_exports/smc_live_news_snapshot.json \
+            --state artifacts/smc_microstructure_exports/smc_live_news_state.json
+
+      - name: Upload live snapshot artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smc-live-newsapi-snapshot
+          path: |
+            artifacts/smc_microstructure_exports/smc_live_news_snapshot.json
+            artifacts/smc_microstructure_exports/smc_live_news_state.json
+          retention-days: 14
+
+      - name: Commit snapshot updates
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add --sparse -f artifacts/smc_microstructure_exports/smc_live_news_snapshot.json artifacts/smc_microstructure_exports/smc_live_news_state.json
+          if git diff --cached --quiet; then
+            echo "No live snapshot changes to commit."
+            exit 0
+          fi
+          git commit -m "[skip ci] chore: refresh live news snapshot"
+          git push
