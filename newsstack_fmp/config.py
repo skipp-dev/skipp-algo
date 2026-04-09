@@ -41,10 +41,16 @@ class Config:
     # ── Benzinga credentials (repr=False to prevent accidental logging)
     benzinga_api_key: str = field(default_factory=lambda: os.getenv("BENZINGA_API_KEY", ""), repr=False)
 
+    # ── Additional news credentials ────────────────────────────
+    newsapi_ai_key: str = field(default_factory=lambda: os.getenv("NEWSAPI_AI_KEY", ""), repr=False)
+
     # ── Feature flags ───────────────────────────────────────────
     enable_fmp: bool = field(default_factory=lambda: os.getenv("ENABLE_FMP", "1") == "1")
+    enable_fmp_articles: bool = field(default_factory=lambda: os.getenv("ENABLE_FMP_ARTICLES", "1") == "1")
     enable_benzinga_rest: bool = field(default_factory=lambda: os.getenv("ENABLE_BENZINGA_REST", "0") == "1")
     enable_benzinga_ws: bool = field(default_factory=lambda: os.getenv("ENABLE_BENZINGA_WS", "0") == "1")
+    enable_tradingview_news: bool = field(default_factory=lambda: os.getenv("ENABLE_TRADINGVIEW_NEWS", "0") == "1")
+    enable_newsapi_ai: bool = field(default_factory=lambda: os.getenv("ENABLE_NEWSAPI_AI", "1") == "1")
 
     # ── Polling cadence ─────────────────────────────────────────
     poll_interval_s: float = field(default_factory=lambda: _env_float("POLL_INTERVAL_S", 2.0))
@@ -54,6 +60,7 @@ class Config:
     stock_latest_limit: int = field(default_factory=lambda: _env_int("FMP_STOCK_LATEST_LIMIT", 200))
     press_latest_page: int = field(default_factory=lambda: _env_int("FMP_PRESS_LATEST_PAGE", 0))
     press_latest_limit: int = field(default_factory=lambda: _env_int("FMP_PRESS_LATEST_LIMIT", 50))
+    fmp_articles_limit: int = field(default_factory=lambda: _env_int("FMP_ARTICLES_LIMIT", 250))
 
     # ── Benzinga REST settings ──────────────────────────────────
     benzinga_rest_page_size: int = field(default_factory=lambda: _env_int("BENZINGA_REST_PAGE_SIZE", 100))
@@ -75,9 +82,16 @@ class Config:
     # ── Universe (optional) ─────────────────────────────────────
     universe_path: str = field(default_factory=lambda: os.getenv("UNIVERSE_PATH", "universe.txt"))
     filter_to_universe: bool = field(default_factory=lambda: os.getenv("FILTER_TO_UNIVERSE", "0") == "1")
+    tv_symbol_limit: int = field(default_factory=lambda: _env_int("TV_SYMBOL_LIMIT", 20))
+    tv_max_per_ticker: int = field(default_factory=lambda: _env_int("TV_MAX_PER_TICKER", 3))
+    tv_max_total: int = field(default_factory=lambda: _env_int("TV_MAX_TOTAL", 25))
+    newsapi_ai_lookback_days: int = field(default_factory=lambda: _env_int("NEWSAPI_AI_LOOKBACK_DAYS", 2))
+    newsapi_ai_articles_per_request: int = field(default_factory=lambda: _env_int("NEWSAPI_AI_ARTICLES_PER_REQUEST", 100))
 
     # ── State ───────────────────────────────────────────────────
     sqlite_path: str = field(default_factory=lambda: os.getenv("SQLITE_PATH", "newsstack_fmp/state.db"))
+    shared_news_cache_dir: str = field(default_factory=lambda: os.getenv("SHARED_NEWS_CACHE_DIR", "artifacts/shared_news_cache"))
+    shared_news_cache_ttl_seconds: float = field(default_factory=lambda: _env_float("SHARED_NEWS_CACHE_TTL_SECONDS", 90.0))
 
     # ── Export ──────────────────────────────────────────────────
     export_path: str = field(default_factory=lambda: os.getenv("EXPORT_PATH", "artifacts/open_prep/latest/news_result.json"))
@@ -100,8 +114,14 @@ class Config:
         sources: list[str] = []
         if self.enable_fmp:
             sources.extend(["fmp_stock_latest", "fmp_press_latest"])
+            if self.enable_fmp_articles:
+                sources.append("fmp_articles")
         if self.enable_benzinga_rest:
             sources.append("benzinga_rest")
         if self.enable_benzinga_ws:
             sources.append("benzinga_ws")
+        if self.enable_tradingview_news:
+            sources.append("tradingview")
+        if self.enable_newsapi_ai and self.newsapi_ai_key:
+            sources.append("newsapi_ai")
         return sources

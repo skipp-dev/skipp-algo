@@ -695,6 +695,36 @@ class TestApiKeyNotLeaked(unittest.TestCase):
         self.assertNotIn("my_secret_key", str(ctx.exception))
         adapter.close()
 
+    def test_fmp_fetch_articles_normalizes_items(self):
+        from newsstack_fmp.ingest_fmp import FmpAdapter
+
+        adapter = FmpAdapter("my_secret_key")
+        mock_resp = MagicMock()
+        mock_resp.raise_for_status.return_value = None
+        mock_resp.url = "https://api.example.com/v1/fmp-articles?apikey=my_secret_key"
+        mock_resp.json.return_value = [
+            {
+                "title": "AAPL broad article",
+                "symbol": "AAPL",
+                "url": "https://example.com/articles/1",
+                "publishedDate": "2026-04-08T21:00:00Z",
+                "site": "Example",
+                "text": "Article body",
+            }
+        ]
+        adapter.client = MagicMock()
+        adapter.client.get.return_value = mock_resp
+
+        items = adapter.fetch_articles(25)
+
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0].provider, "fmp_articles")
+        self.assertEqual(items[0].tickers, ["AAPL"])
+        self.assertEqual(items[0].headline, "AAPL broad article")
+        adapter.client.get.assert_called_once()
+        self.assertEqual(adapter.client.get.call_args.kwargs["params"]["limit"], 25)
+        adapter.close()
+
 
 # ── H2: Cross-provider cluster_hash — novelty dedup ───────────
 
@@ -1854,24 +1884,40 @@ class TestConfigActiveSources(unittest.TestCase):
 
         with patch.dict(os.environ, {
             "ENABLE_FMP": "1",
+            "ENABLE_FMP_ARTICLES": "1",
             "ENABLE_BENZINGA_REST": "0",
             "ENABLE_BENZINGA_WS": "0",
         }):
             cfg = Config()
-        self.assertEqual(cfg.active_sources, ["fmp_stock_latest", "fmp_press_latest"])
+        self.assertEqual(cfg.active_sources, ["fmp_stock_latest", "fmp_press_latest", "fmp_articles"])
 
     def test_all_enabled(self):
         from newsstack_fmp.config import Config
 
         with patch.dict(os.environ, {
             "ENABLE_FMP": "1",
+            "ENABLE_FMP_ARTICLES": "1",
             "ENABLE_BENZINGA_REST": "1",
             "ENABLE_BENZINGA_WS": "1",
         }):
             cfg = Config()
         self.assertIn("fmp_stock_latest", cfg.active_sources)
+        self.assertIn("fmp_articles", cfg.active_sources)
         self.assertIn("benzinga_rest", cfg.active_sources)
         self.assertIn("benzinga_ws", cfg.active_sources)
+
+    def test_newsapi_source_requires_key(self):
+        from newsstack_fmp.config import Config
+
+        with patch.dict(os.environ, {
+            "ENABLE_FMP": "0",
+            "ENABLE_BENZINGA_REST": "0",
+            "ENABLE_BENZINGA_WS": "0",
+            "ENABLE_NEWSAPI_AI": "1",
+            "NEWSAPI_AI_KEY": "news-key",
+        }):
+            cfg = Config()
+        self.assertEqual(cfg.active_sources, ["newsapi_ai"])
 
     def test_none_enabled(self):
         from newsstack_fmp.config import Config

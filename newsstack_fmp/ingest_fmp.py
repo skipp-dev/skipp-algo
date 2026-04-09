@@ -1,8 +1,9 @@
 """Synchronous FMP news ingestion adapter.
 
-Polls two endpoints:
+Polls three endpoints:
  1. /stable/news/stock-latest            (latest stock news)
  2. /stable/news/press-releases-latest   (press releases)
+ 3. /stable/fmp-articles                 (broad article feed)
 
 Uses httpx synchronously so the adapter can be called from Streamlit
 refresh cycles without needing asyncio.
@@ -61,7 +62,7 @@ def _safe_json(r: httpx.Response) -> Any:
 
 
 class FmpAdapter:
-    """Synchronous adapter for FMP stock-news & press-release endpoints."""
+    """Synchronous adapter for FMP news endpoints."""
 
     def __init__(self, api_key: str) -> None:
         if not api_key:
@@ -123,6 +124,12 @@ class FmpAdapter:
         url = f"{FMP_BASE}/news/press-releases-latest"
         r = self._safe_get(url, {"page": page, "limit": limit, "apikey": self.api_key})
         return [normalize_fmp("fmp_press_latest", it) for it in _as_list(_safe_json(r))]
+
+    def fetch_articles(self, limit: int) -> list[NewsItem]:
+        """GET /stable/fmp-articles?page=0&limit=…"""
+        url = f"{FMP_BASE}/fmp-articles"
+        r = self._safe_get(url, {"page": 0, "limit": limit, "apikey": self.api_key})
+        return [normalize_fmp("fmp_articles", it) for it in _as_list(_safe_json(r))]
 
     def close(self) -> None:
         self.client.close()

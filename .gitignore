@@ -43,6 +43,11 @@ node_modules/
 # Databento generated cache/runtime artifacts
 artifacts/databento_volatility_cache/
 
+# Local NewsAPI / shared-news probe and cache artifacts
+artifacts/manual_newsapi_*/
+artifacts/newsapi_ai/
+artifacts/shared_news_cache/
+
 # Generator intermediate outputs (created by refresh_generated_artifacts)
 data/output/
 

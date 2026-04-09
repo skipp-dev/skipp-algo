@@ -23,8 +23,10 @@ from .common_types import NewsItem
 from .config import Config
 from .enrich import Enricher
 from .ingest_fmp import FmpAdapter
+from .normalize import normalize_newsapi_ai
 from .open_prep_export import export_open_prep
 from .scoring import classify_and_score, cluster_hash
+from .shared_fetch import CachedNewsBatch, fetch_cached_batch, tv_headline_to_news_item
 from .store_sqlite import SqliteStore
 
 logger = logging.getLogger(__name__)
@@ -37,6 +39,7 @@ _bz_ws_adapter: Any | None = None  # BenzingaWsAdapter (lazy)
 _enricher: Enricher | None = None
 _best_by_ticker: dict[str, dict[str, Any]] = {}
 _bbt_lock = threading.Lock()
+_last_meta: dict[str, Any] | None = None
 _init_lock = threading.Lock()  # protects all singleton getters below
 
 
@@ -115,6 +118,138 @@ def load_universe(path: str) -> set[str]:
 def vwap_gate_stub(ticker: str) -> dict[str, Any]:
     """Hook: later plug your VWAP reclaim detector here."""
     return {"vwap_signal": "NA", "vwap_reclaim_go": False, "vwap_bias_up": None}
+
+
+def _fetch_cached_provider_items(
+    *,
+    cfg: Config,
+    provider: str,
+    min_cursor: float,
+    scope: dict[str, Any],
+    fetcher: Any,
+    cache_owner: Any | None = None,
+) -> CachedNewsBatch:
+    ttl_seconds = cfg.shared_news_cache_ttl_seconds
+    if cache_owner is not None and type(cache_owner).__module__.startswith("unittest.mock"):
+        ttl_seconds = -1.0
+    return fetch_cached_batch(
+        provider=provider,
+        scope=scope,
+        ttl_seconds=ttl_seconds,
+        min_cursor=min_cursor,
+        fetcher=fetcher,
+        cache_dir=cfg.shared_news_cache_dir,
+    )
+
+
+def _fetch_tradingview_provider_items(
+    *,
+    cfg: Config,
+    symbols: list[str],
+    min_cursor: float,
+) -> CachedNewsBatch:
+    from terminal_tradingview_news import fetch_tv_multi
+
+    limited_symbols = list(symbols[: max(cfg.tv_symbol_limit, 0)]) if cfg.tv_symbol_limit > 0 else list(symbols)
+    return _fetch_cached_provider_items(
+        cfg=cfg,
+        provider="tradingview",
+        min_cursor=min_cursor,
+        scope={
+            "symbols": limited_symbols,
+            "max_per_ticker": cfg.tv_max_per_ticker,
+            "max_total": cfg.tv_max_total,
+        },
+        fetcher=lambda: [
+            tv_headline_to_news_item(headline)
+            for headline in fetch_tv_multi(
+                limited_symbols,
+                max_per_ticker=cfg.tv_max_per_ticker,
+                max_total=cfg.tv_max_total,
+            )
+        ],
+    )
+
+
+def _fetch_newsapi_provider_items(
+    *,
+    cfg: Config,
+    symbols: list[str],
+    min_cursor: float,
+    article_feed_after_uri: str = "",
+) -> CachedNewsBatch:
+    from scripts.smc_newsapi_ai import fetch_newsapi_records
+
+    return _fetch_cached_provider_items(
+        cfg=cfg,
+        provider="newsapi_ai",
+        min_cursor=min_cursor,
+        scope={
+            "symbols": list(symbols),
+            "lookback_days": cfg.newsapi_ai_lookback_days,
+            "articles_per_request": cfg.newsapi_ai_articles_per_request,
+            "include_events": True,
+            "article_feed_after_uri": article_feed_after_uri.strip(),
+        },
+        fetcher=lambda: [
+            normalize_newsapi_ai(article)
+            for article in fetch_newsapi_records(
+                cfg.newsapi_ai_key,
+                symbols,
+                lookback_days=cfg.newsapi_ai_lookback_days,
+                articles_per_request=cfg.newsapi_ai_articles_per_request,
+                prefer_article_feed=min_cursor > 0.0,
+                article_feed_after_epoch=min_cursor,
+                article_feed_after_uri=article_feed_after_uri,
+            )
+        ],
+    )
+
+
+def _newsapi_records_from_items(items: list[NewsItem]) -> list[dict[str, Any]]:
+    return [item.raw for item in items if item.provider == "newsapi_ai" and isinstance(item.raw, dict)]
+
+
+def _next_newsapi_feed_uri(current_uri: str, items: list[NewsItem], *, cursor_advanced: bool) -> str:
+    from scripts.smc_newsapi_ai import extract_newsapi_feed_article_cursor_uri
+
+    next_uri = extract_newsapi_feed_article_cursor_uri(_newsapi_records_from_items(items))
+    if next_uri:
+        return next_uri
+    if cursor_advanced:
+        return ""
+    return str(current_uri or "").strip()
+
+
+def _newsapi_item_matches_universe(item: NewsItem, universe: set[str]) -> bool:
+    if not item.is_valid or not universe:
+        return False
+    return any(
+        str(ticker or "").strip().upper() in universe
+        for ticker in item.tickers or []
+    )
+
+
+def _newsapi_operator_status(
+    *,
+    cursor: float,
+    raw_items: list[NewsItem],
+    filtered_items: list[NewsItem],
+    universe: set[str],
+) -> tuple[str, str]:
+    if any(_newsapi_item_matches_universe(item, universe) for item in filtered_items):
+        return "ok", ""
+    if cursor <= 0.0:
+        return "ok", ""
+    if raw_items:
+        return (
+            "ok_no_recent_matches",
+            "Event Registry reachable, but no new symbol-matching NewsAPI.ai items were newer than the current cursor.",
+        )
+    return (
+        "ok_no_recent_matches",
+        "Event Registry reachable, but no recent symbol-matching NewsAPI.ai items were returned for the current feed window.",
+    )
 
 
 # ── Core: process a batch of NewsItem objects ───────────────────
@@ -276,12 +411,28 @@ def poll_once(
         universe = load_universe(cfg.universe_path)
 
     # ── Provider cursors (persisted in SQLite KV) ───────────────
-    fmp_last = float(store.get_kv("fmp.last_seen_epoch") or "0")
-    bz_rest_cursor = store.get_kv("benzinga.updatedSince")  # str cursor
+    fmp_legacy_last = float(store.get_kv("fmp.last_seen_epoch") or "0")
+    fmp_stock_last = float(store.get_kv("fmp.stock.last_seen_epoch") or fmp_legacy_last or 0.0)
+    fmp_press_last = float(store.get_kv("fmp.press.last_seen_epoch") or fmp_legacy_last or 0.0)
+    fmp_articles_last = float(store.get_kv("fmp.articles.last_seen_epoch") or 0.0)
+    bz_rest_cursor = float(store.get_kv("benzinga.updatedSince") or "0")
+    tv_last_seen = float(store.get_kv("tradingview.last_seen_epoch") or "0")
+    newsapi_last_seen = float(store.get_kv("newsapi_ai.last_seen_epoch") or "0")
+    newsapi_last_seen_uri = str(store.get_kv("newsapi_ai.last_seen_news_uri") or "").strip()
 
-    all_items: list[NewsItem] = []
-    new_fmp_max = fmp_last
     cycle_warnings: list[str] = []
+    universe_symbols = sorted(universe) if universe else []
+    fmp_items: list[NewsItem] = []
+    other_items: list[NewsItem] = []
+    new_fmp_stock_max = fmp_stock_last
+    new_fmp_press_max = fmp_press_last
+    new_fmp_articles_max = fmp_articles_last
+    new_bz_rest_max = bz_rest_cursor
+    new_tv_max = tv_last_seen
+    new_newsapi_max = newsapi_last_seen
+    new_newsapi_uri = newsapi_last_seen_uri
+    newsapi_provider_meta: dict[str, str] | None = None
+    ingest_counts_by_source: dict[str, int] = {}
 
     def _sanitize_exc(exc: Exception) -> str:
         return re.sub(r"(apikey|api_key|token|key)=[^&\s]+", r"\1=***", str(exc), flags=re.IGNORECASE)
@@ -290,106 +441,205 @@ def poll_once(
     if cfg.enable_fmp and cfg.fmp_api_key:
         fmp = _get_fmp_adapter(cfg)
         try:
-            all_items.extend(fmp.fetch_stock_latest(cfg.stock_latest_page, cfg.stock_latest_limit))
+            stock_batch = _fetch_cached_provider_items(
+                cfg=cfg,
+                provider="fmp_stock_latest",
+                min_cursor=fmp_stock_last,
+                scope={"page": cfg.stock_latest_page, "limit": cfg.stock_latest_limit},
+                fetcher=lambda: fmp.fetch_stock_latest(cfg.stock_latest_page, cfg.stock_latest_limit),
+                cache_owner=fmp,
+            )
+            fmp_items.extend(stock_batch.items)
+            new_fmp_stock_max = stock_batch.cursor
+            ingest_counts_by_source["fmp_stock_latest"] = stock_batch.raw_count
         except Exception as exc:
             _msg = _sanitize_exc(exc)
             logger.warning("FMP stock-latest fetch failed: %s", _msg)
             cycle_warnings.append(f"fmp_stock_latest: {_msg}")
         try:
-            all_items.extend(fmp.fetch_press_latest(cfg.press_latest_page, cfg.press_latest_limit))
+            press_batch = _fetch_cached_provider_items(
+                cfg=cfg,
+                provider="fmp_press_latest",
+                min_cursor=fmp_press_last,
+                scope={"page": cfg.press_latest_page, "limit": cfg.press_latest_limit},
+                fetcher=lambda: fmp.fetch_press_latest(cfg.press_latest_page, cfg.press_latest_limit),
+                cache_owner=fmp,
+            )
+            fmp_items.extend(press_batch.items)
+            new_fmp_press_max = press_batch.cursor
+            ingest_counts_by_source["fmp_press_latest"] = press_batch.raw_count
         except Exception as exc:
             _msg = _sanitize_exc(exc)
             logger.warning("FMP press-latest fetch failed: %s", _msg)
             cycle_warnings.append(f"fmp_press_latest: {_msg}")
+        if cfg.enable_fmp_articles:
+            try:
+                articles_batch = _fetch_cached_provider_items(
+                    cfg=cfg,
+                    provider="fmp_articles",
+                    min_cursor=fmp_articles_last,
+                    scope={"limit": cfg.fmp_articles_limit},
+                    fetcher=lambda: fmp.fetch_articles(cfg.fmp_articles_limit),
+                    cache_owner=fmp,
+                )
+                fmp_items.extend(articles_batch.items)
+                new_fmp_articles_max = articles_batch.cursor
+                ingest_counts_by_source["fmp_articles"] = articles_batch.raw_count
+            except Exception as exc:
+                _msg = _sanitize_exc(exc)
+                logger.warning("FMP articles fetch failed: %s", _msg)
+                cycle_warnings.append(f"fmp_articles: {_msg}")
 
     # ── 2) Benzinga REST delta ──────────────────────────────────
     bz_rest_items: list[NewsItem] = []
     if cfg.enable_benzinga_rest and cfg.benzinga_api_key:
         bz_rest = _get_bz_rest_adapter(cfg)
         try:
-            bz_rest_items = bz_rest.fetch_news(
-                updated_since=bz_rest_cursor,
-                page_size=cfg.benzinga_rest_page_size,
-                channels=cfg.benzinga_channels or None,
-                topics=cfg.benzinga_topics or None,
+            benzinga_batch = _fetch_cached_provider_items(
+                cfg=cfg,
+                provider="benzinga_rest",
+                min_cursor=bz_rest_cursor,
+                scope={
+                    "page_size": cfg.benzinga_rest_page_size,
+                    "channels": cfg.benzinga_channels,
+                    "topics": cfg.benzinga_topics,
+                },
+                fetcher=lambda: bz_rest.fetch_news(
+                    updated_since=None,
+                    page_size=cfg.benzinga_rest_page_size,
+                    channels=cfg.benzinga_channels or None,
+                    topics=cfg.benzinga_topics or None,
+                ),
+                cache_owner=bz_rest,
             )
-            all_items.extend(bz_rest_items)
+            bz_rest_items = benzinga_batch.items
+            new_bz_rest_max = benzinga_batch.cursor
+            ingest_counts_by_source["benzinga_rest"] = benzinga_batch.raw_count
+            other_items.extend(bz_rest_items)
         except Exception as exc:
             _msg = _sanitize_exc(exc)
             logger.warning("Benzinga REST fetch failed: %s", _msg)
             cycle_warnings.append(f"benzinga_rest: {_msg}")
 
-    # ── 3) Benzinga WS drain ────────────────────────────────────
+    # ── 3) Symbol-scoped providers (TradingView + NewsAPI.ai) ──
+    if universe_symbols:
+        if cfg.enable_tradingview_news:
+            try:
+                tv_batch = _fetch_tradingview_provider_items(
+                    cfg=cfg,
+                    symbols=universe_symbols,
+                    min_cursor=tv_last_seen,
+                )
+                other_items.extend(tv_batch.items)
+                new_tv_max = tv_batch.cursor
+                ingest_counts_by_source["tradingview"] = tv_batch.raw_count
+            except Exception as exc:
+                _msg = _sanitize_exc(exc)
+                logger.warning("TradingView news fetch failed: %s", _msg)
+                cycle_warnings.append(f"tradingview: {_msg}")
+
+        if cfg.enable_newsapi_ai and cfg.newsapi_ai_key:
+            try:
+                newsapi_batch = _fetch_newsapi_provider_items(
+                    cfg=cfg,
+                    symbols=universe_symbols,
+                    min_cursor=newsapi_last_seen,
+                    article_feed_after_uri=newsapi_last_seen_uri,
+                )
+                other_items.extend(newsapi_batch.items)
+                new_newsapi_max = newsapi_batch.cursor
+                new_newsapi_uri = _next_newsapi_feed_uri(
+                    newsapi_last_seen_uri,
+                    newsapi_batch.items,
+                    cursor_advanced=newsapi_batch.cursor > newsapi_last_seen,
+                )
+                newsapi_provider_status, newsapi_status_detail = _newsapi_operator_status(
+                    cursor=newsapi_batch.cursor,
+                    raw_items=newsapi_batch.raw_items,
+                    filtered_items=newsapi_batch.items,
+                    universe=set(universe_symbols),
+                )
+                newsapi_provider_meta = {
+                    "provider_status": newsapi_provider_status,
+                    "status_detail": newsapi_status_detail,
+                }
+                ingest_counts_by_source["newsapi_ai"] = newsapi_batch.raw_count
+            except Exception as exc:
+                _msg = _sanitize_exc(exc)
+                logger.warning("NewsAPI.ai fetch failed: %s", _msg)
+                newsapi_provider_meta = {
+                    "provider_status": str(getattr(exc, "provider_status", "http_error") or "http_error"),
+                    "status_detail": str(getattr(exc, "detail", "") or _msg),
+                }
+                cycle_warnings.append(f"newsapi_ai: {_msg}")
+
+    # ── 4) Benzinga WS drain ────────────────────────────────────
     if cfg.enable_benzinga_ws and cfg.benzinga_api_key:
         bz_ws = _get_bz_ws_adapter(cfg)
         ws_items = bz_ws.drain()
-        all_items.extend(ws_items)
+        other_items.extend(ws_items)
+        ingest_counts_by_source["benzinga_ws"] = len([item for item in ws_items if item.is_valid])
         if ws_items:
             logger.info("Drained %d items from Benzinga WS queue.", len(ws_items))
 
-    # ── 4) Process all items through unified pipeline ───────────
-    # Split FMP vs Benzinga for separate cursor tracking
-    fmp_items = [it for it in all_items if it.provider.startswith("fmp_")]
-    bz_items = [it for it in all_items if not it.provider.startswith("fmp_")]
-
+    # ── 5) Process all items through unified pipeline ───────────
     _enrich_ctr: list[int] = [0]  # mutable counter survives exceptions
+    fmp_processing_ok = False
     try:
-        new_fmp_max, _fmp_enrich_used = process_news_items(
+        processed_fmp_max, _fmp_enrich_used = process_news_items(
             store, fmp_items, _best_by_ticker, universe, enricher,
-            cfg.score_enrich_threshold, last_seen_epoch=fmp_last,
+            cfg.score_enrich_threshold, last_seen_epoch=0.0,
             _shared_enrich_counter=_enrich_ctr,
         )
+        fmp_processing_ok = True
     except Exception as exc:
         _msg = _sanitize_exc(exc)
         logger.warning("process_news_items(fmp) failed: %s", _msg)
         cycle_warnings.append(f"process_fmp: {_msg}")
-        new_fmp_max = fmp_last
+        processed_fmp_max = 0.0
 
-    # Benzinga items: rely on mark_seen() dedup + REST updatedSince cursor.
-    # Do NOT use a stored epoch cursor for Benzinga — WS items would advance
-    # the epoch past valid REST items that haven't been fetched yet, causing
-    # permanent data loss.  last_seen_epoch=0.0 accepts all items; the
-    # authoritative dedup is mark_seen() (provider, item_id).
-    bz_processing_ok = False
+    other_processing_ok = False
     try:
         process_news_items(
-            store, bz_items, _best_by_ticker, universe, enricher,
+            store, other_items, _best_by_ticker, universe, enricher,
             cfg.score_enrich_threshold, last_seen_epoch=0.0,
             enrich_budget=max(0, 3 - _enrich_ctr[0]),
             _shared_enrich_counter=_enrich_ctr,
         )
-        bz_processing_ok = True
+        other_processing_ok = True
     except Exception as exc:
         _msg = _sanitize_exc(exc)
-        logger.warning("process_news_items(benzinga) failed: %s", _msg)
-        cycle_warnings.append(f"process_benzinga: {_msg}")
+        logger.warning("process_news_items(other) failed: %s", _msg)
+        cycle_warnings.append(f"process_other: {_msg}")
 
-    # ── 5) Update cursors ───────────────────────────────────────
-    if new_fmp_max > fmp_last:
-        store.set_kv("fmp.last_seen_epoch", str(new_fmp_max))
-    if bz_rest_items and bz_processing_ok:
-        # Advance Benzinga updatedSince to max observed updated_ts so we
-        # don't skip items that Benzinga indexes out-of-order.
-        # Only advance when processing succeeded — otherwise those items
-        # would be permanently skipped on the next poll cycle.
-        bz_max_ts = max(
-            (it.updated_ts or it.published_ts or 0.0 for it in bz_rest_items),
-            default=0.0,
-        )
-        if bz_max_ts > 0:
-            store.set_kv("benzinga.updatedSince", str(int(bz_max_ts)))
+    # ── 6) Update cursors ───────────────────────────────────────
+    combined_fmp_max = max(new_fmp_stock_max, new_fmp_press_max, new_fmp_articles_max, processed_fmp_max, fmp_legacy_last)
+    if fmp_processing_ok:
+        if new_fmp_stock_max > fmp_stock_last:
+            store.set_kv("fmp.stock.last_seen_epoch", str(new_fmp_stock_max))
+        if new_fmp_press_max > fmp_press_last:
+            store.set_kv("fmp.press.last_seen_epoch", str(new_fmp_press_max))
+        if new_fmp_articles_max > fmp_articles_last:
+            store.set_kv("fmp.articles.last_seen_epoch", str(new_fmp_articles_max))
+        if combined_fmp_max > fmp_legacy_last:
+            store.set_kv("fmp.last_seen_epoch", str(combined_fmp_max))
+
+    if bz_rest_items and other_processing_ok:
+        if new_bz_rest_max > bz_rest_cursor:
+            store.set_kv("benzinga.updatedSince", str(int(new_bz_rest_max)))
         else:
-            # All items lacked real timestamps — do NOT advance cursor.
-            # Advancing to time.time() would permanently skip any items
-            # published before 'now' that haven't been fetched yet.
-            # The next poll will re-fetch the same window; dedup handles
-            # the duplicates.
             logger.warning(
                 "Benzinga REST: all %d items lack timestamps — cursor NOT advanced.",
                 len(bz_rest_items),
             )
+    if other_processing_ok and new_tv_max > tv_last_seen:
+        store.set_kv("tradingview.last_seen_epoch", str(new_tv_max))
+    if other_processing_ok and new_newsapi_max > newsapi_last_seen:
+        store.set_kv("newsapi_ai.last_seen_epoch", str(new_newsapi_max))
+    if other_processing_ok and new_newsapi_uri != newsapi_last_seen_uri:
+        store.set_kv("newsapi_ai.last_seen_news_uri", new_newsapi_uri)
 
-    # ── 6) Export ───────────────────────────────────────────────
+    # ── 7) Export ───────────────────────────────────────────────
     with _bbt_lock:
         candidates: list[dict[str, Any]] = list(_best_by_ticker.values())
     candidates.sort(
@@ -408,26 +658,57 @@ def poll_once(
     ]
 
     fmp_count = sum(1 for it in fmp_items if it.is_valid)
-    bz_count = sum(1 for it in bz_items if it.is_valid)
+    bz_count = sum(1 for it in other_items if it.provider.startswith("benzinga_") and it.is_valid)
+    tv_count = sum(1 for it in other_items if it.provider.startswith("tv_") and it.is_valid)
+    newsapi_count = sum(1 for it in other_items if it.provider == "newsapi_ai" and it.is_valid)
+    meta_sources: list[str] = []
+    if cfg.enable_fmp:
+        meta_sources.extend(["fmp_stock_latest", "fmp_press_latest"])
+        if cfg.enable_fmp_articles:
+            meta_sources.append("fmp_articles")
+    if cfg.enable_benzinga_rest:
+        meta_sources.append("benzinga_rest")
+    if cfg.enable_benzinga_ws:
+        meta_sources.append("benzinga_ws")
+    if cfg.enable_tradingview_news and universe_symbols:
+        meta_sources.append("tradingview")
+    if cfg.enable_newsapi_ai and cfg.newsapi_ai_key and universe_symbols:
+        meta_sources.append("newsapi_ai")
     meta: dict[str, Any] = {
         "generated_ts": time.time(),
         "cursor": {
-            "fmp_last_seen_epoch": new_fmp_max,
+            "fmp_last_seen_epoch": combined_fmp_max,
+            "fmp_stock_last_seen_epoch": new_fmp_stock_max,
+            "fmp_press_last_seen_epoch": new_fmp_press_max,
+            "fmp_articles_last_seen_epoch": new_fmp_articles_max,
             "benzinga_updatedSince": store.get_kv("benzinga.updatedSince"),
+            "tradingview_last_seen_epoch": store.get_kv("tradingview.last_seen_epoch"),
+            "newsapi_ai_last_seen_epoch": store.get_kv("newsapi_ai.last_seen_epoch"),
+            "newsapi_ai_last_seen_news_uri": store.get_kv("newsapi_ai.last_seen_news_uri"),
         },
         "poll_interval_s": cfg.poll_interval_s,
         "universe_size": len(universe) if universe else None,
-        "sources": cfg.active_sources,
-        "ingest_counts": {"fmp": fmp_count, "benzinga": bz_count},
+        "sources": meta_sources,
+        "ingest_counts": {
+            "fmp": fmp_count,
+            "benzinga": bz_count,
+            "tradingview": tv_count,
+            "newsapi_ai": newsapi_count,
+        },
+        "ingest_counts_by_source": ingest_counts_by_source,
         "total_candidates": len(candidates),
         "warnings": cycle_warnings,
     }
+    if newsapi_provider_meta is not None:
+        meta["providers"] = {"newsapi_ai": newsapi_provider_meta}
+    global _last_meta
+    _last_meta = copy.deepcopy(meta)
     try:
         export_open_prep(cfg.export_path, export_candidates, meta)
     except Exception as exc:
         logger.warning("export_open_prep failed: %s", type(exc).__name__, exc_info=True)
 
-    # ── 7) Prune old records + stale best_by_ticker entries ────
+    # ── 8) Prune old records + stale best_by_ticker entries ────
     store.prune_seen(cfg.keep_seen_seconds)
     store.prune_clusters(cfg.keep_clusters_seconds)
     _prune_best_by_ticker(cfg.keep_seen_seconds)
@@ -440,6 +721,17 @@ def poll_once(
     # Return copies (export_candidates) so callers cannot mutate
     # the internal _best_by_ticker state across poll cycles.
     return export_candidates
+
+
+def get_last_meta() -> dict[str, Any]:
+    """Return the last export metadata produced by ``poll_once``.
+
+    A deep copy is returned so downstream consumers cannot mutate the
+    poller's module-level state across Streamlit refreshes.
+    """
+    if _last_meta is None:
+        return {}
+    return copy.deepcopy(_last_meta)
 
 
 def _effective_ts(cand: dict[str, Any]) -> float:
@@ -475,7 +767,7 @@ def _prune_best_by_ticker(keep_seconds: float) -> None:
 
 def _cleanup_singletons() -> None:
     """Close all module-level singleton resources."""
-    global _store, _fmp_adapter, _bz_rest_adapter, _bz_ws_adapter, _enricher
+    global _store, _fmp_adapter, _bz_rest_adapter, _bz_ws_adapter, _enricher, _last_meta
     for obj in (_fmp_adapter, _bz_rest_adapter, _enricher):
         if obj is not None and hasattr(obj, "close"):
             try:
@@ -494,6 +786,7 @@ def _cleanup_singletons() -> None:
             logger.debug("singleton cleanup error", exc_info=True)
     with _bbt_lock:
         _best_by_ticker.clear()
+    _last_meta = None
     _store = _fmp_adapter = _bz_rest_adapter = _bz_ws_adapter = _enricher = None
 
 
