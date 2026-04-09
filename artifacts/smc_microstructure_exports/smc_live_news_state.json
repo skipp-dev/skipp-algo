@@ -4,12 +4,1056 @@
     "fmp_stock": 0.0,
     "fmp_press": 0.0,
     "fmp_articles": 0.0,
-    "newsapi_ai": 1775760633.0,
+    "newsapi_ai": 1775775989.0,
     "tv": 0.0,
-    "legacy_cursor": 1775760633.0
+    "legacy_cursor": 1775775989.0
   },
   "provider_state": {},
   "story_state": {
+    "663fa65498a085b70af043fc20e9b4b9cb077c9b:5919243": {
+      "story_key": "663fa65498a085b70af043fc20e9b4b9cb077c9b:5919243",
+      "cluster_hash": "663fa65498a085b70af043fc20e9b4b9cb077c9b",
+      "headline": "Here's How Much $1000 Invested In Amazon.com 10 Years Ago Would Be Worth Today - Amazon.com (NASDAQ:AMZN)",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_ts": 1775772924.0,
+      "first_seen_ts": 1775776222.1282525,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "url": "https://www.benzinga.com/insights/news/26/04/51746530/heres-how-much-1000-invested-in-amazon-com-10-years-ago-would-be-worth-today",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "polarity": 0.0,
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "last_seen_ts": 1775776222.1282525
+    },
+    "c072b93e31543aa7b4d11b44ce884932ff80b2b9:5919234": {
+      "story_key": "c072b93e31543aa7b4d11b44ce884932ff80b2b9:5919234",
+      "cluster_hash": "c072b93e31543aa7b4d11b44ce884932ff80b2b9",
+      "headline": "$100 Invested In Apple 20 Years Ago Would Be Worth This Much Today - Apple (NASDAQ:AAPL)",
+      "tickers": [
+        "AAPL"
+      ],
+      "published_ts": 1775770222.0,
+      "first_seen_ts": 1775776222.1282525,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "url": "https://www.benzinga.com/insights/news/26/04/51746183/100-invested-in-apple-20-years-ago-would-be-worth-this-much-today",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "polarity": 0.0,
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "last_seen_ts": 1775776222.1282525
+    },
+    "c4a7edce768a437491359c91463b1a80051af12c:5919232": {
+      "story_key": "c4a7edce768a437491359c91463b1a80051af12c:5919232",
+      "cluster_hash": "c4a7edce768a437491359c91463b1a80051af12c",
+      "headline": "As Amazon Takes on Chipmakers, Should You Buy AMZN Stock Here?",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_ts": 1775769700.0,
+      "first_seen_ts": 1775776222.1282525,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Barchart.com"
+      ],
+      "url": "https://www.barchart.com/story/news/1230176/as-amazon-takes-on-chipmakers-should-you-buy-amzn-stock-here",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775776222.1282525
+    },
+    "a1289500ff91b5cb881d57b0ae588cdf766d6ff6:5919228": {
+      "story_key": "a1289500ff91b5cb881d57b0ae588cdf766d6ff6:5919228",
+      "cluster_hash": "a1289500ff91b5cb881d57b0ae588cdf766d6ff6",
+      "headline": "Here's How Much $100 Invested In Microsoft 20 Years Ago Would Be Worth Today - Microsoft (NASDAQ:MSFT)",
+      "tickers": [
+        "MSFT"
+      ],
+      "published_ts": 1775768433.0,
+      "first_seen_ts": 1775776222.1282525,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "url": "https://www.benzinga.com/insights/news/26/04/51745649/heres-how-much-100-invested-in-microsoft-20-years-ago-would-be-worth-today",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "polarity": 0.0,
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "last_seen_ts": 1775776222.1282525
+    },
+    "7cbdf6c2c81f6f272f8a87c80a6d95db2068c1a7:5919210": {
+      "story_key": "7cbdf6c2c81f6f272f8a87c80a6d95db2068c1a7:5919210",
+      "cluster_hash": "7cbdf6c2c81f6f272f8a87c80a6d95db2068c1a7",
+      "headline": "Microsoft Stock Decline Outshines Its Underlying Narrative (NASDAQ:MSFT)",
+      "tickers": [
+        "MSFT"
+      ],
+      "published_ts": 1775763011.0,
+      "first_seen_ts": 1775776222.1282525,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "El-Balad.com"
+      ],
+      "url": "https://www.el-balad.com/16907397",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": -0.5,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775776222.1282525
+    },
+    "615a5cd81311091a0c81465ec32d3c36559d01d3:5919213": {
+      "story_key": "615a5cd81311091a0c81465ec32d3c36559d01d3:5919213",
+      "cluster_hash": "615a5cd81311091a0c81465ec32d3c36559d01d3",
+      "headline": "AI Can Code, But It Can't Bet: Why Top Models Are Going Broke On Sports Markets - Amazon.com (NASDAQ:AMZN",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_ts": 1775764094.0,
+      "first_seen_ts": 1775776222.1282525,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "url": "https://www.benzinga.com/markets/prediction-markets/26/04/51743325/ai-can-code-but-it-cant-bet-why-top-models-are-going-broke-on-sports-markets",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "last_seen_ts": 1775776222.1282525
+    },
+    "205ed91c4d6d2ad35491adf579383db006845b58:5919211": {
+      "story_key": "205ed91c4d6d2ad35491adf579383db006845b58:5919211",
+      "cluster_hash": "205ed91c4d6d2ad35491adf579383db006845b58",
+      "headline": "JPMorgan Chase: Earnings Offer Catalyst Opportunity For Shares (NYSE:JPM)",
+      "tickers": [
+        "JPM"
+      ],
+      "published_ts": 1775763387.0,
+      "first_seen_ts": 1775776222.1282525,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Seeking Alpha"
+      ],
+      "url": "https://seekingalpha.com/article/4889606-jpmorgan-chase-earnings-offer-catalyst-opportunity-for-shares",
+      "category": "earnings",
+      "impact": 0.8,
+      "clarity": 0.6,
+      "relevance": 0.79,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775776222.1282525
+    },
+    "1db2c990fe5f72233083e1f947399cb10af0608a:5919208": {
+      "story_key": "1db2c990fe5f72233083e1f947399cb10af0608a:5919208",
+      "cluster_hash": "1db2c990fe5f72233083e1f947399cb10af0608a",
+      "headline": "Exxon Mobil (XOM) Stock Reverses As Oil Rally Loses Steam - Exxon Mobil (NYSE:XOM)",
+      "tickers": [
+        "XOM"
+      ],
+      "published_ts": 1775762464.0,
+      "first_seen_ts": 1775776222.1282525,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "url": "https://www.benzinga.com/trading-ideas/movers/26/04/51742522/exxon-mobil-xom-stock-reverses-as-oil-rally-loses-steam",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "last_seen_ts": 1775776222.1282525
+    },
+    "3f804206f4b2850be55f58c32add25b17ed003d6:5919253": {
+      "story_key": "3f804206f4b2850be55f58c32add25b17ed003d6:5919253",
+      "cluster_hash": "3f804206f4b2850be55f58c32add25b17ed003d6",
+      "headline": "Meta Superintelligence Lab Releases Muse Spark: A Multimodal Reasoning Model With Thought Compression and Parallel Agents",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775775989.0,
+      "first_seen_ts": 1775776222.1282525,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "MarkTechPost"
+      ],
+      "url": "https://www.marktechpost.com/2026/04/09/meta-superintelligence-lab-releases-muse-spark-a-multimodal-reasoning-model-with-thought-compression-and-parallel-agents/",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775776222.1282525
+    },
+    "af7ecf25e00d9eafaac961dda1593c8423391efc:5919246": {
+      "story_key": "af7ecf25e00d9eafaac961dda1593c8423391efc:5919246",
+      "cluster_hash": "af7ecf25e00d9eafaac961dda1593c8423391efc",
+      "headline": "Meta transfers top engineers into new AI tooling team",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775773868.0,
+      "first_seen_ts": 1775776222.1282525,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "CNA"
+      ],
+      "url": "https://www.channelnewsasia.com/business/meta-transfers-top-engineers-new-ai-tooling-team-6047856",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775776222.1282525
+    },
+    "8875f6d63801c73324605cce0fe3b674ef1c692b:5919245": {
+      "story_key": "8875f6d63801c73324605cce0fe3b674ef1c692b:5919245",
+      "cluster_hash": "8875f6d63801c73324605cce0fe3b674ef1c692b",
+      "headline": "Meta's AI Revolution: New Engineering Organization Sets the Stage for Future of Work | Technology",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775773750.0,
+      "first_seen_ts": 1775776222.1282525,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Devdiscourse"
+      ],
+      "url": "https://www.devdiscourse.com/article/technology/3868673-metas-ai-revolution-new-engineering-organization-sets-the-stage-for-future-of-work",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775776222.1282525
+    },
+    "c21b7f42a32371c6bfe4393d237178c786811a0d:5919230": {
+      "story_key": "c21b7f42a32371c6bfe4393d237178c786811a0d:5919230",
+      "cluster_hash": "c21b7f42a32371c6bfe4393d237178c786811a0d",
+      "headline": "Meta removes ads that encourage litigation against the company",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775769129.0,
+      "first_seen_ts": 1775776222.1282525,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Social Media Today | A business community for the web's best thinkers on Social Media"
+      ],
+      "url": "https://www.socialmediatoday.com/news/meta-removes-ads-that-encourage-litigation-against-the-company/817152/",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775776222.1282525
+    },
+    "cbbda1a25cf686417f3a94f6fdc04c3f3675100f:5919240": {
+      "story_key": "cbbda1a25cf686417f3a94f6fdc04c3f3675100f:5919240",
+      "cluster_hash": "cbbda1a25cf686417f3a94f6fdc04c3f3675100f",
+      "headline": "Meta AI App Reaches Top 5 on App Store After Muse Spark Launch",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775772009.0,
+      "first_seen_ts": 1775776222.1282525,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "El-Balad.com"
+      ],
+      "url": "https://www.el-balad.com/16907572",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775776222.1282525
+    },
+    "edeba8296948752f7a6d482839c7338c8b91a8d7:5919237": {
+      "story_key": "edeba8296948752f7a6d482839c7338c8b91a8d7:5919237",
+      "cluster_hash": "edeba8296948752f7a6d482839c7338c8b91a8d7",
+      "headline": "Meta is pulling ads that recruit plaintiffs suing Meta",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775771315.0,
+      "first_seen_ts": 1775776222.1282525,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Boing Boing"
+      ],
+      "url": "https://boingboing.net/2026/04/09/meta-is-pulling-ads-that-recruit-plaintiffs-suing-meta.html",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775776222.1282525
+    },
+    "94836fd04ec4070da3e3905bda23f43c6dc6eedd:5919234": {
+      "story_key": "94836fd04ec4070da3e3905bda23f43c6dc6eedd:5919234",
+      "cluster_hash": "94836fd04ec4070da3e3905bda23f43c6dc6eedd",
+      "headline": "Stock Market Today, April 9: CoreWeave Rises After Announcing $21 Billion AI Cloud Deal With Meta",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775770301.0,
+      "first_seen_ts": 1775776222.1282525,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "NASDAQ Stock Market"
+      ],
+      "url": "https://www.nasdaq.com/articles/stock-market-today-april-9-coreweave-rises-after-announcing-21-billion-ai-cloud-deal-meta",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775776222.1282525
+    },
+    "70180724fbf1d3656e6b67a91829c80dd39cf9cd:5919234": {
+      "story_key": "70180724fbf1d3656e6b67a91829c80dd39cf9cd:5919234",
+      "cluster_hash": "70180724fbf1d3656e6b67a91829c80dd39cf9cd",
+      "headline": "Stock Market Today, April 9: CoreWeave Rises After Announcing $21 Billion AI Cloud Deal With Meta | The Motley Fool",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775770301.0,
+      "first_seen_ts": 1775776222.1282525,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "The Motley Fool"
+      ],
+      "url": "https://www.fool.com/coverage/stock-market-today/2026/04/09/stock-market-today-april-9-coreweave-rises-after-announcing-usd21-billion-ai-cloud-deal-with-meta/",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775776222.1282525
+    },
+    "4e2b5feed20aaae00597dc08faeb1bc6d33a4a21:5919234": {
+      "story_key": "4e2b5feed20aaae00597dc08faeb1bc6d33a4a21:5919234",
+      "cluster_hash": "4e2b5feed20aaae00597dc08faeb1bc6d33a4a21",
+      "headline": "Meta Just Handed CoreWeave $21B: 5 AI Infrastructure Stocks to Own | Investing.com",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775770378.0,
+      "first_seen_ts": 1775776222.1282525,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Investing.com"
+      ],
+      "url": "https://www.investing.com/analysis/meta-just-handed-coreweave-21b-5-ai-infrastructure-stocks-to-own-200678184",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775776222.1282525
+    },
+    "2dd5f3b85325580e42b62f3b416c9821e4b1895b:5919234": {
+      "story_key": "2dd5f3b85325580e42b62f3b416c9821e4b1895b:5919234",
+      "cluster_hash": "2dd5f3b85325580e42b62f3b416c9821e4b1895b",
+      "headline": "Meta pulls lawyer ads targeting underage social media harm cases",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775770250.0,
+      "first_seen_ts": 1775776222.1282525,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "The American Bazaar"
+      ],
+      "url": "https://americanbazaaronline.com/2026/04/09/meta-pulls-lawyer-ads-targeting-underage-social-media-harm-cases-478618/",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775776222.1282525
+    },
+    "af770561392d118aba17996eb21ca089aa4673b0:5919228": {
+      "story_key": "af770561392d118aba17996eb21ca089aa4673b0:5919228",
+      "cluster_hash": "af770561392d118aba17996eb21ca089aa4673b0",
+      "headline": "Meta Quietly Scrubs Lawyer Ads Targeting Teen Social Media Addiction Cases -- While Fighting the Lawsuits in Court",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775768487.0,
+      "first_seen_ts": 1775776222.1282525,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "WebProNews"
+      ],
+      "url": "https://www.webpronews.com/meta-quietly-scrubs-lawyer-ads-targeting-teen-social-media-addiction-cases-while-fighting-the-lawsuits-in-court/",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775776222.1282525
+    },
+    "e4c519f2b28af8a573531bfbf3d472f71e5d3b21:5919229": {
+      "story_key": "e4c519f2b28af8a573531bfbf3d472f71e5d3b21:5919229",
+      "cluster_hash": "e4c519f2b28af8a573531bfbf3d472f71e5d3b21",
+      "headline": "Meta expands CoreWeave deal with another $21B commitment",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775768820.0,
+      "first_seen_ts": 1775776222.1282525,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "TheStreet"
+      ],
+      "url": "https://www.thestreet.com/investing/meta-expands-coreweave-deal-with-another-21b-commitment",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775776222.1282525
+    },
+    "dfd78a50771b0209d3dddf3e0d0aa50436067587:5919226": {
+      "story_key": "dfd78a50771b0209d3dddf3e0d0aa50436067587:5919226",
+      "cluster_hash": "dfd78a50771b0209d3dddf3e0d0aa50436067587",
+      "headline": "Unlock Pokemon Champions success with our top meta recruit picks!",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775767945.0,
+      "first_seen_ts": 1775776222.1282525,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Game Rant"
+      ],
+      "url": "https://gamerant.com/pokemon-champions-best-pokemon-to-recruit-first/",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775776222.1282525
+    },
+    "0a4c90535fe546b9105e8d3fb54ab4041f13f21f:5919224": {
+      "story_key": "0a4c90535fe546b9105e8d3fb54ab4041f13f21f:5919224",
+      "cluster_hash": "0a4c90535fe546b9105e8d3fb54ab4041f13f21f",
+      "headline": "Dow & Co mit Zugewinnen - Amazon, Meta, CoreWeave, Walmart, Intel, Micron, Brown-Forman stark",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775767289.0,
+      "first_seen_ts": 1775776222.1282525,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "FinanzNachrichten.de"
+      ],
+      "url": "https://www.finanznachrichten.de/nachrichten-2026-04/68162466-dow-co-mit-zugewinnen-amazon-meta-coreweave-walmart-intel-micron-brown-forman-stark-124.htm",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775776222.1282525
+    },
+    "0a4c90535fe546b9105e8d3fb54ab4041f13f21f:5919220": {
+      "story_key": "0a4c90535fe546b9105e8d3fb54ab4041f13f21f:5919220",
+      "cluster_hash": "0a4c90535fe546b9105e8d3fb54ab4041f13f21f",
+      "headline": "Dow & Co mit Zugewinnen - Amazon, Meta, CoreWeave, Walmart, Intel, Micron, Brown-Forman stark",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775766240.0,
+      "first_seen_ts": 1775776222.1282525,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Der Aktion\u00e4r"
+      ],
+      "url": "https://www.deraktionaer.de/artikel/indizes/dow-co-mit-zugewinnen-amazon-meta-coreweave-walmart-intel-micron-brown-forman-stark-20398776.html",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.45543478260869563,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775776222.1282525
+    },
+    "a6d262f34e859fcc39a0c2fdc0b3ea6ab82b9d09:5919222": {
+      "story_key": "a6d262f34e859fcc39a0c2fdc0b3ea6ab82b9d09:5919222",
+      "cluster_hash": "a6d262f34e859fcc39a0c2fdc0b3ea6ab82b9d09",
+      "headline": "Meta commits another $21 billion to CoreWeave, bringing total AI cloud spend to $35 billion",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775766708.0,
+      "first_seen_ts": 1775776222.1282525,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "The Next Web"
+      ],
+      "url": "https://thenextweb.com/news/meta-coreweave-21-billion-ai-cloud-deal",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775776222.1282525
+    },
+    "c0b48e18116a1fee88a67c73c62f204f1ff615b6:5919216": {
+      "story_key": "c0b48e18116a1fee88a67c73c62f204f1ff615b6:5919216",
+      "cluster_hash": "c0b48e18116a1fee88a67c73c62f204f1ff615b6",
+      "headline": "Nature Exposure Linked to Reductions in Negative Emotional States, Meta-Analysis Finds",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775764838.0,
+      "first_seen_ts": 1775776222.1282525,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Newstarget.com"
+      ],
+      "url": "https://www.newstarget.com/2026-04-09-nature-exposure-linked-to-reductions-negative-emotional-states.html",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": -0.5,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775776222.1282525
+    },
+    "4a3ba46fd04a1ab0e375fb6f0fe587c4bba9a57e:5919215": {
+      "story_key": "4a3ba46fd04a1ab0e375fb6f0fe587c4bba9a57e:5919215",
+      "cluster_hash": "4a3ba46fd04a1ab0e375fb6f0fe587c4bba9a57e",
+      "headline": "CoreWeave's stock bounces back. Why investors are cheering the new Meta deal.",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775764705.0,
+      "first_seen_ts": 1775776222.1282525,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Morningstar"
+      ],
+      "url": "https://www.morningstar.com/news/marketwatch/20260409242/coreweaves-stock-bounces-back-why-investors-are-cheering-the-new-meta-deal",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775776222.1282525
+    },
+    "36472c6a2877bb1298d94f359505a7811ef86784:5919209": {
+      "story_key": "36472c6a2877bb1298d94f359505a7811ef86784:5919209",
+      "cluster_hash": "36472c6a2877bb1298d94f359505a7811ef86784",
+      "headline": "CTO PCI Reduces Symptoms, Improves Quality of Life: Meta-Analysis",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775762709.0,
+      "first_seen_ts": 1775776222.1282525,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "tctmd.com"
+      ],
+      "url": "https://www.tctmd.com/news/cto-pci-reduces-symptoms-improves-quality-life-meta-analysis",
+      "category": "management",
+      "impact": 0.6,
+      "clarity": 0.6,
+      "relevance": 0.7000000000000001,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775776222.1282525
+    },
+    "ef9611da18c0841deb412441f54c0abaa8068bc6:5919211": {
+      "story_key": "ef9611da18c0841deb412441f54c0abaa8068bc6:5919211",
+      "cluster_hash": "ef9611da18c0841deb412441f54c0abaa8068bc6",
+      "headline": "Dow Jones Top Company Headlines at 3 PM ET: Amazon CEO Presses His Case for Big AI Spending | Meta ...",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775763466.0,
+      "first_seen_ts": 1775776222.1282525,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Morningstar"
+      ],
+      "url": "https://www.morningstar.com/news/dow-jones/202604097565/dow-jones-top-company-headlines-at-3-pm-et-amazon-ceo-presses-his-case-for-big-ai-spending-meta",
+      "category": "management",
+      "impact": 0.6,
+      "clarity": 0.8,
+      "relevance": 0.76,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775776222.1282525
+    },
+    "38cd5ad6a0fe8ea846d7bf6bf3438a54f250e425:5919206": {
+      "story_key": "38cd5ad6a0fe8ea846d7bf6bf3438a54f250e425:5919206",
+      "cluster_hash": "38cd5ad6a0fe8ea846d7bf6bf3438a54f250e425",
+      "headline": "Iowa attorney general sues Meta over Instagram's impact on children",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775761980.0,
+      "first_seen_ts": 1775776222.1282525,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "KCCI"
+      ],
+      "url": "https://www.kcci.com/article/iowa-lawsuit-against-meta-facebook-instagram-addictive-design/70977109",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775776222.1282525
+    },
+    "4b7db658e287a29c19bf4232020867a193e4aa2b:5919207": {
+      "story_key": "4b7db658e287a29c19bf4232020867a193e4aa2b:5919207",
+      "cluster_hash": "4b7db658e287a29c19bf4232020867a193e4aa2b",
+      "headline": "Meta rolls out new AI model in 'fundamental shift' in latest effort to catch up with rivals",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775762249.0,
+      "first_seen_ts": 1775776222.1282525,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "New York Post"
+      ],
+      "url": "https://nypost.com/2026/04/09/business/meta-rolls-out-new-ai-model-in-latest-effort-to-catch-up-with-rivals/",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775776222.1282525
+    },
+    "f60425c81c6e572f869fdc9a28c56a87f4d3d00b:5919206": {
+      "story_key": "f60425c81c6e572f869fdc9a28c56a87f4d3d00b:5919206",
+      "cluster_hash": "f60425c81c6e572f869fdc9a28c56a87f4d3d00b",
+      "headline": "Meta Ai App Climbs To No. 5 On The App Store After Muse Spark Launch",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775762084.0,
+      "first_seen_ts": 1775776222.1282525,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Beritaja"
+      ],
+      "url": "https://beritaja.com/meta-ai-app-climbs-to-no-5-on-the-app-store-after-muse-spark-launch-beritaja-414042.html",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775776222.1282525
+    },
+    "7ab34365419bee50faf8e324d86213f56b55ba14:5919206": {
+      "story_key": "7ab34365419bee50faf8e324d86213f56b55ba14:5919206",
+      "cluster_hash": "7ab34365419bee50faf8e324d86213f56b55ba14",
+      "headline": "Meta AI app climbs to No. 5 on the App Store after Muse Spark launch | TechCrunch",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775761807.0,
+      "first_seen_ts": 1775776222.1282525,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "TechCrunch"
+      ],
+      "url": "https://techcrunch.com/2026/04/09/meta-ai-app-climbs-to-no-5-on-the-app-store-after-muse-spark-launch/",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775776222.1282525
+    },
+    "b4b90ca62b56351a1762a2651ff09455b9197c1a:5919205": {
+      "story_key": "b4b90ca62b56351a1762a2651ff09455b9197c1a:5919205",
+      "cluster_hash": "b4b90ca62b56351a1762a2651ff09455b9197c1a",
+      "headline": "S&P500 and Nasdaq 100: Meta Jump Drives US Stocks Today, Oil Shapes Forecast",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775761776.0,
+      "first_seen_ts": 1775776222.1282525,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "FXEmpire.com"
+      ],
+      "url": "https://www.fxempire.com/forecasts/article/sp500-and-nasdaq-100-meta-jump-drives-us-stocks-today-oil-shapes-forecast-1590585",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775776222.1282525
+    },
+    "7427414898b93e9cae33fa76f0b3b5b312043902:5919205": {
+      "story_key": "7427414898b93e9cae33fa76f0b3b5b312043902:5919205",
+      "cluster_hash": "7427414898b93e9cae33fa76f0b3b5b312043902",
+      "headline": "Verdicts against Meta, Google in U.S. could boost Canadian big tech lawsuits",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775761747.0,
+      "first_seen_ts": 1775776222.1282525,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "The Star"
+      ],
+      "url": "https://www.thestar.com/news/canada/verdicts-against-meta-google-in-us-could-boost-canadian-big-tech-lawsuits/article_7edf08de-71ef-5742-beb8-ce15e5d35d1c.html",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.425,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775776222.1282525
+    },
+    "f99edc2888b19eaa9ad8fec288ce80299d404b3b:5919202": {
+      "story_key": "f99edc2888b19eaa9ad8fec288ce80299d404b3b:5919202",
+      "cluster_hash": "f99edc2888b19eaa9ad8fec288ce80299d404b3b",
+      "headline": "New Mexico AG praises decision for quick bench trial against Meta | MLex | Specialist news and analysis on legal risk and regulation",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775760771.0,
+      "first_seen_ts": 1775776222.1282525,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "mlex.com"
+      ],
+      "url": "https://www.mlex.com/mlex/articles/2463727/new-mexico-ag-praises-decision-for-quick-bench-trial-against-meta",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775776222.1282525
+    },
+    "456233d6da1ad11df4a11ac59c7224db2d2664cb:5919202": {
+      "story_key": "456233d6da1ad11df4a11ac59c7224db2d2664cb:5919202",
+      "cluster_hash": "456233d6da1ad11df4a11ac59c7224db2d2664cb",
+      "headline": "Synthesis and Meta-Analysis of Findings from Crisis-specific Inter-Agency Humanitarian Evaluations Covering the Period 2015-2025",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775760754.0,
+      "first_seen_ts": 1775776222.1282525,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "ReliefWeb"
+      ],
+      "url": "https://reliefweb.int/report/world/synthesis-and-meta-analysis-findings-crisis-specific-inter-agency-humanitarian-evaluations-covering-period-2015-2025",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775776222.1282525
+    },
     "d659cb306b7d6d64fc417b1dcb36ec6b67e53eca:5919202": {
       "story_key": "d659cb306b7d6d64fc417b1dcb36ec6b67e53eca:5919202",
       "cluster_hash": "d659cb306b7d6d64fc417b1dcb36ec6b67e53eca",
