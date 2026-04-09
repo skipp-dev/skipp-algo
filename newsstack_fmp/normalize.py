@@ -65,26 +65,46 @@ def _to_epoch(s: str) -> float:
         return 0.0
 
 
+def _normalize_ticker_token(value: Any) -> str:
+    text = str(value or "").strip().upper()
+    if not text:
+        return ""
+    if ":" in text:
+        text = text.rsplit(":", 1)[-1]
+    return text.lstrip("$")
+
+
+def _normalize_source_name(value: Any) -> str:
+    if isinstance(value, dict):
+        return str(value.get("title") or value.get("name") or value.get("uri") or value.get("domain") or "").strip()
+    return str(value or "").strip()
+
+
 def _extract_tickers(it: dict[str, Any]) -> list[str]:
     """Generously extract ticker list from various field shapes."""
     # FMP: single "symbol" string
     sym = it.get("symbol")
     if isinstance(sym, str) and sym.strip():
-        return [sym.strip().upper()]
+        normalized = _normalize_ticker_token(sym)
+        return [normalized] if normalized else []
 
     # Benzinga REST: "stocks" may be list[dict] with "name" key, or list[str], or csv
     stocks = it.get("stocks") or it.get("tickers") or it.get("symbols") or []
     if isinstance(stocks, str):
-        return [s.strip().upper() for s in stocks.split(",") if s.strip()]
+        return [normalized for s in stocks.split(",") if (normalized := _normalize_ticker_token(s))]
     if isinstance(stocks, list):
         out: list[str] = []
         for s in stocks:
             if isinstance(s, dict):
                 name = s.get("name") or s.get("ticker") or s.get("symbol") or ""
                 if name:
-                    out.append(str(name).strip().upper())
+                    normalized = _normalize_ticker_token(name)
+                    if normalized:
+                        out.append(normalized)
             elif isinstance(s, str) and s.strip():
-                out.append(s.strip().upper())
+                normalized = _normalize_ticker_token(s)
+                if normalized:
+                    out.append(normalized)
         return out
     return []
 
@@ -185,4 +205,30 @@ def normalize_benzinga_ws(msg: dict[str, Any]) -> NewsItem:
         url=str(url) if url else None,
         source=source,
         raw=msg,
+    )
+
+
+# ── NewsAPI.ai / Event Registry ────────────────────────────────
+
+def normalize_newsapi_ai(it: dict[str, Any]) -> NewsItem:
+    """Normalise one NewsAPI.ai / Event Registry article or event."""
+    headline = str(it.get("title") or it.get("headline") or "").strip()
+    snippet = str(it.get("body") or it.get("content") or it.get("summary") or "").strip()
+    item_id = str(it.get("id") or it.get("uri") or it.get("url") or "").strip()
+    published = str(it.get("published") or it.get("dateTime") or it.get("dateTimePub") or it.get("date") or "").strip()
+    ts = _to_epoch(published)
+    if not item_id:
+        digest = hashlib.md5(headline.encode("utf-8", errors="replace"), usedforsecurity=False).hexdigest()[:8]
+        item_id = f"newsapi_ai_{int(ts)}_{digest}"
+    return NewsItem(
+        provider="newsapi_ai",
+        item_id=item_id,
+        published_ts=ts,
+        updated_ts=ts,
+        headline=headline,
+        snippet=snippet[:500],
+        tickers=_extract_tickers(it),
+        url=(str(it.get("url") or it.get("link") or "").strip() or None),
+        source=_normalize_source_name(it.get("source")),
+        raw=it,
     )
