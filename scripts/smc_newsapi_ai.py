@@ -11,6 +11,7 @@ EVENT_REGISTRY_ARTICLES_URL = "https://eventregistry.org/api/v1/article/getArtic
 EVENT_REGISTRY_EVENTS_URL = "https://eventregistry.org/api/v1/event/getEvents"
 EVENT_REGISTRY_ARTICLE_FEED_URL = "https://eventregistry.org/api/v1/minuteStreamArticles"
 MAX_KEYWORDS_PER_REQUEST = 60
+TARGET_KEYWORDS_PER_REQUEST = 6
 MAX_ARTICLES_PER_REQUEST = 100
 MAX_EVENTS_PER_REQUEST = 50
 MAX_FEED_ARTICLES_PER_REQUEST = 2000
@@ -44,6 +45,19 @@ def _chunked(values: list[str], size: int) -> list[list[str]]:
     if size <= 0:
         raise ValueError("chunk size must be positive")
     return [values[index : index + size] for index in range(0, len(values), size)]
+
+
+def _balanced_keyword_chunks(
+    values: list[str],
+    *,
+    target_size: int,
+    total_result_limit: int,
+) -> list[tuple[list[str], int]]:
+    chunks = _chunked(values, target_size)
+    if not chunks:
+        return []
+    per_chunk_limit = max(1, (max(int(total_result_limit), 1) + len(chunks) - 1) // len(chunks))
+    return [(chunk, per_chunk_limit) for chunk in chunks]
 
 
 def _normalize_symbols(symbols: list[str]) -> list[str]:
@@ -274,11 +288,15 @@ def fetch_newsapi_feed_article_probe(
     after_uri = str(article_feed_after_uri or "").strip()
 
     try:
-        for keyword_chunk in _chunked(normalized_symbols, MAX_KEYWORDS_PER_REQUEST):
+        for keyword_chunk, chunk_article_count in _balanced_keyword_chunks(
+            normalized_symbols,
+            target_size=min(TARGET_KEYWORDS_PER_REQUEST, MAX_KEYWORDS_PER_REQUEST),
+            total_result_limit=max_article_count,
+        ):
             params, cursor_mode, cursor_value = _build_feed_request_params(
                 api_key,
                 keyword_chunk,
-                max_article_count=max_article_count,
+                max_article_count=chunk_article_count,
                 article_feed_after_epoch=article_feed_after_epoch,
                 article_feed_after_uri=after_uri,
                 now=now,
@@ -405,11 +423,15 @@ def fetch_newsapi_article_records(
     articles: list[dict[str, Any]] = []
 
     try:
-        for keyword_chunk in _chunked(normalized_symbols, MAX_KEYWORDS_PER_REQUEST):
+        for keyword_chunk, chunk_article_count in _balanced_keyword_chunks(
+            normalized_symbols,
+            target_size=min(TARGET_KEYWORDS_PER_REQUEST, MAX_KEYWORDS_PER_REQUEST),
+            total_result_limit=max_articles,
+        ):
             params: list[tuple[str, str]] = [
                 ("apiKey", api_key),
                 ("resultType", "articles"),
-                ("articlesCount", str(max_articles)),
+                ("articlesCount", str(chunk_article_count)),
                 ("articlesSortBy", "date"),
                 ("keywordOper", "or"),
                 ("keywordLoc", "title"),
@@ -506,11 +528,15 @@ def fetch_newsapi_event_records(
     events: list[dict[str, Any]] = []
 
     try:
-        for keyword_chunk in _chunked(normalized_symbols, MAX_KEYWORDS_PER_REQUEST):
+        for keyword_chunk, chunk_event_count in _balanced_keyword_chunks(
+            normalized_symbols,
+            target_size=min(TARGET_KEYWORDS_PER_REQUEST, MAX_KEYWORDS_PER_REQUEST),
+            total_result_limit=max_events,
+        ):
             params: list[tuple[str, str]] = [
                 ("apiKey", api_key),
                 ("resultType", "events"),
-                ("eventsCount", str(max_events)),
+                ("eventsCount", str(chunk_event_count)),
                 ("eventsSortBy", "date"),
                 ("keywordOper", "or"),
                 ("keywordLoc", "title"),

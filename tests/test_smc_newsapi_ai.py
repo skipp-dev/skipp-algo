@@ -5,6 +5,7 @@ from typing import Any
 
 from scripts.smc_newsapi_ai import (
     NewsApiAiProviderError,
+    TARGET_KEYWORDS_PER_REQUEST,
     extract_newsapi_feed_article_cursor_uri,
     fetch_newsapi_article_records,
     fetch_newsapi_articles,
@@ -66,8 +67,8 @@ def test_fetch_newsapi_articles_matches_symbols_and_deduplicates() -> None:
     ]
 
 
-def test_fetch_newsapi_articles_chunks_keywords_at_sixty_items() -> None:
-    symbols = [f"SYM{index:03d}" for index in range(61)]
+def test_fetch_newsapi_articles_chunks_keywords_into_balanced_requests() -> None:
+    symbols = [f"SYM{index:03d}" for index in range(TARGET_KEYWORDS_PER_REQUEST + 1)]
     client = _FakeClient([
         {"articles": {"results": []}},
         {"articles": {"results": []}},
@@ -76,8 +77,10 @@ def test_fetch_newsapi_articles_chunks_keywords_at_sixty_items() -> None:
     fetch_newsapi_articles("test-key", symbols, client=client)
 
     assert len(client.calls) == 2
-    assert sum(1 for key, _ in client.calls[0] if key == "keyword") == 60
+    assert sum(1 for key, _ in client.calls[0] if key == "keyword") == TARGET_KEYWORDS_PER_REQUEST
     assert sum(1 for key, _ in client.calls[1] if key == "keyword") == 1
+    assert ("articlesCount", "50") in client.calls[0]
+    assert ("articlesCount", "50") in client.calls[1]
 
 
 def test_fetch_newsapi_articles_ignores_short_symbols() -> None:
@@ -163,6 +166,51 @@ def test_fetch_newsapi_article_records_filter_ambiguous_tickers_without_market_c
     assert [article["id"] for article in articles] == ["uri-cat-stock", "uri-lin-stock"]
     assert articles[0]["tickers"] == ["CAT"]
     assert articles[1]["tickers"] == ["LIN"]
+
+
+def test_fetch_newsapi_article_records_balance_symbol_coverage_across_chunks() -> None:
+    client = _FakeClient(
+        [
+            {
+                "articles": {
+                    "results": [
+                        {
+                            "uri": "uri-meta-1",
+                            "title": "META extends gains after model launch",
+                            "dateTime": "2026-04-08T10:15:00Z",
+                        }
+                    ]
+                }
+            },
+            {
+                "articles": {
+                    "results": [
+                        {
+                            "uri": "uri-aapl-1",
+                            "title": "AAPL rises as iPhone demand improves",
+                            "dateTime": "2026-04-08T10:16:00Z",
+                        },
+                        {
+                            "uri": "uri-msft-1",
+                            "title": "MSFT rallies after Azure growth accelerates",
+                            "dateTime": "2026-04-08T10:17:00Z",
+                        },
+                    ]
+                }
+            },
+        ]
+    )
+
+    articles = fetch_newsapi_article_records(
+        "test-key",
+        ["META", "AMZN", "JPM", "JNJ", "XOM", "PG", "AAPL", "MSFT"],
+        client=client,
+    )
+
+    assert len(client.calls) == 2
+    assert [article["id"] for article in articles] == ["uri-meta-1", "uri-aapl-1", "uri-msft-1"]
+    assert articles[1]["tickers"] == ["AAPL"]
+    assert articles[2]["tickers"] == ["MSFT"]
 
 
 def test_fetch_newsapi_event_records_preserve_metadata() -> None:
@@ -298,6 +346,48 @@ def test_fetch_newsapi_feed_article_records_uses_minute_stream() -> None:
     assert records[0]["id"] == "uri-feed-1"
     assert records[0]["tickers"] == ["AAPL"]
     assert records[0]["newsapi_fetch_mode"] == "feed_articles"
+
+
+def test_fetch_newsapi_feed_article_records_balance_symbol_coverage_across_chunks() -> None:
+    client = _FakeClient(
+        [
+            {
+                "articles": {
+                    "results": [
+                        {
+                            "uri": "uri-feed-meta-1",
+                            "title": "META surges in fresh stream update",
+                            "dateTime": "2026-04-08T10:16:00Z",
+                        }
+                    ]
+                }
+            },
+            {
+                "articles": {
+                    "results": [
+                        {
+                            "uri": "uri-feed-aapl-1",
+                            "title": "AAPL follows through in live wire",
+                            "dateTime": "2026-04-08T10:17:00Z",
+                        }
+                    ]
+                }
+            },
+        ]
+    )
+
+    records = fetch_newsapi_feed_article_records(
+        "test-key",
+        ["META", "AMZN", "JPM", "JNJ", "XOM", "PG", "AAPL", "MSFT"],
+        article_feed_after_epoch=datetime(2026, 4, 8, 10, 15, tzinfo=UTC).timestamp(),
+        client=client,
+        current_time=datetime(2026, 4, 8, 10, 20, tzinfo=UTC),
+    )
+
+    assert len(client.calls) == 2
+    assert ("recentActivityArticlesMaxArticleCount", "50") in client.calls[0]
+    assert ("recentActivityArticlesMaxArticleCount", "50") in client.calls[1]
+    assert [record["id"] for record in records] == ["uri-feed-meta-1", "uri-feed-aapl-1"]
 
 
 def test_fetch_newsapi_records_prefers_feed_for_recent_cursor() -> None:
