@@ -34,7 +34,7 @@ Reason:
    `actions/runner-images/images/ubuntu/Ubuntu2404-Readme.md`.
 3. Pick the 4-core size.
 4. Give the runner a stable name such as `ubuntu-24.04-4core`.
-5. Grant the runner group access to the repository `skipp-dev/skipp-algo`.
+5. Grant the runner group access to the repository `skippALGO/skipp-algo`.
 6. Update `.github/workflows/smc-library-refresh.yml` so that `runs-on`
    points to that exact runner label.
 7. Trigger `smc-library-refresh` manually once and compare runtime against the

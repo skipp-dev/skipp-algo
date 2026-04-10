@@ -1,4 +1,4 @@
-# Deep Research: Neu geschriebenes SMC‑System in `skipp-dev/skipp-algo` – Repo‑Extraktion, Vergleich, Literatur, Verbesserungen und v5.5b‑Artefakte
+# Deep Research: Neu geschriebenes SMC‑System in `skippALGO/skipp-algo` – Repo‑Extraktion, Vergleich, Literatur, Verbesserungen und v5.5b‑Artefakte
 
 ## Executive Summary
 

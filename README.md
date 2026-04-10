@@ -231,7 +231,7 @@ The `🔍` badge marks **WIIM** (“Why It Matters”) enriched items.
 
 ```bash
 # 1. Clone and install
-git clone https://github.com/skipp-dev/skipp-algo.git
+git clone https://github.com/skippALGO/skipp-algo.git
 cd skipp-algo
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt

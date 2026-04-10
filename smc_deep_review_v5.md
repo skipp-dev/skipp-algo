@@ -1,11 +1,104 @@
 # SMC Deep Review v5
 
 **Datum:** 08. April 2026  
-**Repository:** `skipp-dev/skipp-algo`, Branch `main`, Commit `92475e7e`  
+**Repository:** `skippALGO/skipp-algo`, Branch `main`, Commit `92475e7e`  
 **Scope:** Ausschließlich SMC-relevante Module — Terminal Dashboard, Open Prep, SkippALGO sind NICHT im Scope  
 **Evidenz-Legende:** ✅ im Code | 🧪 durch Tests | ⚙️ operativ belegt | ⚠️ nur plausibel
 
 > Redaktioneller Hinweis (2026-04-09): Diese Fassung ist der Roh-Deep-Review. Die verifizierte Einordnung, korrigierte Absolutheiten und der operative Folgeplan stehen in `docs/smc_deep_review_v5_verified_action_plan.md`.
+
+## Redaktioneller Nachtrag 2026-04-09 - Workflow- und Update-Evidenz
+
+Dieser Nachtrag qualifiziert die engeren Aussagen aus der Rohfassung zur
+GitHub-Actions-Evidenz. Die fruehere Lesart "nur plausibel" ist fuer die reine
+Workflow-Ausfuehrung zu schwach; fuer den erfolgreichen automatisierten
+Library-Refresh bleibt sie dagegen weiterhin nicht belegt.
+
+### Verifizierte Workflow-Cadence
+
+Der Workflow `.github/workflows/smc-library-refresh.yml` ist auf vier
+Werktagslaeufe pro Tag konfiguriert:
+
+1. `12:30 UTC`
+2. `14:30 UTC`
+3. `16:30 UTC`
+4. `18:30 UTC`
+
+Der Generatorlauf ist Bestandteil jedes Schedulers, nicht nur eines spaeteren
+Publish- oder Commit-Schritts.
+
+### Oeffentlicher Actions-Nachweis
+
+Die oeffentliche GitHub-API fuer
+`https://api.github.com/repos/skippALGO/skipp-algo/actions/workflows/smc-library-refresh.yml/runs?per_page=100`
+liefert zum Stand 2026-04-09 einen belastbaren Run-Verlauf:
+
+- `32` Workflow-Runs insgesamt
+- `32/32` mit `event = schedule`
+- erster sichtbarer Lauf: `run #1`, `2026-03-30T12:46:48Z`
+- letzter sichtbarer Lauf: `run #32`, `2026-04-08T18:51:24Z`
+- fuer jeden sichtbaren Werktag im Fenster `2026-03-30`, `2026-03-31`,
+  `2026-04-01`, `2026-04-02`, `2026-04-03`, `2026-04-06`, `2026-04-07`,
+  `2026-04-08` existieren jeweils genau `4` Scheduler-Laeufe
+- `32/32` Laeufe endeten mit `conclusion = failure`
+
+Konkrete oeffentliche Run-Beispiele:
+
+1. `#32` - `2026-04-08T18:51:24Z` - `failure`  
+   `https://github.com/skippALGO/skipp-algo/actions/runs/24152714805`
+2. `#29` - `2026-04-08T12:46:55Z` - `failure`  
+   `https://github.com/skippALGO/skipp-algo/actions/runs/24136094201`
+3. `#20` - `2026-04-03T18:44:24Z` - `failure`  
+   `https://github.com/skippALGO/skipp-algo/actions/runs/23957844648`
+4. `#13` - `2026-04-02T12:46:21Z` - `failure`  
+   `https://github.com/skippALGO/skipp-algo/actions/runs/23901069758`
+
+### Repo-Nachweis fuer wiederholte Library-Aenderungen
+
+Unabhaengig von der Actions-Run-Historie zeigt die Git-Historie der kanonischen
+Library-Artefakte unter `pine/generated/` wiederholte Aenderungen an mehreren
+Tagen. Fuer `smc_micro_profiles_generated.json` und
+`smc_micro_profiles_generated.pine` sind im lokalen Repo mindestens diese
+Update-Daten sichtbar:
+
+1. `2026-03-25`
+2. `2026-03-28`
+3. `2026-03-29`
+4. `2026-03-30`
+5. `2026-03-31`
+6. `2026-04-02`
+7. `2026-04-07`
+
+Das belegt: die kanonische Library wurde im Repo wiederholt veraendert. Es
+belegt aber nicht automatisch, dass diese Aenderungen aus erfolgreichen
+geplanten `smc-library-refresh`-Runs stammen.
+
+### Entscheidender Unterschied: regelmaessig gelaufen vs. regelmaessig upgedated
+
+Verifiziert ist damit die folgende Trennung:
+
+1. **Der Base-Generator-Workflow laeuft regelmaessig in GitHub Actions.**
+2. **Ein regelmaessiger erfolgreicher automatisierter Library-Refresh ist
+   aktuell nicht belegt.** Die oeffentliche Actions-Historie zeigt im
+   sichtbaren Zeitraum ausschliesslich fehlgeschlagene Scheduler-Laeufe.
+3. **Die Library wurde im Repo wiederholt upgedated**, aber der kausale
+   Nachweis "dieser Commit stammt aus einem erfolgreichen Scheduler-Run" ist in
+   der lokalen Git-Historie derzeit nicht sichtbar.
+
+### Qualifizierter Review-Befund
+
+RF-2 sollte daher enger und praeziser gelesen werden:
+
+- **Nicht korrekt waere:** "Es gibt keinen Nachweis, dass der Workflow
+  regelmaessig laeuft."
+- **Korrekt und belegt ist:** "Es gibt Nachweis fuer einen regelmaessig
+  laufenden Scheduler, aber keinen Nachweis fuer einen regelmaessig
+  erfolgreichen automatisierten End-to-End-Library-Refresh."
+
+Damit ist die operative Lage nicht "Scheduler existiert nur theoretisch",
+sondern praeziser: **Scheduler regelmaessig aktiv, aber aktuell durchgehend
+fehlschlagend; Repo-Library mehrfach aktualisiert, jedoch ohne eindeutige
+Automations-Provenienz im Commit-Verlauf.**
 
 ---
 
@@ -508,4 +601,4 @@ Siehe Kapitel-Kopf. Kernaussage: **Architektonisch durchdacht, operativ unzureic
 
 ---
 
-*Quellen: Repository-Analyse `skipp-dev/skipp-algo` Commit `92475e7e`, Branch `main`. Externe Benchmark-Daten: [LuxAlgo SMC Indicator](https://www.luxalgo.com/blog/smart-money-concept-indicator-for-tradingview-free/), [TradingView SMC Community Scripts](https://in.tradingview.com/scripts/smartmoneyconcept/), [ICT Smart Money Trading Suite (SwissAlgo)](https://www.tradingview.com/script/ygABdJp8-ICT-Smart-Money-Trading-Suite-SwissAlgo/), [thinkorswim SMC Community Port](https://usethinkscript.com/threads/smart-money-concepts-smc-luxalgo-for-thinkorswim.19143/). Stand: 08. April 2026.*
+*Quellen: Repository-Analyse `skippALGO/skipp-algo` Commit `92475e7e`, Branch `main`. Externe Benchmark-Daten: [LuxAlgo SMC Indicator](https://www.luxalgo.com/blog/smart-money-concept-indicator-for-tradingview-free/), [TradingView SMC Community Scripts](https://in.tradingview.com/scripts/smartmoneyconcept/), [ICT Smart Money Trading Suite (SwissAlgo)](https://www.tradingview.com/script/ygABdJp8-ICT-Smart-Money-Trading-Suite-SwissAlgo/), [thinkorswim SMC Community Port](https://usethinkscript.com/threads/smart-money-concepts-smc-luxalgo-for-thinkorswim.19143/). Stand: 08. April 2026.*
