@@ -7,12 +7,12 @@ Stand: 2026-04-10
 Run `.github/workflows/smc-library-refresh.yml` on a larger GitHub-hosted
 Linux runner without bringing back any self-hosted infrastructure.
 
-The workflow now supports one optional repository variable:
+## Current Active Runner
 
-- `SMC_GH_HOSTED_RUNNER`
+- `ubuntu-24.04-4core`
 
-If the variable is unset, the workflow runs on the standard GitHub-hosted
-`ubuntu-24.04` image.
+The workflow is currently pinned directly to this runner label in
+`.github/workflows/smc-library-refresh.yml`.
 
 ## Recommended Pilot Shape
 
@@ -35,8 +35,8 @@ Reason:
 3. Pick the 4-core size.
 4. Give the runner a stable name such as `ubuntu-24.04-4core`.
 5. Grant the runner group access to the repository `skipp-dev/skipp-algo`.
-6. In the repository settings, create the Actions variable
-   `SMC_GH_HOSTED_RUNNER=ubuntu-24.04-4core`.
+6. Update `.github/workflows/smc-library-refresh.yml` so that `runs-on`
+   points to that exact runner label.
 7. Trigger `smc-library-refresh` manually once and compare runtime against the
    current baseline.
 
@@ -51,7 +51,8 @@ The workflow exposes the selected runner in two places:
 
 Rollback is immediate:
 
-1. delete the repository variable `SMC_GH_HOSTED_RUNNER`
-2. or set it to `ubuntu-24.04`
+1. change `runs-on` in `.github/workflows/smc-library-refresh.yml` back to
+   `ubuntu-24.04`
+2. push the workflow change
 
-No workflow file change is required for rollback.
+No organization-level runner teardown is required for rollback.
