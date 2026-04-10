@@ -584,6 +584,231 @@ def test_build_base_snapshot_from_bundle_payload_uses_legacy_volume_fallback(
     assert output.loc[0, "adv_dollar_rth_20d"] > 0.0
 
 
+def test_incremental_base_seed_roundtrip(tmp_path: Path) -> None:
+    daily_bars = pd.DataFrame(
+        [
+            {"trade_date": "2026-03-19", "symbol": "AAA", "open": 10.0, "high": 10.8, "low": 9.7, "close": 10.5, "volume": 1_500_000, "previous_close": 9.8},
+            {"trade_date": "2026-03-20", "symbol": "AAA", "open": 10.7, "high": 11.2, "low": 10.1, "close": 10.4, "volume": 1_900_000, "previous_close": 10.5},
+        ]
+    )
+    daily_features = pd.DataFrame(
+        [
+            {"trade_date": "2026-03-19", "symbol": "AAA", "exchange": "NASDAQ", "company_name": "Alpha Holdings", "asset_type": "stock", "market_cap": 3_200_000_000, "day_close": 10.5, "day_volume": 1_500_000},
+            {"trade_date": "2026-03-20", "symbol": "AAA", "exchange": "NASDAQ", "company_name": "Alpha Holdings", "asset_type": "stock", "market_cap": 3_200_000_000, "day_close": 10.4, "day_volume": 1_900_000},
+        ]
+    )
+    symbol_day_features = pd.DataFrame(
+        [
+            {
+                "trade_date": "2026-03-20",
+                "symbol": "AAA",
+                "exchange": "NASDAQ",
+                "company_name": "Alpha Holdings",
+                "asset_type": "stock",
+                "market_cap": 3_200_000_000,
+                "day_close": 10.4,
+                "day_volume": 1_900_000,
+                "minute_detail_missing": False,
+                "missing_regular_session_detail": False,
+                "missing_midday_detail": False,
+                "daily_rth_dollar_volume": 19_760_000.0,
+                "daily_avg_spread_bps_rth": 1.2,
+                "daily_rth_active_minutes_share": 0.8,
+                "daily_open_30m_dollar_share": 0.2,
+                "daily_close_60m_dollar_share": 0.3,
+                "daily_clean_intraday_score": 0.7,
+                "daily_rth_wickiness": 0.1,
+                "daily_pm_dollar_share": 0.05,
+                "daily_pm_trades_share": 0.05,
+                "daily_pm_active_minutes_share": 0.2,
+                "daily_pm_spread_bps": 1.0,
+                "daily_pm_wickiness": 0.1,
+                "daily_midday_dollar_share": 0.2,
+                "daily_midday_trades_share": 0.2,
+                "daily_midday_active_minutes_share": 0.5,
+                "daily_midday_spread_bps": 1.0,
+                "daily_midday_efficiency": 0.6,
+                "daily_ah_dollar_share": 0.05,
+                "daily_ah_trades_share": 0.05,
+                "daily_ah_active_minutes_share": 0.1,
+                "daily_ah_spread_bps": 1.0,
+                "daily_ah_wickiness": 0.1,
+                "daily_setup_decay_half_life_bars": 2.0,
+                "daily_early_vs_late_followthrough_ratio": 1.1,
+                "daily_close_hygiene": 0.8,
+                "daily_reclaim_respect_flag": 1.0,
+                "daily_reclaim_failure_flag": 0.0,
+                "daily_reclaim_followthrough_r": 0.4,
+                "daily_ob_sweep_reversal_flag": 0.0,
+                "daily_fvg_sweep_reversal_flag": 0.0,
+                "daily_stop_hunt_flag": 0.0,
+                "daily_stale_fail_flag": 0.0,
+                "daily_ob_sweep_depth": 0.0,
+                "daily_fvg_sweep_depth": 0.0,
+            }
+        ]
+    )
+    diagnostics = pd.DataFrame([{"trade_date": "2026-03-20", "symbol": "AAA", "excluded_reason": ""}])
+
+    runtime._write_incremental_base_seed(
+        tmp_path,
+        bundle_manifest_path=tmp_path / "bundle_manifest.json",
+        asof_date="2026-03-20",
+        trade_dates_covered=["2026-03-19", "2026-03-20"],
+        daily_bars=daily_bars,
+        daily_features=daily_features,
+        symbol_day_features=symbol_day_features,
+        symbol_day_diagnostics=diagnostics,
+    )
+
+    seed = runtime._load_incremental_base_seed(tmp_path)
+
+    assert seed is not None
+    assert seed["manifest"]["asof_date"] == "2026-03-20"
+    pd.testing.assert_frame_equal(seed["daily_bars"], daily_bars)
+    pd.testing.assert_frame_equal(seed["daily_features"], daily_features)
+    pd.testing.assert_frame_equal(seed["symbol_day_features"], symbol_day_features)
+    pd.testing.assert_frame_equal(seed["symbol_day_diagnostics"], diagnostics)
+
+
+def test_build_base_snapshot_from_symbol_day_features_matches_bundle_builder(tmp_path: Path) -> None:
+    bundle_payload, session_minute_detail = _make_bundle_payload(tmp_path)
+    frames = cast(dict[str, Any], bundle_payload["frames"])
+    daily_features = cast(pd.DataFrame, frames["daily_symbol_features_full_universe"])
+    symbol_day_features = build_symbol_day_microstructure_feature_frame(session_minute_detail, daily_features)
+
+    expected_snapshot, expected_payload, _ = build_base_snapshot_from_bundle_payload(
+        bundle_payload,
+        schema_path=SCHEMA_PATH,
+        session_minute_detail=session_minute_detail,
+    )
+    actual_snapshot, actual_payload = runtime._build_base_snapshot_from_symbol_day_features(
+        symbol_day_features,
+        schema_path=SCHEMA_PATH,
+    )
+
+    pd.testing.assert_frame_equal(actual_snapshot, expected_snapshot)
+    assert actual_payload["asof_date"] == expected_payload["asof_date"]
+    assert actual_payload["row_count"] == expected_payload["row_count"]
+
+
+def test_run_databento_base_scan_pipeline_incremental_reuses_seed_and_limits_trade_day_scope(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    trade_days = [date(2026, 3, 18), date(2026, 3, 19), date(2026, 3, 20), date(2026, 3, 21)]
+    seed_daily_bars = pd.DataFrame(
+        [
+            {"trade_date": trade_days[0], "symbol": "AAA", "open": 10.0, "high": 10.4, "low": 9.8, "close": 10.1, "volume": 1000, "previous_close": 9.9},
+            {"trade_date": trade_days[1], "symbol": "AAA", "open": 10.2, "high": 10.5, "low": 10.0, "close": 10.3, "volume": 1100, "previous_close": 10.1},
+            {"trade_date": trade_days[2], "symbol": "AAA", "open": 10.4, "high": 10.7, "low": 10.2, "close": 10.5, "volume": 1200, "previous_close": 10.3},
+        ]
+    )
+    seed_daily_features = pd.DataFrame(
+        [
+            {"trade_date": trade_days[0], "symbol": "AAA", "exchange": "NASDAQ", "company_name": "Alpha Holdings", "asset_type": "stock", "market_cap": 3_200_000_000, "day_volume": 1000, "open_1m_volume": 100.0, "open_5m_volume": 200.0, "day_close": 10.1, "has_intraday": True},
+            {"trade_date": trade_days[1], "symbol": "AAA", "exchange": "NASDAQ", "company_name": "Alpha Holdings", "asset_type": "stock", "market_cap": 3_200_000_000, "day_volume": 1100, "open_1m_volume": 110.0, "open_5m_volume": 210.0, "day_close": 10.3, "has_intraday": True},
+            {"trade_date": trade_days[2], "symbol": "AAA", "exchange": "NASDAQ", "company_name": "Alpha Holdings", "asset_type": "stock", "market_cap": 3_200_000_000, "day_volume": 1200, "open_1m_volume": 120.0, "open_5m_volume": 220.0, "day_close": 10.5, "has_intraday": True},
+        ]
+    )
+    seed_symbol_day_features = pd.DataFrame(
+        [
+            {"trade_date": trade_days[0], "symbol": "AAA", "exchange": "NASDAQ", "company_name": "Alpha Holdings", "asset_type": "stock", "market_cap": 3_200_000_000, "day_close": 10.1, "day_volume": 1000, "minute_detail_missing": False, "missing_regular_session_detail": False, "missing_midday_detail": False, "daily_rth_dollar_volume": 10100.0, "daily_avg_spread_bps_rth": 1.0, "daily_rth_active_minutes_share": 0.8, "daily_open_30m_dollar_share": 0.2, "daily_close_60m_dollar_share": 0.3, "daily_clean_intraday_score": 0.7, "daily_rth_wickiness": 0.1, "daily_pm_dollar_share": 0.05, "daily_pm_trades_share": 0.05, "daily_pm_active_minutes_share": 0.2, "daily_pm_spread_bps": 1.0, "daily_pm_wickiness": 0.1, "daily_midday_dollar_share": 0.2, "daily_midday_trades_share": 0.2, "daily_midday_active_minutes_share": 0.5, "daily_midday_spread_bps": 1.0, "daily_midday_efficiency": 0.6, "daily_ah_dollar_share": 0.05, "daily_ah_trades_share": 0.05, "daily_ah_active_minutes_share": 0.1, "daily_ah_spread_bps": 1.0, "daily_ah_wickiness": 0.1, "daily_setup_decay_half_life_bars": 2.0, "daily_early_vs_late_followthrough_ratio": 1.0, "daily_close_hygiene": 0.8, "daily_reclaim_respect_flag": 1.0, "daily_reclaim_failure_flag": 0.0, "daily_reclaim_followthrough_r": 0.4, "daily_ob_sweep_reversal_flag": 0.0, "daily_fvg_sweep_reversal_flag": 0.0, "daily_stop_hunt_flag": 0.0, "daily_stale_fail_flag": 0.0, "daily_ob_sweep_depth": 0.0, "daily_fvg_sweep_depth": 0.0},
+            {"trade_date": trade_days[1], "symbol": "AAA", "exchange": "NASDAQ", "company_name": "Alpha Holdings", "asset_type": "stock", "market_cap": 3_200_000_000, "day_close": 10.3, "day_volume": 1100, "minute_detail_missing": False, "missing_regular_session_detail": False, "missing_midday_detail": False, "daily_rth_dollar_volume": 11330.0, "daily_avg_spread_bps_rth": 1.0, "daily_rth_active_minutes_share": 0.8, "daily_open_30m_dollar_share": 0.2, "daily_close_60m_dollar_share": 0.3, "daily_clean_intraday_score": 0.7, "daily_rth_wickiness": 0.1, "daily_pm_dollar_share": 0.05, "daily_pm_trades_share": 0.05, "daily_pm_active_minutes_share": 0.2, "daily_pm_spread_bps": 1.0, "daily_pm_wickiness": 0.1, "daily_midday_dollar_share": 0.2, "daily_midday_trades_share": 0.2, "daily_midday_active_minutes_share": 0.5, "daily_midday_spread_bps": 1.0, "daily_midday_efficiency": 0.6, "daily_ah_dollar_share": 0.05, "daily_ah_trades_share": 0.05, "daily_ah_active_minutes_share": 0.1, "daily_ah_spread_bps": 1.0, "daily_ah_wickiness": 0.1, "daily_setup_decay_half_life_bars": 2.0, "daily_early_vs_late_followthrough_ratio": 1.0, "daily_close_hygiene": 0.8, "daily_reclaim_respect_flag": 1.0, "daily_reclaim_failure_flag": 0.0, "daily_reclaim_followthrough_r": 0.4, "daily_ob_sweep_reversal_flag": 0.0, "daily_fvg_sweep_reversal_flag": 0.0, "daily_stop_hunt_flag": 0.0, "daily_stale_fail_flag": 0.0, "daily_ob_sweep_depth": 0.0, "daily_fvg_sweep_depth": 0.0},
+            {"trade_date": trade_days[2], "symbol": "AAA", "exchange": "NASDAQ", "company_name": "Alpha Holdings", "asset_type": "stock", "market_cap": 3_200_000_000, "day_close": 10.5, "day_volume": 1200, "minute_detail_missing": False, "missing_regular_session_detail": False, "missing_midday_detail": False, "daily_rth_dollar_volume": 12600.0, "daily_avg_spread_bps_rth": 1.0, "daily_rth_active_minutes_share": 0.8, "daily_open_30m_dollar_share": 0.2, "daily_close_60m_dollar_share": 0.3, "daily_clean_intraday_score": 0.7, "daily_rth_wickiness": 0.1, "daily_pm_dollar_share": 0.05, "daily_pm_trades_share": 0.05, "daily_pm_active_minutes_share": 0.2, "daily_pm_spread_bps": 1.0, "daily_pm_wickiness": 0.1, "daily_midday_dollar_share": 0.2, "daily_midday_trades_share": 0.2, "daily_midday_active_minutes_share": 0.5, "daily_midday_spread_bps": 1.0, "daily_midday_efficiency": 0.6, "daily_ah_dollar_share": 0.05, "daily_ah_trades_share": 0.05, "daily_ah_active_minutes_share": 0.1, "daily_ah_spread_bps": 1.0, "daily_ah_wickiness": 0.1, "daily_setup_decay_half_life_bars": 2.0, "daily_early_vs_late_followthrough_ratio": 1.0, "daily_close_hygiene": 0.8, "daily_reclaim_respect_flag": 1.0, "daily_reclaim_failure_flag": 0.0, "daily_reclaim_followthrough_r": 0.4, "daily_ob_sweep_reversal_flag": 0.0, "daily_fvg_sweep_reversal_flag": 0.0, "daily_stop_hunt_flag": 0.0, "daily_stale_fail_flag": 0.0, "daily_ob_sweep_depth": 0.0, "daily_fvg_sweep_depth": 0.0},
+        ]
+    )
+    runtime._write_incremental_base_seed(
+        tmp_path,
+        bundle_manifest_path=tmp_path / "prev_manifest.json",
+        asof_date=trade_days[2].isoformat(),
+        trade_dates_covered=[item.isoformat() for item in trade_days[:3]],
+        daily_bars=seed_daily_bars,
+        daily_features=seed_daily_features,
+        symbol_day_features=seed_symbol_day_features,
+        symbol_day_diagnostics=pd.DataFrame(),
+    )
+
+    captured: dict[str, Any] = {}
+
+    monkeypatch.setattr(runtime, "list_recent_trading_days", lambda *args, **kwargs: trade_days)
+
+    def fake_run_production_export_pipeline(**kwargs: Any) -> dict[str, Any]:
+        captured["trading_days_override"] = kwargs.get("trading_days_override")
+        delta_day = trade_days[-1]
+        return {
+            "exported_paths": {"manifest": str(tmp_path / "delta_manifest.json")},
+            "daily_bars": pd.DataFrame(
+                [
+                    {"trade_date": delta_day, "symbol": "AAA", "open": 10.6, "high": 10.9, "low": 10.3, "close": 10.8, "volume": 1300, "previous_close": 10.5},
+                ]
+            ),
+            "daily_symbol_features_full_universe": pd.DataFrame(
+                [
+                    {"trade_date": delta_day, "symbol": "AAA", "exchange": "NASDAQ", "company_name": "Alpha Holdings", "asset_type": "stock", "market_cap": 3_200_000_000, "day_volume": 1300, "open_1m_volume": 130.0, "open_5m_volume": 230.0, "day_close": 10.8, "has_intraday": True},
+                ]
+            ),
+            "symbol_day_diagnostics": pd.DataFrame([{"trade_date": delta_day, "symbol": "AAA", "excluded_reason": ""}]),
+        }
+
+    monkeypatch.setattr(runtime, "run_production_export_pipeline", fake_run_production_export_pipeline)
+
+    def fake_collect(*args: Any, **kwargs: Any) -> pd.DataFrame:
+        captured["session_trade_days"] = kwargs.get("trading_days")
+        return pd.DataFrame(
+            [
+                {
+                    "trade_date": trade_days[-1],
+                    "symbol": "AAA",
+                    "timestamp": pd.Timestamp("2026-03-21T13:30:00Z"),
+                    "session": "regular",
+                    "open": 10.6,
+                    "high": 10.8,
+                    "low": 10.5,
+                    "close": 10.7,
+                    "volume": 100,
+                    "trade_count": 10,
+                }
+            ]
+        )
+
+    monkeypatch.setattr(runtime, "collect_full_universe_session_minute_detail", fake_collect)
+    monkeypatch.setattr(
+        runtime,
+        "build_symbol_day_microstructure_feature_frame",
+        lambda *args, **kwargs: pd.DataFrame(
+            [
+                {"trade_date": trade_days[-1], "symbol": "AAA", "exchange": "NASDAQ", "company_name": "Alpha Holdings", "asset_type": "stock", "market_cap": 3_200_000_000, "day_close": 10.8, "day_volume": 1300, "minute_detail_missing": False, "missing_regular_session_detail": False, "missing_midday_detail": False, "daily_rth_dollar_volume": 14040.0, "daily_avg_spread_bps_rth": 1.0, "daily_rth_active_minutes_share": 0.8, "daily_open_30m_dollar_share": 0.2, "daily_close_60m_dollar_share": 0.3, "daily_clean_intraday_score": 0.7, "daily_rth_wickiness": 0.1, "daily_pm_dollar_share": 0.05, "daily_pm_trades_share": 0.05, "daily_pm_active_minutes_share": 0.2, "daily_pm_spread_bps": 1.0, "daily_pm_wickiness": 0.1, "daily_midday_dollar_share": 0.2, "daily_midday_trades_share": 0.2, "daily_midday_active_minutes_share": 0.5, "daily_midday_spread_bps": 1.0, "daily_midday_efficiency": 0.6, "daily_ah_dollar_share": 0.05, "daily_ah_trades_share": 0.05, "daily_ah_active_minutes_share": 0.1, "daily_ah_spread_bps": 1.0, "daily_ah_wickiness": 0.1, "daily_setup_decay_half_life_bars": 2.0, "daily_early_vs_late_followthrough_ratio": 1.0, "daily_close_hygiene": 0.8, "daily_reclaim_respect_flag": 1.0, "daily_reclaim_failure_flag": 0.0, "daily_reclaim_followthrough_r": 0.4, "daily_ob_sweep_reversal_flag": 0.0, "daily_fvg_sweep_reversal_flag": 0.0, "daily_stop_hunt_flag": 0.0, "daily_stale_fail_flag": 0.0, "daily_ob_sweep_depth": 0.0, "daily_fvg_sweep_depth": 0.0},
+            ]
+        ),
+    )
+    monkeypatch.setattr(
+        runtime,
+        "_build_base_snapshot_from_symbol_day_features",
+        lambda *args, **kwargs: (
+            pd.DataFrame([{column: 0.0 for column in json.loads(Path(SCHEMA_PATH).read_text(encoding="utf-8"))["required_columns"]}]),
+            {"bundle_manifest_path": "incremental_seed", "asof_date": trade_days[-1].isoformat(), "row_count": 1, "direct_fields": [], "derived_fields": [], "missing_fields": [], "mapping_status": []},
+        ),
+    )
+
+    result = runtime.run_databento_base_scan_pipeline(
+        databento_api_key="dummy-db",
+        fmp_api_key="",
+        dataset="DBEQ.BASIC",
+        export_dir=tmp_path,
+        schema_path=SCHEMA_PATH,
+        lookback_days=4,
+        smc_base_only=True,
+        incremental_base_only=True,
+        write_xlsx=False,
+    )
+
+    assert captured["trading_days_override"] == trade_days[1:]
+    assert captured["session_trade_days"] == trade_days[1:]
+    assert result["export_result"]["daily_symbol_features_full_universe"]["trade_date"].isin(trade_days).all()
+    assert (tmp_path / runtime.INCREMENTAL_BASE_SEED_DIR_NAME / runtime.INCREMENTAL_BASE_SEED_MANIFEST_NAME).exists()
+
+
 def test_infer_asset_type_excludes_prefix_only_etf_names() -> None:
     assert infer_asset_type("ETFMG PRIME CYBER", None) == "stock"
 

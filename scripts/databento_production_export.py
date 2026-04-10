@@ -3191,6 +3191,7 @@ def run_production_export_pipeline(
     bullish_score_profile: str = DEFAULT_BULLISH_QUALITY_SCORE_PROFILE,
     skip_cost_estimate: bool | None = None,
     smc_base_only: bool = False,
+    trading_days_override: list[date] | None = None,
     progress_callback: Any = None,
 ) -> dict[str, Any]:
     if not databento_api_key:
@@ -3210,8 +3211,12 @@ def run_production_export_pipeline(
     resolved_cache_dir = cache_dir or (REPO_ROOT / "artifacts" / "databento_volatility_cache")
     resolved_export_dir = export_dir or default_export_directory()
 
-    _progress("Step 1/10: Listing recent trading days...")
-    trading_days = list_recent_trading_days(databento_api_key, dataset=dataset, lookback_days=lookback_days)
+    if trading_days_override is not None:
+        trading_days = sorted({pd.Timestamp(value).date() for value in trading_days_override})
+        _progress(f"Step 1/10: Using overridden trading day scope ({len(trading_days)} days)...")
+    else:
+        _progress("Step 1/10: Listing recent trading days...")
+        trading_days = list_recent_trading_days(databento_api_key, dataset=dataset, lookback_days=lookback_days)
     if resolved_skip_cost_estimate:
         _progress("Step 2/10: Skipping cost estimate (default operational mode)...")
         cost_estimate = pd.DataFrame(columns=["scope", "cost_usd", "billable_size_bytes"])

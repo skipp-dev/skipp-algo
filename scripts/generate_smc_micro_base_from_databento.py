@@ -886,6 +886,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--export-dir", type=Path, default=Path("artifacts/smc_microstructure_exports"), help="Output directory for bundle/base artifacts")
     parser.add_argument("--output-root", type=Path, default=Path("."), help="Root directory for canonical generated library artifacts")
     parser.add_argument("--force-refresh", action="store_true", help="Bypass file cache during --run-scan")
+    parser.add_argument("--incremental-base-only", action="store_true", help="Reuse the persisted base-only seed and only refresh changed trade days during --run-scan")
     parser.add_argument("--write-xlsx", action="store_true", help="Also emit an .xlsx base workbook for bundle/scan generation")
     parser.add_argument("--library-owner", default="preuss_steffen", help="TradingView owner for the generated library import path metadata")
     parser.add_argument("--library-version", type=int, default=1, help="TradingView library version for generated import metadata")
@@ -955,6 +956,7 @@ def main() -> None:
             schema_path=args.schema,
             lookback_days=int(args.lookback_days),
             force_refresh=bool(args.force_refresh),
+            incremental_base_only=bool(args.incremental_base_only),
             cache_dir=Path("artifacts") / "databento_volatility_cache",
             use_file_cache=True,
             display_timezone="Europe/Berlin",

@@ -8,11 +8,12 @@ import warnings
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, time
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 import pandas as pd
 
+from databento_volatility_screener import list_recent_trading_days
 from databento_utils import US_EASTERN_TZ
 from scripts.databento_production_export import run_production_export_pipeline
 from scripts.generate_smc_micro_profiles import load_schema, run_generation
@@ -59,6 +60,13 @@ REQUIRED_BUNDLE_FRAMES = (
     "daily_bars",
     "daily_symbol_features_full_universe",
 )
+
+INCREMENTAL_BASE_SEED_DIR_NAME = "incremental_base_seed"
+INCREMENTAL_BASE_SEED_MANIFEST_NAME = "smc_incremental_base_seed.json"
+INCREMENTAL_BASE_SEED_DAILY_BARS_NAME = "daily_bars.parquet"
+INCREMENTAL_BASE_SEED_DAILY_FEATURES_NAME = "daily_symbol_features_full_universe.parquet"
+INCREMENTAL_BASE_SEED_SYMBOL_DAY_FEATURES_NAME = "symbol_day_features.parquet"
+INCREMENTAL_BASE_SEED_DIAGNOSTICS_NAME = "symbol_day_diagnostics.parquet"
 
 # Session-time constants and coverage helpers are now re-exported from
 # scripts.smc_databento_session_detail (see top-of-file imports).
@@ -118,6 +126,417 @@ def _clip01(value: Any) -> float:
     if not np.isfinite(numeric):
         return 0.0
     return float(max(0.0, min(1.0, numeric)))
+
+
+def _incremental_base_seed_dir(export_dir: Path) -> Path:
+    return export_dir / INCREMENTAL_BASE_SEED_DIR_NAME
+
+
+def _incremental_base_seed_paths(export_dir: Path) -> dict[str, Path]:
+    seed_dir = _incremental_base_seed_dir(export_dir)
+    return {
+        "seed_dir": seed_dir,
+        "manifest": seed_dir / INCREMENTAL_BASE_SEED_MANIFEST_NAME,
+        "daily_bars": seed_dir / INCREMENTAL_BASE_SEED_DAILY_BARS_NAME,
+        "daily_features": seed_dir / INCREMENTAL_BASE_SEED_DAILY_FEATURES_NAME,
+        "symbol_day_features": seed_dir / INCREMENTAL_BASE_SEED_SYMBOL_DAY_FEATURES_NAME,
+        "symbol_day_diagnostics": seed_dir / INCREMENTAL_BASE_SEED_DIAGNOSTICS_NAME,
+    }
+
+
+def _merge_incremental_frame(
+    previous: pd.DataFrame,
+    current: pd.DataFrame,
+    *,
+    key_columns: list[str],
+    sort_columns: list[str],
+) -> pd.DataFrame:
+    if previous.empty:
+        merged = current.copy()
+    elif current.empty:
+        merged = previous.copy()
+    else:
+        prev = previous.copy()
+        curr = current.copy()
+        for column in key_columns:
+            if column in prev.columns:
+                if column == "trade_date":
+                    prev[column] = pd.to_datetime(prev[column], errors="coerce").dt.date
+                elif column == "symbol":
+                    prev[column] = prev[column].astype(str).str.upper()
+            if column in curr.columns:
+                if column == "trade_date":
+                    curr[column] = pd.to_datetime(curr[column], errors="coerce").dt.date
+                elif column == "symbol":
+                    curr[column] = curr[column].astype(str).str.upper()
+        merged = pd.concat([prev, curr], ignore_index=True)
+        merged = merged.drop_duplicates(subset=key_columns, keep="last")
+    if sort_columns:
+        available_sort_columns = [column for column in sort_columns if column in merged.columns]
+        if available_sort_columns:
+            merged = merged.sort_values(available_sort_columns).reset_index(drop=True)
+    return merged
+
+
+def _tail_trade_days(frame: pd.DataFrame, *, trade_days: list[date]) -> pd.DataFrame:
+    if frame.empty or not trade_days or "trade_date" not in frame.columns:
+        return frame.copy()
+    scoped = frame.copy()
+    scoped["trade_date"] = pd.to_datetime(scoped["trade_date"], errors="coerce").dt.date
+    return scoped.loc[scoped["trade_date"].isin(set(trade_days))].reset_index(drop=True)
+
+
+def _recompute_daily_feature_volume_rollups(frame: pd.DataFrame) -> pd.DataFrame:
+    if frame.empty:
+        return frame.copy()
+    features = frame.copy()
+    features["trade_date"] = pd.to_datetime(features["trade_date"], errors="coerce").dt.date
+    features["symbol"] = features["symbol"].astype(str).str.upper()
+    features = features.sort_values(["symbol", "trade_date"]).reset_index(drop=True)
+    for column in ("open_1m_volume", "open_5m_volume", "day_volume"):
+        if column not in features.columns:
+            features[column] = np.nan
+        features[column] = pd.to_numeric(features[column], errors="coerce")
+    features["avg_open_1m_volume_20d"] = features.groupby("symbol")["open_1m_volume"].transform(
+        lambda series: series.shift(1).rolling(20, min_periods=1).mean()
+    )
+    features["avg_open_5m_volume_20d"] = features.groupby("symbol")["open_5m_volume"].transform(
+        lambda series: series.shift(1).rolling(20, min_periods=1).mean()
+    )
+    features["avg_day_volume_20d"] = features.groupby("symbol")["day_volume"].transform(
+        lambda series: series.shift(1).rolling(20, min_periods=1).mean()
+    )
+    avg_open_1m = pd.to_numeric(features["avg_open_1m_volume_20d"], errors="coerce")
+    avg_open_5m = pd.to_numeric(features["avg_open_5m_volume_20d"], errors="coerce")
+    avg_day = pd.to_numeric(features["avg_day_volume_20d"], errors="coerce")
+    features["open_1m_rvol_20d"] = np.where(
+        avg_open_1m > 0,
+        pd.to_numeric(features["open_1m_volume"], errors="coerce") / avg_open_1m,
+        np.nan,
+    )
+    features["open_5m_rvol_20d"] = np.where(
+        avg_open_5m > 0,
+        pd.to_numeric(features["open_5m_volume"], errors="coerce") / avg_open_5m,
+        np.nan,
+    )
+    features["day_volume_rvol_20d"] = np.where(
+        avg_day > 0,
+        pd.to_numeric(features["day_volume"], errors="coerce") / avg_day,
+        np.nan,
+    )
+    return features
+
+
+def _load_incremental_base_seed(export_dir: Path) -> dict[str, Any] | None:
+    paths = _incremental_base_seed_paths(export_dir)
+    required = ("manifest", "daily_bars", "daily_features", "symbol_day_features")
+    if any(not paths[name].exists() for name in required):
+        return None
+    try:
+        manifest = json.loads(paths["manifest"].read_text(encoding="utf-8"))
+        if not isinstance(manifest, dict):
+            return None
+        seed: dict[str, Any] = {
+            "manifest": manifest,
+            "daily_bars": pd.read_parquet(paths["daily_bars"]),
+            "daily_features": pd.read_parquet(paths["daily_features"]),
+            "symbol_day_features": pd.read_parquet(paths["symbol_day_features"]),
+            "paths": paths,
+        }
+        if paths["symbol_day_diagnostics"].exists():
+            seed["symbol_day_diagnostics"] = pd.read_parquet(paths["symbol_day_diagnostics"])
+        else:
+            seed["symbol_day_diagnostics"] = pd.DataFrame()
+        return seed
+    except Exception:
+        logger.warning("Failed to load incremental base seed from %s", export_dir, exc_info=True)
+        return None
+
+
+def _write_incremental_base_seed(
+    export_dir: Path,
+    *,
+    bundle_manifest_path: Path,
+    asof_date: str,
+    trade_dates_covered: list[str],
+    daily_bars: pd.DataFrame,
+    daily_features: pd.DataFrame,
+    symbol_day_features: pd.DataFrame,
+    symbol_day_diagnostics: pd.DataFrame,
+) -> None:
+    paths = _incremental_base_seed_paths(export_dir)
+    paths["seed_dir"].mkdir(parents=True, exist_ok=True)
+    pd.DataFrame(daily_bars).to_parquet(paths["daily_bars"], index=False)
+    pd.DataFrame(daily_features).to_parquet(paths["daily_features"], index=False)
+    pd.DataFrame(symbol_day_features).to_parquet(paths["symbol_day_features"], index=False)
+    pd.DataFrame(symbol_day_diagnostics).to_parquet(paths["symbol_day_diagnostics"], index=False)
+    payload = {
+        "bundle_manifest_path": str(bundle_manifest_path),
+        "asof_date": str(asof_date),
+        "trade_dates_covered": [str(item) for item in trade_dates_covered],
+        "generated_at": datetime.now(UTC).isoformat(timespec="seconds"),
+    }
+    paths["manifest"].write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+
+
+def _resolve_incremental_trade_days(trading_days: list[date], previous_asof_date: date | None) -> list[date]:
+    if not trading_days:
+        return []
+    if previous_asof_date is None:
+        return list(trading_days)
+    if previous_asof_date not in trading_days:
+        return list(trading_days)
+    previous_index = trading_days.index(previous_asof_date)
+    start_index = max(0, previous_index - 1)
+    return list(trading_days[start_index:])
+
+
+def _build_base_snapshot_from_symbol_day_features(
+    symbol_day_features: pd.DataFrame,
+    *,
+    schema_path: Path,
+    asof_date: str | None = None,
+) -> tuple[pd.DataFrame, dict[str, Any]]:
+    if symbol_day_features.empty:
+        raise RuntimeError("Unable to derive symbol-day microstructure features from the bundle")
+
+    schema = load_schema(schema_path)
+    trailing_source = symbol_day_features.copy()
+    trailing_source["trade_date"] = pd.to_datetime(trailing_source["trade_date"], errors="coerce").dt.strftime("%Y-%m-%d")
+    resolved_asof = asof_date or str(trailing_source["trade_date"].dropna().max())
+    if not resolved_asof:
+        raise RuntimeError("Unable to resolve asof_date from symbol-day features")
+    resolved_date = date.fromisoformat(resolved_asof)
+    days_stale = (date.today() - resolved_date).days
+    if days_stale > 5:
+        warnings.warn(
+            f"Microstructure base asof_date is {days_stale} days old; results may be stale.",
+            stacklevel=2,
+        )
+
+    trailing = trailing_source.loc[trailing_source["trade_date"] <= resolved_asof].copy()
+    trailing = trailing.sort_values(["symbol", "trade_date"]).groupby("symbol", group_keys=False).tail(20)
+    for target_column, legacy_column in (("day_close", "close"), ("day_volume", "volume")):
+        if target_column not in trailing.columns:
+            logger.warning(
+                "Bundle symbol-day features missing %s; falling back to %s for compatibility.",
+                target_column,
+                legacy_column,
+            )
+            trailing[target_column] = pd.to_numeric(
+                _series_from_frame(trailing, legacy_column, np.nan),
+                errors="coerce",
+            )
+    trailing["minute_detail_missing_bool"] = _coerce_bool_series(_series_from_frame(trailing, "minute_detail_missing", False))
+    trailing["missing_regular_session_detail_bool"] = _coerce_bool_series(
+        _series_from_frame(trailing, "missing_regular_session_detail", False)
+    )
+    trailing["missing_midday_detail_bool"] = _coerce_bool_series(
+        _series_from_frame(trailing, "missing_midday_detail", False)
+    )
+
+    latest = trailing.sort_values(["symbol", "trade_date"]).groupby("symbol", group_keys=False).tail(1)
+    latest_by_symbol = latest.set_index("symbol", drop=False)
+    rows: list[dict[str, Any]] = []
+    consistency_score_columns = [
+        "daily_clean_intraday_score",
+        "daily_open_30m_dollar_share",
+        "daily_close_60m_dollar_share",
+        "daily_midday_efficiency",
+        "daily_close_hygiene",
+    ]
+    minute_mean_columns = [
+        "daily_avg_spread_bps_rth",
+        "daily_rth_active_minutes_share",
+        "daily_open_30m_dollar_share",
+        "daily_close_60m_dollar_share",
+        "daily_clean_intraday_score",
+        "daily_rth_wickiness",
+        "daily_pm_dollar_share",
+        "daily_pm_trades_share",
+        "daily_pm_active_minutes_share",
+        "daily_pm_spread_bps",
+        "daily_pm_wickiness",
+        "daily_midday_dollar_share",
+        "daily_midday_trades_share",
+        "daily_midday_active_minutes_share",
+        "daily_midday_spread_bps",
+        "daily_midday_efficiency",
+        "daily_ah_dollar_share",
+        "daily_ah_trades_share",
+        "daily_ah_active_minutes_share",
+        "daily_ah_spread_bps",
+        "daily_ah_wickiness",
+        "daily_setup_decay_half_life_bars",
+        "daily_early_vs_late_followthrough_ratio",
+    ]
+    group_mean_columns = [
+        "daily_close_hygiene",
+        "daily_reclaim_respect_flag",
+        "daily_reclaim_failure_flag",
+        "daily_reclaim_followthrough_r",
+        "daily_ob_sweep_reversal_flag",
+        "daily_fvg_sweep_reversal_flag",
+        "daily_stop_hunt_flag",
+        "daily_stale_fail_flag",
+    ]
+    trailing_numeric_columns: list[str] = []
+    for column in minute_mean_columns + group_mean_columns + [
+        "daily_rth_dollar_volume",
+        "daily_ob_sweep_depth",
+        "daily_fvg_sweep_depth",
+        "day_close",
+        "day_volume",
+    ]:
+        if column not in trailing_numeric_columns:
+            trailing_numeric_columns.append(column)
+    minute_mean_indices = [trailing_numeric_columns.index(column) for column in minute_mean_columns]
+    group_mean_indices = [trailing_numeric_columns.index(column) for column in group_mean_columns]
+    consistency_score_indices = [trailing_numeric_columns.index(column) for column in consistency_score_columns]
+    adv_rth_index = trailing_numeric_columns.index("daily_rth_dollar_volume")
+    ob_sweep_depth_index = trailing_numeric_columns.index("daily_ob_sweep_depth")
+    fvg_sweep_depth_index = trailing_numeric_columns.index("daily_fvg_sweep_depth")
+    day_close_index = trailing_numeric_columns.index("day_close")
+    day_volume_index = trailing_numeric_columns.index("day_volume")
+
+    for symbol, group in trailing.groupby("symbol", sort=True):
+        latest_row = latest_by_symbol.loc[symbol]
+        coverage_days = int(group["trade_date"].nunique())
+        coverage_gap_mask = (
+            group["missing_regular_session_detail_bool"].to_numpy(dtype=bool, copy=False)
+            | group["missing_midday_detail_bool"].to_numpy(dtype=bool, copy=False)
+        )
+        covered_mask = ~(
+            group["minute_detail_missing_bool"].to_numpy(dtype=bool, copy=False)
+            | coverage_gap_mask
+        )
+        numeric_values = group[trailing_numeric_columns].to_numpy(dtype=float, copy=False)
+        covered_numeric_values = numeric_values[covered_mask]
+        minute_means = _nanmean_columns_or_zero(covered_numeric_values[:, minute_mean_indices])
+        group_means = _nanmean_columns_or_zero(numeric_values[:, group_mean_indices])
+        (
+            avg_spread_bps_rth_20d,
+            rth_active_minutes_share_20d,
+            open_30m_dollar_share_20d,
+            close_60m_dollar_share_20d,
+            clean_intraday_score_20d,
+            wickiness_20d,
+            pm_dollar_share_20d,
+            pm_trades_share_20d,
+            pm_active_minutes_share_20d,
+            pm_spread_bps_20d,
+            pm_wickiness_20d,
+            midday_dollar_share_20d,
+            midday_trades_share_20d,
+            midday_active_minutes_share_20d,
+            midday_spread_bps_20d,
+            midday_efficiency_20d,
+            ah_dollar_share_20d,
+            ah_trades_share_20d,
+            ah_active_minutes_share_20d,
+            ah_spread_bps_20d,
+            ah_wickiness_20d,
+            setup_decay_half_life_bars_20d,
+            early_vs_late_followthrough_ratio_20d,
+        ) = minute_means
+        (
+            close_hygiene_20d,
+            reclaim_respect_rate_20d,
+            reclaim_failure_rate_20d,
+            reclaim_followthrough_r_20d,
+            ob_sweep_reversal_rate_20d,
+            fvg_sweep_reversal_rate_20d,
+            stop_hunt_rate_20d,
+            stale_fail_rate_20d,
+        ) = group_means
+
+        daily_close = numeric_values[:, day_close_index]
+        day_volume = numeric_values[:, day_volume_index]
+        adv_fallback = daily_close * day_volume
+        adv_fallback[~np.isfinite(adv_fallback)] = np.nan
+        adv_rth = numeric_values[:, adv_rth_index]
+        adv_dollar = np.where(covered_mask & (adv_rth > 0.0) & np.isfinite(adv_rth), adv_rth, adv_fallback)
+        consistency_values = covered_numeric_values[:, consistency_score_indices]
+        consistency_score = _consistency_score_from_numeric_values(consistency_values)
+        ob_sweep_depth_p75_20d = _nanquantile_or_default(numeric_values[:, ob_sweep_depth_index], 0.75, default=0.0)
+        fvg_sweep_depth_p75_20d = _nanquantile_or_default(numeric_values[:, fvg_sweep_depth_index], 0.75, default=0.0)
+
+        rows.append(
+            {
+                "asof_date": resolved_asof,
+                "symbol": symbol,
+                "exchange": str(latest_row.get("exchange") or "").upper(),
+                "asset_type": infer_asset_type(str(latest_row.get("company_name") or ""), str(latest_row.get("asset_type") or "")),
+                "universe_bucket": infer_universe_bucket(
+                    infer_asset_type(str(latest_row.get("company_name") or ""), str(latest_row.get("asset_type") or "")),
+                    _safe_float(latest_row.get("market_cap"), default=np.nan),
+                ),
+                "history_coverage_days_20d": coverage_days,
+                "adv_dollar_rth_20d": _nanmean_or_default(adv_dollar, default=0.0),
+                "avg_spread_bps_rth_20d": float(avg_spread_bps_rth_20d),
+                "rth_active_minutes_share_20d": _clip01(rth_active_minutes_share_20d),
+                "open_30m_dollar_share_20d": _clip01(open_30m_dollar_share_20d),
+                "close_60m_dollar_share_20d": _clip01(close_60m_dollar_share_20d),
+                "clean_intraday_score_20d": _clip01(clean_intraday_score_20d),
+                "consistency_score_20d": _clip01(consistency_score),
+                "close_hygiene_20d": _clip01(close_hygiene_20d),
+                "wickiness_20d": _clip01(wickiness_20d),
+                "pm_dollar_share_20d": _clip01(pm_dollar_share_20d),
+                "pm_trades_share_20d": _clip01(pm_trades_share_20d),
+                "pm_active_minutes_share_20d": _clip01(pm_active_minutes_share_20d),
+                "pm_spread_bps_20d": float(pm_spread_bps_20d),
+                "pm_wickiness_20d": _clip01(pm_wickiness_20d),
+                "midday_dollar_share_20d": _clip01(midday_dollar_share_20d),
+                "midday_trades_share_20d": _clip01(midday_trades_share_20d),
+                "midday_active_minutes_share_20d": _clip01(midday_active_minutes_share_20d),
+                "midday_spread_bps_20d": float(midday_spread_bps_20d),
+                "midday_efficiency_20d": _clip01(midday_efficiency_20d),
+                "ah_dollar_share_20d": _clip01(ah_dollar_share_20d),
+                "ah_trades_share_20d": _clip01(ah_trades_share_20d),
+                "ah_active_minutes_share_20d": _clip01(ah_active_minutes_share_20d),
+                "ah_spread_bps_20d": float(ah_spread_bps_20d),
+                "ah_wickiness_20d": _clip01(ah_wickiness_20d),
+                "reclaim_respect_rate_20d": _clip01(reclaim_respect_rate_20d),
+                "reclaim_failure_rate_20d": _clip01(reclaim_failure_rate_20d),
+                "reclaim_followthrough_r_20d": float(reclaim_followthrough_r_20d),
+                "ob_sweep_reversal_rate_20d": _clip01(ob_sweep_reversal_rate_20d),
+                "ob_sweep_depth_p75_20d": ob_sweep_depth_p75_20d,
+                "fvg_sweep_reversal_rate_20d": _clip01(fvg_sweep_reversal_rate_20d),
+                "fvg_sweep_depth_p75_20d": fvg_sweep_depth_p75_20d,
+                "stop_hunt_rate_20d": _clip01(stop_hunt_rate_20d),
+                "setup_decay_half_life_bars_20d": float(setup_decay_half_life_bars_20d),
+                "early_vs_late_followthrough_ratio_20d": float(early_vs_late_followthrough_ratio_20d),
+                "stale_fail_rate_20d": _clip01(stale_fail_rate_20d),
+            }
+        )
+
+    output = pd.DataFrame(rows)
+    required_columns = [str(column) for column in schema["required_columns"]]
+    for column in required_columns:
+        if column not in output.columns:
+            output[column] = 0.0
+    output = output[required_columns].sort_values(["symbol"]).reset_index(drop=True)
+
+    statuses = build_bundle_mapping_statuses(required_columns)
+    payload = {
+        "bundle_manifest_path": "incremental_seed",
+        "asof_date": resolved_asof,
+        "row_count": len(output),
+        "direct_fields": [status.field for status in statuses if status.status == "direct"],
+        "derived_fields": [status.field for status in statuses if status.status == "derived"],
+        "missing_fields": [],
+        "mapping_status": [
+            {
+                "field": status.field,
+                "status": status.status,
+                "source_sheet": status.source_sheet,
+                "source_columns": status.source_columns,
+                "note": status.note,
+            }
+            for status in statuses
+        ],
+    }
+    return output, payload
 
 
 def _clip01_series(series: pd.Series) -> pd.Series:
@@ -1561,6 +1980,40 @@ def generate_base_from_bundle(
     }
 
 
+def _build_incremental_bundle_payload(
+    *,
+    export_dir: Path,
+    trade_dates_covered: list[date],
+    daily_bars: pd.DataFrame,
+    daily_features: pd.DataFrame,
+) -> dict[str, Any]:
+    export_dir.mkdir(parents=True, exist_ok=True)
+    generated_at = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
+    base_prefix = f"databento_volatility_production_incremental_{generated_at}"
+    manifest_path = export_dir / f"{base_prefix}_manifest.json"
+    pd.DataFrame(daily_bars).to_parquet(export_dir / f"{base_prefix}__daily_bars.parquet", index=False)
+    pd.DataFrame(daily_features).to_parquet(
+        export_dir / f"{base_prefix}__daily_symbol_features_full_universe.parquet",
+        index=False,
+    )
+    manifest = {
+        "trade_dates_covered": [item.isoformat() for item in trade_dates_covered],
+        "export_generated_at": datetime.now(UTC).isoformat(timespec="seconds"),
+        "incremental_base_only": True,
+    }
+    manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+    return {
+        "manifest_path": manifest_path,
+        "bundle_dir": export_dir,
+        "base_prefix": base_prefix,
+        "manifest": manifest,
+        "frames": {
+            "daily_bars": pd.DataFrame(daily_bars).copy(),
+            "daily_symbol_features_full_universe": pd.DataFrame(daily_features).copy(),
+        },
+    }
+
+
 def run_databento_base_scan_pipeline(
     *,
     databento_api_key: str,
@@ -1575,6 +2028,7 @@ def run_databento_base_scan_pipeline(
     display_timezone: str = "Europe/Berlin",
     bullish_score_profile: str = "balanced",
     smc_base_only: bool = True,
+    incremental_base_only: bool = False,
     write_xlsx: bool = True,
     library_owner: str = "preuss_steffen",
     library_version: int = 1,
@@ -1584,6 +2038,212 @@ def run_databento_base_scan_pipeline(
         logger.info(message)
         if progress_callback is not None:
             progress_callback(message)
+
+    if smc_base_only and incremental_base_only and not force_refresh:
+        seed = _load_incremental_base_seed(export_dir)
+        if seed is not None:
+            previous_asof_raw = str(seed["manifest"].get("asof_date") or "").strip()
+            previous_asof_date = date.fromisoformat(previous_asof_raw) if previous_asof_raw else None
+            trading_days = list_recent_trading_days(
+                databento_api_key,
+                dataset=dataset,
+                lookback_days=int(lookback_days),
+            )
+            if trading_days:
+                incremental_trade_days = _resolve_incremental_trade_days(trading_days, previous_asof_date)
+                if incremental_trade_days and len(incremental_trade_days) < len(trading_days):
+                    _progress(
+                        "Base scan: Starting incremental Databento production export pipeline "
+                        f"({len(incremental_trade_days)} of {len(trading_days)} trading days)..."
+                    )
+                    export_started_at = time_module.perf_counter()
+                    export_result = run_production_export_pipeline(
+                        databento_api_key=databento_api_key,
+                        fmp_api_key=fmp_api_key,
+                        dataset=dataset,
+                        lookback_days=int(lookback_days),
+                        export_dir=export_dir,
+                        cache_dir=cache_dir,
+                        use_file_cache=use_file_cache,
+                        force_refresh=force_refresh,
+                        second_detail_scope="full_universe",
+                        bullish_score_profile=bullish_score_profile,
+                        smc_base_only=smc_base_only,
+                        trading_days_override=incremental_trade_days,
+                        progress_callback=progress_callback,
+                    )
+                    _progress(
+                        "Base scan: Incremental Databento production export pipeline complete in "
+                        f"{time_module.perf_counter() - export_started_at:.1f}s"
+                    )
+
+                    merged_daily_bars = _merge_incremental_frame(
+                        cast(pd.DataFrame, seed["daily_bars"]),
+                        pd.DataFrame(export_result.get("daily_bars", pd.DataFrame())),
+                        key_columns=["trade_date", "symbol"],
+                        sort_columns=["symbol", "trade_date"],
+                    )
+                    merged_daily_bars = _tail_trade_days(merged_daily_bars, trade_days=trading_days)
+                    merged_daily_features = _merge_incremental_frame(
+                        cast(pd.DataFrame, seed["daily_features"]),
+                        pd.DataFrame(export_result.get("daily_symbol_features_full_universe", pd.DataFrame())),
+                        key_columns=["trade_date", "symbol"],
+                        sort_columns=["symbol", "trade_date"],
+                    )
+                    merged_daily_features = _tail_trade_days(merged_daily_features, trade_days=trading_days)
+                    merged_daily_features = _recompute_daily_feature_volume_rollups(merged_daily_features)
+                    merged_symbol_day_diagnostics = _merge_incremental_frame(
+                        pd.DataFrame(seed.get("symbol_day_diagnostics", pd.DataFrame())),
+                        pd.DataFrame(export_result.get("symbol_day_diagnostics", pd.DataFrame())),
+                        key_columns=["trade_date", "symbol"],
+                        sort_columns=["symbol", "trade_date"],
+                    )
+                    merged_symbol_day_diagnostics = _tail_trade_days(merged_symbol_day_diagnostics, trade_days=trading_days)
+
+                    intraday_expected = merged_daily_features.copy()
+                    intraday_expected["trade_date"] = _coerce_trade_date_series(intraday_expected["trade_date"])
+                    intraday_expected["symbol"] = intraday_expected.get("symbol", pd.Series(index=intraday_expected.index, dtype=object)).astype(str).str.upper()
+                    has_intraday_available = "has_intraday" in intraday_expected.columns
+                    if has_intraday_available:
+                        intraday_expected["has_intraday"] = _coerce_bool_series(intraday_expected["has_intraday"])
+                    else:
+                        intraday_expected["has_intraday"] = pd.Series(True, index=intraday_expected.index, dtype=bool)
+                    intraday_expected = intraday_expected.loc[
+                        intraday_expected["trade_date"].isin(set(incremental_trade_days))
+                        & intraday_expected["trade_date"].notna()
+                        & intraday_expected["symbol"].ne("")
+                    ].copy()
+                    expected_symbols_by_trade_day = {
+                        trade_day: set(group["symbol"].tolist())
+                        for trade_day, group in intraday_expected.groupby("trade_date", sort=False)
+                    }
+                    universe_symbols = set(merged_daily_features["symbol"].dropna().astype(str).str.upper())
+
+                    _progress("Step 11/12: Collecting incremental full-session minute detail for microstructure base derivation...")
+                    session_detail_started_at = time_module.perf_counter()
+                    session_minute_detail = collect_full_universe_session_minute_detail(
+                        databento_api_key,
+                        dataset=dataset,
+                        trading_days=incremental_trade_days,
+                        universe_symbols=universe_symbols,
+                        expected_symbols_by_trade_day=expected_symbols_by_trade_day,
+                        display_timezone=display_timezone,
+                        cache_dir=cache_dir,
+                        use_file_cache=use_file_cache,
+                        force_refresh=force_refresh,
+                    )
+                    _progress(
+                        "Step 11/12 complete: Incremental full-session minute detail collected in "
+                        f"{time_module.perf_counter() - session_detail_started_at:.1f}s "
+                        f"(rows={len(session_minute_detail)})"
+                    )
+
+                    delta_symbol_day_features = build_symbol_day_microstructure_feature_frame(
+                        session_minute_detail,
+                        merged_daily_features.loc[
+                            pd.to_datetime(merged_daily_features["trade_date"], errors="coerce").dt.date.isin(set(incremental_trade_days))
+                        ].copy(),
+                    )
+                    merged_symbol_day_features = _merge_incremental_frame(
+                        cast(pd.DataFrame, seed["symbol_day_features"]),
+                        delta_symbol_day_features,
+                        key_columns=["trade_date", "symbol"],
+                        sort_columns=["symbol", "trade_date"],
+                    )
+                    merged_symbol_day_features = _tail_trade_days(merged_symbol_day_features, trade_days=trading_days)
+
+                    bundle_payload = _build_incremental_bundle_payload(
+                        export_dir=export_dir,
+                        trade_dates_covered=trading_days,
+                        daily_bars=merged_daily_bars,
+                        daily_features=merged_daily_features,
+                    )
+                    output_paths = build_default_output_paths(bundle_payload["base_prefix"], export_dir, str(max(trading_days).isoformat()))
+                    if not session_minute_detail.empty:
+                        session_minute_detail.to_parquet(output_paths["session_minute_parquet"], index=False)
+
+                    _progress("Step 12/12: Building SMC microstructure base snapshot from incremental seed + delta...")
+                    base_snapshot_started_at = time_module.perf_counter()
+                    base_snapshot, mapping_payload = _build_base_snapshot_from_symbol_day_features(
+                        merged_symbol_day_features,
+                        schema_path=schema_path,
+                    )
+                    mapping_payload["bundle_manifest_path"] = str(bundle_payload["manifest_path"])
+                    output_paths["base_csv"].parent.mkdir(parents=True, exist_ok=True)
+                    base_snapshot.to_csv(output_paths["base_csv"], index=False)
+                    merged_symbol_day_features.to_parquet(output_paths["micro_day_parquet"], index=False)
+                    workbook_warning: str | None = None
+                    workbook_written = False
+                    if write_xlsx:
+                        try:
+                            write_base_workbook(output_paths["base_xlsx"], base_snapshot, mapping_payload)
+                        except ModuleNotFoundError as exc:
+                            missing_name = str(getattr(exc, "name", "") or "")
+                            if missing_name.startswith("openpyxl"):
+                                workbook_warning = (
+                                    "XLSX workbook export was skipped because the active Python environment has an incomplete "
+                                    f"openpyxl installation ({missing_name}). CSV, Parquet, JSON, and Markdown artifacts were still written."
+                                )
+                                logger.warning(workbook_warning)
+                            else:
+                                raise
+                        else:
+                            workbook_written = True
+                    effective_output_paths = dict(output_paths)
+                    if write_xlsx and not workbook_written:
+                        effective_output_paths.pop("base_xlsx", None)
+                    write_mapping_report(output_paths["mapping_md"], mapping_payload)
+                    output_paths["mapping_json"].write_text(json.dumps(mapping_payload, indent=2) + "\n", encoding="utf-8")
+                    write_base_manifest(
+                        output_paths["base_manifest"],
+                        bundle_manifest_path=Path(bundle_payload["manifest_path"]),
+                        asof_date=mapping_payload["asof_date"],
+                        base_csv_path=output_paths["base_csv"],
+                        base_xlsx_path=output_paths["base_xlsx"] if workbook_written else None,
+                        micro_day_parquet_path=output_paths["micro_day_parquet"],
+                        mapping_md_path=output_paths["mapping_md"],
+                        mapping_json_path=output_paths["mapping_json"],
+                        production_workbook_path=None,
+                        library_owner=library_owner,
+                        library_version=library_version,
+                        core_ready=False,
+                    )
+                    _progress(
+                        "Step 12/12 complete: SMC microstructure base snapshot built in "
+                        f"{time_module.perf_counter() - base_snapshot_started_at:.1f}s "
+                        f"(rows={len(base_snapshot)})"
+                    )
+                    _write_incremental_base_seed(
+                        export_dir,
+                        bundle_manifest_path=Path(bundle_payload["manifest_path"]),
+                        asof_date=mapping_payload["asof_date"],
+                        trade_dates_covered=[item.isoformat() for item in trading_days],
+                        daily_bars=merged_daily_bars,
+                        daily_features=merged_daily_features,
+                        symbol_day_features=merged_symbol_day_features,
+                        symbol_day_diagnostics=merged_symbol_day_diagnostics,
+                    )
+                    return {
+                        "bundle_manifest_path": Path(bundle_payload["manifest_path"]),
+                        "base_snapshot": base_snapshot,
+                        "mapping_payload": mapping_payload,
+                        "symbol_day_features": merged_symbol_day_features,
+                        "output_paths": effective_output_paths,
+                        "warnings": [workbook_warning] if workbook_warning else [],
+                        "workbook_written": workbook_written,
+                        "production_workbook_path": None,
+                        "export_result": {
+                            **export_result,
+                            "exported_paths": {
+                                **export_result.get("exported_paths", {}),
+                                "manifest": str(bundle_payload["manifest_path"]),
+                            },
+                            "daily_bars": merged_daily_bars,
+                            "daily_symbol_features_full_universe": merged_daily_features,
+                            "symbol_day_diagnostics": merged_symbol_day_diagnostics,
+                        },
+                    }
+                _progress("Base scan: Incremental seed available but covers no smaller scope than the current window; falling back to full pipeline...")
 
     export_started_at = time_module.perf_counter()
     _progress("Base scan: Starting Databento production export pipeline...")
@@ -1707,6 +2367,19 @@ def run_databento_base_scan_pipeline(
                 Path(base_manifest_path).write_text(json.dumps(manifest_payload, indent=2) + "\n", encoding="utf-8")
         except Exception:
             logger.warning("Failed to enrich base manifest with production workbook lineage", exc_info=True)
+    try:
+        _write_incremental_base_seed(
+            export_dir,
+            bundle_manifest_path=manifest_path,
+            asof_date=str(max(trading_days).isoformat()),
+            trade_dates_covered=[item.isoformat() for item in trading_days],
+            daily_bars=pd.DataFrame(bundle_payload["frames"]["daily_bars"]),
+            daily_features=pd.DataFrame(daily_feature_frame),
+            symbol_day_features=pd.DataFrame(base_result.get("symbol_day_features", pd.DataFrame())),
+            symbol_day_diagnostics=pd.DataFrame(export_result.get("symbol_day_diagnostics", pd.DataFrame())),
+        )
+    except Exception:
+        logger.warning("Failed to write incremental base seed", exc_info=True)
     base_result["production_workbook_path"] = Path(canonical_production_workbook) if canonical_production_workbook else None
     base_result["export_result"] = export_result
     return base_result

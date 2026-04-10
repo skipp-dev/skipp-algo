@@ -111,6 +111,14 @@ jobs:
             echo '{}' > /tmp/manifest_before.json
           fi
 
+      - name: Restore incremental base seed
+        uses: actions/cache/restore@v4
+        with:
+          path: artifacts/smc_microstructure_exports/incremental_base_seed
+          key: ${{ runner.os }}-smc-incremental-base-seed-${{ github.ref_name }}-${{ github.run_id }}
+          restore-keys: |
+            ${{ runner.os }}-smc-incremental-base-seed-${{ github.ref_name }}-
+
       # ── Library generation with enrichment (v5) ─────────────────
       - name: Generate SMC library with v5 enrichment
         env:
@@ -121,6 +129,7 @@ jobs:
         run: |
           python scripts/generate_smc_micro_base_from_databento.py \
             --run-scan \
+            --incremental-base-only \
             --enrich-all \
             --export-dir artifacts/smc_microstructure_exports \
             --output-root .
@@ -131,6 +140,13 @@ jobs:
             echo "::error::Missing generated base manifest in artifacts/smc_microstructure_exports"
             exit 1
           fi
+
+      - name: Save incremental base seed
+        if: success()
+        uses: actions/cache/save@v4
+        with:
+          path: artifacts/smc_microstructure_exports/incremental_base_seed
+          key: ${{ runner.os }}-smc-incremental-base-seed-${{ github.ref_name }}-${{ github.run_id }}
 
       # ── Evidence gates ──────────────────────────────────────────
       - name: Run evidence gate tests
