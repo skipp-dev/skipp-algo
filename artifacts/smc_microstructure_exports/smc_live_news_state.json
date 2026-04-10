@@ -4,12 +4,1116 @@
     "fmp_stock": 0.0,
     "fmp_press": 0.0,
     "fmp_articles": 0.0,
-    "newsapi_ai": 1775822173.0,
+    "newsapi_ai": 1775836620.0,
     "tv": 0.0,
-    "legacy_cursor": 1775822173.0
+    "legacy_cursor": 1775836620.0
   },
   "provider_state": {},
   "story_state": {
+    "a8169768bbbfecc53675d92754e45efccc0860b3:5919446": {
+      "story_key": "a8169768bbbfecc53675d92754e45efccc0860b3:5919446",
+      "cluster_hash": "a8169768bbbfecc53675d92754e45efccc0860b3",
+      "headline": "SA analyst upgrades/downgrades: NFLX, LUV, XOM, AMZN",
+      "tickers": [
+        "AMZN",
+        "XOM"
+      ],
+      "published_ts": 1775833815.0,
+      "first_seen_ts": 1775838231.729327,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Seeking Alpha"
+      ],
+      "url": "https://seekingalpha.com/news/4574096-sa-analyst-upgrades-downgrades-nflx-luv-xom-amzn",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775838231.729327
+    },
+    "7ae41d19cf9f979c4e8f3d7673a6fbdf24e1825b:5919445": {
+      "story_key": "7ae41d19cf9f979c4e8f3d7673a6fbdf24e1825b:5919445",
+      "cluster_hash": "7ae41d19cf9f979c4e8f3d7673a6fbdf24e1825b",
+      "headline": "USPS Suspends Pension Contributions To Free $2.5 Billion Amid Cash Crunch - Amazon.com (NASDAQ:AMZN)",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_ts": 1775833771.0,
+      "first_seen_ts": 1775838231.729327,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "url": "https://www.benzinga.com/news/financing/26/04/51755799/usps-suspends-pension-contributions-to-free-2-5-billion-amid-cash-crunch",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "polarity": 0.0,
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "last_seen_ts": 1775838231.729327
+    },
+    "eeea8d204257bc299cfaa029a7e77c35303ec3b8:5919431": {
+      "story_key": "eeea8d204257bc299cfaa029a7e77c35303ec3b8:5919431",
+      "cluster_hash": "eeea8d204257bc299cfaa029a7e77c35303ec3b8",
+      "headline": "JPM Agencies Urged To Prioritise  High-Impact Projects, Ensure Value For Public Spending -- KSN",
+      "tickers": [
+        "JPM"
+      ],
+      "published_ts": 1775829339.0,
+      "first_seen_ts": 1775838231.729327,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "BERNAMA"
+      ],
+      "url": "https://www.bernama.com/en/news.php/?id=2543529",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775838231.729327
+    },
+    "3f377177e6914f593d9655949ca80aa55b2f69f7:5919429": {
+      "story_key": "3f377177e6914f593d9655949ca80aa55b2f69f7:5919429",
+      "cluster_hash": "3f377177e6914f593d9655949ca80aa55b2f69f7",
+      "headline": "Apple TV Lands On Amazon Prime Video In US Streaming Tie-Up - Amazon.com (NASDAQ:AMZN)",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_ts": 1775828821.0,
+      "first_seen_ts": 1775838231.729327,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "url": "https://www.benzinga.com/markets/equities/26/04/51753704/apple-tv-lands-on-amazon-prime-video-in-us-streaming-tie-up",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "last_seen_ts": 1775838231.729327
+    },
+    "b0ee6e51bface1026153153079506364101b2da4:5919429": {
+      "story_key": "b0ee6e51bface1026153153079506364101b2da4:5919429",
+      "cluster_hash": "b0ee6e51bface1026153153079506364101b2da4",
+      "headline": "Wedbush Is Betting on Amazon Stock for a Ceasefire Rally. Should You Buy AMZN Here?",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_ts": 1775828928.0,
+      "first_seen_ts": 1775838231.729327,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Barchart.com"
+      ],
+      "url": "https://www.barchart.com/story/news/1242496/wedbush-is-betting-on-amazon-stock-for-a-ceasefire-rally-should-you-buy-amzn-here",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775838231.729327
+    },
+    "559168b36c096bc153969a873f03103860c0ff57:5919423": {
+      "story_key": "559168b36c096bc153969a873f03103860c0ff57:5919423",
+      "cluster_hash": "559168b36c096bc153969a873f03103860c0ff57",
+      "headline": "2 Reasons to Like XOM (and 1 Not So Much)",
+      "tickers": [
+        "XOM"
+      ],
+      "published_ts": 1775827124.0,
+      "first_seen_ts": 1775838231.729327,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Yahoo! Finance"
+      ],
+      "url": "https://ca.finance.yahoo.com/news/2-reasons-xom-1-not-131844489.html",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775838231.729327
+    },
+    "2d1d4bc650be686521f8c3613101200b12537c32:5919417": {
+      "story_key": "2d1d4bc650be686521f8c3613101200b12537c32:5919417",
+      "cluster_hash": "2d1d4bc650be686521f8c3613101200b12537c32",
+      "headline": "Johnson & Johnson Earnings Preview: Time To Sell The Rally? (NYSE:JNJ)",
+      "tickers": [
+        "JNJ"
+      ],
+      "published_ts": 1775825100.0,
+      "first_seen_ts": 1775838231.729327,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Seeking Alpha"
+      ],
+      "url": "https://seekingalpha.com/article/4889734-johnson-and-johnson-earnings-preview-time-to-sell-the-rally",
+      "category": "earnings",
+      "impact": 0.8,
+      "clarity": 0.6,
+      "relevance": 0.79,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775838231.729327
+    },
+    "2a5fc819a5ef40d0179ebecbef743eef0f8ef3e3:5919417": {
+      "story_key": "2a5fc819a5ef40d0179ebecbef743eef0f8ef3e3:5919417",
+      "cluster_hash": "2a5fc819a5ef40d0179ebecbef743eef0f8ef3e3",
+      "headline": "Precio de las acciones, noticias, cotizaci\u00f3n e historial de Johnson & Johnson (JNJ) - Yahoo Finanzas",
+      "tickers": [
+        "JNJ"
+      ],
+      "published_ts": 1775825107.0,
+      "first_seen_ts": 1775838231.729327,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Yahoo Finance"
+      ],
+      "url": "https://es-us.finanzas.yahoo.com/quote/JNJ/",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775838231.729327
+    },
+    "347bbf39f1b51cab3df897881a00b058ace3e7a2:5919411": {
+      "story_key": "347bbf39f1b51cab3df897881a00b058ace3e7a2:5919411",
+      "cluster_hash": "347bbf39f1b51cab3df897881a00b058ace3e7a2",
+      "headline": "SpaceX Advances Texas Chip Plant, Eyes Production By End Of 2026: Report - Amazon.com (NASDAQ:AMZN), Alph",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_ts": 1775823571.0,
+      "first_seen_ts": 1775838231.729327,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "url": "https://www.benzinga.com/markets/tech/26/04/51751537/spacex-advances-texas-chip-plant-eyes-production-by-end-of-2026-report",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "polarity": 0.0,
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "last_seen_ts": 1775838231.729327
+    },
+    "6e9f19b6428033ab7a7db0933009d9f454600100:5919411": {
+      "story_key": "6e9f19b6428033ab7a7db0933009d9f454600100:5919411",
+      "cluster_hash": "6e9f19b6428033ab7a7db0933009d9f454600100",
+      "headline": "Apple (AAPL) Stock: Tim Cook Sells $16.5M While Institutional Investors Load Up on Shares - Blockonomi",
+      "tickers": [
+        "AAPL"
+      ],
+      "published_ts": 1775823302.0,
+      "first_seen_ts": 1775838231.729327,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Blockonomi"
+      ],
+      "url": "https://blockonomi.com/apple-aapl-stock-tim-cook-sells-16-5m-while-institutional-investors-load-up-on-shares/",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775838231.729327
+    },
+    "3b44f7486a814d13d71782f8c7f1469b720ee9d3:5919455": {
+      "story_key": "3b44f7486a814d13d71782f8c7f1469b720ee9d3:5919455",
+      "cluster_hash": "3b44f7486a814d13d71782f8c7f1469b720ee9d3",
+      "headline": "Meta Platforms Gave 21 Billion Reasons for CoreWeave Shareholders to Be Bullish",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775836620.0,
+      "first_seen_ts": 1775838231.729327,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "NASDAQ Stock Market"
+      ],
+      "url": "https://www.nasdaq.com/articles/meta-platforms-gave-21-billion-reasons-coreweave-shareholders-be-bullish",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775838231.729327
+    },
+    "6b096726ff7af02143cf842446c1411238490ab4:5919426": {
+      "story_key": "6b096726ff7af02143cf842446c1411238490ab4:5919426",
+      "cluster_hash": "6b096726ff7af02143cf842446c1411238490ab4",
+      "headline": "Margaret (nee Heilman, Macdonell) Collins - Langley Advance Times",
+      "tickers": [
+        "NEE"
+      ],
+      "published_ts": 1775827800.0,
+      "first_seen_ts": 1775838231.729327,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Langley Advance Times"
+      ],
+      "url": "https://langleyadvancetimes.com/2026/04/10/margaret-nee-heilman-macdonell-collins/",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775838231.729327
+    },
+    "51ecf4340938a5afc8e1f8d316add0053a1f292d:5919452": {
+      "story_key": "51ecf4340938a5afc8e1f8d316add0053a1f292d:5919452",
+      "cluster_hash": "51ecf4340938a5afc8e1f8d316add0053a1f292d",
+      "headline": "Meta will have to defend itself in state court from charges that Instagram is a menace to kids",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775835720.0,
+      "first_seen_ts": 1775838231.729327,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Universal Hub"
+      ],
+      "url": "https://www.universalhub.com/2026/meta-will-have-defend-itself-charges-instagram-menace-kids",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775838231.729327
+    },
+    "59c9b089232e0ac020ddea139bf39a9c17a147bb:5919452": {
+      "story_key": "59c9b089232e0ac020ddea139bf39a9c17a147bb:5919452",
+      "cluster_hash": "59c9b089232e0ac020ddea139bf39a9c17a147bb",
+      "headline": "Meta must face Massachusetts lawsuit over youth social media addiction, court rules",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775835616.0,
+      "first_seen_ts": 1775838231.729327,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "The Guardian"
+      ],
+      "url": "https://www.theguardian.com/technology/2026/apr/10/meta-massachusetts-youth-social-media-addiction-lawsuit",
+      "category": "lawsuit",
+      "impact": 0.25,
+      "clarity": 0.6,
+      "relevance": 0.5425,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775838231.729327
+    },
+    "b0f12a18317f717ffd820d92c56f20bdfb7075df:5919451": {
+      "story_key": "b0f12a18317f717ffd820d92c56f20bdfb7075df:5919451",
+      "cluster_hash": "b0f12a18317f717ffd820d92c56f20bdfb7075df",
+      "headline": "Meta Pulls Ads Aimed at Recruiting Plaintiffs for Social Media Addiction Lawsuits",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775835580.0,
+      "first_seen_ts": 1775838231.729327,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Claims Journal"
+      ],
+      "url": "https://www.claimsjournal.com/news/national/2026/04/10/336837.htm",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.38382352941176473,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775838231.729327
+    },
+    "85a7100f5f16697c6c7bacafffdb997c7251706b:5919449": {
+      "story_key": "85a7100f5f16697c6c7bacafffdb997c7251706b:5919449",
+      "cluster_hash": "85a7100f5f16697c6c7bacafffdb997c7251706b",
+      "headline": "Meta's Legal Battles: Social Media and Addiction | Technology",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775834998.0,
+      "first_seen_ts": 1775838231.729327,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Devdiscourse"
+      ],
+      "url": "https://www.devdiscourse.com/article/technology/3869729-metas-legal-battles-social-media-and-addiction",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775838231.729327
+    },
+    "a45141fff8928a51dc85dd931c4de6a8e1dcb464:5919450": {
+      "story_key": "a45141fff8928a51dc85dd931c4de6a8e1dcb464:5919450",
+      "cluster_hash": "a45141fff8928a51dc85dd931c4de6a8e1dcb464",
+      "headline": "Meta must face youth addiction lawsuit by Massachusetts, court rules",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775835014.0,
+      "first_seen_ts": 1775838231.729327,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Pulse24.com"
+      ],
+      "url": "https://www.cp24.com/news/world/2026/04/10/meta-must-face-youth-addiction-lawsuit-by-massachusetts-court-rules/",
+      "category": "lawsuit",
+      "impact": 0.25,
+      "clarity": 0.6,
+      "relevance": 0.5425,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775838231.729327
+    },
+    "0d39f57e9867b111bc7d5cc69c6551953a400c7f:5919442": {
+      "story_key": "0d39f57e9867b111bc7d5cc69c6551953a400c7f:5919442",
+      "cluster_hash": "0d39f57e9867b111bc7d5cc69c6551953a400c7f",
+      "headline": "Meta says content norms for teenagers further tightened on Instagram",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775832717.0,
+      "first_seen_ts": 1775838231.729327,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Business Standard"
+      ],
+      "url": "https://www.business-standard.com/technology/tech-news/meta-says-content-norms-for-teenagers-further-tightened-on-instagram-126041001145_1.html",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775838231.729327
+    },
+    "d72d7192cf609d612ba3d8f73cded84a2220cda0:5919447": {
+      "story_key": "d72d7192cf609d612ba3d8f73cded84a2220cda0:5919447",
+      "cluster_hash": "d72d7192cf609d612ba3d8f73cded84a2220cda0",
+      "headline": "Meta Cafeteria Workers Did What Execs Won't: Took on ICE and Won - Wired",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775834236.0,
+      "first_seen_ts": 1775838231.729327,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Democratic Underground"
+      ],
+      "url": "https://www.democraticunderground.com/100221163054",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775838231.729327
+    },
+    "597cf3db76c8294e452ff1046ec7d9d5a1e6a480:5919446": {
+      "story_key": "597cf3db76c8294e452ff1046ec7d9d5a1e6a480:5919446",
+      "cluster_hash": "597cf3db76c8294e452ff1046ec7d9d5a1e6a480",
+      "headline": "Meta Is Upgrading One of the Worst Parts of Its Smart Glasses",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775833841.0,
+      "first_seen_ts": 1775838231.729327,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Gizmodo"
+      ],
+      "url": "https://gizmodo.com/?p=2000744953",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775838231.729327
+    },
+    "ff857fa7dc565d667f475145f58773d519a8fcd1:5919445": {
+      "story_key": "ff857fa7dc565d667f475145f58773d519a8fcd1:5919445",
+      "cluster_hash": "ff857fa7dc565d667f475145f58773d519a8fcd1",
+      "headline": "Mass. can sue Meta in social media addiction case, high court rules",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775833707.0,
+      "first_seen_ts": 1775838231.729327,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "The Boston Globe"
+      ],
+      "url": "https://www.bostonglobe.com/2026/04/10/business/social-media-addiction/",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775838231.729327
+    },
+    "8ed40c061023e7534681c493c9845c3e9e1f610b:5919445": {
+      "story_key": "8ed40c061023e7534681c493c9845c3e9e1f610b:5919445",
+      "cluster_hash": "8ed40c061023e7534681c493c9845c3e9e1f610b",
+      "headline": "Massachusetts Court Advances Child Protection Case Against Meta | Technology",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775833682.0,
+      "first_seen_ts": 1775838231.729327,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Devdiscourse"
+      ],
+      "url": "https://www.devdiscourse.com/article/technology/3869688-massachusetts-court-advances-child-protection-case-against-meta",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775838231.729327
+    },
+    "9f047c8bde44a84df4765ca7ecd07d3df78794d1:5919445": {
+      "story_key": "9f047c8bde44a84df4765ca7ecd07d3df78794d1:5919445",
+      "cluster_hash": "9f047c8bde44a84df4765ca7ecd07d3df78794d1",
+      "headline": "CoreWeave Stock's Momentum Score Spikes As $21 Billion Meta Deal Ignites Rally - CoreWeave (NASDAQ:CRWV)",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775833578.0,
+      "first_seen_ts": 1775838231.729327,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "url": "https://www.benzinga.com/markets/equities/26/04/51755678/coreweave-stocks-momentum-score-spikes-as-21-billion-meta-deal-ignites-rally",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "polarity": 0.0,
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "last_seen_ts": 1775838231.729327
+    },
+    "cfe0b04ea843e86d39162a153c85010e8f14c958:5919444": {
+      "story_key": "cfe0b04ea843e86d39162a153c85010e8f14c958:5919444",
+      "cluster_hash": "cfe0b04ea843e86d39162a153c85010e8f14c958",
+      "headline": "Market Open: CoreWeave Jumps on Meta Deal, MTY Posts Solid Q1 Profit | Apr 10th",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775833220.0,
+      "first_seen_ts": 1775838231.729327,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "stockhouse"
+      ],
+      "url": "https://stockhouse.com/news/market-updates/2026/04/10/market-open-coreweave-jumps-on-meta-deal-mty-posts-solid-q1-profit-apr-10th",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.5,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775838231.729327
+    },
+    "497f4af2d38b3847e5bb3c4d7f82ce17dcd94c38:5919432": {
+      "story_key": "497f4af2d38b3847e5bb3c4d7f82ce17dcd94c38:5919432",
+      "cluster_hash": "497f4af2d38b3847e5bb3c4d7f82ce17dcd94c38",
+      "headline": "Meta Locks In $21B Deal With CoreWeave To Power AI Push",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775829806.0,
+      "first_seen_ts": 1775838231.729327,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "CIOL"
+      ],
+      "url": "https://www.ciol.com/news/meta-locks-in-21b-deal-with-coreweave-to-power-ai-push-11713019",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775838231.729327
+    },
+    "b0f12a18317f717ffd820d92c56f20bdfb7075df:5919436": {
+      "story_key": "b0f12a18317f717ffd820d92c56f20bdfb7075df:5919436",
+      "cluster_hash": "b0f12a18317f717ffd820d92c56f20bdfb7075df",
+      "headline": "Meta pulls ads aimed at recruiting plaintiffs for social media addiction lawsuits",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775831067.0,
+      "first_seen_ts": 1775838231.729327,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Missouri Lawyers Media"
+      ],
+      "url": "https://molawyersmedia.com/2026/04/10/meta-pulls-ads-recruiting-plaintiffs-social-media-addiction-lawsuits/",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.3767241379310345,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775838231.729327
+    },
+    "2550d769f76f451efe53715aa1f23f6db04707cd:5919441": {
+      "story_key": "2550d769f76f451efe53715aa1f23f6db04707cd:5919441",
+      "cluster_hash": "2550d769f76f451efe53715aa1f23f6db04707cd",
+      "headline": "Meta Denied Shield in Massachusetts Youth Addiction Lawsuit",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775832456.0,
+      "first_seen_ts": 1775838231.729327,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "news.bloomberglaw.com"
+      ],
+      "url": "https://news.bloomberglaw.com/litigation/meta-denied-shield-in-massachusetts-youth-addiction-lawsuit",
+      "category": "lawsuit",
+      "impact": 0.25,
+      "clarity": 0.6,
+      "relevance": 0.5425,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775838231.729327
+    },
+    "b3a9cdb0792f9cca45cff8fc417e8dc92025babb:5919438": {
+      "story_key": "b3a9cdb0792f9cca45cff8fc417e8dc92025babb:5919438",
+      "cluster_hash": "b3a9cdb0792f9cca45cff8fc417e8dc92025babb",
+      "headline": "Meta just unveiled its new flagship AI model",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775831461.0,
+      "first_seen_ts": 1775838231.729327,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Rolling Out"
+      ],
+      "url": "https://rollingout.com/2026/04/10/meta-new-flagship-ai-model/",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775838231.729327
+    },
+    "3f798362d9e7076a286d3aed1221d3ad8472d03e:5919438": {
+      "story_key": "3f798362d9e7076a286d3aed1221d3ad8472d03e:5919438",
+      "cluster_hash": "3f798362d9e7076a286d3aed1221d3ad8472d03e",
+      "headline": "Anthropic's Claude Mythos vs Meta's Muse Spark: Everything You Need to Know.",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775831461.0,
+      "first_seen_ts": 1775838231.729327,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Medium"
+      ],
+      "url": "https://www.towardsdeeplearning.com/anthropics-claude-mythos-vs-meta-s-muse-spark-everything-you-need-to-know-a7c61cf9e49a",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775838231.729327
+    },
+    "9c661cd508b0cb22e137a0fb2f62c2a7ea06e04c:5919438": {
+      "story_key": "9c661cd508b0cb22e137a0fb2f62c2a7ea06e04c:5919438",
+      "cluster_hash": "9c661cd508b0cb22e137a0fb2f62c2a7ea06e04c",
+      "headline": "Meta bans plaintiff recruitment ads for addiction lawsuits",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775831417.0,
+      "first_seen_ts": 1775838231.729327,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Quartz"
+      ],
+      "url": "https://qz.com/meta-bans-plaintiff-recruitment-ads-social-media-addiction-lawsuits-040926",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775838231.729327
+    },
+    "a45141fff8928a51dc85dd931c4de6a8e1dcb464:5919436": {
+      "story_key": "a45141fff8928a51dc85dd931c4de6a8e1dcb464:5919436",
+      "cluster_hash": "a45141fff8928a51dc85dd931c4de6a8e1dcb464",
+      "headline": "Meta must face youth addiction lawsuit by Massachusetts, court rules",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775831085.0,
+      "first_seen_ts": 1775838231.729327,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Market Screener"
+      ],
+      "url": "https://www.marketscreener.com/news/meta-must-face-youth-addiction-lawsuit-by-massachusetts-court-rules-ce7e50d9d980f725",
+      "category": "lawsuit",
+      "impact": 0.25,
+      "clarity": 0.6,
+      "relevance": 0.5229347826086956,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775838231.729327
+    },
+    "a45141fff8928a51dc85dd931c4de6a8e1dcb464:5919431": {
+      "story_key": "a45141fff8928a51dc85dd931c4de6a8e1dcb464:5919431",
+      "cluster_hash": "a45141fff8928a51dc85dd931c4de6a8e1dcb464",
+      "headline": "Meta must face youth addiction lawsuit by Massachusetts, court rules",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775829467.0,
+      "first_seen_ts": 1775838231.729327,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Reuters",
+        "Yahoo! Finance"
+      ],
+      "url": "https://www.reuters.com/world/meta-must-face-youth-addiction-lawsuit-by-massachusetts-court-rules-2026-04-10/",
+      "category": "lawsuit",
+      "impact": 0.25,
+      "clarity": 0.6,
+      "relevance": 0.49249999999999994,
+      "polarity": 0.0,
+      "source_tier": "TIER_1",
+      "source_rank": 1,
+      "last_seen_ts": 1775838231.729327
+    },
+    "9bf1116de937f9fd32faf875abb81559cd0bbb02:5919430": {
+      "story_key": "9bf1116de937f9fd32faf875abb81559cd0bbb02:5919430",
+      "cluster_hash": "9bf1116de937f9fd32faf875abb81559cd0bbb02",
+      "headline": "PSA: If you use the Meta AI app, your friends will find out and it will be embarrassing - RocketNews",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775829122.0,
+      "first_seen_ts": 1775838231.729327,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "RocketNews"
+      ],
+      "url": "https://rocketnews.com/2026/04/psa-if-you-use-the-meta-ai-app-your-friends-will-find-out-and-it-will-be-embarrassing/",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775838231.729327
+    },
+    "564efe2e9e6f3dc6ba281a2f1bffaf7160a86fa1:5919431": {
+      "story_key": "564efe2e9e6f3dc6ba281a2f1bffaf7160a86fa1:5919431",
+      "cluster_hash": "564efe2e9e6f3dc6ba281a2f1bffaf7160a86fa1",
+      "headline": "Battle over Social Media: Meta Faces Lawsuit for Addictive Features | Technology",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775829436.0,
+      "first_seen_ts": 1775838231.729327,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Devdiscourse"
+      ],
+      "url": "https://www.devdiscourse.com/article/technology/3869583-battle-over-social-media-meta-faces-lawsuit-for-addictive-features",
+      "category": "lawsuit",
+      "impact": 0.25,
+      "clarity": 0.6,
+      "relevance": 0.5425,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775838231.729327
+    },
+    "d7b2e1955d6828bb05b912cd463e4afbcd05b5e1:5919432": {
+      "story_key": "d7b2e1955d6828bb05b912cd463e4afbcd05b5e1:5919432",
+      "cluster_hash": "d7b2e1955d6828bb05b912cd463e4afbcd05b5e1",
+      "headline": "Meta's New 'Personal Superintelligence' AI Is Coming to Its Smart Glasses",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775829801.0,
+      "first_seen_ts": 1775838231.729327,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Lifehacker"
+      ],
+      "url": "https://lifehacker.com/tech/meta-muse-sparks-ai",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775838231.729327
+    },
+    "5b5cbc961983fb4965d8242c748b1d9e38f098ff:5919431": {
+      "story_key": "5b5cbc961983fb4965d8242c748b1d9e38f098ff:5919431",
+      "cluster_hash": "5b5cbc961983fb4965d8242c748b1d9e38f098ff",
+      "headline": "You don't want to trust Meta's new Muse Spark AI with health advice",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775829407.0,
+      "first_seen_ts": 1775838231.729327,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Digital Trends"
+      ],
+      "url": "https://www.digitaltrends.com/cool-tech/you-dont-want-to-trust-metas-new-muse-spark-ai-with-health-advice/",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775838231.729327
+    },
+    "36e54b00ecc74775ab944c334d8126dd463af9fe:5919430": {
+      "story_key": "36e54b00ecc74775ab944c334d8126dd463af9fe:5919430",
+      "cluster_hash": "36e54b00ecc74775ab944c334d8126dd463af9fe",
+      "headline": "PSA: If you use the Meta AI app, your friends will find out and it will be embarrassing | TechCrunch",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775829133.0,
+      "first_seen_ts": 1775838231.729327,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "TechCrunch"
+      ],
+      "url": "https://techcrunch.com/2026/04/10/psa-if-you-use-the-meta-ai-app-your-friends-will-find-out-and-it-will-be-embarrassing/",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775838231.729327
+    },
+    "3efca1cf5b5aac65196789494e1c0551bc5d8c5f:5919424": {
+      "story_key": "3efca1cf5b5aac65196789494e1c0551bc5d8c5f:5919424",
+      "cluster_hash": "3efca1cf5b5aac65196789494e1c0551bc5d8c5f",
+      "headline": "CoreWeave's New Junk Bond Jumps Amid Meta, Anthropic Deals",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775827337.0,
+      "first_seen_ts": 1775838231.729327,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Bloomberg Business"
+      ],
+      "url": "https://www.bloomberg.com/news/articles/2026-04-10/coreweave-s-new-junk-bond-jumps-amid-meta-anthropic-deals",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775838231.729327
+    },
     "e3a9096979b23c8d95d8e5531eb6f7d5b52ce869:5919405": {
       "story_key": "e3a9096979b23c8d95d8e5531eb6f7d5b52ce869:5919405",
       "cluster_hash": "e3a9096979b23c8d95d8e5531eb6f7d5b52ce869",
