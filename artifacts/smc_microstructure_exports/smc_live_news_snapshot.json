@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-04-10T16:23:51.729327Z",
+  "generated_at": "2026-04-10T16:46:56.557777Z",
   "symbols": [
     "AAPL",
     "MSFT",
@@ -56,12 +56,12 @@
     "newsapi_ai": {
       "ok": true,
       "error": "",
-      "raw_count": 92,
-      "new_item_count": 39,
+      "raw_count": 13,
+      "new_item_count": 0,
       "cursor": 1775836620.0,
       "last_seen_news_uri": "",
-      "provider_status": "ok",
-      "status_detail": "",
+      "provider_status": "ok_no_recent_matches",
+      "status_detail": "Event Registry reachable, but no new symbol-matching NewsAPI.ai items were newer than the current cursor.",
       "error_code": ""
     },
     "tv": {
@@ -81,7 +81,7 @@
       ],
       "published_at": "2026-04-10T12:45:00Z",
       "published_ts": 1775825100.0,
-      "age_minutes": 218.9,
+      "age_minutes": 241.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -102,13 +102,13 @@
       "impact": 0.8,
       "clarity": 0.6,
       "relevance": 0.79,
-      "news_catalyst_score": 0.4544,
+      "news_catalyst_score": 0.4342,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
       "url": "https://seekingalpha.com/article/4889734-johnson-and-johnson-earnings-preview-time-to-sell-the-rally",
       "first_seen_at": "2026-04-10T16:23:51.729327Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -119,7 +119,7 @@
       ],
       "published_at": "2026-04-09T19:36:27Z",
       "published_ts": 1775763387.0,
-      "age_minutes": 1247.4,
+      "age_minutes": 1270.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -157,7 +157,7 @@
       ],
       "published_at": "2026-04-10T07:44:24Z",
       "published_ts": 1775807064.0,
-      "age_minutes": 519.5,
+      "age_minutes": 542.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -195,7 +195,7 @@
       ],
       "published_at": "2026-04-10T11:01:04Z",
       "published_ts": 1775818864.0,
-      "age_minutes": 322.8,
+      "age_minutes": 345.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -233,7 +233,7 @@
       ],
       "published_at": "2026-04-10T10:00:15Z",
       "published_ts": 1775815215.0,
-      "age_minutes": 383.6,
+      "age_minutes": 406.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -271,7 +271,7 @@
       ],
       "published_at": "2026-04-09T17:05:25Z",
       "published_ts": 1775754325.0,
-      "age_minutes": 1398.4,
+      "age_minutes": 1421.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -302,44 +302,6 @@
       "provider_count": 1
     },
     {
-      "story_key": "17c4810f820ea10c5e6088acda3b9e468c1f3519:5919174",
-      "headline": "Meta and CoreWeave Boost $21B AI Cloud Partnership",
-      "tickers": [
-        "META"
-      ],
-      "published_at": "2026-04-09T16:30:04Z",
-      "published_ts": 1775752204.0,
-      "age_minutes": 1433.8,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "El-Balad.com"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "contract",
-      "event_class": "CONTRACT",
-      "event_label": "Meta and CoreWeave Boost $21B AI Cloud Partnership",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.7,
-      "clarity": 0.6,
-      "relevance": 0.745,
-      "news_catalyst_score": 0.3527,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.el-balad.com/16907200",
-      "first_seen_at": "2026-04-09T19:09:47.424842Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
       "story_key": "e37dabe0698b2c7ccda6e56deb78ba9584c116ba:5919387",
       "headline": "Amazon (AMZN) Stock Surges 5.6% Following CEO's Bold AI and Chip Business Revelations - Blockonomi",
       "tickers": [
@@ -347,7 +309,7 @@
       ],
       "published_at": "2026-04-10T10:18:08Z",
       "published_ts": 1775816288.0,
-      "age_minutes": 365.7,
+      "age_minutes": 388.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -385,7 +347,7 @@
       ],
       "published_at": "2026-04-09T19:37:46Z",
       "published_ts": 1775763466.0,
-      "age_minutes": 1246.1,
+      "age_minutes": 1269.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -423,7 +385,7 @@
       ],
       "published_at": "2026-04-10T13:57:47Z",
       "published_ts": 1775829467.0,
-      "age_minutes": 146.1,
+      "age_minutes": 169.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -445,13 +407,13 @@
       "impact": 0.25,
       "clarity": 0.6,
       "relevance": 0.4925,
-      "news_catalyst_score": 0.3464,
+      "news_catalyst_score": 0.3372,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
       "url": "https://www.reuters.com/world/meta-must-face-youth-addiction-lawsuit-by-massachusetts-court-rules-2026-04-10/",
       "first_seen_at": "2026-04-10T16:23:51.729327Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -462,7 +424,7 @@
       ],
       "published_at": "2026-04-10T06:52:26Z",
       "published_ts": 1775803946.0,
-      "age_minutes": 571.4,
+      "age_minutes": 594.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -500,7 +462,7 @@
       ],
       "published_at": "2026-04-10T06:42:51Z",
       "published_ts": 1775803371.0,
-      "age_minutes": 581.0,
+      "age_minutes": 604.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -538,7 +500,7 @@
       ],
       "published_at": "2026-04-10T06:04:38Z",
       "published_ts": 1775801078.0,
-      "age_minutes": 619.2,
+      "age_minutes": 642.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -576,7 +538,7 @@
       ],
       "published_at": "2026-04-10T04:54:55Z",
       "published_ts": 1775796895.0,
-      "age_minutes": 688.9,
+      "age_minutes": 712.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -614,7 +576,7 @@
       ],
       "published_at": "2026-04-09T19:25:09Z",
       "published_ts": 1775762709.0,
-      "age_minutes": 1258.7,
+      "age_minutes": 1281.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -645,82 +607,6 @@
       "provider_count": 1
     },
     {
-      "story_key": "7ae41d19cf9f979c4e8f3d7673a6fbdf24e1825b:5919445",
-      "headline": "USPS Suspends Pension Contributions To Free $2.5 Billion Amid Cash Crunch - Amazon.com (NASDAQ:AMZN)",
-      "tickers": [
-        "AMZN"
-      ],
-      "published_at": "2026-04-10T15:09:31Z",
-      "published_ts": 1775833771.0,
-      "age_minutes": 74.3,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Benzinga"
-      ],
-      "source_tier": "TIER_2",
-      "source_rank": 2,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "USPS Suspends Pension Contributions To Free $2.5 Billion Amid Cash Crunch - Amazon.com (NASDAQ:AMZN)",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.8,
-      "relevance": 0.535,
-      "news_catalyst_score": 0.3142,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.benzinga.com/news/financing/26/04/51755799/usps-suspends-pension-contributions-to-free-2-5-billion-amid-cash-crunch",
-      "first_seen_at": "2026-04-10T16:23:51.729327Z",
-      "is_new": true,
-      "provider_count": 1
-    },
-    {
-      "story_key": "9f047c8bde44a84df4765ca7ecd07d3df78794d1:5919445",
-      "headline": "CoreWeave Stock's Momentum Score Spikes As $21 Billion Meta Deal Ignites Rally - CoreWeave (NASDAQ:CRWV)",
-      "tickers": [
-        "META"
-      ],
-      "published_at": "2026-04-10T15:06:18Z",
-      "published_ts": 1775833578.0,
-      "age_minutes": 77.6,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Benzinga"
-      ],
-      "source_tier": "TIER_2",
-      "source_rank": 2,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "CoreWeave Stock's Momentum Score Spikes As $21 Billion Meta Deal Ignites Rally - CoreWeave (NASDAQ:CRWV)",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.8,
-      "relevance": 0.535,
-      "news_catalyst_score": 0.3132,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.benzinga.com/markets/equities/26/04/51755678/coreweave-stocks-momentum-score-spikes-as-21-billion-meta-deal-ignites-rally",
-      "first_seen_at": "2026-04-10T16:23:51.729327Z",
-      "is_new": true,
-      "provider_count": 1
-    },
-    {
       "story_key": "59c9b089232e0ac020ddea139bf39a9c17a147bb:5919452",
       "headline": "Meta must face Massachusetts lawsuit over youth social media addiction, court rules",
       "tickers": [
@@ -728,7 +614,7 @@
       ],
       "published_at": "2026-04-10T15:40:16Z",
       "published_ts": 1775835616.0,
-      "age_minutes": 43.6,
+      "age_minutes": 66.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -749,13 +635,89 @@
       "impact": 0.25,
       "clarity": 0.6,
       "relevance": 0.5425,
-      "news_catalyst_score": 0.3105,
+      "news_catalyst_score": 0.3083,
       "materiality": "LOW",
-      "recency_bucket": "WARM",
+      "recency_bucket": "AGING",
       "is_actionable": false,
       "url": "https://www.theguardian.com/technology/2026/apr/10/meta-massachusetts-youth-social-media-addiction-lawsuit",
       "first_seen_at": "2026-04-10T16:23:51.729327Z",
-      "is_new": true,
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
+      "story_key": "7ae41d19cf9f979c4e8f3d7673a6fbdf24e1825b:5919445",
+      "headline": "USPS Suspends Pension Contributions To Free $2.5 Billion Amid Cash Crunch - Amazon.com (NASDAQ:AMZN)",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_at": "2026-04-10T15:09:31Z",
+      "published_ts": 1775833771.0,
+      "age_minutes": 97.4,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "USPS Suspends Pension Contributions To Free $2.5 Billion Amid Cash Crunch - Amazon.com (NASDAQ:AMZN)",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "news_catalyst_score": 0.3066,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://www.benzinga.com/news/financing/26/04/51755799/usps-suspends-pension-contributions-to-free-2-5-billion-amid-cash-crunch",
+      "first_seen_at": "2026-04-10T16:23:51.729327Z",
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
+      "story_key": "9f047c8bde44a84df4765ca7ecd07d3df78794d1:5919445",
+      "headline": "CoreWeave Stock's Momentum Score Spikes As $21 Billion Meta Deal Ignites Rally - CoreWeave (NASDAQ:CRWV)",
+      "tickers": [
+        "META"
+      ],
+      "published_at": "2026-04-10T15:06:18Z",
+      "published_ts": 1775833578.0,
+      "age_minutes": 100.6,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "CoreWeave Stock's Momentum Score Spikes As $21 Billion Meta Deal Ignites Rally - CoreWeave (NASDAQ:CRWV)",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "news_catalyst_score": 0.3055,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://www.benzinga.com/markets/equities/26/04/51755678/coreweave-stocks-momentum-score-spikes-as-21-billion-meta-deal-ignites-rally",
+      "first_seen_at": "2026-04-10T16:23:51.729327Z",
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -766,7 +728,7 @@
       ],
       "published_at": "2026-04-10T15:30:14Z",
       "published_ts": 1775835014.0,
-      "age_minutes": 53.6,
+      "age_minutes": 76.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -787,13 +749,13 @@
       "impact": 0.25,
       "clarity": 0.6,
       "relevance": 0.5425,
-      "news_catalyst_score": 0.3105,
+      "news_catalyst_score": 0.3051,
       "materiality": "LOW",
-      "recency_bucket": "WARM",
+      "recency_bucket": "AGING",
       "is_actionable": false,
       "url": "https://www.cp24.com/news/world/2026/04/10/meta-must-face-youth-addiction-lawsuit-by-massachusetts-court-rules/",
       "first_seen_at": "2026-04-10T16:23:51.729327Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -804,7 +766,7 @@
       ],
       "published_at": "2026-04-10T14:47:36Z",
       "published_ts": 1775832456.0,
-      "age_minutes": 96.3,
+      "age_minutes": 119.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -825,13 +787,13 @@
       "impact": 0.25,
       "clarity": 0.6,
       "relevance": 0.5425,
-      "news_catalyst_score": 0.2988,
+      "news_catalyst_score": 0.2913,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
       "url": "https://news.bloomberglaw.com/litigation/meta-denied-shield-in-massachusetts-youth-addiction-lawsuit",
       "first_seen_at": "2026-04-10T16:23:51.729327Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -842,7 +804,7 @@
       ],
       "published_at": "2026-04-10T14:24:45Z",
       "published_ts": 1775831085.0,
-      "age_minutes": 119.1,
+      "age_minutes": 142.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -863,51 +825,13 @@
       "impact": 0.25,
       "clarity": 0.6,
       "relevance": 0.5229,
-      "news_catalyst_score": 0.2877,
+      "news_catalyst_score": 0.2803,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
       "url": "https://www.marketscreener.com/news/meta-must-face-youth-addiction-lawsuit-by-massachusetts-court-rules-ce7e50d9d980f725",
       "first_seen_at": "2026-04-10T16:23:51.729327Z",
-      "is_new": true,
-      "provider_count": 1
-    },
-    {
-      "story_key": "564efe2e9e6f3dc6ba281a2f1bffaf7160a86fa1:5919431",
-      "headline": "Battle over Social Media: Meta Faces Lawsuit for Addictive Features | Technology",
-      "tickers": [
-        "META"
-      ],
-      "published_at": "2026-04-10T13:57:16Z",
-      "published_ts": 1775829436.0,
-      "age_minutes": 146.6,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Devdiscourse"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "lawsuit",
-      "event_class": "LEGAL",
-      "event_label": "Battle over Social Media: Meta Faces Lawsuit for Addictive Features | Technology",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.25,
-      "clarity": 0.6,
-      "relevance": 0.5425,
-      "news_catalyst_score": 0.2825,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.devdiscourse.com/article/technology/3869583-battle-over-social-media-meta-faces-lawsuit-for-addictive-features",
-      "first_seen_at": "2026-04-10T16:23:51.729327Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -918,7 +842,7 @@
       ],
       "published_at": "2026-04-10T15:57:00Z",
       "published_ts": 1775836620.0,
-      "age_minutes": 26.9,
+      "age_minutes": 49.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -945,7 +869,45 @@
       "is_actionable": false,
       "url": "https://www.nasdaq.com/articles/meta-platforms-gave-21-billion-reasons-coreweave-shareholders-be-bullish",
       "first_seen_at": "2026-04-10T16:23:51.729327Z",
-      "is_new": true,
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
+      "story_key": "564efe2e9e6f3dc6ba281a2f1bffaf7160a86fa1:5919431",
+      "headline": "Battle over Social Media: Meta Faces Lawsuit for Addictive Features | Technology",
+      "tickers": [
+        "META"
+      ],
+      "published_at": "2026-04-10T13:57:16Z",
+      "published_ts": 1775829436.0,
+      "age_minutes": 169.7,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Devdiscourse"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "lawsuit",
+      "event_class": "LEGAL",
+      "event_label": "Battle over Social Media: Meta Faces Lawsuit for Addictive Features | Technology",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.25,
+      "clarity": 0.6,
+      "relevance": 0.5425,
+      "news_catalyst_score": 0.275,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://www.devdiscourse.com/article/technology/3869583-battle-over-social-media-meta-faces-lawsuit-for-addictive-features",
+      "first_seen_at": "2026-04-10T16:23:51.729327Z",
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -956,7 +918,7 @@
       ],
       "published_at": "2026-04-10T13:47:01Z",
       "published_ts": 1775828821.0,
-      "age_minutes": 156.8,
+      "age_minutes": 179.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -977,51 +939,13 @@
       "impact": 0.1,
       "clarity": 0.6,
       "relevance": 0.475,
-      "news_catalyst_score": 0.2545,
+      "news_catalyst_score": 0.2476,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
       "url": "https://www.benzinga.com/markets/equities/26/04/51753704/apple-tv-lands-on-amazon-prime-video-in-us-streaming-tie-up",
       "first_seen_at": "2026-04-10T16:23:51.729327Z",
-      "is_new": true,
-      "provider_count": 1
-    },
-    {
-      "story_key": "347bbf39f1b51cab3df897881a00b058ace3e7a2:5919411",
-      "headline": "SpaceX Advances Texas Chip Plant, Eyes Production By End Of 2026: Report - Amazon.com (NASDAQ:AMZN), Alph",
-      "tickers": [
-        "AMZN"
-      ],
-      "published_at": "2026-04-10T12:19:31Z",
-      "published_ts": 1775823571.0,
-      "age_minutes": 244.3,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Benzinga"
-      ],
-      "source_tier": "TIER_2",
-      "source_rank": 2,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "SpaceX Advances Texas Chip Plant, Eyes Production By End Of 2026: Report - Amazon.com (NASDAQ:AMZN), Alph",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.8,
-      "relevance": 0.535,
-      "news_catalyst_score": 0.2471,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.benzinga.com/markets/tech/26/04/51751537/spacex-advances-texas-chip-plant-eyes-production-by-end-of-2026-report",
-      "first_seen_at": "2026-04-10T16:23:51.729327Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -1032,7 +956,7 @@
       ],
       "published_at": "2026-04-10T15:42:00Z",
       "published_ts": 1775835720.0,
-      "age_minutes": 41.9,
+      "age_minutes": 64.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1053,13 +977,13 @@
       "impact": 0.1,
       "clarity": 0.6,
       "relevance": 0.475,
-      "news_catalyst_score": 0.243,
+      "news_catalyst_score": 0.2417,
       "materiality": "LOW",
-      "recency_bucket": "WARM",
+      "recency_bucket": "AGING",
       "is_actionable": false,
       "url": "https://www.universalhub.com/2026/meta-will-have-defend-itself-charges-instagram-menace-kids",
       "first_seen_at": "2026-04-10T16:23:51.729327Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -1070,7 +994,7 @@
       ],
       "published_at": "2026-04-10T15:29:58Z",
       "published_ts": 1775834998.0,
-      "age_minutes": 53.9,
+      "age_minutes": 77.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1091,242 +1015,13 @@
       "impact": 0.1,
       "clarity": 0.6,
       "relevance": 0.475,
-      "news_catalyst_score": 0.243,
+      "news_catalyst_score": 0.2387,
       "materiality": "LOW",
-      "recency_bucket": "WARM",
+      "recency_bucket": "AGING",
       "is_actionable": false,
       "url": "https://www.devdiscourse.com/article/technology/3869729-metas-legal-battles-social-media-and-addiction",
       "first_seen_at": "2026-04-10T16:23:51.729327Z",
-      "is_new": true,
-      "provider_count": 1
-    },
-    {
-      "story_key": "559168b36c096bc153969a873f03103860c0ff57:5919423",
-      "headline": "2 Reasons to Like XOM (and 1 Not So Much)",
-      "tickers": [
-        "XOM"
-      ],
-      "published_at": "2026-04-10T13:18:44Z",
-      "published_ts": 1775827124.0,
-      "age_minutes": 185.1,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Yahoo! Finance"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "2 Reasons to Like XOM (and 1 Not So Much)",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.8,
-      "relevance": 0.535,
-      "news_catalyst_score": 0.2419,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://ca.finance.yahoo.com/news/2-reasons-xom-1-not-131844489.html",
-      "first_seen_at": "2026-04-10T16:23:51.729327Z",
-      "is_new": true,
-      "provider_count": 1
-    },
-    {
-      "story_key": "d72d7192cf609d612ba3d8f73cded84a2220cda0:5919447",
-      "headline": "Meta Cafeteria Workers Did What Execs Won't: Took on ICE and Won - Wired",
-      "tickers": [
-        "META"
-      ],
-      "published_at": "2026-04-10T15:17:16Z",
-      "published_ts": 1775834236.0,
-      "age_minutes": 66.6,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Democratic Underground"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Meta Cafeteria Workers Did What Execs Won't: Took on ICE and Won - Wired",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.2413,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.democraticunderground.com/100221163054",
-      "first_seen_at": "2026-04-10T16:23:51.729327Z",
-      "is_new": true,
-      "provider_count": 1
-    },
-    {
-      "story_key": "597cf3db76c8294e452ff1046ec7d9d5a1e6a480:5919446",
-      "headline": "Meta Is Upgrading One of the Worst Parts of Its Smart Glasses",
-      "tickers": [
-        "META"
-      ],
-      "published_at": "2026-04-10T15:10:41Z",
-      "published_ts": 1775833841.0,
-      "age_minutes": 73.2,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Gizmodo"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Meta Is Upgrading One of the Worst Parts of Its Smart Glasses",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.2397,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://gizmodo.com/?p=2000744953",
-      "first_seen_at": "2026-04-10T16:23:51.729327Z",
-      "is_new": true,
-      "provider_count": 1
-    },
-    {
-      "story_key": "a8169768bbbfecc53675d92754e45efccc0860b3:5919446",
-      "headline": "SA analyst upgrades/downgrades: NFLX, LUV, XOM, AMZN",
-      "tickers": [
-        "AMZN",
-        "XOM"
-      ],
-      "published_at": "2026-04-10T15:10:15Z",
-      "published_ts": 1775833815.0,
-      "age_minutes": 73.6,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Seeking Alpha"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "SA analyst upgrades/downgrades: NFLX, LUV, XOM, AMZN",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.2396,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://seekingalpha.com/news/4574096-sa-analyst-upgrades-downgrades-nflx-luv-xom-amzn",
-      "first_seen_at": "2026-04-10T16:23:51.729327Z",
-      "is_new": true,
-      "provider_count": 1
-    },
-    {
-      "story_key": "ff857fa7dc565d667f475145f58773d519a8fcd1:5919445",
-      "headline": "Mass. can sue Meta in social media addiction case, high court rules",
-      "tickers": [
-        "META"
-      ],
-      "published_at": "2026-04-10T15:08:27Z",
-      "published_ts": 1775833707.0,
-      "age_minutes": 75.4,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "The Boston Globe"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Mass. can sue Meta in social media addiction case, high court rules",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.2391,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.bostonglobe.com/2026/04/10/business/social-media-addiction/",
-      "first_seen_at": "2026-04-10T16:23:51.729327Z",
-      "is_new": true,
-      "provider_count": 1
-    },
-    {
-      "story_key": "8ed40c061023e7534681c493c9845c3e9e1f610b:5919445",
-      "headline": "Massachusetts Court Advances Child Protection Case Against Meta | Technology",
-      "tickers": [
-        "META"
-      ],
-      "published_at": "2026-04-10T15:08:02Z",
-      "published_ts": 1775833682.0,
-      "age_minutes": 75.8,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Devdiscourse"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Massachusetts Court Advances Child Protection Case Against Meta | Technology",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.239,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.devdiscourse.com/article/technology/3869688-massachusetts-court-advances-child-protection-case-against-meta",
-      "first_seen_at": "2026-04-10T16:23:51.729327Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -1337,7 +1032,7 @@
       ],
       "published_at": "2026-04-10T06:24:12Z",
       "published_ts": 1775802252.0,
-      "age_minutes": 599.7,
+      "age_minutes": 622.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1368,6 +1063,273 @@
       "provider_count": 1
     },
     {
+      "story_key": "d72d7192cf609d612ba3d8f73cded84a2220cda0:5919447",
+      "headline": "Meta Cafeteria Workers Did What Execs Won't: Took on ICE and Won - Wired",
+      "tickers": [
+        "META"
+      ],
+      "published_at": "2026-04-10T15:17:16Z",
+      "published_ts": 1775834236.0,
+      "age_minutes": 89.7,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Democratic Underground"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Meta Cafeteria Workers Did What Execs Won't: Took on ICE and Won - Wired",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.2355,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://www.democraticunderground.com/100221163054",
+      "first_seen_at": "2026-04-10T16:23:51.729327Z",
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
+      "story_key": "347bbf39f1b51cab3df897881a00b058ace3e7a2:5919411",
+      "headline": "SpaceX Advances Texas Chip Plant, Eyes Production By End Of 2026: Report - Amazon.com (NASDAQ:AMZN), Alph",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_at": "2026-04-10T12:19:31Z",
+      "published_ts": 1775823571.0,
+      "age_minutes": 267.4,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "SpaceX Advances Texas Chip Plant, Eyes Production By End Of 2026: Report - Amazon.com (NASDAQ:AMZN), Alph",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "news_catalyst_score": 0.2355,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://www.benzinga.com/markets/tech/26/04/51751537/spacex-advances-texas-chip-plant-eyes-production-by-end-of-2026-report",
+      "first_seen_at": "2026-04-10T16:23:51.729327Z",
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
+      "story_key": "597cf3db76c8294e452ff1046ec7d9d5a1e6a480:5919446",
+      "headline": "Meta Is Upgrading One of the Worst Parts of Its Smart Glasses",
+      "tickers": [
+        "META"
+      ],
+      "published_at": "2026-04-10T15:10:41Z",
+      "published_ts": 1775833841.0,
+      "age_minutes": 96.3,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Gizmodo"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Meta Is Upgrading One of the Worst Parts of Its Smart Glasses",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.2338,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://gizmodo.com/?p=2000744953",
+      "first_seen_at": "2026-04-10T16:23:51.729327Z",
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
+      "story_key": "a8169768bbbfecc53675d92754e45efccc0860b3:5919446",
+      "headline": "SA analyst upgrades/downgrades: NFLX, LUV, XOM, AMZN",
+      "tickers": [
+        "AMZN",
+        "XOM"
+      ],
+      "published_at": "2026-04-10T15:10:15Z",
+      "published_ts": 1775833815.0,
+      "age_minutes": 96.7,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Seeking Alpha"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "SA analyst upgrades/downgrades: NFLX, LUV, XOM, AMZN",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.2337,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://seekingalpha.com/news/4574096-sa-analyst-upgrades-downgrades-nflx-luv-xom-amzn",
+      "first_seen_at": "2026-04-10T16:23:51.729327Z",
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
+      "story_key": "ff857fa7dc565d667f475145f58773d519a8fcd1:5919445",
+      "headline": "Mass. can sue Meta in social media addiction case, high court rules",
+      "tickers": [
+        "META"
+      ],
+      "published_at": "2026-04-10T15:08:27Z",
+      "published_ts": 1775833707.0,
+      "age_minutes": 98.5,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "The Boston Globe"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Mass. can sue Meta in social media addiction case, high court rules",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.2333,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://www.bostonglobe.com/2026/04/10/business/social-media-addiction/",
+      "first_seen_at": "2026-04-10T16:23:51.729327Z",
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
+      "story_key": "8ed40c061023e7534681c493c9845c3e9e1f610b:5919445",
+      "headline": "Massachusetts Court Advances Child Protection Case Against Meta | Technology",
+      "tickers": [
+        "META"
+      ],
+      "published_at": "2026-04-10T15:08:02Z",
+      "published_ts": 1775833682.0,
+      "age_minutes": 98.9,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Devdiscourse"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Massachusetts Court Advances Child Protection Case Against Meta | Technology",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.2332,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://www.devdiscourse.com/article/technology/3869688-massachusetts-court-advances-child-protection-case-against-meta",
+      "first_seen_at": "2026-04-10T16:23:51.729327Z",
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
+      "story_key": "559168b36c096bc153969a873f03103860c0ff57:5919423",
+      "headline": "2 Reasons to Like XOM (and 1 Not So Much)",
+      "tickers": [
+        "XOM"
+      ],
+      "published_at": "2026-04-10T13:18:44Z",
+      "published_ts": 1775827124.0,
+      "age_minutes": 208.2,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Yahoo! Finance"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "2 Reasons to Like XOM (and 1 Not So Much)",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "news_catalyst_score": 0.2318,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://ca.finance.yahoo.com/news/2-reasons-xom-1-not-131844489.html",
+      "first_seen_at": "2026-04-10T16:23:51.729327Z",
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
       "story_key": "cfe0b04ea843e86d39162a153c85010e8f14c958:5919444",
       "headline": "Market Open: CoreWeave Jumps on Meta Deal, MTY Posts Solid Q1 Profit | Apr 10th",
       "tickers": [
@@ -1375,7 +1337,7 @@
       ],
       "published_at": "2026-04-10T15:00:20Z",
       "published_ts": 1775833220.0,
-      "age_minutes": 83.5,
+      "age_minutes": 106.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1396,13 +1358,13 @@
       "impact": 0.1,
       "clarity": 0.6,
       "relevance": 0.475,
-      "news_catalyst_score": 0.237,
+      "news_catalyst_score": 0.2312,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
       "url": "https://stockhouse.com/news/market-updates/2026/04/10/market-open-coreweave-jumps-on-meta-deal-mty-posts-solid-q1-profit-apr-10th",
       "first_seen_at": "2026-04-10T16:23:51.729327Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -1413,7 +1375,7 @@
       ],
       "published_at": "2026-04-10T14:51:57Z",
       "published_ts": 1775832717.0,
-      "age_minutes": 91.9,
+      "age_minutes": 115.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1434,13 +1396,13 @@
       "impact": 0.1,
       "clarity": 0.6,
       "relevance": 0.475,
-      "news_catalyst_score": 0.2349,
+      "news_catalyst_score": 0.2291,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
       "url": "https://www.business-standard.com/technology/tech-news/meta-says-content-norms-for-teenagers-further-tightened-on-instagram-126041001145_1.html",
       "first_seen_at": "2026-04-10T16:23:51.729327Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -1451,7 +1413,7 @@
       ],
       "published_at": "2026-04-10T14:31:01Z",
       "published_ts": 1775831461.0,
-      "age_minutes": 112.8,
+      "age_minutes": 135.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1472,13 +1434,13 @@
       "impact": 0.1,
       "clarity": 0.6,
       "relevance": 0.475,
-      "news_catalyst_score": 0.2296,
+      "news_catalyst_score": 0.2238,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
       "url": "https://rollingout.com/2026/04/10/meta-new-flagship-ai-model/",
       "first_seen_at": "2026-04-10T16:23:51.729327Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -1489,7 +1451,7 @@
       ],
       "published_at": "2026-04-10T14:31:01Z",
       "published_ts": 1775831461.0,
-      "age_minutes": 112.8,
+      "age_minutes": 135.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1510,13 +1472,13 @@
       "impact": 0.1,
       "clarity": 0.6,
       "relevance": 0.475,
-      "news_catalyst_score": 0.2296,
+      "news_catalyst_score": 0.2238,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
       "url": "https://www.towardsdeeplearning.com/anthropics-claude-mythos-vs-meta-s-muse-spark-everything-you-need-to-know-a7c61cf9e49a",
       "first_seen_at": "2026-04-10T16:23:51.729327Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -1527,7 +1489,7 @@
       ],
       "published_at": "2026-04-10T14:30:17Z",
       "published_ts": 1775831417.0,
-      "age_minutes": 113.6,
+      "age_minutes": 136.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1548,13 +1510,13 @@
       "impact": 0.1,
       "clarity": 0.6,
       "relevance": 0.475,
-      "news_catalyst_score": 0.2294,
+      "news_catalyst_score": 0.2236,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
       "url": "https://qz.com/meta-bans-plaintiff-recruitment-ads-social-media-addiction-lawsuits-040926",
       "first_seen_at": "2026-04-10T16:23:51.729327Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -1565,7 +1527,7 @@
       ],
       "published_at": "2026-04-10T15:39:40Z",
       "published_ts": 1775835580.0,
-      "age_minutes": 44.2,
+      "age_minutes": 67.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1586,241 +1548,13 @@
       "impact": 0.1,
       "clarity": 0.6,
       "relevance": 0.3838,
-      "news_catalyst_score": 0.2248,
+      "news_catalyst_score": 0.2231,
       "materiality": "LOW",
-      "recency_bucket": "WARM",
+      "recency_bucket": "AGING",
       "is_actionable": false,
       "url": "https://www.claimsjournal.com/news/national/2026/04/10/336837.htm",
       "first_seen_at": "2026-04-10T16:23:51.729327Z",
-      "is_new": true,
-      "provider_count": 1
-    },
-    {
-      "story_key": "497f4af2d38b3847e5bb3c4d7f82ce17dcd94c38:5919432",
-      "headline": "Meta Locks In $21B Deal With CoreWeave To Power AI Push",
-      "tickers": [
-        "META"
-      ],
-      "published_at": "2026-04-10T14:03:26Z",
-      "published_ts": 1775829806.0,
-      "age_minutes": 140.4,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "CIOL"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Meta Locks In $21B Deal With CoreWeave To Power AI Push",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.2226,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.ciol.com/news/meta-locks-in-21b-deal-with-coreweave-to-power-ai-push-11713019",
-      "first_seen_at": "2026-04-10T16:23:51.729327Z",
-      "is_new": true,
-      "provider_count": 1
-    },
-    {
-      "story_key": "d7b2e1955d6828bb05b912cd463e4afbcd05b5e1:5919432",
-      "headline": "Meta's New 'Personal Superintelligence' AI Is Coming to Its Smart Glasses",
-      "tickers": [
-        "META"
-      ],
-      "published_at": "2026-04-10T14:03:21Z",
-      "published_ts": 1775829801.0,
-      "age_minutes": 140.5,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Lifehacker"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Meta's New 'Personal Superintelligence' AI Is Coming to Its Smart Glasses",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.2226,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://lifehacker.com/tech/meta-muse-sparks-ai",
-      "first_seen_at": "2026-04-10T16:23:51.729327Z",
-      "is_new": true,
-      "provider_count": 1
-    },
-    {
-      "story_key": "5b5cbc961983fb4965d8242c748b1d9e38f098ff:5919431",
-      "headline": "You don't want to trust Meta's new Muse Spark AI with health advice",
-      "tickers": [
-        "META"
-      ],
-      "published_at": "2026-04-10T13:56:47Z",
-      "published_ts": 1775829407.0,
-      "age_minutes": 147.1,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Digital Trends"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "You don't want to trust Meta's new Muse Spark AI with health advice",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.221,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.digitaltrends.com/cool-tech/you-dont-want-to-trust-metas-new-muse-spark-ai-with-health-advice/",
-      "first_seen_at": "2026-04-10T16:23:51.729327Z",
-      "is_new": true,
-      "provider_count": 1
-    },
-    {
-      "story_key": "eeea8d204257bc299cfaa029a7e77c35303ec3b8:5919431",
-      "headline": "JPM Agencies Urged To Prioritise  High-Impact Projects, Ensure Value For Public Spending -- KSN",
-      "tickers": [
-        "JPM"
-      ],
-      "published_at": "2026-04-10T13:55:39Z",
-      "published_ts": 1775829339.0,
-      "age_minutes": 148.2,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "BERNAMA"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "JPM Agencies Urged To Prioritise High-Impact Projects, Ensure Value For Public Spending -- KSN",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.2207,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.bernama.com/en/news.php/?id=2543529",
-      "first_seen_at": "2026-04-10T16:23:51.729327Z",
-      "is_new": true,
-      "provider_count": 1
-    },
-    {
-      "story_key": "36e54b00ecc74775ab944c334d8126dd463af9fe:5919430",
-      "headline": "PSA: If you use the Meta AI app, your friends will find out and it will be embarrassing | TechCrunch",
-      "tickers": [
-        "META"
-      ],
-      "published_at": "2026-04-10T13:52:13Z",
-      "published_ts": 1775829133.0,
-      "age_minutes": 151.6,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "TechCrunch"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "PSA: If you use the Meta AI app, your friends will find out and it will be embarrassing | TechCrunch",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.2198,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://techcrunch.com/2026/04/10/psa-if-you-use-the-meta-ai-app-your-friends-will-find-out-and-it-will-be-embarrassing/",
-      "first_seen_at": "2026-04-10T16:23:51.729327Z",
-      "is_new": true,
-      "provider_count": 1
-    },
-    {
-      "story_key": "9bf1116de937f9fd32faf875abb81559cd0bbb02:5919430",
-      "headline": "PSA: If you use the Meta AI app, your friends will find out and it will be embarrassing - RocketNews",
-      "tickers": [
-        "META"
-      ],
-      "published_at": "2026-04-10T13:52:02Z",
-      "published_ts": 1775829122.0,
-      "age_minutes": 151.8,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "RocketNews"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "PSA: If you use the Meta AI app, your friends will find out and it will be embarrassing - RocketNews",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.2198,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://rocketnews.com/2026/04/psa-if-you-use-the-meta-ai-app-your-friends-will-find-out-and-it-will-be-embarrassing/",
-      "first_seen_at": "2026-04-10T16:23:51.729327Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -1831,7 +1565,7 @@
       ],
       "published_at": "2026-04-09T23:17:00Z",
       "published_ts": 1775776620.0,
-      "age_minutes": 1026.9,
+      "age_minutes": 1049.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1871,7 +1605,7 @@
       ],
       "published_at": "2026-04-10T01:20:56Z",
       "published_ts": 1775784056.0,
-      "age_minutes": 902.9,
+      "age_minutes": 926.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1909,7 +1643,7 @@
       ],
       "published_at": "2026-04-09T22:15:24Z",
       "published_ts": 1775772924.0,
-      "age_minutes": 1088.5,
+      "age_minutes": 1111.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1947,7 +1681,7 @@
       ],
       "published_at": "2026-04-09T21:30:22Z",
       "published_ts": 1775770222.0,
-      "age_minutes": 1133.5,
+      "age_minutes": 1156.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1985,7 +1719,7 @@
       ],
       "published_at": "2026-04-09T21:00:33Z",
       "published_ts": 1775768433.0,
-      "age_minutes": 1163.3,
+      "age_minutes": 1186.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2023,7 +1757,7 @@
       ],
       "published_at": "2026-04-09T17:35:30Z",
       "published_ts": 1775756130.0,
-      "age_minutes": 1368.4,
+      "age_minutes": 1391.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2061,7 +1795,7 @@
       ],
       "published_at": "2026-04-09T17:26:50Z",
       "published_ts": 1775755610.0,
-      "age_minutes": 1377.0,
+      "age_minutes": 1400.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2092,14 +1826,14 @@
       "provider_count": 1
     },
     {
-      "story_key": "0e868d0936cd3aed060f6e1369fb85893484c635:5919176",
-      "headline": "CoreWeave Lands Massive $21 Billion Meta Deal - CoreWeave (NASDAQ:CRWV), Meta Platforms (NASDAQ:META)",
+      "story_key": "497f4af2d38b3847e5bb3c4d7f82ce17dcd94c38:5919432",
+      "headline": "Meta Locks In $21B Deal With CoreWeave To Power AI Push",
       "tickers": [
         "META"
       ],
-      "published_at": "2026-04-09T16:40:29Z",
-      "published_ts": 1775752829.0,
-      "age_minutes": 1423.4,
+      "published_at": "2026-04-10T14:03:26Z",
+      "published_ts": 1775829806.0,
+      "age_minutes": 163.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2108,36 +1842,36 @@
         "newsapi_ai"
       ],
       "sources": [
-        "Benzinga"
+        "CIOL"
       ],
-      "source_tier": "TIER_2",
-      "source_rank": 2,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
       "category": "other",
       "event_class": "UNKNOWN",
-      "event_label": "CoreWeave Lands Massive $21 Billion Meta Deal - CoreWeave (NASDAQ:CRWV), Meta Platforms (NASDAQ:META)",
+      "event_label": "Meta Locks In $21B Deal With CoreWeave To Power AI Push",
       "sentiment_label": "neutral",
       "polarity": 0.0,
       "impact": 0.1,
-      "clarity": 0.8,
-      "relevance": 0.535,
-      "news_catalyst_score": 0.2193,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.2168,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
-      "url": "https://www.benzinga.com/trading-ideas/movers/26/04/51737541/coreweave-lands-massive-21-billion-meta-deal",
-      "first_seen_at": "2026-04-09T19:09:47.424842Z",
+      "url": "https://www.ciol.com/news/meta-locks-in-21b-deal-with-coreweave-to-power-ai-push-11713019",
+      "first_seen_at": "2026-04-10T16:23:51.729327Z",
       "is_new": false,
       "provider_count": 1
     },
     {
-      "story_key": "b0ee6e51bface1026153153079506364101b2da4:5919429",
-      "headline": "Wedbush Is Betting on Amazon Stock for a Ceasefire Rally. Should You Buy AMZN Here?",
+      "story_key": "d7b2e1955d6828bb05b912cd463e4afbcd05b5e1:5919432",
+      "headline": "Meta's New 'Personal Superintelligence' AI Is Coming to Its Smart Glasses",
       "tickers": [
-        "AMZN"
+        "META"
       ],
-      "published_at": "2026-04-10T13:48:48Z",
-      "published_ts": 1775828928.0,
-      "age_minutes": 155.1,
+      "published_at": "2026-04-10T14:03:21Z",
+      "published_ts": 1775829801.0,
+      "age_minutes": 163.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2146,36 +1880,36 @@
         "newsapi_ai"
       ],
       "sources": [
-        "Barchart.com"
+        "Lifehacker"
       ],
       "source_tier": "TIER_3",
       "source_rank": 3,
       "category": "other",
       "event_class": "UNKNOWN",
-      "event_label": "Wedbush Is Betting on Amazon Stock for a Ceasefire Rally. Should You Buy AMZN Here?",
+      "event_label": "Meta's New 'Personal Superintelligence' AI Is Coming to Its Smart Glasses",
       "sentiment_label": "neutral",
       "polarity": 0.0,
       "impact": 0.1,
       "clarity": 0.6,
       "relevance": 0.475,
-      "news_catalyst_score": 0.2189,
+      "news_catalyst_score": 0.2168,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
-      "url": "https://www.barchart.com/story/news/1242496/wedbush-is-betting-on-amazon-stock-for-a-ceasefire-rally-should-you-buy-amzn-here",
+      "url": "https://lifehacker.com/tech/meta-muse-sparks-ai",
       "first_seen_at": "2026-04-10T16:23:51.729327Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
-      "story_key": "6b096726ff7af02143cf842446c1411238490ab4:5919426",
-      "headline": "Margaret (nee Heilman, Macdonell) Collins - Langley Advance Times",
+      "story_key": "5b5cbc961983fb4965d8242c748b1d9e38f098ff:5919431",
+      "headline": "You don't want to trust Meta's new Muse Spark AI with health advice",
       "tickers": [
-        "NEE"
+        "META"
       ],
-      "published_at": "2026-04-10T13:30:00Z",
-      "published_ts": 1775827800.0,
-      "age_minutes": 173.9,
+      "published_at": "2026-04-10T13:56:47Z",
+      "published_ts": 1775829407.0,
+      "age_minutes": 170.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2184,36 +1918,36 @@
         "newsapi_ai"
       ],
       "sources": [
-        "Langley Advance Times"
+        "Digital Trends"
       ],
       "source_tier": "TIER_3",
       "source_rank": 3,
       "category": "other",
       "event_class": "UNKNOWN",
-      "event_label": "Margaret (nee Heilman, Macdonell) Collins - Langley Advance Times",
+      "event_label": "You don't want to trust Meta's new Muse Spark AI with health advice",
       "sentiment_label": "neutral",
       "polarity": 0.0,
       "impact": 0.1,
       "clarity": 0.6,
       "relevance": 0.475,
-      "news_catalyst_score": 0.2142,
+      "news_catalyst_score": 0.2151,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
-      "url": "https://langleyadvancetimes.com/2026/04/10/margaret-nee-heilman-macdonell-collins/",
+      "url": "https://www.digitaltrends.com/cool-tech/you-dont-want-to-trust-metas-new-muse-spark-ai-with-health-advice/",
       "first_seen_at": "2026-04-10T16:23:51.729327Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
-      "story_key": "6e9f19b6428033ab7a7db0933009d9f454600100:5919411",
-      "headline": "Apple (AAPL) Stock: Tim Cook Sells $16.5M While Institutional Investors Load Up on Shares - Blockonomi",
+      "story_key": "eeea8d204257bc299cfaa029a7e77c35303ec3b8:5919431",
+      "headline": "JPM Agencies Urged To Prioritise  High-Impact Projects, Ensure Value For Public Spending -- KSN",
       "tickers": [
-        "AAPL"
+        "JPM"
       ],
-      "published_at": "2026-04-10T12:15:02Z",
-      "published_ts": 1775823302.0,
-      "age_minutes": 248.8,
+      "published_at": "2026-04-10T13:55:39Z",
+      "published_ts": 1775829339.0,
+      "age_minutes": 171.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2222,25 +1956,101 @@
         "newsapi_ai"
       ],
       "sources": [
-        "Blockonomi"
+        "BERNAMA"
       ],
       "source_tier": "TIER_3",
       "source_rank": 3,
       "category": "other",
       "event_class": "UNKNOWN",
-      "event_label": "Apple (AAPL) Stock: Tim Cook Sells $16.5M While Institutional Investors Load Up on Shares - Blockonomi",
+      "event_label": "JPM Agencies Urged To Prioritise High-Impact Projects, Ensure Value For Public Spending -- KSN",
       "sentiment_label": "neutral",
       "polarity": 0.0,
       "impact": 0.1,
-      "clarity": 0.8,
-      "relevance": 0.535,
-      "news_catalyst_score": 0.2141,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.2148,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
-      "url": "https://blockonomi.com/apple-aapl-stock-tim-cook-sells-16-5m-while-institutional-investors-load-up-on-shares/",
+      "url": "https://www.bernama.com/en/news.php/?id=2543529",
       "first_seen_at": "2026-04-10T16:23:51.729327Z",
-      "is_new": true,
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
+      "story_key": "36e54b00ecc74775ab944c334d8126dd463af9fe:5919430",
+      "headline": "PSA: If you use the Meta AI app, your friends will find out and it will be embarrassing | TechCrunch",
+      "tickers": [
+        "META"
+      ],
+      "published_at": "2026-04-10T13:52:13Z",
+      "published_ts": 1775829133.0,
+      "age_minutes": 174.7,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "TechCrunch"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "PSA: If you use the Meta AI app, your friends will find out and it will be embarrassing | TechCrunch",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.214,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://techcrunch.com/2026/04/10/psa-if-you-use-the-meta-ai-app-your-friends-will-find-out-and-it-will-be-embarrassing/",
+      "first_seen_at": "2026-04-10T16:23:51.729327Z",
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
+      "story_key": "9bf1116de937f9fd32faf875abb81559cd0bbb02:5919430",
+      "headline": "PSA: If you use the Meta AI app, your friends will find out and it will be embarrassing - RocketNews",
+      "tickers": [
+        "META"
+      ],
+      "published_at": "2026-04-10T13:52:02Z",
+      "published_ts": 1775829122.0,
+      "age_minutes": 174.9,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "RocketNews"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "PSA: If you use the Meta AI app, your friends will find out and it will be embarrassing - RocketNews",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.2139,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://rocketnews.com/2026/04/psa-if-you-use-the-meta-ai-app-your-friends-will-find-out-and-it-will-be-embarrassing/",
+      "first_seen_at": "2026-04-10T16:23:51.729327Z",
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -2251,7 +2061,7 @@
       ],
       "published_at": "2026-04-10T09:15:33Z",
       "published_ts": 1775812533.0,
-      "age_minutes": 428.3,
+      "age_minutes": 451.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2289,7 +2099,7 @@
       ],
       "published_at": "2026-04-10T06:58:35Z",
       "published_ts": 1775804315.0,
-      "age_minutes": 565.3,
+      "age_minutes": 588.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2327,7 +2137,7 @@
       ],
       "published_at": "2026-04-10T01:38:21Z",
       "published_ts": 1775785101.0,
-      "age_minutes": 885.5,
+      "age_minutes": 908.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2358,14 +2168,14 @@
       "provider_count": 1
     },
     {
-      "story_key": "3efca1cf5b5aac65196789494e1c0551bc5d8c5f:5919424",
-      "headline": "CoreWeave's New Junk Bond Jumps Amid Meta, Anthropic Deals",
+      "story_key": "b0ee6e51bface1026153153079506364101b2da4:5919429",
+      "headline": "Wedbush Is Betting on Amazon Stock for a Ceasefire Rally. Should You Buy AMZN Here?",
       "tickers": [
-        "META"
+        "AMZN"
       ],
-      "published_at": "2026-04-10T13:22:17Z",
-      "published_ts": 1775827337.0,
-      "age_minutes": 181.6,
+      "published_at": "2026-04-10T13:48:48Z",
+      "published_ts": 1775828928.0,
+      "age_minutes": 178.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2374,25 +2184,63 @@
         "newsapi_ai"
       ],
       "sources": [
-        "Bloomberg Business"
+        "Barchart.com"
       ],
       "source_tier": "TIER_3",
       "source_rank": 3,
       "category": "other",
       "event_class": "UNKNOWN",
-      "event_label": "CoreWeave's New Junk Bond Jumps Amid Meta, Anthropic Deals",
+      "event_label": "Wedbush Is Betting on Amazon Stock for a Ceasefire Rally. Should You Buy AMZN Here?",
       "sentiment_label": "neutral",
       "polarity": 0.0,
       "impact": 0.1,
       "clarity": 0.6,
       "relevance": 0.475,
-      "news_catalyst_score": 0.212,
+      "news_catalyst_score": 0.2131,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
-      "url": "https://www.bloomberg.com/news/articles/2026-04-10/coreweave-s-new-junk-bond-jumps-amid-meta-anthropic-deals",
+      "url": "https://www.barchart.com/story/news/1242496/wedbush-is-betting-on-amazon-stock-for-a-ceasefire-rally-should-you-buy-amzn-here",
       "first_seen_at": "2026-04-10T16:23:51.729327Z",
-      "is_new": true,
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
+      "story_key": "6b096726ff7af02143cf842446c1411238490ab4:5919426",
+      "headline": "Margaret (nee Heilman, Macdonell) Collins - Langley Advance Times",
+      "tickers": [
+        "NEE"
+      ],
+      "published_at": "2026-04-10T13:30:00Z",
+      "published_ts": 1775827800.0,
+      "age_minutes": 196.9,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Langley Advance Times"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Margaret (nee Heilman, Macdonell) Collins - Langley Advance Times",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.2062,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://langleyadvancetimes.com/2026/04/10/margaret-nee-heilman-macdonell-collins/",
+      "first_seen_at": "2026-04-10T16:23:51.729327Z",
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -2403,7 +2251,7 @@
       ],
       "published_at": "2026-04-10T14:24:27Z",
       "published_ts": 1775831067.0,
-      "age_minutes": 119.4,
+      "age_minutes": 142.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2424,13 +2272,89 @@
       "impact": 0.1,
       "clarity": 0.6,
       "relevance": 0.3767,
-      "news_catalyst_score": 0.2095,
+      "news_catalyst_score": 0.2042,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
       "url": "https://molawyersmedia.com/2026/04/10/meta-pulls-ads-recruiting-plaintiffs-social-media-addiction-lawsuits/",
       "first_seen_at": "2026-04-10T16:23:51.729327Z",
-      "is_new": true,
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
+      "story_key": "6e9f19b6428033ab7a7db0933009d9f454600100:5919411",
+      "headline": "Apple (AAPL) Stock: Tim Cook Sells $16.5M While Institutional Investors Load Up on Shares - Blockonomi",
+      "tickers": [
+        "AAPL"
+      ],
+      "published_at": "2026-04-10T12:15:02Z",
+      "published_ts": 1775823302.0,
+      "age_minutes": 271.9,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Blockonomi"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Apple (AAPL) Stock: Tim Cook Sells $16.5M While Institutional Investors Load Up on Shares - Blockonomi",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "news_catalyst_score": 0.2041,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://blockonomi.com/apple-aapl-stock-tim-cook-sells-16-5m-while-institutional-investors-load-up-on-shares/",
+      "first_seen_at": "2026-04-10T16:23:51.729327Z",
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
+      "story_key": "3efca1cf5b5aac65196789494e1c0551bc5d8c5f:5919424",
+      "headline": "CoreWeave's New Junk Bond Jumps Amid Meta, Anthropic Deals",
+      "tickers": [
+        "META"
+      ],
+      "published_at": "2026-04-10T13:22:17Z",
+      "published_ts": 1775827337.0,
+      "age_minutes": 204.7,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Bloomberg Business"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "CoreWeave's New Junk Bond Jumps Amid Meta, Anthropic Deals",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.2033,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://www.bloomberg.com/news/articles/2026-04-10/coreweave-s-new-junk-bond-jumps-amid-meta-anthropic-deals",
+      "first_seen_at": "2026-04-10T16:23:51.729327Z",
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -2441,7 +2365,7 @@
       ],
       "published_at": "2026-04-10T11:49:06Z",
       "published_ts": 1775821746.0,
-      "age_minutes": 274.8,
+      "age_minutes": 297.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2462,51 +2386,13 @@
       "impact": 0.1,
       "clarity": 0.6,
       "relevance": 0.475,
-      "news_catalyst_score": 0.2057,
+      "news_catalyst_score": 0.1955,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
       "url": "https://www.benzinga.com/markets/equities/26/04/51750933/whats-going-on-with-amazon-stock-friday-2",
       "first_seen_at": "2026-04-10T12:10:51.397090Z",
       "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "2a5fc819a5ef40d0179ebecbef743eef0f8ef3e3:5919417",
-      "headline": "Precio de las acciones, noticias, cotizaci\u00f3n e historial de Johnson & Johnson (JNJ) - Yahoo Finanzas",
-      "tickers": [
-        "JNJ"
-      ],
-      "published_at": "2026-04-10T12:45:07Z",
-      "published_ts": 1775825107.0,
-      "age_minutes": 218.7,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Yahoo Finance"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Precio de las acciones, noticias, cotizaci\u00f3n e historial de Johnson & Johnson (JNJ) - Yahoo Finanzas",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.1979,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://es-us.finanzas.yahoo.com/quote/JNJ/",
-      "first_seen_at": "2026-04-10T16:23:51.729327Z",
-      "is_new": true,
       "provider_count": 1
     },
     {
@@ -2517,7 +2403,7 @@
       ],
       "published_at": "2026-04-10T09:58:35Z",
       "published_ts": 1775815115.0,
-      "age_minutes": 385.3,
+      "age_minutes": 408.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2555,7 +2441,7 @@
       ],
       "published_at": "2026-04-09T19:48:14Z",
       "published_ts": 1775764094.0,
-      "age_minutes": 1235.6,
+      "age_minutes": 1258.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2593,7 +2479,7 @@
       ],
       "published_at": "2026-04-09T19:21:04Z",
       "published_ts": 1775762464.0,
-      "age_minutes": 1262.8,
+      "age_minutes": 1285.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2631,7 +2517,7 @@
       ],
       "published_at": "2026-04-09T18:30:20Z",
       "published_ts": 1775759420.0,
-      "age_minutes": 1313.5,
+      "age_minutes": 1336.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2669,7 +2555,7 @@
       ],
       "published_at": "2026-04-09T17:46:54Z",
       "published_ts": 1775756814.0,
-      "age_minutes": 1357.0,
+      "age_minutes": 1380.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2707,7 +2593,7 @@
       ],
       "published_at": "2026-04-09T17:06:37Z",
       "published_ts": 1775754397.0,
-      "age_minutes": 1397.2,
+      "age_minutes": 1420.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2738,44 +2624,6 @@
       "provider_count": 1
     },
     {
-      "story_key": "71e318426550b97c96373bfecfc09e9b3b4a5cb2:5919173",
-      "headline": "Stocks making the biggest moves midday: Meta Platforms, Brown-Forman, Amazon, Marvell & more",
-      "tickers": [
-        "META"
-      ],
-      "published_at": "2026-04-09T16:28:21Z",
-      "published_ts": 1775752101.0,
-      "age_minutes": 1435.5,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "CNBC"
-      ],
-      "source_tier": "TIER_2",
-      "source_rank": 2,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Stocks making the biggest moves midday: Meta Platforms, Brown-Forman, Amazon, Marvell & more",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.1946,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.cnbc.com/2026/04/09/stocks-making-the-biggest-moves-midday-meta-bfb-amzn-mrvl.html",
-      "first_seen_at": "2026-04-09T19:09:47.424842Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
       "story_key": "612f45c8620f05a17c702be45d410508fc0f438c:5919399",
       "headline": "NFL mock draft 2026: Meta AI predicts the entire first round",
       "tickers": [
@@ -2783,7 +2631,7 @@
       ],
       "published_at": "2026-04-10T11:18:04Z",
       "published_ts": 1775819884.0,
-      "age_minutes": 305.8,
+      "age_minutes": 328.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2821,7 +2669,7 @@
       ],
       "published_at": "2026-04-10T11:15:39Z",
       "published_ts": 1775819739.0,
-      "age_minutes": 308.2,
+      "age_minutes": 331.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2859,7 +2707,7 @@
       ],
       "published_at": "2026-04-10T09:41:16Z",
       "published_ts": 1775814076.0,
-      "age_minutes": 402.6,
+      "age_minutes": 425.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2897,7 +2745,7 @@
       ],
       "published_at": "2026-04-10T09:23:28Z",
       "published_ts": 1775813008.0,
-      "age_minutes": 420.4,
+      "age_minutes": 443.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2935,7 +2783,7 @@
       ],
       "published_at": "2026-04-10T09:12:38Z",
       "published_ts": 1775812358.0,
-      "age_minutes": 431.2,
+      "age_minutes": 454.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2973,7 +2821,7 @@
       ],
       "published_at": "2026-04-10T06:29:06Z",
       "published_ts": 1775802546.0,
-      "age_minutes": 594.8,
+      "age_minutes": 617.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -3011,7 +2859,7 @@
       ],
       "published_at": "2026-04-10T06:26:55Z",
       "published_ts": 1775802415.0,
-      "age_minutes": 596.9,
+      "age_minutes": 620.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -3049,7 +2897,7 @@
       ],
       "published_at": "2026-04-10T05:56:16Z",
       "published_ts": 1775800576.0,
-      "age_minutes": 627.6,
+      "age_minutes": 650.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -3087,7 +2935,7 @@
       ],
       "published_at": "2026-04-10T05:49:08Z",
       "published_ts": 1775800148.0,
-      "age_minutes": 634.7,
+      "age_minutes": 657.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -3125,7 +2973,7 @@
       ],
       "published_at": "2026-04-10T05:05:34Z",
       "published_ts": 1775797534.0,
-      "age_minutes": 678.3,
+      "age_minutes": 701.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -3163,7 +3011,7 @@
       ],
       "published_at": "2026-04-10T02:58:56Z",
       "published_ts": 1775789936.0,
-      "age_minutes": 804.9,
+      "age_minutes": 828.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -3201,7 +3049,7 @@
       ],
       "published_at": "2026-04-10T00:00:23Z",
       "published_ts": 1775779223.0,
-      "age_minutes": 983.5,
+      "age_minutes": 1006.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -3239,7 +3087,7 @@
       ],
       "published_at": "2026-04-09T22:00:09Z",
       "published_ts": 1775772009.0,
-      "age_minutes": 1103.7,
+      "age_minutes": 1126.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -3277,7 +3125,7 @@
       ],
       "published_at": "2026-04-09T21:32:58Z",
       "published_ts": 1775770378.0,
-      "age_minutes": 1130.9,
+      "age_minutes": 1154.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -3315,7 +3163,7 @@
       ],
       "published_at": "2026-04-09T21:31:41Z",
       "published_ts": 1775770301.0,
-      "age_minutes": 1132.2,
+      "age_minutes": 1155.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -3353,7 +3201,7 @@
       ],
       "published_at": "2026-04-09T21:31:41Z",
       "published_ts": 1775770301.0,
-      "age_minutes": 1132.2,
+      "age_minutes": 1155.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -3391,7 +3239,7 @@
       ],
       "published_at": "2026-04-09T20:31:48Z",
       "published_ts": 1775766708.0,
-      "age_minutes": 1192.1,
+      "age_minutes": 1215.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -3429,7 +3277,7 @@
       ],
       "published_at": "2026-04-09T19:14:44Z",
       "published_ts": 1775762084.0,
-      "age_minutes": 1269.1,
+      "age_minutes": 1292.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -3467,7 +3315,7 @@
       ],
       "published_at": "2026-04-09T19:10:07Z",
       "published_ts": 1775761807.0,
-      "age_minutes": 1273.7,
+      "age_minutes": 1296.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -3505,7 +3353,7 @@
       ],
       "published_at": "2026-04-09T19:09:36Z",
       "published_ts": 1775761776.0,
-      "age_minutes": 1274.3,
+      "age_minutes": 1297.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -3543,7 +3391,7 @@
       ],
       "published_at": "2026-04-09T18:52:34Z",
       "published_ts": 1775760754.0,
-      "age_minutes": 1291.3,
+      "age_minutes": 1314.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -3581,7 +3429,7 @@
       ],
       "published_at": "2026-04-09T18:30:48Z",
       "published_ts": 1775759448.0,
-      "age_minutes": 1313.1,
+      "age_minutes": 1336.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -3619,7 +3467,7 @@
       ],
       "published_at": "2026-04-09T18:25:52Z",
       "published_ts": 1775759152.0,
-      "age_minutes": 1318.0,
+      "age_minutes": 1341.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -3657,7 +3505,7 @@
       ],
       "published_at": "2026-04-09T17:57:18Z",
       "published_ts": 1775757438.0,
-      "age_minutes": 1346.6,
+      "age_minutes": 1369.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -3695,7 +3543,7 @@
       ],
       "published_at": "2026-04-09T17:54:10Z",
       "published_ts": 1775757250.0,
-      "age_minutes": 1349.7,
+      "age_minutes": 1372.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -3733,7 +3581,7 @@
       ],
       "published_at": "2026-04-09T17:36:37Z",
       "published_ts": 1775756197.0,
-      "age_minutes": 1367.2,
+      "age_minutes": 1390.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -3771,7 +3619,7 @@
       ],
       "published_at": "2026-04-09T16:51:46Z",
       "published_ts": 1775753506.0,
-      "age_minutes": 1412.1,
+      "age_minutes": 1435.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -3802,14 +3650,14 @@
       "provider_count": 1
     },
     {
-      "story_key": "eb481c9d434f43f0008d040bcafff3d46d2666aa:5919177",
-      "headline": "CoreWeave Expands Meta AI Deal To $21 Billion, Issues $4.25 Billion In New Convertible & Junk Debt",
+      "story_key": "2a5fc819a5ef40d0179ebecbef743eef0f8ef3e3:5919417",
+      "headline": "Precio de las acciones, noticias, cotizaci\u00f3n e historial de Johnson & Johnson (JNJ) - Yahoo Finanzas",
       "tickers": [
-        "META"
+        "JNJ"
       ],
-      "published_at": "2026-04-09T16:46:28Z",
-      "published_ts": 1775753188.0,
-      "age_minutes": 1417.4,
+      "published_at": "2026-04-10T12:45:07Z",
+      "published_ts": 1775825107.0,
+      "age_minutes": 241.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -3818,138 +3666,24 @@
         "newsapi_ai"
       ],
       "sources": [
-        "Brigitte Gabriel"
+        "Yahoo Finance"
       ],
       "source_tier": "TIER_3",
       "source_rank": 3,
       "category": "other",
       "event_class": "UNKNOWN",
-      "event_label": "CoreWeave Expands Meta AI Deal To $21 Billion, Issues $4.25 Billion In New Convertible & Junk Debt",
+      "event_label": "Precio de las acciones, noticias, cotizaci\u00f3n e historial de Johnson & Johnson (JNJ) - Yahoo Finanzas",
       "sentiment_label": "neutral",
       "polarity": 0.0,
       "impact": 0.1,
-      "clarity": 0.8,
-      "relevance": 0.535,
-      "news_catalyst_score": 0.1918,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.1892,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
-      "url": "https://conservativeangle.com/coreweave-expands-meta-ai-deal-to-21-billion-issues-4-25-billion-in-new-convertible-junk-debt/",
-      "first_seen_at": "2026-04-09T19:09:47.424842Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "85228c1a6f2f550cac829fd2845cdf2eadf22711:5919176",
-      "headline": "Why CoreWeave's New $21 Billion Meta Deal Matters More Than the $3 Billion in New Debt",
-      "tickers": [
-        "META"
-      ],
-      "published_at": "2026-04-09T16:40:30Z",
-      "published_ts": 1775752830.0,
-      "age_minutes": 1423.4,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "24/7 Wall St."
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Why CoreWeave's New $21 Billion Meta Deal Matters More Than the $3 Billion in New Debt",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.8,
-      "relevance": 0.535,
-      "news_catalyst_score": 0.1918,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://247wallst.com/investing/2026/04/09/why-coreweaves-new-21-billion-meta-deal-matters-more-than-the-3-billion-in-new-debt/",
-      "first_seen_at": "2026-04-09T19:09:47.424842Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "c3278ff941b4af346d23fcb6f309b2c6ad4bdd61:5919175",
-      "headline": "Meta AI Superintelligence Model: 4 Safety Concerns",
-      "tickers": [
-        "META"
-      ],
-      "published_at": "2026-04-09T16:38:31Z",
-      "published_ts": 1775752711.0,
-      "age_minutes": 1425.3,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "TechnoSports"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Meta AI Superintelligence Model: 4 Safety Concerns",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.8,
-      "relevance": 0.535,
-      "news_catalyst_score": 0.1918,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://technosports.co.in/?p=1266186",
-      "first_seen_at": "2026-04-09T19:09:47.424842Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "aa2d5c4604304bf2d2faa21a3b53724d4cd85295:5919174",
-      "headline": "CoreWeave stock surges 16% on massive $21B Meta deal",
-      "tickers": [
-        "META"
-      ],
-      "published_at": "2026-04-09T16:32:43Z",
-      "published_ts": 1775752363.0,
-      "age_minutes": 1431.1,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Rolling Out"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "CoreWeave stock surges 16% on massive $21B Meta deal",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.8,
-      "relevance": 0.535,
-      "news_catalyst_score": 0.1918,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://rollingout.com/2026/04/09/coreweave-stock-surge-meta-21b-deal/",
-      "first_seen_at": "2026-04-09T19:09:47.424842Z",
+      "url": "https://es-us.finanzas.yahoo.com/quote/JNJ/",
+      "first_seen_at": "2026-04-10T16:23:51.729327Z",
       "is_new": false,
       "provider_count": 1
     },
@@ -3961,7 +3695,7 @@
       ],
       "published_at": "2026-04-10T10:06:01Z",
       "published_ts": 1775815561.0,
-      "age_minutes": 377.8,
+      "age_minutes": 400.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -3999,7 +3733,7 @@
       ],
       "published_at": "2026-04-10T11:56:13Z",
       "published_ts": 1775822173.0,
-      "age_minutes": 267.6,
+      "age_minutes": 290.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -4020,7 +3754,7 @@
       "impact": 0.1,
       "clarity": 0.6,
       "relevance": 0.475,
-      "news_catalyst_score": 0.1793,
+      "news_catalyst_score": 0.1706,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
@@ -4037,7 +3771,7 @@
       ],
       "published_at": "2026-04-10T11:11:38Z",
       "published_ts": 1775819498.0,
-      "age_minutes": 312.2,
+      "age_minutes": 335.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -4075,7 +3809,7 @@
       ],
       "published_at": "2026-04-10T11:00:31Z",
       "published_ts": 1775818831.0,
-      "age_minutes": 323.3,
+      "age_minutes": 346.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -4113,7 +3847,7 @@
       ],
       "published_at": "2026-04-10T11:00:01Z",
       "published_ts": 1775818801.0,
-      "age_minutes": 323.8,
+      "age_minutes": 346.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -4151,7 +3885,7 @@
       ],
       "published_at": "2026-04-10T11:00:00Z",
       "published_ts": 1775818800.0,
-      "age_minutes": 323.9,
+      "age_minutes": 346.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -4189,7 +3923,7 @@
       ],
       "published_at": "2026-04-10T11:00:00Z",
       "published_ts": 1775818800.0,
-      "age_minutes": 323.9,
+      "age_minutes": 346.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -4227,7 +3961,7 @@
       ],
       "published_at": "2026-04-10T10:59:12Z",
       "published_ts": 1775818752.0,
-      "age_minutes": 324.7,
+      "age_minutes": 347.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -4265,7 +3999,7 @@
       ],
       "published_at": "2026-04-10T10:58:14Z",
       "published_ts": 1775818694.0,
-      "age_minutes": 325.6,
+      "age_minutes": 348.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -4303,7 +4037,7 @@
       ],
       "published_at": "2026-04-10T09:55:50Z",
       "published_ts": 1775814950.0,
-      "age_minutes": 388.0,
+      "age_minutes": 411.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -4341,7 +4075,7 @@
       ],
       "published_at": "2026-04-10T09:49:34Z",
       "published_ts": 1775814574.0,
-      "age_minutes": 394.3,
+      "age_minutes": 417.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -4379,7 +4113,7 @@
       ],
       "published_at": "2026-04-10T09:42:20Z",
       "published_ts": 1775814140.0,
-      "age_minutes": 401.5,
+      "age_minutes": 424.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -4417,7 +4151,7 @@
       ],
       "published_at": "2026-04-10T09:40:44Z",
       "published_ts": 1775814044.0,
-      "age_minutes": 403.1,
+      "age_minutes": 426.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -4455,7 +4189,7 @@
       ],
       "published_at": "2026-04-10T09:39:37Z",
       "published_ts": 1775813977.0,
-      "age_minutes": 404.2,
+      "age_minutes": 427.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -4493,7 +4227,7 @@
       ],
       "published_at": "2026-04-10T09:39:09Z",
       "published_ts": 1775813949.0,
-      "age_minutes": 404.7,
+      "age_minutes": 427.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -4531,7 +4265,7 @@
       ],
       "published_at": "2026-04-10T09:30:46Z",
       "published_ts": 1775813446.0,
-      "age_minutes": 413.1,
+      "age_minutes": 436.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -4569,7 +4303,7 @@
       ],
       "published_at": "2026-04-10T09:30:00Z",
       "published_ts": 1775813400.0,
-      "age_minutes": 413.9,
+      "age_minutes": 436.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -4607,7 +4341,7 @@
       ],
       "published_at": "2026-04-10T09:26:37Z",
       "published_ts": 1775813197.0,
-      "age_minutes": 417.2,
+      "age_minutes": 440.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -4645,7 +4379,7 @@
       ],
       "published_at": "2026-04-10T09:26:01Z",
       "published_ts": 1775813161.0,
-      "age_minutes": 417.8,
+      "age_minutes": 440.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -4683,7 +4417,7 @@
       ],
       "published_at": "2026-04-10T09:17:46Z",
       "published_ts": 1775812666.0,
-      "age_minutes": 426.1,
+      "age_minutes": 449.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -4721,7 +4455,7 @@
       ],
       "published_at": "2026-04-10T09:16:39Z",
       "published_ts": 1775812599.0,
-      "age_minutes": 427.2,
+      "age_minutes": 450.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -4759,7 +4493,7 @@
       ],
       "published_at": "2026-04-10T09:16:36Z",
       "published_ts": 1775812596.0,
-      "age_minutes": 427.3,
+      "age_minutes": 450.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -4797,7 +4531,7 @@
       ],
       "published_at": "2026-04-10T09:14:00Z",
       "published_ts": 1775812440.0,
-      "age_minutes": 429.9,
+      "age_minutes": 452.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -4835,7 +4569,7 @@
       ],
       "published_at": "2026-04-10T09:11:00Z",
       "published_ts": 1775812260.0,
-      "age_minutes": 432.9,
+      "age_minutes": 455.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -4873,7 +4607,7 @@
       ],
       "published_at": "2026-04-10T09:09:31Z",
       "published_ts": 1775812171.0,
-      "age_minutes": 434.3,
+      "age_minutes": 457.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -4911,7 +4645,7 @@
       ],
       "published_at": "2026-04-10T09:06:51Z",
       "published_ts": 1775812011.0,
-      "age_minutes": 437.0,
+      "age_minutes": 460.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -4949,7 +4683,7 @@
       ],
       "published_at": "2026-04-10T09:00:33Z",
       "published_ts": 1775811633.0,
-      "age_minutes": 443.3,
+      "age_minutes": 466.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -4987,7 +4721,7 @@
       ],
       "published_at": "2026-04-10T07:34:23Z",
       "published_ts": 1775806463.0,
-      "age_minutes": 529.5,
+      "age_minutes": 552.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -5025,7 +4759,7 @@
       ],
       "published_at": "2026-04-10T07:31:14Z",
       "published_ts": 1775806274.0,
-      "age_minutes": 532.6,
+      "age_minutes": 555.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -5063,7 +4797,7 @@
       ],
       "published_at": "2026-04-10T07:31:11Z",
       "published_ts": 1775806271.0,
-      "age_minutes": 532.7,
+      "age_minutes": 555.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -5101,7 +4835,7 @@
       ],
       "published_at": "2026-04-10T06:48:46Z",
       "published_ts": 1775803726.0,
-      "age_minutes": 575.1,
+      "age_minutes": 598.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -5139,7 +4873,7 @@
       ],
       "published_at": "2026-04-10T06:31:44Z",
       "published_ts": 1775802704.0,
-      "age_minutes": 592.1,
+      "age_minutes": 615.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -5177,7 +4911,7 @@
       ],
       "published_at": "2026-04-10T06:29:09Z",
       "published_ts": 1775802549.0,
-      "age_minutes": 594.7,
+      "age_minutes": 617.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -5215,7 +4949,7 @@
       ],
       "published_at": "2026-04-10T06:20:46Z",
       "published_ts": 1775802046.0,
-      "age_minutes": 603.1,
+      "age_minutes": 626.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -5253,7 +4987,7 @@
       ],
       "published_at": "2026-04-10T06:05:19Z",
       "published_ts": 1775801119.0,
-      "age_minutes": 618.5,
+      "age_minutes": 641.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -5291,7 +5025,7 @@
       ],
       "published_at": "2026-04-10T06:04:38Z",
       "published_ts": 1775801078.0,
-      "age_minutes": 619.2,
+      "age_minutes": 642.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -5329,7 +5063,7 @@
       ],
       "published_at": "2026-04-10T06:00:12Z",
       "published_ts": 1775800812.0,
-      "age_minutes": 623.7,
+      "age_minutes": 646.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -5367,7 +5101,7 @@
       ],
       "published_at": "2026-04-10T05:39:41Z",
       "published_ts": 1775799581.0,
-      "age_minutes": 644.2,
+      "age_minutes": 667.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -5405,7 +5139,7 @@
       ],
       "published_at": "2026-04-10T05:02:09Z",
       "published_ts": 1775797329.0,
-      "age_minutes": 681.7,
+      "age_minutes": 704.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -5443,7 +5177,7 @@
       ],
       "published_at": "2026-04-10T04:05:47Z",
       "published_ts": 1775793947.0,
-      "age_minutes": 738.1,
+      "age_minutes": 761.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -5481,7 +5215,7 @@
       ],
       "published_at": "2026-04-10T03:32:36Z",
       "published_ts": 1775791956.0,
-      "age_minutes": 771.3,
+      "age_minutes": 794.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -5519,7 +5253,7 @@
       ],
       "published_at": "2026-04-10T03:17:35Z",
       "published_ts": 1775791055.0,
-      "age_minutes": 786.3,
+      "age_minutes": 809.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -5557,7 +5291,7 @@
       ],
       "published_at": "2026-04-10T02:45:47Z",
       "published_ts": 1775789147.0,
-      "age_minutes": 818.1,
+      "age_minutes": 841.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -5595,7 +5329,7 @@
       ],
       "published_at": "2026-04-10T02:01:39Z",
       "published_ts": 1775786499.0,
-      "age_minutes": 862.2,
+      "age_minutes": 885.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -5633,7 +5367,7 @@
       ],
       "published_at": "2026-04-10T01:54:24Z",
       "published_ts": 1775786064.0,
-      "age_minutes": 869.5,
+      "age_minutes": 892.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -5671,7 +5405,7 @@
       ],
       "published_at": "2026-04-10T01:29:21Z",
       "published_ts": 1775784561.0,
-      "age_minutes": 894.5,
+      "age_minutes": 917.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -5709,7 +5443,7 @@
       ],
       "published_at": "2026-04-10T01:00:00Z",
       "published_ts": 1775782800.0,
-      "age_minutes": 923.9,
+      "age_minutes": 946.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -5747,7 +5481,7 @@
       ],
       "published_at": "2026-04-10T00:35:00Z",
       "published_ts": 1775781300.0,
-      "age_minutes": 948.9,
+      "age_minutes": 971.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -5785,7 +5519,7 @@
       ],
       "published_at": "2026-04-10T00:34:58Z",
       "published_ts": 1775781298.0,
-      "age_minutes": 948.9,
+      "age_minutes": 972.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -5823,7 +5557,7 @@
       ],
       "published_at": "2026-04-10T00:33:35Z",
       "published_ts": 1775781215.0,
-      "age_minutes": 950.3,
+      "age_minutes": 973.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -5861,7 +5595,7 @@
       ],
       "published_at": "2026-04-10T00:23:41Z",
       "published_ts": 1775780621.0,
-      "age_minutes": 960.2,
+      "age_minutes": 983.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -5899,7 +5633,7 @@
       ],
       "published_at": "2026-04-10T00:02:15Z",
       "published_ts": 1775779335.0,
-      "age_minutes": 981.6,
+      "age_minutes": 1004.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -5937,7 +5671,7 @@
       ],
       "published_at": "2026-04-09T23:23:13Z",
       "published_ts": 1775776993.0,
-      "age_minutes": 1020.6,
+      "age_minutes": 1043.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -5975,7 +5709,7 @@
       ],
       "published_at": "2026-04-09T23:21:48Z",
       "published_ts": 1775776908.0,
-      "age_minutes": 1022.1,
+      "age_minutes": 1045.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -6013,7 +5747,7 @@
       ],
       "published_at": "2026-04-09T23:15:48Z",
       "published_ts": 1775776548.0,
-      "age_minutes": 1028.1,
+      "age_minutes": 1051.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -6051,7 +5785,7 @@
       ],
       "published_at": "2026-04-09T23:06:29Z",
       "published_ts": 1775775989.0,
-      "age_minutes": 1037.4,
+      "age_minutes": 1060.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -6089,7 +5823,7 @@
       ],
       "published_at": "2026-04-09T22:31:08Z",
       "published_ts": 1775773868.0,
-      "age_minutes": 1072.7,
+      "age_minutes": 1095.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -6127,7 +5861,7 @@
       ],
       "published_at": "2026-04-09T22:29:10Z",
       "published_ts": 1775773750.0,
-      "age_minutes": 1074.7,
+      "age_minutes": 1097.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -6165,7 +5899,7 @@
       ],
       "published_at": "2026-04-09T21:48:35Z",
       "published_ts": 1775771315.0,
-      "age_minutes": 1115.3,
+      "age_minutes": 1138.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -6203,7 +5937,7 @@
       ],
       "published_at": "2026-04-09T21:30:50Z",
       "published_ts": 1775770250.0,
-      "age_minutes": 1133.0,
+      "age_minutes": 1156.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -6241,7 +5975,7 @@
       ],
       "published_at": "2026-04-09T21:21:40Z",
       "published_ts": 1775769700.0,
-      "age_minutes": 1142.2,
+      "age_minutes": 1165.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -6279,7 +6013,7 @@
       ],
       "published_at": "2026-04-09T21:12:09Z",
       "published_ts": 1775769129.0,
-      "age_minutes": 1151.7,
+      "age_minutes": 1174.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -6317,7 +6051,7 @@
       ],
       "published_at": "2026-04-09T21:07:00Z",
       "published_ts": 1775768820.0,
-      "age_minutes": 1156.9,
+      "age_minutes": 1179.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -6355,7 +6089,7 @@
       ],
       "published_at": "2026-04-09T21:01:27Z",
       "published_ts": 1775768487.0,
-      "age_minutes": 1162.4,
+      "age_minutes": 1185.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -6393,7 +6127,7 @@
       ],
       "published_at": "2026-04-09T20:52:25Z",
       "published_ts": 1775767945.0,
-      "age_minutes": 1171.4,
+      "age_minutes": 1194.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -6431,7 +6165,7 @@
       ],
       "published_at": "2026-04-09T20:41:29Z",
       "published_ts": 1775767289.0,
-      "age_minutes": 1182.4,
+      "age_minutes": 1205.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -6469,7 +6203,7 @@
       ],
       "published_at": "2026-04-09T20:00:38Z",
       "published_ts": 1775764838.0,
-      "age_minutes": 1223.2,
+      "age_minutes": 1246.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -6507,7 +6241,7 @@
       ],
       "published_at": "2026-04-09T19:58:25Z",
       "published_ts": 1775764705.0,
-      "age_minutes": 1225.4,
+      "age_minutes": 1248.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -6545,7 +6279,7 @@
       ],
       "published_at": "2026-04-09T19:30:11Z",
       "published_ts": 1775763011.0,
-      "age_minutes": 1253.7,
+      "age_minutes": 1276.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -6583,7 +6317,7 @@
       ],
       "published_at": "2026-04-09T19:17:29Z",
       "published_ts": 1775762249.0,
-      "age_minutes": 1266.4,
+      "age_minutes": 1289.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -6621,7 +6355,7 @@
       ],
       "published_at": "2026-04-09T19:13:00Z",
       "published_ts": 1775761980.0,
-      "age_minutes": 1270.9,
+      "age_minutes": 1293.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -6659,7 +6393,7 @@
       ],
       "published_at": "2026-04-09T18:52:51Z",
       "published_ts": 1775760771.0,
-      "age_minutes": 1291.0,
+      "age_minutes": 1314.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -6697,7 +6431,7 @@
       ],
       "published_at": "2026-04-09T18:50:33Z",
       "published_ts": 1775760633.0,
-      "age_minutes": 1293.3,
+      "age_minutes": 1316.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -6735,7 +6469,7 @@
       ],
       "published_at": "2026-04-09T18:42:21Z",
       "published_ts": 1775760141.0,
-      "age_minutes": 1301.5,
+      "age_minutes": 1324.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -6773,7 +6507,7 @@
       ],
       "published_at": "2026-04-09T18:38:56Z",
       "published_ts": 1775759936.0,
-      "age_minutes": 1304.9,
+      "age_minutes": 1328.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -6811,7 +6545,7 @@
       ],
       "published_at": "2026-04-09T18:30:48Z",
       "published_ts": 1775759448.0,
-      "age_minutes": 1313.1,
+      "age_minutes": 1336.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -6849,7 +6583,7 @@
       ],
       "published_at": "2026-04-09T18:14:04Z",
       "published_ts": 1775758444.0,
-      "age_minutes": 1329.8,
+      "age_minutes": 1352.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -6887,7 +6621,7 @@
       ],
       "published_at": "2026-04-09T18:04:57Z",
       "published_ts": 1775757897.0,
-      "age_minutes": 1338.9,
+      "age_minutes": 1362.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -6925,7 +6659,7 @@
       ],
       "published_at": "2026-04-09T17:57:41Z",
       "published_ts": 1775757461.0,
-      "age_minutes": 1346.2,
+      "age_minutes": 1369.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -6963,7 +6697,7 @@
       ],
       "published_at": "2026-04-09T17:55:45Z",
       "published_ts": 1775757345.0,
-      "age_minutes": 1348.1,
+      "age_minutes": 1371.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -7001,7 +6735,7 @@
       ],
       "published_at": "2026-04-09T17:36:46Z",
       "published_ts": 1775756206.0,
-      "age_minutes": 1367.1,
+      "age_minutes": 1390.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -7039,7 +6773,7 @@
       ],
       "published_at": "2026-04-09T17:35:47Z",
       "published_ts": 1775756147.0,
-      "age_minutes": 1368.1,
+      "age_minutes": 1391.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -7077,7 +6811,7 @@
       ],
       "published_at": "2026-04-09T17:35:24Z",
       "published_ts": 1775756124.0,
-      "age_minutes": 1368.5,
+      "age_minutes": 1391.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -7115,7 +6849,7 @@
       ],
       "published_at": "2026-04-09T17:25:05Z",
       "published_ts": 1775755505.0,
-      "age_minutes": 1378.8,
+      "age_minutes": 1401.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -7153,7 +6887,7 @@
       ],
       "published_at": "2026-04-09T17:02:41Z",
       "published_ts": 1775754161.0,
-      "age_minutes": 1401.2,
+      "age_minutes": 1424.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -7191,7 +6925,7 @@
       ],
       "published_at": "2026-04-09T17:00:49Z",
       "published_ts": 1775754049.0,
-      "age_minutes": 1403.0,
+      "age_minutes": 1426.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -7229,7 +6963,7 @@
       ],
       "published_at": "2026-04-09T16:56:22Z",
       "published_ts": 1775753782.0,
-      "age_minutes": 1407.5,
+      "age_minutes": 1430.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -7267,7 +7001,7 @@
       ],
       "published_at": "2026-04-09T16:47:46Z",
       "published_ts": 1775753266.0,
-      "age_minutes": 1416.1,
+      "age_minutes": 1439.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -7298,44 +7032,6 @@
       "provider_count": 1
     },
     {
-      "story_key": "7056e6556c1f146b3a7e2e2c4ce4577dc6777fdf:5919174",
-      "headline": "Meta upgrades Meta AI with Muse Spark",
-      "tickers": [
-        "META"
-      ],
-      "published_at": "2026-04-09T16:31:38Z",
-      "published_ts": 1775752298.0,
-      "age_minutes": 1432.2,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Notebookcheck"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Meta upgrades Meta AI with Muse Spark",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.1671,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.notebookcheck.net/Meta-upgrades-Meta-AI-with-Muse-Spark.1270170.0.html",
-      "first_seen_at": "2026-04-09T19:09:47.424842Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
       "story_key": "e3993125d526c797591052f63b74159dfba6f245:5919378",
       "headline": "Meta's New AI Asked for My Raw Health Data -- and Gave Me Terrible Advice",
       "tickers": [
@@ -7343,7 +7039,7 @@
       ],
       "published_at": "2026-04-10T09:30:00Z",
       "published_ts": 1775813400.0,
-      "age_minutes": 413.9,
+      "age_minutes": 436.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -7381,7 +7077,7 @@
       ],
       "published_at": "2026-04-10T09:26:14Z",
       "published_ts": 1775813174.0,
-      "age_minutes": 417.6,
+      "age_minutes": 440.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -7419,7 +7115,7 @@
       ],
       "published_at": "2026-04-10T03:09:40Z",
       "published_ts": 1775790580.0,
-      "age_minutes": 794.2,
+      "age_minutes": 817.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -7457,7 +7153,7 @@
       ],
       "published_at": "2026-04-10T01:13:28Z",
       "published_ts": 1775783608.0,
-      "age_minutes": 910.4,
+      "age_minutes": 933.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -7495,7 +7191,7 @@
       ],
       "published_at": "2026-04-09T20:24:00Z",
       "published_ts": 1775766240.0,
-      "age_minutes": 1199.9,
+      "age_minutes": 1222.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -7533,7 +7229,7 @@
       ],
       "published_at": "2026-04-09T18:29:00Z",
       "published_ts": 1775759340.0,
-      "age_minutes": 1314.9,
+      "age_minutes": 1337.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -7571,7 +7267,7 @@
       ],
       "published_at": "2026-04-09T18:03:38Z",
       "published_ts": 1775757818.0,
-      "age_minutes": 1340.2,
+      "age_minutes": 1363.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -7602,44 +7298,6 @@
       "provider_count": 1
     },
     {
-      "story_key": "e962b0e022b8dc28f4f97f1c09d5193076f62e85:5919173",
-      "headline": "Meta, Oracle and Qualcomm share details on layoffs across California",
-      "tickers": [
-        "META"
-      ],
-      "published_at": "2026-04-09T16:29:43Z",
-      "published_ts": 1775752183.0,
-      "age_minutes": 1434.1,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "ArcaMax"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Meta, Oracle and Qualcomm share details on layoffs across California",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.4554,
-      "news_catalyst_score": 0.1644,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.arcamax.com/business/businessnews/s-4065894",
-      "first_seen_at": "2026-04-09T19:09:47.424842Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
       "story_key": "b0f12a18317f717ffd820d92c56f20bdfb7075df:5919256",
       "headline": "Meta pulls ads aimed at recruiting plaintiffs for social media addiction lawsuits",
       "tickers": [
@@ -7647,7 +7305,7 @@
       ],
       "published_at": "2026-04-09T23:21:11Z",
       "published_ts": 1775776871.0,
-      "age_minutes": 1022.7,
+      "age_minutes": 1045.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -7685,7 +7343,7 @@
       ],
       "published_at": "2026-04-09T19:09:07Z",
       "published_ts": 1775761747.0,
-      "age_minutes": 1274.7,
+      "age_minutes": 1297.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -7723,7 +7381,7 @@
       ],
       "published_at": "2026-04-10T06:40:17Z",
       "published_ts": 1775803217.0,
-      "age_minutes": 583.6,
+      "age_minutes": 606.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -7761,7 +7419,7 @@
       ],
       "published_at": "2026-04-10T10:05:00Z",
       "published_ts": 1775815500.0,
-      "age_minutes": 378.9,
+      "age_minutes": 401.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -7820,7 +7478,7 @@
       "story_key": "e37dabe0698b2c7ccda6e56deb78ba9584c116ba:5919387"
     },
     "JNJ": {
-      "news_catalyst_score": 0.4844,
+      "news_catalyst_score": 0.4642,
       "sentiment_label": "neutral",
       "event_class": "EARNINGS",
       "event_label": "Johnson & Johnson Earnings Preview: Time To Sell The Rally? (NYSE:JNJ)",
@@ -7853,7 +7511,7 @@
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "source_tier": "TIER_3",
-      "mentions_24h": 165,
+      "mentions_24h": 156,
       "is_actionable": false,
       "first_provider": "newsapi_ai",
       "story_key": "68bf5a4c065b94cd40360aa0f618b56cc77974b8:5919356"
@@ -7872,7 +7530,7 @@
       "story_key": "a1289500ff91b5cb881d57b0ae588cdf766d6ff6:5919228"
     },
     "NEE": {
-      "news_catalyst_score": 0.2442,
+      "news_catalyst_score": 0.2362,
       "sentiment_label": "neutral",
       "event_class": "UNKNOWN",
       "event_label": "Margaret (nee Heilman, Macdonell) Collins - Langley Advance Times",
@@ -7885,22 +7543,22 @@
       "story_key": "6b096726ff7af02143cf842446c1411238490ab4:5919426"
     },
     "XOM": {
-      "news_catalyst_score": 0.3319,
+      "news_catalyst_score": 0.3237,
       "sentiment_label": "neutral",
       "event_class": "UNKNOWN",
-      "event_label": "2 Reasons to Like XOM (and 1 Not So Much)",
+      "event_label": "SA analyst upgrades/downgrades: NFLX, LUV, XOM, AMZN",
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "source_tier": "TIER_3",
       "mentions_24h": 4,
       "is_actionable": false,
       "first_provider": "newsapi_ai",
-      "story_key": "559168b36c096bc153969a873f03103860c0ff57:5919423"
+      "story_key": "a8169768bbbfecc53675d92754e45efccc0860b3:5919446"
     }
   },
   "summary": {
-    "active_story_count": 203,
-    "new_story_count": 38,
+    "active_story_count": 194,
+    "new_story_count": 0,
     "actionable_story_count": 0,
     "actionable_symbols": [],
     "symbol_count": 8
