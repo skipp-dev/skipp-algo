@@ -220,6 +220,14 @@ SMC_BASE_ONLY_RUNTIME_BUNDLE_FRAME_NAMES = (
     "daily_symbol_features_full_universe",
 )
 
+SMC_BASE_ONLY_EXACT_NAMED_FRAME_NAMES = (
+    "daily_symbol_features_full_universe",
+    "premarket_features_full_universe",
+    "premarket_window_features_full_universe",
+    "symbol_day_diagnostics",
+    "quality_window_status_latest",
+)
+
 SMC_BASE_ONLY_CANONICAL_WORKBOOK_SHEET_NAMES = (
     "manifest",
     "daily_bars",
@@ -3906,33 +3914,41 @@ def run_production_export_pipeline(
         f"Step 10/10b complete: Canonical production workbook written in {time_module.perf_counter() - canonical_workbook_started_at:.1f}s"
     )
 
-    _progress("Step 10/10c: Writing exact-named parquet exports...")
+    exact_named_frames = {
+        "daily_symbol_features_full_universe": daily_symbol_features_full_universe,
+        "full_universe_second_detail_open": full_universe_second_detail_open,
+        "full_universe_second_detail_close": full_universe_second_detail_close,
+        "full_universe_close_trade_detail": full_universe_close_trade_detail,
+        "full_universe_close_outcome_minute": full_universe_close_outcome_minute,
+        "close_imbalance_features_full_universe": close_imbalance_features_full_universe,
+        "close_imbalance_outcomes_full_universe": close_imbalance_outcomes_full_universe,
+        "premarket_features_full_universe": premarket_features_full_universe,
+        "premarket_window_features_full_universe": premarket_window_features_full_universe,
+        "symbol_day_diagnostics": symbol_day_diagnostics,
+        "research_event_flags_full_universe": research_event_flags_full_universe,
+        "research_event_flag_coverage": research_event_flag_coverage,
+        "research_event_flag_trade_date_distribution": research_event_flag_trade_date_distribution,
+        "research_event_flag_outcome_slices": research_event_flag_outcome_slices,
+        "research_news_flags_full_universe": research_news_flags_full_universe,
+        "research_news_flag_coverage": research_news_flag_coverage,
+        "research_news_flag_trade_date_distribution": research_news_flag_trade_date_distribution,
+        "research_news_flag_outcome_slices": research_news_flag_outcome_slices,
+        "core_vs_benzinga_news_side_by_side": core_vs_benzinga_news_side_by_side,
+        "core_vs_benzinga_news_overlap_stats": core_vs_benzinga_news_overlap_stats,
+        "quality_window_status_latest": quality_window_status,
+    }
+    if smc_base_only:
+        allowed_exact_named_names = set(SMC_BASE_ONLY_EXACT_NAMED_FRAME_NAMES)
+        exact_named_frames = {
+            name: frame for name, frame in exact_named_frames.items() if name in allowed_exact_named_names
+        }
+        _progress("Step 10/10c: Writing slim exact-named parquet exports for SMC base-only mode...")
+    else:
+        _progress("Step 10/10c: Writing exact-named parquet exports...")
     exact_named_exports_started_at = time_module.perf_counter()
     exact_named_paths = _write_exact_named_exports(
         resolved_export_dir,
-        {
-            "daily_symbol_features_full_universe": daily_symbol_features_full_universe,
-            "full_universe_second_detail_open": full_universe_second_detail_open,
-            "full_universe_second_detail_close": full_universe_second_detail_close,
-            "full_universe_close_trade_detail": full_universe_close_trade_detail,
-            "full_universe_close_outcome_minute": full_universe_close_outcome_minute,
-            "close_imbalance_features_full_universe": close_imbalance_features_full_universe,
-            "close_imbalance_outcomes_full_universe": close_imbalance_outcomes_full_universe,
-            "premarket_features_full_universe": premarket_features_full_universe,
-            "premarket_window_features_full_universe": premarket_window_features_full_universe,
-            "symbol_day_diagnostics": symbol_day_diagnostics,
-            "research_event_flags_full_universe": research_event_flags_full_universe,
-            "research_event_flag_coverage": research_event_flag_coverage,
-            "research_event_flag_trade_date_distribution": research_event_flag_trade_date_distribution,
-            "research_event_flag_outcome_slices": research_event_flag_outcome_slices,
-            "research_news_flags_full_universe": research_news_flags_full_universe,
-            "research_news_flag_coverage": research_news_flag_coverage,
-            "research_news_flag_trade_date_distribution": research_news_flag_trade_date_distribution,
-            "research_news_flag_outcome_slices": research_news_flag_outcome_slices,
-            "core_vs_benzinga_news_side_by_side": core_vs_benzinga_news_side_by_side,
-            "core_vs_benzinga_news_overlap_stats": core_vs_benzinga_news_overlap_stats,
-            "quality_window_status_latest": quality_window_status,
-        },
+        exact_named_frames,
     )
     _progress(
         f"Step 10/10c complete: Exact-named parquet exports written in {time_module.perf_counter() - exact_named_exports_started_at:.1f}s "

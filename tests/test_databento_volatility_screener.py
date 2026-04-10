@@ -5219,7 +5219,12 @@ def test_run_production_export_pipeline_smc_base_only_slims_runtime_bundle_and_l
 
     monkeypatch.setattr(mod, "export_run_artifacts", fake_export_run_artifacts)
     monkeypatch.setattr(mod, "_write_canonical_production_workbook", lambda *args, **kwargs: tmp_path / "databento_volatility_production_workbook.xlsx")
-    monkeypatch.setattr(mod, "_write_exact_named_exports", lambda *args, **kwargs: {"daily_symbol_features_full_universe": tmp_path / "daily_symbol_features_full_universe.parquet"})
+
+    def fake_write_exact_named_exports(_export_dir, named_frames):
+        observed["exact_named_names"] = set(named_frames)
+        return {name: tmp_path / f"{name}.parquet" for name in named_frames}
+
+    monkeypatch.setattr(mod, "_write_exact_named_exports", fake_write_exact_named_exports)
     monkeypatch.setattr(mod, "_write_exact_named_export_state", lambda *args, **kwargs: tmp_path / "databento_exact_named_state.json")
 
     result = run_production_export_pipeline(
@@ -5237,7 +5242,14 @@ def test_run_production_export_pipeline_smc_base_only_slims_runtime_bundle_and_l
     assert observed["parquet_name_allowlist"] == {"daily_bars", "daily_symbol_features_full_universe"}
     assert any("Step 10/10a: Writing slim runtime bundle artifacts" in message for message in progress_messages)
     assert any("Step 10/10b: Writing canonical production workbook" in message for message in progress_messages)
-    assert any("Step 10/10c: Writing exact-named parquet exports" in message for message in progress_messages)
+    assert observed["exact_named_names"] == {
+        "daily_symbol_features_full_universe",
+        "premarket_features_full_universe",
+        "premarket_window_features_full_universe",
+        "quality_window_status_latest",
+        "symbol_day_diagnostics",
+    }
+    assert any("Step 10/10c: Writing slim exact-named parquet exports" in message for message in progress_messages)
     assert any("Step 10/10d: Writing exact-named export state" in message for message in progress_messages)
     assert result["exported_paths"]["canonical_production_workbook"] == tmp_path / "databento_volatility_production_workbook.xlsx"
     assert result["exported_paths"]["exact_named_state"] == tmp_path / "databento_exact_named_state.json"
