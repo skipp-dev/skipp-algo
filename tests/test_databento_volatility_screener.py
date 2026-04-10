@@ -3723,6 +3723,40 @@ def test_export_run_artifacts_skips_tradingview_txt_when_symbol_or_exchange_miss
     assert "txt_ranked" not in created
 
 
+def test_export_run_artifacts_can_skip_excel_and_filter_runtime_bundle_targets(tmp_path) -> None:
+    created = export_run_artifacts(
+        export_dir=tmp_path,
+        basename="bundle_20260308_120002",
+        summary=pd.DataFrame({"symbol": ["AAPL"], "exchange": ["NASDAQ"]}),
+        universe=pd.DataFrame({"symbol": ["AAPL"], "exchange": ["NASDAQ"]}),
+        daily_bars=pd.DataFrame({"trade_date": ["2026-03-08"], "symbol": ["AAPL"], "close": [180.0]}),
+        intraday=pd.DataFrame({"symbol": ["AAPL"]}),
+        ranked=pd.DataFrame({"symbol": ["AAPL"], "exchange": ["NASDAQ"]}),
+        additional_parquet_targets={
+            "daily_symbol_features_full_universe": pd.DataFrame(
+                {
+                    "trade_date": ["2026-03-08"],
+                    "symbol": ["AAPL"],
+                    "is_eligible": [True],
+                }
+            )
+        },
+        write_excel=False,
+        write_watchlists=False,
+        parquet_name_allowlist={"daily_bars", "daily_symbol_features_full_universe"},
+    )
+
+    assert "excel" not in created
+    assert "txt_summary" not in created
+    assert "parquet_daily_bars" in created
+    assert "parquet_daily_symbol_features_full_universe" in created
+    assert "parquet_summary" not in created
+    assert "parquet_universe" not in created
+    assert "parquet_intraday" not in created
+    assert "parquet_ranked" not in created
+    assert created["manifest"].exists()
+
+
 # ── P2: Mocked tests for previously untested critical functions ──────────
 
 
@@ -5099,6 +5133,114 @@ def test_run_production_export_pipeline_smc_base_only_trims_close_detail_scope(m
         )
 
     assert observed["close_trade_window"] == (time(15, 59), time(16, 0))
+
+
+def test_run_production_export_pipeline_smc_base_only_slims_runtime_bundle_and_logs_step10_subphases(monkeypatch, tmp_path) -> None:
+    from scripts import databento_production_export as mod
+
+    trade_day = date(2026, 3, 5)
+    progress_messages: list[str] = []
+    observed: dict[str, Any] = {}
+    minimal_daily_features = pd.DataFrame(
+        {
+            "trade_date": [trade_day],
+            "symbol": ["AAPL"],
+            "is_eligible": [True],
+            "selected_top20pct": [True],
+            "has_intraday": [True],
+            "has_open_window_detail": [True],
+        }
+    )
+
+    monkeypatch.setenv("DATABENTO_UNLIMITED", "true")
+    monkeypatch.setattr(mod, "RESEARCH_EVENT_FLAG_COLUMNS", ["trade_date", "symbol"])
+    monkeypatch.setattr(mod, "RESEARCH_NEWS_FLAG_BOOLEAN_COLUMNS", [])
+    monkeypatch.setattr(mod, "RESEARCH_NEWS_FLAG_COUNT_COLUMNS", [])
+    monkeypatch.setattr(mod, "list_recent_trading_days", lambda *args, **kwargs: [trade_day])
+    monkeypatch.setattr(
+        mod,
+        "fetch_us_equity_universe_with_metadata",
+        lambda *args, **kwargs: (pd.DataFrame({"symbol": ["AAPL"], "exchange": ["NASDAQ"]}), {}),
+    )
+    monkeypatch.setattr(mod, "_enrich_universe_with_fundamentals", lambda universe, reference: universe)
+    monkeypatch.setattr(
+        mod,
+        "filter_supported_universe_for_databento",
+        lambda *args, **kwargs: (pd.DataFrame({"symbol": ["AAPL"], "exchange": ["NASDAQ"]}), []),
+    )
+    monkeypatch.setattr(
+        mod,
+        "load_daily_bars",
+        lambda *args, **kwargs: pd.DataFrame(
+            {"trade_date": [trade_day], "symbol": ["AAPL"], "open": [1.0], "high": [1.0], "low": [1.0], "close": [1.0], "volume": [1.0]}
+        ),
+    )
+    monkeypatch.setattr(mod, "run_intraday_screen", lambda *args, **kwargs: pd.DataFrame({"trade_date": [trade_day], "symbol": ["AAPL"]}))
+    monkeypatch.setattr(mod, "rank_top_fraction_per_day", lambda *args, **kwargs: pd.DataFrame({"trade_date": [trade_day], "symbol": ["AAPL"]}))
+    monkeypatch.setattr(mod, "collect_full_universe_open_window_second_detail", lambda *args, **kwargs: pd.DataFrame())
+    monkeypatch.setattr(mod, "_collect_fixed_et_second_detail", lambda *args, **kwargs: pd.DataFrame())
+    monkeypatch.setattr(mod, "collect_full_universe_close_trade_detail", lambda *args, **kwargs: pd.DataFrame())
+    monkeypatch.setattr(mod, "_build_daily_symbol_features_full_universe_export", lambda *args, **kwargs: (minimal_daily_features.copy(), pd.DataFrame()))
+    monkeypatch.setattr(mod, "_build_research_event_flags_full_universe_export", lambda *args, **kwargs: (minimal_daily_features[["trade_date", "symbol"]].copy(), {}))
+    monkeypatch.setattr(mod, "_build_research_news_flags_full_universe_export", lambda *args, **kwargs: (minimal_daily_features[["trade_date", "symbol"]].copy(), {}))
+    monkeypatch.setattr(mod, "_build_research_event_flag_coverage", lambda *args, **kwargs: pd.DataFrame())
+    monkeypatch.setattr(mod, "_build_research_event_flag_trade_date_distribution", lambda *args, **kwargs: pd.DataFrame())
+    monkeypatch.setattr(mod, "_build_research_event_flag_outcome_slices", lambda *args, **kwargs: pd.DataFrame())
+    monkeypatch.setattr(mod, "_build_research_news_flag_coverage", lambda *args, **kwargs: pd.DataFrame())
+    monkeypatch.setattr(mod, "_build_research_news_flag_trade_date_distribution", lambda *args, **kwargs: pd.DataFrame())
+    monkeypatch.setattr(mod, "_build_research_news_flag_outcome_slices", lambda *args, **kwargs: pd.DataFrame())
+    monkeypatch.setattr(mod, "_build_core_vs_benzinga_news_side_by_side", lambda *args, **kwargs: (pd.DataFrame(), pd.DataFrame(), {}))
+    monkeypatch.setattr(mod, "_prepare_full_universe_second_detail_export", lambda *args, **kwargs: pd.DataFrame())
+    monkeypatch.setattr(mod, "_build_premarket_features_full_universe_export", lambda *args, **kwargs: pd.DataFrame({"has_premarket_data": pd.Series([False], dtype="boolean")}))
+    monkeypatch.setattr(mod, "build_premarket_window_features_full_universe_export", lambda *args, **kwargs: pd.DataFrame())
+    monkeypatch.setattr(mod, "_build_close_imbalance_features_full_universe_export", lambda *args, **kwargs: pd.DataFrame())
+    monkeypatch.setattr(mod, "_build_close_imbalance_outcomes_full_universe_export", lambda *args, **kwargs: pd.DataFrame())
+    monkeypatch.setattr(mod, "_build_quality_window_status_latest", lambda *args, **kwargs: pd.DataFrame())
+    monkeypatch.setattr(mod, "_enrich_universe_with_quality_window_status_from_window_features", lambda raw_universe, *args, **kwargs: raw_universe)
+    monkeypatch.setattr(
+        mod,
+        "build_summary_table",
+        lambda ranked, raw_universe: pd.DataFrame({"trade_date": [trade_day], "symbol": ["AAPL"], "previous_close": [1.0]}),
+    )
+    monkeypatch.setattr(mod, "fetch_symbol_day_detail", lambda *args, **kwargs: (pd.DataFrame(), pd.DataFrame()))
+    monkeypatch.setattr(mod, "_build_batl_debug_payload", lambda *args, **kwargs: {})
+
+    def fake_export_run_artifacts(**kwargs):
+        observed["write_excel"] = kwargs.get("write_excel")
+        observed["write_watchlists"] = kwargs.get("write_watchlists")
+        observed["parquet_name_allowlist"] = kwargs.get("parquet_name_allowlist")
+        manifest_path = Path(kwargs["export_dir"]) / f"{kwargs['basename']}_manifest.json"
+        manifest_path.write_text(json.dumps(kwargs["manifest"], default=str), encoding="utf-8")
+        return {
+            "manifest": manifest_path,
+            "parquet_daily_bars": Path(kwargs["export_dir"]) / f"{kwargs['basename']}__daily_bars.parquet",
+            "parquet_daily_symbol_features_full_universe": Path(kwargs["export_dir"]) / f"{kwargs['basename']}__daily_symbol_features_full_universe.parquet",
+        }
+
+    monkeypatch.setattr(mod, "export_run_artifacts", fake_export_run_artifacts)
+    monkeypatch.setattr(mod, "_write_canonical_production_workbook", lambda *args, **kwargs: tmp_path / "databento_volatility_production_workbook.xlsx")
+    monkeypatch.setattr(mod, "_write_exact_named_exports", lambda *args, **kwargs: {"daily_symbol_features_full_universe": tmp_path / "daily_symbol_features_full_universe.parquet"})
+    monkeypatch.setattr(mod, "_write_exact_named_export_state", lambda *args, **kwargs: tmp_path / "databento_exact_named_state.json")
+
+    result = run_production_export_pipeline(
+        databento_api_key="test-key",
+        fmp_api_key="",
+        dataset="DBEQ.BASIC",
+        cache_dir=tmp_path,
+        export_dir=tmp_path,
+        smc_base_only=True,
+        progress_callback=progress_messages.append,
+    )
+
+    assert observed["write_excel"] is False
+    assert observed["write_watchlists"] is False
+    assert observed["parquet_name_allowlist"] == {"daily_bars", "daily_symbol_features_full_universe"}
+    assert any("Step 10/10a: Writing slim runtime bundle artifacts" in message for message in progress_messages)
+    assert any("Step 10/10b: Writing canonical production workbook" in message for message in progress_messages)
+    assert any("Step 10/10c: Writing exact-named parquet exports" in message for message in progress_messages)
+    assert any("Step 10/10d: Writing exact-named export state" in message for message in progress_messages)
+    assert result["exported_paths"]["canonical_production_workbook"] == tmp_path / "databento_volatility_production_workbook.xlsx"
+    assert result["exported_paths"]["exact_named_state"] == tmp_path / "databento_exact_named_state.json"
 
 
 def test_build_daily_features_full_universe_smc_base_only_skips_extra_focus_and_close_outcome(monkeypatch) -> None:

@@ -4338,6 +4338,9 @@ def export_run_artifacts(
     cost_estimate: pd.DataFrame | None = None,
     unsupported_symbols: list[str] | None = None,
     manifest: dict[str, Any] | None = None,
+    write_excel: bool = True,
+    write_watchlists: bool = True,
+    parquet_name_allowlist: set[str] | None = None,
 ) -> dict[str, Path]:
     target_dir = Path(export_dir) if export_dir is not None else default_export_directory()
     target_dir.mkdir(parents=True, exist_ok=True)
@@ -4346,30 +4349,33 @@ def export_run_artifacts(
     manifest_payload.setdefault("basename", basename)
     manifest_payload.setdefault("exported_at", datetime.now(UTC).isoformat(timespec="seconds"))
 
-    workbook_sheets: dict[str, pd.DataFrame] = {
-        "manifest": build_run_manifest_frame(manifest_payload),
-        "universe": universe,
-        "daily_bars": daily_bars,
-        "intraday_all": intraday,
-        "ranked": ranked,
-    }
-    if additional_sheets:
-        workbook_sheets.update(additional_sheets)
-    if cost_estimate is not None and not cost_estimate.empty:
-        workbook_sheets["cost_estimate"] = cost_estimate
-    if unsupported_symbols:
-        workbook_sheets["unsupported_symbols"] = pd.DataFrame({"symbol": unsupported_symbols})
+    created_paths: dict[str, Path] = {}
+    if write_excel:
+        workbook_sheets: dict[str, pd.DataFrame] = {
+            "manifest": build_run_manifest_frame(manifest_payload),
+            "universe": universe,
+            "daily_bars": daily_bars,
+            "intraday_all": intraday,
+            "ranked": ranked,
+        }
+        if additional_sheets:
+            workbook_sheets.update(additional_sheets)
+        if cost_estimate is not None and not cost_estimate.empty:
+            workbook_sheets["cost_estimate"] = cost_estimate
+        if unsupported_symbols:
+            workbook_sheets["unsupported_symbols"] = pd.DataFrame({"symbol": unsupported_symbols})
 
-    excel_path = target_dir / f"{basename}.xlsx"
-    _write_bytes_atomic(
-        excel_path,
-        create_excel_workbook(
-            summary,
-            minute_detail=minute_detail,
-            second_detail=second_detail,
-            additional_sheets=workbook_sheets,
-        ),
-    )
+        excel_path = target_dir / f"{basename}.xlsx"
+        _write_bytes_atomic(
+            excel_path,
+            create_excel_workbook(
+                summary,
+                minute_detail=minute_detail,
+                second_detail=second_detail,
+                additional_sheets=workbook_sheets,
+            ),
+        )
+        created_paths["excel"] = excel_path
 
     parquet_targets: dict[str, pd.DataFrame] = {
         "summary": summary,
@@ -4392,17 +4398,18 @@ def export_run_artifacts(
         parquet_targets["unsupported_symbols"] = pd.DataFrame({"symbol": unsupported_symbols})
     if additional_parquet_targets:
         parquet_targets.update(additional_parquet_targets)
+    if parquet_name_allowlist is not None:
+        allowed_names = {str(name) for name in parquet_name_allowlist}
+        parquet_targets = {name: frame for name, frame in parquet_targets.items() if name in allowed_names}
 
-    created_paths: dict[str, Path] = {
-        "excel": excel_path,
-    }
     for name, frame in parquet_targets.items():
         parquet_path = target_dir / f"{basename}__{name}.parquet"
         _write_parquet_atomic(parquet_path, frame)
         created_paths[f"parquet_{name}"] = parquet_path
-    txt_paths = _write_tradingview_watchlist_exports(target_dir, basename, parquet_targets)
-    for name, path in txt_paths.items():
-        created_paths[f"txt_{name}"] = path
+    if write_watchlists:
+        txt_paths = _write_tradingview_watchlist_exports(target_dir, basename, parquet_targets)
+        for name, path in txt_paths.items():
+            created_paths[f"txt_{name}"] = path
 
     manifest_path = target_dir / f"{basename}_manifest.json"
     _write_text_atomic(manifest_path, json.dumps(manifest_payload, indent=2, sort_keys=True, default=str), encoding="utf-8")

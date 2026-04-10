@@ -215,6 +215,11 @@ DAILY_SYMBOL_FEATURE_COLUMNS = [
     "has_close_window_detail",
 ]
 
+SMC_BASE_ONLY_RUNTIME_BUNDLE_FRAME_NAMES = (
+    "daily_bars",
+    "daily_symbol_features_full_universe",
+)
+
 SECOND_DETAIL_EXPORT_COLUMNS = [
     "trade_date",
     "symbol",
@@ -3778,6 +3783,19 @@ def run_production_export_pipeline(
         "derived_workbook_artifact": "databento_volatility_production_workbook.xlsx",
         "workbook_freshness_model": "per_daily_run_overwrite",
     }
+    runtime_bundle_write_excel = True
+    runtime_bundle_write_watchlists = True
+    runtime_bundle_parquet_name_allowlist: set[str] | None = None
+    if smc_base_only:
+        runtime_bundle_write_excel = False
+        runtime_bundle_write_watchlists = False
+        runtime_bundle_parquet_name_allowlist = set(SMC_BASE_ONLY_RUNTIME_BUNDLE_FRAME_NAMES)
+
+    if smc_base_only:
+        _progress("Step 10/10a: Writing slim runtime bundle artifacts for SMC base-only mode...")
+    else:
+        _progress("Step 10/10a: Writing runtime bundle artifacts...")
+    runtime_bundle_started_at = time_module.perf_counter()
     paths = export_run_artifacts(
         export_dir=resolved_export_dir,
         basename=basename,
@@ -3820,7 +3838,17 @@ def run_production_export_pipeline(
         cost_estimate=cost_estimate,
         unsupported_symbols=unsupported,
         manifest=manifest,
+        write_excel=runtime_bundle_write_excel,
+        write_watchlists=runtime_bundle_write_watchlists,
+        parquet_name_allowlist=runtime_bundle_parquet_name_allowlist,
     )
+    _progress(
+        f"Step 10/10a complete: Runtime bundle artifacts written in {time_module.perf_counter() - runtime_bundle_started_at:.1f}s "
+        f"(artifacts={len(paths)}, parquet_frames={sum(1 for name in paths if name.startswith('parquet_'))})"
+    )
+
+    _progress("Step 10/10b: Writing canonical production workbook...")
+    canonical_workbook_started_at = time_module.perf_counter()
     paths["canonical_production_workbook"] = _write_canonical_production_workbook(
         export_dir=resolved_export_dir,
         summary=summary,
@@ -3855,6 +3883,12 @@ def run_production_export_pipeline(
         batl_debug=batl_debug,
         output_summary=output_summary,
     )
+    _progress(
+        f"Step 10/10b complete: Canonical production workbook written in {time_module.perf_counter() - canonical_workbook_started_at:.1f}s"
+    )
+
+    _progress("Step 10/10c: Writing exact-named parquet exports...")
+    exact_named_exports_started_at = time_module.perf_counter()
     exact_named_paths = _write_exact_named_exports(
         resolved_export_dir,
         {
@@ -3881,6 +3915,13 @@ def run_production_export_pipeline(
             "quality_window_status_latest": quality_window_status,
         },
     )
+    _progress(
+        f"Step 10/10c complete: Exact-named parquet exports written in {time_module.perf_counter() - exact_named_exports_started_at:.1f}s "
+        f"(artifacts={len(exact_named_paths)})"
+    )
+
+    _progress("Step 10/10d: Writing exact-named export state...")
+    exact_named_state_started_at = time_module.perf_counter()
     exact_named_state_path = _write_exact_named_export_state(
         resolved_export_dir,
         manifest=manifest,
@@ -3890,6 +3931,9 @@ def run_production_export_pipeline(
     for name, path in exact_named_paths.items():
         paths[f"exact_{name}"] = path
     paths["exact_named_state"] = exact_named_state_path
+    _progress(
+        f"Step 10/10d complete: Exact-named export state written in {time_module.perf_counter() - exact_named_state_started_at:.1f}s"
+    )
     _progress(
         f"Step 10/10 complete: Export artifacts written in {time_module.perf_counter() - export_artifacts_started_at:.1f}s "
         f"(artifacts={len(paths)})"
