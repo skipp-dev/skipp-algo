@@ -693,6 +693,51 @@ def _coerce_bool_series(series: pd.Series) -> pd.Series:
     return result
 
 
+def _build_session_minute_symbol_scope(
+    daily_feature_frame: pd.DataFrame,
+    *,
+    scoped_trade_days: set[date] | None = None,
+) -> tuple[dict[date, set[str]], dict[date, set[str]]]:
+    intraday_expected = daily_feature_frame.copy()
+    intraday_expected["trade_date"] = _coerce_trade_date_series(intraday_expected["trade_date"])
+    intraday_expected["symbol"] = intraday_expected.get(
+        "symbol",
+        pd.Series(index=intraday_expected.index, dtype=object),
+    ).astype(str).str.upper()
+    has_intraday_available = "has_intraday" in intraday_expected.columns
+    if has_intraday_available:
+        intraday_expected["has_intraday"] = _coerce_bool_series(intraday_expected["has_intraday"])
+    else:
+        intraday_expected["has_intraday"] = pd.Series(True, index=intraday_expected.index, dtype=bool)
+        logger.warning(
+            "daily_symbol_features_full_universe is missing has_intraday; defaulting to fetch and require all symbol-days for minute detail coverage."
+        )
+
+    scope_mask = intraday_expected["trade_date"].notna() & intraday_expected["symbol"].ne("")
+    if scoped_trade_days:
+        scope_mask &= intraday_expected["trade_date"].isin(scoped_trade_days)
+    intraday_expected = intraday_expected.loc[scope_mask].copy()
+
+    if has_intraday_available:
+        has_intraday_false_count = int((~intraday_expected["has_intraday"]).sum())
+        if has_intraday_false_count > 0:
+            logger.warning(
+                "daily_symbol_features_full_universe contains %d symbol-days with has_intraday=False; keeping them in minute-detail fetch scope while excluding them from hard coverage expectations.",
+                has_intraday_false_count,
+            )
+
+    fetch_symbols_by_trade_day = {
+        trade_day: set(group["symbol"].tolist())
+        for trade_day, group in intraday_expected.groupby("trade_date", sort=False)
+    }
+    required_scope = intraday_expected.loc[intraday_expected["has_intraday"]].copy()
+    required_symbols_by_trade_day = {
+        trade_day: set(group["symbol"].tolist())
+        for trade_day, group in required_scope.groupby("trade_date", sort=False)
+    }
+    return fetch_symbols_by_trade_day, required_symbols_by_trade_day
+
+
 def _numeric_values(series: pd.Series) -> np.ndarray:
     if pd.api.types.is_numeric_dtype(series.dtype):
         return series.to_numpy(dtype=float, na_value=np.nan)
@@ -2100,23 +2145,10 @@ def run_databento_base_scan_pipeline(
                     )
                     merged_symbol_day_diagnostics = _tail_trade_days(merged_symbol_day_diagnostics, trade_days=trading_days)
 
-                    intraday_expected = merged_daily_features.copy()
-                    intraday_expected["trade_date"] = _coerce_trade_date_series(intraday_expected["trade_date"])
-                    intraday_expected["symbol"] = intraday_expected.get("symbol", pd.Series(index=intraday_expected.index, dtype=object)).astype(str).str.upper()
-                    has_intraday_available = "has_intraday" in intraday_expected.columns
-                    if has_intraday_available:
-                        intraday_expected["has_intraday"] = _coerce_bool_series(intraday_expected["has_intraday"])
-                    else:
-                        intraday_expected["has_intraday"] = pd.Series(True, index=intraday_expected.index, dtype=bool)
-                    intraday_expected = intraday_expected.loc[
-                        intraday_expected["trade_date"].isin(set(incremental_trade_days))
-                        & intraday_expected["trade_date"].notna()
-                        & intraday_expected["symbol"].ne("")
-                    ].copy()
-                    expected_symbols_by_trade_day = {
-                        trade_day: set(group["symbol"].tolist())
-                        for trade_day, group in intraday_expected.groupby("trade_date", sort=False)
-                    }
+                    expected_symbols_by_trade_day, required_symbols_by_trade_day = _build_session_minute_symbol_scope(
+                        merged_daily_features,
+                        scoped_trade_days=set(incremental_trade_days),
+                    )
                     universe_symbols = set(merged_daily_features["symbol"].dropna().astype(str).str.upper())
 
                     _progress("Step 11/12: Collecting incremental full-session minute detail for microstructure base derivation...")
@@ -2127,6 +2159,7 @@ def run_databento_base_scan_pipeline(
                         trading_days=incremental_trade_days,
                         universe_symbols=universe_symbols,
                         expected_symbols_by_trade_day=expected_symbols_by_trade_day,
+                        required_symbols_by_trade_day=required_symbols_by_trade_day,
                         display_timezone=display_timezone,
                         cache_dir=cache_dir,
                         use_file_cache=use_file_cache,
@@ -2290,31 +2323,9 @@ def run_databento_base_scan_pipeline(
             "Unable to resolve trade dates for the SMC base scan. The export manifest is missing trade_dates_covered "
             "and no fallback trade_date values were available in daily_symbol_features_full_universe."
         )
-    intraday_expected = daily_feature_frame.copy()
-    intraday_expected["trade_date"] = _coerce_trade_date_series(intraday_expected["trade_date"])
-    intraday_expected["symbol"] = intraday_expected.get("symbol", pd.Series(index=intraday_expected.index, dtype=object)).astype(str).str.upper()
-    has_intraday_available = "has_intraday" in intraday_expected.columns
-    if has_intraday_available:
-        intraday_expected["has_intraday"] = _coerce_bool_series(intraday_expected["has_intraday"])
-    else:
-        intraday_expected["has_intraday"] = pd.Series(True, index=intraday_expected.index, dtype=bool)
-        logger.warning(
-            "daily_symbol_features_full_universe is missing has_intraday; defaulting to fetch all symbol-days for minute detail coverage."
-        )
-    intraday_expected = intraday_expected.loc[
-        intraday_expected["trade_date"].notna() & intraday_expected["symbol"].ne("")
-    ].copy()
-    if has_intraday_available:
-        has_intraday_false_count = int((~intraday_expected["has_intraday"]).sum())
-        if has_intraday_false_count > 0:
-            logger.warning(
-                "daily_symbol_features_full_universe contains %d symbol-days with has_intraday=False; keeping them in minute-detail fetch scope and treating has_intraday as diagnostic-only.",
-                has_intraday_false_count,
-            )
-    expected_symbols_by_trade_day = {
-        trade_day: set(group["symbol"].tolist())
-        for trade_day, group in intraday_expected.groupby("trade_date", sort=False)
-    }
+    expected_symbols_by_trade_day, required_symbols_by_trade_day = _build_session_minute_symbol_scope(
+        daily_feature_frame
+    )
     universe_symbols = set(daily_feature_frame["symbol"].dropna().astype(str).str.upper())
 
     _progress("Step 11/12: Collecting full-session minute detail for microstructure base derivation...")
@@ -2325,6 +2336,7 @@ def run_databento_base_scan_pipeline(
         trading_days=trading_days,
         universe_symbols=universe_symbols,
         expected_symbols_by_trade_day=expected_symbols_by_trade_day,
+        required_symbols_by_trade_day=required_symbols_by_trade_day,
         display_timezone=display_timezone,
         cache_dir=cache_dir,
         use_file_cache=use_file_cache,

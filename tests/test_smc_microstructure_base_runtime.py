@@ -1144,6 +1144,53 @@ def test_collect_full_universe_session_minute_detail_uses_day_specific_expected_
     assert set(output["symbol"].unique()) == {"AAA"}
 
 
+def test_collect_full_universe_session_minute_detail_allows_optional_symbol_gaps_in_coverage(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FakeStore:
+        def to_df(self, count: int = 250_000) -> pd.DataFrame:
+            return pd.DataFrame(
+                [
+                    {
+                        "symbol": "AAA",
+                        "ts": pd.Timestamp("2026-02-10T13:30:00Z"),
+                        "open": 10.0,
+                        "high": 10.2,
+                        "low": 9.9,
+                        "close": 10.1,
+                        "volume": 1000,
+                        "trade_count": 25,
+                    }
+                ]
+            )
+
+    requested_batches: list[list[str]] = []
+
+    def fake_get_range(*args: Any, **kwargs: Any) -> FakeStore:
+        requested_batches.append([str(value).upper() for value in kwargs.get("symbols", [])])
+        return FakeStore()
+
+    monkeypatch.setattr(session_detail, "_make_databento_client", lambda api_key: object())
+    monkeypatch.setattr(session_detail, "_get_schema_available_end", lambda client, dataset, schema: pd.Timestamp("2026-02-11T03:00:00Z"))
+    monkeypatch.setattr(session_detail, "_databento_get_range_with_retry", fake_get_range)
+    monkeypatch.setattr(session_detail, "_store_to_frame", lambda store, count, context: store.to_df(count=count))
+
+    output = collect_full_universe_session_minute_detail(
+        "dummy-key",
+        dataset="DBEQ.BASIC",
+        trading_days=[date(2026, 2, 10)],
+        universe_symbols={"AAA", "AACB"},
+        expected_symbols_by_trade_day={date(2026, 2, 10): {"AAA", "AACB"}},
+        required_symbols_by_trade_day={date(2026, 2, 10): {"AAA"}},
+        display_timezone="America/New_York",
+        use_file_cache=False,
+    )
+
+    assert len(requested_batches) == 1
+    assert set(requested_batches[0]) == {"AAA", "AACB"}
+    assert set(output["symbol"].unique()) == {"AAA"}
+
+
 def test_collect_full_universe_session_minute_detail_runtime_unsupported_symbols_do_not_leak_across_trade_days(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1203,7 +1250,7 @@ def test_collect_full_universe_session_minute_detail_runtime_unsupported_symbols
     assert set(pd.to_datetime(output["trade_date"]).dt.date.unique()) == {date(2026, 2, 11)}
 
 
-def test_run_databento_base_scan_pipeline_does_not_skip_symbol_days_just_because_has_intraday_is_false(
+def test_run_databento_base_scan_pipeline_keeps_has_intraday_false_symbol_days_in_fetch_scope_but_not_required_coverage(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
@@ -1238,6 +1285,7 @@ def test_run_databento_base_scan_pipeline_does_not_skip_symbol_days_just_because
 
     def fake_collect(*args: Any, **kwargs: Any) -> pd.DataFrame:
         captured["expected_symbols_by_trade_day"] = kwargs.get("expected_symbols_by_trade_day")
+        captured["required_symbols_by_trade_day"] = kwargs.get("required_symbols_by_trade_day")
         return pd.DataFrame()
 
     monkeypatch.setattr(runtime, "collect_full_universe_session_minute_detail", fake_collect)
@@ -1258,7 +1306,9 @@ def test_run_databento_base_scan_pipeline_does_not_skip_symbol_days_just_because
     )
 
     expected = cast(dict[date, set[str]], captured["expected_symbols_by_trade_day"])
+    required = cast(dict[date, set[str]], captured["required_symbols_by_trade_day"])
     assert expected == {date(2026, 2, 10): {"AAA"}}
+    assert required == {}
 
 
 def test_run_databento_base_scan_pipeline_handles_missing_has_intraday_column_without_crashing(
@@ -1299,6 +1349,7 @@ def test_run_databento_base_scan_pipeline_handles_missing_has_intraday_column_wi
 
     def fake_collect(*args: Any, **kwargs: Any) -> pd.DataFrame:
         captured["expected_symbols_by_trade_day"] = kwargs.get("expected_symbols_by_trade_day")
+        captured["required_symbols_by_trade_day"] = kwargs.get("required_symbols_by_trade_day")
         return pd.DataFrame()
 
     monkeypatch.setattr(runtime, "collect_full_universe_session_minute_detail", fake_collect)
@@ -1319,7 +1370,9 @@ def test_run_databento_base_scan_pipeline_handles_missing_has_intraday_column_wi
     )
 
     expected = cast(dict[date, set[str]], captured["expected_symbols_by_trade_day"])
+    required = cast(dict[date, set[str]], captured["required_symbols_by_trade_day"])
     assert expected == {date(2026, 2, 10): {"AAA", "BBB"}}
+    assert required == {date(2026, 2, 10): {"AAA", "BBB"}}
 
 
 def test_build_symbol_day_microstructure_feature_frame_warns_when_minute_detail_is_missing_for_symbol_day(

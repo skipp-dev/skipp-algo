@@ -130,6 +130,7 @@ def collect_full_universe_session_minute_detail(
     trading_days: list[date],
     universe_symbols: set[str],
     expected_symbols_by_trade_day: dict[date, set[str]] | None = None,
+    required_symbols_by_trade_day: dict[date, set[str]] | None = None,
     display_timezone: str,
     cache_dir: str | Path | None = None,
     use_file_cache: bool = True,
@@ -157,17 +158,27 @@ def collect_full_universe_session_minute_detail(
     all_rows: list[pd.DataFrame] = []
     runtime_unsupported_symbols_seen_global: set[str] = set()
     latest_trade_day = max(trading_days)
+    normalized_universe_symbols = {str(symbol).strip().upper() for symbol in universe_symbols if str(symbol).strip()}
 
     for trade_day in trading_days:
         day_runtime_unsupported_symbols: set[str] = set()
-        day_expected_symbols = {
+        day_fetch_symbols = {
             str(symbol).strip().upper()
             for symbol in (expected_symbols_by_trade_day or {}).get(trade_day, universe_symbols)
             if str(symbol).strip()
         }
-        day_expected_symbols &= {str(symbol).strip().upper() for symbol in universe_symbols if str(symbol).strip()}
-        if not day_expected_symbols:
+        day_fetch_symbols &= normalized_universe_symbols
+        if not day_fetch_symbols:
             continue
+        if required_symbols_by_trade_day is None:
+            day_required_symbols = set(day_fetch_symbols)
+        else:
+            day_required_symbols = {
+                str(symbol).strip().upper()
+                for symbol in required_symbols_by_trade_day.get(trade_day, day_fetch_symbols)
+                if str(symbol).strip()
+            }
+            day_required_symbols &= day_fetch_symbols
 
         local_start = datetime.combine(trade_day, PREMARKET_START_ET, tzinfo=US_EASTERN_TZ).astimezone(display_tz)
         local_end = datetime.combine(trade_day, AFTERHOURS_END_ET, tzinfo=US_EASTERN_TZ).astimezone(display_tz)
@@ -185,7 +196,7 @@ def collect_full_universe_session_minute_detail(
                 display_timezone,
                 PREMARKET_START_ET.strftime("%H%M%S"),
                 AFTERHOURS_END_ET.strftime("%H%M%S"),
-                _universe_fingerprint(day_expected_symbols),
+                _universe_fingerprint(day_fetch_symbols),
             ],
         )
         cache_meta_path = cache_path.with_suffix(f"{cache_path.suffix}.meta.json")
@@ -197,7 +208,7 @@ def collect_full_universe_session_minute_detail(
             )
             if day_frame is not None:
                 try:
-                    expected_symbols_for_cache = set(day_expected_symbols)
+                    expected_symbols_for_cache = set(day_required_symbols)
                     if cache_meta_path.exists():
                         try:
                             cache_meta = json.loads(cache_meta_path.read_text(encoding="utf-8"))
@@ -224,7 +235,7 @@ def collect_full_universe_session_minute_detail(
 
         if day_frame is None:
             day_parts: list[pd.DataFrame] = []
-            active_symbols = set(day_expected_symbols)
+            active_symbols = set(day_fetch_symbols)
             for symbols_batch in iter_symbol_batches(active_symbols):
                 unresolved_symbols: set[str] = set()
                 try:
@@ -310,7 +321,7 @@ def collect_full_universe_session_minute_detail(
 
                 frame = frame.copy()
                 frame["symbol"] = frame["symbol"].astype(str).str.upper()
-                frame = frame[frame["symbol"].isin(day_expected_symbols)].copy()
+                frame = frame[frame["symbol"].isin(day_fetch_symbols)].copy()
                 if frame.empty:
                     continue
 
@@ -337,7 +348,7 @@ def collect_full_universe_session_minute_detail(
                 day_parts.append(frame[output_columns].reset_index(drop=True))
 
             day_frame = pd.concat(day_parts, ignore_index=True) if day_parts else pd.DataFrame(columns=output_columns)
-            expected_symbols = set(day_expected_symbols) - day_runtime_unsupported_symbols
+            expected_symbols = set(day_required_symbols) - day_runtime_unsupported_symbols
             if day_runtime_unsupported_symbols:
                 logger.warning(
                     "Session minute detail for %s excluded %d runtime-unsupported symbols from completeness checks for this trade day.",
