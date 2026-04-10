@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-04-10T00:07:10.369697Z",
+  "generated_at": "2026-04-10T00:58:44.393333Z",
   "symbols": [
     "AAPL",
     "MSFT",
@@ -81,7 +81,7 @@
       ],
       "published_at": "2026-04-09T12:40:20Z",
       "published_ts": 1775738420.0,
-      "age_minutes": 686.8,
+      "age_minutes": 738.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -119,7 +119,7 @@
       ],
       "published_at": "2026-04-09T12:31:59Z",
       "published_ts": 1775737919.0,
-      "age_minutes": 695.2,
+      "age_minutes": 746.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -150,44 +150,6 @@
       "provider_count": 1
     },
     {
-      "story_key": "205ed91c4d6d2ad35491adf579383db006845b58:5919211",
-      "headline": "JPMorgan Chase: Earnings Offer Catalyst Opportunity For Shares (NYSE:JPM)",
-      "tickers": [
-        "JPM"
-      ],
-      "published_at": "2026-04-09T19:36:27Z",
-      "published_ts": 1775763387.0,
-      "age_minutes": 270.7,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Seeking Alpha"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "earnings",
-      "event_class": "EARNINGS",
-      "event_label": "JPMorgan Chase: Earnings Offer Catalyst Opportunity For Shares (NYSE:JPM)",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.8,
-      "clarity": 0.6,
-      "relevance": 0.79,
-      "news_catalyst_score": 0.4092,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://seekingalpha.com/article/4889606-jpmorgan-chase-earnings-offer-catalyst-opportunity-for-shares",
-      "first_seen_at": "2026-04-09T23:10:22.128253Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
       "story_key": "1c8bcfda062f0534181d30a0d4fc1fdcd4220164:5919055",
       "headline": "Start Up No.2648: Meta and Anthropic shake up AI and cybersecurity, Iran demands crypto for Hormuz, GLP-1 genetics, and more",
       "tickers": [
@@ -195,7 +157,7 @@
       ],
       "published_at": "2026-04-09T06:35:51Z",
       "published_ts": 1775716551.0,
-      "age_minutes": 1051.3,
+      "age_minutes": 1102.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -226,6 +188,44 @@
       "provider_count": 1
     },
     {
+      "story_key": "205ed91c4d6d2ad35491adf579383db006845b58:5919211",
+      "headline": "JPMorgan Chase: Earnings Offer Catalyst Opportunity For Shares (NYSE:JPM)",
+      "tickers": [
+        "JPM"
+      ],
+      "published_at": "2026-04-09T19:36:27Z",
+      "published_ts": 1775763387.0,
+      "age_minutes": 322.3,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Seeking Alpha"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "earnings",
+      "event_class": "EARNINGS",
+      "event_label": "JPMorgan Chase: Earnings Offer Catalyst Opportunity For Shares (NYSE:JPM)",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.8,
+      "clarity": 0.6,
+      "relevance": 0.79,
+      "news_catalyst_score": 0.3836,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://seekingalpha.com/article/4889606-jpmorgan-chase-earnings-offer-catalyst-opportunity-for-shares",
+      "first_seen_at": "2026-04-09T23:10:22.128253Z",
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
       "story_key": "6bc1dab66afdfd6989f98b13620de3bdb1e801d2:5919136",
       "headline": "Is JPM a Buy Before Q1 Earnings in a Volatile Geopolitical Backdrop?",
       "tickers": [
@@ -233,7 +233,7 @@
       ],
       "published_at": "2026-04-09T13:20:00Z",
       "published_ts": 1775740800.0,
-      "age_minutes": 647.2,
+      "age_minutes": 698.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -271,7 +271,7 @@
       ],
       "published_at": "2026-04-09T02:16:00Z",
       "published_ts": 1775700960.0,
-      "age_minutes": 1311.2,
+      "age_minutes": 1362.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -309,7 +309,7 @@
       ],
       "published_at": "2026-04-09T13:42:33Z",
       "published_ts": 1775742153.0,
-      "age_minutes": 624.6,
+      "age_minutes": 676.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -347,7 +347,7 @@
       ],
       "published_at": "2026-04-09T13:28:05Z",
       "published_ts": 1775741285.0,
-      "age_minutes": 639.1,
+      "age_minutes": 690.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -378,44 +378,6 @@
       "provider_count": 1
     },
     {
-      "story_key": "ef9611da18c0841deb412441f54c0abaa8068bc6:5919211",
-      "headline": "Dow Jones Top Company Headlines at 3 PM ET: Amazon CEO Presses His Case for Big AI Spending | Meta ...",
-      "tickers": [
-        "META"
-      ],
-      "published_at": "2026-04-09T19:37:46Z",
-      "published_ts": 1775763466.0,
-      "age_minutes": 269.4,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Morningstar"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "management",
-      "event_class": "MANAGEMENT",
-      "event_label": "Dow Jones Top Company Headlines at 3 PM ET: Amazon CEO Presses His Case for Big AI Spending | Meta ...",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.6,
-      "clarity": 0.8,
-      "relevance": 0.76,
-      "news_catalyst_score": 0.3706,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.morningstar.com/news/dow-jones/202604097565/dow-jones-top-company-headlines-at-3-pm-et-amazon-ceo-presses-his-case-for-big-ai-spending-meta",
-      "first_seen_at": "2026-04-09T23:10:22.128253Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
       "story_key": "b38486437242036df80674e1dbd22b64eafe1991:5919138",
       "headline": "KeyBanc lowers Meta stock price target to $760 on market volatility By Investing.com",
       "tickers": [
@@ -423,7 +385,7 @@
       ],
       "published_at": "2026-04-09T13:34:51Z",
       "published_ts": 1775741691.0,
-      "age_minutes": 632.3,
+      "age_minutes": 683.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -461,7 +423,7 @@
       ],
       "published_at": "2026-04-09T17:05:25Z",
       "published_ts": 1775754325.0,
-      "age_minutes": 421.8,
+      "age_minutes": 473.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -499,7 +461,7 @@
       ],
       "published_at": "2026-04-09T16:30:04Z",
       "published_ts": 1775752204.0,
-      "age_minutes": 457.1,
+      "age_minutes": 508.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -537,7 +499,7 @@
       ],
       "published_at": "2026-04-09T14:21:14Z",
       "published_ts": 1775744474.0,
-      "age_minutes": 585.9,
+      "age_minutes": 637.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -575,7 +537,7 @@
       ],
       "published_at": "2026-04-09T13:26:07Z",
       "published_ts": 1775741167.0,
-      "age_minutes": 641.1,
+      "age_minutes": 692.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -613,7 +575,7 @@
       ],
       "published_at": "2026-04-09T13:13:00Z",
       "published_ts": 1775740380.0,
-      "age_minutes": 654.2,
+      "age_minutes": 705.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -651,7 +613,7 @@
       ],
       "published_at": "2026-04-09T09:45:56Z",
       "published_ts": 1775727956.0,
-      "age_minutes": 861.2,
+      "age_minutes": 912.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -682,6 +644,44 @@
       "provider_count": 1
     },
     {
+      "story_key": "ef9611da18c0841deb412441f54c0abaa8068bc6:5919211",
+      "headline": "Dow Jones Top Company Headlines at 3 PM ET: Amazon CEO Presses His Case for Big AI Spending | Meta ...",
+      "tickers": [
+        "META"
+      ],
+      "published_at": "2026-04-09T19:37:46Z",
+      "published_ts": 1775763466.0,
+      "age_minutes": 321.0,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Morningstar"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "management",
+      "event_class": "MANAGEMENT",
+      "event_label": "Dow Jones Top Company Headlines at 3 PM ET: Amazon CEO Presses His Case for Big AI Spending | Meta ...",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.6,
+      "clarity": 0.8,
+      "relevance": 0.76,
+      "news_catalyst_score": 0.3465,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://www.morningstar.com/news/dow-jones/202604097565/dow-jones-top-company-headlines-at-3-pm-et-amazon-ceo-presses-his-case-for-big-ai-spending-meta",
+      "first_seen_at": "2026-04-09T23:10:22.128253Z",
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
       "story_key": "9a0e0eb6c35e64f4d18d889f0011908b4b5260fd:5919146",
       "headline": "Amazon: End Of Fear, The AI Trade Comes Back (Rating Upgrade) (NASDAQ:AMZN)",
       "tickers": [
@@ -689,7 +689,7 @@
       ],
       "published_at": "2026-04-09T14:12:58Z",
       "published_ts": 1775743978.0,
-      "age_minutes": 594.2,
+      "age_minutes": 645.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -727,7 +727,7 @@
       ],
       "published_at": "2026-04-09T19:25:09Z",
       "published_ts": 1775762709.0,
-      "age_minutes": 282.0,
+      "age_minutes": 333.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -748,7 +748,7 @@
       "impact": 0.6,
       "clarity": 0.6,
       "relevance": 0.7,
-      "news_catalyst_score": 0.3349,
+      "news_catalyst_score": 0.3218,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
@@ -765,7 +765,7 @@
       ],
       "published_at": "2026-04-09T22:15:24Z",
       "published_ts": 1775772924.0,
-      "age_minutes": 111.8,
+      "age_minutes": 163.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -786,7 +786,7 @@
       "impact": 0.1,
       "clarity": 0.8,
       "relevance": 0.535,
-      "news_catalyst_score": 0.3018,
+      "news_catalyst_score": 0.2847,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
@@ -803,7 +803,7 @@
       ],
       "published_at": "2026-04-09T21:30:22Z",
       "published_ts": 1775770222.0,
-      "age_minutes": 156.8,
+      "age_minutes": 208.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -824,7 +824,7 @@
       "impact": 0.1,
       "clarity": 0.8,
       "relevance": 0.535,
-      "news_catalyst_score": 0.2868,
+      "news_catalyst_score": 0.265,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
@@ -841,7 +841,7 @@
       ],
       "published_at": "2026-04-09T21:00:33Z",
       "published_ts": 1775768433.0,
-      "age_minutes": 186.6,
+      "age_minutes": 238.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -862,7 +862,7 @@
       "impact": 0.1,
       "clarity": 0.8,
       "relevance": 0.535,
-      "news_catalyst_score": 0.2758,
+      "news_catalyst_score": 0.2501,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
@@ -879,7 +879,7 @@
       ],
       "published_at": "2026-04-09T22:00:09Z",
       "published_ts": 1775772009.0,
-      "age_minutes": 127.0,
+      "age_minutes": 178.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -900,7 +900,7 @@
       "impact": 0.1,
       "clarity": 0.8,
       "relevance": 0.535,
-      "news_catalyst_score": 0.2595,
+      "news_catalyst_score": 0.2445,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
@@ -917,7 +917,7 @@
       ],
       "published_at": "2026-04-09T21:32:58Z",
       "published_ts": 1775770378.0,
-      "age_minutes": 154.2,
+      "age_minutes": 205.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -938,7 +938,7 @@
       "impact": 0.1,
       "clarity": 0.8,
       "relevance": 0.535,
-      "news_catalyst_score": 0.2516,
+      "news_catalyst_score": 0.2329,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
@@ -955,7 +955,7 @@
       ],
       "published_at": "2026-04-09T21:31:41Z",
       "published_ts": 1775770301.0,
-      "age_minutes": 155.5,
+      "age_minutes": 207.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -976,7 +976,7 @@
       "impact": 0.1,
       "clarity": 0.8,
       "relevance": 0.535,
-      "news_catalyst_score": 0.2512,
+      "news_catalyst_score": 0.2323,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
@@ -993,7 +993,7 @@
       ],
       "published_at": "2026-04-09T21:31:41Z",
       "published_ts": 1775770301.0,
-      "age_minutes": 155.5,
+      "age_minutes": 207.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1014,7 +1014,7 @@
       "impact": 0.1,
       "clarity": 0.8,
       "relevance": 0.535,
-      "news_catalyst_score": 0.2512,
+      "news_catalyst_score": 0.2323,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
@@ -1031,7 +1031,7 @@
       ],
       "published_at": "2026-04-09T23:06:29Z",
       "published_ts": 1775775989.0,
-      "age_minutes": 60.7,
+      "age_minutes": 112.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1052,7 +1052,7 @@
       "impact": 0.1,
       "clarity": 0.6,
       "relevance": 0.475,
-      "news_catalyst_score": 0.2428,
+      "news_catalyst_score": 0.2298,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
@@ -1069,7 +1069,7 @@
       ],
       "published_at": "2026-04-09T22:31:08Z",
       "published_ts": 1775773868.0,
-      "age_minutes": 96.0,
+      "age_minutes": 147.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1090,7 +1090,7 @@
       "impact": 0.1,
       "clarity": 0.6,
       "relevance": 0.475,
-      "news_catalyst_score": 0.2339,
+      "news_catalyst_score": 0.2208,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
@@ -1107,7 +1107,7 @@
       ],
       "published_at": "2026-04-09T22:29:10Z",
       "published_ts": 1775773750.0,
-      "age_minutes": 98.0,
+      "age_minutes": 149.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1128,87 +1128,11 @@
       "impact": 0.1,
       "clarity": 0.6,
       "relevance": 0.475,
-      "news_catalyst_score": 0.2334,
+      "news_catalyst_score": 0.2203,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
       "url": "https://www.devdiscourse.com/article/technology/3868673-metas-ai-revolution-new-engineering-organization-sets-the-stage-for-future-of-work",
-      "first_seen_at": "2026-04-09T23:10:22.128253Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "a6d262f34e859fcc39a0c2fdc0b3ea6ab82b9d09:5919222",
-      "headline": "Meta commits another $21 billion to CoreWeave, bringing total AI cloud spend to $35 billion",
-      "tickers": [
-        "META"
-      ],
-      "published_at": "2026-04-09T20:31:48Z",
-      "published_ts": 1775766708.0,
-      "age_minutes": 215.4,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "The Next Web"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Meta commits another $21 billion to CoreWeave, bringing total AI cloud spend to $35 billion",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.8,
-      "relevance": 0.535,
-      "news_catalyst_score": 0.2287,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://thenextweb.com/news/meta-coreweave-21-billion-ai-cloud-deal",
-      "first_seen_at": "2026-04-09T23:10:22.128253Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "edeba8296948752f7a6d482839c7338c8b91a8d7:5919237",
-      "headline": "Meta is pulling ads that recruit plaintiffs suing Meta",
-      "tickers": [
-        "META"
-      ],
-      "published_at": "2026-04-09T21:48:35Z",
-      "published_ts": 1775771315.0,
-      "age_minutes": 138.6,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Boing Boing"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Meta is pulling ads that recruit plaintiffs suing Meta",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.2231,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://boingboing.net/2026/04/09/meta-is-pulling-ads-that-recruit-plaintiffs-suing-meta.html",
       "first_seen_at": "2026-04-09T23:10:22.128253Z",
       "is_new": false,
       "provider_count": 1
@@ -1221,7 +1145,7 @@
       ],
       "published_at": "2026-04-09T17:35:30Z",
       "published_ts": 1775756130.0,
-      "age_minutes": 391.7,
+      "age_minutes": 443.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1259,7 +1183,7 @@
       ],
       "published_at": "2026-04-09T17:26:50Z",
       "published_ts": 1775755610.0,
-      "age_minutes": 400.3,
+      "age_minutes": 451.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1297,7 +1221,7 @@
       ],
       "published_at": "2026-04-09T16:40:29Z",
       "published_ts": 1775752829.0,
-      "age_minutes": 446.7,
+      "age_minutes": 498.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1335,7 +1259,7 @@
       ],
       "published_at": "2026-04-09T13:10:40Z",
       "published_ts": 1775740240.0,
-      "age_minutes": 656.5,
+      "age_minutes": 708.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1366,120 +1290,6 @@
       "provider_count": 1
     },
     {
-      "story_key": "2dd5f3b85325580e42b62f3b416c9821e4b1895b:5919234",
-      "headline": "Meta pulls lawyer ads targeting underage social media harm cases",
-      "tickers": [
-        "META"
-      ],
-      "published_at": "2026-04-09T21:30:50Z",
-      "published_ts": 1775770250.0,
-      "age_minutes": 156.3,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "The American Bazaar"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Meta pulls lawyer ads targeting underage social media harm cases",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.2186,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://americanbazaaronline.com/2026/04/09/meta-pulls-lawyer-ads-targeting-underage-social-media-harm-cases-478618/",
-      "first_seen_at": "2026-04-09T23:10:22.128253Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "c4a7edce768a437491359c91463b1a80051af12c:5919232",
-      "headline": "As Amazon Takes on Chipmakers, Should You Buy AMZN Stock Here?",
-      "tickers": [
-        "AMZN"
-      ],
-      "published_at": "2026-04-09T21:21:40Z",
-      "published_ts": 1775769700.0,
-      "age_minutes": 165.5,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Barchart.com"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "As Amazon Takes on Chipmakers, Should You Buy AMZN Stock Here?",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.2163,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.barchart.com/story/news/1230176/as-amazon-takes-on-chipmakers-should-you-buy-amzn-stock-here",
-      "first_seen_at": "2026-04-09T23:10:22.128253Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "c21b7f42a32371c6bfe4393d237178c786811a0d:5919230",
-      "headline": "Meta removes ads that encourage litigation against the company",
-      "tickers": [
-        "META"
-      ],
-      "published_at": "2026-04-09T21:12:09Z",
-      "published_ts": 1775769129.0,
-      "age_minutes": 175.0,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Social Media Today | A business community for the web's best thinkers on Social Media"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Meta removes ads that encourage litigation against the company",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.2139,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.socialmediatoday.com/news/meta-removes-ads-that-encourage-litigation-against-the-company/817152/",
-      "first_seen_at": "2026-04-09T23:10:22.128253Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
       "story_key": "eefede4bf328e2511a6b8659d974ecfd46b6efce:5919143",
       "headline": "Another Lawsuit Claims Meta Is Dangerous, Addictive To Children",
       "tickers": [
@@ -1487,7 +1297,7 @@
       ],
       "published_at": "2026-04-09T13:57:28Z",
       "published_ts": 1775743048.0,
-      "age_minutes": 609.7,
+      "age_minutes": 661.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1518,6 +1328,196 @@
       "provider_count": 1
     },
     {
+      "story_key": "edeba8296948752f7a6d482839c7338c8b91a8d7:5919237",
+      "headline": "Meta is pulling ads that recruit plaintiffs suing Meta",
+      "tickers": [
+        "META"
+      ],
+      "published_at": "2026-04-09T21:48:35Z",
+      "published_ts": 1775771315.0,
+      "age_minutes": 190.2,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Boing Boing"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Meta is pulling ads that recruit plaintiffs suing Meta",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.2088,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://boingboing.net/2026/04/09/meta-is-pulling-ads-that-recruit-plaintiffs-suing-meta.html",
+      "first_seen_at": "2026-04-09T23:10:22.128253Z",
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
+      "story_key": "a6d262f34e859fcc39a0c2fdc0b3ea6ab82b9d09:5919222",
+      "headline": "Meta commits another $21 billion to CoreWeave, bringing total AI cloud spend to $35 billion",
+      "tickers": [
+        "META"
+      ],
+      "published_at": "2026-04-09T20:31:48Z",
+      "published_ts": 1775766708.0,
+      "age_minutes": 266.9,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "The Next Web"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Meta commits another $21 billion to CoreWeave, bringing total AI cloud spend to $35 billion",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "news_catalyst_score": 0.2062,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://thenextweb.com/news/meta-coreweave-21-billion-ai-cloud-deal",
+      "first_seen_at": "2026-04-09T23:10:22.128253Z",
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
+      "story_key": "2dd5f3b85325580e42b62f3b416c9821e4b1895b:5919234",
+      "headline": "Meta pulls lawyer ads targeting underage social media harm cases",
+      "tickers": [
+        "META"
+      ],
+      "published_at": "2026-04-09T21:30:50Z",
+      "published_ts": 1775770250.0,
+      "age_minutes": 207.9,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "The American Bazaar"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Meta pulls lawyer ads targeting underage social media harm cases",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.202,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://americanbazaaronline.com/2026/04/09/meta-pulls-lawyer-ads-targeting-underage-social-media-harm-cases-478618/",
+      "first_seen_at": "2026-04-09T23:10:22.128253Z",
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
+      "story_key": "c4a7edce768a437491359c91463b1a80051af12c:5919232",
+      "headline": "As Amazon Takes on Chipmakers, Should You Buy AMZN Stock Here?",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_at": "2026-04-09T21:21:40Z",
+      "published_ts": 1775769700.0,
+      "age_minutes": 217.1,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Barchart.com"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "As Amazon Takes on Chipmakers, Should You Buy AMZN Stock Here?",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.1985,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://www.barchart.com/story/news/1230176/as-amazon-takes-on-chipmakers-should-you-buy-amzn-stock-here",
+      "first_seen_at": "2026-04-09T23:10:22.128253Z",
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
+      "story_key": "c21b7f42a32371c6bfe4393d237178c786811a0d:5919230",
+      "headline": "Meta removes ads that encourage litigation against the company",
+      "tickers": [
+        "META"
+      ],
+      "published_at": "2026-04-09T21:12:09Z",
+      "published_ts": 1775769129.0,
+      "age_minutes": 226.6,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Social Media Today | A business community for the web's best thinkers on Social Media"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Meta removes ads that encourage litigation against the company",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.1949,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://www.socialmediatoday.com/news/meta-removes-ads-that-encourage-litigation-against-the-company/817152/",
+      "first_seen_at": "2026-04-09T23:10:22.128253Z",
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
       "story_key": "615a5cd81311091a0c81465ec32d3c36559d01d3:5919213",
       "headline": "AI Can Code, But It Can't Bet: Why Top Models Are Going Broke On Sports Markets - Amazon.com (NASDAQ:AMZN",
       "tickers": [
@@ -1525,7 +1525,7 @@
       ],
       "published_at": "2026-04-09T19:48:14Z",
       "published_ts": 1775764094.0,
-      "age_minutes": 258.9,
+      "age_minutes": 310.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1546,163 +1546,11 @@
       "impact": 0.1,
       "clarity": 0.6,
       "relevance": 0.475,
-      "news_catalyst_score": 0.2127,
+      "news_catalyst_score": 0.1946,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
       "url": "https://www.benzinga.com/markets/prediction-markets/26/04/51743325/ai-can-code-but-it-cant-bet-why-top-models-are-going-broke-on-sports-markets",
-      "first_seen_at": "2026-04-09T23:10:22.128253Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "e4c519f2b28af8a573531bfbf3d472f71e5d3b21:5919229",
-      "headline": "Meta expands CoreWeave deal with another $21B commitment",
-      "tickers": [
-        "META"
-      ],
-      "published_at": "2026-04-09T21:07:00Z",
-      "published_ts": 1775768820.0,
-      "age_minutes": 180.2,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "TheStreet"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Meta expands CoreWeave deal with another $21B commitment",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.2126,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.thestreet.com/investing/meta-expands-coreweave-deal-with-another-21b-commitment",
-      "first_seen_at": "2026-04-09T23:10:22.128253Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "af770561392d118aba17996eb21ca089aa4673b0:5919228",
-      "headline": "Meta Quietly Scrubs Lawyer Ads Targeting Teen Social Media Addiction Cases -- While Fighting the Lawsuits in Court",
-      "tickers": [
-        "META"
-      ],
-      "published_at": "2026-04-09T21:01:27Z",
-      "published_ts": 1775768487.0,
-      "age_minutes": 185.7,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "WebProNews"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Meta Quietly Scrubs Lawyer Ads Targeting Teen Social Media Addiction Cases -- While Fighting the Lawsuits in Court",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.2105,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.webpronews.com/meta-quietly-scrubs-lawyer-ads-targeting-teen-social-media-addiction-cases-while-fighting-the-lawsuits-in-court/",
-      "first_seen_at": "2026-04-09T23:10:22.128253Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "dfd78a50771b0209d3dddf3e0d0aa50436067587:5919226",
-      "headline": "Unlock Pokemon Champions success with our top meta recruit picks!",
-      "tickers": [
-        "META"
-      ],
-      "published_at": "2026-04-09T20:52:25Z",
-      "published_ts": 1775767945.0,
-      "age_minutes": 194.8,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Game Rant"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Unlock Pokemon Champions success with our top meta recruit picks!",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.207,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://gamerant.com/pokemon-champions-best-pokemon-to-recruit-first/",
-      "first_seen_at": "2026-04-09T23:10:22.128253Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "0a4c90535fe546b9105e8d3fb54ab4041f13f21f:5919224",
-      "headline": "Dow & Co mit Zugewinnen - Amazon, Meta, CoreWeave, Walmart, Intel, Micron, Brown-Forman stark",
-      "tickers": [
-        "META"
-      ],
-      "published_at": "2026-04-09T20:41:29Z",
-      "published_ts": 1775767289.0,
-      "age_minutes": 205.7,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "FinanzNachrichten.de"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Dow & Co mit Zugewinnen - Amazon, Meta, CoreWeave, Walmart, Intel, Micron, Brown-Forman stark",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.2029,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.finanznachrichten.de/nachrichten-2026-04/68162466-dow-co-mit-zugewinnen-amazon-meta-coreweave-walmart-intel-micron-brown-forman-stark-124.htm",
       "first_seen_at": "2026-04-09T23:10:22.128253Z",
       "is_new": false,
       "provider_count": 1
@@ -1715,7 +1563,7 @@
       ],
       "published_at": "2026-04-09T19:21:04Z",
       "published_ts": 1775762464.0,
-      "age_minutes": 286.1,
+      "age_minutes": 337.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1736,49 +1584,11 @@
       "impact": 0.1,
       "clarity": 0.6,
       "relevance": 0.475,
-      "news_catalyst_score": 0.2007,
+      "news_catalyst_score": 0.1946,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
       "url": "https://www.benzinga.com/trading-ideas/movers/26/04/51742522/exxon-mobil-xom-stock-reverses-as-oil-rally-loses-steam",
-      "first_seen_at": "2026-04-09T23:10:22.128253Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "f60425c81c6e572f869fdc9a28c56a87f4d3d00b:5919206",
-      "headline": "Meta Ai App Climbs To No. 5 On The App Store After Muse Spark Launch",
-      "tickers": [
-        "META"
-      ],
-      "published_at": "2026-04-09T19:14:44Z",
-      "published_ts": 1775762084.0,
-      "age_minutes": 292.4,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Beritaja"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Meta Ai App Climbs To No. 5 On The App Store After Muse Spark Launch",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.8,
-      "relevance": 0.535,
-      "news_catalyst_score": 0.1951,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://beritaja.com/meta-ai-app-climbs-to-no-5-on-the-app-store-after-muse-spark-launch-beritaja-414042.html",
       "first_seen_at": "2026-04-09T23:10:22.128253Z",
       "is_new": false,
       "provider_count": 1
@@ -1791,7 +1601,7 @@
       ],
       "published_at": "2026-04-09T18:30:20Z",
       "published_ts": 1775759420.0,
-      "age_minutes": 336.8,
+      "age_minutes": 388.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1829,7 +1639,7 @@
       ],
       "published_at": "2026-04-09T17:46:54Z",
       "published_ts": 1775756814.0,
-      "age_minutes": 380.3,
+      "age_minutes": 431.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1867,7 +1677,7 @@
       ],
       "published_at": "2026-04-09T17:06:37Z",
       "published_ts": 1775754397.0,
-      "age_minutes": 420.6,
+      "age_minutes": 472.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1905,7 +1715,7 @@
       ],
       "published_at": "2026-04-09T16:28:21Z",
       "published_ts": 1775752101.0,
-      "age_minutes": 458.8,
+      "age_minutes": 510.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1943,7 +1753,7 @@
       ],
       "published_at": "2026-04-09T16:12:58Z",
       "published_ts": 1775751178.0,
-      "age_minutes": 474.2,
+      "age_minutes": 525.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1981,7 +1791,7 @@
       ],
       "published_at": "2026-04-09T13:16:14Z",
       "published_ts": 1775740574.0,
-      "age_minutes": 650.9,
+      "age_minutes": 702.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2019,7 +1829,7 @@
       ],
       "published_at": "2026-04-09T09:58:36Z",
       "published_ts": 1775728716.0,
-      "age_minutes": 848.6,
+      "age_minutes": 900.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2050,14 +1860,14 @@
       "provider_count": 1
     },
     {
-      "story_key": "0a4c90535fe546b9105e8d3fb54ab4041f13f21f:5919220",
-      "headline": "Dow & Co mit Zugewinnen - Amazon, Meta, CoreWeave, Walmart, Intel, Micron, Brown-Forman stark",
+      "story_key": "e4c519f2b28af8a573531bfbf3d472f71e5d3b21:5919229",
+      "headline": "Meta expands CoreWeave deal with another $21B commitment",
       "tickers": [
         "META"
       ],
-      "published_at": "2026-04-09T20:24:00Z",
-      "published_ts": 1775766240.0,
-      "age_minutes": 223.2,
+      "published_at": "2026-04-09T21:07:00Z",
+      "published_ts": 1775768820.0,
+      "age_minutes": 231.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2066,23 +1876,61 @@
         "newsapi_ai"
       ],
       "sources": [
-        "Der Aktion\u00e4r"
+        "TheStreet"
       ],
       "source_tier": "TIER_3",
       "source_rank": 3,
       "category": "other",
       "event_class": "UNKNOWN",
-      "event_label": "Dow & Co mit Zugewinnen - Amazon, Meta, CoreWeave, Walmart, Intel, Micron, Brown-Forman stark",
+      "event_label": "Meta expands CoreWeave deal with another $21B commitment",
       "sentiment_label": "neutral",
       "polarity": 0.0,
       "impact": 0.1,
       "clarity": 0.6,
-      "relevance": 0.4554,
-      "news_catalyst_score": 0.1931,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.193,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
-      "url": "https://www.deraktionaer.de/artikel/indizes/dow-co-mit-zugewinnen-amazon-meta-coreweave-walmart-intel-micron-brown-forman-stark-20398776.html",
+      "url": "https://www.thestreet.com/investing/meta-expands-coreweave-deal-with-another-21b-commitment",
+      "first_seen_at": "2026-04-09T23:10:22.128253Z",
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
+      "story_key": "f60425c81c6e572f869fdc9a28c56a87f4d3d00b:5919206",
+      "headline": "Meta Ai App Climbs To No. 5 On The App Store After Muse Spark Launch",
+      "tickers": [
+        "META"
+      ],
+      "published_at": "2026-04-09T19:14:44Z",
+      "published_ts": 1775762084.0,
+      "age_minutes": 344.0,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Beritaja"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Meta Ai App Climbs To No. 5 On The App Store After Muse Spark Launch",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "news_catalyst_score": 0.1918,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://beritaja.com/meta-ai-app-climbs-to-no-5-on-the-app-store-after-muse-spark-launch-beritaja-414042.html",
       "first_seen_at": "2026-04-09T23:10:22.128253Z",
       "is_new": false,
       "provider_count": 1
@@ -2095,7 +1943,7 @@
       ],
       "published_at": "2026-04-09T19:10:07Z",
       "published_ts": 1775761807.0,
-      "age_minutes": 297.1,
+      "age_minutes": 348.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2116,7 +1964,7 @@
       "impact": 0.1,
       "clarity": 0.8,
       "relevance": 0.535,
-      "news_catalyst_score": 0.1931,
+      "news_catalyst_score": 0.1918,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
@@ -2133,7 +1981,7 @@
       ],
       "published_at": "2026-04-09T19:09:36Z",
       "published_ts": 1775761776.0,
-      "age_minutes": 297.6,
+      "age_minutes": 349.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2154,7 +2002,7 @@
       "impact": 0.1,
       "clarity": 0.8,
       "relevance": 0.535,
-      "news_catalyst_score": 0.1929,
+      "news_catalyst_score": 0.1918,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
@@ -2171,7 +2019,7 @@
       ],
       "published_at": "2026-04-09T18:52:34Z",
       "published_ts": 1775760754.0,
-      "age_minutes": 314.6,
+      "age_minutes": 366.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2209,7 +2057,7 @@
       ],
       "published_at": "2026-04-09T18:30:48Z",
       "published_ts": 1775759448.0,
-      "age_minutes": 336.4,
+      "age_minutes": 387.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2247,7 +2095,7 @@
       ],
       "published_at": "2026-04-09T18:25:52Z",
       "published_ts": 1775759152.0,
-      "age_minutes": 341.3,
+      "age_minutes": 392.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2285,7 +2133,7 @@
       ],
       "published_at": "2026-04-09T17:57:18Z",
       "published_ts": 1775757438.0,
-      "age_minutes": 369.9,
+      "age_minutes": 421.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2323,7 +2171,7 @@
       ],
       "published_at": "2026-04-09T17:54:10Z",
       "published_ts": 1775757250.0,
-      "age_minutes": 373.0,
+      "age_minutes": 424.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2361,7 +2209,7 @@
       ],
       "published_at": "2026-04-09T17:36:37Z",
       "published_ts": 1775756197.0,
-      "age_minutes": 390.6,
+      "age_minutes": 442.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2399,7 +2247,7 @@
       ],
       "published_at": "2026-04-09T16:51:46Z",
       "published_ts": 1775753506.0,
-      "age_minutes": 435.4,
+      "age_minutes": 487.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2437,7 +2285,7 @@
       ],
       "published_at": "2026-04-09T16:46:28Z",
       "published_ts": 1775753188.0,
-      "age_minutes": 440.7,
+      "age_minutes": 492.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2475,7 +2323,7 @@
       ],
       "published_at": "2026-04-09T16:40:30Z",
       "published_ts": 1775752830.0,
-      "age_minutes": 446.7,
+      "age_minutes": 498.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2513,7 +2361,7 @@
       ],
       "published_at": "2026-04-09T16:38:31Z",
       "published_ts": 1775752711.0,
-      "age_minutes": 448.7,
+      "age_minutes": 500.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2551,7 +2399,7 @@
       ],
       "published_at": "2026-04-09T16:32:43Z",
       "published_ts": 1775752363.0,
-      "age_minutes": 454.5,
+      "age_minutes": 506.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2589,7 +2437,7 @@
       ],
       "published_at": "2026-04-09T16:21:25Z",
       "published_ts": 1775751685.0,
-      "age_minutes": 465.8,
+      "age_minutes": 517.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2627,7 +2475,7 @@
       ],
       "published_at": "2026-04-09T16:16:42Z",
       "published_ts": 1775751402.0,
-      "age_minutes": 470.5,
+      "age_minutes": 522.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2665,7 +2513,7 @@
       ],
       "published_at": "2026-04-09T15:14:25Z",
       "published_ts": 1775747665.0,
-      "age_minutes": 532.8,
+      "age_minutes": 584.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2703,7 +2551,7 @@
       ],
       "published_at": "2026-04-09T14:10:07Z",
       "published_ts": 1775743807.0,
-      "age_minutes": 597.1,
+      "age_minutes": 648.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2741,7 +2589,7 @@
       ],
       "published_at": "2026-04-09T13:51:07Z",
       "published_ts": 1775742667.0,
-      "age_minutes": 616.1,
+      "age_minutes": 667.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2779,7 +2627,7 @@
       ],
       "published_at": "2026-04-09T13:35:30Z",
       "published_ts": 1775741730.0,
-      "age_minutes": 631.7,
+      "age_minutes": 683.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2817,7 +2665,7 @@
       ],
       "published_at": "2026-04-09T13:34:30Z",
       "published_ts": 1775741670.0,
-      "age_minutes": 632.7,
+      "age_minutes": 684.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2855,7 +2703,7 @@
       ],
       "published_at": "2026-04-09T13:34:09Z",
       "published_ts": 1775741649.0,
-      "age_minutes": 633.0,
+      "age_minutes": 684.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2893,7 +2741,7 @@
       ],
       "published_at": "2026-04-09T13:20:32Z",
       "published_ts": 1775740832.0,
-      "age_minutes": 646.6,
+      "age_minutes": 698.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2931,7 +2779,7 @@
       ],
       "published_at": "2026-04-09T13:12:00Z",
       "published_ts": 1775740320.0,
-      "age_minutes": 655.2,
+      "age_minutes": 706.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2969,7 +2817,7 @@
       ],
       "published_at": "2026-04-09T13:07:56Z",
       "published_ts": 1775740076.0,
-      "age_minutes": 659.2,
+      "age_minutes": 710.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -3007,7 +2855,7 @@
       ],
       "published_at": "2026-04-09T11:42:24Z",
       "published_ts": 1775734944.0,
-      "age_minutes": 744.8,
+      "age_minutes": 796.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -3045,7 +2893,7 @@
       ],
       "published_at": "2026-04-09T11:36:36Z",
       "published_ts": 1775734596.0,
-      "age_minutes": 750.6,
+      "age_minutes": 802.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -3083,7 +2931,7 @@
       ],
       "published_at": "2026-04-09T11:31:26Z",
       "published_ts": 1775734286.0,
-      "age_minutes": 755.7,
+      "age_minutes": 807.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -3121,7 +2969,7 @@
       ],
       "published_at": "2026-04-09T10:00:53Z",
       "published_ts": 1775728853.0,
-      "age_minutes": 846.3,
+      "age_minutes": 897.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -3159,7 +3007,7 @@
       ],
       "published_at": "2026-04-09T09:03:00Z",
       "published_ts": 1775725380.0,
-      "age_minutes": 904.2,
+      "age_minutes": 955.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -3197,7 +3045,7 @@
       ],
       "published_at": "2026-04-09T08:57:13Z",
       "published_ts": 1775725033.0,
-      "age_minutes": 910.0,
+      "age_minutes": 961.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -3235,7 +3083,7 @@
       ],
       "published_at": "2026-04-09T08:09:54Z",
       "published_ts": 1775722194.0,
-      "age_minutes": 957.3,
+      "age_minutes": 1008.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -3273,7 +3121,7 @@
       ],
       "published_at": "2026-04-09T08:02:59Z",
       "published_ts": 1775721779.0,
-      "age_minutes": 964.2,
+      "age_minutes": 1015.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -3311,7 +3159,7 @@
       ],
       "published_at": "2026-04-09T05:30:54Z",
       "published_ts": 1775712654.0,
-      "age_minutes": 1116.3,
+      "age_minutes": 1167.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -3349,7 +3197,7 @@
       ],
       "published_at": "2026-04-09T05:25:09Z",
       "published_ts": 1775712309.0,
-      "age_minutes": 1122.0,
+      "age_minutes": 1173.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -3387,7 +3235,7 @@
       ],
       "published_at": "2026-04-09T05:07:31Z",
       "published_ts": 1775711251.0,
-      "age_minutes": 1139.7,
+      "age_minutes": 1191.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -3425,7 +3273,7 @@
       ],
       "published_at": "2026-04-09T05:07:20Z",
       "published_ts": 1775711240.0,
-      "age_minutes": 1139.8,
+      "age_minutes": 1191.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -3463,7 +3311,7 @@
       ],
       "published_at": "2026-04-09T03:51:08Z",
       "published_ts": 1775706668.0,
-      "age_minutes": 1216.0,
+      "age_minutes": 1267.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -3501,7 +3349,7 @@
       ],
       "published_at": "2026-04-09T03:06:32Z",
       "published_ts": 1775703992.0,
-      "age_minutes": 1260.6,
+      "age_minutes": 1312.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -3539,7 +3387,7 @@
       ],
       "published_at": "2026-04-09T02:34:01Z",
       "published_ts": 1775702041.0,
-      "age_minutes": 1293.2,
+      "age_minutes": 1344.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -3570,6 +3418,44 @@
       "provider_count": 1
     },
     {
+      "story_key": "af770561392d118aba17996eb21ca089aa4673b0:5919228",
+      "headline": "Meta Quietly Scrubs Lawyer Ads Targeting Teen Social Media Addiction Cases -- While Fighting the Lawsuits in Court",
+      "tickers": [
+        "META"
+      ],
+      "published_at": "2026-04-09T21:01:27Z",
+      "published_ts": 1775768487.0,
+      "age_minutes": 237.3,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "WebProNews"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Meta Quietly Scrubs Lawyer Ads Targeting Teen Social Media Addiction Cases -- While Fighting the Lawsuits in Court",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.1909,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://www.webpronews.com/meta-quietly-scrubs-lawyer-ads-targeting-teen-social-media-addiction-cases-while-fighting-the-lawsuits-in-court/",
+      "first_seen_at": "2026-04-09T23:10:22.128253Z",
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
       "story_key": "0b6c755048d72024f9508ea8750e0f8209c0bbd1:5919130",
       "headline": "CoreWeave, Meta Ink $21 Bln Expanded AI Infrastructure Agreement",
       "tickers": [
@@ -3577,7 +3463,7 @@
       ],
       "published_at": "2026-04-09T12:51:37Z",
       "published_ts": 1775739097.0,
-      "age_minutes": 675.6,
+      "age_minutes": 727.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -3617,7 +3503,7 @@
       ],
       "published_at": "2026-04-09T13:57:58Z",
       "published_ts": 1775743078.0,
-      "age_minutes": 609.2,
+      "age_minutes": 660.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -3648,6 +3534,120 @@
       "provider_count": 1
     },
     {
+      "story_key": "dfd78a50771b0209d3dddf3e0d0aa50436067587:5919226",
+      "headline": "Unlock Pokemon Champions success with our top meta recruit picks!",
+      "tickers": [
+        "META"
+      ],
+      "published_at": "2026-04-09T20:52:25Z",
+      "published_ts": 1775767945.0,
+      "age_minutes": 246.3,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Game Rant"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Unlock Pokemon Champions success with our top meta recruit picks!",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.1874,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://gamerant.com/pokemon-champions-best-pokemon-to-recruit-first/",
+      "first_seen_at": "2026-04-09T23:10:22.128253Z",
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
+      "story_key": "0a4c90535fe546b9105e8d3fb54ab4041f13f21f:5919224",
+      "headline": "Dow & Co mit Zugewinnen - Amazon, Meta, CoreWeave, Walmart, Intel, Micron, Brown-Forman stark",
+      "tickers": [
+        "META"
+      ],
+      "published_at": "2026-04-09T20:41:29Z",
+      "published_ts": 1775767289.0,
+      "age_minutes": 257.3,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "FinanzNachrichten.de"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Dow & Co mit Zugewinnen - Amazon, Meta, CoreWeave, Walmart, Intel, Micron, Brown-Forman stark",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.1833,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://www.finanznachrichten.de/nachrichten-2026-04/68162466-dow-co-mit-zugewinnen-amazon-meta-coreweave-walmart-intel-micron-brown-forman-stark-124.htm",
+      "first_seen_at": "2026-04-09T23:10:22.128253Z",
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
+      "story_key": "0a4c90535fe546b9105e8d3fb54ab4041f13f21f:5919220",
+      "headline": "Dow & Co mit Zugewinnen - Amazon, Meta, CoreWeave, Walmart, Intel, Micron, Brown-Forman stark",
+      "tickers": [
+        "META"
+      ],
+      "published_at": "2026-04-09T20:24:00Z",
+      "published_ts": 1775766240.0,
+      "age_minutes": 274.7,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Der Aktion\u00e4r"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Dow & Co mit Zugewinnen - Amazon, Meta, CoreWeave, Walmart, Intel, Micron, Brown-Forman stark",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.4554,
+      "news_catalyst_score": 0.1738,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://www.deraktionaer.de/artikel/indizes/dow-co-mit-zugewinnen-amazon-meta-coreweave-walmart-intel-micron-brown-forman-stark-20398776.html",
+      "first_seen_at": "2026-04-09T23:10:22.128253Z",
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
       "story_key": "c0b48e18116a1fee88a67c73c62f204f1ff615b6:5919216",
       "headline": "Nature Exposure Linked to Reductions in Negative Emotional States, Meta-Analysis Finds",
       "tickers": [
@@ -3655,7 +3655,7 @@
       ],
       "published_at": "2026-04-09T20:00:38Z",
       "published_ts": 1775764838.0,
-      "age_minutes": 246.5,
+      "age_minutes": 298.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -3676,7 +3676,7 @@
       "impact": 0.1,
       "clarity": 0.6,
       "relevance": 0.475,
-      "news_catalyst_score": 0.1874,
+      "news_catalyst_score": 0.1678,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
@@ -3693,7 +3693,7 @@
       ],
       "published_at": "2026-04-09T19:58:25Z",
       "published_ts": 1775764705.0,
-      "age_minutes": 248.8,
+      "age_minutes": 300.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -3714,7 +3714,7 @@
       "impact": 0.1,
       "clarity": 0.6,
       "relevance": 0.475,
-      "news_catalyst_score": 0.1865,
+      "news_catalyst_score": 0.1671,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
@@ -3731,7 +3731,7 @@
       ],
       "published_at": "2026-04-09T19:30:11Z",
       "published_ts": 1775763011.0,
-      "age_minutes": 277.0,
+      "age_minutes": 328.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -3752,7 +3752,7 @@
       "impact": 0.1,
       "clarity": 0.6,
       "relevance": 0.475,
-      "news_catalyst_score": 0.1758,
+      "news_catalyst_score": 0.1671,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
@@ -3769,7 +3769,7 @@
       ],
       "published_at": "2026-04-09T19:17:29Z",
       "published_ts": 1775762249.0,
-      "age_minutes": 289.7,
+      "age_minutes": 341.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -3790,7 +3790,7 @@
       "impact": 0.1,
       "clarity": 0.6,
       "relevance": 0.475,
-      "news_catalyst_score": 0.171,
+      "news_catalyst_score": 0.1671,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
@@ -3807,7 +3807,7 @@
       ],
       "published_at": "2026-04-09T19:13:00Z",
       "published_ts": 1775761980.0,
-      "age_minutes": 294.2,
+      "age_minutes": 345.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -3828,7 +3828,7 @@
       "impact": 0.1,
       "clarity": 0.6,
       "relevance": 0.475,
-      "news_catalyst_score": 0.1693,
+      "news_catalyst_score": 0.1671,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
@@ -3845,7 +3845,7 @@
       ],
       "published_at": "2026-04-09T18:52:51Z",
       "published_ts": 1775760771.0,
-      "age_minutes": 314.3,
+      "age_minutes": 365.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -3883,7 +3883,7 @@
       ],
       "published_at": "2026-04-09T18:50:33Z",
       "published_ts": 1775760633.0,
-      "age_minutes": 316.6,
+      "age_minutes": 368.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -3921,7 +3921,7 @@
       ],
       "published_at": "2026-04-09T18:42:21Z",
       "published_ts": 1775760141.0,
-      "age_minutes": 324.8,
+      "age_minutes": 376.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -3959,7 +3959,7 @@
       ],
       "published_at": "2026-04-09T18:38:56Z",
       "published_ts": 1775759936.0,
-      "age_minutes": 328.2,
+      "age_minutes": 379.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -3997,7 +3997,7 @@
       ],
       "published_at": "2026-04-09T18:30:48Z",
       "published_ts": 1775759448.0,
-      "age_minutes": 336.4,
+      "age_minutes": 387.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -4035,7 +4035,7 @@
       ],
       "published_at": "2026-04-09T18:14:04Z",
       "published_ts": 1775758444.0,
-      "age_minutes": 353.1,
+      "age_minutes": 404.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -4073,7 +4073,7 @@
       ],
       "published_at": "2026-04-09T18:04:57Z",
       "published_ts": 1775757897.0,
-      "age_minutes": 362.2,
+      "age_minutes": 413.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -4111,7 +4111,7 @@
       ],
       "published_at": "2026-04-09T17:57:41Z",
       "published_ts": 1775757461.0,
-      "age_minutes": 369.5,
+      "age_minutes": 421.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -4149,7 +4149,7 @@
       ],
       "published_at": "2026-04-09T17:55:45Z",
       "published_ts": 1775757345.0,
-      "age_minutes": 371.4,
+      "age_minutes": 423.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -4187,7 +4187,7 @@
       ],
       "published_at": "2026-04-09T17:36:46Z",
       "published_ts": 1775756206.0,
-      "age_minutes": 390.4,
+      "age_minutes": 442.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -4225,7 +4225,7 @@
       ],
       "published_at": "2026-04-09T17:35:47Z",
       "published_ts": 1775756147.0,
-      "age_minutes": 391.4,
+      "age_minutes": 443.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -4263,7 +4263,7 @@
       ],
       "published_at": "2026-04-09T17:35:24Z",
       "published_ts": 1775756124.0,
-      "age_minutes": 391.8,
+      "age_minutes": 443.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -4301,7 +4301,7 @@
       ],
       "published_at": "2026-04-09T17:25:05Z",
       "published_ts": 1775755505.0,
-      "age_minutes": 402.1,
+      "age_minutes": 453.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -4339,7 +4339,7 @@
       ],
       "published_at": "2026-04-09T17:02:41Z",
       "published_ts": 1775754161.0,
-      "age_minutes": 424.5,
+      "age_minutes": 476.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -4377,7 +4377,7 @@
       ],
       "published_at": "2026-04-09T17:00:49Z",
       "published_ts": 1775754049.0,
-      "age_minutes": 426.4,
+      "age_minutes": 477.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -4415,7 +4415,7 @@
       ],
       "published_at": "2026-04-09T16:56:22Z",
       "published_ts": 1775753782.0,
-      "age_minutes": 430.8,
+      "age_minutes": 482.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -4453,7 +4453,7 @@
       ],
       "published_at": "2026-04-09T16:47:46Z",
       "published_ts": 1775753266.0,
-      "age_minutes": 439.4,
+      "age_minutes": 491.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -4491,7 +4491,7 @@
       ],
       "published_at": "2026-04-09T16:31:38Z",
       "published_ts": 1775752298.0,
-      "age_minutes": 455.5,
+      "age_minutes": 507.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -4529,7 +4529,7 @@
       ],
       "published_at": "2026-04-09T16:22:07Z",
       "published_ts": 1775751727.0,
-      "age_minutes": 465.1,
+      "age_minutes": 516.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -4567,7 +4567,7 @@
       ],
       "published_at": "2026-04-09T16:20:51Z",
       "published_ts": 1775751651.0,
-      "age_minutes": 466.3,
+      "age_minutes": 517.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -4605,7 +4605,7 @@
       ],
       "published_at": "2026-04-09T15:58:44Z",
       "published_ts": 1775750324.0,
-      "age_minutes": 488.4,
+      "age_minutes": 540.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -4643,7 +4643,7 @@
       ],
       "published_at": "2026-04-09T15:32:27Z",
       "published_ts": 1775748747.0,
-      "age_minutes": 514.7,
+      "age_minutes": 566.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -4681,7 +4681,7 @@
       ],
       "published_at": "2026-04-09T15:29:41Z",
       "published_ts": 1775748581.0,
-      "age_minutes": 517.5,
+      "age_minutes": 569.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -4719,7 +4719,7 @@
       ],
       "published_at": "2026-04-09T14:45:45Z",
       "published_ts": 1775745945.0,
-      "age_minutes": 561.4,
+      "age_minutes": 613.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -4757,7 +4757,7 @@
       ],
       "published_at": "2026-04-09T14:43:43Z",
       "published_ts": 1775745823.0,
-      "age_minutes": 563.5,
+      "age_minutes": 615.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -4795,7 +4795,7 @@
       ],
       "published_at": "2026-04-09T14:38:24Z",
       "published_ts": 1775745504.0,
-      "age_minutes": 568.8,
+      "age_minutes": 620.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -4833,7 +4833,7 @@
       ],
       "published_at": "2026-04-09T14:35:15Z",
       "published_ts": 1775745315.0,
-      "age_minutes": 571.9,
+      "age_minutes": 623.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -4871,7 +4871,7 @@
       ],
       "published_at": "2026-04-09T14:31:49Z",
       "published_ts": 1775745109.0,
-      "age_minutes": 575.4,
+      "age_minutes": 626.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -4909,7 +4909,7 @@
       ],
       "published_at": "2026-04-09T14:30:09Z",
       "published_ts": 1775745009.0,
-      "age_minutes": 577.0,
+      "age_minutes": 628.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -4947,7 +4947,7 @@
       ],
       "published_at": "2026-04-09T14:26:33Z",
       "published_ts": 1775744793.0,
-      "age_minutes": 580.6,
+      "age_minutes": 632.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -4985,7 +4985,7 @@
       ],
       "published_at": "2026-04-09T14:20:53Z",
       "published_ts": 1775744453.0,
-      "age_minutes": 586.3,
+      "age_minutes": 637.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -5024,7 +5024,7 @@
       ],
       "published_at": "2026-04-09T14:00:37Z",
       "published_ts": 1775743237.0,
-      "age_minutes": 606.6,
+      "age_minutes": 658.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -5062,7 +5062,7 @@
       ],
       "published_at": "2026-04-09T13:49:11Z",
       "published_ts": 1775742551.0,
-      "age_minutes": 618.0,
+      "age_minutes": 669.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -5100,7 +5100,7 @@
       ],
       "published_at": "2026-04-09T13:42:11Z",
       "published_ts": 1775742131.0,
-      "age_minutes": 625.0,
+      "age_minutes": 676.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -5138,7 +5138,7 @@
       ],
       "published_at": "2026-04-09T13:42:11Z",
       "published_ts": 1775742131.0,
-      "age_minutes": 625.0,
+      "age_minutes": 676.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -5176,7 +5176,7 @@
       ],
       "published_at": "2026-04-09T13:21:06Z",
       "published_ts": 1775740866.0,
-      "age_minutes": 646.1,
+      "age_minutes": 697.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -5214,7 +5214,7 @@
       ],
       "published_at": "2026-04-09T13:18:12Z",
       "published_ts": 1775740692.0,
-      "age_minutes": 649.0,
+      "age_minutes": 700.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -5252,7 +5252,7 @@
       ],
       "published_at": "2026-04-09T13:08:56Z",
       "published_ts": 1775740136.0,
-      "age_minutes": 658.2,
+      "age_minutes": 709.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -5290,7 +5290,7 @@
       ],
       "published_at": "2026-04-09T13:08:40Z",
       "published_ts": 1775740120.0,
-      "age_minutes": 658.5,
+      "age_minutes": 710.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -5328,7 +5328,7 @@
       ],
       "published_at": "2026-04-09T12:58:29Z",
       "published_ts": 1775739509.0,
-      "age_minutes": 668.7,
+      "age_minutes": 720.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -5366,7 +5366,7 @@
       ],
       "published_at": "2026-04-09T12:56:00Z",
       "published_ts": 1775739360.0,
-      "age_minutes": 671.2,
+      "age_minutes": 722.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -5404,7 +5404,7 @@
       ],
       "published_at": "2026-04-09T12:52:19Z",
       "published_ts": 1775739139.0,
-      "age_minutes": 674.9,
+      "age_minutes": 726.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -5442,7 +5442,7 @@
       ],
       "published_at": "2026-04-09T12:24:13Z",
       "published_ts": 1775737453.0,
-      "age_minutes": 703.0,
+      "age_minutes": 754.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -5481,7 +5481,7 @@
       ],
       "published_at": "2026-04-09T11:52:13Z",
       "published_ts": 1775735533.0,
-      "age_minutes": 735.0,
+      "age_minutes": 786.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -5519,7 +5519,7 @@
       ],
       "published_at": "2026-04-09T11:07:37Z",
       "published_ts": 1775732857.0,
-      "age_minutes": 779.6,
+      "age_minutes": 831.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -5557,7 +5557,7 @@
       ],
       "published_at": "2026-04-09T10:50:43Z",
       "published_ts": 1775731843.0,
-      "age_minutes": 796.5,
+      "age_minutes": 848.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -5595,7 +5595,7 @@
       ],
       "published_at": "2026-04-09T10:48:13Z",
       "published_ts": 1775731693.0,
-      "age_minutes": 799.0,
+      "age_minutes": 850.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -5633,7 +5633,7 @@
       ],
       "published_at": "2026-04-09T10:41:37Z",
       "published_ts": 1775731297.0,
-      "age_minutes": 805.6,
+      "age_minutes": 857.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -5671,7 +5671,7 @@
       ],
       "published_at": "2026-04-09T10:40:35Z",
       "published_ts": 1775731235.0,
-      "age_minutes": 806.6,
+      "age_minutes": 858.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -5709,7 +5709,7 @@
       ],
       "published_at": "2026-04-09T10:38:21Z",
       "published_ts": 1775731101.0,
-      "age_minutes": 808.8,
+      "age_minutes": 860.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -5747,7 +5747,7 @@
       ],
       "published_at": "2026-04-09T10:24:29Z",
       "published_ts": 1775730269.0,
-      "age_minutes": 822.7,
+      "age_minutes": 874.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -5785,7 +5785,7 @@
       ],
       "published_at": "2026-04-09T10:18:28Z",
       "published_ts": 1775729908.0,
-      "age_minutes": 828.7,
+      "age_minutes": 880.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -5823,7 +5823,7 @@
       ],
       "published_at": "2026-04-09T10:10:58Z",
       "published_ts": 1775729458.0,
-      "age_minutes": 836.2,
+      "age_minutes": 887.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -5861,7 +5861,7 @@
       ],
       "published_at": "2026-04-09T10:00:00Z",
       "published_ts": 1775728800.0,
-      "age_minutes": 847.2,
+      "age_minutes": 898.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -5899,7 +5899,7 @@
       ],
       "published_at": "2026-04-09T10:00:00Z",
       "published_ts": 1775728800.0,
-      "age_minutes": 847.2,
+      "age_minutes": 898.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -5937,7 +5937,7 @@
       ],
       "published_at": "2026-04-09T09:56:20Z",
       "published_ts": 1775728580.0,
-      "age_minutes": 850.8,
+      "age_minutes": 902.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -5975,7 +5975,7 @@
       ],
       "published_at": "2026-04-09T09:51:36Z",
       "published_ts": 1775728296.0,
-      "age_minutes": 855.6,
+      "age_minutes": 907.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -6013,7 +6013,7 @@
       ],
       "published_at": "2026-04-09T09:42:52Z",
       "published_ts": 1775727772.0,
-      "age_minutes": 864.3,
+      "age_minutes": 915.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -6051,7 +6051,7 @@
       ],
       "published_at": "2026-04-09T09:34:24Z",
       "published_ts": 1775727264.0,
-      "age_minutes": 872.8,
+      "age_minutes": 924.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -6089,7 +6089,7 @@
       ],
       "published_at": "2026-04-09T09:31:54Z",
       "published_ts": 1775727114.0,
-      "age_minutes": 875.3,
+      "age_minutes": 926.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -6127,7 +6127,7 @@
       ],
       "published_at": "2026-04-09T09:07:12Z",
       "published_ts": 1775725632.0,
-      "age_minutes": 900.0,
+      "age_minutes": 951.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -6165,7 +6165,7 @@
       ],
       "published_at": "2026-04-09T09:06:28Z",
       "published_ts": 1775725588.0,
-      "age_minutes": 900.7,
+      "age_minutes": 952.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -6203,7 +6203,7 @@
       ],
       "published_at": "2026-04-09T08:45:44Z",
       "published_ts": 1775724344.0,
-      "age_minutes": 921.4,
+      "age_minutes": 973.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -6241,7 +6241,7 @@
       ],
       "published_at": "2026-04-09T08:25:21Z",
       "published_ts": 1775723121.0,
-      "age_minutes": 941.8,
+      "age_minutes": 993.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -6279,7 +6279,7 @@
       ],
       "published_at": "2026-04-09T08:21:56Z",
       "published_ts": 1775722916.0,
-      "age_minutes": 945.2,
+      "age_minutes": 996.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -6317,7 +6317,7 @@
       ],
       "published_at": "2026-04-09T08:15:26Z",
       "published_ts": 1775722526.0,
-      "age_minutes": 951.7,
+      "age_minutes": 1003.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -6355,7 +6355,7 @@
       ],
       "published_at": "2026-04-09T08:03:30Z",
       "published_ts": 1775721810.0,
-      "age_minutes": 963.7,
+      "age_minutes": 1015.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -6393,7 +6393,7 @@
       ],
       "published_at": "2026-04-09T08:00:00Z",
       "published_ts": 1775721600.0,
-      "age_minutes": 967.2,
+      "age_minutes": 1018.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -6431,7 +6431,7 @@
       ],
       "published_at": "2026-04-09T06:28:14Z",
       "published_ts": 1775716094.0,
-      "age_minutes": 1058.9,
+      "age_minutes": 1110.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -6469,7 +6469,7 @@
       ],
       "published_at": "2026-04-09T06:21:10Z",
       "published_ts": 1775715670.0,
-      "age_minutes": 1066.0,
+      "age_minutes": 1117.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -6507,7 +6507,7 @@
       ],
       "published_at": "2026-04-09T06:20:44Z",
       "published_ts": 1775715644.0,
-      "age_minutes": 1066.4,
+      "age_minutes": 1118.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -6545,7 +6545,7 @@
       ],
       "published_at": "2026-04-09T05:50:50Z",
       "published_ts": 1775713850.0,
-      "age_minutes": 1096.3,
+      "age_minutes": 1147.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -6583,7 +6583,7 @@
       ],
       "published_at": "2026-04-09T05:50:14Z",
       "published_ts": 1775713814.0,
-      "age_minutes": 1096.9,
+      "age_minutes": 1148.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -6621,7 +6621,7 @@
       ],
       "published_at": "2026-04-09T05:23:54Z",
       "published_ts": 1775712234.0,
-      "age_minutes": 1123.3,
+      "age_minutes": 1174.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -6659,7 +6659,7 @@
       ],
       "published_at": "2026-04-09T05:14:29Z",
       "published_ts": 1775711669.0,
-      "age_minutes": 1132.7,
+      "age_minutes": 1184.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -6697,7 +6697,7 @@
       ],
       "published_at": "2026-04-09T05:14:06Z",
       "published_ts": 1775711646.0,
-      "age_minutes": 1133.1,
+      "age_minutes": 1184.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -6735,7 +6735,7 @@
       ],
       "published_at": "2026-04-09T04:54:53Z",
       "published_ts": 1775710493.0,
-      "age_minutes": 1152.3,
+      "age_minutes": 1203.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -6773,7 +6773,7 @@
       ],
       "published_at": "2026-04-09T04:52:01Z",
       "published_ts": 1775710321.0,
-      "age_minutes": 1155.2,
+      "age_minutes": 1206.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -6811,7 +6811,7 @@
       ],
       "published_at": "2026-04-09T04:44:00Z",
       "published_ts": 1775709840.0,
-      "age_minutes": 1163.2,
+      "age_minutes": 1214.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -6849,7 +6849,7 @@
       ],
       "published_at": "2026-04-09T04:31:13Z",
       "published_ts": 1775709073.0,
-      "age_minutes": 1176.0,
+      "age_minutes": 1227.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -6887,7 +6887,7 @@
       ],
       "published_at": "2026-04-09T04:29:01Z",
       "published_ts": 1775708941.0,
-      "age_minutes": 1178.2,
+      "age_minutes": 1229.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -6925,7 +6925,7 @@
       ],
       "published_at": "2026-04-09T04:25:10Z",
       "published_ts": 1775708710.0,
-      "age_minutes": 1182.0,
+      "age_minutes": 1233.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -6963,7 +6963,7 @@
       ],
       "published_at": "2026-04-09T04:01:00Z",
       "published_ts": 1775707260.0,
-      "age_minutes": 1206.2,
+      "age_minutes": 1257.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -7001,7 +7001,7 @@
       ],
       "published_at": "2026-04-09T03:57:53Z",
       "published_ts": 1775707073.0,
-      "age_minutes": 1209.3,
+      "age_minutes": 1260.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -7039,7 +7039,7 @@
       ],
       "published_at": "2026-04-09T03:54:17Z",
       "published_ts": 1775706857.0,
-      "age_minutes": 1212.9,
+      "age_minutes": 1264.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -7077,7 +7077,7 @@
       ],
       "published_at": "2026-04-09T03:40:16Z",
       "published_ts": 1775706016.0,
-      "age_minutes": 1226.9,
+      "age_minutes": 1278.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -7115,7 +7115,7 @@
       ],
       "published_at": "2026-04-09T03:29:23Z",
       "published_ts": 1775705363.0,
-      "age_minutes": 1237.8,
+      "age_minutes": 1289.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -7153,7 +7153,7 @@
       ],
       "published_at": "2026-04-09T03:17:11Z",
       "published_ts": 1775704631.0,
-      "age_minutes": 1250.0,
+      "age_minutes": 1301.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -7191,7 +7191,7 @@
       ],
       "published_at": "2026-04-09T02:35:00Z",
       "published_ts": 1775702100.0,
-      "age_minutes": 1292.2,
+      "age_minutes": 1343.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -7229,7 +7229,7 @@
       ],
       "published_at": "2026-04-09T02:21:35Z",
       "published_ts": 1775701295.0,
-      "age_minutes": 1305.6,
+      "age_minutes": 1357.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -7267,7 +7267,7 @@
       ],
       "published_at": "2026-04-09T02:17:42Z",
       "published_ts": 1775701062.0,
-      "age_minutes": 1309.5,
+      "age_minutes": 1361.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -7305,7 +7305,7 @@
       ],
       "published_at": "2026-04-09T02:14:30Z",
       "published_ts": 1775700870.0,
-      "age_minutes": 1312.7,
+      "age_minutes": 1364.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -7343,7 +7343,7 @@
       ],
       "published_at": "2026-04-09T02:06:46Z",
       "published_ts": 1775700406.0,
-      "age_minutes": 1320.4,
+      "age_minutes": 1372.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -7381,7 +7381,7 @@
       ],
       "published_at": "2026-04-09T02:02:06Z",
       "published_ts": 1775700126.0,
-      "age_minutes": 1325.1,
+      "age_minutes": 1376.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -7419,7 +7419,7 @@
       ],
       "published_at": "2026-04-09T02:00:22Z",
       "published_ts": 1775700022.0,
-      "age_minutes": 1326.8,
+      "age_minutes": 1378.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -7457,7 +7457,7 @@
       ],
       "published_at": "2026-04-09T01:48:24Z",
       "published_ts": 1775699304.0,
-      "age_minutes": 1338.8,
+      "age_minutes": 1390.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -7495,7 +7495,7 @@
       ],
       "published_at": "2026-04-09T01:35:11Z",
       "published_ts": 1775698511.0,
-      "age_minutes": 1352.0,
+      "age_minutes": 1403.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -7533,7 +7533,7 @@
       ],
       "published_at": "2026-04-09T18:29:00Z",
       "published_ts": 1775759340.0,
-      "age_minutes": 338.2,
+      "age_minutes": 389.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -7571,7 +7571,7 @@
       ],
       "published_at": "2026-04-09T18:03:38Z",
       "published_ts": 1775757818.0,
-      "age_minutes": 363.5,
+      "age_minutes": 415.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -7609,7 +7609,7 @@
       ],
       "published_at": "2026-04-09T16:29:43Z",
       "published_ts": 1775752183.0,
-      "age_minutes": 457.5,
+      "age_minutes": 509.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -7647,7 +7647,7 @@
       ],
       "published_at": "2026-04-09T09:00:55Z",
       "published_ts": 1775725255.0,
-      "age_minutes": 906.3,
+      "age_minutes": 957.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -7685,7 +7685,7 @@
       ],
       "published_at": "2026-04-09T04:45:05Z",
       "published_ts": 1775709905.0,
-      "age_minutes": 1162.1,
+      "age_minutes": 1213.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -7723,7 +7723,7 @@
       ],
       "published_at": "2026-04-09T02:15:00Z",
       "published_ts": 1775700900.0,
-      "age_minutes": 1312.2,
+      "age_minutes": 1363.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -7761,7 +7761,7 @@
       ],
       "published_at": "2026-04-09T01:54:51Z",
       "published_ts": 1775699691.0,
-      "age_minutes": 1332.3,
+      "age_minutes": 1383.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -7799,7 +7799,7 @@
       ],
       "published_at": "2026-04-09T19:09:07Z",
       "published_ts": 1775761747.0,
-      "age_minutes": 298.1,
+      "age_minutes": 349.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -7820,7 +7820,7 @@
       "impact": 0.1,
       "clarity": 0.6,
       "relevance": 0.425,
-      "news_catalyst_score": 0.1609,
+      "news_catalyst_score": 0.1602,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
@@ -7837,7 +7837,7 @@
       ],
       "published_at": "2026-04-09T09:25:04Z",
       "published_ts": 1775726704.0,
-      "age_minutes": 882.1,
+      "age_minutes": 933.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -7875,7 +7875,7 @@
       ],
       "published_at": "2026-04-09T02:50:03Z",
       "published_ts": 1775703003.0,
-      "age_minutes": 1277.1,
+      "age_minutes": 1328.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -7913,7 +7913,7 @@
       ],
       "published_at": "2026-04-09T08:31:39Z",
       "published_ts": 1775723499.0,
-      "age_minutes": 935.5,
+      "age_minutes": 987.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -7946,7 +7946,7 @@
   ],
   "news_catalyst_by_symbol": {
     "AAPL": {
-      "news_catalyst_score": 0.3768,
+      "news_catalyst_score": 0.355,
       "sentiment_label": "neutral",
       "event_class": "UNKNOWN",
       "event_label": "$100 Invested In Apple 20 Years Ago Would Be Worth This Much Today - Apple (NASDAQ:AAPL)",
@@ -8011,7 +8011,7 @@
       "story_key": "1c8bcfda062f0534181d30a0d4fc1fdcd4220164:5919055"
     },
     "MSFT": {
-      "news_catalyst_score": 0.3958,
+      "news_catalyst_score": 0.3701,
       "sentiment_label": "neutral",
       "event_class": "UNKNOWN",
       "event_label": "Here's How Much $100 Invested In Microsoft 20 Years Ago Would Be Worth Today - Microsoft (NASDAQ:MSFT)",
