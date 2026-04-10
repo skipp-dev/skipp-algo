@@ -885,6 +885,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--lookback-days", type=int, default=30, help="Trading-day lookback for --run-scan")
     parser.add_argument("--export-dir", type=Path, default=Path("artifacts/smc_microstructure_exports"), help="Output directory for bundle/base artifacts")
     parser.add_argument("--output-root", type=Path, default=Path("."), help="Root directory for canonical generated library artifacts")
+    parser.add_argument(
+        "--cache-dir",
+        type=Path,
+        default=Path(os.getenv("SMC_DATABENTO_CACHE_DIR", "artifacts/databento_volatility_cache")),
+        help="File cache directory for --run-scan Databento data reuse; point this at a persistent path on self-hosted runners",
+    )
     parser.add_argument("--force-refresh", action="store_true", help="Bypass file cache during --run-scan")
     parser.add_argument("--incremental-base-only", action="store_true", help="Reuse the persisted base-only seed and only refresh changed trade days during --run-scan")
     parser.add_argument("--write-xlsx", action="store_true", help="Also emit an .xlsx base workbook for bundle/scan generation")
@@ -957,7 +963,7 @@ def main() -> None:
             lookback_days=int(args.lookback_days),
             force_refresh=bool(args.force_refresh),
             incremental_base_only=bool(args.incremental_base_only),
-            cache_dir=Path("artifacts") / "databento_volatility_cache",
+            cache_dir=args.cache_dir,
             use_file_cache=True,
             display_timezone="Europe/Berlin",
             bullish_score_profile="balanced",

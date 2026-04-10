@@ -7,9 +7,11 @@ from pathlib import Path
 import pandas as pd
 import pytest
 import scripts.databento_production_export as export_mod
+import scripts.generate_smc_micro_base_from_databento as generator_mod
 
 from scripts.generate_smc_micro_base_from_databento import (
     build_base_snapshot_from_workbook,
+    build_parser,
     write_mapping_report,
 )
 from scripts.smc_microstructure_base_runtime import (
@@ -412,3 +414,50 @@ def test_load_fundamental_reference_refreshes_stale_negative_cache(tmp_path: Pat
     )
 
     assert list(frame["symbol"]) == ["AAA"]
+
+
+def test_build_parser_uses_self_hosted_cache_dir_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    cache_dir = Path("/tmp/skipp-self-hosted-cache")
+    monkeypatch.setenv("SMC_DATABENTO_CACHE_DIR", str(cache_dir))
+
+    args = build_parser().parse_args([])
+
+    assert args.cache_dir == cache_dir
+
+
+def test_main_passes_explicit_cache_dir_to_run_scan(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    captured: dict[str, object] = {}
+    cache_dir = tmp_path / "persistent-databento-cache"
+
+    def fake_run_databento_base_scan_pipeline(**kwargs: object) -> dict[str, object]:
+        captured.update(kwargs)
+        return {"status": "ok"}
+
+    monkeypatch.setattr(generator_mod, "run_databento_base_scan_pipeline", fake_run_databento_base_scan_pipeline)
+    monkeypatch.setattr(generator_mod, "finalize_pipeline", lambda **kwargs: {"status": "ok"})
+    monkeypatch.setattr(
+        generator_mod,
+        "_emit_cli_progress",
+        lambda message: None,
+    )
+    monkeypatch.setattr(
+        generator_mod.logger,
+        "info",
+        lambda *args, **kwargs: None,
+    )
+    monkeypatch.setattr(
+        generator_mod.sys,
+        "argv",
+        [
+            "generate_smc_micro_base_from_databento.py",
+            "--run-scan",
+            "--databento-api-key",
+            "demo-key",
+            "--cache-dir",
+            str(cache_dir),
+        ],
+    )
+
+    generator_mod.main()
+
+    assert captured["cache_dir"] == cache_dir
