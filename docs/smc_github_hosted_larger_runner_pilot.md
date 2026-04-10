@@ -11,7 +11,8 @@ The workflow now supports one optional repository variable:
 
 - `SMC_GH_HOSTED_RUNNER`
 
-If the variable is unset, the workflow stays on `ubuntu-latest`.
+If the variable is unset, the workflow runs on the standard GitHub-hosted
+`ubuntu-24.04` image.
 
 ## Recommended Pilot Shape
 
@@ -28,7 +29,9 @@ Reason:
 
 1. In the GitHub organization or enterprise settings, create a new
    GitHub-hosted larger runner.
-2. Pick a Linux x64 image.
+2. Pick the GitHub-owned Linux x64 image `ubuntu-24.04`
+   as documented in
+   `actions/runner-images/images/ubuntu/Ubuntu2404-Readme.md`.
 3. Pick the 4-core size.
 4. Give the runner a stable name such as `ubuntu-24.04-4core`.
 5. Grant the runner group access to the repository `skipp-dev/skipp-algo`.
@@ -49,6 +52,6 @@ The workflow exposes the selected runner in two places:
 Rollback is immediate:
 
 1. delete the repository variable `SMC_GH_HOSTED_RUNNER`
-2. or set it back to `ubuntu-latest`
+2. or set it to `ubuntu-24.04`
 
 No workflow file change is required for rollback.

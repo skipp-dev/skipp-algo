@@ -40,8 +40,8 @@
 #   SMC_GH_HOSTED_RUNNER – Optional GitHub-hosted runner name for this job,
 #                          for example ubuntu-24.04-4core after the runner has
 #                          been created at the org or enterprise level and made
-#                          accessible to this repository. Falls back to
-#                          ubuntu-latest when unset.
+#                          accessible to this repository. Falls back to the
+#                          standard GitHub-hosted ubuntu-24.04 image when unset.
 #
 # Secret compatibility note (v4 → v5):
 #   Secret names are unchanged from v4 — no reconfiguration needed.
@@ -66,7 +66,7 @@ env:
 
 jobs:
   refresh:
-    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER != '' && vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
+    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER != '' && vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-24.04' }}
     timeout-minutes: 120
 
     steps:
@@ -78,7 +78,7 @@ jobs:
 
       - name: Emit runner selection
         run: |
-          echo "::notice::SMC refresh job running on '${{ vars.SMC_GH_HOSTED_RUNNER != '' && vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}'."
+          echo "::notice::SMC refresh job running on '${{ vars.SMC_GH_HOSTED_RUNNER != '' && vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-24.04' }}'."
 
       # ── Checkout ────────────────────────────────────────────────
       - name: Checkout
@@ -340,7 +340,7 @@ jobs:
             echo ""
             echo "| Step | Status |"
             echo "|------|--------|"
-            echo "| Runner | ${{ vars.SMC_GH_HOSTED_RUNNER != '' && vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }} |"
+            echo "| Runner | ${{ vars.SMC_GH_HOSTED_RUNNER != '' && vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-24.04' }} |"
             echo "| Generation (base + enrichment + event-risk) | ${{ steps.gates.outcome != 'skipped' && '✅' || '❌ skipped' }} |"
             echo "| Evidence gates | ${{ steps.gates.outcome == 'success' && '✅ passed' || '❌ failed' }} |"
             echo "| Library changed | ${{ steps.diff.outputs.changed == 'true' && '✅ yes' || '⏭️ no' }} |"
