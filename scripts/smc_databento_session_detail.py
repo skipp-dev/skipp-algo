@@ -173,9 +173,10 @@ def collect_full_universe_session_minute_detail(
         if required_symbols_by_trade_day is None:
             day_required_symbols = set(day_fetch_symbols)
         else:
+            raw_day_required_symbols = required_symbols_by_trade_day.get(trade_day, set())
             day_required_symbols = {
                 str(symbol).strip().upper()
-                for symbol in required_symbols_by_trade_day.get(trade_day, day_fetch_symbols)
+                for symbol in raw_day_required_symbols
                 if str(symbol).strip()
             }
             day_required_symbols &= day_fetch_symbols
@@ -360,11 +361,17 @@ def collect_full_universe_session_minute_detail(
                     "Cumulative runtime-unsupported symbols observed across processed trade days: %d",
                     len(runtime_unsupported_symbols_seen_global),
                 )
-            _assert_complete_symbol_coverage(
-                day_frame,
-                expected_symbols,
-                context=f"Session minute detail for {trade_day}",
-            )
+            if expected_symbols:
+                _assert_complete_symbol_coverage(
+                    day_frame,
+                    expected_symbols,
+                    context=f"Session minute detail for {trade_day}",
+                )
+            else:
+                logger.info(
+                    "Session minute detail for %s skipped hard completeness coverage because required symbol scope is empty.",
+                    trade_day,
+                )
             if use_file_cache:
                 if not day_frame.empty:
                     _write_cached_frame(cache_path, day_frame)

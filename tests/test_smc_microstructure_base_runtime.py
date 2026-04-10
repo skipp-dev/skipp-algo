@@ -1191,6 +1191,35 @@ def test_collect_full_universe_session_minute_detail_allows_optional_symbol_gaps
     assert set(output["symbol"].unique()) == {"AAA"}
 
 
+def test_collect_full_universe_session_minute_detail_skips_hard_coverage_when_required_scope_is_empty(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    class EmptyStore:
+        def to_df(self, count: int = 250_000) -> pd.DataFrame:
+            return pd.DataFrame(columns=["symbol", "ts", "open", "high", "low", "close", "volume", "trade_count"])
+
+    monkeypatch.setattr(session_detail, "_make_databento_client", lambda api_key: object())
+    monkeypatch.setattr(session_detail, "_get_schema_available_end", lambda client, dataset, schema: pd.Timestamp("2026-02-11T03:00:00Z"))
+    monkeypatch.setattr(session_detail, "_databento_get_range_with_retry", lambda *args, **kwargs: EmptyStore())
+    monkeypatch.setattr(session_detail, "_store_to_frame", lambda store, count, context: store.to_df(count=count))
+
+    with caplog.at_level("INFO"):
+        output = collect_full_universe_session_minute_detail(
+            "dummy-key",
+            dataset="DBEQ.BASIC",
+            trading_days=[date(2026, 2, 10)],
+            universe_symbols={"AAA"},
+            expected_symbols_by_trade_day={date(2026, 2, 10): {"AAA"}},
+            required_symbols_by_trade_day={},
+            display_timezone="America/New_York",
+            use_file_cache=False,
+        )
+
+    assert output.empty
+    assert "skipped hard completeness coverage" in caplog.text
+
+
 def test_collect_full_universe_session_minute_detail_runtime_unsupported_symbols_do_not_leak_across_trade_days(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
