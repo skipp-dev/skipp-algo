@@ -188,3 +188,71 @@ def test_production_pipeline_canonical_workbook_helper_invokes_shared_writer(mon
 
     assert path.exists()
     assert recorded["output_path"] == tmp_path / "databento_volatility_production_workbook.xlsx"
+
+
+def test_production_pipeline_canonical_workbook_helper_slims_base_only_sheet_set(monkeypatch, tmp_path: Path) -> None:
+    recorded: dict[str, object] = {}
+
+    def _fake_writer(**kwargs):
+        recorded.update(kwargs)
+        out_path = Path(kwargs["output_path"])
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        out_path.write_bytes(b"ok")
+        return WorkbookWriteResult(
+            output_path=out_path,
+            generated_at="2026-03-26T00:00:00+00:00",
+            row_counts={"summary": len(kwargs["summary"])},
+            sheet_names=["summary"],
+            canonical_upstream_artifact="databento_production_export_bundle",
+        )
+
+    monkeypatch.setattr(export_mod, "write_databento_production_workbook_from_frames", _fake_writer)
+
+    path = export_mod._write_canonical_production_workbook(
+        export_dir=tmp_path,
+        summary=pd.DataFrame([{"symbol": "AAPL"}]),
+        minute_detail=pd.DataFrame([{"timestamp": "2026-03-26T13:30:00Z", "price": 1.0}]),
+        second_detail=pd.DataFrame([{"timestamp": "2026-03-26T13:30:00Z", "price": 1.0}]),
+        manifest={"dataset": "DBEQ.BASIC"},
+        raw_universe=pd.DataFrame([{"symbol": "AAPL"}]),
+        daily_bars=pd.DataFrame([{"trade_date": "2026-03-26", "symbol": "AAPL", "close": 1.0}]),
+        intraday=pd.DataFrame([{"trade_date": "2026-03-26", "symbol": "AAPL"}]),
+        ranked=pd.DataFrame([{"trade_date": "2026-03-26", "symbol": "AAPL"}]),
+        daily_symbol_features_full_universe=pd.DataFrame([{"trade_date": "2026-03-26", "symbol": "AAPL"}]),
+        full_universe_second_detail_open=pd.DataFrame([{"trade_date": "2026-03-26", "symbol": "AAPL"}]),
+        full_universe_second_detail_close=pd.DataFrame([{"trade_date": "2026-03-26", "symbol": "AAPL"}]),
+        full_universe_close_trade_detail=pd.DataFrame([{"trade_date": "2026-03-26", "symbol": "AAPL"}]),
+        full_universe_close_outcome_minute=pd.DataFrame([{"trade_date": "2026-03-26", "symbol": "AAPL"}]),
+        close_imbalance_features_full_universe=pd.DataFrame([{"trade_date": "2026-03-26", "symbol": "AAPL"}]),
+        close_imbalance_outcomes_full_universe=pd.DataFrame([{"trade_date": "2026-03-26", "symbol": "AAPL"}]),
+        premarket_features_full_universe=pd.DataFrame([{"trade_date": "2026-03-26", "symbol": "AAPL"}]),
+        premarket_window_features_full_universe=pd.DataFrame([{"trade_date": "2026-03-26", "symbol": "AAPL"}]),
+        symbol_day_diagnostics=pd.DataFrame([{"trade_date": "2026-03-26", "symbol": "AAPL"}]),
+        research_event_flags_full_universe=pd.DataFrame([{"trade_date": "2026-03-26", "symbol": "AAPL"}]),
+        research_event_flag_coverage=pd.DataFrame([{"trade_date": "2026-03-26"}]),
+        research_event_flag_trade_date_distribution=pd.DataFrame([{"trade_date": "2026-03-26"}]),
+        research_event_flag_outcome_slices=pd.DataFrame([{"bucket": "all"}]),
+        research_news_flags_full_universe=pd.DataFrame([{"trade_date": "2026-03-26", "symbol": "AAPL"}]),
+        research_news_flag_coverage=pd.DataFrame([{"trade_date": "2026-03-26"}]),
+        research_news_flag_trade_date_distribution=pd.DataFrame([{"trade_date": "2026-03-26"}]),
+        research_news_flag_outcome_slices=pd.DataFrame([{"bucket": "all"}]),
+        core_vs_benzinga_news_side_by_side=pd.DataFrame([{"trade_date": "2026-03-26", "symbol": "AAPL"}]),
+        core_vs_benzinga_news_overlap_stats=pd.DataFrame([{"bucket": "all"}]),
+        quality_window_status=pd.DataFrame([{"symbol": "AAPL"}]),
+        batl_debug={"ok": True},
+        output_summary={"rows": 1},
+        smc_base_only=True,
+    )
+
+    assert path.exists()
+    assert isinstance(recorded["minute_detail"], pd.DataFrame)
+    assert recorded["minute_detail"].empty
+    assert isinstance(recorded["second_detail"], pd.DataFrame)
+    assert recorded["second_detail"].empty
+    assert isinstance(recorded["additional_sheets"], dict)
+    assert set(recorded["additional_sheets"].keys()) == {
+        "manifest",
+        "daily_bars",
+        "batl_debug",
+        "output_checks",
+    }

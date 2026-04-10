@@ -220,6 +220,13 @@ SMC_BASE_ONLY_RUNTIME_BUNDLE_FRAME_NAMES = (
     "daily_symbol_features_full_universe",
 )
 
+SMC_BASE_ONLY_CANONICAL_WORKBOOK_SHEET_NAMES = (
+    "manifest",
+    "daily_bars",
+    "batl_debug",
+    "output_checks",
+)
+
 SECOND_DETAIL_EXPORT_COLUMNS = [
     "trade_date",
     "symbol",
@@ -3101,43 +3108,54 @@ def _write_canonical_production_workbook(
     quality_window_status: pd.DataFrame,
     batl_debug: dict[str, Any],
     output_summary: dict[str, Any],
+    smc_base_only: bool = False,
 ) -> Path:
     canonical_workbook = canonical_production_workbook_path(export_dir=export_dir)
+    additional_sheets = {
+        "manifest": build_run_manifest_frame(manifest),
+        "universe": raw_universe,
+        "daily_bars": daily_bars,
+        "intraday_all": intraday,
+        "ranked": ranked,
+        "daily_symbol_features_full_universe": daily_symbol_features_full_universe,
+        "full_universe_second_detail_open": full_universe_second_detail_open,
+        "full_universe_second_detail_close": full_universe_second_detail_close,
+        "full_universe_close_trade_detail": full_universe_close_trade_detail,
+        "full_universe_close_outcome_minute": full_universe_close_outcome_minute,
+        "close_imbalance_features_full_universe": close_imbalance_features_full_universe,
+        "close_imbalance_outcomes_full_universe": close_imbalance_outcomes_full_universe,
+        "premarket_features_full_universe": premarket_features_full_universe,
+        "premarket_window_features_full_universe": premarket_window_features_full_universe,
+        "symbol_day_diagnostics": symbol_day_diagnostics,
+        "research_event_flags_full_universe": research_event_flags_full_universe,
+        "research_event_flag_coverage": research_event_flag_coverage,
+        "research_event_flag_trade_date_distribution": research_event_flag_trade_date_distribution,
+        "research_event_flag_outcome_slices": research_event_flag_outcome_slices,
+        "research_news_flags_full_universe": research_news_flags_full_universe,
+        "research_news_flag_coverage": research_news_flag_coverage,
+        "research_news_flag_trade_date_distribution": research_news_flag_trade_date_distribution,
+        "research_news_flag_outcome_slices": research_news_flag_outcome_slices,
+        "core_vs_benzinga_news_side_by_side": core_vs_benzinga_news_side_by_side,
+        "core_vs_benzinga_news_overlap_stats": core_vs_benzinga_news_overlap_stats,
+        "quality_window_status_latest": quality_window_status,
+        "batl_debug": pd.DataFrame([batl_debug]),
+        "output_checks": pd.DataFrame([output_summary]),
+    }
+    workbook_minute_detail = minute_detail
+    workbook_second_detail = second_detail
+    if smc_base_only:
+        allowed_sheet_names = set(SMC_BASE_ONLY_CANONICAL_WORKBOOK_SHEET_NAMES)
+        additional_sheets = {
+            name: frame for name, frame in additional_sheets.items() if name in allowed_sheet_names
+        }
+        workbook_minute_detail = pd.DataFrame()
+        workbook_second_detail = pd.DataFrame()
     workbook_result = write_databento_production_workbook_from_frames(
         summary=summary,
         output_path=canonical_workbook,
-        minute_detail=minute_detail,
-        second_detail=second_detail,
-        additional_sheets={
-            "manifest": build_run_manifest_frame(manifest),
-            "universe": raw_universe,
-            "daily_bars": daily_bars,
-            "intraday_all": intraday,
-            "ranked": ranked,
-            "daily_symbol_features_full_universe": daily_symbol_features_full_universe,
-            "full_universe_second_detail_open": full_universe_second_detail_open,
-            "full_universe_second_detail_close": full_universe_second_detail_close,
-            "full_universe_close_trade_detail": full_universe_close_trade_detail,
-            "full_universe_close_outcome_minute": full_universe_close_outcome_minute,
-            "close_imbalance_features_full_universe": close_imbalance_features_full_universe,
-            "close_imbalance_outcomes_full_universe": close_imbalance_outcomes_full_universe,
-            "premarket_features_full_universe": premarket_features_full_universe,
-            "premarket_window_features_full_universe": premarket_window_features_full_universe,
-            "symbol_day_diagnostics": symbol_day_diagnostics,
-            "research_event_flags_full_universe": research_event_flags_full_universe,
-            "research_event_flag_coverage": research_event_flag_coverage,
-            "research_event_flag_trade_date_distribution": research_event_flag_trade_date_distribution,
-            "research_event_flag_outcome_slices": research_event_flag_outcome_slices,
-            "research_news_flags_full_universe": research_news_flags_full_universe,
-            "research_news_flag_coverage": research_news_flag_coverage,
-            "research_news_flag_trade_date_distribution": research_news_flag_trade_date_distribution,
-            "research_news_flag_outcome_slices": research_news_flag_outcome_slices,
-            "core_vs_benzinga_news_side_by_side": core_vs_benzinga_news_side_by_side,
-            "core_vs_benzinga_news_overlap_stats": core_vs_benzinga_news_overlap_stats,
-            "quality_window_status_latest": quality_window_status,
-            "batl_debug": pd.DataFrame([batl_debug]),
-            "output_checks": pd.DataFrame([output_summary]),
-        },
+        minute_detail=workbook_minute_detail,
+        second_detail=workbook_second_detail,
+        additional_sheets=additional_sheets,
     )
     return workbook_result.output_path
 
@@ -3882,6 +3900,7 @@ def run_production_export_pipeline(
         quality_window_status=quality_window_status,
         batl_debug=batl_debug,
         output_summary=output_summary,
+        smc_base_only=smc_base_only,
     )
     _progress(
         f"Step 10/10b complete: Canonical production workbook written in {time_module.perf_counter() - canonical_workbook_started_at:.1f}s"
