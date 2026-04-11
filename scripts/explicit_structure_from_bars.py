@@ -53,23 +53,29 @@ def resample_bars_to_timeframe(df: pd.DataFrame, timeframe: str) -> pd.DataFrame
         return bars[["symbol", "timestamp", "open", "high", "low", "close", "volume"]].reset_index(drop=True)
 
     parts: list[pd.DataFrame] = []
+    bucket_offset = pd.tseries.frequencies.to_offset(freq)
     for symbol, group in bars.groupby("symbol", sort=False):
-        indexed = group.set_index("timestamp").sort_index()
-        max_source_ts = indexed.index.max()
-        agg = indexed.resample(freq, label="right", closed="right").agg(
-            {
-                "open": "first",
-                "high": "max",
-                "low": "min",
-                "close": "last",
-                "volume": "sum",
-            }
+        grouped = group.sort_values("timestamp").copy()
+        max_source_ts = grouped["timestamp"].max()
+        floored = grouped["timestamp"].dt.floor(freq)
+        grouped["bucket_end"] = floored.where(grouped["timestamp"].eq(floored), floored + bucket_offset)
+        agg = (
+            grouped.groupby("bucket_end", sort=True, dropna=True)
+            .agg(
+                open=("open", "first"),
+                high=("high", "max"),
+                low=("low", "min"),
+                close=("close", "last"),
+                volume=("volume", "sum"),
+            )
+            .reset_index()
+            .rename(columns={"bucket_end": "timestamp"})
         )
         if not agg.empty and pd.notna(max_source_ts):
             # Prevent a partial trailing bucket from being treated as a confirmed bar.
-            if pd.Timestamp(agg.index[-1]) > pd.Timestamp(max_source_ts):
+            if pd.Timestamp(agg["timestamp"].iloc[-1]) > pd.Timestamp(max_source_ts):
                 agg = agg.iloc[:-1]
-        agg = agg.dropna(subset=["open", "high", "low", "close"]).reset_index()
+        agg = agg.dropna(subset=["open", "high", "low", "close"]).reset_index(drop=True)
         if agg.empty:
             continue
         agg.insert(0, "symbol", symbol)
