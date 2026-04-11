@@ -37,6 +37,46 @@ def _render(report: dict[str, Any], output: str) -> None:
     path.write_text(rendered + "\n", encoding="utf-8")
 
 
+def _artifact_has_structure_signal(artifact: Any) -> bool:
+    if not isinstance(artifact, dict):
+        return False
+
+    coverage_mode = str(artifact.get("coverage_mode", "")).strip().lower()
+    if coverage_mode and coverage_mode != "none":
+        return True
+
+    for key in ("has_bos", "has_orderblocks", "has_fvg", "has_liquidity_sweeps"):
+        if bool(artifact.get(key)):
+            return True
+
+    for key in ("bos_count", "orderblocks_count", "fvg_count", "liquidity_sweeps_count"):
+        value = artifact.get(key, 0)
+        try:
+            if int(value) > 0:
+                return True
+        except (TypeError, ValueError):
+            continue
+
+    return False
+
+
+def _collect_structurally_empty_failure(manifest: dict[str, Any], *, timeframe: str) -> dict[str, Any] | None:
+    artifacts = manifest.get("artifacts")
+    if not isinstance(artifacts, list) or not artifacts:
+        return None
+
+    if any(_artifact_has_structure_signal(artifact) for artifact in artifacts):
+        return None
+
+    coverage_modes = sorted({str(artifact.get("coverage_mode", "none")) for artifact in artifacts if isinstance(artifact, dict)})
+    return {
+        "code": "REFRESH_EMPTY_REFERENCE_ARTIFACTS",
+        "timeframe": timeframe,
+        "artifacts_evaluated": len(artifacts),
+        "coverage_modes": coverage_modes,
+    }
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Refresh release-reference structure artifacts before strict release gates.")
     parser.add_argument("--symbols", default=csv_from_values(RELEASE_REFERENCE_SYMBOLS), help="Comma-separated reference symbols.")
@@ -129,6 +169,10 @@ def main() -> int:
                     "artifacts_written": artifacts_written,
                 }
             )
+
+        empty_failure = _collect_structurally_empty_failure(manifest, timeframe=timeframe)
+        if empty_failure is not None:
+            failures.append(empty_failure)
 
     checked_at = float(time.time())
     exit_code = 1 if failures else 0
