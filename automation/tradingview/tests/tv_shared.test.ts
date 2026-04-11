@@ -8,6 +8,7 @@ import {
   editorDiagnosticsSuggestOpenHost,
   resolvePublishNoChangeCleanupActions,
   resolveOpenScriptIdentityEvidence,
+  openScriptSurfaceScopeLooksReady,
   settingsDialogTitleMatchesScriptName,
   resolveTradingViewHeadlessDefault,
   validateTradingViewStorageState,
@@ -75,6 +76,24 @@ test("editor diagnostics reject toolbar-free non-editor states", () => {
     pineTexts: ["Save", "Publish"],
     relevantBodyLines: ["Save", "Publish"],
   }), false);
+});
+
+test("open script surface readiness ignores unrelated global search inputs", () => {
+  assert.equal(openScriptSurfaceScopeLooksReady({
+    scopedSearchVisible: false,
+    scopedMyScriptsVisible: false,
+  }), false);
+});
+
+test("open script surface readiness accepts scoped picker cues", () => {
+  assert.equal(openScriptSurfaceScopeLooksReady({
+    scopedSearchVisible: true,
+    scopedMyScriptsVisible: false,
+  }), true);
+  assert.equal(openScriptSurfaceScopeLooksReady({
+    scopedSearchVisible: false,
+    scopedMyScriptsVisible: true,
+  }), true);
 });
 
 test("TradingView headless default stays headed locally", () => {

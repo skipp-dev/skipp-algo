@@ -1065,11 +1065,33 @@ function openScriptSurfaceScopes(page: Page): Locator[] {
   ];
 }
 
+type OpenScriptSurfaceScopeState = {
+  scopedSearchVisible: boolean;
+  scopedMyScriptsVisible: boolean;
+};
+
+export function openScriptSurfaceScopeLooksReady(state: OpenScriptSurfaceScopeState): boolean {
+  return state.scopedSearchVisible || state.scopedMyScriptsVisible;
+}
+
+function openScriptSurfaceSearchLocators(scope: Locator): Locator[] {
+  return [
+    scope.getByRole("textbox", { name: /search/i }),
+    scope.getByPlaceholder(/search/i),
+    scope.locator('input[type="search"], input[placeholder*="Search" i]'),
+  ];
+}
+
 async function fillOpenScriptSearch(page: Page, value: string): Promise<boolean> {
   for (const scope of openScriptSurfaceScopes(page)) {
-    const candidate = await firstVisibleLocator(scope.getByRole("textbox", { name: /search/i }), 750)
-      ?? await firstVisibleLocator(scope.getByPlaceholder(/search/i), 750)
-      ?? await firstVisibleLocator(scope.locator('input[type="search"], input[placeholder*="Search" i]'), 750);
+    let candidate: Locator | null = null;
+
+    for (const locator of openScriptSurfaceSearchLocators(scope)) {
+      candidate = await firstVisibleLocator(locator, 750);
+      if (candidate) {
+        break;
+      }
+    }
 
     if (!candidate) {
       continue;
@@ -1086,23 +1108,25 @@ async function fillOpenScriptSearch(page: Page, value: string): Promise<boolean>
   return false;
 }
 
-function openScriptSurfaceMyScriptsLocators(page: Page): Locator[] {
-  return openScriptSurfaceScopes(page).flatMap((scope) => {
-    const myScriptsText = scope
-      .locator('[class*="title" i], [data-name*="title" i], [class*="label" i], [data-name*="label" i]')
-      .filter({ hasText: /^my scripts$/i })
-      .first();
+function openScriptSurfaceMyScriptsLocatorsForScope(scope: Locator): Locator[] {
+  const myScriptsText = scope
+    .locator('[class*="title" i], [data-name*="title" i], [class*="label" i], [data-name*="label" i]')
+    .filter({ hasText: /^my scripts$/i })
+    .first();
 
-    return [
-      scope.getByRole("tab", { name: /my scripts/i }),
-      scope.getByRole("button", { name: /my scripts/i }),
-      scope.getByRole("link", { name: /my scripts/i }),
-      scope.getByRole("menuitem", { name: /my scripts/i }),
-      myScriptsText,
-      myScriptsText.locator('xpath=ancestor::*[@data-id or @role="tab" or @role="button" or @role="link" or @role="menuitem" or contains(@class, "item")][1]'),
-      scope.getByText(/^personal$/i),
-    ];
-  });
+  return [
+    scope.getByRole("tab", { name: /my scripts/i }),
+    scope.getByRole("button", { name: /my scripts/i }),
+    scope.getByRole("link", { name: /my scripts/i }),
+    scope.getByRole("menuitem", { name: /my scripts/i }),
+    myScriptsText,
+    myScriptsText.locator('xpath=ancestor::*[@data-id or @role="tab" or @role="button" or @role="link" or @role="menuitem" or contains(@class, "item")][1]'),
+    scope.getByText(/^personal$/i),
+  ];
+}
+
+function openScriptSurfaceMyScriptsLocators(page: Page): Locator[] {
+  return openScriptSurfaceScopes(page).flatMap((scope) => openScriptSurfaceMyScriptsLocatorsForScope(scope));
 }
 
 async function activateOpenScriptMyScriptsSection(page: Page): Promise<boolean> {
@@ -2183,11 +2207,14 @@ async function waitForScriptSearchSurface(page: Page, timeoutMs = 2_000): Promis
   const startedAt = Date.now();
 
   while (Date.now() - startedAt < timeoutMs) {
-    if (await hasVisibleLocator([
-      ...tvSelectors.scriptSearch(page),
-      ...tvSelectors.myScriptsTab(page),
-    ], 200)) {
-      return true;
+    for (const scope of openScriptSurfaceScopes(page)) {
+      const scopeState: OpenScriptSurfaceScopeState = {
+        scopedSearchVisible: await hasVisibleLocator(openScriptSurfaceSearchLocators(scope), 200),
+        scopedMyScriptsVisible: await hasVisibleLocator(openScriptSurfaceMyScriptsLocatorsForScope(scope), 200),
+      };
+      if (openScriptSurfaceScopeLooksReady(scopeState)) {
+        return true;
+      }
     }
 
     await page.waitForTimeout(100);
