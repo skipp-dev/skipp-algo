@@ -4,12 +4,449 @@
     "fmp_stock": 0.0,
     "fmp_press": 0.0,
     "fmp_articles": 0.0,
-    "newsapi_ai": 1775851047.0,
+    "newsapi_ai": 1775866285.0,
     "tv": 0.0,
-    "legacy_cursor": 1775851047.0
+    "legacy_cursor": 1775866285.0
   },
   "provider_state": {},
   "story_state": {
+    "b330933e711bf6be3c0b646ea023bb9d328caef5:5919538": {
+      "story_key": "b330933e711bf6be3c0b646ea023bb9d328caef5:5919538",
+      "cluster_hash": "b330933e711bf6be3c0b646ea023bb9d328caef5",
+      "headline": "Ex-JPM Quant Chief Marko Kolanovic Dismisses Nasdaq's Post-Ceasefire Rally as Built on Sand, Warns of Sharp Reversal - Tekedia",
+      "tickers": [
+        "JPM"
+      ],
+      "published_ts": 1775861673.0,
+      "first_seen_ts": 1775868787.3489347,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Tekedia"
+      ],
+      "url": "https://www.tekedia.com/ex-jpm-quant-chief-marko-kolanovic-dismisses-nasdaqs-post-ceasefire-rally-as-built-on-sand-warns-of-sharp-reversal/",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775868787.3489347
+    },
+    "ffac4475ab2333d4f4cf5d15dafec19ec07b7975:5919517": {
+      "story_key": "ffac4475ab2333d4f4cf5d15dafec19ec07b7975:5919517",
+      "cluster_hash": "ffac4475ab2333d4f4cf5d15dafec19ec07b7975",
+      "headline": "Amazon Stock Just Saw Its Biggest Surge in Months. Here Are 3 Reasons AMZN Is a Great Buy Right Now",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_ts": 1775855130.0,
+      "first_seen_ts": 1775868787.3489347,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "NASDAQ Stock Market"
+      ],
+      "url": "https://www.nasdaq.com/articles/amazon-stock-just-saw-its-biggest-surge-months-here-are-3-reasons-amzn-great-buy-right-now",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "polarity": 0.5,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775868787.3489347
+    },
+    "1e607adbc2e8fe902dea02f3a0e3e3f26f811535:5919522": {
+      "story_key": "1e607adbc2e8fe902dea02f3a0e3e3f26f811535:5919522",
+      "cluster_hash": "1e607adbc2e8fe902dea02f3a0e3e3f26f811535",
+      "headline": "See Which Recent 13F Filers Hold JPM",
+      "tickers": [
+        "JPM"
+      ],
+      "published_ts": 1775856805.0,
+      "first_seen_ts": 1775868787.3489347,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "NASDAQ Stock Market"
+      ],
+      "url": "https://www.nasdaq.com/articles/see-which-recent-13f-filers-hold-jpm",
+      "category": "insider",
+      "impact": 0.85,
+      "clarity": 0.7,
+      "relevance": 0.8425,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775868787.3489347
+    },
+    "d0b9a241217975b1abe15878d88fd0608a2bba11:5919508": {
+      "story_key": "d0b9a241217975b1abe15878d88fd0608a2bba11:5919508",
+      "cluster_hash": "d0b9a241217975b1abe15878d88fd0608a2bba11",
+      "headline": "After Hours Most Active for Apr 10, 2026 :  FUSE, T, NVDA, PRMB, KOS, PG, CRWV, AAPL, KHC, AMZN, BAC, XOM",
+      "tickers": [
+        "AAPL",
+        "AMZN",
+        "XOM"
+      ],
+      "published_ts": 1775852699.0,
+      "first_seen_ts": 1775868787.3489347,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "NASDAQ Stock Market"
+      ],
+      "url": "https://www.nasdaq.com/articles/after-hours-most-active-apr-10-2026-fuse-t-nvda-prmb-kos-pg-crwv-aapl-khc-amzn-bac-xom",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.485,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775868787.3489347
+    },
+    "a3d241bbe9e3abf72ed0b1d0d9383bfa8b1b99be:5919517": {
+      "story_key": "a3d241bbe9e3abf72ed0b1d0d9383bfa8b1b99be:5919517",
+      "cluster_hash": "a3d241bbe9e3abf72ed0b1d0d9383bfa8b1b99be",
+      "headline": "Amazon Stock Just Saw Its Biggest Surge in Months. Here Are 3 Reasons AMZN Is a Great Buy Right Now | The Motley Fool",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_ts": 1775855130.0,
+      "first_seen_ts": 1775868787.3489347,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "The Motley Fool"
+      ],
+      "url": "https://www.fool.com/investing/2026/04/10/amazon-stock-just-saw-its-biggest-surge-in-months/",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "polarity": 0.5,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775868787.3489347
+    },
+    "33931f1ca8cc61d22992ce4180feb38fb79578d5:5919554": {
+      "story_key": "33931f1ca8cc61d22992ce4180feb38fb79578d5:5919554",
+      "cluster_hash": "33931f1ca8cc61d22992ce4180feb38fb79578d5",
+      "headline": "CoreWeave Inks $21B AI Infrastructure Deal With Meta Platforms",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775866285.0,
+      "first_seen_ts": 1775868787.3489347,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Quartz"
+      ],
+      "url": "https://qz.com/coreweave-inks-21b-ai-infrastructure-deal-with-meta-platforms",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775868787.3489347
+    },
+    "c640972cc96e8d6849d3ac9e7e9d6dbee1dd8b72:5919552": {
+      "story_key": "c640972cc96e8d6849d3ac9e7e9d6dbee1dd8b72:5919552",
+      "cluster_hash": "c640972cc96e8d6849d3ac9e7e9d6dbee1dd8b72",
+      "headline": "I matched the upgraded Meta AI against ChatGPT, and you can really tell which AI has social media roots",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775865600.0,
+      "first_seen_ts": 1775868787.3489347,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "TechRadar"
+      ],
+      "url": "https://www.techradar.com/ai-platforms-assistants/i-matched-the-upgraded-meta-ai-against-chatgpt-and-you-can-really-tell-which-ai-has-social-media-roots",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775868787.3489347
+    },
+    "99e6c96ead16013d7fa47ab692a5193634f183a0:5919544": {
+      "story_key": "99e6c96ead16013d7fa47ab692a5193634f183a0:5919544",
+      "cluster_hash": "99e6c96ead16013d7fa47ab692a5193634f183a0",
+      "headline": "Meta Platforms: A Strong Contender in the Social Media Arena",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775863200.0,
+      "first_seen_ts": 1775868787.3489347,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "NASDAQ Stock Market"
+      ],
+      "url": "https://www.nasdaq.com/articles/meta-platforms-strong-contender-social-media-arena",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.5,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775868787.3489347
+    },
+    "910f85cc55da156636969a220e138070e172e063:5919528": {
+      "story_key": "910f85cc55da156636969a220e138070e172e063:5919528",
+      "cluster_hash": "910f85cc55da156636969a220e138070e172e063",
+      "headline": "Susan E. M. Mundy (nee Taylor) - Nanaimo News Bulletin",
+      "tickers": [
+        "NEE"
+      ],
+      "published_ts": 1775858400.0,
+      "first_seen_ts": 1775868787.3489347,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Nanaimo News Bulletin"
+      ],
+      "url": "https://nanaimobulletin.com/2026/04/10/susan-e-m-mundy-nee-taylor/",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775868787.3489347
+    },
+    "e27a9568a66379d7fcf72469b716f46d4baba49b:5919527": {
+      "story_key": "e27a9568a66379d7fcf72469b716f46d4baba49b:5919527",
+      "cluster_hash": "e27a9568a66379d7fcf72469b716f46d4baba49b",
+      "headline": "Massachusetts SJC allows AG Andrea Campbell's suit against social media giant Meta to continue",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775858155.0,
+      "first_seen_ts": 1775868787.3489347,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Boston Herald"
+      ],
+      "url": "https://www.bostonherald.com/2026/04/10/massachusetts-sjc-allows-ag-andrea-campbells-suit-against-social-media-giant-meta-to-continue/",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775868787.3489347
+    },
+    "997b40d8bf1c17ecc54bb138e38f0782a80b5fb1:5919531": {
+      "story_key": "997b40d8bf1c17ecc54bb138e38f0782a80b5fb1:5919531",
+      "cluster_hash": "997b40d8bf1c17ecc54bb138e38f0782a80b5fb1",
+      "headline": "Meta Descriptions That Earn Clicks for Service Businesses",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775859584.0,
+      "first_seen_ts": 1775868787.3489347,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Sleek Web Designs"
+      ],
+      "url": "https://www.sleekwebdesigns.com/meta-descriptions-that-earn-clicks-for-service-businesses/",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775868787.3489347
+    },
+    "cccab5fa9f4184ec9522f796b25d9dd231100f48:5919525": {
+      "story_key": "cccab5fa9f4184ec9522f796b25d9dd231100f48:5919525",
+      "cluster_hash": "cccab5fa9f4184ec9522f796b25d9dd231100f48",
+      "headline": "Meta must face Mass. claims over social media harms, state's top court rules | MLex | Specialist news and analysis on legal risk and regulation",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775857686.0,
+      "first_seen_ts": 1775868787.3489347,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "mlex.com"
+      ],
+      "url": "https://www.mlex.com/mlex/articles/2464269/meta-must-face-mass-claims-over-social-media-harms-state-s-top-court-rules",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775868787.3489347
+    },
+    "7fd4f5e20e81e93578dec5e3d2542bc8a50d680b:5919514": {
+      "story_key": "7fd4f5e20e81e93578dec5e3d2542bc8a50d680b:5919514",
+      "cluster_hash": "7fd4f5e20e81e93578dec5e3d2542bc8a50d680b",
+      "headline": "Meta Pulls Recruitment Ads for People Addicted to Social Media",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775854471.0,
+      "first_seen_ts": 1775868787.3489347,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "NTD"
+      ],
+      "url": "https://www.ntd.com/meta-pulls-recruitment-ads-for-people-addicted-to-social-media_1137904.html",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.45543478260869563,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775868787.3489347
+    },
+    "9d9ca6a2dfaf36a7140d7a3eda6f9af3e45e5b39:5919505": {
+      "story_key": "9d9ca6a2dfaf36a7140d7a3eda6f9af3e45e5b39:5919505",
+      "cluster_hash": "9d9ca6a2dfaf36a7140d7a3eda6f9af3e45e5b39",
+      "headline": "Court allows Meta youth addiction lawsuit to proceed in Massachusetts",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775851600.0,
+      "first_seen_ts": 1775868787.3489347,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "The Hill"
+      ],
+      "url": "https://thehill.com/policy/technology/5826114-meta-design-lawsuit-advances/",
+      "category": "lawsuit",
+      "impact": 0.25,
+      "clarity": 0.6,
+      "relevance": 0.5425,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775868787.3489347
+    },
+    "8f1a6cc6227a0079404a0e054938b2371adda54c:5919507": {
+      "story_key": "8f1a6cc6227a0079404a0e054938b2371adda54c:5919507",
+      "cluster_hash": "8f1a6cc6227a0079404a0e054938b2371adda54c",
+      "headline": "Massachusetts Court Holds Meta Accountable: A Legal Milestone | Law-Order",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1775852100.0,
+      "first_seen_ts": 1775868787.3489347,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Devdiscourse"
+      ],
+      "url": "https://www.devdiscourse.com/article/law-order/3869982-massachusetts-court-holds-meta-accountable-a-legal-milestone",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1775868787.3489347
+    },
     "593af59f71043b4703dd4b199c4e840211f3a315:5919482": {
       "story_key": "593af59f71043b4703dd4b199c4e840211f3a315:5919482",
       "cluster_hash": "593af59f71043b4703dd4b199c4e840211f3a315",
