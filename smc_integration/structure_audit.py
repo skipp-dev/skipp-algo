@@ -194,9 +194,6 @@ def discover_structure_category_coverage() -> dict[str, dict[str, Any]]:
         notes_by_category["bos"].append("No live explicit structure artifact provider is currently available.")
         notes_by_category["choch"].append("No live explicit structure artifact provider is currently available.")
 
-    if not mapped_categories.get("choch") and mapped_categories.get("bos"):
-        mapped_categories["choch"] = True
-
     report: dict[str, dict[str, Any]] = {}
     for category in _CATEGORY_ORDER:
         available = bool(mapped_categories.get(category, False))

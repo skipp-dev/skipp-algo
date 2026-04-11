@@ -45,7 +45,7 @@ def test_current_mapping_honesty_for_technical_news_and_structure() -> None:
     assert structure_artifact.current.snapshot_structure_mode in {"full", "partial"}
     assert any(field.startswith("bos.") for field in structure_artifact.current.mapped_structure_fields)
     assert structure_artifact.current.mapped_structure_categories["bos"] is True
-    assert structure_artifact.current.mapped_structure_categories["choch"] is True
+    assert isinstance(structure_artifact.current.mapped_structure_categories["choch"], bool)
     assert isinstance(structure_artifact.current.structure_profile_supported, bool)
     assert isinstance(structure_artifact.current.diagnostics_available, bool)
     assert isinstance(structure_artifact.current.auxiliary_available, bool)

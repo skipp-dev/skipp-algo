@@ -59,7 +59,7 @@ Phase 15 workbook lineage contract:
 3. authoritative producer path is daily export in [../scripts/databento_production_export.py](../scripts/databento_production_export.py)
 4. canonical workbook path is deterministic: `artifacts/smc_microstructure_exports/databento_volatility_production_workbook.xlsx`
 5. Streamlit scanner is a consumer of shared workbook logic, not an owner of private workbook generation
-6. structure artifact producers consume the canonical workbook path first and retain legacy fallback compatibility
+6. structure artifact producers honor explicit caller inputs first; canonical workbook/export-bundle auto-resolution is only for productive repo-state paths and must not override an explicit workbook-only request
 7. IBKR remains execution/preview oriented and is not promoted to an SMC upstream data provider
 8. L2/DOM is not evidenced as required by the current production-to-structure lineage
 
@@ -93,7 +93,7 @@ Current explicit structure category coverage (provider-backed) is dynamically de
 artifact payload contents and is expected to evolve by symbol/timeframe:
 
 1. `bos`: available
-2. `choch`: available (via `bos.kind=CHOCH` in explicit BOS event family)
+2. `choch`: available only when explicit `bos.kind=CHOCH` events are present in current artifacts
 3. `orderblocks`: available when detected by two-candle displacement rules
 4. `fvg`: available when detected by three-candle gap rules
 5. `liquidity_sweeps`: available when pivot-liquidity sweeps are detected
@@ -218,6 +218,7 @@ Owns the public domain types for:
 3. `SmcSnapshot`
 4. `ZoneStyle`
 5. concrete timed wrapper types
+
 
 ### smc_core/ids.py
 

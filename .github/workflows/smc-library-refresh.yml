@@ -55,10 +55,11 @@ permissions:
 
 env:
   REFRESH_DATE: ""   # set dynamically in the date step
+  SMC_REFRESH_RUNNER_LABEL: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
 
 jobs:
   refresh:
-    runs-on: ubuntu-24.04-4core
+    runs-on: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 120
 
     steps:
@@ -70,7 +71,7 @@ jobs:
 
       - name: Emit runner selection
         run: |
-          echo "::notice::SMC refresh job running on 'ubuntu-24.04-4core'."
+          echo "::notice::SMC refresh job running on label '${{ env.SMC_REFRESH_RUNNER_LABEL }}' (runner='${{ runner.name }}')."
 
       # ── Checkout ────────────────────────────────────────────────
       - name: Checkout
@@ -228,14 +229,27 @@ jobs:
           echo "breaking=${BREAKING}" >> "$GITHUB_OUTPUT"
           echo "reason=${REASON}" >> "$GITHUB_OUTPUT"
 
-      # ── Publish-contract verification ────────────────────────────
-      - name: Verify publish contract and productivity gate
-        id: contract
+      # ── Release-reference artifact refresh + strict gates ───────
+      - name: Refresh release reference artifacts
+        id: pre_release_refresh
         if: steps.diff.outputs.changed == 'true'
         run: |
-          python scripts/verify_smc_micro_publish_contract.py \
-            --manifest pine/generated/smc_micro_profiles_generated.json \
-            --core SMC_Core_Engine.pine
+          python scripts/run_smc_pre_release_artifact_refresh.py \
+            --output artifacts/ci/smc_pre_release_artifact_refresh_report.json
+
+      - name: Run strict release gates
+        id: release_gates
+        if: steps.diff.outputs.changed == 'true'
+        run: |
+          python scripts/run_smc_release_gates.py \
+            --output artifacts/ci/smc_release_gates_report.json
+
+      - name: Refresh gate evidence summary
+        if: always()
+        run: |
+          python scripts/collect_smc_gate_evidence.py \
+            --input-glob "artifacts/ci/smc_*_report.json" \
+            --output artifacts/ci/smc_refresh_evidence_summary.json
 
       # ── Dated snapshot archival ─────────────────────────────────
       - name: Archive dated library snapshot
@@ -266,7 +280,7 @@ jobs:
 
       # ── Publish to TradingView (skip when unchanged or breaking) ─
       - name: Write TradingView storage state
-        if: steps.diff.outputs.changed == 'true' && steps.breaking.outputs.breaking != 'true'
+        if: steps.diff.outputs.changed == 'true' && steps.breaking.outputs.breaking != 'true' && github.ref == 'refs/heads/main'
         run: |
           mkdir -p automation/tradingview/auth
           cat > automation/tradingview/auth/storage-state.json <<'__TV_STORAGE_STATE__'
@@ -274,7 +288,7 @@ jobs:
           __TV_STORAGE_STATE__
 
       - name: Validate TradingView storage state JSON
-        if: steps.diff.outputs.changed == 'true' && steps.breaking.outputs.breaking != 'true'
+        if: steps.diff.outputs.changed == 'true' && steps.breaking.outputs.breaking != 'true' && github.ref == 'refs/heads/main'
         run: |
           python - <<'PY'
           import json
@@ -287,8 +301,21 @@ jobs:
               raise SystemExit(f"Invalid TV_STORAGE_STATE JSON in {path}: {exc}")
           PY
 
+      - name: Run TradingView readonly preflight
+        id: tv_preflight
+        if: steps.diff.outputs.changed == 'true' && steps.breaking.outputs.breaking != 'true' && github.ref == 'refs/heads/main'
+        env:
+          TV_HEADLESS: "1"
+          TV_STORAGE_STATE: automation/tradingview/auth/storage-state.json
+        run: |
+          npx tsx scripts/tv_preflight.ts \
+            --config automation/tradingview/preflight-smc-mainline.json \
+            --execution-mode readonly \
+            --out artifacts/tradingview/tv_preflight_ci.json
+
       - name: Publish library to TradingView
-        if: steps.diff.outputs.changed == 'true' && steps.breaking.outputs.breaking != 'true'
+        id: publish
+        if: steps.diff.outputs.changed == 'true' && steps.breaking.outputs.breaking != 'true' && github.ref == 'refs/heads/main'
         env:
           TV_HEADLESS: "1"
           TV_STORAGE_STATE: automation/tradingview/auth/storage-state.json
@@ -300,13 +327,14 @@ jobs:
 
       # ── Version bump + commit (skip when unchanged or breaking) ─
       - name: Bump library version in SMC_Core_Engine.pine
-        if: steps.diff.outputs.changed == 'true' && steps.breaking.outputs.breaking != 'true'
+        if: steps.diff.outputs.changed == 'true' && steps.breaking.outputs.breaking != 'true' && github.ref == 'refs/heads/main'
         run: |
           NEW_VERSION=$(jq -r '.library_version' pine/generated/smc_micro_profiles_generated.json)
           sed -i "s|import preuss_steffen/smc_micro_profiles_generated/[0-9]*|import preuss_steffen/smc_micro_profiles_generated/${NEW_VERSION}|" SMC_Core_Engine.pine
 
       - name: Commit and push changes
-        if: steps.diff.outputs.changed == 'true' && steps.breaking.outputs.breaking != 'true'
+        id: commit_push
+        if: steps.diff.outputs.changed == 'true' && steps.breaking.outputs.breaking != 'true' && github.ref == 'refs/heads/main'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -317,7 +345,7 @@ jobs:
       # ── Signal alerts (non-blocking) ────────────────────────────
       - name: Evaluate and send alerts
         id: alerts
-        if: steps.diff.outputs.changed == 'true' && steps.breaking.outputs.breaking != 'true'
+        if: steps.diff.outputs.changed == 'true' && steps.breaking.outputs.breaking != 'true' && github.ref == 'refs/heads/main'
         continue-on-error: true
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
@@ -340,6 +368,16 @@ jobs:
             ${ALERT_EMAIL_FROM:+--email-from "$ALERT_EMAIL_FROM"} \
             ${ALERT_EMAIL_TO:+--email-to "$ALERT_EMAIL_TO"}
 
+      - name: Upload TradingView validation artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smc-tradingview-${{ env.REFRESH_DATE }}-${{ github.run_number }}
+          path: |
+            artifacts/tradingview/
+          if-no-files-found: ignore
+          retention-days: 30
+
       # ── Status summary ─────────────────────────────────────────
       - name: Emit workflow summary
         if: always()
@@ -349,11 +387,13 @@ jobs:
             echo ""
             echo "| Step | Status |"
             echo "|------|--------|"
-            echo "| Runner | ubuntu-24.04-4core |"
+            echo "| Runner | ${{ env.SMC_REFRESH_RUNNER_LABEL }} |"
+            echo "| Ref | ${{ github.ref_name }} |"
             echo "| Generation (base + enrichment + event-risk) | ${{ steps.gates.outcome != 'skipped' && '✅' || '❌ skipped' }} |"
             echo "| Evidence gates | ${{ steps.gates.outcome == 'success' && '✅ passed' || '❌ failed' }} |"
             echo "| Library changed | ${{ steps.diff.outputs.changed == 'true' && '✅ yes' || '⏭️ no' }} |"
-            echo "| Publish contract | ${{ steps.contract.outcome == 'success' && '✅' || steps.contract.outcome == 'skipped' && '⏭️ skipped' || '❌ failed' }} |"
+            echo "| Pre-release artifact refresh | ${{ steps.pre_release_refresh.outcome == 'success' && '✅ passed' || steps.pre_release_refresh.outcome == 'skipped' && '⏭️ skipped' || '❌ failed' }} |"
+            echo "| Strict release gates | ${{ steps.release_gates.outcome == 'success' && '✅ passed' || steps.release_gates.outcome == 'skipped' && '⏭️ skipped' || '❌ failed' }} |"
             if [ "${{ steps.breaking.outputs.breaking }}" = "true" ]; then
               echo "| ⚠️ Breaking-change governance | 🛑 ${{ steps.breaking.outputs.reason }} |"
               echo "| Publish | 🛑 blocked (breaking change) |"
@@ -361,10 +401,19 @@ jobs:
               echo "| Signal + event-risk alerts | 🛑 blocked (breaking change) |"
             elif [ "${{ steps.diff.outputs.changed }}" = "true" ]; then
               echo "| Breaking-change governance | ✅ compatible |"
-              echo "| Publish | ✅ |"
-              echo "| Commit | ✅ |"
-              echo "| Signal + event-risk alerts | ${{ steps.alerts.outcome == 'success' && '✅ evaluated' || '⚠️ error (non-blocking)' }} |"
+              if [ "${{ github.ref }}" = "refs/heads/main" ]; then
+                echo "| TradingView preflight | ${{ steps.tv_preflight.outcome == 'success' && '✅ passed' || steps.tv_preflight.outcome == 'skipped' && '⏭️ skipped' || '❌ failed' }} |"
+                echo "| Publish | ${{ steps.publish.outcome == 'success' && '✅' || steps.publish.outcome == 'skipped' && '⏭️ skipped' || '❌ failed' }} |"
+                echo "| Commit | ${{ steps.commit_push.outcome == 'success' && '✅' || steps.commit_push.outcome == 'skipped' && '⏭️ skipped' || '❌ failed' }} |"
+                echo "| Signal + event-risk alerts | ${{ steps.alerts.outcome == 'success' && '✅ evaluated' || steps.alerts.outcome == 'skipped' && '⏭️ skipped' || '⚠️ error (non-blocking)' }} |"
+              else
+                echo "| TradingView preflight | ⏭️ skipped (non-main ref) |"
+                echo "| Publish | ⏭️ skipped (non-main ref) |"
+                echo "| Commit | ⏭️ skipped (non-main ref) |"
+                echo "| Signal + event-risk alerts | ⏭️ skipped (non-main ref) |"
+              fi
             else
+              echo "| TradingView preflight | ⏭️ skipped (no changes) |"
               echo "| Publish | ⏭️ skipped (no changes) |"
               echo "| Commit | ⏭️ skipped (no changes) |"
               echo "| Signal + event-risk alerts | ⏭️ skipped (no changes) |"

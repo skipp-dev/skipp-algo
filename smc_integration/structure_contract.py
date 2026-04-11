@@ -326,10 +326,6 @@ def summarize_structure_contracts(contracts: list[NormalizedStructureContract]) 
         diagnostics_available = diagnostics_available or contract.diagnostics_present
         auxiliary_available = auxiliary_available or contract.auxiliary_present
 
-    if structure_categories["bos"] and not structure_categories["choch"]:
-        # BOS event family can carry CHOCH via `kind`; keep conservative default for compatibility.
-        structure_categories["choch"] = True
-
     return StructureContractSummary(
         mapped_structure_categories=structure_categories,
         mapped_auxiliary_categories=auxiliary_categories,

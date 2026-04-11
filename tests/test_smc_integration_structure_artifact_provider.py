@@ -181,7 +181,7 @@ def test_structure_artifact_provider_category_coverage_is_honest(monkeypatch, tm
     coverage = structure_artifact_json.discover_category_coverage()
     assert set(coverage.keys()) == {"bos", "choch", "orderblocks", "fvg", "liquidity_sweeps"}
     assert coverage["bos"] is True
-    assert coverage["choch"] is True
+    assert coverage["choch"] is False
     assert isinstance(coverage["orderblocks"], bool)
     assert isinstance(coverage["fvg"], bool)
     assert isinstance(coverage["liquidity_sweeps"], bool)
@@ -433,7 +433,7 @@ def test_discover_normalized_contract_summary_prefers_legacy_over_orphan_determi
 
         assert summary["mapped_structure_categories"] == {
             "bos": True,
-            "choch": True,
+            "choch": False,
             "orderblocks": False,
             "fvg": False,
             "liquidity_sweeps": False,
@@ -535,7 +535,7 @@ def test_discover_normalized_contract_summary_repo_state_only_rejects_noncanonic
 
         assert summary["mapped_structure_categories"] == {
             "bos": True,
-            "choch": True,
+            "choch": False,
             "orderblocks": False,
             "fvg": False,
             "liquidity_sweeps": False,
