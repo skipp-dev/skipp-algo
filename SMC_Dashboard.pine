@@ -444,23 +444,23 @@ decode_ready_gate_text(int row_code) =>
     else if reason_code == 15
         label_text := "Trade hard gate"
     else if reason_code == 16
-        label_text := "Market context blocked"
+        label_text := "Market gate"
     else if reason_code == 17
-        label_text := "Volatility regime blocked"
+        label_text := "Vola gate"
     else if reason_code == 18
-        label_text := "Environment blocked"
+        label_text := "Environment gate"
     else if reason_code == 19
-        label_text := "Signal quality blocked"
+        label_text := "Quality gate"
     else if reason_code == 20
-        label_text := "Flow acceleration blocked"
+        label_text := "Accel gate"
     else if reason_code == 21
-        label_text := "Divergence support blocked (SD)"
+        label_text := "SD gate"
     else if reason_code == 22
-        label_text := "Volatility context blocked"
+        label_text := "Vol gate"
     else if reason_code == 23
-        label_text := "Stretch context blocked"
+        label_text := "Stretch gate"
     else if reason_code == 24
-        label_text := "Volume divergence blocked (DDVI)"
+        label_text := "DDVI gate"
     label_text
 
 decode_strict_gate_text(int row_code) =>
@@ -471,19 +471,19 @@ decode_strict_gate_text(int row_code) =>
     else if reason_code == 3
         label_text := "Signal Quality blocked"
     else if reason_code == 4
-        label_text := "Lower-timeframe support blocked (LTF)"
+        label_text := "LTF blocked"
     else if reason_code == 5
-        label_text := "Higher-timeframe trend blocked (HTF)"
+        label_text := "HTF blocked"
     else if reason_code == 6
-        label_text := "Flow acceleration blocked"
+        label_text := "Accel blocked"
     else if reason_code == 7
-        label_text := "Divergence support blocked (SD)"
+        label_text := "SD blocked"
     else if reason_code == 8
-        label_text := "Volatility context blocked"
+        label_text := "Vol blocked"
     else if reason_code == 9
-        label_text := "Stretch context blocked"
+        label_text := "Stretch blocked"
     else if reason_code == 10
-        label_text := "Volume divergence blocked (DDVI)"
+        label_text := "DDVI blocked"
     label_text
 
 dashboard_compact_why_now_text(int state_code, int zone_code, int lean_struct_row_code, int lean_ob_row_code, int lean_fvg_row_code, int ready_blocker_code, int strict_blocker_code) =>

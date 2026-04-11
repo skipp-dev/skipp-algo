@@ -423,6 +423,8 @@ def write_structure_artifacts_from_workbook(
     structure_profile: str = "hybrid_default",
 ) -> dict[str, Any]:
     structure_profile = validate_structure_profile(structure_profile)
+    explicit_workbook_requested = workbook is not None
+    explicit_bundle_requested = export_bundle_root is not None
     resolved_inputs = resolve_structure_artifact_inputs(
         explicit_workbook_path=str(workbook) if workbook is not None else None,
         explicit_export_bundle_root=str(export_bundle_root) if export_bundle_root is not None else None,
@@ -435,6 +437,13 @@ def write_structure_artifacts_from_workbook(
     resolved_bundle_root = resolved_inputs.get("export_bundle_root")
     if resolved_bundle_root is not None and not isinstance(resolved_bundle_root, Path):
         resolved_bundle_root = Path(str(resolved_bundle_root))
+
+    # Workbook-backed callers expect deterministic workbook-derived artifacts.
+    # If the caller did not explicitly provide an export bundle root, do not
+    # silently switch data provenance to a canonical bundle discovered from repo state.
+    if explicit_workbook_requested and not explicit_bundle_requested:
+        resolved_bundle_root = None
+
     warnings: list[dict[str, Any]] = list(resolved_inputs.get("warnings", []))
     resolver_errors: list[dict[str, Any]] = list(resolved_inputs.get("errors", []))
 
