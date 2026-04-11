@@ -8,7 +8,7 @@ import warnings
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, time
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, Callable, cast
 
 import numpy as np
 import pandas as pd
@@ -67,6 +67,7 @@ INCREMENTAL_BASE_SEED_DAILY_BARS_NAME = "daily_bars.parquet"
 INCREMENTAL_BASE_SEED_DAILY_FEATURES_NAME = "daily_symbol_features_full_universe.parquet"
 INCREMENTAL_BASE_SEED_SYMBOL_DAY_FEATURES_NAME = "symbol_day_features.parquet"
 INCREMENTAL_BASE_SEED_DIAGNOSTICS_NAME = "symbol_day_diagnostics.parquet"
+SYMBOL_DAY_FEATURE_BATCH_ROW_THRESHOLD = 2_000_000
 
 # Session-time constants and coverage helpers are now re-exported from
 # scripts.smc_databento_session_detail (see top-of-file imports).
@@ -602,7 +603,7 @@ AFTERHOURS_END_MINUTE = _clock_minutes(AFTERHOURS_END_ET)
 
 
 def _series_numeric_values(series: pd.Series, index: pd.Index) -> np.ndarray:
-    return pd.to_numeric(series.reindex(index), errors="coerce").to_numpy(dtype=float)
+    return cast(np.ndarray, pd.to_numeric(series.reindex(index), errors="coerce").to_numpy(dtype=float))
 
 
 def _safe_ratio_series_for_index(
@@ -693,55 +694,10 @@ def _coerce_bool_series(series: pd.Series) -> pd.Series:
     return result
 
 
-def _build_session_minute_symbol_scope(
-    daily_feature_frame: pd.DataFrame,
-    *,
-    scoped_trade_days: set[date] | None = None,
-) -> tuple[dict[date, set[str]], dict[date, set[str]]]:
-    intraday_expected = daily_feature_frame.copy()
-    intraday_expected["trade_date"] = _coerce_trade_date_series(intraday_expected["trade_date"])
-    intraday_expected["symbol"] = intraday_expected.get(
-        "symbol",
-        pd.Series(index=intraday_expected.index, dtype=object),
-    ).astype(str).str.upper()
-    has_intraday_available = "has_intraday" in intraday_expected.columns
-    if has_intraday_available:
-        intraday_expected["has_intraday"] = _coerce_bool_series(intraday_expected["has_intraday"])
-    else:
-        intraday_expected["has_intraday"] = pd.Series(True, index=intraday_expected.index, dtype=bool)
-        logger.warning(
-            "daily_symbol_features_full_universe is missing has_intraday; defaulting to fetch and require all symbol-days for minute detail coverage."
-        )
-
-    scope_mask = intraday_expected["trade_date"].notna() & intraday_expected["symbol"].ne("")
-    if scoped_trade_days:
-        scope_mask &= intraday_expected["trade_date"].isin(scoped_trade_days)
-    intraday_expected = intraday_expected.loc[scope_mask].copy()
-
-    if has_intraday_available:
-        has_intraday_false_count = int((~intraday_expected["has_intraday"]).sum())
-        if has_intraday_false_count > 0:
-            logger.warning(
-                "daily_symbol_features_full_universe contains %d symbol-days with has_intraday=False; keeping them in minute-detail fetch scope while excluding them from hard coverage expectations.",
-                has_intraday_false_count,
-            )
-
-    fetch_symbols_by_trade_day = {
-        trade_day: set(group["symbol"].tolist())
-        for trade_day, group in intraday_expected.groupby("trade_date", sort=False)
-    }
-    required_scope = intraday_expected.loc[intraday_expected["has_intraday"]].copy()
-    required_symbols_by_trade_day = {
-        trade_day: set(group["symbol"].tolist())
-        for trade_day, group in required_scope.groupby("trade_date", sort=False)
-    }
-    return fetch_symbols_by_trade_day, required_symbols_by_trade_day
-
-
 def _numeric_values(series: pd.Series) -> np.ndarray:
     if pd.api.types.is_numeric_dtype(series.dtype):
-        return series.to_numpy(dtype=float, na_value=np.nan)
-    return pd.to_numeric(series, errors="coerce").to_numpy(dtype=float)
+        return cast(np.ndarray, series.to_numpy(dtype=float, na_value=np.nan))
+    return cast(np.ndarray, pd.to_numeric(series, errors="coerce").to_numpy(dtype=float))
 
 
 def _nanmean_or_default(values: np.ndarray, default: float = 0.0) -> float:
@@ -759,7 +715,7 @@ def _nanmean_columns_or_zero(values: np.ndarray) -> np.ndarray:
 
     counts = np.count_nonzero(~np.isnan(values), axis=0)
     sums = np.nansum(values, axis=0)
-    return np.divide(sums, counts, out=np.zeros(values.shape[1], dtype=float), where=counts > 0)
+    return cast(np.ndarray, np.divide(sums, counts, out=np.zeros(values.shape[1], dtype=float), where=counts > 0))
 
 
 def _column_nanmeans_or_zero(frame: pd.DataFrame, columns: list[str]) -> np.ndarray:
@@ -1055,9 +1011,307 @@ def _aggregate_open_close_metrics(
     )
 
 
+def _approx_frame_memory_mebibytes(frame: pd.DataFrame) -> float:
+    if frame.empty:
+        return 0.0
+    return float(frame.memory_usage(index=True, deep=False).sum()) / (1024.0 * 1024.0)
+
+
+def _emit_frame_telemetry(
+    telemetry_callback: Callable[[str], None] | None,
+    *,
+    label: str,
+    frame: pd.DataFrame,
+) -> None:
+    if telemetry_callback is None:
+        return
+    telemetry_callback(
+        f"Step 12/12 telemetry: {label} rows={len(frame)} cols={len(frame.columns)} "
+        f"approx_frame_mib={_approx_frame_memory_mebibytes(frame):.1f}"
+    )
+
+
+def _build_symbol_day_minute_metrics(
+    minute_frame: pd.DataFrame,
+    *,
+    metric_columns: list[str],
+    telemetry_callback: Callable[[str], None] | None = None,
+    frame_label_prefix: str = "minute_frame",
+    metrics_label: str = "minute_metrics_by_symbol_day",
+) -> pd.DataFrame:
+    if minute_frame.empty:
+        return pd.DataFrame(columns=metric_columns)
+
+    minute_frame["open"] = pd.to_numeric(minute_frame.get("open"), errors="coerce")
+    minute_frame["high"] = pd.to_numeric(minute_frame.get("high"), errors="coerce")
+    minute_frame["low"] = pd.to_numeric(minute_frame.get("low"), errors="coerce")
+    minute_frame["close"] = pd.to_numeric(minute_frame.get("close"), errors="coerce")
+    minute_frame["volume"] = pd.to_numeric(minute_frame.get("volume"), errors="coerce").fillna(0.0)
+    minute_frame["trade_count"] = pd.to_numeric(minute_frame.get("trade_count"), errors="coerce")
+    minute_frame["et_minute"] = _et_minutes_since_midnight(minute_frame["timestamp"])
+    minute_frame["dollar_volume"] = minute_frame["close"] * minute_frame["volume"]
+    minute_frame["spread_bps_proxy"] = _bar_spread_bps(minute_frame)
+    minute_frame["wickiness_proxy"] = _bar_wickiness(minute_frame)
+    minute_frame["trade_proxy"] = minute_frame["trade_count"]
+    minute_frame["trade_proxy"] = minute_frame["trade_proxy"].where(
+        minute_frame["trade_proxy"].notna(),
+        np.where(minute_frame["volume"] > 0, 1.0, 0.0),
+    )
+    minute_frame["active_minute"] = (minute_frame["volume"] > 0) | (minute_frame["trade_proxy"] > 0)
+    minute_frame["minutes_from_open"] = minute_frame["et_minute"].astype(float) - float(REGULAR_OPEN_MINUTE)
+    _emit_frame_telemetry(
+        telemetry_callback,
+        label=f"{frame_label_prefix}_pre_sort",
+        frame=minute_frame,
+    )
+    minute_frame.sort_values(["trade_date", "symbol", "timestamp"], kind="mergesort", inplace=True)
+    minute_frame.reset_index(drop=True, inplace=True)
+    _emit_frame_telemetry(
+        telemetry_callback,
+        label=f"{frame_label_prefix}_sorted",
+        frame=minute_frame,
+    )
+
+    minute_frame["trade_date"] = pd.Categorical(minute_frame["trade_date"])
+    minute_frame["symbol"] = pd.Categorical(minute_frame["symbol"])
+    group_columns = ["trade_date", "symbol"]
+    group_index = minute_frame[group_columns].drop_duplicates().set_index(group_columns)
+
+    grouped = minute_frame.groupby(group_columns, sort=False, observed=True)
+    close_missing = grouped["close"].count().eq(0)
+    volume_inactive = grouped["volume"].max().le(0)
+    null_activity = pd.DataFrame(
+        {
+            "close_missing": close_missing,
+            "volume_inactive": volume_inactive,
+        }
+    )
+    null_activity = null_activity.loc[null_activity.any(axis=1)]
+    if not null_activity.empty:
+        for trade_day, symbol in null_activity.index.tolist():
+            logger.warning(
+                "Symbol %s on %s has no usable close/volume activity; marking all minute bars inactive.",
+                symbol,
+                trade_day,
+            )
+        null_mask = pd.MultiIndex.from_frame(minute_frame[group_columns]).isin(null_activity.index)
+        minute_frame.loc[null_mask, "active_minute"] = False
+        minute_frame.loc[null_mask, "trade_proxy"] = 0.0
+        minute_frame.loc[null_mask, "dollar_volume"] = 0.0
+
+    et_minute = minute_frame["et_minute"]
+    is_pm = et_minute.ge(PREMARKET_START_MINUTE) & et_minute.lt(REGULAR_OPEN_MINUTE)
+    is_rth = et_minute.ge(REGULAR_OPEN_MINUTE) & et_minute.lt(REGULAR_CLOSE_MINUTE)
+    is_open_30 = et_minute.ge(REGULAR_OPEN_MINUTE) & et_minute.lt(OPEN_30M_END_MINUTE)
+    is_midday = et_minute.ge(MIDDAY_START_MINUTE) & et_minute.lt(MIDDAY_END_MINUTE)
+    is_late = et_minute.ge(LATE_START_MINUTE) & et_minute.lt(REGULAR_CLOSE_MINUTE)
+    is_close_60 = et_minute.ge(CLOSE_60M_START_MINUTE) & et_minute.lt(REGULAR_CLOSE_MINUTE)
+    is_ah = et_minute.ge(REGULAR_CLOSE_MINUTE) & et_minute.lt(AFTERHOURS_END_MINUTE)
+
+    pm_stats = _aggregate_window_metrics(
+        minute_frame,
+        is_pm,
+        group_columns=group_columns,
+        available_minutes=PREMARKET_MINUTES,
+    )
+    rth_stats = _aggregate_window_metrics(
+        minute_frame,
+        is_rth,
+        group_columns=group_columns,
+        available_minutes=REGULAR_MINUTES,
+    )
+    midday_stats = _aggregate_window_metrics(
+        minute_frame,
+        is_midday,
+        group_columns=group_columns,
+        available_minutes=MIDDAY_MINUTES,
+    )
+    ah_stats = _aggregate_window_metrics(
+        minute_frame,
+        is_ah,
+        group_columns=group_columns,
+        available_minutes=AFTERHOURS_MINUTES,
+    )
+    open_30_stats = _aggregate_open_close_metrics(
+        minute_frame,
+        is_open_30,
+        group_columns=group_columns,
+    )
+    late_stats = _aggregate_open_close_metrics(
+        minute_frame,
+        is_late,
+        group_columns=group_columns,
+    )
+    close_60_stats = _aggregate_open_close_metrics(
+        minute_frame,
+        is_close_60,
+        group_columns=group_columns,
+    )
+
+    if is_rth.any():
+        rth_half_life = _grouped_setup_decay_half_life_30m_buckets(
+            minute_frame.loc[is_rth, group_columns + ["minutes_from_open", "dollar_volume"]],
+            group_columns=group_columns,
+        )
+    else:
+        rth_half_life = pd.Series(dtype=float)
+
+    minute_metrics = group_index.copy()
+    minute_metrics["daily_rth_dollar_volume"] = rth_stats["dollar_volume"]
+    minute_metrics["daily_avg_spread_bps_rth"] = rth_stats["spread_bps"]
+    minute_metrics["daily_rth_active_minutes_share"] = rth_stats["active_minutes_share"]
+    minute_metrics["daily_rth_wickiness"] = rth_stats["wickiness"]
+    minute_metrics["daily_rth_efficiency"] = rth_stats["efficiency"]
+    metric_index = minute_metrics.index
+
+    total_day_dollar = pm_stats["dollar_volume"].add(rth_stats["dollar_volume"], fill_value=0.0).add(
+        ah_stats["dollar_volume"], fill_value=0.0
+    )
+    total_day_trades = pm_stats["trade_proxy"].add(rth_stats["trade_proxy"], fill_value=0.0).add(
+        ah_stats["trade_proxy"], fill_value=0.0
+    )
+
+    minute_metrics["daily_open_30m_dollar_share"] = _safe_ratio_series_for_index(
+        open_30_stats["dollar_volume"],
+        rth_stats["dollar_volume"],
+        index=metric_index,
+        default=0.0,
+    )
+    minute_metrics["daily_close_60m_dollar_share"] = _safe_ratio_series_for_index(
+        close_60_stats["dollar_volume"],
+        rth_stats["dollar_volume"],
+        index=metric_index,
+        default=0.0,
+    )
+
+    minute_metrics["daily_pm_dollar_share"] = _safe_ratio_series_for_index(
+        pm_stats["dollar_volume"],
+        total_day_dollar,
+        index=metric_index,
+        default=0.0,
+    )
+    minute_metrics["daily_pm_trades_share"] = _safe_ratio_series_for_index(
+        pm_stats["trade_proxy"],
+        total_day_trades,
+        index=metric_index,
+        default=0.0,
+    )
+    minute_metrics["daily_pm_active_minutes_share"] = pm_stats["active_minutes_share"]
+    minute_metrics["daily_pm_spread_bps"] = pm_stats["spread_bps"]
+    minute_metrics["daily_pm_wickiness"] = pm_stats["wickiness"]
+
+    minute_metrics["daily_midday_dollar_share"] = _safe_ratio_series_for_index(
+        midday_stats["dollar_volume"],
+        rth_stats["dollar_volume"],
+        index=metric_index,
+        default=0.0,
+    )
+    minute_metrics["daily_midday_trades_share"] = _safe_ratio_series_for_index(
+        midday_stats["trade_proxy"],
+        rth_stats["trade_proxy"],
+        index=metric_index,
+        default=0.0,
+    )
+    minute_metrics["daily_midday_active_minutes_share"] = midday_stats["active_minutes_share"]
+    minute_metrics["daily_midday_spread_bps"] = midday_stats["spread_bps"]
+    minute_metrics["daily_midday_efficiency"] = midday_stats["efficiency"]
+
+    minute_metrics["daily_ah_dollar_share"] = _safe_ratio_series_for_index(
+        ah_stats["dollar_volume"],
+        total_day_dollar,
+        index=metric_index,
+        default=0.0,
+    )
+    minute_metrics["daily_ah_trades_share"] = _safe_ratio_series_for_index(
+        ah_stats["trade_proxy"],
+        total_day_trades,
+        index=metric_index,
+        default=0.0,
+    )
+    minute_metrics["daily_ah_active_minutes_share"] = ah_stats["active_minutes_share"]
+    minute_metrics["daily_ah_spread_bps"] = ah_stats["spread_bps"]
+    minute_metrics["daily_ah_wickiness"] = ah_stats["wickiness"]
+    minute_metrics["daily_setup_decay_half_life_bars"] = rth_half_life
+
+    early_return = _abs_return_series_for_index(
+        open_30_stats["close_price"],
+        open_30_stats["open_price"],
+        index=metric_index,
+    )
+    late_return = _abs_return_series_for_index(
+        late_stats["close_price"],
+        late_stats["open_price"],
+        index=metric_index,
+    )
+    minute_metrics["daily_early_vs_late_followthrough_ratio"] = _safe_ratio_series_for_index(
+        early_return,
+        late_return,
+        index=metric_index,
+        default=0.0,
+        minimum_denominator=1e-6,
+    )
+    minute_metrics["daily_rth_net_return_abs"] = _abs_return_series_for_index(
+        rth_stats["close_price"],
+        rth_stats["open_price"],
+        index=metric_index,
+    )
+
+    has_pm = minute_metrics.index.isin(pm_stats.index)
+    has_rth = minute_metrics.index.isin(rth_stats.index)
+    has_midday = minute_metrics.index.isin(midday_stats.index)
+    has_pre_midday_rth = minute_metrics.index.isin(
+        minute_frame.loc[
+            is_rth & et_minute.lt(MIDDAY_START_MINUTE),
+            group_columns,
+        ].drop_duplicates().set_index(group_columns).index
+    )
+    has_post_midday_rth = minute_metrics.index.isin(
+        minute_frame.loc[
+            is_rth & et_minute.ge(MIDDAY_END_MINUTE),
+            group_columns,
+        ].drop_duplicates().set_index(group_columns).index
+    )
+    has_ah = minute_metrics.index.isin(ah_stats.index)
+    minute_metrics["missing_regular_session_detail"] = (~has_rth) & (has_pm | has_ah)
+    minute_metrics["missing_midday_detail"] = has_pre_midday_rth & has_post_midday_rth & (~has_midday)
+    minute_metrics["missing_premarket_detail"] = (~has_pm) & (has_rth | has_ah)
+    minute_metrics["missing_afterhours_detail"] = (~has_ah) & (has_pm | has_rth)
+    _emit_frame_telemetry(
+        telemetry_callback,
+        label=metrics_label,
+        frame=minute_metrics,
+    )
+
+    missing_regular = minute_metrics.loc[minute_metrics["missing_regular_session_detail"]]
+    if not missing_regular.empty:
+        for trade_day, symbol in missing_regular.index.tolist():
+            logger.warning(
+                "Symbol %s on %s has minute detail for non-regular sessions but no regular-session bars; regular-session derived metrics will be 0.0 and excluded from 20d minute aggregation.",
+                symbol,
+                trade_day,
+            )
+
+    missing_midday = minute_metrics.loc[minute_metrics["missing_midday_detail"]]
+    if not missing_midday.empty:
+        for trade_day, symbol in missing_midday.index.tolist():
+            logger.warning(
+                "Symbol %s on %s has regular-session bars on both sides of the midday window but no midday bars; midday-derived metrics will be 0.0 and excluded from 20d minute aggregation.",
+                symbol,
+                trade_day,
+            )
+
+    minute_metrics = minute_metrics.reset_index()
+    minute_metrics["trade_date"] = minute_metrics["trade_date"].astype(object)
+    minute_metrics["symbol"] = minute_metrics["symbol"].astype(str)
+    return minute_metrics[metric_columns]
+
+
 def build_symbol_day_microstructure_feature_frame(
     session_minute_detail: pd.DataFrame,
     daily_symbol_features: pd.DataFrame,
+    *,
+    telemetry_callback: Callable[[str], None] | None = None,
+    mutate_input: bool = False,
 ) -> pd.DataFrame:
     daily = daily_symbol_features.copy()
     if daily.empty:
@@ -1131,257 +1385,94 @@ def build_symbol_day_microstructure_feature_frame(
 
     minute_metrics = pd.DataFrame(columns=metric_columns)
     if not session_minute_detail.empty:
-        minute_frame = session_minute_detail.copy()
+        required_minute_columns = [
+            "trade_date",
+            "symbol",
+            "timestamp",
+            "open",
+            "high",
+            "low",
+            "close",
+            "volume",
+            "trade_count",
+        ]
+        available_minute_columns = [
+            column for column in required_minute_columns if column in session_minute_detail.columns
+        ]
+        if mutate_input:
+            minute_frame = session_minute_detail
+            extra_minute_columns = [
+                column for column in minute_frame.columns if column not in required_minute_columns
+            ]
+            if extra_minute_columns:
+                minute_frame.drop(columns=extra_minute_columns, inplace=True, errors="ignore")
+        else:
+            minute_frame = session_minute_detail.loc[:, available_minute_columns].copy()
+        _emit_frame_telemetry(
+            telemetry_callback,
+            label=f"session_minute_detail_input mutate_input={mutate_input}",
+            frame=minute_frame,
+        )
         minute_frame["trade_date"] = _coerce_trade_date_series(minute_frame["trade_date"])
         minute_frame["symbol"] = minute_frame["symbol"].astype(str).str.upper()
         minute_frame["timestamp"] = pd.to_datetime(minute_frame["timestamp"], errors="coerce", utc=True)
-        minute_frame = minute_frame.dropna(subset=["trade_date", "symbol", "timestamp"]).copy()
+        if mutate_input:
+            minute_frame.dropna(subset=["trade_date", "symbol", "timestamp"], inplace=True)
+            minute_frame.reset_index(drop=True, inplace=True)
+        else:
+            minute_frame = minute_frame.dropna(subset=["trade_date", "symbol", "timestamp"]).copy()
+        _emit_frame_telemetry(
+            telemetry_callback,
+            label="minute_frame_normalized_pre_sort",
+            frame=minute_frame,
+        )
         if not minute_frame.empty:
-            minute_frame["open"] = pd.to_numeric(minute_frame.get("open"), errors="coerce")
-            minute_frame["high"] = pd.to_numeric(minute_frame.get("high"), errors="coerce")
-            minute_frame["low"] = pd.to_numeric(minute_frame.get("low"), errors="coerce")
-            minute_frame["close"] = pd.to_numeric(minute_frame.get("close"), errors="coerce")
-            minute_frame["volume"] = pd.to_numeric(minute_frame.get("volume"), errors="coerce").fillna(0.0)
-            minute_frame["trade_count"] = pd.to_numeric(minute_frame.get("trade_count"), errors="coerce")
-            minute_frame["et_minute"] = _et_minutes_since_midnight(minute_frame["timestamp"])
-            minute_frame["dollar_volume"] = minute_frame["close"] * minute_frame["volume"]
-            minute_frame["spread_bps_proxy"] = _bar_spread_bps(minute_frame)
-            minute_frame["wickiness_proxy"] = _bar_wickiness(minute_frame)
-            minute_frame["trade_proxy"] = minute_frame["trade_count"]
-            minute_frame["trade_proxy"] = minute_frame["trade_proxy"].where(
-                minute_frame["trade_proxy"].notna(),
-                np.where(minute_frame["volume"] > 0, 1.0, 0.0),
+            trade_day_batches = minute_frame.groupby("trade_date", sort=False, observed=True).indices
+            should_batch_minute_processing = (
+                len(minute_frame) >= SYMBOL_DAY_FEATURE_BATCH_ROW_THRESHOLD
+                and len(trade_day_batches) > 1
             )
-            minute_frame["active_minute"] = (minute_frame["volume"] > 0) | (minute_frame["trade_proxy"] > 0)
-            minute_frame["minutes_from_open"] = minute_frame["et_minute"].astype(float) - float(REGULAR_OPEN_MINUTE)
-            minute_frame = minute_frame.sort_values(["trade_date", "symbol", "timestamp"], kind="mergesort").reset_index(drop=True)
-            minute_frame["trade_date"] = pd.Categorical(minute_frame["trade_date"])
-            minute_frame["symbol"] = pd.Categorical(minute_frame["symbol"])
-            group_columns = ["trade_date", "symbol"]
-            group_index = minute_frame[group_columns].drop_duplicates().set_index(group_columns)
-
-            grouped = minute_frame.groupby(group_columns, sort=False, observed=True)
-            close_missing = grouped["close"].count().eq(0)
-            volume_inactive = grouped["volume"].max().le(0)
-            null_activity = pd.DataFrame(
-                {
-                    "close_missing": close_missing,
-                    "volume_inactive": volume_inactive,
-                }
-            )
-            null_activity = null_activity.loc[null_activity.any(axis=1)]
-            if not null_activity.empty:
-                for trade_day, symbol in null_activity.index.tolist():
-                    logger.warning(
-                        "Symbol %s on %s has no usable close/volume activity; marking all minute bars inactive.",
-                        symbol,
-                        trade_day,
+            if should_batch_minute_processing:
+                if telemetry_callback is not None:
+                    telemetry_callback(
+                        "Step 12/12 telemetry: minute_frame_batching "
+                        f"rows={len(minute_frame)} trade_days={len(trade_day_batches)} "
+                        f"threshold_rows={SYMBOL_DAY_FEATURE_BATCH_ROW_THRESHOLD}"
                     )
-                null_mask = pd.MultiIndex.from_frame(minute_frame[group_columns]).isin(null_activity.index)
-                minute_frame.loc[null_mask, "active_minute"] = False
-                minute_frame.loc[null_mask, "trade_proxy"] = 0.0
-                minute_frame.loc[null_mask, "dollar_volume"] = 0.0
-
-            et_minute = minute_frame["et_minute"]
-            is_pm = et_minute.ge(PREMARKET_START_MINUTE) & et_minute.lt(REGULAR_OPEN_MINUTE)
-            is_rth = et_minute.ge(REGULAR_OPEN_MINUTE) & et_minute.lt(REGULAR_CLOSE_MINUTE)
-            is_open_30 = et_minute.ge(REGULAR_OPEN_MINUTE) & et_minute.lt(OPEN_30M_END_MINUTE)
-            is_midday = et_minute.ge(MIDDAY_START_MINUTE) & et_minute.lt(MIDDAY_END_MINUTE)
-            is_late = et_minute.ge(LATE_START_MINUTE) & et_minute.lt(REGULAR_CLOSE_MINUTE)
-            is_close_60 = et_minute.ge(CLOSE_60M_START_MINUTE) & et_minute.lt(REGULAR_CLOSE_MINUTE)
-            is_ah = et_minute.ge(REGULAR_CLOSE_MINUTE) & et_minute.lt(AFTERHOURS_END_MINUTE)
-
-            pm_stats = _aggregate_window_metrics(
-                minute_frame,
-                is_pm,
-                group_columns=group_columns,
-                available_minutes=PREMARKET_MINUTES,
-            )
-            rth_stats = _aggregate_window_metrics(
-                minute_frame,
-                is_rth,
-                group_columns=group_columns,
-                available_minutes=REGULAR_MINUTES,
-            )
-            midday_stats = _aggregate_window_metrics(
-                minute_frame,
-                is_midday,
-                group_columns=group_columns,
-                available_minutes=MIDDAY_MINUTES,
-            )
-            ah_stats = _aggregate_window_metrics(
-                minute_frame,
-                is_ah,
-                group_columns=group_columns,
-                available_minutes=AFTERHOURS_MINUTES,
-            )
-            open_30_stats = _aggregate_open_close_metrics(
-                minute_frame,
-                is_open_30,
-                group_columns=group_columns,
-            )
-            late_stats = _aggregate_open_close_metrics(
-                minute_frame,
-                is_late,
-                group_columns=group_columns,
-            )
-            close_60_stats = _aggregate_open_close_metrics(
-                minute_frame,
-                is_close_60,
-                group_columns=group_columns,
-            )
-
-            if is_rth.any():
-                rth_half_life = _grouped_setup_decay_half_life_30m_buckets(
-                    minute_frame.loc[is_rth, group_columns + ["minutes_from_open", "dollar_volume"]],
-                    group_columns=group_columns,
+                minute_metric_batches: list[pd.DataFrame] = []
+                total_batches = len(trade_day_batches)
+                for batch_index, (trade_day, batch_positions) in enumerate(trade_day_batches.items(), start=1):
+                    trade_day_label = str(trade_day)
+                    if telemetry_callback is not None:
+                        telemetry_callback(
+                            "Step 12/12 telemetry: minute_frame_batch_start "
+                            f"batch={batch_index}/{total_batches} trade_date={trade_day_label}"
+                        )
+                    batch_frame = minute_frame.iloc[batch_positions].copy()
+                    minute_metric_batches.append(
+                        _build_symbol_day_minute_metrics(
+                            batch_frame,
+                            metric_columns=metric_columns,
+                            telemetry_callback=telemetry_callback,
+                            frame_label_prefix=f"minute_frame_batch_{trade_day_label}",
+                            metrics_label=f"minute_metrics_batch_{trade_day_label}",
+                        )
+                    )
+                if minute_metric_batches:
+                    minute_metrics = pd.concat(minute_metric_batches, ignore_index=True)
+                else:
+                    minute_metrics = pd.DataFrame(columns=metric_columns)
+                _emit_frame_telemetry(
+                    telemetry_callback,
+                    label="minute_metrics_batched_output",
+                    frame=minute_metrics,
                 )
             else:
-                rth_half_life = pd.Series(dtype=float)
-
-            minute_metrics = group_index.copy()
-            minute_metrics["daily_rth_dollar_volume"] = rth_stats["dollar_volume"]
-            minute_metrics["daily_avg_spread_bps_rth"] = rth_stats["spread_bps"]
-            minute_metrics["daily_rth_active_minutes_share"] = rth_stats["active_minutes_share"]
-            minute_metrics["daily_rth_wickiness"] = rth_stats["wickiness"]
-            minute_metrics["daily_rth_efficiency"] = rth_stats["efficiency"]
-            metric_index = minute_metrics.index
-
-            total_day_dollar = pm_stats["dollar_volume"].add(rth_stats["dollar_volume"], fill_value=0.0).add(
-                ah_stats["dollar_volume"], fill_value=0.0
-            )
-            total_day_trades = pm_stats["trade_proxy"].add(rth_stats["trade_proxy"], fill_value=0.0).add(
-                ah_stats["trade_proxy"], fill_value=0.0
-            )
-
-            minute_metrics["daily_open_30m_dollar_share"] = _safe_ratio_series_for_index(
-                open_30_stats["dollar_volume"],
-                rth_stats["dollar_volume"],
-                index=metric_index,
-                default=0.0,
-            )
-            minute_metrics["daily_close_60m_dollar_share"] = _safe_ratio_series_for_index(
-                close_60_stats["dollar_volume"],
-                rth_stats["dollar_volume"],
-                index=metric_index,
-                default=0.0,
-            )
-
-            minute_metrics["daily_pm_dollar_share"] = _safe_ratio_series_for_index(
-                pm_stats["dollar_volume"],
-                total_day_dollar,
-                index=metric_index,
-                default=0.0,
-            )
-            minute_metrics["daily_pm_trades_share"] = _safe_ratio_series_for_index(
-                pm_stats["trade_proxy"],
-                total_day_trades,
-                index=metric_index,
-                default=0.0,
-            )
-            minute_metrics["daily_pm_active_minutes_share"] = pm_stats["active_minutes_share"]
-            minute_metrics["daily_pm_spread_bps"] = pm_stats["spread_bps"]
-            minute_metrics["daily_pm_wickiness"] = pm_stats["wickiness"]
-
-            minute_metrics["daily_midday_dollar_share"] = _safe_ratio_series_for_index(
-                midday_stats["dollar_volume"],
-                rth_stats["dollar_volume"],
-                index=metric_index,
-                default=0.0,
-            )
-            minute_metrics["daily_midday_trades_share"] = _safe_ratio_series_for_index(
-                midday_stats["trade_proxy"],
-                rth_stats["trade_proxy"],
-                index=metric_index,
-                default=0.0,
-            )
-            minute_metrics["daily_midday_active_minutes_share"] = midday_stats["active_minutes_share"]
-            minute_metrics["daily_midday_spread_bps"] = midday_stats["spread_bps"]
-            minute_metrics["daily_midday_efficiency"] = midday_stats["efficiency"]
-
-            minute_metrics["daily_ah_dollar_share"] = _safe_ratio_series_for_index(
-                ah_stats["dollar_volume"],
-                total_day_dollar,
-                index=metric_index,
-                default=0.0,
-            )
-            minute_metrics["daily_ah_trades_share"] = _safe_ratio_series_for_index(
-                ah_stats["trade_proxy"],
-                total_day_trades,
-                index=metric_index,
-                default=0.0,
-            )
-            minute_metrics["daily_ah_active_minutes_share"] = ah_stats["active_minutes_share"]
-            minute_metrics["daily_ah_spread_bps"] = ah_stats["spread_bps"]
-            minute_metrics["daily_ah_wickiness"] = ah_stats["wickiness"]
-            minute_metrics["daily_setup_decay_half_life_bars"] = rth_half_life
-
-            early_return = _abs_return_series_for_index(
-                open_30_stats["close_price"],
-                open_30_stats["open_price"],
-                index=metric_index,
-            )
-            late_return = _abs_return_series_for_index(
-                late_stats["close_price"],
-                late_stats["open_price"],
-                index=metric_index,
-            )
-            minute_metrics["daily_early_vs_late_followthrough_ratio"] = _safe_ratio_series_for_index(
-                early_return,
-                late_return,
-                index=metric_index,
-                default=0.0,
-                minimum_denominator=1e-6,
-            )
-            minute_metrics["daily_rth_net_return_abs"] = _abs_return_series_for_index(
-                rth_stats["close_price"],
-                rth_stats["open_price"],
-                index=metric_index,
-            )
-
-            has_pm = minute_metrics.index.isin(pm_stats.index)
-            has_rth = minute_metrics.index.isin(rth_stats.index)
-            has_midday = minute_metrics.index.isin(midday_stats.index)
-            has_pre_midday_rth = minute_metrics.index.isin(
-                minute_frame.loc[
-                    is_rth & et_minute.lt(MIDDAY_START_MINUTE),
-                    group_columns,
-                ].drop_duplicates().set_index(group_columns).index
-            )
-            has_post_midday_rth = minute_metrics.index.isin(
-                minute_frame.loc[
-                    is_rth & et_minute.ge(MIDDAY_END_MINUTE),
-                    group_columns,
-                ].drop_duplicates().set_index(group_columns).index
-            )
-            has_ah = minute_metrics.index.isin(ah_stats.index)
-            minute_metrics["missing_regular_session_detail"] = (~has_rth) & (has_pm | has_ah)
-            minute_metrics["missing_midday_detail"] = has_pre_midday_rth & has_post_midday_rth & (~has_midday)
-            minute_metrics["missing_premarket_detail"] = (~has_pm) & (has_rth | has_ah)
-            minute_metrics["missing_afterhours_detail"] = (~has_ah) & (has_pm | has_rth)
-
-            missing_regular = minute_metrics.loc[minute_metrics["missing_regular_session_detail"]]
-            if not missing_regular.empty:
-                for trade_day, symbol in missing_regular.index.tolist():
-                    logger.warning(
-                        "Symbol %s on %s has minute detail for non-regular sessions but no regular-session bars; regular-session derived metrics will be 0.0 and excluded from 20d minute aggregation.",
-                        symbol,
-                        trade_day,
-                    )
-
-            missing_midday = minute_metrics.loc[minute_metrics["missing_midday_detail"]]
-            if not missing_midday.empty:
-                for trade_day, symbol in missing_midday.index.tolist():
-                    logger.warning(
-                        "Symbol %s on %s has regular-session bars on both sides of the midday window but no midday bars; midday-derived metrics will be 0.0 and excluded from 20d minute aggregation.",
-                        symbol,
-                        trade_day,
-                    )
-
-            minute_metrics = minute_metrics.reset_index()
-            minute_metrics["trade_date"] = minute_metrics["trade_date"].astype(object)
-            minute_metrics["symbol"] = minute_metrics["symbol"].astype(str)
-            minute_metrics = minute_metrics[metric_columns]
+                minute_metrics = _build_symbol_day_minute_metrics(
+                    minute_frame,
+                    metric_columns=metric_columns,
+                    telemetry_callback=telemetry_callback,
+                )
 
     merged = daily.merge(minute_metrics, on=["trade_date", "symbol"], how="left")
     minute_metric_value_columns = [
@@ -1430,10 +1521,13 @@ def build_symbol_day_microstructure_feature_frame(
             "missing_afterhours_detail",
         }:
             continue
-        merged[column] = pd.to_numeric(merged.get(column), errors="coerce").fillna(0.0)
+        merged[column] = pd.to_numeric(_series_from_frame(merged, column), errors="coerce").fillna(0.0)
 
-    close_hygiene = pd.to_numeric(merged.get("close_trade_hygiene_score"), errors="coerce")
-    close_hygiene = close_hygiene.where(close_hygiene.notna(), np.where(merged.get("close_trade_has_lit_followthrough", False), 1.0, 0.0))
+    close_hygiene = pd.to_numeric(_series_from_frame(merged, "close_trade_hygiene_score"), errors="coerce")
+    close_trade_followthrough = _coerce_bool_series(
+        _series_from_frame(merged, "close_trade_has_lit_followthrough", False)
+    )
+    close_hygiene = close_hygiene.where(close_hygiene.notna(), np.where(close_trade_followthrough, 1.0, 0.0))
     close_hygiene = pd.Series(close_hygiene, index=merged.index).fillna(0.0).clip(lower=0.0, upper=1.0)
     merged["daily_close_hygiene"] = close_hygiene
 
@@ -1463,13 +1557,13 @@ def build_symbol_day_microstructure_feature_frame(
         0.0,
     )
 
-    prev_day_high = pd.to_numeric(merged.get("prev_day_high"), errors="coerce")
-    prev_day_low = pd.to_numeric(merged.get("prev_day_low"), errors="coerce")
-    day_high = pd.to_numeric(merged.get("day_high"), errors="coerce")
-    day_low = pd.to_numeric(merged.get("day_low"), errors="coerce")
-    day_close = pd.to_numeric(merged.get("day_close"), errors="coerce")
-    day_open = pd.to_numeric(merged.get("day_open"), errors="coerce")
-    previous_close = pd.to_numeric(merged.get("previous_close"), errors="coerce")
+    prev_day_high = pd.to_numeric(_series_from_frame(merged, "prev_day_high"), errors="coerce")
+    prev_day_low = pd.to_numeric(_series_from_frame(merged, "prev_day_low"), errors="coerce")
+    day_high = pd.to_numeric(_series_from_frame(merged, "day_high"), errors="coerce")
+    day_low = pd.to_numeric(_series_from_frame(merged, "day_low"), errors="coerce")
+    day_close = pd.to_numeric(_series_from_frame(merged, "day_close"), errors="coerce")
+    day_open = pd.to_numeric(_series_from_frame(merged, "day_open"), errors="coerce")
+    previous_close = pd.to_numeric(_series_from_frame(merged, "previous_close"), errors="coerce")
 
     ob_up = prev_day_high.gt(0) & day_high.gt(prev_day_high) & day_close.lt(prev_day_high)
     ob_down = prev_day_low.gt(0) & day_low.lt(prev_day_low) & day_close.gt(prev_day_low)
@@ -1503,6 +1597,11 @@ def build_symbol_day_microstructure_feature_frame(
         & pd.to_numeric(_series_from_frame(merged, "close_preclose_return_pct"), errors="coerce").fillna(0.0).lt(0.0)
     ).astype(int)
 
+    _emit_frame_telemetry(
+        telemetry_callback,
+        label="symbol_day_features_output",
+        frame=merged,
+    )
     return merged
 
 
@@ -1959,6 +2058,7 @@ def generate_base_from_bundle(
     asof_date: str | None = None,
     write_xlsx: bool = True,
     session_minute_detail: pd.DataFrame | None = None,
+    symbol_day_features: pd.DataFrame | None = None,
     library_owner: str = "preuss_steffen",
     library_version: int = 1,
 ) -> dict[str, Any]:
@@ -1968,12 +2068,22 @@ def generate_base_from_bundle(
         manifest_prefix="databento_volatility_production_",
     )
     target_dir = output_dir or Path(bundle_payload["bundle_dir"])
-    base_snapshot, mapping_payload, symbol_day_features = build_base_snapshot_from_bundle_payload(
-        bundle_payload,
-        schema_path=schema_path,
-        session_minute_detail=session_minute_detail,
-        asof_date=asof_date,
-    )
+    if symbol_day_features is None:
+        base_snapshot, mapping_payload, symbol_day_features = build_base_snapshot_from_bundle_payload(
+            bundle_payload,
+            schema_path=schema_path,
+            session_minute_detail=session_minute_detail,
+            asof_date=asof_date,
+        )
+    else:
+        if symbol_day_features.empty:
+            raise RuntimeError("Unable to derive symbol-day microstructure features from the bundle")
+        base_snapshot, mapping_payload = _build_base_snapshot_from_symbol_day_features(
+            symbol_day_features,
+            schema_path=schema_path,
+            asof_date=asof_date,
+        )
+        mapping_payload["bundle_manifest_path"] = str(bundle_payload["manifest_path"])
     output_paths = build_default_output_paths(bundle_payload["base_prefix"], target_dir, mapping_payload["asof_date"])
     output_paths["base_csv"].parent.mkdir(parents=True, exist_ok=True)
     base_snapshot.to_csv(output_paths["base_csv"], index=False)
@@ -2145,10 +2255,23 @@ def run_databento_base_scan_pipeline(
                     )
                     merged_symbol_day_diagnostics = _tail_trade_days(merged_symbol_day_diagnostics, trade_days=trading_days)
 
-                    expected_symbols_by_trade_day, required_symbols_by_trade_day = _build_session_minute_symbol_scope(
-                        merged_daily_features,
-                        scoped_trade_days=set(incremental_trade_days),
-                    )
+                    intraday_expected = merged_daily_features.copy()
+                    intraday_expected["trade_date"] = _coerce_trade_date_series(intraday_expected["trade_date"])
+                    intraday_expected["symbol"] = intraday_expected.get("symbol", pd.Series(index=intraday_expected.index, dtype=object)).astype(str).str.upper()
+                    has_intraday_available = "has_intraday" in intraday_expected.columns
+                    if has_intraday_available:
+                        intraday_expected["has_intraday"] = _coerce_bool_series(intraday_expected["has_intraday"])
+                    else:
+                        intraday_expected["has_intraday"] = pd.Series(True, index=intraday_expected.index, dtype=bool)
+                    intraday_expected = intraday_expected.loc[
+                        intraday_expected["trade_date"].isin(set(incremental_trade_days))
+                        & intraday_expected["trade_date"].notna()
+                        & intraday_expected["symbol"].ne("")
+                    ].copy()
+                    expected_symbols_by_trade_day = {
+                        trade_day: set(group["symbol"].tolist())
+                        for trade_day, group in intraday_expected.groupby("trade_date", sort=False)
+                    }
                     universe_symbols = set(merged_daily_features["symbol"].dropna().astype(str).str.upper())
 
                     _progress("Step 11/12: Collecting incremental full-session minute detail for microstructure base derivation...")
@@ -2159,7 +2282,6 @@ def run_databento_base_scan_pipeline(
                         trading_days=incremental_trade_days,
                         universe_symbols=universe_symbols,
                         expected_symbols_by_trade_day=expected_symbols_by_trade_day,
-                        required_symbols_by_trade_day=required_symbols_by_trade_day,
                         display_timezone=display_timezone,
                         cache_dir=cache_dir,
                         use_file_cache=use_file_cache,
@@ -2323,9 +2445,42 @@ def run_databento_base_scan_pipeline(
             "Unable to resolve trade dates for the SMC base scan. The export manifest is missing trade_dates_covered "
             "and no fallback trade_date values were available in daily_symbol_features_full_universe."
         )
-    expected_symbols_by_trade_day, required_symbols_by_trade_day = _build_session_minute_symbol_scope(
-        daily_feature_frame
-    )
+    intraday_expected = daily_feature_frame.copy()
+    intraday_expected["trade_date"] = _coerce_trade_date_series(intraday_expected["trade_date"])
+    intraday_expected["symbol"] = intraday_expected.get("symbol", pd.Series(index=intraday_expected.index, dtype=object)).astype(str).str.upper()
+    has_intraday_available = "has_intraday" in intraday_expected.columns
+    if has_intraday_available:
+        intraday_expected["has_intraday"] = _coerce_bool_series(intraday_expected["has_intraday"])
+    else:
+        intraday_expected["has_intraday"] = pd.Series(True, index=intraday_expected.index, dtype=bool)
+        logger.warning(
+            "daily_symbol_features_full_universe is missing has_intraday; defaulting to fetch all symbol-days for minute detail coverage."
+        )
+    intraday_expected = intraday_expected.loc[
+        intraday_expected["trade_date"].notna() & intraday_expected["symbol"].ne("")
+    ].copy()
+    if has_intraday_available:
+        has_intraday_false_count = int((~intraday_expected["has_intraday"]).sum())
+        if has_intraday_false_count > 0:
+            logger.warning(
+                "daily_symbol_features_full_universe contains %d symbol-days with has_intraday=False; keeping them in minute-detail fetch scope while excluding them from hard coverage expectations.",
+                has_intraday_false_count,
+            )
+    expected_symbols_by_trade_day = {
+        trade_day: set(group["symbol"].tolist())
+        for trade_day, group in intraday_expected.groupby("trade_date", sort=False)
+    }
+    if has_intraday_available:
+        required_symbols_by_trade_day: dict[date, set[str]] = {
+            trade_day: set() for trade_day in expected_symbols_by_trade_day
+        }
+        for trade_day, group in intraday_expected.loc[intraday_expected["has_intraday"]].groupby("trade_date", sort=False):
+            required_symbols_by_trade_day[trade_day] = set(group["symbol"].tolist())
+    else:
+        required_symbols_by_trade_day = {
+            trade_day: set(symbols)
+            for trade_day, symbols in expected_symbols_by_trade_day.items()
+        }
     universe_symbols = set(daily_feature_frame["symbol"].dropna().astype(str).str.upper())
 
     _progress("Step 11/12: Collecting full-session minute detail for microstructure base derivation...")
@@ -2350,17 +2505,32 @@ def run_databento_base_scan_pipeline(
     output_paths = build_default_output_paths(bundle_payload["base_prefix"], export_dir, str(max(trading_days).isoformat()))
     if not session_minute_detail.empty:
         session_minute_detail.to_parquet(output_paths["session_minute_parquet"], index=False)
-        bundle_payload["frames"]["session_minute_detail_full_universe"] = session_minute_detail
 
     _progress("Step 12/12: Building SMC microstructure base snapshot...")
     base_snapshot_started_at = time_module.perf_counter()
     canonical_production_workbook = export_result.get("exported_paths", {}).get("canonical_production_workbook")
+    _progress("Step 12/12a: Deriving symbol-day microstructure features from session minute detail...")
+    symbol_day_features_started_at = time_module.perf_counter()
+    symbol_day_features = build_symbol_day_microstructure_feature_frame(
+        session_minute_detail,
+        daily_feature_frame,
+        telemetry_callback=_progress,
+        mutate_input=True,
+    )
+    _progress(
+        "Step 12/12a complete: Symbol-day microstructure features built in "
+        f"{time_module.perf_counter() - symbol_day_features_started_at:.1f}s "
+        f"(rows={len(symbol_day_features)}, approx_frame_mib={_approx_frame_memory_mebibytes(symbol_day_features):.1f})"
+    )
+    session_minute_detail = pd.DataFrame()
+    _progress("Step 12/12b: Aggregating base snapshot from symbol-day features...")
     base_result = generate_base_from_bundle(
         bundle_payload,
         schema_path=schema_path,
         output_dir=export_dir,
         write_xlsx=write_xlsx,
-        session_minute_detail=session_minute_detail,
+        session_minute_detail=None,
+        symbol_day_features=symbol_day_features,
         library_owner=library_owner,
         library_version=library_version,
     )

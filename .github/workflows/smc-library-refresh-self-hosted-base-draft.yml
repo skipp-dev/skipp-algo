@@ -1,87 +1,164 @@
-# SMC Library Intraday Refresh (v5)
+# Draft workflow to benchmark a self-hosted base-generation split.
 #
-# Runs 4x per trading day at 12:30 / 14:30 / 16:30 / 18:30 UTC on weekdays.
-# Each run: generate → event-risk → gate → detect changes → diff report →
-#           governance → publish → commit → alerts.
-# Skips publish/version-bump/commit when the library content is unchanged.
-# Self-hosted base split experiments live in
-# .github/workflows/smc-library-refresh-self-hosted-base-draft.yml.
-#
-# v5 stages:
-#   1. Base data scan (Databento)
-#   2. Enrichment (regime, news, calendar, layering, event-risk)
-#   3. Evidence gates (integration / structure / core tests)
-#   4. Change detection (diff against previous library)
-#   5. Version governance (breaking-change detection)
-#   6. Publish to TradingView
-#   7. Commit artifacts
-#   8. Signal + event-risk alerts (Telegram / email)
-#
-# Required secrets:
-#   FMP_API_KEY        – Financial Modeling Prep API key (enrichment data)
-#   BENZINGA_API_KEY   – Benzinga API key (news/calendar fallback)
-#   DATABENTO_API_KEY  – Databento API key (base data generation)
-#   TV_STORAGE_STATE   – TradingView Playwright storage-state JSON (publish)
-#
-# Optional secrets:
-#   GH_PAT             – Optional GitHub PAT override for checkout/push;
-#                        otherwise the workflow uses the built-in github.token
-#                        with contents:write permission.
-#
-# Optional secrets (alerting):
-#   TELEGRAM_BOT_TOKEN – Telegram bot token for alert delivery
-#   TELEGRAM_CHAT_ID   – Telegram chat/channel ID for alerts
-#   SMTP_HOST          – SMTP server hostname for email alerts
-#   SMTP_USER          – SMTP login username
-#   SMTP_PASS          – SMTP login password
-#   ALERT_EMAIL_FROM   – Sender address for email alerts
-#   ALERT_EMAIL_TO     – Recipient address for email alerts
-#   NEWSAPI_AI_KEY     – NewsAPI.ai key for optional news fallback enrichment
-#
-# Secret compatibility note (v4 → v5):
-#   Secret names are unchanged from v4 — no reconfiguration needed.
-#   The v5 architecture adds the event-risk enrichment stage which
-#   derives from existing calendar + news data; no new secrets required.
+# This variant keeps the heavy Databento base generation on a dedicated
+# self-hosted runner while leaving gates, governance, publish, commit, and
+# TradingView automation on the same GitHub-hosted path used by the active
+# refresh workflow.
 
-name: smc-library-refresh
+name: smc-library-refresh-self-hosted-base-draft
 
 on:
-  schedule:
-    - cron: "30 12 * * 1-5"   # 12:30 UTC – pre-market
-    - cron: "30 14 * * 1-5"   # 14:30 UTC – market open
-    - cron: "30 16 * * 1-5"   # 16:30 UTC – midday
-    - cron: "30 18 * * 1-5"   # 18:30 UTC – late session
   workflow_dispatch:
+    inputs:
+      refresh_ref:
+        description: Git ref to refresh
+        required: false
+        default: main
+      self_hosted_runner_labels_json:
+        description: JSON array of runner labels for the self-hosted base job
+        required: false
+        default: '["self-hosted","smc-base"]'
+      self_hosted_cache_dir:
+        description: Persistent Databento cache root on the self-hosted runner
+        required: false
+        default: /var/lib/skipp-algo/databento_volatility_cache
+      github_hosted_runner:
+        description: GitHub-hosted runner for validation, publish, and alerts
+        required: false
+        default: ubuntu-24.04-4core
 
 permissions:
   contents: write
 
+concurrency:
+  group: smc-library-refresh-self-hosted-base-${{ github.ref }}
+  cancel-in-progress: false
+
 env:
-  REFRESH_DATE: ""   # set dynamically in the date step
+  REFRESH_DATE: ""
 
 jobs:
-  refresh:
-    runs-on: ubuntu-24.04-4core
+  generate_base_self_hosted:
+    name: Generate Base On Self-Hosted Runner
+    runs-on: ${{ fromJSON(inputs.self_hosted_runner_labels_json) }}
     timeout-minutes: 120
+    env:
+      SMC_DATABENTO_CACHE_DIR: ${{ inputs.self_hosted_cache_dir }}
+    outputs:
+      refresh_date: ${{ steps.refresh_metadata.outputs.refresh_date }}
+      refresh_ts: ${{ steps.refresh_metadata.outputs.refresh_ts }}
+      payload_artifact: ${{ steps.payload.outputs.payload_artifact }}
 
     steps:
-      # ── Metadata ────────────────────────────────────────────────
       - name: Set refresh date
+        id: refresh_metadata
         run: |
-          echo "REFRESH_DATE=$(date -u +%Y-%m-%d)" >> "$GITHUB_ENV"
-          echo "REFRESH_TS=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_ENV"
+          REFRESH_DATE=$(date -u +%Y-%m-%d)
+          REFRESH_TS=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          echo "REFRESH_DATE=${REFRESH_DATE}" >> "$GITHUB_ENV"
+          echo "REFRESH_TS=${REFRESH_TS}" >> "$GITHUB_ENV"
+          echo "refresh_date=${REFRESH_DATE}" >> "$GITHUB_OUTPUT"
+          echo "refresh_ts=${REFRESH_TS}" >> "$GITHUB_OUTPUT"
 
       - name: Emit runner selection
         run: |
-          echo "::notice::SMC refresh job running on 'ubuntu-24.04-4core'."
+          echo "::notice::Draft self-hosted base generation running on labels ${{ inputs.self_hosted_runner_labels_json }} with cache root '${SMC_DATABENTO_CACHE_DIR}'."
 
-      # ── Checkout ────────────────────────────────────────────────
       - name: Checkout
         uses: actions/checkout@v4
         with:
+          ref: ${{ inputs.refresh_ref }}
           token: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
 
-      # ── Python + Node setup ─────────────────────────────────────
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pytest
+
+      - name: Ensure persistent Databento cache root exists
+        run: |
+          mkdir -p "${SMC_DATABENTO_CACHE_DIR}"
+
+      - name: Restore incremental base seed
+        uses: actions/cache/restore@v4
+        with:
+          path: artifacts/smc_microstructure_exports/incremental_base_seed
+          key: ${{ runner.os }}-smc-incremental-base-seed-${{ github.ref_name }}-${{ github.run_id }}
+          restore-keys: |
+            ${{ runner.os }}-smc-incremental-base-seed-${{ github.ref_name }}-
+
+      - name: Generate SMC library payload on self-hosted runner
+        env:
+          FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
+          BENZINGA_API_KEY: ${{ secrets.BENZINGA_API_KEY }}
+          NEWSAPI_AI_KEY: ${{ secrets.NEWSAPI_AI_KEY }}
+          DATABENTO_API_KEY: ${{ secrets.DATABENTO_API_KEY }}
+        run: |
+          python scripts/generate_smc_micro_base_from_databento.py \
+            --run-scan \
+            --incremental-base-only \
+            --enrich-all \
+            --cache-dir "${SMC_DATABENTO_CACHE_DIR}" \
+            --export-dir artifacts/smc_microstructure_exports \
+            --output-root .
+
+      - name: Verify generated base manifest exists
+        run: |
+          if ! find artifacts/smc_microstructure_exports -name '*__smc_microstructure_base_manifest.json' -print -quit | grep -q .; then
+            echo "::error::Missing generated base manifest in artifacts/smc_microstructure_exports"
+            exit 1
+          fi
+
+      - name: Save incremental base seed
+        if: success()
+        uses: actions/cache/save@v4
+        with:
+          path: artifacts/smc_microstructure_exports/incremental_base_seed
+          key: ${{ runner.os }}-smc-incremental-base-seed-${{ github.ref_name }}-${{ github.run_id }}
+
+      - name: Prepare generated payload metadata
+        id: payload
+        run: |
+          echo "payload_artifact=smc-self-hosted-refresh-payload-${{ github.run_id }}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload generated payload
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.payload.outputs.payload_artifact }}
+          path: |
+            artifacts/smc_microstructure_exports/
+            pine/generated/
+          retention-days: 14
+
+  publish_refresh_github_hosted:
+    name: Validate And Publish On GitHub-Hosted Runner
+    needs: generate_base_self_hosted
+    runs-on: ${{ inputs.github_hosted_runner }}
+    timeout-minutes: 120
+    env:
+      SELECTED_GH_HOSTED_RUNNER: ${{ inputs.github_hosted_runner }}
+
+    steps:
+      - name: Restore refresh metadata
+        run: |
+          echo "REFRESH_DATE=${{ needs.generate_base_self_hosted.outputs.refresh_date }}" >> "$GITHUB_ENV"
+          echo "REFRESH_TS=${{ needs.generate_base_self_hosted.outputs.refresh_ts }}" >> "$GITHUB_ENV"
+
+      - name: Emit runner selection
+        run: |
+          echo "::notice::Draft validation/publish job running on '${SELECTED_GH_HOSTED_RUNNER}'."
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.refresh_ref }}
+          token: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -103,8 +180,7 @@ jobs:
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
 
-      # ── Snapshot pre-generation state ───────────────────────────
-      - name: Snapshot library + manifest before generation
+      - name: Snapshot library + manifest before payload materialization
         run: |
           if [ -f pine/generated/smc_micro_profiles_generated.pine ]; then
             cp pine/generated/smc_micro_profiles_generated.pine /tmp/library_before.pine
@@ -117,28 +193,17 @@ jobs:
             echo '{}' > /tmp/manifest_before.json
           fi
 
-      - name: Restore incremental base seed
-        uses: actions/cache/restore@v4
+      - name: Download generated payload
+        uses: actions/download-artifact@v4
         with:
-          path: artifacts/smc_microstructure_exports/incremental_base_seed
-          key: ${{ runner.os }}-smc-incremental-base-seed-${{ github.ref_name }}-${{ github.run_id }}
-          restore-keys: |
-            ${{ runner.os }}-smc-incremental-base-seed-${{ github.ref_name }}-
+          name: ${{ needs.generate_base_self_hosted.outputs.payload_artifact }}
+          path: /tmp/smc-self-hosted-refresh
 
-      # ── Library generation with enrichment (v5) ─────────────────
-      - name: Generate SMC library with v5 enrichment
-        env:
-          FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
-          BENZINGA_API_KEY: ${{ secrets.BENZINGA_API_KEY }}
-          NEWSAPI_AI_KEY: ${{ secrets.NEWSAPI_AI_KEY }}
-          DATABENTO_API_KEY: ${{ secrets.DATABENTO_API_KEY }}
+      - name: Materialize generated payload into workspace
         run: |
-          python scripts/generate_smc_micro_base_from_databento.py \
-            --run-scan \
-            --incremental-base-only \
-            --enrich-all \
-            --export-dir artifacts/smc_microstructure_exports \
-            --output-root .
+          mkdir -p artifacts/smc_microstructure_exports pine/generated
+          cp -R /tmp/smc-self-hosted-refresh/artifacts/smc_microstructure_exports/. artifacts/smc_microstructure_exports/
+          cp -R /tmp/smc-self-hosted-refresh/pine/generated/. pine/generated/
 
       - name: Verify generated base manifest exists
         run: |
@@ -147,14 +212,6 @@ jobs:
             exit 1
           fi
 
-      - name: Save incremental base seed
-        if: success()
-        uses: actions/cache/save@v4
-        with:
-          path: artifacts/smc_microstructure_exports/incremental_base_seed
-          key: ${{ runner.os }}-smc-incremental-base-seed-${{ github.ref_name }}-${{ github.run_id }}
-
-      # ── Evidence gates ──────────────────────────────────────────
       - name: Run evidence gate tests
         id: gates
         continue-on-error: true
@@ -185,12 +242,10 @@ jobs:
           echo "GATE_STATUS=failed" >> "$GITHUB_ENV"
           exit 1
 
-      # ── Change detection ────────────────────────────────────────
       - name: Detect library changes
         id: diff
         run: |
           LIBRARY="pine/generated/smc_micro_profiles_generated.pine"
-          MANIFEST="pine/generated/smc_micro_profiles_generated.json"
           mkdir -p artifacts/ci
 
           if diff -q /tmp/library_before.pine "$LIBRARY" > /dev/null 2>&1; then
@@ -203,7 +258,6 @@ jobs:
             echo "::notice::Library content changed — proceeding to publish."
           fi
 
-      # ── Schema / version governance ─────────────────────────────
       - name: Evaluate version governance
         id: breaking
         if: steps.diff.outputs.changed == 'true'
@@ -231,7 +285,6 @@ jobs:
           echo "breaking=${BREAKING}" >> "$GITHUB_OUTPUT"
           echo "reason=${REASON}" >> "$GITHUB_OUTPUT"
 
-      # ── Publish-contract verification ────────────────────────────
       - name: Verify publish contract and productivity gate
         id: contract
         if: steps.diff.outputs.changed == 'true'
@@ -240,7 +293,6 @@ jobs:
             --manifest pine/generated/smc_micro_profiles_generated.json \
             --core SMC_Core_Engine.pine
 
-      # ── Dated snapshot archival ─────────────────────────────────
       - name: Archive dated library snapshot
         if: steps.diff.outputs.changed == 'true'
         run: |
@@ -255,7 +307,6 @@ jobs:
                "${SNAP_DIR}/smc_micro_profiles_core_import_run${{ github.run_number }}.pine"
           fi
 
-      # ── Upload CI artifacts ─────────────────────────────────────
       - name: Upload gate evidence + library artifacts
         if: always()
         uses: actions/upload-artifact@v4
@@ -267,7 +318,6 @@ jobs:
             pine/generated/
           retention-days: 90
 
-      # ── Publish to TradingView (skip when unchanged or breaking) ─
       - name: Write TradingView storage state
         if: steps.diff.outputs.changed == 'true' && steps.breaking.outputs.breaking != 'true'
         run: |
@@ -284,7 +334,6 @@ jobs:
             --core SMC_Core_Engine.pine \
             --release-manifest artifacts/tradingview/library_release_manifest.json
 
-      # ── Version bump + commit (skip when unchanged or breaking) ─
       - name: Bump library version in SMC_Core_Engine.pine
         if: steps.diff.outputs.changed == 'true' && steps.breaking.outputs.breaking != 'true'
         run: |
@@ -300,7 +349,6 @@ jobs:
           git diff --cached --quiet || git commit -m "chore: library refresh ${REFRESH_DATE} (run ${{ github.run_number }})"
           git push
 
-      # ── Signal alerts (non-blocking) ────────────────────────────
       - name: Evaluate and send alerts
         id: alerts
         if: steps.diff.outputs.changed == 'true' && steps.breaking.outputs.breaking != 'true'
@@ -326,17 +374,17 @@ jobs:
             ${ALERT_EMAIL_FROM:+--email-from "$ALERT_EMAIL_FROM"} \
             ${ALERT_EMAIL_TO:+--email-to "$ALERT_EMAIL_TO"}
 
-      # ── Status summary ─────────────────────────────────────────
       - name: Emit workflow summary
         if: always()
         run: |
           {
-            echo "## SMC Library Refresh (v5) — ${REFRESH_TS}"
+            echo "## SMC Library Refresh (self-hosted base draft) — ${REFRESH_TS}"
             echo ""
             echo "| Step | Status |"
             echo "|------|--------|"
-            echo "| Runner | ubuntu-24.04-4core |"
-            echo "| Generation (base + enrichment + event-risk) | ${{ steps.gates.outcome != 'skipped' && '✅' || '❌ skipped' }} |"
+            echo "| Base generation runner | ${{ inputs.self_hosted_runner_labels_json }} |"
+            echo "| Validation/publish runner | ${SELECTED_GH_HOSTED_RUNNER} |"
+            echo "| Base generation | ✅ self-hosted payload generated |"
             echo "| Evidence gates | ${{ steps.gates.outcome == 'success' && '✅ passed' || '❌ failed' }} |"
             echo "| Library changed | ${{ steps.diff.outputs.changed == 'true' && '✅ yes' || '⏭️ no' }} |"
             echo "| Publish contract | ${{ steps.contract.outcome == 'success' && '✅' || steps.contract.outcome == 'skipped' && '⏭️ skipped' || '❌ failed' }} |"
@@ -366,7 +414,6 @@ jobs:
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
-      # ── Breaking-change notification ────────────────────────────
       - name: Notify on breaking change
         if: steps.breaking.outputs.breaking == 'true'
         continue-on-error: true
@@ -383,7 +430,6 @@ jobs:
               -d parse_mode=HTML || true
           fi
 
-      # ── End-of-run status notification ──────────────────────────
       - name: Send end-of-run status notification
         if: always()
         continue-on-error: true
@@ -415,7 +461,7 @@ jobs:
             HEADLINE="Library published"
           fi
 
-          MSG="${ICON} <b>SMC Refresh</b> — ${HEADLINE}%0A🕐 ${REFRESH_TS}  •  Run #${{ github.run_number }}"
+          MSG="${ICON} <b>SMC Refresh Draft</b> — ${HEADLINE}%0A🕐 ${REFRESH_TS}  •  Run #${{ github.run_number }}"
           if [ "$ALERTS" = "success" ]; then
             MSG="${MSG}%0A📡 Signal alerts evaluated"
           fi
@@ -425,4 +471,3 @@ jobs:
             -d chat_id="${TELEGRAM_CHAT_ID}" \
             -d text="${MSG}" \
             -d parse_mode=HTML || true
-
