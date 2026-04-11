@@ -33,8 +33,9 @@ def normalize_bars(df: pd.DataFrame) -> pd.DataFrame:
         raise ValueError(f"Missing required bar columns: {missing}")
 
     if not pd.api.types.is_numeric_dtype(out["timestamp"]):
-        out["timestamp"] = pd.to_datetime(out["timestamp"], utc=True, errors="coerce")
-        out["timestamp"] = out["timestamp"].astype("int64") // 10**9
+        parsed_timestamps = pd.to_datetime(out["timestamp"], utc=True, errors="coerce")
+        epoch = pd.Timestamp("1970-01-01", tz="UTC")
+        out["timestamp"] = (parsed_timestamps - epoch) // pd.Timedelta(seconds=1)
 
     out = out.sort_values("timestamp").reset_index(drop=True)
 
