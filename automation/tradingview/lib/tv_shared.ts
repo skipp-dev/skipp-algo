@@ -120,6 +120,14 @@ export function numEnv(name: string, fallback: number): number {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+export function resolveTradingViewHeadlessDefault(env: NodeJS.ProcessEnv = process.env): boolean {
+  const raw = env.TV_HEADLESS;
+  if (raw != null) {
+    return ["1", "true", "yes", "on"].includes(raw.toLowerCase());
+  }
+  return ["1", "true", "yes", "on"].includes((env.CI || "").toLowerCase());
+}
+
 export function utcNow(): string {
   return new Date().toISOString();
 }
@@ -1191,7 +1199,7 @@ export function resolvePublishedVersionEvidence(options: {
 export async function newTradingViewSession(): Promise<TradingViewSession> {
   const authResolution = resolveTradingViewAuthResolution(process.env);
   const launchOptions = {
-    headless: boolEnv("TV_HEADLESS", false),
+    headless: resolveTradingViewHeadlessDefault(process.env),
   };
 
   let browser: Browser;

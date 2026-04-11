@@ -176,7 +176,12 @@ const requiredPreflightReportFields = [
 ] as const;
 
 export function readJson<T>(filePath: string): T {
-  return JSON.parse(fs.readFileSync(filePath, "utf-8")) as T;
+  try {
+    return JSON.parse(fs.readFileSync(filePath, "utf-8")) as T;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`Invalid JSON in ${filePath}: ${message}`);
+  }
 }
 
 export function inspectTradingViewStorageState(
@@ -216,9 +221,14 @@ export function resolveTradingViewAuthResolution(env: NodeJS.ProcessEnv = proces
   const persistentProfileDir = resolvePath(env.TV_PERSISTENT_PROFILE_DIR);
 
   const hasStorageState = Boolean(storageStatePath && fs.existsSync(storageStatePath));
-  const storageStateInspection = hasStorageState
-    ? inspectTradingViewStorageState(storageStatePath as string)
-    : null;
+  let storageStateInspection: TradingViewStorageStateInspection | null = null;
+  if (hasStorageState) {
+    try {
+      storageStateInspection = inspectTradingViewStorageState(storageStatePath as string);
+    } catch {
+      storageStateInspection = null;
+    }
+  }
   const storageStateValid = Boolean(storageStateInspection?.looksAuthenticated);
 
   if (hasStorageState && storageStateValid) {

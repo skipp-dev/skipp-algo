@@ -9,6 +9,7 @@ import {
   resolvePublishNoChangeCleanupActions,
   resolveOpenScriptIdentityEvidence,
   settingsDialogTitleMatchesScriptName,
+  resolveTradingViewHeadlessDefault,
   validateTradingViewStorageState,
   containsAnchoredCodeBlockAfterLine,
   containsOrderedCodeBlock,
@@ -74,6 +75,22 @@ test("editor diagnostics reject toolbar-free non-editor states", () => {
     pineTexts: ["Save", "Publish"],
     relevantBodyLines: ["Save", "Publish"],
   }), false);
+});
+
+test("TradingView headless default stays headed locally", () => {
+  assert.equal(resolveTradingViewHeadlessDefault({}), false);
+});
+
+test("TradingView headless default is enabled in CI", () => {
+  assert.equal(resolveTradingViewHeadlessDefault({ CI: "true" }), true);
+});
+
+test("TradingView headless env override disables CI fallback", () => {
+  assert.equal(resolveTradingViewHeadlessDefault({ CI: "true", TV_HEADLESS: "0" }), false);
+});
+
+test("TradingView headless env override enables local headless mode", () => {
+  assert.equal(resolveTradingViewHeadlessDefault({ TV_HEADLESS: "1" }), true);
 });
 
 test("editor diagnostics accept visible Pine editor containers", () => {

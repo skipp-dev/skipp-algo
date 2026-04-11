@@ -269,11 +269,28 @@ jobs:
         if: steps.diff.outputs.changed == 'true' && steps.breaking.outputs.breaking != 'true'
         run: |
           mkdir -p automation/tradingview/auth
-          echo '${{ secrets.TV_STORAGE_STATE }}' > automation/tradingview/auth/storage-state.json
+          cat > automation/tradingview/auth/storage-state.json <<'__TV_STORAGE_STATE__'
+          ${{ secrets.TV_STORAGE_STATE }}
+          __TV_STORAGE_STATE__
+
+      - name: Validate TradingView storage state JSON
+        if: steps.diff.outputs.changed == 'true' && steps.breaking.outputs.breaking != 'true'
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          path = Path("automation/tradingview/auth/storage-state.json")
+          try:
+              json.loads(path.read_text(encoding="utf-8"))
+          except json.JSONDecodeError as exc:
+              raise SystemExit(f"Invalid TV_STORAGE_STATE JSON in {path}: {exc}")
+          PY
 
       - name: Publish library to TradingView
         if: steps.diff.outputs.changed == 'true' && steps.breaking.outputs.breaking != 'true'
         env:
+          TV_HEADLESS: "1"
           TV_STORAGE_STATE: automation/tradingview/auth/storage-state.json
         run: |
           npx tsx scripts/tv_publish_micro_library.ts \

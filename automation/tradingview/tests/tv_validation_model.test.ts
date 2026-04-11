@@ -172,6 +172,43 @@ test("invalid storage state without fallback stays non-reusable", () => {
   assert.equal(resolution.fallbackReason, "storage_state_invalid");
 });
 
+test("invalid storage state json falls back to persistent profile", () => {
+  const tempDir = makeTempDir("tv-auth-invalid-json-fallback-");
+  const storageStatePath = path.join(tempDir, "storage-state.json");
+  const profileDir = path.join(tempDir, "profile");
+  fs.mkdirSync(profileDir, { recursive: true });
+  fs.writeFileSync(storageStatePath, "{ not-valid-json", "utf-8");
+
+  const resolution = resolveTradingViewAuthResolution({
+    TV_STORAGE_STATE: storageStatePath,
+    TV_PERSISTENT_PROFILE_DIR: profileDir,
+  });
+
+  assert.equal(resolution.authMode, "persistent_profile");
+  assert.equal(resolution.authSourcePath, profileDir);
+  assert.equal(resolution.authReusedOk, true);
+  assert.equal(resolution.fallbackUsed, true);
+  assert.equal(resolution.fallbackReason, "storage_state_invalid");
+});
+
+test("invalid storage state json without fallback stays non-reusable", () => {
+  const tempDir = makeTempDir("tv-auth-invalid-json-no-fallback-");
+  const storageStatePath = path.join(tempDir, "storage-state.json");
+  fs.writeFileSync(storageStatePath, "{ not-valid-json", "utf-8");
+
+  const resolution = resolveTradingViewAuthResolution({
+    TV_STORAGE_STATE: storageStatePath,
+  });
+
+  assert.equal(resolution.authMode, "storage_state");
+  assert.equal(resolution.authSourcePath, storageStatePath);
+  assert.equal(resolution.authSourceExists, true);
+  assert.equal(resolution.authSourceValid, false);
+  assert.equal(resolution.authReusedOk, false);
+  assert.equal(resolution.fallbackUsed, false);
+  assert.equal(resolution.fallbackReason, "storage_state_invalid");
+});
+
 test("not_verified never aggregates to success", () => {
   assert.equal(combineVerificationStatuses([true, "not_verified", true]), "not_verified");
   assert.equal(statusesAllTrue([true, "not_verified", true]), false);
