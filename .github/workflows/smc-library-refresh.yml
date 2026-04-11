@@ -56,6 +56,7 @@ permissions:
 env:
   REFRESH_DATE: ""   # set dynamically in the date step
   SMC_REFRESH_RUNNER_LABEL: ${{ vars.SMC_GH_HOSTED_RUNNER || 'ubuntu-latest' }}
+  SMC_INCREMENTAL_BASE_SEED_CACHE_VERSION: v1
 
 jobs:
   refresh:
@@ -119,9 +120,9 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: artifacts/smc_microstructure_exports/incremental_base_seed
-          key: ${{ runner.os }}-smc-incremental-base-seed-${{ github.ref_name }}-${{ github.run_id }}
+          key: ${{ runner.os }}-smc-incremental-base-seed-${{ env.SMC_INCREMENTAL_BASE_SEED_CACHE_VERSION }}-${{ github.ref_name }}-${{ github.run_id }}
           restore-keys: |
-            ${{ runner.os }}-smc-incremental-base-seed-${{ github.ref_name }}-
+            ${{ runner.os }}-smc-incremental-base-seed-${{ env.SMC_INCREMENTAL_BASE_SEED_CACHE_VERSION }}-${{ github.ref_name }}-
 
       # ── Library generation with enrichment (v5) ─────────────────
       - name: Generate SMC library with v5 enrichment
@@ -150,7 +151,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: artifacts/smc_microstructure_exports/incremental_base_seed
-          key: ${{ runner.os }}-smc-incremental-base-seed-${{ github.ref_name }}-${{ github.run_id }}
+          key: ${{ runner.os }}-smc-incremental-base-seed-${{ env.SMC_INCREMENTAL_BASE_SEED_CACHE_VERSION }}-${{ github.ref_name }}-${{ github.run_id }}
 
       # ── Evidence gates ──────────────────────────────────────────
       - name: Run evidence gate tests
@@ -235,6 +236,7 @@ jobs:
         if: steps.diff.outputs.changed == 'true'
         run: |
           python scripts/run_smc_pre_release_artifact_refresh.py \
+            --export-bundle-root artifacts/smc_microstructure_exports \
             --output artifacts/ci/smc_pre_release_artifact_refresh_report.json
 
       - name: Run strict release gates
