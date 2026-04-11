@@ -49,6 +49,9 @@ def resample_bars_to_timeframe(df: pd.DataFrame, timeframe: str) -> pd.DataFrame
     freq = _TIMEFRAME_TO_PANDAS_FREQ[canonical_tf]
     bars = _coerce_bars(df)
 
+    if canonical_tf == "1D":
+        return bars[["symbol", "timestamp", "open", "high", "low", "close", "volume"]].reset_index(drop=True)
+
     parts: list[pd.DataFrame] = []
     for symbol, group in bars.groupby("symbol", sort=False):
         indexed = group.set_index("timestamp").sort_index()
