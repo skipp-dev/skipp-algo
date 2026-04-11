@@ -7,10 +7,6 @@ Stand: 2026-04-10
 Run `.github/workflows/smc-library-refresh.yml` on a larger GitHub-hosted
 Linux runner without bringing back any self-hosted infrastructure.
 
-Self-hosted base experiments now live separately in
-`.github/workflows/smc-library-refresh-self-hosted-base-draft.yml` so the
-active hosted workflow can stay the production baseline.
-
 ## Current Active Runner
 
 - `ubuntu-24.04-4core`

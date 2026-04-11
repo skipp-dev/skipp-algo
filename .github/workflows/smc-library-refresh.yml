@@ -4,9 +4,6 @@
 # Each run: generate → event-risk → gate → detect changes → diff report →
 #           governance → publish → commit → alerts.
 # Skips publish/version-bump/commit when the library content is unchanged.
-# Self-hosted base split experiments live in
-# .github/workflows/smc-library-refresh-self-hosted-base-draft.yml.
-#
 # v5 stages:
 #   1. Base data scan (Databento)
 #   2. Enrichment (regime, news, calendar, layering, event-risk)
