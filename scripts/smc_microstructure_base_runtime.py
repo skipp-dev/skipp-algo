@@ -2268,10 +2268,28 @@ def run_databento_base_scan_pipeline(
                         & intraday_expected["trade_date"].notna()
                         & intraday_expected["symbol"].ne("")
                     ].copy()
+                    if has_intraday_available:
+                        has_intraday_false_count = int((~intraday_expected["has_intraday"]).sum())
+                        if has_intraday_false_count > 0:
+                            logger.warning(
+                                "daily_symbol_features_full_universe contains %d symbol-days with has_intraday=False; keeping them in minute-detail fetch scope while excluding them from hard coverage expectations.",
+                                has_intraday_false_count,
+                            )
                     expected_symbols_by_trade_day = {
                         trade_day: set(group["symbol"].tolist())
                         for trade_day, group in intraday_expected.groupby("trade_date", sort=False)
                     }
+                    if has_intraday_available:
+                        required_symbols_by_trade_day: dict[date, set[str]] = {
+                            trade_day: set() for trade_day in expected_symbols_by_trade_day
+                        }
+                        for trade_day, group in intraday_expected.loc[intraday_expected["has_intraday"]].groupby("trade_date", sort=False):
+                            required_symbols_by_trade_day[trade_day] = set(group["symbol"].tolist())
+                    else:
+                        required_symbols_by_trade_day = {
+                            trade_day: set(symbols)
+                            for trade_day, symbols in expected_symbols_by_trade_day.items()
+                        }
                     universe_symbols = set(merged_daily_features["symbol"].dropna().astype(str).str.upper())
 
                     _progress("Step 11/12: Collecting incremental full-session minute detail for microstructure base derivation...")
@@ -2282,6 +2300,7 @@ def run_databento_base_scan_pipeline(
                         trading_days=incremental_trade_days,
                         universe_symbols=universe_symbols,
                         expected_symbols_by_trade_day=expected_symbols_by_trade_day,
+                        required_symbols_by_trade_day=required_symbols_by_trade_day,
                         display_timezone=display_timezone,
                         cache_dir=cache_dir,
                         use_file_cache=use_file_cache,
