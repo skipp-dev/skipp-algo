@@ -82,3 +82,30 @@ def test_build_session_liquidity_context_shape() -> None:
     df = pd.DataFrame(rows)
     context = build_session_liquidity_context(df, tz="America/New_York")
     assert set(context.keys()) == {"killzones", "session_pivots", "dwm_levels", "opening_levels"}
+
+
+def test_killzones_accept_datetime_timestamps() -> None:
+    rows = [
+        {"timestamp": pd.Timestamp("2026-03-24T00:00:00Z"), "open": 100.0, "high": 101.0, "low": 99.5, "close": 100.3, "volume": 100.0},
+        {"timestamp": pd.Timestamp("2026-03-24T06:30:00Z"), "open": 100.3, "high": 102.0, "low": 100.1, "close": 101.5, "volume": 100.0},
+        {"timestamp": pd.Timestamp("2026-03-24T13:30:00Z"), "open": 101.5, "high": 103.0, "low": 101.0, "close": 102.2, "volume": 100.0},
+    ]
+
+    kz = build_killzones(pd.DataFrame(rows), tz="America/New_York")
+
+    assert {item["name"] for item in kz} == {"Asia", "London", "NY AM"}
+
+
+def test_dwm_levels_accept_datetime_timestamps() -> None:
+    rows = [
+        {"timestamp": pd.Timestamp("2026-03-24T14:00:00Z"), "open": 100.0, "high": 101.0, "low": 99.0, "close": 100.5, "volume": 100.0},
+        {"timestamp": pd.Timestamp("2026-03-24T19:00:00Z"), "open": 100.5, "high": 102.0, "low": 100.2, "close": 101.8, "volume": 100.0},
+        {"timestamp": pd.Timestamp("2026-03-25T14:00:00Z"), "open": 101.8, "high": 103.0, "low": 101.5, "close": 102.6, "volume": 100.0},
+        {"timestamp": pd.Timestamp("2026-03-25T19:00:00Z"), "open": 102.6, "high": 104.0, "low": 102.1, "close": 103.4, "volume": 100.0},
+    ]
+
+    levels = build_dwm_levels(pd.DataFrame(rows))
+
+    assert levels["day_open"] == 101.8
+    assert levels["prev_day_high"] == 102.0
+    assert levels["prev_day_low"] == 99.0

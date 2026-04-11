@@ -25,6 +25,15 @@ def canonical_timeframe(timeframe: str) -> str:
     return _TIMEFRAME_CANONICAL[key]
 
 
+def coerce_timestamps_to_epoch_seconds(timestamps: pd.Series) -> pd.Series:
+    if pd.api.types.is_numeric_dtype(timestamps):
+        return pd.to_numeric(timestamps, errors="coerce")
+
+    parsed_timestamps = pd.to_datetime(timestamps, utc=True, errors="coerce")
+    epoch = pd.Timestamp("1970-01-01", tz="UTC")
+    return (parsed_timestamps - epoch) // pd.Timedelta(seconds=1)
+
+
 def normalize_bars(df: pd.DataFrame) -> pd.DataFrame:
     out = df.copy()
 
@@ -32,10 +41,7 @@ def normalize_bars(df: pd.DataFrame) -> pd.DataFrame:
     if missing:
         raise ValueError(f"Missing required bar columns: {missing}")
 
-    if not pd.api.types.is_numeric_dtype(out["timestamp"]):
-        parsed_timestamps = pd.to_datetime(out["timestamp"], utc=True, errors="coerce")
-        epoch = pd.Timestamp("1970-01-01", tz="UTC")
-        out["timestamp"] = (parsed_timestamps - epoch) // pd.Timedelta(seconds=1)
+    out["timestamp"] = coerce_timestamps_to_epoch_seconds(out["timestamp"])
 
     out = out.sort_values("timestamp").reset_index(drop=True)
 

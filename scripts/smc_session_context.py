@@ -5,6 +5,8 @@ from zoneinfo import ZoneInfo
 
 import pandas as pd
 
+from scripts.smc_price_action_engine import coerce_timestamps_to_epoch_seconds
+
 DEFAULT_TZ = "America/New_York"
 DEFAULT_KILLZONES = [
     ("Asia", "20:00", "00:00"),
@@ -19,9 +21,7 @@ DEFAULT_OPENING_LEVELS = ["00:00", "06:00", "10:00", "14:00"]
 
 def _to_local_bars(df: pd.DataFrame, timezone_name: str) -> pd.DataFrame:
     bars = df.copy()
-    if not pd.api.types.is_numeric_dtype(bars["timestamp"]):
-        bars["timestamp"] = pd.to_datetime(bars["timestamp"], utc=True, errors="coerce")
-        bars["timestamp"] = bars["timestamp"].astype("int64") // 10**9
+    bars["timestamp"] = coerce_timestamps_to_epoch_seconds(bars["timestamp"])
 
     ts_utc = pd.to_datetime(bars["timestamp"], unit="s", utc=True)
     bars["_dt_local"] = ts_utc.dt.tz_convert(ZoneInfo(timezone_name))
@@ -94,9 +94,7 @@ def build_session_pivots(df: pd.DataFrame, tz: str = DEFAULT_TZ) -> list[dict]:
 
 def build_dwm_levels(df: pd.DataFrame) -> dict:
     bars = df.copy()
-    if not pd.api.types.is_numeric_dtype(bars["timestamp"]):
-        bars["timestamp"] = pd.to_datetime(bars["timestamp"], utc=True, errors="coerce")
-        bars["timestamp"] = bars["timestamp"].astype("int64") // 10**9
+    bars["timestamp"] = coerce_timestamps_to_epoch_seconds(bars["timestamp"])
 
     bars["_dt"] = pd.to_datetime(bars["timestamp"], unit="s", utc=True)
     bars["_day"] = bars["_dt"].dt.floor("D")

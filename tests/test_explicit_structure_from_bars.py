@@ -71,3 +71,21 @@ def test_resample_excludes_incomplete_last_bucket() -> None:
     assert not out.empty
     max_source = pd.to_datetime(bars["timestamp"], utc=True).max()
     assert pd.to_datetime(out["timestamp"], utc=True).max() <= max_source
+
+
+def test_explicit_structure_keeps_daily_fvg_confirmation_anchor() -> None:
+    timestamps = pd.date_range("2024-03-01", periods=5, freq="D", tz="UTC")
+    bars = pd.DataFrame(
+        [
+            {"symbol": "AAPL", "timestamp": timestamps[0], "open": 97.0, "high": 100.0, "low": 95.0, "close": 99.0},
+            {"symbol": "AAPL", "timestamp": timestamps[1], "open": 100.0, "high": 101.0, "low": 98.0, "close": 100.5},
+            {"symbol": "AAPL", "timestamp": timestamps[2], "open": 104.0, "high": 108.0, "low": 103.0, "close": 107.0},
+            {"symbol": "AAPL", "timestamp": timestamps[3], "open": 106.0, "high": 107.0, "low": 104.0, "close": 105.0},
+            {"symbol": "AAPL", "timestamp": timestamps[4], "open": 96.0, "high": 99.0, "low": 94.0, "close": 95.0},
+        ]
+    )
+
+    structure = build_explicit_structure_from_bars(bars, symbol="AAPL", timeframe="1D")
+    bullish = next(item for item in structure["fvg"] if item["dir"] == "BULL")
+
+    assert bullish["anchor_ts"] == int(pd.Timestamp(timestamps[2]).timestamp())

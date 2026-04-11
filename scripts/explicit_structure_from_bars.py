@@ -9,6 +9,7 @@ from scripts.explicit_structure_detectors import detect_liquidity_sweeps_from_li
 from scripts.explicit_structure_profiles import build_structure_profile, validate_structure_profile
 from scripts.smc_price_action_engine import (
     canonical_timeframe,
+    coerce_timestamps_to_epoch_seconds,
     normalize_bars,
 )
 
@@ -105,7 +106,7 @@ def _prepare_symbol_resampled_bars(df: pd.DataFrame, symbol: str, timeframe: str
     bars = bars.loc[bars["symbol"].eq(str(symbol).strip().upper())].copy()
     if bars.empty:
         return bars, canonical_tf
-    bars["timestamp"] = pd.to_datetime(bars["timestamp"], utc=True).astype("int64") // 10**9
+    bars["timestamp"] = coerce_timestamps_to_epoch_seconds(bars["timestamp"])
     return bars, canonical_tf
 
 
@@ -293,7 +294,7 @@ def build_explicit_structure_from_bars(
         raise ValueError(f"symbol {symbol_name} has no bars in source frame")
 
     resampled = resample_bars_to_timeframe(symbol_bars, canonical_tf)
-    resampled["timestamp"] = pd.to_datetime(resampled["timestamp"], utc=True).astype("int64") // 10**9
+    resampled["timestamp"] = coerce_timestamps_to_epoch_seconds(resampled["timestamp"])
 
     profile_result = build_structure_profile(
         resampled,
