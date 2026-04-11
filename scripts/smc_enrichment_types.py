@@ -16,7 +16,7 @@ safe defaults for every missing key.
 """
 from __future__ import annotations
 
-from typing import TypedDict
+from typing import Any, TypedDict
 
 
 class RegimeBlock(TypedDict, total=False):
@@ -60,6 +60,7 @@ class ProviderBlock(TypedDict, total=False):
     calendar_provider: str
     technical_provider: str
     event_risk_provider: str
+    domain_diagnostics: dict[str, Any]
 
 
 class VolumeRegimeBlock(TypedDict, total=False):

@@ -539,6 +539,30 @@ class TestFinalizePipelineE2E:
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
         assert manifest["enrichment_blocks"] == ["calendar", "meta", "news", "providers", "regime", "volume_regime"]
 
+    def test_finalize_pipeline_writes_library_provider_diagnostics_report(self, base_result, tmp_path):
+        result = finalize_pipeline(
+            base_result=base_result,
+            schema_path=SCHEMA_PATH,
+            output_root=tmp_path,
+            enrich_regime=True,
+            enrich_news=True,
+            enrich_calendar=True,
+        )
+
+        report_path = Path(result["provider_diagnostics_report"])
+        assert report_path.exists()
+
+        report = json.loads(report_path.read_text(encoding="utf-8"))
+        assert report["report_kind"] == "library_provider_diagnostics"
+        assert report["overall_status"] == "warn"
+        assert report["stale_providers"] == ["benzinga", "fmp", "newsapi_ai"]
+
+        news_diag = next(row for row in report["provider_domain_results"] if row["domain"] == "news")
+        assert news_diag["provider_status"] == "no_data"
+        assert news_diag["selected_provider"] == "none"
+        assert news_diag["attempts"][-1]["provider"] == "newsapi_ai"
+        assert news_diag["attempts"][-1]["provider_status"] == "config_missing"
+
 
 # ── 4. generate_pine_library_from_base with real enrichment ─────────
 

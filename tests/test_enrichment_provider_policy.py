@@ -31,6 +31,7 @@ from scripts.smc_provider_policy import (
     ProviderResult,
     fetch_calendar_fmp,
     fetch_news_fmp,
+    fetch_news_newsapi_ai,
     fetch_regime_fmp,
     fetch_technical_fmp,
     fetch_technical_tradingview,
@@ -221,9 +222,17 @@ class TestPartialProviderAvailability:
         mock_newsapi.return_value = ProviderResult(
             data={"bullish_tickers": [], "bearish_tickers": []},
             provider="newsapi_ai",
+            meta={
+                "provider_status": "ok_no_recent_matches",
+                "status_detail": "Event Registry reachable, but no new symbol-matching NewsAPI.ai items were newer than the current cursor.",
+                "cursor_before_epoch": 123.0,
+                "cursor_before_uri": "uri-feed-1",
+                "raw_record_count": 0,
+                "matched_record_count": 0,
+            },
         )
 
-        resolve_domain(
+        result = resolve_domain(
             "news",
             fmp=MagicMock(),
             benzinga_api_key="bz-key",
@@ -235,6 +244,12 @@ class TestPartialProviderAvailability:
 
         assert mock_newsapi.call_args.kwargs["article_feed_after_epoch"] == 123.0
         assert mock_newsapi.call_args.kwargs["article_feed_after_uri"] == "uri-feed-1"
+        attempts = result.meta["attempts"]
+        assert [attempt["provider"] for attempt in attempts] == ["fmp", "benzinga", "newsapi_ai"]
+        assert attempts[0]["provider_status"] == "timeout"
+        assert attempts[0]["failure_class"] == "runtime"
+        assert attempts[-1]["provider_status"] == "ok_no_recent_matches"
+        assert attempts[-1]["cursor_before_uri"] == "uri-feed-1"
 
     @patch("scripts.smc_provider_policy.fetch_calendar_benzinga")
     @patch("scripts.smc_provider_policy.fetch_calendar_fmp")
@@ -307,6 +322,9 @@ class TestPartialProviderAvailability:
         assert result.ok is False
         assert result.provider == "none"
         assert result.stale == ["fmp", "benzinga", "newsapi_ai"]
+        assert result.meta["provider_status"] == "no_data"
+        assert result.meta["attempts"][-1]["provider_status"] == "quota_exhausted"
+        assert result.meta["attempts"][-1]["failure_class"] == "provider_error"
 
 
 # ── Test 5: Malformed payloads ──────────────────────────────────
@@ -340,6 +358,33 @@ class TestMalformedPayloads:
         result = fetch_news_fmp(fmp, ["AAPL"])
         assert result.ok is True
         assert result.data["bullish_tickers"] == []
+
+    @patch("scripts.smc_news_scorer.compute_news_sentiment")
+    @patch("scripts.smc_newsapi_ai.fetch_newsapi_records")
+    def test_news_newsapi_ai_reports_no_recent_matches_when_cursor_active(self, mock_fetch_records, mock_score):
+        mock_fetch_records.return_value = []
+        mock_score.return_value = {
+            "bullish_tickers": [],
+            "bearish_tickers": [],
+            "neutral_tickers": [],
+            "news_heat_global": 0.0,
+            "ticker_heat_map": "",
+        }
+
+        result = fetch_news_newsapi_ai(
+            "news-key",
+            ["AAPL"],
+            article_feed_after_epoch=123.0,
+            article_feed_after_uri="uri-feed-1",
+        )
+
+        assert result.provider == "newsapi_ai"
+        assert result.meta["provider_status"] == "ok_no_recent_matches"
+        assert "feed window" in result.meta["status_detail"]
+        assert result.meta["cursor_before_epoch"] == 123.0
+        assert result.meta["cursor_before_uri"] == "uri-feed-1"
+        assert result.meta["raw_record_count"] == 0
+        assert result.meta["matched_record_count"] == 0
 
     def test_news_fmp_tickers_is_string(self):
         fmp = MagicMock()
@@ -438,8 +483,19 @@ class TestProviderCountAndStale:
             },
             provider="newsapi_ai",
             meta={
+                "provider_status": "ok",
+                "status_detail": "",
                 "last_seen_epoch": 140.0,
                 "last_seen_news_uri": "uri-feed-2",
+                "attempts": [
+                    {
+                        "provider": "newsapi_ai",
+                        "delivered_provider": "newsapi_ai",
+                        "outcome": "success",
+                        "provider_status": "ok",
+                        "status_detail": "",
+                    }
+                ],
             },
         )
 
@@ -458,6 +514,18 @@ class TestProviderCountAndStale:
             "last_seen_epoch": 140.0,
             "last_seen_news_uri": "uri-feed-2",
         }
+        news_diag = enrichment["providers"]["domain_diagnostics"]["news"]
+        assert news_diag["provider_status"] == "ok"
+        assert news_diag["selected_provider"] == "newsapi_ai"
+        assert news_diag["cursor"]["before"] == {
+            "last_seen_epoch": 100.0,
+            "last_seen_news_uri": "uri-feed-1",
+        }
+        assert news_diag["cursor"]["after"] == {
+            "last_seen_epoch": 140.0,
+            "last_seen_news_uri": "uri-feed-2",
+        }
+        assert news_diag["attempts"][-1]["provider"] == "newsapi_ai"
 
     @patch("scripts.smc_provider_policy.resolve_domain")
     def test_provider_count_matches_active_providers(self, mock_resolve):

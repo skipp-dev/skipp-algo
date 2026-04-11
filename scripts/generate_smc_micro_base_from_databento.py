@@ -304,6 +304,143 @@ def _save_newsapi_feed_state(
     path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
 
 
+def _provider_status_from_result(result: Any) -> tuple[str, str]:
+    provider_status = str(result.meta.get("provider_status") or ("ok" if result.ok else "no_data")).strip()
+    if not provider_status:
+        provider_status = "ok" if result.ok else "no_data"
+    status_detail = str(result.meta.get("status_detail") or "").strip()
+    if not status_detail and not result.ok:
+        status_detail = "All configured providers in the chain failed."
+    return provider_status, status_detail
+
+
+def _normalize_provider_attempts(raw_attempts: Any) -> list[dict[str, Any]]:
+    attempts: list[dict[str, Any]] = []
+    if not isinstance(raw_attempts, list):
+        return attempts
+    for item in raw_attempts:
+        if not isinstance(item, dict):
+            continue
+        row = {
+            "provider": str(item.get("provider") or "").strip(),
+            "delivered_provider": str(item.get("delivered_provider") or item.get("provider") or "").strip(),
+            "outcome": str(item.get("outcome") or "").strip(),
+            "provider_status": str(item.get("provider_status") or "").strip(),
+            "status_detail": str(item.get("status_detail") or "").strip(),
+        }
+        if str(item.get("failure_class") or "").strip():
+            row["failure_class"] = str(item.get("failure_class") or "").strip()
+        if str(item.get("error_type") or "").strip():
+            row["error_type"] = str(item.get("error_type") or "").strip()
+        for key in (
+            "last_seen_epoch",
+            "last_seen_news_uri",
+            "raw_record_count",
+            "matched_record_count",
+            "cursor_before_epoch",
+            "cursor_before_uri",
+        ):
+            if key in item:
+                row[key] = item[key]
+        attempts.append(row)
+    return attempts
+
+
+def _build_domain_diagnostic(
+    domain: str,
+    result: Any,
+    *,
+    cursor_before: dict[str, Any] | None = None,
+    cursor_after: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    provider_status, status_detail = _provider_status_from_result(result)
+    diagnostic: dict[str, Any] = {
+        "domain": domain,
+        "ok": bool(result.ok),
+        "selected_provider": str(result.provider or "none").strip() or "none",
+        "provider_status": provider_status,
+        "status_detail": status_detail,
+        "stale_providers": [str(provider) for provider in result.stale if str(provider).strip()],
+        "attempts": _normalize_provider_attempts(result.meta.get("attempts")),
+    }
+    if cursor_before is not None or cursor_after is not None:
+        diagnostic["cursor"] = {
+            "before": dict(cursor_before or {}),
+            "after": dict(cursor_after or {}),
+        }
+    return diagnostic
+
+
+def _build_library_provider_diagnostics_report(
+    *,
+    enrichment: EnrichmentDict | None,
+    symbols_count: int,
+) -> dict[str, Any]:
+    providers = (enrichment or {}).get("providers") or {}
+    raw_domain_diagnostics = providers.get("domain_diagnostics") if isinstance(providers, dict) else {}
+
+    domain_results: list[dict[str, Any]] = []
+    if isinstance(raw_domain_diagnostics, dict):
+        for domain_name in sorted(raw_domain_diagnostics):
+            payload = raw_domain_diagnostics.get(domain_name)
+            if not isinstance(payload, dict):
+                continue
+            row = dict(payload)
+            row["domain"] = str(domain_name)
+            domain_results.append(row)
+
+    stale_providers = [
+        provider
+        for provider in str(providers.get("stale_providers") or "").split(",")
+        if provider
+    ]
+    overall_status = "warn" if stale_providers else "ok"
+    if any(str(row.get("provider_status") or "").strip() not in {"", "ok"} for row in domain_results):
+        overall_status = "warn"
+
+    failure_reasons: list[dict[str, str]] = []
+    for row in domain_results:
+        status = str(row.get("provider_status") or "").strip()
+        if status in {"", "ok"}:
+            continue
+        domain = str(row.get("domain") or "unknown").strip() or "unknown"
+        selected_provider = str(row.get("selected_provider") or "none").strip() or "none"
+        failure_reasons.append(
+            {
+                "domain": domain,
+                "provider": selected_provider,
+                "code": f"LIBRARY_{domain.upper()}_{status.upper()}",
+                "detail": str(row.get("status_detail") or "").strip(),
+            }
+        )
+
+    return {
+        "report_kind": "library_provider_diagnostics",
+        "overall_status": overall_status,
+        "generated_at": time_module.time(),
+        "symbols_count": int(symbols_count),
+        "provider_count": int(providers.get("provider_count") or 0),
+        "stale_providers": stale_providers,
+        "provider_domain_results": domain_results,
+        "failure_reasons": failure_reasons,
+    }
+
+
+def _write_library_provider_diagnostics_report(
+    path: Path,
+    *,
+    enrichment: EnrichmentDict | None,
+    symbols_count: int,
+) -> dict[str, Any]:
+    payload = _build_library_provider_diagnostics_report(
+        enrichment=enrichment,
+        symbols_count=symbols_count,
+    )
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    return payload
+
+
 def build_enrichment(
     *,
     fmp_api_key: str,
@@ -371,6 +508,7 @@ def build_enrichment(
     enrichment: dict[str, Any] = {}
     all_stale: list[str] = []
     provenance: dict[str, str] = {}
+    domain_diagnostics: dict[str, Any] = {}
     newsapi_feed_state = _load_newsapi_feed_state(newsapi_feed_state_path)
 
     # ── Base scan (Databento) — always the canonical source ─────
@@ -384,11 +522,13 @@ def build_enrichment(
         if pr.ok:
             regime_result = pr.data
         provenance["regime_provider"] = pr.provider
+        domain_diagnostics["regime"] = _build_domain_diagnostic("regime", pr)
         enrichment["regime"] = regime_result
 
     # ── News ────────────────────────────────────────────────────
     news_result: dict[str, Any] = {}
     if enrich_news:
+        news_cursor_before = dict(newsapi_feed_state)
         pr = resolve_domain(
             "news",
             fmp=fmp,
@@ -422,6 +562,12 @@ def build_enrichment(
                     "last_seen_news_uri": persisted_uri,
                 }
         provenance["news_provider"] = pr.provider
+        domain_diagnostics["news"] = _build_domain_diagnostic(
+            "news",
+            pr,
+            cursor_before=news_cursor_before,
+            cursor_after=newsapi_feed_state,
+        )
         enrichment["news"] = {
             "bullish_tickers": news_result.get("bullish_tickers", []),
             "bearish_tickers": news_result.get("bearish_tickers", []),
@@ -440,6 +586,7 @@ def build_enrichment(
         if pr.ok:
             calendar_result = pr.data
         provenance["calendar_provider"] = pr.provider
+        domain_diagnostics["calendar"] = _build_domain_diagnostic("calendar", pr)
         enrichment["calendar"] = {
             "earnings_today_tickers": calendar_result.get("earnings_today_tickers", ""),
             "earnings_tomorrow_tickers": calendar_result.get("earnings_tomorrow_tickers", ""),
@@ -459,6 +606,7 @@ def build_enrichment(
             tech_strength = pr.data.get("strength", 0.5)
             tech_bias = pr.data.get("bias", "NEUTRAL")
         provenance["technical_provider"] = pr.provider
+        domain_diagnostics["technical"] = _build_domain_diagnostic("technical", pr)
 
         # Determine news tone for layering
         bullish_count = len(news_result.get("bullish_tickers", []))
@@ -528,6 +676,7 @@ def build_enrichment(
     enrichment["providers"] = {
         "provider_count": len(active_providers),
         "stale_providers": ",".join(sorted(set(all_stale))),
+        "domain_diagnostics": domain_diagnostics,
         **provenance,
     }
 
@@ -818,6 +967,15 @@ def finalize_pipeline(
         f"(enrichment_keys={len(enrichment_keys)})"
     )
 
+    provider_diagnostics_report_path = output_root / "artifacts" / "ci" / "smc_library_provider_diagnostics_report.json"
+    provider_diagnostics_report = None
+    if enrichment is not None:
+        provider_diagnostics_report = _write_library_provider_diagnostics_report(
+            provider_diagnostics_report_path,
+            enrichment=enrichment,
+            symbols_count=len(symbols),
+        )
+
     # ── Pine library generation ─────────────────────────────────
     pine_started_at = time_module.perf_counter()
     _progress("Finalize 2/3: Generating Pine library artifacts...")
@@ -867,6 +1025,9 @@ def finalize_pipeline(
         "pine_paths": {k: str(v) for k, v in pine_paths.items()},
         "base_result_keys": list(base_result.keys()),
     }
+    if provider_diagnostics_report is not None:
+        result["provider_diagnostics_report"] = str(provider_diagnostics_report_path)
+        result["provider_diagnostics_status"] = str(provider_diagnostics_report.get("overall_status") or "unknown")
     if live_news_result is not None:
         result["live_news_snapshot"] = live_news_result
     return result

@@ -20,6 +20,7 @@ the caller catches + records the stale provider.
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 from typing import Any
@@ -67,6 +68,61 @@ class ProviderResult:
     ok: bool = True             # False when default data was used
     stale: list[str] = field(default_factory=list)  # providers that were tried and failed
     meta: dict[str, Any] = field(default_factory=dict)
+
+
+_PROVIDER_DETAIL_RE = re.compile(r"(apikey|api_key|token|key)=[^&\s]+", flags=re.IGNORECASE)
+
+
+def _sanitize_provider_detail(detail: str) -> str:
+    return _PROVIDER_DETAIL_RE.sub(r"\1=***", str(detail or "")).strip()
+
+
+def _classify_provider_failure(provider_name: str, exc: Exception) -> tuple[str, str, str]:
+    if isinstance(exc, NewsApiAiProviderError):
+        return (
+            str(exc.provider_status or "http_error").strip() or "http_error",
+            _sanitize_provider_detail(str(exc.detail or exc)),
+            "provider_error",
+        )
+
+    detail = _sanitize_provider_detail(str(exc) or type(exc).__name__)
+    lowered = detail.lower()
+
+    if "not configured" in lowered:
+        return "config_missing", detail, "configuration"
+    if "not available" in lowered or "unavailable" in lowered:
+        return "provider_unavailable", detail, "availability"
+    if "timeout" in lowered or "timed out" in lowered:
+        return "timeout", detail, "runtime"
+    if "quota" in lowered:
+        return "quota_exhausted", detail, "quota"
+    if "rate limit" in lowered or "rate-limited" in lowered:
+        return "rate_limited", detail, "quota"
+    return "error", detail, "runtime"
+
+
+def _provider_status_from_result(result: ProviderResult) -> tuple[str, str]:
+    provider_status = str(result.meta.get("provider_status") or ("ok" if result.ok else "no_data")).strip()
+    if not provider_status:
+        provider_status = "ok" if result.ok else "no_data"
+    status_detail = _sanitize_provider_detail(str(result.meta.get("status_detail") or ""))
+    return provider_status, status_detail
+
+
+def _provider_attempt_meta(result: ProviderResult) -> dict[str, Any]:
+    selected_keys = (
+        "last_seen_epoch",
+        "last_seen_news_uri",
+        "raw_record_count",
+        "matched_record_count",
+        "cursor_before_epoch",
+        "cursor_before_uri",
+    )
+    return {
+        key: result.meta[key]
+        for key in selected_keys
+        if key in result.meta
+    }
 
 
 # ── Regime adapters ─────────────────────────────────────────────
@@ -155,6 +211,7 @@ def fetch_news_newsapi_ai(
     article_feed_after_uri: str = "",
 ) -> ProviderResult:
     """Fetch news via NewsAPI.ai / Event Registry (tertiary fallback for news)."""
+    from newsstack_fmp.pipeline import _newsapi_operator_status
     from newsstack_fmp.normalize import normalize_newsapi_ai
     from scripts.smc_news_scorer import compute_news_sentiment
     from scripts.smc_newsapi_ai import extract_newsapi_feed_article_cursor_uri, fetch_newsapi_records
@@ -172,6 +229,18 @@ def fetch_news_newsapi_ai(
         article_feed_after_uri=article_feed_after_uri,
     )
     normalized_items = [normalize_newsapi_ai(record) for record in records]
+    universe = {str(symbol or "").strip().upper() for symbol in symbols if str(symbol or "").strip()}
+    matched_record_count = sum(
+        1
+        for item in normalized_items
+        if any(str(ticker or "").strip().upper() in universe for ticker in item.tickers or [])
+    )
+    provider_status, status_detail = _newsapi_operator_status(
+        cursor=feed_after_epoch,
+        raw_items=normalized_items,
+        filtered_items=normalized_items,
+        universe=universe,
+    )
 
     articles = [
         {
@@ -186,8 +255,14 @@ def fetch_news_newsapi_ai(
         data=result,
         provider="newsapi_ai",
         meta={
+            "provider_status": provider_status,
+            "status_detail": status_detail,
             "last_seen_epoch": last_seen_epoch,
             "last_seen_news_uri": extract_newsapi_feed_article_cursor_uri(records) or "",
+            "raw_record_count": len(records),
+            "matched_record_count": matched_record_count,
+            "cursor_before_epoch": feed_after_epoch,
+            "cursor_before_uri": str(article_feed_after_uri or "").strip(),
         },
     )
 
@@ -350,6 +425,7 @@ def resolve_domain(
         raise ValueError(f"Unknown enrichment domain: {domain!r}")
 
     all_stale: list[str] = []
+    attempt_rows: list[dict[str, Any]] = []
     syms = symbols or []
 
     # Attempt primary, then each fallback in order.
@@ -361,9 +437,34 @@ def resolve_domain(
                                     symbols=syms,
                                     newsapi_ai_feed_after_epoch=newsapi_ai_feed_after_epoch,
                                     newsapi_ai_feed_after_uri=newsapi_ai_feed_after_uri)
+            provider_status, status_detail = _provider_status_from_result(result)
+            attempt_rows.append(
+                {
+                    "provider": provider_name,
+                    "delivered_provider": result.provider,
+                    "outcome": "success",
+                    "provider_status": provider_status,
+                    "status_detail": status_detail,
+                    **_provider_attempt_meta(result),
+                }
+            )
             result.stale.extend(all_stale)
+            result.meta = dict(result.meta)
+            result.meta["attempts"] = list(attempt_rows)
             return result
         except Exception as exc:
+            provider_status, status_detail, failure_class = _classify_provider_failure(provider_name, exc)
+            attempt_rows.append(
+                {
+                    "provider": provider_name,
+                    "delivered_provider": "none",
+                    "outcome": "failed",
+                    "provider_status": provider_status,
+                    "status_detail": status_detail,
+                    "failure_class": failure_class,
+                    "error_type": type(exc).__name__,
+                }
+            )
             if isinstance(exc, NewsApiAiProviderError):
                 logger.info(
                     "%s provider %r degraded — %s",
@@ -380,7 +481,15 @@ def resolve_domain(
 
     # All providers exhausted — return defaults
     return ProviderResult(
-        data={}, provider="none", ok=False, stale=all_stale,
+        data={},
+        provider="none",
+        ok=False,
+        stale=all_stale,
+        meta={
+            "provider_status": "no_data",
+            "status_detail": "All configured providers in the chain failed.",
+            "attempts": attempt_rows,
+        },
     )
 
 
