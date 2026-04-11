@@ -425,13 +425,14 @@ def write_structure_artifacts_from_workbook(
     structure_profile = validate_structure_profile(structure_profile)
     explicit_workbook_requested = workbook is not None
     explicit_bundle_requested = export_bundle_root is not None
+    explicit_workbook_path = Path(workbook).expanduser() if workbook is not None else None
     resolved_inputs = resolve_structure_artifact_inputs(
         explicit_workbook_path=str(workbook) if workbook is not None else None,
         explicit_export_bundle_root=str(export_bundle_root) if export_bundle_root is not None else None,
         explicit_structure_artifacts_dir=str(output_dir),
     )
 
-    resolved_workbook = resolved_inputs.get("workbook_path")
+    resolved_workbook = explicit_workbook_path if explicit_workbook_requested else resolved_inputs.get("workbook_path")
     if resolved_workbook is not None and not isinstance(resolved_workbook, Path):
         resolved_workbook = Path(str(resolved_workbook))
     resolved_bundle_root = resolved_inputs.get("export_bundle_root")
