@@ -296,22 +296,25 @@ def fetch_technical_fmp(fmp: Any, symbol: str = "SPY") -> ProviderResult:
 
 
 def fetch_technical_tradingview(symbol: str = "SPY") -> ProviderResult:
-    """Fetch technical summary via the TradingView-style fallback path.
+    """Fetch technical summary via the real TradingView adapter path.
 
-    Currently backed by ``terminal_fmp_technicals.fetch_fmp_technicals``
-    which returns summary buy/sell/neutral counts.  When a direct
-    TradingView adapter becomes available this shim will be replaced.
+    This fallback must remain independent from the FMP technical fallback.
+    When the TradingView adapter is unavailable or returns an error, the
+    provider is treated as unavailable rather than silently reusing FMP.
     """
-    from terminal_fmp_technicals import fetch_fmp_technicals
+    from terminal_technicals import _TV_AVAILABLE, fetch_technicals
 
-    data = fetch_fmp_technicals(symbol, "1D")
-    if data is None or data.get("error"):
+    if not _TV_AVAILABLE:
+        raise ValueError("TradingView technical adapter not available")
+
+    data = fetch_technicals(symbol, "1D")
+    if data.error:
         raise ValueError("TradingView technical fallback returned no data")
 
-    # Derive strength/bias from summary signals
-    summary_buy = data.get("summary_buy", 0)
-    summary_sell = data.get("summary_sell", 0)
-    total = summary_buy + summary_sell + data.get("summary_neutral", 0)
+    summary_buy = int(data.summary_buy or 0)
+    summary_sell = int(data.summary_sell or 0)
+    summary_neutral = int(data.summary_neutral or 0)
+    total = summary_buy + summary_sell + summary_neutral
     if total > 0:
         strength = abs(summary_buy - summary_sell) / total
         bias = "BULLISH" if summary_buy > summary_sell else ("BEARISH" if summary_sell > summary_buy else "NEUTRAL")

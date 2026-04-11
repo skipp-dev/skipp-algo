@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 from unittest.mock import MagicMock, patch
 
@@ -32,6 +33,7 @@ from scripts.smc_provider_policy import (
     fetch_news_fmp,
     fetch_regime_fmp,
     fetch_technical_fmp,
+    fetch_technical_tradingview,
     resolve_domain,
 )
 from scripts.smc_newsapi_ai import NewsApiAiProviderError
@@ -352,6 +354,50 @@ class TestMalformedPayloads:
         fmp.get_technical_indicator.return_value = {}
         with pytest.raises(ValueError, match="no RSI data"):
             fetch_technical_fmp(fmp)
+
+    @patch("terminal_technicals.fetch_technicals")
+    def test_technical_tradingview_uses_real_tradingview_adapter(self, mock_fetch, monkeypatch):
+        import terminal_technicals
+
+        monkeypatch.setattr(terminal_technicals, "_TV_AVAILABLE", True)
+        mock_fetch.return_value = SimpleNamespace(
+            summary_buy=8,
+            summary_sell=2,
+            summary_neutral=0,
+            error="",
+        )
+
+        result = fetch_technical_tradingview("AAPL")
+
+        assert result.provider == "tradingview"
+        assert result.data == {"strength": 0.6, "bias": "BULLISH"}
+        mock_fetch.assert_called_once_with("AAPL", "1D")
+
+    @patch("terminal_technicals.fetch_technicals")
+    def test_technical_tradingview_rejects_non_tradingview_fallback_path(self, mock_fetch, monkeypatch):
+        import terminal_technicals
+
+        monkeypatch.setattr(terminal_technicals, "_TV_AVAILABLE", False)
+
+        with pytest.raises(ValueError, match="adapter not available"):
+            fetch_technical_tradingview("AAPL")
+
+        mock_fetch.assert_not_called()
+
+    @patch("terminal_technicals.fetch_technicals")
+    def test_technical_tradingview_raises_on_adapter_error(self, mock_fetch, monkeypatch):
+        import terminal_technicals
+
+        monkeypatch.setattr(terminal_technicals, "_TV_AVAILABLE", True)
+        mock_fetch.return_value = SimpleNamespace(
+            summary_buy=0,
+            summary_sell=0,
+            summary_neutral=0,
+            error="symbol not found",
+        )
+
+        with pytest.raises(ValueError, match="returned no data"):
+            fetch_technical_tradingview("AAPL")
 
     def test_calendar_fmp_empty_earnings(self):
         fmp = MagicMock()
