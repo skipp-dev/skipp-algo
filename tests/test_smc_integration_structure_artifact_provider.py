@@ -73,12 +73,105 @@ def test_structure_artifact_provider_category_coverage_is_honest(monkeypatch, tm
     artifact_dir = tmp_path / "reports" / "smc_structure_artifacts"
     artifact_dir.mkdir(parents=True, exist_ok=True)
 
-    write_structure_artifacts_from_workbook(
-        workbook=WORKBOOK_PATH,
-        timeframe="15m",
-        symbols=["AAPL"],
-        output_dir=artifact_dir,
-        generated_at=1709253600.0,
+    artifact_path = artifact_dir / "AAPL_15m.structure.json"
+    artifact_path.write_text(
+        json.dumps(
+            {
+                "schema_version": SCHEMA_VERSION,
+                "generated_at": 1709253600.0,
+                "symbol": "AAPL",
+                "timeframe": "15m",
+                "source": {
+                    "workbook_path": str(WORKBOOK_PATH),
+                    "canonical_upstream": "workbook_fallback",
+                    "sheet": "daily_bars",
+                    "event_logic": "scripts.explicit_structure_from_bars.build_explicit_structure_from_bars",
+                },
+                "coverage_mode": "partial",
+                "coverage": {
+                    "mode": "partial",
+                    "has_bos": True,
+                    "has_orderblocks": False,
+                    "has_fvg": False,
+                    "has_liquidity_sweeps": False,
+                },
+                "event_evidence": {
+                    "last_event": "bos_up",
+                    "trend_state": 1,
+                    "reference_close": 100.0,
+                },
+                "structure": {
+                    "bos": [
+                        {
+                            "id": "bos:AAPL:15m:1:BOS:UP:100.0",
+                            "time": 1.0,
+                            "price": 100.0,
+                            "kind": "BOS",
+                            "dir": "UP",
+                            "source": "pivot_break",
+                        }
+                    ],
+                    "orderblocks": [],
+                    "fvg": [],
+                    "liquidity_sweeps": [],
+                },
+                "auxiliary": {
+                    "liquidity_lines": [],
+                    "session_ranges": [],
+                    "session_pivots": [],
+                    "ipda_range": {},
+                    "htf_fvg_bias": {},
+                    "broken_fractal_signals": [],
+                },
+                "diagnostics": {
+                    "structure_profile_used": "hybrid_default",
+                    "event_logic_version": "v2",
+                    "counts": {
+                        "bos": 1,
+                        "orderblocks": 0,
+                        "fvg": 0,
+                        "liquidity_sweeps": 0,
+                        "liquidity_lines": 0,
+                        "session_ranges": 0,
+                        "session_pivots": 0,
+                        "broken_fractal_signals": 0,
+                    },
+                    "warnings": [],
+                },
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    manifest_path = artifact_dir / "manifest_15m.json"
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "schema_version": SCHEMA_VERSION,
+                "generated_at": 1709253600.0,
+                "timeframe": "15m",
+                "producer": {"name": "test", "upstream": str(WORKBOOK_PATH)},
+                "counts": {"symbols_requested": 1, "artifacts_written": 1, "errors": 0},
+                "artifacts": [
+                    {
+                        "symbol": "AAPL",
+                        "timeframe": "15m",
+                        "artifact_path": "reports/smc_structure_artifacts/AAPL_15m.structure.json",
+                        "coverage_mode": "partial",
+                        "has_bos": True,
+                        "has_orderblocks": False,
+                        "has_fvg": False,
+                        "has_liquidity_sweeps": False,
+                    }
+                ],
+                "errors": [],
+            },
+            indent=4,
+        )
+        + "\n",
+        encoding="utf-8",
     )
 
     monkeypatch.setattr(structure_artifact_json, "REPO_ROOT", tmp_path)
