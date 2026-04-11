@@ -36,6 +36,7 @@ from .repo_sources import (
     discover_composite_source_plan,
     discover_structure_source_status,
     load_raw_meta_input_composite,
+    load_raw_meta_input_composite_for_release_reference,
     load_raw_structure_input,
     select_best_structure_source,
 )
@@ -349,18 +350,27 @@ def build_snapshot_bundle_for_symbol_timeframe(
     *,
     source: str = "auto",
     generated_at: float | None = None,
+    allow_release_reference_meta_fallback: bool = False,
 ) -> dict:
     selected = select_best_structure_source() if source.strip().lower() == "auto" else None
     composite = discover_composite_source_plan(source=source, symbol=symbol, timeframe=timeframe)
     structure_status = discover_structure_source_status(source=source, symbol=symbol, timeframe=timeframe)
     product_cut = build_product_cut_manifest_payload()
     raw_structure, normalized_structure_context = _load_structure_input_and_context(symbol, timeframe, source=source)
-    raw_meta = load_raw_meta_input_composite(
-        symbol,
-        timeframe,
-        source=source,
-        reference_time=generated_at,
-    )
+    if allow_release_reference_meta_fallback:
+        raw_meta = load_raw_meta_input_composite_for_release_reference(
+            symbol,
+            timeframe,
+            source=source,
+            reference_time=generated_at,
+        )
+    else:
+        raw_meta = load_raw_meta_input_composite(
+            symbol,
+            timeframe,
+            source=source,
+            reference_time=generated_at,
+        )
     snapshot = _build_snapshot_from_loaded_raw(raw_structure, raw_meta, generated_at=generated_at)
     dashboard_payload = snapshot_to_dashboard_payload(
         snapshot,

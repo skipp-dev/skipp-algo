@@ -334,6 +334,55 @@ def test_load_source_bars_uses_daily_workbook_fallback_when_bundle_has_no_matchi
     assert float(bars.loc[0, "close"]) == 110.5
 
 
+def test_load_source_bars_prefers_older_intraday_bundle_over_newer_daily_only_manifest(tmp_path: Path) -> None:
+    older_base = "databento_volatility_production_20260310_090000"
+    newer_base = "databento_volatility_production_incremental_20260310_091000"
+
+    (tmp_path / f"{older_base}_manifest.json").write_text("{}\n", encoding="utf-8")
+    pd.DataFrame(
+        [
+            {
+                "symbol": "AAPL",
+                "timestamp": "2024-01-02T14:30:00Z",
+                "open": 101.0,
+                "high": 102.0,
+                "low": 100.0,
+                "close": 101.5,
+                "volume": 1500.0,
+            }
+        ]
+    ).to_parquet(tmp_path / f"{older_base}__full_universe_second_detail_open.parquet", index=False)
+
+    (tmp_path / f"{newer_base}_manifest.json").write_text("{}\n", encoding="utf-8")
+    pd.DataFrame(
+        [
+            {
+                "trade_date": "2024-01-02",
+                "symbol": "AAPL",
+                "open": 91.0,
+                "high": 92.0,
+                "low": 90.0,
+                "close": 91.5,
+                "volume": 500.0,
+            }
+        ]
+    ).to_parquet(tmp_path / f"{newer_base}__daily_bars.parquet", index=False)
+
+    (tmp_path / f"{older_base}_manifest.json").touch()
+    (tmp_path / f"{newer_base}_manifest.json").touch()
+
+    bars, source = measurement_evidence._load_source_bars(
+        "AAPL",
+        "5m",
+        resolved_inputs={"export_bundle_root": tmp_path, "workbook_path": None},
+    )
+
+    assert source == "canonical_export_bundle"
+    assert len(bars) == 1
+    assert float(bars.loc[0, "open"]) == 101.0
+    assert float(bars.loc[0, "volume"]) == 1500.0
+
+
 def test_to_epoch_seconds_drops_invalid_timestamp_rows() -> None:
     frame = pd.DataFrame(
         [

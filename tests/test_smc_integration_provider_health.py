@@ -345,6 +345,92 @@ def test_smoke_happy_path_is_ok(monkeypatch):
     assert smoke["failures"] == []
 
 
+def test_smoke_release_reference_fallback_skips_missing_optional_meta_domains(monkeypatch):
+    import smc_integration.repo_sources as repo_sources_module
+
+    monkeypatch.setattr(
+        provider_health,
+        "discover_composite_source_plan",
+        lambda **kwargs: {
+            "snapshot_structure": "artifact_json",
+            "snapshot_meta": "symbol_timeframe",
+            "snapshot_technical": "none",
+            "snapshot_news": "none",
+        },
+    )
+    monkeypatch.setattr(
+        provider_health,
+        "load_raw_structure_input",
+        lambda symbol, timeframe, source: {
+            "bos": [{"id": 1}],
+            "orderblocks": [],
+            "fvg": [],
+            "liquidity_sweeps": [],
+        },
+    )
+    monkeypatch.setattr(
+        repo_sources_module,
+        "load_raw_meta_input_composite_for_release_reference",
+        lambda symbol, timeframe, source="auto", reference_time=None: {
+            "asof_ts": 995.0,
+            "meta_domain_diagnostics": {
+                "volume": "synthetic_fallback",
+                "volume_source": "synthetic_structure_artifact_meta",
+                "volume_fallback_used": True,
+                "volume_stale": False,
+                "technical": "source_validation_error",
+                "technical_source": "fmp_watchlist_json",
+                "technical_fallback_used": False,
+                "technical_stale": True,
+                "news": "source_validation_error",
+                "news_source": "benzinga_watchlist_json",
+                "news_fallback_used": False,
+                "news_stale": True,
+            },
+        },
+    )
+    monkeypatch.setattr(
+        provider_health,
+        "build_snapshot_bundle_for_symbol_timeframe",
+        lambda symbol, timeframe, source, generated_at, **kwargs: {
+            "snapshot": {
+                "symbol": symbol,
+                "timeframe": timeframe,
+                "generated_at": generated_at,
+                "structure": {
+                    "bos": [{"id": 1}],
+                    "orderblocks": [],
+                    "fvg": [],
+                    "liquidity_sweeps": [],
+                },
+            },
+            "source_plan": {
+                "snapshot_structure": "artifact_json",
+                "snapshot_meta": "symbol_timeframe",
+                "snapshot_technical": "none",
+                "snapshot_news": "none",
+            },
+            "dashboard_payload": {},
+            "pine_payload": {},
+            "structure_context": {"meta": {"service": "stub"}},
+        },
+    )
+
+    smoke = provider_health._run_smoke_checks(
+        symbols=["AAPL"],
+        timeframes=["15m"],
+        checked_at=1_000.0,
+        stale_after_seconds=None,
+        allow_release_reference_meta_fallback=True,
+    )
+
+    assert smoke["results"][0]["status"] == "ok"
+    codes = {row["code"] for row in smoke["degradations"]}
+    assert "STALE_META_TECHNICAL_DOMAIN" not in codes
+    assert "STALE_META_NEWS_DOMAIN" not in codes
+    assert smoke["failures"] == []
+
+
 def test_smoke_bundle_build_error_is_failure(monkeypatch):
     monkeypatch.setattr(
         provider_health,

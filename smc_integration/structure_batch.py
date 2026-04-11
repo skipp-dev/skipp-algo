@@ -20,8 +20,13 @@ DEFAULT_EXPORT_DIR = Path("artifacts") / "smc_microstructure_exports"
 def _load_symbol_bars_from_canonical_exports(symbol: str, timeframe: str, export_dir: Path | None) -> pd.DataFrame | None:
     if export_dir is None:
         return None
+    required_frames = ("daily_bars",) if str(timeframe).strip() == "1D" else ("full_universe_second_detail_open",)
     try:
-        bundle = load_export_bundle(export_dir, manifest_prefix="databento_volatility_production_")
+        bundle = load_export_bundle(
+            export_dir,
+            required_frames=required_frames,
+            manifest_prefix="databento_volatility_production_",
+        )
     except Exception:
         return None
 

@@ -166,3 +166,45 @@ def test_composite_meta_marks_stale_asof_ts_in_provenance(monkeypatch) -> None:
     payload = repo_sources_module.load_raw_meta_input_composite("IBG", "15m", source="auto")
 
     assert any("stale_meta_asof_ts" in str(item) for item in payload.get("provenance", []))
+
+
+def test_release_reference_meta_can_synthesize_volume_from_structure_artifact(monkeypatch) -> None:
+    monkeypatch.setattr(
+        repo_sources_module,
+        "discover_composite_source_plan",
+        lambda **kwargs: {
+            "structure": "structure_artifact_json",
+            "volume": "databento_watchlist_csv",
+            "technical": "fmp_watchlist_json",
+            "news": "benzinga_watchlist_json",
+            "structure_resolution_mode": "manifest",
+        },
+    )
+    monkeypatch.setattr(
+        repo_sources_module.structure_artifact_json,
+        "has_artifact_for_symbol_timeframe",
+        lambda symbol, timeframe: True,
+    )
+
+    def _missing_domain(domain: str, symbol: str, timeframe: str, primary_name: str, *, auto_mode: bool):
+        return None, "source_validation_error", primary_name
+
+    monkeypatch.setattr(repo_sources_module, "_try_load_meta_domain", _missing_domain)
+
+    payload = repo_sources_module.load_raw_meta_input_composite_for_release_reference(
+        "AAPL",
+        "5m",
+        source="auto",
+        reference_time=1000.0,
+    )
+
+    assert payload["asof_ts"] == 1000.0
+    assert payload["volume"]["value"]["regime"] == "NORMAL"
+    assert payload["volume"]["value"]["thin_fraction"] == 0.0
+    assert payload["meta_domains_missing"] == ["technical", "news"]
+    diag = payload["meta_domain_diagnostics"]
+    assert diag["volume"] == "synthetic_fallback"
+    assert diag["volume_source"] == "synthetic_structure_artifact_meta"
+    assert diag["volume_fallback_used"] is True
+    assert diag["technical_stale"] is False
+    assert diag["news_stale"] is False

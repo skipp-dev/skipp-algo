@@ -839,7 +839,12 @@ def diagnose_gate_failure(report: dict[str, Any]) -> list[dict[str, str]]:
         details = gate.get("details")
         if not isinstance(details, dict):
             continue
+        gate_name = str(gate.get("name", "")).strip().lower()
+        gate_status = str(gate.get("status", "")).strip().lower()
+        gate_blocking = bool(gate.get("blocking", True))
         for key in ("failures", "warnings", "degradations_detected", "missing_smoke_failures"):
+            if key == "degradations_detected" and gate_name == "measurement_lane" and not (gate_blocking or gate_status == "fail"):
+                continue
             for row in _iter_code_rows(details.get(key)):
                 code = str(row.get("code", ""))
                 _classify_code(code, row, _add)
@@ -875,6 +880,13 @@ def _classify_code(code: str, row: dict[str, Any], add_fn: Any) -> None:
         add_fn(REASON_MISSING_ARTIFACT, code)
     elif upper.startswith("MEASUREMENT_"):
         add_fn(REASON_MEASUREMENT_QUALITY, code)
+    elif upper in {"EMPTY_STRUCTURE_INPUT", "META_INPUT_LOAD_FAILED", "STRUCTURE_INPUT_LOAD_FAILED", "INVALID_SNAPSHOT_STRUCTURE_SHAPE"}:
+        detail = code
+        symbol = row.get("symbol", "")
+        tf = row.get("timeframe", "")
+        if symbol and tf:
+            detail = f"{code} ({symbol}/{tf})"
+        add_fn(REASON_SMOKE_FAILURE, detail)
     elif "MISSING_SMOKE" in upper or "SMOKE" in upper:
         detail = code
         symbol = row.get("symbol", "")

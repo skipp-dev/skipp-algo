@@ -82,8 +82,13 @@ def _load_source_bars(symbol: str, timeframe: str, resolved_inputs: dict[str, An
     canonical_tf = str(timeframe).strip()
 
     if export_bundle_root is not None:
+        required_frames = ("daily_bars",) if canonical_tf == "1D" else ("full_universe_second_detail_open",)
         try:
-            bundle = load_export_bundle(export_bundle_root, manifest_prefix="databento_volatility_production_")
+            bundle = load_export_bundle(
+                export_bundle_root,
+                required_frames=required_frames,
+                manifest_prefix="databento_volatility_production_",
+            )
         except Exception:
             bundle = None
 

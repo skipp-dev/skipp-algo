@@ -104,6 +104,8 @@ _DOMAIN_SOURCE_ORDER: dict[str, list[str]] = {
     ],
 }
 
+_SYNTHETIC_STRUCTURE_ARTIFACT_META_SOURCE = "synthetic_structure_artifact_meta"
+
 
 def _can_supply_domain(provider: _SourceProvider, domain: str) -> bool:
     caps = provider.descriptor.capabilities
@@ -404,6 +406,119 @@ def _try_load_meta_domain(
     return None, last_status, primary_name
 
 
+def _build_synthetic_volume_meta(symbol: str, timeframe: str, *, asof_ts: float) -> dict[str, Any]:
+    normalized_symbol = str(symbol).strip().upper()
+    normalized_timeframe = str(timeframe).strip()
+    fresh_asof = float(asof_ts)
+    return {
+        "symbol": normalized_symbol,
+        "timeframe": normalized_timeframe,
+        "asof_ts": fresh_asof,
+        "volume": {
+            "value": {
+                "regime": "NORMAL",
+                "thin_fraction": 0.0,
+            },
+            "asof_ts": fresh_asof,
+            "stale": False,
+        },
+        "provenance": [
+            f"smc_integration:{_SYNTHETIC_STRUCTURE_ARTIFACT_META_SOURCE}",
+            f"smc_integration:{_SYNTHETIC_STRUCTURE_ARTIFACT_META_SOURCE}#symbol={normalized_symbol}",
+            f"smc_integration:{_SYNTHETIC_STRUCTURE_ARTIFACT_META_SOURCE}#timeframe={normalized_timeframe}",
+        ],
+    }
+
+
+def _finalize_composite_meta(
+    *,
+    symbol: str,
+    timeframe: str,
+    reference_time: float | None,
+    structure_source: str,
+    volume_meta: dict[str, Any],
+    volume_domain_status: str,
+    actual_volume_source: str,
+    volume_fallback_used: bool,
+    technical_meta: dict[str, Any] | None,
+    technical_domain_status: str,
+    actual_technical_source: str,
+    technical_fallback_used: bool,
+    news_meta: dict[str, Any] | None,
+    news_domain_status: str,
+    actual_news_source: str,
+    news_fallback_used: bool,
+    relax_missing_optional_domains: bool,
+) -> dict[str, Any]:
+    merged = merge_raw_meta_domains(
+        volume_meta=volume_meta,
+        technical_meta=technical_meta,
+        news_meta=news_meta,
+        domain_sources={
+            "structure": structure_source,
+            "volume": actual_volume_source,
+            "technical": actual_technical_source,
+            "news": actual_news_source,
+        },
+    )
+
+    diagnostics: dict[str, Any] = {
+        "volume": volume_domain_status,
+        "volume_source": actual_volume_source,
+        "volume_fallback_used": bool(volume_fallback_used),
+        "technical": technical_domain_status,
+        "technical_source": actual_technical_source,
+        "technical_fallback_used": bool(technical_fallback_used),
+        "news": news_domain_status,
+        "news_source": actual_news_source,
+        "news_fallback_used": bool(news_fallback_used),
+    }
+
+    now = float(reference_time) if reference_time is not None else time.time()
+    for domain, domain_meta, domain_status in [
+        ("volume", volume_meta, volume_domain_status),
+        ("technical", technical_meta, technical_domain_status),
+        ("news", news_meta, news_domain_status),
+    ]:
+        if domain_meta is None:
+            diagnostics[f"{domain}_asof_ts"] = None
+            diagnostics[f"{domain}_age_hours"] = None
+            diagnostics[f"{domain}_stale"] = False if relax_missing_optional_domains and domain in {"technical", "news"} else True
+            continue
+
+        domain_asof = domain_meta.get("asof_ts")
+        if isinstance(domain_asof, (int, float)) and math.isfinite(domain_asof) and domain_asof > 0:
+            age_hours = (now - float(domain_asof)) / 3600.0
+            diagnostics[f"{domain}_asof_ts"] = float(domain_asof)
+            diagnostics[f"{domain}_age_hours"] = round(age_hours, 2)
+            diagnostics[f"{domain}_stale"] = age_hours > _META_DOMAIN_STALE_HOURS
+        else:
+            diagnostics[f"{domain}_asof_ts"] = None
+            diagnostics[f"{domain}_age_hours"] = None
+            diagnostics[f"{domain}_stale"] = False if relax_missing_optional_domains and domain in {"technical", "news"} else True
+
+    merged["meta_domain_diagnostics"] = diagnostics
+
+    merged_asof_ts = merged.get("asof_ts")
+    if not isinstance(merged_asof_ts, (int, float)):
+        raise ValueError("merged raw_meta has invalid asof_ts type")
+    merged_asof_ts_f = float(merged_asof_ts)
+    if not math.isfinite(merged_asof_ts_f) or merged_asof_ts_f <= 0:
+        raise ValueError("merged raw_meta has invalid asof_ts value")
+
+    stale_threshold_secs = 90 * 24 * 60 * 60
+    if merged_asof_ts_f < (now - stale_threshold_secs):
+        provenance = merged.get("provenance", [])
+        if not isinstance(provenance, list):
+            provenance = []
+        stale_marker = "smc_integration:warning:stale_meta_asof_ts"
+        if stale_marker not in provenance:
+            provenance.append(stale_marker)
+        merged["provenance"] = provenance
+
+    return merged
+
+
 def load_raw_meta_input_composite(
     symbol: str,
     timeframe: str,
@@ -436,68 +551,89 @@ def load_raw_meta_input_composite(
         "news", symbol, timeframe, plan["news"], auto_mode=auto_mode,
     )
 
-    merged = merge_raw_meta_domains(
+    return _finalize_composite_meta(
+        symbol=symbol,
+        timeframe=timeframe,
+        reference_time=reference_time,
+        structure_source=structure_provider.descriptor.name,
         volume_meta=volume_meta,
+        volume_domain_status="present" if volume_meta_raw is None else volume_domain_status,
+        actual_volume_source=actual_volume_source,
+        volume_fallback_used=actual_volume_source != plan["volume"] and (volume_meta_raw is not None),
         technical_meta=technical_meta,
+        technical_domain_status=technical_domain_status,
+        actual_technical_source=actual_technical_source,
+        technical_fallback_used=actual_technical_source != plan["technical"] and technical_domain_status == "present",
         news_meta=news_meta,
-        domain_sources={
-            "structure": structure_provider.descriptor.name,
-            "volume": actual_volume_source,
-            "technical": actual_technical_source,
-            "news": actual_news_source,
-        },
+        news_domain_status=news_domain_status,
+        actual_news_source=actual_news_source,
+        news_fallback_used=actual_news_source != plan["news"] and news_domain_status == "present",
+        relax_missing_optional_domains=False,
     )
 
-    # Per-domain diagnostics: status, which provider actually delivered,
-    # and whether a fallback was used.
-    diagnostics: dict[str, Any] = {
-        "volume": volume_domain_status if volume_meta_raw is not None else "present",
-        "volume_source": actual_volume_source,
-        "volume_fallback_used": actual_volume_source != plan["volume"] and (volume_meta_raw is not None),
-        "technical": technical_domain_status,
-        "technical_source": actual_technical_source,
-        "technical_fallback_used": actual_technical_source != plan["technical"] and technical_domain_status == "present",
-        "news": news_domain_status,
-        "news_source": actual_news_source,
-        "news_fallback_used": actual_news_source != plan["news"] and news_domain_status == "present",
-    }
 
-    # Per-domain recency / staleness (B-F1).
-    now = float(reference_time) if reference_time is not None else time.time()
-    for domain, domain_meta in [("volume", volume_meta), ("technical", technical_meta), ("news", news_meta)]:
-        if domain_meta is None:
-            diagnostics[f"{domain}_asof_ts"] = None
-            diagnostics[f"{domain}_age_hours"] = None
-            diagnostics[f"{domain}_stale"] = True
-        else:
-            domain_asof = domain_meta.get("asof_ts")
-            if isinstance(domain_asof, (int, float)) and math.isfinite(domain_asof) and domain_asof > 0:
-                age_hours = (now - float(domain_asof)) / 3600.0
-                diagnostics[f"{domain}_asof_ts"] = float(domain_asof)
-                diagnostics[f"{domain}_age_hours"] = round(age_hours, 2)
-                diagnostics[f"{domain}_stale"] = age_hours > _META_DOMAIN_STALE_HOURS
-            else:
-                diagnostics[f"{domain}_asof_ts"] = None
-                diagnostics[f"{domain}_age_hours"] = None
-                diagnostics[f"{domain}_stale"] = True
+def load_raw_meta_input_composite_for_release_reference(
+    symbol: str,
+    timeframe: str,
+    *,
+    source: str = "auto",
+    reference_time: float | None = None,
+) -> dict[str, Any]:
+    normalized = source.strip().lower()
+    if normalized != "auto":
+        return load_raw_meta_input_composite(
+            symbol,
+            timeframe,
+            source=source,
+            reference_time=reference_time,
+        )
 
-    merged["meta_domain_diagnostics"] = diagnostics
+    plan = discover_composite_source_plan(source=source, symbol=symbol, timeframe=timeframe)
+    structure_source = plan["structure"]
+    if structure_source != "structure_artifact_json" or not structure_artifact_json.has_artifact_for_symbol_timeframe(symbol, timeframe):
+        return load_raw_meta_input_composite(
+            symbol,
+            timeframe,
+            source=source,
+            reference_time=reference_time,
+        )
 
-    merged_asof_ts = merged.get("asof_ts")
-    if not isinstance(merged_asof_ts, (int, float)):
-        raise ValueError("merged raw_meta has invalid asof_ts type")
-    merged_asof_ts_f = float(merged_asof_ts)
-    if not math.isfinite(merged_asof_ts_f) or merged_asof_ts_f <= 0:
-        raise ValueError("merged raw_meta has invalid asof_ts value")
+    volume_meta_raw, volume_domain_status, actual_volume_source = _try_load_meta_domain(
+        "volume", symbol, timeframe, plan["volume"], auto_mode=True,
+    )
+    if volume_meta_raw is None:
+        fallback_asof = float(reference_time) if reference_time is not None else time.time()
+        volume_meta = _build_synthetic_volume_meta(symbol, timeframe, asof_ts=fallback_asof)
+        volume_domain_status = "synthetic_fallback"
+        actual_volume_source = _SYNTHETIC_STRUCTURE_ARTIFACT_META_SOURCE
+        volume_fallback_used = True
+    else:
+        volume_meta = volume_meta_raw
+        volume_fallback_used = actual_volume_source != plan["volume"]
 
-    stale_threshold_secs = 90 * 24 * 60 * 60
-    if merged_asof_ts_f < (now - stale_threshold_secs):
-        provenance = merged.get("provenance", [])
-        if not isinstance(provenance, list):
-            provenance = []
-        stale_marker = "smc_integration:warning:stale_meta_asof_ts"
-        if stale_marker not in provenance:
-            provenance.append(stale_marker)
-        merged["provenance"] = provenance
+    technical_meta, technical_domain_status, actual_technical_source = _try_load_meta_domain(
+        "technical", symbol, timeframe, plan["technical"], auto_mode=True,
+    )
+    news_meta, news_domain_status, actual_news_source = _try_load_meta_domain(
+        "news", symbol, timeframe, plan["news"], auto_mode=True,
+    )
 
-    return merged
+    return _finalize_composite_meta(
+        symbol=symbol,
+        timeframe=timeframe,
+        reference_time=reference_time,
+        structure_source=structure_source,
+        volume_meta=volume_meta,
+        volume_domain_status=volume_domain_status,
+        actual_volume_source=actual_volume_source,
+        volume_fallback_used=volume_fallback_used,
+        technical_meta=technical_meta,
+        technical_domain_status=technical_domain_status,
+        actual_technical_source=actual_technical_source,
+        technical_fallback_used=actual_technical_source != plan["technical"] and technical_domain_status == "present",
+        news_meta=news_meta,
+        news_domain_status=news_domain_status,
+        actual_news_source=actual_news_source,
+        news_fallback_used=actual_news_source != plan["news"] and news_domain_status == "present",
+        relax_missing_optional_domains=True,
+    )

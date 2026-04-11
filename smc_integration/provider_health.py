@@ -293,6 +293,7 @@ def _run_smoke_checks(
     timeframes: list[str],
     checked_at: float,
     stale_after_seconds: int | None,
+    allow_release_reference_meta_fallback: bool = False,
 ) -> dict[str, Any]:
     results: list[dict[str, Any]] = []
     all_warnings: list[dict[str, Any]] = []
@@ -370,7 +371,17 @@ def _run_smoke_checks(
                 degradations.append(dict(degradation))
 
             try:
-                raw_meta = load_raw_meta_input_composite(symbol, timeframe, source="auto")
+                if allow_release_reference_meta_fallback:
+                    from .repo_sources import load_raw_meta_input_composite_for_release_reference
+
+                    raw_meta = load_raw_meta_input_composite_for_release_reference(
+                        symbol,
+                        timeframe,
+                        source="auto",
+                        reference_time=checked_at,
+                    )
+                else:
+                    raw_meta = load_raw_meta_input_composite(symbol, timeframe, source="auto")
             except Exception as exc:
                 failures.append(
                     {
@@ -411,6 +422,12 @@ def _run_smoke_checks(
                 if isinstance(domain_diag, dict):
                     row["meta_domain_diagnostics"] = domain_diag
                     for domain in ("volume", "technical", "news"):
+                        if (
+                            allow_release_reference_meta_fallback
+                            and domain in {"technical", "news"}
+                            and domain_diag.get(domain) != "present"
+                        ):
+                            continue
                         if domain_diag.get(f"{domain}_stale") is True:
                             code = f"STALE_META_{domain.upper()}_DOMAIN"
                             stale_domain_row: dict[str, Any] = {
@@ -437,12 +454,15 @@ def _run_smoke_checks(
                 continue
 
             try:
-                bundle = build_snapshot_bundle_for_symbol_timeframe(
-                    symbol,
-                    timeframe,
-                    source="auto",
-                    generated_at=float(checked_at),
-                )
+                bundle_kwargs: dict[str, Any] = {
+                    "symbol": symbol,
+                    "timeframe": timeframe,
+                    "source": "auto",
+                    "generated_at": float(checked_at),
+                }
+                if allow_release_reference_meta_fallback:
+                    bundle_kwargs["allow_release_reference_meta_fallback"] = True
+                bundle = build_snapshot_bundle_for_symbol_timeframe(**bundle_kwargs)
             except Exception as exc:
                 failures.append(
                     {
@@ -634,6 +654,7 @@ def run_provider_health_check(
         timeframes=resolved_timeframes,
         checked_at=checked,
         stale_after_seconds=stale_after_seconds,
+        allow_release_reference_meta_fallback=bool(strict_release_policy),
     )
 
     warnings: list[dict[str, Any]] = []

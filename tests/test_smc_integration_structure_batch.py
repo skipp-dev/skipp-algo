@@ -21,23 +21,31 @@ def _sample_symbols(limit: int = 2) -> list[str]:
 
 
 def _write_synthetic_export_bundle(bundle_dir: Path, *, symbol: str) -> Path:
+    return _write_bundle_frames(
+        bundle_dir,
+        prefix="databento_volatility_production_20990101_000000",
+        frames={
+            "full_universe_second_detail_open": pd.DataFrame(
+                {
+                    "symbol": [symbol] * 6,
+                    "timestamp": pd.date_range("2026-03-06 14:30:00+00:00", periods=6, freq="15min"),
+                    "open": [100.0] * 6,
+                    "high": [100.0] * 6,
+                    "low": [100.0] * 6,
+                    "close": [100.0] * 6,
+                    "volume": [1.0] * 6,
+                }
+            ),
+        },
+    )
+
+
+def _write_bundle_frames(bundle_dir: Path, *, prefix: str, frames: dict[str, pd.DataFrame]) -> Path:
     bundle_dir.mkdir(parents=True, exist_ok=True)
-    prefix = "databento_volatility_production_20990101_000000"
     manifest_path = bundle_dir / f"{prefix}_manifest.json"
     manifest_path.write_text("{}\n", encoding="utf-8")
-
-    frame = pd.DataFrame(
-        {
-            "symbol": [symbol] * 6,
-            "timestamp": pd.date_range("2026-03-06 14:30:00+00:00", periods=6, freq="15min"),
-            "open": [100.0] * 6,
-            "high": [100.0] * 6,
-            "low": [100.0] * 6,
-            "close": [100.0] * 6,
-            "volume": [1.0] * 6,
-        }
-    )
-    frame.to_parquet(bundle_dir / f"{prefix}__full_universe_second_detail_open.parquet", index=False)
+    for name, frame in frames.items():
+        frame.to_parquet(bundle_dir / f"{prefix}__{name}.parquet", index=False)
     return manifest_path
 
 
@@ -229,3 +237,52 @@ def test_structure_batch_explicit_bundle_keeps_bundle_precedence(tmp_path: Path)
     assert payload["coverage"]["has_orderblocks"] is False
     assert payload["coverage"]["has_fvg"] is False
     assert payload["coverage"]["has_liquidity_sweeps"] is False
+
+
+def test_canonical_intraday_loader_requires_intraday_bundle_frame(tmp_path: Path) -> None:
+    symbol = _sample_symbols(limit=1)[0]
+    older_prefix = "databento_volatility_production_20260310_090000"
+    newer_prefix = "databento_volatility_production_incremental_20260310_091000"
+
+    _write_bundle_frames(
+        tmp_path,
+        prefix=older_prefix,
+        frames={
+            "full_universe_second_detail_open": pd.DataFrame(
+                {
+                    "symbol": [symbol],
+                    "timestamp": ["2026-03-06T14:30:00Z"],
+                    "open": [101.0],
+                    "high": [102.0],
+                    "low": [100.0],
+                    "close": [101.5],
+                    "volume": [2.0],
+                }
+            ),
+        },
+    )
+    _write_bundle_frames(
+        tmp_path,
+        prefix=newer_prefix,
+        frames={
+            "daily_bars": pd.DataFrame(
+                {
+                    "trade_date": ["2026-03-06"],
+                    "symbol": [symbol],
+                    "open": [91.0],
+                    "high": [92.0],
+                    "low": [90.0],
+                    "close": [91.5],
+                }
+            ),
+        },
+    )
+    (tmp_path / f"{older_prefix}_manifest.json").touch()
+    (tmp_path / f"{newer_prefix}_manifest.json").touch()
+
+    bars = structure_batch_module._load_symbol_bars_from_canonical_exports(symbol, "5m", tmp_path)
+
+    assert bars is not None
+    assert len(bars) == 1
+    assert float(bars.loc[0, "open"]) == 101.0
+    assert float(bars.loc[0, "volume"]) == 2.0

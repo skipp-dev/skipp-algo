@@ -284,6 +284,7 @@ def _run_reference_bundle_gate(symbol: str, timeframe: str, generated_at: float)
             timeframe,
             source="auto",
             generated_at=generated_at,
+            allow_release_reference_meta_fallback=True,
         )
     except Exception as exc:
         return {

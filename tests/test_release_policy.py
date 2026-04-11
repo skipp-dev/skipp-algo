@@ -208,12 +208,31 @@ class TestDiagnoseGateFailure:
         stale = [r for r in reasons if r["reason"] == REASON_STALE_DATA]
         assert len(stale) == 1
 
-    def test_measurement_quality_degradation_classified(self) -> None:
+    def test_warn_only_measurement_degradation_is_not_reported_as_failure_reason(self) -> None:
         report: dict[str, Any] = {
             "gates": [
                 {
                     "name": "measurement_lane",
                     "status": "warn",
+                    "blocking": False,
+                    "details": {
+                        "degradations_detected": [
+                            {"code": "MEASUREMENT_BRIER_REGRESSION"},
+                        ],
+                    },
+                }
+            ],
+        }
+        reasons = diagnose_gate_failure(report)
+        assert not any(r["reason"] == REASON_MEASUREMENT_QUALITY for r in reasons)
+
+    def test_blocking_measurement_quality_degradation_classified(self) -> None:
+        report: dict[str, Any] = {
+            "gates": [
+                {
+                    "name": "measurement_lane",
+                    "status": "fail",
+                    "blocking": True,
                     "details": {
                         "degradations_detected": [
                             {"code": "MEASUREMENT_BRIER_REGRESSION"},
@@ -224,6 +243,23 @@ class TestDiagnoseGateFailure:
         }
         reasons = diagnose_gate_failure(report)
         assert any(r["reason"] == REASON_MEASUREMENT_QUALITY for r in reasons)
+
+    def test_empty_structure_smoke_issue_classified(self) -> None:
+        report: dict[str, Any] = {
+            "gates": [
+                {
+                    "name": "provider_health",
+                    "status": "fail",
+                    "details": {
+                        "degradations_detected": [
+                            {"code": "EMPTY_STRUCTURE_INPUT", "symbol": "AAPL", "timeframe": "5m"},
+                        ],
+                    },
+                }
+            ],
+        }
+        reasons = diagnose_gate_failure(report)
+        assert {"reason": REASON_SMOKE_FAILURE, "detail": "EMPTY_STRUCTURE_INPUT (AAPL/5m)"} in reasons
 
     def test_provider_failure_classified(self) -> None:
         report: dict[str, Any] = {
