@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Regenerate the canonical checked-in Pine library artifacts.
+"""Regenerate the deterministic seed-reference Pine artifacts.
 
 Usage
 -----
@@ -9,7 +9,8 @@ What it does
 ~~~~~~~~~~~~
 Runs the full ``run_generation()`` pipeline against the deterministic
 seed fixture (``tests/fixtures/seed_base_snapshot.csv``) and writes the
-three checked-in artifacts under ``pine/generated/``:
+three checked-in seed-reference artifacts under
+``tests/fixtures/generated_seed/pine/generated/``:
 
 * ``smc_micro_profiles_generated.pine``  — the Pine v6 library
 * ``smc_micro_profiles_generated.json``  — the manifest
@@ -23,7 +24,7 @@ Run this command after any change to the generator code
 (``scripts/generate_smc_micro_profiles.py``,
 ``scripts/smc_micro_generator.py``, ``scripts/smc_micro_publisher.py``).
 The anti-drift test ``tests/test_generated_artifact_drift.py`` will fail
-if the checked-in artifacts are stale.
+if the checked-in seed-reference artifacts are stale.
 """
 from __future__ import annotations
 
@@ -33,7 +34,8 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SEED_CSV = REPO_ROOT / "tests" / "fixtures" / "seed_base_snapshot.csv"
-GENERATED_DIR = REPO_ROOT / "pine" / "generated"
+GENERATED_ROOT = REPO_ROOT / "tests" / "fixtures" / "generated_seed"
+GENERATED_DIR = GENERATED_ROOT / "pine" / "generated"
 
 ARTIFACTS = [
     "smc_micro_profiles_generated.pine",
@@ -43,11 +45,11 @@ ARTIFACTS = [
 
 
 def refresh(*, output_root: Path | None = None) -> dict[str, Path]:
-    """Run the generator and return paths of the three checked-in artifacts."""
+    """Run the generator and return paths of the three checked-in seed artifacts."""
     from scripts.generate_smc_micro_profiles import run_generation
     from scripts.smc_schema_resolver import resolve_microstructure_schema_path
 
-    target = output_root or REPO_ROOT
+    target = output_root or GENERATED_ROOT
     schema_path = resolve_microstructure_schema_path()
 
     outputs = run_generation(
@@ -55,6 +57,9 @@ def refresh(*, output_root: Path | None = None) -> dict[str, Path]:
         input_path=SEED_CSV,
         output_root=target,
     )
+
+    # Keep the checked-in seed reference focused on the canonical Pine artifacts.
+    shutil.rmtree(target / "data", ignore_errors=True)
 
     return {
         "pine_path": outputs["pine_path"],
@@ -74,7 +79,7 @@ def main() -> None:
     for name, p in paths.items():
         print(f"  {name}: {p.relative_to(REPO_ROOT)}")
     print()
-    print("Done. Commit the updated artifacts under pine/generated/.")
+    print("Done. Commit the updated seed-reference artifacts under tests/fixtures/generated_seed/.")
 
 
 if __name__ == "__main__":

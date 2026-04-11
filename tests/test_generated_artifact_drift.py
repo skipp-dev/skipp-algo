@@ -1,8 +1,8 @@
-"""Anti-drift test: checked-in generated artifacts must match generator output.
+"""Anti-drift test: checked-in seed-reference artifacts must match generator output.
 
 Regenerates all three Pine artifacts into a temp directory using the same
-seed fixture and compares them against the checked-in versions under
-``pine/generated/``.
+seed fixture and compares them against the checked-in seed-reference versions
+under ``tests/fixtures/generated_seed/pine/generated/``.
 
 * Pine and snippet files are compared byte-for-byte.
 * The manifest is compared structurally (path fields are excluded since

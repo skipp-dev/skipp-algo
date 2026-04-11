@@ -45,6 +45,14 @@ Der bevorzugte Ablauf ist:
 Damit wird der Root Cause direkt adressiert: der aktuelle generierte Source-Stand
 ist nicht publish-ready.
 
+Wenn bereits ein echter Databento-Export vorliegt, aber der kanonische
+Library-Stand noch fixture-basiert ist, gilt zusaetzlich der Recovery-Plan in
+`docs/smc_bundle_to_library_recovery_plan_2026-04-09.md`.
+
+Wichtig: Dieses Runbook beschreibt den produktiven Zielpfad. Die saubere
+Trennung zwischen Bundle-/Base-Artefakten und kanonischem Repo-Output ist dort
+noch nicht als eigener Korrekturschritt ausformuliert.
+
 ## Work Package 0: Voraussetzungen herstellen
 
 ## Pflicht-Inputs
@@ -138,10 +146,14 @@ export BENZINGA_API_KEY="..."
   --dataset DBEQ.BASIC \
   --lookback-days 30 \
   --export-dir artifacts/smc_microstructure_exports \
+   --output-root . \
   --library-owner preuss_steffen \
   --library-version 1 \
   --write-xlsx
 ```
+
+`--export-dir` schreibt Bundle- und Base-Artefakte. `--output-root .` schreibt
+den kanonischen Library-Stand nach `pine/generated/` im Repo-Root.
 
 ## Alternative UI-Pfad
 
@@ -156,6 +168,11 @@ Dann in der UI genau diese Sequenz fahren:
 1. `Run SMC Base Scan`
 2. `Generate Pine Library`
 3. erst bei gruenem Guard `Publish To TradingView`
+
+Die Pine-Generierung in der UI laeuft jetzt ueber denselben shared
+`finalize_pipeline(...)`-Pfad wie der CLI-/Workflow-Run und schreibt damit
+kanonische Library-Outputs nach `pine/generated/` sowie Runtime-Sidecars unter
+`artifacts/smc_microstructure_exports/`.
 
 Fuer den ersten reproduzierbaren Evidenzlauf ist die CLI trotzdem vorzuziehen,
 weil alle Parameter explizit sichtbar bleiben.
@@ -301,7 +318,9 @@ Bedeutung:
 
 Pruefen:
 
-1. ob versehentlich `scripts.refresh_generated_artifacts` verwendet wurde
+1. ob versehentlich ein Seed-Reference-Stand aus
+   `tests/fixtures/generated_seed/` statt des echten Bundle-/Scan-Pfads
+   verwendet wurde
 2. ob die UI noch auf einem Seed-CSV statt auf einem echten Base-Snapshot steht
 3. ob `input_path` im Manifest immer noch auf `tests/fixtures/...` zeigt
 
@@ -377,6 +396,7 @@ export BENZINGA_API_KEY="..."
   --dataset DBEQ.BASIC \
   --lookback-days 30 \
   --export-dir artifacts/smc_microstructure_exports \
+   --output-root . \
   --library-owner preuss_steffen \
   --library-version 1 \
   --write-xlsx

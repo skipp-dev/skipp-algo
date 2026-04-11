@@ -52,6 +52,9 @@ streamlit run streamlit_smc_micro_base_generator.py
 1. Configure Databento + FMP API keys in the sidebar.
 2. Click `Run SMC Base Scan` to generate the base snapshot.
 3. Click `Generate Pine Library` — this produces the v5.5b library surface with normalized lean blocks and any selected enrichment data from FMP/Benzinga.
+  The UI now routes this step through the same shared `finalize_pipeline(...)`
+  contract as the CLI and GitHub Action refresh path, including the split
+  between `artifacts/` sidecars and canonical `pine/generated/` outputs.
 4. Review the manifest contract in the UI.
 5. Click `Publish To TradingView` when the publish guard is green.
 
@@ -59,7 +62,7 @@ streamlit run streamlit_smc_micro_base_generator.py
 
 The GitHub Actions workflow `.github/workflows/smc-library-refresh.yml` runs 4x per trading day (12:30/14:30/16:30/18:30 UTC). Each run:
 
-1. Generates the base + v5.5b enrichment library via `scripts/generate_smc_micro_base_from_databento.py --run-scan --enrich-all`
+1. Generates the base + v5.5b enrichment library via `scripts/generate_smc_micro_base_from_databento.py --run-scan --enrich-all --export-dir artifacts/smc_microstructure_exports --output-root .`
   `--enrich-all` includes the snapshot-derived SMC context blocks used by the current library/core contract; when `NEWSAPI_AI_KEY` is configured it is available as an optional Event Registry article + event fallback behind FMP and Benzinga.
 2. Runs evidence gate tests
 3. Detects whether the library content changed
@@ -87,11 +90,14 @@ This produces a valid 37-field library with safe neutral defaults for all enrich
 ./.venv/bin/python scripts/generate_smc_micro_base_from_databento.py <bundle-or-workbook>
 ```
 
+For canonical checked-in library outputs, use `--output-root .`. Keep
+`--export-dir` for bundle/base artifacts under `artifacts/`.
+
 ### Checked-in Artifact Refresh
 
-The three artifacts under `pine/generated/` are version-controlled reference
-outputs generated from a deterministic seed fixture.  After any change to
-the generator code, refresh them:
+The deterministic seed-reference artifacts live under
+`tests/fixtures/generated_seed/pine/generated/`. After any change to the
+generator code, refresh them:
 
 ```bash
 python -m scripts.refresh_generated_artifacts
@@ -100,13 +106,16 @@ python -m scripts.refresh_generated_artifacts
 This runs `run_generation()` against `tests/fixtures/seed_base_snapshot.csv`
 with `enrichment=None` and overwrites:
 
-- `pine/generated/smc_micro_profiles_generated.pine`
-- `pine/generated/smc_micro_profiles_generated.json`
-- `pine/generated/smc_micro_profiles_core_import_snippet.pine`
+- `tests/fixtures/generated_seed/pine/generated/smc_micro_profiles_generated.pine`
+- `tests/fixtures/generated_seed/pine/generated/smc_micro_profiles_generated.json`
+- `tests/fixtures/generated_seed/pine/generated/smc_micro_profiles_core_import_snippet.pine`
 
 Commit the updated artifacts.  The anti-drift test
 `tests/test_generated_artifact_drift.py` fails if checked-in artifacts
 diverge from the generator output.
+
+`pine/generated/` is the canonical bundle-/scan-derived library output used by
+the publish contract and refresh workflow.
 
 ## Contract Check
 

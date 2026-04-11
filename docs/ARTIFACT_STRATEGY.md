@@ -10,15 +10,21 @@ The repo maintains two distinct artifact classes:
 ### 1. Seed / Default Reference (committed, generator-first)
 
 **Files**:
-- `pine/generated/smc_micro_profiles_generated.pine` — generated Pine library
-- `pine/generated/smc_micro_profiles_generated.json` — generation manifest
+
+- `tests/fixtures/generated_seed/pine/generated/smc_micro_profiles_generated.pine` — generated Pine library
+- `tests/fixtures/generated_seed/pine/generated/smc_micro_profiles_generated.json` — generation manifest
+- `tests/fixtures/generated_seed/pine/generated/smc_micro_profiles_core_import_snippet.pine` — generated import snippet
 
 **Purpose**: Deterministic structural drift checks. These artifacts are
 regenerated from the seed CSV (`tests/fixtures/seed_base_snapshot.csv`) and
 contain safe defaults for all fields (`enrichment_blocks: []`, `asof_time: ""`,
 `refresh_count: 0`).
 
+The canonical publish/runtime output now lives separately under
+`pine/generated/` and is allowed to point at real bundle-derived runs.
+
 **Properties**:
+
 - All lean fields carry zero/empty/false defaults
 - No enrichment data — purely structural skeleton
 - Generator is sole source of truth
@@ -28,6 +34,7 @@ contain safe defaults for all fields (`enrichment_blocks: []`, `asof_time: ""`,
 ### 2. Enriched Showcase Reference (fixture, hand-maintained)
 
 **Files**:
+
 - `tests/fixtures/reference_enrichment.json` — semantic reference fixture
 - `tests/fixtures/generated_showcase/showcase_adapter_summary.json` — adapter-verified summary (generated)
 - `tests/fixtures/generated_showcase/showcase_lean_surface.pine` — Pine const-block for review (generated)
@@ -39,6 +46,7 @@ This fixture shows what a **realistic enriched runtime state** looks like with
 plausible values across all lean blocks.
 
 **Properties**:
+
 - All lean field values are v5.5b contract-compliant (validated by test)
 - Logically coherent scenario (bullish setup with consistent signals)
 - Used by `test_pine_consumer_contract.py` (field names, allowed values, semantic coherence)
@@ -48,7 +56,7 @@ plausible values across all lean blocks.
 ## Why Two Classes?
 
 | Concern | Seed Reference | Showcase Reference |
-|---------|---------------|-------------------|
+| ------- | -------------- | ------------------ |
 | Drift detection | Yes — exact byte comparison | No |
 | Contract validation | Structural only | Structural + semantic |
 | Generator consistency | Source of truth | Independent check |

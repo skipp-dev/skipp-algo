@@ -111,7 +111,7 @@ def _store_to_frame(store: Any, count: int, context: str) -> pd.DataFrame:
     return store_to_frame(store, count=count, context=context)
 
 
-def _read_cached_frame(path: Path, max_age_seconds: float) -> pd.DataFrame | None:
+def _read_cached_frame(path: Path, max_age_seconds: int | None) -> pd.DataFrame | None:
     return read_cached_frame(path, max_age_seconds=max_age_seconds)
 
 
@@ -158,7 +158,9 @@ def collect_full_universe_session_minute_detail(
     all_rows: list[pd.DataFrame] = []
     runtime_unsupported_symbols_seen_global: set[str] = set()
     latest_trade_day = max(trading_days)
-    normalized_universe_symbols = {str(symbol).strip().upper() for symbol in universe_symbols if str(symbol).strip()}
+    normalized_universe_symbols = {
+        str(symbol).strip().upper() for symbol in universe_symbols if str(symbol).strip()
+    }
 
     for trade_day in trading_days:
         day_runtime_unsupported_symbols: set[str] = set()
@@ -179,7 +181,7 @@ def collect_full_universe_session_minute_detail(
                 for symbol in raw_day_required_symbols
                 if str(symbol).strip()
             }
-            day_required_symbols &= day_fetch_symbols
+        day_required_symbols &= day_fetch_symbols
 
         local_start = datetime.combine(trade_day, PREMARKET_START_ET, tzinfo=US_EASTERN_TZ).astimezone(display_tz)
         local_end = datetime.combine(trade_day, AFTERHOURS_END_ET, tzinfo=US_EASTERN_TZ).astimezone(display_tz)
@@ -225,11 +227,12 @@ def collect_full_universe_session_minute_detail(
                                 trade_day,
                                 exc,
                             )
-                    _assert_complete_symbol_coverage(
-                        day_frame,
-                        expected_symbols_for_cache,
-                        context=f"Cached session minute detail for {trade_day}",
-                    )
+                    if expected_symbols_for_cache:
+                        _assert_complete_symbol_coverage(
+                            day_frame,
+                            expected_symbols_for_cache,
+                            context=f"Cached session minute detail for {trade_day}",
+                        )
                 except RuntimeError as exc:
                     logger.warning("Ignoring incomplete session-minute cache for %s: %s", trade_day, exc)
                     day_frame = None

@@ -6,6 +6,7 @@ compatibility.
 """
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -84,6 +85,101 @@ def resolve_base_csv_action_target(
     return selected, None
 
 
+def _resolve_manifest_relative_path(raw_path: str, manifest_path: Path) -> Path:
+    path = Path(raw_path)
+    if path.is_absolute() or path.exists():
+        return path
+    candidate = manifest_path.parent / path
+    return candidate if candidate.exists() else path
+
+
+def resolve_base_manifest_for_csv(base_csv_path: Path, export_dir: Path) -> Path | None:
+    prefix, separator, _ = base_csv_path.name.rpartition("__smc_microstructure_base_")
+    if separator:
+        companion_manifest = base_csv_path.with_name(
+            f"{prefix}__smc_microstructure_base_manifest.json"
+        )
+        if companion_manifest.exists():
+            return companion_manifest
+
+    manifests = sorted(
+        export_dir.glob("*__smc_microstructure_base_manifest.json"),
+        key=lambda path: path.stat().st_mtime,
+        reverse=True,
+    )
+    target_path = base_csv_path.resolve(strict=False)
+    for manifest_path in manifests:
+        try:
+            payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        raw_base_csv_path = str((payload or {}).get("base_csv_path") or "").strip()
+        if not raw_base_csv_path:
+            continue
+        resolved_base_csv = _resolve_manifest_relative_path(raw_base_csv_path, manifest_path)
+        if resolved_base_csv.resolve(strict=False) == target_path:
+            return manifest_path
+    return None
+
+
+def build_finalize_base_result(
+    *,
+    base_csv_path: Path,
+    export_dir: Path,
+    session_base_result: dict[str, Any] | None,
+) -> dict[str, Any]:
+    output_paths = (
+        session_base_result.get("output_paths")
+        if isinstance(session_base_result, dict)
+        else None
+    )
+    raw_session_base_csv = (
+        output_paths.get("base_csv")
+        if isinstance(output_paths, dict)
+        else None
+    )
+    session_base_csv = (
+        Path(raw_session_base_csv).resolve(strict=False)
+        if raw_session_base_csv is not None
+        else None
+    )
+    if (
+        isinstance(session_base_result, dict)
+        and session_base_csv is not None
+        and session_base_csv == base_csv_path.resolve(strict=False)
+        and isinstance(session_base_result.get("base_snapshot"), pd.DataFrame)
+    ):
+        return session_base_result
+
+    base_manifest_path = resolve_base_manifest_for_csv(base_csv_path, export_dir)
+    reconstructed_output_paths: dict[str, Path] = {"base_csv": base_csv_path}
+    if base_manifest_path is not None:
+        reconstructed_output_paths["base_manifest"] = base_manifest_path
+        try:
+            manifest_payload = json.loads(base_manifest_path.read_text(encoding="utf-8"))
+        except Exception:
+            manifest_payload = {}
+        manifest_to_output = {
+            "base_xlsx_path": "base_xlsx",
+            "micro_day_parquet_path": "micro_day_parquet",
+            "mapping_md_path": "mapping_md",
+            "mapping_json_path": "mapping_json",
+        }
+        for manifest_key, output_key in manifest_to_output.items():
+            raw_path = str((manifest_payload or {}).get(manifest_key) or "").strip()
+            if raw_path:
+                reconstructed_output_paths[output_key] = _resolve_manifest_relative_path(
+                    raw_path,
+                    base_manifest_path,
+                )
+
+    return {
+        "base_snapshot": pd.read_csv(base_csv_path),
+        "output_paths": reconstructed_output_paths,
+        "warnings": [],
+    }
+
+
 # ── Streamlit app entry point ───────────────────────────────────────
 
 
@@ -98,7 +194,6 @@ def run_streamlit_micro_base_app() -> None:
         publish_micro_library_to_tradingview,
     )
     from scripts.smc_microstructure_base_runtime import (
-        generate_pine_library_from_base,
         run_databento_base_scan_pipeline,
     )
 
@@ -374,102 +469,81 @@ def run_streamlit_micro_base_app() -> None:
         if action_base_csv is None:
             st.error(str(action_base_csv_error))
         else:
-            enrichment = None
-            if any(
-                [
-                    enrich_regime,
-                    enrich_news,
-                    enrich_calendar,
-                    enrich_layering,
-                    derive_snapshot_blocks,
-                ]
-            ):
-                with st.spinner(
-                    "Collecting enrichment data and deriving snapshot context blocks..."
-                ):
-                    try:
-                        from scripts.generate_smc_micro_base_from_databento import (
-                            build_enrichment,
-                        )
-
-                        base_df = pd.read_csv(action_base_csv)
-                        symbols = (
-                            sorted(
-                                base_df["symbol"].dropna().unique().tolist()
-                            )
-                            if "symbol" in base_df.columns
-                            else []
-                        )
-                        manifest_path = (
-                            repo_root
-                            / "pine"
-                            / "generated"
-                            / "smc_micro_profiles_generated.json"
-                        )
-                        enrichment = build_enrichment(
-                            fmp_api_key=str(fmp_api_key),
-                            benzinga_api_key=str(benzinga_api_key),
-                            newsapi_ai_key=str(newsapi_ai_key),
-                            symbols=symbols,
-                            enrich_regime=enrich_regime,
-                            enrich_news=enrich_news,
-                            enrich_calendar=enrich_calendar,
-                            enrich_layering=enrich_layering,
-                            enrich_event_risk=bool(enrich_news or enrich_calendar),
-                            enrich_flow_qualifier=derive_snapshot_blocks,
-                            enrich_compression_regime=derive_snapshot_blocks,
-                            enrich_zone_intelligence=derive_snapshot_blocks,
-                            enrich_reversal_context=derive_snapshot_blocks,
-                            enrich_session_context=derive_snapshot_blocks,
-                            enrich_liquidity_sweeps=derive_snapshot_blocks,
-                            enrich_liquidity_pools=derive_snapshot_blocks,
-                            enrich_order_blocks=derive_snapshot_blocks,
-                            enrich_zone_projection=derive_snapshot_blocks,
-                            enrich_profile_context=derive_snapshot_blocks,
-                            enrich_structure_state=derive_snapshot_blocks,
-                            enrich_imbalance_lifecycle=derive_snapshot_blocks,
-                            enrich_session_structure=derive_snapshot_blocks,
-                            enrich_range_regime=derive_snapshot_blocks,
-                            enrich_range_profile_regime=derive_snapshot_blocks,
-                            base_snapshot=base_df,
-                            manifest_path=manifest_path,
-                        )
-                        add_log(
-                            f"Enrichment collected: {list(enrichment.keys()) if enrichment else 'none'}"
-                        )
-                    except Exception as exc:
-                        add_log(
-                            f"Enrichment failed (continuing without): {exc}"
-                        )
-                        st.warning(
-                            f"Enrichment partially failed: {exc}. Library will use defaults."
-                        )
-                        enrichment = None
-
+            status = st.status(
+                "Generating Pine library artifacts...", expanded=True
+            )
+            status.write(
+                "Step 1/2: Resolving the selected base snapshot into the shared finalizer contract..."
+            )
             try:
-                pine_result = generate_pine_library_from_base(
+                from scripts.generate_smc_micro_base_from_databento import (
+                    finalize_pipeline,
+                )
+
+                finalize_base_result = build_finalize_base_result(
                     base_csv_path=action_base_csv,
+                    export_dir=export_dir,
+                    session_base_result=st.session_state.get("smc_base_result"),
+                )
+                output_paths = finalize_base_result.get("output_paths", {})
+                status.write(
+                    "Step 2/2: Running the shared finalizer (enrichment, Pine generation, live-news sidecars)..."
+                )
+                pine_result = finalize_pipeline(
+                    base_result=finalize_base_result,
                     schema_path=schema_path,
                     output_root=repo_root,
-                    overrides_path=overrides_path
-                    if overrides_path.exists()
-                    else None,
+                    artifacts_root=export_dir,
+                    fmp_api_key=str(fmp_api_key),
+                    benzinga_api_key=str(benzinga_api_key),
+                    newsapi_ai_key=str(newsapi_ai_key),
                     library_owner=str(library_owner),
                     library_version=int(library_version),
-                    enrichment=enrichment,
+                    enrich_regime=enrich_regime,
+                    enrich_news=enrich_news,
+                    enrich_calendar=enrich_calendar,
+                    enrich_layering=enrich_layering,
+                    enrich_event_risk=bool(enrich_news or enrich_calendar),
+                    enrich_flow_qualifier=derive_snapshot_blocks,
+                    enrich_compression_regime=derive_snapshot_blocks,
+                    enrich_zone_intelligence=derive_snapshot_blocks,
+                    enrich_reversal_context=derive_snapshot_blocks,
+                    enrich_session_context=derive_snapshot_blocks,
+                    enrich_liquidity_sweeps=derive_snapshot_blocks,
+                    enrich_liquidity_pools=derive_snapshot_blocks,
+                    enrich_order_blocks=derive_snapshot_blocks,
+                    enrich_zone_projection=derive_snapshot_blocks,
+                    enrich_profile_context=derive_snapshot_blocks,
+                    enrich_structure_state=derive_snapshot_blocks,
+                    enrich_imbalance_lifecycle=derive_snapshot_blocks,
+                    enrich_session_structure=derive_snapshot_blocks,
+                    enrich_range_regime=derive_snapshot_blocks,
+                    enrich_range_profile_regime=derive_snapshot_blocks,
+                    emit_live_news_snapshot=True,
                 )
             except Exception as exc:
                 add_log(
                     f"Pine generation failed: {type(exc).__name__}: {exc}"
+                )
+                status.update(
+                    label="Pine generation failed.", state="error", expanded=True
                 )
                 st.error(
                     f"Pine generation failed: {type(exc).__name__}: {exc}"
                 )
             else:
                 st.session_state["smc_pine_result"] = pine_result
-                add_log(f"Pine library generated from {action_base_csv}")
+                add_log(
+                    "Shared finalize pipeline completed "
+                    f"from {output_paths.get('base_csv', action_base_csv)}"
+                )
+                status.update(
+                    label="Pine library artifacts generated.",
+                    state="complete",
+                    expanded=True,
+                )
                 st.success(
-                    "Pine library artifacts generated. TradingView publish can now be triggered from this UI."
+                    "Pine library artifacts generated via the shared finalize pipeline. TradingView publish can now be triggered from this UI."
                 )
 
     if publish_pine:
@@ -562,13 +636,39 @@ def run_streamlit_micro_base_app() -> None:
     pine_result = st.session_state.get("smc_pine_result")
     if isinstance(pine_result, dict):
         st.subheader("Pine Artifacts")
-        pine_table = pd.DataFrame(
-            [
-                {"artifact": name, "path": str(path)}
-                for name, path in pine_result.items()
-            ]
-        )
+        pine_paths = pine_result.get("pine_paths") if isinstance(pine_result.get("pine_paths"), dict) else None
+        if pine_paths is not None:
+            pine_table = pd.DataFrame(
+                [
+                    {"artifact": name, "path": str(path)}
+                    for name, path in pine_paths.items()
+                ]
+            )
+        else:
+            pine_table = pd.DataFrame(
+                [
+                    {"artifact": name, "path": str(path)}
+                    for name, path in pine_result.items()
+                ]
+            )
         st.dataframe(pine_table, hide_index=True, use_container_width=True)
+        if pine_paths is not None:
+            metrics = st.columns(4)
+            metrics[0].metric("Symbols", str(pine_result.get("symbols_count", "n/a")))
+            metrics[1].metric("Output Root", str(pine_result.get("output_root", "n/a")))
+            metrics[2].metric("Artifacts Root", str(pine_result.get("artifacts_root", "n/a")))
+            metrics[3].metric(
+                "Stale Providers",
+                str(pine_result.get("stale_providers") or "none"),
+            )
+            live_news_snapshot = pine_result.get("live_news_snapshot")
+            if isinstance(live_news_snapshot, dict):
+                st.caption(
+                    "Live-news sidecar: "
+                    f"status={live_news_snapshot.get('status', 'n/a')}, "
+                    f"snapshot={live_news_snapshot.get('snapshot_path', 'n/a')}, "
+                    f"state={live_news_snapshot.get('state_path', 'n/a')}"
+                )
         st.info(
             "Publish path: the generated library can now be pushed from this UI. The import version stays explicit in the core import path, so owner/version bumps remain the operator's responsibility."
         )

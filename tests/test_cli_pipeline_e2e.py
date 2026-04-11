@@ -206,6 +206,48 @@ class TestFinalizePipeline:
     @patch("scripts.generate_smc_micro_base_from_databento.resolve_live_news_symbols")
     @patch("scripts.generate_smc_micro_base_from_databento.generate_pine_library_from_base")
     @patch("scripts.generate_smc_micro_base_from_databento.build_enrichment")
+    def test_artifacts_root_separates_runtime_sidecars_from_library_output(
+        self,
+        mock_enrich,
+        mock_pine,
+        mock_resolve,
+        mock_export,
+        tmp_path,
+    ):
+        from scripts.generate_smc_micro_base_from_databento import finalize_pipeline
+
+        output_root = tmp_path / "repo_root"
+        artifacts_root = tmp_path / "artifacts_root"
+
+        mock_enrich.return_value = None
+        mock_pine.return_value = _fake_pine_paths()
+        mock_resolve.return_value = (["AAPL"], {"mode": "base_csv"})
+        mock_export.return_value = {
+            "summary": {"active_story_count": 0, "new_story_count": 0, "actionable_symbols": []},
+            "providers": {},
+            "symbol_scope": {"mode": "base_csv"},
+        }
+
+        result = finalize_pipeline(
+            base_result=_fake_base_result(tmp_path),
+            schema_path=Path("schema/smc_microstructure_base.json"),
+            output_root=output_root,
+            artifacts_root=artifacts_root,
+            emit_live_news_snapshot=True,
+        )
+
+        assert artifacts_root.exists()
+        assert mock_enrich.call_args.kwargs["newsapi_feed_state_path"] == artifacts_root / "newsapi_ai_feed_state.json"
+        assert mock_pine.call_args.kwargs["output_root"] == output_root
+        assert mock_export.call_args.kwargs["output_path"] == artifacts_root / "smc_live_news_snapshot.json"
+        assert mock_export.call_args.kwargs["state_path"] == artifacts_root / "smc_live_news_state.json"
+        assert result["output_root"] == str(output_root)
+        assert result["artifacts_root"] == str(artifacts_root)
+
+    @patch("scripts.generate_smc_micro_base_from_databento.export_live_news_snapshot")
+    @patch("scripts.generate_smc_micro_base_from_databento.resolve_live_news_symbols")
+    @patch("scripts.generate_smc_micro_base_from_databento.generate_pine_library_from_base")
+    @patch("scripts.generate_smc_micro_base_from_databento.build_enrichment")
     def test_live_news_sidecar_failure_is_non_blocking(self, mock_enrich, mock_pine, mock_resolve, mock_export, tmp_path):
         from scripts.generate_smc_micro_base_from_databento import finalize_pipeline
 
@@ -402,6 +444,8 @@ class TestMainRunScan:
         mock_finalize.assert_called_once()
         call_kwargs = mock_finalize.call_args.kwargs
         assert call_kwargs["base_result"] is mock_scan.return_value
+        assert call_kwargs["output_root"] == Path(".")
+        assert call_kwargs["artifacts_root"] == tmp_path
         assert call_kwargs["emit_live_news_snapshot"] is True
 
     @patch("scripts.generate_smc_micro_base_from_databento.finalize_pipeline")
@@ -485,26 +529,33 @@ class TestMainBundle:
 
         manifest_path = _write_real_bundle(tmp_path)
         output_dir = tmp_path / "output"
+        repo_root = tmp_path / "repo_root"
         captured: dict[str, Path] = {}
 
         def _fake_generate_pine_library_from_base(*, base_csv_path: Path, output_root: Path, **_: Any) -> dict[str, Path]:
             captured["base_csv_path"] = base_csv_path
+            captured["library_output_root"] = output_root
             library_path = output_root / "pine" / "generated" / "smc_micro_profiles_generated.pine"
             library_path.parent.mkdir(parents=True, exist_ok=True)
             library_path.write_text("// synthetic test library\n", encoding="utf-8")
             return {"library": library_path}
 
-        monkeypatch.setattr(cli, "build_enrichment", lambda **_: None)
+        def _fake_build_enrichment(**kwargs: Any) -> None:
+            captured["newsapi_feed_state_path"] = kwargs["newsapi_feed_state_path"]
+            return None
+
+        def _fake_export_live_news_sidecar(**kwargs: Any) -> dict[str, Any]:
+            captured["live_news_artifacts_root"] = kwargs["artifacts_root"]
+            return {"status": "ok", "snapshot_path": str(output_dir / "smc_live_news_snapshot.json")}
+
+        monkeypatch.setattr(cli, "build_enrichment", _fake_build_enrichment)
         monkeypatch.setattr(cli, "generate_pine_library_from_base", _fake_generate_pine_library_from_base)
-        monkeypatch.setattr(
-            cli,
-            "_export_live_news_sidecar",
-            lambda **_: {"status": "ok", "snapshot_path": str(output_dir / "smc_live_news_snapshot.json")},
-        )
+        monkeypatch.setattr(cli, "_export_live_news_sidecar", _fake_export_live_news_sidecar)
 
         test_args = [
             "--bundle", str(manifest_path),
             "--export-dir", str(output_dir),
+            "--output-root", str(repo_root),
         ]
         with patch("sys.argv", ["prog"] + test_args):
             cli.main()
@@ -517,6 +568,9 @@ class TestMainBundle:
         assert len(base_manifest_candidates) == 1
         assert len(mapping_candidates) == 1
         assert captured["base_csv_path"] == base_csv_candidates[0]
+        assert captured["library_output_root"] == repo_root
+        assert captured["newsapi_feed_state_path"] == output_dir / "newsapi_ai_feed_state.json"
+        assert captured["live_news_artifacts_root"] == output_dir
 
         base_frame = pd.read_csv(base_csv_candidates[0])
         assert list(base_frame["symbol"]) == ["AAA"]
@@ -525,6 +579,28 @@ class TestMainBundle:
         manifest_payload = json.loads(base_manifest_candidates[0].read_text(encoding="utf-8"))
         assert manifest_payload["canonical_upstream_artifact"] == "databento_production_export_bundle"
         assert manifest_payload["bundle_manifest_path"].endswith("databento_volatility_production_fake_manifest.json")
+
+    @patch("scripts.generate_smc_micro_base_from_databento.finalize_pipeline")
+    @patch("scripts.generate_smc_micro_base_from_databento.run_databento_base_scan_pipeline")
+    def test_run_scan_allows_explicit_output_root(self, mock_scan, mock_finalize, tmp_path):
+        from scripts.generate_smc_micro_base_from_databento import main
+
+        mock_scan.return_value = _fake_base_result(tmp_path)
+        mock_finalize.return_value = {"status": "ok"}
+        repo_root = tmp_path / "repo_root"
+
+        test_args = [
+            "--run-scan",
+            "--databento-api-key", "test-key",
+            "--export-dir", str(tmp_path),
+            "--output-root", str(repo_root),
+        ]
+        with patch("sys.argv", ["prog"] + test_args):
+            main()
+
+        call_kwargs = mock_finalize.call_args.kwargs
+        assert call_kwargs["output_root"] == repo_root
+        assert call_kwargs["artifacts_root"] == tmp_path
 
 
 class TestMainMissingArgs:

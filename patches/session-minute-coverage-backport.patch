@@ -1,0 +1,225 @@
+diff --git a/scripts/smc_databento_session_detail.py b/scripts/smc_databento_session_detail.py
+index f24e436f..a9fb8350 100644
+--- a/scripts/smc_databento_session_detail.py
++++ b/scripts/smc_databento_session_detail.py
+@@ -111,7 +111,7 @@ def _store_to_frame(store: Any, count: int, context: str) -> pd.DataFrame:
+     return store_to_frame(store, count=count, context=context)
+ 
+ 
+-def _read_cached_frame(path: Path, max_age_seconds: float) -> pd.DataFrame | None:
++def _read_cached_frame(path: Path, max_age_seconds: int | None) -> pd.DataFrame | None:
+     return read_cached_frame(path, max_age_seconds=max_age_seconds)
+ 
+ 
+@@ -130,6 +130,7 @@ def collect_full_universe_session_minute_detail(
+     trading_days: list[date],
+     universe_symbols: set[str],
+     expected_symbols_by_trade_day: dict[date, set[str]] | None = None,
++    coverage_required_symbols_by_trade_day: dict[date, set[str]] | None = None,
+     display_timezone: str,
+     cache_dir: str | Path | None = None,
+     use_file_cache: bool = True,
+@@ -157,17 +158,30 @@ def collect_full_universe_session_minute_detail(
+     all_rows: list[pd.DataFrame] = []
+     runtime_unsupported_symbols_seen_global: set[str] = set()
+     latest_trade_day = max(trading_days)
++    normalized_universe_symbols = {
++        str(symbol).strip().upper() for symbol in universe_symbols if str(symbol).strip()
++    }
+ 
+     for trade_day in trading_days:
+         day_runtime_unsupported_symbols: set[str] = set()
+-        day_expected_symbols = {
++        day_fetch_symbols = {
+             str(symbol).strip().upper()
+             for symbol in (expected_symbols_by_trade_day or {}).get(trade_day, universe_symbols)
+             if str(symbol).strip()
+         }
+-        day_expected_symbols &= {str(symbol).strip().upper() for symbol in universe_symbols if str(symbol).strip()}
+-        if not day_expected_symbols:
++        day_fetch_symbols &= normalized_universe_symbols
++        if not day_fetch_symbols:
+             continue
++        if coverage_required_symbols_by_trade_day is None:
++            day_required_symbols = set(day_fetch_symbols)
++        else:
++            raw_day_required_symbols = coverage_required_symbols_by_trade_day.get(trade_day, set())
++            day_required_symbols = {
++                str(symbol).strip().upper()
++                for symbol in raw_day_required_symbols
++                if str(symbol).strip()
++            }
++        day_required_symbols &= day_fetch_symbols
+ 
+         local_start = datetime.combine(trade_day, PREMARKET_START_ET, tzinfo=US_EASTERN_TZ).astimezone(display_tz)
+         local_end = datetime.combine(trade_day, AFTERHOURS_END_ET, tzinfo=US_EASTERN_TZ).astimezone(display_tz)
+@@ -185,7 +199,7 @@ def collect_full_universe_session_minute_detail(
+                 display_timezone,
+                 PREMARKET_START_ET.strftime("%H%M%S"),
+                 AFTERHOURS_END_ET.strftime("%H%M%S"),
+-                _universe_fingerprint(day_expected_symbols),
++                _universe_fingerprint(day_fetch_symbols),
+             ],
+         )
+         cache_meta_path = cache_path.with_suffix(f"{cache_path.suffix}.meta.json")
+@@ -197,7 +211,7 @@ def collect_full_universe_session_minute_detail(
+             )
+             if day_frame is not None:
+                 try:
+-                    expected_symbols_for_cache = set(day_expected_symbols)
++                    expected_symbols_for_cache = set(day_required_symbols)
+                     if cache_meta_path.exists():
+                         try:
+                             cache_meta = json.loads(cache_meta_path.read_text(encoding="utf-8"))
+@@ -213,18 +227,19 @@ def collect_full_universe_session_minute_detail(
+                                 trade_day,
+                                 exc,
+                             )
+-                    _assert_complete_symbol_coverage(
+-                        day_frame,
+-                        expected_symbols_for_cache,
+-                        context=f"Cached session minute detail for {trade_day}",
+-                    )
++                    if expected_symbols_for_cache:
++                        _assert_complete_symbol_coverage(
++                            day_frame,
++                            expected_symbols_for_cache,
++                            context=f"Cached session minute detail for {trade_day}",
++                        )
+                 except RuntimeError as exc:
+                     logger.warning("Ignoring incomplete session-minute cache for %s: %s", trade_day, exc)
+                     day_frame = None
+ 
+         if day_frame is None:
+             day_parts: list[pd.DataFrame] = []
+-            active_symbols = set(day_expected_symbols)
++            active_symbols = set(day_fetch_symbols)
+             for symbols_batch in iter_symbol_batches(active_symbols):
+                 unresolved_symbols: set[str] = set()
+                 try:
+@@ -310,7 +325,7 @@ def collect_full_universe_session_minute_detail(
+ 
+                 frame = frame.copy()
+                 frame["symbol"] = frame["symbol"].astype(str).str.upper()
+-                frame = frame[frame["symbol"].isin(day_expected_symbols)].copy()
++                frame = frame[frame["symbol"].isin(day_fetch_symbols)].copy()
+                 if frame.empty:
+                     continue
+ 
+@@ -337,7 +352,7 @@ def collect_full_universe_session_minute_detail(
+                 day_parts.append(frame[output_columns].reset_index(drop=True))
+ 
+             day_frame = pd.concat(day_parts, ignore_index=True) if day_parts else pd.DataFrame(columns=output_columns)
+-            expected_symbols = set(day_expected_symbols) - day_runtime_unsupported_symbols
++            expected_symbols = set(day_required_symbols) - day_runtime_unsupported_symbols
+             if day_runtime_unsupported_symbols:
+                 logger.warning(
+                     "Session minute detail for %s excluded %d runtime-unsupported symbols from completeness checks for this trade day.",
+@@ -349,11 +364,17 @@ def collect_full_universe_session_minute_detail(
+                     "Cumulative runtime-unsupported symbols observed across processed trade days: %d",
+                     len(runtime_unsupported_symbols_seen_global),
+                 )
+-            _assert_complete_symbol_coverage(
+-                day_frame,
+-                expected_symbols,
+-                context=f"Session minute detail for {trade_day}",
+-            )
++            if expected_symbols:
++                _assert_complete_symbol_coverage(
++                    day_frame,
++                    expected_symbols,
++                    context=f"Session minute detail for {trade_day}",
++                )
++            else:
++                logger.info(
++                    "Session minute detail for %s skipped hard completeness coverage because no symbol-days were marked coverage-required for this trade day.",
++                    trade_day,
++                )
+             if use_file_cache:
+                 if not day_frame.empty:
+                     _write_cached_frame(cache_path, day_frame)
+diff --git a/tests/test_smc_microstructure_base_runtime.py b/tests/test_smc_microstructure_base_runtime.py
+index 6f98cc51..9e50d933 100644
+--- a/tests/test_smc_microstructure_base_runtime.py
++++ b/tests/test_smc_microstructure_base_runtime.py
+@@ -1144,6 +1144,35 @@ def test_collect_full_universe_session_minute_detail_uses_day_specific_expected_
+     assert set(output["symbol"].unique()) == {"AAA"}
+ 
+ 
++def test_collect_full_universe_session_minute_detail_skips_hard_coverage_when_required_scope_is_empty(
++    monkeypatch: pytest.MonkeyPatch,
++    caplog: pytest.LogCaptureFixture,
++) -> None:
++    class EmptyStore:
++        def to_df(self, count: int = 250_000) -> pd.DataFrame:
++            return pd.DataFrame(columns=["symbol", "ts", "open", "high", "low", "close", "volume", "trade_count"])
++
++    monkeypatch.setattr(session_detail, "_make_databento_client", lambda api_key: object())
++    monkeypatch.setattr(session_detail, "_get_schema_available_end", lambda client, dataset, schema: pd.Timestamp("2026-02-11T03:00:00Z"))
++    monkeypatch.setattr(session_detail, "_databento_get_range_with_retry", lambda *args, **kwargs: EmptyStore())
++    monkeypatch.setattr(session_detail, "_store_to_frame", lambda store, count, context: store.to_df(count=count))
++
++    with caplog.at_level("INFO"):
++        output = collect_full_universe_session_minute_detail(
++            "dummy-key",
++            dataset="DBEQ.BASIC",
++            trading_days=[date(2026, 2, 10)],
++            universe_symbols={"AAA"},
++            expected_symbols_by_trade_day={date(2026, 2, 10): {"AAA"}},
++            coverage_required_symbols_by_trade_day={},
++            display_timezone="America/New_York",
++            use_file_cache=False,
++        )
++
++    assert output.empty
++    assert "skipped hard completeness coverage" in caplog.text
++
++
+ def test_collect_full_universe_session_minute_detail_runtime_unsupported_symbols_do_not_leak_across_trade_days(
+     monkeypatch: pytest.MonkeyPatch,
+ ) -> None:
+@@ -1203,7 +1232,7 @@ def test_collect_full_universe_session_minute_detail_runtime_unsupported_symbols
+     assert set(pd.to_datetime(output["trade_date"]).dt.date.unique()) == {date(2026, 2, 11)}
+ 
+ 
+-def test_run_databento_base_scan_pipeline_does_not_skip_symbol_days_just_because_has_intraday_is_false(
++def test_run_databento_base_scan_pipeline_keeps_has_intraday_false_symbol_days_in_fetch_scope_but_not_hard_coverage(
+     monkeypatch: pytest.MonkeyPatch,
+     tmp_path: Path,
+ ) -> None:
+@@ -1238,6 +1267,7 @@ def test_run_databento_base_scan_pipeline_does_not_skip_symbol_days_just_because
+ 
+     def fake_collect(*args: Any, **kwargs: Any) -> pd.DataFrame:
+         captured["expected_symbols_by_trade_day"] = kwargs.get("expected_symbols_by_trade_day")
++        captured["coverage_required_symbols_by_trade_day"] = kwargs.get("coverage_required_symbols_by_trade_day")
+         return pd.DataFrame()
+ 
+     monkeypatch.setattr(runtime, "collect_full_universe_session_minute_detail", fake_collect)
+@@ -1258,7 +1288,9 @@ def test_run_databento_base_scan_pipeline_does_not_skip_symbol_days_just_because
+     )
+ 
+     expected = cast(dict[date, set[str]], captured["expected_symbols_by_trade_day"])
++    coverage_required = cast(dict[date, set[str]], captured["coverage_required_symbols_by_trade_day"])
+     assert expected == {date(2026, 2, 10): {"AAA"}}
++    assert coverage_required == {date(2026, 2, 10): set()}
+ 
+ 
+ def test_run_databento_base_scan_pipeline_handles_missing_has_intraday_column_without_crashing(
+@@ -1299,6 +1331,7 @@ def test_run_databento_base_scan_pipeline_handles_missing_has_intraday_column_wi
+ 
+     def fake_collect(*args: Any, **kwargs: Any) -> pd.DataFrame:
+         captured["expected_symbols_by_trade_day"] = kwargs.get("expected_symbols_by_trade_day")
++        captured["coverage_required_symbols_by_trade_day"] = kwargs.get("coverage_required_symbols_by_trade_day")
+         return pd.DataFrame()
+ 
+     monkeypatch.setattr(runtime, "collect_full_universe_session_minute_detail", fake_collect)
+@@ -1319,7 +1352,9 @@ def test_run_databento_base_scan_pipeline_handles_missing_has_intraday_column_wi
+     )
+ 
+     expected = cast(dict[date, set[str]], captured["expected_symbols_by_trade_day"])
++    coverage_required = cast(dict[date, set[str]], captured["coverage_required_symbols_by_trade_day"])
+     assert expected == {date(2026, 2, 10): {"AAA", "BBB"}}
++    assert coverage_required == {date(2026, 2, 10): {"AAA", "BBB"}}
+ 
+ 
+ def test_build_symbol_day_microstructure_feature_frame_warns_when_minute_detail_is_missing_for_symbol_day(
