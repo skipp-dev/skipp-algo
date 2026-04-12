@@ -1637,6 +1637,7 @@ def run_intraday_screen(
     cache_dir: str | Path | None = None,
     use_file_cache: bool = False,
     force_refresh: bool = False,
+    progress_callback: Any = None,
 ) -> pd.DataFrame:
     client = _make_databento_client(databento_api_key)
     available_end_1s = _get_schema_available_end(client, dataset, "ohlcv-1s")
@@ -1649,7 +1650,9 @@ def run_intraday_screen(
     results: list[dict[str, Any]] = []
     latest_trade_day = max(trading_days) if trading_days else None
 
-    for trade_day in trading_days:
+    total_days = len(trading_days)
+
+    for day_index, trade_day in enumerate(trading_days, start=1):
         day_ws, day_we = _resolve_window_for_date(trade_day, display_timezone, window_start, window_end)
         window = build_window_definition(
             trade_day,
@@ -1672,11 +1675,13 @@ def run_intraday_screen(
             ],
         )
         day_frame: pd.DataFrame | None = None
+        cache_hit = False
         if use_file_cache and not force_refresh:
             day_frame = _read_cached_frame(
                 cache_path,
                 max_age_seconds=_trade_day_cache_max_age_seconds(trade_day, latest_trade_day),
             )
+            cache_hit = day_frame is not None
         if day_frame is None:
             states: dict[str, SymbolDayState] = {}
             active_symbols = set(universe_symbols) - runtime_unsupported_symbols
@@ -1696,9 +1701,19 @@ def run_intraday_screen(
             if use_file_cache and not day_frame.empty:
                 _write_cached_frame(cache_path, day_frame)
         if day_frame.empty:
+            if progress_callback is not None:
+                progress_callback(
+                    f"Step 6/10 progress: intraday day {day_index}/{total_days} {trade_day.isoformat()} complete "
+                    f"(rows=0, cache_hit={'yes' if cache_hit else 'no'})"
+                )
             continue
         filtered = day_frame[day_frame["symbol"].isin(universe_symbols)].copy()
         if filtered.empty:
+            if progress_callback is not None:
+                progress_callback(
+                    f"Step 6/10 progress: intraday day {day_index}/{total_days} {trade_day.isoformat()} complete "
+                    f"(rows=0, cache_hit={'yes' if cache_hit else 'no'})"
+                )
             continue
         filtered["previous_close"] = filtered.apply(
             lambda row: prev_close_lookup.get((pd.Timestamp(row["trade_date"]).date(), str(row["symbol"]).upper())),
@@ -1706,6 +1721,11 @@ def run_intraday_screen(
         )
         filtered = _add_transition_columns(filtered)
         results.extend(filtered.to_dict(orient="records"))
+        if progress_callback is not None:
+            progress_callback(
+                f"Step 6/10 progress: intraday day {day_index}/{total_days} {trade_day.isoformat()} complete "
+                f"(rows={len(filtered)}, cache_hit={'yes' if cache_hit else 'no'})"
+            )
 
     if not results:
         return _empty_intraday_frame()

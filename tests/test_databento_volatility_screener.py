@@ -4477,6 +4477,60 @@ def test_run_intraday_screen_uses_incremental_cache_policy(monkeypatch, tmp_path
     assert observed_ttls == [None, DATA_CACHE_TTL_SECONDS, 0]
 
 
+def test_run_intraday_screen_reports_per_day_progress(monkeypatch, tmp_path) -> None:
+    """run_intraday_screen should emit per-trade-day progress updates during long runs."""
+    trading_days = [date(2026, 3, 3), date(2026, 3, 4)]
+    observed_messages: list[str] = []
+    daily_bars = pd.DataFrame({
+        "trade_date": trading_days,
+        "symbol": ["AAPL", "AAPL"],
+        "previous_close": [150.0, 151.0],
+    })
+
+    class _FakeClient:
+        pass
+
+    def fake_read_cached_frame(path: Path, *, max_age_seconds: int | None = None):
+        trade_day = date.fromisoformat(path.name.split("__", 1)[0])
+        return pd.DataFrame({
+            "trade_date": [trade_day],
+            "symbol": ["AAPL"],
+            "current_price": [100.0],
+            "window_start_price": [99.0],
+            "window_end_price": [100.0],
+            "window_high": [101.0],
+            "window_low": [98.5],
+            "window_range_pct": [2.5],
+            "window_return_pct": [1.0],
+            "realized_vol_pct": [0.5],
+            "market_open_price": [99.5],
+            "open_30s_volume": [1000.0],
+            "current_price_timestamp": [pd.Timestamp(f"{trade_day.isoformat()}T14:31:00Z")],
+            "has_intraday": [True],
+        })
+
+    monkeypatch.setattr("databento_volatility_screener._make_databento_client", lambda key: _FakeClient())
+    monkeypatch.setattr("databento_volatility_screener._get_schema_available_end", lambda client, dataset, schema: None)
+    monkeypatch.setattr("databento_volatility_screener._read_cached_frame", fake_read_cached_frame)
+
+    result = run_intraday_screen(
+        "test-key",
+        dataset="DBEQ.BASIC",
+        trading_days=trading_days,
+        universe_symbols={"AAPL"},
+        daily_bars=daily_bars,
+        cache_dir=tmp_path,
+        use_file_cache=True,
+        progress_callback=observed_messages.append,
+    )
+
+    assert len(result) == 2
+    assert observed_messages == [
+        "Step 6/10 progress: intraday day 1/2 2026-03-03 complete (rows=1, cache_hit=yes)",
+        "Step 6/10 progress: intraday day 2/2 2026-03-04 complete (rows=1, cache_hit=yes)",
+    ]
+
+
 def test_open_window_detail_uses_incremental_cache_policy(monkeypatch, tmp_path) -> None:
     """Open-window detail should reuse old caches indefinitely while refreshing the latest day."""
     observed_ttls: list[int | None] = []

@@ -3315,6 +3315,7 @@ def run_production_export_pipeline(
         cache_dir=resolved_cache_dir,
         use_file_cache=use_file_cache,
         force_refresh=force_refresh,
+        progress_callback=_progress,
     )
     _progress(
         f"Step 6/10 complete: Intraday screens finished in {time_module.perf_counter() - intraday_started_at:.1f}s "
