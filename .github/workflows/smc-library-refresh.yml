@@ -79,6 +79,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           token: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
+          persist-credentials: false
 
       # ── Python + Node setup ─────────────────────────────────────
       - name: Set up Python
@@ -370,6 +371,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local --unset-all http.https://github.com/.extraheader || true
           git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
           git add pine/generated/ SMC_Core_Engine.pine
           git diff --cached --quiet || git commit -m "chore: library refresh ${REFRESH_DATE} (run ${{ github.run_number }})"
