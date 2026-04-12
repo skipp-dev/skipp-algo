@@ -30,6 +30,7 @@ def test_pre_release_refresh_generates_reference_artifacts_for_each_timeframe(mo
                 export_bundle_root="",
                 structure_profile="hybrid_default",
                 allow_missing_inputs=False,
+                warn_on_empty_artifacts=False,
                 output="-",
             )
         ),
@@ -103,6 +104,7 @@ def test_pre_release_refresh_fails_when_reference_set_is_incomplete(monkeypatch,
                 export_bundle_root="",
                 structure_profile="hybrid_default",
                 allow_missing_inputs=False,
+                warn_on_empty_artifacts=False,
                 output="-",
             )
         ),
@@ -157,6 +159,7 @@ def test_pre_release_refresh_fails_when_artifacts_are_structurally_empty(monkeyp
                 export_bundle_root="",
                 structure_profile="hybrid_default",
                 allow_missing_inputs=False,
+                warn_on_empty_artifacts=False,
                 output="-",
             )
         ),
@@ -227,3 +230,94 @@ def test_pre_release_refresh_fails_when_artifacts_are_structurally_empty(monkeyp
         "artifacts_evaluated": 2,
         "coverage_modes": ["none"],
     } in captured_reports[-1]["failures"]
+
+
+def test_pre_release_refresh_warns_when_empty_artifacts_are_allowed(monkeypatch, tmp_path: Path) -> None:
+    captured_reports: list[dict] = []
+
+    monkeypatch.setattr(
+        refresh_script,
+        "build_parser",
+        lambda: _Parser(
+            Namespace(
+                symbols="IBG,AAPL",
+                timeframes="15m",
+                structure_artifacts_dir=str(tmp_path / "reports" / "smc_structure_artifacts"),
+                workbook_path="",
+                export_bundle_root="",
+                structure_profile="hybrid_default",
+                allow_missing_inputs=False,
+                warn_on_empty_artifacts=True,
+                output="-",
+            )
+        ),
+    )
+    monkeypatch.setattr(
+        refresh_script,
+        "resolve_structure_artifact_inputs",
+        lambda **kwargs: {
+            "workbook_path": Path("/tmp/workbook.xlsx"),
+            "export_bundle_root": Path("/tmp/exports"),
+            "structure_artifacts_dir": tmp_path / "reports" / "smc_structure_artifacts",
+            "resolution_mode": "explicit",
+            "warnings": [],
+            "errors": [],
+        },
+    )
+    monkeypatch.setattr(
+        refresh_script,
+        "write_structure_artifacts_from_workbook",
+        lambda **kwargs: {
+            "artifacts": [
+                {
+                    "symbol": "IBG",
+                    "timeframe": kwargs["timeframe"],
+                    "coverage_mode": "none",
+                    "bos_count": 0,
+                    "orderblocks_count": 0,
+                    "fvg_count": 0,
+                    "liquidity_sweeps_count": 0,
+                    "has_bos": False,
+                    "has_orderblocks": False,
+                    "has_fvg": False,
+                    "has_liquidity_sweeps": False,
+                },
+                {
+                    "symbol": "AAPL",
+                    "timeframe": kwargs["timeframe"],
+                    "coverage_mode": "none",
+                    "bos_count": 0,
+                    "orderblocks_count": 0,
+                    "fvg_count": 0,
+                    "liquidity_sweeps_count": 0,
+                    "has_bos": False,
+                    "has_orderblocks": False,
+                    "has_fvg": False,
+                    "has_liquidity_sweeps": False,
+                },
+            ],
+            "counts": {
+                "symbols_requested": 2,
+                "artifacts_written": 2,
+                "errors": 0,
+            },
+            "errors": [],
+            "warnings": [],
+            "timeframe": kwargs["timeframe"],
+        },
+    )
+    monkeypatch.setattr(refresh_script, "_render", lambda report, output: captured_reports.append(report))
+
+    rc = refresh_script.main()
+
+    assert rc == 0
+    assert captured_reports[-1]["overall_status"] == "warn"
+    assert captured_reports[-1]["failures"] == []
+    assert {
+        "code": "REFRESH_EMPTY_REFERENCE_ARTIFACTS",
+        "timeframe": "15m",
+        "artifacts_evaluated": 2,
+        "coverage_modes": ["none"],
+        "message": "Refreshed reference artifacts are structurally empty for this timeframe.",
+        "promoted_to_warning_by": "warn_on_empty_artifacts",
+    } in captured_reports[-1]["warnings"]

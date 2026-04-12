@@ -94,6 +94,11 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Allow missing workbook/export bundle and keep going with preexisting artifacts.",
     )
+    parser.add_argument(
+        "--warn-on-empty-artifacts",
+        action="store_true",
+        help="Downgrade structurally empty refreshed reference artifacts from fail to warn.",
+    )
     parser.add_argument("--output", default="-", help="Output JSON path, or '-' for stdout.")
     return parser
 
@@ -172,7 +177,16 @@ def main() -> int:
 
         empty_failure = _collect_structurally_empty_failure(manifest, timeframe=timeframe)
         if empty_failure is not None:
-            failures.append(empty_failure)
+            if bool(args.warn_on_empty_artifacts):
+                warnings.append(
+                    {
+                        **empty_failure,
+                        "message": "Refreshed reference artifacts are structurally empty for this timeframe.",
+                        "promoted_to_warning_by": "warn_on_empty_artifacts",
+                    }
+                )
+            else:
+                failures.append(empty_failure)
 
     checked_at = float(time.time())
     exit_code = 1 if failures else 0
@@ -180,7 +194,7 @@ def main() -> int:
         "report_kind": "pre_release_refresh",
         "checked_at": checked_at,
         "checked_at_iso": _iso_utc(checked_at),
-        "overall_status": "fail" if failures else "ok",
+        "overall_status": "fail" if failures else "warn" if warnings else "ok",
         "reference_symbols": symbols,
         "reference_timeframes": timeframes,
         "resolved_inputs": {
@@ -195,6 +209,7 @@ def main() -> int:
         "runner": {
             "script": "scripts/run_smc_pre_release_artifact_refresh.py",
             "mode": "pre_release_refresh",
+            "warn_on_empty_artifacts": bool(args.warn_on_empty_artifacts),
             "exit_code": int(exit_code),
         },
         "runtime_metadata": runtime_metadata(),

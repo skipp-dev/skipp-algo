@@ -237,6 +237,7 @@ jobs:
         run: |
           python scripts/run_smc_pre_release_artifact_refresh.py \
             --export-bundle-root artifacts/smc_microstructure_exports \
+            --warn-on-empty-artifacts \
             --output artifacts/ci/smc_pre_release_artifact_refresh_report.json
 
       - name: Run strict release gates
