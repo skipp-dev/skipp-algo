@@ -86,6 +86,9 @@ def test_library_release_manifest_tracks_product_cut_roles() -> None:
         'BUS LeanPackB',
     ]
     assert set(payload['productCut']['preflightScopes'].keys()) == {'smcCoreDashboard', 'smcMainline', 'smcDecisionFirst'}
+    assert payload['productCut']['preflightScopes']['smcCoreDashboard'][1]['savedScriptName'] == 'SMC Dashboard'
+    assert payload['productCut']['preflightScopes']['smcMainline'][1]['savedScriptName'] == 'SMC Dashboard'
+    assert payload['productCut']['preflightScopes']['smcMainline'][2]['savedScriptName'] == 'SMC Long Strategy'
     assert payload['productCut']['deprecatedFieldPolicy']['mode'] == 'compatibility_only'
     assert payload['productCut']['deprecatedFieldPolicy']['extensionAllowed'] is False
     assert {

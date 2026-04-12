@@ -307,7 +307,8 @@
           "scriptName": "SMC Decision Board",
           "checkInputs": true,
           "addToChart": true,
-          "minInputs": 58
+          "minInputs": 58,
+          "savedScriptName": "SMC Dashboard"
         }
       ],
       "smcMainline": [
@@ -322,14 +323,16 @@
           "scriptName": "SMC Decision Board",
           "checkInputs": true,
           "addToChart": true,
-          "minInputs": 58
+          "minInputs": 58,
+          "savedScriptName": "SMC Dashboard"
         },
         {
           "file": "SMC_Long_Strategy.pine",
           "scriptName": "SMC Execution",
           "checkInputs": true,
           "addToChart": true,
-          "minInputs": 8
+          "minInputs": 8,
+          "savedScriptName": "SMC Long Strategy"
         }
       ],
       "smcDecisionFirst": [
@@ -344,14 +347,16 @@
           "scriptName": "SMC Decision Board",
           "checkInputs": true,
           "addToChart": true,
-          "minInputs": 58
+          "minInputs": 58,
+          "savedScriptName": "SMC Dashboard"
         },
         {
           "file": "SMC_Long_Strategy.pine",
           "scriptName": "SMC Execution",
           "checkInputs": true,
           "addToChart": true,
-          "minInputs": 8
+          "minInputs": 8,
+          "savedScriptName": "SMC Long Strategy"
         }
       ]
     },
