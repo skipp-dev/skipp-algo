@@ -13,7 +13,7 @@ from typing import Any, Callable, cast
 import numpy as np
 import pandas as pd
 
-from databento_volatility_screener import list_recent_trading_days
+from databento_provider import list_recent_trading_days
 from databento_utils import US_EASTERN_TZ
 from scripts.databento_production_export import run_production_export_pipeline
 from scripts.generate_smc_micro_profiles import load_schema, run_generation
@@ -2490,7 +2490,7 @@ def run_databento_base_scan_pipeline(
         for trade_day, group in intraday_expected.groupby("trade_date", sort=False)
     }
     if has_intraday_available:
-        required_symbols_by_trade_day: dict[date, set[str]] = {
+        required_symbols_by_trade_day = {
             trade_day: set() for trade_day in expected_symbols_by_trade_day
         }
         for trade_day, group in intraday_expected.loc[intraday_expected["has_intraday"]].groupby("trade_date", sort=False):

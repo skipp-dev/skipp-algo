@@ -25,9 +25,12 @@ Usage::
 from __future__ import annotations
 
 import logging
+from datetime import date, datetime, timedelta
 from typing import Any, Protocol, runtime_checkable
 
 import pandas as pd
+
+from databento_utils import US_EASTERN_TZ
 
 logger = logging.getLogger(__name__)
 
@@ -144,3 +147,34 @@ def list_accessible_datasets(api_key: str | None = None) -> list[str]:
     don't need to instantiate a provider just to enumerate datasets.
     """
     return DabentoProvider(api_key).list_datasets()
+
+
+def list_recent_trading_days(
+    api_key: str | None,
+    *,
+    dataset: str,
+    lookback_days: int,
+    end_date: date | None = None,
+) -> list[date]:
+    """Return the most recent available trading days for a Databento dataset.
+
+    This is the provider-boundary replacement for direct imports from the
+    screener monolith.
+    """
+    provider = DabentoProvider(api_key)
+    current_market_day = datetime.now(US_EASTERN_TZ).date()
+    anchor = end_date or current_market_day
+    start_date = anchor - timedelta(days=max(lookback_days * 4, 90))
+    conditions = provider._client.metadata.get_dataset_condition(
+        dataset=dataset,
+        start_date=start_date.isoformat(),
+        end_date=anchor.isoformat(),
+    )
+    days = [
+        date.fromisoformat(str(item.get("date")))
+        for item in conditions
+        if isinstance(item, dict) and item.get("condition") == "available"
+    ]
+    if end_date is None:
+        days = [day for day in days if day < current_market_day]
+    return days[-lookback_days:]
