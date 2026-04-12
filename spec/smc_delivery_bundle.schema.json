@@ -130,7 +130,8 @@
                   "scriptName": { "type": "string", "minLength": 1 },
                   "checkInputs": { "type": "boolean" },
                   "addToChart": { "type": "boolean" },
-                  "minInputs": { "type": "integer", "minimum": 0 }
+                  "minInputs": { "type": "integer", "minimum": 0 },
+                  "savedScriptName": { "type": "string", "minLength": 1 }
                 }
               }
             },
@@ -146,7 +147,8 @@
                   "scriptName": { "type": "string", "minLength": 1 },
                   "checkInputs": { "type": "boolean" },
                   "addToChart": { "type": "boolean" },
-                  "minInputs": { "type": "integer", "minimum": 0 }
+                  "minInputs": { "type": "integer", "minimum": 0 },
+                  "savedScriptName": { "type": "string", "minLength": 1 }
                 }
               }
             },
@@ -162,7 +164,8 @@
                   "scriptName": { "type": "string", "minLength": 1 },
                   "checkInputs": { "type": "boolean" },
                   "addToChart": { "type": "boolean" },
-                  "minInputs": { "type": "integer", "minimum": 0 }
+                  "minInputs": { "type": "integer", "minimum": 0 },
+                  "savedScriptName": { "type": "string", "minLength": 1 }
                 }
               }
             }
