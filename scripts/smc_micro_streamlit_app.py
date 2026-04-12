@@ -51,9 +51,20 @@ def _resolve_ui_dataset_options(
 
 
 def list_generated_base_csvs(export_dir: Path) -> list[Path]:
+    def _sort_key(path: Path) -> tuple[int, float, str]:
+        trade_date_ordinal = 0
+        marker = "__smc_microstructure_base_"
+        if marker in path.stem:
+            raw_trade_date = path.stem.split(marker, 1)[1]
+            try:
+                trade_date_ordinal = datetime.strptime(raw_trade_date, "%Y-%m-%d").date().toordinal()
+            except ValueError:
+                trade_date_ordinal = 0
+        return trade_date_ordinal, path.stat().st_mtime, path.name
+
     return sorted(
         export_dir.glob("*__smc_microstructure_base_*.csv"),
-        key=lambda path: path.stat().st_mtime,
+        key=_sort_key,
         reverse=True,
     )
 
