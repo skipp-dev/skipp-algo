@@ -8,10 +8,13 @@ from pathlib import Path
 import sys
 from typing import Any
 
+import pandas as pd
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+from scripts.load_databento_export_bundle import load_export_bundle
 from smc_integration.artifact_resolution import resolve_structure_artifact_inputs
 from smc_integration.release_policy import (
     RELEASE_REFERENCE_SYMBOLS,
@@ -77,6 +80,54 @@ def _collect_structurally_empty_failure(manifest: dict[str, Any], *, timeframe: 
     }
 
 
+def _discover_available_reference_symbols(
+    *,
+    workbook_path: Path | None,
+    export_bundle_root: Path | None,
+    timeframe: str,
+) -> list[str] | None:
+    discovered = False
+    available: list[str] = []
+    seen: set[str] = set()
+
+    def _ingest(frame: pd.DataFrame | None) -> None:
+        nonlocal discovered
+        if not isinstance(frame, pd.DataFrame) or frame.empty or "symbol" not in frame.columns:
+            return
+        discovered = True
+        for raw_symbol in frame["symbol"].dropna().tolist():
+            symbol = str(raw_symbol).strip().upper()
+            if not symbol or symbol in seen:
+                continue
+            seen.add(symbol)
+            available.append(symbol)
+
+    required_frames = ("daily_bars",) if str(timeframe).strip().upper() == "1D" else ("full_universe_second_detail_open",)
+    if export_bundle_root is not None:
+        try:
+            bundle = load_export_bundle(
+                export_bundle_root,
+                required_frames=required_frames,
+                manifest_prefix="databento_volatility_production_",
+            )
+        except Exception:
+            bundle = None
+        if isinstance(bundle, dict):
+            frames = bundle.get("frames", {}) if isinstance(bundle.get("frames"), dict) else {}
+            _ingest(frames.get(required_frames[0]))
+
+    if workbook_path is not None and workbook_path.exists():
+        try:
+            daily_bars = pd.read_excel(workbook_path, sheet_name="daily_bars")
+        except Exception:
+            daily_bars = pd.DataFrame()
+        _ingest(daily_bars)
+
+    if not discovered:
+        return None
+    return available
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Refresh release-reference structure artifacts before strict release gates.")
     parser.add_argument("--symbols", default=csv_from_values(RELEASE_REFERENCE_SYMBOLS), help="Comma-separated reference symbols.")
@@ -130,11 +181,42 @@ def main() -> int:
 
     generated_at = float(time.time())
     for timeframe in timeframes:
+        effective_symbols = list(symbols)
+        available_reference_symbols = _discover_available_reference_symbols(
+            workbook_path=resolved_inputs.get("workbook_path"),
+            export_bundle_root=resolved_inputs.get("export_bundle_root"),
+            timeframe=timeframe,
+        )
+        if available_reference_symbols is not None:
+            available_symbol_set = set(available_reference_symbols)
+            missing_symbols = [symbol for symbol in symbols if symbol not in available_symbol_set]
+            if missing_symbols:
+                warnings.append(
+                    {
+                        "code": "REFERENCE_SYMBOLS_UNAVAILABLE_IN_SOURCE",
+                        "timeframe": timeframe,
+                        "symbols_missing": missing_symbols,
+                        "symbols_available": [symbol for symbol in symbols if symbol in available_symbol_set],
+                        "message": "Resolved refresh inputs do not cover every requested reference symbol; continuing with the available subset.",
+                    }
+                )
+            effective_symbols = [symbol for symbol in symbols if symbol in available_symbol_set]
+            if not effective_symbols:
+                failures.append(
+                    {
+                        "code": "REFRESH_REFERENCE_SYMBOLS_UNAVAILABLE",
+                        "timeframe": timeframe,
+                        "symbols_requested": symbols,
+                        "message": "None of the requested reference symbols were available in the resolved refresh inputs.",
+                    }
+                )
+                continue
+
         try:
             manifest = write_structure_artifacts_from_workbook(
                 workbook=resolved_inputs.get("workbook_path"),
                 timeframe=timeframe,
-                symbols=symbols,
+                symbols=effective_symbols,
                 output_dir=artifacts_dir,
                 export_bundle_root=resolved_inputs.get("export_bundle_root"),
                 generated_at=generated_at,

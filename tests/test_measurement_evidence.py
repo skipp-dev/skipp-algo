@@ -411,3 +411,35 @@ def test_to_epoch_seconds_drops_invalid_timestamp_rows() -> None:
 
     assert len(normalized) == 1
     assert int(normalized.loc[0, "timestamp"]) == int(pd.Timestamp("2024-01-02T00:00:00Z").timestamp())
+
+
+def test_to_epoch_seconds_preserves_distinct_epoch_values() -> None:
+    frame = pd.DataFrame(
+        [
+            {
+                "symbol": "AAPL",
+                "timestamp": "2024-01-01T00:00:00Z",
+                "open": 100.0,
+                "high": 101.0,
+                "low": 99.5,
+                "close": 100.5,
+                "volume": 1000.0,
+            },
+            {
+                "symbol": "AAPL",
+                "timestamp": "2024-01-02T00:00:00Z",
+                "open": 101.0,
+                "high": 102.0,
+                "low": 100.5,
+                "close": 101.5,
+                "volume": 1200.0,
+            },
+        ]
+    )
+
+    normalized = measurement_evidence._to_epoch_seconds(frame)
+
+    assert normalized["timestamp"].tolist() == [
+        int(pd.Timestamp("2024-01-01T00:00:00Z").timestamp()),
+        int(pd.Timestamp("2024-01-02T00:00:00Z").timestamp()),
+    ]

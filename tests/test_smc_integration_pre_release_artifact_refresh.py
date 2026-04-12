@@ -321,3 +321,85 @@ def test_pre_release_refresh_warns_when_empty_artifacts_are_allowed(monkeypatch,
         "message": "Refreshed reference artifacts are structurally empty for this timeframe.",
         "promoted_to_warning_by": "warn_on_empty_artifacts",
     } in captured_reports[-1]["warnings"]
+
+
+def test_pre_release_refresh_warns_and_filters_unavailable_reference_symbols(monkeypatch, tmp_path: Path) -> None:
+    captured_reports: list[dict] = []
+    captured_symbols: list[list[str]] = []
+
+    monkeypatch.setattr(
+        refresh_script,
+        "build_parser",
+        lambda: _Parser(
+            Namespace(
+                symbols="AAPL,LIN",
+                timeframes="15m",
+                structure_artifacts_dir=str(tmp_path / "reports" / "smc_structure_artifacts"),
+                workbook_path="",
+                export_bundle_root="",
+                structure_profile="hybrid_default",
+                allow_missing_inputs=False,
+                warn_on_empty_artifacts=False,
+                output="-",
+            )
+        ),
+    )
+    monkeypatch.setattr(
+        refresh_script,
+        "resolve_structure_artifact_inputs",
+        lambda **kwargs: {
+            "workbook_path": Path("/tmp/workbook.xlsx"),
+            "export_bundle_root": None,
+            "structure_artifacts_dir": tmp_path / "reports" / "smc_structure_artifacts",
+            "resolution_mode": "canonical",
+            "warnings": [],
+            "errors": [],
+        },
+    )
+    monkeypatch.setattr(refresh_script, "_discover_available_reference_symbols", lambda **kwargs: ["AAPL"])
+
+    def _refresh_stub(**kwargs):
+        symbols = list(kwargs["symbols"])
+        captured_symbols.append(symbols)
+        return {
+            "artifacts": [
+                {
+                    "symbol": symbol,
+                    "timeframe": kwargs["timeframe"],
+                    "coverage_mode": "bundle",
+                    "bos_count": 1,
+                    "orderblocks_count": 0,
+                    "fvg_count": 0,
+                    "liquidity_sweeps_count": 0,
+                    "has_bos": True,
+                    "has_orderblocks": False,
+                    "has_fvg": False,
+                    "has_liquidity_sweeps": False,
+                }
+                for symbol in symbols
+            ],
+            "counts": {
+                "symbols_requested": len(symbols),
+                "artifacts_written": len(symbols),
+                "errors": 0,
+            },
+            "errors": [],
+            "warnings": [],
+            "timeframe": kwargs["timeframe"],
+        }
+
+    monkeypatch.setattr(refresh_script, "write_structure_artifacts_from_workbook", _refresh_stub)
+    monkeypatch.setattr(refresh_script, "_render", lambda report, output: captured_reports.append(report))
+
+    rc = refresh_script.main()
+
+    assert rc == 0
+    assert captured_symbols == [["AAPL"]]
+    assert captured_reports[-1]["overall_status"] == "warn"
+    assert {
+        "code": "REFERENCE_SYMBOLS_UNAVAILABLE_IN_SOURCE",
+        "timeframe": "15m",
+        "symbols_missing": ["LIN"],
+        "symbols_available": ["AAPL"],
+        "message": "Resolved refresh inputs do not cover every requested reference symbol; continuing with the available subset.",
+    } in captured_reports[-1]["warnings"]

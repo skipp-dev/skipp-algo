@@ -140,7 +140,8 @@ def _to_epoch_seconds(frame: pd.DataFrame) -> pd.DataFrame:
     out = frame.copy()
     out["timestamp"] = pd.to_datetime(out["timestamp"], utc=True, errors="coerce")
     out = out.dropna(subset=["timestamp", "open", "high", "low", "close"]).copy()
-    out["timestamp"] = out["timestamp"].astype("int64") // 10**9
+    epoch = pd.Timestamp("1970-01-01", tz="UTC")
+    out["timestamp"] = ((out["timestamp"] - epoch) // pd.Timedelta(seconds=1)).astype("int64")
     return out.reset_index(drop=True)
 
 
