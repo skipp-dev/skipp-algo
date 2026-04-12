@@ -752,8 +752,12 @@ function legacyOpenScriptNames(scriptName: string): string[] {
   }
 }
 
-function openScriptIdentityNames(scriptName: string): string[] {
+export function resolveOpenScriptSearchNames(scriptName: string): string[] {
   return uniqueNormalizedTexts([scriptName, ...legacyOpenScriptNames(scriptName)]);
+}
+
+function openScriptIdentityNames(scriptName: string): string[] {
+  return resolveOpenScriptSearchNames(scriptName);
 }
 
 function pineDeclarationCompanionMatch(scriptName: string, uiText: string): boolean {
@@ -4054,7 +4058,7 @@ async function closePineEditorIfVisible(page: Page): Promise<void> {
 export async function openExistingScript(page: Page, scriptName: string): Promise<boolean> {
   return runTrackedStep(page, `openExistingScript:${scriptName}`, async () => {
     const identityNames = openScriptIdentityNames(scriptName);
-    const searchNames = uniqueNormalizedTexts([scriptName, ...legacyOpenScriptNames(scriptName)]);
+    const searchNames = resolveOpenScriptSearchNames(scriptName);
     const totalAttempts = Math.max(2, searchNames.length);
     const alreadyOpen = await waitForAnyOpenScriptIdentity(page, identityNames, 750).catch(() => false);
     if (alreadyOpen) {
@@ -4111,6 +4115,24 @@ export async function openExistingScript(page: Page, scriptName: string): Promis
       await page.keyboard.press("Escape").catch(() => undefined);
       await ensurePineEditor(page).catch(() => undefined);
       await page.waitForTimeout(500);
+    }
+
+    return false;
+  });
+}
+
+export async function addExistingScriptToChartViaIndicators(page: Page, scriptName: string): Promise<boolean> {
+  return runTrackedStep(page, `addExistingScriptToChartViaIndicators:${scriptName}`, async () => {
+    for (const searchName of resolveOpenScriptSearchNames(scriptName)) {
+      const added = await addScriptToChartViaIndicators(page, searchName);
+      if (!added) {
+        continue;
+      }
+
+      if (normalizeUiText(searchName) !== normalizeUiText(scriptName)) {
+        tracePageEvent(page, "add-existing-script-legacy-alias", `${scriptName}<=${searchName}`);
+      }
+      return true;
     }
 
     return false;

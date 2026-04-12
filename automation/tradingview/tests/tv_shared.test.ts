@@ -9,6 +9,7 @@ import {
   openScriptSurfaceLooksReady,
   resolvePublishNoChangeCleanupActions,
   resolveOpenScriptIdentityEvidence,
+  resolveOpenScriptSearchNames,
   openScriptSurfaceScopeLooksReady,
   settingsDialogTitleMatchesScriptName,
   resolveTradingViewHeadlessDefault,
@@ -120,6 +121,16 @@ test("open script surface readiness accepts any scoped ready picker state", () =
     globalSearchVisible: false,
     globalMyScriptsVisible: false,
   }), true);
+});
+
+test("open script search names include legacy aliases for renamed scripts", () => {
+  assert.deepEqual(resolveOpenScriptSearchNames("SMC Core"), ["SMC Core", "SMC Core Engine"]);
+  assert.deepEqual(resolveOpenScriptSearchNames("SMC Decision Board"), ["SMC Decision Board", "SMC Dashboard"]);
+  assert.deepEqual(resolveOpenScriptSearchNames("SMC Execution"), ["SMC Execution", "SMC Long Strategy"]);
+});
+
+test("open script search names normalize whitespace and de-duplicate", () => {
+  assert.deepEqual(resolveOpenScriptSearchNames("  SMC   Decision   Board  "), ["SMC Decision Board", "SMC Dashboard"]);
 });
 
 test("TradingView headless default stays headed locally", () => {

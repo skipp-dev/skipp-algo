@@ -4,6 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 import {
+  addExistingScriptToChartViaIndicators,
   addCurrentScriptToChart,
   assertNoVisibleCompileError,
   closeModal,
@@ -472,7 +473,10 @@ async function main(): Promise<number> {
       targetResult.editor_ok = true;
 
       if (cli.openExisting) {
-        const openedExisting = await openExistingScript(session.page, target.scriptName);
+        let openedExisting = await openExistingScript(session.page, target.scriptName);
+        if (!openedExisting && cli.executionMode === "readonly") {
+          openedExisting = await addExistingScriptToChartViaIndicators(session.page, target.scriptName);
+        }
         if (!openedExisting) {
           if (cli.executionMode === "mutating" && target.allowFreshDraftOnMissingExisting) {
             await openFreshUntitledPineDraft(session.page, inferPineDraftKind(code));
