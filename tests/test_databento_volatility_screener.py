@@ -704,6 +704,88 @@ def test_build_daily_symbol_features_full_universe_export_ranks_and_selects_top_
     assert batl_diag["excluded_reason"] == "unsupported_by_databento"
 
 
+def test_build_daily_symbol_features_full_universe_export_uses_unique_symbol_day_rank_counts(monkeypatch: pytest.MonkeyPatch) -> None:
+    trade_day = date(2026, 3, 6)
+    raw_universe = pd.DataFrame(
+        {
+            "symbol": ["AAA", "BBB", "BATL"],
+            "company_name": ["AAA Corp", "BBB Corp", "Battalion Oil"],
+            "exchange": ["NASDAQ", "NYSE", "AMEX"],
+            "sector": ["Tech", "Energy", "Energy"],
+            "industry": ["Software", "Oil", "Oil"],
+            "market_cap": [100.0, 200.0, np.nan],
+            "asset_type": ["listed_equity_issue", "listed_equity_issue", "listed_equity_issue"],
+            "has_reference_data": [True, True, True],
+            "has_fundamentals": [True, True, False],
+            "has_market_cap": [True, True, False],
+        }
+    )
+    supported_universe = raw_universe.loc[raw_universe["symbol"].isin(["AAA", "BBB"]), ["symbol"]].reset_index(drop=True)
+
+    duplicated_features = pd.DataFrame(
+        {
+            "trade_date": [trade_day, trade_day, trade_day, trade_day],
+            "symbol": ["AAA", "AAA", "BBB", "BATL"],
+            "exchange": ["NASDAQ", "NASDAQ", "NYSE", "AMEX"],
+            "asset_type": ["listed_equity_issue", "listed_equity_issue", "listed_equity_issue", "listed_equity_issue"],
+            "previous_close": [9.5, 9.5, 19.5, np.nan],
+            "market_open_price": [10.0, 10.0, 20.0, np.nan],
+            "window_start_price": [10.0, 10.0, 20.0, np.nan],
+            "current_price": [10.8, 10.8, 24.5, np.nan],
+            "window_range_pct": [11.0, 11.0, 30.0, np.nan],
+            "has_reference_data": [True, True, True, True],
+            "has_fundamentals": [True, True, True, False],
+            "market_cap": [100.0, 100.0, 200.0, np.nan],
+            "has_market_cap": [True, True, True, False],
+        }
+    )
+    coverage = pd.DataFrame(
+        {
+            "trade_date": [trade_day, trade_day, trade_day],
+            "symbol": ["AAA", "BBB", "BATL"],
+            "has_daily_bar": [True, True, False],
+            "has_intraday_summary": [True, True, False],
+            "has_open_window_detail": [False, False, False],
+            "has_close_window_detail": [False, False, False],
+            "exclusion_reason": ["", "", "unsupported_by_databento"],
+        }
+    )
+
+    def fake_build_daily_features_full_universe(**_kwargs):
+        return duplicated_features.copy(), coverage.copy()
+
+    monkeypatch.setattr(export_mod, "build_daily_features_full_universe", fake_build_daily_features_full_universe)
+
+    features, _diagnostics = _build_daily_symbol_features_full_universe_export(
+        trading_days=[trade_day],
+        raw_universe=raw_universe,
+        supported_universe=supported_universe,
+        daily_bars=pd.DataFrame(),
+        intraday=pd.DataFrame(),
+        second_detail_all=pd.DataFrame(),
+        close_detail_all=pd.DataFrame(),
+        close_trade_detail_all=pd.DataFrame(),
+        close_outcome_minute_detail_all=pd.DataFrame(),
+        display_timezone="Europe/Berlin",
+        premarket_anchor_et=time(8, 0),
+        ranking_metric="window_range_pct",
+        top_fraction=0.20,
+        smc_base_only=True,
+    )
+
+    aaa_rows = features.loc[features["symbol"] == "AAA"].reset_index(drop=True)
+    bbb_row = features.loc[features["symbol"] == "BBB"].iloc[0]
+
+    assert len(features) == len(duplicated_features)
+    assert len(aaa_rows) == 2
+    assert aaa_rows["eligible_count_for_trade_date"].tolist() == [2, 2]
+    assert aaa_rows["rank_within_trade_date"].astype(int).tolist() == [2, 2]
+    assert aaa_rows["selected_top20pct"].tolist() == [False, False]
+    assert int(bbb_row["eligible_count_for_trade_date"]) == 2
+    assert int(bbb_row["rank_within_trade_date"]) == 1
+    assert bool(bbb_row["selected_top20pct"]) is True
+
+
 def test_prepare_second_detail_and_premarket_feature_exports() -> None:
     trade_day = date(2026, 3, 6)
     daily_features = pd.DataFrame(

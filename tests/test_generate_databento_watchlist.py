@@ -124,6 +124,58 @@ def test_build_preopen_long_candidates_prefers_stronger_structure_on_gap_tie() -
     assert candidates["symbol"].tolist() == ["AAA", "BBB"]
 
 
+def test_build_preopen_long_candidates_deduplicates_symbol_day_rows_before_ranking() -> None:
+    trade_date = date(2026, 3, 6)
+    daily = pd.DataFrame(
+        {
+            "trade_date": [trade_date, trade_date, trade_date],
+            "symbol": ["AAA", "AAA", "BBB"],
+            "exchange": ["NASDAQ", "NASDAQ", "NASDAQ"],
+            "asset_type": ["listed_equity_issue", "listed_equity_issue", "listed_equity_issue"],
+            "previous_close": [10.0, 10.0, 10.0],
+            "window_range_pct": [4.0, 4.0, 3.0],
+            "window_return_pct": [1.0, 1.0, 1.0],
+            "realized_vol_pct": [1.0, 1.0, 1.0],
+            "structure_bias_score": [90.0, 90.0, 75.0],
+            "structure_alignment_score": [100.0, 100.0, 80.0],
+            "structure_reclaim_flag": [True, True, False],
+            "selected_top20pct": [True, True, True],
+            "is_eligible": [True, True, True],
+            "eligibility_reason": ["eligible", "eligible", "eligible"],
+        }
+    )
+    prem = pd.DataFrame(
+        {
+            "trade_date": [trade_date, trade_date],
+            "symbol": ["AAA", "BBB"],
+            "has_premarket_data": [True, True],
+            "premarket_last": [10.8, 10.7],
+            "premarket_volume": [200_000, 180_000],
+            "premarket_trade_count": [500, 450],
+            "premarket_active_seconds": [1_200, 1_200],
+            "prev_close_to_premarket_pct": [8.0, 7.0],
+            "premarket_dollar_volume": [2_160_000.0, 1_926_000.0],
+        }
+    )
+
+    candidates = build_preopen_long_candidates(
+        daily=daily,
+        prem=prem,
+        cfg=LongDipConfig(
+            top_n=2,
+            min_premarket_dollar_volume=0.0,
+            min_premarket_volume=50_000,
+            min_premarket_trade_count=200,
+            min_premarket_active_seconds=0,
+            max_gap_pct=20.0,
+        ),
+        trade_date=trade_date,
+    )
+
+    assert candidates["symbol"].tolist() == ["AAA", "BBB"]
+    assert candidates["watchlist_rank"].tolist() == [1, 2]
+
+
 def test_build_preopen_long_candidates_parses_string_structure_flags() -> None:
     trade_date = date(2026, 3, 6)
     daily = pd.DataFrame(

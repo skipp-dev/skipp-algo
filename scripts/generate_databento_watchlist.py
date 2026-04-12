@@ -275,6 +275,49 @@ def _merge_open_signal_metrics(base: pd.DataFrame, metrics: pd.DataFrame | None)
     return merged
 
 
+def _deduplicate_symbol_day_rows(frame: pd.DataFrame) -> pd.DataFrame:
+    if frame.empty or "trade_date" not in frame.columns or "symbol" not in frame.columns:
+        return frame.copy()
+
+    sortable = _coerce_structure_columns(frame)
+    for column in ["selected_top20pct_0400", "selected_top20pct", "is_eligible", "has_premarket_data"]:
+        if column in sortable.columns:
+            sortable[column] = sortable[column].fillna(False).astype(bool)
+    for column in [
+        "prev_close_to_premarket_pct",
+        "premarket_dollar_volume",
+        "premarket_volume",
+        "premarket_trade_count",
+        "premarket_active_seconds",
+        "window_range_pct",
+    ]:
+        if column in sortable.columns:
+            sortable[column] = pd.to_numeric(sortable[column], errors="coerce")
+
+    sort_spec = [
+        ("trade_date", True),
+        ("selected_top20pct_0400", False),
+        ("selected_top20pct", False),
+        ("is_eligible", False),
+        ("has_premarket_data", False),
+        ("structure_bias_score", False),
+        ("structure_alignment_score", False),
+        ("structure_reclaim_flag", False),
+        ("prev_close_to_premarket_pct", False),
+        ("premarket_dollar_volume", False),
+        ("premarket_volume", False),
+        ("premarket_trade_count", False),
+        ("premarket_active_seconds", False),
+        ("window_range_pct", False),
+        ("symbol", True),
+    ]
+    sort_columns = [column for column, _ascending in sort_spec if column in sortable.columns]
+    ascending = [ascending for column, ascending in sort_spec if column in sortable.columns]
+    ordered = sortable.sort_values(sort_columns, ascending=ascending, kind="stable") if sort_columns else sortable
+    deduped = frame.loc[ordered.index].drop_duplicates(subset=["trade_date", "symbol"], keep="first")
+    return deduped.reset_index(drop=True)
+
+
 def _build_candidate_frame(daily: pd.DataFrame, prem: pd.DataFrame, diagnostics: pd.DataFrame | None, trade_date: date) -> pd.DataFrame:
     d = _normalize_frame(daily)
     p = _normalize_frame(prem)
@@ -307,7 +350,7 @@ def _build_candidate_frame(daily: pd.DataFrame, prem: pd.DataFrame, diagnostics:
     else:
         merged["premarket_active_seconds"] = pd.to_numeric(merged.get("premarket_trade_count"), errors="coerce")
         merged["trade_count_source_used"] = "proxy_active_seconds"
-    return merged
+    return _deduplicate_symbol_day_rows(merged)
 
 
 def build_filter_funnel(*, daily: pd.DataFrame, prem: pd.DataFrame, cfg: LongDipConfig, trade_date: date) -> list[dict[str, Any]]:
@@ -377,6 +420,7 @@ def build_preanchor_seed_candidates(*, daily: pd.DataFrame, diagnostics: pd.Data
     current = frame.loc[frame.get("trade_date").eq(trade_date)].copy() if "trade_date" in frame.columns else pd.DataFrame()
     if current.empty:
         return current
+    current = _deduplicate_symbol_day_rows(current)
     scope_col = "selected_top20pct_0400" if "selected_top20pct_0400" in current.columns else "selected_top20pct"
     mask = current.get(scope_col, pd.Series(False, index=current.index)).fillna(False).astype(bool)
     seeded = current.loc[mask].copy()

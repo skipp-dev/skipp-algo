@@ -1986,6 +1986,20 @@ def _collect_quality_window_source_frames(
     return quality_detail, premarket_detail, metadata
 
 
+def _build_unique_symbol_day_ranking_candidates(frame: pd.DataFrame, *, ranking_metric: str) -> pd.DataFrame:
+    if frame.empty:
+        return pd.DataFrame(columns=["trade_date", "symbol", ranking_metric])
+
+    candidates = frame[["trade_date", "symbol", ranking_metric]].copy()
+    candidates[ranking_metric] = pd.to_numeric(candidates[ranking_metric], errors="coerce")
+    candidates = candidates.sort_values(
+        ["trade_date", ranking_metric, "symbol"],
+        ascending=[True, False, True],
+        kind="stable",
+    )
+    return candidates.drop_duplicates(subset=["trade_date", "symbol"], keep="first").reset_index(drop=True)
+
+
 def _build_daily_symbol_features_full_universe_export(
     *,
     trading_days: list,
@@ -2082,16 +2096,17 @@ def _build_daily_symbol_features_full_universe_export(
     ] = "missing_window_range_pct"
     features["is_eligible"] = features["eligibility_reason"].eq("eligible")
 
-    eligible_count_map = features.groupby("trade_date")["is_eligible"].sum().astype(int).to_dict()
+    ranked_candidates = _build_unique_symbol_day_ranking_candidates(
+        features.loc[features["is_eligible"]],
+        ranking_metric=ranking_metric,
+    )
+    eligible_count_map = ranked_candidates.groupby("trade_date").size().astype(int).to_dict()
     take_n_map = {trade_day: int(math.ceil(count * top_fraction)) if int(count) > 0 else 0 for trade_day, count in eligible_count_map.items()}
     features["eligible_count_for_trade_date"] = features["trade_date"].map(eligible_count_map).fillna(0).astype(int)
     features["take_n_for_trade_date"] = features["trade_date"].map(take_n_map).fillna(0).astype(int)
     features["rank_within_trade_date"] = pd.Series(pd.array([pd.NA] * len(features), dtype="Int64"), index=features.index)
 
-    ranked_candidates = features[features["is_eligible"]].copy()
     if not ranked_candidates.empty:
-        ranked_candidates[ranking_metric] = pd.to_numeric(ranked_candidates[ranking_metric], errors="coerce")
-        ranked_candidates = ranked_candidates.sort_values(["trade_date", ranking_metric, "symbol"], ascending=[True, False, True]).reset_index(drop=True)
         ranked_candidates["rank_within_trade_date"] = ranked_candidates.groupby("trade_date").cumcount() + 1
         features = features.drop(columns=["rank_within_trade_date"]).merge(
             ranked_candidates[["trade_date", "symbol", "rank_within_trade_date"]],
@@ -2122,18 +2137,16 @@ def _build_daily_symbol_features_full_universe_export(
             & early_has_rows
             & early_metric_series.notna()
         )
-        early_eligible_count_map = early_eligible_mask.groupby(features["trade_date"]).sum().astype(int).to_dict()
+        early_candidates = _build_unique_symbol_day_ranking_candidates(
+            features.loc[early_eligible_mask],
+            ranking_metric=early_ranking_metric,
+        )
+        early_eligible_count_map = early_candidates.groupby("trade_date").size().astype(int).to_dict()
         early_take_n_map = {
             trade_day: int(math.ceil(count * top_fraction)) if int(count) > 0 else 0
             for trade_day, count in early_eligible_count_map.items()
         }
-        early_candidates = features.loc[early_eligible_mask].copy()
         if not early_candidates.empty:
-            early_candidates[early_ranking_metric] = pd.to_numeric(early_candidates[early_ranking_metric], errors="coerce")
-            early_candidates = early_candidates.sort_values(
-                ["trade_date", early_ranking_metric, "symbol"],
-                ascending=[True, False, True],
-            ).reset_index(drop=True)
             early_candidates["rank_within_trade_date_0400"] = early_candidates.groupby("trade_date").cumcount() + 1
             early_candidates["take_n_for_trade_date_0400"] = early_candidates["trade_date"].map(early_take_n_map).fillna(0).astype(int)
             early_selected = early_candidates[
