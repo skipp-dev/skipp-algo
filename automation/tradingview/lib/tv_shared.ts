@@ -2248,10 +2248,71 @@ async function waitForScriptSearchSurface(page: Page, timeoutMs = 2_000): Promis
   return false;
 }
 
-async function addScriptToChartViaIndicators(page: Page, scriptName: string): Promise<boolean> {
+export function indicatorsMyScriptsShowsMatchingPrivateScript(
+  scriptName: string,
+  visiblePrivateScripts: string[],
+): boolean {
+  const patterns = buildScriptNamePatterns(scriptName);
+  return visiblePrivateScripts.some((candidate) => {
+    const normalizedCandidate = normalizeUiText(candidate);
+    return patterns.some((pattern) => pattern.test(normalizedCandidate));
+  });
+}
+
+async function collectVisibleIndicatorMyScriptNames(page: Page, limit = 8): Promise<string[]> {
+  return page
+    .locator('[data-name="indicators-dialog"] [data-id^="USER;"]')
+    .evaluateAll((nodes, maxResults) => {
+      const maxCount = typeof maxResults === "number" ? maxResults : 8;
+      const results: string[] = [];
+
+      for (const node of nodes) {
+        const element = node as HTMLElement;
+        const style = window.getComputedStyle(element);
+        const rect = element.getBoundingClientRect();
+        const text = (element.innerText || element.textContent || "").replace(/\s+/g, " ").trim();
+
+        if (!text || style.display === "none" || style.visibility === "hidden" || rect.width < 4 || rect.height < 4) {
+          continue;
+        }
+
+        if (!results.includes(text)) {
+          results.push(text);
+        }
+        if (results.length >= maxCount) {
+          break;
+        }
+      }
+
+      return results;
+    }, limit)
+    .catch(() => []);
+}
+
+export type AddExistingScriptToChartViaIndicatorsAttempt = {
+  searchName: string;
+  matchingPrivateScriptVisible: boolean;
+  visiblePrivateScripts: string[];
+  addedToChart: boolean;
+};
+
+export type AddExistingScriptToChartViaIndicatorsResult = {
+  added: boolean;
+  matchedSearchName: string | null;
+  attempts: AddExistingScriptToChartViaIndicatorsAttempt[];
+};
+
+async function addScriptToChartViaIndicators(page: Page, scriptName: string): Promise<AddExistingScriptToChartViaIndicatorsAttempt> {
   tracePageEvent(page, "add-to-chart-indicators-start", scriptName);
   await dismissSignInModal(page);
   await closePineEditorIfVisible(page).catch(() => undefined);
+
+  const attempt: AddExistingScriptToChartViaIndicatorsAttempt = {
+    searchName: scriptName,
+    matchingPrivateScriptVisible: false,
+    visiblePrivateScripts: [],
+    addedToChart: false,
+  };
 
   const openedSurface = await clickVisibleWithFallbackOutsidePineDialog(
     page,
@@ -2262,20 +2323,22 @@ async function addScriptToChartViaIndicators(page: Page, scriptName: string): Pr
   ).catch(() => false);
   if (!openedSurface) {
     tracePageEvent(page, "add-to-chart-indicators-open-miss", scriptName);
-    return false;
+    return attempt;
   }
 
   const searchSurfaceVisible = await waitForScriptSearchSurface(page, 2_500);
   tracePageEvent(page, "add-to-chart-indicators-surface", `${scriptName}:${searchSurfaceVisible}`);
   if (!searchSurfaceVisible) {
     await closeModal(page).catch(() => undefined);
-    return false;
+    return attempt;
   }
 
   await clickFirst(tvSelectors.myScriptsTab(page), 1_500).catch(() => false);
   const searchFilled = await fillFirst(scriptName, tvSelectors.scriptSearch(page), 1_500).catch(() => false);
   tracePageEvent(page, "add-to-chart-indicators-search", `${scriptName}:${searchFilled}`);
   await page.waitForTimeout(500);
+  attempt.visiblePrivateScripts = await collectVisibleIndicatorMyScriptNames(page);
+  attempt.matchingPrivateScriptVisible = indicatorsMyScriptsShowsMatchingPrivateScript(scriptName, attempt.visiblePrivateScripts);
 
   let selectedRow = await clickVisibleWithFallback(
     page,
@@ -2300,7 +2363,10 @@ async function addScriptToChartViaIndicators(page: Page, scriptName: string): Pr
 
   const settled = await settleChartSurfaceAfterInsert(page, scriptName, "indicators", false);
   tracePageEvent(page, settled ? "add-to-chart-indicators-ok" : "add-to-chart-indicators-no-visible-script", scriptName);
-  return settled;
+  return {
+    ...attempt,
+    addedToChart: settled,
+  };
 }
 
 async function hasPublishSurface(page: Page, timeoutMs = 500): Promise<boolean> {
@@ -3163,7 +3229,7 @@ export async function collectVisibleChartScriptState(page: Page, scriptName: str
 }
 
 function isScriptVisibleOnChart(state: VisibleChartScriptState): boolean {
-  return state.hasLegendMatch || state.hasStrategyReportMatch;
+  return state.hasLegendMatch || (state.hasStrategyReportMatch && state.hasScriptNameMatch);
 }
 
 export function isScriptVisibleOnChartState(state: VisibleChartScriptState): boolean {
@@ -4121,21 +4187,36 @@ export async function openExistingScript(page: Page, scriptName: string): Promis
   });
 }
 
-export async function addExistingScriptToChartViaIndicators(page: Page, scriptName: string): Promise<boolean> {
+export async function addExistingScriptToChartViaIndicators(
+  page: Page,
+  scriptName: string,
+): Promise<AddExistingScriptToChartViaIndicatorsResult> {
   return runTrackedStep(page, `addExistingScriptToChartViaIndicators:${scriptName}`, async () => {
+    const attempts: AddExistingScriptToChartViaIndicatorsAttempt[] = [];
+
     for (const searchName of resolveOpenScriptSearchNames(scriptName)) {
-      const added = await addScriptToChartViaIndicators(page, searchName);
-      if (!added) {
+      const attempt = await addScriptToChartViaIndicators(page, searchName);
+      attempts.push(attempt);
+
+      if (!attempt.addedToChart) {
         continue;
       }
 
       if (normalizeUiText(searchName) !== normalizeUiText(scriptName)) {
         tracePageEvent(page, "add-existing-script-legacy-alias", `${scriptName}<=${searchName}`);
       }
-      return true;
+      return {
+        added: true,
+        matchedSearchName: searchName,
+        attempts,
+      };
     }
 
-    return false;
+    return {
+      added: false,
+      matchedSearchName: null,
+      attempts,
+    };
   });
 }
 
@@ -4971,7 +5052,8 @@ export async function addCurrentScriptToChart(page: Page, scriptName?: string, o
         return;
       }
 
-      if (await addScriptToChartViaIndicators(page, scriptName)) {
+      const indicatorsAttempt = await addScriptToChartViaIndicators(page, scriptName);
+      if (indicatorsAttempt.addedToChart) {
         tracePageEvent(page, "add-to-chart-visible-after-indicators", scriptName);
         return;
       }

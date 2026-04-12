@@ -29,6 +29,7 @@ import {
   saveScript,
   setEditorContent,
   takeScreenshot,
+  type AddExistingScriptToChartViaIndicatorsResult,
   utcNow,
   waitForPostSaveCompileSettlement,
   writeJson,
@@ -45,6 +46,7 @@ import {
 type ReleaseTarget = {
   file: string;
   scriptName: string;
+  savedScriptName?: string;
   checkInputs: boolean;
   addToChart: boolean;
   minInputs?: number;
@@ -166,6 +168,7 @@ function fallbackDefaultTargets(): ReleaseTarget[] {
     {
       file: "SMC_Dashboard.pine",
       scriptName: "SMC Decision Board",
+      savedScriptName: "SMC Dashboard",
       checkInputs: true,
       addToChart: true,
       minInputs: 58,
@@ -173,6 +176,7 @@ function fallbackDefaultTargets(): ReleaseTarget[] {
     {
       file: "SMC_Long_Strategy.pine",
       scriptName: "SMC Execution",
+      savedScriptName: "SMC Long Strategy",
       checkInputs: true,
       addToChart: true,
       minInputs: 8,
@@ -227,6 +231,69 @@ function uniqueSorted(values: string[]): string[] {
 
 function normalizeLabel(value: string): string {
   return value.replace(/\s+/g, " ").trim();
+}
+
+function uniqueNormalized(values: string[]): string[] {
+  const seen = new Set<string>();
+  const results: string[] = [];
+
+  for (const value of values) {
+    const normalized = normalizeLabel(value);
+    if (!normalized) {
+      continue;
+    }
+
+    const key = normalized.toLowerCase();
+    if (seen.has(key)) {
+      continue;
+    }
+
+    seen.add(key);
+    results.push(normalized);
+  }
+
+  return results;
+}
+
+function resolveTradingViewSavedScriptName(target: ReleaseTarget): string {
+  return normalizeLabel(target.savedScriptName ?? target.scriptName);
+}
+
+function describeTradingViewScriptTarget(target: ReleaseTarget): string {
+  const targetScriptName = normalizeLabel(target.scriptName) || target.scriptName;
+  const savedScriptName = resolveTradingViewSavedScriptName(target);
+  return savedScriptName === targetScriptName
+    ? targetScriptName
+    : `${targetScriptName} (saved script: ${savedScriptName})`;
+}
+
+function buildMissingExistingScriptError(
+  target: ReleaseTarget,
+  executionMode: CliArgs["executionMode"],
+  indicatorsResult: AddExistingScriptToChartViaIndicatorsResult | null,
+): string {
+  const targetDescription = describeTradingViewScriptTarget(target);
+  const rerunHint = executionMode === "mutating"
+    ? " Rerun with --no-open-existing only if a fresh untitled draft is intended."
+    : "";
+
+  if (!indicatorsResult || indicatorsResult.attempts.length === 0) {
+    return `Could not open existing TradingView script: ${targetDescription}.${rerunHint}`;
+  }
+
+  const lookupNames = uniqueNormalized(indicatorsResult.attempts.map((attempt) => attempt.searchName));
+  const lookupSummary = lookupNames.length > 0 ? lookupNames.join(", ") : targetDescription;
+  const visiblePrivateScripts = uniqueNormalized(indicatorsResult.attempts.flatMap((attempt) => attempt.visiblePrivateScripts));
+  const sawMatchingPrivateScript = indicatorsResult.attempts.some((attempt) => attempt.matchingPrivateScriptVisible);
+
+  if (!sawMatchingPrivateScript) {
+    const visibleSummary = visiblePrivateScripts.length > 0
+      ? ` Visible private My scripts rows: ${visiblePrivateScripts.join(", ")}.`
+      : " No private My scripts rows were visible for those searches.";
+    return `Could not open existing TradingView script: ${targetDescription}. Indicators -> My scripts did not show a matching private USER script for ${lookupSummary}.${visibleSummary} Refresh TV_STORAGE_STATE to an account that owns the saved private scripts.`;
+  }
+
+  return `Could not open existing TradingView script: ${targetDescription}. Indicators -> My scripts showed a matching private USER script for ${lookupSummary} but it never settled on chart.${rerunHint}`;
 }
 
 function missingInputLabels(expected: string[], observed: string[]): string[] {
@@ -453,6 +520,7 @@ async function main(): Promise<number> {
     const expectedInputLabels = uniqueSorted(parseInputSourceLabels(code));
     const targetResult = buildInitialTargetResult(target, filePath, expectedInputLabels, authResolution, cli.executionMode);
     const requiredBindingCount = target.minInputs ?? expectedInputLabels.length;
+    const existingTradingViewScriptName = resolveTradingViewSavedScriptName(target);
     const session = await newTradingViewSession();
 
     try {
@@ -473,18 +541,18 @@ async function main(): Promise<number> {
       targetResult.editor_ok = true;
 
       if (cli.openExisting) {
-        let openedExisting = await openExistingScript(session.page, target.scriptName);
+        let indicatorsFallbackResult: AddExistingScriptToChartViaIndicatorsResult | null = null;
+        let openedExisting = await openExistingScript(session.page, existingTradingViewScriptName);
         if (!openedExisting && cli.executionMode === "readonly") {
-          openedExisting = await addExistingScriptToChartViaIndicators(session.page, target.scriptName);
+          indicatorsFallbackResult = await addExistingScriptToChartViaIndicators(session.page, existingTradingViewScriptName);
+          openedExisting = indicatorsFallbackResult.added;
         }
         if (!openedExisting) {
           if (cli.executionMode === "mutating" && target.allowFreshDraftOnMissingExisting) {
             await openFreshUntitledPineDraft(session.page, inferPineDraftKind(code));
             usedFreshDraftPath = true;
           } else {
-            throw new Error(
-              `Could not open existing TradingView script: ${target.scriptName}. Rerun with --no-open-existing only if a fresh untitled draft is intended.`,
-            );
+            throw new Error(buildMissingExistingScriptError(target, cli.executionMode, indicatorsFallbackResult));
           }
         }
       } else if (cli.executionMode === "mutating") {

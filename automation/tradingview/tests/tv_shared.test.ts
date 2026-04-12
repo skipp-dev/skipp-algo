@@ -6,6 +6,7 @@ import {
   countOrderedCodeBlockOccurrences,
   collectVisibleLocatorMetadata,
   editorDiagnosticsSuggestOpenHost,
+  indicatorsMyScriptsShowsMatchingPrivateScript,
   openScriptSurfaceLooksReady,
   resolvePublishNoChangeCleanupActions,
   resolveOpenScriptIdentityEvidence,
@@ -48,8 +49,16 @@ test("legend or strategy report confirm chart presence", () => {
   assert.equal(isScriptVisibleOnChartState({
     hasLegendMatch: false,
     hasStrategyReportMatch: true,
-    hasScriptNameMatch: false,
+    hasScriptNameMatch: true,
   }), true);
+});
+
+test("bare strategy report without script identity does not count as chart presence", () => {
+  assert.equal(isScriptVisibleOnChartState({
+    hasLegendMatch: false,
+    hasStrategyReportMatch: true,
+    hasScriptNameMatch: false,
+  }), false);
 });
 
 test("editor diagnostics accept toolbar-only Pine editor states", () => {
@@ -131,6 +140,11 @@ test("open script search names include legacy aliases for renamed scripts", () =
 
 test("open script search names normalize whitespace and de-duplicate", () => {
   assert.deepEqual(resolveOpenScriptSearchNames("  SMC   Decision   Board  "), ["SMC Decision Board", "SMC Dashboard"]);
+});
+
+test("indicator private script matching requires a visible My scripts row", () => {
+  assert.equal(indicatorsMyScriptsShowsMatchingPrivateScript("SMC Dashboard", ["SMC Dashboard", "SMC Core"]), true);
+  assert.equal(indicatorsMyScriptsShowsMatchingPrivateScript("SMC Dashboard", ["SMC Core", "SMC Core Engine"]), false);
 });
 
 test("TradingView headless default stays headed locally", () => {

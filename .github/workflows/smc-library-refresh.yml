@@ -18,7 +18,7 @@
 #   FMP_API_KEY        – Financial Modeling Prep API key (enrichment data)
 #   BENZINGA_API_KEY   – Benzinga API key (news/calendar fallback)
 #   DATABENTO_API_KEY  – Databento API key (base data generation)
-#   TV_STORAGE_STATE   – TradingView Playwright storage-state JSON (publish)
+#   TV_STORAGE_STATE   – TradingView Playwright storage-state as raw JSON or gzip+base64 (publish)
 #
 # Optional secrets:
 #   GH_PAT             – Optional GitHub PAT override for checkout/push;
@@ -284,11 +284,38 @@ jobs:
       # ── Publish to TradingView (skip when unchanged or breaking) ─
       - name: Write TradingView storage state
         if: steps.diff.outputs.changed == 'true' && steps.breaking.outputs.breaking != 'true' && github.ref == 'refs/heads/main'
+        env:
+          TV_STORAGE_STATE_SECRET: ${{ secrets.TV_STORAGE_STATE }}
         run: |
           mkdir -p automation/tradingview/auth
-          cat > automation/tradingview/auth/storage-state.json <<'__TV_STORAGE_STATE__'
-          ${{ secrets.TV_STORAGE_STATE }}
-          __TV_STORAGE_STATE__
+          python - <<'PY'
+          import base64
+          import gzip
+          import json
+          import os
+          from pathlib import Path
+
+          raw = os.environ['TV_STORAGE_STATE_SECRET']
+          trimmed = raw.strip()
+          if not trimmed:
+            raise SystemExit('TV_STORAGE_STATE secret is empty')
+
+          if trimmed.startswith('{'):
+            payload = trimmed
+          else:
+            try:
+              payload = gzip.decompress(base64.b64decode(trimmed)).decode('utf-8')
+            except Exception as exc:
+              raise SystemExit(f'TV_STORAGE_STATE is neither raw JSON nor gzip+base64: {exc}')
+
+          try:
+            json.loads(payload)
+          except json.JSONDecodeError as exc:
+            raise SystemExit(f'Invalid TV_STORAGE_STATE JSON payload: {exc}')
+
+          output_path = Path('automation/tradingview/auth/storage-state.json')
+          output_path.write_text(payload if payload.endswith('\n') else payload + '\n', encoding='utf-8')
+          PY
 
       - name: Validate TradingView storage state JSON
         if: steps.diff.outputs.changed == 'true' && steps.breaking.outputs.breaking != 'true' && github.ref == 'refs/heads/main'

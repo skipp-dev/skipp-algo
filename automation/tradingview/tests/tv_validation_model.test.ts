@@ -63,8 +63,8 @@ function makeProductCutSummary(): LibraryReleaseManifest["productCut"] {
     },
     preflightScopes: {
       smcCoreDashboard: [{ file: "SMC_Core_Engine.pine", scriptName: "SMC Core", checkInputs: false, addToChart: false }],
-      smcMainline: [{ file: "SMC_Dashboard.pine", scriptName: "SMC Decision Board", checkInputs: true, addToChart: true, minInputs: 58 }],
-      smcDecisionFirst: [{ file: "SMC_Long_Strategy.pine", scriptName: "SMC Execution", checkInputs: true, addToChart: true, minInputs: 8 }],
+      smcMainline: [{ file: "SMC_Dashboard.pine", scriptName: "SMC Decision Board", savedScriptName: "SMC Dashboard", checkInputs: true, addToChart: true, minInputs: 58 }],
+      smcDecisionFirst: [{ file: "SMC_Long_Strategy.pine", scriptName: "SMC Execution", savedScriptName: "SMC Long Strategy", checkInputs: true, addToChart: true, minInputs: 8 }],
     },
     deprecatedFieldPolicy: {
       mode: "compatibility_only",

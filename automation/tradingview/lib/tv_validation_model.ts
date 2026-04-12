@@ -71,6 +71,7 @@ export type ProductCutPreflightTarget = {
   checkInputs: boolean;
   addToChart: boolean;
   minInputs?: number;
+  savedScriptName?: string;
 };
 
 export type ProductCutDeprecatedFieldPolicy = {

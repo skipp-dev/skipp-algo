@@ -248,6 +248,9 @@ def test_product_cut_payload_exports_governance_metadata() -> None:
     assert payload['contracts']['lite'] == list(MANIFEST.LITE_BUS_LABELS)
     assert payload['contracts']['strategyBindings'] == list(MANIFEST.STRATEGY_BUS_LABELS)
     assert tuple(payload['preflightScopes'].keys()) == ('smcCoreDashboard', 'smcMainline', 'smcDecisionFirst')
+    assert payload['preflightScopes']['smcCoreDashboard'][1]['savedScriptName'] == 'SMC Dashboard'
+    assert payload['preflightScopes']['smcMainline'][1]['savedScriptName'] == 'SMC Dashboard'
+    assert payload['preflightScopes']['smcMainline'][2]['savedScriptName'] == 'SMC Long Strategy'
     assert payload['deprecatedFieldPolicy'] == MANIFEST.DEPRECATED_FIELD_POLICY
     assert payload['deprecatedFieldPolicy']['mode'] == 'compatibility_only'
     assert payload['deprecatedFieldPolicy']['preferredFieldVersion'] == 'v5.5b'

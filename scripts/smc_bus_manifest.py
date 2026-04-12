@@ -28,6 +28,7 @@ class PreflightTarget:
     check_inputs: bool
     add_to_chart: bool
     min_inputs: int | None = None
+    saved_script_name: str | None = None
 
 
 @dataclass(frozen = True)
@@ -306,13 +307,13 @@ LEGACY_FILES: tuple[str, ...] = tuple(
 
 PREFLIGHT_CORE_DASHBOARD_TARGETS: tuple[PreflightTarget, ...] = (
     PreflightTarget('SMC_Core_Engine.pine', 'SMC Core', False, False),
-    PreflightTarget('SMC_Dashboard.pine', 'SMC Decision Board', True, True, 58),
+    PreflightTarget('SMC_Dashboard.pine', 'SMC Decision Board', True, True, 58, 'SMC Dashboard'),
 )
 
 PREFLIGHT_MAINLINE_TARGETS: tuple[PreflightTarget, ...] = (
     PreflightTarget('SMC_Core_Engine.pine', 'SMC Core', False, False),
-    PreflightTarget('SMC_Dashboard.pine', 'SMC Decision Board', True, True, 58),
-    PreflightTarget('SMC_Long_Strategy.pine', 'SMC Execution', True, True, 8),
+    PreflightTarget('SMC_Dashboard.pine', 'SMC Decision Board', True, True, 58, 'SMC Dashboard'),
+    PreflightTarget('SMC_Long_Strategy.pine', 'SMC Execution', True, True, 8, 'SMC Long Strategy'),
 )
 
 PREFLIGHT_DECISION_FIRST_TARGETS: tuple[PreflightTarget, ...] = PREFLIGHT_MAINLINE_TARGETS
@@ -380,6 +381,8 @@ def _preflight_target_payload(target: PreflightTarget) -> dict[str, Any]:
     }
     if target.min_inputs is not None:
         payload['minInputs'] = target.min_inputs
+    if target.saved_script_name:
+        payload['savedScriptName'] = target.saved_script_name
     return payload
 
 
