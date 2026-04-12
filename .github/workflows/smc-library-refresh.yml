@@ -21,9 +21,9 @@
 #   TV_STORAGE_STATE   – TradingView Playwright storage-state as raw JSON or gzip+base64 (publish)
 #
 # Optional secrets:
-#   GH_PAT             – Optional GitHub PAT override for checkout/push;
-#                        otherwise the workflow uses the built-in github.token
-#                        with contents:write permission.
+#   GH_PAT             – Optional GitHub PAT override for checkout;
+#                        the final repository push is forced through the
+#                        built-in github.token with contents:write permission.
 #
 # Optional secrets (alerting):
 #   TELEGRAM_BOT_TOKEN – Telegram bot token for alert delivery
@@ -365,9 +365,12 @@ jobs:
       - name: Commit and push changes
         id: commit_push
         if: steps.diff.outputs.changed == 'true' && steps.breaking.outputs.breaking != 'true' && github.ref == 'refs/heads/main'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
           git add pine/generated/ SMC_Core_Engine.pine
           git diff --cached --quiet || git commit -m "chore: library refresh ${REFRESH_DATE} (run ${{ github.run_number }})"
           git push
