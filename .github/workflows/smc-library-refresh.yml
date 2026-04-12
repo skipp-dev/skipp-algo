@@ -77,19 +77,19 @@ jobs:
 
       # ── Checkout ────────────────────────────────────────────────
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           token: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
           persist-credentials: false
 
       # ── Python + Node setup ─────────────────────────────────────
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.12"
 
       - name: Set up Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: "20"
 
@@ -119,7 +119,7 @@ jobs:
           fi
 
       - name: Restore incremental base seed
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: artifacts/smc_microstructure_exports/incremental_base_seed
           key: ${{ runner.os }}-smc-incremental-base-seed-${{ env.SMC_INCREMENTAL_BASE_SEED_CACHE_VERSION }}-${{ github.ref_name }}-${{ github.run_id }}
@@ -150,7 +150,7 @@ jobs:
 
       - name: Save incremental base seed
         if: success()
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v5
         with:
           path: artifacts/smc_microstructure_exports/incremental_base_seed
           key: ${{ runner.os }}-smc-incremental-base-seed-${{ env.SMC_INCREMENTAL_BASE_SEED_CACHE_VERSION }}-${{ github.ref_name }}-${{ github.run_id }}
@@ -274,7 +274,7 @@ jobs:
       # ── Upload CI artifacts ─────────────────────────────────────
       - name: Upload gate evidence + library artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: smc-refresh-${{ env.REFRESH_DATE }}-${{ github.run_number }}
           path: |
@@ -406,7 +406,7 @@ jobs:
 
       - name: Upload TradingView validation artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: smc-tradingview-${{ env.REFRESH_DATE }}-${{ github.run_number }}
           path: |
