@@ -1074,6 +1074,14 @@ export function openScriptSurfaceScopeLooksReady(state: OpenScriptSurfaceScopeSt
   return state.scopedSearchVisible || state.scopedMyScriptsVisible;
 }
 
+export function openScriptSurfaceLooksReady(options: {
+  scopeStates: OpenScriptSurfaceScopeState[];
+  globalSearchVisible?: boolean;
+  globalMyScriptsVisible?: boolean;
+}): boolean {
+  return options.scopeStates.some((state) => openScriptSurfaceScopeLooksReady(state));
+}
+
 function openScriptSurfaceSearchLocators(scope: Locator): Locator[] {
   return [
     scope.getByRole("textbox", { name: /search/i }),
@@ -2181,7 +2189,14 @@ export async function openFreshUntitledPineDraft(page: Page, kind: PineDraftKind
 async function openScriptSelectionSurface(page: Page): Promise<boolean> {
   const directOpen = await clickVisibleWithFallback(page, tvSelectors.openScript(page), "open-script-surface-direct", 2_000, 750);
   if (directOpen) {
-    return true;
+    const directSurfaceReady = await waitForScriptSearchSurface(page, 1_500);
+    if (directSurfaceReady) {
+      tracePageEvent(page, "open-script-surface-direct-ready");
+      return true;
+    }
+
+    tracePageEvent(page, "open-script-surface-direct-no-surface");
+    await page.keyboard.press("Escape").catch(() => undefined);
   }
 
   const openedMenu = await clickVisibleWithFallback(page, tvSelectors.currentScriptMenu(page), "open-script-surface-menu", 1_500, 400);
@@ -2207,23 +2222,26 @@ async function waitForScriptSearchSurface(page: Page, timeoutMs = 2_000): Promis
   const startedAt = Date.now();
 
   while (Date.now() - startedAt < timeoutMs) {
+    const scopeStates: OpenScriptSurfaceScopeState[] = [];
     for (const scope of openScriptSurfaceScopes(page)) {
       const scopeState: OpenScriptSurfaceScopeState = {
         scopedSearchVisible: await hasVisibleLocator(openScriptSurfaceSearchLocators(scope), 200),
         scopedMyScriptsVisible: await hasVisibleLocator(openScriptSurfaceMyScriptsLocatorsForScope(scope), 200),
       };
-      if (openScriptSurfaceScopeLooksReady(scopeState)) {
-        return true;
-      }
+      scopeStates.push(scopeState);
+    }
+
+    if (openScriptSurfaceLooksReady({ scopeStates })) {
+      return true;
     }
 
     await page.waitForTimeout(100);
   }
 
-  return hasVisibleLocator([
-    ...tvSelectors.scriptSearch(page),
-    ...tvSelectors.myScriptsTab(page),
-  ], 400);
+  // Do not fall back to global search or tab locators here. The chart/watchlist
+  // surface can keep unrelated search inputs alive, which causes a false-positive
+  // open-script surface and skips the actual "Open script" action in CI.
+  return false;
 }
 
 async function addScriptToChartViaIndicators(page: Page, scriptName: string): Promise<boolean> {

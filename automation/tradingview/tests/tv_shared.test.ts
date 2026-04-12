@@ -6,6 +6,7 @@ import {
   countOrderedCodeBlockOccurrences,
   collectVisibleLocatorMetadata,
   editorDiagnosticsSuggestOpenHost,
+  openScriptSurfaceLooksReady,
   resolvePublishNoChangeCleanupActions,
   resolveOpenScriptIdentityEvidence,
   openScriptSurfaceScopeLooksReady,
@@ -93,6 +94,31 @@ test("open script surface readiness accepts scoped picker cues", () => {
   assert.equal(openScriptSurfaceScopeLooksReady({
     scopedSearchVisible: false,
     scopedMyScriptsVisible: true,
+  }), true);
+});
+
+test("open script surface readiness ignores global fallback cues without a scoped picker", () => {
+  assert.equal(openScriptSurfaceLooksReady({
+    scopeStates: [{
+      scopedSearchVisible: false,
+      scopedMyScriptsVisible: false,
+    }],
+    globalSearchVisible: true,
+    globalMyScriptsVisible: true,
+  }), false);
+});
+
+test("open script surface readiness accepts any scoped ready picker state", () => {
+  assert.equal(openScriptSurfaceLooksReady({
+    scopeStates: [{
+      scopedSearchVisible: false,
+      scopedMyScriptsVisible: false,
+    }, {
+      scopedSearchVisible: true,
+      scopedMyScriptsVisible: false,
+    }],
+    globalSearchVisible: false,
+    globalMyScriptsVisible: false,
   }), true);
 });
 
