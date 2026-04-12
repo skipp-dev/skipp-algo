@@ -551,7 +551,7 @@ C9_STABLE_PRO_BUS_LABELS: tuple[str, ...] = tuple(f'BUS {channel}' for channel i
 
 
 DASHBOARD_GROUP_TITLES: tuple[str, ...] = (
-    'Lifecycle',
+    'Lifecycle BUS',
     'Diagnostic Rows',
     'Diagnostic Support',
     'Trade Plan',
@@ -560,8 +560,8 @@ DASHBOARD_GROUP_TITLES: tuple[str, ...] = (
 )
 
 STRATEGY_GROUP_TITLES: tuple[str, ...] = (
-    'Operator Bindings - Entry States',
-    'Operator Bindings - Trade Plan',
+    'Entry States',
+    'Trade Plan',
 )
 
 

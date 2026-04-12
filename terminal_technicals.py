@@ -24,6 +24,8 @@ try:
 
     _TV_AVAILABLE = True
 except ImportError:
+    TA_Handler = None
+    Interval = None
     _TV_AVAILABLE = False
 
 # ── Interval labels (German matching TradingView UI) ─────────────────

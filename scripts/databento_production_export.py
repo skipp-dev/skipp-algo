@@ -74,6 +74,18 @@ from scripts.databento_production_workbook import (
 from scripts.market_structure_features import build_market_structure_feature_frame
 
 
+# Compatibility seam for tests: keep the historic patch target while still
+# defaulting to the boundary-backed factory when no override is installed.
+_DEFAULT_FMP_CLIENT_FACTORY = make_fmp_client
+FMPClient = _DEFAULT_FMP_CLIENT_FACTORY
+
+
+def _make_export_fmp_client(api_key: str) -> Any:
+    if FMPClient is not _DEFAULT_FMP_CLIENT_FACTORY:
+        return FMPClient(api_key)
+    return make_fmp_client(api_key)
+
+
 def _env_flag(name: str, default: bool = False) -> bool:
     raw_value = str(os.getenv(name, "")).strip().lower()
     if not raw_value:
@@ -1157,7 +1169,7 @@ def _load_fundamental_reference(
         return _empty_fundamental_reference_frame()
 
     try:
-        rows = make_fmp_client(fmp_api_key).get_profile_bulk()
+        rows = _make_export_fmp_client(fmp_api_key).get_profile_bulk()
     except Exception:
         logger.warning("FMP bulk profile fetch failed; fundamentals will be empty for this run", exc_info=True)
         rows = []
@@ -2608,7 +2620,7 @@ def _build_core_vs_benzinga_news_side_by_side(
     else:
         from open_prep import run_open_prep as open_prep_run
 
-        client = make_fmp_client(fmp_api_key)
+        client = _make_export_fmp_client(fmp_api_key)
         core_scores, core_metrics, core_fetch_error = open_prep_run._fetch_news_context(
             client=client,
             symbols=latest_scope["symbol"].tolist(),
@@ -2921,7 +2933,7 @@ def _build_research_event_flags_full_universe_export(
         }
 
     trade_dates = sorted(set(scope["trade_date"].tolist()))
-    client = make_fmp_client(fmp_api_key)
+    client = _make_export_fmp_client(fmp_api_key)
     try:
         earnings_rows = client.get_earnings_calendar(trade_dates[0], trade_dates[-1])
     except Exception as exc:
