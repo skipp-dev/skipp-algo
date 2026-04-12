@@ -99,12 +99,14 @@ def test_technical_scorer_uses_stale_cache_when_call_spacing_blocks_fetch(monkey
     assert got == stale_payload
 
 
-def test_volume_regime_warns_when_all_avg_volumes_missing(caplog) -> None:
+def test_volume_regime_warns_when_all_avg_volumes_missing(monkeypatch, caplog) -> None:
     detector = rs.VolumeRegimeDetector()
     quotes = {
         "AAA": {"symbol": "AAA", "volume": 10_000, "avgVolume": 0},
         "BBB": {"symbol": "BBB", "volume": 20_000, "avgVolume": 0},
     }
+
+    monkeypatch.setattr(rs.time, "monotonic", lambda: 42.0)
 
     with caplog.at_level("WARNING"):
         regime = detector.update(quotes)

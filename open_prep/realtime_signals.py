@@ -937,7 +937,7 @@ class VolumeRegimeDetector:
         self.regime: str = "NORMAL"  # "NORMAL", "LOW_VOLUME", "HOLIDAY_SUSPECT"
         self.thin_fraction: float = 0.0
         self._wl_avg_volumes: dict[str, float] = {}
-        self._last_missing_avg_warn_ts: float = 0.0
+        self._last_missing_avg_warn_ts: float | None = None
 
     def update(self, quotes: dict[str, dict[str, Any]]) -> str:
         if not quotes:
@@ -966,7 +966,7 @@ class VolumeRegimeDetector:
         self.thin_fraction = (thin_count / total) if total > 0 else 0.0
         if total == 0 and quotes:
             now = time.monotonic()
-            if (now - self._last_missing_avg_warn_ts) >= 300.0:
+            if self._last_missing_avg_warn_ts is None or (now - self._last_missing_avg_warn_ts) >= 300.0:
                 logger.warning(
                     "Volume regime fallback: avgVolume unavailable for %d/%d symbols; treating regime as NORMAL",
                     len(quotes),
