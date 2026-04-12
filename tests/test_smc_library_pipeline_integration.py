@@ -43,6 +43,10 @@ def _full_enrichment() -> EnrichmentDict:
             "regime": "RISK_ON",
             "vix_level": 14.5,
             "macro_bias": 0.1,
+            "macro_bias_raw": 0.1,
+            "macro_bias_pe_adjustment": 0.0,
+            "market_pe_forward": 21.3,
+            "market_pe_regime": "FAIR",
             "sector_breadth": 0.72,
         },
         "news": {
@@ -75,6 +79,20 @@ def _full_enrichment() -> EnrichmentDict:
             "low_tickers": ["AMZN"],
             "holiday_suspect_tickers": [],
         },
+        "volatility_regime": {
+            "label": "NORMAL",
+            "confidence": 0.8,
+            "raw_atr_ratio": 1.04,
+            "model_source": "atr_fallback",
+            "fallback_reason": "arch_unavailable",
+            "proxy_symbol": "AAPL",
+            "proxy_source": "highest_adv_symbol",
+        },
+        "ensemble_quality": {
+            "score": 0.55,
+            "tier": "good",
+            "available_components": ["bias", "heuristic", "vol_regime"],
+        },
         "meta": {
             "asof_time": "2026-03-28T14:30:00Z",
             "refresh_count": 3,
@@ -93,7 +111,8 @@ EXPECTED_FIELDS = [
     "WEAK_PREMARKET_TICKERS", "WEAK_AFTERHOURS_TICKERS",
     "FAST_DECAY_TICKERS",
     # Regime
-    "MARKET_REGIME", "VIX_LEVEL", "MACRO_BIAS", "SECTOR_BREADTH",
+    "MARKET_REGIME", "VIX_LEVEL", "MACRO_BIAS", "MACRO_BIAS_RAW",
+    "MACRO_BIAS_PE_ADJUSTMENT", "MARKET_PE_FORWARD", "MARKET_PE_REGIME", "SECTOR_BREADTH",
     # News
     "NEWS_BULLISH_TICKERS", "NEWS_BEARISH_TICKERS",
     "NEWS_NEUTRAL_TICKERS", "NEWS_HEAT_GLOBAL", "TICKER_HEAT_MAP",
@@ -107,6 +126,11 @@ EXPECTED_FIELDS = [
     "PROVIDER_COUNT", "STALE_PROVIDERS",
     # Volume
     "VOLUME_LOW_TICKERS", "HOLIDAY_SUSPECT_TICKERS",
+    # Volatility + ensemble quality
+    "VOLATILITY_REGIME", "VOLATILITY_REGIME_CONFIDENCE", "VOLATILITY_ATR_RATIO",
+    "VOLATILITY_MODEL_SOURCE", "VOLATILITY_FALLBACK_REASON",
+    "VOLATILITY_PROXY_SYMBOL", "VOLATILITY_PROXY_SOURCE",
+    "ENSEMBLE_QUALITY_SCORE", "ENSEMBLE_QUALITY_TIER", "ENSEMBLE_AVAILABLE_COMPONENTS",
 ]
 
 

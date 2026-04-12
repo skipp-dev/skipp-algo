@@ -30,7 +30,8 @@ ENRICHMENT_FIELDS = [
     # Meta
     "ASOF_TIME", "REFRESH_COUNT",
     # Regime
-    "MARKET_REGIME", "VIX_LEVEL", "MACRO_BIAS", "SECTOR_BREADTH",
+    "MARKET_REGIME", "VIX_LEVEL", "MACRO_BIAS", "MACRO_BIAS_RAW",
+    "MACRO_BIAS_PE_ADJUSTMENT", "MARKET_PE_FORWARD", "MARKET_PE_REGIME", "SECTOR_BREADTH",
     "NEWS_BULLISH_TICKERS", "NEWS_BEARISH_TICKERS",
     "NEWS_NEUTRAL_TICKERS", "NEWS_HEAT_GLOBAL", "TICKER_HEAT_MAP",
     "EARNINGS_TODAY_TICKERS", "EARNINGS_TOMORROW_TICKERS",
@@ -39,6 +40,10 @@ ENRICHMENT_FIELDS = [
     "GLOBAL_HEAT", "GLOBAL_STRENGTH", "TONE", "TRADE_STATE",
     "PROVIDER_COUNT", "STALE_PROVIDERS",
     "VOLUME_LOW_TICKERS", "HOLIDAY_SUSPECT_TICKERS",
+    "VOLATILITY_REGIME", "VOLATILITY_REGIME_CONFIDENCE", "VOLATILITY_ATR_RATIO",
+    "VOLATILITY_MODEL_SOURCE", "VOLATILITY_FALLBACK_REASON",
+    "VOLATILITY_PROXY_SYMBOL", "VOLATILITY_PROXY_SOURCE",
+    "ENSEMBLE_QUALITY_SCORE", "ENSEMBLE_QUALITY_TIER", "ENSEMBLE_AVAILABLE_COMPONENTS",
 ]
 
 LIST_FIELDS = [f"{n.upper()}_TICKERS" for n in LISTS]
@@ -125,6 +130,10 @@ def _full_enrichment() -> EnrichmentDict:
             "regime": "RISK_ON",
             "vix_level": 14.5,
             "macro_bias": 0.1,
+            "macro_bias_raw": 0.1,
+            "macro_bias_pe_adjustment": 0.0,
+            "market_pe_forward": 21.3,
+            "market_pe_regime": "FAIR",
             "sector_breadth": 0.72,
         },
         "news": {
@@ -156,6 +165,20 @@ def _full_enrichment() -> EnrichmentDict:
         "volume_regime": {
             "low_tickers": ["TSLA"],
             "holiday_suspect_tickers": [],
+        },
+        "volatility_regime": {
+            "label": "NORMAL",
+            "confidence": 0.75,
+            "raw_atr_ratio": 1.02,
+            "model_source": "atr_fallback",
+            "fallback_reason": "arch_unavailable",
+            "proxy_symbol": "AAPL",
+            "proxy_source": "highest_adv_symbol",
+        },
+        "ensemble_quality": {
+            "score": 0.58,
+            "tier": "good",
+            "available_components": ["bias", "heuristic", "vol_regime"],
         },
         "event_risk": {},
         "flow_qualifier": {},

@@ -206,6 +206,41 @@ class TestFinalizePipeline:
     @patch("scripts.generate_smc_micro_base_from_databento.resolve_live_news_symbols")
     @patch("scripts.generate_smc_micro_base_from_databento.generate_pine_library_from_base")
     @patch("scripts.generate_smc_micro_base_from_databento.build_enrichment")
+    def test_live_news_sidecar_forwarded_into_enrichment_when_news_enabled(self, mock_enrich, mock_pine, mock_resolve, mock_export, tmp_path):
+        from scripts.generate_smc_micro_base_from_databento import finalize_pipeline
+
+        mock_enrich.return_value = {
+            "news": {},
+            "providers": {"provider_count": 1, "stale_providers": "", "domain_diagnostics": {}},
+        }
+        mock_pine.return_value = _fake_pine_paths()
+        mock_resolve.return_value = (["AAPL"], {"mode": "base_csv"})
+        mock_export.return_value = {
+            "summary": {
+                "active_story_count": 1,
+                "new_story_count": 1,
+                "actionable_symbols": [],
+            },
+            "providers": {"newsapi_ai": {"error": ""}},
+            "symbol_scope": {"mode": "base_csv"},
+        }
+
+        result = finalize_pipeline(
+            base_result=_fake_base_result(tmp_path),
+            schema_path=Path("schema/smc_microstructure_base.json"),
+            output_root=tmp_path,
+            emit_live_news_snapshot=True,
+            enrich_news=True,
+        )
+
+        assert mock_export.call_count == 1
+        assert mock_enrich.call_args.kwargs["live_news_snapshot_path"] == tmp_path / "smc_live_news_snapshot.json"
+        assert result["live_news_snapshot"]["status"] == "ok"
+
+    @patch("scripts.generate_smc_micro_base_from_databento.export_live_news_snapshot")
+    @patch("scripts.generate_smc_micro_base_from_databento.resolve_live_news_symbols")
+    @patch("scripts.generate_smc_micro_base_from_databento.generate_pine_library_from_base")
+    @patch("scripts.generate_smc_micro_base_from_databento.build_enrichment")
     def test_artifacts_root_separates_runtime_sidecars_from_library_output(
         self,
         mock_enrich,

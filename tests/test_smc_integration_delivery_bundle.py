@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import cast
 
 import jsonschema
+from referencing import Registry, Resource
 
 from smc_integration.service import build_snapshot_bundle_for_symbol_timeframe
 
@@ -37,9 +38,14 @@ def _validate_bundle_schema(bundle: dict) -> None:
         "https://skipp-algo.local/spec/smc_pine_payload.schema.json": pine_schema,
         "https://skipp-algo.local/spec/smc_delivery_bundle.schema.json": bundle_schema,
     }
-    base_uri = f"file://{(ROOT / 'spec').resolve().as_posix()}/"
-    resolver = jsonschema.RefResolver(base_uri=base_uri, referrer=bundle_schema, store=store)
-    jsonschema.validate(instance=bundle, schema=bundle_schema, resolver=resolver)
+    registry = Registry()
+    for uri, schema in store.items():
+        registry = registry.with_resource(uri, Resource.from_contents(schema))
+
+    validator_cls = jsonschema.validators.validator_for(bundle_schema)
+    validator_cls.check_schema(bundle_schema)
+    validator = validator_cls(bundle_schema, registry=registry)
+    validator.validate(bundle)
 
 
 def test_delivery_bundle_contains_required_top_level_keys() -> None:

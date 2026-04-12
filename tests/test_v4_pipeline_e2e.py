@@ -128,6 +128,31 @@ def _snapshot_df(
     return pd.DataFrame(rows)
 
 
+def _daily_bars_df(symbols: list[str] | None = None) -> pd.DataFrame:
+    syms = symbols or ["AAPL", "TSLA", "META"]
+    trade_dates = pd.date_range("2025-12-01", periods=90, freq="B")
+    rows: list[dict[str, object]] = []
+    for sym_index, symbol in enumerate(syms):
+        base_price = 120.0 + sym_index * 35.0
+        for idx, trade_date in enumerate(trade_dates):
+            drift = idx * (0.55 + sym_index * 0.05)
+            swing = ((idx % 7) - 3) * 0.35
+            close = base_price + drift + swing
+            open_price = close - 0.6
+            rows.append(
+                {
+                    "symbol": symbol,
+                    "trade_date": trade_date,
+                    "open": round(open_price, 4),
+                    "high": round(close + 1.1, 4),
+                    "low": round(open_price - 1.0, 4),
+                    "close": round(close, 4),
+                    "volume": 1_000_000 + idx * 10_000,
+                }
+            )
+    return pd.DataFrame(rows)
+
+
 @pytest.fixture
 def base_csv(tmp_path: Path) -> Path:
     df = _snapshot_df()
@@ -175,6 +200,17 @@ def _make_mock_fmp() -> MagicMock:
         {"event": "FOMC Meeting", "date": "2026-03-28T18:00:00Z"},
     ]
     fmp.get_technical_indicator.return_value = {"rsi": 62.0}
+    fmp.get_market_pe_forward.return_value = 21.3
+    fmp._last_market_pe_forward_diagnostics = {
+        "status": "ok",
+        "symbol": "SPY",
+        "source_category": "approximate_ttm",
+        "field": "pe",
+        "price": 510.0,
+        "forward_eps": None,
+        "estimate_count": 0,
+        "error": "",
+    }
     return fmp
 
 
@@ -284,6 +320,98 @@ class TestBuildEnrichmentE2E:
         vol = result["volume_regime"]
         assert "PENNY" in vol["low_tickers"]
         assert "AAPL" not in vol["low_tickers"]
+
+    @patch("scripts.generate_smc_micro_base_from_databento._make_fmp_client")
+    def test_build_enrichment_wires_real_macro_bias_and_regime_diagnostics(self, mock_make):
+        fmp = _make_mock_fmp()
+        fmp.get_macro_calendar.return_value = [
+            {
+                "country": "US",
+                "currency": "USD",
+                "date": "2026-03-28",
+                "event": "Core CPI MoM",
+                "actual": 0.3,
+                "consensus": 0.2,
+                "impact": "High",
+            }
+        ]
+        mock_make.return_value = fmp
+
+        result = build_enrichment(
+            fmp_api_key="test-key",
+            symbols=["AAPL", "TSLA", "META"],
+            enrich_regime=True,
+            base_snapshot=_snapshot_df(),
+        )
+
+        assert result is not None
+        assert result["regime"]["macro_bias"] == pytest.approx(-0.5)
+        assert result["regime"]["sector_breadth"] == pytest.approx(0.6)
+        diagnostics = result["providers"]["domain_diagnostics"]["regime"]["diagnostics"]
+        assert diagnostics["vix_present"] is True
+        assert diagnostics["sector_row_count"] == 5
+        assert diagnostics["macro_event_count"] == 1
+        assert diagnostics["macro_inputs_used"] == ["Core CPI MoM"]
+        assert result["regime"]["market_pe_forward"] == pytest.approx(21.3)
+        assert result["regime"]["market_pe_regime"] == "FAIR"
+
+    @patch("scripts.generate_smc_micro_base_from_databento._make_fmp_client")
+    def test_build_enrichment_activates_volatility_and_ensemble_quality_with_daily_bars(self, mock_make):
+        mock_make.return_value = _make_mock_fmp()
+
+        result = build_enrichment(
+            fmp_api_key="test-key",
+            symbols=["AAPL", "TSLA", "META"],
+            enrich_regime=True,
+            enrich_layering=True,
+            base_snapshot=_snapshot_df(),
+            daily_bars=_daily_bars_df(),
+        )
+
+        assert result is not None
+        assert result["volatility_regime"]["label"] in {"LOW_VOL", "NORMAL", "HIGH_VOL", "EXTREME"}
+        assert result["volatility_regime"]["proxy_symbol"] in {"AAPL", "TSLA", "META"}
+        assert result["ensemble_quality"]["tier"] in {"low", "ok", "good", "high"}
+        assert 0.0 <= result["ensemble_quality"]["score"] <= 1.0
+
+    @patch("scripts.generate_smc_micro_base_from_databento._make_fmp_client")
+    def test_build_enrichment_exposes_news_payload_diagnostics(self, mock_make):
+        fmp = _make_mock_fmp()
+        fmp.get_stock_latest_news.return_value = [
+            {
+                "title": "Apple beats earnings, strong growth outlook",
+                "tickers": ["AAPL"],
+                "symbol": "AAPL",
+            },
+            {
+                "title": "Tesla misses estimates, weak outlook warning",
+                "tickers": ["TSLA"],
+                "symbol": "TSLA",
+            },
+        ]
+        mock_make.return_value = fmp
+
+        result = build_enrichment(
+            fmp_api_key="test-key",
+            symbols=["AAPL", "TSLA", "META"],
+            enrich_news=True,
+            base_snapshot=_snapshot_df(),
+        )
+
+        assert result is not None
+        assert result["news"]["bullish_tickers"] == ["AAPL"]
+        assert result["news"]["bearish_tickers"] == ["TSLA"]
+        assert result["news"]["ticker_heat_map"]
+        diagnostics = result["providers"]["domain_diagnostics"]["news"]["diagnostics"]
+        assert diagnostics["article_count"] == 2
+        assert diagnostics["matched_article_count"] == 2
+        assert diagnostics["empty_headline_count"] == 0
+        assert diagnostics["unique_recognized_ticker_count"] == 2
+        assert diagnostics["polarity_distribution"] == {
+            "positive": 1,
+            "negative": 1,
+            "neutral": 0,
+        }
 
     def test_refresh_count_increments_from_manifest(self, tmp_path: Path):
         """refresh_count reads from a prior manifest and increments by 1."""
@@ -714,6 +842,39 @@ class TestGeneratePineWithRealEnrichment:
         pine_text = result["pine_path"].read_text(encoding="utf-8")
         regime_value = enrichment["regime"]["regime"]
         assert f'MARKET_REGIME = "{regime_value}"' in pine_text
+
+    @patch("scripts.generate_smc_micro_base_from_databento._make_fmp_client")
+    def test_rendered_library_contains_non_default_macro_bias_and_sector_breadth(self, mock_make, base_csv, tmp_path):
+        fmp = _make_mock_fmp()
+        fmp.get_macro_calendar.return_value = [
+            {
+                "country": "US",
+                "currency": "USD",
+                "date": "2026-03-28",
+                "event": "Core CPI MoM",
+                "actual": 0.3,
+                "consensus": 0.2,
+                "impact": "High",
+            }
+        ]
+        mock_make.return_value = fmp
+
+        enrichment = build_enrichment(
+            fmp_api_key="test-key",
+            symbols=["AAPL", "TSLA", "META"],
+            enrich_regime=True,
+            base_snapshot=_snapshot_df(),
+        )
+        result = generate_pine_library_from_base(
+            base_csv_path=base_csv,
+            schema_path=SCHEMA_PATH,
+            output_root=tmp_path,
+            enrichment=enrichment,
+        )
+        pine_text = result["pine_path"].read_text(encoding="utf-8")
+
+        assert "MACRO_BIAS = -0.5" in pine_text
+        assert "SECTOR_BREADTH = 0.6" in pine_text
 
     @patch("scripts.generate_smc_micro_base_from_databento._make_fmp_client")
     def test_rendered_provider_count_matches_enrichment(self, mock_make, base_csv, tmp_path):

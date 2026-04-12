@@ -378,12 +378,24 @@ def test_write_library_without_enrichment(tmp_path: Path) -> None:
     assert 'TRADE_STATE = "ALLOWED"' in text
     assert "PROVIDER_COUNT = 0" in text
     assert 'VOLUME_LOW_TICKERS = ""' in text
+    assert 'MARKET_PE_REGIME = "UNKNOWN"' in text
+    assert 'VOLATILITY_REGIME = "NORMAL"' in text
+    assert 'ENSEMBLE_QUALITY_TIER = "low"' in text
 
 
 def test_write_library_with_full_enrichment(tmp_path: Path) -> None:
     out = tmp_path / "lib.pine"
     enrichment: EnrichmentDict = {
-        "regime": {"regime": "RISK_ON", "vix_level": 18.5, "macro_bias": 0.35, "sector_breadth": 0.72},
+        "regime": {
+            "regime": "RISK_ON",
+            "vix_level": 18.5,
+            "macro_bias": 0.33,
+            "macro_bias_raw": 0.35,
+            "macro_bias_pe_adjustment": -0.02,
+            "market_pe_forward": 27.4,
+            "market_pe_regime": "EXPENSIVE",
+            "sector_breadth": 0.72,
+        },
         "news": {
             "bullish_tickers": ["AAPL", "MSFT"],
             "bearish_tickers": ["TSLA"],
@@ -403,12 +415,30 @@ def test_write_library_with_full_enrichment(tmp_path: Path) -> None:
         "layering": {"global_heat": 0.28, "global_strength": 0.45, "tone": "BULLISH", "trade_state": "ALLOWED"},
         "providers": {"provider_count": 4, "stale_providers": ""},
         "volume_regime": {"low_tickers": ["XYZ"], "holiday_suspect_tickers": ["ABC"]},
+        "volatility_regime": {
+            "label": "HIGH_VOL",
+            "confidence": 0.84,
+            "raw_atr_ratio": 1.66,
+            "model_source": "atr_fallback",
+            "fallback_reason": "arch_unavailable",
+            "proxy_symbol": "AAPL",
+            "proxy_source": "highest_adv_symbol",
+        },
+        "ensemble_quality": {
+            "score": 0.64,
+            "tier": "good",
+            "available_components": ["bias", "heuristic", "vol_regime"],
+        },
     }
     write_pine_library(out, _EMPTY_LISTS, "2026-03-28", 200, enrichment=enrichment)
     text = out.read_text(encoding="utf-8")
     assert 'MARKET_REGIME = "RISK_ON"' in text
     assert "VIX_LEVEL = 18.5" in text
-    assert "MACRO_BIAS = 0.35" in text
+    assert "MACRO_BIAS = 0.33" in text
+    assert "MACRO_BIAS_RAW = 0.35" in text
+    assert "MACRO_BIAS_PE_ADJUSTMENT = -0.02" in text
+    assert "MARKET_PE_FORWARD = 27.4" in text
+    assert 'MARKET_PE_REGIME = "EXPENSIVE"' in text
     assert 'NEWS_BULLISH_TICKERS = "AAPL,MSFT"' in text
     assert 'NEWS_BEARISH_TICKERS = "TSLA"' in text
     assert "NEWS_HEAT_GLOBAL = 0.15" in text
@@ -424,6 +454,11 @@ def test_write_library_with_full_enrichment(tmp_path: Path) -> None:
     assert "PROVIDER_COUNT = 4" in text
     assert 'VOLUME_LOW_TICKERS = "XYZ"' in text
     assert 'HOLIDAY_SUSPECT_TICKERS = "ABC"' in text
+    assert 'VOLATILITY_REGIME = "HIGH_VOL"' in text
+    assert "VOLATILITY_REGIME_CONFIDENCE = 0.84" in text
+    assert 'VOLATILITY_PROXY_SYMBOL = "AAPL"' in text
+    assert 'ENSEMBLE_QUALITY_TIER = "good"' in text
+    assert 'ENSEMBLE_AVAILABLE_COMPONENTS = "bias,heuristic,vol_regime"' in text
 
 
 def test_write_library_partial_enrichment(tmp_path: Path) -> None:
@@ -594,7 +629,8 @@ def test_defaults_always_present(tmp_path: Path) -> None:
     write_pine_library(out, _EMPTY_LISTS, "2026-03-28", 5)
     text = out.read_text(encoding="utf-8")
     required_fields = [
-        "MARKET_REGIME", "VIX_LEVEL", "MACRO_BIAS", "SECTOR_BREADTH",
+        "MARKET_REGIME", "VIX_LEVEL", "MACRO_BIAS", "MACRO_BIAS_RAW",
+        "MACRO_BIAS_PE_ADJUSTMENT", "MARKET_PE_FORWARD", "MARKET_PE_REGIME", "SECTOR_BREADTH",
         "NEWS_BULLISH_TICKERS", "NEWS_BEARISH_TICKERS", "NEWS_NEUTRAL_TICKERS",
         "NEWS_HEAT_GLOBAL", "TICKER_HEAT_MAP",
         "EARNINGS_TODAY_TICKERS", "EARNINGS_TOMORROW_TICKERS",
@@ -603,6 +639,10 @@ def test_defaults_always_present(tmp_path: Path) -> None:
         "GLOBAL_HEAT", "GLOBAL_STRENGTH", "TONE", "TRADE_STATE",
         "PROVIDER_COUNT", "STALE_PROVIDERS",
         "VOLUME_LOW_TICKERS", "HOLIDAY_SUSPECT_TICKERS",
+        "VOLATILITY_REGIME", "VOLATILITY_REGIME_CONFIDENCE", "VOLATILITY_ATR_RATIO",
+        "VOLATILITY_MODEL_SOURCE", "VOLATILITY_FALLBACK_REASON",
+        "VOLATILITY_PROXY_SYMBOL", "VOLATILITY_PROXY_SOURCE",
+        "ENSEMBLE_QUALITY_SCORE", "ENSEMBLE_QUALITY_TIER", "ENSEMBLE_AVAILABLE_COMPONENTS",
         # v5 event-risk fields
         "EVENT_WINDOW_STATE", "EVENT_RISK_LEVEL",
         "NEXT_EVENT_CLASS", "NEXT_EVENT_NAME", "NEXT_EVENT_TIME", "NEXT_EVENT_IMPACT",

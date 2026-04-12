@@ -46,6 +46,19 @@ class TestRiskOn:
         result = classify_market_regime(vix_level=20.0, macro_bias=0.1, sector_performance=sectors)
         assert result["regime"] == "RISK_ON"
 
+    def test_expensive_market_pe_reduces_macro_bias(self) -> None:
+        sectors = [{"sector": f"S{i}", "changesPercentage": 1.0} for i in range(8)]
+        result = classify_market_regime(
+            vix_level=20.0,
+            macro_bias=0.5,
+            sector_performance=sectors,
+            market_pe_forward=35.0,
+        )
+        assert result["market_pe_regime"] == "EXPENSIVE"
+        assert result["macro_bias_raw"] == 0.5
+        assert result["macro_bias_pe_adjustment"] < 0
+        assert result["macro_bias"] < result["macro_bias_raw"]
+
 
 class TestRotation:
 
@@ -86,5 +99,15 @@ class TestEdgeCases:
 
     def test_return_shape(self) -> None:
         result = classify_market_regime(vix_level=20.0, macro_bias=0.0)
-        assert set(result.keys()) == {"regime", "vix_level", "macro_bias", "sector_breadth", "reasons"}
+        assert set(result.keys()) == {
+            "regime",
+            "vix_level",
+            "macro_bias",
+            "macro_bias_raw",
+            "macro_bias_pe_adjustment",
+            "market_pe_forward",
+            "market_pe_regime",
+            "sector_breadth",
+            "reasons",
+        }
         assert isinstance(result["reasons"], list)

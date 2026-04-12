@@ -333,10 +333,157 @@ class TestPartialProviderAvailability:
 class TestMalformedPayloads:
     """Adapters handle broken data gracefully."""
 
+    def test_regime_fmp_reports_macro_and_sector_diagnostics(self):
+        fmp = MagicMock()
+        fmp.get_index_quote.return_value = {"price": 19.2}
+        fmp.get_sector_performance.return_value = [
+            {"sector": "Technology", "changesPercentage": 1.2},
+            {"sector": "Financials", "changesPercentage": 0.8},
+            {"sector": "Energy", "changesPercentage": -0.6},
+        ]
+        fmp.get_macro_calendar.return_value = [
+            {
+                "country": "US",
+                "currency": "USD",
+                "date": "2026-03-28",
+                "event": "Core CPI MoM",
+                "actual": 0.3,
+                "consensus": 0.2,
+                "impact": "High",
+            }
+        ]
+
+        result = fetch_regime_fmp(fmp)
+
+        assert result.ok is True
+        assert result.data["macro_bias"] == pytest.approx(-0.5)
+        assert result.data["sector_breadth"] == pytest.approx(0.6667)
+        diagnostics = result.meta["diagnostics"]
+        assert diagnostics["vix_present"] is True
+        assert diagnostics["sector_row_count"] == 3
+        assert diagnostics["macro_event_count"] == 1
+        assert diagnostics["macro_events_considered"] == 1
+        assert diagnostics["macro_inputs_used"] == ["Core CPI MoM"]
+        assert diagnostics["macro_score_components"][0]["canonical_event"] == "core_cpi_mom"
+        assert diagnostics["sector_fetch"]["status"] == "ok"
+        assert diagnostics["macro_input_diagnostics"]["raw_event_count"] == 1
+        assert diagnostics["macro_event_audit"][0]["used_for_scoring"] is True
+
+    def test_regime_fmp_reports_rejected_macro_events_and_empty_sector_fetch(self):
+        fmp = MagicMock()
+        fmp.get_index_quote.return_value = {"price": 19.2}
+        fmp.get_sector_performance.return_value = []
+        fmp.get_macro_calendar.return_value = [
+            {
+                "country": "JP",
+                "currency": "JPY",
+                "date": "2026-04-12 23:50:00",
+                "event": "M3 Money Supply (Mar)",
+                "actual": None,
+                "estimate": None,
+                "impact": "Low",
+            },
+            {
+                "country": "US",
+                "currency": "USD",
+                "date": "2026-04-12 08:30:00",
+                "event": "Core CPI MoM",
+                "actual": 0.3,
+                "consensus": None,
+                "impact": "High",
+            },
+        ]
+
+        result = fetch_regime_fmp(fmp)
+
+        diagnostics = result.meta["diagnostics"]
+        assert diagnostics["sector_fetch"]["status"] == "empty"
+        assert diagnostics["sector_fetch"]["returned_row_count"] == 0
+        assert diagnostics["macro_event_count"] == 2
+        assert diagnostics["macro_events_considered"] == 1
+        assert diagnostics["macro_bias"] == pytest.approx(0.0)
+        assert diagnostics["macro_input_diagnostics"]["raw_event_count"] == 2
+        assert diagnostics["macro_input_diagnostics"]["us_scoped_event_count"] == 1
+        assert diagnostics["macro_input_diagnostics"]["rejection_reason_counts"] == {
+            "non_us_event": 1,
+            "missing_consensus": 1,
+        }
+
+        audit_by_event = {entry["event"]: entry for entry in diagnostics["macro_event_audit"]}
+        assert audit_by_event["M3 Money Supply (Mar)"]["rejection_reasons"] == ["non_us_event"]
+        assert audit_by_event["Core CPI MoM"]["passes_us_scope"] is True
+        assert "missing_consensus" in audit_by_event["Core CPI MoM"]["rejection_reasons"]
+
+    def test_regime_fmp_reports_market_pe_modifier_diagnostics(self):
+        fmp = MagicMock()
+        fmp.get_index_quote.return_value = {"price": 14.2}
+        fmp.get_sector_performance.return_value = [
+            {"sector": "Technology", "changesPercentage": 1.2},
+            {"sector": "Financials", "changesPercentage": 0.8},
+            {"sector": "Industrials", "changesPercentage": 0.6},
+            {"sector": "Energy", "changesPercentage": -0.4},
+            {"sector": "Healthcare", "changesPercentage": 0.7},
+        ]
+        fmp.get_macro_calendar.return_value = [
+            {
+                "country": "US",
+                "currency": "USD",
+                "date": "2026-03-28",
+                "event": "GDP Growth Rate QoQ",
+                "actual": 3.1,
+                "consensus": 2.3,
+                "impact": "High",
+            }
+        ]
+        fmp.get_market_pe_forward.return_value = 32.0
+        fmp._last_market_pe_forward_diagnostics = {
+            "status": "ok",
+            "symbol": "SPY",
+            "source_category": "approximate_ttm",
+            "field": "pe",
+            "price": 510.0,
+            "forward_eps": None,
+            "estimate_count": 0,
+            "error": "",
+        }
+
+        result = fetch_regime_fmp(fmp)
+
+        assert result.data["market_pe_forward"] == pytest.approx(32.0)
+        assert result.data["market_pe_regime"] == "EXPENSIVE"
+        assert result.data["macro_bias_raw"] > 0.0
+        assert result.data["macro_bias_pe_adjustment"] < 0.0
+        assert result.data["macro_bias"] < result.data["macro_bias_raw"]
+        diagnostics = result.meta["diagnostics"]
+        assert diagnostics["market_pe_fetch"]["symbol"] == "SPY"
+        assert diagnostics["market_pe_fetch"]["source_category"] == "approximate_ttm"
+        assert diagnostics["market_pe_regime"] == "EXPENSIVE"
+
+    def test_news_fmp_reports_payload_diagnostics(self):
+        fmp = MagicMock()
+        fmp.get_stock_latest_news.return_value = [
+            {"title": "AAPL beats earnings, strong growth", "tickers": ["AAPL"]},
+            {"title": "TSLA misses estimates, weak outlook", "tickers": ["TSLA"]},
+            {"title": "", "tickers": ["AAPL"]},
+        ]
+
+        result = fetch_news_fmp(fmp, ["AAPL", "TSLA"])
+
+        diagnostics = result.meta["diagnostics"]
+        assert diagnostics["article_count"] == 3
+        assert diagnostics["matched_article_count"] == 3
+        assert diagnostics["empty_headline_count"] == 1
+        assert diagnostics["polarity_distribution"] == {
+            "positive": 1,
+            "negative": 1,
+            "neutral": 1,
+        }
+
     def test_regime_fmp_returns_none_rsi(self):
         fmp = MagicMock()
         fmp.get_index_quote.return_value = {"price": None}
         fmp.get_sector_performance.return_value = []
+        fmp.get_macro_calendar.return_value = []
         result = fetch_regime_fmp(fmp)
         # Should still return a valid result with defaults
         assert result.ok is True
@@ -347,6 +494,7 @@ class TestMalformedPayloads:
         fmp = MagicMock()
         fmp.get_index_quote.return_value = {"price": "INVALID"}
         fmp.get_sector_performance.return_value = []
+        fmp.get_macro_calendar.return_value = []
         # float("INVALID") raises → caught in fetch_regime_fmp
         result = fetch_regime_fmp(fmp)
         assert result.ok is True
@@ -526,6 +674,154 @@ class TestProviderCountAndStale:
             "last_seen_news_uri": "uri-feed-2",
         }
         assert news_diag["attempts"][-1]["provider"] == "newsapi_ai"
+
+    @patch("scripts.smc_v55_lean_normalization.normalize_v55_lean_enrichment", side_effect=lambda enrichment, snapshot=None: enrichment)
+    @patch("scripts.smc_provider_policy.resolve_domain")
+    def test_build_enrichment_merges_live_snapshot_with_provider_chain(self, mock_resolve, _mock_normalize, tmp_path):
+        from scripts.generate_smc_micro_base_from_databento import build_enrichment
+
+        snapshot_path = tmp_path / "smc_live_news_snapshot.json"
+        snapshot_path.write_text(
+            json.dumps(
+                {
+                    "stories": [
+                        {
+                            "headline": "AAPL misses estimates, weak outlook, loss widens",
+                            "tickers": ["AAPL"],
+                        },
+                        {
+                            "headline": "TSLA misses estimates, weak outlook, loss widens",
+                            "tickers": ["TSLA"],
+                        },
+                    ],
+                    "summary": {
+                        "active_story_count": 2,
+                        "new_story_count": 2,
+                        "actionable_story_count": 0,
+                        "actionable_symbols": [],
+                        "symbol_count": 2,
+                    },
+                    "providers": {
+                        "newsapi_ai": {"ok": True, "new_item_count": 2},
+                        "benzinga": {"ok": True, "new_item_count": 1},
+                    },
+                },
+                indent=2,
+            ) + "\n",
+            encoding="utf-8",
+        )
+
+        mock_resolve.return_value = ProviderResult(
+            data={
+                "bullish_tickers": ["AAPL"],
+                "bearish_tickers": [],
+                "neutral_tickers": [],
+                "news_heat_global": 0.5,
+                "ticker_heat_map": "AAPL:0.50",
+            },
+            provider="fmp",
+            meta={
+                "provider_status": "ok",
+                "status_detail": "",
+                "attempts": [
+                    {
+                        "provider": "fmp",
+                        "delivered_provider": "fmp",
+                        "outcome": "success",
+                        "provider_status": "ok",
+                        "status_detail": "",
+                    }
+                ],
+            },
+        )
+
+        enrichment = build_enrichment(
+            fmp_api_key="",
+            symbols=["AAPL", "TSLA"],
+            enrich_news=True,
+            live_news_snapshot_path=snapshot_path,
+        )
+
+        assert enrichment is not None
+        assert enrichment["providers"]["news_provider"] == "fmp"
+        assert enrichment["news"]["bullish_tickers"] == []
+        assert sorted(enrichment["news"]["bearish_tickers"]) == ["AAPL", "TSLA"]
+
+        news_diag = enrichment["providers"]["domain_diagnostics"]["news"]
+        assert news_diag["render_source"] == "provider_chain_plus_live_snapshot"
+        live_snapshot_diag = news_diag["diagnostics"]["live_snapshot"]
+        assert live_snapshot_diag["snapshot_story_count"] == 2
+        assert live_snapshot_diag["providers_with_new_items"] == ["benzinga", "newsapi_ai"]
+        assert live_snapshot_diag["merge"]["live_directional_override_count"] == 1
+        assert live_snapshot_diag["merge"]["live_added_count"] == 1
+
+    @patch("scripts.smc_v55_lean_normalization.normalize_v55_lean_enrichment", side_effect=lambda enrichment, snapshot=None: enrichment)
+    @patch("scripts.smc_provider_policy.resolve_domain")
+    def test_build_enrichment_uses_live_snapshot_when_provider_chain_returns_no_data(self, mock_resolve, _mock_normalize, tmp_path):
+        from scripts.generate_smc_micro_base_from_databento import build_enrichment
+
+        snapshot_path = tmp_path / "smc_live_news_snapshot.json"
+        snapshot_path.write_text(
+            json.dumps(
+                {
+                    "stories": [
+                        {
+                            "headline": "AAPL beats earnings, strong growth outlook",
+                            "tickers": ["AAPL"],
+                        }
+                    ],
+                    "summary": {
+                        "active_story_count": 1,
+                        "new_story_count": 1,
+                        "actionable_story_count": 0,
+                        "actionable_symbols": [],
+                        "symbol_count": 1,
+                    },
+                    "providers": {
+                        "newsapi_ai": {"ok": True, "new_item_count": 1},
+                    },
+                },
+                indent=2,
+            ) + "\n",
+            encoding="utf-8",
+        )
+
+        mock_resolve.return_value = ProviderResult(
+            data={},
+            provider="none",
+            ok=False,
+            stale=["fmp", "benzinga", "newsapi_ai"],
+            meta={
+                "provider_status": "no_data",
+                "status_detail": "All configured providers in the chain failed.",
+                "attempts": [
+                    {
+                        "provider": "fmp",
+                        "delivered_provider": "none",
+                        "outcome": "failed",
+                        "provider_status": "provider_unavailable",
+                        "status_detail": "FMP client not available",
+                    }
+                ],
+            },
+        )
+
+        enrichment = build_enrichment(
+            fmp_api_key="",
+            symbols=["AAPL"],
+            enrich_news=True,
+            live_news_snapshot_path=snapshot_path,
+        )
+
+        assert enrichment is not None
+        assert enrichment["providers"]["news_provider"] == "live_snapshot"
+        assert enrichment["providers"]["provider_count"] == 2
+        assert enrichment["news"]["bullish_tickers"] == ["AAPL"]
+
+        news_diag = enrichment["providers"]["domain_diagnostics"]["news"]
+        assert news_diag["selected_provider"] == "live_snapshot"
+        assert news_diag["provider_status"] == "ok"
+        assert news_diag["status_detail"] == "Provider chain returned no data; using live news snapshot overlay."
 
     @patch("scripts.smc_provider_policy.resolve_domain")
     def test_provider_count_matches_active_providers(self, mock_resolve):

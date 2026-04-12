@@ -20,6 +20,7 @@ the caller catches + records the stale provider.
 from __future__ import annotations
 
 import logging
+import math
 import re
 from dataclasses import dataclass, field
 from datetime import date, timedelta
@@ -125,15 +126,37 @@ def _provider_attempt_meta(result: ProviderResult) -> dict[str, Any]:
     }
 
 
+def _coerce_optional_float(value: Any) -> float | None:
+    if isinstance(value, bool) or value in (None, ""):
+        return None
+    if not isinstance(value, (int, float, str)):
+        return None
+    try:
+        numeric = float(value)
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(numeric):
+        return None
+    return numeric
+
+
 # ── Regime adapters ─────────────────────────────────────────────
 
 def fetch_regime_fmp(fmp: Any) -> ProviderResult:
     """Fetch regime data via FMP (primary for regime domain)."""
+    from scripts.smc_macro_bias import macro_bias_with_components
     from scripts.smc_regime_classifier import classify_market_regime
 
     vix_level: float | None = None
     macro_bias = 0.0
+    macro_events: list[dict[str, Any]] = []
+    macro_analysis: dict[str, Any] = {
+        "macro_bias": 0.0,
+        "events_for_bias": [],
+        "score_components": [],
+    }
     sectors: list[dict[str, Any]] = []
+    market_pe_forward: float | None = None
     stale: list[str] = []
 
     try:
@@ -151,8 +174,97 @@ def fetch_regime_fmp(fmp: Any) -> ProviderResult:
         logger.warning("FMP sector-performance fetch failed", exc_info=True)
         stale.append("fmp_sectors")
 
-    regime = classify_market_regime(vix_level, macro_bias, sectors)
-    return ProviderResult(data=regime, provider="fmp", stale=stale)
+    try:
+        today = date.today()
+        macro_events = list(fmp.get_macro_calendar(today, today) or [])
+        macro_analysis = macro_bias_with_components(macro_events)
+        macro_bias = float(macro_analysis.get("macro_bias") or 0.0)
+    except Exception:
+        logger.warning("FMP macro-calendar fetch failed", exc_info=True)
+        stale.append("fmp_macro")
+
+    try:
+        market_pe_forward = _coerce_optional_float(fmp.get_market_pe_forward())
+    except Exception:
+        logger.warning("FMP market P/E fetch failed", exc_info=True)
+        stale.append("fmp_market_pe")
+
+    regime = classify_market_regime(
+        vix_level,
+        macro_bias,
+        sectors,
+        market_pe_forward=market_pe_forward,
+    )
+    raw_sector_fetch = getattr(fmp, "_last_sector_performance_diagnostics", {})
+    sector_fetch_diagnostics = dict(raw_sector_fetch) if isinstance(raw_sector_fetch, dict) else {}
+    if not sector_fetch_diagnostics:
+        sector_fetch_diagnostics = {
+            "status": "ok" if sectors else "empty",
+            "attempted_dates": [],
+            "row_counts": {},
+            "used_fallback_previous_trading_day": False,
+            "selected_date": "",
+            "returned_row_count": len(sectors),
+            "error": "",
+        }
+
+    raw_macro_fetch = getattr(fmp, "_last_macro_calendar_diagnostics", {})
+    macro_fetch_diagnostics = dict(raw_macro_fetch) if isinstance(raw_macro_fetch, dict) else {}
+    raw_market_pe_fetch = getattr(fmp, "_last_market_pe_forward_diagnostics", {})
+    market_pe_fetch_diagnostics = dict(raw_market_pe_fetch) if isinstance(raw_market_pe_fetch, dict) else {}
+    if not market_pe_fetch_diagnostics:
+        market_pe_fetch_diagnostics = {
+            "status": "ok" if market_pe_forward is not None else "unavailable",
+            "symbol": "SPY",
+            "source_category": "unknown" if market_pe_forward is not None else "unavailable",
+            "field": "",
+            "price": None,
+            "forward_eps": None,
+            "estimate_count": 0,
+            "error": "",
+        }
+    macro_input_diagnostics = dict(macro_analysis.get("input_diagnostics") or {})
+    macro_event_audit = [dict(event) for event in list(macro_analysis.get("event_audit") or [])]
+
+    diagnostics = {
+        "vix_present": vix_level is not None,
+        "vix_level": vix_level,
+        "sector_row_count": len(sectors),
+        "sector_fetch": sector_fetch_diagnostics,
+        "macro_event_count": len(macro_events),
+        "macro_events_considered": len(macro_analysis.get("events_for_bias", [])),
+        "macro_inputs_used": [
+            str(event.get("event") or event.get("name") or event.get("canonical_event") or "").strip()
+            for event in macro_analysis.get("events_for_bias", [])
+            if str(event.get("event") or event.get("name") or event.get("canonical_event") or "").strip()
+        ],
+        "macro_fetch": macro_fetch_diagnostics,
+        "market_pe_fetch": market_pe_fetch_diagnostics,
+        "market_pe_forward": regime.get("market_pe_forward"),
+        "market_pe_regime": str(regime.get("market_pe_regime") or "UNKNOWN"),
+        "macro_input_diagnostics": macro_input_diagnostics,
+        "macro_event_audit": macro_event_audit,
+        "macro_score_components": [
+            {
+                "canonical_event": str(component.get("canonical_event") or ""),
+                "weight": float(component.get("weight") or 0.0),
+                "contribution": float(component.get("contribution") or 0.0),
+                "consensus_field": component.get("consensus_field"),
+                "data_quality_flags": list(component.get("data_quality_flags") or []),
+            }
+            for component in macro_analysis.get("score_components", [])
+        ],
+        "macro_bias": float(regime.get("macro_bias") or 0.0),
+        "macro_bias_raw": float(regime.get("macro_bias_raw") or 0.0),
+        "macro_bias_pe_adjustment": float(regime.get("macro_bias_pe_adjustment") or 0.0),
+        "sector_breadth": float(regime.get("sector_breadth") or 0.0),
+    }
+    return ProviderResult(
+        data=regime,
+        provider="fmp",
+        stale=stale,
+        meta={"diagnostics": diagnostics},
+    )
 
 
 # ── News adapters ───────────────────────────────────────────────
@@ -173,8 +285,9 @@ def fetch_news_fmp(fmp: Any, symbols: list[str]) -> ProviderResult:
             tickers = [symbol_field]
         articles.append({"headline": headline, "tickers": tickers})
 
-    result = compute_news_sentiment(symbols, articles)
-    return ProviderResult(data=result, provider="fmp")
+    result = compute_news_sentiment(symbols, articles, include_diagnostics=True)
+    diagnostics = result.pop("diagnostics", {})
+    return ProviderResult(data=result, provider="fmp", meta={"diagnostics": diagnostics})
 
 
 def fetch_news_benzinga(api_key: str, symbols: list[str]) -> ProviderResult:
@@ -199,8 +312,9 @@ def fetch_news_benzinga(api_key: str, symbols: list[str]) -> ProviderResult:
         })
 
     from scripts.smc_news_scorer import compute_news_sentiment
-    result = compute_news_sentiment(symbols, articles)
-    return ProviderResult(data=result, provider="benzinga")
+    result = compute_news_sentiment(symbols, articles, include_diagnostics=True)
+    diagnostics = result.pop("diagnostics", {})
+    return ProviderResult(data=result, provider="benzinga", meta={"diagnostics": diagnostics})
 
 
 def fetch_news_newsapi_ai(
@@ -249,7 +363,8 @@ def fetch_news_newsapi_ai(
         }
         for item in normalized_items
     ]
-    result = compute_news_sentiment(symbols, articles)
+    result = compute_news_sentiment(symbols, articles, include_diagnostics=True)
+    diagnostics = result.pop("diagnostics", {})
     last_seen_epoch = max((float(item.updated_ts or item.published_ts or 0.0) for item in normalized_items), default=0.0)
     return ProviderResult(
         data=result,
@@ -263,6 +378,7 @@ def fetch_news_newsapi_ai(
             "matched_record_count": matched_record_count,
             "cursor_before_epoch": feed_after_epoch,
             "cursor_before_uri": str(article_feed_after_uri or "").strip(),
+            "diagnostics": diagnostics,
         },
     )
 

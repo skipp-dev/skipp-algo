@@ -16,6 +16,10 @@ VIX_LOW = 15.0
 VIX_HIGH = 25.0
 VIX_EXTREME = 35.0
 
+PE_CHEAP = 15.0
+PE_EXPENSIVE = 25.0
+MAX_PE_ADJUSTMENT = 0.2
+
 
 def _to_float(val: Any) -> float:
     """Coerce *val* to float, returning 0.0 on failure."""
@@ -25,10 +29,27 @@ def _to_float(val: Any) -> float:
         return 0.0
 
 
+def _clamp(value: float, low: float, high: float) -> float:
+    return max(low, min(high, float(value)))
+
+
+def _market_pe_modifier(market_pe_forward: float | None) -> tuple[float, str]:
+    if market_pe_forward is None or market_pe_forward <= 0:
+        return 0.0, "UNKNOWN"
+    if market_pe_forward > PE_EXPENSIVE:
+        penalty = -0.1 * (market_pe_forward - PE_EXPENSIVE) / 10.0
+        return max(penalty, -MAX_PE_ADJUSTMENT), "EXPENSIVE"
+    if market_pe_forward < PE_CHEAP:
+        boost = 0.1 * (PE_CHEAP - market_pe_forward) / 5.0
+        return min(boost, MAX_PE_ADJUSTMENT), "CHEAP"
+    return 0.0, "FAIR"
+
+
 def classify_market_regime(
     vix_level: float | None,
     macro_bias: float,
     sector_performance: list[dict[str, Any]] | None = None,
+    market_pe_forward: float | None = None,
 ) -> dict[str, Any]:
     """Classify the current market regime.
 
@@ -45,10 +66,15 @@ def classify_market_regime(
     Returns
     -------
     dict with keys ``regime``, ``vix_level``, ``macro_bias``,
-    ``sector_breadth``, ``reasons``.
+    ``macro_bias_raw``, ``macro_bias_pe_adjustment``,
+    ``market_pe_forward``, ``market_pe_regime``, ``sector_breadth``,
+    ``reasons``.
     """
     sectors = sector_performance or []
     reasons: list[str] = []
+    macro_bias_raw = _to_float(macro_bias)
+    macro_bias_pe_adjustment, market_pe_regime = _market_pe_modifier(market_pe_forward)
+    adjusted_macro_bias = _clamp(macro_bias_raw + macro_bias_pe_adjustment, -1.0, 1.0)
 
     # ── Sector breadth ──────────────────────────────────────────
     positive = [s for s in sectors if _to_float(s.get("changesPercentage")) > 0.0]
@@ -73,12 +99,12 @@ def classify_market_regime(
     if vix_level is not None and vix_level >= VIX_EXTREME:
         regime = "RISK_OFF"
         reasons.append(f"VIX extreme ({vix_level:.1f} >= {VIX_EXTREME})")
-    elif macro_bias <= -0.5:
+    elif adjusted_macro_bias <= -0.5:
         regime = "RISK_OFF"
-        reasons.append(f"Macro bias strongly negative ({macro_bias:.2f})")
-    elif vix_level is not None and vix_level >= VIX_HIGH and macro_bias < 0:
+        reasons.append(f"Macro bias strongly negative ({adjusted_macro_bias:.2f})")
+    elif vix_level is not None and vix_level >= VIX_HIGH and adjusted_macro_bias < 0:
         regime = "RISK_OFF"
-        reasons.append(f"VIX elevated ({vix_level:.1f}) + negative bias ({macro_bias:.2f})")
+        reasons.append(f"VIX elevated ({vix_level:.1f}) + negative bias ({adjusted_macro_bias:.2f})")
 
     # Rotation: mixed breadth
     elif 0.3 <= breadth <= 0.7 and len(leading) >= 2 and len(lagging) >= 2:
@@ -89,24 +115,34 @@ def classify_market_regime(
         )
 
     # Risk-on: broad participation
-    elif macro_bias >= 0.3 and breadth >= 0.6:
+    elif adjusted_macro_bias >= 0.3 and breadth >= 0.6:
         regime = "RISK_ON"
-        reasons.append(f"Macro bias positive ({macro_bias:.2f}) + broad breadth ({breadth:.0%})")
-    elif vix_level is not None and vix_level <= VIX_LOW and macro_bias >= 0:
+        reasons.append(f"Macro bias positive ({adjusted_macro_bias:.2f}) + broad breadth ({breadth:.0%})")
+    elif vix_level is not None and vix_level <= VIX_LOW and adjusted_macro_bias >= 0:
         regime = "RISK_ON"
-        reasons.append(f"VIX low ({vix_level:.1f}) + non-negative bias ({macro_bias:.2f})")
+        reasons.append(f"VIX low ({vix_level:.1f}) + non-negative bias ({adjusted_macro_bias:.2f})")
     elif breadth >= 0.75:
         regime = "RISK_ON"
         reasons.append(f"Very broad sector breadth ({breadth:.0%})")
 
     # Default
     else:
-        reasons.append(f"No clear regime signal (bias={macro_bias:.2f}, breadth={breadth:.0%})")
+        reasons.append(f"No clear regime signal (bias={adjusted_macro_bias:.2f}, breadth={breadth:.0%})")
+
+    if market_pe_forward is not None and market_pe_regime != "UNKNOWN":
+        reasons.append(
+            f"Valuation modifier {macro_bias_pe_adjustment:+.2f} "
+            f"({market_pe_regime.lower()} market PE {market_pe_forward:.1f})"
+        )
 
     return {
         "regime": regime,
         "vix_level": vix_level,
-        "macro_bias": macro_bias,
+        "macro_bias": round(adjusted_macro_bias, 4),
+        "macro_bias_raw": round(macro_bias_raw, 4),
+        "macro_bias_pe_adjustment": round(macro_bias_pe_adjustment, 4),
+        "market_pe_forward": round(float(market_pe_forward), 4) if market_pe_forward is not None else None,
+        "market_pe_regime": market_pe_regime,
         "sector_breadth": round(breadth, 4),
         "reasons": reasons,
     }

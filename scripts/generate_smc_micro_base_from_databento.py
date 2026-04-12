@@ -35,6 +35,8 @@ from scripts.smc_live_news_bus import DEFAULT_SYMBOL_LIMIT, export_live_news_sna
 
 logger = logging.getLogger(__name__)
 
+_VOLATILITY_PROXY_SYMBOLS: tuple[str, ...] = ("SPY", "QQQ", "IWM", "DIA")
+
 
 def _emit_cli_progress(message: str) -> None:
     print(message, flush=True)
@@ -272,6 +274,133 @@ def _coerce_non_negative_float(value: Any) -> float:
         return 0.0
 
 
+def _safe_float(value: Any) -> float | None:
+    try:
+        numeric = float(value)
+    except (TypeError, ValueError):
+        return None
+    if pd.isna(numeric):
+        return None
+    return float(numeric)
+
+
+def _select_volatility_proxy_symbol(
+    *,
+    daily_bars: pd.DataFrame | None,
+    base_snapshot: pd.DataFrame | None,
+) -> tuple[str, str]:
+    if not isinstance(daily_bars, pd.DataFrame) or daily_bars.empty or "symbol" not in daily_bars.columns:
+        return "", "none"
+
+    available_symbols = {
+        str(symbol).strip().upper()
+        for symbol in daily_bars["symbol"].dropna().astype(str).tolist()
+        if str(symbol).strip()
+    }
+    for symbol in _VOLATILITY_PROXY_SYMBOLS:
+        if symbol in available_symbols:
+            return symbol, "preferred_benchmark"
+
+    if base_snapshot is not None and not base_snapshot.empty and {"symbol", "adv_dollar_rth_20d"}.issubset(base_snapshot.columns):
+        ranked = base_snapshot.copy()
+        ranked["symbol"] = ranked["symbol"].astype(str).str.strip().str.upper()
+        ranked = ranked.loc[ranked["symbol"].isin(available_symbols)].copy()
+        ranked["adv_dollar_rth_20d"] = pd.to_numeric(ranked["adv_dollar_rth_20d"], errors="coerce")
+        ranked = ranked.sort_values("adv_dollar_rth_20d", ascending=False)
+        if not ranked.empty:
+            return str(ranked.iloc[0]["symbol"]), "highest_adv_symbol"
+
+    return sorted(available_symbols)[0], "first_available_symbol"
+
+
+def _select_daily_bars_for_volatility(
+    *,
+    daily_bars: pd.DataFrame | None,
+    symbol: str,
+) -> pd.DataFrame:
+    if not isinstance(daily_bars, pd.DataFrame) or daily_bars.empty or not symbol:
+        return pd.DataFrame(columns=["high", "low", "close"])
+    if not {"high", "low", "close"}.issubset(daily_bars.columns):
+        return pd.DataFrame(columns=["high", "low", "close"])
+
+    frame = daily_bars.copy()
+    if "symbol" in frame.columns:
+        frame["symbol"] = frame["symbol"].astype(str).str.strip().str.upper()
+        frame = frame.loc[frame["symbol"].eq(symbol.strip().upper())].copy()
+    sort_column = next((name for name in ("trade_date", "date", "timestamp") if name in frame.columns), None)
+    if sort_column is not None:
+        frame = frame.sort_values(sort_column)
+    return frame
+
+
+def _build_volatility_regime_block(
+    *,
+    daily_bars: pd.DataFrame | None,
+    base_snapshot: pd.DataFrame | None,
+) -> dict[str, Any] | None:
+    if not isinstance(daily_bars, pd.DataFrame) or daily_bars.empty:
+        return None
+
+    from smc_core.vol_regime import compute_vol_regime
+
+    proxy_symbol, proxy_source = _select_volatility_proxy_symbol(
+        daily_bars=daily_bars,
+        base_snapshot=base_snapshot,
+    )
+    if not proxy_symbol:
+        return None
+
+    proxy_bars = _select_daily_bars_for_volatility(
+        daily_bars=daily_bars,
+        symbol=proxy_symbol,
+    )
+    if proxy_bars.empty:
+        return None
+
+    result = compute_vol_regime(proxy_bars)
+    return {
+        "label": result.label,
+        "confidence": float(result.confidence),
+        "raw_atr_ratio": float(result.raw_atr_ratio),
+        "model_source": result.model_source,
+        "fallback_reason": str(result.fallback_reason or ""),
+        "proxy_symbol": proxy_symbol,
+        "proxy_source": proxy_source,
+    }
+
+
+def _macro_bias_direction(macro_bias: float) -> str:
+    if macro_bias > 0.05:
+        return "BULLISH"
+    if macro_bias < -0.05:
+        return "BEARISH"
+    return "NEUTRAL"
+
+
+def _build_ensemble_quality_block(
+    *,
+    regime_result: dict[str, Any],
+    layering: dict[str, Any] | None,
+    volatility_regime: dict[str, Any] | None,
+) -> dict[str, Any]:
+    from smc_core.ensemble_quality import build_ensemble_quality
+
+    macro_bias = _safe_float(regime_result.get("macro_bias")) or 0.0
+    heuristic_quality = _safe_float((layering or {}).get("global_strength"))
+    result = build_ensemble_quality(
+        heuristic_quality=heuristic_quality if heuristic_quality is not None else 0.5,
+        bias_direction=_macro_bias_direction(macro_bias),
+        bias_confidence=min(abs(macro_bias), 1.0),
+        vol_regime_label=str((volatility_regime or {}).get("label") or ""),
+        vol_regime_confidence=_safe_float((volatility_regime or {}).get("confidence")),
+    )
+    return {
+        "score": float(result.score),
+        "tier": str(result.tier),
+        "available_components": list(result.available_components),
+    }
+
+
 def _load_newsapi_feed_state(path: Path | None) -> dict[str, Any]:
     state = {"last_seen_epoch": 0.0, "last_seen_news_uri": ""}
     if path is None or not path.exists():
@@ -302,6 +431,160 @@ def _save_newsapi_feed_state(
     }
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+
+
+def _load_live_news_snapshot(path: Path | None) -> dict[str, Any] | None:
+    if path is None:
+        return None
+    snapshot_path = Path(path)
+    if not snapshot_path.exists():
+        return None
+    try:
+        payload = json.loads(snapshot_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        logger.warning("Failed to read live news snapshot: %s", snapshot_path, exc_info=True)
+        return None
+    return payload if isinstance(payload, dict) else None
+
+
+def _parse_ticker_heat_map(raw_value: Any) -> dict[str, float]:
+    score_map: dict[str, float] = {}
+    for part in str(raw_value or "").split(","):
+        item = part.strip()
+        if not item:
+            continue
+        ticker, separator, raw_score = item.partition(":")
+        if not separator:
+            continue
+        symbol = str(ticker).strip().upper()
+        if not symbol:
+            continue
+        try:
+            score_map[symbol] = float(raw_score)
+        except (TypeError, ValueError):
+            continue
+    return score_map
+
+
+def _build_news_payload_from_score_map(score_map: dict[str, float]) -> dict[str, Any]:
+    bullish = sorted(symbol for symbol, score in score_map.items() if score > 0.1)
+    bearish = sorted(symbol for symbol, score in score_map.items() if score < -0.1)
+    neutral = sorted(
+        symbol for symbol, score in score_map.items() if -0.1 <= score <= 0.1
+    )
+    news_heat_global = round(sum(score_map.values()) / len(score_map), 4) if score_map else 0.0
+    ticker_heat_map = ",".join(
+        f"{symbol}:{score_map[symbol]:.2f}" for symbol in sorted(score_map)
+    )
+    return {
+        "bullish_tickers": bullish,
+        "bearish_tickers": bearish,
+        "neutral_tickers": neutral,
+        "news_heat_global": news_heat_global,
+        "ticker_heat_map": ticker_heat_map,
+    }
+
+
+def _news_payload_has_mentions(payload: dict[str, Any]) -> bool:
+    if str(payload.get("ticker_heat_map") or "").strip():
+        return True
+    return any(bool(payload.get(key)) for key in ("bullish_tickers", "bearish_tickers", "neutral_tickers"))
+
+
+def _score_live_news_snapshot(
+    *,
+    symbols: list[str],
+    live_news_snapshot: dict[str, Any],
+) -> tuple[dict[str, Any], dict[str, Any]] | None:
+    raw_stories = live_news_snapshot.get("stories")
+    if not isinstance(raw_stories, list):
+        return None
+
+    articles: list[dict[str, Any]] = []
+    for story in raw_stories:
+        if not isinstance(story, dict):
+            continue
+        tickers = [
+            str(raw_symbol).strip().upper()
+            for raw_symbol in list(story.get("tickers") or [])
+            if str(raw_symbol).strip()
+        ]
+        articles.append(
+            {
+                "headline": str(story.get("headline") or "").strip(),
+                "tickers": tickers,
+            }
+        )
+
+    scored = compute_news_sentiment(symbols, articles, include_diagnostics=True)
+    diagnostics = dict(scored.pop("diagnostics", {}))
+    raw_summary = live_news_snapshot.get("summary")
+    summary = raw_summary if isinstance(raw_summary, dict) else {}
+    raw_provider_payloads = live_news_snapshot.get("providers")
+    provider_payloads = raw_provider_payloads if isinstance(raw_provider_payloads, dict) else {}
+    diagnostics.update(
+        {
+            "snapshot_story_count": len(raw_stories),
+            "snapshot_active_story_count": int(summary.get("active_story_count") or 0),
+            "snapshot_actionable_story_count": int(summary.get("actionable_story_count") or 0),
+            "snapshot_actionable_symbol_count": len(list(summary.get("actionable_symbols") or [])),
+            "snapshot_symbol_count": int(summary.get("symbol_count") or 0),
+            "providers_with_new_items": sorted(
+                provider_name
+                for provider_name, payload in provider_payloads.items()
+                if isinstance(payload, dict) and int(payload.get("new_item_count") or 0) > 0
+            ),
+        }
+    )
+    return scored, diagnostics
+
+
+def _merge_news_payloads(
+    *,
+    base_payload: dict[str, Any],
+    live_payload: dict[str, Any],
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    base_scores = _parse_ticker_heat_map(base_payload.get("ticker_heat_map"))
+    live_scores = _parse_ticker_heat_map(live_payload.get("ticker_heat_map"))
+    merged_scores = dict(base_scores)
+
+    live_added_symbols: list[str] = []
+    live_directional_override_symbols: list[str] = []
+    live_neutral_preserved_base_symbols: list[str] = []
+
+    for symbol, live_score in live_scores.items():
+        if symbol not in merged_scores:
+            merged_scores[symbol] = live_score
+            live_added_symbols.append(symbol)
+            continue
+
+        base_score = merged_scores[symbol]
+        live_is_directional = abs(live_score) > 0.1
+        base_is_directional = abs(base_score) > 0.1
+        if live_is_directional or not base_is_directional:
+            if live_score != base_score and live_is_directional:
+                live_directional_override_symbols.append(symbol)
+            merged_scores[symbol] = live_score
+            continue
+
+        live_neutral_preserved_base_symbols.append(symbol)
+
+    merged_payload = _build_news_payload_from_score_map(merged_scores)
+    diagnostics = {
+        "base_symbol_count": len(base_scores),
+        "live_symbol_count": len(live_scores),
+        "merged_symbol_count": len(merged_scores),
+        "live_added_count": len(live_added_symbols),
+        "live_directional_override_count": len(live_directional_override_symbols),
+        "live_neutral_preserved_base_count": len(live_neutral_preserved_base_symbols),
+        "live_added_sample": sorted(live_added_symbols)[:10],
+        "live_directional_override_sample": sorted(live_directional_override_symbols)[:10],
+        "live_neutral_preserved_base_sample": sorted(live_neutral_preserved_base_symbols)[:10],
+        "base_news_heat_global": float(base_payload.get("news_heat_global") or 0.0),
+        "live_news_heat_global": float(live_payload.get("news_heat_global") or 0.0),
+        "merged_news_heat_global": float(merged_payload.get("news_heat_global") or 0.0),
+    }
+    return merged_payload, diagnostics
 
 
 def _provider_status_from_result(result: Any) -> tuple[str, str]:
@@ -368,6 +651,9 @@ def _build_domain_diagnostic(
             "before": dict(cursor_before or {}),
             "after": dict(cursor_after or {}),
         }
+    raw_diagnostics = result.meta.get("diagnostics")
+    if isinstance(raw_diagnostics, dict):
+        diagnostic["diagnostics"] = dict(raw_diagnostics)
     return diagnostic
 
 
@@ -468,8 +754,10 @@ def build_enrichment(
     enrich_range_regime: bool = False,
     enrich_range_profile_regime: bool = False,
     base_snapshot: pd.DataFrame | None = None,
+    daily_bars: pd.DataFrame | None = None,
     manifest_path: Path | None = None,
     newsapi_feed_state_path: Path | None = None,
+    live_news_snapshot_path: Path | None = None,
 ) -> EnrichmentDict | None:
     """Build the enrichment dict using the v5 provider policy matrix.
 
@@ -489,6 +777,9 @@ def build_enrichment(
         Optional base snapshot DataFrame.  When provided, volume-regime
         tickers (``VOLUME_LOW_TICKERS``, ``HOLIDAY_SUSPECT_TICKERS``)
         are derived from ``adv_dollar_rth_20d``.
+    daily_bars:
+        Optional daily OHLCV frame for activating volatility-regime and
+        ensemble-quality derivations in the active production path.
     manifest_path:
         Path to the previously-written manifest JSON.  When provided,
         ``refresh_count`` is read from it and incremented by 1.
@@ -539,8 +830,27 @@ def build_enrichment(
             newsapi_ai_feed_after_uri=newsapi_feed_state["last_seen_news_uri"],
         )
         all_stale.extend(pr.stale)
+        provider_news_result = dict(pr.data) if pr.ok else {}
+        news_result = dict(provider_news_result)
+
+        live_snapshot_diagnostics: dict[str, Any] | None = None
+        live_news_snapshot = _load_live_news_snapshot(live_news_snapshot_path)
+        if live_news_snapshot is not None:
+            live_snapshot_scored = _score_live_news_snapshot(
+                symbols=symbols,
+                live_news_snapshot=live_news_snapshot,
+            )
+            if live_snapshot_scored is not None:
+                live_snapshot_payload, live_snapshot_diagnostics = live_snapshot_scored
+                if _news_payload_has_mentions(live_snapshot_payload):
+                    news_result, merge_diagnostics = _merge_news_payloads(
+                        base_payload=provider_news_result,
+                        live_payload=live_snapshot_payload,
+                    )
+                    live_snapshot_diagnostics["merge"] = merge_diagnostics
+
         if pr.ok:
-            news_result = pr.data
+            news_result = news_result or provider_news_result
         if pr.provider == "newsapi_ai" and newsapi_feed_state_path is not None:
             next_epoch = _coerce_non_negative_float(pr.meta.get("last_seen_epoch"))
             next_uri = str(pr.meta.get("last_seen_news_uri") or "").strip()
@@ -561,13 +871,30 @@ def build_enrichment(
                     "last_seen_epoch": persisted_epoch,
                     "last_seen_news_uri": persisted_uri,
                 }
-        provenance["news_provider"] = pr.provider
-        domain_diagnostics["news"] = _build_domain_diagnostic(
+        resolved_news_provider = pr.provider
+        news_domain_diagnostic = _build_domain_diagnostic(
             "news",
             pr,
             cursor_before=news_cursor_before,
             cursor_after=newsapi_feed_state,
         )
+        if live_snapshot_diagnostics is not None:
+            news_domain_diagnostic["render_source"] = "provider_chain_plus_live_snapshot"
+            news_domain_diagnostic["rendered_symbol_count"] = len(
+                _parse_ticker_heat_map(news_result.get("ticker_heat_map"))
+            )
+            diagnostics = dict(news_domain_diagnostic.get("diagnostics") or {})
+            diagnostics["live_snapshot"] = live_snapshot_diagnostics
+            news_domain_diagnostic["diagnostics"] = diagnostics
+            if pr.provider == "none" and _news_payload_has_mentions(news_result):
+                resolved_news_provider = "live_snapshot"
+                news_domain_diagnostic["selected_provider"] = "live_snapshot"
+                news_domain_diagnostic["provider_status"] = "ok"
+                news_domain_diagnostic["ok"] = True
+                news_domain_diagnostic["status_detail"] = "Provider chain returned no data; using live news snapshot overlay."
+
+        provenance["news_provider"] = resolved_news_provider
+        domain_diagnostics["news"] = news_domain_diagnostic
         enrichment["news"] = {
             "bullish_tickers": news_result.get("bullish_tickers", []),
             "bearish_tickers": news_result.get("bearish_tickers", []),
@@ -635,6 +962,18 @@ def build_enrichment(
             }
             all_stale.append("layering")
         enrichment["layering"] = layering
+
+    volatility_regime = _build_volatility_regime_block(
+        daily_bars=daily_bars,
+        base_snapshot=base_snapshot,
+    )
+    if volatility_regime is not None:
+        enrichment["volatility_regime"] = volatility_regime
+        enrichment["ensemble_quality"] = _build_ensemble_quality_block(
+            regime_result=regime_result,
+            layering=cast(dict[str, Any] | None, enrichment.get("layering")),
+            volatility_regime=volatility_regime,
+        )
 
     # ── Event risk (v5) ─────────────────────────────────────────
     if enrich_event_risk:
@@ -902,6 +1241,7 @@ def finalize_pipeline(
     enrich_session_structure: bool = False,
     enrich_range_regime: bool = False,
     enrich_range_profile_regime: bool = False,
+    live_news_snapshot_path: Path | None = None,
     emit_live_news_snapshot: bool = False,
     progress_callback: Any = None,
 ) -> dict[str, Any]:
@@ -929,9 +1269,41 @@ def finalize_pipeline(
     # Resolve manifest path for refresh_count persistence
     manifest_path = output_root / "pine" / "generated" / "smc_micro_profiles_generated.json"
 
+    requested_live_news_snapshot_path = (
+        Path(live_news_snapshot_path) if live_news_snapshot_path is not None else None
+    )
+    live_news_result = None
+    prepared_live_news_snapshot_path = requested_live_news_snapshot_path
+    prepare_live_news_before_enrichment = bool(
+        emit_live_news_snapshot
+        and enrich_news
+        and requested_live_news_snapshot_path is None
+    )
+    if prepare_live_news_before_enrichment:
+        live_news_started_at = time_module.perf_counter()
+        _progress("Finalize 1/3: Exporting live-news sidecars for enrichment input...")
+        live_news_result = _export_live_news_sidecar(
+            base_result=base_result,
+            base_csv=base_csv,
+            artifacts_root=artifacts_root,
+            fmp_api_key=fmp_api_key,
+            benzinga_api_key=benzinga_api_key,
+            newsapi_ai_key=newsapi_ai_key,
+        )
+        live_news_status = live_news_result.get("status") if isinstance(live_news_result, dict) else "unknown"
+        if live_news_status == "ok":
+            prepared_live_news_snapshot_path = Path(live_news_result["snapshot_path"])
+        _progress(
+            f"Finalize 1/3 complete in {time_module.perf_counter() - live_news_started_at:.1f}s "
+            f"(status={live_news_status})"
+        )
+
+    enrichment_step_label = "2/3" if prepare_live_news_before_enrichment else "1/3"
+    pine_step_label = "3/3" if prepare_live_news_before_enrichment else "2/3"
+
     # ── Enrichment ──────────────────────────────────────────────
     enrichment_started_at = time_module.perf_counter()
-    _progress(f"Finalize 1/3: Building enrichment for {len(symbols)} symbols...")
+    _progress(f"Finalize {enrichment_step_label}: Building enrichment for {len(symbols)} symbols...")
     enrichment = build_enrichment(
         fmp_api_key=fmp_api_key,
         benzinga_api_key=benzinga_api_key,
@@ -958,12 +1330,19 @@ def finalize_pipeline(
         enrich_range_regime=enrich_range_regime,
         enrich_range_profile_regime=enrich_range_profile_regime,
         base_snapshot=snapshot_df,
+        daily_bars=cast(
+            pd.DataFrame | None,
+            (base_result.get("export_result") or {}).get("daily_bars")
+            if isinstance(base_result, dict)
+            else None,
+        ),
         manifest_path=manifest_path,
         newsapi_feed_state_path=artifacts_root / "newsapi_ai_feed_state.json",
+        live_news_snapshot_path=prepared_live_news_snapshot_path,
     )
     enrichment_keys = list(enrichment.keys()) if enrichment else []
     _progress(
-        f"Finalize 1/3 complete in {time_module.perf_counter() - enrichment_started_at:.1f}s "
+        f"Finalize {enrichment_step_label} complete in {time_module.perf_counter() - enrichment_started_at:.1f}s "
         f"(enrichment_keys={len(enrichment_keys)})"
     )
 
@@ -978,7 +1357,7 @@ def finalize_pipeline(
 
     # ── Pine library generation ─────────────────────────────────
     pine_started_at = time_module.perf_counter()
-    _progress("Finalize 2/3: Generating Pine library artifacts...")
+    _progress(f"Finalize {pine_step_label}: Generating Pine library artifacts...")
     pine_paths = generate_pine_library_from_base(
         base_csv_path=base_csv,
         schema_path=schema_path,
@@ -988,12 +1367,11 @@ def finalize_pipeline(
         enrichment=enrichment,
     )
     _progress(
-        f"Finalize 2/3 complete in {time_module.perf_counter() - pine_started_at:.1f}s "
+        f"Finalize {pine_step_label} complete in {time_module.perf_counter() - pine_started_at:.1f}s "
         f"(artifacts={len(pine_paths)})"
     )
 
-    live_news_result = None
-    if emit_live_news_snapshot:
+    if emit_live_news_snapshot and live_news_result is None:
         live_news_started_at = time_module.perf_counter()
         _progress("Finalize 3/3: Exporting live-news sidecars...")
         live_news_result = _export_live_news_sidecar(

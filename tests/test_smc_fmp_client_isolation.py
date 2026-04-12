@@ -25,7 +25,7 @@ from scripts.smc_fmp_client import SMCFMPClient
 
 
 class TestSMCFMPClientInterface:
-    """The standalone client exposes the six methods the adapters need."""
+    """The standalone client exposes the core adapter methods plus market-P/E support."""
 
     def test_has_get_index_quote(self):
         c = SMCFMPClient(api_key="test")
@@ -50,6 +50,10 @@ class TestSMCFMPClientInterface:
     def test_has_get_technical_indicator(self):
         c = SMCFMPClient(api_key="test")
         assert callable(c.get_technical_indicator)
+
+    def test_has_get_market_pe_forward(self):
+        c = SMCFMPClient(api_key="test")
+        assert callable(c.get_market_pe_forward)
 
     def test_default_retry_and_timeout(self):
         c = SMCFMPClient(api_key="k")
@@ -176,6 +180,7 @@ class TestNoOpenPrepImport:
 # open_prep-free, plus all smc_core / smc_integration packages.
 
 _V5_CANONICAL_MODULES = [
+    "scripts.smc_macro_bias",
     "scripts.smc_regime_classifier",
     "scripts.smc_news_scorer",
     "scripts.smc_calendar_collector",

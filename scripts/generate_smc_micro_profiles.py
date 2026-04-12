@@ -655,12 +655,14 @@ def write_pine_library(
         "// Deprecated v5-v5.3 groups remain compatibility-only exports; prefer the v5.5b Lean surface for new consumers.",
         "//   Core/Meta       — ASOF_DATE, ASOF_TIME, UNIVERSE_ID, LOOKBACK_DAYS, UNIVERSE_SIZE, REFRESH_COUNT",
         "//   Microstructure  — *_TICKERS lists (clean_reclaim, stop_hunt_prone, …)",
-        "//   Regime          — MARKET_REGIME, VIX_LEVEL, MACRO_BIAS, SECTOR_BREADTH",
+        "//   Regime          — MARKET_REGIME, VIX_LEVEL, MACRO_BIAS, MACRO_BIAS_RAW, MACRO_BIAS_PE_ADJUSTMENT, MARKET_PE_FORWARD, MARKET_PE_REGIME, SECTOR_BREADTH",
         "//   News            — NEWS_*_TICKERS, NEWS_HEAT_GLOBAL, TICKER_HEAT_MAP",
         "//   Calendar        — EARNINGS_*_TICKERS, HIGH_IMPACT_MACRO_TODAY, MACRO_EVENT_*",
         "//   Layering        — GLOBAL_HEAT, GLOBAL_STRENGTH, TONE, TRADE_STATE",
         "//   Providers       — PROVIDER_COUNT, STALE_PROVIDERS",
         "//   Volume          — VOLUME_LOW_TICKERS, HOLIDAY_SUSPECT_TICKERS",
+        "//   Volatility      — VOLATILITY_REGIME, VOLATILITY_REGIME_CONFIDENCE, VOLATILITY_ATR_RATIO, VOLATILITY_MODEL_SOURCE, VOLATILITY_FALLBACK_REASON, VOLATILITY_PROXY_SYMBOL, VOLATILITY_PROXY_SOURCE",
+        "//   Ensemble Score  — ENSEMBLE_QUALITY_SCORE, ENSEMBLE_QUALITY_TIER, ENSEMBLE_AVAILABLE_COMPONENTS",
         "//   Event Risk (v5, compatibility-only deprecated) — EVENT_WINDOW_STATE … EVENT_PROVIDER_STATUS (14 fields)",
         "//   Flow Qualifier (v5.1)  — REL_VOL … ATS_BEARISH_SEQUENCE (14 fields)",
         "//   Compression (v5.1)     — SQUEEZE_ON … ATR_RATIO (5 fields)",
@@ -707,6 +709,10 @@ def write_pine_library(
     content.append(f'export const string MARKET_REGIME = "{regime.get("regime", "NEUTRAL")}"')
     content.append(f'export const float VIX_LEVEL = {float(regime.get("vix_level") or 0.0)}')
     content.append(f'export const float MACRO_BIAS = {float(regime.get("macro_bias") or 0.0)}')
+    content.append(f'export const float MACRO_BIAS_RAW = {float(regime.get("macro_bias_raw") or regime.get("macro_bias") or 0.0)}')
+    content.append(f'export const float MACRO_BIAS_PE_ADJUSTMENT = {float(regime.get("macro_bias_pe_adjustment") or 0.0)}')
+    content.append(f'export const float MARKET_PE_FORWARD = {float(regime.get("market_pe_forward") or 0.0)}')
+    content.append(f'export const string MARKET_PE_REGIME = "{regime.get("market_pe_regime") or "UNKNOWN"}"')
     content.append(f'export const float SECTOR_BREADTH = {float(regime.get("sector_breadth") or 0.0)}')
     content.append("")
 
@@ -753,6 +759,26 @@ def write_pine_library(
     content.append("// ── Volume Regime ──")
     content.append(f'export const string VOLUME_LOW_TICKERS = "{",".join(vol.get("low_tickers") or [])}"')
     content.append(f'export const string HOLIDAY_SUSPECT_TICKERS = "{",".join(vol.get("holiday_suspect_tickers") or [])}"')
+    content.append("")
+
+    # ── Volatility regime ──────────────────────────────────────
+    vreg = enr.get("volatility_regime") or {}
+    content.append("// ── Volatility Regime ──")
+    content.append(f'export const string VOLATILITY_REGIME = "{vreg.get("label") or "NORMAL"}"')
+    content.append(f'export const float VOLATILITY_REGIME_CONFIDENCE = {float(vreg.get("confidence") or 0.0)}')
+    content.append(f'export const float VOLATILITY_ATR_RATIO = {float(vreg.get("raw_atr_ratio") or 1.0)}')
+    content.append(f'export const string VOLATILITY_MODEL_SOURCE = "{vreg.get("model_source") or "atr_fallback"}"')
+    content.append(f'export const string VOLATILITY_FALLBACK_REASON = "{vreg.get("fallback_reason") or ""}"')
+    content.append(f'export const string VOLATILITY_PROXY_SYMBOL = "{vreg.get("proxy_symbol") or ""}"')
+    content.append(f'export const string VOLATILITY_PROXY_SOURCE = "{vreg.get("proxy_source") or ""}"')
+    content.append("")
+
+    # ── Ensemble quality ───────────────────────────────────────
+    eq = enr.get("ensemble_quality") or {}
+    content.append("// ── Ensemble Quality ──")
+    content.append(f'export const float ENSEMBLE_QUALITY_SCORE = {float(eq.get("score") or 0.0)}')
+    content.append(f'export const string ENSEMBLE_QUALITY_TIER = "{eq.get("tier") or "low"}"')
+    content.append(f'export const string ENSEMBLE_AVAILABLE_COMPONENTS = "{",".join(eq.get("available_components") or [])}"')
     content.append("")
 
     # ── Event Risk (v5) ─────────────────────────────────────────

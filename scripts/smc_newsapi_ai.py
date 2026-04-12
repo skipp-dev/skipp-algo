@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from functools import lru_cache
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -23,11 +24,30 @@ _STRICT_MARKET_CONTEXT_SYMBOLS = {
     "LIN",
     "PG",
 }
+_MARKET_SOURCE_HINTS = (
+    "benzinga",
+    "bloomberg",
+    "barron",
+    "cnbc",
+    "dow jones",
+    "investing.com",
+    "marketwatch",
+    "reuters",
+    "seeking alpha",
+    "the fly",
+    "wall street journal",
+    "wsj",
+    "zacks",
+)
+_STRICT_CONTEXT_MAX_SYMBOL_LENGTH = 3
+_UPPERCASE_EXACT_MAX_SYMBOL_LENGTH = 4
 
 _TOKEN_EXHAUSTED_HINTS = (
     "used all available tokens",
     "subscribe to a paid plan",
 )
+
+_RequestParam = tuple[str, str | int | float | bool | None]
 
 
 class NewsApiAiProviderError(RuntimeError):
@@ -76,20 +96,57 @@ def _build_keyword_patterns(symbols: list[str]) -> dict[str, re.Pattern[str]]:
     patterns: dict[str, re.Pattern[str]] = {}
     for symbol in symbols:
         escaped = re.escape(symbol)
-        if symbol in _STRICT_MARKET_CONTEXT_SYMBOLS:
-            patterns[symbol] = re.compile(
-                rf"(?:\${escaped}\b|\b(?:NASDAQ|NYSE)\s*:?\s*{escaped}\b|\b{escaped}\s+(?:stock|shares?|equity|etf)\b)",
-                re.IGNORECASE,
-            )
-            continue
         patterns[symbol] = re.compile(rf"(?<![A-Za-z0-9])\$?{escaped}(?![A-Za-z0-9])", re.IGNORECASE)
     return patterns
 
 
-def _match_symbols(title: str, patterns: dict[str, re.Pattern[str]]) -> list[str]:
+@lru_cache(maxsize=None)
+def _strict_market_context_pattern(symbol: str) -> re.Pattern[str]:
+    escaped = re.escape(symbol)
+    return re.compile(
+        rf"(?:\${escaped}\b|\b(?:NASDAQ|NYSE|NYSEAMERICAN|NYSEARCA|AMEX)\s*:?\s*{escaped}\b|\b{escaped}\s+(?:stock|shares?|equity|etf)\b)",
+        re.IGNORECASE,
+    )
+
+
+@lru_cache(maxsize=None)
+def _uppercase_exact_pattern(symbol: str) -> re.Pattern[str]:
+    escaped = re.escape(symbol)
+    return re.compile(rf"(?<![A-Za-z0-9])\$?{escaped}(?![A-Za-z0-9])")
+
+
+def _has_market_source_hint(source_name: str) -> bool:
+    lowered = str(source_name or "").strip().lower()
+    return any(token in lowered for token in _MARKET_SOURCE_HINTS)
+
+
+def _is_short_alpha_symbol(symbol: str) -> bool:
+    return symbol.isalpha() and MIN_SYMBOL_LENGTH <= len(symbol) <= _UPPERCASE_EXACT_MAX_SYMBOL_LENGTH
+
+
+def _match_symbol(text: str, symbol: str, pattern: re.Pattern[str], *, source_name: str) -> bool:
+    if not text:
+        return False
+    if symbol in _STRICT_MARKET_CONTEXT_SYMBOLS:
+        return bool(_strict_market_context_pattern(symbol).search(text))
+    if _is_short_alpha_symbol(symbol):
+        has_market_context = bool(_strict_market_context_pattern(symbol).search(text))
+        if len(symbol) <= _STRICT_CONTEXT_MAX_SYMBOL_LENGTH:
+            return has_market_context or (
+                bool(_uppercase_exact_pattern(symbol).search(text)) and _has_market_source_hint(source_name)
+            )
+        return has_market_context or bool(_uppercase_exact_pattern(symbol).search(text))
+    return bool(pattern.search(text))
+
+
+def _match_symbols(title: str, patterns: dict[str, re.Pattern[str]], *, source_name: str = "") -> list[str]:
     if not title:
         return []
-    return sorted(symbol for symbol, pattern in patterns.items() if pattern.search(title))
+    return sorted(
+        symbol
+        for symbol, pattern in patterns.items()
+        if _match_symbol(title, symbol, pattern, source_name=source_name)
+    )
 
 
 def _coerce_text(value: Any) -> str:
@@ -181,7 +238,7 @@ def _request_payload(
     client: httpx.Client | Any,
     url: str,
     *,
-    params: list[tuple[str, str]],
+    params: list[_RequestParam],
 ) -> dict[str, Any]:
     response = client.get(url, params=params)
     status_code = int(getattr(response, "status_code", 200) or 200)
@@ -222,8 +279,8 @@ def _build_feed_request_params(
     article_feed_after_epoch: float,
     article_feed_after_uri: str,
     now: datetime,
-) -> tuple[list[tuple[str, str]], str, str]:
-    params: list[tuple[str, str]] = [
+) -> tuple[list[_RequestParam], str, str]:
+    params: list[_RequestParam] = [
         ("apiKey", api_key),
         ("recentActivityArticlesMaxArticleCount", str(max_article_count)),
         ("keywordOper", "or"),
@@ -308,7 +365,7 @@ def fetch_newsapi_feed_article_probe(
 
             for item in results:
                 headline = str(item.get("title") or "").strip()
-                matched_symbols = _match_symbols(headline, patterns)
+                matched_symbols = _match_symbols(headline, patterns, source_name=_article_source_name(item))
                 if not headline or not matched_symbols:
                     continue
                 matched_results += 1
@@ -349,12 +406,14 @@ def fetch_newsapi_feed_article_probe(
                     "sample_matched_titles": [
                         str(item.get("title") or "")
                         for item in results
-                        if str(item.get("title") or "").strip() and _match_symbols(str(item.get("title") or "").strip(), patterns)
+                        if str(item.get("title") or "").strip()
+                        and _match_symbols(str(item.get("title") or "").strip(), patterns, source_name=_article_source_name(item))
                     ][:3],
                     "sample_matched_uris": [
                         str(item.get("uri") or item.get("url") or "")
                         for item in results
-                        if str(item.get("title") or "").strip() and _match_symbols(str(item.get("title") or "").strip(), patterns)
+                        if str(item.get("title") or "").strip()
+                        and _match_symbols(str(item.get("title") or "").strip(), patterns, source_name=_article_source_name(item))
                     ][:3],
                 }
             )
@@ -428,7 +487,7 @@ def fetch_newsapi_article_records(
             target_size=min(TARGET_KEYWORDS_PER_REQUEST, MAX_KEYWORDS_PER_REQUEST),
             total_result_limit=max_articles,
         ):
-            params: list[tuple[str, str]] = [
+            params: list[_RequestParam] = [
                 ("apiKey", api_key),
                 ("resultType", "articles"),
                 ("articlesCount", str(chunk_article_count)),
@@ -449,7 +508,7 @@ def fetch_newsapi_article_records(
 
             for item in results:
                 headline = str(item.get("title") or "").strip()
-                matched_symbols = _match_symbols(headline, patterns)
+                matched_symbols = _match_symbols(headline, patterns, source_name=_article_source_name(item))
                 if not headline or not matched_symbols:
                     continue
                 article_id = str(item.get("uri") or item.get("url") or headline)
@@ -533,7 +592,7 @@ def fetch_newsapi_event_records(
             target_size=min(TARGET_KEYWORDS_PER_REQUEST, MAX_KEYWORDS_PER_REQUEST),
             total_result_limit=max_events,
         ):
-            params: list[tuple[str, str]] = [
+            params: list[_RequestParam] = [
                 ("apiKey", api_key),
                 ("resultType", "events"),
                 ("eventsCount", str(chunk_event_count)),
@@ -556,7 +615,11 @@ def fetch_newsapi_event_records(
             for item in results:
                 headline = _event_title(item)
                 summary = _event_summary(item)
-                matched_symbols = _match_symbols(" ".join(part for part in (headline, summary) if part), patterns)
+                matched_symbols = _match_symbols(
+                    " ".join(part for part in (headline, summary) if part),
+                    patterns,
+                    source_name="Event Registry",
+                )
                 if not headline or not matched_symbols:
                     continue
                 published = _event_published_value(item)

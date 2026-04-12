@@ -168,6 +168,47 @@ def test_fetch_newsapi_article_records_filter_ambiguous_tickers_without_market_c
     assert articles[1]["tickers"] == ["LIN"]
 
 
+def test_fetch_newsapi_article_records_require_market_context_for_untrusted_three_letter_symbols() -> None:
+    client = _FakeClient([
+        {
+            "articles": {
+                "results": [
+                    {
+                        "uri": "uri-aca-noise",
+                        "title": "ACA Stress Test: Four Key Takeaways from This Year's Open Enrollment",
+                        "dateTime": "2026-04-08T10:15:00Z",
+                        "source": {"title": "CNN"},
+                    },
+                    {
+                        "uri": "uri-acu-noise",
+                        "title": "RR manager Bhinder breaches ACU protocol, BCCI to examine the matter",
+                        "dateTime": "2026-04-08T10:16:00Z",
+                        "source": {"title": "ThePrint"},
+                    },
+                    {
+                        "uri": "uri-xom-finance",
+                        "title": "XOM rises after crude rebound",
+                        "dateTime": "2026-04-08T10:17:00Z",
+                        "source": {"title": "Reuters"},
+                    },
+                    {
+                        "uri": "uri-aca-market",
+                        "title": "NYSE:ACA gains after outlook update",
+                        "dateTime": "2026-04-08T10:18:00Z",
+                        "source": {"title": "Reuters"},
+                    },
+                ]
+            }
+        }
+    ])
+
+    articles = fetch_newsapi_article_records("test-key", ["ACA", "ACU", "XOM"], client=client)
+
+    assert [article["id"] for article in articles] == ["uri-xom-finance", "uri-aca-market"]
+    assert articles[0]["tickers"] == ["XOM"]
+    assert articles[1]["tickers"] == ["ACA"]
+
+
 def test_fetch_newsapi_article_records_balance_symbol_coverage_across_chunks() -> None:
     client = _FakeClient(
         [
@@ -346,6 +387,49 @@ def test_fetch_newsapi_feed_article_records_uses_minute_stream() -> None:
     assert records[0]["id"] == "uri-feed-1"
     assert records[0]["tickers"] == ["AAPL"]
     assert records[0]["newsapi_fetch_mode"] == "feed_articles"
+
+
+def test_fetch_newsapi_feed_article_records_filter_named_entity_false_positives() -> None:
+    client = _FakeClient(
+        [
+            {
+                "articles": {
+                    "results": [
+                        {
+                            "uri": "uri-feed-adam-noise",
+                            "title": "Adam Cole Not Traveling With AEW As Return Timeline Remains Unclear",
+                            "dateTime": "2026-04-08T10:16:00Z",
+                            "source": {"title": "Ringside News"},
+                        },
+                        {
+                            "uri": "uri-feed-aapl-1",
+                            "title": "AAPL extends gains in live wire",
+                            "dateTime": "2026-04-08T10:17:00Z",
+                            "source": {"title": "Reuters"},
+                        },
+                        {
+                            "uri": "uri-feed-adam-market",
+                            "title": "NASDAQ:ADAM rallies after phase 2 data",
+                            "dateTime": "2026-04-08T10:18:00Z",
+                            "source": {"title": "Reuters"},
+                        },
+                    ]
+                }
+            }
+        ]
+    )
+
+    records = fetch_newsapi_feed_article_records(
+        "test-key",
+        ["ADAM", "AAPL"],
+        article_feed_after_epoch=datetime(2026, 4, 8, 10, 15, tzinfo=UTC).timestamp(),
+        client=client,
+        current_time=datetime(2026, 4, 8, 10, 20, tzinfo=UTC),
+    )
+
+    assert [record["id"] for record in records] == ["uri-feed-aapl-1", "uri-feed-adam-market"]
+    assert records[0]["tickers"] == ["AAPL"]
+    assert records[1]["tickers"] == ["ADAM"]
 
 
 def test_fetch_newsapi_feed_article_records_balance_symbol_coverage_across_chunks() -> None:

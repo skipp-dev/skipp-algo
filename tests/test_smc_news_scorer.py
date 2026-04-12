@@ -101,3 +101,27 @@ class TestReturnShape:
             "bullish_tickers", "bearish_tickers", "neutral_tickers",
             "news_heat_global", "ticker_heat_map",
         }
+
+
+class TestDiagnostics:
+
+    def test_include_diagnostics_reports_payload_distribution(self) -> None:
+        articles = [
+            {"headline": "AAPL beats earnings, strong growth", "tickers": ["AAPL"]},
+            {"headline": "TSLA misses estimates, weak outlook", "tickers": ["TSLA"]},
+            {"headline": "", "tickers": ["AAPL"]},
+        ]
+
+        result = compute_news_sentiment(["AAPL", "TSLA"], articles, include_diagnostics=True)
+
+        diagnostics = result["diagnostics"]
+        assert diagnostics["article_count"] == 3
+        assert diagnostics["matched_article_count"] == 3
+        assert diagnostics["empty_headline_count"] == 1
+        assert diagnostics["recognized_ticker_mentions"] == 3
+        assert diagnostics["unique_recognized_ticker_count"] == 2
+        assert diagnostics["polarity_distribution"] == {
+            "positive": 1,
+            "negative": 1,
+            "neutral": 1,
+        }

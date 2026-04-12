@@ -8,12 +8,14 @@ library("smc_micro_profiles_generated")
 // Deprecated v5-v5.3 groups remain compatibility-only exports; prefer the v5.5b Lean surface for new consumers.
 //   Core/Meta       — ASOF_DATE, ASOF_TIME, UNIVERSE_ID, LOOKBACK_DAYS, UNIVERSE_SIZE, REFRESH_COUNT
 //   Microstructure  — *_TICKERS lists (clean_reclaim, stop_hunt_prone, …)
-//   Regime          — MARKET_REGIME, VIX_LEVEL, MACRO_BIAS, SECTOR_BREADTH
+//   Regime          — MARKET_REGIME, VIX_LEVEL, MACRO_BIAS, MACRO_BIAS_RAW, MACRO_BIAS_PE_ADJUSTMENT, MARKET_PE_FORWARD, MARKET_PE_REGIME, SECTOR_BREADTH
 //   News            — NEWS_*_TICKERS, NEWS_HEAT_GLOBAL, TICKER_HEAT_MAP
 //   Calendar        — EARNINGS_*_TICKERS, HIGH_IMPACT_MACRO_TODAY, MACRO_EVENT_*
 //   Layering        — GLOBAL_HEAT, GLOBAL_STRENGTH, TONE, TRADE_STATE
 //   Providers       — PROVIDER_COUNT, STALE_PROVIDERS
 //   Volume          — VOLUME_LOW_TICKERS, HOLIDAY_SUSPECT_TICKERS
+//   Volatility      — VOLATILITY_REGIME, VOLATILITY_REGIME_CONFIDENCE, VOLATILITY_ATR_RATIO, VOLATILITY_MODEL_SOURCE, VOLATILITY_FALLBACK_REASON, VOLATILITY_PROXY_SYMBOL, VOLATILITY_PROXY_SOURCE
+//   Ensemble Score  — ENSEMBLE_QUALITY_SCORE, ENSEMBLE_QUALITY_TIER, ENSEMBLE_AVAILABLE_COMPONENTS
 //   Event Risk (v5, compatibility-only deprecated) — EVENT_WINDOW_STATE … EVENT_PROVIDER_STATUS (14 fields)
 //   Flow Qualifier (v5.1)  — REL_VOL … ATS_BEARISH_SEQUENCE (14 fields)
 //   Compression (v5.1)     — SQUEEZE_ON … ATR_RATIO (5 fields)
@@ -67,6 +69,10 @@ export const string FAST_DECAY_TICKERS = "BBB"
 export const string MARKET_REGIME = "NEUTRAL"
 export const float VIX_LEVEL = 0.0
 export const float MACRO_BIAS = 0.0
+export const float MACRO_BIAS_RAW = 0.0
+export const float MACRO_BIAS_PE_ADJUSTMENT = 0.0
+export const float MARKET_PE_FORWARD = 0.0
+export const string MARKET_PE_REGIME = "UNKNOWN"
 export const float SECTOR_BREADTH = 0.0
 
 // ── News Sentiment ──
@@ -98,6 +104,20 @@ export const string STALE_PROVIDERS = ""
 // ── Volume Regime ──
 export const string VOLUME_LOW_TICKERS = ""
 export const string HOLIDAY_SUSPECT_TICKERS = ""
+
+// ── Volatility Regime ──
+export const string VOLATILITY_REGIME = "NORMAL"
+export const float VOLATILITY_REGIME_CONFIDENCE = 0.0
+export const float VOLATILITY_ATR_RATIO = 1.0
+export const string VOLATILITY_MODEL_SOURCE = "atr_fallback"
+export const string VOLATILITY_FALLBACK_REASON = ""
+export const string VOLATILITY_PROXY_SYMBOL = ""
+export const string VOLATILITY_PROXY_SOURCE = ""
+
+// ── Ensemble Quality ──
+export const float ENSEMBLE_QUALITY_SCORE = 0.0
+export const string ENSEMBLE_QUALITY_TIER = "low"
+export const string ENSEMBLE_AVAILABLE_COMPONENTS = ""
 
 // ── Event Risk ──
 export const string EVENT_WINDOW_STATE = "CLEAR"

@@ -1,8 +1,9 @@
 """Thin standalone FMP client for the v4 enrichment pipeline.
 
-Covers the **six** FMP API methods consumed by ``smc_provider_policy``
-adapters.  Uses only stdlib (``urllib``, ``json``, ``ssl``) so it has
-**zero** runtime dependency on ``open_prep``.
+Covers the core FMP API methods consumed by ``smc_provider_policy``
+adapters plus the best-effort market-P/E helper used by the active
+production path. Uses only stdlib (``urllib``, ``json``, ``ssl``) so it
+has **zero** runtime dependency on ``open_prep``.
 
 The interface is method-compatible with ``open_prep.macro.FMPClient``
 for the subset used by the v4 path — existing adapter code in
@@ -13,10 +14,11 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import ssl
 import time
 import urllib.error
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date, datetime, timezone
 from typing import Any
 from urllib.parse import urlencode
@@ -27,6 +29,24 @@ logger = logging.getLogger(__name__)
 
 _BASE_URL = "https://financialmodelingprep.com"
 _US_EASTERN = ZoneInfo("America/New_York")
+_MARKET_PE_FORWARD_SYMBOL = "SPY"
+_DIRECT_FORWARD_PE_FIELDS: tuple[str, ...] = (
+    "forwardPE",
+    "forwardPe",
+    "forwardPERatio",
+    "forwardPeRatio",
+    "priceToEarningsForward",
+    "priceToEarningsRatioForward",
+    "peForward",
+)
+_APPROXIMATE_PE_FIELDS: tuple[str, ...] = (
+    "pe",
+    "trailingPE",
+    "priceEarningsRatioTTM",
+    "priceToEarningsRatioTTM",
+    "peRatioTTM",
+    "peTTM",
+)
 
 
 def _build_tls_context() -> ssl.SSLContext:
@@ -45,17 +65,35 @@ def _prev_trading_day(day: date) -> date:
             return probe
 
 
+def _coerce_finite_float(value: Any) -> float | None:
+    if isinstance(value, bool) or value in (None, ""):
+        return None
+    if not isinstance(value, (int, float, str)):
+        return None
+    try:
+        numeric = float(value)
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(numeric):
+        return None
+    return numeric
+
+
 @dataclass
 class SMCFMPClient:
     """Minimal FMP client for the v4 enrichment pipeline.
 
-    Drop-in replacement for the six methods that
-    ``smc_provider_policy`` adapters call.
+    Drop-in replacement for the core methods that
+    ``smc_provider_policy`` adapters call, plus a best-effort
+    market-P/E helper for the active production path.
     """
 
     api_key: str
     retry_attempts: int = 2
     timeout_seconds: float = 12.0
+    _last_sector_performance_diagnostics: dict[str, Any] = field(default_factory=dict, init=False, repr=False)
+    _last_macro_calendar_diagnostics: dict[str, Any] = field(default_factory=dict, init=False, repr=False)
+    _last_market_pe_forward_diagnostics: dict[str, Any] = field(default_factory=dict, init=False, repr=False)
 
     # ── HTTP layer ──────────────────────────────────────────────
 
@@ -119,21 +157,205 @@ class SMCFMPClient:
                     return dict(row)
         return {}
 
-    def get_sector_performance(self) -> list[dict[str, Any]]:
-        today = _today_et()
+    def get_company_profile(self, symbol: str) -> dict[str, Any]:
+        requested_symbol = str(symbol).strip().upper()
+        if not requested_symbol:
+            return {}
         try:
-            data = self._get("/stable/sector-performance", {"date": today.isoformat()})
+            data = self._get("/stable/profile", {"symbol": requested_symbol})
         except RuntimeError:
+            return {}
+        if isinstance(data, dict):
+            return dict(data)
+        if isinstance(data, list):
+            for row in data:
+                if not isinstance(row, dict):
+                    continue
+                if str(row.get("symbol") or "").strip().upper() == requested_symbol:
+                    return dict(row)
+            for row in data:
+                if isinstance(row, dict):
+                    return dict(row)
+        return {}
+
+    def get_analyst_estimates(
+        self,
+        symbol: str,
+        *,
+        period: str = "quarter",
+        limit: int = 4,
+    ) -> list[dict[str, Any]]:
+        requested_symbol = str(symbol).strip().upper()
+        if not requested_symbol:
             return []
-        rows = list(data) if isinstance(data, list) else []
-        if rows:
-            return rows
-        prev = _prev_trading_day(today)
+        params = {
+            "symbol": requested_symbol,
+            "period": str(period).strip() or "quarter",
+            "limit": max(int(limit), 1),
+        }
         try:
-            data = self._get("/stable/sector-performance", {"date": prev.isoformat()})
+            data = self._get("/stable/analyst-estimates", params)
         except RuntimeError:
             return []
         return list(data) if isinstance(data, list) else []
+
+    def get_ratios_ttm(self, symbol: str) -> list[dict[str, Any]]:
+        requested_symbol = str(symbol).strip().upper()
+        if not requested_symbol:
+            return []
+        try:
+            data = self._get("/stable/ratios-ttm", {"symbol": requested_symbol})
+        except RuntimeError:
+            return []
+        return list(data) if isinstance(data, list) else []
+
+    def get_market_pe_forward(self, symbol: str = _MARKET_PE_FORWARD_SYMBOL) -> float | None:
+        requested_symbol = str(symbol or _MARKET_PE_FORWARD_SYMBOL).strip().upper() or _MARKET_PE_FORWARD_SYMBOL
+        diagnostics: dict[str, Any] = {
+            "status": "unavailable",
+            "symbol": requested_symbol,
+            "source_category": "unavailable",
+            "field": "",
+            "price": None,
+            "forward_eps": None,
+            "estimate_count": 0,
+            "error": "",
+        }
+
+        try:
+            quote = self.get_index_quote(requested_symbol)
+            profile = self.get_company_profile(requested_symbol)
+            ratios_rows = self.get_ratios_ttm(requested_symbol)
+            ratios = dict(ratios_rows[0]) if ratios_rows and isinstance(ratios_rows[0], dict) else {}
+            analyst_estimates = self.get_analyst_estimates(requested_symbol, period="quarter", limit=4)
+        except Exception as exc:
+            diagnostics["status"] = "error"
+            diagnostics["error"] = str(exc)
+            self._last_market_pe_forward_diagnostics = diagnostics
+            return None
+
+        price = next(
+            (
+                numeric
+                for numeric in (
+                    _coerce_finite_float(quote.get("price")),
+                    _coerce_finite_float(profile.get("price")),
+                    _coerce_finite_float(quote.get("previousClose")),
+                )
+                if numeric is not None and numeric > 0
+            ),
+            None,
+        )
+        diagnostics["price"] = price
+
+        for field_name in _DIRECT_FORWARD_PE_FIELDS:
+            value = next(
+                (
+                    numeric
+                    for numeric in (
+                        _coerce_finite_float(quote.get(field_name)),
+                        _coerce_finite_float(profile.get(field_name)),
+                        _coerce_finite_float(ratios.get(field_name)),
+                    )
+                    if numeric is not None and numeric > 0
+                ),
+                None,
+            )
+            if value is None:
+                continue
+            diagnostics["status"] = "ok"
+            diagnostics["source_category"] = "direct_forward"
+            diagnostics["field"] = field_name
+            self._last_market_pe_forward_diagnostics = diagnostics
+            return value
+
+        forward_eps_components = [
+            numeric
+            for numeric in (
+                _coerce_finite_float(row.get("epsAvg"))
+                for row in analyst_estimates
+                if isinstance(row, dict)
+            )
+            if numeric is not None and numeric > 0
+        ]
+        diagnostics["estimate_count"] = len(forward_eps_components)
+        if price is not None and len(forward_eps_components) >= 4:
+            forward_eps = sum(forward_eps_components[:4])
+            diagnostics["forward_eps"] = forward_eps
+            if forward_eps > 0:
+                diagnostics["status"] = "ok"
+                diagnostics["source_category"] = "analyst_derived"
+                diagnostics["field"] = "epsAvg"
+                self._last_market_pe_forward_diagnostics = diagnostics
+                return price / forward_eps
+
+        for field_name in _APPROXIMATE_PE_FIELDS:
+            value = next(
+                (
+                    numeric
+                    for numeric in (
+                        _coerce_finite_float(quote.get(field_name)),
+                        _coerce_finite_float(profile.get(field_name)),
+                        _coerce_finite_float(ratios.get(field_name)),
+                    )
+                    if numeric is not None and numeric > 0
+                ),
+                None,
+            )
+            if value is None:
+                continue
+            diagnostics["status"] = "ok"
+            diagnostics["source_category"] = "approximate_ttm"
+            diagnostics["field"] = field_name
+            self._last_market_pe_forward_diagnostics = diagnostics
+            return value
+
+        self._last_market_pe_forward_diagnostics = diagnostics
+        return None
+
+    def get_sector_performance(self) -> list[dict[str, Any]]:
+        today = _today_et()
+        diagnostics: dict[str, Any] = {
+            "status": "pending",
+            "attempted_dates": [today.isoformat()],
+            "row_counts": {},
+            "used_fallback_previous_trading_day": False,
+            "selected_date": "",
+            "returned_row_count": 0,
+            "error": "",
+        }
+        try:
+            data = self._get("/stable/sector-performance", {"date": today.isoformat()})
+        except RuntimeError as exc:
+            diagnostics["status"] = "error"
+            diagnostics["error"] = str(exc)
+            self._last_sector_performance_diagnostics = diagnostics
+            return []
+        rows = list(data) if isinstance(data, list) else []
+        diagnostics["row_counts"][today.isoformat()] = len(rows)
+        if rows:
+            diagnostics["status"] = "ok"
+            diagnostics["selected_date"] = today.isoformat()
+            diagnostics["returned_row_count"] = len(rows)
+            self._last_sector_performance_diagnostics = diagnostics
+            return rows
+        prev = _prev_trading_day(today)
+        diagnostics["attempted_dates"].append(prev.isoformat())
+        diagnostics["used_fallback_previous_trading_day"] = True
+        try:
+            data = self._get("/stable/sector-performance", {"date": prev.isoformat()})
+        except RuntimeError as exc:
+            diagnostics["status"] = "error"
+            diagnostics["error"] = str(exc)
+            self._last_sector_performance_diagnostics = diagnostics
+            return []
+        rows = list(data) if isinstance(data, list) else []
+        diagnostics["row_counts"][prev.isoformat()] = len(rows)
+        diagnostics["status"] = "ok" if rows else "empty"
+        diagnostics["selected_date"] = prev.isoformat() if rows else ""
+        diagnostics["returned_row_count"] = len(rows)
+        self._last_sector_performance_diagnostics = diagnostics
+        return rows
 
     def get_stock_latest_news(
         self, *, symbol: str | None = None, limit: int = 50,
@@ -163,9 +385,24 @@ class SMCFMPClient:
         params = {"from": date_from.isoformat(), "to": date_to.isoformat()}
         try:
             data = self._get("/stable/economic-calendar", params)
-        except RuntimeError:
+        except RuntimeError as exc:
+            self._last_macro_calendar_diagnostics = {
+                "status": "error",
+                "from": date_from.isoformat(),
+                "to": date_to.isoformat(),
+                "returned_row_count": 0,
+                "error": str(exc),
+            }
             return []
-        return list(data) if isinstance(data, list) else []
+        rows = list(data) if isinstance(data, list) else []
+        self._last_macro_calendar_diagnostics = {
+            "status": "ok",
+            "from": date_from.isoformat(),
+            "to": date_to.isoformat(),
+            "returned_row_count": len(rows),
+            "error": "",
+        }
+        return rows
 
     def get_technical_indicator(
         self,

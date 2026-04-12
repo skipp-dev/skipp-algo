@@ -23,7 +23,11 @@ class RegimeBlock(TypedDict, total=False):
     regime: str        # e.g. "RISK_ON", "RISK_OFF", "NEUTRAL"
     vix_level: float
     macro_bias: float
+    macro_bias_raw: float
+    macro_bias_pe_adjustment: float
     sector_breadth: float
+    market_pe_forward: float
+    market_pe_regime: str
 
 
 class NewsBlock(TypedDict, total=False):
@@ -66,6 +70,22 @@ class ProviderBlock(TypedDict, total=False):
 class VolumeRegimeBlock(TypedDict, total=False):
     low_tickers: list[str]
     holiday_suspect_tickers: list[str]
+
+
+class VolatilityRegimeBlock(TypedDict, total=False):
+    label: str
+    confidence: float
+    raw_atr_ratio: float
+    model_source: str
+    fallback_reason: str
+    proxy_symbol: str
+    proxy_source: str
+
+
+class EnsembleQualityBlock(TypedDict, total=False):
+    score: float
+    tier: str
+    available_components: list[str]
 
 
 class MetaBlock(TypedDict, total=False):
@@ -410,6 +430,8 @@ class EnrichmentDict(TypedDict, total=False):
     layering: LayeringBlock
     providers: ProviderBlock
     volume_regime: VolumeRegimeBlock
+    volatility_regime: VolatilityRegimeBlock
+    ensemble_quality: EnsembleQualityBlock
     event_risk: EventRiskBlock
     flow_qualifier: FlowQualifierBlock
     compression_regime: CompressionRegimeBlock
