@@ -1,6 +1,6 @@
 # SMC Deep Review v6: Kritische Verifikation und Action Plan
 
-Stand: 2026-04-11
+Stand: 2026-04-12
 Quelle: `smc_deep_review_v6.md`
 
 ## Zweck
@@ -15,12 +15,12 @@ Code-, Ops- und Release-Entscheidungen.
 
 ## Kurzfazit
 
-Der Hauptbefund des Reviews ist richtig, aber die Root-Cause-Ebene muss
-praeziser formuliert werden:
+Der Hauptbefund des Reviews war richtig, der operative Status hat sich seitdem
+aber verbessert:
 
-- Der degradierte Enrichment-Zustand ist real. Die aktuell generierte Library
-  zeigt `STALE_PROVIDERS = "benzinga,fmp,newsapi_ai,tradingview"` und laeuft
-  fuer viele Kontexte auf Defaults.
+- Der degradierte Enrichment-Zustand war real. Der aktuelle Baseline-Stand auf
+  `main` ist jedoch wieder gesund: Die generierte Library zeigt jetzt
+  `PROVIDER_COUNT = 3` und `STALE_PROVIDERS = ""`.
 - Das Repo belegt, dass die Refresh-Workflow-Generierung die Secrets fuer FMP,
   Benzinga und NewsAPI.ai bereits an den Generator uebergibt. Fehlende oder
   ungueltige GitHub-Secrets bleiben plausibel, sind lokal aber nicht beweisbar.
@@ -34,23 +34,33 @@ praeziser formuliert werden:
   TradingView-Technical-Fallback in `scripts/smc_provider_policy.py` war nicht
   unabhaengig, sondern rief intern den FMP-Fallback auf. Dieser Fehler wurde in
   diesem Change behoben.
+- Der Hosted-Refresh ist inzwischen wieder end-to-end gruen, inklusive
+  Readonly-Preflight, Publish und automatischem Push auf `main`.
 
 ## Verifizierte Findings
 
-### V-1: Der degradierte Enrichment-Status ist operativ belegt
+### V-1: Der degradierte Enrichment-Status war operativ belegt, ist aber nicht mehr der aktuelle Baseline-Stand
 
-Belegt durch:
+Historisch belegt durch:
 
 - `pine/generated/smc_micro_profiles_generated.pine`
-  - `PROVIDER_COUNT = 2`
-  - `STALE_PROVIDERS = "benzinga,fmp,newsapi_ai,tradingview"`
-  - Regime-/News-/Event-Risk-nahe Felder stehen auf Default-Werten
+  - zuvor `PROVIDER_COUNT = 2`
+  - zuvor `STALE_PROVIDERS = "benzinga,fmp,newsapi_ai,tradingview"`
+  - damals standen Regime-/News-/Event-Risk-nahe Felder auf Default-Werten
+
+Aktueller Stand:
+
+- `pine/generated/smc_micro_profiles_generated.pine`
+  - `PROVIDER_COUNT = 3`
+  - `STALE_PROVIDERS = ""`
+- Hosted-Run `smc-library-refresh` 24302933019 ist erfolgreich durchgelaufen.
 
 Bewertung:
 
-- Dieser Kernbefund des Reviews ist voll gerechtfertigt.
-- Der operative Mehrwert des Systems ist aktuell auf Databento plus den noch
-  lebenden Teilpfad reduziert.
+- Dieser Kernbefund des Reviews war zum Review-Zeitpunkt gerechtfertigt.
+- Er beschreibt nicht mehr den heutigen Baseline-Zustand auf `main`.
+- Der relevante Restpunkt ist jetzt Monitoring gegen Rueckfall, nicht mehr die
+  unmittelbare Wiederherstellung der Baseline.
 
 ### V-2: Das Library-Workflow-Wiring fuer FMP, Benzinga und NewsAPI.ai ist vorhanden
 
@@ -171,6 +181,24 @@ Abgesichert wird jetzt:
 - kein falscher FMP-Rueckkanal bei deaktiviertem TradingView-Adapter
 - harter Fehlerpfad bei TradingView-Adapter-Error
 
+### C-3: Hosted Refresh-, TradingView- und Push-Pfad wieder gruen
+
+Geaendert in:
+
+- `.github/workflows/smc-library-refresh.yml`
+- `scripts/tv_preflight.ts`
+- `automation/tradingview/lib/tv_shared.ts`
+
+Verifiziert durch:
+
+- Hosted-Run `smc-library-refresh` 24302933019
+
+Wirkung:
+
+- Readonly-Preflight findet gespeicherte TradingView-Skripte wieder stabil.
+- Publish laeuft wieder durch.
+- Der automatische Commit/PUSH-Pfad auf `main` funktioniert wieder reproduzierbar.
+
 ## Verifizierter Action Plan
 
 ## Phase 0: Sofort abgeschlossen
@@ -186,6 +214,10 @@ Exit-Kriterien:
   `tradingview` aus.
 
 ## Phase 1: Operative Enrichment-Readiness validieren
+
+Status:
+
+- Abgeschlossen am 2026-04-12.
 
 Ziel:
 
@@ -205,11 +237,16 @@ Arbeitspakete:
 
 Exit-Kriterien:
 
-- `PROVIDER_COUNT` steigt gegenueber dem degradieren Stand.
-- `STALE_PROVIDERS` verliert mindestens die durch reale Secrets reparierten
-  Domains.
+- `PROVIDER_COUNT` ist gegenueber dem degradieren Stand gestiegen.
+- `STALE_PROVIDERS` ist aktuell leer.
+- Hosted-Run 24302933019 ist mit erfolgreicher Generierung, Readonly-Preflight,
+  Publish und Push abgeschlossen.
 
-## Phase 2: NewsAPI-Library-Divergenz instrumentieren, falls Phase 1 nicht reicht
+## Phase 2: NewsAPI-Library-Divergenz nur bei Rueckfall instrumentieren
+
+Status:
+
+- Derzeit nicht erforderlich.
 
 Ziel:
 
@@ -229,6 +266,10 @@ Exit-Kriterien:
 
 ## Phase 3: Enrichment erst nach stabiler Datenbasis erweitern
 
+Status:
+
+- Nicht blockiert, aber weiterhin als separater Folge-Track behandeln.
+
 Ziel:
 
 - Keine neuen Felder oder Regime-Erweiterungen auf einem noch degradieren
@@ -242,14 +283,12 @@ Gilt insbesondere fuer:
 
 Exit-Kriterien:
 
-- Erst nach stabilem Enrichment und einem frischen erfolgreichen Hosted-Run.
+- Vorbedingung erreicht: stabiles Enrichment und frischer erfolgreicher Hosted-Run liegen vor.
+- Neue Erweiterungen sollen trotzdem separat und nicht implizit aus diesem Incident heraus geplant werden.
 
 ## Priorisierung fuer die naechsten Schritte
 
-1. Hosted-Run mit verifizierten Secrets ausfuehren und `STALE_PROVIDERS` neu
-   messen.
-2. Wenn `newsapi_ai` weiter stale bleibt, Failure-Reason im Library-Pfad
-   explizit instrumentieren.
-3. Wenn `fmp` weiter stale bleibt, Provider-Response und Quota/Auth direkt
-   gegen den Hosted-Runner-Kontext pruefen.
-4. KGV-/Regime-Erweiterungen erst nach gruenem Enrichment-Baseline-Run planen.
+1. Gruene Enrichment-Baseline ueber weitere Hosted-Runs beobachten und nur bei Rueckfall neu eroertern.
+2. Wenn `newsapi_ai` erneut stale wird, Failure-Reason im Library-Pfad explizit instrumentieren.
+3. Wenn `fmp` oder `benzinga` erneut stale werden, Provider-Response und Quota/Auth direkt im Hosted-Runner-Kontext pruefen.
+4. KGV-/Regime-Erweiterungen jetzt als normalen Folge-Track planen, nicht mehr als Blocker-Rest aus diesem Incident.

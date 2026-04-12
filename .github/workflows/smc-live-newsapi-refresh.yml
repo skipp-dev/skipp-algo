@@ -26,6 +26,9 @@ concurrency:
   group: smc-live-newsapi-refresh
   cancel-in-progress: true
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
 jobs:
   refresh:
     runs-on: ubuntu-latest

@@ -7,6 +7,9 @@ on:
   schedule:
     - cron: "15 3 * * *"
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
 jobs:
   deeper-gates:
     runs-on: ubuntu-latest
