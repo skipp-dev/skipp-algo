@@ -45,6 +45,12 @@ from .repo_sources import (
 _DEFAULT_EXPORT_DIR = Path("artifacts") / "smc_microstructure_exports"
 
 
+def _to_epoch_seconds(series: Any) -> pd.Series:
+    timestamp = pd.to_datetime(series, utc=True, errors="coerce")
+    epoch = pd.Timestamp("1970-01-01", tz="UTC")
+    return ((timestamp - epoch) // pd.Timedelta(seconds=1)).astype("int64")
+
+
 def _safe_float(value: Any) -> float | None:
     try:
         numeric = float(value)
@@ -223,7 +229,7 @@ def _load_symbol_bars_for_context(symbol: str, timeframe: str) -> pd.DataFrame:
             bars = bars.loc[bars["symbol"].eq(symbol_name)].copy()
             if bars.empty:
                 return pd.DataFrame(columns=["timestamp", "open", "high", "low", "close", "volume", "symbol"])
-            bars["timestamp"] = pd.to_datetime(bars.get("trade_date"), utc=True, errors="coerce").astype("int64") // 10**9
+            bars["timestamp"] = _to_epoch_seconds(bars.get("trade_date"))
             for col in ("open", "high", "low", "close"):
                 bars[col] = pd.to_numeric(bars.get(col), errors="coerce")
             bars["volume"] = pd.to_numeric(bars.get("volume", 0.0), errors="coerce").fillna(0.0)
@@ -236,7 +242,7 @@ def _load_symbol_bars_for_context(symbol: str, timeframe: str) -> pd.DataFrame:
         bars = bars.loc[bars["symbol"].eq(symbol_name)].copy()
         if bars.empty:
             return pd.DataFrame(columns=["timestamp", "open", "high", "low", "close", "volume", "symbol"])
-        bars["timestamp"] = pd.to_datetime(bars.get("timestamp"), utc=True, errors="coerce").astype("int64") // 10**9
+        bars["timestamp"] = _to_epoch_seconds(bars.get("timestamp"))
         for col in ("open", "high", "low", "close"):
             bars[col] = pd.to_numeric(bars.get(col), errors="coerce")
         bars["volume"] = pd.to_numeric(bars.get("volume", 0.0), errors="coerce").fillna(0.0)
