@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-04-13T11:44:22.704344Z",
+  "generated_at": "2026-04-13T12:49:55.302477Z",
   "symbols": [
     "AAPL",
     "MSFT",
@@ -74,45 +74,6 @@
   },
   "stories": [
     {
-      "story_key": "94803f47c5ee9e0dd6026df3d7bc66bf6270080c:5919985",
-      "headline": "Earnings week ahead: JNJ, NFLX, TSM, GS, C, JPM, BAC, PEP, and more (NYSE:JPM)",
-      "tickers": [
-        "JNJ",
-        "JPM"
-      ],
-      "published_at": "2026-04-12T12:07:28Z",
-      "published_ts": 1775995648.0,
-      "age_minutes": 1416.9,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Seeking Alpha"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "earnings",
-      "event_class": "EARNINGS",
-      "event_label": "Earnings week ahead: JNJ, NFLX, TSM, GS, C, JPM, BAC, PEP, and more (NYSE:JPM)",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.8,
-      "clarity": 0.6,
-      "relevance": 0.79,
-      "news_catalyst_score": 0.3836,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://seekingalpha.com/news/4574055-earnings-week-ahead-jnj-nflx-tsm-gs-c-jpm-bac-pep-and-more",
-      "first_seen_at": "2026-04-13T03:47:14.503263Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
       "story_key": "ff44f858b11ebb113681c333dcfb7552e7bfd916:5920247",
       "headline": "Insights Into Microsoft's Performance Versus Peers In Software Sector - Microsoft (NASDAQ:MSFT)",
       "tickers": [
@@ -120,7 +81,7 @@
       ],
       "published_at": "2026-04-13T09:59:14Z",
       "published_ts": 1776074354.0,
-      "age_minutes": 105.1,
+      "age_minutes": 170.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -141,7 +102,7 @@
       "impact": 0.1,
       "clarity": 0.6,
       "relevance": 0.475,
-      "news_catalyst_score": 0.2697,
+      "news_catalyst_score": 0.2504,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
@@ -158,7 +119,7 @@
       ],
       "published_at": "2026-04-12T17:18:19Z",
       "published_ts": 1776014299.0,
-      "age_minutes": 1106.1,
+      "age_minutes": 1171.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -196,7 +157,7 @@
       ],
       "published_at": "2026-04-13T08:24:55Z",
       "published_ts": 1776068695.0,
-      "age_minutes": 199.5,
+      "age_minutes": 265.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -217,7 +178,7 @@
       "impact": 0.1,
       "clarity": 0.6,
       "relevance": 0.475,
-      "news_catalyst_score": 0.2052,
+      "news_catalyst_score": 0.1803,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
@@ -234,7 +195,7 @@
       ],
       "published_at": "2026-04-13T05:08:00Z",
       "published_ts": 1776056880.0,
-      "age_minutes": 396.4,
+      "age_minutes": 461.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -272,7 +233,7 @@
       ],
       "published_at": "2026-04-12T21:04:22Z",
       "published_ts": 1776027862.0,
-      "age_minutes": 880.0,
+      "age_minutes": 945.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -310,7 +271,7 @@
       ],
       "published_at": "2026-04-12T21:03:30Z",
       "published_ts": 1776027810.0,
-      "age_minutes": 880.9,
+      "age_minutes": 946.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -348,7 +309,7 @@
       ],
       "published_at": "2026-04-12T13:28:48Z",
       "published_ts": 1776000528.0,
-      "age_minutes": 1335.6,
+      "age_minutes": 1401.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -380,31 +341,18 @@
     }
   ],
   "news_catalyst_by_symbol": {
-    "JNJ": {
-      "news_catalyst_score": 0.3836,
+    "JPM": {
+      "news_catalyst_score": 0.1671,
       "sentiment_label": "neutral",
-      "event_class": "EARNINGS",
-      "event_label": "Earnings week ahead: JNJ, NFLX, TSM, GS, C, JPM, BAC, PEP, and more (NYSE:JPM)",
+      "event_class": "UNKNOWN",
+      "event_label": "Wall Street trading desks poised for $40B quarter amid geopolitical turmoil (JPM:NYSE)",
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "source_tier": "TIER_3",
       "mentions_24h": 1,
       "is_actionable": false,
       "first_provider": "newsapi_ai",
-      "story_key": "94803f47c5ee9e0dd6026df3d7bc66bf6270080c:5919985"
-    },
-    "JPM": {
-      "news_catalyst_score": 0.4136,
-      "sentiment_label": "neutral",
-      "event_class": "EARNINGS",
-      "event_label": "Earnings week ahead: JNJ, NFLX, TSM, GS, C, JPM, BAC, PEP, and more (NYSE:JPM)",
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "source_tier": "TIER_3",
-      "mentions_24h": 2,
-      "is_actionable": false,
-      "first_provider": "newsapi_ai",
-      "story_key": "94803f47c5ee9e0dd6026df3d7bc66bf6270080c:5919985"
+      "story_key": "27dea0cbafe6de8bad03855dd540303285dc4218:5920001"
     },
     "META": {
       "news_catalyst_score": 0.1671,
@@ -420,7 +368,7 @@
       "story_key": "4fff0a4054be7d9a0ce063fc42e9bce5c51eed0c:5920092"
     },
     "MSFT": {
-      "news_catalyst_score": 0.3897,
+      "news_catalyst_score": 0.3704,
       "sentiment_label": "neutral",
       "event_class": "UNKNOWN",
       "event_label": "Insights Into Microsoft's Performance Versus Peers In Software Sector - Microsoft (NASDAQ:MSFT)",
@@ -434,11 +382,11 @@
     }
   },
   "summary": {
-    "active_story_count": 8,
+    "active_story_count": 7,
     "new_story_count": 0,
     "actionable_story_count": 0,
     "actionable_symbols": [],
-    "symbol_count": 4
+    "symbol_count": 3
   },
   "symbol_scope": {
     "mode": "release_policy_fallback",
