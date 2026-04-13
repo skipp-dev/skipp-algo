@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-04-13T17:16:33.312891Z",
+  "generated_at": "2026-04-13T18:42:15.460400Z",
   "symbols": [
     "AAPL",
     "MSFT",
@@ -19,11 +19,11 @@
     "fmp_stock": 0.0,
     "fmp_press": 0.0,
     "fmp_articles": 0.0,
-    "newsapi_ai": 1776088326.0,
+    "newsapi_ai": 1776102840.0,
     "tv": 0.0,
-    "legacy_cursor": 1776088326.0
+    "legacy_cursor": 1776102840.0
   },
-  "legacy_cursor": 1776088326.0,
+  "legacy_cursor": 1776102840.0,
   "providers": {
     "benzinga": {
       "ok": false,
@@ -56,12 +56,12 @@
     "newsapi_ai": {
       "ok": true,
       "error": "",
-      "raw_count": 1,
-      "new_item_count": 0,
-      "cursor": 1776088326.0,
+      "raw_count": 31,
+      "new_item_count": 7,
+      "cursor": 1776102840.0,
       "last_seen_news_uri": "",
-      "provider_status": "ok_no_recent_matches",
-      "status_detail": "Event Registry reachable, but no new symbol-matching NewsAPI.ai items were newer than the current cursor.",
+      "provider_status": "ok",
+      "status_detail": "",
       "error_code": ""
     },
     "tv": {
@@ -74,6 +74,44 @@
   },
   "stories": [
     {
+      "story_key": "91cd03cb353d2895dac75c0c99af57e6d10ff023:5920320",
+      "headline": "Crypto's Second Chance At ETFs: Why Tokenization May Win Where Binance Failed - Apple (NASDAQ:AAPL), NVID",
+      "tickers": [
+        "AAPL"
+      ],
+      "published_at": "2026-04-13T16:01:30Z",
+      "published_ts": 1776096090.0,
+      "age_minutes": 160.8,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "category": "crypto",
+      "event_class": "CRYPTO",
+      "event_label": "Crypto's Second Chance At ETFs: Why Tokenization May Win Where Binance Failed - Apple (NASDAQ:AAPL), NVID",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.75,
+      "clarity": 0.6,
+      "relevance": 0.7675,
+      "news_catalyst_score": 0.5151,
+      "materiality": "MEDIUM",
+      "recency_bucket": "AGING",
+      "is_actionable": true,
+      "url": "https://www.benzinga.com/etfs/specialty-etfs/26/04/51784670/cryptos-second-chance-at-etfs-why-tokenized-funds-may-succeed-where-binance-failed",
+      "first_seen_at": "2026-04-13T18:42:15.460400Z",
+      "is_new": true,
+      "provider_count": 1
+    },
+    {
       "story_key": "cedb00f78d190586ad68a71cc20982d42c688cb9:5920280",
       "headline": "Stifel cuts Meta stock price target on slower ad growth outlook By Investing.com",
       "tickers": [
@@ -81,7 +119,7 @@
       ],
       "published_at": "2026-04-13T12:42:11Z",
       "published_ts": 1776084131.0,
-      "age_minutes": 274.4,
+      "age_minutes": 360.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -102,7 +140,7 @@
       "impact": 0.88,
       "clarity": 0.6,
       "relevance": 0.826,
-      "news_catalyst_score": 0.4322,
+      "news_catalyst_score": 0.4084,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
@@ -119,7 +157,7 @@
       ],
       "published_at": "2026-04-13T10:47:24Z",
       "published_ts": 1776077244.0,
-      "age_minutes": 389.2,
+      "age_minutes": 474.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -157,7 +195,7 @@
       ],
       "published_at": "2026-04-13T12:06:43Z",
       "published_ts": 1776082003.0,
-      "age_minutes": 309.8,
+      "age_minutes": 395.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -195,7 +233,7 @@
       ],
       "published_at": "2026-04-13T12:02:00Z",
       "published_ts": 1776081720.0,
-      "age_minutes": 314.6,
+      "age_minutes": 400.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -226,6 +264,234 @@
       "provider_count": 1
     },
     {
+      "story_key": "864ba66532090d152d3edc3247374cbb0c389d3b:5920339",
+      "headline": "10 Information Technology Stocks Whale Activity In Today's Session - Apple (NASDAQ:AAPL), ACM Research (N",
+      "tickers": [
+        "AAPL"
+      ],
+      "published_at": "2026-04-13T17:35:17Z",
+      "published_ts": 1776101717.0,
+      "age_minutes": 67.0,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "10 Information Technology Stocks Whale Activity In Today's Session - Apple (NASDAQ:AAPL), ACM Research (N",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "news_catalyst_score": 0.3167,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://www.benzinga.com/insights/options/26/04/51787722/10-information-technology-stocks-whale-activity-in-todays-session",
+      "first_seen_at": "2026-04-13T18:42:15.460400Z",
+      "is_new": true,
+      "provider_count": 1
+    },
+    {
+      "story_key": "db486a4efee28ee5af90e20a4105e0952b645251:5920342",
+      "headline": "What's Going On With Amazon Stock Monday? - Amazon.com (NASDAQ:AMZN)",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_at": "2026-04-13T17:54:00Z",
+      "published_ts": 1776102840.0,
+      "age_minutes": 48.3,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "What's Going On With Amazon Stock Monday? - Amazon.com (NASDAQ:AMZN)",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.283,
+      "materiality": "LOW",
+      "recency_bucket": "WARM",
+      "is_actionable": false,
+      "url": "https://www.benzinga.com/markets/tech/26/04/51788298/whats-going-on-with-amazon-stock-monday-2",
+      "first_seen_at": "2026-04-13T18:42:15.460400Z",
+      "is_new": true,
+      "provider_count": 1
+    },
+    {
+      "story_key": "4f9ceddb2f778e5ae543032cc6852d6980010c4f:5920331",
+      "headline": "Meta Platforms (META) Stock Set to Claim Top Spot in Digital Advertising by 2026 - Blockonomi",
+      "tickers": [
+        "META"
+      ],
+      "published_at": "2026-04-13T16:55:59Z",
+      "published_ts": 1776099359.0,
+      "age_minutes": 106.3,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Blockonomi"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Meta Platforms (META) Stock Set to Claim Top Spot in Digital Advertising by 2026 - Blockonomi",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "news_catalyst_score": 0.2656,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://blockonomi.com/meta-platforms-meta-stock-set-to-claim-top-spot-in-digital-advertising-by-2026/",
+      "first_seen_at": "2026-04-13T18:42:15.460400Z",
+      "is_new": true,
+      "provider_count": 1
+    },
+    {
+      "story_key": "e145c42a788b1620ad5b300cee94c32c01a58ffe:5920339",
+      "headline": "Amazon (AMZN) Stock: E-Commerce Giant Revs Up Vehicle Sales Nationwide - Blockonomi",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_at": "2026-04-13T17:38:46Z",
+      "published_ts": 1776101926.0,
+      "age_minutes": 63.5,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Blockonomi"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Amazon (AMZN) Stock: E-Commerce Giant Revs Up Vehicle Sales Nationwide - Blockonomi",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.2421,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://blockonomi.com/amazon-amzn-stock-e-commerce-giant-revs-up-vehicle-sales-nationwide/",
+      "first_seen_at": "2026-04-13T18:42:15.460400Z",
+      "is_new": true,
+      "provider_count": 1
+    },
+    {
+      "story_key": "9033f8df8a943cec67f6c3c13193b4167a624ab0:5920305",
+      "headline": "Apple (AAPL) Smart Glasses Design Revealed: Taking on Meta in 2027 - Blockonomi",
+      "tickers": [
+        "AAPL"
+      ],
+      "published_at": "2026-04-13T14:47:31Z",
+      "published_ts": 1776091651.0,
+      "age_minutes": 234.7,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Blockonomi"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Apple (AAPL) Smart Glasses Design Revealed: Taking on Meta in 2027 - Blockonomi",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "news_catalyst_score": 0.2203,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://blockonomi.com/apple-aapl-smart-glasses-design-revealed-taking-on-meta-in-2027/",
+      "first_seen_at": "2026-04-13T18:42:15.460400Z",
+      "is_new": true,
+      "provider_count": 1
+    },
+    {
+      "story_key": "a31839103305813defbfbc7e628d490e39235bac:5920317",
+      "headline": "Amazon expands its auto business by adding mainstream brands (AMZN:NASDAQ)",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_at": "2026-04-13T15:46:05Z",
+      "published_ts": 1776095165.0,
+      "age_minutes": 176.2,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Seeking Alpha"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Amazon expands its auto business by adding mainstream brands (AMZN:NASDAQ)",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.2136,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://seekingalpha.com/news/4574477-amazon-expands-its-auto-business-by-adding-mainstream-brands",
+      "first_seen_at": "2026-04-13T18:42:15.460400Z",
+      "is_new": true,
+      "provider_count": 1
+    },
+    {
       "story_key": "06d055368fdb89dddc4e36463fc6696b3e725abc:5920294",
       "headline": "Why Exxon Mobil Shares Are Trading Higher On Monday? - Exxon Mobil (NYSE:XOM)",
       "tickers": [
@@ -233,7 +499,7 @@
       ],
       "published_at": "2026-04-13T13:52:06Z",
       "published_ts": 1776088326.0,
-      "age_minutes": 204.5,
+      "age_minutes": 290.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -254,128 +520,12 @@
       "impact": 0.1,
       "clarity": 0.6,
       "relevance": 0.475,
-      "news_catalyst_score": 0.2368,
+      "news_catalyst_score": 0.1989,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
       "url": "https://www.benzinga.com/trading-ideas/movers/26/04/51779652/why-exxon-mobil-shares-are-trading-higher-on-monday",
       "first_seen_at": "2026-04-13T14:27:39.991472Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "016641e4cd67e436fd92ad20510a92d6cadccac1:5920292",
-      "headline": "Microsoft (MSFT) Stock Plunges 27% But Analyst Projects 70% Rally Ahead - Blockonomi",
-      "tickers": [
-        "MSFT"
-      ],
-      "published_at": "2026-04-13T13:41:05Z",
-      "published_ts": 1776087665.0,
-      "age_minutes": 215.5,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Blockonomi"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Microsoft (MSFT) Stock Plunges 27% But Analyst Projects 70% Rally Ahead - Blockonomi",
-      "sentiment_label": "bullish",
-      "polarity": 0.5,
-      "impact": 0.1,
-      "clarity": 0.8,
-      "relevance": 0.535,
-      "news_catalyst_score": 0.2287,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://blockonomi.com/microsoft-msft-stock-plunges-27-but-analyst-projects-70-rally-ahead/",
-      "first_seen_at": "2026-04-13T14:27:39.991472Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "9f55b686374205531bc839b8a20efc8e987674cf:5920289",
-      "headline": "Trade Strategy For SPY, QQQ, AAPL, MSFT, NVDA, GOOGL, META, And TSLA",
-      "tickers": [
-        "AAPL",
-        "META",
-        "MSFT"
-      ],
-      "published_at": "2026-04-13T13:27:52Z",
-      "published_ts": 1776086872.0,
-      "age_minutes": 228.7,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Benzinga"
-      ],
-      "source_tier": "TIER_2",
-      "source_rank": 2,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Trade Strategy For SPY, QQQ, AAPL, MSFT, NVDA, GOOGL, META, And TSLA",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.4054,
-      "news_catalyst_score": 0.215,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.benzinga.com/Opinion/26/04/51778581/trade-strategy-for-spy-qqq-aapl-msft-nvda-googl-meta-and-tsla-4",
-      "first_seen_at": "2026-04-13T14:27:39.991472Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "74a7660801d2a90b925bafd235d8aea856761863:5920047",
-      "headline": "OpenAI Calls Musk Move 'Legal Ambush' as Lawsuit Shift Raises Stakes for Microsoft (MSFT)",
-      "tickers": [
-        "MSFT"
-      ],
-      "published_at": "2026-04-12T17:18:19Z",
-      "published_ts": 1776014299.0,
-      "age_minutes": 1438.2,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Markets Insider"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "lawsuit",
-      "event_class": "LEGAL",
-      "event_label": "OpenAI Calls Musk Move 'Legal Ambush' as Lawsuit Shift Raises Stakes for Microsoft (MSFT)",
-      "sentiment_label": "bullish",
-      "polarity": 0.5,
-      "impact": 0.25,
-      "clarity": 0.6,
-      "relevance": 0.5425,
-      "news_catalyst_score": 0.2135,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://markets.businessinsider.com/news/stocks/openai-calls-musk-move-legal-ambush-as-lawsuit-shift-raises-stakes-for-microsoft-msft-1036013301",
-      "first_seen_at": "2026-04-13T03:47:14.503263Z",
       "is_new": false,
       "provider_count": 1
     },
@@ -387,7 +537,7 @@
       ],
       "published_at": "2026-04-13T11:41:22Z",
       "published_ts": 1776080482.0,
-      "age_minutes": 335.2,
+      "age_minutes": 420.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -425,7 +575,7 @@
       ],
       "published_at": "2026-04-13T09:59:14Z",
       "published_ts": 1776074354.0,
-      "age_minutes": 437.3,
+      "age_minutes": 523.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -456,6 +606,84 @@
       "provider_count": 1
     },
     {
+      "story_key": "016641e4cd67e436fd92ad20510a92d6cadccac1:5920292",
+      "headline": "Microsoft (MSFT) Stock Plunges 27% But Analyst Projects 70% Rally Ahead - Blockonomi",
+      "tickers": [
+        "MSFT"
+      ],
+      "published_at": "2026-04-13T13:41:05Z",
+      "published_ts": 1776087665.0,
+      "age_minutes": 301.2,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Blockonomi"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Microsoft (MSFT) Stock Plunges 27% But Analyst Projects 70% Rally Ahead - Blockonomi",
+      "sentiment_label": "bullish",
+      "polarity": 0.5,
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "news_catalyst_score": 0.1918,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://blockonomi.com/microsoft-msft-stock-plunges-27-but-analyst-projects-70-rally-ahead/",
+      "first_seen_at": "2026-04-13T14:27:39.991472Z",
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
+      "story_key": "9f55b686374205531bc839b8a20efc8e987674cf:5920289",
+      "headline": "Trade Strategy For SPY, QQQ, AAPL, MSFT, NVDA, GOOGL, META, And TSLA",
+      "tickers": [
+        "AAPL",
+        "META",
+        "MSFT"
+      ],
+      "published_at": "2026-04-13T13:27:52Z",
+      "published_ts": 1776086872.0,
+      "age_minutes": 314.4,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Trade Strategy For SPY, QQQ, AAPL, MSFT, NVDA, GOOGL, META, And TSLA",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.4054,
+      "news_catalyst_score": 0.185,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://www.benzinga.com/Opinion/26/04/51778581/trade-strategy-for-spy-qqq-aapl-msft-nvda-googl-meta-and-tsla-4",
+      "first_seen_at": "2026-04-13T14:27:39.991472Z",
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
       "story_key": "3dfddc87448e2de9cfc8d3aefb74735f1433cbcf:5920274",
       "headline": "Another V-shaped rebound ahead? JPM says buy the dip in stocks By Investing.com",
       "tickers": [
@@ -463,7 +691,7 @@
       ],
       "published_at": "2026-04-13T12:13:06Z",
       "published_ts": 1776082386.0,
-      "age_minutes": 303.5,
+      "age_minutes": 389.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -501,7 +729,7 @@
       ],
       "published_at": "2026-04-13T10:50:09Z",
       "published_ts": 1776077409.0,
-      "age_minutes": 386.4,
+      "age_minutes": 472.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -539,7 +767,7 @@
       ],
       "published_at": "2026-04-13T08:24:55Z",
       "published_ts": 1776068695.0,
-      "age_minutes": 531.6,
+      "age_minutes": 617.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -577,7 +805,7 @@
       ],
       "published_at": "2026-04-13T05:08:00Z",
       "published_ts": 1776056880.0,
-      "age_minutes": 728.6,
+      "age_minutes": 814.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -615,7 +843,7 @@
       ],
       "published_at": "2026-04-12T21:04:22Z",
       "published_ts": 1776027862.0,
-      "age_minutes": 1212.2,
+      "age_minutes": 1297.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -653,7 +881,7 @@
       ],
       "published_at": "2026-04-12T21:03:30Z",
       "published_ts": 1776027810.0,
-      "age_minutes": 1213.1,
+      "age_minutes": 1298.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -686,27 +914,27 @@
   ],
   "news_catalyst_by_symbol": {
     "AAPL": {
-      "news_catalyst_score": 0.215,
+      "news_catalyst_score": 0.6051,
       "sentiment_label": "neutral",
-      "event_class": "UNKNOWN",
-      "event_label": "Trade Strategy For SPY, QQQ, AAPL, MSFT, NVDA, GOOGL, META, And TSLA",
-      "materiality": "LOW",
+      "event_class": "CRYPTO",
+      "event_label": "Crypto's Second Chance At ETFs: Why Tokenization May Win Where Binance Failed - Apple (NASDAQ:AAPL), NVID",
+      "materiality": "MEDIUM",
       "recency_bucket": "AGING",
       "source_tier": "TIER_2",
-      "mentions_24h": 1,
-      "is_actionable": false,
+      "mentions_24h": 4,
+      "is_actionable": true,
       "first_provider": "newsapi_ai",
-      "story_key": "9f55b686374205531bc839b8a20efc8e987674cf:5920289"
+      "story_key": "91cd03cb353d2895dac75c0c99af57e6d10ff023:5920320"
     },
     "AMZN": {
-      "news_catalyst_score": 0.3818,
-      "sentiment_label": "bullish",
+      "news_catalyst_score": 0.4418,
+      "sentiment_label": "neutral",
       "event_class": "MANAGEMENT",
       "event_label": "AMZN Continues to Rebound as its CEO Doubles Down on $200B AI Bet",
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "source_tier": "TIER_3",
-      "mentions_24h": 3,
+      "mentions_24h": 6,
       "is_actionable": false,
       "first_provider": "newsapi_ai",
       "story_key": "d839c1ecdcbc813a0f7b528298517e0c746ba6e5:5920272"
@@ -725,33 +953,33 @@
       "story_key": "9b368e426b9af47149adfc6aefd708db76eec7fa:5920257"
     },
     "META": {
-      "news_catalyst_score": 0.5222,
+      "news_catalyst_score": 0.5284,
       "sentiment_label": "neutral",
       "event_class": "GUIDANCE",
       "event_label": "Stifel cuts Meta stock price target on slower ad growth outlook By Investing.com",
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "source_tier": "TIER_3",
-      "mentions_24h": 4,
+      "mentions_24h": 5,
       "is_actionable": false,
       "first_provider": "newsapi_ai",
       "story_key": "cedb00f78d190586ad68a71cc20982d42c688cb9:5920280"
     },
     "MSFT": {
-      "news_catalyst_score": 0.3487,
-      "sentiment_label": "bullish",
+      "news_catalyst_score": 0.3146,
+      "sentiment_label": "neutral",
       "event_class": "UNKNOWN",
-      "event_label": "Microsoft (MSFT) Stock Plunges 27% But Analyst Projects 70% Rally Ahead - Blockonomi",
+      "event_label": "Insights Into Microsoft's Performance Versus Peers In Software Sector - Microsoft (NASDAQ:MSFT)",
       "materiality": "LOW",
       "recency_bucket": "AGING",
-      "source_tier": "TIER_3",
-      "mentions_24h": 7,
+      "source_tier": "TIER_2",
+      "mentions_24h": 6,
       "is_actionable": false,
       "first_provider": "newsapi_ai",
-      "story_key": "016641e4cd67e436fd92ad20510a92d6cadccac1:5920292"
+      "story_key": "ff44f858b11ebb113681c333dcfb7552e7bfd916:5920247"
     },
     "XOM": {
-      "news_catalyst_score": 0.2368,
+      "news_catalyst_score": 0.1989,
       "sentiment_label": "neutral",
       "event_class": "UNKNOWN",
       "event_label": "Why Exxon Mobil Shares Are Trading Higher On Monday? - Exxon Mobil (NYSE:XOM)",
@@ -765,10 +993,12 @@
     }
   },
   "summary": {
-    "active_story_count": 16,
-    "new_story_count": 0,
-    "actionable_story_count": 0,
-    "actionable_symbols": [],
+    "active_story_count": 22,
+    "new_story_count": 7,
+    "actionable_story_count": 1,
+    "actionable_symbols": [
+      "AAPL"
+    ],
     "symbol_count": 6
   },
   "symbol_scope": {

@@ -4,12 +4,215 @@
     "fmp_stock": 0.0,
     "fmp_press": 0.0,
     "fmp_articles": 0.0,
-    "newsapi_ai": 1776088326.0,
+    "newsapi_ai": 1776102840.0,
     "tv": 0.0,
-    "legacy_cursor": 1776088326.0
+    "legacy_cursor": 1776102840.0
   },
   "provider_state": {},
   "story_state": {
+    "db486a4efee28ee5af90e20a4105e0952b645251:5920342": {
+      "story_key": "db486a4efee28ee5af90e20a4105e0952b645251:5920342",
+      "cluster_hash": "db486a4efee28ee5af90e20a4105e0952b645251",
+      "headline": "What's Going On With Amazon Stock Monday? - Amazon.com (NASDAQ:AMZN)",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_ts": 1776102840.0,
+      "first_seen_ts": 1776105735.4604,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "url": "https://www.benzinga.com/markets/tech/26/04/51788298/whats-going-on-with-amazon-stock-monday-2",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "last_seen_ts": 1776105735.4604
+    },
+    "e145c42a788b1620ad5b300cee94c32c01a58ffe:5920339": {
+      "story_key": "e145c42a788b1620ad5b300cee94c32c01a58ffe:5920339",
+      "cluster_hash": "e145c42a788b1620ad5b300cee94c32c01a58ffe",
+      "headline": "Amazon (AMZN) Stock: E-Commerce Giant Revs Up Vehicle Sales Nationwide - Blockonomi",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_ts": 1776101926.0,
+      "first_seen_ts": 1776105735.4604,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Blockonomi"
+      ],
+      "url": "https://blockonomi.com/amazon-amzn-stock-e-commerce-giant-revs-up-vehicle-sales-nationwide/",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776105735.4604
+    },
+    "864ba66532090d152d3edc3247374cbb0c389d3b:5920339": {
+      "story_key": "864ba66532090d152d3edc3247374cbb0c389d3b:5920339",
+      "cluster_hash": "864ba66532090d152d3edc3247374cbb0c389d3b",
+      "headline": "10 Information Technology Stocks Whale Activity In Today's Session - Apple (NASDAQ:AAPL), ACM Research (N",
+      "tickers": [
+        "AAPL"
+      ],
+      "published_ts": 1776101717.0,
+      "first_seen_ts": 1776105735.4604,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "url": "https://www.benzinga.com/insights/options/26/04/51787722/10-information-technology-stocks-whale-activity-in-todays-session",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "polarity": 0.0,
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "last_seen_ts": 1776105735.4604
+    },
+    "91cd03cb353d2895dac75c0c99af57e6d10ff023:5920320": {
+      "story_key": "91cd03cb353d2895dac75c0c99af57e6d10ff023:5920320",
+      "cluster_hash": "91cd03cb353d2895dac75c0c99af57e6d10ff023",
+      "headline": "Crypto's Second Chance At ETFs: Why Tokenization May Win Where Binance Failed - Apple (NASDAQ:AAPL), NVID",
+      "tickers": [
+        "AAPL"
+      ],
+      "published_ts": 1776096090.0,
+      "first_seen_ts": 1776105735.4604,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "url": "https://www.benzinga.com/etfs/specialty-etfs/26/04/51784670/cryptos-second-chance-at-etfs-why-tokenized-funds-may-succeed-where-binance-failed",
+      "category": "crypto",
+      "impact": 0.75,
+      "clarity": 0.6,
+      "relevance": 0.7675000000000001,
+      "polarity": 0.0,
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "last_seen_ts": 1776105735.4604
+    },
+    "a31839103305813defbfbc7e628d490e39235bac:5920317": {
+      "story_key": "a31839103305813defbfbc7e628d490e39235bac:5920317",
+      "cluster_hash": "a31839103305813defbfbc7e628d490e39235bac",
+      "headline": "Amazon expands its auto business by adding mainstream brands (AMZN:NASDAQ)",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_ts": 1776095165.0,
+      "first_seen_ts": 1776105735.4604,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Seeking Alpha"
+      ],
+      "url": "https://seekingalpha.com/news/4574477-amazon-expands-its-auto-business-by-adding-mainstream-brands",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776105735.4604
+    },
+    "9033f8df8a943cec67f6c3c13193b4167a624ab0:5920305": {
+      "story_key": "9033f8df8a943cec67f6c3c13193b4167a624ab0:5920305",
+      "cluster_hash": "9033f8df8a943cec67f6c3c13193b4167a624ab0",
+      "headline": "Apple (AAPL) Smart Glasses Design Revealed: Taking on Meta in 2027 - Blockonomi",
+      "tickers": [
+        "AAPL"
+      ],
+      "published_ts": 1776091651.0,
+      "first_seen_ts": 1776105735.4604,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Blockonomi"
+      ],
+      "url": "https://blockonomi.com/apple-aapl-smart-glasses-design-revealed-taking-on-meta-in-2027/",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776105735.4604
+    },
+    "4f9ceddb2f778e5ae543032cc6852d6980010c4f:5920331": {
+      "story_key": "4f9ceddb2f778e5ae543032cc6852d6980010c4f:5920331",
+      "cluster_hash": "4f9ceddb2f778e5ae543032cc6852d6980010c4f",
+      "headline": "Meta Platforms (META) Stock Set to Claim Top Spot in Digital Advertising by 2026 - Blockonomi",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1776099359.0,
+      "first_seen_ts": 1776105735.4604,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Blockonomi"
+      ],
+      "url": "https://blockonomi.com/meta-platforms-meta-stock-set-to-claim-top-spot-in-digital-advertising-by-2026/",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776105735.4604
+    },
     "06d055368fdb89dddc4e36463fc6696b3e725abc:5920294": {
       "story_key": "06d055368fdb89dddc4e36463fc6696b3e725abc:5920294",
       "cluster_hash": "06d055368fdb89dddc4e36463fc6696b3e725abc",
