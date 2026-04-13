@@ -375,8 +375,31 @@ jobs:
           git config --local --unset-all http.https://github.com/.extraheader || true
           git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
           git add pine/generated/ SMC_Core_Engine.pine
-          git diff --cached --quiet || git commit -m "chore: library refresh ${REFRESH_DATE} (run ${{ github.run_number }})"
-          git push
+          if git diff --cached --quiet; then
+            echo "::notice::No post-publish changes to commit."
+            exit 0
+          fi
+
+          git commit -m "chore: library refresh ${REFRESH_DATE} (run ${{ github.run_number }})"
+
+          for attempt in 1 2 3; do
+            if git push origin HEAD:main; then
+              exit 0
+            fi
+
+            if [ "$attempt" -eq 3 ]; then
+              echo "::error::Failed to push refresh commit after ${attempt} attempts."
+              exit 1
+            fi
+
+            echo "::warning::Push rejected on attempt ${attempt}; rebasing refresh commit onto origin/main and retrying."
+            git fetch origin main
+            if ! git rebase origin/main; then
+              git rebase --abort || true
+              echo "::error::Refresh commit conflicts with newer origin/main. Re-run the workflow on the latest main."
+              exit 1
+            fi
+          done
 
       # ── Signal alerts (non-blocking) ────────────────────────────
       - name: Evaluate and send alerts
