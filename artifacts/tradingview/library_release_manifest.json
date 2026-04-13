@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-07T13:43:39Z",
+  "generatedAt": "2026-04-13T12:31:16.551Z",
   "publishMode": "automated",
   "manifestVersion": 2,
   "library": {
@@ -12,22 +12,14 @@
     "sourceManifest": "pine/generated/smc_micro_profiles_generated.json",
     "sourceSnippet": "pine/generated/smc_micro_profiles_core_import_snippet.pine",
     "productivityGate": {
-      "publishReady": false,
-      "blockingReasons": [
-        "fixture_input",
-        "default_event_risk",
-        "placeholder_symbols"
-      ],
-      "fixtureInputDetected": true,
-      "defaultEventRiskDetected": true,
-      "placeholderSymbols": [
-        "AAA",
-        "BBB",
-        "CCC"
-      ],
-      "inputPath": "tests/fixtures/seed_base_snapshot.csv",
-      "universeSize": 3,
-      "eventRiskSource": "defaults"
+      "publishReady": true,
+      "blockingReasons": [],
+      "fixtureInputDetected": false,
+      "defaultEventRiskDetected": false,
+      "placeholderSymbols": [],
+      "inputPath": "artifacts/smc_microstructure_exports/databento_volatility_production_incremental_20260413_121643__smc_microstructure_base_2026-04-10.csv",
+      "universeSize": 6854,
+      "eventRiskSource": "smc_event_risk_builder"
     }
   },
   "consumers": [
@@ -379,13 +371,14 @@
       ]
     }
   },
-  "lastPreflightReport": "/Users/steffenpreuss/Downloads/skipp-algo/automation/tradingview/reports/preflight-2026-04-07T19-12-02-524Z.json",
+  "lastPreflightReport": "/home/runner/work/skipp-algo/skipp-algo/automation/tradingview/reports/preflight-micro-library-2026-04-13T12-29-28-032Z.json",
   "notes": [
     "Manifest, generated import snippet, and SMC_Core_Engine import path must stay identical.",
     "Pine library import version is explicit; TradingView does not auto-resolve the newest version in the core import.",
     "Owner/version changes require regenerating the library artifacts before publish.",
     "Release metadata must stay aligned with the canonical SMC product-cut manifest.",
     "Canonical SMC mainline live preflight is green in automation/tradingview/reports/preflight-2026-04-07T19-12-02-524Z.json.",
-    "Current generated library source is blocked from automated publish until the productivity gate is green: fixture_input, default_event_risk, placeholder_symbols."
+    "Current generated library source is blocked from automated publish until the productivity gate is green: fixture_input, default_event_risk, placeholder_symbols.",
+    "Current generated library source is publish-ready for automated TradingView release checks."
   ]
 }
