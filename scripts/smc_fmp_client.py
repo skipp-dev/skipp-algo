@@ -79,6 +79,27 @@ def _coerce_finite_float(value: Any) -> float | None:
     return numeric
 
 
+def _aggregate_sector_snapshot_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    sector_totals: dict[str, list[float]] = {}
+    for row in rows:
+        sector = str(row.get("sector") or "").strip()
+        if not sector:
+            continue
+        change = _coerce_finite_float(row.get("averageChange"))
+        if change is None:
+            change = _coerce_finite_float(row.get("changesPercentage"))
+        if change is None:
+            continue
+        sector_totals.setdefault(sector, []).append(change)
+
+    aggregated: list[dict[str, Any]] = []
+    for sector, changes in sector_totals.items():
+        aggregated.append(
+            {"sector": sector, "changesPercentage": round(sum(changes) / len(changes), 4)}
+        )
+    return aggregated
+
+
 @dataclass
 class SMCFMPClient:
     """Minimal FMP client for the v4 enrichment pipeline.
@@ -317,45 +338,46 @@ class SMCFMPClient:
         today = _today_et()
         diagnostics: dict[str, Any] = {
             "status": "pending",
-            "attempted_dates": [today.isoformat()],
+            "source_endpoint": "/stable/sector-performance-snapshot",
+            "attempted_dates": [],
             "row_counts": {},
             "used_fallback_previous_trading_day": False,
             "selected_date": "",
+            "raw_row_count": 0,
             "returned_row_count": 0,
             "error": "",
         }
-        try:
-            data = self._get("/stable/sector-performance", {"date": today.isoformat()})
-        except RuntimeError as exc:
-            diagnostics["status"] = "error"
-            diagnostics["error"] = str(exc)
-            self._last_sector_performance_diagnostics = diagnostics
-            return []
-        rows = list(data) if isinstance(data, list) else []
-        diagnostics["row_counts"][today.isoformat()] = len(rows)
-        if rows:
-            diagnostics["status"] = "ok"
-            diagnostics["selected_date"] = today.isoformat()
-            diagnostics["returned_row_count"] = len(rows)
-            self._last_sector_performance_diagnostics = diagnostics
-            return rows
-        prev = _prev_trading_day(today)
-        diagnostics["attempted_dates"].append(prev.isoformat())
-        diagnostics["used_fallback_previous_trading_day"] = True
-        try:
-            data = self._get("/stable/sector-performance", {"date": prev.isoformat()})
-        except RuntimeError as exc:
-            diagnostics["status"] = "error"
-            diagnostics["error"] = str(exc)
-            self._last_sector_performance_diagnostics = diagnostics
-            return []
-        rows = list(data) if isinstance(data, list) else []
-        diagnostics["row_counts"][prev.isoformat()] = len(rows)
-        diagnostics["status"] = "ok" if rows else "empty"
-        diagnostics["selected_date"] = prev.isoformat() if rows else ""
-        diagnostics["returned_row_count"] = len(rows)
+        query_date = today
+        for attempt in range(6):
+            diagnostics["attempted_dates"].append(query_date.isoformat())
+            if attempt > 0:
+                diagnostics["used_fallback_previous_trading_day"] = True
+            try:
+                data = self._get(
+                    "/stable/sector-performance-snapshot",
+                    {"date": query_date.isoformat()},
+                )
+            except RuntimeError as exc:
+                diagnostics["status"] = "error"
+                diagnostics["error"] = str(exc)
+                self._last_sector_performance_diagnostics = diagnostics
+                return []
+
+            raw_rows = list(data) if isinstance(data, list) else []
+            diagnostics["row_counts"][query_date.isoformat()] = len(raw_rows)
+            rows = _aggregate_sector_snapshot_rows(raw_rows)
+            if rows:
+                diagnostics["status"] = "ok"
+                diagnostics["selected_date"] = query_date.isoformat()
+                diagnostics["raw_row_count"] = len(raw_rows)
+                diagnostics["returned_row_count"] = len(rows)
+                self._last_sector_performance_diagnostics = diagnostics
+                return rows
+            query_date = _prev_trading_day(query_date)
+
+        diagnostics["status"] = "empty"
         self._last_sector_performance_diagnostics = diagnostics
-        return rows
+        return []
 
     def get_stock_latest_news(
         self, *, symbol: str | None = None, limit: int = 50,

@@ -735,6 +735,8 @@ decode_market_text(int row_code) =>
         label_text := "Index blocked"
     else if reason_code == 4
         label_text := "Sector blocked"
+    else if reason_code == 6
+        label_text := "Valuation caution"
     label_text
 
 decode_vola_text(int row_code) =>

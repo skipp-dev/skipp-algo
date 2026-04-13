@@ -112,13 +112,15 @@ export resolve_bus_session_row(bool intraday_time_chart, bool use_trade_session_
     else
         pack_bus_row(-1, 4)
 
-export resolve_bus_market_row(bool use_index_gate, bool use_sector_gate, bool use_breadth_symbol_gate, bool market_symbols_missing, bool block_on_missing_market_symbol, bool market_regime_gate_ok, bool index_gate_effective_ok, bool sector_gate_effective_ok) =>
+export resolve_bus_market_row(bool use_index_gate, bool use_sector_gate, bool use_breadth_symbol_gate, bool market_symbols_missing, bool block_on_missing_market_symbol, bool market_regime_gate_ok, bool index_gate_effective_ok, bool sector_gate_effective_ok, bool market_valuation_caution) =>
     if not use_index_gate and not use_sector_gate and not use_breadth_symbol_gate
         pack_bus_row(0, 1)
     else if market_symbols_missing and block_on_missing_market_symbol
         pack_bus_row(-1, 2)
     else if market_symbols_missing
         pack_bus_row(2, 2)
+    else if market_valuation_caution and market_regime_gate_ok
+        pack_bus_row(2, 6)
     else if market_regime_gate_ok
         pack_bus_row(5, 1)
     else if not index_gate_effective_ok

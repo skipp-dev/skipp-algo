@@ -30,6 +30,22 @@ class TestBullishTicker:
         assert "AAPL" in result["bullish_tickers"]
         assert result["neutral_tickers"] == []
 
+    def test_bullish_ticker_from_snippet_context(self) -> None:
+        articles = [
+            {
+                "headline": "AAPL corporate update",
+                "snippet": "Shares rally after the company beats earnings and raises guidance.",
+                "tickers": ["AAPL"],
+            },
+        ]
+        result = compute_news_sentiment(["AAPL"], articles, include_diagnostics=True)
+        assert result["bullish_tickers"] == ["AAPL"]
+        assert result["diagnostics"]["polarity_distribution"] == {
+            "positive": 1,
+            "negative": 0,
+            "neutral": 0,
+        }
+
 
 class TestBearishTicker:
 
@@ -122,6 +138,45 @@ class TestDiagnostics:
         assert diagnostics["unique_recognized_ticker_count"] == 2
         assert diagnostics["polarity_distribution"] == {
             "positive": 1,
+            "negative": 1,
+            "neutral": 1,
+        }
+
+    def test_frozen_fmp_style_payload_uses_snippets_for_directional_distribution(self) -> None:
+        articles = [
+            {
+                "headline": "AAPL corporate update",
+                "snippet": "Shares rally after the company beats earnings and raises guidance.",
+                "tickers": ["AAPL"],
+            },
+            {
+                "headline": "TSLA corporate update",
+                "snippet": "Shares drop after the company misses estimates and cuts full-year outlook.",
+                "tickers": ["TSLA"],
+            },
+            {
+                "headline": "MSFT corporate update",
+                "snippet": "Company will host an investor event next month.",
+                "tickers": ["MSFT"],
+            },
+            {
+                "headline": "NVDA corporate update",
+                "snippet": "Stock jumps after record profit and strong demand.",
+                "tickers": ["NVDA"],
+            },
+        ]
+
+        result = compute_news_sentiment(
+            ["AAPL", "TSLA", "MSFT", "NVDA"],
+            articles,
+            include_diagnostics=True,
+        )
+
+        assert result["bullish_tickers"] == ["AAPL", "NVDA"]
+        assert result["bearish_tickers"] == ["TSLA"]
+        assert result["neutral_tickers"] == ["MSFT"]
+        assert result["diagnostics"]["polarity_distribution"] == {
+            "positive": 2,
             "negative": 1,
             "neutral": 1,
         }

@@ -277,13 +277,14 @@ def fetch_news_fmp(fmp: Any, symbols: list[str]) -> ProviderResult:
     raw = fmp.get_stock_latest_news(limit=100)
     for item in raw:
         headline = item.get("title") or item.get("headline") or ""
+        snippet = item.get("text") or item.get("snippet") or item.get("content") or ""
         tickers = item.get("tickers") or []
         if isinstance(tickers, str):
             tickers = [t.strip() for t in tickers.split(",") if t.strip()]
         symbol_field = item.get("symbol") or ""
         if symbol_field and not tickers:
             tickers = [symbol_field]
-        articles.append({"headline": headline, "tickers": tickers})
+        articles.append({"headline": headline, "snippet": str(snippet or ""), "tickers": tickers})
 
     result = compute_news_sentiment(symbols, articles, include_diagnostics=True)
     diagnostics = result.pop("diagnostics", {})

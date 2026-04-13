@@ -287,6 +287,41 @@ class TestErrorPaths:
         c = SMCFMPClient(api_key="k", retry_attempts=1)
         assert c.get_sector_performance() == []
 
+    def test_get_sector_performance_uses_snapshot_endpoint_and_aggregates_rows(self):
+        c = SMCFMPClient(api_key="k")
+        calls: list[tuple[str, str]] = []
+
+        def _fake_get(path: str, params: dict[str, Any]) -> list[dict[str, Any]]:
+            calls.append((path, str(params.get("date") or "")))
+            if params.get("date") == "2026-01-05":
+                return []
+            return [
+                {"sector": "Technology", "exchange": "NYSE", "averageChange": 1.0},
+                {"sector": "Technology", "exchange": "NASDAQ", "averageChange": 3.0},
+                {"sector": "Healthcare", "exchange": "NYSE", "averageChange": -2.0},
+            ]
+
+        with (
+            patch("scripts.smc_fmp_client._today_et", return_value=date(2026, 1, 5)),
+            patch("scripts.smc_fmp_client._prev_trading_day", return_value=date(2026, 1, 2)),
+            patch.object(c, "_get", side_effect=_fake_get),
+        ):
+            rows = c.get_sector_performance()
+
+        assert calls == [
+            ("/stable/sector-performance-snapshot", "2026-01-05"),
+            ("/stable/sector-performance-snapshot", "2026-01-02"),
+        ]
+        assert rows == [
+            {"sector": "Technology", "changesPercentage": 2.0},
+            {"sector": "Healthcare", "changesPercentage": -2.0},
+        ]
+        assert c._last_sector_performance_diagnostics["status"] == "ok"
+        assert c._last_sector_performance_diagnostics["used_fallback_previous_trading_day"] is True
+        assert c._last_sector_performance_diagnostics["selected_date"] == "2026-01-02"
+        assert c._last_sector_performance_diagnostics["raw_row_count"] == 3
+        assert c._last_sector_performance_diagnostics["returned_row_count"] == 2
+
     @patch("scripts.smc_fmp_client.urlopen")
     def test_get_stock_latest_news_returns_empty_on_error(self, mock_urlopen):
         mock_urlopen.side_effect = RuntimeError("network error")

@@ -414,6 +414,98 @@ class TestMalformedPayloads:
         assert audit_by_event["Core CPI MoM"]["passes_us_scope"] is True
         assert "missing_consensus" in audit_by_event["Core CPI MoM"]["rejection_reasons"]
 
+    def test_regime_fmp_frozen_macro_payload_normalizes_scope_consensus_and_dedupe(self):
+        fmp = MagicMock()
+        fmp.get_index_quote.return_value = {"price": 19.2}
+        fmp.get_sector_performance.return_value = []
+        fmp.get_macro_calendar.return_value = [
+            {
+                "country": "",
+                "currency": "USD",
+                "date": "2026-04-13 08:30:00",
+                "event": "GDP Growth Rate QoQ",
+                "actual": 3.1,
+                "estimate": 2.3,
+                "impact": "High",
+                "unit": "%",
+            },
+            {
+                "country": "US",
+                "currency": "USD",
+                "date": "2026-04-13 08:30:00",
+                "event": "Gross Domestic Product QoQ",
+                "actual": 3.0,
+                "consensus": 2.2,
+                "impact": "Medium",
+                "unit": "%",
+            },
+            {
+                "country": "US",
+                "currency": "USD",
+                "date": "2026-04-13 08:30:00",
+                "event": "Initial Jobless Claims",
+                "actual": 221,
+                "forecast": 235,
+                "impact": "High",
+                "unit": "k",
+            },
+            {
+                "country": "JP",
+                "currency": "JPY",
+                "date": "2026-04-13 23:50:00",
+                "event": "M3 Money Supply (Mar)",
+                "actual": 1.8,
+                "estimate": 1.9,
+                "impact": "Low",
+                "unit": "%",
+            },
+        ]
+
+        result = fetch_regime_fmp(fmp)
+
+        diagnostics = result.meta["diagnostics"]
+        assert diagnostics["macro_bias"] == pytest.approx(0.75)
+        assert diagnostics["macro_event_count"] == 4
+        assert diagnostics["macro_events_considered"] == 2
+        assert diagnostics["macro_inputs_used"] == [
+            "GDP Growth Rate QoQ",
+            "Initial Jobless Claims",
+        ]
+        assert diagnostics["macro_input_diagnostics"] == {
+            "raw_event_count": 4,
+            "us_scoped_event_count": 3,
+            "deduped_event_count": 2,
+            "scored_event_count": 2,
+            "contributing_event_count": 2,
+            "rejection_reason_counts": {
+                "deduped_duplicate": 1,
+                "non_us_event": 1,
+            },
+            "quality_flag_counts": {},
+        }
+
+        audit_by_event = {entry["event"]: entry for entry in diagnostics["macro_event_audit"]}
+        assert audit_by_event["GDP Growth Rate QoQ"]["passes_us_scope"] is True
+        assert audit_by_event["GDP Growth Rate QoQ"]["country"] == "US"
+        assert audit_by_event["GDP Growth Rate QoQ"]["consensus_field"] == "estimate"
+        assert audit_by_event["GDP Growth Rate QoQ"]["canonical_event"] == "gdp_qoq"
+        assert audit_by_event["GDP Growth Rate QoQ"]["contributed_to_bias"] is True
+        assert audit_by_event["Gross Domestic Product QoQ"]["rejection_reasons"] == ["deduped_duplicate"]
+        assert audit_by_event["Gross Domestic Product QoQ"]["passes_dedupe"] is False
+        assert audit_by_event["Initial Jobless Claims"]["consensus_field"] == "forecast"
+        assert audit_by_event["Initial Jobless Claims"]["canonical_event"] == "jobless_claims"
+        assert audit_by_event["Initial Jobless Claims"]["contributed_to_bias"] is True
+        assert audit_by_event["M3 Money Supply (Mar)"]["rejection_reasons"] == ["non_us_event"]
+
+        score_components = {
+            component["canonical_event"]: component
+            for component in diagnostics["macro_score_components"]
+        }
+        assert score_components["gdp_qoq"]["consensus_field"] == "estimate"
+        assert score_components["gdp_qoq"]["contribution"] == pytest.approx(0.5)
+        assert score_components["jobless_claims"]["consensus_field"] == "forecast"
+        assert score_components["jobless_claims"]["contribution"] == pytest.approx(1.0)
+
     def test_regime_fmp_reports_market_pe_modifier_diagnostics(self):
         fmp = MagicMock()
         fmp.get_index_quote.return_value = {"price": 14.2}
@@ -506,6 +598,26 @@ class TestMalformedPayloads:
         result = fetch_news_fmp(fmp, ["AAPL"])
         assert result.ok is True
         assert result.data["bullish_tickers"] == []
+
+    def test_news_fmp_uses_snippet_text_for_sentiment(self):
+        fmp = MagicMock()
+        fmp.get_stock_latest_news.return_value = [
+            {
+                "title": "AAPL corporate update",
+                "text": "Shares rally after the company beats earnings and raises guidance.",
+                "tickers": ["AAPL"],
+            },
+        ]
+
+        result = fetch_news_fmp(fmp, ["AAPL"])
+
+        assert result.ok is True
+        assert result.data["bullish_tickers"] == ["AAPL"]
+        assert result.meta["diagnostics"]["polarity_distribution"] == {
+            "positive": 1,
+            "negative": 0,
+            "neutral": 0,
+        }
 
     @patch("scripts.smc_news_scorer.compute_news_sentiment")
     @patch("scripts.smc_newsapi_ai.fetch_newsapi_records")

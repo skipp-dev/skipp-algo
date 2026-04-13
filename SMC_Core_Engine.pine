@@ -2510,8 +2510,8 @@ resolve_bus_reclaim_row(bool reclaim_recent, bool bull_reclaim_internal_low_stri
 resolve_bus_session_row(bool intraday_time_chart, bool use_trade_session_gate, bool use_opening_range_gate, bool session_structure_gate_ok, bool session_gate_ok) =>
     bp.resolve_bus_session_row(intraday_time_chart, use_trade_session_gate, use_opening_range_gate, session_structure_gate_ok, session_gate_ok)
 
-resolve_bus_market_row(bool use_index_gate, bool use_sector_gate, bool use_breadth_symbol_gate, bool market_symbols_missing, bool block_on_missing_market_symbol, bool market_regime_gate_ok, bool index_gate_effective_ok, bool sector_gate_effective_ok) =>
-    bp.resolve_bus_market_row(use_index_gate, use_sector_gate, use_breadth_symbol_gate, market_symbols_missing, block_on_missing_market_symbol, market_regime_gate_ok, index_gate_effective_ok, sector_gate_effective_ok)
+resolve_bus_market_row(bool use_index_gate, bool use_sector_gate, bool use_breadth_symbol_gate, bool market_symbols_missing, bool block_on_missing_market_symbol, bool market_regime_gate_ok, bool index_gate_effective_ok, bool sector_gate_effective_ok, bool market_valuation_caution) =>
+    bp.resolve_bus_market_row(use_index_gate, use_sector_gate, use_breadth_symbol_gate, market_symbols_missing, block_on_missing_market_symbol, market_regime_gate_ok, index_gate_effective_ok, sector_gate_effective_ok, market_valuation_caution)
 
 resolve_bus_vola_row(bool use_vola_compression_gate, bool vola_regime_gate_safe, bool vola_expansion_now, bool vola_compression_recent) =>
     bp.resolve_bus_vola_row(use_vola_compression_gate, vola_regime_gate_safe, vola_expansion_now, vola_compression_recent)
@@ -3394,6 +3394,12 @@ bool lib_has_macro_event  = mp.HIGH_IMPACT_MACRO_TODAY
 bool lib_news_bearish = str.contains(mp.NEWS_BEARISH_TICKERS, syminfo.ticker)
 bool lib_news_bullish = str.contains(mp.NEWS_BULLISH_TICKERS, syminfo.ticker)
 bool lib_low_volume   = str.contains(mp.VOLUME_LOW_TICKERS, syminfo.ticker)
+
+// ── Market Valuation Flags ──
+float  lib_market_pe_forward         = mp.MARKET_PE_FORWARD
+string lib_market_pe_regime          = mp.MARKET_PE_REGIME
+float  lib_macro_bias_pe_adjustment  = mp.MACRO_BIAS_PE_ADJUSTMENT
+bool   lib_market_valuation_caution  = lib_market_pe_forward > 0.0 and lib_market_pe_regime == "EXPENSIVE" and lib_macro_bias_pe_adjustment < 0.0
 
 // ── Flow Qualifier (v5.1) ──
 float  lib_rel_vol             = mp.REL_VOL
@@ -5981,7 +5987,7 @@ plot(bus_stop_level, 'BUS StopLevel', display = display.none)
 plot(bus_target_1, 'BUS Target1', display = display.none)
 plot(bus_target_2, 'BUS Target2', display = display.none)
 plot(resolve_bus_session_row(intraday_time_chart, use_trade_session_gate, use_opening_range_gate, session_structure_gate_ok, session_gate_ok), 'BUS SessionGateRow', display = display.none)
-plot(resolve_bus_market_row(use_index_gate, use_sector_gate, use_breadth_symbol_gate, market_symbols_missing, block_on_missing_market_symbol, market_regime_gate_ok, index_gate_effective_ok, sector_gate_effective_ok), 'BUS MarketGateRow', display = display.none)
+plot(resolve_bus_market_row(use_index_gate, use_sector_gate, use_breadth_symbol_gate, market_symbols_missing, block_on_missing_market_symbol, market_regime_gate_ok, index_gate_effective_ok, sector_gate_effective_ok, lib_market_valuation_caution), 'BUS MarketGateRow', display = display.none)
 plot(resolve_bus_vola_row(use_vola_compression_gate, vola_regime_gate_safe, vola_expansion_now, vola_compression_recent), 'BUS VolaGateRow', display = display.none)
 plot(resolve_bus_micro_session_row(use_microstructure_profiles, intraday_time_chart, micro_session_gate_ok, micro_rth_gate_ok, micro_midday_gate_ok, micro_premarket_gate_ok), 'BUS MicroSessionGateRow', display = display.none)
 plot(resolve_bus_micro_fresh_row(use_microstructure_profiles, micro_freshness_gate_ok), 'BUS MicroFreshRow', display = display.none)

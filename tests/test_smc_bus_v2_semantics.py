@@ -430,6 +430,8 @@ def decode_market_text(row_code: int) -> str:
         return 'Index blocked'
     if reason_code == 4:
         return 'Sector blocked'
+    if reason_code == 6:
+        return 'Valuation caution'
     return 'Breadth blocked'
 
 
@@ -723,6 +725,7 @@ def test_hard_gate_decoders_reproduce_current_bus_v2_contract() -> None:
     assert decode_market_text(pack_bus_row(-1, 3)) == 'Index blocked'
     assert decode_market_text(pack_bus_row(-1, 4)) == 'Sector blocked'
     assert decode_market_text(pack_bus_row(-1, 5)) == 'Breadth blocked'
+    assert decode_market_text(pack_bus_row(2, 6)) == 'Valuation caution'
 
     assert decode_vola_text(pack_bus_row(0, 1)) == 'off'
     assert decode_vola_text(pack_bus_row(5, 2)) == 'Compression -> Expansion'

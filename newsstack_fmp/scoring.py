@@ -3,6 +3,10 @@
 Assigns each normalised news item a category label and a composite score
 (0.0 – 1.0) based on keyword/regex matching against the headline.
 
+Polarity is headline-first but can use snippet/context text when callers
+provide it, which keeps FMP stock-latest summaries informative even when
+the title is generic.
+
 Enhanced with:
 - 16 category patterns (up from 8) covering macro, crypto, insider, buyback, etc.
 - Entity-level relevance scoring
@@ -45,13 +49,15 @@ PATTERNS: list[tuple[str, float, re.Pattern[str]]] = [
     ("management",  0.60, re.compile(r"\b(ceo|cfo|cto|appoints?|resigns?|steps?\s+down|board\s+of\s+directors)\b", re.I)),
 ]
 
-POS_HINTS = re.compile(
-    r"\b(raises|beats|approval|wins|award|record|growth|surge|"
-    r"outperform|upgrade|strong|accelerat|exceeds|profit|positive)\b", re.I,
-)
 NEG_HINTS = re.compile(
     r"\b(lowers|misses|crl|halted|offering|dilution|bankruptcy|delist|"
-    r"plunge|downgrade|underperform|weak|decline|loss|negative|warning|recall)\b", re.I,
+    r"plunge|downgrade|underperform|weak|decline|loss|negative|warning|recall|"
+    r"falls?|drops?|slumps?|slides?|sinks?|tumbles?|cuts?|disappoints?|warns?)\b", re.I,
+)
+POS_HINTS = re.compile(
+    r"\b(raises|beats|approval|wins|award|record|growth|surge|"
+    r"outperform|upgrade|strong|accelerat|exceeds|profit|positive|"
+    r"rally|rallies|jumps?|gains?|rebounds?|soars?|rises?|rose)\b", re.I,
 )
 
 # ── Headline token set for Jaccard novelty ──────────────────────
@@ -73,6 +79,21 @@ def _norm(s: str) -> str:
     s = (s or "").strip().lower()
     s = re.sub(r"[^\w\s]", "", s)
     return re.sub(r"\s+", " ", s)
+
+
+def _merge_text_fragments(*values: Any) -> str:
+    parts: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        text = str(value or "").strip()
+        if not text:
+            continue
+        normalized = text.lower()
+        if normalized in seen:
+            continue
+        seen.add(normalized)
+        parts.append(text)
+    return " ".join(parts)
 
 
 def cluster_hash(headline: str, tickers: list[str]) -> str:
@@ -111,9 +132,15 @@ def classify_and_score(
     if hasattr(item, "headline"):
         headline = item.headline or ""  # type: ignore[union-attr]
         tickers = item.tickers or []  # type: ignore[union-attr]
+        snippet = (
+            getattr(item, "snippet", "")
+            or getattr(item, "text", "")
+            or getattr(item, "content", "")
+        )
     else:
         headline = item.get("headline") or ""  # type: ignore[union-attr]
         tickers = item.get("tickers") or []  # type: ignore[union-attr]
+        snippet = item.get("snippet") or item.get("text") or item.get("content") or ""  # type: ignore[union-attr]
     if chash is None:
         chash = cluster_hash(headline, tickers)
 
@@ -134,9 +161,10 @@ def classify_and_score(
         clarity += 0.10
     clarity = min(1.0, clarity)
 
-    # Polarity
-    pos = bool(POS_HINTS.search(headline))
-    neg = bool(NEG_HINTS.search(headline))
+    # Polarity: use headline plus optional snippet/context text.
+    polarity_text = _merge_text_fragments(headline, snippet)
+    pos = bool(POS_HINTS.search(polarity_text))
+    neg = bool(NEG_HINTS.search(polarity_text))
     polarity = 0.0
     if pos and not neg:
         polarity = 0.5

@@ -26,7 +26,8 @@ def compute_news_sentiment(
         outside this set are silently ignored.
     articles:
         Each dict must have at least ``headline`` (str) and ``tickers``
-        (list[str]).
+        (list[str]). Optional ``snippet`` / ``text`` / ``content`` fields
+        are forwarded to the classifier as extra polarity context.
 
     Returns
     -------
@@ -47,6 +48,9 @@ def compute_news_sentiment(
 
     for article in articles:
         headline = str(article.get("headline") or "").strip()
+        snippet = str(
+            article.get("snippet") or article.get("text") or article.get("content") or ""
+        ).strip()
         if not headline:
             empty_headline_count += 1
         art_tickers = article.get("tickers") or []
@@ -64,6 +68,7 @@ def compute_news_sentiment(
 
         scored_article = dict(article)
         scored_article["headline"] = headline
+        scored_article["snippet"] = snippet
         result = classify_and_score(scored_article, cluster_count=1)
         if result.polarity > 0.1:
             polarity_distribution["positive"] += 1
