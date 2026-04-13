@@ -57,10 +57,11 @@ def test_library_release_manifest_tracks_product_cut_roles() -> None:
     payload = _load_json('artifacts/tradingview/library_release_manifest.json')
 
     assert payload['manifestVersion'] == 2
-    assert payload['library']['productivityGate']['publishReady'] is False
-    assert payload['library']['productivityGate']['fixtureInputDetected'] is True
-    assert payload['library']['productivityGate']['defaultEventRiskDetected'] is True
-    assert payload['library']['productivityGate']['placeholderSymbols'] == ['AAA', 'BBB', 'CCC']
+    assert payload['library']['productivityGate']['publishReady'] is True
+    assert payload['library']['productivityGate']['blockingReasons'] == []
+    assert payload['library']['productivityGate']['fixtureInputDetected'] is False
+    assert payload['library']['productivityGate']['defaultEventRiskDetected'] is False
+    assert payload['library']['productivityGate']['placeholderSymbols'] == []
     assert payload['productCut']['mainlineFiles'] == [
         'SMC_Core_Engine.pine',
         'SMC_Dashboard.pine',
