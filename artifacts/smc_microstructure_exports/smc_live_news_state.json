@@ -4,12 +4,70 @@
     "fmp_stock": 0.0,
     "fmp_press": 0.0,
     "fmp_articles": 0.0,
-    "newsapi_ai": 1776056880.0,
+    "newsapi_ai": 1776074354.0,
     "tv": 0.0,
-    "legacy_cursor": 1776056880.0
+    "legacy_cursor": 1776074354.0
   },
   "provider_state": {},
   "story_state": {
+    "ff44f858b11ebb113681c333dcfb7552e7bfd916:5920247": {
+      "story_key": "ff44f858b11ebb113681c333dcfb7552e7bfd916:5920247",
+      "cluster_hash": "ff44f858b11ebb113681c333dcfb7552e7bfd916",
+      "headline": "Insights Into Microsoft's Performance Versus Peers In Software Sector - Microsoft (NASDAQ:MSFT)",
+      "tickers": [
+        "MSFT"
+      ],
+      "published_ts": 1776074354.0,
+      "first_seen_ts": 1776075202.7431955,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "url": "https://www.benzinga.com/insights/news/26/04/51773654/insights-into-microsofts-performance-versus-peers-in-software-sector",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "last_seen_ts": 1776075202.7431955
+    },
+    "ba25bfd4b4ad9f308664d90b2a48eeac056a78da:5920228": {
+      "story_key": "ba25bfd4b4ad9f308664d90b2a48eeac056a78da:5920228",
+      "cluster_hash": "ba25bfd4b4ad9f308664d90b2a48eeac056a78da",
+      "headline": "Microsoft (MSFT) Stock: How the Tech Giant Monetizes Its AI Infrastructure - Blockonomi",
+      "tickers": [
+        "MSFT"
+      ],
+      "published_ts": 1776068695.0,
+      "first_seen_ts": 1776075202.7431955,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Blockonomi"
+      ],
+      "url": "https://blockonomi.com/microsoft-msft-stock-how-the-tech-giant-monetizes-its-ai-infrastructure/",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776075202.7431955
+    },
     "82b76cabc494cd85c56263d8ee1aeffd6041fdb2:5920189": {
       "story_key": "82b76cabc494cd85c56263d8ee1aeffd6041fdb2:5920189",
       "cluster_hash": "82b76cabc494cd85c56263d8ee1aeffd6041fdb2",
