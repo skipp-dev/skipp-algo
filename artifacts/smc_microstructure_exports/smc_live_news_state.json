@@ -4,12 +4,304 @@
     "fmp_stock": 0.0,
     "fmp_press": 0.0,
     "fmp_articles": 0.0,
-    "newsapi_ai": 1776074354.0,
+    "newsapi_ai": 1776088326.0,
     "tv": 0.0,
-    "legacy_cursor": 1776074354.0
+    "legacy_cursor": 1776088326.0
   },
   "provider_state": {},
   "story_state": {
+    "06d055368fdb89dddc4e36463fc6696b3e725abc:5920294": {
+      "story_key": "06d055368fdb89dddc4e36463fc6696b3e725abc:5920294",
+      "cluster_hash": "06d055368fdb89dddc4e36463fc6696b3e725abc",
+      "headline": "Why Exxon Mobil Shares Are Trading Higher On Monday? - Exxon Mobil (NYSE:XOM)",
+      "tickers": [
+        "XOM"
+      ],
+      "published_ts": 1776088326.0,
+      "first_seen_ts": 1776090459.9914722,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "url": "https://www.benzinga.com/trading-ideas/movers/26/04/51779652/why-exxon-mobil-shares-are-trading-higher-on-monday",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "last_seen_ts": 1776090459.9914722
+    },
+    "016641e4cd67e436fd92ad20510a92d6cadccac1:5920292": {
+      "story_key": "016641e4cd67e436fd92ad20510a92d6cadccac1:5920292",
+      "cluster_hash": "016641e4cd67e436fd92ad20510a92d6cadccac1",
+      "headline": "Microsoft (MSFT) Stock Plunges 27% But Analyst Projects 70% Rally Ahead - Blockonomi",
+      "tickers": [
+        "MSFT"
+      ],
+      "published_ts": 1776087665.0,
+      "first_seen_ts": 1776090459.9914722,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Blockonomi"
+      ],
+      "url": "https://blockonomi.com/microsoft-msft-stock-plunges-27-but-analyst-projects-70-rally-ahead/",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "polarity": 0.5,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776090459.9914722
+    },
+    "d839c1ecdcbc813a0f7b528298517e0c746ba6e5:5920272": {
+      "story_key": "d839c1ecdcbc813a0f7b528298517e0c746ba6e5:5920272",
+      "cluster_hash": "d839c1ecdcbc813a0f7b528298517e0c746ba6e5",
+      "headline": "AMZN Continues to Rebound as its CEO Doubles Down on $200B AI Bet",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_ts": 1776081720.0,
+      "first_seen_ts": 1776090459.9914722,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "NASDAQ Stock Market"
+      ],
+      "url": "https://www.nasdaq.com/articles/amzn-continues-rebound-its-ceo-doubles-down-200b-ai-bet",
+      "category": "management",
+      "impact": 0.6,
+      "clarity": 0.6,
+      "relevance": 0.7000000000000001,
+      "polarity": 0.5,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776090459.9914722
+    },
+    "9f55b686374205531bc839b8a20efc8e987674cf:5920289": {
+      "story_key": "9f55b686374205531bc839b8a20efc8e987674cf:5920289",
+      "cluster_hash": "9f55b686374205531bc839b8a20efc8e987674cf",
+      "headline": "Trade Strategy For SPY, QQQ, AAPL, MSFT, NVDA, GOOGL, META, And TSLA",
+      "tickers": [
+        "AAPL",
+        "META",
+        "MSFT"
+      ],
+      "published_ts": 1776086872.0,
+      "first_seen_ts": 1776090459.9914722,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "url": "https://www.benzinga.com/Opinion/26/04/51778581/trade-strategy-for-spy-qqq-aapl-msft-nvda-googl-meta-and-tsla-4",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.4054347826086957,
+      "polarity": 0.0,
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "last_seen_ts": 1776090459.9914722
+    },
+    "3dfddc87448e2de9cfc8d3aefb74735f1433cbcf:5920274": {
+      "story_key": "3dfddc87448e2de9cfc8d3aefb74735f1433cbcf:5920274",
+      "cluster_hash": "3dfddc87448e2de9cfc8d3aefb74735f1433cbcf",
+      "headline": "Another V-shaped rebound ahead? JPM says buy the dip in stocks By Investing.com",
+      "tickers": [
+        "JPM"
+      ],
+      "published_ts": 1776082386.0,
+      "first_seen_ts": 1776090459.9914722,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Investing.com"
+      ],
+      "url": "https://www.investing.com/news/stock-market-news/another-vshaped-rebound-ahead-jpm-says-buy-the-dip-in-stocks-4610185",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.5,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776090459.9914722
+    },
+    "86190395d4340ca9a01a344aadb1d9b1aadb826b:5920268": {
+      "story_key": "86190395d4340ca9a01a344aadb1d9b1aadb826b:5920268",
+      "cluster_hash": "86190395d4340ca9a01a344aadb1d9b1aadb826b",
+      "headline": "Capital One Financial, Amazon And Nvidia: CNBC's Final Trades - Amazon.com (NASDAQ:AMZN), Capital One Fin",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_ts": 1776080482.0,
+      "first_seen_ts": 1776090459.9914722,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "url": "https://www.benzinga.com/trading-ideas/long-ideas/26/04/51775752/capital-one-financial-amazon-nvidia-and-more-on-cnbcs-final-trades",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "last_seen_ts": 1776090459.9914722
+    },
+    "8cf28480374687623dcb0de0e0b2d2e9ea10faa8:5920258": {
+      "story_key": "8cf28480374687623dcb0de0e0b2d2e9ea10faa8:5920258",
+      "cluster_hash": "8cf28480374687623dcb0de0e0b2d2e9ea10faa8",
+      "headline": "Trump labor board pushes to settle major Amazon contractor case: report (AMZN:NASDAQ)",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_ts": 1776077409.0,
+      "first_seen_ts": 1776090459.9914722,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Seeking Alpha"
+      ],
+      "url": "https://seekingalpha.com/news/4574270-trump-labor-board-pushes-to-settle-major-amazon-contractor-case-report",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776090459.9914722
+    },
+    "9b368e426b9af47149adfc6aefd708db76eec7fa:5920257": {
+      "story_key": "9b368e426b9af47149adfc6aefd708db76eec7fa:5920257",
+      "cluster_hash": "9b368e426b9af47149adfc6aefd708db76eec7fa",
+      "headline": "JPMorgan Is About to Report Q1 Earnings Tomorrow. Options Traders Are Expecting a 3.87% Move in JPM Stock",
+      "tickers": [
+        "JPM"
+      ],
+      "published_ts": 1776077244.0,
+      "first_seen_ts": 1776090459.9914722,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Markets Insider"
+      ],
+      "url": "https://markets.businessinsider.com/news/stocks/jpmorgan-is-about-to-report-q1-earnings-tomorrow-options-traders-are-expecting-a-3-87-move-in-jpm-stock-1036014969",
+      "category": "earnings",
+      "impact": 0.8,
+      "clarity": 0.8,
+      "relevance": 0.8500000000000001,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776090459.9914722
+    },
+    "cedb00f78d190586ad68a71cc20982d42c688cb9:5920280": {
+      "story_key": "cedb00f78d190586ad68a71cc20982d42c688cb9:5920280",
+      "cluster_hash": "cedb00f78d190586ad68a71cc20982d42c688cb9",
+      "headline": "Stifel cuts Meta stock price target on slower ad growth outlook By Investing.com",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1776084131.0,
+      "first_seen_ts": 1776090459.9914722,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Investing.com South Africa"
+      ],
+      "url": "https://za.investing.com/news/stock-market-news/stifel-cuts-meta-stock-price-target-on-slower-ad-growth-outlook-93CH-4208690",
+      "category": "guidance",
+      "impact": 0.88,
+      "clarity": 0.6,
+      "relevance": 0.8260000000000001,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776090459.9914722
+    },
+    "4b05bcbc308ada81a79a3d6b26b5e6870812c2e3:5920273": {
+      "story_key": "4b05bcbc308ada81a79a3d6b26b5e6870812c2e3:5920273",
+      "cluster_hash": "4b05bcbc308ada81a79a3d6b26b5e6870812c2e3",
+      "headline": "Philips Appoints New Regional CEO to Drive Next Phase of Healthcare Transformation Across META Region - Middle East Business News and Information - mid-east.info",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1776082003.0,
+      "first_seen_ts": 1776090459.9914722,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "mid-east.info"
+      ],
+      "url": "https://mid-east.info/philips-appoints-new-regional-ceo-to-drive-next-phase-of-healthcare-transformation-across-meta-region/",
+      "category": "management",
+      "impact": 0.6,
+      "clarity": 0.6,
+      "relevance": 0.7000000000000001,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776090459.9914722
+    },
     "ff44f858b11ebb113681c333dcfb7552e7bfd916:5920247": {
       "story_key": "ff44f858b11ebb113681c333dcfb7552e7bfd916:5920247",
       "cluster_hash": "ff44f858b11ebb113681c333dcfb7552e7bfd916",
