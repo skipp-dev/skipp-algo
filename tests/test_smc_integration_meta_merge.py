@@ -52,7 +52,7 @@ def test_merge_raw_meta_domains_keeps_required_volume_and_optional_domains() -> 
 
     assert merged["symbol"] == "AAPL"
     assert merged["timeframe"] == "15m"
-    assert float(merged["asof_ts"]) == 1709253602.0
+    assert float(merged["asof_ts"]) == 1709253600.0
     assert merged["technical"]["value"]["bias"] == "BULLISH"
     assert merged["news"]["value"]["bias"] == "BEARISH"
     assert merged["volume"]["value"]["regime"] == "NORMAL"

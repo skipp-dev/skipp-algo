@@ -80,6 +80,17 @@ def test_build_measurement_evidence_uses_contract_and_real_bars(monkeypatch) -> 
     )
     monkeypatch.setattr(
         measurement_evidence,
+        "load_raw_meta_input_composite",
+        lambda symbol, timeframe, source="auto": {
+            "event_risk": {
+                "EVENT_PROVIDER_STATUS": "ok",
+                "EVENT_RISK_LEVEL": "HIGH",
+                "SYMBOL_EVENT_BLOCKED": True,
+            }
+        },
+    )
+    monkeypatch.setattr(
+        measurement_evidence,
         "_load_source_bars",
         lambda symbol, timeframe, resolved_inputs=None: (bars, "synthetic_bundle"),
     )
@@ -142,6 +153,9 @@ def test_build_measurement_evidence_uses_contract_and_real_bars(monkeypatch) -> 
     assert evidence.details["vol_regime_forecast_volatility"] == 0.02
     assert evidence.details["vol_regime_baseline_volatility"] == 0.019
     assert evidence.details["vol_regime_forecast_ratio"] == 1.0526
+    assert evidence.details["event_risk_source_mode"] == "raw_meta"
+    assert evidence.details["event_risk_provider_status"] == "ok"
+    assert evidence.details["event_risk_signal_present"] is True
     assert evidence.details["ensemble_quality"]["available_components"] == ["bias", "scoring", "vol_regime"]
     assert 0.0 <= evidence.details["ensemble_quality"]["score"] <= 1.0
     assert "session:NONE" in evidence.stratified_events
@@ -178,6 +192,73 @@ def test_build_measurement_evidence_warns_when_contract_is_missing(monkeypatch) 
     assert evidence.warnings == ["structure artifact unavailable for measurement evidence"]
 
 
+def test_build_measurement_evidence_uses_reference_snapshot_event_risk_when_meta_has_none(monkeypatch) -> None:
+    contract, explicit_payload = _contract_payload()
+    bars = _daily_bars()
+
+    monkeypatch.setattr(
+        measurement_evidence.structure_artifact_json,
+        "load_normalized_structure_contract_input",
+        lambda symbol, timeframe: contract,
+    )
+    monkeypatch.setattr(
+        measurement_evidence.structure_artifact_json,
+        "resolve_artifact_mode",
+        lambda symbol, timeframe: "deterministic",
+    )
+    monkeypatch.setattr(
+        measurement_evidence,
+        "resolve_structure_artifact_inputs",
+        lambda: {"resolution_mode": "synthetic", "export_bundle_root": None, "workbook_path": None},
+    )
+    monkeypatch.setattr(
+        measurement_evidence,
+        "load_raw_meta_input_composite",
+        lambda symbol, timeframe, source="auto": {},
+    )
+    monkeypatch.setattr(
+        measurement_evidence,
+        "get_reference_event_risk_snapshot",
+        lambda symbols: {
+            "provider_status": "ready",
+            "reference_change_tickers": ["AAPL"],
+            "by_symbol": {
+                "AAPL": {
+                    "latest_effective_date": "2024-01-03",
+                    "recent_events": [{"event": "SPLIT", "effective_date": "2024-01-03"}],
+                }
+            },
+        },
+    )
+    monkeypatch.setattr(
+        measurement_evidence,
+        "_load_source_bars",
+        lambda symbol, timeframe, resolved_inputs=None: (bars, "synthetic_bundle"),
+    )
+    monkeypatch.setattr(
+        measurement_evidence,
+        "build_explicit_structure_from_bars",
+        lambda raw_bars, symbol, timeframe, structure_profile="hybrid_default": explicit_payload,
+    )
+    monkeypatch.setattr(
+        measurement_evidence,
+        "build_htf_bias_context",
+        lambda df, timeframe, htf_frames=None: {"fvg_bias_counter": [{"counter": 2}]},
+    )
+    monkeypatch.setattr(
+        measurement_evidence,
+        "build_session_liquidity_context",
+        lambda df, tz="America/New_York": {"killzones": []},
+    )
+
+    evidence = measurement_evidence.build_measurement_evidence("AAPL", "1D")
+
+    assert evidence.details["event_risk_source_mode"] == "reference_snapshot"
+    assert evidence.details["event_risk_provider_status"] == "ok"
+    assert evidence.details["event_risk_reference_provider_status"] == "ready"
+    assert evidence.details["event_risk_signal_present"] is True
+
+
 def test_build_measurement_evidence_falls_back_to_recomputed_families(monkeypatch) -> None:
     _, explicit_payload = _contract_payload()
     bars = _daily_bars()
@@ -202,6 +283,16 @@ def test_build_measurement_evidence_falls_back_to_recomputed_families(monkeypatc
         measurement_evidence,
         "resolve_structure_artifact_inputs",
         lambda: {"resolution_mode": "synthetic", "export_bundle_root": None, "workbook_path": None},
+    )
+    monkeypatch.setattr(
+        measurement_evidence,
+        "load_raw_meta_input_composite",
+        lambda symbol, timeframe, source="auto": {},
+    )
+    monkeypatch.setattr(
+        measurement_evidence,
+        "get_reference_event_risk_snapshot",
+        lambda symbols: {"provider_status": "ready", "reference_change_tickers": [], "by_symbol": {}},
     )
     monkeypatch.setattr(
         measurement_evidence,

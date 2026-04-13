@@ -280,6 +280,77 @@ def test_smoke_detects_empty_structure_input_as_degradation(monkeypatch):
     assert any(item.get("code") == "EMPTY_STRUCTURE_INPUT" for item in smoke["degradations"])
 
 
+def test_smoke_detects_bundle_without_context_bars_as_degradation(monkeypatch):
+    monkeypatch.setattr(
+        provider_health,
+        "discover_composite_source_plan",
+        lambda **kwargs: {
+            "snapshot_structure": "artifact_json",
+            "snapshot_meta": "symbol_timeframe",
+            "snapshot_technical": "none",
+            "snapshot_news": "none",
+        },
+    )
+    monkeypatch.setattr(
+        provider_health,
+        "load_raw_structure_input",
+        lambda symbol, timeframe, source: {
+            "bos": [{"id": "bos:1", "time": 1.0, "price": 100.0, "kind": "BOS", "dir": "UP"}],
+            "orderblocks": [],
+            "fvg": [],
+            "liquidity_sweeps": [],
+        },
+    )
+    monkeypatch.setattr(
+        provider_health,
+        "load_raw_meta_input_composite",
+        lambda symbol, timeframe, source: {
+            "asof_ts": 995.0,
+            "volume": {"value": {"regime": "NORMAL", "thin_fraction": 0.1}},
+        },
+    )
+    monkeypatch.setattr(
+        provider_health,
+        "build_snapshot_bundle_for_symbol_timeframe",
+        lambda symbol, timeframe, source, generated_at: {
+            "snapshot": {
+                "symbol": symbol,
+                "timeframe": timeframe,
+                "generated_at": generated_at,
+                "structure": {
+                    "bos": [{"id": "bos:1"}],
+                    "orderblocks": [],
+                    "fvg": [],
+                    "liquidity_sweeps": [],
+                },
+            },
+            "source_plan": {
+                "snapshot_structure": "artifact_json",
+                "snapshot_meta": "symbol_timeframe",
+                "snapshot_technical": "none",
+                "snapshot_news": "none",
+            },
+            "dashboard_payload": {},
+            "pine_payload": {},
+            "context_diagnostics": {
+                "bars_available": False,
+                "bar_count": 0,
+                "reason": "empty_bars",
+            },
+        },
+    )
+
+    smoke = provider_health._run_smoke_checks(
+        symbols=["AAPL"],
+        timeframes=["15m"],
+        checked_at=1_000.0,
+        stale_after_seconds=None,
+    )
+
+    assert smoke["results"][0]["status"] == "warn"
+    assert any(item.get("code") == "EMPTY_CONTEXT_BARS" for item in smoke["degradations"])
+
+
 def test_smoke_release_reference_ignores_empty_structure_from_structure_artifact(monkeypatch):
     import smc_integration.repo_sources as repo_sources_module
 
@@ -961,6 +1032,43 @@ def test_strict_release_policy_fails_when_manifest_timestamp_missing(monkeypatch
 
     assert report["overall_status"] == "fail"
     assert any(item.get("code") == "MISSING_MANIFEST_GENERATED_AT" for item in report["failures"])
+
+
+def test_strict_release_policy_promotes_empty_context_bars_to_failure(monkeypatch, tmp_path):
+    manifest_path = tmp_path / "manifest_15m.json"
+    manifest_path.write_text(
+        json.dumps({"generated_at": 95.0, "timeframe": "15m", "symbols": ["AAPL"]}),
+        encoding="utf-8",
+    )
+    os.utime(manifest_path, (95.0, 95.0))
+
+    monkeypatch.setattr(provider_health, "discover_provider_matrix", lambda: [])
+    monkeypatch.setattr(provider_health, "discover_structure_source_status", _stub_structure_status)
+    monkeypatch.setattr(provider_health.structure_artifact_json, "STRUCTURE_ARTIFACTS_DIR", tmp_path)
+    monkeypatch.setattr(provider_health.structure_artifact_json, "discover_normalized_contract_summary", _stub_contract_summary)
+    monkeypatch.setattr(provider_health.structure_artifact_json, "has_artifact_for_symbol_timeframe", lambda symbol, timeframe: True)
+    monkeypatch.setattr(
+        provider_health,
+        "_run_smoke_checks",
+        lambda **kwargs: {
+            "results": [],
+            "warnings": [],
+            "failures": [],
+            "degradations": [{"code": "EMPTY_CONTEXT_BARS", "symbol": "AAPL", "timeframe": "15m"}],
+            "domain_alerts": [],
+        },
+    )
+
+    report = provider_health.run_provider_health_check(
+        symbols=["AAPL"],
+        timeframes=["15m"],
+        checked_at=100.0,
+        stale_after_seconds=3600,
+        strict_release_policy=True,
+    )
+
+    assert report["overall_status"] == "fail"
+    assert any(item.get("code") == "EMPTY_CONTEXT_BARS" for item in report["failures"])
 
 
 def test_strict_release_policy_passes_on_fresh_reference_artifact(monkeypatch, tmp_path):

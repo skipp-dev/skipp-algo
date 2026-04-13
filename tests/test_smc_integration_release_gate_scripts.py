@@ -152,6 +152,52 @@ def test_release_runner_report_and_exit_are_deterministic(monkeypatch) -> None:
     assert captured_reports[0] == captured_reports[1]
 
 
+def test_release_runner_skips_publish_contract_gate_when_requested(monkeypatch) -> None:
+    captured_reports: list[dict] = []
+
+    monkeypatch.setattr(
+        release_script,
+        "build_parser",
+        lambda: _Parser(
+            Namespace(
+                symbols="IBG",
+                timeframes="15m",
+                stale_after_seconds=3600,
+                fail_on_warn=False,
+                allow_warn=True,
+                skip_publish_contract=True,
+                manifest="pine/generated/smc_micro_profiles_generated.json",
+                core_engine="SMC_Core_Engine.pine",
+                measurement_output_root=None,
+                measurement_baseline_summary=None,
+                strict_measurement_shadow=False,
+                output="-",
+            )
+        ),
+    )
+    monkeypatch.setattr(release_script.time, "time", lambda: 1700000000.0)
+    monkeypatch.setattr(
+        release_script,
+        "run_provider_health_check",
+        lambda **kwargs: {
+            "overall_status": "ok",
+            "failures": [],
+            "warnings": [],
+            "degradations_detected": [],
+            "smoke_test_results": [{"symbol": "IBG", "timeframe": "15m"}],
+        },
+    )
+    monkeypatch.setattr(release_script, "_run_reference_bundle_gate", lambda symbol, timeframe, generated_at: {"name": "reference_bundle", "status": "ok", "details": {}})
+    monkeypatch.setattr(release_script, "_run_publish_contract_gate", lambda args: (_ for _ in ()).throw(AssertionError("publish contract gate should be skipped")))
+    monkeypatch.setattr(release_script, "_run_measurement_gate", lambda symbol, timeframe, output_root, report_output="-", **kwargs: {"name": "measurement_lane", "status": "ok", "blocking": False, "details": {"measurement_manifest_present": False}})
+    monkeypatch.setattr(release_script, "_render", lambda report, output: captured_reports.append(report))
+
+    rc = release_script.main()
+
+    assert rc == 0
+    assert [gate["name"] for gate in captured_reports[-1]["gates"]] == ["provider_health", "reference_bundle", "measurement_lane"]
+
+
 def test_release_runner_surfaces_provider_domain_alerts(monkeypatch) -> None:
     captured_reports: list[dict] = []
 

@@ -141,7 +141,16 @@ def test_bundle_contains_snapshot_projections_and_additive_contexts(monkeypatch)
     assert bundle["measurement_summary"]["scoring"]["calibration"]["n_events"] == 1
     assert bundle["measurement_summary"]["scoring"]["stratified_calibration"]["dimensions_present"] == ["htf_bias", "session", "vol_regime"]
     assert bundle["measurement_summary"]["scoring"]["contextual_calibration"]["dimensions_present"] == ["htf_bias", "session", "vol_regime"]
+    assert bundle["context_diagnostics"] == {
+        "bars_available": True,
+        "bar_count": 3,
+        "structure_qualifiers_available": True,
+        "session_context_available": True,
+        "htf_context_available": True,
+    }
     assert bundle["market_context"]["bias_direction"] == bundle["bias_verdict"]["direction"]
+    assert bundle["market_context"]["bars_available"] is True
+    assert bundle["market_context"]["bar_count"] == 3
     assert bundle["market_context"]["vol_regime_label"] == "HIGH_VOL"
     assert bundle["market_context"]["measurement_status"] == "available"
 
@@ -152,3 +161,92 @@ def test_bundle_contains_snapshot_projections_and_additive_contexts(monkeypatch)
     assert dashboard_coverage["has_fvg"] is False
     assert dashboard_coverage["has_liquidity_sweeps"] is False
     assert pine_coverage == dashboard_coverage
+
+
+def test_bundle_marks_empty_context_bars_and_unknown_vol_regime(monkeypatch) -> None:
+    raw_structure = {
+        "bos": [{"id": "bos:1", "time": 1.0, "price": 101.0, "kind": "BOS", "dir": "UP"}],
+        "orderblocks": [],
+        "fvg": [],
+        "liquidity_sweeps": [],
+    }
+    raw_meta = {
+        "symbol": "AAPL",
+        "timeframe": "15m",
+        "asof_ts": 10.0,
+        "volume": {
+            "value": {"regime": "NORMAL", "thin_fraction": 0.1},
+            "asof_ts": 10.0,
+            "stale": False,
+        },
+    }
+    empty_bars = pd.DataFrame(columns=["timestamp", "open", "high", "low", "close", "volume", "symbol"])
+
+    monkeypatch.setattr(service, "select_best_structure_source", lambda: _FakeSourceDescriptor())
+    monkeypatch.setattr(service, "discover_composite_source_plan", lambda **_: {"structure": "structure_artifact_json", "volume": "watchlist"})
+    monkeypatch.setattr(service, "discover_structure_source_status", lambda **_: {"source": "structure_artifact_json", "coverage": "partial"})
+    monkeypatch.setattr(service, "load_raw_structure_input", lambda *args, **kwargs: raw_structure)
+    monkeypatch.setattr(service, "load_raw_meta_input_composite", lambda *args, **kwargs: raw_meta)
+    monkeypatch.setattr(service, "_load_symbol_bars_for_context", lambda *args, **kwargs: empty_bars)
+    monkeypatch.setattr(service.structure_artifact_json, "load_structure_context_input", lambda *args, **kwargs: {"coverage": {"has_bos": True}})
+    monkeypatch.setattr(
+        service,
+        "build_measurement_evidence",
+        lambda *_args, **_kwargs: MeasurementEvidence(
+            events_by_family={"BOS": [], "OB": [], "FVG": [], "SWEEP": []},
+            stratified_events={},
+            scored_events=[],
+            details={
+                "measurement_evidence_present": False,
+                "bars_source_mode": "none",
+                "evaluated_event_counts": {"BOS": 0, "OB": 0, "FVG": 0, "SWEEP": 0},
+                "ensemble_quality": {},
+            },
+            warnings=["no bar source available for measurement evidence"],
+        ),
+    )
+    monkeypatch.setattr(
+        service,
+        "compute_vol_regime",
+        lambda _bars: VolRegimeResult(
+            label="NORMAL",
+            raw_atr_ratio=1.0,
+            confidence=0.0,
+            bars_used=0,
+            model_source="atr_fallback",
+            fallback_reason="empty_bars",
+            forecast_volatility=None,
+            baseline_volatility=None,
+            forecast_ratio=None,
+        ),
+    )
+
+    bundle = service.build_snapshot_bundle_for_symbol_timeframe("AAPL", "15m", source="auto", generated_at=1709253600.0)
+
+    assert bundle["structure_qualifiers"] == {}
+    assert bundle["session_context"] == {}
+    assert bundle["htf_context"] == {}
+    assert bundle["context_diagnostics"] == {
+        "bars_available": False,
+        "bar_count": 0,
+        "structure_qualifiers_available": False,
+        "session_context_available": False,
+        "htf_context_available": False,
+        "reason": "empty_bars",
+    }
+    assert bundle["vol_regime"] == {
+        "label": "UNKNOWN",
+        "raw_atr_ratio": 1.0,
+        "confidence": 0.0,
+        "bars_used": 0,
+        "model_source": "atr_fallback",
+        "fallback_reason": "empty_bars",
+        "forecast_volatility": None,
+        "baseline_volatility": None,
+        "forecast_ratio": None,
+        "raw_label": "NORMAL",
+        "service_override_reason": "empty_bars",
+    }
+    assert bundle["market_context"]["bars_available"] is False
+    assert bundle["market_context"]["bar_count"] == 0
+    assert bundle["market_context"]["vol_regime_label"] == "UNKNOWN"

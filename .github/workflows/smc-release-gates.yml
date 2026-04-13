@@ -43,9 +43,24 @@ jobs:
           python scripts/run_smc_pre_release_artifact_refresh.py \
             --output artifacts/ci/smc_pre_release_artifact_refresh_report.json
 
+      - name: Verify refreshed release reference manifests are unchanged
+        run: |
+          mkdir -p artifacts/ci
+          shopt -s nullglob
+          manifests=(reports/smc_structure_artifacts/manifest_*.json)
+          : > artifacts/ci/smc_release_reference_manifest.diff
+          if [ ${#manifests[@]} -gt 0 ]; then
+            git --no-pager diff -- "${manifests[@]}" > artifacts/ci/smc_release_reference_manifest.diff || true
+          fi
+          if [ -s artifacts/ci/smc_release_reference_manifest.diff ]; then
+            echo "::error::Release reference manifest drift detected after refresh. Commit refreshed manifests before publishing."
+            exit 1
+          fi
+
       - name: Run strict release gates
         run: |
           python scripts/run_smc_release_gates.py \
+            --strict-measurement-shadow \
             --output artifacts/ci/smc_release_gates_report.json
 
       - name: Run release validation test matrix
@@ -151,6 +166,7 @@ jobs:
           path: |
             artifacts/ci/measurement/
             artifacts/ci/smc_pre_release_artifact_refresh_report.json
+            artifacts/ci/smc_release_reference_manifest.diff
             artifacts/ci/smc_release_gates_report.json
             artifacts/ci/smc_release_evidence_summary.json
             artifacts/ci/smc_tradingview_post_release_report.json

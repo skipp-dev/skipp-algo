@@ -7,8 +7,10 @@ from typing import Any
 
 import pandas as pd
 
+from databento_reference import get_reference_event_risk_snapshot
 from scripts.explicit_structure_from_bars import build_explicit_structure_from_bars, resample_bars_to_timeframe
 from scripts.load_databento_export_bundle import load_export_bundle
+from scripts.smc_event_risk_builder import build_event_risk
 from scripts.smc_event_risk_light import build_event_risk_light
 from scripts.smc_signal_quality import build_signal_quality
 from scripts.smc_htf_context import build_htf_bias_context
@@ -30,6 +32,7 @@ from smc_core.scoring import (
 )
 from smc_core.vol_regime import compute_vol_regime
 from smc_integration.artifact_resolution import resolve_structure_artifact_inputs
+from smc_integration.repo_sources import load_raw_meta_input_composite
 from smc_integration.sources import structure_artifact_json
 
 
@@ -58,6 +61,60 @@ def _empty_bars() -> pd.DataFrame:
 
 def _empty_family_map() -> dict[EventFamily, list[dict[str, Any]]]:
     return {family: [] for family in _FAMILIES}
+
+
+def _empty_event_risk_light() -> dict[str, Any]:
+    return build_event_risk_light(event_risk={"EVENT_PROVIDER_STATUS": "no_data"})
+
+
+def _event_risk_signal_present(event_risk_light: dict[str, Any]) -> bool:
+    level = str(event_risk_light.get("EVENT_RISK_LEVEL", "NONE") or "NONE").strip().upper()
+    return bool(
+        event_risk_light.get("MARKET_EVENT_BLOCKED")
+        or event_risk_light.get("SYMBOL_EVENT_BLOCKED")
+        or level != "NONE"
+    )
+
+
+def _resolve_measurement_event_risk_light(symbol: str, timeframe: str) -> tuple[dict[str, Any], dict[str, Any]]:
+    try:
+        raw_meta = load_raw_meta_input_composite(symbol, timeframe, source="auto")
+    except Exception:
+        raw_meta = None
+
+    raw_event_risk = raw_meta.get("event_risk") if isinstance(raw_meta, dict) else None
+    if isinstance(raw_event_risk, dict) and raw_event_risk:
+        event_risk_light = build_event_risk_light(event_risk=dict(raw_event_risk))
+        return event_risk_light, {
+            "event_risk_source_mode": "raw_meta",
+            "event_risk_provider_status": str(event_risk_light.get("EVENT_PROVIDER_STATUS", "no_data") or "no_data"),
+            "event_risk_reference_provider_status": None,
+            "event_risk_signal_present": _event_risk_signal_present(event_risk_light),
+        }
+
+    try:
+        reference_snapshot = get_reference_event_risk_snapshot([symbol])
+    except Exception:
+        reference_snapshot = None
+
+    if isinstance(reference_snapshot, dict):
+        broad_event_risk = build_event_risk(reference=reference_snapshot)
+        event_risk_light = build_event_risk_light(event_risk=broad_event_risk)
+        reference_provider_status = str(reference_snapshot.get("provider_status") or "").strip() or None
+        return event_risk_light, {
+            "event_risk_source_mode": "reference_snapshot",
+            "event_risk_provider_status": str(event_risk_light.get("EVENT_PROVIDER_STATUS", "no_data") or "no_data"),
+            "event_risk_reference_provider_status": reference_provider_status,
+            "event_risk_signal_present": _event_risk_signal_present(event_risk_light),
+        }
+
+    event_risk_light = _empty_event_risk_light()
+    return event_risk_light, {
+        "event_risk_source_mode": "none",
+        "event_risk_provider_status": str(event_risk_light.get("EVENT_PROVIDER_STATUS", "no_data") or "no_data"),
+        "event_risk_reference_provider_status": None,
+        "event_risk_signal_present": False,
+    }
 
 
 def _normalize_numeric_bars(frame: pd.DataFrame, *, timestamp_column: str) -> pd.DataFrame:
@@ -627,6 +684,7 @@ def _event_signal_quality_score(
     anchor_ts: float,
     bias_direction: str,
     vol_regime_label: str,
+    event_risk_light: dict[str, Any],
     orderblocks: list[dict[str, Any]],
     fvgs: list[dict[str, Any]],
     sweeps: list[dict[str, Any]],
@@ -637,7 +695,7 @@ def _event_signal_quality_score(
     expected_direction = _expected_event_direction(event, family)
     current_price = _anchor_reference_price(event, family=family, bars=bars, anchor_idx=anchor_idx)
     enrichment = {
-        "event_risk_light": build_event_risk_light(event_risk={"EVENT_PROVIDER_STATUS": "no_data"}),
+        "event_risk_light": dict(event_risk_light),
         "structure_state_light": _structure_state_light_for_event(
             event=event,
             family=family,
@@ -890,6 +948,8 @@ def build_measurement_evidence(symbol: str, timeframe: str) -> MeasurementEviden
 
     details["structure_profile_used"] = str(contract.get("structure_profile_used", "hybrid_default"))
     details["canonical_event_counts"] = _canonical_event_counts(contract)
+    event_risk_light, event_risk_details = _resolve_measurement_event_risk_light(symbol, timeframe)
+    details.update(event_risk_details)
 
     raw_bars, bars_source_mode = _load_source_bars(symbol, timeframe, resolved_inputs)
     details["bars_source_mode"] = bars_source_mode
@@ -1020,6 +1080,7 @@ def build_measurement_evidence(symbol: str, timeframe: str) -> MeasurementEviden
                 anchor_ts=anchor_ts,
                 bias_direction=bias_verdict.direction,
                 vol_regime_label=vol_regime.label,
+                event_risk_light=event_risk_light,
                 orderblocks=effective_structure["orderblocks"],
                 fvgs=effective_structure["fvg"],
                 sweeps=effective_structure["liquidity_sweeps"],
@@ -1067,6 +1128,7 @@ def build_measurement_evidence(symbol: str, timeframe: str) -> MeasurementEviden
                 anchor_ts=anchor_ts,
                 bias_direction=bias_verdict.direction,
                 vol_regime_label=vol_regime.label,
+                event_risk_light=event_risk_light,
                 orderblocks=effective_structure["orderblocks"],
                 fvgs=effective_structure["fvg"],
                 sweeps=effective_structure["liquidity_sweeps"],
@@ -1115,6 +1177,7 @@ def build_measurement_evidence(symbol: str, timeframe: str) -> MeasurementEviden
                 anchor_ts=anchor_ts,
                 bias_direction=bias_verdict.direction,
                 vol_regime_label=vol_regime.label,
+                event_risk_light=event_risk_light,
                 orderblocks=effective_structure["orderblocks"],
                 fvgs=effective_structure["fvg"],
                 sweeps=effective_structure["liquidity_sweeps"],
@@ -1158,6 +1221,7 @@ def build_measurement_evidence(symbol: str, timeframe: str) -> MeasurementEviden
                 anchor_ts=anchor_ts,
                 bias_direction=bias_verdict.direction,
                 vol_regime_label=vol_regime.label,
+                event_risk_light=event_risk_light,
                 orderblocks=effective_structure["orderblocks"],
                 fvgs=effective_structure["fvg"],
                 sweeps=effective_structure["liquidity_sweeps"],

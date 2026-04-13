@@ -72,8 +72,8 @@ def _serialize_bias_verdict(bias_verdict: Any) -> dict[str, Any]:
     }
 
 
-def _serialize_vol_regime(vol_regime_result: Any) -> dict[str, Any]:
-    return {
+def _serialize_vol_regime(vol_regime_result: Any, *, bars_available: bool) -> dict[str, Any]:
+    payload = {
         "label": vol_regime_result.label,
         "raw_atr_ratio": vol_regime_result.raw_atr_ratio,
         "confidence": vol_regime_result.confidence,
@@ -84,6 +84,27 @@ def _serialize_vol_regime(vol_regime_result: Any) -> dict[str, Any]:
         "baseline_volatility": vol_regime_result.baseline_volatility,
         "forecast_ratio": vol_regime_result.forecast_ratio,
     }
+    if not bars_available and str(vol_regime_result.fallback_reason or "").strip().lower() == "empty_bars":
+        payload["raw_label"] = payload["label"]
+        payload["label"] = "UNKNOWN"
+        payload["confidence"] = 0.0
+        payload["service_override_reason"] = "empty_bars"
+    return payload
+
+
+def _context_diagnostics_for_bars(bars: pd.DataFrame) -> dict[str, Any]:
+    bar_count = int(len(bars))
+    bars_available = bar_count > 0
+    diagnostics: dict[str, Any] = {
+        "bars_available": bars_available,
+        "bar_count": bar_count,
+        "structure_qualifiers_available": bars_available,
+        "session_context_available": bars_available,
+        "htf_context_available": bars_available,
+    }
+    if not bars_available:
+        diagnostics["reason"] = "empty_bars"
+    return diagnostics
 
 
 def _serialize_scoring_family_metrics(scoring_result: Any) -> dict[str, dict[str, Any]]:
@@ -403,7 +424,8 @@ def build_snapshot_bundle_for_symbol_timeframe(
         source_descriptor = by_name[source_key]
 
     bars = _load_symbol_bars_for_context(symbol, timeframe)
-    if bars.empty:
+    context_diagnostics = _context_diagnostics_for_bars(bars)
+    if not context_diagnostics["bars_available"]:
         structure_qualifiers: dict[str, Any] = {}
         session_context: dict[str, Any] = {}
         htf_context: dict[str, Any] = {}
@@ -414,21 +436,23 @@ def build_snapshot_bundle_for_symbol_timeframe(
 
     bias_verdict = merge_bias(htf_context or None, session_context or None)
 
-    # Vol-regime classification (additive, degrades to NORMAL on empty bars)
     vol_regime_result = compute_vol_regime(bars)
+    vol_regime_payload = _serialize_vol_regime(
+        vol_regime_result,
+        bars_available=bool(context_diagnostics["bars_available"]),
+    )
     heuristic_quality = derive_base_signals(normalize_meta(snapshot.meta))["global_strength"]
     ensemble_quality = build_ensemble_quality(
         generated_at=float(snapshot.generated_at),
         heuristic_quality=heuristic_quality,
         bias_direction=bias_verdict.direction,
         bias_confidence=bias_verdict.confidence,
-        vol_regime_label=vol_regime_result.label,
-        vol_regime_confidence=vol_regime_result.confidence,
+        vol_regime_label=str(vol_regime_payload["label"]),
+        vol_regime_confidence=float(vol_regime_payload["confidence"]),
     )
 
     structure_context = normalized_structure_context
     bias_payload = _serialize_bias_verdict(bias_verdict)
-    vol_regime_payload = _serialize_vol_regime(vol_regime_result)
     measurement_summary = _build_measurement_summary(symbol, timeframe)
     measurement_refs = {
         "artifact_dir": f"measurement/{symbol}/{timeframe}",
@@ -449,6 +473,7 @@ def build_snapshot_bundle_for_symbol_timeframe(
         "structure_qualifiers": structure_qualifiers,
         "session_context": session_context,
         "htf_context": htf_context,
+        "context_diagnostics": context_diagnostics,
         "bias_verdict": bias_payload,
         "vol_regime": vol_regime_payload,
         "ensemble_quality": serialize_ensemble_quality(ensemble_quality),
@@ -457,6 +482,8 @@ def build_snapshot_bundle_for_symbol_timeframe(
         "market_context": {
             "bias_direction": bias_payload["direction"],
             "bias_confidence": bias_payload["confidence"],
+            "bars_available": context_diagnostics["bars_available"],
+            "bar_count": context_diagnostics["bar_count"],
             "vol_regime_label": vol_regime_payload["label"],
             "vol_regime_confidence": vol_regime_payload["confidence"],
             "measurement_status": measurement_summary["status"],

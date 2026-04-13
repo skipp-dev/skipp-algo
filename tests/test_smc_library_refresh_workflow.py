@@ -61,6 +61,7 @@ def test_refresh_workflow_surfaces_provider_health_signals_in_summary_and_notifi
 def test_refresh_workflow_runs_post_release_validation_before_commit() -> None:
     workflow_text = _read(WORKFLOW_PATH)
 
+    assert '--strict-measurement-shadow' in workflow_text
     assert '- name: Run TradingView post-release validation' in workflow_text
     assert 'TV_STORAGE_STATE_MAX_AGE_HOURS: "72"' in workflow_text
     assert 'tv_post_release_validation.json' in workflow_text

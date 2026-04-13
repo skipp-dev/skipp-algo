@@ -36,6 +36,7 @@ _STRICT_RELEASE_WARNING_CODES = {
 }
 
 _STRICT_RELEASE_DEGRADATION_CODES = {
+    "EMPTY_CONTEXT_BARS",
     "STALE_MANIFEST_GENERATED_AT",
     "STALE_MANIFEST_FILE_MTIME",
     "STALE_META_ASOF_TS",
@@ -781,6 +782,24 @@ def _run_smoke_checks(
                         "message": "bundle structure_context exists but is not an object.",
                     }
                 )
+
+            context_diagnostics = bundle.get("context_diagnostics")
+            if isinstance(context_diagnostics, dict):
+                row["context_diagnostics"] = context_diagnostics
+                if context_diagnostics.get("bars_available") is False:
+                    degradation = {
+                        "code": "EMPTY_CONTEXT_BARS",
+                        "symbol": symbol,
+                        "timeframe": timeframe,
+                        "message": "bundle additive contexts were built without any context bars.",
+                    }
+                    if isinstance(context_diagnostics.get("bar_count"), int):
+                        degradation["bar_count"] = context_diagnostics["bar_count"]
+                    reason = str(context_diagnostics.get("reason") or "").strip()
+                    if reason:
+                        degradation["reason"] = reason
+                    warnings.append(dict(degradation))
+                    degradations.append(dict(degradation))
 
             row["status"] = _status_from_lists(failures=failures, warnings=warnings, degradations=degradations)
             row["warnings"] = warnings

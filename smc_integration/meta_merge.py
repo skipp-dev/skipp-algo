@@ -67,7 +67,7 @@ def merge_raw_meta_domains(
     asof_values = [value for value in asof_candidates if value is not None]
     if not asof_values:
         raise ValueError("merged raw_meta requires at least one numeric asof_ts")
-    merged_asof_ts = max(asof_values)
+    merged_asof_ts = min(asof_values)
 
     volume = _domain_payload(volume_raw, "volume")
     if volume is None:
