@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-04-13T06:07:36.659929Z",
+  "generated_at": "2026-04-13T08:23:16.274021Z",
   "symbols": [
     "AAPL",
     "MSFT",
@@ -56,12 +56,12 @@
     "newsapi_ai": {
       "ok": true,
       "error": "",
-      "raw_count": 12,
-      "new_item_count": 1,
+      "raw_count": 0,
+      "new_item_count": 0,
       "cursor": 1776056880.0,
       "last_seen_news_uri": "",
-      "provider_status": "ok",
-      "status_detail": "",
+      "provider_status": "ok_no_recent_matches",
+      "status_detail": "Event Registry reachable, but no recent symbol-matching NewsAPI.ai items were returned for the current feed window.",
       "error_code": ""
     },
     "tv": {
@@ -82,7 +82,7 @@
       ],
       "published_at": "2026-04-12T12:07:28Z",
       "published_ts": 1775995648.0,
-      "age_minutes": 1080.1,
+      "age_minutes": 1215.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -113,44 +113,6 @@
       "provider_count": 1
     },
     {
-      "story_key": "82b76cabc494cd85c56263d8ee1aeffd6041fdb2:5920189",
-      "headline": "'This Isn't the Time,' Says Investor About Microsoft Stock (MSFT)",
-      "tickers": [
-        "MSFT"
-      ],
-      "published_at": "2026-04-13T05:08:00Z",
-      "published_ts": 1776056880.0,
-      "age_minutes": 59.6,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Markets Insider"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "'This Isn't the Time,' Says Investor About Microsoft Stock (MSFT)",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.243,
-      "materiality": "LOW",
-      "recency_bucket": "WARM",
-      "is_actionable": false,
-      "url": "https://markets.businessinsider.com/news/stocks/this-isn-t-the-time-says-investor-about-microsoft-stock-msft-1036013906",
-      "first_seen_at": "2026-04-13T06:07:36.659929Z",
-      "is_new": true,
-      "provider_count": 1
-    },
-    {
       "story_key": "74a7660801d2a90b925bafd235d8aea856761863:5920047",
       "headline": "OpenAI Calls Musk Move 'Legal Ambush' as Lawsuit Shift Raises Stakes for Microsoft (MSFT)",
       "tickers": [
@@ -158,7 +120,7 @@
       ],
       "published_at": "2026-04-12T17:18:19Z",
       "published_ts": 1776014299.0,
-      "age_minutes": 769.3,
+      "age_minutes": 905.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -189,6 +151,44 @@
       "provider_count": 1
     },
     {
+      "story_key": "82b76cabc494cd85c56263d8ee1aeffd6041fdb2:5920189",
+      "headline": "'This Isn't the Time,' Says Investor About Microsoft Stock (MSFT)",
+      "tickers": [
+        "MSFT"
+      ],
+      "published_at": "2026-04-13T05:08:00Z",
+      "published_ts": 1776056880.0,
+      "age_minutes": 195.3,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Markets Insider"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "'This Isn't the Time,' Says Investor About Microsoft Stock (MSFT)",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.2068,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://markets.businessinsider.com/news/stocks/this-isn-t-the-time-says-investor-about-microsoft-stock-msft-1036013906",
+      "first_seen_at": "2026-04-13T06:07:36.659929Z",
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
       "story_key": "4fff0a4054be7d9a0ce063fc42e9bce5c51eed0c:5920092",
       "headline": "Meta Platforms (META): Unity and Meta Extends Multi-Year Platform Support and Enterprise Agreement",
       "tickers": [
@@ -196,7 +196,7 @@
       ],
       "published_at": "2026-04-12T21:04:22Z",
       "published_ts": 1776027862.0,
-      "age_minutes": 543.2,
+      "age_minutes": 678.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -234,7 +234,7 @@
       ],
       "published_at": "2026-04-12T21:03:30Z",
       "published_ts": 1776027810.0,
-      "age_minutes": 544.1,
+      "age_minutes": 679.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -272,7 +272,7 @@
       ],
       "published_at": "2026-04-12T13:28:48Z",
       "published_ts": 1776000528.0,
-      "age_minutes": 998.8,
+      "age_minutes": 1134.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -344,22 +344,22 @@
       "story_key": "4fff0a4054be7d9a0ce063fc42e9bce5c51eed0c:5920092"
     },
     "MSFT": {
-      "news_catalyst_score": 0.303,
+      "news_catalyst_score": 0.2735,
       "sentiment_label": "bullish",
-      "event_class": "UNKNOWN",
-      "event_label": "'This Isn't the Time,' Says Investor About Microsoft Stock (MSFT)",
+      "event_class": "LEGAL",
+      "event_label": "OpenAI Calls Musk Move 'Legal Ambush' as Lawsuit Shift Raises Stakes for Microsoft (MSFT)",
       "materiality": "LOW",
-      "recency_bucket": "WARM",
+      "recency_bucket": "AGING",
       "source_tier": "TIER_3",
       "mentions_24h": 3,
       "is_actionable": false,
       "first_provider": "newsapi_ai",
-      "story_key": "82b76cabc494cd85c56263d8ee1aeffd6041fdb2:5920189"
+      "story_key": "74a7660801d2a90b925bafd235d8aea856761863:5920047"
     }
   },
   "summary": {
     "active_story_count": 6,
-    "new_story_count": 1,
+    "new_story_count": 0,
     "actionable_story_count": 0,
     "actionable_symbols": [],
     "symbol_count": 4
