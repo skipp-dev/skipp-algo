@@ -258,6 +258,7 @@ def test_run_preopen_fast_refresh_raises_when_all_batches_fail(monkeypatch, tmp_
     from scripts.databento_preopen_fast import run_preopen_fast_refresh
 
     trade_day = date(2026, 3, 6)
+    now_utc = datetime(2026, 3, 6, 12, 0, tzinfo=UTC)
     payload = {
         "manifest": {"premarket_anchor_et": "04:00:00"},
         "manifest_path": tmp_path / "baseline_manifest.json",
@@ -313,6 +314,7 @@ def test_run_preopen_fast_refresh_raises_when_all_batches_fail(monkeypatch, tmp_
             export_dir=tmp_path,
             bundle=tmp_path,
             scope_days=1,
+            now_utc=now_utc,
         )
     except RuntimeError as exc:
         assert "Premarket fetch failed for all symbol batches" in str(exc)

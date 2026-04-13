@@ -622,11 +622,14 @@ def run_preopen_fast_refresh(
     scope_days: int | None = None,
     bullish_score_profile: str = DEFAULT_BULLISH_QUALITY_SCORE_PROFILE,
     progress_callback: Any = None,
+    now_utc: datetime | None = None,
 ) -> dict[str, Any]:
     def _progress(message: str) -> None:
         logger.info(message)
         if progress_callback is not None:
             progress_callback(message)
+
+    resolved_now_utc = now_utc or datetime.now(UTC)
 
     bullish_cfg = build_default_bullish_quality_config(score_profile=bullish_score_profile)
 
@@ -649,6 +652,7 @@ def run_preopen_fast_refresh(
     scope_selection_column = _resolve_scope_selection_column(
         daily_features,
         premarket_anchor_et=premarket_anchor_et,
+        now_utc=resolved_now_utc,
     )
     scope_calibration = _recent_scope_symbol_counts(
         daily_features,
@@ -661,10 +665,11 @@ def run_preopen_fast_refresh(
 
     _progress("Fast refresh 2/5: Resolving reduced scope from baseline selections...")
 
-    target_trade_date = _resolve_target_trade_date(completed_trade_days)
+    target_trade_date = _resolve_target_trade_date(completed_trade_days, now_utc=resolved_now_utc)
     if scope_days is None or int(scope_days) <= 0:
         resolved_scope_days, resolved_scope_symbol_count = _choose_scope_days(
             daily_features,
+            now_utc=resolved_now_utc,
             selection_column=scope_selection_column,
         )
     else:
@@ -692,7 +697,7 @@ def run_preopen_fast_refresh(
     premarket_start_utc = datetime.combine(target_trade_date, premarket_anchor_et, tzinfo=US_EASTERN_TZ).astimezone(UTC)
     premarket_query_start_utc = premarket_start_utc - pd.Timedelta(seconds=1).to_pytimedelta()
     regular_open_utc = datetime.combine(target_trade_date, time(9, 30), tzinfo=US_EASTERN_TZ).astimezone(UTC)
-    fetch_end_utc = min(datetime.now(UTC), regular_open_utc - pd.Timedelta(seconds=1).to_pytimedelta())
+    fetch_end_utc = min(resolved_now_utc, regular_open_utc - pd.Timedelta(seconds=1).to_pytimedelta())
 
     client = _make_databento_client(databento_api_key)
 
@@ -707,8 +712,7 @@ def run_preopen_fast_refresh(
     # clamp would suppress the fetch entirely but we're already past premarket
     # start, bypass the clamp and attempt the fetch anyway.
     clamp_bypassed = False
-    now_utc = datetime.now(UTC)
-    if clamped_end.to_pydatetime() < premarket_start_utc and now_utc >= premarket_start_utc:
+    if clamped_end.to_pydatetime() < premarket_start_utc and resolved_now_utc >= premarket_start_utc:
         clamp_bypassed = True
         logger.info(
             "Dataset available_end (%s) lags behind premarket start (%s ET). "
@@ -785,7 +789,6 @@ def run_preopen_fast_refresh(
                 fallback_succeeded = False
                 fallback_batch_errors: list[str] = []
                 skipped_for_exchange: list[str] = []
-                now_utc_fallback = datetime.now(UTC)
                 for fallback_dataset in fallback_candidates:
                     dataset_upper = str(fallback_dataset).upper()
                     symbol_exchange = {
@@ -795,7 +798,7 @@ def run_preopen_fast_refresh(
                     fallback_available_end = _get_schema_available_end(client, fallback_dataset, "ohlcv-1s")
                     fallback_fetch_end = _clamp_request_end(pd.Timestamp(fetch_end_utc), fallback_available_end).to_pydatetime()
                     if fallback_fetch_end < premarket_start_utc:
-                        if now_utc_fallback >= premarket_start_utc:
+                        if resolved_now_utc >= premarket_start_utc:
                             logger.info(
                                 "Fallback dataset %s clamped end %s is before premarket start %s; "
                                 "bypassing clamp for live premarket probe (fetch_end=%s).",
