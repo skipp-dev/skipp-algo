@@ -656,14 +656,14 @@ def test_defaults_always_present(tmp_path: Path) -> None:
 
 # ── Anti-drift tests ────────────────────────────────────────────────
 
-_COMMITTED_PINE = Path("pine/generated/smc_micro_profiles_generated.pine")
-_COMMITTED_MANIFEST = Path("pine/generated/smc_micro_profiles_generated.json")
+_SEED_REFERENCE_PINE = Path("tests/fixtures/generated_seed/pine/generated/smc_micro_profiles_generated.pine")
+_SEED_REFERENCE_MANIFEST = Path("tests/fixtures/generated_seed/pine/generated/smc_micro_profiles_generated.json")
 
 
-def test_committed_pine_matches_generator_output(tmp_path: Path) -> None:
-    """Fail if committed .pine diverges from a fresh generator run."""
-    if not _COMMITTED_PINE.exists():
-        pytest.skip("committed pine artifact not found")
+def test_seed_reference_pine_matches_generator_output(tmp_path: Path) -> None:
+    """Fail if the deterministic seed-reference Pine artifact diverges from the generator."""
+    if not _SEED_REFERENCE_PINE.exists():
+        pytest.skip("seed-reference pine artifact not found")
 
     outputs = run_generation(
         schema_path=Path(SCHEMA_PATH),
@@ -671,17 +671,17 @@ def test_committed_pine_matches_generator_output(tmp_path: Path) -> None:
         output_root=tmp_path,
     )
     fresh = outputs["pine_path"].read_text(encoding="utf-8")
-    committed = _COMMITTED_PINE.read_text(encoding="utf-8")
-    assert fresh == committed, (
-        "Committed Pine library has drifted from generator output. "
-        "Re-run the generator to update pine/generated/."
+    seed_reference = _SEED_REFERENCE_PINE.read_text(encoding="utf-8")
+    assert fresh == seed_reference, (
+        "Seed-reference Pine library has drifted from generator output. "
+        "Re-run the generator to update tests/fixtures/generated_seed/."
     )
 
 
-def test_committed_manifest_matches_generator_output(tmp_path: Path) -> None:
-    """Fail if committed manifest diverges from a fresh generator run."""
-    if not _COMMITTED_MANIFEST.exists():
-        pytest.skip("committed manifest not found")
+def test_seed_reference_manifest_matches_generator_output(tmp_path: Path) -> None:
+    """Fail if the deterministic seed-reference manifest diverges from the generator."""
+    if not _SEED_REFERENCE_MANIFEST.exists():
+        pytest.skip("seed-reference manifest not found")
 
     outputs = run_generation(
         schema_path=Path(SCHEMA_PATH),
@@ -689,7 +689,7 @@ def test_committed_manifest_matches_generator_output(tmp_path: Path) -> None:
         output_root=tmp_path,
     )
     fresh = json.loads(outputs["manifest_path"].read_text(encoding="utf-8"))
-    committed = json.loads(_COMMITTED_MANIFEST.read_text(encoding="utf-8"))
+    seed_reference = json.loads(_SEED_REFERENCE_MANIFEST.read_text(encoding="utf-8"))
 
     # Paths are relative to output root, so normalise them away for comparison
     path_keys = {"input_path", "schema_path", "features_csv", "lists_csv",
@@ -697,16 +697,16 @@ def test_committed_manifest_matches_generator_output(tmp_path: Path) -> None:
                  "core_import_snippet"}
     for k in path_keys:
         fresh.pop(k, None)
-        committed.pop(k, None)
+        seed_reference.pop(k, None)
     # schema_version_previous may differ between in-place and fresh runs
     fresh.pop("schema_version_previous", None)
-    committed.pop("schema_version_previous", None)
+    seed_reference.pop("schema_version_previous", None)
     fresh.pop("version_change_type", None)
-    committed.pop("version_change_type", None)
+    seed_reference.pop("version_change_type", None)
 
-    assert fresh == committed, (
-        "Committed manifest has drifted from generator output. "
-        "Re-run the generator to update pine/generated/."
+    assert fresh == seed_reference, (
+        "Seed-reference manifest has drifted from generator output. "
+        "Re-run the generator to update tests/fixtures/generated_seed/."
     )
 
 
