@@ -4,12 +4,332 @@
     "fmp_stock": 0.0,
     "fmp_press": 0.0,
     "fmp_articles": 0.0,
-    "newsapi_ai": 1775866285.0,
+    "newsapi_ai": 1776027862.0,
     "tv": 0.0,
-    "legacy_cursor": 1775866285.0
+    "legacy_cursor": 1776027862.0
   },
   "provider_state": {},
   "story_state": {
+    "2f94ae4ced3579b860e669181814d73447cd78ea:5920092": {
+      "story_key": "2f94ae4ced3579b860e669181814d73447cd78ea:5920092",
+      "cluster_hash": "2f94ae4ced3579b860e669181814d73447cd78ea",
+      "headline": "Goldman Sachs Maintains Bullish Stance on Microsoft (MSFT) Stock",
+      "tickers": [
+        "MSFT"
+      ],
+      "published_ts": 1776027810.0,
+      "first_seen_ts": 1776052034.5032628,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Yahoo! Finance"
+      ],
+      "url": "https://ca.finance.yahoo.com/news/goldman-sachs-maintains-bullish-stance-210330588.html",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776052034.5032628
+    },
+    "74a7660801d2a90b925bafd235d8aea856761863:5920047": {
+      "story_key": "74a7660801d2a90b925bafd235d8aea856761863:5920047",
+      "cluster_hash": "74a7660801d2a90b925bafd235d8aea856761863",
+      "headline": "OpenAI Calls Musk Move 'Legal Ambush' as Lawsuit Shift Raises Stakes for Microsoft (MSFT)",
+      "tickers": [
+        "MSFT"
+      ],
+      "published_ts": 1776014299.0,
+      "first_seen_ts": 1776052034.5032628,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Markets Insider"
+      ],
+      "url": "https://markets.businessinsider.com/news/stocks/openai-calls-musk-move-legal-ambush-as-lawsuit-shift-raises-stakes-for-microsoft-msft-1036013301",
+      "category": "lawsuit",
+      "impact": 0.25,
+      "clarity": 0.6,
+      "relevance": 0.5425,
+      "polarity": 0.5,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776052034.5032628
+    },
+    "27dea0cbafe6de8bad03855dd540303285dc4218:5920001": {
+      "story_key": "27dea0cbafe6de8bad03855dd540303285dc4218:5920001",
+      "cluster_hash": "27dea0cbafe6de8bad03855dd540303285dc4218",
+      "headline": "Wall Street trading desks poised for $40B quarter amid geopolitical turmoil (JPM:NYSE)",
+      "tickers": [
+        "JPM"
+      ],
+      "published_ts": 1776000528.0,
+      "first_seen_ts": 1776052034.5032628,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Seeking Alpha"
+      ],
+      "url": "https://seekingalpha.com/news/4574223-wall-street-trading-desks-poised-for-40b-quarter-amid-geopolitical-turmoil",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776052034.5032628
+    },
+    "94803f47c5ee9e0dd6026df3d7bc66bf6270080c:5919985": {
+      "story_key": "94803f47c5ee9e0dd6026df3d7bc66bf6270080c:5919985",
+      "cluster_hash": "94803f47c5ee9e0dd6026df3d7bc66bf6270080c",
+      "headline": "Earnings week ahead: JNJ, NFLX, TSM, GS, C, JPM, BAC, PEP, and more (NYSE:JPM)",
+      "tickers": [
+        "JNJ",
+        "JPM"
+      ],
+      "published_ts": 1775995648.0,
+      "first_seen_ts": 1776052034.5032628,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Seeking Alpha"
+      ],
+      "url": "https://seekingalpha.com/news/4574055-earnings-week-ahead-jnj-nflx-tsm-gs-c-jpm-bac-pep-and-more",
+      "category": "earnings",
+      "impact": 0.8,
+      "clarity": 0.6,
+      "relevance": 0.79,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776052034.5032628
+    },
+    "7ba34952d937dbde577595fed9d4a9e6541847d1:5919912": {
+      "story_key": "7ba34952d937dbde577595fed9d4a9e6541847d1:5919912",
+      "cluster_hash": "7ba34952d937dbde577595fed9d4a9e6541847d1",
+      "headline": "Microsoft (MSFT): Azure Is Booming, But OpenAI And Copilot Are Quietly Capping The Upside",
+      "tickers": [
+        "MSFT"
+      ],
+      "published_ts": 1775973614.0,
+      "first_seen_ts": 1776052034.5032628,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Seeking Alpha"
+      ],
+      "url": "https://seekingalpha.com/article/4890043-microsoft-azure-is-booming-but-openai-and-copilot-are-quietly-capping-the-upside",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776052034.5032628
+    },
+    "324e8fabc9d38d3963da661089f3fa3290d6ca3f:5919901": {
+      "story_key": "324e8fabc9d38d3963da661089f3fa3290d6ca3f:5919901",
+      "cluster_hash": "324e8fabc9d38d3963da661089f3fa3290d6ca3f",
+      "headline": "Anthropic's Claude for Word Challenges Microsoft As MSFT Stock Slides 22% - Microsoft (NASDAQ:MSFT)",
+      "tickers": [
+        "MSFT"
+      ],
+      "published_ts": 1775970525.0,
+      "first_seen_ts": 1776052034.5032628,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "url": "https://www.benzinga.com/markets/tech/26/04/51770150/anthropic-claude-word-microsoft-office-dominance-msft-stock",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "polarity": 0.0,
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "last_seen_ts": 1776052034.5032628
+    },
+    "f2f9628b5098bc8e958fa3498c3af843b241d44e:5919804": {
+      "story_key": "f2f9628b5098bc8e958fa3498c3af843b241d44e:5919804",
+      "cluster_hash": "f2f9628b5098bc8e958fa3498c3af843b241d44e",
+      "headline": "Palantir (PLTR) vs. Microsoft (MSFT): Which AI Stock Offers Better Value After the Sell-Off?",
+      "tickers": [
+        "MSFT"
+      ],
+      "published_ts": 1775941209.0,
+      "first_seen_ts": 1776052034.5032628,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Markets Insider"
+      ],
+      "url": "https://markets.businessinsider.com/news/stocks/palantir-pltr-vs-microsoft-msft-which-ai-stock-offers-better-value-after-the-sell-off-1036011508",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776052034.5032628
+    },
+    "2d1fbc469ab66e5bad7b99eb82dd0a42336a12a1:5919655": {
+      "story_key": "2d1fbc469ab66e5bad7b99eb82dd0a42336a12a1:5919655",
+      "cluster_hash": "2d1fbc469ab66e5bad7b99eb82dd0a42336a12a1",
+      "headline": "Tesla: JPM says record surge in unsold EVs will only add to FCF woes By Investing.com",
+      "tickers": [
+        "JPM"
+      ],
+      "published_ts": 1775896726.0,
+      "first_seen_ts": 1776052034.5032628,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Investing.com"
+      ],
+      "url": "https://www.investing.com/news/company-news/tesla-jpm-says-record-surge-in-unsold-evs-will-only-add-to-fcf-woes-4608977",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.5,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776052034.5032628
+    },
+    "2f0f574b61f271e2abbdacb169174afa958f263e:5919647": {
+      "story_key": "2f0f574b61f271e2abbdacb169174afa958f263e:5919647",
+      "cluster_hash": "2f0f574b61f271e2abbdacb169174afa958f263e",
+      "headline": "Microsoft Stock (MSFT) Is Down 23% -- Is This a Rare Buying Opportunity or a Warning Sign?",
+      "tickers": [
+        "MSFT"
+      ],
+      "published_ts": 1775894339.0,
+      "first_seen_ts": 1776052034.5032628,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Markets Insider"
+      ],
+      "url": "https://markets.businessinsider.com/news/stocks/microsoft-stock-msft-is-down-23-is-this-a-rare-buying-opportunity-or-a-warning-sign-1036010680",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "polarity": -0.5,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776052034.5032628
+    },
+    "fef14f8b2a8fbd07497f23162364b082570e213e:5919621": {
+      "story_key": "fef14f8b2a8fbd07497f23162364b082570e213e:5919621",
+      "cluster_hash": "fef14f8b2a8fbd07497f23162364b082570e213e",
+      "headline": "Why Amazon Is Not The AI Chip Provider Broadcom Is (NASDAQ:AMZN)",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_ts": 1775886462.0,
+      "first_seen_ts": 1776052034.5032628,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Seeking Alpha"
+      ],
+      "url": "https://seekingalpha.com/article/4889972-why-amazon-is-not-the-ai-chip-provider-broadcom-is",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776052034.5032628
+    },
+    "4fff0a4054be7d9a0ce063fc42e9bce5c51eed0c:5920092": {
+      "story_key": "4fff0a4054be7d9a0ce063fc42e9bce5c51eed0c:5920092",
+      "cluster_hash": "4fff0a4054be7d9a0ce063fc42e9bce5c51eed0c",
+      "headline": "Meta Platforms (META): Unity and Meta Extends Multi-Year Platform Support and Enterprise Agreement",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1776027862.0,
+      "first_seen_ts": 1776052034.5032628,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Yahoo! Finance"
+      ],
+      "url": "https://ca.finance.yahoo.com/news/meta-platforms-meta-unity-meta-210422979.html",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776052034.5032628
+    },
     "b330933e711bf6be3c0b646ea023bb9d328caef5:5919538": {
       "story_key": "b330933e711bf6be3c0b646ea023bb9d328caef5:5919538",
       "cluster_hash": "b330933e711bf6be3c0b646ea023bb9d328caef5",
