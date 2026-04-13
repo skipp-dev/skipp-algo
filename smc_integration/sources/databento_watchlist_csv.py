@@ -7,10 +7,21 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from smc_core.vol_regime import classify_volume_regime_from_rvol
+
 from .base import SourceCapabilities, SourceDescriptor
 
 WATCHLIST_CSV = Path(__file__).resolve().parents[2] / "reports" / "databento_watchlist_top5_pre1530.csv"
 _LOG = logging.getLogger(__name__)
+_RVOL_FIELD_CANDIDATES = (
+    "day_volume_rvol_20d",
+    "open_5m_rvol_20d",
+    "open_1m_rvol_20d",
+    "rvol",
+    "rel_vol",
+    "relative_volume",
+    "volume_ratio",
+)
 
 
 def describe_source() -> SourceDescriptor:
@@ -94,7 +105,28 @@ def _positive_peer_values(rows: list[dict[str, str]], field_name: str) -> list[f
     return values
 
 
+def _extract_rvol_value(row: dict[str, str]) -> tuple[float | None, str | None]:
+    for field_name in _RVOL_FIELD_CANDIDATES:
+        raw_value = _coerce_optional_float(row.get(field_name))
+        if raw_value is None:
+            continue
+        return raw_value, field_name
+    return None, None
+
+
 def _derive_volume_meta(row: dict[str, str], peer_rows: list[dict[str, str]]) -> dict[str, Any]:
+    rvol_value, rvol_field = _extract_rvol_value(row)
+    if rvol_value is not None:
+        regime, thin_fraction = classify_volume_regime_from_rvol(rvol_value)
+        if regime != "UNKNOWN":
+            return {
+                "regime": regime,
+                "thin_fraction": thin_fraction,
+                "source": "rvol",
+                "rvol": round(rvol_value, 4),
+                "rvol_field": rvol_field,
+            }
+
     liquidity_ratios: list[float] = []
     for field_name in ("premarket_volume", "premarket_trade_count"):
         peer_values = _positive_peer_values(peer_rows, field_name)
@@ -107,14 +139,15 @@ def _derive_volume_meta(row: dict[str, str], peer_rows: list[dict[str, str]]) ->
         liquidity_ratios.append(max(0.0, row_value) / peer_median)
 
     if not liquidity_ratios:
-        _LOG.info(
-            "databento volume regime UNKNOWN for %s on %s: no usable premarket liquidity ratios",
+        _LOG.warning(
+            "databento volume regime UNKNOWN for %s on %s: no usable RVOL or premarket liquidity evidence",
             str(row.get("symbol") or "").strip().upper() or "?",
             str(row.get("trade_date") or "").strip() or "?",
         )
         return {
             "regime": "UNKNOWN",
             "thin_fraction": None,
+            "source": "none",
         }
 
     liquidity_ratio = min(liquidity_ratios)
@@ -130,6 +163,7 @@ def _derive_volume_meta(row: dict[str, str], peer_rows: list[dict[str, str]]) ->
     return {
         "regime": regime,
         "thin_fraction": thin_fraction,
+        "source": "premarket_liquidity",
     }
 
 
@@ -175,6 +209,13 @@ def load_raw_meta_input(symbol: str, timeframe: str) -> dict[str, Any]:
 
     if volume_meta.get("regime") == "UNKNOWN":
         payload["provenance"].append("smc_integration:volume_regime_unknown_no_premarket_liquidity")
+    elif volume_meta.get("source") == "rvol":
+        payload["provenance"].append("smc_integration:volume_regime_derived_from_rvol")
+        rvol_field = str(volume_meta.get("rvol_field") or "").strip()
+        if rvol_field:
+            payload["provenance"].append(
+                f"smc_integration:volume_regime_rvol_field={rvol_field}"
+            )
     else:
         payload["provenance"].append("smc_integration:volume_regime_derived_from_premarket_liquidity")
 

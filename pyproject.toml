@@ -90,8 +90,10 @@ source = [
     "smc_core",
     "smc_integration",
     "scripts",
+    "streamlit_terminal",
     "streamlit_terminal_alerts",
     "streamlit_terminal_config",
+    "streamlit_terminal_runtime",
     "terminal_ui_helpers",
 ]
 omit = ["tests/*", "*.pine"]

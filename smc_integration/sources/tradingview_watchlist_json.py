@@ -97,7 +97,7 @@ def _extract_technical(row: dict[str, Any], *, fallback_asof_ts: float) -> tuple
         bias = _coerce_bias(row.get("technical_bias"))
 
     if strength is None or bias is None:
-        _LOG.info(
+        _LOG.warning(
             "dropping technical domain from tradingview_watchlist_json for %s: strength=%r bias=%r",
             str(row.get("symbol") or "").strip().upper() or "?",
             strength,

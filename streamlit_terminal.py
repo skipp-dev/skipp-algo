@@ -33,11 +33,170 @@ from contextlib import contextmanager
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import httpx
 import pandas as pd
-import streamlit as st
+
+_SMC_TERMINAL_TEST_MODE = os.getenv("_SMC_TERMINAL_TEST_MODE", "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+class _DummySessionState(dict[str, Any]):
+    def __getattr__(self, name: str) -> Any:
+        try:
+            return self[name]
+        except KeyError as exc:
+            raise AttributeError(name) from exc
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        self[name] = value
+
+
+class _DummyWidgetSurface:
+    def __enter__(self) -> "_DummyWidgetSurface":
+        return self
+
+    def __exit__(self, exc_type: Any, exc: Any, tb: Any) -> None:
+        return None
+
+
+class _DummyColumnConfig:
+    def __getattr__(self, _name: str) -> Any:
+        return lambda *args, **kwargs: None
+
+
+class _DummyStreamlit(_DummyWidgetSurface):
+    def __init__(self) -> None:
+        self.session_state = _DummySessionState()
+        self.column_config = _DummyColumnConfig()
+        self.sidebar = self
+        self.secrets: dict[str, Any] = {}
+
+    def cache_data(self, *args: Any, **kwargs: Any) -> Any:
+        del args, kwargs
+
+        def decorator(func: Any) -> Any:
+            return func
+
+        return decorator
+
+    def fragment(self, *args: Any, **kwargs: Any) -> Any:
+        del args, kwargs
+
+        def decorator(func: Any) -> Any:
+            return func
+
+        return decorator
+
+    def tabs(self, labels: list[Any]) -> list["_DummyStreamlit"]:
+        return [self for _ in labels]
+
+    def columns(self, spec: Any, *args: Any, **kwargs: Any) -> list["_DummyStreamlit"]:
+        del args, kwargs
+        count = spec if isinstance(spec, int) else len(spec)
+        return [self for _ in range(max(int(count), 0))]
+
+    def expander(self, *args: Any, **kwargs: Any) -> "_DummyStreamlit":
+        del args, kwargs
+        return self
+
+    def spinner(self, *args: Any, **kwargs: Any) -> "_DummyStreamlit":
+        del args, kwargs
+        return self
+
+    def container(self, *args: Any, **kwargs: Any) -> "_DummyStreamlit":
+        del args, kwargs
+        return self
+
+    def empty(self, *args: Any, **kwargs: Any) -> "_DummyStreamlit":
+        del args, kwargs
+        return self
+
+    def toggle(self, _label: str, value: bool = False, key: str | None = None, **kwargs: Any) -> bool:
+        resolved = bool(kwargs.get("value", value))
+        if key is not None:
+            self.session_state.setdefault(key, resolved)
+            return bool(self.session_state.get(key))
+        return resolved
+
+    def button(self, *args: Any, **kwargs: Any) -> bool:
+        del args, kwargs
+        return False
+
+    def checkbox(self, _label: str, value: bool = False, key: str | None = None, **kwargs: Any) -> bool:
+        del kwargs
+        if key is not None:
+            self.session_state.setdefault(key, value)
+            return bool(self.session_state.get(key))
+        return bool(value)
+
+    def slider(self, *args: Any, **kwargs: Any) -> Any:
+        if "value" in kwargs:
+            return kwargs["value"]
+        if len(args) >= 4:
+            return args[3]
+        return None
+
+    def number_input(self, *args: Any, **kwargs: Any) -> Any:
+        if "value" in kwargs:
+            return kwargs["value"]
+        return args[1] if len(args) > 1 else None
+
+    def text_input(self, *args: Any, **kwargs: Any) -> str:
+        if "value" in kwargs:
+            return str(kwargs["value"])
+        return str(args[1]) if len(args) > 1 else ""
+
+    def text_area(self, *args: Any, **kwargs: Any) -> str:
+        if "value" in kwargs:
+            return str(kwargs["value"])
+        return str(args[1]) if len(args) > 1 else ""
+
+    def selectbox(self, _label: str, options: list[Any], index: int = 0, key: str | None = None, **kwargs: Any) -> Any:
+        del kwargs
+        if not options:
+            value = None
+        else:
+            resolved_index = max(0, min(int(index), len(options) - 1))
+            value = options[resolved_index]
+        if key is not None:
+            self.session_state.setdefault(key, value)
+            return self.session_state.get(key)
+        return value
+
+    def multiselect(self, _label: str, options: list[Any], default: list[Any] | None = None, key: str | None = None, **kwargs: Any) -> list[Any]:
+        del options, kwargs
+        value = list(default or [])
+        if key is not None:
+            self.session_state.setdefault(key, value)
+            return list(self.session_state.get(key) or [])
+        return value
+
+    def radio(self, _label: str, options: list[Any], index: int = 0, key: str | None = None, **kwargs: Any) -> Any:
+        return self.selectbox(_label, options, index=index, key=key, **kwargs)
+
+    def pills(self, _label: str, options: list[Any], default: Any = None, key: str | None = None, **kwargs: Any) -> Any:
+        del kwargs
+        value = default if default is not None else (options[0] if options else None)
+        if key is not None:
+            self.session_state.setdefault(key, value)
+            return self.session_state.get(key)
+        return value
+
+    def rerun(self, *args: Any, **kwargs: Any) -> None:
+        del args, kwargs
+
+    def __getattr__(self, _name: str) -> Any:
+        return lambda *args, **kwargs: None
+
+
+st: Any
+if _SMC_TERMINAL_TEST_MODE:
+    st = _DummyStreamlit()
+else:
+    import streamlit as _streamlit  # pyright: ignore[reportMissingImports]
+
+    st = _streamlit
 
 # ── Suppress harmless Streamlit fragment-scheduler warnings ────
 # When a run_every fragment calls st.rerun(), the full-page rerun
@@ -48,26 +207,27 @@ import streamlit as st
 # Python logging applies logger-filters and handler-filters at
 # different stages; covering both ensures the message never reaches
 # stderr regardless of handler replacement by Streamlit internals.
-class _FragmentWarningFilter(logging.Filter):
-    def filter(self, record: logging.LogRecord) -> bool:
-        return "does not exist anymore" not in record.getMessage()
+if not _SMC_TERMINAL_TEST_MODE:
+    class _FragmentWarningFilter(logging.Filter):
+        def filter(self, record: logging.LogRecord) -> bool:
+            return "does not exist anymore" not in record.getMessage()
 
-_frag_warn_filter = _FragmentWarningFilter()
-# Apply to all Streamlit loggers that may emit fragment-lifecycle warnings
-for _frag_logger_name in (
-    "streamlit.runtime.app_session",
-    "streamlit.runtime.fragment",
-    "streamlit.runtime.scriptrunner",
-    "streamlit.runtime.scriptrunner.script_runner",
-    "streamlit.runtime.scriptrunner_utils",
-    "streamlit",
-):
-    _fl = logging.getLogger(_frag_logger_name)
-    _fl.addFilter(_frag_warn_filter)
-    for _h in _fl.handlers:
-        _h.addFilter(_frag_warn_filter)
-# Also apply to root logger to catch propagated messages
-logging.getLogger().addFilter(_frag_warn_filter)
+    _frag_warn_filter = _FragmentWarningFilter()
+    # Apply to all Streamlit loggers that may emit fragment-lifecycle warnings
+    for _frag_logger_name in (
+        "streamlit.runtime.app_session",
+        "streamlit.runtime.fragment",
+        "streamlit.runtime.scriptrunner",
+        "streamlit.runtime.scriptrunner.script_runner",
+        "streamlit.runtime.scriptrunner_utils",
+        "streamlit",
+    ):
+        _fl = logging.getLogger(_frag_logger_name)
+        _fl.addFilter(_frag_warn_filter)
+        for _h in _fl.handlers:
+            _h.addFilter(_frag_warn_filter)
+    # Also apply to root logger to catch propagated messages
+    logging.getLogger().addFilter(_frag_warn_filter)
 
 # ── Patch Streamlit cache-key builder to tolerate TokenError ────
 # inspect.getsource() uses the tokenizer to locate function
@@ -75,37 +235,38 @@ logging.getLogger().addFilter(_frag_warn_filter)
 # tokenize.TokenError (not caught by Streamlit's OSError|TypeError
 # handler) which crashes the app.  Monkey-patch _make_function_key
 # so it falls back to bytecode just like the existing OSError path.
-try:
-    import tokenize as _tokenize_mod
-    from streamlit.runtime.caching import cache_utils as _cu
+if not _SMC_TERMINAL_TEST_MODE:
+    try:
+        import tokenize as _tokenize_mod
+        from streamlit.runtime.caching import cache_utils as _cu  # pyright: ignore[reportMissingImports]
 
-    _orig_make_function_key = _cu._make_function_key
+        _orig_make_function_key = _cu._make_function_key
 
-    def _patched_make_function_key(*args: Any, **kwargs: Any) -> str:  # type: ignore[override]
-        try:
-            return str(_orig_make_function_key(*args, **kwargs))
-        except _tokenize_mod.TokenError:
-            # Fallback: re-run with bytecode by temporarily monkey-patching
-            # inspect.getsource to raise OSError (which Streamlit already handles).
-            import inspect as _insp
-
-            _real_gs = _insp.getsource
-
-            def _gs_raise(*a: Any, **kw: Any) -> str:
-                raise OSError("tokenize fallback")
-
-            _insp.getsource = _gs_raise  # type: ignore[assignment]
+        def _patched_make_function_key(*args: Any, **kwargs: Any) -> str:  # type: ignore[override]
             try:
                 return str(_orig_make_function_key(*args, **kwargs))
-            finally:
-                _insp.getsource = _real_gs  # type: ignore[assignment]
+            except _tokenize_mod.TokenError:
+                # Fallback: re-run with bytecode by temporarily monkey-patching
+                # inspect.getsource to raise OSError (which Streamlit already handles).
+                import inspect as _insp
 
-    _cu._make_function_key = _patched_make_function_key  # type: ignore[assignment]
-except Exception:
-    logging.getLogger(__name__).debug(
-        "Streamlit cache-key monkey patch not applied; falling back to native behavior",
-        exc_info=True,
-    )
+                _real_gs = _insp.getsource
+
+                def _gs_raise(*a: Any, **kw: Any) -> str:
+                    raise OSError("tokenize fallback")
+
+                _insp.getsource = _gs_raise  # type: ignore[assignment]
+                try:
+                    return str(_orig_make_function_key(*args, **kwargs))
+                finally:
+                    _insp.getsource = _real_gs  # type: ignore[assignment]
+
+        _cu._make_function_key = _patched_make_function_key  # type: ignore[assignment]
+    except Exception:
+        logging.getLogger(__name__).debug(
+            "Streamlit cache-key monkey patch not applied; falling back to native behavior",
+            exc_info=True,
+        )
 
 # ── Path setup ──────────────────────────────────────────────────
 
@@ -172,8 +333,9 @@ def _load_streamlit_secrets() -> None:
         )
 
 
-_load_env_file(PROJECT_ROOT / ".env")
-_load_streamlit_secrets()
+if not _SMC_TERMINAL_TEST_MODE:
+    _load_env_file(PROJECT_ROOT / ".env")
+    _load_streamlit_secrets()
 
 from newsstack_fmp.ingest_benzinga import BenzingaRestAdapter
 from newsstack_fmp.ingest_fmp import FmpAdapter
@@ -251,7 +413,8 @@ from open_prep.realtime_signals import (
     get_rt_engine_telemetry_status,
 )
 from open_prep.log_redaction import apply_global_log_redaction
-apply_global_log_redaction()
+if not _SMC_TERMINAL_TEST_MODE:
+    apply_global_log_redaction()
 from terminal_notifications import NotifyConfig, notify_high_score_items
 from terminal_poller import (
     ClassifiedItem,
@@ -285,6 +448,7 @@ from streamlit_terminal_config import (
     collect_tv_news_symbols as _collect_tv_news_symbols,
     has_live_news_provider as _has_live_news_provider,
 )
+from streamlit_terminal_runtime import resolve_live_story_state_kwargs, safe_float_mov, should_poll
 from terminal_ui_helpers import (
     MATERIALITY_COLORS,
     RECENCY_COLORS,
@@ -356,6 +520,50 @@ from terminal_newsapi import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _build_test_terminal_config() -> TerminalConfig:
+    cfg = TerminalConfig()
+    overrides: dict[str, Any] = {}
+    for key, value in {
+        "tv_news_enabled": False,
+        "fmp_enabled": False,
+        "poll_interval_s": 60.0,
+    }.items():
+        if hasattr(cfg, key):
+            overrides[key] = value
+    return replace(cfg, **overrides) if overrides else cfg
+
+
+def _initialize_test_mode_runtime() -> None:
+    global tv_available, databento_available, btc_available, newsapi_available, ensure_rt_engine_running
+
+    st.session_state.setdefault("cfg", _build_test_terminal_config())
+    st.session_state.setdefault("cursor", None)
+    st.session_state.setdefault("provider_cursors", {})
+    st.session_state.setdefault("feed", [])
+    st.session_state.setdefault("live_story_state", {})
+    st.session_state.setdefault("ticker_catalyst_state", {})
+    st.session_state.setdefault("ticker_reaction_state", {})
+    st.session_state.setdefault("ticker_resolution_state", {})
+    st.session_state.setdefault("ticker_posture_state", {})
+    st.session_state.setdefault("ticker_attention_state", {})
+    st.session_state.setdefault("poll_count", 0)
+    st.session_state.setdefault("last_poll_ts", time.time())
+    st.session_state.setdefault("last_resync_ts", time.time())
+    st.session_state.setdefault("auto_refresh", False)
+    st.session_state.setdefault("use_bg_poller", False)
+    st.session_state.setdefault("intel_toggle", False)
+
+    tv_available = lambda: False
+    databento_available = lambda: False
+    btc_available = lambda: False
+    newsapi_available = lambda: False
+    ensure_rt_engine_running = lambda *args, **kwargs: False
+
+
+if _SMC_TERMINAL_TEST_MODE:
+    _initialize_test_mode_runtime()
 
 # ── Page config ─────────────────────────────────────────────────
 
@@ -712,10 +920,7 @@ def _prune_stale_items(feed: list[dict[str, Any]], max_age_s: float | None = Non
 
 def _live_story_state_kwargs(cfg: TerminalConfig | None = None) -> dict[str, float]:
     cfg_obj = cfg or st.session_state.get("cfg") or TerminalConfig()
-    return {
-        "ttl_s": float(getattr(cfg_obj, "live_story_ttl_s", 7200.0) or 7200.0),
-        "cooldown_s": float(getattr(cfg_obj, "live_story_cooldown_s", 900.0) or 900.0),
-    }
+    return resolve_live_story_state_kwargs(cfg_obj)
 
 
 def _story_key_for_feed_row(row: dict[str, Any]) -> str:
@@ -1425,7 +1630,7 @@ if "spike_detector" not in st.session_state:
 # Re-check periodically so transient startup failures and dead processes
 # don't get stuck behind a one-shot session flag.
 _is_cloud_rt = str(PROJECT_ROOT).startswith("/mount/src") or os.environ.get("STREAMLIT_SHARING_MODE")
-if not _is_cloud_rt:
+if not _is_cloud_rt and not _SMC_TERMINAL_TEST_MODE:
     _rt_now = time.time()
     _rt_last_check = float(st.session_state.get("rt_engine_last_check_ts", 0.0) or 0.0)
     if "rt_engine_started" not in st.session_state or (_rt_now - _rt_last_check) >= 60.0:
@@ -1989,12 +2194,7 @@ def _cached_tomorrow_outlook(
 
 def _safe_float_mov(val: Any, default: float = 0.0) -> float:
     """Safe float conversion for mover data."""
-    if val is None:
-        return default
-    try:
-        return float(val)
-    except (ValueError, TypeError):
-        return default
+    return safe_float_mov(val, default=default)
 
 
 def _intel_enabled() -> bool:
@@ -2202,10 +2402,11 @@ def _process_new_items(
 def _should_poll(poll_interval: float) -> bool:
     """Determine if we should poll this cycle."""
     cfg: TerminalConfig = st.session_state.cfg
-    if not _has_live_news_provider(cfg, st.session_state.feed):
-        return False
-    elapsed: float = time.time() - st.session_state.last_poll_ts
-    return elapsed >= poll_interval  # type: ignore[no-any-return]
+    return should_poll(
+        poll_interval=poll_interval,
+        last_poll_ts=float(st.session_state.last_poll_ts or 0.0),
+        provider_available=_has_live_news_provider(cfg, st.session_state.feed),
+    )
 
 
 def _do_poll() -> None:

@@ -393,10 +393,12 @@ def _try_load_meta_domain(
                 candidates.append(name)
 
     last_status = "not_attempted"
+    last_provider_name = primary_name
     for name in candidates:
         provider = _SOURCE_PROVIDERS.get(name)
         if provider is None:
             continue
+        last_provider_name = name
         try:
             meta = provider.load_meta(symbol, timeframe)
         except FileNotFoundError:
@@ -420,18 +422,19 @@ def _try_load_meta_domain(
             continue
         return meta, "present", name
 
-    if domain in {"technical", "news"} and last_status != "not_attempted":
+    if domain in {"volume", "technical", "news"} and last_status != "not_attempted":
         _LOG.warning(
-            "meta domain %s dropped for %s/%s; planned_source=%s status=%s auto_mode=%s",
+            "meta domain %s dropped for %s/%s; planned_source=%s actual_source=%s status=%s auto_mode=%s",
             domain,
             str(symbol).strip().upper(),
             str(timeframe).strip(),
             primary_name,
+            last_provider_name,
             last_status,
             auto_mode,
         )
 
-    return None, last_status, primary_name
+    return None, last_status, last_provider_name
 
 
 def _build_synthetic_volume_meta(symbol: str, timeframe: str, *, asof_ts: float) -> dict[str, Any]:
@@ -483,10 +486,15 @@ def _finalize_composite_meta(
     relax_missing_optional_domains: bool,
 ) -> dict[str, Any]:
     domain_drop_reasons: dict[str, str] = {}
+    domain_drop_providers: dict[str, str] = {}
     if technical_meta is None:
         domain_drop_reasons["technical"] = technical_domain_status or "missing_optional_domain"
+        if actual_technical_source:
+            domain_drop_providers["technical"] = actual_technical_source
     if news_meta is None:
         domain_drop_reasons["news"] = news_domain_status or "missing_optional_domain"
+        if actual_news_source:
+            domain_drop_providers["news"] = actual_news_source
 
     merged = merge_raw_meta_domains(
         volume_meta=volume_meta,
@@ -499,6 +507,7 @@ def _finalize_composite_meta(
             "news": actual_news_source,
         },
         domain_drop_reasons=domain_drop_reasons,
+        domain_drop_providers=domain_drop_providers,
     )
 
     diagnostics: dict[str, Any] = {

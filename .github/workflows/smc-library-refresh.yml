@@ -464,10 +464,18 @@ jobs:
             --config automation/tradingview/preflight-smc-mainline.json \
             --execution-mode readonly \
             --out artifacts/tradingview/tv_post_release_validation.json
-          python scripts/verify_tradingview_post_release.py \
+
+          python scripts/run_smc_post_release_validation.py \
             --release-manifest artifacts/tradingview/library_release_manifest.json \
             --validation-report artifacts/tradingview/tv_post_release_validation.json \
-            --output artifacts/ci/smc_tradingview_post_release_report.json
+            --output artifacts/ci/smc_post_release_validation_report.json
+
+      - name: Refresh gate evidence summary after post-release validation
+        if: always()
+        run: |
+          python scripts/collect_smc_gate_evidence.py \
+            --input-glob "artifacts/ci/smc_*_report.json" \
+            --output artifacts/ci/smc_refresh_evidence_summary.json
 
       # ── Version bump + commit (skip when unchanged or breaking) ─
       - name: Bump library version in SMC_Core_Engine.pine

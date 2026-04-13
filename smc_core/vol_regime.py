@@ -20,6 +20,7 @@ import pandas as pd
 
 VolRegimeLabel = Literal["LOW_VOL", "NORMAL", "HIGH_VOL", "EXTREME"]
 VolRegimeModelSource = Literal["arch_garch", "atr_fallback"]
+VolumeRegimeLabel = Literal["UNKNOWN", "HOLIDAY_SUSPECT", "LOW_VOLUME", "NORMAL"]
 
 
 @dataclass(slots=True, frozen=True)
@@ -60,6 +61,26 @@ def _classify(atr_ratio: float) -> VolRegimeLabel:
     if atr_ratio >= _THRESHOLDS[1][0]:
         return "HIGH_VOL"
     return "NORMAL"
+
+
+def classify_volume_regime_from_rvol(rvol: Any) -> tuple[VolumeRegimeLabel, float | None]:
+    try:
+        value = float(rvol)
+    except (TypeError, ValueError):
+        return "UNKNOWN", None
+
+    if not math.isfinite(value) or value <= 0:
+        return "UNKNOWN", None
+
+    if value <= 0.35:
+        regime: VolumeRegimeLabel = "HOLIDAY_SUSPECT"
+    elif value <= 0.85:
+        regime = "LOW_VOLUME"
+    else:
+        regime = "NORMAL"
+
+    thin_fraction = round(max(0.0, 1.0 - min(value, 1.0)), 4)
+    return regime, thin_fraction
 
 
 def _coerce_numeric_bars(bars: pd.DataFrame) -> pd.DataFrame:

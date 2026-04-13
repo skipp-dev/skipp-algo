@@ -707,6 +707,7 @@ def test_smoke_emits_silent_domain_drop_alert(monkeypatch):
             "asof_ts": 995.0,
             "meta_domains_missing": ["technical"],
             "domain_drop_reasons": {"technical": "domain_fields_incomplete"},
+            "domain_drop_providers": {"technical": "fmp_watchlist_json"},
             "meta_domain_diagnostics": {
                 "volume": "present",
                 "volume_source": "databento_watchlist_csv",
@@ -731,6 +732,13 @@ def test_smoke_emits_silent_domain_drop_alert(monkeypatch):
 
     alerts = smoke["results"][0]["domain_alerts"]
     assert any(
+        item.get("code") == "DOMAIN_DROP_DURING_BUILD"
+        and item.get("severity") == "warn"
+        and item.get("domain") == "technical"
+        and item.get("drop_provider") == "fmp_watchlist_json"
+        for item in alerts
+    )
+    assert any(
         item.get("code") == "SILENT_DOMAIN_DROP_TECHNICAL"
         and item.get("severity") == "warn"
         and item.get("status") == "domain_fields_incomplete"
@@ -738,6 +746,7 @@ def test_smoke_emits_silent_domain_drop_alert(monkeypatch):
     )
     assert not any(item.get("code") == "META_TECHNICAL_DOMAIN_STATUS" for item in alerts)
     warning_codes = {item.get("code") for item in smoke["warnings"]}
+    assert "DOMAIN_DROP_DURING_BUILD" in warning_codes
     assert "SILENT_DOMAIN_DROP_TECHNICAL" in warning_codes
 
 

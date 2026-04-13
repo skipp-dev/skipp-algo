@@ -25,6 +25,7 @@ _FATAL_ARTIFACT_HEALTH_CODES = {
 }
 _STRICT_RELEASE_WARNING_CODES = {
     "ARTIFACT_LOOKUP_FAILED",
+    "DOMAIN_DROP_DURING_BUILD",
     "MISSING_ARTIFACT",
     "MISSING_MANIFEST",
     "MISSING_MANIFEST_GENERATED_AT",
@@ -129,6 +130,19 @@ def _domain_drop_reason_map(raw_meta: dict[str, Any] | None) -> dict[str, str]:
     }
 
 
+def _domain_drop_provider_map(raw_meta: dict[str, Any] | None) -> dict[str, str]:
+    if not isinstance(raw_meta, dict):
+        return {}
+    raw_providers = raw_meta.get("domain_drop_providers")
+    if not isinstance(raw_providers, dict):
+        return {}
+    return {
+        str(key).strip(): str(value).strip()
+        for key, value in raw_providers.items()
+        if str(key).strip() and str(value).strip()
+    }
+
+
 def _raw_volume_regime(raw_meta: dict[str, Any] | None) -> str:
     if not isinstance(raw_meta, dict):
         return ""
@@ -153,6 +167,7 @@ def _collect_meta_domain_alerts(
     alerts: list[dict[str, Any]] = []
     missing_domains = _missing_meta_domains(raw_meta)
     drop_reasons = _domain_drop_reason_map(raw_meta)
+    drop_providers = _domain_drop_provider_map(raw_meta)
 
     for domain in ("volume", "technical", "news"):
         status = str(domain_diag.get(domain) or "").strip()
@@ -188,9 +203,29 @@ def _collect_meta_domain_alerts(
             if domain_stale:
                 continue
             drop_reason = drop_reasons.get(domain) or status or "missing_optional_domain"
+            drop_provider = drop_providers.get(domain) or actual_source or planned_source
             severity = "warn"
             if allow_release_reference_meta_fallback:
                 severity = "info"
+            domain_drop_alert = _build_domain_alert(
+                code="DOMAIN_DROP_DURING_BUILD",
+                severity=severity,
+                symbol=symbol,
+                timeframe=timeframe,
+                domain=domain,
+                status=drop_reason,
+                planned_source=planned_source,
+                actual_source=actual_source,
+                fallback_used=fallback_used,
+                age_hours=age_hours,
+                message=(
+                    f"{domain} domain dropped during build; reason={drop_reason}; "
+                    f"drop_provider={drop_provider or 'unknown'}; "
+                    f"planned_source={planned_source or 'unknown'}."
+                ),
+            )
+            domain_drop_alert["drop_provider"] = drop_provider
+            alerts.append(domain_drop_alert)
             alerts.append(
                 _build_domain_alert(
                     code=f"SILENT_DOMAIN_DROP_{domain.upper()}",

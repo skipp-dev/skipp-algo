@@ -12,6 +12,15 @@ def _write_rows(path: Path, rows: list[dict[str, object]]) -> None:
 
 def _write_watchlist_csv(path: Path, rows: list[dict[str, object]]) -> None:
     header = ["symbol", "trade_date", "watchlist_rank", "premarket_volume", "premarket_trade_count"]
+    extra_fields = sorted(
+        {
+            str(key)
+            for row in rows
+            for key in row.keys()
+            if str(key) not in header
+        }
+    )
+    header.extend(extra_fields)
     lines = [",".join(header)]
     for row in rows:
         lines.append(
@@ -112,6 +121,40 @@ def test_databento_source_surfaces_unknown_without_liquidity_evidence(monkeypatc
     assert meta["volume"]["value"]["regime"] == "UNKNOWN"
     assert meta["volume"]["value"]["thin_fraction"] is None
     assert "smc_integration:volume_regime_unknown_no_premarket_liquidity" in meta["provenance"]
+
+
+def test_databento_source_prefers_rvol_when_available(monkeypatch, tmp_path: Path) -> None:
+    source_path = tmp_path / "databento_watchlist.csv"
+    _write_watchlist_csv(
+        source_path,
+        [
+            {
+                "symbol": "AAPL",
+                "trade_date": "2026-03-01",
+                "watchlist_rank": 1,
+                "premarket_volume": 1000,
+                "premarket_trade_count": 10,
+                "day_volume_rvol_20d": 1.6,
+            },
+            {
+                "symbol": "MSFT",
+                "trade_date": "2026-03-01",
+                "watchlist_rank": 2,
+                "premarket_volume": 5000,
+                "premarket_trade_count": 50,
+                "day_volume_rvol_20d": 0.4,
+            },
+        ],
+    )
+    monkeypatch.setattr(databento_watchlist_csv, "WATCHLIST_CSV", source_path)
+
+    meta = databento_watchlist_csv.load_raw_meta_input("AAPL", "15m")
+
+    _assert_common_payload(meta, "AAPL", "15m")
+    assert meta["volume"]["value"]["regime"] == "NORMAL"
+    assert meta["volume"]["value"]["rvol"] == 1.6
+    assert "smc_integration:volume_regime_derived_from_rvol" in meta["provenance"]
+    assert "smc_integration:volume_regime_rvol_field=day_volume_rvol_20d" in meta["provenance"]
 
 
 def test_fmp_source_loads_meta_and_structure(monkeypatch, tmp_path: Path) -> None:

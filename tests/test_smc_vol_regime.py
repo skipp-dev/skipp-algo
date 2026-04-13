@@ -6,7 +6,7 @@ import pandas as pd
 import pytest
 import smc_core.vol_regime as vol_regime_module
 
-from smc_core.vol_regime import VolRegimeResult, compute_vol_regime
+from smc_core.vol_regime import VolRegimeResult, classify_volume_regime_from_rvol, compute_vol_regime
 
 
 def _make_bars(n: int = 60, base_range: float = 1.0) -> pd.DataFrame:
@@ -109,3 +109,29 @@ class TestComputeVolRegime:
         assert result.forecast_volatility is None
         assert result.baseline_volatility is None
         assert result.forecast_ratio is None
+
+
+class TestClassifyVolumeRegimeFromRvol:
+    def test_classifies_holiday_suspect(self) -> None:
+        regime, thin_fraction = classify_volume_regime_from_rvol(0.2)
+
+        assert regime == "HOLIDAY_SUSPECT"
+        assert thin_fraction == 0.8
+
+    def test_classifies_low_volume(self) -> None:
+        regime, thin_fraction = classify_volume_regime_from_rvol(0.75)
+
+        assert regime == "LOW_VOLUME"
+        assert thin_fraction == 0.25
+
+    def test_classifies_normal_and_clamps_thin_fraction(self) -> None:
+        regime, thin_fraction = classify_volume_regime_from_rvol(1.6)
+
+        assert regime == "NORMAL"
+        assert thin_fraction == 0.0
+
+    def test_invalid_rvol_is_unknown(self) -> None:
+        regime, thin_fraction = classify_volume_regime_from_rvol(None)
+
+        assert regime == "UNKNOWN"
+        assert thin_fraction is None

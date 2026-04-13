@@ -103,9 +103,11 @@ def test_merge_raw_meta_domains_surfaces_domain_drop_reasons_for_technical() -> 
             "news": "benzinga_watchlist_json",
         },
         domain_drop_reasons={"technical": "domain_fields_incomplete"},
+        domain_drop_providers={"technical": "fmp_watchlist_json"},
     )
 
     assert merged["domain_drop_reasons"]["technical"] == "domain_fields_incomplete"
+    assert merged["domain_drop_providers"]["technical"] == "fmp_watchlist_json"
     assert "news" not in merged["domain_drop_reasons"]
 
 
@@ -131,9 +133,11 @@ def test_merge_raw_meta_domains_surfaces_domain_drop_reasons_for_news() -> None:
             "news": "benzinga_watchlist_json",
         },
         domain_drop_reasons={"news": "source_file_not_found"},
+        domain_drop_providers={"news": "benzinga_watchlist_json"},
     )
 
     assert merged["domain_drop_reasons"]["news"] == "source_file_not_found"
+    assert merged["domain_drop_providers"]["news"] == "benzinga_watchlist_json"
     assert "technical" not in merged["domain_drop_reasons"]
 
 
@@ -171,3 +175,4 @@ def test_merge_raw_meta_domains_exposes_empty_drop_reasons_when_all_domains_are_
     )
 
     assert merged["domain_drop_reasons"] == {}
+    assert merged["domain_drop_providers"] == {}

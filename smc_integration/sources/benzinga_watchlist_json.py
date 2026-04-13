@@ -97,7 +97,7 @@ def _extract_news(row: dict[str, Any], *, fallback_asof_ts: float) -> tuple[dict
         bias = _coerce_bias(row.get("news_bias"))
 
     if strength is None or bias is None:
-        _LOG.info(
+        _LOG.warning(
             "dropping news domain from benzinga_watchlist_json for %s: strength=%r bias=%r",
             str(row.get("symbol") or "").strip().upper() or "?",
             strength,
