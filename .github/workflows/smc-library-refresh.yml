@@ -363,6 +363,10 @@ jobs:
         run: |
           NEW_VERSION=$(jq -r '.library_version' pine/generated/smc_micro_profiles_generated.json)
           sed -i "s|import preuss_steffen/smc_micro_profiles_generated/[0-9]*|import preuss_steffen/smc_micro_profiles_generated/${NEW_VERSION}|" SMC_Core_Engine.pine
+          if ! grep -q "import preuss_steffen/smc_micro_profiles_generated/${NEW_VERSION}" SMC_Core_Engine.pine; then
+            echo "::error::Failed to update SMC_Core_Engine.pine to library version ${NEW_VERSION}."
+            exit 1
+          fi
 
       - name: Commit and push changes
         id: commit_push
@@ -374,6 +378,10 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git config --local --unset-all http.https://github.com/.extraheader || true
           git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git restore --source=HEAD --worktree --staged -- \
+            artifacts/databento_volatility_cache/ \
+            artifacts/smc_microstructure_exports/smc_live_news_snapshot.json \
+            artifacts/smc_microstructure_exports/smc_live_news_state.json || true
           git add pine/generated/ SMC_Core_Engine.pine artifacts/tradingview/library_release_manifest.json
           if ! git diff --quiet; then
             echo "::error::Unexpected tracked changes remain unstaged before refresh commit."
@@ -454,7 +462,7 @@ jobs:
             echo "|------|--------|"
             echo "| Runner | ${{ env.SMC_REFRESH_RUNNER_LABEL }} |"
             echo "| Ref | ${{ github.ref_name }} |"
-            echo "| Generation (base + enrichment + event-risk) | ${{ steps.gates.outcome != 'skipped' && '✅' || '❌ skipped' }} |"
+            echo "| Generation (base + enrichment + event-risk) | ${{ steps.gates.outcome == 'success' && '✅' || steps.gates.outcome == 'skipped' && '⏭️ skipped' || '❌ failed' }} |"
             echo "| Evidence gates | ${{ steps.gates.outcome == 'success' && '✅ passed' || '❌ failed' }} |"
             echo "| Library changed | ${{ steps.diff.outputs.changed == 'true' && '✅ yes' || '⏭️ no' }} |"
             echo "| Pre-release artifact refresh | ${{ steps.pre_release_refresh.outcome == 'success' && '✅ passed' || steps.pre_release_refresh.outcome == 'skipped' && '⏭️ skipped' || '❌ failed' }} |"
@@ -527,6 +535,9 @@ jobs:
           GATE="${{ steps.gates.outcome }}"
           CHANGED="${{ steps.diff.outputs.changed }}"
           BREAKING="${{ steps.breaking.outputs.breaking }}"
+          PREFLIGHT="${{ steps.tv_preflight.outcome }}"
+          PUBLISH="${{ steps.publish.outcome }}"
+          COMMIT_PUSH="${{ steps.commit_push.outcome }}"
           ALERTS="${{ steps.alerts.outcome }}"
 
           if [ "$GATE" = "failure" ]; then
@@ -538,6 +549,15 @@ jobs:
           elif [ "$BREAKING" = "true" ]; then
             ICON="🛑"
             HEADLINE="Breaking change — publish blocked"
+          elif [ "$PREFLIGHT" = "failure" ]; then
+            ICON="❌"
+            HEADLINE="TradingView preflight failed"
+          elif [ "$PUBLISH" = "failure" ]; then
+            ICON="❌"
+            HEADLINE="TradingView publish failed"
+          elif [ "$COMMIT_PUSH" = "failure" ]; then
+            ICON="❌"
+            HEADLINE="Commit/push failed"
           else
             ICON="✅"
             HEADLINE="Library published"

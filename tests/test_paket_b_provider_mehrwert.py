@@ -117,7 +117,25 @@ class TestB1DomainFallbackChain:
         )
         assert status == "present"
         assert actual == "tradingview_watchlist_json"
+        assert meta is not None
         assert meta["technical"]["value"]["bias"] == "BEARISH"
+
+    def test_news_domain_can_fall_back_to_benzinga(self, monkeypatch, tmp_path: Path) -> None:
+        fmp_path = tmp_path / "fmp.json"
+        _write_source(fmp_path, [_fmp_row_with_technical()])
+        monkeypatch.setattr(fmp_watchlist_json, "FMP_WATCHLIST_JSON", fmp_path)
+
+        bz_path = tmp_path / "bz.json"
+        _write_source(bz_path, [_benzinga_row_with_news()])
+        monkeypatch.setattr(benzinga_watchlist_json, "BENZINGA_WATCHLIST_JSON", bz_path)
+
+        meta, status, actual = _try_load_meta_domain(
+            "news", "AAPL", "15m", "fmp_watchlist_json", auto_mode=True,
+        )
+        assert status == "present"
+        assert actual == "benzinga_watchlist_json"
+        assert meta is not None
+        assert meta["news"]["value"]["bias"] == "BEARISH"
 
     def test_no_fallback_in_explicit_mode(self, monkeypatch, tmp_path: Path) -> None:
         monkeypatch.setattr(fmp_watchlist_json, "FMP_WATCHLIST_JSON", tmp_path / "missing.json")
@@ -258,6 +276,7 @@ class TestB4NoFalseFallbacks:
         )
         assert status == "present"
         assert actual == "tradingview_watchlist_json"
+        assert meta is not None
         assert meta["technical"]["value"]["bias"] == "BEARISH"
 
     def test_domain_key_absent_end_to_end(self, monkeypatch, tmp_path: Path) -> None:

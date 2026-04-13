@@ -232,7 +232,7 @@ def test_core_engine_ends_at_hidden_bus_boundary() -> None:
     assert "'BUS DebugStateRow', display = display.none" not in source
     assert "'BUS ReadyGateRow', display = display.none" not in source
     assert "'BUS StrictGateRow', display = display.none" not in source
-    assert "plot(resolve_bus_lean_pack_b(lib_obl_side, lib_obl_fresh, lib_obl_mitigation_state, lib_fvgl_side, lib_fvgl_fresh, lib_fvgl_invalidated, lib_scl_context_score, lib_scl_in_killzone, lib_sq_score), 'BUS LeanPackB', display = display.none)" in source
+    assert "plot(resolve_bus_lean_pack_b(lib_obl_side, lib_obl_fresh, lib_obl_mitigation_state, lib_fvgl_side, lib_fvgl_fresh, lib_fvgl_invalidated, lib_scl_context_score, lib_scl_in_killzone, lib_ensemble_quality_score, lib_ensemble_quality_tier, lib_volatility_regime, lib_volatility_model_source), 'BUS LeanPackB', display = display.none)" in source
     assert 'resolve_bus_debug_state_row(' not in source
     assert source.endswith('/////////////////////////////////////////////////////////////////////////////////')
     assert "'BUS LeanPackB', display = display.none)\n\n// ── Mini Health Badge (v5.5a) ──" in source

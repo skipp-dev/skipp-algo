@@ -387,6 +387,18 @@ decode_lean_session_text(int row_code) =>
     string kz_text = kz == 1 ? "KZ" : "noKZ"
     str.tostring(score) + " | " + kz_text
 
+decode_ensemble_text(int row_code) =>
+    int ensemble_state = row_status(row_code)
+    ensemble_state >= 5 ? "high" : ensemble_state == 4 ? "good" : ensemble_state == 3 ? "ok" : ensemble_state == 2 ? "low" : "n/a"
+
+decode_library_vol_text(int row_code) =>
+    int reason_code = row_reason(row_code)
+    int regime_code = int(math.floor(reason_code / 10))
+    int source_code = reason_code % 10
+    string regime_text = regime_code == 4 ? "EXTREME" : regime_code == 3 ? "HIGH_VOL" : regime_code == 2 ? "NORMAL" : regime_code == 1 ? "LOW_VOL" : "n/a"
+    string source_text = source_code == 1 ? "arch" : source_code == 2 ? "ATR fallback" : "n/a"
+    regime_code == 0 ? "n/a" : regime_text + " | " + source_text
+
 zone_reason_text(int zone_code) =>
     string label_text = "No Long Zone"
     if zone_code == 1
@@ -993,6 +1005,11 @@ decode_vol_regime_text(int row_code) =>
     int reason_code = row_reason(row_code)
     reason_code == 1 ? "off" : reason_code == 2 ? "Bull stack" : "Weak stack"
 
+decode_vol_regime_stack_text(int row_code, int transport_row_code) =>
+    string local_text = decode_vol_regime_text(row_code)
+    string library_text = decode_library_vol_text(transport_row_code)
+    library_text == "n/a" ? local_text : local_text + " | Lib " + library_text
+
 decode_vol_squeeze_text(int row_code) =>
     int reason_code = row_reason(row_code)
     string label_text = "No squeeze"
@@ -1124,6 +1141,10 @@ decode_debug_flags_text(int row_code) =>
 quality_bounds_text(float score_value) =>
     str.tostring(score_value, "#.##") + "/100 | min 25"
 
+quality_stack_text(float score_value, int ensemble_row_code) =>
+    string ensemble_text = decode_ensemble_text(ensemble_row_code)
+    ensemble_text == "n/a" ? quality_bounds_text(score_value) : quality_bounds_text(score_value) + " | Ensemble " + ensemble_text
+
 bool zone_active = state_on(src_zone_active)
 bool armed = state_on(src_armed)
 bool confirmed = state_on(src_confirmed)
@@ -1193,6 +1214,7 @@ int event_risk_row_code = resolve_event_risk_diag_row_code(lean_erl_row_code)
 int lean_ob_row_code = pack_slot(src_lean_pack_b, 0)
 int lean_fvg_row_code = pack_slot(src_lean_pack_b, 1)
 int lean_session_row_code = pack_slot(src_lean_pack_b, 2)
+int lean_transport_row_code = pack_slot(src_lean_pack_b, 3)
 int htf_bull_count = (trend_htf_1 == 2 ? 1 : 0) + (trend_htf_2 == 2 ? 1 : 0) + (trend_htf_3 == 2 ? 1 : 0)
 int setup_state = state_code >= 6 ? 5 : state_code == 5 or state_code == 4 ? 4 : state_code == 3 ? 3 : state_code == 2 ? 2 : state_code == 1 ? 1 : state_code == -1 ? -1 : 0
 int exec_state = state_code >= 6 ? 5 : state_code == 5 or state_code == 4 ? 4 : state_code == 2 or state_code == 3 ? 2 : state_code == 1 ? 1 : 0
@@ -1260,12 +1282,12 @@ if show_table and barstate.islast
         dashboard_row(smc_dashboard, 32, "Diag | Rel Volume", decode_relvol_text(relvol_row_code, src_relvol_value), diagnostic_metric_bg(row_status(relvol_row_code)), txt)
         dashboard_row(smc_dashboard, 33, "Diag | VWAP Filter", decode_vwap_text(vwap_row_code, src_session_vwap), diagnostic_metric_bg(row_status(vwap_row_code)), txt)
         dashboard_row(smc_dashboard, 34, "Diag | Context Quality", decode_context_quality_text(context_quality_row_code), diagnostic_metric_bg(row_status(context_quality_row_code)), txt)
-        dashboard_row(smc_dashboard, 35, "Primary | Signal Quality", quality_bounds_text(src_quality_score), primary_metric_bg(row_status(quality_score_row_code)), txt)
+        dashboard_row(smc_dashboard, 35, "Primary | Signal + Ensemble", quality_stack_text(src_quality_score, lean_transport_row_code), primary_metric_bg(row_status(quality_score_row_code)), txt)
         dashboard_row(smc_dashboard, 36, "Primary | Quality Clean", decode_quality_clean_text(quality_clean_row_code), primary_metric_bg(row_status(quality_clean_row_code)), txt)
         section_row(smc_dashboard, 37, "[ Support / Metrics ]", header_bg, txt)
         dashboard_row(smc_dashboard, 38, "SD Confluence", decode_sd_confluence_text(sd_confluence_row_code), status_bg(row_status(sd_confluence_row_code)), txt)
         dashboard_row(smc_dashboard, 39, "SD Osc", decode_sd_osc_text(sd_osc_row_code), status_bg(row_status(sd_osc_row_code)), txt)
-        dashboard_row(smc_dashboard, 40, "Vol Regime", decode_vol_regime_text(vol_regime_row_code), status_bg(row_status(vol_regime_row_code)), txt)
+        dashboard_row(smc_dashboard, 40, "Vol Regime | Lib", decode_vol_regime_stack_text(vol_regime_row_code, lean_transport_row_code), status_bg(row_status(vol_regime_row_code)), txt)
         dashboard_row(smc_dashboard, 41, "Vol Squeeze", decode_vol_squeeze_text(vol_squeeze_row_code), status_bg(row_status(vol_squeeze_row_code)), txt)
         dashboard_row(smc_dashboard, 42, "Vol Expand", decode_vol_expand_text(vol_expand_row_code), status_bg(row_status(vol_expand_row_code)), txt)
         dashboard_row(smc_dashboard, 43, "Stretch", decode_stretch_text(stretch_row_code, src_stretch_z), status_bg(row_status(stretch_row_code)), txt)

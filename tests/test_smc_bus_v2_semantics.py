@@ -482,6 +482,49 @@ def render_quality_bounds_text(score_value: float) -> str:
     return f'{score_value:.2f}'.rstrip('0').rstrip('.') + '/100 | min 25'
 
 
+def decode_ensemble_text(row_code: int) -> str:
+    ensemble_state = row_status(row_code)
+    if ensemble_state >= 5:
+        return 'high'
+    if ensemble_state == 4:
+        return 'good'
+    if ensemble_state == 3:
+        return 'ok'
+    if ensemble_state == 2:
+        return 'low'
+    return 'n/a'
+
+
+def decode_library_vol_text(row_code: int) -> str:
+    reason_code = row_reason(row_code)
+    regime_code = reason_code // 10
+    source_code = reason_code % 10
+    regime_text = {
+        4: 'EXTREME',
+        3: 'HIGH_VOL',
+        2: 'NORMAL',
+        1: 'LOW_VOL',
+    }.get(regime_code, 'n/a')
+    source_text = {
+        1: 'arch',
+        2: 'ATR fallback',
+    }.get(source_code, 'n/a')
+    return 'n/a' if regime_code == 0 else f'{regime_text} | {source_text}'
+
+
+def render_quality_stack_text(score_value: float, ensemble_row_code: int) -> str:
+    ensemble_text = decode_ensemble_text(ensemble_row_code)
+    base_text = render_quality_bounds_text(score_value)
+    return base_text if ensemble_text == 'n/a' else f'{base_text} | Ensemble {ensemble_text}'
+
+
+def decode_vol_regime_stack_text(row_code: int, transport_row_code: int) -> str:
+    reason_code = row_reason(row_code)
+    local_text = 'off' if reason_code == 1 else 'Bull stack' if reason_code == 2 else 'Weak stack'
+    library_text = decode_library_vol_text(transport_row_code)
+    return local_text if library_text == 'n/a' else f'{local_text} | Lib {library_text}'
+
+
 def test_original_10_core_channels_remain_present_in_order() -> None:
     source = _read(CORE_PATH)
     plot_labels = re.findall(r"'([^']+)'", '\n'.join(re.findall(r"plot\([^\n]+display\s*=\s*display\.none\)", source)))
@@ -758,9 +801,28 @@ def test_quality_score_uses_fixed_local_bounds_text() -> None:
     assert 'quality_bounds_text(float score_value) =>' in dashboard_source
     assert 'quality_bounds_text(float score_value, float bounds_pack) =>' not in dashboard_source
     assert 'str.tostring(score_value, "#.##") + "/100 | min 25"' in dashboard_source
-    assert 'dashboard_row(smc_dashboard, 35, "Primary | Signal Quality", quality_bounds_text(src_quality_score), primary_metric_bg(row_status(quality_score_row_code)), txt)' in dashboard_source
+    assert 'quality_stack_text(float score_value, int ensemble_row_code) =>' in dashboard_source
+    assert 'int lean_transport_row_code = pack_slot(src_lean_pack_b, 3)' in dashboard_source
+    assert 'dashboard_row(smc_dashboard, 35, "Primary | Signal + Ensemble", quality_stack_text(src_quality_score, lean_transport_row_code), primary_metric_bg(row_status(quality_score_row_code)), txt)' in dashboard_source
 
     assert render_quality_bounds_text(74.0) == '74/100 | min 25'
+    assert render_quality_stack_text(74.0, pack_bus_row(4, 21)) == '74/100 | min 25 | Ensemble good'
+
+
+def test_lean_transport_row_exposes_ensemble_and_library_volatility() -> None:
+    core_source = _read(CORE_PATH)
+    dashboard_source = _read(DASHBOARD_PATH)
+
+    assert 'resolve_bus_ensemble_vol_transport_row(float ensemble_quality_score, string ensemble_quality_tier, string volatility_regime, string volatility_model_source) =>' in core_source
+    assert 'decode_ensemble_text(int row_code) =>' in dashboard_source
+    assert 'decode_library_vol_text(int row_code) =>' in dashboard_source
+    assert 'decode_vol_regime_stack_text(int row_code, int transport_row_code) =>' in dashboard_source
+    assert 'dashboard_row(smc_dashboard, 40, "Vol Regime | Lib", decode_vol_regime_stack_text(vol_regime_row_code, lean_transport_row_code), status_bg(row_status(vol_regime_row_code)), txt)' in dashboard_source
+
+    transport_row = pack_bus_row(4, 21)
+    assert decode_ensemble_text(transport_row) == 'good'
+    assert decode_library_vol_text(transport_row) == 'NORMAL | arch'
+    assert decode_vol_regime_stack_text(pack_bus_row(5, 2), transport_row) == 'Bull stack | Lib NORMAL | arch'
 
 
 def test_dashboard_and_strategy_contracts_share_same_strategy_relevant_channels() -> None:

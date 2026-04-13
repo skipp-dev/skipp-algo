@@ -2661,6 +2661,26 @@ resolve_bus_fvg_light_row(string fvg_side, bool fvg_fresh, bool fvg_invalidated)
     else
         pack_bus_row(3, 5)
 
+resolve_bus_ensemble_transport_state(float ensemble_quality_score, string ensemble_quality_tier) =>
+    if ensemble_quality_tier == "high"
+        5
+    else if ensemble_quality_tier == "good"
+        4
+    else if ensemble_quality_tier == "ok"
+        3
+    else if ensemble_quality_tier == "low" or ensemble_quality_score > 0
+        2
+    else
+        0
+
+resolve_bus_library_vol_reason_code(string volatility_regime, string volatility_model_source) =>
+    int regime_code = volatility_regime == "EXTREME" ? 4 : volatility_regime == "HIGH_VOL" ? 3 : volatility_regime == "NORMAL" ? 2 : volatility_regime == "LOW_VOL" ? 1 : 0
+    int source_code = volatility_model_source == "arch_garch" ? 1 : volatility_model_source == "atr_fallback" ? 2 : 0
+    regime_code * 10 + source_code
+
+resolve_bus_ensemble_vol_transport_row(float ensemble_quality_score, string ensemble_quality_tier, string volatility_regime, string volatility_model_source) =>
+    pack_bus_row(resolve_bus_ensemble_transport_state(ensemble_quality_score, ensemble_quality_tier), resolve_bus_library_vol_reason_code(volatility_regime, volatility_model_source))
+
 resolve_bus_trend_pack(int structure_display_trend, int mtf_trend_1, int mtf_trend_2, int mtf_trend_3) =>
     pack_bus_trend_set(structure_display_trend, mtf_trend_1, mtf_trend_2, mtf_trend_3)
 
@@ -2670,8 +2690,8 @@ resolve_bus_meta_pack(bool long_setup_armed, bool long_setup_confirmed, bool rea
 resolve_bus_lean_pack_a(int signal_quality_score, string signal_quality_tier, string signal_freshness, string signal_bias_alignment, string event_window_state, string event_risk_level, bool market_event_blocked, bool symbol_event_blocked, int structure_trend_strength, bool structure_fresh, string structure_last_event) =>
     pack_bus_four(resolve_bus_signal_quality_row(signal_quality_score, signal_quality_tier), resolve_bus_signal_freshness_row(signal_freshness, signal_bias_alignment), resolve_bus_event_risk_light_row(event_window_state, event_risk_level, market_event_blocked, symbol_event_blocked), resolve_bus_struct_light_row(structure_trend_strength, structure_fresh, structure_last_event))
 
-resolve_bus_lean_pack_b(string ob_side, bool ob_fresh, string ob_mitigation_state, string fvg_side, bool fvg_fresh, bool fvg_invalidated, int session_context_score, bool in_killzone, int signal_quality_score) =>
-    pack_bus_four(resolve_bus_ob_light_row(ob_side, ob_fresh, ob_mitigation_state), resolve_bus_fvg_light_row(fvg_side, fvg_fresh, fvg_invalidated), pack_bus_row(session_context_score, in_killzone ? 1 : 2), pack_bus_row(signal_quality_score, 0))
+resolve_bus_lean_pack_b(string ob_side, bool ob_fresh, string ob_mitigation_state, string fvg_side, bool fvg_fresh, bool fvg_invalidated, int session_context_score, bool in_killzone, float ensemble_quality_score, string ensemble_quality_tier, string volatility_regime, string volatility_model_source) =>
+    pack_bus_four(resolve_bus_ob_light_row(ob_side, ob_fresh, ob_mitigation_state), resolve_bus_fvg_light_row(fvg_side, fvg_fresh, fvg_invalidated), pack_bus_row(session_context_score, in_killzone ? 1 : 2), resolve_bus_ensemble_vol_transport_row(ensemble_quality_score, ensemble_quality_tier, volatility_regime, volatility_model_source))
 
 compose_long_invalidated_alert_detail(string long_last_invalid_source, string long_micro_alert_suffix, string long_score_detail_suffix) =>
     'BLOCKED. ' + long_last_invalid_source + long_micro_alert_suffix + long_score_detail_suffix
@@ -3471,6 +3491,12 @@ string lib_sq_tier                 = mp.SIGNAL_QUALITY_TIER
 string lib_sq_warnings             = mp.SIGNAL_WARNINGS
 string lib_sq_bias_alignment       = mp.SIGNAL_BIAS_ALIGNMENT
 string lib_sq_freshness            = mp.SIGNAL_FRESHNESS
+
+// ── Volatility + Ensemble (v5.5b direct consumer bridge) ──
+string lib_volatility_regime       = mp.VOLATILITY_REGIME
+string lib_volatility_model_source = mp.VOLATILITY_MODEL_SOURCE
+float  lib_ensemble_quality_score  = mp.ENSEMBLE_QUALITY_SCORE
+string lib_ensemble_quality_tier   = mp.ENSEMBLE_QUALITY_TIER
 
 // ── v5.5 Lean Context [PRIMARY] ──
 // Signal Quality: generator-computed composite replaces ad-hoc checks
@@ -6025,7 +6051,7 @@ plot(ltf_volume_delta, 'BUS LtfVolumeDelta', display = display.none)
 plot(pack_bus_counts(array.size(ob_blocks_bull), array.size(fvgs_bull)), 'BUS ObjectsCountPack', display = display.none)
 // ── v5.5 Lean BUS Plots ──
 plot(resolve_bus_lean_pack_a(lib_sq_score, lib_sq_tier, lib_sq_freshness, lib_sq_bias_alignment, lib_erl_window_state, lib_erl_level, lib_erl_market_blocked, lib_erl_symbol_blocked, lib_strl_trend_strength, lib_strl_fresh, lib_strl_last_event), 'BUS LeanPackA', display = display.none)
-plot(resolve_bus_lean_pack_b(lib_obl_side, lib_obl_fresh, lib_obl_mitigation_state, lib_fvgl_side, lib_fvgl_fresh, lib_fvgl_invalidated, lib_scl_context_score, lib_scl_in_killzone, lib_sq_score), 'BUS LeanPackB', display = display.none)
+plot(resolve_bus_lean_pack_b(lib_obl_side, lib_obl_fresh, lib_obl_mitigation_state, lib_fvgl_side, lib_fvgl_fresh, lib_fvgl_invalidated, lib_scl_context_score, lib_scl_in_killzone, lib_ensemble_quality_score, lib_ensemble_quality_tier, lib_volatility_regime, lib_volatility_model_source), 'BUS LeanPackB', display = display.none)
 
 // ── Mini Health Badge (v5.5a) ──
 var label core_hero_card = na
