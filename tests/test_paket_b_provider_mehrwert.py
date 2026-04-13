@@ -152,6 +152,7 @@ class TestB1DomainFallbackChain:
         fmp_path = tmp_path / "fmp.json"
         _write_source(fmp_path, [_fmp_row_with_technical()])
         monkeypatch.setattr(fmp_watchlist_json, "FMP_WATCHLIST_JSON", fmp_path)
+        monkeypatch.setattr(live_news_snapshot_json, "LIVE_NEWS_SNAPSHOT_JSON", tmp_path / "missing-snapshot.json")
 
         bz_path = tmp_path / "bz.json"
         _write_source(bz_path, [_benzinga_row_with_news()])
@@ -343,6 +344,7 @@ class TestB3EnhancedDiagnostics:
         monkeypatch.setattr(fmp_watchlist_json, "FMP_WATCHLIST_JSON", tmp_path / "missing.json")
         monkeypatch.setattr(tradingview_watchlist_json, "TRADINGVIEW_WATCHLIST_JSON", tmp_path / "missing2.json")
         monkeypatch.setattr(benzinga_watchlist_json, "BENZINGA_WATCHLIST_JSON", tmp_path / "missing3.json")
+        monkeypatch.setattr(live_news_snapshot_json, "LIVE_NEWS_SNAPSHOT_JSON", tmp_path / "missing4.json")
 
         merged = load_raw_meta_input_composite("AAPL", "15m")
         diag = merged["meta_domain_diagnostics"]

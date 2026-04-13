@@ -25,6 +25,7 @@ from smc_integration.sources import (
     benzinga_watchlist_json,
     databento_watchlist_csv,
     fmp_watchlist_json,
+    live_news_snapshot_json,
     tradingview_watchlist_json,
 )
 
@@ -36,6 +37,39 @@ def _write_source(path: Path, rows: list[dict[str, object]]) -> None:
 def _write_volume_csv(path: Path, symbol: str = "AAPL") -> None:
     path.write_text(
         f"symbol,trade_date,watchlist_rank\n{symbol},2026-03-01,1\n",
+        encoding="utf-8",
+    )
+
+
+def _write_live_news_snapshot(path: Path, *, symbol: str = "AAPL", published_ts: float) -> None:
+    path.write_text(
+        json.dumps(
+            {
+                "generated_at": "2026-04-13T10:15:00Z",
+                "symbols": [symbol],
+                "providers": {
+                    "newsapi_ai": {
+                        "ok": True,
+                        "error": "",
+                        "raw_count": 1,
+                        "new_item_count": 1,
+                        "cursor": published_ts,
+                    }
+                },
+                "stories": [
+                    {
+                        "headline": f"{symbol} rallies after product launch",
+                        "tickers": [symbol],
+                        "published_ts": published_ts,
+                        "providers": ["newsapi_ai", "tv"],
+                        "provider_names": ["newsapi_ai", "tv"],
+                        "first_provider": "newsapi_ai",
+                        "summary": "Positive product news",
+                    }
+                ],
+            },
+            indent=2,
+        ),
         encoding="utf-8",
     )
 
@@ -72,6 +106,10 @@ def _setup_news(monkeypatch, tmp_path: Path, *, asof_ts: float) -> None:
         "news_bias": "BEARISH",
     }])
     monkeypatch.setattr(benzinga_watchlist_json, "BENZINGA_WATCHLIST_JSON", bz_path)
+
+    snapshot_path = tmp_path / "smc_live_news_snapshot.json"
+    _write_live_news_snapshot(snapshot_path, published_ts=asof_ts)
+    monkeypatch.setattr(live_news_snapshot_json, "LIVE_NEWS_SNAPSHOT_JSON", snapshot_path)
 
 
 # ---------------------------------------------------------------------------
@@ -233,6 +271,7 @@ def test_missing_domain_marked_stale(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setattr(tradingview_watchlist_json, "TRADINGVIEW_WATCHLIST_JSON", tmp_path / "missing2.json")
     # News also missing
     monkeypatch.setattr(benzinga_watchlist_json, "BENZINGA_WATCHLIST_JSON", tmp_path / "missing3.json")
+    monkeypatch.setattr(live_news_snapshot_json, "LIVE_NEWS_SNAPSHOT_JSON", tmp_path / "missing4.json")
 
     merged = load_raw_meta_input_composite("AAPL", "15m")
     diag = merged["meta_domain_diagnostics"]
