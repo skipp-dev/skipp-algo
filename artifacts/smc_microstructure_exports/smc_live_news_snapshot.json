@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-04-13T22:51:02.531461Z",
+  "generated_at": "2026-04-13T23:36:07.157967Z",
   "symbols": [
     "AAPL",
     "MSFT",
@@ -81,7 +81,7 @@
       ],
       "published_at": "2026-04-13T20:13:36Z",
       "published_ts": 1776111216.0,
-      "age_minutes": 157.4,
+      "age_minutes": 202.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -102,10 +102,10 @@
       "impact": 0.85,
       "clarity": 0.7,
       "relevance": 0.8425,
-      "news_catalyst_score": 0.5378,
+      "news_catalyst_score": 0.5026,
       "materiality": "MEDIUM",
       "recency_bucket": "AGING",
-      "is_actionable": true,
+      "is_actionable": false,
       "url": "https://www.nasdaq.com/articles/see-which-recent-13f-filers-hold-meta",
       "first_seen_at": "2026-04-13T21:56:11.272926Z",
       "is_new": false,
@@ -119,7 +119,7 @@
       ],
       "published_at": "2026-04-13T12:42:11Z",
       "published_ts": 1776084131.0,
-      "age_minutes": 608.9,
+      "age_minutes": 653.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -157,7 +157,7 @@
       ],
       "published_at": "2026-04-13T10:47:24Z",
       "published_ts": 1776077244.0,
-      "age_minutes": 723.6,
+      "age_minutes": 768.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -195,7 +195,7 @@
       ],
       "published_at": "2026-04-13T16:01:30Z",
       "published_ts": 1776096090.0,
-      "age_minutes": 409.5,
+      "age_minutes": 454.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -233,7 +233,7 @@
       ],
       "published_at": "2026-04-13T12:06:43Z",
       "published_ts": 1776082003.0,
-      "age_minutes": 644.3,
+      "age_minutes": 689.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -271,7 +271,7 @@
       ],
       "published_at": "2026-04-13T12:02:00Z",
       "published_ts": 1776081720.0,
-      "age_minutes": 649.0,
+      "age_minutes": 694.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -309,7 +309,7 @@
       ],
       "published_at": "2026-04-13T20:05:00Z",
       "published_ts": 1776110700.0,
-      "age_minutes": 166.0,
+      "age_minutes": 211.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -330,7 +330,7 @@
       "impact": 0.1,
       "clarity": 0.8,
       "relevance": 0.535,
-      "news_catalyst_score": 0.2838,
+      "news_catalyst_score": 0.2636,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
@@ -347,7 +347,7 @@
       ],
       "published_at": "2026-04-13T21:03:28Z",
       "published_ts": 1776114208.0,
-      "age_minutes": 107.6,
+      "age_minutes": 152.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -368,7 +368,7 @@
       "impact": 0.1,
       "clarity": 0.8,
       "relevance": 0.535,
-      "news_catalyst_score": 0.2652,
+      "news_catalyst_score": 0.2521,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
@@ -385,7 +385,7 @@
       ],
       "published_at": "2026-04-13T17:35:17Z",
       "published_ts": 1776101717.0,
-      "age_minutes": 315.8,
+      "age_minutes": 360.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -423,7 +423,7 @@
       ],
       "published_at": "2026-04-13T18:40:49Z",
       "published_ts": 1776105649.0,
-      "age_minutes": 250.2,
+      "age_minutes": 295.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -444,7 +444,7 @@
       "impact": 0.1,
       "clarity": 0.6,
       "relevance": 0.475,
-      "news_catalyst_score": 0.2166,
+      "news_catalyst_score": 0.1966,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
@@ -461,7 +461,7 @@
       ],
       "published_at": "2026-04-13T17:54:00Z",
       "published_ts": 1776102840.0,
-      "age_minutes": 297.0,
+      "age_minutes": 342.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -482,7 +482,7 @@
       "impact": 0.1,
       "clarity": 0.6,
       "relevance": 0.475,
-      "news_catalyst_score": 0.1959,
+      "news_catalyst_score": 0.1946,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
@@ -499,7 +499,7 @@
       ],
       "published_at": "2026-04-13T13:52:06Z",
       "published_ts": 1776088326.0,
-      "age_minutes": 538.9,
+      "age_minutes": 584.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -537,7 +537,7 @@
       ],
       "published_at": "2026-04-13T11:41:22Z",
       "published_ts": 1776080482.0,
-      "age_minutes": 669.7,
+      "age_minutes": 714.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -575,7 +575,7 @@
       ],
       "published_at": "2026-04-13T09:59:14Z",
       "published_ts": 1776074354.0,
-      "age_minutes": 771.8,
+      "age_minutes": 816.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -606,44 +606,6 @@
       "provider_count": 1
     },
     {
-      "story_key": "d061216af779cfd9fc9be79b6cb138dc067ffdd0:5920355",
-      "headline": "Jassy Is Selling the Amazon AI Story: Should You Buy AMZN Stock Here?",
-      "tickers": [
-        "AMZN"
-      ],
-      "published_at": "2026-04-13T18:56:04Z",
-      "published_ts": 1776106564.0,
-      "age_minutes": 235.0,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Barchart.com"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Jassy Is Selling the Amazon AI Story: Should You Buy AMZN Stock Here?",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.1918,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.barchart.com/story/news/1280271/jassy-is-selling-the-amazon-ai-story-should-you-buy-amzn-stock-here",
-      "first_seen_at": "2026-04-13T21:56:11.272926Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
       "story_key": "4f9ceddb2f778e5ae543032cc6852d6980010c4f:5920331",
       "headline": "Meta Platforms (META) Stock Set to Claim Top Spot in Digital Advertising by 2026 - Blockonomi",
       "tickers": [
@@ -651,7 +613,7 @@
       ],
       "published_at": "2026-04-13T16:55:59Z",
       "published_ts": 1776099359.0,
-      "age_minutes": 355.1,
+      "age_minutes": 400.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -689,7 +651,7 @@
       ],
       "published_at": "2026-04-13T14:47:31Z",
       "published_ts": 1776091651.0,
-      "age_minutes": 483.5,
+      "age_minutes": 528.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -727,7 +689,7 @@
       ],
       "published_at": "2026-04-13T13:41:05Z",
       "published_ts": 1776087665.0,
-      "age_minutes": 550.0,
+      "age_minutes": 595.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -758,82 +720,6 @@
       "provider_count": 1
     },
     {
-      "story_key": "f02187175022d9e763e6cefa0a04fe3aaf9e96c6:5920353",
-      "headline": "The Market May Be Misreading Amazon's AI Position (NASDAQ:AMZN)",
-      "tickers": [
-        "AMZN"
-      ],
-      "published_at": "2026-04-13T18:48:38Z",
-      "published_ts": 1776106118.0,
-      "age_minutes": 242.4,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Seeking Alpha"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "The Market May Be Misreading Amazon's AI Position (NASDAQ:AMZN)",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.1889,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://seekingalpha.com/article/4890292-the-market-may-be-misreading-amazon-ai-position",
-      "first_seen_at": "2026-04-13T21:56:11.272926Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "0e99643fa7d4ee9785ad331d378783e38c576179:5920353",
-      "headline": "Microsoft (MSFT) Stock Is Up, What You Need To Know - StockStory",
-      "tickers": [
-        "MSFT"
-      ],
-      "published_at": "2026-04-13T18:46:11Z",
-      "published_ts": 1776105971.0,
-      "age_minutes": 244.9,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "StockStory"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Microsoft (MSFT) Stock Is Up, What You Need To Know - StockStory",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.188,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://stockstory.org/us/stocks/nasdaq/msft/news/why-up-down/microsoft-msft-stock-is-up-what-you-need-to-know-2",
-      "first_seen_at": "2026-04-13T21:56:11.272926Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
       "story_key": "9f55b686374205531bc839b8a20efc8e987674cf:5920289",
       "headline": "Trade Strategy For SPY, QQQ, AAPL, MSFT, NVDA, GOOGL, META, And TSLA",
       "tickers": [
@@ -843,7 +729,7 @@
       ],
       "published_at": "2026-04-13T13:27:52Z",
       "published_ts": 1776086872.0,
-      "age_minutes": 563.2,
+      "age_minutes": 608.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -874,6 +760,120 @@
       "provider_count": 1
     },
     {
+      "story_key": "d061216af779cfd9fc9be79b6cb138dc067ffdd0:5920355",
+      "headline": "Jassy Is Selling the Amazon AI Story: Should You Buy AMZN Stock Here?",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_at": "2026-04-13T18:56:04Z",
+      "published_ts": 1776106564.0,
+      "age_minutes": 280.1,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Barchart.com"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Jassy Is Selling the Amazon AI Story: Should You Buy AMZN Stock Here?",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.1746,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://www.barchart.com/story/news/1280271/jassy-is-selling-the-amazon-ai-story-should-you-buy-amzn-stock-here",
+      "first_seen_at": "2026-04-13T21:56:11.272926Z",
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
+      "story_key": "f02187175022d9e763e6cefa0a04fe3aaf9e96c6:5920353",
+      "headline": "The Market May Be Misreading Amazon's AI Position (NASDAQ:AMZN)",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_at": "2026-04-13T18:48:38Z",
+      "published_ts": 1776106118.0,
+      "age_minutes": 287.5,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Seeking Alpha"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "The Market May Be Misreading Amazon's AI Position (NASDAQ:AMZN)",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.1718,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://seekingalpha.com/article/4890292-the-market-may-be-misreading-amazon-ai-position",
+      "first_seen_at": "2026-04-13T21:56:11.272926Z",
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
+      "story_key": "0e99643fa7d4ee9785ad331d378783e38c576179:5920353",
+      "headline": "Microsoft (MSFT) Stock Is Up, What You Need To Know - StockStory",
+      "tickers": [
+        "MSFT"
+      ],
+      "published_at": "2026-04-13T18:46:11Z",
+      "published_ts": 1776105971.0,
+      "age_minutes": 289.9,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "StockStory"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Microsoft (MSFT) Stock Is Up, What You Need To Know - StockStory",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.1709,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://stockstory.org/us/stocks/nasdaq/msft/news/why-up-down/microsoft-msft-stock-is-up-what-you-need-to-know-2",
+      "first_seen_at": "2026-04-13T21:56:11.272926Z",
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
       "story_key": "e145c42a788b1620ad5b300cee94c32c01a58ffe:5920339",
       "headline": "Amazon (AMZN) Stock: E-Commerce Giant Revs Up Vehicle Sales Nationwide - Blockonomi",
       "tickers": [
@@ -881,7 +881,7 @@
       ],
       "published_at": "2026-04-13T17:38:46Z",
       "published_ts": 1776101926.0,
-      "age_minutes": 312.3,
+      "age_minutes": 357.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -919,7 +919,7 @@
       ],
       "published_at": "2026-04-13T15:46:05Z",
       "published_ts": 1776095165.0,
-      "age_minutes": 425.0,
+      "age_minutes": 470.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -957,7 +957,7 @@
       ],
       "published_at": "2026-04-13T12:13:06Z",
       "published_ts": 1776082386.0,
-      "age_minutes": 637.9,
+      "age_minutes": 683.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -995,7 +995,7 @@
       ],
       "published_at": "2026-04-13T10:50:09Z",
       "published_ts": 1776077409.0,
-      "age_minutes": 720.9,
+      "age_minutes": 766.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1033,7 +1033,7 @@
       ],
       "published_at": "2026-04-13T08:24:55Z",
       "published_ts": 1776068695.0,
-      "age_minutes": 866.1,
+      "age_minutes": 911.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1071,7 +1071,7 @@
       ],
       "published_at": "2026-04-13T05:08:00Z",
       "published_ts": 1776056880.0,
-      "age_minutes": 1063.0,
+      "age_minutes": 1108.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1143,7 +1143,7 @@
       "story_key": "9b368e426b9af47149adfc6aefd708db76eec7fa:5920257"
     },
     "META": {
-      "news_catalyst_score": 0.6578,
+      "news_catalyst_score": 0.6226,
       "sentiment_label": "neutral",
       "event_class": "INSIDER",
       "event_label": "See Which Recent 13F Filers Hold META",
@@ -1151,12 +1151,12 @@
       "recency_bucket": "AGING",
       "source_tier": "TIER_3",
       "mentions_24h": 6,
-      "is_actionable": true,
+      "is_actionable": false,
       "first_provider": "newsapi_ai",
       "story_key": "91f9bc05b6f454ae325d67848c40a15a0ac5ec2b:5920370"
     },
     "MSFT": {
-      "news_catalyst_score": 0.3852,
+      "news_catalyst_score": 0.3721,
       "sentiment_label": "bullish",
       "event_class": "UNKNOWN",
       "event_label": "Nasdaq Composite Closes Positive; Microsoft (MSFT) Jumps 3.6%; IBM Closes 3 Percent Higher",
@@ -1185,10 +1185,8 @@
   "summary": {
     "active_story_count": 27,
     "new_story_count": 0,
-    "actionable_story_count": 1,
-    "actionable_symbols": [
-      "META"
-    ],
+    "actionable_story_count": 0,
+    "actionable_symbols": [],
     "symbol_count": 6
   },
   "symbol_scope": {
