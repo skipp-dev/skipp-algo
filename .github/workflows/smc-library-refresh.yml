@@ -161,6 +161,7 @@ jobs:
         continue-on-error: true
         run: |
           shopt -s nullglob
+          mkdir -p artifacts/ci
           tests=(
             tests/test_smc_integration_*.py
             tests/test_explicit_structure_*.py
@@ -170,7 +171,25 @@ jobs:
             echo "No gate tests matched." >&2
             exit 1
           fi
-          python -m pytest -q --maxfail=1 "${tests[@]}"
+          set +e
+          python -m pytest -q --maxfail=1 "${tests[@]}" 2>&1 | tee artifacts/ci/smc_refresh_gate_pytest.log
+          GATE_RC=${PIPESTATUS[0]}
+          set -e
+
+          FIRST_FAILED_TEST_LINE=$(grep -m1 '^FAILED ' artifacts/ci/smc_refresh_gate_pytest.log || true)
+          FIRST_FAILED_TEST=$(printf '%s\n' "$FIRST_FAILED_TEST_LINE" | sed -E 's/^FAILED ([^ ]+).*/\1/')
+          if [ -n "$FIRST_FAILED_TEST" ]; then
+            {
+              echo "first_failed_test<<EOF"
+              echo "$FIRST_FAILED_TEST"
+              echo "EOF"
+              echo "first_failed_test_line<<EOF"
+              echo "$FIRST_FAILED_TEST_LINE"
+              echo "EOF"
+            } >> "$GITHUB_OUTPUT"
+          fi
+
+          exit "$GATE_RC"
 
       - name: Collect gate evidence
         if: always()
@@ -182,7 +201,11 @@ jobs:
       - name: Abort on gate failure
         if: steps.gates.outcome == 'failure'
         run: |
-          echo "::error::Evidence gates failed — library will NOT be published."
+          if [ -n "${{ steps.gates.outputs.first_failed_test }}" ]; then
+            echo "::error::Evidence gates failed on ${{ steps.gates.outputs.first_failed_test }} — library will NOT be published."
+          else
+            echo "::error::Evidence gates failed — library will NOT be published."
+          fi
           echo "GATE_STATUS=failed" >> "$GITHUB_ENV"
           exit 1
 
@@ -466,7 +489,7 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git config --local --unset-all http.https://github.com/.extraheader || true
           git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
-          git restore --source=HEAD --worktree --staged -- \
+          GIT_LFS_SKIP_SMUDGE=1 git -c filter.lfs.smudge= -c filter.lfs.process= -c filter.lfs.required=false restore --source=HEAD --worktree --staged -- \
             artifacts/databento_volatility_cache/ \
             artifacts/smc_microstructure_exports/smc_live_news_snapshot.json \
             artifacts/smc_microstructure_exports/smc_live_news_state.json || true
@@ -542,6 +565,9 @@ jobs:
       # ── Status summary ─────────────────────────────────────────
       - name: Emit workflow summary
         if: always()
+        env:
+          FIRST_FAILED_GATE_TEST: ${{ steps.gates.outputs.first_failed_test }}
+          FIRST_FAILED_GATE_TEST_LINE: ${{ steps.gates.outputs.first_failed_test_line }}
         run: |
           {
             echo "## SMC Library Refresh (v5) — ${REFRESH_TS}"
@@ -552,6 +578,9 @@ jobs:
             echo "| Ref | ${{ github.ref_name }} |"
             echo "| Generation (base + enrichment + event-risk) | ${{ steps.gates.outcome == 'success' && '✅' || steps.gates.outcome == 'skipped' && '⏭️ skipped' || '❌ failed' }} |"
             echo "| Evidence gates | ${{ steps.gates.outcome == 'success' && '✅ passed' || '❌ failed' }} |"
+            if [ "${{ steps.gates.outcome }}" = "failure" ] && [ -n "$FIRST_FAILED_GATE_TEST" ]; then
+              echo "| First failing gate test | $FIRST_FAILED_GATE_TEST |"
+            fi
             echo "| Library changed | ${{ steps.diff.outputs.changed == 'true' && '✅ yes' || '⏭️ no' }} |"
             echo "| Pre-release artifact refresh | ${{ steps.pre_release_refresh.outcome == 'success' && '✅ passed' || steps.pre_release_refresh.outcome == 'skipped' && '⏭️ skipped' || '❌ failed' }} |"
             echo "| Strict release gates | ${{ steps.release_gates.outcome == 'success' && '✅ passed' || steps.release_gates.outcome == 'skipped' && '⏭️ skipped' || '❌ failed' }} |"
@@ -581,6 +610,12 @@ jobs:
               echo "| TradingView post-release validation | ⏭️ skipped (no changes) |"
               echo "| Commit | ⏭️ skipped (no changes) |"
               echo "| Signal + event-risk alerts | ⏭️ skipped (no changes) |"
+            fi
+            if [ "${{ steps.gates.outcome }}" = "failure" ] && [ -n "$FIRST_FAILED_GATE_TEST_LINE" ]; then
+              echo ""
+              echo "### First Failing Gate Test"
+              echo ""
+              echo "$FIRST_FAILED_GATE_TEST_LINE"
             fi
             if [ "${PROVIDER_DOMAIN_ALERT_COUNT:-0}" -gt 0 ]; then
               echo ""

@@ -14,12 +14,24 @@ def _read(path: Path) -> str:
 def test_refresh_commit_step_restores_runtime_artifacts_before_commit() -> None:
     workflow_text = _read(WORKFLOW_PATH)
 
-    assert 'git restore --source=HEAD --worktree --staged -- \\' in workflow_text
+    assert 'GIT_LFS_SKIP_SMUDGE=1 git -c filter.lfs.smudge= -c filter.lfs.process= -c filter.lfs.required=false restore --source=HEAD --worktree --staged -- \\' in workflow_text
     assert 'artifacts/databento_volatility_cache/' in workflow_text
     assert 'artifacts/smc_microstructure_exports/smc_live_news_snapshot.json' in workflow_text
     assert 'artifacts/smc_microstructure_exports/smc_live_news_state.json' in workflow_text
     assert 'git add pine/generated/ SMC_Core_Engine.pine artifacts/tradingview/library_release_manifest.json' in workflow_text
     assert 'Unexpected tracked changes remain unstaged before refresh commit.' in workflow_text
+
+
+def test_refresh_workflow_surfaces_first_failing_gate_test() -> None:
+    workflow_text = _read(WORKFLOW_PATH)
+
+    assert 'tee artifacts/ci/smc_refresh_gate_pytest.log' in workflow_text
+    assert "grep -m1 '^FAILED ' artifacts/ci/smc_refresh_gate_pytest.log || true" in workflow_text
+    assert 'echo "first_failed_test<<EOF"' in workflow_text
+    assert 'Evidence gates failed on ${{ steps.gates.outputs.first_failed_test }}' in workflow_text
+    assert 'FIRST_FAILED_GATE_TEST: ${{ steps.gates.outputs.first_failed_test }}' in workflow_text
+    assert 'echo "| First failing gate test | $FIRST_FAILED_GATE_TEST |"' in workflow_text
+    assert '### First Failing Gate Test' in workflow_text
 
 
 def test_refresh_commit_step_keeps_non_fast_forward_retry_loop() -> None:
