@@ -4,12 +4,41 @@
     "fmp_stock": 0.0,
     "fmp_press": 0.0,
     "fmp_articles": 0.0,
-    "newsapi_ai": 1776027862.0,
+    "newsapi_ai": 1776056880.0,
     "tv": 0.0,
-    "legacy_cursor": 1776027862.0
+    "legacy_cursor": 1776056880.0
   },
   "provider_state": {},
   "story_state": {
+    "82b76cabc494cd85c56263d8ee1aeffd6041fdb2:5920189": {
+      "story_key": "82b76cabc494cd85c56263d8ee1aeffd6041fdb2:5920189",
+      "cluster_hash": "82b76cabc494cd85c56263d8ee1aeffd6041fdb2",
+      "headline": "'This Isn't the Time,' Says Investor About Microsoft Stock (MSFT)",
+      "tickers": [
+        "MSFT"
+      ],
+      "published_ts": 1776056880.0,
+      "first_seen_ts": 1776060456.6599288,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Markets Insider"
+      ],
+      "url": "https://markets.businessinsider.com/news/stocks/this-isn-t-the-time-says-investor-about-microsoft-stock-msft-1036013906",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776060456.6599288
+    },
     "2f94ae4ced3579b860e669181814d73447cd78ea:5920092": {
       "story_key": "2f94ae4ced3579b860e669181814d73447cd78ea:5920092",
       "cluster_hash": "2f94ae4ced3579b860e669181814d73447cd78ea",
