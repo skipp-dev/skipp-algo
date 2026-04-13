@@ -92,6 +92,16 @@ def _build_domain_alert(
     return row
 
 
+def _source_plan_value(source_plan: dict[str, Any] | None, domain: str) -> str:
+    if not isinstance(source_plan, dict):
+        return ""
+    for key in (domain, f"snapshot_{domain}"):
+        value = str(source_plan.get(key) or "").strip()
+        if value:
+            return value
+    return ""
+
+
 def _collect_meta_domain_alerts(
     *,
     symbol: str,
@@ -104,9 +114,7 @@ def _collect_meta_domain_alerts(
 
     for domain in ("volume", "technical", "news"):
         status = str(domain_diag.get(domain) or "").strip()
-        planned_source = ""
-        if isinstance(source_plan, dict):
-            planned_source = str(source_plan.get(domain) or "").strip()
+        planned_source = _source_plan_value(source_plan, domain)
         actual_source = str(domain_diag.get(f"{domain}_source") or "").strip()
         fallback_used = bool(domain_diag.get(f"{domain}_fallback_used"))
 
@@ -463,14 +471,23 @@ def _run_smoke_checks(
                     }
                 )
             elif _structure_is_empty(raw_structure):
-                degradation = {
-                    "code": "EMPTY_STRUCTURE_INPUT",
-                    "symbol": symbol,
-                    "timeframe": timeframe,
-                    "message": "raw_structure contains only empty canonical category arrays.",
-                }
-                warnings.append(dict(degradation))
-                degradations.append(dict(degradation))
+                row["structure_empty"] = True
+                planned_structure_source = _source_plan_value(
+                    row.get("source_plan") if isinstance(row.get("source_plan"), dict) else None,
+                    "structure",
+                )
+                if not (
+                    allow_release_reference_meta_fallback
+                    and planned_structure_source == "structure_artifact_json"
+                ):
+                    degradation = {
+                        "code": "EMPTY_STRUCTURE_INPUT",
+                        "symbol": symbol,
+                        "timeframe": timeframe,
+                        "message": "raw_structure contains only empty canonical category arrays.",
+                    }
+                    warnings.append(dict(degradation))
+                    degradations.append(dict(degradation))
 
             try:
                 if allow_release_reference_meta_fallback:

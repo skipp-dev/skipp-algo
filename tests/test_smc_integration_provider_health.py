@@ -280,6 +280,91 @@ def test_smoke_detects_empty_structure_input_as_degradation(monkeypatch):
     assert any(item.get("code") == "EMPTY_STRUCTURE_INPUT" for item in smoke["degradations"])
 
 
+def test_smoke_release_reference_ignores_empty_structure_from_structure_artifact(monkeypatch):
+    import smc_integration.repo_sources as repo_sources_module
+
+    monkeypatch.setattr(
+        provider_health,
+        "discover_composite_source_plan",
+        lambda **kwargs: {
+            "structure": "structure_artifact_json",
+            "volume": "databento_watchlist_csv",
+            "technical": "fmp_watchlist_json",
+            "news": "live_news_snapshot_json",
+        },
+    )
+    monkeypatch.setattr(
+        provider_health,
+        "load_raw_structure_input",
+        lambda symbol, timeframe, source: {
+            "bos": [],
+            "orderblocks": [],
+            "fvg": [],
+            "liquidity_sweeps": [],
+        },
+    )
+    monkeypatch.setattr(
+        repo_sources_module,
+        "load_raw_meta_input_composite_for_release_reference",
+        lambda symbol, timeframe, source="auto", reference_time=None: {
+            "asof_ts": 995.0,
+            "meta_domain_diagnostics": {
+                "volume": "synthetic_fallback",
+                "volume_source": "synthetic_structure_artifact_meta",
+                "volume_fallback_used": True,
+                "volume_stale": False,
+                "technical": "source_file_not_found",
+                "technical_source": "fmp_watchlist_json",
+                "technical_fallback_used": False,
+                "technical_stale": False,
+                "news": "present",
+                "news_source": "live_news_snapshot_json",
+                "news_fallback_used": False,
+                "news_stale": False,
+            },
+        },
+    )
+    monkeypatch.setattr(
+        provider_health,
+        "build_snapshot_bundle_for_symbol_timeframe",
+        lambda symbol, timeframe, source, generated_at, **kwargs: {
+            "snapshot": {
+                "symbol": symbol,
+                "timeframe": timeframe,
+                "generated_at": generated_at,
+                "structure": {
+                    "bos": [],
+                    "orderblocks": [],
+                    "fvg": [],
+                    "liquidity_sweeps": [],
+                },
+            },
+            "source_plan": {
+                "structure": "structure_artifact_json",
+                "volume": "databento_watchlist_csv",
+                "technical": "fmp_watchlist_json",
+                "news": "live_news_snapshot_json",
+            },
+            "dashboard_payload": {},
+            "pine_payload": {},
+            "structure_context": {"meta": {"service": "stub"}},
+        },
+    )
+
+    smoke = provider_health._run_smoke_checks(
+        symbols=["AAPL"],
+        timeframes=["15m"],
+        checked_at=1_000.0,
+        stale_after_seconds=None,
+        allow_release_reference_meta_fallback=True,
+    )
+
+    assert smoke["results"][0]["status"] == "ok"
+    assert smoke["results"][0]["structure_empty"] is True
+    assert not any(item.get("code") == "EMPTY_STRUCTURE_INPUT" for item in smoke["warnings"])
+    assert not any(item.get("code") == "EMPTY_STRUCTURE_INPUT" for item in smoke["degradations"])
+
+
 def test_smoke_happy_path_is_ok(monkeypatch):
     monkeypatch.setattr(
         provider_health,

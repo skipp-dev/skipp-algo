@@ -210,11 +210,17 @@ Neben den bestehenden Manifest-/Meta-Staleness-Codes (`STALE_MANIFEST_GENERATED_
 
 Fuer jede Domaene (volume, technical, news) stehen folgende Felder zur Verfuegung:
 
-- `{domain}_source` – Name des Providers, der die Daten geliefert hat (z. B. `databento_watchlist_csv`, `fmp_watchlist_json`).
+- `{domain}_source` – Name des Repo-Source-Adapters, der die Daten geliefert hat (z. B. `databento_watchlist_csv`, `fmp_watchlist_json`, `live_news_snapshot_json`).
 - `{domain}_asof_ts` – Epoch-Timestamp der Domaenen-Meta (`null` wenn nicht vorhanden).
 - `{domain}_age_hours` – Alter in Stunden seit `asof_ts` (`null` wenn `asof_ts` fehlt).
 - `{domain}_stale` – `true` wenn `age_hours > 48` oder `asof_ts` fehlt/ungueltig.
 - `{domain}_fallback_used` – `true` wenn der primaere Provider nicht geliefert hat und ein Fallback-Provider genutzt wurde.
+
+Wichtig fuer News: Im aktuellen Release-/Refresh-Pfad plant `smc_integration/repo_sources.py`
+die News-Domaene standardmaessig ueber `live_news_snapshot_json`. Die konkreten
+Upstream-Provider dahinter koennen NewsAPI.ai, TradingView sowie weitere
+Live-News-Feeds sein; deren Provenance bleibt im Snapshot erhalten, auch wenn
+der Repo-Source-Name nur `live_news_snapshot_json` ist.
 
 ### Zusaetzliche `domain_alerts` im Provider-Health-/Release-Gate-Report
 
@@ -264,14 +270,14 @@ spaeter ein Fallback eingesprungen ist.
 |---|---|
 | `STALE_META_VOLUME_DOMAIN` | Databento-Watchlist-CSV nicht aktualisiert (Pipeline-Fehler, Export nicht gelaufen, CSV aelter als 48 h). |
 | `STALE_META_TECHNICAL_DOMAIN` | FMP- oder TradingView-Watchlist-JSON nicht aktualisiert. Primaer-Provider fehlgeschlagen und Fallback ebenfalls veraltet. |
-| `STALE_META_NEWS_DOMAIN` | Benzinga-Watchlist-JSON nicht aktualisiert oder News-Feed-Pipeline nicht gelaufen. |
+| `STALE_META_NEWS_DOMAIN` | Live-News-Snapshot nicht aktualisiert oder die zugrunde liegenden News-Feeds (z. B. NewsAPI.ai, TradingView, Benzinga/FMP) haben keine frischen Symboltreffer geliefert. |
 
 ### Sofortmassnahmen fuer Operatoren
 
 1. **Report pruefen:** Im Health-/Gate-Report die `meta_domain_diagnostics` des betroffenen Symbols/Timeframes lesen. Dort stehen `{domain}_source`, `{domain}_age_hours` und `{domain}_asof_ts`.
 2. **`domain_alerts` lesen:** Root-Cause aus `gates[].details.domain_alerts` ziehen. Dort stehen `status`, `planned_source`, `actual_source` und `fallback_used` bereits operator-lesbar.
-3. **Provider-Pipeline pruefen:** Hat der zustaendige Export/Poller (Databento, FMP, Benzinga) zuletzt erfolgreich gelaufen?
-4. **Manuellen Refresh ausloesen:** Den betroffenen Provider-Export erneut starten (z. B. Databento-Watchlist-Export, FMP-Refresh).
+3. **Provider-Pipeline pruefen:** Hat der zustaendige Export/Poller (Databento, FMP, Live-News-Snapshot inklusive NewsAPI.ai/TradingView/Benzinga/FMP) zuletzt erfolgreich gelaufen?
+4. **Manuellen Refresh ausloesen:** Den betroffenen Provider-Export oder Snapshot-Export erneut starten (z. B. Databento-Watchlist-Export, FMP-Refresh, Live-News-Snapshot-Export).
 5. **Gate erneut laufen lassen:** Nach erfolgreichem Refresh den deeper- oder release-Gate-Lauf wiederholen.
 
 ### Wie bekomme ich einen Alert?
@@ -286,8 +292,14 @@ spaeter ein Fallback eingesprungen ist.
   - wenn ein Gate dadurch fehlschlaegt, liefert GitHub Actions die normale Workflow-Notification
   - fuer reine `info`-Fallbacks bleibt der Lauf gruen; diese muessen bewusst aus `domain_alerts` ausgewertet werden
 4. **Workflow-Summary / Telegram nutzen:**
-  - `smc-library-refresh` schreibt `domain_alerts` jetzt aktiv in die Job-Summary
-  - wenn Telegram-Secrets gesetzt sind, meldet die End-of-run-Nachricht auch reine Info-Fallbacks als `Library published with fallback alerts`
+  - `smc-library-refresh` schreibt `domain_alerts` und `provider_health.warnings` aktiv in die Job-Summary
+  - die Summary trennt zwischen `Provider Domain Alerts` und `Provider Health Warnings`
+  - wenn Telegram-Secrets gesetzt sind, meldet die End-of-run-Nachricht reale Provider-Warnings als `Library published with provider warnings`
+  - reine Info-Fallbacks bleiben separat als `Library published with fallback alerts` sichtbar
+5. **`EMPTY_STRUCTURE_INPUT` richtig lesen:**
+  - im relaxed Release-Reference-Pfad mit `structure_artifact_json` wird ein formal leeres Structure-Artifact nicht mehr als `EMPTY_STRUCTURE_INPUT` gewarnt
+  - die Empty-Artifact-Absicherung liegt dort bereits im Pre-release-Refresh
+  - wenn `EMPTY_STRUCTURE_INPUT` trotzdem im Report steht, ist es weiterhin ein echtes Smoke-Signal und kein absichtlich unterdrueckter Release-Noise
 
 ### Wann ist es nur ein Warnsignal?
 
@@ -315,7 +327,7 @@ spaeter ein Fallback eingesprungen ist.
     "technical_age_hours": 51.2,
     "technical_stale": true,
     "news": "present",
-    "news_source": "benzinga_watchlist_json",
+    "news_source": "live_news_snapshot_json",
     "news_fallback_used": false,
     "news_asof_ts": 1711494000.0,
     "news_age_hours": 4.2,
@@ -340,7 +352,7 @@ flowchart TD
     A[STALE_META_*_DOMAIN im Report] --> B{Welche Domaene?}
     B -->|volume| C[Databento-Watchlist-CSV pruefen]
     B -->|technical| D[FMP-Watchlist-JSON pruefen]
-    B -->|news| E[Benzinga-Watchlist-JSON pruefen]
+    B -->|news| E[Live-News-Snapshot und News-Feeds pruefen]
     C --> F{Pipeline gelaufen?}
     D --> F
     E --> F

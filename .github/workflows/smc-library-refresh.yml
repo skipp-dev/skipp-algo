@@ -256,7 +256,7 @@ jobs:
             --input-glob "artifacts/ci/smc_*_report.json" \
             --output artifacts/ci/smc_refresh_evidence_summary.json
 
-      - name: Extract provider domain alerts
+      - name: Extract provider health signals
         if: always()
         run: |
           python - <<'PY'
@@ -266,6 +266,7 @@ jobs:
 
           report_path = Path("artifacts/ci/smc_release_gates_report.json")
           alerts: list[dict] = []
+          warnings: list[dict] = []
           if report_path.exists():
             try:
               report = json.loads(report_path.read_text(encoding="utf-8"))
@@ -278,6 +279,9 @@ jobs:
                   raw_alerts = details.get("domain_alerts", [])
                   if isinstance(raw_alerts, list):
                     alerts = [item for item in raw_alerts if isinstance(item, dict)]
+                  raw_warnings = details.get("warnings", [])
+                  if isinstance(raw_warnings, list):
+                    warnings = [item for item in raw_warnings if isinstance(item, dict)]
                 break
 
           def summarize(alert: dict) -> str:
@@ -294,17 +298,30 @@ jobs:
               detail = status or "unknown"
             return f"- {code}: {domain} {symbol}/{timeframe} ({detail})"
 
+          def summarize_warning(row: dict) -> str:
+            code = str(row.get("code") or "UNKNOWN")
+            symbol = str(row.get("symbol") or "").strip()
+            timeframe = str(row.get("timeframe") or "").strip()
+            suffix = f" {symbol}/{timeframe}" if symbol and timeframe else ""
+            return f"- {code}:{suffix}" if suffix else f"- {code}"
+
           info_count = sum(1 for item in alerts if str(item.get("severity") or "") == "info")
           warn_count = sum(1 for item in alerts if str(item.get("severity") or "") == "warn")
           rendered_lines = "\n".join(summarize(item) for item in alerts[:5])
+          rendered_warning_lines = "\n".join(summarize_warning(item) for item in warnings[:5])
 
           with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as handle:
             handle.write(f"PROVIDER_DOMAIN_ALERT_COUNT={len(alerts)}\n")
             handle.write(f"PROVIDER_DOMAIN_INFO_COUNT={info_count}\n")
             handle.write(f"PROVIDER_DOMAIN_WARN_COUNT={warn_count}\n")
+            handle.write(f"PROVIDER_HEALTH_WARNING_COUNT={len(warnings)}\n")
             handle.write("PROVIDER_DOMAIN_ALERT_LINES<<EOF\n")
             if rendered_lines:
               handle.write(rendered_lines + "\n")
+            handle.write("EOF\n")
+            handle.write("PROVIDER_HEALTH_WARNING_LINES<<EOF\n")
+            if rendered_warning_lines:
+              handle.write(rendered_warning_lines + "\n")
             handle.write("EOF\n")
           PY
 
@@ -556,6 +573,16 @@ jobs:
                 printf '%s\n' "${PROVIDER_DOMAIN_ALERT_LINES}"
               fi
             fi
+            if [ "${PROVIDER_HEALTH_WARNING_COUNT:-0}" -gt 0 ]; then
+              echo ""
+              echo "### Provider Health Warnings"
+              echo ""
+              echo "Count: ${PROVIDER_HEALTH_WARNING_COUNT:-0}"
+              if [ -n "${PROVIDER_HEALTH_WARNING_LINES}" ]; then
+                echo ""
+                printf '%s\n' "${PROVIDER_HEALTH_WARNING_LINES}"
+              fi
+            fi
             echo ""
             if [ -f artifacts/ci/library_diff_${REFRESH_DATE}.patch ]; then
               echo "<details><summary>Library diff</summary>"
@@ -607,6 +634,7 @@ jobs:
           ALERT_COUNT="${PROVIDER_DOMAIN_ALERT_COUNT:-0}"
           ALERT_INFO="${PROVIDER_DOMAIN_INFO_COUNT:-0}"
           ALERT_WARN="${PROVIDER_DOMAIN_WARN_COUNT:-0}"
+          PROVIDER_WARNING_COUNT="${PROVIDER_HEALTH_WARNING_COUNT:-0}"
 
           if [ "$GATE" = "failure" ]; then
             ICON="❌"
@@ -626,7 +654,7 @@ jobs:
           elif [ "$COMMIT_PUSH" = "failure" ]; then
             ICON="❌"
             HEADLINE="Commit/push failed"
-          elif [ "$ALERT_WARN" != "0" ]; then
+          elif [ "$ALERT_WARN" != "0" ] || [ "$PROVIDER_WARNING_COUNT" != "0" ]; then
             ICON="⚠️"
             HEADLINE="Library published with provider warnings"
           elif [ "$ALERT_INFO" != "0" ]; then
@@ -640,6 +668,9 @@ jobs:
           MSG="${ICON} <b>SMC Refresh</b> — ${HEADLINE}%0A🕐 ${REFRESH_TS}  •  Run #${{ github.run_number }}"
           if [ "$ALERT_COUNT" != "0" ]; then
             MSG="${MSG}%0Aℹ️ Provider domain alerts: ${ALERT_COUNT} (${ALERT_WARN} warn / ${ALERT_INFO} info)"
+          fi
+          if [ "$PROVIDER_WARNING_COUNT" != "0" ]; then
+            MSG="${MSG}%0A⚠️ Provider health warnings: ${PROVIDER_WARNING_COUNT}"
           fi
           if [ "$ALERTS" = "success" ]; then
             MSG="${MSG}%0A📡 Signal alerts evaluated"

@@ -6,7 +6,14 @@ from dataclasses import dataclass
 from typing import Any, Callable
 
 from .meta_merge import merge_raw_meta_domains
-from .sources import benzinga_watchlist_json, databento_watchlist_csv, fmp_watchlist_json, structure_artifact_json, tradingview_watchlist_json
+from .sources import (
+    benzinga_watchlist_json,
+    databento_watchlist_csv,
+    fmp_watchlist_json,
+    live_news_snapshot_json,
+    structure_artifact_json,
+    tradingview_watchlist_json,
+)
 from .sources.base import SourceDescriptor
 
 # Per-domain staleness threshold for technical / news meta.
@@ -36,6 +43,11 @@ _SOURCE_PROVIDERS: dict[str, _SourceProvider] = {
         descriptor=fmp_watchlist_json.describe_source(),
         load_structure=fmp_watchlist_json.load_raw_structure_input,
         load_meta=fmp_watchlist_json.load_raw_meta_input,
+    ),
+    "live_news_snapshot_json": _SourceProvider(
+        descriptor=live_news_snapshot_json.describe_source(),
+        load_structure=live_news_snapshot_json.load_raw_structure_input,
+        load_meta=live_news_snapshot_json.load_raw_meta_input,
     ),
     "structure_artifact_json": _SourceProvider(
         descriptor=structure_artifact_json.describe_source(),
@@ -97,6 +109,7 @@ _DOMAIN_SOURCE_ORDER: dict[str, list[str]] = {
         "benzinga_watchlist_json",
     ],
     "news": [
+        "live_news_snapshot_json",
         "benzinga_watchlist_json",
         "fmp_watchlist_json",
         "tradingview_watchlist_json",
@@ -116,7 +129,7 @@ def _can_supply_domain(provider: _SourceProvider, domain: str) -> bool:
     if domain == "technical":
         return provider.descriptor.name in {"fmp_watchlist_json", "tradingview_watchlist_json"}
     if domain == "news":
-        return provider.descriptor.name == "benzinga_watchlist_json"
+        return provider.descriptor.name in {"benzinga_watchlist_json", "live_news_snapshot_json"}
     return False
 
 

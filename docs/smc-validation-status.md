@@ -18,6 +18,8 @@ It now anchors and propagates product metadata across:
 - the active SMC core/dashboard path now carries library volatility + ensemble context through the existing lean BUS transport and renders it in the audit surface
 - the refresh workflow now restores known runtime artifacts before commit/push and verifies the generated library import bump explicitly
 - provider-health and release-gate reports now expose `domain_alerts` for fallback-used and domain-status cases so operator reports can show missing-subscription / no-data root causes without digging through raw payloads
+- release-health news resolution now follows the productive live-news artifact via `live_news_snapshot_json` instead of assuming legacy static watchlist snapshots
+- the refresh workflow summary now separates `Provider Domain Alerts` from `Provider Health Warnings`, and end-of-run notifications escalate on real provider warnings
 - preflight reporting moved from one coarse `ok` flag to staged status fields
 - auth source selection is now explicit and documented
 - binding verification is split into count and name checks
@@ -62,7 +64,7 @@ Refresh date: 2026-04-13
 - library publish tracking artifact: present
 - product-cut artifact: present
 - automated micro-library publish path: reproducible from this workspace snapshot
-- provider fallback / no-data root causes: visible via `domain_alerts` + `meta_domain_diagnostics` in provider-health and release-gate reports
+- provider fallback / no-data root causes: visible via `domain_alerts` + `meta_domain_diagnostics` in provider-health and release-gate reports, plus summary-level `Provider Health Warnings` in `smc-library-refresh`
 
 ## Read This Next
 

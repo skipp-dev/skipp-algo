@@ -21,6 +21,7 @@ from smc_integration.sources import (
     benzinga_watchlist_json,
     databento_watchlist_csv,
     fmp_watchlist_json,
+    live_news_snapshot_json,
     tradingview_watchlist_json,
 )
 
@@ -87,6 +88,33 @@ def _benzinga_row_with_news(symbol: str = "AAPL") -> dict[str, Any]:
     }
 
 
+def _live_news_snapshot_with_story(symbol: str = "AAPL", *, providers: list[str] | None = None) -> dict[str, Any]:
+    return {
+        "generated_at": "2026-04-13T10:15:00Z",
+        "symbols": [symbol],
+        "providers": {
+            "newsapi_ai": {
+                "ok": True,
+                "error": "",
+                "raw_count": 1,
+                "new_item_count": 1,
+                "cursor": 1776075300.0,
+            }
+        },
+        "stories": [
+            {
+                "headline": f"{symbol} rallies after product launch",
+                "tickers": [symbol],
+                "published_ts": 1776075000.0,
+                "providers": providers or ["newsapi_ai", "tv"],
+                "provider_names": providers or ["newsapi_ai", "tv"],
+                "first_provider": (providers or ["newsapi_ai"])[0],
+                "summary": "Positive product news",
+            }
+        ],
+    }
+
+
 # ---------------------------------------------------------------------------
 # B1: _try_load_meta_domain fallback behavior
 # ---------------------------------------------------------------------------
@@ -136,6 +164,24 @@ class TestB1DomainFallbackChain:
         assert actual == "benzinga_watchlist_json"
         assert meta is not None
         assert meta["news"]["value"]["bias"] == "BEARISH"
+
+    def test_news_domain_can_fall_back_to_live_news_snapshot(self, monkeypatch, tmp_path: Path) -> None:
+        monkeypatch.setattr(benzinga_watchlist_json, "BENZINGA_WATCHLIST_JSON", tmp_path / "missing.json")
+
+        snapshot_path = tmp_path / "smc_live_news_snapshot.json"
+        snapshot_path.write_text(
+            json.dumps(_live_news_snapshot_with_story("AAPL"), indent=2),
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(live_news_snapshot_json, "LIVE_NEWS_SNAPSHOT_JSON", snapshot_path)
+
+        meta, status, actual = _try_load_meta_domain(
+            "news", "AAPL", "15m", "benzinga_watchlist_json", auto_mode=True,
+        )
+        assert status == "present"
+        assert actual == "live_news_snapshot_json"
+        assert meta is not None
+        assert meta["news"]["value"]["bias"] == "BULLISH"
 
     def test_volume_domain_can_fall_back_to_fmp(self, monkeypatch, tmp_path: Path) -> None:
         monkeypatch.setattr(databento_watchlist_csv, "WATCHLIST_CSV", tmp_path / "missing.csv")
@@ -289,6 +335,30 @@ class TestB3EnhancedDiagnostics:
         assert diag["technical"] == "source_file_not_found"
         assert diag["technical_fallback_used"] is False
         assert diag["news"] == "source_file_not_found"
+        assert diag["news_fallback_used"] is False
+
+    def test_diagnostics_show_live_news_snapshot_as_primary_news_source(self, monkeypatch, tmp_path: Path) -> None:
+        vol_csv = tmp_path / "vol.csv"
+        _write_volume_csv(vol_csv)
+        monkeypatch.setattr(databento_watchlist_csv, "WATCHLIST_CSV", vol_csv)
+
+        fmp_path = tmp_path / "fmp.json"
+        _write_source(fmp_path, [_fmp_row_with_technical()])
+        monkeypatch.setattr(fmp_watchlist_json, "FMP_WATCHLIST_JSON", fmp_path)
+
+        monkeypatch.setattr(benzinga_watchlist_json, "BENZINGA_WATCHLIST_JSON", tmp_path / "missing.json")
+
+        snapshot_path = tmp_path / "smc_live_news_snapshot.json"
+        snapshot_path.write_text(
+            json.dumps(_live_news_snapshot_with_story("AAPL", providers=["newsapi_ai", "tv"]), indent=2),
+            encoding="utf-8",
+        )
+        monkeypatch.setattr(live_news_snapshot_json, "LIVE_NEWS_SNAPSHOT_JSON", snapshot_path)
+
+        merged = load_raw_meta_input_composite("AAPL", "15m")
+        diag = merged["meta_domain_diagnostics"]
+        assert diag["news"] == "present"
+        assert diag["news_source"] == "live_news_snapshot_json"
         assert diag["news_fallback_used"] is False
 
 

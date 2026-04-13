@@ -31,12 +31,15 @@ def test_refresh_commit_step_keeps_non_fast_forward_retry_loop() -> None:
     assert 'Refresh commit conflicts with newer origin/main. Re-run the workflow on the latest main.' in workflow_text
 
 
-def test_refresh_workflow_surfaces_provider_domain_alerts_in_summary_and_notification() -> None:
+def test_refresh_workflow_surfaces_provider_health_signals_in_summary_and_notification() -> None:
     workflow_text = _read(WORKFLOW_PATH)
 
-    assert '- name: Extract provider domain alerts' in workflow_text
+    assert '- name: Extract provider health signals' in workflow_text
     assert 'PROVIDER_DOMAIN_ALERT_COUNT=' in workflow_text
+    assert 'PROVIDER_HEALTH_WARNING_COUNT=' in workflow_text
     assert '### Provider Domain Alerts' in workflow_text
+    assert '### Provider Health Warnings' in workflow_text
     assert 'Library published with provider warnings' in workflow_text
     assert 'Library published with fallback alerts' in workflow_text
     assert 'Provider domain alerts: ${ALERT_COUNT} (${ALERT_WARN} warn / ${ALERT_INFO} info)' in workflow_text
+    assert 'Provider health warnings: ${PROVIDER_WARNING_COUNT}' in workflow_text
