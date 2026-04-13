@@ -39,6 +39,31 @@ Die richtige Reihenfolge ist daher:
 3. operative Fallback- und Workflow-Haertung gezielt testen
 4. erst danach Cleanup und groessere Scope-Erweiterungen angehen
 
+## Statusupdate 2026-04-13 (nach Umsetzung)
+
+Seit Erstellung dieses Dokuments ist der lokale Umsetzungsstand fuer die drei
+priorisierten Punkte weitergezogen:
+
+- `SMC_Core_Engine.pine` liest `mp.VOLATILITY_REGIME`,
+  `mp.VOLATILITY_MODEL_SOURCE`, `mp.ENSEMBLE_QUALITY_SCORE` und
+  `mp.ENSEMBLE_QUALITY_TIER` jetzt direkt.
+- `SMC_Dashboard.pine` zeigt die zusaetzlichen Library-Signale ueber den
+  bestehenden `BUS LeanPackB`-Transport als `Primary | Signal + Ensemble` und
+  `Vol Regime | Lib` an.
+- `.github/workflows/smc-library-refresh.yml` raeumt bekannte Runtime-
+  Artefakt-Aenderungen vor dem Refresh-Commit weg und verifiziert den
+  Version-Bump explizit.
+- Die Repo-Regressionen decken den Pine-BUS-Transport, TradingView-Modal-
+  Recovery, Workflow-Cleanup sowie Domain-Fallbacks fuer Technical, News und
+  Volume ab.
+- `smc_integration/provider_health.py` spiegelt Fallback-Nutzung und
+  Domain-Status-Ursachen jetzt zusaetzlich als `domain_alerts` in Health- und
+  Release-Gate-Reports.
+
+Der verbleibende harte Nachweis bleibt damit operativ: ein frischer
+`smc-library-refresh`-Durchlauf mit echten Inputs und gruener
+`productivity_gate.publish_ready`-Evidenz.
+
 ## Verifizierte Findings
 
 ### V-1: Der aktuelle generierte Library-Stand ist nicht publish-ready

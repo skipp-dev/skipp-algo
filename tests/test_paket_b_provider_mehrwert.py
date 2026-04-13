@@ -137,6 +137,21 @@ class TestB1DomainFallbackChain:
         assert meta is not None
         assert meta["news"]["value"]["bias"] == "BEARISH"
 
+    def test_volume_domain_can_fall_back_to_fmp(self, monkeypatch, tmp_path: Path) -> None:
+        monkeypatch.setattr(databento_watchlist_csv, "WATCHLIST_CSV", tmp_path / "missing.csv")
+
+        fmp_path = tmp_path / "fmp.json"
+        _write_source(fmp_path, [_fmp_row_with_technical()])
+        monkeypatch.setattr(fmp_watchlist_json, "FMP_WATCHLIST_JSON", fmp_path)
+
+        meta, status, actual = _try_load_meta_domain(
+            "volume", "AAPL", "15m", "databento_watchlist_csv", auto_mode=True,
+        )
+        assert status == "present"
+        assert actual == "fmp_watchlist_json"
+        assert meta is not None
+        assert meta["volume"]["value"]["thin_fraction"] == 0.1
+
     def test_no_fallback_in_explicit_mode(self, monkeypatch, tmp_path: Path) -> None:
         monkeypatch.setattr(fmp_watchlist_json, "FMP_WATCHLIST_JSON", tmp_path / "missing.json")
 
@@ -210,6 +225,27 @@ class TestB2TechnicalDualSource:
         assert diag["technical_source"] == "tradingview_watchlist_json"
         assert diag["technical_fallback_used"] is True
         assert merged["technical"]["value"]["bias"] == "BEARISH"
+
+
+class TestB2VolumeDualSource:
+    def test_tradingview_volume_fallback_when_databento_and_fmp_missing(self, monkeypatch, tmp_path: Path) -> None:
+        monkeypatch.setattr(databento_watchlist_csv, "WATCHLIST_CSV", tmp_path / "missing.csv")
+        monkeypatch.setattr(fmp_watchlist_json, "FMP_WATCHLIST_JSON", tmp_path / "missing.json")
+
+        tv_path = tmp_path / "tv.json"
+        _write_source(tv_path, [_tv_row_with_technical()])
+        monkeypatch.setattr(tradingview_watchlist_json, "TRADINGVIEW_WATCHLIST_JSON", tv_path)
+
+        bz_path = tmp_path / "bz.json"
+        _write_source(bz_path, [_benzinga_row_with_news()])
+        monkeypatch.setattr(benzinga_watchlist_json, "BENZINGA_WATCHLIST_JSON", bz_path)
+
+        merged = load_raw_meta_input_composite("AAPL", "15m")
+        diag = merged["meta_domain_diagnostics"]
+        assert diag["volume"] == "present"
+        assert diag["volume_source"] == "tradingview_watchlist_json"
+        assert diag["volume_fallback_used"] is True
+        assert merged["volume"]["value"]["thin_fraction"] == 0.05
 
 
 # ---------------------------------------------------------------------------

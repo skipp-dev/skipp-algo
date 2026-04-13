@@ -425,10 +425,87 @@ def test_smoke_release_reference_fallback_skips_missing_optional_meta_domains(mo
     )
 
     assert smoke["results"][0]["status"] == "ok"
+    alerts = smoke["results"][0]["domain_alerts"]
+    assert any(item.get("code") == "FALLBACK_META_VOLUME_DOMAIN" for item in alerts)
+    assert any(item.get("code") == "META_TECHNICAL_DOMAIN_STATUS" and item.get("severity") == "info" for item in alerts)
+    assert any(item.get("code") == "META_NEWS_DOMAIN_STATUS" and item.get("severity") == "info" for item in alerts)
     codes = {row["code"] for row in smoke["degradations"]}
     assert "STALE_META_TECHNICAL_DOMAIN" not in codes
     assert "STALE_META_NEWS_DOMAIN" not in codes
     assert smoke["failures"] == []
+
+
+def test_smoke_surfaces_domain_alert_for_fallback_usage(monkeypatch):
+    def _loader(symbol, timeframe, source):
+        return {
+            "asof_ts": 995.0,
+            "meta_domain_diagnostics": {
+                "volume": "present",
+                "volume_source": "databento_watchlist_csv",
+                "volume_fallback_used": False,
+                "volume_stale": False,
+                "technical": "present",
+                "technical_source": "tradingview_watchlist_json",
+                "technical_fallback_used": True,
+                "technical_stale": False,
+                "news": "present",
+                "news_source": "benzinga_watchlist_json",
+                "news_fallback_used": False,
+                "news_stale": False,
+            },
+        }
+
+    _patch_smoke_env(monkeypatch, _loader)
+
+    smoke = provider_health._run_smoke_checks(
+        symbols=["AAPL"], timeframes=["15m"], checked_at=1_000.0, stale_after_seconds=None,
+    )
+
+    assert smoke["results"][0]["status"] == "ok"
+    alerts = smoke["results"][0]["domain_alerts"]
+    assert any(
+        item.get("code") == "FALLBACK_META_TECHNICAL_DOMAIN" and item.get("severity") == "info"
+        for item in alerts
+    )
+    assert not any(item.get("code") == "FALLBACK_META_TECHNICAL_DOMAIN" for item in smoke["warnings"])
+
+
+def test_smoke_surfaces_domain_status_warning(monkeypatch):
+    def _loader(symbol, timeframe, source):
+        return {
+            "asof_ts": 995.0,
+            "meta_domain_diagnostics": {
+                "volume": "present",
+                "volume_source": "databento_watchlist_csv",
+                "volume_fallback_used": False,
+                "volume_stale": False,
+                "technical": "source_file_not_found",
+                "technical_source": "fmp_watchlist_json",
+                "technical_fallback_used": False,
+                "technical_stale": True,
+                "news": "present",
+                "news_source": "benzinga_watchlist_json",
+                "news_fallback_used": False,
+                "news_stale": False,
+            },
+        }
+
+    _patch_smoke_env(monkeypatch, _loader)
+
+    smoke = provider_health._run_smoke_checks(
+        symbols=["AAPL"], timeframes=["15m"], checked_at=1_000.0, stale_after_seconds=None,
+    )
+
+    assert smoke["results"][0]["status"] == "warn"
+    alerts = smoke["results"][0]["domain_alerts"]
+    assert any(
+        item.get("code") == "META_TECHNICAL_DOMAIN_STATUS"
+        and item.get("severity") == "warn"
+        and item.get("status") == "source_file_not_found"
+        for item in alerts
+    )
+    warning_codes = {item.get("code") for item in smoke["warnings"]}
+    assert "META_TECHNICAL_DOMAIN_STATUS" in warning_codes
 
 
 def test_smoke_bundle_build_error_is_failure(monkeypatch):

@@ -15,6 +15,9 @@ It now anchors and propagates product metadata across:
 
 ## What Changed In This Phase
 
+- the active SMC core/dashboard path now carries library volatility + ensemble context through the existing lean BUS transport and renders it in the audit surface
+- the refresh workflow now restores known runtime artifacts before commit/push and verifies the generated library import bump explicitly
+- provider-health and release-gate reports now expose `domain_alerts` for fallback-used and domain-status cases so operator reports can show missing-subscription / no-data root causes without digging through raw payloads
 - preflight reporting moved from one coarse `ok` flag to staged status fields
 - auth source selection is now explicit and documented
 - binding verification is split into count and name checks
@@ -37,7 +40,7 @@ It now anchors and propagates product metadata across:
 
 ## Current Workspace Status
 
-Refresh date: 2026-04-07
+Refresh date: 2026-04-13
 
 - live TradingView automation prerequisites are present in this checkout
 - present locally: `scripts/tv_preflight.ts`, `scripts/tv_publish_micro_library.ts`, `scripts/create_tradingview_storage_state.ts`, the shared automation layer under `automation/tradingview/lib/...`, the `automation/tradingview/reports` folder, and auth artifacts under `automation/tradingview/auth/...`
@@ -59,6 +62,7 @@ Refresh date: 2026-04-07
 - library publish tracking artifact: present
 - product-cut artifact: present
 - automated micro-library publish path: reproducible from this workspace snapshot
+- provider fallback / no-data root causes: visible via `domain_alerts` + `meta_domain_diagnostics` in provider-health and release-gate reports
 
 ## Read This Next
 

@@ -665,6 +665,7 @@ def main() -> int:
             "status": "ok" if _status_ok_or_warn(provider_status, fail_on_warn=fail_on_warn) and not missing_smoke_failures else "fail",
             "details": {
                 "overall_status": provider_status,
+                "domain_alerts": provider_report.get("domain_alerts", []),
                 "failures": provider_report.get("failures", []),
                 "warnings": provider_report.get("warnings", []),
                 "degradations_detected": provider_report.get("degradations_detected", []),

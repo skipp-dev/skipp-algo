@@ -216,6 +216,46 @@ Fuer jede Domaene (volume, technical, news) stehen folgende Felder zur Verfuegun
 - `{domain}_stale` – `true` wenn `age_hours > 48` oder `asof_ts` fehlt/ungueltig.
 - `{domain}_fallback_used` – `true` wenn der primaere Provider nicht geliefert hat und ein Fallback-Provider genutzt wurde.
 
+### Zusaetzliche `domain_alerts` im Provider-Health-/Release-Gate-Report
+
+Neben `meta_domain_diagnostics` schreibt `smc_integration/provider_health.py`
+jetzt pro Smoke-Row und aggregiert auf Report-Ebene eine Liste
+`domain_alerts`. Diese Liste landet im Release-Gate unter:
+
+- `gates[].details.domain_alerts` fuer das `provider_health`-Gate
+
+Die Alerts sind bewusst zweistufig:
+
+| Code | Severity | Bedeutung |
+|---|---|---|
+| `FALLBACK_META_VOLUME_DOMAIN` | `info` | Volume wurde von einem Fallback-Provider geliefert. |
+| `FALLBACK_META_TECHNICAL_DOMAIN` | `info` | Technical wurde von einem Fallback-Provider geliefert. |
+| `FALLBACK_META_NEWS_DOMAIN` | `info` | News wurde von einem Fallback-Provider geliefert. |
+| `META_VOLUME_DOMAIN_STATUS` | `warn`/`info` | `volume != "present"`; die Root-Cause steht im Feld `status`. |
+| `META_TECHNICAL_DOMAIN_STATUS` | `warn`/`info` | `technical != "present"`; die Root-Cause steht im Feld `status`. |
+| `META_NEWS_DOMAIN_STATUS` | `warn`/`info` | `news != "present"`; die Root-Cause steht im Feld `status`. |
+
+Wichtige Details:
+
+- Fallback-Alerts sind `info`-only. Sie machen den Report sichtbar reicher,
+  blockieren aber nicht von sich aus.
+- `META_*_DOMAIN_STATUS` ist im normalen Pfad ein `warn`, damit Root-Cause und
+  Symptom (`STALE_META_*_DOMAIN`) nebeneinander sichtbar sind.
+- Im relaxed Release-Reference-Pfad fuer optionale Domaenen (`technical`,
+  `news`) bleibt derselbe Status-Alert `info`, damit die erlaubte Referenz-
+  Relaxierung nicht in einen harten Gate-Fehler kippt.
+
+Typische `status`-Werte sind:
+
+- `source_file_not_found`
+- `source_validation_error`
+- `domain_key_absent`
+- `synthetic_fallback`
+
+Damit sieht man jetzt direkt, ob ein Provider wegen fehlender Dateien,
+ungueltiger Payloads oder fehlender Domaenen nicht geliefert hat, auch wenn
+spaeter ein Fallback eingesprungen ist.
+
 ## 6.2) Operator-Handbuch: Domain-Staleness
 
 ### Typische Ursachen
@@ -229,9 +269,22 @@ Fuer jede Domaene (volume, technical, news) stehen folgende Felder zur Verfuegun
 ### Sofortmassnahmen fuer Operatoren
 
 1. **Report pruefen:** Im Health-/Gate-Report die `meta_domain_diagnostics` des betroffenen Symbols/Timeframes lesen. Dort stehen `{domain}_source`, `{domain}_age_hours` und `{domain}_asof_ts`.
-2. **Provider-Pipeline pruefen:** Hat der zustaendige Export/Poller (Databento, FMP, Benzinga) zuletzt erfolgreich gelaufen?
-3. **Manuellen Refresh ausloesen:** Den betroffenen Provider-Export erneut starten (z. B. Databento-Watchlist-Export, FMP-Refresh).
-4. **Gate erneut laufen lassen:** Nach erfolgreichem Refresh den deeper- oder release-Gate-Lauf wiederholen.
+2. **`domain_alerts` lesen:** Root-Cause aus `gates[].details.domain_alerts` ziehen. Dort stehen `status`, `planned_source`, `actual_source` und `fallback_used` bereits operator-lesbar.
+3. **Provider-Pipeline pruefen:** Hat der zustaendige Export/Poller (Databento, FMP, Benzinga) zuletzt erfolgreich gelaufen?
+4. **Manuellen Refresh ausloesen:** Den betroffenen Provider-Export erneut starten (z. B. Databento-Watchlist-Export, FMP-Refresh).
+5. **Gate erneut laufen lassen:** Nach erfolgreichem Refresh den deeper- oder release-Gate-Lauf wiederholen.
+
+### Wie bekomme ich einen Alert?
+
+1. **Sichtbar im JSON/CI-Report:**
+  - `python scripts/run_smc_release_gates.py --skip-publish-contract --output -`
+  - dann `gates[].details.domain_alerts` lesen
+2. **Warnung in CI erzwingen:**
+  - denselben Lauf mit `--fail-on-warn` starten
+  - dadurch kippt jeder `warn`-Provider-Health-Status in einen nicht-gruenen Exit-Code
+3. **GitHub-Benachrichtigung nutzen:**
+  - wenn ein Gate dadurch fehlschlaegt, liefert GitHub Actions die normale Workflow-Notification
+  - fuer reine `info`-Fallbacks bleibt der Lauf gruen; diese muessen bewusst aus `domain_alerts` ausgewertet werden
 
 ### Wann ist es nur ein Warnsignal?
 

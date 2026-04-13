@@ -61,6 +61,107 @@ def _status_from_lists(*, failures: list[dict[str, Any]], warnings: list[dict[st
     return "ok"
 
 
+def _build_domain_alert(
+    *,
+    code: str,
+    severity: str,
+    symbol: str,
+    timeframe: str,
+    domain: str,
+    status: str,
+    planned_source: str,
+    actual_source: str,
+    fallback_used: bool,
+    age_hours: float | None,
+    message: str,
+) -> dict[str, Any]:
+    row: dict[str, Any] = {
+        "code": code,
+        "severity": severity,
+        "symbol": symbol,
+        "timeframe": timeframe,
+        "domain": domain,
+        "status": status,
+        "planned_source": planned_source,
+        "actual_source": actual_source,
+        "fallback_used": bool(fallback_used),
+        "message": message,
+    }
+    if age_hours is not None:
+        row["age_hours"] = age_hours
+    return row
+
+
+def _collect_meta_domain_alerts(
+    *,
+    symbol: str,
+    timeframe: str,
+    source_plan: dict[str, Any] | None,
+    domain_diag: dict[str, Any],
+    allow_release_reference_meta_fallback: bool,
+) -> list[dict[str, Any]]:
+    alerts: list[dict[str, Any]] = []
+
+    for domain in ("volume", "technical", "news"):
+        status = str(domain_diag.get(domain) or "").strip()
+        planned_source = ""
+        if isinstance(source_plan, dict):
+            planned_source = str(source_plan.get(domain) or "").strip()
+        actual_source = str(domain_diag.get(f"{domain}_source") or "").strip()
+        fallback_used = bool(domain_diag.get(f"{domain}_fallback_used"))
+
+        age_hours_raw = domain_diag.get(f"{domain}_age_hours")
+        age_hours = float(age_hours_raw) if isinstance(age_hours_raw, (int, float)) else None
+
+        if fallback_used:
+            alerts.append(
+                _build_domain_alert(
+                    code=f"FALLBACK_META_{domain.upper()}_DOMAIN",
+                    severity="info",
+                    symbol=symbol,
+                    timeframe=timeframe,
+                    domain=domain,
+                    status=status or "present",
+                    planned_source=planned_source,
+                    actual_source=actual_source,
+                    fallback_used=True,
+                    age_hours=age_hours,
+                    message=(
+                        f"{domain} domain used fallback provider "
+                        f"{actual_source or 'unknown'} instead of {planned_source or 'unknown'}."
+                    ),
+                )
+            )
+
+        if not status or status in {"present", "synthetic_fallback"}:
+            continue
+
+        severity = "warn"
+        if allow_release_reference_meta_fallback and domain in {"technical", "news"}:
+            severity = "info"
+
+        alerts.append(
+            _build_domain_alert(
+                code=f"META_{domain.upper()}_DOMAIN_STATUS",
+                severity=severity,
+                symbol=symbol,
+                timeframe=timeframe,
+                domain=domain,
+                status=status,
+                planned_source=planned_source,
+                actual_source=actual_source,
+                fallback_used=fallback_used,
+                age_hours=age_hours,
+                message=(
+                    f"{domain} domain status={status}; planned_source={planned_source or 'unknown'}; "
+                    f"actual_source={actual_source or 'unknown'}."
+                ),
+            )
+        )
+
+    return alerts
+
+
 def _normalize_symbols(symbols: list[str] | None) -> list[str]:
     out: list[str] = []
     seen: set[str] = set()
@@ -299,6 +400,7 @@ def _run_smoke_checks(
     all_warnings: list[dict[str, Any]] = []
     all_failures: list[dict[str, Any]] = []
     all_degradations: list[dict[str, Any]] = []
+    all_domain_alerts: list[dict[str, Any]] = []
 
     for symbol in symbols:
         for timeframe in timeframes:
@@ -421,6 +523,25 @@ def _run_smoke_checks(
                 domain_diag = raw_meta.get("meta_domain_diagnostics")
                 if isinstance(domain_diag, dict):
                     row["meta_domain_diagnostics"] = domain_diag
+                    domain_alerts = _collect_meta_domain_alerts(
+                        symbol=symbol,
+                        timeframe=timeframe,
+                        source_plan=row.get("source_plan") if isinstance(row.get("source_plan"), dict) else None,
+                        domain_diag=domain_diag,
+                        allow_release_reference_meta_fallback=allow_release_reference_meta_fallback,
+                    )
+                    if domain_alerts:
+                        row["domain_alerts"] = domain_alerts
+                        all_domain_alerts.extend(domain_alerts)
+                        for alert in domain_alerts:
+                            if alert.get("severity") == "warn":
+                                warnings.append(
+                                    {
+                                        key: value
+                                        for key, value in alert.items()
+                                        if key != "severity"
+                                    }
+                                )
                     for domain in ("volume", "technical", "news"):
                         if (
                             allow_release_reference_meta_fallback
@@ -578,6 +699,7 @@ def _run_smoke_checks(
         "warnings": all_warnings,
         "failures": all_failures,
         "degradations": all_degradations,
+        "domain_alerts": all_domain_alerts,
     }
 
 
@@ -689,6 +811,7 @@ def run_provider_health_check(
     warnings = _sorted_records(warnings)
     failures = _sorted_records(failures)
     degradations = _sorted_records(degradations)
+    domain_alerts = _sorted_records(list(smoke.get("domain_alerts", [])))
 
     overall_status = _status_from_lists(failures=failures, warnings=warnings, degradations=degradations)
 
@@ -705,6 +828,7 @@ def run_provider_health_check(
         "missing_artifacts": list(artifact_health.get("missing_artifacts", [])),
         "stale_artifacts": list(artifact_health.get("stale_artifacts", [])),
         "smoke_test_results": list(smoke.get("results", [])),
+        "domain_alerts": domain_alerts,
         "warnings": warnings,
         "failures": failures,
         "degradations_detected": degradations,
