@@ -30,6 +30,14 @@ logger = logging.getLogger(__name__)
 _BASE_URL = "https://financialmodelingprep.com"
 _US_EASTERN = ZoneInfo("America/New_York")
 _MARKET_PE_FORWARD_SYMBOL = "SPY"
+_MARKET_PE_FORWARD_FALLBACK_SYMBOLS: tuple[str, ...] = (
+    "SPY",
+    "IVV",
+    "VOO",
+    "QQQ",
+    "DIA",
+    "^GSPC",
+)
 _DIRECT_FORWARD_PE_FIELDS: tuple[str, ...] = (
     "forwardPE",
     "forwardPe",
@@ -230,11 +238,19 @@ class SMCFMPClient:
             return []
         return list(data) if isinstance(data, list) else []
 
-    def get_market_pe_forward(self, symbol: str = _MARKET_PE_FORWARD_SYMBOL) -> float | None:
+    def get_market_pe_forward(self, symbol: str | None = None) -> float | None:
         requested_symbol = str(symbol or _MARKET_PE_FORWARD_SYMBOL).strip().upper() or _MARKET_PE_FORWARD_SYMBOL
+        candidate_symbols: list[str] = []
+        for candidate in ((requested_symbol,) if symbol else _MARKET_PE_FORWARD_FALLBACK_SYMBOLS):
+            normalized = str(candidate or "").strip().upper()
+            if normalized and normalized not in candidate_symbols:
+                candidate_symbols.append(normalized)
         diagnostics: dict[str, Any] = {
             "status": "unavailable",
+            "requested_symbol": requested_symbol,
             "symbol": requested_symbol,
+            "source_symbol": "",
+            "attempted_symbols": list(candidate_symbols),
             "source_category": "unavailable",
             "field": "",
             "price": None,
@@ -243,93 +259,104 @@ class SMCFMPClient:
             "error": "",
         }
 
-        try:
-            quote = self.get_index_quote(requested_symbol)
-            profile = self.get_company_profile(requested_symbol)
-            ratios_rows = self.get_ratios_ttm(requested_symbol)
-            ratios = dict(ratios_rows[0]) if ratios_rows and isinstance(ratios_rows[0], dict) else {}
-            analyst_estimates = self.get_analyst_estimates(requested_symbol, period="quarter", limit=4)
-        except Exception as exc:
-            diagnostics["status"] = "error"
-            diagnostics["error"] = str(exc)
-            self._last_market_pe_forward_diagnostics = diagnostics
-            return None
+        for candidate_symbol in candidate_symbols:
+            diagnostics["symbol"] = candidate_symbol
+            diagnostics["source_symbol"] = candidate_symbol
+            diagnostics["price"] = None
+            diagnostics["forward_eps"] = None
+            diagnostics["estimate_count"] = 0
+            diagnostics["field"] = ""
+            diagnostics["error"] = ""
+            diagnostics["source_category"] = "unavailable"
+            diagnostics["status"] = "unavailable"
 
-        price = next(
-            (
+            try:
+                quote = self.get_index_quote(candidate_symbol)
+                profile = self.get_company_profile(candidate_symbol)
+                ratios_rows = self.get_ratios_ttm(candidate_symbol)
+                ratios = dict(ratios_rows[0]) if ratios_rows and isinstance(ratios_rows[0], dict) else {}
+                analyst_estimates = self.get_analyst_estimates(candidate_symbol, period="quarter", limit=4)
+            except Exception as exc:
+                diagnostics["status"] = "error"
+                diagnostics["error"] = str(exc)
+                self._last_market_pe_forward_diagnostics = dict(diagnostics)
+                return None
+
+            price = next(
+                (
+                    numeric
+                    for numeric in (
+                        _coerce_finite_float(quote.get("price")),
+                        _coerce_finite_float(profile.get("price")),
+                        _coerce_finite_float(quote.get("previousClose")),
+                    )
+                    if numeric is not None and numeric > 0
+                ),
+                None,
+            )
+            diagnostics["price"] = price
+
+            for field_name in _DIRECT_FORWARD_PE_FIELDS:
+                value = next(
+                    (
+                        numeric
+                        for numeric in (
+                            _coerce_finite_float(quote.get(field_name)),
+                            _coerce_finite_float(profile.get(field_name)),
+                            _coerce_finite_float(ratios.get(field_name)),
+                        )
+                        if numeric is not None and numeric > 0
+                    ),
+                    None,
+                )
+                if value is None:
+                    continue
+                diagnostics["status"] = "ok"
+                diagnostics["source_category"] = "direct_forward"
+                diagnostics["field"] = field_name
+                self._last_market_pe_forward_diagnostics = dict(diagnostics)
+                return value
+
+            forward_eps_components = [
                 numeric
                 for numeric in (
-                    _coerce_finite_float(quote.get("price")),
-                    _coerce_finite_float(profile.get("price")),
-                    _coerce_finite_float(quote.get("previousClose")),
+                    _coerce_finite_float(row.get("epsAvg"))
+                    for row in analyst_estimates
+                    if isinstance(row, dict)
                 )
                 if numeric is not None and numeric > 0
-            ),
-            None,
-        )
-        diagnostics["price"] = price
+            ]
+            diagnostics["estimate_count"] = len(forward_eps_components)
+            if price is not None and len(forward_eps_components) >= 4:
+                forward_eps = sum(forward_eps_components[:4])
+                diagnostics["forward_eps"] = forward_eps
+                if forward_eps > 0:
+                    diagnostics["status"] = "ok"
+                    diagnostics["source_category"] = "analyst_derived"
+                    diagnostics["field"] = "epsAvg"
+                    self._last_market_pe_forward_diagnostics = dict(diagnostics)
+                    return price / forward_eps
 
-        for field_name in _DIRECT_FORWARD_PE_FIELDS:
-            value = next(
-                (
-                    numeric
-                    for numeric in (
-                        _coerce_finite_float(quote.get(field_name)),
-                        _coerce_finite_float(profile.get(field_name)),
-                        _coerce_finite_float(ratios.get(field_name)),
-                    )
-                    if numeric is not None and numeric > 0
-                ),
-                None,
-            )
-            if value is None:
-                continue
-            diagnostics["status"] = "ok"
-            diagnostics["source_category"] = "direct_forward"
-            diagnostics["field"] = field_name
-            self._last_market_pe_forward_diagnostics = diagnostics
-            return value
-
-        forward_eps_components = [
-            numeric
-            for numeric in (
-                _coerce_finite_float(row.get("epsAvg"))
-                for row in analyst_estimates
-                if isinstance(row, dict)
-            )
-            if numeric is not None and numeric > 0
-        ]
-        diagnostics["estimate_count"] = len(forward_eps_components)
-        if price is not None and len(forward_eps_components) >= 4:
-            forward_eps = sum(forward_eps_components[:4])
-            diagnostics["forward_eps"] = forward_eps
-            if forward_eps > 0:
+            for field_name in _APPROXIMATE_PE_FIELDS:
+                value = next(
+                    (
+                        numeric
+                        for numeric in (
+                            _coerce_finite_float(quote.get(field_name)),
+                            _coerce_finite_float(profile.get(field_name)),
+                            _coerce_finite_float(ratios.get(field_name)),
+                        )
+                        if numeric is not None and numeric > 0
+                    ),
+                    None,
+                )
+                if value is None:
+                    continue
                 diagnostics["status"] = "ok"
-                diagnostics["source_category"] = "analyst_derived"
-                diagnostics["field"] = "epsAvg"
-                self._last_market_pe_forward_diagnostics = diagnostics
-                return price / forward_eps
-
-        for field_name in _APPROXIMATE_PE_FIELDS:
-            value = next(
-                (
-                    numeric
-                    for numeric in (
-                        _coerce_finite_float(quote.get(field_name)),
-                        _coerce_finite_float(profile.get(field_name)),
-                        _coerce_finite_float(ratios.get(field_name)),
-                    )
-                    if numeric is not None and numeric > 0
-                ),
-                None,
-            )
-            if value is None:
-                continue
-            diagnostics["status"] = "ok"
-            diagnostics["source_category"] = "approximate_ttm"
-            diagnostics["field"] = field_name
-            self._last_market_pe_forward_diagnostics = diagnostics
-            return value
+                diagnostics["source_category"] = "approximate_ttm"
+                diagnostics["field"] = field_name
+                self._last_market_pe_forward_diagnostics = dict(diagnostics)
+                return value
 
         self._last_market_pe_forward_diagnostics = diagnostics
         return None

@@ -32,6 +32,14 @@ _CONSENSUS_FIELDS: tuple[str, ...] = (
     "median",
 )
 
+_US_COUNTRY_ALIASES: set[str] = {
+    "US",
+    "USA",
+    "U S",
+    "UNITED STATES",
+    "UNITED STATES OF AMERICA",
+}
+
 
 def _to_float(value: Any) -> float | None:
     if value in (None, ""):
@@ -44,6 +52,50 @@ def _to_float(value: Any) -> float | None:
 
 def _normalize_event_name(event_name: str) -> str:
     return " ".join(str(event_name or "").strip().lower().replace("_", " ").split())
+
+
+def _normalize_scope_text(value: Any) -> str:
+    text = str(value or "").strip().upper()
+    if not text:
+        return ""
+    return " ".join(text.replace(".", " ").replace("-", " ").split())
+
+
+def _normalize_country_code(event: dict[str, Any]) -> str:
+    raw_country = next(
+        (
+            event.get(field_name)
+            for field_name in ("country", "countryCode", "country_code")
+            if event.get(field_name) not in (None, "")
+        ),
+        "",
+    )
+    normalized = _normalize_scope_text(raw_country)
+    if normalized in _US_COUNTRY_ALIASES:
+        return "US"
+    return normalized
+
+
+def _normalize_currency_code(event: dict[str, Any]) -> str:
+    raw_currency = next(
+        (
+            event.get(field_name)
+            for field_name in ("currency", "currencyCode", "currency_code")
+            if event.get(field_name) not in (None, "")
+        ),
+        "",
+    )
+    return _normalize_scope_text(raw_currency)
+
+
+def _resolve_us_scope(event: dict[str, Any]) -> tuple[str, str, bool]:
+    country = _normalize_country_code(event)
+    currency = _normalize_currency_code(event)
+    if country == "US":
+        return "US", currency, True
+    if not country and currency == "USD":
+        return "US", "USD", True
+    return country, currency, False
 
 
 def _normalize_event_date_key(raw_date: Any, fallback_index: int) -> str:
@@ -166,20 +218,23 @@ def _is_high_impact_event_name(
 def filter_us_events(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
     filtered: list[dict[str, Any]] = []
     for event in events:
-        country = str(event.get("country") or "").upper()
-        currency = str(event.get("currency") or "").upper()
-        if country == "US" or currency == "USD":
+        country, currency, passes_us_scope = _resolve_us_scope(event)
+        if passes_us_scope:
             cloned = dict(event)
-            if currency == "USD" and not country:
-                cloned["country"] = "US"
+            cloned["country"] = country
+            if currency:
+                cloned["currency"] = currency
             filtered.append(cloned)
     return filtered
 
 
 def _prepare_event_clone(event: dict[str, Any], audit_index: int) -> dict[str, Any]:
     cloned = dict(event)
-    if str(cloned.get("currency") or "").upper() == "USD" and not str(cloned.get("country") or "").strip():
-        cloned["country"] = "US"
+    country, currency, _passes_us_scope = _resolve_us_scope(cloned)
+    if country:
+        cloned["country"] = country
+    if currency:
+        cloned["currency"] = currency
     cloned["_audit_index"] = audit_index
     cloned["canonical_event"] = _canonical_event_name(str(cloned.get("event") or cloned.get("name") or ""))
     return cloned
@@ -243,11 +298,7 @@ def dedupe_events(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 def _macro_event_base_audit(event: dict[str, Any], audit_index: int) -> dict[str, Any]:
-    country = str(event.get("country") or "").strip().upper()
-    currency = str(event.get("currency") or "").strip().upper()
-    passes_us_scope = country == "US" or currency == "USD"
-    if currency == "USD" and not country:
-        country = "US"
+    country, currency, passes_us_scope = _resolve_us_scope(event)
     return {
         "raw_index": audit_index,
         "event": str(event.get("event") or event.get("name") or "").strip(),

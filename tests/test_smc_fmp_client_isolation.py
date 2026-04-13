@@ -275,6 +275,33 @@ class _ImportBlocker:
 class TestErrorPaths:
     """Standalone client returns safe defaults on failures."""
 
+    def test_get_market_pe_forward_falls_back_to_alternate_market_symbol(self):
+        c = SMCFMPClient(api_key="k")
+
+        def _quote(symbol: str) -> dict[str, Any]:
+            if symbol == "IVV":
+                return {"symbol": symbol, "price": 700.0}
+            return {"symbol": symbol, "price": 680.0}
+
+        def _profile(symbol: str) -> dict[str, Any]:
+            if symbol == "IVV":
+                return {"symbol": symbol, "forwardPE": 27.8, "price": 700.0}
+            return {"symbol": symbol, "price": 680.0}
+
+        with (
+            patch.object(c, "get_index_quote", side_effect=_quote),
+            patch.object(c, "get_company_profile", side_effect=_profile),
+            patch.object(c, "get_ratios_ttm", return_value=[]),
+            patch.object(c, "get_analyst_estimates", return_value=[]),
+        ):
+            value = c.get_market_pe_forward()
+
+        assert value == pytest.approx(27.8)
+        assert c._last_market_pe_forward_diagnostics["status"] == "ok"
+        assert c._last_market_pe_forward_diagnostics["source_category"] == "direct_forward"
+        assert c._last_market_pe_forward_diagnostics["source_symbol"] == "IVV"
+        assert c._last_market_pe_forward_diagnostics["attempted_symbols"][:2] == ["SPY", "IVV"]
+
     @patch("scripts.smc_fmp_client.urlopen")
     def test_get_index_quote_returns_empty_on_error(self, mock_urlopen):
         mock_urlopen.side_effect = RuntimeError("network error")

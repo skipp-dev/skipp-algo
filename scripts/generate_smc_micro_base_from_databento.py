@@ -491,6 +491,24 @@ def _news_payload_has_mentions(payload: dict[str, Any]) -> bool:
     return any(bool(payload.get(key)) for key in ("bullish_tickers", "bearish_tickers", "neutral_tickers"))
 
 
+def _summarize_news_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    bullish = [str(symbol).strip().upper() for symbol in list(payload.get("bullish_tickers") or []) if str(symbol).strip()]
+    bearish = [str(symbol).strip().upper() for symbol in list(payload.get("bearish_tickers") or []) if str(symbol).strip()]
+    neutral = [str(symbol).strip().upper() for symbol in list(payload.get("neutral_tickers") or []) if str(symbol).strip()]
+    score_map = _parse_ticker_heat_map(payload.get("ticker_heat_map"))
+    symbols = set(score_map)
+    symbols.update(bullish)
+    symbols.update(bearish)
+    symbols.update(neutral)
+    return {
+        "news_heat_global": float(payload.get("news_heat_global") or 0.0),
+        "symbol_count": len(symbols),
+        "bullish_ticker_count": len(bullish),
+        "bearish_ticker_count": len(bearish),
+        "neutral_ticker_count": len(neutral),
+    }
+
+
 def _score_live_news_snapshot(
     *,
     symbols: list[str],
@@ -834,6 +852,7 @@ def build_enrichment(
         news_result = dict(provider_news_result)
 
         live_snapshot_diagnostics: dict[str, Any] | None = None
+        merge_diagnostics: dict[str, Any] | None = None
         live_news_snapshot = _load_live_news_snapshot(live_news_snapshot_path)
         if live_news_snapshot is not None:
             live_snapshot_scored = _score_live_news_snapshot(
@@ -847,7 +866,6 @@ def build_enrichment(
                         base_payload=provider_news_result,
                         live_payload=live_snapshot_payload,
                     )
-                    live_snapshot_diagnostics["merge"] = merge_diagnostics
 
         if pr.ok:
             news_result = news_result or provider_news_result
@@ -878,14 +896,32 @@ def build_enrichment(
             cursor_before=news_cursor_before,
             cursor_after=newsapi_feed_state,
         )
+        news_domain_diagnostic["render_source"] = "provider_chain_only"
+        news_domain_diagnostic["rendered_symbol_count"] = len(
+            _parse_ticker_heat_map(news_result.get("ticker_heat_map"))
+        )
+
+        base_diagnostics = dict(news_domain_diagnostic.get("diagnostics") or {})
+        rendered_payload_diagnostics = _summarize_news_payload(news_result)
+        diagnostics = dict(base_diagnostics)
+        diagnostics["base_provider_chain"] = {
+            "provider": pr.provider,
+            "provider_status": news_domain_diagnostic.get("provider_status"),
+            "status_detail": news_domain_diagnostic.get("status_detail"),
+            "raw_diagnostics": dict(base_diagnostics),
+            "rendered_payload": _summarize_news_payload(provider_news_result),
+        }
+        diagnostics["rendered_payload"] = rendered_payload_diagnostics
+
         if live_snapshot_diagnostics is not None:
             news_domain_diagnostic["render_source"] = "provider_chain_plus_live_snapshot"
-            news_domain_diagnostic["rendered_symbol_count"] = len(
-                _parse_ticker_heat_map(news_result.get("ticker_heat_map"))
-            )
-            diagnostics = dict(news_domain_diagnostic.get("diagnostics") or {})
             diagnostics["live_snapshot"] = live_snapshot_diagnostics
-            news_domain_diagnostic["diagnostics"] = diagnostics
+        if merge_diagnostics is not None:
+            diagnostics["merge"] = merge_diagnostics
+
+        news_domain_diagnostic["diagnostics"] = diagnostics
+
+        if live_snapshot_diagnostics is not None:
             if pr.provider == "none" and _news_payload_has_mentions(news_result):
                 resolved_news_provider = "live_snapshot"
                 news_domain_diagnostic["selected_provider"] = "live_snapshot"

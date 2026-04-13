@@ -33,6 +33,34 @@ def test_filter_us_events_promotes_usd_records_without_country() -> None:
     ]
 
 
+def test_filter_us_events_rejects_non_us_country_even_with_usd_currency() -> None:
+    events = [
+        {
+            "country": "SV",
+            "currency": "USD",
+            "date": "2026-04-13 18:30:00",
+            "event": "Inflation Rate YoY (Mar)",
+        },
+        {
+            "country": "United States",
+            "currency": "usd",
+            "date": "2026-04-13 14:00:00",
+            "event": "Existing Home Sales MoM (Mar)",
+        },
+    ]
+
+    filtered = filter_us_events(events)
+
+    assert filtered == [
+        {
+            "country": "US",
+            "currency": "USD",
+            "date": "2026-04-13 14:00:00",
+            "event": "Existing Home Sales MoM (Mar)",
+        }
+    ]
+
+
 def test_macro_bias_with_components_frozen_payload_normalizes_scope_consensus_and_dedupe() -> None:
     events = [
         {
@@ -115,6 +143,49 @@ def test_macro_bias_with_components_frozen_payload_normalizes_scope_consensus_an
     assert score_components["jobless_claims"]["consensus_field"] == "forecast"
     assert score_components["jobless_claims"]["weight"] == pytest.approx(1.0)
     assert score_components["jobless_claims"]["contribution"] == pytest.approx(1.0)
+
+
+def test_macro_bias_with_components_rejects_non_us_usd_rows_but_accepts_us_alias() -> None:
+    events = [
+        {
+            "country": "SV",
+            "currency": "USD",
+            "date": "2026-04-13 18:30:00",
+            "event": "Inflation Rate YoY (Mar)",
+            "actual": 1.6,
+            "estimate": 1.4,
+            "impact": "Low",
+            "unit": "%",
+        },
+        {
+            "country": "United States",
+            "currency": "usd",
+            "date": "2026-04-13 14:00:00",
+            "event": "Existing Home Sales MoM (Mar)",
+            "actual": -1.5,
+            "estimate": -2.0,
+            "impact": "High",
+            "unit": "%",
+        },
+    ]
+
+    analysis = macro_bias_with_components(events)
+
+    assert analysis["input_diagnostics"] == {
+        "raw_event_count": 2,
+        "us_scoped_event_count": 1,
+        "deduped_event_count": 1,
+        "scored_event_count": 1,
+        "contributing_event_count": 1,
+        "rejection_reason_counts": {"non_us_event": 1},
+        "quality_flag_counts": {},
+    }
+    audit_by_event = {entry["event"]: entry for entry in analysis["event_audit"]}
+    assert audit_by_event["Inflation Rate YoY (Mar)"]["passes_us_scope"] is False
+    assert audit_by_event["Inflation Rate YoY (Mar)"]["rejection_reasons"] == ["non_us_event"]
+    assert audit_by_event["Existing Home Sales MoM (Mar)"]["passes_us_scope"] is True
+    assert audit_by_event["Existing Home Sales MoM (Mar)"]["country"] == "US"
+    assert analysis["score_components"][0]["canonical_event"] == "existing_home_sales_mom_(mar)"
 
 
 def test_get_consensus_uses_estimate_then_forecast_aliases() -> None:

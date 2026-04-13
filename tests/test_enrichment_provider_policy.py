@@ -450,14 +450,24 @@ class TestMalformedPayloads:
                 "unit": "k",
             },
             {
-                "country": "JP",
-                "currency": "JPY",
+                "country": "SV",
+                "currency": "USD",
                 "date": "2026-04-13 23:50:00",
-                "event": "M3 Money Supply (Mar)",
+                "event": "Inflation Rate YoY (Mar)",
                 "actual": 1.8,
                 "estimate": 1.9,
                 "impact": "Low",
                 "unit": "%",
+            },
+            {
+                "country": "United States",
+                "currency": "usd",
+                "date": "2026-04-13 09:00:00",
+                "event": "NFIB Business Optimism Index",
+                "actual": 91.0,
+                "estimate": 89.0,
+                "impact": "Low",
+                "unit": "index",
             },
         ]
 
@@ -465,21 +475,23 @@ class TestMalformedPayloads:
 
         diagnostics = result.meta["diagnostics"]
         assert diagnostics["macro_bias"] == pytest.approx(0.75)
-        assert diagnostics["macro_event_count"] == 4
-        assert diagnostics["macro_events_considered"] == 2
+        assert diagnostics["macro_event_count"] == 5
+        assert diagnostics["macro_events_considered"] == 3
         assert diagnostics["macro_inputs_used"] == [
             "GDP Growth Rate QoQ",
             "Initial Jobless Claims",
+            "NFIB Business Optimism Index",
         ]
         assert diagnostics["macro_input_diagnostics"] == {
-            "raw_event_count": 4,
-            "us_scoped_event_count": 3,
-            "deduped_event_count": 2,
-            "scored_event_count": 2,
+            "raw_event_count": 5,
+            "us_scoped_event_count": 4,
+            "deduped_event_count": 3,
+            "scored_event_count": 3,
             "contributing_event_count": 2,
             "rejection_reason_counts": {
                 "deduped_duplicate": 1,
                 "non_us_event": 1,
+                "zero_weight": 1,
             },
             "quality_flag_counts": {},
         }
@@ -495,7 +507,11 @@ class TestMalformedPayloads:
         assert audit_by_event["Initial Jobless Claims"]["consensus_field"] == "forecast"
         assert audit_by_event["Initial Jobless Claims"]["canonical_event"] == "jobless_claims"
         assert audit_by_event["Initial Jobless Claims"]["contributed_to_bias"] is True
-        assert audit_by_event["M3 Money Supply (Mar)"]["rejection_reasons"] == ["non_us_event"]
+        assert audit_by_event["Inflation Rate YoY (Mar)"]["passes_us_scope"] is False
+        assert audit_by_event["Inflation Rate YoY (Mar)"]["rejection_reasons"] == ["non_us_event"]
+        assert audit_by_event["NFIB Business Optimism Index"]["passes_us_scope"] is True
+        assert audit_by_event["NFIB Business Optimism Index"]["country"] == "US"
+        assert audit_by_event["NFIB Business Optimism Index"]["rejection_reasons"] == ["zero_weight"]
 
         score_components = {
             component["canonical_event"]: component
@@ -505,6 +521,7 @@ class TestMalformedPayloads:
         assert score_components["gdp_qoq"]["contribution"] == pytest.approx(0.5)
         assert score_components["jobless_claims"]["consensus_field"] == "forecast"
         assert score_components["jobless_claims"]["contribution"] == pytest.approx(1.0)
+        assert score_components["nfib_business_optimism_index"]["contribution"] == pytest.approx(0.0)
 
     def test_regime_fmp_reports_market_pe_modifier_diagnostics(self):
         fmp = MagicMock()
@@ -861,11 +878,33 @@ class TestProviderCountAndStale:
 
         news_diag = enrichment["providers"]["domain_diagnostics"]["news"]
         assert news_diag["render_source"] == "provider_chain_plus_live_snapshot"
+        assert news_diag["rendered_symbol_count"] == 2
         live_snapshot_diag = news_diag["diagnostics"]["live_snapshot"]
+        base_diag = news_diag["diagnostics"]["base_provider_chain"]
+        merge_diag = news_diag["diagnostics"]["merge"]
+        rendered_diag = news_diag["diagnostics"]["rendered_payload"]
+        assert base_diag["provider"] == "fmp"
+        assert base_diag["provider_status"] == "ok"
+        assert base_diag["rendered_payload"] == {
+            "news_heat_global": 0.5,
+            "symbol_count": 1,
+            "bullish_ticker_count": 1,
+            "bearish_ticker_count": 0,
+            "neutral_ticker_count": 0,
+        }
+        assert base_diag["raw_diagnostics"] == {}
         assert live_snapshot_diag["snapshot_story_count"] == 2
         assert live_snapshot_diag["providers_with_new_items"] == ["benzinga", "newsapi_ai"]
-        assert live_snapshot_diag["merge"]["live_directional_override_count"] == 1
-        assert live_snapshot_diag["merge"]["live_added_count"] == 1
+        assert merge_diag["live_directional_override_count"] == 1
+        assert merge_diag["live_added_count"] == 1
+        assert merge_diag["base_news_heat_global"] == pytest.approx(0.5)
+        assert rendered_diag == {
+            "news_heat_global": -0.5,
+            "symbol_count": 2,
+            "bullish_ticker_count": 0,
+            "bearish_ticker_count": 2,
+            "neutral_ticker_count": 0,
+        }
 
     @patch("scripts.smc_v55_lean_normalization.normalize_v55_lean_enrichment", side_effect=lambda enrichment, snapshot=None: enrichment)
     @patch("scripts.smc_provider_policy.resolve_domain")
