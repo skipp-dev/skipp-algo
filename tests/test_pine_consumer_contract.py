@@ -1046,8 +1046,8 @@ class TestV55bContractSync:
         """Both artifact classes must exist: seed reference and showcase fixture."""
         import json
         # Seed reference (generator-first, all defaults)
-        seed_pine = ROOT / "pine/generated/smc_micro_profiles_generated.pine"
-        seed_manifest = ROOT / "pine/generated/smc_micro_profiles_generated.json"
+        seed_pine = ROOT / "tests/fixtures/generated_seed/pine/generated/smc_micro_profiles_generated.pine"
+        seed_manifest = ROOT / "tests/fixtures/generated_seed/pine/generated/smc_micro_profiles_generated.json"
         assert seed_pine.exists(), "Seed Pine artifact must exist"
         assert seed_manifest.exists(), "Seed manifest must exist"
         manifest = json.loads(seed_manifest.read_text())
