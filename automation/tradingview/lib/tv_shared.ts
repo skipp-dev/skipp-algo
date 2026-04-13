@@ -4037,10 +4037,23 @@ export async function ensurePineEditor(page: Page): Promise<void> {
     for (let attempt = 0; attempt < 4; attempt += 1) {
       await clickFirst(tvSelectors.pineEditor(page), 2_500);
       await page.waitForTimeout(1_000);
+      await dismissSignInModal(page);
       await dismissCookieBanner(page);
 
-      const diagnostics = await collectEditorDiagnostics(page);
+      let diagnostics = await collectEditorDiagnostics(page);
       if (hasVisibleEditorHost(diagnostics)) {
+        await restoreHistoricalScriptVersionIfNeeded(page);
+        return;
+      }
+
+      tracePageEvent(page, "pine-editor-recovery-attempt", `close-modal:${attempt + 1}`);
+      await closeModal(page).catch(() => undefined);
+      await dismissSignInModal(page);
+      await dismissCookieBanner(page);
+
+      diagnostics = await collectEditorDiagnostics(page);
+      if (hasVisibleEditorHost(diagnostics)) {
+        tracePageEvent(page, "pine-editor-recovery-ok", `close-modal:${attempt + 1}`);
         await restoreHistoricalScriptVersionIfNeeded(page);
         return;
       }
