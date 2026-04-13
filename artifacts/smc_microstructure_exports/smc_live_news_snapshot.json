@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-04-13T10:13:22.743196Z",
+  "generated_at": "2026-04-13T11:44:22.704344Z",
   "symbols": [
     "AAPL",
     "MSFT",
@@ -56,12 +56,12 @@
     "newsapi_ai": {
       "ok": true,
       "error": "",
-      "raw_count": 13,
-      "new_item_count": 2,
+      "raw_count": 0,
+      "new_item_count": 0,
       "cursor": 1776074354.0,
       "last_seen_news_uri": "",
-      "provider_status": "ok",
-      "status_detail": "",
+      "provider_status": "ok_no_recent_matches",
+      "status_detail": "Event Registry reachable, but no recent symbol-matching NewsAPI.ai items were returned for the current feed window.",
       "error_code": ""
     },
     "tv": {
@@ -82,7 +82,7 @@
       ],
       "published_at": "2026-04-12T12:07:28Z",
       "published_ts": 1775995648.0,
-      "age_minutes": 1325.9,
+      "age_minutes": 1416.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -120,7 +120,7 @@
       ],
       "published_at": "2026-04-13T09:59:14Z",
       "published_ts": 1776074354.0,
-      "age_minutes": 14.1,
+      "age_minutes": 105.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -141,51 +141,13 @@
       "impact": 0.1,
       "clarity": 0.6,
       "relevance": 0.475,
-      "news_catalyst_score": 0.3538,
-      "materiality": "LOW",
-      "recency_bucket": "FRESH",
-      "is_actionable": false,
-      "url": "https://www.benzinga.com/insights/news/26/04/51773654/insights-into-microsofts-performance-versus-peers-in-software-sector",
-      "first_seen_at": "2026-04-13T10:13:22.743196Z",
-      "is_new": true,
-      "provider_count": 1
-    },
-    {
-      "story_key": "ba25bfd4b4ad9f308664d90b2a48eeac056a78da:5920228",
-      "headline": "Microsoft (MSFT) Stock: How the Tech Giant Monetizes Its AI Infrastructure - Blockonomi",
-      "tickers": [
-        "MSFT"
-      ],
-      "published_at": "2026-04-13T08:24:55Z",
-      "published_ts": 1776068695.0,
-      "age_minutes": 108.5,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Blockonomi"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Microsoft (MSFT) Stock: How the Tech Giant Monetizes Its AI Infrastructure - Blockonomi",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.2307,
+      "news_catalyst_score": 0.2697,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
-      "url": "https://blockonomi.com/microsoft-msft-stock-how-the-tech-giant-monetizes-its-ai-infrastructure/",
+      "url": "https://www.benzinga.com/insights/news/26/04/51773654/insights-into-microsofts-performance-versus-peers-in-software-sector",
       "first_seen_at": "2026-04-13T10:13:22.743196Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -196,7 +158,7 @@
       ],
       "published_at": "2026-04-12T17:18:19Z",
       "published_ts": 1776014299.0,
-      "age_minutes": 1015.1,
+      "age_minutes": 1106.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -227,6 +189,44 @@
       "provider_count": 1
     },
     {
+      "story_key": "ba25bfd4b4ad9f308664d90b2a48eeac056a78da:5920228",
+      "headline": "Microsoft (MSFT) Stock: How the Tech Giant Monetizes Its AI Infrastructure - Blockonomi",
+      "tickers": [
+        "MSFT"
+      ],
+      "published_at": "2026-04-13T08:24:55Z",
+      "published_ts": 1776068695.0,
+      "age_minutes": 199.5,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Blockonomi"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Microsoft (MSFT) Stock: How the Tech Giant Monetizes Its AI Infrastructure - Blockonomi",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.2052,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://blockonomi.com/microsoft-msft-stock-how-the-tech-giant-monetizes-its-ai-infrastructure/",
+      "first_seen_at": "2026-04-13T10:13:22.743196Z",
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
       "story_key": "82b76cabc494cd85c56263d8ee1aeffd6041fdb2:5920189",
       "headline": "'This Isn't the Time,' Says Investor About Microsoft Stock (MSFT)",
       "tickers": [
@@ -234,7 +234,7 @@
       ],
       "published_at": "2026-04-13T05:08:00Z",
       "published_ts": 1776056880.0,
-      "age_minutes": 305.4,
+      "age_minutes": 396.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -272,7 +272,7 @@
       ],
       "published_at": "2026-04-12T21:04:22Z",
       "published_ts": 1776027862.0,
-      "age_minutes": 789.0,
+      "age_minutes": 880.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -310,7 +310,7 @@
       ],
       "published_at": "2026-04-12T21:03:30Z",
       "published_ts": 1776027810.0,
-      "age_minutes": 789.9,
+      "age_minutes": 880.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -348,7 +348,7 @@
       ],
       "published_at": "2026-04-12T13:28:48Z",
       "published_ts": 1776000528.0,
-      "age_minutes": 1244.6,
+      "age_minutes": 1335.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -420,12 +420,12 @@
       "story_key": "4fff0a4054be7d9a0ce063fc42e9bce5c51eed0c:5920092"
     },
     "MSFT": {
-      "news_catalyst_score": 0.4738,
+      "news_catalyst_score": 0.3897,
       "sentiment_label": "neutral",
       "event_class": "UNKNOWN",
       "event_label": "Insights Into Microsoft's Performance Versus Peers In Software Sector - Microsoft (NASDAQ:MSFT)",
       "materiality": "LOW",
-      "recency_bucket": "FRESH",
+      "recency_bucket": "AGING",
       "source_tier": "TIER_2",
       "mentions_24h": 5,
       "is_actionable": false,
@@ -435,7 +435,7 @@
   },
   "summary": {
     "active_story_count": 8,
-    "new_story_count": 2,
+    "new_story_count": 0,
     "actionable_story_count": 0,
     "actionable_symbols": [],
     "symbol_count": 4
