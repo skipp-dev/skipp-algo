@@ -200,9 +200,13 @@ def test_release_reference_meta_can_synthesize_volume_from_structure_artifact(mo
     )
 
     assert payload["asof_ts"] == 1000.0
-    assert payload["volume"]["value"]["regime"] == "NORMAL"
+    assert payload["volume"]["value"]["regime"] == "SYNTHETIC_FALLBACK"
     assert payload["volume"]["value"]["thin_fraction"] == 0.0
     assert payload["meta_domains_missing"] == ["technical", "news"]
+    assert payload["domain_drop_reasons"] == {
+        "technical": "source_validation_error",
+        "news": "source_validation_error",
+    }
     diag = payload["meta_domain_diagnostics"]
     assert diag["volume"] == "synthetic_fallback"
     assert diag["volume_planned_source"] == "databento_watchlist_csv"

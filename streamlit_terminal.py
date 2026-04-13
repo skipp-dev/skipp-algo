@@ -281,6 +281,10 @@ from terminal_spike_detector import (
     format_time_et,
 )
 from streamlit_terminal_alerts import evaluate_alert_rules, validate_webhook_url
+from streamlit_terminal_config import (
+    collect_tv_news_symbols as _collect_tv_news_symbols,
+    has_live_news_provider as _has_live_news_provider,
+)
 from terminal_ui_helpers import (
     MATERIALITY_COLORS,
     RECENCY_COLORS,
@@ -704,40 +708,6 @@ def _prune_stale_items(feed: list[dict[str, Any]], max_age_s: float | None = Non
     if not is_market_hours():
         max_age_s = max(max_age_s, 259200.0)  # 72 h
     return prune_stale_items(feed, max_age_s)
-
-
-def _collect_tv_news_symbols(cfg: TerminalConfig, feed: list[dict[str, Any]] | None = None) -> list[str]:
-    if not bool(getattr(cfg, "tv_news_enabled", True)):
-        return []
-    configured = [
-        str(symbol).strip().upper()
-        for symbol in str(getattr(cfg, "tv_news_symbols", "") or "").split(",")
-        if str(symbol).strip()
-    ]
-    dynamic: list[str] = []
-    for row in feed or []:
-        ticker = str(row.get("ticker") or "").strip().upper()
-        if ticker and ticker != "MARKET":
-            dynamic.append(ticker)
-    merged: list[str] = []
-    seen: set[str] = set()
-    max_symbols = max(1, int(getattr(cfg, "tv_news_max_symbols", 25) or 25))
-    for ticker in [*configured, *dynamic]:
-        if ticker in seen:
-            continue
-        seen.add(ticker)
-        merged.append(ticker)
-        if len(merged) >= max_symbols:
-            break
-    return merged
-
-
-def _has_live_news_provider(cfg: TerminalConfig, feed: list[dict[str, Any]] | None = None) -> bool:
-    if str(getattr(cfg, "benzinga_api_key", "") or "").strip():
-        return True
-    if bool(getattr(cfg, "fmp_enabled", False)) and str(getattr(cfg, "fmp_api_key", "") or "").strip():
-        return True
-    return bool(_collect_tv_news_symbols(cfg, feed))
 
 
 def _live_story_state_kwargs(cfg: TerminalConfig | None = None) -> dict[str, float]:

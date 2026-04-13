@@ -79,3 +79,95 @@ def test_merge_raw_meta_domains_deduplicates_provenance_and_allows_missing_optio
     assert "news" not in merged
     assert merged["provenance"][0] == "same:item"
     assert merged["provenance"].count("same:item") == 1
+
+
+def test_merge_raw_meta_domains_surfaces_domain_drop_reasons_for_technical() -> None:
+    merged = merge_raw_meta_domains(
+        volume_meta=_volume_meta(),
+        technical_meta=None,
+        news_meta={
+            "symbol": "AAPL",
+            "timeframe": "15m",
+            "asof_ts": 1709253602.0,
+            "news": {
+                "value": {"strength": 0.3, "bias": "BEARISH"},
+                "asof_ts": 1709253602.0,
+                "stale": False,
+            },
+            "provenance": ["news:a"],
+        },
+        domain_sources={
+            "structure": "databento_watchlist_csv",
+            "volume": "databento_watchlist_csv",
+            "technical": "fmp_watchlist_json",
+            "news": "benzinga_watchlist_json",
+        },
+        domain_drop_reasons={"technical": "domain_fields_incomplete"},
+    )
+
+    assert merged["domain_drop_reasons"]["technical"] == "domain_fields_incomplete"
+    assert "news" not in merged["domain_drop_reasons"]
+
+
+def test_merge_raw_meta_domains_surfaces_domain_drop_reasons_for_news() -> None:
+    merged = merge_raw_meta_domains(
+        volume_meta=_volume_meta(),
+        technical_meta={
+            "symbol": "AAPL",
+            "timeframe": "15m",
+            "asof_ts": 1709253601.0,
+            "technical": {
+                "value": {"strength": 0.8, "bias": "BULLISH"},
+                "asof_ts": 1709253601.0,
+                "stale": False,
+            },
+            "provenance": ["tech:a"],
+        },
+        news_meta=None,
+        domain_sources={
+            "structure": "databento_watchlist_csv",
+            "volume": "databento_watchlist_csv",
+            "technical": "fmp_watchlist_json",
+            "news": "benzinga_watchlist_json",
+        },
+        domain_drop_reasons={"news": "source_file_not_found"},
+    )
+
+    assert merged["domain_drop_reasons"]["news"] == "source_file_not_found"
+    assert "technical" not in merged["domain_drop_reasons"]
+
+
+def test_merge_raw_meta_domains_exposes_empty_drop_reasons_when_all_domains_are_present() -> None:
+    merged = merge_raw_meta_domains(
+        volume_meta=_volume_meta(),
+        technical_meta={
+            "symbol": "AAPL",
+            "timeframe": "15m",
+            "asof_ts": 1709253601.0,
+            "technical": {
+                "value": {"strength": 0.8, "bias": "BULLISH"},
+                "asof_ts": 1709253601.0,
+                "stale": False,
+            },
+            "provenance": ["tech:a"],
+        },
+        news_meta={
+            "symbol": "AAPL",
+            "timeframe": "15m",
+            "asof_ts": 1709253602.0,
+            "news": {
+                "value": {"strength": 0.3, "bias": "BEARISH"},
+                "asof_ts": 1709253602.0,
+                "stale": False,
+            },
+            "provenance": ["news:a"],
+        },
+        domain_sources={
+            "structure": "databento_watchlist_csv",
+            "volume": "databento_watchlist_csv",
+            "technical": "fmp_watchlist_json",
+            "news": "benzinga_watchlist_json",
+        },
+    )
+
+    assert merged["domain_drop_reasons"] == {}

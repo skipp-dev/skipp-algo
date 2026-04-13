@@ -630,6 +630,118 @@ def test_smoke_surfaces_domain_status_warning(monkeypatch):
     assert "META_TECHNICAL_DOMAIN_STATUS" in warning_codes
 
 
+def test_smoke_emits_silent_domain_drop_alert(monkeypatch):
+    def _loader(symbol, timeframe, source):
+        return {
+            "asof_ts": 995.0,
+            "meta_domains_missing": ["technical"],
+            "domain_drop_reasons": {"technical": "domain_fields_incomplete"},
+            "meta_domain_diagnostics": {
+                "volume": "present",
+                "volume_source": "databento_watchlist_csv",
+                "volume_fallback_used": False,
+                "volume_stale": False,
+                "technical": "domain_fields_incomplete",
+                "technical_source": "fmp_watchlist_json",
+                "technical_fallback_used": False,
+                "technical_stale": False,
+                "news": "present",
+                "news_source": "benzinga_watchlist_json",
+                "news_fallback_used": False,
+                "news_stale": False,
+            },
+        }
+
+    _patch_smoke_env(monkeypatch, _loader)
+
+    smoke = provider_health._run_smoke_checks(
+        symbols=["AAPL"], timeframes=["15m"], checked_at=1_000.0, stale_after_seconds=None,
+    )
+
+    alerts = smoke["results"][0]["domain_alerts"]
+    assert any(
+        item.get("code") == "SILENT_DOMAIN_DROP_TECHNICAL"
+        and item.get("severity") == "warn"
+        and item.get("status") == "domain_fields_incomplete"
+        for item in alerts
+    )
+    assert not any(item.get("code") == "META_TECHNICAL_DOMAIN_STATUS" for item in alerts)
+    warning_codes = {item.get("code") for item in smoke["warnings"]}
+    assert "SILENT_DOMAIN_DROP_TECHNICAL" in warning_codes
+
+
+def test_smoke_avoids_duplicate_drop_alert_when_domain_is_also_stale(monkeypatch):
+    def _loader(symbol, timeframe, source):
+        return {
+            "asof_ts": 995.0,
+            "meta_domains_missing": ["technical"],
+            "domain_drop_reasons": {"technical": "source_file_not_found"},
+            "meta_domain_diagnostics": {
+                "volume": "present",
+                "volume_source": "databento_watchlist_csv",
+                "volume_fallback_used": False,
+                "volume_stale": False,
+                "technical": "source_file_not_found",
+                "technical_source": "fmp_watchlist_json",
+                "technical_fallback_used": False,
+                "technical_stale": True,
+                "news": "present",
+                "news_source": "benzinga_watchlist_json",
+                "news_fallback_used": False,
+                "news_stale": False,
+            },
+        }
+
+    _patch_smoke_env(monkeypatch, _loader)
+
+    smoke = provider_health._run_smoke_checks(
+        symbols=["AAPL"], timeframes=["15m"], checked_at=1_000.0, stale_after_seconds=None,
+    )
+
+    alerts = smoke["results"][0].get("domain_alerts", [])
+    assert not any(item.get("code") == "SILENT_DOMAIN_DROP_TECHNICAL" for item in alerts)
+    assert not any(item.get("code") == "META_TECHNICAL_DOMAIN_STATUS" for item in alerts)
+    degradation_codes = {item.get("code") for item in smoke["degradations"]}
+    assert "STALE_META_TECHNICAL_DOMAIN" in degradation_codes
+
+
+def test_smoke_unknown_volume_regime_is_degradation(monkeypatch):
+    def _loader(symbol, timeframe, source):
+        return {
+            "asof_ts": 995.0,
+            "volume": {
+                "value": {"regime": "UNKNOWN", "thin_fraction": None},
+                "asof_ts": 995.0,
+                "stale": False,
+            },
+            "meta_domain_diagnostics": {
+                "volume": "present",
+                "volume_source": "databento_watchlist_csv",
+                "volume_fallback_used": False,
+                "volume_stale": False,
+                "technical": "present",
+                "technical_source": "fmp_watchlist_json",
+                "technical_fallback_used": False,
+                "technical_stale": False,
+                "news": "present",
+                "news_source": "benzinga_watchlist_json",
+                "news_fallback_used": False,
+                "news_stale": False,
+            },
+        }
+
+    _patch_smoke_env(monkeypatch, _loader)
+
+    smoke = provider_health._run_smoke_checks(
+        symbols=["AAPL"], timeframes=["15m"], checked_at=1_000.0, stale_after_seconds=None,
+    )
+
+    degradation_codes = {item.get("code") for item in smoke["degradations"]}
+    failure_codes = {item.get("code") for item in smoke["failures"]}
+    assert "UNKNOWN_VOLUME_REGIME" in degradation_codes
+    assert "UNKNOWN_VOLUME_REGIME" not in failure_codes
+
+
 def test_smoke_bundle_build_error_is_failure(monkeypatch):
     monkeypatch.setattr(
         provider_health,

@@ -43,6 +43,7 @@ def merge_raw_meta_domains(
     technical_meta: Mapping[str, Any] | None,
     news_meta: Mapping[str, Any] | None,
     domain_sources: Mapping[str, str],
+    domain_drop_reasons: Mapping[str, str] | None = None,
     event_risk: Mapping[str, Any] | None = None,
     enriched_news: list[Any] | None = None,
     market_regime: Mapping[str, Any] | None = None,
@@ -100,16 +101,21 @@ def merge_raw_meta_domains(
     # --- Domain visibility: track which meta domains are present vs missing ---
     meta_domains_present: list[str] = ["volume"]
     meta_domains_missing: list[str] = []
+    drop_reasons = _as_mapping(domain_drop_reasons)
+    merged_drop_reasons: dict[str, str] = {}
     if technical is not None:
         meta_domains_present.append("technical")
     else:
         meta_domains_missing.append("technical")
+        merged_drop_reasons["technical"] = _coerce_str(drop_reasons.get("technical")) or "missing_optional_domain"
     if news is not None:
         meta_domains_present.append("news")
     else:
         meta_domains_missing.append("news")
+        merged_drop_reasons["news"] = _coerce_str(drop_reasons.get("news")) or "missing_optional_domain"
     merged["meta_domains_present"] = meta_domains_present
     merged["meta_domains_missing"] = meta_domains_missing
+    merged["domain_drop_reasons"] = merged_drop_reasons
 
     provenance: list[str] = []
     for raw in (volume_raw, technical_raw, news_raw):

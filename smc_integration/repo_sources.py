@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import math
 import time
 from dataclasses import dataclass
@@ -114,6 +115,7 @@ _DOMAIN_SOURCE_ORDER: dict[str, list[str]] = {
 
 _SYNTHETIC_STRUCTURE_ARTIFACT_META_SOURCE = "synthetic_structure_artifact_meta"
 _SOURCE_DOMAIN_STATUS_KEY = "_meta_domain_statuses"
+_LOG = logging.getLogger(__name__)
 
 
 def _can_supply_domain(provider: _SourceProvider, domain: str) -> bool:
@@ -418,6 +420,17 @@ def _try_load_meta_domain(
             continue
         return meta, "present", name
 
+    if domain in {"technical", "news"} and last_status != "not_attempted":
+        _LOG.warning(
+            "meta domain %s dropped for %s/%s; planned_source=%s status=%s auto_mode=%s",
+            domain,
+            str(symbol).strip().upper(),
+            str(timeframe).strip(),
+            primary_name,
+            last_status,
+            auto_mode,
+        )
+
     return None, last_status, primary_name
 
 
@@ -431,7 +444,7 @@ def _build_synthetic_volume_meta(symbol: str, timeframe: str, *, asof_ts: float)
         "asof_ts": fresh_asof,
         "volume": {
             "value": {
-                "regime": "NORMAL",
+                "regime": "SYNTHETIC_FALLBACK",
                 "thin_fraction": 0.0,
             },
             "asof_ts": fresh_asof,
@@ -441,6 +454,7 @@ def _build_synthetic_volume_meta(symbol: str, timeframe: str, *, asof_ts: float)
             f"smc_integration:{_SYNTHETIC_STRUCTURE_ARTIFACT_META_SOURCE}",
             f"smc_integration:{_SYNTHETIC_STRUCTURE_ARTIFACT_META_SOURCE}#symbol={normalized_symbol}",
             f"smc_integration:{_SYNTHETIC_STRUCTURE_ARTIFACT_META_SOURCE}#timeframe={normalized_timeframe}",
+            "smc_integration:volume_regime_synthetic_fallback",
         ],
     }
 
@@ -468,6 +482,12 @@ def _finalize_composite_meta(
     news_fallback_used: bool,
     relax_missing_optional_domains: bool,
 ) -> dict[str, Any]:
+    domain_drop_reasons: dict[str, str] = {}
+    if technical_meta is None:
+        domain_drop_reasons["technical"] = technical_domain_status or "missing_optional_domain"
+    if news_meta is None:
+        domain_drop_reasons["news"] = news_domain_status or "missing_optional_domain"
+
     merged = merge_raw_meta_domains(
         volume_meta=volume_meta,
         technical_meta=technical_meta,
@@ -478,6 +498,7 @@ def _finalize_composite_meta(
             "technical": actual_technical_source,
             "news": actual_news_source,
         },
+        domain_drop_reasons=domain_drop_reasons,
     )
 
     diagnostics: dict[str, Any] = {

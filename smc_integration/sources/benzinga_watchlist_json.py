@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -9,6 +10,7 @@ from .base import SourceCapabilities, SourceDescriptor
 
 BENZINGA_WATCHLIST_JSON = Path(__file__).resolve().parents[2] / "reports" / "benzinga_watchlist_snapshot.json"
 _META_DOMAIN_STATUS_KEY = "_meta_domain_statuses"
+_LOG = logging.getLogger(__name__)
 
 
 def describe_source() -> SourceDescriptor:
@@ -95,6 +97,12 @@ def _extract_news(row: dict[str, Any], *, fallback_asof_ts: float) -> tuple[dict
         bias = _coerce_bias(row.get("news_bias"))
 
     if strength is None or bias is None:
+        _LOG.info(
+            "dropping news domain from benzinga_watchlist_json for %s: strength=%r bias=%r",
+            str(row.get("symbol") or "").strip().upper() or "?",
+            strength,
+            bias,
+        )
         return None, "domain_fields_incomplete"
 
     asof_ts = _coerce_optional_float(direct_map.get("asof_ts"))

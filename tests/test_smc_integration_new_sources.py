@@ -94,6 +94,26 @@ def test_databento_source_derives_holiday_suspect_from_same_day_liquidity(monkey
     assert meta["volume"]["value"]["thin_fraction"] == 0.8
 
 
+def test_databento_source_surfaces_unknown_without_liquidity_evidence(monkeypatch, tmp_path: Path) -> None:
+    source_path = tmp_path / "databento_watchlist.csv"
+    _write_watchlist_csv(
+        source_path,
+        [
+            {"symbol": "AAPL", "trade_date": "2026-03-01", "watchlist_rank": 1},
+            {"symbol": "MSFT", "trade_date": "2026-03-01", "watchlist_rank": 2},
+        ],
+    )
+    monkeypatch.setattr(databento_watchlist_csv, "WATCHLIST_CSV", source_path)
+
+    meta = databento_watchlist_csv.load_raw_meta_input("AAPL", "15m")
+
+    assert meta["symbol"] == "AAPL"
+    assert meta["timeframe"] == "15m"
+    assert meta["volume"]["value"]["regime"] == "UNKNOWN"
+    assert meta["volume"]["value"]["thin_fraction"] is None
+    assert "smc_integration:volume_regime_unknown_no_premarket_liquidity" in meta["provenance"]
+
+
 def test_fmp_source_loads_meta_and_structure(monkeypatch, tmp_path: Path) -> None:
     source_path = tmp_path / "fmp_watchlist_snapshot.json"
     _write_rows(

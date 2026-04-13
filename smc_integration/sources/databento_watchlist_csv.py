@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import logging
 import statistics
 from datetime import UTC, datetime
 from pathlib import Path
@@ -9,6 +10,7 @@ from typing import Any
 from .base import SourceCapabilities, SourceDescriptor
 
 WATCHLIST_CSV = Path(__file__).resolve().parents[2] / "reports" / "databento_watchlist_top5_pre1530.csv"
+_LOG = logging.getLogger(__name__)
 
 
 def describe_source() -> SourceDescriptor:
@@ -23,7 +25,7 @@ def describe_source() -> SourceDescriptor:
         ),
         notes=[
             "Real repo watchlist source with symbol and trade-date context.",
-            "Volume regime is derived from same-day premarket liquidity columns in the watchlist CSV.",
+            "Volume regime is derived from same-day premarket liquidity columns when available and surfaced as UNKNOWN otherwise.",
             "Does not publish explicit BOS/OB/FVG/sweep events; structure mapping remains explicit empty lists.",
         ],
     )
@@ -92,7 +94,7 @@ def _positive_peer_values(rows: list[dict[str, str]], field_name: str) -> list[f
     return values
 
 
-def _derive_volume_meta(row: dict[str, str], peer_rows: list[dict[str, str]]) -> dict[str, float | str]:
+def _derive_volume_meta(row: dict[str, str], peer_rows: list[dict[str, str]]) -> dict[str, Any]:
     liquidity_ratios: list[float] = []
     for field_name in ("premarket_volume", "premarket_trade_count"):
         peer_values = _positive_peer_values(peer_rows, field_name)
@@ -105,9 +107,14 @@ def _derive_volume_meta(row: dict[str, str], peer_rows: list[dict[str, str]]) ->
         liquidity_ratios.append(max(0.0, row_value) / peer_median)
 
     if not liquidity_ratios:
+        _LOG.info(
+            "databento volume regime UNKNOWN for %s on %s: no usable premarket liquidity ratios",
+            str(row.get("symbol") or "").strip().upper() or "?",
+            str(row.get("trade_date") or "").strip() or "?",
+        )
         return {
-            "regime": "NORMAL",
-            "thin_fraction": 0.0,
+            "regime": "UNKNOWN",
+            "thin_fraction": None,
         }
 
     liquidity_ratio = min(liquidity_ratios)
@@ -149,7 +156,7 @@ def load_raw_meta_input(symbol: str, timeframe: str) -> dict[str, Any]:
     asof_ts = _asof_ts_from_trade_date(trade_date)
     volume_meta = _derive_volume_meta(row, _same_trade_date_rows(rows, trade_date))
 
-    return {
+    payload: dict[str, Any] = {
         "symbol": str(row.get("symbol", symbol)).strip().upper(),
         "timeframe": str(timeframe).strip(),
         "asof_ts": asof_ts,
@@ -162,7 +169,13 @@ def load_raw_meta_input(symbol: str, timeframe: str) -> dict[str, Any]:
             "repo:reports/databento_watchlist_top5_pre1530.csv",
             f"repo:reports/databento_watchlist_top5_pre1530.csv#symbol={str(row.get('symbol', symbol)).strip().upper()}",
             f"repo:reports/databento_watchlist_top5_pre1530.csv#trade_date={trade_date}",
-            "smc_integration:volume_regime_derived_from_premarket_liquidity",
             "smc_integration:partial_structure_only",
         ],
     }
+
+    if volume_meta.get("regime") == "UNKNOWN":
+        payload["provenance"].append("smc_integration:volume_regime_unknown_no_premarket_liquidity")
+    else:
+        payload["provenance"].append("smc_integration:volume_regime_derived_from_premarket_liquidity")
+
+    return payload

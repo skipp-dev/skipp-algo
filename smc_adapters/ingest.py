@@ -95,7 +95,14 @@ def _sweep_side(value: str, context: str) -> SweepSide:
 
 
 def _volume_regime(value: str, context: str) -> VolumeRegime:
-    return cast(VolumeRegime, _validate_enum(value, {"NORMAL", "LOW_VOLUME", "HOLIDAY_SUSPECT"}, context))
+    normalized = _validate_enum(
+        value,
+        {"NORMAL", "LOW_VOLUME", "HOLIDAY_SUSPECT", "UNKNOWN", "SYNTHETIC_FALLBACK"},
+        context,
+    )
+    if normalized in {"UNKNOWN", "SYNTHETIC_FALLBACK"}:
+        return "NORMAL"
+    return cast(VolumeRegime, normalized)
 
 
 def _direction_bias(value: str, context: str) -> Literal["BULLISH", "BEARISH", "NEUTRAL"]:
@@ -287,20 +294,25 @@ def build_meta_from_raw(raw_meta: Mapping[str, Any]) -> SmcMeta:
 
     raw_volume = _ensure_mapping(_require(raw, "volume", "raw_meta"), "raw_meta.volume")
     raw_volume_value = _ensure_mapping(_require(raw_volume, "value", "raw_meta.volume"), "raw_meta.volume.value")
+    raw_regime = _as_str(
+        _require(raw_volume_value, "regime", "raw_meta.volume.value"),
+        "raw_meta.volume.value.regime",
+    ).strip().upper()
 
     regime = _volume_regime(
-        _as_str(_require(raw_volume_value, "regime", "raw_meta.volume.value"), "raw_meta.volume.value.regime"),
+        raw_regime,
         "raw_meta.volume.value.regime",
     )
-    thin_fraction = _as_float(
-        _require(raw_volume_value, "thin_fraction", "raw_meta.volume.value"),
-        "raw_meta.volume.value.thin_fraction",
-    )
+    raw_thin_fraction = _require(raw_volume_value, "thin_fraction", "raw_meta.volume.value")
+    thin_fraction = 0.0 if raw_thin_fraction is None else _as_float(raw_thin_fraction, "raw_meta.volume.value.thin_fraction")
 
     volume = TimedVolumeInfo(
         value=VolumeInfo(regime=regime, thin_fraction=thin_fraction),
         asof_ts=_as_float(_require(raw_volume, "asof_ts", "raw_meta.volume"), "raw_meta.volume.asof_ts"),
-        stale=_as_bool(_require(raw_volume, "stale", "raw_meta.volume"), "raw_meta.volume.stale"),
+        stale=(
+            _as_bool(_require(raw_volume, "stale", "raw_meta.volume"), "raw_meta.volume.stale")
+            or raw_regime in {"UNKNOWN", "SYNTHETIC_FALLBACK"}
+        ),
     )
 
     technical = None

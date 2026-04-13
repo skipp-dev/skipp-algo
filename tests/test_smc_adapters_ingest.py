@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any, cast
+
 import pytest
 
 from smc_adapters.ingest import build_meta_from_raw, build_snapshot_from_raw, build_structure_from_raw
@@ -120,10 +122,10 @@ def test_meta_with_news_none() -> None:
 
 
 def test_stale_flag_propagates() -> None:
-    raw = dict(RAW_META)
-    raw["volume"] = dict(RAW_META["volume"], stale=True)
-    raw["technical"] = dict(RAW_META["technical"], stale=True)
-    raw["news"] = dict(RAW_META["news"], stale=True)
+    raw: dict[str, Any] = dict(RAW_META)
+    raw["volume"] = dict(cast(dict[str, Any], RAW_META["volume"]), stale=True)
+    raw["technical"] = dict(cast(dict[str, Any], RAW_META["technical"]), stale=True)
+    raw["news"] = dict(cast(dict[str, Any], RAW_META["news"]), stale=True)
     meta = build_meta_from_raw(raw)
     assert meta.volume.stale is True
     assert meta.technical is not None and meta.technical.stale is True
@@ -131,7 +133,7 @@ def test_stale_flag_propagates() -> None:
 
 
 def test_structure_all_empty_lists() -> None:
-    raw = {"bos": [], "orderblocks": [], "fvg": [], "liquidity_sweeps": []}
+    raw: dict[str, Any] = {"bos": [], "orderblocks": [], "fvg": [], "liquidity_sweeps": []}
     structure = build_structure_from_raw(raw)
     assert structure.bos == []
     assert structure.orderblocks == []
@@ -176,3 +178,32 @@ def test_provenance_defaults_to_empty() -> None:
     raw = {k: v for k, v in RAW_META.items() if k != "provenance"}
     meta = build_meta_from_raw(raw)
     assert meta.provenance == []
+
+
+def test_build_meta_from_raw_coerces_unknown_volume_regime_to_stale_normal() -> None:
+    raw = dict(RAW_META)
+    raw["volume"] = {
+        "value": {"regime": "UNKNOWN", "thin_fraction": None},
+        "asof_ts": 1709253580,
+        "stale": False,
+    }
+
+    meta = build_meta_from_raw(raw)
+
+    assert meta.volume.value.regime == "NORMAL"
+    assert meta.volume.value.thin_fraction == 0.0
+    assert meta.volume.stale is True
+
+
+def test_build_meta_from_raw_coerces_synthetic_fallback_regime_to_stale_normal() -> None:
+    raw = dict(RAW_META)
+    raw["volume"] = {
+        "value": {"regime": "SYNTHETIC_FALLBACK", "thin_fraction": 0.0},
+        "asof_ts": 1709253580,
+        "stale": False,
+    }
+
+    meta = build_meta_from_raw(raw)
+
+    assert meta.volume.value.regime == "NORMAL"
+    assert meta.volume.stale is True

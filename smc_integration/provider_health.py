@@ -102,21 +102,63 @@ def _source_plan_value(source_plan: dict[str, Any] | None, domain: str) -> str:
     return ""
 
 
+def _missing_meta_domains(raw_meta: dict[str, Any] | None) -> set[str]:
+    if not isinstance(raw_meta, dict):
+        return set()
+    raw_missing = raw_meta.get("meta_domains_missing")
+    if not isinstance(raw_missing, list):
+        return set()
+    return {
+        str(item).strip()
+        for item in raw_missing
+        if isinstance(item, str) and str(item).strip()
+    }
+
+
+def _domain_drop_reason_map(raw_meta: dict[str, Any] | None) -> dict[str, str]:
+    if not isinstance(raw_meta, dict):
+        return {}
+    raw_reasons = raw_meta.get("domain_drop_reasons")
+    if not isinstance(raw_reasons, dict):
+        return {}
+    return {
+        str(key).strip(): str(value).strip()
+        for key, value in raw_reasons.items()
+        if str(key).strip() and str(value).strip()
+    }
+
+
+def _raw_volume_regime(raw_meta: dict[str, Any] | None) -> str:
+    if not isinstance(raw_meta, dict):
+        return ""
+    volume = raw_meta.get("volume")
+    if not isinstance(volume, dict):
+        return ""
+    value = volume.get("value")
+    if not isinstance(value, dict):
+        return ""
+    return str(value.get("regime") or "").strip().upper()
+
+
 def _collect_meta_domain_alerts(
     *,
     symbol: str,
     timeframe: str,
     source_plan: dict[str, Any] | None,
+    raw_meta: dict[str, Any] | None,
     domain_diag: dict[str, Any],
     allow_release_reference_meta_fallback: bool,
 ) -> list[dict[str, Any]]:
     alerts: list[dict[str, Any]] = []
+    missing_domains = _missing_meta_domains(raw_meta)
+    drop_reasons = _domain_drop_reason_map(raw_meta)
 
     for domain in ("volume", "technical", "news"):
         status = str(domain_diag.get(domain) or "").strip()
         planned_source = _source_plan_value(source_plan, domain)
         actual_source = str(domain_diag.get(f"{domain}_source") or "").strip()
         fallback_used = bool(domain_diag.get(f"{domain}_fallback_used"))
+        domain_stale = domain_diag.get(f"{domain}_stale") is True
 
         age_hours_raw = domain_diag.get(f"{domain}_age_hours")
         age_hours = float(age_hours_raw) if isinstance(age_hours_raw, (int, float)) else None
@@ -140,6 +182,34 @@ def _collect_meta_domain_alerts(
                     ),
                 )
             )
+
+        if domain in {"technical", "news"} and domain in missing_domains:
+            if domain_stale:
+                continue
+            drop_reason = drop_reasons.get(domain) or status or "missing_optional_domain"
+            severity = "warn"
+            if allow_release_reference_meta_fallback:
+                severity = "info"
+            alerts.append(
+                _build_domain_alert(
+                    code=f"SILENT_DOMAIN_DROP_{domain.upper()}",
+                    severity=severity,
+                    symbol=symbol,
+                    timeframe=timeframe,
+                    domain=domain,
+                    status=drop_reason,
+                    planned_source=planned_source,
+                    actual_source=actual_source,
+                    fallback_used=fallback_used,
+                    age_hours=age_hours,
+                    message=(
+                        f"{domain} domain dropped before merge; reason={drop_reason}; "
+                        f"planned_source={planned_source or 'unknown'}; "
+                        f"actual_source={actual_source or 'unknown'}."
+                    ),
+                )
+            )
+            continue
 
         if not status or status in {"present", "synthetic_fallback"}:
             continue
@@ -536,6 +606,16 @@ def _run_smoke_checks(
                         warnings.append(dict(stale_meta_degradation))
                         degradations.append(dict(stale_meta_degradation))
 
+                if _raw_volume_regime(raw_meta) == "UNKNOWN":
+                    unknown_volume_regime = {
+                        "code": "UNKNOWN_VOLUME_REGIME",
+                        "symbol": symbol,
+                        "timeframe": timeframe,
+                        "message": "raw_meta volume regime is UNKNOWN due to missing liquidity evidence.",
+                    }
+                    warnings.append(dict(unknown_volume_regime))
+                    degradations.append(dict(unknown_volume_regime))
+
                 # Per-domain staleness (volume / technical / news).
                 domain_diag = raw_meta.get("meta_domain_diagnostics")
                 if isinstance(domain_diag, dict):
@@ -544,6 +624,7 @@ def _run_smoke_checks(
                         symbol=symbol,
                         timeframe=timeframe,
                         source_plan=row.get("source_plan") if isinstance(row.get("source_plan"), dict) else None,
+                        raw_meta=raw_meta,
                         domain_diag=domain_diag,
                         allow_release_reference_meta_fallback=allow_release_reference_meta_fallback,
                     )

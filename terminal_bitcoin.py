@@ -28,6 +28,7 @@ import threading
 import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
 from typing import Any
 
 from open_prep_boundary import FMPClientLike, make_fmp_client
@@ -54,6 +55,7 @@ try:
     import yfinance as yf  # type: ignore[import-untyped]
     _YF = True
 except ImportError:
+    yf = SimpleNamespace(Ticker=None)
     _YF = False
 
 try:

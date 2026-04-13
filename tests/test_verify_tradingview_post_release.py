@@ -12,36 +12,38 @@ def _write_json(path: Path, payload: dict) -> None:
     path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
 
 
+def _valid_manifest(*, last_preflight_report: str | None = None, published_version: int = 12) -> dict:
+    return {
+        "library": {
+            "publishStatus": "published",
+            "expectedVersion": 12,
+            "publishedVersion": published_version,
+        },
+        "lastPreflightReport": last_preflight_report,
+    }
+
+
+def _valid_report(*, execution_mode: str = "readonly") -> dict:
+    return {
+        "execution_mode": execution_mode,
+        "auth_reused_ok": True,
+        "auth_ok": True,
+        "overall_preflight_ok": True,
+        "targets": [
+            {
+                "scriptName": "SMC Decision Board",
+                "overall_preflight_ok": True,
+            }
+        ],
+    }
+
+
 def test_verify_post_release_validation_updates_manifest_report_path(tmp_path: Path) -> None:
     release_manifest_path = tmp_path / "library_release_manifest.json"
     validation_report_path = tmp_path / "tv_post_release_validation.json"
 
-    _write_json(
-        release_manifest_path,
-        {
-            "library": {
-                "publishStatus": "published",
-                "expectedVersion": 12,
-                "publishedVersion": 12,
-            },
-            "lastPreflightReport": None,
-        },
-    )
-    _write_json(
-        validation_report_path,
-        {
-            "execution_mode": "readonly",
-            "auth_reused_ok": True,
-            "auth_ok": True,
-            "overall_preflight_ok": True,
-            "targets": [
-                {
-                    "scriptName": "SMC Decision Board",
-                    "overall_preflight_ok": True,
-                }
-            ],
-        },
-    )
+    _write_json(release_manifest_path, _valid_manifest())
+    _write_json(validation_report_path, _valid_report())
 
     result = verify_post_release_validation(release_manifest_path, validation_report_path)
     updated_manifest = json.loads(release_manifest_path.read_text(encoding="utf-8"))
@@ -56,29 +58,34 @@ def test_verify_post_release_validation_rejects_non_published_manifest(tmp_path:
     release_manifest_path = tmp_path / "library_release_manifest.json"
     validation_report_path = tmp_path / "tv_post_release_validation.json"
 
-    _write_json(
-        release_manifest_path,
-        {
-            "library": {
-                "publishStatus": "not_verified",
-                "expectedVersion": 12,
-                "publishedVersion": 12,
-            },
-            "lastPreflightReport": None,
-        },
-    )
-    _write_json(
-        validation_report_path,
-        {
-            "execution_mode": "readonly",
-            "auth_reused_ok": True,
-            "auth_ok": True,
-            "overall_preflight_ok": True,
-            "targets": [{"scriptName": "SMC Decision Board", "overall_preflight_ok": True}],
-        },
-    )
+    manifest = _valid_manifest()
+    manifest["library"]["publishStatus"] = "not_verified"
+    _write_json(release_manifest_path, manifest)
+    _write_json(validation_report_path, _valid_report())
 
     with pytest.raises(RuntimeError, match="publishStatus"):
+        verify_post_release_validation(release_manifest_path, validation_report_path)
+
+
+def test_verify_post_release_validation_rejects_version_mismatch(tmp_path: Path) -> None:
+    release_manifest_path = tmp_path / "library_release_manifest.json"
+    validation_report_path = tmp_path / "tv_post_release_validation.json"
+
+    _write_json(release_manifest_path, _valid_manifest(published_version=11))
+    _write_json(validation_report_path, _valid_report())
+
+    with pytest.raises(RuntimeError, match="expectedVersion"):
+        verify_post_release_validation(release_manifest_path, validation_report_path)
+
+
+def test_verify_post_release_validation_rejects_non_readonly_mode(tmp_path: Path) -> None:
+    release_manifest_path = tmp_path / "library_release_manifest.json"
+    validation_report_path = tmp_path / "tv_post_release_validation.json"
+
+    _write_json(release_manifest_path, _valid_manifest())
+    _write_json(validation_report_path, _valid_report(execution_mode="mutating"))
+
+    with pytest.raises(RuntimeError, match="readonly mode"):
         verify_post_release_validation(release_manifest_path, validation_report_path)
 
 
@@ -86,27 +93,28 @@ def test_verify_post_release_validation_rejects_failed_target(tmp_path: Path) ->
     release_manifest_path = tmp_path / "library_release_manifest.json"
     validation_report_path = tmp_path / "tv_post_release_validation.json"
 
-    _write_json(
-        release_manifest_path,
-        {
-            "library": {
-                "publishStatus": "published",
-                "expectedVersion": 12,
-                "publishedVersion": 12,
-            },
-            "lastPreflightReport": None,
-        },
-    )
-    _write_json(
-        validation_report_path,
-        {
-            "execution_mode": "readonly",
-            "auth_reused_ok": True,
-            "auth_ok": True,
-            "overall_preflight_ok": True,
-            "targets": [{"scriptName": "SMC Decision Board", "overall_preflight_ok": False, "error": "compile mismatch"}],
-        },
-    )
+    report = _valid_report()
+    report["targets"] = [{"scriptName": "SMC Decision Board", "overall_preflight_ok": False, "error": "compile mismatch"}]
+    _write_json(release_manifest_path, _valid_manifest())
+    _write_json(validation_report_path, report)
 
     with pytest.raises(RuntimeError, match="SMC Decision Board"):
         verify_post_release_validation(release_manifest_path, validation_report_path)
+
+
+def test_verify_post_release_validation_skips_manifest_rewrite_when_path_is_unchanged(tmp_path: Path) -> None:
+    release_manifest_path = tmp_path / "library_release_manifest.json"
+    validation_report_path = tmp_path / "tv_post_release_validation.json"
+
+    _write_json(
+        release_manifest_path,
+        _valid_manifest(last_preflight_report="tv_post_release_validation.json"),
+    )
+    _write_json(validation_report_path, _valid_report())
+    before = release_manifest_path.read_text(encoding="utf-8")
+
+    result = verify_post_release_validation(release_manifest_path, validation_report_path)
+    after = release_manifest_path.read_text(encoding="utf-8")
+
+    assert result["manifest_updated"] is False
+    assert before == after
