@@ -4,12 +4,215 @@
     "fmp_stock": 0.0,
     "fmp_press": 0.0,
     "fmp_articles": 0.0,
-    "newsapi_ai": 1776102840.0,
+    "newsapi_ai": 1776114208.0,
     "tv": 0.0,
-    "legacy_cursor": 1776102840.0
+    "legacy_cursor": 1776114208.0
   },
   "provider_state": {},
   "story_state": {
+    "4d55bb3deb88a01b26a2ee1f168c3570681bc098:5920380": {
+      "story_key": "4d55bb3deb88a01b26a2ee1f168c3570681bc098:5920380",
+      "cluster_hash": "4d55bb3deb88a01b26a2ee1f168c3570681bc098",
+      "headline": "Nasdaq Composite Closes Positive; Microsoft (MSFT) Jumps 3.6%; IBM Closes 3 Percent Higher",
+      "tickers": [
+        "MSFT"
+      ],
+      "published_ts": 1776114208.0,
+      "first_seen_ts": 1776117371.272926,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "topnews.in"
+      ],
+      "url": "http://topnews.in/nasdaq-composite-closes-positive-microsoft-msft-jumps-36-ibm-closes-3-percent-higher-2418784",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "polarity": 0.5,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776117371.272926
+    },
+    "0e99643fa7d4ee9785ad331d378783e38c576179:5920353": {
+      "story_key": "0e99643fa7d4ee9785ad331d378783e38c576179:5920353",
+      "cluster_hash": "0e99643fa7d4ee9785ad331d378783e38c576179",
+      "headline": "Microsoft (MSFT) Stock Is Up, What You Need To Know - StockStory",
+      "tickers": [
+        "MSFT"
+      ],
+      "published_ts": 1776105971.0,
+      "first_seen_ts": 1776117371.272926,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "StockStory"
+      ],
+      "url": "https://stockstory.org/us/stocks/nasdaq/msft/news/why-up-down/microsoft-msft-stock-is-up-what-you-need-to-know-2",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776117371.272926
+    },
+    "d061216af779cfd9fc9be79b6cb138dc067ffdd0:5920355": {
+      "story_key": "d061216af779cfd9fc9be79b6cb138dc067ffdd0:5920355",
+      "cluster_hash": "d061216af779cfd9fc9be79b6cb138dc067ffdd0",
+      "headline": "Jassy Is Selling the Amazon AI Story: Should You Buy AMZN Stock Here?",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_ts": 1776106564.0,
+      "first_seen_ts": 1776117371.272926,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Barchart.com"
+      ],
+      "url": "https://www.barchart.com/story/news/1280271/jassy-is-selling-the-amazon-ai-story-should-you-buy-amzn-stock-here",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776117371.272926
+    },
+    "f02187175022d9e763e6cefa0a04fe3aaf9e96c6:5920353": {
+      "story_key": "f02187175022d9e763e6cefa0a04fe3aaf9e96c6:5920353",
+      "cluster_hash": "f02187175022d9e763e6cefa0a04fe3aaf9e96c6",
+      "headline": "The Market May Be Misreading Amazon's AI Position (NASDAQ:AMZN)",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_ts": 1776106118.0,
+      "first_seen_ts": 1776117371.272926,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Seeking Alpha"
+      ],
+      "url": "https://seekingalpha.com/article/4890292-the-market-may-be-misreading-amazon-ai-position",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776117371.272926
+    },
+    "0deb2d787400b79c6be13dad6e530ae2fe7bfb4d:5920352": {
+      "story_key": "0deb2d787400b79c6be13dad6e530ae2fe7bfb4d:5920352",
+      "cluster_hash": "0deb2d787400b79c6be13dad6e530ae2fe7bfb4d",
+      "headline": "JPMorgan Q1 Preview: Could Another Double Beat Help Dow Jones, Bank Sector? - JPMorgan Chase (NYSE:JPM)",
+      "tickers": [
+        "JPM"
+      ],
+      "published_ts": 1776105649.0,
+      "first_seen_ts": 1776117371.272926,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "url": "https://www.benzinga.com/trading-ideas/previews/26/04/51789635/jpmorgan-q1-preview-could-another-double-beat-help-dow-jones-bank-sector",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "last_seen_ts": 1776117371.272926
+    },
+    "6ac71d52507334cc4d4dcc0a8d92bd2f9ff6ac83:5920369": {
+      "story_key": "6ac71d52507334cc4d4dcc0a8d92bd2f9ff6ac83:5920369",
+      "cluster_hash": "6ac71d52507334cc4d4dcc0a8d92bd2f9ff6ac83",
+      "headline": "Meta to Announce First Quarter 2026 Results - Meta Platforms (NASDAQ:META)",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1776110700.0,
+      "first_seen_ts": 1776117371.272926,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "url": "https://www.benzinga.com/pressreleases/26/04/n51791888/meta-to-announce-first-quarter-2026-results",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "polarity": 0.0,
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "last_seen_ts": 1776117371.272926
+    },
+    "91f9bc05b6f454ae325d67848c40a15a0ac5ec2b:5920370": {
+      "story_key": "91f9bc05b6f454ae325d67848c40a15a0ac5ec2b:5920370",
+      "cluster_hash": "91f9bc05b6f454ae325d67848c40a15a0ac5ec2b",
+      "headline": "See Which Recent 13F Filers Hold META",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1776111216.0,
+      "first_seen_ts": 1776117371.272926,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "NASDAQ Stock Market"
+      ],
+      "url": "https://www.nasdaq.com/articles/see-which-recent-13f-filers-hold-meta",
+      "category": "insider",
+      "impact": 0.85,
+      "clarity": 0.7,
+      "relevance": 0.8425,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776117371.272926
+    },
     "db486a4efee28ee5af90e20a4105e0952b645251:5920342": {
       "story_key": "db486a4efee28ee5af90e20a4105e0952b645251:5920342",
       "cluster_hash": "db486a4efee28ee5af90e20a4105e0952b645251",
