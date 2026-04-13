@@ -285,6 +285,9 @@ spaeter ein Fallback eingesprungen ist.
 3. **GitHub-Benachrichtigung nutzen:**
   - wenn ein Gate dadurch fehlschlaegt, liefert GitHub Actions die normale Workflow-Notification
   - fuer reine `info`-Fallbacks bleibt der Lauf gruen; diese muessen bewusst aus `domain_alerts` ausgewertet werden
+4. **Workflow-Summary / Telegram nutzen:**
+  - `smc-library-refresh` schreibt `domain_alerts` jetzt aktiv in die Job-Summary
+  - wenn Telegram-Secrets gesetzt sind, meldet die End-of-run-Nachricht auch reine Info-Fallbacks als `Library published with fallback alerts`
 
 ### Wann ist es nur ein Warnsignal?
 
