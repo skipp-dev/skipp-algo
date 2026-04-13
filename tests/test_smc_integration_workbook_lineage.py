@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import re
 
 import pandas as pd
 
@@ -48,5 +49,5 @@ def test_repo_sources_do_not_enable_ibkr_or_l2_dom_as_data_providers() -> None:
     assert all("ibkr" not in name.lower() for name in names)
 
     notes = "\n".join(note for source in discover_repo_sources() for note in source.notes)
-    assert "l2" not in notes.lower()
-    assert "dom" not in notes.lower()
+    assert re.search(r"\bl2\b", notes, flags=re.IGNORECASE) is None
+    assert re.search(r"\bdom\b", notes, flags=re.IGNORECASE) is None
