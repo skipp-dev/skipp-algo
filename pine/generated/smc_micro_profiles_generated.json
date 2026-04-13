@@ -9,7 +9,7 @@
   "recommended_import_path": "preuss_steffen/smc_micro_profiles_generated/1",
   "library_publish_required": true,
   "deployment_note": "Publish the generated Pine library in TradingView before importing it into SMC_Core_Engine.",
-  "input_path": "artifacts/smc_microstructure_exports/databento_volatility_production_incremental_20260413_175459__smc_microstructure_base_2026-04-10.csv",
+  "input_path": "artifacts/smc_microstructure_exports/databento_volatility_production_incremental_20260413_190446__smc_microstructure_base_2026-04-10.csv",
   "schema_path": "spec/smc_microstructure_profile.schema.json",
   "features_csv": "data/output/microstructure_features_2026-04-10.csv",
   "lists_csv": "data/output/microstructure_lists_2026-04-10.csv",
@@ -34,7 +34,7 @@
     "rth_only": 22,
     "weak_premarket": 0,
     "weak_afterhours": 0,
-    "fast_decay": 32
+    "fast_decay": 33
   },
   "enrichment_blocks": [
     "calendar",
@@ -105,6 +105,6 @@
     "placeholder_symbols": []
   },
   "auto_commit_allowed": true,
-  "asof_time": "2026-04-13T17:55:34Z",
-  "refresh_count": 2
+  "asof_time": "2026-04-13T19:05:13Z",
+  "refresh_count": 3
 }

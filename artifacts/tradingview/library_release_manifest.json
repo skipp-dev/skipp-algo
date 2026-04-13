@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-13T18:12:47.233Z",
+  "generatedAt": "2026-04-13T19:22:14.620Z",
   "publishMode": "automated",
   "manifestVersion": 2,
   "library": {
@@ -17,7 +17,7 @@
       "fixtureInputDetected": false,
       "defaultEventRiskDetected": false,
       "placeholderSymbols": [],
-      "inputPath": "artifacts/smc_microstructure_exports/databento_volatility_production_incremental_20260413_175459__smc_microstructure_base_2026-04-10.csv",
+      "inputPath": "artifacts/smc_microstructure_exports/databento_volatility_production_incremental_20260413_190446__smc_microstructure_base_2026-04-10.csv",
       "universeSize": 6858,
       "eventRiskSource": "smc_event_risk_builder"
     }
