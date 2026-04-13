@@ -12,14 +12,11 @@ from __future__ import annotations
 
 import hashlib
 import hmac
-import ipaddress
 import json
 import logging
 import os
-import socket
 import tempfile
 import time
-import urllib.parse
 from datetime import UTC, datetime
 from typing import Any
 
@@ -60,6 +57,7 @@ from terminal_posture_state import (
     effective_posture_score,
     effective_posture_state,
 )
+from streamlit_terminal_alerts import validate_webhook_url
 
 logger = logging.getLogger(__name__)
 
@@ -724,35 +722,7 @@ def _sign_payload(payload: bytes, secret: str) -> str:
 
 def _is_safe_webhook_url(url: str) -> tuple[bool, str]:
     """Best-effort SSRF guard for outbound webhooks."""
-    try:
-        parsed = urllib.parse.urlparse(url)
-    except Exception:
-        return False, "invalid_url"
-
-    if parsed.scheme not in {"https", "http"}:
-        return False, "unsupported_scheme"
-
-    host = (parsed.hostname or "").strip().lower()
-    if not host:
-        return False, "missing_host"
-    if host in {"localhost", "localhost.localdomain"} or host.endswith(".local"):
-        return False, "local_host"
-
-    try:
-        ip = ipaddress.ip_address(host)
-        if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_multicast or ip.is_reserved or ip.is_unspecified:
-            return False, "private_or_local_ip"
-    except ValueError:
-        try:
-            infos = socket.getaddrinfo(host, parsed.port or (443 if parsed.scheme == "https" else 80))
-            for info in infos:
-                ip = ipaddress.ip_address(info[4][0])
-                if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_multicast or ip.is_reserved or ip.is_unspecified:
-                    return False, "resolved_to_private_or_local_ip"
-        except Exception:
-            pass
-
-    return True, ""
+    return validate_webhook_url(url)
 
 
 def fire_webhook(

@@ -90,6 +90,7 @@ source = [
     "smc_core",
     "smc_integration",
     "scripts",
+    "streamlit_terminal_alerts",
 ]
 omit = ["tests/*", "*.pine"]
 

@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { chromium } from "playwright";
 
 import {
   buildScriptNamePatterns,
@@ -25,6 +26,7 @@ import {
   scriptNameAppearsInUiText,
   uiTextContainsExactScriptName,
   verifyOpenScriptIdentity,
+  ensurePineEditor,
 } from "../lib/tv_shared.js";
 
 const CORE_SCRIPT = "SMC Core";
@@ -73,6 +75,45 @@ test("editor diagnostics accept toolbar-only Pine editor states", () => {
     pineTexts: ["Update on chart", "Open script", "Pine Editor"],
     relevantBodyLines: ["Update on chart", "Pine Editor"],
   }), true);
+});
+
+test("ensurePineEditor recovers after closeModal clears a blocking dialog", async () => {
+  const browser = await chromium.launch({ headless: true });
+
+  try {
+    const page = await browser.newPage();
+    await page.setContent(`
+      <button type="button" id="pine-open">Pine</button>
+      <div id="blocking-modal" role="dialog" style="display:none">
+        <button type="button" aria-label="Close" id="blocking-close">Close</button>
+      </div>
+      <script>
+        const pineOpen = document.getElementById("pine-open");
+        const blockingModal = document.getElementById("blocking-modal");
+        const blockingClose = document.getElementById("blocking-close");
+
+        pineOpen.addEventListener("click", () => {
+          blockingModal.style.display = "block";
+        });
+
+        blockingClose.addEventListener("click", () => {
+          blockingModal.style.display = "none";
+          if (!document.querySelector('[data-name="pine-dialog"]')) {
+            const host = document.createElement("div");
+            host.setAttribute("data-name", "pine-dialog");
+            host.textContent = "Pine editor ready";
+            document.body.appendChild(host);
+          }
+        });
+      </script>
+    `);
+
+    await ensurePineEditor(page);
+
+    assert.equal(await page.locator('[data-name="pine-dialog"]').isVisible(), true);
+  } finally {
+    await browser.close();
+  }
 });
 
 test("editor diagnostics reject toolbar-free non-editor states", () => {

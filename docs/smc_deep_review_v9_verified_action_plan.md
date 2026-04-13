@@ -59,10 +59,23 @@ priorisierten Punkte weitergezogen:
 - `smc_integration/provider_health.py` spiegelt Fallback-Nutzung und
   Domain-Status-Ursachen jetzt zusaetzlich als `domain_alerts` in Health- und
   Release-Gate-Reports.
+- Der `workflow_dispatch`-Run `24342288092` lief End-to-End durch: readonly
+  preflight, Publish, Post-Release-Validation, Commit/Push und Alerts waren
+  gruen.
+- Die aktuell eingecheckten Artefakte sind produktiv gruen:
+  `pine/generated/smc_micro_profiles_generated.json` zeigt
+  `productivity_gate.publish_ready = true` mit realem Input-Pfad,
+  `artifacts/tradingview/library_release_manifest.json` zeigt
+  `productivityGate.publishReady = true`, `publishedVersion = 1` und einen
+  produktiven Universe-Stand mit `universeSize = 6854`.
+- Der verbleibende Scheduler-Fehler `24344229616` war kein neuer fachlicher
+  Review-Befund, sondern Commit-/Push-Drift durch getrackte Runtime-
+  Cache-Artefakte. Der Workflow restoret diese Pfade jetzt vor dem Commit und
+  bricht frueh ab, falls weitere getrackte Drift ungestaged bleibt.
 
-Der verbleibende harte Nachweis bleibt damit operativ: ein frischer
-`smc-library-refresh`-Durchlauf mit echten Inputs und gruener
-`productivity_gate.publish_ready`-Evidenz.
+Der harte Review-Nachweis fuer den produktiven Library-Stand liegt damit jetzt
+vor. Offen bleiben nur noch engere operative Haertungen und spaetere Cleanup-
+Themen.
 
 ## Verifizierte Findings
 
@@ -89,6 +102,9 @@ Bewertung:
 - Der erste Action-Plan-Punkt darf deshalb nicht nur "auf den naechsten Run
   warten" sein, sondern muss den produktiven Gate-Wechsel auf gruen als
   messbares Ziel definieren.
+- Stand 2026-04-13 ist dieser Punkt geschlossen: die aktuell eingecheckten
+  Artefakte und der GitHub-Actions-Run `24342288092` zeigen den produktiven
+  Gate-Wechsel mit `publishReady = true`.
 
 ### V-2: PE ist in der Pine-Hauptlinie bereits direkt konsumiert
 
@@ -255,6 +271,11 @@ Korrektur:
 
 ## Phase 0: Produktivitaets-Gate auf gruen bringen
 
+Status 2026-04-13:
+
+- erledigt durch den produktiven Refresh-Lauf `24342288092` und die aktuell
+  eingecheckten gruenen Manifest-/Library-Artefakte.
+
 Ziel:
 
 - Der generierte Library-Source-Stand muss von fixture/default/placeholder auf
@@ -279,6 +300,16 @@ Warum zuerst:
 - Solange dieser Schritt rot ist, sind alle weiteren Review-Aussagen zur
   vollen Produktionsreife vorzeitig.
 
+Erledigungsnachweis:
+
+- `pine/generated/smc_micro_profiles_generated.json`
+  - `productivity_gate.publish_ready = true`
+  - `fixture_input_detected = false`
+  - `default_event_risk_detected = false`
+  - `placeholder_symbols = []`
+- `artifacts/tradingview/library_release_manifest.json`
+  - `productivityGate.publishReady = true`
+
 ## Phase 1: Verifizierte v9-Fixes auf echtem Run validieren
 
 Ziel:
@@ -300,6 +331,10 @@ Hinweis:
 - `MARKET_REGIME != NEUTRAL` nicht als Pflichtkriterium verwenden.
 
 ## Phase 2: Volatility und Ensemble sauber in Pine einhaengen
+
+Status 2026-04-13:
+
+- erledigt im aktiven Pine-Pfad.
 
 Ziel:
 
@@ -334,6 +369,17 @@ Minimale Abnahme fuer diese Phase:
 3. passende Contract-/Semantic-Tests fuer Export und Consumer-Bindung
 
 ## Phase 3: Operative Regression-Haertung
+
+Status 2026-04-13:
+
+- teilweise erledigt.
+- Push-/Commit-Drift durch getrackte Runtime-Artefakte ist workflowseitig
+  abgesichert.
+- Repo-Smoke deckt jetzt auch den Benzinga-News-Fallback als
+  `domain_alerts`-Signal ab.
+- Der verbleibende Rest ist hauptsaechlich operativ: TradingView-UI-Flakes
+  koennen weiter auftreten und muessen ueber wiederholte Live-Laeufe beobachtet
+  werden.
 
 Ziel:
 
@@ -379,19 +425,17 @@ Bewertung:
 
 ### P0
 
-- Produktivitaets-Gate auf gruen bringen
+- abgeschlossen
 
 ### P1
 
-- echten Refresh-Lauf validieren
-- Ensemble in Pine konsumieren
-- Library-Volatility in Pine konsumieren
+- echten Refresh-Lauf stabil weiter betreiben
 - Benzinga-Fallback operativ pruefen
 
 ### P2
 
-- E2E-Regressionsschutz fuer Modal-Recovery
-- E2E- oder Harness-Regressionsschutz fuer Push-Retry
+- TradingView-Modal-Recovery weiter gegen Live-UI-Drift beobachten
+- optional weiterer Live-Harness fuer Benzinga-Fallback unter Workflow-Bedingungen
 
 ### P3
 
@@ -405,12 +449,14 @@ Der v9-Review ist als Lagebild brauchbar, aber nicht 1:1 als Backlog.
 
 Belastbar und umsetzungsreif sind vor allem diese Punkte:
 
-- produktiver Library-Stand noch blockiert
+- produktiver Library-Stand jetzt gruen
 - PE bereits sauber in Pine
-- Volatility/Ensemble noch ohne direkten aktiven Pine-Consumer
+- Volatility/Ensemble jetzt direkt im aktiven Pine-Consumer
 - Benzinga-Fallback weiter sinnvoll als Validierungsziel
-- Modal-Recovery und Push-Retry im Code, aber noch ohne gezielten
-  Regressionsharness
+- Push-Retry/dirty-worktree-Drift workflowseitig gehaertet und getestet
+- Modal-Recovery mit gezieltem Harness fuer den internen `closeModal`-Pfad
+  repo-seitig abgedeckt; verbleibende Risiken sind TradingView-UI-Flakes zur
+  Laufzeit
 
-Der naechste sinnvolle Commit ist daher nicht eine breite Codewelle, sondern
-dieser verifizierte Plan als Arbeitsgrundlage fuer die eigentliche Umsetzung.
+Der naechste sinnvolle Commit ist daher keine breite Fachwelle mehr, sondern
+die Pflege der operativen Stabilitaet und spaeterer Cleanup-Punkte.

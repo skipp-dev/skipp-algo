@@ -19,6 +19,7 @@ def test_refresh_commit_step_restores_runtime_artifacts_before_commit() -> None:
     assert 'artifacts/smc_microstructure_exports/smc_live_news_snapshot.json' in workflow_text
     assert 'artifacts/smc_microstructure_exports/smc_live_news_state.json' in workflow_text
     assert 'git add pine/generated/ SMC_Core_Engine.pine artifacts/tradingview/library_release_manifest.json' in workflow_text
+    assert 'Unexpected tracked changes remain unstaged before refresh commit.' in workflow_text
 
 
 def test_refresh_commit_step_keeps_non_fast_forward_retry_loop() -> None:
@@ -43,3 +44,14 @@ def test_refresh_workflow_surfaces_provider_health_signals_in_summary_and_notifi
     assert 'Library published with fallback alerts' in workflow_text
     assert 'Provider domain alerts: ${ALERT_COUNT} (${ALERT_WARN} warn / ${ALERT_INFO} info)' in workflow_text
     assert 'Provider health warnings: ${PROVIDER_WARNING_COUNT}' in workflow_text
+
+
+def test_refresh_workflow_runs_post_release_validation_before_commit() -> None:
+    workflow_text = _read(WORKFLOW_PATH)
+
+    assert '- name: Run TradingView post-release validation' in workflow_text
+    assert 'TV_STORAGE_STATE_MAX_AGE_HOURS: "72"' in workflow_text
+    assert 'tv_post_release_validation.json' in workflow_text
+    assert 'python scripts/verify_tradingview_post_release.py' in workflow_text
+    assert 'TradingView post-release validation' in workflow_text
+    assert 'TradingView post-release validation failed' in workflow_text

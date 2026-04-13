@@ -3,11 +3,21 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from smc_integration.sources import benzinga_watchlist_json, fmp_watchlist_json, tradingview_watchlist_json
+from smc_integration.sources import benzinga_watchlist_json, databento_watchlist_csv, fmp_watchlist_json, tradingview_watchlist_json
 
 
 def _write_rows(path: Path, rows: list[dict[str, object]]) -> None:
     path.write_text(json.dumps({"symbols": rows}, indent=2), encoding="utf-8")
+
+
+def _write_watchlist_csv(path: Path, rows: list[dict[str, object]]) -> None:
+    header = ["symbol", "trade_date", "watchlist_rank", "premarket_volume", "premarket_trade_count"]
+    lines = [",".join(header)]
+    for row in rows:
+        lines.append(
+            ",".join(str(row.get(column, "")) for column in header)
+        )
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
 def _assert_common_payload(payload: dict, symbol: str, timeframe: str) -> None:
@@ -44,6 +54,44 @@ def test_tradingview_source_loads_meta_and_structure(monkeypatch, tmp_path: Path
     _assert_common_payload(meta, "AAPL", "15m")
     assert meta["technical"]["value"]["bias"] == "BULLISH"
     assert float(meta["technical"]["value"]["strength"]) == 0.81
+
+
+def test_databento_source_derives_low_volume_from_same_day_liquidity(monkeypatch, tmp_path: Path) -> None:
+    source_path = tmp_path / "databento_watchlist.csv"
+    _write_watchlist_csv(
+        source_path,
+        [
+            {"symbol": "AAPL", "trade_date": "2026-03-01", "watchlist_rank": 1, "premarket_volume": 2500, "premarket_trade_count": 30},
+            {"symbol": "MSFT", "trade_date": "2026-03-01", "watchlist_rank": 2, "premarket_volume": 5000, "premarket_trade_count": 50},
+            {"symbol": "NVDA", "trade_date": "2026-03-01", "watchlist_rank": 3, "premarket_volume": 5000, "premarket_trade_count": 50},
+        ],
+    )
+    monkeypatch.setattr(databento_watchlist_csv, "WATCHLIST_CSV", source_path)
+
+    meta = databento_watchlist_csv.load_raw_meta_input("AAPL", "15m")
+
+    _assert_common_payload(meta, "AAPL", "15m")
+    assert meta["volume"]["value"]["regime"] == "LOW_VOLUME"
+    assert meta["volume"]["value"]["thin_fraction"] == 0.5
+
+
+def test_databento_source_derives_holiday_suspect_from_same_day_liquidity(monkeypatch, tmp_path: Path) -> None:
+    source_path = tmp_path / "databento_watchlist.csv"
+    _write_watchlist_csv(
+        source_path,
+        [
+            {"symbol": "AAPL", "trade_date": "2026-03-01", "watchlist_rank": 1, "premarket_volume": 1000, "premarket_trade_count": 10},
+            {"symbol": "MSFT", "trade_date": "2026-03-01", "watchlist_rank": 2, "premarket_volume": 5000, "premarket_trade_count": 50},
+            {"symbol": "NVDA", "trade_date": "2026-03-01", "watchlist_rank": 3, "premarket_volume": 5000, "premarket_trade_count": 50},
+        ],
+    )
+    monkeypatch.setattr(databento_watchlist_csv, "WATCHLIST_CSV", source_path)
+
+    meta = databento_watchlist_csv.load_raw_meta_input("AAPL", "15m")
+
+    _assert_common_payload(meta, "AAPL", "15m")
+    assert meta["volume"]["value"]["regime"] == "HOLIDAY_SUSPECT"
+    assert meta["volume"]["value"]["thin_fraction"] == 0.8
 
 
 def test_fmp_source_loads_meta_and_structure(monkeypatch, tmp_path: Path) -> None:

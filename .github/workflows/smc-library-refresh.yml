@@ -408,6 +408,7 @@ jobs:
         env:
           TV_HEADLESS: "1"
           TV_STORAGE_STATE: automation/tradingview/auth/storage-state.json
+          TV_STORAGE_STATE_MAX_AGE_HOURS: "72"
         run: |
           npx tsx scripts/tv_preflight.ts \
             --config automation/tradingview/preflight-smc-mainline.json \
@@ -420,11 +421,29 @@ jobs:
         env:
           TV_HEADLESS: "1"
           TV_STORAGE_STATE: automation/tradingview/auth/storage-state.json
+          TV_STORAGE_STATE_MAX_AGE_HOURS: "72"
         run: |
           npx tsx scripts/tv_publish_micro_library.ts \
             --manifest pine/generated/smc_micro_profiles_generated.json \
             --core SMC_Core_Engine.pine \
             --release-manifest artifacts/tradingview/library_release_manifest.json
+
+      - name: Run TradingView post-release validation
+        id: tv_post_release
+        if: steps.diff.outputs.changed == 'true' && steps.breaking.outputs.breaking != 'true' && github.ref == 'refs/heads/main'
+        env:
+          TV_HEADLESS: "1"
+          TV_STORAGE_STATE: automation/tradingview/auth/storage-state.json
+          TV_STORAGE_STATE_MAX_AGE_HOURS: "72"
+        run: |
+          npx tsx scripts/tv_preflight.ts \
+            --config automation/tradingview/preflight-smc-mainline.json \
+            --execution-mode readonly \
+            --out artifacts/tradingview/tv_post_release_validation.json
+          python scripts/verify_tradingview_post_release.py \
+            --release-manifest artifacts/tradingview/library_release_manifest.json \
+            --validation-report artifacts/tradingview/tv_post_release_validation.json \
+            --output artifacts/ci/smc_tradingview_post_release_report.json
 
       # ── Version bump + commit (skip when unchanged or breaking) ─
       - name: Bump library version in SMC_Core_Engine.pine
@@ -546,17 +565,20 @@ jobs:
               if [ "${{ github.ref }}" = "refs/heads/main" ]; then
                 echo "| TradingView preflight | ${{ steps.tv_preflight.outcome == 'success' && '✅ passed' || steps.tv_preflight.outcome == 'skipped' && '⏭️ skipped' || '❌ failed' }} |"
                 echo "| Publish | ${{ steps.publish.outcome == 'success' && '✅' || steps.publish.outcome == 'skipped' && '⏭️ skipped' || '❌ failed' }} |"
+                echo "| TradingView post-release validation | ${{ steps.tv_post_release.outcome == 'success' && '✅ passed' || steps.tv_post_release.outcome == 'skipped' && '⏭️ skipped' || '❌ failed' }} |"
                 echo "| Commit | ${{ steps.commit_push.outcome == 'success' && '✅' || steps.commit_push.outcome == 'skipped' && '⏭️ skipped' || '❌ failed' }} |"
                 echo "| Signal + event-risk alerts | ${{ steps.alerts.outcome == 'success' && '✅ evaluated' || steps.alerts.outcome == 'skipped' && '⏭️ skipped' || '⚠️ error (non-blocking)' }} |"
               else
                 echo "| TradingView preflight | ⏭️ skipped (non-main ref) |"
                 echo "| Publish | ⏭️ skipped (non-main ref) |"
+                echo "| TradingView post-release validation | ⏭️ skipped (non-main ref) |"
                 echo "| Commit | ⏭️ skipped (non-main ref) |"
                 echo "| Signal + event-risk alerts | ⏭️ skipped (non-main ref) |"
               fi
             else
               echo "| TradingView preflight | ⏭️ skipped (no changes) |"
               echo "| Publish | ⏭️ skipped (no changes) |"
+              echo "| TradingView post-release validation | ⏭️ skipped (no changes) |"
               echo "| Commit | ⏭️ skipped (no changes) |"
               echo "| Signal + event-risk alerts | ⏭️ skipped (no changes) |"
             fi
@@ -629,6 +651,7 @@ jobs:
           BREAKING="${{ steps.breaking.outputs.breaking }}"
           PREFLIGHT="${{ steps.tv_preflight.outcome }}"
           PUBLISH="${{ steps.publish.outcome }}"
+          POST_RELEASE="${{ steps.tv_post_release.outcome }}"
           COMMIT_PUSH="${{ steps.commit_push.outcome }}"
           ALERTS="${{ steps.alerts.outcome }}"
           ALERT_COUNT="${PROVIDER_DOMAIN_ALERT_COUNT:-0}"
@@ -651,6 +674,9 @@ jobs:
           elif [ "$PUBLISH" = "failure" ]; then
             ICON="❌"
             HEADLINE="TradingView publish failed"
+          elif [ "$POST_RELEASE" = "failure" ]; then
+            ICON="❌"
+            HEADLINE="TradingView post-release validation failed"
           elif [ "$COMMIT_PUSH" = "failure" ]; then
             ICON="❌"
             HEADLINE="Commit/push failed"

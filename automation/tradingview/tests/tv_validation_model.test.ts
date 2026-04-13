@@ -151,6 +151,62 @@ test("chart-validated storage state metadata is accepted as reusable auth", () =
   assert.equal(resolution.storageStateInspection?.chartValidatedByMeta, true);
 });
 
+test("expired chart-validated storage state falls back to persistent profile", () => {
+  const tempDir = makeTempDir("tv-auth-chart-expired-");
+  const storageStatePath = path.join(tempDir, "storage-state.json");
+  const profileDir = path.join(tempDir, "profile");
+  fs.mkdirSync(profileDir, { recursive: true });
+  writeJson(storageStatePath, {
+    meta: {
+      authValidatedByChartAccess: true,
+      authValidatedAt: "2024-01-01T00:00:00.000Z",
+      validationMode: "persistent_profile_chart_access",
+      chartUrl: "https://www.tradingview.com/chart/",
+    },
+    cookies: [{ name: "sessionid", value: "abc" }],
+    origins: [],
+  });
+
+  const resolution = resolveTradingViewAuthResolution({
+    TV_STORAGE_STATE: storageStatePath,
+    TV_PERSISTENT_PROFILE_DIR: profileDir,
+    TV_STORAGE_STATE_MAX_AGE_HOURS: "1",
+  });
+
+  assert.equal(resolution.authMode, "persistent_profile");
+  assert.equal(resolution.authSourcePath, profileDir);
+  assert.equal(resolution.authReusedOk, true);
+  assert.equal(resolution.fallbackUsed, true);
+  assert.equal(resolution.fallbackReason, "storage_state_expired");
+});
+
+test("expired chart-validated storage state without fallback stays non-reusable", () => {
+  const tempDir = makeTempDir("tv-auth-chart-expired-no-fallback-");
+  const storageStatePath = path.join(tempDir, "storage-state.json");
+  writeJson(storageStatePath, {
+    meta: {
+      authValidatedByChartAccess: true,
+      authValidatedAt: "2024-01-01T00:00:00.000Z",
+      validationMode: "persistent_profile_chart_access",
+      chartUrl: "https://www.tradingview.com/chart/",
+    },
+    cookies: [{ name: "sessionid", value: "abc" }],
+    origins: [],
+  });
+
+  const resolution = resolveTradingViewAuthResolution({
+    TV_STORAGE_STATE: storageStatePath,
+    TV_STORAGE_STATE_MAX_AGE_HOURS: "1",
+  });
+
+  assert.equal(resolution.authMode, "storage_state");
+  assert.equal(resolution.authSourcePath, storageStatePath);
+  assert.equal(resolution.authSourceValid, false);
+  assert.equal(resolution.authReusedOk, false);
+  assert.equal(resolution.fallbackUsed, false);
+  assert.equal(resolution.fallbackReason, "storage_state_expired");
+});
+
 test("invalid storage state without fallback stays non-reusable", () => {
   const tempDir = makeTempDir("tv-auth-invalid-no-fallback-");
   const storageStatePath = path.join(tempDir, "storage-state.json");

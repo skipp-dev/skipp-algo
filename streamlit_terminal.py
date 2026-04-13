@@ -23,11 +23,9 @@ from __future__ import annotations
 
 import html
 import json
-import ipaddress
 import logging
 import os
 import re
-import socket
 import sys
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -194,7 +192,6 @@ from terminal_attention_state import (
     effective_attention_active,
     effective_attention_dispatchable,
     effective_attention_priority,
-    effective_attention_reason,
     effective_attention_score,
     effective_attention_state,
 )
@@ -234,7 +231,6 @@ from terminal_resolution_state import (
 )
 from terminal_posture_state import (
     annotate_feed_with_ticker_posture_state,
-    effective_posture_action,
     effective_posture_actionable,
     effective_posture_priority,
     effective_posture_score,
@@ -284,6 +280,7 @@ from terminal_spike_detector import (
     format_spike_description,
     format_time_et,
 )
+from streamlit_terminal_alerts import evaluate_alert_rules, validate_webhook_url
 from terminal_ui_helpers import (
     MATERIALITY_COLORS,
     RECENCY_COLORS,
@@ -297,7 +294,6 @@ from terminal_ui_helpers import (
     filter_feed,
     format_age_string,
     format_score_badge,
-    match_alert_rule,
     provider_icon,
     prune_stale_items,
     safe_markdown_text,
@@ -1786,28 +1782,16 @@ with st.sidebar:
             _wh_url = alert_webhook.strip()
             _wh_valid = True
             if _wh_url:
-                try:
-                    from urllib.parse import urlparse
-                    _parsed = urlparse(_wh_url)
-                    if _parsed.scheme not in ("http", "https"):
+                _wh_valid, _wh_reason = validate_webhook_url(_wh_url)
+                if not _wh_valid:
+                    if _wh_reason == "unsupported_scheme":
                         st.error("Webhook URL must use http:// or https://")
-                        _wh_valid = False
-                    elif _parsed.hostname:
-                        _host = _parsed.hostname.lower()
-                        if _host in ("localhost", "0.0.0.0", ""):
-                            st.error("Webhook URL must not target localhost")
-                            _wh_valid = False
-                        else:
-                            try:
-                                _ip = ipaddress.ip_address(socket.gethostbyname(_host))
-                                if _ip.is_private or _ip.is_loopback or _ip.is_link_local:
-                                    st.error("Webhook URL must not target private/internal networks")
-                                    _wh_valid = False
-                            except (socket.gaierror, ValueError):
-                                pass  # DNS resolution failed — allow; will fail at POST time
-                except Exception as exc:
-                    logger.warning("Webhook URL validation error: %s", exc, exc_info=True)
-                    _wh_valid = False  # deny by default on validation failure
+                    elif _wh_reason in {"local_host", "missing_host"}:
+                        st.error("Webhook URL must not target localhost")
+                    elif _wh_reason in {"private_or_local_ip", "resolved_to_private_or_local_ip"}:
+                        st.error("Webhook URL must not target private/internal networks")
+                    else:
+                        st.error("Webhook URL is invalid or not allowed")
 
             if _wh_valid:
                 new_rule = {
@@ -2082,75 +2066,14 @@ def _evaluate_alerts(items: list[ClassifiedItem]) -> None:
     if not rules:
         return
 
-    seen_pairs: set[tuple[str, int]] = set()
-    webhook_budget = _ALERT_WEBHOOK_BUDGET
-    # Collect webhook POSTs so we can fire them in a single client session
-    pending_webhooks: list[tuple[str, dict]] = []
+    evaluation = evaluate_alert_rules(items, rules, webhook_budget=_ALERT_WEBHOOK_BUDGET)
+    new_entries = list(evaluation.get("alert_log_entries") or [])
+    pending_webhooks = list(evaluation.get("pending_webhooks") or [])
 
-    for ci in items:
-        if not effective_attention_active(ci):
-            continue
-
-        effective_score = effective_attention_score(ci)
-        effective_sentiment = effective_catalyst_sentiment(ci)
-        attention_state = effective_attention_state(ci)
-        attention_dispatchable = effective_attention_dispatchable(ci)
-        for rule_idx, rule in enumerate(rules):
-            tk_match = rule["ticker"] in ("*", ci.ticker)
-            if not tk_match:
-                continue
-
-            # Dedup: skip if this item already fired for this rule
-            pair_key = (str(ci.story_key or ci.item_id), rule_idx)
-            if pair_key in seen_pairs:
-                continue
-
-            cond = rule["condition"]
-            fired = False
-
-            if match_alert_rule(
-                rule,
-                ticker=ci.ticker,
-                news_score=effective_score,
-                sentiment_label=effective_sentiment,
-                materiality=ci.materiality,
-                category=ci.category,
-            ):
-                fired = True
-
-            if fired:
-                seen_pairs.add(pair_key)
-
-                log_entry = {
-                    "ts": time.time(),
-                    "ticker": ci.ticker,
-                    "headline": ci.headline[:120],
-                    "rule": cond,
-                    "score": effective_score,
-                    "story_score": ci.news_score,
-                    "sentiment": effective_sentiment,
-                    "item_id": ci.item_id,
-                    "story_key": ci.story_key,
-                    "story_update_kind": ci.story_update_kind,
-                    "attention_state": attention_state,
-                    "attention_score": effective_score,
-                    "attention_dispatchable": attention_dispatchable,
-                    "attention_reason": ci.attention_reason or effective_attention_reason(ci),
-                    "posture_state": ci.posture_state,
-                    "posture_action": effective_posture_action(ci),
-                    "reaction_state": ci.reaction_state,
-                    "resolution_state": ci.resolution_state,
-                }
-                st.session_state.alert_log.insert(0, log_entry)
-                # Cap alert log
-                if len(st.session_state.alert_log) > 100:
-                    st.session_state.alert_log = st.session_state.alert_log[:100]
-
-                # Queue webhook if configured (with budget guard)
-                wh = rule.get("webhook_url", "")
-                if wh and webhook_budget > 0:
-                    webhook_budget -= 1
-                    pending_webhooks.append((wh, log_entry))
+    if new_entries:
+        st.session_state.alert_log = new_entries + list(st.session_state.alert_log)
+        if len(st.session_state.alert_log) > 100:
+            st.session_state.alert_log = st.session_state.alert_log[:100]
 
     # Fire all queued webhooks through a single shared httpx client
     if pending_webhooks:

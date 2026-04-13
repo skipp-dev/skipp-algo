@@ -105,19 +105,15 @@ _DOMAIN_SOURCE_ORDER: dict[str, list[str]] = {
     "technical": [
         "fmp_watchlist_json",
         "tradingview_watchlist_json",
-        "databento_watchlist_csv",
-        "benzinga_watchlist_json",
     ],
     "news": [
         "live_news_snapshot_json",
         "benzinga_watchlist_json",
-        "fmp_watchlist_json",
-        "tradingview_watchlist_json",
-        "databento_watchlist_csv",
     ],
 }
 
 _SYNTHETIC_STRUCTURE_ARTIFACT_META_SOURCE = "synthetic_structure_artifact_meta"
+_SOURCE_DOMAIN_STATUS_KEY = "_meta_domain_statuses"
 
 
 def _can_supply_domain(provider: _SourceProvider, domain: str) -> bool:
@@ -411,8 +407,14 @@ def _try_load_meta_domain(
             if not auto_mode:
                 raise
             continue
+        domain_statuses = meta.get(_SOURCE_DOMAIN_STATUS_KEY)
+        hinted_status = ""
+        if isinstance(domain_statuses, dict):
+            hinted_status = str(domain_statuses.get(domain) or "").strip()
+        meta = dict(meta)
+        meta.pop(_SOURCE_DOMAIN_STATUS_KEY, None)
         if domain not in meta:
-            last_status = "domain_key_absent"
+            last_status = hinted_status or "domain_key_absent"
             continue
         return meta, "present", name
 
@@ -449,14 +451,17 @@ def _finalize_composite_meta(
     timeframe: str,
     reference_time: float | None,
     structure_source: str,
+    planned_volume_source: str,
     volume_meta: dict[str, Any],
     volume_domain_status: str,
     actual_volume_source: str,
     volume_fallback_used: bool,
+    planned_technical_source: str,
     technical_meta: dict[str, Any] | None,
     technical_domain_status: str,
     actual_technical_source: str,
     technical_fallback_used: bool,
+    planned_news_source: str,
     news_meta: dict[str, Any] | None,
     news_domain_status: str,
     actual_news_source: str,
@@ -477,12 +482,15 @@ def _finalize_composite_meta(
 
     diagnostics: dict[str, Any] = {
         "volume": volume_domain_status,
+        "volume_planned_source": planned_volume_source,
         "volume_source": actual_volume_source,
         "volume_fallback_used": bool(volume_fallback_used),
         "technical": technical_domain_status,
+        "technical_planned_source": planned_technical_source,
         "technical_source": actual_technical_source,
         "technical_fallback_used": bool(technical_fallback_used),
         "news": news_domain_status,
+        "news_planned_source": planned_news_source,
         "news_source": actual_news_source,
         "news_fallback_used": bool(news_fallback_used),
     }
@@ -569,14 +577,17 @@ def load_raw_meta_input_composite(
         timeframe=timeframe,
         reference_time=reference_time,
         structure_source=structure_provider.descriptor.name,
+        planned_volume_source=plan["volume"],
         volume_meta=volume_meta,
         volume_domain_status="present" if volume_meta_raw is None else volume_domain_status,
         actual_volume_source=actual_volume_source,
         volume_fallback_used=actual_volume_source != plan["volume"] and (volume_meta_raw is not None),
+        planned_technical_source=plan["technical"],
         technical_meta=technical_meta,
         technical_domain_status=technical_domain_status,
         actual_technical_source=actual_technical_source,
         technical_fallback_used=actual_technical_source != plan["technical"] and technical_domain_status == "present",
+        planned_news_source=plan["news"],
         news_meta=news_meta,
         news_domain_status=news_domain_status,
         actual_news_source=actual_news_source,
@@ -636,14 +647,17 @@ def load_raw_meta_input_composite_for_release_reference(
         timeframe=timeframe,
         reference_time=reference_time,
         structure_source=structure_source,
+        planned_volume_source=plan["volume"],
         volume_meta=volume_meta,
         volume_domain_status=volume_domain_status,
         actual_volume_source=actual_volume_source,
         volume_fallback_used=volume_fallback_used,
+        planned_technical_source=plan["technical"],
         technical_meta=technical_meta,
         technical_domain_status=technical_domain_status,
         actual_technical_source=actual_technical_source,
         technical_fallback_used=actual_technical_source != plan["technical"] and technical_domain_status == "present",
+        planned_news_source=plan["news"],
         news_meta=news_meta,
         news_domain_status=news_domain_status,
         actual_news_source=actual_news_source,

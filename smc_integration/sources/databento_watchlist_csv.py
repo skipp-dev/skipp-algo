@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import statistics
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -22,6 +23,7 @@ def describe_source() -> SourceDescriptor:
         ),
         notes=[
             "Real repo watchlist source with symbol and trade-date context.",
+            "Volume regime is derived from same-day premarket liquidity columns in the watchlist CSV.",
             "Does not publish explicit BOS/OB/FVG/sweep events; structure mapping remains explicit empty lists.",
         ],
     )
@@ -67,6 +69,63 @@ def _asof_ts_from_trade_date(trade_date: str) -> float:
     return datetime(parsed.year, parsed.month, parsed.day, tzinfo=UTC).timestamp()
 
 
+def _coerce_optional_float(value: Any) -> float | None:
+    if isinstance(value, (int, float, str)):
+        try:
+            return float(value)
+        except ValueError:
+            return None
+    return None
+
+
+def _same_trade_date_rows(rows: list[dict[str, str]], trade_date: str) -> list[dict[str, str]]:
+    return [row for row in rows if str(row.get("trade_date", "")).strip() == trade_date]
+
+
+def _positive_peer_values(rows: list[dict[str, str]], field_name: str) -> list[float]:
+    values: list[float] = []
+    for row in rows:
+        raw_value = _coerce_optional_float(row.get(field_name))
+        if raw_value is None or raw_value <= 0:
+            continue
+        values.append(raw_value)
+    return values
+
+
+def _derive_volume_meta(row: dict[str, str], peer_rows: list[dict[str, str]]) -> dict[str, float | str]:
+    liquidity_ratios: list[float] = []
+    for field_name in ("premarket_volume", "premarket_trade_count"):
+        peer_values = _positive_peer_values(peer_rows, field_name)
+        row_value = _coerce_optional_float(row.get(field_name))
+        if row_value is None or row_value < 0 or not peer_values:
+            continue
+        peer_median = statistics.median(peer_values)
+        if peer_median <= 0:
+            continue
+        liquidity_ratios.append(max(0.0, row_value) / peer_median)
+
+    if not liquidity_ratios:
+        return {
+            "regime": "NORMAL",
+            "thin_fraction": 0.0,
+        }
+
+    liquidity_ratio = min(liquidity_ratios)
+    clamped_ratio = min(max(liquidity_ratio, 0.0), 1.0)
+    thin_fraction = round(1.0 - clamped_ratio, 4)
+
+    regime = "NORMAL"
+    if liquidity_ratio <= 0.2:
+        regime = "HOLIDAY_SUSPECT"
+    elif liquidity_ratio <= 0.6:
+        regime = "LOW_VOLUME"
+
+    return {
+        "regime": regime,
+        "thin_fraction": thin_fraction,
+    }
+
+
 def load_raw_structure_input(symbol: str, timeframe: str) -> dict[str, Any]:
     del timeframe
     rows = _load_rows()
@@ -88,16 +147,14 @@ def load_raw_meta_input(symbol: str, timeframe: str) -> dict[str, Any]:
         raise ValueError("watchlist row is missing trade_date")
 
     asof_ts = _asof_ts_from_trade_date(trade_date)
+    volume_meta = _derive_volume_meta(row, _same_trade_date_rows(rows, trade_date))
 
     return {
         "symbol": str(row.get("symbol", symbol)).strip().upper(),
         "timeframe": str(timeframe).strip(),
         "asof_ts": asof_ts,
         "volume": {
-            "value": {
-                "regime": "NORMAL",
-                "thin_fraction": 0.0,
-            },
+            "value": volume_meta,
             "asof_ts": asof_ts,
             "stale": False,
         },
@@ -105,6 +162,7 @@ def load_raw_meta_input(symbol: str, timeframe: str) -> dict[str, Any]:
             "repo:reports/databento_watchlist_top5_pre1530.csv",
             f"repo:reports/databento_watchlist_top5_pre1530.csv#symbol={str(row.get('symbol', symbol)).strip().upper()}",
             f"repo:reports/databento_watchlist_top5_pre1530.csv#trade_date={trade_date}",
+            "smc_integration:volume_regime_derived_from_premarket_liquidity",
             "smc_integration:partial_structure_only",
         ],
     }

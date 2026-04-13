@@ -217,20 +217,58 @@ function resolvePath(value: string | undefined): string | null {
   return trimmed ? path.resolve(trimmed) : null;
 }
 
+function parseStorageStateMaxAgeHours(value: string | undefined): number | null {
+  const trimmed = value?.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  const parsed = Number.parseFloat(trimmed);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return null;
+  }
+
+  return parsed;
+}
+
 export function resolveTradingViewAuthResolution(env: NodeJS.ProcessEnv = process.env): TradingViewAuthResolution {
   const storageStatePath = resolvePath(env.TV_STORAGE_STATE);
   const persistentProfileDir = resolvePath(env.TV_PERSISTENT_PROFILE_DIR);
+  const storageStateMaxAgeHours = parseStorageStateMaxAgeHours(env.TV_STORAGE_STATE_MAX_AGE_HOURS);
 
   const hasStorageState = Boolean(storageStatePath && fs.existsSync(storageStatePath));
   let storageStateInspection: TradingViewStorageStateInspection | null = null;
+  let storageStatePayload: TradingViewStorageState | null = null;
   if (hasStorageState) {
     try {
-      storageStateInspection = inspectTradingViewStorageState(storageStatePath as string);
+      storageStatePayload = readJson<TradingViewStorageState>(storageStatePath as string);
+      storageStateInspection = inspectTradingViewStorageState(storageStatePayload);
     } catch {
+      storageStatePayload = null;
       storageStateInspection = null;
     }
   }
-  const storageStateValid = Boolean(storageStateInspection?.looksAuthenticated);
+  let storageStateInvalidReason: string | null = storageStateInspection?.looksAuthenticated ? null : "storage_state_invalid";
+
+  if (
+    storageStateInvalidReason === null
+    && storageStateInspection?.chartValidatedByMeta
+    && storageStateMaxAgeHours !== null
+  ) {
+    const validatedAtRaw = storageStatePayload?.meta?.authValidatedAt?.trim();
+    if (!validatedAtRaw) {
+      storageStateInvalidReason = "storage_state_validation_timestamp_missing";
+    } else {
+      const validatedAtMs = Date.parse(validatedAtRaw);
+      if (Number.isNaN(validatedAtMs)) {
+        storageStateInvalidReason = "storage_state_validation_timestamp_invalid";
+      } else if ((Date.now() - validatedAtMs) > storageStateMaxAgeHours * 60 * 60 * 1000) {
+        storageStateInvalidReason = "storage_state_expired";
+      }
+    }
+  }
+
+  const storageStateValid = storageStateInvalidReason === null;
 
   if (hasStorageState && storageStateValid) {
     return {
@@ -253,7 +291,7 @@ export function resolveTradingViewAuthResolution(env: NodeJS.ProcessEnv = proces
       authSourceValid: true,
       authReusedOk: fs.existsSync(persistentProfileDir),
       fallbackUsed: Boolean(hasStorageState && !storageStateValid),
-      fallbackReason: hasStorageState && !storageStateValid ? "storage_state_invalid" : null,
+      fallbackReason: hasStorageState && !storageStateValid ? storageStateInvalidReason : null,
       storageStateInspection,
     };
   }
@@ -266,7 +304,7 @@ export function resolveTradingViewAuthResolution(env: NodeJS.ProcessEnv = proces
       authSourceValid: false,
       authReusedOk: false,
       fallbackUsed: false,
-      fallbackReason: "storage_state_invalid",
+      fallbackReason: storageStateInvalidReason,
       storageStateInspection,
     };
   }

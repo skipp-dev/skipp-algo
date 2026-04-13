@@ -57,14 +57,18 @@ Refresh date: 2026-04-13
 - product-cut contract layer: updated
 - latest staged-format authenticated preflight artifact: `automation/tradingview/reports/preflight-2026-04-07T19-12-02-524Z.json`
 - latest automated micro-library publish artifact: `automation/tradingview/reports/publish-micro-library-2026-04-04T07-50-33-372Z.json`
+- latest full `smc-library-refresh` success on GitHub Actions: run `24342288092` (`2026-04-13T12:02:36Z`), including readonly preflight, publish, post-release validation, commit/push, and alerts
 - current shell auth result: reusable TradingView auth artifacts are present in this workspace snapshot
 - latest authenticated live artifact details: `auth_mode = persistent_profile`, `execution_mode = mutating`, all three mainline targets reached `overall_preflight_ok = true`
 - current repo-side preflight reading: the canonical `tv:preflight:smc-mainline` path is green across auth, ui, compile, binding, runtime, and report-root `overall_preflight_ok`
 - current live validation decision in this checkout: the active SMC mainline path is fully green and review-ready in TradingView live automation
 - library publish tracking artifact: present
+- current checked-in library release manifest: `productivityGate.publishReady = true`, `publishedVersion = 1`, `inputPath = artifacts/smc_microstructure_exports/databento_volatility_production_incremental_20260413_121643__smc_microstructure_base_2026-04-10.csv`, `universeSize = 6854`
+- current checked-in generated library manifest: `productivity_gate.publish_ready = true`, `fixture_input_detected = false`, `default_event_risk_detected = false`, `placeholder_symbols = []`
 - product-cut artifact: present
 - automated micro-library publish path: reproducible from this workspace snapshot
 - provider fallback / no-data root causes: visible via `domain_alerts` + `meta_domain_diagnostics` in provider-health and release-gate reports, plus summary-level `Provider Health Warnings` in `smc-library-refresh`
+- latest scheduled failure after the green run: `24344229616`, caused by tracked Databento runtime-cache churn during commit/push rather than by a red productivity gate; the workflow now restores those paths before staging and aborts early on remaining tracked drift
 
 ## Read This Next
 

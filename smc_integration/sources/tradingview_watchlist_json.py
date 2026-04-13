@@ -8,6 +8,7 @@ from typing import Any
 from .base import SourceCapabilities, SourceDescriptor
 
 TRADINGVIEW_WATCHLIST_JSON = Path(__file__).resolve().parents[2] / "reports" / "tradingview_watchlist_snapshot.json"
+_META_DOMAIN_STATUS_KEY = "_meta_domain_statuses"
 
 
 def describe_source() -> SourceDescriptor:
@@ -81,7 +82,7 @@ def _coerce_bias(value: Any) -> str | None:
     return None
 
 
-def _extract_technical(row: dict[str, Any], *, fallback_asof_ts: float) -> dict[str, Any] | None:
+def _extract_technical(row: dict[str, Any], *, fallback_asof_ts: float) -> tuple[dict[str, Any] | None, str | None]:
     direct = row.get("technical")
     direct_map = direct if isinstance(direct, dict) else {}
 
@@ -94,7 +95,7 @@ def _extract_technical(row: dict[str, Any], *, fallback_asof_ts: float) -> dict[
         bias = _coerce_bias(row.get("technical_bias"))
 
     if strength is None or bias is None:
-        return None
+        return None, "domain_fields_incomplete"
 
     asof_ts = _coerce_optional_float(direct_map.get("asof_ts"))
     if asof_ts is None:
@@ -115,7 +116,7 @@ def _extract_technical(row: dict[str, Any], *, fallback_asof_ts: float) -> dict[
         },
         "asof_ts": asof_ts,
         "stale": stale,
-    }
+    }, None
 
 
 def _select_symbol_row(payload: dict[str, Any], symbol: str) -> dict[str, Any]:
@@ -191,9 +192,11 @@ def load_raw_meta_input(symbol: str, timeframe: str) -> dict[str, Any]:
         ],
     }
 
-    technical = _extract_technical(row, fallback_asof_ts=asof_ts)
+    technical, technical_status = _extract_technical(row, fallback_asof_ts=asof_ts)
     if technical is not None:
         payload["technical"] = technical
         payload["provenance"].append("smc_integration:technical_mapped_from_tradingview")
+    elif technical_status:
+        payload[_META_DOMAIN_STATUS_KEY] = {"technical": technical_status}
 
     return payload

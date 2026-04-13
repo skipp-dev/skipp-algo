@@ -210,6 +210,18 @@ class TestB1DomainFallbackChain:
                 "technical", "AAPL", "15m", "fmp_watchlist_json", auto_mode=False,
             )
 
+    def test_explicit_mode_surfaces_incomplete_domain_status(self, monkeypatch, tmp_path: Path) -> None:
+        fmp_path = tmp_path / "fmp.json"
+        _write_source(fmp_path, [_fmp_row_without_technical()])
+        monkeypatch.setattr(fmp_watchlist_json, "FMP_WATCHLIST_JSON", fmp_path)
+
+        meta, status, actual = _try_load_meta_domain(
+            "technical", "AAPL", "15m", "fmp_watchlist_json", auto_mode=False,
+        )
+        assert meta is None
+        assert status == "domain_fields_incomplete"
+        assert actual == "fmp_watchlist_json"
+
     def test_all_providers_exhausted(self, monkeypatch, tmp_path: Path) -> None:
         monkeypatch.setattr(fmp_watchlist_json, "FMP_WATCHLIST_JSON", tmp_path / "missing.json")
         monkeypatch.setattr(tradingview_watchlist_json, "TRADINGVIEW_WATCHLIST_JSON", tmp_path / "also_missing.json")
@@ -316,8 +328,10 @@ class TestB3EnhancedDiagnostics:
         diag = merged["meta_domain_diagnostics"]
 
         assert "technical_source" in diag
+        assert "technical_planned_source" in diag
         assert "technical_fallback_used" in diag
         assert "news_source" in diag
+        assert "news_planned_source" in diag
         assert "news_fallback_used" in diag
         assert diag["volume"] == "present"
 

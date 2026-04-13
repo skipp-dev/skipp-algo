@@ -205,7 +205,10 @@ def test_release_reference_meta_can_synthesize_volume_from_structure_artifact(mo
     assert payload["meta_domains_missing"] == ["technical", "news"]
     diag = payload["meta_domain_diagnostics"]
     assert diag["volume"] == "synthetic_fallback"
+    assert diag["volume_planned_source"] == "databento_watchlist_csv"
     assert diag["volume_source"] == "synthetic_structure_artifact_meta"
     assert diag["volume_fallback_used"] is True
+    assert diag["technical_planned_source"] == "fmp_watchlist_json"
+    assert diag["news_planned_source"] == "benzinga_watchlist_json"
     assert diag["technical_stale"] is False
     assert diag["news_stale"] is False
