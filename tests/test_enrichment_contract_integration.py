@@ -22,7 +22,7 @@ from scripts.smc_schema_resolver import resolve_microstructure_schema_path
 
 SCHEMA_PATH = resolve_microstructure_schema_path()
 _REPO_ROOT = Path(__file__).resolve().parents[1]
-_GENERATED_PINE_PATH = _REPO_ROOT / "pine/generated/smc_micro_profiles_generated.pine"
+_GENERATED_PINE_PATH = _REPO_ROOT / "tests/fixtures/generated_seed/pine/generated/smc_micro_profiles_generated.pine"
 
 # ── All enrichment-related Pine constants ───────────────────────
 

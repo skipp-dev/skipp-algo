@@ -17,6 +17,91 @@ _GENERATORS = [
 # Known orphan references that are tolerated until their Pine consumer is cleaned up.
 _KNOWN_ORPHANS: set[str] = {
     "FVG_NET_IMBALANCE",  # SMC_Imbalance_Context.pine — stale, no generator
+    # ── Deprecated v5-v5.3 fields removed in WP-LF5 ──
+    # Still referenced by legacy overlay scripts (SMC_Event_Overlay, SMC_HTF_Confluence,
+    # SMC_Imbalance_Context, SMC_Liquidity_Context, SMC_Liquidity_Structure,
+    # SMC_Profile_Context, SMC_Session_Context, SMC_Structure_Context).
+    "ACTIVE_RESISTANCE",
+    "ACTIVE_RESISTANCE_COUNT",
+    "ACTIVE_SUPPORT",
+    "ACTIVE_SUPPORT_COUNT",
+    "ACTIVE_ZONE_COUNT",
+    "BEAR_FVG_ACTIVE",
+    "BEAR_FVG_BOTTOM",
+    "BEAR_FVG_COUNT",
+    "BEAR_FVG_FULL_MITIGATION",
+    "BEAR_FVG_MITIGATION_PCT",
+    "BEAR_FVG_PARTIAL_MITIGATION",
+    "BEAR_FVG_TOP",
+    "BOS_BEAR",
+    "BOS_BULL",
+    "BPR_ACTIVE",
+    "BPR_BOTTOM",
+    "BPR_TOP",
+    "BULL_FVG_ACTIVE",
+    "BULL_FVG_BOTTOM",
+    "BULL_FVG_COUNT",
+    "BULL_FVG_FULL_MITIGATION",
+    "BULL_FVG_MITIGATION_PCT",
+    "BULL_FVG_PARTIAL_MITIGATION",
+    "BULL_FVG_TOP",
+    "CHOCH_BEAR",
+    "CHOCH_BULL",
+    "CONFIRM_SCORE",
+    "FOLLOW_THROUGH_SCORE",
+    "FVG_CONFIRM_OK",
+    "HTF_BEARISH_DIVERGENCE",
+    "HTF_BEARISH_PATTERN",
+    "HTF_BULLISH_DIVERGENCE",
+    "HTF_BULLISH_PATTERN",
+    "HTF_STRUCTURE_OK",
+    "IMBALANCE_STATE",
+    "LIQ_VOID_BEAR_ACTIVE",
+    "LIQ_VOID_BOTTOM",
+    "LIQ_VOID_BULL_ACTIVE",
+    "LIQ_VOID_TOP",
+    "POOL_IMBALANCE",
+    "POOL_MAGNET_DIRECTION",
+    "POOL_QUALITY_SCORE",
+    "PRIMARY_RESISTANCE_LEVEL",
+    "PRIMARY_RESISTANCE_STRENGTH",
+    "PRIMARY_SUPPORT_LEVEL",
+    "PRIMARY_SUPPORT_STRENGTH",
+    "PROFILE_AH_QUALITY",
+    "PROFILE_AVG_SPREAD_BPS",
+    "PROFILE_CLEAN_SCORE",
+    "PROFILE_CONTEXT_SCORE",
+    "PROFILE_MIDDAY_EFFICIENCY",
+    "PROFILE_PM_QUALITY",
+    "PROFILE_RTH_DOMINANCE_PCT",
+    "PROFILE_SESSION_BIAS",
+    "PROFILE_SPREAD_REGIME",
+    "PROFILE_TICKER_GRADE",
+    "PROFILE_VWAP_DISTANCE_PCT",
+    "PROFILE_VWAP_POSITION",
+    "PROFILE_WICKINESS",
+    "RECENT_BEAR_SWEEP",
+    "RECENT_BULL_SWEEP",
+    "RESISTANCE_ACTIVE",
+    "RESISTANCE_MITIGATION_PCT",
+    "RESISTANCE_SWEEP_COUNT",
+    "RETRACE_OK",
+    "REVERSAL_CONTEXT_ACTIVE",
+    "SESSION_MSS_BEAR",
+    "SESSION_MSS_BULL",
+    "SETUP_SCORE",
+    "STRUCTURE_BEAR_ACTIVE",
+    "STRUCTURE_BULL_ACTIVE",
+    "STRUCTURE_STATE",
+    "SUPPORT_ACTIVE",
+    "SUPPORT_MITIGATION_PCT",
+    "SUPPORT_SWEEP_COUNT",
+    "SWEEP_QUALITY_SCORE",
+    "SWEEP_RECLAIM_ACTIVE",
+    "SWEEP_TYPE",
+    "VWAP_HOLD_OK",
+    "ZONE_CONTEXT_BIAS",
+    "ZONE_LIQUIDITY_IMBALANCE",
 }
 
 
@@ -77,7 +162,7 @@ def test_known_orphans_are_still_orphans() -> None:
 def test_field_count_is_within_audit_bounds() -> None:
     """Total generated fields should be documented in the audit."""
     generated = _collect_generated_fields()
-    assert len(generated) >= 250, f"Field count dropped unexpectedly: {len(generated)}"
+    assert len(generated) >= 120, f"Field count dropped unexpectedly: {len(generated)}"
     assert len(generated) <= 320, f"Field count grew unexpectedly: {len(generated)}"
 
 
@@ -98,7 +183,7 @@ def test_deprecated_field_policy_has_sunset_date() -> None:
 def test_deprecated_field_policy_has_sunset_action() -> None:
     from scripts.smc_bus_manifest import DEPRECATED_FIELD_POLICY
 
-    assert DEPRECATED_FIELD_POLICY.get("sunset_action") == "remove_from_export"
+    assert DEPRECATED_FIELD_POLICY.get("sunset_action") == "removed"
 
 
 def test_generator_logs_sunset_warning(caplog) -> None:

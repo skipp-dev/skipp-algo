@@ -42,19 +42,7 @@
     "mode": "compatibility_only",
     "preferred_field_version": "v5.5b",
     "extension_allowed": false,
-    "deprecated_groups": [
-      "event_risk_v5",
-      "zone_intelligence_v5_1",
-      "reversal_context_v5_1",
-      "session_context_v5_2",
-      "liquidity_pools_v5_2",
-      "order_blocks_v5_2",
-      "zone_projection_v5_2",
-      "profile_context_v5_2",
-      "structure_state_v5_3",
-      "imbalance_lifecycle_v5_3",
-      "session_structure_v5_3"
-    ]
+    "deprecated_groups": []
   },
   "v55_lean_blocks": [
     "event_risk_light",

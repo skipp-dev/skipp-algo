@@ -49,7 +49,6 @@ _EXPORT_RE = re.compile(r"^export const \w+ ([A-Z][A-Z0-9_]+)\b", re.MULTILINE)
 EVENT_RISK_EXPORTS = (
     "EVENT_WINDOW_STATE",
     "EVENT_RISK_LEVEL",
-    "NEXT_EVENT_CLASS",
     "NEXT_EVENT_NAME",
     "NEXT_EVENT_TIME",
     "NEXT_EVENT_IMPACT",
@@ -59,7 +58,6 @@ EVENT_RISK_EXPORTS = (
     "MARKET_EVENT_BLOCKED",
     "SYMBOL_EVENT_BLOCKED",
     "EARNINGS_SOON_TICKERS",
-    "HIGH_RISK_EVENT_TICKERS",
     "EVENT_PROVIDER_STATUS",
 )
 
@@ -76,6 +74,9 @@ DEDICATED_V55B_LEAN_EXPORTS = (
     "FVG_MATURITY_LEVEL",
     "FVG_FRESH",
     "FVG_INVALIDATED",
+    "STRUCTURE_LAST_EVENT",
+    "STRUCTURE_EVENT_AGE_BARS",
+    "STRUCTURE_FRESH",
     "STRUCTURE_TREND_STRENGTH",
     "SIGNAL_QUALITY_SCORE",
     "SIGNAL_QUALITY_TIER",
@@ -174,8 +175,8 @@ class TestGeneratedArtifactDrift:
         exports = [l for l in pine.splitlines() if l.startswith("export const")]
         # Shared lean families reuse canonical exports instead of duplicating
         # Event Risk / Session Context / Structure State fields.
-        assert len(exports) == 288, (
-            f"Expected 288 export const fields for the current v5.5b shared-export contract, got {len(exports)}"
+        assert len(exports) == 140, (
+            f"Expected 140 export const fields for the current v5.5b shared-export contract, got {len(exports)}"
         )
 
     def test_event_risk_exports_stay_in_canonical_order(self, regenerated: Path):

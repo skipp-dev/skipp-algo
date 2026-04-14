@@ -81,21 +81,9 @@ DEPRECATED_FIELD_POLICY: dict[str, Any] = {
     'mode': 'compatibility_only',
     'preferredFieldVersion': 'v5.5b',
     'extensionAllowed': False,
-    'sunset_date': '2026-05-14',
-    'sunset_action': 'remove_from_export',
-    'deprecatedGroups': [
-        'event_risk_v5',
-        'zone_intelligence_v5_1',
-        'reversal_context_v5_1',
-        'session_context_v5_2',
-        'liquidity_pools_v5_2',
-        'order_blocks_v5_2',
-        'zone_projection_v5_2',
-        'profile_context_v5_2',
-        'structure_state_v5_3',
-        'imbalance_lifecycle_v5_3',
-        'session_structure_v5_3',
-    ],
+    'sunset_date': '2026-04-14',
+    'sunset_action': 'removed',
+    'deprecatedGroups': [],
 }
 
 SURFACE_DEFINITIONS: tuple[SurfaceDefinition, ...] = (

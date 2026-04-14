@@ -50,7 +50,7 @@ from scripts.smc_schema_resolver import resolve_microstructure_schema_path
 
 ROOT = Path(__file__).resolve().parents[1]
 SCHEMA_PATH = resolve_microstructure_schema_path()
-CONTRACT_PINE_PATH = ROOT / "pine" / "generated" / "smc_micro_profiles_generated.pine"
+CONTRACT_PINE_PATH = ROOT / "tests" / "fixtures" / "generated_seed" / "pine" / "generated" / "smc_micro_profiles_generated.pine"
 
 
 def _load_contract_field_inventory() -> list[str]:

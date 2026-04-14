@@ -145,9 +145,9 @@ def _load_deprecated_field_policy(manifest: dict[str, object]) -> dict[str, obje
         raise RuntimeError(
             "Generated manifest deprecated_field_policy.extension_allowed must stay false"
         )
-    if not isinstance(payload.get("deprecated_groups"), list) or not payload["deprecated_groups"]:
+    if not isinstance(payload.get("deprecated_groups"), list):
         raise RuntimeError(
-            "Generated manifest deprecated_field_policy.deprecated_groups must list the compatibility-only legacy groups"
+            "Generated manifest deprecated_field_policy.deprecated_groups must be a list"
         )
 
     return payload

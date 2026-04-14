@@ -41,18 +41,9 @@ STATE_COLUMNS = [
     "decision_reason",
 ]
 
-DEPRECATED_COMPATIBILITY_GROUPS = [
-    "event_risk_v5",
-    "zone_intelligence_v5_1",
-    "reversal_context_v5_1",
-    "session_context_v5_2",
-    "liquidity_pools_v5_2",
-    "order_blocks_v5_2",
-    "zone_projection_v5_2",
-    "profile_context_v5_2",
-    "structure_state_v5_3",
-    "imbalance_lifecycle_v5_3",
-    "session_structure_v5_3",
+DEPRECATED_COMPATIBILITY_GROUPS: list[str] = [
+    # All deprecated blocks removed in WP-LF5.
+    # Consumed fields migrated to v5.5b Lean sections.
 ]
 
 PLACEHOLDER_SYMBOL_SENTINELS = {"AAA", "BBB", "CCC"}
@@ -678,8 +669,8 @@ def write_pine_library(
         "// ── Usage ──────────────────────────────────────────────────────",
         "// import preuss_steffen/smc_micro_profiles_generated/1 as mp",
         "//",
-        "// Fields are grouped into sections (v5.5b Lean, ~290 fields total):",
-        "// Deprecated v5-v5.3 groups remain compatibility-only exports; prefer the v5.5b Lean surface for new consumers.",
+        "// Fields are grouped into sections (v5.5b Lean, ~160 fields total):",
+        "// Deprecated v5-v5.3 compatibility groups have been removed; only v5.5b Lean fields remain.",
         "//   Core/Meta       — ASOF_DATE, ASOF_TIME, UNIVERSE_ID, LOOKBACK_DAYS, UNIVERSE_SIZE, REFRESH_COUNT",
         "//   Microstructure  — *_TICKERS lists (clean_reclaim, stop_hunt_prone, …)",
         "//   Regime          — MARKET_REGIME, VIX_LEVEL, MACRO_BIAS, MACRO_BIAS_RAW, MACRO_BIAS_PE_ADJUSTMENT, MARKET_PE_FORWARD, MARKET_PE_REGIME, SECTOR_BREADTH",
@@ -690,25 +681,13 @@ def write_pine_library(
         "//   Volume          — VOLUME_LOW_TICKERS, HOLIDAY_SUSPECT_TICKERS",
         "//   Volatility      — VOLATILITY_REGIME, VOLATILITY_REGIME_CONFIDENCE, VOLATILITY_ATR_RATIO, VOLATILITY_MODEL_SOURCE, VOLATILITY_FALLBACK_REASON, VOLATILITY_PROXY_SYMBOL, VOLATILITY_PROXY_SOURCE",
         "//   Ensemble Score  — ENSEMBLE_QUALITY_SCORE, ENSEMBLE_QUALITY_TIER, ENSEMBLE_AVAILABLE_COMPONENTS",
-        "//   Event Risk (v5, compatibility-only deprecated) — EVENT_WINDOW_STATE … EVENT_PROVIDER_STATUS (14 fields)",
         "//   Flow Qualifier (v5.1)  — REL_VOL … ATS_BEARISH_SEQUENCE (14 fields)",
         "//   Compression (v5.1)     — SQUEEZE_ON … ATR_RATIO (5 fields)",
-        "//   Zone Intelligence (v5.1, compatibility-only deprecated) — 13 fields",
-        "//   Reversal Context (v5.1, compatibility-only deprecated)  — 12 fields",
-        "//   Session Context (v5.2, compatibility-only deprecated)   — 16 fields",
-        "//   Liquidity Sweeps (v5.2)  — 9 fields",
-        "//   Liquidity Pools (v5.2, compatibility-only deprecated)   — 11 fields",
-        "//   Order Blocks (v5.2, compatibility-only deprecated)      — 13 fields",
-        "//   Zone Projection (v5.2, compatibility-only deprecated)   — 10 fields",
-        "//   Profile Context (v5.2, compatibility-only deprecated)   — 18 fields",
-        "//   Structure State (v5.3, compatibility-only deprecated)   — 14 fields",
-        "//   Imbalance Lifecycle (v5.3, compatibility-only deprecated) — 23 fields",
-        "//   Session Structure (v5.3, compatibility-only deprecated)  — 14 fields",
         "//   Range Regime (v5.3)       — 11 fields",
         "//   Range Profile Regime (v5.3) — 22 fields",
         "//",
         "//   ── v5.5b Lean Surface (preferred) ──",
-        "//   Event Risk Light (v5.5b)      — 7 fields",
+        "//   Event Risk Light (v5.5b)      — 12 fields",
         "//   Session Context Light (v5.5b) — 5 fields",
         "//   OB Context Light (v5.5b)      — 5 fields",
         "//   FVG Lifecycle Light (v5.5b)   — 6 fields",
@@ -808,34 +787,6 @@ def write_pine_library(
     content.append(f'export const string ENSEMBLE_AVAILABLE_COMPONENTS = "{",".join(eq.get("available_components") or [])}"')
     content.append("")
 
-    # ── Event Risk (v5) ─────────────────────────────────────────
-    from scripts.smc_event_risk_builder import DEFAULTS as _ER_DEFAULTS
-
-    er = enr.get("event_risk") or {}
-    erl = enr.get("event_risk_light") or {}
-    event_window_state = erl.get("EVENT_WINDOW_STATE", er.get("EVENT_WINDOW_STATE", _ER_DEFAULTS["EVENT_WINDOW_STATE"]))
-    event_risk_level = erl.get("EVENT_RISK_LEVEL", er.get("EVENT_RISK_LEVEL", _ER_DEFAULTS["EVENT_RISK_LEVEL"]))
-    next_event_name = erl.get("NEXT_EVENT_NAME", er.get("NEXT_EVENT_NAME", _ER_DEFAULTS["NEXT_EVENT_NAME"]))
-    next_event_time = erl.get("NEXT_EVENT_TIME", er.get("NEXT_EVENT_TIME", _ER_DEFAULTS["NEXT_EVENT_TIME"]))
-    market_event_blocked = erl.get("MARKET_EVENT_BLOCKED", er.get("MARKET_EVENT_BLOCKED", _ER_DEFAULTS["MARKET_EVENT_BLOCKED"]))
-    symbol_event_blocked = erl.get("SYMBOL_EVENT_BLOCKED", er.get("SYMBOL_EVENT_BLOCKED", _ER_DEFAULTS["SYMBOL_EVENT_BLOCKED"]))
-    event_provider_status = erl.get("EVENT_PROVIDER_STATUS", er.get("EVENT_PROVIDER_STATUS", _ER_DEFAULTS["EVENT_PROVIDER_STATUS"]))
-    content.append("// ── Event Risk ──")
-    content.append(f'export const string EVENT_WINDOW_STATE = "{event_window_state}"')
-    content.append(f'export const string EVENT_RISK_LEVEL = "{event_risk_level}"')
-    content.append(f'export const string NEXT_EVENT_CLASS = "{er.get("NEXT_EVENT_CLASS", _ER_DEFAULTS["NEXT_EVENT_CLASS"])}"')
-    content.append(f'export const string NEXT_EVENT_NAME = "{next_event_name}"')
-    content.append(f'export const string NEXT_EVENT_TIME = "{next_event_time}"')
-    content.append(f'export const string NEXT_EVENT_IMPACT = "{er.get("NEXT_EVENT_IMPACT", _ER_DEFAULTS["NEXT_EVENT_IMPACT"])}"')
-    content.append(f'export const int EVENT_RESTRICT_BEFORE_MIN = {int(er.get("EVENT_RESTRICT_BEFORE_MIN", _ER_DEFAULTS["EVENT_RESTRICT_BEFORE_MIN"]))}')
-    content.append(f'export const int EVENT_RESTRICT_AFTER_MIN = {int(er.get("EVENT_RESTRICT_AFTER_MIN", _ER_DEFAULTS["EVENT_RESTRICT_AFTER_MIN"]))}')
-    content.append(f'export const bool EVENT_COOLDOWN_ACTIVE = {_pine_bool(er.get("EVENT_COOLDOWN_ACTIVE", _ER_DEFAULTS["EVENT_COOLDOWN_ACTIVE"]))}')
-    content.append(f'export const bool MARKET_EVENT_BLOCKED = {_pine_bool(market_event_blocked)}')
-    content.append(f'export const bool SYMBOL_EVENT_BLOCKED = {_pine_bool(symbol_event_blocked)}')
-    content.append(f'export const string EARNINGS_SOON_TICKERS = "{er.get("EARNINGS_SOON_TICKERS", _ER_DEFAULTS["EARNINGS_SOON_TICKERS"])}"')
-    content.append(f'export const string HIGH_RISK_EVENT_TICKERS = "{er.get("HIGH_RISK_EVENT_TICKERS", _ER_DEFAULTS["HIGH_RISK_EVENT_TICKERS"])}"')
-    content.append(f'export const string EVENT_PROVIDER_STATUS = "{event_provider_status}"')
-
     # ── Flow Qualifier (v5.1) ───────────────────────────────────
     from scripts.smc_flow_qualifier import DEFAULTS as _FQ_DEFAULTS
 
@@ -868,241 +819,6 @@ def write_pine_library(
     content.append(f'export const string SQUEEZE_MOMENTUM_BIAS = "{cr.get("SQUEEZE_MOMENTUM_BIAS", _CR_DEFAULTS["SQUEEZE_MOMENTUM_BIAS"])}"')
     content.append(f'export const string ATR_REGIME = "{cr.get("ATR_REGIME", _CR_DEFAULTS["ATR_REGIME"])}"')
     content.append(f'export const float ATR_RATIO = {float(cr.get("ATR_RATIO", _CR_DEFAULTS["ATR_RATIO"]))}')
-
-    # ── Zone Intelligence (v5.1) ────────────────────────────────
-    from scripts.smc_zone_intelligence import DEFAULTS as _ZI_DEFAULTS
-
-    zi = enr.get("zone_intelligence") or {}
-    content.append("")
-    content.append("// ── Zone Intelligence ──")
-    content.append(f'export const int ACTIVE_SUPPORT_COUNT = {int(zi.get("ACTIVE_SUPPORT_COUNT", _ZI_DEFAULTS["ACTIVE_SUPPORT_COUNT"]))}')
-    content.append(f'export const int ACTIVE_RESISTANCE_COUNT = {int(zi.get("ACTIVE_RESISTANCE_COUNT", _ZI_DEFAULTS["ACTIVE_RESISTANCE_COUNT"]))}')
-    content.append(f'export const int ACTIVE_ZONE_COUNT = {int(zi.get("ACTIVE_ZONE_COUNT", _ZI_DEFAULTS["ACTIVE_ZONE_COUNT"]))}')
-    content.append(f'export const float PRIMARY_SUPPORT_LEVEL = {float(zi.get("PRIMARY_SUPPORT_LEVEL", _ZI_DEFAULTS["PRIMARY_SUPPORT_LEVEL"]))}')
-    content.append(f'export const float PRIMARY_RESISTANCE_LEVEL = {float(zi.get("PRIMARY_RESISTANCE_LEVEL", _ZI_DEFAULTS["PRIMARY_RESISTANCE_LEVEL"]))}')
-    content.append(f'export const int PRIMARY_SUPPORT_STRENGTH = {int(zi.get("PRIMARY_SUPPORT_STRENGTH", _ZI_DEFAULTS["PRIMARY_SUPPORT_STRENGTH"]))}')
-    content.append(f'export const int PRIMARY_RESISTANCE_STRENGTH = {int(zi.get("PRIMARY_RESISTANCE_STRENGTH", _ZI_DEFAULTS["PRIMARY_RESISTANCE_STRENGTH"]))}')
-    content.append(f'export const int SUPPORT_SWEEP_COUNT = {int(zi.get("SUPPORT_SWEEP_COUNT", _ZI_DEFAULTS["SUPPORT_SWEEP_COUNT"]))}')
-    content.append(f'export const int RESISTANCE_SWEEP_COUNT = {int(zi.get("RESISTANCE_SWEEP_COUNT", _ZI_DEFAULTS["RESISTANCE_SWEEP_COUNT"]))}')
-    content.append(f'export const float SUPPORT_MITIGATION_PCT = {float(zi.get("SUPPORT_MITIGATION_PCT", _ZI_DEFAULTS["SUPPORT_MITIGATION_PCT"]))}')
-    content.append(f'export const float RESISTANCE_MITIGATION_PCT = {float(zi.get("RESISTANCE_MITIGATION_PCT", _ZI_DEFAULTS["RESISTANCE_MITIGATION_PCT"]))}')
-    content.append(f'export const string ZONE_CONTEXT_BIAS = "{zi.get("ZONE_CONTEXT_BIAS", _ZI_DEFAULTS["ZONE_CONTEXT_BIAS"])}"')
-    content.append(f'export const float ZONE_LIQUIDITY_IMBALANCE = {float(zi.get("ZONE_LIQUIDITY_IMBALANCE", _ZI_DEFAULTS["ZONE_LIQUIDITY_IMBALANCE"]))}')
-
-    # ── Reversal Context (v5.1) ─────────────────────────────────
-    from scripts.smc_reversal_context import DEFAULTS as _RC_DEFAULTS
-
-    rc = enr.get("reversal_context") or {}
-    content.append("")
-    content.append("// ── Reversal Context ──")
-    content.append(f'export const bool REVERSAL_CONTEXT_ACTIVE = {_pine_bool(rc.get("REVERSAL_CONTEXT_ACTIVE", _RC_DEFAULTS["REVERSAL_CONTEXT_ACTIVE"]))}')
-    content.append(f'export const int SETUP_SCORE = {int(rc.get("SETUP_SCORE", _RC_DEFAULTS["SETUP_SCORE"]))}')
-    content.append(f'export const int CONFIRM_SCORE = {int(rc.get("CONFIRM_SCORE", _RC_DEFAULTS["CONFIRM_SCORE"]))}')
-    content.append(f'export const int FOLLOW_THROUGH_SCORE = {int(rc.get("FOLLOW_THROUGH_SCORE", _RC_DEFAULTS["FOLLOW_THROUGH_SCORE"]))}')
-    content.append(f'export const bool HTF_STRUCTURE_OK = {_pine_bool(rc.get("HTF_STRUCTURE_OK", _RC_DEFAULTS["HTF_STRUCTURE_OK"]))}')
-    content.append(f'export const bool HTF_BULLISH_PATTERN = {_pine_bool(rc.get("HTF_BULLISH_PATTERN", _RC_DEFAULTS["HTF_BULLISH_PATTERN"]))}')
-    content.append(f'export const bool HTF_BEARISH_PATTERN = {_pine_bool(rc.get("HTF_BEARISH_PATTERN", _RC_DEFAULTS["HTF_BEARISH_PATTERN"]))}')
-    content.append(f'export const bool HTF_BULLISH_DIVERGENCE = {_pine_bool(rc.get("HTF_BULLISH_DIVERGENCE", _RC_DEFAULTS["HTF_BULLISH_DIVERGENCE"]))}')
-    content.append(f'export const bool HTF_BEARISH_DIVERGENCE = {_pine_bool(rc.get("HTF_BEARISH_DIVERGENCE", _RC_DEFAULTS["HTF_BEARISH_DIVERGENCE"]))}')
-    content.append(f'export const bool FVG_CONFIRM_OK = {_pine_bool(rc.get("FVG_CONFIRM_OK", _RC_DEFAULTS["FVG_CONFIRM_OK"]))}')
-    content.append(f'export const bool VWAP_HOLD_OK = {_pine_bool(rc.get("VWAP_HOLD_OK", _RC_DEFAULTS["VWAP_HOLD_OK"]))}')
-    content.append(f'export const bool RETRACE_OK = {_pine_bool(rc.get("RETRACE_OK", _RC_DEFAULTS["RETRACE_OK"]))}')
-
-    # ── Session Context (v5.2) ──────────────────────────────────
-    from scripts.smc_session_context_block import DEFAULTS as _SC_DEFAULTS
-
-    sc = enr.get("session_context") or {}
-    scl = enr.get("session_context_light") or {}
-    session_context = scl.get("SESSION_CONTEXT", sc.get("SESSION_CONTEXT", _SC_DEFAULTS["SESSION_CONTEXT"]))
-    in_killzone = scl.get("IN_KILLZONE", sc.get("IN_KILLZONE", _SC_DEFAULTS["IN_KILLZONE"]))
-    session_direction_bias = scl.get("SESSION_DIRECTION_BIAS", sc.get("SESSION_DIRECTION_BIAS", _SC_DEFAULTS["SESSION_DIRECTION_BIAS"]))
-    session_context_score = scl.get("SESSION_CONTEXT_SCORE", sc.get("SESSION_CONTEXT_SCORE", _SC_DEFAULTS["SESSION_CONTEXT_SCORE"]))
-    content.append("")
-    content.append("// ── Session Context ──")
-    content.append(f'export const string SESSION_CONTEXT = "{session_context}"')
-    content.append(f'export const bool IN_KILLZONE = {_pine_bool(in_killzone)}')
-    content.append(f'export const bool SESSION_MSS_BULL = {_pine_bool(sc.get("SESSION_MSS_BULL", _SC_DEFAULTS["SESSION_MSS_BULL"]))}')
-    content.append(f'export const bool SESSION_MSS_BEAR = {_pine_bool(sc.get("SESSION_MSS_BEAR", _SC_DEFAULTS["SESSION_MSS_BEAR"]))}')
-    content.append(f'export const string SESSION_STRUCTURE_STATE = "{sc.get("SESSION_STRUCTURE_STATE", _SC_DEFAULTS["SESSION_STRUCTURE_STATE"])}"')
-    content.append(f'export const bool SESSION_FVG_BULL_ACTIVE = {_pine_bool(sc.get("SESSION_FVG_BULL_ACTIVE", _SC_DEFAULTS["SESSION_FVG_BULL_ACTIVE"]))}')
-    content.append(f'export const bool SESSION_FVG_BEAR_ACTIVE = {_pine_bool(sc.get("SESSION_FVG_BEAR_ACTIVE", _SC_DEFAULTS["SESSION_FVG_BEAR_ACTIVE"]))}')
-    content.append(f'export const bool SESSION_BPR_ACTIVE = {_pine_bool(sc.get("SESSION_BPR_ACTIVE", _SC_DEFAULTS["SESSION_BPR_ACTIVE"]))}')
-    content.append(f'export const float SESSION_RANGE_TOP = {float(sc.get("SESSION_RANGE_TOP", _SC_DEFAULTS["SESSION_RANGE_TOP"]))}')
-    content.append(f'export const float SESSION_RANGE_BOTTOM = {float(sc.get("SESSION_RANGE_BOTTOM", _SC_DEFAULTS["SESSION_RANGE_BOTTOM"]))}')
-    content.append(f'export const float SESSION_MEAN = {float(sc.get("SESSION_MEAN", _SC_DEFAULTS["SESSION_MEAN"]))}')
-    content.append(f'export const float SESSION_VWAP = {float(sc.get("SESSION_VWAP", _SC_DEFAULTS["SESSION_VWAP"]))}')
-    content.append(f'export const float SESSION_TARGET_BULL = {float(sc.get("SESSION_TARGET_BULL", _SC_DEFAULTS["SESSION_TARGET_BULL"]))}')
-    content.append(f'export const float SESSION_TARGET_BEAR = {float(sc.get("SESSION_TARGET_BEAR", _SC_DEFAULTS["SESSION_TARGET_BEAR"]))}')
-    content.append(f'export const string SESSION_DIRECTION_BIAS = "{session_direction_bias}"')
-    content.append(f'export const int SESSION_CONTEXT_SCORE = {int(session_context_score)}')
-
-    # ── Liquidity Sweeps (v5.2) ─────────────────────────────────
-    from scripts.smc_liquidity_sweeps import DEFAULTS as _LS_DEFAULTS
-
-    ls = enr.get("liquidity_sweeps") or {}
-    content.append("")
-    content.append("// ── Liquidity Sweeps ──")
-    content.append(f'export const bool RECENT_BULL_SWEEP = {_pine_bool(ls.get("RECENT_BULL_SWEEP", _LS_DEFAULTS["RECENT_BULL_SWEEP"]))}')
-    content.append(f'export const bool RECENT_BEAR_SWEEP = {_pine_bool(ls.get("RECENT_BEAR_SWEEP", _LS_DEFAULTS["RECENT_BEAR_SWEEP"]))}')
-    content.append(f'export const string SWEEP_TYPE = "{ls.get("SWEEP_TYPE", _LS_DEFAULTS["SWEEP_TYPE"])}"')
-    content.append(f'export const string SWEEP_DIRECTION = "{ls.get("SWEEP_DIRECTION", _LS_DEFAULTS["SWEEP_DIRECTION"])}"')
-    content.append(f'export const float SWEEP_ZONE_TOP = {float(ls.get("SWEEP_ZONE_TOP", _LS_DEFAULTS["SWEEP_ZONE_TOP"]))}')
-    content.append(f'export const float SWEEP_ZONE_BOTTOM = {float(ls.get("SWEEP_ZONE_BOTTOM", _LS_DEFAULTS["SWEEP_ZONE_BOTTOM"]))}')
-    content.append(f'export const bool SWEEP_RECLAIM_ACTIVE = {_pine_bool(ls.get("SWEEP_RECLAIM_ACTIVE", _LS_DEFAULTS["SWEEP_RECLAIM_ACTIVE"]))}')
-    content.append(f'export const string LIQUIDITY_TAKEN_DIRECTION = "{ls.get("LIQUIDITY_TAKEN_DIRECTION", _LS_DEFAULTS["LIQUIDITY_TAKEN_DIRECTION"])}"')
-    content.append(f'export const int SWEEP_QUALITY_SCORE = {int(ls.get("SWEEP_QUALITY_SCORE", _LS_DEFAULTS["SWEEP_QUALITY_SCORE"]))}')
-
-    # ── Liquidity Pools (v5.2) ──────────────────────────────────
-    from scripts.smc_liquidity_pools import DEFAULTS as _LP_DEFAULTS
-
-    lp = enr.get("liquidity_pools") or {}
-    content.append("")
-    content.append("// ── Liquidity Pools ──")
-    content.append(f'export const float BUY_SIDE_POOL_LEVEL = {float(lp.get("BUY_SIDE_POOL_LEVEL", _LP_DEFAULTS["BUY_SIDE_POOL_LEVEL"]))}')
-    content.append(f'export const float SELL_SIDE_POOL_LEVEL = {float(lp.get("SELL_SIDE_POOL_LEVEL", _LP_DEFAULTS["SELL_SIDE_POOL_LEVEL"]))}')
-    content.append(f'export const int BUY_SIDE_POOL_STRENGTH = {int(lp.get("BUY_SIDE_POOL_STRENGTH", _LP_DEFAULTS["BUY_SIDE_POOL_STRENGTH"]))}')
-    content.append(f'export const int SELL_SIDE_POOL_STRENGTH = {int(lp.get("SELL_SIDE_POOL_STRENGTH", _LP_DEFAULTS["SELL_SIDE_POOL_STRENGTH"]))}')
-    content.append(f'export const float POOL_PROXIMITY_PCT = {float(lp.get("POOL_PROXIMITY_PCT", _LP_DEFAULTS["POOL_PROXIMITY_PCT"]))}')
-    content.append(f'export const int POOL_CLUSTER_DENSITY = {int(lp.get("POOL_CLUSTER_DENSITY", _LP_DEFAULTS["POOL_CLUSTER_DENSITY"]))}')
-    content.append(f'export const int UNTESTED_BUY_POOLS = {int(lp.get("UNTESTED_BUY_POOLS", _LP_DEFAULTS["UNTESTED_BUY_POOLS"]))}')
-    content.append(f'export const int UNTESTED_SELL_POOLS = {int(lp.get("UNTESTED_SELL_POOLS", _LP_DEFAULTS["UNTESTED_SELL_POOLS"]))}')
-    content.append(f'export const float POOL_IMBALANCE = {float(lp.get("POOL_IMBALANCE", _LP_DEFAULTS["POOL_IMBALANCE"]))}')
-    content.append(f'export const string POOL_MAGNET_DIRECTION = "{lp.get("POOL_MAGNET_DIRECTION", _LP_DEFAULTS["POOL_MAGNET_DIRECTION"])}"')
-    content.append(f'export const int POOL_QUALITY_SCORE = {int(lp.get("POOL_QUALITY_SCORE", _LP_DEFAULTS["POOL_QUALITY_SCORE"]))}')
-
-    # ── Order Blocks (v5.2) ─────────────────────────────────────
-    from scripts.smc_order_blocks import DEFAULTS as _OB_DEFAULTS
-
-    ob = enr.get("order_blocks") or {}
-    content.append("")
-    content.append("// ── Order Blocks ──")
-    content.append(f'export const float NEAREST_BULL_OB_LEVEL = {float(ob.get("NEAREST_BULL_OB_LEVEL", _OB_DEFAULTS["NEAREST_BULL_OB_LEVEL"]))}')
-    content.append(f'export const float NEAREST_BEAR_OB_LEVEL = {float(ob.get("NEAREST_BEAR_OB_LEVEL", _OB_DEFAULTS["NEAREST_BEAR_OB_LEVEL"]))}')
-    content.append(f'export const int BULL_OB_FRESHNESS = {int(ob.get("BULL_OB_FRESHNESS", _OB_DEFAULTS["BULL_OB_FRESHNESS"]))}')
-    content.append(f'export const int BEAR_OB_FRESHNESS = {int(ob.get("BEAR_OB_FRESHNESS", _OB_DEFAULTS["BEAR_OB_FRESHNESS"]))}')
-    content.append(f'export const bool BULL_OB_MITIGATED = {_pine_bool(ob.get("BULL_OB_MITIGATED", _OB_DEFAULTS["BULL_OB_MITIGATED"]))}')
-    content.append(f'export const bool BEAR_OB_MITIGATED = {_pine_bool(ob.get("BEAR_OB_MITIGATED", _OB_DEFAULTS["BEAR_OB_MITIGATED"]))}')
-    content.append(f'export const bool BULL_OB_FVG_CONFLUENCE = {_pine_bool(ob.get("BULL_OB_FVG_CONFLUENCE", _OB_DEFAULTS["BULL_OB_FVG_CONFLUENCE"]))}')
-    content.append(f'export const bool BEAR_OB_FVG_CONFLUENCE = {_pine_bool(ob.get("BEAR_OB_FVG_CONFLUENCE", _OB_DEFAULTS["BEAR_OB_FVG_CONFLUENCE"]))}')
-    content.append(f'export const int OB_DENSITY = {int(ob.get("OB_DENSITY", _OB_DEFAULTS["OB_DENSITY"]))}')
-    content.append(f'export const string OB_BIAS = "{ob.get("OB_BIAS", _OB_DEFAULTS["OB_BIAS"])}"')
-    content.append(f'export const float OB_NEAREST_DISTANCE_PCT = {float(ob.get("OB_NEAREST_DISTANCE_PCT", _OB_DEFAULTS["OB_NEAREST_DISTANCE_PCT"]))}')
-    content.append(f'export const int OB_STRENGTH_SCORE = {int(ob.get("OB_STRENGTH_SCORE", _OB_DEFAULTS["OB_STRENGTH_SCORE"]))}')
-    content.append(f'export const int OB_CONTEXT_SCORE = {int(ob.get("OB_CONTEXT_SCORE", _OB_DEFAULTS["OB_CONTEXT_SCORE"]))}')
-
-    # ── Zone Projection (v5.2) ──────────────────────────────────
-    from scripts.smc_zone_projection import DEFAULTS as _ZP_DEFAULTS
-
-    zp = enr.get("zone_projection") or {}
-    content.append("")
-    content.append("// ── Zone Projection ──")
-    content.append(f'export const float ZONE_PROJ_TARGET_BULL = {float(zp.get("ZONE_PROJ_TARGET_BULL", _ZP_DEFAULTS["ZONE_PROJ_TARGET_BULL"]))}')
-    content.append(f'export const float ZONE_PROJ_TARGET_BEAR = {float(zp.get("ZONE_PROJ_TARGET_BEAR", _ZP_DEFAULTS["ZONE_PROJ_TARGET_BEAR"]))}')
-    content.append(f'export const bool ZONE_PROJ_RETEST_EXPECTED = {_pine_bool(zp.get("ZONE_PROJ_RETEST_EXPECTED", _ZP_DEFAULTS["ZONE_PROJ_RETEST_EXPECTED"]))}')
-    content.append(f'export const string ZONE_PROJ_TRAP_RISK = "{zp.get("ZONE_PROJ_TRAP_RISK", _ZP_DEFAULTS["ZONE_PROJ_TRAP_RISK"])}"')
-    content.append(f'export const string ZONE_PROJ_SPREAD_QUALITY = "{zp.get("ZONE_PROJ_SPREAD_QUALITY", _ZP_DEFAULTS["ZONE_PROJ_SPREAD_QUALITY"])}"')
-    content.append(f'export const bool ZONE_PROJ_HTF_ALIGNED = {_pine_bool(zp.get("ZONE_PROJ_HTF_ALIGNED", _ZP_DEFAULTS["ZONE_PROJ_HTF_ALIGNED"]))}')
-    content.append(f'export const string ZONE_PROJ_BIAS = "{zp.get("ZONE_PROJ_BIAS", _ZP_DEFAULTS["ZONE_PROJ_BIAS"])}"')
-    content.append(f'export const int ZONE_PROJ_CONFIDENCE = {int(zp.get("ZONE_PROJ_CONFIDENCE", _ZP_DEFAULTS["ZONE_PROJ_CONFIDENCE"]))}')
-    content.append(f'export const int ZONE_PROJ_DECAY_BARS = {int(zp.get("ZONE_PROJ_DECAY_BARS", _ZP_DEFAULTS["ZONE_PROJ_DECAY_BARS"]))}')
-    content.append(f'export const int ZONE_PROJ_SCORE = {int(zp.get("ZONE_PROJ_SCORE", _ZP_DEFAULTS["ZONE_PROJ_SCORE"]))}')
-
-    # ── Profile Context (v5.2) ──────────────────────────────────
-    from scripts.smc_profile_context import DEFAULTS as _PC_DEFAULTS
-
-    pc = enr.get("profile_context") or {}
-    content.append("")
-    content.append("// ── Profile Context ──")
-    content.append(f'export const string PROFILE_VOLUME_NODE = "{pc.get("PROFILE_VOLUME_NODE", _PC_DEFAULTS["PROFILE_VOLUME_NODE"])}"')
-    content.append(f'export const string PROFILE_VWAP_POSITION = "{pc.get("PROFILE_VWAP_POSITION", _PC_DEFAULTS["PROFILE_VWAP_POSITION"])}"')
-    content.append(f'export const float PROFILE_VWAP_DISTANCE_PCT = {float(pc.get("PROFILE_VWAP_DISTANCE_PCT", _PC_DEFAULTS["PROFILE_VWAP_DISTANCE_PCT"]))}')
-    content.append(f'export const string PROFILE_SPREAD_REGIME = "{pc.get("PROFILE_SPREAD_REGIME", _PC_DEFAULTS["PROFILE_SPREAD_REGIME"])}"')
-    content.append(f'export const float PROFILE_AVG_SPREAD_BPS = {float(pc.get("PROFILE_AVG_SPREAD_BPS", _PC_DEFAULTS["PROFILE_AVG_SPREAD_BPS"]))}')
-    content.append(f'export const string PROFILE_SESSION_BIAS = "{pc.get("PROFILE_SESSION_BIAS", _PC_DEFAULTS["PROFILE_SESSION_BIAS"])}"')
-    content.append(f'export const float PROFILE_RTH_DOMINANCE_PCT = {float(pc.get("PROFILE_RTH_DOMINANCE_PCT", _PC_DEFAULTS["PROFILE_RTH_DOMINANCE_PCT"]))}')
-    content.append(f'export const string PROFILE_PM_QUALITY = "{pc.get("PROFILE_PM_QUALITY", _PC_DEFAULTS["PROFILE_PM_QUALITY"])}"')
-    content.append(f'export const string PROFILE_AH_QUALITY = "{pc.get("PROFILE_AH_QUALITY", _PC_DEFAULTS["PROFILE_AH_QUALITY"])}"')
-    content.append(f'export const float PROFILE_MIDDAY_EFFICIENCY = {float(pc.get("PROFILE_MIDDAY_EFFICIENCY", _PC_DEFAULTS["PROFILE_MIDDAY_EFFICIENCY"]))}')
-    content.append(f'export const float PROFILE_DECAY_HALFLIFE = {float(pc.get("PROFILE_DECAY_HALFLIFE", _PC_DEFAULTS["PROFILE_DECAY_HALFLIFE"]))}')
-    content.append(f'export const float PROFILE_CONSISTENCY = {float(pc.get("PROFILE_CONSISTENCY", _PC_DEFAULTS["PROFILE_CONSISTENCY"]))}')
-    content.append(f'export const float PROFILE_WICKINESS = {float(pc.get("PROFILE_WICKINESS", _PC_DEFAULTS["PROFILE_WICKINESS"]))}')
-    content.append(f'export const float PROFILE_CLEAN_SCORE = {float(pc.get("PROFILE_CLEAN_SCORE", _PC_DEFAULTS["PROFILE_CLEAN_SCORE"]))}')
-    content.append(f'export const float PROFILE_RECLAIM_RATE = {float(pc.get("PROFILE_RECLAIM_RATE", _PC_DEFAULTS["PROFILE_RECLAIM_RATE"]))}')
-    content.append(f'export const float PROFILE_STOP_HUNT_RATE = {float(pc.get("PROFILE_STOP_HUNT_RATE", _PC_DEFAULTS["PROFILE_STOP_HUNT_RATE"]))}')
-    content.append(f'export const string PROFILE_TICKER_GRADE = "{pc.get("PROFILE_TICKER_GRADE", _PC_DEFAULTS["PROFILE_TICKER_GRADE"])}"')
-    content.append(f'export const int PROFILE_CONTEXT_SCORE = {int(pc.get("PROFILE_CONTEXT_SCORE", _PC_DEFAULTS["PROFILE_CONTEXT_SCORE"]))}')
-
-    # ── Structure State (v5.3) ──────────────────────────────────
-    from scripts.smc_structure_state import DEFAULTS as _SS_DEFAULTS
-
-    ss = enr.get("structure_state") or {}
-    content.append("")
-    content.append("// ── Structure State ──")
-    content.append(f'export const string STRUCTURE_STATE = "{ss.get("STRUCTURE_STATE", _SS_DEFAULTS["STRUCTURE_STATE"])}"')
-    content.append(f'export const bool STRUCTURE_BULL_ACTIVE = {str(ss.get("STRUCTURE_BULL_ACTIVE", _SS_DEFAULTS["STRUCTURE_BULL_ACTIVE"])).lower()}')
-    content.append(f'export const bool STRUCTURE_BEAR_ACTIVE = {str(ss.get("STRUCTURE_BEAR_ACTIVE", _SS_DEFAULTS["STRUCTURE_BEAR_ACTIVE"])).lower()}')
-    content.append(f'export const bool CHOCH_BULL = {str(ss.get("CHOCH_BULL", _SS_DEFAULTS["CHOCH_BULL"])).lower()}')
-    content.append(f'export const bool CHOCH_BEAR = {str(ss.get("CHOCH_BEAR", _SS_DEFAULTS["CHOCH_BEAR"])).lower()}')
-    content.append(f'export const bool BOS_BULL = {str(ss.get("BOS_BULL", _SS_DEFAULTS["BOS_BULL"])).lower()}')
-    content.append(f'export const bool BOS_BEAR = {str(ss.get("BOS_BEAR", _SS_DEFAULTS["BOS_BEAR"])).lower()}')
-    content.append(f'export const string STRUCTURE_LAST_EVENT = "{ss.get("STRUCTURE_LAST_EVENT", _SS_DEFAULTS["STRUCTURE_LAST_EVENT"])}"')
-    content.append(f'export const int STRUCTURE_EVENT_AGE_BARS = {int(ss.get("STRUCTURE_EVENT_AGE_BARS", _SS_DEFAULTS["STRUCTURE_EVENT_AGE_BARS"]))}')
-    content.append(f'export const bool STRUCTURE_FRESH = {str(ss.get("STRUCTURE_FRESH", _SS_DEFAULTS["STRUCTURE_FRESH"])).lower()}')
-    content.append(f'export const float ACTIVE_SUPPORT = {float(ss.get("ACTIVE_SUPPORT", _SS_DEFAULTS["ACTIVE_SUPPORT"]))}')
-    content.append(f'export const float ACTIVE_RESISTANCE = {float(ss.get("ACTIVE_RESISTANCE", _SS_DEFAULTS["ACTIVE_RESISTANCE"]))}')
-    content.append(f'export const bool SUPPORT_ACTIVE = {str(ss.get("SUPPORT_ACTIVE", _SS_DEFAULTS["SUPPORT_ACTIVE"])).lower()}')
-    content.append(f'export const bool RESISTANCE_ACTIVE = {str(ss.get("RESISTANCE_ACTIVE", _SS_DEFAULTS["RESISTANCE_ACTIVE"])).lower()}')
-
-    # ── Imbalance Lifecycle (v5.3) ──────────────────────────────
-    from scripts.smc_imbalance_lifecycle import DEFAULTS as _IL_DEFAULTS
-
-    il = enr.get("imbalance_lifecycle") or {}
-    content.append("")
-    content.append("// ── Imbalance Lifecycle ──")
-    content.append(f'export const bool BULL_FVG_ACTIVE = {str(il.get("BULL_FVG_ACTIVE", _IL_DEFAULTS["BULL_FVG_ACTIVE"])).lower()}')
-    content.append(f'export const bool BEAR_FVG_ACTIVE = {str(il.get("BEAR_FVG_ACTIVE", _IL_DEFAULTS["BEAR_FVG_ACTIVE"])).lower()}')
-    content.append(f'export const float BULL_FVG_TOP = {float(il.get("BULL_FVG_TOP", _IL_DEFAULTS["BULL_FVG_TOP"]))}')
-    content.append(f'export const float BULL_FVG_BOTTOM = {float(il.get("BULL_FVG_BOTTOM", _IL_DEFAULTS["BULL_FVG_BOTTOM"]))}')
-    content.append(f'export const float BEAR_FVG_TOP = {float(il.get("BEAR_FVG_TOP", _IL_DEFAULTS["BEAR_FVG_TOP"]))}')
-    content.append(f'export const float BEAR_FVG_BOTTOM = {float(il.get("BEAR_FVG_BOTTOM", _IL_DEFAULTS["BEAR_FVG_BOTTOM"]))}')
-    content.append(f'export const bool BULL_FVG_PARTIAL_MITIGATION = {str(il.get("BULL_FVG_PARTIAL_MITIGATION", _IL_DEFAULTS["BULL_FVG_PARTIAL_MITIGATION"])).lower()}')
-    content.append(f'export const bool BEAR_FVG_PARTIAL_MITIGATION = {str(il.get("BEAR_FVG_PARTIAL_MITIGATION", _IL_DEFAULTS["BEAR_FVG_PARTIAL_MITIGATION"])).lower()}')
-    content.append(f'export const bool BULL_FVG_FULL_MITIGATION = {str(il.get("BULL_FVG_FULL_MITIGATION", _IL_DEFAULTS["BULL_FVG_FULL_MITIGATION"])).lower()}')
-    content.append(f'export const bool BEAR_FVG_FULL_MITIGATION = {str(il.get("BEAR_FVG_FULL_MITIGATION", _IL_DEFAULTS["BEAR_FVG_FULL_MITIGATION"])).lower()}')
-    content.append(f'export const int BULL_FVG_COUNT = {int(il.get("BULL_FVG_COUNT", _IL_DEFAULTS["BULL_FVG_COUNT"]))}')
-    content.append(f'export const int BEAR_FVG_COUNT = {int(il.get("BEAR_FVG_COUNT", _IL_DEFAULTS["BEAR_FVG_COUNT"]))}')
-    content.append(f'export const float BULL_FVG_MITIGATION_PCT = {float(il.get("BULL_FVG_MITIGATION_PCT", _IL_DEFAULTS["BULL_FVG_MITIGATION_PCT"]))}')
-    content.append(f'export const float BEAR_FVG_MITIGATION_PCT = {float(il.get("BEAR_FVG_MITIGATION_PCT", _IL_DEFAULTS["BEAR_FVG_MITIGATION_PCT"]))}')
-    content.append(f'export const bool BPR_ACTIVE = {str(il.get("BPR_ACTIVE", _IL_DEFAULTS["BPR_ACTIVE"])).lower()}')
-    content.append(f'export const string BPR_DIRECTION = "{il.get("BPR_DIRECTION", _IL_DEFAULTS["BPR_DIRECTION"])}"')
-    content.append(f'export const float BPR_TOP = {float(il.get("BPR_TOP", _IL_DEFAULTS["BPR_TOP"]))}')
-    content.append(f'export const float BPR_BOTTOM = {float(il.get("BPR_BOTTOM", _IL_DEFAULTS["BPR_BOTTOM"]))}')
-    content.append(f'export const bool LIQ_VOID_BULL_ACTIVE = {str(il.get("LIQ_VOID_BULL_ACTIVE", _IL_DEFAULTS["LIQ_VOID_BULL_ACTIVE"])).lower()}')
-    content.append(f'export const bool LIQ_VOID_BEAR_ACTIVE = {str(il.get("LIQ_VOID_BEAR_ACTIVE", _IL_DEFAULTS["LIQ_VOID_BEAR_ACTIVE"])).lower()}')
-    content.append(f'export const float LIQ_VOID_TOP = {float(il.get("LIQ_VOID_TOP", _IL_DEFAULTS["LIQ_VOID_TOP"]))}')
-    content.append(f'export const float LIQ_VOID_BOTTOM = {float(il.get("LIQ_VOID_BOTTOM", _IL_DEFAULTS["LIQ_VOID_BOTTOM"]))}')
-    content.append(f'export const string IMBALANCE_STATE = "{il.get("IMBALANCE_STATE", _IL_DEFAULTS["IMBALANCE_STATE"])}"')
-
-    # ── Session Structure (v5.3) ────────────────────────────────
-    from scripts.smc_session_structure import DEFAULTS as _SES_DEFAULTS
-
-    ses = enr.get("session_structure") or {}
-    content.append("")
-    content.append("// ── Session Structure ──")
-    content.append(f'export const float SESS_HIGH = {float(ses.get("SESS_HIGH", _SES_DEFAULTS["SESS_HIGH"]))}')
-    content.append(f'export const float SESS_LOW = {float(ses.get("SESS_LOW", _SES_DEFAULTS["SESS_LOW"]))}')
-    content.append(f'export const float SESS_OPEN_RANGE_HIGH = {float(ses.get("SESS_OPEN_RANGE_HIGH", _SES_DEFAULTS["SESS_OPEN_RANGE_HIGH"]))}')
-    content.append(f'export const float SESS_OPEN_RANGE_LOW = {float(ses.get("SESS_OPEN_RANGE_LOW", _SES_DEFAULTS["SESS_OPEN_RANGE_LOW"]))}')
-    content.append(f'export const string SESS_OPEN_RANGE_BREAK = "{ses.get("SESS_OPEN_RANGE_BREAK", _SES_DEFAULTS["SESS_OPEN_RANGE_BREAK"])}"')
-    content.append(f'export const string SESS_IMPULSE_DIR = "{ses.get("SESS_IMPULSE_DIR", _SES_DEFAULTS["SESS_IMPULSE_DIR"])}"')
-    content.append(f'export const int SESS_IMPULSE_STRENGTH = {int(ses.get("SESS_IMPULSE_STRENGTH", _SES_DEFAULTS["SESS_IMPULSE_STRENGTH"]))}')
-    content.append(f'export const int SESS_INTRA_BOS_COUNT = {int(ses.get("SESS_INTRA_BOS_COUNT", _SES_DEFAULTS["SESS_INTRA_BOS_COUNT"]))}')
-    content.append(f'export const bool SESS_INTRA_CHOCH = {str(ses.get("SESS_INTRA_CHOCH", _SES_DEFAULTS["SESS_INTRA_CHOCH"])).lower()}')
-    content.append(f'export const float SESS_PDH = {float(ses.get("SESS_PDH", _SES_DEFAULTS["SESS_PDH"]))}')
-    content.append(f'export const float SESS_PDL = {float(ses.get("SESS_PDL", _SES_DEFAULTS["SESS_PDL"]))}')
-    content.append(f'export const bool SESS_PDH_SWEPT = {str(ses.get("SESS_PDH_SWEPT", _SES_DEFAULTS["SESS_PDH_SWEPT"])).lower()}')
-    content.append(f'export const bool SESS_PDL_SWEPT = {str(ses.get("SESS_PDL_SWEPT", _SES_DEFAULTS["SESS_PDL_SWEPT"])).lower()}')
-    content.append(f'export const int SESS_STRUCT_SCORE = {int(ses.get("SESS_STRUCT_SCORE", _SES_DEFAULTS["SESS_STRUCT_SCORE"]))}')
 
     # ── Range Regime (v5.3) ─────────────────────────────────────
     from scripts.smc_range_regime import DEFAULTS as _RR_DEFAULTS
@@ -1152,17 +868,48 @@ def write_pine_library(
     content.append(f'export const bool IN_PREDICTIVE_RANGE_EXTREME = {_pine_bool(rpr.get("IN_PREDICTIVE_RANGE_EXTREME", _RPR_DEFAULTS["IN_PREDICTIVE_RANGE_EXTREME"]))}')
 
     # ── v5.5b Lean: Event Risk Light ─────────────────────────────
+    from scripts.smc_event_risk_builder import DEFAULTS as _ER_DEFAULTS
+
+    er = enr.get("event_risk") or {}
+    erl = enr.get("event_risk_light") or {}
+    event_window_state = erl.get("EVENT_WINDOW_STATE", er.get("EVENT_WINDOW_STATE", _ER_DEFAULTS["EVENT_WINDOW_STATE"]))
+    event_risk_level = erl.get("EVENT_RISK_LEVEL", er.get("EVENT_RISK_LEVEL", _ER_DEFAULTS["EVENT_RISK_LEVEL"]))
+    next_event_name = erl.get("NEXT_EVENT_NAME", er.get("NEXT_EVENT_NAME", _ER_DEFAULTS["NEXT_EVENT_NAME"]))
+    next_event_time = erl.get("NEXT_EVENT_TIME", er.get("NEXT_EVENT_TIME", _ER_DEFAULTS["NEXT_EVENT_TIME"]))
+    market_event_blocked = erl.get("MARKET_EVENT_BLOCKED", er.get("MARKET_EVENT_BLOCKED", _ER_DEFAULTS["MARKET_EVENT_BLOCKED"]))
+    symbol_event_blocked = erl.get("SYMBOL_EVENT_BLOCKED", er.get("SYMBOL_EVENT_BLOCKED", _ER_DEFAULTS["SYMBOL_EVENT_BLOCKED"]))
+    event_provider_status = erl.get("EVENT_PROVIDER_STATUS", er.get("EVENT_PROVIDER_STATUS", _ER_DEFAULTS["EVENT_PROVIDER_STATUS"]))
     content.append("")
     content.append("// ── Event Risk Light (v5.5b) ──")
-    content.append("// Canonical lean exports are shared with the Event Risk block above.")
+    content.append(f'export const string EVENT_WINDOW_STATE = "{event_window_state}"')
+    content.append(f'export const string EVENT_RISK_LEVEL = "{event_risk_level}"')
+    content.append(f'export const string NEXT_EVENT_NAME = "{next_event_name}"')
+    content.append(f'export const string NEXT_EVENT_TIME = "{next_event_time}"')
+    content.append(f'export const string NEXT_EVENT_IMPACT = "{er.get("NEXT_EVENT_IMPACT", _ER_DEFAULTS["NEXT_EVENT_IMPACT"])}"')
+    content.append(f'export const int EVENT_RESTRICT_BEFORE_MIN = {int(er.get("EVENT_RESTRICT_BEFORE_MIN", _ER_DEFAULTS["EVENT_RESTRICT_BEFORE_MIN"]))}')
+    content.append(f'export const int EVENT_RESTRICT_AFTER_MIN = {int(er.get("EVENT_RESTRICT_AFTER_MIN", _ER_DEFAULTS["EVENT_RESTRICT_AFTER_MIN"]))}')
+    content.append(f'export const bool EVENT_COOLDOWN_ACTIVE = {_pine_bool(er.get("EVENT_COOLDOWN_ACTIVE", _ER_DEFAULTS["EVENT_COOLDOWN_ACTIVE"]))}')
+    content.append(f'export const bool MARKET_EVENT_BLOCKED = {_pine_bool(market_event_blocked)}')
+    content.append(f'export const bool SYMBOL_EVENT_BLOCKED = {_pine_bool(symbol_event_blocked)}')
+    content.append(f'export const string EARNINGS_SOON_TICKERS = "{er.get("EARNINGS_SOON_TICKERS", _ER_DEFAULTS["EARNINGS_SOON_TICKERS"])}"')
+    content.append(f'export const string EVENT_PROVIDER_STATUS = "{event_provider_status}"')
 
     # ── v5.5b Lean: Session Context Light ────────────────────────
+    from scripts.smc_session_context_block import DEFAULTS as _SC_DEFAULTS
     from scripts.smc_session_context_light import DEFAULTS as _SCL_DEFAULTS
 
+    sc = enr.get("session_context") or {}
+    scl = enr.get("session_context_light") or {}
+    session_context = scl.get("SESSION_CONTEXT", sc.get("SESSION_CONTEXT", _SC_DEFAULTS["SESSION_CONTEXT"]))
+    in_killzone = scl.get("IN_KILLZONE", sc.get("IN_KILLZONE", _SC_DEFAULTS["IN_KILLZONE"]))
+    session_direction_bias = scl.get("SESSION_DIRECTION_BIAS", sc.get("SESSION_DIRECTION_BIAS", _SC_DEFAULTS["SESSION_DIRECTION_BIAS"]))
+    session_context_score = scl.get("SESSION_CONTEXT_SCORE", sc.get("SESSION_CONTEXT_SCORE", _SC_DEFAULTS["SESSION_CONTEXT_SCORE"]))
     content.append("")
     content.append("// ── Session Context Light (v5.5b) ──")
-    content.append("// SESSION_CONTEXT / IN_KILLZONE / SESSION_DIRECTION_BIAS / SESSION_CONTEXT_SCORE")
-    content.append("// are exported canonically from the Session Context block above.")
+    content.append(f'export const string SESSION_CONTEXT = "{session_context}"')
+    content.append(f'export const bool IN_KILLZONE = {_pine_bool(in_killzone)}')
+    content.append(f'export const string SESSION_DIRECTION_BIAS = "{session_direction_bias}"')
+    content.append(f'export const int SESSION_CONTEXT_SCORE = {int(session_context_score)}')
     content.append(f'export const string SESSION_VOLATILITY_STATE = "{scl.get("SESSION_VOLATILITY_STATE", _SCL_DEFAULTS["SESSION_VOLATILITY_STATE"])}"')
 
     # ── v5.5b Lean: Order Block Context Light ────────────────────
@@ -1191,13 +938,16 @@ def write_pine_library(
     content.append(f'export const bool FVG_INVALIDATED = {_pine_bool(fvgl.get("FVG_INVALIDATED", _FVGL_DEFAULTS["FVG_INVALIDATED"]))}')
 
     # ── v5.5b Lean: Structure State Light ────────────────────────
+    from scripts.smc_structure_state import DEFAULTS as _SS_DEFAULTS
     from scripts.smc_structure_state_light import DEFAULTS as _SSL_DEFAULTS
 
+    ss = enr.get("structure_state") or {}
     ssl = enr.get("structure_state_light") or {}
     content.append("")
     content.append("// ── Structure State Light (v5.5b) ──")
-    content.append("// STRUCTURE_LAST_EVENT / STRUCTURE_EVENT_AGE_BARS / STRUCTURE_FRESH")
-    content.append("// are exported canonically from the Structure State block above.")
+    content.append(f'export const string STRUCTURE_LAST_EVENT = "{ss.get("STRUCTURE_LAST_EVENT", _SS_DEFAULTS["STRUCTURE_LAST_EVENT"])}"')
+    content.append(f'export const int STRUCTURE_EVENT_AGE_BARS = {int(ss.get("STRUCTURE_EVENT_AGE_BARS", _SS_DEFAULTS["STRUCTURE_EVENT_AGE_BARS"]))}')
+    content.append(f'export const bool STRUCTURE_FRESH = {str(ss.get("STRUCTURE_FRESH", _SS_DEFAULTS["STRUCTURE_FRESH"])).lower()}')
     content.append(f'export const int STRUCTURE_TREND_STRENGTH = {int(ssl.get("STRUCTURE_TREND_STRENGTH", _SSL_DEFAULTS["STRUCTURE_TREND_STRENGTH"]))}')
 
     # ── v5.5b Lean: Signal Quality ───────────────────────────────

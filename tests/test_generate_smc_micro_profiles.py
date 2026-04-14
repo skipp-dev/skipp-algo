@@ -643,12 +643,12 @@ def test_defaults_always_present(tmp_path: Path) -> None:
         "VOLATILITY_MODEL_SOURCE", "VOLATILITY_FALLBACK_REASON",
         "VOLATILITY_PROXY_SYMBOL", "VOLATILITY_PROXY_SOURCE",
         "ENSEMBLE_QUALITY_SCORE", "ENSEMBLE_QUALITY_TIER", "ENSEMBLE_AVAILABLE_COMPONENTS",
-        # v5 event-risk fields
+        # v5 event-risk fields (lean surface — NEXT_EVENT_CLASS and HIGH_RISK_EVENT_TICKERS removed in WP-LF5)
         "EVENT_WINDOW_STATE", "EVENT_RISK_LEVEL",
-        "NEXT_EVENT_CLASS", "NEXT_EVENT_NAME", "NEXT_EVENT_TIME", "NEXT_EVENT_IMPACT",
+        "NEXT_EVENT_NAME", "NEXT_EVENT_TIME", "NEXT_EVENT_IMPACT",
         "EVENT_RESTRICT_BEFORE_MIN", "EVENT_RESTRICT_AFTER_MIN",
         "EVENT_COOLDOWN_ACTIVE", "MARKET_EVENT_BLOCKED", "SYMBOL_EVENT_BLOCKED",
-        "EARNINGS_SOON_TICKERS", "HIGH_RISK_EVENT_TICKERS", "EVENT_PROVIDER_STATUS",
+        "EARNINGS_SOON_TICKERS", "EVENT_PROVIDER_STATUS",
     ]
     for field in required_fields:
         assert field in text, f"Missing field: {field}"
@@ -724,13 +724,12 @@ def test_manifest_declares_v55a(tmp_path: Path) -> None:
 
 
 def test_write_library_event_risk_defaults(tmp_path: Path) -> None:
-    """Without event_risk enrichment, all 14 fields fall back to safe defaults."""
+    """Without event_risk enrichment, all 12 kept fields fall back to safe defaults."""
     out = tmp_path / "lib.pine"
     write_pine_library(out, _EMPTY_LISTS, "2026-03-28", 5)
     text = out.read_text(encoding="utf-8")
     assert 'EVENT_WINDOW_STATE = "CLEAR"' in text
     assert 'EVENT_RISK_LEVEL = "NONE"' in text
-    assert 'NEXT_EVENT_CLASS = ""' in text
     assert 'NEXT_EVENT_NAME = ""' in text
     assert 'NEXT_EVENT_TIME = ""' in text
     assert 'NEXT_EVENT_IMPACT = "NONE"' in text
@@ -740,8 +739,10 @@ def test_write_library_event_risk_defaults(tmp_path: Path) -> None:
     assert "MARKET_EVENT_BLOCKED = false" in text
     assert "SYMBOL_EVENT_BLOCKED = false" in text
     assert 'EARNINGS_SOON_TICKERS = ""' in text
-    assert 'HIGH_RISK_EVENT_TICKERS = ""' in text
     assert 'EVENT_PROVIDER_STATUS = "ok"' in text
+    # NEXT_EVENT_CLASS and HIGH_RISK_EVENT_TICKERS removed in WP-LF5
+    assert "NEXT_EVENT_CLASS" not in text
+    assert "HIGH_RISK_EVENT_TICKERS" not in text
 
 
 def test_write_library_active_macro_block(tmp_path: Path) -> None:
@@ -751,7 +752,6 @@ def test_write_library_active_macro_block(tmp_path: Path) -> None:
         "event_risk": {
             "EVENT_WINDOW_STATE": "ACTIVE",
             "EVENT_RISK_LEVEL": "HIGH",
-            "NEXT_EVENT_CLASS": "MACRO",
             "NEXT_EVENT_NAME": "FOMC Rate Decision",
             "NEXT_EVENT_TIME": "14:00",
             "NEXT_EVENT_IMPACT": "HIGH",
@@ -761,7 +761,6 @@ def test_write_library_active_macro_block(tmp_path: Path) -> None:
             "MARKET_EVENT_BLOCKED": True,
             "SYMBOL_EVENT_BLOCKED": False,
             "EARNINGS_SOON_TICKERS": "",
-            "HIGH_RISK_EVENT_TICKERS": "",
             "EVENT_PROVIDER_STATUS": "ok",
         },
     }
@@ -769,7 +768,6 @@ def test_write_library_active_macro_block(tmp_path: Path) -> None:
     text = out.read_text(encoding="utf-8")
     assert 'EVENT_WINDOW_STATE = "ACTIVE"' in text
     assert 'EVENT_RISK_LEVEL = "HIGH"' in text
-    assert 'NEXT_EVENT_CLASS = "MACRO"' in text
     assert 'NEXT_EVENT_NAME = "FOMC Rate Decision"' in text
     assert 'NEXT_EVENT_TIME = "14:00"' in text
     assert 'NEXT_EVENT_IMPACT = "HIGH"' in text
@@ -786,7 +784,6 @@ def test_write_library_symbol_event_block(tmp_path: Path) -> None:
         "event_risk": {
             "EVENT_WINDOW_STATE": "CLEAR",
             "EVENT_RISK_LEVEL": "ELEVATED",
-            "NEXT_EVENT_CLASS": "EARNINGS",
             "NEXT_EVENT_NAME": "Earnings",
             "NEXT_EVENT_TIME": "",
             "NEXT_EVENT_IMPACT": "MEDIUM",
@@ -796,18 +793,15 @@ def test_write_library_symbol_event_block(tmp_path: Path) -> None:
             "MARKET_EVENT_BLOCKED": False,
             "SYMBOL_EVENT_BLOCKED": True,
             "EARNINGS_SOON_TICKERS": "AAPL,MSFT,TSLA",
-            "HIGH_RISK_EVENT_TICKERS": "AAPL,MSFT,TSLA",
             "EVENT_PROVIDER_STATUS": "ok",
         },
     }
     write_pine_library(out, _EMPTY_LISTS, "2026-03-28", 5, enrichment=enrichment)
     text = out.read_text(encoding="utf-8")
-    assert 'NEXT_EVENT_CLASS = "EARNINGS"' in text
     assert 'NEXT_EVENT_IMPACT = "MEDIUM"' in text
     assert "MARKET_EVENT_BLOCKED = false" in text
     assert "SYMBOL_EVENT_BLOCKED = true" in text
     assert 'EARNINGS_SOON_TICKERS = "AAPL,MSFT,TSLA"' in text
-    assert 'HIGH_RISK_EVENT_TICKERS = "AAPL,MSFT,TSLA"' in text
 
 
 def test_manifest_event_risk_provenance(tmp_path: Path) -> None:

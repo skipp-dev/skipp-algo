@@ -289,7 +289,7 @@ def test_product_cut_payload_exports_governance_metadata() -> None:
     assert payload['deprecatedFieldPolicy']['mode'] == 'compatibility_only'
     assert payload['deprecatedFieldPolicy']['preferredFieldVersion'] == 'v5.5b'
     assert payload['deprecatedFieldPolicy']['extensionAllowed'] is False
-    assert 'event_risk_v5' in payload['deprecatedFieldPolicy']['deprecatedGroups']
+    assert payload['deprecatedFieldPolicy']['deprecatedGroups'] == []
 
 
 def test_product_cut_payload_exports_validation_evidence_pack() -> None:
