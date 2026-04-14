@@ -37,6 +37,8 @@ _MARKET_PE_FORWARD_FALLBACK_SYMBOLS: tuple[str, ...] = (
     "QQQ",
     "DIA",
     "^GSPC",
+    "AAPL",
+    "MSFT",
 )
 _DIRECT_FORWARD_PE_FIELDS: tuple[str, ...] = (
     "forwardPE",
@@ -238,6 +240,16 @@ class SMCFMPClient:
             return []
         return list(data) if isinstance(data, list) else []
 
+    def get_key_metrics_ttm(self, symbol: str) -> list[dict[str, Any]]:
+        requested_symbol = str(symbol).strip().upper()
+        if not requested_symbol:
+            return []
+        try:
+            data = self._get("/stable/key-metrics-ttm", {"symbol": requested_symbol})
+        except RuntimeError:
+            return []
+        return list(data) if isinstance(data, list) else []
+
     def get_market_pe_forward(self, symbol: str | None = None) -> float | None:
         requested_symbol = str(symbol or _MARKET_PE_FORWARD_SYMBOL).strip().upper() or _MARKET_PE_FORWARD_SYMBOL
         candidate_symbols: list[str] = []
@@ -275,6 +287,8 @@ class SMCFMPClient:
                 profile = self.get_company_profile(candidate_symbol)
                 ratios_rows = self.get_ratios_ttm(candidate_symbol)
                 ratios = dict(ratios_rows[0]) if ratios_rows and isinstance(ratios_rows[0], dict) else {}
+                key_metrics_rows = self.get_key_metrics_ttm(candidate_symbol)
+                key_metrics = dict(key_metrics_rows[0]) if key_metrics_rows and isinstance(key_metrics_rows[0], dict) else {}
                 analyst_estimates = self.get_analyst_estimates(candidate_symbol, period="quarter", limit=4)
             except Exception as exc:
                 diagnostics["status"] = "error"
@@ -304,6 +318,7 @@ class SMCFMPClient:
                             _coerce_finite_float(quote.get(field_name)),
                             _coerce_finite_float(profile.get(field_name)),
                             _coerce_finite_float(ratios.get(field_name)),
+                            _coerce_finite_float(key_metrics.get(field_name)),
                         )
                         if numeric is not None and numeric > 0
                     ),
@@ -345,6 +360,7 @@ class SMCFMPClient:
                             _coerce_finite_float(quote.get(field_name)),
                             _coerce_finite_float(profile.get(field_name)),
                             _coerce_finite_float(ratios.get(field_name)),
+                            _coerce_finite_float(key_metrics.get(field_name)),
                         )
                         if numeric is not None and numeric > 0
                     ),

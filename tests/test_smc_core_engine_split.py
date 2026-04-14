@@ -180,7 +180,8 @@ def test_core_engine_uses_signal_quality_as_primary_gate() -> None:
 def test_core_engine_has_no_dashboard_or_alert_transport_layer() -> None:
     source = _read_core_source()
 
-    assert 'alertcondition(' not in source
+    # Static alertcondition() calls are allowed (WP-A2 MVP), but dynamic
+    # alert infrastructure must remain absent.
     assert 'dynamic_alert_seen_keys' not in source
     assert 'emit_long_dynamic_alerts(' not in source
     assert 'emit_bullish_dynamic_alerts(' not in source

@@ -55,6 +55,10 @@ class TestSMCFMPClientInterface:
         c = SMCFMPClient(api_key="test")
         assert callable(c.get_market_pe_forward)
 
+    def test_has_get_key_metrics_ttm(self):
+        c = SMCFMPClient(api_key="test")
+        assert callable(c.get_key_metrics_ttm)
+
     def test_default_retry_and_timeout(self):
         c = SMCFMPClient(api_key="k")
         assert c.retry_attempts == 2
@@ -292,6 +296,7 @@ class TestErrorPaths:
             patch.object(c, "get_index_quote", side_effect=_quote),
             patch.object(c, "get_company_profile", side_effect=_profile),
             patch.object(c, "get_ratios_ttm", return_value=[]),
+            patch.object(c, "get_key_metrics_ttm", return_value=[]),
             patch.object(c, "get_analyst_estimates", return_value=[]),
         ):
             value = c.get_market_pe_forward()
@@ -301,6 +306,54 @@ class TestErrorPaths:
         assert c._last_market_pe_forward_diagnostics["source_category"] == "direct_forward"
         assert c._last_market_pe_forward_diagnostics["source_symbol"] == "IVV"
         assert c._last_market_pe_forward_diagnostics["attempted_symbols"][:2] == ["SPY", "IVV"]
+
+    def test_get_market_pe_forward_uses_key_metrics_ttm(self):
+        """key_metrics_ttm provides PE when quote/profile/ratios have none."""
+        c = SMCFMPClient(api_key="k")
+
+        with (
+            patch.object(c, "get_index_quote", return_value={"price": 500.0}),
+            patch.object(c, "get_company_profile", return_value={"price": 500.0}),
+            patch.object(c, "get_ratios_ttm", return_value=[{}]),
+            patch.object(c, "get_key_metrics_ttm", return_value=[{"peRatioTTM": 22.5}]),
+            patch.object(c, "get_analyst_estimates", return_value=[]),
+        ):
+            value = c.get_market_pe_forward()
+
+        assert value == pytest.approx(22.5)
+        assert c._last_market_pe_forward_diagnostics["status"] == "ok"
+        assert c._last_market_pe_forward_diagnostics["source_category"] == "approximate_ttm"
+        assert c._last_market_pe_forward_diagnostics["field"] == "peRatioTTM"
+
+    def test_get_market_pe_forward_reaches_stock_symbols(self):
+        """When all ETF symbols fail, AAPL/MSFT are tried as stock fallbacks."""
+        c = SMCFMPClient(api_key="k")
+
+        calls: list[str] = []
+
+        def _quote(symbol: str) -> dict[str, Any]:
+            calls.append(symbol)
+            if symbol == "AAPL":
+                return {"price": 200.0}
+            return {"price": 100.0}
+
+        def _profile(symbol: str) -> dict[str, Any]:
+            if symbol == "AAPL":
+                return {"forwardPE": 31.0, "price": 200.0}
+            return {"price": 100.0}
+
+        with (
+            patch.object(c, "get_index_quote", side_effect=_quote),
+            patch.object(c, "get_company_profile", side_effect=_profile),
+            patch.object(c, "get_ratios_ttm", return_value=[{}]),
+            patch.object(c, "get_key_metrics_ttm", return_value=[{}]),
+            patch.object(c, "get_analyst_estimates", return_value=[]),
+        ):
+            value = c.get_market_pe_forward()
+
+        assert value == pytest.approx(31.0)
+        assert "AAPL" in calls
+        assert c._last_market_pe_forward_diagnostics["source_symbol"] == "AAPL"
 
     @patch("scripts.smc_fmp_client.urlopen")
     def test_get_index_quote_returns_empty_on_error(self, mock_urlopen):
