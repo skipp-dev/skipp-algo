@@ -22,6 +22,7 @@ def test_core_has_decision_first_hero_contract() -> None:
     assert "var g_ltf = '6. Advanced - Lower Timeframe'" in source
     assert "resolve_core_product_state(" in source
     assert "resolve_trust_tier(" in source
+    assert "resolve_core_provider_state(" in source
     assert "compose_core_hero_text(" in source
     assert "var label core_hero_card = na" in source
     assert "compact_mode = input.bool(true, 'Focus View'" in source
@@ -32,8 +33,12 @@ def test_core_has_decision_first_hero_contract() -> None:
     assert "performance_mode = input.string('Balanced', 'Performance Mode', options = ['Light', 'Balanced', 'Pro', 'Debug'], group = g_runtime" in source
     assert 'Focus View' in source
     assert 'Confidence: ' in source
+    assert 'Trust: ' in source
+    assert 'Provider: ' in source
+    assert 'Main blocker: ' in source
     assert "why_now := 'Trigger is live'" in source
     assert "string core_main_risk = compose_main_risk_text(core_product_state, event_risk_state" in source
+    assert "string core_provider_state = resolve_core_provider_state(lib_erl_provider_status)" in source
     assert "bool core_plan_visible = (long_ready_state or long_entry_best_state or long_entry_strict_state)" in source
     assert "plot(core_plan_visible ? long_state.trigger : na, 'Core Trigger'" in source
     assert "plot(core_plan_visible ? long_state.invalidation_level : na, 'Core Invalidation'" in source
@@ -53,7 +58,8 @@ def test_dashboard_has_companion_summary_and_pro_diagnostics() -> None:
     assert 'dashboard_row(smc_dashboard, 1, "Structure"' in source
     assert 'dashboard_row(smc_dashboard, 2, "Session / Market"' in source
     assert 'dashboard_row(smc_dashboard, 3, "Event Risk"' in source
-    assert 'dashboard_row(smc_dashboard, 4, "Data Quality"' in source
+    assert 'dashboard_compact_trust_text(' in source
+    assert 'dashboard_row(smc_dashboard, 4, "Trust / Data"' in source
     assert 'dashboard_row(smc_dashboard, 5, "Short-term Pressure"' in source
     assert 'dashboard_row(smc_dashboard, 6, "Risk Plan"' in source
     assert 'dashboard_row(smc_dashboard, 1, "Action"' not in source

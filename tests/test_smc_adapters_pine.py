@@ -70,3 +70,21 @@ def test_pine_adapter_only_projects_snapshot_data() -> None:
     payload = snapshot_to_pine_payload(snapshot)
     assert payload["orderblocks"][0]["id"] == snapshot.structure.orderblocks[0].id
     assert payload["orderblocks"][0]["style"]["reason_codes"] == list(snapshot.layered.zone_styles["ob:1"].reason_codes)
+
+
+def test_pine_projects_optional_trust_summary() -> None:
+    trust_summary = {
+        "trust_state": "thin",
+        "provider_state": "degraded",
+        "main_blocker": "Missing meta domains: technical",
+        "measurement_status": "available",
+        "measurement_events": 1,
+        "structure_state": "partial",
+        "structure_missing_categories": ["fvg"],
+        "missing_domains": ["technical"],
+        "stale_domains": [],
+    }
+
+    payload = snapshot_to_pine_payload(_snapshot(), trust_summary=trust_summary)
+
+    assert payload["trust_summary"] == trust_summary

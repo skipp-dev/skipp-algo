@@ -2376,6 +2376,23 @@ resolve_trust_tier(string signal_quality_tier, string signal_freshness, string p
         trust_tier := trust_tier == 'Strong' ? 'Usable' : 'Provisional'
     trust_tier
 
+resolve_core_provider_state(string provider_status) =>
+    string provider_text = 'Degraded'
+    string provider_status_norm = str.lower(provider_status)
+    if provider_status_norm == 'ok'
+        provider_text := 'OK'
+    else if provider_status_norm == 'calendar_missing'
+        provider_text := 'Calendar missing'
+    else if provider_status_norm == 'news_missing'
+        provider_text := 'News missing'
+    else if provider_status_norm == 'no_data'
+        provider_text := 'No data'
+    else if provider_status_norm == ''
+        provider_text := 'Unknown'
+    else
+        provider_text := provider_status
+    provider_text
+
 resolve_core_bias_text(string signal_bias_alignment) =>
     string bias_text = 'Mixed'
     if signal_bias_alignment == 'bull'
@@ -2452,8 +2469,8 @@ resolve_core_hero_color(string product_state) =>
         hero_color := color.new(color.red, 60)
     hero_color
 
-compose_core_hero_text(string product_state, string bias_text, string trade_threshold_text, string why_now, string main_risk) =>
-    'Action: ' + product_state + '\nBias: ' + bias_text + '\nConfidence: ' + trade_threshold_text + '\nWhy now: ' + why_now + '\nMain risk: ' + main_risk
+compose_core_hero_text(string product_state, string bias_text, string trade_threshold_text, string trust_tier, string provider_state, string why_now, string main_risk) =>
+    'Action: ' + product_state + '\nBias: ' + bias_text + '\nConfidence: ' + trade_threshold_text + '\nTrust: ' + trust_tier + '\nProvider: ' + provider_state + '\nWhy now: ' + why_now + '\nMain blocker: ' + main_risk
 
 resolve_core_alert_action_name(string event_name) =>
     string action_name = 'WAIT'
@@ -6061,10 +6078,11 @@ if barstate.islast and compact_mode
     string core_product_state = resolve_core_product_state(long_visual_state)
     string core_bias_text = resolve_core_bias_text(lib_sq_bias_alignment)
     string core_trust_tier = resolve_trust_tier(lib_sq_tier, lib_sq_freshness, lib_erl_provider_status)
+    string core_provider_state = resolve_core_provider_state(lib_erl_provider_status)
     string core_trade_threshold = compose_trade_threshold_text(core_trust_tier, lib_sq_score)
     string core_why_now = compose_why_now_text(core_product_state, long_setup_source_display, lib_sq_freshness, lib_sq_warnings, long_ready_blocker_text, long_strict_blocker_text, long_state.trigger)
     string core_main_risk = compose_main_risk_text(core_product_state, event_risk_state, long_ready_blocker_text, long_strict_blocker_text, long_state.last_invalid_source, lib_sq_warnings, lib_erl_provider_status)
-    string core_hero_text = compose_core_hero_text(core_product_state, core_bias_text, core_trade_threshold, core_why_now, core_main_risk)
+    string core_hero_text = compose_core_hero_text(core_product_state, core_bias_text, core_trade_threshold, core_trust_tier, core_provider_state, core_why_now, core_main_risk)
     float core_hero_y = high + nz(atr, high * 0.01) * 1.15
     core_hero_card := label.new(bar_index, core_hero_y, core_hero_text, color = resolve_core_hero_color(core_product_state), textcolor = color.white, style = label.style_label_left, size = size.small)
 else if barstate.islast and not na(core_hero_card)

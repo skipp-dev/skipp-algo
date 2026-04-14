@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import math
-from typing import Any
+from typing import Any, cast
 from pathlib import Path
 
 import pandas as pd
@@ -298,24 +298,190 @@ def _resolve_source_descriptor(*, source: str, selected: Any) -> Any:
     return by_name[source_key]
 
 
+def _load_snapshot_projection_inputs(
+    symbol: str,
+    timeframe: str,
+    *,
+    source: str,
+    generated_at: float | None,
+    allow_release_reference_meta_fallback: bool = False,
+) -> dict[str, Any]:
+    selected = select_best_structure_source() if source.strip().lower() == "auto" else None
+    source_plan = discover_composite_source_plan(source=source, symbol=symbol, timeframe=timeframe)
+    structure_status = discover_structure_source_status(source=source, symbol=symbol, timeframe=timeframe)
+    product_cut = build_product_cut_manifest_payload()
+    raw_structure, structure_context = _load_structure_input_and_context(symbol, timeframe, source=source)
+    if allow_release_reference_meta_fallback:
+        raw_meta = load_raw_meta_input_composite_for_release_reference(
+            symbol,
+            timeframe,
+            source=source,
+            reference_time=generated_at,
+        )
+    else:
+        raw_meta = load_raw_meta_input_composite(
+            symbol,
+            timeframe,
+            source=source,
+            reference_time=generated_at,
+        )
+    snapshot = _build_snapshot_from_loaded_raw(raw_structure, raw_meta, generated_at=generated_at)
+    return {
+        "selected": selected,
+        "source_plan": source_plan,
+        "structure_status": structure_status,
+        "product_cut": product_cut,
+        "raw_meta": raw_meta,
+        "snapshot": snapshot,
+        "structure_context": structure_context,
+    }
+
+
+def _string_list(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    out: list[str] = []
+    for item in value:
+        text = str(item).strip()
+        if text:
+            out.append(text)
+    return out
+
+
+def _resolve_structure_state(structure_status: dict[str, Any] | None) -> str:
+    if not isinstance(structure_status, dict):
+        return "unknown"
+
+    raw_state = str(
+        structure_status.get("selected_structure_mode")
+        or structure_status.get("coverage")
+        or structure_status.get("selected")
+        or ""
+    ).strip().lower()
+    if raw_state in {"full", "partial", "none"}:
+        return raw_state
+    if raw_state in {"ok", "healthy", "ready", "available", "structure_artifact_json"}:
+        return "full"
+    if raw_state in {"missing", "unavailable", "failed"}:
+        return "none"
+
+    selected_category_coverage = structure_status.get("selected_category_coverage")
+    if isinstance(selected_category_coverage, dict) and selected_category_coverage:
+        values = [bool(value) for value in selected_category_coverage.values()]
+        if values and all(values):
+            return "full"
+        if values and any(values):
+            return "partial"
+        return "none"
+
+    return "unknown"
+
+
+def _missing_meta_domains(raw_meta: dict[str, Any]) -> list[str]:
+    missing = set(_string_list(raw_meta.get("meta_domains_missing")))
+    diagnostics = raw_meta.get("meta_domain_diagnostics")
+    if isinstance(diagnostics, dict):
+        for domain in ("volume", "technical", "news"):
+            status = str(diagnostics.get(domain) or "").strip().lower()
+            if status and status not in {"present", "synthetic_fallback"}:
+                missing.add(domain)
+    return sorted(missing)
+
+
+def _stale_meta_domains(raw_meta: dict[str, Any]) -> list[str]:
+    stale: set[str] = set()
+    diagnostics = raw_meta.get("meta_domain_diagnostics")
+    if isinstance(diagnostics, dict):
+        for domain in ("volume", "technical", "news"):
+            if diagnostics.get(f"{domain}_stale") is True:
+                stale.add(domain)
+            status = str(diagnostics.get(domain) or "").strip().lower()
+            if status == "stale":
+                stale.add(domain)
+
+    volume = raw_meta.get("volume")
+    if isinstance(volume, dict) and volume.get("stale") is True:
+        stale.add("volume")
+
+    return sorted(stale)
+
+
+def _build_trust_summary(
+    *,
+    raw_meta: dict[str, Any],
+    structure_status: dict[str, Any] | None,
+    measurement_summary: dict[str, Any],
+) -> dict[str, Any]:
+    structure_state = _resolve_structure_state(structure_status)
+    structure_missing_categories = _string_list((structure_status or {}).get("selected_missing_categories"))
+    missing_domains = _missing_meta_domains(raw_meta)
+    stale_domains = _stale_meta_domains(raw_meta)
+
+    measurement_status = str(measurement_summary.get("status") or "unavailable").strip().lower()
+    scoring = measurement_summary.get("scoring")
+    measurement_events = int(scoring.get("n_events") or 0) if isinstance(scoring, dict) else 0
+    measurement_available = bool(measurement_summary.get("measurement_evidence_present"))
+
+    provider_state = "ok"
+    if structure_state == "none":
+        provider_state = "unavailable"
+    if missing_domains or stale_domains:
+        provider_state = "degraded"
+
+    trust_state = "provisional"
+    if provider_state == "ok" and measurement_available and measurement_events > 0:
+        trust_state = "strong"
+    elif provider_state == "ok":
+        trust_state = "usable"
+    elif provider_state == "degraded" and measurement_available and measurement_events > 0:
+        trust_state = "thin"
+
+    main_blocker = "No active blocker"
+    if missing_domains:
+        main_blocker = f"Missing meta domains: {', '.join(missing_domains)}"
+    elif stale_domains:
+        main_blocker = f"Stale meta domains: {', '.join(stale_domains)}"
+    elif structure_state == "none":
+        main_blocker = "No structure source available"
+    elif measurement_status != "available":
+        main_blocker = "Measurement evidence unavailable"
+    elif measurement_events <= 0:
+        main_blocker = "No measured events yet"
+
+    return {
+        "trust_state": trust_state,
+        "provider_state": provider_state,
+        "main_blocker": main_blocker,
+        "measurement_status": measurement_status,
+        "measurement_events": measurement_events,
+        "structure_state": structure_state,
+        "structure_missing_categories": structure_missing_categories,
+        "missing_domains": missing_domains,
+        "stale_domains": stale_domains,
+    }
+
+
 def _build_projection_payloads(
     snapshot: SmcSnapshot,
     *,
     source_plan: dict[str, Any],
     structure_status: dict[str, Any],
     product_cut: dict[str, Any],
+    trust_summary: dict[str, Any] | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     dashboard_payload = snapshot_to_dashboard_payload(
         snapshot,
         source_plan=source_plan,
         structure_status=structure_status,
         product_cut=product_cut,
+        trust_summary=trust_summary,
     )
     pine_payload = snapshot_to_pine_payload(
         snapshot,
         source_plan=source_plan,
         structure_status=structure_status,
         product_cut=product_cut,
+        trust_summary=trust_summary,
     )
     return dashboard_payload, pine_payload
 
@@ -439,14 +605,13 @@ def build_snapshot_for_symbol_timeframe(
     source: str = "auto",
     generated_at: float | None = None,
 ) -> SmcSnapshot:
-    raw_structure, _ = _load_structure_input_and_context(symbol, timeframe, source=source)
-    raw_meta = load_raw_meta_input_composite(
+    inputs = _load_snapshot_projection_inputs(
         symbol,
         timeframe,
         source=source,
-        reference_time=generated_at,
+        generated_at=generated_at,
     )
-    return _build_snapshot_from_loaded_raw(raw_structure, raw_meta, generated_at=generated_at)
+    return cast(SmcSnapshot, inputs["snapshot"])
 
 
 def build_dashboard_payload_for_symbol_timeframe(
@@ -456,20 +621,23 @@ def build_dashboard_payload_for_symbol_timeframe(
     source: str = "auto",
     generated_at: float | None = None,
 ) -> dict:
-    source_plan = discover_composite_source_plan(source=source, symbol=symbol, timeframe=timeframe)
-    structure_status = discover_structure_source_status(source=source, symbol=symbol, timeframe=timeframe)
-    product_cut = build_product_cut_manifest_payload()
-    snapshot = build_snapshot_for_symbol_timeframe(
+    inputs = _load_snapshot_projection_inputs(
         symbol,
         timeframe,
         source=source,
         generated_at=generated_at,
     )
+    trust_summary = _build_trust_summary(
+        raw_meta=inputs["raw_meta"],
+        structure_status=inputs["structure_status"],
+        measurement_summary=_build_measurement_summary(symbol, timeframe),
+    )
     return snapshot_to_dashboard_payload(
-        snapshot,
-        source_plan=source_plan,
-        structure_status=structure_status,
-        product_cut=product_cut,
+        inputs["snapshot"],
+        source_plan=inputs["source_plan"],
+        structure_status=inputs["structure_status"],
+        product_cut=inputs["product_cut"],
+        trust_summary=trust_summary,
     )
 
 
@@ -480,20 +648,23 @@ def build_pine_payload_for_symbol_timeframe(
     source: str = "auto",
     generated_at: float | None = None,
 ) -> dict:
-    source_plan = discover_composite_source_plan(source=source, symbol=symbol, timeframe=timeframe)
-    structure_status = discover_structure_source_status(source=source, symbol=symbol, timeframe=timeframe)
-    product_cut = build_product_cut_manifest_payload()
-    snapshot = build_snapshot_for_symbol_timeframe(
+    inputs = _load_snapshot_projection_inputs(
         symbol,
         timeframe,
         source=source,
         generated_at=generated_at,
     )
+    trust_summary = _build_trust_summary(
+        raw_meta=inputs["raw_meta"],
+        structure_status=inputs["structure_status"],
+        measurement_summary=_build_measurement_summary(symbol, timeframe),
+    )
     return snapshot_to_pine_payload(
-        snapshot,
-        source_plan=source_plan,
-        structure_status=structure_status,
-        product_cut=product_cut,
+        inputs["snapshot"],
+        source_plan=inputs["source_plan"],
+        structure_status=inputs["structure_status"],
+        product_cut=inputs["product_cut"],
+        trust_summary=trust_summary,
     )
 
 
@@ -505,46 +676,39 @@ def build_snapshot_bundle_for_symbol_timeframe(
     generated_at: float | None = None,
     allow_release_reference_meta_fallback: bool = False,
 ) -> dict:
-    selected = select_best_structure_source() if source.strip().lower() == "auto" else None
-    composite = discover_composite_source_plan(source=source, symbol=symbol, timeframe=timeframe)
-    structure_status = discover_structure_source_status(source=source, symbol=symbol, timeframe=timeframe)
-    product_cut = build_product_cut_manifest_payload()
-    raw_structure, normalized_structure_context = _load_structure_input_and_context(symbol, timeframe, source=source)
-    if allow_release_reference_meta_fallback:
-        raw_meta = load_raw_meta_input_composite_for_release_reference(
-            symbol,
-            timeframe,
-            source=source,
-            reference_time=generated_at,
-        )
-    else:
-        raw_meta = load_raw_meta_input_composite(
-            symbol,
-            timeframe,
-            source=source,
-            reference_time=generated_at,
-        )
-    snapshot = _build_snapshot_from_loaded_raw(raw_structure, raw_meta, generated_at=generated_at)
+    inputs = _load_snapshot_projection_inputs(
+        symbol,
+        timeframe,
+        source=source,
+        generated_at=generated_at,
+        allow_release_reference_meta_fallback=allow_release_reference_meta_fallback,
+    )
+    measurement_summary = _build_measurement_summary(symbol, timeframe)
+    trust_summary = _build_trust_summary(
+        raw_meta=inputs["raw_meta"],
+        structure_status=inputs["structure_status"],
+        measurement_summary=measurement_summary,
+    )
     dashboard_payload, pine_payload = _build_projection_payloads(
-        snapshot,
-        source_plan=composite,
-        structure_status=structure_status,
-        product_cut=product_cut,
+        inputs["snapshot"],
+        source_plan=inputs["source_plan"],
+        structure_status=inputs["structure_status"],
+        product_cut=inputs["product_cut"],
+        trust_summary=trust_summary,
     )
 
-    source_descriptor = _resolve_source_descriptor(source=source, selected=selected)
-    context_payload = _build_context_payloads(symbol, timeframe, snapshot)
+    source_descriptor = _resolve_source_descriptor(source=source, selected=inputs["selected"])
+    context_payload = _build_context_payloads(symbol, timeframe, inputs["snapshot"])
 
-    structure_context = normalized_structure_context
-    measurement_summary = _build_measurement_summary(symbol, timeframe)
+    structure_context = inputs["structure_context"]
     measurement_refs = _build_measurement_refs(symbol, timeframe, measurement_summary)
 
     out = {
-        "source_plan": composite,
-        "structure_status": structure_status,
-        "product_cut": product_cut,
+        "source_plan": inputs["source_plan"],
+        "structure_status": inputs["structure_status"],
+        "product_cut": inputs["product_cut"],
         "source": source_descriptor.to_dict(),
-        "snapshot": snapshot_to_dict(snapshot, product_cut=product_cut),
+        "snapshot": snapshot_to_dict(inputs["snapshot"], product_cut=inputs["product_cut"]),
         "dashboard_payload": dashboard_payload,
         "pine_payload": pine_payload,
         **context_payload,
@@ -554,7 +718,7 @@ def build_snapshot_bundle_for_symbol_timeframe(
             context_payload=context_payload,
             measurement_summary=measurement_summary,
         ),
-        **_build_meta_delivery_payload(raw_meta),
+        **_build_meta_delivery_payload(inputs["raw_meta"]),
     }
     if structure_context is not None:
         out["structure_context"] = structure_context

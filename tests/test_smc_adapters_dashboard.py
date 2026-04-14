@@ -82,3 +82,21 @@ def test_dashboard_sorting_is_deterministic() -> None:
     marker_order = [(m["kind"], m["id"]) for m in payload["markers"]]
     assert zone_order == sorted(zone_order)
     assert marker_order == sorted(marker_order)
+
+
+def test_dashboard_projects_optional_trust_summary() -> None:
+    trust_summary = {
+        "trust_state": "usable",
+        "provider_state": "ok",
+        "main_blocker": "No active blocker",
+        "measurement_status": "available",
+        "measurement_events": 3,
+        "structure_state": "full",
+        "structure_missing_categories": [],
+        "missing_domains": [],
+        "stale_domains": [],
+    }
+
+    payload = snapshot_to_dashboard_payload(_snapshot(), trust_summary=trust_summary)
+
+    assert payload["trust_summary"] == trust_summary

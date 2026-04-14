@@ -590,6 +590,66 @@ dashboard_compact_data_quality_text(int volume_data_row_code, int micro_fresh_ro
         quality_text := "thin"
     quality_text
 
+dashboard_provider_state_text(int volume_data_row_code, int micro_fresh_row_code) =>
+    int reason_code = row_reason(volume_data_row_code)
+    int micro_state = row_status(micro_fresh_row_code)
+    string provider_text = "degraded"
+    if reason_code == 1 and (micro_state == 0 or micro_state >= 3)
+        provider_text := "ok"
+    provider_text
+
+resolve_dashboard_trust_tier(string signal_quality_tier, string signal_freshness, string provider_state) =>
+    string trust_tier = "thin"
+    if signal_quality_tier == "high" and signal_freshness == "fresh" and provider_state == "ok"
+        trust_tier := "strong"
+    else if (signal_quality_tier == "high" or signal_quality_tier == "good") and provider_state == "ok"
+        trust_tier := "usable"
+    else if signal_quality_tier == "ok"
+        trust_tier := "thin"
+    else
+        trust_tier := "provisional"
+    if provider_state != "ok" or signal_freshness == "stale"
+        trust_tier := trust_tier == "strong" ? "usable" : "provisional"
+    trust_tier
+
+dashboard_compact_main_blocker_text(int event_risk_row_code, int ready_blocker_code, int strict_blocker_code, int volume_data_row_code) =>
+    string blocker_text = "no active blocker"
+    string ready_blocker_text = decode_ready_gate_text(ready_blocker_code)
+    string strict_blocker_text = decode_strict_gate_text(strict_blocker_code)
+    string event_risk_text = decode_event_risk_text(event_risk_row_code)
+    string volume_text = decode_volume_data_text(volume_data_row_code)
+    if event_risk_text != "OK"
+        blocker_text := event_risk_text
+    else if ready_blocker_text != "Ready"
+        blocker_text := ready_blocker_text
+    else if strict_blocker_text != "Strict"
+        blocker_text := strict_blocker_text
+    else if volume_text != "OK"
+        blocker_text := volume_text
+    blocker_text
+
+dashboard_compact_trust_text(int lean_sq_row_code, int lean_freshness_row_code, int volume_data_row_code, int micro_fresh_row_code, int event_risk_row_code, int ready_blocker_code, int strict_blocker_code) =>
+    string signal_quality_tier = decode_lean_sq_text(lean_sq_row_code)
+    string signal_freshness = row_status(lean_freshness_row_code) >= 5 ? "fresh" : row_status(lean_freshness_row_code) == 3 ? "aging" : "stale"
+    string provider_state = dashboard_provider_state_text(volume_data_row_code, micro_fresh_row_code)
+    string trust_tier = resolve_dashboard_trust_tier(signal_quality_tier, signal_freshness, provider_state)
+    string main_blocker = dashboard_compact_main_blocker_text(event_risk_row_code, ready_blocker_code, strict_blocker_code, volume_data_row_code)
+    trust_tier + " | blocker: " + main_blocker + " | provider: " + provider_state
+
+dashboard_compact_trust_state(int lean_sq_row_code, int lean_freshness_row_code, int volume_data_row_code, int micro_fresh_row_code) =>
+    string signal_quality_tier = decode_lean_sq_text(lean_sq_row_code)
+    string signal_freshness = row_status(lean_freshness_row_code) >= 5 ? "fresh" : row_status(lean_freshness_row_code) == 3 ? "aging" : "stale"
+    string provider_state = dashboard_provider_state_text(volume_data_row_code, micro_fresh_row_code)
+    string trust_tier = resolve_dashboard_trust_tier(signal_quality_tier, signal_freshness, provider_state)
+    int state_code = -1
+    if trust_tier == "strong"
+        state_code := 5
+    else if trust_tier == "usable"
+        state_code := 4
+    else if trust_tier == "thin"
+        state_code := 2
+    state_code
+
 dashboard_compact_pressure_text(int ltf_delta_row_code, float ltf_volume_delta, int swing_row_code) =>
     int reason_code = row_reason(ltf_delta_row_code)
     int delta_state = row_status(ltf_delta_row_code)
@@ -1241,7 +1301,7 @@ if show_table and barstate.islast
         dashboard_row(smc_dashboard, 1, "Structure", dashboard_compact_structure_text(state_code, zone_code, lean_struct_row_code, reclaim_code), status_bg(setup_state), txt)
         dashboard_row(smc_dashboard, 2, "Session / Market", dashboard_compact_session_market_text(session_row_code, market_row_code), status_bg(dashboard_compact_session_market_state(session_row_code, market_row_code)), txt)
         dashboard_row(smc_dashboard, 3, "Event Risk", dashboard_compact_event_risk_text(event_risk_row_code), status_bg(row_status(event_risk_row_code)), txt)
-        dashboard_row(smc_dashboard, 4, "Data Quality", dashboard_compact_data_quality_text(volume_data_row_code, micro_fresh_row_code), status_bg(row_status(volume_data_row_code)), txt)
+        dashboard_row(smc_dashboard, 4, "Trust / Data", dashboard_compact_trust_text(lean_sq_row_code, lean_freshness_row_code, volume_data_row_code, micro_fresh_row_code, event_risk_row_code, ready_gate_row_code, strict_gate_row_code), status_bg(dashboard_compact_trust_state(lean_sq_row_code, lean_freshness_row_code, volume_data_row_code, micro_fresh_row_code)), txt)
         dashboard_row(smc_dashboard, 5, "Short-term Pressure", dashboard_compact_pressure_text(ltf_delta_row_code, src_ltf_volume_delta, swing_row_code), status_bg(row_status(ltf_delta_row_code)), txt)
         dashboard_row(smc_dashboard, 6, "Risk Plan", dashboard_compact_risk_plan_text(actionable_state, src_trigger, src_stop_level, src_target_1, src_target_2), status_bg(actionable_state ? 5 : 0), txt)
         table.clear(smc_dashboard, 0, 7, 1, 57)

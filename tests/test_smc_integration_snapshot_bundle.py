@@ -171,6 +171,18 @@ def test_bundle_contains_snapshot_projections_and_additive_contexts(monkeypatch)
     assert bundle["measurement_summary"]["scoring"]["calibration"]["n_events"] == 1
     assert bundle["measurement_summary"]["scoring"]["stratified_calibration"]["dimensions_present"] == ["htf_bias", "session", "vol_regime"]
     assert bundle["measurement_summary"]["scoring"]["contextual_calibration"]["dimensions_present"] == ["htf_bias", "session", "vol_regime"]
+    assert bundle["dashboard_payload"]["trust_summary"] == {
+        "trust_state": "strong",
+        "provider_state": "ok",
+        "main_blocker": "No active blocker",
+        "measurement_status": "available",
+        "measurement_events": 1,
+        "structure_state": "partial",
+        "structure_missing_categories": [],
+        "missing_domains": [],
+        "stale_domains": [],
+    }
+    assert bundle["pine_payload"]["trust_summary"] == bundle["dashboard_payload"]["trust_summary"]
     assert bundle["context_diagnostics"] == {
         "bars_available": True,
         "bar_count": 3,
@@ -357,3 +369,15 @@ def test_bundle_surfaces_domain_drop_metadata(monkeypatch) -> None:
         "technical": "domain_fields_incomplete",
         "news": "present",
     }
+    assert bundle["dashboard_payload"]["trust_summary"] == {
+        "trust_state": "provisional",
+        "provider_state": "degraded",
+        "main_blocker": "Missing meta domains: technical",
+        "measurement_status": "unavailable",
+        "measurement_events": 0,
+        "structure_state": "partial",
+        "structure_missing_categories": [],
+        "missing_domains": ["technical"],
+        "stale_domains": [],
+    }
+    assert bundle["pine_payload"]["trust_summary"] == bundle["dashboard_payload"]["trust_summary"]
