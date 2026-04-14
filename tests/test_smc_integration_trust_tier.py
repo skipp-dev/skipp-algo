@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from smc_integration.trust_tier import (
     PROVIDER_STATES,
+    QUALITY_RECOMMENDATIONS,
     TRUST_TIERS,
+    derive_quality_recommendation,
     derive_trust_summary,
     resolve_provider_state,
     resolve_trust_main_blocker,
@@ -181,6 +183,7 @@ def test_derive_trust_summary_returns_canonical_schema() -> None:
         "measurement_warning_count", "provider_health_issue_count",
         "structure_state", "structure_missing_categories",
         "missing_domains", "stale_domains",
+        "quality_recommendation", "quality_guardrail", "quality_recommendation_reason",
     }
 
 
@@ -225,3 +228,147 @@ def test_all_trust_tiers_are_reachable() -> None:
     reached.add(resolve_trust_tier(**kw))
 
     assert reached == set(TRUST_TIERS)
+
+
+# -- Quality recommendation ------------------------------------------------
+
+def test_quality_recommendations_are_bounded_constants() -> None:
+    assert QUALITY_RECOMMENDATIONS == ("trusted", "observable", "limited", "insufficient")
+
+
+def test_quality_recommendation_trusted_path() -> None:
+    rec = derive_quality_recommendation(
+        trust_state="high",
+        measurement_quality_tier="good",
+        measurement_events=5,
+        provider_state="available",
+    )
+    assert rec["recommendation"] == "trusted"
+    assert rec["guardrail"] == "full confidence"
+    assert rec["reason"] == "high_trust_quality"
+
+
+def test_quality_recommendation_observable_guarded() -> None:
+    rec = derive_quality_recommendation(
+        trust_state="guarded",
+        measurement_quality_tier="good",
+        measurement_events=5,
+        provider_state="available",
+    )
+    assert rec["recommendation"] == "observable"
+    assert rec["reason"] == "guarded_trust"
+
+
+def test_quality_recommendation_observable_maturing() -> None:
+    rec = derive_quality_recommendation(
+        trust_state="high",
+        measurement_quality_tier="ok",
+        measurement_events=5,
+        provider_state="available",
+    )
+    assert rec["recommendation"] == "observable"
+    assert rec["reason"] == "measurement_maturing"
+
+
+def test_quality_recommendation_observable_low_events() -> None:
+    rec = derive_quality_recommendation(
+        trust_state="high",
+        measurement_quality_tier="high",
+        measurement_events=2,
+        provider_state="available",
+    )
+    assert rec["recommendation"] == "observable"
+    assert rec["reason"] == "measurement_maturing"
+
+
+def test_quality_recommendation_limited_degraded_trust() -> None:
+    rec = derive_quality_recommendation(
+        trust_state="degraded",
+        measurement_quality_tier="good",
+        measurement_events=5,
+        provider_state="available",
+    )
+    assert rec["recommendation"] == "limited"
+    assert rec["guardrail"] == "limited confidence"
+
+
+def test_quality_recommendation_limited_degraded_provider() -> None:
+    rec = derive_quality_recommendation(
+        trust_state="degraded",
+        measurement_quality_tier="good",
+        measurement_events=5,
+        provider_state="degraded",
+    )
+    assert rec["recommendation"] == "limited"
+    assert rec["reason"] == "provider_degraded"
+
+
+def test_quality_recommendation_insufficient_trust() -> None:
+    rec = derive_quality_recommendation(
+        trust_state="insufficient",
+        measurement_quality_tier="good",
+        measurement_events=5,
+        provider_state="available",
+    )
+    assert rec["recommendation"] == "insufficient"
+    assert rec["reason"] == "insufficient_evidence"
+
+
+def test_quality_recommendation_insufficient_provider() -> None:
+    rec = derive_quality_recommendation(
+        trust_state="guarded",
+        measurement_quality_tier="good",
+        measurement_events=5,
+        provider_state="unavailable",
+    )
+    assert rec["recommendation"] == "insufficient"
+    assert rec["reason"] == "missing_data"
+
+
+def test_quality_recommendation_all_values_reachable() -> None:
+    """Every value in QUALITY_RECOMMENDATIONS can be reached."""
+    reached: set[str] = set()
+
+    reached.add(derive_quality_recommendation(
+        trust_state="high", measurement_quality_tier="high",
+        measurement_events=5, provider_state="available",
+    )["recommendation"])
+
+    reached.add(derive_quality_recommendation(
+        trust_state="guarded", measurement_quality_tier="good",
+        measurement_events=5, provider_state="available",
+    )["recommendation"])
+
+    reached.add(derive_quality_recommendation(
+        trust_state="degraded", measurement_quality_tier="good",
+        measurement_events=5, provider_state="available",
+    )["recommendation"])
+
+    reached.add(derive_quality_recommendation(
+        trust_state="insufficient", measurement_quality_tier="good",
+        measurement_events=5, provider_state="available",
+    )["recommendation"])
+
+    assert reached == set(QUALITY_RECOMMENDATIONS)
+
+
+def test_derive_trust_summary_includes_quality_recommendation() -> None:
+    summary = derive_trust_summary(
+        provider_state="ok",
+        structure_state="full",
+        structure_missing_categories=[],
+        missing_domains=[],
+        stale_domains=[],
+        provider_health_issue_count=0,
+        measurement_status="available",
+        measurement_available=True,
+        measurement_events=5,
+        measurement_family_count=3,
+        measurement_quality_tier="high",
+        measurement_quality_score=0.88,
+        measurement_warning_count=0,
+        measurement_warnings=[],
+    )
+    assert summary["quality_recommendation"] == "trusted"
+    assert summary["quality_guardrail"] == "full confidence"
+    assert summary["quality_recommendation_reason"] == "high_trust_quality"

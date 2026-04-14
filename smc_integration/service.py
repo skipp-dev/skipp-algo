@@ -42,6 +42,7 @@ from .repo_sources import (
     select_best_structure_source,
 )
 from .trust_tier import (
+    derive_quality_recommendation as _derive_quality_recommendation,
     derive_trust_summary,
     resolve_provider_state,
     resolve_trust_main_blocker,
@@ -557,6 +558,13 @@ def _build_trust_summary(
         measurement_warnings=measurement_warnings,
     )
 
+    quality_rec = _derive_quality_recommendation(
+        trust_state=trust_state,
+        measurement_quality_tier=measurement_quality_tier,
+        measurement_events=measurement_events,
+        provider_state=provider_state,
+    )
+
     return {
         "trust_state": trust_state,
         "provider_state": provider_state,
@@ -572,6 +580,9 @@ def _build_trust_summary(
         "structure_missing_categories": structure_missing_categories,
         "missing_domains": missing_domains,
         "stale_domains": stale_domains,
+        "quality_recommendation": quality_rec["recommendation"],
+        "quality_guardrail": quality_rec["guardrail"],
+        "quality_recommendation_reason": quality_rec["reason"],
     }
 
 
@@ -828,6 +839,7 @@ def build_snapshot_bundle_for_symbol_timeframe(
         **context_payload,
         "measurement_refs": measurement_refs,
         "measurement_summary": measurement_summary,
+        "trust_summary": trust_summary,
         "market_context": _build_market_context(
             context_payload=context_payload,
             measurement_summary=measurement_summary,

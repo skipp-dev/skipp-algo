@@ -40,6 +40,7 @@ from smc_integration.release_policy import (
 )
 from smc_integration.provider_health import run_provider_health_check
 from smc_integration.service import build_snapshot_bundle_for_symbol_timeframe
+from smc_integration.trust_tier import derive_quality_recommendation
 
 
 def _iso_utc(ts: float) -> str:
@@ -321,6 +322,7 @@ def _run_reference_bundle_gate(symbol: str, timeframe: str, generated_at: float)
             },
         }
 
+    trust_summary = bundle.get("trust_summary") or {}
     return {
         "name": "reference_bundle",
         "status": "ok",
@@ -328,6 +330,9 @@ def _run_reference_bundle_gate(symbol: str, timeframe: str, generated_at: float)
             "symbol": symbol,
             "timeframe": timeframe,
             "snapshot_keys": sorted(snapshot.keys()),
+            "quality_recommendation": trust_summary.get("quality_recommendation"),
+            "quality_guardrail": trust_summary.get("quality_guardrail"),
+            "quality_recommendation_reason": trust_summary.get("quality_recommendation_reason"),
         },
     }
 
@@ -535,6 +540,32 @@ def _run_measurement_gate(
     hard_blocking, advisory = classify_measurement_degradation_severity(measurement_degradations)
     details["hard_blocking_degradations"] = hard_blocking
     details["advisory_degradations"] = advisory
+
+    # Derive measurement-scoped quality recommendation.
+    _scoring_events = int(details.get("scoring_event_count") or 0)
+    _m_quality_tier = str(details.get("calibration", {}).get("method", "") or "").strip()
+    if _scoring_events == 0:
+        _gate_trust = "insufficient"
+        _gate_provider = "unavailable"
+        _gate_quality = "unknown"
+    elif hard_blocking:
+        _gate_trust = "degraded"
+        _gate_provider = "degraded"
+        _gate_quality = "low"
+    else:
+        _gate_trust = "guarded"
+        _gate_provider = "available"
+        _gate_quality = "ok" if _m_quality_tier else "unknown"
+    _quality_rec = derive_quality_recommendation(
+        trust_state=_gate_trust,
+        measurement_quality_tier=_gate_quality,
+        measurement_events=_scoring_events,
+        provider_state=_gate_provider,
+    )
+    details["quality_recommendation"] = _quality_rec["recommendation"]
+    details["quality_guardrail"] = _quality_rec["guardrail"]
+    details["quality_recommendation_reason"] = _quality_rec["reason"]
+
     for degradation in measurement_degradations:
         detail = str(degradation.get("detail", degradation.get("code", "measurement degradation"))).strip()
         warnings.append(detail)

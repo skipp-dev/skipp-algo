@@ -77,6 +77,9 @@ def test_trust_summary_is_high_for_clean_mature_truth() -> None:
         "structure_missing_categories": [],
         "missing_domains": [],
         "stale_domains": [],
+        "quality_recommendation": "trusted",
+        "quality_guardrail": "full confidence",
+        "quality_recommendation_reason": "high_trust_quality",
     }
 
 
@@ -137,6 +140,9 @@ _TRUST_SUMMARY_CANONICAL_KEYS = {
     "structure_missing_categories",
     "missing_domains",
     "stale_domains",
+    "quality_recommendation",
+    "quality_guardrail",
+    "quality_recommendation_reason",
 }
 
 _TRUST_STATE_VALUES = {"high", "guarded", "degraded", "insufficient"}
@@ -170,6 +176,9 @@ def test_trust_summary_values_are_bounded() -> None:
     assert isinstance(summary["structure_missing_categories"], list)
     assert isinstance(summary["missing_domains"], list)
     assert isinstance(summary["stale_domains"], list)
+    assert summary["quality_recommendation"] in {"trusted", "observable", "limited", "insufficient"}
+    assert isinstance(summary["quality_guardrail"], str)
+    assert isinstance(summary["quality_recommendation_reason"], str)
 
 
 def test_trust_summary_never_high_with_degraded_provider() -> None:

@@ -7,6 +7,7 @@ _HIGH_TRUST_MIN_FAMILIES = 2
 
 TRUST_TIERS = ("high", "guarded", "degraded", "insufficient")
 PROVIDER_STATES = ("ok", "degraded", "unavailable")
+QUALITY_RECOMMENDATIONS = ("trusted", "observable", "limited", "insufficient")
 
 
 def resolve_provider_state(
@@ -89,6 +90,45 @@ def resolve_trust_main_blocker(
     return "No active blocker"
 
 
+def derive_quality_recommendation(
+    *,
+    trust_state: str,
+    measurement_quality_tier: str,
+    measurement_events: int,
+    provider_state: str,
+) -> dict[str, Any]:
+    """Derive a compact quality recommendation from trust and measurement inputs.
+
+    Returns a dict with:
+    - recommendation: one of QUALITY_RECOMMENDATIONS
+    - guardrail: short human-readable guardrail label
+    - reason: machine-readable reason string
+    """
+    if trust_state == "insufficient" or provider_state == "unavailable":
+        return {
+            "recommendation": "insufficient",
+            "guardrail": "data insufficient",
+            "reason": "missing_data" if provider_state == "unavailable" else "insufficient_evidence",
+        }
+    if trust_state == "degraded":
+        return {
+            "recommendation": "limited",
+            "guardrail": "limited confidence",
+            "reason": "provider_degraded" if provider_state == "degraded" else "quality_limited",
+        }
+    if trust_state == "high" and measurement_quality_tier in ("good", "high") and measurement_events >= _HIGH_TRUST_MIN_EVENTS:
+        return {
+            "recommendation": "trusted",
+            "guardrail": "full confidence",
+            "reason": "high_trust_quality",
+        }
+    return {
+        "recommendation": "observable",
+        "guardrail": "observable only",
+        "reason": "guarded_trust" if trust_state == "guarded" else "measurement_maturing",
+    }
+
+
 def derive_trust_summary(
     *,
     provider_state: str,
@@ -128,10 +168,20 @@ def derive_trust_summary(
         measurement_warnings=measurement_warnings,
     )
 
+    quality_rec = derive_quality_recommendation(
+        trust_state=trust_state,
+        measurement_quality_tier=measurement_quality_tier,
+        measurement_events=measurement_events,
+        provider_state=provider_state,
+    )
+
     return {
         "trust_state": trust_state,
         "provider_state": provider_state,
         "main_blocker": main_blocker,
+        "quality_recommendation": quality_rec["recommendation"],
+        "quality_guardrail": quality_rec["guardrail"],
+        "quality_recommendation_reason": quality_rec["reason"],
         "measurement_status": measurement_status,
         "measurement_events": measurement_events,
         "measurement_family_count": measurement_family_count,
