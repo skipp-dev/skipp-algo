@@ -4,12 +4,418 @@
     "fmp_stock": 0.0,
     "fmp_press": 0.0,
     "fmp_articles": 0.0,
-    "newsapi_ai": 1776184479.0,
+    "newsapi_ai": 1776200507.0,
     "tv": 0.0,
-    "legacy_cursor": 1776184479.0
+    "legacy_cursor": 1776200507.0
   },
   "provider_state": {},
   "story_state": {
+    "4a62406215845900df5589366c4cd3ce9378da5e:5920668": {
+      "story_key": "4a62406215845900df5589366c4cd3ce9378da5e:5920668",
+      "cluster_hash": "4a62406215845900df5589366c4cd3ce9378da5e",
+      "headline": "Johnson & Johnson (JNJ) Q1 2026 Earnings Call Transcript",
+      "tickers": [
+        "JNJ"
+      ],
+      "published_ts": 1776200507.0,
+      "first_seen_ts": 1776202200.5720847,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Seeking Alpha"
+      ],
+      "url": "https://seekingalpha.com/article/4890573-johnson-and-johnson-jnj-q1-2026-earnings-call-transcript",
+      "category": "earnings",
+      "impact": 0.8,
+      "clarity": 0.8,
+      "relevance": 0.8500000000000001,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776202200.5720847
+    },
+    "5aa457367592c5bf1a4c1bd7ef008e92b1d28601:5920663": {
+      "story_key": "5aa457367592c5bf1a4c1bd7ef008e92b1d28601:5920663",
+      "cluster_hash": "5aa457367592c5bf1a4c1bd7ef008e92b1d28601",
+      "headline": "Amazon: The $200 Billion 'Risk' That Everyone Is Getting Wrong (NASDAQ:AMZN)",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_ts": 1776199143.0,
+      "first_seen_ts": 1776202200.5720847,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Seeking Alpha"
+      ],
+      "url": "https://seekingalpha.com/article/4890680-amazon-the-200-billion-risk-that-everyone-is-getting-wrong",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776202200.5720847
+    },
+    "deeb9d295a0be611ff1278c8668b0180b86bd2c8:5920653": {
+      "story_key": "deeb9d295a0be611ff1278c8668b0180b86bd2c8:5920653",
+      "cluster_hash": "deeb9d295a0be611ff1278c8668b0180b86bd2c8",
+      "headline": "Amazon: Positioning For Global Interconnectivity With Globalstar (NASDAQ:AMZN)",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_ts": 1776195930.0,
+      "first_seen_ts": 1776202200.5720847,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Seeking Alpha"
+      ],
+      "url": "https://seekingalpha.com/article/4890671-amazon-positioning-for-global-interconnectivity-with-globalstar",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776202200.5720847
+    },
+    "d276cb0eeeeaac3ab3ed60aedeca7be8e9d52e98:5920652": {
+      "story_key": "d276cb0eeeeaac3ab3ed60aedeca7be8e9d52e98:5920652",
+      "cluster_hash": "d276cb0eeeeaac3ab3ed60aedeca7be8e9d52e98",
+      "headline": "Amazon (AMZN) Stock Is Up, What You Need To Know",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_ts": 1776195723.0,
+      "first_seen_ts": 1776202200.5720847,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Yahoo! Finance"
+      ],
+      "url": "https://ca.finance.yahoo.com/news/amazon-amzn-stock-know-194203970.html",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776202200.5720847
+    },
+    "6c1e29baef4de33257b0588be82e0e58df20eb0c:5920647": {
+      "story_key": "6c1e29baef4de33257b0588be82e0e58df20eb0c:5920647",
+      "cluster_hash": "6c1e29baef4de33257b0588be82e0e58df20eb0c",
+      "headline": "Is Momentum Finally Turning For Microsoft Stock? - Microsoft (NASDAQ:MSFT)",
+      "tickers": [
+        "MSFT"
+      ],
+      "published_ts": 1776194309.0,
+      "first_seen_ts": 1776202200.5720847,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "url": "https://www.benzinga.com/trading-ideas/movers/26/04/51817084/is-momentum-finally-turning-for-microsoft-stock",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "last_seen_ts": 1776202200.5720847
+    },
+    "ba87627ae236fcb1ebdf85f11e3fecc2071badf9:5920644": {
+      "story_key": "ba87627ae236fcb1ebdf85f11e3fecc2071badf9:5920644",
+      "cluster_hash": "ba87627ae236fcb1ebdf85f11e3fecc2071badf9",
+      "headline": "JPMorgan forecasts 2026 NII ex Markets of about $95B while planning for a 5.2% G-SIB requirement in 2028 (NYSE:JPM)",
+      "tickers": [
+        "JPM"
+      ],
+      "published_ts": 1776193365.0,
+      "first_seen_ts": 1776202200.5720847,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Seeking Alpha"
+      ],
+      "url": "https://seekingalpha.com/news/4574933-jpmorgan-forecasts-2026-nii-ex-markets-of-about-95b-while-planning-for-a-5_2-percent-g-sib",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776202200.5720847
+    },
+    "31a00556b164397ec3390143cf899074c4fdd95e:5920644": {
+      "story_key": "31a00556b164397ec3390143cf899074c4fdd95e:5920644",
+      "cluster_hash": "31a00556b164397ec3390143cf899074c4fdd95e",
+      "headline": "JPMorgan Chase & Co. (JPM) Q1 2026 Earnings Call Transcript",
+      "tickers": [
+        "JPM"
+      ],
+      "published_ts": 1776193305.0,
+      "first_seen_ts": 1776202200.5720847,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Seeking Alpha"
+      ],
+      "url": "https://seekingalpha.com/article/4890572-jpmorgan-chase-and-co-jpm-q1-2026-earnings-call-transcript",
+      "category": "earnings",
+      "impact": 0.8,
+      "clarity": 0.8,
+      "relevance": 0.8500000000000001,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776202200.5720847
+    },
+    "c4ab814018833202b70d3321baaa20e957b6f39e:5920642": {
+      "story_key": "c4ab814018833202b70d3321baaa20e957b6f39e:5920642",
+      "cluster_hash": "c4ab814018833202b70d3321baaa20e957b6f39e",
+      "headline": "Microsoft will rent 30,000 Nvidia chips from Nscale in Norway deal; expands Wyoming ops (MSFT:NASDAQ)",
+      "tickers": [
+        "MSFT"
+      ],
+      "published_ts": 1776192748.0,
+      "first_seen_ts": 1776202200.5720847,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Seeking Alpha"
+      ],
+      "url": "https://seekingalpha.com/news/4574921-microsoft-will-rent-30000-nvidia-chips-from-nscale-in-norway-deal-expands-wyoming-ops",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776202200.5720847
+    },
+    "d55bffe3d7e30fb19b0a7035963b59350703ad77:5920640": {
+      "story_key": "d55bffe3d7e30fb19b0a7035963b59350703ad77:5920640",
+      "cluster_hash": "d55bffe3d7e30fb19b0a7035963b59350703ad77",
+      "headline": "Microsoft: CAPEX Spending In Focus Ahead Of Q3 (NASDAQ:MSFT)",
+      "tickers": [
+        "MSFT"
+      ],
+      "published_ts": 1776192234.0,
+      "first_seen_ts": 1776202200.5720847,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Seeking Alpha"
+      ],
+      "url": "https://seekingalpha.com/article/4890658-microsoft-capex-spending-in-focus-ahead-of-q3",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776202200.5720847
+    },
+    "256d7e65926284ccc845c9786c552a467e51deb2:5920641": {
+      "story_key": "256d7e65926284ccc845c9786c552a467e51deb2:5920641",
+      "cluster_hash": "256d7e65926284ccc845c9786c552a467e51deb2",
+      "headline": "Will Trump Greenlight Anthropic's Mythos After The Pentagon Fight? - Amazon.com (NASDAQ:AMZN)",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_ts": 1776192491.0,
+      "first_seen_ts": 1776202200.5720847,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "url": "https://www.benzinga.com/markets/private-markets/26/04/51816193/trump-greenlight-anthropics-mythos-after-the-pentagon-fight",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "last_seen_ts": 1776202200.5720847
+    },
+    "5da4cbb20f30c27661c68722dd051d73dfe44c7d:5920633": {
+      "story_key": "5da4cbb20f30c27661c68722dd051d73dfe44c7d:5920633",
+      "cluster_hash": "5da4cbb20f30c27661c68722dd051d73dfe44c7d",
+      "headline": "Plastics prices climb as supply disruptions ripple through petrochemical markets (XOM:NYSE)",
+      "tickers": [
+        "XOM"
+      ],
+      "published_ts": 1776190074.0,
+      "first_seen_ts": 1776202200.5720847,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Seeking Alpha"
+      ],
+      "url": "https://seekingalpha.com/news/4574915-plastics-prices-climb-as-supply-disruptions-ripple-through-petrochemical-markets",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776202200.5720847
+    },
+    "9a1b331b16cef6f77e34316cae9a3d331521d1e0:5920629": {
+      "story_key": "9a1b331b16cef6f77e34316cae9a3d331521d1e0:5920629",
+      "cluster_hash": "9a1b331b16cef6f77e34316cae9a3d331521d1e0",
+      "headline": "Johnson & Johnson Q2 Earnings Review: Why You Should Be Buying The Stock Today (NYSE:JNJ)",
+      "tickers": [
+        "JNJ"
+      ],
+      "published_ts": 1776188878.0,
+      "first_seen_ts": 1776202200.5720847,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Seeking Alpha"
+      ],
+      "url": "https://seekingalpha.com/article/4890640-johnson-and-johnson-q2-earnings-review-why-you-should-be-buying-stock-today",
+      "category": "earnings",
+      "impact": 0.8,
+      "clarity": 0.6,
+      "relevance": 0.79,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776202200.5720847
+    },
+    "a31e200ecbf9c57ce432e6793a0055cc7070f514:5920621": {
+      "story_key": "a31e200ecbf9c57ce432e6793a0055cc7070f514:5920621",
+      "cluster_hash": "a31e200ecbf9c57ce432e6793a0055cc7070f514",
+      "headline": "Amazon (AMZN) Stock Is Up, What You Need To Know - StockStory",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_ts": 1776186376.0,
+      "first_seen_ts": 1776202200.5720847,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "StockStory"
+      ],
+      "url": "https://stockstory.org/us/stocks/nasdaq/amzn/news/why-up-down/amazon-amzn-stock-is-up-what-you-need-to-know-3",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776202200.5720847
+    },
+    "57a6fe14456ea7cc1ff4cdc27d1c2d2ae0fe91d8:5920621": {
+      "story_key": "57a6fe14456ea7cc1ff4cdc27d1c2d2ae0fe91d8:5920621",
+      "cluster_hash": "57a6fe14456ea7cc1ff4cdc27d1c2d2ae0fe91d8",
+      "headline": "Meta (META) Stock Trades Up, Here Is Why - StockStory",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1776186355.0,
+      "first_seen_ts": 1776202200.5720847,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "StockStory"
+      ],
+      "url": "https://stockstory.org/us/stocks/nasdaq/meta/news/why-up-down/meta-meta-stock-trades-up-here-is-why-7",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776202200.5720847
+    },
     "121ba1baa8b67782aca46db78f366a741975fd7b:5920614": {
       "story_key": "121ba1baa8b67782aca46db78f366a741975fd7b:5920614",
       "cluster_hash": "121ba1baa8b67782aca46db78f366a741975fd7b",
