@@ -4,12 +4,331 @@
     "fmp_stock": 0.0,
     "fmp_press": 0.0,
     "fmp_articles": 0.0,
-    "newsapi_ai": 1776150600.0,
+    "newsapi_ai": 1776167691.0,
     "tv": 0.0,
-    "legacy_cursor": 1776150600.0
+    "legacy_cursor": 1776167691.0
   },
   "provider_state": {},
   "story_state": {
+    "741407e67fef5b822776a9ef14dbbf0979307403:5920558": {
+      "story_key": "741407e67fef5b822776a9ef14dbbf0979307403:5920558",
+      "cluster_hash": "741407e67fef5b822776a9ef14dbbf0979307403",
+      "headline": "Apple To Rally More Than 25%? Here Are 10 Top Analyst Forecasts For Tuesday - Apple (NASDAQ:AAPL), Alloge",
+      "tickers": [
+        "AAPL"
+      ],
+      "published_ts": 1776167691.0,
+      "first_seen_ts": 1776168079.5011516,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "url": "https://www.benzinga.com/analyst-stock-ratings/price-target/26/04/51799915/apple-to-rally-more-than-25-here-are-10-top-analyst-forecasts-for-tuesday",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "polarity": 0.5,
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "last_seen_ts": 1776168079.5011516
+    },
+    "80ff65a62ad5984619e2ffcdcb1993e1f678e083:5920550": {
+      "story_key": "80ff65a62ad5984619e2ffcdcb1993e1f678e083:5920550",
+      "cluster_hash": "80ff65a62ad5984619e2ffcdcb1993e1f678e083",
+      "headline": "Jpm Stock Faces a 3.87% Earnings Move as JPMorgan Prepares Q1 Report",
+      "tickers": [
+        "JPM"
+      ],
+      "published_ts": 1776165028.0,
+      "first_seen_ts": 1776168079.5011516,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "El-Balad.com"
+      ],
+      "url": "https://www.el-balad.com/16912614",
+      "category": "earnings",
+      "impact": 0.8,
+      "clarity": 0.8,
+      "relevance": 0.8500000000000001,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776168079.5011516
+    },
+    "8ebc37d76b79ccde2d249e1b289ec3811cf41475:5920546": {
+      "story_key": "8ebc37d76b79ccde2d249e1b289ec3811cf41475:5920546",
+      "cluster_hash": "8ebc37d76b79ccde2d249e1b289ec3811cf41475",
+      "headline": "J&J stock gains after Q1 beat (JNJ:NYSE)",
+      "tickers": [
+        "JNJ"
+      ],
+      "published_ts": 1776163844.0,
+      "first_seen_ts": 1776168079.5011516,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Seeking Alpha"
+      ],
+      "url": "https://seekingalpha.com/news/4574676-jj-stock-gains-after-q1-beat",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.5,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776168079.5011516
+    },
+    "8c8b56d6c13f4b83e97a46bd2a0c6c35b6bc9f3c:5920537": {
+      "story_key": "8c8b56d6c13f4b83e97a46bd2a0c6c35b6bc9f3c:5920537",
+      "cluster_hash": "8c8b56d6c13f4b83e97a46bd2a0c6c35b6bc9f3c",
+      "headline": "Amazon Nears Globalstar Deal as Goldman Cuts AMZN Stock Target to $275",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_ts": 1776161381.0,
+      "first_seen_ts": 1776168079.5011516,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Watcher Guru"
+      ],
+      "url": "https://watcher.guru/news/amazon-nears-globalstar-deal-as-goldman-cuts-amzn-stock-target-to-275",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "polarity": -0.5,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776168079.5011516
+    },
+    "fc56b27efbcbea5a69c871eeb1af5636e736e6b9:5920535": {
+      "story_key": "fc56b27efbcbea5a69c871eeb1af5636e736e6b9:5920535",
+      "cluster_hash": "fc56b27efbcbea5a69c871eeb1af5636e736e6b9",
+      "headline": "Competitor Analysis: Evaluating Microsoft And Competitors In Software Industry - Microsoft (NASDAQ:MSFT)",
+      "tickers": [
+        "MSFT"
+      ],
+      "published_ts": 1776160744.0,
+      "first_seen_ts": 1776168079.5011516,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "url": "https://www.benzinga.com/insights/news/26/04/51797442/competitor-analysis-evaluating-microsoft-and-competitors-in-software-industry",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.45543478260869563,
+      "polarity": 0.0,
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "last_seen_ts": 1776168079.5011516
+    },
+    "6b5625ece56c9d1d833614d621e79402dce56bd2:5920535": {
+      "story_key": "6b5625ece56c9d1d833614d621e79402dce56bd2:5920535",
+      "cluster_hash": "6b5625ece56c9d1d833614d621e79402dce56bd2",
+      "headline": "Performance Comparison: Amazon.com And Competitors In Broadline Retail Industry - Amazon.com (NASDAQ:AMZN",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_ts": 1776160718.0,
+      "first_seen_ts": 1776168079.5011516,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "url": "https://www.benzinga.com/insights/news/26/04/51797425/performance-comparison-amazon-com-and-competitors-in-broadline-retail-industry",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "last_seen_ts": 1776168079.5011516
+    },
+    "879f3797367a34440f656be5656d4518924049c5:5920533": {
+      "story_key": "879f3797367a34440f656be5656d4518924049c5:5920533",
+      "cluster_hash": "879f3797367a34440f656be5656d4518924049c5",
+      "headline": "JPM flags volatility in UK internet stocks; highlights preferred picks By Investing.com",
+      "tickers": [
+        "JPM"
+      ],
+      "published_ts": 1776159968.0,
+      "first_seen_ts": 1776168079.5011516,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Investing.com"
+      ],
+      "url": "https://www.investing.com/news/stock-market-news/jpm-flags-volatility-in-uk-internet-stocks-highlights-preferred-picks-4612067",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776168079.5011516
+    },
+    "234c6fd69e5735c2dfca898a37f0ffb15aed321a:5920532": {
+      "story_key": "234c6fd69e5735c2dfca898a37f0ffb15aed321a:5920532",
+      "cluster_hash": "234c6fd69e5735c2dfca898a37f0ffb15aed321a",
+      "headline": "What's Going On With Apple Stock Tuesday? - Apple (NASDAQ:AAPL), Alphabet (NASDAQ:GOOGL)",
+      "tickers": [
+        "AAPL"
+      ],
+      "published_ts": 1776159777.0,
+      "first_seen_ts": 1776168079.5011516,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "url": "https://www.benzinga.com/analyst-stock-ratings/analyst-color/26/04/51797325/apples-foldable-iphone-is-coming-for-everyone-samsung-motorola-google-beware",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "last_seen_ts": 1776168079.5011516
+    },
+    "e1cd4d4f1a1078d6f674a8125a943866e9738841:5920522": {
+      "story_key": "e1cd4d4f1a1078d6f674a8125a943866e9738841:5920522",
+      "cluster_hash": "e1cd4d4f1a1078d6f674a8125a943866e9738841",
+      "headline": "'Amazon Nears Deal for Globalstar in Push to Rival Musk's Starlink' - Bloomberg - Amazon.com (NASDAQ:AMZN",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_ts": 1776156891.0,
+      "first_seen_ts": 1776168079.5011516,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "url": "https://www.benzinga.com/news/26/04/51795834/amazon-nears-deal-for-globalstar-in-push-to-rival-musks-starlink-bloomberg",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "last_seen_ts": 1776168079.5011516
+    },
+    "e95b533f50456b081796a2a78b8a0808df7b5c36:5920520": {
+      "story_key": "e95b533f50456b081796a2a78b8a0808df7b5c36:5920520",
+      "cluster_hash": "e95b533f50456b081796a2a78b8a0808df7b5c36",
+      "headline": "Amazon (AMZN) Nears Acquisition of Globalstar (GSAT) in Satellite Push - Blockonomi",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_ts": 1776156183.0,
+      "first_seen_ts": 1776168079.5011516,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Blockonomi"
+      ],
+      "url": "https://blockonomi.com/amazon-amzn-nears-acquisition-of-globalstar-gsat-in-satellite-push/",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776168079.5011516
+    },
+    "34c75fae3c6706c158bd6bf8aae38e4f48d4902b:5920517": {
+      "story_key": "34c75fae3c6706c158bd6bf8aae38e4f48d4902b:5920517",
+      "cluster_hash": "34c75fae3c6706c158bd6bf8aae38e4f48d4902b",
+      "headline": "Philips elevates Zora to META region CEO",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1776155198.0,
+      "first_seen_ts": 1776168079.5011516,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "ITWeb Africa"
+      ],
+      "url": "https://itweb.africa/article/philips-elevates-zora-to-meta-region-ceo/P3gQ2qGA5Jy7nRD1",
+      "category": "management",
+      "impact": 0.6,
+      "clarity": 0.6,
+      "relevance": 0.7000000000000001,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776168079.5011516
+    },
     "d1598ee485753531c0229c788e47e842abc35400:5920477": {
       "story_key": "d1598ee485753531c0229c788e47e842abc35400:5920477",
       "cluster_hash": "d1598ee485753531c0229c788e47e842abc35400",
