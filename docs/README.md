@@ -2,6 +2,10 @@
 
 This index anchors the current producer/consumer contract documentation for the SMC split.
 
+Start here for the canonical mainline setup path:
+
+- [smc-mainline-setup-runbook.md](smc-mainline-setup-runbook.md)
+
 Use these files as the starting point before changing the split architecture or the bus contract:
 
 - [smc-lite-pro-product-cut.md](smc-lite-pro-product-cut.md)

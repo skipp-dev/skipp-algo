@@ -73,3 +73,19 @@ def test_core_bus_docs_match_manifest_counts() -> None:
     assert_contains(RUNTIME_BUDGET_PATH, f'The active dashboard now reads all {DASHBOARD_COUNT} producer channels')
     assert_contains(PRODUCT_CUT_PATH, f'den vollen {ENGINE_COUNT}-Kanal-BUS-Contract')
     assert_contains(PRODUCT_CUT_PATH, f'Das aktive Dashboard nutzt derzeit den kompletten {ENGINE_COUNT}-Kanal-Producer-Vertrag.')
+
+
+SETUP_RUNBOOK_PATH = ROOT / 'docs' / 'smc-mainline-setup-runbook.md'
+
+
+def test_mainline_setup_runbook_matches_manifest_counts() -> None:
+    assert_contains(SETUP_RUNBOOK_PATH, f'all {DASHBOARD_COUNT} `input.source(...)` channels **top-to-bottom**')
+    assert_contains(SETUP_RUNBOOK_PATH, f'all {STRATEGY_COUNT} `input.source(...)` channels **top-to-bottom**')
+    assert_contains(SETUP_RUNBOOK_PATH, f'fewer than {DASHBOARD_COUNT}')
+    assert_contains(SETUP_RUNBOOK_PATH, f'fewer than {STRATEGY_COUNT}')
+
+
+def test_mainline_setup_runbook_references_canonical_sources() -> None:
+    assert_contains(SETUP_RUNBOOK_PATH, 'smc_bus_manifest.py')
+    assert_contains(SETUP_RUNBOOK_PATH, 'smc_product_cut_manifest.json')
+    assert_contains(SETUP_RUNBOOK_PATH, 'npm run tv:preflight:smc-mainline')

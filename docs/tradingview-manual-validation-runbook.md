@@ -2,6 +2,12 @@
 
 English companion: [tradingview-manual-validation-runbook_EN.md](tradingview-manual-validation-runbook_EN.md)
 
+> **Ersteinrichtung:** Fuer den kanonischen Setup-Pfad (Core + Dashboard +
+> Strategy zum ersten Mal auf einen Chart legen und binden) siehe
+> [smc-mainline-setup-runbook.md](smc-mainline-setup-runbook.md). Dieses
+> Runbook ist fuer die manuelle Laufzeitvalidierung nach bereits erfolgtem
+> Setup.
+
 ## Ziel
 
 Dieses Runbook dient der externen manuellen TradingView-Laufzeitvalidierung des aktuellen Split-Stands.

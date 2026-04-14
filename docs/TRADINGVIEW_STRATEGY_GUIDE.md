@@ -5,6 +5,10 @@
 This guide documents `SMC_Long_Strategy.pine` as the `SMC Execution` surface of
 the active SMC TradingView mainline.
 
+For the complete step-by-step setup of all three mainline surfaces (Core +
+Dashboard + Strategy), see
+[smc-mainline-setup-runbook.md](smc-mainline-setup-runbook.md).
+
 The active mainline is:
 
 1. [../SMC_Core_Engine.pine](../SMC_Core_Engine.pine) as the only active

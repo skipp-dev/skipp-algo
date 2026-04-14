@@ -6,6 +6,11 @@ Released
 
 ## Zweck
 
+> **Setup-Einstieg:** Fuer den kanonischen Mainline-Setup-Pfad (Core + Dashboard
+> + Strategy) siehe
+> [smc-mainline-setup-runbook.md](smc-mainline-setup-runbook.md). Dieses
+> Dokument behandelt die R1.1-spezifische Migrationslogik und Operatorregeln.
+
 Dieses Dokument haertet die erste Decision-First-Auslieferung fuer R1.1.
 
 Es deckt drei operative Themen ab:

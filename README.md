@@ -69,6 +69,7 @@ The latest fully green SMC mainline evidence is `automation/tradingview/reports/
 
 Product-cut reference docs:
 
+- `docs/smc-mainline-setup-runbook.md` — canonical setup path for Core + Dashboard + Strategy
 - `docs/smc-lite-pro-product-cut.md`
 - `docs/TRADINGVIEW_STRATEGY_GUIDE.md`
 - `docs/smc-validation-status.md`
