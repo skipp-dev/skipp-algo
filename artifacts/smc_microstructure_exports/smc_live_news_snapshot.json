@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-04-14T14:08:11.511646Z",
+  "generated_at": "2026-04-14T15:39:05.078721Z",
   "symbols": [
     "AAPL",
     "MSFT",
@@ -81,7 +81,7 @@
       ],
       "published_at": "2026-04-14T11:10:28Z",
       "published_ts": 1776165028.0,
-      "age_minutes": 177.7,
+      "age_minutes": 268.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -102,10 +102,10 @@
       "impact": 0.8,
       "clarity": 0.8,
       "relevance": 0.85,
-      "news_catalyst_score": 0.5212,
-      "materiality": "MEDIUM",
+      "news_catalyst_score": 0.4375,
+      "materiality": "LOW",
       "recency_bucket": "AGING",
-      "is_actionable": true,
+      "is_actionable": false,
       "url": "https://www.el-balad.com/16912614",
       "first_seen_at": "2026-04-14T12:01:19.501152Z",
       "is_new": false,
@@ -119,7 +119,7 @@
       ],
       "published_at": "2026-04-13T20:13:36Z",
       "published_ts": 1776111216.0,
-      "age_minutes": 1074.6,
+      "age_minutes": 1165.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -157,7 +157,7 @@
       ],
       "published_at": "2026-04-13T16:01:30Z",
       "published_ts": 1776096090.0,
-      "age_minutes": 1326.7,
+      "age_minutes": 1417.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -195,7 +195,7 @@
       ],
       "published_at": "2026-04-14T02:16:46Z",
       "published_ts": 1776133006.0,
-      "age_minutes": 711.4,
+      "age_minutes": 802.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -233,7 +233,7 @@
       ],
       "published_at": "2026-04-14T02:15:59Z",
       "published_ts": 1776132959.0,
-      "age_minutes": 712.2,
+      "age_minutes": 803.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -271,7 +271,7 @@
       ],
       "published_at": "2026-04-14T08:26:38Z",
       "published_ts": 1776155198.0,
-      "age_minutes": 341.6,
+      "age_minutes": 432.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -309,7 +309,7 @@
       ],
       "published_at": "2026-04-14T11:54:51Z",
       "published_ts": 1776167691.0,
-      "age_minutes": 133.3,
+      "age_minutes": 224.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -330,7 +330,7 @@
       "impact": 0.1,
       "clarity": 0.8,
       "relevance": 0.535,
-      "news_catalyst_score": 0.2946,
+      "news_catalyst_score": 0.2571,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
@@ -347,7 +347,7 @@
       ],
       "published_at": "2026-04-13T20:05:00Z",
       "published_ts": 1776110700.0,
-      "age_minutes": 1083.2,
+      "age_minutes": 1174.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -385,7 +385,7 @@
       ],
       "published_at": "2026-04-13T17:35:17Z",
       "published_ts": 1776101717.0,
-      "age_minutes": 1232.9,
+      "age_minutes": 1323.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -416,44 +416,6 @@
       "provider_count": 1
     },
     {
-      "story_key": "8c8b56d6c13f4b83e97a46bd2a0c6c35b6bc9f3c:5920537",
-      "headline": "Amazon Nears Globalstar Deal as Goldman Cuts AMZN Stock Target to $275",
-      "tickers": [
-        "AMZN"
-      ],
-      "published_at": "2026-04-14T10:09:41Z",
-      "published_ts": 1776161381.0,
-      "age_minutes": 238.5,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Watcher Guru"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Amazon Nears Globalstar Deal as Goldman Cuts AMZN Stock Target to $275",
-      "sentiment_label": "bearish",
-      "polarity": -0.5,
-      "impact": 0.1,
-      "clarity": 0.8,
-      "relevance": 0.535,
-      "news_catalyst_score": 0.2186,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://watcher.guru/news/amazon-nears-globalstar-deal-as-goldman-cuts-amzn-stock-target-to-275",
-      "first_seen_at": "2026-04-14T12:01:19.501152Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
       "story_key": "6b5625ece56c9d1d833614d621e79402dce56bd2:5920535",
       "headline": "Performance Comparison: Amazon.com And Competitors In Broadline Retail Industry - Amazon.com (NASDAQ:AMZN",
       "tickers": [
@@ -461,7 +423,7 @@
       ],
       "published_at": "2026-04-14T09:58:38Z",
       "published_ts": 1776160718.0,
-      "age_minutes": 249.6,
+      "age_minutes": 340.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -482,49 +444,11 @@
       "impact": 0.1,
       "clarity": 0.6,
       "relevance": 0.475,
-      "news_catalyst_score": 0.2169,
+      "news_catalyst_score": 0.1946,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
       "url": "https://www.benzinga.com/insights/news/26/04/51797425/performance-comparison-amazon-com-and-competitors-in-broadline-retail-industry",
-      "first_seen_at": "2026-04-14T12:01:19.501152Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "fc56b27efbcbea5a69c871eeb1af5636e736e6b9:5920535",
-      "headline": "Competitor Analysis: Evaluating Microsoft And Competitors In Software Industry - Microsoft (NASDAQ:MSFT)",
-      "tickers": [
-        "MSFT"
-      ],
-      "published_at": "2026-04-14T09:59:04Z",
-      "published_ts": 1776160744.0,
-      "age_minutes": 249.1,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Benzinga"
-      ],
-      "source_tier": "TIER_2",
-      "source_rank": 2,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Competitor Analysis: Evaluating Microsoft And Competitors In Software Industry - Microsoft (NASDAQ:MSFT)",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.4554,
-      "news_catalyst_score": 0.2141,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.benzinga.com/insights/news/26/04/51797442/competitor-analysis-evaluating-microsoft-and-competitors-in-software-industry",
       "first_seen_at": "2026-04-14T12:01:19.501152Z",
       "is_new": false,
       "provider_count": 1
@@ -537,7 +461,7 @@
       ],
       "published_at": "2026-04-14T09:42:57Z",
       "published_ts": 1776159777.0,
-      "age_minutes": 265.2,
+      "age_minutes": 356.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -558,49 +482,11 @@
       "impact": 0.1,
       "clarity": 0.6,
       "relevance": 0.475,
-      "news_catalyst_score": 0.2099,
+      "news_catalyst_score": 0.1946,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
       "url": "https://www.benzinga.com/analyst-stock-ratings/analyst-color/26/04/51797325/apples-foldable-iphone-is-coming-for-everyone-samsung-motorola-google-beware",
-      "first_seen_at": "2026-04-14T12:01:19.501152Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "8ebc37d76b79ccde2d249e1b289ec3811cf41475:5920546",
-      "headline": "J&J stock gains after Q1 beat (JNJ:NYSE)",
-      "tickers": [
-        "JNJ"
-      ],
-      "published_at": "2026-04-14T10:50:44Z",
-      "published_ts": 1776163844.0,
-      "age_minutes": 197.5,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Seeking Alpha"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "J&J stock gains after Q1 beat (JNJ:NYSE)",
-      "sentiment_label": "bullish",
-      "polarity": 0.5,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.206,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://seekingalpha.com/news/4574676-jj-stock-gains-after-q1-beat",
       "first_seen_at": "2026-04-14T12:01:19.501152Z",
       "is_new": false,
       "provider_count": 1
@@ -613,7 +499,7 @@
       ],
       "published_at": "2026-04-14T08:54:51Z",
       "published_ts": 1776156891.0,
-      "age_minutes": 313.3,
+      "age_minutes": 404.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -651,7 +537,7 @@
       ],
       "published_at": "2026-04-13T18:40:49Z",
       "published_ts": 1776105649.0,
-      "age_minutes": 1167.4,
+      "age_minutes": 1258.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -689,7 +575,7 @@
       ],
       "published_at": "2026-04-13T17:54:00Z",
       "published_ts": 1776102840.0,
-      "age_minutes": 1214.2,
+      "age_minutes": 1305.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -720,6 +606,82 @@
       "provider_count": 1
     },
     {
+      "story_key": "fc56b27efbcbea5a69c871eeb1af5636e736e6b9:5920535",
+      "headline": "Competitor Analysis: Evaluating Microsoft And Competitors In Software Industry - Microsoft (NASDAQ:MSFT)",
+      "tickers": [
+        "MSFT"
+      ],
+      "published_at": "2026-04-14T09:59:04Z",
+      "published_ts": 1776160744.0,
+      "age_minutes": 340.0,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Competitor Analysis: Evaluating Microsoft And Competitors In Software Industry - Microsoft (NASDAQ:MSFT)",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.4554,
+      "news_catalyst_score": 0.1919,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://www.benzinga.com/insights/news/26/04/51797442/competitor-analysis-evaluating-microsoft-and-competitors-in-software-industry",
+      "first_seen_at": "2026-04-14T12:01:19.501152Z",
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
+      "story_key": "8c8b56d6c13f4b83e97a46bd2a0c6c35b6bc9f3c:5920537",
+      "headline": "Amazon Nears Globalstar Deal as Goldman Cuts AMZN Stock Target to $275",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_at": "2026-04-14T10:09:41Z",
+      "published_ts": 1776161381.0,
+      "age_minutes": 329.4,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Watcher Guru"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Amazon Nears Globalstar Deal as Goldman Cuts AMZN Stock Target to $275",
+      "sentiment_label": "bearish",
+      "polarity": -0.5,
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "news_catalyst_score": 0.1918,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://watcher.guru/news/amazon-nears-globalstar-deal-as-goldman-cuts-amzn-stock-target-to-275",
+      "first_seen_at": "2026-04-14T12:01:19.501152Z",
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
       "story_key": "4d55bb3deb88a01b26a2ee1f168c3570681bc098:5920380",
       "headline": "Nasdaq Composite Closes Positive; Microsoft (MSFT) Jumps 3.6%; IBM Closes 3 Percent Higher",
       "tickers": [
@@ -727,7 +689,7 @@
       ],
       "published_at": "2026-04-13T21:03:28Z",
       "published_ts": 1776114208.0,
-      "age_minutes": 1024.7,
+      "age_minutes": 1115.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -765,7 +727,7 @@
       ],
       "published_at": "2026-04-13T16:55:59Z",
       "published_ts": 1776099359.0,
-      "age_minutes": 1272.2,
+      "age_minutes": 1363.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -796,14 +758,14 @@
       "provider_count": 1
     },
     {
-      "story_key": "9033f8df8a943cec67f6c3c13193b4167a624ab0:5920305",
-      "headline": "Apple (AAPL) Smart Glasses Design Revealed: Taking on Meta in 2027 - Blockonomi",
+      "story_key": "8ebc37d76b79ccde2d249e1b289ec3811cf41475:5920546",
+      "headline": "J&J stock gains after Q1 beat (JNJ:NYSE)",
       "tickers": [
-        "AAPL"
+        "JNJ"
       ],
-      "published_at": "2026-04-13T14:47:31Z",
-      "published_ts": 1776091651.0,
-      "age_minutes": 1400.7,
+      "published_at": "2026-04-14T10:50:44Z",
+      "published_ts": 1776163844.0,
+      "age_minutes": 288.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -812,24 +774,24 @@
         "newsapi_ai"
       ],
       "sources": [
-        "Blockonomi"
+        "Seeking Alpha"
       ],
       "source_tier": "TIER_3",
       "source_rank": 3,
       "category": "other",
       "event_class": "UNKNOWN",
-      "event_label": "Apple (AAPL) Smart Glasses Design Revealed: Taking on Meta in 2027 - Blockonomi",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
+      "event_label": "J&J stock gains after Q1 beat (JNJ:NYSE)",
+      "sentiment_label": "bullish",
+      "polarity": 0.5,
       "impact": 0.1,
-      "clarity": 0.8,
-      "relevance": 0.535,
-      "news_catalyst_score": 0.1918,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.1715,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
-      "url": "https://blockonomi.com/apple-aapl-smart-glasses-design-revealed-taking-on-meta-in-2027/",
-      "first_seen_at": "2026-04-13T18:42:15.460400Z",
+      "url": "https://seekingalpha.com/news/4574676-jj-stock-gains-after-q1-beat",
+      "first_seen_at": "2026-04-14T12:01:19.501152Z",
       "is_new": false,
       "provider_count": 1
     },
@@ -841,7 +803,7 @@
       ],
       "published_at": "2026-04-14T09:46:08Z",
       "published_ts": 1776159968.0,
-      "age_minutes": 262.1,
+      "age_minutes": 353.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -862,7 +824,7 @@
       "impact": 0.1,
       "clarity": 0.6,
       "relevance": 0.475,
-      "news_catalyst_score": 0.1815,
+      "news_catalyst_score": 0.1671,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
@@ -879,7 +841,7 @@
       ],
       "published_at": "2026-04-14T08:43:03Z",
       "published_ts": 1776156183.0,
-      "age_minutes": 325.1,
+      "age_minutes": 416.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -917,7 +879,7 @@
       ],
       "published_at": "2026-04-14T07:10:00Z",
       "published_ts": 1776150600.0,
-      "age_minutes": 418.2,
+      "age_minutes": 509.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -955,7 +917,7 @@
       ],
       "published_at": "2026-04-14T06:15:14Z",
       "published_ts": 1776147314.0,
-      "age_minutes": 473.0,
+      "age_minutes": 563.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -993,7 +955,7 @@
       ],
       "published_at": "2026-04-14T05:08:01Z",
       "published_ts": 1776143281.0,
-      "age_minutes": 540.2,
+      "age_minutes": 631.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1031,7 +993,7 @@
       ],
       "published_at": "2026-04-14T02:17:31Z",
       "published_ts": 1776133051.0,
-      "age_minutes": 710.7,
+      "age_minutes": 801.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1069,7 +1031,7 @@
       ],
       "published_at": "2026-04-13T18:56:04Z",
       "published_ts": 1776106564.0,
-      "age_minutes": 1152.1,
+      "age_minutes": 1243.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1107,7 +1069,7 @@
       ],
       "published_at": "2026-04-13T18:48:38Z",
       "published_ts": 1776106118.0,
-      "age_minutes": 1159.6,
+      "age_minutes": 1250.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1145,7 +1107,7 @@
       ],
       "published_at": "2026-04-13T18:46:11Z",
       "published_ts": 1776105971.0,
-      "age_minutes": 1162.0,
+      "age_minutes": 1252.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1183,7 +1145,7 @@
       ],
       "published_at": "2026-04-13T17:38:46Z",
       "published_ts": 1776101926.0,
-      "age_minutes": 1229.4,
+      "age_minutes": 1320.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1221,7 +1183,7 @@
       ],
       "published_at": "2026-04-13T15:46:05Z",
       "published_ts": 1776095165.0,
-      "age_minutes": 1342.1,
+      "age_minutes": 1433.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1254,33 +1216,33 @@
   ],
   "news_catalyst_by_symbol": {
     "AAPL": {
-      "news_catalyst_score": 0.5157,
-      "sentiment_label": "neutral",
+      "news_catalyst_score": 0.4857,
+      "sentiment_label": "bullish",
       "event_class": "CRYPTO",
       "event_label": "Crypto's Second Chance At ETFs: Why Tokenization May Win Where Binance Failed - Apple (NASDAQ:AAPL), NVID",
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "source_tier": "TIER_2",
-      "mentions_24h": 5,
+      "mentions_24h": 4,
       "is_actionable": false,
       "first_provider": "newsapi_ai",
       "story_key": "91cd03cb353d2895dac75c0c99af57e6d10ff023:5920320"
     },
     "AMZN": {
-      "news_catalyst_score": 0.3386,
+      "news_catalyst_score": 0.3146,
       "sentiment_label": "neutral",
       "event_class": "UNKNOWN",
-      "event_label": "Amazon Nears Globalstar Deal as Goldman Cuts AMZN Stock Target to $275",
+      "event_label": "Performance Comparison: Amazon.com And Competitors In Broadline Retail Industry - Amazon.com (NASDAQ:AMZN",
       "materiality": "LOW",
       "recency_bucket": "AGING",
-      "source_tier": "TIER_3",
+      "source_tier": "TIER_2",
       "mentions_24h": 10,
       "is_actionable": false,
       "first_provider": "newsapi_ai",
-      "story_key": "8c8b56d6c13f4b83e97a46bd2a0c6c35b6bc9f3c:5920537"
+      "story_key": "6b5625ece56c9d1d833614d621e79402dce56bd2:5920535"
     },
     "JNJ": {
-      "news_catalyst_score": 0.206,
+      "news_catalyst_score": 0.1715,
       "sentiment_label": "bullish",
       "event_class": "UNKNOWN",
       "event_label": "J&J stock gains after Q1 beat (JNJ:NYSE)",
@@ -1293,15 +1255,15 @@
       "story_key": "8ebc37d76b79ccde2d249e1b289ec3811cf41475:5920546"
     },
     "JPM": {
-      "news_catalyst_score": 0.5812,
+      "news_catalyst_score": 0.4975,
       "sentiment_label": "neutral",
       "event_class": "EARNINGS",
       "event_label": "Jpm Stock Faces a 3.87% Earnings Move as JPMorgan Prepares Q1 Report",
-      "materiality": "MEDIUM",
+      "materiality": "LOW",
       "recency_bucket": "AGING",
       "source_tier": "TIER_3",
       "mentions_24h": 3,
-      "is_actionable": true,
+      "is_actionable": false,
       "first_provider": "newsapi_ai",
       "story_key": "80ff65a62ad5984619e2ffcdcb1993e1f678e083:5920550"
     },
@@ -1333,12 +1295,10 @@
     }
   },
   "summary": {
-    "active_story_count": 31,
+    "active_story_count": 30,
     "new_story_count": 0,
-    "actionable_story_count": 1,
-    "actionable_symbols": [
-      "JPM"
-    ],
+    "actionable_story_count": 0,
+    "actionable_symbols": [],
     "symbol_count": 6
   },
   "symbol_scope": {
