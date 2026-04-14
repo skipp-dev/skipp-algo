@@ -105,9 +105,30 @@ class TestEdgeCases:
             "macro_bias",
             "macro_bias_raw",
             "macro_bias_pe_adjustment",
+            "macro_bias_yield_curve_adjustment",
             "market_pe_forward",
             "market_pe_regime",
             "sector_breadth",
+            "yield_curve_inverted",
             "reasons",
         }
         assert isinstance(result["reasons"], list)
+
+
+class TestYieldCurveIntegration:
+
+    def test_inverted_yield_shifts_bias_negative(self) -> None:
+        result = classify_market_regime(vix_level=20.0, macro_bias=0.3, yield_curve_inverted=True)
+        assert result["yield_curve_inverted"] is True
+        assert result["macro_bias_yield_curve_adjustment"] == -0.2
+        assert result["macro_bias"] < 0.3
+
+    def test_normal_yield_no_shift(self) -> None:
+        result = classify_market_regime(vix_level=20.0, macro_bias=0.3, yield_curve_inverted=False)
+        assert result["yield_curve_inverted"] is False
+        assert result["macro_bias_yield_curve_adjustment"] == 0.0
+
+    def test_inverted_yield_can_trigger_risk_off(self) -> None:
+        result = classify_market_regime(vix_level=28.0, macro_bias=-0.1, yield_curve_inverted=True)
+        assert result["regime"] == "RISK_OFF"
+        assert any("yield" in r.lower() for r in result["reasons"])

@@ -211,3 +211,35 @@ export const string SIGNAL_QUALITY_TIER = "low"
 export const string SIGNAL_WARNINGS = ""
 export const string SIGNAL_BIAS_ALIGNMENT = "neutral"
 export const string SIGNAL_FRESHNESS = "stale"
+
+// ── Short Interest ──
+export const string SHORT_SQUEEZE_RISK_TICKERS = ""
+export const string HIGH_SHORT_INTEREST_TICKERS = ""
+export const float MARKET_SHORT_INTEREST_AVG = 0.0
+export const bool SHORT_INTEREST_EXTREME = false
+
+// ── Treasury / Yield Curve ──
+export const float TREASURY_10Y_YIELD = 0.0
+export const float TREASURY_2Y_YIELD = 0.0
+export const float YIELD_CURVE_SPREAD = 0.0
+export const bool YIELD_CURVE_INVERTED = false
+
+// ── Sector Rotation ──
+export const string SECTOR_LEADING = ""
+export const string SECTOR_LAGGING = ""
+export const string SECTOR_STRONGEST = ""
+export const string SECTOR_WEAKEST = ""
+
+// ── Institutional Accumulation ──
+export const string INSTITUTIONAL_ACCUMULATION_TICKERS = ""
+export const string INSTITUTIONAL_DISTRIBUTION_TICKERS = ""
+export const bool INSTITUTIONAL_DATA_AVAILABLE = false
+
+// ── Analyst Consensus ──
+export const string ANALYST_STRONG_BUY_TICKERS = ""
+export const string ANALYST_UNDERPERFORM_TICKERS = ""
+export const string ANALYST_HIGH_UPSIDE_TICKERS = ""
+
+// ── Insider Transactions ──
+export const string INSIDER_BUYING_TICKERS = ""
+export const string INSIDER_SELLING_HEAVY_TICKERS = ""

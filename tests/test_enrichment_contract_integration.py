@@ -195,6 +195,38 @@ def _full_enrichment() -> EnrichmentDict:
         "imbalance_lifecycle": {},
         "session_structure": {},
         "range_regime": {},
+        "short_interest": {
+            "short_squeeze_risk_tickers": ["GME"],
+            "high_short_interest_tickers": ["GME", "AMC"],
+            "market_short_interest_avg": 4.2,
+            "short_interest_extreme": False,
+        },
+        "treasury": {
+            "treasury_10y_yield": 4.25,
+            "treasury_2y_yield": 4.80,
+            "yield_curve_spread": -0.55,
+            "yield_curve_inverted": True,
+        },
+        "sector_rotation": {
+            "sector_leading": ["Technology", "Healthcare"],
+            "sector_lagging": ["Energy", "Utilities"],
+            "sector_strongest": "Technology",
+            "sector_weakest": "Energy",
+        },
+        "institutional": {
+            "institutional_accumulation_tickers": ["AAPL"],
+            "institutional_distribution_tickers": ["TSLA"],
+            "institutional_data_available": True,
+        },
+        "analyst": {
+            "analyst_strong_buy_tickers": ["AAPL"],
+            "analyst_underperform_tickers": [],
+            "analyst_high_upside_tickers": ["META"],
+        },
+        "insider": {
+            "insider_buying_tickers": ["AAPL"],
+            "insider_selling_heavy_tickers": [],
+        },
         "meta": {
             "asof_time": "2026-03-28T14:30:00Z",
             "refresh_count": 5,

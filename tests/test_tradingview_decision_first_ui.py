@@ -177,7 +177,7 @@ def test_hero_card_explains_regime_override() -> None:
     source = _read("SMC_Core_Engine.pine")
 
     func_start = source.index("compose_core_hero_text(")
-    func_body = source[func_start:func_start + 800]
+    func_body = source[func_start:func_start + 2000]
 
     # The function must accept regime parameters
     assert "market_regime" in func_body
@@ -231,7 +231,7 @@ def test_hero_card_trust_line_includes_suffix() -> None:
     source = _read("SMC_Core_Engine.pine")
 
     func_start = source.index("compose_core_hero_text(")
-    func_body = source[func_start:func_start + 800]
+    func_body = source[func_start:func_start + 2000]
 
     # Function must accept trust_suffix parameter
     assert "trust_suffix" in func_body
@@ -277,7 +277,7 @@ def test_hero_card_shows_asof_time() -> None:
     source = _read("SMC_Core_Engine.pine")
 
     func_start = source.index("compose_core_hero_text(")
-    func_body = source[func_start:func_start + 1200]
+    func_body = source[func_start:func_start + 2000]
 
     assert "asof_display" in func_body
     assert "Data: " in func_body
@@ -308,7 +308,7 @@ def test_hero_card_shows_vix_tone_market() -> None:
     source = _read("SMC_Core_Engine.pine")
 
     hero_fn_idx = source.index("compose_core_hero_text(")
-    hero_fn_block = source[hero_fn_idx:hero_fn_idx + 1200]
+    hero_fn_block = source[hero_fn_idx:hero_fn_idx + 2000]
     assert "VIX: " in hero_fn_block
     assert "Tone: " in hero_fn_block
     assert "Market: " in hero_fn_block

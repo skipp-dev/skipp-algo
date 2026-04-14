@@ -967,6 +967,56 @@ def write_pine_library(
     content.append(f'export const string SIGNAL_BIAS_ALIGNMENT = "{sq.get("SIGNAL_BIAS_ALIGNMENT", _SQ_DEFAULTS["SIGNAL_BIAS_ALIGNMENT"])}"')
     content.append(f'export const string SIGNAL_FRESHNESS = "{sq.get("SIGNAL_FRESHNESS", _SQ_DEFAULTS["SIGNAL_FRESHNESS"])}"')
 
+    # ── Short Interest (v6) ─────────────────────────────────────
+    si = enr.get("short_interest") or {}
+    content.append("")
+    content.append("// ── Short Interest ──")
+    content.append(f'export const string SHORT_SQUEEZE_RISK_TICKERS = "{",".join(si.get("short_squeeze_risk_tickers") or [])}"')
+    content.append(f'export const string HIGH_SHORT_INTEREST_TICKERS = "{",".join(si.get("high_short_interest_tickers") or [])}"')
+    content.append(f'export const float MARKET_SHORT_INTEREST_AVG = {float(si.get("market_short_interest_avg") or 0.0)}')
+    content.append(f'export const bool SHORT_INTEREST_EXTREME = {_pine_bool(si.get("short_interest_extreme"))}')
+
+    # ── Treasury / Yield Curve (v6) ─────────────────────────────
+    tr = enr.get("treasury") or {}
+    content.append("")
+    content.append("// ── Treasury / Yield Curve ──")
+    content.append(f'export const float TREASURY_10Y_YIELD = {float(tr.get("treasury_10y_yield") or 0.0)}')
+    content.append(f'export const float TREASURY_2Y_YIELD = {float(tr.get("treasury_2y_yield") or 0.0)}')
+    content.append(f'export const float YIELD_CURVE_SPREAD = {float(tr.get("yield_curve_spread") or 0.0)}')
+    content.append(f'export const bool YIELD_CURVE_INVERTED = {_pine_bool(tr.get("yield_curve_inverted"))}')
+
+    # ── Sector Rotation (v6) ────────────────────────────────────
+    sr = enr.get("sector_rotation") or {}
+    content.append("")
+    content.append("// ── Sector Rotation ──")
+    content.append(f'export const string SECTOR_LEADING = "{",".join(sr.get("sector_leading") or [])}"')
+    content.append(f'export const string SECTOR_LAGGING = "{",".join(sr.get("sector_lagging") or [])}"')
+    content.append(f'export const string SECTOR_STRONGEST = "{sr.get("sector_strongest") or ""}"')
+    content.append(f'export const string SECTOR_WEAKEST = "{sr.get("sector_weakest") or ""}"')
+
+    # ── Institutional Accumulation (v6) ─────────────────────────
+    inst = enr.get("institutional") or {}
+    content.append("")
+    content.append("// ── Institutional Accumulation ──")
+    content.append(f'export const string INSTITUTIONAL_ACCUMULATION_TICKERS = "{",".join(inst.get("institutional_accumulation_tickers") or [])}"')
+    content.append(f'export const string INSTITUTIONAL_DISTRIBUTION_TICKERS = "{",".join(inst.get("institutional_distribution_tickers") or [])}"')
+    content.append(f'export const bool INSTITUTIONAL_DATA_AVAILABLE = {_pine_bool(inst.get("institutional_data_available"))}')
+
+    # ── Analyst Consensus (v6) ──────────────────────────────────
+    anl = enr.get("analyst") or {}
+    content.append("")
+    content.append("// ── Analyst Consensus ──")
+    content.append(f'export const string ANALYST_STRONG_BUY_TICKERS = "{",".join(anl.get("analyst_strong_buy_tickers") or [])}"')
+    content.append(f'export const string ANALYST_UNDERPERFORM_TICKERS = "{",".join(anl.get("analyst_underperform_tickers") or [])}"')
+    content.append(f'export const string ANALYST_HIGH_UPSIDE_TICKERS = "{",".join(anl.get("analyst_high_upside_tickers") or [])}"')
+
+    # ── Insider Transactions (v6) ───────────────────────────────
+    ins = enr.get("insider") or {}
+    content.append("")
+    content.append("// ── Insider Transactions ──")
+    content.append(f'export const string INSIDER_BUYING_TICKERS = "{",".join(ins.get("insider_buying_tickers") or [])}"')
+    content.append(f'export const string INSIDER_SELLING_HEAVY_TICKERS = "{",".join(ins.get("insider_selling_heavy_tickers") or [])}"')
+
     path.write_text("\n".join(content).rstrip() + "\n", encoding="utf-8")
 
 

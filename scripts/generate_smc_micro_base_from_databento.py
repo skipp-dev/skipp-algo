@@ -771,6 +771,12 @@ def build_enrichment(
     enrich_session_structure: bool = False,
     enrich_range_regime: bool = False,
     enrich_range_profile_regime: bool = False,
+    enrich_short_interest: bool = False,
+    enrich_treasury: bool = False,
+    enrich_sector_rotation: bool = False,
+    enrich_institutional: bool = False,
+    enrich_analyst: bool = False,
+    enrich_insider: bool = False,
     base_snapshot: pd.DataFrame | None = None,
     daily_bars: pd.DataFrame | None = None,
     manifest_path: Path | None = None,
@@ -807,7 +813,8 @@ def build_enrichment(
                 enrich_session_context, enrich_liquidity_sweeps, enrich_liquidity_pools,
                 enrich_order_blocks, enrich_zone_projection, enrich_profile_context,
                 enrich_structure_state, enrich_imbalance_lifecycle, enrich_session_structure, enrich_range_regime,
-                enrich_range_profile_regime]):
+                enrich_range_profile_regime, enrich_short_interest, enrich_treasury, enrich_sector_rotation,
+                enrich_institutional, enrich_analyst, enrich_insider]):
         return None
 
     from scripts.smc_provider_policy import resolve_domain
@@ -1178,6 +1185,66 @@ def build_enrichment(
             snapshot=base_snapshot, symbol="",
         )
 
+    # ── Short Interest (v6) ─────────────────────────────────────
+    if enrich_short_interest and fmp is not None:
+        try:
+            from scripts.smc_short_interest_enrichment import compute_short_interest_enrichment
+            enrichment["short_interest"] = compute_short_interest_enrichment(symbols[:50], fmp)
+        except Exception as exc:
+            logger.warning("Short interest enrichment failed", exc_info=True)
+            enrichment.setdefault("_diagnostics", {})["short_interest_error"] = str(exc)
+
+    # ── Treasury / Yield Curve (v6) ─────────────────────────────
+    if enrich_treasury and fmp is not None:
+        try:
+            yields = fmp.get_treasury_yields()
+            enrichment["treasury"] = {
+                "treasury_10y_yield": yields["10y"],
+                "treasury_2y_yield": yields["2y"],
+                "yield_curve_spread": yields["spread"],
+                "yield_curve_inverted": yields["inverted"],
+            }
+        except Exception as exc:
+            logger.warning("Treasury enrichment failed", exc_info=True)
+            enrichment.setdefault("_diagnostics", {})["treasury_error"] = str(exc)
+
+    # ── Sector Rotation Detail (v6) ─────────────────────────────
+    if enrich_sector_rotation and fmp is not None:
+        try:
+            from scripts.smc_sector_rotation_enrichment import compute_sector_rotation
+            sector_data = fmp.get_sector_performance()
+            enrichment["sector_rotation"] = compute_sector_rotation(sector_data or [])
+        except Exception as exc:
+            logger.warning("Sector rotation enrichment failed", exc_info=True)
+            enrichment.setdefault("_diagnostics", {})["sector_rotation_error"] = str(exc)
+
+    # ── Institutional Accumulation (v6) ─────────────────────────
+    if enrich_institutional and fmp is not None:
+        try:
+            from scripts.smc_institutional_enrichment import compute_institutional_enrichment
+            enrichment["institutional"] = compute_institutional_enrichment(symbols[:30], fmp)
+        except Exception as exc:
+            logger.warning("Institutional enrichment failed", exc_info=True)
+            enrichment.setdefault("_diagnostics", {})["institutional_error"] = str(exc)
+
+    # ── Analyst Consensus (v6) ──────────────────────────────────
+    if enrich_analyst and fmp is not None:
+        try:
+            from scripts.smc_analyst_enrichment import compute_analyst_enrichment
+            enrichment["analyst"] = compute_analyst_enrichment(symbols[:50], fmp)
+        except Exception as exc:
+            logger.warning("Analyst enrichment failed", exc_info=True)
+            enrichment.setdefault("_diagnostics", {})["analyst_error"] = str(exc)
+
+    # ── Insider Transactions (v6) ───────────────────────────────
+    if enrich_insider and fmp is not None:
+        try:
+            from scripts.smc_insider_enrichment import compute_insider_enrichment
+            enrichment["insider"] = compute_insider_enrichment(symbols[:30], fmp)
+        except Exception as exc:
+            logger.warning("Insider enrichment failed", exc_info=True)
+            enrichment.setdefault("_diagnostics", {})["insider_error"] = str(exc)
+
     # ── Meta ────────────────────────────────────────────────────
     prev_count = _read_previous_refresh_count(manifest_path)
     enrichment["meta"] = {
@@ -1277,6 +1344,12 @@ def finalize_pipeline(
     enrich_session_structure: bool = False,
     enrich_range_regime: bool = False,
     enrich_range_profile_regime: bool = False,
+    enrich_short_interest: bool = False,
+    enrich_treasury: bool = False,
+    enrich_sector_rotation: bool = False,
+    enrich_institutional: bool = False,
+    enrich_analyst: bool = False,
+    enrich_insider: bool = False,
     debug_mode: bool = False,
     live_news_snapshot_path: Path | None = None,
     emit_live_news_snapshot: bool = False,
@@ -1366,6 +1439,12 @@ def finalize_pipeline(
         enrich_session_structure=enrich_session_structure,
         enrich_range_regime=enrich_range_regime,
         enrich_range_profile_regime=enrich_range_profile_regime,
+        enrich_short_interest=enrich_short_interest,
+        enrich_treasury=enrich_treasury,
+        enrich_sector_rotation=enrich_sector_rotation,
+        enrich_institutional=enrich_institutional,
+        enrich_analyst=enrich_analyst,
+        enrich_insider=enrich_insider,
         base_snapshot=snapshot_df,
         daily_bars=cast(
             pd.DataFrame | None,
@@ -1503,6 +1582,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--enrich-session-structure", action="store_true", help="Add v5.3 session structure (snapshot-derived)")
     parser.add_argument("--enrich-range-regime", action="store_true", help="Add v5.3 range regime (snapshot-derived)")
     parser.add_argument("--enrich-range-profile-regime", action="store_true", help="Add v5.3 range/profile regime (snapshot-derived)")
+    parser.add_argument("--enrich-short-interest", action="store_true", help="Add v6 short interest enrichment (FMP)")
+    parser.add_argument("--enrich-treasury", action="store_true", help="Add v6 treasury / yield curve enrichment (FMP)")
+    parser.add_argument("--enrich-sector-rotation", action="store_true", help="Add v6 sector rotation detail enrichment (FMP)")
+    parser.add_argument("--enrich-institutional", action="store_true", help="Add v6 institutional accumulation enrichment (FMP)")
+    parser.add_argument("--enrich-analyst", action="store_true", help="Add v6 analyst consensus enrichment (FMP)")
+    parser.add_argument("--enrich-insider", action="store_true", help="Add v6 insider transactions enrichment (FMP)")
     parser.add_argument("--enrich-all", action="store_true", help="Enable all enrichment blocks")
     parser.add_argument("--debug", action="store_true", help="Include diagnostic fields (LOOKBACK_DAYS, UNIVERSE_ID, VOLATILITY_MODEL_SOURCE, etc.)")
     parser.add_argument("--benzinga-api-key", default=os.getenv("BENZINGA_API_KEY", ""), help="Benzinga API key for news/calendar fallback")
@@ -1610,6 +1695,12 @@ def _resolve_enrichment_flags(args: argparse.Namespace) -> dict[str, bool]:
         "enrich_session_structure",
         "enrich_range_regime",
         "enrich_range_profile_regime",
+        "enrich_short_interest",
+        "enrich_treasury",
+        "enrich_sector_rotation",
+        "enrich_institutional",
+        "enrich_analyst",
+        "enrich_insider",
     )
     if args.enrich_all:
         return {flag_name: True for flag_name in flag_names}

@@ -469,6 +469,76 @@ class SMCFMPClient:
         }
         return rows
 
+    def get_short_interest(self, symbols: list[str]) -> dict[str, float]:
+        """Fetch short interest as % of float for a list of symbols.
+
+        Uses FMP ``/stable/short-interest`` endpoint.
+        Returns ``{symbol: short_interest_pct}`` for symbols where data
+        is available.  Symbols without data are omitted.
+        """
+        result: dict[str, float] = {}
+        for symbol in symbols[:100]:
+            sym = str(symbol).strip().upper()
+            if not sym:
+                continue
+            try:
+                data = self._get("/stable/short-interest", {"symbol": sym})
+                if data and isinstance(data, list) and len(data) > 0:
+                    latest = data[0]
+                    float_short = _coerce_finite_float(latest.get("shortPercentFloat"))
+                    if float_short is not None:
+                        result[sym] = round(float_short, 2)
+            except Exception:
+                continue
+        return result
+
+    def get_treasury_yields(self) -> dict[str, Any]:
+        """Fetch current US Treasury yields for 2Y and 10Y.
+
+        Uses FMP ``/stable/treasury`` endpoint.
+        Returns ``{"2y": float, "10y": float, "spread": float, "inverted": bool}``.
+        """
+        today = _today_et()
+        try:
+            data = self._get("/stable/treasury", {"from": today.isoformat(), "to": today.isoformat()})
+            if data and isinstance(data, list) and len(data) > 0:
+                latest = data[0]
+                y2 = _coerce_finite_float(latest.get("year2")) or 0.0
+                y10 = _coerce_finite_float(latest.get("year10")) or 0.0
+                spread = round(y10 - y2, 4)
+                return {"2y": round(y2, 4), "10y": round(y10, 4), "spread": spread, "inverted": spread < 0}
+        except Exception:
+            pass
+        return {"2y": 0.0, "10y": 0.0, "spread": 0.0, "inverted": False}
+
+    def get_institutional_holders(self, symbol: str) -> list[dict[str, Any]]:
+        """Fetch institutional holders for a symbol.
+
+        Uses FMP ``/stable/institutional-holder`` endpoint.
+        """
+        sym = str(symbol).strip().upper()
+        if not sym:
+            return []
+        try:
+            data = self._get("/stable/institutional-holder", {"symbol": sym})
+            return list(data) if isinstance(data, list) else []
+        except Exception:
+            return []
+
+    def get_insider_trading(self, symbol: str, *, limit: int = 20) -> list[dict[str, Any]]:
+        """Fetch recent insider transactions.
+
+        Uses FMP ``/stable/insider-trading`` endpoint.
+        """
+        sym = str(symbol).strip().upper()
+        if not sym:
+            return []
+        try:
+            data = self._get("/stable/insider-trading", {"symbol": sym, "limit": max(int(limit), 1)})
+            return list(data) if isinstance(data, list) else []
+        except Exception:
+            return []
+
     def get_technical_indicator(
         self,
         symbol: str,

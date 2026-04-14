@@ -175,8 +175,10 @@ class TestGeneratedArtifactDrift:
         exports = [l for l in pine.splitlines() if l.startswith("export const")]
         # Shared lean families reuse canonical exports instead of duplicating
         # Event Risk / Session Context / Structure State fields.
-        assert len(exports) == 135, (
-            f"Expected 135 export const fields for the current v5.5b shared-export contract, got {len(exports)}"
+        # v6 adds 20 new fields: Short Interest(4), Treasury(4), Sector Rotation(4),
+        # Institutional(3), Analyst(3), Insider(2).
+        assert len(exports) == 155, (
+            f"Expected 155 export const fields for the current v6 shared-export contract, got {len(exports)}"
         )
 
     def test_event_risk_exports_stay_in_canonical_order(self, regenerated: Path):

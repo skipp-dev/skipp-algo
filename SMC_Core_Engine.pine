@@ -2500,7 +2500,7 @@ resolve_core_hero_color(string product_state) =>
         hero_color := color.new(color.red, 60)
     hero_color
 
-compose_core_hero_text(string product_state, string bias_text, string trade_threshold_text, string trust_tier, string trust_suffix, string provider_state, string why_now, string main_risk, string market_regime, bool regime_blocks, bool regime_dims, string asof_display, float vix_level, string market_event, string tone_text) =>
+compose_core_hero_text(string product_state, string bias_text, string trade_threshold_text, string trust_tier, string trust_suffix, string provider_state, string why_now, string main_risk, string market_regime, bool regime_blocks, bool regime_dims, string asof_display, float vix_level, string market_event, string tone_text, bool yield_inverted, string sector_leading) =>
     string action_display = product_state
     if (product_state == 'WAIT' or product_state == 'BLOCKED') and (regime_blocks or regime_dims)
         action_display := product_state + ' (regime: ' + market_regime + ')'
@@ -2508,7 +2508,9 @@ compose_core_hero_text(string product_state, string bias_text, string trade_thre
     if (bias_text == 'Bullish' or bias_text == 'Bearish') and (regime_blocks or regime_dims)
         bias_display := bias_text + ' tone — ' + market_regime + ' regime overrides'
     string trust_display = trust_suffix != '' ? trust_tier + ' (' + trust_suffix + ')' : trust_tier
-    'Action: ' + action_display + '\nBias: ' + bias_display + '\nConfidence: ' + trade_threshold_text + '\nTrust: ' + trust_display + '\nVIX: ' + str.tostring(vix_level, '#.##') + '\nTone: ' + tone_text + '\nMarket: ' + market_event + '\nProvider: ' + provider_state + '\nWhy now: ' + why_now + '\nMain blocker: ' + main_risk + '\nData: ' + asof_display
+    string yield_text = yield_inverted ? ' · Yield INVERTED' : ''
+    string sector_text = sector_leading != '' ? sector_leading : '—'
+    'Action: ' + action_display + '\nBias: ' + bias_display + '\nConfidence: ' + trade_threshold_text + '\nTrust: ' + trust_display + '\nVIX: ' + str.tostring(vix_level, '#.##') + '\nTone: ' + tone_text + '\nMarket: ' + market_event + yield_text + '\nSector: ' + sector_text + '\nProvider: ' + provider_state + '\nWhy now: ' + why_now + '\nMain blocker: ' + main_risk + '\nData: ' + asof_display
 
 resolve_core_alert_action_name(string event_name) =>
     string action_name = 'WAIT'
@@ -3578,6 +3580,38 @@ string lib_ticker_heat_map        = mp.TICKER_HEAT_MAP
 float  lib_ticker_heat            = f_parse_ticker_heat(lib_ticker_heat_map, syminfo.ticker)
 int    ticker_heat_adj            = int(lib_ticker_heat * 20)
 
+// ── Short Interest (WP-ND1) ──
+string lib_squeeze_risk           = mp.SHORT_SQUEEZE_RISK_TICKERS
+string lib_high_short             = mp.HIGH_SHORT_INTEREST_TICKERS
+
+// ── Treasury / Yield Curve (WP-ND2) ──
+float  lib_yield_10y              = mp.TREASURY_10Y_YIELD
+float  lib_yield_spread           = mp.YIELD_CURVE_SPREAD
+bool   lib_yield_inverted         = mp.YIELD_CURVE_INVERTED
+
+// ── Sector Rotation Detail (WP-ND3) ──
+string lib_sector_leading         = mp.SECTOR_LEADING
+string lib_sector_weakest         = mp.SECTOR_WEAKEST
+
+// ── Institutional (WP-ND4) ──
+string lib_inst_accumulation      = mp.INSTITUTIONAL_ACCUMULATION_TICKERS
+string lib_inst_distribution      = mp.INSTITUTIONAL_DISTRIBUTION_TICKERS
+
+// ── Analyst (WP-ND5) ──
+string lib_analyst_strong_buy     = mp.ANALYST_STRONG_BUY_TICKERS
+string lib_analyst_underperform   = mp.ANALYST_UNDERPERFORM_TICKERS
+string lib_analyst_high_upside    = mp.ANALYST_HIGH_UPSIDE_TICKERS
+
+// ── Insider (WP-ND6) ──
+string lib_insider_buying         = mp.INSIDER_BUYING_TICKERS
+string lib_insider_selling_heavy  = mp.INSIDER_SELLING_HEAVY_TICKERS
+
+// ── WP-ND derived booleans (per-ticker) ──
+bool   is_squeeze_risk            = str.contains(lib_squeeze_risk, syminfo.ticker)
+bool   is_high_short              = str.contains(lib_high_short, syminfo.ticker)
+bool   is_inst_accumulation       = str.contains(lib_inst_accumulation, syminfo.ticker)
+bool   is_inst_distribution       = str.contains(lib_inst_distribution, syminfo.ticker)
+
 // ── v5.5 Lean Context [PRIMARY] ──
 // Signal Quality: generator-computed composite replaces ad-hoc checks
 bool   signal_quality_ok         = lib_sq_score >= 25
@@ -3840,6 +3874,12 @@ var use_ob_engine = input.bool(true, 'Use OB engine', group = g_ob, display = di
 // ── Ticker Heat → OB Opacity Modifier (WP-LF4) ──
 if barstate.isfirst and ticker_heat_adj != 0
     bull_ob_css := color.new(bull_ob_css, math.max(5, math.min(95, color.t(bull_ob_css) - ticker_heat_adj)))
+
+// ── Institutional Confirmation → OB Opacity Modifier (WP-ND4) ──
+if barstate.isfirst and is_inst_accumulation
+    bull_ob_css := color.new(bull_ob_css, math.max(5, color.t(bull_ob_css) - 5))
+if barstate.isfirst and is_inst_distribution
+    bull_ob_css := color.new(bull_ob_css, math.min(95, color.t(bull_ob_css) + 5))
 
 bool preset_is_easy = long_user_preset == 'Easy'
 bool preset_is_standard = long_user_preset == 'Standard'
@@ -5236,6 +5276,12 @@ var bull_fvg_line_css_filled = color.new(bull_fvg_css_filled, 50)
 if barstate.isfirst and ticker_heat_adj != 0
     bull_fvg_css := color.new(bull_fvg_css, math.max(5, math.min(95, color.t(bull_fvg_css) - ticker_heat_adj)))
 
+// ── Institutional Confirmation → FVG Opacity Modifier (WP-ND4) ──
+if barstate.isfirst and is_inst_accumulation
+    bull_fvg_css := color.new(bull_fvg_css, math.max(5, color.t(bull_fvg_css) - 5))
+if barstate.isfirst and is_inst_distribution
+    bull_fvg_css := color.new(bull_fvg_css, math.min(95, color.t(bull_fvg_css) + 5))
+
 var filter_insignificant_fvgs = input.bool(true, 'Filter: min size', group = g_fvg, inline = 'fvg_min', display = display.none, tooltip = 'Filter out fair value gaps that are too small to matter.')
 var min_fvg_size_atr_len = input.int(ATR_LEN_MAIN, 'ATR Length', minval = 1, group = g_fvg, inline = 'fvg_min', display = display.none)
 var min_fvg_size_atr_mult = input.float(DEFAULT_FVG_MIN_SIZE_MULT, 'x', minval = 0, step = 0.1, group = g_fvg, inline = 'fvg_min', display = display.none)
@@ -6158,7 +6204,7 @@ if barstate.islast and compact_mode
     string core_main_risk = compose_main_risk_text(core_product_state, event_risk_state, long_ready_blocker_text, long_strict_blocker_text, long_state.last_invalid_source, lib_sq_warnings, lib_erl_provider_status, core_has_earnings_tomorrow)
     string core_market_event = mp.HIGH_IMPACT_MACRO_TODAY ? (lib_macro_event_name + ' ' + lib_macro_event_time) : 'No event'
     string core_tone_text = lib_tone + ' · Heat ' + str.tostring(lib_global_heat, '#.##')
-    string core_hero_text = compose_core_hero_text(core_product_state, core_bias_text, core_trade_threshold, core_trust_tier, core_trust_suffix, core_provider_state, core_why_now, core_main_risk, mp.MARKET_REGIME, lib_regime_blocked, lib_regime_dimmed, lib_asof_display, lib_vix_level, core_market_event, core_tone_text)
+    string core_hero_text = compose_core_hero_text(core_product_state, core_bias_text, core_trade_threshold, core_trust_tier, core_trust_suffix, core_provider_state, core_why_now, core_main_risk, mp.MARKET_REGIME, lib_regime_blocked, lib_regime_dimmed, lib_asof_display, lib_vix_level, core_market_event, core_tone_text, lib_yield_inverted, lib_sector_leading)
     float core_hero_y = high + nz(atr, high * 0.01) * 1.15
     core_hero_card := label.new(bar_index, core_hero_y, core_hero_text, color = resolve_core_hero_color(core_product_state), textcolor = color.white, style = label.style_label_left, size = size.small)
 else if barstate.islast and not na(core_hero_card)
@@ -6183,6 +6229,15 @@ else if barstate.islast
         label.delete(breadth_badge)
     if not na(macro_badge)
         label.delete(macro_badge)
+
+// ── Short Interest Warning Badge (WP-ND1) ──
+var label squeeze_badge = na
+if barstate.islast and compact_mode and is_squeeze_risk
+    if not na(squeeze_badge)
+        label.delete(squeeze_badge)
+    squeeze_badge := label.new(bar_index - 6, high, '⚠ Squeeze Risk', color = color.new(color.yellow, 60), textcolor = color.black, style = label.style_label_down, size = size.tiny)
+else if barstate.islast and not na(squeeze_badge)
+    label.delete(squeeze_badge)
 
 var label health_badge = na
 if barstate.islast and show_dashboard and not compact_mode

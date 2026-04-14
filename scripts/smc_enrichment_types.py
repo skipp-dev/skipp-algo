@@ -416,6 +416,47 @@ class StructureStateLightBlock(TypedDict, total=False):
     STRUCTURE_TREND_STRENGTH: int    # 0-100
 
 
+# ── v6 New Data Field blocks ──────────────────────────────────
+
+
+class ShortInterestBlock(TypedDict, total=False):
+    short_squeeze_risk_tickers: list[str]
+    high_short_interest_tickers: list[str]
+    market_short_interest_avg: float
+    short_interest_extreme: bool
+
+
+class TreasuryBlock(TypedDict, total=False):
+    treasury_10y_yield: float
+    treasury_2y_yield: float
+    yield_curve_spread: float
+    yield_curve_inverted: bool
+
+
+class SectorRotationBlock(TypedDict, total=False):
+    sector_leading: list[str]
+    sector_lagging: list[str]
+    sector_strongest: str
+    sector_weakest: str
+
+
+class InstitutionalBlock(TypedDict, total=False):
+    institutional_accumulation_tickers: list[str]
+    institutional_distribution_tickers: list[str]
+    institutional_data_available: bool
+
+
+class AnalystBlock(TypedDict, total=False):
+    analyst_strong_buy_tickers: list[str]
+    analyst_underperform_tickers: list[str]
+    analyst_high_upside_tickers: list[str]
+
+
+class InsiderBlock(TypedDict, total=False):
+    insider_buying_tickers: list[str]
+    insider_selling_heavy_tickers: list[str]
+
+
 class EnrichmentDict(TypedDict, total=False):
     """Top-level enrichment payload flowing through the Pine generation chain.
 
@@ -456,3 +497,10 @@ class EnrichmentDict(TypedDict, total=False):
     ob_context_light: OBContextLightBlock
     fvg_lifecycle_light: FVGLifecycleLightBlock
     structure_state_light: StructureStateLightBlock
+    # v6 New data field blocks
+    short_interest: ShortInterestBlock
+    treasury: TreasuryBlock
+    sector_rotation: SectorRotationBlock
+    institutional: InstitutionalBlock
+    analyst: AnalystBlock
+    insider: InsiderBlock

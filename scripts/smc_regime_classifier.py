@@ -50,6 +50,7 @@ def classify_market_regime(
     macro_bias: float,
     sector_performance: list[dict[str, Any]] | None = None,
     market_pe_forward: float | None = None,
+    yield_curve_inverted: bool = False,
 ) -> dict[str, Any]:
     """Classify the current market regime.
 
@@ -62,19 +63,26 @@ def classify_market_regime(
         Macro bias score, typically in [-1, +1].
     sector_performance:
         Sector rows with at least a ``changesPercentage`` key.
+    yield_curve_inverted:
+        If *True*, the 2Y-10Y spread is negative — adds a +0.2 RISK_OFF
+        bias (i.e. reduces the macro bias by 0.2).
 
     Returns
     -------
     dict with keys ``regime``, ``vix_level``, ``macro_bias``,
     ``macro_bias_raw``, ``macro_bias_pe_adjustment``,
+    ``macro_bias_yield_curve_adjustment``,
     ``market_pe_forward``, ``market_pe_regime``, ``sector_breadth``,
-    ``reasons``.
+    ``yield_curve_inverted``, ``reasons``.
     """
     sectors = sector_performance or []
     reasons: list[str] = []
     macro_bias_raw = _to_float(macro_bias)
     macro_bias_pe_adjustment, market_pe_regime = _market_pe_modifier(market_pe_forward)
-    adjusted_macro_bias = _clamp(macro_bias_raw + macro_bias_pe_adjustment, -1.0, 1.0)
+    macro_bias_yc_adjustment = -0.2 if yield_curve_inverted else 0.0
+    adjusted_macro_bias = _clamp(
+        macro_bias_raw + macro_bias_pe_adjustment + macro_bias_yc_adjustment, -1.0, 1.0
+    )
 
     # ── Sector breadth ──────────────────────────────────────────
     positive = [s for s in sectors if _to_float(s.get("changesPercentage")) > 0.0]
@@ -135,14 +143,19 @@ def classify_market_regime(
             f"({market_pe_regime.lower()} market PE {market_pe_forward:.1f})"
         )
 
+    if yield_curve_inverted:
+        reasons.append("Yield curve inverted (2Y > 10Y) — RISK_OFF bias +0.2")
+
     return {
         "regime": regime,
         "vix_level": vix_level,
         "macro_bias": round(adjusted_macro_bias, 4),
         "macro_bias_raw": round(macro_bias_raw, 4),
         "macro_bias_pe_adjustment": round(macro_bias_pe_adjustment, 4),
+        "macro_bias_yield_curve_adjustment": round(macro_bias_yc_adjustment, 4),
         "market_pe_forward": round(float(market_pe_forward), 4) if market_pe_forward is not None else None,
         "market_pe_regime": market_pe_regime,
         "sector_breadth": round(breadth, 4),
+        "yield_curve_inverted": yield_curve_inverted,
         "reasons": reasons,
     }
