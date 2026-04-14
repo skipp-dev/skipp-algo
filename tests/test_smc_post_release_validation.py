@@ -131,6 +131,31 @@ def test_run_post_release_validation_handles_corrupt_report_json(tmp_path: Path)
     assert "Expecting property name" in report["failures"][0]["message"] or "JSON" in report["failures"][0]["message"]
 
 
+def test_run_post_release_validation_writes_failure_report_when_validation_report_is_missing(tmp_path: Path) -> None:
+    release_manifest = tmp_path / "library_release_manifest.json"
+    validation_report = tmp_path / "missing_tv_post_release_validation.json"
+
+    _write_json(
+        release_manifest,
+        {
+            "generatedAt": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+            "library": {
+                "publishStatus": "published",
+                "expectedVersion": "6",
+                "publishedVersion": "6",
+            },
+        },
+    )
+
+    report = run_post_release_validation(release_manifest, validation_report, ci_mode=True)
+
+    assert report["overall_status"] == "fail"
+    assert report["release_manifest_present"] is True
+    assert report["validation_report_present"] is False
+    assert report["validation"]["validation_report_present"] is False
+    assert report["failures"][0]["code"] == "POST_RELEASE_VALIDATION_FAILED"
+
+
 def test_run_post_release_validation_handles_failed_target(tmp_path: Path) -> None:
     release_manifest = tmp_path / "library_release_manifest.json"
     validation_report = tmp_path / "tv_post_release_validation.json"

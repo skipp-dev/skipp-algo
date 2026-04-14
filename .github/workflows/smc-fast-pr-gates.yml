@@ -39,9 +39,35 @@ jobs:
         run: |
           python -m pytest -q --maxfail=1 tests/test_smc_integration_*.py
 
+      - name: Run terminal coverage subset
+        run: |
+          mkdir -p artifacts/ci
+          set -o pipefail
+          python -m pytest -q --maxfail=1 \
+            --cov=streamlit_terminal \
+            --cov=streamlit_terminal_alerts \
+            --cov=streamlit_terminal_config \
+            --cov=streamlit_terminal_pure \
+            --cov=streamlit_terminal_runtime \
+            --cov=terminal_tabs \
+            --cov=terminal_ui_helpers \
+            --cov-report=term-missing:skip-covered \
+            --cov-report=xml:artifacts/ci/terminal_coverage.xml \
+            tests/test_streamlit_terminal_import.py \
+            tests/test_streamlit_terminal_config.py \
+            tests/test_streamlit_terminal_runtime.py \
+            tests/test_streamlit_terminal_alerts.py \
+            tests/test_streamlit_terminal_feed_state.py \
+            tests/test_streamlit_terminal_pure_functions.py \
+            | tee artifacts/ci/terminal_coverage.txt
+
       - name: Upload fast gate report
         if: always()
         uses: actions/upload-artifact@v7
         with:
           name: smc-fast-health-report
-          path: artifacts/ci/smc_fast_health_report.json
+          path: |
+            artifacts/ci/smc_fast_health_report.json
+            artifacts/ci/terminal_coverage.txt
+            artifacts/ci/terminal_coverage.xml
+          if-no-files-found: ignore

@@ -31,6 +31,8 @@ def run_post_release_validation(
     ci_mode: bool = False,
 ) -> dict[str, Any]:
     checked_at = float(time.time())
+    release_manifest_present = release_manifest_path.exists()
+    validation_report_present = validation_report_path.exists()
     base_report: dict[str, Any] = {
         "report_kind": "post_release_validation",
         "ci_mode": bool(ci_mode),
@@ -38,6 +40,8 @@ def run_post_release_validation(
         "checked_at_iso": _iso_utc(checked_at),
         "release_manifest_path": release_manifest_path.as_posix(),
         "validation_report_path": validation_report_path.as_posix(),
+        "release_manifest_present": release_manifest_present,
+        "validation_report_present": validation_report_present,
     }
 
     try:
@@ -50,11 +54,14 @@ def run_post_release_validation(
                 "ok": False,
                 "validation_timestamp": checked_at,
                 "validation_timestamp_iso": _iso_utc(checked_at),
+                "release_manifest_present": release_manifest_present,
+                "validation_report_present": validation_report_present,
             },
             "validated_target_count": 0,
             "failures": [
                 {
                     "code": "POST_RELEASE_VALIDATION_FAILED",
+                    "exception_type": type(exc).__name__,
                     "message": str(exc),
                 }
             ],

@@ -63,6 +63,7 @@ def test_refresh_workflow_runs_post_release_validation_before_commit() -> None:
 
     assert '--strict-measurement-shadow' in workflow_text
     assert '- name: Run TradingView post-release validation' in workflow_text
+    assert '- name: Normalize TradingView post-release validation' in workflow_text
     assert '- name: Refresh gate evidence summary after post-release validation' in workflow_text
     assert 'TV_STORAGE_STATE_MAX_AGE_HOURS: "72"' in workflow_text
     assert 'tv_post_release_validation.json' in workflow_text
@@ -72,6 +73,23 @@ def test_refresh_workflow_runs_post_release_validation_before_commit() -> None:
     assert 'TradingView post-release validation' in workflow_text
     assert 'TradingView post-release validation failed' in workflow_text
     assert "steps.tv_post_release.outcome == 'success'" in workflow_text
+    assert "steps.release_gates.outcome == 'success'" in workflow_text
+
+
+def test_refresh_workflow_passes_post_release_report_to_release_gates() -> None:
+    workflow_text = _read(WORKFLOW_PATH)
+
+    assert '- name: Run strict release gates' in workflow_text
+    assert '--post-release-validation-report artifacts/ci/smc_post_release_validation_report.json' in workflow_text
+    assert workflow_text.index('- name: Normalize TradingView post-release validation') < workflow_text.index('- name: Run strict release gates')
+
+
+def test_refresh_workflow_uploads_ci_report_after_post_release() -> None:
+    workflow_text = _read(WORKFLOW_PATH)
+
+    assert '- name: Upload gate evidence + library artifacts' in workflow_text
+    assert 'artifacts/ci/' in workflow_text
+    assert workflow_text.index('- name: Refresh gate evidence summary after post-release validation') < workflow_text.index('- name: Upload gate evidence + library artifacts')
 
 
 def test_refresh_workflow_alert_step_consumes_post_release_report_even_after_failures() -> None:

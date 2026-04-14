@@ -25,6 +25,8 @@ from terminal_reaction_state import effective_reaction_state
 from terminal_resolution_state import effective_resolution_state
 from terminal_ui_helpers import match_alert_rule
 
+_ALLOWED_WEBHOOK_SCHEMES = frozenset({"https"})
+
 
 def _get_field(item: Any, name: str, default: Any = None) -> Any:
     if isinstance(item, dict):
@@ -66,6 +68,8 @@ def validate_webhook_url(
         return False, "missing_host"
     if host in {"localhost", "localhost.localdomain", "0.0.0.0"} or host.endswith(".local"):
         return False, "local_host"
+    if parsed.username or parsed.password:
+        return False, "credentials_not_allowed"
 
     try:
         if _ip_is_private_or_local(ipaddress.ip_address(host)):
@@ -81,6 +85,9 @@ def validate_webhook_url(
         except Exception:
             pass
 
+    if parsed.scheme not in _ALLOWED_WEBHOOK_SCHEMES:
+        return False, "insecure_scheme"
+
     return True, ""
 
 
@@ -90,6 +97,7 @@ def evaluate_alert_rules(
     *,
     webhook_budget: int,
     now: float | None = None,
+    webhook_validator: Callable[[str], tuple[bool, str]] | None = None,
 ) -> dict[str, Any]:
     """Evaluate alert rules without mutating Streamlit session state."""
     if not rules:
@@ -103,6 +111,8 @@ def evaluate_alert_rules(
     seen_pairs: set[tuple[str, int]] = set()
     alert_log_entries: list[dict[str, Any]] = []
     pending_webhooks: list[tuple[str, dict[str, Any]]] = []
+    validate_webhook = webhook_validator or validate_webhook_url
+    webhook_validation_cache: dict[str, tuple[bool, str]] = {}
 
     for item in items:
         if not effective_attention_active(item):
@@ -159,6 +169,12 @@ def evaluate_alert_rules(
 
             webhook_url = str(rule.get("webhook_url") or "").strip()
             if webhook_url and remaining_budget > 0:
+                validation = webhook_validation_cache.get(webhook_url)
+                if validation is None:
+                    validation = validate_webhook(webhook_url)
+                    webhook_validation_cache[webhook_url] = validation
+                if not validation[0]:
+                    continue
                 remaining_budget -= 1
                 pending_webhooks.append((webhook_url, log_entry))
 

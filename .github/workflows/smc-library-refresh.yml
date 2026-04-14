@@ -265,89 +265,13 @@ jobs:
             --warn-on-empty-artifacts \
             --output artifacts/ci/smc_pre_release_artifact_refresh_report.json
 
-      - name: Run strict release gates
-        id: release_gates
+      - name: Run pre-publish strict release gates
+        id: pre_release_gates
         if: steps.diff.outputs.changed == 'true'
         run: |
           python scripts/run_smc_release_gates.py \
             --strict-measurement-shadow \
             --output artifacts/ci/smc_release_gates_report.json
-
-      - name: Refresh gate evidence summary
-        if: always()
-        run: |
-          python scripts/collect_smc_gate_evidence.py \
-            --input-glob "artifacts/ci/smc_*_report.json" \
-            --output artifacts/ci/smc_refresh_evidence_summary.json
-
-      - name: Extract provider health signals
-        if: always()
-        run: |
-          python - <<'PY'
-          import json
-          import os
-          from pathlib import Path
-
-          report_path = Path("artifacts/ci/smc_release_gates_report.json")
-          alerts: list[dict] = []
-          warnings: list[dict] = []
-          if report_path.exists():
-            try:
-              report = json.loads(report_path.read_text(encoding="utf-8"))
-            except Exception:
-              report = {}
-            for gate in report.get("gates", []):
-              if isinstance(gate, dict) and gate.get("name") == "provider_health":
-                details = gate.get("details", {})
-                if isinstance(details, dict):
-                  raw_alerts = details.get("domain_alerts", [])
-                  if isinstance(raw_alerts, list):
-                    alerts = [item for item in raw_alerts if isinstance(item, dict)]
-                  raw_warnings = details.get("warnings", [])
-                  if isinstance(raw_warnings, list):
-                    warnings = [item for item in raw_warnings if isinstance(item, dict)]
-                break
-
-          def summarize(alert: dict) -> str:
-            code = str(alert.get("code") or "")
-            domain = str(alert.get("domain") or "unknown")
-            symbol = str(alert.get("symbol") or "?")
-            timeframe = str(alert.get("timeframe") or "?")
-            planned = str(alert.get("planned_source") or "")
-            actual = str(alert.get("actual_source") or "")
-            status = str(alert.get("status") or "")
-            if code.startswith("FALLBACK_"):
-              detail = f"{actual or 'unknown'} <- {planned or 'unknown'}"
-            else:
-              detail = status or "unknown"
-            return f"- {code}: {domain} {symbol}/{timeframe} ({detail})"
-
-          def summarize_warning(row: dict) -> str:
-            code = str(row.get("code") or "UNKNOWN")
-            symbol = str(row.get("symbol") or "").strip()
-            timeframe = str(row.get("timeframe") or "").strip()
-            suffix = f" {symbol}/{timeframe}" if symbol and timeframe else ""
-            return f"- {code}:{suffix}" if suffix else f"- {code}"
-
-          info_count = sum(1 for item in alerts if str(item.get("severity") or "") == "info")
-          warn_count = sum(1 for item in alerts if str(item.get("severity") or "") == "warn")
-          rendered_lines = "\n".join(summarize(item) for item in alerts[:5])
-          rendered_warning_lines = "\n".join(summarize_warning(item) for item in warnings[:5])
-
-          with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as handle:
-            handle.write(f"PROVIDER_DOMAIN_ALERT_COUNT={len(alerts)}\n")
-            handle.write(f"PROVIDER_DOMAIN_INFO_COUNT={info_count}\n")
-            handle.write(f"PROVIDER_DOMAIN_WARN_COUNT={warn_count}\n")
-            handle.write(f"PROVIDER_HEALTH_WARNING_COUNT={len(warnings)}\n")
-            handle.write("PROVIDER_DOMAIN_ALERT_LINES<<EOF\n")
-            if rendered_lines:
-              handle.write(rendered_lines + "\n")
-            handle.write("EOF\n")
-            handle.write("PROVIDER_HEALTH_WARNING_LINES<<EOF\n")
-            if rendered_warning_lines:
-              handle.write(rendered_warning_lines + "\n")
-            handle.write("EOF\n")
-          PY
 
       # ── Dated snapshot archival ─────────────────────────────────
       - name: Archive dated library snapshot
@@ -363,18 +287,6 @@ jobs:
             cp pine/generated/smc_micro_profiles_core_import.pine \
                "${SNAP_DIR}/smc_micro_profiles_core_import_run${{ github.run_number }}.pine"
           fi
-
-      # ── Upload CI artifacts ─────────────────────────────────────
-      - name: Upload gate evidence + library artifacts
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: smc-refresh-${{ env.REFRESH_DATE }}-${{ github.run_number }}
-          path: |
-            artifacts/ci/
-            artifacts/snapshots/
-            pine/generated/
-          retention-days: 90
 
       # ── Publish to TradingView (skip when unchanged or breaking) ─
       - name: Write TradingView storage state
@@ -453,8 +365,9 @@ jobs:
             --release-manifest artifacts/tradingview/library_release_manifest.json
 
       - name: Run TradingView post-release validation
-        id: tv_post_release
+        id: tv_post_release_raw
         if: steps.diff.outputs.changed == 'true' && steps.breaking.outputs.breaking != 'true' && github.ref == 'refs/heads/main'
+        continue-on-error: true
         env:
           TV_HEADLESS: "1"
           TV_STORAGE_STATE: automation/tradingview/auth/storage-state.json
@@ -465,11 +378,24 @@ jobs:
             --execution-mode readonly \
             --out artifacts/tradingview/tv_post_release_validation.json
 
+      - name: Normalize TradingView post-release validation
+        id: tv_post_release
+        if: always() && steps.publish.outcome == 'success' && steps.diff.outputs.changed == 'true' && steps.breaking.outputs.breaking != 'true' && github.ref == 'refs/heads/main'
+        run: |
           python scripts/run_smc_post_release_validation.py \
             --release-manifest artifacts/tradingview/library_release_manifest.json \
             --validation-report artifacts/tradingview/tv_post_release_validation.json \
             --ci-mode \
             --output artifacts/ci/smc_post_release_validation_report.json
+
+      - name: Run strict release gates
+        id: release_gates
+        if: always() && steps.publish.outcome == 'success' && steps.diff.outputs.changed == 'true' && steps.breaking.outputs.breaking != 'true' && github.ref == 'refs/heads/main'
+        run: |
+          python scripts/run_smc_release_gates.py \
+            --strict-measurement-shadow \
+            --post-release-validation-report artifacts/ci/smc_post_release_validation_report.json \
+            --output artifacts/ci/smc_release_gates_report.json
 
       - name: Refresh gate evidence summary after post-release validation
         if: always()
@@ -477,6 +403,75 @@ jobs:
           python scripts/collect_smc_gate_evidence.py \
             --input-glob "artifacts/ci/smc_*_report.json" \
             --output artifacts/ci/smc_refresh_evidence_summary.json
+
+      - name: Extract provider health signals
+        if: always()
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          report_path = Path("artifacts/ci/smc_release_gates_report.json")
+          alerts: list[dict] = []
+          warnings: list[dict] = []
+          if report_path.exists():
+            try:
+              report = json.loads(report_path.read_text(encoding="utf-8"))
+            except Exception:
+              report = {}
+            for gate in report.get("gates", []):
+              if isinstance(gate, dict) and gate.get("name") == "provider_health":
+                details = gate.get("details", {})
+                if isinstance(details, dict):
+                  raw_alerts = details.get("domain_alerts", [])
+                  if isinstance(raw_alerts, list):
+                    alerts = [item for item in raw_alerts if isinstance(item, dict)]
+                  raw_warnings = details.get("warnings", [])
+                  if isinstance(raw_warnings, list):
+                    warnings = [item for item in raw_warnings if isinstance(item, dict)]
+                break
+
+          def summarize(alert: dict) -> str:
+            code = str(alert.get("code") or "")
+            domain = str(alert.get("domain") or "unknown")
+            symbol = str(alert.get("symbol") or "?")
+            timeframe = str(alert.get("timeframe") or "?")
+            planned = str(alert.get("planned_source") or "")
+            actual = str(alert.get("actual_source") or "")
+            status = str(alert.get("status") or "")
+            if code.startswith("FALLBACK_"):
+              detail = f"{actual or 'unknown'} <- {planned or 'unknown'}"
+            else:
+              detail = status or "unknown"
+            return f"- {code}: {domain} {symbol}/{timeframe} ({detail})"
+
+          def summarize_warning(row: dict) -> str:
+            code = str(row.get("code") or "UNKNOWN")
+            symbol = str(row.get("symbol") or "").strip()
+            timeframe = str(row.get("timeframe") or "").strip()
+            suffix = f" {symbol}/{timeframe}" if symbol and timeframe else ""
+            return f"- {code}:{suffix}" if suffix else f"- {code}"
+
+          info_count = sum(1 for item in alerts if str(item.get("severity") or "") == "info")
+          warn_count = sum(1 for item in alerts if str(item.get("severity") or "") == "warn")
+          rendered_lines = "\n".join(summarize(item) for item in alerts[:5])
+          rendered_warning_lines = "\n".join(summarize_warning(item) for item in warnings[:5])
+
+          with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as handle:
+            handle.write(f"PROVIDER_DOMAIN_ALERT_COUNT={len(alerts)}\n")
+            handle.write(f"PROVIDER_DOMAIN_INFO_COUNT={info_count}\n")
+            handle.write(f"PROVIDER_DOMAIN_WARN_COUNT={warn_count}\n")
+            handle.write(f"PROVIDER_HEALTH_WARNING_COUNT={len(warnings)}\n")
+            handle.write("PROVIDER_DOMAIN_ALERT_LINES<<EOF\n")
+            if rendered_lines:
+              handle.write(rendered_lines + "\n")
+            handle.write("EOF\n")
+            handle.write("PROVIDER_HEALTH_WARNING_LINES<<EOF\n")
+            if rendered_warning_lines:
+              handle.write(rendered_warning_lines + "\n")
+            handle.write("EOF\n")
+          PY
 
       # ── Version bump + commit (skip when unchanged or breaking) ─
       - name: Bump library version in SMC_Core_Engine.pine
@@ -491,7 +486,7 @@ jobs:
 
       - name: Commit and push changes
         id: commit_push
-        if: steps.diff.outputs.changed == 'true' && steps.breaking.outputs.breaking != 'true' && steps.tv_post_release.outcome == 'success' && github.ref == 'refs/heads/main'
+        if: steps.diff.outputs.changed == 'true' && steps.breaking.outputs.breaking != 'true' && steps.tv_post_release.outcome == 'success' && steps.release_gates.outcome == 'success' && github.ref == 'refs/heads/main'
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
@@ -563,6 +558,18 @@ jobs:
             ${ALERT_EMAIL_FROM:+--email-from "$ALERT_EMAIL_FROM"} \
             ${ALERT_EMAIL_TO:+--email-to "$ALERT_EMAIL_TO"}
 
+      # ── Upload CI artifacts ─────────────────────────────────────
+      - name: Upload gate evidence + library artifacts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: smc-refresh-${{ env.REFRESH_DATE }}-${{ github.run_number }}
+          path: |
+            artifacts/ci/
+            artifacts/snapshots/
+            pine/generated/
+          retention-days: 90
+
       - name: Upload TradingView validation artifacts
         if: always()
         uses: actions/upload-artifact@v7
@@ -594,7 +601,7 @@ jobs:
             fi
             echo "| Library changed | ${{ steps.diff.outputs.changed == 'true' && '✅ yes' || '⏭️ no' }} |"
             echo "| Pre-release artifact refresh | ${{ steps.pre_release_refresh.outcome == 'success' && '✅ passed' || steps.pre_release_refresh.outcome == 'skipped' && '⏭️ skipped' || '❌ failed' }} |"
-            echo "| Strict release gates | ${{ steps.release_gates.outcome == 'success' && '✅ passed' || steps.release_gates.outcome == 'skipped' && '⏭️ skipped' || '❌ failed' }} |"
+            echo "| Pre-publish strict release gates | ${{ steps.pre_release_gates.outcome == 'success' && '✅ passed' || steps.pre_release_gates.outcome == 'skipped' && '⏭️ skipped' || '❌ failed' }} |"
             if [ "${{ steps.breaking.outputs.breaking }}" = "true" ]; then
               echo "| ⚠️ Breaking-change governance | 🛑 ${{ steps.breaking.outputs.reason }} |"
               echo "| Publish | 🛑 blocked (breaking change) |"
@@ -606,12 +613,14 @@ jobs:
                 echo "| TradingView preflight | ${{ steps.tv_preflight.outcome == 'success' && '✅ passed' || steps.tv_preflight.outcome == 'skipped' && '⏭️ skipped' || '❌ failed' }} |"
                 echo "| Publish | ${{ steps.publish.outcome == 'success' && '✅' || steps.publish.outcome == 'skipped' && '⏭️ skipped' || '❌ failed' }} |"
                 echo "| TradingView post-release validation | ${{ steps.tv_post_release.outcome == 'success' && '✅ passed' || steps.tv_post_release.outcome == 'skipped' && '⏭️ skipped' || '❌ failed' }} |"
+                echo "| Post-release strict release gates | ${{ steps.release_gates.outcome == 'success' && '✅ passed' || steps.release_gates.outcome == 'skipped' && '⏭️ skipped' || '❌ failed' }} |"
                 echo "| Commit | ${{ steps.commit_push.outcome == 'success' && '✅' || steps.commit_push.outcome == 'skipped' && '⏭️ skipped' || '❌ failed' }} |"
                 echo "| Signal + event-risk alerts | ${{ steps.alerts.outcome == 'success' && '✅ evaluated' || steps.alerts.outcome == 'skipped' && '⏭️ skipped' || '⚠️ error (non-blocking)' }} |"
               else
                 echo "| TradingView preflight | ⏭️ skipped (non-main ref) |"
                 echo "| Publish | ⏭️ skipped (non-main ref) |"
                 echo "| TradingView post-release validation | ⏭️ skipped (non-main ref) |"
+                echo "| Post-release strict release gates | ⏭️ skipped (non-main ref) |"
                 echo "| Commit | ⏭️ skipped (non-main ref) |"
                 echo "| Signal + event-risk alerts | ⏭️ skipped (non-main ref) |"
               fi
@@ -619,6 +628,7 @@ jobs:
               echo "| TradingView preflight | ⏭️ skipped (no changes) |"
               echo "| Publish | ⏭️ skipped (no changes) |"
               echo "| TradingView post-release validation | ⏭️ skipped (no changes) |"
+              echo "| Post-release strict release gates | ⏭️ skipped (no changes) |"
               echo "| Commit | ⏭️ skipped (no changes) |"
               echo "| Signal + event-risk alerts | ⏭️ skipped (no changes) |"
             fi

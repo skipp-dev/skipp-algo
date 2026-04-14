@@ -37,6 +37,19 @@ def _assert_common_payload(payload: dict, symbol: str, timeframe: str) -> None:
     assert isinstance(payload["provenance"], list)
 
 
+def _assert_databento_volume_contract(value: dict, *, model_source: str, selected_baseline: str) -> None:
+    assert value["contract_version"] == "1"
+    assert value["baseline_priority_order"] == [
+        "rvol",
+        "explicit_average_volume",
+        "peer_median_same_trade_date",
+        "premarket_liquidity",
+    ]
+    assert value["model_source"] == model_source
+    assert value["selected_baseline"] == selected_baseline
+    assert value["peer_median_rollout"] == "always_on"
+
+
 def test_tradingview_source_loads_meta_and_structure(monkeypatch, tmp_path: Path) -> None:
     source_path = tmp_path / "tradingview_watchlist_snapshot.json"
     _write_rows(
@@ -82,6 +95,11 @@ def test_databento_source_derives_low_volume_from_same_day_liquidity(monkeypatch
     _assert_common_payload(meta, "AAPL", "15m")
     assert meta["volume"]["value"]["regime"] == "LOW_VOLUME"
     assert meta["volume"]["value"]["thin_fraction"] == 0.5
+    _assert_databento_volume_contract(
+        meta["volume"]["value"],
+        model_source="premarket_liquidity_peer_median",
+        selected_baseline="premarket_liquidity",
+    )
 
 
 def test_databento_source_derives_holiday_suspect_from_same_day_liquidity(monkeypatch, tmp_path: Path) -> None:
@@ -101,6 +119,11 @@ def test_databento_source_derives_holiday_suspect_from_same_day_liquidity(monkey
     _assert_common_payload(meta, "AAPL", "15m")
     assert meta["volume"]["value"]["regime"] == "HOLIDAY_SUSPECT"
     assert meta["volume"]["value"]["thin_fraction"] == 0.8
+    _assert_databento_volume_contract(
+        meta["volume"]["value"],
+        model_source="premarket_liquidity_peer_median",
+        selected_baseline="premarket_liquidity",
+    )
 
 
 def test_databento_source_surfaces_unknown_without_liquidity_evidence(monkeypatch, tmp_path: Path) -> None:
@@ -120,6 +143,11 @@ def test_databento_source_surfaces_unknown_without_liquidity_evidence(monkeypatc
     assert meta["timeframe"] == "15m"
     assert meta["volume"]["value"]["regime"] == "UNKNOWN"
     assert meta["volume"]["value"]["thin_fraction"] is None
+    _assert_databento_volume_contract(
+        meta["volume"]["value"],
+        model_source="missing_baseline",
+        selected_baseline="none",
+    )
     assert "smc_integration:volume_regime_unknown_no_premarket_liquidity" in meta["provenance"]
 
 
@@ -153,6 +181,11 @@ def test_databento_source_prefers_rvol_when_available(monkeypatch, tmp_path: Pat
     _assert_common_payload(meta, "AAPL", "15m")
     assert meta["volume"]["value"]["regime"] == "NORMAL"
     assert meta["volume"]["value"]["rvol"] == 1.6
+    _assert_databento_volume_contract(
+        meta["volume"]["value"],
+        model_source="explicit_rvol",
+        selected_baseline="rvol",
+    )
     assert "smc_integration:volume_regime_derived_from_rvol" in meta["provenance"]
     assert "smc_integration:volume_regime_rvol_field=day_volume_rvol_20d" in meta["provenance"]
 
@@ -185,6 +218,11 @@ def test_databento_source_uses_daily_bar_rvol_from_explicit_average_volume(monke
     _assert_common_payload(meta, "AAPL", "15m")
     assert meta["volume"]["value"]["source"] == "daily_bar_rvol"
     assert meta["volume"]["value"]["rvol"] == 1.5
+    _assert_databento_volume_contract(
+        meta["volume"]["value"],
+        model_source="daily_bar_rvol_explicit_average",
+        selected_baseline="explicit_average_volume",
+    )
     assert "smc_integration:volume_regime_derived_from_daily_bar_rvol" in meta["provenance"]
     assert "smc_integration:volume_regime_daily_volume_field=current_volume" in meta["provenance"]
     assert "smc_integration:volume_regime_daily_volume_baseline=avg_daily_volume" in meta["provenance"]
@@ -206,8 +244,83 @@ def test_databento_source_uses_daily_bar_rvol_from_peer_median(monkeypatch, tmp_
 
     _assert_common_payload(meta, "AAPL", "15m")
     assert meta["volume"]["value"]["source"] == "daily_bar_rvol"
-    assert meta["volume"]["value"]["rvol"] == 0.75
+    assert meta["volume"]["value"]["rvol"] == 0.6667
+    assert meta["volume"]["value"]["peer_count"] == 2
+    assert meta["volume"]["value"]["peer_scope"] == "same_trade_date_excluding_symbol"
+    _assert_databento_volume_contract(
+        meta["volume"]["value"],
+        model_source="daily_bar_rvol_peer_median",
+        selected_baseline="peer_median_same_trade_date",
+    )
     assert "smc_integration:volume_regime_daily_volume_baseline=peer_median:day_volume" in meta["provenance"]
+
+
+def test_databento_source_handles_zero_peer_median_without_division(monkeypatch, tmp_path: Path) -> None:
+    source_path = tmp_path / "databento_watchlist.csv"
+    _write_watchlist_csv(
+        source_path,
+        [
+            {"symbol": "AAPL", "trade_date": "2026-03-01", "watchlist_rank": 1, "day_volume": 900000},
+            {"symbol": "MSFT", "trade_date": "2026-03-01", "watchlist_rank": 2, "day_volume": 0},
+            {"symbol": "NVDA", "trade_date": "2026-03-01", "watchlist_rank": 3, "day_volume": 0},
+        ],
+    )
+    monkeypatch.setattr(databento_watchlist_csv, "WATCHLIST_CSV", source_path)
+
+    meta = databento_watchlist_csv.load_raw_meta_input("AAPL", "15m")
+
+    assert meta["volume"]["value"]["regime"] == "UNKNOWN"
+    assert meta["volume"]["value"]["thin_fraction"] is None
+    _assert_databento_volume_contract(
+        meta["volume"]["value"],
+        model_source="missing_baseline",
+        selected_baseline="none",
+    )
+
+
+def test_databento_source_handles_sparse_peers_deterministically(monkeypatch, tmp_path: Path) -> None:
+    source_path = tmp_path / "databento_watchlist.csv"
+    _write_watchlist_csv(
+        source_path,
+        [
+            {"symbol": "AAPL", "trade_date": "2026-03-01", "watchlist_rank": 1, "day_volume": 900000},
+            {"symbol": "MSFT", "trade_date": "2026-03-01", "watchlist_rank": 2, "day_volume": 1200000},
+            {"symbol": "NVDA", "trade_date": "2026-03-01", "watchlist_rank": 3},
+        ],
+    )
+    monkeypatch.setattr(databento_watchlist_csv, "WATCHLIST_CSV", source_path)
+
+    meta = databento_watchlist_csv.load_raw_meta_input("AAPL", "15m")
+
+    assert meta["volume"]["value"]["source"] == "daily_bar_rvol"
+    assert meta["volume"]["value"]["rvol"] == 0.75
+    assert meta["volume"]["value"]["peer_count"] == 1
+    assert meta["volume"]["value"]["peer_scope"] == "same_trade_date_excluding_symbol"
+
+
+def test_databento_volume_meta_exposes_contractually_supported_traceability_fields(monkeypatch, tmp_path: Path) -> None:
+    source_path = tmp_path / "databento_watchlist.csv"
+    _write_watchlist_csv(
+        source_path,
+        [
+            {"symbol": "AAPL", "trade_date": "2026-03-01", "watchlist_rank": 1, "day_volume": 900000},
+            {"symbol": "MSFT", "trade_date": "2026-03-01", "watchlist_rank": 2, "day_volume": 1200000},
+            {"symbol": "NVDA", "trade_date": "2026-03-01", "watchlist_rank": 3, "day_volume": 1500000},
+        ],
+    )
+    monkeypatch.setattr(databento_watchlist_csv, "WATCHLIST_CSV", source_path)
+
+    meta = databento_watchlist_csv.load_raw_meta_input("AAPL", "15m")
+    volume_value = meta["volume"]["value"]
+
+    assert volume_value["contract_version"] == "1"
+    assert volume_value["model_source"] == "daily_bar_rvol_peer_median"
+    assert volume_value["selected_baseline"] == "peer_median_same_trade_date"
+    assert volume_value["peer_median_rollout"] == "always_on"
+    assert volume_value["peer_scope"] == "same_trade_date_excluding_symbol"
+    assert "smc_integration:volume_regime_contract_version=1" in meta["provenance"]
+    assert "smc_integration:volume_regime_model_source=daily_bar_rvol_peer_median" in meta["provenance"]
+    assert "smc_integration:volume_regime_selected_baseline=peer_median_same_trade_date" in meta["provenance"]
 
 
 def test_fmp_source_loads_meta_and_structure(monkeypatch, tmp_path: Path) -> None:

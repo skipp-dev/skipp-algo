@@ -1904,11 +1904,15 @@ with st.sidebar:
                 _wh_valid, _wh_reason = validate_webhook_url(_wh_url)
                 if not _wh_valid:
                     if _wh_reason == "unsupported_scheme":
-                        st.error("Webhook URL must use http:// or https://")
+                        st.error("Webhook URL must use a supported URL scheme")
+                    elif _wh_reason == "insecure_scheme":
+                        st.error("Webhook URL must use https://")
                     elif _wh_reason in {"local_host", "missing_host"}:
                         st.error("Webhook URL must not target localhost")
                     elif _wh_reason in {"private_or_local_ip", "resolved_to_private_or_local_ip"}:
                         st.error("Webhook URL must not target private/internal networks")
+                    elif _wh_reason == "credentials_not_allowed":
+                        st.error("Webhook URL must not embed credentials")
                     else:
                         st.error("Webhook URL is invalid or not allowed")
 
@@ -2194,11 +2198,16 @@ def _evaluate_alerts(items: list[ClassifiedItem]) -> None:
     # Fire all queued webhooks through a single shared httpx client
     if pending_webhooks:
         try:
-            with httpx.Client(timeout=5.0) as client:
+            with httpx.Client(timeout=5.0, follow_redirects=False) as client:
                 for wh_url, wh_payload in pending_webhooks:
                     try:
                         body = json.dumps(wh_payload, default=str).encode()
-                        client.post(wh_url, content=body, headers={"Content-Type": "application/json"})
+                        client.post(
+                            wh_url,
+                            content=body,
+                            headers={"Content-Type": "application/json"},
+                            follow_redirects=False,
+                        )
                     except Exception as exc:
                         logger.warning("Alert webhook POST failed (%s): %s", wh_url[:40], exc, exc_info=True)
         except Exception as exc:
@@ -2288,7 +2297,7 @@ def _process_new_items(
 
     if _do_global_wh or _do_nc_wh:
         try:
-            with httpx.Client(timeout=5.0) as wh_client:
+            with httpx.Client(timeout=5.0, follow_redirects=False) as wh_client:
                 # Global webhook
                 if _do_global_wh:
                     _wh_budget = 20

@@ -37,6 +37,15 @@ _DAILY_AVG_VOLUME_FIELD_CANDIDATES = (
     "adv20",
     "adv_20d",
 )
+_VOLUME_REGIME_CONTRACT_VERSION = "1"
+_VOLUME_REGIME_BASELINE_PRIORITY_ORDER = (
+    "rvol",
+    "explicit_average_volume",
+    "peer_median_same_trade_date",
+    "premarket_liquidity",
+)
+_PEER_MEDIAN_ROLLOUT = "always_on"
+_PEER_SCOPE = "same_trade_date_excluding_symbol"
 
 
 def describe_source() -> SourceDescriptor:
@@ -110,6 +119,16 @@ def _same_trade_date_rows(rows: list[dict[str, str]], trade_date: str) -> list[d
     return [row for row in rows if str(row.get("trade_date", "")).strip() == trade_date]
 
 
+def _same_trade_date_peer_rows(rows: list[dict[str, str]], trade_date: str, symbol: str) -> list[dict[str, str]]:
+    wanted = str(symbol).strip().upper()
+    return [
+        row
+        for row in rows
+        if str(row.get("trade_date", "")).strip() == trade_date
+        and str(row.get("symbol", "")).strip().upper() != wanted
+    ]
+
+
 def _positive_peer_values(rows: list[dict[str, str]], field_name: str) -> list[float]:
     values: list[float] = []
     for row in rows:
@@ -132,7 +151,7 @@ def _extract_rvol_value(row: dict[str, str]) -> tuple[float | None, str | None]:
 def _extract_daily_bar_rvol(
     row: dict[str, str],
     peer_rows: list[dict[str, str]],
-) -> tuple[float | None, str | None, str | None]:
+) -> dict[str, Any] | None:
     for volume_field in _DAILY_VOLUME_FIELD_CANDIDATES:
         current_volume = _coerce_optional_float(row.get(volume_field))
         if current_volume is None or current_volume <= 0:
@@ -142,7 +161,13 @@ def _extract_daily_bar_rvol(
             avg_volume = _coerce_optional_float(row.get(avg_field))
             if avg_volume is None or avg_volume <= 0:
                 continue
-            return current_volume / avg_volume, volume_field, avg_field
+            return {
+                "rvol": current_volume / avg_volume,
+                "daily_volume_field": volume_field,
+                "daily_volume_baseline": avg_field,
+                "model_source": "daily_bar_rvol_explicit_average",
+                "selected_baseline": "explicit_average_volume",
+            }
 
         peer_values = _positive_peer_values(peer_rows, volume_field)
         if not peer_values:
@@ -150,9 +175,27 @@ def _extract_daily_bar_rvol(
         peer_median = statistics.median(peer_values)
         if peer_median <= 0:
             continue
-        return current_volume / peer_median, volume_field, f"peer_median:{volume_field}"
+        return {
+            "rvol": current_volume / peer_median,
+            "daily_volume_field": volume_field,
+            "daily_volume_baseline": f"peer_median:{volume_field}",
+            "model_source": "daily_bar_rvol_peer_median",
+            "selected_baseline": "peer_median_same_trade_date",
+            "peer_count": len(peer_values),
+            "peer_scope": _PEER_SCOPE,
+        }
 
-    return None, None, None
+    return None
+
+
+def _volume_contract_fields(*, model_source: str, selected_baseline: str) -> dict[str, Any]:
+    return {
+        "contract_version": _VOLUME_REGIME_CONTRACT_VERSION,
+        "baseline_priority_order": list(_VOLUME_REGIME_BASELINE_PRIORITY_ORDER),
+        "selected_baseline": selected_baseline,
+        "model_source": model_source,
+        "peer_median_rollout": _PEER_MEDIAN_ROLLOUT,
+    }
 
 
 def _derive_volume_meta(row: dict[str, str], peer_rows: list[dict[str, str]]) -> dict[str, Any]:
@@ -161,6 +204,7 @@ def _derive_volume_meta(row: dict[str, str], peer_rows: list[dict[str, str]]) ->
         regime, thin_fraction = classify_volume_regime_from_rvol(rvol_value)
         if regime != "UNKNOWN":
             return {
+                **_volume_contract_fields(model_source="explicit_rvol", selected_baseline="rvol"),
                 "regime": regime,
                 "thin_fraction": thin_fraction,
                 "source": "rvol",
@@ -168,17 +212,23 @@ def _derive_volume_meta(row: dict[str, str], peer_rows: list[dict[str, str]]) ->
                 "rvol_field": rvol_field,
             }
 
-    daily_bar_rvol, daily_volume_field, daily_volume_baseline = _extract_daily_bar_rvol(row, peer_rows)
+    daily_bar_rvol = _extract_daily_bar_rvol(row, peer_rows)
     if daily_bar_rvol is not None:
-        regime, thin_fraction = classify_volume_regime_from_rvol(daily_bar_rvol)
+        regime, thin_fraction = classify_volume_regime_from_rvol(daily_bar_rvol["rvol"])
         if regime != "UNKNOWN":
             return {
+                **_volume_contract_fields(
+                    model_source=str(daily_bar_rvol.get("model_source") or "daily_bar_rvol_explicit_average"),
+                    selected_baseline=str(daily_bar_rvol.get("selected_baseline") or "explicit_average_volume"),
+                ),
                 "regime": regime,
                 "thin_fraction": thin_fraction,
                 "source": "daily_bar_rvol",
-                "rvol": round(daily_bar_rvol, 4),
-                "daily_volume_field": daily_volume_field,
-                "daily_volume_baseline": daily_volume_baseline,
+                "rvol": round(float(daily_bar_rvol["rvol"]), 4),
+                "daily_volume_field": daily_bar_rvol.get("daily_volume_field"),
+                "daily_volume_baseline": daily_bar_rvol.get("daily_volume_baseline"),
+                "peer_count": daily_bar_rvol.get("peer_count"),
+                "peer_scope": daily_bar_rvol.get("peer_scope"),
             }
 
     liquidity_ratios: list[float] = []
@@ -199,6 +249,7 @@ def _derive_volume_meta(row: dict[str, str], peer_rows: list[dict[str, str]]) ->
             str(row.get("trade_date") or "").strip() or "?",
         )
         return {
+            **_volume_contract_fields(model_source="missing_baseline", selected_baseline="none"),
             "regime": "UNKNOWN",
             "thin_fraction": None,
             "source": "none",
@@ -215,9 +266,14 @@ def _derive_volume_meta(row: dict[str, str], peer_rows: list[dict[str, str]]) ->
         regime = "LOW_VOLUME"
 
     return {
+        **_volume_contract_fields(
+            model_source="premarket_liquidity_peer_median",
+            selected_baseline="premarket_liquidity",
+        ),
         "regime": regime,
         "thin_fraction": thin_fraction,
         "source": "premarket_liquidity",
+        "peer_scope": _PEER_SCOPE,
     }
 
 
@@ -236,16 +292,17 @@ def load_raw_structure_input(symbol: str, timeframe: str) -> dict[str, Any]:
 def load_raw_meta_input(symbol: str, timeframe: str) -> dict[str, Any]:
     rows = _load_rows()
     row = _select_symbol_row(rows, symbol)
+    normalized_symbol = str(row.get("symbol", symbol)).strip().upper()
 
     trade_date = str(row.get("trade_date", "")).strip()
     if not trade_date:
         raise ValueError("watchlist row is missing trade_date")
 
     asof_ts = _asof_ts_from_trade_date(trade_date)
-    volume_meta = _derive_volume_meta(row, _same_trade_date_rows(rows, trade_date))
+    volume_meta = _derive_volume_meta(row, _same_trade_date_peer_rows(rows, trade_date, normalized_symbol))
 
     payload: dict[str, Any] = {
-        "symbol": str(row.get("symbol", symbol)).strip().upper(),
+        "symbol": normalized_symbol,
         "timeframe": str(timeframe).strip(),
         "asof_ts": asof_ts,
         "volume": {
@@ -255,11 +312,31 @@ def load_raw_meta_input(symbol: str, timeframe: str) -> dict[str, Any]:
         },
         "provenance": [
             "repo:reports/databento_watchlist_top5_pre1530.csv",
-            f"repo:reports/databento_watchlist_top5_pre1530.csv#symbol={str(row.get('symbol', symbol)).strip().upper()}",
+            f"repo:reports/databento_watchlist_top5_pre1530.csv#symbol={normalized_symbol}",
             f"repo:reports/databento_watchlist_top5_pre1530.csv#trade_date={trade_date}",
             "smc_integration:partial_structure_only",
         ],
     }
+
+    contract_version = str(volume_meta.get("contract_version") or "").strip()
+    model_source = str(volume_meta.get("model_source") or "").strip()
+    selected_baseline = str(volume_meta.get("selected_baseline") or "").strip()
+    peer_median_rollout = str(volume_meta.get("peer_median_rollout") or "").strip()
+    peer_scope = str(volume_meta.get("peer_scope") or "").strip()
+    peer_count = volume_meta.get("peer_count")
+
+    if contract_version:
+        payload["provenance"].append(f"smc_integration:volume_regime_contract_version={contract_version}")
+    if model_source:
+        payload["provenance"].append(f"smc_integration:volume_regime_model_source={model_source}")
+    if selected_baseline:
+        payload["provenance"].append(f"smc_integration:volume_regime_selected_baseline={selected_baseline}")
+    if peer_median_rollout:
+        payload["provenance"].append(f"smc_integration:volume_regime_peer_median_rollout={peer_median_rollout}")
+    if peer_scope:
+        payload["provenance"].append(f"smc_integration:volume_regime_peer_scope={peer_scope}")
+    if isinstance(peer_count, int):
+        payload["provenance"].append(f"smc_integration:volume_regime_peer_count={peer_count}")
 
     if volume_meta.get("regime") == "UNKNOWN":
         payload["provenance"].append("smc_integration:volume_regime_unknown_no_premarket_liquidity")

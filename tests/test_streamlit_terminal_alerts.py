@@ -82,6 +82,26 @@ def test_validate_webhook_url_rejects_multicast_resolution() -> None:
     assert reason == "resolved_to_private_or_local_ip"
 
 
+def test_validate_webhook_url_rejects_insecure_http_scheme() -> None:
+    def _resolver(*_args):
+        return [(None, None, None, None, ("8.8.8.8", 80))]
+
+    ok, reason = validate_webhook_url("http://hooks.example.com/webhook", resolver=_resolver)
+
+    assert ok is False
+    assert reason == "insecure_scheme"
+
+
+def test_validate_webhook_url_rejects_embedded_credentials() -> None:
+    def _resolver(*_args):
+        return [(None, None, None, None, ("8.8.8.8", 443))]
+
+    ok, reason = validate_webhook_url("https://user:pass@hooks.example.com/webhook", resolver=_resolver)
+
+    assert ok is False
+    assert reason == "credentials_not_allowed"
+
+
 def test_evaluate_alert_rules_dedups_by_story_and_caps_webhooks() -> None:
     rules = [
         {
@@ -109,6 +129,7 @@ def test_evaluate_alert_rules_dedups_by_story_and_caps_webhooks() -> None:
         rules,
         webhook_budget=1,
         now=1700000000.0,
+        webhook_validator=lambda _url: (True, ""),
     )
 
     assert len(evaluation["alert_log_entries"]) == 2
@@ -132,6 +153,7 @@ def test_evaluate_alert_rules_budget_exhausted_skips_webhooks() -> None:
         [{"ticker": "AAPL", "condition": "score >= threshold", "threshold": 0.8, "webhook_url": "https://hooks.example.com/primary"}],
         webhook_budget=0,
         now=1700000000.0,
+        webhook_validator=lambda _url: (True, ""),
     )
 
     assert len(evaluation["alert_log_entries"]) == 1
@@ -144,6 +166,20 @@ def test_evaluate_alert_rules_no_matching_rules_returns_empty() -> None:
         [{"ticker": "AAPL", "condition": "score >= threshold", "threshold": 0.8, "webhook_url": "https://hooks.example.com/primary"}],
         webhook_budget=1,
         now=1700000000.0,
+        webhook_validator=lambda _url: (True, ""),
     )
 
     assert evaluation == {"alert_log_entries": [], "pending_webhooks": []}
+
+
+def test_evaluate_alert_rules_filters_invalid_webhook_urls() -> None:
+    evaluation = evaluate_alert_rules(
+        [_item()],
+        [{"ticker": "AAPL", "condition": "score >= threshold", "threshold": 0.8, "webhook_url": "http://hooks.example.com/primary"}],
+        webhook_budget=1,
+        now=1700000000.0,
+        webhook_validator=lambda _url: (False, "insecure_scheme"),
+    )
+
+    assert len(evaluation["alert_log_entries"]) == 1
+    assert evaluation["pending_webhooks"] == []

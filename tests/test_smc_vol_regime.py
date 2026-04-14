@@ -135,3 +135,9 @@ class TestClassifyVolumeRegimeFromRvol:
 
         assert regime == "UNKNOWN"
         assert thin_fraction is None
+
+    def test_nonpositive_rvol_is_unknown(self) -> None:
+        regime, thin_fraction = classify_volume_regime_from_rvol(0.0)
+
+        assert regime == "UNKNOWN"
+        assert thin_fraction is None
