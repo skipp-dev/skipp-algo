@@ -744,10 +744,17 @@ def test_smoke_emits_silent_domain_drop_alert(monkeypatch):
         and item.get("status") == "domain_fields_incomplete"
         for item in alerts
     )
+    assert any(
+        item.get("code") == "DOMAIN_DROPPED_TECHNICAL"
+        and item.get("severity") == "info"
+        and item.get("status") == "domain_fields_incomplete"
+        for item in alerts
+    )
     assert not any(item.get("code") == "META_TECHNICAL_DOMAIN_STATUS" for item in alerts)
     warning_codes = {item.get("code") for item in smoke["warnings"]}
     assert "DOMAIN_DROP_DURING_BUILD" in warning_codes
     assert "SILENT_DOMAIN_DROP_TECHNICAL" in warning_codes
+    assert "DOMAIN_DROPPED_TECHNICAL" not in warning_codes
 
 
 def test_smoke_avoids_duplicate_drop_alert_when_domain_is_also_stale(monkeypatch):

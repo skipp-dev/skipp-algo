@@ -55,6 +55,33 @@ def test_validate_webhook_url_accepts_public_host() -> None:
     assert reason == ""
 
 
+def test_validate_webhook_url_rejects_ipv6_loopback() -> None:
+    ok, reason = validate_webhook_url("http://[::1]/webhook")
+
+    assert ok is False
+    assert reason == "private_or_local_ip"
+
+
+def test_validate_webhook_url_rejects_link_local_resolution() -> None:
+    def _resolver(*_args):
+        return [(None, None, None, None, ("169.254.10.20", 443))]
+
+    ok, reason = validate_webhook_url("https://hooks.example.com/webhook", resolver=_resolver)
+
+    assert ok is False
+    assert reason == "resolved_to_private_or_local_ip"
+
+
+def test_validate_webhook_url_rejects_multicast_resolution() -> None:
+    def _resolver(*_args):
+        return [(None, None, None, None, ("224.0.0.25", 443))]
+
+    ok, reason = validate_webhook_url("https://hooks.example.com/webhook", resolver=_resolver)
+
+    assert ok is False
+    assert reason == "resolved_to_private_or_local_ip"
+
+
 def test_evaluate_alert_rules_dedups_by_story_and_caps_webhooks() -> None:
     rules = [
         {
@@ -91,3 +118,32 @@ def test_evaluate_alert_rules_dedups_by_story_and_caps_webhooks() -> None:
         "score >= threshold",
         "sentiment == bullish",
     }
+
+
+def test_evaluate_alert_rules_empty_items_is_safe() -> None:
+    evaluation = evaluate_alert_rules([], [{"ticker": "AAPL", "condition": "score >= threshold", "threshold": 0.8}], webhook_budget=2, now=1700000000.0)
+
+    assert evaluation == {"alert_log_entries": [], "pending_webhooks": []}
+
+
+def test_evaluate_alert_rules_budget_exhausted_skips_webhooks() -> None:
+    evaluation = evaluate_alert_rules(
+        [_item()],
+        [{"ticker": "AAPL", "condition": "score >= threshold", "threshold": 0.8, "webhook_url": "https://hooks.example.com/primary"}],
+        webhook_budget=0,
+        now=1700000000.0,
+    )
+
+    assert len(evaluation["alert_log_entries"]) == 1
+    assert evaluation["pending_webhooks"] == []
+
+
+def test_evaluate_alert_rules_no_matching_rules_returns_empty() -> None:
+    evaluation = evaluate_alert_rules(
+        [_item(ticker="MSFT", sentiment_label="neutral", news_score=0.2)],
+        [{"ticker": "AAPL", "condition": "score >= threshold", "threshold": 0.8, "webhook_url": "https://hooks.example.com/primary"}],
+        webhook_budget=1,
+        now=1700000000.0,
+    )
+
+    assert evaluation == {"alert_log_entries": [], "pending_webhooks": []}

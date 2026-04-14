@@ -157,6 +157,59 @@ def test_databento_source_prefers_rvol_when_available(monkeypatch, tmp_path: Pat
     assert "smc_integration:volume_regime_rvol_field=day_volume_rvol_20d" in meta["provenance"]
 
 
+def test_databento_source_uses_daily_bar_rvol_from_explicit_average_volume(monkeypatch, tmp_path: Path) -> None:
+    source_path = tmp_path / "databento_watchlist.csv"
+    _write_watchlist_csv(
+        source_path,
+        [
+            {
+                "symbol": "AAPL",
+                "trade_date": "2026-03-01",
+                "watchlist_rank": 1,
+                "current_volume": 2400000,
+                "avg_daily_volume": 1600000,
+            },
+            {
+                "symbol": "MSFT",
+                "trade_date": "2026-03-01",
+                "watchlist_rank": 2,
+                "current_volume": 1200000,
+                "avg_daily_volume": 1500000,
+            },
+        ],
+    )
+    monkeypatch.setattr(databento_watchlist_csv, "WATCHLIST_CSV", source_path)
+
+    meta = databento_watchlist_csv.load_raw_meta_input("AAPL", "15m")
+
+    _assert_common_payload(meta, "AAPL", "15m")
+    assert meta["volume"]["value"]["source"] == "daily_bar_rvol"
+    assert meta["volume"]["value"]["rvol"] == 1.5
+    assert "smc_integration:volume_regime_derived_from_daily_bar_rvol" in meta["provenance"]
+    assert "smc_integration:volume_regime_daily_volume_field=current_volume" in meta["provenance"]
+    assert "smc_integration:volume_regime_daily_volume_baseline=avg_daily_volume" in meta["provenance"]
+
+
+def test_databento_source_uses_daily_bar_rvol_from_peer_median(monkeypatch, tmp_path: Path) -> None:
+    source_path = tmp_path / "databento_watchlist.csv"
+    _write_watchlist_csv(
+        source_path,
+        [
+            {"symbol": "AAPL", "trade_date": "2026-03-01", "watchlist_rank": 1, "day_volume": 900000},
+            {"symbol": "MSFT", "trade_date": "2026-03-01", "watchlist_rank": 2, "day_volume": 1200000},
+            {"symbol": "NVDA", "trade_date": "2026-03-01", "watchlist_rank": 3, "day_volume": 1500000},
+        ],
+    )
+    monkeypatch.setattr(databento_watchlist_csv, "WATCHLIST_CSV", source_path)
+
+    meta = databento_watchlist_csv.load_raw_meta_input("AAPL", "15m")
+
+    _assert_common_payload(meta, "AAPL", "15m")
+    assert meta["volume"]["value"]["source"] == "daily_bar_rvol"
+    assert meta["volume"]["value"]["rvol"] == 0.75
+    assert "smc_integration:volume_regime_daily_volume_baseline=peer_median:day_volume" in meta["provenance"]
+
+
 def test_fmp_source_loads_meta_and_structure(monkeypatch, tmp_path: Path) -> None:
     source_path = tmp_path / "fmp_watchlist_snapshot.json"
     _write_rows(

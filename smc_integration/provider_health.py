@@ -207,6 +207,24 @@ def _collect_meta_domain_alerts(
             severity = "warn"
             if allow_release_reference_meta_fallback:
                 severity = "info"
+            alerts.append(
+                _build_domain_alert(
+                    code=f"DOMAIN_DROPPED_{domain.upper()}",
+                    severity="info",
+                    symbol=symbol,
+                    timeframe=timeframe,
+                    domain=domain,
+                    status=drop_reason,
+                    planned_source=planned_source,
+                    actual_source=actual_source,
+                    fallback_used=fallback_used,
+                    age_hours=age_hours,
+                    message=(
+                        f"{domain} domain absent after provider resolution; reason={drop_reason}; "
+                        f"drop_provider={drop_provider or 'unknown'}."
+                    ),
+                )
+            )
             domain_drop_alert = _build_domain_alert(
                 code="DOMAIN_DROP_DURING_BUILD",
                 severity=severity,

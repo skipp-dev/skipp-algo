@@ -394,11 +394,14 @@ def _try_load_meta_domain(
 
     last_status = "not_attempted"
     last_provider_name = primary_name
+    attempted_any_candidate = False
+    saw_domain_key_absent = False
     for name in candidates:
         provider = _SOURCE_PROVIDERS.get(name)
         if provider is None:
             continue
         last_provider_name = name
+        attempted_any_candidate = True
         try:
             meta = provider.load_meta(symbol, timeframe)
         except FileNotFoundError:
@@ -419,17 +422,24 @@ def _try_load_meta_domain(
         meta.pop(_SOURCE_DOMAIN_STATUS_KEY, None)
         if domain not in meta:
             last_status = hinted_status or "domain_key_absent"
+            saw_domain_key_absent = True
             continue
         return meta, "present", name
 
-    if domain in {"volume", "technical", "news"} and last_status != "not_attempted":
+    if not attempted_any_candidate:
+        last_status = "not_attempted_no_candidates"
+    elif saw_domain_key_absent and last_status == "domain_key_absent":
+        last_status = "domain_key_absent_all_candidates"
+
+    if domain in {"volume", "technical", "news"}:
         _LOG.warning(
-            "meta domain %s dropped for %s/%s; planned_source=%s actual_source=%s status=%s auto_mode=%s",
+            "meta domain %s dropped for %s/%s; planned_source=%s actual_source=%s status=%s reason_code=%s auto_mode=%s",
             domain,
             str(symbol).strip().upper(),
             str(timeframe).strip(),
             primary_name,
             last_provider_name,
+            last_status,
             last_status,
             auto_mode,
         )

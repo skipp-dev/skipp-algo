@@ -61,6 +61,19 @@ def _story_key_for_feed_row(row: dict[str, Any]) -> str:
 	return explicit or live_story_key(row)
 
 
+def _safe_story_float(value: Any, *, default: float = 0.0) -> float:
+	try:
+		return float(value)
+	except (TypeError, ValueError):
+		return default
+
+
+def _safe_story_provider_list(value: Any) -> list[str]:
+	if not isinstance(value, (list, tuple, set)):
+		return []
+	return [str(item).strip() for item in value if str(item).strip()]
+
+
 def _annotate_rows_with_states(
 	rows: list[dict[str, Any]],
 	*,
@@ -93,7 +106,7 @@ def _hydrate_feed_story_state(
 	hydrated: list[dict[str, Any]] = []
 	for row in feed:
 		hydrated_row = dict(row)
-		story_key = live_story_key(hydrated_row)
+		story_key = _story_key_for_feed_row(hydrated_row)
 		state = story_state.get(story_key)
 		if state is None:
 			hydrated.append(hydrated_row)
@@ -103,17 +116,19 @@ def _hydrate_feed_story_state(
 		hydrated_row["story_update_kind"] = str(
 			hydrated_row.get("story_update_kind") or state.get("last_action") or "restored"
 		)
-		hydrated_row["story_first_seen_ts"] = float(
-			hydrated_row.get("story_first_seen_ts") or state.get("first_seen_ts") or 0.0
+		hydrated_row["story_first_seen_ts"] = _safe_story_float(
+			hydrated_row.get("story_first_seen_ts") or state.get("first_seen_ts"),
+			default=0.0,
 		)
-		hydrated_row["story_last_seen_ts"] = float(
+		hydrated_row["story_last_seen_ts"] = _safe_story_float(
 			hydrated_row.get("story_last_seen_ts")
 			or hydrated_row.get("updated_ts")
 			or hydrated_row.get("published_ts")
 			or state.get("last_seen_ts")
-			or 0.0
+			or 0.0,
+			default=0.0,
 		)
-		hydrated_row["story_providers_seen"] = list(
+		hydrated_row["story_providers_seen"] = _safe_story_provider_list(
 			hydrated_row.get("story_providers_seen") or state.get("providers_seen") or []
 		)
 		hydrated_row["story_best_source"] = str(
@@ -122,14 +137,25 @@ def _hydrate_feed_story_state(
 		hydrated_row["story_best_provider"] = str(
 			hydrated_row.get("story_best_provider") or state.get("best_provider") or ""
 		)
-		hydrated_row["story_cooldown_until"] = float(
-			hydrated_row.get("story_cooldown_until") or state.get("cooldown_until") or 0.0
+		hydrated_row["story_cooldown_until"] = _safe_story_float(
+			hydrated_row.get("story_cooldown_until") or state.get("cooldown_until") or 0.0,
+			default=0.0,
 		)
-		hydrated_row["story_expires_at"] = float(
-			hydrated_row.get("story_expires_at") or state.get("expires_at") or 0.0
+		hydrated_row["story_expires_at"] = _safe_story_float(
+			hydrated_row.get("story_expires_at") or state.get("expires_at") or 0.0,
+			default=0.0,
 		)
 		hydrated.append(hydrated_row)
 	return dedup_feed_items(hydrated), story_state
+
+
+def hydrate_feed_story_state(
+	feed: list[dict[str, Any]],
+	*,
+	cfg: Any | None = None,
+	now: float | None = None,
+) -> tuple[list[dict[str, Any]], dict[str, dict[str, Any]]]:
+	return _hydrate_feed_story_state(feed, cfg=cfg, now=now)
 
 
 def _derive_cursors(feed: list[dict[str, Any]]) -> tuple[str | None, dict[str, str]]:

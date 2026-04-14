@@ -70,3 +70,4 @@ def test_refresh_workflow_runs_post_release_validation_before_commit() -> None:
     assert 'smc_post_release_validation_report.json' in workflow_text
     assert 'TradingView post-release validation' in workflow_text
     assert 'TradingView post-release validation failed' in workflow_text
+    assert "steps.tv_post_release.outcome == 'success'" in workflow_text

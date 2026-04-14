@@ -220,3 +220,57 @@ def test_release_reference_meta_can_synthesize_volume_from_structure_artifact(mo
     assert diag["news_planned_source"] == "benzinga_watchlist_json"
     assert diag["technical_stale"] is False
     assert diag["news_stale"] is False
+
+
+def test_try_load_meta_domain_logs_warning_when_no_candidates_are_attempted(monkeypatch, caplog: pytest.LogCaptureFixture) -> None:
+    monkeypatch.setattr(repo_sources_module, "_SOURCE_PROVIDERS", {})
+
+    with caplog.at_level("WARNING"):
+        payload, status, actual_source = repo_sources_module._try_load_meta_domain(
+            "technical",
+            "AAPL",
+            "15m",
+            "fmp_watchlist_json",
+            auto_mode=True,
+        )
+
+    assert payload is None
+    assert status == "not_attempted_no_candidates"
+    assert actual_source == "fmp_watchlist_json"
+    assert "reason_code=not_attempted_no_candidates" in caplog.text
+
+
+def test_try_load_meta_domain_surfaces_domain_key_absent_across_all_candidates(monkeypatch, caplog: pytest.LogCaptureFixture) -> None:
+    class _Provider:
+        def load_meta(self, symbol: str, timeframe: str) -> dict[str, object]:
+            del symbol, timeframe
+            return {}
+
+    monkeypatch.setattr(
+        repo_sources_module,
+        "_SOURCE_PROVIDERS",
+        {
+            "fmp_watchlist_json": _Provider(),
+            "tradingview_watchlist_json": _Provider(),
+        },
+    )
+    monkeypatch.setitem(
+        repo_sources_module._DOMAIN_SOURCE_ORDER,
+        "technical",
+        ["fmp_watchlist_json", "tradingview_watchlist_json"],
+    )
+    monkeypatch.setattr(repo_sources_module, "_can_supply_domain", lambda *_args, **_kwargs: True)
+
+    with caplog.at_level("WARNING"):
+        payload, status, actual_source = repo_sources_module._try_load_meta_domain(
+            "technical",
+            "AAPL",
+            "15m",
+            "fmp_watchlist_json",
+            auto_mode=True,
+        )
+
+    assert payload is None
+    assert status == "domain_key_absent_all_candidates"
+    assert actual_source == "tradingview_watchlist_json"
+    assert "reason_code=domain_key_absent_all_candidates" in caplog.text

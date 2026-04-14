@@ -80,3 +80,86 @@ def test_run_post_release_validation_normalizes_failure(tmp_path: Path) -> None:
     assert report["overall_status"] == "fail"
     assert report["failures"][0]["code"] == "POST_RELEASE_VALIDATION_FAILED"
     assert "publishStatus" in report["failures"][0]["message"]
+
+
+def test_run_post_release_validation_handles_missing_manifest(tmp_path: Path) -> None:
+    release_manifest = tmp_path / "missing_manifest.json"
+    validation_report = tmp_path / "tv_post_release_validation.json"
+
+    _write_json(
+        validation_report,
+        {
+            "execution_mode": "readonly",
+            "auth_reused_ok": True,
+            "auth_ok": True,
+            "overall_preflight_ok": True,
+            "targets": [{"scriptName": "SMC_Core_Engine", "overall_preflight_ok": True}],
+        },
+    )
+
+    report = run_post_release_validation(release_manifest, validation_report)
+
+    assert report["overall_status"] == "fail"
+    assert report["failures"][0]["code"] == "POST_RELEASE_VALIDATION_FAILED"
+    assert "missing_manifest.json" in report["failures"][0]["message"]
+
+
+def test_run_post_release_validation_handles_corrupt_report_json(tmp_path: Path) -> None:
+    release_manifest = tmp_path / "library_release_manifest.json"
+    validation_report = tmp_path / "tv_post_release_validation.json"
+
+    _write_json(
+        release_manifest,
+        {
+            "library": {
+                "publishStatus": "published",
+                "expectedVersion": "6",
+                "publishedVersion": "6",
+            },
+        },
+    )
+    validation_report.write_text("{not-json", encoding="utf-8")
+
+    report = run_post_release_validation(release_manifest, validation_report)
+
+    assert report["overall_status"] == "fail"
+    assert report["failures"][0]["code"] == "POST_RELEASE_VALIDATION_FAILED"
+    assert "Expecting property name" in report["failures"][0]["message"] or "JSON" in report["failures"][0]["message"]
+
+
+def test_run_post_release_validation_handles_failed_target(tmp_path: Path) -> None:
+    release_manifest = tmp_path / "library_release_manifest.json"
+    validation_report = tmp_path / "tv_post_release_validation.json"
+
+    _write_json(
+        release_manifest,
+        {
+            "library": {
+                "publishStatus": "published",
+                "expectedVersion": "6",
+                "publishedVersion": "6",
+            },
+        },
+    )
+    _write_json(
+        validation_report,
+        {
+            "execution_mode": "readonly",
+            "auth_reused_ok": True,
+            "auth_ok": True,
+            "overall_preflight_ok": True,
+            "targets": [
+                {
+                    "scriptName": "SMC_Core_Engine",
+                    "overall_preflight_ok": False,
+                    "error": "compile mismatch",
+                }
+            ],
+        },
+    )
+
+    report = run_post_release_validation(release_manifest, validation_report)
+
+    assert report["overall_status"] == "fail"
+    assert report["failures"][0]["code"] == "POST_RELEASE_VALIDATION_FAILED"
+    assert "SMC_Core_Engine" in report["failures"][0]["message"]

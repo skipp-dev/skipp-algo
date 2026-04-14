@@ -17,10 +17,25 @@ _RVOL_FIELD_CANDIDATES = (
     "day_volume_rvol_20d",
     "open_5m_rvol_20d",
     "open_1m_rvol_20d",
+    "rvol_20d",
+    "rvol_5d",
     "rvol",
     "rel_vol",
     "relative_volume",
     "volume_ratio",
+)
+_DAILY_VOLUME_FIELD_CANDIDATES = (
+    "current_volume",
+    "day_volume",
+    "daily_volume",
+    "volume",
+)
+_DAILY_AVG_VOLUME_FIELD_CANDIDATES = (
+    "avg_daily_volume",
+    "avg_day_volume_20d",
+    "average_daily_volume",
+    "adv20",
+    "adv_20d",
 )
 
 
@@ -114,6 +129,32 @@ def _extract_rvol_value(row: dict[str, str]) -> tuple[float | None, str | None]:
     return None, None
 
 
+def _extract_daily_bar_rvol(
+    row: dict[str, str],
+    peer_rows: list[dict[str, str]],
+) -> tuple[float | None, str | None, str | None]:
+    for volume_field in _DAILY_VOLUME_FIELD_CANDIDATES:
+        current_volume = _coerce_optional_float(row.get(volume_field))
+        if current_volume is None or current_volume <= 0:
+            continue
+
+        for avg_field in _DAILY_AVG_VOLUME_FIELD_CANDIDATES:
+            avg_volume = _coerce_optional_float(row.get(avg_field))
+            if avg_volume is None or avg_volume <= 0:
+                continue
+            return current_volume / avg_volume, volume_field, avg_field
+
+        peer_values = _positive_peer_values(peer_rows, volume_field)
+        if not peer_values:
+            continue
+        peer_median = statistics.median(peer_values)
+        if peer_median <= 0:
+            continue
+        return current_volume / peer_median, volume_field, f"peer_median:{volume_field}"
+
+    return None, None, None
+
+
 def _derive_volume_meta(row: dict[str, str], peer_rows: list[dict[str, str]]) -> dict[str, Any]:
     rvol_value, rvol_field = _extract_rvol_value(row)
     if rvol_value is not None:
@@ -125,6 +166,19 @@ def _derive_volume_meta(row: dict[str, str], peer_rows: list[dict[str, str]]) ->
                 "source": "rvol",
                 "rvol": round(rvol_value, 4),
                 "rvol_field": rvol_field,
+            }
+
+    daily_bar_rvol, daily_volume_field, daily_volume_baseline = _extract_daily_bar_rvol(row, peer_rows)
+    if daily_bar_rvol is not None:
+        regime, thin_fraction = classify_volume_regime_from_rvol(daily_bar_rvol)
+        if regime != "UNKNOWN":
+            return {
+                "regime": regime,
+                "thin_fraction": thin_fraction,
+                "source": "daily_bar_rvol",
+                "rvol": round(daily_bar_rvol, 4),
+                "daily_volume_field": daily_volume_field,
+                "daily_volume_baseline": daily_volume_baseline,
             }
 
     liquidity_ratios: list[float] = []
@@ -215,6 +269,18 @@ def load_raw_meta_input(symbol: str, timeframe: str) -> dict[str, Any]:
         if rvol_field:
             payload["provenance"].append(
                 f"smc_integration:volume_regime_rvol_field={rvol_field}"
+            )
+    elif volume_meta.get("source") == "daily_bar_rvol":
+        payload["provenance"].append("smc_integration:volume_regime_derived_from_daily_bar_rvol")
+        daily_volume_field = str(volume_meta.get("daily_volume_field") or "").strip()
+        daily_volume_baseline = str(volume_meta.get("daily_volume_baseline") or "").strip()
+        if daily_volume_field:
+            payload["provenance"].append(
+                f"smc_integration:volume_regime_daily_volume_field={daily_volume_field}"
+            )
+        if daily_volume_baseline:
+            payload["provenance"].append(
+                f"smc_integration:volume_regime_daily_volume_baseline={daily_volume_baseline}"
             )
     else:
         payload["provenance"].append("smc_integration:volume_regime_derived_from_premarket_liquidity")

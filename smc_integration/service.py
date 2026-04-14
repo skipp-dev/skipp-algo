@@ -493,7 +493,15 @@ def build_snapshot_bundle_for_symbol_timeframe(
         },
         "meta_domains_present": raw_meta.get("meta_domains_present", []),
         "meta_domains_missing": raw_meta.get("meta_domains_missing", []),
+        "domain_drop_reasons": raw_meta.get("domain_drop_reasons", {}),
+        "domain_drop_providers": raw_meta.get("domain_drop_providers", {}),
         "meta_domain_diagnostics": raw_meta.get("meta_domain_diagnostics", {}),
+        "meta_domain_drop_status": {
+            domain: raw_meta.get("meta_domain_diagnostics", {}).get(domain)
+            for domain in ("volume", "technical", "news")
+            if isinstance(raw_meta.get("meta_domain_diagnostics"), dict)
+            and raw_meta.get("meta_domain_diagnostics", {}).get(domain) is not None
+        },
     }
     if structure_context is not None:
         out["structure_context"] = structure_context

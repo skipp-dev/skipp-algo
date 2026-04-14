@@ -368,6 +368,7 @@ from terminal_export import (
 from terminal_feed_lifecycle import FeedLifecycleManager, feed_staleness_minutes, is_market_hours
 from terminal_feed_state import (
     build_derived_feed_state,
+    hydrate_feed_story_state as hydrate_feed_story_state_core,
     merge_live_feed_rows,
     restore_feed_state,
     resync_feed_from_jsonl as resync_feed_from_jsonl_core,
@@ -933,50 +934,7 @@ def _hydrate_feed_story_state(
     *,
     cfg: TerminalConfig | None = None,
 ) -> tuple[list[dict[str, Any]], dict[str, dict[str, Any]]]:
-    story_state = build_live_story_state_from_feed(
-        feed,
-        **_live_story_state_kwargs(cfg),
-    )
-    hydrated: list[dict[str, Any]] = []
-    for row in feed:
-        hydrated_row = dict(row)
-        story_key = live_story_key(hydrated_row)
-        state = story_state.get(story_key)
-        if state is None:
-            hydrated.append(hydrated_row)
-            continue
-
-        hydrated_row["story_key"] = state["story_key"]
-        hydrated_row["story_update_kind"] = str(
-            hydrated_row.get("story_update_kind") or state.get("last_action") or "restored"
-        )
-        hydrated_row["story_first_seen_ts"] = float(
-            hydrated_row.get("story_first_seen_ts") or state.get("first_seen_ts") or 0.0
-        )
-        hydrated_row["story_last_seen_ts"] = float(
-            hydrated_row.get("story_last_seen_ts")
-            or hydrated_row.get("updated_ts")
-            or hydrated_row.get("published_ts")
-            or state.get("last_seen_ts")
-            or 0.0
-        )
-        hydrated_row["story_providers_seen"] = list(
-            hydrated_row.get("story_providers_seen") or state.get("providers_seen") or []
-        )
-        hydrated_row["story_best_source"] = str(
-            hydrated_row.get("story_best_source") or state.get("best_source") or ""
-        )
-        hydrated_row["story_best_provider"] = str(
-            hydrated_row.get("story_best_provider") or state.get("best_provider") or ""
-        )
-        hydrated_row["story_cooldown_until"] = float(
-            hydrated_row.get("story_cooldown_until") or state.get("cooldown_until") or 0.0
-        )
-        hydrated_row["story_expires_at"] = float(
-            hydrated_row.get("story_expires_at") or state.get("expires_at") or 0.0
-        )
-        hydrated.append(hydrated_row)
-    return dedup_feed_items(hydrated), story_state
+    return hydrate_feed_story_state_core(feed, cfg=cfg)
 
 
 def _apply_live_story_batch(

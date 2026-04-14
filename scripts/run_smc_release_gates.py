@@ -549,6 +549,53 @@ def _run_measurement_gate(
     }
 
 
+def _run_post_release_validation_gate(report_path: str) -> dict[str, Any]:
+    path = Path(report_path)
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return {
+            "name": "post_release_validation",
+            "status": "fail",
+            "details": {
+                "report_path": path.as_posix(),
+                "message": "post-release validation report not found",
+            },
+        }
+    except Exception as exc:
+        return {
+            "name": "post_release_validation",
+            "status": "fail",
+            "details": {
+                "report_path": path.as_posix(),
+                "message": f"post-release validation report unreadable: {exc}",
+            },
+        }
+
+    if not isinstance(payload, dict):
+        return {
+            "name": "post_release_validation",
+            "status": "fail",
+            "details": {
+                "report_path": path.as_posix(),
+                "message": "post-release validation report root must be a JSON object",
+            },
+        }
+
+    overall_status = str(payload.get("overall_status", "unknown")).strip().lower()
+    gate_status = "ok" if overall_status == "ok" else "fail"
+    return {
+        "name": "post_release_validation",
+        "status": gate_status,
+        "details": {
+            "report_path": path.as_posix(),
+            "overall_status": overall_status,
+            "validated_target_count": int(payload.get("validated_target_count", 0) or 0),
+            "failures": payload.get("failures", []),
+        },
+    }
+
+
 def _render(report: dict[str, Any], output: str) -> None:
     rendered = json.dumps(report, indent=2, sort_keys=True)
     if output == "-":
@@ -617,6 +664,11 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Promote measurement shadow degradations from warn-only to blocking failures.",
     )
+    parser.add_argument(
+        "--post-release-validation-report",
+        default=None,
+        help="Optional path to a normalized post-release validation report to evaluate as a blocking gate.",
+    )
     parser.add_argument("--output", default="-", help="Output path for JSON report, or '-' for stdout.")
     return parser
 
@@ -679,6 +731,10 @@ def main() -> int:
     if not args.skip_publish_contract:
         gates.append(_run_publish_contract_gate(args))
 
+    post_release_validation_report = getattr(args, "post_release_validation_report", None)
+    if post_release_validation_report:
+        gates.append(_run_post_release_validation_gate(str(post_release_validation_report)))
+
     # Measurement gate — soft, non-blocking
     gates.append(
         _run_measurement_gate(
@@ -709,6 +765,7 @@ def main() -> int:
             "script": "scripts/run_smc_release_gates.py",
             "mode": "strict_release_gates",
             "skip_publish_contract": bool(args.skip_publish_contract),
+            "post_release_validation_report": post_release_validation_report,
             "measurement_output_root": measurement_output_root.as_posix(),
             "measurement_baseline_summary": args.measurement_baseline_summary,
             "strict_measurement_shadow": bool(args.strict_measurement_shadow),
