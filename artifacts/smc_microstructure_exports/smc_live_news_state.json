@@ -4,12 +4,99 @@
     "fmp_stock": 0.0,
     "fmp_press": 0.0,
     "fmp_articles": 0.0,
-    "newsapi_ai": 1776114208.0,
+    "newsapi_ai": 1776133051.0,
     "tv": 0.0,
-    "legacy_cursor": 1776114208.0
+    "legacy_cursor": 1776133051.0
   },
   "provider_state": {},
   "story_state": {
+    "9b1b2a82892c9b3de4983c52fbb09020230f6503:5920443": {
+      "story_key": "9b1b2a82892c9b3de4983c52fbb09020230f6503:5920443",
+      "cluster_hash": "9b1b2a82892c9b3de4983c52fbb09020230f6503",
+      "headline": "Microsoft (MSFT) Price Target Lowered by $103 Ahead of Q3 Report",
+      "tickers": [
+        "MSFT"
+      ],
+      "published_ts": 1776133006.0,
+      "first_seen_ts": 1776140428.520464,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Yahoo! Finance"
+      ],
+      "url": "https://ca.finance.yahoo.com/news/microsoft-msft-price-target-lowered-021646238.html",
+      "category": "analyst",
+      "impact": 0.65,
+      "clarity": 0.8,
+      "relevance": 0.7825,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776140428.520464
+    },
+    "e60ce69bc0c06b0ca26d70a9c3827f1ce76a5eef:5920443": {
+      "story_key": "e60ce69bc0c06b0ca26d70a9c3827f1ce76a5eef:5920443",
+      "cluster_hash": "e60ce69bc0c06b0ca26d70a9c3827f1ce76a5eef",
+      "headline": "Is Amazon.com (AMZN) One of the Best Blue Chip Stocks to Buy Now?",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_ts": 1776133051.0,
+      "first_seen_ts": 1776140428.520464,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Yahoo! Finance"
+      ],
+      "url": "https://ca.finance.yahoo.com/news/amazon-com-amzn-one-best-021731834.html",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776140428.520464
+    },
+    "44875620b01434c5ea9f950d08f31e2f06cde4a3:5920443": {
+      "story_key": "44875620b01434c5ea9f950d08f31e2f06cde4a3:5920443",
+      "cluster_hash": "44875620b01434c5ea9f950d08f31e2f06cde4a3",
+      "headline": "Meta Platforms (META) Price Target Reduced by $95 Amid Market Volatility",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1776132959.0,
+      "first_seen_ts": 1776140428.520464,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Yahoo! Finance"
+      ],
+      "url": "https://ca.finance.yahoo.com/news/meta-platforms-meta-price-target-021559764.html",
+      "category": "analyst",
+      "impact": 0.65,
+      "clarity": 0.8,
+      "relevance": 0.7825,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776140428.520464
+    },
     "4d55bb3deb88a01b26a2ee1f168c3570681bc098:5920380": {
       "story_key": "4d55bb3deb88a01b26a2ee1f168c3570681bc098:5920380",
       "cluster_hash": "4d55bb3deb88a01b26a2ee1f168c3570681bc098",

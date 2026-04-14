@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-04-14T01:10:36.198905Z",
+  "generated_at": "2026-04-14T04:20:28.520464Z",
   "symbols": [
     "AAPL",
     "MSFT",
@@ -19,11 +19,11 @@
     "fmp_stock": 0.0,
     "fmp_press": 0.0,
     "fmp_articles": 0.0,
-    "newsapi_ai": 1776114208.0,
+    "newsapi_ai": 1776133051.0,
     "tv": 0.0,
-    "legacy_cursor": 1776114208.0
+    "legacy_cursor": 1776133051.0
   },
-  "legacy_cursor": 1776114208.0,
+  "legacy_cursor": 1776133051.0,
   "providers": {
     "benzinga": {
       "ok": false,
@@ -56,12 +56,12 @@
     "newsapi_ai": {
       "ok": true,
       "error": "",
-      "raw_count": 32,
-      "new_item_count": 0,
-      "cursor": 1776114208.0,
+      "raw_count": 34,
+      "new_item_count": 3,
+      "cursor": 1776133051.0,
       "last_seen_news_uri": "",
-      "provider_status": "ok_no_recent_matches",
-      "status_detail": "Event Registry reachable, but no new symbol-matching NewsAPI.ai items were newer than the current cursor.",
+      "provider_status": "ok",
+      "status_detail": "",
       "error_code": ""
     },
     "tv": {
@@ -74,6 +74,82 @@
   },
   "stories": [
     {
+      "story_key": "9b1b2a82892c9b3de4983c52fbb09020230f6503:5920443",
+      "headline": "Microsoft (MSFT) Price Target Lowered by $103 Ahead of Q3 Report",
+      "tickers": [
+        "MSFT"
+      ],
+      "published_at": "2026-04-14T02:16:46Z",
+      "published_ts": 1776133006.0,
+      "age_minutes": 123.7,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Yahoo! Finance"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "analyst",
+      "event_class": "ANALYST",
+      "event_label": "Microsoft (MSFT) Price Target Lowered by $103 Ahead of Q3 Report",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.65,
+      "clarity": 0.8,
+      "relevance": 0.7825,
+      "news_catalyst_score": 0.4916,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://ca.finance.yahoo.com/news/microsoft-msft-price-target-lowered-021646238.html",
+      "first_seen_at": "2026-04-14T04:20:28.520464Z",
+      "is_new": true,
+      "provider_count": 1
+    },
+    {
+      "story_key": "44875620b01434c5ea9f950d08f31e2f06cde4a3:5920443",
+      "headline": "Meta Platforms (META) Price Target Reduced by $95 Amid Market Volatility",
+      "tickers": [
+        "META"
+      ],
+      "published_at": "2026-04-14T02:15:59Z",
+      "published_ts": 1776132959.0,
+      "age_minutes": 124.5,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Yahoo! Finance"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "analyst",
+      "event_class": "ANALYST",
+      "event_label": "Meta Platforms (META) Price Target Reduced by $95 Amid Market Volatility",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.65,
+      "clarity": 0.8,
+      "relevance": 0.7825,
+      "news_catalyst_score": 0.4911,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://ca.finance.yahoo.com/news/meta-platforms-meta-price-target-021559764.html",
+      "first_seen_at": "2026-04-14T04:20:28.520464Z",
+      "is_new": true,
+      "provider_count": 1
+    },
+    {
       "story_key": "91f9bc05b6f454ae325d67848c40a15a0ac5ec2b:5920370",
       "headline": "See Which Recent 13F Filers Hold META",
       "tickers": [
@@ -81,7 +157,7 @@
       ],
       "published_at": "2026-04-13T20:13:36Z",
       "published_ts": 1776111216.0,
-      "age_minutes": 297.0,
+      "age_minutes": 486.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -102,7 +178,7 @@
       "impact": 0.85,
       "clarity": 0.7,
       "relevance": 0.8425,
-      "news_catalyst_score": 0.4143,
+      "news_catalyst_score": 0.4115,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
@@ -119,7 +195,7 @@
       ],
       "published_at": "2026-04-13T12:42:11Z",
       "published_ts": 1776084131.0,
-      "age_minutes": 748.4,
+      "age_minutes": 938.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -157,7 +233,7 @@
       ],
       "published_at": "2026-04-13T10:47:24Z",
       "published_ts": 1776077244.0,
-      "age_minutes": 863.2,
+      "age_minutes": 1053.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -195,7 +271,7 @@
       ],
       "published_at": "2026-04-13T16:01:30Z",
       "published_ts": 1776096090.0,
-      "age_minutes": 549.1,
+      "age_minutes": 739.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -233,7 +309,7 @@
       ],
       "published_at": "2026-04-13T12:06:43Z",
       "published_ts": 1776082003.0,
-      "age_minutes": 783.9,
+      "age_minutes": 973.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -271,7 +347,7 @@
       ],
       "published_at": "2026-04-13T12:02:00Z",
       "published_ts": 1776081720.0,
-      "age_minutes": 788.6,
+      "age_minutes": 978.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -302,6 +378,44 @@
       "provider_count": 1
     },
     {
+      "story_key": "e60ce69bc0c06b0ca26d70a9c3827f1ce76a5eef:5920443",
+      "headline": "Is Amazon.com (AMZN) One of the Best Blue Chip Stocks to Buy Now?",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_at": "2026-04-14T02:17:31Z",
+      "published_ts": 1776133051.0,
+      "age_minutes": 123.0,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Yahoo! Finance"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Is Amazon.com (AMZN) One of the Best Blue Chip Stocks to Buy Now?",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.2271,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://ca.finance.yahoo.com/news/amazon-com-amzn-one-best-021731834.html",
+      "first_seen_at": "2026-04-14T04:20:28.520464Z",
+      "is_new": true,
+      "provider_count": 1
+    },
+    {
       "story_key": "6ac71d52507334cc4d4dcc0a8d92bd2f9ff6ac83:5920369",
       "headline": "Meta to Announce First Quarter 2026 Results - Meta Platforms (NASDAQ:META)",
       "tickers": [
@@ -309,7 +423,7 @@
       ],
       "published_at": "2026-04-13T20:05:00Z",
       "published_ts": 1776110700.0,
-      "age_minutes": 305.6,
+      "age_minutes": 495.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -347,7 +461,7 @@
       ],
       "published_at": "2026-04-13T17:35:17Z",
       "published_ts": 1776101717.0,
-      "age_minutes": 455.3,
+      "age_minutes": 645.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -378,44 +492,6 @@
       "provider_count": 1
     },
     {
-      "story_key": "4d55bb3deb88a01b26a2ee1f168c3570681bc098:5920380",
-      "headline": "Nasdaq Composite Closes Positive; Microsoft (MSFT) Jumps 3.6%; IBM Closes 3 Percent Higher",
-      "tickers": [
-        "MSFT"
-      ],
-      "published_at": "2026-04-13T21:03:28Z",
-      "published_ts": 1776114208.0,
-      "age_minutes": 247.1,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "topnews.in"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Nasdaq Composite Closes Positive; Microsoft (MSFT) Jumps 3.6%; IBM Closes 3 Percent Higher",
-      "sentiment_label": "bullish",
-      "polarity": 0.5,
-      "impact": 0.1,
-      "clarity": 0.8,
-      "relevance": 0.535,
-      "news_catalyst_score": 0.2149,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "http://topnews.in/nasdaq-composite-closes-positive-microsoft-msft-jumps-36-ibm-closes-3-percent-higher-2418784",
-      "first_seen_at": "2026-04-13T21:56:11.272926Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
       "story_key": "0deb2d787400b79c6be13dad6e530ae2fe7bfb4d:5920352",
       "headline": "JPMorgan Q1 Preview: Could Another Double Beat Help Dow Jones, Bank Sector? - JPMorgan Chase (NYSE:JPM)",
       "tickers": [
@@ -423,7 +499,7 @@
       ],
       "published_at": "2026-04-13T18:40:49Z",
       "published_ts": 1776105649.0,
-      "age_minutes": 389.8,
+      "age_minutes": 579.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -461,7 +537,7 @@
       ],
       "published_at": "2026-04-13T17:54:00Z",
       "published_ts": 1776102840.0,
-      "age_minutes": 436.6,
+      "age_minutes": 626.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -499,7 +575,7 @@
       ],
       "published_at": "2026-04-13T13:52:06Z",
       "published_ts": 1776088326.0,
-      "age_minutes": 678.5,
+      "age_minutes": 868.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -537,7 +613,7 @@
       ],
       "published_at": "2026-04-13T11:41:22Z",
       "published_ts": 1776080482.0,
-      "age_minutes": 809.2,
+      "age_minutes": 999.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -575,7 +651,7 @@
       ],
       "published_at": "2026-04-13T09:59:14Z",
       "published_ts": 1776074354.0,
-      "age_minutes": 911.4,
+      "age_minutes": 1101.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -606,6 +682,44 @@
       "provider_count": 1
     },
     {
+      "story_key": "4d55bb3deb88a01b26a2ee1f168c3570681bc098:5920380",
+      "headline": "Nasdaq Composite Closes Positive; Microsoft (MSFT) Jumps 3.6%; IBM Closes 3 Percent Higher",
+      "tickers": [
+        "MSFT"
+      ],
+      "published_at": "2026-04-13T21:03:28Z",
+      "published_ts": 1776114208.0,
+      "age_minutes": 437.0,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "topnews.in"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Nasdaq Composite Closes Positive; Microsoft (MSFT) Jumps 3.6%; IBM Closes 3 Percent Higher",
+      "sentiment_label": "bullish",
+      "polarity": 0.5,
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "news_catalyst_score": 0.1918,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "http://topnews.in/nasdaq-composite-closes-positive-microsoft-msft-jumps-36-ibm-closes-3-percent-higher-2418784",
+      "first_seen_at": "2026-04-13T21:56:11.272926Z",
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
       "story_key": "4f9ceddb2f778e5ae543032cc6852d6980010c4f:5920331",
       "headline": "Meta Platforms (META) Stock Set to Claim Top Spot in Digital Advertising by 2026 - Blockonomi",
       "tickers": [
@@ -613,7 +727,7 @@
       ],
       "published_at": "2026-04-13T16:55:59Z",
       "published_ts": 1776099359.0,
-      "age_minutes": 494.6,
+      "age_minutes": 684.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -651,7 +765,7 @@
       ],
       "published_at": "2026-04-13T14:47:31Z",
       "published_ts": 1776091651.0,
-      "age_minutes": 623.1,
+      "age_minutes": 813.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -689,7 +803,7 @@
       ],
       "published_at": "2026-04-13T13:41:05Z",
       "published_ts": 1776087665.0,
-      "age_minutes": 689.5,
+      "age_minutes": 879.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -729,7 +843,7 @@
       ],
       "published_at": "2026-04-13T13:27:52Z",
       "published_ts": 1776086872.0,
-      "age_minutes": 702.7,
+      "age_minutes": 892.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -767,7 +881,7 @@
       ],
       "published_at": "2026-04-13T18:56:04Z",
       "published_ts": 1776106564.0,
-      "age_minutes": 374.5,
+      "age_minutes": 564.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -805,7 +919,7 @@
       ],
       "published_at": "2026-04-13T18:48:38Z",
       "published_ts": 1776106118.0,
-      "age_minutes": 382.0,
+      "age_minutes": 571.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -843,7 +957,7 @@
       ],
       "published_at": "2026-04-13T18:46:11Z",
       "published_ts": 1776105971.0,
-      "age_minutes": 384.4,
+      "age_minutes": 574.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -881,7 +995,7 @@
       ],
       "published_at": "2026-04-13T17:38:46Z",
       "published_ts": 1776101926.0,
-      "age_minutes": 451.8,
+      "age_minutes": 641.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -919,7 +1033,7 @@
       ],
       "published_at": "2026-04-13T15:46:05Z",
       "published_ts": 1776095165.0,
-      "age_minutes": 564.5,
+      "age_minutes": 754.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -957,7 +1071,7 @@
       ],
       "published_at": "2026-04-13T12:13:06Z",
       "published_ts": 1776082386.0,
-      "age_minutes": 777.5,
+      "age_minutes": 967.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -995,7 +1109,7 @@
       ],
       "published_at": "2026-04-13T10:50:09Z",
       "published_ts": 1776077409.0,
-      "age_minutes": 860.5,
+      "age_minutes": 1050.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1033,7 +1147,7 @@
       ],
       "published_at": "2026-04-13T08:24:55Z",
       "published_ts": 1776068695.0,
-      "age_minutes": 1005.7,
+      "age_minutes": 1195.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1071,7 +1185,7 @@
       ],
       "published_at": "2026-04-13T05:08:00Z",
       "published_ts": 1776056880.0,
-      "age_minutes": 1202.6,
+      "age_minutes": 1392.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1124,7 +1238,7 @@
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "source_tier": "TIER_3",
-      "mentions_24h": 8,
+      "mentions_24h": 9,
       "is_actionable": false,
       "first_provider": "newsapi_ai",
       "story_key": "d839c1ecdcbc813a0f7b528298517e0c746ba6e5:5920272"
@@ -1143,30 +1257,30 @@
       "story_key": "9b368e426b9af47149adfc6aefd708db76eec7fa:5920257"
     },
     "META": {
-      "news_catalyst_score": 0.5343,
+      "news_catalyst_score": 0.6111,
       "sentiment_label": "neutral",
-      "event_class": "INSIDER",
-      "event_label": "See Which Recent 13F Filers Hold META",
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "source_tier": "TIER_3",
-      "mentions_24h": 6,
-      "is_actionable": false,
-      "first_provider": "newsapi_ai",
-      "story_key": "91f9bc05b6f454ae325d67848c40a15a0ac5ec2b:5920370"
-    },
-    "MSFT": {
-      "news_catalyst_score": 0.3349,
-      "sentiment_label": "bullish",
-      "event_class": "UNKNOWN",
-      "event_label": "Nasdaq Composite Closes Positive; Microsoft (MSFT) Jumps 3.6%; IBM Closes 3 Percent Higher",
+      "event_class": "ANALYST",
+      "event_label": "Meta Platforms (META) Price Target Reduced by $95 Amid Market Volatility",
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "source_tier": "TIER_3",
       "mentions_24h": 7,
       "is_actionable": false,
       "first_provider": "newsapi_ai",
-      "story_key": "4d55bb3deb88a01b26a2ee1f168c3570681bc098:5920380"
+      "story_key": "44875620b01434c5ea9f950d08f31e2f06cde4a3:5920443"
+    },
+    "MSFT": {
+      "news_catalyst_score": 0.6116,
+      "sentiment_label": "bullish",
+      "event_class": "ANALYST",
+      "event_label": "Microsoft (MSFT) Price Target Lowered by $103 Ahead of Q3 Report",
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "source_tier": "TIER_3",
+      "mentions_24h": 8,
+      "is_actionable": false,
+      "first_provider": "newsapi_ai",
+      "story_key": "9b1b2a82892c9b3de4983c52fbb09020230f6503:5920443"
     },
     "XOM": {
       "news_catalyst_score": 0.1946,
@@ -1183,8 +1297,8 @@
     }
   },
   "summary": {
-    "active_story_count": 27,
-    "new_story_count": 0,
+    "active_story_count": 30,
+    "new_story_count": 3,
     "actionable_story_count": 0,
     "actionable_symbols": [],
     "symbol_count": 6
