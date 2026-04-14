@@ -15,6 +15,7 @@ It now anchors and propagates product metadata across:
 
 ## What Changed In This Phase
 
+- the residual-program closeout and the published senior-review follow-up are now tracked in [smc-residual-program-completion.md](smc-residual-program-completion.md), including the additive `volume_provenance` boundary and the published follow-up commit `8c6652db`
 - the active SMC core/dashboard path now carries library volatility + ensemble context through the existing lean BUS transport and renders it in the audit surface
 - the refresh workflow now restores known runtime artifacts before commit/push and verifies the generated library import bump explicitly
 - provider-health and release-gate reports now expose `domain_alerts` for fallback-used and domain-status cases so operator reports can show missing-subscription / no-data root causes without digging through raw payloads
@@ -42,7 +43,7 @@ It now anchors and propagates product metadata across:
 
 ## Current Workspace Status
 
-Refresh date: 2026-04-13
+Refresh date: 2026-04-14
 
 - live TradingView automation prerequisites are present in this checkout
 - present locally: `scripts/tv_preflight.ts`, `scripts/tv_publish_micro_library.ts`, `scripts/create_tradingview_storage_state.ts`, the shared automation layer under `automation/tradingview/lib/...`, the `automation/tradingview/reports` folder, and auth artifacts under `automation/tradingview/auth/...`
@@ -72,6 +73,7 @@ Refresh date: 2026-04-13
 
 ## Read This Next
 
+- [smc-residual-program-completion.md](smc-residual-program-completion.md)
 - [tradingview-status-model.md](tradingview-status-model.md)
 - [tradingview-auth-modes.md](tradingview-auth-modes.md)
 - [tradingview-runtime-validation.md](tradingview-runtime-validation.md)

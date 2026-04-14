@@ -6,6 +6,7 @@ Use these files as the starting point before changing the split architecture or 
 
 - [smc-lite-pro-product-cut.md](smc-lite-pro-product-cut.md)
 - [TRADINGVIEW_STRATEGY_GUIDE.md](TRADINGVIEW_STRATEGY_GUIDE.md)
+- [smc-residual-program-completion.md](smc-residual-program-completion.md)
 - [smc-validation-status.md](smc-validation-status.md)
 - [structure_contract_architecture.md](structure_contract_architecture.md)
 - [adr/0001-structure-contract-normalization.md](adr/0001-structure-contract-normalization.md)
