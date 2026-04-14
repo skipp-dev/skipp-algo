@@ -41,11 +41,15 @@ from .repo_sources import (
     load_raw_structure_input,
     select_best_structure_source,
 )
+from .trust_tier import (
+    derive_trust_summary,
+    resolve_provider_state,
+    resolve_trust_main_blocker,
+    resolve_trust_tier,
+)
 
 
 _DEFAULT_EXPORT_DIR = Path("artifacts") / "smc_microstructure_exports"
-_HIGH_TRUST_MIN_EVENTS = 3
-_HIGH_TRUST_MIN_FAMILIES = 2
 
 
 def _to_epoch_seconds(series: Any) -> pd.Series:
@@ -447,11 +451,12 @@ def _resolve_provider_state(
     stale_domains: list[str],
     provider_health_issue_count: int,
 ) -> str:
-    if structure_state in {"none", "unknown"}:
-        return "unavailable"
-    if missing_domains or stale_domains or provider_health_issue_count > 0:
-        return "degraded"
-    return "ok"
+    return resolve_provider_state(
+        structure_state=structure_state,
+        missing_domains=missing_domains,
+        stale_domains=stale_domains,
+        provider_health_issue_count=provider_health_issue_count,
+    )
 
 
 def _resolve_trust_state(
@@ -464,23 +469,15 @@ def _resolve_trust_state(
     measurement_quality_tier: str,
     measurement_warning_count: int,
 ) -> str:
-    if provider_state == "unavailable":
-        return "insufficient"
-    if measurement_status != "available" or not measurement_available:
-        return "insufficient"
-    if measurement_events <= 0:
-        return "insufficient"
-    if provider_state == "degraded":
-        return "degraded"
-    if measurement_warning_count > 0:
-        return "guarded"
-    if measurement_events < _HIGH_TRUST_MIN_EVENTS:
-        return "guarded"
-    if measurement_family_count < _HIGH_TRUST_MIN_FAMILIES:
-        return "guarded"
-    if measurement_quality_tier in {"good", "high"}:
-        return "high"
-    return "guarded"
+    return resolve_trust_tier(
+        provider_state=provider_state,
+        measurement_status=measurement_status,
+        measurement_available=measurement_available,
+        measurement_events=measurement_events,
+        measurement_family_count=measurement_family_count,
+        measurement_quality_tier=measurement_quality_tier,
+        measurement_warning_count=measurement_warning_count,
+    )
 
 
 def _resolve_trust_main_blocker(
@@ -496,28 +493,18 @@ def _resolve_trust_main_blocker(
     measurement_quality_tier: str,
     measurement_warnings: list[str],
 ) -> str:
-    if structure_state in {"none", "unknown"}:
-        return "No structure source available"
-    if missing_domains:
-        return f"Missing meta domains: {', '.join(missing_domains)}"
-    if stale_domains:
-        return f"Stale meta domains: {', '.join(stale_domains)}"
-    if provider_health_issue_count > 0:
-        return f"Structure provider health issues: {provider_health_issue_count}"
-    if measurement_status != "available" or not measurement_available:
-        return "Measurement evidence unavailable"
-    if measurement_events <= 0:
-        return "No measured events yet"
-    if measurement_warnings:
-        return measurement_warnings[0]
-    if measurement_events < _HIGH_TRUST_MIN_EVENTS:
-        return f"Measurement sample thin: {measurement_events} event(s)"
-    if measurement_family_count < _HIGH_TRUST_MIN_FAMILIES:
-        family_label = "family" if measurement_family_count == 1 else "families"
-        return f"Measurement coverage thin: {measurement_family_count} {family_label}"
-    if measurement_quality_tier not in {"good", "high"}:
-        return "Measurement quality not yet mature"
-    return "No active blocker"
+    return resolve_trust_main_blocker(
+        structure_state=structure_state,
+        missing_domains=missing_domains,
+        stale_domains=stale_domains,
+        provider_health_issue_count=provider_health_issue_count,
+        measurement_status=measurement_status,
+        measurement_available=measurement_available,
+        measurement_events=measurement_events,
+        measurement_family_count=measurement_family_count,
+        measurement_quality_tier=measurement_quality_tier,
+        measurement_warnings=measurement_warnings,
+    )
 
 
 def _build_trust_summary(
