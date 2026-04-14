@@ -163,3 +163,37 @@ def test_dashboard_trust_resolution_defaults_to_insufficient() -> None:
     assert '"insufficient"' in func_body
     assert func_body.index('"insufficient"') < func_body.index('"high"'), \
         "Default must be insufficient before any promotion to high"
+
+
+# ── WP-A4: Hero Card Regime Override Explanation ────────────────
+
+
+def test_hero_card_explains_regime_override() -> None:
+    """compose_core_hero_text must include regime override logic (WP-A4)."""
+    source = _read("SMC_Core_Engine.pine")
+
+    func_start = source.index("compose_core_hero_text(")
+    func_body = source[func_start:func_start + 800]
+
+    # The function must accept regime parameters
+    assert "market_regime" in func_body
+    assert "regime_blocks" in func_body or "regime_dims" in func_body
+
+    # When regime overrides, Bias line must include explanation
+    assert "regime overrides" in func_body
+
+    # Action line must show regime context
+    assert "(regime: " in func_body
+
+
+def test_hero_card_call_passes_regime_data() -> None:
+    """The barstate.islast call site must pass MARKET_REGIME to compose_core_hero_text."""
+    source = _read("SMC_Core_Engine.pine")
+
+    # Find the call inside barstate.islast
+    call_idx = source.index("compose_core_hero_text(core_product_state")
+    call_line = source[call_idx:source.index("\n", call_idx)]
+
+    assert "mp.MARKET_REGIME" in call_line
+    assert "lib_regime_blocked" in call_line
+    assert "lib_regime_dimmed" in call_line

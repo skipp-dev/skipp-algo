@@ -2465,8 +2465,14 @@ resolve_core_hero_color(string product_state) =>
         hero_color := color.new(color.red, 60)
     hero_color
 
-compose_core_hero_text(string product_state, string bias_text, string trade_threshold_text, string trust_tier, string provider_state, string why_now, string main_risk) =>
-    'Action: ' + product_state + '\nBias: ' + bias_text + '\nConfidence: ' + trade_threshold_text + '\nTrust: ' + trust_tier + '\nProvider: ' + provider_state + '\nWhy now: ' + why_now + '\nMain blocker: ' + main_risk
+compose_core_hero_text(string product_state, string bias_text, string trade_threshold_text, string trust_tier, string provider_state, string why_now, string main_risk, string market_regime, bool regime_blocks, bool regime_dims) =>
+    string action_display = product_state
+    if (product_state == 'WAIT' or product_state == 'BLOCKED') and (regime_blocks or regime_dims)
+        action_display := product_state + ' (regime: ' + market_regime + ')'
+    string bias_display = bias_text
+    if (bias_text == 'Bullish' or bias_text == 'Bearish') and (regime_blocks or regime_dims)
+        bias_display := bias_text + ' tone — ' + market_regime + ' regime overrides'
+    'Action: ' + action_display + '\nBias: ' + bias_display + '\nConfidence: ' + trade_threshold_text + '\nTrust: ' + trust_tier + '\nProvider: ' + provider_state + '\nWhy now: ' + why_now + '\nMain blocker: ' + main_risk
 
 resolve_core_alert_action_name(string event_name) =>
     string action_name = 'WAIT'
@@ -6078,7 +6084,7 @@ if barstate.islast and compact_mode
     string core_trade_threshold = compose_trade_threshold_text(core_trust_tier, lib_sq_score)
     string core_why_now = compose_why_now_text(core_product_state, long_setup_source_display, lib_sq_freshness, lib_sq_warnings, long_ready_blocker_text, long_strict_blocker_text, long_state.trigger)
     string core_main_risk = compose_main_risk_text(core_product_state, event_risk_state, long_ready_blocker_text, long_strict_blocker_text, long_state.last_invalid_source, lib_sq_warnings, lib_erl_provider_status)
-    string core_hero_text = compose_core_hero_text(core_product_state, core_bias_text, core_trade_threshold, core_trust_tier, core_provider_state, core_why_now, core_main_risk)
+    string core_hero_text = compose_core_hero_text(core_product_state, core_bias_text, core_trade_threshold, core_trust_tier, core_provider_state, core_why_now, core_main_risk, mp.MARKET_REGIME, lib_regime_blocked, lib_regime_dimmed)
     float core_hero_y = high + nz(atr, high * 0.01) * 1.15
     core_hero_card := label.new(bar_index, core_hero_y, core_hero_text, color = resolve_core_hero_color(core_product_state), textcolor = color.white, style = label.style_label_left, size = size.small)
 else if barstate.islast and not na(core_hero_card)
