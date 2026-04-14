@@ -53,6 +53,23 @@ def test_product_cut_manifest_exports_validation_evidence_policy() -> None:
     ]
 
 
+def test_checked_in_product_cut_artifact_exports_binding_contract_metadata() -> None:
+    payload = _load_json('artifacts/tradingview/smc_product_cut_manifest.json')
+    dashboard_target = payload['preflightScopes']['smcMainline'][1]
+    strategy_target = payload['preflightScopes']['smcMainline'][2]
+
+    assert dashboard_target['bindingContractKey'] == 'dashboardBindings'
+    assert dashboard_target['bindingContractName'] == 'dashboard companion BUS bindings'
+    assert dashboard_target['bindingConsumerRole'] == 'dashboard_companion'
+    assert dashboard_target['bindingLabelGroups'][0]['groupTitle'] == 'Lifecycle BUS'
+    assert dashboard_target['bindingLabelGroups'][-1]['groupTitle'] == 'Lean Surface'
+    assert strategy_target['bindingContractKey'] == 'strategyBindings'
+    assert strategy_target['bindingContractName'] == 'execution wrapper BUS bindings'
+    assert strategy_target['bindingConsumerRole'] == 'execution_wrapper'
+    assert strategy_target['bindingLabelGroups'][0]['groupTitle'] == 'Entry States'
+    assert strategy_target['bindingLabelGroups'][-1]['groupTitle'] == 'Trade Plan'
+
+
 def test_library_release_manifest_tracks_product_cut_roles() -> None:
     payload = _load_json('artifacts/tradingview/library_release_manifest.json')
 
@@ -90,6 +107,8 @@ def test_library_release_manifest_tracks_product_cut_roles() -> None:
     assert payload['productCut']['preflightScopes']['smcCoreDashboard'][1]['savedScriptName'] == 'SMC Dashboard'
     assert payload['productCut']['preflightScopes']['smcMainline'][1]['savedScriptName'] == 'SMC Dashboard'
     assert payload['productCut']['preflightScopes']['smcMainline'][2]['savedScriptName'] == 'SMC Long Strategy'
+    assert payload['productCut']['preflightScopes']['smcMainline'][1]['bindingContractKey'] == 'dashboardBindings'
+    assert payload['productCut']['preflightScopes']['smcMainline'][2]['bindingContractKey'] == 'strategyBindings'
     assert payload['productCut']['deprecatedFieldPolicy']['mode'] == 'compatibility_only'
     assert payload['productCut']['deprecatedFieldPolicy']['extensionAllowed'] is False
     assert {

@@ -29,6 +29,7 @@ class PreflightTarget:
     add_to_chart: bool
     min_inputs: int | None = None
     saved_script_name: str | None = None
+    binding_contract_key: str | None = None
 
 
 @dataclass(frozen = True)
@@ -307,13 +308,13 @@ LEGACY_FILES: tuple[str, ...] = tuple(
 
 PREFLIGHT_CORE_DASHBOARD_TARGETS: tuple[PreflightTarget, ...] = (
     PreflightTarget('SMC_Core_Engine.pine', 'SMC Core', False, False),
-    PreflightTarget('SMC_Dashboard.pine', 'SMC Decision Board', True, True, 58, 'SMC Dashboard'),
+    PreflightTarget('SMC_Dashboard.pine', 'SMC Decision Board', True, True, 58, 'SMC Dashboard', 'dashboardBindings'),
 )
 
 PREFLIGHT_MAINLINE_TARGETS: tuple[PreflightTarget, ...] = (
     PreflightTarget('SMC_Core_Engine.pine', 'SMC Core', False, False),
-    PreflightTarget('SMC_Dashboard.pine', 'SMC Decision Board', True, True, 58, 'SMC Dashboard'),
-    PreflightTarget('SMC_Long_Strategy.pine', 'SMC Execution', True, True, 8, 'SMC Long Strategy'),
+    PreflightTarget('SMC_Dashboard.pine', 'SMC Decision Board', True, True, 58, 'SMC Dashboard', 'dashboardBindings'),
+    PreflightTarget('SMC_Long_Strategy.pine', 'SMC Execution', True, True, 8, 'SMC Long Strategy', 'strategyBindings'),
 )
 
 PREFLIGHT_DECISION_FIRST_TARGETS: tuple[PreflightTarget, ...] = PREFLIGHT_MAINLINE_TARGETS
@@ -383,6 +384,12 @@ def _preflight_target_payload(target: PreflightTarget) -> dict[str, Any]:
         payload['minInputs'] = target.min_inputs
     if target.saved_script_name:
         payload['savedScriptName'] = target.saved_script_name
+    if target.binding_contract_key:
+        payload['bindingContractKey'] = target.binding_contract_key
+        payload['bindingContractName'] = BINDING_CONTRACT_NAMES[target.binding_contract_key]
+        payload['bindingConsumerRole'] = BINDING_CONTRACT_CONSUMER_ROLES[target.binding_contract_key]
+        payload['bindingContractLabels'] = [binding.label for binding in BINDING_CONTRACT_BINDINGS[target.binding_contract_key]]
+        payload['bindingLabelGroups'] = _binding_label_group_payload(target.binding_contract_key)
     return payload
 
 
@@ -564,6 +571,20 @@ STRATEGY_GROUP_TITLES: tuple[str, ...] = (
     'Trade Plan',
 )
 
+DASHBOARD_GROUP_TITLES_BY_KEY: dict[str, str] = {
+    'g_bus_lifecycle': 'Lifecycle BUS',
+    'g_bus_diag_rows': 'Diagnostic Rows',
+    'g_bus_diag': 'Diagnostic Support',
+    'g_bus_plan': 'Trade Plan',
+    'g_bus_detail': 'Detail Surface',
+    'g_bus_lean': 'Lean Surface',
+}
+
+STRATEGY_GROUP_TITLES_BY_KEY: dict[str, str] = {
+    'g_bus_entry': 'Entry States',
+    'g_bus_plan': 'Trade Plan',
+}
+
 
 DASHBOARD_BUS_BINDINGS: tuple[BusBinding, ...] = (
     BusBinding('BUS ZoneActive', 'g_bus_lifecycle'),
@@ -643,6 +664,39 @@ STRATEGY_BUS_LABELS: tuple[str, ...] = tuple(binding.label for binding in STRATE
 
 DASHBOARD_BUS_CHANNELS: tuple[str, ...] = tuple(label.removeprefix('BUS ') for label in DASHBOARD_BUS_LABELS)
 STRATEGY_BUS_CHANNELS: tuple[str, ...] = tuple(label.removeprefix('BUS ') for label in STRATEGY_BUS_LABELS)
+
+BINDING_CONTRACT_BINDINGS: dict[str, tuple[BusBinding, ...]] = {
+    'dashboardBindings': DASHBOARD_BUS_BINDINGS,
+    'strategyBindings': STRATEGY_BUS_BINDINGS,
+}
+
+BINDING_CONTRACT_NAMES: dict[str, str] = {
+    'dashboardBindings': 'dashboard companion BUS bindings',
+    'strategyBindings': 'execution wrapper BUS bindings',
+}
+
+BINDING_CONTRACT_CONSUMER_ROLES: dict[str, str] = {
+    'dashboardBindings': 'dashboard_companion',
+    'strategyBindings': 'execution_wrapper',
+}
+
+BINDING_CONTRACT_GROUP_TITLES: dict[str, dict[str, str]] = {
+    'dashboardBindings': DASHBOARD_GROUP_TITLES_BY_KEY,
+    'strategyBindings': STRATEGY_GROUP_TITLES_BY_KEY,
+}
+
+
+def _binding_label_group_payload(binding_contract_key: str) -> list[dict[str, str]]:
+    bindings = BINDING_CONTRACT_BINDINGS[binding_contract_key]
+    group_titles = BINDING_CONTRACT_GROUP_TITLES[binding_contract_key]
+    return [
+        {
+            'label': binding.label,
+            'group': binding.group,
+            'groupTitle': group_titles[binding.group],
+        }
+        for binding in bindings
+    ]
 
 
 def build_product_cut_manifest_payload() -> dict[str, Any]:

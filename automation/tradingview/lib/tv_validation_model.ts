@@ -65,6 +65,14 @@ export type ProductCutContracts = {
   strategyBindings: string[];
 };
 
+export type ProductCutBindingContractKey = "dashboardBindings" | "strategyBindings";
+
+export type ProductCutBindingLabelGroup = {
+  label: string;
+  group: string;
+  groupTitle: string;
+};
+
 export type ProductCutPreflightTarget = {
   file: string;
   scriptName: string;
@@ -72,6 +80,11 @@ export type ProductCutPreflightTarget = {
   addToChart: boolean;
   minInputs?: number;
   savedScriptName?: string;
+  bindingContractKey?: ProductCutBindingContractKey;
+  bindingContractName?: string;
+  bindingConsumerRole?: LibraryReleaseConsumerRole;
+  bindingContractLabels?: string[];
+  bindingLabelGroups?: ProductCutBindingLabelGroup[];
 };
 
 export type ProductCutDeprecatedFieldPolicy = {
@@ -149,6 +162,10 @@ const requiredPreflightTargetFields = [
   "bindings_count_ok",
   "bindings_names_ok",
   "bindings_names_not_verified",
+  "binding_contract_key",
+  "binding_contract_name",
+  "binding_consumer_role",
+  "missing_binding_groups",
   "runtime_smoke_ok",
   "ui_green",
   "compile_green",
@@ -175,6 +192,100 @@ const requiredPreflightReportFields = [
   "overall_preflight_ok",
   "targets",
 ] as const;
+
+function normalizeBindingLabel(value: string): string {
+  return value.replace(/\s+/g, " ").trim();
+}
+
+function uniqueNormalizedBindingLabels(values: string[]): string[] {
+  const seen = new Set<string>();
+  const results: string[] = [];
+
+  for (const value of values) {
+    const normalized = normalizeBindingLabel(value);
+    if (!normalized) {
+      continue;
+    }
+
+    const key = normalized.toLowerCase();
+    if (seen.has(key)) {
+      continue;
+    }
+
+    seen.add(key);
+    results.push(normalized);
+  }
+
+  return results;
+}
+
+export function resolvePreflightExpectedInputLabels(
+  target: ProductCutPreflightTarget,
+  fallbackLabels: string[],
+): string[] {
+  const manifestLabels = uniqueNormalizedBindingLabels(target.bindingContractLabels ?? []);
+  if (manifestLabels.length > 0) {
+    return manifestLabels;
+  }
+  return uniqueNormalizedBindingLabels(fallbackLabels);
+}
+
+export function resolvePreflightRequiredBindingCount(
+  target: ProductCutPreflightTarget,
+  expectedLabels: string[],
+): number {
+  return typeof target.minInputs === "number" ? target.minInputs : expectedLabels.length;
+}
+
+export function resolveMissingBindingGroups(
+  target: ProductCutPreflightTarget,
+  missingLabels: string[],
+): string[] {
+  const missingSet = new Set(
+    uniqueNormalizedBindingLabels(missingLabels).map((label) => label.toLowerCase()),
+  );
+  const labelGroups = target.bindingLabelGroups ?? [];
+  const groupTitles: string[] = [];
+  const seen = new Set<string>();
+
+  for (const binding of labelGroups) {
+    const normalizedLabel = normalizeBindingLabel(binding.label).toLowerCase();
+    if (!missingSet.has(normalizedLabel)) {
+      continue;
+    }
+
+    const groupTitle = normalizeBindingLabel(binding.groupTitle);
+    if (!groupTitle) {
+      continue;
+    }
+
+    const groupKey = groupTitle.toLowerCase();
+    if (seen.has(groupKey)) {
+      continue;
+    }
+
+    seen.add(groupKey);
+    groupTitles.push(groupTitle);
+  }
+
+  return groupTitles;
+}
+
+export function describeBindingContract(target: ProductCutPreflightTarget): string | null {
+  const contractName = target.bindingContractName?.trim();
+  const consumerRole = target.bindingConsumerRole?.trim();
+
+  if (contractName && consumerRole) {
+    return `${contractName} (${consumerRole})`;
+  }
+  if (contractName) {
+    return contractName;
+  }
+  if (consumerRole) {
+    return consumerRole;
+  }
+  return null;
+}
 
 export function readJson<T>(filePath: string): T {
   try {

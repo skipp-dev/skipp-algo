@@ -37,8 +37,14 @@ import {
 import {
   combineVerificationStatuses,
   computeTargetOverallPreflightOk,
+  describeBindingContract,
+  resolveMissingBindingGroups,
+  resolvePreflightExpectedInputLabels,
+  resolvePreflightRequiredBindingCount,
   resolveTradingViewAuthResolution,
-  statusesAllTrue,
+  type LibraryReleaseConsumerRole,
+  type ProductCutBindingContractKey,
+  type ProductCutBindingLabelGroup,
   type TradingViewAuthResolution,
   type VerificationStatus,
 } from "../automation/tradingview/lib/tv_validation_model.js";
@@ -50,6 +56,11 @@ type ReleaseTarget = {
   checkInputs: boolean;
   addToChart: boolean;
   minInputs?: number;
+  bindingContractKey?: ProductCutBindingContractKey;
+  bindingContractName?: string;
+  bindingConsumerRole?: LibraryReleaseConsumerRole;
+  bindingContractLabels?: string[];
+  bindingLabelGroups?: ProductCutBindingLabelGroup[];
   allowFreshDraftOnMissingExisting?: boolean;
 };
 
@@ -87,6 +98,10 @@ type TargetResult = {
   bindings_count_ok: VerificationStatus;
   bindings_names_ok: VerificationStatus;
   bindings_names_not_verified: boolean;
+  binding_contract_key: ReleaseTarget["bindingContractKey"] | null;
+  binding_contract_name: string | null;
+  binding_consumer_role: ReleaseTarget["bindingConsumerRole"] | null;
+  missing_binding_groups: string[];
   runtime_smoke_ok: VerificationStatus;
   ui_green: VerificationStatus;
   compile_green: VerificationStatus;
@@ -172,6 +187,9 @@ function fallbackDefaultTargets(): ReleaseTarget[] {
       checkInputs: true,
       addToChart: true,
       minInputs: 58,
+      bindingContractKey: "dashboardBindings",
+      bindingContractName: "dashboard companion BUS bindings",
+      bindingConsumerRole: "dashboard_companion",
     },
     {
       file: "SMC_Long_Strategy.pine",
@@ -180,6 +198,9 @@ function fallbackDefaultTargets(): ReleaseTarget[] {
       checkInputs: true,
       addToChart: true,
       minInputs: 8,
+      bindingContractKey: "strategyBindings",
+      bindingContractName: "execution wrapper BUS bindings",
+      bindingConsumerRole: "execution_wrapper",
     },
   ];
 }
@@ -314,6 +335,27 @@ function inputContractDiagnosisSuffix(
   return "";
 }
 
+function bindingContractContext(target: ReleaseTarget): string {
+  const description = describeBindingContract(target);
+  return description ? ` for ${description}` : "";
+}
+
+function formatMissingBindingLabels(labels: string[], limit = 8): string {
+  const normalized = uniqueNormalized(labels);
+  const preview = normalized.slice(0, limit).join(", ");
+  const remaining = normalized.length - Math.min(normalized.length, limit);
+  return remaining > 0 ? `${preview} (+${remaining} more)` : preview;
+}
+
+function missingBindingGroupsSuffix(groups: string[]): string {
+  return groups.length > 0 ? ` Missing groups: ${groups.join(", ")}.` : "";
+}
+
+function missingBindingLabelsSuffix(labels: string[]): string {
+  const formatted = formatMissingBindingLabels(labels);
+  return formatted ? ` Missing labels: ${formatted}.` : "";
+}
+
 function computeUiGreen(target: TargetResult): VerificationStatus {
   return combineVerificationStatuses([
     target.chart_ok,
@@ -386,6 +428,10 @@ function buildInitialTargetResult(
     bindings_count_ok: target.checkInputs ? "not_run" : "not_run",
     bindings_names_ok: target.checkInputs ? "not_run" : "not_run",
     bindings_names_not_verified: false,
+    binding_contract_key: target.bindingContractKey ?? null,
+    binding_contract_name: target.bindingContractName ?? null,
+    binding_consumer_role: target.bindingConsumerRole ?? null,
+    missing_binding_groups: [],
     runtime_smoke_ok: target.addToChart || target.checkInputs ? "not_run" : "not_run",
     ui_green: "not_run",
     compile_green: "not_run",
@@ -503,7 +549,7 @@ async function main(): Promise<number> {
     const failedTargets = targets.map((target) => {
       const filePath = path.resolve(target.file);
       const code = fs.readFileSync(filePath, "utf-8");
-      const expectedInputLabels = uniqueSorted(parseInputSourceLabels(code));
+      const expectedInputLabels = resolvePreflightExpectedInputLabels(target, parseInputSourceLabels(code));
       return buildPreAuthFailureResult(target, filePath, expectedInputLabels, authResolution, cli.executionMode);
     });
     const report = buildReport(authResolution, failedTargets, cli.executionMode);
@@ -517,9 +563,9 @@ async function main(): Promise<number> {
   for (const target of targets) {
     const filePath = path.resolve(target.file);
     const code = fs.readFileSync(filePath, "utf-8");
-    const expectedInputLabels = uniqueSorted(parseInputSourceLabels(code));
+    const expectedInputLabels = resolvePreflightExpectedInputLabels(target, parseInputSourceLabels(code));
     const targetResult = buildInitialTargetResult(target, filePath, expectedInputLabels, authResolution, cli.executionMode);
-    const requiredBindingCount = target.minInputs ?? expectedInputLabels.length;
+    const requiredBindingCount = resolvePreflightRequiredBindingCount(target, expectedInputLabels);
     const existingTradingViewScriptName = resolveTradingViewSavedScriptName(target);
     const session = await newTradingViewSession();
 
@@ -595,7 +641,7 @@ async function main(): Promise<number> {
         await openInputsTab(session.page);
         targetResult.inputs_tab_ok = true;
 
-        let observedInputLabels = uniqueSorted(await collectVisibleInputLabels(session.page, expectedInputLabels));
+        let observedInputLabels = uniqueNormalized(await collectVisibleInputLabels(session.page, expectedInputLabels));
         let diagnosis = diagnoseInputContract(expectedInputLabels, observedInputLabels);
 
         if (cli.executionMode === "mutating" && diagnosis.likelyDrift) {
@@ -616,12 +662,13 @@ async function main(): Promise<number> {
           targetResult.settings_open_ok = true;
           await openInputsTab(session.page);
           targetResult.inputs_tab_ok = true;
-          observedInputLabels = uniqueSorted(await collectVisibleInputLabels(session.page, expectedInputLabels));
+          observedInputLabels = uniqueNormalized(await collectVisibleInputLabels(session.page, expectedInputLabels));
           diagnosis = diagnoseInputContract(expectedInputLabels, observedInputLabels);
         }
 
         targetResult.observed_input_labels = observedInputLabels;
         targetResult.missing_input_labels = missingInputLabels(expectedInputLabels, observedInputLabels);
+        targetResult.missing_binding_groups = resolveMissingBindingGroups(target, targetResult.missing_input_labels);
         targetResult.legacy_input_labels = diagnosis.legacyLabels;
         targetResult.contract_drift_likely = diagnosis.likelyDrift;
         targetResult.bindings_count_ok = observedInputLabels.length >= requiredBindingCount;
@@ -634,12 +681,12 @@ async function main(): Promise<number> {
 
         if (targetResult.bindings_count_ok !== true) {
           throw new Error(
-            `Observed only ${observedInputLabels.length}/${requiredBindingCount} TradingView input bindings for ${target.scriptName}.${inputContractDiagnosisSuffix(diagnosis)}`,
+            `Observed only ${observedInputLabels.length}/${requiredBindingCount} TradingView input bindings for ${target.scriptName}${bindingContractContext(target)}.${missingBindingGroupsSuffix(targetResult.missing_binding_groups)}${missingBindingLabelsSuffix(targetResult.missing_input_labels)}${inputContractDiagnosisSuffix(diagnosis)}`,
           );
         }
         if (targetResult.bindings_names_ok !== true) {
           throw new Error(
-            `TradingView input binding names are incomplete for ${target.scriptName}: missing ${targetResult.missing_input_labels.join(", ")}.${inputContractDiagnosisSuffix(diagnosis)}`,
+            `TradingView input binding names are incomplete for ${target.scriptName}${bindingContractContext(target)}: missing ${formatMissingBindingLabels(targetResult.missing_input_labels)}.${missingBindingGroupsSuffix(targetResult.missing_binding_groups)}${inputContractDiagnosisSuffix(diagnosis)}`,
           );
         }
 

@@ -7,10 +7,14 @@ import test from "node:test";
 import {
   combineVerificationStatuses,
   computeTargetOverallPreflightOk,
+  describeBindingContract,
   getRequiredLibraryReleaseManifestFields,
   getRequiredPreflightReportFields,
   getRequiredPreflightTargetFields,
   reportProvidesRepoSourceCompileEvidence,
+  resolveMissingBindingGroups,
+  resolvePreflightExpectedInputLabels,
+  resolvePreflightRequiredBindingCount,
   resolveTradingViewAuthResolution,
   statusesAllTrue,
   type LibraryReleaseManifest,
@@ -63,8 +67,40 @@ function makeProductCutSummary(): LibraryReleaseManifest["productCut"] {
     },
     preflightScopes: {
       smcCoreDashboard: [{ file: "SMC_Core_Engine.pine", scriptName: "SMC Core", checkInputs: false, addToChart: false }],
-      smcMainline: [{ file: "SMC_Dashboard.pine", scriptName: "SMC Decision Board", savedScriptName: "SMC Dashboard", checkInputs: true, addToChart: true, minInputs: 58 }],
-      smcDecisionFirst: [{ file: "SMC_Long_Strategy.pine", scriptName: "SMC Execution", savedScriptName: "SMC Long Strategy", checkInputs: true, addToChart: true, minInputs: 8 }],
+      smcMainline: [{
+        file: "SMC_Dashboard.pine",
+        scriptName: "SMC Decision Board",
+        savedScriptName: "SMC Dashboard",
+        checkInputs: true,
+        addToChart: true,
+        minInputs: 58,
+        bindingContractKey: "dashboardBindings",
+        bindingContractName: "dashboard companion BUS bindings",
+        bindingConsumerRole: "dashboard_companion",
+        bindingContractLabels: ["BUS ZoneActive", "BUS Trigger", "BUS Invalidation"],
+        bindingLabelGroups: [
+          { label: "BUS ZoneActive", group: "g_bus_lifecycle", groupTitle: "Lifecycle BUS" },
+          { label: "BUS Trigger", group: "g_bus_plan", groupTitle: "Trade Plan" },
+          { label: "BUS Invalidation", group: "g_bus_plan", groupTitle: "Trade Plan" },
+        ],
+      }],
+      smcDecisionFirst: [{
+        file: "SMC_Long_Strategy.pine",
+        scriptName: "SMC Execution",
+        savedScriptName: "SMC Long Strategy",
+        checkInputs: true,
+        addToChart: true,
+        minInputs: 8,
+        bindingContractKey: "strategyBindings",
+        bindingContractName: "execution wrapper BUS bindings",
+        bindingConsumerRole: "execution_wrapper",
+        bindingContractLabels: ["BUS Armed", "BUS Trigger", "BUS Invalidation"],
+        bindingLabelGroups: [
+          { label: "BUS Armed", group: "g_bus_entry", groupTitle: "Entry States" },
+          { label: "BUS Trigger", group: "g_bus_plan", groupTitle: "Trade Plan" },
+          { label: "BUS Invalidation", group: "g_bus_plan", groupTitle: "Trade Plan" },
+        ],
+      }],
     },
     deprecatedFieldPolicy: {
       mode: "compatibility_only",
@@ -310,6 +346,10 @@ test("preflight schema helpers require staged report fields", () => {
     bindings_count_ok: true,
     bindings_names_ok: true,
     bindings_names_not_verified: false,
+    binding_contract_key: "dashboardBindings",
+    binding_contract_name: "dashboard companion BUS bindings",
+    binding_consumer_role: "dashboard_companion",
+    missing_binding_groups: [],
     runtime_smoke_ok: true,
     ui_green: true,
     compile_green: true,
@@ -338,6 +378,24 @@ test("preflight schema helpers require staged report fields", () => {
 
   assert.deepEqual(getRequiredPreflightTargetFields(target), []);
   assert.deepEqual(getRequiredPreflightReportFields(report), []);
+});
+
+test("manifest binding contract labels override parsed source labels", () => {
+  const target = makeProductCutSummary().preflightScopes.smcMainline[0];
+
+  assert.deepEqual(resolvePreflightExpectedInputLabels(target, ["Legacy Trigger"]), [
+    "BUS ZoneActive",
+    "BUS Trigger",
+    "BUS Invalidation",
+  ]);
+  assert.equal(resolvePreflightRequiredBindingCount(target, ["Legacy Trigger"]), 58);
+  assert.equal(describeBindingContract(target), "dashboard companion BUS bindings (dashboard_companion)");
+});
+
+test("manifest binding groups localize missing contract sections", () => {
+  const target = makeProductCutSummary().preflightScopes.smcDecisionFirst[0];
+
+  assert.deepEqual(resolveMissingBindingGroups(target, ["BUS Trigger", "BUS Invalidation"]), ["Trade Plan"]);
 });
 
 test("library release manifest helper enforces required fields", () => {

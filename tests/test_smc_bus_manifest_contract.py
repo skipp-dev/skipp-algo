@@ -243,6 +243,8 @@ def test_c9_cut_partitions_the_pro_only_surface() -> None:
 
 def test_product_cut_payload_exports_governance_metadata() -> None:
     payload = MANIFEST.build_product_cut_manifest_payload()
+    dashboard_target = payload['preflightScopes']['smcMainline'][1]
+    strategy_target = payload['preflightScopes']['smcMainline'][2]
 
     assert payload['manifestVersion'] == 2
     assert payload['contracts']['lite'] == list(MANIFEST.LITE_BUS_LABELS)
@@ -251,6 +253,34 @@ def test_product_cut_payload_exports_governance_metadata() -> None:
     assert payload['preflightScopes']['smcCoreDashboard'][1]['savedScriptName'] == 'SMC Dashboard'
     assert payload['preflightScopes']['smcMainline'][1]['savedScriptName'] == 'SMC Dashboard'
     assert payload['preflightScopes']['smcMainline'][2]['savedScriptName'] == 'SMC Long Strategy'
+    assert dashboard_target['bindingContractKey'] == 'dashboardBindings'
+    assert dashboard_target['bindingContractName'] == 'dashboard companion BUS bindings'
+    assert dashboard_target['bindingConsumerRole'] == 'dashboard_companion'
+    assert dashboard_target['bindingContractLabels'] == list(MANIFEST.DASHBOARD_BUS_LABELS)
+    assert dashboard_target['bindingLabelGroups'][0] == {
+        'label': 'BUS ZoneActive',
+        'group': 'g_bus_lifecycle',
+        'groupTitle': 'Lifecycle BUS',
+    }
+    assert dashboard_target['bindingLabelGroups'][-1] == {
+        'label': 'BUS LeanPackB',
+        'group': 'g_bus_lean',
+        'groupTitle': 'Lean Surface',
+    }
+    assert strategy_target['bindingContractKey'] == 'strategyBindings'
+    assert strategy_target['bindingContractName'] == 'execution wrapper BUS bindings'
+    assert strategy_target['bindingConsumerRole'] == 'execution_wrapper'
+    assert strategy_target['bindingContractLabels'] == list(MANIFEST.STRATEGY_BUS_LABELS)
+    assert strategy_target['bindingLabelGroups'][0] == {
+        'label': 'BUS Armed',
+        'group': 'g_bus_entry',
+        'groupTitle': 'Entry States',
+    }
+    assert strategy_target['bindingLabelGroups'][-1] == {
+        'label': 'BUS Invalidation',
+        'group': 'g_bus_plan',
+        'groupTitle': 'Trade Plan',
+    }
     assert payload['deprecatedFieldPolicy'] == MANIFEST.DEPRECATED_FIELD_POLICY
     assert payload['deprecatedFieldPolicy']['mode'] == 'compatibility_only'
     assert payload['deprecatedFieldPolicy']['preferredFieldVersion'] == 'v5.5b'
