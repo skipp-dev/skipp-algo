@@ -196,6 +196,15 @@ ENGINE_CONSUMED_FIELDS: set[str] = {
     "EARNINGS_TODAY_TICKERS", "HIGH_IMPACT_MACRO_TODAY",
     "NEWS_BEARISH_TICKERS", "NEWS_BULLISH_TICKERS",
     "VOLUME_LOW_TICKERS",
+    # Market Context (WP-LF1)
+    "VIX_LEVEL", "MACRO_EVENT_NAME", "MACRO_EVENT_TIME",
+    "TONE", "GLOBAL_HEAT", "GLOBAL_STRENGTH",
+    # Sector + Macro (WP-LF3)
+    "SECTOR_BREADTH", "MACRO_BIAS_RAW",
+    # Earnings + Provider Transparency (WP-LF2)
+    "EARNINGS_TOMORROW_TICKERS", "PROVIDER_COUNT", "STALE_PROVIDERS",
+    # Ticker Heat Map (WP-LF4)
+    "TICKER_HEAT_MAP",
     # Event Risk Light / shared event metadata actually consumed by the Engine
     "EVENT_WINDOW_STATE", "EVENT_RISK_LEVEL",
     "NEXT_EVENT_NAME", "NEXT_EVENT_TIME",

@@ -2387,21 +2387,39 @@ compose_trust_tier_suffix(string trust_tier, int sq_score, string sq_freshness, 
         suffix := 'no measurement data'
     suffix
 
-resolve_core_provider_state(string provider_status) =>
+// ── Ticker Heat Parser (WP-LF4) ──
+f_parse_ticker_heat(string heat_map, string ticker) =>
+    float heat = 0.0
+    if heat_map != ''
+        string search = ticker + ':'
+        int pos = str.pos(heat_map, search)
+        if pos >= 0
+            int val_start = pos + str.length(search)
+            int comma_pos = str.pos(str.substring(heat_map, val_start), ',')
+            string val_str = comma_pos >= 0 ? str.substring(heat_map, val_start, val_start + comma_pos) : str.substring(heat_map, val_start)
+            heat := str.tonumber(val_str)
+    heat
+
+resolve_core_provider_state(string provider_status, int provider_count, string stale_providers) =>
     string provider_text = 'Degraded'
-    string provider_status_norm = str.lower(provider_status)
-    if provider_status_norm == 'ok'
-        provider_text := 'OK'
-    else if provider_status_norm == 'calendar_missing'
-        provider_text := 'Calendar missing'
-    else if provider_status_norm == 'news_missing'
-        provider_text := 'News missing'
-    else if provider_status_norm == 'no_data'
-        provider_text := 'No data'
-    else if provider_status_norm == ''
-        provider_text := 'Unknown'
+    if stale_providers != ''
+        provider_text := str.tostring(provider_count) + ' provider · ' + stale_providers + ' stale'
+    else if provider_count > 0
+        provider_text := str.tostring(provider_count) + '/' + str.tostring(provider_count) + ' ok'
     else
-        provider_text := provider_status
+        string provider_status_norm = str.lower(provider_status)
+        if provider_status_norm == 'ok'
+            provider_text := 'OK'
+        else if provider_status_norm == 'calendar_missing'
+            provider_text := 'Calendar missing'
+        else if provider_status_norm == 'news_missing'
+            provider_text := 'News missing'
+        else if provider_status_norm == 'no_data'
+            provider_text := 'No data'
+        else if provider_status_norm == ''
+            provider_text := 'Unknown'
+        else
+            provider_text := provider_status
     provider_text
 
 resolve_core_bias_text(string signal_bias_alignment) =>
@@ -2438,7 +2456,7 @@ compose_why_now_text(string product_state, string long_setup_source_display, str
             why_now += ' | aging'
     why_now
 
-compose_main_risk_text(string product_state, string event_risk_state, string long_ready_blocker_text, string long_strict_blocker_text, string long_last_invalid_source, string signal_warnings, string provider_status) =>
+compose_main_risk_text(string product_state, string event_risk_state, string long_ready_blocker_text, string long_strict_blocker_text, string long_last_invalid_source, string signal_warnings, string provider_status, bool has_earnings_tomorrow) =>
     string main_risk = product_state == 'BLOCKED' ? 'Setup is blocked' : ((product_state == 'READY LONG' or product_state == 'ENTER LONG') ? 'No active blocker' : 'No trade plan yet')
     string ready_text = str.lower(long_ready_blocker_text)
     string strict_text = str.lower(long_strict_blocker_text)
@@ -2456,6 +2474,8 @@ compose_main_risk_text(string product_state, string event_risk_state, string lon
         main_risk := signal_warnings
     else if provider_status != 'ok'
         main_risk := 'Data quality is degraded'
+    else if has_earnings_tomorrow
+        main_risk := 'Earnings tomorrow — size with care'
     main_risk
 
 compose_trade_threshold_text(string trust_tier, int signal_quality_score) =>
@@ -2480,7 +2500,7 @@ resolve_core_hero_color(string product_state) =>
         hero_color := color.new(color.red, 60)
     hero_color
 
-compose_core_hero_text(string product_state, string bias_text, string trade_threshold_text, string trust_tier, string trust_suffix, string provider_state, string why_now, string main_risk, string market_regime, bool regime_blocks, bool regime_dims, string asof_display) =>
+compose_core_hero_text(string product_state, string bias_text, string trade_threshold_text, string trust_tier, string trust_suffix, string provider_state, string why_now, string main_risk, string market_regime, bool regime_blocks, bool regime_dims, string asof_display, float vix_level, string market_event, string tone_text) =>
     string action_display = product_state
     if (product_state == 'WAIT' or product_state == 'BLOCKED') and (regime_blocks or regime_dims)
         action_display := product_state + ' (regime: ' + market_regime + ')'
@@ -2488,7 +2508,7 @@ compose_core_hero_text(string product_state, string bias_text, string trade_thre
     if (bias_text == 'Bullish' or bias_text == 'Bearish') and (regime_blocks or regime_dims)
         bias_display := bias_text + ' tone — ' + market_regime + ' regime overrides'
     string trust_display = trust_suffix != '' ? trust_tier + ' (' + trust_suffix + ')' : trust_tier
-    'Action: ' + action_display + '\nBias: ' + bias_display + '\nConfidence: ' + trade_threshold_text + '\nTrust: ' + trust_display + '\nProvider: ' + provider_state + '\nWhy now: ' + why_now + '\nMain blocker: ' + main_risk + '\nData: ' + asof_display
+    'Action: ' + action_display + '\nBias: ' + bias_display + '\nConfidence: ' + trade_threshold_text + '\nTrust: ' + trust_display + '\nVIX: ' + str.tostring(vix_level, '#.##') + '\nTone: ' + tone_text + '\nMarket: ' + market_event + '\nProvider: ' + provider_state + '\nWhy now: ' + why_now + '\nMain blocker: ' + main_risk + '\nData: ' + asof_display
 
 resolve_core_alert_action_name(string event_name) =>
     string action_name = 'WAIT'
@@ -3536,6 +3556,28 @@ string lib_volatility_model_source = mp.VOLATILITY_MODEL_SOURCE
 float  lib_ensemble_quality_score  = mp.ENSEMBLE_QUALITY_SCORE
 string lib_ensemble_quality_tier   = mp.ENSEMBLE_QUALITY_TIER
 
+// ── Market Context (WP-LF1) ──
+float  lib_vix_level              = mp.VIX_LEVEL
+string lib_macro_event_name       = mp.MACRO_EVENT_NAME
+string lib_macro_event_time       = mp.MACRO_EVENT_TIME
+string lib_tone                   = mp.TONE
+float  lib_global_heat            = mp.GLOBAL_HEAT
+float  lib_global_strength        = mp.GLOBAL_STRENGTH
+
+// ── Sector + Macro Context (WP-LF3) ──
+float  lib_sector_breadth         = mp.SECTOR_BREADTH
+float  lib_macro_bias_raw         = mp.MACRO_BIAS_RAW
+
+// ── Earnings + Provider Transparency (WP-LF2) ──
+string lib_earnings_tomorrow      = mp.EARNINGS_TOMORROW_TICKERS
+int    lib_provider_count         = mp.PROVIDER_COUNT
+string lib_stale_providers        = mp.STALE_PROVIDERS
+
+// ── Ticker Heat Map (WP-LF4) ──
+string lib_ticker_heat_map        = mp.TICKER_HEAT_MAP
+float  lib_ticker_heat            = f_parse_ticker_heat(lib_ticker_heat_map, syminfo.ticker)
+int    ticker_heat_adj            = int(lib_ticker_heat * 20)
+
 // ── v5.5 Lean Context [PRIMARY] ──
 // Signal Quality: generator-computed composite replaces ad-hoc checks
 bool   signal_quality_ok         = lib_sq_score >= 25
@@ -3794,6 +3836,10 @@ var soft_confirm_offset_atr_len = ATR_LEN_MAIN
 var soft_confirm_offset_atr_mult = 1.0
 var use_retracements_with_FVG_out = input.bool(true, 'Use retracements with FVG-out as trend-supporting OB', group = g_ob, display = display.none, tooltip = 'Allows certain failed extensions with FVG confirmation to become valid continuation order blocks.')
 var use_ob_engine = input.bool(true, 'Use OB engine', group = g_ob, display = display.none, tooltip = 'Keeps OB-based long-dip logic and alerts running even if chart rendering is hidden.')
+
+// ── Ticker Heat → OB Opacity Modifier (WP-LF4) ──
+if barstate.isfirst and ticker_heat_adj != 0
+    bull_ob_css := color.new(bull_ob_css, math.max(5, math.min(95, color.t(bull_ob_css) - ticker_heat_adj)))
 
 bool preset_is_easy = long_user_preset == 'Easy'
 bool preset_is_standard = long_user_preset == 'Standard'
@@ -5185,6 +5231,11 @@ var bull_fvg_css = input.color(color.new(#00ff68, 90), '', group = g_fvg, inline
 var bull_fvg_line_css = input.color(color.new(#00ff68, 25), '', group = g_fvg, inline = 'show', display = display.none)
 var bull_fvg_css_filled = input.color(color.new(color.gray, 80), '', group = g_fvg, inline = 'keep filled', display = display.none)
 var bull_fvg_line_css_filled = color.new(bull_fvg_css_filled, 50)
+
+// ── Ticker Heat → FVG Opacity Modifier (WP-LF4) ──
+if barstate.isfirst and ticker_heat_adj != 0
+    bull_fvg_css := color.new(bull_fvg_css, math.max(5, math.min(95, color.t(bull_fvg_css) - ticker_heat_adj)))
+
 var filter_insignificant_fvgs = input.bool(true, 'Filter: min size', group = g_fvg, inline = 'fvg_min', display = display.none, tooltip = 'Filter out fair value gaps that are too small to matter.')
 var min_fvg_size_atr_len = input.int(ATR_LEN_MAIN, 'ATR Length', minval = 1, group = g_fvg, inline = 'fvg_min', display = display.none)
 var min_fvg_size_atr_mult = input.float(DEFAULT_FVG_MIN_SIZE_MULT, 'x', minval = 0, step = 0.1, group = g_fvg, inline = 'fvg_min', display = display.none)
@@ -6100,15 +6151,38 @@ if barstate.islast and compact_mode
     string core_bias_text = resolve_core_bias_text(lib_sq_bias_alignment)
     string core_trust_tier = resolve_trust_tier(lib_sq_tier, lib_sq_freshness, lib_erl_provider_status)
     string core_trust_suffix = compose_trust_tier_suffix(core_trust_tier, lib_sq_score, lib_sq_freshness, lib_erl_provider_status, lib_ensemble_quality_tier)
-    string core_provider_state = resolve_core_provider_state(lib_erl_provider_status)
+    string core_provider_state = resolve_core_provider_state(lib_erl_provider_status, lib_provider_count, lib_stale_providers)
     string core_trade_threshold = compose_trade_threshold_text(core_trust_tier, lib_sq_score)
     string core_why_now = compose_why_now_text(core_product_state, long_setup_source_display, lib_sq_freshness, lib_sq_warnings, long_ready_blocker_text, long_strict_blocker_text, long_state.trigger)
-    string core_main_risk = compose_main_risk_text(core_product_state, event_risk_state, long_ready_blocker_text, long_strict_blocker_text, long_state.last_invalid_source, lib_sq_warnings, lib_erl_provider_status)
-    string core_hero_text = compose_core_hero_text(core_product_state, core_bias_text, core_trade_threshold, core_trust_tier, core_trust_suffix, core_provider_state, core_why_now, core_main_risk, mp.MARKET_REGIME, lib_regime_blocked, lib_regime_dimmed, lib_asof_display)
+    bool   core_has_earnings_tomorrow = str.contains(lib_earnings_tomorrow, syminfo.ticker)
+    string core_main_risk = compose_main_risk_text(core_product_state, event_risk_state, long_ready_blocker_text, long_strict_blocker_text, long_state.last_invalid_source, lib_sq_warnings, lib_erl_provider_status, core_has_earnings_tomorrow)
+    string core_market_event = mp.HIGH_IMPACT_MACRO_TODAY ? (lib_macro_event_name + ' ' + lib_macro_event_time) : 'No event'
+    string core_tone_text = lib_tone + ' · Heat ' + str.tostring(lib_global_heat, '#.##')
+    string core_hero_text = compose_core_hero_text(core_product_state, core_bias_text, core_trade_threshold, core_trust_tier, core_trust_suffix, core_provider_state, core_why_now, core_main_risk, mp.MARKET_REGIME, lib_regime_blocked, lib_regime_dimmed, lib_asof_display, lib_vix_level, core_market_event, core_tone_text)
     float core_hero_y = high + nz(atr, high * 0.01) * 1.15
     core_hero_card := label.new(bar_index, core_hero_y, core_hero_text, color = resolve_core_hero_color(core_product_state), textcolor = color.white, style = label.style_label_left, size = size.small)
 else if barstate.islast and not na(core_hero_card)
     label.delete(core_hero_card)
+
+// ── Sector Breadth + Macro Bias Context Labels (WP-LF3) ──
+var label breadth_badge = na
+var label macro_badge = na
+if barstate.islast and compact_mode
+    if not na(breadth_badge)
+        label.delete(breadth_badge)
+    if not na(macro_badge)
+        label.delete(macro_badge)
+    string breadth_pct = str.tostring(lib_sector_breadth * 100, '#') + '% sectors up'
+    color breadth_color = lib_sector_breadth >= 0.6 ? color.new(color.green, 60) : lib_sector_breadth <= 0.4 ? color.new(color.red, 60) : color.new(color.gray, 60)
+    breadth_badge := label.new(bar_index - 2, high, 'Breadth: ' + breadth_pct, color = breadth_color, textcolor = color.white, style = label.style_label_down, size = size.tiny)
+    string macro_text = 'Macro: ' + str.tostring(lib_macro_bias_raw, '#.##')
+    color macro_color = lib_macro_bias_raw >= 0.3 ? color.new(color.green, 60) : lib_macro_bias_raw <= -0.3 ? color.new(color.red, 60) : color.new(color.gray, 60)
+    macro_badge := label.new(bar_index - 4, high, macro_text, color = macro_color, textcolor = color.white, style = label.style_label_down, size = size.tiny)
+else if barstate.islast
+    if not na(breadth_badge)
+        label.delete(breadth_badge)
+    if not na(macro_badge)
+        label.delete(macro_badge)
 
 var label health_badge = na
 if barstate.islast and show_dashboard and not compact_mode

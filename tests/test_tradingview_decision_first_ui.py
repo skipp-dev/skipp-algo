@@ -36,9 +36,12 @@ def test_core_has_decision_first_hero_contract() -> None:
     assert 'Trust: ' in source
     assert 'Provider: ' in source
     assert 'Main blocker: ' in source
+    assert 'VIX: ' in source
+    assert 'Tone: ' in source
+    assert 'Market: ' in source
     assert "why_now := 'Trigger is live'" in source
     assert "string core_main_risk = compose_main_risk_text(core_product_state, event_risk_state" in source
-    assert "string core_provider_state = resolve_core_provider_state(lib_erl_provider_status)" in source
+    assert "string core_provider_state = resolve_core_provider_state(lib_erl_provider_status, lib_provider_count, lib_stale_providers)" in source
     assert "bool core_plan_visible = (long_ready_state or long_entry_best_state or long_entry_strict_state)" in source
     assert "plot(core_plan_visible ? long_state.trigger : na, 'Core Trigger'" in source
     assert "plot(core_plan_visible ? long_state.invalidation_level : na, 'Core Invalidation'" in source
@@ -295,3 +298,74 @@ def test_library_freshness_parses_asof_time() -> None:
     assert "mp.ASOF_TIME" in source
     assert "lib_asof_display" in source
     assert "lib_hours_old" in source
+
+
+# ── WP-LF1: Hero Card Marktkontext ──────────────────────────────
+
+def test_hero_card_shows_vix_tone_market() -> None:
+    """Hero card must show VIX, Tone, and Market event lines (WP-LF1)."""
+    source = _read("SMC_Core_Engine.pine")
+
+    hero_fn_idx = source.index("compose_core_hero_text(")
+    hero_fn_block = source[hero_fn_idx:hero_fn_idx + 1200]
+    assert "VIX: " in hero_fn_block
+    assert "Tone: " in hero_fn_block
+    assert "Market: " in hero_fn_block
+
+
+def test_hero_card_reads_market_context_fields() -> None:
+    """Engine must read VIX_LEVEL, MACRO_EVENT_NAME, TONE, GLOBAL_HEAT from library (WP-LF1)."""
+    source = _read("SMC_Core_Engine.pine")
+
+    assert "mp.VIX_LEVEL" in source
+    assert "mp.MACRO_EVENT_NAME" in source
+    assert "mp.MACRO_EVENT_TIME" in source
+    assert "mp.TONE" in source
+    assert "mp.GLOBAL_HEAT" in source
+    assert "mp.GLOBAL_STRENGTH" in source
+
+
+# ── WP-LF2: Earnings + Provider Transparency ────────────────────
+
+def test_provider_state_uses_count_and_stale() -> None:
+    """resolve_core_provider_state must accept provider_count and stale_providers (WP-LF2)."""
+    source = _read("SMC_Core_Engine.pine")
+
+    assert "resolve_core_provider_state(string provider_status, int provider_count, string stale_providers)" in source
+    assert "mp.PROVIDER_COUNT" in source
+    assert "mp.STALE_PROVIDERS" in source
+
+
+def test_earnings_tomorrow_in_main_risk() -> None:
+    """compose_main_risk_text must accept has_earnings_tomorrow flag (WP-LF2)."""
+    source = _read("SMC_Core_Engine.pine")
+
+    assert "mp.EARNINGS_TOMORROW_TICKERS" in source
+    assert "Earnings tomorrow" in source
+    assert "core_has_earnings_tomorrow" in source
+
+
+# ── WP-LF3: Breadth + Macro Context Labels ──────────────────────
+
+def test_breadth_and_macro_context_labels() -> None:
+    """Chart must show Breadth and Macro bias context labels (WP-LF3)."""
+    source = _read("SMC_Core_Engine.pine")
+
+    assert "mp.SECTOR_BREADTH" in source
+    assert "mp.MACRO_BIAS_RAW" in source
+    assert "var label breadth_badge = na" in source
+    assert "var label macro_badge = na" in source
+    assert "Breadth: " in source
+    assert "Macro: " in source
+
+
+# ── WP-LF4: Ticker Heat Zone Opacity ────────────────────────────
+
+def test_ticker_heat_parses_and_adjusts_zones() -> None:
+    """Ticker heat must be parsed from heat map and adjust OB/FVG opacity (WP-LF4)."""
+    source = _read("SMC_Core_Engine.pine")
+
+    assert "mp.TICKER_HEAT_MAP" in source
+    assert "f_parse_ticker_heat(" in source
+    assert "ticker_heat_adj" in source
+    assert "Ticker Heat" in source
