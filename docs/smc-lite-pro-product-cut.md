@@ -42,6 +42,23 @@ Die Folgepunkte am Dokumentende sind jetzt als Doku- und Betriebsregeln
 nachgezogen. Sie sind kein neuer Closure-Blocker fuer den aktiven
 SMC-Hauptpfad.
 
+## Directional Truth — 2026-04-14
+
+Die SMC-Mainline (Core + Dashboard + Strategy) ist ein **Long-Dip-Spezialist**.
+Short-Parity ist weder implizit noch still versprochen.
+
+- `SMC_Core_Engine.pine` traegt seit v5.5 den expliziten Produktanker:
+  _this script is the active long-dip specialist surface. Short-parity
+  remains a separate follow-up track._
+- `SMC_Dashboard.pine` und `SMC_Long_Strategy.pine` enthalten seit WP10
+  analoge Klarstellungen in ihren Kopfkommentaren.
+- Eine kuenftige Short-Parity-Spur wuerde als eigenstaendiger Track mit
+  dediziertem Producer, separater Companion-Bindung und expliziter
+  Measurement-Lane angelegt — nicht als stille Erweiterung der bestehenden
+  Mainline.
+- Solange kein Short-Parity-Track existiert, gelten alle Mainline-
+  Empfehlungen, Validierungen und Quality-Gates als long-only scoped.
+
 - Der Lite-Contract bleibt als eingefrorene kanonische Teilmenge im
   Product-Cut-Manifest verankert und ist der Referenzpunkt fuer Release-,
   Preflight- und Wrapper-Doku.

@@ -359,3 +359,33 @@ def test_legacy_surfaces_are_not_validation_targets() -> None:
         if surface.surface_role == 'legacy':
             assert not surface.validation_target, \
                 f"{surface.file}: legacy surfaces must not be validation targets"
+
+
+# — WP10: Directional truth tests —
+
+def test_mainline_pine_scripts_carry_explicit_directional_statement() -> None:
+    """Every mainline Pine script must contain an explicit directional scope comment."""
+    from tests.smc_manifest_test_utils import ROOT, read_text
+    directional_markers = ('long-dip specialist', 'long-only', 'short-parity')
+    for filename in MANIFEST.MAINLINE_SURFACE_FILES:
+        source = read_text(ROOT / filename)
+        head = source[:2000]
+        found = any(marker in head.lower() for marker in directional_markers)
+        assert found, (
+            f"{filename}: mainline Pine script must carry an explicit directional "
+            f"scope comment in the first 2000 characters"
+        )
+
+
+def test_product_cut_doc_contains_directional_truth_section() -> None:
+    from tests.smc_manifest_test_utils import ROOT, read_text
+    doc = read_text(ROOT / 'docs' / 'smc-lite-pro-product-cut.md')
+    assert 'Directional Truth' in doc, "Product-cut doc must contain a Directional Truth section"
+    assert 'Long-Dip' in doc or 'long-dip' in doc, "Product-cut doc must reference the long-dip specialization"
+
+
+def test_strategy_guide_acknowledges_long_only_scope() -> None:
+    from tests.smc_manifest_test_utils import ROOT, read_text
+    doc = read_text(ROOT / 'docs' / 'TRADINGVIEW_STRATEGY_GUIDE.md')
+    assert 'long-only' in doc.lower() or 'long only' in doc.lower(), \
+        "Strategy guide must acknowledge long-only execution scope"

@@ -38,6 +38,9 @@ The product-cut background and the current guardrails are documented in
 - It is not a replacement for `SMC_Core_Engine.pine` on a clean Lite chart.
 - It does not auto-execute broker orders by itself; unattended execution still
   requires an external alert-to-broker bridge outside the default repo path.
+- It is not a short-parity execution wrapper. The strategy executes long-only
+  setups from the linked SMC Core long-dip specialist. A short-parity execution
+  track would be a separate strategy surface if and when it is created.
 
 ## Required Chart Setup
 

@@ -4,6 +4,8 @@
 //@version=6
 
 // Product role: pro execution surface on the frozen 8-channel executable contract.
+// Product scope: this strategy executes long-only setups from the linked SMC Core long-dip specialist.
+//   Short-parity execution requires a separate strategy track; it is not an implicit promise of this surface.
 // Visible setup controls tune only wrapper behavior; linked core outputs stay in explicit operator-only expert-mapping groups.
 
 // Strategy orders are staged on confirmed bars via process_orders_on_close, so the backtest path does not rely on intrabar lookahead.
