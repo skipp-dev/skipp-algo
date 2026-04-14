@@ -7,7 +7,10 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from scripts.verify_tradingview_post_release import verify_post_release_validation
+from scripts.verify_tradingview_post_release import (
+    POST_RELEASE_FAILURE_CODES,
+    verify_post_release_validation,
+)
 
 
 def _iso_utc(ts: float) -> str:
@@ -47,6 +50,9 @@ def run_post_release_validation(
     try:
         validation = verify_post_release_validation(release_manifest_path, validation_report_path)
     except Exception as exc:
+        failure_codes = getattr(exc, "failure_codes", None)
+        if not failure_codes:
+            failure_codes = ["POST_RELEASE_VALIDATION_FAILED"]
         return {
             **base_report,
             "overall_status": "fail",
@@ -60,10 +66,11 @@ def run_post_release_validation(
             "validated_target_count": 0,
             "failures": [
                 {
-                    "code": "POST_RELEASE_VALIDATION_FAILED",
+                    "code": code,
                     "exception_type": type(exc).__name__,
                     "message": str(exc),
                 }
+                for code in failure_codes
             ],
         }
 

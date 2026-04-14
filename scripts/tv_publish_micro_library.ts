@@ -39,6 +39,18 @@ import {
 export type IdentityVerificationMode = "script_context" | "not_verified";
 export type VersionVerificationMode = "version_context" | "idempotent_no_change" | "body_fallback" | "not_verified";
 
+export type PublishPipelinePhase =
+  | "contract_validation"
+  | "auth_resolution"
+  | "editor_setup"
+  | "open_gate"
+  | "compile_and_save"
+  | "publish"
+  | "identity_verification"
+  | "version_verification"
+  | "core_preflight"
+  | "completed";
+
 type GeneratedLibraryManifest = {
   library_name: string;
   library_owner: string;
@@ -129,6 +141,9 @@ type PublishReport = {
   versionVerificationMode: VersionVerificationMode;
   publishVerificationMode: VersionVerificationMode;
   publishStatus: LibraryReleaseManifest["library"]["publishStatus"];
+  failedAtStep: PublishPipelinePhase | null;
+  resumeFrom: PublishPipelinePhase | null;
+  completedPhase: PublishPipelinePhase;
   expectedImportPath: string;
   expectedVersion: number;
   publishedVersion: number | null;
@@ -627,6 +642,55 @@ export function resolvePublishReportState(options: {
   };
 }
 
+export function resolvePublishPipelinePhase(options: {
+  ok: boolean;
+  contractOk: boolean;
+  openGateAttempted: boolean;
+  openGateVerified: boolean;
+  publishAttempted: boolean;
+  identityVerificationMode: IdentityVerificationMode;
+  versionVerificationMode: VersionVerificationMode;
+  repoCoreValidationOk: boolean;
+}): {
+  completedPhase: PublishPipelinePhase;
+  failedAtStep: PublishPipelinePhase | null;
+  resumeFrom: PublishPipelinePhase | null;
+} {
+  if (options.ok) {
+    return { completedPhase: "completed", failedAtStep: null, resumeFrom: null };
+  }
+
+  if (!options.contractOk) {
+    return { completedPhase: "contract_validation", failedAtStep: "contract_validation", resumeFrom: "contract_validation" };
+  }
+
+  if (options.openGateAttempted && !options.openGateVerified) {
+    return { completedPhase: "auth_resolution", failedAtStep: "open_gate", resumeFrom: "open_gate" };
+  }
+
+  if (!options.publishAttempted) {
+    return { completedPhase: "editor_setup", failedAtStep: "editor_setup", resumeFrom: "editor_setup" };
+  }
+
+  const identityOk = options.identityVerificationMode === "script_context";
+  const versionOk = options.versionVerificationMode === "version_context"
+    || options.versionVerificationMode === "idempotent_no_change";
+
+  if (!identityOk) {
+    return { completedPhase: "publish", failedAtStep: "identity_verification", resumeFrom: "publish" };
+  }
+
+  if (!versionOk) {
+    return { completedPhase: "identity_verification", failedAtStep: "version_verification", resumeFrom: "publish" };
+  }
+
+  if (!options.repoCoreValidationOk) {
+    return { completedPhase: "version_verification", failedAtStep: "core_preflight", resumeFrom: "core_preflight" };
+  }
+
+  return { completedPhase: "completed", failedAtStep: null, resumeFrom: null };
+}
+
 export function shouldReopenPublishedScriptAfterPublish(options: {
   publishNoChangeDetected: boolean;
   exactScriptVerified: boolean;
@@ -881,6 +945,17 @@ export async function runPublishMicroLibraryCli(): Promise<number> {
       lastPreflightReport: repoCoreValidation.reportPath,
     });
 
+    const pipelinePhase = resolvePublishPipelinePhase({
+      ok: publishState.ok,
+      contractOk,
+      openGateAttempted,
+      openGateVerified,
+      publishAttempted,
+      identityVerificationMode,
+      versionVerificationMode,
+      repoCoreValidationOk,
+    });
+
     const report: PublishReport = {
       generatedAt: utcNow(),
       ok: publishState.ok,
@@ -895,6 +970,9 @@ export async function runPublishMicroLibraryCli(): Promise<number> {
       versionVerificationMode,
       publishVerificationMode: versionVerificationMode,
       publishStatus,
+      failedAtStep: pipelinePhase.failedAtStep,
+      resumeFrom: pipelinePhase.resumeFrom,
+      completedPhase: pipelinePhase.completedPhase,
       expectedImportPath: details.recommendedImportPath,
       expectedVersion: details.libraryVersion,
       publishedVersion,
@@ -949,6 +1027,16 @@ export async function runPublishMicroLibraryCli(): Promise<number> {
       expectedVersion: details?.libraryVersion ?? null,
       repoCoreValidationOk,
     });
+    const errorPipelinePhase = resolvePublishPipelinePhase({
+      ok: false,
+      contractOk,
+      openGateAttempted,
+      openGateVerified,
+      publishAttempted,
+      identityVerificationMode,
+      versionVerificationMode,
+      repoCoreValidationOk,
+    });
     const report: PublishReport = {
       generatedAt: utcNow(),
       ok: false,
@@ -963,6 +1051,9 @@ export async function runPublishMicroLibraryCli(): Promise<number> {
       versionVerificationMode,
       publishVerificationMode: versionVerificationMode,
       publishStatus: publishState.publishStatus,
+      failedAtStep: errorPipelinePhase.failedAtStep,
+      resumeFrom: errorPipelinePhase.resumeFrom,
+      completedPhase: errorPipelinePhase.completedPhase,
       expectedImportPath: details?.recommendedImportPath ?? "",
       expectedVersion: details?.libraryVersion ?? 0,
       publishedVersion,

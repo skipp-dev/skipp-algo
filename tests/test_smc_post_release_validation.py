@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from scripts.run_smc_post_release_validation import run_post_release_validation
+from scripts.verify_tradingview_post_release import POST_RELEASE_FAILURE_CODES
 
 
 def _write_json(path: Path, payload: dict) -> None:
@@ -81,8 +82,9 @@ def test_run_post_release_validation_normalizes_failure(tmp_path: Path) -> None:
 
     assert report["report_kind"] == "post_release_validation"
     assert report["overall_status"] == "fail"
-    assert report["failures"][0]["code"] == "POST_RELEASE_VALIDATION_FAILED"
-    assert "publishStatus" in report["failures"][0]["message"]
+    codes = [f["code"] for f in report["failures"]]
+    assert "PUBLISH_STATUS_NOT_PUBLISHED" in codes
+    assert "VERSION_MISMATCH" in codes
 
 
 def test_run_post_release_validation_handles_missing_manifest(tmp_path: Path) -> None:
@@ -191,8 +193,8 @@ def test_run_post_release_validation_handles_failed_target(tmp_path: Path) -> No
     report = run_post_release_validation(release_manifest, validation_report)
 
     assert report["overall_status"] == "fail"
-    assert report["failures"][0]["code"] == "POST_RELEASE_VALIDATION_FAILED"
-    assert "SMC_Core_Engine" in report["failures"][0]["message"]
+    codes = [f["code"] for f in report["failures"]]
+    assert "TARGET_FAILED" in codes
 
 
 def test_run_post_release_validation_ci_mode_surfaces_machine_readable_failure_fields(tmp_path: Path) -> None:
@@ -261,3 +263,148 @@ def test_run_post_release_validation_ci_mode_surfaces_validation_timestamp_on_su
     assert report["overall_status"] == "ok"
     assert isinstance(report["validation_timestamp"], float)
     assert report["validation_timestamp_iso"]
+
+
+def test_failure_codes_tuple_is_non_empty() -> None:
+    assert len(POST_RELEASE_FAILURE_CODES) >= 9
+    assert all(isinstance(code, str) for code in POST_RELEASE_FAILURE_CODES)
+    assert all(code == code.upper() for code in POST_RELEASE_FAILURE_CODES)
+
+
+def test_post_release_uses_specific_failure_code_for_publish_status(tmp_path: Path) -> None:
+    release_manifest = tmp_path / "library_release_manifest.json"
+    validation_report = tmp_path / "tv_post_release_validation.json"
+
+    _write_json(
+        release_manifest,
+        {
+            "generatedAt": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+            "library": {
+                "publishStatus": "draft",
+                "expectedVersion": "6",
+                "publishedVersion": "6",
+            },
+        },
+    )
+    _write_json(
+        validation_report,
+        {
+            "execution_mode": "readonly",
+            "auth_reused_ok": True,
+            "auth_ok": True,
+            "overall_preflight_ok": True,
+            "targets": [{"scriptName": "SMC_Core_Engine", "overall_preflight_ok": True}],
+        },
+    )
+
+    report = run_post_release_validation(release_manifest, validation_report)
+
+    assert report["overall_status"] == "fail"
+    codes = [f["code"] for f in report["failures"]]
+    assert "PUBLISH_STATUS_NOT_PUBLISHED" in codes
+
+
+def test_post_release_uses_specific_failure_code_for_version_mismatch(tmp_path: Path) -> None:
+    release_manifest = tmp_path / "library_release_manifest.json"
+    validation_report = tmp_path / "tv_post_release_validation.json"
+
+    _write_json(
+        release_manifest,
+        {
+            "generatedAt": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+            "library": {
+                "publishStatus": "published",
+                "expectedVersion": "6",
+                "publishedVersion": "5",
+            },
+        },
+    )
+    _write_json(
+        validation_report,
+        {
+            "execution_mode": "readonly",
+            "auth_reused_ok": True,
+            "auth_ok": True,
+            "overall_preflight_ok": True,
+            "targets": [{"scriptName": "SMC_Core_Engine", "overall_preflight_ok": True}],
+        },
+    )
+
+    report = run_post_release_validation(release_manifest, validation_report)
+
+    assert report["overall_status"] == "fail"
+    codes = [f["code"] for f in report["failures"]]
+    assert "VERSION_MISMATCH" in codes
+
+
+def test_post_release_uses_specific_failure_code_for_failed_target(tmp_path: Path) -> None:
+    release_manifest = tmp_path / "library_release_manifest.json"
+    validation_report = tmp_path / "tv_post_release_validation.json"
+
+    _write_json(
+        release_manifest,
+        {
+            "generatedAt": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+            "library": {
+                "publishStatus": "published",
+                "expectedVersion": "6",
+                "publishedVersion": "6",
+            },
+        },
+    )
+    _write_json(
+        validation_report,
+        {
+            "execution_mode": "readonly",
+            "auth_reused_ok": True,
+            "auth_ok": True,
+            "overall_preflight_ok": True,
+            "targets": [
+                {"scriptName": "SMC_Core_Engine", "overall_preflight_ok": False, "error": "compile error"},
+            ],
+        },
+    )
+
+    report = run_post_release_validation(release_manifest, validation_report)
+
+    assert report["overall_status"] == "fail"
+    codes = [f["code"] for f in report["failures"]]
+    assert "TARGET_FAILED" in codes
+
+
+def test_post_release_multiple_failure_codes_are_separate(tmp_path: Path) -> None:
+    release_manifest = tmp_path / "library_release_manifest.json"
+    validation_report = tmp_path / "tv_post_release_validation.json"
+
+    _write_json(
+        release_manifest,
+        {
+            "generatedAt": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+            "library": {
+                "publishStatus": "draft",
+                "expectedVersion": "6",
+                "publishedVersion": "5",
+            },
+        },
+    )
+    _write_json(
+        validation_report,
+        {
+            "execution_mode": "mutating",
+            "auth_reused_ok": False,
+            "auth_ok": False,
+            "overall_preflight_ok": False,
+            "targets": [],
+        },
+    )
+
+    report = run_post_release_validation(release_manifest, validation_report)
+
+    assert report["overall_status"] == "fail"
+    codes = [f["code"] for f in report["failures"]]
+    assert "PUBLISH_STATUS_NOT_PUBLISHED" in codes
+    assert "VERSION_MISMATCH" in codes
+    assert "READONLY_MODE_REQUIRED" in codes
+    assert "AUTH_NOT_REUSED" in codes
+    assert "AUTH_FAILED" in codes
+    assert len(report["failures"]) > 3

@@ -11,6 +11,19 @@ from typing import Any
 
 _POST_RELEASE_MANIFEST_STALE_AFTER_SECONDS = 2 * 60 * 60
 
+POST_RELEASE_FAILURE_CODES = (
+    "PUBLISH_STATUS_NOT_PUBLISHED",
+    "VERSION_MISMATCH",
+    "MANIFEST_STALE",
+    "MANIFEST_MISSING_TIMESTAMP",
+    "READONLY_MODE_REQUIRED",
+    "AUTH_NOT_REUSED",
+    "AUTH_FAILED",
+    "PREFLIGHT_FAILED",
+    "TARGET_FAILED",
+    "NO_TARGETS",
+)
+
 
 def _read_json(path: Path) -> dict[str, Any]:
     payload = json.loads(path.read_text(encoding="utf-8"))
@@ -82,6 +95,7 @@ def verify_post_release_validation(
         raise RuntimeError("Library release manifest is missing the library object")
 
     failures: list[str] = []
+    failure_codes: list[str] = []
     publish_status = str(library.get("publishStatus") or "").strip()
     expected_version = library.get("expectedVersion")
     published_version = library.get("publishedVersion")
@@ -90,14 +104,17 @@ def verify_post_release_validation(
 
     if publish_status != "published":
         failures.append(f"library.publishStatus must be 'published' (got {publish_status or 'missing'})")
+        failure_codes.append("PUBLISH_STATUS_NOT_PUBLISHED")
 
     if expected_version is not None and published_version != expected_version:
         failures.append(
             f"library.publishedVersion must match expectedVersion ({published_version!r} != {expected_version!r})"
         )
+        failure_codes.append("VERSION_MISMATCH")
 
     if manifest_generated_at is None:
         failures.append("library release manifest must contain generatedAt/generated_at for staleness validation")
+        failure_codes.append("MANIFEST_MISSING_TIMESTAMP")
     else:
         manifest_age_seconds = max(0.0, validation_timestamp - float(manifest_generated_at))
         if manifest_age_seconds > float(_POST_RELEASE_MANIFEST_STALE_AFTER_SECONDS):
@@ -105,19 +122,25 @@ def verify_post_release_validation(
                 "library release manifest is stale for post-release validation "
                 f"({int(manifest_age_seconds)}s > {_POST_RELEASE_MANIFEST_STALE_AFTER_SECONDS}s)"
             )
+            failure_codes.append("MANIFEST_STALE")
 
     if str(report.get("execution_mode") or "").strip() != "readonly":
         failures.append("post-release TradingView validation must run in readonly mode")
+        failure_codes.append("READONLY_MODE_REQUIRED")
     if report.get("auth_reused_ok") is not True:
         failures.append("post-release TradingView validation must reuse authenticated state")
+        failure_codes.append("AUTH_NOT_REUSED")
     if report.get("auth_ok") is not True:
         failures.append("post-release TradingView validation must pass auth_ok")
+        failure_codes.append("AUTH_FAILED")
     if report.get("overall_preflight_ok") is not True:
         failures.append("post-release TradingView validation must pass overall_preflight_ok")
+        failure_codes.append("PREFLIGHT_FAILED")
 
     raw_targets = report.get("targets")
     if not isinstance(raw_targets, list) or not raw_targets:
         failures.append("post-release TradingView validation must contain at least one target result")
+        failure_codes.append("NO_TARGETS")
         targets: list[dict[str, Any]] = []
     else:
         targets = [target for target in raw_targets if isinstance(target, dict)]
@@ -127,9 +150,13 @@ def verify_post_release_validation(
             label = str(target.get("scriptName") or target.get("file") or "unknown_target")
             target_error = str(target.get("error") or "overall_preflight_ok=false")
             failures.append(f"target {label} failed post-release validation: {target_error}")
+            if "TARGET_FAILED" not in failure_codes:
+                failure_codes.append("TARGET_FAILED")
 
     if failures:
-        raise RuntimeError("; ".join(failures))
+        exc = RuntimeError("; ".join(failures))
+        exc.failure_codes = failure_codes  # type: ignore[attr-defined]
+        raise exc
 
     relative_report_path = _relative_report_path(release_manifest_path, validation_report_path)
     manifest_updated = False

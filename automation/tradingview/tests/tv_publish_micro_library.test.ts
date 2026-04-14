@@ -6,6 +6,7 @@ import test from "node:test";
 
 import {
   resolvePreMutationOpenGate,
+  resolvePublishPipelinePhase,
   resolvePublishReportState,
   shouldPromoteNoChangeVersionEvidence,
   shouldReopenPublishedScriptAfterPublish,
@@ -304,4 +305,98 @@ test("official TS publish contract rejects non-productive generated source", () 
     () => verifyPublishContract(manifestPath, corePath),
     /not publish-ready: fixture_input, default_event_risk, placeholder_symbols/,
   );
+});
+
+test("pipeline phase resolves to completed when ok is true", () => {
+  assert.deepEqual(resolvePublishPipelinePhase({
+    ok: true,
+    contractOk: true,
+    openGateAttempted: true,
+    openGateVerified: true,
+    publishAttempted: true,
+    identityVerificationMode: "script_context",
+    versionVerificationMode: "version_context",
+    repoCoreValidationOk: true,
+  }), {
+    completedPhase: "completed",
+    failedAtStep: null,
+    resumeFrom: null,
+  });
+});
+
+test("pipeline phase detects contract validation failure", () => {
+  const phase = resolvePublishPipelinePhase({
+    ok: false,
+    contractOk: false,
+    openGateAttempted: false,
+    openGateVerified: false,
+    publishAttempted: false,
+    identityVerificationMode: "not_verified",
+    versionVerificationMode: "not_verified",
+    repoCoreValidationOk: false,
+  });
+  assert.equal(phase.failedAtStep, "contract_validation");
+  assert.equal(phase.resumeFrom, "contract_validation");
+});
+
+test("pipeline phase detects open gate failure", () => {
+  const phase = resolvePublishPipelinePhase({
+    ok: false,
+    contractOk: true,
+    openGateAttempted: true,
+    openGateVerified: false,
+    publishAttempted: false,
+    identityVerificationMode: "not_verified",
+    versionVerificationMode: "not_verified",
+    repoCoreValidationOk: false,
+  });
+  assert.equal(phase.failedAtStep, "open_gate");
+  assert.equal(phase.resumeFrom, "open_gate");
+});
+
+test("pipeline phase detects identity verification failure after publish", () => {
+  const phase = resolvePublishPipelinePhase({
+    ok: false,
+    contractOk: true,
+    openGateAttempted: true,
+    openGateVerified: true,
+    publishAttempted: true,
+    identityVerificationMode: "not_verified",
+    versionVerificationMode: "not_verified",
+    repoCoreValidationOk: false,
+  });
+  assert.equal(phase.failedAtStep, "identity_verification");
+  assert.equal(phase.resumeFrom, "publish");
+});
+
+test("pipeline phase detects version verification failure with identity ok", () => {
+  const phase = resolvePublishPipelinePhase({
+    ok: false,
+    contractOk: true,
+    openGateAttempted: true,
+    openGateVerified: true,
+    publishAttempted: true,
+    identityVerificationMode: "script_context",
+    versionVerificationMode: "not_verified",
+    repoCoreValidationOk: false,
+  });
+  assert.equal(phase.failedAtStep, "version_verification");
+  assert.equal(phase.resumeFrom, "publish");
+  assert.equal(phase.completedPhase, "identity_verification");
+});
+
+test("pipeline phase detects core preflight failure after successful publish", () => {
+  const phase = resolvePublishPipelinePhase({
+    ok: false,
+    contractOk: true,
+    openGateAttempted: true,
+    openGateVerified: true,
+    publishAttempted: true,
+    identityVerificationMode: "script_context",
+    versionVerificationMode: "version_context",
+    repoCoreValidationOk: false,
+  });
+  assert.equal(phase.failedAtStep, "core_preflight");
+  assert.equal(phase.resumeFrom, "core_preflight");
+  assert.equal(phase.completedPhase, "version_verification");
 });
