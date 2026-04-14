@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-04-14T04:20:28.520464Z",
+  "generated_at": "2026-04-14T06:15:48.974261Z",
   "symbols": [
     "AAPL",
     "MSFT",
@@ -56,12 +56,12 @@
     "newsapi_ai": {
       "ok": true,
       "error": "",
-      "raw_count": 34,
-      "new_item_count": 3,
+      "raw_count": 2,
+      "new_item_count": 0,
       "cursor": 1776133051.0,
       "last_seen_news_uri": "",
-      "provider_status": "ok",
-      "status_detail": "",
+      "provider_status": "ok_no_recent_matches",
+      "status_detail": "Event Registry reachable, but no new symbol-matching NewsAPI.ai items were newer than the current cursor.",
       "error_code": ""
     },
     "tv": {
@@ -81,7 +81,7 @@
       ],
       "published_at": "2026-04-14T02:16:46Z",
       "published_ts": 1776133006.0,
-      "age_minutes": 123.7,
+      "age_minutes": 239.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -102,13 +102,13 @@
       "impact": 0.65,
       "clarity": 0.8,
       "relevance": 0.7825,
-      "news_catalyst_score": 0.4916,
+      "news_catalyst_score": 0.4121,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
       "url": "https://ca.finance.yahoo.com/news/microsoft-msft-price-target-lowered-021646238.html",
       "first_seen_at": "2026-04-14T04:20:28.520464Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -119,7 +119,7 @@
       ],
       "published_at": "2026-04-14T02:15:59Z",
       "published_ts": 1776132959.0,
-      "age_minutes": 124.5,
+      "age_minutes": 239.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -140,13 +140,13 @@
       "impact": 0.65,
       "clarity": 0.8,
       "relevance": 0.7825,
-      "news_catalyst_score": 0.4911,
+      "news_catalyst_score": 0.4115,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
       "url": "https://ca.finance.yahoo.com/news/meta-platforms-meta-price-target-021559764.html",
       "first_seen_at": "2026-04-14T04:20:28.520464Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -157,7 +157,7 @@
       ],
       "published_at": "2026-04-13T20:13:36Z",
       "published_ts": 1776111216.0,
-      "age_minutes": 486.9,
+      "age_minutes": 602.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -195,7 +195,7 @@
       ],
       "published_at": "2026-04-13T12:42:11Z",
       "published_ts": 1776084131.0,
-      "age_minutes": 938.3,
+      "age_minutes": 1053.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -233,7 +233,7 @@
       ],
       "published_at": "2026-04-13T10:47:24Z",
       "published_ts": 1776077244.0,
-      "age_minutes": 1053.1,
+      "age_minutes": 1168.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -271,7 +271,7 @@
       ],
       "published_at": "2026-04-13T16:01:30Z",
       "published_ts": 1776096090.0,
-      "age_minutes": 739.0,
+      "age_minutes": 854.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -309,7 +309,7 @@
       ],
       "published_at": "2026-04-13T12:06:43Z",
       "published_ts": 1776082003.0,
-      "age_minutes": 973.8,
+      "age_minutes": 1089.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -347,7 +347,7 @@
       ],
       "published_at": "2026-04-13T12:02:00Z",
       "published_ts": 1776081720.0,
-      "age_minutes": 978.5,
+      "age_minutes": 1093.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -378,44 +378,6 @@
       "provider_count": 1
     },
     {
-      "story_key": "e60ce69bc0c06b0ca26d70a9c3827f1ce76a5eef:5920443",
-      "headline": "Is Amazon.com (AMZN) One of the Best Blue Chip Stocks to Buy Now?",
-      "tickers": [
-        "AMZN"
-      ],
-      "published_at": "2026-04-14T02:17:31Z",
-      "published_ts": 1776133051.0,
-      "age_minutes": 123.0,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Yahoo! Finance"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Is Amazon.com (AMZN) One of the Best Blue Chip Stocks to Buy Now?",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.2271,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://ca.finance.yahoo.com/news/amazon-com-amzn-one-best-021731834.html",
-      "first_seen_at": "2026-04-14T04:20:28.520464Z",
-      "is_new": true,
-      "provider_count": 1
-    },
-    {
       "story_key": "6ac71d52507334cc4d4dcc0a8d92bd2f9ff6ac83:5920369",
       "headline": "Meta to Announce First Quarter 2026 Results - Meta Platforms (NASDAQ:META)",
       "tickers": [
@@ -423,7 +385,7 @@
       ],
       "published_at": "2026-04-13T20:05:00Z",
       "published_ts": 1776110700.0,
-      "age_minutes": 495.5,
+      "age_minutes": 610.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -461,7 +423,7 @@
       ],
       "published_at": "2026-04-13T17:35:17Z",
       "published_ts": 1776101717.0,
-      "age_minutes": 645.2,
+      "age_minutes": 760.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -499,7 +461,7 @@
       ],
       "published_at": "2026-04-13T18:40:49Z",
       "published_ts": 1776105649.0,
-      "age_minutes": 579.7,
+      "age_minutes": 695.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -537,7 +499,7 @@
       ],
       "published_at": "2026-04-13T17:54:00Z",
       "published_ts": 1776102840.0,
-      "age_minutes": 626.5,
+      "age_minutes": 741.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -575,7 +537,7 @@
       ],
       "published_at": "2026-04-13T13:52:06Z",
       "published_ts": 1776088326.0,
-      "age_minutes": 868.4,
+      "age_minutes": 983.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -613,7 +575,7 @@
       ],
       "published_at": "2026-04-13T11:41:22Z",
       "published_ts": 1776080482.0,
-      "age_minutes": 999.1,
+      "age_minutes": 1114.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -651,7 +613,7 @@
       ],
       "published_at": "2026-04-13T09:59:14Z",
       "published_ts": 1776074354.0,
-      "age_minutes": 1101.2,
+      "age_minutes": 1216.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -689,7 +651,7 @@
       ],
       "published_at": "2026-04-13T21:03:28Z",
       "published_ts": 1776114208.0,
-      "age_minutes": 437.0,
+      "age_minutes": 552.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -727,7 +689,7 @@
       ],
       "published_at": "2026-04-13T16:55:59Z",
       "published_ts": 1776099359.0,
-      "age_minutes": 684.5,
+      "age_minutes": 799.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -765,7 +727,7 @@
       ],
       "published_at": "2026-04-13T14:47:31Z",
       "published_ts": 1776091651.0,
-      "age_minutes": 813.0,
+      "age_minutes": 928.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -803,7 +765,7 @@
       ],
       "published_at": "2026-04-13T13:41:05Z",
       "published_ts": 1776087665.0,
-      "age_minutes": 879.4,
+      "age_minutes": 994.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -834,6 +796,44 @@
       "provider_count": 1
     },
     {
+      "story_key": "e60ce69bc0c06b0ca26d70a9c3827f1ce76a5eef:5920443",
+      "headline": "Is Amazon.com (AMZN) One of the Best Blue Chip Stocks to Buy Now?",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_at": "2026-04-14T02:17:31Z",
+      "published_ts": 1776133051.0,
+      "age_minutes": 238.3,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Yahoo! Finance"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Is Amazon.com (AMZN) One of the Best Blue Chip Stocks to Buy Now?",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.1905,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://ca.finance.yahoo.com/news/amazon-com-amzn-one-best-021731834.html",
+      "first_seen_at": "2026-04-14T04:20:28.520464Z",
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
       "story_key": "9f55b686374205531bc839b8a20efc8e987674cf:5920289",
       "headline": "Trade Strategy For SPY, QQQ, AAPL, MSFT, NVDA, GOOGL, META, And TSLA",
       "tickers": [
@@ -843,7 +843,7 @@
       ],
       "published_at": "2026-04-13T13:27:52Z",
       "published_ts": 1776086872.0,
-      "age_minutes": 892.6,
+      "age_minutes": 1007.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -881,7 +881,7 @@
       ],
       "published_at": "2026-04-13T18:56:04Z",
       "published_ts": 1776106564.0,
-      "age_minutes": 564.4,
+      "age_minutes": 679.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -919,7 +919,7 @@
       ],
       "published_at": "2026-04-13T18:48:38Z",
       "published_ts": 1776106118.0,
-      "age_minutes": 571.8,
+      "age_minutes": 687.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -957,7 +957,7 @@
       ],
       "published_at": "2026-04-13T18:46:11Z",
       "published_ts": 1776105971.0,
-      "age_minutes": 574.3,
+      "age_minutes": 689.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -995,7 +995,7 @@
       ],
       "published_at": "2026-04-13T17:38:46Z",
       "published_ts": 1776101926.0,
-      "age_minutes": 641.7,
+      "age_minutes": 757.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1033,7 +1033,7 @@
       ],
       "published_at": "2026-04-13T15:46:05Z",
       "published_ts": 1776095165.0,
-      "age_minutes": 754.4,
+      "age_minutes": 869.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1071,7 +1071,7 @@
       ],
       "published_at": "2026-04-13T12:13:06Z",
       "published_ts": 1776082386.0,
-      "age_minutes": 967.4,
+      "age_minutes": 1082.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1109,7 +1109,7 @@
       ],
       "published_at": "2026-04-13T10:50:09Z",
       "published_ts": 1776077409.0,
-      "age_minutes": 1050.3,
+      "age_minutes": 1165.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1147,7 +1147,7 @@
       ],
       "published_at": "2026-04-13T08:24:55Z",
       "published_ts": 1776068695.0,
-      "age_minutes": 1195.6,
+      "age_minutes": 1310.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1174,44 +1174,6 @@
       "is_actionable": false,
       "url": "https://blockonomi.com/microsoft-msft-stock-how-the-tech-giant-monetizes-its-ai-infrastructure/",
       "first_seen_at": "2026-04-13T10:13:22.743196Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "82b76cabc494cd85c56263d8ee1aeffd6041fdb2:5920189",
-      "headline": "'This Isn't the Time,' Says Investor About Microsoft Stock (MSFT)",
-      "tickers": [
-        "MSFT"
-      ],
-      "published_at": "2026-04-13T05:08:00Z",
-      "published_ts": 1776056880.0,
-      "age_minutes": 1392.5,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Markets Insider"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "'This Isn't the Time,' Says Investor About Microsoft Stock (MSFT)",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.1671,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://markets.businessinsider.com/news/stocks/this-isn-t-the-time-says-investor-about-microsoft-stock-msft-1036013906",
-      "first_seen_at": "2026-04-13T06:07:36.659929Z",
       "is_new": false,
       "provider_count": 1
     }
@@ -1257,7 +1219,7 @@
       "story_key": "9b368e426b9af47149adfc6aefd708db76eec7fa:5920257"
     },
     "META": {
-      "news_catalyst_score": 0.6111,
+      "news_catalyst_score": 0.5315,
       "sentiment_label": "neutral",
       "event_class": "ANALYST",
       "event_label": "Meta Platforms (META) Price Target Reduced by $95 Amid Market Volatility",
@@ -1270,14 +1232,14 @@
       "story_key": "44875620b01434c5ea9f950d08f31e2f06cde4a3:5920443"
     },
     "MSFT": {
-      "news_catalyst_score": 0.6116,
+      "news_catalyst_score": 0.5321,
       "sentiment_label": "bullish",
       "event_class": "ANALYST",
       "event_label": "Microsoft (MSFT) Price Target Lowered by $103 Ahead of Q3 Report",
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "source_tier": "TIER_3",
-      "mentions_24h": 8,
+      "mentions_24h": 7,
       "is_actionable": false,
       "first_provider": "newsapi_ai",
       "story_key": "9b1b2a82892c9b3de4983c52fbb09020230f6503:5920443"
@@ -1297,8 +1259,8 @@
     }
   },
   "summary": {
-    "active_story_count": 30,
-    "new_story_count": 3,
+    "active_story_count": 29,
+    "new_story_count": 0,
     "actionable_story_count": 0,
     "actionable_symbols": [],
     "symbol_count": 6
