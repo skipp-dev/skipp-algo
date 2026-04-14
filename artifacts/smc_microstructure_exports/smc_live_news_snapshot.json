@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-04-14T09:50:24.317889Z",
+  "generated_at": "2026-04-14T10:56:13.535697Z",
   "symbols": [
     "AAPL",
     "MSFT",
@@ -81,7 +81,7 @@
       ],
       "published_at": "2026-04-13T20:13:36Z",
       "published_ts": 1776111216.0,
-      "age_minutes": 816.8,
+      "age_minutes": 882.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -119,7 +119,7 @@
       ],
       "published_at": "2026-04-13T12:42:11Z",
       "published_ts": 1776084131.0,
-      "age_minutes": 1268.2,
+      "age_minutes": 1334.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -150,44 +150,6 @@
       "provider_count": 1
     },
     {
-      "story_key": "9b368e426b9af47149adfc6aefd708db76eec7fa:5920257",
-      "headline": "JPMorgan Is About to Report Q1 Earnings Tomorrow. Options Traders Are Expecting a 3.87% Move in JPM Stock",
-      "tickers": [
-        "JPM"
-      ],
-      "published_at": "2026-04-13T10:47:24Z",
-      "published_ts": 1776077244.0,
-      "age_minutes": 1383.0,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Markets Insider"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "earnings",
-      "event_class": "EARNINGS",
-      "event_label": "JPMorgan Is About to Report Q1 Earnings Tomorrow. Options Traders Are Expecting a 3.87% Move in JPM Stock",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.8,
-      "clarity": 0.8,
-      "relevance": 0.85,
-      "news_catalyst_score": 0.4084,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://markets.businessinsider.com/news/stocks/jpmorgan-is-about-to-report-q1-earnings-tomorrow-options-traders-are-expecting-a-3-87-move-in-jpm-stock-1036014969",
-      "first_seen_at": "2026-04-13T14:27:39.991472Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
       "story_key": "91cd03cb353d2895dac75c0c99af57e6d10ff023:5920320",
       "headline": "Crypto's Second Chance At ETFs: Why Tokenization May Win Where Binance Failed - Apple (NASDAQ:AAPL), NVID",
       "tickers": [
@@ -195,7 +157,7 @@
       ],
       "published_at": "2026-04-13T16:01:30Z",
       "published_ts": 1776096090.0,
-      "age_minutes": 1068.9,
+      "age_minutes": 1134.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -233,7 +195,7 @@
       ],
       "published_at": "2026-04-14T02:16:46Z",
       "published_ts": 1776133006.0,
-      "age_minutes": 453.6,
+      "age_minutes": 519.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -271,7 +233,7 @@
       ],
       "published_at": "2026-04-14T02:15:59Z",
       "published_ts": 1776132959.0,
-      "age_minutes": 454.4,
+      "age_minutes": 520.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -309,7 +271,7 @@
       ],
       "published_at": "2026-04-13T12:06:43Z",
       "published_ts": 1776082003.0,
-      "age_minutes": 1303.7,
+      "age_minutes": 1369.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -347,7 +309,7 @@
       ],
       "published_at": "2026-04-13T12:02:00Z",
       "published_ts": 1776081720.0,
-      "age_minutes": 1308.4,
+      "age_minutes": 1374.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -385,7 +347,7 @@
       ],
       "published_at": "2026-04-13T20:05:00Z",
       "published_ts": 1776110700.0,
-      "age_minutes": 825.4,
+      "age_minutes": 891.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -423,7 +385,7 @@
       ],
       "published_at": "2026-04-13T17:35:17Z",
       "published_ts": 1776101717.0,
-      "age_minutes": 975.1,
+      "age_minutes": 1040.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -461,7 +423,7 @@
       ],
       "published_at": "2026-04-14T07:10:00Z",
       "published_ts": 1776150600.0,
-      "age_minutes": 160.4,
+      "age_minutes": 226.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -482,49 +444,11 @@
       "impact": 0.1,
       "clarity": 0.6,
       "relevance": 0.475,
-      "news_catalyst_score": 0.2176,
+      "news_catalyst_score": 0.1951,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
       "url": "https://seekingalpha.com/article/4890427-meta-strikes-back",
-      "first_seen_at": "2026-04-14T08:08:23.237823Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "6ee4c96374bcf2b712aa8907cd4f51f227e3d168:5920491",
-      "headline": "Meta Platforms (META) to Create an 'AI Mark Zuckerberg' for Employee Interactions",
-      "tickers": [
-        "META"
-      ],
-      "published_at": "2026-04-14T06:15:14Z",
-      "published_ts": 1776147314.0,
-      "age_minutes": 215.2,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Markets Insider"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Meta Platforms (META) to Create an 'AI Mark Zuckerberg' for Employee Interactions",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.1993,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://markets.businessinsider.com/news/stocks/meta-platforms-meta-to-create-an-ai-mark-zuckerberg-for-employee-interactions-1036018581",
       "first_seen_at": "2026-04-14T08:08:23.237823Z",
       "is_new": false,
       "provider_count": 1
@@ -537,7 +461,7 @@
       ],
       "published_at": "2026-04-13T18:40:49Z",
       "published_ts": 1776105649.0,
-      "age_minutes": 909.6,
+      "age_minutes": 975.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -575,7 +499,7 @@
       ],
       "published_at": "2026-04-13T17:54:00Z",
       "published_ts": 1776102840.0,
-      "age_minutes": 956.4,
+      "age_minutes": 1022.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -613,7 +537,7 @@
       ],
       "published_at": "2026-04-13T13:52:06Z",
       "published_ts": 1776088326.0,
-      "age_minutes": 1198.3,
+      "age_minutes": 1264.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -651,7 +575,7 @@
       ],
       "published_at": "2026-04-13T11:41:22Z",
       "published_ts": 1776080482.0,
-      "age_minutes": 1329.0,
+      "age_minutes": 1394.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -682,44 +606,6 @@
       "provider_count": 1
     },
     {
-      "story_key": "ff44f858b11ebb113681c333dcfb7552e7bfd916:5920247",
-      "headline": "Insights Into Microsoft's Performance Versus Peers In Software Sector - Microsoft (NASDAQ:MSFT)",
-      "tickers": [
-        "MSFT"
-      ],
-      "published_at": "2026-04-13T09:59:14Z",
-      "published_ts": 1776074354.0,
-      "age_minutes": 1431.2,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Benzinga"
-      ],
-      "source_tier": "TIER_2",
-      "source_rank": 2,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Insights Into Microsoft's Performance Versus Peers In Software Sector - Microsoft (NASDAQ:MSFT)",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.1946,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.benzinga.com/insights/news/26/04/51773654/insights-into-microsofts-performance-versus-peers-in-software-sector",
-      "first_seen_at": "2026-04-13T10:13:22.743196Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
       "story_key": "4d55bb3deb88a01b26a2ee1f168c3570681bc098:5920380",
       "headline": "Nasdaq Composite Closes Positive; Microsoft (MSFT) Jumps 3.6%; IBM Closes 3 Percent Higher",
       "tickers": [
@@ -727,7 +613,7 @@
       ],
       "published_at": "2026-04-13T21:03:28Z",
       "published_ts": 1776114208.0,
-      "age_minutes": 766.9,
+      "age_minutes": 832.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -765,7 +651,7 @@
       ],
       "published_at": "2026-04-13T16:55:59Z",
       "published_ts": 1776099359.0,
-      "age_minutes": 1014.4,
+      "age_minutes": 1080.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -803,7 +689,7 @@
       ],
       "published_at": "2026-04-13T14:47:31Z",
       "published_ts": 1776091651.0,
-      "age_minutes": 1142.9,
+      "age_minutes": 1208.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -841,7 +727,7 @@
       ],
       "published_at": "2026-04-13T13:41:05Z",
       "published_ts": 1776087665.0,
-      "age_minutes": 1209.3,
+      "age_minutes": 1275.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -881,7 +767,7 @@
       ],
       "published_at": "2026-04-13T13:27:52Z",
       "published_ts": 1776086872.0,
-      "age_minutes": 1222.5,
+      "age_minutes": 1288.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -912,6 +798,44 @@
       "provider_count": 1
     },
     {
+      "story_key": "6ee4c96374bcf2b712aa8907cd4f51f227e3d168:5920491",
+      "headline": "Meta Platforms (META) to Create an 'AI Mark Zuckerberg' for Employee Interactions",
+      "tickers": [
+        "META"
+      ],
+      "published_at": "2026-04-14T06:15:14Z",
+      "published_ts": 1776147314.0,
+      "age_minutes": 281.0,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Markets Insider"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Meta Platforms (META) to Create an 'AI Mark Zuckerberg' for Employee Interactions",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.1743,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://markets.businessinsider.com/news/stocks/meta-platforms-meta-to-create-an-ai-mark-zuckerberg-for-employee-interactions-1036018581",
+      "first_seen_at": "2026-04-14T08:08:23.237823Z",
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
       "story_key": "d1598ee485753531c0229c788e47e842abc35400:5920477",
       "headline": "Microsoft (MSFT) Stock Is Up, What You Need To Know",
       "tickers": [
@@ -919,7 +843,7 @@
       ],
       "published_at": "2026-04-14T05:08:01Z",
       "published_ts": 1776143281.0,
-      "age_minutes": 282.4,
+      "age_minutes": 348.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -940,7 +864,7 @@
       "impact": 0.1,
       "clarity": 0.6,
       "relevance": 0.475,
-      "news_catalyst_score": 0.1737,
+      "news_catalyst_score": 0.1671,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
@@ -957,7 +881,7 @@
       ],
       "published_at": "2026-04-14T02:17:31Z",
       "published_ts": 1776133051.0,
-      "age_minutes": 452.9,
+      "age_minutes": 518.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -995,7 +919,7 @@
       ],
       "published_at": "2026-04-13T18:56:04Z",
       "published_ts": 1776106564.0,
-      "age_minutes": 894.3,
+      "age_minutes": 960.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1033,7 +957,7 @@
       ],
       "published_at": "2026-04-13T18:48:38Z",
       "published_ts": 1776106118.0,
-      "age_minutes": 901.8,
+      "age_minutes": 967.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1071,7 +995,7 @@
       ],
       "published_at": "2026-04-13T18:46:11Z",
       "published_ts": 1776105971.0,
-      "age_minutes": 904.2,
+      "age_minutes": 970.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1109,7 +1033,7 @@
       ],
       "published_at": "2026-04-13T17:38:46Z",
       "published_ts": 1776101926.0,
-      "age_minutes": 971.6,
+      "age_minutes": 1037.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1147,7 +1071,7 @@
       ],
       "published_at": "2026-04-13T15:46:05Z",
       "published_ts": 1776095165.0,
-      "age_minutes": 1084.3,
+      "age_minutes": 1150.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1185,7 +1109,7 @@
       ],
       "published_at": "2026-04-13T12:13:06Z",
       "published_ts": 1776082386.0,
-      "age_minutes": 1297.3,
+      "age_minutes": 1363.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1214,44 +1138,6 @@
       "first_seen_at": "2026-04-13T14:27:39.991472Z",
       "is_new": false,
       "provider_count": 1
-    },
-    {
-      "story_key": "8cf28480374687623dcb0de0e0b2d2e9ea10faa8:5920258",
-      "headline": "Trump labor board pushes to settle major Amazon contractor case: report (AMZN:NASDAQ)",
-      "tickers": [
-        "AMZN"
-      ],
-      "published_at": "2026-04-13T10:50:09Z",
-      "published_ts": 1776077409.0,
-      "age_minutes": 1380.3,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Seeking Alpha"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Trump labor board pushes to settle major Amazon contractor case: report (AMZN:NASDAQ)",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.1671,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://seekingalpha.com/news/4574270-trump-labor-board-pushes-to-settle-major-amazon-contractor-case-report",
-      "first_seen_at": "2026-04-13T14:27:39.991472Z",
-      "is_new": false,
-      "provider_count": 1
     }
   ],
   "news_catalyst_by_symbol": {
@@ -1276,23 +1162,23 @@
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "source_tier": "TIER_3",
-      "mentions_24h": 9,
+      "mentions_24h": 8,
       "is_actionable": false,
       "first_provider": "newsapi_ai",
       "story_key": "d839c1ecdcbc813a0f7b528298517e0c746ba6e5:5920272"
     },
     "JPM": {
-      "news_catalyst_score": 0.4684,
+      "news_catalyst_score": 0.2246,
       "sentiment_label": "bullish",
-      "event_class": "EARNINGS",
-      "event_label": "JPMorgan Is About to Report Q1 Earnings Tomorrow. Options Traders Are Expecting a 3.87% Move in JPM Stock",
+      "event_class": "UNKNOWN",
+      "event_label": "JPMorgan Q1 Preview: Could Another Double Beat Help Dow Jones, Bank Sector? - JPMorgan Chase (NYSE:JPM)",
       "materiality": "LOW",
       "recency_bucket": "AGING",
-      "source_tier": "TIER_3",
-      "mentions_24h": 3,
+      "source_tier": "TIER_2",
+      "mentions_24h": 2,
       "is_actionable": false,
       "first_provider": "newsapi_ai",
-      "story_key": "9b368e426b9af47149adfc6aefd708db76eec7fa:5920257"
+      "story_key": "0deb2d787400b79c6be13dad6e530ae2fe7bfb4d:5920352"
     },
     "META": {
       "news_catalyst_score": 0.5315,
@@ -1315,7 +1201,7 @@
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "source_tier": "TIER_3",
-      "mentions_24h": 7,
+      "mentions_24h": 6,
       "is_actionable": false,
       "first_provider": "newsapi_ai",
       "story_key": "9b1b2a82892c9b3de4983c52fbb09020230f6503:5920443"
@@ -1335,7 +1221,7 @@
     }
   },
   "summary": {
-    "active_story_count": 31,
+    "active_story_count": 28,
     "new_story_count": 0,
     "actionable_story_count": 0,
     "actionable_symbols": [],
