@@ -669,9 +669,9 @@ def write_pine_library(
         "// ── Usage ──────────────────────────────────────────────────────",
         "// import preuss_steffen/smc_micro_profiles_generated/1 as mp",
         "//",
-        "// Fields are grouped into sections (v5.5b Lean, ~160 fields total):",
+        "// Fields are grouped into sections (v5.5b Lean, ~135 fields + 5 optional debug):",
         "// Deprecated v5-v5.3 compatibility groups have been removed; only v5.5b Lean fields remain.",
-        "//   Core/Meta       — ASOF_DATE, ASOF_TIME, UNIVERSE_ID, LOOKBACK_DAYS, UNIVERSE_SIZE, REFRESH_COUNT",
+        "//   Core/Meta       — ASOF_DATE, ASOF_TIME, UNIVERSE_SIZE, REFRESH_COUNT (+ UNIVERSE_ID, LOOKBACK_DAYS in debug mode)",
         "//   Microstructure  — *_TICKERS lists (clean_reclaim, stop_hunt_prone, …)",
         "//   Regime          — MARKET_REGIME, VIX_LEVEL, MACRO_BIAS, MACRO_BIAS_RAW, MACRO_BIAS_PE_ADJUSTMENT, MARKET_PE_FORWARD, MARKET_PE_REGIME, SECTOR_BREADTH",
         "//   News            — NEWS_*_TICKERS, NEWS_HEAT_GLOBAL, TICKER_HEAT_MAP",
@@ -679,7 +679,7 @@ def write_pine_library(
         "//   Layering        — GLOBAL_HEAT, GLOBAL_STRENGTH, TONE, TRADE_STATE",
         "//   Providers       — PROVIDER_COUNT, STALE_PROVIDERS",
         "//   Volume          — VOLUME_LOW_TICKERS, HOLIDAY_SUSPECT_TICKERS",
-        "//   Volatility      — VOLATILITY_REGIME, VOLATILITY_REGIME_CONFIDENCE, VOLATILITY_ATR_RATIO, VOLATILITY_MODEL_SOURCE, VOLATILITY_FALLBACK_REASON, VOLATILITY_PROXY_SYMBOL, VOLATILITY_PROXY_SOURCE",
+        "//   Volatility      — VOLATILITY_REGIME, VOLATILITY_REGIME_CONFIDENCE, VOLATILITY_ATR_RATIO, VOLATILITY_MODEL_SOURCE (+ VOLATILITY_FALLBACK_REASON, VOLATILITY_PROXY_SYMBOL, VOLATILITY_PROXY_SOURCE in debug mode)",
         "//   Ensemble Score  — ENSEMBLE_QUALITY_SCORE, ENSEMBLE_QUALITY_TIER, ENSEMBLE_AVAILABLE_COMPONENTS",
         "//   Flow Qualifier (v5.1)  — REL_VOL … ATS_BEARISH_SEQUENCE (14 fields)",
         "//   Compression (v5.1)     — SQUEEZE_ON … ATR_RATIO (5 fields)",
@@ -699,12 +699,16 @@ def write_pine_library(
         "",
         f'export const string ASOF_DATE = "{asof_date}"',
         f'export const string ASOF_TIME = "{(enr.get("meta") or {}).get("asof_time") or ""}"',
-        'export const string UNIVERSE_ID = "us_equities_v1"',
-        "export const int LOOKBACK_DAYS = 20",
         f"export const int UNIVERSE_SIZE = {universe_size}",
         f"export const int REFRESH_COUNT = {int((enr.get('meta') or {}).get('refresh_count') or 0)}",
-        "",
     ]
+
+    debug_mode = bool(enr.get("_debug_mode"))
+    if debug_mode:
+        content.append('export const string UNIVERSE_ID = "us_equities_v1"')
+        content.append("export const int LOOKBACK_DAYS = 20")
+
+    content.append("")
     for list_name in LISTS:
         content.append(render_list(list_name, lists[list_name]))
         content.append("")
@@ -774,9 +778,10 @@ def write_pine_library(
     content.append(f'export const float VOLATILITY_REGIME_CONFIDENCE = {float(vreg.get("confidence") or 0.0)}')
     content.append(f'export const float VOLATILITY_ATR_RATIO = {float(vreg.get("raw_atr_ratio") or 1.0)}')
     content.append(f'export const string VOLATILITY_MODEL_SOURCE = "{vreg.get("model_source") or "atr_fallback"}"')
-    content.append(f'export const string VOLATILITY_FALLBACK_REASON = "{vreg.get("fallback_reason") or ""}"')
-    content.append(f'export const string VOLATILITY_PROXY_SYMBOL = "{vreg.get("proxy_symbol") or ""}"')
-    content.append(f'export const string VOLATILITY_PROXY_SOURCE = "{vreg.get("proxy_source") or ""}"')
+    if debug_mode:
+        content.append(f'export const string VOLATILITY_FALLBACK_REASON = "{vreg.get("fallback_reason") or ""}"')
+        content.append(f'export const string VOLATILITY_PROXY_SYMBOL = "{vreg.get("proxy_symbol") or ""}"')
+        content.append(f'export const string VOLATILITY_PROXY_SOURCE = "{vreg.get("proxy_source") or ""}"')
     content.append("")
 
     # ── Ensemble quality ───────────────────────────────────────

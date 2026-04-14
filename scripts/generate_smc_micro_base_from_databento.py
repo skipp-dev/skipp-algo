@@ -1277,6 +1277,7 @@ def finalize_pipeline(
     enrich_session_structure: bool = False,
     enrich_range_regime: bool = False,
     enrich_range_profile_regime: bool = False,
+    debug_mode: bool = False,
     live_news_snapshot_path: Path | None = None,
     emit_live_news_snapshot: bool = False,
     progress_callback: Any = None,
@@ -1377,6 +1378,10 @@ def finalize_pipeline(
         live_news_snapshot_path=prepared_live_news_snapshot_path,
     )
     enrichment_keys = list(enrichment.keys()) if enrichment else []
+    if debug_mode:
+        if enrichment is None:
+            enrichment = {}
+        enrichment["_debug_mode"] = True
     _progress(
         f"Finalize {enrichment_step_label} complete in {time_module.perf_counter() - enrichment_started_at:.1f}s "
         f"(enrichment_keys={len(enrichment_keys)})"
@@ -1499,6 +1504,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--enrich-range-regime", action="store_true", help="Add v5.3 range regime (snapshot-derived)")
     parser.add_argument("--enrich-range-profile-regime", action="store_true", help="Add v5.3 range/profile regime (snapshot-derived)")
     parser.add_argument("--enrich-all", action="store_true", help="Enable all enrichment blocks")
+    parser.add_argument("--debug", action="store_true", help="Include diagnostic fields (LOOKBACK_DAYS, UNIVERSE_ID, VOLATILITY_MODEL_SOURCE, etc.)")
     parser.add_argument("--benzinga-api-key", default=os.getenv("BENZINGA_API_KEY", ""), help="Benzinga API key for news/calendar fallback")
     parser.add_argument("--newsapi-ai-key", default=os.getenv("NEWSAPI_AI_KEY", ""), help="NewsAPI.ai API key for optional news fallback")
     return parser
@@ -1522,6 +1528,7 @@ def main() -> None:
         library_owner=str(args.library_owner).strip(),
         library_version=int(args.library_version),
         emit_live_news_snapshot=True,
+        debug_mode=bool(args.debug),
         progress_callback=cli_progress_callback,
         **enrichment_flags,
     )

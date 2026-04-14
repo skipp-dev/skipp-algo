@@ -273,7 +273,7 @@ class TestGeneratedImportSnippet:
 
     def test_usage_header_mentions_field_count(self, pine_text: str):
         assert "v5.5b Lean" in pine_text
-        assert "fields total" in pine_text
+        assert "fields" in pine_text
 
     def test_usage_header_lists_event_risk_section(self, pine_text: str):
         assert "Event Risk" in pine_text

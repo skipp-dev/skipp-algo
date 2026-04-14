@@ -287,6 +287,11 @@ def run_streamlit_micro_base_app() -> None:
             help="Disables the preopen 04:00 seed selection and the fixed 10:00 ET outcome snapshot when the export is used only to derive the SMC microstructure base.",
         )
         write_xlsx = st.checkbox("Write Base workbook (.xlsx)", value=True)
+        debug_mode = st.checkbox(
+            "Debug mode (diagnostic fields)",
+            value=False,
+            help="Include diagnostic fields like LOOKBACK_DAYS, UNIVERSE_ID, VOLATILITY_MODEL_SOURCE etc. in the Pine library.",
+        )
         library_owner = st.text_input("TradingView owner", value="preuss_steffen")
         library_version = st.number_input(
             "TradingView library version", min_value=1, max_value=99, value=1
@@ -530,6 +535,7 @@ def run_streamlit_micro_base_app() -> None:
                     enrich_session_structure=derive_snapshot_blocks,
                     enrich_range_regime=derive_snapshot_blocks,
                     enrich_range_profile_regime=derive_snapshot_blocks,
+                    debug_mode=debug_mode,
                     emit_live_news_snapshot=True,
                 )
             except Exception as exc:

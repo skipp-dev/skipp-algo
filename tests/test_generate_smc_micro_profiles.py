@@ -456,7 +456,8 @@ def test_write_library_with_full_enrichment(tmp_path: Path) -> None:
     assert 'HOLIDAY_SUSPECT_TICKERS = "ABC"' in text
     assert 'VOLATILITY_REGIME = "HIGH_VOL"' in text
     assert "VOLATILITY_REGIME_CONFIDENCE = 0.84" in text
-    assert 'VOLATILITY_PROXY_SYMBOL = "AAPL"' in text
+    # VOLATILITY_PROXY_SYMBOL etc. only in debug mode
+    assert "export const string VOLATILITY_PROXY_SYMBOL" not in text
     assert 'ENSEMBLE_QUALITY_TIER = "good"' in text
     assert 'ENSEMBLE_AVAILABLE_COMPONENTS = "bias,heuristic,vol_regime"' in text
 
@@ -640,8 +641,7 @@ def test_defaults_always_present(tmp_path: Path) -> None:
         "PROVIDER_COUNT", "STALE_PROVIDERS",
         "VOLUME_LOW_TICKERS", "HOLIDAY_SUSPECT_TICKERS",
         "VOLATILITY_REGIME", "VOLATILITY_REGIME_CONFIDENCE", "VOLATILITY_ATR_RATIO",
-        "VOLATILITY_MODEL_SOURCE", "VOLATILITY_FALLBACK_REASON",
-        "VOLATILITY_PROXY_SYMBOL", "VOLATILITY_PROXY_SOURCE",
+        "VOLATILITY_MODEL_SOURCE",
         "ENSEMBLE_QUALITY_SCORE", "ENSEMBLE_QUALITY_TIER", "ENSEMBLE_AVAILABLE_COMPONENTS",
         # v5 event-risk fields (lean surface — NEXT_EVENT_CLASS and HIGH_RISK_EVENT_TICKERS removed in WP-LF5)
         "EVENT_WINDOW_STATE", "EVENT_RISK_LEVEL",
@@ -828,3 +828,33 @@ def test_manifest_event_risk_defaults_provenance(tmp_path: Path) -> None:
     manifest = json.loads(outputs["manifest_path"].read_text(encoding="utf-8"))
     assert manifest["library_field_version"] == "v5.5b"
     assert manifest["event_risk_source"] == "defaults"
+
+
+# ── Debug mode tests ────────────────────────────────────────────────
+
+
+def test_debug_mode_includes_diagnostic_fields(tmp_path: Path) -> None:
+    """With _debug_mode, diagnostic fields are present."""
+    out = tmp_path / "lib.pine"
+    enrichment: EnrichmentDict = {"_debug_mode": True}
+    write_pine_library(out, _EMPTY_LISTS, "2026-03-28", 5, enrichment=enrichment)
+    text = out.read_text(encoding="utf-8")
+    assert "export const string UNIVERSE_ID" in text
+    assert "export const int LOOKBACK_DAYS" in text
+    assert "export const string VOLATILITY_FALLBACK_REASON" in text
+    assert "export const string VOLATILITY_PROXY_SYMBOL" in text
+    assert "export const string VOLATILITY_PROXY_SOURCE" in text
+
+
+def test_no_debug_mode_excludes_diagnostic_fields(tmp_path: Path) -> None:
+    """Without _debug_mode, diagnostic fields are absent."""
+    out = tmp_path / "lib.pine"
+    write_pine_library(out, _EMPTY_LISTS, "2026-03-28", 5)
+    text = out.read_text(encoding="utf-8")
+    assert "export const string UNIVERSE_ID" not in text
+    assert "export const int LOOKBACK_DAYS" not in text
+    # VOLATILITY_MODEL_SOURCE is always emitted (consumed by SMC_Core_Engine)
+    assert "export const string VOLATILITY_MODEL_SOURCE" in text
+    assert "export const string VOLATILITY_FALLBACK_REASON" not in text
+    assert "export const string VOLATILITY_PROXY_SYMBOL" not in text
+    assert "export const string VOLATILITY_PROXY_SOURCE" not in text
