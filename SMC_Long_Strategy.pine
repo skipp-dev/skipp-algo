@@ -3,6 +3,8 @@
 
 //@version=6
 
+import preuss_steffen/smc_micro_profiles_generated/1 as mp
+
 // Product role: pro execution surface on the frozen 8-channel executable contract.
 // Product scope: this strategy executes long-only setups from the linked SMC Core long-dip specialist.
 //   Short-parity execution requires a separate strategy track; it is not an implicit promise of this surface.
@@ -18,6 +20,7 @@ var string g_bus_plan = "4. Expert Mapping - Trade Plan"
 
 entry_mode = input.string("Strict", "Execution Stage", options = ["Armed", "Confirmed", "Ready", "Best", "Strict"], group = g_setup, tooltip = "Choose which linked core stage is allowed to stage the execution trigger.")
 min_quality_score = input.float(0.0, "Minimum Quality Score", step = 0.25, group = g_setup, tooltip = "Minimum quality score required before the linked core setup can stage an execution plan.")
+use_regime_gate = input.bool(true, "Respect Regime Gate", group = g_setup, tooltip = "When enabled, the strategy respects TRADE_STATE, macro events, and earnings from the linked library. Disable to see raw signal performance without regime filtering.")
 use_take_profit = input.bool(true, "Use Take Profit", group = g_trade_plan, tooltip = "Stage a take-profit target on top of the linked core execution trigger and invalidation plan.")
 take_profit_r = input.float(2.0, "Take Profit (R)", minval = 0.0, step = 0.25, group = g_trade_plan, tooltip = "Take-profit distance in R measured from execution trigger to invalidation.")
 
@@ -53,8 +56,15 @@ else
 
 bool risk_levels_ok = not na(src_trigger) and not na(src_invalidation) and src_trigger > src_invalidation
 bool quality_ok = na(src_quality_score) ? false : src_quality_score >= min_quality_score
+
+// Regime gate — mirrors the live product behavior
+bool regime_allows_entry = mp.TRADE_STATE != "BLOCKED"
+bool no_macro_event_block = not mp.HIGH_IMPACT_MACRO_TODAY or mp.MARKET_REGIME != "RISK_OFF"
+bool not_earnings_ticker = not str.contains(mp.EARNINGS_TODAY_TICKERS, syminfo.ticker)
+bool regime_gate_ok = use_regime_gate ? (regime_allows_entry and no_macro_event_block and not_earnings_ticker) : true
+
 // Entry/exit logic is evaluated from confirmed BUS inputs; no intrabar lookahead is used in this strategy wrapper.
-bool can_stage_entry = selected_state and quality_ok and risk_levels_ok
+bool can_stage_entry = selected_state and quality_ok and risk_levels_ok and regime_gate_ok
 
 float risk_per_unit = risk_levels_ok ? src_trigger - src_invalidation : na
 float take_profit_price = na

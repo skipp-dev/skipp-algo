@@ -1,6 +1,8 @@
 name: smc-measurement-benchmark
 
 on:
+  schedule:
+    - cron: "0 8 * * 6"    # Saturday 08:00 UTC
   workflow_dispatch:
 
 env:
@@ -34,5 +36,6 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: smc-measurement-benchmark
+          name: smc-measurement-benchmark-${{ github.run_number }}
           path: artifacts/ci/measurement_benchmark/
+          retention-days: 180

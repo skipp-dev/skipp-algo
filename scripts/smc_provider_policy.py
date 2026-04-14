@@ -4,6 +4,18 @@ Declares which data provider is primary and fallback for each
 enrichment domain.  Every fallback chain is explicit — there are no
 implicit cascades.
 
+Architecture note — provider_policy vs provider_matrix
+------------------------------------------------------
+provider_policy.py  = Orchestration policy (HOW providers are used at runtime).
+  Declares primary/fallback chains per enrichment domain and controls
+  runtime selection order + provenance recording.
+
+smc_integration/provider_matrix.py  = Capability declaration (what each
+  provider CAN supply).  Enumerates repo sources and their feature matrix.
+
+No redundancy — policy controls runtime selection, matrix describes
+provider features.  Both are needed and should not be merged.
+
 Domain policies
 ---------------
 * **base_scan / microstructure** → Databento primary, no fallback

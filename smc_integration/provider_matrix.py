@@ -1,5 +1,20 @@
 from __future__ import annotations
 
+# Architecture note — provider_matrix vs provider_policy
+# -------------------------------------------------------
+# provider_matrix.py  = Capability declaration (what each provider CAN supply).
+#   Enumerates repo sources, maps their potential (symbols, volume, technical,
+#   news, microstructure) and their current integration state.  Used by
+#   repo_sources.py, provider_health.py, and structure_audit.py.
+#
+# scripts/smc_provider_policy.py  = Orchestration policy (HOW providers are used).
+#   Declares primary/fallback chains per enrichment domain (base_scan, regime,
+#   news, calendar, technical).  Controls runtime fallback order and provenance
+#   recording.
+#
+# No redundancy — matrix describes provider features, policy describes
+# runtime selection.  Both are needed and should not be merged.
+
 from dataclasses import asdict, dataclass, field
 from typing import Literal
 

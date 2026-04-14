@@ -6200,14 +6200,16 @@ string alert_trust_tier = resolve_trust_tier(lib_sq_tier, lib_sq_freshness, lib_
 bool alert_trust_degraded = alert_trust_tier == 'Degraded' and (na(alert_trust_tier[1]) or alert_trust_tier[1] != 'Degraded')
 bool alert_trust_insufficient = alert_trust_tier == 'Insufficient' and (na(alert_trust_tier[1]) or alert_trust_tier[1] != 'Insufficient')
 
-alertcondition(alert_product_state == 'ENTER LONG', 'SMC: ENTER LONG', 'Strict/Best execution conditions met')
-alertcondition(alert_product_state == 'READY LONG', 'SMC: READY LONG', 'Confirmed setup ready for trigger')
-alertcondition(alert_product_state == 'PREPARE LONG', 'SMC: PREPARE LONG', 'Setup confirmed, wait for READY')
-alertcondition(alert_product_state == 'BLOCKED', 'SMC: BLOCKED', 'Setup blocked — see main risk')
-alertcondition(alert_product_state == 'WAIT', 'SMC: WAIT', 'No active setup')
+alertcondition(alert_product_state == 'ENTER LONG' and alert_product_state[1] != 'ENTER LONG', 'SMC: Enter Long', 'SMC Trigger is live. Entry level reached.')
+alertcondition(alert_product_state == 'READY LONG' and alert_product_state[1] != 'READY LONG', 'SMC: Ready Long', 'SMC Setup is ready. Confirmed reclaim, watching for trigger.')
+alertcondition(alert_product_state == 'PREPARE LONG' and alert_product_state[1] != 'PREPARE LONG', 'SMC: Prepare Long', 'SMC Setup is preparing. Zone is active, waiting for confirmation.')
+alertcondition(alert_product_state == 'BLOCKED' and alert_product_state[1] != 'BLOCKED', 'SMC: Setup Blocked', 'SMC Setup is now blocked. Invalidation hit or regime issue.')
+alertcondition(alert_product_state == 'WAIT' and alert_product_state[1] != 'WAIT', 'SMC: Wait', 'No active setup — back to wait state.')
 alertcondition(alert_trust_degraded, 'SMC: Trust Degraded', 'Trust tier dropped to degraded')
 alertcondition(alert_trust_insufficient, 'SMC: Trust Insufficient', 'Trust tier dropped to insufficient')
 alertcondition(not event_risk_gate_ok and barstate.isconfirmed, 'SMC: Event Risk Active', 'High-impact macro event blocking trades')
+alertcondition(lib_has_macro_event and barstate.islastconfirmedhistory, 'SMC: High Impact Macro Today', 'High impact macro event today. Reduce position sizes.')
+alertcondition(lib_has_earnings and barstate.islastconfirmedhistory, 'SMC: Earnings Today', 'This ticker has earnings today. Exercise caution.')
 
 /////////////////////////////////////////////////////////////////////////////////
 //#endregion                      IMPLEMENTATION

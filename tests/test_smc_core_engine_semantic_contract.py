@@ -450,14 +450,16 @@ def test_debug_log_owner_contract_stays_explicit() -> None:
 
 
 EXPECTED_ALERT_TITLES = {
-    "SMC: ENTER LONG",
-    "SMC: READY LONG",
-    "SMC: PREPARE LONG",
-    "SMC: BLOCKED",
-    "SMC: WAIT",
+    "SMC: Enter Long",
+    "SMC: Ready Long",
+    "SMC: Prepare Long",
+    "SMC: Setup Blocked",
+    "SMC: Wait",
     "SMC: Trust Degraded",
     "SMC: Trust Insufficient",
     "SMC: Event Risk Active",
+    "SMC: High Impact Macro Today",
+    "SMC: Earnings Today",
 }
 
 
@@ -473,10 +475,12 @@ def test_alertcondition_uses_only_existing_variables() -> None:
     assert "alert_product_state = resolve_core_product_state(long_visual_state)" in source
     assert "alert_trust_tier = resolve_trust_tier(" in source
     assert "event_risk_gate_ok" in source
+    assert "lib_has_macro_event" in source
+    assert "lib_has_earnings" in source
 
 
-def test_alertcondition_count_is_8() -> None:
+def test_alertcondition_count_is_10() -> None:
     source = _read(CORE_PATH)
     import re
     count = len(re.findall(r"alertcondition\(", source))
-    assert count == 8
+    assert count == 10

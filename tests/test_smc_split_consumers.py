@@ -34,7 +34,8 @@ def test_dashboard_is_a_bus_only_consumer() -> None:
     assert 'BUS EnginePack' not in source
     assert 'n/a - not on bus' not in source
 
-    assert 'import preuss_steffen/' not in source
+    # Dashboard now imports the library for Market Context row (WP-UP3)
+    assert 'import preuss_steffen/smc_micro_profiles_generated/1 as mp' in source
     assert 'detect_structure' not in source
     assert 'track_obs' not in source
     assert 'OrderBlock' not in source
@@ -51,7 +52,8 @@ def test_strategy_is_a_bus_only_consumer() -> None:
     assert 'if strategy.position_size > 0 and strategy.position_size[1] <= 0' in source
     assert 'strategy.exit("L Exit", "L", stop = exit_stop, limit = exit_limit)' in source
 
-    assert 'import preuss_steffen/' not in source
+    # Strategy now imports the library for regime gate (WP-UP1)
+    assert 'import preuss_steffen/smc_micro_profiles_generated/1 as mp' in source
     assert 'detect_structure' not in source
     assert 'track_obs' not in source
     assert 'OrderBlock' not in source
@@ -72,5 +74,5 @@ def test_core_remains_the_only_active_producer() -> None:
     hidden_bus_calls = re.findall(r"plot\([^\n]+display\s*=\s*display\.none\)", source)
     assert len(hidden_bus_calls) == len(EXPECTED_ENGINE_BUS_LABELS)
     alert_conditions = re.findall(r'alertcondition\(', source)
-    assert len(alert_conditions) == 8
+    assert len(alert_conditions) == 10
     assert 'dashboard_header(' not in source

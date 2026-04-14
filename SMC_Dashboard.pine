@@ -9,6 +9,8 @@
 
 indicator("SMC Decision Board", "SMC Decision Board", overlay = true, max_labels_count = 50)
 
+import preuss_steffen/smc_micro_profiles_generated/1 as mp
+
 var string g_surface = "1. Product Surface"
 var string g_bus_lifecycle = "2. Operator Only - Lifecycle BUS"
 var string g_bus_diag_rows = "3. Operator Only - Diagnostic Rows"
@@ -1295,14 +1297,26 @@ if show_table and barstate.islast
     color txt = chart.fg_color
     color header_bg = color.new(color.black, 100)
     if surface_mode == "Decision Brief"
+        // Market Context from Library
+        string lib_regime = mp.MARKET_REGIME
+        float lib_vix = mp.VIX_LEVEL
+        string lib_trade_state = mp.TRADE_STATE
+        bool lib_macro_event = mp.HIGH_IMPACT_MACRO_TODAY
+        string lib_event_name = mp.MACRO_EVENT_NAME
+        string market_line = lib_regime + ' · VIX ' + str.tostring(lib_vix, '#.#')
+        if lib_macro_event
+            market_line += ' · ' + lib_event_name
+        color market_bg = lib_trade_state == "BLOCKED" ? color.new(color.red, 70) : lib_trade_state == "DISCOURAGED" ? color.new(color.orange, 70) : color.new(color.teal, 80)
+
         dashboard_row(smc_dashboard, 0, "SMC Decision Board", "Decision Brief | Linked setup active", header_bg, txt)
-        dashboard_row(smc_dashboard, 1, "Structure", dashboard_compact_structure_text(state_code, zone_code, lean_struct_row_code, reclaim_code), status_bg(setup_state), txt)
-        dashboard_row(smc_dashboard, 2, "Session / Market", dashboard_compact_session_market_text(session_row_code, market_row_code), status_bg(dashboard_compact_session_market_state(session_row_code, market_row_code)), txt)
-        dashboard_row(smc_dashboard, 3, "Event Risk", dashboard_compact_event_risk_text(event_risk_row_code), status_bg(row_status(event_risk_row_code)), txt)
-        dashboard_row(smc_dashboard, 4, "Trust / Data", dashboard_compact_trust_text(lean_sq_row_code, lean_freshness_row_code, volume_data_row_code, micro_fresh_row_code, event_risk_row_code, ready_gate_row_code, strict_gate_row_code), status_bg(dashboard_compact_trust_state(lean_sq_row_code, lean_freshness_row_code, volume_data_row_code, micro_fresh_row_code)), txt)
-        dashboard_row(smc_dashboard, 5, "Short-term Pressure", dashboard_compact_pressure_text(ltf_delta_row_code, src_ltf_volume_delta, swing_row_code), status_bg(row_status(ltf_delta_row_code)), txt)
-        dashboard_row(smc_dashboard, 6, "Risk Plan", dashboard_compact_risk_plan_text(actionable_state, src_trigger, src_stop_level, src_target_1, src_target_2), status_bg(actionable_state ? 5 : 0), txt)
-        table.clear(smc_dashboard, 0, 7, 1, 57)
+        dashboard_row(smc_dashboard, 1, "Market", market_line, market_bg, txt)
+        dashboard_row(smc_dashboard, 2, "Structure", dashboard_compact_structure_text(state_code, zone_code, lean_struct_row_code, reclaim_code), status_bg(setup_state), txt)
+        dashboard_row(smc_dashboard, 3, "Session / Market", dashboard_compact_session_market_text(session_row_code, market_row_code), status_bg(dashboard_compact_session_market_state(session_row_code, market_row_code)), txt)
+        dashboard_row(smc_dashboard, 4, "Event Risk", dashboard_compact_event_risk_text(event_risk_row_code), status_bg(row_status(event_risk_row_code)), txt)
+        dashboard_row(smc_dashboard, 5, "Trust / Data", dashboard_compact_trust_text(lean_sq_row_code, lean_freshness_row_code, volume_data_row_code, micro_fresh_row_code, event_risk_row_code, ready_gate_row_code, strict_gate_row_code), status_bg(dashboard_compact_trust_state(lean_sq_row_code, lean_freshness_row_code, volume_data_row_code, micro_fresh_row_code)), txt)
+        dashboard_row(smc_dashboard, 6, "Short-term Pressure", dashboard_compact_pressure_text(ltf_delta_row_code, src_ltf_volume_delta, swing_row_code), status_bg(row_status(ltf_delta_row_code)), txt)
+        dashboard_row(smc_dashboard, 7, "Risk Plan", dashboard_compact_risk_plan_text(actionable_state, src_trigger, src_stop_level, src_target_1, src_target_2), status_bg(actionable_state ? 5 : 0), txt)
+        table.clear(smc_dashboard, 0, 8, 1, 57)
     else
         dashboard_row(smc_dashboard, 0, "SMC Decision Board", "Audit View | Expert review only", header_bg, txt)
         // ── AUDIT: decision detail first, then lean review, diagnostics, risk plan, and explicit debug ──

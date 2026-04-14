@@ -439,10 +439,10 @@ class TestFieldConsumerMatrix:
         )
 
     def test_no_other_pine_files_import_library(self):
-        """Only SMC_Core_Engine.pine should import the micro-profiles library.
-        Dashboard and Strategy must use BUS channels instead."""
-        for name in ("SMC_Dashboard.pine", "SMC_Long_Strategy.pine",
-                     "SMC++.pine", "SMC_Core_Zones.pine"):
+        """Only SMC_Core_Engine, SMC_Dashboard, and SMC_Long_Strategy may
+        import the micro-profiles library.  Other consumer scripts must
+        use BUS channels from the Engine instead."""
+        for name in ("SMC++.pine", "SMC_Core_Zones.pine"):
             path = ROOT / name
             if not path.exists():
                 continue

@@ -58,13 +58,14 @@ def test_dashboard_has_companion_summary_and_pro_diagnostics() -> None:
     assert "dashboard_product_state_text(" in source
     assert 'dashboard_row(smc_dashboard, 0, "SMC Decision Board", "Decision Brief | Linked setup active"' in source
     assert 'dashboard_row(smc_dashboard, 0, "SMC Decision Board", "Audit View | Expert review only", header_bg, txt)' in source
-    assert 'dashboard_row(smc_dashboard, 1, "Structure"' in source
-    assert 'dashboard_row(smc_dashboard, 2, "Session / Market"' in source
-    assert 'dashboard_row(smc_dashboard, 3, "Event Risk"' in source
+    assert 'dashboard_row(smc_dashboard, 1, "Market"' in source
+    assert 'dashboard_row(smc_dashboard, 2, "Structure"' in source
+    assert 'dashboard_row(smc_dashboard, 3, "Session / Market"' in source
+    assert 'dashboard_row(smc_dashboard, 4, "Event Risk"' in source
     assert 'dashboard_compact_trust_text(' in source
-    assert 'dashboard_row(smc_dashboard, 4, "Trust / Data"' in source
-    assert 'dashboard_row(smc_dashboard, 5, "Short-term Pressure"' in source
-    assert 'dashboard_row(smc_dashboard, 6, "Risk Plan"' in source
+    assert 'dashboard_row(smc_dashboard, 5, "Trust / Data"' in source
+    assert 'dashboard_row(smc_dashboard, 6, "Short-term Pressure"' in source
+    assert 'dashboard_row(smc_dashboard, 7, "Risk Plan"' in source
     assert 'dashboard_row(smc_dashboard, 1, "Action"' not in source
     assert 'dashboard_row(smc_dashboard, 2, "Why now"' not in source
     assert 'Audit View | Expert review only' in source
