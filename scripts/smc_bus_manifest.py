@@ -306,6 +306,76 @@ LEGACY_FILES: tuple[str, ...] = tuple(
     if surface.surface_role == 'legacy'
 )
 
+# Non-SMC Pine files that are explicitly outside the SMC product-cut governance.
+# These are personal/historical tools, not part of the SMC mainline, companion, or
+# legacy hierarchy.  Keeping them enumerated here prevents unclassified drift.
+NON_SMC_PINE_FILES: frozenset[str] = frozenset({
+    'BFI-Reversal.pine',
+    'Breakout_Finder_Intelligent.pine',
+    'BTC 3m EV Scalper BALANCED (Harmonized).pine',
+    'CHOCH-Base_Indikator.pine',
+    'CHOCH-Base_Strategy.pine',
+    'CHOCH-Indicator.pine',
+    'CHOCH-Strategy.pine',
+    'CHoCH.pine',
+    'QuickALGO.pine',
+    'REV-BUY.pine',
+    'REV-Ladder-CHoCH.pine',
+    'REV-Ladder.pine',
+    'SkippALGO_Lite.pine',
+    'SkippALGO_Mid_Indicator.pine',
+    'SkippALGO_Mid_Strategy.pine',
+    'SkippALGO_Mid.pine',
+    'SkippALGO_Strategy.pine',
+    'SkippALGO.pine',
+    'USI_Lines.pine',
+    'USI_Strategy.pine',
+    'USI-CHOCH.pine',
+    'USI-Flip.pine',
+    'USI-REV-BUY.pine',
+    'USI.pine',
+    'Volume_Weighted_Trend_SkippAlgo.pine',
+    'VWAP_Long_Reclaim_Indicator.pine',
+    'VWAP_Long_Reclaim_Strategy.pine',
+    'VWAP_Reclaim_Indicator.pine',
+    'VWAP_Reclaim_Strategy.pine',
+    'test_div.pine',
+})
+
+
+def validate_surface_definitions() -> list[str]:
+    """Return a list of validation errors for SURFACE_DEFINITIONS.
+
+    Checks:
+    - surface_role values are from SURFACE_ROLE_VALUES
+    - contract_tier values are from CONTRACT_TIER_VALUES
+    - consumer_role values are from CONSUMER_ROLE_VALUES
+    - No duplicate files
+    - Mainline hierarchy: exactly 1 lite_primary, at least 1 pro_primary
+    """
+    errors: list[str] = []
+    seen_files: set[str] = set()
+
+    for surface in SURFACE_DEFINITIONS:
+        if surface.surface_role not in SURFACE_ROLE_VALUES:
+            errors.append(f"{surface.file}: invalid surface_role '{surface.surface_role}'")
+        if surface.contract_tier not in CONTRACT_TIER_VALUES:
+            errors.append(f"{surface.file}: invalid contract_tier '{surface.contract_tier}'")
+        if surface.consumer_role not in CONSUMER_ROLE_VALUES:
+            errors.append(f"{surface.file}: invalid consumer_role '{surface.consumer_role}'")
+        if surface.file in seen_files:
+            errors.append(f"{surface.file}: duplicate entry")
+        seen_files.add(surface.file)
+
+    lite_primary_count = sum(1 for s in SURFACE_DEFINITIONS if s.surface_role == 'lite_primary')
+    pro_primary_count = sum(1 for s in SURFACE_DEFINITIONS if s.surface_role == 'pro_primary')
+    if lite_primary_count != 1:
+        errors.append(f"expected exactly 1 lite_primary, got {lite_primary_count}")
+    if pro_primary_count < 1:
+        errors.append(f"expected at least 1 pro_primary, got {pro_primary_count}")
+
+    return errors
+
 PREFLIGHT_CORE_DASHBOARD_TARGETS: tuple[PreflightTarget, ...] = (
     PreflightTarget('SMC_Core_Engine.pine', 'SMC Core', False, False),
     PreflightTarget('SMC_Dashboard.pine', 'SMC Decision Board', True, True, 58, 'SMC Dashboard', 'dashboardBindings'),

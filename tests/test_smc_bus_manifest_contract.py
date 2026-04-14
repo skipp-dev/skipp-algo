@@ -303,3 +303,59 @@ def test_product_cut_payload_exports_validation_evidence_pack() -> None:
         capture.file
         for capture in MANIFEST.VALIDATION_EVIDENCE_CAPTURES
     ]
+
+
+# — WP9: Surface sprawl curation tests —
+
+
+def test_surface_definitions_pass_validation() -> None:
+    errors = MANIFEST.validate_surface_definitions()
+    assert errors == [], f"Surface definition validation errors: {errors}"
+
+
+def test_all_role_values_are_from_allowed_sets() -> None:
+    for surface in MANIFEST.SURFACE_DEFINITIONS:
+        assert surface.surface_role in MANIFEST.SURFACE_ROLE_VALUES, \
+            f"{surface.file}: surface_role '{surface.surface_role}' not in {MANIFEST.SURFACE_ROLE_VALUES}"
+        assert surface.contract_tier in MANIFEST.CONTRACT_TIER_VALUES, \
+            f"{surface.file}: contract_tier '{surface.contract_tier}' not in {MANIFEST.CONTRACT_TIER_VALUES}"
+        assert surface.consumer_role in MANIFEST.CONSUMER_ROLE_VALUES, \
+            f"{surface.file}: consumer_role '{surface.consumer_role}' not in {MANIFEST.CONSUMER_ROLE_VALUES}"
+
+
+def test_no_duplicate_files_in_surface_definitions() -> None:
+    files = [s.file for s in MANIFEST.SURFACE_DEFINITIONS]
+    assert len(files) == len(set(files)), f"Duplicate files: {[f for f in files if files.count(f) > 1]}"
+
+
+def test_mainline_hierarchy_has_exactly_one_lite_and_at_least_one_pro() -> None:
+    assert len(MANIFEST.LITE_PRIMARY_FILES) == 1
+    assert len(MANIFEST.PRO_PRIMARY_FILES) >= 1
+    assert len(MANIFEST.MAINLINE_SURFACE_FILES) == 3
+
+
+def test_every_pine_file_is_classified_or_explicitly_excluded() -> None:
+    import pathlib
+    all_pine_files = {p.name for p in pathlib.Path(ROOT).glob('*.pine')}
+    governed_files = set(MANIFEST.ALL_SMC_PINE_FILES) | MANIFEST.NON_SMC_PINE_FILES
+    unclassified = all_pine_files - governed_files
+    assert not unclassified, f"Unclassified .pine files: {sorted(unclassified)}"
+
+
+def test_non_smc_pine_files_are_disjoint_from_surface_definitions() -> None:
+    smc_files = set(MANIFEST.ALL_SMC_PINE_FILES)
+    overlap = smc_files & MANIFEST.NON_SMC_PINE_FILES
+    assert not overlap, f"Files in both SMC definitions and non-SMC exclusions: {sorted(overlap)}"
+
+
+def test_companion_surfaces_are_not_in_mainline() -> None:
+    mainline = set(MANIFEST.MAINLINE_SURFACE_FILES)
+    companions = set(MANIFEST.COMPANION_OPERATOR_ONLY_FILES)
+    assert not mainline & companions, "Companion files must not appear as mainline"
+
+
+def test_legacy_surfaces_are_not_validation_targets() -> None:
+    for surface in MANIFEST.SURFACE_DEFINITIONS:
+        if surface.surface_role == 'legacy':
+            assert not surface.validation_target, \
+                f"{surface.file}: legacy surfaces must not be validation targets"
