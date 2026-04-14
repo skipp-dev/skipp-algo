@@ -71,6 +71,7 @@ export type ProductCutBindingLabelGroup = {
   label: string;
   group: string;
   groupTitle: string;
+  tier?: string;
 };
 
 export type ProductCutPreflightTarget = {
@@ -91,6 +92,8 @@ export type ProductCutDeprecatedFieldPolicy = {
   mode: "compatibility_only";
   preferredFieldVersion: string;
   extensionAllowed: boolean;
+  sunset_date: string;
+  sunset_action: string;
   deprecatedGroups: string[];
 };
 

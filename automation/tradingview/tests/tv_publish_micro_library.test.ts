@@ -28,6 +28,8 @@ function buildGeneratedLibraryManifest(overrides: Record<string, unknown> = {}):
       mode: "compatibility_only",
       preferred_field_version: "v5.5b",
       extension_allowed: false,
+      sunset_date: "2026-05-14",
+      sunset_action: "remove_from_export",
       deprecated_groups: ["event_risk_v5"],
     },
     productivity_gate: {

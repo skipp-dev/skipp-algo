@@ -106,6 +106,8 @@ function makeProductCutSummary(): LibraryReleaseManifest["productCut"] {
       mode: "compatibility_only",
       preferredFieldVersion: "v5.5b",
       extensionAllowed: false,
+      sunset_date: "2026-05-14",
+      sunset_action: "remove_from_export",
       deprecatedGroups: ["event_risk_v5"],
     },
   };

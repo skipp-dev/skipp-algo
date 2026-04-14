@@ -422,6 +422,8 @@ function readProductCutSummary(): ProductCutSummary {
       mode: "compatibility_only",
       preferredFieldVersion: "",
       extensionAllowed: false,
+      sunset_date: "",
+      sunset_action: "",
       deprecatedGroups: [],
     },
   };

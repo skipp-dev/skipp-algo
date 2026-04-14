@@ -128,7 +128,8 @@
                       "properties": {
                         "label": { "type": "string", "minLength": 1 },
                         "group": { "type": "string", "minLength": 1 },
-                        "groupTitle": { "type": "string", "minLength": 1 }
+                        "groupTitle": { "type": "string", "minLength": 1 },
+                        "tier": { "type": "string", "minLength": 1 }
                       }
                     }
                   }
@@ -167,7 +168,8 @@
                       "properties": {
                         "label": { "type": "string", "minLength": 1 },
                         "group": { "type": "string", "minLength": 1 },
-                        "groupTitle": { "type": "string", "minLength": 1 }
+                        "groupTitle": { "type": "string", "minLength": 1 },
+                        "tier": { "type": "string", "minLength": 1 }
                       }
                     }
                   }
@@ -206,7 +208,8 @@
                       "properties": {
                         "label": { "type": "string", "minLength": 1 },
                         "group": { "type": "string", "minLength": 1 },
-                        "groupTitle": { "type": "string", "minLength": 1 }
+                        "groupTitle": { "type": "string", "minLength": 1 },
+                        "tier": { "type": "string", "minLength": 1 }
                       }
                     }
                   }
@@ -223,6 +226,8 @@
             "mode": { "type": "string", "const": "compatibility_only" },
             "preferredFieldVersion": { "type": "string", "minLength": 1 },
             "extensionAllowed": { "type": "boolean", "const": false },
+            "sunset_date": { "type": "string", "minLength": 1 },
+            "sunset_action": { "type": "string", "minLength": 1 },
             "deprecatedGroups": {
               "type": "array",
               "minItems": 1,
