@@ -444,3 +444,39 @@ def test_debug_log_owner_contract_stays_explicit() -> None:
         "compose_long_engine_event_log",
     ]:
         assert snippet in body
+
+
+# ── Alert Conditions MVP ──
+
+
+EXPECTED_ALERT_TITLES = {
+    "SMC: ENTER LONG",
+    "SMC: READY LONG",
+    "SMC: PREPARE LONG",
+    "SMC: BLOCKED",
+    "SMC: WAIT",
+    "SMC: Trust Degraded",
+    "SMC: Trust Insufficient",
+    "SMC: Event Risk Active",
+}
+
+
+def test_core_engine_has_all_alertcondition_titles() -> None:
+    source = _read(CORE_PATH)
+    import re
+    alert_titles = set(re.findall(r"alertcondition\([^,]+,\s*'([^']+)'", source))
+    assert alert_titles == EXPECTED_ALERT_TITLES
+
+
+def test_alertcondition_uses_only_existing_variables() -> None:
+    source = _read(CORE_PATH)
+    assert "alert_product_state = resolve_core_product_state(long_visual_state)" in source
+    assert "alert_trust_tier = resolve_trust_tier(" in source
+    assert "event_risk_gate_ok" in source
+
+
+def test_alertcondition_count_is_8() -> None:
+    source = _read(CORE_PATH)
+    import re
+    count = len(re.findall(r"alertcondition\(", source))
+    assert count == 8

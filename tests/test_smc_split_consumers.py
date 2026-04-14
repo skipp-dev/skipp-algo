@@ -71,5 +71,6 @@ def test_core_remains_the_only_active_producer() -> None:
     assert "plot(bus_target_2, 'BUS Target2', display = display.none)" in source
     hidden_bus_calls = re.findall(r"plot\([^\n]+display\s*=\s*display\.none\)", source)
     assert len(hidden_bus_calls) == len(EXPECTED_ENGINE_BUS_LABELS)
-    assert 'alertcondition(' not in source
+    alert_conditions = re.findall(r'alertcondition\(', source)
+    assert len(alert_conditions) == 8
     assert 'dashboard_header(' not in source

@@ -6094,6 +6094,21 @@ if barstate.islast and show_dashboard and not compact_mode
 else if barstate.islast and compact_mode and not na(health_badge)
     label.delete(health_badge)
 
+// ── Alert Conditions (v5.5 MVP) ──
+string alert_product_state = resolve_core_product_state(long_visual_state)
+string alert_trust_tier = resolve_trust_tier(lib_sq_tier, lib_sq_freshness, lib_erl_provider_status)
+bool alert_trust_degraded = alert_trust_tier == 'Degraded' and (na(alert_trust_tier[1]) or alert_trust_tier[1] != 'Degraded')
+bool alert_trust_insufficient = alert_trust_tier == 'Insufficient' and (na(alert_trust_tier[1]) or alert_trust_tier[1] != 'Insufficient')
+
+alertcondition(alert_product_state == 'ENTER LONG', 'SMC: ENTER LONG', 'Strict/Best execution conditions met')
+alertcondition(alert_product_state == 'READY LONG', 'SMC: READY LONG', 'Confirmed setup ready for trigger')
+alertcondition(alert_product_state == 'PREPARE LONG', 'SMC: PREPARE LONG', 'Setup confirmed, wait for READY')
+alertcondition(alert_product_state == 'BLOCKED', 'SMC: BLOCKED', 'Setup blocked — see main risk')
+alertcondition(alert_product_state == 'WAIT', 'SMC: WAIT', 'No active setup')
+alertcondition(alert_trust_degraded, 'SMC: Trust Degraded', 'Trust tier dropped to degraded')
+alertcondition(alert_trust_insufficient, 'SMC: Trust Insufficient', 'Trust tier dropped to insufficient')
+alertcondition(not event_risk_gate_ok and barstate.isconfirmed, 'SMC: Event Risk Active', 'High-impact macro event blocking trades')
+
 /////////////////////////////////////////////////////////////////////////////////
 //#endregion                      IMPLEMENTATION
 /////////////////////////////////////////////////////////////////////////////////
