@@ -462,3 +462,78 @@ def test_measurement_gate_emits_shadow_degradations_from_baseline(monkeypatch, t
         "MEASUREMENT_EVENT_COVERAGE_REGRESSION",
         "MEASUREMENT_STRATIFICATION_COVERAGE_REGRESSION",
     }.issubset(codes)
+
+
+# ── WP-A8: Measurement Soft-Block Phase 1 ─────────────────────────
+
+
+def test_measurement_gate_warns_brier_above_soft_threshold(monkeypatch, tmp_path: Path) -> None:
+    """Brier > 0.3 must produce a soft warning in the measurement gate."""
+    evidence = MeasurementEvidence(
+        events_by_family={
+            "BOS": [{"hit": True, "time_to_mitigation": 1.0, "invalidated": False, "mae": 0.01, "mfe": 0.03}],
+            "OB": [{"hit": False, "time_to_mitigation": 0.5, "invalidated": True, "mae": 0.02, "mfe": 0.01}],
+            "FVG": [{"hit": True, "time_to_mitigation": 1.5, "invalidated": False, "mae": 0.008, "mfe": 0.025}],
+            "SWEEP": [{"hit": False, "time_to_mitigation": 2.0, "invalidated": True, "mae": 0.005, "mfe": 0.02}],
+        },
+        stratified_events=None,
+        scored_events=[
+            ScoredEvent("e1", "BOS", 0.80, False, 1700000000.0),
+            ScoredEvent("e2", "OB", 0.70, False, 1700000001.0),
+            ScoredEvent("e3", "FVG", 0.60, True, 1700000002.0),
+            ScoredEvent("e4", "SWEEP", 0.90, False, 1700000003.0),
+        ],
+        details={"measurement_evidence_present": True, "evaluated_event_counts": {"BOS": 1, "OB": 1, "FVG": 1, "SWEEP": 1}, "bars_source_mode": "synthetic_bundle"},
+        warnings=[],
+    )
+    monkeypatch.setattr(release_script, "build_measurement_evidence", lambda symbol, timeframe: evidence)
+
+    gate = release_script._run_measurement_gate(
+        "AAPL",
+        "15m",
+        output_root=tmp_path / "measurement",
+        report_output=str(tmp_path / "report.json"),
+    )
+
+    brier_warnings = [w for w in gate["details"]["warnings"] if "Brier score" in w and "soft threshold" in w]
+    assert len(brier_warnings) >= 1, f"Expected Brier soft warning, got: {gate['details']['warnings']}"
+    assert gate["blocking"] is False
+
+
+def test_measurement_gate_warns_coverage_below_soft_threshold(monkeypatch, tmp_path: Path) -> None:
+    """Event coverage < 50% must produce a soft warning in the measurement gate."""
+    evidence = MeasurementEvidence(
+        events_by_family={
+            "BOS": [{"hit": True, "time_to_mitigation": 1.0, "invalidated": False, "mae": 0.01, "mfe": 0.03}],
+            "OB": [],
+            "FVG": [],
+            "SWEEP": [],
+        },
+        stratified_events=None,
+        scored_events=[ScoredEvent("e1", "BOS", 0.50, True, 1700000000.0)],
+        details={"measurement_evidence_present": True, "evaluated_event_counts": {"BOS": 1, "OB": 0, "FVG": 0, "SWEEP": 0}, "bars_source_mode": "synthetic_bundle"},
+        warnings=[],
+    )
+    monkeypatch.setattr(release_script, "build_measurement_evidence", lambda symbol, timeframe: evidence)
+
+    gate = release_script._run_measurement_gate(
+        "AAPL",
+        "15m",
+        output_root=tmp_path / "measurement",
+        report_output=str(tmp_path / "report.json"),
+    )
+
+    coverage_warnings = [w for w in gate["details"]["warnings"] if "Event coverage" in w and "soft threshold" in w]
+    assert len(coverage_warnings) >= 1, f"Expected coverage soft warning, got: {gate['details']['warnings']}"
+    assert gate["blocking"] is False
+
+
+def test_soft_warn_thresholds_are_configurable() -> None:
+    """MeasurementShadowThresholds must expose soft-warn fields (WP-A8)."""
+    from smc_integration.release_policy import MeasurementShadowThresholds
+
+    defaults = MeasurementShadowThresholds()
+    assert hasattr(defaults, "soft_warn_max_brier_score")
+    assert hasattr(defaults, "soft_warn_min_event_coverage_ratio")
+    assert defaults.soft_warn_max_brier_score == 0.30
+    assert defaults.soft_warn_min_event_coverage_ratio == 0.50

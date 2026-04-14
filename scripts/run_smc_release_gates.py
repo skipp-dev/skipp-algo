@@ -482,6 +482,23 @@ def _run_measurement_gate(
     except Exception as exc:
         warnings.append(f"scoring artifact generation failed: {exc}")
 
+    # -- Phase-1 soft-warn checks (WP-A8) ----------------------------------
+    _soft_thresholds = get_measurement_shadow_thresholds()
+    if scoring_result is not None:
+        _bs = scoring_result.brier_score
+        if math.isfinite(_bs) and _bs > _soft_thresholds.soft_warn_max_brier_score:
+            warnings.append(
+                f"Brier score {_bs:.4f} exceeds soft threshold ({_soft_thresholds.soft_warn_max_brier_score})"
+            )
+        _evt_count = int(scoring_result.n_events)
+        _fam_count = len(scoring_result.family_metrics)
+        _total_families = 4  # BOS, OB, FVG, SWEEP
+        _coverage_ratio = _fam_count / _total_families if _total_families > 0 else 0.0
+        if _coverage_ratio < _soft_thresholds.soft_warn_min_event_coverage_ratio:
+            warnings.append(
+                f"Event coverage {_coverage_ratio:.0%} below soft threshold ({_soft_thresholds.soft_warn_min_event_coverage_ratio:.0%})"
+            )
+
     try:
         _write_measurement_manifest(
             output_dir=output_dir,

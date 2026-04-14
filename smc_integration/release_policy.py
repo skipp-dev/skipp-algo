@@ -188,6 +188,11 @@ class MeasurementShadowThresholds:
     min_event_coverage_ratio: float = 0.50
     min_stratification_coverage_ratio: float = 0.50
 
+    # Phase-1 soft-warn thresholds (WP-A8).  Tighter than the shadow-degrade
+    # defaults above — surface early warnings before a hard degradation fires.
+    soft_warn_max_brier_score: float = 0.30
+    soft_warn_min_event_coverage_ratio: float = 0.50
+
 
 @dataclass(slots=True, frozen=True)
 class ContextualCalibrationRecommendationPolicy:
