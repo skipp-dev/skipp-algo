@@ -29,6 +29,7 @@ from smc_integration.release_policy import (
     RELEASE_REFERENCE_TIMEFRAMES,
     RELEASE_STALE_AFTER_SECONDS,
     assess_measurement_shadow_degradations,
+    classify_measurement_degradation_severity,
     csv_from_values,
     diagnose_gate_failure,
     get_measurement_shadow_thresholds,
@@ -531,20 +532,27 @@ def _run_measurement_gate(
     )
     details["measurement_degradations_detected"] = measurement_degradations
     details["degradations_detected"] = measurement_degradations
+    hard_blocking, advisory = classify_measurement_degradation_severity(measurement_degradations)
+    details["hard_blocking_degradations"] = hard_blocking
+    details["advisory_degradations"] = advisory
     for degradation in measurement_degradations:
         detail = str(degradation.get("detail", degradation.get("code", "measurement degradation"))).strip()
         warnings.append(detail)
 
     details["warnings"] = warnings
+    has_hard_block = bool(hard_blocking)
     if strict_measurement_shadow and measurement_degradations:
+        status = "fail"
+    elif has_hard_block:
         status = "fail"
     else:
         # Measurement gate is soft by default — "ok" or "warn" unless explicitly promoted.
         status = "warn" if warnings or measurement_degradations else "ok"
+    is_blocking = has_hard_block or bool(strict_measurement_shadow and measurement_degradations)
     return {
         "name": "measurement_lane",
         "status": status,
-        "blocking": bool(strict_measurement_shadow and measurement_degradations),
+        "blocking": is_blocking,
         "details": details,
     }
 

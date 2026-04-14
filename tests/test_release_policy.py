@@ -751,3 +751,82 @@ class TestEvidenceCoverage:
 
     def test_default_timeframes_satisfy_coverage(self) -> None:
         assert len(RELEASE_REFERENCE_TIMEFRAMES) >= EVIDENCE_MIN_TIMEFRAME_COVERAGE
+
+
+# ---------------------------------------------------------------------------
+# Hard-blocking measurement degradation classification (WP5)
+# ---------------------------------------------------------------------------
+
+class TestHardBlockingMeasurementDegradations:
+    def test_hard_blocking_codes_are_defined(self) -> None:
+        from smc_integration.release_policy import HARD_BLOCKING_DEGRADATION_CODES
+        assert "MEASUREMENT_CALIBRATED_BRIER_ABOVE_THRESHOLD" in HARD_BLOCKING_DEGRADATION_CODES
+        assert "MEASUREMENT_EVENT_COVERAGE_LOW" in HARD_BLOCKING_DEGRADATION_CODES
+        assert len(HARD_BLOCKING_DEGRADATION_CODES) == 2
+
+    def test_classify_separates_hard_from_advisory(self) -> None:
+        from smc_integration.release_policy import classify_measurement_degradation_severity
+        degradations = [
+            {"code": "MEASUREMENT_CALIBRATED_BRIER_ABOVE_THRESHOLD", "detail": "hard"},
+            {"code": "MEASUREMENT_BRIER_REGRESSION", "detail": "advisory"},
+            {"code": "MEASUREMENT_EVENT_COVERAGE_LOW", "detail": "hard"},
+            {"code": "MEASUREMENT_LOG_SCORE_REGRESSION", "detail": "advisory"},
+        ]
+        hard, advisory = classify_measurement_degradation_severity(degradations)
+        assert len(hard) == 2
+        assert len(advisory) == 2
+        assert all(d["detail"] == "hard" for d in hard)
+        assert all(d["detail"] == "advisory" for d in advisory)
+
+    def test_classify_empty_returns_empty(self) -> None:
+        from smc_integration.release_policy import classify_measurement_degradation_severity
+        hard, advisory = classify_measurement_degradation_severity([])
+        assert hard == []
+        assert advisory == []
+
+    def test_classify_all_advisory(self) -> None:
+        from smc_integration.release_policy import classify_measurement_degradation_severity
+        degradations = [
+            {"code": "MEASUREMENT_BRIER_REGRESSION"},
+            {"code": "MEASUREMENT_STRATIFICATION_COVERAGE_REGRESSION"},
+        ]
+        hard, advisory = classify_measurement_degradation_severity(degradations)
+        assert hard == []
+        assert len(advisory) == 2
+
+    def test_hard_blocking_calibrated_brier_triggers_gate_fail(self) -> None:
+        thresholds = MeasurementShadowThresholds(
+            max_calibrated_brier_score=0.30,
+            min_scoring_events=1,
+        )
+        current = {
+            "brier_score": 0.25,
+            "log_score": 0.50,
+            "calibrated_brier_score": 0.40,
+            "calibrated_ece": 0.10,
+            "n_events": 5,
+            "stratification_coverage": {"populated_bucket_count": 3},
+        }
+        degradations, _ = assess_measurement_shadow_degradations(
+            current, [], thresholds=thresholds
+        )
+        from smc_integration.release_policy import classify_measurement_degradation_severity
+        hard, _ = classify_measurement_degradation_severity(degradations)
+        assert len(hard) >= 1
+        assert any(d["code"] == "MEASUREMENT_CALIBRATED_BRIER_ABOVE_THRESHOLD" for d in hard)
+
+    def test_advisory_regression_does_not_hard_block(self) -> None:
+        from smc_integration.release_policy import classify_measurement_degradation_severity
+        degradations = [
+            {"code": "MEASUREMENT_BRIER_REGRESSION", "detail": "regressed"},
+            {"code": "MEASUREMENT_LOG_SCORE_REGRESSION", "detail": "regressed"},
+            {"code": "MEASUREMENT_CALIBRATED_BRIER_REGRESSION", "detail": "regressed"},
+            {"code": "MEASUREMENT_CALIBRATED_ECE_REGRESSION", "detail": "regressed"},
+            {"code": "MEASUREMENT_CALIBRATED_ECE_ABOVE_THRESHOLD", "detail": "noise-susceptible"},
+            {"code": "MEASUREMENT_EVENT_COVERAGE_REGRESSION", "detail": "regressed"},
+            {"code": "MEASUREMENT_STRATIFICATION_COVERAGE_REGRESSION", "detail": "regressed"},
+            {"code": "MEASUREMENT_STRATIFICATION_COVERAGE_LOW", "detail": "low"},
+        ]
+        hard, advisory = classify_measurement_degradation_severity(degradations)
+        assert hard == []
+        assert len(advisory) == 8

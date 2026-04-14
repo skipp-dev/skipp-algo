@@ -62,6 +62,11 @@ REASON_SMOKE_FAILURE = "SMOKE_FAILURE"
 REASON_MISSING_ARTIFACT = "MISSING_ARTIFACT"
 REASON_MEASUREMENT_QUALITY = "MEASUREMENT_QUALITY_REGRESSION"
 
+HARD_BLOCKING_DEGRADATION_CODES: frozenset[str] = frozenset({
+    "MEASUREMENT_CALIBRATED_BRIER_ABOVE_THRESHOLD",
+    "MEASUREMENT_EVENT_COVERAGE_LOW",
+})
+
 
 @dataclass(slots=True, frozen=True)
 class MeasurementShadowThresholds:
@@ -706,6 +711,14 @@ def assess_measurement_shadow_degradations(
             )
 
     return degradations, baseline
+
+
+def classify_measurement_degradation_severity(
+    degradations: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    hard = [d for d in degradations if d.get("code") in HARD_BLOCKING_DEGRADATION_CODES]
+    advisory = [d for d in degradations if d.get("code") not in HARD_BLOCKING_DEGRADATION_CODES]
+    return hard, advisory
 
 
 def csv_from_values(values: Iterable[str]) -> str:
