@@ -2363,17 +2363,13 @@ resolve_core_product_state(int long_visual_state) =>
     product_state
 
 resolve_trust_tier(string signal_quality_tier, string signal_freshness, string provider_status) =>
-    string trust_tier = 'Thin'
-    if signal_quality_tier == 'high' and signal_freshness == 'fresh' and provider_status == 'ok'
-        trust_tier := 'Strong'
-    else if (signal_quality_tier == 'high' or signal_quality_tier == 'good') and provider_status == 'ok'
-        trust_tier := 'Usable'
-    else if signal_quality_tier == 'ok'
-        trust_tier := 'Thin'
-    else
-        trust_tier := 'Provisional'
+    string trust_tier = 'Insufficient'
     if provider_status != 'ok' or signal_freshness == 'stale'
-        trust_tier := trust_tier == 'Strong' ? 'Usable' : 'Provisional'
+        trust_tier := signal_quality_tier == 'high' or signal_quality_tier == 'good' or signal_quality_tier == 'ok' ? 'Degraded' : 'Insufficient'
+    else if signal_quality_tier == 'high' and signal_freshness == 'fresh'
+        trust_tier := 'High'
+    else if signal_quality_tier == 'high' or signal_quality_tier == 'good' or signal_quality_tier == 'ok'
+        trust_tier := 'Guarded'
     trust_tier
 
 resolve_core_provider_state(string provider_status) =>

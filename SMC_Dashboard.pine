@@ -599,17 +599,13 @@ dashboard_provider_state_text(int volume_data_row_code, int micro_fresh_row_code
     provider_text
 
 resolve_dashboard_trust_tier(string signal_quality_tier, string signal_freshness, string provider_state) =>
-    string trust_tier = "thin"
-    if signal_quality_tier == "high" and signal_freshness == "fresh" and provider_state == "ok"
-        trust_tier := "strong"
-    else if (signal_quality_tier == "high" or signal_quality_tier == "good") and provider_state == "ok"
-        trust_tier := "usable"
-    else if signal_quality_tier == "ok"
-        trust_tier := "thin"
-    else
-        trust_tier := "provisional"
+    string trust_tier = "insufficient"
     if provider_state != "ok" or signal_freshness == "stale"
-        trust_tier := trust_tier == "strong" ? "usable" : "provisional"
+        trust_tier := signal_quality_tier == "high" or signal_quality_tier == "good" or signal_quality_tier == "ok" ? "degraded" : "insufficient"
+    else if signal_quality_tier == "high" and signal_freshness == "fresh"
+        trust_tier := "high"
+    else if signal_quality_tier == "high" or signal_quality_tier == "good" or signal_quality_tier == "ok"
+        trust_tier := "guarded"
     trust_tier
 
 dashboard_compact_main_blocker_text(int event_risk_row_code, int ready_blocker_code, int strict_blocker_code, int volume_data_row_code) =>
@@ -642,11 +638,11 @@ dashboard_compact_trust_state(int lean_sq_row_code, int lean_freshness_row_code,
     string provider_state = dashboard_provider_state_text(volume_data_row_code, micro_fresh_row_code)
     string trust_tier = resolve_dashboard_trust_tier(signal_quality_tier, signal_freshness, provider_state)
     int state_code = -1
-    if trust_tier == "strong"
+    if trust_tier == "high"
         state_code := 5
-    else if trust_tier == "usable"
+    else if trust_tier == "guarded"
         state_code := 4
-    else if trust_tier == "thin"
+    else if trust_tier == "degraded"
         state_code := 2
     state_code
 

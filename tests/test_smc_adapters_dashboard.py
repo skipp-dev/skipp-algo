@@ -86,11 +86,16 @@ def test_dashboard_sorting_is_deterministic() -> None:
 
 def test_dashboard_projects_optional_trust_summary() -> None:
     trust_summary = {
-        "trust_state": "usable",
+        "trust_state": "guarded",
         "provider_state": "ok",
-        "main_blocker": "No active blocker",
+        "main_blocker": "Measurement sample thin: 3 event(s)",
         "measurement_status": "available",
         "measurement_events": 3,
+        "measurement_family_count": 1,
+        "measurement_quality_tier": "high",
+        "measurement_quality_score": 0.84,
+        "measurement_warning_count": 0,
+        "provider_health_issue_count": 0,
         "structure_state": "full",
         "structure_missing_categories": [],
         "missing_domains": [],

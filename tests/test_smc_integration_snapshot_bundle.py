@@ -172,11 +172,16 @@ def test_bundle_contains_snapshot_projections_and_additive_contexts(monkeypatch)
     assert bundle["measurement_summary"]["scoring"]["stratified_calibration"]["dimensions_present"] == ["htf_bias", "session", "vol_regime"]
     assert bundle["measurement_summary"]["scoring"]["contextual_calibration"]["dimensions_present"] == ["htf_bias", "session", "vol_regime"]
     assert bundle["dashboard_payload"]["trust_summary"] == {
-        "trust_state": "strong",
+        "trust_state": "guarded",
         "provider_state": "ok",
-        "main_blocker": "No active blocker",
+        "main_blocker": "Measurement sample thin: 1 event(s)",
         "measurement_status": "available",
         "measurement_events": 1,
+        "measurement_family_count": 1,
+        "measurement_quality_tier": "high",
+        "measurement_quality_score": 0.81,
+        "measurement_warning_count": 0,
+        "provider_health_issue_count": 0,
         "structure_state": "partial",
         "structure_missing_categories": [],
         "missing_domains": [],
@@ -370,14 +375,136 @@ def test_bundle_surfaces_domain_drop_metadata(monkeypatch) -> None:
         "news": "present",
     }
     assert bundle["dashboard_payload"]["trust_summary"] == {
-        "trust_state": "provisional",
+        "trust_state": "insufficient",
         "provider_state": "degraded",
         "main_blocker": "Missing meta domains: technical",
         "measurement_status": "unavailable",
         "measurement_events": 0,
+        "measurement_family_count": 0,
+        "measurement_quality_tier": "unknown",
+        "measurement_quality_score": None,
+        "measurement_warning_count": 0,
+        "provider_health_issue_count": 0,
         "structure_state": "partial",
         "structure_missing_categories": [],
         "missing_domains": ["technical"],
         "stale_domains": [],
+    }
+    assert bundle["pine_payload"]["trust_summary"] == bundle["dashboard_payload"]["trust_summary"]
+
+
+def test_bundle_degrades_trust_when_runtime_truth_is_stale(monkeypatch) -> None:
+    raw_structure: dict[str, object] = {
+        "bos": [{"id": "bos:1", "time": 1.0, "price": 101.0, "kind": "BOS", "dir": "UP"}],
+        "orderblocks": [{"id": "ob:1", "low": 99.0, "high": 100.0, "dir": "BULL", "valid": True}],
+        "fvg": [],
+        "liquidity_sweeps": [],
+    }
+    raw_meta: dict[str, object] = {
+        "symbol": "AAPL",
+        "timeframe": "15m",
+        "asof_ts": 10.0,
+        "volume": {
+            "value": {"regime": "NORMAL", "thin_fraction": 0.1},
+            "asof_ts": 10.0,
+            "stale": False,
+        },
+        "meta_domain_diagnostics": {
+            "volume": "present",
+            "technical": "present",
+            "technical_stale": True,
+            "news": "present",
+        },
+    }
+    bars = pd.DataFrame(
+        [
+            {"timestamp": 1, "open": 100.0, "high": 101.0, "low": 99.0, "close": 100.5, "volume": 1000.0, "symbol": "AAPL"},
+            {"timestamp": 2, "open": 100.5, "high": 102.0, "low": 100.0, "close": 101.5, "volume": 900.0, "symbol": "AAPL"},
+            {"timestamp": 3, "open": 101.5, "high": 102.5, "low": 100.5, "close": 101.0, "volume": 950.0, "symbol": "AAPL"},
+        ]
+    )
+
+    monkeypatch.setattr(service, "select_best_structure_source", lambda: _FakeSourceDescriptor())
+    monkeypatch.setattr(service, "discover_composite_source_plan", lambda **_: {"structure": "structure_artifact_json", "volume": "watchlist"})
+    monkeypatch.setattr(service, "discover_structure_source_status", lambda **_: {"source": "structure_artifact_json", "coverage": "partial"})
+    monkeypatch.setattr(service, "load_raw_structure_input", lambda *args, **kwargs: raw_structure)
+    monkeypatch.setattr(service, "load_raw_meta_input_composite", lambda *args, **kwargs: raw_meta)
+    monkeypatch.setattr(service, "_load_symbol_bars_for_context", lambda *args, **kwargs: bars)
+    monkeypatch.setattr(service, "build_structure_qualifiers", lambda *args, **kwargs: {"ppdd": []})
+    monkeypatch.setattr(service, "build_session_liquidity_context", lambda *args, **kwargs: {"killzones": []})
+    monkeypatch.setattr(service, "build_htf_bias_context", lambda *args, **kwargs: {"selected_ipda_htf": "D"})
+    monkeypatch.setattr(service.structure_artifact_json, "load_structure_context_input", lambda *args, **kwargs: {"coverage": {"has_bos": True, "has_orderblocks": True}})
+    monkeypatch.setattr(
+        service,
+        "build_measurement_evidence",
+        lambda *_args, **_kwargs: MeasurementEvidence(
+            events_by_family={
+                "BOS": [
+                    {"hit": True, "time_to_mitigation": 1.0, "invalidated": False, "mae": 0.01, "mfe": 0.03},
+                    {"hit": True, "time_to_mitigation": 2.0, "invalidated": False, "mae": 0.01, "mfe": 0.02},
+                ],
+                "OB": [
+                    {"hit": True, "time_to_mitigation": 1.0, "invalidated": False, "mae": 0.01, "mfe": 0.02},
+                    {"hit": False, "time_to_mitigation": 3.0, "invalidated": True, "mae": 0.02, "mfe": 0.01},
+                ],
+                "FVG": [],
+                "SWEEP": [],
+            },
+            stratified_events={
+                "htf_bias:NEUTRAL": {
+                    "BOS": [{"hit": True, "time_to_mitigation": 1.0, "invalidated": False, "mae": 0.01, "mfe": 0.03}],
+                    "OB": [{"hit": True, "time_to_mitigation": 1.0, "invalidated": False, "mae": 0.01, "mfe": 0.02}],
+                    "FVG": [],
+                    "SWEEP": [],
+                }
+            },
+            scored_events=[
+                ScoredEvent("bos-1", "BOS", 0.75, True, 1.0, context={"session": "NY_AM", "htf_bias": "NEUTRAL", "vol_regime": "HIGH_VOL"}),
+                ScoredEvent("bos-2", "BOS", 0.70, True, 1.0, context={"session": "NY_AM", "htf_bias": "NEUTRAL", "vol_regime": "HIGH_VOL"}),
+                ScoredEvent("ob-1", "OB", 0.74, True, 1.0, context={"session": "NY_AM", "htf_bias": "NEUTRAL", "vol_regime": "HIGH_VOL"}),
+                ScoredEvent("ob-2", "OB", 0.61, False, 1.0, context={"session": "NY_AM", "htf_bias": "NEUTRAL", "vol_regime": "HIGH_VOL"}),
+            ],
+            details={
+                "measurement_evidence_present": True,
+                "bars_source_mode": "synthetic_bundle",
+                "evaluated_event_counts": {"BOS": 2, "OB": 2, "FVG": 0, "SWEEP": 0},
+                "ensemble_quality": {"available_components": ["bias", "scoring", "vol_regime"], "score": 0.82, "tier": "high"},
+            },
+            warnings=[],
+        ),
+    )
+    monkeypatch.setattr(
+        service,
+        "compute_vol_regime",
+        lambda _bars: VolRegimeResult(
+            label="HIGH_VOL",
+            raw_atr_ratio=1.7,
+            confidence=0.88,
+            bars_used=len(_bars),
+            model_source="arch_garch",
+            fallback_reason=None,
+            forecast_volatility=0.03,
+            baseline_volatility=0.017,
+            forecast_ratio=1.7647,
+        ),
+    )
+
+    bundle = service.build_snapshot_bundle_for_symbol_timeframe("AAPL", "15m", source="auto", generated_at=1709253600.0)
+
+    assert bundle["dashboard_payload"]["trust_summary"] == {
+        "trust_state": "degraded",
+        "provider_state": "degraded",
+        "main_blocker": "Stale meta domains: technical",
+        "measurement_status": "available",
+        "measurement_events": 4,
+        "measurement_family_count": 2,
+        "measurement_quality_tier": "high",
+        "measurement_quality_score": 0.82,
+        "measurement_warning_count": 0,
+        "provider_health_issue_count": 0,
+        "structure_state": "partial",
+        "structure_missing_categories": [],
+        "missing_domains": [],
+        "stale_domains": ["technical"],
     }
     assert bundle["pine_payload"]["trust_summary"] == bundle["dashboard_payload"]["trust_summary"]

@@ -44,6 +44,8 @@ from .repo_sources import (
 
 
 _DEFAULT_EXPORT_DIR = Path("artifacts") / "smc_microstructure_exports"
+_HIGH_TRUST_MIN_EVENTS = 3
+_HIGH_TRUST_MIN_FAMILIES = 2
 
 
 def _to_epoch_seconds(series: Any) -> pd.Series:
@@ -406,6 +408,118 @@ def _stale_meta_domains(raw_meta: dict[str, Any]) -> list[str]:
     return sorted(stale)
 
 
+def _measurement_quality_tier(measurement_summary: dict[str, Any]) -> str:
+    ensemble_quality = measurement_summary.get("ensemble_quality")
+    if not isinstance(ensemble_quality, dict):
+        return "unknown"
+
+    tier = str(ensemble_quality.get("tier") or "").strip().lower()
+    if tier in {"low", "ok", "good", "high"}:
+        return tier
+
+    score = _safe_float(ensemble_quality.get("score"))
+    if score is None:
+        return "unknown"
+    if score >= 0.75:
+        return "high"
+    if score >= 0.50:
+        return "good"
+    if score >= 0.25:
+        return "ok"
+    return "low"
+
+
+def _measurement_quality_score(measurement_summary: dict[str, Any]) -> float | None:
+    ensemble_quality = measurement_summary.get("ensemble_quality")
+    if not isinstance(ensemble_quality, dict):
+        return None
+    return _safe_float(ensemble_quality.get("score"))
+
+
+def _measurement_warning_messages(measurement_summary: dict[str, Any]) -> list[str]:
+    return _string_list(measurement_summary.get("warnings"))
+
+
+def _resolve_provider_state(
+    *,
+    structure_state: str,
+    missing_domains: list[str],
+    stale_domains: list[str],
+    provider_health_issue_count: int,
+) -> str:
+    if structure_state in {"none", "unknown"}:
+        return "unavailable"
+    if missing_domains or stale_domains or provider_health_issue_count > 0:
+        return "degraded"
+    return "ok"
+
+
+def _resolve_trust_state(
+    *,
+    provider_state: str,
+    measurement_status: str,
+    measurement_available: bool,
+    measurement_events: int,
+    measurement_family_count: int,
+    measurement_quality_tier: str,
+    measurement_warning_count: int,
+) -> str:
+    if provider_state == "unavailable":
+        return "insufficient"
+    if measurement_status != "available" or not measurement_available:
+        return "insufficient"
+    if measurement_events <= 0:
+        return "insufficient"
+    if provider_state == "degraded":
+        return "degraded"
+    if measurement_warning_count > 0:
+        return "guarded"
+    if measurement_events < _HIGH_TRUST_MIN_EVENTS:
+        return "guarded"
+    if measurement_family_count < _HIGH_TRUST_MIN_FAMILIES:
+        return "guarded"
+    if measurement_quality_tier in {"good", "high"}:
+        return "high"
+    return "guarded"
+
+
+def _resolve_trust_main_blocker(
+    *,
+    structure_state: str,
+    missing_domains: list[str],
+    stale_domains: list[str],
+    provider_health_issue_count: int,
+    measurement_status: str,
+    measurement_available: bool,
+    measurement_events: int,
+    measurement_family_count: int,
+    measurement_quality_tier: str,
+    measurement_warnings: list[str],
+) -> str:
+    if structure_state in {"none", "unknown"}:
+        return "No structure source available"
+    if missing_domains:
+        return f"Missing meta domains: {', '.join(missing_domains)}"
+    if stale_domains:
+        return f"Stale meta domains: {', '.join(stale_domains)}"
+    if provider_health_issue_count > 0:
+        return f"Structure provider health issues: {provider_health_issue_count}"
+    if measurement_status != "available" or not measurement_available:
+        return "Measurement evidence unavailable"
+    if measurement_events <= 0:
+        return "No measured events yet"
+    if measurement_warnings:
+        return measurement_warnings[0]
+    if measurement_events < _HIGH_TRUST_MIN_EVENTS:
+        return f"Measurement sample thin: {measurement_events} event(s)"
+    if measurement_family_count < _HIGH_TRUST_MIN_FAMILIES:
+        family_label = "family" if measurement_family_count == 1 else "families"
+        return f"Measurement coverage thin: {measurement_family_count} {family_label}"
+    if measurement_quality_tier not in {"good", "high"}:
+        return "Measurement quality not yet mature"
+    return "No active blocker"
+
+
 def _build_trust_summary(
     *,
     raw_meta: dict[str, Any],
@@ -416,37 +530,45 @@ def _build_trust_summary(
     structure_missing_categories = _string_list((structure_status or {}).get("selected_missing_categories"))
     missing_domains = _missing_meta_domains(raw_meta)
     stale_domains = _stale_meta_domains(raw_meta)
+    provider_health_issue_count = int((structure_status or {}).get("selected_health_issue_count") or 0)
 
     measurement_status = str(measurement_summary.get("status") or "unavailable").strip().lower()
     scoring = measurement_summary.get("scoring")
     measurement_events = int(scoring.get("n_events") or 0) if isinstance(scoring, dict) else 0
+    measurement_family_count = len(_string_list(scoring.get("families_present"))) if isinstance(scoring, dict) else 0
     measurement_available = bool(measurement_summary.get("measurement_evidence_present"))
+    measurement_quality_tier = _measurement_quality_tier(measurement_summary)
+    measurement_quality_score = _measurement_quality_score(measurement_summary)
+    measurement_warnings = _measurement_warning_messages(measurement_summary)
+    measurement_warning_count = len(measurement_warnings)
 
-    provider_state = "ok"
-    if structure_state == "none":
-        provider_state = "unavailable"
-    if missing_domains or stale_domains:
-        provider_state = "degraded"
-
-    trust_state = "provisional"
-    if provider_state == "ok" and measurement_available and measurement_events > 0:
-        trust_state = "strong"
-    elif provider_state == "ok":
-        trust_state = "usable"
-    elif provider_state == "degraded" and measurement_available and measurement_events > 0:
-        trust_state = "thin"
-
-    main_blocker = "No active blocker"
-    if missing_domains:
-        main_blocker = f"Missing meta domains: {', '.join(missing_domains)}"
-    elif stale_domains:
-        main_blocker = f"Stale meta domains: {', '.join(stale_domains)}"
-    elif structure_state == "none":
-        main_blocker = "No structure source available"
-    elif measurement_status != "available":
-        main_blocker = "Measurement evidence unavailable"
-    elif measurement_events <= 0:
-        main_blocker = "No measured events yet"
+    provider_state = _resolve_provider_state(
+        structure_state=structure_state,
+        missing_domains=missing_domains,
+        stale_domains=stale_domains,
+        provider_health_issue_count=provider_health_issue_count,
+    )
+    trust_state = _resolve_trust_state(
+        provider_state=provider_state,
+        measurement_status=measurement_status,
+        measurement_available=measurement_available,
+        measurement_events=measurement_events,
+        measurement_family_count=measurement_family_count,
+        measurement_quality_tier=measurement_quality_tier,
+        measurement_warning_count=measurement_warning_count,
+    )
+    main_blocker = _resolve_trust_main_blocker(
+        structure_state=structure_state,
+        missing_domains=missing_domains,
+        stale_domains=stale_domains,
+        provider_health_issue_count=provider_health_issue_count,
+        measurement_status=measurement_status,
+        measurement_available=measurement_available,
+        measurement_events=measurement_events,
+        measurement_family_count=measurement_family_count,
+        measurement_quality_tier=measurement_quality_tier,
+        measurement_warnings=measurement_warnings,
+    )
 
     return {
         "trust_state": trust_state,
@@ -454,6 +576,11 @@ def _build_trust_summary(
         "main_blocker": main_blocker,
         "measurement_status": measurement_status,
         "measurement_events": measurement_events,
+        "measurement_family_count": measurement_family_count,
+        "measurement_quality_tier": measurement_quality_tier,
+        "measurement_quality_score": measurement_quality_score,
+        "measurement_warning_count": measurement_warning_count,
+        "provider_health_issue_count": provider_health_issue_count,
         "structure_state": structure_state,
         "structure_missing_categories": structure_missing_categories,
         "missing_domains": missing_domains,

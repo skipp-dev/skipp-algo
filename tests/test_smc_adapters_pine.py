@@ -74,11 +74,16 @@ def test_pine_adapter_only_projects_snapshot_data() -> None:
 
 def test_pine_projects_optional_trust_summary() -> None:
     trust_summary = {
-        "trust_state": "thin",
+        "trust_state": "degraded",
         "provider_state": "degraded",
         "main_blocker": "Missing meta domains: technical",
         "measurement_status": "available",
-        "measurement_events": 1,
+        "measurement_events": 4,
+        "measurement_family_count": 2,
+        "measurement_quality_tier": "high",
+        "measurement_quality_score": 0.81,
+        "measurement_warning_count": 0,
+        "provider_health_issue_count": 1,
         "structure_state": "partial",
         "structure_missing_categories": ["fvg"],
         "missing_domains": ["technical"],
