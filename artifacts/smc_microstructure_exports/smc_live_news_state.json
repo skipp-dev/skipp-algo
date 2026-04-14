@@ -4,12 +4,711 @@
     "fmp_stock": 0.0,
     "fmp_press": 0.0,
     "fmp_articles": 0.0,
-    "newsapi_ai": 1776167691.0,
+    "newsapi_ai": 1776184479.0,
     "tv": 0.0,
-    "legacy_cursor": 1776167691.0
+    "legacy_cursor": 1776184479.0
   },
   "provider_state": {},
   "story_state": {
+    "121ba1baa8b67782aca46db78f366a741975fd7b:5920614": {
+      "story_key": "121ba1baa8b67782aca46db78f366a741975fd7b:5920614",
+      "cluster_hash": "121ba1baa8b67782aca46db78f366a741975fd7b",
+      "headline": "Johnson & Johnson Q1 2026 Earnings Call Transcript - Johnson & Johnson (NYSE:JNJ)",
+      "tickers": [
+        "JNJ"
+      ],
+      "published_ts": 1776184479.0,
+      "first_seen_ts": 1776185197.1923516,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "url": "https://www.benzinga.com/markets/earnings/26/04/51811677/johnson-johnson-q1-2026-earnings-call-transcript",
+      "category": "earnings",
+      "impact": 0.8,
+      "clarity": 0.8,
+      "relevance": 0.8500000000000001,
+      "polarity": 0.0,
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "last_seen_ts": 1776185197.1923516
+    },
+    "f3e78416e06700fd8f73b5fd96dc099ccb2241c9:5920603": {
+      "story_key": "f3e78416e06700fd8f73b5fd96dc099ccb2241c9:5920603",
+      "cluster_hash": "f3e78416e06700fd8f73b5fd96dc099ccb2241c9",
+      "headline": "SA analyst upgrades/downgrades: TSLA, AMD, SNDK, AMZN",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_ts": 1776181069.0,
+      "first_seen_ts": 1776185197.1923516,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Seeking Alpha"
+      ],
+      "url": "https://seekingalpha.com/news/4574851-sa-analyst-upgrades-downgrades-tsla-amd-sndk-amzn",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776185197.1923516
+    },
+    "f82c383230d2260c26c9cd1d4ab8d0982f2d50d4:5920598": {
+      "story_key": "f82c383230d2260c26c9cd1d4ab8d0982f2d50d4:5920598",
+      "cluster_hash": "f82c383230d2260c26c9cd1d4ab8d0982f2d50d4",
+      "headline": "Should You Buy, Sell or Hold Amazon (AMZN) Stock at $245?",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_ts": 1776179532.0,
+      "first_seen_ts": 1776185197.1923516,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "24/7 Wall St."
+      ],
+      "url": "https://247wallst.com/investing/2026/04/14/should-you-buy-sell-or-hold-amazon-amzn-stock-at-245/",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776185197.1923516
+    },
+    "dc1870b9332dae1184b84a823ee51fa985f3b819:5920596": {
+      "story_key": "dc1870b9332dae1184b84a823ee51fa985f3b819:5920596",
+      "cluster_hash": "dc1870b9332dae1184b84a823ee51fa985f3b819",
+      "headline": "IonQ (IONQ), IBM, and Microsoft (MSFT): The Quantum Computing Stocks Dominating 2026 - Blockonomi",
+      "tickers": [
+        "MSFT"
+      ],
+      "published_ts": 1776178965.0,
+      "first_seen_ts": 1776185197.1923516,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Blockonomi"
+      ],
+      "url": "https://blockonomi.com/ionq-ionq-ibm-and-microsoft-msft-the-quantum-computing-stocks-dominating-2026/",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776185197.1923516
+    },
+    "6f8f3f1950af787ec0403cfec1fcd4b984681155:5920594": {
+      "story_key": "6f8f3f1950af787ec0403cfec1fcd4b984681155:5920594",
+      "cluster_hash": "6f8f3f1950af787ec0403cfec1fcd4b984681155",
+      "headline": "Amazon Could Explode Higher After Earnings (NASDAQ:AMZN)",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_ts": 1776178448.0,
+      "first_seen_ts": 1776185197.1923516,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Seeking Alpha"
+      ],
+      "url": "https://seekingalpha.com/article/4890564-amazon-could-explode-higher-after-earnings",
+      "category": "earnings",
+      "impact": 0.8,
+      "clarity": 0.6,
+      "relevance": 0.79,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776185197.1923516
+    },
+    "9a747b82c7f316f44516e8b4d4d71af22a98756a:5920592": {
+      "story_key": "9a747b82c7f316f44516e8b4d4d71af22a98756a:5920592",
+      "cluster_hash": "9a747b82c7f316f44516e8b4d4d71af22a98756a",
+      "headline": "JPMorgan Q1 2026 Earnings Call Transcript - JPMorgan Chase (NYSE:JPM)",
+      "tickers": [
+        "JPM"
+      ],
+      "published_ts": 1776177891.0,
+      "first_seen_ts": 1776185197.1923516,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "url": "https://www.benzinga.com/markets/earnings/26/04/51807115/jpmorgan-q1-2026-earnings-call-transcript",
+      "category": "earnings",
+      "impact": 0.8,
+      "clarity": 0.8,
+      "relevance": 0.8500000000000001,
+      "polarity": 0.0,
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "last_seen_ts": 1776185197.1923516
+    },
+    "2559551286b0542f179e9c04db572d8b4cdcc85e:5920586": {
+      "story_key": "2559551286b0542f179e9c04db572d8b4cdcc85e:5920586",
+      "cluster_hash": "2559551286b0542f179e9c04db572d8b4cdcc85e",
+      "headline": "Amazon: Andy Jassy's Shareholder Letter Is A Bull's Dream (NASDAQ:AMZN)",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_ts": 1776175811.0,
+      "first_seen_ts": 1776185197.1923516,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Seeking Alpha"
+      ],
+      "url": "https://seekingalpha.com/article/4890539-amazon-andy-jassys-shareholder-letter-is-a-bulls-dream",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776185197.1923516
+    },
+    "8697e909b92e84861e8d9bf520573e29e4e0b79c:5920586": {
+      "story_key": "8697e909b92e84861e8d9bf520573e29e4e0b79c:5920586",
+      "cluster_hash": "8697e909b92e84861e8d9bf520573e29e4e0b79c",
+      "headline": "Amazon Owns The Future, Stock Headed To $300, Citron Says: 'World Domination' - Amazon.com (NASDAQ:AMZN)",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_ts": 1776175844.0,
+      "first_seen_ts": 1776185197.1923516,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "url": "https://www.benzinga.com/trading-ideas/movers/26/04/51805440/amazon-owns-the-future-stock-headed-to-300-citron-says-world-domination",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "polarity": 0.0,
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "last_seen_ts": 1776185197.1923516
+    },
+    "f6db023155d37d0bb7c447eaddabc150dd21baea:5920585": {
+      "story_key": "f6db023155d37d0bb7c447eaddabc150dd21baea:5920585",
+      "cluster_hash": "f6db023155d37d0bb7c447eaddabc150dd21baea",
+      "headline": "Amazon (AMZN) vs Alphabet (GOOGL): Comparing Two Tech Titans in 2025 - Blockonomi",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_ts": 1776175525.0,
+      "first_seen_ts": 1776185197.1923516,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Blockonomi"
+      ],
+      "url": "https://blockonomi.com/amazon-amzn-vs-alphabet-googl-comparing-two-tech-titans-in-2025/",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776185197.1923516
+    },
+    "f7e6e522bda3fa599868237ebce2471397ece7dc:5920583": {
+      "story_key": "f7e6e522bda3fa599868237ebce2471397ece7dc:5920583",
+      "cluster_hash": "f7e6e522bda3fa599868237ebce2471397ece7dc",
+      "headline": "Amazon Vs Starlink: What The Globalstar Deal Could Mean For Investors - Amazon.com (NASDAQ:AMZN), Globals",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_ts": 1776175063.0,
+      "first_seen_ts": 1776185197.1923516,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "url": "https://www.benzinga.com/Opinion/26/04/51804693/amazon-vs-starlink-what-the-globalstar-deal-could-mean-for-investors",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "last_seen_ts": 1776185197.1923516
+    },
+    "5159895e382ce49253312e96cd7b804902bdfa36:5920581": {
+      "story_key": "5159895e382ce49253312e96cd7b804902bdfa36:5920581",
+      "cluster_hash": "5159895e382ce49253312e96cd7b804902bdfa36",
+      "headline": "Why Apple Still Wins Here (NASDAQ:AAPL)",
+      "tickers": [
+        "AAPL"
+      ],
+      "published_ts": 1776174474.0,
+      "first_seen_ts": 1776185197.1923516,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Seeking Alpha"
+      ],
+      "url": "https://seekingalpha.com/article/4890525-why-apple-still-wins-here",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.5,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776185197.1923516
+    },
+    "338f9b4cd763e7f872b766f41277d057b874795e:5920581": {
+      "story_key": "338f9b4cd763e7f872b766f41277d057b874795e:5920581",
+      "cluster_hash": "338f9b4cd763e7f872b766f41277d057b874795e",
+      "headline": "Apple (AAPL) Stock Gets BofA Price Target Boost to $325 on Strong iPhone Projections - Blockonomi",
+      "tickers": [
+        "AAPL"
+      ],
+      "published_ts": 1776174317.0,
+      "first_seen_ts": 1776185197.1923516,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Blockonomi"
+      ],
+      "url": "https://blockonomi.com/apple-aapl-stock-gets-bofa-price-target-boost-to-325-on-strong-iphone-projections/",
+      "category": "analyst",
+      "impact": 0.65,
+      "clarity": 0.8,
+      "relevance": 0.7825,
+      "polarity": 0.5,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776185197.1923516
+    },
+    "5dacd7662a34e34e959edbb1419df2cec7297f0d:5920577": {
+      "story_key": "5dacd7662a34e34e959edbb1419df2cec7297f0d:5920577",
+      "cluster_hash": "5dacd7662a34e34e959edbb1419df2cec7297f0d",
+      "headline": "JPM Stock Fizzles Despite Blowout Quarter As Key Forecast Cut",
+      "tickers": [
+        "JPM"
+      ],
+      "published_ts": 1776173388.0,
+      "first_seen_ts": 1776185197.1923516,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Zero Hedge"
+      ],
+      "url": "https://www.zerohedge.com/markets/jpm-stock-fizzles-despite-blowout-quarter-key-forecast-cut",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": -0.5,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776185197.1923516
+    },
+    "f0c98edbc46c90f8868fd030d0c68db5fc4fb7ae:5920578": {
+      "story_key": "f0c98edbc46c90f8868fd030d0c68db5fc4fb7ae:5920578",
+      "cluster_hash": "f0c98edbc46c90f8868fd030d0c68db5fc4fb7ae",
+      "headline": "Should You Buy, Sell or Hold Microsoft (MSFT) Stock at $386?",
+      "tickers": [
+        "MSFT"
+      ],
+      "published_ts": 1776173403.0,
+      "first_seen_ts": 1776185197.1923516,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "24/7 Wall St."
+      ],
+      "url": "https://247wallst.com/investing/2026/04/14/should-you-buy-sell-or-hold-microsoft-msft-stock-at-386/",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776185197.1923516
+    },
+    "ffe784d23153989492c374d4da4493bc4f469a1b:5920574": {
+      "story_key": "ffe784d23153989492c374d4da4493bc4f469a1b:5920574",
+      "cluster_hash": "ffe784d23153989492c374d4da4493bc4f469a1b",
+      "headline": "Apple likely to report 'strong' results amid iPhone, services demand: BofA (AAPL:NASDAQ)",
+      "tickers": [
+        "AAPL"
+      ],
+      "published_ts": 1776172448.0,
+      "first_seen_ts": 1776185197.1923516,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Seeking Alpha"
+      ],
+      "url": "https://seekingalpha.com/news/4574778-apple-likely-to-report-strong-results-amid-iphone-services-demand-bofa",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.5,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776185197.1923516
+    },
+    "665923fe179720419ec7b7899f1290ef361b17e5:5920572": {
+      "story_key": "665923fe179720419ec7b7899f1290ef361b17e5:5920572",
+      "cluster_hash": "665923fe179720419ec7b7899f1290ef361b17e5",
+      "headline": "Johnson & Johnson 2026 Q1 - Results - Earnings Call Presentation (NYSE:JNJ) 2026-04-14",
+      "tickers": [
+        "JNJ"
+      ],
+      "published_ts": 1776171677.0,
+      "first_seen_ts": 1776185197.1923516,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Seeking Alpha"
+      ],
+      "url": "https://seekingalpha.com/article/4890533-johnson-and-johnson-2026-q1-results-earnings-call-presentation",
+      "category": "earnings",
+      "impact": 0.8,
+      "clarity": 0.8,
+      "relevance": 0.8500000000000001,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776185197.1923516
+    },
+    "f573cd142c10bd4c236ba1fe4df88059215d1f29:5920570": {
+      "story_key": "f573cd142c10bd4c236ba1fe4df88059215d1f29:5920570",
+      "cluster_hash": "f573cd142c10bd4c236ba1fe4df88059215d1f29",
+      "headline": "5 stocks to watch on Tuesday: AMD, JPM, AMZN, NVDA, WFC",
+      "tickers": [
+        "AMZN",
+        "JPM"
+      ],
+      "published_ts": 1776171299.0,
+      "first_seen_ts": 1776185197.1923516,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Seeking Alpha"
+      ],
+      "url": "https://seekingalpha.com/news/4574750-5-stocks-to-watch-on-tuesday-amd-jpm-amzn-nvda-wfc",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776185197.1923516
+    },
+    "4bae941214949fefde999d5e8c91bff7ad91afd7:5920572": {
+      "story_key": "4bae941214949fefde999d5e8c91bff7ad91afd7:5920572",
+      "cluster_hash": "4bae941214949fefde999d5e8c91bff7ad91afd7",
+      "headline": "JPMorgan Chase & Co. 2026 Q1 - Results - Earnings Call Presentation (NYSE:JPM) 2026-04-14",
+      "tickers": [
+        "JPM"
+      ],
+      "published_ts": 1776171698.0,
+      "first_seen_ts": 1776185197.1923516,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Seeking Alpha"
+      ],
+      "url": "https://seekingalpha.com/article/4890534-jpmorgan-chase-and-co-2026-q1-results-earnings-call-presentation",
+      "category": "earnings",
+      "impact": 0.8,
+      "clarity": 0.8,
+      "relevance": 0.8500000000000001,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776185197.1923516
+    },
+    "9f55b686374205531bc839b8a20efc8e987674cf:5920568": {
+      "story_key": "9f55b686374205531bc839b8a20efc8e987674cf:5920568",
+      "cluster_hash": "9f55b686374205531bc839b8a20efc8e987674cf",
+      "headline": "Trade Strategy For SPY, QQQ, AAPL, MSFT, NVDA, GOOGL, META, And TSLA",
+      "tickers": [
+        "AAPL",
+        "META",
+        "MSFT"
+      ],
+      "published_ts": 1776170564.0,
+      "first_seen_ts": 1776185197.1923516,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "url": "https://www.benzinga.com/Opinion/26/04/51801595/trade-strategy-for-spy-qqq-aapl-msft-nvda-googl-meta-and-tsla-5",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.375,
+      "polarity": 0.0,
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "last_seen_ts": 1776185197.1923516
+    },
+    "ccdc2e5a618d2430336e5fa0e699a303a22d0293:5920564": {
+      "story_key": "ccdc2e5a618d2430336e5fa0e699a303a22d0293:5920564",
+      "cluster_hash": "ccdc2e5a618d2430336e5fa0e699a303a22d0293",
+      "headline": "JPM upgrades Naturgy to \"overweight,\" flags overhang easing and earnings upside By Investing.com",
+      "tickers": [
+        "JPM"
+      ],
+      "published_ts": 1776169367.0,
+      "first_seen_ts": 1776185197.1923516,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Investing.com"
+      ],
+      "url": "https://www.investing.com/news/stock-market-news/jpm-upgrades-naturgy-to-overweight-sees-3050-pt-on-overhang-easing-4612692",
+      "category": "earnings",
+      "impact": 0.8,
+      "clarity": 0.6,
+      "relevance": 0.79,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776185197.1923516
+    },
+    "bd053c10e65d3e09fbab6fa091854d6d1c691752:5920566": {
+      "story_key": "bd053c10e65d3e09fbab6fa091854d6d1c691752:5920566",
+      "cluster_hash": "bd053c10e65d3e09fbab6fa091854d6d1c691752",
+      "headline": "Amazon: 3 New Catalysts That Change The Numbers (NASDAQ:AMZN)",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_ts": 1776169800.0,
+      "first_seen_ts": 1776185197.1923516,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Seeking Alpha"
+      ],
+      "url": "https://seekingalpha.com/article/4890353-amazon-3-new-catalysts-that-change-the-numbers",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776185197.1923516
+    },
+    "d9498c856244862d3f832a3af00c2aed8700e54f:5920613": {
+      "story_key": "d9498c856244862d3f832a3af00c2aed8700e54f:5920613",
+      "cluster_hash": "d9498c856244862d3f832a3af00c2aed8700e54f",
+      "headline": "Options Remain Red-Hot on AI Favorite META - Schaeffer's Investment Research",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1776184174.0,
+      "first_seen_ts": 1776185197.1923516,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Schaeffers Investment Research"
+      ],
+      "url": "https://www.schaeffersresearch.com/content/bgs/2026/04/14/options-remain-red-hot-on-ai-favorite-meta",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776185197.1923516
+    },
+    "63592c54253ae012918513438916b5153ac59e59:5920609": {
+      "story_key": "63592c54253ae012918513438916b5153ac59e59:5920609",
+      "cluster_hash": "63592c54253ae012918513438916b5153ac59e59",
+      "headline": "Meta Platforms Is Building a Mark Zuckerberg AI Bot. Does That Matter for META Stock?",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1776182931.0,
+      "first_seen_ts": 1776185197.1923516,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Barchart.com"
+      ],
+      "url": "https://www.barchart.com/story/news/1299967/meta-platforms-is-building-a-mark-zuckerberg-ai-bot-does-that-matter-for-meta-stock",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776185197.1923516
+    },
+    "eda63e6bf1331ed6f6167f874621359773ff2b14:5920592": {
+      "story_key": "eda63e6bf1331ed6f6167f874621359773ff2b14:5920592",
+      "cluster_hash": "eda63e6bf1331ed6f6167f874621359773ff2b14",
+      "headline": "Why is Meta stock gaining today? By Investing.com",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1776177659.0,
+      "first_seen_ts": 1776185197.1923516,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Investing.com"
+      ],
+      "url": "https://www.investing.com/news/company-news/why-is-meta-stock-gaining-today-93CH-4613229",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776185197.1923516
+    },
     "741407e67fef5b822776a9ef14dbbf0979307403:5920558": {
       "story_key": "741407e67fef5b822776a9ef14dbbf0979307403:5920558",
       "cluster_hash": "741407e67fef5b822776a9ef14dbbf0979307403",
