@@ -195,6 +195,7 @@ def test_release_runner_skips_publish_contract_gate_when_requested(monkeypatch) 
     rc = release_script.main()
 
     assert rc == 0
+    assert captured_reports[-1]["release_phase"] == "pre_publish"
     assert [gate["name"] for gate in captured_reports[-1]["gates"]] == ["provider_health", "reference_bundle", "measurement_lane"]
 
 
@@ -314,6 +315,7 @@ def test_release_runner_adds_post_release_validation_gate_when_report_is_provide
     rc = release_script.main()
 
     assert rc == 0
+    assert captured_reports[-1]["release_phase"] == "post_publish"
     gate_names = [gate["name"] for gate in captured_reports[-1]["gates"]]
     assert gate_names == ["provider_health", "reference_bundle", "post_release_validation", "measurement_lane"]
 

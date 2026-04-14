@@ -196,24 +196,22 @@ class TestSendTelegram:
 
 
 class TestSendDiscord:
-    @patch("urllib.request.urlopen")
-    def test_success(self, mock_urlopen):
+    @patch("terminal_notifications.validate_webhook_url", return_value=(True, ""))
+    @patch("terminal_notifications.httpx.post")
+    def test_success(self, mock_post, _mock_validate):
         resp = MagicMock()
-        resp.status = 204
-        resp.__enter__ = MagicMock(return_value=resp)
-        resp.__exit__ = MagicMock(return_value=False)
-        mock_urlopen.return_value = resp
+        resp.status_code = 204
+        resp.raise_for_status.return_value = None
+        mock_post.return_value = resp
 
         assert _send_discord("https://discord.com/api/webhooks/test", "msg") is True
+        assert mock_post.call_args.kwargs["follow_redirects"] is False
 
-    @patch("urllib.request.urlopen")
-    def test_204_http_error(self, mock_urlopen):
-        import urllib.error
-
-        mock_urlopen.side_effect = urllib.error.HTTPError(
-            "url", 204, "No Content", {}, None
-        )
-        assert _send_discord("https://discord.com/api/webhooks/test", "msg") is True
+    @patch("terminal_notifications.validate_webhook_url", return_value=(False, "local_host"))
+    @patch("terminal_notifications.httpx.post")
+    def test_rejects_invalid_webhook_before_http_call(self, mock_post, _mock_validate):
+        assert _send_discord("http://localhost/webhook", "msg") is False
+        mock_post.assert_not_called()
 
 
 class TestSendPushover:

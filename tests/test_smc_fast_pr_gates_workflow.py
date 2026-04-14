@@ -17,7 +17,11 @@ def test_fast_pr_gates_workflow_runs_terminal_coverage_subset() -> None:
     assert '- name: Run terminal coverage subset' in workflow_text
     assert '--cov=streamlit_terminal' in workflow_text
     assert '--cov=streamlit_terminal_alerts' in workflow_text
+    assert '--cov=terminal_export' in workflow_text
+    assert '--cov=terminal_notifications' in workflow_text
     assert 'tests/test_streamlit_terminal_import.py' in workflow_text
+    assert 'tests/test_terminal_notifications.py' in workflow_text
+    assert 'tests/test_terminal_export_dispatch.py' in workflow_text
     assert 'tests/test_streamlit_terminal_pure_functions.py' in workflow_text
     assert 'artifacts/ci/terminal_coverage.txt' in workflow_text
     assert 'artifacts/ci/terminal_coverage.xml' in workflow_text

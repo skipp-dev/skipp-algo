@@ -64,6 +64,47 @@ def test_build_meta_from_raw_builds_smcmeta() -> None:
     assert meta.technical.value.bias == "BULLISH"
 
 
+def test_build_meta_from_raw_preserves_volume_contract_fields() -> None:
+    raw = dict(RAW_META)
+    raw["volume"] = {
+        "value": {
+            "regime": "LOW_VOLUME",
+            "thin_fraction": 0.25,
+            "contract_version": "1",
+            "baseline_priority_order": [
+                "rvol",
+                "explicit_average_volume",
+                "peer_median_same_trade_date",
+                "premarket_liquidity",
+            ],
+            "model_source": "daily_bar_rvol_peer_median",
+            "selected_baseline": "peer_median_same_trade_date",
+            "peer_median_rollout": "always_on",
+            "peer_scope": "same_trade_date_excluding_symbol",
+            "peer_count": 2,
+        },
+        "asof_ts": 1709253580,
+        "stale": False,
+    }
+
+    meta = build_meta_from_raw(raw)
+
+    assert meta.volume.value.regime == "LOW_VOLUME"
+    assert meta.volume.value.thin_fraction == 0.25
+    assert meta.volume.value.contract_version == "1"
+    assert meta.volume.value.baseline_priority_order == (
+        "rvol",
+        "explicit_average_volume",
+        "peer_median_same_trade_date",
+        "premarket_liquidity",
+    )
+    assert meta.volume.value.model_source == "daily_bar_rvol_peer_median"
+    assert meta.volume.value.selected_baseline == "peer_median_same_trade_date"
+    assert meta.volume.value.peer_median_rollout == "always_on"
+    assert meta.volume.value.peer_scope == "same_trade_date_excluding_symbol"
+    assert meta.volume.value.peer_count == 2
+
+
 def test_build_snapshot_from_raw_returns_smcsnapshot() -> None:
     snapshot = build_snapshot_from_raw(RAW_STRUCTURE, RAW_META, generated_at=1709254000.0)
     assert isinstance(snapshot, SmcSnapshot)

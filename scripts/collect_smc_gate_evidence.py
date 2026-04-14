@@ -57,13 +57,49 @@ def _parse_report_timestamp(report: dict[str, Any], path: Path) -> float | None:
         return None
 
 
+def _report_release_phase(report: dict[str, Any]) -> str | None:
+    raw_phase = str(report.get("release_phase", "")).strip().lower()
+    if raw_phase in {"pre_publish", "pre_release"}:
+        return "pre_publish"
+    if raw_phase in {"post_publish", "post_release"}:
+        return "post_publish"
+
+    runner = report.get("runner")
+    if isinstance(runner, dict):
+        raw_post_release_report = str(runner.get("post_release_validation_report", "") or "").strip()
+        if raw_post_release_report:
+            return "post_publish"
+
+    gates = report.get("gates")
+    if isinstance(gates, list):
+        for gate in gates:
+            if not isinstance(gate, dict):
+                continue
+            if str(gate.get("name", "")).strip() == "post_release_validation":
+                return "post_publish"
+
+    return None
+
+
 def _infer_report_kind(report: dict[str, Any]) -> str:
     explicit = str(report.get("report_kind", "")).strip()
+    if explicit == "release_gates":
+        phase = _report_release_phase(report)
+        if phase == "pre_publish":
+            return "pre_release_gates"
+        if phase == "post_publish":
+            return "post_release_gates"
+        return "release_gates"
     if explicit:
         return explicit
     if isinstance(report.get("refresh_manifests"), list):
         return "pre_release_refresh"
     if isinstance(report.get("gates"), list):
+        phase = _report_release_phase(report)
+        if phase == "pre_publish":
+            return "pre_release_gates"
+        if phase == "post_publish":
+            return "post_release_gates"
         return "release_gates"
     if isinstance(report.get("provider_domain_results"), list):
         return "ci_health"
@@ -146,7 +182,52 @@ def _is_deeper_candidate(kind: str) -> bool:
 
 
 def _is_release_candidate(kind: str) -> bool:
-    return kind == "release_gates"
+    return kind in {"release_gates", "pre_release_gates", "post_release_gates"}
+
+
+def _release_candidate_priority(kind: str) -> int:
+    if kind == "post_release_gates":
+        return 2
+    if kind == "release_gates":
+        return 1
+    if kind == "pre_release_gates":
+        return 0
+    return -1
+
+
+def _release_candidate_group_key(row: dict[str, Any]) -> str | None:
+    github_run_id = str(row.get("github_run_id", "") or "").strip()
+    if not github_run_id:
+        return None
+    github_workflow = str(row.get("github_workflow", "") or "").strip()
+    if github_workflow:
+        return f"{github_workflow}:{github_run_id}"
+    return github_run_id
+
+
+def _select_release_candidate_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    selected: list[dict[str, Any]] = []
+    grouped: dict[str, list[dict[str, Any]]] = {}
+
+    for row in rows:
+        group_key = _release_candidate_group_key(row)
+        if group_key is None:
+            selected.append(row)
+            continue
+        grouped.setdefault(group_key, []).append(row)
+
+    for group_rows in grouped.values():
+        group_rows.sort(
+            key=lambda row: (
+                _release_candidate_priority(str(row.get("kind", ""))),
+                float(row.get("checked_at") or 0.0),
+            ),
+            reverse=True,
+        )
+        selected.append(group_rows[0])
+
+    selected.sort(key=lambda row: float(row.get("checked_at") or 0.0), reverse=True)
+    return selected
 
 
 _STALE_DOMAIN_CODES = {
@@ -773,10 +854,18 @@ def main() -> int:
         checked_at = _parse_report_timestamp(payload, path)
         runtime_meta = payload.get("runtime_metadata")
         commit = None
+        github_run_id = None
+        github_workflow = None
         if isinstance(runtime_meta, dict):
             raw_commit = runtime_meta.get("git_commit")
             if isinstance(raw_commit, str) and raw_commit.strip():
                 commit = raw_commit.strip()
+            raw_github_run_id = runtime_meta.get("github_run_id")
+            if isinstance(raw_github_run_id, str) and raw_github_run_id.strip():
+                github_run_id = raw_github_run_id.strip()
+            raw_github_workflow = runtime_meta.get("github_workflow")
+            if isinstance(raw_github_workflow, str) and raw_github_workflow.strip():
+                github_workflow = raw_github_workflow.strip()
 
         codes = _extract_codes(payload)
         run_row = {
@@ -787,10 +876,16 @@ def main() -> int:
             "checked_at_iso": _iso_utc(checked_at),
             "in_lookback_window": bool(checked_at is not None and checked_at >= window_start_ts),
             "git_commit": commit,
+            "github_run_id": github_run_id,
+            "github_workflow": github_workflow,
             "reference_symbols": payload.get("reference_symbols", []),
             "reference_timeframes": payload.get("reference_timeframes", []),
             "codes": codes,
         }
+
+        release_phase = _report_release_phase(payload)
+        if release_phase is not None:
+            run_row["release_phase"] = release_phase
 
         domain_visibility = _extract_domain_visibility(payload)
         if domain_visibility is not None:
@@ -835,7 +930,16 @@ def main() -> int:
 
     runs_in_window = [row for row in runs if bool(row.get("in_lookback_window"))]
     deeper_ok_in_window = [row for row in runs_in_window if _is_deeper_candidate(str(row.get("kind", ""))) and row.get("status") == "ok"]
-    release_ok_in_window = [row for row in runs_in_window if _is_release_candidate(str(row.get("kind", ""))) and row.get("status") == "ok"]
+    pre_release_gate_runs_in_window = [row for row in runs_in_window if str(row.get("kind", "")) == "pre_release_gates"]
+    pre_release_gate_ok_in_window = [row for row in pre_release_gate_runs_in_window if row.get("status") == "ok"]
+    pre_release_gate_fail_in_window = [row for row in pre_release_gate_runs_in_window if row.get("status") == "fail"]
+    post_release_gate_runs_in_window = [row for row in runs_in_window if str(row.get("kind", "")) == "post_release_gates"]
+    post_release_gate_ok_in_window = [row for row in post_release_gate_runs_in_window if row.get("status") == "ok"]
+    post_release_gate_fail_in_window = [row for row in post_release_gate_runs_in_window if row.get("status") == "fail"]
+    representative_release_runs_in_window = _select_release_candidate_rows(
+        [row for row in runs_in_window if _is_release_candidate(str(row.get("kind", "")))]
+    )
+    release_ok_in_window = [row for row in representative_release_runs_in_window if row.get("status") == "ok"]
     post_release_runs_in_window = [row for row in runs_in_window if str(row.get("kind", "")) == "post_release_validation"]
     post_release_ok_in_window = [row for row in post_release_runs_in_window if row.get("status") == "ok"]
     post_release_fail_in_window = [row for row in post_release_runs_in_window if row.get("status") == "fail"]
@@ -1069,6 +1173,12 @@ def main() -> int:
         "lookback_window_start_iso": _iso_utc(window_start_ts),
         "deeper_ok_runs_in_window": len(deeper_ok_in_window),
         "release_ok_runs_in_window": len(release_ok_in_window),
+        "pre_release_gate_runs_in_window": len(pre_release_gate_runs_in_window),
+        "pre_release_gate_ok_runs_in_window": len(pre_release_gate_ok_in_window),
+        "pre_release_gate_fail_runs_in_window": len(pre_release_gate_fail_in_window),
+        "post_release_gate_runs_in_window": len(post_release_gate_runs_in_window),
+        "post_release_gate_ok_runs_in_window": len(post_release_gate_ok_in_window),
+        "post_release_gate_fail_runs_in_window": len(post_release_gate_fail_in_window),
         "post_release_validation_runs_in_window": len(post_release_runs_in_window),
         "post_release_validation_ok_runs_in_window": len(post_release_ok_in_window),
         "post_release_validation_fail_runs_in_window": len(post_release_fail_in_window),
@@ -1088,6 +1198,8 @@ def main() -> int:
             }
             for row in visibility_runs_in_window
         ],
+        "last_pre_release_gate_status": pre_release_gate_runs_in_window[0].get("status") if pre_release_gate_runs_in_window else None,
+        "last_post_release_gate_status": post_release_gate_runs_in_window[0].get("status") if post_release_gate_runs_in_window else None,
         "last_post_release_validation_status": post_release_runs_in_window[0].get("status") if post_release_runs_in_window else None,
         "recurring_failure_codes": dict(recurring_failures.most_common()),
         "stale_trend": dict(stale_trend),

@@ -95,6 +95,8 @@ source = [
     "streamlit_terminal_config",
     "streamlit_terminal_pure",
     "streamlit_terminal_runtime",
+    "terminal_export",
+    "terminal_notifications",
     "terminal_tabs",
     "terminal_ui_helpers",
 ]

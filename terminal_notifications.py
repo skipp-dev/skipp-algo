@@ -34,6 +34,9 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 
+import httpx
+
+from streamlit_terminal_alerts import validate_webhook_url
 from terminal_catalyst_state import (
     effective_catalyst_age_minutes,
     effective_catalyst_score,
@@ -210,27 +213,29 @@ def _send_telegram(token: str, chat_id: str, text: str) -> bool:
 
 def _send_discord(webhook_url: str, text: str) -> bool:
     """Send a Discord webhook message. Returns True on success."""
-    import urllib.error
-    import urllib.request
+    safe, reason = validate_webhook_url(webhook_url)
+    if not safe:
+        logger.warning("Discord webhook rejected (%s)", reason)
+        return False
 
     payload = json.dumps({"content": text}).encode()
-    req = urllib.request.Request(webhook_url, data=payload, method="POST")
-    req.add_header("Content-Type", "application/json")
 
     try:
-        with urllib.request.urlopen(req, timeout=10) as resp:
-            if 200 <= resp.status < 300:
-                logger.info("Discord notification sent (%s)", _mask_url(webhook_url))
-                return True
-            logger.warning("Discord HTTP %d", resp.status)
-            return False
-    except urllib.error.HTTPError as exc:
-        # Discord returns 204 No Content on success — urllib may still
-        # raise for other HTTP errors
-        if exc.code == 204:
-            logger.info("Discord notification sent (204)")
+        resp = httpx.post(
+            webhook_url,
+            content=payload,
+            headers={"Content-Type": "application/json"},
+            timeout=10,
+            follow_redirects=False,
+        )
+        resp.raise_for_status()
+        if 200 <= resp.status_code < 300:
+            logger.info("Discord notification sent (%s)", _mask_url(webhook_url))
             return True
-        logger.warning("Discord HTTP error %d", exc.code)
+        logger.warning("Discord HTTP %d", resp.status_code)
+        return False
+    except httpx.HTTPStatusError as exc:
+        logger.warning("Discord HTTP error %d", exc.response.status_code)
         return False
     except Exception as exc:
         logger.warning("Discord send failed: %s", type(exc).__name__)

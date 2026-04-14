@@ -246,6 +246,138 @@ def test_gate_evidence_tracks_post_release_validation_runs(monkeypatch, tmp_path
     assert captured[-1]["last_post_release_validation_status"] == "fail"
 
 
+def test_gate_evidence_prefers_post_release_gate_report_per_github_run(monkeypatch, tmp_path: Path) -> None:
+    now_ts = 1_700_000_000.0
+    monkeypatch.setattr(evidence_script.time, "time", lambda: now_ts)
+
+    _write_json(
+        tmp_path / "deeper_ok.json",
+        {
+            "report_kind": "ci_health",
+            "checked_at": now_ts - 120.0,
+            "overall_status": "ok",
+            "reference_symbols": _BROAD_SYMBOLS,
+            "reference_timeframes": _BROAD_TIMEFRAMES,
+            "runtime_metadata": {"git_commit": "sha-deeper", "github_run_id": "200"},
+        },
+    )
+    _write_json(
+        tmp_path / "pre_release_ok.json",
+        {
+            "report_kind": "release_gates",
+            "release_phase": "pre_publish",
+            "checked_at": now_ts - 90.0,
+            "overall_status": "ok",
+            "reference_symbols": _BROAD_SYMBOLS,
+            "reference_timeframes": _BROAD_TIMEFRAMES,
+            "runtime_metadata": {
+                "git_commit": "sha-release",
+                "github_run_id": "101",
+                "github_workflow": "smc-library-refresh",
+            },
+            "gates": [{"name": "provider_health", "status": "ok", "details": {}}],
+        },
+    )
+    _write_json(
+        tmp_path / "post_release_ok.json",
+        {
+            "report_kind": "release_gates",
+            "release_phase": "post_publish",
+            "checked_at": now_ts - 30.0,
+            "overall_status": "ok",
+            "reference_symbols": _BROAD_SYMBOLS,
+            "reference_timeframes": _BROAD_TIMEFRAMES,
+            "runtime_metadata": {
+                "git_commit": "sha-release",
+                "github_run_id": "101",
+                "github_workflow": "smc-library-refresh",
+            },
+            "gates": [
+                {"name": "provider_health", "status": "ok", "details": {}},
+                {"name": "post_release_validation", "status": "ok", "details": {}},
+            ],
+        },
+    )
+
+    captured: list[dict] = []
+    monkeypatch.setattr(
+        evidence_script,
+        "build_parser",
+        lambda: _Parser(
+            Namespace(
+                input_glob=str(tmp_path / "*.json"),
+                lookback_days=14,
+                min_deeper_ok_runs=1,
+                min_release_ok_runs=1,
+                fail_on_not_ready=False,
+                output="-",
+            )
+        ),
+    )
+    monkeypatch.setattr(evidence_script, "_render", lambda report, output: captured.append(report))
+
+    rc = evidence_script.main()
+
+    assert rc == 0
+    assert captured[-1]["green_ready"] is True
+    assert captured[-1]["release_ok_runs_in_window"] == 1
+    assert captured[-1]["pre_release_gate_runs_in_window"] == 1
+    assert captured[-1]["pre_release_gate_ok_runs_in_window"] == 1
+    assert captured[-1]["post_release_gate_runs_in_window"] == 1
+    assert captured[-1]["post_release_gate_ok_runs_in_window"] == 1
+    assert captured[-1]["last_pre_release_gate_status"] == "ok"
+    assert captured[-1]["last_post_release_gate_status"] == "ok"
+
+
+def test_gate_evidence_counts_pre_release_gate_when_post_release_is_absent(monkeypatch, tmp_path: Path) -> None:
+    now_ts = 1_700_000_000.0
+    monkeypatch.setattr(evidence_script.time, "time", lambda: now_ts)
+
+    _write_json(
+        tmp_path / "pre_release_ok.json",
+        {
+            "report_kind": "release_gates",
+            "release_phase": "pre_publish",
+            "checked_at": now_ts - 30.0,
+            "overall_status": "ok",
+            "reference_symbols": _BROAD_SYMBOLS,
+            "reference_timeframes": _BROAD_TIMEFRAMES,
+            "runtime_metadata": {
+                "git_commit": "sha-release",
+                "github_run_id": "102",
+                "github_workflow": "smc-library-refresh",
+            },
+            "gates": [{"name": "provider_health", "status": "ok", "details": {}}],
+        },
+    )
+
+    captured: list[dict] = []
+    monkeypatch.setattr(
+        evidence_script,
+        "build_parser",
+        lambda: _Parser(
+            Namespace(
+                input_glob=str(tmp_path / "*.json"),
+                lookback_days=14,
+                min_deeper_ok_runs=0,
+                min_release_ok_runs=1,
+                fail_on_not_ready=False,
+                output="-",
+            )
+        ),
+    )
+    monkeypatch.setattr(evidence_script, "_render", lambda report, output: captured.append(report))
+
+    rc = evidence_script.main()
+
+    assert rc == 0
+    assert captured[-1]["release_ok_runs_in_window"] == 1
+    assert captured[-1]["pre_release_gate_runs_in_window"] == 1
+    assert captured[-1]["post_release_gate_runs_in_window"] == 0
+    assert captured[-1]["last_pre_release_gate_status"] == "ok"
+    assert captured[-1]["last_post_release_gate_status"] is None
+
+
 def test_gate_evidence_aggregates_measurement_artifacts(monkeypatch, tmp_path: Path) -> None:
     now_ts = 1_700_000_000.0
     monkeypatch.setattr(evidence_script.time, "time", lambda: now_ts)

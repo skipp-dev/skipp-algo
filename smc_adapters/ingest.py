@@ -62,6 +62,15 @@ def _as_str(value: Any, context: str) -> str:
     return value
 
 
+def _as_int(value: Any, context: str) -> int:
+    if isinstance(value, bool):
+        raise ValueError(f"{context} must be integer")
+    try:
+        return int(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{context} must be integer") from exc
+
+
 def _as_list(value: Any, context: str) -> list[Any]:
     if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
         return list(value)
@@ -306,8 +315,59 @@ def build_meta_from_raw(raw_meta: Mapping[str, Any]) -> SmcMeta:
     raw_thin_fraction = _require(raw_volume_value, "thin_fraction", "raw_meta.volume.value")
     thin_fraction = 0.0 if raw_thin_fraction is None else _as_float(raw_thin_fraction, "raw_meta.volume.value.thin_fraction")
 
+    contract_version = None
+    raw_contract_version = raw_volume_value.get("contract_version")
+    if raw_contract_version is not None:
+        contract_version = _as_str(raw_contract_version, "raw_meta.volume.value.contract_version").strip() or None
+
+    baseline_priority_order = None
+    raw_baseline_priority_order = raw_volume_value.get("baseline_priority_order")
+    if raw_baseline_priority_order is not None:
+        baseline_items = _as_list(raw_baseline_priority_order, "raw_meta.volume.value.baseline_priority_order")
+        normalized_baseline_items = [
+            _as_str(item, f"raw_meta.volume.value.baseline_priority_order[{idx}]").strip()
+            for idx, item in enumerate(baseline_items)
+        ]
+        non_empty_baseline_items = tuple(item for item in normalized_baseline_items if item)
+        baseline_priority_order = non_empty_baseline_items or None
+
+    model_source = None
+    raw_model_source = raw_volume_value.get("model_source")
+    if raw_model_source is not None:
+        model_source = _as_str(raw_model_source, "raw_meta.volume.value.model_source").strip() or None
+
+    selected_baseline = None
+    raw_selected_baseline = raw_volume_value.get("selected_baseline")
+    if raw_selected_baseline is not None:
+        selected_baseline = _as_str(raw_selected_baseline, "raw_meta.volume.value.selected_baseline").strip() or None
+
+    peer_median_rollout = None
+    raw_peer_median_rollout = raw_volume_value.get("peer_median_rollout")
+    if raw_peer_median_rollout is not None:
+        peer_median_rollout = _as_str(raw_peer_median_rollout, "raw_meta.volume.value.peer_median_rollout").strip() or None
+
+    peer_scope = None
+    raw_peer_scope = raw_volume_value.get("peer_scope")
+    if raw_peer_scope is not None:
+        peer_scope = _as_str(raw_peer_scope, "raw_meta.volume.value.peer_scope").strip() or None
+
+    peer_count = None
+    raw_peer_count = raw_volume_value.get("peer_count")
+    if raw_peer_count is not None:
+        peer_count = _as_int(raw_peer_count, "raw_meta.volume.value.peer_count")
+
     volume = TimedVolumeInfo(
-        value=VolumeInfo(regime=regime, thin_fraction=thin_fraction),
+        value=VolumeInfo(
+            regime=regime,
+            thin_fraction=thin_fraction,
+            contract_version=contract_version,
+            baseline_priority_order=baseline_priority_order,
+            model_source=model_source,
+            selected_baseline=selected_baseline,
+            peer_median_rollout=peer_median_rollout,
+            peer_scope=peer_scope,
+            peer_count=peer_count,
+        ),
         asof_ts=_as_float(_require(raw_volume, "asof_ts", "raw_meta.volume"), "raw_meta.volume.asof_ts"),
         stale=(
             _as_bool(_require(raw_volume, "stale", "raw_meta.volume"), "raw_meta.volume.stale")

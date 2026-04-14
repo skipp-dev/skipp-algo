@@ -49,6 +49,8 @@ jobs:
             --cov=streamlit_terminal_config \
             --cov=streamlit_terminal_pure \
             --cov=streamlit_terminal_runtime \
+            --cov=terminal_export \
+            --cov=terminal_notifications \
             --cov=terminal_tabs \
             --cov=terminal_ui_helpers \
             --cov-report=term-missing:skip-covered \
@@ -57,6 +59,8 @@ jobs:
             tests/test_streamlit_terminal_config.py \
             tests/test_streamlit_terminal_runtime.py \
             tests/test_streamlit_terminal_alerts.py \
+            tests/test_terminal_notifications.py \
+            tests/test_terminal_export_dispatch.py \
             tests/test_streamlit_terminal_feed_state.py \
             tests/test_streamlit_terminal_pure_functions.py \
             | tee artifacts/ci/terminal_coverage.txt

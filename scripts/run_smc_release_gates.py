@@ -732,6 +732,7 @@ def main() -> int:
         gates.append(_run_publish_contract_gate(args))
 
     post_release_validation_report = getattr(args, "post_release_validation_report", None)
+    release_phase = "post_publish" if post_release_validation_report else "pre_publish"
     if post_release_validation_report:
         gates.append(_run_post_release_validation_gate(str(post_release_validation_report)))
 
@@ -753,6 +754,7 @@ def main() -> int:
 
     report = {
         "report_kind": "release_gates",
+        "release_phase": release_phase,
         "checked_at": checked_at,
         "checked_at_iso": _iso_utc(checked_at),
         "overall_status": overall_status,

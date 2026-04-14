@@ -84,6 +84,15 @@ def test_refresh_workflow_passes_post_release_report_to_release_gates() -> None:
     assert workflow_text.index('- name: Normalize TradingView post-release validation') < workflow_text.index('- name: Run strict release gates')
 
 
+def test_refresh_workflow_separates_pre_and_post_release_gate_reports() -> None:
+    workflow_text = _read(WORKFLOW_PATH)
+
+    assert '--output artifacts/ci/smc_pre_release_gates_report.json' in workflow_text
+    assert '--output artifacts/ci/smc_post_release_gates_report.json' in workflow_text
+    assert 'Path("artifacts/ci/smc_post_release_gates_report.json")' in workflow_text
+    assert 'Path("artifacts/ci/smc_pre_release_gates_report.json")' in workflow_text
+
+
 def test_refresh_workflow_uploads_ci_report_after_post_release() -> None:
     workflow_text = _read(WORKFLOW_PATH)
 

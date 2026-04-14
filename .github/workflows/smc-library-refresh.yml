@@ -271,7 +271,7 @@ jobs:
         run: |
           python scripts/run_smc_release_gates.py \
             --strict-measurement-shadow \
-            --output artifacts/ci/smc_release_gates_report.json
+            --output artifacts/ci/smc_pre_release_gates_report.json
 
       # ── Dated snapshot archival ─────────────────────────────────
       - name: Archive dated library snapshot
@@ -395,7 +395,7 @@ jobs:
           python scripts/run_smc_release_gates.py \
             --strict-measurement-shadow \
             --post-release-validation-report artifacts/ci/smc_post_release_validation_report.json \
-            --output artifacts/ci/smc_release_gates_report.json
+            --output artifacts/ci/smc_post_release_gates_report.json
 
       - name: Refresh gate evidence summary after post-release validation
         if: always()
@@ -412,14 +412,25 @@ jobs:
           import os
           from pathlib import Path
 
-          report_path = Path("artifacts/ci/smc_release_gates_report.json")
           alerts: list[dict] = []
           warnings: list[dict] = []
-          if report_path.exists():
+          report = {}
+          for report_path in (
+            Path("artifacts/ci/smc_post_release_gates_report.json"),
+            Path("artifacts/ci/smc_pre_release_gates_report.json"),
+            Path("artifacts/ci/smc_release_gates_report.json"),
+          ):
+            if not report_path.exists():
+              continue
             try:
-              report = json.loads(report_path.read_text(encoding="utf-8"))
+              loaded = json.loads(report_path.read_text(encoding="utf-8"))
             except Exception:
-              report = {}
+              continue
+            if isinstance(loaded, dict):
+              report = loaded
+              break
+
+          if report:
             for gate in report.get("gates", []):
               if isinstance(gate, dict) and gate.get("name") == "provider_health":
                 details = gate.get("details", {})

@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from smc_adapters import build_meta_from_raw
 from smc_integration.sources import benzinga_watchlist_json, databento_watchlist_csv, fmp_watchlist_json, tradingview_watchlist_json
 
 
@@ -321,6 +322,35 @@ def test_databento_volume_meta_exposes_contractually_supported_traceability_fiel
     assert "smc_integration:volume_regime_contract_version=1" in meta["provenance"]
     assert "smc_integration:volume_regime_model_source=daily_bar_rvol_peer_median" in meta["provenance"]
     assert "smc_integration:volume_regime_selected_baseline=peer_median_same_trade_date" in meta["provenance"]
+
+
+def test_databento_volume_contract_survives_adapter_ingest(monkeypatch, tmp_path: Path) -> None:
+    source_path = tmp_path / "databento_watchlist.csv"
+    _write_watchlist_csv(
+        source_path,
+        [
+            {"symbol": "AAPL", "trade_date": "2026-03-01", "watchlist_rank": 1, "day_volume": 900000},
+            {"symbol": "MSFT", "trade_date": "2026-03-01", "watchlist_rank": 2, "day_volume": 1200000},
+            {"symbol": "NVDA", "trade_date": "2026-03-01", "watchlist_rank": 3, "day_volume": 1500000},
+        ],
+    )
+    monkeypatch.setattr(databento_watchlist_csv, "WATCHLIST_CSV", source_path)
+
+    raw_meta = databento_watchlist_csv.load_raw_meta_input("AAPL", "15m")
+    meta = build_meta_from_raw(raw_meta)
+
+    assert meta.volume.value.contract_version == "1"
+    assert meta.volume.value.baseline_priority_order == (
+        "rvol",
+        "explicit_average_volume",
+        "peer_median_same_trade_date",
+        "premarket_liquidity",
+    )
+    assert meta.volume.value.model_source == "daily_bar_rvol_peer_median"
+    assert meta.volume.value.selected_baseline == "peer_median_same_trade_date"
+    assert meta.volume.value.peer_median_rollout == "always_on"
+    assert meta.volume.value.peer_scope == "same_trade_date_excluding_symbol"
+    assert meta.volume.value.peer_count == 2
 
 
 def test_fmp_source_loads_meta_and_structure(monkeypatch, tmp_path: Path) -> None:
