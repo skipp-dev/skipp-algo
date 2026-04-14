@@ -4,12 +4,99 @@
     "fmp_stock": 0.0,
     "fmp_press": 0.0,
     "fmp_articles": 0.0,
-    "newsapi_ai": 1776133051.0,
+    "newsapi_ai": 1776150600.0,
     "tv": 0.0,
-    "legacy_cursor": 1776133051.0
+    "legacy_cursor": 1776150600.0
   },
   "provider_state": {},
   "story_state": {
+    "d1598ee485753531c0229c788e47e842abc35400:5920477": {
+      "story_key": "d1598ee485753531c0229c788e47e842abc35400:5920477",
+      "cluster_hash": "d1598ee485753531c0229c788e47e842abc35400",
+      "headline": "Microsoft (MSFT) Stock Is Up, What You Need To Know",
+      "tickers": [
+        "MSFT"
+      ],
+      "published_ts": 1776143281.0,
+      "first_seen_ts": 1776154103.2378228,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Yahoo! Finance"
+      ],
+      "url": "https://ca.finance.yahoo.com/news/microsoft-msft-stock-know-050801979.html",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776154103.2378228
+    },
+    "7f0096c27e462b0a04fdca2abc92c71cf41bea8f:5920502": {
+      "story_key": "7f0096c27e462b0a04fdca2abc92c71cf41bea8f:5920502",
+      "cluster_hash": "7f0096c27e462b0a04fdca2abc92c71cf41bea8f",
+      "headline": "Meta Strikes Back (META)",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1776150600.0,
+      "first_seen_ts": 1776154103.2378228,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Seeking Alpha"
+      ],
+      "url": "https://seekingalpha.com/article/4890427-meta-strikes-back",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776154103.2378228
+    },
+    "6ee4c96374bcf2b712aa8907cd4f51f227e3d168:5920491": {
+      "story_key": "6ee4c96374bcf2b712aa8907cd4f51f227e3d168:5920491",
+      "cluster_hash": "6ee4c96374bcf2b712aa8907cd4f51f227e3d168",
+      "headline": "Meta Platforms (META) to Create an 'AI Mark Zuckerberg' for Employee Interactions",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1776147314.0,
+      "first_seen_ts": 1776154103.2378228,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Markets Insider"
+      ],
+      "url": "https://markets.businessinsider.com/news/stocks/meta-platforms-meta-to-create-an-ai-mark-zuckerberg-for-employee-interactions-1036018581",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776154103.2378228
+    },
     "9b1b2a82892c9b3de4983c52fbb09020230f6503:5920443": {
       "story_key": "9b1b2a82892c9b3de4983c52fbb09020230f6503:5920443",
       "cluster_hash": "9b1b2a82892c9b3de4983c52fbb09020230f6503",
