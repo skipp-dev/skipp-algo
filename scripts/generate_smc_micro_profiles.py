@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 from dataclasses import dataclass
+from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any, cast
 
@@ -10,6 +12,8 @@ import pandas as pd
 
 from smc_core.schema_version import SCHEMA_VERSION, VersionChangeType, classify_version_change
 from scripts.smc_enrichment_types import EnrichmentDict
+
+logger = logging.getLogger(__name__)
 
 
 LISTS = [
@@ -629,6 +633,29 @@ def write_pine_library(
     snapshot: pd.DataFrame | None = None,
 ) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
+
+    # ── Sunset warning for deprecated compatibility fields ──────
+    from scripts.smc_bus_manifest import DEPRECATED_FIELD_POLICY
+    sunset_str = DEPRECATED_FIELD_POLICY.get("sunset_date", "")
+    if sunset_str:
+        try:
+            sunset = date.fromisoformat(sunset_str)
+            today = datetime.now(timezone.utc).date()
+            days_left = (sunset - today).days
+            if days_left <= 0:
+                logger.warning(
+                    "Deprecated compatibility fields past sunset (%s). "
+                    "Remove deprecated groups from library export.",
+                    sunset_str,
+                )
+            elif days_left <= 7:
+                logger.warning(
+                    "Deprecated compatibility fields sunset in %d day(s) (%s).",
+                    days_left, sunset_str,
+                )
+        except ValueError:
+            pass
+
     from scripts.smc_v55_lean_normalization import normalize_v55_lean_enrichment
 
     enr = normalize_v55_lean_enrichment(enrichment, snapshot=snapshot) or {}

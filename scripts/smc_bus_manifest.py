@@ -80,6 +80,8 @@ DEPRECATED_FIELD_POLICY: dict[str, Any] = {
     'mode': 'compatibility_only',
     'preferredFieldVersion': 'v5.5b',
     'extensionAllowed': False,
+    'sunset_date': '2026-05-14',
+    'sunset_action': 'remove_from_export',
     'deprecatedGroups': [
         'event_risk_v5',
         'zone_intelligence_v5_1',
