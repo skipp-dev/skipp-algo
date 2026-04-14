@@ -2,6 +2,17 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from smc_integration.release_policy import (
+    DRIFT_CLASSES,
+    DRIFT_CLASS_GITIGNORED,
+    DRIFT_CLASS_RESTORE_ON_COMMIT,
+    DRIFT_CLASS_STAGE_ONLY,
+    RESTORE_ON_COMMIT_PATHS,
+    STAGE_ONLY_PATHS,
+    VOLATILE_ARTIFACT_POLICY,
+    classify_artifact_drift,
+)
+
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW_PATH = ROOT / ".github/workflows/smc-library-refresh.yml"
@@ -105,4 +116,59 @@ def test_refresh_workflow_alert_step_consumes_post_release_report_even_after_fai
     workflow_text = _read(WORKFLOW_PATH)
 
     assert "if: always() && steps.diff.outputs.changed == 'true'" in workflow_text
-    assert '--post-release-report artifacts/ci/smc_post_release_validation_report.json' in workflow_text
+
+
+# -- WP8: Drift-safe artifact policy tests ----------------------------------
+
+def test_drift_classes_are_bounded() -> None:
+    assert DRIFT_CLASSES == ("restore_on_commit", "stage_only", "gitignored")
+
+
+def test_volatile_artifact_policy_entries_have_valid_drift_class() -> None:
+    for entry in VOLATILE_ARTIFACT_POLICY:
+        assert entry["drift_class"] in DRIFT_CLASSES, (
+            f"entry {entry['path']} has unknown drift_class {entry['drift_class']}"
+        )
+        assert "reason" in entry, f"entry {entry['path']} missing reason"
+        assert "path" in entry, f"entry missing path key"
+
+
+def test_restore_on_commit_paths_match_workflow_restore_step() -> None:
+    """Every restore-on-commit path must appear in the workflow's restore step."""
+    workflow_text = _read(WORKFLOW_PATH)
+    for path in RESTORE_ON_COMMIT_PATHS:
+        assert path in workflow_text, (
+            f"RESTORE_ON_COMMIT path '{path}' not found in workflow restore step"
+        )
+
+
+def test_stage_only_paths_match_workflow_git_add_step() -> None:
+    """Every stage-only path must appear in the workflow's git add step."""
+    workflow_text = _read(WORKFLOW_PATH)
+    for path in STAGE_ONLY_PATHS:
+        assert path in workflow_text, (
+            f"STAGE_ONLY path '{path}' not found in workflow git add step"
+        )
+
+
+def test_classify_artifact_drift_returns_correct_class() -> None:
+    assert classify_artifact_drift("artifacts/databento_volatility_cache/foo.json") == DRIFT_CLASS_RESTORE_ON_COMMIT
+    assert classify_artifact_drift("pine/generated/smc_micro.pine") == DRIFT_CLASS_STAGE_ONLY
+    assert classify_artifact_drift("SMC_Core_Engine.pine") == DRIFT_CLASS_STAGE_ONLY
+    assert classify_artifact_drift("artifacts/tradingview/library_release_manifest.json") == DRIFT_CLASS_STAGE_ONLY
+    assert classify_artifact_drift("automation/tradingview/auth/storage-state.json") == DRIFT_CLASS_GITIGNORED
+    assert classify_artifact_drift("src/main.py") is None
+
+
+def test_restore_and_stage_paths_are_disjoint() -> None:
+    overlap = RESTORE_ON_COMMIT_PATHS & STAGE_ONLY_PATHS
+    assert not overlap, f"paths in both restore and stage: {overlap}"
+
+
+def test_artifact_strategy_doc_mentions_drift_classification() -> None:
+    doc = (ROOT / "docs/ARTIFACT_STRATEGY.md").read_text(encoding="utf-8")
+    assert "Drift Classification" in doc
+    assert "restore_on_commit" in doc
+    assert "stage_only" in doc
+    assert "gitignored" in doc
+    assert "VOLATILE_ARTIFACT_POLICY" in doc

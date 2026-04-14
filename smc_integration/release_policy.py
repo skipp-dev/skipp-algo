@@ -67,6 +67,104 @@ HARD_BLOCKING_DEGRADATION_CODES: frozenset[str] = frozenset({
     "MEASUREMENT_EVENT_COVERAGE_LOW",
 })
 
+# ---------------------------------------------------------------------------
+# Drift-safe artifact policy — explicit classification of volatile artifacts.
+# ---------------------------------------------------------------------------
+# Drift class determines how an artifact's runtime churn is handled before
+# commit/push to avoid false CI failures and noisy diffs.
+#
+#   restore_on_commit: git-restore before commit — runtime churn must not leak
+#                      into the refresh commit.
+#   stage_only:        explicitly staged via ``git add`` — intentional content
+#                      changes are committed.
+#   gitignored:        never tracked; .gitignore is the sole gate.
+
+DRIFT_CLASS_RESTORE_ON_COMMIT = "restore_on_commit"
+DRIFT_CLASS_STAGE_ONLY = "stage_only"
+DRIFT_CLASS_GITIGNORED = "gitignored"
+DRIFT_CLASSES: tuple[str, ...] = (
+    DRIFT_CLASS_RESTORE_ON_COMMIT,
+    DRIFT_CLASS_STAGE_ONLY,
+    DRIFT_CLASS_GITIGNORED,
+)
+
+# Each entry maps a path (relative to repo root) to its drift class and a
+# short reason why that classification was chosen.
+
+VOLATILE_ARTIFACT_POLICY: tuple[dict[str, str], ...] = (
+    {
+        "path": "artifacts/databento_volatility_cache/",
+        "drift_class": DRIFT_CLASS_RESTORE_ON_COMMIT,
+        "reason": "runtime cache rebuilt on every scan — never relevant to library output",
+    },
+    {
+        "path": "artifacts/smc_microstructure_exports/smc_live_news_snapshot.json",
+        "drift_class": DRIFT_CLASS_RESTORE_ON_COMMIT,
+        "reason": "live-news snapshot refreshes every poller cycle — ephemeral runtime state",
+    },
+    {
+        "path": "artifacts/smc_microstructure_exports/smc_live_news_state.json",
+        "drift_class": DRIFT_CLASS_RESTORE_ON_COMMIT,
+        "reason": "live-news state tracks seen-IDs — ephemeral runtime state",
+    },
+    {
+        "path": "pine/generated/",
+        "drift_class": DRIFT_CLASS_STAGE_ONLY,
+        "reason": "generated Pine library — intentional output of the refresh pipeline",
+    },
+    {
+        "path": "SMC_Core_Engine.pine",
+        "drift_class": DRIFT_CLASS_STAGE_ONLY,
+        "reason": "published Pine script — intentional output of the refresh pipeline",
+    },
+    {
+        "path": "artifacts/tradingview/library_release_manifest.json",
+        "drift_class": DRIFT_CLASS_STAGE_ONLY,
+        "reason": "release manifest — tracks published library version and metadata",
+    },
+    {
+        "path": "artifacts/databento_volatility_cache/",
+        "drift_class": DRIFT_CLASS_GITIGNORED,
+        "reason": "also gitignored as belt-and-suspenders for local dev",
+    },
+    {
+        "path": "automation/tradingview/auth/storage-state.json",
+        "drift_class": DRIFT_CLASS_GITIGNORED,
+        "reason": "Playwright auth state — secret, ephemeral",
+    },
+    {
+        "path": "automation/tradingview/reports/screenshots/",
+        "drift_class": DRIFT_CLASS_GITIGNORED,
+        "reason": "screenshots generated during post-release validation",
+    },
+    {
+        "path": "automation/tradingview/reports/*.json",
+        "drift_class": DRIFT_CLASS_GITIGNORED,
+        "reason": "post-release validation reports — ephemeral CI artifacts",
+    },
+)
+
+# Convenience views derived from the policy.
+RESTORE_ON_COMMIT_PATHS: frozenset[str] = frozenset(
+    entry["path"]
+    for entry in VOLATILE_ARTIFACT_POLICY
+    if entry["drift_class"] == DRIFT_CLASS_RESTORE_ON_COMMIT
+)
+STAGE_ONLY_PATHS: frozenset[str] = frozenset(
+    entry["path"]
+    for entry in VOLATILE_ARTIFACT_POLICY
+    if entry["drift_class"] == DRIFT_CLASS_STAGE_ONLY
+)
+
+
+def classify_artifact_drift(path: str) -> str | None:
+    """Return the drift class for a path, or None if not a known volatile artifact."""
+    for entry in VOLATILE_ARTIFACT_POLICY:
+        entry_path = entry["path"]
+        if path == entry_path or path.startswith(entry_path.rstrip("*")):
+            return entry["drift_class"]
+    return None
+
 
 @dataclass(slots=True, frozen=True)
 class MeasurementShadowThresholds:

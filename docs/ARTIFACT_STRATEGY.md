@@ -70,3 +70,19 @@ plausible values across all lean blocks.
 3. **No third class**: Two artifact classes are sufficient. Don't add more without strong justification
 4. **Test coverage**: Both classes have dedicated tests — drift tests for seed, contract tests for showcase
 5. **Showcase artifact lane**: `scripts/generate_showcase_summary.py` re-derives adapter-verifiable blocks (event_risk_light, signal_quality) from the showcase fixture and outputs `tests/fixtures/showcase_adapter_summary.json`. This provides a generated record of what the adapters produce for the showcase scenario.
+
+## Drift Classification — 2026-04-14
+
+Volatile artifacts are classified by their **drift class** to prevent runtime
+churn from leaking into commits or blocking CI:
+
+| Drift Class | Meaning | Git Handling |
+| ----------- | ------- | ------------ |
+| `restore_on_commit` | Ephemeral runtime state — git-restored before every refresh commit | `git restore --source=HEAD` |
+| `stage_only` | Intentional pipeline output — explicitly `git add`-ed | `git add <path>` |
+| `gitignored` | Never tracked — .gitignore is the sole gate | N/A |
+
+The canonical policy is defined in `smc_integration/release_policy.py`
+(`VOLATILE_ARTIFACT_POLICY`). The refresh workflow's restore-before-commit step
+must stay consistent with `RESTORE_ON_COMMIT_PATHS`, and the `git add` step
+must match `STAGE_ONLY_PATHS`.
