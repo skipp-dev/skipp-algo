@@ -261,11 +261,13 @@ def test_product_cut_payload_exports_governance_metadata() -> None:
         'label': 'BUS ZoneActive',
         'group': 'g_bus_lifecycle',
         'groupTitle': 'Lifecycle BUS',
+        'tier': 'critical',
     }
     assert dashboard_target['bindingLabelGroups'][-1] == {
         'label': 'BUS LeanPackB',
         'group': 'g_bus_lean',
         'groupTitle': 'Lean Surface',
+        'tier': 'critical',
     }
     assert strategy_target['bindingContractKey'] == 'strategyBindings'
     assert strategy_target['bindingContractName'] == 'execution wrapper BUS bindings'
@@ -275,11 +277,13 @@ def test_product_cut_payload_exports_governance_metadata() -> None:
         'label': 'BUS Armed',
         'group': 'g_bus_entry',
         'groupTitle': 'Entry States',
+        'tier': 'diagnostic',
     }
     assert strategy_target['bindingLabelGroups'][-1] == {
         'label': 'BUS Invalidation',
         'group': 'g_bus_plan',
         'groupTitle': 'Trade Plan',
+        'tier': 'diagnostic',
     }
     assert payload['deprecatedFieldPolicy'] == MANIFEST.DEPRECATED_FIELD_POLICY
     assert payload['deprecatedFieldPolicy']['mode'] == 'compatibility_only'
@@ -389,3 +393,39 @@ def test_strategy_guide_acknowledges_long_only_scope() -> None:
     doc = read_text(ROOT / 'docs' / 'TRADINGVIEW_STRATEGY_GUIDE.md')
     assert 'long-only' in doc.lower() or 'long only' in doc.lower(), \
         "Strategy guide must acknowledge long-only execution scope"
+
+# — WP-A11: Dashboard Binding Simplification tests —
+
+
+def test_dashboard_bindings_have_tier_classification() -> None:
+    """Every dashboard binding must carry a tier ('critical' or 'diagnostic')."""
+    for binding in MANIFEST.DASHBOARD_BUS_BINDINGS:
+        assert binding.tier in ('critical', 'diagnostic'), \
+            f"{binding.label}: tier must be 'critical' or 'diagnostic', got '{binding.tier}'"
+
+
+def test_critical_bindings_are_at_most_20() -> None:
+    """The critical binding set must stay at ≤20 to hit the WP-A11 onboarding target."""
+    critical = MANIFEST.DASHBOARD_CRITICAL_BINDINGS
+    assert len(critical) <= 20, f"Expected ≤20 critical bindings, got {len(critical)}"
+
+
+def test_critical_bindings_cover_hero_trust_and_plan() -> None:
+    """Critical bindings must include lifecycle, trade plan, and lean surface channels."""
+    critical_labels = {b.label for b in MANIFEST.DASHBOARD_CRITICAL_BINDINGS}
+    required = {
+        'BUS StateCode', 'BUS QualityScore', 'BUS TrendPack', 'BUS MetaPack',
+        'BUS StopLevel', 'BUS Target1', 'BUS Target2',
+        'BUS LeanPackA', 'BUS LeanPackB',
+    }
+    missing = required - critical_labels
+    assert not missing, f"Critical binding set is missing required channels: {missing}"
+
+
+def test_diagnostic_bindings_complement_critical() -> None:
+    """Critical + diagnostic bindings must equal the full set (no orphans)."""
+    critical = set(b.label for b in MANIFEST.DASHBOARD_CRITICAL_BINDINGS)
+    diagnostic = set(b.label for b in MANIFEST.DASHBOARD_DIAGNOSTIC_BINDINGS)
+    all_labels = set(b.label for b in MANIFEST.DASHBOARD_BUS_BINDINGS)
+    assert critical | diagnostic == all_labels
+    assert critical & diagnostic == set(), "No binding should be both critical and diagnostic"

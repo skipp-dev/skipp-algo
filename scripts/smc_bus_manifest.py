@@ -8,6 +8,7 @@ from typing import Any
 class BusBinding:
     label: str
     group: str
+    tier: str = 'diagnostic'  # 'critical' | 'diagnostic'
 
 
 @dataclass(frozen = True)
@@ -653,19 +654,19 @@ STRATEGY_GROUP_TITLES_BY_KEY: dict[str, str] = {
 
 
 DASHBOARD_BUS_BINDINGS: tuple[BusBinding, ...] = (
-    BusBinding('BUS ZoneActive', 'g_bus_lifecycle'),
-    BusBinding('BUS Armed', 'g_bus_lifecycle'),
-    BusBinding('BUS Confirmed', 'g_bus_lifecycle'),
-    BusBinding('BUS Ready', 'g_bus_lifecycle'),
-    BusBinding('BUS EntryBest', 'g_bus_lifecycle'),
-    BusBinding('BUS EntryStrict', 'g_bus_lifecycle'),
-    BusBinding('BUS Trigger', 'g_bus_lifecycle'),
-    BusBinding('BUS Invalidation', 'g_bus_lifecycle'),
-    BusBinding('BUS QualityScore', 'g_bus_lifecycle'),
-    BusBinding('BUS SourceKind', 'g_bus_lifecycle'),
-    BusBinding('BUS StateCode', 'g_bus_lifecycle'),
-    BusBinding('BUS TrendPack', 'g_bus_lifecycle'),
-    BusBinding('BUS MetaPack', 'g_bus_lifecycle'),
+    BusBinding('BUS ZoneActive', 'g_bus_lifecycle', 'critical'),
+    BusBinding('BUS Armed', 'g_bus_lifecycle', 'critical'),
+    BusBinding('BUS Confirmed', 'g_bus_lifecycle', 'critical'),
+    BusBinding('BUS Ready', 'g_bus_lifecycle', 'critical'),
+    BusBinding('BUS EntryBest', 'g_bus_lifecycle', 'critical'),
+    BusBinding('BUS EntryStrict', 'g_bus_lifecycle', 'critical'),
+    BusBinding('BUS Trigger', 'g_bus_lifecycle', 'critical'),
+    BusBinding('BUS Invalidation', 'g_bus_lifecycle', 'critical'),
+    BusBinding('BUS QualityScore', 'g_bus_lifecycle', 'critical'),
+    BusBinding('BUS SourceKind', 'g_bus_lifecycle', 'critical'),
+    BusBinding('BUS StateCode', 'g_bus_lifecycle', 'critical'),
+    BusBinding('BUS TrendPack', 'g_bus_lifecycle', 'critical'),
+    BusBinding('BUS MetaPack', 'g_bus_lifecycle', 'critical'),
     BusBinding('BUS SessionGateRow', 'g_bus_diag_rows'),
     BusBinding('BUS MarketGateRow', 'g_bus_diag_rows'),
     BusBinding('BUS VolaGateRow', 'g_bus_diag_rows'),
@@ -693,9 +694,9 @@ DASHBOARD_BUS_BINDINGS: tuple[BusBinding, ...] = (
     BusBinding('BUS StrictBlockerCode', 'g_bus_diag'),
     BusBinding('BUS VolExpansionState', 'g_bus_diag'),
     BusBinding('BUS DdviContextState', 'g_bus_diag'),
-    BusBinding('BUS StopLevel', 'g_bus_plan'),
-    BusBinding('BUS Target1', 'g_bus_plan'),
-    BusBinding('BUS Target2', 'g_bus_plan'),
+    BusBinding('BUS StopLevel', 'g_bus_plan', 'critical'),
+    BusBinding('BUS Target1', 'g_bus_plan', 'critical'),
+    BusBinding('BUS Target2', 'g_bus_plan', 'critical'),
     BusBinding('BUS ZoneObTop', 'g_bus_detail'),
     BusBinding('BUS ZoneObBottom', 'g_bus_detail'),
     BusBinding('BUS ZoneFvgTop', 'g_bus_detail'),
@@ -709,8 +710,8 @@ DASHBOARD_BUS_BINDINGS: tuple[BusBinding, ...] = (
     BusBinding('BUS LtfBiasHint', 'g_bus_detail'),
     BusBinding('BUS LtfVolumeDelta', 'g_bus_detail'),
     BusBinding('BUS ObjectsCountPack', 'g_bus_detail'),
-    BusBinding('BUS LeanPackA', 'g_bus_lean'),
-    BusBinding('BUS LeanPackB', 'g_bus_lean'),
+    BusBinding('BUS LeanPackA', 'g_bus_lean', 'critical'),
+    BusBinding('BUS LeanPackB', 'g_bus_lean', 'critical'),
 )
 
 STRATEGY_BUS_BINDINGS: tuple[BusBinding, ...] = (
@@ -727,6 +728,13 @@ STRATEGY_BUS_BINDINGS: tuple[BusBinding, ...] = (
 
 DASHBOARD_BUS_LABELS: tuple[str, ...] = tuple(binding.label for binding in DASHBOARD_BUS_BINDINGS)
 STRATEGY_BUS_LABELS: tuple[str, ...] = tuple(binding.label for binding in STRATEGY_BUS_BINDINGS)
+
+DASHBOARD_CRITICAL_BINDINGS: tuple[BusBinding, ...] = tuple(
+    b for b in DASHBOARD_BUS_BINDINGS if b.tier == 'critical'
+)
+DASHBOARD_DIAGNOSTIC_BINDINGS: tuple[BusBinding, ...] = tuple(
+    b for b in DASHBOARD_BUS_BINDINGS if b.tier == 'diagnostic'
+)
 
 DASHBOARD_BUS_CHANNELS: tuple[str, ...] = tuple(label.removeprefix('BUS ') for label in DASHBOARD_BUS_LABELS)
 STRATEGY_BUS_CHANNELS: tuple[str, ...] = tuple(label.removeprefix('BUS ') for label in STRATEGY_BUS_LABELS)
@@ -760,6 +768,7 @@ def _binding_label_group_payload(binding_contract_key: str) -> list[dict[str, st
             'label': binding.label,
             'group': binding.group,
             'groupTitle': group_titles[binding.group],
+            'tier': binding.tier,
         }
         for binding in bindings
     ]
