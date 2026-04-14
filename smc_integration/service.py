@@ -9,6 +9,7 @@ import pandas as pd
 from smc_adapters import (
     build_meta_from_raw,
     build_structure_from_raw,
+    build_volume_provenance_from_raw,
     snapshot_to_dashboard_payload,
     snapshot_to_pine_payload,
 )
@@ -283,6 +284,131 @@ def _build_snapshot_from_loaded_raw(
     return apply_layering(structure, meta, generated_at=generated_at)
 
 
+def _resolve_source_descriptor(*, source: str, selected: Any) -> Any:
+    if selected is not None:
+        return selected
+
+    from .repo_sources import discover_repo_sources
+
+    by_name = {item.name: item for item in discover_repo_sources()}
+    source_key = source.strip().lower()
+    if source_key not in by_name:
+        known = ", ".join(sorted(by_name))
+        raise ValueError(f"unknown source {source}; expected one of: {known}, auto")
+    return by_name[source_key]
+
+
+def _build_projection_payloads(
+    snapshot: SmcSnapshot,
+    *,
+    source_plan: dict[str, Any],
+    structure_status: dict[str, Any],
+    product_cut: dict[str, Any],
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    dashboard_payload = snapshot_to_dashboard_payload(
+        snapshot,
+        source_plan=source_plan,
+        structure_status=structure_status,
+        product_cut=product_cut,
+    )
+    pine_payload = snapshot_to_pine_payload(
+        snapshot,
+        source_plan=source_plan,
+        structure_status=structure_status,
+        product_cut=product_cut,
+    )
+    return dashboard_payload, pine_payload
+
+
+def _build_context_payloads(symbol: str, timeframe: str, snapshot: SmcSnapshot) -> dict[str, Any]:
+    bars = _load_symbol_bars_for_context(symbol, timeframe)
+    context_diagnostics = _context_diagnostics_for_bars(bars)
+    if not context_diagnostics["bars_available"]:
+        structure_qualifiers: dict[str, Any] = {}
+        session_context: dict[str, Any] = {}
+        htf_context: dict[str, Any] = {}
+    else:
+        structure_qualifiers = build_structure_qualifiers(bars, pivot_lookup=1)
+        session_context = build_session_liquidity_context(bars, tz="America/New_York")
+        htf_context = build_htf_bias_context(bars, timeframe=timeframe, htf_frames=None)
+
+    bias_verdict = merge_bias(htf_context or None, session_context or None)
+    bias_payload = _serialize_bias_verdict(bias_verdict)
+
+    vol_regime_result = compute_vol_regime(bars)
+    vol_regime_payload = _serialize_vol_regime(
+        vol_regime_result,
+        bars_available=bool(context_diagnostics["bars_available"]),
+    )
+    heuristic_quality = derive_base_signals(normalize_meta(snapshot.meta))["global_strength"]
+    ensemble_quality = build_ensemble_quality(
+        generated_at=float(snapshot.generated_at),
+        heuristic_quality=heuristic_quality,
+        bias_direction=bias_verdict.direction,
+        bias_confidence=bias_verdict.confidence,
+        vol_regime_label=str(vol_regime_payload["label"]),
+        vol_regime_confidence=float(vol_regime_payload["confidence"]),
+    )
+
+    return {
+        "structure_qualifiers": structure_qualifiers,
+        "session_context": session_context,
+        "htf_context": htf_context,
+        "context_diagnostics": context_diagnostics,
+        "bias_verdict": bias_payload,
+        "vol_regime": vol_regime_payload,
+        "ensemble_quality": serialize_ensemble_quality(ensemble_quality),
+    }
+
+
+def _build_measurement_refs(symbol: str, timeframe: str, measurement_summary: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "artifact_dir": f"measurement/{symbol}/{timeframe}",
+        "benchmark_artifact": f"benchmark_{symbol}_{timeframe}.json",
+        "scoring_artifact": f"scoring_{symbol}_{timeframe}.json",
+        "summary_artifact": f"measurement_summary_{symbol}_{timeframe}.json",
+        "status": measurement_summary["status"],
+    }
+
+
+def _build_market_context(*, context_payload: dict[str, Any], measurement_summary: dict[str, Any]) -> dict[str, Any]:
+    bias_payload = context_payload["bias_verdict"]
+    context_diagnostics = context_payload["context_diagnostics"]
+    vol_regime_payload = context_payload["vol_regime"]
+    return {
+        "bias_direction": bias_payload["direction"],
+        "bias_confidence": bias_payload["confidence"],
+        "bars_available": context_diagnostics["bars_available"],
+        "bar_count": context_diagnostics["bar_count"],
+        "vol_regime_label": vol_regime_payload["label"],
+        "vol_regime_confidence": vol_regime_payload["confidence"],
+        "measurement_status": measurement_summary["status"],
+        "measurement_events": measurement_summary["scoring"]["n_events"],
+        "measurement_brier_score": measurement_summary["scoring"]["brier_score"],
+        "measurement_log_score": measurement_summary["scoring"]["log_score"],
+    }
+
+
+def _build_meta_delivery_payload(raw_meta: dict[str, Any]) -> dict[str, Any]:
+    payload = {
+        "meta_domains_present": raw_meta.get("meta_domains_present", []),
+        "meta_domains_missing": raw_meta.get("meta_domains_missing", []),
+        "domain_drop_reasons": raw_meta.get("domain_drop_reasons", {}),
+        "domain_drop_providers": raw_meta.get("domain_drop_providers", {}),
+        "meta_domain_diagnostics": raw_meta.get("meta_domain_diagnostics", {}),
+        "meta_domain_drop_status": {
+            domain: raw_meta.get("meta_domain_diagnostics", {}).get(domain)
+            for domain in ("volume", "technical", "news")
+            if isinstance(raw_meta.get("meta_domain_diagnostics"), dict)
+            and raw_meta.get("meta_domain_diagnostics", {}).get(domain) is not None
+        },
+    }
+    volume_provenance = build_volume_provenance_from_raw(raw_meta)
+    if volume_provenance:
+        payload["volume_provenance"] = volume_provenance
+    return payload
+
+
 def _load_structure_input_and_context(
     symbol: str,
     timeframe: str,
@@ -399,68 +525,19 @@ def build_snapshot_bundle_for_symbol_timeframe(
             reference_time=generated_at,
         )
     snapshot = _build_snapshot_from_loaded_raw(raw_structure, raw_meta, generated_at=generated_at)
-    dashboard_payload = snapshot_to_dashboard_payload(
-        snapshot,
-        source_plan=composite,
-        structure_status=structure_status,
-        product_cut=product_cut,
-    )
-    pine_payload = snapshot_to_pine_payload(
+    dashboard_payload, pine_payload = _build_projection_payloads(
         snapshot,
         source_plan=composite,
         structure_status=structure_status,
         product_cut=product_cut,
     )
 
-    source_descriptor = selected if selected is not None else None
-    if source_descriptor is None:
-        from .repo_sources import discover_repo_sources
-
-        by_name = {item.name: item for item in discover_repo_sources()}
-        source_key = source.strip().lower()
-        if source_key not in by_name:
-            known = ", ".join(sorted(by_name))
-            raise ValueError(f"unknown source {source}; expected one of: {known}, auto")
-        source_descriptor = by_name[source_key]
-
-    bars = _load_symbol_bars_for_context(symbol, timeframe)
-    context_diagnostics = _context_diagnostics_for_bars(bars)
-    if not context_diagnostics["bars_available"]:
-        structure_qualifiers: dict[str, Any] = {}
-        session_context: dict[str, Any] = {}
-        htf_context: dict[str, Any] = {}
-    else:
-        structure_qualifiers = build_structure_qualifiers(bars, pivot_lookup=1)
-        session_context = build_session_liquidity_context(bars, tz="America/New_York")
-        htf_context = build_htf_bias_context(bars, timeframe=timeframe, htf_frames=None)
-
-    bias_verdict = merge_bias(htf_context or None, session_context or None)
-
-    vol_regime_result = compute_vol_regime(bars)
-    vol_regime_payload = _serialize_vol_regime(
-        vol_regime_result,
-        bars_available=bool(context_diagnostics["bars_available"]),
-    )
-    heuristic_quality = derive_base_signals(normalize_meta(snapshot.meta))["global_strength"]
-    ensemble_quality = build_ensemble_quality(
-        generated_at=float(snapshot.generated_at),
-        heuristic_quality=heuristic_quality,
-        bias_direction=bias_verdict.direction,
-        bias_confidence=bias_verdict.confidence,
-        vol_regime_label=str(vol_regime_payload["label"]),
-        vol_regime_confidence=float(vol_regime_payload["confidence"]),
-    )
+    source_descriptor = _resolve_source_descriptor(source=source, selected=selected)
+    context_payload = _build_context_payloads(symbol, timeframe, snapshot)
 
     structure_context = normalized_structure_context
-    bias_payload = _serialize_bias_verdict(bias_verdict)
     measurement_summary = _build_measurement_summary(symbol, timeframe)
-    measurement_refs = {
-        "artifact_dir": f"measurement/{symbol}/{timeframe}",
-        "benchmark_artifact": f"benchmark_{symbol}_{timeframe}.json",
-        "scoring_artifact": f"scoring_{symbol}_{timeframe}.json",
-        "summary_artifact": f"measurement_summary_{symbol}_{timeframe}.json",
-        "status": measurement_summary["status"],
-    }
+    measurement_refs = _build_measurement_refs(symbol, timeframe, measurement_summary)
 
     out = {
         "source_plan": composite,
@@ -470,38 +547,14 @@ def build_snapshot_bundle_for_symbol_timeframe(
         "snapshot": snapshot_to_dict(snapshot, product_cut=product_cut),
         "dashboard_payload": dashboard_payload,
         "pine_payload": pine_payload,
-        "structure_qualifiers": structure_qualifiers,
-        "session_context": session_context,
-        "htf_context": htf_context,
-        "context_diagnostics": context_diagnostics,
-        "bias_verdict": bias_payload,
-        "vol_regime": vol_regime_payload,
-        "ensemble_quality": serialize_ensemble_quality(ensemble_quality),
+        **context_payload,
         "measurement_refs": measurement_refs,
         "measurement_summary": measurement_summary,
-        "market_context": {
-            "bias_direction": bias_payload["direction"],
-            "bias_confidence": bias_payload["confidence"],
-            "bars_available": context_diagnostics["bars_available"],
-            "bar_count": context_diagnostics["bar_count"],
-            "vol_regime_label": vol_regime_payload["label"],
-            "vol_regime_confidence": vol_regime_payload["confidence"],
-            "measurement_status": measurement_summary["status"],
-            "measurement_events": measurement_summary["scoring"]["n_events"],
-            "measurement_brier_score": measurement_summary["scoring"]["brier_score"],
-            "measurement_log_score": measurement_summary["scoring"]["log_score"],
-        },
-        "meta_domains_present": raw_meta.get("meta_domains_present", []),
-        "meta_domains_missing": raw_meta.get("meta_domains_missing", []),
-        "domain_drop_reasons": raw_meta.get("domain_drop_reasons", {}),
-        "domain_drop_providers": raw_meta.get("domain_drop_providers", {}),
-        "meta_domain_diagnostics": raw_meta.get("meta_domain_diagnostics", {}),
-        "meta_domain_drop_status": {
-            domain: raw_meta.get("meta_domain_diagnostics", {}).get(domain)
-            for domain in ("volume", "technical", "news")
-            if isinstance(raw_meta.get("meta_domain_diagnostics"), dict)
-            and raw_meta.get("meta_domain_diagnostics", {}).get(domain) is not None
-        },
+        "market_context": _build_market_context(
+            context_payload=context_payload,
+            measurement_summary=measurement_summary,
+        ),
+        **_build_meta_delivery_payload(raw_meta),
     }
     if structure_context is not None:
         out["structure_context"] = structure_context

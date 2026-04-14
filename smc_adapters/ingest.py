@@ -77,6 +77,137 @@ def _as_list(value: Any, context: str) -> list[Any]:
     raise ValueError(f"{context} must be a list")
 
 
+def _coerce_optional_str(value: Any) -> str | None:
+    if not isinstance(value, str):
+        return None
+    normalized = value.strip()
+    return normalized or None
+
+
+def _coerce_optional_int(value: Any) -> int | None:
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _coerce_optional_float(value: Any) -> float | None:
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _coerce_optional_string_list(value: Any) -> list[str] | None:
+    if not isinstance(value, Sequence) or isinstance(value, (str, bytes, bytearray)):
+        return None
+    items = [item.strip() for item in value if isinstance(item, str) and item.strip()]
+    return items or None
+
+
+def _build_volume_provenance_from_raw_volume_value(raw_volume_value: Mapping[str, Any]) -> dict[str, Any]:
+    volume_provenance: dict[str, Any] = {}
+
+    contract_version = _coerce_optional_str(raw_volume_value.get("contract_version"))
+    if contract_version is not None:
+        volume_provenance["contract_version"] = contract_version
+
+    baseline_priority_order = _coerce_optional_string_list(raw_volume_value.get("baseline_priority_order"))
+    if baseline_priority_order is not None:
+        volume_provenance["baseline_priority_order"] = baseline_priority_order
+
+    model_source = _coerce_optional_str(raw_volume_value.get("model_source"))
+    if model_source is not None:
+        volume_provenance["model_source"] = model_source
+
+    selected_baseline = _coerce_optional_str(raw_volume_value.get("selected_baseline"))
+    if selected_baseline is not None:
+        volume_provenance["selected_baseline"] = selected_baseline
+
+    peer_median_rollout = _coerce_optional_str(raw_volume_value.get("peer_median_rollout"))
+    if peer_median_rollout is not None:
+        volume_provenance["peer_median_rollout"] = peer_median_rollout
+
+    peer_scope = _coerce_optional_str(raw_volume_value.get("peer_scope"))
+    if peer_scope is not None:
+        volume_provenance["peer_scope"] = peer_scope
+
+    peer_count = _coerce_optional_int(raw_volume_value.get("peer_count"))
+    if peer_count is not None:
+        volume_provenance["peer_count"] = peer_count
+
+    source = _coerce_optional_str(raw_volume_value.get("source"))
+    if source is not None:
+        volume_provenance["source"] = source
+
+    rvol = _coerce_optional_float(raw_volume_value.get("rvol"))
+    if rvol is not None:
+        volume_provenance["rvol"] = rvol
+
+    rvol_field = _coerce_optional_str(raw_volume_value.get("rvol_field"))
+    if rvol_field is not None:
+        volume_provenance["rvol_field"] = rvol_field
+
+    daily_volume_field = _coerce_optional_str(raw_volume_value.get("daily_volume_field"))
+    if daily_volume_field is not None:
+        volume_provenance["daily_volume_field"] = daily_volume_field
+
+    daily_volume_baseline = _coerce_optional_str(raw_volume_value.get("daily_volume_baseline"))
+    if daily_volume_baseline is not None:
+        volume_provenance["daily_volume_baseline"] = daily_volume_baseline
+
+    return volume_provenance
+
+
+def _volume_provenance_entries(volume_provenance: Mapping[str, Any]) -> list[str]:
+    entries: list[str] = []
+
+    contract_version = volume_provenance.get("contract_version")
+    if isinstance(contract_version, str):
+        entries.append(f"smc_integration:volume_regime_contract_version={contract_version}")
+
+    baseline_priority_order = volume_provenance.get("baseline_priority_order")
+    if isinstance(baseline_priority_order, list) and baseline_priority_order:
+        entries.append(
+            "smc_integration:volume_regime_baseline_priority_order=" + ",".join(str(item) for item in baseline_priority_order)
+        )
+
+    model_source = volume_provenance.get("model_source")
+    if isinstance(model_source, str):
+        entries.append(f"smc_integration:volume_regime_model_source={model_source}")
+
+    selected_baseline = volume_provenance.get("selected_baseline")
+    if isinstance(selected_baseline, str):
+        entries.append(f"smc_integration:volume_regime_selected_baseline={selected_baseline}")
+
+    peer_median_rollout = volume_provenance.get("peer_median_rollout")
+    if isinstance(peer_median_rollout, str):
+        entries.append(f"smc_integration:volume_regime_peer_median_rollout={peer_median_rollout}")
+
+    peer_scope = volume_provenance.get("peer_scope")
+    if isinstance(peer_scope, str):
+        entries.append(f"smc_integration:volume_regime_peer_scope={peer_scope}")
+
+    peer_count = volume_provenance.get("peer_count")
+    if isinstance(peer_count, int):
+        entries.append(f"smc_integration:volume_regime_peer_count={peer_count}")
+
+    return entries
+
+
+def _extend_unique_strings(base: list[str], extra: Sequence[str]) -> list[str]:
+    seen = set(base)
+    for item in extra:
+        if item not in seen:
+            base.append(item)
+            seen.add(item)
+    return base
+
+
 def _validate_enum(value: str, allowed: set[str], context: str) -> str:
     if value not in allowed:
         raise ValueError(f"invalid {context}: {value}")
@@ -288,6 +419,19 @@ def _build_market_regime(raw: Any) -> MarketRegimeContext | None:
     )
 
 
+def build_volume_provenance_from_raw(raw_meta: Mapping[str, Any]) -> dict[str, Any]:
+    raw = _ensure_mapping(raw_meta, "raw_meta")
+    raw_volume = raw.get("volume")
+    if not isinstance(raw_volume, Mapping):
+        return {}
+
+    raw_volume_value = raw_volume.get("value")
+    if not isinstance(raw_volume_value, Mapping):
+        return {}
+
+    return _build_volume_provenance_from_raw_volume_value(raw_volume_value)
+
+
 def build_meta_from_raw(raw_meta: Mapping[str, Any]) -> SmcMeta:
     raw = _ensure_mapping(raw_meta, "raw_meta")
 
@@ -315,58 +459,10 @@ def build_meta_from_raw(raw_meta: Mapping[str, Any]) -> SmcMeta:
     raw_thin_fraction = _require(raw_volume_value, "thin_fraction", "raw_meta.volume.value")
     thin_fraction = 0.0 if raw_thin_fraction is None else _as_float(raw_thin_fraction, "raw_meta.volume.value.thin_fraction")
 
-    contract_version = None
-    raw_contract_version = raw_volume_value.get("contract_version")
-    if raw_contract_version is not None:
-        contract_version = _as_str(raw_contract_version, "raw_meta.volume.value.contract_version").strip() or None
-
-    baseline_priority_order = None
-    raw_baseline_priority_order = raw_volume_value.get("baseline_priority_order")
-    if raw_baseline_priority_order is not None:
-        baseline_items = _as_list(raw_baseline_priority_order, "raw_meta.volume.value.baseline_priority_order")
-        normalized_baseline_items = [
-            _as_str(item, f"raw_meta.volume.value.baseline_priority_order[{idx}]").strip()
-            for idx, item in enumerate(baseline_items)
-        ]
-        non_empty_baseline_items = tuple(item for item in normalized_baseline_items if item)
-        baseline_priority_order = non_empty_baseline_items or None
-
-    model_source = None
-    raw_model_source = raw_volume_value.get("model_source")
-    if raw_model_source is not None:
-        model_source = _as_str(raw_model_source, "raw_meta.volume.value.model_source").strip() or None
-
-    selected_baseline = None
-    raw_selected_baseline = raw_volume_value.get("selected_baseline")
-    if raw_selected_baseline is not None:
-        selected_baseline = _as_str(raw_selected_baseline, "raw_meta.volume.value.selected_baseline").strip() or None
-
-    peer_median_rollout = None
-    raw_peer_median_rollout = raw_volume_value.get("peer_median_rollout")
-    if raw_peer_median_rollout is not None:
-        peer_median_rollout = _as_str(raw_peer_median_rollout, "raw_meta.volume.value.peer_median_rollout").strip() or None
-
-    peer_scope = None
-    raw_peer_scope = raw_volume_value.get("peer_scope")
-    if raw_peer_scope is not None:
-        peer_scope = _as_str(raw_peer_scope, "raw_meta.volume.value.peer_scope").strip() or None
-
-    peer_count = None
-    raw_peer_count = raw_volume_value.get("peer_count")
-    if raw_peer_count is not None:
-        peer_count = _as_int(raw_peer_count, "raw_meta.volume.value.peer_count")
-
     volume = TimedVolumeInfo(
         value=VolumeInfo(
             regime=regime,
             thin_fraction=thin_fraction,
-            contract_version=contract_version,
-            baseline_priority_order=baseline_priority_order,
-            model_source=model_source,
-            selected_baseline=selected_baseline,
-            peer_median_rollout=peer_median_rollout,
-            peer_scope=peer_scope,
-            peer_count=peer_count,
         ),
         asof_ts=_as_float(_require(raw_volume, "asof_ts", "raw_meta.volume"), "raw_meta.volume.asof_ts"),
         stale=(
@@ -392,6 +488,8 @@ def build_meta_from_raw(raw_meta: Mapping[str, Any]) -> SmcMeta:
     provenance: list[str] = []
     for idx, item in enumerate(provenance_items):
         provenance.append(_as_str(item, f"raw_meta.provenance[{idx}]"))
+    volume_provenance = _build_volume_provenance_from_raw_volume_value(raw_volume_value)
+    _extend_unique_strings(provenance, _volume_provenance_entries(volume_provenance))
 
     return SmcMeta(
         symbol=symbol,

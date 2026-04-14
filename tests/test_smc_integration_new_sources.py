@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from smc_adapters import build_meta_from_raw
+from smc_adapters import build_meta_from_raw, build_volume_provenance_from_raw
 from smc_integration.sources import benzinga_watchlist_json, databento_watchlist_csv, fmp_watchlist_json, tradingview_watchlist_json
 
 
@@ -338,19 +338,26 @@ def test_databento_volume_contract_survives_adapter_ingest(monkeypatch, tmp_path
 
     raw_meta = databento_watchlist_csv.load_raw_meta_input("AAPL", "15m")
     meta = build_meta_from_raw(raw_meta)
+    volume_provenance = build_volume_provenance_from_raw(raw_meta)
 
-    assert meta.volume.value.contract_version == "1"
-    assert meta.volume.value.baseline_priority_order == (
+    assert not hasattr(meta.volume.value, "contract_version")
+    assert volume_provenance["contract_version"] == "1"
+    assert volume_provenance["baseline_priority_order"] == [
         "rvol",
         "explicit_average_volume",
         "peer_median_same_trade_date",
         "premarket_liquidity",
-    )
-    assert meta.volume.value.model_source == "daily_bar_rvol_peer_median"
-    assert meta.volume.value.selected_baseline == "peer_median_same_trade_date"
-    assert meta.volume.value.peer_median_rollout == "always_on"
-    assert meta.volume.value.peer_scope == "same_trade_date_excluding_symbol"
-    assert meta.volume.value.peer_count == 2
+    ]
+    assert volume_provenance["model_source"] == "daily_bar_rvol_peer_median"
+    assert volume_provenance["selected_baseline"] == "peer_median_same_trade_date"
+    assert volume_provenance["peer_median_rollout"] == "always_on"
+    assert volume_provenance["peer_scope"] == "same_trade_date_excluding_symbol"
+    assert volume_provenance["peer_count"] == 2
+    assert "smc_integration:volume_regime_contract_version=1" in meta.provenance
+    assert (
+        "smc_integration:volume_regime_baseline_priority_order="
+        "rvol,explicit_average_volume,peer_median_same_trade_date,premarket_liquidity"
+    ) in meta.provenance
 
 
 def test_fmp_source_loads_meta_and_structure(monkeypatch, tmp_path: Path) -> None:

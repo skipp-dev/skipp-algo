@@ -53,6 +53,7 @@ def test_delivery_bundle_contains_required_top_level_keys() -> None:
     bundle = build_snapshot_bundle_for_symbol_timeframe(symbol, "15m", generated_at=1709253600.0)
 
     assert set(["source_plan", "structure_status", "product_cut", "snapshot", "dashboard_payload", "pine_payload"]).issubset(bundle.keys())
+    assert "volume_provenance" in bundle
 
 
 def test_delivery_bundle_snapshot_dashboard_pine_alignment() -> None:
@@ -74,6 +75,13 @@ def test_delivery_bundle_snapshot_dashboard_pine_alignment() -> None:
     assert bundle["product_cut"]["deprecatedFieldPolicy"]["mode"] == "compatibility_only"
     assert set(bundle["product_cut"]["preflightScopes"].keys()) == {"smcCoreDashboard", "smcMainline", "smcDecisionFirst"}
     assert bundle["product_cut"]["contracts"]["lite"][0] == "BUS ZoneActive"
+    assert bundle["snapshot"]["meta"]["volume"]["value"] == {
+        "regime": bundle["snapshot"]["meta"]["volume"]["value"]["regime"],
+        "thin_fraction": bundle["snapshot"]["meta"]["volume"]["value"]["thin_fraction"],
+    }
+    assert bundle["volume_provenance"]["contract_version"] == "1"
+    assert bundle["volume_provenance"]["selected_baseline"]
+    assert bundle["volume_provenance"]["model_source"]
 
 
 def test_delivery_bundle_is_schema_valid() -> None:

@@ -110,7 +110,8 @@ Delivery contracts are now explicit at consumer boundary level:
 1. dashboard payloads carry `source_plan`, `structure_status`, and `structure_coverage`
 2. pine payloads carry the same coverage/status truth without assuming OB/FVG/sweeps are populated
 3. snapshot bundle (`source_plan`, `structure_status`, `snapshot`, `dashboard_payload`, `pine_payload`) is the canonical delivery artifact
-4. watchlist manifests aggregate per-category coverage counts (`symbols_with_bos`, `symbols_with_orderblocks`, `symbols_with_fvg`, `symbols_with_liquidity_sweeps`)
+4. provider-specific Databento volume contract metadata remains additive via `volume_provenance`; `snapshot.meta.volume.value` stays canonical (`regime`, `thin_fraction`) and must not silently absorb provider-only traceability fields
+5. watchlist manifests aggregate per-category coverage counts (`symbols_with_bos`, `symbols_with_orderblocks`, `symbols_with_fvg`, `symbols_with_liquidity_sweeps`)
 
 `snapshot.structure` remains canonical-only (`bos`, `orderblocks`, `fvg`, `liquidity_sweeps`).
 Contract and transparency metadata is additive via `structure_context`; detailed ingress

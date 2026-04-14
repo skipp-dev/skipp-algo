@@ -52,13 +52,6 @@ class DirectionalStrength:
 class VolumeInfo:
     regime: VolumeRegime
     thin_fraction: float
-    contract_version: str | None = None
-    baseline_priority_order: tuple[str, ...] | None = None
-    model_source: str | None = None
-    selected_baseline: str | None = None
-    peer_median_rollout: str | None = None
-    peer_scope: str | None = None
-    peer_count: int | None = None
 
 
 @dataclass(slots=True, frozen=True)

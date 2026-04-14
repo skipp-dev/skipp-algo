@@ -4,7 +4,7 @@ from typing import Any, cast
 
 import pytest
 
-from smc_adapters.ingest import build_meta_from_raw, build_snapshot_from_raw, build_structure_from_raw
+from smc_adapters.ingest import build_meta_from_raw, build_snapshot_from_raw, build_structure_from_raw, build_volume_provenance_from_raw
 from smc_core.types import SmcSnapshot
 
 
@@ -64,7 +64,7 @@ def test_build_meta_from_raw_builds_smcmeta() -> None:
     assert meta.technical.value.bias == "BULLISH"
 
 
-def test_build_meta_from_raw_preserves_volume_contract_fields() -> None:
+def test_build_meta_from_raw_keeps_volume_contract_fields_outside_canonical_volume_meta() -> None:
     raw = dict(RAW_META)
     raw["volume"] = {
         "value": {
@@ -88,21 +88,28 @@ def test_build_meta_from_raw_preserves_volume_contract_fields() -> None:
     }
 
     meta = build_meta_from_raw(raw)
+    volume_provenance = build_volume_provenance_from_raw(raw)
 
     assert meta.volume.value.regime == "LOW_VOLUME"
     assert meta.volume.value.thin_fraction == 0.25
-    assert meta.volume.value.contract_version == "1"
-    assert meta.volume.value.baseline_priority_order == (
+    assert not hasattr(meta.volume.value, "contract_version")
+    assert volume_provenance["contract_version"] == "1"
+    assert volume_provenance["baseline_priority_order"] == [
         "rvol",
         "explicit_average_volume",
         "peer_median_same_trade_date",
         "premarket_liquidity",
-    )
-    assert meta.volume.value.model_source == "daily_bar_rvol_peer_median"
-    assert meta.volume.value.selected_baseline == "peer_median_same_trade_date"
-    assert meta.volume.value.peer_median_rollout == "always_on"
-    assert meta.volume.value.peer_scope == "same_trade_date_excluding_symbol"
-    assert meta.volume.value.peer_count == 2
+    ]
+    assert volume_provenance["model_source"] == "daily_bar_rvol_peer_median"
+    assert volume_provenance["selected_baseline"] == "peer_median_same_trade_date"
+    assert volume_provenance["peer_median_rollout"] == "always_on"
+    assert volume_provenance["peer_scope"] == "same_trade_date_excluding_symbol"
+    assert volume_provenance["peer_count"] == 2
+    assert "smc_integration:volume_regime_contract_version=1" in meta.provenance
+    assert (
+        "smc_integration:volume_regime_baseline_priority_order="
+        "rvol,explicit_average_volume,peer_median_same_trade_date,premarket_liquidity"
+    ) in meta.provenance
 
 
 def test_build_snapshot_from_raw_returns_smcsnapshot() -> None:

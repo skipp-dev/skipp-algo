@@ -25,7 +25,22 @@ def test_bundle_contains_snapshot_projections_and_additive_contexts(monkeypatch)
         "timeframe": "15m",
         "asof_ts": 10.0,
         "volume": {
-            "value": {"regime": "NORMAL", "thin_fraction": 0.1},
+            "value": {
+                "regime": "NORMAL",
+                "thin_fraction": 0.1,
+                "contract_version": "1",
+                "baseline_priority_order": [
+                    "rvol",
+                    "explicit_average_volume",
+                    "peer_median_same_trade_date",
+                    "premarket_liquidity",
+                ],
+                "model_source": "daily_bar_rvol_peer_median",
+                "selected_baseline": "peer_median_same_trade_date",
+                "peer_median_rollout": "always_on",
+                "peer_scope": "same_trade_date_excluding_symbol",
+                "peer_count": 2,
+            },
             "asof_ts": 10.0,
             "stale": False,
         },
@@ -118,6 +133,21 @@ def test_bundle_contains_snapshot_projections_and_additive_contexts(monkeypatch)
     assert "structure_qualifiers" not in snapshot["structure"]
     assert "session_context" not in snapshot["structure"]
     assert "htf_context" not in snapshot["structure"]
+    assert snapshot["meta"]["volume"]["value"] == {"regime": "NORMAL", "thin_fraction": 0.1}
+    assert bundle["volume_provenance"] == {
+        "contract_version": "1",
+        "baseline_priority_order": [
+            "rvol",
+            "explicit_average_volume",
+            "peer_median_same_trade_date",
+            "premarket_liquidity",
+        ],
+        "model_source": "daily_bar_rvol_peer_median",
+        "selected_baseline": "peer_median_same_trade_date",
+        "peer_median_rollout": "always_on",
+        "peer_scope": "same_trade_date_excluding_symbol",
+        "peer_count": 2,
+    }
 
     assert bundle["vol_regime"] == {
         "label": "HIGH_VOL",
