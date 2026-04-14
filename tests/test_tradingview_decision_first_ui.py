@@ -197,3 +197,69 @@ def test_hero_card_call_passes_regime_data() -> None:
     assert "mp.MARKET_REGIME" in call_line
     assert "lib_regime_blocked" in call_line
     assert "lib_regime_dimmed" in call_line
+
+
+# ── WP-A7: Trust-Tier Surface Explanation ───────────────────────
+
+
+def test_trust_tier_suffix_function_exists_with_all_tiers() -> None:
+    """compose_trust_tier_suffix must produce a suffix for each trust tier (WP-A7)."""
+    source = _read("SMC_Core_Engine.pine")
+
+    func_start = source.index("compose_trust_tier_suffix(")
+    func_body = source[func_start:func_start + 800]
+
+    # Must handle all 4 tiers (Insufficient is the else branch)
+    for tier in ["High", "Guarded", "Degraded"]:
+        assert f"'{tier}'" in func_body, f"compose_trust_tier_suffix must handle tier '{tier}'"
+
+    # Insufficient is the default/else → produces 'no measurement data'
+    assert "no measurement data" in func_body
+
+    # Suffix must include score for the actionable tiers
+    assert "sq_score" in func_body
+    # Must reference provider_status for degraded explanation
+    assert "provider_status" in func_body
+
+
+def test_hero_card_trust_line_includes_suffix() -> None:
+    """compose_core_hero_text must include trust_suffix in the Trust line (WP-A7)."""
+    source = _read("SMC_Core_Engine.pine")
+
+    func_start = source.index("compose_core_hero_text(")
+    func_body = source[func_start:func_start + 800]
+
+    # Function must accept trust_suffix parameter
+    assert "trust_suffix" in func_body
+    # Trust display must incorporate the suffix
+    assert "trust_display" in func_body
+
+
+def test_hero_card_call_passes_trust_suffix() -> None:
+    """The barstate.islast call site must compute and pass the trust suffix."""
+    source = _read("SMC_Core_Engine.pine")
+
+    assert "compose_trust_tier_suffix(" in source
+    assert "core_trust_suffix" in source
+
+    # The call to compose_core_hero_text must include the suffix
+    call_idx = source.index("compose_core_hero_text(core_product_state")
+    call_line = source[call_idx:source.index("\n", call_idx)]
+    assert "core_trust_suffix" in call_line
+
+
+def test_trust_tier_suffix_respects_length_limit() -> None:
+    """All trust tier suffix strings must be ≤40 chars (WP-A7 spec)."""
+    source = _read("SMC_Core_Engine.pine")
+
+    func_start = source.index("compose_trust_tier_suffix(")
+    func_body = source[func_start:func_start + 800]
+
+    # Static suffixes (without dynamic str.tostring) must be short
+    # 'no measurement data' = 19 chars ✓
+    assert "no measurement data" in func_body
+    # 'data stale' = 10 chars ✓
+    assert "data stale" in func_body
+    # Dynamic prefixes: 'score ' + digits + suffix ≤ 40 chars
+    # 'score 100, data fresh' = 21 chars ✓
+    assert "data fresh" in func_body
