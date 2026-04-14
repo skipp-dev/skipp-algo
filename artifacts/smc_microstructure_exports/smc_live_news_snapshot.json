@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-04-14T12:01:19.501152Z",
+  "generated_at": "2026-04-14T14:08:11.511646Z",
   "symbols": [
     "AAPL",
     "MSFT",
@@ -56,12 +56,12 @@
     "newsapi_ai": {
       "ok": true,
       "error": "",
-      "raw_count": 44,
-      "new_item_count": 11,
+      "raw_count": 3,
+      "new_item_count": 0,
       "cursor": 1776167691.0,
       "last_seen_news_uri": "",
-      "provider_status": "ok",
-      "status_detail": "",
+      "provider_status": "ok_no_recent_matches",
+      "status_detail": "Event Registry reachable, but no new symbol-matching NewsAPI.ai items were newer than the current cursor.",
       "error_code": ""
     },
     "tv": {
@@ -81,7 +81,7 @@
       ],
       "published_at": "2026-04-14T11:10:28Z",
       "published_ts": 1776165028.0,
-      "age_minutes": 50.9,
+      "age_minutes": 177.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -102,13 +102,13 @@
       "impact": 0.8,
       "clarity": 0.8,
       "relevance": 0.85,
-      "news_catalyst_score": 0.594,
+      "news_catalyst_score": 0.5212,
       "materiality": "MEDIUM",
-      "recency_bucket": "WARM",
+      "recency_bucket": "AGING",
       "is_actionable": true,
       "url": "https://www.el-balad.com/16912614",
       "first_seen_at": "2026-04-14T12:01:19.501152Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -119,7 +119,7 @@
       ],
       "published_at": "2026-04-13T20:13:36Z",
       "published_ts": 1776111216.0,
-      "age_minutes": 947.7,
+      "age_minutes": 1074.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -150,82 +150,6 @@
       "provider_count": 1
     },
     {
-      "story_key": "cedb00f78d190586ad68a71cc20982d42c688cb9:5920280",
-      "headline": "Stifel cuts Meta stock price target on slower ad growth outlook By Investing.com",
-      "tickers": [
-        "META"
-      ],
-      "published_at": "2026-04-13T12:42:11Z",
-      "published_ts": 1776084131.0,
-      "age_minutes": 1399.1,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Investing.com South Africa"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "guidance",
-      "event_class": "GUIDANCE",
-      "event_label": "Stifel cuts Meta stock price target on slower ad growth outlook By Investing.com",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.88,
-      "clarity": 0.6,
-      "relevance": 0.826,
-      "news_catalyst_score": 0.4084,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://za.investing.com/news/stock-market-news/stifel-cuts-meta-stock-price-target-on-slower-ad-growth-outlook-93CH-4208690",
-      "first_seen_at": "2026-04-13T14:27:39.991472Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "741407e67fef5b822776a9ef14dbbf0979307403:5920558",
-      "headline": "Apple To Rally More Than 25%? Here Are 10 Top Analyst Forecasts For Tuesday - Apple (NASDAQ:AAPL), Alloge",
-      "tickers": [
-        "AAPL"
-      ],
-      "published_at": "2026-04-14T11:54:51Z",
-      "published_ts": 1776167691.0,
-      "age_minutes": 6.5,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Benzinga"
-      ],
-      "source_tier": "TIER_2",
-      "source_rank": 2,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Apple To Rally More Than 25%? Here Are 10 Top Analyst Forecasts For Tuesday - Apple (NASDAQ:AAPL), Alloge",
-      "sentiment_label": "bullish",
-      "polarity": 0.5,
-      "impact": 0.1,
-      "clarity": 0.8,
-      "relevance": 0.535,
-      "news_catalyst_score": 0.3988,
-      "materiality": "LOW",
-      "recency_bucket": "FRESH",
-      "is_actionable": false,
-      "url": "https://www.benzinga.com/analyst-stock-ratings/price-target/26/04/51799915/apple-to-rally-more-than-25-here-are-10-top-analyst-forecasts-for-tuesday",
-      "first_seen_at": "2026-04-14T12:01:19.501152Z",
-      "is_new": true,
-      "provider_count": 1
-    },
-    {
       "story_key": "91cd03cb353d2895dac75c0c99af57e6d10ff023:5920320",
       "headline": "Crypto's Second Chance At ETFs: Why Tokenization May Win Where Binance Failed - Apple (NASDAQ:AAPL), NVID",
       "tickers": [
@@ -233,7 +157,7 @@
       ],
       "published_at": "2026-04-13T16:01:30Z",
       "published_ts": 1776096090.0,
-      "age_minutes": 1199.8,
+      "age_minutes": 1326.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -264,44 +188,6 @@
       "provider_count": 1
     },
     {
-      "story_key": "34c75fae3c6706c158bd6bf8aae38e4f48d4902b:5920517",
-      "headline": "Philips elevates Zora to META region CEO",
-      "tickers": [
-        "META"
-      ],
-      "published_at": "2026-04-14T08:26:38Z",
-      "published_ts": 1776155198.0,
-      "age_minutes": 214.7,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "ITWeb Africa"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "management",
-      "event_class": "MANAGEMENT",
-      "event_label": "Philips elevates Zora to META region CEO",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.6,
-      "clarity": 0.6,
-      "relevance": 0.7,
-      "news_catalyst_score": 0.3841,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://itweb.africa/article/philips-elevates-zora-to-meta-region-ceo/P3gQ2qGA5Jy7nRD1",
-      "first_seen_at": "2026-04-14T12:01:19.501152Z",
-      "is_new": true,
-      "provider_count": 1
-    },
-    {
       "story_key": "9b1b2a82892c9b3de4983c52fbb09020230f6503:5920443",
       "headline": "Microsoft (MSFT) Price Target Lowered by $103 Ahead of Q3 Report",
       "tickers": [
@@ -309,7 +195,7 @@
       ],
       "published_at": "2026-04-14T02:16:46Z",
       "published_ts": 1776133006.0,
-      "age_minutes": 584.6,
+      "age_minutes": 711.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -347,7 +233,7 @@
       ],
       "published_at": "2026-04-14T02:15:59Z",
       "published_ts": 1776132959.0,
-      "age_minutes": 585.3,
+      "age_minutes": 712.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -378,14 +264,14 @@
       "provider_count": 1
     },
     {
-      "story_key": "4b05bcbc308ada81a79a3d6b26b5e6870812c2e3:5920273",
-      "headline": "Philips Appoints New Regional CEO to Drive Next Phase of Healthcare Transformation Across META Region - Middle East Business News and Information - mid-east.info",
+      "story_key": "34c75fae3c6706c158bd6bf8aae38e4f48d4902b:5920517",
+      "headline": "Philips elevates Zora to META region CEO",
       "tickers": [
         "META"
       ],
-      "published_at": "2026-04-13T12:06:43Z",
-      "published_ts": 1776082003.0,
-      "age_minutes": 1434.6,
+      "published_at": "2026-04-14T08:26:38Z",
+      "published_ts": 1776155198.0,
+      "age_minutes": 341.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -394,13 +280,13 @@
         "newsapi_ai"
       ],
       "sources": [
-        "mid-east.info"
+        "ITWeb Africa"
       ],
       "source_tier": "TIER_3",
       "source_rank": 3,
       "category": "management",
       "event_class": "MANAGEMENT",
-      "event_label": "Philips Appoints New Regional CEO to Drive Next Phase of Healthcare Transformation Across META Region - Middle East Busi",
+      "event_label": "Philips elevates Zora to META region CEO",
       "sentiment_label": "neutral",
       "polarity": 0.0,
       "impact": 0.6,
@@ -410,172 +296,20 @@
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
-      "url": "https://mid-east.info/philips-appoints-new-regional-ceo-to-drive-next-phase-of-healthcare-transformation-across-meta-region/",
-      "first_seen_at": "2026-04-13T14:27:39.991472Z",
+      "url": "https://itweb.africa/article/philips-elevates-zora-to-meta-region-ceo/P3gQ2qGA5Jy7nRD1",
+      "first_seen_at": "2026-04-14T12:01:19.501152Z",
       "is_new": false,
       "provider_count": 1
     },
     {
-      "story_key": "d839c1ecdcbc813a0f7b528298517e0c746ba6e5:5920272",
-      "headline": "AMZN Continues to Rebound as its CEO Doubles Down on $200B AI Bet",
-      "tickers": [
-        "AMZN"
-      ],
-      "published_at": "2026-04-13T12:02:00Z",
-      "published_ts": 1776081720.0,
-      "age_minutes": 1439.3,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "NASDAQ Stock Market"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "management",
-      "event_class": "MANAGEMENT",
-      "event_label": "AMZN Continues to Rebound as its CEO Doubles Down on $200B AI Bet",
-      "sentiment_label": "bullish",
-      "polarity": 0.5,
-      "impact": 0.6,
-      "clarity": 0.6,
-      "relevance": 0.7,
-      "news_catalyst_score": 0.3218,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.nasdaq.com/articles/amzn-continues-rebound-its-ceo-doubles-down-200b-ai-bet",
-      "first_seen_at": "2026-04-13T14:27:39.991472Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "6b5625ece56c9d1d833614d621e79402dce56bd2:5920535",
-      "headline": "Performance Comparison: Amazon.com And Competitors In Broadline Retail Industry - Amazon.com (NASDAQ:AMZN",
-      "tickers": [
-        "AMZN"
-      ],
-      "published_at": "2026-04-14T09:58:38Z",
-      "published_ts": 1776160718.0,
-      "age_minutes": 122.7,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Benzinga"
-      ],
-      "source_tier": "TIER_2",
-      "source_rank": 2,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Performance Comparison: Amazon.com And Competitors In Broadline Retail Industry - Amazon.com (NASDAQ:AMZN",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.2645,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.benzinga.com/insights/news/26/04/51797425/performance-comparison-amazon-com-and-competitors-in-broadline-retail-industry",
-      "first_seen_at": "2026-04-14T12:01:19.501152Z",
-      "is_new": true,
-      "provider_count": 1
-    },
-    {
-      "story_key": "8c8b56d6c13f4b83e97a46bd2a0c6c35b6bc9f3c:5920537",
-      "headline": "Amazon Nears Globalstar Deal as Goldman Cuts AMZN Stock Target to $275",
-      "tickers": [
-        "AMZN"
-      ],
-      "published_at": "2026-04-14T10:09:41Z",
-      "published_ts": 1776161381.0,
-      "age_minutes": 111.6,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Watcher Guru"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Amazon Nears Globalstar Deal as Goldman Cuts AMZN Stock Target to $275",
-      "sentiment_label": "bearish",
-      "polarity": -0.5,
-      "impact": 0.1,
-      "clarity": 0.8,
-      "relevance": 0.535,
-      "news_catalyst_score": 0.264,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://watcher.guru/news/amazon-nears-globalstar-deal-as-goldman-cuts-amzn-stock-target-to-275",
-      "first_seen_at": "2026-04-14T12:01:19.501152Z",
-      "is_new": true,
-      "provider_count": 1
-    },
-    {
-      "story_key": "fc56b27efbcbea5a69c871eeb1af5636e736e6b9:5920535",
-      "headline": "Competitor Analysis: Evaluating Microsoft And Competitors In Software Industry - Microsoft (NASDAQ:MSFT)",
-      "tickers": [
-        "MSFT"
-      ],
-      "published_at": "2026-04-14T09:59:04Z",
-      "published_ts": 1776160744.0,
-      "age_minutes": 122.3,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Benzinga"
-      ],
-      "source_tier": "TIER_2",
-      "source_rank": 2,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Competitor Analysis: Evaluating Microsoft And Competitors In Software Industry - Microsoft (NASDAQ:MSFT)",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.4554,
-      "news_catalyst_score": 0.261,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.benzinga.com/insights/news/26/04/51797442/competitor-analysis-evaluating-microsoft-and-competitors-in-software-industry",
-      "first_seen_at": "2026-04-14T12:01:19.501152Z",
-      "is_new": true,
-      "provider_count": 1
-    },
-    {
-      "story_key": "234c6fd69e5735c2dfca898a37f0ffb15aed321a:5920532",
-      "headline": "What's Going On With Apple Stock Tuesday? - Apple (NASDAQ:AAPL), Alphabet (NASDAQ:GOOGL)",
+      "story_key": "741407e67fef5b822776a9ef14dbbf0979307403:5920558",
+      "headline": "Apple To Rally More Than 25%? Here Are 10 Top Analyst Forecasts For Tuesday - Apple (NASDAQ:AAPL), Alloge",
       "tickers": [
         "AAPL"
       ],
-      "published_at": "2026-04-14T09:42:57Z",
-      "published_ts": 1776159777.0,
-      "age_minutes": 138.4,
+      "published_at": "2026-04-14T11:54:51Z",
+      "published_ts": 1776167691.0,
+      "age_minutes": 133.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -590,133 +324,19 @@
       "source_rank": 2,
       "category": "other",
       "event_class": "UNKNOWN",
-      "event_label": "What's Going On With Apple Stock Tuesday? - Apple (NASDAQ:AAPL), Alphabet (NASDAQ:GOOGL)",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.2599,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.benzinga.com/analyst-stock-ratings/analyst-color/26/04/51797325/apples-foldable-iphone-is-coming-for-everyone-samsung-motorola-google-beware",
-      "first_seen_at": "2026-04-14T12:01:19.501152Z",
-      "is_new": true,
-      "provider_count": 1
-    },
-    {
-      "story_key": "e1cd4d4f1a1078d6f674a8125a943866e9738841:5920522",
-      "headline": "'Amazon Nears Deal for Globalstar in Push to Rival Musk's Starlink' - Bloomberg - Amazon.com (NASDAQ:AMZN",
-      "tickers": [
-        "AMZN"
-      ],
-      "published_at": "2026-04-14T08:54:51Z",
-      "published_ts": 1776156891.0,
-      "age_minutes": 186.5,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Benzinga"
-      ],
-      "source_tier": "TIER_2",
-      "source_rank": 2,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "'Amazon Nears Deal for Globalstar in Push to Rival Musk's Starlink' - Bloomberg - Amazon.com (NASDAQ:AMZN",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.2448,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.benzinga.com/news/26/04/51795834/amazon-nears-deal-for-globalstar-in-push-to-rival-musks-starlink-bloomberg",
-      "first_seen_at": "2026-04-14T12:01:19.501152Z",
-      "is_new": true,
-      "provider_count": 1
-    },
-    {
-      "story_key": "8ebc37d76b79ccde2d249e1b289ec3811cf41475:5920546",
-      "headline": "J&J stock gains after Q1 beat (JNJ:NYSE)",
-      "tickers": [
-        "JNJ"
-      ],
-      "published_at": "2026-04-14T10:50:44Z",
-      "published_ts": 1776163844.0,
-      "age_minutes": 70.6,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Seeking Alpha"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "J&J stock gains after Q1 beat (JNJ:NYSE)",
+      "event_label": "Apple To Rally More Than 25%? Here Are 10 Top Analyst Forecasts For Tuesday - Apple (NASDAQ:AAPL), Alloge",
       "sentiment_label": "bullish",
       "polarity": 0.5,
       "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.2403,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "news_catalyst_score": 0.2946,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
-      "url": "https://seekingalpha.com/news/4574676-jj-stock-gains-after-q1-beat",
+      "url": "https://www.benzinga.com/analyst-stock-ratings/price-target/26/04/51799915/apple-to-rally-more-than-25-here-are-10-top-analyst-forecasts-for-tuesday",
       "first_seen_at": "2026-04-14T12:01:19.501152Z",
-      "is_new": true,
-      "provider_count": 1
-    },
-    {
-      "story_key": "879f3797367a34440f656be5656d4518924049c5:5920533",
-      "headline": "JPM flags volatility in UK internet stocks; highlights preferred picks By Investing.com",
-      "tickers": [
-        "JPM"
-      ],
-      "published_at": "2026-04-14T09:46:08Z",
-      "published_ts": 1776159968.0,
-      "age_minutes": 135.2,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Investing.com"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "JPM flags volatility in UK internet stocks; highlights preferred picks By Investing.com",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.224,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.investing.com/news/stock-market-news/jpm-flags-volatility-in-uk-internet-stocks-highlights-preferred-picks-4612067",
-      "first_seen_at": "2026-04-14T12:01:19.501152Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -727,7 +347,7 @@
       ],
       "published_at": "2026-04-13T20:05:00Z",
       "published_ts": 1776110700.0,
-      "age_minutes": 956.3,
+      "age_minutes": 1083.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -765,7 +385,7 @@
       ],
       "published_at": "2026-04-13T17:35:17Z",
       "published_ts": 1776101717.0,
-      "age_minutes": 1106.0,
+      "age_minutes": 1232.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -796,14 +416,14 @@
       "provider_count": 1
     },
     {
-      "story_key": "e95b533f50456b081796a2a78b8a0808df7b5c36:5920520",
-      "headline": "Amazon (AMZN) Nears Acquisition of Globalstar (GSAT) in Satellite Push - Blockonomi",
+      "story_key": "8c8b56d6c13f4b83e97a46bd2a0c6c35b6bc9f3c:5920537",
+      "headline": "Amazon Nears Globalstar Deal as Goldman Cuts AMZN Stock Target to $275",
       "tickers": [
         "AMZN"
       ],
-      "published_at": "2026-04-14T08:43:03Z",
-      "published_ts": 1776156183.0,
-      "age_minutes": 198.3,
+      "published_at": "2026-04-14T10:09:41Z",
+      "published_ts": 1776161381.0,
+      "age_minutes": 238.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -812,25 +432,215 @@
         "newsapi_ai"
       ],
       "sources": [
-        "Blockonomi"
+        "Watcher Guru"
       ],
       "source_tier": "TIER_3",
       "source_rank": 3,
       "category": "other",
       "event_class": "UNKNOWN",
-      "event_label": "Amazon (AMZN) Nears Acquisition of Globalstar (GSAT) in Satellite Push - Blockonomi",
+      "event_label": "Amazon Nears Globalstar Deal as Goldman Cuts AMZN Stock Target to $275",
+      "sentiment_label": "bearish",
+      "polarity": -0.5,
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "news_catalyst_score": 0.2186,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://watcher.guru/news/amazon-nears-globalstar-deal-as-goldman-cuts-amzn-stock-target-to-275",
+      "first_seen_at": "2026-04-14T12:01:19.501152Z",
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
+      "story_key": "6b5625ece56c9d1d833614d621e79402dce56bd2:5920535",
+      "headline": "Performance Comparison: Amazon.com And Competitors In Broadline Retail Industry - Amazon.com (NASDAQ:AMZN",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_at": "2026-04-14T09:58:38Z",
+      "published_ts": 1776160718.0,
+      "age_minutes": 249.6,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Performance Comparison: Amazon.com And Competitors In Broadline Retail Industry - Amazon.com (NASDAQ:AMZN",
       "sentiment_label": "neutral",
       "polarity": 0.0,
       "impact": 0.1,
       "clarity": 0.6,
       "relevance": 0.475,
-      "news_catalyst_score": 0.2057,
+      "news_catalyst_score": 0.2169,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
-      "url": "https://blockonomi.com/amazon-amzn-nears-acquisition-of-globalstar-gsat-in-satellite-push/",
+      "url": "https://www.benzinga.com/insights/news/26/04/51797425/performance-comparison-amazon-com-and-competitors-in-broadline-retail-industry",
       "first_seen_at": "2026-04-14T12:01:19.501152Z",
-      "is_new": true,
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
+      "story_key": "fc56b27efbcbea5a69c871eeb1af5636e736e6b9:5920535",
+      "headline": "Competitor Analysis: Evaluating Microsoft And Competitors In Software Industry - Microsoft (NASDAQ:MSFT)",
+      "tickers": [
+        "MSFT"
+      ],
+      "published_at": "2026-04-14T09:59:04Z",
+      "published_ts": 1776160744.0,
+      "age_minutes": 249.1,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Competitor Analysis: Evaluating Microsoft And Competitors In Software Industry - Microsoft (NASDAQ:MSFT)",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.4554,
+      "news_catalyst_score": 0.2141,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://www.benzinga.com/insights/news/26/04/51797442/competitor-analysis-evaluating-microsoft-and-competitors-in-software-industry",
+      "first_seen_at": "2026-04-14T12:01:19.501152Z",
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
+      "story_key": "234c6fd69e5735c2dfca898a37f0ffb15aed321a:5920532",
+      "headline": "What's Going On With Apple Stock Tuesday? - Apple (NASDAQ:AAPL), Alphabet (NASDAQ:GOOGL)",
+      "tickers": [
+        "AAPL"
+      ],
+      "published_at": "2026-04-14T09:42:57Z",
+      "published_ts": 1776159777.0,
+      "age_minutes": 265.2,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "What's Going On With Apple Stock Tuesday? - Apple (NASDAQ:AAPL), Alphabet (NASDAQ:GOOGL)",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.2099,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://www.benzinga.com/analyst-stock-ratings/analyst-color/26/04/51797325/apples-foldable-iphone-is-coming-for-everyone-samsung-motorola-google-beware",
+      "first_seen_at": "2026-04-14T12:01:19.501152Z",
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
+      "story_key": "8ebc37d76b79ccde2d249e1b289ec3811cf41475:5920546",
+      "headline": "J&J stock gains after Q1 beat (JNJ:NYSE)",
+      "tickers": [
+        "JNJ"
+      ],
+      "published_at": "2026-04-14T10:50:44Z",
+      "published_ts": 1776163844.0,
+      "age_minutes": 197.5,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Seeking Alpha"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "J&J stock gains after Q1 beat (JNJ:NYSE)",
+      "sentiment_label": "bullish",
+      "polarity": 0.5,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.206,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://seekingalpha.com/news/4574676-jj-stock-gains-after-q1-beat",
+      "first_seen_at": "2026-04-14T12:01:19.501152Z",
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
+      "story_key": "e1cd4d4f1a1078d6f674a8125a943866e9738841:5920522",
+      "headline": "'Amazon Nears Deal for Globalstar in Push to Rival Musk's Starlink' - Bloomberg - Amazon.com (NASDAQ:AMZN",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_at": "2026-04-14T08:54:51Z",
+      "published_ts": 1776156891.0,
+      "age_minutes": 313.3,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "'Amazon Nears Deal for Globalstar in Push to Rival Musk's Starlink' - Bloomberg - Amazon.com (NASDAQ:AMZN",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.1946,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://www.benzinga.com/news/26/04/51795834/amazon-nears-deal-for-globalstar-in-push-to-rival-musks-starlink-bloomberg",
+      "first_seen_at": "2026-04-14T12:01:19.501152Z",
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -841,7 +651,7 @@
       ],
       "published_at": "2026-04-13T18:40:49Z",
       "published_ts": 1776105649.0,
-      "age_minutes": 1040.5,
+      "age_minutes": 1167.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -879,7 +689,7 @@
       ],
       "published_at": "2026-04-13T17:54:00Z",
       "published_ts": 1776102840.0,
-      "age_minutes": 1087.3,
+      "age_minutes": 1214.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -910,44 +720,6 @@
       "provider_count": 1
     },
     {
-      "story_key": "06d055368fdb89dddc4e36463fc6696b3e725abc:5920294",
-      "headline": "Why Exxon Mobil Shares Are Trading Higher On Monday? - Exxon Mobil (NYSE:XOM)",
-      "tickers": [
-        "XOM"
-      ],
-      "published_at": "2026-04-13T13:52:06Z",
-      "published_ts": 1776088326.0,
-      "age_minutes": 1329.2,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Benzinga"
-      ],
-      "source_tier": "TIER_2",
-      "source_rank": 2,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Why Exxon Mobil Shares Are Trading Higher On Monday? - Exxon Mobil (NYSE:XOM)",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.1946,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.benzinga.com/trading-ideas/movers/26/04/51779652/why-exxon-mobil-shares-are-trading-higher-on-monday",
-      "first_seen_at": "2026-04-13T14:27:39.991472Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
       "story_key": "4d55bb3deb88a01b26a2ee1f168c3570681bc098:5920380",
       "headline": "Nasdaq Composite Closes Positive; Microsoft (MSFT) Jumps 3.6%; IBM Closes 3 Percent Higher",
       "tickers": [
@@ -955,7 +727,7 @@
       ],
       "published_at": "2026-04-13T21:03:28Z",
       "published_ts": 1776114208.0,
-      "age_minutes": 897.9,
+      "age_minutes": 1024.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -993,7 +765,7 @@
       ],
       "published_at": "2026-04-13T16:55:59Z",
       "published_ts": 1776099359.0,
-      "age_minutes": 1145.3,
+      "age_minutes": 1272.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1031,7 +803,7 @@
       ],
       "published_at": "2026-04-13T14:47:31Z",
       "published_ts": 1776091651.0,
-      "age_minutes": 1273.8,
+      "age_minutes": 1400.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1062,14 +834,52 @@
       "provider_count": 1
     },
     {
-      "story_key": "016641e4cd67e436fd92ad20510a92d6cadccac1:5920292",
-      "headline": "Microsoft (MSFT) Stock Plunges 27% But Analyst Projects 70% Rally Ahead - Blockonomi",
+      "story_key": "879f3797367a34440f656be5656d4518924049c5:5920533",
+      "headline": "JPM flags volatility in UK internet stocks; highlights preferred picks By Investing.com",
       "tickers": [
-        "MSFT"
+        "JPM"
       ],
-      "published_at": "2026-04-13T13:41:05Z",
-      "published_ts": 1776087665.0,
-      "age_minutes": 1340.2,
+      "published_at": "2026-04-14T09:46:08Z",
+      "published_ts": 1776159968.0,
+      "age_minutes": 262.1,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Investing.com"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "JPM flags volatility in UK internet stocks; highlights preferred picks By Investing.com",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.1815,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://www.investing.com/news/stock-market-news/jpm-flags-volatility-in-uk-internet-stocks-highlights-preferred-picks-4612067",
+      "first_seen_at": "2026-04-14T12:01:19.501152Z",
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
+      "story_key": "e95b533f50456b081796a2a78b8a0808df7b5c36:5920520",
+      "headline": "Amazon (AMZN) Nears Acquisition of Globalstar (GSAT) in Satellite Push - Blockonomi",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_at": "2026-04-14T08:43:03Z",
+      "published_ts": 1776156183.0,
+      "age_minutes": 325.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1084,58 +894,18 @@
       "source_rank": 3,
       "category": "other",
       "event_class": "UNKNOWN",
-      "event_label": "Microsoft (MSFT) Stock Plunges 27% But Analyst Projects 70% Rally Ahead - Blockonomi",
-      "sentiment_label": "bullish",
-      "polarity": 0.5,
-      "impact": 0.1,
-      "clarity": 0.8,
-      "relevance": 0.535,
-      "news_catalyst_score": 0.1918,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://blockonomi.com/microsoft-msft-stock-plunges-27-but-analyst-projects-70-rally-ahead/",
-      "first_seen_at": "2026-04-13T14:27:39.991472Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "9f55b686374205531bc839b8a20efc8e987674cf:5920289",
-      "headline": "Trade Strategy For SPY, QQQ, AAPL, MSFT, NVDA, GOOGL, META, And TSLA",
-      "tickers": [
-        "AAPL",
-        "META",
-        "MSFT"
-      ],
-      "published_at": "2026-04-13T13:27:52Z",
-      "published_ts": 1776086872.0,
-      "age_minutes": 1353.5,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Benzinga"
-      ],
-      "source_tier": "TIER_2",
-      "source_rank": 2,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Trade Strategy For SPY, QQQ, AAPL, MSFT, NVDA, GOOGL, META, And TSLA",
+      "event_label": "Amazon (AMZN) Nears Acquisition of Globalstar (GSAT) in Satellite Push - Blockonomi",
       "sentiment_label": "neutral",
       "polarity": 0.0,
       "impact": 0.1,
       "clarity": 0.6,
-      "relevance": 0.4054,
-      "news_catalyst_score": 0.185,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.1671,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
-      "url": "https://www.benzinga.com/Opinion/26/04/51778581/trade-strategy-for-spy-qqq-aapl-msft-nvda-googl-meta-and-tsla-4",
-      "first_seen_at": "2026-04-13T14:27:39.991472Z",
+      "url": "https://blockonomi.com/amazon-amzn-nears-acquisition-of-globalstar-gsat-in-satellite-push/",
+      "first_seen_at": "2026-04-14T12:01:19.501152Z",
       "is_new": false,
       "provider_count": 1
     },
@@ -1147,7 +917,7 @@
       ],
       "published_at": "2026-04-14T07:10:00Z",
       "published_ts": 1776150600.0,
-      "age_minutes": 291.3,
+      "age_minutes": 418.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1168,7 +938,7 @@
       "impact": 0.1,
       "clarity": 0.6,
       "relevance": 0.475,
-      "news_catalyst_score": 0.1704,
+      "news_catalyst_score": 0.1671,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
@@ -1185,7 +955,7 @@
       ],
       "published_at": "2026-04-14T06:15:14Z",
       "published_ts": 1776147314.0,
-      "age_minutes": 346.1,
+      "age_minutes": 473.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1223,7 +993,7 @@
       ],
       "published_at": "2026-04-14T05:08:01Z",
       "published_ts": 1776143281.0,
-      "age_minutes": 413.3,
+      "age_minutes": 540.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1261,7 +1031,7 @@
       ],
       "published_at": "2026-04-14T02:17:31Z",
       "published_ts": 1776133051.0,
-      "age_minutes": 583.8,
+      "age_minutes": 710.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1299,7 +1069,7 @@
       ],
       "published_at": "2026-04-13T18:56:04Z",
       "published_ts": 1776106564.0,
-      "age_minutes": 1025.3,
+      "age_minutes": 1152.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1337,7 +1107,7 @@
       ],
       "published_at": "2026-04-13T18:48:38Z",
       "published_ts": 1776106118.0,
-      "age_minutes": 1032.7,
+      "age_minutes": 1159.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1375,7 +1145,7 @@
       ],
       "published_at": "2026-04-13T18:46:11Z",
       "published_ts": 1776105971.0,
-      "age_minutes": 1035.1,
+      "age_minutes": 1162.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1413,7 +1183,7 @@
       ],
       "published_at": "2026-04-13T17:38:46Z",
       "published_ts": 1776101926.0,
-      "age_minutes": 1102.6,
+      "age_minutes": 1229.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1451,7 +1221,7 @@
       ],
       "published_at": "2026-04-13T15:46:05Z",
       "published_ts": 1776095165.0,
-      "age_minutes": 1215.2,
+      "age_minutes": 1342.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1480,75 +1250,37 @@
       "first_seen_at": "2026-04-13T18:42:15.460400Z",
       "is_new": false,
       "provider_count": 1
-    },
-    {
-      "story_key": "3dfddc87448e2de9cfc8d3aefb74735f1433cbcf:5920274",
-      "headline": "Another V-shaped rebound ahead? JPM says buy the dip in stocks By Investing.com",
-      "tickers": [
-        "JPM"
-      ],
-      "published_at": "2026-04-13T12:13:06Z",
-      "published_ts": 1776082386.0,
-      "age_minutes": 1428.2,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Investing.com"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Another V-shaped rebound ahead? JPM says buy the dip in stocks By Investing.com",
-      "sentiment_label": "bullish",
-      "polarity": 0.5,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.1671,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.investing.com/news/stock-market-news/another-vshaped-rebound-ahead-jpm-says-buy-the-dip-in-stocks-4610185",
-      "first_seen_at": "2026-04-13T14:27:39.991472Z",
-      "is_new": false,
-      "provider_count": 1
     }
   ],
   "news_catalyst_by_symbol": {
     "AAPL": {
-      "news_catalyst_score": 0.5188,
+      "news_catalyst_score": 0.5157,
       "sentiment_label": "neutral",
-      "event_class": "UNKNOWN",
-      "event_label": "Apple To Rally More Than 25%? Here Are 10 Top Analyst Forecasts For Tuesday - Apple (NASDAQ:AAPL), Alloge",
+      "event_class": "CRYPTO",
+      "event_label": "Crypto's Second Chance At ETFs: Why Tokenization May Win Where Binance Failed - Apple (NASDAQ:AAPL), NVID",
       "materiality": "LOW",
-      "recency_bucket": "FRESH",
+      "recency_bucket": "AGING",
       "source_tier": "TIER_2",
-      "mentions_24h": 6,
+      "mentions_24h": 5,
       "is_actionable": false,
       "first_provider": "newsapi_ai",
-      "story_key": "741407e67fef5b822776a9ef14dbbf0979307403:5920558"
+      "story_key": "91cd03cb353d2895dac75c0c99af57e6d10ff023:5920320"
     },
     "AMZN": {
-      "news_catalyst_score": 0.4418,
+      "news_catalyst_score": 0.3386,
       "sentiment_label": "neutral",
-      "event_class": "MANAGEMENT",
-      "event_label": "AMZN Continues to Rebound as its CEO Doubles Down on $200B AI Bet",
+      "event_class": "UNKNOWN",
+      "event_label": "Amazon Nears Globalstar Deal as Goldman Cuts AMZN Stock Target to $275",
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "source_tier": "TIER_3",
-      "mentions_24h": 11,
+      "mentions_24h": 10,
       "is_actionable": false,
       "first_provider": "newsapi_ai",
-      "story_key": "d839c1ecdcbc813a0f7b528298517e0c746ba6e5:5920272"
+      "story_key": "8c8b56d6c13f4b83e97a46bd2a0c6c35b6bc9f3c:5920537"
     },
     "JNJ": {
-      "news_catalyst_score": 0.2403,
+      "news_catalyst_score": 0.206,
       "sentiment_label": "bullish",
       "event_class": "UNKNOWN",
       "event_label": "J&J stock gains after Q1 beat (JNJ:NYSE)",
@@ -1561,14 +1293,14 @@
       "story_key": "8ebc37d76b79ccde2d249e1b289ec3811cf41475:5920546"
     },
     "JPM": {
-      "news_catalyst_score": 0.684,
-      "sentiment_label": "bullish",
+      "news_catalyst_score": 0.5812,
+      "sentiment_label": "neutral",
       "event_class": "EARNINGS",
       "event_label": "Jpm Stock Faces a 3.87% Earnings Move as JPMorgan Prepares Q1 Report",
       "materiality": "MEDIUM",
-      "recency_bucket": "WARM",
+      "recency_bucket": "AGING",
       "source_tier": "TIER_3",
-      "mentions_24h": 4,
+      "mentions_24h": 3,
       "is_actionable": true,
       "first_provider": "newsapi_ai",
       "story_key": "80ff65a62ad5984619e2ffcdcb1993e1f678e083:5920550"
@@ -1581,46 +1313,33 @@
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "source_tier": "TIER_3",
-      "mentions_24h": 10,
+      "mentions_24h": 7,
       "is_actionable": false,
       "first_provider": "newsapi_ai",
       "story_key": "91f9bc05b6f454ae325d67848c40a15a0ac5ec2b:5920370"
     },
     "MSFT": {
       "news_catalyst_score": 0.482,
-      "sentiment_label": "bullish",
+      "sentiment_label": "neutral",
       "event_class": "ANALYST",
       "event_label": "Microsoft (MSFT) Price Target Lowered by $103 Ahead of Q3 Report",
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "source_tier": "TIER_3",
-      "mentions_24h": 7,
+      "mentions_24h": 5,
       "is_actionable": false,
       "first_provider": "newsapi_ai",
       "story_key": "9b1b2a82892c9b3de4983c52fbb09020230f6503:5920443"
-    },
-    "XOM": {
-      "news_catalyst_score": 0.1946,
-      "sentiment_label": "neutral",
-      "event_class": "UNKNOWN",
-      "event_label": "Why Exxon Mobil Shares Are Trading Higher On Monday? - Exxon Mobil (NYSE:XOM)",
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "source_tier": "TIER_2",
-      "mentions_24h": 1,
-      "is_actionable": false,
-      "first_provider": "newsapi_ai",
-      "story_key": "06d055368fdb89dddc4e36463fc6696b3e725abc:5920294"
     }
   },
   "summary": {
-    "active_story_count": 38,
-    "new_story_count": 11,
+    "active_story_count": 31,
+    "new_story_count": 0,
     "actionable_story_count": 1,
     "actionable_symbols": [
       "JPM"
     ],
-    "symbol_count": 7
+    "symbol_count": 6
   },
   "symbol_scope": {
     "mode": "release_policy_fallback",
