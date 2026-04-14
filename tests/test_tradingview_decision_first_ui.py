@@ -263,3 +263,35 @@ def test_trust_tier_suffix_respects_length_limit() -> None:
     # Dynamic prefixes: 'score ' + digits + suffix ≤ 40 chars
     # 'score 100, data fresh' = 21 chars ✓
     assert "data fresh" in func_body
+
+
+# ── WP-A10: Template Reset Window ──────────────────────────────
+
+
+def test_hero_card_shows_asof_time() -> None:
+    """compose_core_hero_text must include a Data line with asof_display (WP-A10)."""
+    source = _read("SMC_Core_Engine.pine")
+
+    func_start = source.index("compose_core_hero_text(")
+    func_body = source[func_start:func_start + 1200]
+
+    assert "asof_display" in func_body
+    assert "Data: " in func_body
+
+
+def test_hero_card_call_passes_asof_display() -> None:
+    """The barstate.islast call site must pass lib_asof_display to the hero card."""
+    source = _read("SMC_Core_Engine.pine")
+
+    call_idx = source.index("compose_core_hero_text(core_product_state")
+    call_line = source[call_idx:source.index("\n", call_idx)]
+    assert "lib_asof_display" in call_line
+
+
+def test_library_freshness_parses_asof_time() -> None:
+    """Library freshness block must parse mp.ASOF_TIME for sub-day staleness (WP-A10)."""
+    source = _read("SMC_Core_Engine.pine")
+
+    assert "mp.ASOF_TIME" in source
+    assert "lib_asof_display" in source
+    assert "lib_hours_old" in source
