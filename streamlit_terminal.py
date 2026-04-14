@@ -449,6 +449,13 @@ from streamlit_terminal_config import (
     collect_tv_news_symbols as _collect_tv_news_symbols,
     has_live_news_provider as _has_live_news_provider,
 )
+from streamlit_terminal_pure import (
+    build_test_mode_config_overrides,
+    build_test_mode_state_defaults,
+    build_alert_rule_payload,
+    extract_feed_tickers,
+    merge_alert_log_entries,
+)
 from streamlit_terminal_runtime import resolve_live_story_state_kwargs, safe_float_mov, should_poll
 from terminal_ui_helpers import (
     MATERIALITY_COLORS,
@@ -526,11 +533,7 @@ logger = logging.getLogger(__name__)
 def _build_test_terminal_config() -> TerminalConfig:
     cfg = TerminalConfig()
     overrides: dict[str, Any] = {}
-    for key, value in {
-        "tv_news_enabled": False,
-        "fmp_enabled": False,
-        "poll_interval_s": 60.0,
-    }.items():
+    for key, value in build_test_mode_config_overrides().items():
         if hasattr(cfg, key):
             overrides[key] = value
     return replace(cfg, **overrides) if overrides else cfg
@@ -539,22 +542,9 @@ def _build_test_terminal_config() -> TerminalConfig:
 def _initialize_test_mode_runtime() -> None:
     global tv_available, databento_available, btc_available, newsapi_available, ensure_rt_engine_running
 
+    for key, value in build_test_mode_state_defaults(time.time()).items():
+        st.session_state.setdefault(key, value)
     st.session_state.setdefault("cfg", _build_test_terminal_config())
-    st.session_state.setdefault("cursor", None)
-    st.session_state.setdefault("provider_cursors", {})
-    st.session_state.setdefault("feed", [])
-    st.session_state.setdefault("live_story_state", {})
-    st.session_state.setdefault("ticker_catalyst_state", {})
-    st.session_state.setdefault("ticker_reaction_state", {})
-    st.session_state.setdefault("ticker_resolution_state", {})
-    st.session_state.setdefault("ticker_posture_state", {})
-    st.session_state.setdefault("ticker_attention_state", {})
-    st.session_state.setdefault("poll_count", 0)
-    st.session_state.setdefault("last_poll_ts", time.time())
-    st.session_state.setdefault("last_resync_ts", time.time())
-    st.session_state.setdefault("auto_refresh", False)
-    st.session_state.setdefault("use_bg_poller", False)
-    st.session_state.setdefault("intel_toggle", False)
 
     tv_available = lambda: False
     databento_available = lambda: False
@@ -979,11 +969,7 @@ def _load_reaction_quote_context(
     rows: list[dict[str, Any]] | None = None,
 ) -> tuple[dict[str, dict[str, Any]], dict[str, dict[str, Any]]]:
     current_rows = list(rows if rows is not None else st.session_state.feed)
-    tickers = sorted({
-        str(row.get("ticker") or "").strip().upper()
-        for row in current_rows
-        if str(row.get("ticker") or "").strip().upper() not in ("", "MARKET")
-    })[:200]
+    tickers = extract_feed_tickers(current_rows, limit=200)
     if not tickers:
         return {}, {}
 
@@ -1927,14 +1913,14 @@ with st.sidebar:
                         st.error("Webhook URL is invalid or not allowed")
 
             if _wh_valid:
-                new_rule = {
-                    "ticker": alert_ticker.upper().strip(),
-                    "condition": alert_cond,
-                    "threshold": alert_threshold,
-                    "category": alert_cat.lower().strip(),
-                    "webhook_url": _wh_url,
-                    "created": time.time(),
-                }
+                new_rule = build_alert_rule_payload(
+                    ticker=alert_ticker,
+                    condition=alert_cond,
+                    threshold=alert_threshold,
+                    category=alert_cat,
+                    webhook_url=_wh_url,
+                    created=time.time(),
+                )
                 # Cap alert rules at 100 to prevent unbounded memory growth
                 if len(st.session_state.alert_rules) >= 100:
                     st.warning("Maximum of 100 alert rules reached. Please delete some before adding more.")
@@ -2199,9 +2185,11 @@ def _evaluate_alerts(items: list[ClassifiedItem]) -> None:
     pending_webhooks = list(evaluation.get("pending_webhooks") or [])
 
     if new_entries:
-        st.session_state.alert_log = new_entries + list(st.session_state.alert_log)
-        if len(st.session_state.alert_log) > 100:
-            st.session_state.alert_log = st.session_state.alert_log[:100]
+        st.session_state.alert_log = merge_alert_log_entries(
+            new_entries,
+            list(st.session_state.alert_log),
+            max_items=100,
+        )
 
     # Fire all queued webhooks through a single shared httpx client
     if pending_webhooks:

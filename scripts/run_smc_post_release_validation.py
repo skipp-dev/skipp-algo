@@ -27,10 +27,13 @@ def _render(report: dict[str, Any], output: str) -> None:
 def run_post_release_validation(
     release_manifest_path: Path,
     validation_report_path: Path,
+    *,
+    ci_mode: bool = False,
 ) -> dict[str, Any]:
     checked_at = float(time.time())
     base_report: dict[str, Any] = {
         "report_kind": "post_release_validation",
+        "ci_mode": bool(ci_mode),
         "checked_at": checked_at,
         "checked_at_iso": _iso_utc(checked_at),
         "release_manifest_path": release_manifest_path.as_posix(),
@@ -43,6 +46,12 @@ def run_post_release_validation(
         return {
             **base_report,
             "overall_status": "fail",
+            "validation": {
+                "ok": False,
+                "validation_timestamp": checked_at,
+                "validation_timestamp_iso": _iso_utc(checked_at),
+            },
+            "validated_target_count": 0,
             "failures": [
                 {
                     "code": "POST_RELEASE_VALIDATION_FAILED",
@@ -55,6 +64,8 @@ def run_post_release_validation(
         **base_report,
         "overall_status": "ok",
         "validation": validation,
+        "validation_timestamp": validation.get("validation_timestamp", checked_at),
+        "validation_timestamp_iso": validation.get("validation_timestamp_iso", _iso_utc(checked_at)),
         "validated_target_count": int(validation.get("validated_target_count", 0) or 0),
         "failures": [],
     }
@@ -74,13 +85,18 @@ def build_parser() -> argparse.ArgumentParser:
         default=Path("artifacts/tradingview/tv_post_release_validation.json"),
         help="Path to the readonly TradingView post-release validation report.",
     )
+    parser.add_argument(
+        "--ci-mode",
+        action="store_true",
+        help="Emit explicit machine-readable normalization fields for CI consumers.",
+    )
     parser.add_argument("--output", default="-", help="Output path for JSON report, or '-' for stdout.")
     return parser
 
 
 def main() -> int:
     args = build_parser().parse_args()
-    report = run_post_release_validation(args.release_manifest, args.validation_report)
+    report = run_post_release_validation(args.release_manifest, args.validation_report, ci_mode=bool(args.ci_mode))
     _render(report, args.output)
     return 0 if report.get("overall_status") == "ok" else 1
 

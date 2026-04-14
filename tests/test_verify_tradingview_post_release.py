@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
 
+from scripts import verify_tradingview_post_release as verify_script
 from scripts.verify_tradingview_post_release import verify_post_release_validation
 
 
@@ -14,6 +16,7 @@ def _write_json(path: Path, payload: dict) -> None:
 
 def _valid_manifest(*, last_preflight_report: str | None = None, published_version: int = 12) -> dict:
     return {
+        "generatedAt": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
         "library": {
             "publishStatus": "published",
             "expectedVersion": 12,
@@ -51,6 +54,8 @@ def test_verify_post_release_validation_updates_manifest_report_path(tmp_path: P
     assert result["ok"] is True
     assert result["validated_target_count"] == 1
     assert result["last_preflight_report"] == "tv_post_release_validation.json"
+    assert isinstance(result["validation_timestamp"], float)
+    assert result["validation_timestamp_iso"]
     assert updated_manifest["lastPreflightReport"] == "tv_post_release_validation.json"
 
 
@@ -118,3 +123,34 @@ def test_verify_post_release_validation_skips_manifest_rewrite_when_path_is_unch
 
     assert result["manifest_updated"] is False
     assert before == after
+
+
+def test_verify_post_release_validation_rejects_stale_manifest(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    release_manifest_path = tmp_path / "library_release_manifest.json"
+    validation_report_path = tmp_path / "tv_post_release_validation.json"
+
+    stale_now = 1_700_000_000.0
+    stale_generated = datetime.fromtimestamp(stale_now - 10_000.0, tz=UTC).isoformat().replace("+00:00", "Z")
+    monkeypatch.setattr(verify_script.time, "time", lambda: stale_now)
+    _write_json(release_manifest_path, {**_valid_manifest(), "generatedAt": stale_generated})
+    _write_json(validation_report_path, _valid_report())
+
+    with pytest.raises(RuntimeError, match="stale"):
+        verify_post_release_validation(release_manifest_path, validation_report_path)
+
+
+def test_verify_post_release_validation_accepts_fresh_manifest_and_surfaces_staleness_fields(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    release_manifest_path = tmp_path / "library_release_manifest.json"
+    validation_report_path = tmp_path / "tv_post_release_validation.json"
+
+    fresh_now = 1_700_000_000.0
+    fresh_generated = datetime.fromtimestamp(fresh_now - 60.0, tz=UTC).isoformat().replace("+00:00", "Z")
+    monkeypatch.setattr(verify_script.time, "time", lambda: fresh_now)
+    _write_json(release_manifest_path, {**_valid_manifest(), "generatedAt": fresh_generated})
+    _write_json(validation_report_path, _valid_report())
+
+    result = verify_post_release_validation(release_manifest_path, validation_report_path)
+
+    assert result["staleness_check"]["ok"] is True
+    assert result["manifest_generated_field"] == "generatedAt"
+    assert result["manifest_age_seconds"] == pytest.approx(60.0)

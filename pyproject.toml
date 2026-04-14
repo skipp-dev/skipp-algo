@@ -93,7 +93,9 @@ source = [
     "streamlit_terminal",
     "streamlit_terminal_alerts",
     "streamlit_terminal_config",
+    "streamlit_terminal_pure",
     "streamlit_terminal_runtime",
+    "terminal_tabs",
     "terminal_ui_helpers",
 ]
 omit = ["tests/*", "*.pine"]

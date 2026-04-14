@@ -67,7 +67,15 @@ def test_refresh_workflow_runs_post_release_validation_before_commit() -> None:
     assert 'TV_STORAGE_STATE_MAX_AGE_HOURS: "72"' in workflow_text
     assert 'tv_post_release_validation.json' in workflow_text
     assert 'python scripts/run_smc_post_release_validation.py' in workflow_text
+    assert '--ci-mode' in workflow_text
     assert 'smc_post_release_validation_report.json' in workflow_text
     assert 'TradingView post-release validation' in workflow_text
     assert 'TradingView post-release validation failed' in workflow_text
     assert "steps.tv_post_release.outcome == 'success'" in workflow_text
+
+
+def test_refresh_workflow_alert_step_consumes_post_release_report_even_after_failures() -> None:
+    workflow_text = _read(WORKFLOW_PATH)
+
+    assert "if: always() && steps.diff.outputs.changed == 'true'" in workflow_text
+    assert '--post-release-report artifacts/ci/smc_post_release_validation_report.json' in workflow_text

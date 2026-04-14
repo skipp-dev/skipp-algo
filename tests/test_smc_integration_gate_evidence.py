@@ -141,6 +141,111 @@ def test_gate_evidence_detects_unresolved_stale_failure(monkeypatch, tmp_path: P
     assert captured[-1]["stale_trend"].get("STALE_MANIFEST_GENERATED_AT") == 1
 
 
+def test_gate_evidence_aggregates_domain_visibility_score(monkeypatch, tmp_path: Path) -> None:
+    now_ts = 1_700_000_000.0
+    monkeypatch.setattr(evidence_script.time, "time", lambda: now_ts)
+
+    _write_json(
+        tmp_path / "ci_health_recent.json",
+        {
+            "report_kind": "ci_health",
+            "checked_at": now_ts - 30.0,
+            "overall_status": "ok",
+            "domain_visibility_score": 0.5,
+            "domain_visibility_full_coverage_ratio": 0.0,
+            "domain_visibility": {
+                "average_score": 0.5,
+                "full_coverage_ratio": 0.0,
+                "evaluated_rows": 1,
+            },
+            "runtime_metadata": {"git_commit": "sha-ci-health-recent"},
+        },
+    )
+    _write_json(
+        tmp_path / "ci_health_prev.json",
+        {
+            "report_kind": "ci_health",
+            "checked_at": now_ts - 90.0,
+            "overall_status": "ok",
+            "domain_visibility_score": 1.0,
+            "domain_visibility_full_coverage_ratio": 1.0,
+            "domain_visibility": {
+                "average_score": 1.0,
+                "full_coverage_ratio": 1.0,
+                "evaluated_rows": 1,
+            },
+            "runtime_metadata": {"git_commit": "sha-ci-health-prev"},
+        },
+    )
+
+    captured: list[dict] = []
+    monkeypatch.setattr(
+        evidence_script,
+        "build_parser",
+        lambda: _Parser(
+            Namespace(
+                input_glob=str(tmp_path / "*.json"),
+                lookback_days=14,
+                min_deeper_ok_runs=0,
+                min_release_ok_runs=0,
+                fail_on_not_ready=False,
+                output="-",
+            )
+        ),
+    )
+    monkeypatch.setattr(evidence_script, "_render", lambda report, output: captured.append(report))
+
+    rc = evidence_script.main()
+
+    assert rc == 0
+    assert captured[-1]["domain_visibility_score"] == 0.5
+    assert captured[-1]["domain_visibility_full_coverage_ratio"] == 0.0
+    assert captured[-1]["domain_visibility_score_average_in_window"] == 0.75
+    assert len(captured[-1]["domain_visibility_reports"]) == 2
+
+
+def test_gate_evidence_tracks_post_release_validation_runs(monkeypatch, tmp_path: Path) -> None:
+    now_ts = 1_700_000_000.0
+    monkeypatch.setattr(evidence_script.time, "time", lambda: now_ts)
+
+    _write_json(
+        tmp_path / "post_release_failed.json",
+        {
+            "report_kind": "post_release_validation",
+            "checked_at": now_ts - 45.0,
+            "overall_status": "fail",
+            "validated_target_count": 0,
+            "failures": [{"code": "POST_RELEASE_VALIDATION_FAILED", "message": "compile mismatch"}],
+            "runtime_metadata": {"git_commit": "sha-post-release"},
+        },
+    )
+
+    captured: list[dict] = []
+    monkeypatch.setattr(
+        evidence_script,
+        "build_parser",
+        lambda: _Parser(
+            Namespace(
+                input_glob=str(tmp_path / "*.json"),
+                lookback_days=14,
+                min_deeper_ok_runs=0,
+                min_release_ok_runs=0,
+                fail_on_not_ready=False,
+                output="-",
+            )
+        ),
+    )
+    monkeypatch.setattr(evidence_script, "_render", lambda report, output: captured.append(report))
+
+    rc = evidence_script.main()
+
+    assert rc == 0
+    assert captured[-1]["post_release_validation_runs_in_window"] == 1
+    assert captured[-1]["post_release_validation_ok_runs_in_window"] == 0
+    assert captured[-1]["post_release_validation_fail_runs_in_window"] == 1
+    assert captured[-1]["last_post_release_validation_status"] == "fail"
+
+
 def test_gate_evidence_aggregates_measurement_artifacts(monkeypatch, tmp_path: Path) -> None:
     now_ts = 1_700_000_000.0
     monkeypatch.setattr(evidence_script.time, "time", lambda: now_ts)

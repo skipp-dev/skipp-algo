@@ -45,3 +45,21 @@ def test_should_poll_stays_false_without_provider() -> None:
         provider_available=False,
         now=1_000.0,
     ) is False
+
+
+def test_should_poll_handles_clock_skew() -> None:
+    assert should_poll(
+        poll_interval=30.0,
+        last_poll_ts=120.0,
+        provider_available=True,
+        now=100.0,
+    ) is False
+
+
+def test_should_poll_rejects_nonpositive_intervals() -> None:
+    assert should_poll(
+        poll_interval=-1.0,
+        last_poll_ts=50.0,
+        provider_available=True,
+        now=1_000.0,
+    ) is False

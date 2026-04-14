@@ -53,6 +53,7 @@ RULE_IMBALANCE_SHIFT = "imbalance_shift"
 RULE_SESSION_CONTEXT_SHIFT = "session_context_shift"
 RULE_RANGE_BREAKOUT = "range_breakout"
 RULE_SENTIMENT_SHIFT = "sentiment_shift"
+RULE_POST_RELEASE_VALIDATION_FAILED = "post_release_validation_failed"
 
 
 def _parse_pine_exports(text: str) -> dict[str, str]:
@@ -79,6 +80,40 @@ def read_library_state(pine_path: Path) -> dict[str, str]:
         return {}
     text = pine_path.read_text(encoding="utf-8")
     return _parse_pine_exports(text)
+
+
+def _read_optional_json(path: Path) -> dict[str, Any] | None:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return None
+    except (json.JSONDecodeError, OSError):
+        logger.warning("Optional JSON report unreadable: %s", path)
+        return None
+    return payload if isinstance(payload, dict) else None
+
+
+def enrich_state_with_post_release_report(
+    state: dict[str, str],
+    report: dict[str, Any] | None,
+) -> dict[str, str]:
+    enriched = dict(state)
+    if not isinstance(report, dict):
+        return enriched
+
+    overall_status = str(report.get("overall_status") or "").strip().lower()
+    if overall_status:
+        enriched["POST_RELEASE_VALIDATION_STATUS"] = overall_status
+
+    failures = report.get("failures")
+    first_failure = failures[0] if isinstance(failures, list) and failures and isinstance(failures[0], dict) else {}
+    code = str(first_failure.get("code") or "").strip()
+    message = str(first_failure.get("message") or "").strip()
+    if code:
+        enriched["POST_RELEASE_VALIDATION_CODE"] = code
+    if message:
+        enriched["POST_RELEASE_VALIDATION_MESSAGE"] = message
+    return enriched
 
 
 # ── Alert evaluation ─────────────────────────────────────────────
@@ -145,6 +180,23 @@ def evaluate_alerts(
                 "detail": f"Active providers={provider_count}, "
                           f"Stale={stale or 'none'}",
             })
+
+    post_release_status = str(state.get("POST_RELEASE_VALIDATION_STATUS", "") or "").strip().lower()
+    if post_release_status == "fail":
+        detail = str(state.get("POST_RELEASE_VALIDATION_MESSAGE", "") or "").strip()
+        code = str(state.get("POST_RELEASE_VALIDATION_CODE", "") or "").strip()
+        if code and detail:
+            detail = f"{code}: {detail}"
+        elif code:
+            detail = code
+        elif not detail:
+            detail = "TradingView post-release validation reported a failure"
+        alerts.append({
+            "rule": RULE_POST_RELEASE_VALIDATION_FAILED,
+            "severity": "critical",
+            "title": "Post-release validation failed",
+            "detail": detail,
+        })
 
     # ── v5 Event-risk rules ───────────────────────────────────────
     window_state = state.get("EVENT_WINDOW_STATE", "CLEAR")
@@ -304,6 +356,9 @@ _TRACKED_FIELDS = [
     "RANGE_BREAK_DIRECTION",
     "PROFILE_SENTIMENT_BIAS",
     "LIQUIDITY_IMBALANCE",
+    "POST_RELEASE_VALIDATION_STATUS",
+    "POST_RELEASE_VALIDATION_CODE",
+    "POST_RELEASE_VALIDATION_MESSAGE",
 ]
 
 
@@ -315,9 +370,15 @@ def load_previous_fingerprint(path: Path) -> dict[str, str]:
     if not path.is_file():
         return {}
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
+        payload = json.loads(path.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, OSError):
         return {}
+    if not isinstance(payload, dict):
+        return {}
+    return {
+        str(key): str(value)
+        for key, value in payload.items()
+    }
 
 
 def save_fingerprint(path: Path, state: dict[str, str]) -> None:
@@ -352,6 +413,12 @@ def suppress_duplicates(
             if (
                 current_fp.get("PROVIDER_COUNT") != previous_fp.get("PROVIDER_COUNT")
                 or current_fp.get("STALE_PROVIDERS") != previous_fp.get("STALE_PROVIDERS")
+            ):
+                kept.append(alert)
+        elif rule == RULE_POST_RELEASE_VALIDATION_FAILED:
+            if (
+                current_fp.get("POST_RELEASE_VALIDATION_STATUS") != previous_fp.get("POST_RELEASE_VALIDATION_STATUS")
+                or current_fp.get("POST_RELEASE_VALIDATION_CODE") != previous_fp.get("POST_RELEASE_VALIDATION_CODE")
             ):
                 kept.append(alert)
         elif rule in (
@@ -411,7 +478,7 @@ def send_telegram(
     )
     try:
         with urllib.request.urlopen(req, timeout=15) as resp:
-            ok = resp.status == 200
+            ok = bool(resp.status == 200)
             if not ok:
                 logger.warning("Telegram returned status %s", resp.status)
             return ok
@@ -475,6 +542,11 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Evaluate rules and print alerts without sending.",
     )
+    p.add_argument(
+        "--post-release-report",
+        default="",
+        help="Optional JSON report from run_smc_post_release_validation.py for failure alerting.",
+    )
     # Telegram
     p.add_argument("--telegram-bot-token", default="")
     p.add_argument("--telegram-chat-id", default="")
@@ -493,6 +565,11 @@ def main() -> int:
     ts = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
     state = read_library_state(Path(args.library))
+    if args.post_release_report:
+        state = enrich_state_with_post_release_report(
+            state,
+            _read_optional_json(Path(args.post_release_report)),
+        )
     if not state:
         logger.warning("Empty library state — nothing to evaluate.")
         return 0

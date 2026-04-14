@@ -468,6 +468,7 @@ jobs:
           python scripts/run_smc_post_release_validation.py \
             --release-manifest artifacts/tradingview/library_release_manifest.json \
             --validation-report artifacts/tradingview/tv_post_release_validation.json \
+            --ci-mode \
             --output artifacts/ci/smc_post_release_validation_report.json
 
       - name: Refresh gate evidence summary after post-release validation
@@ -538,7 +539,7 @@ jobs:
       # ── Signal alerts (non-blocking) ────────────────────────────
       - name: Evaluate and send alerts
         id: alerts
-        if: steps.diff.outputs.changed == 'true' && steps.breaking.outputs.breaking != 'true' && github.ref == 'refs/heads/main'
+        if: always() && steps.diff.outputs.changed == 'true' && steps.breaking.outputs.breaking != 'true' && github.ref == 'refs/heads/main'
         continue-on-error: true
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
@@ -552,6 +553,7 @@ jobs:
           python scripts/smc_alert_notifier.py \
             --library pine/generated/smc_micro_profiles_generated.pine \
             --state-file artifacts/ci/alert_last_state.json \
+            --post-release-report artifacts/ci/smc_post_release_validation_report.json \
             --provider-alerts \
             ${TELEGRAM_BOT_TOKEN:+--telegram-bot-token "$TELEGRAM_BOT_TOKEN"} \
             ${TELEGRAM_CHAT_ID:+--telegram-chat-id "$TELEGRAM_CHAT_ID"} \

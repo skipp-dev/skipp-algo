@@ -116,6 +116,31 @@ def _status_value(report: dict[str, Any]) -> str:
     return "unknown"
 
 
+def _extract_domain_visibility(report: dict[str, Any]) -> dict[str, Any] | None:
+    score = report.get("domain_visibility_score")
+    full_coverage_ratio = report.get("domain_visibility_full_coverage_ratio")
+    details = report.get("domain_visibility")
+    if isinstance(details, dict):
+        if not isinstance(score, (int, float)):
+            score = details.get("average_score")
+        if not isinstance(full_coverage_ratio, (int, float)):
+            full_coverage_ratio = details.get("full_coverage_ratio")
+        evaluated_rows = int(details.get("evaluated_rows", 0) or 0)
+    else:
+        evaluated_rows = 0
+
+    if not isinstance(score, (int, float)):
+        return None
+
+    payload: dict[str, Any] = {
+        "score": round(float(score), 4),
+        "evaluated_rows": evaluated_rows,
+    }
+    if isinstance(full_coverage_ratio, (int, float)):
+        payload["full_coverage_ratio"] = round(float(full_coverage_ratio), 4)
+    return payload
+
+
 def _is_deeper_candidate(kind: str) -> bool:
     return kind == "ci_health"
 
@@ -767,6 +792,10 @@ def main() -> int:
             "codes": codes,
         }
 
+        domain_visibility = _extract_domain_visibility(payload)
+        if domain_visibility is not None:
+            run_row["domain_visibility"] = domain_visibility
+
         measurement_entry, measurement_errors = _extract_measurement_entry(
             payload,
             path,
@@ -807,6 +836,19 @@ def main() -> int:
     runs_in_window = [row for row in runs if bool(row.get("in_lookback_window"))]
     deeper_ok_in_window = [row for row in runs_in_window if _is_deeper_candidate(str(row.get("kind", ""))) and row.get("status") == "ok"]
     release_ok_in_window = [row for row in runs_in_window if _is_release_candidate(str(row.get("kind", ""))) and row.get("status") == "ok"]
+    post_release_runs_in_window = [row for row in runs_in_window if str(row.get("kind", "")) == "post_release_validation"]
+    post_release_ok_in_window = [row for row in post_release_runs_in_window if row.get("status") == "ok"]
+    post_release_fail_in_window = [row for row in post_release_runs_in_window if row.get("status") == "fail"]
+    visibility_runs_in_window = [row for row in runs_in_window if isinstance(row.get("domain_visibility"), dict)]
+    latest_visibility = visibility_runs_in_window[0].get("domain_visibility") if visibility_runs_in_window else None
+    average_visibility_score = (
+        round(
+            sum(float(row["domain_visibility"]["score"]) for row in visibility_runs_in_window) / len(visibility_runs_in_window),
+            4,
+        )
+        if visibility_runs_in_window
+        else None
+    )
 
     recurring_failures: Counter[str] = Counter()
     stale_trend: Counter[str] = Counter()
@@ -1027,11 +1069,26 @@ def main() -> int:
         "lookback_window_start_iso": _iso_utc(window_start_ts),
         "deeper_ok_runs_in_window": len(deeper_ok_in_window),
         "release_ok_runs_in_window": len(release_ok_in_window),
+        "post_release_validation_runs_in_window": len(post_release_runs_in_window),
+        "post_release_validation_ok_runs_in_window": len(post_release_ok_in_window),
+        "post_release_validation_fail_runs_in_window": len(post_release_fail_in_window),
         "unresolved_core_failures_in_window": len(unresolved_core_failures),
         "covered_symbols": sorted(covered_symbols),
         "covered_timeframes": sorted(covered_timeframes),
         "symbol_breadth_ok": symbol_breadth_ok,
         "timeframe_breadth_ok": timeframe_breadth_ok,
+        "domain_visibility_score": latest_visibility.get("score") if isinstance(latest_visibility, dict) else None,
+        "domain_visibility_full_coverage_ratio": latest_visibility.get("full_coverage_ratio") if isinstance(latest_visibility, dict) else None,
+        "domain_visibility_score_average_in_window": average_visibility_score,
+        "domain_visibility_reports": [
+            {
+                "path": row.get("path"),
+                "checked_at_iso": row.get("checked_at_iso"),
+                **dict(row.get("domain_visibility") or {}),
+            }
+            for row in visibility_runs_in_window
+        ],
+        "last_post_release_validation_status": post_release_runs_in_window[0].get("status") if post_release_runs_in_window else None,
         "recurring_failure_codes": dict(recurring_failures.most_common()),
         "stale_trend": dict(stale_trend),
         "stale_domain_trend": dict(stale_domain_trend),

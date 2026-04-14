@@ -3,8 +3,13 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import time
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+
+
+_POST_RELEASE_MANIFEST_STALE_AFTER_SECONDS = 2 * 60 * 60
 
 
 def _read_json(path: Path) -> dict[str, Any]:
@@ -23,10 +28,52 @@ def _relative_report_path(release_manifest_path: Path, validation_report_path: P
     return os.path.relpath(validation_report_path, release_manifest_path.parent).replace("\\", "/")
 
 
+def _parse_timestamp(value: Any) -> float | None:
+    if isinstance(value, (int, float)):
+        return float(value)
+    if not isinstance(value, str):
+        return None
+    normalized = value.strip()
+    if not normalized:
+        return None
+    if normalized.endswith("Z"):
+        normalized = normalized[:-1] + "+00:00"
+    try:
+        return datetime.fromisoformat(normalized).timestamp()
+    except ValueError:
+        return None
+
+
+def _manifest_generated_timestamp(manifest: dict[str, Any]) -> tuple[float | None, str | None]:
+    candidates: list[tuple[str, Any]] = [
+        ("generated_at", manifest.get("generated_at")),
+        ("generatedAt", manifest.get("generatedAt")),
+    ]
+    library = manifest.get("library")
+    if isinstance(library, dict):
+        candidates.extend(
+            [
+                ("library.generated_at", library.get("generated_at")),
+                ("library.generatedAt", library.get("generatedAt")),
+            ]
+        )
+
+    for field_name, raw_value in candidates:
+        parsed = _parse_timestamp(raw_value)
+        if parsed is not None:
+            return parsed, field_name
+    return None, None
+
+
+def _iso_utc(ts: float) -> str:
+    return datetime.fromtimestamp(float(ts), tz=UTC).isoformat()
+
+
 def verify_post_release_validation(
     release_manifest_path: Path,
     validation_report_path: Path,
 ) -> dict[str, Any]:
+    validation_timestamp = float(time.time())
     manifest = _read_json(release_manifest_path)
     report = _read_json(validation_report_path)
 
@@ -38,6 +85,8 @@ def verify_post_release_validation(
     publish_status = str(library.get("publishStatus") or "").strip()
     expected_version = library.get("expectedVersion")
     published_version = library.get("publishedVersion")
+    manifest_generated_at, manifest_generated_field = _manifest_generated_timestamp(manifest)
+    manifest_age_seconds = None
 
     if publish_status != "published":
         failures.append(f"library.publishStatus must be 'published' (got {publish_status or 'missing'})")
@@ -46,6 +95,16 @@ def verify_post_release_validation(
         failures.append(
             f"library.publishedVersion must match expectedVersion ({published_version!r} != {expected_version!r})"
         )
+
+    if manifest_generated_at is None:
+        failures.append("library release manifest must contain generatedAt/generated_at for staleness validation")
+    else:
+        manifest_age_seconds = max(0.0, validation_timestamp - float(manifest_generated_at))
+        if manifest_age_seconds > float(_POST_RELEASE_MANIFEST_STALE_AFTER_SECONDS):
+            failures.append(
+                "library release manifest is stale for post-release validation "
+                f"({int(manifest_age_seconds)}s > {_POST_RELEASE_MANIFEST_STALE_AFTER_SECONDS}s)"
+            )
 
     if str(report.get("execution_mode") or "").strip() != "readonly":
         failures.append("post-release TradingView validation must run in readonly mode")
@@ -81,6 +140,18 @@ def verify_post_release_validation(
 
     return {
         "ok": True,
+        "validation_timestamp": validation_timestamp,
+        "validation_timestamp_iso": _iso_utc(validation_timestamp),
+        "manifest_generated_at": manifest_generated_at,
+        "manifest_generated_at_iso": _iso_utc(manifest_generated_at) if manifest_generated_at is not None else None,
+        "manifest_generated_field": manifest_generated_field,
+        "manifest_age_seconds": manifest_age_seconds,
+        "staleness_check": {
+            "ok": manifest_age_seconds is not None and manifest_age_seconds <= float(_POST_RELEASE_MANIFEST_STALE_AFTER_SECONDS),
+            "stale_after_seconds": _POST_RELEASE_MANIFEST_STALE_AFTER_SECONDS,
+            "manifest_generated_field": manifest_generated_field,
+            "manifest_age_seconds": manifest_age_seconds,
+        },
         "release_manifest_path": release_manifest_path.as_posix(),
         "validation_report_path": validation_report_path.as_posix(),
         "last_preflight_report": relative_report_path,

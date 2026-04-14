@@ -17,6 +17,7 @@ from scripts.smc_alert_notifier import (
     RULE_EVENT_SYMBOL_BLOCKED,
     RULE_IMBALANCE_SHIFT,
     RULE_MACRO_EVENT,
+    RULE_POST_RELEASE_VALIDATION_FAILED,
     RULE_PROVIDER_DEGRADED,
     RULE_RANGE_BREAKOUT,
     RULE_RISK_OFF,
@@ -26,6 +27,7 @@ from scripts.smc_alert_notifier import (
     RULE_TRADE_BLOCKED,
     _format_message,
     _parse_pine_exports,
+    enrich_state_with_post_release_report,
     evaluate_alerts,
     load_previous_fingerprint,
     read_library_state,
@@ -59,6 +61,9 @@ def _pine_content(**overrides: str) -> str:
         "SYMBOL_EVENT_BLOCKED": "false",
         "EVENT_COOLDOWN_ACTIVE": "false",
         "EARNINGS_SOON_TICKERS": "",
+        "POST_RELEASE_VALIDATION_STATUS": "",
+        "POST_RELEASE_VALIDATION_CODE": "",
+        "POST_RELEASE_VALIDATION_MESSAGE": "",
     }
     defaults.update(overrides)
     lines = ['//@version=6', 'library("smc_micro_profiles_generated")', ""]
@@ -98,6 +103,9 @@ def _state_from(**overrides: str) -> dict[str, str]:
         "SYMBOL_EVENT_BLOCKED": "false",
         "EVENT_COOLDOWN_ACTIVE": "false",
         "EARNINGS_SOON_TICKERS": "",
+        "POST_RELEASE_VALIDATION_STATUS": "",
+        "POST_RELEASE_VALIDATION_CODE": "",
+        "POST_RELEASE_VALIDATION_MESSAGE": "",
     }
     defaults.update(overrides)
     return defaults
@@ -463,6 +471,9 @@ _BASE_FP = {
     "SYMBOL_EVENT_BLOCKED": "false",
     "NEXT_EVENT_NAME": "",
     "NEXT_EVENT_TIME": "",
+    "POST_RELEASE_VALIDATION_STATUS": "",
+    "POST_RELEASE_VALIDATION_CODE": "",
+    "POST_RELEASE_VALIDATION_MESSAGE": "",
 }
 
 
@@ -543,6 +554,22 @@ class TestDuplicateSuppression:
         blocked = [a for a in result if a["rule"] == RULE_EVENT_MARKET_BLOCKED]
         assert len(blocked) == 1
 
+    def test_post_release_failure_suppressed_when_unchanged(self) -> None:
+        state = _state_from(
+            POST_RELEASE_VALIDATION_STATUS="fail",
+            POST_RELEASE_VALIDATION_CODE="POST_RELEASE_VALIDATION_FAILED",
+        )
+        alerts = evaluate_alerts(state)
+        result = suppress_duplicates(
+            alerts,
+            state,
+            _fp(
+                POST_RELEASE_VALIDATION_STATUS="fail",
+                POST_RELEASE_VALIDATION_CODE="POST_RELEASE_VALIDATION_FAILED",
+            ),
+        )
+        assert [a for a in result if a["rule"] == RULE_POST_RELEASE_VALIDATION_FAILED] == []
+
 
 # ── Fingerprint persistence ──────────────────────────────────────
 
@@ -600,6 +627,29 @@ class TestFormatMessage:
         assert "ℹ️" in msg
 
 
+class TestPostReleaseValidationAlert:
+    def test_post_release_failure_fires_critical_alert(self) -> None:
+        state = enrich_state_with_post_release_report(
+            _state_from(),
+            {
+                "overall_status": "fail",
+                "failures": [
+                    {
+                        "code": "POST_RELEASE_VALIDATION_FAILED",
+                        "message": "compile mismatch",
+                    }
+                ],
+            },
+        )
+
+        alerts = evaluate_alerts(state)
+        post_release = [a for a in alerts if a["rule"] == RULE_POST_RELEASE_VALIDATION_FAILED]
+
+        assert len(post_release) == 1
+        assert post_release[0]["severity"] == "critical"
+        assert "compile mismatch" in post_release[0]["detail"]
+
+
 # ── End-to-end via CLI ────────────────────────────────────────────
 
 class TestCLI:
@@ -652,6 +702,7 @@ def _cli_parser(**kw: Any) -> MagicMock:
         "library": "",
         "state_file": "",
         "provider_alerts": False,
+        "post_release_report": "",
         "dry_run": False,
         "telegram_bot_token": "",
         "telegram_chat_id": "",

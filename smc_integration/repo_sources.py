@@ -506,6 +506,17 @@ def _finalize_composite_meta(
         if actual_news_source:
             domain_drop_providers["news"] = actual_news_source
 
+    for domain, reason in sorted(domain_drop_reasons.items()):
+        _LOG.warning(
+            "domain_drop: domain=%s reason=%s provider=%s symbol=%s timeframe=%s planned_source=%s",
+            domain,
+            reason,
+            domain_drop_providers.get(domain, ""),
+            str(symbol).strip().upper(),
+            str(timeframe).strip(),
+            planned_technical_source if domain == "technical" else planned_news_source,
+        )
+
     merged = merge_raw_meta_domains(
         volume_meta=volume_meta,
         technical_meta=technical_meta,

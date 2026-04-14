@@ -792,6 +792,75 @@ def test_smoke_avoids_duplicate_drop_alert_when_domain_is_also_stale(monkeypatch
     assert "STALE_META_TECHNICAL_DOMAIN" in degradation_codes
 
 
+def test_smoke_records_domain_visibility_score_for_full_coverage(monkeypatch):
+    def _loader(symbol, timeframe, source):
+        return {
+            "asof_ts": 995.0,
+            "meta_domains_present": ["volume", "technical", "news"],
+            "meta_domain_diagnostics": {
+                "volume": "present",
+                "volume_source": "databento_watchlist_csv",
+                "volume_fallback_used": False,
+                "volume_stale": False,
+                "technical": "present",
+                "technical_source": "fmp_watchlist_json",
+                "technical_fallback_used": False,
+                "technical_stale": False,
+                "news": "present",
+                "news_source": "benzinga_watchlist_json",
+                "news_fallback_used": False,
+                "news_stale": False,
+            },
+        }
+
+    _patch_smoke_env(monkeypatch, _loader)
+
+    smoke = provider_health._run_smoke_checks(
+        symbols=["AAPL"], timeframes=["15m"], checked_at=1_000.0, stale_after_seconds=None,
+    )
+
+    row = smoke["results"][0]
+    assert row["domain_visibility_score"] == 1.0
+    assert row["domain_visibility_complete"] is True
+    assert row["domain_visibility_domains_present"] == ["news", "structure", "technical", "volume"]
+    assert row["domain_visibility_domains_missing"] == []
+
+
+def test_smoke_records_domain_visibility_score_for_partial_coverage(monkeypatch):
+    def _loader(symbol, timeframe, source):
+        return {
+            "asof_ts": 995.0,
+            "meta_domains_present": ["volume"],
+            "meta_domains_missing": ["technical", "news"],
+            "meta_domain_diagnostics": {
+                "volume": "present",
+                "volume_source": "databento_watchlist_csv",
+                "volume_fallback_used": False,
+                "volume_stale": False,
+                "technical": "domain_fields_incomplete",
+                "technical_source": "fmp_watchlist_json",
+                "technical_fallback_used": False,
+                "technical_stale": False,
+                "news": "source_file_not_found",
+                "news_source": "benzinga_watchlist_json",
+                "news_fallback_used": False,
+                "news_stale": False,
+            },
+        }
+
+    _patch_smoke_env(monkeypatch, _loader)
+
+    smoke = provider_health._run_smoke_checks(
+        symbols=["AAPL"], timeframes=["15m"], checked_at=1_000.0, stale_after_seconds=None,
+    )
+
+    row = smoke["results"][0]
+    assert row["domain_visibility_score"] == 0.5
+    assert row["domain_visibility_complete"] is False
+    assert row["domain_visibility_domains_present"] == ["structure", "volume"]
+    assert row["domain_visibility_domains_missing"] == ["technical", "news"]
+
+
 def test_smoke_unknown_volume_regime_is_degradation(monkeypatch):
     def _loader(symbol, timeframe, source):
         return {
@@ -968,6 +1037,9 @@ def test_provider_health_report_is_machine_readable_and_deterministic(monkeypatc
         "missing_artifacts",
         "stale_artifacts",
         "smoke_test_results",
+        "domain_visibility_score",
+        "domain_visibility_full_coverage_ratio",
+        "domain_visibility",
         "warnings",
         "failures",
         "degradations_detected",

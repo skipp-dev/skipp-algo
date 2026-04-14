@@ -77,3 +77,21 @@ def test_validate_terminal_config_reports_invalid_values() -> None:
         "tv_news_max_symbols must be greater than or equal to 1",
         "fmp_api_key must be set when fmp_enabled is true",
     ]
+
+
+def test_validate_terminal_config_rejects_negative_poll_interval() -> None:
+    cfg = _cfg(poll_interval_s=-5.0)
+
+    assert "poll_interval_s must be greater than 0" in validate_terminal_config(cfg)
+
+
+def test_has_live_news_provider_treats_blank_api_keys_as_missing() -> None:
+    cfg = _cfg(
+        benzinga_api_key="   ",
+        fmp_enabled=True,
+        fmp_api_key="   ",
+        tv_news_enabled=False,
+        tv_news_symbols="",
+    )
+
+    assert has_live_news_provider(cfg, []) is False

@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+import logging
 from collections import OrderedDict
 from collections.abc import Mapping
 from typing import Any
+
+
+_LOG = logging.getLogger(__name__)
 
 
 def _as_mapping(value: Any) -> Mapping[str, Any]:
@@ -126,6 +130,15 @@ def merge_raw_meta_domains(
         for key, value in merged_drop_providers.items()
         if value
     }
+    if meta_domains_missing:
+        _LOG.warning(
+            "meta domains missing for %s/%s: missing=%s reasons=%s providers=%s",
+            symbol.upper(),
+            timeframe,
+            ",".join(meta_domains_missing),
+            merged_drop_reasons,
+            merged["domain_drop_providers"],
+        )
 
     provenance: list[str] = []
     for raw in (volume_raw, technical_raw, news_raw):

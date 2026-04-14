@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime
 from pathlib import Path
 
 from scripts.run_smc_post_release_validation import run_post_release_validation
@@ -17,6 +18,7 @@ def test_run_post_release_validation_returns_ok_and_updates_manifest(tmp_path: P
     _write_json(
         release_manifest,
         {
+            "generatedAt": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
             "library": {
                 "publishStatus": "published",
                 "expectedVersion": "6",
@@ -56,6 +58,7 @@ def test_run_post_release_validation_normalizes_failure(tmp_path: Path) -> None:
     _write_json(
         release_manifest,
         {
+            "generatedAt": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
             "library": {
                 "publishStatus": "draft",
                 "expectedVersion": "6",
@@ -111,6 +114,7 @@ def test_run_post_release_validation_handles_corrupt_report_json(tmp_path: Path)
     _write_json(
         release_manifest,
         {
+            "generatedAt": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
             "library": {
                 "publishStatus": "published",
                 "expectedVersion": "6",
@@ -134,6 +138,7 @@ def test_run_post_release_validation_handles_failed_target(tmp_path: Path) -> No
     _write_json(
         release_manifest,
         {
+            "generatedAt": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
             "library": {
                 "publishStatus": "published",
                 "expectedVersion": "6",
@@ -163,3 +168,71 @@ def test_run_post_release_validation_handles_failed_target(tmp_path: Path) -> No
     assert report["overall_status"] == "fail"
     assert report["failures"][0]["code"] == "POST_RELEASE_VALIDATION_FAILED"
     assert "SMC_Core_Engine" in report["failures"][0]["message"]
+
+
+def test_run_post_release_validation_ci_mode_surfaces_machine_readable_failure_fields(tmp_path: Path) -> None:
+    release_manifest = tmp_path / "library_release_manifest.json"
+    validation_report = tmp_path / "tv_post_release_validation.json"
+
+    _write_json(
+        release_manifest,
+        {
+            "generatedAt": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+            "library": {
+                "publishStatus": "draft",
+                "expectedVersion": "6",
+                "publishedVersion": "5",
+            },
+        },
+    )
+    _write_json(
+        validation_report,
+        {
+            "execution_mode": "readonly",
+            "auth_reused_ok": True,
+            "auth_ok": True,
+            "overall_preflight_ok": True,
+            "targets": [{"scriptName": "SMC_Core_Engine", "overall_preflight_ok": True}],
+        },
+    )
+
+    report = run_post_release_validation(release_manifest, validation_report, ci_mode=True)
+
+    assert report["ci_mode"] is True
+    assert report["overall_status"] == "fail"
+    assert report["validation"]["ok"] is False
+    assert isinstance(report["validation"]["validation_timestamp"], float)
+
+
+def test_run_post_release_validation_ci_mode_surfaces_validation_timestamp_on_success(tmp_path: Path) -> None:
+    release_manifest = tmp_path / "library_release_manifest.json"
+    validation_report = tmp_path / "tv_post_release_validation.json"
+
+    _write_json(
+        release_manifest,
+        {
+            "generatedAt": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+            "library": {
+                "publishStatus": "published",
+                "expectedVersion": "6",
+                "publishedVersion": "6",
+            },
+        },
+    )
+    _write_json(
+        validation_report,
+        {
+            "execution_mode": "readonly",
+            "auth_reused_ok": True,
+            "auth_ok": True,
+            "overall_preflight_ok": True,
+            "targets": [{"scriptName": "SMC_Core_Engine", "overall_preflight_ok": True}],
+        },
+    )
+
+    report = run_post_release_validation(release_manifest, validation_report, ci_mode=True)
+
+    assert report["ci_mode"] is True
+    assert report["overall_status"] == "ok"
+    assert isinstance(report["validation_timestamp"], float)
+    assert report["validation_timestamp_iso"]

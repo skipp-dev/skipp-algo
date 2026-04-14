@@ -88,3 +88,17 @@ def test_hydrate_feed_story_state_handles_corrupt_story_state(monkeypatch) -> No
     assert hydrated[0]["story_providers_seen"] == []
     assert hydrated[0]["story_cooldown_until"] == 0.0
     assert hydrated[0]["story_expires_at"] == 0.0
+
+
+def test_build_derived_feed_state_derives_provider_cursors_from_rows() -> None:
+    result = build_derived_feed_state([_row(provider="benzinga_rest")], cfg=_Cfg(), now=1500.0)
+
+    assert result.legacy_cursor == "1000"
+    assert result.provider_cursors
+
+
+def test_hydrate_feed_story_state_preserves_explicit_story_key() -> None:
+    hydrated, story_state = hydrate_feed_story_state([_row(story_key="explicit-story")], cfg=_Cfg(), now=1500.0)
+
+    assert hydrated[0]["story_key"] == "explicit-story"
+    assert "explicit-story" in story_state

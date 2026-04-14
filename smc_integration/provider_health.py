@@ -17,6 +17,7 @@ from .service import build_snapshot_bundle_for_symbol_timeframe
 from .sources import structure_artifact_json
 
 CANONICAL_STRUCTURE_KEYS = ("bos", "orderblocks", "fvg", "liquidity_sweeps")
+_ALL_VISIBILITY_DOMAINS = ("structure", "volume", "technical", "news")
 _FATAL_ARTIFACT_HEALTH_CODES = {
     "INVALID_MANIFEST_JSON",
     "INVALID_MANIFEST_SHAPE",
@@ -140,6 +141,92 @@ def _domain_drop_provider_map(raw_meta: dict[str, Any] | None) -> dict[str, str]
         str(key).strip(): str(value).strip()
         for key, value in raw_providers.items()
         if str(key).strip() and str(value).strip()
+    }
+
+
+def _present_meta_domains(raw_meta: dict[str, Any] | None) -> set[str]:
+    if not isinstance(raw_meta, dict):
+        return set()
+
+    raw_present = raw_meta.get("meta_domains_present")
+    present = {
+        str(item).strip()
+        for item in raw_present
+        if isinstance(item, str) and str(item).strip()
+    } if isinstance(raw_present, list) else set()
+
+    for domain in ("volume", "technical", "news"):
+        if isinstance(raw_meta.get(domain), dict):
+            present.add(domain)
+    return present
+
+
+def _domain_visibility_snapshot(
+    *,
+    structure_present: bool,
+    raw_meta: dict[str, Any] | None,
+    domain_diag: dict[str, Any] | None,
+) -> dict[str, Any]:
+    present = set()
+    if structure_present:
+        present.add("structure")
+
+    meta_present = _present_meta_domains(raw_meta)
+    missing_meta = _missing_meta_domains(raw_meta)
+    present.update(meta_present)
+
+    if isinstance(domain_diag, dict):
+        for domain in ("volume", "technical", "news"):
+            if domain in present or domain in missing_meta:
+                continue
+            status = str(domain_diag.get(domain) or "").strip()
+            if status in {"present", "synthetic_fallback"} and domain_diag.get(f"{domain}_stale") is not True:
+                present.add(domain)
+
+    missing = [domain for domain in _ALL_VISIBILITY_DOMAINS if domain not in present]
+    score = len(present) / float(len(_ALL_VISIBILITY_DOMAINS))
+    return {
+        "domain_visibility_domains_present": sorted(present),
+        "domain_visibility_domains_missing": missing,
+        "domain_visibility_total_domains": len(_ALL_VISIBILITY_DOMAINS),
+        "domain_visibility_score": round(score, 4),
+        "domain_visibility_complete": len(missing) == 0,
+    }
+
+
+def _summarize_domain_visibility(results: list[dict[str, Any]]) -> dict[str, Any]:
+    visibility_rows: list[dict[str, Any]] = []
+    for row in results:
+        score = row.get("domain_visibility_score")
+        if not isinstance(score, (int, float)):
+            continue
+        visibility_rows.append(
+            {
+                "symbol": row.get("symbol"),
+                "timeframe": row.get("timeframe"),
+                "score": round(float(score), 4),
+                "complete": bool(row.get("domain_visibility_complete")),
+                "domains_present": list(row.get("domain_visibility_domains_present") or []),
+                "domains_missing": list(row.get("domain_visibility_domains_missing") or []),
+            }
+        )
+
+    if not visibility_rows:
+        return {
+            "average_score": None,
+            "full_coverage_ratio": None,
+            "fully_visible_rows": 0,
+            "evaluated_rows": 0,
+            "rows": [],
+        }
+
+    fully_visible_rows = sum(1 for row in visibility_rows if row["complete"])
+    return {
+        "average_score": round(sum(row["score"] for row in visibility_rows) / len(visibility_rows), 4),
+        "full_coverage_ratio": round(fully_visible_rows / len(visibility_rows), 4),
+        "fully_visible_rows": fully_visible_rows,
+        "evaluated_rows": len(visibility_rows),
+        "rows": visibility_rows,
     }
 
 
@@ -613,6 +700,8 @@ def _run_smoke_checks(
                     warnings.append(dict(degradation))
                     degradations.append(dict(degradation))
 
+            structure_present = bool(row["structure_shape_ok"])
+
             try:
                 if allow_release_reference_meta_fallback:
                     from .repo_sources import load_raw_meta_input_composite_for_release_reference
@@ -714,6 +803,14 @@ def _run_smoke_checks(
                                 stale_domain_row["age_hours"] = age_hours
                             warnings.append(dict(stale_domain_row))
                             degradations.append(dict(stale_domain_row))
+
+            row.update(
+                _domain_visibility_snapshot(
+                    structure_present=structure_present,
+                    raw_meta=raw_meta if isinstance(raw_meta, dict) else None,
+                    domain_diag=row.get("meta_domain_diagnostics") if isinstance(row.get("meta_domain_diagnostics"), dict) else None,
+                )
+            )
 
             if failures:
                 row["status"] = "fail"
@@ -982,6 +1079,7 @@ def run_provider_health_check(
     failures = _sorted_records(failures)
     degradations = _sorted_records(degradations)
     domain_alerts = _sorted_records(list(smoke.get("domain_alerts", [])))
+    domain_visibility = _summarize_domain_visibility(list(smoke.get("results", [])))
 
     overall_status = _status_from_lists(failures=failures, warnings=warnings, degradations=degradations)
 
@@ -998,6 +1096,9 @@ def run_provider_health_check(
         "missing_artifacts": list(artifact_health.get("missing_artifacts", [])),
         "stale_artifacts": list(artifact_health.get("stale_artifacts", [])),
         "smoke_test_results": list(smoke.get("results", [])),
+        "domain_visibility_score": domain_visibility.get("average_score"),
+        "domain_visibility_full_coverage_ratio": domain_visibility.get("full_coverage_ratio"),
+        "domain_visibility": domain_visibility,
         "domain_alerts": domain_alerts,
         "warnings": warnings,
         "failures": failures,
