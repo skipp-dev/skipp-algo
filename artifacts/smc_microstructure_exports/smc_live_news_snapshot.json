@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-04-14T21:30:00.572085Z",
+  "generated_at": "2026-04-14T22:26:05.099444Z",
   "symbols": [
     "AAPL",
     "MSFT",
@@ -56,12 +56,12 @@
     "newsapi_ai": {
       "ok": true,
       "error": "",
-      "raw_count": 43,
-      "new_item_count": 14,
+      "raw_count": 3,
+      "new_item_count": 0,
       "cursor": 1776200507.0,
       "last_seen_news_uri": "",
-      "provider_status": "ok",
-      "status_detail": "",
+      "provider_status": "ok_no_recent_matches",
+      "status_detail": "Event Registry reachable, but no new symbol-matching NewsAPI.ai items were newer than the current cursor.",
       "error_code": ""
     },
     "tv": {
@@ -81,7 +81,7 @@
       ],
       "published_at": "2026-04-14T21:01:47Z",
       "published_ts": 1776200507.0,
-      "age_minutes": 28.2,
+      "age_minutes": 84.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -102,13 +102,13 @@
       "impact": 0.8,
       "clarity": 0.8,
       "relevance": 0.85,
-      "news_catalyst_score": 0.594,
+      "news_catalyst_score": 0.579,
       "materiality": "MEDIUM",
-      "recency_bucket": "WARM",
+      "recency_bucket": "AGING",
       "is_actionable": true,
       "url": "https://seekingalpha.com/article/4890573-johnson-and-johnson-jnj-q1-2026-earnings-call-transcript",
       "first_seen_at": "2026-04-14T21:30:00.572085Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -119,7 +119,7 @@
       ],
       "published_at": "2026-04-14T19:01:45Z",
       "published_ts": 1776193305.0,
-      "age_minutes": 148.3,
+      "age_minutes": 204.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -140,51 +140,13 @@
       "impact": 0.8,
       "clarity": 0.8,
       "relevance": 0.85,
-      "news_catalyst_score": 0.5394,
-      "materiality": "MEDIUM",
-      "recency_bucket": "AGING",
-      "is_actionable": true,
-      "url": "https://seekingalpha.com/article/4890572-jpmorgan-chase-and-co-jpm-q1-2026-earnings-call-transcript",
-      "first_seen_at": "2026-04-14T21:30:00.572085Z",
-      "is_new": true,
-      "provider_count": 1
-    },
-    {
-      "story_key": "9a1b331b16cef6f77e34316cae9a3d331521d1e0:5920629",
-      "headline": "Johnson & Johnson Q2 Earnings Review: Why You Should Be Buying The Stock Today (NYSE:JNJ)",
-      "tickers": [
-        "JNJ"
-      ],
-      "published_at": "2026-04-14T17:47:58Z",
-      "published_ts": 1776188878.0,
-      "age_minutes": 222.0,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Seeking Alpha"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "earnings",
-      "event_class": "EARNINGS",
-      "event_label": "Johnson & Johnson Q2 Earnings Review: Why You Should Be Buying The Stock Today (NYSE:JNJ)",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.8,
-      "clarity": 0.6,
-      "relevance": 0.79,
-      "news_catalyst_score": 0.4516,
+      "news_catalyst_score": 0.4972,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
-      "url": "https://seekingalpha.com/article/4890640-johnson-and-johnson-q2-earnings-review-why-you-should-be-buying-stock-today",
+      "url": "https://seekingalpha.com/article/4890572-jpmorgan-chase-and-co-jpm-q1-2026-earnings-call-transcript",
       "first_seen_at": "2026-04-14T21:30:00.572085Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -195,7 +157,7 @@
       ],
       "published_at": "2026-04-14T16:34:39Z",
       "published_ts": 1776184479.0,
-      "age_minutes": 295.4,
+      "age_minutes": 351.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -216,7 +178,7 @@
       "impact": 0.8,
       "clarity": 0.8,
       "relevance": 0.85,
-      "news_catalyst_score": 0.4405,
+      "news_catalyst_score": 0.4359,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
@@ -233,7 +195,7 @@
       ],
       "published_at": "2026-04-14T14:44:51Z",
       "published_ts": 1776177891.0,
-      "age_minutes": 405.2,
+      "age_minutes": 461.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -271,7 +233,7 @@
       ],
       "published_at": "2026-04-14T13:01:38Z",
       "published_ts": 1776171698.0,
-      "age_minutes": 508.4,
+      "age_minutes": 564.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -309,7 +271,7 @@
       ],
       "published_at": "2026-04-14T13:01:17Z",
       "published_ts": 1776171677.0,
-      "age_minutes": 508.7,
+      "age_minutes": 564.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -347,7 +309,7 @@
       ],
       "published_at": "2026-04-14T11:10:28Z",
       "published_ts": 1776165028.0,
-      "age_minutes": 619.5,
+      "age_minutes": 675.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -378,6 +340,44 @@
       "provider_count": 1
     },
     {
+      "story_key": "9a1b331b16cef6f77e34316cae9a3d331521d1e0:5920629",
+      "headline": "Johnson & Johnson Q2 Earnings Review: Why You Should Be Buying The Stock Today (NYSE:JNJ)",
+      "tickers": [
+        "JNJ"
+      ],
+      "published_at": "2026-04-14T17:47:58Z",
+      "published_ts": 1776188878.0,
+      "age_minutes": 278.1,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Seeking Alpha"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "earnings",
+      "event_class": "EARNINGS",
+      "event_label": "Johnson & Johnson Q2 Earnings Review: Why You Should Be Buying The Stock Today (NYSE:JNJ)",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.8,
+      "clarity": 0.6,
+      "relevance": 0.79,
+      "news_catalyst_score": 0.4027,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://seekingalpha.com/article/4890640-johnson-and-johnson-q2-earnings-review-why-you-should-be-buying-stock-today",
+      "first_seen_at": "2026-04-14T21:30:00.572085Z",
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
       "story_key": "6f8f3f1950af787ec0403cfec1fcd4b984681155:5920594",
       "headline": "Amazon Could Explode Higher After Earnings (NASDAQ:AMZN)",
       "tickers": [
@@ -385,7 +385,7 @@
       ],
       "published_at": "2026-04-14T14:54:08Z",
       "published_ts": 1776178448.0,
-      "age_minutes": 395.9,
+      "age_minutes": 452.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -423,7 +423,7 @@
       ],
       "published_at": "2026-04-14T12:22:47Z",
       "published_ts": 1776169367.0,
-      "age_minutes": 547.2,
+      "age_minutes": 603.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -461,7 +461,7 @@
       ],
       "published_at": "2026-04-14T13:45:17Z",
       "published_ts": 1776174317.0,
-      "age_minutes": 464.7,
+      "age_minutes": 520.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -499,7 +499,7 @@
       ],
       "published_at": "2026-04-14T02:16:46Z",
       "published_ts": 1776133006.0,
-      "age_minutes": 1153.2,
+      "age_minutes": 1209.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -537,7 +537,7 @@
       ],
       "published_at": "2026-04-14T02:15:59Z",
       "published_ts": 1776132959.0,
-      "age_minutes": 1154.0,
+      "age_minutes": 1210.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -575,7 +575,7 @@
       ],
       "published_at": "2026-04-14T08:26:38Z",
       "published_ts": 1776155198.0,
-      "age_minutes": 783.4,
+      "age_minutes": 839.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -613,7 +613,7 @@
       ],
       "published_at": "2026-04-14T20:39:03Z",
       "published_ts": 1776199143.0,
-      "age_minutes": 51.0,
+      "age_minutes": 107.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -634,13 +634,13 @@
       "impact": 0.1,
       "clarity": 0.8,
       "relevance": 0.535,
-      "news_catalyst_score": 0.279,
+      "news_catalyst_score": 0.2653,
       "materiality": "LOW",
-      "recency_bucket": "WARM",
+      "recency_bucket": "AGING",
       "is_actionable": false,
       "url": "https://seekingalpha.com/article/4890680-amazon-the-200-billion-risk-that-everyone-is-getting-wrong",
       "first_seen_at": "2026-04-14T21:30:00.572085Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -651,7 +651,7 @@
       ],
       "published_at": "2026-04-14T19:18:29Z",
       "published_ts": 1776194309.0,
-      "age_minutes": 131.5,
+      "age_minutes": 187.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -672,13 +672,13 @@
       "impact": 0.1,
       "clarity": 0.6,
       "relevance": 0.475,
-      "news_catalyst_score": 0.2619,
+      "news_catalyst_score": 0.2443,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
       "url": "https://www.benzinga.com/trading-ideas/movers/26/04/51817084/is-momentum-finally-turning-for-microsoft-stock",
       "first_seen_at": "2026-04-14T21:30:00.572085Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -689,7 +689,7 @@
       ],
       "published_at": "2026-04-14T19:02:45Z",
       "published_ts": 1776193365.0,
-      "age_minutes": 147.3,
+      "age_minutes": 203.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -710,13 +710,13 @@
       "impact": 0.1,
       "clarity": 0.8,
       "relevance": 0.535,
-      "news_catalyst_score": 0.2536,
+      "news_catalyst_score": 0.234,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
       "url": "https://seekingalpha.com/news/4574933-jpmorgan-forecasts-2026-nii-ex-markets-of-about-95b-while-planning-for-a-5_2-percent-g-sib",
       "first_seen_at": "2026-04-14T21:30:00.572085Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -727,7 +727,7 @@
       ],
       "published_at": "2026-04-14T18:48:11Z",
       "published_ts": 1776192491.0,
-      "age_minutes": 161.8,
+      "age_minutes": 217.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -748,13 +748,13 @@
       "impact": 0.1,
       "clarity": 0.6,
       "relevance": 0.475,
-      "news_catalyst_score": 0.253,
+      "news_catalyst_score": 0.2309,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
       "url": "https://www.benzinga.com/markets/private-markets/26/04/51816193/trump-greenlight-anthropics-mythos-after-the-pentagon-fight",
       "first_seen_at": "2026-04-14T21:30:00.572085Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -765,7 +765,7 @@
       ],
       "published_at": "2026-04-14T18:52:28Z",
       "published_ts": 1776192748.0,
-      "age_minutes": 157.5,
+      "age_minutes": 213.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -786,89 +786,13 @@
       "impact": 0.1,
       "clarity": 0.8,
       "relevance": 0.535,
-      "news_catalyst_score": 0.2507,
+      "news_catalyst_score": 0.2295,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
       "url": "https://seekingalpha.com/news/4574921-microsoft-will-rent-30000-nvidia-chips-from-nscale-in-norway-deal-expands-wyoming-ops",
       "first_seen_at": "2026-04-14T21:30:00.572085Z",
-      "is_new": true,
-      "provider_count": 1
-    },
-    {
-      "story_key": "deeb9d295a0be611ff1278c8668b0180b86bd2c8:5920653",
-      "headline": "Amazon: Positioning For Global Interconnectivity With Globalstar (NASDAQ:AMZN)",
-      "tickers": [
-        "AMZN"
-      ],
-      "published_at": "2026-04-14T19:45:30Z",
-      "published_ts": 1776195930.0,
-      "age_minutes": 104.5,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Seeking Alpha"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Amazon: Positioning For Global Interconnectivity With Globalstar (NASDAQ:AMZN)",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.2317,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://seekingalpha.com/article/4890671-amazon-positioning-for-global-interconnectivity-with-globalstar",
-      "first_seen_at": "2026-04-14T21:30:00.572085Z",
-      "is_new": true,
-      "provider_count": 1
-    },
-    {
-      "story_key": "d276cb0eeeeaac3ab3ed60aedeca7be8e9d52e98:5920652",
-      "headline": "Amazon (AMZN) Stock Is Up, What You Need To Know",
-      "tickers": [
-        "AMZN"
-      ],
-      "published_at": "2026-04-14T19:42:03Z",
-      "published_ts": 1776195723.0,
-      "age_minutes": 108.0,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Yahoo! Finance"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Amazon (AMZN) Stock Is Up, What You Need To Know",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.2309,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://ca.finance.yahoo.com/news/amazon-amzn-stock-know-194203970.html",
-      "first_seen_at": "2026-04-14T21:30:00.572085Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -879,7 +803,7 @@
       ],
       "published_at": "2026-04-14T14:10:44Z",
       "published_ts": 1776175844.0,
-      "age_minutes": 439.3,
+      "age_minutes": 495.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -917,7 +841,7 @@
       ],
       "published_at": "2026-04-14T11:54:51Z",
       "published_ts": 1776167691.0,
-      "age_minutes": 575.2,
+      "age_minutes": 631.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -948,6 +872,82 @@
       "provider_count": 1
     },
     {
+      "story_key": "deeb9d295a0be611ff1278c8668b0180b86bd2c8:5920653",
+      "headline": "Amazon: Positioning For Global Interconnectivity With Globalstar (NASDAQ:AMZN)",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_at": "2026-04-14T19:45:30Z",
+      "published_ts": 1776195930.0,
+      "age_minutes": 160.6,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Seeking Alpha"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Amazon: Positioning For Global Interconnectivity With Globalstar (NASDAQ:AMZN)",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.2175,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://seekingalpha.com/article/4890671-amazon-positioning-for-global-interconnectivity-with-globalstar",
+      "first_seen_at": "2026-04-14T21:30:00.572085Z",
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
+      "story_key": "d276cb0eeeeaac3ab3ed60aedeca7be8e9d52e98:5920652",
+      "headline": "Amazon (AMZN) Stock Is Up, What You Need To Know",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_at": "2026-04-14T19:42:03Z",
+      "published_ts": 1776195723.0,
+      "age_minutes": 164.0,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Yahoo! Finance"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Amazon (AMZN) Stock Is Up, What You Need To Know",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.2167,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://ca.finance.yahoo.com/news/amazon-amzn-stock-know-194203970.html",
+      "first_seen_at": "2026-04-14T21:30:00.572085Z",
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
       "story_key": "d55bffe3d7e30fb19b0a7035963b59350703ad77:5920640",
       "headline": "Microsoft: CAPEX Spending In Focus Ahead Of Q3 (NASDAQ:MSFT)",
       "tickers": [
@@ -955,7 +955,7 @@
       ],
       "published_at": "2026-04-14T18:43:54Z",
       "published_ts": 1776192234.0,
-      "age_minutes": 166.1,
+      "age_minutes": 222.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -976,51 +976,13 @@
       "impact": 0.1,
       "clarity": 0.6,
       "relevance": 0.475,
-      "news_catalyst_score": 0.2161,
+      "news_catalyst_score": 0.1966,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
       "url": "https://seekingalpha.com/article/4890658-microsoft-capex-spending-in-focus-ahead-of-q3",
       "first_seen_at": "2026-04-14T21:30:00.572085Z",
-      "is_new": true,
-      "provider_count": 1
-    },
-    {
-      "story_key": "5da4cbb20f30c27661c68722dd051d73dfe44c7d:5920633",
-      "headline": "Plastics prices climb as supply disruptions ripple through petrochemical markets (XOM:NYSE)",
-      "tickers": [
-        "XOM"
-      ],
-      "published_at": "2026-04-14T18:07:54Z",
-      "published_ts": 1776190074.0,
-      "age_minutes": 202.1,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Seeking Alpha"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Plastics prices climb as supply disruptions ripple through petrochemical markets (XOM:NYSE)",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.2042,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://seekingalpha.com/news/4574915-plastics-prices-climb-as-supply-disruptions-ripple-through-petrochemical-markets",
-      "first_seen_at": "2026-04-14T21:30:00.572085Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -1031,7 +993,7 @@
       ],
       "published_at": "2026-04-14T13:57:43Z",
       "published_ts": 1776175063.0,
-      "age_minutes": 452.3,
+      "age_minutes": 508.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1069,7 +1031,7 @@
       ],
       "published_at": "2026-04-14T09:58:38Z",
       "published_ts": 1776160718.0,
-      "age_minutes": 691.4,
+      "age_minutes": 747.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1107,7 +1069,7 @@
       ],
       "published_at": "2026-04-14T09:42:57Z",
       "published_ts": 1776159777.0,
-      "age_minutes": 707.1,
+      "age_minutes": 763.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1145,7 +1107,7 @@
       ],
       "published_at": "2026-04-14T08:54:51Z",
       "published_ts": 1776156891.0,
-      "age_minutes": 755.2,
+      "age_minutes": 811.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1183,7 +1145,7 @@
       ],
       "published_at": "2026-04-14T09:59:04Z",
       "published_ts": 1776160744.0,
-      "age_minutes": 690.9,
+      "age_minutes": 747.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1221,7 +1183,7 @@
       ],
       "published_at": "2026-04-14T15:12:12Z",
       "published_ts": 1776179532.0,
-      "age_minutes": 377.8,
+      "age_minutes": 433.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1259,7 +1221,7 @@
       ],
       "published_at": "2026-04-14T15:02:45Z",
       "published_ts": 1776178965.0,
-      "age_minutes": 387.3,
+      "age_minutes": 443.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1297,7 +1259,7 @@
       ],
       "published_at": "2026-04-14T14:05:25Z",
       "published_ts": 1776175525.0,
-      "age_minutes": 444.6,
+      "age_minutes": 500.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1335,7 +1297,7 @@
       ],
       "published_at": "2026-04-14T13:30:03Z",
       "published_ts": 1776173403.0,
-      "age_minutes": 480.0,
+      "age_minutes": 536.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1374,7 +1336,7 @@
       ],
       "published_at": "2026-04-14T12:54:59Z",
       "published_ts": 1776171299.0,
-      "age_minutes": 515.0,
+      "age_minutes": 571.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1412,7 +1374,7 @@
       ],
       "published_at": "2026-04-14T12:30:00Z",
       "published_ts": 1776169800.0,
-      "age_minutes": 540.0,
+      "age_minutes": 596.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1450,7 +1412,7 @@
       ],
       "published_at": "2026-04-14T10:09:41Z",
       "published_ts": 1776161381.0,
-      "age_minutes": 680.3,
+      "age_minutes": 736.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1481,14 +1443,14 @@
       "provider_count": 1
     },
     {
-      "story_key": "a31e200ecbf9c57ce432e6793a0055cc7070f514:5920621",
-      "headline": "Amazon (AMZN) Stock Is Up, What You Need To Know - StockStory",
+      "story_key": "5da4cbb20f30c27661c68722dd051d73dfe44c7d:5920633",
+      "headline": "Plastics prices climb as supply disruptions ripple through petrochemical markets (XOM:NYSE)",
       "tickers": [
-        "AMZN"
+        "XOM"
       ],
-      "published_at": "2026-04-14T17:06:16Z",
-      "published_ts": 1776186376.0,
-      "age_minutes": 263.7,
+      "published_at": "2026-04-14T18:07:54Z",
+      "published_ts": 1776190074.0,
+      "age_minutes": 258.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1497,25 +1459,25 @@
         "newsapi_ai"
       ],
       "sources": [
-        "StockStory"
+        "Seeking Alpha"
       ],
       "source_tier": "TIER_3",
       "source_rank": 3,
       "category": "other",
       "event_class": "UNKNOWN",
-      "event_label": "Amazon (AMZN) Stock Is Up, What You Need To Know - StockStory",
+      "event_label": "Plastics prices climb as supply disruptions ripple through petrochemical markets (XOM:NYSE)",
       "sentiment_label": "neutral",
       "polarity": 0.0,
       "impact": 0.1,
       "clarity": 0.6,
       "relevance": 0.475,
-      "news_catalyst_score": 0.1808,
+      "news_catalyst_score": 0.1829,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
-      "url": "https://stockstory.org/us/stocks/nasdaq/amzn/news/why-up-down/amazon-amzn-stock-is-up-what-you-need-to-know-3",
+      "url": "https://seekingalpha.com/news/4574915-plastics-prices-climb-as-supply-disruptions-ripple-through-petrochemical-markets",
       "first_seen_at": "2026-04-14T21:30:00.572085Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -1528,7 +1490,7 @@
       ],
       "published_at": "2026-04-14T12:42:44Z",
       "published_ts": 1776170564.0,
-      "age_minutes": 527.3,
+      "age_minutes": 583.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1559,6 +1521,44 @@
       "provider_count": 1
     },
     {
+      "story_key": "a31e200ecbf9c57ce432e6793a0055cc7070f514:5920621",
+      "headline": "Amazon (AMZN) Stock Is Up, What You Need To Know - StockStory",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_at": "2026-04-14T17:06:16Z",
+      "published_ts": 1776186376.0,
+      "age_minutes": 319.8,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "StockStory"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Amazon (AMZN) Stock Is Up, What You Need To Know - StockStory",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.1671,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://stockstory.org/us/stocks/nasdaq/amzn/news/why-up-down/amazon-amzn-stock-is-up-what-you-need-to-know-3",
+      "first_seen_at": "2026-04-14T21:30:00.572085Z",
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
       "story_key": "57a6fe14456ea7cc1ff4cdc27d1c2d2ae0fe91d8:5920621",
       "headline": "Meta (META) Stock Trades Up, Here Is Why - StockStory",
       "tickers": [
@@ -1566,7 +1566,7 @@
       ],
       "published_at": "2026-04-14T17:05:55Z",
       "published_ts": 1776186355.0,
-      "age_minutes": 264.1,
+      "age_minutes": 320.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1587,13 +1587,13 @@
       "impact": 0.1,
       "clarity": 0.6,
       "relevance": 0.475,
-      "news_catalyst_score": 0.1807,
+      "news_catalyst_score": 0.1671,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
       "url": "https://stockstory.org/us/stocks/nasdaq/meta/news/why-up-down/meta-meta-stock-trades-up-here-is-why-7",
       "first_seen_at": "2026-04-14T21:30:00.572085Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -1604,7 +1604,7 @@
       ],
       "published_at": "2026-04-14T16:29:34Z",
       "published_ts": 1776184174.0,
-      "age_minutes": 300.4,
+      "age_minutes": 356.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1642,7 +1642,7 @@
       ],
       "published_at": "2026-04-14T16:08:51Z",
       "published_ts": 1776182931.0,
-      "age_minutes": 321.2,
+      "age_minutes": 377.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1680,7 +1680,7 @@
       ],
       "published_at": "2026-04-14T15:37:49Z",
       "published_ts": 1776181069.0,
-      "age_minutes": 352.2,
+      "age_minutes": 408.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1718,7 +1718,7 @@
       ],
       "published_at": "2026-04-14T14:40:59Z",
       "published_ts": 1776177659.0,
-      "age_minutes": 409.0,
+      "age_minutes": 465.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1756,7 +1756,7 @@
       ],
       "published_at": "2026-04-14T14:10:11Z",
       "published_ts": 1776175811.0,
-      "age_minutes": 439.8,
+      "age_minutes": 495.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1794,7 +1794,7 @@
       ],
       "published_at": "2026-04-14T13:47:54Z",
       "published_ts": 1776174474.0,
-      "age_minutes": 462.1,
+      "age_minutes": 518.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1832,7 +1832,7 @@
       ],
       "published_at": "2026-04-14T13:29:48Z",
       "published_ts": 1776173388.0,
-      "age_minutes": 480.2,
+      "age_minutes": 536.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1870,7 +1870,7 @@
       ],
       "published_at": "2026-04-14T13:14:08Z",
       "published_ts": 1776172448.0,
-      "age_minutes": 495.9,
+      "age_minutes": 552.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1908,7 +1908,7 @@
       ],
       "published_at": "2026-04-14T10:50:44Z",
       "published_ts": 1776163844.0,
-      "age_minutes": 639.3,
+      "age_minutes": 695.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1946,7 +1946,7 @@
       ],
       "published_at": "2026-04-14T09:46:08Z",
       "published_ts": 1776159968.0,
-      "age_minutes": 703.9,
+      "age_minutes": 760.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1984,7 +1984,7 @@
       ],
       "published_at": "2026-04-14T08:43:03Z",
       "published_ts": 1776156183.0,
-      "age_minutes": 767.0,
+      "age_minutes": 823.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2022,7 +2022,7 @@
       ],
       "published_at": "2026-04-14T07:10:00Z",
       "published_ts": 1776150600.0,
-      "age_minutes": 860.0,
+      "age_minutes": 916.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2060,7 +2060,7 @@
       ],
       "published_at": "2026-04-14T06:15:14Z",
       "published_ts": 1776147314.0,
-      "age_minutes": 914.8,
+      "age_minutes": 970.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2098,7 +2098,7 @@
       ],
       "published_at": "2026-04-14T05:08:01Z",
       "published_ts": 1776143281.0,
-      "age_minutes": 982.0,
+      "age_minutes": 1038.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2136,7 +2136,7 @@
       ],
       "published_at": "2026-04-14T02:17:31Z",
       "published_ts": 1776133051.0,
-      "age_minutes": 1152.5,
+      "age_minutes": 1208.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2195,12 +2195,12 @@
       "story_key": "6f8f3f1950af787ec0403cfec1fcd4b984681155:5920594"
     },
     "JNJ": {
-      "news_catalyst_score": 0.714,
+      "news_catalyst_score": 0.699,
       "sentiment_label": "neutral",
       "event_class": "EARNINGS",
       "event_label": "Johnson & Johnson (JNJ) Q1 2026 Earnings Call Transcript",
       "materiality": "MEDIUM",
-      "recency_bucket": "WARM",
+      "recency_bucket": "AGING",
       "source_tier": "TIER_3",
       "mentions_24h": 5,
       "is_actionable": true,
@@ -2208,15 +2208,15 @@
       "story_key": "4a62406215845900df5589366c4cd3ce9378da5e:5920668"
     },
     "JPM": {
-      "news_catalyst_score": 0.6594,
+      "news_catalyst_score": 0.6172,
       "sentiment_label": "neutral",
       "event_class": "EARNINGS",
       "event_label": "JPMorgan Chase & Co. (JPM) Q1 2026 Earnings Call Transcript",
-      "materiality": "MEDIUM",
+      "materiality": "LOW",
       "recency_bucket": "AGING",
       "source_tier": "TIER_3",
       "mentions_24h": 9,
-      "is_actionable": true,
+      "is_actionable": false,
       "first_provider": "newsapi_ai",
       "story_key": "31a00556b164397ec3390143cf899074c4fdd95e:5920644"
     },
@@ -2247,7 +2247,7 @@
       "story_key": "9b1b2a82892c9b3de4983c52fbb09020230f6503:5920443"
     },
     "XOM": {
-      "news_catalyst_score": 0.2042,
+      "news_catalyst_score": 0.1829,
       "sentiment_label": "neutral",
       "event_class": "UNKNOWN",
       "event_label": "Plastics prices climb as supply disruptions ripple through petrochemical markets (XOM:NYSE)",
@@ -2262,11 +2262,10 @@
   },
   "summary": {
     "active_story_count": 55,
-    "new_story_count": 14,
-    "actionable_story_count": 2,
+    "new_story_count": 0,
+    "actionable_story_count": 1,
     "actionable_symbols": [
-      "JNJ",
-      "JPM"
+      "JNJ"
     ],
     "symbol_count": 7
   },
