@@ -120,3 +120,46 @@ def test_r11_migration_and_operator_guide_is_linked_and_explicit() -> None:
     assert "Execution Stage" in guide
     assert "Execution Trigger" in guide
     assert "Core-Outputs" in guide
+
+
+def test_core_and_dashboard_trust_tier_values_are_consistent() -> None:
+    core = _read("SMC_Core_Engine.pine")
+    dashboard = _read("SMC_Dashboard.pine")
+
+    for tier in ["High", "Guarded", "Degraded", "Insufficient"]:
+        assert f"'{tier}'" in core, f"Core must contain trust tier '{tier}'"
+
+    for tier in ["high", "guarded", "degraded", "insufficient"]:
+        assert f'"{tier}"' in dashboard, f"Dashboard must contain trust tier '{tier}'"
+
+    assert "resolve_trust_tier(" in core
+    assert "resolve_dashboard_trust_tier(" in dashboard
+
+    assert "Provider: " in core
+    assert "Main blocker: " in core
+    assert "Trust: " in core
+
+    assert '"Trust / Data"' in dashboard
+    assert '"provider: "' in dashboard or "provider: " in dashboard
+
+
+def test_core_trust_resolution_defaults_to_insufficient() -> None:
+    core = _read("SMC_Core_Engine.pine")
+
+    func_start = core.index("resolve_trust_tier(")
+    func_body = core[func_start:func_start + 600]
+
+    assert "'Insufficient'" in func_body
+    assert func_body.index("'Insufficient'") < func_body.index("'High'"), \
+        "Default must be Insufficient before any promotion to High"
+
+
+def test_dashboard_trust_resolution_defaults_to_insufficient() -> None:
+    dashboard = _read("SMC_Dashboard.pine")
+
+    func_start = dashboard.index("resolve_dashboard_trust_tier(")
+    func_body = dashboard[func_start:func_start + 600]
+
+    assert '"insufficient"' in func_body
+    assert func_body.index('"insufficient"') < func_body.index('"high"'), \
+        "Default must be insufficient before any promotion to high"

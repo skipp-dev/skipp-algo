@@ -120,3 +120,127 @@ def test_trust_summary_is_insufficient_without_measurement_truth() -> None:
     assert summary["main_blocker"] == "Measurement evidence unavailable"
     assert summary["measurement_quality_tier"] == "unknown"
     assert summary["measurement_quality_score"] is None
+
+
+_TRUST_SUMMARY_CANONICAL_KEYS = {
+    "trust_state",
+    "provider_state",
+    "main_blocker",
+    "measurement_status",
+    "measurement_events",
+    "measurement_family_count",
+    "measurement_quality_tier",
+    "measurement_quality_score",
+    "measurement_warning_count",
+    "provider_health_issue_count",
+    "structure_state",
+    "structure_missing_categories",
+    "missing_domains",
+    "stale_domains",
+}
+
+_TRUST_STATE_VALUES = {"high", "guarded", "degraded", "insufficient"}
+_PROVIDER_STATE_VALUES = {"ok", "degraded", "unavailable"}
+
+
+def test_trust_summary_schema_keys_are_stable() -> None:
+    summary = service._build_trust_summary(
+        raw_meta=_raw_meta(),
+        structure_status=_structure_status(),
+        measurement_summary=_measurement_summary(),
+    )
+
+    assert set(summary.keys()) == _TRUST_SUMMARY_CANONICAL_KEYS
+
+
+def test_trust_summary_values_are_bounded() -> None:
+    summary = service._build_trust_summary(
+        raw_meta=_raw_meta(),
+        structure_status=_structure_status(),
+        measurement_summary=_measurement_summary(),
+    )
+
+    assert summary["trust_state"] in _TRUST_STATE_VALUES
+    assert summary["provider_state"] in _PROVIDER_STATE_VALUES
+    assert isinstance(summary["main_blocker"], str)
+    assert isinstance(summary["measurement_events"], int)
+    assert isinstance(summary["measurement_family_count"], int)
+    assert isinstance(summary["measurement_warning_count"], int)
+    assert isinstance(summary["provider_health_issue_count"], int)
+    assert isinstance(summary["structure_missing_categories"], list)
+    assert isinstance(summary["missing_domains"], list)
+    assert isinstance(summary["stale_domains"], list)
+
+
+def test_trust_summary_never_high_with_degraded_provider() -> None:
+    for mode in ["none", "unknown"]:
+        summary = service._build_trust_summary(
+            raw_meta=_raw_meta(),
+            structure_status=_structure_status(mode=mode),
+            measurement_summary=_measurement_summary(events=10, quality_tier="high"),
+        )
+        assert summary["trust_state"] != "high", f"trust_state should not be high with structure={mode}"
+        assert summary["provider_state"] != "ok"
+
+    summary = service._build_trust_summary(
+        raw_meta=_raw_meta(stale_domains=["volume"]),
+        structure_status=_structure_status(),
+        measurement_summary=_measurement_summary(events=10, quality_tier="high"),
+    )
+    assert summary["trust_state"] != "high"
+
+
+def test_trust_summary_guarded_when_warnings_present() -> None:
+    summary = service._build_trust_summary(
+        raw_meta=_raw_meta(),
+        structure_status=_structure_status(),
+        measurement_summary=_measurement_summary(
+            events=10,
+            families=["BOS", "OB", "FVG"],
+            quality_tier="high",
+            quality_score=0.9,
+            warnings=["calibration drift detected"],
+        ),
+    )
+
+    assert summary["trust_state"] == "guarded"
+    assert summary["measurement_warning_count"] == 1
+    assert summary["main_blocker"] == "calibration drift detected"
+
+
+def test_trust_summary_mixed_degradation() -> None:
+    summary = service._build_trust_summary(
+        raw_meta=_raw_meta(stale_domains=["news"]),
+        structure_status=_structure_status(health_issues=2),
+        measurement_summary=_measurement_summary(events=1, families=["BOS"], quality_tier="ok"),
+    )
+
+    assert summary["trust_state"] == "degraded"
+    assert summary["provider_state"] == "degraded"
+    assert summary["stale_domains"] == ["news"]
+    assert summary["provider_health_issue_count"] == 2
+    assert summary["measurement_events"] == 1
+
+
+def test_trust_state_monotonicity_high_requires_all_conditions() -> None:
+    high = service._build_trust_summary(
+        raw_meta=_raw_meta(),
+        structure_status=_structure_status(),
+        measurement_summary=_measurement_summary(events=5, families=["BOS", "OB"], quality_tier="high"),
+    )
+    assert high["trust_state"] == "high"
+
+    for degradation in [
+        {"events": 1},
+        {"families": ["BOS"]},
+        {"quality_tier": "low"},
+        {"warnings": ["drift"]},
+    ]:
+        params = {"events": 5, "families": ["BOS", "OB"], "quality_tier": "high", "quality_score": 0.84}
+        params.update(degradation)
+        not_high = service._build_trust_summary(
+            raw_meta=_raw_meta(),
+            structure_status=_structure_status(),
+            measurement_summary=_measurement_summary(**params),
+        )
+        assert not_high["trust_state"] != "high", f"Should not be high with {degradation}"
