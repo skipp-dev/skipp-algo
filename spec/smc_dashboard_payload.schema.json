@@ -303,7 +303,7 @@
     },
     "trust_summary": {
       "type": "object",
-      "required": ["trust_state", "provider_state", "main_blocker", "measurement_status", "measurement_events", "measurement_family_count", "measurement_quality_tier", "measurement_quality_score", "measurement_warning_count", "provider_health_issue_count", "structure_state", "structure_missing_categories", "missing_domains", "stale_domains"],
+      "required": ["trust_state", "provider_state", "main_blocker", "measurement_status", "measurement_events", "measurement_family_count", "measurement_quality_tier", "measurement_quality_score", "measurement_warning_count", "provider_health_issue_count", "structure_state", "structure_missing_categories", "missing_domains", "stale_domains", "quality_recommendation", "quality_guardrail", "quality_recommendation_reason"],
       "additionalProperties": false,
       "properties": {
         "trust_state": { "type": "string", "enum": ["high", "guarded", "degraded", "insufficient"] },
@@ -319,7 +319,10 @@
         "structure_state": { "type": "string", "enum": ["full", "partial", "none", "unknown"] },
         "structure_missing_categories": { "type": "array", "items": { "type": "string", "enum": ["bos", "choch", "orderblocks", "fvg", "liquidity_sweeps"] } },
         "missing_domains": { "type": "array", "items": { "type": "string", "enum": ["volume", "technical", "news"] } },
-        "stale_domains": { "type": "array", "items": { "type": "string", "enum": ["volume", "technical", "news"] } }
+        "stale_domains": { "type": "array", "items": { "type": "string", "enum": ["volume", "technical", "news"] } },
+        "quality_recommendation": { "type": "string", "enum": ["publish", "review", "hold", "insufficient"] },
+        "quality_guardrail": { "type": "string" },
+        "quality_recommendation_reason": { "type": "string" }
       }
     },
     "zones": {

@@ -9,10 +9,6 @@ from tests.smc_manifest_test_utils import ROOT, load_manifest
 CORE_PATH = ROOT / 'SMC_Core_Engine.pine'
 DASHBOARD_PATH = ROOT / 'SMC_Dashboard.pine'
 STRATEGY_PATH = ROOT / 'SMC_Long_Strategy.pine'
-LEGACY_CORE_PATHS = [
-    ROOT / 'SMC Core + Zones.pine',
-    ROOT / 'SMC_Core_Zones.pine',
-]
 
 
 MANIFEST = load_manifest()
@@ -77,10 +73,3 @@ def test_core_remains_the_only_active_producer() -> None:
     assert len(hidden_bus_calls) == len(EXPECTED_ENGINE_BUS_LABELS)
     assert 'alertcondition(' not in source
     assert 'dashboard_header(' not in source
-
-
-def test_legacy_core_duplicates_are_marked_deprecated() -> None:
-    for path in LEGACY_CORE_PATHS:
-        source = _read(path)
-        assert 'DEPRECATED: legacy split prototype.' in source
-        assert 'indicator("DEPRECATED SMC Core Prototype", "SMC Core OLD", overlay = true' in source

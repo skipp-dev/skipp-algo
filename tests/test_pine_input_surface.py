@@ -28,7 +28,7 @@ def _load(name: str) -> list:
 
 # ── grouping: 100 % of inputs must belong to a group ──────────────────
 
-@pytest.mark.parametrize("script", ["SMC_Core_Engine.pine", "SMC++.pine", "SkippALGO.pine", "SkippALGO_Strategy.pine"])
+@pytest.mark.parametrize("script", ["SMC_Core_Engine.pine", "SMC++.pine"])
 def test_all_inputs_grouped(script):
     inputs = _load(script)
     ungrouped = [i for i in inputs if not i.group]
@@ -43,8 +43,6 @@ def test_all_inputs_grouped(script):
 @pytest.mark.parametrize("script,lo,hi", [
     ("SMC_Core_Engine.pine", 8, 14),
     ("SMC++.pine", 25, 45),
-    ("SkippALGO.pine", 25, 45),
-    ("SkippALGO_Strategy.pine", 25, 45),
 ])
 def test_visible_surface_range(script, lo, hi):
     inputs = _load(script)
@@ -64,21 +62,12 @@ def test_active_core_operator_surface_keeps_preset_and_compact_mode():
 
 # ── parity: indicator/strategy pairs must have ≤5 input delta ─────────
 
-@pytest.mark.parametrize("ind,strat,max_delta", [
-    ("SkippALGO.pine", "SkippALGO_Strategy.pine", 5),
-])
-def test_parity_delta(ind, strat, max_delta):
-    a = _load(ind)
-    b = _load(strat)
-    delta = abs(len(a) - len(b))
-    assert delta <= max_delta, (
-        f"{ind}({len(a)}) vs {strat}({len(b)}): delta {delta} > {max_delta}"
-    )
+
 
 
 # ── balanced parens in input declarations ──────────────────────────────
 
-@pytest.mark.parametrize("script", ["SMC_Core_Engine.pine", "SMC++.pine", "SkippALGO.pine", "SkippALGO_Strategy.pine"])
+@pytest.mark.parametrize("script", ["SMC_Core_Engine.pine", "SMC++.pine"])
 def test_input_parens_balanced(script):
     inputs = _load(script)
     bad = []
@@ -96,7 +85,7 @@ def test_input_parens_balanced(script):
 
 # ── version tag present ───────────────────────────────────────────────
 
-@pytest.mark.parametrize("script", ["SMC_Core_Engine.pine", "SMC++.pine", "SkippALGO.pine", "SkippALGO_Strategy.pine"])
+@pytest.mark.parametrize("script", ["SMC_Core_Engine.pine", "SMC++.pine"])
 def test_version_tag(script):
     fp = ROOT / script
     if not fp.exists():

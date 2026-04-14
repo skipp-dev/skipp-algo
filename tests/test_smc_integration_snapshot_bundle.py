@@ -186,6 +186,9 @@ def test_bundle_contains_snapshot_projections_and_additive_contexts(monkeypatch)
         "structure_missing_categories": [],
         "missing_domains": [],
         "stale_domains": [],
+        "quality_recommendation": "observable",
+        "quality_guardrail": "observable only",
+        "quality_recommendation_reason": "guarded_trust",
     }
     assert bundle["pine_payload"]["trust_summary"] == bundle["dashboard_payload"]["trust_summary"]
     assert bundle["context_diagnostics"] == {
@@ -389,6 +392,9 @@ def test_bundle_surfaces_domain_drop_metadata(monkeypatch) -> None:
         "structure_missing_categories": [],
         "missing_domains": ["technical"],
         "stale_domains": [],
+        "quality_recommendation": "insufficient",
+        "quality_guardrail": "data insufficient",
+        "quality_recommendation_reason": "insufficient_evidence",
     }
     assert bundle["pine_payload"]["trust_summary"] == bundle["dashboard_payload"]["trust_summary"]
 
@@ -506,5 +512,8 @@ def test_bundle_degrades_trust_when_runtime_truth_is_stale(monkeypatch) -> None:
         "structure_missing_categories": [],
         "missing_domains": [],
         "stale_domains": ["technical"],
+        "quality_recommendation": "limited",
+        "quality_guardrail": "limited confidence",
+        "quality_recommendation_reason": "provider_degraded",
     }
     assert bundle["pine_payload"]["trust_summary"] == bundle["dashboard_payload"]["trust_summary"]
