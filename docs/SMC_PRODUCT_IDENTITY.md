@@ -26,9 +26,9 @@ A TradingView indicator suite that detects institutional buying zones (Order Blo
 
 | Product | Role | Tier |
 |---|---|---|
-| SMC Core | Main indicator (zones, hero card, alerts) | Lite |
-| SMC Decision Board | Dashboard companion | Pro |
-| SMC Execution | Strategy / backtesting | Pro |
+| SMC Long-Dip Suite v7 | Main indicator (zones, hero card, alerts) | Lite |
+| SMC Long-Dip Dashboard v7 | Dashboard companion | Pro |
+| SMC Long-Dip Strategy v7 | Strategy / backtesting | Pro |
 | SMC Event Overlay | Macro event markers | Pro |
 
 ## Key differentiators
@@ -51,4 +51,4 @@ A TradingView indicator suite that detects institutional buying zones (Order Blo
 - Short name: "SMC Suite" or "SMC v7"
 - Pine script title: "SMC Long-Dip Suite v7"
 - Library: `smc_micro_profiles_generated`
-- Never: "SMC Core" alone (too generic), "SkippALGO" (deprecated)
+- Never: "SMC Core" alone (too generic), "SMC Decision Board" (old name), "SkippALGO" (deprecated)

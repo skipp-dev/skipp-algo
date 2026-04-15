@@ -11,7 +11,7 @@ import preuss_steffen/smc_micro_profiles_generated/1 as mp
 // Visible setup controls tune only wrapper behavior; linked core outputs stay in explicit operator-only expert-mapping groups.
 
 // Strategy orders are staged on confirmed bars via process_orders_on_close, so the backtest path does not rely on intrabar lookahead.
-strategy("SMC Execution", overlay = true, pyramiding = 0, process_orders_on_close = true)
+strategy("SMC Long-Dip Strategy v7", overlay = true, pyramiding = 0, process_orders_on_close = true)
 
 var string g_setup = "1. Execution Setup"
 var string g_trade_plan = "2. Trade Plan"

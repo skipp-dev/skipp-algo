@@ -23,7 +23,7 @@ def _read(path: pathlib.Path) -> str:
 def test_dashboard_is_a_bus_only_consumer() -> None:
     source = _read(DASHBOARD_PATH)
 
-    assert 'indicator("SMC Decision Board", "SMC Decision Board", overlay = true' in source
+    assert 'indicator("SMC Long-Dip Dashboard v7", "SMC Long-Dip Dashboard v7", overlay = true' in source
     assert source.count('input.source(') == len(EXPECTED_DASHBOARD_BUS_LABELS)
     for label in EXPECTED_DASHBOARD_BUS_LABELS:
         assert label in source
@@ -45,7 +45,7 @@ def test_dashboard_is_a_bus_only_consumer() -> None:
 def test_strategy_is_a_bus_only_consumer() -> None:
     source = _read(STRATEGY_PATH)
 
-    assert 'strategy("SMC Execution", overlay = true' in source
+    assert 'strategy("SMC Long-Dip Strategy v7", overlay = true' in source
     assert source.count('input.source(') == 8
     assert 'strategy.entry("L", strategy.long, stop = src_trigger)' in source
     assert 'var float active_invalidation = na' in source
@@ -63,7 +63,7 @@ def test_strategy_is_a_bus_only_consumer() -> None:
 def test_core_remains_the_only_active_producer() -> None:
     source = _read(CORE_PATH)
 
-    assert 'indicator("SMC Core", "SMC Core", overlay = true' in source
+    assert 'indicator("SMC Long-Dip Suite v7", "SMC Long-Dip Suite v7", overlay = true' in source
     bus_export_calls = re.findall(r"plot\(bus_[^\n]+display\s*=\s*display\.none\)", source)
     assert len(bus_export_calls) == 5
     assert "plot(bus_trigger_level, 'BUS Trigger', display = display.none)" in source

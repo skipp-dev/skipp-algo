@@ -74,6 +74,7 @@ DEDICATED_V55B_LEAN_EXPORTS = (
     "FVG_MATURITY_LEVEL",
     "FVG_FRESH",
     "FVG_INVALIDATED",
+    "FVG_NET_IMBALANCE",
     "STRUCTURE_LAST_EVENT",
     "STRUCTURE_EVENT_AGE_BARS",
     "STRUCTURE_FRESH",
@@ -177,8 +178,9 @@ class TestGeneratedArtifactDrift:
         # Event Risk / Session Context / Structure State fields.
         # v6 adds 20 new fields: Short Interest(4), Treasury(4), Sector Rotation(4),
         # Institutional(3), Analyst(3), Insider(2).
-        assert len(exports) == 160, (
-            f"Expected 160 export const fields for the current v6 shared-export contract, got {len(exports)}"
+        # v6.1 adds FVG_NET_IMBALANCE.
+        assert len(exports) == 161, (
+            f"Expected 161 export const fields for the current v6 shared-export contract, got {len(exports)}"
         )
 
     def test_event_risk_exports_stay_in_canonical_order(self, regenerated: Path):

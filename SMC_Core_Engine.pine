@@ -5,7 +5,7 @@
 
 // Product role: lite-primary operator surface and the only active producer on the release mainline.
 
-indicator("SMC Core", "SMC Core", overlay = true, max_bars_back = 500, max_lines_count = 300, max_boxes_count = 300, max_labels_count = 300)
+indicator("SMC Long-Dip Suite v7", "SMC Long-Dip Suite v7", overlay = true, max_bars_back = 500, max_lines_count = 300, max_boxes_count = 300, max_labels_count = 300)
  
 import preuss_steffen/smc_core_types/1 as ct
 import preuss_steffen/smc_utils/1 as u

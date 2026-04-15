@@ -16,7 +16,6 @@ _GENERATORS = [
 
 # Known orphan references that are tolerated until their Pine consumer is cleaned up.
 _KNOWN_ORPHANS: set[str] = {
-    "FVG_NET_IMBALANCE",  # SMC_Imbalance_Context.pine — stale, no generator
     # ── Deprecated v5-v5.3 fields removed in WP-LF5 ──
     # Still referenced by legacy overlay scripts (SMC_Event_Overlay, SMC_HTF_Confluence,
     # SMC_Imbalance_Context, SMC_Liquidity_Context, SMC_Liquidity_Structure,

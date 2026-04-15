@@ -13,7 +13,7 @@ def _read(name: str) -> str:
 def test_core_has_decision_first_hero_contract() -> None:
     source = _read("SMC_Core_Engine.pine")
 
-    assert 'indicator("SMC Core", "SMC Core", overlay = true' in source
+    assert 'indicator("SMC Long-Dip Suite v7", "SMC Long-Dip Suite v7", overlay = true' in source
     assert "var g_mode = '1. Core Setup'" in source
     assert "var g_output = '2. Output'" in source
     assert "var g_trade_plan = '3. Trade Plan'" in source
@@ -56,8 +56,8 @@ def test_dashboard_has_companion_summary_and_pro_diagnostics() -> None:
     assert 'surface_mode = input.string("Decision Brief"' in source
     assert source.index('surface_mode = input.string("Decision Brief"') < source.index('src_zone_active = input.source(close, "BUS ZoneActive"')
     assert "dashboard_product_state_text(" in source
-    assert 'dashboard_row(smc_dashboard, 0, "SMC Decision Board", "Decision Brief | Linked setup active"' in source
-    assert 'dashboard_row(smc_dashboard, 0, "SMC Decision Board", "Audit View | Expert review only", header_bg, txt)' in source
+    assert 'dashboard_row(smc_dashboard, 0, "SMC Long-Dip Dashboard v7", "Decision Brief | Linked setup active"' in source
+    assert 'dashboard_row(smc_dashboard, 0, "SMC Long-Dip Dashboard v7", "Audit View | Expert review only", header_bg, txt)' in source
     assert 'dashboard_row(smc_dashboard, 1, "Market"' in source
     assert 'dashboard_row(smc_dashboard, 2, "Structure"' in source
     assert 'dashboard_row(smc_dashboard, 3, "Session / Market"' in source
@@ -83,7 +83,7 @@ def test_dashboard_has_companion_summary_and_pro_diagnostics() -> None:
 def test_long_strategy_has_wrapper_controls_and_core_plan_outputs() -> None:
     source = _read("SMC_Long_Strategy.pine")
 
-    assert 'strategy("SMC Execution", overlay = true' in source
+    assert 'strategy("SMC Long-Dip Strategy v7", overlay = true' in source
     assert 'var string g_setup = "1. Execution Setup"' in source
     assert 'var string g_bus_entry = "3. Expert Mapping - Entry States"' in source
     assert source.index('entry_mode = input.string("Strict", "Execution Stage"') < source.index('src_armed = input.source(close, "BUS Armed"')

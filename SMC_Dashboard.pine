@@ -7,7 +7,7 @@
 // Product scope: this dashboard reflects the long-dip specialist mainline of SMC Core.
 //   Short-parity would require a dedicated companion track; it is not an implicit promise of this surface.
 
-indicator("SMC Decision Board", "SMC Decision Board", overlay = true, max_labels_count = 50)
+indicator("SMC Long-Dip Dashboard v7", "SMC Long-Dip Dashboard v7", overlay = true, max_labels_count = 50)
 
 import preuss_steffen/smc_micro_profiles_generated/1 as mp
 
@@ -1321,7 +1321,7 @@ if show_table and barstate.islast
             market_line += ' · ' + lib_event_name
         color market_bg = lib_trade_state == "BLOCKED" ? color.new(color.red, 70) : lib_trade_state == "DISCOURAGED" ? color.new(color.orange, 70) : color.new(color.teal, 80)
 
-        dashboard_row(smc_dashboard, 0, "SMC Decision Board", "Decision Brief | Linked setup active", header_bg, txt)
+        dashboard_row(smc_dashboard, 0, "SMC Long-Dip Dashboard v7", "Decision Brief | Linked setup active", header_bg, txt)
         dashboard_row(smc_dashboard, 1, "Market", market_line, market_bg, txt)
         dashboard_row(smc_dashboard, 2, "Structure", dashboard_compact_structure_text(state_code, zone_code, lean_struct_row_code, reclaim_code), status_bg(setup_state), txt)
         dashboard_row(smc_dashboard, 3, "Session / Market", dashboard_compact_session_market_text(session_row_code, market_row_code), status_bg(dashboard_compact_session_market_state(session_row_code, market_row_code)), txt)
@@ -1331,7 +1331,7 @@ if show_table and barstate.islast
         dashboard_row(smc_dashboard, 7, "Risk Plan", dashboard_compact_risk_plan_text(actionable_state, src_trigger, src_stop_level, src_target_1, src_target_2), status_bg(actionable_state ? 5 : 0), txt)
         table.clear(smc_dashboard, 0, 8, 1, 57)
     else
-        dashboard_row(smc_dashboard, 0, "SMC Decision Board", "Audit View | Expert review only", header_bg, txt)
+        dashboard_row(smc_dashboard, 0, "SMC Long-Dip Dashboard v7", "Audit View | Expert review only", header_bg, txt)
         // ── AUDIT: decision detail first, then lean review, diagnostics, risk plan, and explicit debug ──
         section_row(smc_dashboard, 1, "[ Decision Detail ]", header_bg, txt)
         dashboard_row(smc_dashboard, 2, "Action", dashboard_product_state_text(state_code), status_bg(state_code), txt)

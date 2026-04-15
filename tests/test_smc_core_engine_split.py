@@ -41,14 +41,14 @@ def test_core_engine_file_exists_and_uses_core_header() -> None:
     assert CORE_PATH.exists(), 'SMC_Core_Engine.pine must exist'
     source = _read_core_source()
 
-    assert 'indicator("SMC Core", "SMC Core", overlay = true' in source
+    assert 'indicator("SMC Long-Dip Suite v7", "SMC Long-Dip Suite v7", overlay = true' in source
     assert 'indicator("Smart Money Concepts (Highly Advanced)", "SMC++", overlay = true' not in source
 
 
 def test_core_engine_header_restores_import_prelude_and_blocks_stray_method_body() -> None:
     source = _read_core_source()
     lines = source.splitlines()
-    indicator_index = next(i for i, line in enumerate(lines) if line.startswith('indicator("SMC Core", "SMC Core"'))
+    indicator_index = next(i for i, line in enumerate(lines) if line.startswith('indicator("SMC Long-Dip Suite v7", "SMC Long-Dip Suite v7"'))
     following_nonempty = [line for line in lines[indicator_index + 1:] if line.strip()][:6]
 
     assert following_nonempty[:3] == [
@@ -58,7 +58,7 @@ def test_core_engine_header_restores_import_prelude_and_blocks_stray_method_body
     ]
     assert not following_nonempty[0].startswith((' ', '\t'))
     assert 'method hide(Profile this) =>' in source
-    assert 'indicator("SMC Core", "SMC Core", overlay = true, max_bars_back = 500, max_lines_count = 300, max_boxes_count = 300, max_labels_count = 300)\n            for bucket in this.buckets' not in source
+    assert 'indicator("SMC Long-Dip Suite v7", "SMC Long-Dip Suite v7", overlay = true, max_bars_back = 500, max_lines_count = 300, max_boxes_count = 300, max_labels_count = 300)\n            for bucket in this.buckets' not in source
 
 
 def test_core_engine_breadth_gate_uses_optional_text_input_and_guarded_request() -> None:

@@ -10,18 +10,18 @@ It runs as 4 TradingView scripts that work together:
 
 | Script | Role | Required? |
 |---|---|---|
-| **SMC Core** | Main indicator — zones, hero card, alerts | Yes |
-| **SMC Decision Board** | Dashboard — lifecycle status, market context | Recommended |
-| **SMC Execution** | Strategy — backtesting | Optional |
+| **SMC Long-Dip Suite v7** | Main indicator — zones, hero card, alerts | Yes |
+| **SMC Long-Dip Dashboard v7** | Dashboard — lifecycle status, market context | Recommended |
+| **SMC Long-Dip Strategy v7** | Strategy — backtesting | Optional |
 | **SMC Event Overlay** | Macro events, earnings markers | Optional |
 
 ## Step 1: Add the scripts (2 minutes)
 
 1. Open TradingView and go to **Indicators & Strategies**
-2. Search for "SMC Core" in your **Invite-only** or **My scripts** tab
-3. Add **SMC Core** to your chart first
-4. Then add **SMC Decision Board**
-5. The Decision Board will ask you to connect "BUS" inputs — click each dropdown and select the matching output from SMC Core (they are labeled identically: BUS Armed → BUS Armed, etc.)
+2. Search for "SMC Long-Dip Suite v7" in your **Invite-only** or **My scripts** tab
+3. Add **SMC Long-Dip Suite v7** to your chart first
+4. Then add **SMC Long-Dip Dashboard v7**
+5. The Dashboard will ask you to connect "BUS" inputs — click each dropdown and select the matching output from SMC Long-Dip Suite v7 (they are labeled identically: BUS Armed → BUS Armed, etc.)
 
 ## Step 2: Read the Hero Card (1 minute)
 
@@ -67,7 +67,7 @@ The suite has only 10 visible settings (experts can reveal 300+ via "All inputs"
 
 ## Step 5: Setting up alerts (2 minutes)
 
-Right-click the SMC Core indicator → "Add Alert". You'll see 10 alert options:
+Right-click the SMC Long-Dip Suite v7 indicator → "Add Alert". You'll see 10 alert options:
 
 1. **Prepare Long** — Setup is forming
 2. **Ready Long** — Confirmed, watching for trigger

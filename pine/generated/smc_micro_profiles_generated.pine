@@ -392,6 +392,7 @@ export const float FVG_FILL_PCT = 0.0
 export const int FVG_MATURITY_LEVEL = 0
 export const bool FVG_FRESH = false
 export const bool FVG_INVALIDATED = false
+export const int FVG_NET_IMBALANCE = 0
 
 // ── Structure State Light (v5.5b) ──
 // STRUCTURE_LAST_EVENT / STRUCTURE_EVENT_AGE_BARS / STRUCTURE_FRESH

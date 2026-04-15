@@ -947,7 +947,7 @@ def write_pine_library(
     content.append(f'export const int FVG_MATURITY_LEVEL = {int(fvgl.get("FVG_MATURITY_LEVEL", _FVGL_DEFAULTS["FVG_MATURITY_LEVEL"]))}')
     content.append(f'export const bool FVG_FRESH = {_pine_bool(fvgl.get("FVG_FRESH", _FVGL_DEFAULTS["FVG_FRESH"]))}')
     content.append(f'export const bool FVG_INVALIDATED = {_pine_bool(fvgl.get("FVG_INVALIDATED", _FVGL_DEFAULTS["FVG_INVALIDATED"]))}')
-
+    content.append(f'export const int FVG_NET_IMBALANCE = {int(fvgl.get("FVG_NET_IMBALANCE", 0))}')
     # ── v5.5b Lean: Structure State Light ────────────────────────
     from scripts.smc_structure_state import DEFAULTS as _SS_DEFAULTS
     from scripts.smc_structure_state_light import DEFAULTS as _SSL_DEFAULTS
