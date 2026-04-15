@@ -5,12 +5,41 @@
     "fmp_stock": 0.0,
     "fmp_press": 0.0,
     "fmp_articles": 0.0,
-    "newsapi_ai": 1776228525.0,
+    "newsapi_ai": 1776241713.0,
     "tv": 0.0,
-    "legacy_cursor": 1776228525.0
+    "legacy_cursor": 1776241713.0
   },
   "provider_state": {},
   "story_state": {
+    "94791dc2dd2b3dcd150440446ada61603180166d:5920805": {
+      "story_key": "94791dc2dd2b3dcd150440446ada61603180166d:5920805",
+      "cluster_hash": "94791dc2dd2b3dcd150440446ada61603180166d",
+      "headline": "Amazon (AMZN) Stock Climbs on $11.6B Globalstar Acquisition to Challenge Starlink - Blockonomi",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_ts": 1776241713.0,
+      "first_seen_ts": 1776243888.4571123,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Blockonomi"
+      ],
+      "url": "https://blockonomi.com/amazon-amzn-stock-climbs-on-11-6b-globalstar-acquisition-to-challenge-starlink/",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776243888.4571123
+    },
     "8bc13ab9a1a48563d9f963e0955bde01fd1f137d:5920751": {
       "story_key": "8bc13ab9a1a48563d9f963e0955bde01fd1f137d:5920751",
       "cluster_hash": "8bc13ab9a1a48563d9f963e0955bde01fd1f137d",
