@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-04-15T03:41:01.885592Z",
+  "generated_at": "2026-04-15T05:52:29.894547Z",
   "symbols": [
     "AAPL",
     "MSFT",
@@ -20,11 +20,11 @@
     "fmp_stock": 0.0,
     "fmp_press": 0.0,
     "fmp_articles": 0.0,
-    "newsapi_ai": 1776216152.0,
+    "newsapi_ai": 1776228525.0,
     "tv": 0.0,
-    "legacy_cursor": 1776216152.0
+    "legacy_cursor": 1776228525.0
   },
-  "legacy_cursor": 1776216152.0,
+  "legacy_cursor": 1776228525.0,
   "providers": {
     "benzinga": {
       "ok": false,
@@ -64,9 +64,9 @@
     "newsapi_ai": {
       "ok": true,
       "error": "",
-      "raw_count": 45,
-      "new_item_count": 6,
-      "cursor": 1776216152.0,
+      "raw_count": 47,
+      "new_item_count": 2,
+      "cursor": 1776228525.0,
       "last_seen_news_uri": "",
       "provider_status": "ok",
       "status_detail": "",
@@ -89,7 +89,7 @@
       ],
       "published_at": "2026-04-14T16:34:39Z",
       "published_ts": 1776184479.0,
-      "age_minutes": 666.4,
+      "age_minutes": 797.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -127,7 +127,7 @@
       ],
       "published_at": "2026-04-14T14:44:51Z",
       "published_ts": 1776177891.0,
-      "age_minutes": 776.2,
+      "age_minutes": 907.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -165,7 +165,7 @@
       ],
       "published_at": "2026-04-14T21:05:36Z",
       "published_ts": 1776200736.0,
-      "age_minutes": 395.4,
+      "age_minutes": 526.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -192,7 +192,7 @@
       "is_actionable": false,
       "url": "https://seekingalpha.com/news/4575002-johnson-and-johnson-raises-2026-outlook-to-11_30-11_50-eps-and-100_2b-sales-midpoint-while",
       "first_seen_at": "2026-04-15T03:41:01.885592Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -203,7 +203,7 @@
       ],
       "published_at": "2026-04-14T21:01:47Z",
       "published_ts": 1776200507.0,
-      "age_minutes": 399.2,
+      "age_minutes": 530.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -241,7 +241,7 @@
       ],
       "published_at": "2026-04-14T19:01:45Z",
       "published_ts": 1776193305.0,
-      "age_minutes": 519.3,
+      "age_minutes": 650.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -279,7 +279,7 @@
       ],
       "published_at": "2026-04-14T13:01:38Z",
       "published_ts": 1776171698.0,
-      "age_minutes": 879.4,
+      "age_minutes": 1010.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -317,7 +317,7 @@
       ],
       "published_at": "2026-04-14T13:01:17Z",
       "published_ts": 1776171677.0,
-      "age_minutes": 879.7,
+      "age_minutes": 1011.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -355,7 +355,7 @@
       ],
       "published_at": "2026-04-14T11:10:28Z",
       "published_ts": 1776165028.0,
-      "age_minutes": 990.6,
+      "age_minutes": 1122.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -393,7 +393,7 @@
       ],
       "published_at": "2026-04-14T17:47:58Z",
       "published_ts": 1776188878.0,
-      "age_minutes": 593.1,
+      "age_minutes": 724.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -431,7 +431,7 @@
       ],
       "published_at": "2026-04-14T14:54:08Z",
       "published_ts": 1776178448.0,
-      "age_minutes": 766.9,
+      "age_minutes": 898.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -469,7 +469,7 @@
       ],
       "published_at": "2026-04-14T12:22:47Z",
       "published_ts": 1776169367.0,
-      "age_minutes": 918.2,
+      "age_minutes": 1049.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -507,7 +507,7 @@
       ],
       "published_at": "2026-04-14T13:45:17Z",
       "published_ts": 1776174317.0,
-      "age_minutes": 835.7,
+      "age_minutes": 967.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -545,7 +545,7 @@
       ],
       "published_at": "2026-04-14T08:26:38Z",
       "published_ts": 1776155198.0,
-      "age_minutes": 1154.4,
+      "age_minutes": 1285.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -576,6 +576,82 @@
       "provider_count": 1
     },
     {
+      "story_key": "8bc13ab9a1a48563d9f963e0955bde01fd1f137d:5920751",
+      "headline": "Microsoft's (MSFT) Data Center Push Continues with 3,200 Acre Wyoming Campus",
+      "tickers": [
+        "MSFT"
+      ],
+      "published_at": "2026-04-15T03:59:31Z",
+      "published_ts": 1776225571.0,
+      "age_minutes": 113.0,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Markets Insider"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Microsoft's (MSFT) Data Center Push Continues with 3,200 Acre Wyoming Campus",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "news_catalyst_score": 0.2636,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://markets.businessinsider.com/news/stocks/microsoft-s-msft-data-center-push-continues-with-3-200-acre-wyoming-campus-1036022488",
+      "first_seen_at": "2026-04-15T05:52:29.894547Z",
+      "is_new": true,
+      "provider_count": 1
+    },
+    {
+      "story_key": "7699020f33e66a2633c760b1b55d3e6cf6bfbe8e:5920761",
+      "headline": "Meta Platforms (META) Partners with Broadcom on Custom AI Microchips",
+      "tickers": [
+        "META"
+      ],
+      "published_at": "2026-04-15T04:48:45Z",
+      "published_ts": 1776228525.0,
+      "age_minutes": 63.7,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Markets Insider"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Meta Platforms (META) Partners with Broadcom on Custom AI Microchips",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.2421,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://markets.businessinsider.com/news/stocks/meta-platforms-meta-partners-with-broadcom-on-custom-ai-microchips-1036022497",
+      "first_seen_at": "2026-04-15T05:52:29.894547Z",
+      "is_new": true,
+      "provider_count": 1
+    },
+    {
       "story_key": "64a640f2696f8806df4bd07a35cd10ef0cb7bbe4:5920720",
       "headline": "META, AVGO, IONQ, QBTS, HOOD: 5 Trending Stocks Today - Broadcom (NASDAQ:AVGO)",
       "tickers": [
@@ -583,7 +659,7 @@
       ],
       "published_at": "2026-04-15T01:22:32Z",
       "published_ts": 1776216152.0,
-      "age_minutes": 138.5,
+      "age_minutes": 270.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -604,13 +680,13 @@
       "impact": 0.1,
       "clarity": 0.8,
       "relevance": 0.535,
-      "news_catalyst_score": 0.2929,
+      "news_catalyst_score": 0.2343,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
       "url": "https://www.benzinga.com/markets/equities/26/04/51821864/meta-broadcom-ionq-d-wave-quantum-and-robinhood-why-these-5-stocks-are-on-investors-radars-today",
       "first_seen_at": "2026-04-15T03:41:01.885592Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -621,7 +697,7 @@
       ],
       "published_at": "2026-04-14T21:31:42Z",
       "published_ts": 1776202302.0,
-      "age_minutes": 369.3,
+      "age_minutes": 500.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -648,7 +724,7 @@
       "is_actionable": false,
       "url": "https://www.benzinga.com/markets/private-markets/26/04/51820719/amazon-targets-spacex-with-11-5-billion-globalstar-deal",
       "first_seen_at": "2026-04-15T03:41:01.885592Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -659,7 +735,7 @@
       ],
       "published_at": "2026-04-14T14:10:44Z",
       "published_ts": 1776175844.0,
-      "age_minutes": 810.3,
+      "age_minutes": 941.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -697,7 +773,7 @@
       ],
       "published_at": "2026-04-14T11:54:51Z",
       "published_ts": 1776167691.0,
-      "age_minutes": 946.2,
+      "age_minutes": 1077.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -728,44 +804,6 @@
       "provider_count": 1
     },
     {
-      "story_key": "8c93b197b3812f22e40e8d2aee22acb726ae070c:5920707",
-      "headline": "Assessing Meta Platforms (META) Valuation After Recent Share Price Momentum",
-      "tickers": [
-        "META"
-      ],
-      "published_at": "2026-04-15T00:18:25Z",
-      "published_ts": 1776212305.0,
-      "age_minutes": 202.6,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Yahoo! Finance"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Assessing Meta Platforms (META) Valuation After Recent Share Price Momentum",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.204,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://ca.finance.yahoo.com/news/assessing-meta-platforms-meta-valuation-001825733.html",
-      "first_seen_at": "2026-04-15T03:41:01.885592Z",
-      "is_new": true,
-      "provider_count": 1
-    },
-    {
       "story_key": "6c1e29baef4de33257b0588be82e0e58df20eb0c:5920647",
       "headline": "Is Momentum Finally Turning For Microsoft Stock? - Microsoft (NASDAQ:MSFT)",
       "tickers": [
@@ -773,7 +811,7 @@
       ],
       "published_at": "2026-04-14T19:18:29Z",
       "published_ts": 1776194309.0,
-      "age_minutes": 502.5,
+      "age_minutes": 634.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -811,7 +849,7 @@
       ],
       "published_at": "2026-04-14T18:48:11Z",
       "published_ts": 1776192491.0,
-      "age_minutes": 532.8,
+      "age_minutes": 664.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -849,7 +887,7 @@
       ],
       "published_at": "2026-04-14T13:57:43Z",
       "published_ts": 1776175063.0,
-      "age_minutes": 823.3,
+      "age_minutes": 954.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -887,7 +925,7 @@
       ],
       "published_at": "2026-04-14T09:58:38Z",
       "published_ts": 1776160718.0,
-      "age_minutes": 1062.4,
+      "age_minutes": 1193.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -925,7 +963,7 @@
       ],
       "published_at": "2026-04-14T09:42:57Z",
       "published_ts": 1776159777.0,
-      "age_minutes": 1078.1,
+      "age_minutes": 1209.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -963,7 +1001,7 @@
       ],
       "published_at": "2026-04-14T08:54:51Z",
       "published_ts": 1776156891.0,
-      "age_minutes": 1126.2,
+      "age_minutes": 1257.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1001,7 +1039,7 @@
       ],
       "published_at": "2026-04-14T09:59:04Z",
       "published_ts": 1776160744.0,
-      "age_minutes": 1062.0,
+      "age_minutes": 1193.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1039,7 +1077,7 @@
       ],
       "published_at": "2026-04-14T20:39:03Z",
       "published_ts": 1776199143.0,
-      "age_minutes": 422.0,
+      "age_minutes": 553.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1077,7 +1115,7 @@
       ],
       "published_at": "2026-04-14T19:02:45Z",
       "published_ts": 1776193365.0,
-      "age_minutes": 518.3,
+      "age_minutes": 649.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1115,7 +1153,7 @@
       ],
       "published_at": "2026-04-14T18:52:28Z",
       "published_ts": 1776192748.0,
-      "age_minutes": 528.6,
+      "age_minutes": 660.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1153,7 +1191,7 @@
       ],
       "published_at": "2026-04-14T15:12:12Z",
       "published_ts": 1776179532.0,
-      "age_minutes": 748.8,
+      "age_minutes": 880.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1191,7 +1229,7 @@
       ],
       "published_at": "2026-04-14T15:02:45Z",
       "published_ts": 1776178965.0,
-      "age_minutes": 758.3,
+      "age_minutes": 889.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1229,7 +1267,7 @@
       ],
       "published_at": "2026-04-14T14:05:25Z",
       "published_ts": 1776175525.0,
-      "age_minutes": 815.6,
+      "age_minutes": 947.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1267,7 +1305,7 @@
       ],
       "published_at": "2026-04-14T13:30:03Z",
       "published_ts": 1776173403.0,
-      "age_minutes": 851.0,
+      "age_minutes": 982.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1306,7 +1344,7 @@
       ],
       "published_at": "2026-04-14T12:54:59Z",
       "published_ts": 1776171299.0,
-      "age_minutes": 886.0,
+      "age_minutes": 1017.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1344,7 +1382,7 @@
       ],
       "published_at": "2026-04-14T12:30:00Z",
       "published_ts": 1776169800.0,
-      "age_minutes": 911.0,
+      "age_minutes": 1042.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1382,7 +1420,7 @@
       ],
       "published_at": "2026-04-14T10:09:41Z",
       "published_ts": 1776161381.0,
-      "age_minutes": 1051.3,
+      "age_minutes": 1182.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1422,7 +1460,7 @@
       ],
       "published_at": "2026-04-14T12:42:44Z",
       "published_ts": 1776170564.0,
-      "age_minutes": 898.3,
+      "age_minutes": 1029.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1453,6 +1491,44 @@
       "provider_count": 1
     },
     {
+      "story_key": "8c93b197b3812f22e40e8d2aee22acb726ae070c:5920707",
+      "headline": "Assessing Meta Platforms (META) Valuation After Recent Share Price Momentum",
+      "tickers": [
+        "META"
+      ],
+      "published_at": "2026-04-15T00:18:25Z",
+      "published_ts": 1776212305.0,
+      "age_minutes": 334.1,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Yahoo! Finance"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Assessing Meta Platforms (META) Valuation After Recent Share Price Momentum",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.1671,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://ca.finance.yahoo.com/news/assessing-meta-platforms-meta-valuation-001825733.html",
+      "first_seen_at": "2026-04-15T03:41:01.885592Z",
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
       "story_key": "90a19fd66d3ceef791cfc1b3455b746c906ddbb1:5920680",
       "headline": "Amazon to Buy Globalstar Satelite Firm to Compete with Starlink? GSAT, AMZN Rally",
       "tickers": [
@@ -1460,7 +1536,7 @@
       ],
       "published_at": "2026-04-14T22:02:44Z",
       "published_ts": 1776204164.0,
-      "age_minutes": 338.3,
+      "age_minutes": 469.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1487,7 +1563,7 @@
       "is_actionable": false,
       "url": "https://watcher.guru/news/amazon-to-buy-globalstar-satelite-firm-to-compete-with-starlink-gsat-amzn-rally",
       "first_seen_at": "2026-04-15T03:41:01.885592Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -1498,7 +1574,7 @@
       ],
       "published_at": "2026-04-14T21:18:20Z",
       "published_ts": 1776201500.0,
-      "age_minutes": 382.7,
+      "age_minutes": 514.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1525,7 +1601,7 @@
       "is_actionable": false,
       "url": "https://seekingalpha.com/article/4890687-amazon-stronger-than-ever-with-globalstar-deal",
       "first_seen_at": "2026-04-15T03:41:01.885592Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -1536,7 +1612,7 @@
       ],
       "published_at": "2026-04-14T19:45:30Z",
       "published_ts": 1776195930.0,
-      "age_minutes": 475.5,
+      "age_minutes": 607.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1574,7 +1650,7 @@
       ],
       "published_at": "2026-04-14T19:42:03Z",
       "published_ts": 1776195723.0,
-      "age_minutes": 479.0,
+      "age_minutes": 610.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1612,7 +1688,7 @@
       ],
       "published_at": "2026-04-14T18:43:54Z",
       "published_ts": 1776192234.0,
-      "age_minutes": 537.1,
+      "age_minutes": 668.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1650,7 +1726,7 @@
       ],
       "published_at": "2026-04-14T18:07:54Z",
       "published_ts": 1776190074.0,
-      "age_minutes": 573.1,
+      "age_minutes": 704.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1688,7 +1764,7 @@
       ],
       "published_at": "2026-04-14T17:06:16Z",
       "published_ts": 1776186376.0,
-      "age_minutes": 634.8,
+      "age_minutes": 766.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1726,7 +1802,7 @@
       ],
       "published_at": "2026-04-14T17:05:55Z",
       "published_ts": 1776186355.0,
-      "age_minutes": 635.1,
+      "age_minutes": 766.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1764,7 +1840,7 @@
       ],
       "published_at": "2026-04-14T16:29:34Z",
       "published_ts": 1776184174.0,
-      "age_minutes": 671.5,
+      "age_minutes": 802.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1802,7 +1878,7 @@
       ],
       "published_at": "2026-04-14T16:08:51Z",
       "published_ts": 1776182931.0,
-      "age_minutes": 692.2,
+      "age_minutes": 823.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1840,7 +1916,7 @@
       ],
       "published_at": "2026-04-14T15:37:49Z",
       "published_ts": 1776181069.0,
-      "age_minutes": 723.2,
+      "age_minutes": 854.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1878,7 +1954,7 @@
       ],
       "published_at": "2026-04-14T14:40:59Z",
       "published_ts": 1776177659.0,
-      "age_minutes": 780.0,
+      "age_minutes": 911.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1916,7 +1992,7 @@
       ],
       "published_at": "2026-04-14T14:10:11Z",
       "published_ts": 1776175811.0,
-      "age_minutes": 810.8,
+      "age_minutes": 942.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1954,7 +2030,7 @@
       ],
       "published_at": "2026-04-14T13:47:54Z",
       "published_ts": 1776174474.0,
-      "age_minutes": 833.1,
+      "age_minutes": 964.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1992,7 +2068,7 @@
       ],
       "published_at": "2026-04-14T13:29:48Z",
       "published_ts": 1776173388.0,
-      "age_minutes": 851.2,
+      "age_minutes": 982.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2030,7 +2106,7 @@
       ],
       "published_at": "2026-04-14T13:14:08Z",
       "published_ts": 1776172448.0,
-      "age_minutes": 866.9,
+      "age_minutes": 998.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2068,7 +2144,7 @@
       ],
       "published_at": "2026-04-14T10:50:44Z",
       "published_ts": 1776163844.0,
-      "age_minutes": 1010.3,
+      "age_minutes": 1141.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2106,7 +2182,7 @@
       ],
       "published_at": "2026-04-14T09:46:08Z",
       "published_ts": 1776159968.0,
-      "age_minutes": 1074.9,
+      "age_minutes": 1206.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2144,7 +2220,7 @@
       ],
       "published_at": "2026-04-14T08:43:03Z",
       "published_ts": 1776156183.0,
-      "age_minutes": 1138.0,
+      "age_minutes": 1269.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2182,7 +2258,7 @@
       ],
       "published_at": "2026-04-14T07:10:00Z",
       "published_ts": 1776150600.0,
-      "age_minutes": 1231.0,
+      "age_minutes": 1362.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2220,7 +2296,7 @@
       ],
       "published_at": "2026-04-14T06:15:14Z",
       "published_ts": 1776147314.0,
-      "age_minutes": 1285.8,
+      "age_minutes": 1417.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2246,44 +2322,6 @@
       "recency_bucket": "AGING",
       "is_actionable": false,
       "url": "https://markets.businessinsider.com/news/stocks/meta-platforms-meta-to-create-an-ai-mark-zuckerberg-for-employee-interactions-1036018581",
-      "first_seen_at": "2026-04-14T08:08:23.237823Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "d1598ee485753531c0229c788e47e842abc35400:5920477",
-      "headline": "Microsoft (MSFT) Stock Is Up, What You Need To Know",
-      "tickers": [
-        "MSFT"
-      ],
-      "published_at": "2026-04-14T05:08:01Z",
-      "published_ts": 1776143281.0,
-      "age_minutes": 1353.0,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Yahoo! Finance"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Microsoft (MSFT) Stock Is Up, What You Need To Know",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.1671,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://ca.finance.yahoo.com/news/microsoft-msft-stock-know-050801979.html",
       "first_seen_at": "2026-04-14T08:08:23.237823Z",
       "is_new": false,
       "provider_count": 1
@@ -2350,23 +2388,23 @@
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "source_tier": "TIER_3",
-      "mentions_24h": 10,
+      "mentions_24h": 11,
       "is_actionable": false,
       "first_provider": "newsapi_ai",
       "story_key": "34c75fae3c6706c158bd6bf8aae38e4f48d4902b:5920517"
     },
     "MSFT": {
-      "news_catalyst_score": 0.3146,
+      "news_catalyst_score": 0.3836,
       "sentiment_label": "neutral",
       "event_class": "UNKNOWN",
-      "event_label": "Is Momentum Finally Turning For Microsoft Stock? - Microsoft (NASDAQ:MSFT)",
+      "event_label": "Microsoft's (MSFT) Data Center Push Continues with 3,200 Acre Wyoming Campus",
       "materiality": "LOW",
       "recency_bucket": "AGING",
-      "source_tier": "TIER_2",
+      "source_tier": "TIER_3",
       "mentions_24h": 8,
       "is_actionable": false,
       "first_provider": "newsapi_ai",
-      "story_key": "6c1e29baef4de33257b0588be82e0e58df20eb0c:5920647"
+      "story_key": "8bc13ab9a1a48563d9f963e0955bde01fd1f137d:5920751"
     },
     "XOM": {
       "news_catalyst_score": 0.1671,
@@ -2383,8 +2421,8 @@
     }
   },
   "summary": {
-    "active_story_count": 58,
-    "new_story_count": 6,
+    "active_story_count": 59,
+    "new_story_count": 2,
     "actionable_story_count": 0,
     "actionable_symbols": [],
     "symbol_count": 7

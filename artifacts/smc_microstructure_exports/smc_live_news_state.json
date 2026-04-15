@@ -5,12 +5,70 @@
     "fmp_stock": 0.0,
     "fmp_press": 0.0,
     "fmp_articles": 0.0,
-    "newsapi_ai": 1776216152.0,
+    "newsapi_ai": 1776228525.0,
     "tv": 0.0,
-    "legacy_cursor": 1776216152.0
+    "legacy_cursor": 1776228525.0
   },
   "provider_state": {},
   "story_state": {
+    "8bc13ab9a1a48563d9f963e0955bde01fd1f137d:5920751": {
+      "story_key": "8bc13ab9a1a48563d9f963e0955bde01fd1f137d:5920751",
+      "cluster_hash": "8bc13ab9a1a48563d9f963e0955bde01fd1f137d",
+      "headline": "Microsoft's (MSFT) Data Center Push Continues with 3,200 Acre Wyoming Campus",
+      "tickers": [
+        "MSFT"
+      ],
+      "published_ts": 1776225571.0,
+      "first_seen_ts": 1776232349.894547,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Markets Insider"
+      ],
+      "url": "https://markets.businessinsider.com/news/stocks/microsoft-s-msft-data-center-push-continues-with-3-200-acre-wyoming-campus-1036022488",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776232349.894547
+    },
+    "7699020f33e66a2633c760b1b55d3e6cf6bfbe8e:5920761": {
+      "story_key": "7699020f33e66a2633c760b1b55d3e6cf6bfbe8e:5920761",
+      "cluster_hash": "7699020f33e66a2633c760b1b55d3e6cf6bfbe8e",
+      "headline": "Meta Platforms (META) Partners with Broadcom on Custom AI Microchips",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1776228525.0,
+      "first_seen_ts": 1776232349.894547,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Markets Insider"
+      ],
+      "url": "https://markets.businessinsider.com/news/stocks/meta-platforms-meta-partners-with-broadcom-on-custom-ai-microchips-1036022497",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776232349.894547
+    },
     "90a19fd66d3ceef791cfc1b3455b746c906ddbb1:5920680": {
       "story_key": "90a19fd66d3ceef791cfc1b3455b746c906ddbb1:5920680",
       "cluster_hash": "90a19fd66d3ceef791cfc1b3455b746c906ddbb1",
