@@ -2500,7 +2500,7 @@ resolve_core_hero_color(string product_state) =>
         hero_color := BEAR_HERO
     hero_color
 
-compose_core_hero_text(string product_state, string bias_text, string trade_threshold_text, string trust_tier, string trust_suffix, string provider_state, string why_now, string main_risk, string market_regime, bool regime_blocks, bool regime_dims, string asof_display, float vix_level, string market_event, string tone_text, bool yield_inverted, string sector_leading, bool breaking_news, int high_impact_count) =>
+compose_core_hero_text(string product_state, string bias_text, string trade_threshold_text, string trust_tier, string trust_suffix, string provider_state, string why_now, string main_risk, string market_regime, bool regime_blocks, bool regime_dims, string asof_display, float vix_level, string market_event, string tone_text, bool yield_inverted, string sector_leading, bool breaking_news, int high_impact_count, bool ticker_in_universe) =>
     string action_display = product_state
     if (product_state == 'WAIT' or product_state == 'BLOCKED') and (regime_blocks or regime_dims)
         action_display := product_state + ' (regime: ' + market_regime + ')'
@@ -2512,7 +2512,7 @@ compose_core_hero_text(string product_state, string bias_text, string trade_thre
     string sector_text = sector_leading != '' ? sector_leading : '—'
     string breaking_text = breaking_news ? ' · ⚡ BREAKING' : ''
     string news_depth_text = high_impact_count > 5 ? ' · ' + str.tostring(high_impact_count) + ' high-impact' : ''
-    'Action: ' + action_display + '\nBias: ' + bias_display + '\nConfidence: ' + trade_threshold_text + '\nTrust: ' + trust_display + '\nVIX: ' + str.tostring(vix_level, '#.##') + '\nTone: ' + tone_text + breaking_text + news_depth_text + '\nMarket: ' + market_event + yield_text + '\nSector: ' + sector_text + '\nProvider: ' + provider_state + '\nWhy now: ' + why_now + '\nMain blocker: ' + main_risk + '\nData: ' + asof_display
+    'Action: ' + action_display + '\nBias: ' + bias_display + '\nConfidence: ' + trade_threshold_text + '\nTrust: ' + trust_display + '\nVIX: ' + str.tostring(vix_level, '#.##') + '\nTone: ' + tone_text + breaking_text + news_depth_text + '\nMarket: ' + market_event + yield_text + '\nSector: ' + sector_text + '\nProvider: ' + provider_state + (not ticker_in_universe ? '\n⚠ Symbol not scanned — ticker-specific data unavailable (VIX/regime still active)' : '') + '\nWhy now: ' + why_now + '\nMain blocker: ' + main_risk + '\nData: ' + asof_display
 
 resolve_core_alert_action_name(string event_name) =>
     string action_name = 'WAIT'
@@ -3486,6 +3486,15 @@ bool lib_has_macro_event  = mp.HIGH_IMPACT_MACRO_TODAY
 bool lib_news_bearish = str.contains(mp.NEWS_BEARISH_TICKERS, syminfo.ticker)
 bool lib_news_bullish = str.contains(mp.NEWS_BULLISH_TICKERS, syminfo.ticker)
 bool lib_low_volume   = str.contains(mp.VOLUME_LOW_TICKERS, syminfo.ticker)
+
+// ── Universe Coverage — is this ticker covered by the enrichment scan? ──
+bool lib_ticker_in_universe = str.contains(mp.CLEAN_RECLAIM_TICKERS, syminfo.ticker) or
+     str.contains(mp.FAST_DECAY_TICKERS, syminfo.ticker) or
+     str.contains(mp.NEWS_BULLISH_TICKERS, syminfo.ticker) or
+     str.contains(mp.NEWS_BEARISH_TICKERS, syminfo.ticker) or
+     str.contains(mp.EARNINGS_TODAY_TICKERS, syminfo.ticker) or
+     str.contains(mp.EARNINGS_TOMORROW_TICKERS, syminfo.ticker) or
+     str.contains(mp.VOLUME_LOW_TICKERS, syminfo.ticker)
 
 // ── Market Valuation Flags ──
 float  lib_market_pe_forward         = mp.MARKET_PE_FORWARD
@@ -6232,14 +6241,14 @@ if barstate.islast and compact_mode
     string core_main_risk = compose_main_risk_text(core_product_state, event_risk_state, long_ready_blocker_text, long_strict_blocker_text, long_state.last_invalid_source, lib_sq_warnings, lib_erl_provider_status, core_has_earnings_tomorrow)
     string core_market_event = mp.HIGH_IMPACT_MACRO_TODAY ? (lib_macro_event_name + ' ' + lib_macro_event_time) : 'No event'
     string core_tone_text = lib_tone + ' · Heat ' + str.tostring(lib_global_heat, '#.##')
-    string core_hero_text = compose_core_hero_text(core_product_state, core_bias_text, core_trade_threshold, core_trust_tier, core_trust_suffix, core_provider_state, core_why_now, core_main_risk, mp.MARKET_REGIME, lib_regime_blocked, lib_regime_dimmed, lib_asof_display, lib_vix_level, core_market_event, core_tone_text, lib_yield_inverted, lib_sector_leading, is_breaking_news, lib_high_impact_news_count)
+    string core_hero_text = compose_core_hero_text(core_product_state, core_bias_text, core_trade_threshold, core_trust_tier, core_trust_suffix, core_provider_state, core_why_now, core_main_risk, mp.MARKET_REGIME, lib_regime_blocked, lib_regime_dimmed, lib_asof_display, lib_vix_level, core_market_event, core_tone_text, lib_yield_inverted, lib_sector_leading, is_breaking_news, lib_high_impact_news_count, lib_ticker_in_universe)
     string core_hero_display = core_hero_text
     if compact_mode
         // WP-OV5: 6-line compact hero — Action, Bias, Confidence, Trust, VIX, Main blocker
         string _cb_action = core_product_state
         if (core_product_state == 'WAIT' or core_product_state == 'BLOCKED') and (lib_regime_blocked or lib_regime_dimmed)
             _cb_action := core_product_state + ' (' + mp.MARKET_REGIME + ')'
-        core_hero_display := 'Action: ' + _cb_action + '\nBias: ' + core_bias_text + '\nConfidence: ' + core_trade_threshold + '\nTrust: ' + (core_trust_suffix != '' ? core_trust_tier + ' (' + core_trust_suffix + ')' : core_trust_tier) + '\nVIX: ' + str.tostring(lib_vix_level, '#.##') + '\nMain blocker: ' + core_main_risk
+        core_hero_display := 'Action: ' + _cb_action + '\nBias: ' + core_bias_text + '\nConfidence: ' + core_trade_threshold + '\nTrust: ' + (core_trust_suffix != '' ? core_trust_tier + ' (' + core_trust_suffix + ')' : core_trust_tier) + '\nVIX: ' + str.tostring(lib_vix_level, '#.##') + (not lib_ticker_in_universe ? '\n⚠ Not scanned — ticker data n/a' : '') + '\nMain blocker: ' + core_main_risk
     float core_hero_y = high + nz(atr, high * 0.01) * 1.15
     core_hero_card := label.new(bar_index, core_hero_y, core_hero_display, color = resolve_core_hero_color(core_product_state), textcolor = color.white, style = label.style_label_left, size = size.small)
 else if barstate.islast and not na(core_hero_card)
