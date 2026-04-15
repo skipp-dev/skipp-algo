@@ -22,8 +22,8 @@ def test_core_has_decision_first_hero_contract() -> None:
     assert "var g_ltf = '6. Advanced - Lower Timeframe'" in source
     assert "resolve_core_product_state(" in source
     assert "resolve_trust_tier(" in source
-    assert "resolve_core_provider_state(" in source
-    assert "compose_core_hero_text(" in source
+    assert "cr.resolve_core_provider_state(" in source
+    assert "cr.compose_core_hero_text(" in source
     assert "var label core_hero_card = na" in source
     assert "compact_mode = input.bool(true, 'Focus View'" in source
     assert "show_dashboard = input.bool(true, 'Show Decision Brief', group = g_output" in source
@@ -32,16 +32,17 @@ def test_core_has_decision_first_hero_contract() -> None:
     assert "use_trade_session_gate = input.bool(true, 'Use Trade Session Gate', group = g_session_gate, inline = 'trade1')" in source
     assert "performance_mode = input.string('Balanced', 'Performance Mode', options = ['Light', 'Balanced', 'Pro', 'Debug'], group = g_runtime" in source
     assert 'Focus View' in source
-    assert 'Confidence: ' in source
-    assert 'Trust: ' in source
-    assert 'Provider: ' in source
-    assert 'Main blocker: ' in source
-    assert 'VIX: ' in source
-    assert 'Tone: ' in source
-    assert 'Market: ' in source
-    assert "why_now := 'Trigger is live'" in source
-    assert "string core_main_risk = compose_main_risk_text(core_product_state, event_risk_state" in source
-    assert "string core_provider_state = resolve_core_provider_state(lib_erl_provider_status, lib_provider_count, lib_stale_providers)" in source
+    resolvers = _read("SMC++/smc_context_resolvers.pine")
+    assert 'Confidence: ' in resolvers
+    assert 'Trust: ' in resolvers
+    assert 'Provider: ' in resolvers
+    assert 'Main blocker: ' in resolvers
+    assert 'VIX: ' in resolvers
+    assert 'Tone: ' in resolvers
+    assert 'Market: ' in resolvers
+    assert "why_now := 'Trigger is live'" in resolvers
+    assert "string core_main_risk = cr.compose_main_risk_text(core_product_state, event_risk_state" in source
+    assert "string core_provider_state = cr.resolve_core_provider_state(lib_erl_provider_status, lib_provider_count, lib_stale_providers)" in source
     assert "bool core_plan_visible = (long_ready_state or long_entry_best_state or long_entry_strict_state)" in source
     assert "plot(core_plan_visible ? long_state.trigger : na, 'Core Trigger'" in source
     assert "plot(core_plan_visible ? long_state.invalidation_level : na, 'Core Invalidation'" in source
@@ -139,9 +140,11 @@ def test_core_and_dashboard_trust_tier_values_are_consistent() -> None:
     assert "resolve_trust_tier(" in core
     assert "resolve_dashboard_trust_tier(" in dashboard
 
-    assert "Provider: " in core
-    assert "Main blocker: " in core
-    assert "Trust: " in core
+    resolvers = _read("SMC++/smc_context_resolvers.pine")
+
+    assert "Provider: " in resolvers
+    assert "Main blocker: " in resolvers
+    assert "Trust: " in resolvers
 
     assert '"Trust / Data"' in dashboard
     assert '"provider: "' in dashboard or "provider: " in dashboard
@@ -174,7 +177,7 @@ def test_dashboard_trust_resolution_defaults_to_insufficient() -> None:
 
 def test_hero_card_explains_regime_override() -> None:
     """compose_core_hero_text must include regime override logic (WP-A4)."""
-    source = _read("SMC_Core_Engine.pine")
+    source = _read("SMC++/smc_context_resolvers.pine")
 
     func_start = source.index("compose_core_hero_text(")
     func_body = source[func_start:func_start + 2000]
@@ -228,7 +231,7 @@ def test_trust_tier_suffix_function_exists_with_all_tiers() -> None:
 
 def test_hero_card_trust_line_includes_suffix() -> None:
     """compose_core_hero_text must include trust_suffix in the Trust line (WP-A7)."""
-    source = _read("SMC_Core_Engine.pine")
+    source = _read("SMC++/smc_context_resolvers.pine")
 
     func_start = source.index("compose_core_hero_text(")
     func_body = source[func_start:func_start + 2000]
@@ -274,7 +277,7 @@ def test_trust_tier_suffix_respects_length_limit() -> None:
 
 def test_hero_card_shows_asof_time() -> None:
     """compose_core_hero_text must include a Data line with asof_display (WP-A10)."""
-    source = _read("SMC_Core_Engine.pine")
+    source = _read("SMC++/smc_context_resolvers.pine")
 
     func_start = source.index("compose_core_hero_text(")
     func_body = source[func_start:func_start + 2000]
@@ -305,7 +308,7 @@ def test_library_freshness_parses_asof_time() -> None:
 
 def test_hero_card_shows_vix_tone_market() -> None:
     """Hero card must show VIX, Tone, and Market event lines (WP-LF1)."""
-    source = _read("SMC_Core_Engine.pine")
+    source = _read("SMC++/smc_context_resolvers.pine")
 
     hero_fn_idx = source.index("compose_core_hero_text(")
     hero_fn_block = source[hero_fn_idx:hero_fn_idx + 2000]
@@ -330,19 +333,20 @@ def test_hero_card_reads_market_context_fields() -> None:
 
 def test_provider_state_uses_count_and_stale() -> None:
     """resolve_core_provider_state must accept provider_count and stale_providers (WP-LF2)."""
-    source = _read("SMC_Core_Engine.pine")
+    resolvers = _read("SMC++/smc_context_resolvers.pine")
 
-    assert "resolve_core_provider_state(string provider_status, int provider_count, string stale_providers)" in source
-    assert "mp.PROVIDER_COUNT" in source
-    assert "mp.STALE_PROVIDERS" in source
+    assert "resolve_core_provider_state(string provider_status, int provider_count, string stale_providers)" in resolvers
+    assert "mp.PROVIDER_COUNT" in _read("SMC_Core_Engine.pine")
+    assert "mp.STALE_PROVIDERS" in _read("SMC_Core_Engine.pine")
 
 
 def test_earnings_tomorrow_in_main_risk() -> None:
     """compose_main_risk_text must accept has_earnings_tomorrow flag (WP-LF2)."""
     source = _read("SMC_Core_Engine.pine")
+    resolvers = _read("SMC++/smc_context_resolvers.pine")
 
     assert "mp.EARNINGS_TOMORROW_TICKERS" in source
-    assert "Earnings tomorrow" in source
+    assert "Earnings tomorrow" in resolvers
     assert "core_has_earnings_tomorrow" in source
 
 

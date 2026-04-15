@@ -10,6 +10,7 @@ CORE_PATH = ROOT / 'SMC_Core_Engine.pine'
 DASHBOARD_PATH = ROOT / 'SMC_Dashboard.pine'
 STRATEGY_PATH = ROOT / 'SMC_Long_Strategy.pine'
 BUS_PRIVATE_PATH = ROOT / 'SMC++' / 'smc_bus_private.pine'
+RESOLVERS_PATH = ROOT / 'SMC++' / 'smc_context_resolvers.pine'
 
 
 MANIFEST = load_manifest()
@@ -582,12 +583,13 @@ def test_row_pack_and_unpack_contract_round_trips_consistently() -> None:
 def test_object_count_pack_and_support_code_exports_round_trip_consistently() -> None:
     core_source = _read(CORE_PATH)
     dashboard_source = _read(DASHBOARD_PATH)
+    resolver_source = _read(RESOLVERS_PATH)
 
-    assert 'pack_bus_counts(int primary_count, int secondary_count) =>' in core_source
+    assert 'pack_bus_counts(int primary_count, int secondary_count) =>' in resolver_source
     assert 'count_pack_slot(float packed_value, int slot) =>' in dashboard_source
-    assert 'resolve_bus_ltf_delta_state(bool show_dashboard_ltf_eff, bool ltf_sampling_active, bool ltf_price_only, float ltf_volume_delta) =>' in core_source
-    assert 'resolve_bus_safe_trend_state(bool bullish_trend_safe, bool bearish_trend_safe) =>' in core_source
-    assert 'resolve_bus_micro_profile_code(bool use_microstructure_profiles, string micro_profile_text, string micro_modifier_text) =>' in core_source
+    assert 'resolve_bus_ltf_delta_state(bool show_dashboard_ltf_eff, bool ltf_sampling_active, bool ltf_price_only, float ltf_volume_delta) =>' in resolver_source
+    assert 'resolve_bus_safe_trend_state(bool bullish_trend_safe, bool bearish_trend_safe) =>' in resolver_source
+    assert 'resolve_bus_micro_profile_code(bool use_microstructure_profiles, string micro_profile_text, string micro_modifier_text) =>' in resolver_source
     assert 'resolve_bus_module_pack_c(' not in core_source
     assert 'resolve_bus_micro_modifier_mask(' not in core_source
     assert 'src_ltf_delta_state = input.source(close, "BUS LtfDeltaState"' in dashboard_source
@@ -671,8 +673,9 @@ def test_plan_rows_reconstruct_locally_from_existing_plan_levels() -> None:
 def test_micro_profile_row_encodes_modifier_presence_inline() -> None:
     core_source = _read(CORE_PATH)
     dashboard_source = _read(DASHBOARD_PATH)
+    resolver_source = _read(RESOLVERS_PATH)
 
-    assert 'resolve_bus_micro_profile_code(bool use_microstructure_profiles, string micro_profile_text, string micro_modifier_text) =>' in core_source
+    assert 'resolve_bus_micro_profile_code(bool use_microstructure_profiles, string micro_profile_text, string micro_modifier_text) =>' in resolver_source
     assert 'resolve_bus_micro_modifier_mask(' not in core_source
     assert 'decode_micro_profile_text(int row_code) =>' in dashboard_source
     assert 'decode_micro_profile_text(int row_code, int modifier_mask) =>' not in dashboard_source
@@ -812,8 +815,9 @@ def test_quality_score_uses_fixed_local_bounds_text() -> None:
 def test_lean_transport_row_exposes_ensemble_and_library_volatility() -> None:
     core_source = _read(CORE_PATH)
     dashboard_source = _read(DASHBOARD_PATH)
+    resolver_source = _read(RESOLVERS_PATH)
 
-    assert 'resolve_bus_ensemble_vol_transport_row(float ensemble_quality_score, string ensemble_quality_tier, string volatility_regime, string volatility_model_source) =>' in core_source
+    assert 'resolve_bus_ensemble_vol_transport_row(float ensemble_quality_score, string ensemble_quality_tier, string volatility_regime, string volatility_model_source) =>' in resolver_source
     assert 'decode_ensemble_text(int row_code) =>' in dashboard_source
     assert 'decode_library_vol_text(int row_code) =>' in dashboard_source
     assert 'decode_vol_regime_stack_text(int row_code, int transport_row_code) =>' in dashboard_source

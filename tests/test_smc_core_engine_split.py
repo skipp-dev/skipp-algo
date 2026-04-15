@@ -9,6 +9,7 @@ from tests.smc_manifest_test_utils import ROOT, load_manifest
 CORE_PATH = ROOT / 'SMC_Core_Engine.pine'
 LIFECYCLE_PRIVATE_PATH = ROOT / 'SMC++' / 'smc_lifecycle_private.pine'
 OBSERVABILITY_PRIVATE_PATH = ROOT / 'SMC++' / 'smc_observability_private.pine'
+RESOLVERS_PATH = ROOT / 'SMC++' / 'smc_context_resolvers.pine'
 
 
 MANIFEST = load_manifest()
@@ -57,7 +58,7 @@ def test_core_engine_header_restores_import_prelude_and_blocks_stray_method_body
         'import preuss_steffen/smc_draw/1 as d',
     ]
     assert not following_nonempty[0].startswith((' ', '\t'))
-    assert 'method hide(Profile this) =>' in source
+    assert 'method hide(pe.Profile this) =>' not in source
     assert 'indicator("SMC Long-Dip Suite v7", "SMC Long-Dip Suite v7", overlay = true, max_bars_back = 500, max_lines_count = 300, max_boxes_count = 300, max_labels_count = 300)\n            for bucket in this.buckets' not in source
 
 
@@ -143,10 +144,10 @@ def test_core_engine_exports_exact_hidden_bus() -> None:
     for label in EXPECTED_BUS_LABELS:
         assert f"'{label}'" in source
 
-    assert 'pack_bus_row(' in source
-    assert 'pack_bus_four(' in source
-    assert 'pack_bus_counts(' in source
-    assert 'pack_bus_trend_set(' in source
+    assert 'cr.pack_bus_row(' not in source
+    assert 'cr.pack_bus_four(' not in source
+    assert 'cr.pack_bus_counts(' in source
+    assert 'cr.pack_bus_trend_set(' not in source
 
 
 def test_core_engine_uses_signal_quality_as_primary_gate() -> None:
@@ -197,20 +198,20 @@ def test_core_engine_has_no_dashboard_or_alert_transport_layer() -> None:
 def test_core_engine_ends_at_hidden_bus_boundary() -> None:
     source = _read_core_source().rstrip()
 
-    assert "plot(resolve_bus_ltf_delta_state(show_dashboard_ltf_eff, ltf_sampling_active, ltf_price_only, ltf_volume_delta), 'BUS LtfDeltaState', display = display.none)" in source
-    assert "plot(resolve_bus_safe_trend_state(bullish_trend_safe, bearish_trend_safe), 'BUS SafeTrendState', display = display.none)" in source
-    assert "plot(resolve_bus_micro_profile_code(use_microstructure_profiles, micro_profile_text, micro_modifier_text), 'BUS MicroProfileCode', display = display.none)" in source
-    assert "plot(resolve_bus_sd_confluence_row(use_sd_confluence, sd_support_both_recent, sd_bullish_divergence_recent, sd_higher_lows_recent, sd_support_any_recent), 'BUS SdConfluenceRow', display = display.none)" in source
-    assert "plot(resolve_bus_sd_osc_row(use_sd_confluence, sd_value, sd_above_zero, sd_rising, sd_below_zero, sd_falling), 'BUS SdOscRow', display = display.none)" in source
-    assert "plot(resolve_bus_vol_regime_row(use_volatility_regime, vol_regime_trend_ok), 'BUS VolRegimeRow', display = display.none)" in source
-    assert "plot(resolve_bus_vol_squeeze_row(use_volatility_regime, vol_squeeze_on, vol_squeeze_release_recent, vol_squeeze_recent), 'BUS VolSqueezeRow', display = display.none)" in source
+    assert "plot(cr.resolve_bus_ltf_delta_state(show_dashboard_ltf_eff, ltf_sampling_active, ltf_price_only, ltf_volume_delta), 'BUS LtfDeltaState', display = display.none)" in source
+    assert "plot(cr.resolve_bus_safe_trend_state(bullish_trend_safe, bearish_trend_safe), 'BUS SafeTrendState', display = display.none)" in source
+    assert "plot(cr.resolve_bus_micro_profile_code(use_microstructure_profiles, micro_profile_text, micro_modifier_text), 'BUS MicroProfileCode', display = display.none)" in source
+    assert "plot(cr.resolve_bus_sd_confluence_row(use_sd_confluence, sd_support_both_recent, sd_bullish_divergence_recent, sd_higher_lows_recent, sd_support_any_recent), 'BUS SdConfluenceRow', display = display.none)" in source
+    assert "plot(cr.resolve_bus_sd_osc_row(use_sd_confluence, sd_value, sd_above_zero, sd_rising, sd_below_zero, sd_falling), 'BUS SdOscRow', display = display.none)" in source
+    assert "plot(cr.resolve_bus_vol_regime_row(use_volatility_regime, vol_regime_trend_ok), 'BUS VolRegimeRow', display = display.none)" in source
+    assert "plot(cr.resolve_bus_vol_squeeze_row(use_volatility_regime, vol_squeeze_on, vol_squeeze_release_recent, vol_squeeze_recent), 'BUS VolSqueezeRow', display = display.none)" in source in source
     assert "plot(resolve_bus_ready_blocker_code(long_ready_state, long_state.confirmed, lifecycle_ready_ok, setup_hard_gate_ok, trade_hard_gate_ok, environment_hard_gate_ok, close_safe_mode, ready_bar_gap_ok, long_confirm_expired, ready_is_fresh, long_confirm_bearish_guard_ok, require_main_break_for_ready_eff, bull_bos_sig, main_bos_recent, session_structure_gate_ok, micro_session_gate_ok, micro_freshness_gate_ok, overhead_zone_ok, market_regime_gate_ok, vola_regime_gate_safe, quality_gate_ok, accel_ready_gate_ok, sd_ready_gate_ok, vol_ready_context_ok, stretch_ready_context_ok, ddvi_ready_ok_safe), 'BUS ReadyBlockerCode', display = display.none)" in source
     assert "plot(resolve_bus_strict_blocker_code(long_entry_strict_state, long_ready_state, strict_signal_quality_gate_ok, strict_entry_ltf_ok, htf_alignment_ok, accel_strict_entry_gate_ok, sd_entry_strict_gate_ok, vol_entry_strict_context_ok_safe, stretch_entry_strict_context_ok, ddvi_entry_strict_ok_safe), 'BUS StrictBlockerCode', display = display.none)" in source
-    assert "plot(resolve_bus_vol_expansion_state(use_volatility_regime, vol_momentum_expanding_long, vol_stack_spread_rising), 'BUS VolExpansionState', display = display.none)" in source
-    assert "plot(resolve_bus_ddvi_context_state(use_ddvi_context, ddvi_bias_ok, ddvi_bull_divergence_any, ddvi_lower_extreme_context), 'BUS DdviContextState', display = display.none)" in source
-    assert "plot(resolve_bus_stretch_support_mask(use_stretch_context, in_lower_extreme, lower_extreme_recent, anti_chase_ok_ready, anti_chase_ok_entry_best), 'BUS StretchSupportMask', display = display.none)" in source
+    assert "plot(cr.resolve_bus_vol_expansion_state(use_volatility_regime, vol_momentum_expanding_long, vol_stack_spread_rising), 'BUS VolExpansionState', display = display.none)" in source
+    assert "plot(cr.resolve_bus_ddvi_context_state(use_ddvi_context, ddvi_bias_ok, ddvi_bull_divergence_any, ddvi_lower_extreme_context), 'BUS DdviContextState', display = display.none)" in source
+    assert "plot(cr.resolve_bus_stretch_support_mask(use_stretch_context, in_lower_extreme, lower_extreme_recent, anti_chase_ok_ready, anti_chase_ok_entry_best), 'BUS StretchSupportMask', display = display.none)" in source
     assert "plot(ltf_bias_hint, 'BUS LtfBiasHint', display = display.none)" in source
-    assert "plot(pack_bus_counts(array.size(ob_blocks_bull), array.size(fvgs_bull)), 'BUS ObjectsCountPack', display = display.none)" in source
+    assert "plot(cr.pack_bus_counts(array.size(ob_blocks_bull), array.size(fvgs_bull)), 'BUS ObjectsCountPack', display = display.none)" in source
     assert "'BUS VolExpandRow', display = display.none" not in source
     assert "'BUS DdviRow', display = display.none" not in source
     assert "'BUS LtfDeltaRow', display = display.none" not in source
@@ -233,7 +234,7 @@ def test_core_engine_ends_at_hidden_bus_boundary() -> None:
     assert "'BUS DebugStateRow', display = display.none" not in source
     assert "'BUS ReadyGateRow', display = display.none" not in source
     assert "'BUS StrictGateRow', display = display.none" not in source
-    assert "plot(resolve_bus_lean_pack_b(lib_obl_side, lib_obl_fresh, lib_obl_mitigation_state, lib_fvgl_side, lib_fvgl_fresh, lib_fvgl_invalidated, lib_scl_context_score, lib_scl_in_killzone, lib_ensemble_quality_score, lib_ensemble_quality_tier, lib_volatility_regime, lib_volatility_model_source), 'BUS LeanPackB', display = display.none)" in source
+    assert "plot(cr.resolve_bus_lean_pack_b(lib_obl_side, lib_obl_fresh, lib_obl_mitigation_state, lib_fvgl_side, lib_fvgl_fresh, lib_fvgl_invalidated, lib_scl_context_score, lib_scl_in_killzone, lib_ensemble_quality_score, lib_ensemble_quality_tier, lib_volatility_regime, lib_volatility_model_source), 'BUS LeanPackB', display = display.none)" in source
     assert 'resolve_bus_debug_state_row(' not in source
     assert source.endswith('/////////////////////////////////////////////////////////////////////////////////')
     assert "'BUS LeanPackB', display = display.none)\n\n// ── Mini Health Badge (v5.5a) ──" in source
@@ -269,17 +270,18 @@ def test_core_engine_tracks_c4_gate_contract_helpers() -> None:
 
 def test_core_engine_tracks_c4_source_and_bus_pack_helpers() -> None:
     source = _read_core_source()
+    resolver_source = RESOLVERS_PATH.read_text(encoding='utf-8')
 
     assert 'compute_long_source_upgrade_state(bool allow_armed_source_upgrade, bool long_setup_armed, bool long_setup_confirmed, bool prev_locked_source_invalid_now, int prev_locked_source_kind, int prev_locked_source_id, bool bull_reclaim_ob_strict, bool touched_bull_ob_available, int touched_bull_ob_id, float touched_bull_ob_quality, bool bull_reclaim_fvg_strict, bool touched_bull_fvg_available, int touched_bull_fvg_id, float touched_bull_fvg_quality, float long_locked_source_quality, float min_source_upgrade_quality_gain) =>' in source
     assert 'resolve_long_source_runtime_state(int long_source_kind, int long_source_id, bool ob_source_alive, bool fvg_source_alive, bool ob_source_broken, bool fvg_source_broken, bool long_setup_armed, bool long_setup_confirmed) =>' in source
     assert 'resolve_long_invalidation_state(bool long_setup_armed, bool long_setup_confirmed, int long_setup_age, int long_setup_expiry_bars, int long_confirm_age, int long_confirm_expiry_bars, bool close_safe_mode, float long_invalidation_break_src, float long_invalidation_level, float long_invalidation_buffer, bool long_source_broken, bool long_source_lost) =>' in source
-    assert 'resolve_bus_ltf_delta_state(bool show_dashboard_ltf_eff, bool ltf_sampling_active, bool ltf_price_only, float ltf_volume_delta) =>' in source
-    assert 'resolve_bus_safe_trend_state(bool bullish_trend_safe, bool bearish_trend_safe) =>' in source
-    assert 'resolve_bus_micro_profile_code(bool use_microstructure_profiles, string micro_profile_text, string micro_modifier_text) =>' in source
+    assert 'resolve_bus_ltf_delta_state(bool show_dashboard_ltf_eff, bool ltf_sampling_active, bool ltf_price_only, float ltf_volume_delta) =>' in resolver_source
+    assert 'resolve_bus_safe_trend_state(bool bullish_trend_safe, bool bearish_trend_safe) =>' in resolver_source
+    assert 'resolve_bus_micro_profile_code(bool use_microstructure_profiles, string micro_profile_text, string micro_modifier_text) =>' in resolver_source
     assert 'resolve_bus_micro_modifier_mask(' not in source
-    assert 'resolve_bus_vol_expansion_state(bool use_volatility_regime, bool vol_momentum_expanding_long, bool vol_stack_spread_rising) =>' in source
-    assert 'resolve_bus_ddvi_context_state(bool use_ddvi_context, bool ddvi_bias_ok, bool ddvi_bull_divergence_any, bool ddvi_lower_extreme_context) =>' in source
-    assert 'resolve_bus_stretch_support_mask(bool use_stretch_context, bool in_lower_extreme, bool lower_extreme_recent, bool anti_chase_ok_ready, bool anti_chase_ok_entry_best) =>' in source
+    assert 'resolve_bus_vol_expansion_state(bool use_volatility_regime, bool vol_momentum_expanding_long, bool vol_stack_spread_rising) =>' in resolver_source
+    assert 'resolve_bus_ddvi_context_state(bool use_ddvi_context, bool ddvi_bias_ok, bool ddvi_bull_divergence_any, bool ddvi_lower_extreme_context) =>' in resolver_source
+    assert 'resolve_bus_stretch_support_mask(bool use_stretch_context, bool in_lower_extreme, bool lower_extreme_recent, bool anti_chase_ok_ready, bool anti_chase_ok_entry_best) =>' in resolver_source
     assert 'resolve_bus_module_pack_d(' not in source
     assert 'resolve_bus_module_pack_c(' not in source
     assert 'resolve_bus_module_pack_b(' not in source
@@ -356,13 +358,13 @@ def test_core_engine_tracks_c7_execution_and_bus_projection_owners() -> None:
     assert "'BUS StrictGateRow', display = display.none" not in source
     assert "'BUS ModulePackD', display = display.none" not in source
     assert "'BUS ReadyStrictPack', display = display.none" not in source
-    assert "plot(resolve_bus_ltf_delta_state(show_dashboard_ltf_eff, ltf_sampling_active, ltf_price_only, ltf_volume_delta), 'BUS LtfDeltaState', display = display.none)" in source
-    assert "plot(resolve_bus_safe_trend_state(bullish_trend_safe, bearish_trend_safe), 'BUS SafeTrendState', display = display.none)" in source
-    assert "plot(resolve_bus_micro_profile_code(use_microstructure_profiles, micro_profile_text, micro_modifier_text), 'BUS MicroProfileCode', display = display.none)" in source
+    assert "plot(cr.resolve_bus_ltf_delta_state(show_dashboard_ltf_eff, ltf_sampling_active, ltf_price_only, ltf_volume_delta), 'BUS LtfDeltaState', display = display.none)" in source
+    assert "plot(cr.resolve_bus_safe_trend_state(bullish_trend_safe, bearish_trend_safe), 'BUS SafeTrendState', display = display.none)" in source
+    assert "plot(cr.resolve_bus_micro_profile_code(use_microstructure_profiles, micro_profile_text, micro_modifier_text), 'BUS MicroProfileCode', display = display.none)" in source
     assert "plot(resolve_bus_ready_blocker_code(long_ready_state, long_state.confirmed, lifecycle_ready_ok, setup_hard_gate_ok, trade_hard_gate_ok, environment_hard_gate_ok, close_safe_mode, ready_bar_gap_ok, long_confirm_expired, ready_is_fresh, long_confirm_bearish_guard_ok, require_main_break_for_ready_eff, bull_bos_sig, main_bos_recent, session_structure_gate_ok, micro_session_gate_ok, micro_freshness_gate_ok, overhead_zone_ok, market_regime_gate_ok, vola_regime_gate_safe, quality_gate_ok, accel_ready_gate_ok, sd_ready_gate_ok, vol_ready_context_ok, stretch_ready_context_ok, ddvi_ready_ok_safe), 'BUS ReadyBlockerCode', display = display.none)" in source
     assert "plot(resolve_bus_strict_blocker_code(long_entry_strict_state, long_ready_state, strict_signal_quality_gate_ok, strict_entry_ltf_ok, htf_alignment_ok, accel_strict_entry_gate_ok, sd_entry_strict_gate_ok, vol_entry_strict_context_ok_safe, stretch_entry_strict_context_ok, ddvi_entry_strict_ok_safe), 'BUS StrictBlockerCode', display = display.none)" in source
-    assert "plot(resolve_bus_vol_expansion_state(use_volatility_regime, vol_momentum_expanding_long, vol_stack_spread_rising), 'BUS VolExpansionState', display = display.none)" in source
-    assert "plot(resolve_bus_ddvi_context_state(use_ddvi_context, ddvi_bias_ok, ddvi_bull_divergence_any, ddvi_lower_extreme_context), 'BUS DdviContextState', display = display.none)" in source
+    assert "plot(cr.resolve_bus_vol_expansion_state(use_volatility_regime, vol_momentum_expanding_long, vol_stack_spread_rising), 'BUS VolExpansionState', display = display.none)" in source
+    assert "plot(cr.resolve_bus_ddvi_context_state(use_ddvi_context, ddvi_bias_ok, ddvi_bull_divergence_any, ddvi_lower_extreme_context), 'BUS DdviContextState', display = display.none)" in source
     assert 'resolve_bus_long_triggers_row(long_plan_active)' not in source
     assert 'resolve_bus_risk_plan_row(long_plan_active)' not in source
     assert 'resolve_bus_module_pack_d(' not in source

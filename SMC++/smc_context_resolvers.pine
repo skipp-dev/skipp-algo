@@ -1,0 +1,408 @@
+// This Pine Script® code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © preuss_steffen
+
+//@version=6
+// @description Pure context resolver and BUS packing functions.
+// No state, no drawing — all functions are parameter-in, value-out.
+library("smc_context_resolvers", overlay = false)
+
+import preuss_steffen/smc_utils/1 as u
+import preuss_steffen/smc_bus_private/1 as bp
+
+// ── Ticker Heat Parser ──
+
+export f_parse_ticker_heat(string heat_map, string ticker) =>
+    float heat = 0.0
+    if heat_map != ''
+        string search = ticker + ':'
+        int pos = str.pos(heat_map, search)
+        if pos >= 0
+            int val_start = pos + str.length(search)
+            int comma_pos = str.pos(str.substring(heat_map, val_start), ',')
+            string val_str = comma_pos >= 0 ? str.substring(heat_map, val_start, val_start + comma_pos) : str.substring(heat_map, val_start)
+            heat := str.tonumber(val_str)
+    heat
+
+// ── Core Resolvers ──
+
+export resolve_core_provider_state(string provider_status, int provider_count, string stale_providers) =>
+    string provider_text = 'Degraded'
+    if stale_providers != ''
+        provider_text := str.tostring(provider_count) + ' provider · ' + stale_providers + ' stale'
+    else if provider_count > 0
+        provider_text := str.tostring(provider_count) + '/' + str.tostring(provider_count) + ' ok'
+    else
+        string provider_status_norm = str.lower(provider_status)
+        if provider_status_norm == 'ok'
+            provider_text := 'OK'
+        else if provider_status_norm == 'calendar_missing'
+            provider_text := 'Calendar missing'
+        else if provider_status_norm == 'news_missing'
+            provider_text := 'News missing'
+        else if provider_status_norm == 'no_data'
+            provider_text := 'No data'
+        else if provider_status_norm == ''
+            provider_text := 'Unknown'
+        else
+            provider_text := provider_status
+    provider_text
+
+export resolve_core_bias_text(string signal_bias_alignment) =>
+    string bias_text = 'Mixed'
+    if signal_bias_alignment == 'bull'
+        bias_text := 'Bullish'
+    else if signal_bias_alignment == 'bear'
+        bias_text := 'Bearish'
+    bias_text
+
+export compose_why_now_text(string product_state, string long_setup_source_display, string signal_freshness, string signal_warnings, string long_ready_blocker_text, string long_strict_blocker_text, float long_trigger) =>
+    string why_now = 'No confirmed reclaim yet'
+    string ready_text = str.lower(long_ready_blocker_text)
+    string strict_text = str.lower(long_strict_blocker_text)
+    if product_state == 'ENTER LONG'
+        why_now := 'Trigger is live'
+    else if product_state == 'READY LONG'
+        why_now := 'Confirmed setup is ready'
+        if not na(long_trigger)
+            why_now += '; watch ' + u.format_level(long_trigger)
+    else if product_state == 'PREPARE LONG'
+        why_now := long_setup_source_display == 'None' ? 'Wait for reclaim confirmation' : long_setup_source_display + ' zone is active'
+    else if product_state == 'BLOCKED'
+        if long_ready_blocker_text != '' and ready_text != 'ready'
+            why_now := long_ready_blocker_text
+        else if long_strict_blocker_text != '' and strict_text != 'strict'
+            why_now := long_strict_blocker_text
+        else
+            why_now := 'Setup invalidated; wait for reset'
+    if product_state == 'READY LONG' or product_state == 'ENTER LONG'
+        if signal_freshness == 'fresh'
+            why_now += ' | fresh'
+        else if signal_freshness == 'aging'
+            why_now += ' | aging'
+    why_now
+
+export compose_main_risk_text(string product_state, string event_risk_state, string long_ready_blocker_text, string long_strict_blocker_text, string long_last_invalid_source, string signal_warnings, string provider_status, bool has_earnings_tomorrow) =>
+    string main_risk = product_state == 'BLOCKED' ? 'Setup is blocked' : ((product_state == 'READY LONG' or product_state == 'ENTER LONG') ? 'No active blocker' : 'No trade plan yet')
+    string ready_text = str.lower(long_ready_blocker_text)
+    string strict_text = str.lower(long_strict_blocker_text)
+    if event_risk_state == 'blocked'
+        main_risk := 'Event risk is blocking'
+    else if event_risk_state == 'caution'
+        main_risk := 'Event risk is elevated'
+    else if long_ready_blocker_text != '' and ready_text != 'ready'
+        main_risk := long_ready_blocker_text
+    else if long_strict_blocker_text != '' and strict_text != 'strict'
+        main_risk := long_strict_blocker_text
+    else if long_last_invalid_source != 'None'
+        main_risk := 'Last invalidation came from ' + long_last_invalid_source
+    else if signal_warnings != ''
+        main_risk := signal_warnings
+    else if provider_status != 'ok'
+        main_risk := 'Data quality is degraded'
+    else if has_earnings_tomorrow
+        main_risk := 'Earnings tomorrow — size with care'
+    main_risk
+
+export compose_trade_threshold_text(string trust_tier, int signal_quality_score) =>
+    string confidence_text = 'Caution'
+    if trust_tier == 'Strong'
+        confidence_text := 'High'
+    else if trust_tier == 'Usable'
+        confidence_text := 'Usable'
+    else if trust_tier == 'Thin'
+        confidence_text := 'Thin'
+    confidence_text
+
+export resolve_core_hero_color(string product_state, color bull_hero, color bull_hero_ready, color bear_hero) =>
+    color hero_color = color.new(color.gray, 70)
+    if product_state == 'ENTER LONG'
+        hero_color := bull_hero
+    else if product_state == 'READY LONG'
+        hero_color := bull_hero_ready
+    else if product_state == 'PREPARE LONG'
+        hero_color := color.new(color.orange, 60)
+    else if product_state == 'BLOCKED'
+        hero_color := bear_hero
+    hero_color
+
+export compose_core_hero_text(string product_state, string bias_text, string trade_threshold_text, string trust_tier, string trust_suffix, string provider_state, string why_now, string main_risk, string market_regime, bool regime_blocks, bool regime_dims, string asof_display, float vix_level, string market_event, string tone_text, bool yield_inverted, string sector_leading, bool breaking_news, int high_impact_count, bool ticker_in_universe) =>
+    string action_display = product_state
+    if (product_state == 'WAIT' or product_state == 'BLOCKED') and (regime_blocks or regime_dims)
+        action_display := product_state + ' (regime: ' + market_regime + ')'
+    string bias_display = bias_text
+    if (bias_text == 'Bullish' or bias_text == 'Bearish') and (regime_blocks or regime_dims)
+        bias_display := bias_text + ' tone — ' + market_regime + ' regime overrides'
+    string trust_display = trust_suffix != '' ? trust_tier + ' (' + trust_suffix + ')' : trust_tier
+    string yield_text = yield_inverted ? ' · Yield INVERTED' : ''
+    string sector_text = sector_leading != '' ? sector_leading : '—'
+    string breaking_text = breaking_news ? ' · ⚡ BREAKING' : ''
+    string news_depth_text = high_impact_count > 5 ? ' · ' + str.tostring(high_impact_count) + ' high-impact' : ''
+    'Action: ' + action_display + '\nBias: ' + bias_display + '\nConfidence: ' + trade_threshold_text + '\nTrust: ' + trust_display + '\nVIX: ' + str.tostring(vix_level, '#.##') + '\nTone: ' + tone_text + breaking_text + news_depth_text + '\nMarket: ' + market_event + yield_text + '\nSector: ' + sector_text + '\nProvider: ' + provider_state + (not ticker_in_universe ? '\n⚠ Symbol not scanned — ticker-specific data unavailable (VIX/regime still active)' : '') + '\nWhy now: ' + why_now + '\nMain blocker: ' + main_risk + '\nData: ' + asof_display
+
+export resolve_core_alert_action_name(string event_name) =>
+    string action_name = 'WAIT'
+    string event_name_upper = str.upper(event_name)
+    if str.contains(event_name_upper, 'INVALID')
+        action_name := 'BLOCKED'
+    else if str.contains(event_name_upper, 'STRICT') or str.contains(event_name_upper, 'BEST')
+        action_name := 'ENTER LONG'
+    else if str.contains(event_name_upper, 'READY')
+        action_name := 'READY LONG'
+    else if str.contains(event_name_upper, 'CONFIRM') or str.contains(event_name_upper, 'ARM') or str.contains(event_name_upper, 'WATCH')
+        action_name := 'PREPARE LONG'
+    action_name
+
+// ── BUS Packing Pass-throughs ──
+
+export pack_bus_row(int row_state, int reason_code) =>
+    bp.pack_bus_row(row_state, reason_code)
+
+export pack_bus_four(float value1, float value2, float value3, float value4) =>
+    bp.pack_bus_four(value1, value2, value3, value4)
+
+export pack_bus_counts(int primary_count, int secondary_count) =>
+    bp.pack_bus_counts(primary_count, secondary_count)
+
+export normalize_bus_trend(int dir) =>
+    bp.normalize_bus_trend(dir)
+
+export pack_bus_trend_set(int trend_now, int trend_htf_1, int trend_htf_2, int trend_htf_3) =>
+    bp.pack_bus_trend_set(trend_now, trend_htf_1, trend_htf_2, trend_htf_3)
+
+export pack_bus_meta(int freshness_code, int source_state_code, int reclaim_code, int zone_code) =>
+    bp.pack_bus_meta(freshness_code, source_state_code, reclaim_code, zone_code)
+
+// ── BUS Resolver Pass-throughs ──
+
+export resolve_bus_stretch_support_mask(bool use_stretch_context, bool in_lower_extreme, bool lower_extreme_recent, bool anti_chase_ok_ready, bool anti_chase_ok_entry_best) =>
+    bp.resolve_bus_stretch_support_mask(use_stretch_context, in_lower_extreme, lower_extreme_recent, anti_chase_ok_ready, anti_chase_ok_entry_best)
+
+export resolve_bus_freshness_code(bool long_setup_armed, bool long_setup_confirmed, bool ready_is_fresh, bool confirm_is_fresh) =>
+    bp.resolve_bus_freshness_code(long_setup_armed, long_setup_confirmed, ready_is_fresh, confirm_is_fresh)
+
+export resolve_bus_source_state_code(bool long_source_tracked, bool long_source_alive, bool long_source_broken) =>
+    bp.resolve_bus_source_state_code(long_source_tracked, long_source_alive, long_source_broken)
+
+export resolve_bus_zone_code(bool long_zone_active, bool in_bull_ob_zone, bool in_bull_fvg_zone) =>
+    bp.resolve_bus_zone_code(long_zone_active, in_bull_ob_zone, in_bull_fvg_zone)
+
+export resolve_bus_zone_row(bool long_zone_active, bool in_bull_ob_zone, bool in_bull_fvg_zone) =>
+    bp.resolve_bus_zone_row(long_zone_active, in_bull_ob_zone, in_bull_fvg_zone)
+
+export resolve_bus_reclaim_code(bool reclaim_recent, bool bull_reclaim_internal_low_strict, bool bull_reclaim_swing_low_strict, bool bull_reclaim_fvg_strict, bool bull_reclaim_ob_strict) =>
+    bp.resolve_bus_reclaim_code(reclaim_recent, bull_reclaim_internal_low_strict, bull_reclaim_swing_low_strict, bull_reclaim_fvg_strict, bull_reclaim_ob_strict)
+
+export resolve_bus_reclaim_row(bool reclaim_recent, bool bull_reclaim_internal_low_strict, bool bull_reclaim_swing_low_strict, bool bull_reclaim_fvg_strict, bool bull_reclaim_ob_strict) =>
+    bp.resolve_bus_reclaim_row(reclaim_recent, bull_reclaim_internal_low_strict, bull_reclaim_swing_low_strict, bull_reclaim_fvg_strict, bull_reclaim_ob_strict)
+
+export resolve_bus_session_row(bool intraday_time_chart, bool use_trade_session_gate, bool use_opening_range_gate, bool session_structure_gate_ok, bool session_gate_ok) =>
+    bp.resolve_bus_session_row(intraday_time_chart, use_trade_session_gate, use_opening_range_gate, session_structure_gate_ok, session_gate_ok)
+
+export resolve_bus_market_row(bool use_index_gate, bool use_sector_gate, bool use_breadth_symbol_gate, bool market_symbols_missing, bool block_on_missing_market_symbol, bool market_regime_gate_ok, bool index_gate_effective_ok, bool sector_gate_effective_ok, bool market_valuation_caution) =>
+    bp.resolve_bus_market_row(use_index_gate, use_sector_gate, use_breadth_symbol_gate, market_symbols_missing, block_on_missing_market_symbol, market_regime_gate_ok, index_gate_effective_ok, sector_gate_effective_ok, market_valuation_caution)
+
+export resolve_bus_vola_row(bool use_vola_compression_gate, bool vola_regime_gate_safe, bool vola_expansion_now, bool vola_compression_recent) =>
+    bp.resolve_bus_vola_row(use_vola_compression_gate, vola_regime_gate_safe, vola_expansion_now, vola_compression_recent)
+
+export resolve_bus_micro_session_row(bool use_microstructure_profiles, bool intraday_time_chart, bool micro_session_gate_ok, bool micro_rth_gate_ok, bool micro_midday_gate_ok, bool micro_premarket_gate_ok) =>
+    bp.resolve_bus_micro_session_row(use_microstructure_profiles, intraday_time_chart, micro_session_gate_ok, micro_rth_gate_ok, micro_midday_gate_ok, micro_premarket_gate_ok)
+
+export resolve_bus_micro_fresh_row(bool use_microstructure_profiles, bool micro_freshness_gate_ok) =>
+    bp.resolve_bus_micro_fresh_row(use_microstructure_profiles, micro_freshness_gate_ok)
+
+export resolve_bus_volume_data_row(bool volume_current_bar_ok, bool volume_feed_quality_ok, bool ltf_sampling_active, bool ltf_price_ok, bool ltf_volume_ok, bool ltf_price_only) =>
+    bp.resolve_bus_volume_data_row(volume_current_bar_ok, volume_feed_quality_ok, ltf_sampling_active, ltf_price_ok, ltf_volume_ok, ltf_price_only)
+
+export resolve_bus_quality_env_row(bool environment_hard_gate_ok, bool market_regime_gate_ok, bool vola_regime_gate_safe) =>
+    bp.resolve_bus_quality_env_row(environment_hard_gate_ok, market_regime_gate_ok, vola_regime_gate_safe)
+
+export resolve_bus_quality_strict_row(bool long_entry_strict_state, bool strict_entry_ltf_ok, bool htf_alignment_ok, bool accel_strict_entry_gate_ok, bool sd_entry_strict_gate_ok, bool vol_entry_strict_context_ok_safe, bool stretch_entry_strict_context_ok, bool ddvi_entry_strict_ok_safe) =>
+    bp.resolve_bus_quality_strict_row(long_entry_strict_state, strict_entry_ltf_ok, htf_alignment_ok, accel_strict_entry_gate_ok, sd_entry_strict_gate_ok, vol_entry_strict_context_ok_safe, stretch_entry_strict_context_ok, ddvi_entry_strict_ok_safe)
+
+export resolve_bus_close_strength_row(bool use_strong_close_filter, bool bull_close_strong) =>
+    bp.resolve_bus_close_strength_row(use_strong_close_filter, bull_close_strong)
+
+export resolve_bus_ema_support_row(bool show_ema_support, bool ema_support_ok) =>
+    bp.resolve_bus_ema_support_row(show_ema_support, ema_support_ok)
+
+export resolve_bus_adx_row(bool use_adx, bool adx_data_ok, float plus_di, float minus_di, bool adx_strong, float adx_value, float adx_trend_min) =>
+    bp.resolve_bus_adx_row(use_adx, adx_data_ok, plus_di, minus_di, adx_strong, adx_value, adx_trend_min)
+
+export resolve_bus_relvol_row(bool use_rel_volume, bool relvol_data_ok, bool allow_relvol_without_volume_data, bool relvol_ok) =>
+    bp.resolve_bus_relvol_row(use_rel_volume, relvol_data_ok, allow_relvol_without_volume_data, relvol_ok)
+
+export resolve_bus_vwap_row(bool use_vwap_filter, bool intraday_time_chart, bool vwap_session_active, bool vwap_filter_ok) =>
+    bp.resolve_bus_vwap_row(use_vwap_filter, intraday_time_chart, vwap_session_active, vwap_filter_ok)
+
+export resolve_bus_context_quality_row(bool use_context_quality_score_eff, bool context_quality_gate_ok) =>
+    bp.resolve_bus_context_quality_row(use_context_quality_score_eff, context_quality_gate_ok)
+
+export resolve_bus_quality_score_row(int signal_quality_score) =>
+    bp.resolve_bus_quality_score_row(signal_quality_score)
+
+export resolve_bus_quality_clean_row(bool long_quality_clean_tier) =>
+    bp.resolve_bus_quality_clean_row(long_quality_clean_tier)
+
+export resolve_bus_sd_confluence_row(bool use_sd_confluence, bool sd_support_both_recent, bool sd_bullish_divergence_recent, bool sd_higher_lows_recent, bool sd_support_any_recent) =>
+    bp.resolve_bus_sd_confluence_row(use_sd_confluence, sd_support_both_recent, sd_bullish_divergence_recent, sd_higher_lows_recent, sd_support_any_recent)
+
+export resolve_bus_sd_osc_row(bool use_sd_confluence, float sd_value, bool sd_above_zero, bool sd_rising, bool sd_below_zero, bool sd_falling) =>
+    bp.resolve_bus_sd_osc_row(use_sd_confluence, sd_value, sd_above_zero, sd_rising, sd_below_zero, sd_falling)
+
+export resolve_bus_vol_regime_row(bool use_volatility_regime, bool vol_regime_trend_ok) =>
+    bp.resolve_bus_vol_regime_row(use_volatility_regime, vol_regime_trend_ok)
+
+export resolve_bus_vol_squeeze_row(bool use_volatility_regime, bool vol_squeeze_on, bool vol_squeeze_release_recent, bool vol_squeeze_recent) =>
+    bp.resolve_bus_vol_squeeze_row(use_volatility_regime, vol_squeeze_on, vol_squeeze_release_recent, vol_squeeze_recent)
+
+export resolve_bus_vol_expansion_state(bool use_volatility_regime, bool vol_momentum_expanding_long, bool vol_stack_spread_rising) =>
+    bp.resolve_bus_vol_expansion_state(use_volatility_regime, vol_momentum_expanding_long, vol_stack_spread_rising)
+
+export resolve_bus_stretch_row(bool use_stretch_context, float distance_to_mean_z, bool in_lower_extreme, bool lower_extreme_recent, bool anti_chase_ok_entry_best, bool anti_chase_ok_ready) =>
+    bp.resolve_bus_stretch_row(use_stretch_context, distance_to_mean_z, in_lower_extreme, lower_extreme_recent, anti_chase_ok_entry_best, anti_chase_ok_ready)
+
+export resolve_bus_ddvi_context_state(bool use_ddvi_context, bool ddvi_bias_ok, bool ddvi_bull_divergence_any, bool ddvi_lower_extreme_context) =>
+    bp.resolve_bus_ddvi_context_state(use_ddvi_context, ddvi_bias_ok, ddvi_bull_divergence_any, ddvi_lower_extreme_context)
+
+export resolve_bus_ltf_bias_row(bool show_dashboard_ltf_eff, bool ltf_sampling_active, bool ltf_price_ok, bool ltf_price_only, float ltf_bull_share, float ltf_bias_hint) =>
+    bp.resolve_bus_ltf_bias_row(show_dashboard_ltf_eff, ltf_sampling_active, ltf_price_ok, ltf_price_only, ltf_bull_share, ltf_bias_hint)
+
+export resolve_bus_ltf_delta_state(bool show_dashboard_ltf_eff, bool ltf_sampling_active, bool ltf_price_only, float ltf_volume_delta) =>
+    bp.resolve_bus_ltf_delta_state(show_dashboard_ltf_eff, ltf_sampling_active, ltf_price_only, ltf_volume_delta)
+
+export resolve_bus_objects_row(int ob_count, int fvg_count) =>
+    bp.resolve_bus_objects_row(ob_count, fvg_count)
+
+export resolve_bus_safe_trend_state(bool bullish_trend_safe, bool bearish_trend_safe) =>
+    bullish_trend_safe ? 1 : bearish_trend_safe ? 2 : 3
+
+export resolve_bus_micro_profile_code(bool use_microstructure_profiles, string micro_profile_text, string micro_modifier_text) =>
+    int base_code = micro_profile_text == 'Stop-Hunt Sensitive' ? 2 : micro_profile_text == 'Clean Reclaim' ? 3 : micro_profile_text == 'RTH Only' ? 4 : micro_profile_text == 'Midday Dead' ? 5 : micro_profile_text == 'Fast Decay' ? 6 : 1
+    int modifier_code = micro_modifier_text != '' ? 10 : 0
+    use_microstructure_profiles ? base_code + modifier_code : 0
+
+// ── v5.5 Lean BUS Resolvers ──
+
+export resolve_bus_signal_quality_row(int sq_score, string sq_tier) =>
+    if sq_tier == "high"
+        pack_bus_row(5, 4)
+    else if sq_tier == "good"
+        pack_bus_row(4, 3)
+    else if sq_tier == "ok"
+        pack_bus_row(3, 2)
+    else
+        pack_bus_row(2, 1)
+
+export resolve_bus_signal_freshness_row(string sq_freshness, string sq_bias) =>
+    int fresh_code = sq_freshness == "fresh" ? 5 : sq_freshness == "aging" ? 3 : 1
+    int bias_code = sq_bias == "bull" ? 1 : sq_bias == "bear" ? 2 : sq_bias == "mixed" ? 3 : 4
+    pack_bus_row(fresh_code, bias_code)
+
+export resolve_bus_event_risk_light_row(string erl_window, string erl_level, bool erl_market_blocked, bool erl_symbol_blocked) =>
+    if erl_market_blocked
+        pack_bus_row(-1, 1)
+    else if erl_symbol_blocked
+        pack_bus_row(-1, 6)
+    else if erl_window == "ACTIVE"
+        pack_bus_row(2, 2)
+    else if erl_window == "PRE_EVENT" and (erl_level == "ELEVATED" or erl_level == "HIGH")
+        pack_bus_row(2, 3)
+    else if erl_window == "COOLDOWN"
+        pack_bus_row(3, 4)
+    else
+        pack_bus_row(5, 5)
+
+export resolve_bus_struct_light_row(int trend_strength, bool fresh, string last_event) =>
+    int event_code = last_event == "BOS_BULL" ? 1 : last_event == "CHOCH_BULL" ? 2 : last_event == "BOS_BEAR" ? 3 : last_event == "CHOCH_BEAR" ? 4 : 5
+    if trend_strength >= 60 and fresh
+        pack_bus_row(5, event_code)
+    else if trend_strength >= 30
+        pack_bus_row(4, event_code)
+    else
+        pack_bus_row(2, event_code)
+
+export resolve_bus_ob_light_row(string ob_side, bool ob_fresh, string ob_mitig) =>
+    if ob_side == "BULL" and ob_fresh
+        pack_bus_row(5, ob_mitig == "fresh" ? 1 : ob_mitig == "touched" ? 2 : 3)
+    else if ob_side == "BULL"
+        pack_bus_row(3, 2)
+    else if ob_side == "BEAR"
+        pack_bus_row(2, 4)
+    else
+        pack_bus_row(3, 5)
+
+export resolve_bus_fvg_light_row(string fvg_side, bool fvg_fresh, bool fvg_invalidated) =>
+    if fvg_invalidated
+        pack_bus_row(2, 1)
+    else if fvg_side == "BULL" and fvg_fresh
+        pack_bus_row(5, 2)
+    else if fvg_side == "BULL"
+        pack_bus_row(4, 3)
+    else if fvg_side == "BEAR"
+        pack_bus_row(2, 4)
+    else
+        pack_bus_row(3, 5)
+
+export resolve_bus_ensemble_transport_state(float ensemble_quality_score, string ensemble_quality_tier) =>
+    if ensemble_quality_tier == "high"
+        5
+    else if ensemble_quality_tier == "good"
+        4
+    else if ensemble_quality_tier == "ok"
+        3
+    else if ensemble_quality_tier == "low" or ensemble_quality_score > 0
+        2
+    else
+        0
+
+export resolve_bus_library_vol_reason_code(string volatility_regime, string volatility_model_source) =>
+    int regime_code = volatility_regime == "EXTREME" ? 4 : volatility_regime == "HIGH_VOL" ? 3 : volatility_regime == "NORMAL" ? 2 : volatility_regime == "LOW_VOL" ? 1 : 0
+    int source_code = volatility_model_source == "arch_garch" ? 1 : volatility_model_source == "atr_fallback" ? 2 : 0
+    regime_code * 10 + source_code
+
+export resolve_bus_ensemble_vol_transport_row(float ensemble_quality_score, string ensemble_quality_tier, string volatility_regime, string volatility_model_source) =>
+    pack_bus_row(resolve_bus_ensemble_transport_state(ensemble_quality_score, ensemble_quality_tier), resolve_bus_library_vol_reason_code(volatility_regime, volatility_model_source))
+
+export resolve_bus_trend_pack(int structure_display_trend, int mtf_trend_1, int mtf_trend_2, int mtf_trend_3) =>
+    pack_bus_trend_set(structure_display_trend, mtf_trend_1, mtf_trend_2, mtf_trend_3)
+
+export resolve_bus_meta_pack(bool long_setup_armed, bool long_setup_confirmed, bool ready_is_fresh, bool confirm_is_fresh, bool long_source_tracked, bool long_source_alive, bool long_source_broken, bool reclaim_recent, bool bull_reclaim_internal_low_strict, bool bull_reclaim_swing_low_strict, bool bull_reclaim_fvg_strict, bool bull_reclaim_ob_strict, bool long_zone_active, bool in_bull_ob_zone, bool in_bull_fvg_zone) =>
+    pack_bus_meta(resolve_bus_freshness_code(long_setup_armed, long_setup_confirmed, ready_is_fresh, confirm_is_fresh), resolve_bus_source_state_code(long_source_tracked, long_source_alive, long_source_broken), resolve_bus_reclaim_code(reclaim_recent, bull_reclaim_internal_low_strict, bull_reclaim_swing_low_strict, bull_reclaim_fvg_strict, bull_reclaim_ob_strict), resolve_bus_zone_code(long_zone_active, in_bull_ob_zone, in_bull_fvg_zone))
+
+export resolve_bus_lean_pack_a(int signal_quality_score, string signal_quality_tier, string signal_freshness, string signal_bias_alignment, string event_window_state, string event_risk_level, bool market_event_blocked, bool symbol_event_blocked, int structure_trend_strength, bool structure_fresh, string structure_last_event) =>
+    pack_bus_four(resolve_bus_signal_quality_row(signal_quality_score, signal_quality_tier), resolve_bus_signal_freshness_row(signal_freshness, signal_bias_alignment), resolve_bus_event_risk_light_row(event_window_state, event_risk_level, market_event_blocked, symbol_event_blocked), resolve_bus_struct_light_row(structure_trend_strength, structure_fresh, structure_last_event))
+
+export resolve_bus_lean_pack_b(string ob_side, bool ob_fresh, string ob_mitigation_state, string fvg_side, bool fvg_fresh, bool fvg_invalidated, int session_context_score, bool in_killzone, float ensemble_quality_score, string ensemble_quality_tier, string volatility_regime, string volatility_model_source) =>
+    pack_bus_four(resolve_bus_ob_light_row(ob_side, ob_fresh, ob_mitigation_state), resolve_bus_fvg_light_row(fvg_side, fvg_fresh, fvg_invalidated), pack_bus_row(session_context_score, in_killzone ? 1 : 2), resolve_bus_ensemble_vol_transport_row(ensemble_quality_score, ensemble_quality_tier, volatility_regime, volatility_model_source))
+
+// ── Alert Detail Composites ──
+
+export compose_long_invalidated_alert_detail(string long_last_invalid_source, string long_micro_alert_suffix, string long_score_detail_suffix) =>
+    'BLOCKED. ' + long_last_invalid_source + long_micro_alert_suffix + long_score_detail_suffix
+
+export compose_long_entry_strict_alert_detail(string long_micro_alert_suffix, string long_score_detail_suffix) =>
+    'ENTER LONG. Strict execution conditions passed' + long_micro_alert_suffix + long_score_detail_suffix
+
+export compose_long_entry_best_alert_detail(string long_micro_alert_suffix, string long_score_detail_suffix) =>
+    'ENTER LONG. Best execution conditions passed' + long_micro_alert_suffix + long_score_detail_suffix
+
+export compose_long_ready_alert_detail(string long_setup_source_display, string long_strict_alert_suffix, string long_environment_alert_suffix, string long_micro_alert_suffix, string long_score_detail_suffix) =>
+    'READY LONG. Confirmed setup from ' + long_setup_source_display + ' is ready for the trigger break' + long_strict_alert_suffix + long_environment_alert_suffix + long_micro_alert_suffix + long_score_detail_suffix
+
+export compose_long_confirmed_alert_detail(string long_setup_source_display, string long_strict_alert_suffix, string long_environment_alert_suffix, string long_micro_alert_suffix, string long_score_detail_suffix) =>
+    'PREPARE LONG. Setup confirmed from ' + long_setup_source_display + '; wait for READY LONG' + long_strict_alert_suffix + long_environment_alert_suffix + long_micro_alert_suffix + long_score_detail_suffix
+
+export compose_long_clean_alert_detail(string long_environment_alert_suffix, string long_micro_alert_suffix, string long_score_detail_suffix) =>
+    'PREPARE LONG. Confirmed setup with supportive context' + long_environment_alert_suffix + long_micro_alert_suffix + long_score_detail_suffix
+
+export compose_long_early_alert_detail(string long_micro_alert_suffix, string long_score_detail_suffix) =>
+    'PREPARE LONG. Strict reclaim is in; confirmation is starting' + long_micro_alert_suffix + long_score_detail_suffix
+
+export compose_long_armed_plus_alert_detail(string long_micro_alert_suffix, string long_score_detail_suffix) =>
+    'PREPARE LONG. Strict reclaim is in; setup armed' + long_micro_alert_suffix + long_score_detail_suffix
+
+export compose_long_armed_alert_detail(string long_setup_source_display, string long_micro_alert_suffix, string long_score_detail_suffix) =>
+    'PREPARE LONG. ' + long_setup_source_display + ' armed after reclaim confirmation' + long_micro_alert_suffix + long_score_detail_suffix
+
+export compose_long_watchlist_alert_detail(string long_micro_alert_suffix, string long_score_detail_suffix) =>
+    'PREPARE LONG. Bullish trend plus active pullback zone' + long_micro_alert_suffix + long_score_detail_suffix

@@ -14,6 +14,8 @@ import preuss_steffen/smc_micro_profiles_generated/1 as mp
 import preuss_steffen/smc_lifecycle_private/1 as ll
 import preuss_steffen/smc_bus_private/1 as bp
 import preuss_steffen/smc_observability_private/1 as obv
+import preuss_steffen/smc_context_resolvers/1 as cr
+import preuss_steffen/smc_profile_engine/1 as pe
 
 // High-level architecture:
 // - Market structure, OB/FVG engines, dashboards, alerts, and the long-dip lifecycle are coordinated locally.
@@ -32,458 +34,6 @@ import preuss_steffen/smc_observability_private/1 as obv
 // - Shared enums (ct.SmcLibMovingAverage, ct.LevelBreakMode, ct.SignalMode) live in smc_core_types (ct).
 // - Generic helpers (in_range, format_level, edge, ...) live in smc_utils (u).
 // - Draw wrappers (SmcLabel, SmcLine, SmcBox, factories, methods) live in smc_draw (d).
-
-// --------------------------------------------------
-// Embedded Library Subset (remaining local helpers)
-// --------------------------------------------------
-
-// ATR helper
-smc_lib_atr(simple int length) =>
-    float atr_value = ta.atr(length)
-    float tr_cum = ta.cum(ta.tr(true))
-    if bar_index < length
-        atr_value := tr_cum / (bar_index + 1)
-    atr_value
-
-// Moving-average selector helpers used by DDVI
-
-smc_lib_ehma(float source, simple int length) =>
-    int half_length = math.max(1, int(math.round(length / 2.0)))
-    int sqrt_length = math.max(1, int(math.round(math.sqrt(length))))
-    ta.ema(2 * ta.ema(source, half_length) - ta.ema(source, length), sqrt_length)
-
-smc_lib_thma(float source, simple int length) =>
-    int len_sixth = math.max(1, int(math.round(length / 6.0)))
-    int len_quarter = math.max(1, int(math.round(length / 4.0)))
-    int len_half = math.max(1, int(math.round(length / 2.0)))
-    ta.wma(ta.wma(source, len_sixth) * 3 - ta.wma(source, len_quarter) - ta.wma(source, len_half), len_half)
-
-smc_lib_get_ma(simple ct.SmcLibMovingAverage select_ma = ct.SmcLibMovingAverage.SMA, float source, simple int length) =>
-    switch select_ma
-        ct.SmcLibMovingAverage.EMA => ta.ema(source, length)
-        ct.SmcLibMovingAverage.RMA => ta.rma(source, length)
-        ct.SmcLibMovingAverage.WMA => ta.wma(source, length)
-        ct.SmcLibMovingAverage.VWMA => ta.vwma(source, length)
-        ct.SmcLibMovingAverage.HMA => ta.hma(source, length)
-        ct.SmcLibMovingAverage.EHMA => smc_lib_ehma(source, length)
-        ct.SmcLibMovingAverage.THMA => smc_lib_thma(source, length)
-        => ta.sma(source, length)
-
-smc_lib_bb(float source, simple int length, float mult, simple ct.SmcLibMovingAverage select_ma) =>
-    float base = smc_lib_get_ma(select_ma, source, length)
-    float dev = mult * ta.stdev(source, length)
-    [base, base + dev, base - dev]
-
-// DMI helper used by DDVI
-smc_lib_dmi(simple int di_length = 17, simple int adx_smoothing = 14) =>
-    ta.dmi(di_length, adx_smoothing)
-
-// Divergence helper used by DDVI
-smc_lib_detect_divergence(float osc, simple int pivot_confirmation_bars_left = 5, simple int pivot_confirmation_bars_right = 3, simple int pivot_min_x_distance = 5, simple int pivot_max_x_distance = 50, series float ref_low = low, series float ref_high = high, simple int pivot_min_y_distance_len = 14, simple float pivot_min_y_distance_dev_mult = 0.1, simple float pivot_min_y_distance_atr_mult = 0.1) =>
-    bool osc_pivot_l = not na(ta.pivotlow(osc, pivot_confirmation_bars_left, pivot_confirmation_bars_right))
-    bool osc_pivot_h = not na(ta.pivothigh(osc, pivot_confirmation_bars_left, pivot_confirmation_bars_right))
-    float pivot_osc_value = osc[pivot_confirmation_bars_right]
-    float osc_dev_value = nz(ta.dev(pivot_osc_value, pivot_min_y_distance_len), 0.0) * pivot_min_y_distance_dev_mult
-    float price_atr_value = smc_lib_atr(pivot_min_y_distance_len) * pivot_min_y_distance_atr_mult
-    var int osc_prev_l_idx = na
-    var float osc_prev_l_value = na
-    var float price_prev_l = na
-    var int osc_prev_h_idx = na
-    var float osc_prev_h_value = na
-    var float price_prev_h = na
-
-    if barstate.isconfirmed and (osc_pivot_h or osc_pivot_l)
-        float prev_pivot_value = osc_pivot_h ? osc_prev_h_value : osc_prev_l_value
-        float prev_pivot_price = osc_pivot_h ? price_prev_h : price_prev_l
-        float new_pivot_value = osc[pivot_confirmation_bars_right]
-        float new_pivot_price = osc_pivot_h ? ref_high[pivot_confirmation_bars_right] : ref_low[pivot_confirmation_bars_right]
-        int new_pivot_distance = osc_pivot_h ? bar_index - osc_prev_h_idx : bar_index - osc_prev_l_idx
-        bool has_prev_pivot = osc_pivot_h ? not na(osc_prev_h_idx) and not na(prev_pivot_value) and not na(prev_pivot_price) : not na(osc_prev_l_idx) and not na(prev_pivot_value) and not na(prev_pivot_price)
-
-        if osc_pivot_h
-            osc_prev_h_idx := bar_index
-            osc_prev_h_value := new_pivot_value
-            price_prev_h := new_pivot_price
-        if osc_pivot_l
-            osc_prev_l_idx := bar_index
-            osc_prev_l_value := new_pivot_value
-            price_prev_l := new_pivot_price
-
-        int mode = has_prev_pivot ? new_pivot_value < prev_pivot_value - osc_dev_value ? -1 : new_pivot_value > prev_pivot_value + osc_dev_value ? 1 : 0 : 0
-        int mode_p = has_prev_pivot ? new_pivot_price < prev_pivot_price - price_atr_value ? -1 : new_pivot_price > prev_pivot_price + price_atr_value ? 1 : 0 : 0
-        bool x_distance_in_range = has_prev_pivot and new_pivot_distance >= pivot_min_x_distance and new_pivot_distance <= pivot_max_x_distance
-
-        bool strong_bull = osc_pivot_l and x_distance_in_range and mode == 1 and mode_p == -1
-        bool medium_bull = osc_pivot_l and x_distance_in_range and mode == 1 and mode_p == 0
-        bool weak_bull = osc_pivot_l and x_distance_in_range and mode == 0 and mode_p == -1
-        bool hidden_bull = osc_pivot_l and x_distance_in_range and mode == -1 and mode_p == 1
-        bool strong_bear = osc_pivot_h and x_distance_in_range and mode == -1 and mode_p == 1
-        bool medium_bear = osc_pivot_h and x_distance_in_range and mode == -1 and mode_p == 0
-        bool weak_bear = osc_pivot_h and x_distance_in_range and mode == 0 and mode_p == 1
-        bool hidden_bear = osc_pivot_h and x_distance_in_range and mode == 1 and mode_p == -1
-        [strong_bull, strong_bear, medium_bull, medium_bear, weak_bull, weak_bear, hidden_bull, hidden_bear, osc_pivot_h, osc_pivot_l]
-    else
-        [false, false, false, false, false, false, false, false, osc_pivot_h, osc_pivot_l]
-
-// Embedded profile engine subset replacing the former lib_profile dependency.
-type Bucket
-    varip int idx
-    varip float value
-    varip float top
-    varip float btm
-    varip float center
-    varip float fraction
-    d.SmcLine plot_bucket_line = na
-
-method update(Bucket this, float top, float bottom, float value, float fraction) =>
-    rounded_top = math.round_to_mintick(top)
-    rounded_bottom = math.round_to_mintick(bottom)
-    rounded_fraction = math.round(fraction, 2)
-    this.top := rounded_top
-    this.btm := rounded_bottom
-    this.center := math.avg(rounded_top, rounded_bottom)
-    this.value := value
-    this.fraction := rounded_fraction
-    this
-
-normalize_profile_resolution(int resolution) =>
-    math.max(1, resolution)
-
-normalize_profile_vah_pc(float vah_pc, float val_pc) =>
-    math.max(0.0, math.min(100.0, math.max(vah_pc, val_pc)))
-
-normalize_profile_val_pc(float vah_pc, float val_pc) =>
-    math.max(0.0, math.min(100.0, math.min(vah_pc, val_pc)))
-
-profile_data_ready(float[] highs, float[] lows, float[] values) =>
-    not na(highs) and not na(lows) and not na(values) and array.size(highs) > 0 and array.size(lows) > 0 and array.size(values) > 0
-
-is_impulse_candle_now(float candle_body, float impulse_candle_size) =>
-    candle_body >= impulse_candle_size
-
-is_indecision_candle_now(float high_now, float low_now, float prior_high, float prior_low, float candle_top_now, float candle_btm_now, float prior_candle_top, float prior_candle_btm, float prior_candle_body, float candle_body, float candle_open, float candle_close) =>
-    u.in_range(high_now, low_now, prior_high, prior_low) and prior_candle_body > candle_body or u.in_range(candle_top_now, candle_btm_now, prior_candle_top, prior_candle_btm) or candle_open == candle_close
-
-profile_features_enabled(bool capture_profile_now, bool align_edge_to_value_area_now, bool align_break_price_to_poc_now) =>
-    capture_profile_now or align_edge_to_value_area_now or align_break_price_to_poc_now
-
-method update(Bucket this, float value, float fraction) =>
-    this.value := value
-    this.fraction := math.round(fraction, 2)
-    this
-
-type ProfileConfig
-    bool show_poc = true
-    bool show_profile = false
-    bool show_va = false
-    bool show_background = false
-    bool show_labels = false
-    bool show_price_levels = false
-    bool extend = false
-
-    string poc_label_text = 'POC'
-    d.LineArgs args_poc_line = na
-    d.LineArgs args_vah_line = na
-    d.LineArgs args_val_line = na
-    d.LabelArgs args_poc_label = na
-    d.LineArgs args_profile_line = na
-    d.BoxArgs args_profile_bg = na
-    bool initialized = false
-
-method init(ProfileConfig this) =>
-    if na(this) ? false : not this.initialized
-        if na(this.args_poc_line)
-            this.args_poc_line := d.LineArgs.new(color.orange, line.style_dotted, 1, xloc = xloc.bar_index)
-        if na(this.args_vah_line)
-            this.args_vah_line := d.LineArgs.new(color.yellow, line.style_dotted, 1, xloc = xloc.bar_index)
-        if na(this.args_val_line)
-            this.args_val_line := d.LineArgs.new(color.yellow, line.style_dotted, 1, xloc = xloc.bar_index)
-        if na(this.args_poc_label)
-            this.args_poc_label := d.LabelArgs.new(color.orange, #00000000, xloc = xloc.bar_index, style = label.style_label_left)
-        if na(this.args_profile_line)
-            this.args_profile_line := d.LineArgs.new(color.rgb(120, 123, 134, 40), line.style_dotted, 1, xloc = xloc.bar_index)
-        if na(this.args_profile_bg)
-            this.args_profile_bg := d.BoxArgs.new(#00000000, bg_color = color.rgb(120, 123, 134, 92), xloc = xloc.bar_index)
-        this.initialized := true
-    this
-
-type Profile
-    int id
-    int resolution
-    float vah_threshold_pc
-    float val_threshold_pc
-    varip float[] data_opens
-    varip float[] data_highs
-    varip float[] data_lows
-    varip float[] data_closes
-    varip float[] data_values
-    varip float h = na
-    varip float l = na
-    varip float total = 0
-    varip float total_up = 0
-    varip float total_down = 0
-    Bucket[] buckets
-    varip int poc_bucket_index = na
-    varip int vah_bucket_index = na
-    varip int val_bucket_index = na
-    varip float poc = na
-    varip float vah = na
-    varip float val = na
-    d.SmcLine plot_poc = na
-    d.SmcLine plot_vah = na
-    d.SmcLine plot_val = na
-    d.SmcLabel plot_poc_label = na
-    d.SmcBox plot_profile_bg = na
-    bool hidden = false
-
-method apply_style(Profile this, ProfileConfig args) =>
-    if not na(this) and not na(args)
-        if not na(this.plot_poc)
-            this.plot_poc.apply_style(args.args_poc_line)
-        if not na(this.plot_vah)
-            this.plot_vah.apply_style(args.args_vah_line)
-        if not na(this.plot_val)
-            this.plot_val.apply_style(args.args_val_line)
-        if not na(this.plot_poc_label)
-            this.plot_poc_label.apply_style(args.args_poc_label)
-        if not na(this.plot_profile_bg)
-            this.plot_profile_bg.apply_style(args.args_profile_bg, d.BoxTextArgs.new())
-    this
-
-method delete(Profile this) =>
-    if not na(this)
-        if not na(this.buckets)
-            for bucket in this.buckets
-                if not na(bucket.plot_bucket_line)
-                    bucket.plot_bucket_line.delete()
-                    bucket.plot_bucket_line := na
-            array.clear(this.buckets)
-            this.buckets := na
-        if not na(this.plot_poc)
-            this.plot_poc.delete()
-            this.plot_poc := na
-        if not na(this.plot_vah)
-            this.plot_vah.delete()
-            this.plot_vah := na
-        if not na(this.plot_val)
-            this.plot_val.delete()
-            this.plot_val := na
-        if not na(this.plot_poc_label)
-            this.plot_poc_label.delete()
-            this.plot_poc_label := na
-        if not na(this.plot_profile_bg)
-            this.plot_profile_bg.delete()
-            this.plot_profile_bg := na
-        if not na(this.data_opens)
-            array.clear(this.data_opens)
-        if not na(this.data_highs)
-            array.clear(this.data_highs)
-        if not na(this.data_lows)
-            array.clear(this.data_lows)
-        if not na(this.data_closes)
-            array.clear(this.data_closes)
-        if not na(this.data_values)
-            array.clear(this.data_values)
-        this.hidden := false
-    this
-
-method hide(Profile this) =>
-    if na(this) ? false : not this.hidden
-        if not na(this.buckets)
-            for bucket in this.buckets
-                if not na(bucket.plot_bucket_line)
-                    bucket.plot_bucket_line.hide()
-        if not na(this.plot_poc)
-            this.plot_poc.hide()
-        if not na(this.plot_vah)
-            this.plot_vah.hide()
-        if not na(this.plot_val)
-            this.plot_val.hide()
-        if not na(this.plot_poc_label)
-            this.plot_poc_label.hide()
-        if not na(this.plot_profile_bg)
-            this.plot_profile_bg.hide()
-        this.hidden := true
-    this
-
-method init(Profile this, bool update_buckets = false) =>
-    if not na(this)
-        create_buckets = na(this.buckets)
-        if create_buckets or update_buckets
-            float bucket_size = this.resolution > 0 ? (this.h - this.l) / this.resolution : 0
-            if create_buckets
-                this.buckets := array.new<Bucket>(this.resolution)
-            for i = 0 to this.resolution - 1
-                float bucket_bottom = this.l + i * bucket_size
-                float bucket_top = bucket_bottom + bucket_size
-                if create_buckets
-                    this.buckets.set(i, Bucket.new(i, 0, bucket_top, bucket_bottom, math.avg(bucket_top, bucket_bottom), 0))
-                else
-                    this.buckets.get(i).update(bucket_top, bucket_bottom, 0, 0)
-    this
-
-method calculate(Profile this, simple int use_open_close_data_for_ranges_shorter_than_bars = 4) =>
-    int range_count = array.size(this.data_values)
-    if not na(this.buckets)
-        this.poc_bucket_index := na
-        this.val_bucket_index := na
-        this.vah_bucket_index := na
-        this.poc := na
-        this.val := na
-        this.vah := na
-        this.total_up := 0
-        this.total_down := 0
-        float poc_volume = 0
-        float sum_volume_up = 0
-        float sum_volume_down = 0
-        int range_count_opens = na(this.data_opens) ? 0 : array.size(this.data_opens)
-        int range_count_closes = na(this.data_closes) ? 0 : array.size(this.data_closes)
-
-        if range_count <= 0 or this.total <= 0
-            for i = 0 to this.resolution - 1
-                this.buckets.get(i).update(0, 0)
-        else
-            for i = 0 to this.resolution - 1
-                Bucket bucket = this.buckets.get(i)
-                float bucket_value = 0
-                for j = 0 to range_count - 1
-                    float range_value = array.get(this.data_values, j)
-                    float range_high = array.get(this.data_highs, j)
-                    float range_low = array.get(this.data_lows, j)
-                    float range_size = range_high - range_low
-                    float overlap = math.max(0, math.min(range_high, bucket.top) - math.max(range_low, bucket.btm))
-                    if (i == 0 or 0 < use_open_close_data_for_ranges_shorter_than_bars) and j < range_count_opens and j < range_count_closes
-                        float range_open = array.get(this.data_opens, j)
-                        float range_close = array.get(this.data_closes, j)
-                        if i == 0
-                            if range_open < range_close
-                                sum_volume_up += range_value
-                            else
-                                sum_volume_down += range_value
-                        if j < use_open_close_data_for_ranges_shorter_than_bars
-                            overlap += math.max(0, math.min(math.max(range_open, range_close), bucket.top) - math.max(math.min(range_open, range_close), bucket.btm)) / 2
-                            range_size += math.abs(range_open - range_close) / 2
-                    float range_value_fraction = range_size > 0 ? overlap / range_size : (overlap > 0 ? 1 : 0)
-                    bucket_value += range_value_fraction * range_value
-                bucket.update(bucket_value, bucket_value / this.total)
-                if bucket_value > 0 and (na(this.poc_bucket_index) or bucket_value >= poc_volume)
-                    poc_volume := bucket_value
-                    this.poc_bucket_index := i
-                    this.poc := bucket.center
-            if not na(this.poc_bucket_index)
-                int left_va = this.poc_bucket_index
-                int right_va = this.poc_bucket_index
-                float va_sum = this.buckets.get(this.poc_bucket_index).value
-                float va_target = this.total * math.max(this.vah_threshold_pc - this.val_threshold_pc, 0) / 100.0
-
-                while va_sum < va_target and (left_va > 0 or right_va < this.resolution - 1)
-                    float next_left = left_va > 0 ? this.buckets.get(left_va - 1).value : -1
-                    float next_right = right_va < this.resolution - 1 ? this.buckets.get(right_va + 1).value : -1
-
-                    if next_left > next_right
-                        left_va -= 1
-                        va_sum += next_left
-                    else
-                        right_va += 1
-                        va_sum += next_right
-
-                this.val_bucket_index := left_va
-                this.vah_bucket_index := right_va
-                this.val := this.buckets.get(left_va).center
-                this.vah := this.buckets.get(right_va).center
-            this.total_up := sum_volume_up
-            this.total_down := sum_volume_down
-    this
-
-create_profile(float[] opens, float[] highs, float[] lows, float[] closes, float[] values, int resolution = 25, float vah_pc = 80, float val_pc = 20, int idx = bar_index, bool init_calculated = true, simple int use_open_close_data_for_ranges_shorter_than_bars = 4) =>
-    int profile_resolution = normalize_profile_resolution(resolution)
-    float profile_vah_pc = normalize_profile_vah_pc(vah_pc, val_pc)
-    float profile_val_pc = normalize_profile_val_pc(vah_pc, val_pc)
-    bool profile_has_range_data = profile_data_ready(highs, lows, values)
-    float profile_high = profile_has_range_data ? highs.max() : na
-    float profile_low = profile_has_range_data ? lows.min() : na
-    float profile_total = profile_has_range_data ? values.sum() : 0
-    profile = Profile.new(idx, profile_resolution, profile_vah_pc, profile_val_pc, opens, highs, lows, closes, values, h = profile_high, l = profile_low, total = profile_total)
-    profile.init(update_buckets = true)
-    if init_calculated
-        profile.calculate(use_open_close_data_for_ranges_shorter_than_bars)
-    profile
-
-method update(Profile this, float[] opens = na, float[] highs = na, float[] lows = na, float[] closes = na, float[] values = na) =>
-    if not na(this)
-        recalculation_required = false
-        layout_required = false
-        if not na(opens)
-            this.data_opens := opens
-            recalculation_required := true
-        if not na(highs)
-            this.data_highs := highs
-            high_max = highs.max()
-            layout_required := this.h != high_max
-            this.h := high_max
-            recalculation_required := true
-        if not na(lows)
-            this.data_lows := lows
-            low_min = lows.min()
-            layout_required := layout_required or this.l != low_min
-            this.l := low_min
-            recalculation_required := true
-        if not na(closes)
-            this.data_closes := closes
-            recalculation_required := true
-        if not na(values)
-            this.data_values := values
-            this.total := values.sum()
-            recalculation_required := true
-        if layout_required
-            this.init(update_buckets = true)
-        if recalculation_required or na(this.poc)
-            this.calculate()
-    this
-
-method draw(Profile this, ProfileConfig config, int left = na, int right = na, bool extend_only = true, simple bool force_overlay = false, string poc_text_override = na) =>
-    if na(this) ? false : na(this.buckets) ? false : this.buckets.size() > 0
-        config.init()
-        this.init()
-        if config.show_background
-            if na(this.plot_profile_bg)
-                this.plot_profile_bg := d.create_box(left, this.h, right, this.l, config.args_profile_bg.xloc)
-            else
-                this.plot_profile_bg.left_top.update(left, this.h, config.args_profile_bg.xloc)
-                this.plot_profile_bg.right_bottom.update(right, this.l, config.args_profile_bg.xloc)
-            this.plot_profile_bg.draw(config.args_profile_bg, na, extend_only, force_overlay)
-        if config.show_poc and not na(this.poc)
-            if na(this.plot_poc)
-                this.plot_poc := d.create_line(left, this.poc, right, this.poc, config.args_poc_line.xloc)
-            else
-                this.plot_poc.start.update(left, this.poc, config.args_poc_line.xloc)
-                this.plot_poc.end.update(right, this.poc, config.args_poc_line.xloc)
-            this.plot_poc.draw(config.args_poc_line, extend_only, force_overlay)
-            if config.show_labels
-                tooltip = str.format('{0} ({1})', na(poc_text_override) ? config.poc_label_text : poc_text_override, this.poc)
-                txt = config.show_price_levels ? tooltip : na(poc_text_override) ? config.poc_label_text : poc_text_override
-                if na(this.plot_poc_label)
-                    this.plot_poc_label := d.create_label(d.create_point(right, this.poc, config.args_poc_label.xloc), txt, tooltip)
-                else
-                    this.plot_poc_label.point.update(right, this.poc, config.args_poc_label.xloc)
-                    this.plot_poc_label.txt := txt
-                    this.plot_poc_label.tooltip := tooltip
-                this.plot_poc_label.draw(config.args_poc_label, force_overlay)
-        if config.show_va and not na(this.vah) and not na(this.val)
-            if na(this.plot_vah)
-                this.plot_vah := d.create_line(left, this.vah, right, this.vah, config.args_vah_line.xloc)
-            else
-                this.plot_vah.start.update(left, this.vah, config.args_vah_line.xloc)
-                this.plot_vah.end.update(right, this.vah, config.args_vah_line.xloc)
-            this.plot_vah.draw(config.args_vah_line, extend_only, force_overlay)
-            if na(this.plot_val)
-                this.plot_val := d.create_line(left, this.val, right, this.val, config.args_val_line.xloc)
-            else
-                this.plot_val.start.update(left, this.val, config.args_val_line.xloc)
-                this.plot_val.end.update(right, this.val, config.args_val_line.xloc)
-            this.plot_val.draw(config.args_val_line, extend_only, force_overlay)
-        this.hidden := false
-    this
 
 /////////////////////////////////////////////////////////////////////////////////
 //#region    EMBEDDED SMC SUBSET
@@ -508,7 +58,7 @@ type OrderBlock
     float[] ltf_volume
 
     d.SmcBox plot
-    Profile profile
+    pe.Profile profile
 
     float quality_score                          = 0
     bool trailing                                = false
@@ -537,7 +87,7 @@ type OrderBlockConfig
     string txt = 'OB'
     d.BoxTextArgs txt_args
     bool use_profile = false
-    ProfileConfig profile_config = na
+    pe.ProfileConfig profile_config = na
 
 method delete(OrderBlock this) =>
     if not na(this)
@@ -601,7 +151,7 @@ method align_to_profile(OrderBlock block, bool align_edge = false, bool align_br
 
 method _create_profile(OrderBlock block, float[] opens, float[] tops, float[] bottoms, float[] closes, float[] values, int resolution = 20, float vah_pc = 80, float val_pc = 20, bool init_calculated = true, simple int use_open_close_data_for_blocks_shorter_than_bars = 4) =>
     if na(block.profile)
-        block.profile := create_profile(opens, tops, bottoms, closes, values, resolution, vah_pc, val_pc, block.left_top.index, init_calculated, use_open_close_data_for_blocks_shorter_than_bars)
+        block.profile := pe.create_profile(opens, tops, bottoms, closes, values, resolution, vah_pc, val_pc, block.left_top.index, init_calculated, use_open_close_data_for_blocks_shorter_than_bars)
     else
         block.profile.update(opens, tops, bottoms, closes, values)
     block
@@ -836,7 +386,7 @@ track_obs(
     var OrderBlock[] discarded_blocks_bull  = array.new<OrderBlock>(0)
     var OrderBlock[] discarded_blocks_bear  = array.new<OrderBlock>(0)
 
-    float atr = smc_lib_atr(200)
+    float atr = u.smc_lib_atr(200)
     float fvg_min_size = atr * 0.2
     float impulse_candle_size = atr * 3
         
@@ -860,14 +410,14 @@ track_obs(
     float candle_top = math.max(open, close)
     float candle_btm = math.min(open, close)
     float candle_body = math.abs(open - close)
-    bool is_impulse_candle = is_impulse_candle_now(candle_body, impulse_candle_size)
-    bool is_indecision = is_indecision_candle_now(high, low, high[1], low[1], candle_top, candle_btm, candle_top[1], candle_btm[1], candle_body[1], candle_body, open, close)
+    bool is_impulse_candle = pe.is_impulse_candle_now(candle_body, impulse_candle_size)
+    bool is_indecision = pe.is_indecision_candle_now(high, low, high[1], low[1], candle_top, candle_btm, candle_top[1], candle_btm[1], candle_body[1], candle_body, open, close)
     OrderBlock bull_ob_confirmed = na
     OrderBlock bear_ob_confirmed = na
     var bool reset_bull_next_bar = false
     var bool reset_bear_next_bar = false
 
-    bool profile_features_active = profile_features_enabled(capture_profile, align_edge_to_value_area, align_break_price_to_poc)
+    bool profile_features_active = pe.profile_features_enabled(capture_profile, align_edge_to_value_area, align_break_price_to_poc)
     bool bull_prepare_confirmation = enabled and barstate.isconfirmed and bull_ob.trailing and bull_ob.extending and bull_ob.left_top.index < bar_index and is_red and not is_indecision and u.in_range(close, bull_ob.left_top.price, bull_ob.right_bottom.price)
     bool bear_prepare_confirmation = enabled and barstate.isconfirmed and bear_ob.trailing and bear_ob.extending and bear_ob.left_top.index < bar_index and is_green and not is_indecision and u.in_range(close, bear_ob.left_top.price, bear_ob.right_bottom.price)
     [prepared_ob_size_min_bull, prepared_ob_size_max_bull] = prepare_order_block_confirmation(bull_ob, min_block_size, max_block_size, true, update_profile_current_bar, align_edge_to_value_area, align_break_price_to_poc, bull_prepare_confirmation)
@@ -2387,400 +1937,12 @@ compose_trust_tier_suffix(string trust_tier, int sq_score, string sq_freshness, 
         suffix := 'no measurement data'
     suffix
 
-// ── Ticker Heat Parser (WP-LF4) ──
-f_parse_ticker_heat(string heat_map, string ticker) =>
-    float heat = 0.0
-    if heat_map != ''
-        string search = ticker + ':'
-        int pos = str.pos(heat_map, search)
-        if pos >= 0
-            int val_start = pos + str.length(search)
-            int comma_pos = str.pos(str.substring(heat_map, val_start), ',')
-            string val_str = comma_pos >= 0 ? str.substring(heat_map, val_start, val_start + comma_pos) : str.substring(heat_map, val_start)
-            heat := str.tonumber(val_str)
-    heat
-
-resolve_core_provider_state(string provider_status, int provider_count, string stale_providers) =>
-    string provider_text = 'Degraded'
-    if stale_providers != ''
-        provider_text := str.tostring(provider_count) + ' provider · ' + stale_providers + ' stale'
-    else if provider_count > 0
-        provider_text := str.tostring(provider_count) + '/' + str.tostring(provider_count) + ' ok'
-    else
-        string provider_status_norm = str.lower(provider_status)
-        if provider_status_norm == 'ok'
-            provider_text := 'OK'
-        else if provider_status_norm == 'calendar_missing'
-            provider_text := 'Calendar missing'
-        else if provider_status_norm == 'news_missing'
-            provider_text := 'News missing'
-        else if provider_status_norm == 'no_data'
-            provider_text := 'No data'
-        else if provider_status_norm == ''
-            provider_text := 'Unknown'
-        else
-            provider_text := provider_status
-    provider_text
-
-resolve_core_bias_text(string signal_bias_alignment) =>
-    string bias_text = 'Mixed'
-    if signal_bias_alignment == 'bull'
-        bias_text := 'Bullish'
-    else if signal_bias_alignment == 'bear'
-        bias_text := 'Bearish'
-    bias_text
-
-compose_why_now_text(string product_state, string long_setup_source_display, string signal_freshness, string signal_warnings, string long_ready_blocker_text, string long_strict_blocker_text, float long_trigger) =>
-    string why_now = 'No confirmed reclaim yet'
-    string ready_text = str.lower(long_ready_blocker_text)
-    string strict_text = str.lower(long_strict_blocker_text)
-    if product_state == 'ENTER LONG'
-        why_now := 'Trigger is live'
-    else if product_state == 'READY LONG'
-        why_now := 'Confirmed setup is ready'
-        if not na(long_trigger)
-            why_now += '; watch ' + u.format_level(long_trigger)
-    else if product_state == 'PREPARE LONG'
-        why_now := long_setup_source_display == 'None' ? 'Wait for reclaim confirmation' : long_setup_source_display + ' zone is active'
-    else if product_state == 'BLOCKED'
-        if long_ready_blocker_text != '' and ready_text != 'ready'
-            why_now := long_ready_blocker_text
-        else if long_strict_blocker_text != '' and strict_text != 'strict'
-            why_now := long_strict_blocker_text
-        else
-            why_now := 'Setup invalidated; wait for reset'
-    if product_state == 'READY LONG' or product_state == 'ENTER LONG'
-        if signal_freshness == 'fresh'
-            why_now += ' | fresh'
-        else if signal_freshness == 'aging'
-            why_now += ' | aging'
-    why_now
-
-compose_main_risk_text(string product_state, string event_risk_state, string long_ready_blocker_text, string long_strict_blocker_text, string long_last_invalid_source, string signal_warnings, string provider_status, bool has_earnings_tomorrow) =>
-    string main_risk = product_state == 'BLOCKED' ? 'Setup is blocked' : ((product_state == 'READY LONG' or product_state == 'ENTER LONG') ? 'No active blocker' : 'No trade plan yet')
-    string ready_text = str.lower(long_ready_blocker_text)
-    string strict_text = str.lower(long_strict_blocker_text)
-    if event_risk_state == 'blocked'
-        main_risk := 'Event risk is blocking'
-    else if event_risk_state == 'caution'
-        main_risk := 'Event risk is elevated'
-    else if long_ready_blocker_text != '' and ready_text != 'ready'
-        main_risk := long_ready_blocker_text
-    else if long_strict_blocker_text != '' and strict_text != 'strict'
-        main_risk := long_strict_blocker_text
-    else if long_last_invalid_source != 'None'
-        main_risk := 'Last invalidation came from ' + long_last_invalid_source
-    else if signal_warnings != ''
-        main_risk := signal_warnings
-    else if provider_status != 'ok'
-        main_risk := 'Data quality is degraded'
-    else if has_earnings_tomorrow
-        main_risk := 'Earnings tomorrow — size with care'
-    main_risk
-
-compose_trade_threshold_text(string trust_tier, int signal_quality_score) =>
-    string confidence_text = 'Caution'
-    if trust_tier == 'Strong'
-        confidence_text := 'High'
-    else if trust_tier == 'Usable'
-        confidence_text := 'Usable'
-    else if trust_tier == 'Thin'
-        confidence_text := 'Thin'
-    confidence_text
-
-resolve_core_hero_color(string product_state) =>
-    color hero_color = color.new(color.gray, 70)
-    if product_state == 'ENTER LONG'
-        hero_color := BULL_HERO
-    else if product_state == 'READY LONG'
-        hero_color := BULL_HERO_READY
-    else if product_state == 'PREPARE LONG'
-        hero_color := color.new(color.orange, 60)
-    else if product_state == 'BLOCKED'
-        hero_color := BEAR_HERO
-    hero_color
-
-compose_core_hero_text(string product_state, string bias_text, string trade_threshold_text, string trust_tier, string trust_suffix, string provider_state, string why_now, string main_risk, string market_regime, bool regime_blocks, bool regime_dims, string asof_display, float vix_level, string market_event, string tone_text, bool yield_inverted, string sector_leading, bool breaking_news, int high_impact_count, bool ticker_in_universe) =>
-    string action_display = product_state
-    if (product_state == 'WAIT' or product_state == 'BLOCKED') and (regime_blocks or regime_dims)
-        action_display := product_state + ' (regime: ' + market_regime + ')'
-    string bias_display = bias_text
-    if (bias_text == 'Bullish' or bias_text == 'Bearish') and (regime_blocks or regime_dims)
-        bias_display := bias_text + ' tone — ' + market_regime + ' regime overrides'
-    string trust_display = trust_suffix != '' ? trust_tier + ' (' + trust_suffix + ')' : trust_tier
-    string yield_text = yield_inverted ? ' · Yield INVERTED' : ''
-    string sector_text = sector_leading != '' ? sector_leading : '—'
-    string breaking_text = breaking_news ? ' · ⚡ BREAKING' : ''
-    string news_depth_text = high_impact_count > 5 ? ' · ' + str.tostring(high_impact_count) + ' high-impact' : ''
-    'Action: ' + action_display + '\nBias: ' + bias_display + '\nConfidence: ' + trade_threshold_text + '\nTrust: ' + trust_display + '\nVIX: ' + str.tostring(vix_level, '#.##') + '\nTone: ' + tone_text + breaking_text + news_depth_text + '\nMarket: ' + market_event + yield_text + '\nSector: ' + sector_text + '\nProvider: ' + provider_state + (not ticker_in_universe ? '\n⚠ Symbol not scanned — ticker-specific data unavailable (VIX/regime still active)' : '') + '\nWhy now: ' + why_now + '\nMain blocker: ' + main_risk + '\nData: ' + asof_display
-
-resolve_core_alert_action_name(string event_name) =>
-    string action_name = 'WAIT'
-    string event_name_upper = str.upper(event_name)
-    if str.contains(event_name_upper, 'INVALID')
-        action_name := 'BLOCKED'
-    else if str.contains(event_name_upper, 'STRICT') or str.contains(event_name_upper, 'BEST')
-        action_name := 'ENTER LONG'
-    else if str.contains(event_name_upper, 'READY')
-        action_name := 'READY LONG'
-    else if str.contains(event_name_upper, 'CONFIRM') or str.contains(event_name_upper, 'ARM') or str.contains(event_name_upper, 'WATCH')
-        action_name := 'PREPARE LONG'
-    action_name
-
-pack_bus_row(int row_state, int reason_code) =>
-    bp.pack_bus_row(row_state, reason_code)
-
-pack_bus_four(float value1, float value2, float value3, float value4) =>
-    bp.pack_bus_four(value1, value2, value3, value4)
-
-pack_bus_counts(int primary_count, int secondary_count) =>
-    bp.pack_bus_counts(primary_count, secondary_count)
-
-normalize_bus_trend(int dir) =>
-    bp.normalize_bus_trend(dir)
-
-pack_bus_trend_set(int trend_now, int trend_htf_1, int trend_htf_2, int trend_htf_3) =>
-    bp.pack_bus_trend_set(trend_now, trend_htf_1, trend_htf_2, trend_htf_3)
-
-pack_bus_meta(int freshness_code, int source_state_code, int reclaim_code, int zone_code) =>
-    bp.pack_bus_meta(freshness_code, source_state_code, reclaim_code, zone_code)
-
-resolve_bus_stretch_support_mask(bool use_stretch_context, bool in_lower_extreme, bool lower_extreme_recent, bool anti_chase_ok_ready, bool anti_chase_ok_entry_best) =>
-    bp.resolve_bus_stretch_support_mask(use_stretch_context, in_lower_extreme, lower_extreme_recent, anti_chase_ok_ready, anti_chase_ok_entry_best)
-
-resolve_bus_freshness_code(bool long_setup_armed, bool long_setup_confirmed, bool ready_is_fresh, bool confirm_is_fresh) =>
-    bp.resolve_bus_freshness_code(long_setup_armed, long_setup_confirmed, ready_is_fresh, confirm_is_fresh)
-
-resolve_bus_source_state_code(bool long_source_tracked, bool long_source_alive, bool long_source_broken) =>
-    bp.resolve_bus_source_state_code(long_source_tracked, long_source_alive, long_source_broken)
-
-resolve_bus_zone_code(bool long_zone_active, bool in_bull_ob_zone, bool in_bull_fvg_zone) =>
-    bp.resolve_bus_zone_code(long_zone_active, in_bull_ob_zone, in_bull_fvg_zone)
-
-resolve_bus_zone_row(bool long_zone_active, bool in_bull_ob_zone, bool in_bull_fvg_zone) =>
-    bp.resolve_bus_zone_row(long_zone_active, in_bull_ob_zone, in_bull_fvg_zone)
-
-resolve_bus_reclaim_code(bool reclaim_recent, bool bull_reclaim_internal_low_strict, bool bull_reclaim_swing_low_strict, bool bull_reclaim_fvg_strict, bool bull_reclaim_ob_strict) =>
-    bp.resolve_bus_reclaim_code(reclaim_recent, bull_reclaim_internal_low_strict, bull_reclaim_swing_low_strict, bull_reclaim_fvg_strict, bull_reclaim_ob_strict)
-
-resolve_bus_reclaim_row(bool reclaim_recent, bool bull_reclaim_internal_low_strict, bool bull_reclaim_swing_low_strict, bool bull_reclaim_fvg_strict, bool bull_reclaim_ob_strict) =>
-    bp.resolve_bus_reclaim_row(reclaim_recent, bull_reclaim_internal_low_strict, bull_reclaim_swing_low_strict, bull_reclaim_fvg_strict, bull_reclaim_ob_strict)
-
-resolve_bus_session_row(bool intraday_time_chart, bool use_trade_session_gate, bool use_opening_range_gate, bool session_structure_gate_ok, bool session_gate_ok) =>
-    bp.resolve_bus_session_row(intraday_time_chart, use_trade_session_gate, use_opening_range_gate, session_structure_gate_ok, session_gate_ok)
-
-resolve_bus_market_row(bool use_index_gate, bool use_sector_gate, bool use_breadth_symbol_gate, bool market_symbols_missing, bool block_on_missing_market_symbol, bool market_regime_gate_ok, bool index_gate_effective_ok, bool sector_gate_effective_ok, bool market_valuation_caution) =>
-    bp.resolve_bus_market_row(use_index_gate, use_sector_gate, use_breadth_symbol_gate, market_symbols_missing, block_on_missing_market_symbol, market_regime_gate_ok, index_gate_effective_ok, sector_gate_effective_ok, market_valuation_caution)
-
-resolve_bus_vola_row(bool use_vola_compression_gate, bool vola_regime_gate_safe, bool vola_expansion_now, bool vola_compression_recent) =>
-    bp.resolve_bus_vola_row(use_vola_compression_gate, vola_regime_gate_safe, vola_expansion_now, vola_compression_recent)
-
-resolve_bus_micro_session_row(bool use_microstructure_profiles, bool intraday_time_chart, bool micro_session_gate_ok, bool micro_rth_gate_ok, bool micro_midday_gate_ok, bool micro_premarket_gate_ok) =>
-    bp.resolve_bus_micro_session_row(use_microstructure_profiles, intraday_time_chart, micro_session_gate_ok, micro_rth_gate_ok, micro_midday_gate_ok, micro_premarket_gate_ok)
-
-resolve_bus_micro_fresh_row(bool use_microstructure_profiles, bool micro_freshness_gate_ok) =>
-    bp.resolve_bus_micro_fresh_row(use_microstructure_profiles, micro_freshness_gate_ok)
-
-resolve_bus_volume_data_row(bool volume_current_bar_ok, bool volume_feed_quality_ok, bool ltf_sampling_active, bool ltf_price_ok, bool ltf_volume_ok, bool ltf_price_only) =>
-    bp.resolve_bus_volume_data_row(volume_current_bar_ok, volume_feed_quality_ok, ltf_sampling_active, ltf_price_ok, ltf_volume_ok, ltf_price_only)
-
-resolve_bus_quality_env_row(bool environment_hard_gate_ok, bool market_regime_gate_ok, bool vola_regime_gate_safe) =>
-    bp.resolve_bus_quality_env_row(environment_hard_gate_ok, market_regime_gate_ok, vola_regime_gate_safe)
-
-resolve_bus_quality_strict_row(bool long_entry_strict_state, bool strict_entry_ltf_ok, bool htf_alignment_ok, bool accel_strict_entry_gate_ok, bool sd_entry_strict_gate_ok, bool vol_entry_strict_context_ok_safe, bool stretch_entry_strict_context_ok, bool ddvi_entry_strict_ok_safe) =>
-    bp.resolve_bus_quality_strict_row(long_entry_strict_state, strict_entry_ltf_ok, htf_alignment_ok, accel_strict_entry_gate_ok, sd_entry_strict_gate_ok, vol_entry_strict_context_ok_safe, stretch_entry_strict_context_ok, ddvi_entry_strict_ok_safe)
-
-resolve_bus_close_strength_row(bool use_strong_close_filter, bool bull_close_strong) =>
-    bp.resolve_bus_close_strength_row(use_strong_close_filter, bull_close_strong)
-
-resolve_bus_ema_support_row(bool show_ema_support, bool ema_support_ok) =>
-    bp.resolve_bus_ema_support_row(show_ema_support, ema_support_ok)
-
-resolve_bus_adx_row(bool use_adx, bool adx_data_ok, float plus_di, float minus_di, bool adx_strong, float adx_value, float adx_trend_min) =>
-    bp.resolve_bus_adx_row(use_adx, adx_data_ok, plus_di, minus_di, adx_strong, adx_value, adx_trend_min)
-
-resolve_bus_relvol_row(bool use_rel_volume, bool relvol_data_ok, bool allow_relvol_without_volume_data, bool relvol_ok) =>
-    bp.resolve_bus_relvol_row(use_rel_volume, relvol_data_ok, allow_relvol_without_volume_data, relvol_ok)
-
-resolve_bus_vwap_row(bool use_vwap_filter, bool intraday_time_chart, bool vwap_session_active, bool vwap_filter_ok) =>
-    bp.resolve_bus_vwap_row(use_vwap_filter, intraday_time_chart, vwap_session_active, vwap_filter_ok)
-
-resolve_bus_context_quality_row(bool use_context_quality_score_eff, bool context_quality_gate_ok) =>
-    bp.resolve_bus_context_quality_row(use_context_quality_score_eff, context_quality_gate_ok)
-
-resolve_bus_quality_score_row(int signal_quality_score) =>
-    bp.resolve_bus_quality_score_row(signal_quality_score)
-
-resolve_bus_quality_clean_row(bool long_quality_clean_tier) =>
-    bp.resolve_bus_quality_clean_row(long_quality_clean_tier)
-
-resolve_bus_sd_confluence_row(bool use_sd_confluence, bool sd_support_both_recent, bool sd_bullish_divergence_recent, bool sd_higher_lows_recent, bool sd_support_any_recent) =>
-    bp.resolve_bus_sd_confluence_row(use_sd_confluence, sd_support_both_recent, sd_bullish_divergence_recent, sd_higher_lows_recent, sd_support_any_recent)
-
-resolve_bus_sd_osc_row(bool use_sd_confluence, float sd_value, bool sd_above_zero, bool sd_rising, bool sd_below_zero, bool sd_falling) =>
-    bp.resolve_bus_sd_osc_row(use_sd_confluence, sd_value, sd_above_zero, sd_rising, sd_below_zero, sd_falling)
-
-resolve_bus_vol_regime_row(bool use_volatility_regime, bool vol_regime_trend_ok) =>
-    bp.resolve_bus_vol_regime_row(use_volatility_regime, vol_regime_trend_ok)
-
-resolve_bus_vol_squeeze_row(bool use_volatility_regime, bool vol_squeeze_on, bool vol_squeeze_release_recent, bool vol_squeeze_recent) =>
-    bp.resolve_bus_vol_squeeze_row(use_volatility_regime, vol_squeeze_on, vol_squeeze_release_recent, vol_squeeze_recent)
-
-resolve_bus_vol_expansion_state(bool use_volatility_regime, bool vol_momentum_expanding_long, bool vol_stack_spread_rising) =>
-    bp.resolve_bus_vol_expansion_state(use_volatility_regime, vol_momentum_expanding_long, vol_stack_spread_rising)
-
-resolve_bus_stretch_row(bool use_stretch_context, float distance_to_mean_z, bool in_lower_extreme, bool lower_extreme_recent, bool anti_chase_ok_entry_best, bool anti_chase_ok_ready) =>
-    bp.resolve_bus_stretch_row(use_stretch_context, distance_to_mean_z, in_lower_extreme, lower_extreme_recent, anti_chase_ok_entry_best, anti_chase_ok_ready)
-
-resolve_bus_ddvi_context_state(bool use_ddvi_context, bool ddvi_bias_ok, bool ddvi_bull_divergence_any, bool ddvi_lower_extreme_context) =>
-    bp.resolve_bus_ddvi_context_state(use_ddvi_context, ddvi_bias_ok, ddvi_bull_divergence_any, ddvi_lower_extreme_context)
-
-resolve_bus_ltf_bias_row(bool show_dashboard_ltf_eff, bool ltf_sampling_active, bool ltf_price_ok, bool ltf_price_only, float ltf_bull_share, float ltf_bias_hint) =>
-    bp.resolve_bus_ltf_bias_row(show_dashboard_ltf_eff, ltf_sampling_active, ltf_price_ok, ltf_price_only, ltf_bull_share, ltf_bias_hint)
-
-resolve_bus_ltf_delta_state(bool show_dashboard_ltf_eff, bool ltf_sampling_active, bool ltf_price_only, float ltf_volume_delta) =>
-    bp.resolve_bus_ltf_delta_state(show_dashboard_ltf_eff, ltf_sampling_active, ltf_price_only, ltf_volume_delta)
-
-resolve_bus_objects_row(int ob_count, int fvg_count) =>
-    bp.resolve_bus_objects_row(ob_count, fvg_count)
-
-resolve_bus_safe_trend_state(bool bullish_trend_safe, bool bearish_trend_safe) =>
-    bullish_trend_safe ? 1 : bearish_trend_safe ? 2 : 3
-
-resolve_bus_micro_profile_code(bool use_microstructure_profiles, string micro_profile_text, string micro_modifier_text) =>
-    int base_code = micro_profile_text == 'Stop-Hunt Sensitive' ? 2 : micro_profile_text == 'Clean Reclaim' ? 3 : micro_profile_text == 'RTH Only' ? 4 : micro_profile_text == 'Midday Dead' ? 5 : micro_profile_text == 'Fast Decay' ? 6 : 1
-    int modifier_code = micro_modifier_text != '' ? 10 : 0
-    use_microstructure_profiles ? base_code + modifier_code : 0
-
 resolve_bus_ready_blocker_code(bool long_ready_state, bool long_setup_confirmed, bool lifecycle_ready_ok, bool setup_hard_gate_ok, bool trade_hard_gate_ok, bool environment_hard_gate_ok, bool close_safe_mode, bool ready_bar_gap_ok, bool long_confirm_expired, bool ready_is_fresh, bool long_confirm_bearish_guard_ok, bool require_main_break_for_ready, bool bull_bos_sig, bool main_bos_recent, bool session_structure_gate_ok, bool micro_session_gate_ok, bool micro_freshness_gate_ok, bool overhead_zone_ok, bool market_regime_gate_ok, bool vola_regime_gate_safe, bool quality_gate_ok, bool accel_ready_gate_ok, bool sd_ready_gate_ok, bool vol_ready_context_ok, bool stretch_ready_context_ok, bool ddvi_ready_ok_safe) =>
     resolve_long_ready_reason_code(long_ready_state, long_setup_confirmed, close_safe_mode, ready_bar_gap_ok, long_confirm_expired, ready_is_fresh, long_confirm_bearish_guard_ok, require_main_break_for_ready, bull_bos_sig, main_bos_recent, setup_hard_gate_ok, trade_hard_gate_ok, environment_hard_gate_ok, session_structure_gate_ok, micro_session_gate_ok, micro_freshness_gate_ok, overhead_zone_ok, market_regime_gate_ok, vola_regime_gate_safe, quality_gate_ok, accel_ready_gate_ok, sd_ready_gate_ok, vol_ready_context_ok, stretch_ready_context_ok, ddvi_ready_ok_safe)
 
 resolve_bus_strict_blocker_code(bool long_entry_strict_state, bool long_ready_state, bool strict_signal_quality_gate_ok, bool strict_entry_ltf_ok, bool htf_alignment_ok, bool accel_strict_entry_gate_ok, bool sd_entry_strict_gate_ok, bool vol_entry_strict_context_ok_safe, bool stretch_entry_strict_context_ok, bool ddvi_entry_strict_ok_safe) =>
     resolve_long_strict_reason_code(long_entry_strict_state, long_ready_state, strict_signal_quality_gate_ok, strict_entry_ltf_ok, htf_alignment_ok, accel_strict_entry_gate_ok, sd_entry_strict_gate_ok, vol_entry_strict_context_ok_safe, stretch_entry_strict_context_ok, ddvi_entry_strict_ok_safe)
 
-// ── v5.5 Lean BUS Resolvers ──
-
-resolve_bus_signal_quality_row(int sq_score, string sq_tier) =>
-    if sq_tier == "high"
-        pack_bus_row(5, 4)
-    else if sq_tier == "good"
-        pack_bus_row(4, 3)
-    else if sq_tier == "ok"
-        pack_bus_row(3, 2)
-    else
-        pack_bus_row(2, 1)
-
-resolve_bus_signal_freshness_row(string sq_freshness, string sq_bias) =>
-    int fresh_code = sq_freshness == "fresh" ? 5 : sq_freshness == "aging" ? 3 : 1
-    int bias_code = sq_bias == "bull" ? 1 : sq_bias == "bear" ? 2 : sq_bias == "mixed" ? 3 : 4
-    pack_bus_row(fresh_code, bias_code)
-
-resolve_bus_event_risk_light_row(string erl_window, string erl_level, bool erl_market_blocked, bool erl_symbol_blocked) =>
-    if erl_market_blocked
-        pack_bus_row(-1, 1)
-    else if erl_symbol_blocked
-        pack_bus_row(-1, 6)
-    else if erl_window == "ACTIVE"
-        pack_bus_row(2, 2)
-    else if erl_window == "PRE_EVENT" and (erl_level == "ELEVATED" or erl_level == "HIGH")
-        pack_bus_row(2, 3)
-    else if erl_window == "COOLDOWN"
-        pack_bus_row(3, 4)
-    else
-        pack_bus_row(5, 5)
-
-resolve_bus_struct_light_row(int trend_strength, bool fresh, string last_event) =>
-    int event_code = last_event == "BOS_BULL" ? 1 : last_event == "CHOCH_BULL" ? 2 : last_event == "BOS_BEAR" ? 3 : last_event == "CHOCH_BEAR" ? 4 : 5
-    if trend_strength >= 60 and fresh
-        pack_bus_row(5, event_code)
-    else if trend_strength >= 30
-        pack_bus_row(4, event_code)
-    else
-        pack_bus_row(2, event_code)
-
-resolve_bus_ob_light_row(string ob_side, bool ob_fresh, string ob_mitig) =>
-    if ob_side == "BULL" and ob_fresh
-        pack_bus_row(5, ob_mitig == "fresh" ? 1 : ob_mitig == "touched" ? 2 : 3)
-    else if ob_side == "BULL"
-        pack_bus_row(3, 2)
-    else if ob_side == "BEAR"
-        pack_bus_row(2, 4)
-    else
-        pack_bus_row(3, 5)
-
-resolve_bus_fvg_light_row(string fvg_side, bool fvg_fresh, bool fvg_invalidated) =>
-    if fvg_invalidated
-        pack_bus_row(2, 1)
-    else if fvg_side == "BULL" and fvg_fresh
-        pack_bus_row(5, 2)
-    else if fvg_side == "BULL"
-        pack_bus_row(4, 3)
-    else if fvg_side == "BEAR"
-        pack_bus_row(2, 4)
-    else
-        pack_bus_row(3, 5)
-
-resolve_bus_ensemble_transport_state(float ensemble_quality_score, string ensemble_quality_tier) =>
-    if ensemble_quality_tier == "high"
-        5
-    else if ensemble_quality_tier == "good"
-        4
-    else if ensemble_quality_tier == "ok"
-        3
-    else if ensemble_quality_tier == "low" or ensemble_quality_score > 0
-        2
-    else
-        0
-
-resolve_bus_library_vol_reason_code(string volatility_regime, string volatility_model_source) =>
-    int regime_code = volatility_regime == "EXTREME" ? 4 : volatility_regime == "HIGH_VOL" ? 3 : volatility_regime == "NORMAL" ? 2 : volatility_regime == "LOW_VOL" ? 1 : 0
-    int source_code = volatility_model_source == "arch_garch" ? 1 : volatility_model_source == "atr_fallback" ? 2 : 0
-    regime_code * 10 + source_code
-
-resolve_bus_ensemble_vol_transport_row(float ensemble_quality_score, string ensemble_quality_tier, string volatility_regime, string volatility_model_source) =>
-    pack_bus_row(resolve_bus_ensemble_transport_state(ensemble_quality_score, ensemble_quality_tier), resolve_bus_library_vol_reason_code(volatility_regime, volatility_model_source))
-
-resolve_bus_trend_pack(int structure_display_trend, int mtf_trend_1, int mtf_trend_2, int mtf_trend_3) =>
-    pack_bus_trend_set(structure_display_trend, mtf_trend_1, mtf_trend_2, mtf_trend_3)
-
-resolve_bus_meta_pack(bool long_setup_armed, bool long_setup_confirmed, bool ready_is_fresh, bool confirm_is_fresh, bool long_source_tracked, bool long_source_alive, bool long_source_broken, bool reclaim_recent, bool bull_reclaim_internal_low_strict, bool bull_reclaim_swing_low_strict, bool bull_reclaim_fvg_strict, bool bull_reclaim_ob_strict, bool long_zone_active, bool in_bull_ob_zone, bool in_bull_fvg_zone) =>
-    pack_bus_meta(resolve_bus_freshness_code(long_setup_armed, long_setup_confirmed, ready_is_fresh, confirm_is_fresh), resolve_bus_source_state_code(long_source_tracked, long_source_alive, long_source_broken), resolve_bus_reclaim_code(reclaim_recent, bull_reclaim_internal_low_strict, bull_reclaim_swing_low_strict, bull_reclaim_fvg_strict, bull_reclaim_ob_strict), resolve_bus_zone_code(long_zone_active, in_bull_ob_zone, in_bull_fvg_zone))
-
-resolve_bus_lean_pack_a(int signal_quality_score, string signal_quality_tier, string signal_freshness, string signal_bias_alignment, string event_window_state, string event_risk_level, bool market_event_blocked, bool symbol_event_blocked, int structure_trend_strength, bool structure_fresh, string structure_last_event) =>
-    pack_bus_four(resolve_bus_signal_quality_row(signal_quality_score, signal_quality_tier), resolve_bus_signal_freshness_row(signal_freshness, signal_bias_alignment), resolve_bus_event_risk_light_row(event_window_state, event_risk_level, market_event_blocked, symbol_event_blocked), resolve_bus_struct_light_row(structure_trend_strength, structure_fresh, structure_last_event))
-
-resolve_bus_lean_pack_b(string ob_side, bool ob_fresh, string ob_mitigation_state, string fvg_side, bool fvg_fresh, bool fvg_invalidated, int session_context_score, bool in_killzone, float ensemble_quality_score, string ensemble_quality_tier, string volatility_regime, string volatility_model_source) =>
-    pack_bus_four(resolve_bus_ob_light_row(ob_side, ob_fresh, ob_mitigation_state), resolve_bus_fvg_light_row(fvg_side, fvg_fresh, fvg_invalidated), pack_bus_row(session_context_score, in_killzone ? 1 : 2), resolve_bus_ensemble_vol_transport_row(ensemble_quality_score, ensemble_quality_tier, volatility_regime, volatility_model_source))
-
-compose_long_invalidated_alert_detail(string long_last_invalid_source, string long_micro_alert_suffix, string long_score_detail_suffix) =>
-    'BLOCKED. ' + long_last_invalid_source + long_micro_alert_suffix + long_score_detail_suffix
-
-compose_long_entry_strict_alert_detail(string long_micro_alert_suffix, string long_score_detail_suffix) =>
-    'ENTER LONG. Strict execution conditions passed' + long_micro_alert_suffix + long_score_detail_suffix
-
-compose_long_entry_best_alert_detail(string long_micro_alert_suffix, string long_score_detail_suffix) =>
-    'ENTER LONG. Best execution conditions passed' + long_micro_alert_suffix + long_score_detail_suffix
-
-compose_long_ready_alert_detail(string long_setup_source_display, string long_strict_alert_suffix, string long_environment_alert_suffix, string long_micro_alert_suffix, string long_score_detail_suffix) =>
-    'READY LONG. Confirmed setup from ' + long_setup_source_display + ' is ready for the trigger break' + long_strict_alert_suffix + long_environment_alert_suffix + long_micro_alert_suffix + long_score_detail_suffix
-
-compose_long_confirmed_alert_detail(string long_setup_source_display, string long_strict_alert_suffix, string long_environment_alert_suffix, string long_micro_alert_suffix, string long_score_detail_suffix) =>
-    'PREPARE LONG. Setup confirmed from ' + long_setup_source_display + '; wait for READY LONG' + long_strict_alert_suffix + long_environment_alert_suffix + long_micro_alert_suffix + long_score_detail_suffix
-
-compose_long_clean_alert_detail(string long_environment_alert_suffix, string long_micro_alert_suffix, string long_score_detail_suffix) =>
-    'PREPARE LONG. Confirmed setup with supportive context' + long_environment_alert_suffix + long_micro_alert_suffix + long_score_detail_suffix
-
-compose_long_early_alert_detail(string long_micro_alert_suffix, string long_score_detail_suffix) =>
-    'PREPARE LONG. Strict reclaim is in; confirmation is starting' + long_micro_alert_suffix + long_score_detail_suffix
-
-compose_long_armed_plus_alert_detail(string long_micro_alert_suffix, string long_score_detail_suffix) =>
-    'PREPARE LONG. Strict reclaim is in; setup armed' + long_micro_alert_suffix + long_score_detail_suffix
-
-compose_long_armed_alert_detail(string long_setup_source_display, string long_micro_alert_suffix, string long_score_detail_suffix) =>
-    'PREPARE LONG. ' + long_setup_source_display + ' armed after reclaim confirmation' + long_micro_alert_suffix + long_score_detail_suffix
-
-compose_long_watchlist_alert_detail(string long_micro_alert_suffix, string long_score_detail_suffix) =>
-    'PREPARE LONG. Bullish trend plus active pullback zone' + long_micro_alert_suffix + long_score_detail_suffix
 
 compute_bullish_dynamic_alert_gates(bool enable_dynamic_alerts, bool bull_bos_sig, bool bull_choch_sig, OrderBlock new_ob_bull, bool bullish_fvg_alert, bool bullish_fvg_filled_alert, bool enable_live_break_alerts, bool live_exec, bool live_bull_ob_break, bool live_bull_fvg_fill, bool use_sd_confluence, bool sd_bullish_divergence_event, bool sd_higher_lows_event) =>
     bool dynamic_bull_bos_alert_active = false
@@ -3206,10 +2368,10 @@ get_confirmed_structure_trend(string trend_tf, simple int structure_len) =>
 build_dynamic_alert_message(bool enabled, bool condition, string event_name, string detail, float level, int direction, float ltf_bull_share, float ltf_volume_delta, bool ltf_price_only_context, string mode_text) =>
     if enabled and condition
         direction_text = direction > 0 ? 'bullish' : direction < 0 ? 'bearish' : 'neutral'
-        action_text = resolve_core_alert_action_name(event_name)
+        action_text = cr.resolve_core_alert_action_name(event_name)
         share_text = na(ltf_bull_share) ? 'n/a' : ltf_price_only_context ? str.format('{0,number,percent} (price-only)', ltf_bull_share) : str.format('{0,number,percent}', ltf_bull_share)
         delta_text = ltf_price_only_context ? 'no-vol' : na(ltf_volume_delta) ? 'n/a' : str.format('{0,number,percent}', ltf_volume_delta)
-        str.format('SMC++ | {0} | action={1} | event={2} | {3} | dir={4} | level={5} | tf={6} | mode={7} | ltf_bull_share={8} | ltf_volume_delta={9}', syminfo.ticker, action_text, event_name, detail, direction_text, u.format_level(level), timeframe.period, mode_text, share_text, delta_text)
+        str.format('SMC | {0} | action={1} | event={2} | {3} | dir={4} | level={5} | tf={6} | mode={7} | ltf_bull_share={8} | ltf_volume_delta={9}', syminfo.ticker, action_text, event_name, detail, direction_text, u.format_level(level), timeframe.period, mode_text, share_text, delta_text)
     else
         ''
 
@@ -3223,39 +2385,39 @@ emit_dynamic_alert_if_allowed(string seen_keys, bool event_active, string seen_k
 emit_priority_long_dynamic_alerts(string seen_keys, bool already_sent, bool invalidated_active, bool strict_active, bool best_active, bool ready_active, bool confirmed_active, bool clean_active, bool early_active, bool armed_plus_active, bool armed_active, bool watchlist_active, string long_invalidated_alert_key, string long_invalidated_alert_name, string long_entry_strict_alert_key, string long_entry_strict_alert_name, string long_entry_best_alert_key, string long_entry_best_alert_name, string long_ready_alert_key, string long_ready_alert_name, string long_confirmed_alert_key, string long_confirmed_alert_name, string long_clean_alert_key, string long_clean_alert_name, string long_early_alert_key, string long_early_alert_name, string long_armed_plus_alert_key, string long_armed_plus_alert_name, string long_armed_alert_key, string long_armed_alert_name, string long_watchlist_alert_key, string long_watchlist_alert_name, string long_setup_source_display, string long_strict_alert_suffix, string long_environment_alert_suffix, string long_micro_alert_suffix, string long_score_detail_suffix, string signal_mode_text, float ltf_bull_share_context, float ltf_volume_delta_context, bool ltf_price_only_context, string long_last_invalid_source, float long_last_invalid_level, float long_trigger_level, float long_invalidation_level, float long_entry_strict_alert_level, float long_entry_best_alert_level, float long_clean_alert_level, float long_early_alert_level, float long_watchlist_alert_level) =>
     string next_seen_keys = seen_keys
     if invalidated_active
-        next_seen_keys := emit_dynamic_alert_if_allowed(next_seen_keys, true, long_invalidated_alert_key, long_invalidated_alert_name, compose_long_invalidated_alert_detail(long_last_invalid_source, long_micro_alert_suffix, long_score_detail_suffix), long_last_invalid_level, -1, ltf_bull_share_context, ltf_volume_delta_context, ltf_price_only_context, signal_mode_text)
+        next_seen_keys := emit_dynamic_alert_if_allowed(next_seen_keys, true, long_invalidated_alert_key, long_invalidated_alert_name, cr.compose_long_invalidated_alert_detail(long_last_invalid_source, long_micro_alert_suffix, long_score_detail_suffix), long_last_invalid_level, -1, ltf_bull_share_context, ltf_volume_delta_context, ltf_price_only_context, signal_mode_text)
     else if strict_active
-        next_seen_keys := emit_dynamic_alert_if_allowed(next_seen_keys, not already_sent, long_entry_strict_alert_key, long_entry_strict_alert_name, compose_long_entry_strict_alert_detail(long_micro_alert_suffix, long_score_detail_suffix), long_entry_strict_alert_level, 1, ltf_bull_share_context, ltf_volume_delta_context, ltf_price_only_context, signal_mode_text)
+        next_seen_keys := emit_dynamic_alert_if_allowed(next_seen_keys, not already_sent, long_entry_strict_alert_key, long_entry_strict_alert_name, cr.compose_long_entry_strict_alert_detail(long_micro_alert_suffix, long_score_detail_suffix), long_entry_strict_alert_level, 1, ltf_bull_share_context, ltf_volume_delta_context, ltf_price_only_context, signal_mode_text)
     else if best_active
-        next_seen_keys := emit_dynamic_alert_if_allowed(next_seen_keys, not already_sent, long_entry_best_alert_key, long_entry_best_alert_name, compose_long_entry_best_alert_detail(long_micro_alert_suffix, long_score_detail_suffix), long_entry_best_alert_level, 1, ltf_bull_share_context, ltf_volume_delta_context, ltf_price_only_context, signal_mode_text)
+        next_seen_keys := emit_dynamic_alert_if_allowed(next_seen_keys, not already_sent, long_entry_best_alert_key, long_entry_best_alert_name, cr.compose_long_entry_best_alert_detail(long_micro_alert_suffix, long_score_detail_suffix), long_entry_best_alert_level, 1, ltf_bull_share_context, ltf_volume_delta_context, ltf_price_only_context, signal_mode_text)
     else if ready_active
-        next_seen_keys := emit_dynamic_alert_if_allowed(next_seen_keys, not already_sent, long_ready_alert_key, long_ready_alert_name, compose_long_ready_alert_detail(long_setup_source_display, long_strict_alert_suffix, long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix), long_trigger_level, 1, ltf_bull_share_context, ltf_volume_delta_context, ltf_price_only_context, signal_mode_text)
+        next_seen_keys := emit_dynamic_alert_if_allowed(next_seen_keys, not already_sent, long_ready_alert_key, long_ready_alert_name, cr.compose_long_ready_alert_detail(long_setup_source_display, long_strict_alert_suffix, long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix), long_trigger_level, 1, ltf_bull_share_context, ltf_volume_delta_context, ltf_price_only_context, signal_mode_text)
     else if confirmed_active
-        next_seen_keys := emit_dynamic_alert_if_allowed(next_seen_keys, not already_sent, long_confirmed_alert_key, long_confirmed_alert_name, compose_long_confirmed_alert_detail(long_setup_source_display, long_strict_alert_suffix, long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix), long_trigger_level, 1, ltf_bull_share_context, ltf_volume_delta_context, ltf_price_only_context, signal_mode_text)
+        next_seen_keys := emit_dynamic_alert_if_allowed(next_seen_keys, not already_sent, long_confirmed_alert_key, long_confirmed_alert_name, cr.compose_long_confirmed_alert_detail(long_setup_source_display, long_strict_alert_suffix, long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix), long_trigger_level, 1, ltf_bull_share_context, ltf_volume_delta_context, ltf_price_only_context, signal_mode_text)
     else if clean_active
-        next_seen_keys := emit_dynamic_alert_if_allowed(next_seen_keys, not already_sent, long_clean_alert_key, long_clean_alert_name, compose_long_clean_alert_detail(long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix), long_clean_alert_level, 1, ltf_bull_share_context, ltf_volume_delta_context, ltf_price_only_context, signal_mode_text)
+        next_seen_keys := emit_dynamic_alert_if_allowed(next_seen_keys, not already_sent, long_clean_alert_key, long_clean_alert_name, cr.compose_long_clean_alert_detail(long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix), long_clean_alert_level, 1, ltf_bull_share_context, ltf_volume_delta_context, ltf_price_only_context, signal_mode_text)
     else if early_active
-        next_seen_keys := emit_dynamic_alert_if_allowed(next_seen_keys, not already_sent, long_early_alert_key, long_early_alert_name, compose_long_early_alert_detail(long_micro_alert_suffix, long_score_detail_suffix), long_early_alert_level, 1, ltf_bull_share_context, ltf_volume_delta_context, ltf_price_only_context, signal_mode_text)
+        next_seen_keys := emit_dynamic_alert_if_allowed(next_seen_keys, not already_sent, long_early_alert_key, long_early_alert_name, cr.compose_long_early_alert_detail(long_micro_alert_suffix, long_score_detail_suffix), long_early_alert_level, 1, ltf_bull_share_context, ltf_volume_delta_context, ltf_price_only_context, signal_mode_text)
     else if armed_plus_active
-        next_seen_keys := emit_dynamic_alert_if_allowed(next_seen_keys, not already_sent, long_armed_plus_alert_key, long_armed_plus_alert_name, compose_long_armed_plus_alert_detail(long_micro_alert_suffix, long_score_detail_suffix), long_invalidation_level, 1, ltf_bull_share_context, ltf_volume_delta_context, ltf_price_only_context, signal_mode_text)
+        next_seen_keys := emit_dynamic_alert_if_allowed(next_seen_keys, not already_sent, long_armed_plus_alert_key, long_armed_plus_alert_name, cr.compose_long_armed_plus_alert_detail(long_micro_alert_suffix, long_score_detail_suffix), long_invalidation_level, 1, ltf_bull_share_context, ltf_volume_delta_context, ltf_price_only_context, signal_mode_text)
     else if armed_active
-        next_seen_keys := emit_dynamic_alert_if_allowed(next_seen_keys, not already_sent, long_armed_alert_key, long_armed_alert_name, compose_long_armed_alert_detail(long_setup_source_display, long_micro_alert_suffix, long_score_detail_suffix), long_invalidation_level, 1, ltf_bull_share_context, ltf_volume_delta_context, ltf_price_only_context, signal_mode_text)
+        next_seen_keys := emit_dynamic_alert_if_allowed(next_seen_keys, not already_sent, long_armed_alert_key, long_armed_alert_name, cr.compose_long_armed_alert_detail(long_setup_source_display, long_micro_alert_suffix, long_score_detail_suffix), long_invalidation_level, 1, ltf_bull_share_context, ltf_volume_delta_context, ltf_price_only_context, signal_mode_text)
     else if watchlist_active
-        next_seen_keys := emit_dynamic_alert_if_allowed(next_seen_keys, not already_sent, long_watchlist_alert_key, long_watchlist_alert_name, compose_long_watchlist_alert_detail(long_micro_alert_suffix, long_score_detail_suffix), long_watchlist_alert_level, 1, ltf_bull_share_context, ltf_volume_delta_context, ltf_price_only_context, signal_mode_text)
+        next_seen_keys := emit_dynamic_alert_if_allowed(next_seen_keys, not already_sent, long_watchlist_alert_key, long_watchlist_alert_name, cr.compose_long_watchlist_alert_detail(long_micro_alert_suffix, long_score_detail_suffix), long_watchlist_alert_level, 1, ltf_bull_share_context, ltf_volume_delta_context, ltf_price_only_context, signal_mode_text)
     next_seen_keys
 
 emit_linear_long_dynamic_alerts(string seen_keys, bool invalidated_active, bool strict_active, bool best_active, bool ready_active, bool clean_active, bool confirmed_active, bool early_active, bool armed_plus_active, bool armed_active, bool watchlist_active, string long_invalidated_alert_key, string long_invalidated_alert_name, string long_entry_strict_alert_key, string long_entry_strict_alert_name, string long_entry_best_alert_key, string long_entry_best_alert_name, string long_ready_alert_key, string long_ready_alert_name, string long_clean_alert_key, string long_clean_alert_name, string long_confirmed_alert_key, string long_confirmed_alert_name, string long_early_alert_key, string long_early_alert_name, string long_armed_plus_alert_key, string long_armed_plus_alert_name, string long_armed_alert_key, string long_armed_alert_name, string long_watchlist_alert_key, string long_watchlist_alert_name, string long_setup_source_display, string long_strict_alert_suffix, string long_environment_alert_suffix, string long_micro_alert_suffix, string long_score_detail_suffix, string signal_mode_text, float ltf_bull_share_context, float ltf_volume_delta_context, bool ltf_price_only_context, string long_last_invalid_source, float long_last_invalid_level, float long_trigger_level, float long_invalidation_level, float long_entry_strict_alert_level, float long_entry_best_alert_level, float long_clean_alert_level, float long_early_alert_level, float long_watchlist_alert_level) =>
     string next_seen_keys = seen_keys
-    next_seen_keys := emit_dynamic_alert_if_allowed(next_seen_keys, invalidated_active, long_invalidated_alert_key, long_invalidated_alert_name, compose_long_invalidated_alert_detail(long_last_invalid_source, long_micro_alert_suffix, long_score_detail_suffix), long_last_invalid_level, -1, ltf_bull_share_context, ltf_volume_delta_context, ltf_price_only_context, signal_mode_text)
-    next_seen_keys := emit_dynamic_alert_if_allowed(next_seen_keys, strict_active, long_entry_strict_alert_key, long_entry_strict_alert_name, compose_long_entry_strict_alert_detail(long_micro_alert_suffix, long_score_detail_suffix), long_entry_strict_alert_level, 1, ltf_bull_share_context, ltf_volume_delta_context, ltf_price_only_context, signal_mode_text)
-    next_seen_keys := emit_dynamic_alert_if_allowed(next_seen_keys, best_active, long_entry_best_alert_key, long_entry_best_alert_name, compose_long_entry_best_alert_detail(long_micro_alert_suffix, long_score_detail_suffix), long_entry_best_alert_level, 1, ltf_bull_share_context, ltf_volume_delta_context, ltf_price_only_context, signal_mode_text)
-    next_seen_keys := emit_dynamic_alert_if_allowed(next_seen_keys, ready_active, long_ready_alert_key, long_ready_alert_name, compose_long_ready_alert_detail(long_setup_source_display, long_strict_alert_suffix, long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix), long_trigger_level, 1, ltf_bull_share_context, ltf_volume_delta_context, ltf_price_only_context, signal_mode_text)
-    next_seen_keys := emit_dynamic_alert_if_allowed(next_seen_keys, clean_active, long_clean_alert_key, long_clean_alert_name, compose_long_clean_alert_detail(long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix), long_clean_alert_level, 1, ltf_bull_share_context, ltf_volume_delta_context, ltf_price_only_context, signal_mode_text)
-    next_seen_keys := emit_dynamic_alert_if_allowed(next_seen_keys, confirmed_active, long_confirmed_alert_key, long_confirmed_alert_name, compose_long_confirmed_alert_detail(long_setup_source_display, long_strict_alert_suffix, long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix), long_trigger_level, 1, ltf_bull_share_context, ltf_volume_delta_context, ltf_price_only_context, signal_mode_text)
-    next_seen_keys := emit_dynamic_alert_if_allowed(next_seen_keys, early_active, long_early_alert_key, long_early_alert_name, compose_long_early_alert_detail(long_micro_alert_suffix, long_score_detail_suffix), long_early_alert_level, 1, ltf_bull_share_context, ltf_volume_delta_context, ltf_price_only_context, signal_mode_text)
-    next_seen_keys := emit_dynamic_alert_if_allowed(next_seen_keys, armed_plus_active, long_armed_plus_alert_key, long_armed_plus_alert_name, compose_long_armed_plus_alert_detail(long_micro_alert_suffix, long_score_detail_suffix), long_invalidation_level, 1, ltf_bull_share_context, ltf_volume_delta_context, ltf_price_only_context, signal_mode_text)
-    next_seen_keys := emit_dynamic_alert_if_allowed(next_seen_keys, armed_active, long_armed_alert_key, long_armed_alert_name, compose_long_armed_alert_detail(long_setup_source_display, long_micro_alert_suffix, long_score_detail_suffix), long_invalidation_level, 1, ltf_bull_share_context, ltf_volume_delta_context, ltf_price_only_context, signal_mode_text)
-    next_seen_keys := emit_dynamic_alert_if_allowed(next_seen_keys, watchlist_active, long_watchlist_alert_key, long_watchlist_alert_name, compose_long_watchlist_alert_detail(long_micro_alert_suffix, long_score_detail_suffix), long_watchlist_alert_level, 1, ltf_bull_share_context, ltf_volume_delta_context, ltf_price_only_context, signal_mode_text)
+    next_seen_keys := emit_dynamic_alert_if_allowed(next_seen_keys, invalidated_active, long_invalidated_alert_key, long_invalidated_alert_name, cr.compose_long_invalidated_alert_detail(long_last_invalid_source, long_micro_alert_suffix, long_score_detail_suffix), long_last_invalid_level, -1, ltf_bull_share_context, ltf_volume_delta_context, ltf_price_only_context, signal_mode_text)
+    next_seen_keys := emit_dynamic_alert_if_allowed(next_seen_keys, strict_active, long_entry_strict_alert_key, long_entry_strict_alert_name, cr.compose_long_entry_strict_alert_detail(long_micro_alert_suffix, long_score_detail_suffix), long_entry_strict_alert_level, 1, ltf_bull_share_context, ltf_volume_delta_context, ltf_price_only_context, signal_mode_text)
+    next_seen_keys := emit_dynamic_alert_if_allowed(next_seen_keys, best_active, long_entry_best_alert_key, long_entry_best_alert_name, cr.compose_long_entry_best_alert_detail(long_micro_alert_suffix, long_score_detail_suffix), long_entry_best_alert_level, 1, ltf_bull_share_context, ltf_volume_delta_context, ltf_price_only_context, signal_mode_text)
+    next_seen_keys := emit_dynamic_alert_if_allowed(next_seen_keys, ready_active, long_ready_alert_key, long_ready_alert_name, cr.compose_long_ready_alert_detail(long_setup_source_display, long_strict_alert_suffix, long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix), long_trigger_level, 1, ltf_bull_share_context, ltf_volume_delta_context, ltf_price_only_context, signal_mode_text)
+    next_seen_keys := emit_dynamic_alert_if_allowed(next_seen_keys, clean_active, long_clean_alert_key, long_clean_alert_name, cr.compose_long_clean_alert_detail(long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix), long_clean_alert_level, 1, ltf_bull_share_context, ltf_volume_delta_context, ltf_price_only_context, signal_mode_text)
+    next_seen_keys := emit_dynamic_alert_if_allowed(next_seen_keys, confirmed_active, long_confirmed_alert_key, long_confirmed_alert_name, cr.compose_long_confirmed_alert_detail(long_setup_source_display, long_strict_alert_suffix, long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix), long_trigger_level, 1, ltf_bull_share_context, ltf_volume_delta_context, ltf_price_only_context, signal_mode_text)
+    next_seen_keys := emit_dynamic_alert_if_allowed(next_seen_keys, early_active, long_early_alert_key, long_early_alert_name, cr.compose_long_early_alert_detail(long_micro_alert_suffix, long_score_detail_suffix), long_early_alert_level, 1, ltf_bull_share_context, ltf_volume_delta_context, ltf_price_only_context, signal_mode_text)
+    next_seen_keys := emit_dynamic_alert_if_allowed(next_seen_keys, armed_plus_active, long_armed_plus_alert_key, long_armed_plus_alert_name, cr.compose_long_armed_plus_alert_detail(long_micro_alert_suffix, long_score_detail_suffix), long_invalidation_level, 1, ltf_bull_share_context, ltf_volume_delta_context, ltf_price_only_context, signal_mode_text)
+    next_seen_keys := emit_dynamic_alert_if_allowed(next_seen_keys, armed_active, long_armed_alert_key, long_armed_alert_name, cr.compose_long_armed_alert_detail(long_setup_source_display, long_micro_alert_suffix, long_score_detail_suffix), long_invalidation_level, 1, ltf_bull_share_context, ltf_volume_delta_context, ltf_price_only_context, signal_mode_text)
+    next_seen_keys := emit_dynamic_alert_if_allowed(next_seen_keys, watchlist_active, long_watchlist_alert_key, long_watchlist_alert_name, cr.compose_long_watchlist_alert_detail(long_micro_alert_suffix, long_score_detail_suffix), long_watchlist_alert_level, 1, ltf_bull_share_context, ltf_volume_delta_context, ltf_price_only_context, signal_mode_text)
     next_seen_keys
 
 resolve_ob_alert_level(OrderBlock block) =>
@@ -3593,7 +2755,7 @@ string lib_stale_providers        = mp.STALE_PROVIDERS
 
 // ── Ticker Heat Map (WP-LF4) ──
 string lib_ticker_heat_map        = mp.TICKER_HEAT_MAP
-float  lib_ticker_heat            = f_parse_ticker_heat(lib_ticker_heat_map, syminfo.ticker)
+float  lib_ticker_heat            = cr.f_parse_ticker_heat(lib_ticker_heat_map, syminfo.ticker)
 int    ticker_heat_adj            = int(lib_ticker_heat * 20)
 
 // ── News Detail (WP-NW4/NW5) ──
@@ -3857,7 +3019,7 @@ var int ddvi_div_max_range = input.int(60, 'Max', minval = 2, group = g_ddvi_ctx
 var int ddvi_eq_zone_len = input.int(14, 'Equal zone length', minval = 1, group = g_ddvi_ctx, inline = 'p3', display = display.none)
 var float ddvi_eq_zone_atr_mult = input.float(0.2, 'Price ATR x', minval = 0.0, step = 0.1, group = g_ddvi_ctx, inline = 'p3', display = display.none)
 var float ddvi_eq_zone_dev_mult = input.float(0.2, 'DDVI Dev x', minval = 0.0, step = 0.01, group = g_ddvi_ctx, inline = 'p3', display = display.none)
-var bool ddvi_close_safe_only = input.bool(true, 'DDVI events close-safe only', group = g_ddvi_ctx, display = display.none, tooltip = 'Recommended on. Keeps DDVI event gating aligned with the rest of the close-safe SMC++ flow.')
+var bool ddvi_close_safe_only = input.bool(true, 'DDVI events close-safe only', group = g_ddvi_ctx, display = display.none, tooltip = 'Recommended on. Keeps DDVI event gating aligned with the rest of the close-safe SMC flow.')
 
 var g_struct = '24. Advanced - Market Structure'
 var bool show_Structure = input.bool(false, 'Show Market Structure', group = g_struct, display = display.none, tooltip = 'Display market structure.')
@@ -4064,8 +3226,8 @@ if render_visible_only_eff
     visible_left_time := chart.left_visible_bar_time
     visible_right_time := chart.right_visible_bar_time
 
-float soft_confirm_offset = smc_lib_atr(soft_confirm_offset_atr_len) * soft_confirm_offset_atr_mult
-ob_threshold_atr = smc_lib_atr(ATR_LEN_MAIN)
+float soft_confirm_offset = u.smc_lib_atr(soft_confirm_offset_atr_len) * soft_confirm_offset_atr_mult
+ob_threshold_atr = u.smc_lib_atr(ATR_LEN_MAIN)
 ob_threshold_min = ob_threshold_atr * ob_filter_min_mult
 ob_threshold_max = ob_threshold_atr * ob_filter_max_mult
 
@@ -4114,9 +3276,9 @@ if barstate.islast
         label.delete(volume_quality_warning)
         volume_quality_warning := na
 
-var ProfileConfig profile_config_bull = ProfileConfig.new(poc_label_text = 'OB - POC ⬈', extend = ob_extend_until_broken, show_labels = true, args_poc_line = d.LineArgs.new(bull_ob_css_line, line.style_dashed, xloc = xloc.bar_index), args_poc_label = d.LabelArgs.new(bull_ob_css_line, xloc = xloc.bar_index, style = label.style_label_left, size = size.normal))
+var pe.ProfileConfig profile_config_bull = pe.ProfileConfig.new(poc_label_text = 'OB - POC ⬈', extend = ob_extend_until_broken, show_labels = true, args_poc_line = d.LineArgs.new(bull_ob_css_line, line.style_dashed, xloc = xloc.bar_index), args_poc_label = d.LabelArgs.new(bull_ob_css_line, xloc = xloc.bar_index, style = label.style_label_left, size = size.normal))
 var OrderBlockConfig ob_config_bull = OrderBlockConfig.new(show_ob, ob_showlast, show_id = show_ob_id, show_profile = use_ob_profile, args = d.BoxArgs.new(bg_color = bull_ob_css, border_color = #00000000, xloc = xloc.bar_index), txt_args = d.BoxTextArgs.new(color.green, size.normal, text_halign = text.align_right), show_text = false, extend_until_broken = ob_extend_until_broken, profile_config = profile_config_bull)
-var ProfileConfig profile_config_bull_broken = ProfileConfig.new(extend = ob_extend_until_broken, show_labels = false, args_poc_line = d.LineArgs.new(bull_ob_line_css_broken, line.style_dashed, xloc = xloc.bar_index), args_poc_label = d.LabelArgs.new(#00000000))
+var pe.ProfileConfig profile_config_bull_broken = pe.ProfileConfig.new(extend = ob_extend_until_broken, show_labels = false, args_poc_line = d.LineArgs.new(bull_ob_line_css_broken, line.style_dashed, xloc = xloc.bar_index), args_poc_label = d.LabelArgs.new(#00000000))
 var OrderBlockConfig ob_config_bull_broken = OrderBlockConfig.new(show_ob, ob_keep_broken_max, show_profile = true, args = d.BoxArgs.new(bg_color = bull_ob_css_broken, border_color = #00000000, xloc = xloc.bar_index), txt_args = d.BoxTextArgs.new(bull_ob_line_css_broken, size.normal, text_halign = text.align_right), txt = '', extend_until_broken = ob_extend_until_broken, profile_config = profile_config_bull_broken)
 ob_config_bull.show_profile := use_ob_profile_effective
 ob_config_bull_broken.show_profile := use_ob_profile_effective
@@ -4393,7 +3555,7 @@ if relvol_data_ok
 
 bar_range = math.max(high - low, syminfo.mintick)
 bull_close_in_range = (close - low) / bar_range
-float atr_now = smc_lib_atr(ATR_LEN_MAIN)
+float atr_now = u.smc_lib_atr(ATR_LEN_MAIN)
 float atr_baseline = ta.sma(atr_now, vola_baseline_len)
 float range_baseline = ta.sma(bar_range, vola_baseline_len)
 bool vola_compression_now = false
@@ -4882,11 +4044,11 @@ bool ddvi_hidden_bull = false
 bool ddvi_event_bar_ok = barstate.isconfirmed
 if not ddvi_close_safe_only and signal_mode == ct.SignalMode.AGGRESSIVE_LIVE
     ddvi_event_bar_ok := true
-[ddvi_plus_raw, ddvi_minus_raw, ddvi_advx_raw] = smc_lib_dmi(ddvi_di_length, ddvi_advx_smooth)
+[ddvi_plus_raw, ddvi_minus_raw, ddvi_advx_raw] = u.smc_lib_dmi(ddvi_di_length, ddvi_advx_smooth)
 float ddvi_raw = ddvi_plus_raw - ddvi_minus_raw
-float ddvi_ma_raw = smc_lib_get_ma(ddvi_ma_select, ddvi_raw, ddvi_ma_len)
-[ddvi_bb_basis_raw, ddvi_bb_upper_raw, ddvi_bb_lower_raw] = smc_lib_bb(ddvi_ma_raw, ddvi_bb_len, ddvi_bb_mult, ddvi_bb_ma_select)
-[ddvi_strong_bull_raw, _, _, _, _, _, ddvi_hidden_bull_raw, _, _, _] = smc_lib_detect_divergence(ddvi_ma_raw, ddvi_pivot_left, ddvi_pivot_right, ddvi_div_min_range, ddvi_div_max_range, low, high, ddvi_eq_zone_len, ddvi_eq_zone_dev_mult, ddvi_eq_zone_atr_mult)
+float ddvi_ma_raw = u.smc_lib_get_ma(ddvi_ma_select, ddvi_raw, ddvi_ma_len)
+[ddvi_bb_basis_raw, ddvi_bb_upper_raw, ddvi_bb_lower_raw] = u.smc_lib_bb(ddvi_ma_raw, ddvi_bb_len, ddvi_bb_mult, ddvi_bb_ma_select)
+[ddvi_strong_bull_raw, _, _, _, _, _, ddvi_hidden_bull_raw, _, _, _] = u.smc_lib_detect_divergence(ddvi_ma_raw, ddvi_pivot_left, ddvi_pivot_right, ddvi_div_min_range, ddvi_div_max_range, low, high, ddvi_eq_zone_len, ddvi_eq_zone_dev_mult, ddvi_eq_zone_atr_mult)
 ddvi_plus := ddvi_plus_raw
 ddvi_minus := ddvi_minus_raw
 ddvi_advx := ddvi_advx_raw
@@ -5319,7 +4481,7 @@ var min_fvg_size_atr_len = input.int(ATR_LEN_MAIN, 'ATR Length', minval = 1, gro
 var min_fvg_size_atr_mult = input.float(DEFAULT_FVG_MIN_SIZE_MULT, 'x', minval = 0, step = 0.1, group = g_fvg, inline = 'fvg_min', display = display.none)
 float fvg_size_threshold = 0
 if filter_insignificant_fvgs
-    fvg_size_threshold := smc_lib_atr(min_fvg_size_atr_len) * min_fvg_size_atr_mult
+    fvg_size_threshold := u.smc_lib_atr(min_fvg_size_atr_len) * min_fvg_size_atr_mult
 var float fvg_fill_target_pct = input.float(DEFAULT_FVG_FILL_TARGET_PCT, 'Filled at %', minval = 0, maxval = 100, step = 5, group = g_fvg, display = display.none)
 float fvg_fill_target_ratio = math.max(0.0, math.min(1.0, fvg_fill_target_pct / 100.0))
 var use_fvg_engine = input.bool(true, 'Use FVG engine', group = g_fvg, display = display.none, tooltip = 'Keeps FVG-based long-dip logic and alerts running even if chart rendering is hidden.')
@@ -6173,38 +5335,38 @@ plot(bus_invalidation_level, 'BUS Invalidation', display = display.none)
 plot(lib_sq_score, 'BUS QualityScore', display = display.none)
 plot(long_validation_source, 'BUS SourceKind', display = display.none)
 plot(long_visual_state, 'BUS StateCode', display = display.none)
-plot(resolve_bus_trend_pack(structure_display_trend, mtf_trend_1, mtf_trend_2, mtf_trend_3), 'BUS TrendPack', display = display.none)
-plot(resolve_bus_meta_pack(long_state.armed, long_state.confirmed, ready_is_fresh, confirm_is_fresh, long_source_tracked, long_source_alive, long_source_broken, reclaim_recent, bull_reclaim_internal_low_strict, bull_reclaim_swing_low_strict, bull_reclaim_fvg_strict, bull_reclaim_ob_strict, long_zone_active, in_bull_ob_zone, in_bull_fvg_zone), 'BUS MetaPack', display = display.none)
-plot(resolve_bus_ltf_delta_state(show_dashboard_ltf_eff, ltf_sampling_active, ltf_price_only, ltf_volume_delta), 'BUS LtfDeltaState', display = display.none)
-plot(resolve_bus_safe_trend_state(bullish_trend_safe, bearish_trend_safe), 'BUS SafeTrendState', display = display.none)
-plot(resolve_bus_micro_profile_code(use_microstructure_profiles, micro_profile_text, micro_modifier_text), 'BUS MicroProfileCode', display = display.none)
+plot(cr.resolve_bus_trend_pack(structure_display_trend, mtf_trend_1, mtf_trend_2, mtf_trend_3), 'BUS TrendPack', display = display.none)
+plot(cr.resolve_bus_meta_pack(long_state.armed, long_state.confirmed, ready_is_fresh, confirm_is_fresh, long_source_tracked, long_source_alive, long_source_broken, reclaim_recent, bull_reclaim_internal_low_strict, bull_reclaim_swing_low_strict, bull_reclaim_fvg_strict, bull_reclaim_ob_strict, long_zone_active, in_bull_ob_zone, in_bull_fvg_zone), 'BUS MetaPack', display = display.none)
+plot(cr.resolve_bus_ltf_delta_state(show_dashboard_ltf_eff, ltf_sampling_active, ltf_price_only, ltf_volume_delta), 'BUS LtfDeltaState', display = display.none)
+plot(cr.resolve_bus_safe_trend_state(bullish_trend_safe, bearish_trend_safe), 'BUS SafeTrendState', display = display.none)
+plot(cr.resolve_bus_micro_profile_code(use_microstructure_profiles, micro_profile_text, micro_modifier_text), 'BUS MicroProfileCode', display = display.none)
 plot(bus_stop_level, 'BUS StopLevel', display = display.none)
 plot(bus_target_1, 'BUS Target1', display = display.none)
 plot(bus_target_2, 'BUS Target2', display = display.none)
-plot(resolve_bus_session_row(intraday_time_chart, use_trade_session_gate, use_opening_range_gate, session_structure_gate_ok, session_gate_ok), 'BUS SessionGateRow', display = display.none)
-plot(resolve_bus_market_row(use_index_gate, use_sector_gate, use_breadth_symbol_gate, market_symbols_missing, block_on_missing_market_symbol, market_regime_gate_ok, index_gate_effective_ok, sector_gate_effective_ok, lib_market_valuation_caution), 'BUS MarketGateRow', display = display.none)
-plot(resolve_bus_vola_row(use_vola_compression_gate, vola_regime_gate_safe, vola_expansion_now, vola_compression_recent), 'BUS VolaGateRow', display = display.none)
-plot(resolve_bus_micro_session_row(use_microstructure_profiles, intraday_time_chart, micro_session_gate_ok, micro_rth_gate_ok, micro_midday_gate_ok, micro_premarket_gate_ok), 'BUS MicroSessionGateRow', display = display.none)
-plot(resolve_bus_micro_fresh_row(use_microstructure_profiles, micro_freshness_gate_ok), 'BUS MicroFreshRow', display = display.none)
-plot(resolve_bus_volume_data_row(volume_current_bar_ok, volume_feed_quality_ok, ltf_sampling_active, ltf_price_ok, ltf_volume_ok, ltf_price_only), 'BUS VolumeDataRow', display = display.none)
-plot(resolve_bus_quality_env_row(environment_hard_gate_ok, market_regime_gate_ok, vola_regime_gate_safe), 'BUS QualityEnvRow', display = display.none)
-plot(resolve_bus_quality_strict_row(long_entry_strict_state, strict_entry_ltf_ok, htf_alignment_ok, accel_strict_entry_gate_ok, sd_entry_strict_gate_ok, vol_entry_strict_context_ok_safe, stretch_entry_strict_context_ok, ddvi_entry_strict_ok_safe), 'BUS QualityStrictRow', display = display.none)
-plot(resolve_bus_close_strength_row(use_strong_close_filter, bull_close_strong), 'BUS CloseStrengthRow', display = display.none)
-plot(resolve_bus_ema_support_row(show_ema_support, ema_support_ok), 'BUS EmaSupportRow', display = display.none)
-plot(resolve_bus_adx_row(use_adx, adx_data_ok, plus_di, minus_di, adx_strong, adx_value, adx_trend_min), 'BUS AdxRow', display = display.none)
-plot(resolve_bus_relvol_row(use_rel_volume, relvol_data_ok, allow_relvol_without_volume_data, relvol_ok), 'BUS RelVolRow', display = display.none)
-plot(resolve_bus_vwap_row(use_vwap_filter, intraday_time_chart, vwap_session_active, vwap_filter_ok), 'BUS VwapRow', display = display.none)
-plot(resolve_bus_context_quality_row(use_context_quality_score_eff, context_quality_gate_ok), 'BUS ContextQualityRow', display = display.none)
-plot(resolve_bus_quality_clean_row(long_quality_clean_tier), 'BUS QualityCleanRow', display = display.none)
-plot(resolve_bus_quality_score_row(lib_sq_score), 'BUS QualityScoreRow', display = display.none)
-plot(resolve_bus_sd_confluence_row(use_sd_confluence, sd_support_both_recent, sd_bullish_divergence_recent, sd_higher_lows_recent, sd_support_any_recent), 'BUS SdConfluenceRow', display = display.none)
-plot(resolve_bus_sd_osc_row(use_sd_confluence, sd_value, sd_above_zero, sd_rising, sd_below_zero, sd_falling), 'BUS SdOscRow', display = display.none)
-plot(resolve_bus_vol_regime_row(use_volatility_regime, vol_regime_trend_ok), 'BUS VolRegimeRow', display = display.none)
-plot(resolve_bus_vol_squeeze_row(use_volatility_regime, vol_squeeze_on, vol_squeeze_release_recent, vol_squeeze_recent), 'BUS VolSqueezeRow', display = display.none)
+plot(cr.resolve_bus_session_row(intraday_time_chart, use_trade_session_gate, use_opening_range_gate, session_structure_gate_ok, session_gate_ok), 'BUS SessionGateRow', display = display.none)
+plot(cr.resolve_bus_market_row(use_index_gate, use_sector_gate, use_breadth_symbol_gate, market_symbols_missing, block_on_missing_market_symbol, market_regime_gate_ok, index_gate_effective_ok, sector_gate_effective_ok, lib_market_valuation_caution), 'BUS MarketGateRow', display = display.none)
+plot(cr.resolve_bus_vola_row(use_vola_compression_gate, vola_regime_gate_safe, vola_expansion_now, vola_compression_recent), 'BUS VolaGateRow', display = display.none)
+plot(cr.resolve_bus_micro_session_row(use_microstructure_profiles, intraday_time_chart, micro_session_gate_ok, micro_rth_gate_ok, micro_midday_gate_ok, micro_premarket_gate_ok), 'BUS MicroSessionGateRow', display = display.none)
+plot(cr.resolve_bus_micro_fresh_row(use_microstructure_profiles, micro_freshness_gate_ok), 'BUS MicroFreshRow', display = display.none)
+plot(cr.resolve_bus_volume_data_row(volume_current_bar_ok, volume_feed_quality_ok, ltf_sampling_active, ltf_price_ok, ltf_volume_ok, ltf_price_only), 'BUS VolumeDataRow', display = display.none)
+plot(cr.resolve_bus_quality_env_row(environment_hard_gate_ok, market_regime_gate_ok, vola_regime_gate_safe), 'BUS QualityEnvRow', display = display.none)
+plot(cr.resolve_bus_quality_strict_row(long_entry_strict_state, strict_entry_ltf_ok, htf_alignment_ok, accel_strict_entry_gate_ok, sd_entry_strict_gate_ok, vol_entry_strict_context_ok_safe, stretch_entry_strict_context_ok, ddvi_entry_strict_ok_safe), 'BUS QualityStrictRow', display = display.none)
+plot(cr.resolve_bus_close_strength_row(use_strong_close_filter, bull_close_strong), 'BUS CloseStrengthRow', display = display.none)
+plot(cr.resolve_bus_ema_support_row(show_ema_support, ema_support_ok), 'BUS EmaSupportRow', display = display.none)
+plot(cr.resolve_bus_adx_row(use_adx, adx_data_ok, plus_di, minus_di, adx_strong, adx_value, adx_trend_min), 'BUS AdxRow', display = display.none)
+plot(cr.resolve_bus_relvol_row(use_rel_volume, relvol_data_ok, allow_relvol_without_volume_data, relvol_ok), 'BUS RelVolRow', display = display.none)
+plot(cr.resolve_bus_vwap_row(use_vwap_filter, intraday_time_chart, vwap_session_active, vwap_filter_ok), 'BUS VwapRow', display = display.none)
+plot(cr.resolve_bus_context_quality_row(use_context_quality_score_eff, context_quality_gate_ok), 'BUS ContextQualityRow', display = display.none)
+plot(cr.resolve_bus_quality_clean_row(long_quality_clean_tier), 'BUS QualityCleanRow', display = display.none)
+plot(cr.resolve_bus_quality_score_row(lib_sq_score), 'BUS QualityScoreRow', display = display.none)
+plot(cr.resolve_bus_sd_confluence_row(use_sd_confluence, sd_support_both_recent, sd_bullish_divergence_recent, sd_higher_lows_recent, sd_support_any_recent), 'BUS SdConfluenceRow', display = display.none)
+plot(cr.resolve_bus_sd_osc_row(use_sd_confluence, sd_value, sd_above_zero, sd_rising, sd_below_zero, sd_falling), 'BUS SdOscRow', display = display.none)
+plot(cr.resolve_bus_vol_regime_row(use_volatility_regime, vol_regime_trend_ok), 'BUS VolRegimeRow', display = display.none)
+plot(cr.resolve_bus_vol_squeeze_row(use_volatility_regime, vol_squeeze_on, vol_squeeze_release_recent, vol_squeeze_recent), 'BUS VolSqueezeRow', display = display.none)
 plot(resolve_bus_ready_blocker_code(long_ready_state, long_state.confirmed, lifecycle_ready_ok, setup_hard_gate_ok, trade_hard_gate_ok, environment_hard_gate_ok, close_safe_mode, ready_bar_gap_ok, long_confirm_expired, ready_is_fresh, long_confirm_bearish_guard_ok, require_main_break_for_ready_eff, bull_bos_sig, main_bos_recent, session_structure_gate_ok, micro_session_gate_ok, micro_freshness_gate_ok, overhead_zone_ok, market_regime_gate_ok, vola_regime_gate_safe, quality_gate_ok, accel_ready_gate_ok, sd_ready_gate_ok, vol_ready_context_ok, stretch_ready_context_ok, ddvi_ready_ok_safe), 'BUS ReadyBlockerCode', display = display.none)
 plot(resolve_bus_strict_blocker_code(long_entry_strict_state, long_ready_state, strict_signal_quality_gate_ok, strict_entry_ltf_ok, htf_alignment_ok, accel_strict_entry_gate_ok, sd_entry_strict_gate_ok, vol_entry_strict_context_ok_safe, stretch_entry_strict_context_ok, ddvi_entry_strict_ok_safe), 'BUS StrictBlockerCode', display = display.none)
-plot(resolve_bus_vol_expansion_state(use_volatility_regime, vol_momentum_expanding_long, vol_stack_spread_rising), 'BUS VolExpansionState', display = display.none)
-plot(resolve_bus_ddvi_context_state(use_ddvi_context, ddvi_bias_ok, ddvi_bull_divergence_any, ddvi_lower_extreme_context), 'BUS DdviContextState', display = display.none)
+plot(cr.resolve_bus_vol_expansion_state(use_volatility_regime, vol_momentum_expanding_long, vol_stack_spread_rising), 'BUS VolExpansionState', display = display.none)
+plot(cr.resolve_bus_ddvi_context_state(use_ddvi_context, ddvi_bias_ok, ddvi_bull_divergence_any, ddvi_lower_extreme_context), 'BUS DdviContextState', display = display.none)
 plot(active_bull_ob_top, 'BUS ZoneObTop', display = display.none)
 plot(active_bull_ob_bottom, 'BUS ZoneObBottom', display = display.none)
 plot(active_bull_fvg_top, 'BUS ZoneFvgTop', display = display.none)
@@ -6213,14 +5375,14 @@ plot(session_vwap, 'BUS SessionVwap', display = display.none)
 plot(adx_value, 'BUS AdxValue', display = display.none)
 plot(rel_volume, 'BUS RelVolValue', display = display.none)
 plot(distance_to_mean_z, 'BUS StretchZ', display = display.none)
-plot(resolve_bus_stretch_support_mask(use_stretch_context, in_lower_extreme, lower_extreme_recent, anti_chase_ok_ready, anti_chase_ok_entry_best), 'BUS StretchSupportMask', display = display.none)
+plot(cr.resolve_bus_stretch_support_mask(use_stretch_context, in_lower_extreme, lower_extreme_recent, anti_chase_ok_ready, anti_chase_ok_entry_best), 'BUS StretchSupportMask', display = display.none)
 plot(ltf_bull_share, 'BUS LtfBullShare', display = display.none)
 plot(ltf_bias_hint, 'BUS LtfBiasHint', display = display.none)
 plot(ltf_volume_delta, 'BUS LtfVolumeDelta', display = display.none)
-plot(pack_bus_counts(array.size(ob_blocks_bull), array.size(fvgs_bull)), 'BUS ObjectsCountPack', display = display.none)
+plot(cr.pack_bus_counts(array.size(ob_blocks_bull), array.size(fvgs_bull)), 'BUS ObjectsCountPack', display = display.none)
 // ── v5.5 Lean BUS Plots ──
-plot(resolve_bus_lean_pack_a(lib_sq_score, lib_sq_tier, lib_sq_freshness, lib_sq_bias_alignment, lib_erl_window_state, lib_erl_level, lib_erl_market_blocked, lib_erl_symbol_blocked, lib_strl_trend_strength, lib_strl_fresh, lib_strl_last_event), 'BUS LeanPackA', display = display.none)
-plot(resolve_bus_lean_pack_b(lib_obl_side, lib_obl_fresh, lib_obl_mitigation_state, lib_fvgl_side, lib_fvgl_fresh, lib_fvgl_invalidated, lib_scl_context_score, lib_scl_in_killzone, lib_ensemble_quality_score, lib_ensemble_quality_tier, lib_volatility_regime, lib_volatility_model_source), 'BUS LeanPackB', display = display.none)
+plot(cr.resolve_bus_lean_pack_a(lib_sq_score, lib_sq_tier, lib_sq_freshness, lib_sq_bias_alignment, lib_erl_window_state, lib_erl_level, lib_erl_market_blocked, lib_erl_symbol_blocked, lib_strl_trend_strength, lib_strl_fresh, lib_strl_last_event), 'BUS LeanPackA', display = display.none)
+plot(cr.resolve_bus_lean_pack_b(lib_obl_side, lib_obl_fresh, lib_obl_mitigation_state, lib_fvgl_side, lib_fvgl_fresh, lib_fvgl_invalidated, lib_scl_context_score, lib_scl_in_killzone, lib_ensemble_quality_score, lib_ensemble_quality_tier, lib_volatility_regime, lib_volatility_model_source), 'BUS LeanPackB', display = display.none)
 
 // ── Mini Health Badge (v5.5a) ──
 var label core_hero_card = na
@@ -6228,17 +5390,17 @@ if barstate.islast and compact_mode
     if not na(core_hero_card)
         label.delete(core_hero_card)
     string core_product_state = resolve_core_product_state(long_visual_state)
-    string core_bias_text = resolve_core_bias_text(lib_sq_bias_alignment)
+    string core_bias_text = cr.resolve_core_bias_text(lib_sq_bias_alignment)
     string core_trust_tier = resolve_trust_tier(lib_sq_tier, lib_sq_freshness, lib_erl_provider_status)
     string core_trust_suffix = compose_trust_tier_suffix(core_trust_tier, lib_sq_score, lib_sq_freshness, lib_erl_provider_status, lib_ensemble_quality_tier)
-    string core_provider_state = resolve_core_provider_state(lib_erl_provider_status, lib_provider_count, lib_stale_providers)
-    string core_trade_threshold = compose_trade_threshold_text(core_trust_tier, lib_sq_score)
-    string core_why_now = compose_why_now_text(core_product_state, long_setup_source_display, lib_sq_freshness, lib_sq_warnings, long_ready_blocker_text, long_strict_blocker_text, long_state.trigger)
+    string core_provider_state = cr.resolve_core_provider_state(lib_erl_provider_status, lib_provider_count, lib_stale_providers)
+    string core_trade_threshold = cr.compose_trade_threshold_text(core_trust_tier, lib_sq_score)
+    string core_why_now = cr.compose_why_now_text(core_product_state, long_setup_source_display, lib_sq_freshness, lib_sq_warnings, long_ready_blocker_text, long_strict_blocker_text, long_state.trigger)
     bool   core_has_earnings_tomorrow = str.contains(lib_earnings_tomorrow, syminfo.ticker)
-    string core_main_risk = compose_main_risk_text(core_product_state, event_risk_state, long_ready_blocker_text, long_strict_blocker_text, long_state.last_invalid_source, lib_sq_warnings, lib_erl_provider_status, core_has_earnings_tomorrow)
+    string core_main_risk = cr.compose_main_risk_text(core_product_state, event_risk_state, long_ready_blocker_text, long_strict_blocker_text, long_state.last_invalid_source, lib_sq_warnings, lib_erl_provider_status, core_has_earnings_tomorrow)
     string core_market_event = mp.HIGH_IMPACT_MACRO_TODAY ? (lib_macro_event_name + ' ' + lib_macro_event_time) : 'No event'
     string core_tone_text = lib_tone + ' · Heat ' + str.tostring(lib_global_heat, '#.##')
-    string core_hero_text = compose_core_hero_text(core_product_state, core_bias_text, core_trade_threshold, core_trust_tier, core_trust_suffix, core_provider_state, core_why_now, core_main_risk, mp.MARKET_REGIME, lib_regime_blocked, lib_regime_dimmed, lib_asof_display, lib_vix_level, core_market_event, core_tone_text, lib_yield_inverted, lib_sector_leading, is_breaking_news, lib_high_impact_news_count, lib_ticker_in_universe)
+    string core_hero_text = cr.compose_core_hero_text(core_product_state, core_bias_text, core_trade_threshold, core_trust_tier, core_trust_suffix, core_provider_state, core_why_now, core_main_risk, mp.MARKET_REGIME, lib_regime_blocked, lib_regime_dimmed, lib_asof_display, lib_vix_level, core_market_event, core_tone_text, lib_yield_inverted, lib_sector_leading, is_breaking_news, lib_high_impact_news_count, lib_ticker_in_universe)
     string core_hero_display = core_hero_text
     if compact_mode
         // WP-OV5: 6-line compact hero — Action, Bias, Confidence, Trust, VIX, Main blocker
@@ -6247,7 +5409,7 @@ if barstate.islast and compact_mode
             _cb_action := core_product_state + ' (' + mp.MARKET_REGIME + ')'
         core_hero_display := 'Action: ' + _cb_action + '\nBias: ' + core_bias_text + '\nConfidence: ' + core_trade_threshold + '\nTrust: ' + (core_trust_suffix != '' ? core_trust_tier + ' (' + core_trust_suffix + ')' : core_trust_tier) + '\nVIX: ' + str.tostring(lib_vix_level, '#.##') + (not lib_ticker_in_universe ? '\n⚠ Not scanned — ticker data n/a' : '') + '\nMain blocker: ' + core_main_risk
     float core_hero_y = high + nz(atr, high * 0.01) * 1.15
-    core_hero_card := label.new(bar_index, core_hero_y, core_hero_display, color = resolve_core_hero_color(core_product_state), textcolor = color.white, style = label.style_label_left, size = size.small)
+    core_hero_card := label.new(bar_index, core_hero_y, core_hero_display, color = cr.resolve_core_hero_color(core_product_state, BULL_HERO, BULL_HERO_READY, BEAR_HERO), textcolor = color.white, style = label.style_label_left, size = size.small)
 else if barstate.islast and not na(core_hero_card)
     label.delete(core_hero_card)
 

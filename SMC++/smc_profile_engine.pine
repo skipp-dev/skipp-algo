@@ -1,0 +1,372 @@
+// This Pine Script® code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © preuss_steffen
+
+//@version=6
+// @description Volume profile engine: Bucket, ProfileConfig, Profile types and methods.
+library("smc_profile_engine", overlay = true)
+
+import preuss_steffen/smc_utils/1 as u
+import preuss_steffen/smc_draw/1 as d
+
+// ── Types ──
+
+export type Bucket
+    varip int idx
+    varip float value
+    varip float top
+    varip float btm
+    varip float center
+    varip float fraction
+    d.SmcLine plot_bucket_line = na
+
+export method update(Bucket this, float top, float bottom, float value, float fraction) =>
+    rounded_top = math.round_to_mintick(top)
+    rounded_bottom = math.round_to_mintick(bottom)
+    rounded_fraction = math.round(fraction, 2)
+    this.top := rounded_top
+    this.btm := rounded_bottom
+    this.center := math.avg(rounded_top, rounded_bottom)
+    this.value := value
+    this.fraction := rounded_fraction
+    this
+
+export method update(Bucket this, float value, float fraction) =>
+    this.value := value
+    this.fraction := math.round(fraction, 2)
+    this
+
+export type ProfileConfig
+    bool show_poc = true
+    bool show_profile = false
+    bool show_va = false
+    bool show_background = false
+    bool show_labels = false
+    bool show_price_levels = false
+    bool extend = false
+
+    string poc_label_text = 'POC'
+    d.LineArgs args_poc_line = na
+    d.LineArgs args_vah_line = na
+    d.LineArgs args_val_line = na
+    d.LabelArgs args_poc_label = na
+    d.LineArgs args_profile_line = na
+    d.BoxArgs args_profile_bg = na
+    bool initialized = false
+
+export method init(ProfileConfig this) =>
+    if na(this) ? false : not this.initialized
+        if na(this.args_poc_line)
+            this.args_poc_line := d.LineArgs.new(color.orange, line.style_dotted, 1, xloc = xloc.bar_index)
+        if na(this.args_vah_line)
+            this.args_vah_line := d.LineArgs.new(color.yellow, line.style_dotted, 1, xloc = xloc.bar_index)
+        if na(this.args_val_line)
+            this.args_val_line := d.LineArgs.new(color.yellow, line.style_dotted, 1, xloc = xloc.bar_index)
+        if na(this.args_poc_label)
+            this.args_poc_label := d.LabelArgs.new(color.orange, #00000000, xloc = xloc.bar_index, style = label.style_label_left)
+        if na(this.args_profile_line)
+            this.args_profile_line := d.LineArgs.new(color.rgb(120, 123, 134, 40), line.style_dotted, 1, xloc = xloc.bar_index)
+        if na(this.args_profile_bg)
+            this.args_profile_bg := d.BoxArgs.new(#00000000, bg_color = color.rgb(120, 123, 134, 92), xloc = xloc.bar_index)
+        this.initialized := true
+    this
+
+export type Profile
+    int id
+    int resolution
+    float vah_threshold_pc
+    float val_threshold_pc
+    varip float[] data_opens
+    varip float[] data_highs
+    varip float[] data_lows
+    varip float[] data_closes
+    varip float[] data_values
+    varip float h = na
+    varip float l = na
+    varip float total = 0
+    varip float total_up = 0
+    varip float total_down = 0
+    Bucket[] buckets
+    varip int poc_bucket_index = na
+    varip int vah_bucket_index = na
+    varip int val_bucket_index = na
+    varip float poc = na
+    varip float vah = na
+    varip float val = na
+    d.SmcLine plot_poc = na
+    d.SmcLine plot_vah = na
+    d.SmcLine plot_val = na
+    d.SmcLabel plot_poc_label = na
+    d.SmcBox plot_profile_bg = na
+    bool hidden = false
+
+export method apply_style(Profile this, ProfileConfig args) =>
+    if not na(this) and not na(args)
+        if not na(this.plot_poc)
+            this.plot_poc.apply_style(args.args_poc_line)
+        if not na(this.plot_vah)
+            this.plot_vah.apply_style(args.args_vah_line)
+        if not na(this.plot_val)
+            this.plot_val.apply_style(args.args_val_line)
+        if not na(this.plot_poc_label)
+            this.plot_poc_label.apply_style(args.args_poc_label)
+        if not na(this.plot_profile_bg)
+            this.plot_profile_bg.apply_style(args.args_profile_bg, d.BoxTextArgs.new())
+    this
+
+export method delete(Profile this) =>
+    if not na(this)
+        if not na(this.buckets)
+            for bucket in this.buckets
+                if not na(bucket.plot_bucket_line)
+                    bucket.plot_bucket_line.delete()
+                    bucket.plot_bucket_line := na
+            array.clear(this.buckets)
+            this.buckets := na
+        if not na(this.plot_poc)
+            this.plot_poc.delete()
+            this.plot_poc := na
+        if not na(this.plot_vah)
+            this.plot_vah.delete()
+            this.plot_vah := na
+        if not na(this.plot_val)
+            this.plot_val.delete()
+            this.plot_val := na
+        if not na(this.plot_poc_label)
+            this.plot_poc_label.delete()
+            this.plot_poc_label := na
+        if not na(this.plot_profile_bg)
+            this.plot_profile_bg.delete()
+            this.plot_profile_bg := na
+        if not na(this.data_opens)
+            array.clear(this.data_opens)
+        if not na(this.data_highs)
+            array.clear(this.data_highs)
+        if not na(this.data_lows)
+            array.clear(this.data_lows)
+        if not na(this.data_closes)
+            array.clear(this.data_closes)
+        if not na(this.data_values)
+            array.clear(this.data_values)
+        this.hidden := false
+    this
+
+export method hide(Profile this) =>
+    if na(this) ? false : not this.hidden
+        if not na(this.buckets)
+            for bucket in this.buckets
+                if not na(bucket.plot_bucket_line)
+                    bucket.plot_bucket_line.hide()
+        if not na(this.plot_poc)
+            this.plot_poc.hide()
+        if not na(this.plot_vah)
+            this.plot_vah.hide()
+        if not na(this.plot_val)
+            this.plot_val.hide()
+        if not na(this.plot_poc_label)
+            this.plot_poc_label.hide()
+        if not na(this.plot_profile_bg)
+            this.plot_profile_bg.hide()
+        this.hidden := true
+    this
+
+export method init(Profile this, bool update_buckets = false) =>
+    if not na(this)
+        create_buckets = na(this.buckets)
+        if create_buckets or update_buckets
+            float bucket_size = this.resolution > 0 ? (this.h - this.l) / this.resolution : 0
+            if create_buckets
+                this.buckets := array.new<Bucket>(this.resolution)
+            for i = 0 to this.resolution - 1
+                float bucket_bottom = this.l + i * bucket_size
+                float bucket_top = bucket_bottom + bucket_size
+                if create_buckets
+                    this.buckets.set(i, Bucket.new(i, 0, bucket_top, bucket_bottom, math.avg(bucket_top, bucket_bottom), 0))
+                else
+                    this.buckets.get(i).update(bucket_top, bucket_bottom, 0, 0)
+    this
+
+export method calculate(Profile this, simple int use_open_close_data_for_ranges_shorter_than_bars = 4) =>
+    int range_count = array.size(this.data_values)
+    if not na(this.buckets)
+        this.poc_bucket_index := na
+        this.val_bucket_index := na
+        this.vah_bucket_index := na
+        this.poc := na
+        this.val := na
+        this.vah := na
+        this.total_up := 0
+        this.total_down := 0
+        float poc_volume = 0
+        float sum_volume_up = 0
+        float sum_volume_down = 0
+        int range_count_opens = na(this.data_opens) ? 0 : array.size(this.data_opens)
+        int range_count_closes = na(this.data_closes) ? 0 : array.size(this.data_closes)
+
+        if range_count <= 0 or this.total <= 0
+            for i = 0 to this.resolution - 1
+                this.buckets.get(i).update(0, 0)
+        else
+            for i = 0 to this.resolution - 1
+                Bucket bucket = this.buckets.get(i)
+                float bucket_value = 0
+                for j = 0 to range_count - 1
+                    float range_value = array.get(this.data_values, j)
+                    float range_high = array.get(this.data_highs, j)
+                    float range_low = array.get(this.data_lows, j)
+                    float range_size = range_high - range_low
+                    float overlap = math.max(0, math.min(range_high, bucket.top) - math.max(range_low, bucket.btm))
+                    if (i == 0 or 0 < use_open_close_data_for_ranges_shorter_than_bars) and j < range_count_opens and j < range_count_closes
+                        float range_open = array.get(this.data_opens, j)
+                        float range_close = array.get(this.data_closes, j)
+                        if i == 0
+                            if range_open < range_close
+                                sum_volume_up += range_value
+                            else
+                                sum_volume_down += range_value
+                        if j < use_open_close_data_for_ranges_shorter_than_bars
+                            overlap += math.max(0, math.min(math.max(range_open, range_close), bucket.top) - math.max(math.min(range_open, range_close), bucket.btm)) / 2
+                            range_size += math.abs(range_open - range_close) / 2
+                    float range_value_fraction = range_size > 0 ? overlap / range_size : (overlap > 0 ? 1 : 0)
+                    bucket_value += range_value_fraction * range_value
+                bucket.update(bucket_value, bucket_value / this.total)
+                if bucket_value > 0 and (na(this.poc_bucket_index) or bucket_value >= poc_volume)
+                    poc_volume := bucket_value
+                    this.poc_bucket_index := i
+                    this.poc := bucket.center
+            if not na(this.poc_bucket_index)
+                int left_va = this.poc_bucket_index
+                int right_va = this.poc_bucket_index
+                float va_sum = this.buckets.get(this.poc_bucket_index).value
+                float va_target = this.total * math.max(this.vah_threshold_pc - this.val_threshold_pc, 0) / 100.0
+
+                while va_sum < va_target and (left_va > 0 or right_va < this.resolution - 1)
+                    float next_left = left_va > 0 ? this.buckets.get(left_va - 1).value : -1
+                    float next_right = right_va < this.resolution - 1 ? this.buckets.get(right_va + 1).value : -1
+
+                    if next_left > next_right
+                        left_va -= 1
+                        va_sum += next_left
+                    else
+                        right_va += 1
+                        va_sum += next_right
+
+                this.val_bucket_index := left_va
+                this.vah_bucket_index := right_va
+                this.val := this.buckets.get(left_va).center
+                this.vah := this.buckets.get(right_va).center
+            this.total_up := sum_volume_up
+            this.total_down := sum_volume_down
+    this
+
+export method update(Profile this, float[] opens = na, float[] highs = na, float[] lows = na, float[] closes = na, float[] values = na) =>
+    if not na(this)
+        recalculation_required = false
+        layout_required = false
+        if not na(opens)
+            this.data_opens := opens
+            recalculation_required := true
+        if not na(highs)
+            this.data_highs := highs
+            high_max = highs.max()
+            layout_required := this.h != high_max
+            this.h := high_max
+            recalculation_required := true
+        if not na(lows)
+            this.data_lows := lows
+            low_min = lows.min()
+            layout_required := layout_required or this.l != low_min
+            this.l := low_min
+            recalculation_required := true
+        if not na(closes)
+            this.data_closes := closes
+            recalculation_required := true
+        if not na(values)
+            this.data_values := values
+            this.total := values.sum()
+            recalculation_required := true
+        if layout_required
+            this.init(update_buckets = true)
+        if recalculation_required or na(this.poc)
+            this.calculate()
+    this
+
+export method draw(Profile this, ProfileConfig config, int left = na, int right = na, bool extend_only = true, simple bool force_overlay = false, string poc_text_override = na) =>
+    if na(this) ? false : na(this.buckets) ? false : this.buckets.size() > 0
+        config.init()
+        this.init()
+        if config.show_background
+            if na(this.plot_profile_bg)
+                this.plot_profile_bg := d.create_box(left, this.h, right, this.l, config.args_profile_bg.xloc)
+            else
+                this.plot_profile_bg.left_top.update(left, this.h, config.args_profile_bg.xloc)
+                this.plot_profile_bg.right_bottom.update(right, this.l, config.args_profile_bg.xloc)
+            this.plot_profile_bg.draw(config.args_profile_bg, na, extend_only, force_overlay)
+        if config.show_poc and not na(this.poc)
+            if na(this.plot_poc)
+                this.plot_poc := d.create_line(left, this.poc, right, this.poc, config.args_poc_line.xloc)
+            else
+                this.plot_poc.start.update(left, this.poc, config.args_poc_line.xloc)
+                this.plot_poc.end.update(right, this.poc, config.args_poc_line.xloc)
+            this.plot_poc.draw(config.args_poc_line, extend_only, force_overlay)
+            if config.show_labels
+                tooltip = str.format('{0} ({1})', na(poc_text_override) ? config.poc_label_text : poc_text_override, this.poc)
+                txt = config.show_price_levels ? tooltip : na(poc_text_override) ? config.poc_label_text : poc_text_override
+                if na(this.plot_poc_label)
+                    this.plot_poc_label := d.create_label(d.create_point(right, this.poc, config.args_poc_label.xloc), txt, tooltip)
+                else
+                    this.plot_poc_label.point.update(right, this.poc, config.args_poc_label.xloc)
+                    this.plot_poc_label.txt := txt
+                    this.plot_poc_label.tooltip := tooltip
+                this.plot_poc_label.draw(config.args_poc_label, force_overlay)
+        if config.show_va and not na(this.vah) and not na(this.val)
+            if na(this.plot_vah)
+                this.plot_vah := d.create_line(left, this.vah, right, this.vah, config.args_vah_line.xloc)
+            else
+                this.plot_vah.start.update(left, this.vah, config.args_vah_line.xloc)
+                this.plot_vah.end.update(right, this.vah, config.args_vah_line.xloc)
+            this.plot_vah.draw(config.args_vah_line, extend_only, force_overlay)
+            if na(this.plot_val)
+                this.plot_val := d.create_line(left, this.val, right, this.val, config.args_val_line.xloc)
+            else
+                this.plot_val.start.update(left, this.val, config.args_val_line.xloc)
+                this.plot_val.end.update(right, this.val, config.args_val_line.xloc)
+            this.plot_val.draw(config.args_val_line, extend_only, force_overlay)
+        this.hidden := false
+    this
+
+// ── Helper functions ──
+
+export normalize_profile_resolution(int resolution) =>
+    math.max(1, resolution)
+
+export normalize_profile_vah_pc(float vah_pc, float val_pc) =>
+    math.max(0.0, math.min(100.0, math.max(vah_pc, val_pc)))
+
+export normalize_profile_val_pc(float vah_pc, float val_pc) =>
+    math.max(0.0, math.min(100.0, math.min(vah_pc, val_pc)))
+
+export profile_data_ready(float[] highs, float[] lows, float[] values) =>
+    not na(highs) and not na(lows) and not na(values) and array.size(highs) > 0 and array.size(lows) > 0 and array.size(values) > 0
+
+export is_impulse_candle_now(float candle_body, float impulse_candle_size) =>
+    candle_body >= impulse_candle_size
+
+export is_indecision_candle_now(float high_now, float low_now, float prior_high, float prior_low, float candle_top_now, float candle_btm_now, float prior_candle_top, float prior_candle_btm, float prior_candle_body, float candle_body, float candle_open, float candle_close) =>
+    u.in_range(high_now, low_now, prior_high, prior_low) and prior_candle_body > candle_body or u.in_range(candle_top_now, candle_btm_now, prior_candle_top, prior_candle_btm) or candle_open == candle_close
+
+export profile_features_enabled(bool capture_profile_now, bool align_edge_to_value_area_now, bool align_break_price_to_poc_now) =>
+    capture_profile_now or align_edge_to_value_area_now or align_break_price_to_poc_now
+
+export create_profile(float[] opens, float[] highs, float[] lows, float[] closes, float[] values, int resolution = 25, float vah_pc = 80, float val_pc = 20, int idx = bar_index, bool init_calculated = true, simple int use_open_close_data_for_ranges_shorter_than_bars = 4) =>
+    int profile_resolution = normalize_profile_resolution(resolution)
+    float profile_vah_pc = normalize_profile_vah_pc(vah_pc, val_pc)
+    float profile_val_pc = normalize_profile_val_pc(vah_pc, val_pc)
+    bool profile_has_range_data = profile_data_ready(highs, lows, values)
+    float profile_high = profile_has_range_data ? highs.max() : na
+    float profile_low = profile_has_range_data ? lows.min() : na
+    float profile_total = profile_has_range_data ? values.sum() : 0
+    profile = Profile.new(idx, profile_resolution, profile_vah_pc, profile_val_pc, opens, highs, lows, closes, values, h = profile_high, l = profile_low, total = profile_total)
+    profile.init(update_buckets = true)
+    if init_calculated
+        profile.calculate(use_open_close_data_for_ranges_shorter_than_bars)
+    profile

@@ -3,6 +3,8 @@
 //@version=6
 library("smc_utils", overlay = true)
 
+import preuss_steffen/smc_core_types/1 as ct
+
 // --------------------------------------------------
 // Generic helpers
 // --------------------------------------------------
@@ -167,3 +169,90 @@ export trim_label_history(label[] history, int max_keep) =>
     else
         while history.size() > max_keep
             label.delete(history.shift())
+
+// --------------------------------------------------
+// Embedded helpers (extracted from Core Engine)
+// --------------------------------------------------
+
+export smc_lib_atr(simple int length) =>
+    float atr_value = ta.atr(length)
+    float tr_cum = ta.cum(ta.tr(true))
+    if bar_index < length
+        atr_value := tr_cum / (bar_index + 1)
+    atr_value
+
+export smc_lib_ehma(float source, simple int length) =>
+    int half_length = math.max(1, int(math.round(length / 2.0)))
+    int sqrt_length = math.max(1, int(math.round(math.sqrt(length))))
+    ta.ema(2 * ta.ema(source, half_length) - ta.ema(source, length), sqrt_length)
+
+export smc_lib_thma(float source, simple int length) =>
+    int len_sixth = math.max(1, int(math.round(length / 6.0)))
+    int len_quarter = math.max(1, int(math.round(length / 4.0)))
+    int len_half = math.max(1, int(math.round(length / 2.0)))
+    ta.wma(ta.wma(source, len_sixth) * 3 - ta.wma(source, len_quarter) - ta.wma(source, len_half), len_half)
+
+export smc_lib_get_ma(simple ct.SmcLibMovingAverage select_ma = ct.SmcLibMovingAverage.SMA, float source, simple int length) =>
+    switch select_ma
+        ct.SmcLibMovingAverage.EMA => ta.ema(source, length)
+        ct.SmcLibMovingAverage.RMA => ta.rma(source, length)
+        ct.SmcLibMovingAverage.WMA => ta.wma(source, length)
+        ct.SmcLibMovingAverage.VWMA => ta.vwma(source, length)
+        ct.SmcLibMovingAverage.HMA => ta.hma(source, length)
+        ct.SmcLibMovingAverage.EHMA => smc_lib_ehma(source, length)
+        ct.SmcLibMovingAverage.THMA => smc_lib_thma(source, length)
+        => ta.sma(source, length)
+
+export smc_lib_bb(float source, simple int length, float mult, simple ct.SmcLibMovingAverage select_ma) =>
+    float base = smc_lib_get_ma(select_ma, source, length)
+    float dev = mult * ta.stdev(source, length)
+    [base, base + dev, base - dev]
+
+export smc_lib_dmi(simple int di_length = 17, simple int adx_smoothing = 14) =>
+    ta.dmi(di_length, adx_smoothing)
+
+export smc_lib_detect_divergence(float osc, simple int pivot_confirmation_bars_left = 5, simple int pivot_confirmation_bars_right = 3, simple int pivot_min_x_distance = 5, simple int pivot_max_x_distance = 50, series float ref_low = low, series float ref_high = high, simple int pivot_min_y_distance_len = 14, simple float pivot_min_y_distance_dev_mult = 0.1, simple float pivot_min_y_distance_atr_mult = 0.1) =>
+    bool osc_pivot_l = not na(ta.pivotlow(osc, pivot_confirmation_bars_left, pivot_confirmation_bars_right))
+    bool osc_pivot_h = not na(ta.pivothigh(osc, pivot_confirmation_bars_left, pivot_confirmation_bars_right))
+    float pivot_osc_value = osc[pivot_confirmation_bars_right]
+    float osc_dev_value = nz(ta.dev(pivot_osc_value, pivot_min_y_distance_len), 0.0) * pivot_min_y_distance_dev_mult
+    float price_atr_value = smc_lib_atr(pivot_min_y_distance_len) * pivot_min_y_distance_atr_mult
+    var int osc_prev_l_idx = na
+    var float osc_prev_l_value = na
+    var float price_prev_l = na
+    var int osc_prev_h_idx = na
+    var float osc_prev_h_value = na
+    var float price_prev_h = na
+
+    if barstate.isconfirmed and (osc_pivot_h or osc_pivot_l)
+        float prev_pivot_value = osc_pivot_h ? osc_prev_h_value : osc_prev_l_value
+        float prev_pivot_price = osc_pivot_h ? price_prev_h : price_prev_l
+        float new_pivot_value = osc[pivot_confirmation_bars_right]
+        float new_pivot_price = osc_pivot_h ? ref_high[pivot_confirmation_bars_right] : ref_low[pivot_confirmation_bars_right]
+        int new_pivot_distance = osc_pivot_h ? bar_index - osc_prev_h_idx : bar_index - osc_prev_l_idx
+        bool has_prev_pivot = osc_pivot_h ? not na(osc_prev_h_idx) and not na(prev_pivot_value) and not na(prev_pivot_price) : not na(osc_prev_l_idx) and not na(prev_pivot_value) and not na(prev_pivot_price)
+
+        if osc_pivot_h
+            osc_prev_h_idx := bar_index
+            osc_prev_h_value := new_pivot_value
+            price_prev_h := new_pivot_price
+        if osc_pivot_l
+            osc_prev_l_idx := bar_index
+            osc_prev_l_value := new_pivot_value
+            price_prev_l := new_pivot_price
+
+        int mode = has_prev_pivot ? new_pivot_value < prev_pivot_value - osc_dev_value ? -1 : new_pivot_value > prev_pivot_value + osc_dev_value ? 1 : 0 : 0
+        int mode_p = has_prev_pivot ? new_pivot_price < prev_pivot_price - price_atr_value ? -1 : new_pivot_price > prev_pivot_price + price_atr_value ? 1 : 0 : 0
+        bool x_distance_in_range = has_prev_pivot and new_pivot_distance >= pivot_min_x_distance and new_pivot_distance <= pivot_max_x_distance
+
+        bool strong_bull = osc_pivot_l and x_distance_in_range and mode == 1 and mode_p == -1
+        bool medium_bull = osc_pivot_l and x_distance_in_range and mode == 1 and mode_p == 0
+        bool weak_bull = osc_pivot_l and x_distance_in_range and mode == 0 and mode_p == -1
+        bool hidden_bull = osc_pivot_l and x_distance_in_range and mode == -1 and mode_p == 1
+        bool strong_bear = osc_pivot_h and x_distance_in_range and mode == -1 and mode_p == 1
+        bool medium_bear = osc_pivot_h and x_distance_in_range and mode == -1 and mode_p == 0
+        bool weak_bear = osc_pivot_h and x_distance_in_range and mode == 0 and mode_p == 1
+        bool hidden_bear = osc_pivot_h and x_distance_in_range and mode == 1 and mode_p == -1
+        [strong_bull, strong_bear, medium_bull, medium_bear, weak_bull, weak_bear, hidden_bull, hidden_bear, osc_pivot_h, osc_pivot_l]
+    else
+        [false, false, false, false, false, false, false, false, osc_pivot_h, osc_pivot_l]
