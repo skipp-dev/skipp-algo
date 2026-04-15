@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-04-15T22:24:27.869718Z",
+  "generated_at": "2026-04-15T23:11:20.037973Z",
   "symbols": [
     "AAPL",
     "MSFT",
@@ -82,44 +82,6 @@
   },
   "stories": [
     {
-      "story_key": "288a573aabbbccec0a09586853945dc68b76ec6f:5920923",
-      "headline": "Amazon Vs. SpaceX Space Race Heats Up At Difficult Time For Musk's Upcoming IPO - Amazon.com (NASDAQ:AMZN",
-      "tickers": [
-        "AMZN"
-      ],
-      "published_at": "2026-04-15T18:19:52Z",
-      "published_ts": 1776277192.0,
-      "age_minutes": 244.6,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Benzinga"
-      ],
-      "source_tier": "TIER_2",
-      "source_rank": 2,
-      "category": "ipo",
-      "event_class": "IPO",
-      "event_label": "Amazon Vs. SpaceX Space Race Heats Up At Difficult Time For Musk's Upcoming IPO - Amazon.com (NASDAQ:AMZN",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.8,
-      "clarity": 0.7,
-      "relevance": 0.82,
-      "news_catalyst_score": 0.4768,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.benzinga.com/markets/prediction-markets/26/04/51841288/amazon-vs-spacex-space-race-heats-up-at-difficult-time-for-musks-upcoming-ipo",
-      "first_seen_at": "2026-04-15T20:27:19.353475Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
       "story_key": "5e276d5b5af104b33ba147393d9d2631f5119286:5920848",
       "headline": "Transcript: Johnson & Johnson Q1 2026 Earnings Conference Call - Johnson & Johnson (NYSE:JNJ)",
       "tickers": [
@@ -127,7 +89,7 @@
       ],
       "published_at": "2026-04-15T12:01:45Z",
       "published_ts": 1776254505.0,
-      "age_minutes": 622.7,
+      "age_minutes": 669.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -165,7 +127,7 @@
       ],
       "published_at": "2026-04-15T12:01:11Z",
       "published_ts": 1776254471.0,
-      "age_minutes": 623.3,
+      "age_minutes": 670.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -203,7 +165,7 @@
       ],
       "published_at": "2026-04-15T14:40:00Z",
       "published_ts": 1776264000.0,
-      "age_minutes": 464.5,
+      "age_minutes": 511.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -241,7 +203,7 @@
       ],
       "published_at": "2026-04-15T12:53:12Z",
       "published_ts": 1776257592.0,
-      "age_minutes": 571.3,
+      "age_minutes": 618.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -272,6 +234,44 @@
       "provider_count": 1
     },
     {
+      "story_key": "288a573aabbbccec0a09586853945dc68b76ec6f:5920923",
+      "headline": "Amazon Vs. SpaceX Space Race Heats Up At Difficult Time For Musk's Upcoming IPO - Amazon.com (NASDAQ:AMZN",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_at": "2026-04-15T18:19:52Z",
+      "published_ts": 1776277192.0,
+      "age_minutes": 291.5,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "category": "ipo",
+      "event_class": "IPO",
+      "event_label": "Amazon Vs. SpaceX Space Race Heats Up At Difficult Time For Musk's Upcoming IPO - Amazon.com (NASDAQ:AMZN",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.8,
+      "clarity": 0.7,
+      "relevance": 0.82,
+      "news_catalyst_score": 0.4317,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://www.benzinga.com/markets/prediction-markets/26/04/51841288/amazon-vs-spacex-space-race-heats-up-at-difficult-time-for-musks-upcoming-ipo",
+      "first_seen_at": "2026-04-15T20:27:19.353475Z",
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
       "story_key": "ee4057ffbf3079db1585526e50061a24e528c3d7:5920835",
       "headline": "Data Center Boom Might Be A New Inflation Variable For The Fed - Amazon.com (NASDAQ:AMZN), BlackRock (NYS",
       "tickers": [
@@ -279,7 +279,7 @@
       ],
       "published_at": "2026-04-15T10:59:34Z",
       "published_ts": 1776250774.0,
-      "age_minutes": 684.9,
+      "age_minutes": 731.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -317,7 +317,7 @@
       ],
       "published_at": "2026-04-15T13:41:37Z",
       "published_ts": 1776260497.0,
-      "age_minutes": 522.8,
+      "age_minutes": 569.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -355,7 +355,7 @@
       ],
       "published_at": "2026-04-15T20:14:37Z",
       "published_ts": 1776284077.0,
-      "age_minutes": 129.8,
+      "age_minutes": 176.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -376,7 +376,7 @@
       "impact": 0.1,
       "clarity": 0.6,
       "relevance": 0.475,
-      "news_catalyst_score": 0.2624,
+      "news_catalyst_score": 0.2486,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
@@ -393,7 +393,7 @@
       ],
       "published_at": "2026-04-15T20:14:37Z",
       "published_ts": 1776284077.0,
-      "age_minutes": 129.8,
+      "age_minutes": 176.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -414,7 +414,7 @@
       "impact": 0.1,
       "clarity": 0.6,
       "relevance": 0.475,
-      "news_catalyst_score": 0.2624,
+      "news_catalyst_score": 0.2486,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
@@ -431,7 +431,7 @@
       ],
       "published_at": "2026-04-15T17:35:48Z",
       "published_ts": 1776274548.0,
-      "age_minutes": 288.7,
+      "age_minutes": 335.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -452,7 +452,7 @@
       "impact": 0.1,
       "clarity": 0.8,
       "relevance": 0.535,
-      "news_catalyst_score": 0.225,
+      "news_catalyst_score": 0.2193,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
@@ -469,7 +469,7 @@
       ],
       "published_at": "2026-04-15T15:49:04Z",
       "published_ts": 1776268144.0,
-      "age_minutes": 395.4,
+      "age_minutes": 442.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -507,7 +507,7 @@
       ],
       "published_at": "2026-04-15T01:22:32Z",
       "published_ts": 1776216152.0,
-      "age_minutes": 1261.9,
+      "age_minutes": 1308.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -538,44 +538,6 @@
       "provider_count": 1
     },
     {
-      "story_key": "6f3b87e05a0362de3f0fdcde823ab99953cf2a1c:5920923",
-      "headline": "Microsoft (MSFT) Stock Surges 4% After Securing Norway Data Center Deal from OpenAI - Blockonomi",
-      "tickers": [
-        "MSFT"
-      ],
-      "published_at": "2026-04-15T18:15:46Z",
-      "published_ts": 1776276946.0,
-      "age_minutes": 248.7,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Blockonomi"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Microsoft (MSFT) Stock Surges 4% After Securing Norway Data Center Deal from OpenAI - Blockonomi",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.8,
-      "relevance": 0.535,
-      "news_catalyst_score": 0.2142,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://blockonomi.com/microsoft-msft-stock-surges-4-after-securing-norway-data-center-deal-from-openai/",
-      "first_seen_at": "2026-04-15T20:27:19.353475Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
       "story_key": "f30ee1ee0d22fadd6c2c21371bdad4e6724be8c1:5920914",
       "headline": "Will Amazon Make A New All-Time High? - Amazon.com (NASDAQ:AMZN)",
       "tickers": [
@@ -583,7 +545,7 @@
       ],
       "published_at": "2026-04-15T17:31:32Z",
       "published_ts": 1776274292.0,
-      "age_minutes": 292.9,
+      "age_minutes": 339.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -604,7 +566,7 @@
       "impact": 0.1,
       "clarity": 0.6,
       "relevance": 0.475,
-      "news_catalyst_score": 0.1977,
+      "news_catalyst_score": 0.1946,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
@@ -621,7 +583,7 @@
       ],
       "published_at": "2026-04-15T17:16:36Z",
       "published_ts": 1776273396.0,
-      "age_minutes": 307.9,
+      "age_minutes": 354.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -659,7 +621,7 @@
       ],
       "published_at": "2026-04-15T16:14:45Z",
       "published_ts": 1776269685.0,
-      "age_minutes": 369.7,
+      "age_minutes": 416.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -697,7 +659,7 @@
       ],
       "published_at": "2026-04-15T16:08:50Z",
       "published_ts": 1776269330.0,
-      "age_minutes": 375.6,
+      "age_minutes": 422.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -735,7 +697,7 @@
       ],
       "published_at": "2026-04-15T09:59:20Z",
       "published_ts": 1776247160.0,
-      "age_minutes": 745.1,
+      "age_minutes": 792.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -773,7 +735,7 @@
       ],
       "published_at": "2026-04-15T09:58:53Z",
       "published_ts": 1776247133.0,
-      "age_minutes": 745.6,
+      "age_minutes": 792.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -804,6 +766,44 @@
       "provider_count": 1
     },
     {
+      "story_key": "6f3b87e05a0362de3f0fdcde823ab99953cf2a1c:5920923",
+      "headline": "Microsoft (MSFT) Stock Surges 4% After Securing Norway Data Center Deal from OpenAI - Blockonomi",
+      "tickers": [
+        "MSFT"
+      ],
+      "published_at": "2026-04-15T18:15:46Z",
+      "published_ts": 1776276946.0,
+      "age_minutes": 295.6,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Blockonomi"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Microsoft (MSFT) Stock Surges 4% After Securing Norway Data Center Deal from OpenAI - Blockonomi",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "news_catalyst_score": 0.1937,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://blockonomi.com/microsoft-msft-stock-surges-4-after-securing-norway-data-center-deal-from-openai/",
+      "first_seen_at": "2026-04-15T20:27:19.353475Z",
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
       "story_key": "758880f424781b353f3fba40008f63b3a2ef5118:5920908",
       "headline": "Amazon's (NASDAQ: AMZN) Stock Price Drops 1% Amid $11.57 Billion Globalstar Deal",
       "tickers": [
@@ -811,7 +811,7 @@
       ],
       "published_at": "2026-04-15T17:04:37Z",
       "published_ts": 1776272677.0,
-      "age_minutes": 319.8,
+      "age_minutes": 366.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -849,7 +849,7 @@
       ],
       "published_at": "2026-04-15T15:56:05Z",
       "published_ts": 1776268565.0,
-      "age_minutes": 388.4,
+      "age_minutes": 435.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -888,7 +888,7 @@
       ],
       "published_at": "2026-04-15T15:11:53Z",
       "published_ts": 1776265913.0,
-      "age_minutes": 432.6,
+      "age_minutes": 479.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -926,7 +926,7 @@
       ],
       "published_at": "2026-04-15T13:42:37Z",
       "published_ts": 1776260557.0,
-      "age_minutes": 521.8,
+      "age_minutes": 568.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -964,7 +964,7 @@
       ],
       "published_at": "2026-04-15T13:06:37Z",
       "published_ts": 1776258397.0,
-      "age_minutes": 557.8,
+      "age_minutes": 604.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1002,7 +1002,7 @@
       ],
       "published_at": "2026-04-15T11:35:42Z",
       "published_ts": 1776252942.0,
-      "age_minutes": 648.8,
+      "age_minutes": 695.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1040,7 +1040,7 @@
       ],
       "published_at": "2026-04-15T08:28:33Z",
       "published_ts": 1776241713.0,
-      "age_minutes": 835.9,
+      "age_minutes": 882.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1078,7 +1078,7 @@
       ],
       "published_at": "2026-04-15T03:59:31Z",
       "published_ts": 1776225571.0,
-      "age_minutes": 1104.9,
+      "age_minutes": 1151.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1109,44 +1109,6 @@
       "provider_count": 1
     },
     {
-      "story_key": "2728f7d9b2b2dbdd68cdd7f14a09beb1a762655c:5920923",
-      "headline": "Microsoft (MSFT) Stock Surges as Company Secures Norway Data Center Deal OpenAI Abandoned - Blockonomi",
-      "tickers": [
-        "MSFT"
-      ],
-      "published_at": "2026-04-15T18:16:03Z",
-      "published_ts": 1776276963.0,
-      "age_minutes": 248.4,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Blockonomi"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Microsoft (MSFT) Stock Surges as Company Secures Norway Data Center Deal OpenAI Abandoned - Blockonomi",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.1866,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://blockonomi.com/microsoft-msft-stock-surges-as-company-secures-norway-data-center-deal-openai-abandoned/",
-      "first_seen_at": "2026-04-15T20:27:19.353475Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
       "story_key": "9f55b686374205531bc839b8a20efc8e987674cf:5920864",
       "headline": "Trade Strategy For SPY, QQQ, AAPL, MSFT, NVDA, GOOGL, META, And TSLA",
       "tickers": [
@@ -1156,7 +1118,7 @@
       ],
       "published_at": "2026-04-15T13:20:29Z",
       "published_ts": 1776259229.0,
-      "age_minutes": 544.0,
+      "age_minutes": 590.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1187,6 +1149,44 @@
       "provider_count": 1
     },
     {
+      "story_key": "2728f7d9b2b2dbdd68cdd7f14a09beb1a762655c:5920923",
+      "headline": "Microsoft (MSFT) Stock Surges as Company Secures Norway Data Center Deal OpenAI Abandoned - Blockonomi",
+      "tickers": [
+        "MSFT"
+      ],
+      "published_at": "2026-04-15T18:16:03Z",
+      "published_ts": 1776276963.0,
+      "age_minutes": 295.3,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Blockonomi"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Microsoft (MSFT) Stock Surges as Company Secures Norway Data Center Deal OpenAI Abandoned - Blockonomi",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.1689,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://blockonomi.com/microsoft-msft-stock-surges-as-company-secures-norway-data-center-deal-openai-abandoned/",
+      "first_seen_at": "2026-04-15T20:27:19.353475Z",
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
       "story_key": "52338cb6ccf0dfd971b351be6a9c459fa86d9361:5920896",
       "headline": "Apple: Inventory Does Not Lie (NASDAQ:AAPL)",
       "tickers": [
@@ -1194,7 +1194,7 @@
       ],
       "published_at": "2026-04-15T16:04:35Z",
       "published_ts": 1776269075.0,
-      "age_minutes": 379.9,
+      "age_minutes": 426.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1232,7 +1232,7 @@
       ],
       "published_at": "2026-04-15T14:40:23Z",
       "published_ts": 1776264023.0,
-      "age_minutes": 464.1,
+      "age_minutes": 511.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1270,7 +1270,7 @@
       ],
       "published_at": "2026-04-15T13:54:12Z",
       "published_ts": 1776261252.0,
-      "age_minutes": 510.3,
+      "age_minutes": 557.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1309,7 +1309,7 @@
       ],
       "published_at": "2026-04-15T13:37:12Z",
       "published_ts": 1776260232.0,
-      "age_minutes": 527.3,
+      "age_minutes": 574.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1347,7 +1347,7 @@
       ],
       "published_at": "2026-04-15T12:35:33Z",
       "published_ts": 1776256533.0,
-      "age_minutes": 588.9,
+      "age_minutes": 635.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1385,7 +1385,7 @@
       ],
       "published_at": "2026-04-15T09:14:07Z",
       "published_ts": 1776244447.0,
-      "age_minutes": 790.3,
+      "age_minutes": 837.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1423,7 +1423,7 @@
       ],
       "published_at": "2026-04-15T04:48:45Z",
       "published_ts": 1776228525.0,
-      "age_minutes": 1055.7,
+      "age_minutes": 1102.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1461,7 +1461,7 @@
       ],
       "published_at": "2026-04-15T00:18:25Z",
       "published_ts": 1776212305.0,
-      "age_minutes": 1326.0,
+      "age_minutes": 1372.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1494,7 +1494,7 @@
   ],
   "news_catalyst_by_symbol": {
     "AAPL": {
-      "news_catalyst_score": 0.345,
+      "news_catalyst_score": 0.3393,
       "sentiment_label": "neutral",
       "event_class": "UNKNOWN",
       "event_label": "10 Information Technology Stocks Whale Activity In Today's Session - Apple (NASDAQ:AAPL), Advanced Micro",
@@ -1507,17 +1507,17 @@
       "story_key": "774d803ed05c794efec10cf2a486ebd219fa9fb8:5920915"
     },
     "AMZN": {
-      "news_catalyst_score": 0.5968,
+      "news_catalyst_score": 0.5531,
       "sentiment_label": "neutral",
-      "event_class": "IPO",
-      "event_label": "Amazon Vs. SpaceX Space Race Heats Up At Difficult Time For Musk's Upcoming IPO - Amazon.com (NASDAQ:AMZN",
+      "event_class": "OFFERING",
+      "event_label": "Amazon: A Once-In-A-Generation Opportunity That's Not Priced In (NASDAQ:AMZN)",
       "materiality": "LOW",
       "recency_bucket": "AGING",
-      "source_tier": "TIER_2",
+      "source_tier": "TIER_3",
       "mentions_24h": 12,
       "is_actionable": false,
       "first_provider": "newsapi_ai",
-      "story_key": "288a573aabbbccec0a09586853945dc68b76ec6f:5920923"
+      "story_key": "5ef6ccbe6d8cf02bf8da7847e991b3ebe2512196:5920858"
     },
     "JNJ": {
       "news_catalyst_score": 0.4659,
