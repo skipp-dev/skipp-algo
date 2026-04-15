@@ -24,6 +24,7 @@ surface_mode = input.string("Decision Brief", "View", options = ["Decision Brief
 show_table = input.bool(true, "Show Brief Panel", group = g_surface)
 show_risk_lines = input.bool(true, "Show Trade Plan", group = g_surface)
 show_state_bg = input.bool(false, "Highlight Live Setup", group = g_surface)
+compact_dashboard = input.bool(false, "Compact Dashboard", group = g_surface, tooltip = "WP-OV5: Show only 5 key rows for mobile or small screens. Overrides Decision Brief when enabled.")
 
 src_zone_active = input.source(close, "BUS ZoneActive", group = g_bus_lifecycle, display = display.none, tooltip = "Bind this section top-to-bottom to the matching hidden BUS series published by SMC Core.")
 src_armed = input.source(close, "BUS Armed", group = g_bus_lifecycle, display = display.none)
@@ -1296,7 +1297,19 @@ var table smc_dashboard = table.new(position.bottom_right, 2, 58, border_width =
 if show_table and barstate.islast
     color txt = chart.fg_color
     color header_bg = color.new(color.black, 100)
-    if surface_mode == "Decision Brief"
+    if compact_dashboard
+        // WP-OV5: 5-row compact dashboard for mobile / small screens
+        string lib_regime = mp.MARKET_REGIME
+        float lib_vix = mp.VIX_LEVEL
+        string market_line = lib_regime + ' · VIX ' + str.tostring(lib_vix, '#.#')
+        color market_bg = mp.TRADE_STATE == "BLOCKED" ? color.new(color.red, 70) : mp.TRADE_STATE == "DISCOURAGED" ? color.new(color.orange, 70) : color.new(color.teal, 80)
+        dashboard_row(smc_dashboard, 0, "SMC Compact", "Decision Brief", header_bg, txt)
+        dashboard_row(smc_dashboard, 1, "Market", market_line, market_bg, txt)
+        dashboard_row(smc_dashboard, 2, "Structure", dashboard_compact_structure_text(state_code, zone_code, lean_struct_row_code, reclaim_code), status_bg(setup_state), txt)
+        dashboard_row(smc_dashboard, 3, "Trust / Data", dashboard_compact_trust_text(lean_sq_row_code, lean_freshness_row_code, volume_data_row_code, micro_fresh_row_code, event_risk_row_code, ready_gate_row_code, strict_gate_row_code), status_bg(dashboard_compact_trust_state(lean_sq_row_code, lean_freshness_row_code, volume_data_row_code, micro_fresh_row_code)), txt)
+        dashboard_row(smc_dashboard, 4, "Risk Plan", dashboard_compact_risk_plan_text(actionable_state, src_trigger, src_stop_level, src_target_1, src_target_2), status_bg(actionable_state ? 5 : 0), txt)
+        table.clear(smc_dashboard, 0, 5, 1, 57)
+    else if surface_mode == "Decision Brief"
         // Market Context from Library
         string lib_regime = mp.MARKET_REGIME
         float lib_vix = mp.VIX_LEVEL

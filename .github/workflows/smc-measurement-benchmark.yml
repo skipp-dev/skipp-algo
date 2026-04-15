@@ -32,6 +32,13 @@ jobs:
           python scripts/run_smc_measurement_benchmark.py \
             --output-dir artifacts/ci/measurement_benchmark
 
+      - name: Generate performance reports
+        if: always()
+        run: |
+          for summary in artifacts/ci/measurement_benchmark/**/measurement_summary_*.json; do
+            [ -f "$summary" ] && python scripts/smc_performance_report.py "$summary" || true
+          done
+
       - name: Upload measurement benchmark artifacts
         if: always()
         uses: actions/upload-artifact@v7

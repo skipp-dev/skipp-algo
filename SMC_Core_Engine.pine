@@ -2491,13 +2491,13 @@ compose_trade_threshold_text(string trust_tier, int signal_quality_score) =>
 resolve_core_hero_color(string product_state) =>
     color hero_color = color.new(color.gray, 70)
     if product_state == 'ENTER LONG'
-        hero_color := color.new(color.green, 55)
+        hero_color := BULL_HERO
     else if product_state == 'READY LONG'
-        hero_color := color.new(color.teal, 60)
+        hero_color := BULL_HERO_READY
     else if product_state == 'PREPARE LONG'
         hero_color := color.new(color.orange, 60)
     else if product_state == 'BLOCKED'
-        hero_color := color.new(color.red, 60)
+        hero_color := BEAR_HERO
     hero_color
 
 compose_core_hero_text(string product_state, string bias_text, string trade_threshold_text, string trust_tier, string trust_suffix, string provider_state, string why_now, string main_risk, string market_regime, bool regime_blocks, bool regime_dims, string asof_display, float vix_level, string market_event, string tone_text, bool yield_inverted, string sector_leading, bool breaking_news, int high_impact_count) =>
@@ -3375,6 +3375,16 @@ var g_mode = '1. Core Setup'
 var ct.SignalMode signal_mode = input.enum(ct.SignalMode.CONFIRMED_ONLY, 'Signal Mode', group = g_mode, tooltip = 'Choose between safer closed-bar confirmation and faster realtime updates. Confirmed only is the safer non-repainting mode. Aggressive live allows intrabar high/low driven updates and alerts, so states can change before candle close, are not fully reconstructable after reload, and should be treated as realtime-only until the bar confirms.', display = display.status_line)
 var string long_user_preset = input.string('Standard', 'Trading Style', options = ['Easy', 'Standard', 'Pro'], group = g_mode, tooltip = 'Primary Lite operating layer. Easy keeps the long engine permissive and easier to operate. Standard preserves the current balanced workflow. Pro enables stricter lifecycle and execution gating for cleaner but rarer setups.', display = display.status_line)
 var bool compact_mode = input.bool(true, 'Focus View', group = g_mode, tooltip = 'Default first-run surface for solo operation or sharing. Suppresses debug overlays and keeps a single decision-first surface. Engine logic is unchanged; only the visible surface is reduced.')
+var string color_theme = input.string('Standard', 'Color Theme', options = ['Standard', 'Colorblind Safe'], group = g_mode, tooltip = 'Standard uses the classic red/green palette. Colorblind Safe replaces bull/bear colors with a blue/orange palette optimised for deuteranopia and protanopia. Warning/stale colors are unchanged.')
+
+// ── Central color palette (WP-OV4) ────────────────────────────
+var color BULL_PRIMARY     = color_theme == 'Colorblind Safe' ? #1f77b4 : #089981
+var color BEAR_PRIMARY     = color_theme == 'Colorblind Safe' ? #ff7f0e : #f23645
+var color BULL_ZONE        = color_theme == 'Colorblind Safe' ? color.new(#1f77b4, 80) : color.new(#089981, 80)
+var color BEAR_ZONE        = color_theme == 'Colorblind Safe' ? color.new(#ff7f0e, 80) : color.new(#f23645, 80)
+var color BULL_HERO        = color_theme == 'Colorblind Safe' ? color.new(#1f77b4, 55) : color.new(color.green, 55)
+var color BULL_HERO_READY  = color_theme == 'Colorblind Safe' ? color.new(#1f77b4, 60) : color.new(color.teal, 60)
+var color BEAR_HERO        = color_theme == 'Colorblind Safe' ? color.new(#ff7f0e, 60) : color.new(color.red, 60)
 
 var g_output = '2. Output'
 var bool show_dashboard = input.bool(true, 'Show Decision Brief', group = g_output, tooltip = 'Shows the linked decision brief surface. The core remains the only Lite-primary surface; this toggle adds explanatory context only.')
@@ -3848,8 +3858,8 @@ var bool ddvi_close_safe_only = input.bool(true, 'DDVI events close-safe only', 
 var g_struct = '24. Advanced - Market Structure'
 var bool show_Structure = input.bool(false, 'Show Market Structure', group = g_struct, display = display.none, tooltip = 'Display market structure.')
 var string show_bull = input.string('All', 'Bullish Structure', options = ['All', 'BOS', 'CHoCH'], group = g_struct, inline = 'bull', display = display.none)
-var color bull_css = input.color(#089981, '', group = g_struct, inline = 'bull', display = display.none)
-var color bear_css = input.color(#f23645, '', group = g_struct, inline = 'bear', display = display.none)
+var color bull_css = color_theme == 'Colorblind Safe' ? #1f77b4 : input.color(#089981, '', group = g_struct, inline = 'bull', display = display.none)
+var color bear_css = color_theme == 'Colorblind Safe' ? #ff7f0e : input.color(#f23645, '', group = g_struct, inline = 'bear', display = display.none)
 var bool show_swing_points = input.bool(false, 'Show Swing Points (HH/LH/HL/LL)', group = g_struct, inline = 'swings', display = display.none, tooltip = 'Display swing points as labels on the chart.')
 var int swing_length = input.int(DEFAULT_SWING_LENGTH, 'Swing Size', minval = 10, group = g_struct, inline = 'swings', display = display.none)
 var bool show_internals = input.bool(false, 'Show Internal Structure', group = g_struct, inline = 'internals', display = display.none)
@@ -5103,13 +5113,13 @@ if not na(ta.barssince(internal_structure_break_detected))
 var color bull_internal_css = color.new(bull_css, 78)
 var color bear_internal_css = color.new(bear_css, 78)
 
-var color long_color_zone = color.aqua
+var color long_color_zone = color_theme == 'Colorblind Safe' ? color.new(#1f77b4, 40) : color.aqua
 var color long_color_reclaim = color.orange
 var color long_color_reversal = color.yellow
 var color long_color_building = color.rgb(212, 170, 34)
-var color long_color_confirmed = color.lime
-var color long_color_ready = color.green
-var color long_color_invalid = color.red
+var color long_color_confirmed = color_theme == 'Colorblind Safe' ? #1f77b4 : color.lime
+var color long_color_ready = color_theme == 'Colorblind Safe' ? color.new(#1f77b4, 20) : color.green
+var color long_color_invalid = color_theme == 'Colorblind Safe' ? #ff7f0e : color.red
 
 bool show_internal_bull_bos = false
 if show_internals and (show_bull == 'All' or show_bull == 'BOS')
@@ -6223,8 +6233,15 @@ if barstate.islast and compact_mode
     string core_market_event = mp.HIGH_IMPACT_MACRO_TODAY ? (lib_macro_event_name + ' ' + lib_macro_event_time) : 'No event'
     string core_tone_text = lib_tone + ' · Heat ' + str.tostring(lib_global_heat, '#.##')
     string core_hero_text = compose_core_hero_text(core_product_state, core_bias_text, core_trade_threshold, core_trust_tier, core_trust_suffix, core_provider_state, core_why_now, core_main_risk, mp.MARKET_REGIME, lib_regime_blocked, lib_regime_dimmed, lib_asof_display, lib_vix_level, core_market_event, core_tone_text, lib_yield_inverted, lib_sector_leading, is_breaking_news, lib_high_impact_news_count)
+    string core_hero_display = core_hero_text
+    if compact_mode
+        // WP-OV5: 6-line compact hero — Action, Bias, Confidence, Trust, VIX, Main blocker
+        string _cb_action = core_product_state
+        if (core_product_state == 'WAIT' or core_product_state == 'BLOCKED') and (lib_regime_blocked or lib_regime_dimmed)
+            _cb_action := core_product_state + ' (' + mp.MARKET_REGIME + ')'
+        core_hero_display := 'Action: ' + _cb_action + '\nBias: ' + core_bias_text + '\nConfidence: ' + core_trade_threshold + '\nTrust: ' + (core_trust_suffix != '' ? core_trust_tier + ' (' + core_trust_suffix + ')' : core_trust_tier) + '\nVIX: ' + str.tostring(lib_vix_level, '#.##') + '\nMain blocker: ' + core_main_risk
     float core_hero_y = high + nz(atr, high * 0.01) * 1.15
-    core_hero_card := label.new(bar_index, core_hero_y, core_hero_text, color = resolve_core_hero_color(core_product_state), textcolor = color.white, style = label.style_label_left, size = size.small)
+    core_hero_card := label.new(bar_index, core_hero_y, core_hero_display, color = resolve_core_hero_color(core_product_state), textcolor = color.white, style = label.style_label_left, size = size.small)
 else if barstate.islast and not na(core_hero_card)
     label.delete(core_hero_card)
 
