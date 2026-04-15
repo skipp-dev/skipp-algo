@@ -1,78 +1,76 @@
 # Post-Split Validation Report — WP-SPLIT1–4
 
-**Baseline frozen:** `ba308b06` (`test(smc): harden regression tests for post-split module boundaries`)  
-**Split commit:** `7d769bfb` (`refactor(smc): split Core Engine into modular libraries (WP-SPLIT1–4)`)  
-**Working tree:** clean  
-**No broad regression cleanup was performed.** Only split-caused boundary failures were fixed.
+**Split commit:** [`7d769bfb`](https://github.com/skippALGO/skipp-algo/commit/7d769bfbebc0) (`refactor(smc): split Core Engine into modular libraries (WP-SPLIT1–4)`)  
+**Report generated against:** HEAD after rebase onto `9a5b2c4f`  
+**Working tree:** clean
 
 ---
 
-## Split Status
+## Summary
 
-The Core Engine was split from 6312 → 5474 LOC across 4 work packages:
+The SMC Core Engine (`SMC_Core_Engine.pine`) was split from **6 312 LOC → 5 474 LOC** (−838 lines extracted) across four work packages. All extracted code was moved into dedicated Pine Script v6 libraries under `SMC++/`. The Core Engine retains all runtime logic; extracted modules contain pure helper types, methods, and resolver functions.
 
-| WP | Library | Alias | Content |
-|----|---------|-------|---------|
-| WP-SPLIT1 | `SMC++/smc_context_resolvers.pine` | `cr` | ~73 exported pure resolver and BUS packing functions |
-| WP-SPLIT2 | `SMC++/smc_profile_engine.pine` | `pe` | Bucket, ProfileConfig, Profile types + methods (~372 LOC) |
-| WP-SPLIT3 | `SMC++/smc_utils.pine` (extended) | `u` | 7 embedded helpers (smc_lib_atr, smc_lib_ehma, etc.) |
-| WP-SPLIT4 | — | — | Deleted `legacy/SMC++.pine`, updated string refs `'SMC++'` → `'SMC'` |
+No production-logic changes were made during the split. All modifications were mechanical extraction + import wiring.
+
+---
+
+## Modules Created
+
+| WP | Library | Import Alias | Content |
+|----|---------|:------------:|---------|
+| WP-SPLIT1 | `SMC++/smc_context_resolvers.pine` | `cr` | ~73 exported pure context-resolver and BUS-packing functions |
+| WP-SPLIT2 | `SMC++/smc_profile_engine.pine` | `pe` | `Bucket`, `ProfileConfig`, `Profile` types + 8 methods + 8 standalone helpers (~372 LOC) |
+| WP-SPLIT3 | `SMC++/smc_utils.pine` (extended) | `u` | 7 embedded helpers added: `smc_lib_atr`, `smc_lib_ehma`, `smc_lib_thma`, `smc_lib_get_ma`, `smc_lib_bb`, `smc_lib_dmi`, `smc_lib_detect_divergence` |
+| WP-SPLIT4 | *(cleanup)* | — | Deleted `legacy/SMC++.pine`, updated string refs `'SMC++'` → `'SMC'` |
 
 ---
 
 ## Test Results
 
+Verified by running `pytest` against the current working tree:
+
 | File | Tests | Passed | Failed |
 |------|------:|-------:|-------:|
 | `test_tradingview_decision_first_ui.py` | 22 | 22 | 0 |
-| `test_smc_core_engine_split.py` | 19 | 19 | 0 |
-| `test_smc_core_engine_semantic_contract.py` | 21 | 21 | 0 |
 | `test_smc_bus_v2_semantics.py` | 15 | 15 | 0 |
-| `test_smc_long_dip_regressions.py` | 69 | 39 | **30** |
-| **Total** | **146** | **116** | **30** |
+| `test_smc_core_engine_semantic_contract.py` | 21 | 21 | 0 |
+| `test_smc_core_engine_split.py` | 21 | 21 | 0 |
+| **Split-impacted total** | **79** | **79** | **0** |
 
-All 4 split-specific test files pass cleanly.  
-All 30 remaining failures are in `test_smc_long_dip_regressions.py`.
+All 79 split-impacted tests pass. The split-test file grew from 19 → 21 tests after two export-surface tests were added post-split (`test_profile_engine_exports_types_and_methods`, `test_utils_exports_moved_helpers`).
 
----
-
-## Split-Caused Failures — Fixed
-
-3 failures were directly caused by WP-SPLIT extractions and have been resolved:
-
-| Test | Root Cause | Fix Applied |
-|------|-----------|-------------|
-| `test_atr_helper_uses_deterministic_warmup_accumulator` | `smc_lib_atr` definition moved to `smc_utils.pine` (WP-SPLIT3) | Body assertions → `_read_utils_source()`, added `u.smc_lib_atr(` call-site check on core |
-| `test_udt_render_and_draw_helpers_guard_na_before_field_access` | `Profile.delete` moved to `smc_profile_engine.pine` (WP-SPLIT2) | Profile assertions → `_read_profile_engine_source()`, OrderBlock assertions stay on core |
-| `test_profile_and_track_obs_use_defensive_semantic_helpers` | 7 helper definitions moved to `smc_profile_engine.pine` (WP-SPLIT2) | Definition assertions → `_read_profile_engine_source()`, call-site assertions updated to `pe.` prefix |
-
-Test helpers added (each reads exactly one file):
-- `_read_resolver_source()` → `SMC++/smc_context_resolvers.pine`
-- `_read_utils_source()` → `SMC++/smc_utils.pine`
-- `_read_profile_engine_source()` → `SMC++/smc_profile_engine.pine`
+Three tests that initially broke due to WP-SPLIT extractions were fixed by adding architecture-aware library readers and redirecting assertions to the owning library source (commit `60b016ec`).
 
 ---
 
-## Pre-Existing Regression Debt — 30 Open
+## Known Gaps
 
-These assertions were already stale before WP-SPLIT1–4. They reflect Core Engine evolution since the legacy `SMC++.pine` snapshot the tests were written against. **None are split-caused.**
+`tests/test_smc_long_dip_regressions.py` — **30 failed, 39 passed** (69 total):
 
-| Category | Count | Examples |
-|----------|------:|---------|
-| Variable renamed | 7 | `long_arm_locked_source_id` → `helper_long_arm_locked_source_id` |
-| Function removed/renamed | 6 | `db_trend_text(`, `compute_overhead_context()`, `resolve_long_visual_text()` |
-| Literal → computed | 5 | `bool armed_prequality_ok = true` → `compute_long_arm_prequality_ok(…)` |
-| Code refactored | 5 | invalidation string patterns, arm_source_kind comparisons |
-| Alert system overhauled | 3 | preset definitions, close-safe events, debounced events |
-| Indicator/resource changed | 2 | title `"SMC++"` → `"SMC Long-Dip Suite v7"`, `max_labels_count` 500 → 300 |
-| Text evolved | 2 | tooltip text, freshness/quality text strings |
+All 30 failures are **pre-existing**. They reflect Core Engine evolution since the legacy `SMC++.pine` snapshot the regression tests were originally written against. None are caused by WP-SPLIT1–4.
+
+| Root Cause | Count |
+|------------|------:|
+| Variable renamed (e.g. `helper_` prefix) | 7 |
+| Function removed / renamed | 6 |
+| Literal → computed (inline bool → function call) | 5 |
+| Code refactored (pattern restructured) | 5 |
+| Alert system overhauled | 3 |
+| Metadata / indicator identity changed | 2 |
+| Text evolved (tooltips, debug strings) | 2 |
+
+A detailed triage with 6 proposed follow-up packs is tracked in [`docs/regression_triage_packs.md`](regression_triage_packs.md).
 
 ---
 
-## Next Steps
+## Open Items
 
-1. **Batch-update the 30 pre-existing failures** in a dedicated pass (separate from split work):
-   - Group by evolution kind
-   - Update assertions to match current Core Engine code
-   - Delete tests whose contract is no longer relevant
-2. **Add `test_profile_engine_exports_types_methods_and_helpers()`** to guard the `smc_profile_engine` export surface (WP-SPLIT2 audit finding R2)
+The following private libraries are validated at working-tree level but their split migration is not yet closed in the repo:
+
+| Library | Status | Remediation Tracked In |
+|---------|--------|----------------------|
+| `SMC++/smc_lifecycle_private.pine` | Source exists, TradingView binding pending | [`tradingview-split-remediation-plan.md`](tradingview-split-remediation-plan.md) |
+| `SMC++/smc_bus_private.pine` | Bus publish lane green on current code | [`tradingview-split-remediation-plan.md`](tradingview-split-remediation-plan.md) |
+| `SMC++/smc_observability_private.pine` | Source exists, publish lane pending | [`tradingview-split-remediation-plan.md`](tradingview-split-remediation-plan.md) |
+
+These are tracked separately because they require TradingView-side publish + binding verification, which is outside the scope of the code-level split validated here.
