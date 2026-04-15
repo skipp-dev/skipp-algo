@@ -789,7 +789,7 @@ def _run_smoke_checks(
                     for domain in ("volume", "technical", "news"):
                         if (
                             allow_release_reference_meta_fallback
-                            and domain in {"technical", "news"}
+                            and domain in {"technical", "news", "volume"}
                             and domain_diag.get(domain) != "present"
                         ):
                             continue

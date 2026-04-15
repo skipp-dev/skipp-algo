@@ -77,7 +77,6 @@ def test_release_runner_is_fail_closed_on_core_failures(monkeypatch) -> None:
                 core_engine="SMC_Core_Engine.pine",
                 measurement_output_root=None,
                 measurement_baseline_summary=None,
-                strict_measurement_shadow=False,
                 output="-",
             )
         ),
@@ -123,7 +122,6 @@ def test_release_runner_report_and_exit_are_deterministic(monkeypatch) -> None:
                 core_engine="SMC_Core_Engine.pine",
                 measurement_output_root=None,
                 measurement_baseline_summary=None,
-                strict_measurement_shadow=False,
                 output="-",
             )
         ),
@@ -170,7 +168,6 @@ def test_release_runner_skips_publish_contract_gate_when_requested(monkeypatch) 
                 core_engine="SMC_Core_Engine.pine",
                 measurement_output_root=None,
                 measurement_baseline_summary=None,
-                strict_measurement_shadow=False,
                 output="-",
             )
         ),
@@ -217,7 +214,6 @@ def test_release_runner_surfaces_provider_domain_alerts(monkeypatch) -> None:
                 core_engine="SMC_Core_Engine.pine",
                 measurement_output_root=None,
                 measurement_baseline_summary=None,
-                strict_measurement_shadow=False,
                 output="-",
             )
         ),
@@ -290,7 +286,6 @@ def test_release_runner_adds_post_release_validation_gate_when_report_is_provide
                 core_engine="SMC_Core_Engine.pine",
                 measurement_output_root=None,
                 measurement_baseline_summary=None,
-                strict_measurement_shadow=False,
                 post_release_validation_report=str(report_path),
                 output="-",
             )
@@ -537,3 +532,219 @@ def test_soft_warn_thresholds_are_configurable() -> None:
     assert hasattr(defaults, "soft_warn_min_event_coverage_ratio")
     assert defaults.soft_warn_max_brier_score == 0.30
     assert defaults.soft_warn_min_event_coverage_ratio == 0.50
+
+
+# ── Gate-chain structural invariants ───────────────────────────────
+
+
+def test_provider_health_gate_has_explicit_blocking_key(monkeypatch) -> None:
+    """provider_health gate must carry an explicit 'blocking' key (F2)."""
+    captured_reports: list[dict] = []
+
+    monkeypatch.setattr(
+        release_script,
+        "build_parser",
+        lambda: _Parser(
+            Namespace(
+                symbols="IBG",
+                timeframes="15m",
+                stale_after_seconds=3600,
+                fail_on_warn=False,
+                allow_warn=True,
+                skip_publish_contract=True,
+                manifest="pine/generated/smc_micro_profiles_generated.json",
+                core_engine="SMC_Core_Engine.pine",
+                measurement_output_root=None,
+                measurement_baseline_summary=None,
+                output="-",
+            )
+        ),
+    )
+    monkeypatch.setattr(release_script.time, "time", lambda: 1700000000.0)
+    monkeypatch.setattr(
+        release_script,
+        "run_provider_health_check",
+        lambda **kwargs: {
+            "overall_status": "ok",
+            "failures": [],
+            "warnings": [],
+            "degradations_detected": [],
+            "smoke_test_results": [{"symbol": "IBG", "timeframe": "15m"}],
+        },
+    )
+    monkeypatch.setattr(release_script, "_run_reference_bundle_gate", lambda symbol, timeframe, generated_at: {"name": "reference_bundle", "status": "ok", "details": {}})
+    monkeypatch.setattr(release_script, "_run_measurement_gate", lambda symbol, timeframe, output_root, report_output="-", **kwargs: {"name": "measurement_lane", "status": "ok", "blocking": False, "details": {}})
+    monkeypatch.setattr(release_script, "_render", lambda report, output: captured_reports.append(report))
+
+    release_script.main()
+
+    provider_gate = next(g for g in captured_reports[-1]["gates"] if g["name"] == "provider_health")
+    assert "blocking" in provider_gate
+    assert provider_gate["blocking"] is True
+
+
+def test_reference_bundle_evaluates_all_symbol_timeframe_pairs(monkeypatch) -> None:
+    """reference_bundle gate must check every symbol × timeframe pair (F3)."""
+    captured_reports: list[dict] = []
+    ref_calls: list[tuple[str, str]] = []
+
+    def _ref_stub(symbol, timeframe, generated_at):
+        ref_calls.append((symbol, timeframe))
+        return {"name": "reference_bundle", "status": "ok", "details": {"symbol": symbol, "timeframe": timeframe}}
+
+    monkeypatch.setattr(
+        release_script,
+        "build_parser",
+        lambda: _Parser(
+            Namespace(
+                symbols="AAPL,MSFT",
+                timeframes="15m,1H",
+                stale_after_seconds=3600,
+                fail_on_warn=False,
+                allow_warn=True,
+                skip_publish_contract=True,
+                manifest="pine/generated/smc_micro_profiles_generated.json",
+                core_engine="SMC_Core_Engine.pine",
+                measurement_output_root=None,
+                measurement_baseline_summary=None,
+                output="-",
+            )
+        ),
+    )
+    monkeypatch.setattr(release_script.time, "time", lambda: 1700000000.0)
+    monkeypatch.setattr(
+        release_script,
+        "run_provider_health_check",
+        lambda **kwargs: {
+            "overall_status": "ok",
+            "failures": [],
+            "warnings": [],
+            "degradations_detected": [],
+            "smoke_test_results": [
+                {"symbol": "AAPL", "timeframe": "15m"},
+                {"symbol": "AAPL", "timeframe": "1H"},
+                {"symbol": "MSFT", "timeframe": "15m"},
+                {"symbol": "MSFT", "timeframe": "1H"},
+            ],
+        },
+    )
+    monkeypatch.setattr(release_script, "_run_reference_bundle_gate", _ref_stub)
+    monkeypatch.setattr(release_script, "_run_measurement_gate", lambda symbol, timeframe, output_root, report_output="-", **kwargs: {"name": "measurement_lane", "status": "ok", "blocking": False, "details": {}})
+    monkeypatch.setattr(release_script, "_render", lambda report, output: captured_reports.append(report))
+
+    release_script.main()
+
+    assert len(ref_calls) == 4
+    assert set(ref_calls) == {("AAPL", "15m"), ("AAPL", "1H"), ("MSFT", "15m"), ("MSFT", "1H")}
+    ref_gate = next(g for g in captured_reports[-1]["gates"] if g["name"] == "reference_bundle")
+    assert ref_gate["details"]["pairs_checked"] == 4
+    assert len(ref_gate["details"]["pair_results"]) == 4
+
+
+def test_measurement_lane_evaluates_all_symbol_timeframe_pairs(monkeypatch) -> None:
+    """measurement_lane gate must check every symbol × timeframe pair (F4)."""
+    captured_reports: list[dict] = []
+    m_calls: list[tuple[str, str]] = []
+
+    def _m_stub(symbol, timeframe, output_root, report_output="-", **kwargs):
+        m_calls.append((symbol, timeframe))
+        return {"name": "measurement_lane", "status": "ok", "blocking": False, "details": {"symbol": symbol, "timeframe": timeframe}}
+
+    monkeypatch.setattr(
+        release_script,
+        "build_parser",
+        lambda: _Parser(
+            Namespace(
+                symbols="AAPL,MSFT",
+                timeframes="15m,1H",
+                stale_after_seconds=3600,
+                fail_on_warn=False,
+                allow_warn=True,
+                skip_publish_contract=True,
+                manifest="pine/generated/smc_micro_profiles_generated.json",
+                core_engine="SMC_Core_Engine.pine",
+                measurement_output_root=None,
+                measurement_baseline_summary=None,
+                output="-",
+            )
+        ),
+    )
+    monkeypatch.setattr(release_script.time, "time", lambda: 1700000000.0)
+    monkeypatch.setattr(
+        release_script,
+        "run_provider_health_check",
+        lambda **kwargs: {
+            "overall_status": "ok",
+            "failures": [],
+            "warnings": [],
+            "degradations_detected": [],
+            "smoke_test_results": [
+                {"symbol": "AAPL", "timeframe": "15m"},
+                {"symbol": "AAPL", "timeframe": "1H"},
+                {"symbol": "MSFT", "timeframe": "15m"},
+                {"symbol": "MSFT", "timeframe": "1H"},
+            ],
+        },
+    )
+    monkeypatch.setattr(release_script, "_run_reference_bundle_gate", lambda symbol, timeframe, generated_at: {"name": "reference_bundle", "status": "ok", "details": {}})
+    monkeypatch.setattr(release_script, "_run_measurement_gate", _m_stub)
+    monkeypatch.setattr(release_script, "_render", lambda report, output: captured_reports.append(report))
+
+    release_script.main()
+
+    assert len(m_calls) == 4
+    assert set(m_calls) == {("AAPL", "15m"), ("AAPL", "1H"), ("MSFT", "15m"), ("MSFT", "1H")}
+    m_gate = next(g for g in captured_reports[-1]["gates"] if g["name"] == "measurement_lane")
+    assert m_gate["details"]["pairs_checked"] == 4
+    assert m_gate["blocking"] is False
+
+
+def test_missing_smoke_result_has_message(monkeypatch) -> None:
+    """MISSING_SMOKE_RESULT entries must carry a human-readable message (F6)."""
+    captured_reports: list[dict] = []
+
+    monkeypatch.setattr(
+        release_script,
+        "build_parser",
+        lambda: _Parser(
+            Namespace(
+                symbols="AAPL",
+                timeframes="15m",
+                stale_after_seconds=3600,
+                fail_on_warn=False,
+                allow_warn=True,
+                skip_publish_contract=True,
+                manifest="pine/generated/smc_micro_profiles_generated.json",
+                core_engine="SMC_Core_Engine.pine",
+                measurement_output_root=None,
+                measurement_baseline_summary=None,
+                output="-",
+            )
+        ),
+    )
+    monkeypatch.setattr(release_script.time, "time", lambda: 1700000000.0)
+    # Return empty smoke_test_results so AAPL/15m is missing.
+    monkeypatch.setattr(
+        release_script,
+        "run_provider_health_check",
+        lambda **kwargs: {
+            "overall_status": "ok",
+            "failures": [],
+            "warnings": [],
+            "degradations_detected": [],
+            "smoke_test_results": [],
+        },
+    )
+    monkeypatch.setattr(release_script, "_run_reference_bundle_gate", lambda symbol, timeframe, generated_at: {"name": "reference_bundle", "status": "ok", "details": {}})
+    monkeypatch.setattr(release_script, "_run_measurement_gate", lambda symbol, timeframe, output_root, report_output="-", **kwargs: {"name": "measurement_lane", "status": "ok", "blocking": False, "details": {}})
+    monkeypatch.setattr(release_script, "_render", lambda report, output: captured_reports.append(report))
+
+    rc = release_script.main()
+
+    assert rc == 1  # provider_health gate fails because of missing smoke
+    provider_gate = next(g for g in captured_reports[-1]["gates"] if g["name"] == "provider_health")
+    missing = provider_gate["details"]["missing_smoke_failures"]
+    assert len(missing) == 1
+    assert missing[0]["code"] == "MISSING_SMOKE_RESULT"
+    assert "message" in missing[0]
+    assert "AAPL" in missing[0]["message"]

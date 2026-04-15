@@ -716,11 +716,6 @@ def build_parser() -> argparse.ArgumentParser:
         help="Optional evidence summary JSON used as historical baseline for measurement shadow comparisons.",
     )
     parser.add_argument(
-        "--strict-measurement-shadow",
-        action="store_true",
-        help="Promote measurement shadow degradations from warn-only to blocking failures.",
-    )
-    parser.add_argument(
         "--post-release-validation-report",
         default=None,
         help="Optional path to a normalized post-release validation report to evaluate as a blocking gate.",
@@ -763,6 +758,7 @@ def main() -> int:
             "code": "MISSING_SMOKE_RESULT",
             "symbol": row["symbol"],
             "timeframe": row["timeframe"],
+            "message": f"No smoke test result for {row['symbol']}/{row['timeframe']}; pair expected but absent in provider health report.",
         }
         for row in missing_smoke_pairs
     ]
@@ -771,6 +767,7 @@ def main() -> int:
         {
             "name": "provider_health",
             "status": "ok" if _status_ok_or_warn(provider_status, fail_on_warn=fail_on_warn) and not missing_smoke_failures else "fail",
+            "blocking": True,
             "details": {
                 "overall_status": provider_status,
                 "domain_alerts": provider_report.get("domain_alerts", []),
@@ -782,7 +779,20 @@ def main() -> int:
         }
     ]
 
-    gates.append(_run_reference_bundle_gate(symbols[0], timeframes[0], checked_at))
+    # Reference bundle gate — evaluate all symbol/timeframe pairs.
+    _ref_pair_results = [
+        _run_reference_bundle_gate(sym, tf, checked_at)
+        for sym in symbols for tf in timeframes
+    ]
+    _ref_any_fail = any(r.get("status") == "fail" for r in _ref_pair_results)
+    gates.append({
+        "name": "reference_bundle",
+        "status": "fail" if _ref_any_fail else "ok",
+        "details": {
+            "pairs_checked": len(_ref_pair_results),
+            "pair_results": [r.get("details", {}) for r in _ref_pair_results],
+        },
+    })
 
     if not args.skip_publish_contract:
         gates.append(_run_publish_contract_gate(args))
@@ -792,17 +802,29 @@ def main() -> int:
     if post_release_validation_report:
         gates.append(_run_post_release_validation_gate(str(post_release_validation_report)))
 
-    # Measurement gate — soft, non-blocking
-    gates.append(
+    # Measurement gate — soft, non-blocking.  Evaluate all pairs.
+    _m_pair_results = [
         _run_measurement_gate(
-            symbols[0],
-            timeframes[0],
+            sym,
+            tf,
             output_root=measurement_output_root,
             report_output=args.output,
             baseline_summary_path=args.measurement_baseline_summary,
-            strict_measurement_shadow=bool(args.strict_measurement_shadow),
         )
-    )
+        for sym in symbols for tf in timeframes
+    ]
+    _m_any_fail = any(r.get("status") == "fail" for r in _m_pair_results)
+    _m_any_blocking = any(r.get("blocking") for r in _m_pair_results)
+    _m_any_warn = any(r.get("status") == "warn" for r in _m_pair_results)
+    gates.append({
+        "name": "measurement_lane",
+        "status": "fail" if _m_any_fail else ("warn" if _m_any_warn else "ok"),
+        "blocking": _m_any_blocking,
+        "details": {
+            "pairs_checked": len(_m_pair_results),
+            "pair_results": [r.get("details", {}) for r in _m_pair_results],
+        },
+    })
 
     has_fail = any(gate.get("status") == "fail" for gate in gates if gate.get("blocking", True))
     overall_status = "fail" if has_fail else "ok"
@@ -826,7 +848,6 @@ def main() -> int:
             "post_release_validation_report": post_release_validation_report,
             "measurement_output_root": measurement_output_root.as_posix(),
             "measurement_baseline_summary": args.measurement_baseline_summary,
-            "strict_measurement_shadow": bool(args.strict_measurement_shadow),
             "exit_code": int(exit_code),
         },
         "runtime_metadata": runtime_metadata(),

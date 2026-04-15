@@ -1439,3 +1439,34 @@ def test_strict_release_promotes_stale_volume_to_failure(monkeypatch, tmp_path):
     promoted = [f for f in report["failures"] if f.get("code") == "STALE_META_VOLUME_DOMAIN"]
     assert len(promoted) == 1
     assert promoted[0].get("promoted_by") == "release_strict_policy"
+
+
+def test_smoke_volume_staleness_skipped_with_release_fallback(monkeypatch):
+    """When allow_release_reference_meta_fallback is True and volume domain is
+    not present, STALE_META_VOLUME_DOMAIN must NOT be emitted (F1)."""
+    def _loader(symbol, timeframe, source):
+        return {
+            "asof_ts": 995.0,
+            "meta_domain_diagnostics": {
+                # volume is missing (not "present") AND marked stale.
+                # With fallback enabled this should be silently skipped.
+                "volume": "missing",
+                "volume_stale": True, "volume_age_hours": 96.0, "volume_asof_ts": None,
+                "technical": "missing",
+                "technical_stale": True, "technical_age_hours": 72.0, "technical_asof_ts": None,
+                "news": "missing",
+                "news_stale": True, "news_age_hours": 120.0, "news_asof_ts": None,
+            },
+        }
+    _patch_smoke_env(monkeypatch, _loader)
+
+    smoke = provider_health._run_smoke_checks(
+        symbols=["AAPL"], timeframes=["15m"], checked_at=1_000.0,
+        stale_after_seconds=None,
+        allow_release_reference_meta_fallback=True,
+    )
+
+    emitted_codes = {r["code"] for r in smoke["degradations"]}
+    assert "STALE_META_VOLUME_DOMAIN" not in emitted_codes
+    assert "STALE_META_TECHNICAL_DOMAIN" not in emitted_codes
+    assert "STALE_META_NEWS_DOMAIN" not in emitted_codes
