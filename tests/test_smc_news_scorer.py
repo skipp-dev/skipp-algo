@@ -116,6 +116,10 @@ class TestReturnShape:
         assert set(result.keys()) == {
             "bullish_tickers", "bearish_tickers", "neutral_tickers",
             "news_heat_global", "ticker_heat_map",
+            # WP-NW4 fields
+            "news_category_map", "news_count_map",
+            "breaking_tickers", "high_impact_news_count",
+            "most_mentioned_ticker",
         }
 
 

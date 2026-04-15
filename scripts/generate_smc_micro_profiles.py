@@ -734,6 +734,12 @@ def write_pine_library(
     content.append(render_csv_export("NEWS_NEUTRAL_TICKERS", news.get("neutral_tickers") or []))
     content.append(f'export const float NEWS_HEAT_GLOBAL = {float(news.get("news_heat_global") or 0.0)}')
     content.append(render_csv_export("TICKER_HEAT_MAP", split_csv_string(news.get("ticker_heat_map") or "")))
+    # WP-NW4: category, count, breaking, most-mentioned fields
+    content.append(f'export const string NEWS_CATEGORY_MAP = "{news.get("news_category_map") or ""}"')
+    content.append(f'export const string NEWS_COUNT_MAP = "{news.get("news_count_map") or ""}"')
+    content.append(f'export const string BREAKING_NEWS_TICKERS = "{",".join(news.get("breaking_tickers") or [])}"')
+    content.append(f'export const int HIGH_IMPACT_NEWS_COUNT = {int(news.get("high_impact_news_count") or 0)}')
+    content.append(f'export const string MOST_MENTIONED_TICKER = "{news.get("most_mentioned_ticker") or ""}"')
     content.append("")
 
     # ── Calendar enrichment ─────────────────────────────────────

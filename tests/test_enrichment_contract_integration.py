@@ -142,6 +142,11 @@ def _full_enrichment() -> EnrichmentDict:
             "neutral_tickers": [],
             "news_heat_global": 0.35,
             "ticker_heat_map": "AAPL:0.8,META:0.5,TSLA:-0.6",
+            "news_category_map": "AAPL:earnings,META:growth,TSLA:regulatory",
+            "news_count_map": "AAPL:3,META:2,TSLA:1",
+            "breaking_tickers": [],
+            "high_impact_news_count": 0,
+            "most_mentioned_ticker": "AAPL",
         },
         "calendar": {
             "earnings_today_tickers": "AAPL",

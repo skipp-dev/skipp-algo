@@ -162,14 +162,22 @@ def classify_and_score(
     clarity = min(1.0, clarity)
 
     # Polarity: use headline plus optional snippet/context text.
+    # Fine-grained scoring (WP-NW1): continuous −1.0…+1.0 based on
+    # keyword density, net direction, and impact weight.
     polarity_text = _merge_text_fragments(headline, snippet)
-    pos = bool(POS_HINTS.search(polarity_text))
-    neg = bool(NEG_HINTS.search(polarity_text))
-    polarity = 0.0
-    if pos and not neg:
-        polarity = 0.5
-    elif neg and not pos:
-        polarity = -0.5
+    pos_matches = len(POS_HINTS.findall(polarity_text))
+    neg_matches = len(NEG_HINTS.findall(polarity_text))
+    if pos_matches == 0 and neg_matches == 0:
+        polarity = 0.0
+    else:
+        # Keyword strength: more matches → stronger signal (saturates at 4)
+        keyword_strength = min(1.0, (pos_matches + neg_matches) / 4.0)
+        # Net direction: ratio of positive vs. negative keywords
+        net_direction = (pos_matches - neg_matches) / max(pos_matches + neg_matches, 1)
+        # Impact multiplier: high-impact categories amplify polarity
+        impact_multiplier = 0.5 + (impact * 0.5)  # 0.50 – 1.0
+        polarity = net_direction * keyword_strength * impact_multiplier
+        polarity = max(-1.0, min(1.0, polarity))
 
     # Novelty: 1st occurrence = 1.0, decays per cluster hit
     novelty = max(0.15, min(1.0, 1.0 / (0.8 + 0.35 * (cluster_count - 1))))

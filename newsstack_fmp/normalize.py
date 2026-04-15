@@ -146,6 +146,38 @@ def normalize_fmp(provider: str, it: dict[str, Any]) -> NewsItem:
 
 # ── Benzinga REST ───────────────────────────────────────────────
 
+def normalize_benzinga_quantified(it: dict[str, Any]) -> NewsItem:
+    """Normalise one Benzinga quantified news item (WP-NW6).
+
+    Quantified items carry price-impact context (open_gap, range, volume)
+    which is preserved in the ``raw`` dict for downstream scoring.
+    """
+    item_id = str(it.get("id") or it.get("uuid") or "").strip()
+    headline = str(it.get("title") or it.get("headline") or "").strip()
+    snippet = str(it.get("teaser") or it.get("summary") or it.get("body") or "").strip()
+    url = it.get("url") or it.get("link") or None
+    source = str(it.get("source") or it.get("author") or "benzinga_quantified").strip()
+    tickers = _extract_tickers(it)
+
+    published = str(it.get("created") or it.get("published") or "").strip()
+    updated = str(it.get("updated") or published).strip()
+    pts = _to_epoch(published)
+    uts = _to_epoch(updated)
+
+    return NewsItem(
+        provider="benzinga_quantified",
+        item_id=item_id,
+        published_ts=pts,
+        updated_ts=uts,
+        headline=headline,
+        snippet=snippet[:500],
+        tickers=tickers,
+        url=str(url) if url else None,
+        source=source,
+        raw=it,
+    )
+
+
 def normalize_benzinga_rest(it: dict[str, Any]) -> NewsItem:
     """Normalise one Benzinga REST /api/v2/news item."""
     item_id = str(it.get("id") or it.get("uuid") or "").strip()

@@ -898,13 +898,11 @@ class TestProviderCountAndStale:
         assert merge_diag["live_directional_override_count"] == 1
         assert merge_diag["live_added_count"] == 1
         assert merge_diag["base_news_heat_global"] == pytest.approx(0.5)
-        assert rendered_diag == {
-            "news_heat_global": -0.5,
-            "symbol_count": 2,
-            "bullish_ticker_count": 0,
-            "bearish_ticker_count": 2,
-            "neutral_ticker_count": 0,
-        }
+        assert rendered_diag["symbol_count"] == 2
+        assert rendered_diag["bullish_ticker_count"] == 0
+        assert rendered_diag["bearish_ticker_count"] == 2
+        assert rendered_diag["neutral_ticker_count"] == 0
+        assert rendered_diag["news_heat_global"] < 0  # bearish after live override
 
     @patch("scripts.smc_v55_lean_normalization.normalize_v55_lean_enrichment", side_effect=lambda enrichment, snapshot=None: enrichment)
     @patch("scripts.smc_provider_policy.resolve_domain")

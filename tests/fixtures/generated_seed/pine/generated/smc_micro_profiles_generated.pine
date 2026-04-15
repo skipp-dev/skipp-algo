@@ -67,6 +67,11 @@ export const string NEWS_BEARISH_TICKERS = ""
 export const string NEWS_NEUTRAL_TICKERS = ""
 export const float NEWS_HEAT_GLOBAL = 0.0
 export const string TICKER_HEAT_MAP = ""
+export const string NEWS_CATEGORY_MAP = ""
+export const string NEWS_COUNT_MAP = ""
+export const string BREAKING_NEWS_TICKERS = ""
+export const int HIGH_IMPACT_NEWS_COUNT = 0
+export const string MOST_MENTIONED_TICKER = ""
 
 // ── Earnings & Macro Calendar ──
 export const string EARNINGS_TODAY_TICKERS = ""

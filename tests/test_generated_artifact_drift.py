@@ -177,8 +177,8 @@ class TestGeneratedArtifactDrift:
         # Event Risk / Session Context / Structure State fields.
         # v6 adds 20 new fields: Short Interest(4), Treasury(4), Sector Rotation(4),
         # Institutional(3), Analyst(3), Insider(2).
-        assert len(exports) == 155, (
-            f"Expected 155 export const fields for the current v6 shared-export contract, got {len(exports)}"
+        assert len(exports) == 160, (
+            f"Expected 160 export const fields for the current v6 shared-export contract, got {len(exports)}"
         )
 
     def test_event_risk_exports_stay_in_canonical_order(self, regenerated: Path):

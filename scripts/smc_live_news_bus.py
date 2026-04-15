@@ -14,6 +14,7 @@ from typing import Any
 
 from newsstack_fmp.common_types import NewsItem
 from newsstack_fmp.ingest_benzinga import BenzingaRestAdapter
+from newsstack_fmp.ingest_benzinga import fetch_benzinga_quantified_news as _fetch_benzinga_quantified
 from newsstack_fmp.ingest_fmp import FmpAdapter
 from newsstack_fmp.normalize import normalize_newsapi_ai
 from newsstack_fmp.scoring import classify_and_score, cluster_hash
@@ -30,7 +31,7 @@ logger = logging.getLogger(__name__)
 
 _SENSITIVE_QUERY_RE = re.compile(r"(apikey|api_key|token|key)=[^&\s]+", re.IGNORECASE)
 
-PROVIDER_ORDER = ("benzinga", "fmp_stock", "fmp_press", "fmp_articles", "newsapi_ai", "tv")
+PROVIDER_ORDER = ("benzinga", "benzinga_quantified", "fmp_stock", "fmp_press", "fmp_articles", "newsapi_ai", "tv")
 DEFAULT_STORY_WINDOW_SECONDS = 24 * 60 * 60
 DEFAULT_STATE_RETENTION_SECONDS = 7 * 24 * 60 * 60
 DEFAULT_MAX_STATE_STORIES = 5000
@@ -359,6 +360,38 @@ def fetch_live_news_benzinga(
         if (candidate := _candidate_from_news_item(item, provider_bucket="benzinga", provider_name="benzinga_rest", universe=universe)) is not None
     ]
     return ProviderPollResult(provider="benzinga", ok=True, items=candidates, raw_count=batch.raw_count, cursor=batch.cursor)
+
+
+def fetch_live_news_benzinga_quantified(
+    *,
+    api_key: str,
+    symbols: list[str],
+    cursor: float,
+    page_size: int,
+) -> ProviderPollResult:
+    """Fetch Benzinga quantified news (items with price-impact context) (WP-NW6)."""
+    if not api_key:
+        return _disabled_provider("benzinga_quantified", cursor=cursor, error="missing_api_key")
+    universe = set(symbols)
+    from newsstack_fmp.normalize import normalize_benzinga_quantified
+
+    try:
+        raw_items = _fetch_benzinga_quantified(api_key, page_size=page_size)
+    except Exception:
+        logger.warning("Benzinga quantified fetch failed", exc_info=True)
+        return _disabled_provider("benzinga_quantified", cursor=cursor, error="fetch_failed")
+
+    items = [normalize_benzinga_quantified(it) for it in raw_items if isinstance(it, dict)]
+    candidates = [
+        candidate
+        for item in items
+        if (candidate := _candidate_from_news_item(item, provider_bucket="benzinga_quantified", provider_name="benzinga_quantified", universe=universe)) is not None
+    ]
+    new_cursor = cursor
+    for candidate in candidates:
+        if candidate.published_ts > new_cursor:
+            new_cursor = candidate.published_ts
+    return ProviderPollResult(provider="benzinga_quantified", ok=True, items=candidates, raw_count=len(raw_items), cursor=new_cursor)
 
 
 def fetch_live_news_fmp_stock(
@@ -785,6 +818,18 @@ def poll_live_news_bus(
                     "api_key": benzinga_api_key,
                     "symbols": normalized_symbols,
                     "cursor": provider_cursors["benzinga"],
+                    "page_size": page_size,
+                },
+            )
+        )
+        fetch_specs.append(
+            (
+                "benzinga_quantified",
+                fetch_live_news_benzinga_quantified,
+                {
+                    "api_key": benzinga_api_key,
+                    "symbols": normalized_symbols,
+                    "cursor": provider_cursors["benzinga_quantified"],
                     "page_size": page_size,
                 },
             )
