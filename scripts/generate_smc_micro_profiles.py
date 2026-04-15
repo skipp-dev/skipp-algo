@@ -687,10 +687,14 @@ def write_pine_library(
         "//   Range Profile Regime (v5.3) — 22 fields",
         "//",
         "//   ── v5.5b Lean Surface (preferred) ──",
-        "//   Event Risk Light (v5.5b)      — 12 fields",
+        "//   Event Risk Light (v5.5b)      — 14 fields (incl. HIGH_RISK_EVENT_TICKERS, NEXT_EVENT_CLASS)",
         "//   Session Context Light (v5.5b) — 5 fields",
         "//   OB Context Light (v5.5b)      — 5 fields",
-        "//   FVG Lifecycle Light (v5.5b)   — 6 fields",
+        "//   OB Extended                   — 9 fields (per-side freshness, confluence, levels, bias)",
+        "//   FVG Lifecycle Light (v5.5b)   — 7 fields",
+        "//   Imbalance Lifecycle Extended  — 1 field (BPR_DIRECTION)",
+        "//   Liquidity Pools               — 2 fields (BUY_SIDE_POOL_LEVEL, BUY_SIDE_POOL_STRENGTH)",
+        "//   Liquidity Sweeps Extended     — 1 field (LIQUIDITY_TAKEN_DIRECTION)",
         "//   Structure State Light (v5.5b) — 4 fields",
         "//   Signal Quality (v5.5b)        — 5 fields",
         "//",
@@ -904,6 +908,8 @@ def write_pine_library(
     content.append(f'export const bool SYMBOL_EVENT_BLOCKED = {_pine_bool(symbol_event_blocked)}')
     content.append(f'export const string EARNINGS_SOON_TICKERS = "{er.get("EARNINGS_SOON_TICKERS", _ER_DEFAULTS["EARNINGS_SOON_TICKERS"])}"')
     content.append(f'export const string EVENT_PROVIDER_STATUS = "{event_provider_status}"')
+    content.append(f'export const string HIGH_RISK_EVENT_TICKERS = "{er.get("HIGH_RISK_EVENT_TICKERS", _ER_DEFAULTS["HIGH_RISK_EVENT_TICKERS"])}"')
+    content.append(f'export const string NEXT_EVENT_CLASS = "{er.get("NEXT_EVENT_CLASS", _ER_DEFAULTS["NEXT_EVENT_CLASS"])}"')
 
     # ── v5.5b Lean: Session Context Light ────────────────────────
     from scripts.smc_session_context_block import DEFAULTS as _SC_DEFAULTS
@@ -935,6 +941,22 @@ def write_pine_library(
     content.append(f'export const int OB_AGE_BARS = {int(obl.get("OB_AGE_BARS", _OBL_DEFAULTS["OB_AGE_BARS"]))}')
     content.append(f'export const string OB_MITIGATION_STATE = "{obl.get("OB_MITIGATION_STATE", _OBL_DEFAULTS["OB_MITIGATION_STATE"])}"')
 
+    # ── Order Block Extended Fields ──────────────────────────────
+    from scripts.smc_order_blocks import DEFAULTS as _OB_DEFAULTS
+
+    ob = enr.get("order_blocks") or {}
+    content.append("")
+    content.append("// ── Order Block Extended ──")
+    content.append(f'export const int BULL_OB_FRESHNESS = {int(ob.get("BULL_OB_FRESHNESS", _OB_DEFAULTS["BULL_OB_FRESHNESS"]))}')
+    content.append(f'export const bool BULL_OB_FVG_CONFLUENCE = {_pine_bool(ob.get("BULL_OB_FVG_CONFLUENCE", _OB_DEFAULTS["BULL_OB_FVG_CONFLUENCE"]))}')
+    content.append(f'export const bool BULL_OB_MITIGATED = {_pine_bool(ob.get("BULL_OB_MITIGATED", _OB_DEFAULTS["BULL_OB_MITIGATED"]))}')
+    content.append(f'export const int BEAR_OB_FRESHNESS = {int(ob.get("BEAR_OB_FRESHNESS", _OB_DEFAULTS["BEAR_OB_FRESHNESS"]))}')
+    content.append(f'export const bool BEAR_OB_FVG_CONFLUENCE = {_pine_bool(ob.get("BEAR_OB_FVG_CONFLUENCE", _OB_DEFAULTS["BEAR_OB_FVG_CONFLUENCE"]))}')
+    content.append(f'export const bool BEAR_OB_MITIGATED = {_pine_bool(ob.get("BEAR_OB_MITIGATED", _OB_DEFAULTS["BEAR_OB_MITIGATED"]))}')
+    content.append(f'export const float NEAREST_BULL_OB_LEVEL = {float(ob.get("NEAREST_BULL_OB_LEVEL", _OB_DEFAULTS["NEAREST_BULL_OB_LEVEL"]))}')
+    content.append(f'export const float NEAREST_BEAR_OB_LEVEL = {float(ob.get("NEAREST_BEAR_OB_LEVEL", _OB_DEFAULTS["NEAREST_BEAR_OB_LEVEL"]))}')
+    content.append(f'export const string OB_BIAS = "{ob.get("OB_BIAS", _OB_DEFAULTS["OB_BIAS"])}"')
+
     # ── v5.5b Lean: FVG / Imbalance Lifecycle Light ──────────────
     from scripts.smc_fvg_lifecycle_light import DEFAULTS as _FVGL_DEFAULTS
 
@@ -948,6 +970,32 @@ def write_pine_library(
     content.append(f'export const bool FVG_FRESH = {_pine_bool(fvgl.get("FVG_FRESH", _FVGL_DEFAULTS["FVG_FRESH"]))}')
     content.append(f'export const bool FVG_INVALIDATED = {_pine_bool(fvgl.get("FVG_INVALIDATED", _FVGL_DEFAULTS["FVG_INVALIDATED"]))}')
     content.append(f'export const int FVG_NET_IMBALANCE = {int(fvgl.get("FVG_NET_IMBALANCE", 0))}')
+
+    # ── Imbalance Lifecycle Extended ─────────────────────────────
+    from scripts.smc_imbalance_lifecycle import DEFAULTS as _IL_DEFAULTS
+
+    il = enr.get("imbalance_lifecycle") or {}
+    content.append("")
+    content.append("// ── Imbalance Lifecycle Extended ──")
+    content.append(f'export const string BPR_DIRECTION = "{il.get("BPR_DIRECTION", _IL_DEFAULTS["BPR_DIRECTION"])}"')
+
+    # ── Liquidity Pools ──────────────────────────────────────────
+    from scripts.smc_liquidity_pools import DEFAULTS as _LP_DEFAULTS
+
+    lp = enr.get("liquidity_pools") or {}
+    content.append("")
+    content.append("// ── Liquidity Pools ──")
+    content.append(f'export const float BUY_SIDE_POOL_LEVEL = {float(lp.get("BUY_SIDE_POOL_LEVEL", _LP_DEFAULTS["BUY_SIDE_POOL_LEVEL"]))}')
+    content.append(f'export const int BUY_SIDE_POOL_STRENGTH = {int(lp.get("BUY_SIDE_POOL_STRENGTH", _LP_DEFAULTS["BUY_SIDE_POOL_STRENGTH"]))}')
+
+    # ── Liquidity Sweeps Extended ─────────────────────────────────
+    from scripts.smc_liquidity_sweeps import DEFAULTS as _LS_DEFAULTS
+
+    ls = enr.get("liquidity_sweeps") or {}
+    content.append("")
+    content.append("// ── Liquidity Sweeps Extended ──")
+    content.append(f'export const string LIQUIDITY_TAKEN_DIRECTION = "{ls.get("LIQUIDITY_TAKEN_DIRECTION", _LS_DEFAULTS["LIQUIDITY_TAKEN_DIRECTION"])}"')
+
     # ── v5.5b Lean: Structure State Light ────────────────────────
     from scripts.smc_structure_state import DEFAULTS as _SS_DEFAULTS
     from scripts.smc_structure_state_light import DEFAULTS as _SSL_DEFAULTS

@@ -22,10 +22,14 @@ library("smc_micro_profiles_generated")
 //   Range Profile Regime (v5.3) — 22 fields
 //
 //   ── v5.5b Lean Surface (preferred) ──
-//   Event Risk Light (v5.5b)      — 12 fields
+//   Event Risk Light (v5.5b)      — 14 fields (incl. HIGH_RISK_EVENT_TICKERS, NEXT_EVENT_CLASS)
 //   Session Context Light (v5.5b) — 5 fields
 //   OB Context Light (v5.5b)      — 5 fields
-//   FVG Lifecycle Light (v5.5b)   — 6 fields
+//   OB Extended                   — 9 fields (per-side freshness, confluence, levels, bias)
+//   FVG Lifecycle Light (v5.5b)   — 7 fields
+//   Imbalance Lifecycle Extended  — 1 field (BPR_DIRECTION)
+//   Liquidity Pools               — 2 fields (BUY_SIDE_POOL_LEVEL, BUY_SIDE_POOL_STRENGTH)
+//   Liquidity Sweeps Extended     — 1 field (LIQUIDITY_TAKEN_DIRECTION)
 //   Structure State Light (v5.5b) — 4 fields
 //   Signal Quality (v5.5b)        — 5 fields
 //
@@ -181,6 +185,8 @@ export const bool MARKET_EVENT_BLOCKED = false
 export const bool SYMBOL_EVENT_BLOCKED = false
 export const string EARNINGS_SOON_TICKERS = ""
 export const string EVENT_PROVIDER_STATUS = "ok"
+export const string HIGH_RISK_EVENT_TICKERS = ""
+export const string NEXT_EVENT_CLASS = ""
 
 // ── Session Context Light (v5.5b) ──
 export const string SESSION_CONTEXT = "NONE"
@@ -196,6 +202,17 @@ export const bool OB_FRESH = false
 export const int OB_AGE_BARS = 0
 export const string OB_MITIGATION_STATE = "stale"
 
+// ── Order Block Extended ──
+export const int BULL_OB_FRESHNESS = 0
+export const bool BULL_OB_FVG_CONFLUENCE = false
+export const bool BULL_OB_MITIGATED = false
+export const int BEAR_OB_FRESHNESS = 0
+export const bool BEAR_OB_FVG_CONFLUENCE = false
+export const bool BEAR_OB_MITIGATED = false
+export const float NEAREST_BULL_OB_LEVEL = 0.0
+export const float NEAREST_BEAR_OB_LEVEL = 0.0
+export const string OB_BIAS = "NEUTRAL"
+
 // ── FVG / Imbalance Lifecycle Light (v5.5b) ──
 export const string PRIMARY_FVG_SIDE = "NONE"
 export const float PRIMARY_FVG_DISTANCE = 0.0
@@ -204,6 +221,16 @@ export const int FVG_MATURITY_LEVEL = 0
 export const bool FVG_FRESH = false
 export const bool FVG_INVALIDATED = false
 export const int FVG_NET_IMBALANCE = 0
+
+// ── Imbalance Lifecycle Extended ──
+export const string BPR_DIRECTION = "NONE"
+
+// ── Liquidity Pools ──
+export const float BUY_SIDE_POOL_LEVEL = 0.0
+export const int BUY_SIDE_POOL_STRENGTH = 0
+
+// ── Liquidity Sweeps Extended ──
+export const string LIQUIDITY_TAKEN_DIRECTION = "NONE"
 
 // ── Structure State Light (v5.5b) ──
 export const string STRUCTURE_LAST_EVENT = "NONE"

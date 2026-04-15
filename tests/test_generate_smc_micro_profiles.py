@@ -643,12 +643,13 @@ def test_defaults_always_present(tmp_path: Path) -> None:
         "VOLATILITY_REGIME", "VOLATILITY_REGIME_CONFIDENCE", "VOLATILITY_ATR_RATIO",
         "VOLATILITY_MODEL_SOURCE",
         "ENSEMBLE_QUALITY_SCORE", "ENSEMBLE_QUALITY_TIER", "ENSEMBLE_AVAILABLE_COMPONENTS",
-        # v5 event-risk fields (lean surface — NEXT_EVENT_CLASS and HIGH_RISK_EVENT_TICKERS removed in WP-LF5)
+        # v5 event-risk fields (lean surface + WP-OH9 re-exported NEXT_EVENT_CLASS, HIGH_RISK_EVENT_TICKERS)
         "EVENT_WINDOW_STATE", "EVENT_RISK_LEVEL",
         "NEXT_EVENT_NAME", "NEXT_EVENT_TIME", "NEXT_EVENT_IMPACT",
         "EVENT_RESTRICT_BEFORE_MIN", "EVENT_RESTRICT_AFTER_MIN",
         "EVENT_COOLDOWN_ACTIVE", "MARKET_EVENT_BLOCKED", "SYMBOL_EVENT_BLOCKED",
         "EARNINGS_SOON_TICKERS", "EVENT_PROVIDER_STATUS",
+        "HIGH_RISK_EVENT_TICKERS", "NEXT_EVENT_CLASS",
     ]
     for field in required_fields:
         assert field in text, f"Missing field: {field}"
@@ -740,9 +741,9 @@ def test_write_library_event_risk_defaults(tmp_path: Path) -> None:
     assert "SYMBOL_EVENT_BLOCKED = false" in text
     assert 'EARNINGS_SOON_TICKERS = ""' in text
     assert 'EVENT_PROVIDER_STATUS = "ok"' in text
-    # NEXT_EVENT_CLASS and HIGH_RISK_EVENT_TICKERS removed in WP-LF5
-    assert "NEXT_EVENT_CLASS" not in text
-    assert "HIGH_RISK_EVENT_TICKERS" not in text
+    # NEXT_EVENT_CLASS and HIGH_RISK_EVENT_TICKERS re-exported in WP-OH9
+    assert 'NEXT_EVENT_CLASS = ""' in text
+    assert 'HIGH_RISK_EVENT_TICKERS = ""' in text
 
 
 def test_write_library_active_macro_block(tmp_path: Path) -> None:

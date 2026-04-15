@@ -10,9 +10,7 @@ _GENERATOR = ROOT / "scripts" / "generate_smc_micro_profiles.py"
 
 # Fields that were removed in WP-LF5 (deprecated, no consumer in SMC_Core_Engine.pine).
 DELETED_FIELDS: set[str] = {
-    # Event Risk (only 2 removed)
-    "NEXT_EVENT_CLASS",
-    "HIGH_RISK_EVENT_TICKERS",
+    # Event Risk (v5.2) — none remaining (WP-OH9 re-exported NEXT_EVENT_CLASS, HIGH_RISK_EVENT_TICKERS)
     # Zone Intelligence (v5.1) — all 13
     "ACTIVE_SUPPORT_COUNT",
     "ACTIVE_RESISTANCE_COUNT",
@@ -53,7 +51,7 @@ DELETED_FIELDS: set[str] = {
     "SESSION_VWAP",
     "SESSION_TARGET_BULL",
     "SESSION_TARGET_BEAR",
-    # Liquidity Sweeps (v5.2) — all 9
+    # Liquidity Sweeps (v5.2) — 8 removed, LIQUIDITY_TAKEN_DIRECTION re-exported (WP-OH9)
     "RECENT_BULL_SWEEP",
     "RECENT_BEAR_SWEEP",
     "SWEEP_TYPE",
@@ -61,12 +59,9 @@ DELETED_FIELDS: set[str] = {
     "SWEEP_ZONE_TOP",
     "SWEEP_ZONE_BOTTOM",
     "SWEEP_RECLAIM_ACTIVE",
-    "LIQUIDITY_TAKEN_DIRECTION",
     "SWEEP_QUALITY_SCORE",
-    # Liquidity Pools (v5.2) — all 11
-    "BUY_SIDE_POOL_LEVEL",
+    # Liquidity Pools (v5.2) — 9 removed, BUY_SIDE_POOL_LEVEL/STRENGTH re-exported (WP-OH9)
     "SELL_SIDE_POOL_LEVEL",
-    "BUY_SIDE_POOL_STRENGTH",
     "SELL_SIDE_POOL_STRENGTH",
     "POOL_PROXIMITY_PCT",
     "POOL_CLUSTER_DENSITY",
@@ -75,17 +70,8 @@ DELETED_FIELDS: set[str] = {
     "POOL_IMBALANCE",
     "POOL_MAGNET_DIRECTION",
     "POOL_QUALITY_SCORE",
-    # Order Blocks (v5.2) — all 13
-    "NEAREST_BULL_OB_LEVEL",
-    "NEAREST_BEAR_OB_LEVEL",
-    "BULL_OB_FRESHNESS",
-    "BEAR_OB_FRESHNESS",
-    "BULL_OB_MITIGATED",
-    "BEAR_OB_MITIGATED",
-    "BULL_OB_FVG_CONFLUENCE",
-    "BEAR_OB_FVG_CONFLUENCE",
+    # Order Blocks (v5.2) — 4 removed, 9 re-exported (WP-OH9)
     "OB_DENSITY",
-    "OB_BIAS",
     "OB_NEAREST_DISTANCE_PCT",
     "OB_STRENGTH_SCORE",
     "OB_CONTEXT_SCORE",
@@ -147,7 +133,7 @@ DELETED_FIELDS: set[str] = {
     "BULL_FVG_MITIGATION_PCT",
     "BEAR_FVG_MITIGATION_PCT",
     "BPR_ACTIVE",
-    "BPR_DIRECTION",
+    # BPR_DIRECTION re-exported (WP-OH9)
     "BPR_TOP",
     "BPR_BOTTOM",
     "LIQ_VOID_BULL_ACTIVE",
@@ -199,6 +185,26 @@ CONSUMED_FIELDS: set[str] = {
     "OB_FRESH",
     "OB_AGE_BARS",
     "OB_MITIGATION_STATE",
+    # Order Block Extended (WP-OH9)
+    "BULL_OB_FRESHNESS",
+    "BULL_OB_FVG_CONFLUENCE",
+    "BULL_OB_MITIGATED",
+    "BEAR_OB_FRESHNESS",
+    "BEAR_OB_FVG_CONFLUENCE",
+    "BEAR_OB_MITIGATED",
+    "NEAREST_BULL_OB_LEVEL",
+    "NEAREST_BEAR_OB_LEVEL",
+    "OB_BIAS",
+    # Imbalance Lifecycle Extended (WP-OH9)
+    "BPR_DIRECTION",
+    # Liquidity Pools (WP-OH9)
+    "BUY_SIDE_POOL_LEVEL",
+    "BUY_SIDE_POOL_STRENGTH",
+    # Event Risk Extended (WP-OH9)
+    "HIGH_RISK_EVENT_TICKERS",
+    "NEXT_EVENT_CLASS",
+    # Liquidity Sweeps Extended (WP-OH9)
+    "LIQUIDITY_TAKEN_DIRECTION",
     # FVG Lifecycle Light
     "PRIMARY_FVG_SIDE",
     "PRIMARY_FVG_DISTANCE",

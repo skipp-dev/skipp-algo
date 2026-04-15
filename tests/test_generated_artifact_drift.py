@@ -59,6 +59,8 @@ EVENT_RISK_EXPORTS = (
     "SYMBOL_EVENT_BLOCKED",
     "EARNINGS_SOON_TICKERS",
     "EVENT_PROVIDER_STATUS",
+    "HIGH_RISK_EVENT_TICKERS",
+    "NEXT_EVENT_CLASS",
 )
 
 DEDICATED_V55B_LEAN_EXPORTS = (
@@ -68,6 +70,17 @@ DEDICATED_V55B_LEAN_EXPORTS = (
     "OB_FRESH",
     "OB_AGE_BARS",
     "OB_MITIGATION_STATE",
+    # OB Extended (WP-OH9)
+    "BULL_OB_FRESHNESS",
+    "BULL_OB_FVG_CONFLUENCE",
+    "BULL_OB_MITIGATED",
+    "BEAR_OB_FRESHNESS",
+    "BEAR_OB_FVG_CONFLUENCE",
+    "BEAR_OB_MITIGATED",
+    "NEAREST_BULL_OB_LEVEL",
+    "NEAREST_BEAR_OB_LEVEL",
+    "OB_BIAS",
+    # FVG Lifecycle Light
     "PRIMARY_FVG_SIDE",
     "PRIMARY_FVG_DISTANCE",
     "FVG_FILL_PCT",
@@ -75,10 +88,19 @@ DEDICATED_V55B_LEAN_EXPORTS = (
     "FVG_FRESH",
     "FVG_INVALIDATED",
     "FVG_NET_IMBALANCE",
+    # Imbalance Lifecycle Extended (WP-OH9)
+    "BPR_DIRECTION",
+    # Liquidity Pools (WP-OH9)
+    "BUY_SIDE_POOL_LEVEL",
+    "BUY_SIDE_POOL_STRENGTH",
+    # Liquidity Sweeps Extended (WP-OH9)
+    "LIQUIDITY_TAKEN_DIRECTION",
+    # Structure State Light
     "STRUCTURE_LAST_EVENT",
     "STRUCTURE_EVENT_AGE_BARS",
     "STRUCTURE_FRESH",
     "STRUCTURE_TREND_STRENGTH",
+    # Signal Quality
     "SIGNAL_QUALITY_SCORE",
     "SIGNAL_QUALITY_TIER",
     "SIGNAL_WARNINGS",
@@ -179,8 +201,11 @@ class TestGeneratedArtifactDrift:
         # v6 adds 20 new fields: Short Interest(4), Treasury(4), Sector Rotation(4),
         # Institutional(3), Analyst(3), Insider(2).
         # v6.1 adds FVG_NET_IMBALANCE.
-        assert len(exports) == 161, (
-            f"Expected 161 export const fields for the current v6 shared-export contract, got {len(exports)}"
+        # WP-OH9 re-exports 15 Pine-consumed fields: OB extended(9), BPR_DIRECTION,
+        # BUY_SIDE_POOL_LEVEL/STRENGTH, HIGH_RISK_EVENT_TICKERS, NEXT_EVENT_CLASS,
+        # LIQUIDITY_TAKEN_DIRECTION.
+        assert len(exports) == 176, (
+            f"Expected 176 export const fields for the current v6 shared-export contract, got {len(exports)}"
         )
 
     def test_event_risk_exports_stay_in_canonical_order(self, regenerated: Path):
