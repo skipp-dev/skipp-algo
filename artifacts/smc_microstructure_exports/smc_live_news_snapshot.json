@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-04-15T10:38:31.192608Z",
+  "generated_at": "2026-04-15T11:40:20.453567Z",
   "symbols": [
     "AAPL",
     "MSFT",
@@ -89,7 +89,7 @@
       ],
       "published_at": "2026-04-14T16:34:39Z",
       "published_ts": 1776184479.0,
-      "age_minutes": 1083.9,
+      "age_minutes": 1145.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -127,7 +127,7 @@
       ],
       "published_at": "2026-04-14T14:44:51Z",
       "published_ts": 1776177891.0,
-      "age_minutes": 1193.7,
+      "age_minutes": 1255.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -165,7 +165,7 @@
       ],
       "published_at": "2026-04-14T21:05:36Z",
       "published_ts": 1776200736.0,
-      "age_minutes": 812.9,
+      "age_minutes": 874.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -203,7 +203,7 @@
       ],
       "published_at": "2026-04-14T21:01:47Z",
       "published_ts": 1776200507.0,
-      "age_minutes": 816.7,
+      "age_minutes": 878.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -241,7 +241,7 @@
       ],
       "published_at": "2026-04-14T19:01:45Z",
       "published_ts": 1776193305.0,
-      "age_minutes": 936.8,
+      "age_minutes": 998.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -279,7 +279,7 @@
       ],
       "published_at": "2026-04-14T13:01:38Z",
       "published_ts": 1776171698.0,
-      "age_minutes": 1296.9,
+      "age_minutes": 1358.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -317,7 +317,7 @@
       ],
       "published_at": "2026-04-14T13:01:17Z",
       "published_ts": 1776171677.0,
-      "age_minutes": 1297.2,
+      "age_minutes": 1359.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -348,44 +348,6 @@
       "provider_count": 1
     },
     {
-      "story_key": "80ff65a62ad5984619e2ffcdcb1993e1f678e083:5920550",
-      "headline": "Jpm Stock Faces a 3.87% Earnings Move as JPMorgan Prepares Q1 Report",
-      "tickers": [
-        "JPM"
-      ],
-      "published_at": "2026-04-14T11:10:28Z",
-      "published_ts": 1776165028.0,
-      "age_minutes": 1408.1,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "El-Balad.com"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "earnings",
-      "event_class": "EARNINGS",
-      "event_label": "Jpm Stock Faces a 3.87% Earnings Move as JPMorgan Prepares Q1 Report",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.8,
-      "clarity": 0.8,
-      "relevance": 0.85,
-      "news_catalyst_score": 0.4084,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.el-balad.com/16912614",
-      "first_seen_at": "2026-04-14T12:01:19.501152Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
       "story_key": "9a1b331b16cef6f77e34316cae9a3d331521d1e0:5920629",
       "headline": "Johnson & Johnson Q2 Earnings Review: Why You Should Be Buying The Stock Today (NYSE:JNJ)",
       "tickers": [
@@ -393,7 +355,7 @@
       ],
       "published_at": "2026-04-14T17:47:58Z",
       "published_ts": 1776188878.0,
-      "age_minutes": 1010.6,
+      "age_minutes": 1072.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -431,7 +393,7 @@
       ],
       "published_at": "2026-04-14T14:54:08Z",
       "published_ts": 1776178448.0,
-      "age_minutes": 1184.4,
+      "age_minutes": 1246.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -469,7 +431,7 @@
       ],
       "published_at": "2026-04-14T12:22:47Z",
       "published_ts": 1776169367.0,
-      "age_minutes": 1335.7,
+      "age_minutes": 1397.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -507,7 +469,7 @@
       ],
       "published_at": "2026-04-14T13:45:17Z",
       "published_ts": 1776174317.0,
-      "age_minutes": 1253.2,
+      "age_minutes": 1315.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -545,7 +507,7 @@
       ],
       "published_at": "2026-04-15T08:28:33Z",
       "published_ts": 1776241713.0,
-      "age_minutes": 130.0,
+      "age_minutes": 191.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -566,7 +528,7 @@
       "impact": 0.1,
       "clarity": 0.8,
       "relevance": 0.535,
-      "news_catalyst_score": 0.2587,
+      "news_catalyst_score": 0.239,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
@@ -583,7 +545,7 @@
       ],
       "published_at": "2026-04-15T01:22:32Z",
       "published_ts": 1776216152.0,
-      "age_minutes": 556.0,
+      "age_minutes": 617.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -621,7 +583,7 @@
       ],
       "published_at": "2026-04-14T21:31:42Z",
       "published_ts": 1776202302.0,
-      "age_minutes": 786.8,
+      "age_minutes": 848.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -659,7 +621,7 @@
       ],
       "published_at": "2026-04-14T14:10:44Z",
       "published_ts": 1776175844.0,
-      "age_minutes": 1227.8,
+      "age_minutes": 1289.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -697,7 +659,7 @@
       ],
       "published_at": "2026-04-14T11:54:51Z",
       "published_ts": 1776167691.0,
-      "age_minutes": 1363.7,
+      "age_minutes": 1425.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -735,7 +697,7 @@
       ],
       "published_at": "2026-04-14T19:18:29Z",
       "published_ts": 1776194309.0,
-      "age_minutes": 920.0,
+      "age_minutes": 981.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -773,7 +735,7 @@
       ],
       "published_at": "2026-04-14T18:48:11Z",
       "published_ts": 1776192491.0,
-      "age_minutes": 950.3,
+      "age_minutes": 1012.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -811,7 +773,7 @@
       ],
       "published_at": "2026-04-14T13:57:43Z",
       "published_ts": 1776175063.0,
-      "age_minutes": 1240.8,
+      "age_minutes": 1302.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -849,7 +811,7 @@
       ],
       "published_at": "2026-04-15T03:59:31Z",
       "published_ts": 1776225571.0,
-      "age_minutes": 399.0,
+      "age_minutes": 460.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -887,7 +849,7 @@
       ],
       "published_at": "2026-04-14T20:39:03Z",
       "published_ts": 1776199143.0,
-      "age_minutes": 839.5,
+      "age_minutes": 901.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -925,7 +887,7 @@
       ],
       "published_at": "2026-04-14T19:02:45Z",
       "published_ts": 1776193365.0,
-      "age_minutes": 935.8,
+      "age_minutes": 997.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -963,7 +925,7 @@
       ],
       "published_at": "2026-04-14T18:52:28Z",
       "published_ts": 1776192748.0,
-      "age_minutes": 946.1,
+      "age_minutes": 1007.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1001,7 +963,7 @@
       ],
       "published_at": "2026-04-14T15:12:12Z",
       "published_ts": 1776179532.0,
-      "age_minutes": 1166.3,
+      "age_minutes": 1228.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1039,7 +1001,7 @@
       ],
       "published_at": "2026-04-14T15:02:45Z",
       "published_ts": 1776178965.0,
-      "age_minutes": 1175.8,
+      "age_minutes": 1237.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1077,7 +1039,7 @@
       ],
       "published_at": "2026-04-14T14:05:25Z",
       "published_ts": 1776175525.0,
-      "age_minutes": 1233.1,
+      "age_minutes": 1294.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1115,7 +1077,7 @@
       ],
       "published_at": "2026-04-14T13:30:03Z",
       "published_ts": 1776173403.0,
-      "age_minutes": 1268.5,
+      "age_minutes": 1330.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1154,7 +1116,7 @@
       ],
       "published_at": "2026-04-14T12:54:59Z",
       "published_ts": 1776171299.0,
-      "age_minutes": 1303.5,
+      "age_minutes": 1365.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1192,7 +1154,7 @@
       ],
       "published_at": "2026-04-14T12:30:00Z",
       "published_ts": 1776169800.0,
-      "age_minutes": 1328.5,
+      "age_minutes": 1390.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1232,7 +1194,7 @@
       ],
       "published_at": "2026-04-14T12:42:44Z",
       "published_ts": 1776170564.0,
-      "age_minutes": 1315.8,
+      "age_minutes": 1377.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1270,7 +1232,7 @@
       ],
       "published_at": "2026-04-15T04:48:45Z",
       "published_ts": 1776228525.0,
-      "age_minutes": 349.8,
+      "age_minutes": 411.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1308,7 +1270,7 @@
       ],
       "published_at": "2026-04-15T00:18:25Z",
       "published_ts": 1776212305.0,
-      "age_minutes": 620.1,
+      "age_minutes": 681.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1346,7 +1308,7 @@
       ],
       "published_at": "2026-04-14T22:02:44Z",
       "published_ts": 1776204164.0,
-      "age_minutes": 755.8,
+      "age_minutes": 817.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1384,7 +1346,7 @@
       ],
       "published_at": "2026-04-14T21:18:20Z",
       "published_ts": 1776201500.0,
-      "age_minutes": 800.2,
+      "age_minutes": 862.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1422,7 +1384,7 @@
       ],
       "published_at": "2026-04-14T19:45:30Z",
       "published_ts": 1776195930.0,
-      "age_minutes": 893.0,
+      "age_minutes": 954.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1460,7 +1422,7 @@
       ],
       "published_at": "2026-04-14T19:42:03Z",
       "published_ts": 1776195723.0,
-      "age_minutes": 896.5,
+      "age_minutes": 958.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1498,7 +1460,7 @@
       ],
       "published_at": "2026-04-14T18:43:54Z",
       "published_ts": 1776192234.0,
-      "age_minutes": 954.6,
+      "age_minutes": 1016.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1536,7 +1498,7 @@
       ],
       "published_at": "2026-04-14T18:07:54Z",
       "published_ts": 1776190074.0,
-      "age_minutes": 990.6,
+      "age_minutes": 1052.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1574,7 +1536,7 @@
       ],
       "published_at": "2026-04-14T17:06:16Z",
       "published_ts": 1776186376.0,
-      "age_minutes": 1052.3,
+      "age_minutes": 1114.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1612,7 +1574,7 @@
       ],
       "published_at": "2026-04-14T17:05:55Z",
       "published_ts": 1776186355.0,
-      "age_minutes": 1052.6,
+      "age_minutes": 1114.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1650,7 +1612,7 @@
       ],
       "published_at": "2026-04-14T16:29:34Z",
       "published_ts": 1776184174.0,
-      "age_minutes": 1089.0,
+      "age_minutes": 1150.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1688,7 +1650,7 @@
       ],
       "published_at": "2026-04-14T16:08:51Z",
       "published_ts": 1776182931.0,
-      "age_minutes": 1109.7,
+      "age_minutes": 1171.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1726,7 +1688,7 @@
       ],
       "published_at": "2026-04-14T15:37:49Z",
       "published_ts": 1776181069.0,
-      "age_minutes": 1140.7,
+      "age_minutes": 1202.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1764,7 +1726,7 @@
       ],
       "published_at": "2026-04-14T14:40:59Z",
       "published_ts": 1776177659.0,
-      "age_minutes": 1197.5,
+      "age_minutes": 1259.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1802,7 +1764,7 @@
       ],
       "published_at": "2026-04-14T14:10:11Z",
       "published_ts": 1776175811.0,
-      "age_minutes": 1228.3,
+      "age_minutes": 1290.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1840,7 +1802,7 @@
       ],
       "published_at": "2026-04-14T13:47:54Z",
       "published_ts": 1776174474.0,
-      "age_minutes": 1250.6,
+      "age_minutes": 1312.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1878,7 +1840,7 @@
       ],
       "published_at": "2026-04-14T13:29:48Z",
       "published_ts": 1776173388.0,
-      "age_minutes": 1268.7,
+      "age_minutes": 1330.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1916,7 +1878,7 @@
       ],
       "published_at": "2026-04-14T13:14:08Z",
       "published_ts": 1776172448.0,
-      "age_minutes": 1284.4,
+      "age_minutes": 1346.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1943,44 +1905,6 @@
       "is_actionable": false,
       "url": "https://seekingalpha.com/news/4574778-apple-likely-to-report-strong-results-amid-iphone-services-demand-bofa",
       "first_seen_at": "2026-04-14T16:46:37.192352Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "8ebc37d76b79ccde2d249e1b289ec3811cf41475:5920546",
-      "headline": "J&J stock gains after Q1 beat (JNJ:NYSE)",
-      "tickers": [
-        "JNJ"
-      ],
-      "published_at": "2026-04-14T10:50:44Z",
-      "published_ts": 1776163844.0,
-      "age_minutes": 1427.8,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Seeking Alpha"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "J&J stock gains after Q1 beat (JNJ:NYSE)",
-      "sentiment_label": "bullish",
-      "polarity": 0.5,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.1671,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://seekingalpha.com/news/4574676-jj-stock-gains-after-q1-beat",
-      "first_seen_at": "2026-04-14T12:01:19.501152Z",
       "is_new": false,
       "provider_count": 1
     }
@@ -2014,13 +1938,13 @@
     },
     "JNJ": {
       "news_catalyst_score": 0.5559,
-      "sentiment_label": "bullish",
+      "sentiment_label": "neutral",
       "event_class": "EARNINGS",
       "event_label": "Johnson & Johnson Q1 2026 Earnings Call Transcript - Johnson & Johnson (NYSE:JNJ)",
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "source_tier": "TIER_2",
-      "mentions_24h": 6,
+      "mentions_24h": 5,
       "is_actionable": false,
       "first_provider": "newsapi_ai",
       "story_key": "121ba1baa8b67782aca46db78f366a741975fd7b:5920614"
@@ -2033,7 +1957,7 @@
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "source_tier": "TIER_2",
-      "mentions_24h": 8,
+      "mentions_24h": 7,
       "is_actionable": false,
       "first_provider": "newsapi_ai",
       "story_key": "9a747b82c7f316f44516e8b4d4d71af22a98756a:5920592"
@@ -2079,7 +2003,7 @@
     }
   },
   "summary": {
-    "active_story_count": 50,
+    "active_story_count": 48,
     "new_story_count": 0,
     "actionable_story_count": 0,
     "actionable_symbols": [],
