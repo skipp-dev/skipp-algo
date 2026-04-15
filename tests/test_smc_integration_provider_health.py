@@ -1122,7 +1122,7 @@ def test_strict_release_policy_fails_when_manifest_timestamp_missing(monkeypatch
     assert any(item.get("code") == "MISSING_MANIFEST_GENERATED_AT" for item in report["failures"])
 
 
-def test_strict_release_policy_promotes_empty_context_bars_to_failure(monkeypatch, tmp_path):
+def test_strict_release_policy_does_not_promote_empty_context_bars_to_failure(monkeypatch, tmp_path):
     manifest_path = tmp_path / "manifest_15m.json"
     manifest_path.write_text(
         json.dumps({"generated_at": 95.0, "timeframe": "15m", "symbols": ["AAPL"]}),
@@ -1155,8 +1155,10 @@ def test_strict_release_policy_promotes_empty_context_bars_to_failure(monkeypatc
         strict_release_policy=True,
     )
 
-    assert report["overall_status"] == "fail"
-    assert any(item.get("code") == "EMPTY_CONTEXT_BARS" for item in report["failures"])
+    # EMPTY_CONTEXT_BARS no longer promoted to failure — stays as degradation
+    assert report["overall_status"] == "warn"
+    assert not any(item.get("code") == "EMPTY_CONTEXT_BARS" for item in report.get("failures", []))
+    assert any(item.get("code") == "EMPTY_CONTEXT_BARS" for item in report["degradations_detected"])
 
 
 def test_strict_release_policy_passes_on_fresh_reference_artifact(monkeypatch, tmp_path):

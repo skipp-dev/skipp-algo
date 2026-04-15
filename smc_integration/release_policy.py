@@ -64,7 +64,10 @@ REASON_MEASUREMENT_QUALITY = "MEASUREMENT_QUALITY_REGRESSION"
 
 HARD_BLOCKING_DEGRADATION_CODES: frozenset[str] = frozenset({
     "MEASUREMENT_CALIBRATED_BRIER_ABOVE_THRESHOLD",
-    "MEASUREMENT_EVENT_COVERAGE_LOW",
+    # MEASUREMENT_EVENT_COVERAGE_LOW removed: with 0 historical events
+    # (bootstrap) this creates a self-fulfilling deadlock — can't publish
+    # because no measurement history, no history because can't publish.
+    # The measurement gate is documented as soft/non-blocking.
 })
 
 # ---------------------------------------------------------------------------

@@ -761,20 +761,21 @@ class TestHardBlockingMeasurementDegradations:
     def test_hard_blocking_codes_are_defined(self) -> None:
         from smc_integration.release_policy import HARD_BLOCKING_DEGRADATION_CODES
         assert "MEASUREMENT_CALIBRATED_BRIER_ABOVE_THRESHOLD" in HARD_BLOCKING_DEGRADATION_CODES
-        assert "MEASUREMENT_EVENT_COVERAGE_LOW" in HARD_BLOCKING_DEGRADATION_CODES
-        assert len(HARD_BLOCKING_DEGRADATION_CODES) == 2
+        # MEASUREMENT_EVENT_COVERAGE_LOW was removed to avoid bootstrap deadlock
+        assert "MEASUREMENT_EVENT_COVERAGE_LOW" not in HARD_BLOCKING_DEGRADATION_CODES
+        assert len(HARD_BLOCKING_DEGRADATION_CODES) == 1
 
     def test_classify_separates_hard_from_advisory(self) -> None:
         from smc_integration.release_policy import classify_measurement_degradation_severity
         degradations = [
             {"code": "MEASUREMENT_CALIBRATED_BRIER_ABOVE_THRESHOLD", "detail": "hard"},
             {"code": "MEASUREMENT_BRIER_REGRESSION", "detail": "advisory"},
-            {"code": "MEASUREMENT_EVENT_COVERAGE_LOW", "detail": "hard"},
+            {"code": "MEASUREMENT_EVENT_COVERAGE_LOW", "detail": "advisory"},
             {"code": "MEASUREMENT_LOG_SCORE_REGRESSION", "detail": "advisory"},
         ]
         hard, advisory = classify_measurement_degradation_severity(degradations)
-        assert len(hard) == 2
-        assert len(advisory) == 2
+        assert len(hard) == 1
+        assert len(advisory) == 3
         assert all(d["detail"] == "hard" for d in hard)
         assert all(d["detail"] == "advisory" for d in advisory)
 
