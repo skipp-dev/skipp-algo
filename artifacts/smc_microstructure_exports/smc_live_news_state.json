@@ -5,12 +5,509 @@
     "fmp_stock": 0.0,
     "fmp_press": 0.0,
     "fmp_articles": 0.0,
-    "newsapi_ai": 1776254471.0,
+    "newsapi_ai": 1776269685.0,
     "tv": 0.0,
-    "legacy_cursor": 1776254471.0
+    "legacy_cursor": 1776269685.0
   },
   "provider_state": {},
   "story_state": {
+    "0f06306d187b3397c2e769cab6d9e89bcea2647e:5920898": {
+      "story_key": "0f06306d187b3397c2e769cab6d9e89bcea2647e:5920898",
+      "cluster_hash": "0f06306d187b3397c2e769cab6d9e89bcea2647e",
+      "headline": "Amazon, Meta Are 'Dislocated High Quality' Bargains: Analyst - Amazon.com (NASDAQ:AMZN), Meta Platforms (",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_ts": 1776269685.0,
+      "first_seen_ts": 1776271638.5734231,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "url": "https://www.benzinga.com/markets/tech/26/04/51836863/amazon-meta-are-dislocated-high-quality-bargains-analyst",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "last_seen_ts": 1776271638.5734231
+    },
+    "4eebc5f307dc48a745390e1f2a67838ebf81d5d6:5920897": {
+      "story_key": "4eebc5f307dc48a745390e1f2a67838ebf81d5d6:5920897",
+      "cluster_hash": "4eebc5f307dc48a745390e1f2a67838ebf81d5d6",
+      "headline": "Amazon Beats SpaceX In Globalstar Deal, LEO Race Heats Up - Amazon.com (NASDAQ:AMZN), Globalstar (NASDAQ:",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_ts": 1776269330.0,
+      "first_seen_ts": 1776271638.5734231,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "url": "https://www.benzinga.com/m-a/26/04/51836668/bezos-just-bought-what-musk-wanted-and-the-200b-space-war-is-escalating",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.1375,
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "last_seen_ts": 1776271638.5734231
+    },
+    "52338cb6ccf0dfd971b351be6a9c459fa86d9361:5920896": {
+      "story_key": "52338cb6ccf0dfd971b351be6a9c459fa86d9361:5920896",
+      "cluster_hash": "52338cb6ccf0dfd971b351be6a9c459fa86d9361",
+      "headline": "Apple: Inventory Does Not Lie (NASDAQ:AAPL)",
+      "tickers": [
+        "AAPL"
+      ],
+      "published_ts": 1776269075.0,
+      "first_seen_ts": 1776271638.5734231,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Seeking Alpha"
+      ],
+      "url": "https://seekingalpha.com/article/4890945-apple-inventory-does-not-lie",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776271638.5734231
+    },
+    "bf6f2e1d93618e988158f3e3f9939385b9543277:5920886": {
+      "story_key": "bf6f2e1d93618e988158f3e3f9939385b9543277:5920886",
+      "cluster_hash": "bf6f2e1d93618e988158f3e3f9939385b9543277",
+      "headline": "Amazon (AMZN) vs Meta (META): Which Tech Giant Offers Better Value in 2025? - Blockonomi",
+      "tickers": [
+        "AMZN",
+        "META"
+      ],
+      "published_ts": 1776265913.0,
+      "first_seen_ts": 1776271638.5734231,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Blockonomi"
+      ],
+      "url": "https://blockonomi.com/amazon-amzn-vs-meta-meta-which-tech-giant-offers-better-value-in-2025/",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776271638.5734231
+    },
+    "98b47cd00b87fd3b5cdba230ff4f2b1414ed8126:5920880": {
+      "story_key": "98b47cd00b87fd3b5cdba230ff4f2b1414ed8126:5920880",
+      "cluster_hash": "98b47cd00b87fd3b5cdba230ff4f2b1414ed8126",
+      "headline": "SA analyst upgrades/downgrades: NVDA, JNJ, KO, ACN",
+      "tickers": [
+        "JNJ"
+      ],
+      "published_ts": 1776264023.0,
+      "first_seen_ts": 1776271638.5734231,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Seeking Alpha"
+      ],
+      "url": "https://seekingalpha.com/news/4575264-sa-analyst-upgrades-downgrades-nvda-jnj-ko-acn",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776271638.5734231
+    },
+    "31931b7eeef132274d34c8fe78bf3068436f2fc5:5920880": {
+      "story_key": "31931b7eeef132274d34c8fe78bf3068436f2fc5:5920880",
+      "cluster_hash": "31931b7eeef132274d34c8fe78bf3068436f2fc5",
+      "headline": "Microsoft (MSFT): AI CapEx Growth And The 2026 Software Outlook | 2-Minute Analysis",
+      "tickers": [
+        "MSFT"
+      ],
+      "published_ts": 1776264000.0,
+      "first_seen_ts": 1776271638.5734231,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Seeking Alpha"
+      ],
+      "url": "https://seekingalpha.com/article/4890933-microsoft-msft-ai-capex-growth-and-the-2026-software-outlook-2-minute-analysis",
+      "category": "guidance",
+      "impact": 0.88,
+      "clarity": 0.8,
+      "relevance": 0.886,
+      "polarity": 0.235,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776271638.5734231
+    },
+    "0b819c6442978f9c3313b674634b1d591ea28045:5920870": {
+      "story_key": "0b819c6442978f9c3313b674634b1d591ea28045:5920870",
+      "cluster_hash": "0b819c6442978f9c3313b674634b1d591ea28045",
+      "headline": "Apple: More Attention On AI Strategy, Less On iPhone Ahead Of Q2 (NASDAQ:AAPL)",
+      "tickers": [
+        "AAPL"
+      ],
+      "published_ts": 1776261252.0,
+      "first_seen_ts": 1776271638.5734231,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Seeking Alpha"
+      ],
+      "url": "https://seekingalpha.com/article/4890875-apple-more-attention-on-ai-strategy-less-on-iphone-ahead-of-q2",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776271638.5734231
+    },
+    "a241295a823804ea027d425723d53ec090c83d56:5920868": {
+      "story_key": "a241295a823804ea027d425723d53ec090c83d56:5920868",
+      "cluster_hash": "a241295a823804ea027d425723d53ec090c83d56",
+      "headline": "Amazon: My Top 8 Reasons To Buy (NASDAQ:AMZN)",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_ts": 1776260557.0,
+      "first_seen_ts": 1776271638.5734231,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Seeking Alpha"
+      ],
+      "url": "https://seekingalpha.com/article/4890866-amazon-my-top-8-reasons-to-buy",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776271638.5734231
+    },
+    "93456f38f3b9ddfed5a09861e03c380597612ea4:5920868": {
+      "story_key": "93456f38f3b9ddfed5a09861e03c380597612ea4:5920868",
+      "cluster_hash": "93456f38f3b9ddfed5a09861e03c380597612ea4",
+      "headline": "Wall Street analyst updates Microsoft (MSFT) stock price target",
+      "tickers": [
+        "MSFT"
+      ],
+      "published_ts": 1776260497.0,
+      "first_seen_ts": 1776271638.5734231,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Finbold"
+      ],
+      "url": "https://finbold.com/wall-street-analyst-updates-microsoft-msft-stock-price-target/",
+      "category": "analyst",
+      "impact": 0.65,
+      "clarity": 0.6,
+      "relevance": 0.7225,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776271638.5734231
+    },
+    "97cc7e750e3b28a1907460f8903d22aa97112768:5920867": {
+      "story_key": "97cc7e750e3b28a1907460f8903d22aa97112768:5920867",
+      "cluster_hash": "97cc7e750e3b28a1907460f8903d22aa97112768",
+      "headline": "AMZN, AAPL and NFLX Forecasts - Tech Stocks Continue to Look for Upward Momentum",
+      "tickers": [
+        "AAPL",
+        "AMZN"
+      ],
+      "published_ts": 1776260232.0,
+      "first_seen_ts": 1776271638.5734231,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "FXEmpire.com"
+      ],
+      "url": "https://www.fxempire.com/forecasts/article/amzn-aapl-and-nflx-forecasts-tech-stocks-continue-to-look-for-upward-momentum-1591833",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776271638.5734231
+    },
+    "9f55b686374205531bc839b8a20efc8e987674cf:5920864": {
+      "story_key": "9f55b686374205531bc839b8a20efc8e987674cf:5920864",
+      "cluster_hash": "9f55b686374205531bc839b8a20efc8e987674cf",
+      "headline": "Trade Strategy For SPY, QQQ, AAPL, MSFT, NVDA, GOOGL, META, And TSLA",
+      "tickers": [
+        "AAPL",
+        "META",
+        "MSFT"
+      ],
+      "published_ts": 1776259229.0,
+      "first_seen_ts": 1776271638.5734231,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "url": "https://www.benzinga.com/Opinion/26/04/51829492/trade-strategy-for-spy-qqq-aapl-msft-nvda-googl-meta-and-tsla-6",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.3560810810810811,
+      "polarity": 0.0,
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "last_seen_ts": 1776271638.5734231
+    },
+    "b21d0651a9f9060ebc24d3c9aa262ee022dee4f3:5920861": {
+      "story_key": "b21d0651a9f9060ebc24d3c9aa262ee022dee4f3:5920861",
+      "cluster_hash": "b21d0651a9f9060ebc24d3c9aa262ee022dee4f3",
+      "headline": "Microsoft (MSFT) Stock Plunges 29%  --  Are AI Concerns Justified? - Blockonomi",
+      "tickers": [
+        "MSFT"
+      ],
+      "published_ts": 1776258397.0,
+      "first_seen_ts": 1776271638.5734231,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Blockonomi"
+      ],
+      "url": "https://blockonomi.com/microsoft-msft-stock-plunges-29-are-ai-concerns-justified/",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776271638.5734231
+    },
+    "5ef6ccbe6d8cf02bf8da7847e991b3ebe2512196:5920858": {
+      "story_key": "5ef6ccbe6d8cf02bf8da7847e991b3ebe2512196:5920858",
+      "cluster_hash": "5ef6ccbe6d8cf02bf8da7847e991b3ebe2512196",
+      "headline": "Amazon: A Once-In-A-Generation Opportunity That's Not Priced In (NASDAQ:AMZN)",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_ts": 1776257592.0,
+      "first_seen_ts": 1776271638.5734231,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Seeking Alpha"
+      ],
+      "url": "https://seekingalpha.com/article/4890839-amazon-a-once-in-a-generation-opportunity-thats-not-priced-in",
+      "category": "offering",
+      "impact": 0.92,
+      "clarity": 0.7,
+      "relevance": 0.874,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776271638.5734231
+    },
+    "d955f1ee0a00a1013de7b5d58b807f2a5e75275f:5920855": {
+      "story_key": "d955f1ee0a00a1013de7b5d58b807f2a5e75275f:5920855",
+      "cluster_hash": "d955f1ee0a00a1013de7b5d58b807f2a5e75275f",
+      "headline": "Will AI Disruption Crush Microsoft (MSFT)?",
+      "tickers": [
+        "MSFT"
+      ],
+      "published_ts": 1776256533.0,
+      "first_seen_ts": 1776271638.5734231,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Yahoo! Finance"
+      ],
+      "url": "https://ca.finance.yahoo.com/news/ai-disruption-crush-microsoft-msft-123533138.html",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776271638.5734231
+    },
+    "5e276d5b5af104b33ba147393d9d2631f5119286:5920848": {
+      "story_key": "5e276d5b5af104b33ba147393d9d2631f5119286:5920848",
+      "cluster_hash": "5e276d5b5af104b33ba147393d9d2631f5119286",
+      "headline": "Transcript: Johnson & Johnson Q1 2026 Earnings Conference Call - Johnson & Johnson (NYSE:JNJ)",
+      "tickers": [
+        "JNJ"
+      ],
+      "published_ts": 1776254505.0,
+      "first_seen_ts": 1776271638.5734231,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "url": "https://www.benzinga.com/insights/news/26/04/51826964/transcript-johnson-amp-johnson-q1-2026-earnings-conference-call",
+      "category": "earnings",
+      "impact": 0.8,
+      "clarity": 0.8,
+      "relevance": 0.8500000000000001,
+      "polarity": 0.0,
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "last_seen_ts": 1776271638.5734231
+    },
+    "dc006ff290fc0653a9e3c43bc092e7ac574dc14e:5920893": {
+      "story_key": "dc006ff290fc0653a9e3c43bc092e7ac574dc14e:5920893",
+      "cluster_hash": "dc006ff290fc0653a9e3c43bc092e7ac574dc14e",
+      "headline": "NextEra Energy Has A- Credit Rating -- The 18% Line Is What Keeps It There - NextEra Energy (NYSE:NEE)",
+      "tickers": [
+        "NEE"
+      ],
+      "published_ts": 1776268144.0,
+      "first_seen_ts": 1776271638.5734231,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "url": "https://www.benzinga.com/Opinion/26/04/51835919/nextera-energy-has-a-credit-rating-the-18-line-is-what-keeps-it-there",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "polarity": 0.0,
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "last_seen_ts": 1776271638.5734231
+    },
+    "aa95dbac3f95ac3905624c78e51379efb9c302c2:5920895": {
+      "story_key": "aa95dbac3f95ac3905624c78e51379efb9c302c2:5920895",
+      "cluster_hash": "aa95dbac3f95ac3905624c78e51379efb9c302c2",
+      "headline": "Should You Buy, Sell or Hold Meta Stock at $675?",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1776268565.0,
+      "first_seen_ts": 1776271638.5734231,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "24/7 Wall St."
+      ],
+      "url": "https://247wallst.com/investing/2026/04/15/should-you-buy-sell-or-hold-meta-stock-at-675/",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776271638.5734231
+    },
     "cd58fa61d5c620f1c6c161d848c21d121be95abd:5920848": {
       "story_key": "cd58fa61d5c620f1c6c161d848c21d121be95abd:5920848",
       "cluster_hash": "cd58fa61d5c620f1c6c161d848c21d121be95abd",
