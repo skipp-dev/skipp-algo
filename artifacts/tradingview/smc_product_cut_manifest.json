@@ -228,6 +228,7 @@
   ],
   "contracts": {
     "engine": [
+      "BUS SchemaVersion",
       "BUS ZoneActive",
       "BUS Armed",
       "BUS Confirmed",
@@ -322,6 +323,7 @@
       "BUS LeanPackB"
     ],
     "proOnly": [
+      "BUS SchemaVersion",
       "BUS MetaPack",
       "BUS LtfDeltaState",
       "BUS SafeTrendState",
@@ -368,6 +370,7 @@
       "BUS ObjectsCountPack"
     ],
     "dashboardBindings": [
+      "BUS SchemaVersion",
       "BUS ZoneActive",
       "BUS Armed",
       "BUS Confirmed",
@@ -457,6 +460,7 @@
         "bindingContractName": "dashboard companion BUS bindings",
         "bindingConsumerRole": "dashboard_companion",
         "bindingContractLabels": [
+          "BUS SchemaVersion",
           "BUS ZoneActive",
           "BUS Armed",
           "BUS Confirmed",
@@ -517,6 +521,12 @@
           "BUS LeanPackB"
         ],
         "bindingLabelGroups": [
+          {
+            "label": "BUS SchemaVersion",
+            "group": "g_bus_lifecycle",
+            "groupTitle": "Lifecycle BUS",
+            "tier": "critical"
+          },
           {
             "label": "BUS ZoneActive",
             "group": "g_bus_lifecycle",
@@ -886,6 +896,7 @@
         "bindingContractName": "dashboard companion BUS bindings",
         "bindingConsumerRole": "dashboard_companion",
         "bindingContractLabels": [
+          "BUS SchemaVersion",
           "BUS ZoneActive",
           "BUS Armed",
           "BUS Confirmed",
@@ -946,6 +957,12 @@
           "BUS LeanPackB"
         ],
         "bindingLabelGroups": [
+          {
+            "label": "BUS SchemaVersion",
+            "group": "g_bus_lifecycle",
+            "groupTitle": "Lifecycle BUS",
+            "tier": "critical"
+          },
           {
             "label": "BUS ZoneActive",
             "group": "g_bus_lifecycle",
@@ -1386,6 +1403,7 @@
         "bindingContractName": "dashboard companion BUS bindings",
         "bindingConsumerRole": "dashboard_companion",
         "bindingContractLabels": [
+          "BUS SchemaVersion",
           "BUS ZoneActive",
           "BUS Armed",
           "BUS Confirmed",
@@ -1446,6 +1464,12 @@
           "BUS LeanPackB"
         ],
         "bindingLabelGroups": [
+          {
+            "label": "BUS SchemaVersion",
+            "group": "g_bus_lifecycle",
+            "groupTitle": "Lifecycle BUS",
+            "tier": "critical"
+          },
           {
             "label": "BUS ZoneActive",
             "group": "g_bus_lifecycle",

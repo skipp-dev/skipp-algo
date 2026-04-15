@@ -46,6 +46,22 @@ float  zn_resist_mitig      = mp.RESISTANCE_MITIGATION_PCT
 string zn_context_bias      = mp.ZONE_CONTEXT_BIAS
 float  zn_liq_imbalance     = mp.ZONE_LIQUIDITY_IMBALANCE
 
+// Library freshness check (shared pattern across all companions)
+var label stale_badge = na
+if barstate.islast
+    float asof_year  = str.tonumber(str.substring(mp.ASOF_DATE, 0, 4))
+    float asof_month = str.tonumber(str.substring(mp.ASOF_DATE, 5, 7))
+    float asof_day   = str.tonumber(str.substring(mp.ASOF_DATE, 8, 10))
+    int asof_ts      = timestamp(int(asof_year), int(asof_month), int(asof_day))
+    int days_old     = math.floor((timenow - asof_ts) / 86400000)
+    if days_old > 2
+        if not na(stale_badge)
+            label.delete(stale_badge)
+        stale_badge := label.new(bar_index, low,
+            "⚠ Library " + str.tostring(days_old) + "d old",
+            color = color.new(color.red, 40), textcolor = color.white,
+            style = label.style_label_up, size = size.tiny)
+
 // ── Primary support/resistance lines ────────────────────────────
 
 var line ln_support  = na

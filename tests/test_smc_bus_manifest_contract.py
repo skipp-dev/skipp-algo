@@ -196,6 +196,7 @@ def test_c9_cut_partitions_the_pro_only_surface() -> None:
     )
     assert MANIFEST.C9_LEGACY_COMPAT_BUS_CHANNELS == ()
     assert MANIFEST.C9_STABLE_PRO_BUS_CHANNELS == (
+        'SchemaVersion',
         'MetaPack',
         'LtfDeltaState',
         'SafeTrendState',
@@ -258,7 +259,7 @@ def test_product_cut_payload_exports_governance_metadata() -> None:
     assert dashboard_target['bindingConsumerRole'] == 'dashboard_companion'
     assert dashboard_target['bindingContractLabels'] == list(MANIFEST.DASHBOARD_BUS_LABELS)
     assert dashboard_target['bindingLabelGroups'][0] == {
-        'label': 'BUS ZoneActive',
+        'label': 'BUS SchemaVersion',
         'group': 'g_bus_lifecycle',
         'groupTitle': 'Lifecycle BUS',
         'tier': 'critical',

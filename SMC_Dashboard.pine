@@ -26,6 +26,7 @@ show_risk_lines = input.bool(true, "Show Trade Plan", group = g_surface)
 show_state_bg = input.bool(false, "Highlight Live Setup", group = g_surface)
 compact_dashboard = input.bool(false, "Compact Dashboard", group = g_surface, tooltip = "WP-OV5: Show only 5 key rows for mobile or small screens. Overrides Decision Brief when enabled.")
 
+src_bus_schema_version = input.source(close, "BUS SchemaVersion", group = g_bus_lifecycle, display = display.none, tooltip = "Bind first — must match the schema version published by SMC Core.")
 src_zone_active = input.source(close, "BUS ZoneActive", group = g_bus_lifecycle, display = display.none, tooltip = "Bind this section top-to-bottom to the matching hidden BUS series published by SMC Core.")
 src_armed = input.source(close, "BUS Armed", group = g_bus_lifecycle, display = display.none)
 src_confirmed = input.source(close, "BUS Confirmed", group = g_bus_lifecycle, display = display.none)
@@ -88,6 +89,19 @@ src_lean_pack_b = input.source(close, "BUS LeanPackB", group = g_bus_lean, displ
 local_ob_debug_enabled = input.bool(false, "OB Debug Enabled", group = g_local_debug, display = display.none, tooltip = "Mirror the core's effective debug flags here if you want the local Debug Flags and Long Debug rows to match the core setup.")
 local_fvg_debug_enabled = input.bool(false, "FVG Debug Enabled", group = g_local_debug, display = display.none)
 local_engine_debug_enabled = input.bool(false, "Long Engine Debug Enabled", group = g_local_debug, display = display.none)
+
+// ── BUS Schema Version Check ──────────────────────────────────────
+int expected_bus_version = 7001
+bool bus_version_ok = math.round(src_bus_schema_version) == expected_bus_version
+var label bus_version_warning = na
+if barstate.islast and not bus_version_ok
+    if not na(bus_version_warning)
+        label.delete(bus_version_warning)
+    bus_version_warning := label.new(bar_index, high,
+        "⚠ BUS Version Mismatch — Update Dashboard to match Core Engine v" +
+        str.tostring(math.round(src_bus_schema_version)),
+        color = color.red, textcolor = color.white,
+        style = label.style_label_down, size = size.small)
 
 state_on(float value) =>
     not na(value) and value > 0.5

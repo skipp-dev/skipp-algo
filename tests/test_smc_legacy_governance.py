@@ -41,7 +41,7 @@ def test_release_gate_matrix_keeps_frozen_compatibility_checks() -> None:
 def test_long_dip_regression_stays_anchored_to_smc_plus() -> None:
     regression_text = _read(LONG_DIP_REGRESSION_PATH)
 
-    assert "SMC_PATH = ROOT / 'SMC++.pine'" in regression_text
+    assert "SMC_PATH = ROOT / 'legacy' / 'SMC++.pine'" in regression_text
 
 
 def test_long_dip_first_scope_is_documented_in_active_core_and_plan() -> None:

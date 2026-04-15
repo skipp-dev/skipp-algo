@@ -1252,6 +1252,7 @@ def build_enrichment(
     enrichment["meta"] = {
         "asof_time": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "refresh_count": prev_count + 1,
+        "scanned_symbols": sorted(set(symbols)),
     }
 
     return normalize_v55_lean_enrichment(cast(EnrichmentDict, enrichment), snapshot=base_snapshot)

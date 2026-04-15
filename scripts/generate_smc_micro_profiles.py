@@ -707,6 +707,13 @@ def write_pine_library(
         f"export const int REFRESH_COUNT = {int((enr.get('meta') or {}).get('refresh_count') or 0)}",
     ]
 
+    # Universe Coverage — all scanned ticker symbols
+    scanned = sorted(set((enr.get("meta") or {}).get("scanned_symbols") or []))
+    if scanned:
+        content.append(render_csv_export("UNIVERSE_TICKERS", scanned, max_chars=3900))
+    else:
+        content.append('export const string UNIVERSE_TICKERS = ""')
+
     debug_mode = bool(enr.get("_debug_mode"))
     if debug_mode:
         content.append('export const string UNIVERSE_ID = "us_equities_v1"')

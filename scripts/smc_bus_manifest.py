@@ -455,6 +455,7 @@ def _validation_evidence_capture_payload(capture: ValidationEvidenceCapture) -> 
 
 
 ENGINE_BUS_CHANNELS: tuple[str, ...] = (
+    'SchemaVersion',
     'ZoneActive',
     'Armed',
     'Confirmed',
@@ -642,6 +643,7 @@ STRATEGY_GROUP_TITLES_BY_KEY: dict[str, str] = {
 
 
 DASHBOARD_BUS_BINDINGS: tuple[BusBinding, ...] = (
+    BusBinding('BUS SchemaVersion', 'g_bus_lifecycle', 'critical'),
     BusBinding('BUS ZoneActive', 'g_bus_lifecycle', 'critical'),
     BusBinding('BUS Armed', 'g_bus_lifecycle', 'critical'),
     BusBinding('BUS Confirmed', 'g_bus_lifecycle', 'critical'),

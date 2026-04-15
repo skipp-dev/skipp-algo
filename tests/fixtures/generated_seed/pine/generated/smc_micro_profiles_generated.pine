@@ -40,6 +40,7 @@ export const string ASOF_DATE = "2026-03-23"
 export const string ASOF_TIME = ""
 export const int UNIVERSE_SIZE = 3
 export const int REFRESH_COUNT = 0
+export const string UNIVERSE_TICKERS = ""
 
 export const string CLEAN_RECLAIM_TICKERS = "AAA"
 

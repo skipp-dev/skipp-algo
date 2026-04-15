@@ -3488,13 +3488,8 @@ bool lib_news_bullish = str.contains(mp.NEWS_BULLISH_TICKERS, syminfo.ticker)
 bool lib_low_volume   = str.contains(mp.VOLUME_LOW_TICKERS, syminfo.ticker)
 
 // ── Universe Coverage — is this ticker covered by the enrichment scan? ──
-bool lib_ticker_in_universe = str.contains(mp.CLEAN_RECLAIM_TICKERS, syminfo.ticker) or
-     str.contains(mp.FAST_DECAY_TICKERS, syminfo.ticker) or
-     str.contains(mp.NEWS_BULLISH_TICKERS, syminfo.ticker) or
-     str.contains(mp.NEWS_BEARISH_TICKERS, syminfo.ticker) or
-     str.contains(mp.EARNINGS_TODAY_TICKERS, syminfo.ticker) or
-     str.contains(mp.EARNINGS_TOMORROW_TICKERS, syminfo.ticker) or
-     str.contains(mp.VOLUME_LOW_TICKERS, syminfo.ticker)
+// Uses dedicated UNIVERSE_TICKERS field instead of heuristic across 7 lists (F7 fix).
+bool lib_ticker_in_universe = mp.UNIVERSE_TICKERS != "" ? str.contains(mp.UNIVERSE_TICKERS, syminfo.ticker) : true
 
 // ── Market Valuation Flags ──
 float  lib_market_pe_forward         = mp.MARKET_PE_FORWARD
@@ -6162,6 +6157,8 @@ if live_exec
     if not live_bull_fvg_fill and any_live_bull_fvg_fill
         live_bull_fvg_fill := true
 
+// BUS Schema Version — Dashboard validates this on every bar
+plot(7001, 'BUS SchemaVersion', display = display.none)
 plot(long_zone_active ? 1.0 : 0.0, 'BUS ZoneActive', display = display.none)
 plot(long_state.armed ? 1.0 : 0.0, 'BUS Armed', display = display.none)
 plot(long_state.confirmed ? 1.0 : 0.0, 'BUS Confirmed', display = display.none)

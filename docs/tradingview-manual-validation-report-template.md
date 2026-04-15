@@ -24,7 +24,7 @@ Dashboard kompiliert: ja/nein
 
 Strategy kompiliert: ja/nein
 
-58 Dashboard-Bindings vollständig auswählbar: ja/nein
+59 Dashboard-Bindings vollständig auswählbar: ja/nein
 
 8 Strategy-Bindings vollständig auswählbar: ja/nein
 

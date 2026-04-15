@@ -40,6 +40,7 @@ EXPECTED_MP_FIELDS_IN_ORDER = (
     "MARKET_EVENT_BLOCKED",
     "SYMBOL_EVENT_BLOCKED",
     "EARNINGS_SOON_TICKERS",
+    "ASOF_DATE", "ASOF_DATE", "ASOF_DATE",  # staleness check: year, month, day
 )
 ALLOWED_MP_FIELDS = {
     "EVENT_WINDOW_STATE", "EVENT_RISK_LEVEL",
@@ -50,6 +51,7 @@ ALLOWED_MP_FIELDS = {
     "MARKET_EVENT_BLOCKED", "SYMBOL_EVENT_BLOCKED",
     "EARNINGS_SOON_TICKERS", "HIGH_RISK_EVENT_TICKERS",
     "EVENT_PROVIDER_STATUS",
+    "ASOF_DATE",  # Library freshness check (companion staleness pattern)
 }
 
 _MP_FIELD_RE = re.compile(r"\bmp\.([A-Z][A-Z0-9_]+)")

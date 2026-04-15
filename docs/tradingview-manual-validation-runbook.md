@@ -59,7 +59,7 @@ Workspace-Refresh: 2026-04-07
 ## Empfohlene Reihenfolge In TradingView
 
 1. Core öffnen und kompilieren.
-2. Dashboard hinzufügen und alle 58 `source`-Bindings auf den Core legen.
+2. Dashboard hinzufügen und alle 59 `source`-Bindings auf den Core legen.
 3. Strategy hinzufügen und alle 8 `source`-Bindings auf den Core legen.
 4. Die fünf Prüfszenarien auf demselben Symbol und Timeframe durchlaufen.
 5. Alle Beobachtungen direkt in die Report-Vorlage eintragen.
@@ -78,6 +78,7 @@ Workspace-Refresh: 2026-04-07
 Die aktive Engine publiziert die Hidden-BUS-Serien in genau dieser Manifest-
 Reihenfolge:
 
+- `BUS SchemaVersion`
 - `BUS ZoneActive`
 - `BUS Armed`
 - `BUS Confirmed`
@@ -156,7 +157,7 @@ rekonstruiert.
 
 1. Das Skript kompiliert ohne Fehler.
 2. Es bleiben keine sichtbaren Laufzeitfehler im Chart-Overlay zurück.
-3. Alle 58 Dashboard-Bindings aus [tradingview-validation-checklist.md](tradingview-validation-checklist.md) sind auswählbar.
+3. Alle 59 Dashboard-Bindings aus [tradingview-validation-checklist.md](tradingview-validation-checklist.md) sind auswählbar.
 4. Mit aktiviertem `Focus View` bleibt genau eine Hero-Card sichtbar, separate Warning-Labels sowie Strong/Weak-Swing-Level verschwinden, und `Core Trigger` / `Core Invalidation` erscheinen erst ab mindestens `Ready`.
 
 ### Producer Pass/Fail-Kriterien
@@ -165,7 +166,7 @@ Pass:
 
 1. Core kompiliert.
 2. Keine Laufzeitfehlermeldung.
-3. Alle 58 Serien sind auswählbar.
+3. Alle 59 Serien sind auswählbar.
 4. `Focus View` entspricht dem kompakten First-Run-Vertrag.
 
 Fail:
@@ -180,7 +181,7 @@ Fail:
 ### Dashboard Schrittfolge
 
 1. [../SMC_Dashboard.pine](../SMC_Dashboard.pine) auf denselben Chart legen.
-2. Alle 58 `input.source()`-Felder exakt mit den Core-Serien belegen.
+2. Alle 59 `input.source()`-Felder exakt mit den Core-Serien belegen.
 3. Sicherstellen, dass `View = Decision Brief` aktiv ist und die
    Toggles `Show Brief Panel` sowie `Show Trade Plan` den erwarteten
    Companion-Zuschnitt zeigen.
@@ -207,7 +208,7 @@ Nur gerenderte Chart-Screenshots erfassen, keine Pine-Editor-Screenshots.
 ### Dashboard Erwartete Beobachtungen
 
 1. Dashboard kompiliert ohne Fehler.
-2. Alle 58 Bindings sind vollständig auswählbar.
+2. Alle 59 Bindings sind vollständig auswählbar.
 3. Das Dashboard bleibt sichtbar.
 4. Die Default-Companion-Flaeche zeigt `SMC Decision Board` mit der Reihenfolge
    `Structure`, `Session / Market`, `Event Risk`, `Data Quality`,
@@ -264,7 +265,7 @@ Erwartung:
 Pass:
 
 1. Dashboard kompiliert.
-2. Alle 58 Bindings sind belegbar.
+2. Alle 59 Bindings sind belegbar.
 3. Alle fünf Szenarien zeigen die erwartete Reaktion.
 4. Keine internen Widersprüche zwischen Lifecycle, Exec Tier, Setup Age und Risk-Linien.
 

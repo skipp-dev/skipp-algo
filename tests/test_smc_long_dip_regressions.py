@@ -5,7 +5,7 @@ import re
 
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-SMC_PATH = ROOT / 'SMC++.pine'
+SMC_PATH = ROOT / 'legacy' / 'SMC++.pine'
 
 
 def _read_smc_source() -> str:

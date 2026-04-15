@@ -204,8 +204,9 @@ class TestGeneratedArtifactDrift:
         # WP-OH9 re-exports 15 Pine-consumed fields: OB extended(9), BPR_DIRECTION,
         # BUY_SIDE_POOL_LEVEL/STRENGTH, HIGH_RISK_EVENT_TICKERS, NEXT_EVENT_CLASS,
         # LIQUIDITY_TAKEN_DIRECTION.
-        assert len(exports) == 176, (
-            f"Expected 176 export const fields for the current v6 shared-export contract, got {len(exports)}"
+        # WP-PINE2 adds UNIVERSE_TICKERS.
+        assert len(exports) == 177, (
+            f"Expected 177 export const fields for the current v6 shared-export contract, got {len(exports)}"
         )
 
     def test_event_risk_exports_stay_in_canonical_order(self, regenerated: Path):

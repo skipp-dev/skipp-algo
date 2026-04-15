@@ -5,7 +5,7 @@ This document records the architecture decision after the current bus-v2 audit i
 Current repo state is already partway through that transition:
 
 - the old compat exports (`HardGatesPackA/B`, `QualityPackA/B`, `EnginePack`) have been retired from the producer
-- the active dashboard now binds the full 58-channel producer contract directly
+- the active dashboard now binds the full 59-channel producer contract directly
 - `ModulePackA` has already been cut into direct rows (`SdConfluenceRow`, `SdOscRow`, `VolRegimeRow`, `VolSqueezeRow`)
 - `ModulePackB` has already been retired into `VolExpandRow`, `DdviRow`, `StretchSupportMask`, and `LtfBiasHint`
 - `ModulePackC`, `ModulePackD`, and `ReadyStrictPack` have now been retired from the active producer contract
@@ -18,7 +18,7 @@ This document therefore records the active bus-v2 endpoint and the trigger condi
 
 The current support-code surface is the terminal bus-v2 endpoint for this repo state.
 
-- Freeze the active 58-channel bus-v2 contract as the supported dashboard transport.
+- Freeze the active 59-channel bus-v2 contract as the supported dashboard transport.
 - Do not add new packs or widen the support-code surface just to preserve old dashboard shapes.
 - Treat a later bus-v3 as a separate architecture track that opens only if a second real consumer or richer parity requirement appears.
 

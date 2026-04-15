@@ -28,7 +28,7 @@ Dashboard compiles: yes/no
 
 Strategy compiles: yes/no
 
-58 dashboard bindings fully selectable: yes/no
+59 dashboard bindings fully selectable: yes/no
 
 8 strategy bindings fully selectable: yes/no
 
