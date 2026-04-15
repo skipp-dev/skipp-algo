@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-04-15T00:08:23.468058Z",
+  "generated_at": "2026-04-15T03:41:01.885592Z",
   "symbols": [
     "AAPL",
     "MSFT",
@@ -16,16 +16,24 @@
   ],
   "provider_cursors": {
     "benzinga": 0.0,
+    "benzinga_quantified": 0.0,
     "fmp_stock": 0.0,
     "fmp_press": 0.0,
     "fmp_articles": 0.0,
-    "newsapi_ai": 1776200507.0,
+    "newsapi_ai": 1776216152.0,
     "tv": 0.0,
-    "legacy_cursor": 1776200507.0
+    "legacy_cursor": 1776216152.0
   },
-  "legacy_cursor": 1776200507.0,
+  "legacy_cursor": 1776216152.0,
   "providers": {
     "benzinga": {
+      "ok": false,
+      "error": "disabled",
+      "raw_count": 0,
+      "new_item_count": 0,
+      "cursor": 0.0
+    },
+    "benzinga_quantified": {
       "ok": false,
       "error": "disabled",
       "raw_count": 0,
@@ -56,12 +64,12 @@
     "newsapi_ai": {
       "ok": true,
       "error": "",
-      "raw_count": 1,
-      "new_item_count": 0,
-      "cursor": 1776200507.0,
+      "raw_count": 45,
+      "new_item_count": 6,
+      "cursor": 1776216152.0,
       "last_seen_news_uri": "",
-      "provider_status": "ok_no_recent_matches",
-      "status_detail": "Event Registry reachable, but no new symbol-matching NewsAPI.ai items were newer than the current cursor.",
+      "provider_status": "ok",
+      "status_detail": "",
       "error_code": ""
     },
     "tv": {
@@ -74,44 +82,6 @@
   },
   "stories": [
     {
-      "story_key": "4a62406215845900df5589366c4cd3ce9378da5e:5920668",
-      "headline": "Johnson & Johnson (JNJ) Q1 2026 Earnings Call Transcript",
-      "tickers": [
-        "JNJ"
-      ],
-      "published_at": "2026-04-14T21:01:47Z",
-      "published_ts": 1776200507.0,
-      "age_minutes": 186.6,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Seeking Alpha"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "earnings",
-      "event_class": "EARNINGS",
-      "event_label": "Johnson & Johnson (JNJ) Q1 2026 Earnings Call Transcript",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.8,
-      "clarity": 0.8,
-      "relevance": 0.85,
-      "news_catalyst_score": 0.5136,
-      "materiality": "MEDIUM",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://seekingalpha.com/article/4890573-johnson-and-johnson-jnj-q1-2026-earnings-call-transcript",
-      "first_seen_at": "2026-04-14T21:30:00.572085Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
       "story_key": "121ba1baa8b67782aca46db78f366a741975fd7b:5920614",
       "headline": "Johnson & Johnson Q1 2026 Earnings Call Transcript - Johnson & Johnson (NYSE:JNJ)",
       "tickers": [
@@ -119,7 +89,7 @@
       ],
       "published_at": "2026-04-14T16:34:39Z",
       "published_ts": 1776184479.0,
-      "age_minutes": 453.7,
+      "age_minutes": 666.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -157,7 +127,7 @@
       ],
       "published_at": "2026-04-14T14:44:51Z",
       "published_ts": 1776177891.0,
-      "age_minutes": 563.5,
+      "age_minutes": 776.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -188,6 +158,82 @@
       "provider_count": 1
     },
     {
+      "story_key": "295df8a8c11a51f1bbec733a73d09dcb570a2e1e:5920669",
+      "headline": "Johnson & Johnson raises 2026 outlook to $11.30-$11.50 EPS and $100.2B sales midpoint while targeting $100B annual revenue (NYSE:JNJ)",
+      "tickers": [
+        "JNJ"
+      ],
+      "published_at": "2026-04-14T21:05:36Z",
+      "published_ts": 1776200736.0,
+      "age_minutes": 395.4,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Seeking Alpha"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "guidance",
+      "event_class": "GUIDANCE",
+      "event_label": "Johnson & Johnson raises 2026 outlook to $11.30-$11.50 EPS and $100.2B sales midpoint while targeting $100B annual reven",
+      "sentiment_label": "bullish",
+      "polarity": 0.235,
+      "impact": 0.88,
+      "clarity": 0.8,
+      "relevance": 0.886,
+      "news_catalyst_score": 0.4331,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://seekingalpha.com/news/4575002-johnson-and-johnson-raises-2026-outlook-to-11_30-11_50-eps-and-100_2b-sales-midpoint-while",
+      "first_seen_at": "2026-04-15T03:41:01.885592Z",
+      "is_new": true,
+      "provider_count": 1
+    },
+    {
+      "story_key": "4a62406215845900df5589366c4cd3ce9378da5e:5920668",
+      "headline": "Johnson & Johnson (JNJ) Q1 2026 Earnings Call Transcript",
+      "tickers": [
+        "JNJ"
+      ],
+      "published_at": "2026-04-14T21:01:47Z",
+      "published_ts": 1776200507.0,
+      "age_minutes": 399.2,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Seeking Alpha"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "earnings",
+      "event_class": "EARNINGS",
+      "event_label": "Johnson & Johnson (JNJ) Q1 2026 Earnings Call Transcript",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.8,
+      "clarity": 0.8,
+      "relevance": 0.85,
+      "news_catalyst_score": 0.4084,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://seekingalpha.com/article/4890573-johnson-and-johnson-jnj-q1-2026-earnings-call-transcript",
+      "first_seen_at": "2026-04-14T21:30:00.572085Z",
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
       "story_key": "31a00556b164397ec3390143cf899074c4fdd95e:5920644",
       "headline": "JPMorgan Chase & Co. (JPM) Q1 2026 Earnings Call Transcript",
       "tickers": [
@@ -195,7 +241,7 @@
       ],
       "published_at": "2026-04-14T19:01:45Z",
       "published_ts": 1776193305.0,
-      "age_minutes": 306.6,
+      "age_minutes": 519.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -233,7 +279,7 @@
       ],
       "published_at": "2026-04-14T13:01:38Z",
       "published_ts": 1776171698.0,
-      "age_minutes": 666.8,
+      "age_minutes": 879.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -271,7 +317,7 @@
       ],
       "published_at": "2026-04-14T13:01:17Z",
       "published_ts": 1776171677.0,
-      "age_minutes": 667.1,
+      "age_minutes": 879.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -309,7 +355,7 @@
       ],
       "published_at": "2026-04-14T11:10:28Z",
       "published_ts": 1776165028.0,
-      "age_minutes": 777.9,
+      "age_minutes": 990.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -347,7 +393,7 @@
       ],
       "published_at": "2026-04-14T17:47:58Z",
       "published_ts": 1776188878.0,
-      "age_minutes": 380.4,
+      "age_minutes": 593.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -385,7 +431,7 @@
       ],
       "published_at": "2026-04-14T14:54:08Z",
       "published_ts": 1776178448.0,
-      "age_minutes": 554.3,
+      "age_minutes": 766.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -423,7 +469,7 @@
       ],
       "published_at": "2026-04-14T12:22:47Z",
       "published_ts": 1776169367.0,
-      "age_minutes": 705.6,
+      "age_minutes": 918.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -461,7 +507,7 @@
       ],
       "published_at": "2026-04-14T13:45:17Z",
       "published_ts": 1776174317.0,
-      "age_minutes": 623.1,
+      "age_minutes": 835.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -492,82 +538,6 @@
       "provider_count": 1
     },
     {
-      "story_key": "9b1b2a82892c9b3de4983c52fbb09020230f6503:5920443",
-      "headline": "Microsoft (MSFT) Price Target Lowered by $103 Ahead of Q3 Report",
-      "tickers": [
-        "MSFT"
-      ],
-      "published_at": "2026-04-14T02:16:46Z",
-      "published_ts": 1776133006.0,
-      "age_minutes": 1311.6,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Yahoo! Finance"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "analyst",
-      "event_class": "ANALYST",
-      "event_label": "Microsoft (MSFT) Price Target Lowered by $103 Ahead of Q3 Report",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.65,
-      "clarity": 0.8,
-      "relevance": 0.7825,
-      "news_catalyst_score": 0.362,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://ca.finance.yahoo.com/news/microsoft-msft-price-target-lowered-021646238.html",
-      "first_seen_at": "2026-04-14T04:20:28.520464Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "44875620b01434c5ea9f950d08f31e2f06cde4a3:5920443",
-      "headline": "Meta Platforms (META) Price Target Reduced by $95 Amid Market Volatility",
-      "tickers": [
-        "META"
-      ],
-      "published_at": "2026-04-14T02:15:59Z",
-      "published_ts": 1776132959.0,
-      "age_minutes": 1312.4,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Yahoo! Finance"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "analyst",
-      "event_class": "ANALYST",
-      "event_label": "Meta Platforms (META) Price Target Reduced by $95 Amid Market Volatility",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.65,
-      "clarity": 0.8,
-      "relevance": 0.7825,
-      "news_catalyst_score": 0.362,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://ca.finance.yahoo.com/news/meta-platforms-meta-price-target-021559764.html",
-      "first_seen_at": "2026-04-14T04:20:28.520464Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
       "story_key": "34c75fae3c6706c158bd6bf8aae38e4f48d4902b:5920517",
       "headline": "Philips elevates Zora to META region CEO",
       "tickers": [
@@ -575,7 +545,7 @@
       ],
       "published_at": "2026-04-14T08:26:38Z",
       "published_ts": 1776155198.0,
-      "age_minutes": 941.8,
+      "age_minutes": 1154.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -606,14 +576,14 @@
       "provider_count": 1
     },
     {
-      "story_key": "5aa457367592c5bf1a4c1bd7ef008e92b1d28601:5920663",
-      "headline": "Amazon: The $200 Billion 'Risk' That Everyone Is Getting Wrong (NASDAQ:AMZN)",
+      "story_key": "64a640f2696f8806df4bd07a35cd10ef0cb7bbe4:5920720",
+      "headline": "META, AVGO, IONQ, QBTS, HOOD: 5 Trending Stocks Today - Broadcom (NASDAQ:AVGO)",
       "tickers": [
-        "AMZN"
+        "META"
       ],
-      "published_at": "2026-04-14T20:39:03Z",
-      "published_ts": 1776199143.0,
-      "age_minutes": 209.3,
+      "published_at": "2026-04-15T01:22:32Z",
+      "published_ts": 1776216152.0,
+      "age_minutes": 138.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -622,25 +592,63 @@
         "newsapi_ai"
       ],
       "sources": [
-        "Seeking Alpha"
+        "Benzinga"
       ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
+      "source_tier": "TIER_2",
+      "source_rank": 2,
       "category": "other",
       "event_class": "UNKNOWN",
-      "event_label": "Amazon: The $200 Billion 'Risk' That Everyone Is Getting Wrong (NASDAQ:AMZN)",
+      "event_label": "META, AVGO, IONQ, QBTS, HOOD: 5 Trending Stocks Today - Broadcom (NASDAQ:AVGO)",
       "sentiment_label": "neutral",
       "polarity": 0.0,
       "impact": 0.1,
       "clarity": 0.8,
       "relevance": 0.535,
-      "news_catalyst_score": 0.2313,
+      "news_catalyst_score": 0.2929,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
-      "url": "https://seekingalpha.com/article/4890680-amazon-the-200-billion-risk-that-everyone-is-getting-wrong",
-      "first_seen_at": "2026-04-14T21:30:00.572085Z",
-      "is_new": false,
+      "url": "https://www.benzinga.com/markets/equities/26/04/51821864/meta-broadcom-ionq-d-wave-quantum-and-robinhood-why-these-5-stocks-are-on-investors-radars-today",
+      "first_seen_at": "2026-04-15T03:41:01.885592Z",
+      "is_new": true,
+      "provider_count": 1
+    },
+    {
+      "story_key": "8ea44353bab29e97a1e891844b6bf82068d57b1c:5920674",
+      "headline": "Amazon Targets SpaceX With $11.5-Billion Globalstar Deal - Amazon.com (NASDAQ:AMZN)",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_at": "2026-04-14T21:31:42Z",
+      "published_ts": 1776202302.0,
+      "age_minutes": 369.3,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Amazon Targets SpaceX With $11.5-Billion Globalstar Deal - Amazon.com (NASDAQ:AMZN)",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "news_catalyst_score": 0.2193,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://www.benzinga.com/markets/private-markets/26/04/51820719/amazon-targets-spacex-with-11-5-billion-globalstar-deal",
+      "first_seen_at": "2026-04-15T03:41:01.885592Z",
+      "is_new": true,
       "provider_count": 1
     },
     {
@@ -651,7 +659,7 @@
       ],
       "published_at": "2026-04-14T14:10:44Z",
       "published_ts": 1776175844.0,
-      "age_minutes": 597.7,
+      "age_minutes": 810.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -689,7 +697,7 @@
       ],
       "published_at": "2026-04-14T11:54:51Z",
       "published_ts": 1776167691.0,
-      "age_minutes": 733.5,
+      "age_minutes": 946.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -720,6 +728,44 @@
       "provider_count": 1
     },
     {
+      "story_key": "8c93b197b3812f22e40e8d2aee22acb726ae070c:5920707",
+      "headline": "Assessing Meta Platforms (META) Valuation After Recent Share Price Momentum",
+      "tickers": [
+        "META"
+      ],
+      "published_at": "2026-04-15T00:18:25Z",
+      "published_ts": 1776212305.0,
+      "age_minutes": 202.6,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Yahoo! Finance"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Assessing Meta Platforms (META) Valuation After Recent Share Price Momentum",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.204,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://ca.finance.yahoo.com/news/assessing-meta-platforms-meta-valuation-001825733.html",
+      "first_seen_at": "2026-04-15T03:41:01.885592Z",
+      "is_new": true,
+      "provider_count": 1
+    },
+    {
       "story_key": "6c1e29baef4de33257b0588be82e0e58df20eb0c:5920647",
       "headline": "Is Momentum Finally Turning For Microsoft Stock? - Microsoft (NASDAQ:MSFT)",
       "tickers": [
@@ -727,7 +773,7 @@
       ],
       "published_at": "2026-04-14T19:18:29Z",
       "published_ts": 1776194309.0,
-      "age_minutes": 289.9,
+      "age_minutes": 502.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -748,7 +794,7 @@
       "impact": 0.1,
       "clarity": 0.6,
       "relevance": 0.475,
-      "news_catalyst_score": 0.199,
+      "news_catalyst_score": 0.1946,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
@@ -765,7 +811,7 @@
       ],
       "published_at": "2026-04-14T18:48:11Z",
       "published_ts": 1776192491.0,
-      "age_minutes": 320.2,
+      "age_minutes": 532.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -803,7 +849,7 @@
       ],
       "published_at": "2026-04-14T13:57:43Z",
       "published_ts": 1776175063.0,
-      "age_minutes": 610.7,
+      "age_minutes": 823.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -841,7 +887,7 @@
       ],
       "published_at": "2026-04-14T09:58:38Z",
       "published_ts": 1776160718.0,
-      "age_minutes": 849.8,
+      "age_minutes": 1062.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -879,7 +925,7 @@
       ],
       "published_at": "2026-04-14T09:42:57Z",
       "published_ts": 1776159777.0,
-      "age_minutes": 865.4,
+      "age_minutes": 1078.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -917,7 +963,7 @@
       ],
       "published_at": "2026-04-14T08:54:51Z",
       "published_ts": 1776156891.0,
-      "age_minutes": 913.5,
+      "age_minutes": 1126.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -955,7 +1001,7 @@
       ],
       "published_at": "2026-04-14T09:59:04Z",
       "published_ts": 1776160744.0,
-      "age_minutes": 849.3,
+      "age_minutes": 1062.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -986,6 +1032,44 @@
       "provider_count": 1
     },
     {
+      "story_key": "5aa457367592c5bf1a4c1bd7ef008e92b1d28601:5920663",
+      "headline": "Amazon: The $200 Billion 'Risk' That Everyone Is Getting Wrong (NASDAQ:AMZN)",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_at": "2026-04-14T20:39:03Z",
+      "published_ts": 1776199143.0,
+      "age_minutes": 422.0,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Seeking Alpha"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Amazon: The $200 Billion 'Risk' That Everyone Is Getting Wrong (NASDAQ:AMZN)",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "news_catalyst_score": 0.1918,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://seekingalpha.com/article/4890680-amazon-the-200-billion-risk-that-everyone-is-getting-wrong",
+      "first_seen_at": "2026-04-14T21:30:00.572085Z",
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
       "story_key": "ba87627ae236fcb1ebdf85f11e3fecc2071badf9:5920644",
       "headline": "JPMorgan forecasts 2026 NII ex Markets of about $95B while planning for a 5.2% G-SIB requirement in 2028 (NYSE:JPM)",
       "tickers": [
@@ -993,7 +1077,7 @@
       ],
       "published_at": "2026-04-14T19:02:45Z",
       "published_ts": 1776193365.0,
-      "age_minutes": 305.6,
+      "age_minutes": 518.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1031,7 +1115,7 @@
       ],
       "published_at": "2026-04-14T18:52:28Z",
       "published_ts": 1776192748.0,
-      "age_minutes": 315.9,
+      "age_minutes": 528.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1069,7 +1153,7 @@
       ],
       "published_at": "2026-04-14T15:12:12Z",
       "published_ts": 1776179532.0,
-      "age_minutes": 536.2,
+      "age_minutes": 748.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1107,7 +1191,7 @@
       ],
       "published_at": "2026-04-14T15:02:45Z",
       "published_ts": 1776178965.0,
-      "age_minutes": 545.6,
+      "age_minutes": 758.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1145,7 +1229,7 @@
       ],
       "published_at": "2026-04-14T14:05:25Z",
       "published_ts": 1776175525.0,
-      "age_minutes": 603.0,
+      "age_minutes": 815.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1183,7 +1267,7 @@
       ],
       "published_at": "2026-04-14T13:30:03Z",
       "published_ts": 1776173403.0,
-      "age_minutes": 638.3,
+      "age_minutes": 851.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1222,7 +1306,7 @@
       ],
       "published_at": "2026-04-14T12:54:59Z",
       "published_ts": 1776171299.0,
-      "age_minutes": 673.4,
+      "age_minutes": 886.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1260,7 +1344,7 @@
       ],
       "published_at": "2026-04-14T12:30:00Z",
       "published_ts": 1776169800.0,
-      "age_minutes": 698.4,
+      "age_minutes": 911.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1298,7 +1382,7 @@
       ],
       "published_at": "2026-04-14T10:09:41Z",
       "published_ts": 1776161381.0,
-      "age_minutes": 838.7,
+      "age_minutes": 1051.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1329,44 +1413,6 @@
       "provider_count": 1
     },
     {
-      "story_key": "deeb9d295a0be611ff1278c8668b0180b86bd2c8:5920653",
-      "headline": "Amazon: Positioning For Global Interconnectivity With Globalstar (NASDAQ:AMZN)",
-      "tickers": [
-        "AMZN"
-      ],
-      "published_at": "2026-04-14T19:45:30Z",
-      "published_ts": 1776195930.0,
-      "age_minutes": 262.9,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Seeking Alpha"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Amazon: Positioning For Global Interconnectivity With Globalstar (NASDAQ:AMZN)",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.1812,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://seekingalpha.com/article/4890671-amazon-positioning-for-global-interconnectivity-with-globalstar",
-      "first_seen_at": "2026-04-14T21:30:00.572085Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
       "story_key": "9f55b686374205531bc839b8a20efc8e987674cf:5920568",
       "headline": "Trade Strategy For SPY, QQQ, AAPL, MSFT, NVDA, GOOGL, META, And TSLA",
       "tickers": [
@@ -1376,7 +1422,7 @@
       ],
       "published_at": "2026-04-14T12:42:44Z",
       "published_ts": 1776170564.0,
-      "age_minutes": 685.7,
+      "age_minutes": 898.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1407,6 +1453,120 @@
       "provider_count": 1
     },
     {
+      "story_key": "90a19fd66d3ceef791cfc1b3455b746c906ddbb1:5920680",
+      "headline": "Amazon to Buy Globalstar Satelite Firm to Compete with Starlink? GSAT, AMZN Rally",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_at": "2026-04-14T22:02:44Z",
+      "published_ts": 1776204164.0,
+      "age_minutes": 338.3,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Watcher Guru"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Amazon to Buy Globalstar Satelite Firm to Compete with Starlink? GSAT, AMZN Rally",
+      "sentiment_label": "bullish",
+      "polarity": 0.1375,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.1671,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://watcher.guru/news/amazon-to-buy-globalstar-satelite-firm-to-compete-with-starlink-gsat-amzn-rally",
+      "first_seen_at": "2026-04-15T03:41:01.885592Z",
+      "is_new": true,
+      "provider_count": 1
+    },
+    {
+      "story_key": "eff00f5d69d72fa7980d8acbbbc7093992fbe8b6:5920671",
+      "headline": "Amazon: Stronger Than Ever With Globalstar Deal (NASDAQ:AMZN)",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_at": "2026-04-14T21:18:20Z",
+      "published_ts": 1776201500.0,
+      "age_minutes": 382.7,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Seeking Alpha"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Amazon: Stronger Than Ever With Globalstar Deal (NASDAQ:AMZN)",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.1671,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://seekingalpha.com/article/4890687-amazon-stronger-than-ever-with-globalstar-deal",
+      "first_seen_at": "2026-04-15T03:41:01.885592Z",
+      "is_new": true,
+      "provider_count": 1
+    },
+    {
+      "story_key": "deeb9d295a0be611ff1278c8668b0180b86bd2c8:5920653",
+      "headline": "Amazon: Positioning For Global Interconnectivity With Globalstar (NASDAQ:AMZN)",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_at": "2026-04-14T19:45:30Z",
+      "published_ts": 1776195930.0,
+      "age_minutes": 475.5,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Seeking Alpha"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Amazon: Positioning For Global Interconnectivity With Globalstar (NASDAQ:AMZN)",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.1671,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://seekingalpha.com/article/4890671-amazon-positioning-for-global-interconnectivity-with-globalstar",
+      "first_seen_at": "2026-04-14T21:30:00.572085Z",
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
       "story_key": "d276cb0eeeeaac3ab3ed60aedeca7be8e9d52e98:5920652",
       "headline": "Amazon (AMZN) Stock Is Up, What You Need To Know",
       "tickers": [
@@ -1414,7 +1574,7 @@
       ],
       "published_at": "2026-04-14T19:42:03Z",
       "published_ts": 1776195723.0,
-      "age_minutes": 266.3,
+      "age_minutes": 479.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1435,7 +1595,7 @@
       "impact": 0.1,
       "clarity": 0.6,
       "relevance": 0.475,
-      "news_catalyst_score": 0.1798,
+      "news_catalyst_score": 0.1671,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
@@ -1452,7 +1612,7 @@
       ],
       "published_at": "2026-04-14T18:43:54Z",
       "published_ts": 1776192234.0,
-      "age_minutes": 324.5,
+      "age_minutes": 537.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1490,7 +1650,7 @@
       ],
       "published_at": "2026-04-14T18:07:54Z",
       "published_ts": 1776190074.0,
-      "age_minutes": 360.5,
+      "age_minutes": 573.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1528,7 +1688,7 @@
       ],
       "published_at": "2026-04-14T17:06:16Z",
       "published_ts": 1776186376.0,
-      "age_minutes": 422.1,
+      "age_minutes": 634.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1566,7 +1726,7 @@
       ],
       "published_at": "2026-04-14T17:05:55Z",
       "published_ts": 1776186355.0,
-      "age_minutes": 422.5,
+      "age_minutes": 635.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1604,7 +1764,7 @@
       ],
       "published_at": "2026-04-14T16:29:34Z",
       "published_ts": 1776184174.0,
-      "age_minutes": 458.8,
+      "age_minutes": 671.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1642,7 +1802,7 @@
       ],
       "published_at": "2026-04-14T16:08:51Z",
       "published_ts": 1776182931.0,
-      "age_minutes": 479.5,
+      "age_minutes": 692.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1680,7 +1840,7 @@
       ],
       "published_at": "2026-04-14T15:37:49Z",
       "published_ts": 1776181069.0,
-      "age_minutes": 510.6,
+      "age_minutes": 723.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1718,7 +1878,7 @@
       ],
       "published_at": "2026-04-14T14:40:59Z",
       "published_ts": 1776177659.0,
-      "age_minutes": 567.4,
+      "age_minutes": 780.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1756,7 +1916,7 @@
       ],
       "published_at": "2026-04-14T14:10:11Z",
       "published_ts": 1776175811.0,
-      "age_minutes": 598.2,
+      "age_minutes": 810.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1794,7 +1954,7 @@
       ],
       "published_at": "2026-04-14T13:47:54Z",
       "published_ts": 1776174474.0,
-      "age_minutes": 620.5,
+      "age_minutes": 833.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1832,7 +1992,7 @@
       ],
       "published_at": "2026-04-14T13:29:48Z",
       "published_ts": 1776173388.0,
-      "age_minutes": 638.6,
+      "age_minutes": 851.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1870,7 +2030,7 @@
       ],
       "published_at": "2026-04-14T13:14:08Z",
       "published_ts": 1776172448.0,
-      "age_minutes": 654.3,
+      "age_minutes": 866.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1908,7 +2068,7 @@
       ],
       "published_at": "2026-04-14T10:50:44Z",
       "published_ts": 1776163844.0,
-      "age_minutes": 797.7,
+      "age_minutes": 1010.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1946,7 +2106,7 @@
       ],
       "published_at": "2026-04-14T09:46:08Z",
       "published_ts": 1776159968.0,
-      "age_minutes": 862.3,
+      "age_minutes": 1074.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1984,7 +2144,7 @@
       ],
       "published_at": "2026-04-14T08:43:03Z",
       "published_ts": 1776156183.0,
-      "age_minutes": 925.3,
+      "age_minutes": 1138.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2022,7 +2182,7 @@
       ],
       "published_at": "2026-04-14T07:10:00Z",
       "published_ts": 1776150600.0,
-      "age_minutes": 1018.4,
+      "age_minutes": 1231.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2060,7 +2220,7 @@
       ],
       "published_at": "2026-04-14T06:15:14Z",
       "published_ts": 1776147314.0,
-      "age_minutes": 1073.2,
+      "age_minutes": 1285.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2098,7 +2258,7 @@
       ],
       "published_at": "2026-04-14T05:08:01Z",
       "published_ts": 1776143281.0,
-      "age_minutes": 1140.4,
+      "age_minutes": 1353.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -2127,44 +2287,6 @@
       "first_seen_at": "2026-04-14T08:08:23.237823Z",
       "is_new": false,
       "provider_count": 1
-    },
-    {
-      "story_key": "e60ce69bc0c06b0ca26d70a9c3827f1ce76a5eef:5920443",
-      "headline": "Is Amazon.com (AMZN) One of the Best Blue Chip Stocks to Buy Now?",
-      "tickers": [
-        "AMZN"
-      ],
-      "published_at": "2026-04-14T02:17:31Z",
-      "published_ts": 1776133051.0,
-      "age_minutes": 1310.9,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Yahoo! Finance"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Is Amazon.com (AMZN) One of the Best Blue Chip Stocks to Buy Now?",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.1671,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://ca.finance.yahoo.com/news/amazon-com-amzn-one-best-021731834.html",
-      "first_seen_at": "2026-04-14T04:20:28.520464Z",
-      "is_new": false,
-      "provider_count": 1
     }
   ],
   "news_catalyst_by_symbol": {
@@ -2189,23 +2311,23 @@
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "source_tier": "TIER_3",
-      "mentions_24h": 19,
+      "mentions_24h": 21,
       "is_actionable": false,
       "first_provider": "newsapi_ai",
       "story_key": "6f8f3f1950af787ec0403cfec1fcd4b984681155:5920594"
     },
     "JNJ": {
-      "news_catalyst_score": 0.6336,
-      "sentiment_label": "neutral",
+      "news_catalyst_score": 0.5559,
+      "sentiment_label": "bullish",
       "event_class": "EARNINGS",
-      "event_label": "Johnson & Johnson (JNJ) Q1 2026 Earnings Call Transcript",
-      "materiality": "MEDIUM",
+      "event_label": "Johnson & Johnson Q1 2026 Earnings Call Transcript - Johnson & Johnson (NYSE:JNJ)",
+      "materiality": "LOW",
       "recency_bucket": "AGING",
-      "source_tier": "TIER_3",
-      "mentions_24h": 5,
+      "source_tier": "TIER_2",
+      "mentions_24h": 6,
       "is_actionable": false,
       "first_provider": "newsapi_ai",
-      "story_key": "4a62406215845900df5589366c4cd3ce9378da5e:5920668"
+      "story_key": "121ba1baa8b67782aca46db78f366a741975fd7b:5920614"
     },
     "JPM": {
       "news_catalyst_score": 0.5559,
@@ -2221,30 +2343,30 @@
       "story_key": "9a747b82c7f316f44516e8b4d4d71af22a98756a:5920592"
     },
     "META": {
-      "news_catalyst_score": 0.482,
+      "news_catalyst_score": 0.4418,
       "sentiment_label": "neutral",
-      "event_class": "ANALYST",
-      "event_label": "Meta Platforms (META) Price Target Reduced by $95 Amid Market Volatility",
+      "event_class": "MANAGEMENT",
+      "event_label": "Philips elevates Zora to META region CEO",
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "source_tier": "TIER_3",
-      "mentions_24h": 9,
+      "mentions_24h": 10,
       "is_actionable": false,
       "first_provider": "newsapi_ai",
-      "story_key": "44875620b01434c5ea9f950d08f31e2f06cde4a3:5920443"
+      "story_key": "34c75fae3c6706c158bd6bf8aae38e4f48d4902b:5920517"
     },
     "MSFT": {
-      "news_catalyst_score": 0.482,
+      "news_catalyst_score": 0.3146,
       "sentiment_label": "neutral",
-      "event_class": "ANALYST",
-      "event_label": "Microsoft (MSFT) Price Target Lowered by $103 Ahead of Q3 Report",
+      "event_class": "UNKNOWN",
+      "event_label": "Is Momentum Finally Turning For Microsoft Stock? - Microsoft (NASDAQ:MSFT)",
       "materiality": "LOW",
       "recency_bucket": "AGING",
-      "source_tier": "TIER_3",
-      "mentions_24h": 9,
+      "source_tier": "TIER_2",
+      "mentions_24h": 8,
       "is_actionable": false,
       "first_provider": "newsapi_ai",
-      "story_key": "9b1b2a82892c9b3de4983c52fbb09020230f6503:5920443"
+      "story_key": "6c1e29baef4de33257b0588be82e0e58df20eb0c:5920647"
     },
     "XOM": {
       "news_catalyst_score": 0.1671,
@@ -2261,8 +2383,8 @@
     }
   },
   "summary": {
-    "active_story_count": 55,
-    "new_story_count": 0,
+    "active_story_count": 58,
+    "new_story_count": 6,
     "actionable_story_count": 0,
     "actionable_symbols": [],
     "symbol_count": 7

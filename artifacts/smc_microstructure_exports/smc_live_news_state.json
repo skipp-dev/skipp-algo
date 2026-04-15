@@ -1,15 +1,190 @@
 {
   "provider_cursors": {
     "benzinga": 0.0,
+    "benzinga_quantified": 0.0,
     "fmp_stock": 0.0,
     "fmp_press": 0.0,
     "fmp_articles": 0.0,
-    "newsapi_ai": 1776200507.0,
+    "newsapi_ai": 1776216152.0,
     "tv": 0.0,
-    "legacy_cursor": 1776200507.0
+    "legacy_cursor": 1776216152.0
   },
   "provider_state": {},
   "story_state": {
+    "90a19fd66d3ceef791cfc1b3455b746c906ddbb1:5920680": {
+      "story_key": "90a19fd66d3ceef791cfc1b3455b746c906ddbb1:5920680",
+      "cluster_hash": "90a19fd66d3ceef791cfc1b3455b746c906ddbb1",
+      "headline": "Amazon to Buy Globalstar Satelite Firm to Compete with Starlink? GSAT, AMZN Rally",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_ts": 1776204164.0,
+      "first_seen_ts": 1776224461.8855917,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Watcher Guru"
+      ],
+      "url": "https://watcher.guru/news/amazon-to-buy-globalstar-satelite-firm-to-compete-with-starlink-gsat-amzn-rally",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.1375,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776224461.8855917
+    },
+    "295df8a8c11a51f1bbec733a73d09dcb570a2e1e:5920669": {
+      "story_key": "295df8a8c11a51f1bbec733a73d09dcb570a2e1e:5920669",
+      "cluster_hash": "295df8a8c11a51f1bbec733a73d09dcb570a2e1e",
+      "headline": "Johnson & Johnson raises 2026 outlook to $11.30-$11.50 EPS and $100.2B sales midpoint while targeting $100B annual revenue (NYSE:JNJ)",
+      "tickers": [
+        "JNJ"
+      ],
+      "published_ts": 1776200736.0,
+      "first_seen_ts": 1776224461.8855917,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Seeking Alpha"
+      ],
+      "url": "https://seekingalpha.com/news/4575002-johnson-and-johnson-raises-2026-outlook-to-11_30-11_50-eps-and-100_2b-sales-midpoint-while",
+      "category": "guidance",
+      "impact": 0.88,
+      "clarity": 0.8,
+      "relevance": 0.886,
+      "polarity": 0.235,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776224461.8855917
+    },
+    "8ea44353bab29e97a1e891844b6bf82068d57b1c:5920674": {
+      "story_key": "8ea44353bab29e97a1e891844b6bf82068d57b1c:5920674",
+      "cluster_hash": "8ea44353bab29e97a1e891844b6bf82068d57b1c",
+      "headline": "Amazon Targets SpaceX With $11.5-Billion Globalstar Deal - Amazon.com (NASDAQ:AMZN)",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_ts": 1776202302.0,
+      "first_seen_ts": 1776224461.8855917,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "url": "https://www.benzinga.com/markets/private-markets/26/04/51820719/amazon-targets-spacex-with-11-5-billion-globalstar-deal",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "polarity": 0.0,
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "last_seen_ts": 1776224461.8855917
+    },
+    "eff00f5d69d72fa7980d8acbbbc7093992fbe8b6:5920671": {
+      "story_key": "eff00f5d69d72fa7980d8acbbbc7093992fbe8b6:5920671",
+      "cluster_hash": "eff00f5d69d72fa7980d8acbbbc7093992fbe8b6",
+      "headline": "Amazon: Stronger Than Ever With Globalstar Deal (NASDAQ:AMZN)",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_ts": 1776201500.0,
+      "first_seen_ts": 1776224461.8855917,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Seeking Alpha"
+      ],
+      "url": "https://seekingalpha.com/article/4890687-amazon-stronger-than-ever-with-globalstar-deal",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776224461.8855917
+    },
+    "64a640f2696f8806df4bd07a35cd10ef0cb7bbe4:5920720": {
+      "story_key": "64a640f2696f8806df4bd07a35cd10ef0cb7bbe4:5920720",
+      "cluster_hash": "64a640f2696f8806df4bd07a35cd10ef0cb7bbe4",
+      "headline": "META, AVGO, IONQ, QBTS, HOOD: 5 Trending Stocks Today - Broadcom (NASDAQ:AVGO)",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1776216152.0,
+      "first_seen_ts": 1776224461.8855917,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "url": "https://www.benzinga.com/markets/equities/26/04/51821864/meta-broadcom-ionq-d-wave-quantum-and-robinhood-why-these-5-stocks-are-on-investors-radars-today",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "polarity": 0.0,
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "last_seen_ts": 1776224461.8855917
+    },
+    "8c93b197b3812f22e40e8d2aee22acb726ae070c:5920707": {
+      "story_key": "8c93b197b3812f22e40e8d2aee22acb726ae070c:5920707",
+      "cluster_hash": "8c93b197b3812f22e40e8d2aee22acb726ae070c",
+      "headline": "Assessing Meta Platforms (META) Valuation After Recent Share Price Momentum",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1776212305.0,
+      "first_seen_ts": 1776224461.8855917,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Yahoo! Finance"
+      ],
+      "url": "https://ca.finance.yahoo.com/news/assessing-meta-platforms-meta-valuation-001825733.html",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776224461.8855917
+    },
     "4a62406215845900df5589366c4cd3ce9378da5e:5920668": {
       "story_key": "4a62406215845900df5589366c4cd3ce9378da5e:5920668",
       "cluster_hash": "4a62406215845900df5589366c4cd3ce9378da5e",
