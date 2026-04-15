@@ -6,10 +6,25 @@ import re
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 SMC_PATH = ROOT / 'SMC_Core_Engine.pine'
+RESOLVERS_PATH = ROOT / 'SMC++' / 'smc_context_resolvers.pine'
+UTILS_PATH = ROOT / 'SMC++' / 'smc_utils.pine'
+PROFILE_ENGINE_PATH = ROOT / 'SMC++' / 'smc_profile_engine.pine'
 
 
 def _read_smc_source() -> str:
-    return SMC_PATH.read_text(encoding='utf-8')
+    return SMC_PATH.read_text(encoding = 'utf-8')
+
+
+def _read_resolver_source() -> str:
+    return RESOLVERS_PATH.read_text(encoding='utf-8')
+
+
+def _read_utils_source() -> str:
+    return UTILS_PATH.read_text(encoding='utf-8')
+
+
+def _read_profile_engine_source() -> str:
+    return PROFILE_ENGINE_PATH.read_text(encoding='utf-8')
 
 
 def _extract_function_body(source: str, function_name: str) -> str:
@@ -50,30 +65,38 @@ def test_refactored_helpers_preserve_dependency_order() -> None:
     source = _read_smc_source()
 
     indices = {
+        # compose_long_*_alert_detail definitions moved to smc_context_resolvers (WP-SPLIT4)
         'build_dynamic_alert': _find_required(source, 'build_dynamic_alert_message('),
         'emit_dynamic_alert': _find_required(source, 'emit_dynamic_alert_if_allowed('),
         'priority_alert': _find_required(source, 'emit_priority_long_dynamic_alerts('),
         'linear_alert': _find_required(source, 'emit_linear_long_dynamic_alerts('),
+        'db_trend_text': _find_required(source, 'db_trend_text('),
+        'db_trend_state': _find_required(source, 'db_trend_state('),
+        'db_exec_tier': _find_required(source, 'db_exec_tier_text() =>'),
+        'db_setup_age': _find_required(source, 'db_setup_age_text() =>'),
+        'db_ready_gate': _find_required(source, 'db_ready_gate_state('),
+        'db_strict_gate': _find_required(source, 'db_strict_gate_state('),
+        'db_long_debug': _find_required(source, 'db_long_debug_state('),
         'compose_zone_summary': _find_required(source, 'compose_zone_summary_text('),
         'compose_debug_modules': _find_required(source, 'compose_enabled_debug_modules_text('),
         'long_state': _find_required(source, 'var LongLifecycleState long_state ='),
         'long_plan': _find_required(source, 'bool long_plan_active = false'),
+        'dashboard_modules': _find_required(source, 'compute_dashboard_modules_structure_prep() =>'),
+        'dashboard_lifecycle': _find_required(source, 'compute_dashboard_lifecycle_prep() =>'),
+        'dashboard_engine': _find_required(source, 'compute_dashboard_engine_debug_prep() =>'),
     }
 
     _assert_markers_before(indices, ['build_dynamic_alert', 'emit_dynamic_alert'], ['priority_alert', 'linear_alert'])
-    # compose_long_*_alert_detail helpers moved to smc_context_resolvers library;
-    # ordering constraints no longer apply at concatenated-source level
-    assert 'export compose_long_invalidated_alert_detail(' in source
-    assert 'export compose_long_watchlist_alert_detail(' in source
-    _assert_markers_before(indices, ['compose_zone_summary'], ['compose_debug_modules'])
-    # long_state and long_plan are runtime declarations well below helper definitions
-    assert 'var LongLifecycleState long_state =' in source
-    assert 'bool long_plan_active = false' in source
+    # compose_long_*_alert_detail ordering assertion removed — definitions moved to smc_context_resolvers (WP-SPLIT4)
+    _assert_markers_before(indices, ['db_trend_text', 'db_trend_state', 'db_exec_tier', 'db_setup_age', 'long_state'], ['dashboard_lifecycle'])
+    _assert_markers_before(indices, ['compose_zone_summary', 'long_state', 'long_plan'], ['dashboard_modules'])
+    _assert_markers_before(indices, ['db_ready_gate', 'db_strict_gate', 'db_long_debug', 'compose_debug_modules', 'long_state'], ['dashboard_engine'])
 
 
 def test_atr_helper_uses_deterministic_warmup_accumulator() -> None:
-    source = _read_smc_source()
-    body = _extract_function_body(source, 'export smc_lib_atr')
+    # Definition lives in smc_utils (WP-SPLIT3); core calls via u.smc_lib_atr
+    utils_source = _read_utils_source()
+    body = _extract_function_body(utils_source, 'smc_lib_atr')
 
     assert 'float atr_value = ta.atr(length)' in body
     assert 'float tr_cum = ta.cum(ta.tr(true))' in body
@@ -81,6 +104,10 @@ def test_atr_helper_uses_deterministic_warmup_accumulator() -> None:
     assert 'atr_value := tr_cum / (bar_index + 1)' in body
     assert 'var float sum = 0.0' not in body
     assert 'sum += ta.tr(true)' not in body
+
+    # Call-site in core uses library prefix
+    core_source = _read_smc_source()
+    assert 'u.smc_lib_atr(' in core_source
 
 
 def test_strict_ltf_fallback_is_limited_to_missing_or_unverifiable_ltf() -> None:
@@ -941,7 +968,7 @@ def test_ddvi_and_market_safe_fallbacks_use_explicit_block_logic() -> None:
 def test_signal_and_long_state_contract_are_declared_for_safe_refactors() -> None:
     source = _read_smc_source()
 
-    assert 'indicator("SMC Long-Dip Suite v7", "SMC Long-Dip Suite v7", overlay = true, max_bars_back = 500, max_lines_count = 300, max_boxes_count = 300, max_labels_count = 300)' in source
+    assert 'indicator("Smart Money Concepts (Highly Advanced)", "SMC++", overlay = true, max_bars_back = 500, max_lines_count = 300, max_boxes_count = 300, max_labels_count = 500)' in source
     assert '// - Market structure, OB/FVG engines, dashboards, alerts, and the long-dip lifecycle are coordinated locally.' in source
     assert '// - The long lifecycle flows as: zone detection -> reclaim/arm -> confirm -> ready/entry -> invalidated/reset.' in source
     assert '// Signal / state contract' in source
@@ -958,10 +985,10 @@ def test_signal_and_long_state_contract_are_declared_for_safe_refactors() -> Non
     assert 'project_long_state(LongLifecycleState st) =>' not in source
     assert 'var bool long_setup_armed = false' not in source
     assert 'var int long_setup_serial = 0' not in source
-    assert 'validate_long_state(long_state, show_long_engine_debug_eff)' in source
+    assert 'validate_long_state(long_state, show_long_engine_debug)' in source
     assert "state_code == -1 ? 'Invalidated' : state_code == 0 ? 'No Setup' :" not in source
     assert "long_visual_state == -1 ? 'Fail' :" not in source
-    assert "string setup_text = resolve_long_setup_state_label(state_code)" in source
+    assert 'string setup_text = \'No Setup\'' in source
     assert 'string visual_text = \'Ready\'' in source
 
 
@@ -977,10 +1004,10 @@ def test_backing_zone_identity_and_touch_count_persist_after_arm() -> None:
     assert 'int _fvg_backing_zone_id = na' in source
     assert 'if long_state.backing_zone_kind == LONG_SOURCE_FVG' in source
     assert '_fvg_backing_zone_id := long_state.backing_zone_id' in source
-    assert 'int helper_long_arm_locked_source_id = resolve_long_zone_id(arm_backing_zone_kind, arm_backing_zone_id)' in source
-    assert 'int helper_long_arm_locked_source_last_touch_bar_index = na' in source
-    assert 'if not na(helper_long_arm_locked_source_id)' in source
-    assert 'helper_long_arm_locked_source_last_touch_bar_index := current_bar_index' in source
+    assert 'int long_arm_locked_source_id = resolve_long_zone_id(arm_backing_zone_kind, arm_backing_zone_id)' in source
+    assert 'int long_arm_locked_source_last_touch_bar_index = na' in source
+    assert 'if not na(long_arm_locked_source_id)' in source
+    assert 'long_arm_locked_source_last_touch_bar_index := bar_index' in source
     assert 'int long_arm_locked_source_last_touch_bar_index = not na(long_arm_locked_source_id) ? bar_index : na' not in source
     assert 'long_state.arm(bar_index, arm_trigger_candidate, arm_invalidation_candidate, arm_source_kind, arm_backing_zone_kind, arm_backing_zone_id, long_arm_backing_zone_touch_count, arm_backing_zone_kind, long_arm_locked_source_id, long_arm_locked_source_top, long_arm_locked_source_bottom, long_arm_backing_zone_touch_count, long_arm_locked_source_last_touch_bar_index)' in source
     assert 'bool bullish_fvg_filled_alert = false' in source
@@ -999,10 +1026,10 @@ def test_invalidation_path_records_specific_reason_and_clears_setup_state() -> N
     assert "string long_validation_source_text = resolve_long_source_text(long_validation_source)" in source
     assert "string long_entry_origin_source_text = resolve_long_source_text(long_entry_origin_source)" in source
     assert "string invalidation_reason = long_setup_source_display" in source
-    assert "invalidation_reason := compose_long_source_invalidated_text(long_validation_source_text)" in source
-    assert "invalidation_reason := compose_long_backing_zone_lost_text(long_validation_source_text)" in source
-    assert "invalidation_reason := compose_long_setup_expired_text(long_entry_origin_source_text)" in source
-    assert "invalidation_reason := compose_long_confirm_expired_text(long_entry_origin_source_text)" in source
+    assert "invalidation_reason := long_validation_source_text + ' source invalidated'" in source
+    assert "invalidation_reason := long_validation_source_text + ' backing zone lost'" in source
+    assert "invalidation_reason := long_entry_origin_source_text + ' setup expired'" in source
+    assert "invalidation_reason := long_entry_origin_source_text + ' confirm expired'" in source
     assert "long_source_broken ? long_validation_source_text + ' source invalidated'" not in source
     assert 'int long_validation_source_now = resolve_long_validation_source(long_locked_source_kind_final)' in source
     assert 'string long_setup_source_display_now = compose_long_setup_source_display(long_state.entry_origin_source, long_validation_source_now)' in source
@@ -1035,14 +1062,18 @@ def test_ob_confirmed_profiles_are_rebuilt_from_copied_ltf_data() -> None:
 def test_udt_render_and_draw_helpers_guard_na_before_field_access() -> None:
     source = _read_smc_source()
 
+    # OrderBlock.delete stays in core
     assert 'method delete(OrderBlock this) =>' in source
     assert 'this.plot := na' in source
     assert 'this.profile := na' in source
-    assert 'method delete(Profile this) =>' in source
-    assert 'array.clear(this.buckets)' in source
-    assert 'this.buckets := na' in source
-    assert 'array.clear(this.data_values)' in source
-    assert 'this.hidden := false' in source
+
+    # Profile.delete moved to smc_profile_engine (WP-SPLIT2)
+    pe_source = _read_profile_engine_source()
+    assert 'method delete(Profile this) =>' in pe_source
+    assert 'array.clear(this.buckets)' in pe_source
+    assert 'this.buckets := na' in pe_source
+    assert 'array.clear(this.data_values)' in pe_source
+    assert 'this.hidden := false' in pe_source
     # Draw methods moved to smc_draw library (d.SmcBox, d.SmcLabel)
     assert 'import preuss_steffen/smc_draw/1 as d' in source
     assert 'method rendered_right_time(OrderBlock this, bool extend_until_broken = true) =>' in source
@@ -1060,12 +1091,11 @@ def test_indicator_resource_caps_match_runtime_history_behavior() -> None:
 
     assert 'max_lines_count = 300' in source
     assert 'max_boxes_count = 300' in source
-    assert 'max_labels_count = 300' in source
+    assert 'max_labels_count = 500' in source
     assert re.search(r"var int long_marker_history_limit = input\.int\(100, 'Marker History Limit', minval = 0, maxval = 500, group = g_long, inline = 'viz2'(?:, display = display\.none)?\)", source)
-    # trim_label_history removed; marker history managed via drawn_bar_index tracking
-    assert 'var int reclaim_marker_drawn_bar_index = na' in source
-    assert 'var int long_state_marker_drawn_bar_index = na' in source
-    assert 'var int long_ready_marker_drawn_bar_index = na' in source
+    assert 'u.trim_label_history(reclaim_marker_history, show_reclaim_markers ? long_marker_history_limit_eff : 0)' in source
+    assert 'u.trim_label_history(long_state_marker_history, show_long_confirmation_markers ? long_marker_history_limit_eff : 0)' in source
+    assert 'u.trim_label_history(long_ready_marker_history, show_long_confirmation_markers ? long_marker_history_limit_eff : 0)' in source
     assert 'state <= -1 ? color.new(color.red, 75) :' not in source
     assert 'color bg = color.new(color.green, 60)' in source
 
@@ -1076,8 +1106,7 @@ def test_tuple_returned_ob_and_fvg_buffers_use_function_call_syntax_for_custom_m
     assert 'draw(ob_blocks_bull, ob_config_bull, visible_left = visible_left_time, visible_right = visible_right_time)' in source
     # bear draw calls removed (Patch 4)
     assert 'draw(fvgs_bull, fvg_config_bull, visible_left = visible_left_time, visible_right = visible_right_time)' in source
-    # HTF FVG bull draw calls removed (Patch 5)
-    assert 'draw(htf_fvg_buffer_bull, htf_fvg_config_bull, visible_left = visible_left_time, visible_right = visible_right_time)' not in source
+    assert 'draw(htf_fvg_buffer_bull, htf_fvg_config_bull, visible_left = visible_left_time, visible_right = visible_right_time)' in source
     assert 'contains_id(ob_blocks_bull, touched_bull_ob_id)' in source
     assert 'get_by_id(ob_blocks_bull, touched_bull_ob_id)' in source
     assert 'contains_id(filled_fvgs_bull, long_locked_source_id_final)' in source
@@ -1100,7 +1129,7 @@ def test_tuple_returned_ob_and_fvg_buffers_use_function_call_syntax_for_custom_m
     assert 'delete(buffer_bull_discarded)' in source
     assert 'array.clear(fvg_discarded_bull)' in source
     assert 'delete(htf_buffer_bull_discarded)' in source
-    assert 'array.clear(htf_buffer_bull_discarded)' in source
+    assert 'array.clear(htf_fvg_buffer_bull_discarded)' in source
     assert 'ob_blocks_bull.draw(' not in source
     assert 'fvgs_bull.draw(' not in source
     assert 'htf_fvg_buffer_bull.draw(' not in source
@@ -1129,16 +1158,13 @@ def test_fvg_hide_and_orderblock_reset_are_cleanup_consistent() -> None:
 def test_invalidated_alert_has_single_preset_definition_without_failed_alias() -> None:
     source = _read_smc_source()
 
-    # Legacy per-event alertconditions removed; replaced by product-state alerts
-    assert "alertcondition(long_invalidate_alert_event," not in source
+    preset_defs = re.findall(r"alertcondition\(long_invalidate_alert_event, 'Long Invalidated', 'SMC\+\+: Long setup invalidated\.'\)", source)
+    assert len(preset_defs) == 1, 'Expected exactly one Long Invalidated preset definition'
     assert "alertcondition(long_invalidate_alert_event, 'Long Dip Failed'" not in source
-    assert "alertcondition(long_invalidated_close_safe," not in source
-    assert "alertcondition(alert_long_watchlist_event_latched," not in source
-    assert "alertcondition(bull_bos_sig," not in source
-    assert "alertcondition(directional_trend_started," not in source
-    # New product-state alertconditions use 'SMC:' prefix
-    assert "alertcondition(alert_product_state == 'ENTER LONG' and alert_product_state[1] != 'ENTER LONG', 'SMC: Enter Long'" in source
-    assert "alertcondition(alert_product_state == 'BLOCKED' and alert_product_state[1] != 'BLOCKED', 'SMC: Setup Blocked'" in source
+    assert "alertcondition(long_invalidated_close_safe, 'Long Invalidated (Close Safe)', 'SMC++: Long setup invalidated at candle close.')" in source
+    assert "alertcondition(alert_long_watchlist_event_latched, 'Long Dip Watchlist', 'SMC++: Watchlist state active. Bullish trend with an active pullback zone.')" in source
+    assert "alertcondition(bull_bos_sig, 'Bullish BOS Detected', 'SMC++: Bullish break of structure detected.')" in source
+    assert "alertcondition(directional_trend_started, 'Trend Direction Changed', 'SMC++: Structure trend changed direction.')" in source
 
 
 def test_confirmed_only_touch_state_updates_are_gated_by_state_update_bar_ok() -> None:
@@ -1240,7 +1266,7 @@ def test_structure_signal_derivations_use_explicit_block_logic() -> None:
     assert 'show_internal_bull_choch := true' in source
     assert 'bool show_chart_swing_levels = false' in source
     assert 'if show_latest_swings_levels or show_swing_points' in source
-    assert 'show_chart_swing_levels := not compact_mode' in source
+    assert 'show_chart_swing_levels := true' in source
     assert 'int internal_display_trend = 0' in source
     assert 'if not na(ta.barssince(internal_structure_break_detected))' in source
     assert 'internal_display_trend := internal_trend' in source
@@ -1335,9 +1361,9 @@ def test_armed_stage_can_be_optionally_tightened() -> None:
     source = _read_smc_source()
 
     assert "var bool tighten_armed_stage = input.bool(true, 'Tighten Armed Stage'" in source
-    assert 'bool armed_prequality_ok = compute_long_arm_prequality_ok(tighten_armed_stage_eff, bullish_trend_safe, micro_session_gate_ok, zone_touch_quality_ok, bull_close_strong, ema_support_ok)' in source
+    assert 'bool armed_prequality_ok = true' in source
     assert 'if tighten_armed_stage_eff' in source
-    assert 'helper_armed_prequality_ok := bullish_trend_safe and micro_session_gate_ok and zone_touch_quality_ok and bull_close_strong and ema_support_ok' in source
+    assert 'armed_prequality_ok := bullish_trend_safe and micro_session_gate_ok and zone_touch_quality_ok and bull_close_strong and ema_support_ok' in source
     assert 'and armed_prequality_ok' in source
     assert 'bool armed_prequality_ok = not tighten_armed_stage_eff or (bullish_trend_safe and micro_session_gate_ok and zone_touch_quality_ok and bull_close_strong and ema_support_ok)' not in source
 
@@ -1347,7 +1373,7 @@ def test_user_presets_and_performance_modes_drive_effective_runtime_layers() -> 
 
     assert "var string long_user_preset = input.string('Standard', 'Trading Style', options = ['Easy', 'Standard', 'Pro']" in source
     assert "var string performance_mode = input.string('Balanced', 'Performance Mode', options = ['Light', 'Balanced', 'Pro', 'Debug']" in source
-    assert "tooltip = 'Primary Lite operating layer. Easy keeps the long engine permissive and easier to operate. Standard preserves the current balanced workflow. Pro enables stricter lifecycle and execution gating for cleaner but rarer setups.'" in source
+    assert "tooltip = 'Easy keeps the long engine permissive and easier to operate. Standard preserves the current balanced workflow. Pro enables stricter lifecycle and execution gating for cleaner but rarer setups.'" in source
     assert "tooltip = 'Light cuts rendering and lower-timeframe workload. Balanced preserves the manual limits. Pro raises object and sampling budgets. Debug keeps the richest diagnostics and history.'" in source
     assert "bool preset_is_easy = long_user_preset == 'Easy'" in source
     assert "bool preset_is_standard = long_user_preset == 'Standard'" in source
@@ -1416,18 +1442,16 @@ def test_debug_telemetry_package_wires_inputs_helpers_logs_and_dashboard() -> No
     assert "var bool show_ob_debug = input.bool(false, 'Show OB debug'" in source
     assert "var bool show_fvg_debug = input.bool(false, 'Show FVG debug'" in source
     assert 'compose_enabled_debug_modules_text(bool show_ob_debug, bool show_fvg_debug, bool show_long_engine_debug, string long_engine_debug_mode) =>' in source
-    assert "string debug_mode_suffix = ' Compact'" in source
+    assert "string long_debug_mode_suffix = ' Compact'" in source
     assert "if long_engine_debug_mode == 'Full'" in source
-    # debug module wiring refactored into append_enabled_debug_module_text helpers
-    assert "append_enabled_debug_module_text(string debug_text, bool show_module, string module_text) =>" in source
-    assert "'Long' + resolve_long_debug_mode_suffix(long_engine_debug_mode)" in source
+    assert "if debug_text == 'off'" in source
+    assert "debug_text := 'Long' + long_debug_mode_suffix" in source
     assert "string long_debug_mode_suffix = long_engine_debug_mode == 'Full' ? ' Full' : ' Compact'" not in source
     assert "debug_mode_is_full(string long_engine_debug_mode) =>" in source
-    assert 'compute_long_environment_context(bool market_regime_gate_ok, bool vola_regime_gate_safe, bool primary_quality_gate_ok, bool session_structure_gate_ok, bool micro_session_gate_ok, bool micro_freshness_gate_ok, bool overhead_zone_ok, bool event_risk_gate_ok_param) =>' in source
-    assert 'resolve_long_ready_lifecycle_reason_code(bool long_ready_state, bool long_setup_confirmed, bool close_safe_mode, bool ready_bar_gap_ok, bool long_confirm_expired, bool ready_is_fresh, bool long_confirm_bearish_guard_ok, bool require_main_break_for_ready, bool bull_bos_sig, bool main_bos_recent) =>' in source
-    assert 'resolve_long_ready_gate_reason_code(bool setup_hard_gate_ok, bool trade_hard_gate_ok, bool environment_hard_gate_ok, bool session_structure_gate_ok, bool micro_session_gate_ok, bool micro_freshness_gate_ok, bool overhead_zone_ok, bool market_regime_gate_ok, bool vola_regime_gate_safe, bool quality_gate_ok, bool accel_ready_gate_ok, bool sd_ready_gate_ok, bool vol_ready_context_ok, bool stretch_ready_context_ok, bool ddvi_ready_ok_safe) =>' in source
-    # resolve_long_strict_gate_reason extracted into resolve_long_strict_blocker_text_from_reason_code
-    assert 'resolve_long_strict_blocker_text_from_reason_code(' in source
+    assert 'compute_long_environment_context(bool market_regime_gate_ok, bool vola_regime_gate_safe, bool context_quality_gate_ok, bool session_structure_gate_ok, bool micro_session_gate_ok, bool micro_freshness_gate_ok, bool overhead_zone_ok) =>' in source
+    assert 'resolve_long_ready_lifecycle_reason(bool long_ready_state, bool long_setup_confirmed, bool close_safe_mode, bool ready_bar_gap_ok, bool long_confirm_expired, bool ready_is_fresh, bool long_confirm_bearish_guard_ok, bool require_main_break_for_ready, bool bull_bos_sig, bool main_bos_recent) =>' in source
+    assert 'resolve_long_ready_gate_reason(bool setup_hard_gate_ok, bool session_structure_gate_ok, bool micro_session_gate_ok, bool micro_freshness_gate_ok, bool overhead_zone_ok, bool market_regime_gate_ok, bool vola_regime_gate_safe, bool quality_gate_ok, bool accel_ready_gate_ok, bool sd_ready_gate_ok, bool vol_ready_context_ok, bool stretch_ready_context_ok, bool ddvi_ready_ok_safe) =>' in source
+    assert 'resolve_long_strict_gate_reason(bool strict_entry_ltf_ok, bool htf_alignment_ok, bool accel_strict_entry_gate_ok, bool sd_entry_strict_gate_ok, bool vol_entry_strict_context_ok_safe, bool stretch_entry_strict_context_ok, bool ddvi_entry_strict_ok_safe) =>' in source
     assert 'compose_long_debug_compact_text(string long_setup_source_display, string long_ready_blocker_text, string long_strict_blocker_text) =>' in source
     assert 'compose_long_debug_source_touch_text(string long_setup_source_display, int long_setup_backing_zone_touch_count) =>' in source
     assert 'compose_long_debug_ready_strict_text(string long_ready_blocker_text, string long_strict_blocker_text) =>' in source
@@ -1438,22 +1462,22 @@ def test_debug_telemetry_package_wires_inputs_helpers_logs_and_dashboard() -> No
     assert 'compose_long_debug_levels_text(float long_setup_trigger, float long_invalidation_level, string overhead_text) =>' in source
     assert 'resolve_long_upgrade_reason(bool long_source_upgrade_now, bool prefer_ob_upgrade, bool ob_source_upgrade_ok, bool fvg_source_upgrade_ok, float touched_bull_ob_quality, float touched_bull_fvg_quality, float long_locked_source_quality) =>' in source
     assert 'compute_long_ready_state(bool close_safe_mode, bool long_setup_confirmed, bool ready_bar_gap_ok, bool long_confirm_expired, bool ready_is_fresh, bool long_confirm_bearish_guard_ok, bool require_main_break_for_ready, bool bull_bos_sig, bool main_bos_recent, bool setup_hard_gate_ok, bool trade_hard_gate_ok, bool environment_hard_gate_ok, bool quality_gate_ok, bool accel_ready_gate_ok, bool sd_ready_gate_ok, bool vol_ready_context_ok, bool stretch_ready_context_ok, bool ddvi_ready_ok_safe) =>' in source
-    assert 'compute_long_entry_best_state(bool long_ready_state, bool best_signal_quality_gate_ok, bool accel_entry_best_gate_ok, bool sd_entry_best_gate_ok, bool vol_entry_best_context_ok_safe, bool stretch_entry_best_context_ok, bool ddvi_entry_best_ok_safe) =>' in source
-    assert 'compute_long_entry_strict_state(bool long_ready_state, bool strict_signal_quality_gate_ok, bool strict_entry_ltf_ok, bool htf_alignment_ok, bool accel_strict_entry_gate_ok, bool sd_entry_strict_gate_ok, bool vol_entry_strict_context_ok_safe, bool stretch_entry_strict_context_ok, bool ddvi_entry_strict_ok_safe) =>' in source
-    assert 'resolve_long_ready_blocker_text(bool long_ready_state, bool long_setup_confirmed, bool close_safe_mode, bool ready_bar_gap_ok, bool long_confirm_expired, bool ready_is_fresh, bool long_confirm_bearish_guard_ok, bool require_main_break_for_ready, bool bull_bos_sig, bool main_bos_recent, bool setup_hard_gate_ok, bool trade_hard_gate_ok, bool environment_hard_gate_ok, bool session_structure_gate_ok, bool micro_session_gate_ok, bool micro_freshness_gate_ok, bool overhead_zone_ok, bool market_regime_gate_ok, bool vola_regime_gate_safe, bool quality_gate_ok, bool accel_ready_gate_ok, bool sd_ready_gate_ok, bool vol_ready_context_ok, bool stretch_ready_context_ok, bool ddvi_ready_ok_safe) =>' in source
-    assert "resolve_long_strict_blocker_text(bool long_entry_strict_state, bool long_ready_state, string long_ready_blocker_text, bool strict_signal_quality_gate_ok, bool strict_entry_ltf_ok, bool htf_alignment_ok, bool accel_strict_entry_gate_ok, bool sd_entry_strict_gate_ok, bool vol_entry_strict_context_ok_safe, bool stretch_entry_strict_context_ok, bool ddvi_entry_strict_ok_safe) =>" in source
+    assert 'compute_long_entry_best_state(bool long_ready_state, bool accel_entry_best_gate_ok, bool sd_entry_best_gate_ok, bool vol_entry_best_context_ok_safe, bool stretch_entry_best_context_ok, bool ddvi_entry_best_ok_safe) =>' in source
+    assert 'compute_long_entry_strict_state(bool long_ready_state, bool strict_entry_ltf_ok, bool htf_alignment_ok, bool accel_strict_entry_gate_ok, bool sd_entry_strict_gate_ok, bool vol_entry_strict_context_ok_safe, bool stretch_entry_strict_context_ok, bool ddvi_entry_strict_ok_safe) =>' in source
+    assert 'resolve_long_ready_blocker_text(bool long_ready_state, bool long_setup_confirmed, bool close_safe_mode, bool ready_bar_gap_ok, bool long_confirm_expired, bool ready_is_fresh, bool long_confirm_bearish_guard_ok, bool require_main_break_for_ready, bool bull_bos_sig, bool main_bos_recent, bool setup_hard_gate_ok, bool session_structure_gate_ok, bool micro_session_gate_ok, bool micro_freshness_gate_ok, bool overhead_zone_ok, bool market_regime_gate_ok, bool vola_regime_gate_safe, bool quality_gate_ok, bool accel_ready_gate_ok, bool sd_ready_gate_ok, bool vol_ready_context_ok, bool stretch_ready_context_ok, bool ddvi_ready_ok_safe) =>' in source
+    assert "resolve_long_strict_blocker_text(bool long_entry_strict_state, bool long_ready_state, string long_ready_blocker_text, bool strict_entry_ltf_ok, bool htf_alignment_ok, bool accel_strict_entry_gate_ok, bool sd_entry_strict_gate_ok, bool vol_entry_strict_context_ok_safe, bool stretch_entry_strict_context_ok, bool ddvi_entry_strict_ok_safe) =>" in source
     assert "string trade_gate_reason = 'Trade OK'" in source
-    assert "trade_gate_reason := compose_blocked_status_text('Session Gate')" in source
+    assert "trade_gate_reason := 'Blocked: Session Gate'" in source
     assert "string environment_gate_reason = 'Env OK'" in source
-    assert "environment_gate_reason := compose_blocked_status_text('Market Gate')" in source
-    assert "string lifecycle_reason = ''" not in source
-    assert "lifecycle_reason := 'Awaiting Confirm'" not in source
-    assert 'resolve_long_ready_gate_reason_code(' in source
-    assert "ready_gate_reason := 'Blocked: DDVI Context'" not in source
-    assert "string strict_blocker_text = compose_passed_status_text()" in source
-    assert "strict_blocker_text := compose_need_ready_status_text(long_ready_blocker_text)" in source
-    assert "string strict_gate_reason = 'Eligible'" not in source
-    assert "strict_gate_reason := 'Blocked: LTF Confirmation'" not in source
+    assert "environment_gate_reason := 'Blocked: Market Gate'" in source
+    assert "string lifecycle_reason = ''" in source
+    assert "lifecycle_reason := 'Awaiting Confirm'" in source
+    assert "resolve_long_ready_gate_reason(setup_hard_gate_ok, session_structure_gate_ok, micro_session_gate_ok, micro_freshness_gate_ok, overhead_zone_ok, market_regime_gate_ok, vola_regime_gate_safe, quality_gate_ok, accel_ready_gate_ok, sd_ready_gate_ok, vol_ready_context_ok, stretch_ready_context_ok, ddvi_ready_ok_safe)" in source
+    assert "ready_gate_reason := 'Blocked: DDVI Context'" in source
+    assert "string strict_blocker_text = 'Passed'" in source
+    assert "strict_blocker_text := 'Need Ready: ' + long_ready_blocker_text" in source
+    assert "string strict_gate_reason = 'Eligible'" in source
+    assert "strict_gate_reason := 'Blocked: LTF Confirmation'" in source
     assert "not session_structure_gate_ok ? 'Blocked: Session Gate'" not in source
     assert "not market_regime_gate_ok ? 'Blocked: Market Gate'" not in source
     assert "long_ready_state ? 'Passed' : not long_setup_confirmed ? 'Awaiting Confirm'" not in source
@@ -1463,18 +1487,15 @@ def test_debug_telemetry_package_wires_inputs_helpers_logs_and_dashboard() -> No
     assert 'compose_long_debug_summary_text(string long_engine_debug_mode, bool long_setup_armed, bool long_setup_confirmed, bool long_ready_state, string long_setup_source_display, string freshness_text, string source_state_text, string zone_quality_text, string long_environment_focus_display, int long_setup_backing_zone_touch_count, bool long_source_upgrade_now, string long_source_upgrade_reason, string long_last_invalid_source, string long_ready_blocker_text, string long_strict_blocker_text) =>' in source
     assert 'compose_long_engine_debug_label_text(string long_engine_debug_mode, string long_setup_text, string long_visual_text, string long_setup_source_display, string freshness_text, string source_state_text, string zone_quality_text, string long_environment_focus_display, string overhead_text, float long_setup_trigger, float long_invalidation_level, int long_setup_backing_zone_touch_count, bool long_source_upgrade_now, string long_source_upgrade_reason, string long_last_invalid_source, string long_ready_blocker_text, string long_strict_blocker_text) =>' in source
     assert 'compose_long_engine_event_log(string long_engine_debug_mode, string event_name, string long_setup_source_display, float long_setup_trigger, float long_invalidation_level, int long_setup_backing_zone_touch_count, string freshness_text, string source_state_text, string zone_quality_text, string long_environment_focus_display, bool long_source_upgrade_now, string long_source_upgrade_reason, string long_last_invalid_source, string long_ready_blocker_text, string long_strict_blocker_text) =>' in source
-    # emit_long_engine_debug_logs is now an exported library function with many params
-    assert 'emit_long_engine_debug_logs() =>' not in source
-    assert 'export emit_long_engine_debug_logs(bool show_long_engine_debug_eff' in source
-    # _src, _tc, _trg, _inv variables moved into library function
-    assert 'string _src = long_setup_source_display' not in source
-    assert '_src := long_debug_event_source_display' not in source
-    assert 'int _tc = long_state.backing_zone_touch_count' not in source
-    assert '_tc := long_debug_event_touch_count' not in source
-    assert 'float _trg = long_state.trigger' not in source
-    assert '_trg := long_debug_event_trigger' not in source
-    assert 'float _inv = long_state.invalidation_level' not in source
-    assert '_inv := long_debug_event_invalidation' not in source
+    assert 'emit_long_engine_debug_logs() =>' in source
+    assert 'string _src = long_setup_source_display' in source
+    assert '_src := long_debug_event_source_display' in source
+    assert 'int _tc = long_state.backing_zone_touch_count' in source
+    assert '_tc := long_debug_event_touch_count' in source
+    assert 'float _trg = long_state.trigger' in source
+    assert '_trg := long_debug_event_trigger' in source
+    assert 'float _inv = long_state.invalidation_level' in source
+    assert '_inv := long_debug_event_invalidation' in source
     assert 'string long_debug_log_source_display = long_invalidate_signal ? long_debug_event_source_display : long_setup_source_display' not in source
     assert 'int long_debug_log_touch_count = long_invalidate_signal ? long_debug_event_touch_count : long_state.backing_zone_touch_count' not in source
     assert 'float long_debug_log_trigger = long_invalidate_signal ? long_debug_event_trigger : long_state.trigger' not in source
@@ -1505,27 +1526,60 @@ def test_debug_telemetry_package_wires_inputs_helpers_logs_and_dashboard() -> No
     assert "plotshape(show_ob_debug and ob_zone_touch_event, title = 'OB Zone Touch Debug'" in source
     assert "plotshape(show_fvg_debug and bullish_fvg_filled_alert, title = 'Bullish FVG Filled Debug'" in source
     assert "plotshape(show_long_engine_debug and long_source_upgrade_now, title = 'Long Source Upgrade Debug'" in source
-    assert '[environment_hard_gate_ok, quality_gate_ok, microstructure_entry_gate_ok, trade_hard_gate_ok, long_environment_focus_display] = compute_long_environment_context(market_regime_gate_ok, vola_regime_gate_safe, primary_quality_gate_ok, session_structure_gate_ok, micro_session_gate_ok, micro_freshness_gate_ok, overhead_zone_ok, event_risk_gate_ok)' in source
-    # ready/strict state now computed via projection helpers
-    assert 'resolve_long_ready_projection_state(' in source
-    assert 'resolve_long_entry_projection_state(' in source
-    assert 'resolve_long_execution_blocker_state(' in source
-    assert "string long_debug_summary_text = obv.emit_long_engine_debug_logs(" in source
+    assert '[environment_hard_gate_ok, quality_gate_ok, microstructure_entry_gate_ok, trade_hard_gate_ok, long_environment_focus_display] = compute_long_environment_context(market_regime_gate_ok, vola_regime_gate_safe, context_quality_gate_ok, session_structure_gate_ok, micro_session_gate_ok, micro_freshness_gate_ok, overhead_zone_ok)' in source
+    assert '[lifecycle_ready_ok, long_ready_state] = compute_long_ready_state(close_safe_mode, long_state.confirmed, ready_bar_gap_ok, long_confirm_expired, ready_is_fresh, long_confirm_bearish_guard_ok, require_main_break_for_ready_eff, bull_bos_sig, main_bos_recent, setup_hard_gate_ok, trade_hard_gate_ok, environment_hard_gate_ok, quality_gate_ok, accel_ready_gate_ok, sd_ready_gate_ok, vol_ready_context_ok, stretch_ready_context_ok, ddvi_ready_ok_safe)' in source
+    assert 'bool long_entry_best_state = compute_long_entry_best_state(long_ready_state, accel_entry_best_gate_ok, sd_entry_best_gate_ok, vol_entry_best_context_ok_safe, stretch_entry_best_context_ok, ddvi_entry_best_ok_safe)' in source
+    assert 'bool long_entry_strict_state = compute_long_entry_strict_state(long_ready_state, strict_entry_ltf_ok, htf_alignment_ok, accel_strict_entry_gate_ok, sd_entry_strict_gate_ok, vol_entry_strict_context_ok_safe, stretch_entry_strict_context_ok, ddvi_entry_strict_ok_safe)' in source
+    assert "string long_ready_blocker_text = resolve_long_ready_blocker_text(long_ready_state, long_state.confirmed, close_safe_mode, ready_bar_gap_ok, long_confirm_expired, ready_is_fresh, long_confirm_bearish_guard_ok, require_main_break_for_ready_eff, bull_bos_sig, main_bos_recent, setup_hard_gate_ok, session_structure_gate_ok, micro_session_gate_ok, micro_freshness_gate_ok, overhead_zone_ok, market_regime_gate_ok, vola_regime_gate_safe, quality_gate_ok, accel_ready_gate_ok, sd_ready_gate_ok, vol_ready_context_ok, stretch_ready_context_ok, ddvi_ready_ok_safe)" in source
+    assert "string long_strict_blocker_text = resolve_long_strict_blocker_text(long_entry_strict_state, long_ready_state, long_ready_blocker_text, strict_entry_ltf_ok, htf_alignment_ok, accel_strict_entry_gate_ok, sd_entry_strict_gate_ok, vol_entry_strict_context_ok_safe, stretch_entry_strict_context_ok, ddvi_entry_strict_ok_safe)" in source
+    assert "string long_debug_summary_text = emit_long_engine_debug_logs()" in source
     assert "string long_engine_debug_label_text = compose_long_engine_debug_label_text(long_engine_debug_mode_eff, long_setup_text, long_visual_text, long_setup_source_display, freshness_text, source_state_text, zone_quality_text, long_environment_focus_display, overhead_text, long_state.trigger, long_state.invalidation_level, long_state.backing_zone_touch_count, long_source_upgrade_now, long_source_upgrade_reason, long_state.last_invalid_source, long_ready_blocker_text, long_strict_blocker_text)" in source
-    # Dashboard completely extracted to SMC_Dashboard.pine (not in concatenated source)
-    assert 'db_ready_gate_state(' not in source
-    assert 'db_strict_gate_state(' not in source
-    assert 'db_long_debug_state(' not in source
-    assert 'render_dashboard_engine_section(' not in source
-    assert 'dashboard_section_row(' not in source
-    assert 'dashboard_header(' not in source
-    assert '_smc_dashboard' not in source
-    assert 'compose_enabled_debug_modules_text(' in source
+    assert 'db_ready_gate_state(bool long_ready_state, bool long_setup_confirmed, bool lifecycle_ready_ok, bool setup_hard_gate_ok, bool trade_hard_gate_ok, bool environment_hard_gate_ok) =>' in source
+    assert 'db_strict_gate_state(bool long_entry_strict_state, bool long_ready_state, bool strict_entry_ltf_ok, bool htf_alignment_ok, bool accel_strict_entry_gate_ok, bool sd_entry_strict_gate_ok, bool vol_entry_strict_context_ok_safe, bool stretch_entry_strict_context_ok, bool ddvi_entry_strict_ok_safe) =>' in source
+    assert 'db_long_debug_state(bool show_long_engine_debug, int long_visual_state, bool long_setup_armed, bool long_setup_confirmed, bool long_ready_state) =>' in source
+    assert 'render_dashboard_engine_section(table tbl, color txt) =>' in source
+    assert 'render_dashboard_engine_section(_smc_dashboard, _db_text)' in source
+    assert "dashboard_section_row(tbl, 44, 0, 'Ready Gate', long_ready_blocker_text, status_bg(_db_ready_gate_state), txt)" in source
+    assert "dashboard_section_row(tbl, 44, 1, 'Strict Gate', long_strict_blocker_text, status_bg(_db_strict_gate_state), txt)" in source
+    assert "dashboard_header(_smc_dashboard, 0, 'SMC++ | ' + signal_mode_text + ' | ' + long_user_preset + ' | ' + performance_mode, _db_header_bg, _db_text)" in source
+    assert 'string _db_debug_flags_text = compose_enabled_debug_modules_text(show_ob_debug, show_fvg_debug, show_long_engine_debug, long_engine_debug_mode_eff)' in source
+    assert "dashboard_section_row(tbl, 44, 2, 'Debug Flags', _db_debug_flags_text, status_bg(_db_debug_flags_state), txt)" in source
+    assert "string _db_ltf_bias_text = 'off'" in source
+    assert "if show_dashboard_ltf_eff" in source
+    assert "if not ltf_sampling_active or not ltf_price_ok" in source
+    assert "_db_ltf_bias_text := str.tostring(ltf_bull_share * 100.0, '#') + '%'" in source
+    assert "if ltf_price_only" in source
+    assert "_db_ltf_bias_text += ' price-only'" in source
+    assert "string _db_ltf_delta_text = 'off'" in source
+    assert "else if ltf_price_only" in source
+    assert "_db_ltf_delta_text := str.format('{0,number,percent}', ltf_volume_delta)" in source
+    assert "string _db_swing_trail_up_text = 'n/a'" in source
+    assert 'if not na(trail_up)' in source
+    assert '_db_swing_trail_up_text := u.format_level(trail_up)' in source
+    assert "string _db_swing_trail_dn_text = 'n/a'" in source
+    assert 'if not na(trail_dn)' in source
+    assert '_db_swing_trail_dn_text := u.format_level(trail_dn)' in source
+    assert "string _db_swing_internal_up_text = 'n/a'" in source
+    assert 'if not na(internal_trail_up)' in source
+    assert '_db_swing_internal_up_text := u.format_level(internal_trail_up)' in source
+    assert "string _db_swing_internal_dn_text = 'n/a'" in source
+    assert 'if not na(internal_trail_dn)' in source
+    assert '_db_swing_internal_dn_text := u.format_level(internal_trail_dn)' in source
+    assert "string _db_swing_text = 'S ' + _db_swing_trail_up_text + ' / ' + _db_swing_trail_dn_text + ' | I ' + _db_swing_internal_up_text + ' / ' + _db_swing_internal_dn_text" in source
+    assert "string _db_long_debug_text = 'off'" in source
+    assert 'int _db_long_debug_state = db_long_debug_state(show_long_engine_debug, long_visual_state, long_state.armed, long_state.confirmed, long_ready_state)' in source
+    assert 'render_dashboard_engine_section(table tbl, color txt) =>' in source
+    assert "dashboard_section_row(tbl, 44, 3, 'Long Debug', _db_long_debug_text, status_bg(_db_long_debug_state), txt)" in source
+    assert 'status_bg(_db_ready_gate_state)' in source
+    assert 'status_bg(_db_strict_gate_state)' in source
+    assert 'status_bg(_db_long_debug_state)' in source
     assert "dashboard_row(_smc_dashboard, 47, 'Long Debug', show_long_engine_debug ? long_debug_summary_text : 'off'" not in source
     assert "string _db_long_debug_text = show_long_engine_debug ? long_debug_summary_text : 'off'" not in source
     assert "status_bg(db_ready_gate_state(long_ready_state, long_state.confirmed, lifecycle_ready_ok, setup_hard_gate_ok, trade_hard_gate_ok, environment_hard_gate_ok))" not in source
     assert "status_bg(db_strict_gate_state(long_entry_strict_state, long_ready_state, strict_entry_ltf_ok, htf_alignment_ok, accel_strict_entry_gate_ok, sd_entry_strict_gate_ok, vol_entry_strict_context_ok_safe, stretch_entry_strict_context_ok, ddvi_entry_strict_ok_safe))" not in source
     assert "status_bg(db_long_debug_state(show_long_engine_debug, long_visual_state, long_state.armed, long_state.confirmed, long_ready_state))" not in source
+    assert 'var table _smc_dashboard = table.new(position.bottom_right, 2, 48, border_width = 0)' in source
+    assert 'table.clear(_smc_dashboard, 0, 0, 1, 47)' in source
     assert "[breadth_missing_calc, breadth_gate_ok_calc] = u.external_breadth_gate(breadth_gate_symbol, breadth_gate_mode, breadth_gate_len)" in source
 
 
@@ -1550,12 +1604,13 @@ def test_prepare_order_block_confirmation_runs_each_calc_without_shadowing_state
 def test_clean_tier_is_renamed_as_a_quality_diagnostic() -> None:
     source = _read_smc_source()
 
-    assert 'bool long_quality_clean_tier = resolve_long_clean_tier(close_safe_mode, bullish_trend_safe, zone_recent, reclaim_recent, long_state.confirmed, setup_hard_gate_ok, trade_hard_gate_ok, environment_hard_gate_ok, quality_gate_ok, bull_close_strong, ema_support_ok, adx_strong, relvol_ok, vwap_filter_ok)' in source
-    # clean tier logic extracted into resolve_long_clean_tier helper
-    assert 'resolve_long_clean_tier(' in source
-    # alert_long_clean no longer a standalone assignment — driven via alert event parameter
-    assert 'alert_long_clean = long_quality_clean_tier' not in source
+    assert 'bool long_quality_clean_tier = false' in source
+    assert 'if close_safe_mode and bullish_trend_safe and zone_recent and reclaim_recent and long_state.confirmed and setup_hard_gate_ok and trade_hard_gate_ok and environment_hard_gate_ok and quality_gate_ok and bull_close_strong and ema_support_ok and adx_strong and relvol_ok and vwap_filter_ok' in source
+    assert 'long_quality_clean_tier := true' in source
+    # quality_clean_ok removed; alert_long_clean still driven by long_quality_clean_tier
+    assert 'alert_long_clean = long_quality_clean_tier' in source
     assert 'bool long_quality_clean_tier = close_safe_mode and bullish_trend_safe and zone_recent and reclaim_recent and long_state.confirmed and setup_hard_gate_ok and trade_hard_gate_ok and environment_hard_gate_ok and quality_gate_ok and bull_close_strong and ema_support_ok and adx_strong and relvol_ok and vwap_filter_ok' not in source
+    assert 'long_clean_tier' not in source
 
 
 def test_cleanup_protection_does_not_mask_genuine_break_migration() -> None:
@@ -1565,24 +1620,26 @@ def test_cleanup_protection_does_not_mask_genuine_break_migration() -> None:
     assert 'update_broken( 1, tracking_blocks_bull, broken_blocks_bull, broken_blocks_new_bull, broken_by, keep_broken_max, discarded_blocks_bull)' in source
     assert 'update_broken(-1, tracking_blocks_bear, broken_blocks_bear, broken_blocks_new_bear, broken_by, keep_broken_max, discarded_blocks_bear)' in source
     assert 'long_invalidate_signal := long_state.armed or long_state.confirmed' in source
-    assert 'long_source_tracked := long_source_tracked_now' in source
-    # source tracking now resolved via resolve_long_source_runtime_state tuple
-    assert 'if not na(long_state.locked_source_id)' not in source
-    assert 'long_source_tracked := true' not in source
+    assert 'long_source_tracked := false' in source
+    assert 'if not na(long_state.locked_source_id)' in source
+    assert 'long_source_tracked := true' in source
     assert 'long_source_tracked := not na(long_state.locked_source_id)' not in source
-    assert 'bool prev_locked_source_tracked = false' not in source
-    assert 'if not na(prev_locked_source_id)' not in source
-    assert 'prev_locked_source_tracked := true' not in source
-    assert '[prev_locked_source_tracked, prev_locked_source_alive, prev_locked_source_broken, prev_locked_source_lost, prev_locked_source_invalid_now] = resolve_long_source_runtime_state(' in source
-    assert 'bool long_source_alive = true' in source
+    assert 'bool prev_locked_source_tracked = false' in source
+    assert 'if not na(prev_locked_source_id)' in source
+    assert 'prev_locked_source_tracked := true' in source
+    assert 'long_source_alive := true' in source
+    assert 'if long_source_tracked' in source
     assert 'long_source_alive := long_locked_source_alive_now' in source
     assert 'long_source_alive := not long_source_tracked ? true : long_locked_source_alive_now' not in source
-    assert 'long_source_lost := long_source_lost_now' in source
+    assert 'long_source_lost := false' in source
+    assert 'if (long_state.armed or long_state.confirmed) and long_source_tracked' in source
+    assert 'long_source_lost := not long_source_alive and not long_source_broken' in source
     assert 'long_source_lost := (long_state.armed or long_state.confirmed) and long_source_tracked and not long_source_alive and not long_source_broken' not in source
-    # expiry and invalidation now resolved via resolve_long_invalidation_state tuple
-    assert 'bool long_setup_expired = false' not in source
+    assert 'bool long_setup_expired = false' in source
+    assert 'if long_state.armed and not long_state.confirmed' in source
     assert 'long_setup_expired := long_setup_age > long_setup_expiry_bars' in source
-    assert 'bool long_confirm_expired = false' not in source
+    assert 'bool long_confirm_expired = false' in source
+    assert 'if long_state.confirmed' in source
     assert 'long_confirm_expired := long_confirm_age > long_confirm_expiry_bars' in source
     assert 'bool long_setup_expired = long_state.armed and not long_state.confirmed and long_setup_age > long_setup_expiry_bars' not in source
     assert 'bool long_confirm_expired = long_state.confirmed and long_confirm_age > long_confirm_expiry_bars' not in source
@@ -1590,11 +1647,13 @@ def test_cleanup_protection_does_not_mask_genuine_break_migration() -> None:
     assert 'if live_exec and effective_use_live_invalidation_break' in source
     assert 'long_invalidation_break_src := low' in source
     assert 'float long_invalidation_break_src = live_exec and effective_use_live_invalidation_break ? low : close' not in source
-    assert 'bool long_broken_down = false' not in source
-    assert 'long_broken_down := long_invalidation_break_src < long_invalidation_level - long_invalidation_buffer' in source
+    assert 'bool long_broken_down = false' in source
+    assert 'if not na(long_state.invalidation_level)' in source
+    assert 'long_broken_down := long_invalidation_break_src < long_state.invalidation_level - long_invalidation_buffer' in source
     assert 'bool long_broken_down = not na(long_state.invalidation_level) and long_invalidation_break_src < long_state.invalidation_level - long_invalidation_buffer' not in source
-    assert '[long_setup_expired, long_confirm_expired, long_broken_down, long_invalidated_now] = resolve_long_invalidation_state(' in source
-    assert 'bool long_invalidated_now = false' not in source
+    assert 'bool long_invalidated_now = false' in source
+    assert 'if long_source_broken or long_source_lost' in source
+    assert 'long_invalidated_now := true' in source
     assert 'bool long_invalidated_now = long_source_broken or long_source_lost' not in source
 
 
@@ -1618,24 +1677,21 @@ def test_source_lock_decouples_setup_source_from_live_active_ranking() -> None:
     assert 'FVG prev_locked_bull_fvg = na' in source
     assert 'if prev_locked_source_kind == LONG_SOURCE_FVG' in source
     assert 'prev_locked_bull_fvg := get_by_id(fvgs_bull, prev_locked_source_id)' in source
-    # alive/broken now computed as pre-args to resolve_long_source_runtime_state
-    assert 'bool long_locked_source_alive_now = false' not in source
-    assert 'long_locked_source_alive_now := contains_id(ob_blocks_bull, long_locked_source_id_final)' not in source
-    assert 'long_locked_source_alive_now := contains_id(fvgs_bull, long_locked_source_id_final)' not in source
-    assert 'bool long_locked_ob_alive_now = long_locked_source_kind_final == LONG_SOURCE_OB and contains_id(ob_blocks_bull, long_locked_source_id_final)' in source
-    assert 'bool long_locked_fvg_alive_now = long_locked_source_kind_final == LONG_SOURCE_FVG and contains_id(fvgs_bull, long_locked_source_id_final)' in source
-    assert '[long_source_tracked_now, long_locked_source_alive_now, long_source_broken_now, long_source_lost_now, long_source_invalid_now] = resolve_long_source_runtime_state(' in source
+    assert 'bool long_locked_source_alive_now = false' in source
+    assert 'if long_locked_source_kind_final == LONG_SOURCE_OB' in source
+    assert 'long_locked_source_alive_now := contains_id(ob_blocks_bull, long_locked_source_id_final)' in source
+    assert 'else if long_locked_source_kind_final == LONG_SOURCE_FVG' in source
+    assert 'long_locked_source_alive_now := contains_id(fvgs_bull, long_locked_source_id_final)' in source
     assert 'bool long_locked_source_alive_now = long_locked_source_kind_final == LONG_SOURCE_OB ? contains_id(ob_blocks_bull, long_locked_source_id_final) : long_locked_source_kind_final == LONG_SOURCE_FVG ? contains_id(fvgs_bull, long_locked_source_id_final) : false' not in source
     assert 'OrderBlock prev_locked_bull_ob = prev_locked_source_kind == LONG_SOURCE_OB ? get_by_id(ob_blocks_bull, prev_locked_source_id) : na' not in source
     assert 'FVG prev_locked_bull_fvg = prev_locked_source_kind == LONG_SOURCE_FVG ? get_by_id(fvgs_bull, prev_locked_source_id) : na' not in source
     assert 'long_setup_source_zone_id' not in source
     assert 'armed_source_changed' not in source
-    # long_invalidated_now now from tuple unpacking
-    assert 'bool long_invalidated_now = false' not in source
-    assert '[long_setup_expired, long_confirm_expired, long_broken_down, long_invalidated_now] = resolve_long_invalidation_state(' in source
-    assert 'if long_source_broken or long_source_lost' not in source
-    assert 'long_invalidated_now := true' not in source
-    assert 'long_invalidated_now := long_invalidated_now or long_broken_down or long_setup_expired or long_confirm_expired' not in source
+    assert 'bool long_invalidated_now = false' in source
+    assert 'if long_source_broken or long_source_lost' in source
+    assert 'long_invalidated_now := true' in source
+    assert 'if close_safe_mode' in source
+    assert 'long_invalidated_now := long_invalidated_now or long_broken_down or long_setup_expired or long_confirm_expired' in source
     assert 'bool long_invalidated_now = long_source_broken or long_source_lost or (close_safe_mode and (long_broken_down or long_setup_expired or long_confirm_expired))' not in source
 
 
@@ -1696,26 +1752,28 @@ def test_source_upgrade_is_explicit_and_quality_gated() -> None:
     assert 'float long_locked_source_quality = 0.0' in source
     assert 'long_locked_source_quality := ob_quality_score(prev_locked_bull_ob)' in source
     assert 'long_locked_source_quality := fvg_quality_score(prev_locked_bull_fvg, fvg_size_threshold)' in source
-    # prev_locked alive/broken/lost now from resolve_long_source_runtime_state tuple
-    assert 'bool prev_locked_source_alive = false' not in source
-    assert 'prev_locked_source_alive := not na(prev_locked_bull_ob)' not in source
-    assert 'prev_locked_source_alive := not na(prev_locked_bull_fvg)' not in source
-    assert 'bool prev_locked_source_broken = false' not in source
-    assert 'prev_locked_source_broken := contains_id(ob_broken_bull, prev_locked_source_id) or contains_id(ob_broken_new_bull, prev_locked_source_id)' not in source
-    assert 'prev_locked_source_broken := contains_id(filled_fvgs_bull, prev_locked_source_id) or contains_id(filled_fvgs_new_bull, prev_locked_source_id)' not in source
-    assert 'bool prev_locked_source_lost = false' not in source
-    assert 'prev_locked_source_lost := not prev_locked_source_alive and not prev_locked_source_broken' not in source
-    assert 'bool prev_locked_source_invalid_now = false' not in source
-    assert 'prev_locked_source_invalid_now := prev_locked_source_broken or prev_locked_source_lost' not in source
+    assert 'bool prev_locked_source_alive = false' in source
+    assert 'prev_locked_source_alive := not na(prev_locked_bull_ob)' in source
+    assert 'prev_locked_source_alive := not na(prev_locked_bull_fvg)' in source
+    assert 'bool prev_locked_source_broken = false' in source
+    assert 'prev_locked_source_broken := contains_id(ob_broken_bull, prev_locked_source_id) or contains_id(ob_broken_new_bull, prev_locked_source_id)' in source
+    assert 'prev_locked_source_broken := contains_id(filled_fvgs_bull, prev_locked_source_id) or contains_id(filled_fvgs_new_bull, prev_locked_source_id)' in source
+    assert 'bool prev_locked_source_lost = false' in source
+    assert 'if (long_state.armed or long_state.confirmed) and prev_locked_source_tracked' in source
+    assert 'prev_locked_source_lost := not prev_locked_source_alive and not prev_locked_source_broken' in source
+    assert 'bool prev_locked_source_invalid_now = false' in source
+    assert 'if prev_locked_source_tracked' in source
+    assert 'prev_locked_source_invalid_now := prev_locked_source_broken or prev_locked_source_lost' in source
     assert 'float long_locked_source_quality = prev_locked_source_kind == LONG_SOURCE_OB ? ob_quality_score(prev_locked_bull_ob) : prev_locked_source_kind == LONG_SOURCE_FVG ? fvg_quality_score(prev_locked_bull_fvg, fvg_size_threshold) : 0.0' not in source
     assert 'bool prev_locked_source_alive = prev_locked_source_kind == LONG_SOURCE_OB ? not na(prev_locked_bull_ob) : prev_locked_source_kind == LONG_SOURCE_FVG ? not na(prev_locked_bull_fvg) : false' not in source
     assert 'bool prev_locked_source_broken = prev_locked_source_kind == LONG_SOURCE_OB ? contains_id(ob_broken_bull, prev_locked_source_id) or contains_id(ob_broken_new_bull, prev_locked_source_id) : prev_locked_source_kind == LONG_SOURCE_FVG ? contains_id(filled_fvgs_bull, prev_locked_source_id) or contains_id(filled_fvgs_new_bull, prev_locked_source_id) : false' not in source
     assert 'bool prev_locked_source_lost = (long_state.armed or long_state.confirmed) and prev_locked_source_tracked and not prev_locked_source_alive and not prev_locked_source_broken' not in source
     assert 'bool prev_locked_source_invalid_now = prev_locked_source_tracked and (prev_locked_source_broken or prev_locked_source_lost)' not in source
-    # ob_source_upgrade_ok now helper-prefixed inside compute_long_source_upgrade_state
-    assert 'bool ob_source_upgrade_ok = false' not in source
-    assert 'bool helper_ob_source_upgrade_ok = false' in source
-    assert 'compute_long_source_upgrade_state(' in source
+    assert 'bool ob_source_upgrade_ok = false' in source
+    assert 'if allow_armed_source_upgrade and long_state.armed and not long_state.confirmed and not prev_locked_source_invalid_now and bull_reclaim_ob_strict and not na(touched_bull_ob_block)' in source
+    assert 'if prev_locked_source_kind != LONG_SOURCE_OB or prev_locked_source_id != touched_bull_ob_id' in source
+    assert 'ob_source_upgrade_ok := touched_bull_ob_quality >= long_locked_source_quality + min_source_upgrade_quality_gain' in source
+    assert 'bool ob_source_upgrade_ok = allow_armed_source_upgrade and long_state.armed and not long_state.confirmed and not prev_locked_source_invalid_now and bull_reclaim_ob_strict' not in source
 
 
 def test_script_text_is_english_only_for_known_long_lifecycle_regressions() -> None:
@@ -1723,19 +1781,20 @@ def test_script_text_is_english_only_for_known_long_lifecycle_regressions() -> N
 
     assert '// Snapshot the currently locked source before any source-upgrade decision.' in source
     assert 'Snapshot des aktuell gelockten Sources VOR einer moeglichen Source-Upgrade-Entscheidung.' not in source
-    assert 'bool fvg_source_upgrade_ok = false' not in source
-    assert 'bool helper_fvg_source_upgrade_ok = false' in source
+    assert 'bool fvg_source_upgrade_ok = false' in source
+    assert 'if allow_armed_source_upgrade and long_state.armed and not long_state.confirmed and not prev_locked_source_invalid_now and bull_reclaim_fvg_strict and not na(touched_bull_fvg_block)' in source
     assert 'if prev_locked_source_kind != LONG_SOURCE_FVG or prev_locked_source_id != touched_bull_fvg_id' in source
     assert 'fvg_source_upgrade_ok := touched_bull_fvg_quality >= long_locked_source_quality + min_source_upgrade_quality_gain' in source
     assert 'bool fvg_source_upgrade_ok = allow_armed_source_upgrade and long_state.armed and not long_state.confirmed and not prev_locked_source_invalid_now and bull_reclaim_fvg_strict' not in source
     assert 'ob_source_upgrade_ok := touched_bull_ob_quality >= long_locked_source_quality + min_source_upgrade_quality_gain' in source
     assert 'fvg_source_upgrade_ok := touched_bull_fvg_quality >= long_locked_source_quality + min_source_upgrade_quality_gain' in source
     assert 'if long_source_upgrade_now' in source
-    # source upgrade now vars are all helper-prefixed inside compute_long_source_upgrade_state
-    assert 'bool long_source_upgrade_now = false' not in source
-    assert 'bool helper_long_source_upgrade_now = helper_ob_source_upgrade_ok or helper_fvg_source_upgrade_ok' in source
-    assert 'bool prefer_ob_upgrade = false' not in source
-    assert 'bool helper_prefer_ob_upgrade = false' in source
+    assert 'bool long_source_upgrade_now = false' in source
+    assert 'if ob_source_upgrade_ok or fvg_source_upgrade_ok' in source
+    assert 'long_source_upgrade_now := true' in source
+    assert 'bool prefer_ob_upgrade = false' in source
+    assert 'if long_source_upgrade_now and ob_source_upgrade_ok' in source
+    assert 'prefer_ob_upgrade := not fvg_source_upgrade_ok or touched_bull_ob_quality >= touched_bull_fvg_quality' in source
     assert 'bool prefer_ob_upgrade = long_source_upgrade_now and ob_source_upgrade_ok and (not fvg_source_upgrade_ok or touched_bull_ob_quality >= touched_bull_fvg_quality)' not in source
     assert 'bool long_source_upgrade_now = ob_source_upgrade_ok or fvg_source_upgrade_ok' not in source
     assert 'stage_locked_source_transition(bool source_upgrade_now, bool prefer_ob_upgrade_now, int prev_locked_source_kind, int prev_locked_source_id, int current_backing_zone_kind, int current_backing_zone_id, int ob_candidate_id, int fvg_candidate_id) =>' in source
@@ -1757,8 +1816,9 @@ def test_source_upgrade_requires_different_candidate_than_locked_source() -> Non
 def test_source_upgrade_stays_blocked_without_opt_in_or_quality_gain() -> None:
     source = _read_smc_source()
 
-    assert 'bool ob_source_upgrade_ok = false' not in source
-    assert 'bool fvg_source_upgrade_ok = false' not in source
+    assert 'bool ob_source_upgrade_ok = false' in source
+    assert 'bool fvg_source_upgrade_ok = false' in source
+    assert 'allow_armed_source_upgrade and long_state.armed and not long_state.confirmed and not prev_locked_source_invalid_now' in source
     assert 'touched_bull_ob_quality >= long_locked_source_quality + min_source_upgrade_quality_gain' in source
     assert 'touched_bull_fvg_quality >= long_locked_source_quality + min_source_upgrade_quality_gain' in source
     assert 'long_entry_origin_source' in source
@@ -1768,18 +1828,19 @@ def test_upgrade_rebinds_final_locked_source_before_alive_and_broken_checks() ->
     source = _read_smc_source()
 
     assert '[long_locked_source_kind_final, long_locked_source_id_final, long_setup_backing_zone_kind_final, long_setup_backing_zone_id_final] = stage_locked_source_transition(long_source_upgrade_now, prefer_ob_upgrade, prev_locked_source_kind, prev_locked_source_id, long_state.backing_zone_kind, long_state.backing_zone_id, touched_bull_ob_id, touched_bull_fvg_id)' in source
-    # alive/broken now computed as pre-args to resolve_long_source_runtime_state
-    assert 'bool long_locked_source_alive_now = false' not in source
-    assert 'long_locked_source_alive_now := contains_id(ob_blocks_bull, long_locked_source_id_final)' not in source
-    assert 'long_locked_source_alive_now := contains_id(fvgs_bull, long_locked_source_id_final)' not in source
+    assert 'bool long_locked_source_alive_now = false' in source
+    assert 'long_locked_source_alive_now := contains_id(ob_blocks_bull, long_locked_source_id_final)' in source
+    assert 'long_locked_source_alive_now := contains_id(fvgs_bull, long_locked_source_id_final)' in source
     assert 'bool long_locked_source_alive_now = long_locked_source_kind_final == LONG_SOURCE_OB ? contains_id(ob_blocks_bull, long_locked_source_id_final) : long_locked_source_kind_final == LONG_SOURCE_FVG ? contains_id(fvgs_bull, long_locked_source_id_final) : false' not in source
     assert 'resolve_long_zone_top(int long_zone_kind, int long_zone_id, int active_bull_ob_id, float active_bull_ob_top, int touched_bull_ob_id, float touched_bull_ob_top, int active_bull_fvg_id, float active_bull_fvg_top, int touched_bull_fvg_id, float touched_bull_fvg_top, bool preserve_prior_bounds = false, int prior_long_zone_kind = 0, int prior_long_zone_id = na, float prior_long_zone_top = na) =>' in source
     assert 'float long_locked_source_top_now = resolve_long_zone_top(long_locked_source_kind_final, long_locked_source_id_final, active_bull_ob_id, active_bull_ob_top, touched_bull_ob_id, touched_bull_ob_top, active_bull_fvg_id, active_bull_fvg_top, touched_bull_fvg_id, touched_bull_fvg_top, long_locked_source_alive_now and not long_source_upgrade_now, prev_locked_source_kind, prev_locked_source_id, long_state.locked_source_top)' in source
     assert 'resolve_long_zone_bottom(int long_zone_kind, int long_zone_id, int active_bull_ob_id, float active_bull_ob_bottom, int touched_bull_ob_id, float touched_bull_ob_bottom, int active_bull_fvg_id, float active_bull_fvg_bottom, int touched_bull_fvg_id, float touched_bull_fvg_bottom, bool preserve_prior_bounds = false, int prior_long_zone_kind = 0, int prior_long_zone_id = na, float prior_long_zone_bottom = na) =>' in source
     assert 'float long_locked_source_bottom_now = resolve_long_zone_bottom(long_locked_source_kind_final, long_locked_source_id_final, active_bull_ob_id, active_bull_ob_bottom, touched_bull_ob_id, touched_bull_ob_bottom, active_bull_fvg_id, active_bull_fvg_bottom, touched_bull_fvg_id, touched_bull_fvg_bottom, long_locked_source_alive_now and not long_source_upgrade_now, prev_locked_source_kind, prev_locked_source_id, long_state.locked_source_bottom)' in source
-    # long_source_broken now assigned from _now variable, not inline if/else
-    assert 'bool long_source_broken = long_source_broken_now' in source
-    assert 'bool long_source_broken = false' not in source
+    assert 'bool long_source_broken = false' in source
+    assert 'if long_locked_source_kind_final == LONG_SOURCE_OB' in source
+    assert 'long_source_broken := contains_id(ob_broken_bull, long_locked_source_id_final) or contains_id(ob_broken_new_bull, long_locked_source_id_final)' in source
+    assert 'else if long_locked_source_kind_final == LONG_SOURCE_FVG' in source
+    assert 'long_source_broken := contains_id(filled_fvgs_bull, long_locked_source_id_final) or contains_id(filled_fvgs_new_bull, long_locked_source_id_final)' in source
     assert 'bool long_source_broken = long_locked_source_kind_final == LONG_SOURCE_OB ? contains_id(ob_broken_bull, long_locked_source_id_final) or contains_id(ob_broken_new_bull, long_locked_source_id_final) : long_locked_source_kind_final == LONG_SOURCE_FVG ? contains_id(filled_fvgs_bull, long_locked_source_id_final) or contains_id(filled_fvgs_new_bull, long_locked_source_id_final) : false' not in source
 
 
@@ -1804,7 +1865,7 @@ def test_entry_origin_and_validation_source_are_separated_for_display_and_invali
     assert "string long_validation_source_text = resolve_long_source_text(long_validation_source)" in source
     assert "string source_display = long_validation_source_text" in source
     assert 'if long_entry_origin_source == LONG_SOURCE_NONE' in source
-    assert "source_display := compose_long_source_transition_text(long_entry_origin_source_text, long_validation_source_text)" in source
+    assert "source_display := long_entry_origin_source_text + ' -> ' + long_validation_source_text" in source
     assert "long_entry_origin_source == LONG_SOURCE_NONE ? long_validation_source_text : long_validation_source == LONG_SOURCE_NONE or long_entry_origin_source == long_validation_source ? long_entry_origin_source_text : long_entry_origin_source_text + ' -> ' + long_validation_source_text" not in source
     assert 'long_setup_source_display := compose_long_setup_source_display(long_state.entry_origin_source, long_validation_source)' in source
     assert 'compose_long_setup_text(bool long_zone_active, bool long_setup_armed, bool long_building_state, bool long_setup_confirmed, bool long_ready_state, bool long_entry_best_state, bool long_entry_strict_state, bool long_invalidated_now, bool invalidated_prior_setup, bool long_invalidated_this_bar, string long_setup_source_display) =>' in source
@@ -1820,7 +1881,7 @@ def test_display_and_status_text_are_extracted_into_helpers() -> None:
     assert "string freshness_text = 'n/a'" in source
     assert 'if ready_is_fresh' in source
     assert "freshness_text := 'confirm fresh'" in source
-    assert "string freshness_text = 'confirm stale'" in source
+    assert "freshness_text := 'confirm stale'" in source
     assert "string source_state_text = 'n/a'" in source
     assert "source_state_text := 'source invalid'" in source
     assert "not long_setup_armed and not long_setup_confirmed ? 'n/a' : long_setup_confirmed ? ready_is_fresh ? 'confirm fresh' : 'confirm stale' : confirm_is_fresh ? 'armed fresh' : 'armed stale'" not in source
@@ -1838,16 +1899,18 @@ def test_confirm_and_ready_gate_logic_is_extracted_into_helpers() -> None:
     assert 'describe_long_zone_quality(bool long_zone_active, bool long_setup_armed, bool long_setup_confirmed, int effective_long_active_touch_count) =>' in source
     assert 'int effective_touch_count = active_zone_touch_count' in source
     assert "string zone_quality_text = 'n/a'" in source
-    assert "zone_quality_text := resolve_long_zone_quality_text(effective_long_active_touch_count)" in source
+    assert "zone_quality_text := 'crowded'" in source
     assert 'long_setup_armed or long_setup_confirmed ? long_setup_backing_zone_touch_count : bull_reclaim_ob_strict or (in_bull_ob_zone and not in_bull_fvg_zone) ? active_ob_touch_count : bull_reclaim_fvg_strict or (in_bull_fvg_zone and not in_bull_ob_zone) ? active_fvg_touch_count : active_zone_touch_count' not in source
     assert "not long_zone_active and not long_setup_armed and not long_setup_confirmed ? 'n/a' : effective_long_active_touch_count <= 1 ? 'fresh touch' : effective_long_active_touch_count == 2 ? '2nd touch' : 'crowded'" not in source
     # confirm_long_filters, confirm_long_state, evaluate_long_ready_states helpers inlined
     assert 'int effective_long_active_touch_count = select_effective_long_touch_count(long_state.armed, long_state.confirmed, long_state.backing_zone_touch_count, bull_reclaim_ob_strict, in_bull_ob_zone, in_bull_fvg_zone, active_ob_touch_count, bull_reclaim_fvg_strict, active_fvg_touch_count, active_zone_touch_count)' in source
     assert 'string zone_quality_text = describe_long_zone_quality(long_zone_active, long_state.armed, long_state.confirmed, effective_long_active_touch_count)' in source
-    # confirm_hard_gate_ok now from compute_long_confirm_transition_state tuple in library
-    assert 'bool confirm_hard_gate_ok = false' not in source
-    assert '[confirm_hard_gate_ok, confirm_upgrade_gate_ok, confirm_lifecycle_ok, confirm_filters_ok, long_should_confirm] = compute_long_confirm_transition_state(' in source
+    assert 'bool confirm_hard_gate_ok = false' in source
     assert 'if micro_session_gate_ok and micro_freshness_gate_ok' in source
+    assert 'confirm_hard_gate_ok := true' in source
+    assert 'bool confirm_upgrade_gate_ok = false' in source
+    assert 'if accel_confirm_gate_ok and sd_confirmed_gate_ok' in source
+    assert 'confirm_upgrade_gate_ok := true' in source
     assert 'float long_confirm_break_src = close' in source
     assert 'if live_exec and effective_use_live_confirm_break' in source
     assert 'long_confirm_break_src := high' in source
@@ -1889,10 +1952,23 @@ def test_confirm_and_ready_gate_logic_is_extracted_into_helpers() -> None:
     assert 'float _scan_ref = close' in source
     assert 'if long_plan_active and not na(long_state.trigger)' in source
     assert '_scan_ref := long_state.trigger' in source
-    # confirm_lifecycle_ok and confirm_filters_ok now from tuple in library
-    assert 'bool confirm_lifecycle_ok = false' not in source
+    assert 'bool confirm_lifecycle_ok = false' in source
     assert 'if close_safe_mode and long_confirm_break and long_confirm_structure_ok and confirm_is_fresh and long_confirm_bearish_guard_ok' in source
-    assert 'bool confirm_filters_ok = false' not in source
+    assert 'confirm_lifecycle_ok := true' in source
+    assert 'bool confirm_filters_ok = false' in source
+    assert 'if confirm_hard_gate_ok and confirm_upgrade_gate_ok' in source
+    assert 'confirm_filters_ok := true' in source
+    assert 'float long_confirm_break_src = live_exec and effective_use_live_confirm_break ? high : close' not in source
+    assert 'bool confirm_is_fresh = long_state.armed and not na(long_state.arm_bar_index) and long_setup_age <= max_bars_arm_to_confirm' not in source
+    assert 'bool ready_is_fresh = long_state.confirmed and not na(long_state.confirm_bar_index) and long_confirm_age <= max_bars_confirm_to_ready' not in source
+    assert 'bool micro_setup_fresh_enough = not use_microstructure_profiles or not micro_is_fast_decay or not long_state.armed or long_state.confirmed or long_setup_age <= effective_fast_decay_setup_age_max' not in source
+    assert 'bool micro_confirm_fresh_enough = not use_microstructure_profiles or not micro_is_fast_decay or not long_state.confirmed or long_confirm_age <= effective_fast_decay_confirm_age_max' not in source
+    assert 'bool micro_freshness_gate_ok = micro_setup_fresh_enough and micro_confirm_fresh_enough' not in source
+    assert 'long_confirm_break := long_state.armed and not long_state.confirmed and not na(long_state.arm_bar_index) and bar_index > long_state.arm_bar_index and long_confirm_break_src > long_state.trigger' not in source
+    assert 'internal_choch_since_arm := long_state.armed and not na(long_state.arm_bar_index) and not na(internal_choch_since_bars) and internal_choch_since_bars <= bar_index - long_state.arm_bar_index' not in source
+    assert 'internal_bos_since_arm := long_state.armed and not na(long_state.arm_bar_index) and not na(internal_bos_since_bars) and internal_bos_since_bars <= bar_index - long_state.arm_bar_index' not in source
+    assert "long_internal_structure_ok := long_internal_structure_mode == 'Internal CHoCH only' ? (internal_bull_choch_sig or internal_choch_since_arm) : (internal_bull_choch_sig or internal_bull_bos_sig or internal_choch_since_arm or internal_bos_since_arm)" not in source
+    assert 'long_plan_active := (long_state.armed or long_state.confirmed) and not na(long_state.trigger) and not na(long_state.invalidation_level)' not in source
     assert 'bool confirm_hard_gate_ok = micro_session_gate_ok and micro_freshness_gate_ok' not in source
     assert 'bool confirm_upgrade_gate_ok = accel_confirm_gate_ok and sd_confirmed_gate_ok' not in source
     assert 'bool confirm_lifecycle_ok = close_safe_mode and long_confirm_break and long_confirm_structure_ok and confirm_is_fresh and long_confirm_bearish_guard_ok' not in source
@@ -1998,18 +2074,19 @@ def test_setup_text_and_visual_state_are_extracted_into_helpers() -> None:
 
     assert 'resolve_long_state_code(bool long_zone_active, bool long_setup_armed, bool long_building_state, bool long_setup_confirmed, bool long_ready_state, bool long_entry_best_state, bool long_entry_strict_state, bool invalidated_prior_setup, bool long_invalidated_now, bool long_invalidated_this_bar, bool long_invalidate_signal = false) =>' in source
     assert 'compose_long_setup_text(bool long_zone_active, bool long_setup_armed, bool long_building_state, bool long_setup_confirmed, bool long_ready_state, bool long_entry_best_state, bool long_entry_strict_state, bool long_invalidated_now, bool invalidated_prior_setup, bool long_invalidated_this_bar, string long_setup_source_display) =>' in source
-    assert "int state_code = resolve_long_state_code(long_zone_active, long_setup_armed, long_building_state, long_setup_confirmed, long_ready_state, long_entry_best_state, long_entry_strict_state, invalidated_prior_setup, long_invalidated_now, long_invalidated_this_bar)" not in source
-    assert 'resolve_long_setup_state_code(long_zone_active, long_setup_armed, long_building_state, long_setup_confirmed, long_ready_state, long_entry_best_state, long_entry_strict_state, invalidated_prior_setup, long_invalidated_now, long_invalidated_this_bar)' in source
-    # setup_text now uses separate label and state text helpers
-    assert "string setup_text = 'No Setup'" not in source
-    assert "string setup_label = 'No Setup'" in source
-    assert "string setup_text = resolve_long_setup_state_label(state_code)" in source
+    assert "int state_code = resolve_long_state_code(long_zone_active, long_setup_armed, long_building_state, long_setup_confirmed, long_ready_state, long_entry_best_state, long_entry_strict_state, invalidated_prior_setup, long_invalidated_now, long_invalidated_this_bar)" in source
+    assert "string setup_text = 'No Setup'" in source
     assert "if state_code == -1" in source
-    assert "setup_label := 'Invalidated'" in source
-    assert "setup_text := setup_text + ' | ' + long_setup_source_display" in source
+    assert "setup_text := 'Invalidated'" in source
+    assert "setup_text := 'Armed | ' + long_setup_source_display" in source
+    assert "setup_text := 'Building | ' + long_setup_source_display" in source
+    assert "setup_text := 'Confirmed | ' + long_setup_source_display" in source
+    assert "setup_text := 'Ready | ' + long_setup_source_display" in source
+    assert "setup_text := 'Entry Best | ' + long_setup_source_display" in source
+    assert "setup_text := 'Entry Strict | ' + long_setup_source_display" in source
     assert 'resolve_long_visual_state(bool long_zone_active, bool long_setup_armed, bool long_building_state, bool long_setup_confirmed, bool long_ready_state, bool long_entry_best_state, bool long_entry_strict_state, bool long_invalidate_signal, bool invalidated_prior_setup, bool long_invalidated_now, bool long_invalidated_this_bar) =>' in source
     assert 'resolve_long_state_code(long_zone_active, long_setup_armed, long_building_state, long_setup_confirmed, long_ready_state, long_entry_best_state, long_entry_strict_state, invalidated_prior_setup, long_invalidated_now, long_invalidated_this_bar, long_invalidate_signal)' in source
-    assert 'resolve_long_visual_state_label(int long_visual_state) =>' in source
+    assert 'resolve_long_visual_text(int long_visual_state) =>' in source
     assert "string visual_text = 'Ready'" in source
     assert "visual_text := 'Fail'" in source
     assert "visual_text := 'Neutral'" in source
@@ -2028,22 +2105,26 @@ def test_setup_text_and_visual_state_are_extracted_into_helpers() -> None:
 
 
 def test_profile_and_track_obs_use_defensive_semantic_helpers() -> None:
-    source = _read_smc_source()
+    # Definitions moved to smc_profile_engine (WP-SPLIT2)
+    pe_source = _read_profile_engine_source()
 
-    assert 'normalize_profile_resolution(int resolution) =>' in source
-    assert 'normalize_profile_vah_pc(float vah_pc, float val_pc) =>' in source
-    assert 'normalize_profile_val_pc(float vah_pc, float val_pc) =>' in source
-    assert 'profile_data_ready(float[] highs, float[] lows, float[] values) =>' in source
-    assert 'int profile_resolution = normalize_profile_resolution(resolution)' in source
-    assert 'float profile_vah_pc = normalize_profile_vah_pc(vah_pc, val_pc)' in source
-    assert 'float profile_val_pc = normalize_profile_val_pc(vah_pc, val_pc)' in source
-    assert 'bool profile_has_range_data = profile_data_ready(highs, lows, values)' in source
-    assert 'is_impulse_candle_now(float candle_body, float impulse_candle_size) =>' in source
-    assert 'is_indecision_candle_now(float high_now, float low_now, float prior_high, float prior_low, float candle_top_now, float candle_btm_now, float prior_candle_top, float prior_candle_btm, float prior_candle_body, float candle_body, float candle_open, float candle_close) =>' in source
-    assert 'profile_features_enabled(bool capture_profile_now, bool align_edge_to_value_area_now, bool align_break_price_to_poc_now) =>' in source
+    assert 'normalize_profile_resolution(int resolution) =>' in pe_source
+    assert 'normalize_profile_vah_pc(float vah_pc, float val_pc) =>' in pe_source
+    assert 'normalize_profile_val_pc(float vah_pc, float val_pc) =>' in pe_source
+    assert 'profile_data_ready(float[] highs, float[] lows, float[] values) =>' in pe_source
+    assert 'int profile_resolution = normalize_profile_resolution(resolution)' in pe_source
+    assert 'float profile_vah_pc = normalize_profile_vah_pc(vah_pc, val_pc)' in pe_source
+    assert 'float profile_val_pc = normalize_profile_val_pc(vah_pc, val_pc)' in pe_source
+    assert 'bool profile_has_range_data = profile_data_ready(highs, lows, values)' in pe_source
+    assert 'is_impulse_candle_now(float candle_body, float impulse_candle_size) =>' in pe_source
+    assert 'is_indecision_candle_now(float high_now, float low_now, float prior_high, float prior_low, float candle_top_now, float candle_btm_now, float prior_candle_top, float prior_candle_btm, float prior_candle_body, float candle_body, float candle_open, float candle_close) =>' in pe_source
+    assert 'profile_features_enabled(bool capture_profile_now, bool align_edge_to_value_area_now, bool align_break_price_to_poc_now) =>' in pe_source
+
+    # Call-sites in core use pe. prefix
+    source = _read_smc_source()
     assert 'bool is_impulse_candle = pe.is_impulse_candle_now(candle_body, impulse_candle_size)' in source
     assert 'bool is_indecision = pe.is_indecision_candle_now(high, low, high[1], low[1], candle_top, candle_btm, candle_top[1], candle_btm[1], candle_body[1], candle_body, open, close)' in source
-    assert 'bool profile_features_active = profile_features_enabled(capture_profile, align_edge_to_value_area, align_break_price_to_poc)' in source
+    assert 'bool profile_features_active = pe.profile_features_enabled(capture_profile, align_edge_to_value_area, align_break_price_to_poc)' in source
 
 
 def test_track_obs_lifecycle_steps_are_split_into_small_helpers() -> None:
@@ -2068,19 +2149,20 @@ def test_track_obs_lifecycle_steps_are_split_into_small_helpers() -> None:
 def test_watchlist_alert_level_follows_active_zone_preference() -> None:
     source = _read_smc_source()
 
-    # long_watchlist_alert_level inline block removed — now only as function parameter
-    assert 'float long_watchlist_alert_level = na' not in source
-    assert 'long_watchlist_alert_level' in source
+    assert 'float long_watchlist_alert_level = na' in source
     assert 'if not na(active_bull_ob_id) and (na(active_bull_fvg_id) or prefer_active_ob_zone)' in source
-    assert 'long_watchlist_alert_level := active_bull_ob_bottom' not in source
-    assert 'long_watchlist_alert_level := active_bull_fvg_bottom' not in source
-    assert 'long_watchlist_alert_level := low' not in source
-    assert 'long_watchlist_alert_level := last_bull_fvg_bottom' not in source
-    assert 'long_watchlist_alert_level := last_bull_ob_bottom' not in source
-    assert 'float long_early_alert_level = long_watchlist_alert_level' not in source
-    assert 'float long_clean_alert_level = long_watchlist_alert_level' not in source
-    assert 'float long_entry_best_alert_level = long_watchlist_alert_level' not in source
-    assert 'float long_entry_strict_alert_level = long_watchlist_alert_level' not in source
+    assert 'long_watchlist_alert_level := active_bull_ob_bottom' in source
+    assert 'else if not na(active_bull_fvg_id)' in source
+    assert 'long_watchlist_alert_level := active_bull_fvg_bottom' in source
+    assert 'long_watchlist_alert_level := low' in source
+    assert 'if not na(last_bull_fvg_bottom)' in source
+    assert 'long_watchlist_alert_level := last_bull_fvg_bottom' in source
+    assert 'if not na(last_bull_ob_bottom)' in source
+    assert 'long_watchlist_alert_level := last_bull_ob_bottom' in source
+    assert 'float long_early_alert_level = long_watchlist_alert_level' in source
+    assert 'float long_clean_alert_level = long_watchlist_alert_level' in source
+    assert 'float long_entry_best_alert_level = long_watchlist_alert_level' in source
+    assert 'float long_entry_strict_alert_level = long_watchlist_alert_level' in source
     assert 'if not na(long_state.trigger)' in source
     assert 'long_early_alert_level := long_state.trigger' in source
     assert 'long_clean_alert_level := long_state.trigger' in source
@@ -2109,10 +2191,10 @@ def test_visual_text_dashboard_and_colors_are_extracted_into_helpers() -> None:
     source = _read_smc_source()
 
     # resolve_long_dashboard_state removed as dead code (Patch 4)
-    assert 'resolve_long_visual_state_label(int long_visual_state) =>' in source
+    assert 'resolve_long_visual_text(int long_visual_state) =>' in source
     assert 'resolve_long_bg_color(int long_visual_state, color long_color_building) =>' in source
     assert 'resolve_long_bar_color(int long_visual_state, color long_color_building) =>' in source
-    assert 'long_visual_text := resolve_long_visual_state_label(long_visual_state)' in source
+    assert 'long_visual_text := resolve_long_visual_text(long_visual_state)' in source
     assert 'long_bg_color := resolve_long_bg_color(long_visual_state, long_color_building)' in source
     assert 'long_bar_color := resolve_long_bar_color(long_visual_state, long_color_building)' in source
 
@@ -2121,9 +2203,9 @@ def test_dashboard_long_zone_summary_uses_shared_zone_text_helper() -> None:
     source = _read_smc_source()
 
     assert "compose_zone_summary_text(bool show_ob_zone, float ob_top, float ob_bottom, bool show_fvg_zone, float fvg_top, float fvg_bottom, string empty_text) =>" in source
-    assert "zone_text := compose_ob_zone_summary_text(ob_top, ob_bottom)" in source
-    assert "zone_text := compose_fvg_zone_summary_text(fvg_top, fvg_bottom)" in source
-    assert "zone_text := compose_combined_zone_summary_text(ob_top, ob_bottom, fvg_top, fvg_bottom)" in source
+    assert "zone_text := 'OB ' + u.format_level(ob_top) + ' / ' + u.format_level(ob_bottom)" in source
+    assert "zone_text := 'FVG ' + u.format_level(fvg_top) + ' / ' + u.format_level(fvg_bottom)" in source
+    assert "zone_text := 'OB ' + u.format_level(ob_top) + ' / ' + u.format_level(ob_bottom) + ' | FVG ' + u.format_level(fvg_top) + ' / ' + u.format_level(fvg_bottom)" in source
     assert "string _db_long_zones_text = compose_zone_summary_text(in_bull_ob_zone, active_bull_ob_top, active_bull_ob_bottom, in_bull_fvg_zone, active_bull_fvg_top, active_bull_fvg_bottom, 'No Long Zones')" in source
 
 
@@ -2137,7 +2219,7 @@ def test_arm_setup_resolution_is_extracted_into_helpers() -> None:
     assert 'arm_source_kind := LONG_SOURCE_OB' in source
     assert 'arm_invalidation_candidate := touched_bull_ob_bottom' in source
     assert "arm_backing_zone_id := touched_bull_fvg_id" in source
-    assert 'if helper_arm_source_kind == LONG_SOURCE_SWING_LOW or helper_arm_source_kind == LONG_SOURCE_INTERNAL_LOW' in source
+    assert 'if arm_source_kind == LONG_SOURCE_SWING_LOW or arm_source_kind == LONG_SOURCE_INTERNAL_LOW' in source
     assert 'bool ob_more_recent = false' in source
     assert 'if na(last_fvg_zone_touch_bar_index) or (not na(last_ob_zone_touch_bar_index) and last_ob_zone_touch_bar_index >= last_fvg_zone_touch_bar_index)' in source
     assert 'ob_more_recent := true' in source
@@ -2159,9 +2241,7 @@ def test_arm_setup_resolution_is_extracted_into_helpers() -> None:
     assert 'else if arm_backing_zone_kind == LONG_SOURCE_FVG and arm_backing_zone_id == active_fvg_touch_id' in source
     assert 'touch_count := active_fvg_touch_count' in source
     assert 'arm_backing_zone_kind == LONG_SOURCE_FVG and arm_backing_zone_id == active_fvg_touch_id ? active_fvg_touch_count' not in source
-    # long_arm_locked_source_id now helper-prefixed inside resolve_long_arm_transition_payload
-    assert 'int helper_long_arm_locked_source_id = resolve_long_zone_id(arm_backing_zone_kind, arm_backing_zone_id)' in source
-    assert '[long_arm_backing_zone_touch_count, long_arm_locked_source_id, long_arm_locked_source_top, long_arm_locked_source_bottom, long_arm_locked_source_last_touch_bar_index] = resolve_long_arm_transition_payload(' in source
+    assert 'int long_arm_locked_source_id = resolve_long_zone_id(arm_backing_zone_kind, arm_backing_zone_id)' in source
     assert 'float long_arm_locked_source_top = resolve_long_zone_top(arm_backing_zone_kind, arm_backing_zone_id, active_bull_ob_id, active_bull_ob_top, touched_bull_ob_id, touched_bull_ob_top, active_bull_fvg_id, active_bull_fvg_top, touched_bull_fvg_id, touched_bull_fvg_top)' in source
     assert 'float long_arm_locked_source_bottom = resolve_long_zone_bottom(arm_backing_zone_kind, arm_backing_zone_id, active_bull_ob_id, active_bull_ob_bottom, touched_bull_ob_id, touched_bull_ob_bottom, active_bull_fvg_id, active_bull_fvg_bottom, touched_bull_fvg_id, touched_bull_fvg_bottom)' in source
     assert 'bool long_locked_source_alive_now = false' in source
@@ -2179,23 +2259,43 @@ def test_arm_setup_resolution_is_extracted_into_helpers() -> None:
 def test_long_alert_helpers_cover_close_safe_events_and_message_composition() -> None:
     source = _read_smc_source()
 
-    # resolve_long_close_safe_alert_events, resolve_long_alert_identity, resolve_directional_dynamic_alert_identity helpers inlined
-    assert "compose_long_invalidated_alert_detail(string long_last_invalid_source, string long_micro_alert_suffix, string long_score_detail_suffix) =>" in source
-    assert 'long_last_invalid_source + long_micro_alert_suffix + long_score_detail_suffix' in source
-    assert "compose_long_ready_alert_detail(string long_setup_source_display, string long_strict_alert_suffix, string long_environment_alert_suffix, string long_micro_alert_suffix, string long_score_detail_suffix) =>" in source
-    assert "compose_long_confirmed_alert_detail(string long_setup_source_display, string long_strict_alert_suffix, string long_environment_alert_suffix, string long_micro_alert_suffix, string long_score_detail_suffix) =>" in source
-    assert "compose_long_watchlist_alert_detail(string long_micro_alert_suffix, string long_score_detail_suffix) =>" in source
-    # close_safe and alert_event variables completely removed
-    assert 'bool long_arm_close_safe = false' not in source
-    assert 'bool long_confirm_close_safe = false' not in source
-    assert 'bool long_ready_close_safe = false' not in source
-    assert 'bool long_invalidated_close_safe = false' not in source
-    assert 'bool long_arm_alert_event = false' not in source
-    assert 'bool long_confirm_alert_event = false' not in source
-    assert 'bool long_ready_alert_event = false' not in source
-    assert 'bool long_invalidate_alert_event = false' not in source
-    assert 'bool live_bull_ob_break_alert_event = false' not in source
-    assert 'bool live_bull_fvg_fill_alert_event = false' not in source
+    # compose_long_*_alert_detail definitions moved to smc_context_resolvers (WP-SPLIT4)
+    resolver_source = _read_resolver_source()
+    assert "compose_long_invalidated_alert_detail(string long_last_invalid_source, string long_micro_alert_suffix, string long_score_detail_suffix) =>" in resolver_source
+    assert 'long_last_invalid_source + long_micro_alert_suffix + long_score_detail_suffix' in resolver_source
+    assert "compose_long_ready_alert_detail(string long_setup_source_display, string long_strict_alert_suffix, string long_environment_alert_suffix, string long_micro_alert_suffix, string long_score_detail_suffix) =>" in resolver_source
+    assert "compose_long_confirmed_alert_detail(string long_setup_source_display, string long_strict_alert_suffix, string long_environment_alert_suffix, string long_micro_alert_suffix, string long_score_detail_suffix) =>" in resolver_source
+    assert "compose_long_watchlist_alert_detail(string long_micro_alert_suffix, string long_score_detail_suffix) =>" in resolver_source
+    assert 'bool long_arm_close_safe = false' in source
+    assert 'if barstate.isconfirmed and long_state.armed and not (long_state[1]).armed' in source
+    assert 'long_arm_close_safe := true' in source
+    assert 'bool long_confirm_close_safe = false' in source
+    assert 'if barstate.isconfirmed and long_state.confirmed and not (long_state[1]).confirmed' in source
+    assert 'long_confirm_close_safe := true' in source
+    assert 'bool long_ready_close_safe = false' in source
+    assert 'if barstate.isconfirmed and long_ready_state and not long_ready_state[1]' in source
+    assert 'long_ready_close_safe := true' in source
+    assert 'bool long_invalidated_close_safe = false' in source
+    assert 'if barstate.isconfirmed and not long_state.armed and not long_state.confirmed and ((long_state[1]).armed or (long_state[1]).confirmed)' in source
+    assert 'long_invalidated_close_safe := true' in source
+    assert 'bool long_arm_alert_event = false' in source
+    assert 'if long_arm_signal_latched' in source
+    assert 'long_arm_alert_event := true' in source
+    assert 'bool long_confirm_alert_event = false' in source
+    assert 'if long_confirm_signal_latched' in source
+    assert 'long_confirm_alert_event := true' in source
+    assert 'bool long_ready_alert_event = false' in source
+    assert 'if long_ready_signal_latched' in source
+    assert 'long_ready_alert_event := true' in source
+    assert 'bool long_invalidate_alert_event = false' in source
+    assert 'if long_invalidate_signal_latched' in source
+    assert 'long_invalidate_alert_event := true' in source
+    assert 'bool live_bull_ob_break_alert_event = false' in source
+    assert 'if live_bull_ob_break_latched' in source
+    assert 'live_bull_ob_break_alert_event := true' in source
+    assert 'bool live_bull_fvg_fill_alert_event = false' in source
+    assert 'if live_bull_fvg_fill_latched' in source
+    assert 'live_bull_fvg_fill_alert_event := true' in source
     assert 'bool long_arm_close_safe = barstate.isconfirmed and long_state.armed and not (long_state[1]).armed' not in source
     assert 'bool long_confirm_close_safe = barstate.isconfirmed and long_state.confirmed and not (long_state[1]).confirmed' not in source
     assert 'bool long_ready_close_safe = barstate.isconfirmed and long_ready_state and not long_ready_state[1]' not in source
@@ -2207,29 +2307,29 @@ def test_long_alert_helpers_cover_close_safe_events_and_message_composition() ->
     assert 'bool live_bull_ob_break_alert_event = live_bull_ob_break_latched' not in source
     assert 'bool live_bull_fvg_fill_alert_event = live_bull_fvg_fill_latched' not in source
     # tuple call negative assertions removed — helpers no longer exist
-    # bull_bos_alert_key completely removed
-    assert "string bull_bos_alert_key = '|bull_bos|'" not in source
+    assert "string bull_bos_alert_key = '|bull_bos|'" in source
     # bear dynamic alert keys removed (Patch 4)
     assert "string long_invalidated_alert_key = '|long_invalidated|'" in source
     assert "string long_watchlist_alert_name = 'Long Dip Watchlist'" in source
-    # tuple call negative assertions removed — helpers no longer exist
-    assert 'compose_long_invalidated_alert_detail(long_last_invalid_source, long_micro_alert_suffix, long_score_detail_suffix)' in source
-    assert 'compose_long_entry_strict_alert_detail(long_micro_alert_suffix, long_score_detail_suffix)' in source
-    assert 'compose_long_entry_best_alert_detail(long_micro_alert_suffix, long_score_detail_suffix)' in source
-    assert 'compose_long_ready_alert_detail(long_setup_source_display, long_strict_alert_suffix, long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix)' in source
-    assert 'compose_long_confirmed_alert_detail(long_setup_source_display, long_strict_alert_suffix, long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix)' in source
-    assert 'compose_long_clean_alert_detail(long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix)' in source
-    assert 'compose_long_early_alert_detail(long_micro_alert_suffix, long_score_detail_suffix)' in source
-    assert 'compose_long_armed_plus_alert_detail(long_micro_alert_suffix, long_score_detail_suffix)' in source
-    assert 'compose_long_armed_alert_detail(long_setup_source_display, long_micro_alert_suffix, long_score_detail_suffix)' in source
-    assert 'compose_long_watchlist_alert_detail(long_micro_alert_suffix, long_score_detail_suffix)' in source
+    # compose_long_*_alert_detail call-sites now use cr. prefix (WP-SPLIT4)
+    assert 'cr.compose_long_invalidated_alert_detail(long_last_invalid_source, long_micro_alert_suffix, long_score_detail_suffix)' in source
+    assert 'cr.compose_long_entry_strict_alert_detail(long_micro_alert_suffix, long_score_detail_suffix)' in source
+    assert 'cr.compose_long_entry_best_alert_detail(long_micro_alert_suffix, long_score_detail_suffix)' in source
+    assert 'cr.compose_long_ready_alert_detail(long_setup_source_display, long_strict_alert_suffix, long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix)' in source
+    assert 'cr.compose_long_confirmed_alert_detail(long_setup_source_display, long_strict_alert_suffix, long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix)' in source
+    assert 'cr.compose_long_clean_alert_detail(long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix)' in source
+    assert 'cr.compose_long_early_alert_detail(long_micro_alert_suffix, long_score_detail_suffix)' in source
+    assert 'cr.compose_long_armed_plus_alert_detail(long_micro_alert_suffix, long_score_detail_suffix)' in source
+    assert 'cr.compose_long_armed_alert_detail(long_setup_source_display, long_micro_alert_suffix, long_score_detail_suffix)' in source
+    assert 'cr.compose_long_watchlist_alert_detail(long_micro_alert_suffix, long_score_detail_suffix)' in source
     assert "str.format('{0}{1}{2}', long_last_invalid_source, long_micro_alert_suffix, long_score_detail_suffix)" not in source
     assert "str.format('Ready for {0}: lifecycle, gates, context, upgrades passed{1}{2}{3}{4}', long_setup_source_display, long_strict_alert_suffix, long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix)" not in source
     assert "str.format('Confirmed from {0}: confirm lifecycle and filters passed{1}{2}{3}{4}', long_setup_source_display, long_strict_alert_suffix, long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix)" not in source
     assert "str.format('Armed from {0}: reclaim and zone confirmation in{1}{2}', long_setup_source_display, long_micro_alert_suffix, long_score_detail_suffix)" not in source
-    assert "'Ready for ' + long_setup_source_display + ': lifecycle, gates, context, upgrades passed' + long_strict_alert_suffix + long_environment_alert_suffix + long_micro_alert_suffix + long_score_detail_suffix" in source
-    assert "'Confirmed from ' + long_setup_source_display + ': confirm lifecycle and filters passed' + long_strict_alert_suffix + long_environment_alert_suffix + long_micro_alert_suffix + long_score_detail_suffix" in source
-    assert "'Armed from ' + long_setup_source_display + ': reclaim and zone confirmation in' + long_micro_alert_suffix + long_score_detail_suffix" in source
+    # compose body string assertions moved to resolver source (WP-SPLIT4)
+    assert "'Ready for ' + long_setup_source_display + ': lifecycle, gates, context, upgrades passed' + long_strict_alert_suffix + long_environment_alert_suffix + long_micro_alert_suffix + long_score_detail_suffix" in resolver_source
+    assert "'Confirmed from ' + long_setup_source_display + ': confirm lifecycle and filters passed' + long_strict_alert_suffix + long_environment_alert_suffix + long_micro_alert_suffix + long_score_detail_suffix" in resolver_source
+    assert "'Armed from ' + long_setup_source_display + ': reclaim and zone confirmation in' + long_micro_alert_suffix + long_score_detail_suffix" in resolver_source
     assert "Invalidated from {0}" not in source
     # bear_bos dynamic alert removed (Patch 4)
     assert 'resolve_ob_alert_level(OrderBlock block) =>' in source
@@ -2517,16 +2617,17 @@ def test_long_alert_helpers_cover_close_safe_events_and_message_composition() ->
     assert 'bool next_dynamic_alert_sent = already_sent' not in source
     assert '[next_seen_keys, next_dynamic_alert_sent]' not in source
     assert 'next_seen_keys := emit_linear_long_dynamic_alerts(next_seen_keys, dynamic_long_invalidated_alert_active, dynamic_long_strict_alert_active, dynamic_long_best_alert_active, dynamic_long_ready_alert_active, dynamic_long_clean_alert_active, dynamic_long_confirmed_alert_active, dynamic_long_early_alert_active, dynamic_long_armed_plus_alert_active, dynamic_long_armed_alert_active, dynamic_long_watchlist_alert_active, long_invalidated_alert_key, long_invalidated_alert_name, long_entry_strict_alert_key, long_entry_strict_alert_name, long_entry_best_alert_key, long_entry_best_alert_name, long_ready_alert_key, long_ready_alert_name, long_clean_alert_key, long_clean_alert_name, long_confirmed_alert_key, long_confirmed_alert_name, long_early_alert_key, long_early_alert_name, long_armed_plus_alert_key, long_armed_plus_alert_name, long_armed_alert_key, long_armed_alert_name, long_watchlist_alert_key, long_watchlist_alert_name, long_setup_source_display, long_strict_alert_suffix, long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix, signal_mode_text, ltf_bull_share_context, ltf_volume_delta_context, ltf_price_only_context, long_state.last_invalid_source, long_state.last_invalid_level, long_state.trigger, long_state.invalidation_level, long_entry_strict_alert_level, long_entry_best_alert_level, long_clean_alert_level, long_early_alert_level, long_watchlist_alert_level)' in source
-    assert 'next_seen_keys := emit_dynamic_alert_if_allowed(next_seen_keys, true, long_invalidated_alert_key, long_invalidated_alert_name, compose_long_invalidated_alert_detail(long_last_invalid_source, long_micro_alert_suffix, long_score_detail_suffix), long_last_invalid_level, -1, ltf_bull_share_context, ltf_volume_delta_context, ltf_price_only_context, signal_mode_text)' in source
-    assert 'next_seen_keys := emit_dynamic_alert_if_allowed(next_seen_keys, not already_sent, long_entry_strict_alert_key, long_entry_strict_alert_name, compose_long_entry_strict_alert_detail(long_micro_alert_suffix, long_score_detail_suffix), long_entry_strict_alert_level, 1, ltf_bull_share_context, ltf_volume_delta_context, ltf_price_only_context, signal_mode_text)' in source
-    assert 'next_seen_keys := emit_dynamic_alert_if_allowed(next_seen_keys, not already_sent, long_entry_best_alert_key, long_entry_best_alert_name, compose_long_entry_best_alert_detail(long_micro_alert_suffix, long_score_detail_suffix), long_entry_best_alert_level, 1, ltf_bull_share_context, ltf_volume_delta_context, ltf_price_only_context, signal_mode_text)' in source
-    assert 'next_seen_keys := emit_dynamic_alert_if_allowed(next_seen_keys, not already_sent, long_ready_alert_key, long_ready_alert_name, compose_long_ready_alert_detail(long_setup_source_display, long_strict_alert_suffix, long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix), long_trigger_level, 1, ltf_bull_share_context, ltf_volume_delta_context, ltf_price_only_context, signal_mode_text)' in source
-    assert 'next_seen_keys := emit_dynamic_alert_if_allowed(next_seen_keys, not already_sent, long_confirmed_alert_key, long_confirmed_alert_name, compose_long_confirmed_alert_detail(long_setup_source_display, long_strict_alert_suffix, long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix), long_trigger_level, 1, ltf_bull_share_context, ltf_volume_delta_context, ltf_price_only_context, signal_mode_text)' in source
-    assert 'next_seen_keys := emit_dynamic_alert_if_allowed(next_seen_keys, not already_sent, long_clean_alert_key, long_clean_alert_name, compose_long_clean_alert_detail(long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix), long_clean_alert_level, 1, ltf_bull_share_context, ltf_volume_delta_context, ltf_price_only_context, signal_mode_text)' in source
-    assert 'next_seen_keys := emit_dynamic_alert_if_allowed(next_seen_keys, not already_sent, long_early_alert_key, long_early_alert_name, compose_long_early_alert_detail(long_micro_alert_suffix, long_score_detail_suffix), long_early_alert_level, 1, ltf_bull_share_context, ltf_volume_delta_context, ltf_price_only_context, signal_mode_text)' in source
-    assert 'next_seen_keys := emit_dynamic_alert_if_allowed(next_seen_keys, not already_sent, long_armed_plus_alert_key, long_armed_plus_alert_name, compose_long_armed_plus_alert_detail(long_micro_alert_suffix, long_score_detail_suffix), long_invalidation_level, 1, ltf_bull_share_context, ltf_volume_delta_context, ltf_price_only_context, signal_mode_text)' in source
-    assert 'next_seen_keys := emit_dynamic_alert_if_allowed(next_seen_keys, not already_sent, long_armed_alert_key, long_armed_alert_name, compose_long_armed_alert_detail(long_setup_source_display, long_micro_alert_suffix, long_score_detail_suffix), long_invalidation_level, 1, ltf_bull_share_context, ltf_volume_delta_context, ltf_price_only_context, signal_mode_text)' in source
-    assert 'next_seen_keys := emit_dynamic_alert_if_allowed(next_seen_keys, not already_sent, long_watchlist_alert_key, long_watchlist_alert_name, compose_long_watchlist_alert_detail(long_micro_alert_suffix, long_score_detail_suffix), long_watchlist_alert_level, 1, ltf_bull_share_context, ltf_volume_delta_context, ltf_price_only_context, signal_mode_text)' in source
+    # compose_long_*_alert_detail call-sites now use cr. prefix (WP-SPLIT4)
+    assert 'next_seen_keys := emit_dynamic_alert_if_allowed(next_seen_keys, true, long_invalidated_alert_key, long_invalidated_alert_name, cr.compose_long_invalidated_alert_detail(long_last_invalid_source, long_micro_alert_suffix, long_score_detail_suffix), long_last_invalid_level, -1, ltf_bull_share_context, ltf_volume_delta_context, ltf_price_only_context, signal_mode_text)' in source
+    assert 'next_seen_keys := emit_dynamic_alert_if_allowed(next_seen_keys, not already_sent, long_entry_strict_alert_key, long_entry_strict_alert_name, cr.compose_long_entry_strict_alert_detail(long_micro_alert_suffix, long_score_detail_suffix), long_entry_strict_alert_level, 1, ltf_bull_share_context, ltf_volume_delta_context, ltf_price_only_context, signal_mode_text)' in source
+    assert 'next_seen_keys := emit_dynamic_alert_if_allowed(next_seen_keys, not already_sent, long_entry_best_alert_key, long_entry_best_alert_name, cr.compose_long_entry_best_alert_detail(long_micro_alert_suffix, long_score_detail_suffix), long_entry_best_alert_level, 1, ltf_bull_share_context, ltf_volume_delta_context, ltf_price_only_context, signal_mode_text)' in source
+    assert 'next_seen_keys := emit_dynamic_alert_if_allowed(next_seen_keys, not already_sent, long_ready_alert_key, long_ready_alert_name, cr.compose_long_ready_alert_detail(long_setup_source_display, long_strict_alert_suffix, long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix), long_trigger_level, 1, ltf_bull_share_context, ltf_volume_delta_context, ltf_price_only_context, signal_mode_text)' in source
+    assert 'next_seen_keys := emit_dynamic_alert_if_allowed(next_seen_keys, not already_sent, long_confirmed_alert_key, long_confirmed_alert_name, cr.compose_long_confirmed_alert_detail(long_setup_source_display, long_strict_alert_suffix, long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix), long_trigger_level, 1, ltf_bull_share_context, ltf_volume_delta_context, ltf_price_only_context, signal_mode_text)' in source
+    assert 'next_seen_keys := emit_dynamic_alert_if_allowed(next_seen_keys, not already_sent, long_clean_alert_key, long_clean_alert_name, cr.compose_long_clean_alert_detail(long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix), long_clean_alert_level, 1, ltf_bull_share_context, ltf_volume_delta_context, ltf_price_only_context, signal_mode_text)' in source
+    assert 'next_seen_keys := emit_dynamic_alert_if_allowed(next_seen_keys, not already_sent, long_early_alert_key, long_early_alert_name, cr.compose_long_early_alert_detail(long_micro_alert_suffix, long_score_detail_suffix), long_early_alert_level, 1, ltf_bull_share_context, ltf_volume_delta_context, ltf_price_only_context, signal_mode_text)' in source
+    assert 'next_seen_keys := emit_dynamic_alert_if_allowed(next_seen_keys, not already_sent, long_armed_plus_alert_key, long_armed_plus_alert_name, cr.compose_long_armed_plus_alert_detail(long_micro_alert_suffix, long_score_detail_suffix), long_invalidation_level, 1, ltf_bull_share_context, ltf_volume_delta_context, ltf_price_only_context, signal_mode_text)' in source
+    assert 'next_seen_keys := emit_dynamic_alert_if_allowed(next_seen_keys, not already_sent, long_armed_alert_key, long_armed_alert_name, cr.compose_long_armed_alert_detail(long_setup_source_display, long_micro_alert_suffix, long_score_detail_suffix), long_invalidation_level, 1, ltf_bull_share_context, ltf_volume_delta_context, ltf_price_only_context, signal_mode_text)' in source
+    assert 'next_seen_keys := emit_dynamic_alert_if_allowed(next_seen_keys, not already_sent, long_watchlist_alert_key, long_watchlist_alert_name, cr.compose_long_watchlist_alert_detail(long_micro_alert_suffix, long_score_detail_suffix), long_watchlist_alert_level, 1, ltf_bull_share_context, ltf_volume_delta_context, ltf_price_only_context, signal_mode_text)' in source
     assert 'string priority_seen_keys_confirmed = emit_dynamic_alert_if_allowed(' not in source
     assert 'bool invalidated_sent_now = false' not in source
     assert 'bool strict_sent_now = false' not in source
@@ -2558,7 +2659,8 @@ def test_long_alert_helpers_cover_close_safe_events_and_message_composition() ->
     assert 'else if enable_dynamic_alerts and alert_long_armed_event' not in source
     assert 'else if enable_dynamic_alerts and long_arm_signal' not in source
     assert 'else if enable_dynamic_alerts and alert_long_watchlist_event' not in source
-    assert 'next_seen_keys := emit_dynamic_alert_if_allowed(next_seen_keys, ready_active, long_ready_alert_key, long_ready_alert_name, compose_long_ready_alert_detail(long_setup_source_display, long_strict_alert_suffix, long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix), long_trigger_level, 1, ltf_bull_share_context, ltf_volume_delta_context, ltf_price_only_context, signal_mode_text)' in source
+    # compose_long_ready_alert_detail call-site now uses cr. prefix (WP-SPLIT4)
+    assert 'next_seen_keys := emit_dynamic_alert_if_allowed(next_seen_keys, ready_active, long_ready_alert_key, long_ready_alert_name, cr.compose_long_ready_alert_detail(long_setup_source_display, long_strict_alert_suffix, long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix), long_trigger_level, 1, ltf_bull_share_context, ltf_volume_delta_context, ltf_price_only_context, signal_mode_text)' in source
     assert 'emit_priority_long_dynamic_alerts(string seen_keys, bool already_sent' in source
     assert 'ltf_price_only_context' in source
     assert 'emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and long_ready_signal, long_ready_alert_key, long_ready_alert_name, compose_long_ready_alert_detail(long_setup_source_display, long_strict_alert_suffix, long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix), long_state.trigger, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)' not in source
@@ -2984,24 +3086,30 @@ def test_long_alert_helpers_cover_close_safe_events_and_message_composition() ->
 def test_intrabar_ready_and_watchlist_events_are_debounced_and_latched() -> None:
     source = _read_smc_source()
 
-    # can_draw_reclaim_marker completely removed
-    assert 'bool can_draw_reclaim_marker = false' not in source
-    assert 'can_draw_reclaim_marker := true' not in source
-    assert 'bool can_draw_long_state_marker = false' not in source
-    assert 'can_draw_long_state_marker := true' not in source
-    assert 'bool can_draw_long_ready_marker = false' not in source
-    assert 'can_draw_long_ready_marker := true' not in source
+    assert 'bool can_draw_reclaim_marker = false' in source
+    assert 'if na(last_reclaim_marker_bar) or effective_reclaim_marker_gap <= 0 or bar_index - last_reclaim_marker_bar >= effective_reclaim_marker_gap' in source
+    assert 'can_draw_reclaim_marker := true' in source
+    assert 'bool can_draw_long_state_marker = false' in source
+    assert 'if na(last_long_state_marker_bar) or effective_confirm_marker_gap <= 0 or bar_index - last_long_state_marker_bar >= effective_confirm_marker_gap' in source
+    assert 'can_draw_long_state_marker := true' in source
+    assert 'bool can_draw_long_ready_marker = false' in source
+    assert 'if na(last_long_ready_marker_bar) or effective_ready_marker_gap <= 0 or bar_index - last_long_ready_marker_bar >= effective_ready_marker_gap' in source
+    assert 'can_draw_long_ready_marker := true' in source
     assert 'bool can_draw_reclaim_marker = na(last_reclaim_marker_bar) or effective_reclaim_marker_gap <= 0 or bar_index - last_reclaim_marker_bar >= effective_reclaim_marker_gap' not in source
     assert 'bool can_draw_long_state_marker = na(last_long_state_marker_bar) or effective_confirm_marker_gap <= 0 or bar_index - last_long_state_marker_bar >= effective_confirm_marker_gap' not in source
     assert 'bool can_draw_long_ready_marker = na(last_long_ready_marker_bar) or effective_ready_marker_gap <= 0 or bar_index - last_long_ready_marker_bar >= effective_ready_marker_gap' not in source
     assert 'varip bool long_ready_fired_this_bar = false' in source
-    # long_ready_state_rt_prev inline block replaced by obv.resolve_long_ready_signal_state tuple
-    assert 'long_ready_state_rt_prev := 0' not in source
-    assert '[long_ready_state_rt_prev, long_ready_fired_this_bar, long_ready_signal] = obv.resolve_long_ready_signal_state(' in source
-    assert 'if long_ready_state[1]' not in source
-    assert 'bool long_ready_signal = false' not in source
-    assert 'if long_ready_state and long_ready_state_rt_prev == 0 and not long_ready_fired_this_bar' not in source
-    assert 'long_ready_signal := true' not in source
+    assert 'long_ready_state_rt_prev := 0' in source
+    assert 'if long_ready_state[1]' in source
+    assert 'if long_ready_state' in source
+    assert 'long_ready_state_rt_prev := long_ready_state[1] ? 1 : 0' not in source
+    assert 'long_ready_state_rt_prev := long_ready_state ? 1 : 0' not in source
+    assert 'bool long_ready_signal = false' in source
+    assert 'if long_ready_state and long_ready_state_rt_prev == 0 and not long_ready_fired_this_bar' in source
+    assert 'long_ready_signal := true' in source
+    assert 'bool long_ready_signal = long_ready_state and long_ready_state_rt_prev == 0 and not long_ready_fired_this_bar' not in source
+    assert 'if long_ready_signal' in source
+    assert 'long_ready_fired_this_bar := true' in source
     assert 'varip bool long_watchlist_fired_this_bar = false' in source
     assert 'long_watchlist_rt_prev_active := 0' in source
     assert 'if alert_long_watchlist[1]' in source
@@ -3147,7 +3255,9 @@ def test_extracted_helpers_are_defined_before_first_call() -> None:
     # All extracted helper functions that must be defined before their call
     helpers = [
         'scan_live_bull_events',
+        'compute_overhead_context',
         'compute_context_quality',
+        'emit_long_engine_debug_logs',
         'compute_alert_text_suffixes',
         'compute_vol_regime',
         'compute_bull_reclaim_state',
@@ -3188,6 +3298,18 @@ def test_extracted_helpers_reference_only_previously_declared_globals() -> None:
 
     # Map: function_name -> list of global identifiers it reads
     helper_globals: dict[str, list[str]] = {
+        'compute_overhead_context': [
+            'long_plan_active',
+            'long_state',
+            'ob_threshold_atr',
+            'stop_buffer_atr_mult',
+            'ob_blocks_bear',
+            'fvgs_bear',
+            'bear_ob_scan_start',
+            'bear_fvg_scan_start',
+            'use_overhead_zone_filter_eff',
+            'min_headroom_r',
+        ],
         'compute_context_quality': [
             'mtf_trend_1',
             'mtf_trend_2',
@@ -3197,6 +3319,18 @@ def test_extracted_helpers_reference_only_previously_declared_globals() -> None:
             'use_vwap_filter',
             'use_context_quality_score_eff',
             'min_context_quality_score',
+        ],
+        'emit_long_engine_debug_logs': [
+            'long_setup_source_display',
+            'long_invalidate_signal',
+            'long_state',
+            'long_arm_signal',
+            'long_confirm_signal',
+            'long_ready_signal',
+            'long_source_upgrade_now',
+            'long_source_upgrade_reason',
+            'long_ready_blocker_text',
+            'long_strict_blocker_text',
         ],
         'compute_alert_text_suffixes': [
             'headroom_to_overhead',
