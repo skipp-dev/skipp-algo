@@ -5,12 +5,273 @@
     "fmp_stock": 0.0,
     "fmp_press": 0.0,
     "fmp_articles": 0.0,
-    "newsapi_ai": 1776269685.0,
+    "newsapi_ai": 1776284077.0,
     "tv": 0.0,
-    "legacy_cursor": 1776269685.0
+    "legacy_cursor": 1776284077.0
   },
   "provider_state": {},
   "story_state": {
+    "cd31c1b9845f9dc4986a38144fd4ea78cb010239:5920946": {
+      "story_key": "cd31c1b9845f9dc4986a38144fd4ea78cb010239:5920946",
+      "cluster_hash": "cd31c1b9845f9dc4986a38144fd4ea78cb010239",
+      "headline": "Microsoft Shares Are Climbing With Conviction: What's Going On? - Microsoft (NASDAQ:MSFT)",
+      "tickers": [
+        "MSFT"
+      ],
+      "published_ts": 1776284077.0,
+      "first_seen_ts": 1776284839.3534746,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "url": "https://www.benzinga.com/trading-ideas/movers/26/04/51844900/microsoft-shares-are-climbing-with-conviction-whats-going-on",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "last_seen_ts": 1776284839.3534746
+    },
+    "5e50bdf4e481ebc69f2dec26b7d4ca6dd19d9c0a:5920946": {
+      "story_key": "5e50bdf4e481ebc69f2dec26b7d4ca6dd19d9c0a:5920946",
+      "cluster_hash": "5e50bdf4e481ebc69f2dec26b7d4ca6dd19d9c0a",
+      "headline": "Tesla, Microsoft May Have Entered Warren Buffett Territory - Microsoft (NASDAQ:MSFT), Tesla (NASDAQ:TSLA)",
+      "tickers": [
+        "MSFT"
+      ],
+      "published_ts": 1776284077.0,
+      "first_seen_ts": 1776284839.3534746,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "url": "https://www.benzinga.com/trading-ideas/movers/26/04/51844851/tesla-microsoft-may-have-entered-warren-buffett-territory-growth-stocks-arent-supposed-to",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "last_seen_ts": 1776284839.3534746
+    },
+    "288a573aabbbccec0a09586853945dc68b76ec6f:5920923": {
+      "story_key": "288a573aabbbccec0a09586853945dc68b76ec6f:5920923",
+      "cluster_hash": "288a573aabbbccec0a09586853945dc68b76ec6f",
+      "headline": "Amazon Vs. SpaceX Space Race Heats Up At Difficult Time For Musk's Upcoming IPO - Amazon.com (NASDAQ:AMZN",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_ts": 1776277192.0,
+      "first_seen_ts": 1776284839.3534746,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "url": "https://www.benzinga.com/markets/prediction-markets/26/04/51841288/amazon-vs-spacex-space-race-heats-up-at-difficult-time-for-musks-upcoming-ipo",
+      "category": "ipo",
+      "impact": 0.8,
+      "clarity": 0.7,
+      "relevance": 0.8200000000000001,
+      "polarity": 0.0,
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "last_seen_ts": 1776284839.3534746
+    },
+    "2728f7d9b2b2dbdd68cdd7f14a09beb1a762655c:5920923": {
+      "story_key": "2728f7d9b2b2dbdd68cdd7f14a09beb1a762655c:5920923",
+      "cluster_hash": "2728f7d9b2b2dbdd68cdd7f14a09beb1a762655c",
+      "headline": "Microsoft (MSFT) Stock Surges as Company Secures Norway Data Center Deal OpenAI Abandoned - Blockonomi",
+      "tickers": [
+        "MSFT"
+      ],
+      "published_ts": 1776276963.0,
+      "first_seen_ts": 1776284839.3534746,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Blockonomi"
+      ],
+      "url": "https://blockonomi.com/microsoft-msft-stock-surges-as-company-secures-norway-data-center-deal-openai-abandoned/",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776284839.3534746
+    },
+    "6f3b87e05a0362de3f0fdcde823ab99953cf2a1c:5920923": {
+      "story_key": "6f3b87e05a0362de3f0fdcde823ab99953cf2a1c:5920923",
+      "cluster_hash": "6f3b87e05a0362de3f0fdcde823ab99953cf2a1c",
+      "headline": "Microsoft (MSFT) Stock Surges 4% After Securing Norway Data Center Deal from OpenAI - Blockonomi",
+      "tickers": [
+        "MSFT"
+      ],
+      "published_ts": 1776276946.0,
+      "first_seen_ts": 1776284839.3534746,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Blockonomi"
+      ],
+      "url": "https://blockonomi.com/microsoft-msft-stock-surges-4-after-securing-norway-data-center-deal-from-openai/",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776284839.3534746
+    },
+    "774d803ed05c794efec10cf2a486ebd219fa9fb8:5920915": {
+      "story_key": "774d803ed05c794efec10cf2a486ebd219fa9fb8:5920915",
+      "cluster_hash": "774d803ed05c794efec10cf2a486ebd219fa9fb8",
+      "headline": "10 Information Technology Stocks Whale Activity In Today's Session - Apple (NASDAQ:AAPL), Advanced Micro",
+      "tickers": [
+        "AAPL"
+      ],
+      "published_ts": 1776274548.0,
+      "first_seen_ts": 1776284839.3534746,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "url": "https://www.benzinga.com/insights/options/26/04/51839716/10-information-technology-stocks-whale-activity-in-todays-session",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "polarity": 0.0,
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "last_seen_ts": 1776284839.3534746
+    },
+    "f30ee1ee0d22fadd6c2c21371bdad4e6724be8c1:5920914": {
+      "story_key": "f30ee1ee0d22fadd6c2c21371bdad4e6724be8c1:5920914",
+      "cluster_hash": "f30ee1ee0d22fadd6c2c21371bdad4e6724be8c1",
+      "headline": "Will Amazon Make A New All-Time High? - Amazon.com (NASDAQ:AMZN)",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_ts": 1776274292.0,
+      "first_seen_ts": 1776284839.3534746,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "url": "https://www.benzinga.com/trading-ideas/long-ideas/26/04/51839578/stock-of-the-day-will-amazon-make-a-new-all-time-high",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "last_seen_ts": 1776284839.3534746
+    },
+    "dbab16a6570baaaf034c6cdbb1959aeca1811d19:5920911": {
+      "story_key": "dbab16a6570baaaf034c6cdbb1959aeca1811d19:5920911",
+      "cluster_hash": "dbab16a6570baaaf034c6cdbb1959aeca1811d19",
+      "headline": "Avoid The Classic Investor Mistake As Trump Says Iran War Is 'Close to Over' - Apple (NASDAQ:AAPL)",
+      "tickers": [
+        "AAPL"
+      ],
+      "published_ts": 1776273396.0,
+      "first_seen_ts": 1776284839.3534746,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "url": "https://www.benzinga.com/Opinion/26/04/51838586/avoid-the-classic-investor-mistake-as-trump-says-iran-war-is-close-to-over",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "last_seen_ts": 1776284839.3534746
+    },
+    "758880f424781b353f3fba40008f63b3a2ef5118:5920908": {
+      "story_key": "758880f424781b353f3fba40008f63b3a2ef5118:5920908",
+      "cluster_hash": "758880f424781b353f3fba40008f63b3a2ef5118",
+      "headline": "Amazon's (NASDAQ: AMZN) Stock Price Drops 1% Amid $11.57 Billion Globalstar Deal",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_ts": 1776272677.0,
+      "first_seen_ts": 1776284839.3534746,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Foreign Policy Journal"
+      ],
+      "url": "https://www.foreignpolicyjournal.com/2026/04/15/amazons-nasdaq-amzn-stock-price-drops-1-amid-11-57-billion-globalstar-deal/",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "polarity": -0.1375,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776284839.3534746
+    },
     "0f06306d187b3397c2e769cab6d9e89bcea2647e:5920898": {
       "story_key": "0f06306d187b3397c2e769cab6d9e89bcea2647e:5920898",
       "cluster_hash": "0f06306d187b3397c2e769cab6d9e89bcea2647e",

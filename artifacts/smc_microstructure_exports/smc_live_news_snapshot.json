@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-04-15T19:25:27.958558Z",
+  "generated_at": "2026-04-15T20:27:19.353475Z",
   "symbols": [
     "AAPL",
     "MSFT",
@@ -20,11 +20,11 @@
     "fmp_stock": 0.0,
     "fmp_press": 0.0,
     "fmp_articles": 0.0,
-    "newsapi_ai": 1776269685.0,
+    "newsapi_ai": 1776284077.0,
     "tv": 0.0,
-    "legacy_cursor": 1776269685.0
+    "legacy_cursor": 1776284077.0
   },
-  "legacy_cursor": 1776269685.0,
+  "legacy_cursor": 1776284077.0,
   "providers": {
     "benzinga": {
       "ok": false,
@@ -64,12 +64,12 @@
     "newsapi_ai": {
       "ok": true,
       "error": "",
-      "raw_count": 4,
-      "new_item_count": 0,
-      "cursor": 1776269685.0,
+      "raw_count": 52,
+      "new_item_count": 9,
+      "cursor": 1776284077.0,
       "last_seen_news_uri": "",
-      "provider_status": "ok_no_recent_matches",
-      "status_detail": "Event Registry reachable, but no new symbol-matching NewsAPI.ai items were newer than the current cursor.",
+      "provider_status": "ok",
+      "status_detail": "",
       "error_code": ""
     },
     "tv": {
@@ -82,14 +82,14 @@
   },
   "stories": [
     {
-      "story_key": "31931b7eeef132274d34c8fe78bf3068436f2fc5:5920880",
-      "headline": "Microsoft (MSFT): AI CapEx Growth And The 2026 Software Outlook | 2-Minute Analysis",
+      "story_key": "288a573aabbbccec0a09586853945dc68b76ec6f:5920923",
+      "headline": "Amazon Vs. SpaceX Space Race Heats Up At Difficult Time For Musk's Upcoming IPO - Amazon.com (NASDAQ:AMZN",
       "tickers": [
-        "MSFT"
+        "AMZN"
       ],
-      "published_at": "2026-04-15T14:40:00Z",
-      "published_ts": 1776264000.0,
-      "age_minutes": 285.5,
+      "published_at": "2026-04-15T18:19:52Z",
+      "published_ts": 1776277192.0,
+      "age_minutes": 127.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -98,25 +98,25 @@
         "newsapi_ai"
       ],
       "sources": [
-        "Seeking Alpha"
+        "Benzinga"
       ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "guidance",
-      "event_class": "GUIDANCE",
-      "event_label": "Microsoft (MSFT): AI CapEx Growth And The 2026 Software Outlook | 2-Minute Analysis",
-      "sentiment_label": "bullish",
-      "polarity": 0.235,
-      "impact": 0.88,
-      "clarity": 0.8,
-      "relevance": 0.886,
-      "news_catalyst_score": 0.4474,
-      "materiality": "LOW",
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "category": "ipo",
+      "event_class": "IPO",
+      "event_label": "Amazon Vs. SpaceX Space Race Heats Up At Difficult Time For Musk's Upcoming IPO - Amazon.com (NASDAQ:AMZN",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.8,
+      "clarity": 0.7,
+      "relevance": 0.82,
+      "news_catalyst_score": 0.5727,
+      "materiality": "MEDIUM",
       "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://seekingalpha.com/article/4890933-microsoft-msft-ai-capex-growth-and-the-2026-software-outlook-2-minute-analysis",
-      "first_seen_at": "2026-04-15T16:47:18.573423Z",
-      "is_new": false,
+      "is_actionable": true,
+      "url": "https://www.benzinga.com/markets/prediction-markets/26/04/51841288/amazon-vs-spacex-space-race-heats-up-at-difficult-time-for-musks-upcoming-ipo",
+      "first_seen_at": "2026-04-15T20:27:19.353475Z",
+      "is_new": true,
       "provider_count": 1
     },
     {
@@ -127,7 +127,7 @@
       ],
       "published_at": "2026-04-15T12:01:45Z",
       "published_ts": 1776254505.0,
-      "age_minutes": 443.7,
+      "age_minutes": 505.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -165,7 +165,7 @@
       ],
       "published_at": "2026-04-15T12:01:11Z",
       "published_ts": 1776254471.0,
-      "age_minutes": 444.3,
+      "age_minutes": 506.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -196,6 +196,44 @@
       "provider_count": 1
     },
     {
+      "story_key": "31931b7eeef132274d34c8fe78bf3068436f2fc5:5920880",
+      "headline": "Microsoft (MSFT): AI CapEx Growth And The 2026 Software Outlook | 2-Minute Analysis",
+      "tickers": [
+        "MSFT"
+      ],
+      "published_at": "2026-04-15T14:40:00Z",
+      "published_ts": 1776264000.0,
+      "age_minutes": 347.3,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Seeking Alpha"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "guidance",
+      "event_class": "GUIDANCE",
+      "event_label": "Microsoft (MSFT): AI CapEx Growth And The 2026 Software Outlook | 2-Minute Analysis",
+      "sentiment_label": "bullish",
+      "polarity": 0.235,
+      "impact": 0.88,
+      "clarity": 0.8,
+      "relevance": 0.886,
+      "news_catalyst_score": 0.4331,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://seekingalpha.com/article/4890933-microsoft-msft-ai-capex-growth-and-the-2026-software-outlook-2-minute-analysis",
+      "first_seen_at": "2026-04-15T16:47:18.573423Z",
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
       "story_key": "5ef6ccbe6d8cf02bf8da7847e991b3ebe2512196:5920858",
       "headline": "Amazon: A Once-In-A-Generation Opportunity That's Not Priced In (NASDAQ:AMZN)",
       "tickers": [
@@ -203,7 +241,7 @@
       ],
       "published_at": "2026-04-15T12:53:12Z",
       "published_ts": 1776257592.0,
-      "age_minutes": 392.3,
+      "age_minutes": 454.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -241,7 +279,7 @@
       ],
       "published_at": "2026-04-14T21:05:36Z",
       "published_ts": 1776200736.0,
-      "age_minutes": 1339.9,
+      "age_minutes": 1401.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -279,7 +317,7 @@
       ],
       "published_at": "2026-04-14T21:01:47Z",
       "published_ts": 1776200507.0,
-      "age_minutes": 1343.7,
+      "age_minutes": 1405.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -317,7 +355,7 @@
       ],
       "published_at": "2026-04-15T10:59:34Z",
       "published_ts": 1776250774.0,
-      "age_minutes": 505.9,
+      "age_minutes": 567.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -348,6 +386,82 @@
       "provider_count": 1
     },
     {
+      "story_key": "cd31c1b9845f9dc4986a38144fd4ea78cb010239:5920946",
+      "headline": "Microsoft Shares Are Climbing With Conviction: What's Going On? - Microsoft (NASDAQ:MSFT)",
+      "tickers": [
+        "MSFT"
+      ],
+      "published_at": "2026-04-15T20:14:37Z",
+      "published_ts": 1776284077.0,
+      "age_minutes": 12.7,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Microsoft Shares Are Climbing With Conviction: What's Going On? - Microsoft (NASDAQ:MSFT)",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.3538,
+      "materiality": "LOW",
+      "recency_bucket": "FRESH",
+      "is_actionable": false,
+      "url": "https://www.benzinga.com/trading-ideas/movers/26/04/51844900/microsoft-shares-are-climbing-with-conviction-whats-going-on",
+      "first_seen_at": "2026-04-15T20:27:19.353475Z",
+      "is_new": true,
+      "provider_count": 1
+    },
+    {
+      "story_key": "5e50bdf4e481ebc69f2dec26b7d4ca6dd19d9c0a:5920946",
+      "headline": "Tesla, Microsoft May Have Entered Warren Buffett Territory - Microsoft (NASDAQ:MSFT), Tesla (NASDAQ:TSLA)",
+      "tickers": [
+        "MSFT"
+      ],
+      "published_at": "2026-04-15T20:14:37Z",
+      "published_ts": 1776284077.0,
+      "age_minutes": 12.7,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Tesla, Microsoft May Have Entered Warren Buffett Territory - Microsoft (NASDAQ:MSFT), Tesla (NASDAQ:TSLA)",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.3538,
+      "materiality": "LOW",
+      "recency_bucket": "FRESH",
+      "is_actionable": false,
+      "url": "https://www.benzinga.com/trading-ideas/movers/26/04/51844851/tesla-microsoft-may-have-entered-warren-buffett-territory-growth-stocks-arent-supposed-to",
+      "first_seen_at": "2026-04-15T20:27:19.353475Z",
+      "is_new": true,
+      "provider_count": 1
+    },
+    {
       "story_key": "93456f38f3b9ddfed5a09861e03c380597612ea4:5920868",
       "headline": "Wall Street analyst updates Microsoft (MSFT) stock price target",
       "tickers": [
@@ -355,7 +469,7 @@
       ],
       "published_at": "2026-04-15T13:41:37Z",
       "published_ts": 1776260497.0,
-      "age_minutes": 343.8,
+      "age_minutes": 405.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -386,6 +500,196 @@
       "provider_count": 1
     },
     {
+      "story_key": "774d803ed05c794efec10cf2a486ebd219fa9fb8:5920915",
+      "headline": "10 Information Technology Stocks Whale Activity In Today's Session - Apple (NASDAQ:AAPL), Advanced Micro",
+      "tickers": [
+        "AAPL"
+      ],
+      "published_at": "2026-04-15T17:35:48Z",
+      "published_ts": 1776274548.0,
+      "age_minutes": 171.5,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "10 Information Technology Stocks Whale Activity In Today's Session - Apple (NASDAQ:AAPL), Advanced Micro",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "news_catalyst_score": 0.2819,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://www.benzinga.com/insights/options/26/04/51839716/10-information-technology-stocks-whale-activity-in-todays-session",
+      "first_seen_at": "2026-04-15T20:27:19.353475Z",
+      "is_new": true,
+      "provider_count": 1
+    },
+    {
+      "story_key": "6f3b87e05a0362de3f0fdcde823ab99953cf2a1c:5920923",
+      "headline": "Microsoft (MSFT) Stock Surges 4% After Securing Norway Data Center Deal from OpenAI - Blockonomi",
+      "tickers": [
+        "MSFT"
+      ],
+      "published_at": "2026-04-15T18:15:46Z",
+      "published_ts": 1776276946.0,
+      "age_minutes": 131.6,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Blockonomi"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Microsoft (MSFT) Stock Surges 4% After Securing Norway Data Center Deal from OpenAI - Blockonomi",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "news_catalyst_score": 0.2582,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://blockonomi.com/microsoft-msft-stock-surges-4-after-securing-norway-data-center-deal-from-openai/",
+      "first_seen_at": "2026-04-15T20:27:19.353475Z",
+      "is_new": true,
+      "provider_count": 1
+    },
+    {
+      "story_key": "f30ee1ee0d22fadd6c2c21371bdad4e6724be8c1:5920914",
+      "headline": "Will Amazon Make A New All-Time High? - Amazon.com (NASDAQ:AMZN)",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_at": "2026-04-15T17:31:32Z",
+      "published_ts": 1776274292.0,
+      "age_minutes": 175.8,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Will Amazon Make A New All-Time High? - Amazon.com (NASDAQ:AMZN)",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.2489,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://www.benzinga.com/trading-ideas/long-ideas/26/04/51839578/stock-of-the-day-will-amazon-make-a-new-all-time-high",
+      "first_seen_at": "2026-04-15T20:27:19.353475Z",
+      "is_new": true,
+      "provider_count": 1
+    },
+    {
+      "story_key": "dbab16a6570baaaf034c6cdbb1959aeca1811d19:5920911",
+      "headline": "Avoid The Classic Investor Mistake As Trump Says Iran War Is 'Close to Over' - Apple (NASDAQ:AAPL)",
+      "tickers": [
+        "AAPL"
+      ],
+      "published_at": "2026-04-15T17:16:36Z",
+      "published_ts": 1776273396.0,
+      "age_minutes": 190.7,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Avoid The Classic Investor Mistake As Trump Says Iran War Is 'Close to Over' - Apple (NASDAQ:AAPL)",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.2429,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://www.benzinga.com/Opinion/26/04/51838586/avoid-the-classic-investor-mistake-as-trump-says-iran-war-is-close-to-over",
+      "first_seen_at": "2026-04-15T20:27:19.353475Z",
+      "is_new": true,
+      "provider_count": 1
+    },
+    {
+      "story_key": "758880f424781b353f3fba40008f63b3a2ef5118:5920908",
+      "headline": "Amazon's (NASDAQ: AMZN) Stock Price Drops 1% Amid $11.57 Billion Globalstar Deal",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_at": "2026-04-15T17:04:37Z",
+      "published_ts": 1776272677.0,
+      "age_minutes": 202.7,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Foreign Policy Journal"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Amazon's (NASDAQ: AMZN) Stock Price Drops 1% Amid $11.57 Billion Globalstar Deal",
+      "sentiment_label": "bearish",
+      "polarity": -0.1375,
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "news_catalyst_score": 0.2342,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://www.foreignpolicyjournal.com/2026/04/15/amazons-nasdaq-amzn-stock-price-drops-1-amid-11-57-billion-globalstar-deal/",
+      "first_seen_at": "2026-04-15T20:27:19.353475Z",
+      "is_new": true,
+      "provider_count": 1
+    },
+    {
       "story_key": "dc006ff290fc0653a9e3c43bc092e7ac574dc14e:5920893",
       "headline": "NextEra Energy Has A- Credit Rating -- The 18% Line Is What Keeps It There - NextEra Energy (NYSE:NEE)",
       "tickers": [
@@ -393,7 +697,7 @@
       ],
       "published_at": "2026-04-15T15:49:04Z",
       "published_ts": 1776268144.0,
-      "age_minutes": 216.4,
+      "age_minutes": 278.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -414,7 +718,7 @@
       "impact": 0.1,
       "clarity": 0.8,
       "relevance": 0.535,
-      "news_catalyst_score": 0.261,
+      "news_catalyst_score": 0.2302,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
@@ -424,14 +728,14 @@
       "provider_count": 1
     },
     {
-      "story_key": "0f06306d187b3397c2e769cab6d9e89bcea2647e:5920898",
-      "headline": "Amazon, Meta Are 'Dislocated High Quality' Bargains: Analyst - Amazon.com (NASDAQ:AMZN), Meta Platforms (",
+      "story_key": "2728f7d9b2b2dbdd68cdd7f14a09beb1a762655c:5920923",
+      "headline": "Microsoft (MSFT) Stock Surges as Company Secures Norway Data Center Deal OpenAI Abandoned - Blockonomi",
       "tickers": [
-        "AMZN"
+        "MSFT"
       ],
-      "published_at": "2026-04-15T16:14:45Z",
-      "published_ts": 1776269685.0,
-      "age_minutes": 190.7,
+      "published_at": "2026-04-15T18:16:03Z",
+      "published_ts": 1776276963.0,
+      "age_minutes": 131.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -440,101 +744,25 @@
         "newsapi_ai"
       ],
       "sources": [
-        "Benzinga"
-      ],
-      "source_tier": "TIER_2",
-      "source_rank": 2,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Amazon, Meta Are 'Dislocated High Quality' Bargains: Analyst - Amazon.com (NASDAQ:AMZN), Meta Platforms (",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.2429,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.benzinga.com/markets/tech/26/04/51836863/amazon-meta-are-dislocated-high-quality-bargains-analyst",
-      "first_seen_at": "2026-04-15T16:47:18.573423Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "4eebc5f307dc48a745390e1f2a67838ebf81d5d6:5920897",
-      "headline": "Amazon Beats SpaceX In Globalstar Deal, LEO Race Heats Up - Amazon.com (NASDAQ:AMZN), Globalstar (NASDAQ:",
-      "tickers": [
-        "AMZN"
-      ],
-      "published_at": "2026-04-15T16:08:50Z",
-      "published_ts": 1776269330.0,
-      "age_minutes": 196.6,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Benzinga"
-      ],
-      "source_tier": "TIER_2",
-      "source_rank": 2,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Amazon Beats SpaceX In Globalstar Deal, LEO Race Heats Up - Amazon.com (NASDAQ:AMZN), Globalstar (NASDAQ:",
-      "sentiment_label": "bullish",
-      "polarity": 0.1375,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.2403,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.benzinga.com/m-a/26/04/51836668/bezos-just-bought-what-musk-wanted-and-the-200b-space-war-is-escalating",
-      "first_seen_at": "2026-04-15T16:47:18.573423Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "aa95dbac3f95ac3905624c78e51379efb9c302c2:5920895",
-      "headline": "Should You Buy, Sell or Hold Meta Stock at $675?",
-      "tickers": [
-        "META"
-      ],
-      "published_at": "2026-04-15T15:56:05Z",
-      "published_ts": 1776268565.0,
-      "age_minutes": 209.4,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "24/7 Wall St."
+        "Blockonomi"
       ],
       "source_tier": "TIER_3",
       "source_rank": 3,
       "category": "other",
       "event_class": "UNKNOWN",
-      "event_label": "Should You Buy, Sell or Hold Meta Stock at $675?",
+      "event_label": "Microsoft (MSFT) Stock Surges as Company Secures Norway Data Center Deal OpenAI Abandoned - Blockonomi",
       "sentiment_label": "neutral",
       "polarity": 0.0,
       "impact": 0.1,
-      "clarity": 0.8,
-      "relevance": 0.535,
-      "news_catalyst_score": 0.2313,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.225,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
-      "url": "https://247wallst.com/investing/2026/04/15/should-you-buy-sell-or-hold-meta-stock-at-675/",
-      "first_seen_at": "2026-04-15T16:47:18.573423Z",
-      "is_new": false,
+      "url": "https://blockonomi.com/microsoft-msft-stock-surges-as-company-secures-norway-data-center-deal-openai-abandoned/",
+      "first_seen_at": "2026-04-15T20:27:19.353475Z",
+      "is_new": true,
       "provider_count": 1
     },
     {
@@ -545,7 +773,7 @@
       ],
       "published_at": "2026-04-15T01:22:32Z",
       "published_ts": 1776216152.0,
-      "age_minutes": 1082.9,
+      "age_minutes": 1144.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -583,7 +811,7 @@
       ],
       "published_at": "2026-04-14T21:31:42Z",
       "published_ts": 1776202302.0,
-      "age_minutes": 1313.8,
+      "age_minutes": 1375.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -614,15 +842,14 @@
       "provider_count": 1
     },
     {
-      "story_key": "bf6f2e1d93618e988158f3e3f9939385b9543277:5920886",
-      "headline": "Amazon (AMZN) vs Meta (META): Which Tech Giant Offers Better Value in 2025? - Blockonomi",
+      "story_key": "0f06306d187b3397c2e769cab6d9e89bcea2647e:5920898",
+      "headline": "Amazon, Meta Are 'Dislocated High Quality' Bargains: Analyst - Amazon.com (NASDAQ:AMZN), Meta Platforms (",
       "tickers": [
-        "AMZN",
-        "META"
+        "AMZN"
       ],
-      "published_at": "2026-04-15T15:11:53Z",
-      "published_ts": 1776265913.0,
-      "age_minutes": 253.6,
+      "published_at": "2026-04-15T16:14:45Z",
+      "published_ts": 1776269685.0,
+      "age_minutes": 252.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -631,61 +858,99 @@
         "newsapi_ai"
       ],
       "sources": [
-        "Blockonomi"
+        "Benzinga"
       ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
+      "source_tier": "TIER_2",
+      "source_rank": 2,
       "category": "other",
       "event_class": "UNKNOWN",
-      "event_label": "Amazon (AMZN) vs Meta (META): Which Tech Giant Offers Better Value in 2025? - Blockonomi",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.8,
-      "relevance": 0.535,
-      "news_catalyst_score": 0.212,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://blockonomi.com/amazon-amzn-vs-meta-meta-which-tech-giant-offers-better-value-in-2025/",
-      "first_seen_at": "2026-04-15T16:47:18.573423Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "52338cb6ccf0dfd971b351be6a9c459fa86d9361:5920896",
-      "headline": "Apple: Inventory Does Not Lie (NASDAQ:AAPL)",
-      "tickers": [
-        "AAPL"
-      ],
-      "published_at": "2026-04-15T16:04:35Z",
-      "published_ts": 1776269075.0,
-      "age_minutes": 200.9,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Seeking Alpha"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Apple: Inventory Does Not Lie (NASDAQ:AAPL)",
+      "event_label": "Amazon, Meta Are 'Dislocated High Quality' Bargains: Analyst - Amazon.com (NASDAQ:AMZN), Meta Platforms (",
       "sentiment_label": "neutral",
       "polarity": 0.0,
       "impact": 0.1,
       "clarity": 0.6,
       "relevance": 0.475,
-      "news_catalyst_score": 0.2047,
+      "news_catalyst_score": 0.2155,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
-      "url": "https://seekingalpha.com/article/4890945-apple-inventory-does-not-lie",
+      "url": "https://www.benzinga.com/markets/tech/26/04/51836863/amazon-meta-are-dislocated-high-quality-bargains-analyst",
+      "first_seen_at": "2026-04-15T16:47:18.573423Z",
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
+      "story_key": "4eebc5f307dc48a745390e1f2a67838ebf81d5d6:5920897",
+      "headline": "Amazon Beats SpaceX In Globalstar Deal, LEO Race Heats Up - Amazon.com (NASDAQ:AMZN), Globalstar (NASDAQ:",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_at": "2026-04-15T16:08:50Z",
+      "published_ts": 1776269330.0,
+      "age_minutes": 258.5,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Amazon Beats SpaceX In Globalstar Deal, LEO Race Heats Up - Amazon.com (NASDAQ:AMZN), Globalstar (NASDAQ:",
+      "sentiment_label": "bullish",
+      "polarity": 0.1375,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.2129,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://www.benzinga.com/m-a/26/04/51836668/bezos-just-bought-what-musk-wanted-and-the-200b-space-war-is-escalating",
+      "first_seen_at": "2026-04-15T16:47:18.573423Z",
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
+      "story_key": "aa95dbac3f95ac3905624c78e51379efb9c302c2:5920895",
+      "headline": "Should You Buy, Sell or Hold Meta Stock at $675?",
+      "tickers": [
+        "META"
+      ],
+      "published_at": "2026-04-15T15:56:05Z",
+      "published_ts": 1776268565.0,
+      "age_minutes": 271.2,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "24/7 Wall St."
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Should You Buy, Sell or Hold Meta Stock at $675?",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "news_catalyst_score": 0.2044,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://247wallst.com/investing/2026/04/15/should-you-buy-sell-or-hold-meta-stock-at-675/",
       "first_seen_at": "2026-04-15T16:47:18.573423Z",
       "is_new": false,
       "provider_count": 1
@@ -698,7 +963,7 @@
       ],
       "published_at": "2026-04-15T09:59:20Z",
       "published_ts": 1776247160.0,
-      "age_minutes": 566.1,
+      "age_minutes": 628.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -736,7 +1001,7 @@
       ],
       "published_at": "2026-04-15T09:58:53Z",
       "published_ts": 1776247133.0,
-      "age_minutes": 566.6,
+      "age_minutes": 628.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -767,6 +1032,45 @@
       "provider_count": 1
     },
     {
+      "story_key": "bf6f2e1d93618e988158f3e3f9939385b9543277:5920886",
+      "headline": "Amazon (AMZN) vs Meta (META): Which Tech Giant Offers Better Value in 2025? - Blockonomi",
+      "tickers": [
+        "AMZN",
+        "META"
+      ],
+      "published_at": "2026-04-15T15:11:53Z",
+      "published_ts": 1776265913.0,
+      "age_minutes": 315.4,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Blockonomi"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Amazon (AMZN) vs Meta (META): Which Tech Giant Offers Better Value in 2025? - Blockonomi",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "news_catalyst_score": 0.1918,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://blockonomi.com/amazon-amzn-vs-meta-meta-which-tech-giant-offers-better-value-in-2025/",
+      "first_seen_at": "2026-04-15T16:47:18.573423Z",
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
       "story_key": "a241295a823804ea027d425723d53ec090c83d56:5920868",
       "headline": "Amazon: My Top 8 Reasons To Buy (NASDAQ:AMZN)",
       "tickers": [
@@ -774,7 +1078,7 @@
       ],
       "published_at": "2026-04-15T13:42:37Z",
       "published_ts": 1776260557.0,
-      "age_minutes": 342.8,
+      "age_minutes": 404.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -812,7 +1116,7 @@
       ],
       "published_at": "2026-04-15T13:06:37Z",
       "published_ts": 1776258397.0,
-      "age_minutes": 378.8,
+      "age_minutes": 440.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -850,7 +1154,7 @@
       ],
       "published_at": "2026-04-15T11:35:42Z",
       "published_ts": 1776252942.0,
-      "age_minutes": 469.8,
+      "age_minutes": 531.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -888,7 +1192,7 @@
       ],
       "published_at": "2026-04-15T08:28:33Z",
       "published_ts": 1776241713.0,
-      "age_minutes": 656.9,
+      "age_minutes": 718.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -926,7 +1230,7 @@
       ],
       "published_at": "2026-04-15T03:59:31Z",
       "published_ts": 1776225571.0,
-      "age_minutes": 925.9,
+      "age_minutes": 987.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -964,7 +1268,7 @@
       ],
       "published_at": "2026-04-14T20:39:03Z",
       "published_ts": 1776199143.0,
-      "age_minutes": 1366.4,
+      "age_minutes": 1428.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -995,6 +1299,44 @@
       "provider_count": 1
     },
     {
+      "story_key": "52338cb6ccf0dfd971b351be6a9c459fa86d9361:5920896",
+      "headline": "Apple: Inventory Does Not Lie (NASDAQ:AAPL)",
+      "tickers": [
+        "AAPL"
+      ],
+      "published_at": "2026-04-15T16:04:35Z",
+      "published_ts": 1776269075.0,
+      "age_minutes": 262.7,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Seeking Alpha"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Apple: Inventory Does Not Lie (NASDAQ:AAPL)",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.1812,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://seekingalpha.com/article/4890945-apple-inventory-does-not-lie",
+      "first_seen_at": "2026-04-15T16:47:18.573423Z",
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
       "story_key": "9f55b686374205531bc839b8a20efc8e987674cf:5920864",
       "headline": "Trade Strategy For SPY, QQQ, AAPL, MSFT, NVDA, GOOGL, META, And TSLA",
       "tickers": [
@@ -1004,7 +1346,7 @@
       ],
       "published_at": "2026-04-15T13:20:29Z",
       "published_ts": 1776259229.0,
-      "age_minutes": 365.0,
+      "age_minutes": 426.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1042,7 +1384,7 @@
       ],
       "published_at": "2026-04-15T14:40:23Z",
       "published_ts": 1776264023.0,
-      "age_minutes": 285.1,
+      "age_minutes": 346.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1063,7 +1405,7 @@
       "impact": 0.1,
       "clarity": 0.6,
       "relevance": 0.475,
-      "news_catalyst_score": 0.1727,
+      "news_catalyst_score": 0.1671,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
@@ -1080,7 +1422,7 @@
       ],
       "published_at": "2026-04-15T13:54:12Z",
       "published_ts": 1776261252.0,
-      "age_minutes": 331.3,
+      "age_minutes": 393.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1119,7 +1461,7 @@
       ],
       "published_at": "2026-04-15T13:37:12Z",
       "published_ts": 1776260232.0,
-      "age_minutes": 348.3,
+      "age_minutes": 410.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1157,7 +1499,7 @@
       ],
       "published_at": "2026-04-15T12:35:33Z",
       "published_ts": 1776256533.0,
-      "age_minutes": 409.9,
+      "age_minutes": 471.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1195,7 +1537,7 @@
       ],
       "published_at": "2026-04-15T09:14:07Z",
       "published_ts": 1776244447.0,
-      "age_minutes": 611.3,
+      "age_minutes": 673.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1233,7 +1575,7 @@
       ],
       "published_at": "2026-04-15T04:48:45Z",
       "published_ts": 1776228525.0,
-      "age_minutes": 876.7,
+      "age_minutes": 938.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1271,7 +1613,7 @@
       ],
       "published_at": "2026-04-15T00:18:25Z",
       "published_ts": 1776212305.0,
-      "age_minutes": 1147.0,
+      "age_minutes": 1208.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1309,7 +1651,7 @@
       ],
       "published_at": "2026-04-14T22:02:44Z",
       "published_ts": 1776204164.0,
-      "age_minutes": 1282.7,
+      "age_minutes": 1344.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1347,7 +1689,7 @@
       ],
       "published_at": "2026-04-14T21:18:20Z",
       "published_ts": 1776201500.0,
-      "age_minutes": 1327.1,
+      "age_minutes": 1389.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1376,110 +1718,34 @@
       "first_seen_at": "2026-04-15T03:41:01.885592Z",
       "is_new": false,
       "provider_count": 1
-    },
-    {
-      "story_key": "deeb9d295a0be611ff1278c8668b0180b86bd2c8:5920653",
-      "headline": "Amazon: Positioning For Global Interconnectivity With Globalstar (NASDAQ:AMZN)",
-      "tickers": [
-        "AMZN"
-      ],
-      "published_at": "2026-04-14T19:45:30Z",
-      "published_ts": 1776195930.0,
-      "age_minutes": 1420.0,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Seeking Alpha"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Amazon: Positioning For Global Interconnectivity With Globalstar (NASDAQ:AMZN)",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.1671,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://seekingalpha.com/article/4890671-amazon-positioning-for-global-interconnectivity-with-globalstar",
-      "first_seen_at": "2026-04-14T21:30:00.572085Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "d276cb0eeeeaac3ab3ed60aedeca7be8e9d52e98:5920652",
-      "headline": "Amazon (AMZN) Stock Is Up, What You Need To Know",
-      "tickers": [
-        "AMZN"
-      ],
-      "published_at": "2026-04-14T19:42:03Z",
-      "published_ts": 1776195723.0,
-      "age_minutes": 1423.4,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Yahoo! Finance"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Amazon (AMZN) Stock Is Up, What You Need To Know",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.1671,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://ca.finance.yahoo.com/news/amazon-amzn-stock-know-194203970.html",
-      "first_seen_at": "2026-04-14T21:30:00.572085Z",
-      "is_new": false,
-      "provider_count": 1
     }
   ],
   "news_catalyst_by_symbol": {
     "AAPL": {
-      "news_catalyst_score": 0.3247,
+      "news_catalyst_score": 0.4019,
       "sentiment_label": "neutral",
       "event_class": "UNKNOWN",
-      "event_label": "Apple: Inventory Does Not Lie (NASDAQ:AAPL)",
+      "event_label": "10 Information Technology Stocks Whale Activity In Today's Session - Apple (NASDAQ:AAPL), Advanced Micro",
       "materiality": "LOW",
       "recency_bucket": "AGING",
-      "source_tier": "TIER_3",
-      "mentions_24h": 5,
+      "source_tier": "TIER_2",
+      "mentions_24h": 7,
       "is_actionable": false,
       "first_provider": "newsapi_ai",
-      "story_key": "52338cb6ccf0dfd971b351be6a9c459fa86d9361:5920896"
+      "story_key": "774d803ed05c794efec10cf2a486ebd219fa9fb8:5920915"
     },
     "AMZN": {
-      "news_catalyst_score": 0.5531,
+      "news_catalyst_score": 0.6927,
       "sentiment_label": "neutral",
-      "event_class": "OFFERING",
-      "event_label": "Amazon: A Once-In-A-Generation Opportunity That's Not Priced In (NASDAQ:AMZN)",
-      "materiality": "LOW",
+      "event_class": "IPO",
+      "event_label": "Amazon Vs. SpaceX Space Race Heats Up At Difficult Time For Musk's Upcoming IPO - Amazon.com (NASDAQ:AMZN",
+      "materiality": "MEDIUM",
       "recency_bucket": "AGING",
-      "source_tier": "TIER_3",
-      "mentions_24h": 15,
-      "is_actionable": false,
+      "source_tier": "TIER_2",
+      "mentions_24h": 16,
+      "is_actionable": true,
       "first_provider": "newsapi_ai",
-      "story_key": "5ef6ccbe6d8cf02bf8da7847e991b3ebe2512196:5920858"
+      "story_key": "288a573aabbbccec0a09586853945dc68b76ec6f:5920923"
     },
     "JNJ": {
       "news_catalyst_score": 0.5259,
@@ -1508,33 +1774,33 @@
       "story_key": "cd58fa61d5c620f1c6c161d848c21d121be95abd:5920848"
     },
     "META": {
-      "news_catalyst_score": 0.3513,
+      "news_catalyst_score": 0.3393,
       "sentiment_label": "neutral",
       "event_class": "UNKNOWN",
-      "event_label": "Should You Buy, Sell or Hold Meta Stock at $675?",
+      "event_label": "META, AVGO, IONQ, QBTS, HOOD: 5 Trending Stocks Today - Broadcom (NASDAQ:AVGO)",
       "materiality": "LOW",
       "recency_bucket": "AGING",
-      "source_tier": "TIER_3",
+      "source_tier": "TIER_2",
       "mentions_24h": 6,
       "is_actionable": false,
       "first_provider": "newsapi_ai",
-      "story_key": "aa95dbac3f95ac3905624c78e51379efb9c302c2:5920895"
+      "story_key": "64a640f2696f8806df4bd07a35cd10ef0cb7bbe4:5920720"
     },
     "MSFT": {
-      "news_catalyst_score": 0.5674,
+      "news_catalyst_score": 0.5531,
       "sentiment_label": "neutral",
       "event_class": "GUIDANCE",
       "event_label": "Microsoft (MSFT): AI CapEx Growth And The 2026 Software Outlook | 2-Minute Analysis",
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "source_tier": "TIER_3",
-      "mentions_24h": 7,
+      "mentions_24h": 11,
       "is_actionable": false,
       "first_provider": "newsapi_ai",
       "story_key": "31931b7eeef132274d34c8fe78bf3068436f2fc5:5920880"
     },
     "NEE": {
-      "news_catalyst_score": 0.261,
+      "news_catalyst_score": 0.2302,
       "sentiment_label": "neutral",
       "event_class": "UNKNOWN",
       "event_label": "NextEra Energy Has A- Credit Rating -- The 18% Line Is What Keeps It There - NextEra Energy (NYSE:NEE)",
@@ -1548,10 +1814,12 @@
     }
   },
   "summary": {
-    "active_story_count": 36,
-    "new_story_count": 0,
-    "actionable_story_count": 0,
-    "actionable_symbols": [],
+    "active_story_count": 43,
+    "new_story_count": 9,
+    "actionable_story_count": 1,
+    "actionable_symbols": [
+      "AMZN"
+    ],
     "symbol_count": 7
   },
   "symbol_scope": {
