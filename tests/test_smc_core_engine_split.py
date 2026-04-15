@@ -10,6 +10,8 @@ CORE_PATH = ROOT / 'SMC_Core_Engine.pine'
 LIFECYCLE_PRIVATE_PATH = ROOT / 'SMC++' / 'smc_lifecycle_private.pine'
 OBSERVABILITY_PRIVATE_PATH = ROOT / 'SMC++' / 'smc_observability_private.pine'
 RESOLVERS_PATH = ROOT / 'SMC++' / 'smc_context_resolvers.pine'
+PROFILE_ENGINE_PATH = ROOT / 'SMC++' / 'smc_profile_engine.pine'
+UTILS_PATH = ROOT / 'SMC++' / 'smc_utils.pine'
 
 
 MANIFEST = load_manifest()
@@ -596,3 +598,78 @@ def test_core_engine_extracts_remaining_display_helpers() -> None:
     assert 'string event_icon = event_risk_state == "blocked" ? "⛔" : event_risk_state == "caution" ? "⚡" : "✓"' not in source
     assert 'string fresh_icon = lib_sq_freshness == "fresh" ? "●" : lib_sq_freshness == "aging" ? "◐" : "○"' not in source
     assert 'string event_risk_state         = lib_erl_market_blocked or lib_erl_symbol_blocked ? "blocked" : (lib_erl_window_state == "COOLDOWN" or (lib_erl_window_state == "PRE_EVENT" and (lib_erl_level == "HIGH" or lib_erl_level == "ELEVATED"))) ? "caution" : "clear"' not in source
+
+
+# ── Export-surface coverage for split libraries ──────────────────────────────
+
+
+def _read_profile_engine_source() -> str:
+    return PROFILE_ENGINE_PATH.read_text(encoding='utf-8')
+
+
+def _read_utils_source() -> str:
+    return UTILS_PATH.read_text(encoding='utf-8')
+
+
+def test_profile_engine_exports_types_and_methods() -> None:
+    """Guard that smc_profile_engine.pine exports its full type + method surface."""
+    source = _read_profile_engine_source()
+
+    # ── Exported types ──
+    assert 'export type Bucket' in source
+    assert 'export type ProfileConfig' in source
+    assert 'export type Profile' in source
+
+    # ── Bucket methods ──
+    assert 'export method update(Bucket this, float top, float bottom, float value, float fraction) =>' in source
+    assert 'export method update(Bucket this, float value, float fraction) =>' in source
+
+    # ── ProfileConfig methods ──
+    assert 'export method init(ProfileConfig this) =>' in source
+
+    # ── Profile methods ──
+    assert 'export method apply_style(Profile this, ProfileConfig args) =>' in source
+    assert 'export method delete(Profile this) =>' in source
+    assert 'export method hide(Profile this) =>' in source
+    assert 'export method init(Profile this, bool update_buckets = false) =>' in source
+    assert 'export method calculate(Profile this, simple int use_open_close_data_for_ranges_shorter_than_bars = 4) =>' in source
+    assert 'export method update(Profile this, float[] opens = na, float[] highs = na, float[] lows = na, float[] closes = na, float[] values = na) =>' in source
+    assert 'export method draw(Profile this, ProfileConfig config, int left = na, int right = na, bool extend_only = true, simple bool force_overlay = false, string poc_text_override = na) =>' in source
+
+    # ── Standalone exported helpers ──
+    assert 'export normalize_profile_resolution(int resolution) =>' in source
+    assert 'export normalize_profile_vah_pc(float vah_pc, float val_pc) =>' in source
+    assert 'export normalize_profile_val_pc(float vah_pc, float val_pc) =>' in source
+    assert 'export profile_data_ready(float[] highs, float[] lows, float[] values) =>' in source
+    assert 'export is_impulse_candle_now(float candle_body, float impulse_candle_size) =>' in source
+    assert 'export is_indecision_candle_now(' in source
+    assert 'export profile_features_enabled(' in source
+    assert 'export create_profile(' in source
+
+
+def test_utils_exports_moved_helpers() -> None:
+    """Guard that smc_utils.pine exports the helpers moved during WP-SPLIT3."""
+    source = _read_utils_source()
+
+    # ── WP-SPLIT3 moved helpers (previously embedded in Core Engine) ──
+    assert 'export smc_lib_atr(simple int length) =>' in source
+    assert 'export smc_lib_ehma(float source, simple int length) =>' in source
+    assert 'export smc_lib_thma(float source, simple int length) =>' in source
+    assert 'export smc_lib_get_ma(' in source
+    assert 'export smc_lib_bb(float source, simple int length, float mult, simple ct.SmcLibMovingAverage select_ma) =>' in source
+    assert 'export smc_lib_dmi(simple int di_length = 17, simple int adx_smoothing = 14) =>' in source
+    assert 'export smc_lib_detect_divergence(' in source
+
+    # ── Pre-existing utility exports that must remain stable ──
+    assert 'export in_range(float value, float max, float min = 0.0) =>' in source
+    assert 'export trend_text(int trend_value) =>' in source
+    assert 'export format_level(float value) =>' in source
+    assert 'export edge(bool condition) =>' in source
+    assert 'export ltf_stats(float[] opens, float[] closes, float[] volumes) =>' in source
+    assert 'export external_trend_gate(' in source
+    assert 'export external_breadth_gate(' in source
+    assert 'export normalize_csv_token(string s) =>' in source
+    assert 'export csv_has_symbol_token(' in source
+    assert 'export htf_fvg_key(' in source
+    assert 'export push_capped_label(' in source
+    assert 'export trim_label_history(' in source
