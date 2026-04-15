@@ -5,12 +5,186 @@
     "fmp_stock": 0.0,
     "fmp_press": 0.0,
     "fmp_articles": 0.0,
-    "newsapi_ai": 1776241713.0,
+    "newsapi_ai": 1776254471.0,
     "tv": 0.0,
-    "legacy_cursor": 1776241713.0
+    "legacy_cursor": 1776254471.0
   },
   "provider_state": {},
   "story_state": {
+    "cd58fa61d5c620f1c6c161d848c21d121be95abd:5920848": {
+      "story_key": "cd58fa61d5c620f1c6c161d848c21d121be95abd:5920848",
+      "cluster_hash": "cd58fa61d5c620f1c6c161d848c21d121be95abd",
+      "headline": "Transcript: JPMorgan Chase Q1 2026 Earnings Conference Call - JPMorgan Chase (NYSE:JPM)",
+      "tickers": [
+        "JPM"
+      ],
+      "published_ts": 1776254471.0,
+      "first_seen_ts": 1776257231.8866363,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "url": "https://www.benzinga.com/insights/news/26/04/51826942/transcript-jpmorgan-chase-q1-2026-earnings-conference-call",
+      "category": "earnings",
+      "impact": 0.8,
+      "clarity": 0.8,
+      "relevance": 0.8500000000000001,
+      "polarity": 0.0,
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "last_seen_ts": 1776257231.8866363
+    },
+    "a64f4f3d1e2e125333a38742cd4fd34bce92a1b2:5920843": {
+      "story_key": "a64f4f3d1e2e125333a38742cd4fd34bce92a1b2:5920843",
+      "cluster_hash": "a64f4f3d1e2e125333a38742cd4fd34bce92a1b2",
+      "headline": "Apple (AAPL) Stock at $260: Buy, Sell or Hold?",
+      "tickers": [
+        "AAPL"
+      ],
+      "published_ts": 1776252942.0,
+      "first_seen_ts": 1776257231.8866363,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "24/7 Wall St."
+      ],
+      "url": "https://247wallst.com/investing/2026/04/15/apple-aapl-stock-at-260-buy-sell-or-hold/",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776257231.8866363
+    },
+    "ee4057ffbf3079db1585526e50061a24e528c3d7:5920835": {
+      "story_key": "ee4057ffbf3079db1585526e50061a24e528c3d7:5920835",
+      "cluster_hash": "ee4057ffbf3079db1585526e50061a24e528c3d7",
+      "headline": "Data Center Boom Might Be A New Inflation Variable For The Fed - Amazon.com (NASDAQ:AMZN), BlackRock (NYS",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_ts": 1776250774.0,
+      "first_seen_ts": 1776257231.8866363,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "url": "https://www.benzinga.com/markets/tech/26/04/51825458/data-center-boom-might-be-a-new-inflation-variable-for-the-fed",
+      "category": "macro",
+      "impact": 0.78,
+      "clarity": 0.6,
+      "relevance": 0.781,
+      "polarity": 0.0,
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "last_seen_ts": 1776257231.8866363
+    },
+    "3a30c90d1db4db62d52096b8e5dcf3701936e741:5920823": {
+      "story_key": "3a30c90d1db4db62d52096b8e5dcf3701936e741:5920823",
+      "cluster_hash": "3a30c90d1db4db62d52096b8e5dcf3701936e741",
+      "headline": "Analyzing Microsoft In Comparison To Competitors In Software Industry - Microsoft (NASDAQ:MSFT)",
+      "tickers": [
+        "MSFT"
+      ],
+      "published_ts": 1776247160.0,
+      "first_seen_ts": 1776257231.8866363,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "url": "https://www.benzinga.com/insights/news/26/04/51824291/analyzing-microsoft-in-comparison-to-competitors-in-software-industry",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "last_seen_ts": 1776257231.8866363
+    },
+    "d2ee109eb5cd433cb51054d9a7ae04baeb2634d0:5920823": {
+      "story_key": "d2ee109eb5cd433cb51054d9a7ae04baeb2634d0:5920823",
+      "cluster_hash": "d2ee109eb5cd433cb51054d9a7ae04baeb2634d0",
+      "headline": "In-Depth Analysis: Amazon.com Versus Competitors In Broadline Retail Industry - Amazon.com (NASDAQ:AMZN)",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_ts": 1776247133.0,
+      "first_seen_ts": 1776257231.8866363,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "url": "https://www.benzinga.com/insights/news/26/04/51824281/in-depth-analysis-amazon-com-versus-competitors-in-broadline-retail-industry",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "last_seen_ts": 1776257231.8866363
+    },
+    "b4faf936ab986a9726069dd5dea831151fdb4646:5920814": {
+      "story_key": "b4faf936ab986a9726069dd5dea831151fdb4646:5920814",
+      "cluster_hash": "b4faf936ab986a9726069dd5dea831151fdb4646",
+      "headline": "Europe airlines hit by higher fuel costs; JPM cuts estimates, backs flag carriers By Investing.com",
+      "tickers": [
+        "JPM"
+      ],
+      "published_ts": 1776244447.0,
+      "first_seen_ts": 1776257231.8866363,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Investing.com"
+      ],
+      "url": "https://www.investing.com/news/stock-market-news/europe-airlines-hit-by-higher-fuel-costs-jpm-cuts-estimates-backs-flag-carriers-4614466",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": -0.1375,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776257231.8866363
+    },
     "94791dc2dd2b3dcd150440446ada61603180166d:5920805": {
       "story_key": "94791dc2dd2b3dcd150440446ada61603180166d:5920805",
       "cluster_hash": "94791dc2dd2b3dcd150440446ada61603180166d",
