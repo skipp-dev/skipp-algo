@@ -657,11 +657,11 @@ class TestFinalizePipelineE2E:
         )
 
         assert result["status"] == "ok"
-        assert result["stale_providers"] == "benzinga,fmp,newsapi_ai"
+        assert result["stale_providers"] == "benzinga,calendar,fmp,newsapi_ai"
 
         pine_text = Path(result["pine_paths"]["pine_path"]).read_text(encoding="utf-8")
         assert "PROVIDER_COUNT = 1" in pine_text
-        assert 'STALE_PROVIDERS = "benzinga,fmp,newsapi_ai"' in pine_text
+        assert 'STALE_PROVIDERS = "benzinga,calendar,fmp,newsapi_ai"' in pine_text
 
         manifest_path = Path(result["pine_paths"]["manifest_path"])
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -683,7 +683,7 @@ class TestFinalizePipelineE2E:
         report = json.loads(report_path.read_text(encoding="utf-8"))
         assert report["report_kind"] == "library_provider_diagnostics"
         assert report["overall_status"] == "warn"
-        assert report["stale_providers"] == ["benzinga", "fmp", "newsapi_ai"]
+        assert report["stale_providers"] == ["benzinga", "calendar", "fmp", "newsapi_ai"]
 
         news_diag = next(row for row in report["provider_domain_results"] if row["domain"] == "news")
         assert news_diag["provider_status"] == "no_data"
@@ -789,7 +789,7 @@ class TestGeneratePineWithRealEnrichment:
         assert providers["regime_provider"] == "none"
         assert providers["news_provider"] == "none"
         assert providers["calendar_provider"] == "none"
-        assert providers["stale_providers"] == "benzinga,fmp,newsapi_ai"
+        assert providers["stale_providers"] == "benzinga,calendar,fmp,newsapi_ai"
 
         result = generate_pine_library_from_base(
             base_csv_path=base_csv,
@@ -800,7 +800,7 @@ class TestGeneratePineWithRealEnrichment:
         pine_text = result["pine_path"].read_text(encoding="utf-8")
 
         assert "PROVIDER_COUNT = 1" in pine_text
-        assert 'STALE_PROVIDERS = "benzinga,fmp,newsapi_ai"' in pine_text
+        assert 'STALE_PROVIDERS = "benzinga,calendar,fmp,newsapi_ai"' in pine_text
 
     @patch("scripts.generate_smc_micro_base_from_databento._make_fmp_client")
     def test_real_enrichment_renders_to_pine(self, mock_make, base_csv, tmp_path):

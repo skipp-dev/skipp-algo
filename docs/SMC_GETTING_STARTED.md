@@ -94,6 +94,19 @@ Before entering any trade, check:
 - [ ] You know where your stop-loss is (the invalidation level)
 - [ ] Your position size risks max 1% of your account
 
+## Backtesting — Important Note
+
+The SMC Long-Dip Strategy v7 includes a **Regime Gate** that uses live market data (VIX, regime, earnings, macro events) to filter entries. This is powerful for live trading.
+
+**However:** In backtests, today's market data is applied to all historical bars. This creates a "look-ahead bias" — the backtest knows today's regime for past trades.
+
+**For honest backtesting:**
+1. Enable **Backtest Mode** in the Strategy settings — this bypasses all library-based filters
+2. This shows pure signal performance without today's regime filter
+3. Compare the results with Backtest Mode ON vs OFF to see the regime's impact
+
+The regime gate is designed for **live use**, not historical analysis.
+
 ## FAQ
 
 **"Why does it say WAIT even though the price is moving?"**

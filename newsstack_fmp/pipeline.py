@@ -576,7 +576,13 @@ def poll_once(
     # ── 4) Benzinga WS drain ────────────────────────────────────
     if cfg.enable_benzinga_ws and cfg.benzinga_api_key:
         bz_ws = _get_bz_ws_adapter(cfg)
-        ws_items = bz_ws.drain()
+        try:
+            ws_items = bz_ws.drain()
+        except Exception as exc:
+            _msg = _sanitize_exc(exc)
+            logger.warning("Benzinga WebSocket drain failed: %s — continuing without WS items", _msg)
+            ws_items = []
+            cycle_warnings.append(f"benzinga_ws: {_msg}")
         other_items.extend(ws_items)
         ingest_counts_by_source["benzinga_ws"] = len([item for item in ws_items if item.is_valid])
         if ws_items:

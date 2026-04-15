@@ -955,6 +955,8 @@ def build_enrichment(
         all_stale.extend(pr.stale)
         if pr.ok:
             calendar_result = pr.data
+        else:
+            all_stale.append("calendar")
         provenance["calendar_provider"] = pr.provider
         domain_diagnostics["calendar"] = _build_domain_diagnostic("calendar", pr)
         enrichment["calendar"] = {
