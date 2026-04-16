@@ -5,12 +5,41 @@
     "fmp_stock": 0.0,
     "fmp_press": 0.0,
     "fmp_articles": 0.0,
-    "newsapi_ai": 1776292448.0,
+    "newsapi_ai": 1776314365.0,
     "tv": 0.0,
-    "legacy_cursor": 1776292448.0
+    "legacy_cursor": 1776314365.0
   },
   "provider_state": {},
   "story_state": {
+    "c0345c2d2ba782236fc332108c5a28ce01e8f787:5921047": {
+      "story_key": "c0345c2d2ba782236fc332108c5a28ce01e8f787:5921047",
+      "cluster_hash": "c0345c2d2ba782236fc332108c5a28ce01e8f787",
+      "headline": "Top BofA Analyst Raises Apple Stock (AAPL) Price Target Ahead of Q2 Earnings",
+      "tickers": [
+        "AAPL"
+      ],
+      "published_ts": 1776314365.0,
+      "first_seen_ts": 1776318788.3084168,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Markets Insider"
+      ],
+      "url": "https://markets.businessinsider.com/news/stocks/top-bofa-analyst-raises-apple-stock-aapl-price-target-ahead-of-q2-earnings-1036020974",
+      "category": "earnings",
+      "impact": 0.8,
+      "clarity": 0.6,
+      "relevance": 0.79,
+      "polarity": 0.225,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776318788.3084168
+    },
     "5d51cd2f12a370f6b19d87fa07fe6ed2403467cf:5920963": {
       "story_key": "5d51cd2f12a370f6b19d87fa07fe6ed2403467cf:5920963",
       "cluster_hash": "5d51cd2f12a370f6b19d87fa07fe6ed2403467cf",
