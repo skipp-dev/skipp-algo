@@ -3,7 +3,8 @@
 **Status:** AKTIV  
 **Beginn:** 2026-04-15  
 **Ende:** 2026-05-15 (30 Tage)  
-**Autorität:** Owner Review v3
+**Autorität:** Owner Review v3  
+**Freeze-Basis:** sauber (2026-04-16, 4685 tests grün, 0 Failures, BUS-Binding 67/67 verifiziert)
 
 ---
 

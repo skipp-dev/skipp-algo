@@ -92,12 +92,38 @@ The current workspace contains the documented entry scripts plus the live automa
 
 That means a fresh live TradingView validation run is not blocked in this checkout. The canonical locally reproducible path is `npm run tv:preflight:smc-mainline`.
 
+## Post-Freeze Re-Verification — 2026-04-16
+
+Re-verification after WP-2 (surface reduction), WP-3 (trust enforcement),
+WP-4 (product map) commits.
+
+- Date: 2026-04-16
+- Branch: `main`, commit `dd28dd57`
+- Method: offline source-level binding audit + compile check
+- Scope:
+  - `python test_compile.py` → exit 0, no errors
+  - Full test suite: 4685 passed, 43 skipped, 0 failures
+  - Dashboard → Engine BUS: 59/59 channels verified (source audit)
+  - Strategy → Engine BUS: 8/8 channels verified (source audit)
+  - All 11 import paths verified against workspace sources
+  - Trust enforcement propagation verified: `core_trust_tier_early` →
+    suppress `long_entry_best_state`/`long_entry_strict_state` → BUS
+    `EntryBest`/`EntryStrict` emit 0.0 → Strategy `state_on()` returns
+    false → entry blocked
+- Result: **all checks pass**, no surface regression detected
+- Freeze status: **basis sauber** — no open blockers
+
+Note: This is an offline source-level re-verification, not a live
+TradingView browser automation run. The last live automation report remains
+`automation/tradingview/reports/preflight-2026-04-07T19-12-02-524Z.json`.
+
 ## Current Status Interpretation
 
 - Validation implementation status: updated to staged reporting
 - Last emitted live report status: staged format
 - Latest proven live UI/compile/binding/runtime pass: yes, and locally reproducible from the current checkout
 - Latest emitted staged-format live report in this checkout: `automation/tradingview/reports/preflight-2026-04-07T19-12-02-524Z.json`
+- Latest offline re-verification: 2026-04-16, all checks pass
 
 ## Execution Modes
 
