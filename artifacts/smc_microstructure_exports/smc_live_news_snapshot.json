@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-04-16T11:43:28.484058Z",
+  "generated_at": "2026-04-16T12:54:53.912146Z",
   "symbols": [
     "AAPL",
     "MSFT",
@@ -64,12 +64,12 @@
     "newsapi_ai": {
       "ok": true,
       "error": "",
-      "raw_count": 50,
-      "new_item_count": 5,
+      "raw_count": 2,
+      "new_item_count": 0,
       "cursor": 1776334225.0,
       "last_seen_news_uri": "",
-      "provider_status": "ok",
-      "status_detail": "",
+      "provider_status": "ok_no_recent_matches",
+      "status_detail": "Event Registry reachable, but no new symbol-matching NewsAPI.ai items were newer than the current cursor.",
       "error_code": ""
     },
     "tv": {
@@ -82,158 +82,6 @@
   },
   "stories": [
     {
-      "story_key": "1ae826a8b0729143ab38d68be1aae45a63621ce1:5921106",
-      "headline": "Insider Selling: JPMorgan Chase & Co. (NYSE:JPM) CFO Sells 5,611 Shares of Stock",
-      "tickers": [
-        "JPM"
-      ],
-      "published_at": "2026-04-16T09:32:49Z",
-      "published_ts": 1776331969.0,
-      "age_minutes": 130.7,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "InsiderTrades.com"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "management",
-      "event_class": "MANAGEMENT",
-      "event_label": "Insider Selling: JPMorgan Chase & Co. (NYSE:JPM) CFO Sells 5,611 Shares of Stock",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.6,
-      "clarity": 0.8,
-      "relevance": 0.76,
-      "news_catalyst_score": 0.4669,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.insidertrades.com/alerts/nyse-jpm-insider-buying-and-selling-2026-04-16/",
-      "first_seen_at": "2026-04-16T11:43:28.484058Z",
-      "is_new": true,
-      "provider_count": 1
-    },
-    {
-      "story_key": "f9d1ab361200f93c8383a0e35e67ae10a3f6d6e0:5921114",
-      "headline": "JPMorgan CEO Jamie Dimon dumps $40m of JPM shares",
-      "tickers": [
-        "JPM"
-      ],
-      "published_at": "2026-04-16T10:10:25Z",
-      "published_ts": 1776334225.0,
-      "age_minutes": 93.1,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Finbold"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "management",
-      "event_class": "MANAGEMENT",
-      "event_label": "JPMorgan CEO Jamie Dimon dumps $40m of JPM shares",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.6,
-      "clarity": 0.6,
-      "relevance": 0.7,
-      "news_catalyst_score": 0.4519,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://finbold.com/jpmorgan-ceo-jamie-dimon-dumps-40m-of-jpm-shares/",
-      "first_seen_at": "2026-04-16T11:43:28.484058Z",
-      "is_new": true,
-      "provider_count": 1
-    },
-    {
-      "story_key": "5e276d5b5af104b33ba147393d9d2631f5119286:5920848",
-      "headline": "Transcript: Johnson & Johnson Q1 2026 Earnings Conference Call - Johnson & Johnson (NYSE:JNJ)",
-      "tickers": [
-        "JNJ"
-      ],
-      "published_at": "2026-04-15T12:01:45Z",
-      "published_ts": 1776254505.0,
-      "age_minutes": 1421.7,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Benzinga"
-      ],
-      "source_tier": "TIER_2",
-      "source_rank": 2,
-      "category": "earnings",
-      "event_class": "EARNINGS",
-      "event_label": "Transcript: Johnson & Johnson Q1 2026 Earnings Conference Call - Johnson & Johnson (NYSE:JNJ)",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.8,
-      "clarity": 0.8,
-      "relevance": 0.85,
-      "news_catalyst_score": 0.4359,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.benzinga.com/insights/news/26/04/51826964/transcript-johnson-amp-johnson-q1-2026-earnings-conference-call",
-      "first_seen_at": "2026-04-15T16:47:18.573423Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "cd58fa61d5c620f1c6c161d848c21d121be95abd:5920848",
-      "headline": "Transcript: JPMorgan Chase Q1 2026 Earnings Conference Call - JPMorgan Chase (NYSE:JPM)",
-      "tickers": [
-        "JPM"
-      ],
-      "published_at": "2026-04-15T12:01:11Z",
-      "published_ts": 1776254471.0,
-      "age_minutes": 1422.3,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Benzinga"
-      ],
-      "source_tier": "TIER_2",
-      "source_rank": 2,
-      "category": "earnings",
-      "event_class": "EARNINGS",
-      "event_label": "Transcript: JPMorgan Chase Q1 2026 Earnings Conference Call - JPMorgan Chase (NYSE:JPM)",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.8,
-      "clarity": 0.8,
-      "relevance": 0.85,
-      "news_catalyst_score": 0.4359,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.benzinga.com/insights/news/26/04/51826942/transcript-jpmorgan-chase-q1-2026-earnings-conference-call",
-      "first_seen_at": "2026-04-15T12:47:11.886636Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
       "story_key": "31931b7eeef132274d34c8fe78bf3068436f2fc5:5920880",
       "headline": "Microsoft (MSFT): AI CapEx Growth And The 2026 Software Outlook | 2-Minute Analysis",
       "tickers": [
@@ -241,7 +89,7 @@
       ],
       "published_at": "2026-04-15T14:40:00Z",
       "published_ts": 1776264000.0,
-      "age_minutes": 1263.5,
+      "age_minutes": 1334.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -272,52 +120,14 @@
       "provider_count": 1
     },
     {
-      "story_key": "5ef6ccbe6d8cf02bf8da7847e991b3ebe2512196:5920858",
-      "headline": "Amazon: A Once-In-A-Generation Opportunity That's Not Priced In (NASDAQ:AMZN)",
-      "tickers": [
-        "AMZN"
-      ],
-      "published_at": "2026-04-15T12:53:12Z",
-      "published_ts": 1776257592.0,
-      "age_minutes": 1370.3,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Seeking Alpha"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "offering",
-      "event_class": "OFFERING",
-      "event_label": "Amazon: A Once-In-A-Generation Opportunity That's Not Priced In (NASDAQ:AMZN)",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.92,
-      "clarity": 0.7,
-      "relevance": 0.874,
-      "news_catalyst_score": 0.4331,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://seekingalpha.com/article/4890839-amazon-a-once-in-a-generation-opportunity-thats-not-priced-in",
-      "first_seen_at": "2026-04-15T16:47:18.573423Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "77054441a278fdf397216d8b33efa90f5b041e3f:5921083",
-      "headline": "JPMorgan Chase Stock: The Warning May Be More Important Than The Earnings (NYSE:JPM)",
+      "story_key": "1ae826a8b0729143ab38d68be1aae45a63621ce1:5921106",
+      "headline": "Insider Selling: JPMorgan Chase & Co. (NYSE:JPM) CFO Sells 5,611 Shares of Stock",
       "tickers": [
         "JPM"
       ],
-      "published_at": "2026-04-16T07:38:45Z",
-      "published_ts": 1776325125.0,
-      "age_minutes": 244.7,
+      "published_at": "2026-04-16T09:32:49Z",
+      "published_ts": 1776331969.0,
+      "age_minutes": 202.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -326,24 +136,24 @@
         "newsapi_ai"
       ],
       "sources": [
-        "Seeking Alpha"
+        "InsiderTrades.com"
       ],
       "source_tier": "TIER_3",
       "source_rank": 3,
-      "category": "earnings",
-      "event_class": "EARNINGS",
-      "event_label": "JPMorgan Chase Stock: The Warning May Be More Important Than The Earnings (NYSE:JPM)",
-      "sentiment_label": "bearish",
-      "polarity": -0.225,
-      "impact": 0.8,
-      "clarity": 0.6,
-      "relevance": 0.79,
-      "news_catalyst_score": 0.4318,
+      "category": "management",
+      "event_class": "MANAGEMENT",
+      "event_label": "Insider Selling: JPMorgan Chase & Co. (NYSE:JPM) CFO Sells 5,611 Shares of Stock",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.6,
+      "clarity": 0.8,
+      "relevance": 0.76,
+      "news_catalyst_score": 0.4236,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
-      "url": "https://seekingalpha.com/article/4891119-jpmorgan-chase-the-warning-may-be-more-important-than-the-earnings",
-      "first_seen_at": "2026-04-16T09:05:17.484497Z",
+      "url": "https://www.insidertrades.com/alerts/nyse-jpm-insider-buying-and-selling-2026-04-16/",
+      "first_seen_at": "2026-04-16T11:43:28.484058Z",
       "is_new": false,
       "provider_count": 1
     },
@@ -355,7 +165,7 @@
       ],
       "published_at": "2026-04-15T18:19:52Z",
       "published_ts": 1776277192.0,
-      "age_minutes": 1043.6,
+      "age_minutes": 1115.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -386,6 +196,82 @@
       "provider_count": 1
     },
     {
+      "story_key": "f9d1ab361200f93c8383a0e35e67ae10a3f6d6e0:5921114",
+      "headline": "JPMorgan CEO Jamie Dimon dumps $40m of JPM shares",
+      "tickers": [
+        "JPM"
+      ],
+      "published_at": "2026-04-16T10:10:25Z",
+      "published_ts": 1776334225.0,
+      "age_minutes": 164.5,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Finbold"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "management",
+      "event_class": "MANAGEMENT",
+      "event_label": "JPMorgan CEO Jamie Dimon dumps $40m of JPM shares",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.6,
+      "clarity": 0.6,
+      "relevance": 0.7,
+      "news_catalyst_score": 0.4171,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://finbold.com/jpmorgan-ceo-jamie-dimon-dumps-40m-of-jpm-shares/",
+      "first_seen_at": "2026-04-16T11:43:28.484058Z",
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
+      "story_key": "77054441a278fdf397216d8b33efa90f5b041e3f:5921083",
+      "headline": "JPMorgan Chase Stock: The Warning May Be More Important Than The Earnings (NYSE:JPM)",
+      "tickers": [
+        "JPM"
+      ],
+      "published_at": "2026-04-16T07:38:45Z",
+      "published_ts": 1776325125.0,
+      "age_minutes": 316.1,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Seeking Alpha"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "earnings",
+      "event_class": "EARNINGS",
+      "event_label": "JPMorgan Chase Stock: The Warning May Be More Important Than The Earnings (NYSE:JPM)",
+      "sentiment_label": "bearish",
+      "polarity": -0.225,
+      "impact": 0.8,
+      "clarity": 0.6,
+      "relevance": 0.79,
+      "news_catalyst_score": 0.3836,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://seekingalpha.com/article/4891119-jpmorgan-chase-the-warning-may-be-more-important-than-the-earnings",
+      "first_seen_at": "2026-04-16T09:05:17.484497Z",
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
       "story_key": "c0345c2d2ba782236fc332108c5a28ce01e8f787:5921047",
       "headline": "Top BofA Analyst Raises Apple Stock (AAPL) Price Target Ahead of Q2 Earnings",
       "tickers": [
@@ -393,7 +279,7 @@
       ],
       "published_at": "2026-04-16T04:39:25Z",
       "published_ts": 1776314365.0,
-      "age_minutes": 424.1,
+      "age_minutes": 495.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -431,7 +317,7 @@
       ],
       "published_at": "2026-04-15T13:41:37Z",
       "published_ts": 1776260497.0,
-      "age_minutes": 1321.9,
+      "age_minutes": 1393.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -469,7 +355,7 @@
       ],
       "published_at": "2026-04-16T09:59:33Z",
       "published_ts": 1776333573.0,
-      "age_minutes": 103.9,
+      "age_minutes": 175.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -490,51 +376,13 @@
       "impact": 0.1,
       "clarity": 0.6,
       "relevance": 0.475,
-      "news_catalyst_score": 0.2701,
+      "news_catalyst_score": 0.249,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
       "url": "https://www.benzinga.com/insights/news/26/04/51851153/evaluating-microsoft-against-peers-in-software-industry",
       "first_seen_at": "2026-04-16T11:43:28.484058Z",
-      "is_new": true,
-      "provider_count": 1
-    },
-    {
-      "story_key": "8aed8cf86929eaa36e03ca59de21d6b37d6a5bc9:5921110",
-      "headline": "Microsoft: Claude Just Threatened Copilot Adoption (NASDAQ:MSFT)",
-      "tickers": [
-        "MSFT"
-      ],
-      "published_at": "2026-04-16T09:54:23Z",
-      "published_ts": 1776333263.0,
-      "age_minutes": 109.1,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Seeking Alpha"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Microsoft: Claude Just Threatened Copilot Adoption (NASDAQ:MSFT)",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.2306,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://seekingalpha.com/article/4891151-microsoft-claude-just-threatened-copilot-adoption",
-      "first_seen_at": "2026-04-16T11:43:28.484058Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -545,7 +393,7 @@
       ],
       "published_at": "2026-04-15T17:35:48Z",
       "published_ts": 1776274548.0,
-      "age_minutes": 1087.7,
+      "age_minutes": 1159.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -583,7 +431,7 @@
       ],
       "published_at": "2026-04-15T15:49:04Z",
       "published_ts": 1776268144.0,
-      "age_minutes": 1194.4,
+      "age_minutes": 1265.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -614,14 +462,14 @@
       "provider_count": 1
     },
     {
-      "story_key": "62ee3d064310b4afeeefa251e61c1d72ed91088e:5921099",
-      "headline": "Microsoft: Why 'Intelligence Refinery' Is Future Of Global Profit (NASDAQ:MSFT)",
+      "story_key": "8aed8cf86929eaa36e03ca59de21d6b37d6a5bc9:5921110",
+      "headline": "Microsoft: Claude Just Threatened Copilot Adoption (NASDAQ:MSFT)",
       "tickers": [
         "MSFT"
       ],
-      "published_at": "2026-04-16T08:56:47Z",
-      "published_ts": 1776329807.0,
-      "age_minutes": 166.7,
+      "published_at": "2026-04-16T09:54:23Z",
+      "published_ts": 1776333263.0,
+      "age_minutes": 180.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -636,19 +484,19 @@
       "source_rank": 3,
       "category": "other",
       "event_class": "UNKNOWN",
-      "event_label": "Microsoft: Why 'Intelligence Refinery' Is Future Of Global Profit (NASDAQ:MSFT)",
-      "sentiment_label": "bullish",
-      "polarity": 0.1375,
+      "event_label": "Microsoft: Claude Just Threatened Copilot Adoption (NASDAQ:MSFT)",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
       "impact": 0.1,
       "clarity": 0.6,
       "relevance": 0.475,
-      "news_catalyst_score": 0.216,
+      "news_catalyst_score": 0.2124,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
-      "url": "https://seekingalpha.com/article/4891130-microsoft-new-standard-oil-why-intelligence-refinery-is-future-of-global-profit",
+      "url": "https://seekingalpha.com/article/4891151-microsoft-claude-just-threatened-copilot-adoption",
       "first_seen_at": "2026-04-16T11:43:28.484058Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -659,7 +507,7 @@
       ],
       "published_at": "2026-04-15T20:14:37Z",
       "published_ts": 1776284077.0,
-      "age_minutes": 928.9,
+      "age_minutes": 1000.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -697,7 +545,7 @@
       ],
       "published_at": "2026-04-15T20:14:37Z",
       "published_ts": 1776284077.0,
-      "age_minutes": 928.9,
+      "age_minutes": 1000.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -735,7 +583,7 @@
       ],
       "published_at": "2026-04-15T17:31:32Z",
       "published_ts": 1776274292.0,
-      "age_minutes": 1091.9,
+      "age_minutes": 1163.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -773,7 +621,7 @@
       ],
       "published_at": "2026-04-15T17:16:36Z",
       "published_ts": 1776273396.0,
-      "age_minutes": 1106.9,
+      "age_minutes": 1178.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -811,7 +659,7 @@
       ],
       "published_at": "2026-04-15T16:14:45Z",
       "published_ts": 1776269685.0,
-      "age_minutes": 1168.7,
+      "age_minutes": 1240.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -849,7 +697,7 @@
       ],
       "published_at": "2026-04-15T16:08:50Z",
       "published_ts": 1776269330.0,
-      "age_minutes": 1174.6,
+      "age_minutes": 1246.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -887,7 +735,7 @@
       ],
       "published_at": "2026-04-15T21:39:59Z",
       "published_ts": 1776289199.0,
-      "age_minutes": 843.5,
+      "age_minutes": 914.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -925,7 +773,7 @@
       ],
       "published_at": "2026-04-15T18:15:46Z",
       "published_ts": 1776276946.0,
-      "age_minutes": 1047.7,
+      "age_minutes": 1119.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -963,7 +811,7 @@
       ],
       "published_at": "2026-04-15T17:04:37Z",
       "published_ts": 1776272677.0,
-      "age_minutes": 1118.9,
+      "age_minutes": 1190.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1001,7 +849,7 @@
       ],
       "published_at": "2026-04-15T15:56:05Z",
       "published_ts": 1776268565.0,
-      "age_minutes": 1187.4,
+      "age_minutes": 1258.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1040,7 +888,7 @@
       ],
       "published_at": "2026-04-15T15:11:53Z",
       "published_ts": 1776265913.0,
-      "age_minutes": 1231.6,
+      "age_minutes": 1303.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1078,7 +926,7 @@
       ],
       "published_at": "2026-04-15T13:42:37Z",
       "published_ts": 1776260557.0,
-      "age_minutes": 1320.9,
+      "age_minutes": 1392.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1116,7 +964,7 @@
       ],
       "published_at": "2026-04-15T13:06:37Z",
       "published_ts": 1776258397.0,
-      "age_minutes": 1356.9,
+      "age_minutes": 1428.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1147,6 +995,44 @@
       "provider_count": 1
     },
     {
+      "story_key": "62ee3d064310b4afeeefa251e61c1d72ed91088e:5921099",
+      "headline": "Microsoft: Why 'Intelligence Refinery' Is Future Of Global Profit (NASDAQ:MSFT)",
+      "tickers": [
+        "MSFT"
+      ],
+      "published_at": "2026-04-16T08:56:47Z",
+      "published_ts": 1776329807.0,
+      "age_minutes": 238.1,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Seeking Alpha"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Microsoft: Why 'Intelligence Refinery' Is Future Of Global Profit (NASDAQ:MSFT)",
+      "sentiment_label": "bullish",
+      "polarity": 0.1375,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.1906,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://seekingalpha.com/article/4891130-microsoft-new-standard-oil-why-intelligence-refinery-is-future-of-global-profit",
+      "first_seen_at": "2026-04-16T11:43:28.484058Z",
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
       "story_key": "9f55b686374205531bc839b8a20efc8e987674cf:5920864",
       "headline": "Trade Strategy For SPY, QQQ, AAPL, MSFT, NVDA, GOOGL, META, And TSLA",
       "tickers": [
@@ -1156,7 +1042,7 @@
       ],
       "published_at": "2026-04-15T13:20:29Z",
       "published_ts": 1776259229.0,
-      "age_minutes": 1343.0,
+      "age_minutes": 1414.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1194,7 +1080,7 @@
       ],
       "published_at": "2026-04-16T07:04:00Z",
       "published_ts": 1776323040.0,
-      "age_minutes": 279.5,
+      "age_minutes": 350.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1215,7 +1101,7 @@
       "impact": 0.1,
       "clarity": 0.6,
       "relevance": 0.475,
-      "news_catalyst_score": 0.1749,
+      "news_catalyst_score": 0.1671,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
@@ -1232,7 +1118,7 @@
       ],
       "published_at": "2026-04-16T05:53:33Z",
       "published_ts": 1776318813.0,
-      "age_minutes": 349.9,
+      "age_minutes": 421.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1270,7 +1156,7 @@
       ],
       "published_at": "2026-04-15T22:34:08Z",
       "published_ts": 1776292448.0,
-      "age_minutes": 789.3,
+      "age_minutes": 860.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1308,7 +1194,7 @@
       ],
       "published_at": "2026-04-15T20:30:42Z",
       "published_ts": 1776285042.0,
-      "age_minutes": 912.8,
+      "age_minutes": 984.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1346,7 +1232,7 @@
       ],
       "published_at": "2026-04-15T18:16:03Z",
       "published_ts": 1776276963.0,
-      "age_minutes": 1047.4,
+      "age_minutes": 1118.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1384,7 +1270,7 @@
       ],
       "published_at": "2026-04-15T16:04:35Z",
       "published_ts": 1776269075.0,
-      "age_minutes": 1178.9,
+      "age_minutes": 1250.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1422,7 +1308,7 @@
       ],
       "published_at": "2026-04-15T14:40:23Z",
       "published_ts": 1776264023.0,
-      "age_minutes": 1263.1,
+      "age_minutes": 1334.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1460,7 +1346,7 @@
       ],
       "published_at": "2026-04-15T13:54:12Z",
       "published_ts": 1776261252.0,
-      "age_minutes": 1309.3,
+      "age_minutes": 1380.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1499,7 +1385,7 @@
       ],
       "published_at": "2026-04-15T13:37:12Z",
       "published_ts": 1776260232.0,
-      "age_minutes": 1326.3,
+      "age_minutes": 1397.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1528,44 +1414,6 @@
       "first_seen_at": "2026-04-15T16:47:18.573423Z",
       "is_new": false,
       "provider_count": 1
-    },
-    {
-      "story_key": "d955f1ee0a00a1013de7b5d58b807f2a5e75275f:5920855",
-      "headline": "Will AI Disruption Crush Microsoft (MSFT)?",
-      "tickers": [
-        "MSFT"
-      ],
-      "published_at": "2026-04-15T12:35:33Z",
-      "published_ts": 1776256533.0,
-      "age_minutes": 1387.9,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Yahoo! Finance"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Will AI Disruption Crush Microsoft (MSFT)?",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.1671,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://ca.finance.yahoo.com/news/ai-disruption-crush-microsoft-msft-123533138.html",
-      "first_seen_at": "2026-04-15T16:47:18.573423Z",
-      "is_new": false,
-      "provider_count": 1
     }
   ],
   "news_catalyst_by_symbol": {
@@ -1583,40 +1431,40 @@
       "story_key": "c0345c2d2ba782236fc332108c5a28ce01e8f787:5921047"
     },
     "AMZN": {
-      "news_catalyst_score": 0.5531,
+      "news_catalyst_score": 0.5435,
       "sentiment_label": "neutral",
-      "event_class": "OFFERING",
-      "event_label": "Amazon: A Once-In-A-Generation Opportunity That's Not Priced In (NASDAQ:AMZN)",
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "source_tier": "TIER_3",
-      "mentions_24h": 9,
-      "is_actionable": false,
-      "first_provider": "newsapi_ai",
-      "story_key": "5ef6ccbe6d8cf02bf8da7847e991b3ebe2512196:5920858"
-    },
-    "JNJ": {
-      "news_catalyst_score": 0.4659,
-      "sentiment_label": "neutral",
-      "event_class": "EARNINGS",
-      "event_label": "Transcript: Johnson & Johnson Q1 2026 Earnings Conference Call - Johnson & Johnson (NYSE:JNJ)",
+      "event_class": "IPO",
+      "event_label": "Amazon Vs. SpaceX Space Race Heats Up At Difficult Time For Musk's Upcoming IPO - Amazon.com (NASDAQ:AMZN",
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "source_tier": "TIER_2",
-      "mentions_24h": 2,
+      "mentions_24h": 8,
       "is_actionable": false,
       "first_provider": "newsapi_ai",
-      "story_key": "5e276d5b5af104b33ba147393d9d2631f5119286:5920848"
+      "story_key": "288a573aabbbccec0a09586853945dc68b76ec6f:5920923"
+    },
+    "JNJ": {
+      "news_catalyst_score": 0.1671,
+      "sentiment_label": "neutral",
+      "event_class": "UNKNOWN",
+      "event_label": "SA analyst upgrades/downgrades: NVDA, JNJ, KO, ACN",
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "source_tier": "TIER_3",
+      "mentions_24h": 1,
+      "is_actionable": false,
+      "first_provider": "newsapi_ai",
+      "story_key": "98b47cd00b87fd3b5cdba230ff4f2b1414ed8126:5920880"
     },
     "JPM": {
-      "news_catalyst_score": 0.5569,
+      "news_catalyst_score": 0.4836,
       "sentiment_label": "neutral",
       "event_class": "MANAGEMENT",
       "event_label": "Insider Selling: JPMorgan Chase & Co. (NYSE:JPM) CFO Sells 5,611 Shares of Stock",
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "source_tier": "TIER_3",
-      "mentions_24h": 4,
+      "mentions_24h": 3,
       "is_actionable": false,
       "first_provider": "newsapi_ai",
       "story_key": "1ae826a8b0729143ab38d68be1aae45a63621ce1:5921106"
@@ -1642,7 +1490,7 @@
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "source_tier": "TIER_3",
-      "mentions_24h": 16,
+      "mentions_24h": 15,
       "is_actionable": false,
       "first_provider": "newsapi_ai",
       "story_key": "31931b7eeef132274d34c8fe78bf3068436f2fc5:5920880"
@@ -1662,8 +1510,8 @@
     }
   },
   "summary": {
-    "active_story_count": 39,
-    "new_story_count": 5,
+    "active_story_count": 35,
+    "new_story_count": 0,
     "actionable_story_count": 0,
     "actionable_symbols": [],
     "symbol_count": 7
