@@ -1,139 +1,114 @@
 # Regression Triage Packs
 
-**Baseline:** `778fbb64` (21 Split-Tests + 39 Regressionstests grün)
-**Quelle:** `tests/test_smc_long_dip_regressions.py` — 39 bestanden, **30 fehlgeschlagen**
-**Alle 30 sind vorbestehend** — keiner durch WP-SPLIT1–4 verursacht.
-**Methode:** Statische Assertions gegen `SMC_Core_Engine.pine` (5 474 LOC) verifiziert.
+Reconciled on HEAD: `efbf7ecef1c100df3a4a27737eb7d6d18d192638` (2026-04-16)
+Expected remote HEAD from task: `efbf7ecef1c100df3a4a27737eb7d6d18d192638`
 
----
+## Repro Commands
 
-## Vollständige Fehlertabelle
+Executed exactly on `main` after `git fetch origin && git checkout main && git pull origin main`:
 
-| # | Testname | Fehlertyp | Betroffenes Modul | Ursache | Priorität |
-|---|----------|-----------|-------------------|---------|-----------|
-| 1 | `test_refactored_helpers_preserve_dependency_order` | fn-removed | Helper-Dependency | `db_trend_text(` existiert nicht mehr | P1 |
-| 2 | `test_signal_and_long_state_contract_are_declared_for_safe_refactors` | metadata-drift | Metadata | Indicator-Titel `"SMC++"` entfernt | P3 |
-| 3 | `test_backing_zone_identity_and_touch_count_persist_after_arm` | refactored-code | Source-Lifecycle | `long_arm_locked_source_id = resolve_long_zone_id(` Signatur geändert | P1 |
-| 4 | `test_invalidation_path_records_specific_reason_and_clears_setup_state` | refactored-code | Source-Lifecycle | `invalidation_reason := long_validation_source_text + ' source invalidated'` Body umgeschrieben | P1 |
-| 5 | `test_indicator_resource_caps_match_runtime_history_behavior` | metadata-drift | Metadata | `max_labels_count = 500` → anderer Wert | P3 |
-| 6 | `test_tuple_returned_ob_and_fvg_buffers_use_function_call_syntax_for_custom_methods` | fn-removed | Zone-Management | Draw-Call-Signatur grundlegend geändert | P1 |
-| 7 | `test_invalidated_alert_has_single_preset_definition_without_failed_alias` | alert-overhaul | Alert-System | 0 Preset-Definitionen gefunden (erwartet 1) | P2 |
-| 8 | `test_structure_signal_derivations_use_explicit_block_logic` | refactored-code | Structure-Signal | `show_chart_swing_levels := true` entfernt | P1 |
-| 9 | `test_armed_stage_can_be_optionally_tightened` | literal-to-computed | Gate-Logic | `bool armed_prequality_ok = true` → computed | P2 |
-| 10 | `test_user_presets_and_performance_modes_drive_effective_runtime_layers` | text-evolved | Inputs | Tooltip-Text geändert | P3 |
-| 11 | `test_debug_telemetry_package_wires_inputs_helpers_logs_and_dashboard` | refactored-code | Debug-Telemetry | `string long_debug_mode_suffix = ' Compact'` entfernt | P1 |
-| 12 | `test_clean_tier_is_renamed_as_a_quality_diagnostic` | literal-to-computed | Gate-Logic | `bool long_quality_clean_tier = false` → computed | P2 |
-| 13 | `test_cleanup_protection_does_not_mask_genuine_break_migration` | literal-to-computed | Source-Lifecycle | `long_source_tracked := false` → `:= long_source_tracked_now` | P2 |
-| 14 | `test_source_lock_decouples_setup_source_from_live_active_ranking` | renamed-var | Source-Lifecycle | `bool prev_locked_source_alive = false` → umbenannt | P2 |
-| 15 | `test_source_upgrade_is_explicit_and_quality_gated` | renamed-var | Source-Lifecycle | `bool prev_locked_source_alive = false` → umbenannt | P2 |
-| 16 | `test_script_text_is_english_only_for_known_long_lifecycle_regressions` | renamed-var | Display-Text | `fvg_source_upgrade_ok` → `helper_fvg_source_upgrade_ok` | P2 |
-| 17 | `test_source_upgrade_stays_blocked_without_opt_in_or_quality_gain` | renamed-var | Source-Lifecycle | `ob_source_upgrade_ok` → `helper_ob_source_upgrade_ok` | P2 |
-| 18 | `test_upgrade_rebinds_final_locked_source_before_alive_and_broken_checks` | literal-to-computed | Source-Lifecycle | `bool long_locked_source_alive_now = false` → computed | P2 |
-| 19 | `test_entry_origin_and_validation_source_are_separated_for_display_and_invalidation` | refactored-code | Source-Lifecycle | `source_display := ... + ' -> ' + ...` Body geändert | P1 |
-| 20 | `test_display_and_status_text_are_extracted_into_helpers` | text-evolved | Display-Text | `freshness_text := 'confirm stale'` String geändert | P3 |
-| 21 | `test_confirm_and_ready_gate_logic_is_extracted_into_helpers` | text-evolved | Gate-Logic | `zone_quality_text := 'crowded'` String geändert | P3 |
-| 22 | `test_setup_text_and_visual_state_are_extracted_into_helpers` | refactored-code | Display-Text | `resolve_long_state_code(` Parameteranzahl geändert | P1 |
-| 23 | `test_watchlist_alert_level_follows_active_zone_preference` | literal-to-computed | Alert-System | `float long_watchlist_alert_level = na` → Funktionsparameter | P2 |
-| 24 | `test_visual_text_dashboard_and_colors_are_extracted_into_helpers` | fn-removed | Display-Text | `resolve_long_visual_text(` existiert nicht mehr | P1 |
-| 25 | `test_dashboard_long_zone_summary_uses_shared_zone_text_helper` | refactored-code | Display-Text | `compose_zone_summary_text(` Body-Assertions schlagen fehl | P1 |
-| 26 | `test_arm_setup_resolution_is_extracted_into_helpers` | renamed-var | Source-Lifecycle | `int long_arm_locked_source_id = resolve_long_zone_id(` umbenannt | P2 |
-| 27 | `test_long_alert_helpers_cover_close_safe_events_and_message_composition` | alert-overhaul | Alert-System | `compose_long_invalidated_alert` → `cr.compose_long_invalidated_alert_detail` | P2 |
-| 28 | `test_intrabar_ready_and_watchlist_events_are_debounced_and_latched` | alert-overhaul | Alert-System | `bool can_draw_reclaim_marker = false` entfernt | P2 |
-| 29 | `test_extracted_helpers_are_defined_before_first_call` | fn-removed | Helper-Dependency | `compute_overhead_context() =>` existiert nicht mehr | P1 |
-| 30 | `test_extracted_helpers_reference_only_previously_declared_globals` | fn-removed | Helper-Dependency | `compute_overhead_context() =>` existiert nicht mehr | P1 |
+- `python -m pytest tests/ -k "smc" --tb=line -q 2>&1 | tee /tmp/pytest_smc_full.txt`
+- `python -m pytest tests/test_smc_long_dip_regressions.py -q --tb=line 2>&1 | tee /tmp/pytest_long_dip.txt`
+- `python -m pytest tests/test_smc_core_engine_split.py -q --tb=line 2>&1 | tee /tmp/pytest_split.txt`
 
----
+## Pytest Snapshot (Reproduced)
 
-## Gruppierung nach Ursache
+- Full SMC selection (`-k smc`): `1974 passed, 24 failed, 4 skipped, 0 errors, 2716 deselected`
+- Long-dip regression file: `46 passed, 23 failed, 0 skipped, 0 errors`
+- Split suite: `21 passed, 0 failed, 0 skipped, 0 errors`
 
-### refactored-code — 7 Tests (P1)
+## Reconciliation Notes (30 vs 23)
 
-Funktions-Bodies oder Call-Sites grundlegend umgeschrieben; Assertions müssen an neuen Code angepasst werden.
+The previous version of this document captured a historical baseline of **30 failing tests** in `tests/test_smc_long_dip_regressions.py`.
 
-| Tests | Modul |
-|-------|-------|
-| #3, #4, #19 | Source-Lifecycle |
-| #8 | Structure-Signal |
-| #11 | Debug-Telemetry |
-| #22, #25 | Display-Text |
+Current reproduced state is **23 failing tests** in that same file because **7 entries are fixed** and now green:
 
-### fn-removed — 5 Tests (P1)
+- #2 `test_signal_and_long_state_contract_are_declared_for_safe_refactors`
+- #5 `test_indicator_resource_caps_match_runtime_history_behavior`
+- #14 `test_source_lock_decouples_setup_source_from_live_active_ranking`
+- #15 `test_source_upgrade_is_explicit_and_quality_gated`
+- #16 `test_script_text_is_english_only_for_known_long_lifecycle_regressions`
+- #17 `test_source_upgrade_stays_blocked_without_opt_in_or_quality_gain`
+- #26 `test_arm_setup_resolution_is_extracted_into_helpers`
 
-Helper-Funktionen entfernt, umbenannt oder zusammengeführt; Tests ggf. obsolet oder auf Nachfolger umleiten.
+Fix evidence for all seven: `fbe44e17` (`fix(tests): resolve batch-1 regression failures (signature changes)`).
 
-| Tests | Modul |
-|-------|-------|
-| #1, #29, #30 | Helper-Dependency |
-| #6 | Zone-Management |
-| #24 | Display-Text |
+Why other artifacts mentioned 23 while another run showed 24 failures:
 
-### renamed-var — 5 Tests (P2)
+- `23` refers to failures in `tests/test_smc_long_dip_regressions.py`.
+- `24` in full `-k smc` run comes from those 23 plus one additional failure outside this file:
+  - `tests/test_smc_legacy_governance.py::test_long_dip_regression_stays_anchored_to_smc_plus`
 
-Variablen umbenannt (z. B. `helper_`-Prefix); mechanischer Search-Replace.
+## Vollständige 30er-Tabelle (mit Status)
 
-| Tests | Modul |
-|-------|-------|
-| #14, #15, #17, #26 | Source-Lifecycle |
-| #16 | Display-Text |
+| # | Testname | Status | Evidenz/Kommentar |
+|---|----------|--------|-------------------|
+| 1 | `test_refactored_helpers_preserve_dependency_order` | OPEN | weiterhin failing auf HEAD |
+| 2 | `test_signal_and_long_state_contract_are_declared_for_safe_refactors` | [FIXED] | gruen seit `fbe44e17` |
+| 3 | `test_backing_zone_identity_and_touch_count_persist_after_arm` | OPEN | weiterhin failing auf HEAD |
+| 4 | `test_invalidation_path_records_specific_reason_and_clears_setup_state` | OPEN | weiterhin failing auf HEAD |
+| 5 | `test_indicator_resource_caps_match_runtime_history_behavior` | [FIXED] | gruen seit `fbe44e17` |
+| 6 | `test_tuple_returned_ob_and_fvg_buffers_use_function_call_syntax_for_custom_methods` | OPEN | weiterhin failing auf HEAD |
+| 7 | `test_invalidated_alert_has_single_preset_definition_without_failed_alias` | OPEN | weiterhin failing auf HEAD |
+| 8 | `test_structure_signal_derivations_use_explicit_block_logic` | OPEN | weiterhin failing auf HEAD |
+| 9 | `test_armed_stage_can_be_optionally_tightened` | OPEN | weiterhin failing auf HEAD |
+| 10 | `test_user_presets_and_performance_modes_drive_effective_runtime_layers` | OPEN | weiterhin failing auf HEAD |
+| 11 | `test_debug_telemetry_package_wires_inputs_helpers_logs_and_dashboard` | OPEN | weiterhin failing auf HEAD |
+| 12 | `test_clean_tier_is_renamed_as_a_quality_diagnostic` | OPEN | weiterhin failing auf HEAD |
+| 13 | `test_cleanup_protection_does_not_mask_genuine_break_migration` | OPEN | weiterhin failing auf HEAD |
+| 14 | `test_source_lock_decouples_setup_source_from_live_active_ranking` | [FIXED] | gruen seit `fbe44e17` |
+| 15 | `test_source_upgrade_is_explicit_and_quality_gated` | [FIXED] | gruen seit `fbe44e17` |
+| 16 | `test_script_text_is_english_only_for_known_long_lifecycle_regressions` | [FIXED] | gruen seit `fbe44e17` |
+| 17 | `test_source_upgrade_stays_blocked_without_opt_in_or_quality_gain` | [FIXED] | gruen seit `fbe44e17` |
+| 18 | `test_upgrade_rebinds_final_locked_source_before_alive_and_broken_checks` | OPEN | weiterhin failing auf HEAD |
+| 19 | `test_entry_origin_and_validation_source_are_separated_for_display_and_invalidation` | OPEN | weiterhin failing auf HEAD |
+| 20 | `test_display_and_status_text_are_extracted_into_helpers` | OPEN | weiterhin failing auf HEAD |
+| 21 | `test_confirm_and_ready_gate_logic_is_extracted_into_helpers` | OPEN | weiterhin failing auf HEAD |
+| 22 | `test_setup_text_and_visual_state_are_extracted_into_helpers` | OPEN | weiterhin failing auf HEAD |
+| 23 | `test_watchlist_alert_level_follows_active_zone_preference` | OPEN | weiterhin failing auf HEAD |
+| 24 | `test_visual_text_dashboard_and_colors_are_extracted_into_helpers` | OPEN | weiterhin failing auf HEAD |
+| 25 | `test_dashboard_long_zone_summary_uses_shared_zone_text_helper` | OPEN | weiterhin failing auf HEAD |
+| 26 | `test_arm_setup_resolution_is_extracted_into_helpers` | [FIXED] | gruen seit `fbe44e17` |
+| 27 | `test_long_alert_helpers_cover_close_safe_events_and_message_composition` | OPEN | weiterhin failing auf HEAD |
+| 28 | `test_intrabar_ready_and_watchlist_events_are_debounced_and_latched` | OPEN | weiterhin failing auf HEAD |
+| 29 | `test_extracted_helpers_are_defined_before_first_call` | OPEN | weiterhin failing auf HEAD |
+| 30 | `test_extracted_helpers_reference_only_previously_declared_globals` | OPEN | weiterhin failing auf HEAD |
 
-### literal-to-computed — 5 Tests (P2)
+## Reale offene Long-Dip-Failures auf HEAD (23)
 
-Literale Initialisierung (`= true`, `= false`, `= na`) durch berechnete Ausdrücke ersetzt.
+1. `tests/test_smc_long_dip_regressions.py::test_refactored_helpers_preserve_dependency_order`
+2. `tests/test_smc_long_dip_regressions.py::test_backing_zone_identity_and_touch_count_persist_after_arm`
+3. `tests/test_smc_long_dip_regressions.py::test_invalidation_path_records_specific_reason_and_clears_setup_state`
+4. `tests/test_smc_long_dip_regressions.py::test_tuple_returned_ob_and_fvg_buffers_use_function_call_syntax_for_custom_methods`
+5. `tests/test_smc_long_dip_regressions.py::test_invalidated_alert_has_single_preset_definition_without_failed_alias`
+6. `tests/test_smc_long_dip_regressions.py::test_structure_signal_derivations_use_explicit_block_logic`
+7. `tests/test_smc_long_dip_regressions.py::test_armed_stage_can_be_optionally_tightened`
+8. `tests/test_smc_long_dip_regressions.py::test_user_presets_and_performance_modes_drive_effective_runtime_layers`
+9. `tests/test_smc_long_dip_regressions.py::test_debug_telemetry_package_wires_inputs_helpers_logs_and_dashboard`
+10. `tests/test_smc_long_dip_regressions.py::test_clean_tier_is_renamed_as_a_quality_diagnostic`
+11. `tests/test_smc_long_dip_regressions.py::test_cleanup_protection_does_not_mask_genuine_break_migration`
+12. `tests/test_smc_long_dip_regressions.py::test_upgrade_rebinds_final_locked_source_before_alive_and_broken_checks`
+13. `tests/test_smc_long_dip_regressions.py::test_entry_origin_and_validation_source_are_separated_for_display_and_invalidation`
+14. `tests/test_smc_long_dip_regressions.py::test_display_and_status_text_are_extracted_into_helpers`
+15. `tests/test_smc_long_dip_regressions.py::test_confirm_and_ready_gate_logic_is_extracted_into_helpers`
+16. `tests/test_smc_long_dip_regressions.py::test_setup_text_and_visual_state_are_extracted_into_helpers`
+17. `tests/test_smc_long_dip_regressions.py::test_watchlist_alert_level_follows_active_zone_preference`
+18. `tests/test_smc_long_dip_regressions.py::test_visual_text_dashboard_and_colors_are_extracted_into_helpers`
+19. `tests/test_smc_long_dip_regressions.py::test_dashboard_long_zone_summary_uses_shared_zone_text_helper`
+20. `tests/test_smc_long_dip_regressions.py::test_long_alert_helpers_cover_close_safe_events_and_message_composition`
+21. `tests/test_smc_long_dip_regressions.py::test_intrabar_ready_and_watchlist_events_are_debounced_and_latched`
+22. `tests/test_smc_long_dip_regressions.py::test_extracted_helpers_are_defined_before_first_call`
+23. `tests/test_smc_long_dip_regressions.py::test_extracted_helpers_reference_only_previously_declared_globals`
 
-| Tests | Modul |
-|-------|-------|
-| #13, #18 | Source-Lifecycle |
-| #9, #12 | Gate-Logic |
-| #23 | Alert-System |
+## Reale Failure außerhalb der 30er-Packs (im Full SMC Run)
 
-### alert-overhaul — 3 Tests (P2)
+Diese Failure war in der alten 30er-Tabelle nicht enthalten, ist aber real im aktuellen `-k smc` Lauf:
 
-Alert-Helper verlagert oder umstrukturiert.
+- `tests/test_smc_legacy_governance.py::test_long_dip_regression_stays_anchored_to_smc_plus`
 
-| Tests | Modul |
-|-------|-------|
-| #7, #27, #28 | Alert-System |
+## Delta Summary
 
-### text-evolved — 3 Tests (P3)
-
-String-Literale in Helper-Bodies geändert; Assertions an neue Texte anpassen.
-
-| Tests | Modul |
-|-------|-------|
-| #10 | Inputs |
-| #20 | Display-Text |
-| #21 | Gate-Logic |
-
-### metadata-drift — 2 Tests (P3)
-
-Indicator-Metadaten geändert (Titel, Ressourcen-Limits); triviale Assertion-Updates.
-
-| Tests | Modul |
-|-------|-------|
-| #2, #5 | Metadata |
-
----
-
-## Empfohlene Fix-Reihenfolge
-
-| Reihenfolge | Pack | Tests | Anzahl | Begründung |
-|------------:|------|-------|-------:|------------|
-| 1 | **Pack A — Metadata** | #2, #5 | 2 | Trivial, null Risiko, Aufwärm-Pack |
-| 2 | **Pack B — Renamed Vars** | #14, #15, #16, #17, #26 | 5 | Mechanischer Search-Replace, geringes Risiko |
-| 3 | **Pack C — Literal→Computed** | #9, #12, #13, #18, #23 | 5 | Assertions auf berechnete Form umstellen |
-| 4 | **Pack D — Text & Strings** | #10, #20, #21 | 3 | String-Erwartungen aktualisieren |
-| 5 | **Pack E — Alert-System** | #7, #27, #28 | 3 | Modul-Prefixe und Preset-Logik updaten |
-| 6 | **Pack F — Refactored Code** | #3, #4, #8, #11, #19, #22, #25 | 7 | Assertions an neue Bodies anpassen, größter Pack |
-| 7 | **Pack G — Removed Functions** | #1, #6, #24, #29, #30 | 5 | Entscheidung: Tests löschen oder auf Nachfolger umleiten |
-
-**Gesamtaufwand:** 30 Fixes in `tests/test_smc_long_dip_regressions.py`. Kein Produktionscode betroffen.
-
----
-
-## Prioritäts-Zusammenfassung
-
-| Priorität | Anzahl | Packs |
-|-----------|-------:|-------|
-| **P1** — Analyse erforderlich | 12 | Pack F (7) + Pack G (5) |
-| **P2** — Mechanische Fixes | 13 | Pack B (5) + Pack C (5) + Pack E (3) |
-| **P3** — Triviale Updates | 5 | Pack A (2) + Pack D (3) |
+- Historisch dokumentiert: `30` long-dip Failures
+- Auf HEAD reproduziert (long-dip): `23` long-dip Failures
+- Bereits gefixt in den 30er-Packs: `7`
+- Full `-k smc` Failures: `24` (=`23` long-dip + `1` legacy-governance)
