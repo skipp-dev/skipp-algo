@@ -6,6 +6,13 @@ on:
   push:
     branches: [main]
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
@@ -22,6 +29,7 @@ jobs:
         uses: actions/setup-python@v6
         with:
           python-version: "3.12"
+          cache: pip
 
       - name: Install dependencies
         run: |
@@ -51,7 +59,6 @@ jobs:
             --cov=streamlit_terminal_runtime \
             --cov=terminal_export \
             --cov=terminal_notifications \
-            --cov=terminal_tabs \
             --cov=terminal_ui_helpers \
             --cov-report=term-missing:skip-covered \
             --cov-report=xml:artifacts/ci/terminal_coverage.xml \
