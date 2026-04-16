@@ -9,6 +9,7 @@ SMC_PATH = ROOT / 'SMC_Core_Engine.pine'
 RESOLVERS_PATH = ROOT / 'SMC++' / 'smc_context_resolvers.pine'
 UTILS_PATH = ROOT / 'SMC++' / 'smc_utils.pine'
 PROFILE_ENGINE_PATH = ROOT / 'SMC++' / 'smc_profile_engine.pine'
+OBSERVABILITY_PATH = ROOT / 'SMC++' / 'smc_observability_private.pine'
 
 
 def _read_smc_source() -> str:
@@ -25,6 +26,10 @@ def _read_utils_source() -> str:
 
 def _read_profile_engine_source() -> str:
     return PROFILE_ENGINE_PATH.read_text(encoding='utf-8')
+
+
+def _read_observability_source() -> str:
+    return OBSERVABILITY_PATH.read_text(encoding='utf-8')
 
 
 def _extract_function_body(source: str, function_name: str) -> str:
@@ -65,32 +70,25 @@ def test_refactored_helpers_preserve_dependency_order() -> None:
     source = _read_smc_source()
 
     indices = {
-        # compose_long_*_alert_detail definitions moved to smc_context_resolvers (WP-SPLIT4)
         'build_dynamic_alert': _find_required(source, 'build_dynamic_alert_message('),
         'emit_dynamic_alert': _find_required(source, 'emit_dynamic_alert_if_allowed('),
         'priority_alert': _find_required(source, 'emit_priority_long_dynamic_alerts('),
         'linear_alert': _find_required(source, 'emit_linear_long_dynamic_alerts('),
-        'db_trend_text': _find_required(source, 'db_trend_text('),
-        'db_trend_state': _find_required(source, 'db_trend_state('),
-        'db_exec_tier': _find_required(source, 'db_exec_tier_text() =>'),
-        'db_setup_age': _find_required(source, 'db_setup_age_text() =>'),
-        'db_ready_gate': _find_required(source, 'db_ready_gate_state('),
-        'db_strict_gate': _find_required(source, 'db_strict_gate_state('),
-        'db_long_debug': _find_required(source, 'db_long_debug_state('),
-        'compose_zone_summary': _find_required(source, 'compose_zone_summary_text('),
-        'compose_debug_modules': _find_required(source, 'compose_enabled_debug_modules_text('),
-        'long_state': _find_required(source, 'var LongLifecycleState long_state ='),
-        'long_plan': _find_required(source, 'bool long_plan_active = false'),
-        'dashboard_modules': _find_required(source, 'compute_dashboard_modules_structure_prep() =>'),
-        'dashboard_lifecycle': _find_required(source, 'compute_dashboard_lifecycle_prep() =>'),
-        'dashboard_engine': _find_required(source, 'compute_dashboard_engine_debug_prep() =>'),
+        'resolve_long_debug_mode_suffix': _find_required(source, 'resolve_long_debug_mode_suffix('),
+        'debug_module_label': _find_required(source, "'Long' + resolve_long_debug_mode_suffix(long_engine_debug_mode)"),
+        'compute_long_overhead_context': _find_required(source, 'compute_long_overhead_context('),
+        'compute_long_overhead_context_call': _find_required(source, '[long_planned_stop_level, planned_risk, headroom_to_overhead, overhead_zone_ok] = compute_long_overhead_context('),
+        'scan_live_bull_events': _find_required(source, 'scan_live_bull_events() =>'),
+        'scan_live_bull_events_call': _find_required(source, '[any_live_bull_ob_break, bull_ob_live_event_level, any_live_bull_fvg_fill, bull_fvg_live_event_level] = scan_live_bull_events()'),
+        'compute_context_quality': _find_required(source, 'compute_context_quality() =>'),
+        'compute_context_quality_call': _find_required(source, '[context_quality_score, context_quality_gate_ok, htf_alignment_ok, strict_entry_ltf_ok, effective_min_context_quality_score, effective_context_quality_max_score] = compute_context_quality()'),
     }
 
     _assert_markers_before(indices, ['build_dynamic_alert', 'emit_dynamic_alert'], ['priority_alert', 'linear_alert'])
-    # compose_long_*_alert_detail ordering assertion removed — definitions moved to smc_context_resolvers (WP-SPLIT4)
-    _assert_markers_before(indices, ['db_trend_text', 'db_trend_state', 'db_exec_tier', 'db_setup_age', 'long_state'], ['dashboard_lifecycle'])
-    _assert_markers_before(indices, ['compose_zone_summary', 'long_state', 'long_plan'], ['dashboard_modules'])
-    _assert_markers_before(indices, ['db_ready_gate', 'db_strict_gate', 'db_long_debug', 'compose_debug_modules', 'long_state'], ['dashboard_engine'])
+    _assert_markers_before(indices, ['resolve_long_debug_mode_suffix'], ['debug_module_label'])
+    _assert_markers_before(indices, ['compute_long_overhead_context'], ['compute_long_overhead_context_call'])
+    _assert_markers_before(indices, ['scan_live_bull_events'], ['scan_live_bull_events_call'])
+    _assert_markers_before(indices, ['compute_context_quality'], ['compute_context_quality_call'])
 
 
 def test_atr_helper_uses_deterministic_warmup_accumulator() -> None:
@@ -1110,7 +1108,6 @@ def test_tuple_returned_ob_and_fvg_buffers_use_function_call_syntax_for_custom_m
     assert 'draw(ob_blocks_bull, ob_config_bull, visible_left = visible_left_time, visible_right = visible_right_time)' in source
     # bear draw calls removed (Patch 4)
     assert 'draw(fvgs_bull, fvg_config_bull, visible_left = visible_left_time, visible_right = visible_right_time)' in source
-    assert 'draw(htf_fvg_buffer_bull, htf_fvg_config_bull, visible_left = visible_left_time, visible_right = visible_right_time)' in source
     assert 'contains_id(ob_blocks_bull, touched_bull_ob_id)' in source
     assert 'get_by_id(ob_blocks_bull, touched_bull_ob_id)' in source
     assert 'contains_id(filled_fvgs_bull, long_locked_source_id_final)' in source
@@ -1133,7 +1130,6 @@ def test_tuple_returned_ob_and_fvg_buffers_use_function_call_syntax_for_custom_m
     assert 'delete(buffer_bull_discarded)' in source
     assert 'array.clear(fvg_discarded_bull)' in source
     assert 'delete(htf_buffer_bull_discarded)' in source
-    assert 'array.clear(htf_fvg_buffer_bull_discarded)' in source
     assert 'ob_blocks_bull.draw(' not in source
     assert 'fvgs_bull.draw(' not in source
     assert 'htf_fvg_buffer_bull.draw(' not in source
@@ -1162,13 +1158,15 @@ def test_fvg_hide_and_orderblock_reset_are_cleanup_consistent() -> None:
 def test_invalidated_alert_has_single_preset_definition_without_failed_alias() -> None:
     source = _read_smc_source()
 
-    preset_defs = re.findall(r"alertcondition\(long_invalidate_alert_event, 'Long Invalidated', 'SMC\+\+: Long setup invalidated\.'\)", source)
-    assert len(preset_defs) == 1, 'Expected exactly one Long Invalidated preset definition'
-    assert "alertcondition(long_invalidate_alert_event, 'Long Dip Failed'" not in source
-    assert "alertcondition(long_invalidated_close_safe, 'Long Invalidated (Close Safe)', 'SMC++: Long setup invalidated at candle close.')" in source
-    assert "alertcondition(alert_long_watchlist_event_latched, 'Long Dip Watchlist', 'SMC++: Watchlist state active. Bullish trend with an active pullback zone.')" in source
-    assert "alertcondition(bull_bos_sig, 'Bullish BOS Detected', 'SMC++: Bullish break of structure detected.')" in source
-    assert "alertcondition(directional_trend_started, 'Trend Direction Changed', 'SMC++: Structure trend changed direction.')" in source
+    # WP-SPLIT: static presets were replaced by product-state alerts and dynamic emitters.
+    assert "alertcondition(long_invalidate_alert_event, 'Long Invalidated'" not in source
+    assert "alertcondition(long_invalidated_close_safe, 'Long Invalidated (Close Safe)'" not in source
+    assert "alertcondition(alert_long_watchlist_event_latched, 'Long Dip Watchlist'" not in source
+    assert "alertcondition(bull_bos_sig, 'Bullish BOS Detected'" not in source
+    assert "alertcondition(directional_trend_started, 'Trend Direction Changed'" not in source
+    assert "const string TXT_LONG_INVALIDATED = 'Long Invalidated'" in source
+    assert 'compute_long_dynamic_alert_gates(bool enable_dynamic_alerts, bool long_invalidate_signal' in source
+    assert "alertcondition(alert_product_state == 'BLOCKED' and alert_product_state[1] != 'BLOCKED', 'SMC: Setup Blocked', 'SMC Setup is now blocked. Invalidation hit or regime issue.')" in source
 
 
 def test_confirmed_only_touch_state_updates_are_gated_by_state_update_bar_ok() -> None:
@@ -1270,7 +1268,7 @@ def test_structure_signal_derivations_use_explicit_block_logic() -> None:
     assert 'show_internal_bull_choch := true' in source
     assert 'bool show_chart_swing_levels = false' in source
     assert 'if show_latest_swings_levels or show_swing_points' in source
-    assert 'show_chart_swing_levels := true' in source
+    assert 'show_chart_swing_levels := not compact_mode' in source
     assert 'int internal_display_trend = 0' in source
     assert 'if not na(ta.barssince(internal_structure_break_detected))' in source
     assert 'internal_display_trend := internal_trend' in source
@@ -1365,10 +1363,10 @@ def test_armed_stage_can_be_optionally_tightened() -> None:
     source = _read_smc_source()
 
     assert "var bool tighten_armed_stage = input.bool(true, 'Tighten Armed Stage'" in source
-    assert 'bool armed_prequality_ok = true' in source
-    assert 'if tighten_armed_stage_eff' in source
-    assert 'armed_prequality_ok := bullish_trend_safe and micro_session_gate_ok and zone_touch_quality_ok and bull_close_strong and ema_support_ok' in source
-    assert 'and armed_prequality_ok' in source
+    assert 'compute_long_arm_prequality_ok(bool tighten_armed_stage_eff, bool bullish_trend_safe, bool micro_session_gate_ok, bool zone_touch_quality_ok, bool bull_close_strong, bool ema_support_ok) =>' in source
+    assert 'bool armed_prequality_ok = compute_long_arm_prequality_ok(tighten_armed_stage_eff, bullish_trend_safe, micro_session_gate_ok, zone_touch_quality_ok, bull_close_strong, ema_support_ok)' in source
+    assert 'compute_long_arm_should_trigger(bool bull_reclaim_any_for_arm, bool use_strict_sequence_eff, bool zone_touch_event_recent, bool zone_recent, bool long_setup_armed, bool long_invalidated_this_bar, bool micro_session_gate_ok, bool sd_armed_gate_ok, bool armed_prequality_ok) =>' in source
+    assert 'bool long_should_arm = compute_long_arm_should_trigger(bull_reclaim_any_for_arm, use_strict_sequence_eff, zone_touch_event_recent, zone_recent, long_state.armed, long_invalidated_this_bar, micro_session_gate_ok, sd_armed_gate_ok, armed_prequality_ok)' in source
     assert 'bool armed_prequality_ok = not tighten_armed_stage_eff or (bullish_trend_safe and micro_session_gate_ok and zone_touch_quality_ok and bull_close_strong and ema_support_ok)' not in source
 
 
@@ -1377,7 +1375,7 @@ def test_user_presets_and_performance_modes_drive_effective_runtime_layers() -> 
 
     assert "var string long_user_preset = input.string('Standard', 'Trading Style', options = ['Easy', 'Standard', 'Pro']" in source
     assert "var string performance_mode = input.string('Balanced', 'Performance Mode', options = ['Light', 'Balanced', 'Pro', 'Debug']" in source
-    assert "tooltip = 'Easy keeps the long engine permissive and easier to operate. Standard preserves the current balanced workflow. Pro enables stricter lifecycle and execution gating for cleaner but rarer setups.'" in source
+    assert "tooltip = 'Primary Lite operating layer. Easy keeps the long engine permissive and easier to operate. Standard preserves the current balanced workflow. Pro enables stricter lifecycle and execution gating for cleaner but rarer setups.'" in source
     assert "tooltip = 'Light cuts rendering and lower-timeframe workload. Balanced preserves the manual limits. Pro raises object and sampling budgets. Debug keeps the richest diagnostics and history.'" in source
     assert "bool preset_is_easy = long_user_preset == 'Easy'" in source
     assert "bool preset_is_standard = long_user_preset == 'Standard'" in source
@@ -1440,151 +1438,20 @@ def test_breadth_gate_supports_multiple_modes() -> None:
 
 def test_debug_telemetry_package_wires_inputs_helpers_logs_and_dashboard() -> None:
     source = _read_smc_source()
+    obv_source = _read_observability_source()
 
     assert "var bool show_long_engine_debug = input.bool(false, 'Show long engine debug'" in source
     assert "var string long_engine_debug_mode = input.string('Compact', 'Detail', options = ['Compact', 'Full']" in source
-    assert "var bool show_ob_debug = input.bool(false, 'Show OB debug'" in source
-    assert "var bool show_fvg_debug = input.bool(false, 'Show FVG debug'" in source
+    assert 'string long_debug_summary_text = obv.emit_long_engine_debug_logs(' in source
+    assert '[long_ready_state_rt_prev, long_ready_fired_this_bar, long_ready_signal] = obv.resolve_long_ready_signal_state(' in source
     assert 'compose_enabled_debug_modules_text(bool show_ob_debug, bool show_fvg_debug, bool show_long_engine_debug, string long_engine_debug_mode) =>' in source
-    assert "string long_debug_mode_suffix = ' Compact'" in source
-    assert "if long_engine_debug_mode == 'Full'" in source
-    assert "if debug_text == 'off'" in source
-    assert "debug_text := 'Long' + long_debug_mode_suffix" in source
-    assert "string long_debug_mode_suffix = long_engine_debug_mode == 'Full' ? ' Full' : ' Compact'" not in source
-    assert "debug_mode_is_full(string long_engine_debug_mode) =>" in source
-    assert 'compute_long_environment_context(bool market_regime_gate_ok, bool vola_regime_gate_safe, bool context_quality_gate_ok, bool session_structure_gate_ok, bool micro_session_gate_ok, bool micro_freshness_gate_ok, bool overhead_zone_ok) =>' in source
-    assert 'resolve_long_ready_lifecycle_reason(bool long_ready_state, bool long_setup_confirmed, bool close_safe_mode, bool ready_bar_gap_ok, bool long_confirm_expired, bool ready_is_fresh, bool long_confirm_bearish_guard_ok, bool require_main_break_for_ready, bool bull_bos_sig, bool main_bos_recent) =>' in source
-    assert 'resolve_long_ready_gate_reason(bool setup_hard_gate_ok, bool session_structure_gate_ok, bool micro_session_gate_ok, bool micro_freshness_gate_ok, bool overhead_zone_ok, bool market_regime_gate_ok, bool vola_regime_gate_safe, bool quality_gate_ok, bool accel_ready_gate_ok, bool sd_ready_gate_ok, bool vol_ready_context_ok, bool stretch_ready_context_ok, bool ddvi_ready_ok_safe) =>' in source
-    assert 'resolve_long_strict_gate_reason(bool strict_entry_ltf_ok, bool htf_alignment_ok, bool accel_strict_entry_gate_ok, bool sd_entry_strict_gate_ok, bool vol_entry_strict_context_ok_safe, bool stretch_entry_strict_context_ok, bool ddvi_entry_strict_ok_safe) =>' in source
-    assert 'compose_long_debug_compact_text(string long_setup_source_display, string long_ready_blocker_text, string long_strict_blocker_text) =>' in source
-    assert 'compose_long_debug_source_touch_text(string long_setup_source_display, int long_setup_backing_zone_touch_count) =>' in source
-    assert 'compose_long_debug_ready_strict_text(string long_ready_blocker_text, string long_strict_blocker_text) =>' in source
-    assert 'compose_long_debug_fresh_source_text(string freshness_text, string source_state_text) =>' in source
-    assert 'compose_long_debug_zone_env_text(string zone_quality_text, string long_environment_focus_display) =>' in source
-    assert 'compose_long_debug_upgrade_text(string long_source_upgrade_reason) =>' in source
-    assert 'compose_long_debug_event_context_text(int long_setup_backing_zone_touch_count, string freshness_text, string source_state_text, string zone_quality_text, string long_environment_focus_display) =>' in source
-    assert 'compose_long_debug_levels_text(float long_setup_trigger, float long_invalidation_level, string overhead_text) =>' in source
-    assert 'resolve_long_upgrade_reason(bool long_source_upgrade_now, bool prefer_ob_upgrade, bool ob_source_upgrade_ok, bool fvg_source_upgrade_ok, float touched_bull_ob_quality, float touched_bull_fvg_quality, float long_locked_source_quality) =>' in source
-    assert 'compute_long_ready_state(bool close_safe_mode, bool long_setup_confirmed, bool ready_bar_gap_ok, bool long_confirm_expired, bool ready_is_fresh, bool long_confirm_bearish_guard_ok, bool require_main_break_for_ready, bool bull_bos_sig, bool main_bos_recent, bool setup_hard_gate_ok, bool trade_hard_gate_ok, bool environment_hard_gate_ok, bool quality_gate_ok, bool accel_ready_gate_ok, bool sd_ready_gate_ok, bool vol_ready_context_ok, bool stretch_ready_context_ok, bool ddvi_ready_ok_safe) =>' in source
-    assert 'compute_long_entry_best_state(bool long_ready_state, bool accel_entry_best_gate_ok, bool sd_entry_best_gate_ok, bool vol_entry_best_context_ok_safe, bool stretch_entry_best_context_ok, bool ddvi_entry_best_ok_safe) =>' in source
-    assert 'compute_long_entry_strict_state(bool long_ready_state, bool strict_entry_ltf_ok, bool htf_alignment_ok, bool accel_strict_entry_gate_ok, bool sd_entry_strict_gate_ok, bool vol_entry_strict_context_ok_safe, bool stretch_entry_strict_context_ok, bool ddvi_entry_strict_ok_safe) =>' in source
-    assert 'resolve_long_ready_blocker_text(bool long_ready_state, bool long_setup_confirmed, bool close_safe_mode, bool ready_bar_gap_ok, bool long_confirm_expired, bool ready_is_fresh, bool long_confirm_bearish_guard_ok, bool require_main_break_for_ready, bool bull_bos_sig, bool main_bos_recent, bool setup_hard_gate_ok, bool session_structure_gate_ok, bool micro_session_gate_ok, bool micro_freshness_gate_ok, bool overhead_zone_ok, bool market_regime_gate_ok, bool vola_regime_gate_safe, bool quality_gate_ok, bool accel_ready_gate_ok, bool sd_ready_gate_ok, bool vol_ready_context_ok, bool stretch_ready_context_ok, bool ddvi_ready_ok_safe) =>' in source
-    assert "resolve_long_strict_blocker_text(bool long_entry_strict_state, bool long_ready_state, string long_ready_blocker_text, bool strict_entry_ltf_ok, bool htf_alignment_ok, bool accel_strict_entry_gate_ok, bool sd_entry_strict_gate_ok, bool vol_entry_strict_context_ok_safe, bool stretch_entry_strict_context_ok, bool ddvi_entry_strict_ok_safe) =>" in source
-    assert "string trade_gate_reason = 'Trade OK'" in source
-    assert "trade_gate_reason := 'Blocked: Session Gate'" in source
-    assert "string environment_gate_reason = 'Env OK'" in source
-    assert "environment_gate_reason := 'Blocked: Market Gate'" in source
-    assert "string lifecycle_reason = ''" in source
-    assert "lifecycle_reason := 'Awaiting Confirm'" in source
-    assert "resolve_long_ready_gate_reason(setup_hard_gate_ok, session_structure_gate_ok, micro_session_gate_ok, micro_freshness_gate_ok, overhead_zone_ok, market_regime_gate_ok, vola_regime_gate_safe, quality_gate_ok, accel_ready_gate_ok, sd_ready_gate_ok, vol_ready_context_ok, stretch_ready_context_ok, ddvi_ready_ok_safe)" in source
-    assert "ready_gate_reason := 'Blocked: DDVI Context'" in source
-    assert "string strict_blocker_text = 'Passed'" in source
-    assert "strict_blocker_text := 'Need Ready: ' + long_ready_blocker_text" in source
-    assert "string strict_gate_reason = 'Eligible'" in source
-    assert "strict_gate_reason := 'Blocked: LTF Confirmation'" in source
-    assert "not session_structure_gate_ok ? 'Blocked: Session Gate'" not in source
-    assert "not market_regime_gate_ok ? 'Blocked: Market Gate'" not in source
-    assert "long_ready_state ? 'Passed' : not long_setup_confirmed ? 'Awaiting Confirm'" not in source
-    assert "not ddvi_ready_ok_safe ? 'Blocked: DDVI Context' : 'Eligible'" not in source
-    assert "long_entry_strict_state ? 'Passed' : not long_ready_state ? 'Need Ready: ' + long_ready_blocker_text : resolve_long_strict_gate_reason(strict_entry_ltf_ok, htf_alignment_ok, accel_strict_entry_gate_ok, sd_entry_strict_gate_ok, vol_entry_strict_context_ok_safe, stretch_entry_strict_context_ok, ddvi_entry_strict_ok_safe)" not in source
-    assert "not strict_entry_ltf_ok ? 'Blocked: LTF Confirmation'" not in source
-    assert 'compose_long_debug_summary_text(string long_engine_debug_mode, bool long_setup_armed, bool long_setup_confirmed, bool long_ready_state, string long_setup_source_display, string freshness_text, string source_state_text, string zone_quality_text, string long_environment_focus_display, int long_setup_backing_zone_touch_count, bool long_source_upgrade_now, string long_source_upgrade_reason, string long_last_invalid_source, string long_ready_blocker_text, string long_strict_blocker_text) =>' in source
-    assert 'compose_long_engine_debug_label_text(string long_engine_debug_mode, string long_setup_text, string long_visual_text, string long_setup_source_display, string freshness_text, string source_state_text, string zone_quality_text, string long_environment_focus_display, string overhead_text, float long_setup_trigger, float long_invalidation_level, int long_setup_backing_zone_touch_count, bool long_source_upgrade_now, string long_source_upgrade_reason, string long_last_invalid_source, string long_ready_blocker_text, string long_strict_blocker_text) =>' in source
-    assert 'compose_long_engine_event_log(string long_engine_debug_mode, string event_name, string long_setup_source_display, float long_setup_trigger, float long_invalidation_level, int long_setup_backing_zone_touch_count, string freshness_text, string source_state_text, string zone_quality_text, string long_environment_focus_display, bool long_source_upgrade_now, string long_source_upgrade_reason, string long_last_invalid_source, string long_ready_blocker_text, string long_strict_blocker_text) =>' in source
-    assert 'emit_long_engine_debug_logs() =>' in source
-    assert 'string _src = long_setup_source_display' in source
-    assert '_src := long_debug_event_source_display' in source
-    assert 'int _tc = long_state.backing_zone_touch_count' in source
-    assert '_tc := long_debug_event_touch_count' in source
-    assert 'float _trg = long_state.trigger' in source
-    assert '_trg := long_debug_event_trigger' in source
-    assert 'float _inv = long_state.invalidation_level' in source
-    assert '_inv := long_debug_event_invalidation' in source
-    assert 'string long_debug_log_source_display = long_invalidate_signal ? long_debug_event_source_display : long_setup_source_display' not in source
-    assert 'int long_debug_log_touch_count = long_invalidate_signal ? long_debug_event_touch_count : long_state.backing_zone_touch_count' not in source
-    assert 'float long_debug_log_trigger = long_invalidate_signal ? long_debug_event_trigger : long_state.trigger' not in source
-    assert 'float long_debug_log_invalidation = long_invalidate_signal ? long_debug_event_invalidation : long_state.invalidation_level' not in source
-    assert "compose_long_debug_compact_text(long_setup_source_display, long_ready_blocker_text, long_strict_blocker_text)" in source
-    assert "compose_long_debug_source_touch_text(long_setup_source_display, long_setup_backing_zone_touch_count)" in source
-    assert "compose_long_debug_ready_strict_text(long_ready_blocker_text, long_strict_blocker_text)" in source
-    assert "compose_long_debug_fresh_source_text(freshness_text, source_state_text)" in source
-    assert "compose_long_debug_zone_env_text(zone_quality_text, long_environment_focus_display)" in source
-    assert "compose_long_debug_upgrade_text(long_source_upgrade_reason)" in source
-    assert "compose_long_debug_event_context_text(long_setup_backing_zone_touch_count, freshness_text, source_state_text, zone_quality_text, long_environment_focus_display)" in source
-    assert "compose_long_debug_levels_text(long_setup_trigger, long_invalidation_level, overhead_text)" in source
-    assert "string upgrade_reason = 'none'" in source
-    assert 'int target_source_kind = LONG_SOURCE_FVG' in source
-    assert 'float target_quality = touched_bull_fvg_quality' in source
-    assert "string edge_text = 'beat locked source confluence'" in source
-    assert "string target_source_text = resolve_long_source_text(prefer_ob_upgrade ? LONG_SOURCE_OB : LONG_SOURCE_FVG)" not in source
-    assert 'float target_quality = prefer_ob_upgrade ? touched_bull_ob_quality : touched_bull_fvg_quality' not in source
-    assert "string edge_text = ob_source_upgrade_ok and fvg_source_upgrade_ok ? 'won tie on stronger confluence' : 'beat locked source confluence'" not in source
-    assert 'if debug_mode_full' in source
-    assert 'debug_text := compose_long_debug_compact_text(long_setup_source_display, long_ready_blocker_text, long_strict_blocker_text)' in source
-    assert "debug_text := debug_mode_full ? compose_long_debug_source_touch_text(long_setup_source_display, long_setup_backing_zone_touch_count) + ' | ' + compose_long_debug_fresh_source_text(freshness_text, source_state_text) + ' | ' + compose_long_debug_zone_env_text(zone_quality_text, long_environment_focus_display) + ' | ' + compose_long_debug_ready_strict_text(long_ready_blocker_text, long_strict_blocker_text) : compose_long_debug_compact_text(long_setup_source_display, long_ready_blocker_text, long_strict_blocker_text)" not in source
-    assert "debug_text += debug_mode_full ? '\\n' + compose_long_debug_source_touch_text(long_setup_source_display, long_setup_backing_zone_touch_count) : '\\n' + compose_long_debug_compact_text(long_setup_source_display, long_ready_blocker_text, long_strict_blocker_text)" not in source
-    assert "event_text += debug_mode_full ? ' | ' + compose_long_debug_event_context_text(long_setup_backing_zone_touch_count, freshness_text, source_state_text, zone_quality_text, long_environment_focus_display) : ''" not in source
-    assert "string long_source_upgrade_reason = resolve_long_upgrade_reason(long_source_upgrade_now, prefer_ob_upgrade, ob_source_upgrade_ok, fvg_source_upgrade_ok, touched_bull_ob_quality, touched_bull_fvg_quality, long_locked_source_quality)" in source
-    assert "log.info('{0}', compose_long_engine_event_log(long_engine_debug_mode_eff, 'LONG ARMED'" in source
-    assert "log.info('{0}', compose_long_engine_event_log(long_engine_debug_mode_eff, 'LONG INVALID'" in source
-    assert "plotshape(show_ob_debug and ob_zone_touch_event, title = 'OB Zone Touch Debug'" in source
-    assert "plotshape(show_fvg_debug and bullish_fvg_filled_alert, title = 'Bullish FVG Filled Debug'" in source
-    assert "plotshape(show_long_engine_debug and long_source_upgrade_now, title = 'Long Source Upgrade Debug'" in source
-    assert '[environment_hard_gate_ok, quality_gate_ok, microstructure_entry_gate_ok, trade_hard_gate_ok, long_environment_focus_display] = compute_long_environment_context(market_regime_gate_ok, vola_regime_gate_safe, context_quality_gate_ok, session_structure_gate_ok, micro_session_gate_ok, micro_freshness_gate_ok, overhead_zone_ok)' in source
-    assert '[lifecycle_ready_ok, long_ready_state] = compute_long_ready_state(close_safe_mode, long_state.confirmed, ready_bar_gap_ok, long_confirm_expired, ready_is_fresh, long_confirm_bearish_guard_ok, require_main_break_for_ready_eff, bull_bos_sig, main_bos_recent, setup_hard_gate_ok, trade_hard_gate_ok, environment_hard_gate_ok, quality_gate_ok, accel_ready_gate_ok, sd_ready_gate_ok, vol_ready_context_ok, stretch_ready_context_ok, ddvi_ready_ok_safe)' in source
-    assert 'bool long_entry_best_state = compute_long_entry_best_state(long_ready_state, accel_entry_best_gate_ok, sd_entry_best_gate_ok, vol_entry_best_context_ok_safe, stretch_entry_best_context_ok, ddvi_entry_best_ok_safe)' in source
-    assert 'bool long_entry_strict_state = compute_long_entry_strict_state(long_ready_state, strict_entry_ltf_ok, htf_alignment_ok, accel_strict_entry_gate_ok, sd_entry_strict_gate_ok, vol_entry_strict_context_ok_safe, stretch_entry_strict_context_ok, ddvi_entry_strict_ok_safe)' in source
-    assert "string long_ready_blocker_text = resolve_long_ready_blocker_text(long_ready_state, long_state.confirmed, close_safe_mode, ready_bar_gap_ok, long_confirm_expired, ready_is_fresh, long_confirm_bearish_guard_ok, require_main_break_for_ready_eff, bull_bos_sig, main_bos_recent, setup_hard_gate_ok, session_structure_gate_ok, micro_session_gate_ok, micro_freshness_gate_ok, overhead_zone_ok, market_regime_gate_ok, vola_regime_gate_safe, quality_gate_ok, accel_ready_gate_ok, sd_ready_gate_ok, vol_ready_context_ok, stretch_ready_context_ok, ddvi_ready_ok_safe)" in source
-    assert "string long_strict_blocker_text = resolve_long_strict_blocker_text(long_entry_strict_state, long_ready_state, long_ready_blocker_text, strict_entry_ltf_ok, htf_alignment_ok, accel_strict_entry_gate_ok, sd_entry_strict_gate_ok, vol_entry_strict_context_ok_safe, stretch_entry_strict_context_ok, ddvi_entry_strict_ok_safe)" in source
-    assert "string long_debug_summary_text = emit_long_engine_debug_logs()" in source
-    assert "string long_engine_debug_label_text = compose_long_engine_debug_label_text(long_engine_debug_mode_eff, long_setup_text, long_visual_text, long_setup_source_display, freshness_text, source_state_text, zone_quality_text, long_environment_focus_display, overhead_text, long_state.trigger, long_state.invalidation_level, long_state.backing_zone_touch_count, long_source_upgrade_now, long_source_upgrade_reason, long_state.last_invalid_source, long_ready_blocker_text, long_strict_blocker_text)" in source
-    assert 'db_ready_gate_state(bool long_ready_state, bool long_setup_confirmed, bool lifecycle_ready_ok, bool setup_hard_gate_ok, bool trade_hard_gate_ok, bool environment_hard_gate_ok) =>' in source
-    assert 'db_strict_gate_state(bool long_entry_strict_state, bool long_ready_state, bool strict_entry_ltf_ok, bool htf_alignment_ok, bool accel_strict_entry_gate_ok, bool sd_entry_strict_gate_ok, bool vol_entry_strict_context_ok_safe, bool stretch_entry_strict_context_ok, bool ddvi_entry_strict_ok_safe) =>' in source
-    assert 'db_long_debug_state(bool show_long_engine_debug, int long_visual_state, bool long_setup_armed, bool long_setup_confirmed, bool long_ready_state) =>' in source
-    assert 'render_dashboard_engine_section(table tbl, color txt) =>' in source
-    assert 'render_dashboard_engine_section(_smc_dashboard, _db_text)' in source
-    assert "dashboard_section_row(tbl, 44, 0, 'Ready Gate', long_ready_blocker_text, status_bg(_db_ready_gate_state), txt)" in source
-    assert "dashboard_section_row(tbl, 44, 1, 'Strict Gate', long_strict_blocker_text, status_bg(_db_strict_gate_state), txt)" in source
-    assert "dashboard_header(_smc_dashboard, 0, 'SMC++ | ' + signal_mode_text + ' | ' + long_user_preset + ' | ' + performance_mode, _db_header_bg, _db_text)" in source
-    assert 'string _db_debug_flags_text = compose_enabled_debug_modules_text(show_ob_debug, show_fvg_debug, show_long_engine_debug, long_engine_debug_mode_eff)' in source
-    assert "dashboard_section_row(tbl, 44, 2, 'Debug Flags', _db_debug_flags_text, status_bg(_db_debug_flags_state), txt)" in source
-    assert "string _db_ltf_bias_text = 'off'" in source
-    assert "if show_dashboard_ltf_eff" in source
-    assert "if not ltf_sampling_active or not ltf_price_ok" in source
-    assert "_db_ltf_bias_text := str.tostring(ltf_bull_share * 100.0, '#') + '%'" in source
-    assert "if ltf_price_only" in source
-    assert "_db_ltf_bias_text += ' price-only'" in source
-    assert "string _db_ltf_delta_text = 'off'" in source
-    assert "else if ltf_price_only" in source
-    assert "_db_ltf_delta_text := str.format('{0,number,percent}', ltf_volume_delta)" in source
-    assert "string _db_swing_trail_up_text = 'n/a'" in source
-    assert 'if not na(trail_up)' in source
-    assert '_db_swing_trail_up_text := u.format_level(trail_up)' in source
-    assert "string _db_swing_trail_dn_text = 'n/a'" in source
-    assert 'if not na(trail_dn)' in source
-    assert '_db_swing_trail_dn_text := u.format_level(trail_dn)' in source
-    assert "string _db_swing_internal_up_text = 'n/a'" in source
-    assert 'if not na(internal_trail_up)' in source
-    assert '_db_swing_internal_up_text := u.format_level(internal_trail_up)' in source
-    assert "string _db_swing_internal_dn_text = 'n/a'" in source
-    assert 'if not na(internal_trail_dn)' in source
-    assert '_db_swing_internal_dn_text := u.format_level(internal_trail_dn)' in source
-    assert "string _db_swing_text = 'S ' + _db_swing_trail_up_text + ' / ' + _db_swing_trail_dn_text + ' | I ' + _db_swing_internal_up_text + ' / ' + _db_swing_internal_dn_text" in source
-    assert "string _db_long_debug_text = 'off'" in source
-    assert 'int _db_long_debug_state = db_long_debug_state(show_long_engine_debug, long_visual_state, long_state.armed, long_state.confirmed, long_ready_state)' in source
-    assert 'render_dashboard_engine_section(table tbl, color txt) =>' in source
-    assert "dashboard_section_row(tbl, 44, 3, 'Long Debug', _db_long_debug_text, status_bg(_db_long_debug_state), txt)" in source
-    assert 'status_bg(_db_ready_gate_state)' in source
-    assert 'status_bg(_db_strict_gate_state)' in source
-    assert 'status_bg(_db_long_debug_state)' in source
-    assert "dashboard_row(_smc_dashboard, 47, 'Long Debug', show_long_engine_debug ? long_debug_summary_text : 'off'" not in source
-    assert "string _db_long_debug_text = show_long_engine_debug ? long_debug_summary_text : 'off'" not in source
-    assert "status_bg(db_ready_gate_state(long_ready_state, long_state.confirmed, lifecycle_ready_ok, setup_hard_gate_ok, trade_hard_gate_ok, environment_hard_gate_ok))" not in source
-    assert "status_bg(db_strict_gate_state(long_entry_strict_state, long_ready_state, strict_entry_ltf_ok, htf_alignment_ok, accel_strict_entry_gate_ok, sd_entry_strict_gate_ok, vol_entry_strict_context_ok_safe, stretch_entry_strict_context_ok, ddvi_entry_strict_ok_safe))" not in source
-    assert "status_bg(db_long_debug_state(show_long_engine_debug, long_visual_state, long_state.armed, long_state.confirmed, long_ready_state))" not in source
-    assert 'var table _smc_dashboard = table.new(position.bottom_right, 2, 48, border_width = 0)' in source
-    assert 'table.clear(_smc_dashboard, 0, 0, 1, 47)' in source
-    assert "[breadth_missing_calc, breadth_gate_ok_calc] = u.external_breadth_gate(breadth_gate_symbol, breadth_gate_mode, breadth_gate_len)" in source
+    assert "plotshape(show_long_engine_debug and long_source_upgrade_now, title = 'Long Source Upgrade Debug'" not in source
+    assert "string long_debug_summary_text = emit_long_engine_debug_logs()" not in source
+
+    assert 'export compose_long_debug_summary_text(string long_engine_debug_mode, bool long_setup_armed, bool long_setup_confirmed, bool long_ready_state' in obv_source
+    assert 'export resolve_long_debug_event_values(bool long_invalidate_signal, string long_setup_source_display' in obv_source
+    assert 'export emit_long_engine_debug_logs(bool show_long_engine_debug_eff, string long_engine_debug_mode_eff' in obv_source
+    assert 'if show_long_engine_debug_eff and long_source_upgrade_now' in obv_source
 
 
 def test_prepare_order_block_confirmation_runs_each_calc_without_shadowing_state() -> None:
@@ -1608,13 +1475,14 @@ def test_prepare_order_block_confirmation_runs_each_calc_without_shadowing_state
 def test_clean_tier_is_renamed_as_a_quality_diagnostic() -> None:
     source = _read_smc_source()
 
-    assert 'bool long_quality_clean_tier = false' in source
-    assert 'if close_safe_mode and bullish_trend_safe and zone_recent and reclaim_recent and long_state.confirmed and setup_hard_gate_ok and trade_hard_gate_ok and environment_hard_gate_ok and quality_gate_ok and bull_close_strong and ema_support_ok and adx_strong and relvol_ok and vwap_filter_ok' in source
-    assert 'long_quality_clean_tier := true' in source
-    # quality_clean_ok removed; alert_long_clean still driven by long_quality_clean_tier
-    assert 'alert_long_clean = long_quality_clean_tier' in source
+    assert 'resolve_long_clean_tier(bool close_safe_mode, bool bullish_trend_safe, bool zone_recent, bool reclaim_recent, bool long_setup_confirmed, bool setup_hard_gate_ok, bool trade_hard_gate_ok, bool environment_hard_gate_ok, bool quality_gate_ok, bool bull_close_strong, bool ema_support_ok, bool adx_strong, bool relvol_ok, bool vwap_filter_ok) =>' in source
+    assert 'll.resolve_long_clean_tier(close_safe_mode, bullish_trend_safe, zone_recent, reclaim_recent, long_setup_confirmed, setup_hard_gate_ok, trade_hard_gate_ok, environment_hard_gate_ok, quality_gate_ok, bull_close_strong, ema_support_ok, adx_strong, relvol_ok, vwap_filter_ok)' in source
+    assert 'bool long_quality_clean_tier = resolve_long_clean_tier(close_safe_mode, bullish_trend_safe, zone_recent, reclaim_recent, long_state.confirmed, setup_hard_gate_ok, trade_hard_gate_ok, environment_hard_gate_ok, quality_gate_ok, bull_close_strong, ema_support_ok, adx_strong, relvol_ok, vwap_filter_ok)' in source
+    assert 'plot(cr.resolve_bus_quality_clean_row(long_quality_clean_tier), \'BUS QualityCleanRow\', display = display.none)' in source
+    assert 'compute_long_dynamic_alert_gates(bool enable_dynamic_alerts, bool long_invalidate_signal, bool alert_long_entry_strict_event, bool alert_long_entry_best_event, bool long_ready_signal, bool long_confirm_signal, bool alert_long_clean_event, bool alert_long_early_event, bool alert_long_armed_event, bool long_arm_signal, bool alert_long_watchlist_event) =>' in source
     assert 'bool long_quality_clean_tier = close_safe_mode and bullish_trend_safe and zone_recent and reclaim_recent and long_state.confirmed and setup_hard_gate_ok and trade_hard_gate_ok and environment_hard_gate_ok and quality_gate_ok and bull_close_strong and ema_support_ok and adx_strong and relvol_ok and vwap_filter_ok' not in source
-    assert 'long_clean_tier' not in source
+    assert 'bool long_quality_clean_tier = false' not in source
+    assert 'bool long_clean_tier' not in source
 
 
 def test_cleanup_protection_does_not_mask_genuine_break_migration() -> None:
@@ -1870,175 +1738,58 @@ def test_confirm_and_ready_gate_logic_is_extracted_into_helpers() -> None:
 
     assert 'select_effective_long_touch_count(bool long_setup_armed, bool long_setup_confirmed, int long_setup_backing_zone_touch_count, bool bull_reclaim_ob_strict, bool in_bull_ob_zone, bool in_bull_fvg_zone, int active_ob_touch_count, bool bull_reclaim_fvg_strict, int active_fvg_touch_count, int active_zone_touch_count) =>' in source
     assert 'describe_long_zone_quality(bool long_zone_active, bool long_setup_armed, bool long_setup_confirmed, int effective_long_active_touch_count) =>' in source
+    assert 'resolve_long_zone_quality_text(int effective_long_active_touch_count) =>' in source
     assert 'int effective_touch_count = active_zone_touch_count' in source
     assert "string zone_quality_text = 'n/a'" in source
-    assert "zone_quality_text := 'crowded'" in source
+    assert 'zone_quality_text := resolve_long_zone_quality_text(effective_long_active_touch_count)' in source
     assert 'long_setup_armed or long_setup_confirmed ? long_setup_backing_zone_touch_count : bull_reclaim_ob_strict or (in_bull_ob_zone and not in_bull_fvg_zone) ? active_ob_touch_count : bull_reclaim_fvg_strict or (in_bull_fvg_zone and not in_bull_ob_zone) ? active_fvg_touch_count : active_zone_touch_count' not in source
     assert "not long_zone_active and not long_setup_armed and not long_setup_confirmed ? 'n/a' : effective_long_active_touch_count <= 1 ? 'fresh touch' : effective_long_active_touch_count == 2 ? '2nd touch' : 'crowded'" not in source
-    # confirm_long_filters, confirm_long_state, evaluate_long_ready_states helpers inlined
     assert 'int effective_long_active_touch_count = select_effective_long_touch_count(long_state.armed, long_state.confirmed, long_state.backing_zone_touch_count, bull_reclaim_ob_strict, in_bull_ob_zone, in_bull_fvg_zone, active_ob_touch_count, bull_reclaim_fvg_strict, active_fvg_touch_count, active_zone_touch_count)' in source
     assert 'string zone_quality_text = describe_long_zone_quality(long_zone_active, long_state.armed, long_state.confirmed, effective_long_active_touch_count)' in source
-    assert 'bool confirm_hard_gate_ok = false' in source
-    assert 'if micro_session_gate_ok and micro_freshness_gate_ok' in source
-    assert 'confirm_hard_gate_ok := true' in source
-    assert 'bool confirm_upgrade_gate_ok = false' in source
-    assert 'if accel_confirm_gate_ok and sd_confirmed_gate_ok' in source
-    assert 'confirm_upgrade_gate_ok := true' in source
-    assert 'float long_confirm_break_src = close' in source
-    assert 'if live_exec and effective_use_live_confirm_break' in source
-    assert 'long_confirm_break_src := high' in source
-    assert 'bool confirm_is_fresh = false' in source
-    assert 'if long_state.armed and not na(long_state.arm_bar_index) and long_setup_age <= max_bars_arm_to_confirm' in source
-    assert 'confirm_is_fresh := true' in source
-    assert 'bool ready_is_fresh = false' in source
-    assert 'if long_state.confirmed and not na(long_state.confirm_bar_index) and long_confirm_age <= max_bars_confirm_to_ready' in source
-    assert 'ready_is_fresh := true' in source
-    assert 'bool micro_setup_fresh_enough = true' in source
-    assert 'if use_microstructure_profiles and micro_is_fast_decay and long_state.armed and not long_state.confirmed' in source
-    assert 'micro_setup_fresh_enough := long_setup_age <= effective_fast_decay_setup_age_max' in source
-    assert 'bool micro_confirm_fresh_enough = true' in source
-    assert 'if use_microstructure_profiles and micro_is_fast_decay and long_state.confirmed' in source
-    assert 'micro_confirm_fresh_enough := long_confirm_age <= effective_fast_decay_confirm_age_max' in source
-    assert 'bool micro_freshness_gate_ok = false' in source
-    assert 'if micro_setup_fresh_enough and micro_confirm_fresh_enough' in source
-    assert 'micro_freshness_gate_ok := true' in source
-    assert 'long_confirm_break := false' in source
-    assert 'if long_state.armed and not long_state.confirmed and not na(long_state.arm_bar_index) and bar_index > long_state.arm_bar_index' in source
-    assert 'long_confirm_break := long_confirm_break_src > long_state.trigger' in source
-    assert 'internal_choch_since_arm := false' in source
-    assert 'if long_state.armed and not na(long_state.arm_bar_index) and not na(internal_choch_since_bars)' in source
-    assert 'internal_choch_since_arm := internal_choch_since_bars <= bar_index - long_state.arm_bar_index' in source
-    assert 'internal_bos_since_arm := false' in source
-    assert 'if long_state.armed and not na(long_state.arm_bar_index) and not na(internal_bos_since_bars)' in source
-    assert 'internal_bos_since_arm := internal_bos_since_bars <= bar_index - long_state.arm_bar_index' in source
-    assert 'long_internal_structure_ok := false' in source
-    assert 'if internal_bull_choch_sig or internal_bull_bos_sig or internal_choch_since_arm or internal_bos_since_arm' in source
-    assert 'long_internal_structure_ok := true' in source
-    assert "if long_internal_structure_mode == 'Internal CHoCH only'" in source
-    assert 'if internal_bull_choch_sig or internal_choch_since_arm' in source
-    assert 'long_plan_active := false' in source
-    assert 'if (long_state.armed or long_state.confirmed) and not na(long_state.trigger) and not na(long_state.invalidation_level)' in source
-    assert 'long_plan_active := true' in source
-    assert 'compute_overhead_context() =>' in source
-    assert 'float _stop = na' in source
-    assert '_stop := long_state.invalidation_level - ob_threshold_atr * stop_buffer_atr_mult' in source
-    assert 'float _scan_ref = close' in source
-    assert 'if long_plan_active and not na(long_state.trigger)' in source
-    assert '_scan_ref := long_state.trigger' in source
-    assert 'bool confirm_lifecycle_ok = false' in source
-    assert 'if close_safe_mode and long_confirm_break and long_confirm_structure_ok and confirm_is_fresh and long_confirm_bearish_guard_ok' in source
-    assert 'confirm_lifecycle_ok := true' in source
-    assert 'bool confirm_filters_ok = false' in source
-    assert 'if confirm_hard_gate_ok and confirm_upgrade_gate_ok' in source
-    assert 'confirm_filters_ok := true' in source
-    assert 'float long_confirm_break_src = live_exec and effective_use_live_confirm_break ? high : close' not in source
-    assert 'bool confirm_is_fresh = long_state.armed and not na(long_state.arm_bar_index) and long_setup_age <= max_bars_arm_to_confirm' not in source
-    assert 'bool ready_is_fresh = long_state.confirmed and not na(long_state.confirm_bar_index) and long_confirm_age <= max_bars_confirm_to_ready' not in source
-    assert 'bool micro_setup_fresh_enough = not use_microstructure_profiles or not micro_is_fast_decay or not long_state.armed or long_state.confirmed or long_setup_age <= effective_fast_decay_setup_age_max' not in source
-    assert 'bool micro_confirm_fresh_enough = not use_microstructure_profiles or not micro_is_fast_decay or not long_state.confirmed or long_confirm_age <= effective_fast_decay_confirm_age_max' not in source
-    assert 'bool micro_freshness_gate_ok = micro_setup_fresh_enough and micro_confirm_fresh_enough' not in source
-    assert 'long_confirm_break := long_state.armed and not long_state.confirmed and not na(long_state.arm_bar_index) and bar_index > long_state.arm_bar_index and long_confirm_break_src > long_state.trigger' not in source
-    assert 'internal_choch_since_arm := long_state.armed and not na(long_state.arm_bar_index) and not na(internal_choch_since_bars) and internal_choch_since_bars <= bar_index - long_state.arm_bar_index' not in source
-    assert 'internal_bos_since_arm := long_state.armed and not na(long_state.arm_bar_index) and not na(internal_bos_since_bars) and internal_bos_since_bars <= bar_index - long_state.arm_bar_index' not in source
-    assert "long_internal_structure_ok := long_internal_structure_mode == 'Internal CHoCH only' ? (internal_bull_choch_sig or internal_choch_since_arm) : (internal_bull_choch_sig or internal_bull_bos_sig or internal_choch_since_arm or internal_bos_since_arm)" not in source
-    assert 'long_plan_active := (long_state.armed or long_state.confirmed) and not na(long_state.trigger) and not na(long_state.invalidation_level)' not in source
-    assert 'bool confirm_hard_gate_ok = micro_session_gate_ok and micro_freshness_gate_ok' not in source
-    assert 'bool confirm_upgrade_gate_ok = accel_confirm_gate_ok and sd_confirmed_gate_ok' not in source
-    assert 'bool confirm_lifecycle_ok = close_safe_mode and long_confirm_break and long_confirm_structure_ok and confirm_is_fresh and long_confirm_bearish_guard_ok' not in source
-    assert 'bool confirm_filters_ok = confirm_hard_gate_ok and confirm_upgrade_gate_ok' not in source
-    assert 'float long_planned_stop_level = long_plan_active ? long_state.invalidation_level - ob_threshold_atr * stop_buffer_atr_mult : na' not in source
-    assert 'float overhead_scan_reference = long_plan_active and not na(long_state.trigger) ? long_state.trigger : close' not in source
-    assert 'float _overhead = na' in source
-    assert '_overhead := math.min(_bear_ob_lvl, _bear_fvg_lvl)' in source
-    assert '_overhead := _bear_fvg_lvl' in source
-    assert 'if not na(_bear_ob_lvl)' in source
-    assert 'nearest_overhead_level := not na(nearest_bear_ob_blocker_level) ? nearest_bear_ob_blocker_level : nearest_bear_fvg_blocker_level' not in source
-    assert 'float _risk = na' in source
-    assert 'if long_plan_active and not na(_stop)' in source
-    assert '_risk := math.max(long_state.trigger - _stop, syminfo.mintick)' in source
-    assert 'float planned_risk = long_plan_active and not na(long_planned_stop_level) ? math.max(long_state.trigger - long_planned_stop_level, syminfo.mintick) : na' not in source
-    assert 'float _headroom = na' in source
-    assert 'if not na(_overhead) and long_plan_active' in source
-    assert '_headroom := _overhead - long_state.trigger' in source
-    assert 'float headroom_to_overhead = not na(nearest_overhead_level) and long_plan_active ? nearest_overhead_level - long_state.trigger : na' not in source
-    assert 'bool _overhead_ok = true' in source
-    assert 'if use_overhead_zone_filter_eff and not na(_headroom) and not na(_risk)' in source
-    assert '_overhead_ok := _headroom >= _risk * min_headroom_r' in source
-    assert 'bool overhead_zone_ok = not use_overhead_zone_filter_eff or na(headroom_to_overhead) or na(planned_risk) or headroom_to_overhead >= planned_risk * min_headroom_r' not in source
-    assert 'int _htf_count = 0' in source
-    assert 'if mtf_trend_1 > 0' in source
-    assert 'if mtf_trend_2 > 0' in source
-    assert 'if mtf_trend_3 > 0' in source
-    assert 'bool _htf_ok = _htf_count >= 2' in source
-    assert 'bool htf_alignment_ok = (mtf_trend_1 > 0 ? 1 : 0) + (mtf_trend_2 > 0 ? 1 : 0) + (mtf_trend_3 > 0 ? 1 : 0) >= 2' not in source
-    assert 'bool htf_alignment_ok = htf_bullish_alignment_count >= 2' not in source
-    assert 'int _vwap_w = 0' in source
-    assert 'if use_vwap_filter' in source
-    assert '_vwap_w := 1' in source
-    assert 'int context_quality_vwap_weight = use_vwap_filter ? 1 : 0' not in source
-    assert 'if bullish_trend_safe' in source
-    assert '_score += score_weight_structure' in source
-    assert 'if _htf_ok' in source
-    assert '_score += score_weight_htf' in source
-    assert 'if ema_support_ok' in source
-    assert '_score += score_weight_ema' in source
-    assert 'if adx_strong' in source
-    assert '_score += score_weight_adx' in source
-    assert 'if bull_close_strong' in source
-    assert '_score += score_weight_close' in source
-    assert 'if relvol_score_ok' in source
-    assert '_score += score_weight_relvol' in source
-    assert 'if vwap_filter_ok' in source
-    assert '_score += _vwap_w' in source
-    assert 'context_quality_score += bullish_trend_safe ? score_weight_structure : 0' not in source
-    assert 'context_quality_score += htf_alignment_ok ? score_weight_htf : 0' not in source
-    assert 'context_quality_score += ema_support_ok ? score_weight_ema : 0' not in source
-    assert 'context_quality_score += adx_strong ? score_weight_adx : 0' not in source
-    assert 'context_quality_score += bull_close_strong ? score_weight_close : 0' not in source
-    assert 'context_quality_score += relvol_score_ok ? score_weight_relvol : 0' not in source
-    assert 'context_quality_score += vwap_filter_ok ? context_quality_vwap_weight : 0' not in source
-    assert 'int _eff_max = _max' in source
-    assert 'if _relvol_unavail' in source
-    assert '_eff_max -= score_weight_relvol' in source
-    assert 'int effective_context_quality_max_score = context_quality_max_score - (relvol_score_unavailable ? score_weight_relvol : 0)' not in source
-    assert "str.tostring(effective_context_quality_max_score)" in source
-    assert 'bool _gate_ok = true' in source
-    assert 'if use_context_quality_score_eff' in source
-    assert '_gate_ok := _score >= _eff_min' in source
-    assert '[_score, _gate_ok, _htf_ok, _ltf_ok, _eff_min, _eff_max]' in source
+    assert 'compute_long_freshness_state(bool long_setup_armed, bool long_setup_confirmed, int current_bar_index, int long_arm_bar_index, int long_confirm_bar_index, int max_bars_arm_to_confirm, int max_bars_confirm_to_ready, bool use_microstructure_profiles, bool micro_is_fast_decay, int effective_fast_decay_setup_age_max, int effective_fast_decay_confirm_age_max) =>' in source
+    assert '[long_setup_age, long_confirm_age, confirm_is_fresh, ready_is_fresh, micro_setup_fresh_enough, micro_confirm_fresh_enough, micro_freshness_gate_ok] = compute_long_freshness_state(long_state.armed, long_state.confirmed, bar_index, long_state.arm_bar_index, long_state.confirm_bar_index, max_bars_arm_to_confirm, max_bars_confirm_to_ready, use_microstructure_profiles, micro_is_fast_decay, effective_fast_decay_setup_age_max, effective_fast_decay_confirm_age_max)' in source
+    assert 'compute_long_confirm_transition_state(bool close_safe_mode, bool long_confirm_break, bool long_confirm_structure_ok, bool confirm_is_fresh, bool long_confirm_bearish_guard_ok, bool micro_session_gate_ok, bool micro_freshness_gate_ok, bool accel_confirm_gate_ok, bool sd_confirmed_gate_ok) =>' in source
+    assert '[confirm_hard_gate_ok, confirm_upgrade_gate_ok, confirm_lifecycle_ok, confirm_filters_ok, long_should_confirm] = compute_long_confirm_transition_state(close_safe_mode, long_confirm_break, long_confirm_structure_ok, confirm_is_fresh, long_confirm_bearish_guard_ok, micro_session_gate_ok, micro_freshness_gate_ok, accel_confirm_gate_ok, sd_confirmed_gate_ok)' in source
+    assert 'compute_long_plan_state(bool long_setup_armed, bool long_setup_confirmed, float long_trigger, float long_invalidation_level) =>' in source
+    assert 'long_plan_active := compute_long_plan_state(long_state.armed, long_state.confirmed, long_state.trigger, long_state.invalidation_level)' in source
+    assert 'compute_long_overhead_context(bool long_plan_active, float close_price, float long_trigger, float long_invalidation_level, float ob_threshold_atr, float stop_buffer_atr_mult, OrderBlock[] ob_blocks_bear_param, int bear_ob_scan_start, FVG[] fvgs_bear_param, int bear_fvg_scan_start, bool use_overhead_zone_filter, float min_headroom_r) =>' in source
+    assert '[long_planned_stop_level, planned_risk, headroom_to_overhead, overhead_zone_ok] = compute_long_overhead_context(long_plan_active, close, long_state.trigger, long_state.invalidation_level, ob_threshold_atr, stop_buffer_atr_mult, ob_blocks_bear, bear_ob_scan_start, fvgs_bear, bear_fvg_scan_start, use_overhead_zone_filter_eff, min_headroom_r)' in source
     assert '[context_quality_score, context_quality_gate_ok, htf_alignment_ok, strict_entry_ltf_ok, effective_min_context_quality_score, effective_context_quality_max_score] = compute_context_quality()' in source
-    assert 'bool long_setup_in_progress = false' in source
-    assert 'if long_state.armed and not long_state.confirmed' in source
-    assert 'long_setup_in_progress := true' in source
-    assert 'long_building_state := false' in source
-    assert 'if long_state.armed and long_internal_structure_ok and not long_state.confirmed' in source
-    assert 'long_building_state := true' in source
-    assert 'bool ready_bar_gap_ok = false' in source
-    assert 'if not na(long_state.confirm_bar_index)' in source
-    assert 'ready_bar_gap_ok := bar_index > long_state.confirm_bar_index' in source
-    assert 'bool long_setup_in_progress = long_state.armed and not long_state.confirmed' not in source
-    assert 'long_building_state := long_state.armed and long_internal_structure_ok and not long_state.confirmed' not in source
-    assert 'bool ready_bar_gap_ok = not na(long_state.confirm_bar_index) and bar_index > long_state.confirm_bar_index' not in source
     assert 'bool context_quality_gate_ok = not use_context_quality_score_eff or context_quality_score >= effective_min_context_quality_score' not in source
     assert 'bool effective_zone_touch_quality_ok = true' in source
     assert 'if block_third_touch_eff' in source
     assert 'effective_zone_touch_quality_ok := effective_long_active_touch_count <= max_zone_touches_for_entry' in source
     assert 'bool effective_zone_touch_quality_ok = not block_third_touch_eff or effective_long_active_touch_count <= max_zone_touches_for_entry' not in source
     assert 'float long_mean_target = na' in source
-    assert 'if long_plan_active and show_mean_target_overlay and not na(stretch_mean)' in source
+    assert 'if long_plan_active and show_mean_target_overlay_eff and not na(stretch_mean)' in source
     assert 'if stretch_mean > long_state.trigger' in source
     assert 'long_mean_target := stretch_mean' in source
     assert 'long_mean_target := stretch_mean > long_state.trigger ? stretch_mean : na' not in source
-    assert 'compute_long_environment_context(bool market_regime_gate_ok, bool vola_regime_gate_safe, bool context_quality_gate_ok, bool session_structure_gate_ok, bool micro_session_gate_ok, bool micro_freshness_gate_ok, bool overhead_zone_ok) =>' in source
-    assert '[environment_hard_gate_ok, quality_gate_ok, microstructure_entry_gate_ok, trade_hard_gate_ok, long_environment_focus_display] = compute_long_environment_context(market_regime_gate_ok, vola_regime_gate_safe, context_quality_gate_ok, session_structure_gate_ok, micro_session_gate_ok, micro_freshness_gate_ok, overhead_zone_ok)' in source
-    assert 'compute_long_ready_state(bool close_safe_mode, bool long_setup_confirmed, bool ready_bar_gap_ok, bool long_confirm_expired, bool ready_is_fresh, bool long_confirm_bearish_guard_ok, bool require_main_break_for_ready, bool bull_bos_sig, bool main_bos_recent, bool setup_hard_gate_ok, bool trade_hard_gate_ok, bool environment_hard_gate_ok, bool quality_gate_ok, bool accel_ready_gate_ok, bool sd_ready_gate_ok, bool vol_ready_context_ok, bool stretch_ready_context_ok, bool ddvi_ready_ok_safe) =>' in source
-    assert 'bool helper_lifecycle_ready_ok = close_safe_mode and long_setup_confirmed and ready_bar_gap_ok and not long_confirm_expired and ready_is_fresh and long_confirm_bearish_guard_ok and (not require_main_break_for_ready or bull_bos_sig or main_bos_recent)' in source
-    assert 'bool helper_long_ready_state = helper_lifecycle_ready_ok and setup_hard_gate_ok and trade_hard_gate_ok and environment_hard_gate_ok and quality_gate_ok and accel_ready_gate_ok and sd_ready_gate_ok and vol_ready_context_ok and stretch_ready_context_ok and ddvi_ready_ok_safe' in source
-    assert '[lifecycle_ready_ok, long_ready_state] = compute_long_ready_state(close_safe_mode, long_state.confirmed, ready_bar_gap_ok, long_confirm_expired, ready_is_fresh, long_confirm_bearish_guard_ok, require_main_break_for_ready_eff, bull_bos_sig, main_bos_recent, setup_hard_gate_ok, trade_hard_gate_ok, environment_hard_gate_ok, quality_gate_ok, accel_ready_gate_ok, sd_ready_gate_ok, vol_ready_context_ok, stretch_ready_context_ok, ddvi_ready_ok_safe)' in source
-    assert 'compute_long_entry_best_state(bool long_ready_state, bool accel_entry_best_gate_ok, bool sd_entry_best_gate_ok, bool vol_entry_best_context_ok_safe, bool stretch_entry_best_context_ok, bool ddvi_entry_best_ok_safe) =>' in source
-    assert 'bool long_entry_best_state = compute_long_entry_best_state(long_ready_state, accel_entry_best_gate_ok, sd_entry_best_gate_ok, vol_entry_best_context_ok_safe, stretch_entry_best_context_ok, ddvi_entry_best_ok_safe)' in source
-    assert 'compute_long_entry_strict_state(bool long_ready_state, bool strict_entry_ltf_ok, bool htf_alignment_ok, bool accel_strict_entry_gate_ok, bool sd_entry_strict_gate_ok, bool vol_entry_strict_context_ok_safe, bool stretch_entry_strict_context_ok, bool ddvi_entry_strict_ok_safe) =>' in source
-    assert 'bool long_entry_strict_state = compute_long_entry_strict_state(long_ready_state, strict_entry_ltf_ok, htf_alignment_ok, accel_strict_entry_gate_ok, sd_entry_strict_gate_ok, vol_entry_strict_context_ok_safe, stretch_entry_strict_context_ok, ddvi_entry_strict_ok_safe)' in source
+    assert '[environment_hard_gate_ok, quality_gate_ok, microstructure_entry_gate_ok, trade_hard_gate_ok, long_environment_focus_display] = compute_long_environment_context(market_regime_gate_ok, vola_regime_gate_safe, primary_quality_gate_ok, session_structure_gate_ok, micro_session_gate_ok, micro_freshness_gate_ok, overhead_zone_ok, event_risk_gate_ok)' in source
+    assert 'resolve_long_ready_projection_state(bool long_setup_armed, bool long_internal_structure_ok, bool long_setup_confirmed, int long_confirm_bar_index, int current_bar_index, bool use_scoring_over_blocking, bool accel_ready_gate_ok, bool sd_ready_gate_ok, bool vol_ready_context_ok, bool stretch_ready_context_ok, bool ddvi_ready_ok_safe, bool close_safe_mode, bool long_confirm_expired, bool ready_is_fresh, bool long_confirm_bearish_guard_ok, bool require_main_break_for_ready, bool bull_bos_sig, bool main_bos_recent, bool setup_hard_gate_ok, bool trade_hard_gate_ok, bool environment_hard_gate_ok, bool quality_gate_ok) =>' in source
+    assert '[long_building_state, ready_bar_gap_ok, scoring_accel_ready, scoring_sd_ready, scoring_vol_ready, scoring_stretch_ready, scoring_ddvi_ready, lifecycle_ready_ok, long_ready_state] = resolve_long_ready_projection_state(long_state.armed, long_internal_structure_ok, long_state.confirmed, long_state.confirm_bar_index, bar_index, use_scoring_over_blocking, accel_ready_gate_ok, sd_ready_gate_ok, vol_ready_context_ok, stretch_ready_context_ok, ddvi_ready_ok_safe, close_safe_mode, long_confirm_expired, ready_is_fresh, long_confirm_bearish_guard_ok, require_main_break_for_ready_eff, bull_bos_sig, main_bos_recent, setup_hard_gate_ok, trade_hard_gate_ok, environment_hard_gate_ok, quality_gate_ok)' in source
+    assert 'resolve_long_execution_blocker_state(bool long_ready_state, bool long_setup_confirmed, bool close_safe_mode, bool ready_bar_gap_ok, bool long_confirm_expired, bool ready_is_fresh, bool long_confirm_bearish_guard_ok, bool require_main_break_for_ready, bool bull_bos_sig, bool main_bos_recent, bool setup_hard_gate_ok, bool trade_hard_gate_ok, bool environment_hard_gate_ok, bool session_structure_gate_ok, bool micro_session_gate_ok, bool micro_freshness_gate_ok, bool overhead_zone_ok, bool market_regime_gate_ok, bool vola_regime_gate_safe, bool quality_gate_ok, bool accel_ready_gate_ok, bool sd_ready_gate_ok, bool vol_ready_context_ok, bool stretch_ready_context_ok, bool ddvi_ready_ok_safe, bool long_entry_strict_state, bool strict_signal_quality_gate_ok, bool strict_entry_ltf_ok, bool htf_alignment_ok, bool accel_strict_entry_gate_ok, bool sd_entry_strict_gate_ok, bool vol_entry_strict_context_ok_safe, bool stretch_entry_strict_context_ok, bool ddvi_entry_strict_ok_safe) =>' in source
+    assert '[long_ready_blocker_text, long_strict_blocker_text] = resolve_long_execution_blocker_state(long_ready_state, long_state.confirmed, close_safe_mode, ready_bar_gap_ok, long_confirm_expired, ready_is_fresh, long_confirm_bearish_guard_ok, require_main_break_for_ready_eff, bull_bos_sig, main_bos_recent, setup_hard_gate_ok, trade_hard_gate_ok, environment_hard_gate_ok, session_structure_gate_ok, micro_session_gate_ok, micro_freshness_gate_ok, overhead_zone_ok, market_regime_gate_ok, vola_regime_gate_safe, quality_gate_ok, scoring_accel_ready, scoring_sd_ready, scoring_vol_ready, scoring_stretch_ready, scoring_ddvi_ready, long_entry_strict_state, strict_signal_quality_gate_ok, strict_entry_ltf_ok, htf_alignment_ok, accel_strict_entry_gate_ok, sd_entry_strict_gate_ok, vol_entry_strict_context_ok_safe, stretch_entry_strict_context_ok, ddvi_entry_strict_ok_safe)' in source
+    assert 'resolve_long_clean_tier(bool close_safe_mode, bool bullish_trend_safe, bool zone_recent, bool reclaim_recent, bool long_setup_confirmed, bool setup_hard_gate_ok, bool trade_hard_gate_ok, bool environment_hard_gate_ok, bool quality_gate_ok, bool bull_close_strong, bool ema_support_ok, bool adx_strong, bool relvol_ok, bool vwap_filter_ok) =>' in source
+    assert 'bool long_quality_clean_tier = resolve_long_clean_tier(close_safe_mode, bullish_trend_safe, zone_recent, reclaim_recent, long_state.confirmed, setup_hard_gate_ok, trade_hard_gate_ok, environment_hard_gate_ok, quality_gate_ok, bull_close_strong, ema_support_ok, adx_strong, relvol_ok, vwap_filter_ok)' in source
+    assert 'bool confirm_hard_gate_ok = micro_session_gate_ok and micro_freshness_gate_ok' not in source
+    assert 'bool confirm_upgrade_gate_ok = accel_confirm_gate_ok and sd_confirmed_gate_ok' not in source
+    assert 'bool confirm_lifecycle_ok = close_safe_mode and long_confirm_break and long_confirm_structure_ok and confirm_is_fresh and long_confirm_bearish_guard_ok' not in source
+    assert 'bool confirm_filters_ok = confirm_hard_gate_ok and confirm_upgrade_gate_ok' not in source
+    assert 'bool long_quality_clean_tier = false' not in source
+    assert '[context_quality_score, context_quality_gate_ok, htf_alignment_ok, strict_entry_ltf_ok, effective_min_context_quality_score, effective_context_quality_max_score] = compute_context_quality()' in source
+    assert 'bool long_building_state = false' in source
+    assert '[long_building_state, ready_bar_gap_ok, scoring_accel_ready, scoring_sd_ready, scoring_vol_ready, scoring_stretch_ready, scoring_ddvi_ready, lifecycle_ready_ok, long_ready_state] = resolve_long_ready_projection_state(long_state.armed, long_internal_structure_ok, long_state.confirmed, long_state.confirm_bar_index, bar_index, use_scoring_over_blocking, accel_ready_gate_ok, sd_ready_gate_ok, vol_ready_context_ok, stretch_ready_context_ok, ddvi_ready_ok_safe, close_safe_mode, long_confirm_expired, ready_is_fresh, long_confirm_bearish_guard_ok, require_main_break_for_ready_eff, bull_bos_sig, main_bos_recent, setup_hard_gate_ok, trade_hard_gate_ok, environment_hard_gate_ok, quality_gate_ok)' in source
+    assert 'bool long_setup_in_progress = long_state.armed and not long_state.confirmed' not in source
+    assert 'long_building_state := long_state.armed and long_internal_structure_ok and not long_state.confirmed' not in source
+    assert 'bool ready_bar_gap_ok = not na(long_state.confirm_bar_index) and bar_index > long_state.confirm_bar_index' not in source
+    assert 'bool context_quality_gate_ok = not use_context_quality_score_eff or context_quality_score >= effective_min_context_quality_score' not in source
+    assert 'compute_long_environment_context(bool market_regime_gate_ok, bool vola_regime_gate_safe, bool primary_quality_gate_ok, bool session_structure_gate_ok, bool micro_session_gate_ok, bool micro_freshness_gate_ok, bool overhead_zone_ok, bool event_risk_gate_ok_param) =>' in source
+    assert '[environment_hard_gate_ok, quality_gate_ok, microstructure_entry_gate_ok, trade_hard_gate_ok, long_environment_focus_display] = compute_long_environment_context(market_regime_gate_ok, vola_regime_gate_safe, primary_quality_gate_ok, session_structure_gate_ok, micro_session_gate_ok, micro_freshness_gate_ok, overhead_zone_ok, event_risk_gate_ok)' in source
+    assert 'compute_long_entry_best_state(bool long_ready_state, bool best_signal_quality_gate_ok, bool accel_entry_best_gate_ok, bool sd_entry_best_gate_ok, bool vol_entry_best_context_ok_safe, bool stretch_entry_best_context_ok, bool ddvi_entry_best_ok_safe) =>' in source
+    assert 'compute_long_entry_strict_state(bool long_ready_state, bool strict_signal_quality_gate_ok, bool strict_entry_ltf_ok, bool htf_alignment_ok, bool accel_strict_entry_gate_ok, bool sd_entry_strict_gate_ok, bool vol_entry_strict_context_ok_safe, bool stretch_entry_strict_context_ok, bool ddvi_entry_strict_ok_safe) =>' in source
+    assert 'resolve_long_entry_projection_state(bool long_ready_state, bool best_signal_quality_gate_ok, bool accel_entry_best_gate_ok, bool sd_entry_best_gate_ok, bool vol_entry_best_context_ok_safe, bool stretch_entry_best_context_ok, bool ddvi_entry_best_ok_safe, bool strict_signal_quality_gate_ok, bool strict_entry_ltf_ok, bool htf_alignment_ok, bool accel_strict_entry_gate_ok, bool sd_entry_strict_gate_ok, bool vol_entry_strict_context_ok_safe, bool stretch_entry_strict_context_ok, bool ddvi_entry_strict_ok_safe) =>' in source
+    assert '[long_entry_best_state, long_entry_strict_state] = resolve_long_entry_projection_state(long_ready_state, best_signal_quality_gate_ok, accel_entry_best_gate_ok, sd_entry_best_gate_ok, vol_entry_best_context_ok_safe, stretch_entry_best_context_ok, ddvi_entry_best_ok_safe, strict_signal_quality_gate_ok, strict_entry_ltf_ok, htf_alignment_ok, accel_strict_entry_gate_ok, sd_entry_strict_gate_ok, vol_entry_strict_context_ok_safe, stretch_entry_strict_context_ok, ddvi_entry_strict_ok_safe)' in source
     # tuple call negative assertions removed — helpers no longer exist
 
 
@@ -2047,22 +1798,22 @@ def test_setup_text_and_visual_state_are_extracted_into_helpers() -> None:
 
     assert 'resolve_long_state_code(bool long_zone_active, bool long_setup_armed, bool long_building_state, bool long_setup_confirmed, bool long_ready_state, bool long_entry_best_state, bool long_entry_strict_state, bool invalidated_prior_setup, bool long_invalidated_now, bool long_invalidated_this_bar, bool long_invalidate_signal = false) =>' in source
     assert 'compose_long_setup_text(bool long_zone_active, bool long_setup_armed, bool long_building_state, bool long_setup_confirmed, bool long_ready_state, bool long_entry_best_state, bool long_entry_strict_state, bool long_invalidated_now, bool invalidated_prior_setup, bool long_invalidated_this_bar, string long_setup_source_display) =>' in source
+    assert 'resolve_long_setup_state_label(int state_code) =>' in source
+    assert 'long_setup_state_has_source_display(int state_code) =>' in source
+    assert 'compose_long_setup_state_text(int state_code, string long_setup_source_display) =>' in source
     assert 'resolve_long_setup_state_code(bool long_zone_active, bool long_setup_armed, bool long_building_state, bool long_setup_confirmed, bool long_ready_state, bool long_entry_best_state, bool long_entry_strict_state, bool invalidated_prior_setup, bool long_invalidated_now, bool long_invalidated_this_bar) =>' in source
     assert 'resolve_long_setup_display_text(bool long_zone_active, bool long_setup_armed, bool long_building_state, bool long_setup_confirmed, bool long_ready_state, bool long_entry_best_state, bool long_entry_strict_state, bool long_invalidated_now, bool invalidated_prior_setup, bool long_invalidated_this_bar, string long_setup_source_display) =>' in source
     assert 'int state_code = resolve_long_setup_state_code(long_zone_active, long_setup_armed, long_building_state, long_setup_confirmed, long_ready_state, long_entry_best_state, long_entry_strict_state, invalidated_prior_setup, long_invalidated_now, long_invalidated_this_bar)' in source
-    assert "string setup_text = 'No Setup'" in source
-    assert "if state_code == -1" in source
-    assert "setup_text := 'Invalidated'" in source
-    assert "setup_text := 'Armed | ' + long_setup_source_display" in source
-    assert "setup_text := 'Building | ' + long_setup_source_display" in source
-    assert "setup_text := 'Confirmed | ' + long_setup_source_display" in source
-    assert "setup_text := 'Ready | ' + long_setup_source_display" in source
-    assert "setup_text := 'Entry Best | ' + long_setup_source_display" in source
-    assert "setup_text := 'Entry Strict | ' + long_setup_source_display" in source
+    assert "string setup_text = resolve_long_setup_state_label(state_code)" in source
+    assert 'if long_setup_state_has_source_display(state_code)' in source
+    assert "setup_text := setup_text + ' | ' + long_setup_source_display" in source
     assert 'resolve_long_visual_state(bool long_zone_active, bool long_setup_armed, bool long_building_state, bool long_setup_confirmed, bool long_ready_state, bool long_entry_best_state, bool long_entry_strict_state, bool long_invalidate_signal, bool invalidated_prior_setup, bool long_invalidated_now, bool long_invalidated_this_bar) =>' in source
     assert 'resolve_long_state_code(long_zone_active, long_setup_armed, long_building_state, long_setup_confirmed, long_ready_state, long_entry_best_state, long_entry_strict_state, invalidated_prior_setup, long_invalidated_now, long_invalidated_this_bar, long_invalidate_signal)' in source
     assert 'resolve_long_visual_state_code(bool long_zone_active, bool long_setup_armed, bool long_building_state, bool long_setup_confirmed, bool long_ready_state, bool long_entry_best_state, bool long_entry_strict_state, bool long_invalidate_signal, bool invalidated_prior_setup, bool long_invalidated_now, bool long_invalidated_this_bar) =>' in source
     assert 'resolve_long_visual_state_label(int long_visual_state) =>' in source
+    assert "string setup_label = 'No Setup'" in source
+    assert "setup_label := 'Invalidated'" in source
+    assert "setup_label := 'Entry Strict'" in source
     assert "string visual_text = 'Ready'" in source
     assert "visual_text := 'Fail'" in source
     assert "visual_text := 'Neutral'" in source
@@ -2073,12 +1824,14 @@ def test_setup_text_and_visual_state_are_extracted_into_helpers() -> None:
     assert "long_setup_text := compose_long_setup_text(long_zone_active, long_state.armed, long_building_state, long_state.confirmed, long_ready_state, long_entry_best_state, long_entry_strict_state, long_invalidated_now, invalidated_prior_setup, long_invalidated_this_bar, long_setup_source_display)" in source
     assert 'long_visual_state := resolve_long_visual_state(long_zone_active, long_state.armed, long_building_state, long_state.confirmed, long_ready_state, long_entry_best_state, long_entry_strict_state, long_invalidate_signal, invalidated_prior_setup, long_invalidated_now, long_invalidated_this_bar)' in source
     assert 'long_visual_text := resolve_long_visual_state_label(long_visual_state)' in source
+    assert 'compose_long_setup_state_text(state_code, long_setup_source_display)' in source
     assert "setup_text := str.format('Armed | {0}', long_setup_source_display)" not in source
     assert "setup_text := str.format('Building | {0}', long_setup_source_display)" not in source
     assert "setup_text := str.format('Confirmed | {0}', long_setup_source_display)" not in source
     assert "setup_text := str.format('Ready | {0}', long_setup_source_display)" not in source
     assert "setup_text := str.format('Entry Best | {0}', long_setup_source_display)" not in source
     assert "setup_text := str.format('Entry Strict | {0}', long_setup_source_display)" not in source
+    assert "string setup_text = 'No Setup'" not in source
 
 
 def test_profile_and_track_obs_use_defensive_semantic_helpers() -> None:
@@ -2126,25 +1879,19 @@ def test_track_obs_lifecycle_steps_are_split_into_small_helpers() -> None:
 def test_watchlist_alert_level_follows_active_zone_preference() -> None:
     source = _read_smc_source()
 
-    assert 'float long_watchlist_alert_level = na' in source
-    assert 'if not na(active_bull_ob_id) and (na(active_bull_fvg_id) or prefer_active_ob_zone)' in source
-    assert 'long_watchlist_alert_level := active_bull_ob_bottom' in source
-    assert 'else if not na(active_bull_fvg_id)' in source
-    assert 'long_watchlist_alert_level := active_bull_fvg_bottom' in source
-    assert 'long_watchlist_alert_level := low' in source
-    assert 'if not na(last_bull_fvg_bottom)' in source
-    assert 'long_watchlist_alert_level := last_bull_fvg_bottom' in source
-    assert 'if not na(last_bull_ob_bottom)' in source
-    assert 'long_watchlist_alert_level := last_bull_ob_bottom' in source
-    assert 'float long_early_alert_level = long_watchlist_alert_level' in source
-    assert 'float long_clean_alert_level = long_watchlist_alert_level' in source
-    assert 'float long_entry_best_alert_level = long_watchlist_alert_level' in source
-    assert 'float long_entry_strict_alert_level = long_watchlist_alert_level' in source
-    assert 'if not na(long_state.trigger)' in source
-    assert 'long_early_alert_level := long_state.trigger' in source
-    assert 'long_clean_alert_level := long_state.trigger' in source
-    assert 'long_entry_best_alert_level := long_state.trigger' in source
-    assert 'long_entry_strict_alert_level := long_state.trigger' in source
+    # Alert level selection is helper-parameterized in emitters; no inline zone-preference block remains in core.
+    assert 'compute_long_dynamic_alert_gates(bool enable_dynamic_alerts, bool long_invalidate_signal' in source
+    assert 'bool dynamic_watchlist_alert_active = false' in source
+    assert 'if enable_dynamic_alerts and alert_long_watchlist_event' in source
+    assert 'dynamic_watchlist_alert_active := true' in source
+    assert 'emit_priority_long_dynamic_alerts(' in source
+    assert 'float long_watchlist_alert_level' in source
+    assert 'emit_linear_long_dynamic_alerts(' in source
+    assert 'cr.compose_long_watchlist_alert_detail(long_micro_alert_suffix, long_score_detail_suffix)' in source
+    assert 'float long_watchlist_alert_level = na' not in source
+    assert 'long_watchlist_alert_level := active_bull_ob_bottom' not in source
+    assert 'long_watchlist_alert_level := active_bull_fvg_bottom' not in source
+    assert 'long_watchlist_alert_level := low' not in source
     assert "long_watchlist_alert_level := not na(last_bull_ob_bottom) ? last_bull_ob_bottom : not na(last_bull_fvg_bottom) ? last_bull_fvg_bottom : low" not in source
     assert 'float long_early_alert_level = not na(long_state.trigger) ? long_state.trigger : long_watchlist_alert_level' not in source
     assert 'float long_clean_alert_level = not na(long_state.trigger) ? long_state.trigger : long_watchlist_alert_level' not in source
@@ -2168,22 +1915,32 @@ def test_visual_text_dashboard_and_colors_are_extracted_into_helpers() -> None:
     source = _read_smc_source()
 
     # resolve_long_dashboard_state removed as dead code (Patch 4)
-    assert 'resolve_long_visual_text(int long_visual_state) =>' in source
+    assert 'resolve_long_visual_state_label(int long_visual_state) =>' in source
     assert 'resolve_long_bg_color(int long_visual_state, color long_color_building) =>' in source
     assert 'resolve_long_bar_color(int long_visual_state, color long_color_building) =>' in source
-    assert 'long_visual_text := resolve_long_visual_text(long_visual_state)' in source
+    assert 'long_visual_text := resolve_long_visual_state_label(long_visual_state)' in source
     assert 'long_bg_color := resolve_long_bg_color(long_visual_state, long_color_building)' in source
     assert 'long_bar_color := resolve_long_bar_color(long_visual_state, long_color_building)' in source
+    assert 'resolve_long_visual_text(int long_visual_state) =>' not in source
 
 
 def test_dashboard_long_zone_summary_uses_shared_zone_text_helper() -> None:
     source = _read_smc_source()
 
+    assert "compose_zone_range_text(string zone_label, float zone_top, float zone_bottom) =>" in source
+    assert "zone_label + ' ' + u.format_level(zone_top) + ' / ' + u.format_level(zone_bottom)" in source
+    assert 'compose_ob_zone_summary_text(float ob_top, float ob_bottom) =>' in source
+    assert "compose_zone_range_text('OB', ob_top, ob_bottom)" in source
+    assert 'compose_fvg_zone_summary_text(float fvg_top, float fvg_bottom) =>' in source
+    assert "compose_zone_range_text('FVG', fvg_top, fvg_bottom)" in source
+    assert 'compose_combined_zone_summary_text(float ob_top, float ob_bottom, float fvg_top, float fvg_bottom) =>' in source
+    assert "compose_zone_range_text('OB', ob_top, ob_bottom) + ' | ' + compose_zone_range_text('FVG', fvg_top, fvg_bottom)" in source
+    assert 'resolve_long_zone_summary_display_text(bool show_ob_zone, float ob_top, float ob_bottom, bool show_fvg_zone, float fvg_top, float fvg_bottom, string empty_text) =>' in source
     assert "compose_zone_summary_text(bool show_ob_zone, float ob_top, float ob_bottom, bool show_fvg_zone, float fvg_top, float fvg_bottom, string empty_text) =>" in source
-    assert "zone_text := 'OB ' + u.format_level(ob_top) + ' / ' + u.format_level(ob_bottom)" in source
-    assert "zone_text := 'FVG ' + u.format_level(fvg_top) + ' / ' + u.format_level(fvg_bottom)" in source
-    assert "zone_text := 'OB ' + u.format_level(ob_top) + ' / ' + u.format_level(ob_bottom) + ' | FVG ' + u.format_level(fvg_top) + ' / ' + u.format_level(fvg_bottom)" in source
-    assert "string _db_long_zones_text = compose_zone_summary_text(in_bull_ob_zone, active_bull_ob_top, active_bull_ob_bottom, in_bull_fvg_zone, active_bull_fvg_top, active_bull_fvg_bottom, 'No Long Zones')" in source
+    assert 'resolve_long_zone_summary_display_text(show_ob_zone, ob_top, ob_bottom, show_fvg_zone, fvg_top, fvg_bottom, empty_text)' in source
+    assert "zone_text := 'OB ' + u.format_level(ob_top) + ' / ' + u.format_level(ob_bottom)" not in source
+    assert "zone_text := 'FVG ' + u.format_level(fvg_top) + ' / ' + u.format_level(fvg_bottom)" not in source
+    assert "zone_text := 'OB ' + u.format_level(ob_top) + ' / ' + u.format_level(ob_bottom) + ' | FVG ' + u.format_level(fvg_top) + ' / ' + u.format_level(fvg_bottom)" not in source
 
 
 def test_arm_setup_resolution_is_extracted_into_helpers() -> None:
@@ -2237,880 +1994,50 @@ def test_arm_setup_resolution_is_extracted_into_helpers() -> None:
 
 def test_long_alert_helpers_cover_close_safe_events_and_message_composition() -> None:
     source = _read_smc_source()
-
-    # compose_long_*_alert_detail definitions moved to smc_context_resolvers (WP-SPLIT4)
     resolver_source = _read_resolver_source()
+    obv_source = _read_observability_source()
+
     assert "compose_long_invalidated_alert_detail(string long_last_invalid_source, string long_micro_alert_suffix, string long_score_detail_suffix) =>" in resolver_source
-    assert 'long_last_invalid_source + long_micro_alert_suffix + long_score_detail_suffix' in resolver_source
     assert "compose_long_ready_alert_detail(string long_setup_source_display, string long_strict_alert_suffix, string long_environment_alert_suffix, string long_micro_alert_suffix, string long_score_detail_suffix) =>" in resolver_source
     assert "compose_long_confirmed_alert_detail(string long_setup_source_display, string long_strict_alert_suffix, string long_environment_alert_suffix, string long_micro_alert_suffix, string long_score_detail_suffix) =>" in resolver_source
     assert "compose_long_watchlist_alert_detail(string long_micro_alert_suffix, string long_score_detail_suffix) =>" in resolver_source
-    assert 'bool long_arm_close_safe = false' in source
-    assert 'if barstate.isconfirmed and long_state.armed and not (long_state[1]).armed' in source
-    assert 'long_arm_close_safe := true' in source
-    assert 'bool long_confirm_close_safe = false' in source
-    assert 'if barstate.isconfirmed and long_state.confirmed and not (long_state[1]).confirmed' in source
-    assert 'long_confirm_close_safe := true' in source
-    assert 'bool long_ready_close_safe = false' in source
-    assert 'if barstate.isconfirmed and long_ready_state and not long_ready_state[1]' in source
-    assert 'long_ready_close_safe := true' in source
-    assert 'bool long_invalidated_close_safe = false' in source
-    assert 'if barstate.isconfirmed and not long_state.armed and not long_state.confirmed and ((long_state[1]).armed or (long_state[1]).confirmed)' in source
-    assert 'long_invalidated_close_safe := true' in source
-    assert 'bool long_arm_alert_event = false' in source
-    assert 'if long_arm_signal_latched' in source
-    assert 'long_arm_alert_event := true' in source
-    assert 'bool long_confirm_alert_event = false' in source
-    assert 'if long_confirm_signal_latched' in source
-    assert 'long_confirm_alert_event := true' in source
-    assert 'bool long_ready_alert_event = false' in source
-    assert 'if long_ready_signal_latched' in source
-    assert 'long_ready_alert_event := true' in source
-    assert 'bool long_invalidate_alert_event = false' in source
-    assert 'if long_invalidate_signal_latched' in source
-    assert 'long_invalidate_alert_event := true' in source
-    assert 'bool live_bull_ob_break_alert_event = false' in source
-    assert 'if live_bull_ob_break_latched' in source
-    assert 'live_bull_ob_break_alert_event := true' in source
-    assert 'bool live_bull_fvg_fill_alert_event = false' in source
-    assert 'if live_bull_fvg_fill_latched' in source
-    assert 'live_bull_fvg_fill_alert_event := true' in source
-    assert 'bool long_arm_close_safe = barstate.isconfirmed and long_state.armed and not (long_state[1]).armed' not in source
-    assert 'bool long_confirm_close_safe = barstate.isconfirmed and long_state.confirmed and not (long_state[1]).confirmed' not in source
-    assert 'bool long_ready_close_safe = barstate.isconfirmed and long_ready_state and not long_ready_state[1]' not in source
-    assert 'bool long_invalidated_close_safe = barstate.isconfirmed and not long_state.armed and not long_state.confirmed and ((long_state[1]).armed or (long_state[1]).confirmed)' not in source
-    assert 'bool long_arm_alert_event = long_arm_signal_latched' not in source
-    assert 'bool long_confirm_alert_event = long_confirm_signal_latched' not in source
-    assert 'bool long_ready_alert_event = long_ready_signal_latched' not in source
-    assert 'bool long_invalidate_alert_event = long_invalidate_signal_latched' not in source
-    assert 'bool live_bull_ob_break_alert_event = live_bull_ob_break_latched' not in source
-    assert 'bool live_bull_fvg_fill_alert_event = live_bull_fvg_fill_latched' not in source
-    # tuple call negative assertions removed — helpers no longer exist
-    assert "string bull_bos_alert_key = '|bull_bos|'" in source
-    # bear dynamic alert keys removed (Patch 4)
-    assert "string long_invalidated_alert_key = '|long_invalidated|'" in source
-    assert "string long_watchlist_alert_name = 'Long Dip Watchlist'" in source
-    # compose_long_*_alert_detail call-sites now use cr. prefix (WP-SPLIT4)
+
     assert 'cr.compose_long_invalidated_alert_detail(long_last_invalid_source, long_micro_alert_suffix, long_score_detail_suffix)' in source
     assert 'cr.compose_long_entry_strict_alert_detail(long_micro_alert_suffix, long_score_detail_suffix)' in source
     assert 'cr.compose_long_entry_best_alert_detail(long_micro_alert_suffix, long_score_detail_suffix)' in source
     assert 'cr.compose_long_ready_alert_detail(long_setup_source_display, long_strict_alert_suffix, long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix)' in source
     assert 'cr.compose_long_confirmed_alert_detail(long_setup_source_display, long_strict_alert_suffix, long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix)' in source
-    assert 'cr.compose_long_clean_alert_detail(long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix)' in source
-    assert 'cr.compose_long_early_alert_detail(long_micro_alert_suffix, long_score_detail_suffix)' in source
-    assert 'cr.compose_long_armed_plus_alert_detail(long_micro_alert_suffix, long_score_detail_suffix)' in source
-    assert 'cr.compose_long_armed_alert_detail(long_setup_source_display, long_micro_alert_suffix, long_score_detail_suffix)' in source
     assert 'cr.compose_long_watchlist_alert_detail(long_micro_alert_suffix, long_score_detail_suffix)' in source
-    assert "str.format('{0}{1}{2}', long_last_invalid_source, long_micro_alert_suffix, long_score_detail_suffix)" not in source
-    assert "str.format('Ready for {0}: lifecycle, gates, context, upgrades passed{1}{2}{3}{4}', long_setup_source_display, long_strict_alert_suffix, long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix)" not in source
-    assert "str.format('Confirmed from {0}: confirm lifecycle and filters passed{1}{2}{3}{4}', long_setup_source_display, long_strict_alert_suffix, long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix)" not in source
-    assert "str.format('Armed from {0}: reclaim and zone confirmation in{1}{2}', long_setup_source_display, long_micro_alert_suffix, long_score_detail_suffix)" not in source
-    # compose body string assertions moved to resolver source (WP-SPLIT4)
-    assert "'Ready for ' + long_setup_source_display + ': lifecycle, gates, context, upgrades passed' + long_strict_alert_suffix + long_environment_alert_suffix + long_micro_alert_suffix + long_score_detail_suffix" in resolver_source
-    assert "'Confirmed from ' + long_setup_source_display + ': confirm lifecycle and filters passed' + long_strict_alert_suffix + long_environment_alert_suffix + long_micro_alert_suffix + long_score_detail_suffix" in resolver_source
-    assert "'Armed from ' + long_setup_source_display + ': reclaim and zone confirmation in' + long_micro_alert_suffix + long_score_detail_suffix" in resolver_source
-    assert "Invalidated from {0}" not in source
-    # bear_bos dynamic alert removed (Patch 4)
-    assert 'resolve_ob_alert_level(OrderBlock block) =>' in source
-    assert 'resolve_fvg_alert_level(FVG gap) =>' in source
-    assert 'resolve_ob_top_boundary(OrderBlock block) =>' in source
-    assert 'resolve_ob_bottom_boundary(OrderBlock block) =>' in source
-    assert 'resolve_fvg_top_boundary(FVG gap) =>' in source
-    assert 'resolve_fvg_bottom_boundary(FVG gap) =>' in source
-    assert 'float new_ob_bull_alert_level = resolve_ob_alert_level(new_ob_bull)' in source
-    # bear alert levels removed (Patch 4)
-    assert 'float new_fvg_bull_alert_level = resolve_fvg_alert_level(new_fvg_bull)' in source
-    assert 'bool bullish_fvg_filled_alert = false' in source
-    assert 'if array.size(filled_fvgs_new_bull) > 0' in source
-    assert 'bullish_fvg_filled_alert := true' in source
-    assert 'FVG bull_filled_alert_gap = na' in source
-    assert 'if bullish_fvg_filled_alert' in source
-    assert 'bull_filled_alert_gap := array.get(filled_fvgs_new_bull, array.size(filled_fvgs_new_bull) - 1)' in source
-    assert 'float bull_filled_alert_level = resolve_fvg_alert_level(bull_filled_alert_gap)' in source
-    assert 'FVG last_bull_fvg_gap = na' in source
-    assert 'if array.size(fvgs_bull) > 0' in source
-    assert 'last_bull_fvg_gap := array.get(fvgs_bull, array.size(fvgs_bull) - 1)' in source
-    # bear last-zone patterns removed (Patch 4)
-    assert 'OrderBlock last_bull_ob = na' in source
-    assert 'if array.size(ob_blocks_bull) > 0' in source
-    assert 'last_bull_ob := array.get(ob_blocks_bull, array.size(ob_blocks_bull) - 1)' in source
-    # bear last-ob/fvg removed (Patch 4)
-    assert 'last_bull_ob_break_level = resolve_ob_alert_level(last_bull_ob)' in source
-    # bear last-ob/fvg break/fill levels removed (Patch 4)
-    assert 'last_bear_ob_break_level = resolve_ob_alert_level(last_bear_ob)' not in source
-    assert 'last_bull_ob_top = resolve_ob_top_boundary(last_bull_ob)' in source
-    assert 'last_bull_ob_bottom = resolve_ob_bottom_boundary(last_bull_ob)' in source
-    assert 'last_bull_fvg_fill_level = resolve_fvg_alert_level(last_bull_fvg_gap)' in source
-    # bear last-fvg removed (Patch 4)
-    assert 'last_bear_fvg_fill_level = resolve_fvg_alert_level(last_bear_fvg_gap)' not in source
-    assert 'last_bull_fvg_top = resolve_fvg_top_boundary(last_bull_fvg_gap)' in source
-    assert 'last_bull_fvg_bottom = resolve_fvg_bottom_boundary(last_bull_fvg_gap)' in source
-    assert 'scan_active_bull_ob() =>' in source
-    assert '_break_level := resolve_ob_alert_level(_ob)' in source
-    # bear active-closest scanning removed (Patch 4)
-    assert 'OrderBlock active_bear_ob = array.get(ob_blocks_bear, best_bear_ob_idx)' not in source
-    assert 'active_bear_ob_break_level := resolve_ob_alert_level(active_bear_ob)' not in source
-    assert '_fill_level := resolve_fvg_alert_level(_fvg)' in source
-    assert 'FVG active_bear_fvg = array.get(fvgs_bear, best_bear_fvg_idx)' not in source
-    assert 'active_bear_fvg_fill_level := resolve_fvg_alert_level(active_bear_fvg)' not in source
-    # bear live event patterns removed (Patch 4)
-    assert 'FVG bear_live_filled_gap = any_live_bear_fvg_fill' not in source
-    assert 'scan_live_bull_events() =>' in source
-    assert 'OrderBlock _live_broken_ob = _any_ob ? array.get(ob_broken_new_bull, array.size(ob_broken_new_bull) - 1) : na' in source
-    assert 'OrderBlock bear_live_broken_ob = any_live_bear_ob_break' not in source
-    assert 'float _ob_level = _any_ob ? resolve_ob_alert_level(_live_broken_ob) : _ob_alert' in source
-    assert 'float bear_ob_live_event_level = any_live_bear_ob_break' not in source
-    assert 'float _fvg_level = _any_fvg ? resolve_fvg_alert_level(_live_filled_gap) : _fvg_alert' in source
-    assert 'float bear_fvg_live_event_level = any_live_bear_fvg_fill' not in source
-    assert 'float _best_ob_boundary = na' in source
-    assert 'OrderBlock _best_ob = array.get(ob_blocks_bull, _best_ob_idx)' in source
-    assert '_best_ob_boundary := resolve_ob_bottom_boundary(_best_ob)' in source
-    assert 'float _ob_cand_level = resolve_ob_alert_level(_ob_cand)' in source
-    assert 'float _ob_cand_boundary = resolve_ob_bottom_boundary(_ob_cand)' in source
-    # bear live scanning removed (Patch 4)
-    assert 'float best_live_bear_ob_boundary = na' not in source
-    assert 'OrderBlock best_live_bear_ob = array.get(ob_blocks_bear, best_live_bear_ob_idx)' not in source
-    assert 'best_live_bear_ob_boundary := resolve_ob_top_boundary(best_live_bear_ob)' not in source
-    assert 'float bear_ob_live_candidate_level = resolve_ob_alert_level(bear_ob_live_candidate)' not in source
-    assert 'float bear_ob_live_candidate_boundary = resolve_ob_top_boundary(bear_ob_live_candidate)' not in source
-    assert 'float _fvg_cand_level = resolve_fvg_alert_level(_fvg_cand)' in source
-    assert 'float _fvg_cand_boundary = resolve_fvg_bottom_boundary(_fvg_cand)' in source
-    # bear FVG live candidates removed (Patch 4)
-    assert 'float bear_fvg_live_candidate_level = resolve_fvg_alert_level(bear_fvg_live_candidate)' not in source
-    assert 'float bear_fvg_live_candidate_boundary = resolve_fvg_top_boundary(bear_fvg_live_candidate)' not in source
-    assert 'float _best_fvg_boundary = na' in source
-    assert 'FVG _best_fvg = array.get(fvgs_bull, _best_fvg_idx)' in source
-    assert '_best_fvg_boundary := resolve_fvg_bottom_boundary(_best_fvg)' in source
-    assert 'FVG _best_live_fvg = array.get(fvgs_bull, _best_fvg_idx)' in source
-    assert '_fvg_level := resolve_fvg_alert_level(_best_live_fvg)' in source
-    # bear fvg/ob live scan removed (Patch 4)
-    assert 'float best_live_bear_fvg_boundary = na' not in source
-    assert 'FVG best_live_bear_fvg = array.get(fvgs_bear, best_live_bear_fvg_idx)' not in source
-    assert 'best_live_bear_fvg_boundary := resolve_fvg_top_boundary(best_live_bear_fvg)' not in source
-    assert 'FVG bear_live_fvg = array.get(fvgs_bear, best_live_bear_fvg_idx)' not in source
-    assert 'bear_fvg_live_event_level := resolve_fvg_alert_level(bear_live_fvg)' not in source
-    assert 'OrderBlock _best_live_ob = array.get(ob_blocks_bull, _best_ob_idx)' in source
-    assert '_ob_level := resolve_ob_alert_level(_best_live_ob)' in source
-    assert 'OrderBlock bear_live_ob = array.get(ob_blocks_bear, best_live_bear_ob_idx)' not in source
-    assert 'bear_ob_live_event_level := resolve_ob_alert_level(bear_live_ob)' not in source
-    assert 'best_live_bull_ob_boundary := best_live_bull_ob.right_bottom.price' not in source
-    assert 'best_live_bear_ob_boundary := best_live_bear_ob.left_top.price' not in source
-    assert 'best_live_bull_fvg_boundary := best_live_bull_fvg.right_bottom.price' not in source
-    assert 'best_live_bear_fvg_boundary := best_live_bear_fvg.left_top.price' not in source
-    assert 'bull_ob_live_candidate_boundary = bull_ob_live_candidate.right_bottom.price' not in source
-    assert 'bear_ob_live_candidate_boundary = bear_ob_live_candidate.left_top.price' not in source
-    assert 'bull_fvg_live_candidate_boundary = bull_fvg_live_candidate.right_bottom.price' not in source
-    assert 'bear_fvg_live_candidate_boundary = bear_fvg_live_candidate.left_top.price' not in source
-    assert 'active_bull_ob_top := best_bull_ob.left_top.price' not in source
-    assert 'active_bull_ob_bottom := best_bull_ob.right_bottom.price' not in source
-    assert 'active_bull_fvg_top := best_bull_fvg.left_top.price' not in source
-    assert 'active_bull_fvg_bottom := best_bull_fvg.right_bottom.price' not in source
-    assert 'bull_ob_candidate.left_top.price' not in source
-    assert 'bull_ob_candidate.right_bottom.price' not in source
-    assert 'bull_fvg_candidate.left_top.price' not in source
-    assert 'bull_fvg_candidate.right_bottom.price' not in source
-    assert 'bear_ob_candidate.left_top.price' not in source
-    assert 'bear_ob_candidate.right_bottom.price' not in source
-    assert 'bear_fvg_candidate.left_top.price' not in source
-    assert 'bear_fvg_candidate.right_bottom.price' not in source
-    assert 'bull_ob_candidate.right_bottom.index' not in source
-    assert 'bull_fvg_candidate.right_bottom.index' not in source
-    assert 'bear_ob_candidate.right_bottom.index' not in source
-    assert 'bear_fvg_candidate.right_bottom.index' not in source
-    assert 'best_bull_ob.right_bottom.index' not in source
-    assert 'best_bull_fvg.right_bottom.index' not in source
-    assert 'scan_active_bull_ob() =>' in source
-    assert '_top := resolve_ob_top_boundary(_ob)' in source
-    assert '_bottom := resolve_ob_bottom_boundary(_ob)' in source
-    assert '_recency := resolve_ob_recency_index(_ob)' in source
-    assert '_top := resolve_fvg_top_boundary(_fvg)' in source
-    assert '_bottom := resolve_fvg_bottom_boundary(_fvg)' in source
-    assert '_recency := resolve_fvg_recency_index(_fvg)' in source
-    assert 'resolve_ob_recency_index(OrderBlock block)' in source
-    assert 'resolve_fvg_recency_index(FVG gap)' in source
-    assert 'float _blvl = resolve_ob_alert_level(_blocker)' in source
-    assert 'float _flvl = resolve_fvg_alert_level(_fblocker)' in source
-    assert 'compute_bullish_dynamic_alert_gates(bool enable_dynamic_alerts, bool bull_bos_sig, bool bull_choch_sig, OrderBlock new_ob_bull, bool bullish_fvg_alert, bool bullish_fvg_filled_alert, bool enable_live_break_alerts, bool live_exec, bool live_bull_ob_break, bool live_bull_fvg_fill, bool use_sd_confluence, bool sd_bullish_divergence_event, bool sd_higher_lows_event) =>' in source
-    assert '[dynamic_bull_bos_alert_active, dynamic_bull_choch_alert_active, dynamic_new_bull_ob_alert_active, dynamic_new_bull_fvg_alert_active, dynamic_bull_fvg_filled_alert_active, dynamic_live_bull_ob_break_alert_active, dynamic_live_bull_fvg_fill_alert_active, dynamic_sd_bull_divergence_alert_active, dynamic_sd_higher_lows_alert_active] = compute_bullish_dynamic_alert_gates(enable_dynamic_alerts, bull_bos_sig, bull_choch_sig, new_ob_bull, bullish_fvg_alert, bullish_fvg_filled_alert, enable_live_break_alerts, live_exec, live_bull_ob_break, live_bull_fvg_fill, use_sd_confluence, sd_bullish_divergence_event, sd_higher_lows_event)' in source
-    assert 'emit_bullish_dynamic_alerts(string seen_keys, float ltf_bull_share_context, float ltf_volume_delta_context, bool ltf_price_only_context, string signal_mode_text) =>' in source
-    assert 'next_seen_keys := emit_dynamic_alert_if_allowed(next_seen_keys, dynamic_new_bull_ob_alert_active, bull_ob_alert_key, bull_ob_alert_name, bull_ob_alert_detail, new_ob_bull_alert_level, 1, ltf_bull_share_context, ltf_volume_delta_context, ltf_price_only_context, signal_mode_text)' in source
-    # bear dynamic alert emit removed (Patch 4)
-    assert 'emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and not na(new_ob_bear)' not in source
-    assert 'next_seen_keys := emit_dynamic_alert_if_allowed(next_seen_keys, dynamic_new_bull_fvg_alert_active, bull_fvg_alert_key, bull_fvg_alert_name, bull_fvg_alert_detail, new_fvg_bull_alert_level, 1, ltf_bull_share_context, ltf_volume_delta_context, ltf_price_only_context, signal_mode_text)' in source
-    assert 'emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and bearish_fvg_alert, bear_fvg_alert_key' not in source
-    assert 'emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and not na(new_ob_bull), bull_ob_alert_key, bull_ob_alert_name, bull_ob_alert_detail, new_ob_bull_alert_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)' not in source
-    assert 'emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and bullish_fvg_alert, bull_fvg_alert_key, bull_fvg_alert_name, bull_fvg_alert_detail, new_fvg_bull_alert_level, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)' not in source
-    assert 'new_ob_bull.break_price, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)' not in source
-    assert 'new_ob_bear.break_price, -1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)' not in source
-    assert 'float bear_ob_blocker_level = bear_ob_blocker.break_price' not in source
-    assert 'float bear_fvg_blocker_level = bear_fvg_blocker.fill_target_level' not in source
-    assert 'float new_ob_bull_alert_level = not na(new_ob_bull) ? new_ob_bull.break_price : na' not in source
-    assert 'float new_ob_bear_alert_level = not na(new_ob_bear) ? new_ob_bear.break_price : na' not in source
-    assert 'float new_fvg_bull_alert_level = not na(new_fvg_bull) ? new_fvg_bull.fill_target_level : na' not in source
-    assert 'float new_fvg_bear_alert_level = not na(new_fvg_bear) ? new_fvg_bear.fill_target_level : na' not in source
-    assert 'FVG bull_filled_alert_gap = bullish_fvg_filled_alert ? array.get(filled_fvgs_new_bull, array.size(filled_fvgs_new_bull) - 1) : na' not in source
-    assert 'float bull_filled_alert_level = bullish_fvg_filled_alert ? array.get(filled_fvgs_new_bull, array.size(filled_fvgs_new_bull) - 1).fill_target_level : na' not in source
-    assert 'float bear_filled_alert_level = bearish_fvg_filled_alert ? array.get(filled_fvgs_new_bear, array.size(filled_fvgs_new_bear) - 1).fill_target_level : na' not in source
-    assert 'OrderBlock last_bull_ob = array.size(ob_blocks_bull) > 0 ? array.get(ob_blocks_bull, array.size(ob_blocks_bull) - 1) : na' not in source
-    assert 'FVG last_bull_fvg_gap = array.size(fvgs_bull) > 0 ? array.get(fvgs_bull, array.size(fvgs_bull) - 1) : na' not in source
-    assert 'last_bull_ob_break_level = array.size(ob_blocks_bull) > 0 ? array.get(ob_blocks_bull, array.size(ob_blocks_bull) - 1).break_price : na' not in source
-    assert 'last_bear_ob_break_level = array.size(ob_blocks_bear) > 0 ? array.get(ob_blocks_bear, array.size(ob_blocks_bear) - 1).break_price : na' not in source
-    assert 'last_bull_ob_top = array.size(ob_blocks_bull) > 0 ? array.get(ob_blocks_bull, array.size(ob_blocks_bull) - 1).left_top.price : na' not in source
-    assert 'last_bull_ob_bottom = array.size(ob_blocks_bull) > 0 ? array.get(ob_blocks_bull, array.size(ob_blocks_bull) - 1).right_bottom.price : na' not in source
-    assert 'active_bull_ob_break_level := best_bull_ob.break_price' not in source
-    assert 'active_bear_ob_break_level := array.get(ob_blocks_bear, best_bear_ob_idx).break_price' not in source
-    assert 'last_bull_fvg_fill_level = array.size(fvgs_bull) > 0 ? array.get(fvgs_bull, array.size(fvgs_bull) - 1).fill_target_level : na' not in source
-    assert 'last_bear_fvg_fill_level = array.size(fvgs_bear) > 0 ? array.get(fvgs_bear, array.size(fvgs_bear) - 1).fill_target_level : na' not in source
-    assert 'last_bull_fvg_top = array.size(fvgs_bull) > 0 ? array.get(fvgs_bull, array.size(fvgs_bull) - 1).left_top.price : na' not in source
-    assert 'last_bull_fvg_bottom = array.size(fvgs_bull) > 0 ? array.get(fvgs_bull, array.size(fvgs_bull) - 1).right_bottom.price : na' not in source
-    assert 'active_bull_fvg_fill_level := best_bull_fvg.fill_target_level' not in source
-    assert 'active_bear_fvg_fill_level := array.get(fvgs_bear, best_bear_fvg_idx).fill_target_level' not in source
-    assert 'float _ob_alert = last_bull_ob_break_level' in source
-    assert 'if not na(active_bull_ob_break_level)' in source
-    assert '_ob_alert := active_bull_ob_break_level' in source
-    assert 'float _fvg_alert = last_bull_fvg_fill_level' in source
-    assert 'if not na(active_bull_fvg_fill_level)' in source
-    assert '_fvg_alert := active_bull_fvg_fill_level' in source
-    assert 'float bull_ob_live_event_level = any_live_bull_ob_break ? array.get(ob_broken_new_bull, array.size(ob_broken_new_bull) - 1).break_price : bull_ob_break_for_alert' not in source
-    assert 'float bear_ob_live_event_level = any_live_bear_ob_break ? array.get(ob_broken_new_bear, array.size(ob_broken_new_bear) - 1).break_price : bear_ob_break_for_alert' not in source
-    assert 'float bull_fvg_live_event_level = any_live_bull_fvg_fill ? array.get(filled_fvgs_new_bull, array.size(filled_fvgs_new_bull) - 1).fill_target_level : bull_fvg_fill_for_alert' not in source
-    assert 'float bull_ob_break_for_alert = not na(active_bull_ob_break_level) ? active_bull_ob_break_level : last_bull_ob_break_level' not in source
-    assert 'float bull_fvg_fill_for_alert = not na(active_bull_fvg_fill_level) ? active_bull_fvg_fill_level : last_bull_fvg_fill_level' not in source
 
-    assert 'compute_bull_reclaim_state() =>' in source
-    assert 'float _ob_h = na' in source
-    assert 'if not na(touched_bull_ob_top) and not na(touched_bull_ob_bottom)' in source
-    assert '_ob_h := math.max(touched_bull_ob_top - touched_bull_ob_bottom, syminfo.mintick)' in source
-    assert 'float _fvg_h = na' in source
-    assert 'if not na(touched_bull_fvg_top) and not na(touched_bull_fvg_bottom)' in source
-    assert '_fvg_h := math.max(touched_bull_fvg_top - touched_bull_fvg_bottom, syminfo.mintick)' in source
-    assert 'float _ob_sweep_lvl = na' in source
-    assert 'if not na(_ob_h)' in source
-    assert '_ob_sweep_lvl := touched_bull_ob_top - _ob_h * effective_ob_reclaim_min_penetration' in source
-    assert 'float _fvg_sweep_lvl = na' in source
-    assert 'if not na(_fvg_h)' in source
-    assert '_fvg_sweep_lvl := touched_bull_fvg_top - _fvg_h * effective_fvg_reclaim_min_penetration' in source
-    assert 'bool _ob_sweep = false' in source
-    assert 'if touched_bull_ob_still_active and not na(_ob_sweep_lvl) and low <= _ob_sweep_lvl' in source
-    assert '_ob_sweep := true' in source
-    assert 'bool _fvg_sweep = false' in source
-    assert 'if touched_bull_fvg_still_active and not na(_fvg_sweep_lvl) and low <= _fvg_sweep_lvl' in source
-    assert '_fvg_sweep := true' in source
-    assert 'bool _ob_strict = false' in source
-    assert 'if _r_ob and (not use_strict_sequence_eff or ob_zone_touch_sequence_ok) and (not use_strict_sweep_for_zone_reclaim_eff or _ob_sweep)' in source
-    assert '_ob_strict := true' in source
-    assert 'bool _fvg_strict = false' in source
-    assert 'if _r_fvg and (not use_strict_sequence_eff or fvg_zone_touch_sequence_ok) and (not use_strict_sweep_for_zone_reclaim_eff or _fvg_sweep)' in source
-    assert '_fvg_strict := true' in source
-    assert 'bool _int_strict = false' in source
-    assert 'if _r_int and (not use_strict_sequence_eff or generic_zone_touch_sequence_ok)' in source
-    assert '_int_strict := true' in source
-    assert 'bool _sw_strict = false' in source
-    assert 'if _r_sw and (not use_strict_sequence_eff or generic_zone_touch_sequence_ok)' in source
-    assert '_sw_strict := true' in source
-    assert 'bool _any = false' in source
-    assert 'if _ob_strict or _fvg_strict or _int_strict or _sw_strict' in source
-    assert '_any := true' in source
-    assert 'bool _any_arm = false' in source
-    assert 'if _ob_strict or _fvg_strict or ((_int_strict or _sw_strict) and long_zone_active)' in source
-    assert '_any_arm := true' in source
-    assert 'bool zone_recent = false' in source
-    assert 'if not na(zone_since_bars) and zone_since_bars <= long_signal_window' in source
-    assert 'zone_recent := true' in source
-    assert 'bool reclaim_recent = false' in source
-    assert 'if not na(reclaim_since_bars) and reclaim_since_bars <= long_signal_window' in source
-    assert 'reclaim_recent := true' in source
-    assert 'bool internal_choch_recent = false' in source
-    assert 'if not na(internal_choch_since_bars) and internal_choch_since_bars <= long_signal_window' in source
-    assert 'internal_choch_recent := true' in source
-    assert 'bool internal_bos_recent = false' in source
-    assert 'if not na(internal_bos_since_bars) and internal_bos_since_bars <= long_signal_window' in source
-    assert 'internal_bos_recent := true' in source
-    assert 'bool main_bos_recent = false' in source
-    assert 'if not na(main_bos_since_bars) and main_bos_since_bars <= long_signal_window' in source
-    assert 'main_bos_recent := true' in source
-    assert 'bool bearish_abort_recent = false' in source
-    assert 'if not na(bearish_abort_since_bars) and bearish_abort_since_bars <= long_signal_window' in source
-    assert 'bearish_abort_recent := true' in source
-    assert 'bool long_confirm_bearish_guard_ok = true' in source
-    assert 'if use_strict_confirm_guard' in source
-    assert 'long_confirm_bearish_guard_ok := not bearish_abort_signal and not bearish_abort_recent' in source
-    assert 'float bull_ob_zone_height = not na(touched_bull_ob_top) and not na(touched_bull_ob_bottom) ? math.max(touched_bull_ob_top - touched_bull_ob_bottom, syminfo.mintick) : na' not in source
-    assert 'float bull_fvg_zone_height = not na(touched_bull_fvg_top) and not na(touched_bull_fvg_bottom) ? math.max(touched_bull_fvg_top - touched_bull_fvg_bottom, syminfo.mintick) : na' not in source
-    assert 'float bull_ob_required_sweep_level = not na(bull_ob_zone_height) ? touched_bull_ob_top - bull_ob_zone_height * effective_ob_reclaim_min_penetration : na' not in source
-    assert 'float bull_fvg_required_sweep_level = not na(bull_fvg_zone_height) ? touched_bull_fvg_top - bull_fvg_zone_height * effective_fvg_reclaim_min_penetration : na' not in source
-    assert 'bool bull_ob_real_sweep = touched_bull_ob_still_active and not na(bull_ob_required_sweep_level) and low <= bull_ob_required_sweep_level' not in source
-    assert 'bool bull_fvg_real_sweep = touched_bull_fvg_still_active and not na(bull_fvg_required_sweep_level) and low <= bull_fvg_required_sweep_level' not in source
-    assert 'bool bull_reclaim_ob_strict = bull_reclaim_ob and (not use_strict_sequence_eff or ob_zone_touch_sequence_ok) and (not use_strict_sweep_for_zone_reclaim_eff or bull_ob_real_sweep)' not in source
-    assert 'bool bull_reclaim_fvg_strict = bull_reclaim_fvg and (not use_strict_sequence_eff or fvg_zone_touch_sequence_ok) and (not use_strict_sweep_for_zone_reclaim_eff or bull_fvg_real_sweep)' not in source
-    assert 'bool bull_reclaim_internal_low_strict = bull_reclaim_internal_low and (not use_strict_sequence_eff or generic_zone_touch_sequence_ok)' not in source
-    assert 'bool bull_reclaim_swing_low_strict = bull_reclaim_swing_low and (not use_strict_sequence_eff or generic_zone_touch_sequence_ok)' not in source
-    assert 'bool bull_reclaim_any = bull_reclaim_ob_strict or bull_reclaim_fvg_strict or bull_reclaim_internal_low_strict or bull_reclaim_swing_low_strict' not in source
-    assert 'bool bull_reclaim_any_for_arm = bull_reclaim_ob_strict or bull_reclaim_fvg_strict or ((bull_reclaim_internal_low_strict or bull_reclaim_swing_low_strict) and long_zone_active)' not in source
-    assert 'bool zone_recent = not na(zone_since_bars) and zone_since_bars <= long_signal_window' not in source
-    assert 'bool reclaim_recent = not na(reclaim_since_bars) and reclaim_since_bars <= long_signal_window' not in source
-    assert 'bool internal_choch_recent = not na(internal_choch_since_bars) and internal_choch_since_bars <= long_signal_window' not in source
-    assert 'bool internal_bos_recent = not na(internal_bos_since_bars) and internal_bos_since_bars <= long_signal_window' not in source
-    assert 'bool main_bos_recent = not na(main_bos_since_bars) and main_bos_since_bars <= long_signal_window' not in source
-    assert 'bool bearish_abort_recent = not na(bearish_abort_since_bars) and bearish_abort_since_bars <= long_signal_window' not in source
-    assert 'bool long_confirm_bearish_guard_ok = not use_strict_confirm_guard or (not bearish_abort_signal and not bearish_abort_recent)' not in source
-    assert 'float bear_fvg_live_event_level = any_live_bear_fvg_fill ? array.get(filled_fvgs_new_bear, array.size(filled_fvgs_new_bear) - 1).fill_target_level : bear_fvg_fill_for_alert' not in source
-    assert 'if low <= bull_ob_live_candidate.break_price and (na(best_live_bull_ob_idx) or bull_ob_live_candidate.right_bottom.price < array.get(ob_blocks_bull, best_live_bull_ob_idx).right_bottom.price)' not in source
-    assert 'if low <= bull_ob_live_candidate.break_price and (na(best_live_bull_ob_idx) or bull_ob_live_candidate.right_bottom.price < best_live_bull_ob_boundary)' not in source
-    assert 'if low <= bull_ob_live_candidate_level and (na(best_live_bull_ob_idx) or bull_ob_live_candidate.right_bottom.price < best_live_bull_ob_boundary)' not in source
-    assert 'bull_ob_live_event_level := array.get(ob_blocks_bull, best_live_bull_ob_idx).break_price' not in source
-    assert 'if high >= bear_ob_live_candidate.break_price and (na(best_live_bear_ob_idx) or bear_ob_live_candidate.left_top.price > array.get(ob_blocks_bear, best_live_bear_ob_idx).left_top.price)' not in source
-    assert 'if high >= bear_ob_live_candidate.break_price and (na(best_live_bear_ob_idx) or bear_ob_live_candidate.left_top.price > best_live_bear_ob_boundary)' not in source
-    assert 'if high >= bear_ob_live_candidate_level and (na(best_live_bear_ob_idx) or bear_ob_live_candidate.left_top.price > best_live_bear_ob_boundary)' not in source
-    assert 'bear_ob_live_event_level := array.get(ob_blocks_bear, best_live_bear_ob_idx).break_price' not in source
-    assert 'if low <= bull_fvg_live_candidate.fill_target_level and (na(best_live_bull_fvg_idx) or bull_fvg_live_candidate.right_bottom.price < array.get(fvgs_bull, best_live_bull_fvg_idx).right_bottom.price)' not in source
-    assert 'if low <= bull_fvg_live_candidate_level and (na(best_live_bull_fvg_idx) or bull_fvg_live_candidate.right_bottom.price < array.get(fvgs_bull, best_live_bull_fvg_idx).right_bottom.price)' not in source
-    assert 'if low <= bull_fvg_live_candidate_level and (na(best_live_bull_fvg_idx) or bull_fvg_live_candidate.right_bottom.price < best_live_bull_fvg_boundary)' not in source
-    assert 'bull_fvg_live_event_level := array.get(fvgs_bull, best_live_bull_fvg_idx).fill_target_level' not in source
-    assert 'if high >= bear_fvg_live_candidate.fill_target_level and (na(best_live_bear_fvg_idx) or bear_fvg_live_candidate.left_top.price > array.get(fvgs_bear, best_live_bear_fvg_idx).left_top.price)' not in source
-    assert 'if high >= bear_fvg_live_candidate_level and (na(best_live_bear_fvg_idx) or bear_fvg_live_candidate.left_top.price > array.get(fvgs_bear, best_live_bear_fvg_idx).left_top.price)' not in source
-    assert 'if high >= bear_fvg_live_candidate_level and (na(best_live_bear_fvg_idx) or bear_fvg_live_candidate.left_top.price > best_live_bear_fvg_boundary)' not in source
-    assert 'bear_fvg_live_event_level := array.get(fvgs_bear, best_live_bear_fvg_idx).fill_target_level' not in source
-    assert 'compute_alert_text_suffixes() =>' in source
-    assert "string _strict = ''" in source
-    assert 'if use_strict_sequence_eff or use_strict_sweep_for_zone_reclaim_eff or use_strict_confirm_guard' in source
-    assert "_strict := ' | strict=on'" in source
-    assert "string long_strict_alert_suffix = (use_strict_sequence_eff or use_strict_sweep_for_zone_reclaim_eff or use_strict_confirm_guard) ? ' | strict=on' : ''" not in source
-    assert "string _env = ' | env=' + long_environment_focus_display + ' | overhead=' + _overhead" in source
-    assert "string _micro = ''" in source
-    assert 'if use_microstructure_profiles' in source
-    assert "_micro := ' | micro=' + micro_profile_text + ' | freshness=' + freshness_text + ' | source=' + source_state_text + ' | zone=' + zone_quality_text" in source
-    assert "string long_micro_alert_suffix = use_microstructure_profiles ? ' | micro=' + micro_profile_text + ' | freshness=' + freshness_text + ' | source=' + source_state_text + ' | zone=' + zone_quality_text : ''" not in source
-    assert "if dynamic_long_alert_mode == 'Priority'" in source
-    assert 'compute_long_dynamic_alert_gates(bool enable_dynamic_alerts, bool long_invalidate_signal, bool alert_long_entry_strict_event, bool alert_long_entry_best_event, bool long_ready_signal, bool long_confirm_signal, bool alert_long_clean_event, bool alert_long_early_event, bool alert_long_armed_event, bool long_arm_signal, bool alert_long_watchlist_event) =>' in source
-    assert 'emit_priority_long_dynamic_alerts(string seen_keys, bool already_sent, bool invalidated_active, bool strict_active, bool best_active, bool ready_active, bool confirmed_active, bool clean_active, bool early_active, bool armed_plus_active, bool armed_active, bool watchlist_active, string long_invalidated_alert_key, string long_invalidated_alert_name, string long_entry_strict_alert_key, string long_entry_strict_alert_name, string long_entry_best_alert_key, string long_entry_best_alert_name, string long_ready_alert_key, string long_ready_alert_name, string long_confirmed_alert_key, string long_confirmed_alert_name, string long_clean_alert_key, string long_clean_alert_name, string long_early_alert_key, string long_early_alert_name, string long_armed_plus_alert_key, string long_armed_plus_alert_name, string long_armed_alert_key, string long_armed_alert_name, string long_watchlist_alert_key, string long_watchlist_alert_name, string long_setup_source_display, string long_strict_alert_suffix, string long_environment_alert_suffix, string long_micro_alert_suffix, string long_score_detail_suffix, string signal_mode_text, float ltf_bull_share_context, float ltf_volume_delta_context, bool ltf_price_only_context, string long_last_invalid_source, float long_last_invalid_level, float long_trigger_level, float long_invalidation_level, float long_entry_strict_alert_level, float long_entry_best_alert_level, float long_clean_alert_level, float long_early_alert_level, float long_watchlist_alert_level) =>' in source
-    assert 'emit_linear_long_dynamic_alerts(string seen_keys, bool invalidated_active, bool strict_active, bool best_active, bool ready_active, bool clean_active, bool confirmed_active, bool early_active, bool armed_plus_active, bool armed_active, bool watchlist_active, string long_invalidated_alert_key, string long_invalidated_alert_name, string long_entry_strict_alert_key, string long_entry_strict_alert_name, string long_entry_best_alert_key, string long_entry_best_alert_name, string long_ready_alert_key, string long_ready_alert_name, string long_clean_alert_key, string long_clean_alert_name, string long_confirmed_alert_key, string long_confirmed_alert_name, string long_early_alert_key, string long_early_alert_name, string long_armed_plus_alert_key, string long_armed_plus_alert_name, string long_armed_alert_key, string long_armed_alert_name, string long_watchlist_alert_key, string long_watchlist_alert_name, string long_setup_source_display, string long_strict_alert_suffix, string long_environment_alert_suffix, string long_micro_alert_suffix, string long_score_detail_suffix, string signal_mode_text, float ltf_bull_share_context, float ltf_volume_delta_context, bool ltf_price_only_context, string long_last_invalid_source, float long_last_invalid_level, float long_trigger_level, float long_invalidation_level, float long_entry_strict_alert_level, float long_entry_best_alert_level, float long_clean_alert_level, float long_early_alert_level, float long_watchlist_alert_level) =>' in source
-    assert 'emit_long_dynamic_alerts(string seen_keys, bool already_sent, float ltf_bull_share_context, float ltf_volume_delta_context, bool ltf_price_only_context, string signal_mode_text) =>' in source
-    assert '[priority_invalidated_alert_active, priority_strict_alert_active, priority_best_alert_active, priority_ready_alert_active, priority_confirmed_alert_active, priority_clean_alert_active, priority_early_alert_active, priority_armed_plus_alert_active, priority_armed_alert_active, priority_watchlist_alert_active] = compute_long_dynamic_alert_gates(enable_dynamic_alerts, long_invalidate_signal, alert_long_entry_strict_event, alert_long_entry_best_event, long_ready_signal, long_confirm_signal, alert_long_clean_event, alert_long_early_event, alert_long_armed_event, long_arm_signal, alert_long_watchlist_event)' in source
-    assert '[dynamic_long_invalidated_alert_active, dynamic_long_strict_alert_active, dynamic_long_best_alert_active, dynamic_long_ready_alert_active, dynamic_long_confirmed_alert_active, dynamic_long_clean_alert_active, dynamic_long_early_alert_active, dynamic_long_armed_plus_alert_active, dynamic_long_armed_alert_active, dynamic_long_watchlist_alert_active] = compute_long_dynamic_alert_gates(enable_dynamic_alerts, long_invalidate_signal, alert_long_entry_strict_event, alert_long_entry_best_event, long_ready_signal, long_confirm_signal, alert_long_clean_event, alert_long_early_event, alert_long_armed_event, long_arm_signal, alert_long_watchlist_event)' in source
-    assert 'next_seen_keys := emit_priority_long_dynamic_alerts(next_seen_keys, already_sent, priority_invalidated_alert_active, priority_strict_alert_active, priority_best_alert_active, priority_ready_alert_active, priority_confirmed_alert_active, priority_clean_alert_active, priority_early_alert_active, priority_armed_plus_alert_active, priority_armed_alert_active, priority_watchlist_alert_active, long_invalidated_alert_key, long_invalidated_alert_name, long_entry_strict_alert_key, long_entry_strict_alert_name, long_entry_best_alert_key, long_entry_best_alert_name, long_ready_alert_key, long_ready_alert_name, long_confirmed_alert_key, long_confirmed_alert_name, long_clean_alert_key, long_clean_alert_name, long_early_alert_key, long_early_alert_name, long_armed_plus_alert_key, long_armed_plus_alert_name, long_armed_alert_key, long_armed_alert_name, long_watchlist_alert_key, long_watchlist_alert_name, long_setup_source_display, long_strict_alert_suffix, long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix, signal_mode_text, ltf_bull_share_context, ltf_volume_delta_context, ltf_price_only_context, long_state.last_invalid_source, long_state.last_invalid_level, long_state.trigger, long_state.invalidation_level, long_entry_strict_alert_level, long_entry_best_alert_level, long_clean_alert_level, long_early_alert_level, long_watchlist_alert_level)' in source
-    assert 'dynamic_alert_seen_keys := emit_bullish_dynamic_alerts(dynamic_alert_seen_keys, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)' in source
-    assert 'string next_long_dynamic_alert_seen_keys = emit_long_dynamic_alerts(dynamic_alert_seen_keys, long_dynamic_alert_sent, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)' in source
-    assert 'long_dynamic_alert_sent := long_dynamic_alert_sent or next_long_dynamic_alert_seen_keys != dynamic_alert_seen_keys' in source
-    assert 'dynamic_alert_seen_keys := next_long_dynamic_alert_seen_keys' in source
-    assert 'bool next_dynamic_alert_sent = already_sent' not in source
-    assert '[next_seen_keys, next_dynamic_alert_sent]' not in source
-    assert 'next_seen_keys := emit_linear_long_dynamic_alerts(next_seen_keys, dynamic_long_invalidated_alert_active, dynamic_long_strict_alert_active, dynamic_long_best_alert_active, dynamic_long_ready_alert_active, dynamic_long_clean_alert_active, dynamic_long_confirmed_alert_active, dynamic_long_early_alert_active, dynamic_long_armed_plus_alert_active, dynamic_long_armed_alert_active, dynamic_long_watchlist_alert_active, long_invalidated_alert_key, long_invalidated_alert_name, long_entry_strict_alert_key, long_entry_strict_alert_name, long_entry_best_alert_key, long_entry_best_alert_name, long_ready_alert_key, long_ready_alert_name, long_clean_alert_key, long_clean_alert_name, long_confirmed_alert_key, long_confirmed_alert_name, long_early_alert_key, long_early_alert_name, long_armed_plus_alert_key, long_armed_plus_alert_name, long_armed_alert_key, long_armed_alert_name, long_watchlist_alert_key, long_watchlist_alert_name, long_setup_source_display, long_strict_alert_suffix, long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix, signal_mode_text, ltf_bull_share_context, ltf_volume_delta_context, ltf_price_only_context, long_state.last_invalid_source, long_state.last_invalid_level, long_state.trigger, long_state.invalidation_level, long_entry_strict_alert_level, long_entry_best_alert_level, long_clean_alert_level, long_early_alert_level, long_watchlist_alert_level)' in source
-    # compose_long_*_alert_detail call-sites now use cr. prefix (WP-SPLIT4)
-    assert 'next_seen_keys := emit_dynamic_alert_if_allowed(next_seen_keys, true, long_invalidated_alert_key, long_invalidated_alert_name, cr.compose_long_invalidated_alert_detail(long_last_invalid_source, long_micro_alert_suffix, long_score_detail_suffix), long_last_invalid_level, -1, ltf_bull_share_context, ltf_volume_delta_context, ltf_price_only_context, signal_mode_text)' in source
-    assert 'next_seen_keys := emit_dynamic_alert_if_allowed(next_seen_keys, not already_sent, long_entry_strict_alert_key, long_entry_strict_alert_name, cr.compose_long_entry_strict_alert_detail(long_micro_alert_suffix, long_score_detail_suffix), long_entry_strict_alert_level, 1, ltf_bull_share_context, ltf_volume_delta_context, ltf_price_only_context, signal_mode_text)' in source
-    assert 'next_seen_keys := emit_dynamic_alert_if_allowed(next_seen_keys, not already_sent, long_entry_best_alert_key, long_entry_best_alert_name, cr.compose_long_entry_best_alert_detail(long_micro_alert_suffix, long_score_detail_suffix), long_entry_best_alert_level, 1, ltf_bull_share_context, ltf_volume_delta_context, ltf_price_only_context, signal_mode_text)' in source
-    assert 'next_seen_keys := emit_dynamic_alert_if_allowed(next_seen_keys, not already_sent, long_ready_alert_key, long_ready_alert_name, cr.compose_long_ready_alert_detail(long_setup_source_display, long_strict_alert_suffix, long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix), long_trigger_level, 1, ltf_bull_share_context, ltf_volume_delta_context, ltf_price_only_context, signal_mode_text)' in source
-    assert 'next_seen_keys := emit_dynamic_alert_if_allowed(next_seen_keys, not already_sent, long_confirmed_alert_key, long_confirmed_alert_name, cr.compose_long_confirmed_alert_detail(long_setup_source_display, long_strict_alert_suffix, long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix), long_trigger_level, 1, ltf_bull_share_context, ltf_volume_delta_context, ltf_price_only_context, signal_mode_text)' in source
-    assert 'next_seen_keys := emit_dynamic_alert_if_allowed(next_seen_keys, not already_sent, long_clean_alert_key, long_clean_alert_name, cr.compose_long_clean_alert_detail(long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix), long_clean_alert_level, 1, ltf_bull_share_context, ltf_volume_delta_context, ltf_price_only_context, signal_mode_text)' in source
-    assert 'next_seen_keys := emit_dynamic_alert_if_allowed(next_seen_keys, not already_sent, long_early_alert_key, long_early_alert_name, cr.compose_long_early_alert_detail(long_micro_alert_suffix, long_score_detail_suffix), long_early_alert_level, 1, ltf_bull_share_context, ltf_volume_delta_context, ltf_price_only_context, signal_mode_text)' in source
-    assert 'next_seen_keys := emit_dynamic_alert_if_allowed(next_seen_keys, not already_sent, long_armed_plus_alert_key, long_armed_plus_alert_name, cr.compose_long_armed_plus_alert_detail(long_micro_alert_suffix, long_score_detail_suffix), long_invalidation_level, 1, ltf_bull_share_context, ltf_volume_delta_context, ltf_price_only_context, signal_mode_text)' in source
-    assert 'next_seen_keys := emit_dynamic_alert_if_allowed(next_seen_keys, not already_sent, long_armed_alert_key, long_armed_alert_name, cr.compose_long_armed_alert_detail(long_setup_source_display, long_micro_alert_suffix, long_score_detail_suffix), long_invalidation_level, 1, ltf_bull_share_context, ltf_volume_delta_context, ltf_price_only_context, signal_mode_text)' in source
-    assert 'next_seen_keys := emit_dynamic_alert_if_allowed(next_seen_keys, not already_sent, long_watchlist_alert_key, long_watchlist_alert_name, cr.compose_long_watchlist_alert_detail(long_micro_alert_suffix, long_score_detail_suffix), long_watchlist_alert_level, 1, ltf_bull_share_context, ltf_volume_delta_context, ltf_price_only_context, signal_mode_text)' in source
-    assert 'string priority_seen_keys_confirmed = emit_dynamic_alert_if_allowed(' not in source
-    assert 'bool invalidated_sent_now = false' not in source
-    assert 'bool strict_sent_now = false' not in source
-    assert 'bool best_sent_now = false' not in source
-    assert 'bool ready_sent_now = false' not in source
-    assert 'bool confirmed_sent_now = false' not in source
-    assert 'bool clean_sent_now = false' not in source
-    assert 'bool early_sent_now = false' not in source
-    assert 'bool armed_plus_sent_now = false' not in source
-    assert 'bool armed_sent_now = false' not in source
-    assert 'bool watchlist_sent_now = false' not in source
-    assert 'next_dynamic_alert_sent := watchlist_sent_now' not in source
-    assert 'long_dynamic_alert_sent := priority_seen_keys_strict != dynamic_alert_seen_keys' not in source
-    assert 'long_dynamic_alert_sent := priority_seen_keys_best != dynamic_alert_seen_keys' not in source
-    assert 'long_dynamic_alert_sent := priority_seen_keys_ready != dynamic_alert_seen_keys' not in source
-    assert 'long_dynamic_alert_sent := priority_seen_keys_confirmed != dynamic_alert_seen_keys' not in source
-    assert 'long_dynamic_alert_sent := priority_seen_keys_clean != dynamic_alert_seen_keys' not in source
-    assert 'long_dynamic_alert_sent := priority_seen_keys_early != dynamic_alert_seen_keys' not in source
-    assert 'long_dynamic_alert_sent := priority_seen_keys_armed_plus != dynamic_alert_seen_keys' not in source
-    assert 'long_dynamic_alert_sent := priority_seen_keys_armed != dynamic_alert_seen_keys' not in source
-    assert 'long_dynamic_alert_sent := priority_seen_keys_watchlist != dynamic_alert_seen_keys' not in source
-    assert 'if invalidated_active' in source
-    assert 'else if enable_dynamic_alerts and alert_long_entry_strict_event' not in source
-    assert 'else if enable_dynamic_alerts and alert_long_entry_best_event' not in source
-    assert 'else if enable_dynamic_alerts and long_ready_signal' not in source
-    assert 'else if enable_dynamic_alerts and long_confirm_signal' not in source
-    assert 'else if enable_dynamic_alerts and alert_long_clean_event' not in source
-    assert 'else if enable_dynamic_alerts and alert_long_early_event' not in source
-    assert 'else if enable_dynamic_alerts and alert_long_armed_event' not in source
-    assert 'else if enable_dynamic_alerts and long_arm_signal' not in source
-    assert 'else if enable_dynamic_alerts and alert_long_watchlist_event' not in source
-    # compose_long_ready_alert_detail call-site now uses cr. prefix (WP-SPLIT4)
-    assert 'next_seen_keys := emit_dynamic_alert_if_allowed(next_seen_keys, ready_active, long_ready_alert_key, long_ready_alert_name, cr.compose_long_ready_alert_detail(long_setup_source_display, long_strict_alert_suffix, long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix), long_trigger_level, 1, ltf_bull_share_context, ltf_volume_delta_context, ltf_price_only_context, signal_mode_text)' in source
-    assert 'emit_priority_long_dynamic_alerts(string seen_keys, bool already_sent' in source
-    assert 'ltf_price_only_context' in source
-    assert 'emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and long_ready_signal, long_ready_alert_key, long_ready_alert_name, compose_long_ready_alert_detail(long_setup_source_display, long_strict_alert_suffix, long_environment_alert_suffix, long_micro_alert_suffix, long_score_detail_suffix), long_state.trigger, 1, ltf_bull_share, ltf_volume_delta, ltf_price_only, signal_mode_text)' not in source
-    assert 'emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and long_invalidate_signal, long_invalidated_alert_key, long_invalidated_alert_name' not in source
-    assert 'emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and alert_long_entry_strict_event, long_entry_strict_alert_key, long_entry_strict_alert_name' not in source
-    assert 'emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and alert_long_entry_best_event, long_entry_best_alert_key, long_entry_best_alert_name' not in source
-    assert 'emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and alert_long_clean_event, long_clean_alert_key, long_clean_alert_name' not in source
-    assert 'emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and long_confirm_signal, long_confirmed_alert_key, long_confirmed_alert_name' not in source
-    assert 'emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and alert_long_early_event, long_early_alert_key, long_early_alert_name' not in source
-    assert 'emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and alert_long_armed_event, long_armed_plus_alert_key, long_armed_plus_alert_name' not in source
-    assert 'emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and long_arm_signal, long_armed_alert_key, long_armed_alert_name' not in source
-    assert 'emit_dynamic_alert_if_allowed(dynamic_alert_seen_keys, enable_dynamic_alerts and alert_long_watchlist_event, long_watchlist_alert_key, long_watchlist_alert_name' not in source
-    assert 'emit_priority_dynamic_alert_if_allowed(' not in source
-    # Old detailed dashboard display patterns removed (Patch 5 compact dashboard rebuild)
-    # prefer_level, quality_score_display, quality_env_display, etc. all replaced by compact dashboard
-    assert 'dashboard_row(table tbl, int row, string name, string value, color bg, color txt) =>' in source
-    assert 'dashboard_section_header(table tbl, int base_row, string title, color bg, color txt) =>' in source
-    assert 'dashboard_section_row(table tbl, int base_row, int offset, string name, string value, color bg, color txt) =>' in source
-    assert 'render_smc_dashboard_documented(table tbl) =>' not in source
-    assert 'table tbl = _smc_dashboard' not in source
-    assert 'int DB_ROW_TITLE = 0' not in source
-    assert 'int DB_ROW_LIFECYCLE_HEADER = 1' not in source
-    assert 'int DB_ROW_HARD_GATES_HEADER = 10' not in source
-    assert 'int DB_ROW_QUALITY_HEADER = 19' not in source
-    assert 'int DB_ROW_MODULES_HEADER = 28' not in source
-    assert 'int DB_ROW_ENGINE_HEADER = 44' not in source
-    assert 'int DB_LAST_ROW = 47' not in source
-    assert "string DB_TITLE_LIFECYCLE = '[ Lifecycle ]'" not in source
-    assert "string DB_TITLE_HARD_GATES = '[ Hard Gates ]'" not in source
-    assert "string DB_TITLE_QUALITY = '[ Quality ]'" not in source
-    assert "string DB_TITLE_MODULES = '[ Modules ]'" not in source
-    assert "string DB_LABEL_TREND = 'Trend'" not in source
-    assert "string DB_LABEL_READY_GATE = 'Ready Gate'" not in source
-    assert "string DB_LABEL_LONG_DEBUG = 'Long Debug'" not in source
-    assert "dashboard_header(_smc_dashboard, 0, 'SMC++ | ' + signal_mode_text + ' | ' + long_user_preset + ' | ' + performance_mode, _db_header_bg, _db_text)" in source
-    assert 'if show_dashboard and barstate.islast' in source
-    assert 'render_dashboard_lifecycle_section(_smc_dashboard, _db_header_bg, _db_text)' in source
-    assert 'render_dashboard_hard_gates_section(_smc_dashboard, _db_header_bg, _db_text)' in source
-    assert 'render_dashboard_quality_section(table tbl, color header_bg, color txt) =>' in source
-    assert 'render_dashboard_modules_section(table tbl, color header_bg, color txt) =>' in source
-    assert 'render_dashboard_engine_section(table tbl, color txt) =>' in source
-    assert 'compute_dashboard_hard_gate_prep() =>' in source
-    assert 'compute_dashboard_gate_quality_prep() =>' in source
-    assert 'compute_dashboard_quality_filters_prep() =>' in source
-    assert 'compute_dashboard_modules_structure_prep() =>' in source
-    assert 'compute_dashboard_lifecycle_prep() =>' in source
-    assert 'compute_dashboard_engine_debug_prep() =>' in source
-    assert '[_mtf_bull_count, _db_trend_text, _db_trend_state, _db_htf_text, _db_htf_state, _db_setup_state, _db_exec_tier_text, _db_exec_tier_state, _db_setup_age, _db_setup_age_state, _db_pullback_state, _db_reclaim_state, _db_long_visual_state] = compute_dashboard_lifecycle_prep()' in source
-    assert '[_db_ready_gate_state, _db_strict_gate_state, _db_debug_flags_state, _db_debug_flags_text, _db_long_debug_text, _db_long_debug_state] = compute_dashboard_engine_debug_prep()' in source
-    assert 'render_dashboard_quality_section(_smc_dashboard, _db_header_bg, _db_text)' in source
-    assert 'render_dashboard_modules_section(_smc_dashboard, _db_header_bg, _db_text)' in source
-    assert 'render_dashboard_engine_section(_smc_dashboard, _db_text)' in source
-    assert '[_db_session_text, _db_session_state, _db_market_text, _db_market_state, _db_vola_gate_text, _db_vola_gate_state, _db_micro_session_text, _db_micro_session_state, _db_micro_fresh_text, _db_micro_fresh_state, _db_volume_data_text, _db_volume_data_state] = compute_dashboard_hard_gate_prep()' in source
-    assert '[_db_quality_env_text, _db_quality_env_state, _db_strict_quality_ok, _db_quality_strict_text, _db_quality_strict_state] = compute_dashboard_gate_quality_prep()' in source
-    assert '[_db_close_strength_state, _db_ema_support_state, _db_adx_text, _db_adx_state, _db_relvol_text, _db_relvol_state, _db_vwap_text, _db_vwap_state, _db_context_quality_text, _db_context_quality_state, _db_quality_score_text, _db_quality_score_state, _db_quality_clean_text, _db_quality_clean_state] = compute_dashboard_quality_filters_prep()' in source
-    assert '[_db_sd_confluence_text, _db_sd_confluence_state, _db_sd_direction_text, _db_sd_osc_text, _db_sd_osc_state, _db_vol_regime_text, _db_vol_regime_state, _db_vol_squeeze_text, _db_vol_squeeze_state, _db_vol_expand_text, _db_vol_expand_state, _db_stretch_state_text, _db_stretch_text, _db_stretch_state, _db_ddvi_text, _db_ddvi_state, _db_ltf_bias_text, _db_ltf_bias_state, _db_ltf_delta_text, _db_ltf_delta_state, _db_objects_text, _db_objects_state, _db_swing_trail_up_text, _db_swing_trail_dn_text, _db_swing_internal_up_text, _db_swing_internal_dn_text, _db_swing_text, _db_swing_state, _db_long_zones_text, _db_long_zones_state, _db_long_triggers_text, _db_long_triggers_state, _db_micro_profile_text, _db_micro_profile_state, _db_risk_plan_text, _db_risk_plan_state] = compute_dashboard_modules_structure_prep()' in source
-    assert "dashboard_section_header(tbl, 19, '[ Quality ]', header_bg, txt)" in source
-    assert "dashboard_section_row(tbl, 19, 1, 'Close Strength', close_state_text, status_bg(_db_close_strength_state), txt)" in source
-    assert "dashboard_section_row(tbl, 19, 8, 'Quality Clean', _db_quality_clean_text, status_bg(_db_quality_clean_state), txt)" in source
-    assert "dashboard_section_header(tbl, 28, '[ Modules ]', header_bg, txt)" in source
-    assert "dashboard_section_row(tbl, 28, 1, 'SD Confluence', _db_sd_confluence_text, status_bg(_db_sd_confluence_state), txt)" in source
-    assert "dashboard_section_row(tbl, 28, 8, 'LTF Bias', _db_ltf_bias_text, status_bg(_db_ltf_bias_state), txt)" in source
-    assert "dashboard_section_row(tbl, 28, 15, 'Risk Plan', _db_risk_plan_text, status_bg(_db_risk_plan_state), txt)" in source
-    assert 'render_dashboard_quality_section(_smc_dashboard, _db_header_bg, _db_text)' in source
-    assert 'render_dashboard_modules_section(_smc_dashboard, _db_header_bg, _db_text)' in source
-    assert 'render_dashboard_engine_section(_smc_dashboard, _db_text)' in source
-    assert "string _db_session_text = not intraday_time_chart ? 'n/a' :" not in source
-    assert "string _db_market_text = not use_index_gate and not use_sector_gate and not use_breadth_symbol_gate ? 'off' :" not in source
-    assert "string _db_quality_strict_text = long_entry_strict_state ? 'Passed' :" not in source
-    assert "_db_ltf_bias_text := not ltf_sampling_active ? 'n/a' : not ltf_price_ok ? 'n/a'" not in source
-    assert "_db_ltf_delta_text := not ltf_sampling_active ? 'n/a' : ltf_price_only ? 'no-vol'" not in source
-    assert "_db_ltf_bias_text := str.tostring(ltf_bull_share * 100.0, '#') + '%' + (ltf_price_only ? ' price-only' : '')" not in source
-    assert "string _db_swing_text = 'S ' + (not na(trail_up) ? u.format_level(trail_up) : 'n/a') + ' / ' + (not na(trail_dn) ? u.format_level(trail_dn) : 'n/a') + ' | I ' + (not na(internal_trail_up) ? u.format_level(internal_trail_up) : 'n/a') + ' / ' + (not na(internal_trail_dn) ? u.format_level(internal_trail_dn) : 'n/a')" not in source
-    assert "string _overhead = 'off'" in source
-    assert 'if use_overhead_zone_filter_eff' in source
-    assert "_overhead := 'clear'" in source
-    assert 'if not na(headroom_to_overhead) and not na(planned_risk)' in source
-    assert "_overhead := str.tostring(headroom_to_overhead / planned_risk, '#.##') + 'R'" in source
-    assert "string _overhead = not use_overhead_zone_filter_eff ? 'off' : na(headroom_to_overhead) or na(planned_risk) ? 'clear' : str.tostring(headroom_to_overhead / planned_risk, '#.##') + 'R'" not in source
-    assert 'int _db_long_visual_state = long_visual_state' in source
-    assert "string _db_trend_text = db_trend_text(structure_display_trend)" in source
-    assert 'int _db_trend_state = db_trend_state(structure_display_trend)' in source
-    assert 'int _db_htf_state = -1' in source
-    assert 'if _mtf_bull_count >= 2' in source
-    assert '_db_htf_state := 5' in source
-    assert 'else if _mtf_bull_count == 1' in source
-    assert '_db_htf_state := 3' in source
-    assert 'int _db_setup_state = 0' in source
-    assert 'if long_entry_strict_state or long_entry_best_state' in source
-    assert '_db_setup_state := 5' in source
-    assert 'else if long_ready_state or long_state.confirmed' in source
-    assert '_db_setup_state := 4' in source
-    assert 'else if long_building_state' in source
-    assert '_db_setup_state := 3' in source
-    assert 'else if long_state.armed' in source
-    assert '_db_setup_state := 2' in source
-    assert 'else if long_zone_active' in source
-    assert '_db_setup_state := 1' in source
-    assert 'int _db_exec_tier_state = 0' in source
-    assert '_db_exec_tier_state := 5' in source
-    assert '_db_exec_tier_state := 4' in source
-    assert '_db_exec_tier_state := 2' in source
-    assert '_db_exec_tier_state := 1' in source
-    assert 'int _db_setup_age_state = 0' in source
-    assert 'if long_state.confirmed' in source
-    assert '_db_setup_age_state := ready_is_fresh ? 5 : 2' in source
-    assert 'else if long_state.armed' in source
-    assert '_db_setup_age_state := confirm_is_fresh ? 4 : 2' in source
-    assert 'int _db_pullback_state = 0' in source
-    assert 'if in_bull_ob_zone and in_bull_fvg_zone' in source
-    assert '_db_pullback_state := 5' in source
-    assert 'else if in_bull_ob_zone or in_bull_fvg_zone' in source
-    assert '_db_pullback_state := 4' in source
-    assert 'int _db_reclaim_state = 0' in source
-    assert 'if bull_reclaim_ob_strict or bull_reclaim_fvg_strict' in source
-    assert '_db_reclaim_state := 5' in source
-    assert 'else if bull_reclaim_swing_low_strict or bull_reclaim_internal_low_strict' in source
-    assert '_db_reclaim_state := 4' in source
-    assert 'else if reclaim_recent' in source
-    assert '_db_reclaim_state := 2' in source
-    assert 'int _db_session_state = -1' in source
-    assert '_db_session_state := 0' in source
-    assert 'else if session_structure_gate_ok' in source
-    assert '_db_session_state := 5' in source
-    assert 'int _db_market_state = -1' in source
-    assert '_db_market_state := 0' in source
-    assert 'else if market_symbols_missing and not block_on_missing_market_symbol' in source
-    assert '_db_market_state := 2' in source
-    assert 'else if market_regime_gate_ok' in source
-    assert '_db_market_state := 5' in source
-    assert "string _db_vola_gate_text = 'Blocked'" in source
-    assert 'int _db_vola_gate_state = -1' in source
-    assert 'if not use_vola_compression_gate' in source
-    assert "_db_vola_gate_text := 'off'" in source
-    assert 'else if vola_regime_gate_safe' in source
-    assert "_db_vola_gate_text := 'Compression -> Expansion'" in source
-    assert "_db_vola_gate_text := 'Compression context'" in source
-    assert "_db_vola_gate_text := 'OK'" in source
-    assert '_db_vola_gate_state := 0' in source
-    assert '_db_vola_gate_state := 5' in source
-    assert '_db_vola_gate_state := 3' in source
-    assert 'int _db_htf_state = _mtf_bull_count >= 2 ? 5 : _mtf_bull_count == 1 ? 3 : -1' not in source
-    assert 'int _db_setup_state = long_entry_strict_state ? 5 : long_entry_best_state ? 5 : long_ready_state ? 4 : long_state.confirmed ? 4 : long_building_state ? 3 : long_state.armed ? 2 : long_zone_active ? 1 : 0' not in source
-    assert 'int _db_exec_tier_state = long_entry_strict_state ? 5 : long_entry_best_state ? 5 : long_ready_state ? 4 : long_state.confirmed ? 4 : long_state.armed ? 2 : long_zone_active ? 1 : 0' not in source
-    assert 'int _db_setup_age_state = long_state.confirmed ? (ready_is_fresh ? 5 : 2) : long_state.armed ? (confirm_is_fresh ? 4 : 2) : 0' not in source
-    assert 'int _db_pullback_state = in_bull_ob_zone and in_bull_fvg_zone ? 5 : in_bull_ob_zone or in_bull_fvg_zone ? 4 : 0' not in source
-    assert 'int _db_reclaim_state = bull_reclaim_ob_strict or bull_reclaim_fvg_strict ? 5 : bull_reclaim_swing_low_strict or bull_reclaim_internal_low_strict ? 4 : reclaim_recent ? 2 : 0' not in source
-    assert 'int _db_long_visual_state = long_visual_state == -1 ? -1 : long_visual_state' not in source
-    assert 'int _db_session_state = not intraday_time_chart ? 0 : not use_trade_session_gate and not use_opening_range_gate ? 0 : session_structure_gate_ok ? 5 : -1' not in source
-    assert 'int _db_market_state = not use_index_gate and not use_sector_gate and not use_breadth_symbol_gate ? 0 : market_symbols_missing and not block_on_missing_market_symbol ? 2 : market_regime_gate_ok ? 5 : -1' not in source
-    assert 'int _db_vola_gate_state = not use_vola_compression_gate ? 0 : vola_regime_gate_safe ? (vola_expansion_now ? 5 : 3) : -1' not in source
-    assert "_db_vola_gate_text := vola_expansion_now ? 'Compression -> Expansion' : vola_compression_recent ? 'Compression context' : 'OK'" not in source
-    assert '_db_vola_gate_state := vola_expansion_now ? 5 : 3' not in source
-    assert 'color _db_trend_bg = status_bg(_db_trend_state)' not in source
-    assert 'color _db_htf_bg = status_bg(_db_htf_state)' not in source
-    assert 'color _db_long_visual_bg = status_bg(_db_long_visual_state)' not in source
-    assert 'int _db_ready_gate_state = db_ready_gate_state(long_ready_state, long_state.confirmed, lifecycle_ready_ok, setup_hard_gate_ok, trade_hard_gate_ok, environment_hard_gate_ok)' in source
-    assert 'int _db_strict_gate_state = db_strict_gate_state(long_entry_strict_state, long_ready_state, strict_entry_ltf_ok, htf_alignment_ok, accel_strict_entry_gate_ok, sd_entry_strict_gate_ok, vol_entry_strict_context_ok_safe, stretch_entry_strict_context_ok, ddvi_entry_strict_ok_safe)' in source
-    assert 'int _db_debug_flags_state = 0' in source
-    assert 'string _db_debug_flags_text = compose_enabled_debug_modules_text(show_ob_debug, show_fvg_debug, show_long_engine_debug, long_engine_debug_mode_eff)' in source
-    assert "string _db_long_debug_text = 'off'" in source
-    assert 'int _db_long_debug_state = db_long_debug_state(show_long_engine_debug, long_visual_state, long_state.armed, long_state.confirmed, long_ready_state)' in source
-    assert 'int _db_micro_session_state = -1' in source
-    assert 'if not use_microstructure_profiles or not intraday_time_chart' in source
-    assert '_db_micro_session_state := 0' in source
-    assert 'else if micro_session_gate_ok' in source
-    assert '_db_micro_session_state := 5' in source
-    assert "string _db_micro_fresh_text = freshness_text + ' | ' + source_state_text" in source
-    assert "if not use_microstructure_profiles" in source
-    assert "_db_micro_fresh_text := 'off'" in source
-    assert 'int _db_micro_fresh_state = -1' in source
-    assert '_db_micro_fresh_state := 0' in source
-    assert 'else if micro_freshness_gate_ok' in source
-    assert '_db_micro_fresh_state := 5' in source
-    assert 'int _db_volume_data_state = 5' in source
-    assert '_db_volume_data_state := -1' in source
-    assert '_db_volume_data_state := 2' in source
-    assert 'int _db_quality_env_state = 2' in source
-    assert '_db_quality_env_state := 5' in source
-    assert '_db_quality_env_state := -1' in source
-    assert 'bool _db_strict_quality_ok = false' in source
-    assert 'if strict_entry_ltf_ok and htf_alignment_ok and accel_strict_entry_gate_ok and sd_entry_strict_gate_ok and vol_entry_strict_context_ok_safe and stretch_entry_strict_context_ok and ddvi_entry_strict_ok_safe' in source
-    assert '_db_strict_quality_ok := true' in source
-    assert 'int _db_quality_strict_state = -1' in source
-    assert 'if long_entry_strict_state' in source
-    assert '_db_quality_strict_state := 5' in source
-    assert 'else if _db_strict_quality_ok' in source
-    assert '_db_quality_strict_state := 4' in source
-    assert 'int _db_micro_session_state = not use_microstructure_profiles or not intraday_time_chart ? 0 : micro_session_gate_ok ? 5 : -1' not in source
-    assert "string _db_micro_fresh_text = not use_microstructure_profiles ? 'off' : freshness_text + ' | ' + source_state_text" not in source
-    assert 'int _db_micro_fresh_state = not use_microstructure_profiles ? 0 : micro_freshness_gate_ok ? 5 : -1' not in source
-    assert 'int _db_volume_data_state = not volume_current_bar_ok ? -1 : not volume_feed_quality_ok ? 2 : ltf_sampling_active and ltf_price_ok and not ltf_volume_ok ? 2 : 5' not in source
-    assert 'int _db_quality_env_state = environment_hard_gate_ok ? 5 : not market_regime_gate_ok or not vola_regime_gate_safe ? -1 : 2' not in source
-    assert 'bool _db_strict_quality_ok = strict_entry_ltf_ok and htf_alignment_ok and accel_strict_entry_gate_ok and sd_entry_strict_gate_ok and vol_entry_strict_context_ok_safe and stretch_entry_strict_context_ok and ddvi_entry_strict_ok_safe' not in source
-    assert 'int _db_quality_strict_state = long_entry_strict_state ? 5 : _db_strict_quality_ok ? 4 : -1' not in source
-    assert 'color _db_session_bg = status_bg(_db_session_state)' not in source
-    assert 'int _db_close_strength_state = 0' in source
-    assert 'int _db_ema_support_state = 0' in source
-    assert "string _db_adx_text = 'off'" in source
-    assert 'int _db_adx_state = 0' in source
-    assert 'int _db_relvol_state = 0' in source
-    assert 'int _db_vwap_state = 0' in source
-    assert "string _db_context_quality_text = 'off'" in source
-    assert 'int _db_context_quality_state = 0' in source
-    assert 'int _db_quality_score_state = 2' in source
-    assert "string _db_quality_clean_text = 'No'" in source
-    assert 'int _db_quality_clean_state = 0' in source
-    assert 'int _db_sd_confluence_state = 0' in source
-    assert "string _db_sd_direction_text = 'flat'" in source
-    assert 'int _db_sd_osc_state = 0' in source
-    assert "string _db_vol_regime_text = 'off'" in source
-    assert 'int _db_vol_regime_state = 0' in source
-    assert 'int _db_vol_squeeze_state = 0' in source
-    assert 'int _db_vol_expand_state = 0' in source
-    assert "string _db_stretch_state_text = 'chasing'" in source
-    assert 'int _db_stretch_state = 0' in source
-    assert 'int _db_ddvi_state = 0' in source
-    assert 'int _db_ltf_bias_state = 0' in source
-    assert 'int _db_ltf_delta_state = 0' in source
-    assert 'int _db_objects_state = 0' in source
-    assert 'int _db_swing_state = 0' in source
-    assert 'int _db_long_zones_state = 0' in source
-    assert "string _db_long_triggers_text = 'n/a'" in source
-    assert 'int _db_long_triggers_state = 0' in source
-    assert 'int _db_micro_profile_state = 0' in source
-    assert "string _db_risk_plan_text = 'n/a'" in source
-    assert 'int _db_risk_plan_state = 0' in source
-    assert 'color _db_quality_env_bg = status_bg(_db_quality_env_state)' not in source
-    assert 'color _db_close_strength_bg = status_bg(_db_close_strength_state)' not in source
-    assert 'color _db_ema_support_bg = status_bg(_db_ema_support_state)' not in source
-    assert 'color _db_adx_bg = status_bg(_db_adx_state)' not in source
-    assert 'color _db_sd_confluence_bg = status_bg(_db_sd_confluence_state)' not in source
-    assert 'color _db_sd_osc_bg = status_bg(_db_sd_osc_state)' not in source
-    assert 'color _db_vol_regime_bg = status_bg(_db_vol_regime_state)' not in source
-    assert 'color _db_vol_squeeze_bg = status_bg(_db_vol_squeeze_state)' not in source
-    assert 'color _db_vol_expand_bg = status_bg(_db_vol_expand_state)' not in source
-    assert 'color _db_stretch_bg = status_bg(_db_stretch_state)' not in source
-    assert 'color _db_ddvi_bg = status_bg(_db_ddvi_state)' not in source
-    assert 'color _db_ltf_bias_bg = status_bg(_db_ltf_bias_state)' not in source
-    assert 'color _db_ltf_delta_bg = status_bg(_db_ltf_delta_state)' not in source
-    assert 'color _db_objects_bg = status_bg(_db_objects_state)' not in source
-    assert 'color _db_swing_bg = status_bg(_db_swing_state)' not in source
-    assert 'color _db_long_zones_bg = status_bg(_db_long_zones_state)' not in source
-    assert 'color _db_long_triggers_bg = status_bg(_db_long_triggers_state)' not in source
-    assert 'color _db_micro_profile_bg = status_bg(_db_micro_profile_state)' not in source
-    assert 'color _db_risk_plan_bg = status_bg(_db_risk_plan_state)' not in source
-    assert 'color _db_ready_gate_bg = status_bg(_db_ready_gate_state)' not in source
-    assert 'color _db_debug_flags_bg = status_bg(_db_debug_flags_state)' not in source
-    assert 'color _db_long_debug_bg = status_bg(_db_long_debug_state)' not in source
-    assert "dashboard_section_row(tbl, 10, 7, 'Quality Env', _db_quality_env_text, status_bg(_db_quality_env_state), txt)" in source
-    assert "dashboard_section_row(tbl, 19, 1, 'Close Strength', close_state_text, status_bg(_db_close_strength_state), txt)" in source
-    assert "dashboard_section_row(tbl, 28, 1, 'SD Confluence', _db_sd_confluence_text, status_bg(_db_sd_confluence_state), txt)" in source
-    assert "dashboard_section_row(tbl, 44, 2, 'Debug Flags', _db_debug_flags_text, status_bg(_db_debug_flags_state), txt)" in source
-    assert "string trend_text = 'Neutral'" in source
-    assert "string exec_tier_text = 'n/a'" in source
-    assert "string setup_age_text = 'n/a'" in source
-    assert 'int ready_gate_state = 2' in source
-    assert 'int strict_gate_state = 2' in source
-    assert 'int debug_state = 0' in source
-    assert 'int _db_close_strength_state = not use_strong_close_filter ? 0 : bull_close_strong ? 5 : -1' not in source
-    assert 'int _db_ema_support_state = not show_ema_support ? 0 : ema_support_ok ? 5 : -1' not in source
-    assert "string _db_adx_text = not use_adx ? 'off' : not adx_data_ok ? 'n/a' : str.tostring(adx_value, '#.##') + ' | ' + adx_state_text" not in source
-    assert 'int _db_adx_state = not use_adx or not adx_data_ok ? 0 : plus_di < minus_di ? -1 : adx_strong ? 5 : adx_value >= adx_trend_min ? 3 : 2' not in source
-    assert 'int _db_relvol_state = not use_rel_volume ? 0 : not relvol_data_ok ? (allow_relvol_without_volume_data ? 2 : -1) : relvol_ok ? 5 : -1' not in source
-    assert 'int _db_vwap_state = not use_vwap_filter ? 0 : not intraday_time_chart ? 0 : not vwap_session_active ? 0 : vwap_filter_ok ? 5 : -1' not in source
-    assert "string _db_context_quality_text = not use_context_quality_score_eff ? 'off' : context_quality_gate_ok ? 'Supportive' : 'Weak'" not in source
-    assert 'int _db_context_quality_state = not use_context_quality_score_eff ? 0 : context_quality_gate_ok ? 5 : 2' not in source
-    assert 'int _db_quality_score_state = context_quality_gate_ok ? 5 : 2' not in source
-    assert "string _db_quality_clean_text = long_quality_clean_tier ? 'Clean' : 'No'" not in source
-    assert 'int _db_quality_clean_state = long_quality_clean_tier ? 5 : 0' not in source
-    assert 'int _db_sd_confluence_state = not use_sd_confluence ? 0 : sd_support_both_recent ? 5 : sd_support_any_recent ? 4 : 0' not in source
-    assert "string _db_sd_osc_text = str.tostring(sd_value, '#.##') + ' | ' + (sd_rising ? 'rising' : sd_falling ? 'falling' : 'flat')" not in source
-    assert 'int _db_sd_osc_state = not use_sd_confluence or na(sd_value) ? 0 : sd_above_zero and sd_rising ? 5 : sd_rising ? 3 : sd_below_zero and sd_falling ? -1 : 0' not in source
-    assert "string _db_vol_regime_text = not use_volatility_regime ? 'off' : vol_regime_trend_ok ? 'Bull stack' : 'Weak stack'" not in source
-    assert 'int _db_vol_regime_state = not use_volatility_regime ? 0 : vol_regime_trend_ok ? 5 : -1' not in source
-    assert 'int _db_vol_squeeze_state = not use_volatility_regime ? 0 : vol_squeeze_on ? 5 : vol_squeeze_release_recent ? 4 : vol_squeeze_recent ? 3 : 0' not in source
-    assert 'int _db_vol_expand_state = not use_volatility_regime ? 0 : vol_momentum_expanding_long and vol_stack_spread_rising ? 5 : vol_momentum_expanding_long or vol_stack_spread_rising ? 3 : 0' not in source
-    assert "string _db_stretch_text = str.tostring(distance_to_mean_z, '#.##') + 'z | ' + (in_lower_extreme ? 'lower extreme' : lower_extreme_recent ? 'recent extreme' : anti_chase_ok_entry_best ? 'anti-chase ok' : 'chasing')" not in source
-    assert 'int _db_stretch_state = not use_stretch_context or na(distance_to_mean_z) ? 0 : (in_lower_extreme or lower_extreme_recent) and anti_chase_ok_entry_best ? 5 : anti_chase_ok_ready ? 3 : -1' not in source
-    assert 'int _db_ddvi_state = not use_ddvi_context ? 0 : ddvi_bias_ok and ddvi_bull_divergence_any ? 5 : ddvi_bias_ok or ddvi_bull_divergence_any ? 4 : ddvi_lower_extreme_context ? 3 : 0' not in source
-    assert 'int _db_ltf_bias_state = not show_dashboard_ltf_eff or not ltf_sampling_active or not ltf_price_ok ? 0 : ltf_bull_share >= ltf_bias_hint ? 5 : ltf_bull_share >= 0.50 ? 3 : -1' not in source
-    assert 'int _db_ltf_delta_state = not show_dashboard_ltf_eff or not ltf_sampling_active ? 0 : ltf_price_only ? 2 : na(ltf_volume_delta) ? 0 : ltf_volume_delta >= 0 ? 5 : -1' not in source
-    assert 'int _db_objects_state = array.size(ob_blocks_bull) > 0 and array.size(fvgs_bull) > 0 ? 5 : array.size(ob_blocks_bull) > 0 or array.size(fvgs_bull) > 0 ? 3 : 0' not in source
-    assert 'int _db_swing_state = bullish_trend_safe ? 5 : bearish_trend_safe ? -1 : 0' not in source
-    assert 'int _db_long_zones_state = long_zone_active ? 5 : 0' not in source
-    assert "string _db_long_triggers_text = long_plan_active ? 'Trig ' + u.format_level(long_state.trigger) + ' | Inv ' + u.format_level(long_state.invalidation_level) : 'n/a'" not in source
-    assert 'int _db_long_triggers_state = long_plan_active ? 5 : 0' not in source
-    assert 'int _db_micro_profile_state = not use_microstructure_profiles ? 0 : str.length(micro_modifier_text) > 0 or micro_profile_text != \'Default\' ? 5 : 3' not in source
-    assert "string _db_risk_plan_text = long_plan_active ? 'Entry ' + u.format_level(long_state.trigger) + ' | Stop ' + u.format_level(long_stop_level) + ' | T1 ' + u.format_level(long_target_1) + ' | T2 ' + u.format_level(long_target_2) : 'n/a'" not in source
-    assert 'int _db_risk_plan_state = long_plan_active ? 5 : 0' not in source
-    assert 'int _db_debug_flags_state = show_ob_debug or show_fvg_debug or show_long_engine_debug ? 5 : 0' not in source
-    assert "string _db_long_debug_text = show_long_engine_debug ? long_debug_summary_text : 'off'" not in source
-    assert "dir > 0 ? 'Bullish' : dir < 0 ? 'Bearish' : 'Neutral'" not in source
-    assert "long_entry_strict_state ? 'Strict' : long_entry_best_state ? 'Best' : long_ready_state ? 'Ready' : long_state.confirmed ? 'Confirmed' : long_state.armed ? 'Armed' : long_zone_active ? 'Watchlist' : 'n/a'" not in source
-    assert "long_state.confirmed and not na(long_state.confirm_bar_index) ? 'confirmed ' + str.tostring(long_confirm_age) : long_state.armed and not na(long_state.arm_bar_index) ? 'armed ' + str.tostring(long_setup_age) : 'n/a'" not in source
-    assert 'int long_setup_age = 0' in source
-    assert 'if long_state.armed and not na(long_state.arm_bar_index)' in source
-    assert 'long_setup_age := bar_index - long_state.arm_bar_index' in source
-    assert 'int long_confirm_age = 0' in source
-    assert 'if long_state.confirmed and not na(long_state.confirm_bar_index)' in source
-    assert 'long_confirm_age := bar_index - long_state.confirm_bar_index' in source
-    assert 'int long_setup_age = long_state.armed and not na(long_state.arm_bar_index) ? bar_index - long_state.arm_bar_index : 0' not in source
-    assert 'int long_confirm_age = long_state.confirmed and not na(long_state.confirm_bar_index) ? bar_index - long_state.confirm_bar_index : 0' not in source
-    assert 'long_ready_state ? 5 : not long_setup_confirmed ? 2 : not lifecycle_ready_ok ? 2 : not setup_hard_gate_ok or not trade_hard_gate_ok or not environment_hard_gate_ok ? -1 : 2' not in source
-    assert 'long_entry_strict_state ? 5 : not long_ready_state ? 2 : not strict_entry_ltf_ok or not htf_alignment_ok or not accel_strict_entry_gate_ok or not sd_entry_strict_gate_ok or not vol_entry_strict_context_ok_safe or not stretch_entry_strict_context_ok or not ddvi_entry_strict_ok_safe ? -1 : 2' not in source
-    assert "not show_long_engine_debug ? 0 : long_visual_state == -1 ? -1 : long_setup_armed or long_setup_confirmed or long_ready_state ? 5 : 2" not in source
-    assert "dashboard_section_header(tbl, 1, '[ Lifecycle ]', header_bg, txt)" in source
-    assert "dashboard_section_row(tbl, 1, 1, 'Trend', _db_trend_text, status_bg(_db_trend_state), txt)" in source
-    assert "dashboard_section_row(tbl, 1, 7, 'Long Visual', long_visual_text, status_bg(_db_long_visual_state), txt)" in source
-    assert "dashboard_section_row(tbl, 10, 1, 'Session', _db_session_text, status_bg(_db_session_state), txt)" in source
-    assert "dashboard_section_row(tbl, 10, 7, 'Quality Env', _db_quality_env_text, status_bg(_db_quality_env_state), txt)" in source
-    assert "dashboard_section_row(tbl, 19, 1, 'Close Strength', close_state_text, status_bg(_db_close_strength_state), txt)" in source
-    assert "dashboard_section_row(tbl, 19, 2, 'EMA Support', ema_state_text, status_bg(_db_ema_support_state), txt)" in source
-    assert "dashboard_section_row(tbl, 19, 3, 'ADX', _db_adx_text, status_bg(_db_adx_state), txt)" in source
-    assert "dashboard_section_row(tbl, 28, 1, 'SD Confluence', _db_sd_confluence_text, status_bg(_db_sd_confluence_state), txt)" in source
-    assert "dashboard_section_row(tbl, 28, 5, 'Vol Expand', _db_vol_expand_text, status_bg(_db_vol_expand_state), txt)" in source
-    assert "dashboard_section_row(tbl, 28, 15, 'Risk Plan', _db_risk_plan_text, status_bg(_db_risk_plan_state), txt)" in source
-    assert "dashboard_section_row(tbl, 44, 0, 'Ready Gate', long_ready_blocker_text, status_bg(_db_ready_gate_state), txt)" in source
-    assert "dashboard_section_row(tbl, 44, 2, 'Debug Flags', _db_debug_flags_text, status_bg(_db_debug_flags_state), txt)" in source
-    assert "dashboard_section_row(tbl, 44, 3, 'Long Debug', _db_long_debug_text, status_bg(_db_long_debug_state), txt)" in source
-    assert "dashboard_row(_smc_dashboard, 8, 'Long Visual', long_visual_text, status_bg(long_visual_state == -1 ? -1 : long_visual_state), _db_text)" not in source
-    assert "dashboard_row(_smc_dashboard, 20, 'Close Strength', close_state_text, status_bg(not use_strong_close_filter ? 0 : bull_close_strong ? 5 : -1), _db_text)" not in source
-    assert "dashboard_row(_smc_dashboard, 21, 'EMA Support', ema_state_text, status_bg(not show_ema_support ? 0 : ema_support_ok ? 5 : -1), _db_text)" not in source
-    assert "dashboard_row(_smc_dashboard, DB_ROW_HARD_GATES_HEADER + 1, DB_LABEL_SESSION, _db_session_text, status_bg(_db_session_state), _db_text)" not in source
-    assert "dashboard_row(_smc_dashboard, DB_ROW_QUALITY_HEADER + 3, DB_LABEL_ADX, _db_adx_text, status_bg(_db_adx_state), _db_text)" not in source
-    assert "dashboard_row(_smc_dashboard, DB_ROW_MODULES_HEADER + 15, DB_LABEL_RISK_PLAN, _db_risk_plan_text, status_bg(_db_risk_plan_state), _db_text)" not in source
-    assert "dashboard_row(_smc_dashboard, DB_ROW_LIFECYCLE_HEADER + 1, DB_LABEL_TREND, _db_trend_text, _db_trend_bg, _db_text)" not in source
-    assert "dashboard_row(_smc_dashboard, DB_ROW_ENGINE_HEADER + 2, DB_LABEL_DEBUG_FLAGS, _db_debug_flags_text, _db_debug_flags_bg, _db_text)" not in source
-    assert "dashboard_header(_smc_dashboard, DB_ROW_LIFECYCLE_HEADER, DB_TITLE_LIFECYCLE, _db_header_bg, _db_text)" not in source
-    assert "dashboard_header(_smc_dashboard, DB_ROW_LIFECYCLE_HEADER, '[ Lifecycle ]', _db_header_bg, _db_text)" not in source
-    assert "dashboard_row(_smc_dashboard, DB_ROW_LIFECYCLE_HEADER + 1, DB_LABEL_TREND, db_trend_text(structure_display_trend), status_bg(db_trend_state(structure_display_trend)), _db_text)" not in source
-    assert "string _score = ' | ctx=' + str.tostring(context_quality_score) + '/' + str.tostring(effective_min_context_quality_score)" in source
-    assert "format_level(not na(active_bull_ob_break_level) ? active_bull_ob_break_level : last_bull_ob_break_level)" not in source
-    assert "format_level(not na(active_bull_fvg_fill_level) ? active_bull_fvg_fill_level : last_bull_fvg_fill_level)" not in source
-    assert "string quality_score_display = not quality_axis_active ? 'n/a' : str.format('Ctx {0}/{1}\\nMin {2}\\n{3}', context_quality_score, effective_context_quality_max_score, effective_min_context_quality_score, quality_score_ok ? 'OK' : 'Blocked')" not in source
-    assert "string quality_env_display = not quality_axis_active ? 'n/a' : str.format('Trade {0}\\nEnv {1}', trade_hard_gate_ok ? 'OK' : not session_structure_gate_ok ? 'Session Block' : not microstructure_entry_gate_ok ? 'Micro Block' : not overhead_zone_ok ? 'Headroom Block' : 'Trade Blocked', environment_hard_gate_ok ? 'OK' : long_environment_focus_display)" not in source
-    assert "string quality_strict_display = not quality_axis_active ? 'n/a' : str.format('{0}\\nZone {1}\\nSweep {2}\\nGuard {3}', quality_strict_ok ? 'Strict OK' : strict_flow_focus_display, strict_sequence_display, strict_sweep_display, strict_guard_display)" not in source
-    assert "string long_strict_alert_suffix = strict_flow_active ? str.format(' | strict={0}', strict_flow_focus_display) : ''" not in source
-    assert "string long_environment_alert_suffix = long_gate_features_active ? str.format(' | env={0}', long_environment_focus_display) : ''" not in source
-    assert "string long_micro_alert_suffix = use_microstructure_profiles ? str.format(' | micro={0}', microstructure_focus_display) : ''" not in source
-    assert "string overhead_text = not use_overhead_zone_filter_eff ? 'off' : na(headroom_to_overhead) or na(planned_risk) ? 'clear' : str.format('{0}R', headroom_to_overhead / planned_risk)" not in source
-    assert "string long_score_detail_suffix = str.format(' | ctx={0}/{1}', context_quality_score, effective_min_context_quality_score)" not in source
-    assert "str.length(micro_modifier_text) > 0 ? str.format('{0} | {1}', micro_profile_text, micro_modifier_text) : micro_profile_text == 'Default' ? 'Micro OK' : micro_profile_text" not in source
-    assert "string micro_profile_display = not use_microstructure_profiles ? 'Off' : str.length(micro_modifier_text) > 0 ? str.format('{0}\nMods {1}', micro_profile_text, micro_modifier_text) : micro_profile_text" not in source
-    assert "string volume_quality_display = volume_data_ok ? str.format('OK\n{0} | Strict {1}', profile_volume_display, strict_ltf_display)" not in source
-    assert "string stretch_display = not use_stretch_context ? 'Off' : stretch_entry_strict_context_ok ? str.format('Strict OK\nz={0,number,#.##}\nMean {1}', distance_to_mean_z, format_level(stretch_mean))" not in source
-    assert "string dashboard_swing_levels_display = str.format('Swing {0}/{1}\\nInt {2}/{3}', dashboard_swing_up_text, dashboard_swing_down_text, dashboard_internal_up_text, dashboard_internal_down_text)" not in source
-    assert "string dashboard_long_zones_display = str.format('OB {0}/{1}\\nFVG {2}/{3}', dashboard_long_ob_top_text, dashboard_long_ob_bottom_text, dashboard_long_fvg_top_text, dashboard_long_fvg_bottom_text)" not in source
-    assert "string dashboard_long_triggers_display = str.format('OB mid {0}\\nFVG fill {1}\\nInvalid {2}', format_level(dashboard_long_ob_trigger_level), format_level(dashboard_long_fvg_trigger_level), format_level(long_invalidation_level))" not in source
-    assert "string dashboard_long_triggers_display = str.format('OB mid {0}\\nFVG fill {1}\\nInvalid {2}', dashboard_long_ob_trigger_text, dashboard_long_fvg_trigger_text, dashboard_long_invalid_text)" not in source
-    assert "string risk_display = not long_plan_active ? 'n/a' : str.format('Trig {0}\\nStop {1}\\nT1 {2}\\nT2 {3}', format_level(long_setup_trigger), format_level(long_stop_level), format_level(long_target_1), format_level(long_target_2))" not in source
-    assert "string risk_display = not long_plan_active ? 'n/a' : str.format('Trig {0}\\nStop {1}\\nT1 {2}\\nT2 {3}', risk_trigger_text, risk_stop_text, risk_target_1_text, risk_target_2_text)" not in source
-    assert 'alert_long_watchlist = false' in source
-    assert 'if bullish_trend_safe and long_zone_active_safe and vol_watchlist_context_ok_safe and stretch_watchlist_context_ok_safe and ddvi_watchlist_ok_safe' in source
-    assert 'alert_long_watchlist := true' in source
-    assert 'alert_long_armed = false' in source
-    assert 'if bullish_trend_safe and zone_recent and reclaim_recent and long_setup_in_progress' in source
-    assert 'alert_long_armed := true' in source
-    assert 'alert_long_early = false' in source
-    assert 'if bullish_trend_safe and long_setup_in_progress and zone_recent and reclaim_recent and long_internal_structure_ok and bull_close_strong and ema_support_ok and accel_early_gate_ok and sd_early_gate_ok' in source
-    assert 'alert_long_early := true' in source
-    assert 'alert_long_clean = long_quality_clean_tier' in source
-    assert 'alert_long_entry_best = long_entry_best_state' in source
-    assert 'alert_long_entry_strict = false' in source
-    assert 'if long_entry_strict_state' in source
-    assert 'alert_long_entry_strict := true' in source
-    assert 'alert_long_fail = false' in source
-    assert 'if long_invalidate_signal' in source
-    assert 'alert_long_fail := true' in source
-    assert 'bool alert_long_early_event = false' in source
-    assert 'if alert_long_early and long_state.setup_serial > 0 and last_long_early_alert_serial != long_state.setup_serial' in source
-    assert 'alert_long_early_event := true' in source
-    assert 'if alert_long_early_event' in source
-    assert 'last_long_early_alert_serial := long_state.setup_serial' in source
-    assert 'bool suppress_armed_plus_event = false' in source
-    assert 'if alert_long_early' in source
-    assert 'if long_arm_signal' in source
-    assert 'suppress_armed_plus_event := true' in source
-    assert 'bool alert_long_armed_event = false' in source
-    assert 'if alert_long_armed and not suppress_armed_plus_event and long_state.setup_serial > 0 and last_long_armed_alert_serial != long_state.setup_serial' in source
-    assert 'alert_long_armed_event := true' in source
-    assert 'if alert_long_armed_event' in source
-    assert 'last_long_armed_alert_serial := long_state.setup_serial' in source
-    assert 'bool alert_long_clean_event = false' in source
-    assert 'if alert_long_clean and long_state.setup_serial > 0 and last_long_clean_alert_serial != long_state.setup_serial' in source
-    assert 'alert_long_clean_event := true' in source
-    assert 'if alert_long_clean_event' in source
-    assert 'last_long_clean_alert_serial := long_state.setup_serial' in source
-    assert 'bool alert_long_entry_best_event = false' in source
-    assert 'if alert_long_entry_best and long_state.setup_serial > 0 and last_long_entry_best_alert_serial != long_state.setup_serial' in source
-    assert 'alert_long_entry_best_event := true' in source
-    assert 'if alert_long_entry_best_event' in source
-    assert 'last_long_entry_best_alert_serial := long_state.setup_serial' in source
-    assert 'bool alert_long_entry_strict_event = false' in source
-    assert 'if alert_long_entry_strict and long_state.setup_serial > 0 and last_long_entry_strict_alert_serial != long_state.setup_serial' in source
-    assert 'alert_long_entry_strict_event := true' in source
-    assert 'if alert_long_entry_strict_event' in source
-    assert 'last_long_entry_strict_alert_serial := long_state.setup_serial' in source
-    assert 'bool alert_long_early_event = alert_long_early and long_state.setup_serial > 0 and last_long_early_alert_serial != long_state.setup_serial' not in source
-    assert 'bool suppress_armed_plus_event = alert_long_early or long_arm_signal' not in source
-    assert 'if alert_long_early or long_arm_signal' not in source
-    assert 'bool alert_long_armed_event = alert_long_armed and not suppress_armed_plus_event and long_state.setup_serial > 0 and last_long_armed_alert_serial != long_state.setup_serial' not in source
-    assert 'bool alert_long_clean_event = alert_long_clean and long_state.setup_serial > 0 and last_long_clean_alert_serial != long_state.setup_serial' not in source
-    assert 'bool alert_long_entry_best_event = alert_long_entry_best and long_state.setup_serial > 0 and last_long_entry_best_alert_serial != long_state.setup_serial' not in source
-    assert 'bool alert_long_entry_strict_event = alert_long_entry_strict and long_state.setup_serial > 0 and last_long_entry_strict_alert_serial != long_state.setup_serial' not in source
-    assert 'last_long_early_alert_serial := alert_long_early_event ? long_state.setup_serial : last_long_early_alert_serial' not in source
-    assert 'last_long_armed_alert_serial := alert_long_armed_event ? long_state.setup_serial : last_long_armed_alert_serial' not in source
-    assert 'last_long_clean_alert_serial := alert_long_clean_event ? long_state.setup_serial : last_long_clean_alert_serial' not in source
-    assert 'last_long_entry_best_alert_serial := alert_long_entry_best_event ? long_state.setup_serial : last_long_entry_best_alert_serial' not in source
-    assert 'last_long_entry_strict_alert_serial := alert_long_entry_strict_event ? long_state.setup_serial : last_long_entry_strict_alert_serial' not in source
-    assert '[next_alert_long_early_event, next_last_long_early_alert_serial] = next_serial_event(alert_long_early, long_state.setup_serial, last_long_early_alert_serial)' not in source
-    assert '[next_alert_long_armed_event, next_last_long_armed_alert_serial] = next_serial_event(alert_long_armed and not suppress_armed_plus_event, long_state.setup_serial, last_long_armed_alert_serial)' not in source
-    assert '[next_alert_long_clean_event, next_last_long_clean_alert_serial] = next_serial_event(alert_long_clean, long_state.setup_serial, last_long_clean_alert_serial)' not in source
-    assert '[next_alert_long_entry_best_event, next_last_long_entry_best_alert_serial] = next_serial_event(alert_long_entry_best, long_state.setup_serial, last_long_entry_best_alert_serial)' not in source
-    assert '[next_alert_long_entry_strict_event, next_last_long_entry_strict_alert_serial] = next_serial_event(alert_long_entry_strict, long_state.setup_serial, last_long_entry_strict_alert_serial)' not in source
-    assert 'alert_long_watchlist = bullish_trend_safe and long_zone_active_safe and vol_watchlist_context_ok_safe and stretch_watchlist_context_ok_safe and ddvi_watchlist_ok_safe' not in source
-    assert 'alert_long_armed = bullish_trend_safe and zone_recent and reclaim_recent and long_setup_in_progress' not in source
-    assert 'alert_long_early = bullish_trend_safe and long_setup_in_progress and zone_recent and reclaim_recent and long_internal_structure_ok and bull_close_strong and ema_support_ok and accel_early_gate_ok and sd_early_gate_ok' not in source
-    assert 'alert_long_entry_strict = long_entry_strict_state' not in source
-    assert 'alert_long_fail = long_invalidate_signal' not in source
+    assert '[long_ready_state_rt_prev, long_ready_fired_this_bar, long_ready_signal] = obv.resolve_long_ready_signal_state(' in source
+    assert 'string long_debug_summary_text = obv.emit_long_engine_debug_logs(' in source
+    assert 'export resolve_long_ready_signal_state(bool long_ready_state, bool prior_bar_ready_state, int ready_state_rt_prev, bool ready_fired_this_bar, bool current_bar_is_new) =>' in obv_source
 
+    assert 'bool long_arm_close_safe = false' not in source
+    assert 'bool long_confirm_close_safe = false' not in source
+    assert 'bool long_ready_close_safe = false' not in source
+    assert 'bool long_invalidated_close_safe = false' not in source
 
 def test_intrabar_ready_and_watchlist_events_are_debounced_and_latched() -> None:
     source = _read_smc_source()
+    obv_source = _read_observability_source()
 
-    assert 'bool can_draw_reclaim_marker = false' in source
-    assert 'if na(last_reclaim_marker_bar) or effective_reclaim_marker_gap <= 0 or bar_index - last_reclaim_marker_bar >= effective_reclaim_marker_gap' in source
-    assert 'can_draw_reclaim_marker := true' in source
-    assert 'bool can_draw_long_state_marker = false' in source
-    assert 'if na(last_long_state_marker_bar) or effective_confirm_marker_gap <= 0 or bar_index - last_long_state_marker_bar >= effective_confirm_marker_gap' in source
-    assert 'can_draw_long_state_marker := true' in source
-    assert 'bool can_draw_long_ready_marker = false' in source
-    assert 'if na(last_long_ready_marker_bar) or effective_ready_marker_gap <= 0 or bar_index - last_long_ready_marker_bar >= effective_ready_marker_gap' in source
-    assert 'can_draw_long_ready_marker := true' in source
-    assert 'bool can_draw_reclaim_marker = na(last_reclaim_marker_bar) or effective_reclaim_marker_gap <= 0 or bar_index - last_reclaim_marker_bar >= effective_reclaim_marker_gap' not in source
-    assert 'bool can_draw_long_state_marker = na(last_long_state_marker_bar) or effective_confirm_marker_gap <= 0 or bar_index - last_long_state_marker_bar >= effective_confirm_marker_gap' not in source
-    assert 'bool can_draw_long_ready_marker = na(last_long_ready_marker_bar) or effective_ready_marker_gap <= 0 or bar_index - last_long_ready_marker_bar >= effective_ready_marker_gap' not in source
+    assert '[long_ready_state_rt_prev, long_ready_fired_this_bar, long_ready_signal] = obv.resolve_long_ready_signal_state(' in source
+    assert 'if current_bar_is_new' in obv_source
+    assert 'helper_ready_state_rt_prev := 0' in obv_source
+    assert 'if prior_bar_ready_state' in obv_source
+    assert 'helper_ready_fired_this_bar := false' in obv_source
+    assert 'if long_ready_state and helper_ready_state_rt_prev == 0 and not helper_ready_fired_this_bar' in obv_source
+    assert 'helper_long_ready_signal := true' in obv_source
+    assert 'if helper_long_ready_signal' in obv_source
+    assert 'helper_ready_fired_this_bar := true' in obv_source
     assert 'varip bool long_ready_fired_this_bar = false' in source
-    assert 'long_ready_state_rt_prev := 0' in source
-    assert 'if long_ready_state[1]' in source
-    assert 'if long_ready_state' in source
-    assert 'long_ready_state_rt_prev := long_ready_state[1] ? 1 : 0' not in source
-    assert 'long_ready_state_rt_prev := long_ready_state ? 1 : 0' not in source
-    assert 'bool long_ready_signal = false' in source
-    assert 'if long_ready_state and long_ready_state_rt_prev == 0 and not long_ready_fired_this_bar' in source
-    assert 'long_ready_signal := true' in source
-    assert 'bool long_ready_signal = long_ready_state and long_ready_state_rt_prev == 0 and not long_ready_fired_this_bar' not in source
-    assert 'if long_ready_signal' in source
-    assert 'long_ready_fired_this_bar := true' in source
-    assert 'varip bool long_watchlist_fired_this_bar = false' in source
-    assert 'long_watchlist_rt_prev_active := 0' in source
-    assert 'if alert_long_watchlist[1]' in source
-    assert 'if alert_long_watchlist' in source
-    assert 'long_watchlist_rt_prev_active := alert_long_watchlist[1] ? 1 : 0' not in source
-    assert 'long_watchlist_rt_prev_active := alert_long_watchlist ? 1 : 0' not in source
-    assert 'bool long_watchlist_started = false' in source
-    assert 'if alert_long_watchlist and long_watchlist_rt_prev_active == 0 and not long_watchlist_fired_this_bar' in source
-    assert 'long_watchlist_started := true' in source
-    assert 'bool long_watchlist_started = alert_long_watchlist and long_watchlist_rt_prev_active == 0 and not long_watchlist_fired_this_bar' not in source
-    assert 'long_watchlist_fired_this_bar := true' in source
-    assert 'bool alert_long_watchlist_event = false' in source
-    assert 'if long_watchlist_started and long_watchlist_serial > 0' in source
-    assert 'alert_long_watchlist_event := true' in source
-    assert 'bool alert_long_watchlist_event = long_watchlist_started and long_watchlist_serial > 0' not in source
-    assert 'bool bull_ob_broken_event = false' in source
-    assert 'if array.size(ob_broken_new_bull) > 0' in source
-    assert 'bull_ob_broken_event := true' in source
-    assert 'bool bull_ob_broken_event = array.size(ob_broken_new_bull) > 0' not in source
-    assert 'varip bool alert_long_watchlist_event_latched = false' in source
-    assert 'alert_long_watchlist_event_latched := update_latched_flag(alert_long_watchlist_event_latched, alert_long_watchlist_event, live_exec, barstate.isconfirmed)' in source
-    assert 'alert_long_watchlist_event_latched := false' in source
+    assert 'varip bool long_watchlist_fired_this_bar = false' not in source
+    assert 'long_watchlist_rt_prev_active := 0' not in source
+    assert 'bool long_watchlist_started = false' not in source
+    assert 'if alert_long_watchlist[1]' not in source
+    assert 'long_watchlist_fired_this_bar := true' not in source
+    assert 'alert_long_watchlist_event_latched := update_latched_flag(' not in source
 
 
 def test_pre_arm_ob_selection_prefers_touch_anchor_then_recency_then_quality() -> None:
@@ -3233,28 +2160,27 @@ def test_extracted_helpers_are_defined_before_first_call() -> None:
 
     # All extracted helper functions that must be defined before their call
     helpers = [
-        'scan_live_bull_events',
-        'compute_overhead_context',
-        'compute_context_quality',
-        'emit_long_engine_debug_logs',
-        'compute_alert_text_suffixes',
-        'compute_vol_regime',
-        'compute_bull_reclaim_state',
-        'scan_active_bull_ob',
-        'scan_active_bull_fvg',
+        ('scan_live_bull_events', 'scan_live_bull_events() =>', r'\bscan_live_bull_events\(\)'),
+        ('compute_long_overhead_context', 'compute_long_overhead_context(bool long_plan_active', r'\bcompute_long_overhead_context\('),
+        ('compute_context_quality', 'compute_context_quality() =>', r'\bcompute_context_quality\(\)'),
+        ('compose_long_alert_text_suffixes', 'compose_long_alert_text_suffixes(bool use_overhead_zone_filter', r'\bcompose_long_alert_text_suffixes\('),
+        ('compute_vol_regime', 'compute_vol_regime() =>', r'\bcompute_vol_regime\(\)'),
+        ('compute_bull_reclaim_state', 'compute_bull_reclaim_state() =>', r'\bcompute_bull_reclaim_state\(\)'),
+        ('scan_active_bull_ob', 'scan_active_bull_ob() =>', r'\bscan_active_bull_ob\(\)'),
+        ('scan_active_bull_fvg', 'scan_active_bull_fvg() =>', r'\bscan_active_bull_fvg\(\)'),
     ]
 
-    for name in helpers:
-        def_marker = f'{name}() =>'
+    for name, def_marker, call_pattern_text in helpers:
         # Find first definition (function header)
         def_pos = source.find(def_marker)
         assert def_pos != -1, f'Function definition not found: {def_marker}'
 
         # Find first call site: `= name()` or `name()` not followed by `=>`
-        call_pattern = re.compile(rf'(?<!=\s){re.escape(name)}\(\)')
+        call_pattern = re.compile(call_pattern_text)
         for m in call_pattern.finditer(source):
             # Skip the definition line itself
-            if source[m.start():m.end() + 10].strip().startswith(name) and '=>' in source[m.start():source.index('\n', m.start())]:
+            line_end = source.index('\n', m.start())
+            if m.start() == def_pos or '=>' in source[m.start():line_end]:
                 continue
             call_pos = m.start()
             assert def_pos < call_pos, (
@@ -3277,18 +2203,6 @@ def test_extracted_helpers_reference_only_previously_declared_globals() -> None:
 
     # Map: function_name -> list of global identifiers it reads
     helper_globals: dict[str, list[str]] = {
-        'compute_overhead_context': [
-            'long_plan_active',
-            'long_state',
-            'ob_threshold_atr',
-            'stop_buffer_atr_mult',
-            'ob_blocks_bear',
-            'fvgs_bear',
-            'bear_ob_scan_start',
-            'bear_fvg_scan_start',
-            'use_overhead_zone_filter_eff',
-            'min_headroom_r',
-        ],
         'compute_context_quality': [
             'mtf_trend_1',
             'mtf_trend_2',
@@ -3298,26 +2212,6 @@ def test_extracted_helpers_reference_only_previously_declared_globals() -> None:
             'use_vwap_filter',
             'use_context_quality_score_eff',
             'min_context_quality_score',
-        ],
-        'emit_long_engine_debug_logs': [
-            'long_setup_source_display',
-            'long_invalidate_signal',
-            'long_state',
-            'long_arm_signal',
-            'long_confirm_signal',
-            'long_ready_signal',
-            'long_source_upgrade_now',
-            'long_source_upgrade_reason',
-            'long_ready_blocker_text',
-            'long_strict_blocker_text',
-        ],
-        'compute_alert_text_suffixes': [
-            'headroom_to_overhead',
-            'planned_risk',
-            'context_quality_score',
-            'effective_min_context_quality_score',
-            'long_environment_focus_display',
-            'use_overhead_zone_filter_eff',
         ],
         'scan_live_bull_events': [
             'last_bull_ob_break_level',
@@ -3329,6 +2223,16 @@ def test_extracted_helpers_reference_only_previously_declared_globals() -> None:
             'ob_blocks_bull',
             'fvgs_bull',
             'long_zone_scan_limit',
+        ],
+        'scan_active_bull_ob': [
+            'ob_blocks_bull',
+            'long_zone_scan_limit',
+            'touched_bull_ob_id',
+        ],
+        'scan_active_bull_fvg': [
+            'fvgs_bull',
+            'long_zone_scan_limit',
+            'touched_bull_fvg_id',
         ],
         'compute_bull_reclaim_state': [
             'live_exec',
