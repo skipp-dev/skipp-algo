@@ -5,12 +5,99 @@
     "fmp_stock": 0.0,
     "fmp_press": 0.0,
     "fmp_articles": 0.0,
-    "newsapi_ai": 1776314365.0,
+    "newsapi_ai": 1776325125.0,
     "tv": 0.0,
-    "legacy_cursor": 1776314365.0
+    "legacy_cursor": 1776325125.0
   },
   "provider_state": {},
   "story_state": {
+    "77054441a278fdf397216d8b33efa90f5b041e3f:5921083": {
+      "story_key": "77054441a278fdf397216d8b33efa90f5b041e3f:5921083",
+      "cluster_hash": "77054441a278fdf397216d8b33efa90f5b041e3f",
+      "headline": "JPMorgan Chase Stock: The Warning May Be More Important Than The Earnings (NYSE:JPM)",
+      "tickers": [
+        "JPM"
+      ],
+      "published_ts": 1776325125.0,
+      "first_seen_ts": 1776330317.4844973,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Seeking Alpha"
+      ],
+      "url": "https://seekingalpha.com/article/4891119-jpmorgan-chase-the-warning-may-be-more-important-than-the-earnings",
+      "category": "earnings",
+      "impact": 0.8,
+      "clarity": 0.6,
+      "relevance": 0.79,
+      "polarity": -0.225,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776330317.4844973
+    },
+    "4ce060cf001c66f2b65656811ad07dc5888bbd51:5921076": {
+      "story_key": "4ce060cf001c66f2b65656811ad07dc5888bbd51:5921076",
+      "cluster_hash": "4ce060cf001c66f2b65656811ad07dc5888bbd51",
+      "headline": "'Load Up,' Says Morgan Stanley as Microsoft Stock (MSFT) Gets a Boost from CIO Survey",
+      "tickers": [
+        "MSFT"
+      ],
+      "published_ts": 1776323040.0,
+      "first_seen_ts": 1776330317.4844973,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Markets Insider"
+      ],
+      "url": "https://markets.businessinsider.com/news/stocks/load-up-says-morgan-stanley-as-microsoft-stock-msft-gets-a-boost-from-cio-survey-1036027894",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776330317.4844973
+    },
+    "bd31b86ba07c8ed816ac90250a58e90113bd9bce:5921062": {
+      "story_key": "bd31b86ba07c8ed816ac90250a58e90113bd9bce:5921062",
+      "cluster_hash": "bd31b86ba07c8ed816ac90250a58e90113bd9bce",
+      "headline": "Microsoft Stock (MSFT) Jumps as Xbox Mulls a Return to Exclusive Games",
+      "tickers": [
+        "MSFT"
+      ],
+      "published_ts": 1776318813.0,
+      "first_seen_ts": 1776330317.4844973,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Markets Insider"
+      ],
+      "url": "https://markets.businessinsider.com/news/stocks/microsoft-stock-msft-jumps-as-xbox-mulls-a-return-to-exclusive-games-1036027010",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.1375,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776330317.4844973
+    },
     "c0345c2d2ba782236fc332108c5a28ce01e8f787:5921047": {
       "story_key": "c0345c2d2ba782236fc332108c5a28ce01e8f787:5921047",
       "cluster_hash": "c0345c2d2ba782236fc332108c5a28ce01e8f787",

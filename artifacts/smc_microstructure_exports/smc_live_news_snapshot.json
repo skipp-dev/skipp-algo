@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-04-16T07:27:31.794943Z",
+  "generated_at": "2026-04-16T09:05:17.484497Z",
   "symbols": [
     "AAPL",
     "MSFT",
@@ -20,11 +20,11 @@
     "fmp_stock": 0.0,
     "fmp_press": 0.0,
     "fmp_articles": 0.0,
-    "newsapi_ai": 1776314365.0,
+    "newsapi_ai": 1776325125.0,
     "tv": 0.0,
-    "legacy_cursor": 1776314365.0
+    "legacy_cursor": 1776325125.0
   },
-  "legacy_cursor": 1776314365.0,
+  "legacy_cursor": 1776325125.0,
   "providers": {
     "benzinga": {
       "ok": false,
@@ -64,12 +64,12 @@
     "newsapi_ai": {
       "ok": true,
       "error": "",
-      "raw_count": 2,
-      "new_item_count": 0,
-      "cursor": 1776314365.0,
+      "raw_count": 50,
+      "new_item_count": 3,
+      "cursor": 1776325125.0,
       "last_seen_news_uri": "",
-      "provider_status": "ok_no_recent_matches",
-      "status_detail": "Event Registry reachable, but no new symbol-matching NewsAPI.ai items were newer than the current cursor.",
+      "provider_status": "ok",
+      "status_detail": "",
       "error_code": ""
     },
     "tv": {
@@ -82,14 +82,14 @@
   },
   "stories": [
     {
-      "story_key": "c0345c2d2ba782236fc332108c5a28ce01e8f787:5921047",
-      "headline": "Top BofA Analyst Raises Apple Stock (AAPL) Price Target Ahead of Q2 Earnings",
+      "story_key": "77054441a278fdf397216d8b33efa90f5b041e3f:5921083",
+      "headline": "JPMorgan Chase Stock: The Warning May Be More Important Than The Earnings (NYSE:JPM)",
       "tickers": [
-        "AAPL"
+        "JPM"
       ],
-      "published_at": "2026-04-16T04:39:25Z",
-      "published_ts": 1776314365.0,
-      "age_minutes": 168.1,
+      "published_at": "2026-04-16T07:38:45Z",
+      "published_ts": 1776325125.0,
+      "age_minutes": 86.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -98,25 +98,25 @@
         "newsapi_ai"
       ],
       "sources": [
-        "Markets Insider"
+        "Seeking Alpha"
       ],
       "source_tier": "TIER_3",
       "source_rank": 3,
       "category": "earnings",
       "event_class": "EARNINGS",
-      "event_label": "Top BofA Analyst Raises Apple Stock (AAPL) Price Target Ahead of Q2 Earnings",
-      "sentiment_label": "bullish",
-      "polarity": 0.225,
+      "event_label": "JPMorgan Chase Stock: The Warning May Be More Important Than The Earnings (NYSE:JPM)",
+      "sentiment_label": "bearish",
+      "polarity": -0.225,
       "impact": 0.8,
       "clarity": 0.6,
       "relevance": 0.79,
-      "news_catalyst_score": 0.4952,
-      "materiality": "LOW",
+      "news_catalyst_score": 0.5426,
+      "materiality": "MEDIUM",
       "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://markets.businessinsider.com/news/stocks/top-bofa-analyst-raises-apple-stock-aapl-price-target-ahead-of-q2-earnings-1036020974",
-      "first_seen_at": "2026-04-16T05:53:08.308417Z",
-      "is_new": false,
+      "is_actionable": true,
+      "url": "https://seekingalpha.com/article/4891119-jpmorgan-chase-the-warning-may-be-more-important-than-the-earnings",
+      "first_seen_at": "2026-04-16T09:05:17.484497Z",
+      "is_new": true,
       "provider_count": 1
     },
     {
@@ -127,7 +127,7 @@
       ],
       "published_at": "2026-04-15T12:01:45Z",
       "published_ts": 1776254505.0,
-      "age_minutes": 1165.8,
+      "age_minutes": 1263.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -165,7 +165,7 @@
       ],
       "published_at": "2026-04-15T12:01:11Z",
       "published_ts": 1776254471.0,
-      "age_minutes": 1166.3,
+      "age_minutes": 1264.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -203,7 +203,7 @@
       ],
       "published_at": "2026-04-15T14:40:00Z",
       "published_ts": 1776264000.0,
-      "age_minutes": 1007.5,
+      "age_minutes": 1105.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -241,7 +241,7 @@
       ],
       "published_at": "2026-04-15T12:53:12Z",
       "published_ts": 1776257592.0,
-      "age_minutes": 1114.3,
+      "age_minutes": 1212.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -279,7 +279,7 @@
       ],
       "published_at": "2026-04-15T18:19:52Z",
       "published_ts": 1776277192.0,
-      "age_minutes": 787.7,
+      "age_minutes": 885.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -310,6 +310,44 @@
       "provider_count": 1
     },
     {
+      "story_key": "c0345c2d2ba782236fc332108c5a28ce01e8f787:5921047",
+      "headline": "Top BofA Analyst Raises Apple Stock (AAPL) Price Target Ahead of Q2 Earnings",
+      "tickers": [
+        "AAPL"
+      ],
+      "published_at": "2026-04-16T04:39:25Z",
+      "published_ts": 1776314365.0,
+      "age_minutes": 265.9,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Markets Insider"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "earnings",
+      "event_class": "EARNINGS",
+      "event_label": "Top BofA Analyst Raises Apple Stock (AAPL) Price Target Ahead of Q2 Earnings",
+      "sentiment_label": "bullish",
+      "polarity": 0.225,
+      "impact": 0.8,
+      "clarity": 0.6,
+      "relevance": 0.79,
+      "news_catalyst_score": 0.4134,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://markets.businessinsider.com/news/stocks/top-bofa-analyst-raises-apple-stock-aapl-price-target-ahead-of-q2-earnings-1036020974",
+      "first_seen_at": "2026-04-16T05:53:08.308417Z",
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
       "story_key": "ee4057ffbf3079db1585526e50061a24e528c3d7:5920835",
       "headline": "Data Center Boom Might Be A New Inflation Variable For The Fed - Amazon.com (NASDAQ:AMZN), BlackRock (NYS",
       "tickers": [
@@ -317,7 +355,7 @@
       ],
       "published_at": "2026-04-15T10:59:34Z",
       "published_ts": 1776250774.0,
-      "age_minutes": 1228.0,
+      "age_minutes": 1325.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -355,7 +393,7 @@
       ],
       "published_at": "2026-04-15T13:41:37Z",
       "published_ts": 1776260497.0,
-      "age_minutes": 1065.9,
+      "age_minutes": 1163.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -386,6 +424,44 @@
       "provider_count": 1
     },
     {
+      "story_key": "4ce060cf001c66f2b65656811ad07dc5888bbd51:5921076",
+      "headline": "'Load Up,' Says Morgan Stanley as Microsoft Stock (MSFT) Gets a Boost from CIO Survey",
+      "tickers": [
+        "MSFT"
+      ],
+      "published_at": "2026-04-16T07:04:00Z",
+      "published_ts": 1776323040.0,
+      "age_minutes": 121.3,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Markets Insider"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "'Load Up,' Says Morgan Stanley as Microsoft Stock (MSFT) Gets a Boost from CIO Survey",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.2275,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://markets.businessinsider.com/news/stocks/load-up-says-morgan-stanley-as-microsoft-stock-msft-gets-a-boost-from-cio-survey-1036027894",
+      "first_seen_at": "2026-04-16T09:05:17.484497Z",
+      "is_new": true,
+      "provider_count": 1
+    },
+    {
       "story_key": "774d803ed05c794efec10cf2a486ebd219fa9fb8:5920915",
       "headline": "10 Information Technology Stocks Whale Activity In Today's Session - Apple (NASDAQ:AAPL), Advanced Micro",
       "tickers": [
@@ -393,7 +469,7 @@
       ],
       "published_at": "2026-04-15T17:35:48Z",
       "published_ts": 1776274548.0,
-      "age_minutes": 831.7,
+      "age_minutes": 929.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -431,7 +507,7 @@
       ],
       "published_at": "2026-04-15T15:49:04Z",
       "published_ts": 1776268144.0,
-      "age_minutes": 938.5,
+      "age_minutes": 1036.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -462,6 +538,44 @@
       "provider_count": 1
     },
     {
+      "story_key": "bd31b86ba07c8ed816ac90250a58e90113bd9bce:5921062",
+      "headline": "Microsoft Stock (MSFT) Jumps as Xbox Mulls a Return to Exclusive Games",
+      "tickers": [
+        "MSFT"
+      ],
+      "published_at": "2026-04-16T05:53:33Z",
+      "published_ts": 1776318813.0,
+      "age_minutes": 191.7,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Markets Insider"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Microsoft Stock (MSFT) Jumps as Xbox Mulls a Return to Exclusive Games",
+      "sentiment_label": "bullish",
+      "polarity": 0.1375,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.2082,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://markets.businessinsider.com/news/stocks/microsoft-stock-msft-jumps-as-xbox-mulls-a-return-to-exclusive-games-1036027010",
+      "first_seen_at": "2026-04-16T09:05:17.484497Z",
+      "is_new": true,
+      "provider_count": 1
+    },
+    {
       "story_key": "cd31c1b9845f9dc4986a38144fd4ea78cb010239:5920946",
       "headline": "Microsoft Shares Are Climbing With Conviction: What's Going On? - Microsoft (NASDAQ:MSFT)",
       "tickers": [
@@ -469,7 +583,7 @@
       ],
       "published_at": "2026-04-15T20:14:37Z",
       "published_ts": 1776284077.0,
-      "age_minutes": 672.9,
+      "age_minutes": 770.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -507,7 +621,7 @@
       ],
       "published_at": "2026-04-15T20:14:37Z",
       "published_ts": 1776284077.0,
-      "age_minutes": 672.9,
+      "age_minutes": 770.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -545,7 +659,7 @@
       ],
       "published_at": "2026-04-15T17:31:32Z",
       "published_ts": 1776274292.0,
-      "age_minutes": 836.0,
+      "age_minutes": 933.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -583,7 +697,7 @@
       ],
       "published_at": "2026-04-15T17:16:36Z",
       "published_ts": 1776273396.0,
-      "age_minutes": 850.9,
+      "age_minutes": 948.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -621,7 +735,7 @@
       ],
       "published_at": "2026-04-15T16:14:45Z",
       "published_ts": 1776269685.0,
-      "age_minutes": 912.8,
+      "age_minutes": 1010.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -659,7 +773,7 @@
       ],
       "published_at": "2026-04-15T16:08:50Z",
       "published_ts": 1776269330.0,
-      "age_minutes": 918.7,
+      "age_minutes": 1016.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -697,7 +811,7 @@
       ],
       "published_at": "2026-04-15T09:59:20Z",
       "published_ts": 1776247160.0,
-      "age_minutes": 1288.2,
+      "age_minutes": 1386.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -735,7 +849,7 @@
       ],
       "published_at": "2026-04-15T09:58:53Z",
       "published_ts": 1776247133.0,
-      "age_minutes": 1288.6,
+      "age_minutes": 1386.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -773,7 +887,7 @@
       ],
       "published_at": "2026-04-15T21:39:59Z",
       "published_ts": 1776289199.0,
-      "age_minutes": 587.5,
+      "age_minutes": 685.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -811,7 +925,7 @@
       ],
       "published_at": "2026-04-15T18:15:46Z",
       "published_ts": 1776276946.0,
-      "age_minutes": 791.8,
+      "age_minutes": 889.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -849,7 +963,7 @@
       ],
       "published_at": "2026-04-15T17:04:37Z",
       "published_ts": 1776272677.0,
-      "age_minutes": 862.9,
+      "age_minutes": 960.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -887,7 +1001,7 @@
       ],
       "published_at": "2026-04-15T15:56:05Z",
       "published_ts": 1776268565.0,
-      "age_minutes": 931.4,
+      "age_minutes": 1029.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -926,7 +1040,7 @@
       ],
       "published_at": "2026-04-15T15:11:53Z",
       "published_ts": 1776265913.0,
-      "age_minutes": 975.6,
+      "age_minutes": 1073.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -964,7 +1078,7 @@
       ],
       "published_at": "2026-04-15T13:42:37Z",
       "published_ts": 1776260557.0,
-      "age_minutes": 1064.9,
+      "age_minutes": 1162.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1002,7 +1116,7 @@
       ],
       "published_at": "2026-04-15T13:06:37Z",
       "published_ts": 1776258397.0,
-      "age_minutes": 1100.9,
+      "age_minutes": 1198.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1040,7 +1154,7 @@
       ],
       "published_at": "2026-04-15T11:35:42Z",
       "published_ts": 1776252942.0,
-      "age_minutes": 1191.8,
+      "age_minutes": 1289.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1071,44 +1185,6 @@
       "provider_count": 1
     },
     {
-      "story_key": "94791dc2dd2b3dcd150440446ada61603180166d:5920805",
-      "headline": "Amazon (AMZN) Stock Climbs on $11.6B Globalstar Acquisition to Challenge Starlink - Blockonomi",
-      "tickers": [
-        "AMZN"
-      ],
-      "published_at": "2026-04-15T08:28:33Z",
-      "published_ts": 1776241713.0,
-      "age_minutes": 1379.0,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Blockonomi"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Amazon (AMZN) Stock Climbs on $11.6B Globalstar Acquisition to Challenge Starlink - Blockonomi",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.8,
-      "relevance": 0.535,
-      "news_catalyst_score": 0.1918,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://blockonomi.com/amazon-amzn-stock-climbs-on-11-6b-globalstar-acquisition-to-challenge-starlink/",
-      "first_seen_at": "2026-04-15T09:04:48.457112Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
       "story_key": "9f55b686374205531bc839b8a20efc8e987674cf:5920864",
       "headline": "Trade Strategy For SPY, QQQ, AAPL, MSFT, NVDA, GOOGL, META, And TSLA",
       "tickers": [
@@ -1118,7 +1194,7 @@
       ],
       "published_at": "2026-04-15T13:20:29Z",
       "published_ts": 1776259229.0,
-      "age_minutes": 1087.0,
+      "age_minutes": 1184.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1156,7 +1232,7 @@
       ],
       "published_at": "2026-04-15T22:34:08Z",
       "published_ts": 1776292448.0,
-      "age_minutes": 533.4,
+      "age_minutes": 631.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1194,7 +1270,7 @@
       ],
       "published_at": "2026-04-15T20:30:42Z",
       "published_ts": 1776285042.0,
-      "age_minutes": 656.8,
+      "age_minutes": 754.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1232,7 +1308,7 @@
       ],
       "published_at": "2026-04-15T18:16:03Z",
       "published_ts": 1776276963.0,
-      "age_minutes": 791.5,
+      "age_minutes": 889.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1270,7 +1346,7 @@
       ],
       "published_at": "2026-04-15T16:04:35Z",
       "published_ts": 1776269075.0,
-      "age_minutes": 922.9,
+      "age_minutes": 1020.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1308,7 +1384,7 @@
       ],
       "published_at": "2026-04-15T14:40:23Z",
       "published_ts": 1776264023.0,
-      "age_minutes": 1007.1,
+      "age_minutes": 1104.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1346,7 +1422,7 @@
       ],
       "published_at": "2026-04-15T13:54:12Z",
       "published_ts": 1776261252.0,
-      "age_minutes": 1053.3,
+      "age_minutes": 1151.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1385,7 +1461,7 @@
       ],
       "published_at": "2026-04-15T13:37:12Z",
       "published_ts": 1776260232.0,
-      "age_minutes": 1070.3,
+      "age_minutes": 1168.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1423,7 +1499,7 @@
       ],
       "published_at": "2026-04-15T12:35:33Z",
       "published_ts": 1776256533.0,
-      "age_minutes": 1132.0,
+      "age_minutes": 1229.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1461,7 +1537,7 @@
       ],
       "published_at": "2026-04-15T09:14:07Z",
       "published_ts": 1776244447.0,
-      "age_minutes": 1333.4,
+      "age_minutes": 1431.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1494,7 +1570,7 @@
   ],
   "news_catalyst_by_symbol": {
     "AAPL": {
-      "news_catalyst_score": 0.6152,
+      "news_catalyst_score": 0.5334,
       "sentiment_label": "neutral",
       "event_class": "EARNINGS",
       "event_label": "Top BofA Analyst Raises Apple Stock (AAPL) Price Target Ahead of Q2 Earnings",
@@ -1514,7 +1590,7 @@
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "source_tier": "TIER_3",
-      "mentions_24h": 12,
+      "mentions_24h": 11,
       "is_actionable": false,
       "first_provider": "newsapi_ai",
       "story_key": "5ef6ccbe6d8cf02bf8da7847e991b3ebe2512196:5920858"
@@ -1533,17 +1609,17 @@
       "story_key": "5e276d5b5af104b33ba147393d9d2631f5119286:5920848"
     },
     "JPM": {
-      "news_catalyst_score": 0.4659,
-      "sentiment_label": "neutral",
+      "news_catalyst_score": 0.6026,
+      "sentiment_label": "bearish",
       "event_class": "EARNINGS",
-      "event_label": "Transcript: JPMorgan Chase Q1 2026 Earnings Conference Call - JPMorgan Chase (NYSE:JPM)",
-      "materiality": "LOW",
+      "event_label": "JPMorgan Chase Stock: The Warning May Be More Important Than The Earnings (NYSE:JPM)",
+      "materiality": "MEDIUM",
       "recency_bucket": "AGING",
-      "source_tier": "TIER_2",
-      "mentions_24h": 2,
-      "is_actionable": false,
+      "source_tier": "TIER_3",
+      "mentions_24h": 3,
+      "is_actionable": true,
       "first_provider": "newsapi_ai",
-      "story_key": "cd58fa61d5c620f1c6c161d848c21d121be95abd:5920848"
+      "story_key": "77054441a278fdf397216d8b33efa90f5b041e3f:5921083"
     },
     "META": {
       "news_catalyst_score": 0.2818,
@@ -1566,7 +1642,7 @@
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "source_tier": "TIER_3",
-      "mentions_24h": 12,
+      "mentions_24h": 14,
       "is_actionable": false,
       "first_provider": "newsapi_ai",
       "story_key": "31931b7eeef132274d34c8fe78bf3068436f2fc5:5920880"
@@ -1586,10 +1662,12 @@
     }
   },
   "summary": {
-    "active_story_count": 37,
-    "new_story_count": 0,
-    "actionable_story_count": 0,
-    "actionable_symbols": [],
+    "active_story_count": 39,
+    "new_story_count": 3,
+    "actionable_story_count": 1,
+    "actionable_symbols": [
+      "JPM"
+    ],
     "symbol_count": 7
   },
   "symbol_scope": {
