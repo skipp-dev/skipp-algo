@@ -4,8 +4,9 @@ library("smc_micro_profiles_generated")
 // ── Usage ──────────────────────────────────────────────────────
 // import preuss_steffen/smc_micro_profiles_generated/1 as mp
 //
-// Fields are grouped into sections (v5.5b Lean, ~290 fields total):
-// Deprecated v5-v5.3 groups remain compatibility-only exports; prefer the v5.5b Lean surface for new consumers.
+// Fields are grouped into sections (v6, ~310 fields total):
+// Deprecated v5-v5.3 groups remain compatibility-only exports; prefer the v5.5b+ Lean surface for new consumers.
+// v6 adds: Short Interest(4), Treasury(4), Sector Rotation(4), Institutional(3), Analyst(3), Insider(2).
 //   Core/Meta       — ASOF_DATE, ASOF_TIME, UNIVERSE_ID, LOOKBACK_DAYS, UNIVERSE_SIZE, REFRESH_COUNT
 //   Microstructure  — *_TICKERS lists (clean_reclaim, stop_hunt_prone, …)
 //   Regime          — MARKET_REGIME, VIX_LEVEL, MACRO_BIAS, MACRO_BIAS_RAW, MACRO_BIAS_PE_ADJUSTMENT, MARKET_PE_FORWARD, MARKET_PE_REGIME, SECTOR_BREADTH
@@ -405,3 +406,35 @@ export const string SIGNAL_QUALITY_TIER = "low"
 export const string SIGNAL_WARNINGS = "outside_killzone|event_blocked"
 export const string SIGNAL_BIAS_ALIGNMENT = "neutral"
 export const string SIGNAL_FRESHNESS = "aging"
+
+// ── Short Interest (v6) ──
+export const string SHORT_SQUEEZE_RISK_TICKERS = ""
+export const string HIGH_SHORT_INTEREST_TICKERS = ""
+export const float MARKET_SHORT_INTEREST_AVG = 0.0
+export const bool SHORT_INTEREST_EXTREME = false
+
+// ── Treasury / Yield Curve (v6) ──
+export const float TREASURY_10Y_YIELD = 0.0
+export const float TREASURY_2Y_YIELD = 0.0
+export const float YIELD_CURVE_SPREAD = 0.0
+export const bool YIELD_CURVE_INVERTED = false
+
+// ── Sector Rotation (v6) ──
+export const string SECTOR_LEADING = ""
+export const string SECTOR_LAGGING = ""
+export const string SECTOR_STRONGEST = ""
+export const string SECTOR_WEAKEST = ""
+
+// ── Institutional Accumulation (v6) ──
+export const string INSTITUTIONAL_ACCUMULATION_TICKERS = ""
+export const string INSTITUTIONAL_DISTRIBUTION_TICKERS = ""
+export const bool INSTITUTIONAL_DATA_AVAILABLE = false
+
+// ── Analyst Consensus (v6) ──
+export const string ANALYST_STRONG_BUY_TICKERS = ""
+export const string ANALYST_UNDERPERFORM_TICKERS = ""
+export const string ANALYST_HIGH_UPSIDE_TICKERS = ""
+
+// ── Insider Transactions (v6) ──
+export const string INSIDER_BUYING_TICKERS = ""
+export const string INSIDER_SELLING_HEAVY_TICKERS = ""

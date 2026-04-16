@@ -33,6 +33,14 @@
 - [ ] 2+ Measurement-Benchmark-Reports existieren
 - [ ] End-to-End Smoke-Test bestanden (Bewertung ≥ 7/10)
 - [ ] 21 fehlende Library-Felder adressiert
+  - Status: **erledigt** (2026-04-16, WP-6)
+  - 20 v6-Enrichment-Felder (Short Interest 4, Treasury 4, Sector Rotation 4,
+    Institutional 3, Analyst 3, Insider 2) + FVG_NET_IMBALANCE in main seed eingefuegt
+  - Alle 21 Felder im Generator, in der generierten Library (309 Exporte) und
+    im Core Engine als Consumer verdrahtet
+  - 6 bisher konsumerlose Felder (MARKET_SHORT_INTEREST_AVG, SHORT_INTEREST_EXTREME,
+    TREASURY_2Y_YIELD, SECTOR_LAGGING, SECTOR_STRONGEST, INSTITUTIONAL_DATA_AVAILABLE)
+    in den Engine eingebunden; Consumer-Contract-Tests aktualisiert
 - [ ] Pine-Titel korrekt ("SMC Long-Dip Suite v7")
 - [ ] Kein kritischer Bug offen
 

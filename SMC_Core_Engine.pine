@@ -2769,19 +2769,25 @@ bool   is_breaking_news          = str.contains(lib_breaking_tickers, syminfo.ti
 // ── Short Interest (WP-ND1) ──
 string lib_squeeze_risk           = mp.SHORT_SQUEEZE_RISK_TICKERS
 string lib_high_short             = mp.HIGH_SHORT_INTEREST_TICKERS
+float  lib_short_interest_avg     = mp.MARKET_SHORT_INTEREST_AVG
+bool   lib_short_interest_extreme = mp.SHORT_INTEREST_EXTREME
 
 // ── Treasury / Yield Curve (WP-ND2) ──
 float  lib_yield_10y              = mp.TREASURY_10Y_YIELD
+float  lib_yield_2y               = mp.TREASURY_2Y_YIELD
 float  lib_yield_spread           = mp.YIELD_CURVE_SPREAD
 bool   lib_yield_inverted         = mp.YIELD_CURVE_INVERTED
 
 // ── Sector Rotation Detail (WP-ND3) ──
 string lib_sector_leading         = mp.SECTOR_LEADING
+string lib_sector_lagging         = mp.SECTOR_LAGGING
+string lib_sector_strongest       = mp.SECTOR_STRONGEST
 string lib_sector_weakest         = mp.SECTOR_WEAKEST
 
 // ── Institutional (WP-ND4) ──
 string lib_inst_accumulation      = mp.INSTITUTIONAL_ACCUMULATION_TICKERS
 string lib_inst_distribution      = mp.INSTITUTIONAL_DISTRIBUTION_TICKERS
+bool   lib_inst_data_available    = mp.INSTITUTIONAL_DATA_AVAILABLE
 
 // ── Analyst (WP-ND5) ──
 string lib_analyst_strong_buy     = mp.ANALYST_STRONG_BUY_TICKERS

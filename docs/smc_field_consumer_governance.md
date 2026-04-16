@@ -17,7 +17,7 @@ rules so the library stays lean and every field earns its place.
 |---------------------------------|-------:|--------------------------------|
 | **Total exported**              |    289 |                                |
 | Active (≥1 Pine consumer)       |    175 | 60.6 %                        |
-| Orphaned (0 Pine consumers)     |    114 | 39.4 % — reduction candidates  |
+| Orphaned (0 Pine consumers)     |    108 | 37.0 % — reduction candidates  |
 | Deprecated + orphaned           |     63 | safe to sunset                 |
 | Deprecated + still consumed     |     95 | migrate consumers first        |
 | Non-deprecated orphaned         |     51 | classify or adopt              |
