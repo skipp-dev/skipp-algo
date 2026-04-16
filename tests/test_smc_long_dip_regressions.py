@@ -1004,11 +1004,10 @@ def test_backing_zone_identity_and_touch_count_persist_after_arm() -> None:
     assert 'int _fvg_backing_zone_id = na' in source
     assert 'if long_state.backing_zone_kind == LONG_SOURCE_FVG' in source
     assert '_fvg_backing_zone_id := long_state.backing_zone_id' in source
-    assert 'int long_arm_locked_source_id = resolve_long_zone_id(arm_backing_zone_kind, arm_backing_zone_id)' in source
-    assert 'int long_arm_locked_source_last_touch_bar_index = na' in source
-    assert 'if not na(long_arm_locked_source_id)' in source
-    assert 'long_arm_locked_source_last_touch_bar_index := bar_index' in source
-    assert 'int long_arm_locked_source_last_touch_bar_index = not na(long_arm_locked_source_id) ? bar_index : na' not in source
+    assert 'resolve_long_arm_transition_payload(int arm_backing_zone_kind, int arm_backing_zone_id, int active_ob_touch_id, int active_ob_touch_count, int touched_bull_ob_id, int touched_bull_ob_touch_count, int active_fvg_touch_id, int active_fvg_touch_count, int touched_bull_fvg_id, int touched_bull_fvg_touch_count, int active_bull_ob_id, float active_bull_ob_top, float active_bull_ob_bottom, int active_bull_fvg_id, float active_bull_fvg_top, float active_bull_fvg_bottom, float touched_bull_ob_top, float touched_bull_ob_bottom, float touched_bull_fvg_top, float touched_bull_fvg_bottom, int current_bar_index) =>' in source
+    assert '[long_arm_backing_zone_touch_count, long_arm_locked_source_id, long_arm_locked_source_top, long_arm_locked_source_bottom, long_arm_locked_source_last_touch_bar_index] = resolve_long_arm_transition_payload(arm_backing_zone_kind, arm_backing_zone_id, active_ob_touch_id, active_ob_touch_count, touched_bull_ob_id, touched_bull_ob_touch_count, active_fvg_touch_id, active_fvg_touch_count, touched_bull_fvg_id, touched_bull_fvg_touch_count, active_bull_ob_id, active_bull_ob_top, active_bull_ob_bottom, active_bull_fvg_id, active_bull_fvg_top, active_bull_fvg_bottom, touched_bull_ob_top, touched_bull_ob_bottom, touched_bull_fvg_top, touched_bull_fvg_bottom, bar_index)' in source
+    assert 'int long_arm_locked_source_id = resolve_long_zone_id(arm_backing_zone_kind, arm_backing_zone_id)' not in source
+    assert 'int long_arm_locked_source_last_touch_bar_index = na' not in source
     assert 'long_state.arm(bar_index, arm_trigger_candidate, arm_invalidation_candidate, arm_source_kind, arm_backing_zone_kind, arm_backing_zone_id, long_arm_backing_zone_touch_count, arm_backing_zone_kind, long_arm_locked_source_id, long_arm_locked_source_top, long_arm_locked_source_bottom, long_arm_backing_zone_touch_count, long_arm_locked_source_last_touch_bar_index)' in source
     assert 'bool bullish_fvg_filled_alert = false' in source
     assert 'if array.size(filled_fvgs_new_bull) > 0' in source
@@ -1023,13 +1022,17 @@ def test_invalidation_path_records_specific_reason_and_clears_setup_state() -> N
 
     assert 'resolve_long_invalidation_reason(bool long_source_broken, bool long_source_lost, bool long_setup_expired, bool long_confirm_expired, int long_validation_source, int long_entry_origin_source, string long_setup_source_display) =>' in source
     assert 'resolve_long_validation_source(int long_locked_source_kind) =>' in source
+    assert 'compose_long_source_invalidated_text(string source_text) =>' in source
+    assert 'compose_long_backing_zone_lost_text(string source_text) =>' in source
+    assert 'compose_long_setup_expired_text(string source_text) =>' in source
+    assert 'compose_long_confirm_expired_text(string source_text) =>' in source
     assert "string long_validation_source_text = resolve_long_source_text(long_validation_source)" in source
     assert "string long_entry_origin_source_text = resolve_long_source_text(long_entry_origin_source)" in source
     assert "string invalidation_reason = long_setup_source_display" in source
-    assert "invalidation_reason := long_validation_source_text + ' source invalidated'" in source
-    assert "invalidation_reason := long_validation_source_text + ' backing zone lost'" in source
-    assert "invalidation_reason := long_entry_origin_source_text + ' setup expired'" in source
-    assert "invalidation_reason := long_entry_origin_source_text + ' confirm expired'" in source
+    assert 'invalidation_reason := compose_long_source_invalidated_text(long_validation_source_text)' in source
+    assert 'invalidation_reason := compose_long_backing_zone_lost_text(long_validation_source_text)' in source
+    assert 'invalidation_reason := compose_long_setup_expired_text(long_entry_origin_source_text)' in source
+    assert 'invalidation_reason := compose_long_confirm_expired_text(long_entry_origin_source_text)' in source
     assert "long_source_broken ? long_validation_source_text + ' source invalidated'" not in source
     assert 'int long_validation_source_now = resolve_long_validation_source(long_locked_source_kind_final)' in source
     assert 'string long_setup_source_display_now = compose_long_setup_source_display(long_state.entry_origin_source, long_validation_source_now)' in source
@@ -1621,41 +1624,19 @@ def test_cleanup_protection_does_not_mask_genuine_break_migration() -> None:
     assert 'update_broken( 1, tracking_blocks_bull, broken_blocks_bull, broken_blocks_new_bull, broken_by, keep_broken_max, discarded_blocks_bull)' in source
     assert 'update_broken(-1, tracking_blocks_bear, broken_blocks_bear, broken_blocks_new_bear, broken_by, keep_broken_max, discarded_blocks_bear)' in source
     assert 'long_invalidate_signal := long_state.armed or long_state.confirmed' in source
-    assert 'long_source_tracked := false' in source
-    assert 'if not na(long_state.locked_source_id)' in source
-    assert 'long_source_tracked := true' in source
-    assert 'long_source_tracked := not na(long_state.locked_source_id)' not in source
-    assert 'bool prev_locked_source_tracked = false' in source
-    assert 'if not na(prev_locked_source_id)' in source
-    assert 'prev_locked_source_tracked := true' in source
-    assert 'long_source_alive := true' in source
-    assert 'if long_source_tracked' in source
+    assert '[prev_locked_source_tracked, prev_locked_source_alive, prev_locked_source_broken, prev_locked_source_lost, prev_locked_source_invalid_now] = resolve_long_source_runtime_state(prev_locked_source_kind, prev_locked_source_id, prev_locked_ob_alive, prev_locked_fvg_alive, prev_locked_ob_broken, prev_locked_fvg_broken, long_state.armed, long_state.confirmed)' in source
+    assert '[long_source_tracked_now, long_locked_source_alive_now, long_source_broken_now, long_source_lost_now, long_source_invalid_now] = resolve_long_source_runtime_state(long_locked_source_kind_final, long_locked_source_id_final, long_locked_ob_alive_now, long_locked_fvg_alive_now, long_locked_ob_broken_now, long_locked_fvg_broken_now, long_state.armed, long_state.confirmed)' in source
+    assert 'long_source_tracked := long_source_tracked_now' in source
     assert 'long_source_alive := long_locked_source_alive_now' in source
-    assert 'long_source_alive := not long_source_tracked ? true : long_locked_source_alive_now' not in source
-    assert 'long_source_lost := false' in source
-    assert 'if (long_state.armed or long_state.confirmed) and long_source_tracked' in source
-    assert 'long_source_lost := not long_source_alive and not long_source_broken' in source
-    assert 'long_source_lost := (long_state.armed or long_state.confirmed) and long_source_tracked and not long_source_alive and not long_source_broken' not in source
-    assert 'bool long_setup_expired = false' in source
-    assert 'if long_state.armed and not long_state.confirmed' in source
-    assert 'long_setup_expired := long_setup_age > long_setup_expiry_bars' in source
-    assert 'bool long_confirm_expired = false' in source
-    assert 'if long_state.confirmed' in source
-    assert 'long_confirm_expired := long_confirm_age > long_confirm_expiry_bars' in source
-    assert 'bool long_setup_expired = long_state.armed and not long_state.confirmed and long_setup_age > long_setup_expiry_bars' not in source
-    assert 'bool long_confirm_expired = long_state.confirmed and long_confirm_age > long_confirm_expiry_bars' not in source
+    assert 'long_source_lost := long_source_lost_now' in source
+    assert 'bool long_source_broken = long_source_broken_now' in source
     assert 'float long_invalidation_break_src = close' in source
     assert 'if live_exec and effective_use_live_invalidation_break' in source
     assert 'long_invalidation_break_src := low' in source
     assert 'float long_invalidation_break_src = live_exec and effective_use_live_invalidation_break ? low : close' not in source
-    assert 'bool long_broken_down = false' in source
-    assert 'if not na(long_state.invalidation_level)' in source
-    assert 'long_broken_down := long_invalidation_break_src < long_state.invalidation_level - long_invalidation_buffer' in source
-    assert 'bool long_broken_down = not na(long_state.invalidation_level) and long_invalidation_break_src < long_state.invalidation_level - long_invalidation_buffer' not in source
-    assert 'bool long_invalidated_now = false' in source
-    assert 'if long_source_broken or long_source_lost' in source
-    assert 'long_invalidated_now := true' in source
-    assert 'bool long_invalidated_now = long_source_broken or long_source_lost' not in source
+    assert '[long_setup_expired, long_confirm_expired, long_broken_down, long_invalidated_now] = resolve_long_invalidation_state(long_state.armed, long_state.confirmed, long_setup_age, long_setup_expiry_bars, long_confirm_age, long_confirm_expiry_bars, close_safe_mode, long_invalidation_break_src, long_state.invalidation_level, long_invalidation_buffer, long_source_broken, long_source_lost)' in source
+    assert 'bool long_broken_down = false' not in source
+    assert 'bool long_invalidated_now = false' not in source
 
 
 def test_source_lock_decouples_setup_source_from_live_active_ranking() -> None:
@@ -1818,19 +1799,17 @@ def test_upgrade_rebinds_final_locked_source_before_alive_and_broken_checks() ->
     source = _read_smc_source()
 
     assert '[long_locked_source_kind_final, long_locked_source_id_final, long_setup_backing_zone_kind_final, long_setup_backing_zone_id_final] = stage_locked_source_transition(long_source_upgrade_now, prefer_ob_upgrade, prev_locked_source_kind, prev_locked_source_id, long_state.backing_zone_kind, long_state.backing_zone_id, touched_bull_ob_id, touched_bull_fvg_id)' in source
-    assert 'bool long_locked_source_alive_now = false' in source
-    assert 'long_locked_source_alive_now := contains_id(ob_blocks_bull, long_locked_source_id_final)' in source
-    assert 'long_locked_source_alive_now := contains_id(fvgs_bull, long_locked_source_id_final)' in source
-    assert 'bool long_locked_source_alive_now = long_locked_source_kind_final == LONG_SOURCE_OB ? contains_id(ob_blocks_bull, long_locked_source_id_final) : long_locked_source_kind_final == LONG_SOURCE_FVG ? contains_id(fvgs_bull, long_locked_source_id_final) : false' not in source
+    assert 'bool long_locked_ob_alive_now = long_locked_source_kind_final == LONG_SOURCE_OB and contains_id(ob_blocks_bull, long_locked_source_id_final)' in source
+    assert 'bool long_locked_fvg_alive_now = long_locked_source_kind_final == LONG_SOURCE_FVG and contains_id(fvgs_bull, long_locked_source_id_final)' in source
+    assert 'bool long_locked_ob_broken_now = long_locked_source_kind_final == LONG_SOURCE_OB and (contains_id(ob_broken_bull, long_locked_source_id_final) or contains_id(ob_broken_new_bull, long_locked_source_id_final))' in source
+    assert 'bool long_locked_fvg_broken_now = long_locked_source_kind_final == LONG_SOURCE_FVG and (contains_id(filled_fvgs_bull, long_locked_source_id_final) or contains_id(filled_fvgs_new_bull, long_locked_source_id_final))' in source
+    assert '[long_source_tracked_now, long_locked_source_alive_now, long_source_broken_now, long_source_lost_now, long_source_invalid_now] = resolve_long_source_runtime_state(long_locked_source_kind_final, long_locked_source_id_final, long_locked_ob_alive_now, long_locked_fvg_alive_now, long_locked_ob_broken_now, long_locked_fvg_broken_now, long_state.armed, long_state.confirmed)' in source
+    assert 'bool long_locked_source_alive_now = false' not in source
     assert 'resolve_long_zone_top(int long_zone_kind, int long_zone_id, int active_bull_ob_id, float active_bull_ob_top, int touched_bull_ob_id, float touched_bull_ob_top, int active_bull_fvg_id, float active_bull_fvg_top, int touched_bull_fvg_id, float touched_bull_fvg_top, bool preserve_prior_bounds = false, int prior_long_zone_kind = 0, int prior_long_zone_id = na, float prior_long_zone_top = na) =>' in source
     assert 'float long_locked_source_top_now = resolve_long_zone_top(long_locked_source_kind_final, long_locked_source_id_final, active_bull_ob_id, active_bull_ob_top, touched_bull_ob_id, touched_bull_ob_top, active_bull_fvg_id, active_bull_fvg_top, touched_bull_fvg_id, touched_bull_fvg_top, long_locked_source_alive_now and not long_source_upgrade_now, prev_locked_source_kind, prev_locked_source_id, long_state.locked_source_top)' in source
     assert 'resolve_long_zone_bottom(int long_zone_kind, int long_zone_id, int active_bull_ob_id, float active_bull_ob_bottom, int touched_bull_ob_id, float touched_bull_ob_bottom, int active_bull_fvg_id, float active_bull_fvg_bottom, int touched_bull_fvg_id, float touched_bull_fvg_bottom, bool preserve_prior_bounds = false, int prior_long_zone_kind = 0, int prior_long_zone_id = na, float prior_long_zone_bottom = na) =>' in source
     assert 'float long_locked_source_bottom_now = resolve_long_zone_bottom(long_locked_source_kind_final, long_locked_source_id_final, active_bull_ob_id, active_bull_ob_bottom, touched_bull_ob_id, touched_bull_ob_bottom, active_bull_fvg_id, active_bull_fvg_bottom, touched_bull_fvg_id, touched_bull_fvg_bottom, long_locked_source_alive_now and not long_source_upgrade_now, prev_locked_source_kind, prev_locked_source_id, long_state.locked_source_bottom)' in source
-    assert 'bool long_source_broken = false' in source
-    assert 'if long_locked_source_kind_final == LONG_SOURCE_OB' in source
-    assert 'long_source_broken := contains_id(ob_broken_bull, long_locked_source_id_final) or contains_id(ob_broken_new_bull, long_locked_source_id_final)' in source
-    assert 'else if long_locked_source_kind_final == LONG_SOURCE_FVG' in source
-    assert 'long_source_broken := contains_id(filled_fvgs_bull, long_locked_source_id_final) or contains_id(filled_fvgs_new_bull, long_locked_source_id_final)' in source
+    assert 'bool long_source_broken = long_source_broken_now' in source
     assert 'bool long_source_broken = long_locked_source_kind_final == LONG_SOURCE_OB ? contains_id(ob_broken_bull, long_locked_source_id_final) or contains_id(ob_broken_new_bull, long_locked_source_id_final) : long_locked_source_kind_final == LONG_SOURCE_FVG ? contains_id(filled_fvgs_bull, long_locked_source_id_final) or contains_id(filled_fvgs_new_bull, long_locked_source_id_final) : false' not in source
 
 
@@ -1850,12 +1829,14 @@ def test_entry_origin_and_validation_source_are_separated_for_display_and_invali
     assert 'int long_validation_source = LONG_SOURCE_NONE' in source
     assert "string long_setup_source_display = resolve_long_source_text(LONG_SOURCE_NONE)" in source
     assert 'long_validation_source := resolve_long_validation_source(long_state.locked_source_kind)' in source
+    assert 'compose_long_source_transition_text(string long_entry_origin_source_text, string long_validation_source_text) =>' in source
+    assert 'resolve_long_source_display_text(int long_entry_origin_source, int long_validation_source, string long_entry_origin_source_text, string long_validation_source_text) =>' in source
     assert 'compose_long_setup_source_display(int long_entry_origin_source, int long_validation_source) =>' in source
     assert "string long_entry_origin_source_text = resolve_long_source_text(long_entry_origin_source)" in source
     assert "string long_validation_source_text = resolve_long_source_text(long_validation_source)" in source
     assert "string source_display = long_validation_source_text" in source
     assert 'if long_entry_origin_source == LONG_SOURCE_NONE' in source
-    assert "source_display := long_entry_origin_source_text + ' -> ' + long_validation_source_text" in source
+    assert 'source_display := compose_long_source_transition_text(long_entry_origin_source_text, long_validation_source_text)' in source
     assert "long_entry_origin_source == LONG_SOURCE_NONE ? long_validation_source_text : long_validation_source == LONG_SOURCE_NONE or long_entry_origin_source == long_validation_source ? long_entry_origin_source_text : long_entry_origin_source_text + ' -> ' + long_validation_source_text" not in source
     assert 'long_setup_source_display := compose_long_setup_source_display(long_state.entry_origin_source, long_validation_source)' in source
     assert 'compose_long_setup_text(bool long_zone_active, bool long_setup_armed, bool long_building_state, bool long_setup_confirmed, bool long_ready_state, bool long_entry_best_state, bool long_entry_strict_state, bool long_invalidated_now, bool invalidated_prior_setup, bool long_invalidated_this_bar, string long_setup_source_display) =>' in source
@@ -1868,12 +1849,14 @@ def test_display_and_status_text_are_extracted_into_helpers() -> None:
 
     assert 'describe_long_freshness(bool long_setup_armed, bool long_setup_confirmed, bool ready_is_fresh, bool confirm_is_fresh) =>' in source
     assert 'describe_long_source_state(bool long_source_tracked, bool long_source_alive, bool long_source_broken) =>' in source
+    assert 'resolve_long_confirm_freshness_text(bool ready_is_fresh) =>' in source
+    assert 'resolve_long_armed_freshness_text(bool confirm_is_fresh) =>' in source
+    assert 'resolve_long_source_state_text(bool long_source_alive, bool long_source_broken) =>' in source
     assert "string freshness_text = 'n/a'" in source
-    assert 'if ready_is_fresh' in source
-    assert "freshness_text := 'confirm fresh'" in source
-    assert "freshness_text := 'confirm stale'" in source
+    assert 'freshness_text := resolve_long_confirm_freshness_text(ready_is_fresh)' in source
+    assert 'freshness_text := resolve_long_armed_freshness_text(confirm_is_fresh)' in source
     assert "string source_state_text = 'n/a'" in source
-    assert "source_state_text := 'source invalid'" in source
+    assert 'source_state_text := resolve_long_source_state_text(long_source_alive, long_source_broken)' in source
     assert "not long_setup_armed and not long_setup_confirmed ? 'n/a' : long_setup_confirmed ? ready_is_fresh ? 'confirm fresh' : 'confirm stale' : confirm_is_fresh ? 'armed fresh' : 'armed stale'" not in source
     assert "freshness_text := ready_is_fresh ? 'confirm fresh' : 'confirm stale'" not in source
     assert "freshness_text := confirm_is_fresh ? 'armed fresh' : 'armed stale'" not in source
@@ -2064,7 +2047,9 @@ def test_setup_text_and_visual_state_are_extracted_into_helpers() -> None:
 
     assert 'resolve_long_state_code(bool long_zone_active, bool long_setup_armed, bool long_building_state, bool long_setup_confirmed, bool long_ready_state, bool long_entry_best_state, bool long_entry_strict_state, bool invalidated_prior_setup, bool long_invalidated_now, bool long_invalidated_this_bar, bool long_invalidate_signal = false) =>' in source
     assert 'compose_long_setup_text(bool long_zone_active, bool long_setup_armed, bool long_building_state, bool long_setup_confirmed, bool long_ready_state, bool long_entry_best_state, bool long_entry_strict_state, bool long_invalidated_now, bool invalidated_prior_setup, bool long_invalidated_this_bar, string long_setup_source_display) =>' in source
-    assert "int state_code = resolve_long_state_code(long_zone_active, long_setup_armed, long_building_state, long_setup_confirmed, long_ready_state, long_entry_best_state, long_entry_strict_state, invalidated_prior_setup, long_invalidated_now, long_invalidated_this_bar)" in source
+    assert 'resolve_long_setup_state_code(bool long_zone_active, bool long_setup_armed, bool long_building_state, bool long_setup_confirmed, bool long_ready_state, bool long_entry_best_state, bool long_entry_strict_state, bool invalidated_prior_setup, bool long_invalidated_now, bool long_invalidated_this_bar) =>' in source
+    assert 'resolve_long_setup_display_text(bool long_zone_active, bool long_setup_armed, bool long_building_state, bool long_setup_confirmed, bool long_ready_state, bool long_entry_best_state, bool long_entry_strict_state, bool long_invalidated_now, bool invalidated_prior_setup, bool long_invalidated_this_bar, string long_setup_source_display) =>' in source
+    assert 'int state_code = resolve_long_setup_state_code(long_zone_active, long_setup_armed, long_building_state, long_setup_confirmed, long_ready_state, long_entry_best_state, long_entry_strict_state, invalidated_prior_setup, long_invalidated_now, long_invalidated_this_bar)' in source
     assert "string setup_text = 'No Setup'" in source
     assert "if state_code == -1" in source
     assert "setup_text := 'Invalidated'" in source
@@ -2076,7 +2061,8 @@ def test_setup_text_and_visual_state_are_extracted_into_helpers() -> None:
     assert "setup_text := 'Entry Strict | ' + long_setup_source_display" in source
     assert 'resolve_long_visual_state(bool long_zone_active, bool long_setup_armed, bool long_building_state, bool long_setup_confirmed, bool long_ready_state, bool long_entry_best_state, bool long_entry_strict_state, bool long_invalidate_signal, bool invalidated_prior_setup, bool long_invalidated_now, bool long_invalidated_this_bar) =>' in source
     assert 'resolve_long_state_code(long_zone_active, long_setup_armed, long_building_state, long_setup_confirmed, long_ready_state, long_entry_best_state, long_entry_strict_state, invalidated_prior_setup, long_invalidated_now, long_invalidated_this_bar, long_invalidate_signal)' in source
-    assert 'resolve_long_visual_text(int long_visual_state) =>' in source
+    assert 'resolve_long_visual_state_code(bool long_zone_active, bool long_setup_armed, bool long_building_state, bool long_setup_confirmed, bool long_ready_state, bool long_entry_best_state, bool long_entry_strict_state, bool long_invalidate_signal, bool invalidated_prior_setup, bool long_invalidated_now, bool long_invalidated_this_bar) =>' in source
+    assert 'resolve_long_visual_state_label(int long_visual_state) =>' in source
     assert "string visual_text = 'Ready'" in source
     assert "visual_text := 'Fail'" in source
     assert "visual_text := 'Neutral'" in source
@@ -2086,6 +2072,7 @@ def test_setup_text_and_visual_state_are_extracted_into_helpers() -> None:
     assert "visual_text := 'Confirmed'" in source
     assert "long_setup_text := compose_long_setup_text(long_zone_active, long_state.armed, long_building_state, long_state.confirmed, long_ready_state, long_entry_best_state, long_entry_strict_state, long_invalidated_now, invalidated_prior_setup, long_invalidated_this_bar, long_setup_source_display)" in source
     assert 'long_visual_state := resolve_long_visual_state(long_zone_active, long_state.armed, long_building_state, long_state.confirmed, long_ready_state, long_entry_best_state, long_entry_strict_state, long_invalidate_signal, invalidated_prior_setup, long_invalidated_now, long_invalidated_this_bar)' in source
+    assert 'long_visual_text := resolve_long_visual_state_label(long_visual_state)' in source
     assert "setup_text := str.format('Armed | {0}', long_setup_source_display)" not in source
     assert "setup_text := str.format('Building | {0}', long_setup_source_display)" not in source
     assert "setup_text := str.format('Confirmed | {0}', long_setup_source_display)" not in source
