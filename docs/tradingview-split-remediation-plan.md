@@ -41,6 +41,7 @@ Only the third point closes the split migration.
   - The latest publish/preflight artifacts in this document were generated on `2026-04-05`.
   - The latest commit touching the split surfaces and active consumers is `7d769bfb` on `2026-04-15` (`refactor(smc): split Core Engine into modular libraries (WP-SPLIT1–4)`).
   - Therefore the documented publish/compile/binding/runtime evidence is historical evidence, not exact proof for the current checked-in code on `main`.
+  - Separate helper-library compile readiness for `smc_context_resolvers`, `smc_profile_engine`, and `smc_utils` is now tracked in `docs/split_library_compile_readiness.md`; that document contains fresh `2026-04-16` live compile evidence, but not publish proof.
 - Status: `open`.
   The full local SMC pytest sweep is not green.
   Evidence:
