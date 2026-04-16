@@ -74,11 +74,12 @@ def test_dashboard_has_companion_summary_and_pro_diagnostics() -> None:
     assert 'dashboard_row(smc_dashboard, 3, "Why now"' in source
     assert 'section_row(smc_dashboard, 1, "[ Decision Detail ]", header_bg, txt)' in source
     assert 'section_row(smc_dashboard, 10, "[ Lean Surface ]", header_bg, txt)' in source
-    assert 'section_row(smc_dashboard, 18, "[ Gates ]", header_bg, txt)' in source
-    assert 'section_row(smc_dashboard, 26, "[ Quality Rows ]", header_bg, txt)' in source
-    assert 'section_row(smc_dashboard, 37, "[ Support / Metrics ]", header_bg, txt)' in source
-    assert 'section_row(smc_dashboard, 48, "[ Risk / Plan ]", header_bg, txt)' in source
-    assert 'section_row(smc_dashboard, 53, "[ Debug ]", header_bg, txt)' in source
+    assert 'section_row(smc_dashboard, 18, "[ Trust & Provider ]", header_bg, txt)' in source
+    assert 'section_row(smc_dashboard, 22, "[ Gates ]", header_bg, txt)' in source
+    assert 'section_row(smc_dashboard, 30, "[ Quality Rows ]", header_bg, txt)' in source
+    assert 'section_row(smc_dashboard, 41, "[ Support / Metrics ]", header_bg, txt)' in source
+    assert 'section_row(smc_dashboard, 52, "[ Risk / Plan ]", header_bg, txt)' in source
+    assert 'section_row(smc_dashboard, 57, "[ Debug ]", header_bg, txt)' in source
 
 
 def test_long_strategy_has_wrapper_controls_and_core_plan_outputs() -> None:
