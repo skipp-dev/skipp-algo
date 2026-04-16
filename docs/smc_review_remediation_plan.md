@@ -1,5 +1,9 @@
 # SMC Review & Remediation Plan
 
+> **Historical planning document** — the remediation program has been
+> completed. See [smc-residual-program-completion.md](smc-residual-program-completion.md)
+> and [smc_final_status_review_2026-04-16.md](smc_final_status_review_2026-04-16.md).
+
 ## Goal
 
 Establish a safety net of golden fixtures, regression tests, and contract

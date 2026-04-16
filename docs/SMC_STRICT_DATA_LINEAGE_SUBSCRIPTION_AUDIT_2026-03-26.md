@@ -1,5 +1,8 @@
 # Strict SMC Data Lineage and Subscription Audit (2026-03-26)
 
+> **Historical snapshot (2026-03-26)** — kept for audit reference.
+> Current architecture: [v5_5b_architecture.md](v5_5b_architecture.md).
+
 ## Phase 15 Update (Workbook Producer Unification)
 
 - Canonical upstream artifact is now explicitly the Databento production export bundle.

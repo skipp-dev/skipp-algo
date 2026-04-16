@@ -1,7 +1,7 @@
 # SkippALGO — Deep Technical Documentation (v6.2.22)
 
-Stand: 2026-02-12  
-Gültig für:
+> **Historical reference (v6.2.22)** — succeeded by the SMC Long-Dip Suite.
+
 
 - `SkippALGO.pine` (Indicator)
 - `SkippALGO_Strategy.pine` (Strategy)

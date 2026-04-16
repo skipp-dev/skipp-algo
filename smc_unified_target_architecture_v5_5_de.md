@@ -1,5 +1,8 @@
 # SMC Unified Target Architecture v5.5
 
+> **Historical / Superseded** — canonical reference is now
+> [docs/v5_5b_architecture.md](docs/v5_5b_architecture.md).
+
 *Deutsche Fassung - schlanke Zielarchitektur für ein solo-betriebenes SMC-System und teilbare TradingView-Skripte.*
 
 ## Leitregel / Guiding rule

@@ -1,5 +1,8 @@
 # SkippALGO — Deep Upgrade v6.1–v6.2 Technical Documentation
 
+> **Historical reference (v6.1–v6.2)** — the SkippALGO indicator has been
+> succeeded by the SMC Long-Dip Suite. See [SMC_GETTING_STARTED.md](SMC_GETTING_STARTED.md).
+
 ## Pine Script v6 | Non-repainting | Online Learning (SGD) | Ensemble Architecture
 
 ## 1) Purpose and Evolution

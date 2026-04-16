@@ -1,5 +1,8 @@
 # SMC Target Architecture Reference (2026-03-26)
 
+> **Historical snapshot (2026-03-26)** — superseded by
+> [v5_5b_architecture.md](v5_5b_architecture.md).
+
 ## Purpose
 This document is the implementation reference for the next producer phase.
 It records the intended module split, canonical contracts, and rule sources so refactors can be compared against a stable target.

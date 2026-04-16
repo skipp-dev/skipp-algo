@@ -1,4 +1,10 @@
-# SMC Split Validation Docs
+# SMC Documentation Index
+
+> **Canonical documentation map:**
+> [smc_documentation_map_2026-04-16.md](smc_documentation_map_2026-04-16.md)
+>
+> Start there for the recommended reading order, document classification,
+> and the full inventory of canonical vs. historical docs.
 
 This index anchors the current producer/consumer contract documentation for the SMC split.
 
