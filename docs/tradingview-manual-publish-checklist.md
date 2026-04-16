@@ -1,23 +1,23 @@
 # TradingView Manual Publish Checklist
 
-Stand: 2026-04-16
-Branch: `main` @ `f8da37c1`
+Stand: 2026-04-16 (aktualisiert)
+Branch: `main` @ `45858132`
 
 ## Zusammenfassung
 
-5 von 9 importierten Libraries haben keinen nachgewiesenen TradingView-Publish
-auf dem aktuellen `main`-Stand. Dieses Dokument ist das ausfuehrbare Runbook
-fuer den manuellen Publish dieser Libraries.
+Alle 5 Libraries wurden am 2026-04-16 vom User als manuell publiziert gemeldet.
+**Fuer keine der 5 Libraries existiert ein Post-Publish-Screenshot im Repo.**
+Alle 5 bleiben `publish_verified: no`. Siehe `docs/tradingview-manual-publish-evidence-2026-04-16.md` fuer das strukturierte Evidenz-Protokoll.
 
 ## Library-Status-Tabelle
 
 | # | Library | Import-Pfad | Datei | Compile-Evidenz | Publish-Evidenz | Publish-Script | Aktion |
 |---|---------|-------------|-------|-----------------|-----------------|----------------|--------|
-| 1 | `smc_core_types` | `preuss_steffen/smc_core_types/1` | `SMC++/smc_core_types.pine` | keine | keine | keines | **Manueller Publish noetig** |
-| 2 | `smc_draw` | `preuss_steffen/smc_draw/1` | `SMC++/smc_draw.pine` | keine | keine | keines | **Manueller Publish noetig** |
-| 3 | `smc_utils` | `preuss_steffen/smc_utils/1` | `SMC++/smc_utils.pine` | ja (2026-04-16 Live) | keine | keines | **Manueller Publish noetig** |
-| 4 | `smc_context_resolvers` | `preuss_steffen/smc_context_resolvers/1` | `SMC++/smc_context_resolvers.pine` | ja (2026-04-16 Live) | keine | keines | **Manueller Publish noetig** |
-| 5 | `smc_profile_engine` | `preuss_steffen/smc_profile_engine/1` | `SMC++/smc_profile_engine.pine` | ja (2026-04-16 Live) | keine | keines | **Manueller Publish noetig** |
+| 1 | `smc_core_types` | `preuss_steffen/smc_core_types/1` | `SMC++/smc_core_types.pine` | Screenshot zeigt CE10013 | user-reported, unverified | keines | **Post-Publish-Screenshot noetig** |
+| 2 | `smc_draw` | `preuss_steffen/smc_draw/1` | `SMC++/smc_draw.pine` | keine | user-reported, unverified | keines | **Compile + Post-Publish-Screenshot noetig** |
+| 3 | `smc_utils` | `preuss_steffen/smc_utils/1` | `SMC++/smc_utils.pine` | ja (2026-04-16 Live) | user-reported, unverified | keines | **Post-Publish-Screenshot noetig** |
+| 4 | `smc_context_resolvers` | `preuss_steffen/smc_context_resolvers/1` | `SMC++/smc_context_resolvers.pine` | ja (2026-04-16 Live) | user-reported, unverified | keines | **Post-Publish-Screenshot noetig** |
+| 5 | `smc_profile_engine` | `preuss_steffen/smc_profile_engine/1` | `SMC++/smc_profile_engine.pine` | ja (2026-04-16 Live) | user-reported, unverified | keines | **Post-Publish-Screenshot noetig** |
 | 6 | `smc_bus_private` | `preuss_steffen/smc_bus_private/1` | `SMC++/smc_bus_private.pine` | ja (historisch) | ja (2026-04-05, historisch) | keines (dediziert) | Nur Re-Publish bei Code-Aenderung |
 | 7 | `smc_lifecycle_private` | `preuss_steffen/smc_lifecycle_private/1` | `SMC++/smc_lifecycle_private.pine` | ja (historisch) | ja (2026-04-05, historisch) | `scripts/tv_publish_lifecycle_library.ts` | Nur Re-Publish bei Code-Aenderung |
 | 8 | `smc_observability_private` | `preuss_steffen/smc_observability_private/1` | `SMC++/smc_observability_private.pine` | ja (historisch) | ja (2026-04-05, historisch) | `scripts/tv_publish_observability_library.ts` | Nur Re-Publish bei Code-Aenderung |

@@ -1,7 +1,7 @@
 # TradingView Split Remediation Plan
 
 Date: 2026-04-05
-Reviewed: 2026-04-16
+Reviewed: 2026-04-16 (updated)
 
 ## Scope
 
@@ -42,6 +42,7 @@ Only the third point closes the split migration.
   - The latest commit touching the split surfaces and active consumers is `7d769bfb` on `2026-04-15` (`refactor(smc): split Core Engine into modular libraries (WP-SPLIT1–4)`).
   - Therefore the documented publish/compile/binding/runtime evidence is historical evidence, not exact proof for the current checked-in code on `main`.
   - Separate helper-library compile readiness for `smc_context_resolvers`, `smc_profile_engine`, and `smc_utils` is now tracked in `docs/split_library_compile_readiness.md`; that document contains fresh `2026-04-16` live compile evidence, but not publish proof.
+  - Manual publish evidence for all 5 helper libraries (`smc_core_types`, `smc_draw`, `smc_utils`, `smc_profile_engine`, `smc_context_resolvers`) is tracked in `docs/tradingview-manual-publish-evidence-2026-04-16.md`; user reported manual publish for all 5, but no post-publish screenshot was captured — all remain `publish_verified: no`.
 - Status: `open`.
   The full local SMC pytest sweep is not green.
   Evidence:
@@ -122,11 +123,13 @@ The following artifacts still exist and remain useful as historical remediation 
   Refresh TradingView validation on current `main`.
   Reason:
   - Current publish/import/runtime evidence in this document is from `2026-04-05` and predates the latest split-surface commit on `2026-04-15`.
+  - Manual publish was reported for 5 helper libraries on 2026-04-16, but no post-publish screenshots exist. All 5 remain `publish_verified: no`. See `docs/tradingview-manual-publish-evidence-2026-04-16.md`.
   Required evidence:
   - rerun bus publish validation
   - rerun lifecycle publish validation
   - rerun observability publish validation
   - rerun dashboard/core preflight covering compile, binding, and runtime smoke
+  - capture post-publish screenshots for: smc_core_types, smc_draw, smc_utils, smc_profile_engine, smc_context_resolvers
 
 4. Status: `open`.
   Refresh repo-side automated validation for the broader SMC scope.

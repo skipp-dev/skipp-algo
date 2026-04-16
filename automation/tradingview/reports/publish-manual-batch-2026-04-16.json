@@ -1,0 +1,88 @@
+{
+  "date": "2026-04-16",
+  "repository": "skippALGO/skipp-algo",
+  "branch": "main",
+  "policy": {
+    "strictOrder": [
+      "smc_core_types",
+      "smc_draw",
+      "smc_utils",
+      "smc_profile_engine",
+      "smc_context_resolvers"
+    ],
+    "doneRequires": [
+      "repo_file_verified",
+      "manual_compile_ok",
+      "private_publish_ok",
+      "import_path_verified",
+      "screenshot_saved"
+    ]
+  },
+  "libraries": [
+    {
+      "name": "smc_core_types",
+      "file": "SMC++/smc_core_types.pine",
+      "expectedImportPath": "preuss_steffen/smc_core_types/1",
+      "repoFileVerified": true,
+      "compileOk": null,
+      "publishOk": null,
+      "importPathVerified": null,
+      "status": "user_reported_published_unverified",
+      "notes": "User reported published. Agent-side publish verification artifact not captured yet.",
+      "screenshotPath": null
+    },
+    {
+      "name": "smc_draw",
+      "file": "SMC++/smc_draw.pine",
+      "expectedImportPath": "preuss_steffen/smc_draw/1",
+      "repoFileVerified": true,
+      "compileOk": null,
+      "publishOk": null,
+      "importPathVerified": null,
+      "status": "user_reported_published_unverified",
+      "notes": "User reported manual publish on 2026-04-16. No screenshot captured.",
+      "screenshotPath": null
+    },
+    {
+      "name": "smc_utils",
+      "file": "SMC++/smc_utils.pine",
+      "expectedImportPath": "preuss_steffen/smc_utils/1",
+      "repoFileVerified": true,
+      "compileOk": true,
+      "publishOk": null,
+      "importPathVerified": null,
+      "status": "user_reported_published_unverified",
+      "notes": "Compile proven via preflight. User reported manual publish on 2026-04-16. No post-publish screenshot.",
+      "screenshotPath": "automation/tradingview/reports/screenshots/2026-04-16T07-04-39-528Z-smc_utils-compiled.png"
+    },
+    {
+      "name": "smc_profile_engine",
+      "file": "SMC++/smc_profile_engine.pine",
+      "expectedImportPath": "preuss_steffen/smc_profile_engine/1",
+      "repoFileVerified": true,
+      "compileOk": true,
+      "publishOk": null,
+      "importPathVerified": null,
+      "status": "user_reported_published_unverified",
+      "notes": "Compile proven via preflight. User reported manual publish on 2026-04-16. No post-publish screenshot.",
+      "screenshotPath": "automation/tradingview/reports/screenshots/2026-04-16T07-04-39-528Z-smc_profile_engine-compiled.png"
+    },
+    {
+      "name": "smc_context_resolvers",
+      "file": "SMC++/smc_context_resolvers.pine",
+      "expectedImportPath": "preuss_steffen/smc_context_resolvers/1",
+      "repoFileVerified": true,
+      "compileOk": true,
+      "publishOk": null,
+      "importPathVerified": null,
+      "status": "user_reported_published_unverified",
+      "notes": "Compile proven via preflight. CE10237 fixes applied in session. User reported manual publish on 2026-04-16. No post-publish screenshot.",
+      "screenshotPath": "automation/tradingview/reports/screenshots/2026-04-16T07-04-39-528Z-smc_context_resolvers-compiled.png"
+    }
+  ],
+  "overall": {
+    "allFiveCompleted": false,
+    "agentVerified": false,
+    "stopReason": "All 5 user-reported as manually published but none have post-publish screenshot evidence. Publish remains unverified."
+  }
+}
