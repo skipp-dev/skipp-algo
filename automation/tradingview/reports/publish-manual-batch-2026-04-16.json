@@ -24,24 +24,26 @@
       "file": "SMC++/smc_core_types.pine",
       "expectedImportPath": "preuss_steffen/smc_core_types/1",
       "repoFileVerified": true,
-      "compileOk": null,
-      "publishOk": null,
-      "importPathVerified": null,
-      "status": "user_reported_published_unverified",
-      "notes": "User reported published. Agent-side publish verification artifact not captured yet.",
-      "screenshotPath": null
+      "compileOk": true,
+      "publishOk": true,
+      "importPathVerified": true,
+      "status": "publish_verified",
+      "tradingviewUrl": "https://www.tradingview.com/script/RsrGIOXB/",
+      "notes": "Verified via TradingView profile page and individual script page.",
+      "screenshotPath": "automation/tradingview/reports/screenshots/publish-smc_core_types-verified-2026-04-16.png"
     },
     {
       "name": "smc_draw",
       "file": "SMC++/smc_draw.pine",
       "expectedImportPath": "preuss_steffen/smc_draw/1",
       "repoFileVerified": true,
-      "compileOk": null,
-      "publishOk": null,
-      "importPathVerified": null,
-      "status": "user_reported_published_unverified",
-      "notes": "User reported manual publish on 2026-04-16. No screenshot captured.",
-      "screenshotPath": null
+      "compileOk": true,
+      "publishOk": true,
+      "importPathVerified": true,
+      "status": "publish_verified",
+      "tradingviewUrl": "https://www.tradingview.com/script/QewoNKHh/",
+      "notes": "Verified via TradingView profile page and individual script page.",
+      "screenshotPath": "automation/tradingview/reports/screenshots/publish-smc_draw-verified-2026-04-16.png"
     },
     {
       "name": "smc_utils",
@@ -49,11 +51,12 @@
       "expectedImportPath": "preuss_steffen/smc_utils/1",
       "repoFileVerified": true,
       "compileOk": true,
-      "publishOk": null,
-      "importPathVerified": null,
-      "status": "user_reported_published_unverified",
-      "notes": "Compile proven via preflight. User reported manual publish on 2026-04-16. No post-publish screenshot.",
-      "screenshotPath": "automation/tradingview/reports/screenshots/2026-04-16T07-04-39-528Z-smc_utils-compiled.png"
+      "publishOk": true,
+      "importPathVerified": true,
+      "status": "publish_verified",
+      "tradingviewUrl": "https://www.tradingview.com/script/REeaX6OF/",
+      "notes": "Verified via TradingView profile page and individual script page.",
+      "screenshotPath": "automation/tradingview/reports/screenshots/publish-smc_utils-verified-2026-04-16.png"
     },
     {
       "name": "smc_profile_engine",
@@ -61,11 +64,12 @@
       "expectedImportPath": "preuss_steffen/smc_profile_engine/1",
       "repoFileVerified": true,
       "compileOk": true,
-      "publishOk": null,
-      "importPathVerified": null,
-      "status": "user_reported_published_unverified",
-      "notes": "Compile proven via preflight. User reported manual publish on 2026-04-16. No post-publish screenshot.",
-      "screenshotPath": "automation/tradingview/reports/screenshots/2026-04-16T07-04-39-528Z-smc_profile_engine-compiled.png"
+      "publishOk": true,
+      "importPathVerified": true,
+      "status": "publish_verified",
+      "tradingviewUrl": "https://www.tradingview.com/script/MLVulTa9/",
+      "notes": "Verified via TradingView profile page and individual script page.",
+      "screenshotPath": "automation/tradingview/reports/screenshots/publish-smc_profile_engine-verified-2026-04-16.png"
     },
     {
       "name": "smc_context_resolvers",
@@ -73,16 +77,19 @@
       "expectedImportPath": "preuss_steffen/smc_context_resolvers/1",
       "repoFileVerified": true,
       "compileOk": true,
-      "publishOk": null,
-      "importPathVerified": null,
-      "status": "user_reported_published_unverified",
-      "notes": "Compile proven via preflight. CE10237 fixes applied in session. User reported manual publish on 2026-04-16. No post-publish screenshot.",
-      "screenshotPath": "automation/tradingview/reports/screenshots/2026-04-16T07-04-39-528Z-smc_context_resolvers-compiled.png"
+      "publishOk": true,
+      "importPathVerified": true,
+      "status": "publish_verified",
+      "tradingviewUrl": "https://www.tradingview.com/script/xqizvhmk/",
+      "notes": "Verified via TradingView profile page and individual script page. CE10237 fixes applied in session.",
+      "screenshotPath": "automation/tradingview/reports/screenshots/publish-smc_context_resolvers-verified-2026-04-16.png"
     }
   ],
   "overall": {
-    "allFiveCompleted": false,
-    "agentVerified": false,
-    "stopReason": "All 5 user-reported as manually published but none have post-publish screenshot evidence. Publish remains unverified."
+    "allFiveCompleted": true,
+    "agentVerified": true,
+    "verifiedAt": "2026-04-16T17:45:00+02:00",
+    "verificationMethod": "Browser automation via Chrome DevTools MCP — profile page + individual script pages",
+    "stopReason": "All 5 libraries verified published via TradingView profile page. Screenshots captured for each."
   }
 }

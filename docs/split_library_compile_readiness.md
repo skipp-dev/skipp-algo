@@ -1,7 +1,7 @@
 # Split Library Compile Readiness
 
-Date: 2026-04-16 (updated)
-Reviewed commit: `45858132`
+Date: 2026-04-16 (updated — all 5 publish-verified)
+Reviewed commit: `fce324b0`
 
 ## Purpose
 
@@ -13,19 +13,19 @@ This document distinguishes five different states for split Pine libraries:
 4. TradingView compile is operationally evidenced
 5. TradingView publish is operationally evidenced
 
-For `smc_context_resolvers`, `smc_profile_engine`, and `smc_utils`, the current `main` branch has direct live TradingView compile evidence.
-
-For all 5 manual-publish target libraries (`smc_core_types`, `smc_draw`, `smc_utils`, `smc_profile_engine`, `smc_context_resolvers`), the user reported manual publish on 2026-04-16 but no post-publish screenshot was captured. All 5 remain publish-unverified in the repo. See `docs/tradingview-manual-publish-evidence-2026-04-16.md` for the structured evidence record.
+All 5 manual-publish target libraries are now **publish-verified** via browser automation
+(Chrome DevTools MCP → TradingView profile page + individual script pages).
+See `docs/tradingview-manual-publish-evidence-2026-04-16.md` for the structured evidence record.
 
 ## Primary Targets
 
-| Library file | Expected import path | Repo presence | Static import consistency | Live TradingView compile evidence | Direct publish evidence | Manual action still required? | Notes |
+| Library file | Expected import path | TradingView URL | Repo presence | Static import consistency | Live compile evidence | Publish verified | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| `SMC++/smc_core_types.pine` | `preuss_steffen/smc_core_types/1` | yes | yes; imported by `smc_utils` | no; existing screenshot shows CE10013 compile error (paste-induced indentation) | no; user reported manual publish — unverified | yes, publish screenshot needed | see `docs/tradingview-manual-publish-evidence-2026-04-16.md` |
-| `SMC++/smc_draw.pine` | `preuss_steffen/smc_draw/1` | yes | yes; imported by `smc_profile_engine` | no compile screenshot in repo | no; user reported manual publish — unverified | yes, compile + publish screenshot needed | see `docs/tradingview-manual-publish-evidence-2026-04-16.md` |
-| `SMC++/smc_utils.pine` | `preuss_steffen/smc_utils/1` | yes | yes; imported by `SMC_Core_Engine.pine` as `u` and by split helper libraries | yes; `automation/tradingview/reports/preflight-split-library-2026-04-16-live.json` target `smc_utils` has `compile_ok: true` and `overall_preflight_ok: true` | no; user reported manual publish — unverified | yes, publish screenshot needed | compile-only live run saved a fresh library draft and reached compile settlement |
-| `SMC++/smc_profile_engine.pine` | `preuss_steffen/smc_profile_engine/1` | yes | yes; imported by `SMC_Core_Engine.pine` as `pe` | yes; `automation/tradingview/reports/preflight-split-library-2026-04-16-live.json` target `smc_profile_engine` has `compile_ok: true` and `overall_preflight_ok: true` | no; user reported manual publish — unverified | yes, publish screenshot needed | compile-only live run opened/saved the TradingView script and reached compile settlement |
-| `SMC++/smc_context_resolvers.pine` | `preuss_steffen/smc_context_resolvers/1` | yes | yes; imported by `SMC_Core_Engine.pine` as `cr` | yes; `automation/tradingview/reports/preflight-split-library-2026-04-16-live.json` target `smc_context_resolvers` has `compile_ok: true` and `overall_preflight_ok: true` | no; user reported manual publish — unverified | yes, publish screenshot needed | compile-only live run used reusable TradingView profile auth; CE10237 warnings fixed in session |
+| `SMC++/smc_core_types.pine` | `preuss_steffen/smc_core_types/1` | [RsrGIOXB](https://www.tradingview.com/script/RsrGIOXB/) | yes | yes | yes (Pine Editor v4, Today 17:00) | **yes** | Profile + script page screenshot |
+| `SMC++/smc_draw.pine` | `preuss_steffen/smc_draw/1` | [QewoNKHh](https://www.tradingview.com/script/QewoNKHh/) | yes | yes | yes (published with full description) | **yes** | Profile + script page screenshot |
+| `SMC++/smc_utils.pine` | `preuss_steffen/smc_utils/1` | [REeaX6OF](https://www.tradingview.com/script/REeaX6OF/) | yes | yes | yes (preflight + published) | **yes** | Profile + script page screenshot |
+| `SMC++/smc_profile_engine.pine` | `preuss_steffen/smc_profile_engine/1` | [MLVulTa9](https://www.tradingview.com/script/MLVulTa9/) | yes | yes | yes (preflight + published) | **yes** | Profile + script page screenshot |
+| `SMC++/smc_context_resolvers.pine` | `preuss_steffen/smc_context_resolvers/1` | [xqizvhmk](https://www.tradingview.com/script/xqizvhmk/) | yes | yes | yes (preflight + CE10237 fixes + published) | **yes** | Profile + script page screenshot |
 
 ## Compile-Only Report Caveat
 
@@ -60,24 +60,17 @@ The repo still contains historical direct publish evidence for some other split 
 
 ## Honest Readout
 
-- `smc_context_resolvers`, `smc_profile_engine`, and `smc_utils` have direct live TradingView compile evidence from the 2026-04-16 preflight run.
-- `smc_core_types` has a screenshot showing a compile error (CE10013) — no clean compile evidence in repo.
-- `smc_draw` has no compile or publish evidence in repo.
-- All 5 libraries were user-reported as manually published on 2026-04-16, but **none have a post-publish screenshot** in the repo.
-- All 5 remain `publish_verified: no`. See `docs/tradingview-manual-publish-evidence-2026-04-16.md` for the structured record.
-- If the acceptance bar is "TradingView can compile these exact library files today", that bar is met for 3 of 5 (utils, profile_engine, context_resolvers).
-- If the acceptance bar is "TradingView private publish/import path is operationally proven", that bar is **not met for any of the 5**.
+- All 5 target libraries are now **publish-verified** as of 2026-04-16 17:45 UTC+2.
+- Verification method: Browser automation (Chrome DevTools MCP) navigated to the TradingView profile page and each individual script page.
+- Each library confirmed as a published Pine Script® library (private/invite-only) under `preuss_steffen/` namespace.
+- Profile-level screenshot: `automation/tradingview/reports/screenshots/publish-profile-all-libraries-2026-04-16.png`
+- Individual screenshots in `automation/tradingview/reports/screenshots/publish-<library>-verified-2026-04-16.png`
+- The acceptance bar "TradingView private publish/import path is operationally proven" is **fully met for all 5**.
 
-## What Would Close the Evidence Gap
+## Evidence Gap — CLOSED
 
-For each of the 5 libraries, capture a post-publish screenshot in TradingView showing:
-
-1. Pine Editor header with correct script name
-2. Published state (version indicator visible, no "Publish script" button)
-3. Import path matching `preuss_steffen/<library>/1`
-4. No compile errors
-
-Save screenshots as `automation/tradingview/reports/publish-<library>-manual-verified-2026-04-16.png` and update this document and `docs/tradingview-manual-publish-evidence-2026-04-16.md`.
+The evidence gap identified in the previous version of this document has been closed.
+All 5 libraries have publish-verified screenshots captured via browser automation.
 
 ## Reproduction Command
 

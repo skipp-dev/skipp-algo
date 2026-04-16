@@ -1,27 +1,29 @@
 # TradingView Manual Publish Checklist
 
-Stand: 2026-04-16 (aktualisiert)
-Branch: `main` @ `45858132`
+Stand: 2026-04-16 (aktualisiert — alle 5 publish-verified)
+Branch: `main` @ `fce324b0`
 
 ## Zusammenfassung
 
-Alle 5 Libraries wurden am 2026-04-16 vom User als manuell publiziert gemeldet.
-**Fuer keine der 5 Libraries existiert ein Post-Publish-Screenshot im Repo.**
-Alle 5 bleiben `publish_verified: no`. Siehe `docs/tradingview-manual-publish-evidence-2026-04-16.md` fuer das strukturierte Evidenz-Protokoll.
+Alle 5 Libraries wurden am 2026-04-16 manuell publiziert und sind jetzt **publish-verified**.
+Verifikation erfolgte via Browser-Automation (Chrome DevTools MCP): TradingView Profil-Seite + individuelle Script-Seiten.
+Siehe `docs/tradingview-manual-publish-evidence-2026-04-16.md` fuer das strukturierte Evidenz-Protokoll.
 
 ## Library-Status-Tabelle
 
-| # | Library | Import-Pfad | Datei | Compile-Evidenz | Publish-Evidenz | Publish-Script | Aktion |
-|---|---------|-------------|-------|-----------------|-----------------|----------------|--------|
-| 1 | `smc_core_types` | `preuss_steffen/smc_core_types/1` | `SMC++/smc_core_types.pine` | Screenshot zeigt CE10013 | user-reported, unverified | keines | **Post-Publish-Screenshot noetig** |
-| 2 | `smc_draw` | `preuss_steffen/smc_draw/1` | `SMC++/smc_draw.pine` | keine | user-reported, unverified | keines | **Compile + Post-Publish-Screenshot noetig** |
-| 3 | `smc_utils` | `preuss_steffen/smc_utils/1` | `SMC++/smc_utils.pine` | ja (2026-04-16 Live) | user-reported, unverified | keines | **Post-Publish-Screenshot noetig** |
-| 4 | `smc_context_resolvers` | `preuss_steffen/smc_context_resolvers/1` | `SMC++/smc_context_resolvers.pine` | ja (2026-04-16 Live) | user-reported, unverified | keines | **Post-Publish-Screenshot noetig** |
-| 5 | `smc_profile_engine` | `preuss_steffen/smc_profile_engine/1` | `SMC++/smc_profile_engine.pine` | ja (2026-04-16 Live) | user-reported, unverified | keines | **Post-Publish-Screenshot noetig** |
-| 6 | `smc_bus_private` | `preuss_steffen/smc_bus_private/1` | `SMC++/smc_bus_private.pine` | ja (historisch) | ja (2026-04-05, historisch) | keines (dediziert) | Nur Re-Publish bei Code-Aenderung |
-| 7 | `smc_lifecycle_private` | `preuss_steffen/smc_lifecycle_private/1` | `SMC++/smc_lifecycle_private.pine` | ja (historisch) | ja (2026-04-05, historisch) | `scripts/tv_publish_lifecycle_library.ts` | Nur Re-Publish bei Code-Aenderung |
-| 8 | `smc_observability_private` | `preuss_steffen/smc_observability_private/1` | `SMC++/smc_observability_private.pine` | ja (historisch) | ja (2026-04-05, historisch) | `scripts/tv_publish_observability_library.ts` | Nur Re-Publish bei Code-Aenderung |
-| 9 | `smc_micro_profiles_generated` | `preuss_steffen/smc_micro_profiles_generated/1` | `pine/generated/smc_micro_profiles_generated.pine` | ja | ja (fortlaufend) | `scripts/tv_publish_micro_library.ts` | Automatisiert, kein manueller Publish noetig |
+| # | Library | Import-Pfad | TradingView URL | Compile | Publish | Screenshot |
+|---|---------|-------------|-----------------|---------|---------|------------|
+| 1 | `smc_core_types` | `preuss_steffen/smc_core_types/1` | [RsrGIOXB](https://www.tradingview.com/script/RsrGIOXB/) | ja | **verified** | `publish-smc_core_types-verified-2026-04-16.png` |
+| 2 | `smc_draw` | `preuss_steffen/smc_draw/1` | [QewoNKHh](https://www.tradingview.com/script/QewoNKHh/) | ja | **verified** | `publish-smc_draw-verified-2026-04-16.png` |
+| 3 | `smc_utils` | `preuss_steffen/smc_utils/1` | [REeaX6OF](https://www.tradingview.com/script/REeaX6OF/) | ja | **verified** | `publish-smc_utils-verified-2026-04-16.png` |
+| 4 | `smc_context_resolvers` | `preuss_steffen/smc_context_resolvers/1` | [xqizvhmk](https://www.tradingview.com/script/xqizvhmk/) | ja | **verified** | `publish-smc_context_resolvers-verified-2026-04-16.png` |
+| 5 | `smc_profile_engine` | `preuss_steffen/smc_profile_engine/1` | [MLVulTa9](https://www.tradingview.com/script/MLVulTa9/) | ja | **verified** | `publish-smc_profile_engine-verified-2026-04-16.png` |
+| 6 | `smc_bus_private` | `preuss_steffen/smc_bus_private/1` | [aaxpWQEV](https://www.tradingview.com/script/aaxpWQEV-smc-bus-private/) | ja | verified (profil) | historisch |
+| 7 | `smc_lifecycle_private` | `preuss_steffen/smc_lifecycle_private/1` | [4van2T9D](https://www.tradingview.com/script/4van2T9D-smc-lifecycle-private/) | ja | verified (profil) | historisch |
+| 8 | `smc_observability_private` | `preuss_steffen/smc_observability_private/1` | [Pk1mf5ut](https://www.tradingview.com/script/Pk1mf5ut-smc-observability-private/) | ja | verified (profil) | historisch |
+| 9 | `smc_micro_profiles_generated` | `preuss_steffen/smc_micro_profiles_generated/1` | [3q50DUTi](https://www.tradingview.com/script/3q50DUTi-smc-micro-profiles-generated/) | ja | verified (profil) | automatisiert |
+
+Alle Screenshots relativ zu `automation/tradingview/reports/screenshots/`.
 
 ## Abhaengigkeitsgraph
 
