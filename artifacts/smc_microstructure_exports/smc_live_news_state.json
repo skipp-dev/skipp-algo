@@ -5,12 +5,128 @@
     "fmp_stock": 0.0,
     "fmp_press": 0.0,
     "fmp_articles": 0.0,
-    "newsapi_ai": 1776364506.0,
+    "newsapi_ai": 1776378360.0,
     "tv": 0.0,
-    "legacy_cursor": 1776364506.0
+    "legacy_cursor": 1776378360.0
   },
   "provider_state": {},
   "story_state": {
+    "3785bc959accf147bb427c987cc18969b0a87cb4:5921259": {
+      "story_key": "3785bc959accf147bb427c987cc18969b0a87cb4:5921259",
+      "cluster_hash": "3785bc959accf147bb427c987cc18969b0a87cb4",
+      "headline": "Herrington, Amazon CEO, sells $5.02m in AMZN stock By Investing.com",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_ts": 1776377890.0,
+      "first_seen_ts": 1776380564.7197237,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Investing.com India"
+      ],
+      "url": "https://in.investing.com/news/insider-trading-news/herrington-amazon-ceo-sells-502m-in-amzn-stock-93CH-5342756",
+      "category": "management",
+      "impact": 0.6,
+      "clarity": 0.8,
+      "relevance": 0.76,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776380564.7197237
+    },
+    "d5541efd8ba86f0f6b4a7becc799cd7cce1c9a85:5921261": {
+      "story_key": "d5541efd8ba86f0f6b4a7becc799cd7cce1c9a85:5921261",
+      "cluster_hash": "d5541efd8ba86f0f6b4a7becc799cd7cce1c9a85",
+      "headline": "Amazon Wants You Off The Couch And Into Theaters - Amazon.com (NASDAQ:AMZN)",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_ts": 1776378360.0,
+      "first_seen_ts": 1776380564.7197237,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "url": "https://www.benzinga.com/news/entertainment/26/04/51874776/amazon-built-on-keeping-customers-inside-homes-now-wants-to-send-audiences-to-movie-theaters-a-reason-to-leave-the-house",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "last_seen_ts": 1776380564.7197237
+    },
+    "64668d21202df347f73fda5c551ea8d3d2a85389:5921231": {
+      "story_key": "64668d21202df347f73fda5c551ea8d3d2a85389:5921231",
+      "cluster_hash": "64668d21202df347f73fda5c551ea8d3d2a85389",
+      "headline": "Anthropic Releases Claude 4.7, Introducing Mythos-Inspired Cybersecurity Protections - Apple (NASDAQ:AAPL",
+      "tickers": [
+        "AAPL"
+      ],
+      "published_ts": 1776369588.0,
+      "first_seen_ts": 1776380564.7197237,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "url": "https://www.benzinga.com/markets/private-markets/26/04/51871737/anthropic-releases-claude-4-7-introducing-mythos-inspired-cybersecurity-protections",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "polarity": 0.0,
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "last_seen_ts": 1776380564.7197237
+    },
+    "e5911034f30a787cd745f18f146409f99eb948d5:5921247": {
+      "story_key": "e5911034f30a787cd745f18f146409f99eb948d5:5921247",
+      "cluster_hash": "e5911034f30a787cd745f18f146409f99eb948d5",
+      "headline": "Employment 'Apocalypse' Fears Are Overblown, Scale AI CEO Says - Meta Platforms (NASDAQ:META), Oracle (NY",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1776374369.0,
+      "first_seen_ts": 1776380564.7197237,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "url": "https://www.benzinga.com/markets/private-markets/26/04/51874192/employment-apocalypse-fears-are-overblown-scale-ai-ceo-says",
+      "category": "management",
+      "impact": 0.6,
+      "clarity": 0.6,
+      "relevance": 0.7000000000000001,
+      "polarity": 0.0,
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "last_seen_ts": 1776380564.7197237
+    },
     "dec251f42c905bcd256e9e8b776f428992c9a7b3:5921215": {
       "story_key": "dec251f42c905bcd256e9e8b776f428992c9a7b3:5921215",
       "cluster_hash": "dec251f42c905bcd256e9e8b776f428992c9a7b3",
