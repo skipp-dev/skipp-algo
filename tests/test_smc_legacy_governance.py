@@ -38,10 +38,12 @@ def test_release_gate_matrix_keeps_frozen_compatibility_checks() -> None:
     assert "tests/test_smc_legacy_governance.py" in workflow_text
 
 
-def test_long_dip_regression_stays_anchored_to_smc_plus() -> None:
+def test_long_dip_regression_anchors_to_active_core_engine() -> None:
     regression_text = _read(LONG_DIP_REGRESSION_PATH)
 
-    assert "SMC_PATH = ROOT / 'legacy' / 'SMC++.pine'" in regression_text
+    # After the split-library migration, long-dip regressions target the active
+    # producer (SMC_Core_Engine.pine), not the frozen legacy monolith.
+    assert "SMC_PATH = ROOT / 'SMC_Core_Engine.pine'" in regression_text
 
 
 def test_long_dip_first_scope_is_documented_in_active_core_and_plan() -> None:
