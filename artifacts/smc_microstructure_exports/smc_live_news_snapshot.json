@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-04-16T16:44:38.718426Z",
+  "generated_at": "2026-04-16T18:00:17.053684Z",
   "symbols": [
     "AAPL",
     "MSFT",
@@ -82,44 +82,6 @@
   },
   "stories": [
     {
-      "story_key": "9a2f7bbead9db2c8dfaf39c93eb4386ff5d99115:5921161",
-      "headline": "Amazon (AMZN) Secures Major Fox Media AI Cloud Partnership - Blockonomi",
-      "tickers": [
-        "AMZN"
-      ],
-      "published_at": "2026-04-16T14:08:44Z",
-      "published_ts": 1776348524.0,
-      "age_minutes": 155.9,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Blockonomi"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "contract",
-      "event_class": "CONTRACT",
-      "event_label": "Amazon (AMZN) Secures Major Fox Media AI Cloud Partnership - Blockonomi",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.7,
-      "clarity": 0.6,
-      "relevance": 0.745,
-      "news_catalyst_score": 0.4617,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://blockonomi.com/amazon-amzn-secures-major-fox-media-ai-cloud-partnership/",
-      "first_seen_at": "2026-04-16T14:57:51.102709Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
       "story_key": "288a573aabbbccec0a09586853945dc68b76ec6f:5920923",
       "headline": "Amazon Vs. SpaceX Space Race Heats Up At Difficult Time For Musk's Upcoming IPO - Amazon.com (NASDAQ:AMZN",
       "tickers": [
@@ -127,7 +89,7 @@
       ],
       "published_at": "2026-04-15T18:19:52Z",
       "published_ts": 1776277192.0,
-      "age_minutes": 1344.8,
+      "age_minutes": 1420.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -158,6 +120,44 @@
       "provider_count": 1
     },
     {
+      "story_key": "9a2f7bbead9db2c8dfaf39c93eb4386ff5d99115:5921161",
+      "headline": "Amazon (AMZN) Secures Major Fox Media AI Cloud Partnership - Blockonomi",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_at": "2026-04-16T14:08:44Z",
+      "published_ts": 1776348524.0,
+      "age_minutes": 231.6,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Blockonomi"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "contract",
+      "event_class": "CONTRACT",
+      "event_label": "Amazon (AMZN) Secures Major Fox Media AI Cloud Partnership - Blockonomi",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.7,
+      "clarity": 0.6,
+      "relevance": 0.745,
+      "news_catalyst_score": 0.4076,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://blockonomi.com/amazon-amzn-secures-major-fox-media-ai-cloud-partnership/",
+      "first_seen_at": "2026-04-16T14:57:51.102709Z",
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
       "story_key": "77054441a278fdf397216d8b33efa90f5b041e3f:5921083",
       "headline": "JPMorgan Chase Stock: The Warning May Be More Important Than The Earnings (NYSE:JPM)",
       "tickers": [
@@ -165,7 +165,7 @@
       ],
       "published_at": "2026-04-16T07:38:45Z",
       "published_ts": 1776325125.0,
-      "age_minutes": 545.9,
+      "age_minutes": 621.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -203,7 +203,7 @@
       ],
       "published_at": "2026-04-16T04:39:25Z",
       "published_ts": 1776314365.0,
-      "age_minutes": 725.2,
+      "age_minutes": 800.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -241,7 +241,7 @@
       ],
       "published_at": "2026-04-16T09:32:49Z",
       "published_ts": 1776331969.0,
-      "age_minutes": 431.8,
+      "age_minutes": 507.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -279,7 +279,7 @@
       ],
       "published_at": "2026-04-16T10:10:25Z",
       "published_ts": 1776334225.0,
-      "age_minutes": 394.2,
+      "age_minutes": 469.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -317,7 +317,7 @@
       ],
       "published_at": "2026-04-16T14:00:00Z",
       "published_ts": 1776348000.0,
-      "age_minutes": 164.6,
+      "age_minutes": 240.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -338,7 +338,7 @@
       "impact": 0.1,
       "clarity": 0.8,
       "relevance": 0.535,
-      "news_catalyst_score": 0.2842,
+      "news_catalyst_score": 0.2491,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
@@ -357,7 +357,7 @@
       ],
       "published_at": "2026-04-16T14:29:17Z",
       "published_ts": 1776349757.0,
-      "age_minutes": 135.4,
+      "age_minutes": 211.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -378,7 +378,7 @@
       "impact": 0.1,
       "clarity": 0.6,
       "relevance": 0.425,
-      "news_catalyst_score": 0.2516,
+      "news_catalyst_score": 0.2257,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
@@ -395,7 +395,7 @@
       ],
       "published_at": "2026-04-16T13:38:11Z",
       "published_ts": 1776346691.0,
-      "age_minutes": 186.5,
+      "age_minutes": 262.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -416,7 +416,7 @@
       "impact": 0.1,
       "clarity": 0.8,
       "relevance": 0.535,
-      "news_catalyst_score": 0.2413,
+      "news_catalyst_score": 0.2083,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
@@ -433,7 +433,7 @@
       ],
       "published_at": "2026-04-16T14:15:50Z",
       "published_ts": 1776348950.0,
-      "age_minutes": 148.8,
+      "age_minutes": 224.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -454,50 +454,12 @@
       "impact": 0.1,
       "clarity": 0.6,
       "relevance": 0.475,
-      "news_catalyst_score": 0.2205,
+      "news_catalyst_score": 0.1957,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
       "url": "https://seekingalpha.com/article/4891225-amazon-anthropic-trade-you-are-not-making",
       "first_seen_at": "2026-04-16T14:57:51.102709Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "774d803ed05c794efec10cf2a486ebd219fa9fb8:5920915",
-      "headline": "10 Information Technology Stocks Whale Activity In Today's Session - Apple (NASDAQ:AAPL), Advanced Micro",
-      "tickers": [
-        "AAPL"
-      ],
-      "published_at": "2026-04-15T17:35:48Z",
-      "published_ts": 1776274548.0,
-      "age_minutes": 1388.8,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Benzinga"
-      ],
-      "source_tier": "TIER_2",
-      "source_rank": 2,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "10 Information Technology Stocks Whale Activity In Today's Session - Apple (NASDAQ:AAPL), Advanced Micro",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.8,
-      "relevance": 0.535,
-      "news_catalyst_score": 0.2193,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.benzinga.com/insights/options/26/04/51839716/10-information-technology-stocks-whale-activity-in-todays-session",
-      "first_seen_at": "2026-04-15T20:27:19.353475Z",
       "is_new": false,
       "provider_count": 1
     },
@@ -509,7 +471,7 @@
       ],
       "published_at": "2026-04-16T11:38:54Z",
       "published_ts": 1776339534.0,
-      "age_minutes": 305.7,
+      "age_minutes": 381.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -547,7 +509,7 @@
       ],
       "published_at": "2026-04-16T09:59:33Z",
       "published_ts": 1776333573.0,
-      "age_minutes": 405.1,
+      "age_minutes": 480.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -585,7 +547,7 @@
       ],
       "published_at": "2026-04-15T20:14:37Z",
       "published_ts": 1776284077.0,
-      "age_minutes": 1230.0,
+      "age_minutes": 1305.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -623,7 +585,7 @@
       ],
       "published_at": "2026-04-15T20:14:37Z",
       "published_ts": 1776284077.0,
-      "age_minutes": 1230.0,
+      "age_minutes": 1305.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -654,82 +616,6 @@
       "provider_count": 1
     },
     {
-      "story_key": "f30ee1ee0d22fadd6c2c21371bdad4e6724be8c1:5920914",
-      "headline": "Will Amazon Make A New All-Time High? - Amazon.com (NASDAQ:AMZN)",
-      "tickers": [
-        "AMZN"
-      ],
-      "published_at": "2026-04-15T17:31:32Z",
-      "published_ts": 1776274292.0,
-      "age_minutes": 1393.1,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Benzinga"
-      ],
-      "source_tier": "TIER_2",
-      "source_rank": 2,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Will Amazon Make A New All-Time High? - Amazon.com (NASDAQ:AMZN)",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.1946,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.benzinga.com/trading-ideas/long-ideas/26/04/51839578/stock-of-the-day-will-amazon-make-a-new-all-time-high",
-      "first_seen_at": "2026-04-15T20:27:19.353475Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "dbab16a6570baaaf034c6cdbb1959aeca1811d19:5920911",
-      "headline": "Avoid The Classic Investor Mistake As Trump Says Iran War Is 'Close to Over' - Apple (NASDAQ:AAPL)",
-      "tickers": [
-        "AAPL"
-      ],
-      "published_at": "2026-04-15T17:16:36Z",
-      "published_ts": 1776273396.0,
-      "age_minutes": 1408.0,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Benzinga"
-      ],
-      "source_tier": "TIER_2",
-      "source_rank": 2,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Avoid The Classic Investor Mistake As Trump Says Iran War Is 'Close to Over' - Apple (NASDAQ:AAPL)",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.1946,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.benzinga.com/Opinion/26/04/51838586/avoid-the-classic-investor-mistake-as-trump-says-iran-war-is-close-to-over",
-      "first_seen_at": "2026-04-15T20:27:19.353475Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
       "story_key": "5d51cd2f12a370f6b19d87fa07fe6ed2403467cf:5920963",
       "headline": "Nasdaq Composite Closes at All-Time Highs; Tesla Stock Price Jumps 7.6%, MSFT Stock Gains 4.6",
       "tickers": [
@@ -737,7 +623,7 @@
       ],
       "published_at": "2026-04-15T21:39:59Z",
       "published_ts": 1776289199.0,
-      "age_minutes": 1144.7,
+      "age_minutes": 1220.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -775,7 +661,7 @@
       ],
       "published_at": "2026-04-15T18:15:46Z",
       "published_ts": 1776276946.0,
-      "age_minutes": 1348.9,
+      "age_minutes": 1424.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -806,44 +692,6 @@
       "provider_count": 1
     },
     {
-      "story_key": "758880f424781b353f3fba40008f63b3a2ef5118:5920908",
-      "headline": "Amazon's (NASDAQ: AMZN) Stock Price Drops 1% Amid $11.57 Billion Globalstar Deal",
-      "tickers": [
-        "AMZN"
-      ],
-      "published_at": "2026-04-15T17:04:37Z",
-      "published_ts": 1776272677.0,
-      "age_minutes": 1420.0,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Foreign Policy Journal"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Amazon's (NASDAQ: AMZN) Stock Price Drops 1% Amid $11.57 Billion Globalstar Deal",
-      "sentiment_label": "bearish",
-      "polarity": -0.1375,
-      "impact": 0.1,
-      "clarity": 0.8,
-      "relevance": 0.535,
-      "news_catalyst_score": 0.1918,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.foreignpolicyjournal.com/2026/04/15/amazons-nasdaq-amzn-stock-price-drops-1-amid-11-57-billion-globalstar-deal/",
-      "first_seen_at": "2026-04-15T20:27:19.353475Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
       "story_key": "e9761c48b43f365179eaa35a375d1230713c1d6a:5921136",
       "headline": "MSFT, ORCL and GOOG Forecasts - Tech Looking to Continue Rally",
       "tickers": [
@@ -851,7 +699,7 @@
       ],
       "published_at": "2026-04-16T12:00:16Z",
       "published_ts": 1776340816.0,
-      "age_minutes": 284.4,
+      "age_minutes": 360.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -872,7 +720,7 @@
       "impact": 0.1,
       "clarity": 0.6,
       "relevance": 0.475,
-      "news_catalyst_score": 0.173,
+      "news_catalyst_score": 0.1671,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
@@ -889,7 +737,7 @@
       ],
       "published_at": "2026-04-16T09:54:23Z",
       "published_ts": 1776333263.0,
-      "age_minutes": 410.3,
+      "age_minutes": 485.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -927,7 +775,7 @@
       ],
       "published_at": "2026-04-16T08:56:47Z",
       "published_ts": 1776329807.0,
-      "age_minutes": 467.9,
+      "age_minutes": 543.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -965,7 +813,7 @@
       ],
       "published_at": "2026-04-16T07:04:00Z",
       "published_ts": 1776323040.0,
-      "age_minutes": 580.6,
+      "age_minutes": 656.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1003,7 +851,7 @@
       ],
       "published_at": "2026-04-16T05:53:33Z",
       "published_ts": 1776318813.0,
-      "age_minutes": 651.1,
+      "age_minutes": 726.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1041,7 +889,7 @@
       ],
       "published_at": "2026-04-15T22:34:08Z",
       "published_ts": 1776292448.0,
-      "age_minutes": 1090.5,
+      "age_minutes": 1166.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1079,7 +927,7 @@
       ],
       "published_at": "2026-04-15T20:30:42Z",
       "published_ts": 1776285042.0,
-      "age_minutes": 1213.9,
+      "age_minutes": 1289.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1117,7 +965,7 @@
       ],
       "published_at": "2026-04-15T18:16:03Z",
       "published_ts": 1776276963.0,
-      "age_minutes": 1348.6,
+      "age_minutes": 1424.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1150,30 +998,30 @@
   ],
   "news_catalyst_by_symbol": {
     "AAPL": {
-      "news_catalyst_score": 0.4736,
-      "sentiment_label": "neutral",
+      "news_catalyst_score": 0.4136,
+      "sentiment_label": "bullish",
       "event_class": "EARNINGS",
       "event_label": "Top BofA Analyst Raises Apple Stock (AAPL) Price Target Ahead of Q2 Earnings",
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "source_tier": "TIER_3",
-      "mentions_24h": 4,
+      "mentions_24h": 2,
       "is_actionable": false,
       "first_provider": "newsapi_ai",
       "story_key": "c0345c2d2ba782236fc332108c5a28ce01e8f787:5921047"
     },
     "AMZN": {
-      "news_catalyst_score": 0.5817,
+      "news_catalyst_score": 0.5435,
       "sentiment_label": "neutral",
-      "event_class": "CONTRACT",
-      "event_label": "Amazon (AMZN) Secures Major Fox Media AI Cloud Partnership - Blockonomi",
+      "event_class": "IPO",
+      "event_label": "Amazon Vs. SpaceX Space Race Heats Up At Difficult Time For Musk's Upcoming IPO - Amazon.com (NASDAQ:AMZN",
       "materiality": "LOW",
       "recency_bucket": "AGING",
-      "source_tier": "TIER_3",
-      "mentions_24h": 7,
+      "source_tier": "TIER_2",
+      "mentions_24h": 5,
       "is_actionable": false,
       "first_provider": "newsapi_ai",
-      "story_key": "9a2f7bbead9db2c8dfaf39c93eb4386ff5d99115:5921161"
+      "story_key": "288a573aabbbccec0a09586853945dc68b76ec6f:5920923"
     },
     "JPM": {
       "news_catalyst_score": 0.4436,
@@ -1189,7 +1037,7 @@
       "story_key": "77054441a278fdf397216d8b33efa90f5b041e3f:5921083"
     },
     "META": {
-      "news_catalyst_score": 0.3116,
+      "news_catalyst_score": 0.2857,
       "sentiment_label": "neutral",
       "event_class": "UNKNOWN",
       "event_label": "Trade Strategy For SPY, QQQ, AAPL, MSFT, NVDA, GOOGL, META, And TSLA - Apple (NASDAQ:AAPL), Alphabet (NAS",
@@ -1202,7 +1050,7 @@
       "story_key": "dfba04609a7d9cc3e9bb9dcd6c98a23c8223fc24:5921165"
     },
     "MSFT": {
-      "news_catalyst_score": 0.3716,
+      "news_catalyst_score": 0.3457,
       "sentiment_label": "neutral",
       "event_class": "UNKNOWN",
       "event_label": "Trade Strategy For SPY, QQQ, AAPL, MSFT, NVDA, GOOGL, META, And TSLA - Apple (NASDAQ:AAPL), Alphabet (NAS",
@@ -1216,7 +1064,7 @@
     }
   },
   "summary": {
-    "active_story_count": 28,
+    "active_story_count": 24,
     "new_story_count": 0,
     "actionable_story_count": 0,
     "actionable_symbols": [],
