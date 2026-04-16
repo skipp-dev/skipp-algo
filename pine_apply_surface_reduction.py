@@ -101,12 +101,14 @@ SKIPPALGO_GROUPS = {
     # ── Entry Gates ──
     "useForecastGateEntry":     ("Entry Gates", False),
     "entryFcTF":                ("Entry Gates", False),
+    "entryFcModel":             ("Entry Gates", True),
     "minEdgePP":                ("Entry Gates", True),
     "requireRelOk":             ("Entry Gates", True),
     "requirePathTargetEntry":   ("Entry Gates", True),
     "useChopAbstain":           ("Entry Gates", False),
     "flatAbstainThr":           ("Entry Gates", True),
     "requireSET":               ("Entry Gates", True),
+    "minTrust":                 ("Entry Gates", True),
 
     # ── Risk Management ──
     "useAtrRisk":               ("Risk Management", False),
@@ -115,6 +117,12 @@ SKIPPALGO_GROUPS = {
     "useInfiniteTP":            ("Risk Management", False),
     "trailATR":                 ("Risk Management", False),
     "trailAfterR":              ("Risk Management", False),
+    "useBreakeven":             ("Risk Management", False),
+    "beTrigger":                ("Risk Management", True),
+    "beOffset":                 ("Risk Management", True),
+    "useStalemate":             ("Risk Management", True),
+    "staleBars":                ("Risk Management", True),
+    "staleMinATR":              ("Risk Management", True),
     "dynSlPreset30m":           ("Risk Management", False),
     "tpPreset30m":              ("Risk Management", False),
     "useDynamicSlProfile":      ("Risk Management", True),
@@ -267,7 +275,12 @@ SKIPPALGO_GROUPS = {
     "showPreEntryLabels":       ("Labels & Display", False),
     "preWarnDistATR":           ("Labels & Display", True),
     "preSetPulseOnly":          ("Labels & Display", True),
+    "showSetMarkers":           ("Labels & Display", True),
     "setPulseOnly":             ("Labels & Display", True),
+    "showStrictSignalMarkers":  ("Labels & Display", True),
+    "strictMarkerStyle":        ("Labels & Display", True),
+    "ui_tableShowMode":         ("Labels & Display", True),
+    "tableOnConfirmed":         ("Labels & Display", True),
     "labelPriceMode":           ("Labels & Display", True),
     "alertOnBarCloseOnly":      ("Labels & Display", False),
 
@@ -315,6 +328,7 @@ SKIPPALGO_GROUPS = {
     "useRelFilter":             ("Forecast Filtering", True),
     "maxBrier":                 ("Forecast Filtering", True),
     "relFilterTF":              ("Forecast Filtering", True),
+    "relFilterModel":           ("Forecast Filtering", True),
     "evidenceGate":             ("Forecast Filtering", True),
     "evidenceMinTotal":         ("Forecast Filtering", True),
     "abstainGate":              ("Forecast Filtering", True),
@@ -324,6 +338,7 @@ SKIPPALGO_GROUPS = {
     "tradeMinTotalSamples":     ("Forecast Filtering", True),
     "rescueVolMult":            ("Forecast Filtering", True),
     "rescueImpulseATR":         ("Forecast Filtering", True),
+    "rescueMinProb":            ("Forecast Filtering", True),
     "revMinProb":               ("Forecast Filtering", True),
     "revRecencyBars":           ("Forecast Filtering", True),
 
@@ -347,6 +362,7 @@ SKIPPALGO_GROUPS = {
 
     # ── Exit Rules ──
     "chochGraceBars":           ("Exit Rules", True),
+    "exitConfChoCh":            ("Exit Rules", True),
     "useStrictEmaExit":         ("Exit Rules", True),
 }
 
@@ -470,7 +486,7 @@ SKIPPALGO_EVAL_VARS = {
     "evalMode", "evalRollScore", "evalRollShort", "evalRollLong",
     "evalBuckets", "evalMinEvents", "driftWarnPP", "useEceGate",
     "eceMax", "useDriftGate", "driftMaxPP", "useEvalPenalty",
-    "eceWarn", "evalPenalty", "useEceRecal",
+    "eceWarn", "evalPenalty", "useEceRecal", "evalWhichHead",
     # Strategy-specific ungrouped
     "minDirProb", "useEngulfExit", "engulfExitMode", "engulfTightenMult",
     "showTable", "useAlertCalls", "useSessionFilter", "sessionWin",
@@ -550,8 +566,8 @@ def main():
     else:
         print(f"SMC++.pine not found at {smc_path}")
 
-    # 2. SkippALGO.pine — group ungrouped inputs + expert display.none
-    for name in ["SkippALGO.pine", "SkippALGO_Strategy.pine"]:
+    # 2. QuickALGO.pine (formerly SkippALGO.pine) — group ungrouped inputs + expert display.none
+    for name in ["QuickALGO.pine", "SkippALGO.pine", "SkippALGO_Strategy.pine"]:
         path = base / name
         if path.exists():
             n = apply_skippalgo_grouping(path, dry_run)

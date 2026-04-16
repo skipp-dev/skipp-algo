@@ -18,8 +18,8 @@ library("smc_micro_profiles_generated")
 //   Ensemble Score  — ENSEMBLE_QUALITY_SCORE, ENSEMBLE_QUALITY_TIER, ENSEMBLE_AVAILABLE_COMPONENTS
 //   Flow Qualifier (v5.1)  — REL_VOL … ATS_BEARISH_SEQUENCE (14 fields)
 //   Compression (v5.1)     — SQUEEZE_ON … ATR_RATIO (5 fields)
-//   Range Regime (v5.3)       — 11 fields
-//   Range Profile Regime (v5.3) — 22 fields
+//   Range Regime (v5.3, ORPHANED)       — 11 fields, zero Pine consumers
+//   Range Profile Regime (v5.3, ORPHANED) — 22 fields, zero Pine consumers
 //
 //   ── v5.5b Lean Surface (preferred) ──
 //   Event Risk Light (v5.5b)      — 14 fields (incl. HIGH_RISK_EVENT_TICKERS, NEXT_EVENT_CLASS)
@@ -136,7 +136,7 @@ export const string SQUEEZE_MOMENTUM_BIAS = "NEUTRAL"
 export const string ATR_REGIME = "NORMAL"
 export const float ATR_RATIO = 1.0
 
-// ── Range Regime ──
+// ── Range Regime (ORPHANED — no Pine consumer, sunset candidate) ──
 export const string RANGE_REGIME = "UNKNOWN"
 export const float RANGE_WIDTH_PCT = 0.0
 export const string RANGE_POSITION = "MID"
@@ -149,7 +149,7 @@ export const float RANGE_VAL_LEVEL = 0.0
 export const string RANGE_BALANCE_STATE = "BALANCED"
 export const int RANGE_REGIME_SCORE = 0
 
-// ── Range Profile Regime ──
+// ── Range Profile Regime (ORPHANED — no Pine consumer, sunset candidate) ──
 export const bool RANGE_ACTIVE = false
 export const float RANGE_TOP = 0.0
 export const float RANGE_BOTTOM = 0.0

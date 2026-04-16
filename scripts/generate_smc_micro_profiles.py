@@ -42,8 +42,13 @@ STATE_COLUMNS = [
 ]
 
 DEPRECATED_COMPATIBILITY_GROUPS: list[str] = [
-    # All deprecated blocks removed in WP-LF5.
-    # Consumed fields migrated to v5.5b Lean sections.
+    # Fully orphaned — no Pine consumer references these fields.
+    # Sunset target: next major schema version bump.
+    "order_blocks_v52",       # 13 fields, zero consumers
+    "zone_projection_v52",    # 10 fields, zero consumers
+    "session_structure_v53",  # 14 fields, zero consumers
+    "range_regime_v53",       # 11 fields, zero consumers
+    "range_profile_regime_v53",  # 22 fields, zero consumers
 ]
 
 PLACEHOLDER_SYMBOL_SENTINELS = {"AAA", "BBB", "CCC"}
@@ -683,8 +688,8 @@ def write_pine_library(
         "//   Ensemble Score  — ENSEMBLE_QUALITY_SCORE, ENSEMBLE_QUALITY_TIER, ENSEMBLE_AVAILABLE_COMPONENTS",
         "//   Flow Qualifier (v5.1)  — REL_VOL … ATS_BEARISH_SEQUENCE (14 fields)",
         "//   Compression (v5.1)     — SQUEEZE_ON … ATR_RATIO (5 fields)",
-        "//   Range Regime (v5.3)       — 11 fields",
-        "//   Range Profile Regime (v5.3) — 22 fields",
+        "//   Range Regime (v5.3, ORPHANED)       — 11 fields, zero Pine consumers",
+        "//   Range Profile Regime (v5.3, ORPHANED) — 22 fields, zero Pine consumers",
         "//",
         "//   ── v5.5b Lean Surface (preferred) ──",
         "//   Event Risk Light (v5.5b)      — 14 fields (incl. HIGH_RISK_EVENT_TICKERS, NEXT_EVENT_CLASS)",
@@ -842,12 +847,12 @@ def write_pine_library(
     content.append(f'export const string ATR_REGIME = "{cr.get("ATR_REGIME", _CR_DEFAULTS["ATR_REGIME"])}"')
     content.append(f'export const float ATR_RATIO = {float(cr.get("ATR_RATIO", _CR_DEFAULTS["ATR_RATIO"]))}')
 
-    # ── Range Regime (v5.3) ─────────────────────────────────────
+    # ── Range Regime (v5.3) — ORPHANED: zero Pine consumers ────
     from scripts.smc_range_regime import DEFAULTS as _RR_DEFAULTS
 
     rr = enr.get("range_regime") or {}
     content.append("")
-    content.append("// ── Range Regime ──")
+    content.append("// ── Range Regime (ORPHANED — no Pine consumer, sunset candidate) ──")
     content.append(f'export const string RANGE_REGIME = "{rr.get("RANGE_REGIME", _RR_DEFAULTS["RANGE_REGIME"])}"')
     content.append(f'export const float RANGE_WIDTH_PCT = {float(rr.get("RANGE_WIDTH_PCT", _RR_DEFAULTS["RANGE_WIDTH_PCT"]))}')
     content.append(f'export const string RANGE_POSITION = "{rr.get("RANGE_POSITION", _RR_DEFAULTS["RANGE_POSITION"])}"')
@@ -860,12 +865,12 @@ def write_pine_library(
     content.append(f'export const string RANGE_BALANCE_STATE = "{rr.get("RANGE_BALANCE_STATE", _RR_DEFAULTS["RANGE_BALANCE_STATE"])}"')
     content.append(f'export const int RANGE_REGIME_SCORE = {int(rr.get("RANGE_REGIME_SCORE", _RR_DEFAULTS["RANGE_REGIME_SCORE"]))}')
 
-    # ── Range Profile Regime (v5.3) ─────────────────────────────
+    # ── Range Profile Regime (v5.3) — ORPHANED: zero Pine consumers
     from scripts.smc_range_profile_regime import DEFAULTS as _RPR_DEFAULTS
 
     rpr = enr.get("range_profile_regime") or {}
     content.append("")
-    content.append("// ── Range Profile Regime ──")
+    content.append("// ── Range Profile Regime (ORPHANED — no Pine consumer, sunset candidate) ──")
     content.append(f'export const bool RANGE_ACTIVE = {_pine_bool(rpr.get("RANGE_ACTIVE", _RPR_DEFAULTS["RANGE_ACTIVE"]))}')
     content.append(f'export const float RANGE_TOP = {float(rpr.get("RANGE_TOP", _RPR_DEFAULTS["RANGE_TOP"]))}')
     content.append(f'export const float RANGE_BOTTOM = {float(rpr.get("RANGE_BOTTOM", _RPR_DEFAULTS["RANGE_BOTTOM"]))}')
