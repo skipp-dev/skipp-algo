@@ -736,7 +736,8 @@ function canonicalVersionMetadataMatch(scriptName: string, uiText: string): bool
   }
 
   const compactSuffix = compactCandidate.slice(compactScriptName.length);
-  return /^version\d/.test(compactSuffix);
+  // Match "version\d" (e.g. "smc_utils version 4") or plain digits (e.g. "smc_utils · 4.0" → compact "40")
+  return /^(?:version)?\d/.test(compactSuffix);
 }
 
 function legacyOpenScriptNames(scriptName: string): string[] {
@@ -2587,7 +2588,7 @@ async function hasPublishAddToChartGate(page: Page, timeoutMs = 500): Promise<bo
   return Boolean(
     await firstVisibleLocatorFast(
       page
-        .locator('#overlap-manager-root > [data-id], #overlap-manager-root [data-id]')
+        .locator('#overlap-manager-root [role="dialog"], #overlap-manager-root [data-id], #overlap-manager-root [data-name*="dialog" i], #overlap-manager-root [class*="dialog" i], #overlap-manager-root [class*="modal" i]')
         .filter({ hasText: /script is not on the chart/i }),
       timeoutMs,
     ),
@@ -5337,8 +5338,29 @@ export async function publishPrivateScript(
 
   if (await hasPublishAddToChartGate(page, 750)) {
     tracePageEvent(page, "publish-gate", "script-not-on-chart");
-    await addCurrentScriptToChart(page, options.scriptName);
-    await page.waitForTimeout(1_500);
+
+    // Try clicking the "Add to chart" button inside the dialog first (works for libraries)
+    const dialogAddButton = page
+      .locator('#overlap-manager-root [role="dialog"], #overlap-manager-root [data-id], #overlap-manager-root [data-name*="dialog" i], #overlap-manager-root [class*="dialog" i], #overlap-manager-root [class*="modal" i]')
+      .filter({ hasText: /script is not on the chart/i })
+      .locator('button, [role="button"]')
+      .filter({ hasText: /add to chart/i });
+    const clickedDialogAdd = await clickFirst(dialogAddButton, 1_500).catch(() => false);
+    tracePageEvent(page, "publish-gate-dialog-add", `clicked=${clickedDialogAdd}`);
+    if (clickedDialogAdd) {
+      await page.waitForTimeout(2_000);
+    } else {
+      // Dismiss the dialog first, then force-add the script
+      await page.keyboard.press("Escape").catch(() => undefined);
+      await page.waitForTimeout(500);
+      await addCurrentScriptToChart(page, options.scriptName, { forceInsert: true });
+      await page.waitForTimeout(1_500);
+    }
+
+    // Re-open Pine editor (addCurrentScriptToChart may have closed it)
+    await ensurePineEditor(page).catch(() => undefined);
+    await page.waitForTimeout(500);
+
     clickedPublish = await openPublishSurface(page, 4_000);
     if (!clickedPublish) {
       const compileErrorDetails = await getVisibleCompileErrorDetails(page, 500).catch(() => null);
@@ -5387,6 +5409,32 @@ export async function publishPrivateScript(
     1_000,
   );
   if (!confirmed) {
+    // Re-check for "Script is not on the chart" gate that may have appeared after the initial surface detection
+    if (await hasPublishAddToChartGate(page, 500)) {
+      tracePageEvent(page, "publish-gate-late", "script-not-on-chart");
+      const dialogAddButton = page
+        .locator('#overlap-manager-root [role="dialog"], #overlap-manager-root [data-id], #overlap-manager-root [data-name*="dialog" i], #overlap-manager-root [class*="dialog" i], #overlap-manager-root [class*="modal" i]')
+        .filter({ hasText: /script is not on the chart/i })
+        .locator('button, [role="button"]')
+        .filter({ hasText: /add to chart/i });
+      const clickedDialogAdd = await clickFirst(dialogAddButton, 1_500).catch(() => false);
+      tracePageEvent(page, "publish-gate-late-dialog-add", `clicked=${clickedDialogAdd}`);
+      if (clickedDialogAdd) {
+        await page.waitForTimeout(2_000);
+      } else {
+        await page.keyboard.press("Escape").catch(() => undefined);
+        await page.waitForTimeout(500);
+        await addCurrentScriptToChart(page, options.scriptName, { forceInsert: true });
+        await page.waitForTimeout(1_500);
+      }
+      // Re-open Pine editor (addCurrentScriptToChart may have closed it)
+      await ensurePineEditor(page).catch(() => undefined);
+      await page.waitForTimeout(500);
+      // Retry the full publish flow after resolving the gate
+      const retryResult = await publishPrivateScript(page, options);
+      return retryResult;
+    }
+
     if (await handlePublishNoChangeDialog(page, 750)) {
       noChangeDetected = true;
       await ensurePineEditor(page).catch(() => undefined);
