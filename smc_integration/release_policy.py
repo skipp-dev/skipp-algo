@@ -64,10 +64,16 @@ REASON_MEASUREMENT_QUALITY = "MEASUREMENT_QUALITY_REGRESSION"
 
 HARD_BLOCKING_DEGRADATION_CODES: frozenset[str] = frozenset({
     "MEASUREMENT_CALIBRATED_BRIER_ABOVE_THRESHOLD",
+    "MEASUREMENT_CALIBRATED_BRIER_REGRESSION",
+    "MEASUREMENT_CALIBRATED_ECE_ABOVE_THRESHOLD",
     # MEASUREMENT_EVENT_COVERAGE_LOW removed: with 0 historical events
     # (bootstrap) this creates a self-fulfilling deadlock — can't publish
     # because no measurement history, no history because can't publish.
     # The measurement gate is documented as soft/non-blocking.
+    #
+    # MEASUREMENT_CALIBRATED_ECE_REGRESSION not promoted: ECE regression
+    # is noise-susceptible with small sample sizes; the ECE absolute
+    # threshold (0.30) provides a sufficient safety net.
 })
 
 # ---------------------------------------------------------------------------
@@ -171,10 +177,16 @@ def classify_artifact_drift(path: str) -> str | None:
 
 @dataclass(slots=True, frozen=True)
 class MeasurementShadowThresholds:
-    """Warn-only measurement governance thresholds.
+    """Measurement governance thresholds (shadow + hard-blocking).
 
-    The defaults are deliberately conservative so the shadow lane remains
-    additive until operators have sufficient history to tighten them.
+    Three metrics are hard-blocking release gates (see HARD_BLOCKING_DEGRADATION_CODES):
+      - max_calibrated_brier_score  → absolute ceiling
+      - max_calibrated_brier_regression_abs → regression vs historical median
+      - max_calibrated_ece → absolute ceiling
+
+    Remaining thresholds are advisory/warn-only.  Thresholds are deliberately
+    conservative so the shadow lane remains additive until operators have
+    sufficient history to tighten them.
     """
 
     max_brier_score: float = 0.60

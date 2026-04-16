@@ -761,20 +761,23 @@ class TestHardBlockingMeasurementDegradations:
     def test_hard_blocking_codes_are_defined(self) -> None:
         from smc_integration.release_policy import HARD_BLOCKING_DEGRADATION_CODES
         assert "MEASUREMENT_CALIBRATED_BRIER_ABOVE_THRESHOLD" in HARD_BLOCKING_DEGRADATION_CODES
+        assert "MEASUREMENT_CALIBRATED_BRIER_REGRESSION" in HARD_BLOCKING_DEGRADATION_CODES
+        assert "MEASUREMENT_CALIBRATED_ECE_ABOVE_THRESHOLD" in HARD_BLOCKING_DEGRADATION_CODES
         # MEASUREMENT_EVENT_COVERAGE_LOW was removed to avoid bootstrap deadlock
         assert "MEASUREMENT_EVENT_COVERAGE_LOW" not in HARD_BLOCKING_DEGRADATION_CODES
-        assert len(HARD_BLOCKING_DEGRADATION_CODES) == 1
+        assert len(HARD_BLOCKING_DEGRADATION_CODES) == 3
 
     def test_classify_separates_hard_from_advisory(self) -> None:
         from smc_integration.release_policy import classify_measurement_degradation_severity
         degradations = [
             {"code": "MEASUREMENT_CALIBRATED_BRIER_ABOVE_THRESHOLD", "detail": "hard"},
+            {"code": "MEASUREMENT_CALIBRATED_BRIER_REGRESSION", "detail": "hard"},
             {"code": "MEASUREMENT_BRIER_REGRESSION", "detail": "advisory"},
             {"code": "MEASUREMENT_EVENT_COVERAGE_LOW", "detail": "advisory"},
             {"code": "MEASUREMENT_LOG_SCORE_REGRESSION", "detail": "advisory"},
         ]
         hard, advisory = classify_measurement_degradation_severity(degradations)
-        assert len(hard) == 1
+        assert len(hard) == 2
         assert len(advisory) == 3
         assert all(d["detail"] == "hard" for d in hard)
         assert all(d["detail"] == "advisory" for d in advisory)
@@ -821,13 +824,25 @@ class TestHardBlockingMeasurementDegradations:
         degradations = [
             {"code": "MEASUREMENT_BRIER_REGRESSION", "detail": "regressed"},
             {"code": "MEASUREMENT_LOG_SCORE_REGRESSION", "detail": "regressed"},
-            {"code": "MEASUREMENT_CALIBRATED_BRIER_REGRESSION", "detail": "regressed"},
             {"code": "MEASUREMENT_CALIBRATED_ECE_REGRESSION", "detail": "regressed"},
-            {"code": "MEASUREMENT_CALIBRATED_ECE_ABOVE_THRESHOLD", "detail": "noise-susceptible"},
             {"code": "MEASUREMENT_EVENT_COVERAGE_REGRESSION", "detail": "regressed"},
             {"code": "MEASUREMENT_STRATIFICATION_COVERAGE_REGRESSION", "detail": "regressed"},
             {"code": "MEASUREMENT_STRATIFICATION_COVERAGE_LOW", "detail": "low"},
         ]
         hard, advisory = classify_measurement_degradation_severity(degradations)
         assert hard == []
-        assert len(advisory) == 8
+        assert len(advisory) == 6
+
+    def test_promoted_hard_blocking_codes_trigger_gate_fail(self) -> None:
+        from smc_integration.release_policy import classify_measurement_degradation_severity
+        degradations = [
+            {"code": "MEASUREMENT_CALIBRATED_BRIER_REGRESSION", "detail": "regressed"},
+            {"code": "MEASUREMENT_CALIBRATED_ECE_ABOVE_THRESHOLD", "detail": "threshold"},
+        ]
+        hard, advisory = classify_measurement_degradation_severity(degradations)
+        assert len(hard) == 2
+        assert advisory == []
+        assert {d["code"] for d in hard} == {
+            "MEASUREMENT_CALIBRATED_BRIER_REGRESSION",
+            "MEASUREMENT_CALIBRATED_ECE_ABOVE_THRESHOLD",
+        }
