@@ -5,12 +5,99 @@
     "fmp_stock": 0.0,
     "fmp_press": 0.0,
     "fmp_articles": 0.0,
-    "newsapi_ai": 1776284077.0,
+    "newsapi_ai": 1776292448.0,
     "tv": 0.0,
-    "legacy_cursor": 1776284077.0
+    "legacy_cursor": 1776292448.0
   },
   "provider_state": {},
   "story_state": {
+    "5d51cd2f12a370f6b19d87fa07fe6ed2403467cf:5920963": {
+      "story_key": "5d51cd2f12a370f6b19d87fa07fe6ed2403467cf:5920963",
+      "cluster_hash": "5d51cd2f12a370f6b19d87fa07fe6ed2403467cf",
+      "headline": "Nasdaq Composite Closes at All-Time Highs; Tesla Stock Price Jumps 7.6%, MSFT Stock Gains 4.6",
+      "tickers": [
+        "MSFT"
+      ],
+      "published_ts": 1776289199.0,
+      "first_seen_ts": 1776310986.4028535,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "topnews.in"
+      ],
+      "url": "http://topnews.in/nasdaq-composite-closes-alltime-highs-tesla-stock-price-jumps-76-msft-stock-gains-46-2418793",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "polarity": 0.275,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776310986.4028535
+    },
+    "0c004d05556a0dca6a3f5f935d641df2efd270d4:5920950": {
+      "story_key": "0c004d05556a0dca6a3f5f935d641df2efd270d4:5920950",
+      "cluster_hash": "0c004d05556a0dca6a3f5f935d641df2efd270d4",
+      "headline": "Why Microsoft (MSFT) Stock Is Up Today - StockStory",
+      "tickers": [
+        "MSFT"
+      ],
+      "published_ts": 1776285042.0,
+      "first_seen_ts": 1776310986.4028535,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "StockStory"
+      ],
+      "url": "https://stockstory.org/us/stocks/nasdaq/msft/news/why-up-down/why-microsoft-msft-stock-is-up-today-2",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776310986.4028535
+    },
+    "2dd549e414581eae6192ad9247fd42063d01698c:5920974": {
+      "story_key": "2dd549e414581eae6192ad9247fd42063d01698c:5920974",
+      "cluster_hash": "2dd549e414581eae6192ad9247fd42063d01698c",
+      "headline": "Deutsche Bank reiterates Buy on Meta stock, cites AI ad returns By Investing.com",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1776292448.0,
+      "first_seen_ts": 1776310986.4028535,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Investing.com India"
+      ],
+      "url": "https://in.investing.com/news/stock-market-news/deutsche-bank-reiterates-buy-on-meta-stock-cites-ai-ad-returns-93CH-5340372",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776310986.4028535
+    },
     "cd31c1b9845f9dc4986a38144fd4ea78cb010239:5920946": {
       "story_key": "cd31c1b9845f9dc4986a38144fd4ea78cb010239:5920946",
       "cluster_hash": "cd31c1b9845f9dc4986a38144fd4ea78cb010239",

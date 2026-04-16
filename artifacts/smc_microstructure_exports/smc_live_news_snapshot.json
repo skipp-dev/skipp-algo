@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-04-16T00:01:29.952328Z",
+  "generated_at": "2026-04-16T03:43:06.402853Z",
   "symbols": [
     "AAPL",
     "MSFT",
@@ -20,11 +20,11 @@
     "fmp_stock": 0.0,
     "fmp_press": 0.0,
     "fmp_articles": 0.0,
-    "newsapi_ai": 1776284077.0,
+    "newsapi_ai": 1776292448.0,
     "tv": 0.0,
-    "legacy_cursor": 1776284077.0
+    "legacy_cursor": 1776292448.0
   },
-  "legacy_cursor": 1776284077.0,
+  "legacy_cursor": 1776292448.0,
   "providers": {
     "benzinga": {
       "ok": false,
@@ -64,12 +64,12 @@
     "newsapi_ai": {
       "ok": true,
       "error": "",
-      "raw_count": 2,
-      "new_item_count": 0,
-      "cursor": 1776284077.0,
+      "raw_count": 51,
+      "new_item_count": 3,
+      "cursor": 1776292448.0,
       "last_seen_news_uri": "",
-      "provider_status": "ok_no_recent_matches",
-      "status_detail": "Event Registry reachable, but no new symbol-matching NewsAPI.ai items were newer than the current cursor.",
+      "provider_status": "ok",
+      "status_detail": "",
       "error_code": ""
     },
     "tv": {
@@ -89,7 +89,7 @@
       ],
       "published_at": "2026-04-15T12:01:45Z",
       "published_ts": 1776254505.0,
-      "age_minutes": 719.7,
+      "age_minutes": 941.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -127,7 +127,7 @@
       ],
       "published_at": "2026-04-15T12:01:11Z",
       "published_ts": 1776254471.0,
-      "age_minutes": 720.3,
+      "age_minutes": 941.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -165,7 +165,7 @@
       ],
       "published_at": "2026-04-15T14:40:00Z",
       "published_ts": 1776264000.0,
-      "age_minutes": 561.5,
+      "age_minutes": 783.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -203,7 +203,7 @@
       ],
       "published_at": "2026-04-15T12:53:12Z",
       "published_ts": 1776257592.0,
-      "age_minutes": 668.3,
+      "age_minutes": 889.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -241,7 +241,7 @@
       ],
       "published_at": "2026-04-15T18:19:52Z",
       "published_ts": 1776277192.0,
-      "age_minutes": 341.6,
+      "age_minutes": 563.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -279,7 +279,7 @@
       ],
       "published_at": "2026-04-15T10:59:34Z",
       "published_ts": 1776250774.0,
-      "age_minutes": 781.9,
+      "age_minutes": 1003.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -317,7 +317,7 @@
       ],
       "published_at": "2026-04-15T13:41:37Z",
       "published_ts": 1776260497.0,
-      "age_minutes": 619.9,
+      "age_minutes": 841.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -348,82 +348,6 @@
       "provider_count": 1
     },
     {
-      "story_key": "cd31c1b9845f9dc4986a38144fd4ea78cb010239:5920946",
-      "headline": "Microsoft Shares Are Climbing With Conviction: What's Going On? - Microsoft (NASDAQ:MSFT)",
-      "tickers": [
-        "MSFT"
-      ],
-      "published_at": "2026-04-15T20:14:37Z",
-      "published_ts": 1776284077.0,
-      "age_minutes": 226.9,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Benzinga"
-      ],
-      "source_tier": "TIER_2",
-      "source_rank": 2,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Microsoft Shares Are Climbing With Conviction: What's Going On? - Microsoft (NASDAQ:MSFT)",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.2269,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.benzinga.com/trading-ideas/movers/26/04/51844900/microsoft-shares-are-climbing-with-conviction-whats-going-on",
-      "first_seen_at": "2026-04-15T20:27:19.353475Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "5e50bdf4e481ebc69f2dec26b7d4ca6dd19d9c0a:5920946",
-      "headline": "Tesla, Microsoft May Have Entered Warren Buffett Territory - Microsoft (NASDAQ:MSFT), Tesla (NASDAQ:TSLA)",
-      "tickers": [
-        "MSFT"
-      ],
-      "published_at": "2026-04-15T20:14:37Z",
-      "published_ts": 1776284077.0,
-      "age_minutes": 226.9,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Benzinga"
-      ],
-      "source_tier": "TIER_2",
-      "source_rank": 2,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Tesla, Microsoft May Have Entered Warren Buffett Territory - Microsoft (NASDAQ:MSFT), Tesla (NASDAQ:TSLA)",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.2269,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.benzinga.com/trading-ideas/movers/26/04/51844851/tesla-microsoft-may-have-entered-warren-buffett-territory-growth-stocks-arent-supposed-to",
-      "first_seen_at": "2026-04-15T20:27:19.353475Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
       "story_key": "774d803ed05c794efec10cf2a486ebd219fa9fb8:5920915",
       "headline": "10 Information Technology Stocks Whale Activity In Today's Session - Apple (NASDAQ:AAPL), Advanced Micro",
       "tickers": [
@@ -431,7 +355,7 @@
       ],
       "published_at": "2026-04-15T17:35:48Z",
       "published_ts": 1776274548.0,
-      "age_minutes": 385.7,
+      "age_minutes": 607.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -469,7 +393,7 @@
       ],
       "published_at": "2026-04-15T15:49:04Z",
       "published_ts": 1776268144.0,
-      "age_minutes": 492.4,
+      "age_minutes": 714.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -500,14 +424,14 @@
       "provider_count": 1
     },
     {
-      "story_key": "64a640f2696f8806df4bd07a35cd10ef0cb7bbe4:5920720",
-      "headline": "META, AVGO, IONQ, QBTS, HOOD: 5 Trending Stocks Today - Broadcom (NASDAQ:AVGO)",
+      "story_key": "cd31c1b9845f9dc4986a38144fd4ea78cb010239:5920946",
+      "headline": "Microsoft Shares Are Climbing With Conviction: What's Going On? - Microsoft (NASDAQ:MSFT)",
       "tickers": [
-        "META"
+        "MSFT"
       ],
-      "published_at": "2026-04-15T01:22:32Z",
-      "published_ts": 1776216152.0,
-      "age_minutes": 1359.0,
+      "published_at": "2026-04-15T20:14:37Z",
+      "published_ts": 1776284077.0,
+      "age_minutes": 448.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -522,18 +446,56 @@
       "source_rank": 2,
       "category": "other",
       "event_class": "UNKNOWN",
-      "event_label": "META, AVGO, IONQ, QBTS, HOOD: 5 Trending Stocks Today - Broadcom (NASDAQ:AVGO)",
+      "event_label": "Microsoft Shares Are Climbing With Conviction: What's Going On? - Microsoft (NASDAQ:MSFT)",
       "sentiment_label": "neutral",
       "polarity": 0.0,
       "impact": 0.1,
-      "clarity": 0.8,
-      "relevance": 0.535,
-      "news_catalyst_score": 0.2193,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.1946,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
-      "url": "https://www.benzinga.com/markets/equities/26/04/51821864/meta-broadcom-ionq-d-wave-quantum-and-robinhood-why-these-5-stocks-are-on-investors-radars-today",
-      "first_seen_at": "2026-04-15T03:41:01.885592Z",
+      "url": "https://www.benzinga.com/trading-ideas/movers/26/04/51844900/microsoft-shares-are-climbing-with-conviction-whats-going-on",
+      "first_seen_at": "2026-04-15T20:27:19.353475Z",
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
+      "story_key": "5e50bdf4e481ebc69f2dec26b7d4ca6dd19d9c0a:5920946",
+      "headline": "Tesla, Microsoft May Have Entered Warren Buffett Territory - Microsoft (NASDAQ:MSFT), Tesla (NASDAQ:TSLA)",
+      "tickers": [
+        "MSFT"
+      ],
+      "published_at": "2026-04-15T20:14:37Z",
+      "published_ts": 1776284077.0,
+      "age_minutes": 448.5,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Tesla, Microsoft May Have Entered Warren Buffett Territory - Microsoft (NASDAQ:MSFT), Tesla (NASDAQ:TSLA)",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.1946,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://www.benzinga.com/trading-ideas/movers/26/04/51844851/tesla-microsoft-may-have-entered-warren-buffett-territory-growth-stocks-arent-supposed-to",
+      "first_seen_at": "2026-04-15T20:27:19.353475Z",
       "is_new": false,
       "provider_count": 1
     },
@@ -545,7 +507,7 @@
       ],
       "published_at": "2026-04-15T17:31:32Z",
       "published_ts": 1776274292.0,
-      "age_minutes": 390.0,
+      "age_minutes": 611.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -583,7 +545,7 @@
       ],
       "published_at": "2026-04-15T17:16:36Z",
       "published_ts": 1776273396.0,
-      "age_minutes": 404.9,
+      "age_minutes": 626.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -621,7 +583,7 @@
       ],
       "published_at": "2026-04-15T16:14:45Z",
       "published_ts": 1776269685.0,
-      "age_minutes": 466.7,
+      "age_minutes": 688.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -659,7 +621,7 @@
       ],
       "published_at": "2026-04-15T16:08:50Z",
       "published_ts": 1776269330.0,
-      "age_minutes": 472.7,
+      "age_minutes": 694.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -697,7 +659,7 @@
       ],
       "published_at": "2026-04-15T09:59:20Z",
       "published_ts": 1776247160.0,
-      "age_minutes": 842.2,
+      "age_minutes": 1063.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -735,7 +697,7 @@
       ],
       "published_at": "2026-04-15T09:58:53Z",
       "published_ts": 1776247133.0,
-      "age_minutes": 842.6,
+      "age_minutes": 1064.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -766,6 +728,44 @@
       "provider_count": 1
     },
     {
+      "story_key": "5d51cd2f12a370f6b19d87fa07fe6ed2403467cf:5920963",
+      "headline": "Nasdaq Composite Closes at All-Time Highs; Tesla Stock Price Jumps 7.6%, MSFT Stock Gains 4.6",
+      "tickers": [
+        "MSFT"
+      ],
+      "published_at": "2026-04-15T21:39:59Z",
+      "published_ts": 1776289199.0,
+      "age_minutes": 363.1,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "topnews.in"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Nasdaq Composite Closes at All-Time Highs; Tesla Stock Price Jumps 7.6%, MSFT Stock Gains 4.6",
+      "sentiment_label": "bullish",
+      "polarity": 0.275,
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "news_catalyst_score": 0.1918,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "http://topnews.in/nasdaq-composite-closes-alltime-highs-tesla-stock-price-jumps-76-msft-stock-gains-46-2418793",
+      "first_seen_at": "2026-04-16T03:43:06.402853Z",
+      "is_new": true,
+      "provider_count": 1
+    },
+    {
       "story_key": "6f3b87e05a0362de3f0fdcde823ab99953cf2a1c:5920923",
       "headline": "Microsoft (MSFT) Stock Surges 4% After Securing Norway Data Center Deal from OpenAI - Blockonomi",
       "tickers": [
@@ -773,7 +773,7 @@
       ],
       "published_at": "2026-04-15T18:15:46Z",
       "published_ts": 1776276946.0,
-      "age_minutes": 345.7,
+      "age_minutes": 567.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -811,7 +811,7 @@
       ],
       "published_at": "2026-04-15T17:04:37Z",
       "published_ts": 1776272677.0,
-      "age_minutes": 416.9,
+      "age_minutes": 638.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -849,7 +849,7 @@
       ],
       "published_at": "2026-04-15T15:56:05Z",
       "published_ts": 1776268565.0,
-      "age_minutes": 485.4,
+      "age_minutes": 707.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -888,7 +888,7 @@
       ],
       "published_at": "2026-04-15T15:11:53Z",
       "published_ts": 1776265913.0,
-      "age_minutes": 529.6,
+      "age_minutes": 751.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -926,7 +926,7 @@
       ],
       "published_at": "2026-04-15T13:42:37Z",
       "published_ts": 1776260557.0,
-      "age_minutes": 618.9,
+      "age_minutes": 840.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -964,7 +964,7 @@
       ],
       "published_at": "2026-04-15T13:06:37Z",
       "published_ts": 1776258397.0,
-      "age_minutes": 654.9,
+      "age_minutes": 876.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1002,7 +1002,7 @@
       ],
       "published_at": "2026-04-15T11:35:42Z",
       "published_ts": 1776252942.0,
-      "age_minutes": 745.8,
+      "age_minutes": 967.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1040,7 +1040,7 @@
       ],
       "published_at": "2026-04-15T08:28:33Z",
       "published_ts": 1776241713.0,
-      "age_minutes": 932.9,
+      "age_minutes": 1154.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1078,7 +1078,7 @@
       ],
       "published_at": "2026-04-15T03:59:31Z",
       "published_ts": 1776225571.0,
-      "age_minutes": 1202.0,
+      "age_minutes": 1423.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1118,7 +1118,7 @@
       ],
       "published_at": "2026-04-15T13:20:29Z",
       "published_ts": 1776259229.0,
-      "age_minutes": 641.0,
+      "age_minutes": 862.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1149,6 +1149,82 @@
       "provider_count": 1
     },
     {
+      "story_key": "2dd549e414581eae6192ad9247fd42063d01698c:5920974",
+      "headline": "Deutsche Bank reiterates Buy on Meta stock, cites AI ad returns By Investing.com",
+      "tickers": [
+        "META"
+      ],
+      "published_at": "2026-04-15T22:34:08Z",
+      "published_ts": 1776292448.0,
+      "age_minutes": 309.0,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Investing.com India"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Deutsche Bank reiterates Buy on Meta stock, cites AI ad returns By Investing.com",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.1671,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://in.investing.com/news/stock-market-news/deutsche-bank-reiterates-buy-on-meta-stock-cites-ai-ad-returns-93CH-5340372",
+      "first_seen_at": "2026-04-16T03:43:06.402853Z",
+      "is_new": true,
+      "provider_count": 1
+    },
+    {
+      "story_key": "0c004d05556a0dca6a3f5f935d641df2efd270d4:5920950",
+      "headline": "Why Microsoft (MSFT) Stock Is Up Today - StockStory",
+      "tickers": [
+        "MSFT"
+      ],
+      "published_at": "2026-04-15T20:30:42Z",
+      "published_ts": 1776285042.0,
+      "age_minutes": 432.4,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "StockStory"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Why Microsoft (MSFT) Stock Is Up Today - StockStory",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.1671,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://stockstory.org/us/stocks/nasdaq/msft/news/why-up-down/why-microsoft-msft-stock-is-up-today-2",
+      "first_seen_at": "2026-04-16T03:43:06.402853Z",
+      "is_new": true,
+      "provider_count": 1
+    },
+    {
       "story_key": "2728f7d9b2b2dbdd68cdd7f14a09beb1a762655c:5920923",
       "headline": "Microsoft (MSFT) Stock Surges as Company Secures Norway Data Center Deal OpenAI Abandoned - Blockonomi",
       "tickers": [
@@ -1156,7 +1232,7 @@
       ],
       "published_at": "2026-04-15T18:16:03Z",
       "published_ts": 1776276963.0,
-      "age_minutes": 345.4,
+      "age_minutes": 567.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1194,7 +1270,7 @@
       ],
       "published_at": "2026-04-15T16:04:35Z",
       "published_ts": 1776269075.0,
-      "age_minutes": 476.9,
+      "age_minutes": 698.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1232,7 +1308,7 @@
       ],
       "published_at": "2026-04-15T14:40:23Z",
       "published_ts": 1776264023.0,
-      "age_minutes": 561.1,
+      "age_minutes": 782.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1270,7 +1346,7 @@
       ],
       "published_at": "2026-04-15T13:54:12Z",
       "published_ts": 1776261252.0,
-      "age_minutes": 607.3,
+      "age_minutes": 828.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1309,7 +1385,7 @@
       ],
       "published_at": "2026-04-15T13:37:12Z",
       "published_ts": 1776260232.0,
-      "age_minutes": 624.3,
+      "age_minutes": 845.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1347,7 +1423,7 @@
       ],
       "published_at": "2026-04-15T12:35:33Z",
       "published_ts": 1776256533.0,
-      "age_minutes": 685.9,
+      "age_minutes": 907.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1385,7 +1461,7 @@
       ],
       "published_at": "2026-04-15T09:14:07Z",
       "published_ts": 1776244447.0,
-      "age_minutes": 887.4,
+      "age_minutes": 1109.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1423,7 +1499,7 @@
       ],
       "published_at": "2026-04-15T04:48:45Z",
       "published_ts": 1776228525.0,
-      "age_minutes": 1152.7,
+      "age_minutes": 1374.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1450,44 +1526,6 @@
       "is_actionable": false,
       "url": "https://markets.businessinsider.com/news/stocks/meta-platforms-meta-partners-with-broadcom-on-custom-ai-microchips-1036022497",
       "first_seen_at": "2026-04-15T05:52:29.894547Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "8c93b197b3812f22e40e8d2aee22acb726ae070c:5920707",
-      "headline": "Assessing Meta Platforms (META) Valuation After Recent Share Price Momentum",
-      "tickers": [
-        "META"
-      ],
-      "published_at": "2026-04-15T00:18:25Z",
-      "published_ts": 1776212305.0,
-      "age_minutes": 1423.1,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Yahoo! Finance"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Assessing Meta Platforms (META) Valuation After Recent Share Price Momentum",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.1671,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://ca.finance.yahoo.com/news/assessing-meta-platforms-meta-valuation-001825733.html",
-      "first_seen_at": "2026-04-15T03:41:01.885592Z",
       "is_new": false,
       "provider_count": 1
     }
@@ -1546,17 +1584,17 @@
       "story_key": "cd58fa61d5c620f1c6c161d848c21d121be95abd:5920848"
     },
     "META": {
-      "news_catalyst_score": 0.3393,
+      "news_catalyst_score": 0.3118,
       "sentiment_label": "neutral",
       "event_class": "UNKNOWN",
-      "event_label": "META, AVGO, IONQ, QBTS, HOOD: 5 Trending Stocks Today - Broadcom (NASDAQ:AVGO)",
+      "event_label": "Should You Buy, Sell or Hold Meta Stock at $675?",
       "materiality": "LOW",
       "recency_bucket": "AGING",
-      "source_tier": "TIER_2",
-      "mentions_24h": 6,
+      "source_tier": "TIER_3",
+      "mentions_24h": 5,
       "is_actionable": false,
       "first_provider": "newsapi_ai",
-      "story_key": "64a640f2696f8806df4bd07a35cd10ef0cb7bbe4:5920720"
+      "story_key": "aa95dbac3f95ac3905624c78e51379efb9c302c2:5920895"
     },
     "MSFT": {
       "news_catalyst_score": 0.5531,
@@ -1566,7 +1604,7 @@
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "source_tier": "TIER_3",
-      "mentions_24h": 11,
+      "mentions_24h": 13,
       "is_actionable": false,
       "first_provider": "newsapi_ai",
       "story_key": "31931b7eeef132274d34c8fe78bf3068436f2fc5:5920880"
@@ -1586,8 +1624,8 @@
     }
   },
   "summary": {
-    "active_story_count": 37,
-    "new_story_count": 0,
+    "active_story_count": 38,
+    "new_story_count": 3,
     "actionable_story_count": 0,
     "actionable_symbols": [],
     "symbol_count": 7
