@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-04-16T05:53:08.308417Z",
+  "generated_at": "2026-04-16T07:27:31.794943Z",
   "symbols": [
     "AAPL",
     "MSFT",
@@ -64,12 +64,12 @@
     "newsapi_ai": {
       "ok": true,
       "error": "",
-      "raw_count": 50,
-      "new_item_count": 1,
+      "raw_count": 2,
+      "new_item_count": 0,
       "cursor": 1776314365.0,
       "last_seen_news_uri": "",
-      "provider_status": "ok",
-      "status_detail": "",
+      "provider_status": "ok_no_recent_matches",
+      "status_detail": "Event Registry reachable, but no new symbol-matching NewsAPI.ai items were newer than the current cursor.",
       "error_code": ""
     },
     "tv": {
@@ -89,7 +89,7 @@
       ],
       "published_at": "2026-04-16T04:39:25Z",
       "published_ts": 1776314365.0,
-      "age_minutes": 73.7,
+      "age_minutes": 168.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -110,13 +110,13 @@
       "impact": 0.8,
       "clarity": 0.6,
       "relevance": 0.79,
-      "news_catalyst_score": 0.55,
-      "materiality": "MEDIUM",
+      "news_catalyst_score": 0.4952,
+      "materiality": "LOW",
       "recency_bucket": "AGING",
-      "is_actionable": true,
+      "is_actionable": false,
       "url": "https://markets.businessinsider.com/news/stocks/top-bofa-analyst-raises-apple-stock-aapl-price-target-ahead-of-q2-earnings-1036020974",
       "first_seen_at": "2026-04-16T05:53:08.308417Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -127,7 +127,7 @@
       ],
       "published_at": "2026-04-15T12:01:45Z",
       "published_ts": 1776254505.0,
-      "age_minutes": 1071.4,
+      "age_minutes": 1165.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -165,7 +165,7 @@
       ],
       "published_at": "2026-04-15T12:01:11Z",
       "published_ts": 1776254471.0,
-      "age_minutes": 1072.0,
+      "age_minutes": 1166.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -203,7 +203,7 @@
       ],
       "published_at": "2026-04-15T14:40:00Z",
       "published_ts": 1776264000.0,
-      "age_minutes": 913.1,
+      "age_minutes": 1007.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -241,7 +241,7 @@
       ],
       "published_at": "2026-04-15T12:53:12Z",
       "published_ts": 1776257592.0,
-      "age_minutes": 1019.9,
+      "age_minutes": 1114.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -279,7 +279,7 @@
       ],
       "published_at": "2026-04-15T18:19:52Z",
       "published_ts": 1776277192.0,
-      "age_minutes": 693.3,
+      "age_minutes": 787.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -317,7 +317,7 @@
       ],
       "published_at": "2026-04-15T10:59:34Z",
       "published_ts": 1776250774.0,
-      "age_minutes": 1133.6,
+      "age_minutes": 1228.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -355,7 +355,7 @@
       ],
       "published_at": "2026-04-15T13:41:37Z",
       "published_ts": 1776260497.0,
-      "age_minutes": 971.5,
+      "age_minutes": 1065.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -393,7 +393,7 @@
       ],
       "published_at": "2026-04-15T17:35:48Z",
       "published_ts": 1776274548.0,
-      "age_minutes": 737.3,
+      "age_minutes": 831.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -431,7 +431,7 @@
       ],
       "published_at": "2026-04-15T15:49:04Z",
       "published_ts": 1776268144.0,
-      "age_minutes": 844.1,
+      "age_minutes": 938.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -469,7 +469,7 @@
       ],
       "published_at": "2026-04-15T20:14:37Z",
       "published_ts": 1776284077.0,
-      "age_minutes": 578.5,
+      "age_minutes": 672.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -507,7 +507,7 @@
       ],
       "published_at": "2026-04-15T20:14:37Z",
       "published_ts": 1776284077.0,
-      "age_minutes": 578.5,
+      "age_minutes": 672.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -545,7 +545,7 @@
       ],
       "published_at": "2026-04-15T17:31:32Z",
       "published_ts": 1776274292.0,
-      "age_minutes": 741.6,
+      "age_minutes": 836.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -583,7 +583,7 @@
       ],
       "published_at": "2026-04-15T17:16:36Z",
       "published_ts": 1776273396.0,
-      "age_minutes": 756.5,
+      "age_minutes": 850.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -621,7 +621,7 @@
       ],
       "published_at": "2026-04-15T16:14:45Z",
       "published_ts": 1776269685.0,
-      "age_minutes": 818.4,
+      "age_minutes": 912.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -659,7 +659,7 @@
       ],
       "published_at": "2026-04-15T16:08:50Z",
       "published_ts": 1776269330.0,
-      "age_minutes": 824.3,
+      "age_minutes": 918.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -697,7 +697,7 @@
       ],
       "published_at": "2026-04-15T09:59:20Z",
       "published_ts": 1776247160.0,
-      "age_minutes": 1193.8,
+      "age_minutes": 1288.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -735,7 +735,7 @@
       ],
       "published_at": "2026-04-15T09:58:53Z",
       "published_ts": 1776247133.0,
-      "age_minutes": 1194.3,
+      "age_minutes": 1288.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -773,7 +773,7 @@
       ],
       "published_at": "2026-04-15T21:39:59Z",
       "published_ts": 1776289199.0,
-      "age_minutes": 493.2,
+      "age_minutes": 587.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -811,7 +811,7 @@
       ],
       "published_at": "2026-04-15T18:15:46Z",
       "published_ts": 1776276946.0,
-      "age_minutes": 697.4,
+      "age_minutes": 791.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -849,7 +849,7 @@
       ],
       "published_at": "2026-04-15T17:04:37Z",
       "published_ts": 1776272677.0,
-      "age_minutes": 768.5,
+      "age_minutes": 862.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -887,7 +887,7 @@
       ],
       "published_at": "2026-04-15T15:56:05Z",
       "published_ts": 1776268565.0,
-      "age_minutes": 837.1,
+      "age_minutes": 931.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -926,7 +926,7 @@
       ],
       "published_at": "2026-04-15T15:11:53Z",
       "published_ts": 1776265913.0,
-      "age_minutes": 881.3,
+      "age_minutes": 975.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -964,7 +964,7 @@
       ],
       "published_at": "2026-04-15T13:42:37Z",
       "published_ts": 1776260557.0,
-      "age_minutes": 970.5,
+      "age_minutes": 1064.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1002,7 +1002,7 @@
       ],
       "published_at": "2026-04-15T13:06:37Z",
       "published_ts": 1776258397.0,
-      "age_minutes": 1006.5,
+      "age_minutes": 1100.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1040,7 +1040,7 @@
       ],
       "published_at": "2026-04-15T11:35:42Z",
       "published_ts": 1776252942.0,
-      "age_minutes": 1097.4,
+      "age_minutes": 1191.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1078,7 +1078,7 @@
       ],
       "published_at": "2026-04-15T08:28:33Z",
       "published_ts": 1776241713.0,
-      "age_minutes": 1284.6,
+      "age_minutes": 1379.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1118,7 +1118,7 @@
       ],
       "published_at": "2026-04-15T13:20:29Z",
       "published_ts": 1776259229.0,
-      "age_minutes": 992.7,
+      "age_minutes": 1087.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1156,7 +1156,7 @@
       ],
       "published_at": "2026-04-15T22:34:08Z",
       "published_ts": 1776292448.0,
-      "age_minutes": 439.0,
+      "age_minutes": 533.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1194,7 +1194,7 @@
       ],
       "published_at": "2026-04-15T20:30:42Z",
       "published_ts": 1776285042.0,
-      "age_minutes": 562.4,
+      "age_minutes": 656.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1232,7 +1232,7 @@
       ],
       "published_at": "2026-04-15T18:16:03Z",
       "published_ts": 1776276963.0,
-      "age_minutes": 697.1,
+      "age_minutes": 791.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1270,7 +1270,7 @@
       ],
       "published_at": "2026-04-15T16:04:35Z",
       "published_ts": 1776269075.0,
-      "age_minutes": 828.6,
+      "age_minutes": 922.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1308,7 +1308,7 @@
       ],
       "published_at": "2026-04-15T14:40:23Z",
       "published_ts": 1776264023.0,
-      "age_minutes": 912.8,
+      "age_minutes": 1007.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1346,7 +1346,7 @@
       ],
       "published_at": "2026-04-15T13:54:12Z",
       "published_ts": 1776261252.0,
-      "age_minutes": 958.9,
+      "age_minutes": 1053.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1385,7 +1385,7 @@
       ],
       "published_at": "2026-04-15T13:37:12Z",
       "published_ts": 1776260232.0,
-      "age_minutes": 975.9,
+      "age_minutes": 1070.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1423,7 +1423,7 @@
       ],
       "published_at": "2026-04-15T12:35:33Z",
       "published_ts": 1776256533.0,
-      "age_minutes": 1037.6,
+      "age_minutes": 1132.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1461,7 +1461,7 @@
       ],
       "published_at": "2026-04-15T09:14:07Z",
       "published_ts": 1776244447.0,
-      "age_minutes": 1239.0,
+      "age_minutes": 1333.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1494,15 +1494,15 @@
   ],
   "news_catalyst_by_symbol": {
     "AAPL": {
-      "news_catalyst_score": 0.67,
+      "news_catalyst_score": 0.6152,
       "sentiment_label": "neutral",
       "event_class": "EARNINGS",
       "event_label": "Top BofA Analyst Raises Apple Stock (AAPL) Price Target Ahead of Q2 Earnings",
-      "materiality": "MEDIUM",
+      "materiality": "LOW",
       "recency_bucket": "AGING",
       "source_tier": "TIER_3",
       "mentions_24h": 8,
-      "is_actionable": true,
+      "is_actionable": false,
       "first_provider": "newsapi_ai",
       "story_key": "c0345c2d2ba782236fc332108c5a28ce01e8f787:5921047"
     },
@@ -1587,11 +1587,9 @@
   },
   "summary": {
     "active_story_count": 37,
-    "new_story_count": 1,
-    "actionable_story_count": 1,
-    "actionable_symbols": [
-      "AAPL"
-    ],
+    "new_story_count": 0,
+    "actionable_story_count": 0,
+    "actionable_symbols": [],
     "symbol_count": 7
   },
   "symbol_scope": {
