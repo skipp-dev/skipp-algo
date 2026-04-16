@@ -5,12 +5,244 @@
     "fmp_stock": 0.0,
     "fmp_press": 0.0,
     "fmp_articles": 0.0,
-    "newsapi_ai": 1776349757.0,
+    "newsapi_ai": 1776364506.0,
     "tv": 0.0,
-    "legacy_cursor": 1776349757.0
+    "legacy_cursor": 1776364506.0
   },
   "provider_state": {},
   "story_state": {
+    "dec251f42c905bcd256e9e8b776f428992c9a7b3:5921215": {
+      "story_key": "dec251f42c905bcd256e9e8b776f428992c9a7b3:5921215",
+      "cluster_hash": "dec251f42c905bcd256e9e8b776f428992c9a7b3",
+      "headline": "What's Ahead As Massive Short Squeeze Drives Market to New Highs - Semis Are a Tell - Apple (NASDAQ:AAPL)",
+      "tickers": [
+        "AAPL"
+      ],
+      "published_ts": 1776364506.0,
+      "first_seen_ts": 1776368161.4008312,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "url": "https://www.benzinga.com/Opinion/26/04/51869171/whats-ahead-as-massive-short-squeeze-drives-market-to-new-highs-semis-are-a-tell",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "last_seen_ts": 1776368161.4008312
+    },
+    "b0c065f1c3b0c8c04a618acbf95ca380dd9c385d:5921210": {
+      "story_key": "b0c065f1c3b0c8c04a618acbf95ca380dd9c385d:5921210",
+      "cluster_hash": "b0c065f1c3b0c8c04a618acbf95ca380dd9c385d",
+      "headline": "Senator Goes Stock Shopping: Here's His Two Magnificent 7 Picks For 2026 - Microsoft (NASDAQ:MSFT)",
+      "tickers": [
+        "MSFT"
+      ],
+      "published_ts": 1776363183.0,
+      "first_seen_ts": 1776368161.4008312,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "url": "https://www.benzinga.com/news/politics/26/04/51868544/senator-goes-stock-shopping-heres-his-two-magnificent-7-picks-for-2026",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "polarity": 0.0,
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "last_seen_ts": 1776368161.4008312
+    },
+    "20058396fa69cb4e88695c890e5d77fcc18c99be:5921203": {
+      "story_key": "20058396fa69cb4e88695c890e5d77fcc18c99be:5921203",
+      "cluster_hash": "20058396fa69cb4e88695c890e5d77fcc18c99be",
+      "headline": "3 Consumer Discretionary Stocks Whale Activity In Today's Session - Amazon.com (NASDAQ:AMZN), McDonald's",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_ts": 1776360928.0,
+      "first_seen_ts": 1776368161.4008312,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "url": "https://www.benzinga.com/insights/options/26/04/51867314/3-consumer-discretionary-stocks-whale-activity-in-todays-session",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "polarity": 0.0,
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "last_seen_ts": 1776368161.4008312
+    },
+    "4ee44112c0620d871de0d87b575c479a1480d2e4:5921197": {
+      "story_key": "4ee44112c0620d871de0d87b575c479a1480d2e4:5921197",
+      "cluster_hash": "4ee44112c0620d871de0d87b575c479a1480d2e4",
+      "headline": "S&P 500, Nasdaq 100 Hit New Records On Trump's Ceasefire Efforts - Apple (NASDAQ:AAPL), Abbott Laboratori",
+      "tickers": [
+        "AAPL"
+      ],
+      "published_ts": 1776359204.0,
+      "first_seen_ts": 1776368161.4008312,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "url": "https://www.benzinga.com/markets/market-summary/26/04/51866579/sp-500-nasdaq-100-record-highs-oil-surges-trump-israel-lebanon-ceasefire-markets-thursday",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "polarity": 0.0,
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "last_seen_ts": 1776368161.4008312
+    },
+    "eb1478ec9e38bcd38a2d69f50cee421a6755f4a8:5921193": {
+      "story_key": "eb1478ec9e38bcd38a2d69f50cee421a6755f4a8:5921193",
+      "cluster_hash": "eb1478ec9e38bcd38a2d69f50cee421a6755f4a8",
+      "headline": "Microsoft: Cheap For All The Wrong Reasons (NASDAQ:MSFT)",
+      "tickers": [
+        "MSFT"
+      ],
+      "published_ts": 1776358119.0,
+      "first_seen_ts": 1776368161.4008312,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Seeking Alpha"
+      ],
+      "url": "https://seekingalpha.com/article/4891317-microsoft-cheap-for-all-the-wrong-reasons",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776368161.4008312
+    },
+    "e5cafb22af6f02eb317f52dd9dfa333050c76b83:5921180": {
+      "story_key": "e5cafb22af6f02eb317f52dd9dfa333050c76b83:5921180",
+      "cluster_hash": "e5cafb22af6f02eb317f52dd9dfa333050c76b83",
+      "headline": "Clarity Act Is Moving Along Well, JP Morgan Analysts Say - JPMorgan Chase (NYSE:JPM)",
+      "tickers": [
+        "JPM"
+      ],
+      "published_ts": 1776354285.0,
+      "first_seen_ts": 1776368161.4008312,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "CryptoCrunchApp"
+      ],
+      "url": "https://cryptocrunchapp.com/benzinga/clarity-act-is-moving-along-well-jp-morgan-analysts-say-jpmorgan-chase-nysejpm/",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776368161.4008312
+    },
+    "e5cafb22af6f02eb317f52dd9dfa333050c76b83:5921178": {
+      "story_key": "e5cafb22af6f02eb317f52dd9dfa333050c76b83:5921178",
+      "cluster_hash": "e5cafb22af6f02eb317f52dd9dfa333050c76b83",
+      "headline": "Clarity Act Is Moving Along Well, JP Morgan Analysts Say - JPMorgan Chase (NYSE:JPM)",
+      "tickers": [
+        "JPM"
+      ],
+      "published_ts": 1776353402.0,
+      "first_seen_ts": 1776368161.4008312,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "url": "https://www.benzinga.com/crypto/cryptocurrency/26/04/51863135/clarity-act-is-moving-along-well-jp-morgan-analysts-say",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.45543478260869563,
+      "polarity": 0.0,
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "last_seen_ts": 1776368161.4008312
+    },
+    "5fa2b18c741eba3ab7994043d5074d44daadbe6c:5921177": {
+      "story_key": "5fa2b18c741eba3ab7994043d5074d44daadbe6c:5921177",
+      "cluster_hash": "5fa2b18c741eba3ab7994043d5074d44daadbe6c",
+      "headline": "Microsoft Stock Warning: Why Piper Sandler Analysts Just Slashed Their MSFT Price Target by More Than 15%",
+      "tickers": [
+        "MSFT"
+      ],
+      "published_ts": 1776353386.0,
+      "first_seen_ts": 1776368161.4008312,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Barchart.com"
+      ],
+      "url": "https://www.barchart.com/story/news/1348601/microsoft-stock-warning-why-piper-sandler-analysts-just-slashed-their-msft-price-target-by-more-than-15",
+      "category": "analyst",
+      "impact": 0.65,
+      "clarity": 0.8,
+      "relevance": 0.7825,
+      "polarity": -0.20625,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776368161.4008312
+    },
     "dfba04609a7d9cc3e9bb9dcd6c98a23c8223fc24:5921165": {
       "story_key": "dfba04609a7d9cc3e9bb9dcd6c98a23c8223fc24:5921165",
       "cluster_hash": "dfba04609a7d9cc3e9bb9dcd6c98a23c8223fc24",
@@ -10352,1398 +10584,6 @@
       "source_tier": "TIER_3",
       "source_rank": 3,
       "last_seen_ts": 1775776222.1282525
-    },
-    "d659cb306b7d6d64fc417b1dcb36ec6b67e53eca:5919202": {
-      "story_key": "d659cb306b7d6d64fc417b1dcb36ec6b67e53eca:5919202",
-      "cluster_hash": "d659cb306b7d6d64fc417b1dcb36ec6b67e53eca",
-      "headline": "Amazon's AI Chip Business Is Surging -- And It Could Be a Major Catalyst for AMZN Stock",
-      "tickers": [
-        "AMZN"
-      ],
-      "published_ts": 1775760633.0,
-      "first_seen_ts": 1775761787.4248424,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Barchart.com"
-      ],
-      "url": "https://www.barchart.com/story/news/1227401/amazons-ai-chip-business-is-surgingand-it-could-be-a-major-catalyst-for-amzn-stock",
-      "category": "other",
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "polarity": 0.0,
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "last_seen_ts": 1775761787.4248424
-    },
-    "8ae656c57a5d3f567e7168597d0009023aa4d8c6:5919198": {
-      "story_key": "8ae656c57a5d3f567e7168597d0009023aa4d8c6:5919198",
-      "cluster_hash": "8ae656c57a5d3f567e7168597d0009023aa4d8c6",
-      "headline": "What's Going On With Amazon Stock Thursday? - Amazon.com (NASDAQ:AMZN)",
-      "tickers": [
-        "AMZN"
-      ],
-      "published_ts": 1775759420.0,
-      "first_seen_ts": 1775761787.4248424,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Benzinga"
-      ],
-      "url": "https://www.benzinga.com/markets/tech/26/04/51741470/whats-going-on-with-amazon-stock-thursday-3",
-      "category": "other",
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "polarity": 0.0,
-      "source_tier": "TIER_2",
-      "source_rank": 2,
-      "last_seen_ts": 1775761787.4248424
-    },
-    "929ca5d003c8784123f7bc587ee1a8614a4a775d:5919189": {
-      "story_key": "929ca5d003c8784123f7bc587ee1a8614a4a775d:5919189",
-      "cluster_hash": "929ca5d003c8784123f7bc587ee1a8614a4a775d",
-      "headline": "America's Debt Interest Bill Tops Half A Trillion As Fiscal Burden Grows - JPMorgan Chase (NYSE:JPM)",
-      "tickers": [
-        "JPM"
-      ],
-      "published_ts": 1775756814.0,
-      "first_seen_ts": 1775761787.4248424,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Benzinga"
-      ],
-      "url": "https://www.benzinga.com/markets/market-summary/26/04/51740158/americas-debt-interest-bill-tops-half-a-trillion-as-fiscal-burden-grows",
-      "category": "other",
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "polarity": 0.0,
-      "source_tier": "TIER_2",
-      "source_rank": 2,
-      "last_seen_ts": 1775761787.4248424
-    },
-    "660dcd4850328f8734799b20921e2cf07f35f6b8:5919187": {
-      "story_key": "660dcd4850328f8734799b20921e2cf07f35f6b8:5919187",
-      "cluster_hash": "660dcd4850328f8734799b20921e2cf07f35f6b8",
-      "headline": "3 Consumer Discretionary Stocks With Whale Alerts In Today's Session - Amazon.com (NASDAQ:AMZN), McDonald",
-      "tickers": [
-        "AMZN"
-      ],
-      "published_ts": 1775756130.0,
-      "first_seen_ts": 1775761787.4248424,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Benzinga"
-      ],
-      "url": "https://www.benzinga.com/insights/options/26/04/51739698/3-consumer-discretionary-stocks-with-whale-alerts-in-todays-session",
-      "category": "other",
-      "impact": 0.1,
-      "clarity": 0.8,
-      "relevance": 0.535,
-      "polarity": 0.0,
-      "source_tier": "TIER_2",
-      "source_rank": 2,
-      "last_seen_ts": 1775761787.4248424
-    },
-    "f99425dace01226c01cf62975d94f68d33c1a2e5:5919187": {
-      "story_key": "f99425dace01226c01cf62975d94f68d33c1a2e5:5919187",
-      "cluster_hash": "f99425dace01226c01cf62975d94f68d33c1a2e5",
-      "headline": "As Fuel Costs Skyrocket, Amazon Is Adding in New Fuel Surcharges. What Does That Mean for AMZN Stock?",
-      "tickers": [
-        "AMZN"
-      ],
-      "published_ts": 1775756206.0,
-      "first_seen_ts": 1775761787.4248424,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Barchart.com"
-      ],
-      "url": "https://www.barchart.com/story/news/1226001/as-fuel-costs-skyrocket-amazon-is-adding-in-new-fuel-surcharges-what-does-that-mean-for-amzn-stock",
-      "category": "other",
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "polarity": 0.0,
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "last_seen_ts": 1775761787.4248424
-    },
-    "a4a3fe7319b0ffe21ec7053c140f25e3ae2342e0:5919172": {
-      "story_key": "a4a3fe7319b0ffe21ec7053c140f25e3ae2342e0:5919172",
-      "cluster_hash": "a4a3fe7319b0ffe21ec7053c140f25e3ae2342e0",
-      "headline": "Retail traders are showing a 'major departure' in how they navigate the post-ceasefire rally, JPM says",
-      "tickers": [
-        "JPM"
-      ],
-      "published_ts": 1775751651.0,
-      "first_seen_ts": 1775761787.4248424,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Business Insider"
-      ],
-      "url": "https://www.businessinsider.com/retail-traders-taco-trade-trump-iran-ceasefire-stock-market-investing-2026-4",
-      "category": "other",
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "polarity": 0.0,
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "last_seen_ts": 1775761787.4248424
-    },
-    "ec09c7d04312787f92ea6c7fbd24a65c916f16b5:5919172": {
-      "story_key": "ec09c7d04312787f92ea6c7fbd24a65c916f16b5:5919172",
-      "cluster_hash": "ec09c7d04312787f92ea6c7fbd24a65c916f16b5",
-      "headline": "Foldable iPhones Are Reportedly Still on Track for September. Should You Buy AAPL Stock Here?",
-      "tickers": [
-        "AAPL"
-      ],
-      "published_ts": 1775751727.0,
-      "first_seen_ts": 1775761787.4248424,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Barchart.com"
-      ],
-      "url": "https://www.barchart.com/story/news/1224924/foldable-iphones-are-reportedly-still-on-track-for-september-should-you-buy-aapl-stock-here",
-      "category": "other",
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "polarity": 0.0,
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "last_seen_ts": 1775761787.4248424
-    },
-    "7e600d11c5edcb5078aff9f14a61bbeea9ca9365:5919170": {
-      "story_key": "7e600d11c5edcb5078aff9f14a61bbeea9ca9365:5919170",
-      "cluster_hash": "7e600d11c5edcb5078aff9f14a61bbeea9ca9365",
-      "headline": "Amazon Plays Both Sides: Chip Competition Leads To Team-Ups - Amazon.com (NASDAQ:AMZN)",
-      "tickers": [
-        "AMZN"
-      ],
-      "published_ts": 1775751178.0,
-      "first_seen_ts": 1775761787.4248424,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Benzinga"
-      ],
-      "url": "https://www.benzinga.com/markets/tech/26/04/51736198/aws-ceo-chip-competition-nvidia-amd-intel",
-      "category": "other",
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "polarity": 0.0,
-      "source_tier": "TIER_2",
-      "source_rank": 2,
-      "last_seen_ts": 1775761787.4248424
-    },
-    "8421816b00ce1e95c02df333cba50b06d8f2d354:5919167": {
-      "story_key": "8421816b00ce1e95c02df333cba50b06d8f2d354:5919167",
-      "cluster_hash": "8421816b00ce1e95c02df333cba50b06d8f2d354",
-      "headline": "Exxon Mobil: Options Become Lucrative Amid Unusual Volatilities (NYSE:XOM)",
-      "tickers": [
-        "XOM"
-      ],
-      "published_ts": 1775750324.0,
-      "first_seen_ts": 1775761787.4248424,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Seeking Alpha"
-      ],
-      "url": "https://seekingalpha.com/article/4889552-exxon-mobil-options-become-lucrative-amid-unusual-volatilities",
-      "category": "other",
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "polarity": 0.0,
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "last_seen_ts": 1775761787.4248424
-    },
-    "02a8b271486c1b6d0b69422a7f0194d326d215bf:5919161": {
-      "story_key": "02a8b271486c1b6d0b69422a7f0194d326d215bf:5919161",
-      "cluster_hash": "02a8b271486c1b6d0b69422a7f0194d326d215bf",
-      "headline": "Software stocks selloff: PLTR, MSFT drop on Anthropic's 'Mythos' model fears",
-      "tickers": [
-        "MSFT"
-      ],
-      "published_ts": 1775748581.0,
-      "first_seen_ts": 1775761787.4248424,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Yahoo Finance"
-      ],
-      "url": "https://au.finance.yahoo.com/news/software-stocks-selloff-pltr-msft-145211910.html",
-      "category": "other",
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "polarity": 0.0,
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "last_seen_ts": 1775761787.4248424
-    },
-    "9c3e432f9a4cada5cfdee09c38d011422553b4ba:5919158": {
-      "story_key": "9c3e432f9a4cada5cfdee09c38d011422553b4ba:5919158",
-      "cluster_hash": "9c3e432f9a4cada5cfdee09c38d011422553b4ba",
-      "headline": "Markets Can Live With $100 Oil for a While, JPM's Michele Says",
-      "tickers": [
-        "JPM"
-      ],
-      "published_ts": 1775747665.0,
-      "first_seen_ts": 1775761787.4248424,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Market Screener"
-      ],
-      "url": "https://www.marketscreener.com/news/markets-can-live-with-100-oil-for-a-while-jpm-s-michele-says-ce7e50d8d88df523",
-      "category": "other",
-      "impact": 0.1,
-      "clarity": 0.8,
-      "relevance": 0.535,
-      "polarity": 0.0,
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "last_seen_ts": 1775761787.4248424
-    },
-    "7427414898b93e9cae33fa76f0b3b5b312043902:5919200": {
-      "story_key": "7427414898b93e9cae33fa76f0b3b5b312043902:5919200",
-      "cluster_hash": "7427414898b93e9cae33fa76f0b3b5b312043902",
-      "headline": "Verdicts against Meta, Google in U.S. could boost Canadian big tech lawsuits",
-      "tickers": [
-        "META"
-      ],
-      "published_ts": 1775760141.0,
-      "first_seen_ts": 1775761787.4248424,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Yahoo! Finance"
-      ],
-      "url": "https://ca.finance.yahoo.com/news/verdicts-against-meta-google-u-182902702.html",
-      "category": "other",
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "polarity": 0.0,
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "last_seen_ts": 1775761787.4248424
-    },
-    "7427414898b93e9cae33fa76f0b3b5b312043902:5919197": {
-      "story_key": "7427414898b93e9cae33fa76f0b3b5b312043902:5919197",
-      "cluster_hash": "7427414898b93e9cae33fa76f0b3b5b312043902",
-      "headline": "Verdicts against Meta, Google in U.S. could boost Canadian big tech lawsuits",
-      "tickers": [
-        "META"
-      ],
-      "published_ts": 1775759340.0,
-      "first_seen_ts": 1775761787.4248424,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Castanet"
-      ],
-      "url": "https://www.castanet.net/news/Canada/607913/Verdicts-against-Meta-Google-in-U-S-could-boost-Canadian-big-tech-lawsuits",
-      "category": "other",
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.45543478260869563,
-      "polarity": 0.0,
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "last_seen_ts": 1775761787.4248424
-    },
-    "2d256b5b2fca0e693ffa9ac77936e2fd3ffed4b6:5919199": {
-      "story_key": "2d256b5b2fca0e693ffa9ac77936e2fd3ffed4b6:5919199",
-      "cluster_hash": "2d256b5b2fca0e693ffa9ac77936e2fd3ffed4b6",
-      "headline": "Meta knew it was collecting Facebook users' data, US plaintiffs argue | MLex | Specialist news and analysis on legal risk and regulation",
-      "tickers": [
-        "META"
-      ],
-      "published_ts": 1775759936.0,
-      "first_seen_ts": 1775761787.4248424,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "mlex.com"
-      ],
-      "url": "https://www.mlex.com/mlex/articles/2463713/meta-knew-it-was-collecting-facebook-users-data-us-plaintiffs-argue",
-      "category": "other",
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "polarity": 0.0,
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "last_seen_ts": 1775761787.4248424
-    },
-    "3acbc510ff0eb42e431f9c092a26726c105ff3f1:5919187": {
-      "story_key": "3acbc510ff0eb42e431f9c092a26726c105ff3f1:5919187",
-      "cluster_hash": "3acbc510ff0eb42e431f9c092a26726c105ff3f1",
-      "headline": "CoreWeave, Meta strike $21B deal to boost compute",
-      "tickers": [
-        "META"
-      ],
-      "published_ts": 1775756147.0,
-      "first_seen_ts": 1775761787.4248424,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "CIO Dive"
-      ],
-      "url": "https://www.ciodive.com/news/meta-coreweave-strike-deal-expansion-compute-capacity/817109/",
-      "category": "other",
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "polarity": 0.0,
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "last_seen_ts": 1775761787.4248424
-    },
-    "78f4e8db8a8bb01b6961b845423aa16f316c3b44:5919162": {
-      "story_key": "78f4e8db8a8bb01b6961b845423aa16f316c3b44:5919162",
-      "cluster_hash": "78f4e8db8a8bb01b6961b845423aa16f316c3b44",
-      "headline": "Meta, Amazon, X.AI Pressed by Key Senator on Child Exploitation",
-      "tickers": [
-        "META"
-      ],
-      "published_ts": 1775748747.0,
-      "first_seen_ts": 1775761787.4248424,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Bloomberg Business"
-      ],
-      "url": "https://www.bloomberg.com/news/articles/2026-04-09/meta-amazon-x-ai-pressed-by-key-senator-on-child-exploitation",
-      "category": "other",
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "polarity": 0.0,
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "last_seen_ts": 1775761787.4248424
-    },
-    "3cb00f810a359d3e338ac8cfc961b77008e188d1:5919198": {
-      "story_key": "3cb00f810a359d3e338ac8cfc961b77008e188d1:5919198",
-      "cluster_hash": "3cb00f810a359d3e338ac8cfc961b77008e188d1",
-      "headline": "Meta's Muse Spark: a smaller, faster AI model for broad app deployment",
-      "tickers": [
-        "META"
-      ],
-      "published_ts": 1775759448.0,
-      "first_seen_ts": 1775761787.4248424,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "InfoWorld"
-      ],
-      "url": "https://www.infoworld.com/article/4156742/metas-muse-spark-a-smaller-faster-ai-model-for-broad-app-deployment.html",
-      "category": "other",
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "polarity": 0.0,
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "last_seen_ts": 1775761787.4248424
-    },
-    "ac3646d7143566fe8fde75838cb9a04319e5c189:5919198": {
-      "story_key": "ac3646d7143566fe8fde75838cb9a04319e5c189:5919198",
-      "cluster_hash": "ac3646d7143566fe8fde75838cb9a04319e5c189",
-      "headline": "Meta Stock Climbs 2.5% as New AI Model Muse Spark and Geopolitical Ceasefire Boost Tech Sentiment",
-      "tickers": [
-        "META"
-      ],
-      "published_ts": 1775759448.0,
-      "first_seen_ts": 1775761787.4248424,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "International Business Times AU"
-      ],
-      "url": "https://www.ibtimes.com.au/meta-stock-climbs-25-new-ai-model-muse-spark-geopolitical-ceasefire-boost-tech-sentiment-1865934",
-      "category": "other",
-      "impact": 0.1,
-      "clarity": 0.8,
-      "relevance": 0.535,
-      "polarity": 0.0,
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "last_seen_ts": 1775761787.4248424
-    },
-    "1ff873074f4236c4e7b67cd9e0b472dbe33f0c4f:5919197": {
-      "story_key": "1ff873074f4236c4e7b67cd9e0b472dbe33f0c4f:5919197",
-      "cluster_hash": "1ff873074f4236c4e7b67cd9e0b472dbe33f0c4f",
-      "headline": "CoreWeave Advances 4% as Meta Commits $21 Billion Through 2032: The AI Cloud King Is Stacking Contracts",
-      "tickers": [
-        "META"
-      ],
-      "published_ts": 1775759152.0,
-      "first_seen_ts": 1775761787.4248424,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "24/7 Wall St."
-      ],
-      "url": "https://247wallst.com/investing/2026/04/09/coreweave-advances-4-as-meta-commits-21-billion-through-2032-the-ai-cloud-king-is-stacking-contracts/",
-      "category": "other",
-      "impact": 0.1,
-      "clarity": 0.8,
-      "relevance": 0.535,
-      "polarity": 0.0,
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "last_seen_ts": 1775761787.4248424
-    },
-    "7d1ed4445419cd6fe3509791a95757d9e9c292b5:5919194": {
-      "story_key": "7d1ed4445419cd6fe3509791a95757d9e9c292b5:5919194",
-      "cluster_hash": "7d1ed4445419cd6fe3509791a95757d9e9c292b5",
-      "headline": "Here's How Patrons Are Using Meta Glasses To Find A Way Around The Masters' Tough Tech Policy",
-      "tickers": [
-        "META"
-      ],
-      "published_ts": 1775758444.0,
-      "first_seen_ts": 1775761787.4248424,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Golf Monthly Magazine"
-      ],
-      "url": "https://www.golfmonthly.com/news/masters-patrons-meta-glasses-cell-phone-policy",
-      "category": "other",
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "polarity": 0.0,
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "last_seen_ts": 1775761787.4248424
-    },
-    "9fe769376e81cb72728888361b6d33cd07dcdeaa:5919191": {
-      "story_key": "9fe769376e81cb72728888361b6d33cd07dcdeaa:5919191",
-      "cluster_hash": "9fe769376e81cb72728888361b6d33cd07dcdeaa",
-      "headline": "Top Wall Street analysts are gushing over Meta's Muse Spark AI model",
-      "tickers": [
-        "META"
-      ],
-      "published_ts": 1775757345.0,
-      "first_seen_ts": 1775761787.4248424,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Business Insider"
-      ],
-      "url": "https://www.businessinsider.com/meta-stock-ai-model-tech-wall-street-analysts-bull-buy-2026-4",
-      "category": "other",
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "polarity": 0.0,
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "last_seen_ts": 1775761787.4248424
-    },
-    "9f08b0d53b4abd977072b2ec290e17f2e7603f57:5919192": {
-      "story_key": "9f08b0d53b4abd977072b2ec290e17f2e7603f57:5919192",
-      "cluster_hash": "9f08b0d53b4abd977072b2ec290e17f2e7603f57",
-      "headline": "Meta unveils Muse Spark, first AI model from superintelligence team",
-      "tickers": [
-        "META"
-      ],
-      "published_ts": 1775757818.0,
-      "first_seen_ts": 1775761787.4248424,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Business Standard"
-      ],
-      "url": "https://www.business-standard.com/world-news/meta-debuts-1st-ai-model-from-superintelligence-team-126040901506_1.html",
-      "category": "other",
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.45543478260869563,
-      "polarity": 0.0,
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "last_seen_ts": 1775761787.4248424
-    },
-    "72937e621696c74ef01c77635291d114e2d420fa:5919191": {
-      "story_key": "72937e621696c74ef01c77635291d114e2d420fa:5919191",
-      "cluster_hash": "72937e621696c74ef01c77635291d114e2d420fa",
-      "headline": "Meta, CoreWeave Shares Rise After Expanding $21 Billion AI Cloud Deal - Decrypt",
-      "tickers": [
-        "META"
-      ],
-      "published_ts": 1775757438.0,
-      "first_seen_ts": 1775761787.4248424,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Decrypt"
-      ],
-      "url": "https://decrypt.co/363838/meta-coreweave-shares-rise-expanding-21-billion-ai-cloud-deal",
-      "category": "other",
-      "impact": 0.1,
-      "clarity": 0.8,
-      "relevance": 0.535,
-      "polarity": 0.0,
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "last_seen_ts": 1775761787.4248424
-    },
-    "cbb313fca8f4b0f0c13e74b35a304f65a126ff85:5919192": {
-      "story_key": "cbb313fca8f4b0f0c13e74b35a304f65a126ff85:5919192",
-      "cluster_hash": "cbb313fca8f4b0f0c13e74b35a304f65a126ff85",
-      "headline": "Meta Is Pulling Down Ads That Seek to Recruit Clients for Social Media Addiction Litigation",
-      "tickers": [
-        "META"
-      ],
-      "published_ts": 1775757897.0,
-      "first_seen_ts": 1775761787.4248424,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Gizmodo"
-      ],
-      "url": "https://gizmodo.com/?p=2000744572",
-      "category": "other",
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "polarity": 0.0,
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "last_seen_ts": 1775761787.4248424
-    },
-    "98ea63877f8aa8f5907577c8115b67f0bf933540:5919191": {
-      "story_key": "98ea63877f8aa8f5907577c8115b67f0bf933540:5919191",
-      "cluster_hash": "98ea63877f8aa8f5907577c8115b67f0bf933540",
-      "headline": "Meta's AI Future Is Personal, Starting With You | PYMNTS.com",
-      "tickers": [
-        "META"
-      ],
-      "published_ts": 1775757461.0,
-      "first_seen_ts": 1775761787.4248424,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "PYMNTS.com"
-      ],
-      "url": "https://www.pymnts.com/meta/2026/metas-ai-future-is-personal-starting-with-you/",
-      "category": "other",
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "polarity": 0.0,
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "last_seen_ts": 1775761787.4248424
-    },
-    "f2f2751449d5ad82aa95d0df1542b7a22fb8ca7c:5919187": {
-      "story_key": "f2f2751449d5ad82aa95d0df1542b7a22fb8ca7c:5919187",
-      "cluster_hash": "f2f2751449d5ad82aa95d0df1542b7a22fb8ca7c",
-      "headline": "The Hype Around CoreWeave's $21 Billion Meta Deal Faded Fast, but Could Investors Be Missing Out?",
-      "tickers": [
-        "META"
-      ],
-      "published_ts": 1775756197.0,
-      "first_seen_ts": 1775761787.4248424,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "NASDAQ Stock Market"
-      ],
-      "url": "https://www.nasdaq.com/articles/hype-around-coreweaves-21-billion-meta-deal-faded-fast-could-investors-be-missing-out",
-      "category": "other",
-      "impact": 0.1,
-      "clarity": 0.8,
-      "relevance": 0.535,
-      "polarity": 0.0,
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "last_seen_ts": 1775761787.4248424
-    },
-    "62726d23fdd84c34c0387bb1c6c2caa03483b02e:5919190": {
-      "story_key": "62726d23fdd84c34c0387bb1c6c2caa03483b02e:5919190",
-      "cluster_hash": "62726d23fdd84c34c0387bb1c6c2caa03483b02e",
-      "headline": "The Hype Around CoreWeave's $21 Billion Meta Deal Faded Fast, but Could Investors Be Missing Out? | The Motley Fool",
-      "tickers": [
-        "META"
-      ],
-      "published_ts": 1775757250.0,
-      "first_seen_ts": 1775761787.4248424,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "The Motley Fool"
-      ],
-      "url": "https://www.fool.com/investing/2026/04/09/the-hype-around-coreweaves-21-billion-meta-deal-fa/",
-      "category": "other",
-      "impact": 0.1,
-      "clarity": 0.8,
-      "relevance": 0.535,
-      "polarity": 0.0,
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "last_seen_ts": 1775761787.4248424
-    },
-    "0af1a1fd50eea9627b92a9d9627a40e6d5fb7d7c:5919187": {
-      "story_key": "0af1a1fd50eea9627b92a9d9627a40e6d5fb7d7c:5919187",
-      "cluster_hash": "0af1a1fd50eea9627b92a9d9627a40e6d5fb7d7c",
-      "headline": "Meta accelerates its repositioning in AI with a major shift",
-      "tickers": [
-        "META"
-      ],
-      "published_ts": 1775756124.0,
-      "first_seen_ts": 1775761787.4248424,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Cointribune"
-      ],
-      "url": "https://www.cointribune.com/en/meta-accelerates-its-repositioning-in-ai-with-a-major-shift/",
-      "category": "other",
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "polarity": 0.0,
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "last_seen_ts": 1775761787.4248424
-    },
-    "5ea97a59b0037548bb8a57fe22a507201b5ef88e:5919185": {
-      "story_key": "5ea97a59b0037548bb8a57fe22a507201b5ef88e:5919185",
-      "cluster_hash": "5ea97a59b0037548bb8a57fe22a507201b5ef88e",
-      "headline": "Meta's Spark vs ChatGPT, Gemini: 3.5B Users Edge - Meta Platforms (NASDAQ:META)",
-      "tickers": [
-        "META"
-      ],
-      "published_ts": 1775755610.0,
-      "first_seen_ts": 1775761787.4248424,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Benzinga"
-      ],
-      "url": "https://www.benzinga.com/markets/tech/26/04/51739402/metas-spark-targets-chatgpt-gemini-with-3-5-billion-users-in-play",
-      "category": "other",
-      "impact": 0.1,
-      "clarity": 0.8,
-      "relevance": 0.535,
-      "polarity": 0.0,
-      "source_tier": "TIER_2",
-      "source_rank": 2,
-      "last_seen_ts": 1775761787.4248424
-    },
-    "f650441ed0c54c0083943963aeb15557832e6616:5919185": {
-      "story_key": "f650441ed0c54c0083943963aeb15557832e6616:5919185",
-      "cluster_hash": "f650441ed0c54c0083943963aeb15557832e6616",
-      "headline": "Meta boots law firm ads seeking clients to sue over alleged Facebook, Instagram addiction",
-      "tickers": [
-        "META"
-      ],
-      "published_ts": 1775755505.0,
-      "first_seen_ts": 1775761787.4248424,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "New York Post"
-      ],
-      "url": "https://nypost.com/2026/04/09/business/meta-boots-law-firm-ads-looking-for-clients-to-sue-over-alleged-facebook-instagram-addiction/",
-      "category": "other",
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "polarity": 0.0,
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "last_seen_ts": 1775761787.4248424
-    },
-    "85390afbbc2bdf7dc797d98d278b1a5c2b9c9c7d:5919178": {
-      "story_key": "85390afbbc2bdf7dc797d98d278b1a5c2b9c9c7d:5919178",
-      "cluster_hash": "85390afbbc2bdf7dc797d98d278b1a5c2b9c9c7d",
-      "headline": "Meta AI Unveils First Superintelligence Model 2026",
-      "tickers": [
-        "META"
-      ],
-      "published_ts": 1775753506.0,
-      "first_seen_ts": 1775761787.4248424,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "TechnoSports"
-      ],
-      "url": "https://technosports.co.in/?p=1266145",
-      "category": "other",
-      "impact": 0.1,
-      "clarity": 0.8,
-      "relevance": 0.535,
-      "polarity": 0.0,
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "last_seen_ts": 1775761787.4248424
-    },
-    "c2c948e4378e5ab07796dfeb0e7a71fbc7d1714e:5919180": {
-      "story_key": "c2c948e4378e5ab07796dfeb0e7a71fbc7d1714e:5919180",
-      "cluster_hash": "c2c948e4378e5ab07796dfeb0e7a71fbc7d1714e",
-      "headline": "Meta Stock Adds To Rally As Muse Spark Model Impresses. Here's The Next Test In AI Battle.",
-      "tickers": [
-        "META"
-      ],
-      "published_ts": 1775754161.0,
-      "first_seen_ts": 1775761787.4248424,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Investor's Business Daily"
-      ],
-      "url": "https://www.investors.com/news/technology/meta-stock-muse-spark-ai-anthropic-google-openai/",
-      "category": "other",
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "polarity": 0.0,
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "last_seen_ts": 1775761787.4248424
-    },
-    "eb481c9d434f43f0008d040bcafff3d46d2666aa:5919177": {
-      "story_key": "eb481c9d434f43f0008d040bcafff3d46d2666aa:5919177",
-      "cluster_hash": "eb481c9d434f43f0008d040bcafff3d46d2666aa",
-      "headline": "CoreWeave Expands Meta AI Deal To $21 Billion, Issues $4.25 Billion In New Convertible & Junk Debt",
-      "tickers": [
-        "META"
-      ],
-      "published_ts": 1775753188.0,
-      "first_seen_ts": 1775761787.4248424,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Brigitte Gabriel"
-      ],
-      "url": "https://conservativeangle.com/coreweave-expands-meta-ai-deal-to-21-billion-issues-4-25-billion-in-new-convertible-junk-debt/",
-      "category": "other",
-      "impact": 0.1,
-      "clarity": 0.8,
-      "relevance": 0.535,
-      "polarity": 0.0,
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "last_seen_ts": 1775761787.4248424
-    },
-    "ef45ea4fa74132b5143da8c3eb6c4c7fc0816941:5919181": {
-      "story_key": "ef45ea4fa74132b5143da8c3eb6c4c7fc0816941:5919181",
-      "cluster_hash": "ef45ea4fa74132b5143da8c3eb6c4c7fc0816941",
-      "headline": "Meta released a new AI model this week. JPMorgan sees it as a turning point for the stock",
-      "tickers": [
-        "META"
-      ],
-      "published_ts": 1775754397.0,
-      "first_seen_ts": 1775761787.4248424,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "CNBC"
-      ],
-      "url": "https://www.cnbc.com/2026/04/09/meta-released-a-new-ai-model-this-week-jpmorgan-sees-it-as-a-turning-point-for-the-stock.html",
-      "category": "other",
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "polarity": 0.0,
-      "source_tier": "TIER_2",
-      "source_rank": 2,
-      "last_seen_ts": 1775761787.4248424
-    },
-    "3e18617c2a523a4789b1113eeeb36772c0c906ad:5919181": {
-      "story_key": "3e18617c2a523a4789b1113eeeb36772c0c906ad:5919181",
-      "cluster_hash": "3e18617c2a523a4789b1113eeeb36772c0c906ad",
-      "headline": "Meta, CoreWeave In $21B Deal to Expand AI Partnership",
-      "tickers": [
-        "META"
-      ],
-      "published_ts": 1775754325.0,
-      "first_seen_ts": 1775761787.4248424,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "AI Business"
-      ],
-      "url": "https://aibusiness.com/generative-ai/meta-coreweave-21b-deal-expand-ai-partnership",
-      "category": "contract",
-      "impact": 0.7,
-      "clarity": 0.6,
-      "relevance": 0.745,
-      "polarity": 0.0,
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "last_seen_ts": 1775761787.4248424
-    },
-    "1bd58aab9cbac4eca4be6e05ee632de0d3237b0a:5919180": {
-      "story_key": "1bd58aab9cbac4eca4be6e05ee632de0d3237b0a:5919180",
-      "cluster_hash": "1bd58aab9cbac4eca4be6e05ee632de0d3237b0a",
-      "headline": "\"We see everything\": Meta's Ray-Ban glasses are recording your most private moments   - NaturalNews.com",
-      "tickers": [
-        "META"
-      ],
-      "published_ts": 1775754049.0,
-      "first_seen_ts": 1775761787.4248424,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "NaturalNews.com"
-      ],
-      "url": "https://www.naturalnews.com/2026-04-09-meta-ray-ban-glasses-recording-private-moments.html",
-      "category": "other",
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "polarity": 0.0,
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "last_seen_ts": 1775761787.4248424
-    },
-    "3c0a4d34e40a3dfcd941e3d7553f9ce9a4b64cd5:5919171": {
-      "story_key": "3c0a4d34e40a3dfcd941e3d7553f9ce9a4b64cd5:5919171",
-      "cluster_hash": "3c0a4d34e40a3dfcd941e3d7553f9ce9a4b64cd5",
-      "headline": "Shelly Palmer: Meta's $14 billion reset delivers first results",
-      "tickers": [
-        "META"
-      ],
-      "published_ts": 1775751402.0,
-      "first_seen_ts": 1775761787.4248424,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "SaskToday.ca"
-      ],
-      "url": "https://www.sasktoday.ca/opinion/shelly-palmer-metas-14-billion-reset-delivers-first-results-12119629",
-      "category": "other",
-      "impact": 0.1,
-      "clarity": 0.8,
-      "relevance": 0.535,
-      "polarity": 0.0,
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "last_seen_ts": 1775761787.4248424
-    },
-    "ec5d29c9288c3292a39bc6865dc44921df7f72b6:5919177": {
-      "story_key": "ec5d29c9288c3292a39bc6865dc44921df7f72b6:5919177",
-      "cluster_hash": "ec5d29c9288c3292a39bc6865dc44921df7f72b6",
-      "headline": "Meta debuts new AI model in first test of costly 'superintelligence' team",
-      "tickers": [
-        "META"
-      ],
-      "published_ts": 1775753266.0,
-      "first_seen_ts": 1775761787.4248424,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "The Guardian"
-      ],
-      "url": "https://www.theguardian.com/technology/2026/apr/09/meta-first-ai-model-muse-sparks",
-      "category": "other",
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "polarity": 0.0,
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "last_seen_ts": 1775761787.4248424
-    },
-    "ee398d73820eddb0b6ee928721baf7a327f17932:5919179": {
-      "story_key": "ee398d73820eddb0b6ee928721baf7a327f17932:5919179",
-      "cluster_hash": "ee398d73820eddb0b6ee928721baf7a327f17932",
-      "headline": "CoreWeave, Meta strike latest $30b deal for AI computing",
-      "tickers": [
-        "META"
-      ],
-      "published_ts": 1775753782.0,
-      "first_seen_ts": 1775761787.4248424,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Australian Financial Review"
-      ],
-      "url": "https://www.afr.com/technology/coreweave-meta-strike-latest-30b-deal-for-ai-computing-20260410-p5zmq6",
-      "category": "other",
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "polarity": 0.0,
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "last_seen_ts": 1775761787.4248424
-    },
-    "85228c1a6f2f550cac829fd2845cdf2eadf22711:5919176": {
-      "story_key": "85228c1a6f2f550cac829fd2845cdf2eadf22711:5919176",
-      "cluster_hash": "85228c1a6f2f550cac829fd2845cdf2eadf22711",
-      "headline": "Why CoreWeave's New $21 Billion Meta Deal Matters More Than the $3 Billion in New Debt",
-      "tickers": [
-        "META"
-      ],
-      "published_ts": 1775752830.0,
-      "first_seen_ts": 1775761787.4248424,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "24/7 Wall St."
-      ],
-      "url": "https://247wallst.com/investing/2026/04/09/why-coreweaves-new-21-billion-meta-deal-matters-more-than-the-3-billion-in-new-debt/",
-      "category": "other",
-      "impact": 0.1,
-      "clarity": 0.8,
-      "relevance": 0.535,
-      "polarity": 0.0,
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "last_seen_ts": 1775761787.4248424
-    },
-    "17c4810f820ea10c5e6088acda3b9e468c1f3519:5919174": {
-      "story_key": "17c4810f820ea10c5e6088acda3b9e468c1f3519:5919174",
-      "cluster_hash": "17c4810f820ea10c5e6088acda3b9e468c1f3519",
-      "headline": "Meta and CoreWeave Boost $21B AI Cloud Partnership",
-      "tickers": [
-        "META"
-      ],
-      "published_ts": 1775752204.0,
-      "first_seen_ts": 1775761787.4248424,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "El-Balad.com"
-      ],
-      "url": "https://www.el-balad.com/16907200",
-      "category": "contract",
-      "impact": 0.7,
-      "clarity": 0.6,
-      "relevance": 0.745,
-      "polarity": 0.0,
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "last_seen_ts": 1775761787.4248424
-    },
-    "0e868d0936cd3aed060f6e1369fb85893484c635:5919176": {
-      "story_key": "0e868d0936cd3aed060f6e1369fb85893484c635:5919176",
-      "cluster_hash": "0e868d0936cd3aed060f6e1369fb85893484c635",
-      "headline": "CoreWeave Lands Massive $21 Billion Meta Deal - CoreWeave (NASDAQ:CRWV), Meta Platforms (NASDAQ:META)",
-      "tickers": [
-        "META"
-      ],
-      "published_ts": 1775752829.0,
-      "first_seen_ts": 1775761787.4248424,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Benzinga"
-      ],
-      "url": "https://www.benzinga.com/trading-ideas/movers/26/04/51737541/coreweave-lands-massive-21-billion-meta-deal",
-      "category": "other",
-      "impact": 0.1,
-      "clarity": 0.8,
-      "relevance": 0.535,
-      "polarity": 0.0,
-      "source_tier": "TIER_2",
-      "source_rank": 2,
-      "last_seen_ts": 1775761787.4248424
-    },
-    "c3278ff941b4af346d23fcb6f309b2c6ad4bdd61:5919175": {
-      "story_key": "c3278ff941b4af346d23fcb6f309b2c6ad4bdd61:5919175",
-      "cluster_hash": "c3278ff941b4af346d23fcb6f309b2c6ad4bdd61",
-      "headline": "Meta AI Superintelligence Model: 4 Safety Concerns",
-      "tickers": [
-        "META"
-      ],
-      "published_ts": 1775752711.0,
-      "first_seen_ts": 1775761787.4248424,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "TechnoSports"
-      ],
-      "url": "https://technosports.co.in/?p=1266186",
-      "category": "other",
-      "impact": 0.1,
-      "clarity": 0.8,
-      "relevance": 0.535,
-      "polarity": 0.0,
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "last_seen_ts": 1775761787.4248424
-    },
-    "aa2d5c4604304bf2d2faa21a3b53724d4cd85295:5919174": {
-      "story_key": "aa2d5c4604304bf2d2faa21a3b53724d4cd85295:5919174",
-      "cluster_hash": "aa2d5c4604304bf2d2faa21a3b53724d4cd85295",
-      "headline": "CoreWeave stock surges 16% on massive $21B Meta deal",
-      "tickers": [
-        "META"
-      ],
-      "published_ts": 1775752363.0,
-      "first_seen_ts": 1775761787.4248424,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Rolling Out"
-      ],
-      "url": "https://rollingout.com/2026/04/09/coreweave-stock-surge-meta-21b-deal/",
-      "category": "other",
-      "impact": 0.1,
-      "clarity": 0.8,
-      "relevance": 0.535,
-      "polarity": 0.0,
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "last_seen_ts": 1775761787.4248424
-    },
-    "e962b0e022b8dc28f4f97f1c09d5193076f62e85:5919173": {
-      "story_key": "e962b0e022b8dc28f4f97f1c09d5193076f62e85:5919173",
-      "cluster_hash": "e962b0e022b8dc28f4f97f1c09d5193076f62e85",
-      "headline": "Meta, Oracle and Qualcomm share details on layoffs across California",
-      "tickers": [
-        "META"
-      ],
-      "published_ts": 1775752183.0,
-      "first_seen_ts": 1775761787.4248424,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "ArcaMax"
-      ],
-      "url": "https://www.arcamax.com/business/businessnews/s-4065894",
-      "category": "other",
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.45543478260869563,
-      "polarity": 0.0,
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "last_seen_ts": 1775761787.4248424
-    },
-    "7056e6556c1f146b3a7e2e2c4ce4577dc6777fdf:5919174": {
-      "story_key": "7056e6556c1f146b3a7e2e2c4ce4577dc6777fdf:5919174",
-      "cluster_hash": "7056e6556c1f146b3a7e2e2c4ce4577dc6777fdf",
-      "headline": "Meta upgrades Meta AI with Muse Spark",
-      "tickers": [
-        "META"
-      ],
-      "published_ts": 1775752298.0,
-      "first_seen_ts": 1775761787.4248424,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Notebookcheck"
-      ],
-      "url": "https://www.notebookcheck.net/Meta-upgrades-Meta-AI-with-Muse-Spark.1270170.0.html",
-      "category": "other",
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "polarity": 0.0,
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "last_seen_ts": 1775761787.4248424
-    },
-    "71e318426550b97c96373bfecfc09e9b3b4a5cb2:5919173": {
-      "story_key": "71e318426550b97c96373bfecfc09e9b3b4a5cb2:5919173",
-      "cluster_hash": "71e318426550b97c96373bfecfc09e9b3b4a5cb2",
-      "headline": "Stocks making the biggest moves midday: Meta Platforms, Brown-Forman, Amazon, Marvell & more",
-      "tickers": [
-        "META"
-      ],
-      "published_ts": 1775752101.0,
-      "first_seen_ts": 1775761787.4248424,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "CNBC"
-      ],
-      "url": "https://www.cnbc.com/2026/04/09/stocks-making-the-biggest-moves-midday-meta-bfb-amzn-mrvl.html",
-      "category": "other",
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "polarity": 0.0,
-      "source_tier": "TIER_2",
-      "source_rank": 2,
-      "last_seen_ts": 1775761787.4248424
-    },
-    "7819209b8ab8160b76031f739d4a270d9ee857c4:5919172": {
-      "story_key": "7819209b8ab8160b76031f739d4a270d9ee857c4:5919172",
-      "cluster_hash": "7819209b8ab8160b76031f739d4a270d9ee857c4",
-      "headline": "Meta Expands CoreWeave Deal to $21 Billion as AI Cloud Demand Grows | PYMNTS.com",
-      "tickers": [
-        "META"
-      ],
-      "published_ts": 1775751685.0,
-      "first_seen_ts": 1775761787.4248424,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "PYMNTS.com"
-      ],
-      "url": "https://www.pymnts.com/artificial-intelligence-2/2026/meta-expands-coreweave-deal-to-21-billion-as-ai-cloud-demand-grows/",
-      "category": "other",
-      "impact": 0.1,
-      "clarity": 0.8,
-      "relevance": 0.535,
-      "polarity": 0.0,
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "last_seen_ts": 1775761787.4248424
     }
   }
 }
