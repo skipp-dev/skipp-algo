@@ -5286,6 +5286,18 @@ if long_should_confirm
 [long_building_state, ready_bar_gap_ok, scoring_accel_ready, scoring_sd_ready, scoring_vol_ready, scoring_stretch_ready, scoring_ddvi_ready, lifecycle_ready_ok, long_ready_state] = resolve_long_ready_projection_state(long_state.armed, long_internal_structure_ok, long_state.confirmed, long_state.confirm_bar_index, bar_index, use_scoring_over_blocking, accel_ready_gate_ok, sd_ready_gate_ok, vol_ready_context_ok, stretch_ready_context_ok, ddvi_ready_ok_safe, close_safe_mode, long_confirm_expired, ready_is_fresh, long_confirm_bearish_guard_ok, require_main_break_for_ready_eff, bull_bos_sig, main_bos_recent, setup_hard_gate_ok, trade_hard_gate_ok, environment_hard_gate_ok, quality_gate_ok)
 [long_entry_best_state, long_entry_strict_state] = resolve_long_entry_projection_state(long_ready_state, best_signal_quality_gate_ok, accel_entry_best_gate_ok, sd_entry_best_gate_ok, vol_entry_best_context_ok_safe, stretch_entry_best_context_ok, ddvi_entry_best_ok_safe, strict_signal_quality_gate_ok, strict_entry_ltf_ok, htf_alignment_ok, accel_strict_entry_gate_ok, sd_entry_strict_gate_ok, vol_entry_strict_context_ok_safe, stretch_entry_strict_context_ok, ddvi_entry_strict_ok_safe)
 [long_ready_blocker_text, long_strict_blocker_text] = resolve_long_execution_blocker_state(long_ready_state, long_state.confirmed, close_safe_mode, ready_bar_gap_ok, long_confirm_expired, ready_is_fresh, long_confirm_bearish_guard_ok, require_main_break_for_ready_eff, bull_bos_sig, main_bos_recent, setup_hard_gate_ok, trade_hard_gate_ok, environment_hard_gate_ok, session_structure_gate_ok, micro_session_gate_ok, micro_freshness_gate_ok, overhead_zone_ok, market_regime_gate_ok, vola_regime_gate_safe, quality_gate_ok, scoring_accel_ready, scoring_sd_ready, scoring_vol_ready, scoring_stretch_ready, scoring_ddvi_ready, long_entry_strict_state, strict_signal_quality_gate_ok, strict_entry_ltf_ok, htf_alignment_ok, accel_strict_entry_gate_ok, sd_entry_strict_gate_ok, vol_entry_strict_context_ok_safe, stretch_entry_strict_context_ok, ddvi_entry_strict_ok_safe)
+
+// ── Trust enforcement (WP-3C) ──────────────────────────────────
+// Suppress entry signals when measurement trust is Insufficient.
+// Degraded trust is surfaced as a warning but does NOT suppress entry —
+// the operator retains full discretion at that level.
+string core_trust_tier_early = resolve_trust_tier(lib_sq_tier, lib_sq_freshness, lib_erl_provider_status)
+bool trust_allows_entry = core_trust_tier_early != 'Insufficient'
+if not trust_allows_entry
+    long_entry_best_state := false
+    long_entry_strict_state := false
+    long_strict_blocker_text := 'Blocked: Trust Insufficient'
+
 bool long_quality_clean_tier = resolve_long_clean_tier(close_safe_mode, bullish_trend_safe, zone_recent, reclaim_recent, long_state.confirmed, setup_hard_gate_ok, trade_hard_gate_ok, environment_hard_gate_ok, quality_gate_ok, bull_close_strong, ema_support_ok, adx_strong, relvol_ok, vwap_filter_ok)
 [long_stop_level, long_risk_r, long_target_1, long_target_2] = compute_long_risk_plan_state(long_plan_active, long_planned_stop_level, planned_risk, long_state.trigger, target1_r, target2_r)
 [bus_trigger_level, bus_invalidation_level, bus_stop_level, bus_target_1, bus_target_2] = resolve_long_bus_plan_levels(long_plan_active, long_state.trigger, long_state.invalidation_level, long_stop_level, long_target_1, long_target_2)
@@ -5391,7 +5403,7 @@ if barstate.islast and compact_mode
         label.delete(core_hero_card)
     string core_product_state = resolve_core_product_state(long_visual_state)
     string core_bias_text = cr.resolve_core_bias_text(lib_sq_bias_alignment)
-    string core_trust_tier = resolve_trust_tier(lib_sq_tier, lib_sq_freshness, lib_erl_provider_status)
+    string core_trust_tier = core_trust_tier_early
     string core_trust_suffix = compose_trust_tier_suffix(core_trust_tier, lib_sq_score, lib_sq_freshness, lib_erl_provider_status, lib_ensemble_quality_tier)
     string core_provider_state = cr.resolve_core_provider_state(lib_erl_provider_status, lib_provider_count, lib_stale_providers)
     string core_trade_threshold = cr.compose_trade_threshold_text(core_trust_tier, lib_sq_score)
@@ -5454,7 +5466,7 @@ else if barstate.islast and compact_mode and not na(health_badge)
 
 // ── Alert Conditions (v5.5 MVP) ──
 string alert_product_state = resolve_core_product_state(long_visual_state)
-string alert_trust_tier = resolve_trust_tier(lib_sq_tier, lib_sq_freshness, lib_erl_provider_status)
+string alert_trust_tier = core_trust_tier_early
 bool alert_trust_degraded = alert_trust_tier == 'Degraded' and (na(alert_trust_tier[1]) or alert_trust_tier[1] != 'Degraded')
 bool alert_trust_insufficient = alert_trust_tier == 'Insufficient' and (na(alert_trust_tier[1]) or alert_trust_tier[1] != 'Insufficient')
 

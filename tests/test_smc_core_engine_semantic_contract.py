@@ -475,10 +475,20 @@ def test_core_engine_has_all_alertcondition_titles() -> None:
 def test_alertcondition_uses_only_existing_variables() -> None:
     source = _read(CORE_PATH)
     assert "alert_product_state = resolve_core_product_state(long_visual_state)" in source
-    assert "alert_trust_tier = resolve_trust_tier(" in source
+    assert "alert_trust_tier = core_trust_tier_early" in source
     assert "event_risk_gate_ok" in source
     assert "lib_has_macro_event" in source
     assert "lib_has_earnings" in source
+
+
+def test_trust_enforcement_suppresses_entry_at_insufficient() -> None:
+    """WP-3C: Trust Insufficient must suppress entry best/strict states."""
+    source = _read(CORE_PATH)
+    assert "core_trust_tier_early = resolve_trust_tier(" in source
+    assert "trust_allows_entry = core_trust_tier_early != 'Insufficient'" in source
+    assert "long_entry_best_state := false" in source
+    assert "long_entry_strict_state := false" in source
+    assert "'Blocked: Trust Insufficient'" in source
 
 
 def test_alertcondition_count_is_10() -> None:

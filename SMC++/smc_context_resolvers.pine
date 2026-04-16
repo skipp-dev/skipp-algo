@@ -107,11 +107,11 @@ export compose_main_risk_text(string product_state, string event_risk_state, str
 
 export compose_trade_threshold_text(string trust_tier, int signal_quality_score) =>
     string confidence_text = 'Caution'
-    if trust_tier == 'Strong'
+    if trust_tier == 'High'
         confidence_text := 'High'
-    else if trust_tier == 'Usable'
+    else if trust_tier == 'Guarded'
         confidence_text := 'Usable'
-    else if trust_tier == 'Thin'
+    else if trust_tier == 'Degraded'
         confidence_text := 'Thin'
     if signal_quality_score < 50
         confidence_text += ' (low quality)'
