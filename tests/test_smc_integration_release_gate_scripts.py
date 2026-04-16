@@ -352,8 +352,10 @@ def test_measurement_gate_uses_real_evidence(monkeypatch, tmp_path: Path) -> Non
     measurement_dir = measurement_root / "AAPL" / "15m"
     manifest_path = measurement_dir / "measurement_manifest.json"
 
-    assert gate["status"] == "warn"
-    assert gate["blocking"] is False
+    # After governance promotion (77ac1652), calibrated ECE 0.333 > 0.30 triggers
+    # MEASUREMENT_CALIBRATED_ECE_ABOVE_THRESHOLD which is now a hard-blocking gate.
+    assert gate["status"] == "fail"
+    assert gate["blocking"] is True
     assert gate["details"]["measurement_evidence_present"] is True
     assert gate["details"]["benchmark_event_counts"]["BOS"] == 1
     assert gate["details"]["benchmark_event_counts"]["SWEEP"] == 1
@@ -492,7 +494,9 @@ def test_measurement_gate_warns_brier_above_soft_threshold(monkeypatch, tmp_path
 
     brier_warnings = [w for w in gate["details"]["warnings"] if "Brier score" in w and "soft threshold" in w]
     assert len(brier_warnings) >= 1, f"Expected Brier soft warning, got: {gate['details']['warnings']}"
-    assert gate["blocking"] is False
+    # Gate is blocking because calibrated ECE > 0.30 triggers the hard ECE gate.
+    # The Brier soft-warning is still correctly emitted alongside the hard gate.
+    assert gate["blocking"] is True
 
 
 def test_measurement_gate_warns_coverage_below_soft_threshold(monkeypatch, tmp_path: Path) -> None:
@@ -520,7 +524,9 @@ def test_measurement_gate_warns_coverage_below_soft_threshold(monkeypatch, tmp_p
 
     coverage_warnings = [w for w in gate["details"]["warnings"] if "Event coverage" in w and "soft threshold" in w]
     assert len(coverage_warnings) >= 1, f"Expected coverage soft warning, got: {gate['details']['warnings']}"
-    assert gate["blocking"] is False
+    # Gate is blocking because calibrated ECE > 0.30 triggers the hard ECE gate.
+    # The coverage soft-warning is still correctly emitted alongside the hard gate.
+    assert gate["blocking"] is True
 
 
 def test_soft_warn_thresholds_are_configurable() -> None:
