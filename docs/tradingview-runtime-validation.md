@@ -1,5 +1,7 @@
 # TradingView Runtime Validation
 
+> **Canonical ops reference:** [`docs/tradingview_operational_publish_runbook_2026-04-17.md`](tradingview_operational_publish_runbook_2026-04-17.md)
+
 ## Scope
 
 This document tracks only the TradingView automation validation layer:

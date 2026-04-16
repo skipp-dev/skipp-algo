@@ -33,6 +33,9 @@
     "tv:preflight:decision-first": "TV_PERSISTENT_PROFILE_DIR=automation/tradingview/auth/chromium-profile tsx scripts/tv_preflight.ts --config automation/tradingview/preflight-decision-first.json",
     "tv:smoke-readonly": "tsx scripts/tv_preflight.ts --execution-mode readonly",
     "tv:test": "tsx --test automation/tradingview/tests/**/*.test.ts",
+    "tv:verify": "bash scripts/tv_verify_publish_chain.sh",
+    "tv:verify:report-only": "bash scripts/tv_verify_publish_chain.sh --report-only",
+    "tv:evidence-summary": "python3 scripts/tv_publish_evidence_summary.py",
     "tsc:check": "tsc --noEmit"
   },
   "devDependencies": {

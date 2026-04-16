@@ -1,5 +1,7 @@
 # Split Library Compile Readiness
 
+> **Canonical ops reference:** [`docs/tradingview_operational_publish_runbook_2026-04-17.md`](tradingview_operational_publish_runbook_2026-04-17.md)
+
 Date: 2026-04-16 (updated — all 5 publish-verified)
 Reviewed commit: `fce324b0`
 

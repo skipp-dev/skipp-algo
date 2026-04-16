@@ -1,5 +1,9 @@
 # TradingView Manual Publish Checklist
 
+> **Canonical ops reference:** [`docs/tradingview_operational_publish_runbook_2026-04-17.md`](tradingview_operational_publish_runbook_2026-04-17.md)
+> This checklist is a supplementary step-by-step guide. The runbook is the master reference
+> for the full publish lifecycle, failure modes, and evidence requirements.
+
 Stand: 2026-04-16 (aktualisiert — alle 5 publish-verified)
 Branch: `main` @ `fce324b0`
 
