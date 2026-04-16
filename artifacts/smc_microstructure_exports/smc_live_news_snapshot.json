@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-04-16T09:05:17.484497Z",
+  "generated_at": "2026-04-16T10:40:28.534566Z",
   "symbols": [
     "AAPL",
     "MSFT",
@@ -64,12 +64,12 @@
     "newsapi_ai": {
       "ok": true,
       "error": "",
-      "raw_count": 50,
-      "new_item_count": 3,
+      "raw_count": 2,
+      "new_item_count": 0,
       "cursor": 1776325125.0,
       "last_seen_news_uri": "",
-      "provider_status": "ok",
-      "status_detail": "",
+      "provider_status": "ok_no_recent_matches",
+      "status_detail": "Event Registry reachable, but no new symbol-matching NewsAPI.ai items were newer than the current cursor.",
       "error_code": ""
     },
     "tv": {
@@ -89,7 +89,7 @@
       ],
       "published_at": "2026-04-16T07:38:45Z",
       "published_ts": 1776325125.0,
-      "age_minutes": 86.5,
+      "age_minutes": 181.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -110,13 +110,13 @@
       "impact": 0.8,
       "clarity": 0.6,
       "relevance": 0.79,
-      "news_catalyst_score": 0.5426,
-      "materiality": "MEDIUM",
+      "news_catalyst_score": 0.4867,
+      "materiality": "LOW",
       "recency_bucket": "AGING",
-      "is_actionable": true,
+      "is_actionable": false,
       "url": "https://seekingalpha.com/article/4891119-jpmorgan-chase-the-warning-may-be-more-important-than-the-earnings",
       "first_seen_at": "2026-04-16T09:05:17.484497Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -127,7 +127,7 @@
       ],
       "published_at": "2026-04-15T12:01:45Z",
       "published_ts": 1776254505.0,
-      "age_minutes": 1263.5,
+      "age_minutes": 1358.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -165,7 +165,7 @@
       ],
       "published_at": "2026-04-15T12:01:11Z",
       "published_ts": 1776254471.0,
-      "age_minutes": 1264.1,
+      "age_minutes": 1359.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -203,7 +203,7 @@
       ],
       "published_at": "2026-04-15T14:40:00Z",
       "published_ts": 1776264000.0,
-      "age_minutes": 1105.3,
+      "age_minutes": 1200.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -241,7 +241,7 @@
       ],
       "published_at": "2026-04-15T12:53:12Z",
       "published_ts": 1776257592.0,
-      "age_minutes": 1212.1,
+      "age_minutes": 1307.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -279,7 +279,7 @@
       ],
       "published_at": "2026-04-15T18:19:52Z",
       "published_ts": 1776277192.0,
-      "age_minutes": 885.4,
+      "age_minutes": 980.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -310,44 +310,6 @@
       "provider_count": 1
     },
     {
-      "story_key": "c0345c2d2ba782236fc332108c5a28ce01e8f787:5921047",
-      "headline": "Top BofA Analyst Raises Apple Stock (AAPL) Price Target Ahead of Q2 Earnings",
-      "tickers": [
-        "AAPL"
-      ],
-      "published_at": "2026-04-16T04:39:25Z",
-      "published_ts": 1776314365.0,
-      "age_minutes": 265.9,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Markets Insider"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "earnings",
-      "event_class": "EARNINGS",
-      "event_label": "Top BofA Analyst Raises Apple Stock (AAPL) Price Target Ahead of Q2 Earnings",
-      "sentiment_label": "bullish",
-      "polarity": 0.225,
-      "impact": 0.8,
-      "clarity": 0.6,
-      "relevance": 0.79,
-      "news_catalyst_score": 0.4134,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://markets.businessinsider.com/news/stocks/top-bofa-analyst-raises-apple-stock-aapl-price-target-ahead-of-q2-earnings-1036020974",
-      "first_seen_at": "2026-04-16T05:53:08.308417Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
       "story_key": "ee4057ffbf3079db1585526e50061a24e528c3d7:5920835",
       "headline": "Data Center Boom Might Be A New Inflation Variable For The Fed - Amazon.com (NASDAQ:AMZN), BlackRock (NYS",
       "tickers": [
@@ -355,7 +317,7 @@
       ],
       "published_at": "2026-04-15T10:59:34Z",
       "published_ts": 1776250774.0,
-      "age_minutes": 1325.7,
+      "age_minutes": 1420.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -386,6 +348,44 @@
       "provider_count": 1
     },
     {
+      "story_key": "c0345c2d2ba782236fc332108c5a28ce01e8f787:5921047",
+      "headline": "Top BofA Analyst Raises Apple Stock (AAPL) Price Target Ahead of Q2 Earnings",
+      "tickers": [
+        "AAPL"
+      ],
+      "published_at": "2026-04-16T04:39:25Z",
+      "published_ts": 1776314365.0,
+      "age_minutes": 361.1,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Markets Insider"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "earnings",
+      "event_class": "EARNINGS",
+      "event_label": "Top BofA Analyst Raises Apple Stock (AAPL) Price Target Ahead of Q2 Earnings",
+      "sentiment_label": "bullish",
+      "polarity": 0.225,
+      "impact": 0.8,
+      "clarity": 0.6,
+      "relevance": 0.79,
+      "news_catalyst_score": 0.3836,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://markets.businessinsider.com/news/stocks/top-bofa-analyst-raises-apple-stock-aapl-price-target-ahead-of-q2-earnings-1036020974",
+      "first_seen_at": "2026-04-16T05:53:08.308417Z",
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
       "story_key": "93456f38f3b9ddfed5a09861e03c380597612ea4:5920868",
       "headline": "Wall Street analyst updates Microsoft (MSFT) stock price target",
       "tickers": [
@@ -393,7 +393,7 @@
       ],
       "published_at": "2026-04-15T13:41:37Z",
       "published_ts": 1776260497.0,
-      "age_minutes": 1163.7,
+      "age_minutes": 1258.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -424,44 +424,6 @@
       "provider_count": 1
     },
     {
-      "story_key": "4ce060cf001c66f2b65656811ad07dc5888bbd51:5921076",
-      "headline": "'Load Up,' Says Morgan Stanley as Microsoft Stock (MSFT) Gets a Boost from CIO Survey",
-      "tickers": [
-        "MSFT"
-      ],
-      "published_at": "2026-04-16T07:04:00Z",
-      "published_ts": 1776323040.0,
-      "age_minutes": 121.3,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Markets Insider"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "'Load Up,' Says Morgan Stanley as Microsoft Stock (MSFT) Gets a Boost from CIO Survey",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.2275,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://markets.businessinsider.com/news/stocks/load-up-says-morgan-stanley-as-microsoft-stock-msft-gets-a-boost-from-cio-survey-1036027894",
-      "first_seen_at": "2026-04-16T09:05:17.484497Z",
-      "is_new": true,
-      "provider_count": 1
-    },
-    {
       "story_key": "774d803ed05c794efec10cf2a486ebd219fa9fb8:5920915",
       "headline": "10 Information Technology Stocks Whale Activity In Today's Session - Apple (NASDAQ:AAPL), Advanced Micro",
       "tickers": [
@@ -469,7 +431,7 @@
       ],
       "published_at": "2026-04-15T17:35:48Z",
       "published_ts": 1776274548.0,
-      "age_minutes": 929.5,
+      "age_minutes": 1024.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -507,7 +469,7 @@
       ],
       "published_at": "2026-04-15T15:49:04Z",
       "published_ts": 1776268144.0,
-      "age_minutes": 1036.2,
+      "age_minutes": 1131.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -538,14 +500,14 @@
       "provider_count": 1
     },
     {
-      "story_key": "bd31b86ba07c8ed816ac90250a58e90113bd9bce:5921062",
-      "headline": "Microsoft Stock (MSFT) Jumps as Xbox Mulls a Return to Exclusive Games",
+      "story_key": "4ce060cf001c66f2b65656811ad07dc5888bbd51:5921076",
+      "headline": "'Load Up,' Says Morgan Stanley as Microsoft Stock (MSFT) Gets a Boost from CIO Survey",
       "tickers": [
         "MSFT"
       ],
-      "published_at": "2026-04-16T05:53:33Z",
-      "published_ts": 1776318813.0,
-      "age_minutes": 191.7,
+      "published_at": "2026-04-16T07:04:00Z",
+      "published_ts": 1776323040.0,
+      "age_minutes": 216.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -560,19 +522,19 @@
       "source_rank": 3,
       "category": "other",
       "event_class": "UNKNOWN",
-      "event_label": "Microsoft Stock (MSFT) Jumps as Xbox Mulls a Return to Exclusive Games",
-      "sentiment_label": "bullish",
-      "polarity": 0.1375,
+      "event_label": "'Load Up,' Says Morgan Stanley as Microsoft Stock (MSFT) Gets a Boost from CIO Survey",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
       "impact": 0.1,
       "clarity": 0.6,
       "relevance": 0.475,
-      "news_catalyst_score": 0.2082,
+      "news_catalyst_score": 0.1988,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
-      "url": "https://markets.businessinsider.com/news/stocks/microsoft-stock-msft-jumps-as-xbox-mulls-a-return-to-exclusive-games-1036027010",
+      "url": "https://markets.businessinsider.com/news/stocks/load-up-says-morgan-stanley-as-microsoft-stock-msft-gets-a-boost-from-cio-survey-1036027894",
       "first_seen_at": "2026-04-16T09:05:17.484497Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -583,7 +545,7 @@
       ],
       "published_at": "2026-04-15T20:14:37Z",
       "published_ts": 1776284077.0,
-      "age_minutes": 770.7,
+      "age_minutes": 865.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -621,7 +583,7 @@
       ],
       "published_at": "2026-04-15T20:14:37Z",
       "published_ts": 1776284077.0,
-      "age_minutes": 770.7,
+      "age_minutes": 865.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -659,7 +621,7 @@
       ],
       "published_at": "2026-04-15T17:31:32Z",
       "published_ts": 1776274292.0,
-      "age_minutes": 933.8,
+      "age_minutes": 1028.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -697,7 +659,7 @@
       ],
       "published_at": "2026-04-15T17:16:36Z",
       "published_ts": 1776273396.0,
-      "age_minutes": 948.7,
+      "age_minutes": 1043.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -735,7 +697,7 @@
       ],
       "published_at": "2026-04-15T16:14:45Z",
       "published_ts": 1776269685.0,
-      "age_minutes": 1010.5,
+      "age_minutes": 1105.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -773,7 +735,7 @@
       ],
       "published_at": "2026-04-15T16:08:50Z",
       "published_ts": 1776269330.0,
-      "age_minutes": 1016.5,
+      "age_minutes": 1111.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -804,82 +766,6 @@
       "provider_count": 1
     },
     {
-      "story_key": "3a30c90d1db4db62d52096b8e5dcf3701936e741:5920823",
-      "headline": "Analyzing Microsoft In Comparison To Competitors In Software Industry - Microsoft (NASDAQ:MSFT)",
-      "tickers": [
-        "MSFT"
-      ],
-      "published_at": "2026-04-15T09:59:20Z",
-      "published_ts": 1776247160.0,
-      "age_minutes": 1386.0,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Benzinga"
-      ],
-      "source_tier": "TIER_2",
-      "source_rank": 2,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Analyzing Microsoft In Comparison To Competitors In Software Industry - Microsoft (NASDAQ:MSFT)",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.1946,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.benzinga.com/insights/news/26/04/51824291/analyzing-microsoft-in-comparison-to-competitors-in-software-industry",
-      "first_seen_at": "2026-04-15T12:47:11.886636Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "d2ee109eb5cd433cb51054d9a7ae04baeb2634d0:5920823",
-      "headline": "In-Depth Analysis: Amazon.com Versus Competitors In Broadline Retail Industry - Amazon.com (NASDAQ:AMZN)",
-      "tickers": [
-        "AMZN"
-      ],
-      "published_at": "2026-04-15T09:58:53Z",
-      "published_ts": 1776247133.0,
-      "age_minutes": 1386.4,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Benzinga"
-      ],
-      "source_tier": "TIER_2",
-      "source_rank": 2,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "In-Depth Analysis: Amazon.com Versus Competitors In Broadline Retail Industry - Amazon.com (NASDAQ:AMZN)",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.1946,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.benzinga.com/insights/news/26/04/51824281/in-depth-analysis-amazon-com-versus-competitors-in-broadline-retail-industry",
-      "first_seen_at": "2026-04-15T12:47:11.886636Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
       "story_key": "5d51cd2f12a370f6b19d87fa07fe6ed2403467cf:5920963",
       "headline": "Nasdaq Composite Closes at All-Time Highs; Tesla Stock Price Jumps 7.6%, MSFT Stock Gains 4.6",
       "tickers": [
@@ -887,7 +773,7 @@
       ],
       "published_at": "2026-04-15T21:39:59Z",
       "published_ts": 1776289199.0,
-      "age_minutes": 685.3,
+      "age_minutes": 780.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -925,7 +811,7 @@
       ],
       "published_at": "2026-04-15T18:15:46Z",
       "published_ts": 1776276946.0,
-      "age_minutes": 889.5,
+      "age_minutes": 984.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -963,7 +849,7 @@
       ],
       "published_at": "2026-04-15T17:04:37Z",
       "published_ts": 1776272677.0,
-      "age_minutes": 960.7,
+      "age_minutes": 1055.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1001,7 +887,7 @@
       ],
       "published_at": "2026-04-15T15:56:05Z",
       "published_ts": 1776268565.0,
-      "age_minutes": 1029.2,
+      "age_minutes": 1124.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1040,7 +926,7 @@
       ],
       "published_at": "2026-04-15T15:11:53Z",
       "published_ts": 1776265913.0,
-      "age_minutes": 1073.4,
+      "age_minutes": 1168.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1078,7 +964,7 @@
       ],
       "published_at": "2026-04-15T13:42:37Z",
       "published_ts": 1776260557.0,
-      "age_minutes": 1162.7,
+      "age_minutes": 1257.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1116,7 +1002,7 @@
       ],
       "published_at": "2026-04-15T13:06:37Z",
       "published_ts": 1776258397.0,
-      "age_minutes": 1198.7,
+      "age_minutes": 1293.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1154,7 +1040,7 @@
       ],
       "published_at": "2026-04-15T11:35:42Z",
       "published_ts": 1776252942.0,
-      "age_minutes": 1289.6,
+      "age_minutes": 1384.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1194,7 +1080,7 @@
       ],
       "published_at": "2026-04-15T13:20:29Z",
       "published_ts": 1776259229.0,
-      "age_minutes": 1184.8,
+      "age_minutes": 1280.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1225,6 +1111,44 @@
       "provider_count": 1
     },
     {
+      "story_key": "bd31b86ba07c8ed816ac90250a58e90113bd9bce:5921062",
+      "headline": "Microsoft Stock (MSFT) Jumps as Xbox Mulls a Return to Exclusive Games",
+      "tickers": [
+        "MSFT"
+      ],
+      "published_at": "2026-04-16T05:53:33Z",
+      "published_ts": 1776318813.0,
+      "age_minutes": 286.9,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Markets Insider"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Microsoft Stock (MSFT) Jumps as Xbox Mulls a Return to Exclusive Games",
+      "sentiment_label": "bullish",
+      "polarity": 0.1375,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.172,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://markets.businessinsider.com/news/stocks/microsoft-stock-msft-jumps-as-xbox-mulls-a-return-to-exclusive-games-1036027010",
+      "first_seen_at": "2026-04-16T09:05:17.484497Z",
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
       "story_key": "2dd549e414581eae6192ad9247fd42063d01698c:5920974",
       "headline": "Deutsche Bank reiterates Buy on Meta stock, cites AI ad returns By Investing.com",
       "tickers": [
@@ -1232,7 +1156,7 @@
       ],
       "published_at": "2026-04-15T22:34:08Z",
       "published_ts": 1776292448.0,
-      "age_minutes": 631.2,
+      "age_minutes": 726.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1270,7 +1194,7 @@
       ],
       "published_at": "2026-04-15T20:30:42Z",
       "published_ts": 1776285042.0,
-      "age_minutes": 754.6,
+      "age_minutes": 849.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1308,7 +1232,7 @@
       ],
       "published_at": "2026-04-15T18:16:03Z",
       "published_ts": 1776276963.0,
-      "age_minutes": 889.2,
+      "age_minutes": 984.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1346,7 +1270,7 @@
       ],
       "published_at": "2026-04-15T16:04:35Z",
       "published_ts": 1776269075.0,
-      "age_minutes": 1020.7,
+      "age_minutes": 1115.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1384,7 +1308,7 @@
       ],
       "published_at": "2026-04-15T14:40:23Z",
       "published_ts": 1776264023.0,
-      "age_minutes": 1104.9,
+      "age_minutes": 1200.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1422,7 +1346,7 @@
       ],
       "published_at": "2026-04-15T13:54:12Z",
       "published_ts": 1776261252.0,
-      "age_minutes": 1151.1,
+      "age_minutes": 1246.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1461,7 +1385,7 @@
       ],
       "published_at": "2026-04-15T13:37:12Z",
       "published_ts": 1776260232.0,
-      "age_minutes": 1168.1,
+      "age_minutes": 1263.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1499,7 +1423,7 @@
       ],
       "published_at": "2026-04-15T12:35:33Z",
       "published_ts": 1776256533.0,
-      "age_minutes": 1229.7,
+      "age_minutes": 1324.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1528,49 +1452,11 @@
       "first_seen_at": "2026-04-15T16:47:18.573423Z",
       "is_new": false,
       "provider_count": 1
-    },
-    {
-      "story_key": "b4faf936ab986a9726069dd5dea831151fdb4646:5920814",
-      "headline": "Europe airlines hit by higher fuel costs; JPM cuts estimates, backs flag carriers By Investing.com",
-      "tickers": [
-        "JPM"
-      ],
-      "published_at": "2026-04-15T09:14:07Z",
-      "published_ts": 1776244447.0,
-      "age_minutes": 1431.2,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Investing.com"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Europe airlines hit by higher fuel costs; JPM cuts estimates, backs flag carriers By Investing.com",
-      "sentiment_label": "bearish",
-      "polarity": -0.1375,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.1671,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.investing.com/news/stock-market-news/europe-airlines-hit-by-higher-fuel-costs-jpm-cuts-estimates-backs-flag-carriers-4614466",
-      "first_seen_at": "2026-04-15T12:47:11.886636Z",
-      "is_new": false,
-      "provider_count": 1
     }
   ],
   "news_catalyst_by_symbol": {
     "AAPL": {
-      "news_catalyst_score": 0.5334,
+      "news_catalyst_score": 0.5036,
       "sentiment_label": "neutral",
       "event_class": "EARNINGS",
       "event_label": "Top BofA Analyst Raises Apple Stock (AAPL) Price Target Ahead of Q2 Earnings",
@@ -1590,7 +1476,7 @@
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "source_tier": "TIER_3",
-      "mentions_24h": 11,
+      "mentions_24h": 10,
       "is_actionable": false,
       "first_provider": "newsapi_ai",
       "story_key": "5ef6ccbe6d8cf02bf8da7847e991b3ebe2512196:5920858"
@@ -1609,15 +1495,15 @@
       "story_key": "5e276d5b5af104b33ba147393d9d2631f5119286:5920848"
     },
     "JPM": {
-      "news_catalyst_score": 0.6026,
+      "news_catalyst_score": 0.5167,
       "sentiment_label": "bearish",
       "event_class": "EARNINGS",
       "event_label": "JPMorgan Chase Stock: The Warning May Be More Important Than The Earnings (NYSE:JPM)",
-      "materiality": "MEDIUM",
+      "materiality": "LOW",
       "recency_bucket": "AGING",
       "source_tier": "TIER_3",
-      "mentions_24h": 3,
-      "is_actionable": true,
+      "mentions_24h": 2,
+      "is_actionable": false,
       "first_provider": "newsapi_ai",
       "story_key": "77054441a278fdf397216d8b33efa90f5b041e3f:5921083"
     },
@@ -1642,7 +1528,7 @@
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "source_tier": "TIER_3",
-      "mentions_24h": 14,
+      "mentions_24h": 13,
       "is_actionable": false,
       "first_provider": "newsapi_ai",
       "story_key": "31931b7eeef132274d34c8fe78bf3068436f2fc5:5920880"
@@ -1662,12 +1548,10 @@
     }
   },
   "summary": {
-    "active_story_count": 39,
-    "new_story_count": 3,
-    "actionable_story_count": 1,
-    "actionable_symbols": [
-      "JPM"
-    ],
+    "active_story_count": 36,
+    "new_story_count": 0,
+    "actionable_story_count": 0,
+    "actionable_symbols": [],
     "symbol_count": 7
   },
   "symbol_scope": {
