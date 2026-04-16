@@ -5,12 +5,217 @@
     "fmp_stock": 0.0,
     "fmp_press": 0.0,
     "fmp_articles": 0.0,
-    "newsapi_ai": 1776334225.0,
+    "newsapi_ai": 1776349757.0,
     "tv": 0.0,
-    "legacy_cursor": 1776334225.0
+    "legacy_cursor": 1776349757.0
   },
   "provider_state": {},
   "story_state": {
+    "dfba04609a7d9cc3e9bb9dcd6c98a23c8223fc24:5921165": {
+      "story_key": "dfba04609a7d9cc3e9bb9dcd6c98a23c8223fc24:5921165",
+      "cluster_hash": "dfba04609a7d9cc3e9bb9dcd6c98a23c8223fc24",
+      "headline": "Trade Strategy For SPY, QQQ, AAPL, MSFT, NVDA, GOOGL, META, And TSLA - Apple (NASDAQ:AAPL), Alphabet (NAS",
+      "tickers": [
+        "AAPL",
+        "META",
+        "MSFT"
+      ],
+      "published_ts": 1776349757.0,
+      "first_seen_ts": 1776351471.102709,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "url": "https://www.benzinga.com/Opinion/26/04/51860228/trade-strategy-for-spy-qqq-aapl-msft-nvda-googl-meta-and-tsla-7",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.42500000000000004,
+      "polarity": 0.0,
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "last_seen_ts": 1776351471.102709
+    },
+    "44eb93a491c7854c109a19eae5a419f701a4474d:5921163": {
+      "story_key": "44eb93a491c7854c109a19eae5a419f701a4474d:5921163",
+      "cluster_hash": "44eb93a491c7854c109a19eae5a419f701a4474d",
+      "headline": "Amazon: The Anthropic Trade You're Not Making (NASDAQ:AMZN)",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_ts": 1776348950.0,
+      "first_seen_ts": 1776351471.102709,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Seeking Alpha"
+      ],
+      "url": "https://seekingalpha.com/article/4891225-amazon-anthropic-trade-you-are-not-making",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776351471.102709
+    },
+    "9a2f7bbead9db2c8dfaf39c93eb4386ff5d99115:5921161": {
+      "story_key": "9a2f7bbead9db2c8dfaf39c93eb4386ff5d99115:5921161",
+      "cluster_hash": "9a2f7bbead9db2c8dfaf39c93eb4386ff5d99115",
+      "headline": "Amazon (AMZN) Secures Major Fox Media AI Cloud Partnership - Blockonomi",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_ts": 1776348524.0,
+      "first_seen_ts": 1776351471.102709,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Blockonomi"
+      ],
+      "url": "https://blockonomi.com/amazon-amzn-secures-major-fox-media-ai-cloud-partnership/",
+      "category": "contract",
+      "impact": 0.7,
+      "clarity": 0.6,
+      "relevance": 0.745,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776351471.102709
+    },
+    "bed31127b8a3bc1b864f266d604c6c96998735a8:5921160": {
+      "story_key": "bed31127b8a3bc1b864f266d604c6c96998735a8:5921160",
+      "cluster_hash": "bed31127b8a3bc1b864f266d604c6c96998735a8",
+      "headline": "The Clock is Running Out on Legacy Encryption: These 5 Stocks Know This Fact - Amazon.com (NASDAQ:AMZN)",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_ts": 1776348000.0,
+      "first_seen_ts": 1776351471.102709,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "url": "https://www.benzinga.com/pressreleases/26/04/n51858758/the-clock-is-running-out-on-legacy-encryption-these-5-stocks-know-this-fact",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "polarity": 0.0,
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "last_seen_ts": 1776351471.102709
+    },
+    "e9761c48b43f365179eaa35a375d1230713c1d6a:5921136": {
+      "story_key": "e9761c48b43f365179eaa35a375d1230713c1d6a:5921136",
+      "cluster_hash": "e9761c48b43f365179eaa35a375d1230713c1d6a",
+      "headline": "MSFT, ORCL and GOOG Forecasts - Tech Looking to Continue Rally",
+      "tickers": [
+        "MSFT"
+      ],
+      "published_ts": 1776340816.0,
+      "first_seen_ts": 1776351471.102709,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "FXEmpire.com"
+      ],
+      "url": "https://www.fxempire.com/forecasts/article/msft-orcl-and-goog-forecasts-tech-looking-to-continue-rally-1592072",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.1375,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776351471.102709
+    },
+    "48c866131be641566558e148757b7ccd5ff64cc6:5921131": {
+      "story_key": "48c866131be641566558e148757b7ccd5ff64cc6:5921131",
+      "cluster_hash": "48c866131be641566558e148757b7ccd5ff64cc6",
+      "headline": "Netflix, Zoom, Apollo Global And More On CNBC's 'Final Trades' - Amazon.com (NASDAQ:AMZN), Apollo Global",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_ts": 1776339534.0,
+      "first_seen_ts": 1776351471.102709,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "url": "https://www.benzinga.com/trading-ideas/long-ideas/26/04/51853291/netflix-zoom-apollo-global-and-more-on-cnbcs-final-trades",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "last_seen_ts": 1776351471.102709
+    },
+    "dac79f0c83fc3836a5f46861fb024534832c0a30:5921155": {
+      "story_key": "dac79f0c83fc3836a5f46861fb024534832c0a30:5921155",
+      "cluster_hash": "dac79f0c83fc3836a5f46861fb024534832c0a30",
+      "headline": "TD Cowen reiterates Buy on Meta stock, keeps $820 target on AI gains By Investing.com",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1776346691.0,
+      "first_seen_ts": 1776351471.102709,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Investing.com South Africa"
+      ],
+      "url": "https://za.investing.com/news/stock-market-news/td-cowen-reiterates-buy-on-meta-stock-keeps-820-target-on-ai-gains-93CH-4215839",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "polarity": 0.1375,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776351471.102709
+    },
     "f9d1ab361200f93c8383a0e35e67ae10a3f6d6e0:5921114": {
       "story_key": "f9d1ab361200f93c8383a0e35e67ae10a3f6d6e0:5921114",
       "cluster_hash": "f9d1ab361200f93c8383a0e35e67ae10a3f6d6e0",

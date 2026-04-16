@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-04-16T12:54:53.912146Z",
+  "generated_at": "2026-04-16T14:57:51.102709Z",
   "symbols": [
     "AAPL",
     "MSFT",
@@ -20,11 +20,11 @@
     "fmp_stock": 0.0,
     "fmp_press": 0.0,
     "fmp_articles": 0.0,
-    "newsapi_ai": 1776334225.0,
+    "newsapi_ai": 1776349757.0,
     "tv": 0.0,
-    "legacy_cursor": 1776334225.0
+    "legacy_cursor": 1776349757.0
   },
-  "legacy_cursor": 1776334225.0,
+  "legacy_cursor": 1776349757.0,
   "providers": {
     "benzinga": {
       "ok": false,
@@ -64,12 +64,12 @@
     "newsapi_ai": {
       "ok": true,
       "error": "",
-      "raw_count": 2,
-      "new_item_count": 0,
-      "cursor": 1776334225.0,
+      "raw_count": 50,
+      "new_item_count": 7,
+      "cursor": 1776349757.0,
       "last_seen_news_uri": "",
-      "provider_status": "ok_no_recent_matches",
-      "status_detail": "Event Registry reachable, but no new symbol-matching NewsAPI.ai items were newer than the current cursor.",
+      "provider_status": "ok",
+      "status_detail": "",
       "error_code": ""
     },
     "tv": {
@@ -82,14 +82,14 @@
   },
   "stories": [
     {
-      "story_key": "31931b7eeef132274d34c8fe78bf3068436f2fc5:5920880",
-      "headline": "Microsoft (MSFT): AI CapEx Growth And The 2026 Software Outlook | 2-Minute Analysis",
+      "story_key": "9a2f7bbead9db2c8dfaf39c93eb4386ff5d99115:5921161",
+      "headline": "Amazon (AMZN) Secures Major Fox Media AI Cloud Partnership - Blockonomi",
       "tickers": [
-        "MSFT"
+        "AMZN"
       ],
-      "published_at": "2026-04-15T14:40:00Z",
-      "published_ts": 1776264000.0,
-      "age_minutes": 1334.9,
+      "published_at": "2026-04-16T14:08:44Z",
+      "published_ts": 1776348524.0,
+      "age_minutes": 49.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -98,63 +98,25 @@
         "newsapi_ai"
       ],
       "sources": [
-        "Seeking Alpha"
+        "Blockonomi"
       ],
       "source_tier": "TIER_3",
       "source_rank": 3,
-      "category": "guidance",
-      "event_class": "GUIDANCE",
-      "event_label": "Microsoft (MSFT): AI CapEx Growth And The 2026 Software Outlook | 2-Minute Analysis",
-      "sentiment_label": "bullish",
-      "polarity": 0.235,
-      "impact": 0.88,
-      "clarity": 0.8,
-      "relevance": 0.886,
-      "news_catalyst_score": 0.4331,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://seekingalpha.com/article/4890933-microsoft-msft-ai-capex-growth-and-the-2026-software-outlook-2-minute-analysis",
-      "first_seen_at": "2026-04-15T16:47:18.573423Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "1ae826a8b0729143ab38d68be1aae45a63621ce1:5921106",
-      "headline": "Insider Selling: JPMorgan Chase & Co. (NYSE:JPM) CFO Sells 5,611 Shares of Stock",
-      "tickers": [
-        "JPM"
-      ],
-      "published_at": "2026-04-16T09:32:49Z",
-      "published_ts": 1776331969.0,
-      "age_minutes": 202.1,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "InsiderTrades.com"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "management",
-      "event_class": "MANAGEMENT",
-      "event_label": "Insider Selling: JPMorgan Chase & Co. (NYSE:JPM) CFO Sells 5,611 Shares of Stock",
+      "category": "contract",
+      "event_class": "CONTRACT",
+      "event_label": "Amazon (AMZN) Secures Major Fox Media AI Cloud Partnership - Blockonomi",
       "sentiment_label": "neutral",
       "polarity": 0.0,
-      "impact": 0.6,
-      "clarity": 0.8,
-      "relevance": 0.76,
-      "news_catalyst_score": 0.4236,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.insidertrades.com/alerts/nyse-jpm-insider-buying-and-selling-2026-04-16/",
-      "first_seen_at": "2026-04-16T11:43:28.484058Z",
-      "is_new": false,
+      "impact": 0.7,
+      "clarity": 0.6,
+      "relevance": 0.745,
+      "news_catalyst_score": 0.513,
+      "materiality": "MEDIUM",
+      "recency_bucket": "WARM",
+      "is_actionable": true,
+      "url": "https://blockonomi.com/amazon-amzn-secures-major-fox-media-ai-cloud-partnership/",
+      "first_seen_at": "2026-04-16T14:57:51.102709Z",
+      "is_new": true,
       "provider_count": 1
     },
     {
@@ -165,7 +127,7 @@
       ],
       "published_at": "2026-04-15T18:19:52Z",
       "published_ts": 1776277192.0,
-      "age_minutes": 1115.0,
+      "age_minutes": 1238.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -196,44 +158,6 @@
       "provider_count": 1
     },
     {
-      "story_key": "f9d1ab361200f93c8383a0e35e67ae10a3f6d6e0:5921114",
-      "headline": "JPMorgan CEO Jamie Dimon dumps $40m of JPM shares",
-      "tickers": [
-        "JPM"
-      ],
-      "published_at": "2026-04-16T10:10:25Z",
-      "published_ts": 1776334225.0,
-      "age_minutes": 164.5,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Finbold"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "management",
-      "event_class": "MANAGEMENT",
-      "event_label": "JPMorgan CEO Jamie Dimon dumps $40m of JPM shares",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.6,
-      "clarity": 0.6,
-      "relevance": 0.7,
-      "news_catalyst_score": 0.4171,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://finbold.com/jpmorgan-ceo-jamie-dimon-dumps-40m-of-jpm-shares/",
-      "first_seen_at": "2026-04-16T11:43:28.484058Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
       "story_key": "77054441a278fdf397216d8b33efa90f5b041e3f:5921083",
       "headline": "JPMorgan Chase Stock: The Warning May Be More Important Than The Earnings (NYSE:JPM)",
       "tickers": [
@@ -241,7 +165,7 @@
       ],
       "published_at": "2026-04-16T07:38:45Z",
       "published_ts": 1776325125.0,
-      "age_minutes": 316.1,
+      "age_minutes": 439.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -279,7 +203,7 @@
       ],
       "published_at": "2026-04-16T04:39:25Z",
       "published_ts": 1776314365.0,
-      "age_minutes": 495.5,
+      "age_minutes": 618.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -310,14 +234,52 @@
       "provider_count": 1
     },
     {
-      "story_key": "93456f38f3b9ddfed5a09861e03c380597612ea4:5920868",
-      "headline": "Wall Street analyst updates Microsoft (MSFT) stock price target",
+      "story_key": "1ae826a8b0729143ab38d68be1aae45a63621ce1:5921106",
+      "headline": "Insider Selling: JPMorgan Chase & Co. (NYSE:JPM) CFO Sells 5,611 Shares of Stock",
       "tickers": [
-        "MSFT"
+        "JPM"
       ],
-      "published_at": "2026-04-15T13:41:37Z",
-      "published_ts": 1776260497.0,
-      "age_minutes": 1393.3,
+      "published_at": "2026-04-16T09:32:49Z",
+      "published_ts": 1776331969.0,
+      "age_minutes": 325.0,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "InsiderTrades.com"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "management",
+      "event_class": "MANAGEMENT",
+      "event_label": "Insider Selling: JPMorgan Chase & Co. (NYSE:JPM) CFO Sells 5,611 Shares of Stock",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.6,
+      "clarity": 0.8,
+      "relevance": 0.76,
+      "news_catalyst_score": 0.3465,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://www.insidertrades.com/alerts/nyse-jpm-insider-buying-and-selling-2026-04-16/",
+      "first_seen_at": "2026-04-16T11:43:28.484058Z",
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
+      "story_key": "f9d1ab361200f93c8383a0e35e67ae10a3f6d6e0:5921114",
+      "headline": "JPMorgan CEO Jamie Dimon dumps $40m of JPM shares",
+      "tickers": [
+        "JPM"
+      ],
+      "published_at": "2026-04-16T10:10:25Z",
+      "published_ts": 1776334225.0,
+      "age_minutes": 287.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -330,32 +292,32 @@
       ],
       "source_tier": "TIER_3",
       "source_rank": 3,
-      "category": "analyst",
-      "event_class": "ANALYST",
-      "event_label": "Wall Street analyst updates Microsoft (MSFT) stock price target",
+      "category": "management",
+      "event_class": "MANAGEMENT",
+      "event_label": "JPMorgan CEO Jamie Dimon dumps $40m of JPM shares",
       "sentiment_label": "neutral",
       "polarity": 0.0,
-      "impact": 0.65,
+      "impact": 0.6,
       "clarity": 0.6,
-      "relevance": 0.7225,
-      "news_catalyst_score": 0.3372,
+      "relevance": 0.7,
+      "news_catalyst_score": 0.3309,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
-      "url": "https://finbold.com/wall-street-analyst-updates-microsoft-msft-stock-price-target/",
-      "first_seen_at": "2026-04-15T16:47:18.573423Z",
+      "url": "https://finbold.com/jpmorgan-ceo-jamie-dimon-dumps-40m-of-jpm-shares/",
+      "first_seen_at": "2026-04-16T11:43:28.484058Z",
       "is_new": false,
       "provider_count": 1
     },
     {
-      "story_key": "c864895383ed009e8a2922f2697ccf9954376d49:5921111",
-      "headline": "Evaluating Microsoft Against Peers In Software Industry - Microsoft (NASDAQ:MSFT)",
+      "story_key": "bed31127b8a3bc1b864f266d604c6c96998735a8:5921160",
+      "headline": "The Clock is Running Out on Legacy Encryption: These 5 Stocks Know This Fact - Amazon.com (NASDAQ:AMZN)",
       "tickers": [
-        "MSFT"
+        "AMZN"
       ],
-      "published_at": "2026-04-16T09:59:33Z",
-      "published_ts": 1776333573.0,
-      "age_minutes": 175.3,
+      "published_at": "2026-04-16T14:00:00Z",
+      "published_ts": 1776348000.0,
+      "age_minutes": 57.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -370,19 +332,173 @@
       "source_rank": 2,
       "category": "other",
       "event_class": "UNKNOWN",
-      "event_label": "Evaluating Microsoft Against Peers In Software Industry - Microsoft (NASDAQ:MSFT)",
+      "event_label": "The Clock is Running Out on Legacy Encryption: These 5 Stocks Know This Fact - Amazon.com (NASDAQ:AMZN)",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "news_catalyst_score": 0.319,
+      "materiality": "LOW",
+      "recency_bucket": "WARM",
+      "is_actionable": false,
+      "url": "https://www.benzinga.com/pressreleases/26/04/n51858758/the-clock-is-running-out-on-legacy-encryption-these-5-stocks-know-this-fact",
+      "first_seen_at": "2026-04-16T14:57:51.102709Z",
+      "is_new": true,
+      "provider_count": 1
+    },
+    {
+      "story_key": "dac79f0c83fc3836a5f46861fb024534832c0a30:5921155",
+      "headline": "TD Cowen reiterates Buy on Meta stock, keeps $820 target on AI gains By Investing.com",
+      "tickers": [
+        "META"
+      ],
+      "published_at": "2026-04-16T13:38:11Z",
+      "published_ts": 1776346691.0,
+      "age_minutes": 79.7,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Investing.com South Africa"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "TD Cowen reiterates Buy on Meta stock, keeps $820 target on AI gains By Investing.com",
+      "sentiment_label": "bullish",
+      "polarity": 0.1375,
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "news_catalyst_score": 0.2733,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://za.investing.com/news/stock-market-news/td-cowen-reiterates-buy-on-meta-stock-keeps-820-target-on-ai-gains-93CH-4215839",
+      "first_seen_at": "2026-04-16T14:57:51.102709Z",
+      "is_new": true,
+      "provider_count": 1
+    },
+    {
+      "story_key": "dfba04609a7d9cc3e9bb9dcd6c98a23c8223fc24:5921165",
+      "headline": "Trade Strategy For SPY, QQQ, AAPL, MSFT, NVDA, GOOGL, META, And TSLA - Apple (NASDAQ:AAPL), Alphabet (NAS",
+      "tickers": [
+        "AAPL",
+        "META",
+        "MSFT"
+      ],
+      "published_at": "2026-04-16T14:29:17Z",
+      "published_ts": 1776349757.0,
+      "age_minutes": 28.6,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Trade Strategy For SPY, QQQ, AAPL, MSFT, NVDA, GOOGL, META, And TSLA - Apple (NASDAQ:AAPL), Alphabet (NAS",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.425,
+      "news_catalyst_score": 0.273,
+      "materiality": "LOW",
+      "recency_bucket": "WARM",
+      "is_actionable": false,
+      "url": "https://www.benzinga.com/Opinion/26/04/51860228/trade-strategy-for-spy-qqq-aapl-msft-nvda-googl-meta-and-tsla-7",
+      "first_seen_at": "2026-04-16T14:57:51.102709Z",
+      "is_new": true,
+      "provider_count": 1
+    },
+    {
+      "story_key": "44eb93a491c7854c109a19eae5a419f701a4474d:5921163",
+      "headline": "Amazon: The Anthropic Trade You're Not Making (NASDAQ:AMZN)",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_at": "2026-04-16T14:15:50Z",
+      "published_ts": 1776348950.0,
+      "age_minutes": 42.0,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Seeking Alpha"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Amazon: The Anthropic Trade You're Not Making (NASDAQ:AMZN)",
       "sentiment_label": "neutral",
       "polarity": 0.0,
       "impact": 0.1,
       "clarity": 0.6,
       "relevance": 0.475,
-      "news_catalyst_score": 0.249,
+      "news_catalyst_score": 0.243,
+      "materiality": "LOW",
+      "recency_bucket": "WARM",
+      "is_actionable": false,
+      "url": "https://seekingalpha.com/article/4891225-amazon-anthropic-trade-you-are-not-making",
+      "first_seen_at": "2026-04-16T14:57:51.102709Z",
+      "is_new": true,
+      "provider_count": 1
+    },
+    {
+      "story_key": "48c866131be641566558e148757b7ccd5ff64cc6:5921131",
+      "headline": "Netflix, Zoom, Apollo Global And More On CNBC's 'Final Trades' - Amazon.com (NASDAQ:AMZN), Apollo Global",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_at": "2026-04-16T11:38:54Z",
+      "published_ts": 1776339534.0,
+      "age_minutes": 199.0,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Netflix, Zoom, Apollo Global And More On CNBC's 'Final Trades' - Amazon.com (NASDAQ:AMZN), Apollo Global",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.2392,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
-      "url": "https://www.benzinga.com/insights/news/26/04/51851153/evaluating-microsoft-against-peers-in-software-industry",
-      "first_seen_at": "2026-04-16T11:43:28.484058Z",
-      "is_new": false,
+      "url": "https://www.benzinga.com/trading-ideas/long-ideas/26/04/51853291/netflix-zoom-apollo-global-and-more-on-cnbcs-final-trades",
+      "first_seen_at": "2026-04-16T14:57:51.102709Z",
+      "is_new": true,
       "provider_count": 1
     },
     {
@@ -393,7 +509,7 @@
       ],
       "published_at": "2026-04-15T17:35:48Z",
       "published_ts": 1776274548.0,
-      "age_minutes": 1159.1,
+      "age_minutes": 1282.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -431,7 +547,7 @@
       ],
       "published_at": "2026-04-15T15:49:04Z",
       "published_ts": 1776268144.0,
-      "age_minutes": 1265.8,
+      "age_minutes": 1388.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -462,14 +578,14 @@
       "provider_count": 1
     },
     {
-      "story_key": "8aed8cf86929eaa36e03ca59de21d6b37d6a5bc9:5921110",
-      "headline": "Microsoft: Claude Just Threatened Copilot Adoption (NASDAQ:MSFT)",
+      "story_key": "e9761c48b43f365179eaa35a375d1230713c1d6a:5921136",
+      "headline": "MSFT, ORCL and GOOG Forecasts - Tech Looking to Continue Rally",
       "tickers": [
         "MSFT"
       ],
-      "published_at": "2026-04-16T09:54:23Z",
-      "published_ts": 1776333263.0,
-      "age_minutes": 180.5,
+      "published_at": "2026-04-16T12:00:16Z",
+      "published_ts": 1776340816.0,
+      "age_minutes": 177.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -478,23 +594,61 @@
         "newsapi_ai"
       ],
       "sources": [
-        "Seeking Alpha"
+        "FXEmpire.com"
       ],
       "source_tier": "TIER_3",
       "source_rank": 3,
       "category": "other",
       "event_class": "UNKNOWN",
-      "event_label": "Microsoft: Claude Just Threatened Copilot Adoption (NASDAQ:MSFT)",
+      "event_label": "MSFT, ORCL and GOOG Forecasts - Tech Looking to Continue Rally",
+      "sentiment_label": "bullish",
+      "polarity": 0.1375,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.2132,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://www.fxempire.com/forecasts/article/msft-orcl-and-goog-forecasts-tech-looking-to-continue-rally-1592072",
+      "first_seen_at": "2026-04-16T14:57:51.102709Z",
+      "is_new": true,
+      "provider_count": 1
+    },
+    {
+      "story_key": "c864895383ed009e8a2922f2697ccf9954376d49:5921111",
+      "headline": "Evaluating Microsoft Against Peers In Software Industry - Microsoft (NASDAQ:MSFT)",
+      "tickers": [
+        "MSFT"
+      ],
+      "published_at": "2026-04-16T09:59:33Z",
+      "published_ts": 1776333573.0,
+      "age_minutes": 298.3,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Evaluating Microsoft Against Peers In Software Industry - Microsoft (NASDAQ:MSFT)",
       "sentiment_label": "neutral",
       "polarity": 0.0,
       "impact": 0.1,
       "clarity": 0.6,
       "relevance": 0.475,
-      "news_catalyst_score": 0.2124,
+      "news_catalyst_score": 0.1953,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
-      "url": "https://seekingalpha.com/article/4891151-microsoft-claude-just-threatened-copilot-adoption",
+      "url": "https://www.benzinga.com/insights/news/26/04/51851153/evaluating-microsoft-against-peers-in-software-industry",
       "first_seen_at": "2026-04-16T11:43:28.484058Z",
       "is_new": false,
       "provider_count": 1
@@ -507,7 +661,7 @@
       ],
       "published_at": "2026-04-15T20:14:37Z",
       "published_ts": 1776284077.0,
-      "age_minutes": 1000.3,
+      "age_minutes": 1123.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -545,7 +699,7 @@
       ],
       "published_at": "2026-04-15T20:14:37Z",
       "published_ts": 1776284077.0,
-      "age_minutes": 1000.3,
+      "age_minutes": 1123.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -583,7 +737,7 @@
       ],
       "published_at": "2026-04-15T17:31:32Z",
       "published_ts": 1776274292.0,
-      "age_minutes": 1163.4,
+      "age_minutes": 1286.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -621,7 +775,7 @@
       ],
       "published_at": "2026-04-15T17:16:36Z",
       "published_ts": 1776273396.0,
-      "age_minutes": 1178.3,
+      "age_minutes": 1301.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -659,7 +813,7 @@
       ],
       "published_at": "2026-04-15T16:14:45Z",
       "published_ts": 1776269685.0,
-      "age_minutes": 1240.1,
+      "age_minutes": 1363.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -697,7 +851,7 @@
       ],
       "published_at": "2026-04-15T16:08:50Z",
       "published_ts": 1776269330.0,
-      "age_minutes": 1246.1,
+      "age_minutes": 1369.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -735,7 +889,7 @@
       ],
       "published_at": "2026-04-15T21:39:59Z",
       "published_ts": 1776289199.0,
-      "age_minutes": 914.9,
+      "age_minutes": 1037.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -773,7 +927,7 @@
       ],
       "published_at": "2026-04-15T18:15:46Z",
       "published_ts": 1776276946.0,
-      "age_minutes": 1119.1,
+      "age_minutes": 1242.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -811,7 +965,7 @@
       ],
       "published_at": "2026-04-15T17:04:37Z",
       "published_ts": 1776272677.0,
-      "age_minutes": 1190.3,
+      "age_minutes": 1313.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -849,7 +1003,7 @@
       ],
       "published_at": "2026-04-15T15:56:05Z",
       "published_ts": 1776268565.0,
-      "age_minutes": 1258.8,
+      "age_minutes": 1381.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -888,7 +1042,7 @@
       ],
       "published_at": "2026-04-15T15:11:53Z",
       "published_ts": 1776265913.0,
-      "age_minutes": 1303.0,
+      "age_minutes": 1426.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -919,14 +1073,14 @@
       "provider_count": 1
     },
     {
-      "story_key": "a241295a823804ea027d425723d53ec090c83d56:5920868",
-      "headline": "Amazon: My Top 8 Reasons To Buy (NASDAQ:AMZN)",
+      "story_key": "8aed8cf86929eaa36e03ca59de21d6b37d6a5bc9:5921110",
+      "headline": "Microsoft: Claude Just Threatened Copilot Adoption (NASDAQ:MSFT)",
       "tickers": [
-        "AMZN"
+        "MSFT"
       ],
-      "published_at": "2026-04-15T13:42:37Z",
-      "published_ts": 1776260557.0,
-      "age_minutes": 1392.3,
+      "published_at": "2026-04-16T09:54:23Z",
+      "published_ts": 1776333263.0,
+      "age_minutes": 303.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -941,56 +1095,18 @@
       "source_rank": 3,
       "category": "other",
       "event_class": "UNKNOWN",
-      "event_label": "Amazon: My Top 8 Reasons To Buy (NASDAQ:AMZN)",
+      "event_label": "Microsoft: Claude Just Threatened Copilot Adoption (NASDAQ:MSFT)",
       "sentiment_label": "neutral",
       "polarity": 0.0,
       "impact": 0.1,
-      "clarity": 0.8,
-      "relevance": 0.535,
-      "news_catalyst_score": 0.1918,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.1671,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
-      "url": "https://seekingalpha.com/article/4890866-amazon-my-top-8-reasons-to-buy",
-      "first_seen_at": "2026-04-15T16:47:18.573423Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "b21d0651a9f9060ebc24d3c9aa262ee022dee4f3:5920861",
-      "headline": "Microsoft (MSFT) Stock Plunges 29%  --  Are AI Concerns Justified? - Blockonomi",
-      "tickers": [
-        "MSFT"
-      ],
-      "published_at": "2026-04-15T13:06:37Z",
-      "published_ts": 1776258397.0,
-      "age_minutes": 1428.3,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Blockonomi"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Microsoft (MSFT) Stock Plunges 29% -- Are AI Concerns Justified? - Blockonomi",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.8,
-      "relevance": 0.535,
-      "news_catalyst_score": 0.1918,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://blockonomi.com/microsoft-msft-stock-plunges-29-are-ai-concerns-justified/",
-      "first_seen_at": "2026-04-15T16:47:18.573423Z",
+      "url": "https://seekingalpha.com/article/4891151-microsoft-claude-just-threatened-copilot-adoption",
+      "first_seen_at": "2026-04-16T11:43:28.484058Z",
       "is_new": false,
       "provider_count": 1
     },
@@ -1002,7 +1118,7 @@
       ],
       "published_at": "2026-04-16T08:56:47Z",
       "published_ts": 1776329807.0,
-      "age_minutes": 238.1,
+      "age_minutes": 361.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1023,52 +1139,12 @@
       "impact": 0.1,
       "clarity": 0.6,
       "relevance": 0.475,
-      "news_catalyst_score": 0.1906,
+      "news_catalyst_score": 0.1671,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
       "url": "https://seekingalpha.com/article/4891130-microsoft-new-standard-oil-why-intelligence-refinery-is-future-of-global-profit",
       "first_seen_at": "2026-04-16T11:43:28.484058Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "9f55b686374205531bc839b8a20efc8e987674cf:5920864",
-      "headline": "Trade Strategy For SPY, QQQ, AAPL, MSFT, NVDA, GOOGL, META, And TSLA",
-      "tickers": [
-        "AAPL",
-        "META",
-        "MSFT"
-      ],
-      "published_at": "2026-04-15T13:20:29Z",
-      "published_ts": 1776259229.0,
-      "age_minutes": 1414.4,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Benzinga"
-      ],
-      "source_tier": "TIER_2",
-      "source_rank": 2,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Trade Strategy For SPY, QQQ, AAPL, MSFT, NVDA, GOOGL, META, And TSLA",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.3561,
-      "news_catalyst_score": 0.1782,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.benzinga.com/Opinion/26/04/51829492/trade-strategy-for-spy-qqq-aapl-msft-nvda-googl-meta-and-tsla-6",
-      "first_seen_at": "2026-04-15T16:47:18.573423Z",
       "is_new": false,
       "provider_count": 1
     },
@@ -1080,7 +1156,7 @@
       ],
       "published_at": "2026-04-16T07:04:00Z",
       "published_ts": 1776323040.0,
-      "age_minutes": 350.9,
+      "age_minutes": 473.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1118,7 +1194,7 @@
       ],
       "published_at": "2026-04-16T05:53:33Z",
       "published_ts": 1776318813.0,
-      "age_minutes": 421.3,
+      "age_minutes": 544.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1156,7 +1232,7 @@
       ],
       "published_at": "2026-04-15T22:34:08Z",
       "published_ts": 1776292448.0,
-      "age_minutes": 860.8,
+      "age_minutes": 983.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1194,7 +1270,7 @@
       ],
       "published_at": "2026-04-15T20:30:42Z",
       "published_ts": 1776285042.0,
-      "age_minutes": 984.2,
+      "age_minutes": 1107.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1232,7 +1308,7 @@
       ],
       "published_at": "2026-04-15T18:16:03Z",
       "published_ts": 1776276963.0,
-      "age_minutes": 1118.8,
+      "age_minutes": 1241.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1270,7 +1346,7 @@
       ],
       "published_at": "2026-04-15T16:04:35Z",
       "published_ts": 1776269075.0,
-      "age_minutes": 1250.3,
+      "age_minutes": 1373.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1299,121 +1375,6 @@
       "first_seen_at": "2026-04-15T16:47:18.573423Z",
       "is_new": false,
       "provider_count": 1
-    },
-    {
-      "story_key": "98b47cd00b87fd3b5cdba230ff4f2b1414ed8126:5920880",
-      "headline": "SA analyst upgrades/downgrades: NVDA, JNJ, KO, ACN",
-      "tickers": [
-        "JNJ"
-      ],
-      "published_at": "2026-04-15T14:40:23Z",
-      "published_ts": 1776264023.0,
-      "age_minutes": 1334.5,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Seeking Alpha"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "SA analyst upgrades/downgrades: NVDA, JNJ, KO, ACN",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.1671,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://seekingalpha.com/news/4575264-sa-analyst-upgrades-downgrades-nvda-jnj-ko-acn",
-      "first_seen_at": "2026-04-15T16:47:18.573423Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "0b819c6442978f9c3313b674634b1d591ea28045:5920870",
-      "headline": "Apple: More Attention On AI Strategy, Less On iPhone Ahead Of Q2 (NASDAQ:AAPL)",
-      "tickers": [
-        "AAPL"
-      ],
-      "published_at": "2026-04-15T13:54:12Z",
-      "published_ts": 1776261252.0,
-      "age_minutes": 1380.7,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Seeking Alpha"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Apple: More Attention On AI Strategy, Less On iPhone Ahead Of Q2 (NASDAQ:AAPL)",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.1671,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://seekingalpha.com/article/4890875-apple-more-attention-on-ai-strategy-less-on-iphone-ahead-of-q2",
-      "first_seen_at": "2026-04-15T16:47:18.573423Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "97cc7e750e3b28a1907460f8903d22aa97112768:5920867",
-      "headline": "AMZN, AAPL and NFLX Forecasts - Tech Stocks Continue to Look for Upward Momentum",
-      "tickers": [
-        "AAPL",
-        "AMZN"
-      ],
-      "published_at": "2026-04-15T13:37:12Z",
-      "published_ts": 1776260232.0,
-      "age_minutes": 1397.7,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "FXEmpire.com"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "AMZN, AAPL and NFLX Forecasts - Tech Stocks Continue to Look for Upward Momentum",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.1671,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.fxempire.com/forecasts/article/amzn-aapl-and-nflx-forecasts-tech-stocks-continue-to-look-for-upward-momentum-1591833",
-      "first_seen_at": "2026-04-15T16:47:18.573423Z",
-      "is_new": false,
-      "provider_count": 1
     }
   ],
   "news_catalyst_by_symbol": {
@@ -1425,75 +1386,62 @@
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "source_tier": "TIER_3",
-      "mentions_24h": 7,
+      "mentions_24h": 5,
       "is_actionable": false,
       "first_provider": "newsapi_ai",
       "story_key": "c0345c2d2ba782236fc332108c5a28ce01e8f787:5921047"
     },
     "AMZN": {
-      "news_catalyst_score": 0.5435,
+      "news_catalyst_score": 0.633,
       "sentiment_label": "neutral",
-      "event_class": "IPO",
-      "event_label": "Amazon Vs. SpaceX Space Race Heats Up At Difficult Time For Musk's Upcoming IPO - Amazon.com (NASDAQ:AMZN",
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "source_tier": "TIER_2",
-      "mentions_24h": 8,
-      "is_actionable": false,
-      "first_provider": "newsapi_ai",
-      "story_key": "288a573aabbbccec0a09586853945dc68b76ec6f:5920923"
-    },
-    "JNJ": {
-      "news_catalyst_score": 0.1671,
-      "sentiment_label": "neutral",
-      "event_class": "UNKNOWN",
-      "event_label": "SA analyst upgrades/downgrades: NVDA, JNJ, KO, ACN",
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
+      "event_class": "CONTRACT",
+      "event_label": "Amazon (AMZN) Secures Major Fox Media AI Cloud Partnership - Blockonomi",
+      "materiality": "MEDIUM",
+      "recency_bucket": "WARM",
       "source_tier": "TIER_3",
-      "mentions_24h": 1,
-      "is_actionable": false,
+      "mentions_24h": 10,
+      "is_actionable": true,
       "first_provider": "newsapi_ai",
-      "story_key": "98b47cd00b87fd3b5cdba230ff4f2b1414ed8126:5920880"
+      "story_key": "9a2f7bbead9db2c8dfaf39c93eb4386ff5d99115:5921161"
     },
     "JPM": {
-      "news_catalyst_score": 0.4836,
+      "news_catalyst_score": 0.4436,
       "sentiment_label": "neutral",
-      "event_class": "MANAGEMENT",
-      "event_label": "Insider Selling: JPMorgan Chase & Co. (NYSE:JPM) CFO Sells 5,611 Shares of Stock",
+      "event_class": "EARNINGS",
+      "event_label": "JPMorgan Chase Stock: The Warning May Be More Important Than The Earnings (NYSE:JPM)",
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "source_tier": "TIER_3",
       "mentions_24h": 3,
       "is_actionable": false,
       "first_provider": "newsapi_ai",
-      "story_key": "1ae826a8b0729143ab38d68be1aae45a63621ce1:5921106"
+      "story_key": "77054441a278fdf397216d8b33efa90f5b041e3f:5921083"
     },
     "META": {
-      "news_catalyst_score": 0.2818,
+      "news_catalyst_score": 0.3933,
       "sentiment_label": "neutral",
       "event_class": "UNKNOWN",
-      "event_label": "Should You Buy, Sell or Hold Meta Stock at $675?",
+      "event_label": "TD Cowen reiterates Buy on Meta stock, keeps $820 target on AI gains By Investing.com",
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "source_tier": "TIER_3",
-      "mentions_24h": 4,
+      "mentions_24h": 5,
       "is_actionable": false,
       "first_provider": "newsapi_ai",
-      "story_key": "aa95dbac3f95ac3905624c78e51379efb9c302c2:5920895"
+      "story_key": "dac79f0c83fc3836a5f46861fb024534832c0a30:5921155"
     },
     "MSFT": {
-      "news_catalyst_score": 0.5531,
+      "news_catalyst_score": 0.393,
       "sentiment_label": "neutral",
-      "event_class": "GUIDANCE",
-      "event_label": "Microsoft (MSFT): AI CapEx Growth And The 2026 Software Outlook | 2-Minute Analysis",
+      "event_class": "UNKNOWN",
+      "event_label": "Trade Strategy For SPY, QQQ, AAPL, MSFT, NVDA, GOOGL, META, And TSLA - Apple (NASDAQ:AAPL), Alphabet (NAS",
       "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "source_tier": "TIER_3",
-      "mentions_24h": 15,
+      "recency_bucket": "WARM",
+      "source_tier": "TIER_2",
+      "mentions_24h": 13,
       "is_actionable": false,
       "first_provider": "newsapi_ai",
-      "story_key": "31931b7eeef132274d34c8fe78bf3068436f2fc5:5920880"
+      "story_key": "dfba04609a7d9cc3e9bb9dcd6c98a23c8223fc24:5921165"
     },
     "NEE": {
       "news_catalyst_score": 0.2193,
@@ -1510,11 +1458,13 @@
     }
   },
   "summary": {
-    "active_story_count": 35,
-    "new_story_count": 0,
-    "actionable_story_count": 0,
-    "actionable_symbols": [],
-    "symbol_count": 7
+    "active_story_count": 34,
+    "new_story_count": 7,
+    "actionable_story_count": 1,
+    "actionable_symbols": [
+      "AMZN"
+    ],
+    "symbol_count": 6
   },
   "symbol_scope": {
     "mode": "release_policy_fallback",
