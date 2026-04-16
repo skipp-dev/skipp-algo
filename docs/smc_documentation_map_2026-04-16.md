@@ -53,6 +53,10 @@ Autorität: Canonical-Docs-Sweep nach Feature-Freeze-Beginn
 | Dokument | Inhalt |
 |----------|--------|
 | [FEATURE_FREEZE.md](FEATURE_FREEZE.md) | Feature Freeze (aktiv 15.04.–15.05.2026) |
+| [freeze_exit_stability_criteria.md](freeze_exit_stability_criteria.md) | Freeze-Exit Stabilitätskriterien |
+| [freeze_exit_pipeline_history.md](freeze_exit_pipeline_history.md) | Pipeline & Measurement History |
+| [freeze_exit_stability_program.md](freeze_exit_stability_program.md) | Mehrlauf-Stabilitätsprogramm |
+| [freeze_exit_memo.md](freeze_exit_memo.md) | Freeze-Exit Memo (Zwischenstand) |
 | [smc_branch_protection_and_release_gates.md](smc_branch_protection_and_release_gates.md) | Branch Protection & Release Gates |
 | [smc_release_gate_validation_2026-04-16.md](smc_release_gate_validation_2026-04-16.md) | Validierung der 3 harten Measurement-Gates |
 | [MEASUREMENT_LANE.md](MEASUREMENT_LANE.md) | Measurement Lane Beschreibung |
