@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-04-16T20:29:12.243793Z",
+  "generated_at": "2026-04-16T21:24:45.853822Z",
   "symbols": [
     "AAPL",
     "MSFT",
@@ -89,7 +89,7 @@
       ],
       "published_at": "2026-04-16T07:38:45Z",
       "published_ts": 1776325125.0,
-      "age_minutes": 770.5,
+      "age_minutes": 826.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -127,7 +127,7 @@
       ],
       "published_at": "2026-04-16T04:39:25Z",
       "published_ts": 1776314365.0,
-      "age_minutes": 949.8,
+      "age_minutes": 1005.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -165,7 +165,7 @@
       ],
       "published_at": "2026-04-16T15:29:46Z",
       "published_ts": 1776353386.0,
-      "age_minutes": 299.4,
+      "age_minutes": 355.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -186,7 +186,7 @@
       "impact": 0.65,
       "clarity": 0.8,
       "relevance": 0.7825,
-      "news_catalyst_score": 0.3624,
+      "news_catalyst_score": 0.362,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
@@ -203,7 +203,7 @@
       ],
       "published_at": "2026-04-16T14:08:44Z",
       "published_ts": 1776348524.0,
-      "age_minutes": 380.5,
+      "age_minutes": 436.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -241,7 +241,7 @@
       ],
       "published_at": "2026-04-16T09:32:49Z",
       "published_ts": 1776331969.0,
-      "age_minutes": 656.4,
+      "age_minutes": 711.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -279,7 +279,7 @@
       ],
       "published_at": "2026-04-16T10:10:25Z",
       "published_ts": 1776334225.0,
-      "age_minutes": 618.8,
+      "age_minutes": 674.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -317,7 +317,7 @@
       ],
       "published_at": "2026-04-16T18:13:03Z",
       "published_ts": 1776363183.0,
-      "age_minutes": 136.2,
+      "age_minutes": 191.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -338,7 +338,7 @@
       "impact": 0.1,
       "clarity": 0.8,
       "relevance": 0.535,
-      "news_catalyst_score": 0.2937,
+      "news_catalyst_score": 0.2733,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
@@ -355,7 +355,7 @@
       ],
       "published_at": "2026-04-16T17:35:28Z",
       "published_ts": 1776360928.0,
-      "age_minutes": 173.7,
+      "age_minutes": 229.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -376,49 +376,11 @@
       "impact": 0.1,
       "clarity": 0.8,
       "relevance": 0.535,
-      "news_catalyst_score": 0.2812,
+      "news_catalyst_score": 0.2546,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
       "url": "https://www.benzinga.com/insights/options/26/04/51867314/3-consumer-discretionary-stocks-whale-activity-in-todays-session",
-      "first_seen_at": "2026-04-16T19:36:01.400831Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "4ee44112c0620d871de0d87b575c479a1480d2e4:5921197",
-      "headline": "S&P 500, Nasdaq 100 Hit New Records On Trump's Ceasefire Efforts - Apple (NASDAQ:AAPL), Abbott Laboratori",
-      "tickers": [
-        "AAPL"
-      ],
-      "published_at": "2026-04-16T17:06:44Z",
-      "published_ts": 1776359204.0,
-      "age_minutes": 202.5,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Benzinga"
-      ],
-      "source_tier": "TIER_2",
-      "source_rank": 2,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "S&P 500, Nasdaq 100 Hit New Records On Trump's Ceasefire Efforts - Apple (NASDAQ:AAPL), Abbott Laboratori",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.8,
-      "relevance": 0.535,
-      "news_catalyst_score": 0.2679,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.benzinga.com/markets/market-summary/26/04/51866579/sp-500-nasdaq-100-record-highs-oil-surges-trump-israel-lebanon-ceasefire-markets-thursday",
       "first_seen_at": "2026-04-16T19:36:01.400831Z",
       "is_new": false,
       "provider_count": 1
@@ -431,7 +393,7 @@
       ],
       "published_at": "2026-04-16T18:35:06Z",
       "published_ts": 1776364506.0,
-      "age_minutes": 114.1,
+      "age_minutes": 169.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -452,11 +414,49 @@
       "impact": 0.1,
       "clarity": 0.6,
       "relevance": 0.475,
-      "news_catalyst_score": 0.2671,
+      "news_catalyst_score": 0.2507,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
       "url": "https://www.benzinga.com/Opinion/26/04/51869171/whats-ahead-as-massive-short-squeeze-drives-market-to-new-highs-semis-are-a-tell",
+      "first_seen_at": "2026-04-16T19:36:01.400831Z",
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
+      "story_key": "4ee44112c0620d871de0d87b575c479a1480d2e4:5921197",
+      "headline": "S&P 500, Nasdaq 100 Hit New Records On Trump's Ceasefire Efforts - Apple (NASDAQ:AAPL), Abbott Laboratori",
+      "tickers": [
+        "AAPL"
+      ],
+      "published_at": "2026-04-16T17:06:44Z",
+      "published_ts": 1776359204.0,
+      "age_minutes": 258.0,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "S&P 500, Nasdaq 100 Hit New Records On Trump's Ceasefire Efforts - Apple (NASDAQ:AAPL), Abbott Laboratori",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "news_catalyst_score": 0.2402,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://www.benzinga.com/markets/market-summary/26/04/51866579/sp-500-nasdaq-100-record-highs-oil-surges-trump-israel-lebanon-ceasefire-markets-thursday",
       "first_seen_at": "2026-04-16T19:36:01.400831Z",
       "is_new": false,
       "provider_count": 1
@@ -469,7 +469,7 @@
       ],
       "published_at": "2026-04-16T14:00:00Z",
       "published_ts": 1776348000.0,
-      "age_minutes": 389.2,
+      "age_minutes": 444.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -500,44 +500,6 @@
       "provider_count": 1
     },
     {
-      "story_key": "eb1478ec9e38bcd38a2d69f50cee421a6755f4a8:5921193",
-      "headline": "Microsoft: Cheap For All The Wrong Reasons (NASDAQ:MSFT)",
-      "tickers": [
-        "MSFT"
-      ],
-      "published_at": "2026-04-16T16:48:39Z",
-      "published_ts": 1776358119.0,
-      "age_minutes": 220.6,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Seeking Alpha"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Microsoft: Cheap For All The Wrong Reasons (NASDAQ:MSFT)",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.1972,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://seekingalpha.com/article/4891317-microsoft-cheap-for-all-the-wrong-reasons",
-      "first_seen_at": "2026-04-16T19:36:01.400831Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
       "story_key": "48c866131be641566558e148757b7ccd5ff64cc6:5921131",
       "headline": "Netflix, Zoom, Apollo Global And More On CNBC's 'Final Trades' - Amazon.com (NASDAQ:AMZN), Apollo Global",
       "tickers": [
@@ -545,7 +507,7 @@
       ],
       "published_at": "2026-04-16T11:38:54Z",
       "published_ts": 1776339534.0,
-      "age_minutes": 530.3,
+      "age_minutes": 585.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -583,7 +545,7 @@
       ],
       "published_at": "2026-04-16T09:59:33Z",
       "published_ts": 1776333573.0,
-      "age_minutes": 629.7,
+      "age_minutes": 685.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -621,7 +583,7 @@
       ],
       "published_at": "2026-04-16T15:30:02Z",
       "published_ts": 1776353402.0,
-      "age_minutes": 299.2,
+      "age_minutes": 354.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -642,7 +604,7 @@
       "impact": 0.1,
       "clarity": 0.6,
       "relevance": 0.4554,
-      "news_catalyst_score": 0.1922,
+      "news_catalyst_score": 0.1919,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
@@ -659,7 +621,7 @@
       ],
       "published_at": "2026-04-16T13:38:11Z",
       "published_ts": 1776346691.0,
-      "age_minutes": 411.0,
+      "age_minutes": 466.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -697,7 +659,7 @@
       ],
       "published_at": "2026-04-15T21:39:59Z",
       "published_ts": 1776289199.0,
-      "age_minutes": 1369.2,
+      "age_minutes": 1424.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -737,7 +699,7 @@
       ],
       "published_at": "2026-04-16T14:29:17Z",
       "published_ts": 1776349757.0,
-      "age_minutes": 359.9,
+      "age_minutes": 415.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -768,6 +730,44 @@
       "provider_count": 1
     },
     {
+      "story_key": "eb1478ec9e38bcd38a2d69f50cee421a6755f4a8:5921193",
+      "headline": "Microsoft: Cheap For All The Wrong Reasons (NASDAQ:MSFT)",
+      "tickers": [
+        "MSFT"
+      ],
+      "published_at": "2026-04-16T16:48:39Z",
+      "published_ts": 1776358119.0,
+      "age_minutes": 276.1,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Seeking Alpha"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Microsoft: Cheap For All The Wrong Reasons (NASDAQ:MSFT)",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.1761,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://seekingalpha.com/article/4891317-microsoft-cheap-for-all-the-wrong-reasons",
+      "first_seen_at": "2026-04-16T19:36:01.400831Z",
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
       "story_key": "e5cafb22af6f02eb317f52dd9dfa333050c76b83:5921180",
       "headline": "Clarity Act Is Moving Along Well, JP Morgan Analysts Say - JPMorgan Chase (NYSE:JPM)",
       "tickers": [
@@ -775,7 +775,7 @@
       ],
       "published_at": "2026-04-16T15:44:45Z",
       "published_ts": 1776354285.0,
-      "age_minutes": 284.5,
+      "age_minutes": 340.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -796,7 +796,7 @@
       "impact": 0.1,
       "clarity": 0.6,
       "relevance": 0.475,
-      "news_catalyst_score": 0.173,
+      "news_catalyst_score": 0.1671,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
@@ -813,7 +813,7 @@
       ],
       "published_at": "2026-04-16T14:15:50Z",
       "published_ts": 1776348950.0,
-      "age_minutes": 373.4,
+      "age_minutes": 428.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -851,7 +851,7 @@
       ],
       "published_at": "2026-04-16T12:00:16Z",
       "published_ts": 1776340816.0,
-      "age_minutes": 508.9,
+      "age_minutes": 564.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -889,7 +889,7 @@
       ],
       "published_at": "2026-04-16T09:54:23Z",
       "published_ts": 1776333263.0,
-      "age_minutes": 634.8,
+      "age_minutes": 690.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -927,7 +927,7 @@
       ],
       "published_at": "2026-04-16T08:56:47Z",
       "published_ts": 1776329807.0,
-      "age_minutes": 692.4,
+      "age_minutes": 748.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -965,7 +965,7 @@
       ],
       "published_at": "2026-04-16T07:04:00Z",
       "published_ts": 1776323040.0,
-      "age_minutes": 805.2,
+      "age_minutes": 860.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1003,7 +1003,7 @@
       ],
       "published_at": "2026-04-16T05:53:33Z",
       "published_ts": 1776318813.0,
-      "age_minutes": 875.7,
+      "age_minutes": 931.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1041,7 +1041,7 @@
       ],
       "published_at": "2026-04-15T22:34:08Z",
       "published_ts": 1776292448.0,
-      "age_minutes": 1315.1,
+      "age_minutes": 1370.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1067,44 +1067,6 @@
       "recency_bucket": "AGING",
       "is_actionable": false,
       "url": "https://in.investing.com/news/stock-market-news/deutsche-bank-reiterates-buy-on-meta-stock-cites-ai-ad-returns-93CH-5340372",
-      "first_seen_at": "2026-04-16T03:43:06.402853Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "0c004d05556a0dca6a3f5f935d641df2efd270d4:5920950",
-      "headline": "Why Microsoft (MSFT) Stock Is Up Today - StockStory",
-      "tickers": [
-        "MSFT"
-      ],
-      "published_at": "2026-04-15T20:30:42Z",
-      "published_ts": 1776285042.0,
-      "age_minutes": 1438.5,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "StockStory"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Why Microsoft (MSFT) Stock Is Up Today - StockStory",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.1671,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://stockstory.org/us/stocks/nasdaq/msft/news/why-up-down/why-microsoft-msft-stock-is-up-today-2",
       "first_seen_at": "2026-04-16T03:43:06.402853Z",
       "is_new": false,
       "provider_count": 1
@@ -1164,21 +1126,21 @@
       "story_key": "dac79f0c83fc3836a5f46861fb024534832c0a30:5921155"
     },
     "MSFT": {
-      "news_catalyst_score": 0.4824,
+      "news_catalyst_score": 0.482,
       "sentiment_label": "neutral",
       "event_class": "ANALYST",
       "event_label": "Microsoft Stock Warning: Why Piper Sandler Analysts Just Slashed Their MSFT Price Target by More Than 15%",
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "source_tier": "TIER_3",
-      "mentions_24h": 12,
+      "mentions_24h": 11,
       "is_actionable": false,
       "first_provider": "newsapi_ai",
       "story_key": "5fa2b18c741eba3ab7994043d5074d44daadbe6c:5921177"
     }
   },
   "summary": {
-    "active_story_count": 27,
+    "active_story_count": 26,
     "new_story_count": 0,
     "actionable_story_count": 0,
     "actionable_symbols": [],
