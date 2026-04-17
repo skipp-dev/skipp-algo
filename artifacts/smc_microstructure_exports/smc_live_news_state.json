@@ -5,12 +5,157 @@
     "fmp_stock": 0.0,
     "fmp_press": 0.0,
     "fmp_articles": 0.0,
-    "newsapi_ai": 1776444525.0,
+    "newsapi_ai": 1776449610.0,
     "tv": 0.0,
-    "legacy_cursor": 1776444525.0
+    "legacy_cursor": 1776449610.0
   },
   "provider_state": {},
   "story_state": {
+    "37b4ed8f45efbe625331f62e69d21aae0b91647f:5921498": {
+      "story_key": "37b4ed8f45efbe625331f62e69d21aae0b91647f:5921498",
+      "cluster_hash": "37b4ed8f45efbe625331f62e69d21aae0b91647f",
+      "headline": "Roundhill MSFT WeeklyPay ETF (MSFW) Stock Price, Quote, News & History | Benzinga",
+      "tickers": [
+        "MSFT"
+      ],
+      "published_ts": 1776449610.0,
+      "first_seen_ts": 1776460238.4938006,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "url": "https://www.benzinga.com/quote/MSFW",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "last_seen_ts": 1776460238.4938006
+    },
+    "ab074b70d98fcde864424e1e9ff013d20c9f41b7:5921497": {
+      "story_key": "ab074b70d98fcde864424e1e9ff013d20c9f41b7:5921497",
+      "cluster_hash": "ab074b70d98fcde864424e1e9ff013d20c9f41b7",
+      "headline": "What's Going On With Microsoft Stock Friday? - Microsoft (NASDAQ:MSFT)",
+      "tickers": [
+        "MSFT"
+      ],
+      "published_ts": 1776449296.0,
+      "first_seen_ts": 1776460238.4938006,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "url": "https://www.benzinga.com/markets/large-cap/26/04/51894566/whats-going-on-with-microsoft-stock-friday",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "last_seen_ts": 1776460238.4938006
+    },
+    "b323b0507924a8a2c045c040388c6239c4b7d1c4:5921494": {
+      "story_key": "b323b0507924a8a2c045c040388c6239c4b7d1c4:5921494",
+      "cluster_hash": "b323b0507924a8a2c045c040388c6239c4b7d1c4",
+      "headline": "Aggressive Buying As Hormuz Strait Opens; Trump Says Inflation Is Fake - Apple (NASDAQ:AAPL)",
+      "tickers": [
+        "AAPL"
+      ],
+      "published_ts": 1776448367.0,
+      "first_seen_ts": 1776460238.4938006,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "url": "https://www.benzinga.com/Opinion/26/04/51894062/aggressive-buying-as-hormuz-strait-opens-trump-says-inflation-is-fake",
+      "category": "macro",
+      "impact": 0.78,
+      "clarity": 0.6,
+      "relevance": 0.781,
+      "polarity": 0.0,
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "last_seen_ts": 1776460238.4938006
+    },
+    "8dd7bfd3acc4dd027ac845bfdb6637ae1f15f283:5921488": {
+      "story_key": "8dd7bfd3acc4dd027ac845bfdb6637ae1f15f283:5921488",
+      "cluster_hash": "8dd7bfd3acc4dd027ac845bfdb6637ae1f15f283",
+      "headline": "Microsoft: Don't Buy The Dip, A 30% Correction Is Still Ahead (NASDAQ:MSFT)",
+      "tickers": [
+        "MSFT"
+      ],
+      "published_ts": 1776446523.0,
+      "first_seen_ts": 1776460238.4938006,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Seeking Alpha"
+      ],
+      "url": "https://seekingalpha.com/article/4891641-microsoft-don-t-buy-the-dip-a-30-percent-correction-is-still-ahead",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776460238.4938006
+    },
+    "3a06ee5f432de7118205a80edfb325660767a998:5921491": {
+      "story_key": "3a06ee5f432de7118205a80edfb325660767a998:5921491",
+      "cluster_hash": "3a06ee5f432de7118205a80edfb325660767a998",
+      "headline": "7 Industrials Stocks Whale Activity In Today's Session - Boeing (NYSE:BA), Caterpillar (NYSE:CAT)",
+      "tickers": [
+        "CAT"
+      ],
+      "published_ts": 1776447329.0,
+      "first_seen_ts": 1776460238.4938006,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "url": "https://www.benzinga.com/insights/options/26/04/51893489/7-industrials-stocks-whale-activity-in-todays-session",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "polarity": 0.0,
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "last_seen_ts": 1776460238.4938006
+    },
     "370c5ddab1f0c2d761b4d61bad278ab63e4710eb:5921481": {
       "story_key": "370c5ddab1f0c2d761b4d61bad278ab63e4710eb:5921481",
       "cluster_hash": "370c5ddab1f0c2d761b4d61bad278ab63e4710eb",
