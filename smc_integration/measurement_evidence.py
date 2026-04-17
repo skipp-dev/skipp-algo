@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -44,6 +45,24 @@ _BOS_FOLLOW_THROUGH_THRESHOLD_PCT = 0.003
 _SWEEP_REVERSAL_THRESHOLD_PCT = 0.005
 _SQ_LOOKBACK_BARS = 64
 _SQ_RAW_SCORE_NAME = "SIGNAL_QUALITY_SCORE"
+
+
+def build_evidence_id(
+    *,
+    symbol: str,
+    timeframe: str,
+    run_timestamp: float,
+    config_fingerprint: str = "",
+) -> str:
+    """Build a deterministic, stable evidence ID from run parameters.
+
+    The ID is a short hex digest derived from the symbol, timeframe,
+    run timestamp (truncated to seconds), and optional config fingerprint.
+    Changing any parameter produces a different ID.
+    """
+    ts_seconds = int(run_timestamp)
+    canonical = f"{symbol.strip().upper()}|{timeframe.strip()}|{ts_seconds}|{config_fingerprint.strip()}"
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:16]
 
 
 @dataclass(slots=True, frozen=True)

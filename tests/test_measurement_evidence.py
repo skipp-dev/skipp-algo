@@ -534,3 +534,52 @@ def test_to_epoch_seconds_preserves_distinct_epoch_values() -> None:
         int(pd.Timestamp("2024-01-01T00:00:00Z").timestamp()),
         int(pd.Timestamp("2024-01-02T00:00:00Z").timestamp()),
     ]
+
+
+# ---------------------------------------------------------------------------
+# F-02: Evidence ID determinism and linkage
+# ---------------------------------------------------------------------------
+
+class TestEvidenceId:
+    def test_deterministic_same_inputs(self) -> None:
+        from smc_integration.measurement_evidence import build_evidence_id
+        id1 = build_evidence_id(symbol="AAPL", timeframe="5m", run_timestamp=1713000000.123)
+        id2 = build_evidence_id(symbol="AAPL", timeframe="5m", run_timestamp=1713000000.789)
+        # Same second → same ID (sub-second is truncated)
+        assert id1 == id2
+
+    def test_different_symbol_produces_different_id(self) -> None:
+        from smc_integration.measurement_evidence import build_evidence_id
+        id1 = build_evidence_id(symbol="AAPL", timeframe="5m", run_timestamp=1713000000.0)
+        id2 = build_evidence_id(symbol="MSFT", timeframe="5m", run_timestamp=1713000000.0)
+        assert id1 != id2
+
+    def test_different_timeframe_produces_different_id(self) -> None:
+        from smc_integration.measurement_evidence import build_evidence_id
+        id1 = build_evidence_id(symbol="AAPL", timeframe="5m", run_timestamp=1713000000.0)
+        id2 = build_evidence_id(symbol="AAPL", timeframe="1H", run_timestamp=1713000000.0)
+        assert id1 != id2
+
+    def test_different_timestamp_produces_different_id(self) -> None:
+        from smc_integration.measurement_evidence import build_evidence_id
+        id1 = build_evidence_id(symbol="AAPL", timeframe="5m", run_timestamp=1713000000.0)
+        id2 = build_evidence_id(symbol="AAPL", timeframe="5m", run_timestamp=1713000001.0)
+        assert id1 != id2
+
+    def test_config_fingerprint_affects_id(self) -> None:
+        from smc_integration.measurement_evidence import build_evidence_id
+        id1 = build_evidence_id(symbol="AAPL", timeframe="5m", run_timestamp=1713000000.0, config_fingerprint="abc")
+        id2 = build_evidence_id(symbol="AAPL", timeframe="5m", run_timestamp=1713000000.0, config_fingerprint="xyz")
+        assert id1 != id2
+
+    def test_id_is_hex_and_16_chars(self) -> None:
+        from smc_integration.measurement_evidence import build_evidence_id
+        eid = build_evidence_id(symbol="AAPL", timeframe="5m", run_timestamp=1713000000.0)
+        assert len(eid) == 16
+        int(eid, 16)  # Must be valid hex
+
+    def test_whitespace_normalization(self) -> None:
+        from smc_integration.measurement_evidence import build_evidence_id
+        id1 = build_evidence_id(symbol="  aapl  ", timeframe=" 5m ", run_timestamp=1713000000.0)
+        id2 = build_evidence_id(symbol="AAPL", timeframe="5m", run_timestamp=1713000000.0)
+        assert id1 == id2

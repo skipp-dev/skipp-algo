@@ -780,6 +780,38 @@ def _render(report: dict[str, Any], output: str) -> None:
     out_path.write_text(text + "\n", encoding="utf-8")
 
 
+def _write_evidence_index(summary: dict[str, Any], output: str) -> None:
+    """Write a machine-readable evidence index alongside the summary."""
+    if output == "-":
+        return
+    index_path = Path(output).parent / "evidence_index.json"
+    entries: list[dict[str, Any]] = []
+    for run in summary.get("runs", []):
+        if not isinstance(run, dict):
+            continue
+        entry: dict[str, Any] = {
+            "evidence_id": run.get("evidence_id"),
+            "created_at": run.get("checked_at_iso"),
+            "symbol": None,
+            "timeframe": None,
+            "artifact_path": run.get("path"),
+            "status": run.get("status"),
+            "kind": run.get("kind"),
+            "github_run_id": run.get("github_run_id"),
+        }
+        entries.append(entry)
+    index_payload = {
+        "schema": "evidence_index_v1",
+        "generated_at": datetime.now(tz=UTC).isoformat(),
+        "entries": entries,
+    }
+    index_path.parent.mkdir(parents=True, exist_ok=True)
+    index_path.write_text(
+        json.dumps(index_payload, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Aggregate SMC gate JSON reports into compact operational evidence.")
     parser.add_argument(
@@ -1220,6 +1252,9 @@ def main() -> int:
     }
 
     _render(summary, str(args.output))
+
+    # -- Write evidence index (F-02) ----------------------------------------
+    _write_evidence_index(summary, args.output)
 
     if args.fail_on_not_ready and not green_ready:
         return 1
