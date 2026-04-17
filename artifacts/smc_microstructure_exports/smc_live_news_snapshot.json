@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-04-17T22:03:06.159973Z",
+  "generated_at": "2026-04-17T22:59:04.501252Z",
   "symbols": [
     "AAPL",
     "MSFT",
@@ -20,11 +20,11 @@
     "fmp_stock": 0.0,
     "fmp_press": 0.0,
     "fmp_articles": 0.0,
-    "newsapi_ai": 1776449610.0,
+    "newsapi_ai": 1776460195.0,
     "tv": 0.0,
-    "legacy_cursor": 1776449610.0
+    "legacy_cursor": 1776460195.0
   },
-  "legacy_cursor": 1776449610.0,
+  "legacy_cursor": 1776460195.0,
   "providers": {
     "benzinga": {
       "ok": false,
@@ -64,12 +64,12 @@
     "newsapi_ai": {
       "ok": true,
       "error": "",
-      "raw_count": 0,
-      "new_item_count": 0,
-      "cursor": 1776449610.0,
+      "raw_count": 46,
+      "new_item_count": 2,
+      "cursor": 1776460195.0,
       "last_seen_news_uri": "",
-      "provider_status": "ok_no_recent_matches",
-      "status_detail": "Event Registry reachable, but no recent symbol-matching NewsAPI.ai items were returned for the current feed window.",
+      "provider_status": "ok",
+      "status_detail": "",
       "error_code": ""
     },
     "tv": {
@@ -82,14 +82,14 @@
   },
   "stories": [
     {
-      "story_key": "b323b0507924a8a2c045c040388c6239c4b7d1c4:5921494",
-      "headline": "Aggressive Buying As Hormuz Strait Opens; Trump Says Inflation Is Fake - Apple (NASDAQ:AAPL)",
+      "story_key": "8e6759797ba55d62cdc8df01d09c5cfd3c513367:5921520",
+      "headline": "Apple vs Broadcom (AAPL vs AVGO): Dividend & AI Analysis 2026",
       "tickers": [
         "AAPL"
       ],
-      "published_at": "2026-04-17T17:52:47Z",
-      "published_ts": 1776448367.0,
-      "age_minutes": 250.3,
+      "published_at": "2026-04-17T20:00:21Z",
+      "published_ts": 1776456021.0,
+      "age_minutes": 178.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -98,25 +98,25 @@
         "newsapi_ai"
       ],
       "sources": [
-        "Benzinga"
+        "\u308b\u306a\u3066\u3061"
       ],
-      "source_tier": "TIER_2",
-      "source_rank": 2,
-      "category": "macro",
-      "event_class": "MACRO",
-      "event_label": "Aggressive Buying As Hormuz Strait Opens; Trump Says Inflation Is Fake - Apple (NASDAQ:AAPL)",
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "dividend",
+      "event_class": "DIVIDEND",
+      "event_label": "Apple vs Broadcom (AAPL vs AVGO): Dividend & AI Analysis 2026",
       "sentiment_label": "neutral",
       "polarity": 0.0,
-      "impact": 0.78,
-      "clarity": 0.6,
-      "relevance": 0.781,
-      "news_catalyst_score": 0.4507,
-      "materiality": "LOW",
+      "impact": 0.82,
+      "clarity": 0.8,
+      "relevance": 0.859,
+      "news_catalyst_score": 0.5284,
+      "materiality": "MEDIUM",
       "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.benzinga.com/Opinion/26/04/51894062/aggressive-buying-as-hormuz-strait-opens-trump-says-inflation-is-fake",
-      "first_seen_at": "2026-04-17T21:10:38.493801Z",
-      "is_new": false,
+      "is_actionable": true,
+      "url": "https://www.techi.com/apple-vs-broadcom/",
+      "first_seen_at": "2026-04-17T22:59:04.501252Z",
+      "is_new": true,
       "provider_count": 1
     },
     {
@@ -127,7 +127,7 @@
       ],
       "published_at": "2026-04-17T14:28:48Z",
       "published_ts": 1776436128.0,
-      "age_minutes": 454.3,
+      "age_minutes": 510.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -158,6 +158,44 @@
       "provider_count": 1
     },
     {
+      "story_key": "b323b0507924a8a2c045c040388c6239c4b7d1c4:5921494",
+      "headline": "Aggressive Buying As Hormuz Strait Opens; Trump Says Inflation Is Fake - Apple (NASDAQ:AAPL)",
+      "tickers": [
+        "AAPL"
+      ],
+      "published_at": "2026-04-17T17:52:47Z",
+      "published_ts": 1776448367.0,
+      "age_minutes": 306.3,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "category": "macro",
+      "event_class": "MACRO",
+      "event_label": "Aggressive Buying As Hormuz Strait Opens; Trump Says Inflation Is Fake - Apple (NASDAQ:AAPL)",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.78,
+      "clarity": 0.6,
+      "relevance": 0.781,
+      "news_catalyst_score": 0.4049,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://www.benzinga.com/Opinion/26/04/51894062/aggressive-buying-as-hormuz-strait-opens-trump-says-inflation-is-fake",
+      "first_seen_at": "2026-04-17T21:10:38.493801Z",
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
       "story_key": "8cccfbd300fbc03d94968a227e2d646375fddc7f:5921436",
       "headline": "Amazon Could Re-Rate After Earnings Again (Preview) (NASDAQ:AMZN)",
       "tickers": [
@@ -165,7 +203,7 @@
       ],
       "published_at": "2026-04-17T13:00:00Z",
       "published_ts": 1776430800.0,
-      "age_minutes": 543.1,
+      "age_minutes": 599.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -203,7 +241,7 @@
       ],
       "published_at": "2026-04-17T09:36:54Z",
       "published_ts": 1776418614.0,
-      "age_minutes": 746.2,
+      "age_minutes": 802.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -241,7 +279,7 @@
       ],
       "published_at": "2026-04-17T09:42:46Z",
       "published_ts": 1776418966.0,
-      "age_minutes": 740.3,
+      "age_minutes": 796.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -272,44 +310,6 @@
       "provider_count": 1
     },
     {
-      "story_key": "3785bc959accf147bb427c987cc18969b0a87cb4:5921259",
-      "headline": "Herrington, Amazon CEO, sells $5.02m in AMZN stock By Investing.com",
-      "tickers": [
-        "AMZN"
-      ],
-      "published_at": "2026-04-16T22:18:10Z",
-      "published_ts": 1776377890.0,
-      "age_minutes": 1424.9,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Investing.com India"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "management",
-      "event_class": "MANAGEMENT",
-      "event_label": "Herrington, Amazon CEO, sells $5.02m in AMZN stock By Investing.com",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.6,
-      "clarity": 0.8,
-      "relevance": 0.76,
-      "news_catalyst_score": 0.3465,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://in.investing.com/news/insider-trading-news/herrington-amazon-ceo-sells-502m-in-amzn-stock-93CH-5342756",
-      "first_seen_at": "2026-04-16T23:02:44.719724Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
       "story_key": "1952a2ee3e0033fcf3d8adc032ea79504abda2c5:5921455",
       "headline": "NextEra Energy: The Utility Story Just Changed (Rating Upgrade) (NYSE:NEE)",
       "tickers": [
@@ -317,7 +317,7 @@
       ],
       "published_at": "2026-04-17T14:39:31Z",
       "published_ts": 1776436771.0,
-      "age_minutes": 443.6,
+      "age_minutes": 499.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -348,6 +348,44 @@
       "provider_count": 1
     },
     {
+      "story_key": "90ed51c39940ebcfc939f409ffde93b764e3465f:5921533",
+      "headline": "Can Muse Spark Supercharge Meta Platforms (META)'s Ad Business?",
+      "tickers": [
+        "META"
+      ],
+      "published_at": "2026-04-17T21:09:55Z",
+      "published_ts": 1776460195.0,
+      "age_minutes": 109.2,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Yahoo! Finance"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Can Muse Spark Supercharge Meta Platforms (META)'s Ad Business?",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.2306,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://ca.finance.yahoo.com/news/muse-spark-supercharge-meta-platforms-210955944.html",
+      "first_seen_at": "2026-04-17T22:59:04.501252Z",
+      "is_new": true,
+      "provider_count": 1
+    },
+    {
       "story_key": "3a06ee5f432de7118205a80edfb325660767a998:5921491",
       "headline": "7 Industrials Stocks Whale Activity In Today's Session - Boeing (NYSE:BA), Caterpillar (NYSE:CAT)",
       "tickers": [
@@ -355,7 +393,7 @@
       ],
       "published_at": "2026-04-17T17:35:29Z",
       "published_ts": 1776447329.0,
-      "age_minutes": 267.6,
+      "age_minutes": 323.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -376,87 +414,11 @@
       "impact": 0.1,
       "clarity": 0.8,
       "relevance": 0.535,
-      "news_catalyst_score": 0.2355,
+      "news_catalyst_score": 0.2193,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
       "url": "https://www.benzinga.com/insights/options/26/04/51893489/7-industrials-stocks-whale-activity-in-todays-session",
-      "first_seen_at": "2026-04-17T21:10:38.493801Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "37b4ed8f45efbe625331f62e69d21aae0b91647f:5921498",
-      "headline": "Roundhill MSFT WeeklyPay ETF (MSFW) Stock Price, Quote, News & History | Benzinga",
-      "tickers": [
-        "MSFT"
-      ],
-      "published_at": "2026-04-17T18:13:30Z",
-      "published_ts": 1776449610.0,
-      "age_minutes": 229.6,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Benzinga"
-      ],
-      "source_tier": "TIER_2",
-      "source_rank": 2,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Roundhill MSFT WeeklyPay ETF (MSFW) Stock Price, Quote, News & History | Benzinga",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.2257,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.benzinga.com/quote/MSFW",
-      "first_seen_at": "2026-04-17T21:10:38.493801Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "ab074b70d98fcde864424e1e9ff013d20c9f41b7:5921497",
-      "headline": "What's Going On With Microsoft Stock Friday? - Microsoft (NASDAQ:MSFT)",
-      "tickers": [
-        "MSFT"
-      ],
-      "published_at": "2026-04-17T18:08:16Z",
-      "published_ts": 1776449296.0,
-      "age_minutes": 234.8,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Benzinga"
-      ],
-      "source_tier": "TIER_2",
-      "source_rank": 2,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "What's Going On With Microsoft Stock Friday? - Microsoft (NASDAQ:MSFT)",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.2234,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.benzinga.com/markets/large-cap/26/04/51894566/whats-going-on-with-microsoft-stock-friday",
       "first_seen_at": "2026-04-17T21:10:38.493801Z",
       "is_new": false,
       "provider_count": 1
@@ -469,7 +431,7 @@
       ],
       "published_at": "2026-04-17T13:00:30Z",
       "published_ts": 1776430830.0,
-      "age_minutes": 542.6,
+      "age_minutes": 598.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -507,7 +469,7 @@
       ],
       "published_at": "2026-04-17T05:34:30Z",
       "published_ts": 1776404070.0,
-      "age_minutes": 988.6,
+      "age_minutes": 1044.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -538,14 +500,14 @@
       "provider_count": 1
     },
     {
-      "story_key": "8dd7bfd3acc4dd027ac845bfdb6637ae1f15f283:5921488",
-      "headline": "Microsoft: Don't Buy The Dip, A 30% Correction Is Still Ahead (NASDAQ:MSFT)",
+      "story_key": "37b4ed8f45efbe625331f62e69d21aae0b91647f:5921498",
+      "headline": "Roundhill MSFT WeeklyPay ETF (MSFW) Stock Price, Quote, News & History | Benzinga",
       "tickers": [
         "MSFT"
       ],
-      "published_at": "2026-04-17T17:22:03Z",
-      "published_ts": 1776446523.0,
-      "age_minutes": 281.1,
+      "published_at": "2026-04-17T18:13:30Z",
+      "published_ts": 1776449610.0,
+      "age_minutes": 285.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -554,23 +516,61 @@
         "newsapi_ai"
       ],
       "sources": [
-        "Seeking Alpha"
+        "Benzinga"
       ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
+      "source_tier": "TIER_2",
+      "source_rank": 2,
       "category": "other",
       "event_class": "UNKNOWN",
-      "event_label": "Microsoft: Don't Buy The Dip, A 30% Correction Is Still Ahead (NASDAQ:MSFT)",
+      "event_label": "Roundhill MSFT WeeklyPay ETF (MSFW) Stock Price, Quote, News & History | Benzinga",
       "sentiment_label": "neutral",
       "polarity": 0.0,
       "impact": 0.1,
-      "clarity": 0.8,
-      "relevance": 0.535,
-      "news_catalyst_score": 0.2001,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.2009,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
-      "url": "https://seekingalpha.com/article/4891641-microsoft-don-t-buy-the-dip-a-30-percent-correction-is-still-ahead",
+      "url": "https://www.benzinga.com/quote/MSFW",
+      "first_seen_at": "2026-04-17T21:10:38.493801Z",
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
+      "story_key": "ab074b70d98fcde864424e1e9ff013d20c9f41b7:5921497",
+      "headline": "What's Going On With Microsoft Stock Friday? - Microsoft (NASDAQ:MSFT)",
+      "tickers": [
+        "MSFT"
+      ],
+      "published_at": "2026-04-17T18:08:16Z",
+      "published_ts": 1776449296.0,
+      "age_minutes": 290.8,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "What's Going On With Microsoft Stock Friday? - Microsoft (NASDAQ:MSFT)",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.1986,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://www.benzinga.com/markets/large-cap/26/04/51894566/whats-going-on-with-microsoft-stock-friday",
       "first_seen_at": "2026-04-17T21:10:38.493801Z",
       "is_new": false,
       "provider_count": 1
@@ -583,7 +583,7 @@
       ],
       "published_at": "2026-04-17T16:48:45Z",
       "published_ts": 1776444525.0,
-      "age_minutes": 314.4,
+      "age_minutes": 370.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -621,7 +621,7 @@
       ],
       "published_at": "2026-04-17T16:46:38Z",
       "published_ts": 1776444398.0,
-      "age_minutes": 316.5,
+      "age_minutes": 372.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -659,7 +659,7 @@
       ],
       "published_at": "2026-04-17T12:14:16Z",
       "published_ts": 1776428056.0,
-      "age_minutes": 588.8,
+      "age_minutes": 644.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -697,7 +697,7 @@
       ],
       "published_at": "2026-04-17T09:59:06Z",
       "published_ts": 1776419946.0,
-      "age_minutes": 724.0,
+      "age_minutes": 780.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -735,7 +735,7 @@
       ],
       "published_at": "2026-04-17T09:43:09Z",
       "published_ts": 1776418989.0,
-      "age_minutes": 740.0,
+      "age_minutes": 795.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -773,7 +773,7 @@
       ],
       "published_at": "2026-04-16T23:14:45Z",
       "published_ts": 1776381285.0,
-      "age_minutes": 1368.4,
+      "age_minutes": 1424.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -804,44 +804,6 @@
       "provider_count": 1
     },
     {
-      "story_key": "d5541efd8ba86f0f6b4a7becc799cd7cce1c9a85:5921261",
-      "headline": "Amazon Wants You Off The Couch And Into Theaters - Amazon.com (NASDAQ:AMZN)",
-      "tickers": [
-        "AMZN"
-      ],
-      "published_at": "2026-04-16T22:26:00Z",
-      "published_ts": 1776378360.0,
-      "age_minutes": 1417.1,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Benzinga"
-      ],
-      "source_tier": "TIER_2",
-      "source_rank": 2,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Amazon Wants You Off The Couch And Into Theaters - Amazon.com (NASDAQ:AMZN)",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.1946,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.benzinga.com/news/entertainment/26/04/51874776/amazon-built-on-keeping-customers-inside-homes-now-wants-to-send-audiences-to-movie-theaters-a-reason-to-leave-the-house",
-      "first_seen_at": "2026-04-16T23:02:44.719724Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
       "story_key": "d2ee109eb5cd433cb51054d9a7ae04baeb2634d0:5921399",
       "headline": "In-Depth Analysis: Amazon.com Versus Competitors In Broadline Retail Industry - Amazon.com (NASDAQ:AMZN)",
       "tickers": [
@@ -849,7 +811,7 @@
       ],
       "published_at": "2026-04-17T09:58:56Z",
       "published_ts": 1776419936.0,
-      "age_minutes": 724.2,
+      "age_minutes": 780.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -880,6 +842,44 @@
       "provider_count": 1
     },
     {
+      "story_key": "8dd7bfd3acc4dd027ac845bfdb6637ae1f15f283:5921488",
+      "headline": "Microsoft: Don't Buy The Dip, A 30% Correction Is Still Ahead (NASDAQ:MSFT)",
+      "tickers": [
+        "MSFT"
+      ],
+      "published_at": "2026-04-17T17:22:03Z",
+      "published_ts": 1776446523.0,
+      "age_minutes": 337.0,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Seeking Alpha"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Microsoft: Don't Buy The Dip, A 30% Correction Is Still Ahead (NASDAQ:MSFT)",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "news_catalyst_score": 0.1918,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://seekingalpha.com/article/4891641-microsoft-don-t-buy-the-dip-a-30-percent-correction-is-still-ahead",
+      "first_seen_at": "2026-04-17T21:10:38.493801Z",
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
       "story_key": "2dc8b205dc808ea982135eccd49b70d4a3e7e5bd:5921475",
       "headline": "Microsoft: Not Like Meta In 2022 (NASDAQ:MSFT)",
       "tickers": [
@@ -887,7 +887,7 @@
       ],
       "published_at": "2026-04-17T16:15:22Z",
       "published_ts": 1776442522.0,
-      "age_minutes": 347.7,
+      "age_minutes": 403.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -925,7 +925,7 @@
       ],
       "published_at": "2026-04-17T15:21:36Z",
       "published_ts": 1776439296.0,
-      "age_minutes": 401.5,
+      "age_minutes": 457.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -963,7 +963,7 @@
       ],
       "published_at": "2026-04-17T11:41:37Z",
       "published_ts": 1776426097.0,
-      "age_minutes": 621.5,
+      "age_minutes": 677.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1001,7 +1001,7 @@
       ],
       "published_at": "2026-04-17T09:20:48Z",
       "published_ts": 1776417648.0,
-      "age_minutes": 762.3,
+      "age_minutes": 818.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1039,7 +1039,7 @@
       ],
       "published_at": "2026-04-17T08:49:00Z",
       "published_ts": 1776415740.0,
-      "age_minutes": 794.1,
+      "age_minutes": 850.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1077,7 +1077,7 @@
       ],
       "published_at": "2026-04-17T04:56:47Z",
       "published_ts": 1776401807.0,
-      "age_minutes": 1026.3,
+      "age_minutes": 1082.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1117,7 +1117,7 @@
       ],
       "published_at": "2026-04-17T12:59:22Z",
       "published_ts": 1776430762.0,
-      "age_minutes": 543.7,
+      "age_minutes": 599.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1155,7 +1155,7 @@
       ],
       "published_at": "2026-04-17T15:53:49Z",
       "published_ts": 1776441229.0,
-      "age_minutes": 369.3,
+      "age_minutes": 425.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1193,7 +1193,7 @@
       ],
       "published_at": "2026-04-17T14:42:35Z",
       "published_ts": 1776436955.0,
-      "age_minutes": 440.5,
+      "age_minutes": 496.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1231,7 +1231,7 @@
       ],
       "published_at": "2026-04-17T12:45:20Z",
       "published_ts": 1776429920.0,
-      "age_minutes": 557.8,
+      "age_minutes": 613.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1270,7 +1270,7 @@
       ],
       "published_at": "2026-04-17T07:06:01Z",
       "published_ts": 1776409561.0,
-      "age_minutes": 897.1,
+      "age_minutes": 953.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1308,7 +1308,7 @@
       ],
       "published_at": "2026-04-17T06:04:35Z",
       "published_ts": 1776405875.0,
-      "age_minutes": 958.5,
+      "age_minutes": 1014.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1346,7 +1346,7 @@
       ],
       "published_at": "2026-04-17T04:56:47Z",
       "published_ts": 1776401807.0,
-      "age_minutes": 1026.3,
+      "age_minutes": 1082.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1379,17 +1379,17 @@
   ],
   "news_catalyst_by_symbol": {
     "AAPL": {
-      "news_catalyst_score": 0.5707,
+      "news_catalyst_score": 0.6484,
       "sentiment_label": "neutral",
-      "event_class": "MACRO",
-      "event_label": "Aggressive Buying As Hormuz Strait Opens; Trump Says Inflation Is Fake - Apple (NASDAQ:AAPL)",
-      "materiality": "LOW",
+      "event_class": "DIVIDEND",
+      "event_label": "Apple vs Broadcom (AAPL vs AVGO): Dividend & AI Analysis 2026",
+      "materiality": "MEDIUM",
       "recency_bucket": "AGING",
-      "source_tier": "TIER_2",
-      "mentions_24h": 5,
-      "is_actionable": false,
+      "source_tier": "TIER_3",
+      "mentions_24h": 6,
+      "is_actionable": true,
       "first_provider": "newsapi_ai",
-      "story_key": "b323b0507924a8a2c045c040388c6239c4b7d1c4:5921494"
+      "story_key": "8e6759797ba55d62cdc8df01d09c5cfd3c513367:5921520"
     },
     "AMZN": {
       "news_catalyst_score": 0.5531,
@@ -1399,13 +1399,13 @@
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "source_tier": "TIER_3",
-      "mentions_24h": 12,
+      "mentions_24h": 10,
       "is_actionable": false,
       "first_provider": "newsapi_ai",
       "story_key": "c5ff6cec212cabe71e08301fb2fa3add7c48cc62:5921453"
     },
     "CAT": {
-      "news_catalyst_score": 0.2355,
+      "news_catalyst_score": 0.2193,
       "sentiment_label": "neutral",
       "event_class": "UNKNOWN",
       "event_label": "7 Industrials Stocks Whale Activity In Today's Session - Boeing (NYSE:BA), Caterpillar (NYSE:CAT)",
@@ -1444,17 +1444,17 @@
       "story_key": "ac9888ae0d975e912780cf594721505dce074ffb:5921433"
     },
     "META": {
-      "news_catalyst_score": 0.2818,
+      "news_catalyst_score": 0.3506,
       "sentiment_label": "neutral",
       "event_class": "UNKNOWN",
-      "event_label": "As Mark Zuckerberg Moves His Desk to the AI Lab to Double Down on Innovation, META Stock Lags the S&P 500. Should You Be",
+      "event_label": "Can Muse Spark Supercharge Meta Platforms (META)'s Ad Business?",
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "source_tier": "TIER_3",
-      "mentions_24h": 4,
+      "mentions_24h": 5,
       "is_actionable": false,
       "first_provider": "newsapi_ai",
-      "story_key": "148e0ee649f304b327a9911ea1e7144ecfa2cf39:5921420"
+      "story_key": "90ed51c39940ebcfc939f409ffde93b764e3465f:5921533"
     },
     "MSFT": {
       "news_catalyst_score": 0.482,
@@ -1498,9 +1498,11 @@
   },
   "summary": {
     "active_story_count": 34,
-    "new_story_count": 0,
-    "actionable_story_count": 0,
-    "actionable_symbols": [],
+    "new_story_count": 2,
+    "actionable_story_count": 1,
+    "actionable_symbols": [
+      "AAPL"
+    ],
     "symbol_count": 9
   },
   "symbol_scope": {

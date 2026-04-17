@@ -5,12 +5,70 @@
     "fmp_stock": 0.0,
     "fmp_press": 0.0,
     "fmp_articles": 0.0,
-    "newsapi_ai": 1776449610.0,
+    "newsapi_ai": 1776460195.0,
     "tv": 0.0,
-    "legacy_cursor": 1776449610.0
+    "legacy_cursor": 1776460195.0
   },
   "provider_state": {},
   "story_state": {
+    "8e6759797ba55d62cdc8df01d09c5cfd3c513367:5921520": {
+      "story_key": "8e6759797ba55d62cdc8df01d09c5cfd3c513367:5921520",
+      "cluster_hash": "8e6759797ba55d62cdc8df01d09c5cfd3c513367",
+      "headline": "Apple vs Broadcom (AAPL vs AVGO): Dividend & AI Analysis 2026",
+      "tickers": [
+        "AAPL"
+      ],
+      "published_ts": 1776456021.0,
+      "first_seen_ts": 1776466744.501252,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "\u308b\u306a\u3066\u3061"
+      ],
+      "url": "https://www.techi.com/apple-vs-broadcom/",
+      "category": "dividend",
+      "impact": 0.82,
+      "clarity": 0.8,
+      "relevance": 0.859,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776466744.501252
+    },
+    "90ed51c39940ebcfc939f409ffde93b764e3465f:5921533": {
+      "story_key": "90ed51c39940ebcfc939f409ffde93b764e3465f:5921533",
+      "cluster_hash": "90ed51c39940ebcfc939f409ffde93b764e3465f",
+      "headline": "Can Muse Spark Supercharge Meta Platforms (META)'s Ad Business?",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1776460195.0,
+      "first_seen_ts": 1776466744.501252,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Yahoo! Finance"
+      ],
+      "url": "https://ca.finance.yahoo.com/news/muse-spark-supercharge-meta-platforms-210955944.html",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776466744.501252
+    },
     "37b4ed8f45efbe625331f62e69d21aae0b91647f:5921498": {
       "story_key": "37b4ed8f45efbe625331f62e69d21aae0b91647f:5921498",
       "cluster_hash": "37b4ed8f45efbe625331f62e69d21aae0b91647f",
