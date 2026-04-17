@@ -52,6 +52,7 @@ jobs:
           mkdir -p artifacts/ci
           set -o pipefail
           python -m pytest -q --maxfail=1 \
+            --cov-fail-under=20 \
             --cov=streamlit_terminal \
             --cov=streamlit_terminal_alerts \
             --cov=streamlit_terminal_config \
