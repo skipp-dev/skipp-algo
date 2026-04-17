@@ -5,12 +5,215 @@
     "fmp_stock": 0.0,
     "fmp_press": 0.0,
     "fmp_articles": 0.0,
-    "newsapi_ai": 1776409561.0,
+    "newsapi_ai": 1776419946.0,
     "tv": 0.0,
-    "legacy_cursor": 1776409561.0
+    "legacy_cursor": 1776419946.0
   },
   "provider_state": {},
   "story_state": {
+    "7fce8cea4ea3e47b82a546d684e6ddc6d2aa3606:5921396": {
+      "story_key": "7fce8cea4ea3e47b82a546d684e6ddc6d2aa3606:5921396",
+      "cluster_hash": "7fce8cea4ea3e47b82a546d684e6ddc6d2aa3606",
+      "headline": "Amazon.com (NASDAQ:AMZN) CEO Douglas Herrington Sells 20,500 Shares",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_ts": 1776418966.0,
+      "first_seen_ts": 1776425297.578937,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "InsiderTrades.com"
+      ],
+      "url": "https://www.insidertrades.com/alerts/nasdaq-amzn-insider-buying-and-selling-2026-04-17/",
+      "category": "management",
+      "impact": 0.6,
+      "clarity": 0.8,
+      "relevance": 0.76,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776425297.578937
+    },
+    "eb6fc7234701630650cba56f81a1a7f2aa354475:5921399": {
+      "story_key": "eb6fc7234701630650cba56f81a1a7f2aa354475:5921399",
+      "cluster_hash": "eb6fc7234701630650cba56f81a1a7f2aa354475",
+      "headline": "Comparing Microsoft With Industry Competitors In Software Industry - Microsoft (NASDAQ:MSFT)",
+      "tickers": [
+        "MSFT"
+      ],
+      "published_ts": 1776419946.0,
+      "first_seen_ts": 1776425297.578937,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "url": "https://www.benzinga.com/insights/news/26/04/51877763/comparing-microsoft-with-industry-competitors-in-software-industry",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "last_seen_ts": 1776425297.578937
+    },
+    "d2ee109eb5cd433cb51054d9a7ae04baeb2634d0:5921399": {
+      "story_key": "d2ee109eb5cd433cb51054d9a7ae04baeb2634d0:5921399",
+      "cluster_hash": "d2ee109eb5cd433cb51054d9a7ae04baeb2634d0",
+      "headline": "In-Depth Analysis: Amazon.com Versus Competitors In Broadline Retail Industry - Amazon.com (NASDAQ:AMZN)",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_ts": 1776419936.0,
+      "first_seen_ts": 1776425297.578937,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "url": "https://www.benzinga.com/insights/news/26/04/51877756/in-depth-analysis-amazon-com-versus-competitors-in-broadline-retail-industry",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.45543478260869563,
+      "polarity": 0.0,
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "last_seen_ts": 1776425297.578937
+    },
+    "6e61e39fa8489bb73690472365bcc27b2e8fc4d8:5921396": {
+      "story_key": "6e61e39fa8489bb73690472365bcc27b2e8fc4d8:5921396",
+      "cluster_hash": "6e61e39fa8489bb73690472365bcc27b2e8fc4d8",
+      "headline": "Apple Defies China Smartphone Slump With Fastest Growth - Apple (NASDAQ:AAPL), Xiaomi (OTC:XIACF)",
+      "tickers": [
+        "AAPL"
+      ],
+      "published_ts": 1776418989.0,
+      "first_seen_ts": 1776425297.578937,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "url": "https://www.benzinga.com/analyst-stock-ratings/analyst-color/26/04/51877661/apple-defies-china-smartphone-slump-with-fastest-growth",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "last_seen_ts": 1776425297.578937
+    },
+    "b96292136ddb95e94c40b58dc7d12305a0ec1972:5921395": {
+      "story_key": "b96292136ddb95e94c40b58dc7d12305a0ec1972:5921395",
+      "cluster_hash": "b96292136ddb95e94c40b58dc7d12305a0ec1972",
+      "headline": "MSFT Stock Is Down 30% from Its Peak While Wall Street's Average Price Target Is $587  --  Here's What's Actually Going On",
+      "tickers": [
+        "MSFT"
+      ],
+      "published_ts": 1776418614.0,
+      "first_seen_ts": 1776425297.578937,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Financial News"
+      ],
+      "url": "https://www.financial-news.co.uk/msft-stock-is-down-30-from-its-peak-while-wall-streets-average-price-target-is-587-heres-whats-actually-going-on/",
+      "category": "analyst",
+      "impact": 0.65,
+      "clarity": 0.8,
+      "relevance": 0.7825,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776425297.578937
+    },
+    "4d80778388f0e553d3bf336dbc044034d08db128:5921392": {
+      "story_key": "4d80778388f0e553d3bf336dbc044034d08db128:5921392",
+      "cluster_hash": "4d80778388f0e553d3bf336dbc044034d08db128",
+      "headline": "Apple (AAPL) Leads China's Smartphone Market With 20% iPhone Growth in Q1 2026 - Blockonomi",
+      "tickers": [
+        "AAPL"
+      ],
+      "published_ts": 1776417648.0,
+      "first_seen_ts": 1776425297.578937,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Blockonomi"
+      ],
+      "url": "https://blockonomi.com/apple-aapl-leads-chinas-smartphone-market-with-20-iphone-growth-in-q1-2026/",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "polarity": 0.1375,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776425297.578937
+    },
+    "13242c3246e2837788930ac071dd1b73fbb7cf96:5921385": {
+      "story_key": "13242c3246e2837788930ac071dd1b73fbb7cf96:5921385",
+      "cluster_hash": "13242c3246e2837788930ac071dd1b73fbb7cf96",
+      "headline": "Meta Stock 2026: Buy or Sell? Wall Street Says Strong Buy as AI and Ads Fuel Rally Toward $800+",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1776415740.0,
+      "first_seen_ts": 1776425297.578937,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "International Business Times AU"
+      ],
+      "url": "https://www.ibtimes.com.au/meta-stock-2026-buy-sell-wall-street-says-strong-buy-ai-ads-fuel-rally-toward-800-1866847",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "polarity": 0.275,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776425297.578937
+    },
     "7ce89506822879ea8e4e589b88534924411320ea:5921365": {
       "story_key": "7ce89506822879ea8e4e589b88534924411320ea:5921365",
       "cluster_hash": "7ce89506822879ea8e4e589b88534924411320ea",
