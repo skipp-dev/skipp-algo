@@ -1,0 +1,114 @@
+{
+  "dashboard_audit_row_count": 70,
+  "gate_names": [
+    "measurement_lane",
+    "post_release_validation",
+    "provider_health",
+    "publish_contract",
+    "reference_bundle"
+  ],
+  "governance_by_status": {
+    "ADVISORY": [
+      "MEASUREMENT_BRIER_ABOVE_THRESHOLD",
+      "MEASUREMENT_BRIER_REGRESSION",
+      "MEASUREMENT_EVENT_COVERAGE_REGRESSION",
+      "MEASUREMENT_LOG_SCORE_ABOVE_THRESHOLD",
+      "MEASUREMENT_LOG_SCORE_REGRESSION",
+      "MEASUREMENT_STRATIFICATION_COVERAGE_LOW",
+      "MEASUREMENT_STRATIFICATION_COVERAGE_REGRESSION"
+    ],
+    "EXCLUDED": [
+      "MEASUREMENT_EVENT_COVERAGE_LOW"
+    ],
+    "HARD_BLOCKING": [
+      "MEASUREMENT_CALIBRATED_BRIER_ABOVE_THRESHOLD",
+      "MEASUREMENT_CALIBRATED_BRIER_REGRESSION",
+      "MEASUREMENT_CALIBRATED_ECE_ABOVE_THRESHOLD"
+    ],
+    "SHADOW": [
+      "MEASUREMENT_CALIBRATED_ECE_REGRESSION"
+    ]
+  },
+  "governance_codes": [
+    "MEASUREMENT_BRIER_ABOVE_THRESHOLD",
+    "MEASUREMENT_BRIER_REGRESSION",
+    "MEASUREMENT_CALIBRATED_BRIER_ABOVE_THRESHOLD",
+    "MEASUREMENT_CALIBRATED_BRIER_REGRESSION",
+    "MEASUREMENT_CALIBRATED_ECE_ABOVE_THRESHOLD",
+    "MEASUREMENT_CALIBRATED_ECE_REGRESSION",
+    "MEASUREMENT_EVENT_COVERAGE_LOW",
+    "MEASUREMENT_EVENT_COVERAGE_REGRESSION",
+    "MEASUREMENT_LOG_SCORE_ABOVE_THRESHOLD",
+    "MEASUREMENT_LOG_SCORE_REGRESSION",
+    "MEASUREMENT_STRATIFICATION_COVERAGE_LOW",
+    "MEASUREMENT_STRATIFICATION_COVERAGE_REGRESSION"
+  ],
+  "governance_status_values": [
+    "ADVISORY",
+    "EXCLUDED",
+    "HARD_BLOCKING",
+    "SHADOW"
+  ],
+  "governance_validation_errors": [],
+  "hard_blocking_codes": [
+    "MEASUREMENT_CALIBRATED_BRIER_ABOVE_THRESHOLD",
+    "MEASUREMENT_CALIBRATED_BRIER_REGRESSION",
+    "MEASUREMENT_CALIBRATED_ECE_ABOVE_THRESHOLD"
+  ],
+  "reference_symbols": [
+    "AAPL",
+    "MSFT",
+    "AMZN",
+    "JPM",
+    "JNJ",
+    "XOM",
+    "CAT",
+    "PG",
+    "NEE",
+    "AMT",
+    "META",
+    "LIN"
+  ],
+  "reference_symbols_count": 12,
+  "reference_timeframes": [
+    "5m",
+    "15m",
+    "1H",
+    "4H"
+  ],
+  "schema": "e2e_smoke_v1",
+  "threshold_defaults": {
+    "max_brier_regression_abs": 0.08,
+    "max_brier_score": 0.6,
+    "max_calibrated_brier_regression_abs": 0.08,
+    "max_calibrated_brier_score": 0.6,
+    "max_calibrated_ece": 0.3,
+    "max_calibrated_ece_regression_abs": 0.1,
+    "max_log_regression_abs": 0.2,
+    "max_log_score": 1.2,
+    "min_event_coverage_ratio": 0.5,
+    "min_history_runs": 2,
+    "min_populated_stratification_buckets": 1,
+    "min_scoring_events": 1,
+    "min_stratification_coverage_ratio": 0.5,
+    "soft_warn_max_brier_score": 0.3,
+    "soft_warn_min_event_coverage_ratio": 0.5
+  },
+  "threshold_fields": [
+    "max_brier_regression_abs",
+    "max_brier_score",
+    "max_calibrated_brier_regression_abs",
+    "max_calibrated_brier_score",
+    "max_calibrated_ece",
+    "max_calibrated_ece_regression_abs",
+    "max_log_regression_abs",
+    "max_log_score",
+    "min_event_coverage_ratio",
+    "min_history_runs",
+    "min_populated_stratification_buckets",
+    "min_scoring_events",
+    "min_stratification_coverage_ratio",
+    "soft_warn_max_brier_score",
+    "soft_warn_min_event_coverage_ratio"
+  ]
+}

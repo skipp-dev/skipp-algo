@@ -23,7 +23,7 @@ from smc_core.scoring import (
     summarize_stratified_calibration,
 )
 from smc_core.schema_version import SCHEMA_VERSION
-from smc_integration.measurement_evidence import build_measurement_evidence
+from smc_integration.measurement_evidence import build_evidence_id, build_measurement_evidence
 from smc_integration.release_policy import (
     RELEASE_REFERENCE_SYMBOLS,
     RELEASE_REFERENCE_TIMEFRAMES,
@@ -454,6 +454,17 @@ def _run_measurement_gate(
     except Exception as exc:
         evidence = None
         warnings.append(f"measurement evidence generation failed: {exc}")
+
+    # -- Evidence ID (F-02) -------------------------------------------------
+    gate_timestamp = float(time.time())
+    evidence_id = build_evidence_id(
+        symbol=symbol,
+        timeframe=timeframe,
+        run_timestamp=gate_timestamp,
+    )
+    details["evidence_id"] = evidence_id
+    details["evidence_timestamp"] = gate_timestamp
+    details["evidence_path"] = _path_for_report(output_dir, report_output=report_output)
 
     # -- Benchmark artifact -------------------------------------------------
     try:

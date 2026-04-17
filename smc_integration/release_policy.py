@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import enum
 import math
 import os
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from statistics import median
 import subprocess
 from typing import Any, Iterable
@@ -75,6 +76,189 @@ HARD_BLOCKING_DEGRADATION_CODES: frozenset[str] = frozenset({
     # is noise-susceptible with small sample sizes; the ECE absolute
     # threshold (0.30) provides a sufficient safety net.
 })
+
+# ---------------------------------------------------------------------------
+# Governance status model (F-01)
+# ---------------------------------------------------------------------------
+# Every degradation code MUST have an explicit governance status.  The enum
+# enforces the allowed states; the registry enforces metadata completeness.
+
+
+class GovernanceStatus(enum.Enum):
+    """Formal promotion state for a gate / degradation code."""
+
+    EXCLUDED = "EXCLUDED"
+    SHADOW = "SHADOW"
+    ADVISORY = "ADVISORY"
+    HARD_BLOCKING = "HARD_BLOCKING"
+
+
+@dataclass(slots=True, frozen=True)
+class GateGovernance:
+    """Structured governance metadata for a single degradation code."""
+
+    code: str
+    promotion_state: GovernanceStatus
+    promotion_reason: str
+    reviewer: str
+    minimum_required_baselines: int
+    evidence_reference: str | None = None
+
+
+# Canonical gate governance registry — every known degradation code.
+GATE_GOVERNANCE_REGISTRY: tuple[GateGovernance, ...] = (
+    GateGovernance(
+        code="MEASUREMENT_CALIBRATED_BRIER_ABOVE_THRESHOLD",
+        promotion_state=GovernanceStatus.HARD_BLOCKING,
+        promotion_reason="Absolute calibrated Brier ceiling — core signal quality gate.",
+        reviewer="owner",
+        minimum_required_baselines=2,
+        evidence_reference="docs/governance/promotions/initial_promotion_2026-04-17.md",
+    ),
+    GateGovernance(
+        code="MEASUREMENT_CALIBRATED_BRIER_REGRESSION",
+        promotion_state=GovernanceStatus.HARD_BLOCKING,
+        promotion_reason="Calibrated Brier regression vs historical median — prevents silent degradation.",
+        reviewer="owner",
+        minimum_required_baselines=2,
+        evidence_reference="docs/governance/promotions/initial_promotion_2026-04-17.md",
+    ),
+    GateGovernance(
+        code="MEASUREMENT_CALIBRATED_ECE_ABOVE_THRESHOLD",
+        promotion_state=GovernanceStatus.HARD_BLOCKING,
+        promotion_reason="Absolute calibrated ECE ceiling — calibration quality gate.",
+        reviewer="owner",
+        minimum_required_baselines=2,
+        evidence_reference="docs/governance/promotions/initial_promotion_2026-04-17.md",
+    ),
+    GateGovernance(
+        code="MEASUREMENT_BRIER_ABOVE_THRESHOLD",
+        promotion_state=GovernanceStatus.ADVISORY,
+        promotion_reason="Raw Brier ceiling — early warning, not promoted to hard-blocking.",
+        reviewer="owner",
+        minimum_required_baselines=0,
+    ),
+    GateGovernance(
+        code="MEASUREMENT_LOG_SCORE_ABOVE_THRESHOLD",
+        promotion_state=GovernanceStatus.ADVISORY,
+        promotion_reason="Log score ceiling — supplementary metric, advisory only.",
+        reviewer="owner",
+        minimum_required_baselines=0,
+    ),
+    GateGovernance(
+        code="MEASUREMENT_BRIER_REGRESSION",
+        promotion_state=GovernanceStatus.ADVISORY,
+        promotion_reason="Raw Brier regression — noisy with small samples, advisory.",
+        reviewer="owner",
+        minimum_required_baselines=2,
+    ),
+    GateGovernance(
+        code="MEASUREMENT_LOG_SCORE_REGRESSION",
+        promotion_state=GovernanceStatus.ADVISORY,
+        promotion_reason="Log score regression — noisy with small samples, advisory.",
+        reviewer="owner",
+        minimum_required_baselines=2,
+    ),
+    GateGovernance(
+        code="MEASUREMENT_CALIBRATED_ECE_REGRESSION",
+        promotion_state=GovernanceStatus.SHADOW,
+        promotion_reason="ECE regression noise-susceptible with small samples; absolute ECE threshold provides safety net.",
+        reviewer="owner",
+        minimum_required_baselines=2,
+    ),
+    GateGovernance(
+        code="MEASUREMENT_EVENT_COVERAGE_LOW",
+        promotion_state=GovernanceStatus.EXCLUDED,
+        promotion_reason="Bootstrap deadlock: can't publish without history, no history without publish.",
+        reviewer="owner",
+        minimum_required_baselines=0,
+    ),
+    GateGovernance(
+        code="MEASUREMENT_STRATIFICATION_COVERAGE_LOW",
+        promotion_state=GovernanceStatus.ADVISORY,
+        promotion_reason="Low bucket coverage — advisory quality signal.",
+        reviewer="owner",
+        minimum_required_baselines=0,
+    ),
+    GateGovernance(
+        code="MEASUREMENT_EVENT_COVERAGE_REGRESSION",
+        promotion_state=GovernanceStatus.ADVISORY,
+        promotion_reason="Event count regression vs baseline — advisory.",
+        reviewer="owner",
+        minimum_required_baselines=2,
+    ),
+    GateGovernance(
+        code="MEASUREMENT_STRATIFICATION_COVERAGE_REGRESSION",
+        promotion_state=GovernanceStatus.ADVISORY,
+        promotion_reason="Stratification coverage regression — advisory.",
+        reviewer="owner",
+        minimum_required_baselines=2,
+    ),
+)
+
+# Fast lookup index: code -> GateGovernance
+_GATE_GOVERNANCE_INDEX: dict[str, GateGovernance] = {g.code: g for g in GATE_GOVERNANCE_REGISTRY}
+
+
+def get_gate_governance(code: str) -> GateGovernance | None:
+    """Return governance metadata for a degradation code, or None if unknown."""
+    return _GATE_GOVERNANCE_INDEX.get(code)
+
+
+def validate_gate_governance_registry() -> list[str]:
+    """Validate the gate governance registry for completeness and consistency.
+
+    Returns a list of error messages.  An empty list means the registry is valid.
+    """
+    errors: list[str] = []
+    seen_codes: set[str] = set()
+
+    for entry in GATE_GOVERNANCE_REGISTRY:
+        # Duplicate check
+        if entry.code in seen_codes:
+            errors.append(f"duplicate governance entry for code {entry.code!r}")
+        seen_codes.add(entry.code)
+
+        # Valid enum value
+        if not isinstance(entry.promotion_state, GovernanceStatus):
+            errors.append(f"code {entry.code!r}: promotion_state is not a GovernanceStatus")
+
+        # Required fields
+        if not entry.promotion_reason.strip():
+            errors.append(f"code {entry.code!r}: promotion_reason is empty")
+        if not entry.reviewer.strip():
+            errors.append(f"code {entry.code!r}: reviewer is empty")
+
+        # HARD_BLOCKING must have minimum_required_baselines >= 1
+        if entry.promotion_state == GovernanceStatus.HARD_BLOCKING and entry.minimum_required_baselines < 1:
+            errors.append(
+                f"code {entry.code!r}: HARD_BLOCKING gate must have minimum_required_baselines >= 1"
+            )
+
+        # HARD_BLOCKING must have evidence_reference
+        if entry.promotion_state == GovernanceStatus.HARD_BLOCKING and not entry.evidence_reference:
+            errors.append(
+                f"code {entry.code!r}: HARD_BLOCKING gate must have an evidence_reference"
+            )
+
+    # Cross-check: every HARD_BLOCKING code in the registry must be in HARD_BLOCKING_DEGRADATION_CODES
+    registry_hard = {
+        e.code for e in GATE_GOVERNANCE_REGISTRY if e.promotion_state == GovernanceStatus.HARD_BLOCKING
+    }
+    if registry_hard != HARD_BLOCKING_DEGRADATION_CODES:
+        only_registry = registry_hard - HARD_BLOCKING_DEGRADATION_CODES
+        only_frozenset = HARD_BLOCKING_DEGRADATION_CODES - registry_hard
+        if only_registry:
+            errors.append(
+                f"HARD_BLOCKING in registry but not in HARD_BLOCKING_DEGRADATION_CODES: {sorted(only_registry)}"
+            )
+        if only_frozenset:
+            errors.append(
+                f"in HARD_BLOCKING_DEGRADATION_CODES but not HARD_BLOCKING in registry: {sorted(only_frozenset)}"
+            )
+
+    return errors
+
 
 # ---------------------------------------------------------------------------
 # Drift-safe artifact policy — explicit classification of volatile artifacts.

@@ -846,3 +846,124 @@ class TestHardBlockingMeasurementDegradations:
             "MEASUREMENT_CALIBRATED_BRIER_REGRESSION",
             "MEASUREMENT_CALIBRATED_ECE_ABOVE_THRESHOLD",
         }
+
+
+# ---------------------------------------------------------------------------
+# F-01: Governance enforcement — GovernanceStatus, GateGovernance, registry
+# ---------------------------------------------------------------------------
+
+class TestGovernanceEnforcementGaps:
+    def test_governance_registry_is_valid(self) -> None:
+        from smc_integration.release_policy import validate_gate_governance_registry
+        errors = validate_gate_governance_registry()
+        assert errors == [], f"Governance registry validation failed: {errors}"
+
+    def test_all_known_codes_have_governance(self) -> None:
+        from smc_integration.release_policy import GATE_GOVERNANCE_REGISTRY
+        registered_codes = {g.code for g in GATE_GOVERNANCE_REGISTRY}
+        # All codes that can appear from assess_measurement_shadow_degradations
+        expected_codes = {
+            "MEASUREMENT_CALIBRATED_BRIER_ABOVE_THRESHOLD",
+            "MEASUREMENT_CALIBRATED_BRIER_REGRESSION",
+            "MEASUREMENT_CALIBRATED_ECE_ABOVE_THRESHOLD",
+            "MEASUREMENT_BRIER_ABOVE_THRESHOLD",
+            "MEASUREMENT_LOG_SCORE_ABOVE_THRESHOLD",
+            "MEASUREMENT_BRIER_REGRESSION",
+            "MEASUREMENT_LOG_SCORE_REGRESSION",
+            "MEASUREMENT_CALIBRATED_ECE_REGRESSION",
+            "MEASUREMENT_EVENT_COVERAGE_LOW",
+            "MEASUREMENT_STRATIFICATION_COVERAGE_LOW",
+            "MEASUREMENT_EVENT_COVERAGE_REGRESSION",
+            "MEASUREMENT_STRATIFICATION_COVERAGE_REGRESSION",
+        }
+        missing = expected_codes - registered_codes
+        assert missing == set(), f"Codes missing governance: {missing}"
+
+    def test_governance_status_enum_has_four_values(self) -> None:
+        from smc_integration.release_policy import GovernanceStatus
+        assert set(GovernanceStatus) == {
+            GovernanceStatus.EXCLUDED,
+            GovernanceStatus.SHADOW,
+            GovernanceStatus.ADVISORY,
+            GovernanceStatus.HARD_BLOCKING,
+        }
+
+    def test_invalid_status_rejected_by_enum(self) -> None:
+        from smc_integration.release_policy import GovernanceStatus
+        with pytest.raises(ValueError):
+            GovernanceStatus("INVALID_STATUS")
+
+    def test_hard_blocking_codes_consistent_with_frozenset(self) -> None:
+        from smc_integration.release_policy import (
+            GATE_GOVERNANCE_REGISTRY,
+            GovernanceStatus,
+            HARD_BLOCKING_DEGRADATION_CODES,
+        )
+        registry_hard = {
+            g.code for g in GATE_GOVERNANCE_REGISTRY
+            if g.promotion_state == GovernanceStatus.HARD_BLOCKING
+        }
+        assert registry_hard == HARD_BLOCKING_DEGRADATION_CODES
+
+    def test_hard_blocking_gates_have_evidence_reference(self) -> None:
+        from smc_integration.release_policy import GATE_GOVERNANCE_REGISTRY, GovernanceStatus
+        for gate in GATE_GOVERNANCE_REGISTRY:
+            if gate.promotion_state == GovernanceStatus.HARD_BLOCKING:
+                assert gate.evidence_reference, f"{gate.code} missing evidence_reference"
+
+    def test_hard_blocking_gates_have_minimum_baselines(self) -> None:
+        from smc_integration.release_policy import GATE_GOVERNANCE_REGISTRY, GovernanceStatus
+        for gate in GATE_GOVERNANCE_REGISTRY:
+            if gate.promotion_state == GovernanceStatus.HARD_BLOCKING:
+                assert gate.minimum_required_baselines >= 1, f"{gate.code} needs baselines >= 1"
+
+    def test_all_gates_have_nonempty_promotion_reason(self) -> None:
+        from smc_integration.release_policy import GATE_GOVERNANCE_REGISTRY
+        for gate in GATE_GOVERNANCE_REGISTRY:
+            assert gate.promotion_reason.strip(), f"{gate.code} has empty promotion_reason"
+
+    def test_all_gates_have_nonempty_reviewer(self) -> None:
+        from smc_integration.release_policy import GATE_GOVERNANCE_REGISTRY
+        for gate in GATE_GOVERNANCE_REGISTRY:
+            assert gate.reviewer.strip(), f"{gate.code} has empty reviewer"
+
+    def test_no_duplicate_codes_in_registry(self) -> None:
+        from smc_integration.release_policy import GATE_GOVERNANCE_REGISTRY
+        codes = [g.code for g in GATE_GOVERNANCE_REGISTRY]
+        assert len(codes) == len(set(codes)), "Duplicate codes in registry"
+
+    def test_get_gate_governance_returns_entry(self) -> None:
+        from smc_integration.release_policy import get_gate_governance, GovernanceStatus
+        entry = get_gate_governance("MEASUREMENT_CALIBRATED_BRIER_ABOVE_THRESHOLD")
+        assert entry is not None
+        assert entry.promotion_state == GovernanceStatus.HARD_BLOCKING
+
+    def test_get_gate_governance_returns_none_for_unknown(self) -> None:
+        from smc_integration.release_policy import get_gate_governance
+        assert get_gate_governance("UNKNOWN_CODE") is None
+
+    def test_shadow_not_in_hard_blocking(self) -> None:
+        from smc_integration.release_policy import (
+            GATE_GOVERNANCE_REGISTRY,
+            GovernanceStatus,
+            HARD_BLOCKING_DEGRADATION_CODES,
+        )
+        shadow_codes = {
+            g.code for g in GATE_GOVERNANCE_REGISTRY
+            if g.promotion_state == GovernanceStatus.SHADOW
+        }
+        overlap = shadow_codes & HARD_BLOCKING_DEGRADATION_CODES
+        assert overlap == set(), f"SHADOW codes must not be in HARD_BLOCKING_DEGRADATION_CODES: {overlap}"
+
+    def test_excluded_not_in_hard_blocking(self) -> None:
+        from smc_integration.release_policy import (
+            GATE_GOVERNANCE_REGISTRY,
+            GovernanceStatus,
+            HARD_BLOCKING_DEGRADATION_CODES,
+        )
+        excluded_codes = {
+            g.code for g in GATE_GOVERNANCE_REGISTRY
+            if g.promotion_state == GovernanceStatus.EXCLUDED
+        }
+        overlap = excluded_codes & HARD_BLOCKING_DEGRADATION_CODES
+        assert overlap == set(), f"EXCLUDED codes must not be in HARD_BLOCKING_DEGRADATION_CODES: {overlap}"
