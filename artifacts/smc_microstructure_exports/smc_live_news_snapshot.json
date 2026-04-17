@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-04-17T14:08:24.633108Z",
+  "generated_at": "2026-04-17T15:16:06.444424Z",
   "symbols": [
     "AAPL",
     "MSFT",
@@ -64,12 +64,12 @@
     "newsapi_ai": {
       "ok": true,
       "error": "",
-      "raw_count": 47,
-      "new_item_count": 7,
+      "raw_count": 0,
+      "new_item_count": 0,
       "cursor": 1776430830.0,
       "last_seen_news_uri": "",
-      "provider_status": "ok",
-      "status_detail": "",
+      "provider_status": "ok_no_recent_matches",
+      "status_detail": "Event Registry reachable, but no recent symbol-matching NewsAPI.ai items were returned for the current feed window.",
       "error_code": ""
     },
     "tv": {
@@ -89,7 +89,7 @@
       ],
       "published_at": "2026-04-17T13:00:00Z",
       "published_ts": 1776430800.0,
-      "age_minutes": 68.4,
+      "age_minutes": 136.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -110,13 +110,13 @@
       "impact": 0.8,
       "clarity": 0.6,
       "relevance": 0.79,
-      "news_catalyst_score": 0.5531,
+      "news_catalyst_score": 0.5138,
       "materiality": "MEDIUM",
       "recency_bucket": "AGING",
       "is_actionable": true,
       "url": "https://seekingalpha.com/article/4891560-amazon-could-re-rate-after-earnings-again-preview",
       "first_seen_at": "2026-04-17T14:08:24.633108Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -127,7 +127,7 @@
       ],
       "published_at": "2026-04-17T09:36:54Z",
       "published_ts": 1776418614.0,
-      "age_minutes": 271.5,
+      "age_minutes": 339.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -148,49 +148,11 @@
       "impact": 0.65,
       "clarity": 0.8,
       "relevance": 0.7825,
-      "news_catalyst_score": 0.3854,
+      "news_catalyst_score": 0.362,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
       "url": "https://www.financial-news.co.uk/msft-stock-is-down-30-from-its-peak-while-wall-streets-average-price-target-is-587-heres-whats-actually-going-on/",
-      "first_seen_at": "2026-04-17T11:28:17.578937Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "7fce8cea4ea3e47b82a546d684e6ddc6d2aa3606:5921396",
-      "headline": "Amazon.com (NASDAQ:AMZN) CEO Douglas Herrington Sells 20,500 Shares",
-      "tickers": [
-        "AMZN"
-      ],
-      "published_at": "2026-04-17T09:42:46Z",
-      "published_ts": 1776418966.0,
-      "age_minutes": 265.6,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "InsiderTrades.com"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "management",
-      "event_class": "MANAGEMENT",
-      "event_label": "Amazon.com (NASDAQ:AMZN) CEO Douglas Herrington Sells 20,500 Shares",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.6,
-      "clarity": 0.8,
-      "relevance": 0.76,
-      "news_catalyst_score": 0.3736,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.insidertrades.com/alerts/nasdaq-amzn-insider-buying-and-selling-2026-04-17/",
       "first_seen_at": "2026-04-17T11:28:17.578937Z",
       "is_new": false,
       "provider_count": 1
@@ -203,7 +165,7 @@
       ],
       "published_at": "2026-04-16T15:29:46Z",
       "published_ts": 1776353386.0,
-      "age_minutes": 1358.6,
+      "age_minutes": 1426.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -234,44 +196,6 @@
       "provider_count": 1
     },
     {
-      "story_key": "9a2f7bbead9db2c8dfaf39c93eb4386ff5d99115:5921161",
-      "headline": "Amazon (AMZN) Secures Major Fox Media AI Cloud Partnership - Blockonomi",
-      "tickers": [
-        "AMZN"
-      ],
-      "published_at": "2026-04-16T14:08:44Z",
-      "published_ts": 1776348524.0,
-      "age_minutes": 1439.7,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Blockonomi"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "contract",
-      "event_class": "CONTRACT",
-      "event_label": "Amazon (AMZN) Secures Major Fox Media AI Cloud Partnership - Blockonomi",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.7,
-      "clarity": 0.6,
-      "relevance": 0.745,
-      "news_catalyst_score": 0.3527,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://blockonomi.com/amazon-amzn-secures-major-fox-media-ai-cloud-partnership/",
-      "first_seen_at": "2026-04-16T14:57:51.102709Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
       "story_key": "e5911034f30a787cd745f18f146409f99eb948d5:5921247",
       "headline": "Employment 'Apocalypse' Fears Are Overblown, Scale AI CEO Says - Meta Platforms (NASDAQ:META), Oracle (NY",
       "tickers": [
@@ -279,7 +203,7 @@
       ],
       "published_at": "2026-04-16T21:19:29Z",
       "published_ts": 1776374369.0,
-      "age_minutes": 1008.9,
+      "age_minutes": 1076.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -310,6 +234,44 @@
       "provider_count": 1
     },
     {
+      "story_key": "7fce8cea4ea3e47b82a546d684e6ddc6d2aa3606:5921396",
+      "headline": "Amazon.com (NASDAQ:AMZN) CEO Douglas Herrington Sells 20,500 Shares",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_at": "2026-04-17T09:42:46Z",
+      "published_ts": 1776418966.0,
+      "age_minutes": 333.3,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "InsiderTrades.com"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "management",
+      "event_class": "MANAGEMENT",
+      "event_label": "Amazon.com (NASDAQ:AMZN) CEO Douglas Herrington Sells 20,500 Shares",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.6,
+      "clarity": 0.8,
+      "relevance": 0.76,
+      "news_catalyst_score": 0.3465,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://www.insidertrades.com/alerts/nasdaq-amzn-insider-buying-and-selling-2026-04-17/",
+      "first_seen_at": "2026-04-17T11:28:17.578937Z",
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
       "story_key": "3785bc959accf147bb427c987cc18969b0a87cb4:5921259",
       "headline": "Herrington, Amazon CEO, sells $5.02m in AMZN stock By Investing.com",
       "tickers": [
@@ -317,7 +279,7 @@
       ],
       "published_at": "2026-04-16T22:18:10Z",
       "published_ts": 1776377890.0,
-      "age_minutes": 950.2,
+      "age_minutes": 1017.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -355,7 +317,7 @@
       ],
       "published_at": "2026-04-17T13:00:30Z",
       "published_ts": 1776430830.0,
-      "age_minutes": 67.9,
+      "age_minutes": 135.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -376,13 +338,13 @@
       "impact": 0.1,
       "clarity": 0.8,
       "relevance": 0.535,
-      "news_catalyst_score": 0.3164,
+      "news_catalyst_score": 0.2939,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
       "url": "https://www.benzinga.com/analyst-stock-ratings/price-target/26/04/51881324/amazon-to-rally-more-than-14-here-are-10-top-analyst-forecasts-for-friday",
       "first_seen_at": "2026-04-17T14:08:24.633108Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -393,7 +355,7 @@
       ],
       "published_at": "2026-04-17T12:14:16Z",
       "published_ts": 1776428056.0,
-      "age_minutes": 114.1,
+      "age_minutes": 181.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -414,13 +376,13 @@
       "impact": 0.1,
       "clarity": 0.6,
       "relevance": 0.475,
-      "news_catalyst_score": 0.267,
+      "news_catalyst_score": 0.2468,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
       "url": "https://www.benzinga.com/analyst-stock-ratings/analyst-color/26/04/51880301/qualcomm-amazon-netflix-on-cnbc-final-trades",
       "first_seen_at": "2026-04-17T14:08:24.633108Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -433,7 +395,7 @@
       ],
       "published_at": "2026-04-17T12:59:22Z",
       "published_ts": 1776430762.0,
-      "age_minutes": 69.0,
+      "age_minutes": 136.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -454,13 +416,13 @@
       "impact": 0.1,
       "clarity": 0.6,
       "relevance": 0.3561,
-      "news_catalyst_score": 0.2568,
+      "news_catalyst_score": 0.2385,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
       "url": "https://www.benzinga.com/Opinion/26/04/51881252/trade-strategy-for-spy-qqq-aapl-msft-nvda-googl-meta-and-tsla-8",
       "first_seen_at": "2026-04-17T14:08:24.633108Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -471,7 +433,7 @@
       ],
       "published_at": "2026-04-17T11:41:37Z",
       "published_ts": 1776426097.0,
-      "age_minutes": 146.8,
+      "age_minutes": 214.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -492,13 +454,13 @@
       "impact": 0.1,
       "clarity": 0.8,
       "relevance": 0.535,
-      "news_catalyst_score": 0.2538,
+      "news_catalyst_score": 0.2291,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
       "url": "https://www.barchart.com/story/news/1364098/as-mark-zuckerberg-moves-his-desk-to-the-ai-lab-to-double-down-on-innovation-meta-stock-lags-the-s-p-500-should-you-bet-on-a-turnaround",
       "first_seen_at": "2026-04-17T14:08:24.633108Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -509,7 +471,7 @@
       ],
       "published_at": "2026-04-17T12:45:20Z",
       "published_ts": 1776429920.0,
-      "age_minutes": 83.1,
+      "age_minutes": 150.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -531,13 +493,13 @@
       "impact": 0.1,
       "clarity": 0.6,
       "relevance": 0.475,
-      "news_catalyst_score": 0.2372,
+      "news_catalyst_score": 0.22,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
       "url": "https://www.investing.com/news/stock-market-news/jpm-stays-constructive-on-french-telcos-with-or-without-consolidation-4620269",
       "first_seen_at": "2026-04-17T14:08:24.633108Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -548,7 +510,7 @@
       ],
       "published_at": "2026-04-17T05:34:30Z",
       "published_ts": 1776404070.0,
-      "age_minutes": 513.9,
+      "age_minutes": 581.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -586,7 +548,7 @@
       ],
       "published_at": "2026-04-16T19:59:48Z",
       "published_ts": 1776369588.0,
-      "age_minutes": 1088.6,
+      "age_minutes": 1156.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -624,7 +586,7 @@
       ],
       "published_at": "2026-04-16T18:13:03Z",
       "published_ts": 1776363183.0,
-      "age_minutes": 1195.4,
+      "age_minutes": 1263.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -662,7 +624,7 @@
       ],
       "published_at": "2026-04-16T17:35:28Z",
       "published_ts": 1776360928.0,
-      "age_minutes": 1232.9,
+      "age_minutes": 1300.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -700,7 +662,7 @@
       ],
       "published_at": "2026-04-16T17:06:44Z",
       "published_ts": 1776359204.0,
-      "age_minutes": 1261.7,
+      "age_minutes": 1329.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -738,7 +700,7 @@
       ],
       "published_at": "2026-04-17T09:59:06Z",
       "published_ts": 1776419946.0,
-      "age_minutes": 249.3,
+      "age_minutes": 317.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -759,49 +721,11 @@
       "impact": 0.1,
       "clarity": 0.6,
       "relevance": 0.475,
-      "news_catalyst_score": 0.217,
+      "news_catalyst_score": 0.1946,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
       "url": "https://www.benzinga.com/insights/news/26/04/51877763/comparing-microsoft-with-industry-competitors-in-software-industry",
-      "first_seen_at": "2026-04-17T11:28:17.578937Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "d2ee109eb5cd433cb51054d9a7ae04baeb2634d0:5921399",
-      "headline": "In-Depth Analysis: Amazon.com Versus Competitors In Broadline Retail Industry - Amazon.com (NASDAQ:AMZN)",
-      "tickers": [
-        "AMZN"
-      ],
-      "published_at": "2026-04-17T09:58:56Z",
-      "published_ts": 1776419936.0,
-      "age_minutes": 249.5,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Benzinga"
-      ],
-      "source_tier": "TIER_2",
-      "source_rank": 2,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "In-Depth Analysis: Amazon.com Versus Competitors In Broadline Retail Industry - Amazon.com (NASDAQ:AMZN)",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.4554,
-      "news_catalyst_score": 0.2139,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.benzinga.com/insights/news/26/04/51877756/in-depth-analysis-amazon-com-versus-competitors-in-broadline-retail-industry",
       "first_seen_at": "2026-04-17T11:28:17.578937Z",
       "is_new": false,
       "provider_count": 1
@@ -814,7 +738,7 @@
       ],
       "published_at": "2026-04-17T09:43:09Z",
       "published_ts": 1776418989.0,
-      "age_minutes": 265.3,
+      "age_minutes": 333.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -835,49 +759,11 @@
       "impact": 0.1,
       "clarity": 0.6,
       "relevance": 0.475,
-      "news_catalyst_score": 0.2099,
+      "news_catalyst_score": 0.1946,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
       "url": "https://www.benzinga.com/analyst-stock-ratings/analyst-color/26/04/51877661/apple-defies-china-smartphone-slump-with-fastest-growth",
-      "first_seen_at": "2026-04-17T11:28:17.578937Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "4d80778388f0e553d3bf336dbc044034d08db128:5921392",
-      "headline": "Apple (AAPL) Leads China's Smartphone Market With 20% iPhone Growth in Q1 2026 - Blockonomi",
-      "tickers": [
-        "AAPL"
-      ],
-      "published_at": "2026-04-17T09:20:48Z",
-      "published_ts": 1776417648.0,
-      "age_minutes": 287.6,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Blockonomi"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Apple (AAPL) Leads China's Smartphone Market With 20% iPhone Growth in Q1 2026 - Blockonomi",
-      "sentiment_label": "bullish",
-      "polarity": 0.1375,
-      "impact": 0.1,
-      "clarity": 0.8,
-      "relevance": 0.535,
-      "news_catalyst_score": 0.1972,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://blockonomi.com/apple-aapl-leads-chinas-smartphone-market-with-20-iphone-growth-in-q1-2026/",
       "first_seen_at": "2026-04-17T11:28:17.578937Z",
       "is_new": false,
       "provider_count": 1
@@ -890,7 +776,7 @@
       ],
       "published_at": "2026-04-16T23:14:45Z",
       "published_ts": 1776381285.0,
-      "age_minutes": 893.7,
+      "age_minutes": 961.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -928,7 +814,7 @@
       ],
       "published_at": "2026-04-16T22:26:00Z",
       "published_ts": 1776378360.0,
-      "age_minutes": 942.4,
+      "age_minutes": 1010.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -966,7 +852,7 @@
       ],
       "published_at": "2026-04-16T18:35:06Z",
       "published_ts": 1776364506.0,
-      "age_minutes": 1173.3,
+      "age_minutes": 1241.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -997,6 +883,44 @@
       "provider_count": 1
     },
     {
+      "story_key": "d2ee109eb5cd433cb51054d9a7ae04baeb2634d0:5921399",
+      "headline": "In-Depth Analysis: Amazon.com Versus Competitors In Broadline Retail Industry - Amazon.com (NASDAQ:AMZN)",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_at": "2026-04-17T09:58:56Z",
+      "published_ts": 1776419936.0,
+      "age_minutes": 317.2,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "In-Depth Analysis: Amazon.com Versus Competitors In Broadline Retail Industry - Amazon.com (NASDAQ:AMZN)",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.4554,
+      "news_catalyst_score": 0.1919,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://www.benzinga.com/insights/news/26/04/51877756/in-depth-analysis-amazon-com-versus-competitors-in-broadline-retail-industry",
+      "first_seen_at": "2026-04-17T11:28:17.578937Z",
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
       "story_key": "e5cafb22af6f02eb317f52dd9dfa333050c76b83:5921178",
       "headline": "Clarity Act Is Moving Along Well, JP Morgan Analysts Say - JPMorgan Chase (NYSE:JPM)",
       "tickers": [
@@ -1004,7 +928,7 @@
       ],
       "published_at": "2026-04-16T15:30:02Z",
       "published_ts": 1776353402.0,
-      "age_minutes": 1358.4,
+      "age_minutes": 1426.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1035,6 +959,44 @@
       "provider_count": 1
     },
     {
+      "story_key": "4d80778388f0e553d3bf336dbc044034d08db128:5921392",
+      "headline": "Apple (AAPL) Leads China's Smartphone Market With 20% iPhone Growth in Q1 2026 - Blockonomi",
+      "tickers": [
+        "AAPL"
+      ],
+      "published_at": "2026-04-17T09:20:48Z",
+      "published_ts": 1776417648.0,
+      "age_minutes": 355.3,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Blockonomi"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Apple (AAPL) Leads China's Smartphone Market With 20% iPhone Growth in Q1 2026 - Blockonomi",
+      "sentiment_label": "bullish",
+      "polarity": 0.1375,
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "news_catalyst_score": 0.1918,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://blockonomi.com/apple-aapl-leads-chinas-smartphone-market-with-20-iphone-growth-in-q1-2026/",
+      "first_seen_at": "2026-04-17T11:28:17.578937Z",
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
       "story_key": "13242c3246e2837788930ac071dd1b73fbb7cf96:5921385",
       "headline": "Meta Stock 2026: Buy or Sell? Wall Street Says Strong Buy as AI and Ads Fuel Rally Toward $800+",
       "tickers": [
@@ -1042,7 +1004,7 @@
       ],
       "published_at": "2026-04-17T08:49:00Z",
       "published_ts": 1776415740.0,
-      "age_minutes": 319.4,
+      "age_minutes": 387.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1080,7 +1042,7 @@
       ],
       "published_at": "2026-04-17T04:56:47Z",
       "published_ts": 1776401807.0,
-      "age_minutes": 551.6,
+      "age_minutes": 619.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1111,46 +1073,6 @@
       "provider_count": 1
     },
     {
-      "story_key": "dfba04609a7d9cc3e9bb9dcd6c98a23c8223fc24:5921165",
-      "headline": "Trade Strategy For SPY, QQQ, AAPL, MSFT, NVDA, GOOGL, META, And TSLA - Apple (NASDAQ:AAPL), Alphabet (NAS",
-      "tickers": [
-        "AAPL",
-        "META",
-        "MSFT"
-      ],
-      "published_at": "2026-04-16T14:29:17Z",
-      "published_ts": 1776349757.0,
-      "age_minutes": 1419.1,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Benzinga"
-      ],
-      "source_tier": "TIER_2",
-      "source_rank": 2,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Trade Strategy For SPY, QQQ, AAPL, MSFT, NVDA, GOOGL, META, And TSLA - Apple (NASDAQ:AAPL), Alphabet (NAS",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.425,
-      "news_catalyst_score": 0.1877,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.benzinga.com/Opinion/26/04/51860228/trade-strategy-for-spy-qqq-aapl-msft-nvda-googl-meta-and-tsla-7",
-      "first_seen_at": "2026-04-16T14:57:51.102709Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
       "story_key": "7ce89506822879ea8e4e589b88534924411320ea:5921365",
       "headline": "AMZN Stock Is Quietly Hitting Record Highs  --  Here's What Wall Street Isn't Telling You",
       "tickers": [
@@ -1158,7 +1080,7 @@
       ],
       "published_at": "2026-04-17T07:06:01Z",
       "published_ts": 1776409561.0,
-      "age_minutes": 422.4,
+      "age_minutes": 490.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1196,7 +1118,7 @@
       ],
       "published_at": "2026-04-17T06:04:35Z",
       "published_ts": 1776405875.0,
-      "age_minutes": 483.8,
+      "age_minutes": 551.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1234,7 +1156,7 @@
       ],
       "published_at": "2026-04-17T04:56:47Z",
       "published_ts": 1776401807.0,
-      "age_minutes": 551.6,
+      "age_minutes": 619.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1272,7 +1194,7 @@
       ],
       "published_at": "2026-04-16T16:48:39Z",
       "published_ts": 1776358119.0,
-      "age_minutes": 1279.8,
+      "age_minutes": 1347.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1310,7 +1232,7 @@
       ],
       "published_at": "2026-04-16T15:44:45Z",
       "published_ts": 1776354285.0,
-      "age_minutes": 1343.7,
+      "age_minutes": 1411.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1339,75 +1261,37 @@
       "first_seen_at": "2026-04-16T19:36:01.400831Z",
       "is_new": false,
       "provider_count": 1
-    },
-    {
-      "story_key": "44eb93a491c7854c109a19eae5a419f701a4474d:5921163",
-      "headline": "Amazon: The Anthropic Trade You're Not Making (NASDAQ:AMZN)",
-      "tickers": [
-        "AMZN"
-      ],
-      "published_at": "2026-04-16T14:15:50Z",
-      "published_ts": 1776348950.0,
-      "age_minutes": 1432.6,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Seeking Alpha"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Amazon: The Anthropic Trade You're Not Making (NASDAQ:AMZN)",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.1671,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://seekingalpha.com/article/4891225-amazon-anthropic-trade-you-are-not-making",
-      "first_seen_at": "2026-04-16T14:57:51.102709Z",
-      "is_new": false,
-      "provider_count": 1
     }
   ],
   "news_catalyst_by_symbol": {
     "AAPL": {
-      "news_catalyst_score": 0.3768,
+      "news_catalyst_score": 0.3585,
       "sentiment_label": "neutral",
       "event_class": "UNKNOWN",
       "event_label": "Trade Strategy For SPY, QQQ, AAPL, MSFT, NVDA, GOOGL, META, And TSLA",
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "source_tier": "TIER_2",
-      "mentions_24h": 7,
+      "mentions_24h": 6,
       "is_actionable": false,
       "first_provider": "newsapi_ai",
       "story_key": "9f55b686374205531bc839b8a20efc8e987674cf:5921435"
     },
     "AMZN": {
-      "news_catalyst_score": 0.6731,
+      "news_catalyst_score": 0.6338,
       "sentiment_label": "neutral",
       "event_class": "EARNINGS",
       "event_label": "Amazon Could Re-Rate After Earnings Again (Preview) (NASDAQ:AMZN)",
       "materiality": "MEDIUM",
       "recency_bucket": "AGING",
       "source_tier": "TIER_3",
-      "mentions_24h": 13,
+      "mentions_24h": 11,
       "is_actionable": true,
       "first_provider": "newsapi_ai",
       "story_key": "8cccfbd300fbc03d94968a227e2d646375fddc7f:5921436"
     },
     "JPM": {
-      "news_catalyst_score": 0.2972,
+      "news_catalyst_score": 0.28,
       "sentiment_label": "neutral",
       "event_class": "UNKNOWN",
       "event_label": "JPM stays constructive on French telcos with or without consolidation By Investing.com",
@@ -1427,28 +1311,28 @@
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "source_tier": "TIER_2",
-      "mentions_24h": 6,
+      "mentions_24h": 5,
       "is_actionable": false,
       "first_provider": "newsapi_ai",
       "story_key": "e5911034f30a787cd745f18f146409f99eb948d5:5921247"
     },
     "MSFT": {
-      "news_catalyst_score": 0.5054,
+      "news_catalyst_score": 0.482,
       "sentiment_label": "neutral",
       "event_class": "ANALYST",
       "event_label": "MSFT Stock Is Down 30% from Its Peak While Wall Street's Average Price Target Is $587 -- Here's What's Actually Going On",
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "source_tier": "TIER_3",
-      "mentions_24h": 9,
+      "mentions_24h": 8,
       "is_actionable": false,
       "first_provider": "newsapi_ai",
       "story_key": "b96292136ddb95e94c40b58dc7d12305a0ec1972:5921395"
     }
   },
   "summary": {
-    "active_story_count": 34,
-    "new_story_count": 6,
+    "active_story_count": 31,
+    "new_story_count": 0,
     "actionable_story_count": 1,
     "actionable_symbols": [
       "AMZN"
