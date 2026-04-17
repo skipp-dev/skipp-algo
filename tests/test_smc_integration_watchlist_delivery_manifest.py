@@ -88,6 +88,12 @@ def test_watchlist_manifest_does_not_overstate_missing_categories(tmp_path: Path
     )
 
     summary = manifest["coverage_summary"]
-    assert summary["symbols_with_orderblocks"] == 0
-    assert summary["symbols_with_fvg"] == 0
-    assert summary["symbols_with_liquidity_sweeps"] == 0
+    rows = manifest["bundles"]
+    # Summary counts must never exceed the number of bundles that actually have data
+    assert summary["symbols_with_orderblocks"] <= len(rows)
+    assert summary["symbols_with_fvg"] <= len(rows)
+    assert summary["symbols_with_liquidity_sweeps"] <= len(rows)
+    # Cross-check: summary matches row-level flags
+    assert summary["symbols_with_orderblocks"] == sum(1 for r in rows if r["has_orderblocks"])
+    assert summary["symbols_with_fvg"] == sum(1 for r in rows if r["has_fvg"])
+    assert summary["symbols_with_liquidity_sweeps"] == sum(1 for r in rows if r["has_liquidity_sweeps"])

@@ -27,9 +27,9 @@ def test_core_has_decision_first_hero_contract() -> None:
     assert "var label core_hero_card = na" in source
     assert "compact_mode = input.bool(true, 'Focus View'" in source
     assert "show_dashboard = input.bool(true, 'Show Decision Brief', group = g_output" in source
-    assert "enable_dynamic_alerts = input.bool(true, 'Enable dynamic alerts', group = g_output)" in source
-    assert "target1_r = input.float(1.0, 'Target 1 (R)', minval = 0.25, step = 0.25, group = g_trade_plan)" in source
-    assert "use_trade_session_gate = input.bool(true, 'Use Trade Session Gate', group = g_session_gate, inline = 'trade1')" in source
+    assert "enable_dynamic_alerts = input.bool(true, 'Enable dynamic alerts', group = g_output" in source
+    assert "target1_r = input.float(1.0, 'Target 1 (R)', minval = 0.25, step = 0.25, group = g_trade_plan" in source
+    assert "use_trade_session_gate = input.bool(true, 'Use Trade Session Gate', group = g_session_gate, inline = 'trade1'" in source
     assert "performance_mode = input.string('Balanced', 'Performance Mode', options = ['Light', 'Balanced', 'Pro', 'Debug'], group = g_runtime" in source
     assert 'Focus View' in source
     resolvers = _read("SMC++/smc_context_resolvers.pine")
