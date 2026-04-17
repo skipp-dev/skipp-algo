@@ -2550,14 +2550,14 @@ var color BEAR_HERO        = color_theme == 'Colorblind Safe' ? color.new(#ff7f0
 
 var g_output = '2. Output'
 var bool show_dashboard = input.bool(true, 'Show Decision Brief', group = g_output, tooltip = 'Shows the linked decision brief surface. The core remains the only Lite-primary surface; this toggle adds explanatory context only.')
-var bool enable_dynamic_alerts = input.bool(true, 'Enable dynamic alerts', group = g_output)
+var bool enable_dynamic_alerts = input.bool(true, 'Enable dynamic alerts', group = g_output, tooltip = 'Sends real-time alert messages for lifecycle state transitions (armed, confirmed, ready, entry). Disable to silence all dynamic alert output while keeping the visual surface unchanged.')
 
 var g_trade_plan = '3. Trade Plan'
-var float target1_r = input.float(1.0, 'Target 1 (R)', minval = 0.25, step = 0.25, group = g_trade_plan)
-var float target2_r = input.float(2.0, 'Target 2 (R)', minval = 0.5, step = 0.25, group = g_trade_plan)
+var float target1_r = input.float(1.0, 'Target 1 (R)', minval = 0.25, step = 0.25, group = g_trade_plan, tooltip = 'First take-profit target as a multiple of risk (R = entry to invalidation distance).')
+var float target2_r = input.float(2.0, 'Target 2 (R)', minval = 0.5, step = 0.25, group = g_trade_plan, tooltip = 'Second take-profit target as a multiple of risk. Shown on the trade plan overlay when enabled.')
 
 var g_session_gate = '4. Session Gate'
-var bool use_trade_session_gate = input.bool(true, 'Use Trade Session Gate', group = g_session_gate, inline = 'trade1')
+var bool use_trade_session_gate = input.bool(true, 'Use Trade Session Gate', group = g_session_gate, inline = 'trade1', tooltip = 'Restricts lifecycle advances to the configured trading session window. Outside the window, new setups are blocked but existing positions are not affected.')
 
 var g_runtime = '5. Runtime Budget'
 var string performance_mode = input.string('Balanced', 'Performance Mode', options = ['Light', 'Balanced', 'Pro', 'Debug'], group = g_runtime, tooltip = 'Light cuts rendering and lower-timeframe workload. Balanced preserves the manual limits. Pro raises object and sampling budgets. Debug keeps the richest diagnostics and history.', display = display.status_line)
