@@ -99,4 +99,24 @@ jobs:
             exit 0
           fi
           git commit -m "[skip ci] chore: refresh live news snapshot"
-          git push
+
+          # Retry push with rebase to handle concurrent pushes to main
+          for attempt in 1 2 3; do
+            if git push; then
+              echo "Push succeeded on attempt $attempt."
+              exit 0
+            fi
+
+            if [ "$attempt" -eq 3 ]; then
+              echo "::error::Push failed after ${attempt} attempts."
+              exit 1
+            fi
+
+            echo "::warning::Push rejected on attempt ${attempt}; rebasing onto origin/main and retrying."
+            git fetch origin main
+            if ! git rebase origin/main; then
+              git rebase --abort || true
+              echo "::error::Snapshot commit conflicts with newer origin/main. Re-run the workflow."
+              exit 1
+            fi
+          done
