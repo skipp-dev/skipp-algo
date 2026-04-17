@@ -104,4 +104,4 @@ omit = ["tests/*", "*.pine"]
 [tool.coverage.report]
 show_missing = true
 skip_empty = true
-fail_under = 20
+fail_under = 65

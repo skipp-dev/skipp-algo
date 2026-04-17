@@ -41,4 +41,4 @@ jobs:
           python -m pip install -r requirements.txt pytest
       - name: Run Python tests
         run: |
-          python -m pytest -q --maxfail=1
+          python -m pytest -q --maxfail=1 --cov --cov-report=term-missing:skip-covered
