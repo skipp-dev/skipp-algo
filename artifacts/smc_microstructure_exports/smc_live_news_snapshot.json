@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-04-17T12:38:12.920831Z",
+  "generated_at": "2026-04-17T14:08:24.633108Z",
   "symbols": [
     "AAPL",
     "MSFT",
@@ -20,11 +20,11 @@
     "fmp_stock": 0.0,
     "fmp_press": 0.0,
     "fmp_articles": 0.0,
-    "newsapi_ai": 1776419946.0,
+    "newsapi_ai": 1776430830.0,
     "tv": 0.0,
-    "legacy_cursor": 1776419946.0
+    "legacy_cursor": 1776430830.0
   },
-  "legacy_cursor": 1776419946.0,
+  "legacy_cursor": 1776430830.0,
   "providers": {
     "benzinga": {
       "ok": false,
@@ -64,12 +64,12 @@
     "newsapi_ai": {
       "ok": true,
       "error": "",
-      "raw_count": 0,
-      "new_item_count": 0,
-      "cursor": 1776419946.0,
+      "raw_count": 47,
+      "new_item_count": 7,
+      "cursor": 1776430830.0,
       "last_seen_news_uri": "",
-      "provider_status": "ok_no_recent_matches",
-      "status_detail": "Event Registry reachable, but no recent symbol-matching NewsAPI.ai items were returned for the current feed window.",
+      "provider_status": "ok",
+      "status_detail": "",
       "error_code": ""
     },
     "tv": {
@@ -82,6 +82,44 @@
   },
   "stories": [
     {
+      "story_key": "8cccfbd300fbc03d94968a227e2d646375fddc7f:5921436",
+      "headline": "Amazon Could Re-Rate After Earnings Again (Preview) (NASDAQ:AMZN)",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_at": "2026-04-17T13:00:00Z",
+      "published_ts": 1776430800.0,
+      "age_minutes": 68.4,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Seeking Alpha"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "earnings",
+      "event_class": "EARNINGS",
+      "event_label": "Amazon Could Re-Rate After Earnings Again (Preview) (NASDAQ:AMZN)",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.8,
+      "clarity": 0.6,
+      "relevance": 0.79,
+      "news_catalyst_score": 0.5531,
+      "materiality": "MEDIUM",
+      "recency_bucket": "AGING",
+      "is_actionable": true,
+      "url": "https://seekingalpha.com/article/4891560-amazon-could-re-rate-after-earnings-again-preview",
+      "first_seen_at": "2026-04-17T14:08:24.633108Z",
+      "is_new": true,
+      "provider_count": 1
+    },
+    {
       "story_key": "b96292136ddb95e94c40b58dc7d12305a0ec1972:5921395",
       "headline": "MSFT Stock Is Down 30% from Its Peak While Wall Street's Average Price Target Is $587  --  Here's What's Actually Going On",
       "tickers": [
@@ -89,7 +127,7 @@
       ],
       "published_at": "2026-04-17T09:36:54Z",
       "published_ts": 1776418614.0,
-      "age_minutes": 181.3,
+      "age_minutes": 271.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -110,7 +148,7 @@
       "impact": 0.65,
       "clarity": 0.8,
       "relevance": 0.7825,
-      "news_catalyst_score": 0.4596,
+      "news_catalyst_score": 0.3854,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
@@ -127,7 +165,7 @@
       ],
       "published_at": "2026-04-17T09:42:46Z",
       "published_ts": 1776418966.0,
-      "age_minutes": 175.4,
+      "age_minutes": 265.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -148,7 +186,7 @@
       "impact": 0.6,
       "clarity": 0.8,
       "relevance": 0.76,
-      "news_catalyst_score": 0.4434,
+      "news_catalyst_score": 0.3736,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
@@ -165,7 +203,7 @@
       ],
       "published_at": "2026-04-16T15:29:46Z",
       "published_ts": 1776353386.0,
-      "age_minutes": 1268.4,
+      "age_minutes": 1358.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -203,7 +241,7 @@
       ],
       "published_at": "2026-04-16T14:08:44Z",
       "published_ts": 1776348524.0,
-      "age_minutes": 1349.5,
+      "age_minutes": 1439.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -241,7 +279,7 @@
       ],
       "published_at": "2026-04-16T21:19:29Z",
       "published_ts": 1776374369.0,
-      "age_minutes": 918.7,
+      "age_minutes": 1008.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -279,7 +317,7 @@
       ],
       "published_at": "2026-04-16T22:18:10Z",
       "published_ts": 1776377890.0,
-      "age_minutes": 860.0,
+      "age_minutes": 950.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -310,52 +348,14 @@
       "provider_count": 1
     },
     {
-      "story_key": "eb6fc7234701630650cba56f81a1a7f2aa354475:5921399",
-      "headline": "Comparing Microsoft With Industry Competitors In Software Industry - Microsoft (NASDAQ:MSFT)",
-      "tickers": [
-        "MSFT"
-      ],
-      "published_at": "2026-04-17T09:59:06Z",
-      "published_ts": 1776419946.0,
-      "age_minutes": 159.1,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Benzinga"
-      ],
-      "source_tier": "TIER_2",
-      "source_rank": 2,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Comparing Microsoft With Industry Competitors In Software Industry - Microsoft (NASDAQ:MSFT)",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.2538,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.benzinga.com/insights/news/26/04/51877763/comparing-microsoft-with-industry-competitors-in-software-industry",
-      "first_seen_at": "2026-04-17T11:28:17.578937Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "d2ee109eb5cd433cb51054d9a7ae04baeb2634d0:5921399",
-      "headline": "In-Depth Analysis: Amazon.com Versus Competitors In Broadline Retail Industry - Amazon.com (NASDAQ:AMZN)",
+      "story_key": "0a1b6d7b92a88dc05d2f3f6bc685ab3718f4c7ee:5921436",
+      "headline": "Amazon To Rally More Than 14%? Here Are 10 Top Analyst Forecasts For Friday - Amazon.com (NASDAQ:AMZN), A",
       "tickers": [
         "AMZN"
       ],
-      "published_at": "2026-04-17T09:58:56Z",
-      "published_ts": 1776419936.0,
-      "age_minutes": 159.3,
+      "published_at": "2026-04-17T13:00:30Z",
+      "published_ts": 1776430830.0,
+      "age_minutes": 67.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -370,106 +370,30 @@
       "source_rank": 2,
       "category": "other",
       "event_class": "UNKNOWN",
-      "event_label": "In-Depth Analysis: Amazon.com Versus Competitors In Broadline Retail Industry - Amazon.com (NASDAQ:AMZN)",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.4554,
-      "news_catalyst_score": 0.2502,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.benzinga.com/insights/news/26/04/51877756/in-depth-analysis-amazon-com-versus-competitors-in-broadline-retail-industry",
-      "first_seen_at": "2026-04-17T11:28:17.578937Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "6e61e39fa8489bb73690472365bcc27b2e8fc4d8:5921396",
-      "headline": "Apple Defies China Smartphone Slump With Fastest Growth - Apple (NASDAQ:AAPL), Xiaomi (OTC:XIACF)",
-      "tickers": [
-        "AAPL"
-      ],
-      "published_at": "2026-04-17T09:43:09Z",
-      "published_ts": 1776418989.0,
-      "age_minutes": 175.1,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Benzinga"
-      ],
-      "source_tier": "TIER_2",
-      "source_rank": 2,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Apple Defies China Smartphone Slump With Fastest Growth - Apple (NASDAQ:AAPL), Xiaomi (OTC:XIACF)",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.2491,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.benzinga.com/analyst-stock-ratings/analyst-color/26/04/51877661/apple-defies-china-smartphone-slump-with-fastest-growth",
-      "first_seen_at": "2026-04-17T11:28:17.578937Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "4d80778388f0e553d3bf336dbc044034d08db128:5921392",
-      "headline": "Apple (AAPL) Leads China's Smartphone Market With 20% iPhone Growth in Q1 2026 - Blockonomi",
-      "tickers": [
-        "AAPL"
-      ],
-      "published_at": "2026-04-17T09:20:48Z",
-      "published_ts": 1776417648.0,
-      "age_minutes": 197.4,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Blockonomi"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Apple (AAPL) Leads China's Smartphone Market With 20% iPhone Growth in Q1 2026 - Blockonomi",
+      "event_label": "Amazon To Rally More Than 14%? Here Are 10 Top Analyst Forecasts For Friday - Amazon.com (NASDAQ:AMZN), A",
       "sentiment_label": "bullish",
       "polarity": 0.1375,
       "impact": 0.1,
       "clarity": 0.8,
       "relevance": 0.535,
-      "news_catalyst_score": 0.2365,
+      "news_catalyst_score": 0.3164,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
-      "url": "https://blockonomi.com/apple-aapl-leads-chinas-smartphone-market-with-20-iphone-growth-in-q1-2026/",
-      "first_seen_at": "2026-04-17T11:28:17.578937Z",
-      "is_new": false,
+      "url": "https://www.benzinga.com/analyst-stock-ratings/price-target/26/04/51881324/amazon-to-rally-more-than-14-here-are-10-top-analyst-forecasts-for-friday",
+      "first_seen_at": "2026-04-17T14:08:24.633108Z",
+      "is_new": true,
       "provider_count": 1
     },
     {
-      "story_key": "13242c3246e2837788930ac071dd1b73fbb7cf96:5921385",
-      "headline": "Meta Stock 2026: Buy or Sell? Wall Street Says Strong Buy as AI and Ads Fuel Rally Toward $800+",
+      "story_key": "74c93e611534115d2e0ddc82a8459d54588dc9f5:5921426",
+      "headline": "Qualcomm, Amazon And Netflix On CNBC's 'Final Trades' - Amazon.com (NASDAQ:AMZN), Netflix (NASDAQ:NFLX)",
       "tickers": [
-        "META"
+        "AMZN"
       ],
-      "published_at": "2026-04-17T08:49:00Z",
-      "published_ts": 1776415740.0,
-      "age_minutes": 229.2,
+      "published_at": "2026-04-17T12:14:16Z",
+      "published_ts": 1776428056.0,
+      "age_minutes": 114.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -478,25 +402,142 @@
         "newsapi_ai"
       ],
       "sources": [
-        "International Business Times AU"
+        "Benzinga"
+      ],
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Qualcomm, Amazon And Netflix On CNBC's 'Final Trades' - Amazon.com (NASDAQ:AMZN), Netflix (NASDAQ:NFLX)",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.267,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://www.benzinga.com/analyst-stock-ratings/analyst-color/26/04/51880301/qualcomm-amazon-netflix-on-cnbc-final-trades",
+      "first_seen_at": "2026-04-17T14:08:24.633108Z",
+      "is_new": true,
+      "provider_count": 1
+    },
+    {
+      "story_key": "9f55b686374205531bc839b8a20efc8e987674cf:5921435",
+      "headline": "Trade Strategy For SPY, QQQ, AAPL, MSFT, NVDA, GOOGL, META, And TSLA",
+      "tickers": [
+        "AAPL",
+        "META",
+        "MSFT"
+      ],
+      "published_at": "2026-04-17T12:59:22Z",
+      "published_ts": 1776430762.0,
+      "age_minutes": 69.0,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Trade Strategy For SPY, QQQ, AAPL, MSFT, NVDA, GOOGL, META, And TSLA",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.3561,
+      "news_catalyst_score": 0.2568,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://www.benzinga.com/Opinion/26/04/51881252/trade-strategy-for-spy-qqq-aapl-msft-nvda-googl-meta-and-tsla-8",
+      "first_seen_at": "2026-04-17T14:08:24.633108Z",
+      "is_new": true,
+      "provider_count": 1
+    },
+    {
+      "story_key": "148e0ee649f304b327a9911ea1e7144ecfa2cf39:5921420",
+      "headline": "As Mark Zuckerberg Moves His Desk to the AI Lab to Double Down on Innovation, META Stock Lags the S&P 500. Should You Bet on a Turnaround?",
+      "tickers": [
+        "META"
+      ],
+      "published_at": "2026-04-17T11:41:37Z",
+      "published_ts": 1776426097.0,
+      "age_minutes": 146.8,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Barchart.com"
       ],
       "source_tier": "TIER_3",
       "source_rank": 3,
       "category": "other",
       "event_class": "UNKNOWN",
-      "event_label": "Meta Stock 2026: Buy or Sell? Wall Street Says Strong Buy as AI and Ads Fuel Rally Toward $800+",
-      "sentiment_label": "bullish",
-      "polarity": 0.275,
+      "event_label": "As Mark Zuckerberg Moves His Desk to the AI Lab to Double Down on Innovation, META Stock Lags the S&P 500. Should You Be",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
       "impact": 0.1,
       "clarity": 0.8,
       "relevance": 0.535,
-      "news_catalyst_score": 0.2227,
+      "news_catalyst_score": 0.2538,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
-      "url": "https://www.ibtimes.com.au/meta-stock-2026-buy-sell-wall-street-says-strong-buy-ai-ads-fuel-rally-toward-800-1866847",
-      "first_seen_at": "2026-04-17T11:28:17.578937Z",
-      "is_new": false,
+      "url": "https://www.barchart.com/story/news/1364098/as-mark-zuckerberg-moves-his-desk-to-the-ai-lab-to-double-down-on-innovation-meta-stock-lags-the-s-p-500-should-you-bet-on-a-turnaround",
+      "first_seen_at": "2026-04-17T14:08:24.633108Z",
+      "is_new": true,
+      "provider_count": 1
+    },
+    {
+      "story_key": "ac9888ae0d975e912780cf594721505dce074ffb:5921433",
+      "headline": "JPM stays constructive on French telcos with or without consolidation By Investing.com",
+      "tickers": [
+        "JPM"
+      ],
+      "published_at": "2026-04-17T12:45:20Z",
+      "published_ts": 1776429920.0,
+      "age_minutes": 83.1,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Investing.com",
+        "Investing.com UK"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "JPM stays constructive on French telcos with or without consolidation By Investing.com",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.2372,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://www.investing.com/news/stock-market-news/jpm-stays-constructive-on-french-telcos-with-or-without-consolidation-4620269",
+      "first_seen_at": "2026-04-17T14:08:24.633108Z",
+      "is_new": true,
       "provider_count": 1
     },
     {
@@ -507,7 +548,7 @@
       ],
       "published_at": "2026-04-17T05:34:30Z",
       "published_ts": 1776404070.0,
-      "age_minutes": 423.7,
+      "age_minutes": 513.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -545,7 +586,7 @@
       ],
       "published_at": "2026-04-16T19:59:48Z",
       "published_ts": 1776369588.0,
-      "age_minutes": 998.4,
+      "age_minutes": 1088.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -583,7 +624,7 @@
       ],
       "published_at": "2026-04-16T18:13:03Z",
       "published_ts": 1776363183.0,
-      "age_minutes": 1105.2,
+      "age_minutes": 1195.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -621,7 +662,7 @@
       ],
       "published_at": "2026-04-16T17:35:28Z",
       "published_ts": 1776360928.0,
-      "age_minutes": 1142.7,
+      "age_minutes": 1232.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -659,7 +700,7 @@
       ],
       "published_at": "2026-04-16T17:06:44Z",
       "published_ts": 1776359204.0,
-      "age_minutes": 1171.5,
+      "age_minutes": 1261.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -690,14 +731,14 @@
       "provider_count": 1
     },
     {
-      "story_key": "bed31127b8a3bc1b864f266d604c6c96998735a8:5921160",
-      "headline": "The Clock is Running Out on Legacy Encryption: These 5 Stocks Know This Fact - Amazon.com (NASDAQ:AMZN)",
+      "story_key": "eb6fc7234701630650cba56f81a1a7f2aa354475:5921399",
+      "headline": "Comparing Microsoft With Industry Competitors In Software Industry - Microsoft (NASDAQ:MSFT)",
       "tickers": [
-        "AMZN"
+        "MSFT"
       ],
-      "published_at": "2026-04-16T14:00:00Z",
-      "published_ts": 1776348000.0,
-      "age_minutes": 1358.2,
+      "published_at": "2026-04-17T09:59:06Z",
+      "published_ts": 1776419946.0,
+      "age_minutes": 249.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -712,18 +753,132 @@
       "source_rank": 2,
       "category": "other",
       "event_class": "UNKNOWN",
-      "event_label": "The Clock is Running Out on Legacy Encryption: These 5 Stocks Know This Fact - Amazon.com (NASDAQ:AMZN)",
+      "event_label": "Comparing Microsoft With Industry Competitors In Software Industry - Microsoft (NASDAQ:MSFT)",
       "sentiment_label": "neutral",
       "polarity": 0.0,
       "impact": 0.1,
-      "clarity": 0.8,
-      "relevance": 0.535,
-      "news_catalyst_score": 0.2193,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.217,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
-      "url": "https://www.benzinga.com/pressreleases/26/04/n51858758/the-clock-is-running-out-on-legacy-encryption-these-5-stocks-know-this-fact",
-      "first_seen_at": "2026-04-16T14:57:51.102709Z",
+      "url": "https://www.benzinga.com/insights/news/26/04/51877763/comparing-microsoft-with-industry-competitors-in-software-industry",
+      "first_seen_at": "2026-04-17T11:28:17.578937Z",
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
+      "story_key": "d2ee109eb5cd433cb51054d9a7ae04baeb2634d0:5921399",
+      "headline": "In-Depth Analysis: Amazon.com Versus Competitors In Broadline Retail Industry - Amazon.com (NASDAQ:AMZN)",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_at": "2026-04-17T09:58:56Z",
+      "published_ts": 1776419936.0,
+      "age_minutes": 249.5,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "In-Depth Analysis: Amazon.com Versus Competitors In Broadline Retail Industry - Amazon.com (NASDAQ:AMZN)",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.4554,
+      "news_catalyst_score": 0.2139,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://www.benzinga.com/insights/news/26/04/51877756/in-depth-analysis-amazon-com-versus-competitors-in-broadline-retail-industry",
+      "first_seen_at": "2026-04-17T11:28:17.578937Z",
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
+      "story_key": "6e61e39fa8489bb73690472365bcc27b2e8fc4d8:5921396",
+      "headline": "Apple Defies China Smartphone Slump With Fastest Growth - Apple (NASDAQ:AAPL), Xiaomi (OTC:XIACF)",
+      "tickers": [
+        "AAPL"
+      ],
+      "published_at": "2026-04-17T09:43:09Z",
+      "published_ts": 1776418989.0,
+      "age_minutes": 265.3,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Apple Defies China Smartphone Slump With Fastest Growth - Apple (NASDAQ:AAPL), Xiaomi (OTC:XIACF)",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.2099,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://www.benzinga.com/analyst-stock-ratings/analyst-color/26/04/51877661/apple-defies-china-smartphone-slump-with-fastest-growth",
+      "first_seen_at": "2026-04-17T11:28:17.578937Z",
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
+      "story_key": "4d80778388f0e553d3bf336dbc044034d08db128:5921392",
+      "headline": "Apple (AAPL) Leads China's Smartphone Market With 20% iPhone Growth in Q1 2026 - Blockonomi",
+      "tickers": [
+        "AAPL"
+      ],
+      "published_at": "2026-04-17T09:20:48Z",
+      "published_ts": 1776417648.0,
+      "age_minutes": 287.6,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Blockonomi"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Apple (AAPL) Leads China's Smartphone Market With 20% iPhone Growth in Q1 2026 - Blockonomi",
+      "sentiment_label": "bullish",
+      "polarity": 0.1375,
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "news_catalyst_score": 0.1972,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://blockonomi.com/apple-aapl-leads-chinas-smartphone-market-with-20-iphone-growth-in-q1-2026/",
+      "first_seen_at": "2026-04-17T11:28:17.578937Z",
       "is_new": false,
       "provider_count": 1
     },
@@ -735,7 +890,7 @@
       ],
       "published_at": "2026-04-16T23:14:45Z",
       "published_ts": 1776381285.0,
-      "age_minutes": 803.5,
+      "age_minutes": 893.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -773,7 +928,7 @@
       ],
       "published_at": "2026-04-16T22:26:00Z",
       "published_ts": 1776378360.0,
-      "age_minutes": 852.2,
+      "age_minutes": 942.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -811,7 +966,7 @@
       ],
       "published_at": "2026-04-16T18:35:06Z",
       "published_ts": 1776364506.0,
-      "age_minutes": 1083.1,
+      "age_minutes": 1173.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -849,7 +1004,7 @@
       ],
       "published_at": "2026-04-16T15:30:02Z",
       "published_ts": 1776353402.0,
-      "age_minutes": 1268.2,
+      "age_minutes": 1358.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -880,6 +1035,44 @@
       "provider_count": 1
     },
     {
+      "story_key": "13242c3246e2837788930ac071dd1b73fbb7cf96:5921385",
+      "headline": "Meta Stock 2026: Buy or Sell? Wall Street Says Strong Buy as AI and Ads Fuel Rally Toward $800+",
+      "tickers": [
+        "META"
+      ],
+      "published_at": "2026-04-17T08:49:00Z",
+      "published_ts": 1776415740.0,
+      "age_minutes": 319.4,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "International Business Times AU"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Meta Stock 2026: Buy or Sell? Wall Street Says Strong Buy as AI and Ads Fuel Rally Toward $800+",
+      "sentiment_label": "bullish",
+      "polarity": 0.275,
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "news_catalyst_score": 0.1918,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://www.ibtimes.com.au/meta-stock-2026-buy-sell-wall-street-says-strong-buy-ai-ads-fuel-rally-toward-800-1866847",
+      "first_seen_at": "2026-04-17T11:28:17.578937Z",
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
       "story_key": "9e3e623c85d1e0bcce3d8cd77b4260ea0e2edf29:5921339",
       "headline": "Here's Why Microsoft (MSFT) Stock Rallied Today - April 16, 2026",
       "tickers": [
@@ -887,7 +1080,7 @@
       ],
       "published_at": "2026-04-17T04:56:47Z",
       "published_ts": 1776401807.0,
-      "age_minutes": 461.4,
+      "age_minutes": 551.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -918,44 +1111,6 @@
       "provider_count": 1
     },
     {
-      "story_key": "dac79f0c83fc3836a5f46861fb024534832c0a30:5921155",
-      "headline": "TD Cowen reiterates Buy on Meta stock, keeps $820 target on AI gains By Investing.com",
-      "tickers": [
-        "META"
-      ],
-      "published_at": "2026-04-16T13:38:11Z",
-      "published_ts": 1776346691.0,
-      "age_minutes": 1380.0,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Investing.com South Africa"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "TD Cowen reiterates Buy on Meta stock, keeps $820 target on AI gains By Investing.com",
-      "sentiment_label": "bullish",
-      "polarity": 0.1375,
-      "impact": 0.1,
-      "clarity": 0.8,
-      "relevance": 0.535,
-      "news_catalyst_score": 0.1918,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://za.investing.com/news/stock-market-news/td-cowen-reiterates-buy-on-meta-stock-keeps-820-target-on-ai-gains-93CH-4215839",
-      "first_seen_at": "2026-04-16T14:57:51.102709Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
       "story_key": "dfba04609a7d9cc3e9bb9dcd6c98a23c8223fc24:5921165",
       "headline": "Trade Strategy For SPY, QQQ, AAPL, MSFT, NVDA, GOOGL, META, And TSLA - Apple (NASDAQ:AAPL), Alphabet (NAS",
       "tickers": [
@@ -965,7 +1120,7 @@
       ],
       "published_at": "2026-04-16T14:29:17Z",
       "published_ts": 1776349757.0,
-      "age_minutes": 1328.9,
+      "age_minutes": 1419.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1003,7 +1158,7 @@
       ],
       "published_at": "2026-04-17T07:06:01Z",
       "published_ts": 1776409561.0,
-      "age_minutes": 332.2,
+      "age_minutes": 422.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1041,7 +1196,7 @@
       ],
       "published_at": "2026-04-17T06:04:35Z",
       "published_ts": 1776405875.0,
-      "age_minutes": 393.6,
+      "age_minutes": 483.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1079,7 +1234,7 @@
       ],
       "published_at": "2026-04-17T04:56:47Z",
       "published_ts": 1776401807.0,
-      "age_minutes": 461.4,
+      "age_minutes": 551.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1117,7 +1272,7 @@
       ],
       "published_at": "2026-04-16T16:48:39Z",
       "published_ts": 1776358119.0,
-      "age_minutes": 1189.6,
+      "age_minutes": 1279.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1155,7 +1310,7 @@
       ],
       "published_at": "2026-04-16T15:44:45Z",
       "published_ts": 1776354285.0,
-      "age_minutes": 1253.5,
+      "age_minutes": 1343.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1193,7 +1348,7 @@
       ],
       "published_at": "2026-04-16T14:15:50Z",
       "published_ts": 1776348950.0,
-      "age_minutes": 1342.4,
+      "age_minutes": 1432.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1226,43 +1381,43 @@
   ],
   "news_catalyst_by_symbol": {
     "AAPL": {
-      "news_catalyst_score": 0.3691,
+      "news_catalyst_score": 0.3768,
       "sentiment_label": "neutral",
       "event_class": "UNKNOWN",
-      "event_label": "Apple Defies China Smartphone Slump With Fastest Growth - Apple (NASDAQ:AAPL), Xiaomi (OTC:XIACF)",
+      "event_label": "Trade Strategy For SPY, QQQ, AAPL, MSFT, NVDA, GOOGL, META, And TSLA",
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "source_tier": "TIER_2",
-      "mentions_24h": 6,
+      "mentions_24h": 7,
       "is_actionable": false,
       "first_provider": "newsapi_ai",
-      "story_key": "6e61e39fa8489bb73690472365bcc27b2e8fc4d8:5921396"
+      "story_key": "9f55b686374205531bc839b8a20efc8e987674cf:5921435"
     },
     "AMZN": {
-      "news_catalyst_score": 0.5634,
+      "news_catalyst_score": 0.6731,
       "sentiment_label": "neutral",
-      "event_class": "MANAGEMENT",
-      "event_label": "Amazon.com (NASDAQ:AMZN) CEO Douglas Herrington Sells 20,500 Shares",
+      "event_class": "EARNINGS",
+      "event_label": "Amazon Could Re-Rate After Earnings Again (Preview) (NASDAQ:AMZN)",
+      "materiality": "MEDIUM",
+      "recency_bucket": "AGING",
+      "source_tier": "TIER_3",
+      "mentions_24h": 13,
+      "is_actionable": true,
+      "first_provider": "newsapi_ai",
+      "story_key": "8cccfbd300fbc03d94968a227e2d646375fddc7f:5921436"
+    },
+    "JPM": {
+      "news_catalyst_score": 0.2972,
+      "sentiment_label": "neutral",
+      "event_class": "UNKNOWN",
+      "event_label": "JPM stays constructive on French telcos with or without consolidation By Investing.com",
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "source_tier": "TIER_3",
-      "mentions_24h": 11,
+      "mentions_24h": 3,
       "is_actionable": false,
       "first_provider": "newsapi_ai",
-      "story_key": "7fce8cea4ea3e47b82a546d684e6ddc6d2aa3606:5921396"
-    },
-    "JPM": {
-      "news_catalyst_score": 0.2219,
-      "sentiment_label": "neutral",
-      "event_class": "UNKNOWN",
-      "event_label": "Clarity Act Is Moving Along Well, JP Morgan Analysts Say - JPMorgan Chase (NYSE:JPM)",
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "source_tier": "TIER_2",
-      "mentions_24h": 2,
-      "is_actionable": false,
-      "first_provider": "newsapi_ai",
-      "story_key": "e5cafb22af6f02eb317f52dd9dfa333050c76b83:5921178"
+      "story_key": "ac9888ae0d975e912780cf594721505dce074ffb:5921433"
     },
     "META": {
       "news_catalyst_score": 0.4693,
@@ -1272,30 +1427,32 @@
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "source_tier": "TIER_2",
-      "mentions_24h": 5,
+      "mentions_24h": 6,
       "is_actionable": false,
       "first_provider": "newsapi_ai",
       "story_key": "e5911034f30a787cd745f18f146409f99eb948d5:5921247"
     },
     "MSFT": {
-      "news_catalyst_score": 0.5796,
+      "news_catalyst_score": 0.5054,
       "sentiment_label": "neutral",
       "event_class": "ANALYST",
       "event_label": "MSFT Stock Is Down 30% from Its Peak While Wall Street's Average Price Target Is $587 -- Here's What's Actually Going On",
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "source_tier": "TIER_3",
-      "mentions_24h": 8,
+      "mentions_24h": 9,
       "is_actionable": false,
       "first_provider": "newsapi_ai",
       "story_key": "b96292136ddb95e94c40b58dc7d12305a0ec1972:5921395"
     }
   },
   "summary": {
-    "active_story_count": 30,
-    "new_story_count": 0,
-    "actionable_story_count": 0,
-    "actionable_symbols": [],
+    "active_story_count": 34,
+    "new_story_count": 6,
+    "actionable_story_count": 1,
+    "actionable_symbols": [
+      "AMZN"
+    ],
     "symbol_count": 5
   },
   "symbol_scope": {

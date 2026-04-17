@@ -5,12 +5,189 @@
     "fmp_stock": 0.0,
     "fmp_press": 0.0,
     "fmp_articles": 0.0,
-    "newsapi_ai": 1776419946.0,
+    "newsapi_ai": 1776430830.0,
     "tv": 0.0,
-    "legacy_cursor": 1776419946.0
+    "legacy_cursor": 1776430830.0
   },
   "provider_state": {},
   "story_state": {
+    "ac9888ae0d975e912780cf594721505dce074ffb:5921433": {
+      "story_key": "ac9888ae0d975e912780cf594721505dce074ffb:5921433",
+      "cluster_hash": "ac9888ae0d975e912780cf594721505dce074ffb",
+      "headline": "JPM stays constructive on French telcos with or without consolidation By Investing.com",
+      "tickers": [
+        "JPM"
+      ],
+      "published_ts": 1776429920.0,
+      "first_seen_ts": 1776434904.6331077,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Investing.com",
+        "Investing.com UK"
+      ],
+      "url": "https://www.investing.com/news/stock-market-news/jpm-stays-constructive-on-french-telcos-with-or-without-consolidation-4620269",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776434904.6331077
+    },
+    "8cccfbd300fbc03d94968a227e2d646375fddc7f:5921436": {
+      "story_key": "8cccfbd300fbc03d94968a227e2d646375fddc7f:5921436",
+      "cluster_hash": "8cccfbd300fbc03d94968a227e2d646375fddc7f",
+      "headline": "Amazon Could Re-Rate After Earnings Again (Preview) (NASDAQ:AMZN)",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_ts": 1776430800.0,
+      "first_seen_ts": 1776434904.6331077,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Seeking Alpha"
+      ],
+      "url": "https://seekingalpha.com/article/4891560-amazon-could-re-rate-after-earnings-again-preview",
+      "category": "earnings",
+      "impact": 0.8,
+      "clarity": 0.6,
+      "relevance": 0.79,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776434904.6331077
+    },
+    "9f55b686374205531bc839b8a20efc8e987674cf:5921435": {
+      "story_key": "9f55b686374205531bc839b8a20efc8e987674cf:5921435",
+      "cluster_hash": "9f55b686374205531bc839b8a20efc8e987674cf",
+      "headline": "Trade Strategy For SPY, QQQ, AAPL, MSFT, NVDA, GOOGL, META, And TSLA",
+      "tickers": [
+        "AAPL",
+        "META",
+        "MSFT"
+      ],
+      "published_ts": 1776430762.0,
+      "first_seen_ts": 1776434904.6331077,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "url": "https://www.benzinga.com/Opinion/26/04/51881252/trade-strategy-for-spy-qqq-aapl-msft-nvda-googl-meta-and-tsla-8",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.3560810810810811,
+      "polarity": 0.0,
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "last_seen_ts": 1776434904.6331077
+    },
+    "0a1b6d7b92a88dc05d2f3f6bc685ab3718f4c7ee:5921436": {
+      "story_key": "0a1b6d7b92a88dc05d2f3f6bc685ab3718f4c7ee:5921436",
+      "cluster_hash": "0a1b6d7b92a88dc05d2f3f6bc685ab3718f4c7ee",
+      "headline": "Amazon To Rally More Than 14%? Here Are 10 Top Analyst Forecasts For Friday - Amazon.com (NASDAQ:AMZN), A",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_ts": 1776430830.0,
+      "first_seen_ts": 1776434904.6331077,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "url": "https://www.benzinga.com/analyst-stock-ratings/price-target/26/04/51881324/amazon-to-rally-more-than-14-here-are-10-top-analyst-forecasts-for-friday",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "polarity": 0.1375,
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "last_seen_ts": 1776434904.6331077
+    },
+    "74c93e611534115d2e0ddc82a8459d54588dc9f5:5921426": {
+      "story_key": "74c93e611534115d2e0ddc82a8459d54588dc9f5:5921426",
+      "cluster_hash": "74c93e611534115d2e0ddc82a8459d54588dc9f5",
+      "headline": "Qualcomm, Amazon And Netflix On CNBC's 'Final Trades' - Amazon.com (NASDAQ:AMZN), Netflix (NASDAQ:NFLX)",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_ts": 1776428056.0,
+      "first_seen_ts": 1776434904.6331077,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "url": "https://www.benzinga.com/analyst-stock-ratings/analyst-color/26/04/51880301/qualcomm-amazon-netflix-on-cnbc-final-trades",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "last_seen_ts": 1776434904.6331077
+    },
+    "148e0ee649f304b327a9911ea1e7144ecfa2cf39:5921420": {
+      "story_key": "148e0ee649f304b327a9911ea1e7144ecfa2cf39:5921420",
+      "cluster_hash": "148e0ee649f304b327a9911ea1e7144ecfa2cf39",
+      "headline": "As Mark Zuckerberg Moves His Desk to the AI Lab to Double Down on Innovation, META Stock Lags the S&P 500. Should You Bet on a Turnaround?",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1776426097.0,
+      "first_seen_ts": 1776434904.6331077,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Barchart.com"
+      ],
+      "url": "https://www.barchart.com/story/news/1364098/as-mark-zuckerberg-moves-his-desk-to-the-ai-lab-to-double-down-on-innovation-meta-stock-lags-the-s-p-500-should-you-bet-on-a-turnaround",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776434904.6331077
+    },
     "7fce8cea4ea3e47b82a546d684e6ddc6d2aa3606:5921396": {
       "story_key": "7fce8cea4ea3e47b82a546d684e6ddc6d2aa3606:5921396",
       "cluster_hash": "7fce8cea4ea3e47b82a546d684e6ddc6d2aa3606",
