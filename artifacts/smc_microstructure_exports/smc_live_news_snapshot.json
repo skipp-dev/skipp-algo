@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-04-17T15:16:06.444424Z",
+  "generated_at": "2026-04-17T16:16:46.965407Z",
   "symbols": [
     "AAPL",
     "MSFT",
@@ -62,14 +62,14 @@
       "cursor": 0.0
     },
     "newsapi_ai": {
-      "ok": true,
-      "error": "",
+      "ok": false,
+      "error": "ReadTimeout: The read operation timed out",
       "raw_count": 0,
       "new_item_count": 0,
       "cursor": 1776430830.0,
       "last_seen_news_uri": "",
-      "provider_status": "ok_no_recent_matches",
-      "status_detail": "Event Registry reachable, but no recent symbol-matching NewsAPI.ai items were returned for the current feed window.",
+      "provider_status": "",
+      "status_detail": "",
       "error_code": ""
     },
     "tv": {
@@ -89,7 +89,7 @@
       ],
       "published_at": "2026-04-17T13:00:00Z",
       "published_ts": 1776430800.0,
-      "age_minutes": 136.1,
+      "age_minutes": 196.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -110,10 +110,10 @@
       "impact": 0.8,
       "clarity": 0.6,
       "relevance": 0.79,
-      "news_catalyst_score": 0.5138,
-      "materiality": "MEDIUM",
+      "news_catalyst_score": 0.4736,
+      "materiality": "LOW",
       "recency_bucket": "AGING",
-      "is_actionable": true,
+      "is_actionable": false,
       "url": "https://seekingalpha.com/article/4891560-amazon-could-re-rate-after-earnings-again-preview",
       "first_seen_at": "2026-04-17T14:08:24.633108Z",
       "is_new": false,
@@ -127,7 +127,7 @@
       ],
       "published_at": "2026-04-17T09:36:54Z",
       "published_ts": 1776418614.0,
-      "age_minutes": 339.2,
+      "age_minutes": 399.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -158,44 +158,6 @@
       "provider_count": 1
     },
     {
-      "story_key": "5fa2b18c741eba3ab7994043d5074d44daadbe6c:5921177",
-      "headline": "Microsoft Stock Warning: Why Piper Sandler Analysts Just Slashed Their MSFT Price Target by More Than 15%",
-      "tickers": [
-        "MSFT"
-      ],
-      "published_at": "2026-04-16T15:29:46Z",
-      "published_ts": 1776353386.0,
-      "age_minutes": 1426.3,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Barchart.com"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "analyst",
-      "event_class": "ANALYST",
-      "event_label": "Microsoft Stock Warning: Why Piper Sandler Analysts Just Slashed Their MSFT Price Target by More Than 15%",
-      "sentiment_label": "bearish",
-      "polarity": -0.2062,
-      "impact": 0.65,
-      "clarity": 0.8,
-      "relevance": 0.7825,
-      "news_catalyst_score": 0.362,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.barchart.com/story/news/1348601/microsoft-stock-warning-why-piper-sandler-analysts-just-slashed-their-msft-price-target-by-more-than-15",
-      "first_seen_at": "2026-04-16T19:36:01.400831Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
       "story_key": "e5911034f30a787cd745f18f146409f99eb948d5:5921247",
       "headline": "Employment 'Apocalypse' Fears Are Overblown, Scale AI CEO Says - Meta Platforms (NASDAQ:META), Oracle (NY",
       "tickers": [
@@ -203,7 +165,7 @@
       ],
       "published_at": "2026-04-16T21:19:29Z",
       "published_ts": 1776374369.0,
-      "age_minutes": 1076.6,
+      "age_minutes": 1137.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -241,7 +203,7 @@
       ],
       "published_at": "2026-04-17T09:42:46Z",
       "published_ts": 1776418966.0,
-      "age_minutes": 333.3,
+      "age_minutes": 394.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -279,7 +241,7 @@
       ],
       "published_at": "2026-04-16T22:18:10Z",
       "published_ts": 1776377890.0,
-      "age_minutes": 1017.9,
+      "age_minutes": 1078.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -317,7 +279,7 @@
       ],
       "published_at": "2026-04-17T13:00:30Z",
       "published_ts": 1776430830.0,
-      "age_minutes": 135.6,
+      "age_minutes": 196.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -338,7 +300,7 @@
       "impact": 0.1,
       "clarity": 0.8,
       "relevance": 0.535,
-      "news_catalyst_score": 0.2939,
+      "news_catalyst_score": 0.271,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
@@ -355,7 +317,7 @@
       ],
       "published_at": "2026-04-17T12:14:16Z",
       "published_ts": 1776428056.0,
-      "age_minutes": 181.8,
+      "age_minutes": 242.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -376,7 +338,7 @@
       "impact": 0.1,
       "clarity": 0.6,
       "relevance": 0.475,
-      "news_catalyst_score": 0.2468,
+      "news_catalyst_score": 0.22,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
@@ -395,7 +357,7 @@
       ],
       "published_at": "2026-04-17T12:59:22Z",
       "published_ts": 1776430762.0,
-      "age_minutes": 136.7,
+      "age_minutes": 197.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -416,88 +378,11 @@
       "impact": 0.1,
       "clarity": 0.6,
       "relevance": 0.3561,
-      "news_catalyst_score": 0.2385,
+      "news_catalyst_score": 0.2198,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
       "url": "https://www.benzinga.com/Opinion/26/04/51881252/trade-strategy-for-spy-qqq-aapl-msft-nvda-googl-meta-and-tsla-8",
-      "first_seen_at": "2026-04-17T14:08:24.633108Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "148e0ee649f304b327a9911ea1e7144ecfa2cf39:5921420",
-      "headline": "As Mark Zuckerberg Moves His Desk to the AI Lab to Double Down on Innovation, META Stock Lags the S&P 500. Should You Bet on a Turnaround?",
-      "tickers": [
-        "META"
-      ],
-      "published_at": "2026-04-17T11:41:37Z",
-      "published_ts": 1776426097.0,
-      "age_minutes": 214.5,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Barchart.com"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "As Mark Zuckerberg Moves His Desk to the AI Lab to Double Down on Innovation, META Stock Lags the S&P 500. Should You Be",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.8,
-      "relevance": 0.535,
-      "news_catalyst_score": 0.2291,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.barchart.com/story/news/1364098/as-mark-zuckerberg-moves-his-desk-to-the-ai-lab-to-double-down-on-innovation-meta-stock-lags-the-s-p-500-should-you-bet-on-a-turnaround",
-      "first_seen_at": "2026-04-17T14:08:24.633108Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "ac9888ae0d975e912780cf594721505dce074ffb:5921433",
-      "headline": "JPM stays constructive on French telcos with or without consolidation By Investing.com",
-      "tickers": [
-        "JPM"
-      ],
-      "published_at": "2026-04-17T12:45:20Z",
-      "published_ts": 1776429920.0,
-      "age_minutes": 150.8,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Investing.com",
-        "Investing.com UK"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "JPM stays constructive on French telcos with or without consolidation By Investing.com",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.22,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.investing.com/news/stock-market-news/jpm-stays-constructive-on-french-telcos-with-or-without-consolidation-4620269",
       "first_seen_at": "2026-04-17T14:08:24.633108Z",
       "is_new": false,
       "provider_count": 1
@@ -510,7 +395,7 @@
       ],
       "published_at": "2026-04-17T05:34:30Z",
       "published_ts": 1776404070.0,
-      "age_minutes": 581.6,
+      "age_minutes": 642.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -548,7 +433,7 @@
       ],
       "published_at": "2026-04-16T19:59:48Z",
       "published_ts": 1776369588.0,
-      "age_minutes": 1156.3,
+      "age_minutes": 1217.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -586,7 +471,7 @@
       ],
       "published_at": "2026-04-16T18:13:03Z",
       "published_ts": 1776363183.0,
-      "age_minutes": 1263.1,
+      "age_minutes": 1323.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -624,7 +509,7 @@
       ],
       "published_at": "2026-04-16T17:35:28Z",
       "published_ts": 1776360928.0,
-      "age_minutes": 1300.6,
+      "age_minutes": 1361.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -662,7 +547,7 @@
       ],
       "published_at": "2026-04-16T17:06:44Z",
       "published_ts": 1776359204.0,
-      "age_minutes": 1329.4,
+      "age_minutes": 1390.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -693,6 +578,83 @@
       "provider_count": 1
     },
     {
+      "story_key": "148e0ee649f304b327a9911ea1e7144ecfa2cf39:5921420",
+      "headline": "As Mark Zuckerberg Moves His Desk to the AI Lab to Double Down on Innovation, META Stock Lags the S&P 500. Should You Bet on a Turnaround?",
+      "tickers": [
+        "META"
+      ],
+      "published_at": "2026-04-17T11:41:37Z",
+      "published_ts": 1776426097.0,
+      "age_minutes": 275.2,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Barchart.com"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "As Mark Zuckerberg Moves His Desk to the AI Lab to Double Down on Innovation, META Stock Lags the S&P 500. Should You Be",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "news_catalyst_score": 0.2026,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://www.barchart.com/story/news/1364098/as-mark-zuckerberg-moves-his-desk-to-the-ai-lab-to-double-down-on-innovation-meta-stock-lags-the-s-p-500-should-you-bet-on-a-turnaround",
+      "first_seen_at": "2026-04-17T14:08:24.633108Z",
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
+      "story_key": "ac9888ae0d975e912780cf594721505dce074ffb:5921433",
+      "headline": "JPM stays constructive on French telcos with or without consolidation By Investing.com",
+      "tickers": [
+        "JPM"
+      ],
+      "published_at": "2026-04-17T12:45:20Z",
+      "published_ts": 1776429920.0,
+      "age_minutes": 211.4,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Investing.com",
+        "Investing.com UK"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "JPM stays constructive on French telcos with or without consolidation By Investing.com",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.2007,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://www.investing.com/news/stock-market-news/jpm-stays-constructive-on-french-telcos-with-or-without-consolidation-4620269",
+      "first_seen_at": "2026-04-17T14:08:24.633108Z",
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
       "story_key": "eb6fc7234701630650cba56f81a1a7f2aa354475:5921399",
       "headline": "Comparing Microsoft With Industry Competitors In Software Industry - Microsoft (NASDAQ:MSFT)",
       "tickers": [
@@ -700,7 +662,7 @@
       ],
       "published_at": "2026-04-17T09:59:06Z",
       "published_ts": 1776419946.0,
-      "age_minutes": 317.0,
+      "age_minutes": 377.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -738,7 +700,7 @@
       ],
       "published_at": "2026-04-17T09:43:09Z",
       "published_ts": 1776418989.0,
-      "age_minutes": 333.0,
+      "age_minutes": 393.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -776,7 +738,7 @@
       ],
       "published_at": "2026-04-16T23:14:45Z",
       "published_ts": 1776381285.0,
-      "age_minutes": 961.4,
+      "age_minutes": 1022.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -814,7 +776,7 @@
       ],
       "published_at": "2026-04-16T22:26:00Z",
       "published_ts": 1776378360.0,
-      "age_minutes": 1010.1,
+      "age_minutes": 1070.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -852,7 +814,7 @@
       ],
       "published_at": "2026-04-16T18:35:06Z",
       "published_ts": 1776364506.0,
-      "age_minutes": 1241.0,
+      "age_minutes": 1301.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -890,7 +852,7 @@
       ],
       "published_at": "2026-04-17T09:58:56Z",
       "published_ts": 1776419936.0,
-      "age_minutes": 317.2,
+      "age_minutes": 377.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -921,44 +883,6 @@
       "provider_count": 1
     },
     {
-      "story_key": "e5cafb22af6f02eb317f52dd9dfa333050c76b83:5921178",
-      "headline": "Clarity Act Is Moving Along Well, JP Morgan Analysts Say - JPMorgan Chase (NYSE:JPM)",
-      "tickers": [
-        "JPM"
-      ],
-      "published_at": "2026-04-16T15:30:02Z",
-      "published_ts": 1776353402.0,
-      "age_minutes": 1426.1,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Benzinga"
-      ],
-      "source_tier": "TIER_2",
-      "source_rank": 2,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Clarity Act Is Moving Along Well, JP Morgan Analysts Say - JPMorgan Chase (NYSE:JPM)",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.4554,
-      "news_catalyst_score": 0.1919,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.benzinga.com/crypto/cryptocurrency/26/04/51863135/clarity-act-is-moving-along-well-jp-morgan-analysts-say",
-      "first_seen_at": "2026-04-16T19:36:01.400831Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
       "story_key": "4d80778388f0e553d3bf336dbc044034d08db128:5921392",
       "headline": "Apple (AAPL) Leads China's Smartphone Market With 20% iPhone Growth in Q1 2026 - Blockonomi",
       "tickers": [
@@ -966,7 +890,7 @@
       ],
       "published_at": "2026-04-17T09:20:48Z",
       "published_ts": 1776417648.0,
-      "age_minutes": 355.3,
+      "age_minutes": 416.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1004,7 +928,7 @@
       ],
       "published_at": "2026-04-17T08:49:00Z",
       "published_ts": 1776415740.0,
-      "age_minutes": 387.1,
+      "age_minutes": 447.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1042,7 +966,7 @@
       ],
       "published_at": "2026-04-17T04:56:47Z",
       "published_ts": 1776401807.0,
-      "age_minutes": 619.3,
+      "age_minutes": 680.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1080,7 +1004,7 @@
       ],
       "published_at": "2026-04-17T07:06:01Z",
       "published_ts": 1776409561.0,
-      "age_minutes": 490.1,
+      "age_minutes": 550.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1118,7 +1042,7 @@
       ],
       "published_at": "2026-04-17T06:04:35Z",
       "published_ts": 1776405875.0,
-      "age_minutes": 551.5,
+      "age_minutes": 612.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1156,7 +1080,7 @@
       ],
       "published_at": "2026-04-17T04:56:47Z",
       "published_ts": 1776401807.0,
-      "age_minutes": 619.3,
+      "age_minutes": 680.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1194,7 +1118,7 @@
       ],
       "published_at": "2026-04-16T16:48:39Z",
       "published_ts": 1776358119.0,
-      "age_minutes": 1347.5,
+      "age_minutes": 1408.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1223,49 +1147,11 @@
       "first_seen_at": "2026-04-16T19:36:01.400831Z",
       "is_new": false,
       "provider_count": 1
-    },
-    {
-      "story_key": "e5cafb22af6f02eb317f52dd9dfa333050c76b83:5921180",
-      "headline": "Clarity Act Is Moving Along Well, JP Morgan Analysts Say - JPMorgan Chase (NYSE:JPM)",
-      "tickers": [
-        "JPM"
-      ],
-      "published_at": "2026-04-16T15:44:45Z",
-      "published_ts": 1776354285.0,
-      "age_minutes": 1411.4,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "CryptoCrunchApp"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Clarity Act Is Moving Along Well, JP Morgan Analysts Say - JPMorgan Chase (NYSE:JPM)",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.1671,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://cryptocrunchapp.com/benzinga/clarity-act-is-moving-along-well-jp-morgan-analysts-say-jpmorgan-chase-nysejpm/",
-      "first_seen_at": "2026-04-16T19:36:01.400831Z",
-      "is_new": false,
-      "provider_count": 1
     }
   ],
   "news_catalyst_by_symbol": {
     "AAPL": {
-      "news_catalyst_score": 0.3585,
+      "news_catalyst_score": 0.3398,
       "sentiment_label": "neutral",
       "event_class": "UNKNOWN",
       "event_label": "Trade Strategy For SPY, QQQ, AAPL, MSFT, NVDA, GOOGL, META, And TSLA",
@@ -1278,27 +1164,27 @@
       "story_key": "9f55b686374205531bc839b8a20efc8e987674cf:5921435"
     },
     "AMZN": {
-      "news_catalyst_score": 0.6338,
+      "news_catalyst_score": 0.5936,
       "sentiment_label": "neutral",
       "event_class": "EARNINGS",
       "event_label": "Amazon Could Re-Rate After Earnings Again (Preview) (NASDAQ:AMZN)",
-      "materiality": "MEDIUM",
+      "materiality": "LOW",
       "recency_bucket": "AGING",
       "source_tier": "TIER_3",
       "mentions_24h": 11,
-      "is_actionable": true,
+      "is_actionable": false,
       "first_provider": "newsapi_ai",
       "story_key": "8cccfbd300fbc03d94968a227e2d646375fddc7f:5921436"
     },
     "JPM": {
-      "news_catalyst_score": 0.28,
+      "news_catalyst_score": 0.2007,
       "sentiment_label": "neutral",
       "event_class": "UNKNOWN",
       "event_label": "JPM stays constructive on French telcos with or without consolidation By Investing.com",
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "source_tier": "TIER_3",
-      "mentions_24h": 3,
+      "mentions_24h": 1,
       "is_actionable": false,
       "first_provider": "newsapi_ai",
       "story_key": "ac9888ae0d975e912780cf594721505dce074ffb:5921433"
@@ -1324,19 +1210,17 @@
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "source_tier": "TIER_3",
-      "mentions_24h": 8,
+      "mentions_24h": 7,
       "is_actionable": false,
       "first_provider": "newsapi_ai",
       "story_key": "b96292136ddb95e94c40b58dc7d12305a0ec1972:5921395"
     }
   },
   "summary": {
-    "active_story_count": 31,
+    "active_story_count": 28,
     "new_story_count": 0,
-    "actionable_story_count": 1,
-    "actionable_symbols": [
-      "AMZN"
-    ],
+    "actionable_story_count": 0,
+    "actionable_symbols": [],
     "symbol_count": 5
   },
   "symbol_scope": {
