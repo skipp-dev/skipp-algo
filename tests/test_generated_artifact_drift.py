@@ -70,16 +70,6 @@ DEDICATED_V55B_LEAN_EXPORTS = (
     "OB_FRESH",
     "OB_AGE_BARS",
     "OB_MITIGATION_STATE",
-    # OB Extended (WP-OH9)
-    "BULL_OB_FRESHNESS",
-    "BULL_OB_FVG_CONFLUENCE",
-    "BULL_OB_MITIGATED",
-    "BEAR_OB_FRESHNESS",
-    "BEAR_OB_FVG_CONFLUENCE",
-    "BEAR_OB_MITIGATED",
-    "NEAREST_BULL_OB_LEVEL",
-    "NEAREST_BEAR_OB_LEVEL",
-    "OB_BIAS",
     # FVG Lifecycle Light
     "PRIMARY_FVG_SIDE",
     "PRIMARY_FVG_DISTANCE",
@@ -205,8 +195,10 @@ class TestGeneratedArtifactDrift:
         # BUY_SIDE_POOL_LEVEL/STRENGTH, HIGH_RISK_EVENT_TICKERS, NEXT_EVENT_CLASS,
         # LIQUIDITY_TAKEN_DIRECTION.
         # WP-PINE2 adds UNIVERSE_TICKERS.
-        assert len(exports) == 177, (
-            f"Expected 177 export const fields for the current v6 shared-export contract, got {len(exports)}"
+        # WP-8: removed 42 deprecated fields from generator output (Range Regime 11,
+        # Range Profile Regime 22, Order Block Extended 9). 177 → 135.
+        assert len(exports) == 135, (
+            f"Expected 135 export const fields for the current v6 shared-export contract, got {len(exports)}"
         )
 
     def test_event_risk_exports_stay_in_canonical_order(self, regenerated: Path):

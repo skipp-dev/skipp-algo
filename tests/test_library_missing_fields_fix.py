@@ -11,17 +11,8 @@ ROOT = Path(__file__).resolve().parent.parent
 GENERATOR = ROOT / "scripts" / "generate_smc_micro_profiles.py"
 
 # Fields that were missing before WP-OH9 (Pine reads mp.FIELD but no export const existed).
+# NOTE: OB Extended fields (9) removed in WP-8 sunset — zero Pine consumers remain.
 WP_OH9_FIELDS = {
-    # Order Blocks extended
-    "BEAR_OB_FRESHNESS",
-    "BEAR_OB_FVG_CONFLUENCE",
-    "BEAR_OB_MITIGATED",
-    "BULL_OB_FRESHNESS",
-    "BULL_OB_FVG_CONFLUENCE",
-    "BULL_OB_MITIGATED",
-    "NEAREST_BEAR_OB_LEVEL",
-    "NEAREST_BULL_OB_LEVEL",
-    "OB_BIAS",
     # Imbalance lifecycle
     "BPR_DIRECTION",
     # Liquidity pools
@@ -65,9 +56,10 @@ class TestMacroBiasExported:
 class TestFieldDefaults:
     """Verify each WP-OH9 field uses a known DEFAULTS dict for its fallback."""
 
-    def test_ob_fields_use_ob_defaults(self) -> None:
+    def test_ob_fields_removed_in_wp8(self) -> None:
+        """OB Extended fields removed in WP-8 sunset; _OB_DEFAULTS no longer needed."""
         source = GENERATOR.read_text(encoding="utf-8")
-        assert "_OB_DEFAULTS" in source
+        assert "_OB_DEFAULTS" not in source
 
     def test_imbalance_field_uses_il_defaults(self) -> None:
         source = GENERATOR.read_text(encoding="utf-8")

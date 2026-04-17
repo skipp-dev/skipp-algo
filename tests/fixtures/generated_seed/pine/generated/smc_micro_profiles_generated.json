@@ -42,13 +42,7 @@
     "mode": "compatibility_only",
     "preferred_field_version": "v5.5b",
     "extension_allowed": false,
-    "deprecated_groups": [
-      "order_blocks_v52",
-      "zone_projection_v52",
-      "session_structure_v53",
-      "range_regime_v53",
-      "range_profile_regime_v53"
-    ]
+    "deprecated_groups": []
   },
   "v55_lean_blocks": [
     "event_risk_light",

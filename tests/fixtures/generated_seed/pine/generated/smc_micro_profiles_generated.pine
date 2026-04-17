@@ -4,8 +4,8 @@ library("smc_micro_profiles_generated")
 // ── Usage ──────────────────────────────────────────────────────
 // import preuss_steffen/smc_micro_profiles_generated/1 as mp
 //
-// Fields are grouped into sections (v5.5b Lean, ~135 fields + 5 optional debug):
-// Deprecated v5-v5.3 compatibility groups have been removed; only v5.5b Lean fields remain.
+// Fields are grouped into sections (v5.5b Lean, ~102 fields + 5 optional debug):
+// Deprecated v5-v5.3 compatibility groups removed (sunset 2026-04-14); only v5.5b Lean fields remain.
 //   Core/Meta       — ASOF_DATE, ASOF_TIME, UNIVERSE_SIZE, REFRESH_COUNT (+ UNIVERSE_ID, LOOKBACK_DAYS in debug mode)
 //   Microstructure  — *_TICKERS lists (clean_reclaim, stop_hunt_prone, …)
 //   Regime          — MARKET_REGIME, VIX_LEVEL, MACRO_BIAS, MACRO_BIAS_RAW, MACRO_BIAS_PE_ADJUSTMENT, MARKET_PE_FORWARD, MARKET_PE_REGIME, SECTOR_BREADTH
@@ -18,14 +18,11 @@ library("smc_micro_profiles_generated")
 //   Ensemble Score  — ENSEMBLE_QUALITY_SCORE, ENSEMBLE_QUALITY_TIER, ENSEMBLE_AVAILABLE_COMPONENTS
 //   Flow Qualifier (v5.1)  — REL_VOL … ATS_BEARISH_SEQUENCE (14 fields)
 //   Compression (v5.1)     — SQUEEZE_ON … ATR_RATIO (5 fields)
-//   Range Regime (v5.3, ORPHANED)       — 11 fields, zero Pine consumers
-//   Range Profile Regime (v5.3, ORPHANED) — 22 fields, zero Pine consumers
 //
 //   ── v5.5b Lean Surface (preferred) ──
 //   Event Risk Light (v5.5b)      — 14 fields (incl. HIGH_RISK_EVENT_TICKERS, NEXT_EVENT_CLASS)
 //   Session Context Light (v5.5b) — 5 fields
 //   OB Context Light (v5.5b)      — 5 fields
-//   OB Extended                   — 9 fields (per-side freshness, confluence, levels, bias)
 //   FVG Lifecycle Light (v5.5b)   — 7 fields
 //   Imbalance Lifecycle Extended  — 1 field (BPR_DIRECTION)
 //   Liquidity Pools               — 2 fields (BUY_SIDE_POOL_LEVEL, BUY_SIDE_POOL_STRENGTH)
@@ -136,43 +133,6 @@ export const string SQUEEZE_MOMENTUM_BIAS = "NEUTRAL"
 export const string ATR_REGIME = "NORMAL"
 export const float ATR_RATIO = 1.0
 
-// ── Range Regime (ORPHANED — no Pine consumer, sunset candidate) ──
-export const string RANGE_REGIME = "UNKNOWN"
-export const float RANGE_WIDTH_PCT = 0.0
-export const string RANGE_POSITION = "MID"
-export const float RANGE_HIGH = 0.0
-export const float RANGE_LOW = 0.0
-export const int RANGE_DURATION_BARS = 0
-export const float RANGE_VPOC_LEVEL = 0.0
-export const float RANGE_VAH_LEVEL = 0.0
-export const float RANGE_VAL_LEVEL = 0.0
-export const string RANGE_BALANCE_STATE = "BALANCED"
-export const int RANGE_REGIME_SCORE = 0
-
-// ── Range Profile Regime (ORPHANED — no Pine consumer, sunset candidate) ──
-export const bool RANGE_ACTIVE = false
-export const float RANGE_TOP = 0.0
-export const float RANGE_BOTTOM = 0.0
-export const float RANGE_MID = 0.0
-export const float RANGE_WIDTH_ATR = 0.0
-export const string RANGE_BREAK_DIRECTION = "NONE"
-export const float PROFILE_POC = 0.0
-export const float PROFILE_VALUE_AREA_TOP = 0.0
-export const float PROFILE_VALUE_AREA_BOTTOM = 0.0
-export const bool PROFILE_VALUE_AREA_ACTIVE = false
-export const float PROFILE_BULLISH_SENTIMENT = 0.0
-export const float PROFILE_BEARISH_SENTIMENT = 0.0
-export const string PROFILE_SENTIMENT_BIAS = "NEUTRAL"
-export const float LIQUIDITY_ABOVE_PCT = 0.0
-export const float LIQUIDITY_BELOW_PCT = 0.0
-export const float LIQUIDITY_IMBALANCE = 0.0
-export const float PRED_RANGE_MID = 0.0
-export const float PRED_RANGE_UPPER_1 = 0.0
-export const float PRED_RANGE_UPPER_2 = 0.0
-export const float PRED_RANGE_LOWER_1 = 0.0
-export const float PRED_RANGE_LOWER_2 = 0.0
-export const bool IN_PREDICTIVE_RANGE_EXTREME = false
-
 // ── Event Risk Light (v5.5b) ──
 export const string EVENT_WINDOW_STATE = "CLEAR"
 export const string EVENT_RISK_LEVEL = "NONE"
@@ -202,17 +162,6 @@ export const float PRIMARY_OB_DISTANCE = 0.0
 export const bool OB_FRESH = false
 export const int OB_AGE_BARS = 0
 export const string OB_MITIGATION_STATE = "stale"
-
-// ── Order Block Extended ──
-export const int BULL_OB_FRESHNESS = 0
-export const bool BULL_OB_FVG_CONFLUENCE = false
-export const bool BULL_OB_MITIGATED = false
-export const int BEAR_OB_FRESHNESS = 0
-export const bool BEAR_OB_FVG_CONFLUENCE = false
-export const bool BEAR_OB_MITIGATED = false
-export const float NEAREST_BULL_OB_LEVEL = 0.0
-export const float NEAREST_BEAR_OB_LEVEL = 0.0
-export const string OB_BIAS = "NEUTRAL"
 
 // ── FVG / Imbalance Lifecycle Light (v5.5b) ──
 export const string PRIMARY_FVG_SIDE = "NONE"

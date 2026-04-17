@@ -42,13 +42,8 @@ STATE_COLUMNS = [
 ]
 
 DEPRECATED_COMPATIBILITY_GROUPS: list[str] = [
-    # Fully orphaned — no Pine consumer references these fields.
-    # Sunset target: next major schema version bump.
-    "order_blocks_v52",       # 13 fields, zero consumers
-    "zone_projection_v52",    # 10 fields, zero consumers
-    "session_structure_v53",  # 14 fields, zero consumers
-    "range_regime_v53",       # 11 fields, zero consumers
-    "range_profile_regime_v53",  # 22 fields, zero consumers
+    # All deprecated v5-v5.3 compatibility groups removed (70 fields total).
+    # Sunset completed 2026-04-14.
 ]
 
 PLACEHOLDER_SYMBOL_SENTINELS = {"AAA", "BBB", "CCC"}
@@ -674,8 +669,8 @@ def write_pine_library(
         "// ── Usage ──────────────────────────────────────────────────────",
         "// import preuss_steffen/smc_micro_profiles_generated/1 as mp",
         "//",
-        "// Fields are grouped into sections (v5.5b Lean, ~135 fields + 5 optional debug):",
-        "// Deprecated v5-v5.3 compatibility groups have been removed; only v5.5b Lean fields remain.",
+        "// Fields are grouped into sections (v5.5b Lean, ~102 fields + 5 optional debug):",
+        "// Deprecated v5-v5.3 compatibility groups removed (sunset 2026-04-14); only v5.5b Lean fields remain.",
         "//   Core/Meta       — ASOF_DATE, ASOF_TIME, UNIVERSE_SIZE, REFRESH_COUNT (+ UNIVERSE_ID, LOOKBACK_DAYS in debug mode)",
         "//   Microstructure  — *_TICKERS lists (clean_reclaim, stop_hunt_prone, …)",
         "//   Regime          — MARKET_REGIME, VIX_LEVEL, MACRO_BIAS, MACRO_BIAS_RAW, MACRO_BIAS_PE_ADJUSTMENT, MARKET_PE_FORWARD, MARKET_PE_REGIME, SECTOR_BREADTH",
@@ -688,14 +683,11 @@ def write_pine_library(
         "//   Ensemble Score  — ENSEMBLE_QUALITY_SCORE, ENSEMBLE_QUALITY_TIER, ENSEMBLE_AVAILABLE_COMPONENTS",
         "//   Flow Qualifier (v5.1)  — REL_VOL … ATS_BEARISH_SEQUENCE (14 fields)",
         "//   Compression (v5.1)     — SQUEEZE_ON … ATR_RATIO (5 fields)",
-        "//   Range Regime (v5.3, ORPHANED)       — 11 fields, zero Pine consumers",
-        "//   Range Profile Regime (v5.3, ORPHANED) — 22 fields, zero Pine consumers",
         "//",
         "//   ── v5.5b Lean Surface (preferred) ──",
         "//   Event Risk Light (v5.5b)      — 14 fields (incl. HIGH_RISK_EVENT_TICKERS, NEXT_EVENT_CLASS)",
         "//   Session Context Light (v5.5b) — 5 fields",
         "//   OB Context Light (v5.5b)      — 5 fields",
-        "//   OB Extended                   — 9 fields (per-side freshness, confluence, levels, bias)",
         "//   FVG Lifecycle Light (v5.5b)   — 7 fields",
         "//   Imbalance Lifecycle Extended  — 1 field (BPR_DIRECTION)",
         "//   Liquidity Pools               — 2 fields (BUY_SIDE_POOL_LEVEL, BUY_SIDE_POOL_STRENGTH)",
@@ -847,53 +839,6 @@ def write_pine_library(
     content.append(f'export const string ATR_REGIME = "{cr.get("ATR_REGIME", _CR_DEFAULTS["ATR_REGIME"])}"')
     content.append(f'export const float ATR_RATIO = {float(cr.get("ATR_RATIO", _CR_DEFAULTS["ATR_RATIO"]))}')
 
-    # ── Range Regime (v5.3) — ORPHANED: zero Pine consumers ────
-    from scripts.smc_range_regime import DEFAULTS as _RR_DEFAULTS
-
-    rr = enr.get("range_regime") or {}
-    content.append("")
-    content.append("// ── Range Regime (ORPHANED — no Pine consumer, sunset candidate) ──")
-    content.append(f'export const string RANGE_REGIME = "{rr.get("RANGE_REGIME", _RR_DEFAULTS["RANGE_REGIME"])}"')
-    content.append(f'export const float RANGE_WIDTH_PCT = {float(rr.get("RANGE_WIDTH_PCT", _RR_DEFAULTS["RANGE_WIDTH_PCT"]))}')
-    content.append(f'export const string RANGE_POSITION = "{rr.get("RANGE_POSITION", _RR_DEFAULTS["RANGE_POSITION"])}"')
-    content.append(f'export const float RANGE_HIGH = {float(rr.get("RANGE_HIGH", _RR_DEFAULTS["RANGE_HIGH"]))}')
-    content.append(f'export const float RANGE_LOW = {float(rr.get("RANGE_LOW", _RR_DEFAULTS["RANGE_LOW"]))}')
-    content.append(f'export const int RANGE_DURATION_BARS = {int(rr.get("RANGE_DURATION_BARS", _RR_DEFAULTS["RANGE_DURATION_BARS"]))}')
-    content.append(f'export const float RANGE_VPOC_LEVEL = {float(rr.get("RANGE_VPOC_LEVEL", _RR_DEFAULTS["RANGE_VPOC_LEVEL"]))}')
-    content.append(f'export const float RANGE_VAH_LEVEL = {float(rr.get("RANGE_VAH_LEVEL", _RR_DEFAULTS["RANGE_VAH_LEVEL"]))}')
-    content.append(f'export const float RANGE_VAL_LEVEL = {float(rr.get("RANGE_VAL_LEVEL", _RR_DEFAULTS["RANGE_VAL_LEVEL"]))}')
-    content.append(f'export const string RANGE_BALANCE_STATE = "{rr.get("RANGE_BALANCE_STATE", _RR_DEFAULTS["RANGE_BALANCE_STATE"])}"')
-    content.append(f'export const int RANGE_REGIME_SCORE = {int(rr.get("RANGE_REGIME_SCORE", _RR_DEFAULTS["RANGE_REGIME_SCORE"]))}')
-
-    # ── Range Profile Regime (v5.3) — ORPHANED: zero Pine consumers
-    from scripts.smc_range_profile_regime import DEFAULTS as _RPR_DEFAULTS
-
-    rpr = enr.get("range_profile_regime") or {}
-    content.append("")
-    content.append("// ── Range Profile Regime (ORPHANED — no Pine consumer, sunset candidate) ──")
-    content.append(f'export const bool RANGE_ACTIVE = {_pine_bool(rpr.get("RANGE_ACTIVE", _RPR_DEFAULTS["RANGE_ACTIVE"]))}')
-    content.append(f'export const float RANGE_TOP = {float(rpr.get("RANGE_TOP", _RPR_DEFAULTS["RANGE_TOP"]))}')
-    content.append(f'export const float RANGE_BOTTOM = {float(rpr.get("RANGE_BOTTOM", _RPR_DEFAULTS["RANGE_BOTTOM"]))}')
-    content.append(f'export const float RANGE_MID = {float(rpr.get("RANGE_MID", _RPR_DEFAULTS["RANGE_MID"]))}')
-    content.append(f'export const float RANGE_WIDTH_ATR = {float(rpr.get("RANGE_WIDTH_ATR", _RPR_DEFAULTS["RANGE_WIDTH_ATR"]))}')
-    content.append(f'export const string RANGE_BREAK_DIRECTION = "{rpr.get("RANGE_BREAK_DIRECTION", _RPR_DEFAULTS["RANGE_BREAK_DIRECTION"])}"')
-    content.append(f'export const float PROFILE_POC = {float(rpr.get("PROFILE_POC", _RPR_DEFAULTS["PROFILE_POC"]))}')
-    content.append(f'export const float PROFILE_VALUE_AREA_TOP = {float(rpr.get("PROFILE_VALUE_AREA_TOP", _RPR_DEFAULTS["PROFILE_VALUE_AREA_TOP"]))}')
-    content.append(f'export const float PROFILE_VALUE_AREA_BOTTOM = {float(rpr.get("PROFILE_VALUE_AREA_BOTTOM", _RPR_DEFAULTS["PROFILE_VALUE_AREA_BOTTOM"]))}')
-    content.append(f'export const bool PROFILE_VALUE_AREA_ACTIVE = {_pine_bool(rpr.get("PROFILE_VALUE_AREA_ACTIVE", _RPR_DEFAULTS["PROFILE_VALUE_AREA_ACTIVE"]))}')
-    content.append(f'export const float PROFILE_BULLISH_SENTIMENT = {float(rpr.get("PROFILE_BULLISH_SENTIMENT", _RPR_DEFAULTS["PROFILE_BULLISH_SENTIMENT"]))}')
-    content.append(f'export const float PROFILE_BEARISH_SENTIMENT = {float(rpr.get("PROFILE_BEARISH_SENTIMENT", _RPR_DEFAULTS["PROFILE_BEARISH_SENTIMENT"]))}')
-    content.append(f'export const string PROFILE_SENTIMENT_BIAS = "{rpr.get("PROFILE_SENTIMENT_BIAS", _RPR_DEFAULTS["PROFILE_SENTIMENT_BIAS"])}"')
-    content.append(f'export const float LIQUIDITY_ABOVE_PCT = {float(rpr.get("LIQUIDITY_ABOVE_PCT", _RPR_DEFAULTS["LIQUIDITY_ABOVE_PCT"]))}')
-    content.append(f'export const float LIQUIDITY_BELOW_PCT = {float(rpr.get("LIQUIDITY_BELOW_PCT", _RPR_DEFAULTS["LIQUIDITY_BELOW_PCT"]))}')
-    content.append(f'export const float LIQUIDITY_IMBALANCE = {float(rpr.get("LIQUIDITY_IMBALANCE", _RPR_DEFAULTS["LIQUIDITY_IMBALANCE"]))}')
-    content.append(f'export const float PRED_RANGE_MID = {float(rpr.get("PRED_RANGE_MID", _RPR_DEFAULTS["PRED_RANGE_MID"]))}')
-    content.append(f'export const float PRED_RANGE_UPPER_1 = {float(rpr.get("PRED_RANGE_UPPER_1", _RPR_DEFAULTS["PRED_RANGE_UPPER_1"]))}')
-    content.append(f'export const float PRED_RANGE_UPPER_2 = {float(rpr.get("PRED_RANGE_UPPER_2", _RPR_DEFAULTS["PRED_RANGE_UPPER_2"]))}')
-    content.append(f'export const float PRED_RANGE_LOWER_1 = {float(rpr.get("PRED_RANGE_LOWER_1", _RPR_DEFAULTS["PRED_RANGE_LOWER_1"]))}')
-    content.append(f'export const float PRED_RANGE_LOWER_2 = {float(rpr.get("PRED_RANGE_LOWER_2", _RPR_DEFAULTS["PRED_RANGE_LOWER_2"]))}')
-    content.append(f'export const bool IN_PREDICTIVE_RANGE_EXTREME = {_pine_bool(rpr.get("IN_PREDICTIVE_RANGE_EXTREME", _RPR_DEFAULTS["IN_PREDICTIVE_RANGE_EXTREME"]))}')
-
     # ── v5.5b Lean: Event Risk Light ─────────────────────────────
     from scripts.smc_event_risk_builder import DEFAULTS as _ER_DEFAULTS
 
@@ -952,22 +897,6 @@ def write_pine_library(
     content.append(f'export const bool OB_FRESH = {_pine_bool(obl.get("OB_FRESH", _OBL_DEFAULTS["OB_FRESH"]))}')
     content.append(f'export const int OB_AGE_BARS = {int(obl.get("OB_AGE_BARS", _OBL_DEFAULTS["OB_AGE_BARS"]))}')
     content.append(f'export const string OB_MITIGATION_STATE = "{obl.get("OB_MITIGATION_STATE", _OBL_DEFAULTS["OB_MITIGATION_STATE"])}"')
-
-    # ── Order Block Extended Fields ──────────────────────────────
-    from scripts.smc_order_blocks import DEFAULTS as _OB_DEFAULTS
-
-    ob = enr.get("order_blocks") or {}
-    content.append("")
-    content.append("// ── Order Block Extended ──")
-    content.append(f'export const int BULL_OB_FRESHNESS = {int(ob.get("BULL_OB_FRESHNESS", _OB_DEFAULTS["BULL_OB_FRESHNESS"]))}')
-    content.append(f'export const bool BULL_OB_FVG_CONFLUENCE = {_pine_bool(ob.get("BULL_OB_FVG_CONFLUENCE", _OB_DEFAULTS["BULL_OB_FVG_CONFLUENCE"]))}')
-    content.append(f'export const bool BULL_OB_MITIGATED = {_pine_bool(ob.get("BULL_OB_MITIGATED", _OB_DEFAULTS["BULL_OB_MITIGATED"]))}')
-    content.append(f'export const int BEAR_OB_FRESHNESS = {int(ob.get("BEAR_OB_FRESHNESS", _OB_DEFAULTS["BEAR_OB_FRESHNESS"]))}')
-    content.append(f'export const bool BEAR_OB_FVG_CONFLUENCE = {_pine_bool(ob.get("BEAR_OB_FVG_CONFLUENCE", _OB_DEFAULTS["BEAR_OB_FVG_CONFLUENCE"]))}')
-    content.append(f'export const bool BEAR_OB_MITIGATED = {_pine_bool(ob.get("BEAR_OB_MITIGATED", _OB_DEFAULTS["BEAR_OB_MITIGATED"]))}')
-    content.append(f'export const float NEAREST_BULL_OB_LEVEL = {float(ob.get("NEAREST_BULL_OB_LEVEL", _OB_DEFAULTS["NEAREST_BULL_OB_LEVEL"]))}')
-    content.append(f'export const float NEAREST_BEAR_OB_LEVEL = {float(ob.get("NEAREST_BEAR_OB_LEVEL", _OB_DEFAULTS["NEAREST_BEAR_OB_LEVEL"]))}')
-    content.append(f'export const string OB_BIAS = "{ob.get("OB_BIAS", _OB_DEFAULTS["OB_BIAS"])}"')
 
     # ── v5.5b Lean: FVG / Imbalance Lifecycle Light ──────────────
     from scripts.smc_fvg_lifecycle_light import DEFAULTS as _FVGL_DEFAULTS
