@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-04-17T05:29:41.583375Z",
+  "generated_at": "2026-04-17T08:57:27.090615Z",
   "symbols": [
     "AAPL",
     "MSFT",
@@ -20,11 +20,11 @@
     "fmp_stock": 0.0,
     "fmp_press": 0.0,
     "fmp_articles": 0.0,
-    "newsapi_ai": 1776401807.0,
+    "newsapi_ai": 1776409561.0,
     "tv": 0.0,
-    "legacy_cursor": 1776401807.0
+    "legacy_cursor": 1776409561.0
   },
-  "legacy_cursor": 1776401807.0,
+  "legacy_cursor": 1776409561.0,
   "providers": {
     "benzinga": {
       "ok": false,
@@ -65,8 +65,8 @@
       "ok": true,
       "error": "",
       "raw_count": 48,
-      "new_item_count": 2,
-      "cursor": 1776401807.0,
+      "new_item_count": 3,
+      "cursor": 1776409561.0,
       "last_seen_news_uri": "",
       "provider_status": "ok",
       "status_detail": "",
@@ -82,44 +82,6 @@
   },
   "stories": [
     {
-      "story_key": "77054441a278fdf397216d8b33efa90f5b041e3f:5921083",
-      "headline": "JPMorgan Chase Stock: The Warning May Be More Important Than The Earnings (NYSE:JPM)",
-      "tickers": [
-        "JPM"
-      ],
-      "published_at": "2026-04-16T07:38:45Z",
-      "published_ts": 1776325125.0,
-      "age_minutes": 1310.9,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Seeking Alpha"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "earnings",
-      "event_class": "EARNINGS",
-      "event_label": "JPMorgan Chase Stock: The Warning May Be More Important Than The Earnings (NYSE:JPM)",
-      "sentiment_label": "bearish",
-      "polarity": -0.225,
-      "impact": 0.8,
-      "clarity": 0.6,
-      "relevance": 0.79,
-      "news_catalyst_score": 0.3836,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://seekingalpha.com/article/4891119-jpmorgan-chase-the-warning-may-be-more-important-than-the-earnings",
-      "first_seen_at": "2026-04-16T09:05:17.484497Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
       "story_key": "5fa2b18c741eba3ab7994043d5074d44daadbe6c:5921177",
       "headline": "Microsoft Stock Warning: Why Piper Sandler Analysts Just Slashed Their MSFT Price Target by More Than 15%",
       "tickers": [
@@ -127,7 +89,7 @@
       ],
       "published_at": "2026-04-16T15:29:46Z",
       "published_ts": 1776353386.0,
-      "age_minutes": 839.9,
+      "age_minutes": 1047.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -165,7 +127,7 @@
       ],
       "published_at": "2026-04-16T14:08:44Z",
       "published_ts": 1776348524.0,
-      "age_minutes": 921.0,
+      "age_minutes": 1128.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -203,7 +165,7 @@
       ],
       "published_at": "2026-04-16T21:19:29Z",
       "published_ts": 1776374369.0,
-      "age_minutes": 490.2,
+      "age_minutes": 698.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -241,7 +203,7 @@
       ],
       "published_at": "2026-04-16T22:18:10Z",
       "published_ts": 1776377890.0,
-      "age_minutes": 431.5,
+      "age_minutes": 639.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -279,7 +241,7 @@
       ],
       "published_at": "2026-04-16T09:32:49Z",
       "published_ts": 1776331969.0,
-      "age_minutes": 1196.9,
+      "age_minutes": 1404.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -317,7 +279,7 @@
       ],
       "published_at": "2026-04-16T10:10:25Z",
       "published_ts": 1776334225.0,
-      "age_minutes": 1159.3,
+      "age_minutes": 1367.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -348,14 +310,14 @@
       "provider_count": 1
     },
     {
-      "story_key": "9e3e623c85d1e0bcce3d8cd77b4260ea0e2edf29:5921339",
-      "headline": "Here's Why Microsoft (MSFT) Stock Rallied Today - April 16, 2026",
+      "story_key": "17608e7ff4a3a4d544cad48a9f0f21401df0e2ab:5921346",
+      "headline": "Gaxos (GXAI) Stock Surges Over 19% After Hours: Why Is It Moving? - Amazon.com (NASDAQ:AMZN), Gaxos.AI (N",
       "tickers": [
-        "MSFT"
+        "AMZN"
       ],
-      "published_at": "2026-04-17T04:56:47Z",
-      "published_ts": 1776401807.0,
-      "age_minutes": 32.9,
+      "published_at": "2026-04-17T05:34:30Z",
+      "published_ts": 1776404070.0,
+      "age_minutes": 203.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -364,36 +326,36 @@
         "newsapi_ai"
       ],
       "sources": [
-        "Markets Insider"
+        "Benzinga"
       ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
+      "source_tier": "TIER_2",
+      "source_rank": 2,
       "category": "other",
       "event_class": "UNKNOWN",
-      "event_label": "Here's Why Microsoft (MSFT) Stock Rallied Today - April 16, 2026",
+      "event_label": "Gaxos (GXAI) Stock Surges Over 19% After Hours: Why Is It Moving? - Amazon.com (NASDAQ:AMZN), Gaxos.AI (N",
       "sentiment_label": "neutral",
       "polarity": 0.0,
       "impact": 0.1,
       "clarity": 0.8,
       "relevance": 0.535,
-      "news_catalyst_score": 0.279,
+      "news_catalyst_score": 0.2677,
       "materiality": "LOW",
-      "recency_bucket": "WARM",
+      "recency_bucket": "AGING",
       "is_actionable": false,
-      "url": "https://markets.businessinsider.com/news/stocks/here-s-why-microsoft-msft-stock-rallied-today-april-16-2026-1036031732",
-      "first_seen_at": "2026-04-17T05:29:41.583375Z",
+      "url": "https://www.benzinga.com/markets/equities/26/04/51876163/gaxos-gxai-stock-surges-over-19-after-hours-why-is-it-moving",
+      "first_seen_at": "2026-04-17T08:57:27.090615Z",
       "is_new": true,
       "provider_count": 1
     },
     {
-      "story_key": "633c2b84b146cb1529064bc99631263b31d989b6:5921339",
-      "headline": "Will Microsoft Stock (MSFT) Continue Its Rally? William Power Weighs In",
+      "story_key": "7ce89506822879ea8e4e589b88534924411320ea:5921365",
+      "headline": "AMZN Stock Is Quietly Hitting Record Highs  --  Here's What Wall Street Isn't Telling You",
       "tickers": [
-        "MSFT"
+        "AMZN"
       ],
-      "published_at": "2026-04-17T04:56:47Z",
-      "published_ts": 1776401807.0,
-      "age_minutes": 32.9,
+      "published_at": "2026-04-17T07:06:01Z",
+      "published_ts": 1776409561.0,
+      "age_minutes": 111.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -402,24 +364,24 @@
         "newsapi_ai"
       ],
       "sources": [
-        "Markets Insider"
+        "ABC Money"
       ],
       "source_tier": "TIER_3",
       "source_rank": 3,
       "category": "other",
       "event_class": "UNKNOWN",
-      "event_label": "Will Microsoft Stock (MSFT) Continue Its Rally? William Power Weighs In",
+      "event_label": "AMZN Stock Is Quietly Hitting Record Highs -- Here's What Wall Street Isn't Telling You",
       "sentiment_label": "bullish",
       "polarity": 0.1375,
       "impact": 0.1,
       "clarity": 0.6,
       "relevance": 0.475,
-      "news_catalyst_score": 0.243,
+      "news_catalyst_score": 0.23,
       "materiality": "LOW",
-      "recency_bucket": "WARM",
+      "recency_bucket": "AGING",
       "is_actionable": false,
-      "url": "https://markets.businessinsider.com/news/stocks/will-microsoft-stock-msft-continue-its-rally-william-power-weighs-in-1036031715",
-      "first_seen_at": "2026-04-17T05:29:41.583375Z",
+      "url": "https://www.abcmoney.co.uk/2026/04/amzn-stock-is-quietly-hitting-record-highs-heres-what-wall-street-isnt-telling-you/",
+      "first_seen_at": "2026-04-17T08:57:27.090615Z",
       "is_new": true,
       "provider_count": 1
     },
@@ -431,7 +393,7 @@
       ],
       "published_at": "2026-04-16T19:59:48Z",
       "published_ts": 1776369588.0,
-      "age_minutes": 569.9,
+      "age_minutes": 777.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -469,7 +431,7 @@
       ],
       "published_at": "2026-04-16T18:13:03Z",
       "published_ts": 1776363183.0,
-      "age_minutes": 676.6,
+      "age_minutes": 884.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -507,7 +469,7 @@
       ],
       "published_at": "2026-04-16T17:35:28Z",
       "published_ts": 1776360928.0,
-      "age_minutes": 714.2,
+      "age_minutes": 922.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -545,7 +507,7 @@
       ],
       "published_at": "2026-04-16T17:06:44Z",
       "published_ts": 1776359204.0,
-      "age_minutes": 743.0,
+      "age_minutes": 950.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -583,7 +545,7 @@
       ],
       "published_at": "2026-04-16T14:00:00Z",
       "published_ts": 1776348000.0,
-      "age_minutes": 929.7,
+      "age_minutes": 1137.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -614,6 +576,82 @@
       "provider_count": 1
     },
     {
+      "story_key": "9e3e623c85d1e0bcce3d8cd77b4260ea0e2edf29:5921339",
+      "headline": "Here's Why Microsoft (MSFT) Stock Rallied Today - April 16, 2026",
+      "tickers": [
+        "MSFT"
+      ],
+      "published_at": "2026-04-17T04:56:47Z",
+      "published_ts": 1776401807.0,
+      "age_minutes": 240.7,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Markets Insider"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Here's Why Microsoft (MSFT) Stock Rallied Today - April 16, 2026",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "news_catalyst_score": 0.2177,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://markets.businessinsider.com/news/stocks/here-s-why-microsoft-msft-stock-rallied-today-april-16-2026-1036031732",
+      "first_seen_at": "2026-04-17T05:29:41.583375Z",
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
+      "story_key": "a9a23c12c24d2321d3a419a7f31fff2b9905168c:5921352",
+      "headline": "Meta Platforms Stock (META) Sinks as VR Headset Prices Rise",
+      "tickers": [
+        "META"
+      ],
+      "published_at": "2026-04-17T06:04:35Z",
+      "published_ts": 1776405875.0,
+      "age_minutes": 172.9,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Markets Insider"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Meta Platforms Stock (META) Sinks as VR Headset Prices Rise",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.2144,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://markets.businessinsider.com/news/stocks/meta-platforms-stock-meta-sinks-as-vr-headset-prices-rise-1036032018",
+      "first_seen_at": "2026-04-17T08:57:27.090615Z",
+      "is_new": true,
+      "provider_count": 1
+    },
+    {
       "story_key": "4abc1110277e5673b67f2d5f5945a0a61e5d02e3:5921270",
       "headline": "Why Cramer Likes Nike, Amazon, Nvidia - Amazon.com (NASDAQ:AMZN), Nike (NYSE:NKE), NVIDIA (NASDAQ:NVDA)",
       "tickers": [
@@ -621,7 +659,7 @@
       ],
       "published_at": "2026-04-16T23:14:45Z",
       "published_ts": 1776381285.0,
-      "age_minutes": 374.9,
+      "age_minutes": 582.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -659,7 +697,7 @@
       ],
       "published_at": "2026-04-16T22:26:00Z",
       "published_ts": 1776378360.0,
-      "age_minutes": 423.7,
+      "age_minutes": 631.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -697,7 +735,7 @@
       ],
       "published_at": "2026-04-16T18:35:06Z",
       "published_ts": 1776364506.0,
-      "age_minutes": 654.6,
+      "age_minutes": 862.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -735,7 +773,7 @@
       ],
       "published_at": "2026-04-16T11:38:54Z",
       "published_ts": 1776339534.0,
-      "age_minutes": 1070.8,
+      "age_minutes": 1278.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -773,7 +811,7 @@
       ],
       "published_at": "2026-04-16T09:59:33Z",
       "published_ts": 1776333573.0,
-      "age_minutes": 1170.1,
+      "age_minutes": 1377.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -811,7 +849,7 @@
       ],
       "published_at": "2026-04-16T15:30:02Z",
       "published_ts": 1776353402.0,
-      "age_minutes": 839.7,
+      "age_minutes": 1047.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -849,7 +887,7 @@
       ],
       "published_at": "2026-04-16T13:38:11Z",
       "published_ts": 1776346691.0,
-      "age_minutes": 951.5,
+      "age_minutes": 1159.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -880,6 +918,44 @@
       "provider_count": 1
     },
     {
+      "story_key": "633c2b84b146cb1529064bc99631263b31d989b6:5921339",
+      "headline": "Will Microsoft Stock (MSFT) Continue Its Rally? William Power Weighs In",
+      "tickers": [
+        "MSFT"
+      ],
+      "published_at": "2026-04-17T04:56:47Z",
+      "published_ts": 1776401807.0,
+      "age_minutes": 240.7,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Markets Insider"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Will Microsoft Stock (MSFT) Continue Its Rally? William Power Weighs In",
+      "sentiment_label": "bullish",
+      "polarity": 0.1375,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.1896,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://markets.businessinsider.com/news/stocks/will-microsoft-stock-msft-continue-its-rally-william-power-weighs-in-1036031715",
+      "first_seen_at": "2026-04-17T05:29:41.583375Z",
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
       "story_key": "dfba04609a7d9cc3e9bb9dcd6c98a23c8223fc24:5921165",
       "headline": "Trade Strategy For SPY, QQQ, AAPL, MSFT, NVDA, GOOGL, META, And TSLA - Apple (NASDAQ:AAPL), Alphabet (NAS",
       "tickers": [
@@ -889,7 +965,7 @@
       ],
       "published_at": "2026-04-16T14:29:17Z",
       "published_ts": 1776349757.0,
-      "age_minutes": 900.4,
+      "age_minutes": 1108.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -927,7 +1003,7 @@
       ],
       "published_at": "2026-04-16T16:48:39Z",
       "published_ts": 1776358119.0,
-      "age_minutes": 761.0,
+      "age_minutes": 968.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -965,7 +1041,7 @@
       ],
       "published_at": "2026-04-16T15:44:45Z",
       "published_ts": 1776354285.0,
-      "age_minutes": 824.9,
+      "age_minutes": 1032.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1003,7 +1079,7 @@
       ],
       "published_at": "2026-04-16T14:15:50Z",
       "published_ts": 1776348950.0,
-      "age_minutes": 913.9,
+      "age_minutes": 1121.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1041,7 +1117,7 @@
       ],
       "published_at": "2026-04-16T12:00:16Z",
       "published_ts": 1776340816.0,
-      "age_minutes": 1049.4,
+      "age_minutes": 1257.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1079,7 +1155,7 @@
       ],
       "published_at": "2026-04-16T09:54:23Z",
       "published_ts": 1776333263.0,
-      "age_minutes": 1175.3,
+      "age_minutes": 1383.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1108,120 +1184,6 @@
       "first_seen_at": "2026-04-16T11:43:28.484058Z",
       "is_new": false,
       "provider_count": 1
-    },
-    {
-      "story_key": "62ee3d064310b4afeeefa251e61c1d72ed91088e:5921099",
-      "headline": "Microsoft: Why 'Intelligence Refinery' Is Future Of Global Profit (NASDAQ:MSFT)",
-      "tickers": [
-        "MSFT"
-      ],
-      "published_at": "2026-04-16T08:56:47Z",
-      "published_ts": 1776329807.0,
-      "age_minutes": 1232.9,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Seeking Alpha"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Microsoft: Why 'Intelligence Refinery' Is Future Of Global Profit (NASDAQ:MSFT)",
-      "sentiment_label": "bullish",
-      "polarity": 0.1375,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.1671,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://seekingalpha.com/article/4891130-microsoft-new-standard-oil-why-intelligence-refinery-is-future-of-global-profit",
-      "first_seen_at": "2026-04-16T11:43:28.484058Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "4ce060cf001c66f2b65656811ad07dc5888bbd51:5921076",
-      "headline": "'Load Up,' Says Morgan Stanley as Microsoft Stock (MSFT) Gets a Boost from CIO Survey",
-      "tickers": [
-        "MSFT"
-      ],
-      "published_at": "2026-04-16T07:04:00Z",
-      "published_ts": 1776323040.0,
-      "age_minutes": 1345.7,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Markets Insider"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "'Load Up,' Says Morgan Stanley as Microsoft Stock (MSFT) Gets a Boost from CIO Survey",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.1671,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://markets.businessinsider.com/news/stocks/load-up-says-morgan-stanley-as-microsoft-stock-msft-gets-a-boost-from-cio-survey-1036027894",
-      "first_seen_at": "2026-04-16T09:05:17.484497Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "bd31b86ba07c8ed816ac90250a58e90113bd9bce:5921062",
-      "headline": "Microsoft Stock (MSFT) Jumps as Xbox Mulls a Return to Exclusive Games",
-      "tickers": [
-        "MSFT"
-      ],
-      "published_at": "2026-04-16T05:53:33Z",
-      "published_ts": 1776318813.0,
-      "age_minutes": 1416.1,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Markets Insider"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Microsoft Stock (MSFT) Jumps as Xbox Mulls a Return to Exclusive Games",
-      "sentiment_label": "bullish",
-      "polarity": 0.1375,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.1671,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://markets.businessinsider.com/news/stocks/microsoft-stock-msft-jumps-as-xbox-mulls-a-return-to-exclusive-games-1036027010",
-      "first_seen_at": "2026-04-16T09:05:17.484497Z",
-      "is_new": false,
-      "provider_count": 1
     }
   ],
   "news_catalyst_by_symbol": {
@@ -1246,33 +1208,33 @@
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "source_tier": "TIER_3",
-      "mentions_24h": 8,
+      "mentions_24h": 10,
       "is_actionable": false,
       "first_provider": "newsapi_ai",
       "story_key": "9a2f7bbead9db2c8dfaf39c93eb4386ff5d99115:5921161"
     },
     "JPM": {
-      "news_catalyst_score": 0.5036,
+      "news_catalyst_score": 0.4365,
       "sentiment_label": "neutral",
-      "event_class": "EARNINGS",
-      "event_label": "JPMorgan Chase Stock: The Warning May Be More Important Than The Earnings (NYSE:JPM)",
+      "event_class": "MANAGEMENT",
+      "event_label": "Insider Selling: JPMorgan Chase & Co. (NYSE:JPM) CFO Sells 5,611 Shares of Stock",
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "source_tier": "TIER_3",
-      "mentions_24h": 5,
+      "mentions_24h": 4,
       "is_actionable": false,
       "first_provider": "newsapi_ai",
-      "story_key": "77054441a278fdf397216d8b33efa90f5b041e3f:5921083"
+      "story_key": "1ae826a8b0729143ab38d68be1aae45a63621ce1:5921106"
     },
     "META": {
-      "news_catalyst_score": 0.4093,
+      "news_catalyst_score": 0.4393,
       "sentiment_label": "neutral",
       "event_class": "MANAGEMENT",
       "event_label": "Employment 'Apocalypse' Fears Are Overblown, Scale AI CEO Says - Meta Platforms (NASDAQ:META), Oracle (NY",
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "source_tier": "TIER_2",
-      "mentions_24h": 3,
+      "mentions_24h": 4,
       "is_actionable": false,
       "first_provider": "newsapi_ai",
       "story_key": "e5911034f30a787cd745f18f146409f99eb948d5:5921247"
@@ -1285,15 +1247,15 @@
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "source_tier": "TIER_3",
-      "mentions_24h": 12,
+      "mentions_24h": 9,
       "is_actionable": false,
       "first_provider": "newsapi_ai",
       "story_key": "5fa2b18c741eba3ab7994043d5074d44daadbe6c:5921177"
     }
   },
   "summary": {
-    "active_story_count": 30,
-    "new_story_count": 2,
+    "active_story_count": 29,
+    "new_story_count": 3,
     "actionable_story_count": 0,
     "actionable_symbols": [],
     "symbol_count": 5

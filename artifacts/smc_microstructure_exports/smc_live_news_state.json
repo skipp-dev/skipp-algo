@@ -5,12 +5,99 @@
     "fmp_stock": 0.0,
     "fmp_press": 0.0,
     "fmp_articles": 0.0,
-    "newsapi_ai": 1776401807.0,
+    "newsapi_ai": 1776409561.0,
     "tv": 0.0,
-    "legacy_cursor": 1776401807.0
+    "legacy_cursor": 1776409561.0
   },
   "provider_state": {},
   "story_state": {
+    "7ce89506822879ea8e4e589b88534924411320ea:5921365": {
+      "story_key": "7ce89506822879ea8e4e589b88534924411320ea:5921365",
+      "cluster_hash": "7ce89506822879ea8e4e589b88534924411320ea",
+      "headline": "AMZN Stock Is Quietly Hitting Record Highs  --  Here's What Wall Street Isn't Telling You",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_ts": 1776409561.0,
+      "first_seen_ts": 1776416247.0906153,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "ABC Money"
+      ],
+      "url": "https://www.abcmoney.co.uk/2026/04/amzn-stock-is-quietly-hitting-record-highs-heres-what-wall-street-isnt-telling-you/",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.1375,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776416247.0906153
+    },
+    "17608e7ff4a3a4d544cad48a9f0f21401df0e2ab:5921346": {
+      "story_key": "17608e7ff4a3a4d544cad48a9f0f21401df0e2ab:5921346",
+      "cluster_hash": "17608e7ff4a3a4d544cad48a9f0f21401df0e2ab",
+      "headline": "Gaxos (GXAI) Stock Surges Over 19% After Hours: Why Is It Moving? - Amazon.com (NASDAQ:AMZN), Gaxos.AI (N",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_ts": 1776404070.0,
+      "first_seen_ts": 1776416247.0906153,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "url": "https://www.benzinga.com/markets/equities/26/04/51876163/gaxos-gxai-stock-surges-over-19-after-hours-why-is-it-moving",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "polarity": 0.0,
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "last_seen_ts": 1776416247.0906153
+    },
+    "a9a23c12c24d2321d3a419a7f31fff2b9905168c:5921352": {
+      "story_key": "a9a23c12c24d2321d3a419a7f31fff2b9905168c:5921352",
+      "cluster_hash": "a9a23c12c24d2321d3a419a7f31fff2b9905168c",
+      "headline": "Meta Platforms Stock (META) Sinks as VR Headset Prices Rise",
+      "tickers": [
+        "META"
+      ],
+      "published_ts": 1776405875.0,
+      "first_seen_ts": 1776416247.0906153,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Markets Insider"
+      ],
+      "url": "https://markets.businessinsider.com/news/stocks/meta-platforms-stock-meta-sinks-as-vr-headset-prices-rise-1036032018",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776416247.0906153
+    },
     "9e3e623c85d1e0bcce3d8cd77b4260ea0e2edf29:5921339": {
       "story_key": "9e3e623c85d1e0bcce3d8cd77b4260ea0e2edf29:5921339",
       "cluster_hash": "9e3e623c85d1e0bcce3d8cd77b4260ea0e2edf29",
@@ -8320,760 +8407,6 @@
       "source_tier": "TIER_3",
       "source_rank": 3,
       "last_seen_ts": 1775823051.3970902
-    },
-    "9f135bd91016691da451cbfd796b84590a344912:5919336": {
-      "story_key": "9f135bd91016691da451cbfd796b84590a344912:5919336",
-      "cluster_hash": "9f135bd91016691da451cbfd796b84590a344912",
-      "headline": "Amazon (AMZN) May Start Selling AI Chips Directly to Customers, Says CEO Jassy",
-      "tickers": [
-        "AMZN"
-      ],
-      "published_ts": 1775801078.0,
-      "first_seen_ts": 1775807576.7191634,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Markets Insider"
-      ],
-      "url": "https://markets.businessinsider.com/news/stocks/amazon-amzn-may-start-selling-ai-chips-directly-to-customers-says-ceo-jassy-1036009114",
-      "category": "management",
-      "impact": 0.6,
-      "clarity": 0.6,
-      "relevance": 0.7000000000000001,
-      "polarity": 0.0,
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "last_seen_ts": 1775807576.7191634
-    },
-    "917898034ec91f5ba211ea94e593d3b7a89eab6a:5919313": {
-      "story_key": "917898034ec91f5ba211ea94e593d3b7a89eab6a:5919313",
-      "cluster_hash": "917898034ec91f5ba211ea94e593d3b7a89eab6a",
-      "headline": "Amazon (AMZN) Stock Trades Up, Here Is Why",
-      "tickers": [
-        "AMZN"
-      ],
-      "published_ts": 1775793947.0,
-      "first_seen_ts": 1775807576.7191634,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Yahoo! Finance"
-      ],
-      "url": "https://ca.finance.yahoo.com/news/amazon-amzn-stock-trades-why-040547973.html",
-      "category": "other",
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "polarity": 0.0,
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "last_seen_ts": 1775807576.7191634
-    },
-    "68bf5a4c065b94cd40360aa0f618b56cc77974b8:5919356": {
-      "story_key": "68bf5a4c065b94cd40360aa0f618b56cc77974b8:5919356",
-      "cluster_hash": "68bf5a4c065b94cd40360aa0f618b56cc77974b8",
-      "headline": "Meta, CoreWeave deepen AI cloud partnership with fresh $21 billion deal",
-      "tickers": [
-        "META"
-      ],
-      "published_ts": 1775807064.0,
-      "first_seen_ts": 1775807576.7191634,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "The Hindu"
-      ],
-      "url": "https://www.thehindu.com/sci-tech/technology/meta-coreweave-deepen-ai-cloud-partnership-with-fresh-21-billion-deal/article70845821.ece",
-      "category": "contract",
-      "impact": 0.7,
-      "clarity": 0.8,
-      "relevance": 0.8049999999999999,
-      "polarity": 0.0,
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "last_seen_ts": 1775807576.7191634
-    },
-    "bac36a68b81abf9b558981d0ed18eb67fe07213c:5919354": {
-      "story_key": "bac36a68b81abf9b558981d0ed18eb67fe07213c:5919354",
-      "cluster_hash": "bac36a68b81abf9b558981d0ed18eb67fe07213c",
-      "headline": "Meta-owned Instagram allows users to edit comments, but with a catch",
-      "tickers": [
-        "META"
-      ],
-      "published_ts": 1775806463.0,
-      "first_seen_ts": 1775807576.7191634,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "The Times of India"
-      ],
-      "url": "https://timesofindia.indiatimes.com/technology/tech-news/meta-owned-instagram-allows-users-to-edit-comments-but-with-a-catch/articleshow/130161645.cms",
-      "category": "other",
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "polarity": 0.0,
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "last_seen_ts": 1775807576.7191634
-    },
-    "79c29fb8c30c76133d5a921f51fef328f963a629:5919354": {
-      "story_key": "79c29fb8c30c76133d5a921f51fef328f963a629:5919354",
-      "cluster_hash": "79c29fb8c30c76133d5a921f51fef328f963a629",
-      "headline": "Meta partners with CoreWeave in $21bn AI cloud expansion",
-      "tickers": [
-        "META"
-      ],
-      "published_ts": 1775806271.0,
-      "first_seen_ts": 1775807576.7191634,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Verdict"
-      ],
-      "url": "https://www.verdict.co.uk/meta-partners-with-coreweave/",
-      "category": "other",
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "polarity": 0.0,
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "last_seen_ts": 1775807576.7191634
-    },
-    "23d4fdf13d29d965805fc1a23492aa9af936fafb:5919354": {
-      "story_key": "23d4fdf13d29d965805fc1a23492aa9af936fafb:5919354",
-      "cluster_hash": "23d4fdf13d29d965805fc1a23492aa9af936fafb",
-      "headline": "Meta Bans Attorney Ads Recruiting Plaintiffs for Social Media Addiction Suits",
-      "tickers": [
-        "META"
-      ],
-      "published_ts": 1775806274.0,
-      "first_seen_ts": 1775807576.7191634,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "International Business Times, Singapore Edition"
-      ],
-      "url": "https://www.ibtimes.sg/meta-bans-attorney-ads-recruiting-plaintiffs-social-media-addiction-suits-85223",
-      "category": "other",
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "polarity": 0.0,
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "last_seen_ts": 1775807576.7191634
-    },
-    "4d15711f818793a9c8546040855640cb89545b50:5919345": {
-      "story_key": "4d15711f818793a9c8546040855640cb89545b50:5919345",
-      "cluster_hash": "4d15711f818793a9c8546040855640cb89545b50",
-      "headline": "Musk, Durov Slam WhatsApp Privacy Claims, Meta Hits Back",
-      "tickers": [
-        "META"
-      ],
-      "published_ts": 1775803726.0,
-      "first_seen_ts": 1775807576.7191634,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Analytics Insight"
-      ],
-      "url": "https://www.analyticsinsight.net/news/musk-durov-slam-whatsapp-privacy-claims-meta-hits-back",
-      "category": "other",
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "polarity": 0.0,
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "last_seen_ts": 1775807576.7191634
-    },
-    "f3ddd9c01a45f825a0085639154d8ff0d6371193:5919347": {
-      "story_key": "f3ddd9c01a45f825a0085639154d8ff0d6371193:5919347",
-      "cluster_hash": "f3ddd9c01a45f825a0085639154d8ff0d6371193",
-      "headline": "'Can't trust WhatsApp': Musk, Durov question Meta's data practices after US lawsuit",
-      "tickers": [
-        "META"
-      ],
-      "published_ts": 1775804315.0,
-      "first_seen_ts": 1775807576.7191634,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "The Statesman"
-      ],
-      "url": "https://www.thestatesman.com/technology/elon-musk-pavel-durov-whatsapp-privacy-lawsuit-1503579924.html",
-      "category": "lawsuit",
-      "impact": 0.25,
-      "clarity": 0.6,
-      "relevance": 0.5425,
-      "polarity": 0.0,
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "last_seen_ts": 1775807576.7191634
-    },
-    "51994587edf80f612e7299294bc7263507a4a024:5919344": {
-      "story_key": "51994587edf80f612e7299294bc7263507a4a024:5919344",
-      "cluster_hash": "51994587edf80f612e7299294bc7263507a4a024",
-      "headline": "'WhatsApp Privacy May Be The Biggest Consumer Fraud In History': Telegram CEO & Elon Musk Call Out Meta On Reading Chats Without Consent",
-      "tickers": [
-        "META"
-      ],
-      "published_ts": 1775803371.0,
-      "first_seen_ts": 1775807576.7191634,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Free Press Journal"
-      ],
-      "url": "https://www.freepressjournal.in/tech/whatsapp-privacy-may-be-the-biggest-consumer-fraud-in-history-telegram-ceo-elon-musk-call-out-meta-on-reading-chats-without-consent",
-      "category": "management",
-      "impact": 0.6,
-      "clarity": 0.6,
-      "relevance": 0.7000000000000001,
-      "polarity": 0.0,
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "last_seen_ts": 1775807576.7191634
-    },
-    "921fd195082b5bc178be2208e69ba409b18ced61:5919346": {
-      "story_key": "921fd195082b5bc178be2208e69ba409b18ced61:5919346",
-      "cluster_hash": "921fd195082b5bc178be2208e69ba409b18ced61",
-      "headline": "WhatsApp encryption under fire: Telegram CEO calls it 'biggest consumer fraud in history', Musk says 'Can't trust'; Meta denies allegations- Moneycontrol.com",
-      "tickers": [
-        "META"
-      ],
-      "published_ts": 1775803946.0,
-      "first_seen_ts": 1775807576.7191634,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "MoneyControl"
-      ],
-      "url": "https://www.moneycontrol.com/technology/whatsapp-encryption-under-fire-telegram-ceo-calls-it-biggest-consumer-fraud-in-history-musk-says-can-t-trust-meta-denies-allegations-article-13885393.html",
-      "category": "management",
-      "impact": 0.6,
-      "clarity": 0.6,
-      "relevance": 0.7000000000000001,
-      "polarity": 0.0,
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "last_seen_ts": 1775807576.7191634
-    },
-    "74809c926e119a14dba73ef2e9ca49686169adde:5919340": {
-      "story_key": "74809c926e119a14dba73ef2e9ca49686169adde:5919340",
-      "cluster_hash": "74809c926e119a14dba73ef2e9ca49686169adde",
-      "headline": "Musk and Durov question WhatsApp E-2-E encryption, Meta hits back amid privacy lawsuit",
-      "tickers": [
-        "META"
-      ],
-      "published_ts": 1775802252.0,
-      "first_seen_ts": 1775807576.7191634,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "News9live"
-      ],
-      "url": "https://www.news9live.com/technology/tech-news/musk-durov-whatsapp-encryption-meta-response-privacy-lawsuit-2954712",
-      "category": "lawsuit",
-      "impact": 0.25,
-      "clarity": 0.8,
-      "relevance": 0.6025,
-      "polarity": 0.0,
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "last_seen_ts": 1775807576.7191634
-    },
-    "b0f12a18317f717ffd820d92c56f20bdfb7075df:5919344": {
-      "story_key": "b0f12a18317f717ffd820d92c56f20bdfb7075df:5919344",
-      "cluster_hash": "b0f12a18317f717ffd820d92c56f20bdfb7075df",
-      "headline": "Meta pulls ads aimed at recruiting plaintiffs for social media addiction lawsuits",
-      "tickers": [
-        "META"
-      ],
-      "published_ts": 1775803217.0,
-      "first_seen_ts": 1775807576.7191634,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "The Hindu"
-      ],
-      "url": "https://www.thehindu.com/sci-tech/technology/meta-pulls-ads-aimed-at-recruiting-plaintiffs-for-social-media-addiction-lawsuits/article70845844.ece",
-      "category": "other",
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.4060810810810811,
-      "polarity": 0.0,
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "last_seen_ts": 1775807576.7191634
-    },
-    "d06f69dffe1956eb384193715a2e6b63c94e65a9:5919341": {
-      "story_key": "d06f69dffe1956eb384193715a2e6b63c94e65a9:5919341",
-      "cluster_hash": "d06f69dffe1956eb384193715a2e6b63c94e65a9",
-      "headline": "70,000 Jobs Gone In 3 Months: Oracle, Meta, GoPro Among 80 Tech Firms Cutting Staff In 2026 So Far",
-      "tickers": [
-        "META"
-      ],
-      "published_ts": 1775802546.0,
-      "first_seen_ts": 1775807576.7191634,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "News18"
-      ],
-      "url": "https://www.news18.com/business/markets/70000-jobs-gone-in-3-months-oracle-meta-gopro-among-80-tech-firms-cutting-staff-in-2026-so-far-ws-l-10025434.html",
-      "category": "other",
-      "impact": 0.1,
-      "clarity": 0.8,
-      "relevance": 0.535,
-      "polarity": 0.0,
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "last_seen_ts": 1775807576.7191634
-    },
-    "9014a682856f01a7ff39535bb1331574bd92fccf:5919342": {
-      "story_key": "9014a682856f01a7ff39535bb1331574bd92fccf:5919342",
-      "cluster_hash": "9014a682856f01a7ff39535bb1331574bd92fccf",
-      "headline": "Elon Musk Says 'Can't Trust WhatsApp'; Meta Slams Claims",
-      "tickers": [
-        "META"
-      ],
-      "published_ts": 1775802704.0,
-      "first_seen_ts": 1775807576.7191634,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "TimesNow"
-      ],
-      "url": "https://www.timesnownews.com/business-economy/companies/elon-musk-declares-cant-trust-whatsapp-meta-slams-claims-article-154043445",
-      "category": "other",
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "polarity": 0.0,
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "last_seen_ts": 1775807576.7191634
-    },
-    "2ffa9e13efce050cb58d6e83b5c4f3e231cd3d85:5919341": {
-      "story_key": "2ffa9e13efce050cb58d6e83b5c4f3e231cd3d85:5919341",
-      "cluster_hash": "2ffa9e13efce050cb58d6e83b5c4f3e231cd3d85",
-      "headline": "Meta complies with child-protection rule in Indonesia, YouTube not yet | MLex | Specialist news and analysis on legal risk and regulation",
-      "tickers": [
-        "META"
-      ],
-      "published_ts": 1775802549.0,
-      "first_seen_ts": 1775807576.7191634,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "mlex.com"
-      ],
-      "url": "https://www.mlex.com/mlex/articles/2463833/meta-complies-with-child-protection-rule-in-indonesia-youtube-not-yet",
-      "category": "other",
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "polarity": 0.0,
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "last_seen_ts": 1775807576.7191634
-    },
-    "558459339351cc6daef8d4d8b3bd075725b2db2d:5919341": {
-      "story_key": "558459339351cc6daef8d4d8b3bd075725b2db2d:5919341",
-      "cluster_hash": "558459339351cc6daef8d4d8b3bd075725b2db2d",
-      "headline": "Muse Spark launch pushes Meta AI app into top 5",
-      "tickers": [
-        "META"
-      ],
-      "published_ts": 1775802415.0,
-      "first_seen_ts": 1775807576.7191634,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "NewsBytes"
-      ],
-      "url": "https://www.newsbytesapp.com/news/science/meta-ai-app-rockets-to-top-app-store-charts/story",
-      "category": "other",
-      "impact": 0.1,
-      "clarity": 0.8,
-      "relevance": 0.535,
-      "polarity": 0.0,
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "last_seen_ts": 1775807576.7191634
-    },
-    "cae5c8251d1e7e695f76a512c2d1f141ae5c551e:5919340": {
-      "story_key": "cae5c8251d1e7e695f76a512c2d1f141ae5c551e:5919340",
-      "cluster_hash": "cae5c8251d1e7e695f76a512c2d1f141ae5c551e",
-      "headline": "CoreWeave Stock (CRWV) Soars on a Massive $21B AI Deal with Meta",
-      "tickers": [
-        "META"
-      ],
-      "published_ts": 1775802046.0,
-      "first_seen_ts": 1775807576.7191634,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Markets Insider"
-      ],
-      "url": "https://markets.businessinsider.com/news/stocks/coreweave-stock-crwv-soars-on-a-massive-21b-ai-deal-with-meta-1036008444",
-      "category": "other",
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "polarity": 0.0,
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "last_seen_ts": 1775807576.7191634
-    },
-    "dcf305f690a70d08a399c49b0e29b0c920bf6a4c:5919337": {
-      "story_key": "dcf305f690a70d08a399c49b0e29b0c920bf6a4c:5919337",
-      "cluster_hash": "dcf305f690a70d08a399c49b0e29b0c920bf6a4c",
-      "headline": "'Can't Trust,' Says Elon Musk Amid Allegations Of WhatsApp Reading User Messages; Meta Calls Them 'False'",
-      "tickers": [
-        "META"
-      ],
-      "published_ts": 1775801119.0,
-      "first_seen_ts": 1775807576.7191634,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "NDTV Profit"
-      ],
-      "url": "https://www.ndtvprofit.com/technology/cant-trust-says-elon-musk-amid-allegations-of-whatsapp-reading-user-messages-meta-calls-them-false-11337385",
-      "category": "other",
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "polarity": 0.0,
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "last_seen_ts": 1775807576.7191634
-    },
-    "f3359c8139a2d2123f90ee741ab7accd397c4a3f:5919336": {
-      "story_key": "f3359c8139a2d2123f90ee741ab7accd397c4a3f:5919336",
-      "cluster_hash": "f3359c8139a2d2123f90ee741ab7accd397c4a3f",
-      "headline": "CoreWeave Stock (CRWV) Rises on $21B Meta Platforms Deal; Let's Look at Who Owns the AI Play",
-      "tickers": [
-        "META"
-      ],
-      "published_ts": 1775801078.0,
-      "first_seen_ts": 1775807576.7191634,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Markets Insider"
-      ],
-      "url": "https://markets.businessinsider.com/news/stocks/coreweave-stock-crwv-rises-on-21b-meta-platforms-deal-let-s-look-at-who-owns-the-ai-play-1036009815",
-      "category": "other",
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "polarity": 0.0,
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "last_seen_ts": 1775807576.7191634
-    },
-    "92cbfca9809499e0bb0355cab701a8dedae4d841:5919336": {
-      "story_key": "92cbfca9809499e0bb0355cab701a8dedae4d841:5919336",
-      "cluster_hash": "92cbfca9809499e0bb0355cab701a8dedae4d841",
-      "headline": "'Irresponsible failure': Google, Meta, Snap and Microsoft slam EU over child sexual abuse law lapse",
-      "tickers": [
-        "META"
-      ],
-      "published_ts": 1775800812.0,
-      "first_seen_ts": 1775807576.7191634,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "The Guardian"
-      ],
-      "url": "https://www.theguardian.com/technology/2026/apr/09/google-meta-snap-microsoft-eu-child-sexual-abuse",
-      "category": "other",
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "polarity": 0.0,
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "last_seen_ts": 1775807576.7191634
-    },
-    "137b383b02a5381d1bcfd6f7e3d4da89172992d2:5919335": {
-      "story_key": "137b383b02a5381d1bcfd6f7e3d4da89172992d2:5919335",
-      "cluster_hash": "137b383b02a5381d1bcfd6f7e3d4da89172992d2",
-      "headline": "CoreWeave and Meta expand AI cloud deal to USD 21 bln through 2032",
-      "tickers": [
-        "META"
-      ],
-      "published_ts": 1775800576.0,
-      "first_seen_ts": 1775807576.7191634,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Telecompaper"
-      ],
-      "url": "https://www.telecompaper.com/news/coreweave-and-meta-expand-ai-cloud-deal-to-usd-21-bln-through-2032--1567734",
-      "category": "other",
-      "impact": 0.1,
-      "clarity": 0.8,
-      "relevance": 0.535,
-      "polarity": 0.0,
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "last_seen_ts": 1775807576.7191634
-    },
-    "89759891fe8f53f137732b49560aab27ac1557ff:5919333": {
-      "story_key": "89759891fe8f53f137732b49560aab27ac1557ff:5919333",
-      "cluster_hash": "89759891fe8f53f137732b49560aab27ac1557ff",
-      "headline": "Meta Raises Age Limit to 16 After Komdigi Summons",
-      "tickers": [
-        "META"
-      ],
-      "published_ts": 1775800148.0,
-      "first_seen_ts": 1775807576.7191634,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "TEMPO.CO"
-      ],
-      "url": "https://en.tempo.co/read/2097422/meta-raises-age-limit-to-16-after-komdigi-summons",
-      "category": "other",
-      "impact": 0.1,
-      "clarity": 0.8,
-      "relevance": 0.535,
-      "polarity": 0.5,
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "last_seen_ts": 1775807576.7191634
-    },
-    "daccc71a381864b2bab495e34b6582c1463d1500:5919331": {
-      "story_key": "daccc71a381864b2bab495e34b6582c1463d1500:5919331",
-      "cluster_hash": "daccc71a381864b2bab495e34b6582c1463d1500",
-      "headline": "Elon Musk says can't trust WhatsApp's end-to-end encryption, Meta-owned platform hits back: 'Your messages ...'",
-      "tickers": [
-        "META"
-      ],
-      "published_ts": 1775799581.0,
-      "first_seen_ts": 1775807576.7191634,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "The Times of India"
-      ],
-      "url": "https://timesofindia.indiatimes.com/technology/tech-news/elon-musk-says-cant-trust-whatsapps-end-to-end-encryption-meta-owned-platform-hits-back-your-messages-/articleshow/130159995.cms",
-      "category": "other",
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "polarity": 0.0,
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "last_seen_ts": 1775807576.7191634
-    },
-    "70cca85f9db92c7b686507561c4fe595d3b33040:5919325": {
-      "story_key": "70cca85f9db92c7b686507561c4fe595d3b33040:5919325",
-      "cluster_hash": "70cca85f9db92c7b686507561c4fe595d3b33040",
-      "headline": "Meta's New Muse AI: Zuckerberg's Billion-Dollar Bet - News Directory 3",
-      "tickers": [
-        "META"
-      ],
-      "published_ts": 1775797534.0,
-      "first_seen_ts": 1775807576.7191634,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "News Directory 3"
-      ],
-      "url": "https://www.newsdirectory3.com/metas-new-muse-ai-zuckerbergs-billion-dollar-bet/",
-      "category": "other",
-      "impact": 0.1,
-      "clarity": 0.8,
-      "relevance": 0.535,
-      "polarity": 0.0,
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "last_seen_ts": 1775807576.7191634
-    },
-    "fbbac4845a9dd4fa3e3ba52ad7eec94b03d09121:5919324": {
-      "story_key": "fbbac4845a9dd4fa3e3ba52ad7eec94b03d09121:5919324",
-      "cluster_hash": "fbbac4845a9dd4fa3e3ba52ad7eec94b03d09121",
-      "headline": "Meta Muse Spark on WhatsApp: What It Means for India",
-      "tickers": [
-        "META"
-      ],
-      "published_ts": 1775797329.0,
-      "first_seen_ts": 1775807576.7191634,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "MediaNama"
-      ],
-      "url": "https://www.medianama.com/2026/04/223-metas-new-ai-model-muse-spark-whatsapp-indian-users/",
-      "category": "other",
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "polarity": 0.0,
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "last_seen_ts": 1775807576.7191634
-    },
-    "905f011f7806c9f543434cb85e2e35155b1a0bee:5919322": {
-      "story_key": "905f011f7806c9f543434cb85e2e35155b1a0bee:5919322",
-      "cluster_hash": "905f011f7806c9f543434cb85e2e35155b1a0bee",
-      "headline": "Elon Musk, Telegram CEO Say \"Can't Trust\" WhatsApp; Meta Hits Back At \"Absurd\" Claims",
-      "tickers": [
-        "META"
-      ],
-      "published_ts": 1775796895.0,
-      "first_seen_ts": 1775807576.7191634,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Republic World"
-      ],
-      "url": "https://www.republicworld.com/business/elon-musk-telegram-ceo-say-can-t-trust-whatsapp-meta-hits-back-at-absurd-claims",
-      "category": "management",
-      "impact": 0.6,
-      "clarity": 0.6,
-      "relevance": 0.7000000000000001,
-      "polarity": 0.0,
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "last_seen_ts": 1775807576.7191634
     }
   }
 }
