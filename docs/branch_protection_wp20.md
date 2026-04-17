@@ -137,3 +137,36 @@ gh pr merge --squash --auto
   primär über den CI-Gate, nicht über Code-Review.
 - `streamlit_terminal.py` hat 16% Coverage und ist der größte
   ungeschützte Risikotreiber für zukünftige Coverage-Regression.
+
+---
+
+## WP-E Verification (2026-04-17)
+
+### API-Versuch
+
+Automatisierte Aktivierung via `gh api` (PUT/POST auf Rulesets) scheitert
+an fehlendem `admin:write`-Scope im PAT:
+
+```
+HTTP 403: Resource not accessible by personal access token
+```
+
+### Verbleibender manueller Restschritt
+
+Die exakten Schritte in **"Manuelle Umsetzung (GitHub UI)"** oben müssen
+einmalig vom Repository-Admin in der GitHub-UI durchgeführt werden.
+
+### Aktueller aktiver Schutz
+
+| Eigenschaft | Status |
+|---|---|
+| Ruleset `skipp-algo` (copilot_code_review) | ✅ aktiv, scope `~ALL` |
+| PR-Pflicht für `main` | ❌ nicht aktiv — manueller Schritt offen |
+| Required Status Checks (`validate`) | ❌ nicht aktiv — manueller Schritt offen |
+| Force-Push-Schutz | ❌ nicht aktiv — manueller Schritt offen |
+| Delete-Schutz | ✅ aktiv via org ruleset (verifiziert: branch delete blocked) |
+
+### Fazit
+
+Direct-to-main ist derzeit **empfohlen beendet**, aber **nicht erzwungen**.
+Die manuelle Aktivierung bleibt als dokumentierter Admin-Restschritt offen.
