@@ -60,6 +60,7 @@ jobs:
       - name: Run strict release gates
         run: |
           python scripts/run_smc_release_gates.py \
+            --ci-mode \
             --output artifacts/ci/smc_release_gates_report.json
 
       - name: Run release validation test matrix

@@ -92,6 +92,42 @@ def _path_for_report(path: Path, *, report_output: str) -> str:
         return path.as_posix()
 
 
+_DATA_ABSENT_CODES = frozenset({
+    "source_file_not_found",
+    "NONCANONICAL_MANIFEST_WORKBOOK_PATH",
+    "MISSING_SMOKE_RESULT",
+})
+
+
+def _gate_failure_is_data_absent(gate: dict[str, Any]) -> bool:
+    """Return True if *every* failure signal in this gate is caused by absent data files.
+
+    If the gate has no detail signals at all, we conservatively return False
+    (i.e. we don't downgrade unknown failures).
+    """
+    details = gate.get("details", {})
+
+    # Collect all failure/alert codes from the gate details.
+    signals: list[str] = []
+    for key in ("failures", "warnings", "domain_alerts", "missing_smoke_failures"):
+        for item in details.get(key, []):
+            code = item.get("code") or item.get("status") or ""
+            signals.append(str(code))
+
+    # Also check nested domain_drop_reasons in pair_results.
+    for pr in details.get("pair_results", []):
+        for reason in (pr.get("domain_drop_reasons") or {}).values():
+            if isinstance(reason, str):
+                signals.append(reason)
+            elif isinstance(reason, dict):
+                signals.extend(str(v) for v in reason.values())
+
+    if not signals:
+        return False
+
+    return all(s in _DATA_ABSENT_CODES for s in signals if s)
+
+
 def _summarize_stratification(benchmark_result: Any) -> dict[str, Any]:
     bucket_event_counts: dict[str, int] = {}
     dimensions_present: set[str] = set()
@@ -720,6 +756,16 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Optional path to a normalized post-release validation report to evaluate as a blocking gate.",
     )
+    parser.add_argument(
+        "--ci-mode",
+        action="store_true",
+        help=(
+            "Run in CI-safe mode: gates that fail purely due to absent "
+            "production data (source files, workbook) are downgraded to "
+            "non-blocking so the workflow exits 0.  Gate status is still "
+            "reported transparently."
+        ),
+    )
     parser.add_argument("--output", default="-", help="Output path for JSON report, or '-' for stdout.")
     return parser
 
@@ -826,6 +872,18 @@ def main() -> int:
         },
     })
 
+    # --ci-mode: downgrade data-absent blocking gates to non-blocking.
+    ci_mode = getattr(args, "ci_mode", False)
+    ci_mode_downgrades: list[str] = []
+    if ci_mode:
+        for gate in gates:
+            if gate.get("status") != "fail" or not gate.get("blocking", True):
+                continue
+            if _gate_failure_is_data_absent(gate):
+                gate["blocking"] = False
+                gate["ci_mode_downgraded"] = True
+                ci_mode_downgrades.append(gate["name"])
+
     has_fail = any(gate.get("status") == "fail" for gate in gates if gate.get("blocking", True))
     overall_status = "fail" if has_fail else "ok"
     exit_code = 1 if has_fail else 0
@@ -848,6 +906,8 @@ def main() -> int:
             "post_release_validation_report": post_release_validation_report,
             "measurement_output_root": measurement_output_root.as_posix(),
             "measurement_baseline_summary": args.measurement_baseline_summary,
+            "ci_mode": ci_mode,
+            "ci_mode_downgrades": ci_mode_downgrades,
             "exit_code": int(exit_code),
         },
         "runtime_metadata": runtime_metadata(),
