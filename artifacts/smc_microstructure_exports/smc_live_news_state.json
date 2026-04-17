@@ -5,12 +5,70 @@
     "fmp_stock": 0.0,
     "fmp_press": 0.0,
     "fmp_articles": 0.0,
-    "newsapi_ai": 1776381285.0,
+    "newsapi_ai": 1776401807.0,
     "tv": 0.0,
-    "legacy_cursor": 1776381285.0
+    "legacy_cursor": 1776401807.0
   },
   "provider_state": {},
   "story_state": {
+    "9e3e623c85d1e0bcce3d8cd77b4260ea0e2edf29:5921339": {
+      "story_key": "9e3e623c85d1e0bcce3d8cd77b4260ea0e2edf29:5921339",
+      "cluster_hash": "9e3e623c85d1e0bcce3d8cd77b4260ea0e2edf29",
+      "headline": "Here's Why Microsoft (MSFT) Stock Rallied Today - April 16, 2026",
+      "tickers": [
+        "MSFT"
+      ],
+      "published_ts": 1776401807.0,
+      "first_seen_ts": 1776403781.5833747,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Markets Insider"
+      ],
+      "url": "https://markets.businessinsider.com/news/stocks/here-s-why-microsoft-msft-stock-rallied-today-april-16-2026-1036031732",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "polarity": 0.0,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776403781.5833747
+    },
+    "633c2b84b146cb1529064bc99631263b31d989b6:5921339": {
+      "story_key": "633c2b84b146cb1529064bc99631263b31d989b6:5921339",
+      "cluster_hash": "633c2b84b146cb1529064bc99631263b31d989b6",
+      "headline": "Will Microsoft Stock (MSFT) Continue Its Rally? William Power Weighs In",
+      "tickers": [
+        "MSFT"
+      ],
+      "published_ts": 1776401807.0,
+      "first_seen_ts": 1776403781.5833747,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Markets Insider"
+      ],
+      "url": "https://markets.businessinsider.com/news/stocks/will-microsoft-stock-msft-continue-its-rally-william-power-weighs-in-1036031715",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.1375,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "last_seen_ts": 1776403781.5833747
+    },
     "4abc1110277e5673b67f2d5f5945a0a61e5d02e3:5921270": {
       "story_key": "4abc1110277e5673b67f2d5f5945a0a61e5d02e3:5921270",
       "cluster_hash": "4abc1110277e5673b67f2d5f5945a0a61e5d02e3",
@@ -9016,675 +9074,6 @@
       "source_tier": "TIER_3",
       "source_rank": 3,
       "last_seen_ts": 1775807576.7191634
-    },
-    "d5a988771f2c3dd4e27b93d8ba03c351478c930b:5919280": {
-      "story_key": "d5a988771f2c3dd4e27b93d8ba03c351478c930b:5919280",
-      "cluster_hash": "d5a988771f2c3dd4e27b93d8ba03c351478c930b",
-      "headline": "AMZN, SNOW, TEM, ARAI, EOSE: 5 Trending Stocks Today - Amazon.com (NASDAQ:AMZN)",
-      "tickers": [
-        "AMZN"
-      ],
-      "published_ts": 1775784056.0,
-      "first_seen_ts": 1775793393.2624955,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Benzinga"
-      ],
-      "url": "https://www.benzinga.com/markets/equities/26/04/51747371/amazon-snowflake-tempus-ai-arrive-ai-and-eos-energy-why-these-5-stocks-are-on-investors-radars-today",
-      "category": "other",
-      "impact": 0.1,
-      "clarity": 0.8,
-      "relevance": 0.535,
-      "polarity": 0.0,
-      "source_tier": "TIER_2",
-      "source_rank": 2,
-      "last_seen_ts": 1775793393.2624955
-    },
-    "28a04401f377a59cad1f273ed43668d0110cae2a:5919281": {
-      "story_key": "28a04401f377a59cad1f273ed43668d0110cae2a:5919281",
-      "cluster_hash": "28a04401f377a59cad1f273ed43668d0110cae2a",
-      "headline": "Why Amazon Stock (AMZN) Is Up Today and Why One Analyst Is Doubling Down",
-      "tickers": [
-        "AMZN"
-      ],
-      "published_ts": 1775784561.0,
-      "first_seen_ts": 1775793393.2624955,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Markets Insider"
-      ],
-      "url": "https://markets.businessinsider.com/news/stocks/why-amazon-stock-amzn-is-up-today-and-why-one-analyst-is-doubling-down-1036009316",
-      "category": "other",
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "polarity": 0.0,
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "last_seen_ts": 1775793393.2624955
-    },
-    "264a845a39a559062b33bb36ece5a93b49c89a17:5919270": {
-      "story_key": "264a845a39a559062b33bb36ece5a93b49c89a17:5919270",
-      "cluster_hash": "264a845a39a559062b33bb36ece5a93b49c89a17",
-      "headline": "Amazon Stock (AMZN) Pops on $25B Data Center Buildout in Mississippi",
-      "tickers": [
-        "AMZN"
-      ],
-      "published_ts": 1775781298.0,
-      "first_seen_ts": 1775793393.2624955,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Markets Insider"
-      ],
-      "url": "https://markets.businessinsider.com/news/stocks/amazon-stock-amzn-pops-on-25b-data-center-buildout-in-mississippi-1036009297",
-      "category": "other",
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "polarity": 0.0,
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "last_seen_ts": 1775793393.2624955
-    },
-    "391c5c8cbf5ce3bf1f81c2b7fc1d9568a06bb6cb:5919306": {
-      "story_key": "391c5c8cbf5ce3bf1f81c2b7fc1d9568a06bb6cb:5919306",
-      "cluster_hash": "391c5c8cbf5ce3bf1f81c2b7fc1d9568a06bb6cb",
-      "headline": "Is WhatsApp reading your private chats? Elon Musk, Pavel Durov say you cannot trust it, Meta responds",
-      "tickers": [
-        "META"
-      ],
-      "published_ts": 1775791956.0,
-      "first_seen_ts": 1775793393.2624955,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Digit"
-      ],
-      "url": "https://www.digit.in/news/general/is-whatsapp-reading-your-private-chats-elon-musk-pavel-durov-say-you-cannot-trust-it-meta-responds.html",
-      "category": "other",
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "polarity": 0.0,
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "last_seen_ts": 1775793393.2624955
-    },
-    "97bdf5a1673df2f06de66e44a812c59c6b61cb91:5919303": {
-      "story_key": "97bdf5a1673df2f06de66e44a812c59c6b61cb91:5919303",
-      "cluster_hash": "97bdf5a1673df2f06de66e44a812c59c6b61cb91",
-      "headline": "Faces of Death: a flawed meta horror overcomes its faults with solid scares - The SunBreak",
-      "tickers": [
-        "META"
-      ],
-      "published_ts": 1775791055.0,
-      "first_seen_ts": 1775793393.2624955,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "The SunBreak"
-      ],
-      "url": "https://thesunbreak.com/2026/04/09/faces-of-death-2026-review/",
-      "category": "other",
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "polarity": 0.0,
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "last_seen_ts": 1775793393.2624955
-    },
-    "af7ecf25e00d9eafaac961dda1593c8423391efc:5919301": {
-      "story_key": "af7ecf25e00d9eafaac961dda1593c8423391efc:5919301",
-      "cluster_hash": "af7ecf25e00d9eafaac961dda1593c8423391efc",
-      "headline": "Meta transfers top engineers into new AI tooling team",
-      "tickers": [
-        "META"
-      ],
-      "published_ts": 1775790580.0,
-      "first_seen_ts": 1775793393.2624955,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Economic Times"
-      ],
-      "url": "https://economictimes.indiatimes.com/tech/artificial-intelligence/meta-transfers-top-engineers-into-new-ai-tooling-team/articleshow/130157541.cms",
-      "category": "other",
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.45543478260869563,
-      "polarity": 0.0,
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "last_seen_ts": 1775793393.2624955
-    },
-    "05cb571443954e902802cc70d47909f12eaa9d65:5919299": {
-      "story_key": "05cb571443954e902802cc70d47909f12eaa9d65:5919299",
-      "cluster_hash": "05cb571443954e902802cc70d47909f12eaa9d65",
-      "headline": "Dashboard created by Meta employees to compete to be No. 1 AI token user shut down; reads: Was meant to be fun way for people to look at tokens, but due to data being shared with ...",
-      "tickers": [
-        "META"
-      ],
-      "published_ts": 1775789936.0,
-      "first_seen_ts": 1775793393.2624955,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "The Times of India"
-      ],
-      "url": "https://timesofindia.indiatimes.com/technology/tech-news/dashboard-created-by-meta-employees-to-compete-to-be-no-1-ai-token-user-shut-down-reads-was-meant-to-be-fun-way-for-people-to-look-at-tokens-but-due-to-data-being-shared-with-/articleshow/130155883.cms",
-      "category": "other",
-      "impact": 0.1,
-      "clarity": 0.8,
-      "relevance": 0.535,
-      "polarity": 0.0,
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "last_seen_ts": 1775793393.2624955
-    },
-    "6ef8e01681d9f661603ca22e936dbcdea95fa260:5919297": {
-      "story_key": "6ef8e01681d9f661603ca22e936dbcdea95fa260:5919297",
-      "cluster_hash": "6ef8e01681d9f661603ca22e936dbcdea95fa260",
-      "headline": "Why Meta (META) Stock Is Trading Up Today",
-      "tickers": [
-        "META"
-      ],
-      "published_ts": 1775789147.0,
-      "first_seen_ts": 1775793393.2624955,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Yahoo! Finance"
-      ],
-      "url": "https://ca.finance.yahoo.com/news/why-meta-meta-stock-trading-024547514.html",
-      "category": "other",
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "polarity": 0.0,
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "last_seen_ts": 1775793393.2624955
-    },
-    "7483175d5ed2c0ef16afce574d169008f0fc77e6:5919288": {
-      "story_key": "7483175d5ed2c0ef16afce574d169008f0fc77e6:5919288",
-      "cluster_hash": "7483175d5ed2c0ef16afce574d169008f0fc77e6",
-      "headline": "Meta Hiring Paused: Mark Zuckerberg's Company Removes Recruitment Advertisements Amid Ongoing Social Media Addiction Lawsuits | \ud83d\udcf2 LatestLY",
-      "tickers": [
-        "META"
-      ],
-      "published_ts": 1775786499.0,
-      "first_seen_ts": 1775793393.2624955,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "LatestLY"
-      ],
-      "url": "https://www.latestly.com/technology/meta-hiring-paused-mark-zuckerbergs-company-removes-recruitment-advertisements-amid-ongoing-social-media-addiction-lawsuits-7387377.html",
-      "category": "other",
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "polarity": 0.0,
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "last_seen_ts": 1775793393.2624955
-    },
-    "23a5fcd428beac844ef3a2d0ec528c7c995a7f3e:5919286": {
-      "story_key": "23a5fcd428beac844ef3a2d0ec528c7c995a7f3e:5919286",
-      "cluster_hash": "23a5fcd428beac844ef3a2d0ec528c7c995a7f3e",
-      "headline": "Meta Platforms says it will spend an additional $21B on CoreWeave's AI infrastructure - SiliconANGLE",
-      "tickers": [
-        "META"
-      ],
-      "published_ts": 1775786064.0,
-      "first_seen_ts": 1775793393.2624955,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "SiliconANGLE"
-      ],
-      "url": "https://siliconangle.com/2026/04/09/meta-platforms-says-will-spend-additional-21b-coreweaves-ai-infrastructure/",
-      "category": "other",
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "polarity": 0.0,
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "last_seen_ts": 1775793393.2624955
-    },
-    "d7aa9b4def158937ff35613bc2ee3a3e828a60c1:5919283": {
-      "story_key": "d7aa9b4def158937ff35613bc2ee3a3e828a60c1:5919283",
-      "cluster_hash": "d7aa9b4def158937ff35613bc2ee3a3e828a60c1",
-      "headline": "'Can't Trust WhatsApp': Elon Musk Slams Meta as Class-Action Lawsuit Alleges Secret Interception of Private Messages by Accenture and Third Parties",
-      "tickers": [
-        "META"
-      ],
-      "published_ts": 1775785101.0,
-      "first_seen_ts": 1775793393.2624955,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "LatestLY"
-      ],
-      "url": "https://www.latestly.com/socially/technology/cant-trust-whatsapp-elon-musk-slams-meta-as-class-action-lawsuit-alleges-secret-interception-of-private-messages-by-accenture-and-third-parties-7387363.html",
-      "category": "lawsuit",
-      "impact": 0.25,
-      "clarity": 0.6,
-      "relevance": 0.5425,
-      "polarity": 0.0,
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "last_seen_ts": 1775793393.2624955
-    },
-    "3cda0e74d64b1c6f355f723cc93712b29e50e483:5919276": {
-      "story_key": "3cda0e74d64b1c6f355f723cc93712b29e50e483:5919276",
-      "cluster_hash": "3cda0e74d64b1c6f355f723cc93712b29e50e483",
-      "headline": "Meta rolls out 1st major AI model after Zuckerberg spending spree: 'Things are going badly'",
-      "tickers": [
-        "META"
-      ],
-      "published_ts": 1775782800.0,
-      "first_seen_ts": 1775793393.2624955,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "The Cool Down"
-      ],
-      "url": "https://www.thecooldown.com/green-business/meta-ai-model-test-results-reception/",
-      "category": "other",
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "polarity": 0.0,
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "last_seen_ts": 1775793393.2624955
-    },
-    "ec5d29c9288c3292a39bc6865dc44921df7f72b6:5919278": {
-      "story_key": "ec5d29c9288c3292a39bc6865dc44921df7f72b6:5919278",
-      "cluster_hash": "ec5d29c9288c3292a39bc6865dc44921df7f72b6",
-      "headline": "Meta debuts new AI model in first test of costly 'superintelligence' team",
-      "tickers": [
-        "META"
-      ],
-      "published_ts": 1775783608.0,
-      "first_seen_ts": 1775793393.2624955,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Democratic Underground"
-      ],
-      "url": "https://www.democraticunderground.com/10143647285",
-      "category": "other",
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.45543478260869563,
-      "polarity": 0.0,
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "last_seen_ts": 1775793393.2624955
-    },
-    "ecc5f24e25f847428fe86118b575af80b68cec6d:5919271": {
-      "story_key": "ecc5f24e25f847428fe86118b575af80b68cec6d:5919271",
-      "cluster_hash": "ecc5f24e25f847428fe86118b575af80b68cec6d",
-      "headline": "NH Attorney General's Office warns of rise in Meta investment scams",
-      "tickers": [
-        "META"
-      ],
-      "published_ts": 1775781300.0,
-      "first_seen_ts": 1775793393.2624955,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "WMUR9"
-      ],
-      "url": "https://www.wmur.com/article/nh-ag-meta-investment-scam-rise-warning-04092026/70978601",
-      "category": "other",
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "polarity": 0.0,
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "last_seen_ts": 1775793393.2624955
-    },
-    "426659f749135e0dfc18ee6bdc09a7b8fd0186c0:5919270": {
-      "story_key": "426659f749135e0dfc18ee6bdc09a7b8fd0186c0:5919270",
-      "cluster_hash": "426659f749135e0dfc18ee6bdc09a7b8fd0186c0",
-      "headline": "BLACKPINK's JENNIE Named New Global Ambassador for Ray-Ban and Ray-Ban Meta",
-      "tickers": [
-        "META"
-      ],
-      "published_ts": 1775781215.0,
-      "first_seen_ts": 1775793393.2624955,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "HYPEBEAST"
-      ],
-      "url": "https://hypebeast.com/2026/4/blackpink-jennie-ray-ban-meta-new-global-ambassador-announcement",
-      "category": "other",
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "polarity": 0.0,
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "last_seen_ts": 1775793393.2624955
-    },
-    "b0f12a18317f717ffd820d92c56f20bdfb7075df:5919268": {
-      "story_key": "b0f12a18317f717ffd820d92c56f20bdfb7075df:5919268",
-      "cluster_hash": "b0f12a18317f717ffd820d92c56f20bdfb7075df",
-      "headline": "Meta pulls ads aimed at recruiting plaintiffs for social media addiction lawsuits",
-      "tickers": [
-        "META"
-      ],
-      "published_ts": 1775780621.0,
-      "first_seen_ts": 1775793393.2624955,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "The Star"
-      ],
-      "url": "https://www.thestar.com.my/tech/tech-news/2026/04/10/meta-pulls-ads-aimed-at-recruiting-plaintiffs-for-social-media-addiction-lawsuits",
-      "category": "other",
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "polarity": 0.0,
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "last_seen_ts": 1775793393.2624955
-    },
-    "fc284c422aa4b59b4372c4c5c5bbbb4933c15a1f:5919264": {
-      "story_key": "fc284c422aa4b59b4372c4c5c5bbbb4933c15a1f:5919264",
-      "cluster_hash": "fc284c422aa4b59b4372c4c5c5bbbb4933c15a1f",
-      "headline": "Iowa AG sues Meta, claims Instagram is harmful to children",
-      "tickers": [
-        "META"
-      ],
-      "published_ts": 1775779335.0,
-      "first_seen_ts": 1775793393.2624955,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "who13.com"
-      ],
-      "url": "https://who13.com/news/iowa-news/iowa-ag-sues-meta-claims-instagram-is-harmful-to-children/",
-      "category": "other",
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "polarity": 0.0,
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "last_seen_ts": 1775793393.2624955
-    },
-    "d8df620d74ca51fa4a514768db7b8b7081132500:5919264": {
-      "story_key": "d8df620d74ca51fa4a514768db7b8b7081132500:5919264",
-      "cluster_hash": "d8df620d74ca51fa4a514768db7b8b7081132500",
-      "headline": "Dow Jones Top Company Headlines at 7 PM ET: Florida AG Investigates OpenAI, ChatGPT, Citing National Security Risks, FSU Shooting | Meta ...",
-      "tickers": [
-        "META"
-      ],
-      "published_ts": 1775779223.0,
-      "first_seen_ts": 1775793393.2624955,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Morningstar"
-      ],
-      "url": "https://www.morningstar.com/news/dow-jones/202604099696/dow-jones-top-company-headlines-at-7-pm-et-florida-ag-investigates-openai-chatgpt-citing-national-security-risks-fsu-shooting-meta",
-      "category": "other",
-      "impact": 0.1,
-      "clarity": 0.8,
-      "relevance": 0.535,
-      "polarity": 0.0,
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "last_seen_ts": 1775793393.2624955
-    },
-    "b0f12a18317f717ffd820d92c56f20bdfb7075df:5919255": {
-      "story_key": "b0f12a18317f717ffd820d92c56f20bdfb7075df:5919255",
-      "cluster_hash": "b0f12a18317f717ffd820d92c56f20bdfb7075df",
-      "headline": "Meta pulls ads aimed at recruiting plaintiffs for social media addiction lawsuits",
-      "tickers": [
-        "META"
-      ],
-      "published_ts": 1775776620.0,
-      "first_seen_ts": 1775793393.2624955,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "CNA",
-        "Reuters",
-        "Yahoo! Finance"
-      ],
-      "url": "https://www.reuters.com/sustainability/society-equity/meta-pulls-ads-aimed-recruiting-plaintiffs-social-media-addiction-lawsuits-2026-04-09/",
-      "category": "other",
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.45543478260869563,
-      "polarity": 0.0,
-      "source_tier": "TIER_1",
-      "source_rank": 1,
-      "last_seen_ts": 1775793393.2624955
-    },
-    "b0f12a18317f717ffd820d92c56f20bdfb7075df:5919256": {
-      "story_key": "b0f12a18317f717ffd820d92c56f20bdfb7075df:5919256",
-      "cluster_hash": "b0f12a18317f717ffd820d92c56f20bdfb7075df",
-      "headline": "Meta pulls ads aimed at recruiting plaintiffs for social media addiction lawsuits",
-      "tickers": [
-        "META"
-      ],
-      "published_ts": 1775776871.0,
-      "first_seen_ts": 1775793393.2624955,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Market Screener"
-      ],
-      "url": "https://www.marketscreener.com/news/meta-pulls-ads-aimed-at-recruiting-plaintiffs-for-social-media-addiction-lawsuits-ce7e50d8dd80f425",
-      "category": "other",
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.425,
-      "polarity": 0.0,
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "last_seen_ts": 1775793393.2624955
-    },
-    "ef27990f2a1a712ad52c0566ea0a930e4cb62e05:5919255": {
-      "story_key": "ef27990f2a1a712ad52c0566ea0a930e4cb62e05:5919255",
-      "cluster_hash": "ef27990f2a1a712ad52c0566ea0a930e4cb62e05",
-      "headline": "Meta Pulls Ads Amid Legal Battle Over Social Media Addiction Claims | Technology",
-      "tickers": [
-        "META"
-      ],
-      "published_ts": 1775776548.0,
-      "first_seen_ts": 1775793393.2624955,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Devdiscourse"
-      ],
-      "url": "https://www.devdiscourse.com/article/technology/3868689-meta-pulls-ads-amid-legal-battle-over-social-media-addiction-claims",
-      "category": "other",
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "polarity": 0.0,
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "last_seen_ts": 1775793393.2624955
-    },
-    "ed560a4ec6029b38d2d5fcf4c1f4f0772e2a559f:5919256": {
-      "story_key": "ed560a4ec6029b38d2d5fcf4c1f4f0772e2a559f:5919256",
-      "cluster_hash": "ed560a4ec6029b38d2d5fcf4c1f4f0772e2a559f",
-      "headline": "Using Volatility as a Tactical Catalyst To Trade Meta",
-      "tickers": [
-        "META"
-      ],
-      "published_ts": 1775776993.0,
-      "first_seen_ts": 1775793393.2624955,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "ETF Trends"
-      ],
-      "url": "https://www.etftrends.com/leveraged-inverse-content-hub/using-volatility-tactical-catalyst-trade-meta/",
-      "category": "other",
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "polarity": 0.0,
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "last_seen_ts": 1775793393.2624955
-    },
-    "3e8633df2f98fc4fed4b8664264b7991d0583bf0:5919256": {
-      "story_key": "3e8633df2f98fc4fed4b8664264b7991d0583bf0:5919256",
-      "cluster_hash": "3e8633df2f98fc4fed4b8664264b7991d0583bf0",
-      "headline": "Banks sell US$3bil debt for Meta's data centre",
-      "tickers": [
-        "META"
-      ],
-      "published_ts": 1775776908.0,
-      "first_seen_ts": 1775793393.2624955,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "The Star"
-      ],
-      "url": "https://www.thestar.com.my/business/business-news/2026/04/10/banks-sell-us3bil-debt-for-metas-data-centre",
-      "category": "other",
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "polarity": 0.0,
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "last_seen_ts": 1775793393.2624955
     }
   }
 }

@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-04-17T02:54:31.561031Z",
+  "generated_at": "2026-04-17T05:29:41.583375Z",
   "symbols": [
     "AAPL",
     "MSFT",
@@ -20,11 +20,11 @@
     "fmp_stock": 0.0,
     "fmp_press": 0.0,
     "fmp_articles": 0.0,
-    "newsapi_ai": 1776381285.0,
+    "newsapi_ai": 1776401807.0,
     "tv": 0.0,
-    "legacy_cursor": 1776381285.0
+    "legacy_cursor": 1776401807.0
   },
-  "legacy_cursor": 1776381285.0,
+  "legacy_cursor": 1776401807.0,
   "providers": {
     "benzinga": {
       "ok": false,
@@ -65,8 +65,8 @@
       "ok": true,
       "error": "",
       "raw_count": 48,
-      "new_item_count": 1,
-      "cursor": 1776381285.0,
+      "new_item_count": 2,
+      "cursor": 1776401807.0,
       "last_seen_news_uri": "",
       "provider_status": "ok",
       "status_detail": "",
@@ -89,7 +89,7 @@
       ],
       "published_at": "2026-04-16T07:38:45Z",
       "published_ts": 1776325125.0,
-      "age_minutes": 1155.8,
+      "age_minutes": 1310.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -120,82 +120,6 @@
       "provider_count": 1
     },
     {
-      "story_key": "c0345c2d2ba782236fc332108c5a28ce01e8f787:5921047",
-      "headline": "Top BofA Analyst Raises Apple Stock (AAPL) Price Target Ahead of Q2 Earnings",
-      "tickers": [
-        "AAPL"
-      ],
-      "published_at": "2026-04-16T04:39:25Z",
-      "published_ts": 1776314365.0,
-      "age_minutes": 1335.1,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Markets Insider"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "earnings",
-      "event_class": "EARNINGS",
-      "event_label": "Top BofA Analyst Raises Apple Stock (AAPL) Price Target Ahead of Q2 Earnings",
-      "sentiment_label": "bullish",
-      "polarity": 0.225,
-      "impact": 0.8,
-      "clarity": 0.6,
-      "relevance": 0.79,
-      "news_catalyst_score": 0.3836,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://markets.businessinsider.com/news/stocks/top-bofa-analyst-raises-apple-stock-aapl-price-target-ahead-of-q2-earnings-1036020974",
-      "first_seen_at": "2026-04-16T05:53:08.308417Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "3785bc959accf147bb427c987cc18969b0a87cb4:5921259",
-      "headline": "Herrington, Amazon CEO, sells $5.02m in AMZN stock By Investing.com",
-      "tickers": [
-        "AMZN"
-      ],
-      "published_at": "2026-04-16T22:18:10Z",
-      "published_ts": 1776377890.0,
-      "age_minutes": 276.4,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Investing.com India"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "management",
-      "event_class": "MANAGEMENT",
-      "event_label": "Herrington, Amazon CEO, sells $5.02m in AMZN stock By Investing.com",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.6,
-      "clarity": 0.8,
-      "relevance": 0.76,
-      "news_catalyst_score": 0.3651,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://in.investing.com/news/insider-trading-news/herrington-amazon-ceo-sells-502m-in-amzn-stock-93CH-5342756",
-      "first_seen_at": "2026-04-16T23:02:44.719724Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
       "story_key": "5fa2b18c741eba3ab7994043d5074d44daadbe6c:5921177",
       "headline": "Microsoft Stock Warning: Why Piper Sandler Analysts Just Slashed Their MSFT Price Target by More Than 15%",
       "tickers": [
@@ -203,7 +127,7 @@
       ],
       "published_at": "2026-04-16T15:29:46Z",
       "published_ts": 1776353386.0,
-      "age_minutes": 684.8,
+      "age_minutes": 839.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -241,7 +165,7 @@
       ],
       "published_at": "2026-04-16T14:08:44Z",
       "published_ts": 1776348524.0,
-      "age_minutes": 765.8,
+      "age_minutes": 921.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -279,7 +203,7 @@
       ],
       "published_at": "2026-04-16T21:19:29Z",
       "published_ts": 1776374369.0,
-      "age_minutes": 335.0,
+      "age_minutes": 490.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -310,6 +234,44 @@
       "provider_count": 1
     },
     {
+      "story_key": "3785bc959accf147bb427c987cc18969b0a87cb4:5921259",
+      "headline": "Herrington, Amazon CEO, sells $5.02m in AMZN stock By Investing.com",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_at": "2026-04-16T22:18:10Z",
+      "published_ts": 1776377890.0,
+      "age_minutes": 431.5,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Investing.com India"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "management",
+      "event_class": "MANAGEMENT",
+      "event_label": "Herrington, Amazon CEO, sells $5.02m in AMZN stock By Investing.com",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.6,
+      "clarity": 0.8,
+      "relevance": 0.76,
+      "news_catalyst_score": 0.3465,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://in.investing.com/news/insider-trading-news/herrington-amazon-ceo-sells-502m-in-amzn-stock-93CH-5342756",
+      "first_seen_at": "2026-04-16T23:02:44.719724Z",
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
       "story_key": "1ae826a8b0729143ab38d68be1aae45a63621ce1:5921106",
       "headline": "Insider Selling: JPMorgan Chase & Co. (NYSE:JPM) CFO Sells 5,611 Shares of Stock",
       "tickers": [
@@ -317,7 +279,7 @@
       ],
       "published_at": "2026-04-16T09:32:49Z",
       "published_ts": 1776331969.0,
-      "age_minutes": 1041.7,
+      "age_minutes": 1196.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -355,7 +317,7 @@
       ],
       "published_at": "2026-04-16T10:10:25Z",
       "published_ts": 1776334225.0,
-      "age_minutes": 1004.1,
+      "age_minutes": 1159.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -386,14 +348,14 @@
       "provider_count": 1
     },
     {
-      "story_key": "4abc1110277e5673b67f2d5f5945a0a61e5d02e3:5921270",
-      "headline": "Why Cramer Likes Nike, Amazon, Nvidia - Amazon.com (NASDAQ:AMZN), Nike (NYSE:NKE), NVIDIA (NASDAQ:NVDA)",
+      "story_key": "9e3e623c85d1e0bcce3d8cd77b4260ea0e2edf29:5921339",
+      "headline": "Here's Why Microsoft (MSFT) Stock Rallied Today - April 16, 2026",
       "tickers": [
-        "AMZN"
+        "MSFT"
       ],
-      "published_at": "2026-04-16T23:14:45Z",
-      "published_ts": 1776381285.0,
-      "age_minutes": 219.8,
+      "published_at": "2026-04-17T04:56:47Z",
+      "published_ts": 1776401807.0,
+      "age_minutes": 32.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -402,24 +364,62 @@
         "newsapi_ai"
       ],
       "sources": [
-        "Benzinga"
+        "Markets Insider"
       ],
-      "source_tier": "TIER_2",
-      "source_rank": 2,
+      "source_tier": "TIER_3",
+      "source_rank": 3,
       "category": "other",
       "event_class": "UNKNOWN",
-      "event_label": "Why Cramer Likes Nike, Amazon, Nvidia - Amazon.com (NASDAQ:AMZN), Nike (NYSE:NKE), NVIDIA (NASDAQ:NVDA)",
+      "event_label": "Here's Why Microsoft (MSFT) Stock Rallied Today - April 16, 2026",
       "sentiment_label": "neutral",
       "polarity": 0.0,
       "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "news_catalyst_score": 0.279,
+      "materiality": "LOW",
+      "recency_bucket": "WARM",
+      "is_actionable": false,
+      "url": "https://markets.businessinsider.com/news/stocks/here-s-why-microsoft-msft-stock-rallied-today-april-16-2026-1036031732",
+      "first_seen_at": "2026-04-17T05:29:41.583375Z",
+      "is_new": true,
+      "provider_count": 1
+    },
+    {
+      "story_key": "633c2b84b146cb1529064bc99631263b31d989b6:5921339",
+      "headline": "Will Microsoft Stock (MSFT) Continue Its Rally? William Power Weighs In",
+      "tickers": [
+        "MSFT"
+      ],
+      "published_at": "2026-04-17T04:56:47Z",
+      "published_ts": 1776401807.0,
+      "age_minutes": 32.9,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Markets Insider"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Will Microsoft Stock (MSFT) Continue Its Rally? William Power Weighs In",
+      "sentiment_label": "bullish",
+      "polarity": 0.1375,
+      "impact": 0.1,
       "clarity": 0.6,
       "relevance": 0.475,
-      "news_catalyst_score": 0.23,
+      "news_catalyst_score": 0.243,
       "materiality": "LOW",
-      "recency_bucket": "AGING",
+      "recency_bucket": "WARM",
       "is_actionable": false,
-      "url": "https://www.benzinga.com/trading-ideas/long-ideas/26/04/51875003/cramer-highlights-nike-amazon-nvidia-stock-to-investors-why-would-you-sell-it",
-      "first_seen_at": "2026-04-17T02:54:31.561031Z",
+      "url": "https://markets.businessinsider.com/news/stocks/will-microsoft-stock-msft-continue-its-rally-william-power-weighs-in-1036031715",
+      "first_seen_at": "2026-04-17T05:29:41.583375Z",
       "is_new": true,
       "provider_count": 1
     },
@@ -431,7 +431,7 @@
       ],
       "published_at": "2026-04-16T19:59:48Z",
       "published_ts": 1776369588.0,
-      "age_minutes": 414.7,
+      "age_minutes": 569.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -469,7 +469,7 @@
       ],
       "published_at": "2026-04-16T18:13:03Z",
       "published_ts": 1776363183.0,
-      "age_minutes": 521.5,
+      "age_minutes": 676.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -507,7 +507,7 @@
       ],
       "published_at": "2026-04-16T17:35:28Z",
       "published_ts": 1776360928.0,
-      "age_minutes": 559.1,
+      "age_minutes": 714.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -545,7 +545,7 @@
       ],
       "published_at": "2026-04-16T17:06:44Z",
       "published_ts": 1776359204.0,
-      "age_minutes": 587.8,
+      "age_minutes": 743.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -583,7 +583,7 @@
       ],
       "published_at": "2026-04-16T14:00:00Z",
       "published_ts": 1776348000.0,
-      "age_minutes": 774.5,
+      "age_minutes": 929.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -614,6 +614,44 @@
       "provider_count": 1
     },
     {
+      "story_key": "4abc1110277e5673b67f2d5f5945a0a61e5d02e3:5921270",
+      "headline": "Why Cramer Likes Nike, Amazon, Nvidia - Amazon.com (NASDAQ:AMZN), Nike (NYSE:NKE), NVIDIA (NASDAQ:NVDA)",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_at": "2026-04-16T23:14:45Z",
+      "published_ts": 1776381285.0,
+      "age_minutes": 374.9,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Why Cramer Likes Nike, Amazon, Nvidia - Amazon.com (NASDAQ:AMZN), Nike (NYSE:NKE), NVIDIA (NASDAQ:NVDA)",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.1946,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://www.benzinga.com/trading-ideas/long-ideas/26/04/51875003/cramer-highlights-nike-amazon-nvidia-stock-to-investors-why-would-you-sell-it",
+      "first_seen_at": "2026-04-17T02:54:31.561031Z",
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
       "story_key": "d5541efd8ba86f0f6b4a7becc799cd7cce1c9a85:5921261",
       "headline": "Amazon Wants You Off The Couch And Into Theaters - Amazon.com (NASDAQ:AMZN)",
       "tickers": [
@@ -621,7 +659,7 @@
       ],
       "published_at": "2026-04-16T22:26:00Z",
       "published_ts": 1776378360.0,
-      "age_minutes": 268.5,
+      "age_minutes": 423.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -642,7 +680,7 @@
       "impact": 0.1,
       "clarity": 0.6,
       "relevance": 0.475,
-      "news_catalyst_score": 0.2085,
+      "news_catalyst_score": 0.1946,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
@@ -659,7 +697,7 @@
       ],
       "published_at": "2026-04-16T18:35:06Z",
       "published_ts": 1776364506.0,
-      "age_minutes": 499.4,
+      "age_minutes": 654.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -697,7 +735,7 @@
       ],
       "published_at": "2026-04-16T11:38:54Z",
       "published_ts": 1776339534.0,
-      "age_minutes": 915.6,
+      "age_minutes": 1070.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -735,7 +773,7 @@
       ],
       "published_at": "2026-04-16T09:59:33Z",
       "published_ts": 1776333573.0,
-      "age_minutes": 1015.0,
+      "age_minutes": 1170.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -773,7 +811,7 @@
       ],
       "published_at": "2026-04-16T15:30:02Z",
       "published_ts": 1776353402.0,
-      "age_minutes": 684.5,
+      "age_minutes": 839.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -811,7 +849,7 @@
       ],
       "published_at": "2026-04-16T13:38:11Z",
       "published_ts": 1776346691.0,
-      "age_minutes": 796.3,
+      "age_minutes": 951.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -851,7 +889,7 @@
       ],
       "published_at": "2026-04-16T14:29:17Z",
       "published_ts": 1776349757.0,
-      "age_minutes": 745.2,
+      "age_minutes": 900.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -889,7 +927,7 @@
       ],
       "published_at": "2026-04-16T16:48:39Z",
       "published_ts": 1776358119.0,
-      "age_minutes": 605.9,
+      "age_minutes": 761.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -927,7 +965,7 @@
       ],
       "published_at": "2026-04-16T15:44:45Z",
       "published_ts": 1776354285.0,
-      "age_minutes": 669.8,
+      "age_minutes": 824.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -965,7 +1003,7 @@
       ],
       "published_at": "2026-04-16T14:15:50Z",
       "published_ts": 1776348950.0,
-      "age_minutes": 758.7,
+      "age_minutes": 913.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1003,7 +1041,7 @@
       ],
       "published_at": "2026-04-16T12:00:16Z",
       "published_ts": 1776340816.0,
-      "age_minutes": 894.3,
+      "age_minutes": 1049.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1041,7 +1079,7 @@
       ],
       "published_at": "2026-04-16T09:54:23Z",
       "published_ts": 1776333263.0,
-      "age_minutes": 1020.1,
+      "age_minutes": 1175.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1079,7 +1117,7 @@
       ],
       "published_at": "2026-04-16T08:56:47Z",
       "published_ts": 1776329807.0,
-      "age_minutes": 1077.7,
+      "age_minutes": 1232.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1117,7 +1155,7 @@
       ],
       "published_at": "2026-04-16T07:04:00Z",
       "published_ts": 1776323040.0,
-      "age_minutes": 1190.5,
+      "age_minutes": 1345.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1155,7 +1193,7 @@
       ],
       "published_at": "2026-04-16T05:53:33Z",
       "published_ts": 1776318813.0,
-      "age_minutes": 1261.0,
+      "age_minutes": 1416.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1188,30 +1226,30 @@
   ],
   "news_catalyst_by_symbol": {
     "AAPL": {
-      "news_catalyst_score": 0.5036,
+      "news_catalyst_score": 0.3093,
       "sentiment_label": "neutral",
-      "event_class": "EARNINGS",
-      "event_label": "Top BofA Analyst Raises Apple Stock (AAPL) Price Target Ahead of Q2 Earnings",
+      "event_class": "UNKNOWN",
+      "event_label": "Anthropic Releases Claude 4.7, Introducing Mythos-Inspired Cybersecurity Protections - Apple (NASDAQ:AAPL",
       "materiality": "LOW",
       "recency_bucket": "AGING",
-      "source_tier": "TIER_3",
-      "mentions_24h": 5,
+      "source_tier": "TIER_2",
+      "mentions_24h": 4,
       "is_actionable": false,
       "first_provider": "newsapi_ai",
-      "story_key": "c0345c2d2ba782236fc332108c5a28ce01e8f787:5921047"
+      "story_key": "64668d21202df347f73fda5c551ea8d3d2a85389:5921231"
     },
     "AMZN": {
-      "news_catalyst_score": 0.4851,
+      "news_catalyst_score": 0.4727,
       "sentiment_label": "neutral",
-      "event_class": "MANAGEMENT",
-      "event_label": "Herrington, Amazon CEO, sells $5.02m in AMZN stock By Investing.com",
+      "event_class": "CONTRACT",
+      "event_label": "Amazon (AMZN) Secures Major Fox Media AI Cloud Partnership - Blockonomi",
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "source_tier": "TIER_3",
       "mentions_24h": 8,
       "is_actionable": false,
       "first_provider": "newsapi_ai",
-      "story_key": "3785bc959accf147bb427c987cc18969b0a87cb4:5921259"
+      "story_key": "9a2f7bbead9db2c8dfaf39c93eb4386ff5d99115:5921161"
     },
     "JPM": {
       "news_catalyst_score": 0.5036,
@@ -1247,15 +1285,15 @@
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "source_tier": "TIER_3",
-      "mentions_24h": 10,
+      "mentions_24h": 12,
       "is_actionable": false,
       "first_provider": "newsapi_ai",
       "story_key": "5fa2b18c741eba3ab7994043d5074d44daadbe6c:5921177"
     }
   },
   "summary": {
-    "active_story_count": 29,
-    "new_story_count": 1,
+    "active_story_count": 30,
+    "new_story_count": 2,
     "actionable_story_count": 0,
     "actionable_symbols": [],
     "symbol_count": 5
