@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-04-17T18:09:32.655327Z",
+  "generated_at": "2026-04-17T19:33:12.360584Z",
   "symbols": [
     "AAPL",
     "MSFT",
@@ -89,7 +89,7 @@
       ],
       "published_at": "2026-04-17T14:28:48Z",
       "published_ts": 1776436128.0,
-      "age_minutes": 220.7,
+      "age_minutes": 304.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -110,49 +110,11 @@
       "impact": 0.88,
       "clarity": 0.8,
       "relevance": 0.886,
-      "news_catalyst_score": 0.5111,
-      "materiality": "MEDIUM",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.vantagepointsoftware.com/blog/vantagepoint-hot-stocks-outlook-for-the-week-of-april-17-2026/",
-      "first_seen_at": "2026-04-17T17:15:58.059177Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "1952a2ee3e0033fcf3d8adc032ea79504abda2c5:5921455",
-      "headline": "NextEra Energy: The Utility Story Just Changed (Rating Upgrade) (NYSE:NEE)",
-      "tickers": [
-        "NEE"
-      ],
-      "published_at": "2026-04-17T14:39:31Z",
-      "published_ts": 1776436771.0,
-      "age_minutes": 210.0,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Seeking Alpha"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "analyst",
-      "event_class": "ANALYST",
-      "event_label": "NextEra Energy: The Utility Story Just Changed (Rating Upgrade) (NYSE:NEE)",
-      "sentiment_label": "bullish",
-      "polarity": 0.2062,
-      "impact": 0.65,
-      "clarity": 0.6,
-      "relevance": 0.7225,
-      "news_catalyst_score": 0.4062,
+      "news_catalyst_score": 0.4331,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
-      "url": "https://seekingalpha.com/article/4891585-nextera-energy-the-utility-story-just-changed-rating-upgrade",
+      "url": "https://www.vantagepointsoftware.com/blog/vantagepoint-hot-stocks-outlook-for-the-week-of-april-17-2026/",
       "first_seen_at": "2026-04-17T17:15:58.059177Z",
       "is_new": false,
       "provider_count": 1
@@ -165,7 +127,7 @@
       ],
       "published_at": "2026-04-17T13:00:00Z",
       "published_ts": 1776430800.0,
-      "age_minutes": 309.5,
+      "age_minutes": 393.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -203,7 +165,7 @@
       ],
       "published_at": "2026-04-17T09:36:54Z",
       "published_ts": 1776418614.0,
-      "age_minutes": 512.6,
+      "age_minutes": 596.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -241,7 +203,7 @@
       ],
       "published_at": "2026-04-16T21:19:29Z",
       "published_ts": 1776374369.0,
-      "age_minutes": 1250.1,
+      "age_minutes": 1333.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -279,7 +241,7 @@
       ],
       "published_at": "2026-04-17T09:42:46Z",
       "published_ts": 1776418966.0,
-      "age_minutes": 506.8,
+      "age_minutes": 590.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -317,7 +279,7 @@
       ],
       "published_at": "2026-04-16T22:18:10Z",
       "published_ts": 1776377890.0,
-      "age_minutes": 1191.4,
+      "age_minutes": 1275.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -348,6 +310,44 @@
       "provider_count": 1
     },
     {
+      "story_key": "1952a2ee3e0033fcf3d8adc032ea79504abda2c5:5921455",
+      "headline": "NextEra Energy: The Utility Story Just Changed (Rating Upgrade) (NYSE:NEE)",
+      "tickers": [
+        "NEE"
+      ],
+      "published_at": "2026-04-17T14:39:31Z",
+      "published_ts": 1776436771.0,
+      "age_minutes": 293.7,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Seeking Alpha"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "analyst",
+      "event_class": "ANALYST",
+      "event_label": "NextEra Energy: The Utility Story Just Changed (Rating Upgrade) (NYSE:NEE)",
+      "sentiment_label": "bullish",
+      "polarity": 0.2062,
+      "impact": 0.65,
+      "clarity": 0.6,
+      "relevance": 0.7225,
+      "news_catalyst_score": 0.3421,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://seekingalpha.com/article/4891585-nextera-energy-the-utility-story-just-changed-rating-upgrade",
+      "first_seen_at": "2026-04-17T17:15:58.059177Z",
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
       "story_key": "fa0df741d083123274c73c14ec193a9efac6ef7a:5921481",
       "headline": "Apple Leans Into Edge AI With M5 Chip Push, BofA Calls It 'Meaningful Step' - Apple (NASDAQ:AAPL)",
       "tickers": [
@@ -355,7 +355,7 @@
       ],
       "published_at": "2026-04-17T16:48:45Z",
       "published_ts": 1776444525.0,
-      "age_minutes": 80.8,
+      "age_minutes": 164.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -376,7 +376,7 @@
       "impact": 0.1,
       "clarity": 0.6,
       "relevance": 0.475,
-      "news_catalyst_score": 0.2769,
+      "news_catalyst_score": 0.2522,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
@@ -393,7 +393,7 @@
       ],
       "published_at": "2026-04-17T16:46:38Z",
       "published_ts": 1776444398.0,
-      "age_minutes": 82.9,
+      "age_minutes": 166.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -414,7 +414,7 @@
       "impact": 0.1,
       "clarity": 0.6,
       "relevance": 0.475,
-      "news_catalyst_score": 0.2762,
+      "news_catalyst_score": 0.2516,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
@@ -431,7 +431,7 @@
       ],
       "published_at": "2026-04-17T16:15:22Z",
       "published_ts": 1776442522.0,
-      "age_minutes": 114.2,
+      "age_minutes": 197.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -452,87 +452,11 @@
       "impact": 0.1,
       "clarity": 0.8,
       "relevance": 0.535,
-      "news_catalyst_score": 0.2633,
+      "news_catalyst_score": 0.2363,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
       "url": "https://seekingalpha.com/article/4891618-microsoft-not-like-meta-in-2022",
-      "first_seen_at": "2026-04-17T17:15:58.059177Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "495b2f7a25a288a1f3190b237808433f8d2b216d:5921464",
-      "headline": "Amazon (AMZN) Stock Positioned to Lead Magnificent 7 on AI and Cloud Strength, Says Barclays - Blockonomi",
-      "tickers": [
-        "AMZN"
-      ],
-      "published_at": "2026-04-17T15:21:36Z",
-      "published_ts": 1776439296.0,
-      "age_minutes": 167.9,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Blockonomi"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Amazon (AMZN) Stock Positioned to Lead Magnificent 7 on AI and Cloud Strength, Says Barclays - Blockonomi",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.8,
-      "relevance": 0.535,
-      "news_catalyst_score": 0.2476,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://blockonomi.com/amazon-amzn-stock-positioned-to-lead-magnificent-7-on-ai-and-cloud-strength-says-barclays/",
-      "first_seen_at": "2026-04-17T17:15:58.059177Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "592cfc850a0954cdc9669de72a61604675b30eb2:5921470",
-      "headline": "Microsoft Just Opened Doors at the Most Powerful AI Data Center in the World. What Does That Mean for MSFT Stock?",
-      "tickers": [
-        "MSFT"
-      ],
-      "published_at": "2026-04-17T15:53:49Z",
-      "published_ts": 1776441229.0,
-      "age_minutes": 135.7,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Barchart.com"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Microsoft Just Opened Doors at the Most Powerful AI Data Center in the World. What Does That Mean for MSFT Stock?",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.2238,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.barchart.com/story/news/1369661/microsoft-just-opened-doors-at-the-most-powerful-ai-data-center-in-the-world-what-does-that-mean-for-msft-stock",
       "first_seen_at": "2026-04-17T17:15:58.059177Z",
       "is_new": false,
       "provider_count": 1
@@ -545,7 +469,7 @@
       ],
       "published_at": "2026-04-17T13:00:30Z",
       "published_ts": 1776430830.0,
-      "age_minutes": 309.0,
+      "age_minutes": 392.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -583,7 +507,7 @@
       ],
       "published_at": "2026-04-17T05:34:30Z",
       "published_ts": 1776404070.0,
-      "age_minutes": 755.0,
+      "age_minutes": 838.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -621,7 +545,7 @@
       ],
       "published_at": "2026-04-16T19:59:48Z",
       "published_ts": 1776369588.0,
-      "age_minutes": 1329.7,
+      "age_minutes": 1413.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -652,14 +576,14 @@
       "provider_count": 1
     },
     {
-      "story_key": "b0c065f1c3b0c8c04a618acbf95ca380dd9c385d:5921210",
-      "headline": "Senator Goes Stock Shopping: Here's His Two Magnificent 7 Picks For 2026 - Microsoft (NASDAQ:MSFT)",
+      "story_key": "495b2f7a25a288a1f3190b237808433f8d2b216d:5921464",
+      "headline": "Amazon (AMZN) Stock Positioned to Lead Magnificent 7 on AI and Cloud Strength, Says Barclays - Blockonomi",
       "tickers": [
-        "MSFT"
+        "AMZN"
       ],
-      "published_at": "2026-04-16T18:13:03Z",
-      "published_ts": 1776363183.0,
-      "age_minutes": 1436.5,
+      "published_at": "2026-04-17T15:21:36Z",
+      "published_ts": 1776439296.0,
+      "age_minutes": 251.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -668,61 +592,61 @@
         "newsapi_ai"
       ],
       "sources": [
-        "Benzinga"
-      ],
-      "source_tier": "TIER_2",
-      "source_rank": 2,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Senator Goes Stock Shopping: Here's His Two Magnificent 7 Picks For 2026 - Microsoft (NASDAQ:MSFT)",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.8,
-      "relevance": 0.535,
-      "news_catalyst_score": 0.2193,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.benzinga.com/news/politics/26/04/51868544/senator-goes-stock-shopping-heres-his-two-magnificent-7-picks-for-2026",
-      "first_seen_at": "2026-04-16T19:36:01.400831Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "d11c40d7ecbe0e28958b66500c94b634b3591bbf:5921456",
-      "headline": "Johnson & Johnson: Why I See Downside Ahead (NYSE:JNJ)",
-      "tickers": [
-        "JNJ"
-      ],
-      "published_at": "2026-04-17T14:42:35Z",
-      "published_ts": 1776436955.0,
-      "age_minutes": 207.0,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Seeking Alpha"
+        "Blockonomi"
       ],
       "source_tier": "TIER_3",
       "source_rank": 3,
       "category": "other",
       "event_class": "UNKNOWN",
-      "event_label": "Johnson & Johnson: Why I See Downside Ahead (NYSE:JNJ)",
+      "event_label": "Amazon (AMZN) Stock Positioned to Lead Magnificent 7 on AI and Cloud Strength, Says Barclays - Blockonomi",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "news_catalyst_score": 0.2129,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://blockonomi.com/amazon-amzn-stock-positioned-to-lead-magnificent-7-on-ai-and-cloud-strength-says-barclays/",
+      "first_seen_at": "2026-04-17T17:15:58.059177Z",
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
+      "story_key": "592cfc850a0954cdc9669de72a61604675b30eb2:5921470",
+      "headline": "Microsoft Just Opened Doors at the Most Powerful AI Data Center in the World. What Does That Mean for MSFT Stock?",
+      "tickers": [
+        "MSFT"
+      ],
+      "published_at": "2026-04-17T15:53:49Z",
+      "published_ts": 1776441229.0,
+      "age_minutes": 219.4,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Barchart.com"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Microsoft Just Opened Doors at the Most Powerful AI Data Center in the World. What Does That Mean for MSFT Stock?",
       "sentiment_label": "neutral",
       "polarity": 0.0,
       "impact": 0.1,
       "clarity": 0.6,
       "relevance": 0.475,
-      "news_catalyst_score": 0.2024,
+      "news_catalyst_score": 0.1977,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
-      "url": "https://seekingalpha.com/article/4891588-johnson-and-johnson-why-i-see-downside-ahead",
+      "url": "https://www.barchart.com/story/news/1369661/microsoft-just-opened-doors-at-the-most-powerful-ai-data-center-in-the-world-what-does-that-mean-for-msft-stock",
       "first_seen_at": "2026-04-17T17:15:58.059177Z",
       "is_new": false,
       "provider_count": 1
@@ -735,7 +659,7 @@
       ],
       "published_at": "2026-04-17T12:14:16Z",
       "published_ts": 1776428056.0,
-      "age_minutes": 355.3,
+      "age_minutes": 438.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -773,7 +697,7 @@
       ],
       "published_at": "2026-04-17T09:59:06Z",
       "published_ts": 1776419946.0,
-      "age_minutes": 490.4,
+      "age_minutes": 574.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -811,7 +735,7 @@
       ],
       "published_at": "2026-04-17T09:43:09Z",
       "published_ts": 1776418989.0,
-      "age_minutes": 506.4,
+      "age_minutes": 590.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -849,7 +773,7 @@
       ],
       "published_at": "2026-04-16T23:14:45Z",
       "published_ts": 1776381285.0,
-      "age_minutes": 1134.8,
+      "age_minutes": 1218.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -887,7 +811,7 @@
       ],
       "published_at": "2026-04-16T22:26:00Z",
       "published_ts": 1776378360.0,
-      "age_minutes": 1183.5,
+      "age_minutes": 1267.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -918,44 +842,6 @@
       "provider_count": 1
     },
     {
-      "story_key": "dec251f42c905bcd256e9e8b776f428992c9a7b3:5921215",
-      "headline": "What's Ahead As Massive Short Squeeze Drives Market to New Highs - Semis Are a Tell - Apple (NASDAQ:AAPL)",
-      "tickers": [
-        "AAPL"
-      ],
-      "published_at": "2026-04-16T18:35:06Z",
-      "published_ts": 1776364506.0,
-      "age_minutes": 1414.4,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Benzinga"
-      ],
-      "source_tier": "TIER_2",
-      "source_rank": 2,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "What's Ahead As Massive Short Squeeze Drives Market to New Highs - Semis Are a Tell - Apple (NASDAQ:AAPL)",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.1946,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.benzinga.com/Opinion/26/04/51869171/whats-ahead-as-massive-short-squeeze-drives-market-to-new-highs-semis-are-a-tell",
-      "first_seen_at": "2026-04-16T19:36:01.400831Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
       "story_key": "d2ee109eb5cd433cb51054d9a7ae04baeb2634d0:5921399",
       "headline": "In-Depth Analysis: Amazon.com Versus Competitors In Broadline Retail Industry - Amazon.com (NASDAQ:AMZN)",
       "tickers": [
@@ -963,7 +849,7 @@
       ],
       "published_at": "2026-04-17T09:58:56Z",
       "published_ts": 1776419936.0,
-      "age_minutes": 490.6,
+      "age_minutes": 574.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1001,7 +887,7 @@
       ],
       "published_at": "2026-04-17T11:41:37Z",
       "published_ts": 1776426097.0,
-      "age_minutes": 387.9,
+      "age_minutes": 471.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1039,7 +925,7 @@
       ],
       "published_at": "2026-04-17T09:20:48Z",
       "published_ts": 1776417648.0,
-      "age_minutes": 528.7,
+      "age_minutes": 612.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1077,7 +963,7 @@
       ],
       "published_at": "2026-04-17T08:49:00Z",
       "published_ts": 1776415740.0,
-      "age_minutes": 560.5,
+      "age_minutes": 644.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1115,7 +1001,7 @@
       ],
       "published_at": "2026-04-17T04:56:47Z",
       "published_ts": 1776401807.0,
-      "age_minutes": 792.8,
+      "age_minutes": 876.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1155,7 +1041,7 @@
       ],
       "published_at": "2026-04-17T12:59:22Z",
       "published_ts": 1776430762.0,
-      "age_minutes": 310.2,
+      "age_minutes": 393.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1186,6 +1072,44 @@
       "provider_count": 1
     },
     {
+      "story_key": "d11c40d7ecbe0e28958b66500c94b634b3591bbf:5921456",
+      "headline": "Johnson & Johnson: Why I See Downside Ahead (NYSE:JNJ)",
+      "tickers": [
+        "JNJ"
+      ],
+      "published_at": "2026-04-17T14:42:35Z",
+      "published_ts": 1776436955.0,
+      "age_minutes": 290.6,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Seeking Alpha"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Johnson & Johnson: Why I See Downside Ahead (NYSE:JNJ)",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.1706,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://seekingalpha.com/article/4891588-johnson-and-johnson-why-i-see-downside-ahead",
+      "first_seen_at": "2026-04-17T17:15:58.059177Z",
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
       "story_key": "ac9888ae0d975e912780cf594721505dce074ffb:5921433",
       "headline": "JPM stays constructive on French telcos with or without consolidation By Investing.com",
       "tickers": [
@@ -1193,7 +1117,7 @@
       ],
       "published_at": "2026-04-17T12:45:20Z",
       "published_ts": 1776429920.0,
-      "age_minutes": 324.2,
+      "age_minutes": 407.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1232,7 +1156,7 @@
       ],
       "published_at": "2026-04-17T07:06:01Z",
       "published_ts": 1776409561.0,
-      "age_minutes": 663.5,
+      "age_minutes": 747.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1270,7 +1194,7 @@
       ],
       "published_at": "2026-04-17T06:04:35Z",
       "published_ts": 1776405875.0,
-      "age_minutes": 725.0,
+      "age_minutes": 808.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1308,7 +1232,7 @@
       ],
       "published_at": "2026-04-17T04:56:47Z",
       "published_ts": 1776401807.0,
-      "age_minutes": 792.8,
+      "age_minutes": 876.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1341,24 +1265,24 @@
   ],
   "news_catalyst_by_symbol": {
     "AAPL": {
-      "news_catalyst_score": 0.3969,
+      "news_catalyst_score": 0.3722,
       "sentiment_label": "neutral",
       "event_class": "UNKNOWN",
       "event_label": "Apple Leans Into Edge AI With M5 Chip Push, BofA Calls It 'Meaningful Step' - Apple (NASDAQ:AAPL)",
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "source_tier": "TIER_2",
-      "mentions_24h": 6,
+      "mentions_24h": 5,
       "is_actionable": false,
       "first_provider": "newsapi_ai",
       "story_key": "fa0df741d083123274c73c14ec193a9efac6ef7a:5921481"
     },
     "AMZN": {
-      "news_catalyst_score": 0.6311,
+      "news_catalyst_score": 0.5531,
       "sentiment_label": "neutral",
       "event_class": "GUIDANCE",
       "event_label": "VantagePoint Vantagepoint A.I. Hot Stocks Outlook for April 17, 2026 Stocks $QQQ, $AOSL, $AMZN, $NVDA, $CAR",
-      "materiality": "MEDIUM",
+      "materiality": "LOW",
       "recency_bucket": "AGING",
       "source_tier": "TIER_3",
       "mentions_24h": 12,
@@ -1367,7 +1291,7 @@
       "story_key": "c5ff6cec212cabe71e08301fb2fa3add7c48cc62:5921453"
     },
     "JNJ": {
-      "news_catalyst_score": 0.2024,
+      "news_catalyst_score": 0.1706,
       "sentiment_label": "neutral",
       "event_class": "UNKNOWN",
       "event_label": "Johnson & Johnson: Why I See Downside Ahead (NYSE:JNJ)",
@@ -1413,13 +1337,13 @@
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "source_tier": "TIER_3",
-      "mentions_24h": 8,
+      "mentions_24h": 7,
       "is_actionable": false,
       "first_provider": "newsapi_ai",
       "story_key": "b96292136ddb95e94c40b58dc7d12305a0ec1972:5921395"
     },
     "NEE": {
-      "news_catalyst_score": 0.4062,
+      "news_catalyst_score": 0.3421,
       "sentiment_label": "bullish",
       "event_class": "ANALYST",
       "event_label": "NextEra Energy: The Utility Story Just Changed (Rating Upgrade) (NYSE:NEE)",
@@ -1432,7 +1356,7 @@
       "story_key": "1952a2ee3e0033fcf3d8adc032ea79504abda2c5:5921455"
     },
     "XOM": {
-      "news_catalyst_score": 0.2762,
+      "news_catalyst_score": 0.2516,
       "sentiment_label": "neutral",
       "event_class": "UNKNOWN",
       "event_label": "Why Is Exxon Mobil Stock Dropping Friday? Oil Sell-Off Hits Energy Names - Exxon Mobil (NYSE:XOM)",
@@ -1446,7 +1370,7 @@
     }
   },
   "summary": {
-    "active_story_count": 33,
+    "active_story_count": 31,
     "new_story_count": 0,
     "actionable_story_count": 0,
     "actionable_symbols": [],
