@@ -63,6 +63,31 @@ jobs:
             --ci-mode \
             --output artifacts/ci/smc_release_gates_report.json
 
+      - name: Classify release gate results (F-09)
+        if: always()
+        run: |
+          python - <<'PY'
+          import json, sys
+          from pathlib import Path
+          report_path = Path("artifacts/ci/smc_release_gates_report.json")
+          if not report_path.exists():
+              print("::warning::Release gates report not found, skipping classification.")
+              sys.exit(0)
+          report = json.loads(report_path.read_text())
+          ci_pass = report.get("ci_structural_pass", False)
+          op_pass = report.get("operational_release_pass", False)
+          soft = report.get("soft_gates_for_review", [])
+          print(f"ci_structural_pass:       {ci_pass}")
+          print(f"operational_release_pass: {op_pass}")
+          if soft:
+              print(f"soft_gates_for_review:    {len(soft)} gate(s) need follow-up")
+              for sg in soft:
+                  print(f"  - {sg['name']}: {sg.get('review_reason', 'unknown')}")
+          if not ci_pass:
+              print("::error::CI structural gates did not pass.")
+              sys.exit(1)
+          PY
+
       - name: Run release validation test matrix
         run: |
           shopt -s nullglob

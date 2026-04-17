@@ -54,4 +54,36 @@ No backward compat code remains.
 | FVG gate | NO | Lean-only (`fvg_light_active_ok`) |
 | Signal Quality | NO | Primary gate for Ready / Best / Strict (`lib_sq_*`) |
 | Context Quality | SUPPORT ONLY | Diagnostic / telemetry only; not a primary gate |
+
+---
+
+## Regime Hierarchy (F-06)
+
+Multiple regime systems run in parallel. To prevent semantic drift and
+hidden conflicts, the following hierarchy is binding:
+
+### Primary (Gate-Relevant)
+
+| Regime | Module | Role |
+|--------|--------|------|
+| `smc_core.vol_regime` | `compute_vol_regime()` | **Primary volatility regime** — used for gate decisions, stratification, and measurement. GARCH-backed with ATR fallback. |
+| `smc_regime_classifier` | `classify_market_regime()` | **Primary market regime** — used for micro-profile generation and regime field in snapshots. VIX-based, pure function. |
+
+### Enrichment-Only (Not Gate-Relevant)
+
+| Regime | Module | Role |
+|--------|--------|------|
+| `smc_compression_regime` | `build_compression_regime()` | Enrichment — squeeze state and ATR regime for profile context. |
+| `smc_range_regime` | `build_range_regime()` | Enrichment — range vs. trend day classification. |
+| `smc_range_profile_regime` | `build_range_profile_regime()` | Enrichment — range boundaries, volume profile, predictive bands. |
+
+### Rules
+
+1. Only **primary** regimes may influence gate decisions or entry suppression.
+2. Enrichment-only regimes are additive context — they may inform displays
+   and profiles but must not override or contradict primary regime gates.
+3. If an enrichment regime contradicts a primary regime, the conflict is
+   logged with code `REGIME_CONFLICT` but the primary regime wins.
+4. New regime modules must be classified as `primary` or `enrichment_only`
+   before merge.
 | ~~BUS ModulePackE/F/G~~ | ~~Compat~~ | **Removed Phase B** |

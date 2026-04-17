@@ -7,6 +7,7 @@ from smc_integration.trust_tier import (
     derive_quality_recommendation,
     derive_trust_summary,
     resolve_provider_state,
+    resolve_provider_state_from_failure_actions,
     resolve_trust_main_blocker,
     resolve_trust_tier,
 )
@@ -372,3 +373,50 @@ def test_derive_trust_summary_includes_quality_recommendation() -> None:
     assert summary["quality_recommendation"] == "trusted"
     assert summary["quality_guardrail"] == "full confidence"
     assert summary["quality_recommendation_reason"] == "high_trust_quality"
+
+
+# ---------------------------------------------------------------------------
+# F-04 — Failure-action aware provider state
+# ---------------------------------------------------------------------------
+
+
+class TestResolveProviderStateFromFailureActions:
+    def test_no_failures_returns_ok(self) -> None:
+        state = resolve_provider_state_from_failure_actions(
+            structure_state="ok", failure_actions=[],
+        )
+        assert state == "ok"
+
+    def test_hard_degrade_returns_unavailable(self) -> None:
+        state = resolve_provider_state_from_failure_actions(
+            structure_state="ok",
+            failure_actions=[{"failure_action": "hard_degrade"}],
+        )
+        assert state == "unavailable"
+
+    def test_suppress_returns_degraded(self) -> None:
+        state = resolve_provider_state_from_failure_actions(
+            structure_state="ok",
+            failure_actions=[{"failure_action": "suppress"}],
+        )
+        assert state == "degraded"
+
+    def test_advisory_returns_degraded(self) -> None:
+        state = resolve_provider_state_from_failure_actions(
+            structure_state="ok",
+            failure_actions=[{"failure_action": "advisory"}],
+        )
+        assert state == "degraded"
+
+    def test_fallback_only_returns_ok(self) -> None:
+        state = resolve_provider_state_from_failure_actions(
+            structure_state="ok",
+            failure_actions=[{"failure_action": "fallback"}],
+        )
+        assert state == "ok"
+
+    def test_missing_structure_returns_unavailable(self) -> None:
+        state = resolve_provider_state_from_failure_actions(
+            structure_state="none", failure_actions=[],
+        )
+        assert state == "unavailable"

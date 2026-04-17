@@ -1470,3 +1470,59 @@ def test_smoke_volume_staleness_skipped_with_release_fallback(monkeypatch):
     assert "STALE_META_VOLUME_DOMAIN" not in emitted_codes
     assert "STALE_META_TECHNICAL_DOMAIN" not in emitted_codes
     assert "STALE_META_NEWS_DOMAIN" not in emitted_codes
+
+
+# ---------------------------------------------------------------------------
+# F-04 — Provider Failure Semantics
+# ---------------------------------------------------------------------------
+
+
+class TestFailureSemantics:
+    def test_resolve_known_structure_missing(self) -> None:
+        sem = provider_health.resolve_failure_action("structure", "missing")
+        assert sem.action == provider_health.FailureAction.HARD_DEGRADE
+        assert sem.affects_entry is True
+
+    def test_resolve_known_volume_stale(self) -> None:
+        sem = provider_health.resolve_failure_action("volume", "stale")
+        assert sem.action == provider_health.FailureAction.ADVISORY
+        assert sem.max_tolerable_hours == 48
+
+    def test_resolve_known_news_fallback(self) -> None:
+        sem = provider_health.resolve_failure_action("news", "fallback")
+        assert sem.action == provider_health.FailureAction.FALLBACK
+        assert sem.affects_entry is False
+
+    def test_resolve_unknown_defaults_to_advisory(self) -> None:
+        sem = provider_health.resolve_failure_action("unknown_domain", "cosmic_ray")
+        assert sem.action == provider_health.FailureAction.ADVISORY
+        assert sem.affects_entry is False
+
+    def test_classify_domain_alerts_enriches_records(self) -> None:
+        alerts = [
+            {"domain": "volume", "code": "STALE_META_VOLUME_DOMAIN", "severity": "warn"},
+            {"domain": "news", "code": "FALLBACK_META_NEWS_DOMAIN", "severity": "info"},
+        ]
+        enriched = provider_health.classify_domain_alerts_to_failure_actions(alerts)
+        assert len(enriched) == 2
+        assert enriched[0]["failure_action"] == "advisory"
+        assert enriched[1]["failure_action"] == "fallback"
+
+    def test_worst_failure_action_picks_most_severe(self) -> None:
+        enriched = [
+            {"failure_action": "fallback"},
+            {"failure_action": "advisory"},
+            {"failure_action": "hard_degrade"},
+        ]
+        assert provider_health.worst_failure_action(enriched) == provider_health.FailureAction.HARD_DEGRADE
+
+    def test_worst_failure_action_fallback_only(self) -> None:
+        enriched = [{"failure_action": "fallback"}]
+        assert provider_health.worst_failure_action(enriched) == provider_health.FailureAction.FALLBACK
+
+    def test_failure_semantics_matrix_covers_all_domains(self) -> None:
+        domains = {fs.domain for fs in provider_health._FAILURE_SEMANTICS_MATRIX}
+        assert domains == {"structure", "volume", "technical", "news"}
+
+    def test_failure_action_enum_has_four_values(self) -> None:
+        assert len(provider_health.FailureAction) == 4

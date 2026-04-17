@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import enum
 import json
 import time
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -49,6 +51,129 @@ _STRICT_RELEASE_DEGRADATION_CODES = {
     "STALE_META_NEWS_DOMAIN",
     "STALE_META_VOLUME_DOMAIN",
 }
+
+
+# ── Provider Failure Semantics (F-04) ────────────────────────────
+
+
+class FailureAction(enum.Enum):
+    """Machine-readable reaction to a provider failure.
+
+    FALLBACK    — switch to next provider in chain; no user-visible degradation.
+    ADVISORY    — log + surface warning; do NOT suppress entry signals.
+    SUPPRESS    — suppress new entry signals while the failure persists.
+    HARD_DEGRADE — mark trust tier as degraded; block operational release.
+    """
+
+    FALLBACK = "fallback"
+    ADVISORY = "advisory"
+    SUPPRESS = "suppress"
+    HARD_DEGRADE = "hard_degrade"
+
+
+@dataclass(frozen=True)
+class FailureSemantics:
+    """Structured description of how a domain failure should be handled."""
+
+    domain: str
+    failure_type: str
+    action: FailureAction
+    max_tolerable_hours: float | None
+    affects_entry: bool
+    description: str
+
+
+# ── Failure Semantics Matrix ─────────────────────────────────────
+# One entry per (domain, failure_type) pair.  Ordered by severity.
+_FAILURE_SEMANTICS_MATRIX: tuple[FailureSemantics, ...] = (
+    # --- structure ---
+    FailureSemantics("structure", "missing",     FailureAction.HARD_DEGRADE, None, True,  "No structure source available — cannot build snapshot."),
+    FailureSemantics("structure", "stale",       FailureAction.SUPPRESS,     24,   True,  "Structure artifact older than 24 h — entry signals unreliable."),
+    FailureSemantics("structure", "invalid",     FailureAction.HARD_DEGRADE, None, True,  "Structure artifact malformed — snapshot build blocked."),
+    # --- volume ---
+    FailureSemantics("volume",    "missing",     FailureAction.ADVISORY,     None, False, "Volume domain absent — quality scoring incomplete."),
+    FailureSemantics("volume",    "stale",       FailureAction.ADVISORY,     48,   False, "Volume data stale — regime classification may drift."),
+    FailureSemantics("volume",    "fallback",    FailureAction.FALLBACK,     None, False, "Volume domain from fallback provider (e.g. Benzinga)."),
+    # --- technical ---
+    FailureSemantics("technical", "missing",     FailureAction.FALLBACK,     None, False, "Technical domain absent — optional enrichment dropped."),
+    FailureSemantics("technical", "stale",       FailureAction.ADVISORY,     48,   False, "Technical data stale — enrichment may be outdated."),
+    FailureSemantics("technical", "fallback",    FailureAction.FALLBACK,     None, False, "Technical domain from fallback provider."),
+    # --- news ---
+    FailureSemantics("news",      "missing",     FailureAction.FALLBACK,     None, False, "News domain absent — fallback to Benzinga or skip."),
+    FailureSemantics("news",      "stale",       FailureAction.ADVISORY,     24,   False, "News data stale — sentiment scores may not reflect current events."),
+    FailureSemantics("news",      "fallback",    FailureAction.FALLBACK,     None, False, "News domain from Benzinga fallback — reduced depth vs. live NewsAPI."),
+)
+
+_FAILURE_SEMANTICS_INDEX: dict[tuple[str, str], FailureSemantics] = {
+    (fs.domain, fs.failure_type): fs for fs in _FAILURE_SEMANTICS_MATRIX
+}
+
+
+def resolve_failure_action(domain: str, failure_type: str) -> FailureSemantics:
+    """Look up the canonical failure semantics for a (domain, failure_type) pair.
+
+    Returns a default ADVISORY entry for unknown combinations so callers
+    never need to handle missing keys.
+    """
+    key = (domain.lower().strip(), failure_type.lower().strip())
+    entry = _FAILURE_SEMANTICS_INDEX.get(key)
+    if entry is not None:
+        return entry
+    return FailureSemantics(
+        domain=key[0],
+        failure_type=key[1],
+        action=FailureAction.ADVISORY,
+        max_tolerable_hours=None,
+        affects_entry=False,
+        description=f"Unknown failure ({key[0]}/{key[1]}) — treated as advisory.",
+    )
+
+
+def classify_domain_alerts_to_failure_actions(
+    domain_alerts: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Translate raw domain_alerts into structured failure-action records.
+
+    Each returned dict contains the original alert fields plus:
+      failure_action, failure_affects_entry, failure_max_tolerable_hours
+    """
+    enriched: list[dict[str, Any]] = []
+    for alert in domain_alerts:
+        domain = str(alert.get("domain", "")).strip().lower()
+        code = str(alert.get("code", "")).strip().upper()
+        # Map alert codes to failure_type
+        if "STALE" in code:
+            failure_type = "stale"
+        elif "MISSING" in code or "DROPPED" in code or "SILENT_DOMAIN_DROP" in code:
+            failure_type = "missing"
+        elif "FALLBACK" in code:
+            failure_type = "fallback"
+        elif "INVALID" in code:
+            failure_type = "invalid"
+        else:
+            failure_type = "unknown"
+        sem = resolve_failure_action(domain, failure_type)
+        record = dict(alert)
+        record["failure_action"] = sem.action.value
+        record["failure_affects_entry"] = sem.affects_entry
+        record["failure_max_tolerable_hours"] = sem.max_tolerable_hours
+        enriched.append(record)
+    return enriched
+
+
+def worst_failure_action(enriched_alerts: list[dict[str, Any]]) -> FailureAction:
+    """Return the most severe FailureAction across enriched alerts."""
+    severity_order = [FailureAction.FALLBACK, FailureAction.ADVISORY, FailureAction.SUPPRESS, FailureAction.HARD_DEGRADE]
+    worst = FailureAction.FALLBACK
+    for alert in enriched_alerts:
+        action_str = str(alert.get("failure_action", "")).strip()
+        try:
+            action = FailureAction(action_str)
+        except ValueError:
+            continue
+        if severity_order.index(action) > severity_order.index(worst):
+            worst = action
+    return worst
 
 
 def _now_ts() -> float:

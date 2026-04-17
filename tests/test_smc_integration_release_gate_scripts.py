@@ -754,3 +754,90 @@ def test_missing_smoke_result_has_message(monkeypatch) -> None:
     assert missing[0]["code"] == "MISSING_SMOKE_RESULT"
     assert "message" in missing[0]
     assert "AAPL" in missing[0]["message"]
+
+
+# ---------------------------------------------------------------------------
+# F-09 — Release-Gates Stufung
+# ---------------------------------------------------------------------------
+
+
+class TestReleaseGateClassification:
+    """Verify the ci_structural_pass / operational_release_pass split."""
+
+    def _make_report(self, gates: list[dict]) -> dict:
+        """Simulate the classification logic from run_smc_release_gates.py."""
+        ci_validatable_gates = [
+            g for g in gates
+            if g.get("name") in {"publish_contract", "reference_bundle", "measurement_lane", "provider_health"}
+        ]
+        ci_structural_pass = not any(
+            g.get("status") == "fail" for g in ci_validatable_gates
+            if g.get("blocking", True) and not g.get("ci_mode_downgraded")
+        )
+        operational_release_pass = not any(
+            g.get("status") == "fail" for g in gates if g.get("blocking", True)
+        )
+        soft_gates_for_review = [
+            {
+                "name": g["name"],
+                "current_status": g.get("status"),
+                "blocking": g.get("blocking", True),
+                "review_reason": (
+                    "ci_mode_downgraded" if g.get("ci_mode_downgraded")
+                    else "soft_by_design"
+                ),
+            }
+            for g in gates
+            if not g.get("blocking", True) or g.get("ci_mode_downgraded")
+        ]
+        return {
+            "ci_structural_pass": ci_structural_pass,
+            "operational_release_pass": operational_release_pass,
+            "soft_gates_for_review": soft_gates_for_review,
+        }
+
+    def test_all_pass(self) -> None:
+        gates = [
+            {"name": "publish_contract", "status": "ok", "blocking": True},
+            {"name": "reference_bundle", "status": "ok", "blocking": True},
+        ]
+        r = self._make_report(gates)
+        assert r["ci_structural_pass"] is True
+        assert r["operational_release_pass"] is True
+        assert r["soft_gates_for_review"] == []
+
+    def test_ci_fail_blocks_structural(self) -> None:
+        gates = [
+            {"name": "publish_contract", "status": "fail", "blocking": True},
+            {"name": "reference_bundle", "status": "ok", "blocking": True},
+        ]
+        r = self._make_report(gates)
+        assert r["ci_structural_pass"] is False
+        assert r["operational_release_pass"] is False
+
+    def test_live_only_fail_still_ci_pass(self) -> None:
+        gates = [
+            {"name": "publish_contract", "status": "ok", "blocking": True},
+            {"name": "post_release_validation", "status": "fail", "blocking": True},
+        ]
+        r = self._make_report(gates)
+        assert r["ci_structural_pass"] is True
+        assert r["operational_release_pass"] is False
+
+    def test_ci_mode_downgraded_is_soft(self) -> None:
+        gates = [
+            {"name": "provider_health", "status": "fail", "blocking": False, "ci_mode_downgraded": True},
+        ]
+        r = self._make_report(gates)
+        assert r["ci_structural_pass"] is True
+        assert r["operational_release_pass"] is True
+        assert len(r["soft_gates_for_review"]) == 1
+        assert r["soft_gates_for_review"][0]["review_reason"] == "ci_mode_downgraded"
+
+    def test_non_blocking_gate_listed_for_review(self) -> None:
+        gates = [
+            {"name": "measurement_lane", "status": "ok", "blocking": False},
+        ]
+        r = self._make_report(gates)
+        assert len(r["soft_gates_for_review"]) == 1
+        assert r["soft_gates_for_review"][0]["review_reason"] == "soft_by_design"

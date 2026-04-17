@@ -32,3 +32,16 @@ def test_release_gates_workflow_checks_release_reference_manifest_drift() -> Non
     assert 'smc_release_reference_manifest.diff' in workflow_text
     assert 'git --no-pager diff -- "${manifests[@]}"' in workflow_text
     assert 'Release reference manifest drift detected after refresh. Commit refreshed manifests before publishing.' in workflow_text
+
+
+# ---------------------------------------------------------------------------
+# F-09 — Release gate classification step
+# ---------------------------------------------------------------------------
+
+
+def test_release_gates_workflow_has_classification_step() -> None:
+    workflow_text = _read(WORKFLOW_PATH)
+    assert '- name: Classify release gate results (F-09)' in workflow_text
+    assert 'ci_structural_pass' in workflow_text
+    assert 'operational_release_pass' in workflow_text
+    assert 'soft_gates_for_review' in workflow_text
