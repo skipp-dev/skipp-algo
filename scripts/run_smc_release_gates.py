@@ -899,17 +899,56 @@ def main() -> int:
     overall_status = "fail" if has_fail else "ok"
     exit_code = 1 if has_fail else 0
 
+    # ── Gate classification (F-09) ─────────────────────────────
+    # Two explicit pass classes so operators never confuse CI green with
+    # full operational clearance.
+    #   ci_structural_pass:       all CI-validatable gates are green
+    #   operational_release_pass: all gates including live-only are green
+    ci_validatable_gates = [
+        g for g in gates
+        if g.get("name") in {"publish_contract", "reference_bundle", "measurement_lane", "provider_health"}
+    ]
+    live_only_gates = [
+        g for g in gates
+        if g.get("name") in {"post_release_validation"}
+    ]
+    ci_structural_pass = not any(
+        g.get("status") == "fail" for g in ci_validatable_gates
+        if g.get("blocking", True) and not g.get("ci_mode_downgraded")
+    )
+    operational_release_pass = not any(
+        g.get("status") == "fail" for g in gates if g.get("blocking", True)
+    )
+
+    # Gates that are currently not hard but have a re-evaluation path.
+    soft_gates_for_review = [
+        {
+            "name": g["name"],
+            "current_status": g.get("status"),
+            "blocking": g.get("blocking", True),
+            "review_reason": (
+                "ci_mode_downgraded" if g.get("ci_mode_downgraded")
+                else "soft_by_design"
+            ),
+        }
+        for g in gates
+        if not g.get("blocking", True) or g.get("ci_mode_downgraded")
+    ]
+
     report = {
         "report_kind": "release_gates",
         "release_phase": release_phase,
         "checked_at": checked_at,
         "checked_at_iso": _iso_utc(checked_at),
         "overall_status": overall_status,
+        "ci_structural_pass": ci_structural_pass,
+        "operational_release_pass": operational_release_pass,
         "reference_symbols": symbols,
         "reference_timeframes": timeframes,
         "stale_after_seconds": stale_seconds,
         "fail_on_warn": fail_on_warn,
         "gates": gates,
+        "soft_gates_for_review": soft_gates_for_review,
         "runner": {
             "script": "scripts/run_smc_release_gates.py",
             "mode": "strict_release_gates",

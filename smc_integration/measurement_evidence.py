@@ -14,8 +14,8 @@ from scripts.load_databento_export_bundle import load_export_bundle
 from scripts.smc_event_risk_builder import build_event_risk
 from scripts.smc_event_risk_light import build_event_risk_light
 from scripts.smc_signal_quality import build_signal_quality
-from scripts.smc_htf_context import build_htf_bias_context
-from scripts.smc_session_context import build_session_liquidity_context
+from smc_core.htf_context import build_htf_bias_context
+from smc_core.session_context import build_session_liquidity_context
 from scripts.smc_session_context_block import build_session_context_block
 from scripts.smc_session_context_light import build_session_context_light
 from scripts.smc_structure_state import build_structure_state

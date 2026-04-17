@@ -9,6 +9,32 @@ TRUST_TIERS = ("high", "guarded", "degraded", "insufficient")
 PROVIDER_STATES = ("ok", "degraded", "unavailable")
 QUALITY_RECOMMENDATIONS = ("trusted", "observable", "limited", "insufficient")
 
+# ── Failure-action aware provider state (F-04) ───────────────────
+
+
+def resolve_provider_state_from_failure_actions(
+    *,
+    structure_state: str,
+    failure_actions: list[dict[str, Any]],
+) -> str:
+    """Derive provider state from structured failure-action records.
+
+    This is the preferred path — callers should pass enriched alerts
+    from ``classify_domain_alerts_to_failure_actions`` instead of raw
+    domain lists.
+    """
+    if structure_state in {"none", "unknown"}:
+        return "unavailable"
+    for record in failure_actions:
+        action = str(record.get("failure_action", "")).strip()
+        if action == "hard_degrade":
+            return "unavailable"
+        if action == "suppress":
+            return "degraded"
+    if any(str(r.get("failure_action", "")).strip() == "advisory" for r in failure_actions):
+        return "degraded"
+    return "ok"
+
 
 def resolve_provider_state(
     *,

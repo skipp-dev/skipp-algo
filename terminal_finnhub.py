@@ -41,6 +41,54 @@ _cache_lock = threading.Lock()
 _SOCIAL_TTL = 600  # 10 min — Finnhub social data updates slowly
 _CACHE_MAX_SIZE = 200  # hard cap on cache entries
 _social_sentiment_blocked: bool = False  # circuit breaker for 403 (premium-only)
+_rate_limit_backoff_until: float = 0.0  # epoch timestamp; skip calls until then
+_consecutive_429_count: int = 0  # counter for exponential backoff
+_BACKOFF_BASE_SECONDS = 5.0
+_BACKOFF_MAX_SECONDS = 300.0  # 5 min ceiling
+
+# ── Equity guard ─────────────────────────────────────────────────
+# Finnhub social sentiment is designed for US equities only.
+# Crypto, forex, indices, and other non-equity symbols return empty
+# data and waste API quota.
+_NON_EQUITY_PREFIXES = frozenset({"BINANCE:", "CRYPTO:", "FX:", "FOREX:", "INDEX:", "OANDA:"})
+_NON_EQUITY_SUFFIXES = frozenset({".X", "-USD", "-EUR", "-BTC", "-ETH"})
+_NON_EQUITY_PATTERNS = frozenset({"BTC", "ETH", "XRP", "SOL", "DOGE", "ADA", "DOT"})
+
+
+def is_equity_symbol(symbol: str) -> bool:
+    """Return True if *symbol* looks like a US equity ticker.
+
+    Rejects crypto tickers, forex pairs, and index symbols that would
+    produce empty results from the Finnhub social-sentiment endpoint.
+    """
+    s = symbol.upper().strip()
+    if not s or len(s) > 10:
+        return False
+    if any(s.startswith(p) for p in _NON_EQUITY_PREFIXES):
+        return False
+    if any(s.endswith(sfx) for sfx in _NON_EQUITY_SUFFIXES):
+        return False
+    if s in _NON_EQUITY_PATTERNS:
+        return False
+    # Must be pure alpha or alpha with dot (e.g. BRK.B)
+    cleaned = s.replace(".", "")
+    if not cleaned.isalpha():
+        return False
+    return True
+
+
+def social_sentiment_status() -> str:
+    """Return a human-readable status string for the social sentiment path.
+
+    Used by UI tabs to show clear feedback when the path is blocked.
+    """
+    if _social_sentiment_blocked:
+        return "blocked_premium"
+    if time.time() < _rate_limit_backoff_until:
+        return "rate_limited"
+    if not _api_key():
+        return "no_api_key"
+    return "available"
 
 
 def _get_cached(key: str, ttl: float) -> Any | None:
@@ -97,12 +145,26 @@ def _get(path: str, params: dict[str, Any] | None = None) -> Any:
         query_parts.append(f"{k}={v}")
     url = f"{_BASE}{path}?{'&'.join(query_parts)}"
     request = Request(url, headers={"Accept": "application/json"})
+    # Rate-limit backoff guard
+    global _rate_limit_backoff_until, _consecutive_429_count  # noqa: PLW0603
+    if time.time() < _rate_limit_backoff_until:
+        return {}
     try:
         with urlopen(request, timeout=15, context=_SSL_CTX) as resp:
+            _consecutive_429_count = 0  # reset on success
             return json.loads(resp.read().decode("utf-8"))
     except urllib.error.HTTPError as exc:
         if exc.code == 429:
-            log.warning("Finnhub rate-limited (429) for %s", path)
+            _consecutive_429_count += 1
+            backoff = min(
+                _BACKOFF_BASE_SECONDS * (2 ** (_consecutive_429_count - 1)),
+                _BACKOFF_MAX_SECONDS,
+            )
+            _rate_limit_backoff_until = time.time() + backoff
+            log.warning(
+                "Finnhub rate-limited (429) for %s — backing off %.0f s (attempt %d)",
+                path, backoff, _consecutive_429_count,
+            )
         elif exc.code == 403:
             log.warning(
                 "Finnhub HTTP 403 for %s — endpoint requires premium plan "
@@ -155,6 +217,9 @@ def fetch_social_sentiment(symbol: str) -> SocialSentiment | None:
         return None
     sym = symbol.upper().strip()
     if not sym:
+        return None
+    if not is_equity_symbol(sym):
+        log.info("Skipping social sentiment for non-equity symbol: %s", sym)
         return None
 
     cache_key = f"fh_social:{sym}"

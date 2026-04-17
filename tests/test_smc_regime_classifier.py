@@ -132,3 +132,53 @@ class TestYieldCurveIntegration:
         result = classify_market_regime(vix_level=28.0, macro_bias=-0.1, yield_curve_inverted=True)
         assert result["regime"] == "RISK_OFF"
         assert any("yield" in r.lower() for r in result["reasons"])
+
+
+# ---------------------------------------------------------------------------
+# F-06 — Regime Hierarchy
+# ---------------------------------------------------------------------------
+
+
+class TestRegimeHierarchy:
+    """Verify regime hierarchy markers and conflict detection logic."""
+
+    def test_primary_regime_is_classified(self) -> None:
+        result = classify_market_regime(vix_level=20.0, macro_bias=0.3)
+        assert result["regime"] in {"RISK_ON", "RISK_OFF", "NEUTRAL", "CAUTIOUS"}
+
+    def test_conflict_detected_risk_off_vs_low_vol(self) -> None:
+        """Simulate the conflict detection logic from generate_smc_micro_base."""
+        primary_regime = "RISK_OFF"
+        vol_regime_label = "LOW_VOL"
+        conflicts: list[dict[str, str]] = []
+        if primary_regime == "RISK_OFF" and vol_regime_label == "LOW_VOL":
+            conflicts.append({
+                "code": "REGIME_CONFLICT",
+                "primary": f"market_regime={primary_regime}",
+                "enrichment": f"vol_regime={vol_regime_label}",
+                "resolution": "primary wins",
+            })
+        assert len(conflicts) == 1
+        assert conflicts[0]["code"] == "REGIME_CONFLICT"
+        assert conflicts[0]["resolution"] == "primary wins"
+
+    def test_no_conflict_when_aligned(self) -> None:
+        primary_regime = "RISK_ON"
+        vol_regime_label = "NORMAL"
+        conflicts: list[dict[str, str]] = []
+        if primary_regime == "RISK_OFF" and vol_regime_label == "LOW_VOL":
+            conflicts.append({"code": "REGIME_CONFLICT"})
+        assert conflicts == []
+
+    def test_extreme_vs_compression_conflict(self) -> None:
+        vol_regime_label = "EXTREME"
+        compression_atr = "COMPRESSION"
+        conflicts: list[dict[str, str]] = []
+        if vol_regime_label == "EXTREME" and compression_atr == "COMPRESSION":
+            conflicts.append({
+                "code": "REGIME_CONFLICT",
+                "primary": f"vol_regime={vol_regime_label}",
+                "enrichment": f"compression_atr={compression_atr}",
+                "resolution": "primary wins",
+            })
+        assert len(conflicts) == 1

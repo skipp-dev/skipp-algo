@@ -11,6 +11,7 @@ from terminal_newsapi import newsapi_available, fetch_social_ranked_articles
 from terminal_finnhub import (
     fetch_social_sentiment_batch,
     is_available as finnhub_available,
+    social_sentiment_status,
 )
 from terminal_ui_helpers import safe_markdown_text, safe_url
 
@@ -22,62 +23,74 @@ def render(feed: list[dict[str, Any]], *, current_session: str) -> None:
 
     # ── Section 1: Finnhub Reddit + Twitter Sentiment ────────────
     if finnhub_available():
-        # Extract unique tickers from the live feed
-        _feed_tickers: list[str] = []
-        _seen: set[str] = set()
-        for item in feed:
-            for sym in item.get("tickers", []):
-                s = sym.upper().strip()
-                if s and s not in _seen and len(s) <= 5:
-                    _seen.add(s)
-                    _feed_tickers.append(s)
-        _feed_tickers = _feed_tickers[:20]  # cap at 20 lookups
-
-        if _feed_tickers:
-            st.markdown("### 📡 Reddit & Twitter Sentiment")
-            st.caption(
-                f"Live social-media mentions for {len(_feed_tickers)} trending tickers · "
-                "Source: Finnhub (free tier, real-time)."
+        _fh_status = social_sentiment_status()
+        if _fh_status == "blocked_premium":
+            st.warning(
+                "⚠️ Finnhub social sentiment is blocked — endpoint requires a premium plan. "
+                "Reddit/Twitter data will not be available this session."
             )
-            fh_data = fetch_social_sentiment_batch(_feed_tickers)
-            if fh_data:
-                # Sort by total mentions descending
-                _sorted = sorted(fh_data.values(), key=lambda s: s.total_mentions, reverse=True)
+        elif _fh_status == "rate_limited":
+            st.info(
+                "⏳ Finnhub social sentiment is temporarily rate-limited. "
+                "Data will resume automatically after the backoff period."
+            )
+        else:
+            # Extract unique tickers from the live feed
+            _feed_tickers: list[str] = []
+            _seen: set[str] = set()
+            for item in feed:
+                for sym in item.get("tickers", []):
+                    s = sym.upper().strip()
+                    if s and s not in _seen and len(s) <= 5:
+                        _seen.add(s)
+                        _feed_tickers.append(s)
+            _feed_tickers = _feed_tickers[:20]  # cap at 20 lookups
 
-                # Top 5 cards
-                _top = _sorted[:5]
-                _cols = st.columns(min(5, len(_top)))
-                for _i, _s in enumerate(_top):
-                    with _cols[_i]:
-                        st.markdown(f"**{_s.symbol}** {_s.emoji}")
-                        st.metric("Mentions", f"{_s.total_mentions:,}")
-                        st.caption(
-                            f"Reddit {_s.reddit_mentions:,} · Twitter {_s.twitter_mentions:,}\n\n"
-                            f"Score: {_s.score:+.2f}"
+            if _feed_tickers:
+                st.markdown("### 📡 Reddit & Twitter Sentiment")
+                st.caption(
+                    f"Live social-media mentions for {len(_feed_tickers)} trending tickers · "
+                    "Source: Finnhub (free tier, real-time)."
+                )
+                fh_data = fetch_social_sentiment_batch(_feed_tickers)
+                if fh_data:
+                    # Sort by total mentions descending
+                    _sorted = sorted(fh_data.values(), key=lambda s: s.total_mentions, reverse=True)
+
+                    # Top 5 cards
+                    _top = _sorted[:5]
+                    _cols = st.columns(min(5, len(_top)))
+                    for _i, _s in enumerate(_top):
+                        with _cols[_i]:
+                            st.markdown(f"**{_s.symbol}** {_s.emoji}")
+                            st.metric("Mentions", f"{_s.total_mentions:,}")
+                            st.caption(
+                                f"Reddit {_s.reddit_mentions:,} · Twitter {_s.twitter_mentions:,}\n\n"
+                                f"Score: {_s.score:+.2f}"
+                            )
+
+                    # Full table
+                    _rows = []
+                    for _s in _sorted:
+                        _rows.append({
+                            "Symbol": _s.symbol,
+                            "Sentiment": _s.emoji,
+                            "Total Mentions": _s.total_mentions,
+                            "Reddit": _s.reddit_mentions,
+                            "Twitter/X": _s.twitter_mentions,
+                            "Score": f"{_s.score:+.4f}",
+                            "Label": _s.sentiment_label.title(),
+                        })
+                    if _rows:
+                        import pandas as pd
+                        st.dataframe(
+                            pd.DataFrame(_rows),
+                            hide_index=True,
+                            height=min(40 * len(_rows) + 50, 500),
                         )
-
-                # Full table
-                _rows = []
-                for _s in _sorted:
-                    _rows.append({
-                        "Symbol": _s.symbol,
-                        "Sentiment": _s.emoji,
-                        "Total Mentions": _s.total_mentions,
-                        "Reddit": _s.reddit_mentions,
-                        "Twitter/X": _s.twitter_mentions,
-                        "Score": f"{_s.score:+.4f}",
-                        "Label": _s.sentiment_label.title(),
-                    })
-                if _rows:
-                    import pandas as pd
-                    st.dataframe(
-                        pd.DataFrame(_rows),
-                        hide_index=True,
-                        height=min(40 * len(_rows) + 50, 500),
-                    )
-            else:
-                st.caption("No social sentiment data available for current tickers.")
-            st.markdown("---")
+                else:
+                    st.caption("No social sentiment data available for current tickers.")
+                st.markdown("---")
     elif not finnhub_available() and not newsapi_available():
         st.info("Set `FINNHUB_API_KEY` in `.env` for social buzz data. (NewsAPI.ai has been decommissioned.)")
         return

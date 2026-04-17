@@ -840,6 +840,7 @@ def build_enrichment(
         provenance["regime_provider"] = pr.provider
         domain_diagnostics["regime"] = _build_domain_diagnostic("regime", pr)
         enrichment["regime"] = regime_result
+        enrichment["regime"]["_hierarchy"] = "primary"
 
     # ── News ────────────────────────────────────────────────────
     news_result: dict[str, Any] = {}
@@ -1082,6 +1083,7 @@ def build_enrichment(
         enrichment["compression_regime"] = build_compression_regime(
             snapshot=base_snapshot, symbol="",
         )
+        enrichment["compression_regime"]["_hierarchy"] = "enrichment_only"
 
     # ── Zone Intelligence (v5.1) ────────────────────────────────
     if enrich_zone_intelligence:
@@ -1178,6 +1180,7 @@ def build_enrichment(
         enrichment["range_regime"] = build_range_regime(
             snapshot=base_snapshot, symbol="",
         )
+        enrichment["range_regime"]["_hierarchy"] = "enrichment_only"
 
     # ── Range Profile Regime (v5.3) ─────────────────────────────
     if enrich_range_profile_regime:
@@ -1186,6 +1189,35 @@ def build_enrichment(
         enrichment["range_profile_regime"] = build_range_profile_regime(
             snapshot=base_snapshot, symbol="",
         )
+        enrichment["range_profile_regime"]["_hierarchy"] = "enrichment_only"
+
+    # ── Regime Hierarchy Conflict Detection (F-06) ──────────────
+    # Primary regimes: vol_regime (smc_core), regime_classifier (scripts)
+    # Enrichment-only: compression_regime, range_regime, range_profile_regime
+    regime_conflicts: list[dict[str, str]] = []
+    primary_regime = regime_result.get("regime", "NEUTRAL")
+    vol_regime_label = str((enrichment.get("volatility_regime") or {}).get("label", "")).upper()
+    compression_atr = str((enrichment.get("compression_regime") or {}).get("ATR_REGIME", "")).upper()
+
+    # Check: if primary says RISK_OFF but vol_regime says LOW_VOL, that's a conflict.
+    if primary_regime == "RISK_OFF" and vol_regime_label == "LOW_VOL":
+        regime_conflicts.append({
+            "code": "REGIME_CONFLICT",
+            "primary": f"market_regime={primary_regime}",
+            "enrichment": f"vol_regime={vol_regime_label}",
+            "resolution": "primary wins",
+        })
+    # Check: if vol_regime says EXTREME but compression says COMPRESSION.
+    if vol_regime_label == "EXTREME" and compression_atr == "COMPRESSION":
+        regime_conflicts.append({
+            "code": "REGIME_CONFLICT",
+            "primary": f"vol_regime={vol_regime_label}",
+            "enrichment": f"compression_atr={compression_atr}",
+            "resolution": "primary wins",
+        })
+    if regime_conflicts:
+        logger.warning("Regime hierarchy conflicts detected: %s", regime_conflicts)
+        enrichment.setdefault("_diagnostics", {})["regime_conflicts"] = regime_conflicts
 
     # ── Short Interest (v6) ─────────────────────────────────────
     if enrich_short_interest and fmp is not None:
