@@ -63,7 +63,7 @@ Runs mit `conclusion: failure` zählen als Fehler und werden **nicht versteckt**
 | Kriterium | Status | Quelle |
 |-----------|--------|--------|
 | 21 fehlende Library-Felder | ✅ erledigt (WP-6, 2026-04-16) | FEATURE_FREEZE.md |
-| Pine-Titel korrekt | ⏳ ausstehend | FEATURE_FREEZE.md |
+| Pine-Titel korrekt | ✅ verifiziert (WP-F, 2026-04-17) | FEATURE_FREEZE.md |
 | Kein kritischer Bug offen | ⏳ laufend zu beobachten | FEATURE_FREEZE.md |
 
 ---
