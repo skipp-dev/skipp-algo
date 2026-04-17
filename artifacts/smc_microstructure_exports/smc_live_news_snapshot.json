@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-04-16T23:55:38.484771Z",
+  "generated_at": "2026-04-17T02:54:31.561031Z",
   "symbols": [
     "AAPL",
     "MSFT",
@@ -20,11 +20,11 @@
     "fmp_stock": 0.0,
     "fmp_press": 0.0,
     "fmp_articles": 0.0,
-    "newsapi_ai": 1776378360.0,
+    "newsapi_ai": 1776381285.0,
     "tv": 0.0,
-    "legacy_cursor": 1776378360.0
+    "legacy_cursor": 1776381285.0
   },
-  "legacy_cursor": 1776378360.0,
+  "legacy_cursor": 1776381285.0,
   "providers": {
     "benzinga": {
       "ok": false,
@@ -64,12 +64,12 @@
     "newsapi_ai": {
       "ok": true,
       "error": "",
-      "raw_count": 1,
-      "new_item_count": 0,
-      "cursor": 1776378360.0,
+      "raw_count": 48,
+      "new_item_count": 1,
+      "cursor": 1776381285.0,
       "last_seen_news_uri": "",
-      "provider_status": "ok_no_recent_matches",
-      "status_detail": "Event Registry reachable, but no new symbol-matching NewsAPI.ai items were newer than the current cursor.",
+      "provider_status": "ok",
+      "status_detail": "",
       "error_code": ""
     },
     "tv": {
@@ -82,82 +82,6 @@
   },
   "stories": [
     {
-      "story_key": "3785bc959accf147bb427c987cc18969b0a87cb4:5921259",
-      "headline": "Herrington, Amazon CEO, sells $5.02m in AMZN stock By Investing.com",
-      "tickers": [
-        "AMZN"
-      ],
-      "published_at": "2026-04-16T22:18:10Z",
-      "published_ts": 1776377890.0,
-      "age_minutes": 97.5,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Investing.com India"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "management",
-      "event_class": "MANAGEMENT",
-      "event_label": "Herrington, Amazon CEO, sells $5.02m in AMZN stock By Investing.com",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.6,
-      "clarity": 0.8,
-      "relevance": 0.76,
-      "news_catalyst_score": 0.4843,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://in.investing.com/news/insider-trading-news/herrington-amazon-ceo-sells-502m-in-amzn-stock-93CH-5342756",
-      "first_seen_at": "2026-04-16T23:02:44.719724Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
-      "story_key": "e5911034f30a787cd745f18f146409f99eb948d5:5921247",
-      "headline": "Employment 'Apocalypse' Fears Are Overblown, Scale AI CEO Says - Meta Platforms (NASDAQ:META), Oracle (NY",
-      "tickers": [
-        "META"
-      ],
-      "published_at": "2026-04-16T21:19:29Z",
-      "published_ts": 1776374369.0,
-      "age_minutes": 156.2,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Benzinga"
-      ],
-      "source_tier": "TIER_2",
-      "source_rank": 2,
-      "category": "management",
-      "event_class": "MANAGEMENT",
-      "event_label": "Employment 'Apocalypse' Fears Are Overblown, Scale AI CEO Says - Meta Platforms (NASDAQ:META), Oracle (NY",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.6,
-      "clarity": 0.6,
-      "relevance": 0.7,
-      "news_catalyst_score": 0.4571,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.benzinga.com/markets/private-markets/26/04/51874192/employment-apocalypse-fears-are-overblown-scale-ai-ceo-says",
-      "first_seen_at": "2026-04-16T23:02:44.719724Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
       "story_key": "77054441a278fdf397216d8b33efa90f5b041e3f:5921083",
       "headline": "JPMorgan Chase Stock: The Warning May Be More Important Than The Earnings (NYSE:JPM)",
       "tickers": [
@@ -165,7 +89,7 @@
       ],
       "published_at": "2026-04-16T07:38:45Z",
       "published_ts": 1776325125.0,
-      "age_minutes": 976.9,
+      "age_minutes": 1155.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -203,7 +127,7 @@
       ],
       "published_at": "2026-04-16T04:39:25Z",
       "published_ts": 1776314365.0,
-      "age_minutes": 1156.2,
+      "age_minutes": 1335.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -234,6 +158,44 @@
       "provider_count": 1
     },
     {
+      "story_key": "3785bc959accf147bb427c987cc18969b0a87cb4:5921259",
+      "headline": "Herrington, Amazon CEO, sells $5.02m in AMZN stock By Investing.com",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_at": "2026-04-16T22:18:10Z",
+      "published_ts": 1776377890.0,
+      "age_minutes": 276.4,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Investing.com India"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "management",
+      "event_class": "MANAGEMENT",
+      "event_label": "Herrington, Amazon CEO, sells $5.02m in AMZN stock By Investing.com",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.6,
+      "clarity": 0.8,
+      "relevance": 0.76,
+      "news_catalyst_score": 0.3651,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://in.investing.com/news/insider-trading-news/herrington-amazon-ceo-sells-502m-in-amzn-stock-93CH-5342756",
+      "first_seen_at": "2026-04-16T23:02:44.719724Z",
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
       "story_key": "5fa2b18c741eba3ab7994043d5074d44daadbe6c:5921177",
       "headline": "Microsoft Stock Warning: Why Piper Sandler Analysts Just Slashed Their MSFT Price Target by More Than 15%",
       "tickers": [
@@ -241,7 +203,7 @@
       ],
       "published_at": "2026-04-16T15:29:46Z",
       "published_ts": 1776353386.0,
-      "age_minutes": 505.9,
+      "age_minutes": 684.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -279,7 +241,7 @@
       ],
       "published_at": "2026-04-16T14:08:44Z",
       "published_ts": 1776348524.0,
-      "age_minutes": 586.9,
+      "age_minutes": 765.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -310,6 +272,44 @@
       "provider_count": 1
     },
     {
+      "story_key": "e5911034f30a787cd745f18f146409f99eb948d5:5921247",
+      "headline": "Employment 'Apocalypse' Fears Are Overblown, Scale AI CEO Says - Meta Platforms (NASDAQ:META), Oracle (NY",
+      "tickers": [
+        "META"
+      ],
+      "published_at": "2026-04-16T21:19:29Z",
+      "published_ts": 1776374369.0,
+      "age_minutes": 335.0,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "category": "management",
+      "event_class": "MANAGEMENT",
+      "event_label": "Employment 'Apocalypse' Fears Are Overblown, Scale AI CEO Says - Meta Platforms (NASDAQ:META), Oracle (NY",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.6,
+      "clarity": 0.6,
+      "relevance": 0.7,
+      "news_catalyst_score": 0.3493,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://www.benzinga.com/markets/private-markets/26/04/51874192/employment-apocalypse-fears-are-overblown-scale-ai-ceo-says",
+      "first_seen_at": "2026-04-16T23:02:44.719724Z",
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
       "story_key": "1ae826a8b0729143ab38d68be1aae45a63621ce1:5921106",
       "headline": "Insider Selling: JPMorgan Chase & Co. (NYSE:JPM) CFO Sells 5,611 Shares of Stock",
       "tickers": [
@@ -317,7 +317,7 @@
       ],
       "published_at": "2026-04-16T09:32:49Z",
       "published_ts": 1776331969.0,
-      "age_minutes": 862.8,
+      "age_minutes": 1041.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -355,7 +355,7 @@
       ],
       "published_at": "2026-04-16T10:10:25Z",
       "published_ts": 1776334225.0,
-      "age_minutes": 825.2,
+      "age_minutes": 1004.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -386,14 +386,14 @@
       "provider_count": 1
     },
     {
-      "story_key": "d5541efd8ba86f0f6b4a7becc799cd7cce1c9a85:5921261",
-      "headline": "Amazon Wants You Off The Couch And Into Theaters - Amazon.com (NASDAQ:AMZN)",
+      "story_key": "4abc1110277e5673b67f2d5f5945a0a61e5d02e3:5921270",
+      "headline": "Why Cramer Likes Nike, Amazon, Nvidia - Amazon.com (NASDAQ:AMZN), Nike (NYSE:NKE), NVIDIA (NASDAQ:NVDA)",
       "tickers": [
         "AMZN"
       ],
-      "published_at": "2026-04-16T22:26:00Z",
-      "published_ts": 1776378360.0,
-      "age_minutes": 89.6,
+      "published_at": "2026-04-16T23:14:45Z",
+      "published_ts": 1776381285.0,
+      "age_minutes": 219.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -408,19 +408,19 @@
       "source_rank": 2,
       "category": "other",
       "event_class": "UNKNOWN",
-      "event_label": "Amazon Wants You Off The Couch And Into Theaters - Amazon.com (NASDAQ:AMZN)",
+      "event_label": "Why Cramer Likes Nike, Amazon, Nvidia - Amazon.com (NASDAQ:AMZN), Nike (NYSE:NKE), NVIDIA (NASDAQ:NVDA)",
       "sentiment_label": "neutral",
       "polarity": 0.0,
       "impact": 0.1,
       "clarity": 0.6,
       "relevance": 0.475,
-      "news_catalyst_score": 0.2743,
+      "news_catalyst_score": 0.23,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
-      "url": "https://www.benzinga.com/news/entertainment/26/04/51874776/amazon-built-on-keeping-customers-inside-homes-now-wants-to-send-audiences-to-movie-theaters-a-reason-to-leave-the-house",
-      "first_seen_at": "2026-04-16T23:02:44.719724Z",
-      "is_new": false,
+      "url": "https://www.benzinga.com/trading-ideas/long-ideas/26/04/51875003/cramer-highlights-nike-amazon-nvidia-stock-to-investors-why-would-you-sell-it",
+      "first_seen_at": "2026-04-17T02:54:31.561031Z",
+      "is_new": true,
       "provider_count": 1
     },
     {
@@ -431,7 +431,7 @@
       ],
       "published_at": "2026-04-16T19:59:48Z",
       "published_ts": 1776369588.0,
-      "age_minutes": 235.8,
+      "age_minutes": 414.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -452,7 +452,7 @@
       "impact": 0.1,
       "clarity": 0.8,
       "relevance": 0.535,
-      "news_catalyst_score": 0.2513,
+      "news_catalyst_score": 0.2193,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
@@ -469,7 +469,7 @@
       ],
       "published_at": "2026-04-16T18:13:03Z",
       "published_ts": 1776363183.0,
-      "age_minutes": 342.6,
+      "age_minutes": 521.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -507,7 +507,7 @@
       ],
       "published_at": "2026-04-16T17:35:28Z",
       "published_ts": 1776360928.0,
-      "age_minutes": 380.2,
+      "age_minutes": 559.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -545,7 +545,7 @@
       ],
       "published_at": "2026-04-16T17:06:44Z",
       "published_ts": 1776359204.0,
-      "age_minutes": 408.9,
+      "age_minutes": 587.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -583,7 +583,7 @@
       ],
       "published_at": "2026-04-16T14:00:00Z",
       "published_ts": 1776348000.0,
-      "age_minutes": 595.6,
+      "age_minutes": 774.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -614,6 +614,44 @@
       "provider_count": 1
     },
     {
+      "story_key": "d5541efd8ba86f0f6b4a7becc799cd7cce1c9a85:5921261",
+      "headline": "Amazon Wants You Off The Couch And Into Theaters - Amazon.com (NASDAQ:AMZN)",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_at": "2026-04-16T22:26:00Z",
+      "published_ts": 1776378360.0,
+      "age_minutes": 268.5,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Amazon Wants You Off The Couch And Into Theaters - Amazon.com (NASDAQ:AMZN)",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.2085,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://www.benzinga.com/news/entertainment/26/04/51874776/amazon-built-on-keeping-customers-inside-homes-now-wants-to-send-audiences-to-movie-theaters-a-reason-to-leave-the-house",
+      "first_seen_at": "2026-04-16T23:02:44.719724Z",
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
       "story_key": "dec251f42c905bcd256e9e8b776f428992c9a7b3:5921215",
       "headline": "What's Ahead As Massive Short Squeeze Drives Market to New Highs - Semis Are a Tell - Apple (NASDAQ:AAPL)",
       "tickers": [
@@ -621,7 +659,7 @@
       ],
       "published_at": "2026-04-16T18:35:06Z",
       "published_ts": 1776364506.0,
-      "age_minutes": 320.5,
+      "age_minutes": 499.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -659,7 +697,7 @@
       ],
       "published_at": "2026-04-16T11:38:54Z",
       "published_ts": 1776339534.0,
-      "age_minutes": 736.7,
+      "age_minutes": 915.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -697,7 +735,7 @@
       ],
       "published_at": "2026-04-16T09:59:33Z",
       "published_ts": 1776333573.0,
-      "age_minutes": 836.1,
+      "age_minutes": 1015.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -735,7 +773,7 @@
       ],
       "published_at": "2026-04-16T15:30:02Z",
       "published_ts": 1776353402.0,
-      "age_minutes": 505.6,
+      "age_minutes": 684.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -773,7 +811,7 @@
       ],
       "published_at": "2026-04-16T13:38:11Z",
       "published_ts": 1776346691.0,
-      "age_minutes": 617.5,
+      "age_minutes": 796.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -813,7 +851,7 @@
       ],
       "published_at": "2026-04-16T14:29:17Z",
       "published_ts": 1776349757.0,
-      "age_minutes": 566.4,
+      "age_minutes": 745.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -851,7 +889,7 @@
       ],
       "published_at": "2026-04-16T16:48:39Z",
       "published_ts": 1776358119.0,
-      "age_minutes": 427.0,
+      "age_minutes": 605.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -889,7 +927,7 @@
       ],
       "published_at": "2026-04-16T15:44:45Z",
       "published_ts": 1776354285.0,
-      "age_minutes": 490.9,
+      "age_minutes": 669.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -927,7 +965,7 @@
       ],
       "published_at": "2026-04-16T14:15:50Z",
       "published_ts": 1776348950.0,
-      "age_minutes": 579.8,
+      "age_minutes": 758.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -965,7 +1003,7 @@
       ],
       "published_at": "2026-04-16T12:00:16Z",
       "published_ts": 1776340816.0,
-      "age_minutes": 715.4,
+      "age_minutes": 894.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1003,7 +1041,7 @@
       ],
       "published_at": "2026-04-16T09:54:23Z",
       "published_ts": 1776333263.0,
-      "age_minutes": 841.3,
+      "age_minutes": 1020.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1041,7 +1079,7 @@
       ],
       "published_at": "2026-04-16T08:56:47Z",
       "published_ts": 1776329807.0,
-      "age_minutes": 898.9,
+      "age_minutes": 1077.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1079,7 +1117,7 @@
       ],
       "published_at": "2026-04-16T07:04:00Z",
       "published_ts": 1776323040.0,
-      "age_minutes": 1011.6,
+      "age_minutes": 1190.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1117,7 +1155,7 @@
       ],
       "published_at": "2026-04-16T05:53:33Z",
       "published_ts": 1776318813.0,
-      "age_minutes": 1082.1,
+      "age_minutes": 1261.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1163,14 +1201,14 @@
       "story_key": "c0345c2d2ba782236fc332108c5a28ce01e8f787:5921047"
     },
     "AMZN": {
-      "news_catalyst_score": 0.6043,
+      "news_catalyst_score": 0.4851,
       "sentiment_label": "neutral",
       "event_class": "MANAGEMENT",
       "event_label": "Herrington, Amazon CEO, sells $5.02m in AMZN stock By Investing.com",
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "source_tier": "TIER_3",
-      "mentions_24h": 7,
+      "mentions_24h": 8,
       "is_actionable": false,
       "first_provider": "newsapi_ai",
       "story_key": "3785bc959accf147bb427c987cc18969b0a87cb4:5921259"
@@ -1189,7 +1227,7 @@
       "story_key": "77054441a278fdf397216d8b33efa90f5b041e3f:5921083"
     },
     "META": {
-      "news_catalyst_score": 0.5171,
+      "news_catalyst_score": 0.4093,
       "sentiment_label": "neutral",
       "event_class": "MANAGEMENT",
       "event_label": "Employment 'Apocalypse' Fears Are Overblown, Scale AI CEO Says - Meta Platforms (NASDAQ:META), Oracle (NY",
@@ -1216,8 +1254,8 @@
     }
   },
   "summary": {
-    "active_story_count": 28,
-    "new_story_count": 0,
+    "active_story_count": 29,
+    "new_story_count": 1,
     "actionable_story_count": 0,
     "actionable_symbols": [],
     "symbol_count": 5

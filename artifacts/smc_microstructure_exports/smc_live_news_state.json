@@ -5,12 +5,41 @@
     "fmp_stock": 0.0,
     "fmp_press": 0.0,
     "fmp_articles": 0.0,
-    "newsapi_ai": 1776378360.0,
+    "newsapi_ai": 1776381285.0,
     "tv": 0.0,
-    "legacy_cursor": 1776378360.0
+    "legacy_cursor": 1776381285.0
   },
   "provider_state": {},
   "story_state": {
+    "4abc1110277e5673b67f2d5f5945a0a61e5d02e3:5921270": {
+      "story_key": "4abc1110277e5673b67f2d5f5945a0a61e5d02e3:5921270",
+      "cluster_hash": "4abc1110277e5673b67f2d5f5945a0a61e5d02e3",
+      "headline": "Why Cramer Likes Nike, Amazon, Nvidia - Amazon.com (NASDAQ:AMZN), Nike (NYSE:NKE), NVIDIA (NASDAQ:NVDA)",
+      "tickers": [
+        "AMZN"
+      ],
+      "published_ts": 1776381285.0,
+      "first_seen_ts": 1776394471.5610313,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Benzinga"
+      ],
+      "url": "https://www.benzinga.com/trading-ideas/long-ideas/26/04/51875003/cramer-highlights-nike-amazon-nvidia-stock-to-investors-why-would-you-sell-it",
+      "category": "other",
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "polarity": 0.0,
+      "source_tier": "TIER_2",
+      "source_rank": 2,
+      "last_seen_ts": 1776394471.5610313
+    },
     "3785bc959accf147bb427c987cc18969b0a87cb4:5921259": {
       "story_key": "3785bc959accf147bb427c987cc18969b0a87cb4:5921259",
       "cluster_hash": "3785bc959accf147bb427c987cc18969b0a87cb4",
