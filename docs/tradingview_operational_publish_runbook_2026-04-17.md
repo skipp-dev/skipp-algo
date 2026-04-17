@@ -206,7 +206,54 @@ Each publish event MUST produce:
 | Indicator shows "Error" | Runtime exception in Pine | Check Pine Editor console for error message |
 | Strategy shows no trades | Execution trigger conditions not met | Change symbol/timeframe or verify logic |
 
-## 8. Automation vs. Manual Boundary
+## 8. Recovery State Model
+
+### 8.1 Preflight Outcome States
+
+After a preflight run, the system is in one of these states:
+
+| State | Compile | Binding | Action |
+|---|---|---|---|
+| **FULL GREEN** | ✅ | ✅ | None — ready for release |
+| **COMPILE GREEN, BINDING FLAKY** | ✅ | ❌ (timeout/selector) | Retry once. If persistent, verify manually that bindings look correct on chart. Record in evidence doc as "binding verified manually" |
+| **COMPILE GREEN, BINDING DRIFT** | ✅ | ❌ (count mismatch) | Pine contract changed — update `smc_product_cut_manifest.json` expected labels, then re-run |
+| **COMPILE RED** | ❌ | — | Dependency not published or source broken. Check layer order, re-publish dependencies |
+| **AUTH FAILED** | — | — | Refresh auth: `npm run tv:profile-login` (persistent profile) or re-capture storage state |
+| **TIMEOUT / CRASH** | — | — | Retry. If persistent, check TradingView service status. Last resort: manual verification |
+
+### 8.2 Distinguishing Flaky vs. Real Failures
+
+**Flaky indicators** (retry or accept):
+- `openSettingsForScript` timeout but `compile_ok: true`
+- Wrong `observed_input_labels` (generic chart inputs instead of BUS inputs)
+- `binding_green: not_run` with no `error` field
+
+**Real failure indicators** (investigate):
+- `compile_ok: false` — always a real issue
+- `missing_input_labels` lists BUS fields that were present before
+- Binding count drops between runs without Pine changes
+
+### 8.3 Known Automation Blockers (as of 2026-04-17)
+
+| Blocker | Target | Since | Classification | Workaround |
+|---|---|---|---|---|
+| Settings dialog timeout | SMC Dashboard | 2026-04-05 (intermittent) | TradingView UI flakiness | Retry with `mutating` mode; manual fallback |
+| Wrong legend entry selection | SMC Strategy | 2026-04-16 | Legend candidate bug | Manual binding verification |
+
+These are tracked in `docs/tradingview_e2e_revalidation_2026-04-17.md`.
+
+### 8.4 Recovery Escalation Path
+
+```
+Preflight fails
+  ├── Auth issue → refresh session → retry
+  ├── Compile issue → check layer order → re-publish deps → retry
+  ├── Binding timeout → retry (up to 2x) → manual verification → accept
+  ├── Binding drift → update manifest → retry
+  └── Unknown → capture screenshot + report → file GitHub issue
+```
+
+## 9. Automation vs. Manual Boundary
 
 ### What Is Automated
 
@@ -300,6 +347,7 @@ These items are **intentionally** kept manual:
 | Document | Purpose | Canonical? |
 |----------|---------|------------|
 | This runbook | **Master operational reference** | **yes** |
+| `docs/tradingview_e2e_revalidation_2026-04-17.md` | Compile + binding evidence (WP-12) | historical |
 | `docs/tradingview-manual-publish-checklist.md` | Step-by-step manual publish guide | supplementary |
 | `docs/tradingview-manual-publish-evidence-2026-04-16.md` | Evidence record for 2026-04-16 batch | historical |
 | `docs/split_library_compile_readiness.md` | Compile/publish status matrix | supplementary |
