@@ -67,10 +67,10 @@ dokumentierten Exit-Kriterien aus `FEATURE_FREEZE.md`.
 
 | # | Kriterium | Status | Nachweis |
 |---|-----------|--------|----------|
-| 9 | Branch Protection aktiv | ⚠️ teilweise | WP-E: Copilot-Review + Delete-Schutz aktiv; PR-Pflicht/Status-Checks manuell offen |
-| 10 | 14 Tage Stabilität | ⏳ läuft | Frühestens 2026-05-01 (Freeze-Start: 2026-04-17) |
-| 11 | Library-Pipeline ≥ 56 erfolgreiche Refreshs | ⏳ läuft | Beobachtungsphase |
-| 12 | Deeper-Integration Nightly ≥ 80% | ⏳ läuft | Beobachtungsphase |
+| 9 | Branch Protection aktiv | ⚠️ teilweise | WP-G: Copilot-Review aktiv (Ruleset); PR-Pflicht/Status-Checks/Force-Push manuell offen (docs/branch_protection_wp20.md §WP-G) |
+| 10 | 14 Tage Stabilität | ⏳ läuft | Freeze-Start: 2026-04-15, frühestens 2026-04-29. Seit 04-15: Lib-Refresh 9/11 success (82%) |
+| 11 | Library-Pipeline ≥ 56 erfolgreiche Refreshs | ⏳ läuft | 9 success seit 04-15, Ziel 56 |
+| 12 | Deeper-Integration Nightly ≥ 80% | ✅ bisher | 04-16: 10/10, 04-17: 8/10 (2 cancelled) = 90%+ |
 
 ---
 

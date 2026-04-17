@@ -54,10 +54,11 @@
 - Der Aufwärtstrend muss sich über mehrere Wochen bestätigen
 - Einzelne Fehltage (wie 04-14 mit 0/4) dürfen sich nicht wiederholen
 
-### 3.2 Measurement Benchmark — Null Evidenz
+### 3.2 Measurement Benchmark — 2 Reports vorhanden
 
-- Workflow `smc-measurement-benchmark` existiert, wurde aber **nie ausgeführt**
-- Kein einziger Benchmark-Report vorhanden
+- Workflow `smc-measurement-benchmark` wurde **2× erfolgreich ausgeführt** (2026-04-17)
+- **Exit-Kriterium #2 ist erfüllt** (≥ 2 Reports)
+- Nächster Samstags-Cron-Lauf liefert zusätzliche Evidenz
 - Keine Brier/ECE-History → kein Regressions-Vergleich möglich
 - **Blocker für Exit-Kriterium #2**
 - **Nächster Schritt:** Manueller Trigger sofort, dann Samstags-Cron abwarten

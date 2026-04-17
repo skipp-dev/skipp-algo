@@ -170,3 +170,60 @@ einmalig vom Repository-Admin in der GitHub-UI durchgeführt werden.
 
 Direct-to-main ist derzeit **empfohlen beendet**, aber **nicht erzwungen**.
 Die manuelle Aktivierung bleibt als dokumentierter Admin-Restschritt offen.
+
+---
+
+## WP-G Re-Verification (2026-04-17)
+
+### Methode
+
+Vollständige API-Verifikation über drei Ebenen:
+
+1. **Classic Branch Protection:** `GET /repos/.../branches/main/protection` → HTTP 403
+   (Token-Scope reicht nicht für Lesezugriff; kein Nachweis für klassische Regeln)
+2. **Repository Rulesets:** `GET /repos/.../rulesets` → 1 Ruleset (ID 12576994)
+3. **Effective Rules on `main`:** `GET /repos/.../rules/branches/main` → 1 effektive Regel
+4. **Org-Level Rulesets:** `GET /orgs/skippALGO/rulesets` → HTTP 403 (Token-Scope)
+
+### Ergebnis: Effektiver Schutz auf `main`
+
+| Schutzmechanismus | Status | Quelle |
+|---|---|---|
+| Copilot Code Review (push + draft PRs) | ✅ aktiv | Ruleset 12576994, scope `~ALL` |
+| PR-Pflicht | ❌ nicht aktiv | kein `pull_request` Rule |
+| Required Status Checks | ❌ nicht aktiv | kein `required_status_checks` Rule |
+| Force-Push-Schutz | ❌ nicht aktiv | kein `non_fast_forward` Rule |
+| Delete-Schutz | ⚠️ teilweise | org-Level (nicht via API verifizierbar mit aktuellem Token) |
+| Klassische Branch Protection | ❌ nicht vorhanden | `protected: false` in Branch-API |
+
+### Widerspruch aufgelöst
+
+Der frühere Widerspruch (`protected=true` vs. `Branch not protected`) erklärt sich:
+- **Rulesets** (neue GitHub-Architektur) zeigen `protected=true` im UI, wenn ein Ruleset aktiv ist.
+- **Klassische Branch Protection** (alte API) zeigt `protected=false`, weil keine klassischen Regeln existieren.
+- Es handelt sich um **zwei verschiedene Schutzsysteme**. Das Repo nutzt ausschließlich Rulesets.
+
+### API-Schreibzugriff
+
+| Versuch | Ergebnis |
+|---|---|
+| `PUT /repos/.../rulesets/12576994` | HTTP 403 |
+| Token-Typ | `github_pat_*` (Fine-grained PAT) |
+| Token-Berechtigungen | `admin: true` (Repo-Level), aber kein `administration:write` Scope |
+
+**Fazit:** Das PAT kann Rulesets lesen, aber nicht ändern. Die Ruleset-Änderung muss
+über die GitHub-UI oder ein PAT mit `administration:write` Scope erfolgen.
+
+### Verbleibende manuelle Schritte
+
+Die Schritte unter **"Manuelle Umsetzung (GitHub UI)"** oben bleiben unverändert gültig.
+Zusammenfassung der benötigten Admin-Aktion:
+
+1. **Settings → Rules → Rulesets → New branch ruleset** (`main-protection`)
+2. Target: `main`
+3. Regeln: `pull_request` (0 approvals), `required_status_checks` (`validate`),
+   `non_fast_forward`, `deletion`
+4. Bypass: bestehende Integrations beibehalten
+5. **Create** klicken
+
+Geschätzter Aufwand: **< 5 Minuten**, einmalig.

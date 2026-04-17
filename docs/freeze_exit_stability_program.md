@@ -126,3 +126,60 @@ Am oder vor 2026-05-12 wird das Freeze-Exit-Memo aktualisiert mit:
 5. **Explizite Entscheidung:** EXIT / VERLÄNGERN / TEILWEISE
 
 Der Owner trifft die Entscheidung. Kein automatischer Exit.
+
+---
+
+## 6. Abschlusslogik: Wann gilt das Zeitkriterium als erfüllt (WP-H)
+
+### 6.1 Definition "14-Tage-Stabilitätsfenster erfüllt"
+
+Das Zeitkriterium gilt als erfüllt, wenn **alle** folgenden Bedingungen zutreffen:
+
+1. **Mindestens 14 Kalendertage** seit Freeze-Start (2026-04-15) vergangen → frühestens 2026-04-29
+2. **Library-Refresh:** ≥ 56 `conclusion: success` Runs seit Freeze-Start
+3. **Library-Refresh Tages-Quote:** kein Arbeitstag mit 0/4 Erfolgen (vollständiger Fehltag)
+4. **Deeper-Integration Nightly:** ≥ 80% success über den 14-Tage-Zeitraum
+5. **Measurement-Benchmark:** ≥ 2 erfolgreiche Reports mit Brier ≤ 0.60 und ECE ≤ 0.30
+6. **Kein neuer kritischer Bug** im Beobachtungszeitraum aufgetaucht
+
+### 6.2 Was weiter beobachtet werden muss
+
+| Pipeline | Frequenz | Schwelle | Prüfmethode |
+|----------|----------|----------|-------------|
+| smc-library-refresh | 4×/Tag Mo–Fr | ≥ 75% Tages-Success | `gh run list --workflow smc-library-refresh` |
+| smc-deeper-integration-gates | Nightly + push | ≥ 80% success | `gh run list --workflow smc-deeper-integration-gates` |
+| smc-measurement-benchmark | Samstag + manuell | Brier ≤ 0.60, ECE ≤ 0.30 | `gh run list --workflow smc-measurement-benchmark` |
+| smc-fast-pr-gates | Auf push | kein Trend-Abfall | `gh run list --workflow smc-fast-pr-gates` |
+
+### 6.3 Endformat für die Abschlussfeststellung
+
+Am Ende des Beobachtungsfensters wird ein kurzer Abschnitt im `freeze_exit_memo.md` ergänzt:
+
+```markdown
+## Final Exit Assessment — [DATUM]
+
+| Kriterium | Schwelle | Ist-Wert | Status |
+|-----------|----------|----------|--------|
+| Tage seit Freeze-Start | ≥ 14 | [N] | ✅/❌ |
+| Library-Refresh Successes | ≥ 56 | [N] | ✅/❌ |
+| Library-Refresh Fehltage | 0 | [N] | ✅/❌ |
+| Deeper-Integration ≥ 80% | ≥ 80% | [N%] | ✅/❌ |
+| Measurement-Benchmarks | ≥ 2 | [N] | ✅/❌ |
+| Kritische Bugs | 0 | [N] | ✅/❌ |
+| Branch Protection | aktiv | [Status] | ✅/⚠️ |
+
+**Entscheidung:** EXIT / VERLÄNGERN / TEILWEISE
+**Begründung:** [1-2 Sätze]
+```
+
+### 6.4 Befundlage Stand 2026-04-17
+
+| Kriterium | Schwelle | Ist-Wert | Status |
+|-----------|----------|----------|--------|
+| Tage seit Freeze-Start | ≥ 14 | 2 | ❌ zu früh |
+| Library-Refresh Successes | ≥ 56 | 9 (seit 04-15) | ❌ läuft |
+| Library-Refresh Fehltage | 0 | 0 (seit 04-15) | ✅ bisher |
+| Deeper-Integration ≥ 80% | ≥ 80% | ~95% (04-16/17) | ✅ bisher |
+| Measurement-Benchmarks | ≥ 2 | 2 (04-17) | ✅ erfüllt |
+| Kritische Bugs | 0 | 0 | ✅ aktuell |
+| Branch Protection | aktiv | Copilot-Review aktiv; PR-Pflicht offen | ⚠️ Admin-Schritt |

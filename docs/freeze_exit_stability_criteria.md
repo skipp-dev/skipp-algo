@@ -112,3 +112,57 @@ Folgende Metriken werden pro Lauf und im Zeitverlauf erfasst:
 | ≥ 1 Kriterium nicht erfüllt | **BLOCKIERT** — Ursache diagnostizieren |
 | Schwellen nur durch Absenkung erreichbar | **Schwelle bleibt** — Fix finden oder akzeptieren |
 | Einmaliger Lauf grün, Rest unklar | **Kein Exit** — kein Glücks-Run als Nachweis |
+
+---
+
+## 6. Final-Review-Checkliste für den letzten Freeze-Exit-Tag (WP-I)
+
+Dieser Abschnitt definiert einen einmaligen Prüfpfad, der am letzten Tag
+des Beobachtungsfensters (frühestens 2026-04-29) in einem Durchgang
+ausgeführt wird. Er **bestätigt nur** — er öffnet keine neuen Arbeitspakete.
+
+### 6.1 Prüfschritte (8 Nachweise, ~15 Minuten)
+
+| # | Prüfung | Kommando / Quelle | Erwartet |
+|---|---------|-------------------|----------|
+| 1 | Library-Refresh ≥ 56 Successes | `gh run list --workflow smc-library-refresh --limit 80 --json conclusion \| jq '[.[] \| select(.conclusion=="success")] \| length'` | ≥ 56 |
+| 2 | Library-Refresh keine Fehltage | Tages-Aggregation (§6.4 in stability_program.md) | 0 Fehltage |
+| 3 | Deeper-Integration ≥ 80% | `gh run list --workflow smc-deeper-integration-gates --limit 40 --json conclusion` | ≥ 80% success |
+| 4 | Measurement-Benchmarks ≥ 2 | `gh run list --workflow smc-measurement-benchmark --json conclusion` | ≥ 2 success |
+| 5 | CI auf HEAD grün | `gh run list --workflow CI --limit 1 --json conclusion` | success |
+| 6 | Test-Suite lokal grün | `python -m pytest tests/ -k smc --tb=short -q` | 0 failures |
+| 7 | Kein kritischer Bug | `gh issue list --label critical --state open` | 0 issues |
+| 8 | Branch-Protection-Status | `gh api repos/skippALGO/skipp-algo/rules/branches/main` | Regeln dokumentiert |
+
+### 6.2 Copilot-Prompt für den finalen Check
+
+```
+Führe den Freeze-Exit Final-Review durch:
+
+1. Prüfe die Pipeline-Stabilität seit 2026-04-15:
+   - Library-Refresh: mindestens 56 Successes, keine vollständigen Fehltage
+   - Deeper-Integration: mindestens 80% Success-Quote
+   - Measurement-Benchmark: mindestens 2 erfolgreiche Reports
+
+2. Prüfe den aktuellen CI-Status auf HEAD.
+
+3. Führe die lokale Test-Suite aus (pytest tests/ -k smc).
+
+4. Prüfe offene kritische Issues.
+
+5. Prüfe den Branch-Protection-Status.
+
+6. Erstelle den "Final Exit Assessment"-Abschnitt im freeze_exit_memo.md
+   nach dem Template in freeze_exit_stability_program.md §6.3.
+
+7. Gib eine klare Empfehlung: EXIT / VERLÄNGERN / TEILWEISE mit Begründung.
+
+Öffne keine neuen Arbeitspakete. Bestätige nur.
+```
+
+### 6.3 Abnahmekriterien für den Final-Review
+
+- Alle 8 Prüfschritte sind durchgeführt und dokumentiert.
+- Das "Final Exit Assessment" ist im `freeze_exit_memo.md` eingetragen.
+- Die Entscheidung (EXIT/VERLÄNGERN/TEILWEISE) ist begründet.
+- Es wurden keine neuen WPs oder Arbeitspakete aufgespannt.
