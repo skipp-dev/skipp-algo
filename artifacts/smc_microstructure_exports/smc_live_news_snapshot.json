@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-04-17T21:10:38.493801Z",
+  "generated_at": "2026-04-17T22:03:06.159973Z",
   "symbols": [
     "AAPL",
     "MSFT",
@@ -64,12 +64,12 @@
     "newsapi_ai": {
       "ok": true,
       "error": "",
-      "raw_count": 46,
-      "new_item_count": 5,
+      "raw_count": 0,
+      "new_item_count": 0,
       "cursor": 1776449610.0,
       "last_seen_news_uri": "",
-      "provider_status": "ok",
-      "status_detail": "",
+      "provider_status": "ok_no_recent_matches",
+      "status_detail": "Event Registry reachable, but no recent symbol-matching NewsAPI.ai items were returned for the current feed window.",
       "error_code": ""
     },
     "tv": {
@@ -89,7 +89,7 @@
       ],
       "published_at": "2026-04-17T17:52:47Z",
       "published_ts": 1776448367.0,
-      "age_minutes": 197.9,
+      "age_minutes": 250.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -110,13 +110,13 @@
       "impact": 0.78,
       "clarity": 0.6,
       "relevance": 0.781,
-      "news_catalyst_score": 0.4989,
+      "news_catalyst_score": 0.4507,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
       "url": "https://www.benzinga.com/Opinion/26/04/51894062/aggressive-buying-as-hormuz-strait-opens-trump-says-inflation-is-fake",
       "first_seen_at": "2026-04-17T21:10:38.493801Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -127,7 +127,7 @@
       ],
       "published_at": "2026-04-17T14:28:48Z",
       "published_ts": 1776436128.0,
-      "age_minutes": 401.8,
+      "age_minutes": 454.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -165,7 +165,7 @@
       ],
       "published_at": "2026-04-17T13:00:00Z",
       "published_ts": 1776430800.0,
-      "age_minutes": 490.6,
+      "age_minutes": 543.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -203,7 +203,7 @@
       ],
       "published_at": "2026-04-17T09:36:54Z",
       "published_ts": 1776418614.0,
-      "age_minutes": 693.7,
+      "age_minutes": 746.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -234,44 +234,6 @@
       "provider_count": 1
     },
     {
-      "story_key": "e5911034f30a787cd745f18f146409f99eb948d5:5921247",
-      "headline": "Employment 'Apocalypse' Fears Are Overblown, Scale AI CEO Says - Meta Platforms (NASDAQ:META), Oracle (NY",
-      "tickers": [
-        "META"
-      ],
-      "published_at": "2026-04-16T21:19:29Z",
-      "published_ts": 1776374369.0,
-      "age_minutes": 1431.2,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Benzinga"
-      ],
-      "source_tier": "TIER_2",
-      "source_rank": 2,
-      "category": "management",
-      "event_class": "MANAGEMENT",
-      "event_label": "Employment 'Apocalypse' Fears Are Overblown, Scale AI CEO Says - Meta Platforms (NASDAQ:META), Oracle (NY",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.6,
-      "clarity": 0.6,
-      "relevance": 0.7,
-      "news_catalyst_score": 0.3493,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.benzinga.com/markets/private-markets/26/04/51874192/employment-apocalypse-fears-are-overblown-scale-ai-ceo-says",
-      "first_seen_at": "2026-04-16T23:02:44.719724Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
       "story_key": "7fce8cea4ea3e47b82a546d684e6ddc6d2aa3606:5921396",
       "headline": "Amazon.com (NASDAQ:AMZN) CEO Douglas Herrington Sells 20,500 Shares",
       "tickers": [
@@ -279,7 +241,7 @@
       ],
       "published_at": "2026-04-17T09:42:46Z",
       "published_ts": 1776418966.0,
-      "age_minutes": 687.9,
+      "age_minutes": 740.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -317,7 +279,7 @@
       ],
       "published_at": "2026-04-16T22:18:10Z",
       "published_ts": 1776377890.0,
-      "age_minutes": 1372.5,
+      "age_minutes": 1424.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -355,7 +317,7 @@
       ],
       "published_at": "2026-04-17T14:39:31Z",
       "published_ts": 1776436771.0,
-      "age_minutes": 391.1,
+      "age_minutes": 443.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -393,7 +355,7 @@
       ],
       "published_at": "2026-04-17T17:35:29Z",
       "published_ts": 1776447329.0,
-      "age_minutes": 215.2,
+      "age_minutes": 267.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -414,13 +376,13 @@
       "impact": 0.1,
       "clarity": 0.8,
       "relevance": 0.535,
-      "news_catalyst_score": 0.2616,
+      "news_catalyst_score": 0.2355,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
       "url": "https://www.benzinga.com/insights/options/26/04/51893489/7-industrials-stocks-whale-activity-in-todays-session",
       "first_seen_at": "2026-04-17T21:10:38.493801Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -431,7 +393,7 @@
       ],
       "published_at": "2026-04-17T18:13:30Z",
       "published_ts": 1776449610.0,
-      "age_minutes": 177.1,
+      "age_minutes": 229.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -452,13 +414,13 @@
       "impact": 0.1,
       "clarity": 0.6,
       "relevance": 0.475,
-      "news_catalyst_score": 0.2485,
+      "news_catalyst_score": 0.2257,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
       "url": "https://www.benzinga.com/quote/MSFW",
       "first_seen_at": "2026-04-17T21:10:38.493801Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -469,7 +431,7 @@
       ],
       "published_at": "2026-04-17T18:08:16Z",
       "published_ts": 1776449296.0,
-      "age_minutes": 182.4,
+      "age_minutes": 234.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -490,51 +452,13 @@
       "impact": 0.1,
       "clarity": 0.6,
       "relevance": 0.475,
-      "news_catalyst_score": 0.2466,
+      "news_catalyst_score": 0.2234,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
       "url": "https://www.benzinga.com/markets/large-cap/26/04/51894566/whats-going-on-with-microsoft-stock-friday",
       "first_seen_at": "2026-04-17T21:10:38.493801Z",
-      "is_new": true,
-      "provider_count": 1
-    },
-    {
-      "story_key": "8dd7bfd3acc4dd027ac845bfdb6637ae1f15f283:5921488",
-      "headline": "Microsoft: Don't Buy The Dip, A 30% Correction Is Still Ahead (NASDAQ:MSFT)",
-      "tickers": [
-        "MSFT"
-      ],
-      "published_at": "2026-04-17T17:22:03Z",
-      "published_ts": 1776446523.0,
-      "age_minutes": 228.6,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Seeking Alpha"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Microsoft: Don't Buy The Dip, A 30% Correction Is Still Ahead (NASDAQ:MSFT)",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.8,
-      "relevance": 0.535,
-      "news_catalyst_score": 0.2229,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://seekingalpha.com/article/4891641-microsoft-don-t-buy-the-dip-a-30-percent-correction-is-still-ahead",
-      "first_seen_at": "2026-04-17T21:10:38.493801Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -545,7 +469,7 @@
       ],
       "published_at": "2026-04-17T13:00:30Z",
       "published_ts": 1776430830.0,
-      "age_minutes": 490.1,
+      "age_minutes": 542.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -583,7 +507,7 @@
       ],
       "published_at": "2026-04-17T05:34:30Z",
       "published_ts": 1776404070.0,
-      "age_minutes": 936.1,
+      "age_minutes": 988.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -614,6 +538,44 @@
       "provider_count": 1
     },
     {
+      "story_key": "8dd7bfd3acc4dd027ac845bfdb6637ae1f15f283:5921488",
+      "headline": "Microsoft: Don't Buy The Dip, A 30% Correction Is Still Ahead (NASDAQ:MSFT)",
+      "tickers": [
+        "MSFT"
+      ],
+      "published_at": "2026-04-17T17:22:03Z",
+      "published_ts": 1776446523.0,
+      "age_minutes": 281.1,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Seeking Alpha"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Microsoft: Don't Buy The Dip, A 30% Correction Is Still Ahead (NASDAQ:MSFT)",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "news_catalyst_score": 0.2001,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://seekingalpha.com/article/4891641-microsoft-don-t-buy-the-dip-a-30-percent-correction-is-still-ahead",
+      "first_seen_at": "2026-04-17T21:10:38.493801Z",
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
       "story_key": "fa0df741d083123274c73c14ec193a9efac6ef7a:5921481",
       "headline": "Apple Leans Into Edge AI With M5 Chip Push, BofA Calls It 'Meaningful Step' - Apple (NASDAQ:AAPL)",
       "tickers": [
@@ -621,7 +583,7 @@
       ],
       "published_at": "2026-04-17T16:48:45Z",
       "published_ts": 1776444525.0,
-      "age_minutes": 261.9,
+      "age_minutes": 314.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -642,7 +604,7 @@
       "impact": 0.1,
       "clarity": 0.6,
       "relevance": 0.475,
-      "news_catalyst_score": 0.2114,
+      "news_catalyst_score": 0.1946,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
@@ -659,7 +621,7 @@
       ],
       "published_at": "2026-04-17T16:46:38Z",
       "published_ts": 1776444398.0,
-      "age_minutes": 264.0,
+      "age_minutes": 316.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -680,7 +642,7 @@
       "impact": 0.1,
       "clarity": 0.6,
       "relevance": 0.475,
-      "news_catalyst_score": 0.2105,
+      "news_catalyst_score": 0.1946,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
@@ -697,7 +659,7 @@
       ],
       "published_at": "2026-04-17T12:14:16Z",
       "published_ts": 1776428056.0,
-      "age_minutes": 536.4,
+      "age_minutes": 588.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -735,7 +697,7 @@
       ],
       "published_at": "2026-04-17T09:59:06Z",
       "published_ts": 1776419946.0,
-      "age_minutes": 671.5,
+      "age_minutes": 724.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -773,7 +735,7 @@
       ],
       "published_at": "2026-04-17T09:43:09Z",
       "published_ts": 1776418989.0,
-      "age_minutes": 687.5,
+      "age_minutes": 740.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -811,7 +773,7 @@
       ],
       "published_at": "2026-04-16T23:14:45Z",
       "published_ts": 1776381285.0,
-      "age_minutes": 1315.9,
+      "age_minutes": 1368.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -849,7 +811,7 @@
       ],
       "published_at": "2026-04-16T22:26:00Z",
       "published_ts": 1776378360.0,
-      "age_minutes": 1364.6,
+      "age_minutes": 1417.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -880,44 +842,6 @@
       "provider_count": 1
     },
     {
-      "story_key": "2dc8b205dc808ea982135eccd49b70d4a3e7e5bd:5921475",
-      "headline": "Microsoft: Not Like Meta In 2022 (NASDAQ:MSFT)",
-      "tickers": [
-        "MSFT"
-      ],
-      "published_at": "2026-04-17T16:15:22Z",
-      "published_ts": 1776442522.0,
-      "age_minutes": 295.3,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Seeking Alpha"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Microsoft: Not Like Meta In 2022 (NASDAQ:MSFT)",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.8,
-      "relevance": 0.535,
-      "news_catalyst_score": 0.1939,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://seekingalpha.com/article/4891618-microsoft-not-like-meta-in-2022",
-      "first_seen_at": "2026-04-17T17:15:58.059177Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
       "story_key": "d2ee109eb5cd433cb51054d9a7ae04baeb2634d0:5921399",
       "headline": "In-Depth Analysis: Amazon.com Versus Competitors In Broadline Retail Industry - Amazon.com (NASDAQ:AMZN)",
       "tickers": [
@@ -925,7 +849,7 @@
       ],
       "published_at": "2026-04-17T09:58:56Z",
       "published_ts": 1776419936.0,
-      "age_minutes": 671.7,
+      "age_minutes": 724.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -956,6 +880,44 @@
       "provider_count": 1
     },
     {
+      "story_key": "2dc8b205dc808ea982135eccd49b70d4a3e7e5bd:5921475",
+      "headline": "Microsoft: Not Like Meta In 2022 (NASDAQ:MSFT)",
+      "tickers": [
+        "MSFT"
+      ],
+      "published_at": "2026-04-17T16:15:22Z",
+      "published_ts": 1776442522.0,
+      "age_minutes": 347.7,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Seeking Alpha"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Microsoft: Not Like Meta In 2022 (NASDAQ:MSFT)",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.8,
+      "relevance": 0.535,
+      "news_catalyst_score": 0.1918,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://seekingalpha.com/article/4891618-microsoft-not-like-meta-in-2022",
+      "first_seen_at": "2026-04-17T17:15:58.059177Z",
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
       "story_key": "495b2f7a25a288a1f3190b237808433f8d2b216d:5921464",
       "headline": "Amazon (AMZN) Stock Positioned to Lead Magnificent 7 on AI and Cloud Strength, Says Barclays - Blockonomi",
       "tickers": [
@@ -963,7 +925,7 @@
       ],
       "published_at": "2026-04-17T15:21:36Z",
       "published_ts": 1776439296.0,
-      "age_minutes": 349.0,
+      "age_minutes": 401.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1001,7 +963,7 @@
       ],
       "published_at": "2026-04-17T11:41:37Z",
       "published_ts": 1776426097.0,
-      "age_minutes": 569.0,
+      "age_minutes": 621.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1039,7 +1001,7 @@
       ],
       "published_at": "2026-04-17T09:20:48Z",
       "published_ts": 1776417648.0,
-      "age_minutes": 709.8,
+      "age_minutes": 762.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1077,7 +1039,7 @@
       ],
       "published_at": "2026-04-17T08:49:00Z",
       "published_ts": 1776415740.0,
-      "age_minutes": 741.6,
+      "age_minutes": 794.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1115,7 +1077,7 @@
       ],
       "published_at": "2026-04-17T04:56:47Z",
       "published_ts": 1776401807.0,
-      "age_minutes": 973.9,
+      "age_minutes": 1026.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1155,7 +1117,7 @@
       ],
       "published_at": "2026-04-17T12:59:22Z",
       "published_ts": 1776430762.0,
-      "age_minutes": 491.3,
+      "age_minutes": 543.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1193,7 +1155,7 @@
       ],
       "published_at": "2026-04-17T15:53:49Z",
       "published_ts": 1776441229.0,
-      "age_minutes": 316.8,
+      "age_minutes": 369.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1231,7 +1193,7 @@
       ],
       "published_at": "2026-04-17T14:42:35Z",
       "published_ts": 1776436955.0,
-      "age_minutes": 388.1,
+      "age_minutes": 440.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1269,7 +1231,7 @@
       ],
       "published_at": "2026-04-17T12:45:20Z",
       "published_ts": 1776429920.0,
-      "age_minutes": 505.3,
+      "age_minutes": 557.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1308,7 +1270,7 @@
       ],
       "published_at": "2026-04-17T07:06:01Z",
       "published_ts": 1776409561.0,
-      "age_minutes": 844.6,
+      "age_minutes": 897.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1346,7 +1308,7 @@
       ],
       "published_at": "2026-04-17T06:04:35Z",
       "published_ts": 1776405875.0,
-      "age_minutes": 906.1,
+      "age_minutes": 958.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1384,7 +1346,7 @@
       ],
       "published_at": "2026-04-17T04:56:47Z",
       "published_ts": 1776401807.0,
-      "age_minutes": 973.9,
+      "age_minutes": 1026.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1417,7 +1379,7 @@
   ],
   "news_catalyst_by_symbol": {
     "AAPL": {
-      "news_catalyst_score": 0.6189,
+      "news_catalyst_score": 0.5707,
       "sentiment_label": "neutral",
       "event_class": "MACRO",
       "event_label": "Aggressive Buying As Hormuz Strait Opens; Trump Says Inflation Is Fake - Apple (NASDAQ:AAPL)",
@@ -1443,7 +1405,7 @@
       "story_key": "c5ff6cec212cabe71e08301fb2fa3add7c48cc62:5921453"
     },
     "CAT": {
-      "news_catalyst_score": 0.2616,
+      "news_catalyst_score": 0.2355,
       "sentiment_label": "neutral",
       "event_class": "UNKNOWN",
       "event_label": "7 Industrials Stocks Whale Activity In Today's Session - Boeing (NYSE:BA), Caterpillar (NYSE:CAT)",
@@ -1482,17 +1444,17 @@
       "story_key": "ac9888ae0d975e912780cf594721505dce074ffb:5921433"
     },
     "META": {
-      "news_catalyst_score": 0.4693,
+      "news_catalyst_score": 0.2818,
       "sentiment_label": "neutral",
-      "event_class": "MANAGEMENT",
-      "event_label": "Employment 'Apocalypse' Fears Are Overblown, Scale AI CEO Says - Meta Platforms (NASDAQ:META), Oracle (NY",
+      "event_class": "UNKNOWN",
+      "event_label": "As Mark Zuckerberg Moves His Desk to the AI Lab to Double Down on Innovation, META Stock Lags the S&P 500. Should You Be",
       "materiality": "LOW",
       "recency_bucket": "AGING",
-      "source_tier": "TIER_2",
-      "mentions_24h": 5,
+      "source_tier": "TIER_3",
+      "mentions_24h": 4,
       "is_actionable": false,
       "first_provider": "newsapi_ai",
-      "story_key": "e5911034f30a787cd745f18f146409f99eb948d5:5921247"
+      "story_key": "148e0ee649f304b327a9911ea1e7144ecfa2cf39:5921420"
     },
     "MSFT": {
       "news_catalyst_score": 0.482,
@@ -1521,7 +1483,7 @@
       "story_key": "1952a2ee3e0033fcf3d8adc032ea79504abda2c5:5921455"
     },
     "XOM": {
-      "news_catalyst_score": 0.2105,
+      "news_catalyst_score": 0.1946,
       "sentiment_label": "neutral",
       "event_class": "UNKNOWN",
       "event_label": "Why Is Exxon Mobil Stock Dropping Friday? Oil Sell-Off Hits Energy Names - Exxon Mobil (NYSE:XOM)",
@@ -1535,8 +1497,8 @@
     }
   },
   "summary": {
-    "active_story_count": 35,
-    "new_story_count": 5,
+    "active_story_count": 34,
+    "new_story_count": 0,
     "actionable_story_count": 0,
     "actionable_symbols": [],
     "symbol_count": 9
