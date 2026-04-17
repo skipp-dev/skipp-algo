@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-04-17T22:59:04.501252Z",
+  "generated_at": "2026-04-17T23:52:02.586129Z",
   "symbols": [
     "AAPL",
     "MSFT",
@@ -64,12 +64,12 @@
     "newsapi_ai": {
       "ok": true,
       "error": "",
-      "raw_count": 46,
-      "new_item_count": 2,
+      "raw_count": 0,
+      "new_item_count": 0,
       "cursor": 1776460195.0,
       "last_seen_news_uri": "",
-      "provider_status": "ok",
-      "status_detail": "",
+      "provider_status": "ok_no_recent_matches",
+      "status_detail": "Event Registry reachable, but no recent symbol-matching NewsAPI.ai items were returned for the current feed window.",
       "error_code": ""
     },
     "tv": {
@@ -89,7 +89,7 @@
       ],
       "published_at": "2026-04-17T20:00:21Z",
       "published_ts": 1776456021.0,
-      "age_minutes": 178.7,
+      "age_minutes": 231.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -110,13 +110,13 @@
       "impact": 0.82,
       "clarity": 0.8,
       "relevance": 0.859,
-      "news_catalyst_score": 0.5284,
-      "materiality": "MEDIUM",
+      "news_catalyst_score": 0.4789,
+      "materiality": "LOW",
       "recency_bucket": "AGING",
-      "is_actionable": true,
+      "is_actionable": false,
       "url": "https://www.techi.com/apple-vs-broadcom/",
       "first_seen_at": "2026-04-17T22:59:04.501252Z",
-      "is_new": true,
+      "is_new": false,
       "provider_count": 1
     },
     {
@@ -127,7 +127,7 @@
       ],
       "published_at": "2026-04-17T14:28:48Z",
       "published_ts": 1776436128.0,
-      "age_minutes": 510.3,
+      "age_minutes": 563.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -165,7 +165,7 @@
       ],
       "published_at": "2026-04-17T17:52:47Z",
       "published_ts": 1776448367.0,
-      "age_minutes": 306.3,
+      "age_minutes": 359.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -203,7 +203,7 @@
       ],
       "published_at": "2026-04-17T13:00:00Z",
       "published_ts": 1776430800.0,
-      "age_minutes": 599.1,
+      "age_minutes": 652.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -241,7 +241,7 @@
       ],
       "published_at": "2026-04-17T09:36:54Z",
       "published_ts": 1776418614.0,
-      "age_minutes": 802.2,
+      "age_minutes": 855.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -279,7 +279,7 @@
       ],
       "published_at": "2026-04-17T09:42:46Z",
       "published_ts": 1776418966.0,
-      "age_minutes": 796.3,
+      "age_minutes": 849.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -317,7 +317,7 @@
       ],
       "published_at": "2026-04-17T14:39:31Z",
       "published_ts": 1776436771.0,
-      "age_minutes": 499.6,
+      "age_minutes": 552.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -348,44 +348,6 @@
       "provider_count": 1
     },
     {
-      "story_key": "90ed51c39940ebcfc939f409ffde93b764e3465f:5921533",
-      "headline": "Can Muse Spark Supercharge Meta Platforms (META)'s Ad Business?",
-      "tickers": [
-        "META"
-      ],
-      "published_at": "2026-04-17T21:09:55Z",
-      "published_ts": 1776460195.0,
-      "age_minutes": 109.2,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Yahoo! Finance"
-      ],
-      "source_tier": "TIER_3",
-      "source_rank": 3,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Can Muse Spark Supercharge Meta Platforms (META)'s Ad Business?",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.2306,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://ca.finance.yahoo.com/news/muse-spark-supercharge-meta-platforms-210955944.html",
-      "first_seen_at": "2026-04-17T22:59:04.501252Z",
-      "is_new": true,
-      "provider_count": 1
-    },
-    {
       "story_key": "3a06ee5f432de7118205a80edfb325660767a998:5921491",
       "headline": "7 Industrials Stocks Whale Activity In Today's Session - Boeing (NYSE:BA), Caterpillar (NYSE:CAT)",
       "tickers": [
@@ -393,7 +355,7 @@
       ],
       "published_at": "2026-04-17T17:35:29Z",
       "published_ts": 1776447329.0,
-      "age_minutes": 323.6,
+      "age_minutes": 376.6,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -431,7 +393,7 @@
       ],
       "published_at": "2026-04-17T13:00:30Z",
       "published_ts": 1776430830.0,
-      "age_minutes": 598.6,
+      "age_minutes": 651.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -469,7 +431,7 @@
       ],
       "published_at": "2026-04-17T05:34:30Z",
       "published_ts": 1776404070.0,
-      "age_minutes": 1044.6,
+      "age_minutes": 1097.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -500,6 +462,44 @@
       "provider_count": 1
     },
     {
+      "story_key": "90ed51c39940ebcfc939f409ffde93b764e3465f:5921533",
+      "headline": "Can Muse Spark Supercharge Meta Platforms (META)'s Ad Business?",
+      "tickers": [
+        "META"
+      ],
+      "published_at": "2026-04-17T21:09:55Z",
+      "published_ts": 1776460195.0,
+      "age_minutes": 162.1,
+      "first_provider": "newsapi_ai",
+      "providers": [
+        "newsapi_ai"
+      ],
+      "provider_names": [
+        "newsapi_ai"
+      ],
+      "sources": [
+        "Yahoo! Finance"
+      ],
+      "source_tier": "TIER_3",
+      "source_rank": 3,
+      "category": "other",
+      "event_class": "UNKNOWN",
+      "event_label": "Can Muse Spark Supercharge Meta Platforms (META)'s Ad Business?",
+      "sentiment_label": "neutral",
+      "polarity": 0.0,
+      "impact": 0.1,
+      "clarity": 0.6,
+      "relevance": 0.475,
+      "news_catalyst_score": 0.2171,
+      "materiality": "LOW",
+      "recency_bucket": "AGING",
+      "is_actionable": false,
+      "url": "https://ca.finance.yahoo.com/news/muse-spark-supercharge-meta-platforms-210955944.html",
+      "first_seen_at": "2026-04-17T22:59:04.501252Z",
+      "is_new": false,
+      "provider_count": 1
+    },
+    {
       "story_key": "37b4ed8f45efbe625331f62e69d21aae0b91647f:5921498",
       "headline": "Roundhill MSFT WeeklyPay ETF (MSFW) Stock Price, Quote, News & History | Benzinga",
       "tickers": [
@@ -507,7 +507,7 @@
       ],
       "published_at": "2026-04-17T18:13:30Z",
       "published_ts": 1776449610.0,
-      "age_minutes": 285.6,
+      "age_minutes": 338.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -528,7 +528,7 @@
       "impact": 0.1,
       "clarity": 0.6,
       "relevance": 0.475,
-      "news_catalyst_score": 0.2009,
+      "news_catalyst_score": 0.1946,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
@@ -545,7 +545,7 @@
       ],
       "published_at": "2026-04-17T18:08:16Z",
       "published_ts": 1776449296.0,
-      "age_minutes": 290.8,
+      "age_minutes": 343.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -566,7 +566,7 @@
       "impact": 0.1,
       "clarity": 0.6,
       "relevance": 0.475,
-      "news_catalyst_score": 0.1986,
+      "news_catalyst_score": 0.1946,
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "is_actionable": false,
@@ -583,7 +583,7 @@
       ],
       "published_at": "2026-04-17T16:48:45Z",
       "published_ts": 1776444525.0,
-      "age_minutes": 370.3,
+      "age_minutes": 423.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -621,7 +621,7 @@
       ],
       "published_at": "2026-04-17T16:46:38Z",
       "published_ts": 1776444398.0,
-      "age_minutes": 372.4,
+      "age_minutes": 425.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -659,7 +659,7 @@
       ],
       "published_at": "2026-04-17T12:14:16Z",
       "published_ts": 1776428056.0,
-      "age_minutes": 644.8,
+      "age_minutes": 697.8,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -697,7 +697,7 @@
       ],
       "published_at": "2026-04-17T09:59:06Z",
       "published_ts": 1776419946.0,
-      "age_minutes": 780.0,
+      "age_minutes": 832.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -735,7 +735,7 @@
       ],
       "published_at": "2026-04-17T09:43:09Z",
       "published_ts": 1776418989.0,
-      "age_minutes": 795.9,
+      "age_minutes": 848.9,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -766,44 +766,6 @@
       "provider_count": 1
     },
     {
-      "story_key": "4abc1110277e5673b67f2d5f5945a0a61e5d02e3:5921270",
-      "headline": "Why Cramer Likes Nike, Amazon, Nvidia - Amazon.com (NASDAQ:AMZN), Nike (NYSE:NKE), NVIDIA (NASDAQ:NVDA)",
-      "tickers": [
-        "AMZN"
-      ],
-      "published_at": "2026-04-16T23:14:45Z",
-      "published_ts": 1776381285.0,
-      "age_minutes": 1424.3,
-      "first_provider": "newsapi_ai",
-      "providers": [
-        "newsapi_ai"
-      ],
-      "provider_names": [
-        "newsapi_ai"
-      ],
-      "sources": [
-        "Benzinga"
-      ],
-      "source_tier": "TIER_2",
-      "source_rank": 2,
-      "category": "other",
-      "event_class": "UNKNOWN",
-      "event_label": "Why Cramer Likes Nike, Amazon, Nvidia - Amazon.com (NASDAQ:AMZN), Nike (NYSE:NKE), NVIDIA (NASDAQ:NVDA)",
-      "sentiment_label": "neutral",
-      "polarity": 0.0,
-      "impact": 0.1,
-      "clarity": 0.6,
-      "relevance": 0.475,
-      "news_catalyst_score": 0.1946,
-      "materiality": "LOW",
-      "recency_bucket": "AGING",
-      "is_actionable": false,
-      "url": "https://www.benzinga.com/trading-ideas/long-ideas/26/04/51875003/cramer-highlights-nike-amazon-nvidia-stock-to-investors-why-would-you-sell-it",
-      "first_seen_at": "2026-04-17T02:54:31.561031Z",
-      "is_new": false,
-      "provider_count": 1
-    },
-    {
       "story_key": "d2ee109eb5cd433cb51054d9a7ae04baeb2634d0:5921399",
       "headline": "In-Depth Analysis: Amazon.com Versus Competitors In Broadline Retail Industry - Amazon.com (NASDAQ:AMZN)",
       "tickers": [
@@ -811,7 +773,7 @@
       ],
       "published_at": "2026-04-17T09:58:56Z",
       "published_ts": 1776419936.0,
-      "age_minutes": 780.1,
+      "age_minutes": 833.1,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -849,7 +811,7 @@
       ],
       "published_at": "2026-04-17T17:22:03Z",
       "published_ts": 1776446523.0,
-      "age_minutes": 337.0,
+      "age_minutes": 390.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -887,7 +849,7 @@
       ],
       "published_at": "2026-04-17T16:15:22Z",
       "published_ts": 1776442522.0,
-      "age_minutes": 403.7,
+      "age_minutes": 456.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -925,7 +887,7 @@
       ],
       "published_at": "2026-04-17T15:21:36Z",
       "published_ts": 1776439296.0,
-      "age_minutes": 457.5,
+      "age_minutes": 510.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -963,7 +925,7 @@
       ],
       "published_at": "2026-04-17T11:41:37Z",
       "published_ts": 1776426097.0,
-      "age_minutes": 677.5,
+      "age_minutes": 730.4,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1001,7 +963,7 @@
       ],
       "published_at": "2026-04-17T09:20:48Z",
       "published_ts": 1776417648.0,
-      "age_minutes": 818.3,
+      "age_minutes": 871.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1039,7 +1001,7 @@
       ],
       "published_at": "2026-04-17T08:49:00Z",
       "published_ts": 1776415740.0,
-      "age_minutes": 850.1,
+      "age_minutes": 903.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1077,7 +1039,7 @@
       ],
       "published_at": "2026-04-17T04:56:47Z",
       "published_ts": 1776401807.0,
-      "age_minutes": 1082.3,
+      "age_minutes": 1135.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1117,7 +1079,7 @@
       ],
       "published_at": "2026-04-17T12:59:22Z",
       "published_ts": 1776430762.0,
-      "age_minutes": 599.7,
+      "age_minutes": 652.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1155,7 +1117,7 @@
       ],
       "published_at": "2026-04-17T15:53:49Z",
       "published_ts": 1776441229.0,
-      "age_minutes": 425.3,
+      "age_minutes": 478.2,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1193,7 +1155,7 @@
       ],
       "published_at": "2026-04-17T14:42:35Z",
       "published_ts": 1776436955.0,
-      "age_minutes": 496.5,
+      "age_minutes": 549.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1231,7 +1193,7 @@
       ],
       "published_at": "2026-04-17T12:45:20Z",
       "published_ts": 1776429920.0,
-      "age_minutes": 613.7,
+      "age_minutes": 666.7,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1270,7 +1232,7 @@
       ],
       "published_at": "2026-04-17T07:06:01Z",
       "published_ts": 1776409561.0,
-      "age_minutes": 953.1,
+      "age_minutes": 1006.0,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1308,7 +1270,7 @@
       ],
       "published_at": "2026-04-17T06:04:35Z",
       "published_ts": 1776405875.0,
-      "age_minutes": 1014.5,
+      "age_minutes": 1067.5,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1346,7 +1308,7 @@
       ],
       "published_at": "2026-04-17T04:56:47Z",
       "published_ts": 1776401807.0,
-      "age_minutes": 1082.3,
+      "age_minutes": 1135.3,
       "first_provider": "newsapi_ai",
       "providers": [
         "newsapi_ai"
@@ -1379,15 +1341,15 @@
   ],
   "news_catalyst_by_symbol": {
     "AAPL": {
-      "news_catalyst_score": 0.6484,
+      "news_catalyst_score": 0.5989,
       "sentiment_label": "neutral",
       "event_class": "DIVIDEND",
       "event_label": "Apple vs Broadcom (AAPL vs AVGO): Dividend & AI Analysis 2026",
-      "materiality": "MEDIUM",
+      "materiality": "LOW",
       "recency_bucket": "AGING",
       "source_tier": "TIER_3",
       "mentions_24h": 6,
-      "is_actionable": true,
+      "is_actionable": false,
       "first_provider": "newsapi_ai",
       "story_key": "8e6759797ba55d62cdc8df01d09c5cfd3c513367:5921520"
     },
@@ -1399,7 +1361,7 @@
       "materiality": "LOW",
       "recency_bucket": "AGING",
       "source_tier": "TIER_3",
-      "mentions_24h": 10,
+      "mentions_24h": 9,
       "is_actionable": false,
       "first_provider": "newsapi_ai",
       "story_key": "c5ff6cec212cabe71e08301fb2fa3add7c48cc62:5921453"
@@ -1444,7 +1406,7 @@
       "story_key": "ac9888ae0d975e912780cf594721505dce074ffb:5921433"
     },
     "META": {
-      "news_catalyst_score": 0.3506,
+      "news_catalyst_score": 0.3371,
       "sentiment_label": "neutral",
       "event_class": "UNKNOWN",
       "event_label": "Can Muse Spark Supercharge Meta Platforms (META)'s Ad Business?",
@@ -1497,12 +1459,10 @@
     }
   },
   "summary": {
-    "active_story_count": 34,
-    "new_story_count": 2,
-    "actionable_story_count": 1,
-    "actionable_symbols": [
-      "AAPL"
-    ],
+    "active_story_count": 33,
+    "new_story_count": 0,
+    "actionable_story_count": 0,
+    "actionable_symbols": [],
     "symbol_count": 9
   },
   "symbol_scope": {
