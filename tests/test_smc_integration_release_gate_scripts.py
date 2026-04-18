@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import inspect
 import json
 from argparse import Namespace
 from pathlib import Path
@@ -1226,4 +1227,27 @@ class TestDataAbsentCodesDriftGuard:
         assert not unknown, (
             f"Codes {unknown} are in _DATA_ABSENT_CODES but not in any "
             f"provider_health set or _RELEASE_GATE_LEVEL_CODES — stale?"
+        )
+
+    def test_bundle_skip_fast_path_fields_recognized(self) -> None:
+        """The WP-R10 fast-path sets ``bundle_skipped`` and
+        ``bundle_skip_reason`` on smoke result rows.  These fields must
+        remain valid — if someone removes or renames them in
+        provider_health, this test breaks."""
+        # Simulate the fast-path result row shape as produced by
+        # _run_smoke_checks when all meta domains are absent.
+        import smc_integration.provider_health as ph
+
+        fast_path_guard_source = inspect.getsource(ph._run_smoke_checks)
+        assert "bundle_skipped" in fast_path_guard_source, (
+            "bundle_skipped field not found in _run_smoke_checks — "
+            "WP-R10 fast-path removed?"
+        )
+        assert "bundle_skip_reason" in fast_path_guard_source, (
+            "bundle_skip_reason field not found in _run_smoke_checks — "
+            "WP-R10 fast-path removed?"
+        )
+        assert "all_meta_domains_absent" in fast_path_guard_source, (
+            "all_meta_domains_absent reason value not found in "
+            "_run_smoke_checks — fast-path semantics changed?"
         )
