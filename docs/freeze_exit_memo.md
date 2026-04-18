@@ -1,4 +1,4 @@
-# Freeze-Exit Memo — Zwischenstand 2026-04-16
+# Freeze-Exit Memo — Zwischenstand 2026-04-18
 
 **Status:** NICHT FREIGABEFÄHIG  
 **Freeze-Zeitraum:** 2026-04-15 — 2026-05-15  
@@ -10,14 +10,14 @@
 
 | # | Kriterium | Schwelle | Stand | Status |
 |---|-----------|----------|-------|--------|
-| 1 | Library-Pipeline stabil | 56+ Refreshs in 14+ Tagen | 8/10 seit Freeze (2 Tage) | ❌ zu früh |
-| 2 | Measurement-Benchmark-Reports | ≥ 2 Reports | 0 Reports (Workflow nie gelaufen) | ❌ blockiert |
-| 3 | End-to-End Smoke-Test | ≥ 7/10 | nicht durchgeführt | ❌ ausstehend |
+| 1 | Library-Pipeline stabil | 56+ Refreshs in 14+ Tagen | 12/14 seit Freeze (3 Tage, 86%) | ❌ zu früh |
+| 2 | Measurement-Benchmark-Reports | ≥ 2 Reports | 3 Reports (04-17 bis 04-18) | ✅ erfüllt |
+| 3 | End-to-End Smoke-Test | ≥ 7/10 | E2E-Smoke-Script vorhanden, CI-Integration ausstehend | ❌ ausstehend |
 | 4 | 21 fehlende Library-Felder | adressiert | ✅ WP-6, Commit 081b055d | ✅ erledigt |
 | 5 | Pine-Titel korrekt | "SMC Long-Dip Suite v7" | nicht verifiziert | ❌ ausstehend |
 | 6 | Kein kritischer Bug offen | 0 kritisch | keine bekannten | ⚠️ laufend |
 
-**Ergebnis: 1/6 Kriterien erfüllt. Exit ist blockiert.**
+**Ergebnis: 2/6 Kriterien erfüllt. Exit ist blockiert.**
 
 ---
 
@@ -25,15 +25,16 @@
 
 ### 2.1 Library-Refresh — Positiver Trend
 
-- Seit Freeze-Start (04-15): **8/10 Läufe erfolgreich (80%)**
-- Pre-Freeze (04-11 bis 04-14): 4/30 = 13% — deutlich instabiler
+- Seit Freeze-Start (04-15): **12/14 Läufe erfolgreich (86%)**
+- Letzter Tag (04-17): **4/4 = 100%**
+- Pre-Freeze (04-03 bis 04-14): instabil, viele cancelled/skipped
 - Die Stabilisierungsarbeit (WP-2 bis WP-6) hat messbar gewirkt
-- Benzinga-API-400-Fehler sind bekannt und suppressed (kein Blocker)
 
 ### 2.2 Deeper Integration Gates
 
 - **24/28 Push-Runs am 04-16 erfolgreich (86%)**
-- 4 Fehler waren Docs-only-Commits ohne Test-Substanz
+- Am 04-17: **9/11 success (81%)**
+- 4 Fehler am 04-16 waren Docs-only-Commits ohne Test-Substanz
 - Kern-Logik-Tests (structure, integration, core) sind stabil
 
 ### 2.3 Code-Qualität
@@ -54,18 +55,16 @@
 - Der Aufwärtstrend muss sich über mehrere Wochen bestätigen
 - Einzelne Fehltage (wie 04-14 mit 0/4) dürfen sich nicht wiederholen
 
-### 3.2 Measurement Benchmark — 2 Reports vorhanden
+### 3.2 Measurement Benchmark — 3 Reports vorhanden
 
-- Workflow `smc-measurement-benchmark` wurde **2× erfolgreich ausgeführt** (2026-04-17)
+- Workflow `smc-measurement-benchmark` wurde **3× erfolgreich ausgeführt** (2026-04-17 bis 2026-04-18)
 - **Exit-Kriterium #2 ist erfüllt** (≥ 2 Reports)
 - Nächster Samstags-Cron-Lauf liefert zusätzliche Evidenz
-- Keine Brier/ECE-History → kein Regressions-Vergleich möglich
-- **Blocker für Exit-Kriterium #2**
-- **Nächster Schritt:** Manueller Trigger sofort, dann Samstags-Cron abwarten
 
 ### 3.3 Fast-PR-Gates — Coverage-Konfiguration
 
-- 0/20 Läufe am 04-16 erfolgreich
+- Am 04-16: 1/9 Runs erfolgreich (11%)
+- Am 04-17: 7/10 Runs erfolgreich (70%) — deutliche Verbesserung
 - Root Cause: Coverage-Threshold "fail-under=60", tatsächlich nur 19%
 - Kein Produkt-Problem, aber CI-Vertrauen leidet
 - Fix nötig, bevor die Gates als Merge-Blocking eingesetzt werden
@@ -77,8 +76,8 @@
 ### 4.1 Harte Voraussetzungen
 
 1. **14 Tage Library-Refresh ≥ 75% Tages-Erfolgsquote** — frühestens 2026-04-29
-2. **2+ Measurement-Benchmark-Reports** mit konsistenten Metriken
-3. **End-to-End Smoke-Test ≥ 7/10** — muss noch definiert und durchgeführt werden
+2. **2+ Measurement-Benchmark-Reports** mit konsistenten Metriken — ✅ erfüllt
+3. **End-to-End Smoke-Test ≥ 7/10** — Script vorhanden, CI-Integration geplant
 4. **Pine-Titel-Prüfung** — trivial, aber muss explizit verifiziert werden
 5. **Kein kritischer Bug** — laufende Beobachtung
 
@@ -111,9 +110,9 @@
 
 | # | Aktion | Deadline | Blockiert |
 |---|--------|----------|-----------|
-| 1 | Measurement-Benchmark manuell triggern | 2026-04-17 | Exit #2 |
+| 1 | ~~Measurement-Benchmark manuell triggern~~ | ~~2026-04-17~~ | ~~Exit #2~~ ✅ erledigt |
 | 2 | Fast-PR-Gates Coverage-Config diagnostizieren | 2026-04-20 | CI-Vertrauen |
 | 3 | Pine-Titel prüfen | 2026-04-20 | Exit #5 |
 | 4 | 1. Wochen-Review (Pipeline-History aktualisieren) | 2026-04-21 | Exit #1 |
-| 5 | 2. Measurement-Benchmark (Samstag oder manuell) | 2026-04-23 | Exit #2 |
-| 6 | End-to-End Smoke-Test definieren und durchführen | 2026-04-28 | Exit #3 |
+| 5 | E2E-Smoke-Test in CI integrieren (advisory) | 2026-04-25 | Exit #3 |
+| 6 | Release-Gates CI-Ergebnis verifizieren | 2026-04-19 | Freeze-Exit-Dokumentation |
