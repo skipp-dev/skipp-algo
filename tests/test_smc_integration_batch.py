@@ -267,3 +267,42 @@ class TestLoadSymbolsFromSource:
         )
         monkeypatch.setattr(batch, "_descriptor_for_source_name", lambda name: SimpleNamespace(path_hint=str(source_path)))
         assert batch.load_symbols_from_source("fmp_watchlist_json") == ["TSLA"]
+
+
+class TestResolveStructureSourceName:
+    def test_auto_resolves(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(batch, "select_best_source", lambda: SimpleNamespace(name="structure_artifact_json"))
+        assert batch._resolve_structure_source_name("auto") == "structure_artifact_json"
+
+    def test_explicit_passthrough(self) -> None:
+        assert batch._resolve_structure_source_name("fmp_watchlist_json") == "fmp_watchlist_json"
+
+
+class TestResolveWatchlistSourceName:
+    def test_auto_resolves(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(batch, "select_best_volume_source", lambda: SimpleNamespace(name="databento_watchlist_csv"))
+        assert batch._resolve_watchlist_source_name("auto") == "databento_watchlist_csv"
+
+    def test_explicit_passthrough(self) -> None:
+        assert batch._resolve_watchlist_source_name("tradingview_watchlist_json") == "tradingview_watchlist_json"
+
+
+class TestDescriptorForSourceName:
+    def test_unknown_raises(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(batch, "discover_repo_sources", lambda: [SimpleNamespace(name="src_a")])
+        with pytest.raises(ValueError, match="unknown source"):
+            batch._descriptor_for_source_name("nonexistent")
+
+
+class TestLoadSymbolsFromWatchlistCsv:
+    def test_csv_source_missing_file_raises(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+        monkeypatch.setattr(batch, "_resolve_watchlist_source_name", lambda s: "databento_watchlist_csv")
+        monkeypatch.setattr(batch, "_descriptor_for_source_name", lambda n: SimpleNamespace(path_hint="nonexistent.csv"))
+        with pytest.raises(FileNotFoundError, match="watchlist source not found"):
+            batch.load_symbols_from_watchlist_source(source="databento_watchlist_csv")
+
+    def test_unsupported_source_raises(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(batch, "_resolve_watchlist_source_name", lambda s: "unknown_source")
+        monkeypatch.setattr(batch, "_descriptor_for_source_name", lambda n: SimpleNamespace(path_hint="x.txt"))
+        with pytest.raises(NotImplementedError, match="does not support"):
+            batch.load_symbols_from_watchlist_source(source="unknown_source")

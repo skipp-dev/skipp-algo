@@ -474,3 +474,167 @@ class TestBuildStructureArtifactManifest:
         assert manifest["coverage_summary"]["symbols_with_bos"] == 1
         assert manifest["profile_summary"]["hybrid_default"] == 1
         assert "v2" in manifest["event_logic_versions"]
+
+
+class TestDeriveSymbolsFromWorkbook:
+    def test_raises_when_no_symbol_column(self) -> None:
+        from smc_integration.structure_batch import _derive_symbols_from_workbook
+
+        df = pd.DataFrame({"other": ["x"]})
+        with pytest.raises(ValueError, match="missing symbol column"):
+            _derive_symbols_from_workbook(df)
+
+    def test_raises_when_all_empty(self) -> None:
+        from smc_integration.structure_batch import _derive_symbols_from_workbook
+
+        df = pd.DataFrame({"symbol": ["", "  "]})
+        with pytest.raises(ValueError, match="no symbols found"):
+            _derive_symbols_from_workbook(df)
+
+    def test_returns_deduplicated(self) -> None:
+        from smc_integration.structure_batch import _derive_symbols_from_workbook
+
+        df = pd.DataFrame({"symbol": ["aapl", "AAPL", "msft"]})
+        assert _derive_symbols_from_workbook(df) == ["AAPL", "MSFT"]
+
+
+class TestLoadSymbolBarsFromCanonicalExports:
+    def test_none_export_dir_returns_none(self) -> None:
+        from smc_integration.structure_batch import _load_symbol_bars_from_canonical_exports
+
+        assert _load_symbol_bars_from_canonical_exports("AAPL", "15m", None) is None
+
+    def test_load_bundle_exception_returns_none(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+        from smc_integration.structure_batch import _load_symbol_bars_from_canonical_exports
+
+        monkeypatch.setattr(structure_batch_module, "load_export_bundle", lambda *a, **kw: (_ for _ in ()).throw(RuntimeError("boom")))
+        assert _load_symbol_bars_from_canonical_exports("AAPL", "15m", tmp_path) is None
+
+    def test_daily_bars_path(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+        from smc_integration.structure_batch import _load_symbol_bars_from_canonical_exports
+
+        df = pd.DataFrame({
+            "symbol": ["AAPL", "AAPL"],
+            "trade_date": ["2025-01-10", "2025-01-11"],
+            "open": [100.0, 101.0],
+            "high": [102.0, 103.0],
+            "low": [99.0, 100.0],
+            "close": [101.0, 102.0],
+        })
+        monkeypatch.setattr(
+            structure_batch_module,
+            "load_export_bundle",
+            lambda *a, **kw: {"frames": {"daily_bars": df}},
+        )
+        result = _load_symbol_bars_from_canonical_exports("AAPL", "1D", tmp_path)
+        assert result is not None
+        assert len(result) == 2
+        assert list(result.columns) == ["symbol", "timestamp", "open", "high", "low", "close"]
+
+    def test_daily_bars_empty_symbol_returns_none(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+        from smc_integration.structure_batch import _load_symbol_bars_from_canonical_exports
+
+        df = pd.DataFrame({
+            "symbol": ["MSFT"],
+            "trade_date": ["2025-01-10"],
+            "open": [100.0],
+            "high": [102.0],
+            "low": [99.0],
+            "close": [101.0],
+        })
+        monkeypatch.setattr(
+            structure_batch_module,
+            "load_export_bundle",
+            lambda *a, **kw: {"frames": {"daily_bars": df}},
+        )
+        assert _load_symbol_bars_from_canonical_exports("AAPL", "1D", tmp_path) is None
+
+    def test_daily_bars_empty_frame_returns_none(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+        from smc_integration.structure_batch import _load_symbol_bars_from_canonical_exports
+
+        monkeypatch.setattr(
+            structure_batch_module,
+            "load_export_bundle",
+            lambda *a, **kw: {"frames": {"daily_bars": pd.DataFrame()}},
+        )
+        assert _load_symbol_bars_from_canonical_exports("AAPL", "1D", tmp_path) is None
+
+    def test_intraday_empty_symbol_returns_none(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+        from smc_integration.structure_batch import _load_symbol_bars_from_canonical_exports
+
+        df = pd.DataFrame({
+            "symbol": ["MSFT"],
+            "timestamp": ["2025-01-10T14:30:00Z"],
+            "open": [100.0],
+            "high": [102.0],
+            "low": [99.0],
+            "close": [101.0],
+            "volume": [500.0],
+        })
+        monkeypatch.setattr(
+            structure_batch_module,
+            "load_export_bundle",
+            lambda *a, **kw: {"frames": {"full_universe_second_detail_open": df}},
+        )
+        assert _load_symbol_bars_from_canonical_exports("AAPL", "15m", tmp_path) is None
+
+    def test_intraday_no_volume_column(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+        from smc_integration.structure_batch import _load_symbol_bars_from_canonical_exports
+
+        df = pd.DataFrame({
+            "symbol": ["AAPL"],
+            "timestamp": ["2025-01-10T14:30:00Z"],
+            "open": [100.0],
+            "high": [102.0],
+            "low": [99.0],
+            "close": [101.0],
+        })
+        monkeypatch.setattr(
+            structure_batch_module,
+            "load_export_bundle",
+            lambda *a, **kw: {"frames": {"full_universe_second_detail_open": df}},
+        )
+        result = _load_symbol_bars_from_canonical_exports("AAPL", "15m", tmp_path)
+        assert result is not None
+        assert "volume" not in result.columns
+
+
+class TestExistingArtifactRows:
+    def test_skips_missing_files(self, tmp_path: Path) -> None:
+        from smc_integration.structure_batch import _existing_artifact_rows
+
+        rows = _existing_artifact_rows(tmp_path, ["AAPL", "MSFT"], "15m")
+        assert rows == []
+
+    def test_collects_valid_artifacts(self, tmp_path: Path) -> None:
+        from smc_integration.structure_batch import _existing_artifact_rows
+
+        artifact = {
+            "coverage_mode": "partial",
+            "coverage": {"has_bos": True, "has_orderblocks": False, "has_fvg": False, "has_liquidity_sweeps": False},
+            "structure": {"bos": [1]},
+            "diagnostics": {"counts": {"bos": 1}, "warnings": []},
+        }
+        path = tmp_path / "AAPL_15m.structure.json"
+        path.write_text(json.dumps(artifact), encoding="utf-8")
+        rows = _existing_artifact_rows(tmp_path, ["AAPL", "MSFT"], "15m")
+        assert len(rows) == 1
+        assert rows[0].symbol == "AAPL"
+
+
+class TestLoadSymbolBarsFromWorkbook:
+    def test_missing_symbol_raises(self, tmp_path: Path) -> None:
+        from smc_integration.structure_batch import _load_symbol_bars_from_workbook
+
+        wb = make_minimal_workbook(tmp_path)
+        with pytest.raises(ValueError, match="not present"):
+            _load_symbol_bars_from_workbook(wb, "NONEXIST")
+
+    def test_workbook_volume_column(self, tmp_path: Path) -> None:
+        from smc_integration.structure_batch import _load_symbol_bars_from_workbook
+
+        wb = make_minimal_workbook(tmp_path)
+        symbols = _sample_symbols(wb, limit=1)
+        result = _load_symbol_bars_from_workbook(wb, symbols[0])
+        assert not result.empty
+        assert "timestamp" in result.columns
