@@ -9,12 +9,13 @@ import pytest
 from smc_integration import structure_batch as structure_batch_module
 from smc_integration.structure_batch import write_structure_artifacts_from_workbook
 
+from tests.helpers.smc_test_artifacts import make_minimal_workbook
+
 ROOT = Path(__file__).resolve().parents[1]
-WORKBOOK = ROOT / "databento_volatility_production_20260307_114724.xlsx"
 
 
-def _sample_symbols(limit: int = 2) -> list[str]:
-    daily = pd.read_excel(WORKBOOK, sheet_name="daily_bars")
+def _sample_symbols(workbook: Path, limit: int = 2) -> list[str]:
+    daily = pd.read_excel(workbook, sheet_name="daily_bars")
     symbols = sorted({str(item).strip().upper() for item in daily["symbol"].dropna().tolist() if str(item).strip()})
     if len(symbols) < limit:
         raise AssertionError("workbook daily_bars must contain enough symbols")
@@ -50,13 +51,13 @@ def _write_bundle_frames(bundle_dir: Path, *, prefix: str, frames: dict[str, pd.
     return manifest_path
 
 
-def test_structure_batch_writes_one_artifact_per_symbol() -> None:
-    symbols = _sample_symbols(limit=2)
-    output_dir = ROOT / "reports" / "_tmp_structure_batch_test"
-    output_dir.mkdir(parents=True, exist_ok=True)
+def test_structure_batch_writes_one_artifact_per_symbol(tmp_path: Path) -> None:
+    workbook = make_minimal_workbook(tmp_path)
+    symbols = _sample_symbols(workbook, limit=2)
+    output_dir = tmp_path / "output"
 
     manifest = write_structure_artifacts_from_workbook(
-        workbook=WORKBOOK,
+        workbook=workbook,
         timeframe="15m",
         symbols=symbols,
         output_dir=output_dir,
@@ -72,13 +73,13 @@ def test_structure_batch_writes_one_artifact_per_symbol() -> None:
         assert path.exists()
 
 
-def test_structure_batch_file_naming_is_deterministic() -> None:
-    symbols = _sample_symbols(limit=2)
-    output_dir = ROOT / "reports" / "_tmp_structure_batch_names"
-    output_dir.mkdir(parents=True, exist_ok=True)
+def test_structure_batch_file_naming_is_deterministic(tmp_path: Path) -> None:
+    workbook = make_minimal_workbook(tmp_path)
+    symbols = _sample_symbols(workbook, limit=2)
+    output_dir = tmp_path / "output"
 
     write_structure_artifacts_from_workbook(
-        workbook=WORKBOOK,
+        workbook=workbook,
         timeframe="15m",
         symbols=symbols,
         output_dir=output_dir,
@@ -89,23 +90,22 @@ def test_structure_batch_file_naming_is_deterministic() -> None:
     assert names == sorted([f"{symbols[0]}_15m.structure.json", f"{symbols[1]}_15m.structure.json"])
 
 
-def test_structure_batch_is_stable_for_fixed_generated_at() -> None:
-    symbols = _sample_symbols(limit=1)
+def test_structure_batch_is_stable_for_fixed_generated_at(tmp_path: Path) -> None:
+    workbook = make_minimal_workbook(tmp_path)
+    symbols = _sample_symbols(workbook, limit=1)
 
-    out_one = ROOT / "reports" / "_tmp_structure_batch_stable_one"
-    out_two = ROOT / "reports" / "_tmp_structure_batch_stable_two"
-    out_one.mkdir(parents=True, exist_ok=True)
-    out_two.mkdir(parents=True, exist_ok=True)
+    out_one = tmp_path / "stable_one"
+    out_two = tmp_path / "stable_two"
 
     write_structure_artifacts_from_workbook(
-        workbook=WORKBOOK,
+        workbook=workbook,
         timeframe="15m",
         symbols=symbols,
         output_dir=out_one,
         generated_at=1709254000.0,
     )
     write_structure_artifacts_from_workbook(
-        workbook=WORKBOOK,
+        workbook=workbook,
         timeframe="15m",
         symbols=symbols,
         output_dir=out_two,
@@ -117,13 +117,13 @@ def test_structure_batch_is_stable_for_fixed_generated_at() -> None:
     assert one_payload == two_payload
 
 
-def test_structure_batch_keeps_categories_honest() -> None:
-    symbols = _sample_symbols(limit=1)
-    output_dir = ROOT / "reports" / "_tmp_structure_batch_honest"
-    output_dir.mkdir(parents=True, exist_ok=True)
+def test_structure_batch_keeps_categories_honest(tmp_path: Path) -> None:
+    workbook = make_minimal_workbook(tmp_path)
+    symbols = _sample_symbols(workbook, limit=1)
+    output_dir = tmp_path / "output"
 
     write_structure_artifacts_from_workbook(
-        workbook=WORKBOOK,
+        workbook=workbook,
         timeframe="15m",
         symbols=symbols,
         output_dir=output_dir,
@@ -148,13 +148,13 @@ def test_structure_batch_keeps_categories_honest() -> None:
     assert diagnostics["event_logic_version"] == "v2"
 
 
-def test_structure_batch_records_selected_profile_in_source() -> None:
-    symbols = _sample_symbols(limit=1)
-    output_dir = ROOT / "reports" / "_tmp_structure_batch_profile"
-    output_dir.mkdir(parents=True, exist_ok=True)
+def test_structure_batch_records_selected_profile_in_source(tmp_path: Path) -> None:
+    workbook = make_minimal_workbook(tmp_path)
+    symbols = _sample_symbols(workbook, limit=1)
+    output_dir = tmp_path / "output"
 
     write_structure_artifacts_from_workbook(
-        workbook=WORKBOOK,
+        workbook=workbook,
         timeframe="15m",
         symbols=symbols,
         output_dir=output_dir,
@@ -168,7 +168,8 @@ def test_structure_batch_records_selected_profile_in_source() -> None:
 
 
 def test_structure_batch_explicit_workbook_ignores_autoresolved_bundle(monkeypatch, tmp_path: Path) -> None:
-    symbol = _sample_symbols(limit=1)[0]
+    workbook = make_minimal_workbook(tmp_path)
+    symbol = _sample_symbols(workbook, limit=1)[0]
     baseline_dir = tmp_path / "baseline"
     controlled_dir = tmp_path / "controlled"
     synthetic_bundle = tmp_path / "bundle"
@@ -176,7 +177,7 @@ def test_structure_batch_explicit_workbook_ignores_autoresolved_bundle(monkeypat
     _write_synthetic_export_bundle(synthetic_bundle, symbol=symbol)
 
     write_structure_artifacts_from_workbook(
-        workbook=WORKBOOK,
+        workbook=workbook,
         timeframe="15m",
         symbols=[symbol],
         output_dir=baseline_dir,
@@ -185,7 +186,7 @@ def test_structure_batch_explicit_workbook_ignores_autoresolved_bundle(monkeypat
 
     def _resolved_inputs(**_: object) -> dict[str, object]:
         return {
-            "workbook_path": WORKBOOK,
+            "workbook_path": workbook,
             "export_bundle_root": synthetic_bundle,
             "structure_artifacts_dir": controlled_dir,
             "single_structure_artifact_path": None,
@@ -201,7 +202,7 @@ def test_structure_batch_explicit_workbook_ignores_autoresolved_bundle(monkeypat
     monkeypatch.setattr(structure_batch_module, "resolve_structure_artifact_inputs", _resolved_inputs)
 
     write_structure_artifacts_from_workbook(
-        workbook=WORKBOOK,
+        workbook=workbook,
         timeframe="15m",
         symbols=[symbol],
         output_dir=controlled_dir,
@@ -216,14 +217,15 @@ def test_structure_batch_explicit_workbook_ignores_autoresolved_bundle(monkeypat
 
 
 def test_structure_batch_explicit_bundle_keeps_bundle_precedence(tmp_path: Path) -> None:
-    symbol = _sample_symbols(limit=1)[0]
+    workbook = make_minimal_workbook(tmp_path)
+    symbol = _sample_symbols(workbook, limit=1)[0]
     output_dir = tmp_path / "bundle_precedence"
     synthetic_bundle = tmp_path / "bundle"
 
     _write_synthetic_export_bundle(synthetic_bundle, symbol=symbol)
 
     write_structure_artifacts_from_workbook(
-        workbook=WORKBOOK,
+        workbook=workbook,
         export_bundle_root=synthetic_bundle,
         timeframe="15m",
         symbols=[symbol],
@@ -241,7 +243,7 @@ def test_structure_batch_explicit_bundle_keeps_bundle_precedence(tmp_path: Path)
 
 
 def test_canonical_intraday_loader_requires_intraday_bundle_frame(tmp_path: Path) -> None:
-    symbol = _sample_symbols(limit=1)[0]
+    symbol = "AAPL"
     older_prefix = "databento_volatility_production_20260310_090000"
     newer_prefix = "databento_volatility_production_incremental_20260310_091000"
 

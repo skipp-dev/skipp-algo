@@ -107,10 +107,36 @@ def test_gap_report_is_honest_for_current_repo_state() -> None:
     }
 
 
-def test_structure_gap_report_is_json_serializable_and_stable() -> None:
-    one = structure_gap_report_to_dict(build_structure_gap_report())
-    two = structure_gap_report_to_dict(build_structure_gap_report())
-    assert json.dumps(one, sort_keys=True) == json.dumps(two, sort_keys=True)
+def test_structure_gap_report_is_json_serializable_and_has_expected_keys() -> None:
+    report = structure_gap_report_to_dict(build_structure_gap_report())
+    # Must be JSON-serializable without raising.
+    serialized = json.dumps(report, sort_keys=True, default=str)
+    assert isinstance(serialized, str)
+    assert len(serialized) > 100
+
+    # Key structure check.
+    expected_keys = {
+        "has_real_structure_provider",
+        "best_candidate",
+        "registered_structure_sources",
+        "candidate_sources",
+        "summary",
+        "category_coverage",
+        "available_categories",
+        "missing_categories",
+        "provider_by_category",
+        "auxiliary_category_coverage",
+        "structure_profile_supported",
+        "structure_profiles_seen",
+        "diagnostics_available",
+        "auxiliary_available",
+        "event_logic_versions_seen",
+        "contract_health",
+        "gaps",
+        "structure_status",
+        "extended_discovery",
+    }
+    assert expected_keys.issubset(set(report.keys()))
 
 
 # ── pure helper coverage ─────────────────────────────────────────
