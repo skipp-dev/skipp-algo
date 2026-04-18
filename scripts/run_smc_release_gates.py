@@ -355,9 +355,15 @@ def _run_publish_contract_gate(args: argparse.Namespace) -> dict[str, Any]:
         }
 
 
-def _run_reference_bundle_gate(symbol: str, timeframe: str, generated_at: float) -> dict[str, Any]:
+def _run_reference_bundle_gate(
+    symbol: str,
+    timeframe: str,
+    generated_at: float,
+    *,
+    cached_bundle: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     try:
-        bundle = build_snapshot_bundle_for_symbol_timeframe(
+        bundle = cached_bundle or build_snapshot_bundle_for_symbol_timeframe(
             symbol,
             timeframe,
             source="auto",
@@ -860,6 +866,10 @@ def main() -> int:
         for row in missing_smoke_pairs
     ]
 
+    # Extract smoke-check bundles so reference_bundle gate can reuse them
+    # instead of rebuilding from scratch (WP-R12).
+    _smoke_bundles: dict[tuple[str, str], dict[str, Any]] = provider_report.pop("smoke_bundles", {})
+
     gates: list[dict[str, Any]] = [
         {
             "name": "provider_health",
@@ -878,7 +888,10 @@ def main() -> int:
 
     # Reference bundle gate — evaluate all symbol/timeframe pairs.
     _ref_pair_results = [
-        _run_reference_bundle_gate(sym, tf, checked_at)
+        _run_reference_bundle_gate(
+            sym, tf, checked_at,
+            cached_bundle=_smoke_bundles.get((sym, tf)),
+        )
         for sym in symbols for tf in timeframes
     ]
     _ref_any_fail = any(r.get("status") == "fail" for r in _ref_pair_results)

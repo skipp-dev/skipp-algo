@@ -748,6 +748,7 @@ def _run_smoke_checks(
     all_failures: list[dict[str, Any]] = []
     all_degradations: list[dict[str, Any]] = []
     all_domain_alerts: list[dict[str, Any]] = []
+    built_bundles: dict[tuple[str, str], dict[str, Any]] = {}
 
     for symbol in symbols:
         for timeframe in timeframes:
@@ -985,6 +986,7 @@ def _run_smoke_checks(
                 if allow_release_reference_meta_fallback:
                     bundle_kwargs["allow_release_reference_meta_fallback"] = True
                 bundle = build_snapshot_bundle_for_symbol_timeframe(**bundle_kwargs)
+                built_bundles[(symbol, timeframe)] = bundle
             except Exception as exc:
                 failures.append(
                     {
@@ -1119,6 +1121,7 @@ def _run_smoke_checks(
         "failures": all_failures,
         "degradations": all_degradations,
         "domain_alerts": all_domain_alerts,
+        "bundles": built_bundles,
     }
 
 
@@ -1231,6 +1234,7 @@ def run_provider_health_check(
     failures = _sorted_records(failures)
     degradations = _sorted_records(degradations)
     domain_alerts = _sorted_records(list(smoke.get("domain_alerts", [])))
+    smoke_bundles: dict[tuple[str, str], dict[str, Any]] = smoke.get("bundles", {})
     domain_visibility = _summarize_domain_visibility(list(smoke.get("results", [])))
 
     overall_status = _status_from_lists(failures=failures, warnings=warnings, degradations=degradations)
@@ -1255,6 +1259,7 @@ def run_provider_health_check(
         "warnings": warnings,
         "failures": failures,
         "degradations_detected": degradations,
+        "smoke_bundles": smoke_bundles,
     }
     return report
 

@@ -97,7 +97,7 @@ def test_release_runner_is_fail_closed_on_core_failures(monkeypatch) -> None:
         }
 
     monkeypatch.setattr(release_script, "run_provider_health_check", _provider_stub)
-    monkeypatch.setattr(release_script, "_run_reference_bundle_gate", lambda symbol, timeframe, generated_at: {"name": "reference_bundle", "status": "ok", "details": {}})
+    monkeypatch.setattr(release_script, "_run_reference_bundle_gate", lambda symbol, timeframe, generated_at, **_kw: {"name": "reference_bundle", "status": "ok", "details": {}})
     monkeypatch.setattr(release_script, "_run_measurement_gate", lambda symbol, timeframe, output_root, report_output="-", **kwargs: {"name": "measurement_lane", "status": "ok", "blocking": False, "details": {"measurement_manifest_present": False}})
     monkeypatch.setattr(release_script, "_render", lambda report, output: captured_reports.append(report))
 
@@ -142,7 +142,7 @@ def test_release_runner_report_and_exit_are_deterministic(monkeypatch) -> None:
             "smoke_test_results": [{"symbol": "IBG", "timeframe": "15m"}],
         },
     )
-    monkeypatch.setattr(release_script, "_run_reference_bundle_gate", lambda symbol, timeframe, generated_at: {"name": "reference_bundle", "status": "ok", "details": {"symbol": symbol, "timeframe": timeframe}})
+    monkeypatch.setattr(release_script, "_run_reference_bundle_gate", lambda symbol, timeframe, generated_at, **_kw: {"name": "reference_bundle", "status": "ok", "details": {"symbol": symbol, "timeframe": timeframe}})
     monkeypatch.setattr(release_script, "_run_measurement_gate", lambda symbol, timeframe, output_root, report_output="-", **kwargs: {"name": "measurement_lane", "status": "ok", "blocking": False, "details": {"measurement_manifest_present": False}})
     monkeypatch.setattr(release_script, "_render", lambda report, output: captured_reports.append(report))
 
@@ -188,7 +188,7 @@ def test_release_runner_skips_publish_contract_gate_when_requested(monkeypatch) 
             "smoke_test_results": [{"symbol": "IBG", "timeframe": "15m"}],
         },
     )
-    monkeypatch.setattr(release_script, "_run_reference_bundle_gate", lambda symbol, timeframe, generated_at: {"name": "reference_bundle", "status": "ok", "details": {}})
+    monkeypatch.setattr(release_script, "_run_reference_bundle_gate", lambda symbol, timeframe, generated_at, **_kw: {"name": "reference_bundle", "status": "ok", "details": {}})
     monkeypatch.setattr(release_script, "_run_publish_contract_gate", lambda args: (_ for _ in ()).throw(AssertionError("publish contract gate should be skipped")))
     monkeypatch.setattr(release_script, "_run_measurement_gate", lambda symbol, timeframe, output_root, report_output="-", **kwargs: {"name": "measurement_lane", "status": "ok", "blocking": False, "details": {"measurement_manifest_present": False}})
     monkeypatch.setattr(release_script, "_render", lambda report, output: captured_reports.append(report))
@@ -242,7 +242,7 @@ def test_release_runner_surfaces_provider_domain_alerts(monkeypatch) -> None:
             "smoke_test_results": [{"symbol": "IBG", "timeframe": "15m"}],
         },
     )
-    monkeypatch.setattr(release_script, "_run_reference_bundle_gate", lambda symbol, timeframe, generated_at: {"name": "reference_bundle", "status": "ok", "details": {"symbol": symbol, "timeframe": timeframe}})
+    monkeypatch.setattr(release_script, "_run_reference_bundle_gate", lambda symbol, timeframe, generated_at, **_kw: {"name": "reference_bundle", "status": "ok", "details": {"symbol": symbol, "timeframe": timeframe}})
     monkeypatch.setattr(release_script, "_run_measurement_gate", lambda symbol, timeframe, output_root, report_output="-", **kwargs: {"name": "measurement_lane", "status": "ok", "blocking": False, "details": {"measurement_manifest_present": False}})
     monkeypatch.setattr(release_script, "_render", lambda report, output: captured_reports.append(report))
 
@@ -307,7 +307,7 @@ def test_release_runner_adds_post_release_validation_gate_when_report_is_provide
             "smoke_test_results": [{"symbol": "IBG", "timeframe": "15m"}],
         },
     )
-    monkeypatch.setattr(release_script, "_run_reference_bundle_gate", lambda symbol, timeframe, generated_at: {"name": "reference_bundle", "status": "ok", "details": {}})
+    monkeypatch.setattr(release_script, "_run_reference_bundle_gate", lambda symbol, timeframe, generated_at, **_kw: {"name": "reference_bundle", "status": "ok", "details": {}})
     monkeypatch.setattr(release_script, "_run_measurement_gate", lambda symbol, timeframe, output_root, report_output="-", **kwargs: {"name": "measurement_lane", "status": "ok", "blocking": False, "details": {"measurement_manifest_present": False}})
     monkeypatch.setattr(release_script, "_render", lambda report, output: captured_reports.append(report))
 
@@ -582,7 +582,7 @@ def test_provider_health_gate_has_explicit_blocking_key(monkeypatch) -> None:
             "smoke_test_results": [{"symbol": "IBG", "timeframe": "15m"}],
         },
     )
-    monkeypatch.setattr(release_script, "_run_reference_bundle_gate", lambda symbol, timeframe, generated_at: {"name": "reference_bundle", "status": "ok", "details": {}})
+    monkeypatch.setattr(release_script, "_run_reference_bundle_gate", lambda symbol, timeframe, generated_at, **_kw: {"name": "reference_bundle", "status": "ok", "details": {}})
     monkeypatch.setattr(release_script, "_run_measurement_gate", lambda symbol, timeframe, output_root, report_output="-", **kwargs: {"name": "measurement_lane", "status": "ok", "blocking": False, "details": {}})
     monkeypatch.setattr(release_script, "_render", lambda report, output: captured_reports.append(report))
 
@@ -598,7 +598,7 @@ def test_reference_bundle_evaluates_all_symbol_timeframe_pairs(monkeypatch) -> N
     captured_reports: list[dict] = []
     ref_calls: list[tuple[str, str]] = []
 
-    def _ref_stub(symbol, timeframe, generated_at):
+    def _ref_stub(symbol, timeframe, generated_at, **_kw):
         ref_calls.append((symbol, timeframe))
         return {"name": "reference_bundle", "status": "ok", "details": {"symbol": symbol, "timeframe": timeframe}}
 
@@ -696,7 +696,7 @@ def test_measurement_lane_evaluates_all_symbol_timeframe_pairs(monkeypatch) -> N
             ],
         },
     )
-    monkeypatch.setattr(release_script, "_run_reference_bundle_gate", lambda symbol, timeframe, generated_at: {"name": "reference_bundle", "status": "ok", "details": {}})
+    monkeypatch.setattr(release_script, "_run_reference_bundle_gate", lambda symbol, timeframe, generated_at, **_kw: {"name": "reference_bundle", "status": "ok", "details": {}})
     monkeypatch.setattr(release_script, "_run_measurement_gate", _m_stub)
     monkeypatch.setattr(release_script, "_render", lambda report, output: captured_reports.append(report))
 
@@ -745,7 +745,7 @@ def test_missing_smoke_result_has_message(monkeypatch) -> None:
             "smoke_test_results": [],
         },
     )
-    monkeypatch.setattr(release_script, "_run_reference_bundle_gate", lambda symbol, timeframe, generated_at: {"name": "reference_bundle", "status": "ok", "details": {}})
+    monkeypatch.setattr(release_script, "_run_reference_bundle_gate", lambda symbol, timeframe, generated_at, **_kw: {"name": "reference_bundle", "status": "ok", "details": {}})
     monkeypatch.setattr(release_script, "_run_measurement_gate", lambda symbol, timeframe, output_root, report_output="-", **kwargs: {"name": "measurement_lane", "status": "ok", "blocking": False, "details": {}})
     monkeypatch.setattr(release_script, "_render", lambda report, output: captured_reports.append(report))
 
@@ -1106,7 +1106,7 @@ class TestCiModeMainStructuralPass:
                 "smoke_test_results": [{"symbol": "AAPL", "timeframe": "15m"}],
             },
         )
-        monkeypatch.setattr(release_script, "_run_reference_bundle_gate", lambda symbol, timeframe, generated_at: {"name": "reference_bundle", "status": "ok", "details": {}})
+        monkeypatch.setattr(release_script, "_run_reference_bundle_gate", lambda symbol, timeframe, generated_at, **_kw: {"name": "reference_bundle", "status": "ok", "details": {}})
         monkeypatch.setattr(release_script, "_run_measurement_gate", lambda symbol, timeframe, output_root, report_output="-", **kwargs: {"name": "measurement_lane", "status": "ok", "blocking": False, "details": {}})
         monkeypatch.setattr(release_script, "_render", lambda report, output: captured.append(report))
 
@@ -1250,4 +1250,56 @@ class TestDataAbsentCodesDriftGuard:
         assert "all_meta_domains_absent" in fast_path_guard_source, (
             "all_meta_domains_absent reason value not found in "
             "_run_smoke_checks — fast-path semantics changed?"
+        )
+
+
+class TestReferenceBundleCachePassthrough:
+    """WP-R12: reference_bundle gate reuses bundles built by smoke checks
+    instead of rebuilding from scratch."""
+
+    def test_cached_bundle_skips_build(self) -> None:
+        """When a cached_bundle is provided, build_snapshot_bundle_for_symbol_timeframe
+        must NOT be called."""
+        cached = {
+            "snapshot": {"structure": {"bos": [], "orderblocks": [], "fvg": [], "liquidity_sweeps": []}},
+            "trust_summary": {"quality_recommendation": "ok", "quality_guardrail": None},
+        }
+        result = release_script._run_reference_bundle_gate(
+            "AAPL", "15m", 1_000.0, cached_bundle=cached,
+        )
+        assert result["status"] == "ok"
+        assert result["details"]["symbol"] == "AAPL"
+        assert result["details"]["timeframe"] == "15m"
+        assert result["details"]["quality_recommendation"] == "ok"
+
+    def test_cache_miss_falls_back_to_build(self, monkeypatch) -> None:
+        """When cached_bundle is None, build_snapshot_bundle_for_symbol_timeframe
+        is called normally."""
+        calls: list[dict] = []
+
+        def _mock_build(*args, **kwargs):
+            calls.append(kwargs)
+            return {
+                "snapshot": {"structure": {"bos": [], "orderblocks": [], "fvg": [], "liquidity_sweeps": []}},
+                "trust_summary": {"quality_recommendation": "ok"},
+            }
+
+        monkeypatch.setattr(release_script, "build_snapshot_bundle_for_symbol_timeframe", _mock_build)
+        result = release_script._run_reference_bundle_gate(
+            "AAPL", "15m", 1_000.0, cached_bundle=None,
+        )
+        assert len(calls) == 1
+        assert result["status"] == "ok"
+
+    def test_smoke_bundles_flow_to_reference_gate(self, monkeypatch) -> None:
+        """Bundles built by _run_smoke_checks are threaded through
+        run_provider_health_check → main() → _run_reference_bundle_gate
+        so no redundant build occurs."""
+        smoke_source = inspect.getsource(_ph._run_smoke_checks)
+        assert "built_bundles" in smoke_source, (
+            "built_bundles dict not found in _run_smoke_checks — WP-R12 removed?"
+        )
+        health_source = inspect.getsource(_ph.run_provider_health_check)
+        assert "smoke_bundles" in health_source, (
+            "smoke_bundles not threaded through run_provider_health_check — WP-R12 removed?"
         )
