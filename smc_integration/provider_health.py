@@ -1173,6 +1173,7 @@ def run_provider_health_check(
     stale_after_seconds: int | None = None,
     checked_at: float | None = None,
     strict_release_policy: bool = False,
+    include_smoke_bundles: bool = False,
 ) -> dict[str, Any]:
     checked = float(checked_at) if checked_at is not None else _now_ts()
     resolved_symbols = _normalize_symbols(symbols)
@@ -1259,8 +1260,9 @@ def run_provider_health_check(
         "warnings": warnings,
         "failures": failures,
         "degradations_detected": degradations,
-        "smoke_bundles": smoke_bundles,
     }
+    if include_smoke_bundles:
+        report["smoke_bundles"] = smoke_bundles
     return report
 
 

@@ -1303,3 +1303,6 @@ class TestReferenceBundleCachePassthrough:
         assert "smoke_bundles" in health_source, (
             "smoke_bundles not threaded through run_provider_health_check — WP-R12 removed?"
         )
+        assert "include_smoke_bundles" in health_source, (
+            "include_smoke_bundles opt-in gate not found — WP-R13 removed?"
+        )

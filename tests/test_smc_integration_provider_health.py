@@ -1047,6 +1047,14 @@ def test_provider_health_report_is_machine_readable_and_deterministic(monkeypatc
     assert required_keys.issubset(report_a.keys())
     assert json.dumps(report_a, sort_keys=True) == json.dumps(report_b, sort_keys=True)
 
+    # WP-R13: smoke_bundles must NOT appear in the default report to
+    # prevent accidental serialisation of large bundle payloads (and
+    # tuple-key JSON crashes) in callers that don't opt in.
+    assert "smoke_bundles" not in report_a, (
+        "smoke_bundles leaked into default report — "
+        "only include_smoke_bundles=True should add it"
+    )
+
 
 def test_strict_release_policy_promotes_missing_artifact_to_failure(monkeypatch, tmp_path):
     monkeypatch.setattr(provider_health, "discover_provider_matrix", lambda: [])

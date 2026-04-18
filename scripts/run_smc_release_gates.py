@@ -852,6 +852,7 @@ def main() -> int:
         stale_after_seconds=stale_seconds,
         checked_at=checked_at,
         strict_release_policy=True,
+        include_smoke_bundles=True,
     )
 
     provider_status = str(provider_report.get("overall_status", "fail")).lower()
@@ -894,6 +895,7 @@ def main() -> int:
         )
         for sym in symbols for tf in timeframes
     ]
+    del _smoke_bundles
     _ref_any_fail = any(r.get("status") == "fail" for r in _ref_pair_results)
     gates.append({
         "name": "reference_bundle",
