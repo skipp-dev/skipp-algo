@@ -46,3 +46,13 @@ def test_fast_pr_gates_workflow_has_normalized_summary_step() -> None:
     assert '- name: Render fast gate summary' in workflow_text
     assert 'render_ci_gate_summary.py' in workflow_text
     assert '--enforcement hard' in workflow_text
+
+
+# ---------------------------------------------------------------------------
+# WP-R19 — CI cancel churn
+# ---------------------------------------------------------------------------
+
+
+def test_fast_pr_gates_cancel_in_progress_only_for_prs() -> None:
+    workflow_text = _read(WORKFLOW_PATH)
+    assert "cancel-in-progress: ${{ github.event_name == 'pull_request' }}" in workflow_text
