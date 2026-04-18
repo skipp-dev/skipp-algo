@@ -103,9 +103,29 @@ _DATA_ABSENT_CODES = frozenset({
     "DOMAIN_DROPPED_TECHNICAL",
     "DOMAIN_DROP_DURING_BUILD",
     "FALLBACK_META_VOLUME_DOMAIN",
+    "FALLBACK_META_TECHNICAL_DOMAIN",
+    "FALLBACK_META_NEWS_DOMAIN",
     "SILENT_DOMAIN_DROP_NEWS",
     "SILENT_DOMAIN_DROP_TECHNICAL",
     "STRUCTURE_INPUT_LOAD_FAILED",
+    # Manifest/artifact staleness — fires when artefacts exist but are old
+    # (e.g. stale structure manifests in a local checkout or after a partial
+    # refresh on CI):
+    "STALE_MANIFEST_GENERATED_AT",
+    "STALE_MANIFEST_FILE_MTIME",
+    "MISSING_MANIFEST",
+    "MISSING_MANIFEST_GENERATED_AT",
+    # Meta-domain staleness promoted from degradations by strict policy:
+    "STALE_META_ASOF_TS",
+    "STALE_META_VOLUME_DOMAIN",
+    "STALE_META_TECHNICAL_DOMAIN",
+    "STALE_META_NEWS_DOMAIN",
+    "META_INPUT_LOAD_FAILED",
+    "SOURCE_PLAN_RESOLUTION_FAILED",
+    # Domain status alerts — fire when domain status is not "present":
+    "META_VOLUME_DOMAIN_STATUS",
+    "META_TECHNICAL_DOMAIN_STATUS",
+    "META_NEWS_DOMAIN_STATUS",
 })
 
 

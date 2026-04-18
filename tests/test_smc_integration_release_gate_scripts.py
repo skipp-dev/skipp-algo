@@ -4,9 +4,12 @@ import json
 from argparse import Namespace
 from pathlib import Path
 
+import pytest
+
 from scripts import run_smc_ci_health_checks as ci_script
 from scripts import run_smc_release_gates as release_script
 from smc_core.scoring import ScoredEvent
+from smc_integration import provider_health as _ph
 from smc_integration.measurement_evidence import MeasurementEvidence
 
 
@@ -888,3 +891,339 @@ class TestGateFailureIsDataAbsent:
     def test_empty_details_not_absent(self) -> None:
         gate = {"name": "unknown", "status": "fail", "details": {}}
         assert release_script._gate_failure_is_data_absent(gate) is False
+
+    def test_stale_manifest_generated_at_is_data_absent(self) -> None:
+        """STALE_MANIFEST_GENERATED_AT fires in local CI when manifests are old."""
+        gate = {
+            "name": "provider_health",
+            "status": "fail",
+            "blocking": True,
+            "details": {
+                "failures": [{"code": "STALE_MANIFEST_GENERATED_AT"}],
+                "warnings": [{"code": "EMPTY_CONTEXT_BARS"}],
+                "domain_alerts": [{"code": "FALLBACK_META_VOLUME_DOMAIN"}],
+                "missing_smoke_failures": [],
+            },
+        }
+        assert release_script._gate_failure_is_data_absent(gate) is True
+
+    def test_provider_health_all_stale_and_missing_codes(self) -> None:
+        """All manifest/meta staleness codes are classified as data-absent."""
+        gate = {
+            "name": "provider_health",
+            "status": "fail",
+            "blocking": True,
+            "details": {
+                "failures": [
+                    {"code": "STALE_MANIFEST_GENERATED_AT"},
+                    {"code": "STRUCTURE_INPUT_LOAD_FAILED"},
+                    {"code": "STALE_META_ASOF_TS"},
+                    {"code": "META_INPUT_LOAD_FAILED"},
+                    {"code": "SOURCE_PLAN_RESOLUTION_FAILED"},
+                ],
+                "warnings": [
+                    {"code": "MISSING_MANIFEST"},
+                    {"code": "MISSING_MANIFEST_GENERATED_AT"},
+                    {"code": "STALE_MANIFEST_FILE_MTIME"},
+                ],
+                "domain_alerts": [
+                    {"code": "FALLBACK_META_TECHNICAL_DOMAIN"},
+                    {"code": "FALLBACK_META_NEWS_DOMAIN"},
+                    {"code": "STALE_META_VOLUME_DOMAIN"},
+                    {"code": "STALE_META_TECHNICAL_DOMAIN"},
+                    {"code": "STALE_META_NEWS_DOMAIN"},
+                ],
+                "missing_smoke_failures": [],
+            },
+        }
+        assert release_script._gate_failure_is_data_absent(gate) is True
+
+    def test_mixed_data_absent_and_real_failure_not_absent(self) -> None:
+        """One non-CI code among data-absent codes → gate is NOT data-absent."""
+        gate = {
+            "name": "provider_health",
+            "status": "fail",
+            "blocking": True,
+            "details": {
+                "failures": [
+                    {"code": "STRUCTURE_INPUT_LOAD_FAILED"},
+                    {"code": "INVALID_MANIFEST_JSON"},
+                ],
+                "warnings": [],
+                "domain_alerts": [],
+                "missing_smoke_failures": [],
+            },
+        }
+        assert release_script._gate_failure_is_data_absent(gate) is False
+
+
+# ── E2E CI-mode regression test ──────────────────────────────────────
+
+
+class TestCiModeMainStructuralPass:
+    """End-to-end: main() with --ci-mode must yield ci_structural_pass=True
+    when every failure is caused by absent production data."""
+
+    @staticmethod
+    def _ci_provider_report(symbols: list[str], timeframes: list[str]) -> dict:
+        """Realistic provider_health report as observed on GitHub-hosted runners."""
+        smoke_results = [
+            {"symbol": s, "timeframe": tf, "status": "fail"}
+            for s in symbols for tf in timeframes
+        ]
+        return {
+            "overall_status": "fail",
+            "failures": [
+                {"code": "STALE_MANIFEST_GENERATED_AT", "timeframe": "15m"},
+                {"code": "STRUCTURE_INPUT_LOAD_FAILED", "symbol": "AAPL", "timeframe": "15m"},
+                {"code": "META_INPUT_LOAD_FAILED", "symbol": "AAPL", "timeframe": "15m"},
+                {"code": "SOURCE_PLAN_RESOLUTION_FAILED", "symbol": "AAPL", "timeframe": "15m"},
+            ],
+            "warnings": [
+                {"code": "EMPTY_CONTEXT_BARS", "symbol": "AAPL", "timeframe": "15m"},
+                {"code": "NONCANONICAL_MANIFEST_WORKBOOK_PATH", "timeframe": "15m"},
+                {"code": "MISSING_MANIFEST", "timeframe": "15m"},
+                {"code": "MISSING_MANIFEST_GENERATED_AT", "timeframe": "15m"},
+            ],
+            "domain_alerts": [
+                {"code": "DOMAIN_DROPPED_NEWS", "domain": "news"},
+                {"code": "DOMAIN_DROPPED_TECHNICAL", "domain": "technical"},
+                {"code": "DOMAIN_DROP_DURING_BUILD", "domain": "news"},
+                {"code": "FALLBACK_META_VOLUME_DOMAIN", "domain": "volume"},
+                {"code": "FALLBACK_META_TECHNICAL_DOMAIN", "domain": "technical"},
+                {"code": "FALLBACK_META_NEWS_DOMAIN", "domain": "news"},
+                {"code": "SILENT_DOMAIN_DROP_NEWS", "domain": "news"},
+                {"code": "SILENT_DOMAIN_DROP_TECHNICAL", "domain": "technical"},
+                {"code": "STALE_META_VOLUME_DOMAIN", "domain": "volume"},
+                {"code": "STALE_META_TECHNICAL_DOMAIN", "domain": "technical"},
+                {"code": "STALE_META_NEWS_DOMAIN", "domain": "news"},
+            ],
+            "degradations_detected": [
+                {"code": "EMPTY_CONTEXT_BARS"},
+                {"code": "STRUCTURE_SOURCE_HEALTH_ISSUES"},
+            ],
+            "smoke_test_results": smoke_results,
+        }
+
+    def test_ci_mode_main_structural_pass_without_data(self, monkeypatch) -> None:
+        """With all-data-absent failures, --ci-mode downgrades every blocking
+        gate and ci_structural_pass is True."""
+        captured: list[dict] = []
+        symbols = ["AAPL"]
+        timeframes = ["15m"]
+
+        monkeypatch.setattr(
+            release_script,
+            "build_parser",
+            lambda: _Parser(
+                Namespace(
+                    symbols="AAPL",
+                    timeframes="15m",
+                    stale_after_seconds=3600,
+                    fail_on_warn=False,
+                    allow_warn=False,
+                    skip_publish_contract=True,
+                    manifest="pine/generated/smc_micro_profiles_generated.json",
+                    core_engine="SMC_Core_Engine.pine",
+                    measurement_output_root=None,
+                    measurement_baseline_summary=None,
+                    output="-",
+                    ci_mode=True,
+                )
+            ),
+        )
+        monkeypatch.setattr(
+            release_script,
+            "run_provider_health_check",
+            lambda **kwargs: self._ci_provider_report(symbols, timeframes),
+        )
+        monkeypatch.setattr(
+            release_script,
+            "build_snapshot_bundle_for_symbol_timeframe",
+            lambda *a, **kw: (_ for _ in ()).throw(
+                FileNotFoundError("No production data in CI")
+            ),
+        )
+        monkeypatch.setattr(
+            release_script,
+            "_run_measurement_gate",
+            lambda symbol, timeframe, output_root, report_output="-", **kwargs: {
+                "name": "measurement_lane",
+                "status": "warn",
+                "blocking": False,
+                "details": {"measurement_manifest_present": False},
+            },
+        )
+        monkeypatch.setattr(release_script, "_render", lambda report, output: captured.append(report))
+
+        rc = release_script.main()
+
+        report = captured[-1]
+        assert report["ci_structural_pass"] is True, (
+            f"ci_structural_pass should be True; "
+            f"downgrades={report['runner']['ci_mode_downgrades']}"
+        )
+        assert "provider_health" in report["runner"]["ci_mode_downgrades"]
+        assert "reference_bundle" in report["runner"]["ci_mode_downgrades"]
+        # Exit code is 0 only if no blocking gate remains — verify consistency.
+        assert rc == 0
+
+    def test_real_failure_prevents_structural_pass(self, monkeypatch) -> None:
+        """A non-data-absent failure must NOT be downgraded — ci_structural_pass
+        stays False."""
+        captured: list[dict] = []
+
+        monkeypatch.setattr(
+            release_script,
+            "build_parser",
+            lambda: _Parser(
+                Namespace(
+                    symbols="AAPL",
+                    timeframes="15m",
+                    stale_after_seconds=3600,
+                    fail_on_warn=False,
+                    allow_warn=False,
+                    skip_publish_contract=True,
+                    manifest="pine/generated/smc_micro_profiles_generated.json",
+                    core_engine="SMC_Core_Engine.pine",
+                    measurement_output_root=None,
+                    measurement_baseline_summary=None,
+                    output="-",
+                    ci_mode=True,
+                )
+            ),
+        )
+        monkeypatch.setattr(
+            release_script,
+            "run_provider_health_check",
+            lambda **kwargs: {
+                "overall_status": "fail",
+                "failures": [{"code": "INVALID_MANIFEST_JSON"}],
+                "warnings": [],
+                "domain_alerts": [],
+                "degradations_detected": [],
+                "smoke_test_results": [{"symbol": "AAPL", "timeframe": "15m"}],
+            },
+        )
+        monkeypatch.setattr(release_script, "_run_reference_bundle_gate", lambda symbol, timeframe, generated_at: {"name": "reference_bundle", "status": "ok", "details": {}})
+        monkeypatch.setattr(release_script, "_run_measurement_gate", lambda symbol, timeframe, output_root, report_output="-", **kwargs: {"name": "measurement_lane", "status": "ok", "blocking": False, "details": {}})
+        monkeypatch.setattr(release_script, "_render", lambda report, output: captured.append(report))
+
+        rc = release_script.main()
+
+        report = captured[-1]
+        assert report["ci_structural_pass"] is False
+        assert rc == 1
+
+
+# ── Drift-detection: _DATA_ABSENT_CODES vs provider_health codes ─────
+
+
+# Codes that genuinely indicate code/schema bugs or corrupted data and must
+# NEVER be masked by ci-mode.  When a new code is added to provider_health's
+# promotion sets, it must be classified here OR in _DATA_ABSENT_CODES.
+_PRODUCTION_ONLY_CODES: frozenset[str] = frozenset({
+    "ARTIFACT_LOOKUP_FAILED",
+    "INVALID_MANIFEST_JSON",
+    "INVALID_MANIFEST_SHAPE",
+    "INVALID_STRUCTURE_ARTIFACT",
+    "INVALID_LEGACY_STRUCTURE_ARTIFACT",
+    "MISSING_META_ASOF_TS",
+})
+
+# Codes that originate in the release-gate script itself or in smoke checks
+# (not in the provider_health promotion sets or domain-alert templates).
+_RELEASE_GATE_LEVEL_CODES: frozenset[str] = frozenset({
+    "MISSING_SMOKE_RESULT",
+    "source_file_not_found",
+    "STRUCTURE_INPUT_LOAD_FAILED",
+    "EMPTY_CONTEXT_BARS",
+    "META_INPUT_LOAD_FAILED",
+    "SOURCE_PLAN_RESOLUTION_FAILED",
+    "NONCANONICAL_MANIFEST_WORKBOOK_PATH",
+    "MISSING_ARTIFACT",
+})
+
+# Domain-alert code templates expanded for all applicable domains.
+# These are generated by _collect_meta_domain_alerts in provider_health.py.
+_DOMAIN_ALERT_CODE_TEMPLATES: frozenset[str] = frozenset({
+    # FALLBACK_META_{DOMAIN}_DOMAIN — volume, technical, news
+    "FALLBACK_META_VOLUME_DOMAIN",
+    "FALLBACK_META_TECHNICAL_DOMAIN",
+    "FALLBACK_META_NEWS_DOMAIN",
+    # DOMAIN_DROPPED_{DOMAIN} — technical, news
+    "DOMAIN_DROPPED_TECHNICAL",
+    "DOMAIN_DROPPED_NEWS",
+    # Literal
+    "DOMAIN_DROP_DURING_BUILD",
+    # SILENT_DOMAIN_DROP_{DOMAIN} — technical, news
+    "SILENT_DOMAIN_DROP_TECHNICAL",
+    "SILENT_DOMAIN_DROP_NEWS",
+    # META_{DOMAIN}_DOMAIN_STATUS — volume, technical, news
+    "META_VOLUME_DOMAIN_STATUS",
+    "META_TECHNICAL_DOMAIN_STATUS",
+    "META_NEWS_DOMAIN_STATUS",
+    # STALE_META_{DOMAIN}_DOMAIN — volume, technical, news (degradation path)
+    "STALE_META_VOLUME_DOMAIN",
+    "STALE_META_TECHNICAL_DOMAIN",
+    "STALE_META_NEWS_DOMAIN",
+})
+
+
+class TestDataAbsentCodesDriftGuard:
+    """Ensures every code that can be promoted to a failure or appear as a
+    domain alert is explicitly classified as either data-absent (safe to
+    downgrade in CI) or production-only (must block).
+
+    When a developer adds a new code to ``_STRICT_RELEASE_WARNING_CODES``,
+    ``_STRICT_RELEASE_DEGRADATION_CODES``, or a new domain-alert template,
+    this test fails until the code is added to ``_DATA_ABSENT_CODES`` or
+    ``_PRODUCTION_ONLY_CODES``."""
+
+    def test_strict_warning_codes_are_classified(self) -> None:
+        for code in _ph._STRICT_RELEASE_WARNING_CODES:
+            assert code in release_script._DATA_ABSENT_CODES or code in _PRODUCTION_ONLY_CODES, (
+                f"Code {code!r} from _STRICT_RELEASE_WARNING_CODES is neither in "
+                f"_DATA_ABSENT_CODES nor _PRODUCTION_ONLY_CODES — classify it!"
+            )
+
+    def test_strict_degradation_codes_are_classified(self) -> None:
+        for code in _ph._STRICT_RELEASE_DEGRADATION_CODES:
+            assert code in release_script._DATA_ABSENT_CODES or code in _PRODUCTION_ONLY_CODES, (
+                f"Code {code!r} from _STRICT_RELEASE_DEGRADATION_CODES is neither in "
+                f"_DATA_ABSENT_CODES nor _PRODUCTION_ONLY_CODES — classify it!"
+            )
+
+    def test_domain_alert_codes_are_classified(self) -> None:
+        for code in _DOMAIN_ALERT_CODE_TEMPLATES:
+            assert code in release_script._DATA_ABSENT_CODES or code in _PRODUCTION_ONLY_CODES, (
+                f"Domain-alert code {code!r} is neither in "
+                f"_DATA_ABSENT_CODES nor _PRODUCTION_ONLY_CODES — classify it!"
+            )
+
+    def test_production_only_codes_not_in_data_absent(self) -> None:
+        """Production-only codes must NOT accidentally be added to
+        _DATA_ABSENT_CODES — that would silently mask real failures."""
+        overlap = _PRODUCTION_ONLY_CODES & release_script._DATA_ABSENT_CODES
+        assert not overlap, (
+            f"Codes {overlap} are in BOTH _PRODUCTION_ONLY_CODES and "
+            f"_DATA_ABSENT_CODES — remove from one set!"
+        )
+
+    def test_all_data_absent_codes_are_known(self) -> None:
+        """Every code in _DATA_ABSENT_CODES should appear in at least one
+        of the provider_health promotion sets or the domain-alert templates
+        (or be a release-gate-level code like MISSING_SMOKE_RESULT).
+        Unknown codes suggest stale entries."""
+        known = (
+            _ph._STRICT_RELEASE_WARNING_CODES
+            | _ph._STRICT_RELEASE_DEGRADATION_CODES
+            | _DOMAIN_ALERT_CODE_TEMPLATES
+            | _PRODUCTION_ONLY_CODES
+            | _RELEASE_GATE_LEVEL_CODES
+        )
+        unknown = release_script._DATA_ABSENT_CODES - known
+        assert not unknown, (
+            f"Codes {unknown} are in _DATA_ABSENT_CODES but not in any "
+            f"provider_health set or _RELEASE_GATE_LEVEL_CODES — stale?"
+        )
