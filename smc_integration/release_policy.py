@@ -414,6 +414,141 @@ class ContextualCalibrationPromotionPolicy:
     require_metric_consensus: bool = True
 
 
+# ---------------------------------------------------------------------------
+# Quality Floor Tiers (F-14 / WP-9)
+# ---------------------------------------------------------------------------
+
+QUALITY_FLOOR_TIERS: tuple[dict[str, Any], ...] = (
+    {"tier": "production_grade", "max_brier": 0.25, "max_ece": 0.15, "min_events": 20},
+    {"tier": "acceptable",       "max_brier": 0.40, "max_ece": 0.25, "min_events": 8},
+    {"tier": "minimal",          "max_brier": 0.60, "max_ece": 0.30, "min_events": 1},
+)
+
+
+def classify_quality_tier(
+    brier: float,
+    ece: float,
+    n_events: int,
+) -> str:
+    """Classify a measurement result into a quality floor tier.
+
+    Returns one of: ``production_grade``, ``acceptable``, ``minimal``,
+    ``below_minimal``.
+    """
+    if math.isnan(brier) or math.isnan(ece) or n_events < 1:
+        return "below_minimal"
+    for tier_def in QUALITY_FLOOR_TIERS:
+        if (
+            brier <= tier_def["max_brier"]
+            and ece <= tier_def["max_ece"]
+            and n_events >= tier_def["min_events"]
+        ):
+            return tier_def["tier"]
+    return "below_minimal"
+
+
+# ---------------------------------------------------------------------------
+# Quality Floor — Policy-Relevant Usage (WP-18)
+# ---------------------------------------------------------------------------
+
+# Mapping: tier → permitted communication labels.
+# Only tiers at or above the key level may use the associated terms.
+QUALITY_COMMUNICATION_GUARD: dict[str, tuple[str, ...]] = {
+    "production_grade": ("calibrated", "production-ready", "verified"),
+    "acceptable": ("measured", "assessed"),
+    "minimal": ("preliminary", "experimental"),
+    "below_minimal": ("untested",),
+}
+
+
+def allowed_quality_labels(tier: str) -> tuple[str, ...]:
+    """Return the communication labels permitted for a quality tier.
+
+    A higher tier inherits all labels from lower tiers.  This prevents
+    over-claiming: only ``production_grade`` may use "calibrated".
+    """
+    ordered = ["below_minimal", "minimal", "acceptable", "production_grade"]
+    try:
+        level = ordered.index(tier)
+    except ValueError:
+        return QUALITY_COMMUNICATION_GUARD.get("below_minimal", ())
+
+    labels: list[str] = []
+    for i, t in enumerate(ordered):
+        if i <= level:
+            labels.extend(QUALITY_COMMUNICATION_GUARD.get(t, ()))
+    return tuple(labels)
+
+
+def quality_tier_release_advisory(
+    brier: float, ece: float, n_events: int
+) -> dict[str, object]:
+    """Classify a measurement result and return a release advisory.
+
+    Returns:
+        tier: str — quality floor tier
+        labels: tuple — permitted communication labels
+        blocking: bool — True if tier is below_minimal (blocks release)
+        advisory: str — human-readable advisory message
+    """
+    tier = classify_quality_tier(brier, ece, n_events)
+    labels = allowed_quality_labels(tier)
+    blocking = tier == "below_minimal"
+
+    if tier == "production_grade":
+        advisory = "Calibrated — may be labeled as production-ready."
+    elif tier == "acceptable":
+        advisory = "Measured — acceptable for release with advisory note."
+    elif tier == "minimal":
+        advisory = "Preliminary — release with explicit quality caveat."
+    else:
+        advisory = "Untested — release blocked until quality improves."
+
+    return {
+        "tier": tier,
+        "labels": labels,
+        "blocking": blocking,
+        "advisory": advisory,
+    }
+
+
+def bootstrap_confidence_interval(
+    predictions: list[tuple[float, bool]],
+    metric_fn: Any,
+    *,
+    n_resamples: int = 1000,
+    ci: float = 0.95,
+    seed: int = 42,
+) -> dict[str, float]:
+    """Compute a percentile bootstrap CI for a scoring metric.
+
+    Returns ``{"lower": ..., "upper": ..., "point": ...}``.
+    ``metric_fn`` must accept a ``list[tuple[float, bool]]`` and return float.
+    """
+    import random as _random
+
+    n = len(predictions)
+    if n < 2:
+        point = metric_fn(predictions) if predictions else float("nan")
+        return {"lower": point, "upper": point, "point": point}
+
+    rng = _random.Random(seed)
+    boot_vals: list[float] = []
+    for _ in range(n_resamples):
+        sample = [predictions[rng.randint(0, n - 1)] for _ in range(n)]
+        boot_vals.append(metric_fn(sample))
+
+    boot_vals.sort()
+    alpha = (1 - ci) / 2
+    lo_idx = max(0, int(alpha * n_resamples))
+    hi_idx = min(n_resamples - 1, int((1 - alpha) * n_resamples))
+    return {
+        "lower": boot_vals[lo_idx],
+        "upper": boot_vals[hi_idx],
+        "point": metric_fn(predictions),
+    }
+
+
 MEASUREMENT_SHADOW_THRESHOLDS = MeasurementShadowThresholds()
 CONTEXTUAL_CALIBRATION_RECOMMENDATION_POLICY = ContextualCalibrationRecommendationPolicy()
 CONTEXTUAL_CALIBRATION_PROMOTION_POLICY = ContextualCalibrationPromotionPolicy()

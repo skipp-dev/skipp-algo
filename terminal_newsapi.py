@@ -3,6 +3,11 @@
 This module previously provided NewsAPI.ai (Event Registry) integration.
 The service subscription has been cancelled.  All functions now return
 empty/False values so existing callers continue to work without errors.
+
+DECOMMISSION STATUS (F-10 / WP-12):
+  This entire module is dead code.  All functions return empty values.
+  Safe to delete once all import references are removed from callers.
+  Known callers: streamlit_terminal.py (conditional import).
 """
 
 from __future__ import annotations

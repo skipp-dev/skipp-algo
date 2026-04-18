@@ -5,6 +5,7 @@ from typing import Literal, TypedDict
 
 from .schema_version import SCHEMA_VERSION
 from .types import (
+
     BosEvent,
     EventSeverity,
     Fvg,
@@ -19,6 +20,42 @@ from .types import (
     VolumeRegime,
     ZoneStyle,
 )
+
+# ---------------------------------------------------------------------------
+# Heat-formula weights (F-10 / WP-12)
+# ---------------------------------------------------------------------------
+# Sentiment is *additive context*, not a gating signal.  It modulates the
+# directional heat but cannot flip the sign alone.  The 70/30 split reflects
+# the design choice that technical structure dominates while news adjusts
+# conviction.  To experiment with different blends, change these constants
+# and re-run the measurement calibration suite.
+TECH_WEIGHT: float = 0.7
+NEWS_WEIGHT: float = 0.3
+
+
+def evaluate_sentiment_impact(
+    signed_tech: float, signed_news: float
+) -> dict[str, float]:
+    """Compare heat with vs. without news to quantify sentiment contribution.
+
+    Returns:
+        heat_with_news: float — full heat formula result
+        heat_without_news: float — tech-only heat (re-normalized)
+        news_delta: float — absolute difference
+        news_contribution_pct: float — % of heat attributable to news (0–100)
+    """
+    heat_with = _clamp(signed_tech * TECH_WEIGHT + signed_news * NEWS_WEIGHT, -1.0, 1.0)
+    heat_without = _clamp(signed_tech * TECH_WEIGHT, -1.0, 1.0)  # formula with news zeroed
+    delta = abs(heat_with - heat_without)
+    denom = max(abs(heat_with), 1e-9)
+    contribution_pct = min(delta / denom * 100, 100.0) if abs(heat_with) > 1e-9 else 0.0
+
+    return {
+        "heat_with_news": heat_with,
+        "heat_without_news": heat_without,
+        "news_delta": round(delta, 6),
+        "news_contribution_pct": round(contribution_pct, 2),
+    }
 
 
 class NormalizedMeta(TypedDict):
@@ -191,7 +228,7 @@ def derive_base_signals(nm: NormalizedMeta) -> BaseLayerSignals:
     signed_news = nm["signed_news"]
     thin_fraction = nm["thin_fraction"]
 
-    global_heat = _clamp(signed_tech * 0.7 + signed_news * 0.3, -1.0, 1.0)
+    global_heat = _clamp(signed_tech * TECH_WEIGHT + signed_news * NEWS_WEIGHT, -1.0, 1.0)
     if nm["volume_stale"]:
         # Missing or stale volume forces neutral fallback regardless of directional inputs.
         global_heat = 0.0

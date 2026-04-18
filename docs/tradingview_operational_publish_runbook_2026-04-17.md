@@ -372,4 +372,27 @@ These items are **intentionally** kept manual:
 
 ---
 
-_Last updated: 2026-04-17_
+## Publish Drift Detection (F-12 / WP-10)
+
+After every successful publish, update the manifest:
+
+```bash
+python scripts/detect_publish_drift.py \
+  --record "SMC_Core_Engine.pine" \
+  --library-name "SMC Core" \
+  --version "7.x" \
+  --publish-time "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+```
+
+To check for drift between local files and the last publish:
+
+```bash
+python scripts/detect_publish_drift.py
+```
+
+The manifest lives at `artifacts/publish_manifest.json`.  CI can run the
+drift detector as a pre-release check.
+
+---
+
+_Last updated: 2026-04-18_

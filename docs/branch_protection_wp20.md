@@ -227,3 +227,54 @@ Zusammenfassung der benötigten Admin-Aktion:
 5. **Create** klicken
 
 Geschätzter Aufwand: **< 5 Minuten**, einmalig.
+
+---
+
+## WP-23 — Final-State Reconciliation (2026-04-18)
+
+### Abgleich: Checks vs. Protection
+
+Nach WP-15 bis WP-21 existieren folgende relevante CI-Checks:
+
+| Check / Workflow | Typ | Aktuell in Protection? | Empfehlung |
+|------------------|-----|----------------------|------------|
+| `CI / validate` | PR-Gate | ❌ (manueller Schritt offen) | **Required** — merge-blocking |
+| `smc-fast-pr-gates / fast-gates` | PR-Gate | ❌ | **Required** — merge-blocking |
+| `smc-deeper-integration-gates` | Push+Nightly | n/a (nicht PR-blocking) | Nicht required (sichtbar laufen lassen) |
+| `smc-library-refresh` | Scheduled | n/a | Nicht required |
+| `smc-release-gates` | Release | n/a | Nur vor Release/Publish |
+| `smc-measurement-benchmark` | Scheduled | n/a | Nicht required |
+
+### Neue Artefakte aus WP-15–21 — CI-Relevanz
+
+| Artefakt | CI-Sichtbar? | Handlungsbedarf |
+|----------|-------------|-----------------|
+| `run_freeze_exit_check.py` | Über pytest (test_freeze_exit_check.py) | ✅ automatisch via `validate` |
+| `detect_publish_drift.py` | Über pytest (test_publish_drift.py) | ✅ automatisch via `validate` |
+| Quality Floor Policy | Über pytest (TestQualityFloorPolicy) | ✅ automatisch via `validate` |
+| Product Identity Freeze | Über pytest (test_product_identity*) | ✅ automatisch via `validate` |
+| Sentiment Impact | Über pytest (TestSentimentImpact) | ✅ automatisch via `validate` |
+
+### Fazit
+
+Alle neuen Tests aus WP-15–21 laufen automatisch in `CI / validate` und
+`smc-fast-pr-gates`. Keine zusätzlichen Required Checks nötig.
+
+Die einzige verbleibende Lücke bleibt die **manuelle Admin-Aktion** (Ruleset
+`main-protection` erstellen). Die Schritte sind oben dokumentiert und
+unverändert gültig.
+
+### Admin-Handgriff-Checkliste (final)
+
+```
+[ ] Settings → Rules → Rulesets → New branch ruleset
+    Name: main-protection
+    Target: main
+    Rules:
+      [x] Require pull request (0 approvals, dismiss stale)
+      [x] Require status checks (validate, strict)
+      [x] Block force pushes
+      [x] Restrict deletions
+    Bypass: Admin + bestehende Integrations
+    → Create
+```

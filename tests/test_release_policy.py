@@ -967,3 +967,120 @@ class TestGovernanceEnforcementGaps:
         }
         overlap = excluded_codes & HARD_BLOCKING_DEGRADATION_CODES
         assert overlap == set(), f"EXCLUDED codes must not be in HARD_BLOCKING_DEGRADATION_CODES: {overlap}"
+
+
+# ---------------------------------------------------------------------------
+# F-14 / WP-9 — Quality Floor Calibration
+# ---------------------------------------------------------------------------
+
+
+class TestQualityFloorTiers:
+    def test_production_grade(self) -> None:
+        from smc_integration.release_policy import classify_quality_tier
+        assert classify_quality_tier(0.20, 0.10, 25) == "production_grade"
+
+    def test_acceptable(self) -> None:
+        from smc_integration.release_policy import classify_quality_tier
+        assert classify_quality_tier(0.35, 0.20, 10) == "acceptable"
+
+    def test_minimal(self) -> None:
+        from smc_integration.release_policy import classify_quality_tier
+        assert classify_quality_tier(0.55, 0.28, 3) == "minimal"
+
+    def test_below_minimal_high_brier(self) -> None:
+        from smc_integration.release_policy import classify_quality_tier
+        assert classify_quality_tier(0.70, 0.10, 30) == "below_minimal"
+
+    def test_below_minimal_zero_events(self) -> None:
+        from smc_integration.release_policy import classify_quality_tier
+        assert classify_quality_tier(0.20, 0.10, 0) == "below_minimal"
+
+    def test_below_minimal_nan(self) -> None:
+        from smc_integration.release_policy import classify_quality_tier
+        assert classify_quality_tier(float("nan"), 0.10, 10) == "below_minimal"
+
+    def test_tier_boundary_exact(self) -> None:
+        from smc_integration.release_policy import classify_quality_tier
+        assert classify_quality_tier(0.25, 0.15, 20) == "production_grade"
+
+    def test_insufficient_events_for_production(self) -> None:
+        from smc_integration.release_policy import classify_quality_tier
+        # Good scores but only 5 events — not enough for production_grade (20)
+        # or acceptable (8), falls to minimal (1)
+        assert classify_quality_tier(0.10, 0.05, 5) == "minimal"
+
+
+class TestBootstrapCI:
+    def test_basic_ci(self) -> None:
+        from smc_integration.release_policy import bootstrap_confidence_interval
+        from smc_core.scoring import brier_score
+        preds = [(0.8, True), (0.6, False), (0.9, True), (0.3, False), (0.7, True)] * 4
+        result = bootstrap_confidence_interval(preds, brier_score)
+        assert "lower" in result and "upper" in result and "point" in result
+        assert result["lower"] <= result["point"] <= result["upper"]
+
+    def test_single_element(self) -> None:
+        from smc_integration.release_policy import bootstrap_confidence_interval
+        from smc_core.scoring import brier_score
+        preds = [(0.5, True)]
+        result = bootstrap_confidence_interval(preds, brier_score)
+        assert result["lower"] == result["upper"] == result["point"]
+
+    def test_empty(self) -> None:
+        import math
+        from smc_integration.release_policy import bootstrap_confidence_interval
+        from smc_core.scoring import brier_score
+        result = bootstrap_confidence_interval([], brier_score)
+        assert math.isnan(result["point"])
+
+    def test_deterministic_with_seed(self) -> None:
+        from smc_integration.release_policy import bootstrap_confidence_interval
+        from smc_core.scoring import brier_score
+        preds = [(0.7, True), (0.4, False), (0.8, True)] * 5
+        r1 = bootstrap_confidence_interval(preds, brier_score, seed=123)
+        r2 = bootstrap_confidence_interval(preds, brier_score, seed=123)
+        assert r1 == r2
+
+
+# ---------------------------------------------------------------------------
+# WP-18: Quality Floor policy-relevant usage
+# ---------------------------------------------------------------------------
+
+class TestQualityFloorPolicy:
+    def test_allowed_labels_production_grade(self) -> None:
+        from smc_integration.release_policy import allowed_quality_labels
+        labels = allowed_quality_labels("production_grade")
+        assert "calibrated" in labels
+        assert "measured" in labels  # inherits from lower tiers
+
+    def test_allowed_labels_acceptable(self) -> None:
+        from smc_integration.release_policy import allowed_quality_labels
+        labels = allowed_quality_labels("acceptable")
+        assert "measured" in labels
+        assert "calibrated" not in labels  # only production_grade
+
+    def test_allowed_labels_below_minimal(self) -> None:
+        from smc_integration.release_policy import allowed_quality_labels
+        labels = allowed_quality_labels("below_minimal")
+        assert "untested" in labels
+        assert "calibrated" not in labels
+
+    def test_release_advisory_production(self) -> None:
+        from smc_integration.release_policy import quality_tier_release_advisory
+        result = quality_tier_release_advisory(0.15, 0.10, 30)
+        assert result["tier"] == "production_grade"
+        assert result["blocking"] is False
+        assert "calibrated" in result["advisory"].lower()
+
+    def test_release_advisory_below_minimal_blocks(self) -> None:
+        from smc_integration.release_policy import quality_tier_release_advisory
+        result = quality_tier_release_advisory(0.90, 0.50, 0)
+        assert result["tier"] == "below_minimal"
+        assert result["blocking"] is True
+
+    def test_release_advisory_acceptable(self) -> None:
+        from smc_integration.release_policy import quality_tier_release_advisory
+        result = quality_tier_release_advisory(0.35, 0.20, 10)
+        assert result["tier"] == "acceptable"
+        assert result["blocking"] is False
+        assert "measured" in result["advisory"].lower()

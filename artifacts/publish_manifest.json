@@ -1,0 +1,5 @@
+{
+  "_comment": "Publish manifest tracking content hashes of published TradingView libraries/scripts. Updated after each successful publish. Used by detect_publish_drift.py.",
+  "manifest_version": 1,
+  "entries": []
+}

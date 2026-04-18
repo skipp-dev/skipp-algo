@@ -420,3 +420,67 @@ class TestResolveProviderStateFromFailureActions:
             structure_state="none", failure_actions=[],
         )
         assert state == "unavailable"
+
+
+# ---------------------------------------------------------------------------
+# F-11 / WP-13 — Continuous Staleness
+# ---------------------------------------------------------------------------
+
+
+class TestStalenessScore:
+    def test_fresh_is_zero(self) -> None:
+        from terminal_feed_lifecycle import staleness_score
+        assert staleness_score("news", 0) == 0.0
+
+    def test_at_half_life_is_half(self) -> None:
+        from terminal_feed_lifecycle import staleness_score, DOMAIN_HALF_LIFE_MINUTES
+        half_life = DOMAIN_HALF_LIFE_MINUTES["news"]
+        score = staleness_score("news", half_life)
+        assert abs(score - 0.5) < 0.01
+
+    def test_increases_with_age(self) -> None:
+        from terminal_feed_lifecycle import staleness_score
+        s1 = staleness_score("technical", 30)
+        s2 = staleness_score("technical", 120)
+        s3 = staleness_score("technical", 480)
+        assert s1 < s2 < s3
+
+    def test_domain_differences(self) -> None:
+        from terminal_feed_lifecycle import staleness_score
+        # Same age, news should be more stale than structure
+        age = 120.0
+        assert staleness_score("news", age) > staleness_score("structure", age)
+
+    def test_unknown_domain_uses_default(self) -> None:
+        from terminal_feed_lifecycle import staleness_score
+        score = staleness_score("unknown_domain", 120)
+        assert 0 < score < 1
+
+    def test_negative_age_returns_zero(self) -> None:
+        from terminal_feed_lifecycle import staleness_score
+        assert staleness_score("news", -10) == 0.0
+
+
+class TestWeightedStalenessImpact:
+    def test_all_fresh(self) -> None:
+        from smc_integration.trust_tier import weighted_staleness_impact
+        result = weighted_staleness_impact({"news": 5, "technical": 10})
+        assert result["trust_adjustment"] == "none"
+        assert result["aggregate"] < 0.3
+
+    def test_significant_staleness(self) -> None:
+        from smc_integration.trust_tier import weighted_staleness_impact
+        result = weighted_staleness_impact({"news": 500, "structure": 5000})
+        assert result["trust_adjustment"] == "significant"
+        assert result["aggregate"] >= 0.7
+
+    def test_empty_domains(self) -> None:
+        from smc_integration.trust_tier import weighted_staleness_impact
+        result = weighted_staleness_impact({})
+        assert result["aggregate"] == 0.0
+        assert result["trust_adjustment"] == "none"
+
+    def test_mode_is_continuous(self) -> None:
+        from smc_integration.trust_tier import weighted_staleness_impact
+        result = weighted_staleness_impact({"news": 60})
+        assert result["mode"] == "continuous"

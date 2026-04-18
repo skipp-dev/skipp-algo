@@ -121,6 +121,42 @@ def is_feed_stale(feed: list[dict[str, Any]], max_age_min: float = 120,
 
 
 # ---------------------------------------------------------------------------
+# Continuous Staleness Score (F-11 / WP-13)
+# ---------------------------------------------------------------------------
+
+# Domain-specific half-life in minutes.  After one half-life the staleness
+# score decays to 0.5; after two to 0.25, etc.
+DOMAIN_HALF_LIFE_MINUTES: dict[str, float] = {
+    "news":      60.0,    # news goes stale fast (1 hour)
+    "technical": 120.0,   # technicals are intraday-useful (2 hours)
+    "volume":    240.0,   # volume patterns last longer (4 hours)
+    "structure": 1440.0,  # structure is valid across sessions (1 day)
+}
+
+_DEFAULT_HALF_LIFE = 120.0  # fallback for unknown domains
+
+
+def staleness_score(domain: str, age_minutes: float) -> float:
+    """Continuous staleness score ∈ [0.0, 1.0].
+
+    0.0 = perfectly fresh, 1.0 = completely stale.
+    Uses exponential decay with domain-specific half-life:
+        score = 1 - 2^(-age / half_life)
+    """
+    import math
+
+    if age_minutes <= 0:
+        return 0.0
+    half_life = DOMAIN_HALF_LIFE_MINUTES.get(domain, _DEFAULT_HALF_LIFE)
+    return 1.0 - math.pow(2.0, -age_minutes / half_life)
+
+
+def staleness_freshness(domain: str, age_minutes: float) -> float:
+    """Freshness = 1 - staleness_score.  1.0 = perfectly fresh, 0.0 = stale."""
+    return 1.0 - staleness_score(domain, age_minutes)
+
+
+# ---------------------------------------------------------------------------
 # Lifecycle actions
 # ---------------------------------------------------------------------------
 

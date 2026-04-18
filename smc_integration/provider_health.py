@@ -220,6 +220,12 @@ def _build_domain_alert(
     }
     if age_hours is not None:
         row["age_hours"] = age_hours
+        # Continuous staleness score (F-11 / WP-13)
+        try:
+            from terminal_feed_lifecycle import staleness_score as _staleness_score
+            row["staleness_score"] = round(_staleness_score(domain, age_hours * 60), 4)
+        except ImportError:
+            pass
     return row
 
 

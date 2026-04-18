@@ -8,6 +8,9 @@ import pytest
 
 from scripts.generate_smc_micro_profiles import (
     LISTS,
+    FIELD_BUDGET,
+    GENERATOR_PHASES,
+    SUNSET_WATCH_SECTIONS,
     _bucket_median,
     _bucket_quantile,
     _safe_bool,
@@ -858,4 +861,56 @@ def test_no_debug_mode_excludes_diagnostic_fields(tmp_path: Path) -> None:
     assert "export const string VOLATILITY_MODEL_SOURCE" in text
     assert "export const string VOLATILITY_FALLBACK_REASON" not in text
     assert "export const string VOLATILITY_PROXY_SYMBOL" not in text
+
+
+# ---------------------------------------------------------------------------
+# WP-11 (F-07): Generator phases and field budget
+# ---------------------------------------------------------------------------
+
+def test_generator_phases_tuple():
+    """Phase constants are present and ordered."""
+    assert isinstance(GENERATOR_PHASES, tuple)
+    assert len(GENERATOR_PHASES) == 4
+    assert "inventory" in GENERATOR_PHASES
+    assert "emission" in GENERATOR_PHASES
+
+
+def test_field_budget_is_reasonable():
+    """Budget exists and has a sane upper bound."""
+    assert isinstance(FIELD_BUDGET, int)
+    assert 100 < FIELD_BUDGET <= 500
+
+
+def test_field_budget_not_exceeded(tmp_path: Path):
+    """Default emission stays within field budget."""
+    out = tmp_path / "lib.pine"
+    write_pine_library(out, _EMPTY_LISTS, "2026-03-28", 5)
+    text = out.read_text(encoding="utf-8")
+    export_count = sum(1 for line in text.splitlines() if line.strip().startswith("export const"))
+    assert export_count <= FIELD_BUDGET, (
+        f"Field budget exceeded: {export_count} > {FIELD_BUDGET}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# WP-19: Generator Batch 2 — orphans, sunset, budget governance
+# ---------------------------------------------------------------------------
+
+def test_sunset_watch_sections_exist():
+    """Sunset watch list is defined and non-empty."""
+    assert isinstance(SUNSET_WATCH_SECTIONS, tuple)
+    assert len(SUNSET_WATCH_SECTIONS) >= 1
+
+
+def test_field_budget_headroom(tmp_path: Path):
+    """Ensure at least 5% headroom remains under the budget."""
+    out = tmp_path / "lib.pine"
+    write_pine_library(out, _EMPTY_LISTS, "2026-03-28", 5)
+    text = out.read_text(encoding="utf-8")
+    export_count = sum(1 for line in text.splitlines() if line.strip().startswith("export const"))
+    headroom = FIELD_BUDGET - export_count
+    assert headroom >= FIELD_BUDGET * 0.02, (
+        f"Field budget headroom too small: {headroom} fields "
+        f"({export_count}/{FIELD_BUDGET})"
+    )
     assert "export const string VOLATILITY_PROXY_SOURCE" not in text

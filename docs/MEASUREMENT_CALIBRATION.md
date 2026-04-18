@@ -356,4 +356,24 @@ promotion are implemented:
 - review the default recommendation thresholds on real history windows
 - decide whether promotion-ready dimensions should influence dashboard emphasis
 - evaluate whether specific `session` or `vol_regime` buckets warrant separate
+
+## Quality Floor (F-14)
+
+Measurement results are now classified into formal quality tiers defined
+in `docs/engineering-program/quality_floor_definition.md`:
+
+| Tier | Brier ≤ | ECE ≤ | Min Events |
+|---|---|---|---|
+| `production_grade` | 0.25 | 0.15 | 20 |
+| `acceptable` | 0.40 | 0.25 | 8 |
+| `minimal` | 0.60 | 0.30 | 1 |
+
+The function `classify_quality_tier()` in `release_policy.py` implements
+the classification.  Bootstrap 95% CIs for Brier and ECE are available
+via `bootstrap_confidence_interval()`.
+
+These tiers align with the existing `MeasurementShadowThresholds`:
+- `minimal` boundary = shadow max thresholds (0.60 Brier, 0.30 ECE)
+- `acceptable` ≈ soft-warn boundary (0.30 Brier)
+- `production_grade` = high-trust calibration target
   live dashboard diagnostics

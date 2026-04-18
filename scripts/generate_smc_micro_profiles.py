@@ -49,6 +49,43 @@ DEPRECATED_COMPATIBILITY_GROUPS: list[str] = [
 PLACEHOLDER_SYMBOL_SENTINELS = {"AAA", "BBB", "CCC"}
 
 
+# ---------------------------------------------------------------------------
+# Generator Pipeline Phases (F-07 / WP-11)
+# ---------------------------------------------------------------------------
+# The generator follows a strict 5-phase pipeline:
+#   Phase 1 – Inventory:       Load schema + input CSV, coerce columns
+#   Phase 2 – Classification:  Score features, apply candidate rules
+#   Phase 3 – State:           Hysteresis engine (add/remove streaks)
+#   Phase 4 – Emission:        Emit Pine library, manifest, diff, CSV
+#   Phase 5 – Validation:      Schema-level + enrichment contract checks
+#
+# Each phase is implemented by dedicated functions.  See run_generation()
+# for the orchestration entry point.
+# ---------------------------------------------------------------------------
+
+GENERATOR_PHASES = (
+    "inventory",
+    "classification",
+    "emission",
+    "validation",
+)
+
+# Field budget: maximum number of exported fields in the generated library.
+# Exceeding this limit triggers a warning during emission and prevents
+# accidental surface bloat.  Increase only after governance review.
+FIELD_BUDGET = 250
+
+# Batch-3 sunset candidates (WP-19) — enrichment sections with no current
+# Pine consumer.  If no consumer adopts them by the next schema bump, they
+# move to DEPRECATED_COMPATIBILITY_GROUPS.
+SUNSET_WATCH_SECTIONS: tuple[str, ...] = (
+    "short_interest",
+    "treasury_yield_curve",
+    "institutional_accumulation",
+    "insider_transactions",
+)
+
+
 @dataclass(frozen=True)
 class Thresholds:
     add: float
@@ -1011,6 +1048,16 @@ def write_pine_library(
     content.append("// ── Insider Transactions ──")
     content.append(f'export const string INSIDER_BUYING_TICKERS = "{",".join(ins.get("insider_buying_tickers") or [])}"')
     content.append(f'export const string INSIDER_SELLING_HEAVY_TICKERS = "{",".join(ins.get("insider_selling_heavy_tickers") or [])}"')
+
+    # ── Field budget enforcement (F-07 / WP-11) ────────────────
+    export_count = sum(1 for line in content if line.strip().startswith("export const"))
+    if export_count > FIELD_BUDGET:
+        logger.warning(
+            "Field budget exceeded: %d exported fields (budget: %d). "
+            "Review smc_field_consumer_governance.md for orphan sunset.",
+            export_count,
+            FIELD_BUDGET,
+        )
 
     path.write_text("\n".join(content).rstrip() + "\n", encoding="utf-8")
 

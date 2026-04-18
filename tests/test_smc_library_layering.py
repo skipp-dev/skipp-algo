@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 
 from scripts.smc_library_layering import compute_library_layering
+from smc_core.layering import TECH_WEIGHT, NEWS_WEIGHT, evaluate_sentiment_impact
 
 
 class TestNeutralDefaults:
@@ -78,3 +79,56 @@ class TestHeatFormula:
             technical_bias="BULLISH",
         )
         assert result["global_strength"] >= abs(result["global_heat"])
+
+
+# ---------------------------------------------------------------------------
+# WP-12 (F-10): Weight constants are observable
+# ---------------------------------------------------------------------------
+
+class TestSentimentWeights:
+    def test_weights_are_named_constants(self):
+        assert TECH_WEIGHT == 0.7
+        assert NEWS_WEIGHT == 0.3
+
+    def test_weights_sum_to_one(self):
+        assert TECH_WEIGHT + NEWS_WEIGHT == pytest.approx(1.0)
+
+    def test_heat_uses_named_weights(self):
+        """Formula matches TECH_WEIGHT/NEWS_WEIGHT constants."""
+        result = compute_library_layering(
+            technical_strength=1.0,
+            technical_bias="BULLISH",
+            news="BEARISH",
+        )
+        # signed_tech=1.0, signed_news=-0.5
+        expected = 1.0 * TECH_WEIGHT + (-0.5) * NEWS_WEIGHT
+        assert result["global_heat"] == pytest.approx(expected, abs=0.01)
+
+
+# ---------------------------------------------------------------------------
+# WP-20: Sentiment impact evaluation — decidable measurement path
+# ---------------------------------------------------------------------------
+
+class TestSentimentImpact:
+    def test_no_news_zero_delta(self):
+        r = evaluate_sentiment_impact(0.5, 0.0)
+        assert r["news_delta"] == pytest.approx(0.0, abs=0.01)
+
+    def test_news_increases_conviction(self):
+        r = evaluate_sentiment_impact(0.5, 0.8)
+        assert r["heat_with_news"] > r["heat_without_news"]
+        assert r["news_delta"] > 0
+
+    def test_opposing_news_reduces_heat(self):
+        r = evaluate_sentiment_impact(0.5, -0.8)
+        assert r["heat_with_news"] < r["heat_without_news"]
+        assert r["news_delta"] > 0
+
+    def test_contribution_pct_bounded(self):
+        r = evaluate_sentiment_impact(0.5, 1.0)
+        assert 0 <= r["news_contribution_pct"] <= 100
+
+    def test_zero_inputs_no_crash(self):
+        r = evaluate_sentiment_impact(0.0, 0.0)
+        assert r["news_contribution_pct"] == 0.0
+        assert r["news_delta"] == 0.0

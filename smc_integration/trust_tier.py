@@ -220,3 +220,52 @@ def derive_trust_summary(
         "missing_domains": missing_domains,
         "stale_domains": stale_domains,
     }
+
+
+# ---------------------------------------------------------------------------
+# Weighted staleness for trust decisions (F-11 / WP-13)
+# ---------------------------------------------------------------------------
+
+def weighted_staleness_impact(
+    domain_ages: dict[str, float],
+) -> dict[str, Any]:
+    """Compute weighted staleness impact across domains.
+
+    *domain_ages* maps domain name → age in minutes.
+    Returns dict with per-domain scores, aggregate score, and a suggested
+    trust adjustment.
+
+    The aggregate score is the max (worst) single-domain score.  Trust
+    adjustment is a descriptive label, not a numeric delta:
+    - ``"none"`` — all domains fresh (aggregate < 0.3)
+    - ``"minor"`` — some decay (0.3 ≤ aggregate < 0.7)
+    - ``"significant"`` — material staleness (aggregate ≥ 0.7)
+    """
+    try:
+        from terminal_feed_lifecycle import staleness_score as _staleness_score
+    except ImportError:
+        return {
+            "per_domain": {},
+            "aggregate": 0.0,
+            "trust_adjustment": "none",
+            "mode": "binary_fallback",
+        }
+
+    per_domain: dict[str, float] = {}
+    for domain, age_min in domain_ages.items():
+        per_domain[domain] = round(_staleness_score(domain, age_min), 4)
+
+    aggregate = max(per_domain.values()) if per_domain else 0.0
+    if aggregate >= 0.7:
+        adjustment = "significant"
+    elif aggregate >= 0.3:
+        adjustment = "minor"
+    else:
+        adjustment = "none"
+
+    return {
+        "per_domain": per_domain,
+        "aggregate": round(aggregate, 4),
+        "trust_adjustment": adjustment,
+        "mode": "continuous",
+    }

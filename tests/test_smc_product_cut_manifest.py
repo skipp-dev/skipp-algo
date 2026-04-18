@@ -119,3 +119,28 @@ def test_library_release_manifest_tracks_product_cut_roles() -> None:
         'SMC_Dashboard.pine': 'dashboard_companion',
         'SMC_Long_Strategy.pine': 'execution_wrapper',
     }
+
+
+# ---------------------------------------------------------------------------
+# WP-21: Product Identity Final Freeze
+# ---------------------------------------------------------------------------
+
+def test_product_identity_doc_exists_and_is_frozen() -> None:
+    """The product identity document exists and carries the WP-21 freeze marker."""
+    doc = ROOT / 'docs' / 'SMC_PRODUCT_IDENTITY.md'
+    assert doc.exists(), 'SMC_PRODUCT_IDENTITY.md missing'
+    text = doc.read_text(encoding='utf-8')
+    assert 'Product Identity Final Freeze' in text
+    assert 'Identity Lock' in text
+    assert 'Feature Exclusion List' in text
+
+
+def test_product_identity_contains_non_goals() -> None:
+    """WP-21 requires explicit non-goals section."""
+    text = (ROOT / 'docs' / 'SMC_PRODUCT_IDENTITY.md').read_text(encoding='utf-8')
+    assert 'Explicit Non-Goals' in text
+    # At least 5 excluded features documented
+    lines = [l for l in text.splitlines() if l.strip().startswith('|') and 'Excluded Feature' not in l and '---' not in l]
+    exclusion_table_lines = [l for l in lines if 'out of scope' not in l.lower()]
+    # The table header + separator don't count; we want data rows
+    assert len(exclusion_table_lines) >= 5
