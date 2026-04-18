@@ -12,6 +12,10 @@ jobs:
   release-gates:
     runs-on: ubuntu-latest
     timeout-minutes: 40
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
 
     steps:
       - name: Checkout
@@ -247,3 +251,9 @@ jobs:
             artifacts/ci/smc_release_evidence_summary.json
             artifacts/ci/smc_tradingview_post_release_report.json
             artifacts/tradingview/tv_post_release_validation.json
+
+      - name: Attest release gate report (WP-R20)
+        if: always() && hashFiles('artifacts/ci/smc_release_gates_report.json') != ''
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: artifacts/ci/smc_release_gates_report.json

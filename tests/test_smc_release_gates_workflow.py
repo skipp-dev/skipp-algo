@@ -76,3 +76,21 @@ def test_tv_validation_has_classification_step() -> None:
     assert 'classify_tv_gate_failure' in workflow_text
     assert 'external_tv_drift' in workflow_text
     assert "steps.tv_validation.outcome == 'failure'" in workflow_text
+
+
+# ---------------------------------------------------------------------------
+# WP-R20 — Artifact attestation
+# ---------------------------------------------------------------------------
+
+
+def test_release_gates_has_attestation_step() -> None:
+    workflow_text = _read(WORKFLOW_PATH)
+    assert '- name: Attest release gate report (WP-R20)' in workflow_text
+    assert 'actions/attest-build-provenance@v2' in workflow_text
+    assert 'smc_release_gates_report.json' in workflow_text
+
+
+def test_release_gates_has_attestation_permissions() -> None:
+    workflow_text = _read(WORKFLOW_PATH)
+    assert 'id-token: write' in workflow_text
+    assert 'attestations: write' in workflow_text
