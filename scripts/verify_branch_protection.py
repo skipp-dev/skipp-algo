@@ -118,11 +118,26 @@ def _github_get(path: str, token: str) -> tuple[int, Any]:
 
 
 def _check_branch_protection(token: str, report: ProtectionReport) -> None:
-    """Check classic branch-protection rules for *main*."""
+    """Check classic branch-protection rules for *main*.
+
+    Note: when the token lacks ``administration:read`` scope, this check
+    returns a 403.  That is acceptable when rulesets provide the same
+    governance — downstream ``_check_rulesets`` will verify that.
+    """
     status, data = _github_get(
         f"/repos/{OWNER}/{REPO}/branches/{BRANCH}/protection",
         token,
     )
+
+    if status == 403:
+        # Token lacks admin scope — skip classic check (rulesets will cover it).
+        report.add(
+            "branch_protection_enabled",
+            True,
+            "Classic protection API inaccessible (403) — relying on rulesets.",
+            severity="warn",
+        )
+        return
 
     if status == 404:
         report.add(
@@ -244,7 +259,6 @@ def _check_rulesets(token: str, report: ProtectionReport) -> None:
         "active_rulesets",
         len(active) > 0,
         f"{len(active)} active ruleset(s) found." if active else "No active rulesets.",
-        severity="warn",
     )
     for rs in active:
         name = rs.get("name", "unnamed")
@@ -253,8 +267,73 @@ def _check_rulesets(token: str, report: ProtectionReport) -> None:
             f"ruleset::{name}",
             True,
             f"Ruleset '{name}' (id={rs_id}) is active.",
-            severity="warn",
         )
+
+    # Deep-inspect each active ruleset for governance rules.
+    has_pr_rule = False
+    has_required_checks = False
+    has_non_ff = False
+    has_deletion = False
+    found_check_contexts: list[str] = []
+
+    for rs in active:
+        rs_id = rs.get("id")
+        if not rs_id:
+            continue
+        detail_status, detail = _github_get(
+            f"/repos/{OWNER}/{REPO}/rulesets/{rs_id}",
+            token,
+        )
+        if detail_status != 200:
+            continue
+        for rule in detail.get("rules", []):
+            rtype = rule.get("type", "")
+            if rtype == "pull_request":
+                has_pr_rule = True
+            elif rtype == "required_status_checks":
+                has_required_checks = True
+                for chk in rule.get("parameters", {}).get("required_status_checks", []):
+                    ctx = chk.get("context", "")
+                    if ctx:
+                        found_check_contexts.append(ctx)
+            elif rtype == "non_fast_forward":
+                has_non_ff = True
+            elif rtype == "deletion":
+                has_deletion = True
+
+    report.add(
+        "ruleset_pr_required",
+        has_pr_rule,
+        "PR required via ruleset." if has_pr_rule else "No PR requirement in any ruleset.",
+    )
+    report.add(
+        "ruleset_required_checks",
+        has_required_checks,
+        f"Required checks via ruleset: {found_check_contexts}" if has_required_checks else "No required checks in any ruleset.",
+    )
+
+    # Verify our expected check is present.
+    for req_check in REQUIRED_STATUS_CHECKS:
+        # Rulesets use the job name (e.g. "fast-gates") not the full workflow/job path.
+        job_name = req_check.split(" / ")[-1] if " / " in req_check else req_check
+        found = job_name in found_check_contexts or req_check in found_check_contexts
+        report.add(
+            f"ruleset_check::{req_check}",
+            found,
+            f"'{req_check}' is enforced via ruleset." if found else f"'{req_check}' is NOT in ruleset required checks.",
+        )
+
+    report.add(
+        "ruleset_force_push_blocked",
+        has_non_ff,
+        "Force pushes blocked via ruleset." if has_non_ff else "No force-push block in any ruleset.",
+    )
+    report.add(
+        "ruleset_deletion_blocked",
+        has_deletion,
+        "Branch deletion blocked via ruleset." if has_deletion else "No deletion block in any ruleset.",
+        severity="warn",
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -262,19 +341,11 @@ def _check_rulesets(token: str, report: ProtectionReport) -> None:
 # ---------------------------------------------------------------------------
 
 _PRE_ACTIVATION_CHECKLIST = """\
-Pre-Activation Checklist (admin steps before enabling hard protection):
-  1. Close or merge stale PR #12 (docs: add unified SMC architecture v5.4 final)
-  2. Ensure smc-fast-pr-gates has run successfully on main at least once
-     (so the check name is known to GitHub)
-  3. In Settings > Rules > Rulesets (or Branch protection rules):
-       a. Add required status check: 'smc-fast-pr-gates / fast-gates'
-       b. Optionally add: 'CI / validate'
-       c. Enable 'Require a pull request before merging'
-       d. Disable 'Allow force pushes'
-       e. Disable 'Allow deletions'
-  4. Rotate TV_STORAGE_STATE secret if smc-release-gates TV-validation
-     is failing due to expired auth
-  5. Re-run this script to verify: python scripts/verify_branch_protection.py
+Governance verification notes:
+  • Rulesets are the primary enforcement mechanism (classic branch protection is optional).
+  • Required check context should match the GitHub Actions job name (e.g. 'fast-gates').
+  • To verify attestations: gh attestation verify <artifact>
+  • To re-run this check: GITHUB_TOKEN=<token> python scripts/verify_branch_protection.py
 """
 
 

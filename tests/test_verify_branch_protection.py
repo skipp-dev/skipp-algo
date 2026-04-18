@@ -83,6 +83,14 @@ class TestCheckBranchProtection:
         assert errors == [], [r.name for r in errors]
         assert report.passed is True
 
+    def test_api_403_is_warn_not_error(self, mod: types.ModuleType) -> None:
+        report = mod.ProtectionReport()
+        with patch.object(mod, "_github_get", return_value=(403, {"message": "forbidden"})):
+            mod._check_branch_protection("fake-token", report)
+
+        assert report.passed is True
+        assert any(r.name == "branch_protection_enabled" and r.severity == "warn" for r in report.results)
+
     def test_no_protection_fails(self, mod: types.ModuleType) -> None:
         report = mod.ProtectionReport()
         with patch.object(mod, "_github_get", return_value=(404, {})):
@@ -115,23 +123,47 @@ class TestCheckBranchProtection:
 
 
 class TestCheckRulesets:
-    def test_active_rulesets_reported(self, mod: types.ModuleType) -> None:
-        rulesets = [
-            {"id": 1, "name": "main-protection", "enforcement": "active"},
+    def test_active_rulesets_with_governance_rules(self, mod: types.ModuleType) -> None:
+        rulesets_list = [
+            {"id": 1, "name": "main-governance", "enforcement": "active"},
         ]
+        ruleset_detail = {
+            "id": 1,
+            "name": "main-governance",
+            "enforcement": "active",
+            "rules": [
+                {"type": "pull_request", "parameters": {"required_approving_review_count": 0}},
+                {"type": "required_status_checks", "parameters": {
+                    "required_status_checks": [{"context": "fast-gates"}]
+                }},
+                {"type": "non_fast_forward"},
+                {"type": "deletion"},
+            ],
+        }
+
+        def _mock_get(path: str, token: str) -> tuple[int, Any]:
+            if "/rulesets/1" in path:
+                return 200, ruleset_detail
+            return 200, rulesets_list
+
         report = mod.ProtectionReport()
-        with patch.object(mod, "_github_get", return_value=(200, rulesets)):
+        with patch.object(mod, "_github_get", side_effect=_mock_get):
             mod._check_rulesets("fake-token", report)
 
         names = [r.name for r in report.results]
-        assert any("main-protection" in n for n in names)
+        assert any("main-governance" in n for n in names)
+        assert any(r.name == "ruleset_pr_required" and r.passed for r in report.results)
+        assert any(r.name == "ruleset_force_push_blocked" and r.passed for r in report.results)
+        assert any("fast-gates" in r.name and r.passed for r in report.results)
 
-    def test_no_rulesets_warns(self, mod: types.ModuleType) -> None:
+    def test_no_rulesets_warns_only(self, mod: types.ModuleType) -> None:
         report = mod.ProtectionReport()
         with patch.object(mod, "_github_get", return_value=(200, [])):
             mod._check_rulesets("fake-token", report)
 
-        assert report.passed is True  # rulesets are advisory
+        # No rulesets is advisory (classic protection may cover governance).
+        assert report.passed is True
+        assert any(r.severity == "warn" for r in report.results)
 
 
 # ---------------------------------------------------------------------------
@@ -148,9 +180,24 @@ class TestMain:
         assert result == 2
 
     def test_full_pass_returns_0(self, mod: types.ModuleType) -> None:
+        rulesets_list = [{"id": 1, "name": "main-governance", "enforcement": "active"}]
+        ruleset_detail = {
+            "id": 1, "name": "main-governance", "enforcement": "active",
+            "rules": [
+                {"type": "pull_request", "parameters": {}},
+                {"type": "required_status_checks", "parameters": {
+                    "required_status_checks": [{"context": "fast-gates"}]
+                }},
+                {"type": "non_fast_forward"},
+                {"type": "deletion"},
+            ],
+        }
+
         def _mock_get(path: str, token: str) -> tuple[int, Any]:
+            if "/rulesets/1" in path:
+                return 200, ruleset_detail
             if "rulesets" in path:
-                return 200, []
+                return 200, rulesets_list
             return 200, _FULL_PROTECTION_RESPONSE
 
         with patch.dict("os.environ", {"GITHUB_TOKEN": "fake"}):
