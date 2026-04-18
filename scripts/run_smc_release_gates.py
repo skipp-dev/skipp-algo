@@ -112,8 +112,10 @@ _DATA_ABSENT_CODES = frozenset({
 def _gate_failure_is_data_absent(gate: dict[str, Any]) -> bool:
     """Return True if *every* failure signal in this gate is caused by absent data files.
 
-    If the gate has no detail signals at all, we conservatively return False
-    (i.e. we don't downgrade unknown failures).
+    If the gate has no detail signals at all but every pair result shows
+    ``quality_guardrail == "data insufficient"``, we still classify it as
+    data-absent (typical for reference_bundle in CI without production data).
+    Otherwise, with no signals we conservatively return False.
     """
     details = gate.get("details", {})
 
@@ -133,6 +135,14 @@ def _gate_failure_is_data_absent(gate: dict[str, Any]) -> bool:
                 signals.extend(str(v) for v in reason.values())
 
     if not signals:
+        # No explicit failure signals.  Check if all pair_results are
+        # "data insufficient" or None — this is a CI data-absence pattern.
+        pair_results = details.get("pair_results", [])
+        if pair_results and all(
+            pr.get("quality_guardrail") in (None, "data insufficient")
+            for pr in pair_results
+        ):
+            return True
         return False
 
     return all(s in _DATA_ABSENT_CODES for s in signals if s)

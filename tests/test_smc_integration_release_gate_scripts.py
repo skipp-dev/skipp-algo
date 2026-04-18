@@ -841,3 +841,50 @@ class TestReleaseGateClassification:
         r = self._make_report(gates)
         assert len(r["soft_gates_for_review"]) == 1
         assert r["soft_gates_for_review"][0]["review_reason"] == "soft_by_design"
+
+
+class TestGateFailureIsDataAbsent:
+    """Tests for _gate_failure_is_data_absent helper."""
+
+    def test_pair_results_all_data_insufficient(self) -> None:
+        gate = {
+            "name": "reference_bundle",
+            "status": "fail",
+            "details": {
+                "pair_results": [
+                    {"quality_guardrail": "data insufficient", "symbol": "A", "timeframe": "15m"},
+                    {"quality_guardrail": "data insufficient", "symbol": "B", "timeframe": "1H"},
+                ],
+            },
+        }
+        assert release_script._gate_failure_is_data_absent(gate) is True
+
+    def test_pair_results_mixed_data_insufficient_and_none(self) -> None:
+        gate = {
+            "name": "reference_bundle",
+            "status": "fail",
+            "details": {
+                "pair_results": [
+                    {"quality_guardrail": "data insufficient", "symbol": "A", "timeframe": "15m"},
+                    {"quality_guardrail": None, "symbol": "B", "timeframe": "5m"},
+                ],
+            },
+        }
+        assert release_script._gate_failure_is_data_absent(gate) is True
+
+    def test_pair_results_with_real_guardrail_not_absent(self) -> None:
+        gate = {
+            "name": "reference_bundle",
+            "status": "fail",
+            "details": {
+                "pair_results": [
+                    {"quality_guardrail": "data insufficient", "symbol": "A", "timeframe": "15m"},
+                    {"quality_guardrail": "hold", "symbol": "B", "timeframe": "1H"},
+                ],
+            },
+        }
+        assert release_script._gate_failure_is_data_absent(gate) is False
+
+    def test_empty_details_not_absent(self) -> None:
+        gate = {"name": "unknown", "status": "fail", "details": {}}
+        assert release_script._gate_failure_is_data_absent(gate) is False
