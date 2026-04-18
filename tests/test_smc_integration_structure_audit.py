@@ -111,3 +111,172 @@ def test_structure_gap_report_is_json_serializable_and_stable() -> None:
     one = structure_gap_report_to_dict(build_structure_gap_report())
     two = structure_gap_report_to_dict(build_structure_gap_report())
     assert json.dumps(one, sort_keys=True) == json.dumps(two, sort_keys=True)
+
+
+# ── pure helper coverage ─────────────────────────────────────────
+
+from unittest.mock import patch
+
+from smc_integration.structure_audit import (
+    _collect_evidence,
+    _confidence_for,
+    _kind_for_path,
+    _notes_for,
+    _read_text_safely,
+)
+
+
+class TestKindForPath:
+    def test_json(self) -> None:
+        assert _kind_for_path(Path("foo.json")) == "json"
+
+    def test_csv(self) -> None:
+        assert _kind_for_path(Path("data.csv")) == "csv"
+
+    def test_pine(self) -> None:
+        assert _kind_for_path(Path("SMC_Core_Engine.pine")) == "pine"
+
+    def test_script_py(self) -> None:
+        assert _kind_for_path(Path("run.py")) == "script"
+
+    def test_script_ts(self) -> None:
+        assert _kind_for_path(Path("run.ts")) == "script"
+
+    def test_generated(self) -> None:
+        assert _kind_for_path(Path("generated/output.txt")) == "generated"
+
+    def test_other(self) -> None:
+        assert _kind_for_path(Path("readme.md")) == "other"
+
+
+class TestReadTextSafely:
+    def test_reads_utf8(self, tmp_path: Path) -> None:
+        f = tmp_path / "test.txt"
+        f.write_text("hello world", encoding="utf-8")
+        assert _read_text_safely(f) == "hello world"
+
+    def test_truncates(self, tmp_path: Path) -> None:
+        f = tmp_path / "big.txt"
+        f.write_text("x" * 1000, encoding="utf-8")
+        assert len(_read_text_safely(f, max_chars=10)) == 10
+
+    def test_latin1_fallback(self, tmp_path: Path) -> None:
+        f = tmp_path / "latin.txt"
+        f.write_bytes(b"\xff\xfe test")
+        assert len(_read_text_safely(f)) > 0
+
+
+class TestCollectEvidence:
+    def test_finds_bos_and_fvg(self, tmp_path: Path) -> None:
+        f = tmp_path / "test.json"
+        f.write_text('{"bos": [], "fvg": []}', encoding="utf-8")
+        evidence = _collect_evidence(f)
+        assert "bos" in evidence
+        assert "fvg" in evidence
+
+    def test_empty_file(self, tmp_path: Path) -> None:
+        f = tmp_path / "empty.json"
+        f.write_text("{}", encoding="utf-8")
+        assert _collect_evidence(f) == []
+
+    def test_finds_orderblocks(self, tmp_path: Path) -> None:
+        f = tmp_path / "ob.json"
+        f.write_text('"orderblocks": [{"dir": "up"}]', encoding="utf-8")
+        assert "orderblocks" in _collect_evidence(f)
+
+    def test_finds_liquidity_sweeps(self, tmp_path: Path) -> None:
+        f = tmp_path / "sweep.json"
+        f.write_text('"liquidity_sweeps": []', encoding="utf-8")
+        assert "liquidity_sweeps" in _collect_evidence(f)
+
+    def test_finds_structure_underscore(self, tmp_path: Path) -> None:
+        f = tmp_path / "meta.json"
+        f.write_text("structure_score = 42", encoding="utf-8")
+        assert "structure_" in _collect_evidence(f)
+
+    def test_finds_reclaim(self, tmp_path: Path) -> None:
+        f = tmp_path / "r.txt"
+        f.write_text("We reclaim this zone", encoding="utf-8")
+        assert "reclaim" in _collect_evidence(f)
+
+
+class TestConfidenceFor:
+    def test_high_when_all_explicit_keys(self) -> None:
+        assert _confidence_for(Path("x"), ["bos", "orderblocks", "fvg", "liquidity_sweeps"]) == "high"
+
+    def test_medium_when_some_explicit_keys(self) -> None:
+        assert _confidence_for(Path("x"), ["bos", "fvg"]) == "medium"
+
+    def test_medium_when_two_non_explicit(self) -> None:
+        assert _confidence_for(Path("x"), ["sweep", "reclaim"]) == "medium"
+
+    def test_low_when_single_non_explicit(self) -> None:
+        assert _confidence_for(Path("x"), ["sweep"]) == "low"
+
+    def test_low_on_empty(self) -> None:
+        assert _confidence_for(Path("x"), []) == "low"
+
+
+class TestNotesFor:
+    def test_spec_examples_note(self, tmp_path: Path) -> None:
+        import smc_integration.structure_audit as mod
+        repo = tmp_path / "repo"
+        spec_dir = repo / "spec" / "examples"
+        spec_dir.mkdir(parents=True)
+        f = spec_dir / "test.json"
+        f.touch()
+        with patch.object(mod, "_REPO_ROOT", repo):
+            notes = _notes_for(f, ["bos"])
+        assert any("Schema example" in n for n in notes)
+
+    def test_reports_note(self, tmp_path: Path) -> None:
+        import smc_integration.structure_audit as mod
+        repo = tmp_path / "repo"
+        reports_dir = repo / "reports"
+        reports_dir.mkdir(parents=True)
+        f = reports_dir / "test.json"
+        f.touch()
+        with patch.object(mod, "_REPO_ROOT", repo):
+            notes = _notes_for(f, ["bos"])
+        assert any("Report artifact" in n for n in notes)
+
+    def test_scripts_note(self, tmp_path: Path) -> None:
+        import smc_integration.structure_audit as mod
+        repo = tmp_path / "repo"
+        scripts_dir = repo / "scripts"
+        scripts_dir.mkdir(parents=True)
+        f = scripts_dir / "build.py"
+        f.touch()
+        with patch.object(mod, "_REPO_ROOT", repo):
+            notes = _notes_for(f, ["bos"])
+        assert any("Code path" in n for n in notes)
+
+    def test_structure_only_without_explicit_keys(self, tmp_path: Path) -> None:
+        import smc_integration.structure_audit as mod
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        f = repo / "test.py"
+        f.touch()
+        with patch.object(mod, "_REPO_ROOT", repo):
+            notes = _notes_for(f, ["structure_"])
+        assert any("meta fields" in n for n in notes)
+
+    def test_reclaim_without_explicit_keys(self, tmp_path: Path) -> None:
+        import smc_integration.structure_audit as mod
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        f = repo / "test.py"
+        f.touch()
+        with patch.object(mod, "_REPO_ROOT", repo):
+            notes = _notes_for(f, ["reclaim"])
+        assert any("Reclaim" in n for n in notes)
+
+    def test_pine_engine_note(self, tmp_path: Path) -> None:
+        import smc_integration.structure_audit as mod
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        f = repo / "SMC_Core_Engine.pine"
+        f.touch()
+        with patch.object(mod, "_REPO_ROOT", repo):
+            notes = _notes_for(f, ["bos"])
+        assert any("Pine runtime" in n for n in notes)

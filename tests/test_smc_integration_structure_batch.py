@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 import pandas as pd
+import pytest
 
 from smc_integration import structure_batch as structure_batch_module
 from smc_integration.structure_batch import write_structure_artifacts_from_workbook
@@ -286,3 +287,188 @@ def test_canonical_intraday_loader_requires_intraday_bundle_frame(tmp_path: Path
     assert len(bars) == 1
     assert float(bars.loc[0, "open"]) == 101.0
     assert float(bars.loc[0, "volume"]) == 2.0
+
+
+# ── pure helper coverage ─────────────────────────────────────────
+
+from smc_integration.structure_batch import (
+    StructureArtifactRow,
+    _artifact_file_name,
+    _auxiliary_from_payload,
+    _canonical_structure,
+    _counts_from_payload,
+    _coverage_from_structure,
+    _manifest_file_name,
+    _normalize_symbol,
+    _normalize_symbols,
+    _relative_repo_path,
+    _row_from_existing_artifact,
+    build_structure_artifact_manifest,
+)
+
+
+class TestNormalizeSymbol:
+    def test_basic(self) -> None:
+        assert _normalize_symbol("aapl") == "AAPL"
+
+    def test_strips(self) -> None:
+        assert _normalize_symbol("  msft  ") == "MSFT"
+
+    def test_tuple_input(self) -> None:
+        assert _normalize_symbol(("TSLA",)) == "TSLA"
+
+    def test_parenthesized_tuple_string(self) -> None:
+        assert _normalize_symbol("('NVDA', '15m')") == "NVDA"
+
+    def test_empty_raises(self) -> None:
+        with pytest.raises(ValueError, match="must not be empty"):
+            _normalize_symbol("")
+
+
+class TestNormalizeSymbols:
+    def test_dedup_and_order(self) -> None:
+        assert _normalize_symbols(["aapl", "AAPL", "msft"]) == ["AAPL", "MSFT"]
+
+    def test_empty(self) -> None:
+        assert _normalize_symbols([]) == []
+
+
+class TestArtifactFileName:
+    def test_format(self) -> None:
+        assert _artifact_file_name("AAPL", "15m") == "AAPL_15m.structure.json"
+
+
+class TestManifestFileName:
+    def test_format(self) -> None:
+        assert _manifest_file_name("15m") == "manifest_15m.json"
+
+
+class TestCoverageFromStructure:
+    def test_full(self) -> None:
+        structure = {"bos": [1], "orderblocks": [2], "fvg": [3], "liquidity_sweeps": [4]}
+        cov = _coverage_from_structure(structure, mode="full")
+        assert cov["mode"] == "full"
+        assert all(cov[f"has_{k}"] for k in ("bos", "orderblocks", "fvg", "liquidity_sweeps"))
+
+    def test_empty(self) -> None:
+        structure = {"bos": [], "orderblocks": [], "fvg": [], "liquidity_sweeps": []}
+        cov = _coverage_from_structure(structure, mode="none")
+        assert not any(cov[f"has_{k}"] for k in ("bos", "orderblocks", "fvg", "liquidity_sweeps"))
+
+
+class TestCanonicalStructure:
+    def test_extracts_keys(self) -> None:
+        payload = {"bos": [1], "orderblocks": [2], "fvg": [3], "liquidity_sweeps": [4], "extra": "ignored"}
+        result = _canonical_structure(payload)
+        assert set(result.keys()) == {"bos", "orderblocks", "fvg", "liquidity_sweeps"}
+        assert result["bos"] == [1]
+
+    def test_defaults_empty(self) -> None:
+        result = _canonical_structure({})
+        assert all(v == [] for v in result.values())
+
+
+class TestAuxiliaryFromPayload:
+    def test_extracts_auxiliary(self) -> None:
+        payload = {"auxiliary": {"liquidity_lines": [1], "session_ranges": [2]}}
+        aux = _auxiliary_from_payload(payload)
+        assert aux["liquidity_lines"] == [1]
+        assert aux["session_ranges"] == [2]
+        assert aux["session_pivots"] == []
+
+    def test_missing_auxiliary(self) -> None:
+        aux = _auxiliary_from_payload({})
+        assert all(isinstance(v, (list, dict)) for v in aux.values())
+
+
+class TestCountsFromPayload:
+    def test_counts(self) -> None:
+        structure = {"bos": [1, 2], "orderblocks": [], "fvg": [3], "liquidity_sweeps": []}
+        auxiliary = {"liquidity_lines": [1], "session_ranges": [], "session_pivots": [], "broken_fractal_signals": []}
+        counts = _counts_from_payload(structure, auxiliary)
+        assert counts["bos"] == 2
+        assert counts["fvg"] == 1
+        assert counts["liquidity_lines"] == 1
+
+
+class TestRelativeRepoPath:
+    def test_inside_repo(self) -> None:
+        repo = Path(__file__).resolve().parents[1]
+        path = repo / "reports" / "test.json"
+        result = _relative_repo_path(path)
+        assert result == "reports/test.json"
+
+    def test_outside_repo_returns_posix(self, tmp_path: Path) -> None:
+        result = _relative_repo_path(tmp_path / "foo.json")
+        assert "foo.json" in result
+
+
+class TestRowFromExistingArtifact:
+    def test_valid_artifact(self, tmp_path: Path) -> None:
+        artifact = {
+            "coverage_mode": "full",
+            "coverage": {"has_bos": True, "has_orderblocks": True, "has_fvg": True, "has_liquidity_sweeps": True},
+            "structure": {"bos": [1], "orderblocks": [2], "fvg": [3], "liquidity_sweeps": [4]},
+            "diagnostics": {
+                "structure_profile_used": "hybrid_default",
+                "event_logic_version": "v2",
+                "counts": {"bos": 1, "orderblocks": 1, "fvg": 1, "liquidity_sweeps": 1},
+                "warnings": [],
+            },
+        }
+        path = tmp_path / "AAPL_15m.structure.json"
+        path.write_text(json.dumps(artifact), encoding="utf-8")
+
+        row = _row_from_existing_artifact(path, "AAPL", "15m")
+        assert row is not None
+        assert row.symbol == "AAPL"
+        assert row.has_bos is True
+        assert row.bos_count == 1
+        assert row.coverage_mode == "full"
+
+    def test_invalid_json_returns_none(self, tmp_path: Path) -> None:
+        path = tmp_path / "bad.json"
+        path.write_text("not json", encoding="utf-8")
+        assert _row_from_existing_artifact(path, "X", "15m") is None
+
+    def test_non_dict_returns_none(self, tmp_path: Path) -> None:
+        path = tmp_path / "list.json"
+        path.write_text("[1, 2, 3]", encoding="utf-8")
+        assert _row_from_existing_artifact(path, "X", "15m") is None
+
+
+class TestBuildStructureArtifactManifest:
+    def test_manifest_shape(self) -> None:
+        row = StructureArtifactRow(
+            symbol="AAPL",
+            timeframe="15m",
+            artifact_path="reports/AAPL_15m.structure.json",
+            structure_profile_used="hybrid_default",
+            event_logic_version="v2",
+            coverage_mode="full",
+            has_bos=True,
+            has_orderblocks=True,
+            has_fvg=True,
+            has_liquidity_sweeps=True,
+            bos_count=5,
+            orderblocks_count=3,
+            fvg_count=2,
+            liquidity_sweeps_count=1,
+            warnings_count=0,
+        )
+        manifest = build_structure_artifact_manifest(
+            timeframe="15m",
+            generated_at=1709254000.0,
+            workbook=None,
+            export_bundle_root=None,
+            artifacts=[row],
+            errors=[],
+            warnings=[],
+            resolution_mode="canonical",
+            symbols_requested=["AAPL"],
+        )
+        assert manifest["timeframe"] == "15m"
+        assert manifest["counts"]["artifacts_written"] == 1
+        assert manifest["coverage_summary"]["symbols_with_bos"] == 1
+        assert manifest["profile_summary"]["hybrid_default"] == 1
+        assert "v2" in manifest["event_logic_versions"]
