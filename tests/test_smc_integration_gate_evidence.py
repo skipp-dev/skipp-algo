@@ -1515,3 +1515,67 @@ def test_gate_evidence_includes_coverage_fields_when_green(monkeypatch, tmp_path
     assert set(summary["covered_symbols"]) == set(s.upper() for s in _BROAD_SYMBOLS)
     assert set(summary["covered_timeframes"]) == set(_BROAD_TIMEFRAMES)
     assert summary["not_ready_reasons"] == []
+
+
+# ---------------------------------------------------------------------------
+# WP-R10: Artifact-integrity digests
+# ---------------------------------------------------------------------------
+
+
+def test_gate_evidence_includes_sha256_digests_per_run(monkeypatch, tmp_path: Path) -> None:
+    """Each run row and the top-level artifact_digests should contain SHA-256."""
+    import hashlib
+
+    now_ts = 1_700_000_000.0
+    monkeypatch.setattr(evidence_script.time, "time", lambda: now_ts)
+
+    payload = {
+        "report_kind": "ci_health",
+        "checked_at": now_ts - 60.0,
+        "overall_status": "ok",
+        "reference_symbols": _BROAD_SYMBOLS,
+        "reference_timeframes": _BROAD_TIMEFRAMES,
+        "runtime_metadata": {"git_commit": "sha-digest-test"},
+    }
+    report_path = tmp_path / "health_report.json"
+    _write_json(report_path, payload)
+
+    # Compute expected digest.
+    raw_bytes = report_path.read_bytes()
+    expected_digest = hashlib.sha256(raw_bytes).hexdigest()
+
+    captured: list[dict] = []
+    monkeypatch.setattr(
+        evidence_script,
+        "build_parser",
+        lambda: _Parser(
+            Namespace(
+                input_glob=str(tmp_path / "*.json"),
+                lookback_days=14,
+                min_deeper_ok_runs=0,
+                min_release_ok_runs=0,
+                fail_on_not_ready=False,
+                output="-",
+            )
+        ),
+    )
+    monkeypatch.setattr(evidence_script, "_render", lambda report, output: captured.append(report))
+
+    rc = evidence_script.main()
+    assert rc == 0
+
+    summary = captured[-1]
+
+    # Per-run digest
+    assert len(summary["runs"]) == 1
+    run = summary["runs"][0]
+    assert run["sha256"] == expected_digest
+
+    # Top-level artifact_digests map
+    assert "artifact_digests" in summary
+    assert summary["artifact_digests"][str(report_path)] == expected_digest
+
+
+def test_sha256_digest_helper_returns_none_for_missing_file() -> None:
+    result = evidence_script._sha256_digest(Path("/nonexistent/file.json"))
+    assert result is None

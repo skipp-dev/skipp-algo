@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import glob
+import hashlib
 import json
 import time
 from collections import Counter
@@ -34,6 +35,18 @@ from smc_integration.release_policy import (
     serialize_contextual_calibration_recommendation_policy,
     serialize_measurement_shadow_thresholds,
 )
+
+
+def _sha256_digest(path: Path) -> str | None:
+    """Return the hex SHA-256 digest of *path*, or ``None`` on error."""
+    try:
+        h = hashlib.sha256()
+        with open(path, "rb") as fh:
+            for chunk in iter(lambda: fh.read(65536), b""):
+                h.update(chunk)
+        return h.hexdigest()
+    except Exception:
+        return None
 
 
 def _iso_utc(ts: float | None) -> str | None:
@@ -902,6 +915,7 @@ def main() -> int:
         codes = _extract_codes(payload)
         run_row = {
             "path": str(path),
+            "sha256": _sha256_digest(path),
             "kind": kind,
             "status": status,
             "checked_at": checked_at,
@@ -1248,6 +1262,11 @@ def main() -> int:
             for key, diag in sorted(latest_domain_diag.items())
         } if latest_domain_diag else {},
         "parse_failures": parse_failures,
+        "artifact_digests": {
+            row["path"]: row["sha256"]
+            for row in runs
+            if row.get("sha256")
+        },
         "runs": runs,
     }
 
