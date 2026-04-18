@@ -183,6 +183,13 @@ jobs:
             --input-glob "artifacts/ci/smc_*_report.json" \
             --output artifacts/ci/smc_release_evidence_summary.json
 
+      - name: Render release gate summary
+        if: always()
+        run: |
+          python scripts/render_ci_gate_summary.py \
+            --report artifacts/ci/smc_release_gates_report.json \
+            --enforcement hard
+
       - name: Upload release gate report
         if: always()
         uses: actions/upload-artifact@v7

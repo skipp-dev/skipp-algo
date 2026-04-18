@@ -81,6 +81,13 @@ jobs:
             --input-glob "artifacts/ci/smc_deeper*_report.json" \
             --output artifacts/ci/smc_deeper_evidence_summary.json
 
+      - name: Render deeper gate summary
+        if: always()
+        run: |
+          python scripts/render_ci_gate_summary.py \
+            --report artifacts/ci/smc_deeper_evidence_summary.json \
+            --enforcement advisory
+
       - name: Run E2E structural smoke test (advisory)
         id: e2e_smoke
         continue-on-error: true

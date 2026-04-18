@@ -45,3 +45,15 @@ def test_release_gates_workflow_has_classification_step() -> None:
     assert 'ci_structural_pass' in workflow_text
     assert 'operational_release_pass' in workflow_text
     assert 'soft_gates_for_review' in workflow_text
+
+
+# ---------------------------------------------------------------------------
+# WP-R12 — CI summary normalization
+# ---------------------------------------------------------------------------
+
+
+def test_release_gates_workflow_has_normalized_summary_step() -> None:
+    workflow_text = _read(WORKFLOW_PATH)
+    assert '- name: Render release gate summary' in workflow_text
+    assert 'render_ci_gate_summary.py' in workflow_text
+    assert '--enforcement hard' in workflow_text
