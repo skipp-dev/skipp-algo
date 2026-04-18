@@ -203,6 +203,130 @@ class TestBenzingaWatchlistJson:
         assert isinstance(result["asof_ts"], float)
         assert result["asof_ts"] > 0
 
+    def test_invalid_payload_type_raises(self, tmp_path: Path) -> None:
+        from smc_integration.sources import benzinga_watchlist_json as mod
+
+        source_path = tmp_path / "bz.json"
+        source_path.write_text("[1,2,3]", encoding="utf-8")
+
+        with patch.object(mod, "BENZINGA_WATCHLIST_JSON", source_path):
+            with pytest.raises(ValueError, match="must be an object"):
+                mod.load_raw_meta_input("AAPL", "15m")
+
+    def test_no_symbol_rows_raises(self, tmp_path: Path) -> None:
+        from smc_integration.sources import benzinga_watchlist_json as mod
+
+        payload = {"other_key": "value"}
+        source_path = tmp_path / "bz.json"
+        _write_json(source_path, payload)
+
+        with patch.object(mod, "BENZINGA_WATCHLIST_JSON", source_path):
+            with pytest.raises(ValueError, match="no symbol rows"):
+                mod.load_raw_meta_input("AAPL", "15m")
+
+    def test_payload_key_alternatives(self, tmp_path: Path) -> None:
+        from smc_integration.sources import benzinga_watchlist_json as mod
+
+        for key in ("watchlist", "items", "data"):
+            payload = {key: [_BENZINGA_ROW]}
+            source_path = tmp_path / "bz.json"
+            _write_json(source_path, payload)
+
+            with patch.object(mod, "BENZINGA_WATCHLIST_JSON", source_path):
+                result = mod.load_raw_meta_input("AAPL", "15m")
+
+            assert result["symbol"] == "AAPL"
+
+    def test_missing_both_asof_and_trade_date_raises(self, tmp_path: Path) -> None:
+        from smc_integration.sources import benzinga_watchlist_json as mod
+
+        row = {"symbol": "AAPL", "volume_regime": "NORMAL", "news": {"strength": 0.5, "bias": "NEUTRAL", "asof_ts": 1.0}}
+        payload = {"symbols": [row]}
+        source_path = tmp_path / "bz.json"
+        _write_json(source_path, payload)
+
+        with patch.object(mod, "BENZINGA_WATCHLIST_JSON", source_path):
+            with pytest.raises(ValueError, match="missing both"):
+                mod.load_raw_meta_input("AAPL", "15m")
+
+    def test_coerce_helpers(self) -> None:
+        from smc_integration.sources.benzinga_watchlist_json import (
+            _coerce_bias,
+            _coerce_optional_bool,
+            _coerce_optional_float,
+        )
+
+        assert _coerce_optional_float("3.14") == 3.14
+        assert _coerce_optional_float("bad") is None
+        assert _coerce_optional_float(None) is None
+        assert _coerce_optional_bool("true") is True
+        assert _coerce_optional_bool("false") is False
+        assert _coerce_optional_bool("maybe") is None
+        assert _coerce_optional_bool(True) is True
+        assert _coerce_bias("BULLISH") == "BULLISH"
+        assert _coerce_bias("bearish") == "BEARISH"
+        assert _coerce_bias("neutral") == "NEUTRAL"
+        assert _coerce_bias("UNKNOWN") is None
+        assert _coerce_bias(42) is None
+
+    def test_invalid_regime_defaults_to_normal(self, tmp_path: Path) -> None:
+        from smc_integration.sources import benzinga_watchlist_json as mod
+
+        row = {**_BENZINGA_ROW, "volume_regime": "SUPER_HIGH"}
+        payload = {"symbols": [row]}
+        source_path = tmp_path / "bz.json"
+        _write_json(source_path, payload)
+
+        with patch.object(mod, "BENZINGA_WATCHLIST_JSON", source_path):
+            result = mod.load_raw_meta_input("AAPL", "15m")
+
+        assert result["volume"]["value"]["regime"] == "NORMAL"
+
+    def test_flat_news_field_fallback(self, tmp_path: Path) -> None:
+        from smc_integration.sources import benzinga_watchlist_json as mod
+
+        row = {
+            "symbol": "TSLA",
+            "trade_date": "2025-01-15",
+            "asof_ts": 1736899200.0,
+            "volume_regime": "NORMAL",
+            "news_strength": "0.8",
+            "news_bias": "BULLISH",
+        }
+        payload = {"symbols": [row]}
+        source_path = tmp_path / "bz.json"
+        _write_json(source_path, payload)
+
+        with patch.object(mod, "BENZINGA_WATCHLIST_JSON", source_path):
+            result = mod.load_raw_meta_input("TSLA", "15m")
+
+        assert result["news"]["value"]["strength"] == 0.8
+        assert result["news"]["value"]["bias"] == "BULLISH"
+
+    def test_empty_symbol_raises(self, tmp_path: Path) -> None:
+        from smc_integration.sources import benzinga_watchlist_json as mod
+
+        payload = {"symbols": [_BENZINGA_ROW]}
+        source_path = tmp_path / "bz.json"
+        _write_json(source_path, payload)
+
+        with patch.object(mod, "BENZINGA_WATCHLIST_JSON", source_path):
+            with pytest.raises(ValueError, match="must not be empty"):
+                mod.load_raw_meta_input("", "15m")
+
+    def test_thin_fraction_coercion(self, tmp_path: Path) -> None:
+        from smc_integration.sources import benzinga_watchlist_json as mod
+
+        row = {**_BENZINGA_ROW, "thin_fraction": "bad_value"}
+        payload = {"symbols": [row]}
+        source_path = tmp_path / "bz.json"
+        _write_json(source_path, payload)
+
+        with patch.object(mod, "BENZINGA_WATCHLIST_JSON", source_path):
+            result = mod.load_raw_meta_input("AAPL", "15m")
+
+        assert result["volume"]["value"]["thin_fraction"] == 0.0
+
 
 # ── fmp_watchlist_json ───────────────────────────────────────────
 
@@ -269,6 +393,150 @@ class TestFmpWatchlistJson:
             result = mod.load_raw_meta_input("AAPL", "15m")
 
         assert result["volume"]["value"]["regime"] == "NORMAL"
+
+    def test_missing_file_raises(self, tmp_path: Path) -> None:
+        from smc_integration.sources import fmp_watchlist_json as mod
+
+        with patch.object(mod, "FMP_WATCHLIST_JSON", tmp_path / "nope.json"):
+            with pytest.raises(FileNotFoundError):
+                mod.load_raw_meta_input("AAPL", "15m")
+
+    def test_invalid_payload_type_raises(self, tmp_path: Path) -> None:
+        from smc_integration.sources import fmp_watchlist_json as mod
+
+        source_path = tmp_path / "fmp.json"
+        source_path.write_text("[1,2,3]", encoding="utf-8")
+
+        with patch.object(mod, "FMP_WATCHLIST_JSON", source_path):
+            with pytest.raises(ValueError, match="must be an object"):
+                mod.load_raw_meta_input("AAPL", "15m")
+
+    def test_missing_symbol_raises(self, tmp_path: Path) -> None:
+        from smc_integration.sources import fmp_watchlist_json as mod
+
+        payload = {"symbols": [_FMP_ROW]}
+        source_path = tmp_path / "fmp.json"
+        _write_json(source_path, payload)
+
+        with patch.object(mod, "FMP_WATCHLIST_JSON", source_path):
+            with pytest.raises(ValueError, match="not present"):
+                mod.load_raw_meta_input("MSFT", "15m")
+
+    def test_no_symbol_rows_raises(self, tmp_path: Path) -> None:
+        from smc_integration.sources import fmp_watchlist_json as mod
+
+        payload = {"other_key": "value"}
+        source_path = tmp_path / "fmp.json"
+        _write_json(source_path, payload)
+
+        with patch.object(mod, "FMP_WATCHLIST_JSON", source_path):
+            with pytest.raises(ValueError, match="no symbol rows"):
+                mod.load_raw_meta_input("AAPL", "15m")
+
+    def test_payload_key_alternatives(self, tmp_path: Path) -> None:
+        from smc_integration.sources import fmp_watchlist_json as mod
+
+        for key in ("watchlist", "items", "data"):
+            payload = {key: [_FMP_ROW]}
+            source_path = tmp_path / "fmp.json"
+            _write_json(source_path, payload)
+
+            with patch.object(mod, "FMP_WATCHLIST_JSON", source_path):
+                result = mod.load_raw_meta_input("AAPL", "15m")
+
+            assert result["symbol"] == "AAPL"
+
+    def test_trade_date_fallback_for_asof_ts(self, tmp_path: Path) -> None:
+        from smc_integration.sources import fmp_watchlist_json as mod
+
+        row = {**_FMP_ROW}
+        del row["asof_ts"]
+        payload = {"symbols": [row]}
+        source_path = tmp_path / "fmp.json"
+        _write_json(source_path, payload)
+
+        with patch.object(mod, "FMP_WATCHLIST_JSON", source_path):
+            result = mod.load_raw_meta_input("AAPL", "15m")
+
+        assert isinstance(result["asof_ts"], float)
+        assert result["asof_ts"] > 0
+
+    def test_missing_both_asof_and_trade_date_raises(self, tmp_path: Path) -> None:
+        from smc_integration.sources import fmp_watchlist_json as mod
+
+        row = {"symbol": "AAPL", "volume_regime": "NORMAL", "technical": {"strength": 0.5, "bias": "NEUTRAL", "asof_ts": 1.0}}
+        payload = {"symbols": [row]}
+        source_path = tmp_path / "fmp.json"
+        _write_json(source_path, payload)
+
+        with patch.object(mod, "FMP_WATCHLIST_JSON", source_path):
+            with pytest.raises(ValueError, match="missing both"):
+                mod.load_raw_meta_input("AAPL", "15m")
+
+    def test_coerce_helpers(self) -> None:
+        from smc_integration.sources.fmp_watchlist_json import (
+            _coerce_bias,
+            _coerce_optional_bool,
+            _coerce_optional_float,
+        )
+
+        assert _coerce_optional_float("3.14") == 3.14
+        assert _coerce_optional_float("bad") is None
+        assert _coerce_optional_float(None) is None
+        assert _coerce_optional_bool("true") is True
+        assert _coerce_optional_bool("false") is False
+        assert _coerce_optional_bool("maybe") is None
+        assert _coerce_optional_bool(True) is True
+        assert _coerce_bias("BULLISH") == "BULLISH"
+        assert _coerce_bias("bearish") == "BEARISH"
+        assert _coerce_bias("neutral") == "NEUTRAL"
+        assert _coerce_bias("UNKNOWN") is None
+        assert _coerce_bias(42) is None
+
+    def test_flat_field_fallback(self, tmp_path: Path) -> None:
+        from smc_integration.sources import fmp_watchlist_json as mod
+
+        row = {
+            "symbol": "TSLA",
+            "trade_date": "2025-01-15",
+            "asof_ts": 1736899200.0,
+            "volume_regime": "NORMAL",
+            "technical_strength": "0.8",
+            "technical_bias": "BULLISH",
+        }
+        payload = {"symbols": [row]}
+        source_path = tmp_path / "fmp.json"
+        _write_json(source_path, payload)
+
+        with patch.object(mod, "FMP_WATCHLIST_JSON", source_path):
+            result = mod.load_raw_meta_input("TSLA", "15m")
+
+        assert result["technical"]["value"]["strength"] == 0.8
+        assert result["technical"]["value"]["bias"] == "BULLISH"
+
+    def test_empty_symbol_raises(self, tmp_path: Path) -> None:
+        from smc_integration.sources import fmp_watchlist_json as mod
+
+        payload = {"symbols": [_FMP_ROW]}
+        source_path = tmp_path / "fmp.json"
+        _write_json(source_path, payload)
+
+        with patch.object(mod, "FMP_WATCHLIST_JSON", source_path):
+            with pytest.raises(ValueError, match="must not be empty"):
+                mod.load_raw_meta_input("", "15m")
+
+    def test_thin_fraction_coercion(self, tmp_path: Path) -> None:
+        from smc_integration.sources import fmp_watchlist_json as mod
+
+        row = {**_FMP_ROW, "thin_fraction": "bad_value"}
+        payload = {"symbols": [row]}
+        source_path = tmp_path / "fmp.json"
+        _write_json(source_path, payload)
+
+        with patch.object(mod, "FMP_WATCHLIST_JSON", source_path):
+            result = mod.load_raw_meta_input("AAPL", "15m")
+
+        assert result["volume"]["value"]["thin_fraction"] == 0.0
 
 
 # ── tradingview_watchlist_json ───────────────────────────────────
