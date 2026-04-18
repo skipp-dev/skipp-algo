@@ -311,7 +311,7 @@
         "structure_missing_categories": { "type": "array", "items": { "type": "string", "enum": ["bos", "choch", "orderblocks", "fvg", "liquidity_sweeps"] } },
         "missing_domains": { "type": "array", "items": { "type": "string", "enum": ["volume", "technical", "news"] } },
         "stale_domains": { "type": "array", "items": { "type": "string", "enum": ["volume", "technical", "news"] } },
-        "quality_recommendation": { "type": "string", "enum": ["publish", "review", "hold", "insufficient"] },
+        "quality_recommendation": { "type": "string", "enum": ["trusted", "observable", "limited", "insufficient"] },
         "quality_guardrail": { "type": "string" },
         "quality_recommendation_reason": { "type": "string" }
       }
