@@ -129,6 +129,73 @@ _DATA_ABSENT_CODES = frozenset({
 })
 
 
+# ---------------------------------------------------------------------------
+# TV-Resilience classification (WP-R11)
+# ---------------------------------------------------------------------------
+# Failure codes emitted by TradingView post-release validation that indicate
+# the TradingView web UI itself drifted (selector changes, page structure,
+# auth expiry) rather than an actual code or data problem in *our* system.
+
+_TV_EXTERNAL_DRIFT_CODES: frozenset[str] = frozenset({
+    # Auth / storage-state problems — external credential expiry or TV
+    # session rotation, not a code defect.
+    "AUTH_FAILED",
+    "AUTH_NOT_REUSED",
+    # Preflight infrastructure — Playwright cannot interact with TV because
+    # selectors, modals, or page layout changed on TV side.
+    "PREFLIGHT_FAILED",
+    "TARGET_FAILED",
+})
+
+# Failure codes that represent *our* code/data responsibility even when
+# they appear in a TV-validation gate.
+_TV_CODE_OR_DATA_CODES: frozenset[str] = frozenset({
+    "PUBLISH_STATUS_NOT_PUBLISHED",
+    "VERSION_MISMATCH",
+    "MANIFEST_STALE",
+    "MANIFEST_MISSING_TIMESTAMP",
+    "READONLY_MODE_REQUIRED",
+    "NO_TARGETS",
+})
+
+
+def classify_tv_gate_failure(gate: dict[str, Any]) -> str:
+    """Classify a ``post_release_validation`` gate failure.
+
+    Returns
+    -------
+    ``"external_tv_drift"``
+        Every failure code in the gate is attributable to external
+        TradingView UI/auth drift, not a code or data problem.
+    ``"code_or_data"``
+        At least one failure code indicates a code or data problem.
+    ``"mixed"``
+        The gate contains both drift and code/data failure codes.
+    ``"unknown"``
+        The gate has failures with unrecognized codes.
+    """
+    details = gate.get("details", {})
+    failure_codes: list[str] = []
+    for item in details.get("failures", []):
+        code = str(item.get("code", "")).strip()
+        if code:
+            failure_codes.append(code)
+
+    if not failure_codes:
+        return "unknown"
+
+    has_drift = any(c in _TV_EXTERNAL_DRIFT_CODES for c in failure_codes)
+    has_code = any(c in _TV_CODE_OR_DATA_CODES for c in failure_codes)
+
+    if has_drift and has_code:
+        return "mixed"
+    if has_drift:
+        return "external_tv_drift"
+    if has_code:
+        return "code_or_data"
+    return "unknown"
+
+
 def _gate_failure_is_data_absent(gate: dict[str, Any]) -> bool:
     """Return True if *every* failure signal in this gate is caused by absent data files.
 
@@ -733,7 +800,7 @@ def _run_post_release_validation_gate(report_path: str) -> dict[str, Any]:
 
     overall_status = str(payload.get("overall_status", "unknown")).strip().lower()
     gate_status = "ok" if overall_status == "ok" else "fail"
-    return {
+    gate = {
         "name": "post_release_validation",
         "status": gate_status,
         "details": {
@@ -743,6 +810,9 @@ def _run_post_release_validation_gate(report_path: str) -> dict[str, Any]:
             "failures": payload.get("failures", []),
         },
     }
+    if gate_status == "fail":
+        gate["tv_failure_class"] = classify_tv_gate_failure(gate)
+    return gate
 
 
 def _render(report: dict[str, Any], output: str) -> None:
@@ -939,6 +1009,8 @@ def main() -> int:
     })
 
     # --ci-mode: downgrade data-absent blocking gates to non-blocking.
+    # Also downgrade TV-validation gates whose failures are purely external
+    # UI/auth drift (WP-R11).
     ci_mode = getattr(args, "ci_mode", False)
     ci_mode_downgrades: list[str] = []
     if ci_mode:
@@ -948,6 +1020,11 @@ def main() -> int:
             if _gate_failure_is_data_absent(gate):
                 gate["blocking"] = False
                 gate["ci_mode_downgraded"] = True
+                ci_mode_downgrades.append(gate["name"])
+            elif gate.get("tv_failure_class") == "external_tv_drift":
+                gate["blocking"] = False
+                gate["ci_mode_downgraded"] = True
+                gate["ci_mode_downgrade_reason"] = "external_tv_drift"
                 ci_mode_downgrades.append(gate["name"])
 
     has_fail = any(gate.get("status") == "fail" for gate in gates if gate.get("blocking", True))

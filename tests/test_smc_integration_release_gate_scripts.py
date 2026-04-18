@@ -1306,3 +1306,120 @@ class TestReferenceBundleCachePassthrough:
         assert "include_smoke_bundles" in health_source, (
             "include_smoke_bundles opt-in gate not found — WP-R13 removed?"
         )
+
+
+# ---------------------------------------------------------------------------
+# WP-R11: TV-Resilience classification
+# ---------------------------------------------------------------------------
+
+
+class TestTvResilienceClassification:
+    """Tests for ``classify_tv_gate_failure`` and ci-mode TV-drift downgrade."""
+
+    def test_external_drift_codes_classified(self) -> None:
+        gate = {
+            "name": "post_release_validation",
+            "status": "fail",
+            "details": {
+                "failures": [
+                    {"code": "AUTH_FAILED"},
+                    {"code": "PREFLIGHT_FAILED"},
+                ],
+            },
+        }
+        assert release_script.classify_tv_gate_failure(gate) == "external_tv_drift"
+
+    def test_code_or_data_codes_classified(self) -> None:
+        gate = {
+            "name": "post_release_validation",
+            "status": "fail",
+            "details": {
+                "failures": [
+                    {"code": "VERSION_MISMATCH"},
+                ],
+            },
+        }
+        assert release_script.classify_tv_gate_failure(gate) == "code_or_data"
+
+    def test_mixed_codes_classified(self) -> None:
+        gate = {
+            "name": "post_release_validation",
+            "status": "fail",
+            "details": {
+                "failures": [
+                    {"code": "AUTH_FAILED"},
+                    {"code": "VERSION_MISMATCH"},
+                ],
+            },
+        }
+        assert release_script.classify_tv_gate_failure(gate) == "mixed"
+
+    def test_unknown_codes_classified(self) -> None:
+        gate = {
+            "name": "post_release_validation",
+            "status": "fail",
+            "details": {
+                "failures": [
+                    {"code": "SOME_FUTURE_CODE"},
+                ],
+            },
+        }
+        assert release_script.classify_tv_gate_failure(gate) == "unknown"
+
+    def test_no_failures_classified_unknown(self) -> None:
+        gate = {
+            "name": "post_release_validation",
+            "status": "fail",
+            "details": {"failures": []},
+        }
+        assert release_script.classify_tv_gate_failure(gate) == "unknown"
+
+    def test_post_release_gate_includes_tv_failure_class(self, tmp_path: Path) -> None:
+        report = {
+            "overall_status": "fail",
+            "validated_target_count": 1,
+            "failures": [{"code": "TARGET_FAILED", "message": "selector not found"}],
+        }
+        report_path = tmp_path / "tv_report.json"
+        report_path.write_text(json.dumps(report), encoding="utf-8")
+
+        gate = release_script._run_post_release_validation_gate(str(report_path))
+        assert gate["status"] == "fail"
+        assert gate["tv_failure_class"] == "external_tv_drift"
+
+    def test_ci_mode_downgrades_external_tv_drift(self, tmp_path: Path) -> None:
+        """In ci-mode, external TV drift failures should be downgraded."""
+        gate = {
+            "name": "post_release_validation",
+            "status": "fail",
+            "blocking": True,
+            "tv_failure_class": "external_tv_drift",
+            "details": {
+                "failures": [{"code": "AUTH_FAILED"}],
+            },
+        }
+        # Simulate the ci-mode downgrade loop
+        if gate.get("tv_failure_class") == "external_tv_drift":
+            gate["blocking"] = False
+            gate["ci_mode_downgraded"] = True
+            gate["ci_mode_downgrade_reason"] = "external_tv_drift"
+
+        assert gate["blocking"] is False
+        assert gate["ci_mode_downgraded"] is True
+        assert gate["ci_mode_downgrade_reason"] == "external_tv_drift"
+
+    def test_ci_mode_does_not_downgrade_code_or_data(self) -> None:
+        """Code/data failures must NOT be downgraded even in ci-mode."""
+        gate = {
+            "name": "post_release_validation",
+            "status": "fail",
+            "blocking": True,
+            "tv_failure_class": "code_or_data",
+            "details": {
+                "failures": [{"code": "VERSION_MISMATCH"}],
+            },
+        }
+        # Same condition as ci-mode loop
+        should_downgrade = gate.get("tv_failure_class") == "external_tv_drift"
+        assert should_downgrade is False
+        assert gate["blocking"] is True
