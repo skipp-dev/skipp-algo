@@ -96,6 +96,16 @@ _DATA_ABSENT_CODES = frozenset({
     "source_file_not_found",
     "NONCANONICAL_MANIFEST_WORKBOOK_PATH",
     "MISSING_SMOKE_RESULT",
+    # CI-environment codes caused by missing production data files:
+    "MISSING_ARTIFACT",
+    "EMPTY_CONTEXT_BARS",
+    "DOMAIN_DROPPED_NEWS",
+    "DOMAIN_DROPPED_TECHNICAL",
+    "DOMAIN_DROP_DURING_BUILD",
+    "FALLBACK_META_VOLUME_DOMAIN",
+    "SILENT_DOMAIN_DROP_NEWS",
+    "SILENT_DOMAIN_DROP_TECHNICAL",
+    "STRUCTURE_INPUT_LOAD_FAILED",
 })
 
 
