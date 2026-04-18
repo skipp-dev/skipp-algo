@@ -10,6 +10,12 @@ Usage:
     python scripts/e2e_smoke_ci.py [--reference tests/fixtures/e2e_smoke_reference.json]
     python scripts/e2e_smoke_ci.py --update-reference
 
+CI Integration:
+    This script runs as an advisory (non-blocking) step in the
+    ``smc-deeper-integration-gates`` workflow.  Results appear in
+    the workflow summary and are uploaded as part of the
+    ``smc-deeper-gate-evidence`` artifact.
+
 What this smoke test protects:
     - GovernanceStatus enum values and registry completeness
     - HARD_BLOCKING_DEGRADATION_CODES consistency with registry
