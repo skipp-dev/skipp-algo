@@ -1723,3 +1723,299 @@ class TestSmokeCheckBundleSkipFastPath:
 
         assert len(bundle_calls) == 1, "synthetic_fallback counts as present — bundle must run"
         assert smoke["results"][0].get("bundle_skipped") is not True
+
+
+# ── pure helper coverage ─────────────────────────────────────────
+
+from smc_integration.provider_health import (
+    _domain_drop_provider_map,
+    _domain_drop_reason_map,
+    _domain_visibility_snapshot,
+    _iso_utc,
+    _missing_meta_domains,
+    _normalize_symbols,
+    _normalize_timeframes,
+    _present_meta_domains,
+    _promote_release_strict_failures,
+    _raw_volume_regime,
+    _shape_ok,
+    _sorted_records,
+    _source_plan_value,
+    _status_from_lists,
+    _structure_is_empty,
+    _summarize_domain_visibility,
+    provider_health_exit_code,
+    write_provider_health_report,
+)
+
+
+class TestNormalizeSymbols:
+    def test_dedup_and_upper(self) -> None:
+        assert _normalize_symbols(["aapl", "AAPL", "msft"]) == ["AAPL", "MSFT"]
+
+    def test_none_defaults_to_ibg(self) -> None:
+        assert _normalize_symbols(None) == ["IBG"]
+
+    def test_empty_list_defaults_to_ibg(self) -> None:
+        assert _normalize_symbols([]) == ["IBG"]
+
+    def test_whitespace_only_filtered(self) -> None:
+        assert _normalize_symbols(["  ", "AAPL"]) == ["AAPL"]
+
+
+class TestNormalizeTimeframes:
+    def test_dedup(self) -> None:
+        assert _normalize_timeframes(["15m", "15m", "1D"]) == ["15m", "1D"]
+
+    def test_none_defaults_to_15m(self) -> None:
+        assert _normalize_timeframes(None) == ["15m"]
+
+    def test_empty_defaults_to_15m(self) -> None:
+        assert _normalize_timeframes([]) == ["15m"]
+
+    def test_whitespace_filtered(self) -> None:
+        assert _normalize_timeframes(["  ", "5m"]) == ["5m"]
+
+
+class TestShapeOk:
+    def test_valid(self) -> None:
+        assert _shape_ok({"bos": [], "orderblocks": [], "fvg": [], "liquidity_sweeps": []}) is True
+
+    def test_non_dict(self) -> None:
+        assert _shape_ok("not a dict") is False
+
+    def test_missing_keys(self) -> None:
+        assert _shape_ok({"bos": []}) is False
+
+    def test_extra_keys(self) -> None:
+        assert _shape_ok({"bos": [], "orderblocks": [], "fvg": [], "liquidity_sweeps": [], "extra": []}) is False
+
+
+class TestStructureIsEmpty:
+    def test_all_empty(self) -> None:
+        assert _structure_is_empty({"bos": [], "orderblocks": [], "fvg": [], "liquidity_sweeps": []}) is True
+
+    def test_one_populated(self) -> None:
+        assert _structure_is_empty({"bos": [1], "orderblocks": [], "fvg": [], "liquidity_sweeps": []}) is False
+
+    def test_non_list_value(self) -> None:
+        assert _structure_is_empty({"bos": "not_a_list", "orderblocks": [], "fvg": [], "liquidity_sweeps": []}) is True
+
+
+class TestStatusFromLists:
+    def test_fail(self) -> None:
+        assert _status_from_lists(failures=[{"x": 1}], warnings=[], degradations=[]) == "fail"
+
+    def test_warn(self) -> None:
+        assert _status_from_lists(failures=[], warnings=[{"x": 1}], degradations=[]) == "warn"
+
+    def test_warn_from_degradation(self) -> None:
+        assert _status_from_lists(failures=[], warnings=[], degradations=[{"x": 1}]) == "warn"
+
+    def test_ok(self) -> None:
+        assert _status_from_lists(failures=[], warnings=[], degradations=[]) == "ok"
+
+
+class TestSourcePlanValue:
+    def test_direct_key(self) -> None:
+        assert _source_plan_value({"volume": "databento"}, "volume") == "databento"
+
+    def test_snapshot_prefix(self) -> None:
+        assert _source_plan_value({"snapshot_volume": "fmp"}, "volume") == "fmp"
+
+    def test_none_source_plan(self) -> None:
+        assert _source_plan_value(None, "volume") == ""
+
+    def test_empty_value(self) -> None:
+        assert _source_plan_value({"volume": ""}, "volume") == ""
+
+
+class TestMissingMetaDomains:
+    def test_valid(self) -> None:
+        assert _missing_meta_domains({"meta_domains_missing": ["news", "technical"]}) == {"news", "technical"}
+
+    def test_non_dict(self) -> None:
+        assert _missing_meta_domains(None) == set()
+
+    def test_non_list(self) -> None:
+        assert _missing_meta_domains({"meta_domains_missing": "not_a_list"}) == set()
+
+    def test_filters_non_strings(self) -> None:
+        assert _missing_meta_domains({"meta_domains_missing": ["news", 42, "", "  "]}) == {"news"}
+
+
+class TestDomainDropReasonMap:
+    def test_valid(self) -> None:
+        assert _domain_drop_reason_map({"domain_drop_reasons": {"news": "stale"}}) == {"news": "stale"}
+
+    def test_non_dict_input(self) -> None:
+        assert _domain_drop_reason_map(None) == {}
+
+    def test_non_dict_reasons(self) -> None:
+        assert _domain_drop_reason_map({"domain_drop_reasons": "bad"}) == {}
+
+    def test_filters_empty_keys(self) -> None:
+        assert _domain_drop_reason_map({"domain_drop_reasons": {"": "x", "news": ""}}) == {}
+
+
+class TestDomainDropProviderMap:
+    def test_valid(self) -> None:
+        assert _domain_drop_provider_map({"domain_drop_providers": {"news": "benzinga"}}) == {"news": "benzinga"}
+
+    def test_non_dict(self) -> None:
+        assert _domain_drop_provider_map(None) == {}
+
+
+class TestPresentMetaDomains:
+    def test_from_list(self) -> None:
+        result = _present_meta_domains({"meta_domains_present": ["volume", "news"]})
+        assert result == {"volume", "news"}
+
+    def test_from_dict_keys(self) -> None:
+        result = _present_meta_domains({"volume": {"value": {}}, "technical": {"value": {}}})
+        assert "volume" in result
+        assert "technical" in result
+
+    def test_non_dict(self) -> None:
+        assert _present_meta_domains(None) == set()
+
+    def test_non_list_present(self) -> None:
+        result = _present_meta_domains({"meta_domains_present": "bad", "volume": {"value": {}}})
+        assert "volume" in result
+
+
+class TestRawVolumeRegime:
+    def test_valid(self) -> None:
+        assert _raw_volume_regime({"volume": {"value": {"regime": "UNKNOWN"}}}) == "UNKNOWN"
+
+    def test_non_dict(self) -> None:
+        assert _raw_volume_regime(None) == ""
+
+    def test_no_volume(self) -> None:
+        assert _raw_volume_regime({}) == ""
+
+    def test_no_value(self) -> None:
+        assert _raw_volume_regime({"volume": {}}) == ""
+
+    def test_normal(self) -> None:
+        assert _raw_volume_regime({"volume": {"value": {"regime": "normal"}}}) == "NORMAL"
+
+
+class TestDomainVisibilitySnapshot:
+    def test_full_coverage(self) -> None:
+        result = _domain_visibility_snapshot(
+            structure_present=True,
+            raw_meta={"meta_domains_present": ["volume", "technical", "news"]},
+            domain_diag=None,
+        )
+        assert result["domain_visibility_complete"] is True
+        assert result["domain_visibility_score"] == 1.0
+
+    def test_partial_from_diag(self) -> None:
+        result = _domain_visibility_snapshot(
+            structure_present=True,
+            raw_meta=None,
+            domain_diag={"volume": "present", "technical": "missing", "news": "synthetic_fallback"},
+        )
+        assert "volume" in result["domain_visibility_domains_present"]
+        assert "news" in result["domain_visibility_domains_present"]
+        assert "technical" in result["domain_visibility_domains_missing"]
+
+    def test_stale_excluded_from_diag(self) -> None:
+        result = _domain_visibility_snapshot(
+            structure_present=False,
+            raw_meta=None,
+            domain_diag={"volume": "present", "volume_stale": True},
+        )
+        assert "volume" not in result["domain_visibility_domains_present"]
+
+
+class TestSummarizeDomainVisibility:
+    def test_empty(self) -> None:
+        result = _summarize_domain_visibility([])
+        assert result["average_score"] is None
+        assert result["evaluated_rows"] == 0
+
+    def test_with_rows(self) -> None:
+        rows = [
+            {"domain_visibility_score": 1.0, "domain_visibility_complete": True,
+             "domain_visibility_domains_present": ["structure"], "domain_visibility_domains_missing": [],
+             "symbol": "AAPL", "timeframe": "15m"},
+            {"domain_visibility_score": 0.5, "domain_visibility_complete": False,
+             "domain_visibility_domains_present": ["structure"], "domain_visibility_domains_missing": ["volume"],
+             "symbol": "MSFT", "timeframe": "15m"},
+        ]
+        result = _summarize_domain_visibility(rows)
+        assert result["evaluated_rows"] == 2
+        assert result["fully_visible_rows"] == 1
+        assert result["average_score"] == 0.75
+
+    def test_non_numeric_score_skipped(self) -> None:
+        rows = [{"domain_visibility_score": "bad"}]
+        result = _summarize_domain_visibility(rows)
+        assert result["evaluated_rows"] == 0
+
+
+class TestIsoUtc:
+    def test_formats(self) -> None:
+        result = _iso_utc(0.0)
+        assert "1970" in result
+
+
+class TestSortedRecords:
+    def test_sorts_deterministically(self) -> None:
+        records = [{"b": 2}, {"a": 1}]
+        result = _sorted_records(records)
+        assert result[0] == {"a": 1}
+        assert result[1] == {"b": 2}
+
+
+class TestPromoteReleaseStrictFailures:
+    def test_promotes_matching_warning(self) -> None:
+        warnings = [{"code": "MISSING_ARTIFACT", "symbol": "X"}]
+        w, f, d = _promote_release_strict_failures(warnings=warnings, failures=[], degradations=[])
+        assert len(w) == 0
+        assert len(f) == 1
+        assert f[0]["promoted_by"] == "release_strict_policy"
+
+    def test_promotes_matching_degradation(self) -> None:
+        degradations = [{"code": "STALE_MANIFEST_GENERATED_AT"}]
+        w, f, d = _promote_release_strict_failures(warnings=[], failures=[], degradations=degradations)
+        assert len(d) == 0
+        assert len(f) == 1
+
+    def test_keeps_non_matching(self) -> None:
+        warnings = [{"code": "SOME_OTHER_CODE"}]
+        degradations = [{"code": "ANOTHER_CODE"}]
+        w, f, d = _promote_release_strict_failures(warnings=warnings, failures=[], degradations=degradations)
+        assert len(w) == 1
+        assert len(d) == 1
+        assert len(f) == 0
+
+
+class TestProviderHealthExitCode:
+    def test_fail_returns_1(self) -> None:
+        assert provider_health_exit_code({"overall_status": "fail"}) == 1
+
+    def test_ok_returns_0(self) -> None:
+        assert provider_health_exit_code({"overall_status": "ok"}) == 0
+
+    def test_warn_returns_0_by_default(self) -> None:
+        assert provider_health_exit_code({"overall_status": "warn"}) == 0
+
+    def test_warn_returns_2_with_fail_on_warn(self) -> None:
+        assert provider_health_exit_code({"overall_status": "warn"}, fail_on_warn=True) == 2
+
+
+class TestWriteProviderHealthReport:
+    def test_writes_to_file(self, tmp_path: Path) -> None:
+        out = tmp_path / "sub" / "report.json"
+        write_provider_health_report({"status": "ok"}, out)
+        assert out.exists()
+        data = json.loads(out.read_text(encoding="utf-8"))
+        assert data["status"] == "ok"
+
+    def test_writes_to_stdout(self, capsys) -> None:
+        write_provider_health_report({"status": "ok"}, None)
+        captured = capsys.readouterr()
+        assert '"status": "ok"' in captured.out
