@@ -73,6 +73,14 @@ jobs:
             tests/test_streamlit_terminal_pure_functions.py \
             | tee artifacts/ci/terminal_coverage.txt
 
+      - name: Render fast gate summary
+        if: always()
+        run: |
+          python scripts/render_ci_gate_summary.py \
+            --report artifacts/ci/smc_fast_health_report.json \
+            --enforcement hard \
+            || echo "::warning::Fast gate summary skipped (report not found)."
+
       - name: Upload fast gate report
         if: always()
         uses: actions/upload-artifact@v7

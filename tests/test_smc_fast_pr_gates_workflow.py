@@ -34,3 +34,15 @@ def test_fast_pr_gates_workflow_uploads_terminal_coverage_artifacts() -> None:
     assert 'artifacts/ci/smc_fast_health_report.json' in workflow_text
     assert 'artifacts/ci/terminal_coverage.txt' in workflow_text
     assert 'artifacts/ci/terminal_coverage.xml' in workflow_text
+
+
+# ---------------------------------------------------------------------------
+# WP-R15 — CI summary normalization
+# ---------------------------------------------------------------------------
+
+
+def test_fast_pr_gates_workflow_has_normalized_summary_step() -> None:
+    workflow_text = _read(WORKFLOW_PATH)
+    assert '- name: Render fast gate summary' in workflow_text
+    assert 'render_ci_gate_summary.py' in workflow_text
+    assert '--enforcement hard' in workflow_text
