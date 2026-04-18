@@ -1526,3 +1526,192 @@ class TestFailureSemantics:
 
     def test_failure_action_enum_has_four_values(self) -> None:
         assert len(provider_health.FailureAction) == 4
+
+
+class TestSmokeCheckBundleSkipFastPath:
+    """Verify the fast-path: when all meta domains are absent the bundle
+    build is skipped and ``bundle_skipped`` is set on the result row."""
+
+    def test_all_domains_absent_skips_bundle(self, monkeypatch) -> None:
+        """When meta_domain_diagnostics shows all domains absent, the
+        expensive bundle build must be skipped."""
+        bundle_calls: list[tuple] = []
+
+        monkeypatch.setattr(
+            provider_health, "discover_composite_source_plan",
+            lambda **kwargs: {"structure": "s", "volume": "v", "technical": "t", "news": "n"},
+        )
+        monkeypatch.setattr(
+            provider_health, "load_raw_structure_input",
+            lambda symbol, timeframe, source: {
+                "bos": [], "orderblocks": [], "fvg": [], "liquidity_sweeps": [],
+            },
+        )
+        monkeypatch.setattr(
+            provider_health, "load_raw_meta_input_composite",
+            lambda symbol, timeframe, source: {
+                "asof_ts": 995.0,
+                "meta_domain_diagnostics": {
+                    "volume": "source_file_not_found",
+                    "volume_source": "databento_watchlist_csv",
+                    "volume_fallback_used": False,
+                    "volume_stale": False,
+                    "technical": "source_file_not_found",
+                    "technical_source": "fmp_watchlist_json",
+                    "technical_fallback_used": False,
+                    "technical_stale": False,
+                    "news": "source_file_not_found",
+                    "news_source": "benzinga_watchlist_json",
+                    "news_fallback_used": False,
+                    "news_stale": False,
+                },
+            },
+        )
+
+        def _spy_bundle(**kwargs):
+            bundle_calls.append(kwargs)
+            return {"snapshot": {}, "dashboard_payload": {}, "pine_payload": {}}
+
+        monkeypatch.setattr(
+            provider_health, "build_snapshot_bundle_for_symbol_timeframe", _spy_bundle,
+        )
+
+        smoke = provider_health._run_smoke_checks(
+            symbols=["AAPL"],
+            timeframes=["15m"],
+            checked_at=1_000.0,
+            stale_after_seconds=None,
+        )
+
+        assert len(bundle_calls) == 0, "bundle build should be skipped"
+        row = smoke["results"][0]
+        assert row.get("bundle_skipped") is True
+        assert row.get("bundle_skip_reason") == "all_meta_domains_absent"
+
+    def test_one_domain_present_runs_bundle(self, monkeypatch) -> None:
+        """When at least one domain is present, the bundle build runs."""
+        bundle_calls: list[tuple] = []
+
+        monkeypatch.setattr(
+            provider_health, "discover_composite_source_plan",
+            lambda **kwargs: {"structure": "s", "volume": "v", "technical": "t", "news": "n"},
+        )
+        monkeypatch.setattr(
+            provider_health, "load_raw_structure_input",
+            lambda symbol, timeframe, source: {
+                "bos": [{"id": "b1", "time": 1.0, "price": 100.0, "kind": "BOS", "dir": "UP"}],
+                "orderblocks": [], "fvg": [], "liquidity_sweeps": [],
+            },
+        )
+        monkeypatch.setattr(
+            provider_health, "load_raw_meta_input_composite",
+            lambda symbol, timeframe, source: {
+                "asof_ts": 995.0,
+                "volume": {"value": {"regime": "NORMAL", "thin_fraction": 0.1}},
+                "meta_domain_diagnostics": {
+                    "volume": "present",
+                    "volume_source": "databento_watchlist_csv",
+                    "volume_fallback_used": False,
+                    "volume_stale": False,
+                    "technical": "source_file_not_found",
+                    "technical_source": "fmp_watchlist_json",
+                    "technical_fallback_used": False,
+                    "technical_stale": False,
+                    "news": "source_file_not_found",
+                    "news_source": "benzinga_watchlist_json",
+                    "news_fallback_used": False,
+                    "news_stale": False,
+                },
+            },
+        )
+
+        def _spy_bundle(**kwargs):
+            bundle_calls.append(kwargs)
+            return {
+                "snapshot": {
+                    "structure": {
+                        "bos": [], "orderblocks": [], "fvg": [], "liquidity_sweeps": [],
+                    },
+                },
+                "source_plan": {"structure": "s", "volume": "v", "technical": "t", "news": "n"},
+                "dashboard_payload": {},
+                "pine_payload": {},
+                "context_diagnostics": {"bars_available": True, "bar_count": 100},
+            }
+
+        monkeypatch.setattr(
+            provider_health, "build_snapshot_bundle_for_symbol_timeframe", _spy_bundle,
+        )
+
+        smoke = provider_health._run_smoke_checks(
+            symbols=["AAPL"],
+            timeframes=["15m"],
+            checked_at=1_000.0,
+            stale_after_seconds=None,
+        )
+
+        assert len(bundle_calls) == 1, "bundle build should run"
+        assert smoke["results"][0].get("bundle_skipped") is not True
+
+    def test_synthetic_fallback_volume_runs_bundle(self, monkeypatch) -> None:
+        """synthetic_fallback counts as present — bundle should still run."""
+        bundle_calls: list[tuple] = []
+
+        monkeypatch.setattr(
+            provider_health, "discover_composite_source_plan",
+            lambda **kwargs: {"structure": "s", "volume": "v", "technical": "t", "news": "n"},
+        )
+        monkeypatch.setattr(
+            provider_health, "load_raw_structure_input",
+            lambda symbol, timeframe, source: {
+                "bos": [], "orderblocks": [], "fvg": [], "liquidity_sweeps": [],
+            },
+        )
+        monkeypatch.setattr(
+            provider_health, "load_raw_meta_input_composite",
+            lambda symbol, timeframe, source: {
+                "asof_ts": 995.0,
+                "meta_domain_diagnostics": {
+                    "volume": "synthetic_fallback",
+                    "volume_source": "synthetic",
+                    "volume_fallback_used": True,
+                    "volume_stale": False,
+                    "technical": "source_file_not_found",
+                    "technical_source": "fmp_watchlist_json",
+                    "technical_fallback_used": False,
+                    "technical_stale": False,
+                    "news": "source_file_not_found",
+                    "news_source": "benzinga_watchlist_json",
+                    "news_fallback_used": False,
+                    "news_stale": False,
+                },
+            },
+        )
+
+        def _spy_bundle(**kwargs):
+            bundle_calls.append(kwargs)
+            return {
+                "snapshot": {
+                    "structure": {
+                        "bos": [], "orderblocks": [], "fvg": [], "liquidity_sweeps": [],
+                    },
+                },
+                "source_plan": {"structure": "s", "volume": "v", "technical": "t", "news": "n"},
+                "dashboard_payload": {},
+                "pine_payload": {},
+                "context_diagnostics": {"bars_available": True, "bar_count": 0},
+            }
+
+        monkeypatch.setattr(
+            provider_health, "build_snapshot_bundle_for_symbol_timeframe", _spy_bundle,
+        )
+
+        smoke = provider_health._run_smoke_checks(
+            symbols=["AAPL"],
+            timeframes=["15m"],
+            checked_at=1_000.0,
+            stale_after_seconds=None,
+        )
+
+        assert len(bundle_calls) == 1, "synthetic_fallback counts as present — bundle must run"
+        assert smoke["results"][0].get("bundle_skipped") is not True

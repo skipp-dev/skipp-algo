@@ -951,6 +951,30 @@ def _run_smoke_checks(
                 all_degradations.extend(degradations)
                 continue
 
+            # ── Fast-path: skip expensive bundle build when no real meta
+            # domains are present.  The bundle would re-resolve all providers
+            # and rebuild the snapshot from scratch (≈12 s per pair on slow
+            # I/O).  When every domain is absent the result is predetermined:
+            # status = warn (degradations only, no hard failures).
+            _diag = row.get("meta_domain_diagnostics")
+            if isinstance(_diag, dict) and all(
+                _diag.get(d) not in {"present", "synthetic_fallback"}
+                for d in ("volume", "technical", "news")
+            ):
+                row["status"] = _status_from_lists(
+                    failures=failures, warnings=warnings, degradations=degradations,
+                )
+                row["warnings"] = warnings
+                row["failures"] = failures
+                row["degradations"] = degradations
+                row["bundle_skipped"] = True
+                row["bundle_skip_reason"] = "all_meta_domains_absent"
+                results.append(row)
+                all_warnings.extend(warnings)
+                all_failures.extend(failures)
+                all_degradations.extend(degradations)
+                continue
+
             try:
                 bundle_kwargs: dict[str, Any] = {
                     "symbol": symbol,
