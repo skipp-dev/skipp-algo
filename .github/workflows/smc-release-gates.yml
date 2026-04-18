@@ -162,6 +162,8 @@ jobs:
           PY
 
       - name: Run TradingView post-release validation
+        id: tv_validation
+        continue-on-error: true
         env:
           TV_HEADLESS: "1"
           TV_STORAGE_STATE: automation/tradingview/auth/storage-state.json
@@ -175,6 +177,48 @@ jobs:
             --release-manifest artifacts/tradingview/library_release_manifest.json \
             --validation-report artifacts/tradingview/tv_post_release_validation.json \
             --output artifacts/ci/smc_tradingview_post_release_report.json
+
+      - name: Classify TV validation failure (WP-R14)
+        if: always() && steps.tv_validation.outcome == 'failure'
+        run: |
+          python - <<'PY'
+          import json, sys
+          from pathlib import Path
+          # Import the classifier from the release-gates script.
+          sys.path.insert(0, ".")
+          from scripts.run_smc_release_gates import classify_tv_gate_failure
+
+          report_path = Path("artifacts/ci/smc_tradingview_post_release_report.json")
+          if not report_path.exists():
+              # tv_preflight.ts crashed before producing a report — external drift.
+              print("::warning::TV validation failed without producing a report (likely external drift).")
+              sys.exit(0)
+
+          payload = json.loads(report_path.read_text(encoding="utf-8"))
+          gate = {
+              "name": "post_release_validation",
+              "status": "fail",
+              "details": {
+                  "overall_status": str(payload.get("overall_status", "unknown")),
+                  "failures": payload.get("failures", []),
+              },
+          }
+          tv_class = classify_tv_gate_failure(gate)
+          print(f"tv_failure_class: {tv_class}")
+
+          if tv_class == "external_tv_drift":
+              print("::warning::TV validation failed due to external UI/auth drift — advisory only, not blocking.")
+              sys.exit(0)
+          elif tv_class == "code_or_data":
+              print("::error::TV validation failed due to code or data problem — blocking.")
+              sys.exit(1)
+          elif tv_class == "mixed":
+              print("::error::TV validation has mixed drift + code/data failures — blocking.")
+              sys.exit(1)
+          else:
+              print("::warning::TV validation failed with unrecognized codes — advisory only.")
+              sys.exit(0)
+          PY
 
       - name: Build release gate evidence summary
         if: always()

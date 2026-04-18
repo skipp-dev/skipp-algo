@@ -57,3 +57,22 @@ def test_release_gates_workflow_has_normalized_summary_step() -> None:
     assert '- name: Render release gate summary' in workflow_text
     assert 'render_ci_gate_summary.py' in workflow_text
     assert '--enforcement hard' in workflow_text
+
+
+# ---------------------------------------------------------------------------
+# WP-R14 — TV-Publish advisory classification
+# ---------------------------------------------------------------------------
+
+
+def test_tv_validation_step_has_continue_on_error() -> None:
+    workflow_text = _read(WORKFLOW_PATH)
+    assert 'id: tv_validation' in workflow_text
+    assert 'continue-on-error: true' in workflow_text
+
+
+def test_tv_validation_has_classification_step() -> None:
+    workflow_text = _read(WORKFLOW_PATH)
+    assert '- name: Classify TV validation failure (WP-R14)' in workflow_text
+    assert 'classify_tv_gate_failure' in workflow_text
+    assert 'external_tv_drift' in workflow_text
+    assert "steps.tv_validation.outcome == 'failure'" in workflow_text
