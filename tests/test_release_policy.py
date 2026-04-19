@@ -967,3 +967,495 @@ class TestGovernanceEnforcementGaps:
         }
         overlap = excluded_codes & HARD_BLOCKING_DEGRADATION_CODES
         assert overlap == set(), f"EXCLUDED codes must not be in HARD_BLOCKING_DEGRADATION_CODES: {overlap}"
+
+
+# ---------------------------------------------------------------------------
+# Coverage-boost tests — targeted at uncovered lines
+# ---------------------------------------------------------------------------
+
+
+class TestValidateGovernanceRegistryErrors:
+    """Cover lines 219-256: error branches in validate_gate_governance_registry."""
+
+    def test_duplicate_code_detected(self, monkeypatch) -> None:
+        from smc_integration.release_policy import (
+            GateGovernance,
+            GovernanceStatus,
+            validate_gate_governance_registry,
+        )
+        dup_entry = GateGovernance(
+            code="MEASUREMENT_BRIER_ABOVE_THRESHOLD",
+            promotion_state=GovernanceStatus.ADVISORY,
+            promotion_reason="duplicate entry for testing.",
+            reviewer="owner",
+            minimum_required_baselines=0,
+        )
+        import smc_integration.release_policy as rp_mod
+        from smc_integration.release_policy import GATE_GOVERNANCE_REGISTRY
+        extended = GATE_GOVERNANCE_REGISTRY + (dup_entry,)
+        monkeypatch.setattr(rp_mod, "GATE_GOVERNANCE_REGISTRY", extended)
+        errors = validate_gate_governance_registry()
+        assert any("duplicate" in e for e in errors)
+
+    def test_empty_reviewer_detected(self, monkeypatch) -> None:
+        from smc_integration.release_policy import (
+            GateGovernance,
+            GovernanceStatus,
+            validate_gate_governance_registry,
+        )
+        import smc_integration.release_policy as rp_mod
+        bad_entry = GateGovernance(
+            code="TEST_BAD_REVIEWER",
+            promotion_state=GovernanceStatus.ADVISORY,
+            promotion_reason="test reason",
+            reviewer="  ",
+            minimum_required_baselines=0,
+        )
+        monkeypatch.setattr(rp_mod, "GATE_GOVERNANCE_REGISTRY", (bad_entry,))
+        monkeypatch.setattr(rp_mod, "HARD_BLOCKING_DEGRADATION_CODES", frozenset())
+        errors = validate_gate_governance_registry()
+        assert any("reviewer is empty" in e for e in errors)
+
+    def test_empty_promotion_reason_detected(self, monkeypatch) -> None:
+        from smc_integration.release_policy import (
+            GateGovernance,
+            GovernanceStatus,
+            validate_gate_governance_registry,
+        )
+        import smc_integration.release_policy as rp_mod
+        bad_entry = GateGovernance(
+            code="TEST_BAD_REASON",
+            promotion_state=GovernanceStatus.ADVISORY,
+            promotion_reason="  ",
+            reviewer="owner",
+            minimum_required_baselines=0,
+        )
+        monkeypatch.setattr(rp_mod, "GATE_GOVERNANCE_REGISTRY", (bad_entry,))
+        monkeypatch.setattr(rp_mod, "HARD_BLOCKING_DEGRADATION_CODES", frozenset())
+        errors = validate_gate_governance_registry()
+        assert any("promotion_reason is empty" in e for e in errors)
+
+    def test_hard_blocking_without_baselines_detected(self, monkeypatch) -> None:
+        from smc_integration.release_policy import (
+            GateGovernance,
+            GovernanceStatus,
+            validate_gate_governance_registry,
+        )
+        import smc_integration.release_policy as rp_mod
+        bad_entry = GateGovernance(
+            code="TEST_NO_BASELINES",
+            promotion_state=GovernanceStatus.HARD_BLOCKING,
+            promotion_reason="test reason",
+            reviewer="owner",
+            minimum_required_baselines=0,
+            evidence_reference="some.md",
+        )
+        monkeypatch.setattr(rp_mod, "GATE_GOVERNANCE_REGISTRY", (bad_entry,))
+        monkeypatch.setattr(rp_mod, "HARD_BLOCKING_DEGRADATION_CODES", frozenset({"TEST_NO_BASELINES"}))
+        errors = validate_gate_governance_registry()
+        assert any("minimum_required_baselines" in e for e in errors)
+
+    def test_hard_blocking_without_evidence_detected(self, monkeypatch) -> None:
+        from smc_integration.release_policy import (
+            GateGovernance,
+            GovernanceStatus,
+            validate_gate_governance_registry,
+        )
+        import smc_integration.release_policy as rp_mod
+        bad_entry = GateGovernance(
+            code="TEST_NO_EVIDENCE",
+            promotion_state=GovernanceStatus.HARD_BLOCKING,
+            promotion_reason="test reason",
+            reviewer="owner",
+            minimum_required_baselines=2,
+            evidence_reference=None,
+        )
+        monkeypatch.setattr(rp_mod, "GATE_GOVERNANCE_REGISTRY", (bad_entry,))
+        monkeypatch.setattr(rp_mod, "HARD_BLOCKING_DEGRADATION_CODES", frozenset({"TEST_NO_EVIDENCE"}))
+        errors = validate_gate_governance_registry()
+        assert any("evidence_reference" in e for e in errors)
+
+    def test_cross_check_mismatch_detected(self, monkeypatch) -> None:
+        from smc_integration.release_policy import (
+            GateGovernance,
+            GovernanceStatus,
+            validate_gate_governance_registry,
+        )
+        import smc_integration.release_policy as rp_mod
+        entry = GateGovernance(
+            code="TEST_CROSS",
+            promotion_state=GovernanceStatus.HARD_BLOCKING,
+            promotion_reason="test reason",
+            reviewer="owner",
+            minimum_required_baselines=2,
+            evidence_reference="doc.md",
+        )
+        monkeypatch.setattr(rp_mod, "GATE_GOVERNANCE_REGISTRY", (entry,))
+        # frozenset has a different code → mismatch in both directions
+        monkeypatch.setattr(rp_mod, "HARD_BLOCKING_DEGRADATION_CODES", frozenset({"OTHER_CODE"}))
+        errors = validate_gate_governance_registry()
+        assert any("HARD_BLOCKING in registry but not" in e for e in errors)
+        assert any("in HARD_BLOCKING_DEGRADATION_CODES but not" in e for e in errors)
+
+
+class TestClassifyArtifactDrift:
+    """Cover lines 355-359."""
+
+    def test_known_restore_path(self) -> None:
+        from smc_integration.release_policy import classify_artifact_drift
+        result = classify_artifact_drift("artifacts/databento_volatility_cache/foo.json")
+        assert result == "restore_on_commit"
+
+    def test_known_stage_only_path(self) -> None:
+        from smc_integration.release_policy import classify_artifact_drift
+        result = classify_artifact_drift("pine/generated/lib.pine")
+        assert result == "stage_only"
+
+    def test_unknown_path_returns_none(self) -> None:
+        from smc_integration.release_policy import classify_artifact_drift
+        assert classify_artifact_drift("random/path.txt") is None
+
+    def test_exact_match(self) -> None:
+        from smc_integration.release_policy import classify_artifact_drift
+        result = classify_artifact_drift("SMC_Core_Engine.pine")
+        assert result == "stage_only"
+
+
+class TestFiniteAndIntMetricEdges:
+    """Cover lines 463-464, 470, 495, 505."""
+
+    def test_finite_metric_nan_returns_none(self) -> None:
+        from smc_integration.release_policy import _finite_metric
+        import math
+        assert _finite_metric(float("nan")) is None
+
+    def test_finite_metric_inf_returns_none(self) -> None:
+        from smc_integration.release_policy import _finite_metric
+        assert _finite_metric(float("inf")) is None
+
+    def test_int_metric_invalid_returns_none(self) -> None:
+        from smc_integration.release_policy import _int_metric
+        assert _int_metric("not_a_number") is None
+
+    def test_median_metric_empty_returns_none(self) -> None:
+        from smc_integration.release_policy import _median_metric
+        assert _median_metric([]) is None
+
+    def test_optional_stripped_string_empty_returns_none(self) -> None:
+        from smc_integration.release_policy import _optional_stripped_string
+        assert _optional_stripped_string("  ") is None
+        assert _optional_stripped_string(None) is None
+        assert _optional_stripped_string("hello") == "hello"
+
+
+class TestCoerceContextualDimensionsEdges:
+    """Cover line 522: dimensions_present key but no dimensions dict."""
+
+    def test_dimensions_present_without_dimensions_returns_empty(self) -> None:
+        from smc_integration.release_policy import _coerce_contextual_calibration_dimensions
+        result = _coerce_contextual_calibration_dimensions({"dimensions_present": True})
+        assert result == {}
+
+
+class TestBestContextualDimensionDirect:
+    """Cover lines 567, 573: direct metric_name on raw dict."""
+
+    def test_direct_value_on_raw(self) -> None:
+        from smc_integration.release_policy import _best_contextual_dimension
+        result = _best_contextual_dimension(
+            {"best_dimension_by_adjusted_brier": "vol_regime"},
+            {"vol_regime": {"adjusted_brier_score": 0.2}},
+            metric_name="best_dimension_by_adjusted_brier",
+        )
+        assert result == "vol_regime"
+
+    def test_iteration_fallback(self) -> None:
+        from smc_integration.release_policy import _best_contextual_dimension
+        result = _best_contextual_dimension(
+            {},
+            {
+                "dim_a": {"adjusted_ece": 0.5},
+                "dim_b": {"adjusted_ece": 0.2},
+            },
+            metric_name="best_dimension_by_adjusted_ece",
+        )
+        assert result == "dim_b"
+
+
+class TestRawBrierAboveThreshold:
+    """Cover line 812: MEASUREMENT_BRIER_ABOVE_THRESHOLD."""
+
+    def test_raw_brier_above_threshold(self) -> None:
+        thresholds = MeasurementShadowThresholds(
+            max_brier_score=0.50,
+            max_log_score=10.0,
+            max_calibrated_brier_score=10.0,
+            max_calibrated_ece=10.0,
+            min_scoring_events=1,
+            min_history_runs=99,
+        )
+        current = {
+            "brier_score": 0.65,
+            "n_events": 5,
+            "stratification_coverage": {"populated_bucket_count": 2},
+        }
+        degradations, baseline = assess_measurement_shadow_degradations(
+            current, [], thresholds=thresholds,
+        )
+        codes = {d["code"] for d in degradations}
+        assert "MEASUREMENT_BRIER_ABOVE_THRESHOLD" in codes
+
+
+class TestCsvFromValues:
+    """Cover lines 1032, 1034."""
+
+    def test_dedup_and_strip(self) -> None:
+        from smc_integration.release_policy import csv_from_values
+        result = csv_from_values(["  a ", "b", "a", "  ", "c"])
+        assert result == "a,b,c"
+
+    def test_empty_values_skipped(self) -> None:
+        from smc_integration.release_policy import csv_from_values
+        assert csv_from_values(["", "  ", ""]) == ""
+
+
+class TestResolveGitCommit:
+    """Cover lines 1057, 1065-1066, 1068."""
+
+    def test_env_sha_takes_precedence(self, monkeypatch) -> None:
+        from smc_integration.release_policy import resolve_git_commit
+        monkeypatch.setenv("GITHUB_SHA", "abc123")
+        assert resolve_git_commit() == "abc123"
+
+    def test_subprocess_exception_returns_none(self, monkeypatch) -> None:
+        import subprocess
+        from smc_integration.release_policy import resolve_git_commit
+        monkeypatch.delenv("GITHUB_SHA", raising=False)
+        monkeypatch.setattr(subprocess, "run", lambda *a, **kw: (_ for _ in ()).throw(OSError("no git")))
+        assert resolve_git_commit() is None
+
+    def test_subprocess_nonzero_returns_none(self, monkeypatch) -> None:
+        import subprocess as sp
+        from smc_integration.release_policy import resolve_git_commit
+        monkeypatch.delenv("GITHUB_SHA", raising=False)
+
+        class FakeResult:
+            returncode = 1
+            stdout = ""
+        monkeypatch.setattr(sp, "run", lambda *a, **kw: FakeResult())
+        assert resolve_git_commit() is None
+
+    def test_subprocess_empty_stdout_returns_none(self, monkeypatch) -> None:
+        import subprocess as sp
+        from smc_integration.release_policy import resolve_git_commit
+        monkeypatch.delenv("GITHUB_SHA", raising=False)
+
+        class FakeResult:
+            returncode = 0
+            stdout = "   "
+        monkeypatch.setattr(sp, "run", lambda *a, **kw: FakeResult())
+        assert resolve_git_commit() is None
+
+
+class TestClassifyCodeBranches:
+    """Cover lines 1149-1150, 1156, 1187, 1192, 1213."""
+
+    def test_smoke_with_symbol_and_timeframe(self) -> None:
+        results: list[dict[str, str]] = []
+
+        def add_fn(reason: str, detail: str) -> None:
+            results.append({"reason": reason, "detail": detail})
+
+        from smc_integration.release_policy import _classify_code
+        _classify_code("EMPTY_STRUCTURE_INPUT", {"symbol": "AAPL", "timeframe": "15m"}, add_fn)
+        assert any(r["reason"] == REASON_SMOKE_FAILURE and "AAPL/15m" in r["detail"] for r in results)
+
+    def test_missing_smoke_code(self) -> None:
+        results: list[dict[str, str]] = []
+
+        def add_fn(reason: str, detail: str) -> None:
+            results.append({"reason": reason, "detail": detail})
+
+        from smc_integration.release_policy import _classify_code
+        _classify_code("MISSING_SMOKE_RESULT", {"symbol": "MSFT", "timeframe": "5m"}, add_fn)
+        assert any(r["reason"] == REASON_SMOKE_FAILURE for r in results)
+
+    def test_generic_missing_code(self) -> None:
+        results: list[dict[str, str]] = []
+
+        def add_fn(reason: str, detail: str) -> None:
+            results.append({"reason": reason, "detail": detail})
+
+        from smc_integration.release_policy import _classify_code
+        _classify_code("MISSING_MANIFEST", {}, add_fn)
+        assert any(r["reason"] == REASON_MISSING_ARTIFACT for r in results)
+
+    def test_provider_failure_code(self) -> None:
+        results: list[dict[str, str]] = []
+
+        def add_fn(reason: str, detail: str) -> None:
+            results.append({"reason": reason, "detail": detail})
+
+        from smc_integration.release_policy import _classify_code
+        _classify_code("BUNDLE_BUILD_FAILED", {}, add_fn)
+        assert any(r["reason"] == REASON_PROVIDER_FAILURE for r in results)
+
+    def test_refresh_code_classified_as_provider_failure(self) -> None:
+        results: list[dict[str, str]] = []
+
+        def add_fn(reason: str, detail: str) -> None:
+            results.append({"reason": reason, "detail": detail})
+
+        from smc_integration.release_policy import _classify_code
+        _classify_code("REFRESH_FAILED", {}, add_fn)
+        assert any(r["reason"] == REASON_PROVIDER_FAILURE for r in results)
+
+    def test_empty_code_is_noop(self) -> None:
+        results: list[dict[str, str]] = []
+        from smc_integration.release_policy import _classify_code
+        _classify_code("", {}, lambda r, d: results.append({"reason": r}))
+        assert results == []
+
+    def test_stale_code_with_symbol(self) -> None:
+        """Cover line 1192: STALE branch with symbol."""
+        results: list[dict[str, str]] = []
+
+        def add_fn(reason: str, detail: str) -> None:
+            results.append({"reason": reason, "detail": detail})
+
+        from smc_integration.release_policy import _classify_code
+        _classify_code("STALE_MANIFEST", {"symbol": "TSLA"}, add_fn)
+        assert any(r["reason"] == REASON_STALE_DATA and "TSLA" in r["detail"] for r in results)
+
+    def test_provider_code_with_symbol(self) -> None:
+        """Cover line 1192 variant: PROVIDER with symbol."""
+        results: list[dict[str, str]] = []
+
+        def add_fn(reason: str, detail: str) -> None:
+            results.append({"reason": reason, "detail": detail})
+
+        from smc_integration.release_policy import _classify_code
+        _classify_code("PROVIDER_FMP_TIMEOUT", {"symbol": "MSFT"}, add_fn)
+        assert any(r["reason"] == REASON_PROVIDER_FAILURE for r in results)
+
+
+class TestPopulatedBucketCountEdge:
+    """Cover line 470: _populated_bucket_count with non-dict raw."""
+
+    def test_non_dict_stratification_returns_none(self) -> None:
+        from smc_integration.release_policy import _populated_bucket_count
+        assert _populated_bucket_count({"stratification_coverage": "bad"}) is None
+
+
+class TestCoerceDimensionsNonDictRaw:
+    """Cover line 495: _coerce_contextual_calibration_dimensions with non-dict."""
+
+    def test_non_dict_returns_empty(self) -> None:
+        from smc_integration.release_policy import _coerce_contextual_calibration_dimensions
+        assert _coerce_contextual_calibration_dimensions("not_a_dict") == {}
+
+    def test_non_dict_item_skipped(self) -> None:
+        """Cover line 505: non-dict item in dimensions skipped."""
+        from smc_integration.release_policy import _coerce_contextual_calibration_dimensions
+        result = _coerce_contextual_calibration_dimensions({
+            "dimensions": {"good": {"brier": 0.1}, "bad": "not_a_dict"},
+        })
+        assert "good" in result
+        assert "bad" not in result
+
+
+class TestBestDimensionSkipNone:
+    """Cover line 522: dimension with no metric value skipped."""
+
+    def test_none_value_skipped(self) -> None:
+        from smc_integration.release_policy import _best_contextual_dimension
+        result = _best_contextual_dimension(
+            None,
+            {
+                "dim_no_val": {"other_key": 42},
+                "dim_with_val": {"adjusted_brier_score": 0.2},
+            },
+            metric_name="best_dimension_by_adjusted_brier",
+        )
+        assert result == "dim_with_val"
+
+
+class TestRecommendContextualCoverageAndFallback:
+    """Cover lines 567, 573: coverage_ratio fallback and fallback_event_count."""
+
+    def test_coverage_ratio_fallback(self) -> None:
+        from smc_integration.release_policy import recommend_contextual_calibration
+        entry = {
+            "n_events": 100,
+            "contextual_calibration": {
+                "dimensions": {
+                    "vol_regime": {
+                        "n_events": 100,
+                        "covered_events": 80,
+                        # no coverage_ratio → triggers line 567
+                        "fallback_event_count": "bad",
+                        # _int_metric("bad") → None → triggers line 573
+                        "populated_groups": 5,
+                        "delta_brier_score": 0.05,
+                        "delta_ece": 0.03,
+                        "adjusted_brier_score": 0.15,
+                        "adjusted_ece": 0.10,
+                    },
+                },
+            },
+        }
+        result = recommend_contextual_calibration(entry)
+        # candidate_dimensions is a list of strings (dimension names)
+        all_dims = result.get("candidate_dimensions", []) + result.get("eligible_dimensions", [])
+        # eligible_dimensions may contain dicts with "dimension" key
+        dim_names = [d["dimension"] if isinstance(d, dict) else d for d in all_dims]
+        assert "vol_regime" in dim_names
+
+
+class TestInvalidPromotionState:
+    """Cover line 224: promotion_state that is not a GovernanceStatus."""
+
+    def test_non_enum_promotion_state(self, monkeypatch) -> None:
+        import types
+        import smc_integration.release_policy as rp_mod
+        from smc_integration.release_policy import validate_gate_governance_registry
+
+        fake = types.SimpleNamespace(
+            code="TEST_NON_ENUM",
+            promotion_state="NOT_AN_ENUM",
+            promotion_reason="valid reason",
+            reviewer="owner",
+            minimum_required_baselines=0,
+            evidence_reference=None,
+        )
+        monkeypatch.setattr(rp_mod, "GATE_GOVERNANCE_REGISTRY", (fake,))
+        monkeypatch.setattr(rp_mod, "HARD_BLOCKING_DEGRADATION_CODES", frozenset())
+        errors = validate_gate_governance_registry()
+        assert any("not a GovernanceStatus" in e for e in errors)
+
+
+class TestDiagnoseGateDegradationsAndGateDetails:
+    """Cover lines 1149-1150 (degradations_detected) and 1156 (non-dict gate details)."""
+
+    def test_degradations_detected_scanned(self) -> None:
+        report: dict[str, Any] = {
+            "degradations_detected": [
+                {"code": "MEASUREMENT_BRIER_ABOVE_THRESHOLD"},
+            ],
+            "reference_symbols": [f"S{i}" for i in range(EVIDENCE_MIN_SYMBOL_COVERAGE)],
+            "reference_timeframes": [f"tf{i}" for i in range(EVIDENCE_MIN_TIMEFRAME_COVERAGE)],
+        }
+        reasons = diagnose_gate_failure(report)
+        assert any(r["reason"] == REASON_MEASUREMENT_QUALITY for r in reasons)
+
+    def test_gate_with_non_dict_details_skipped(self) -> None:
+        report: dict[str, Any] = {
+            "gates": [
+                {"name": "bad_gate", "status": "fail", "details": "not_a_dict"},
+            ],
+            "reference_symbols": [f"S{i}" for i in range(EVIDENCE_MIN_SYMBOL_COVERAGE)],
+            "reference_timeframes": [f"tf{i}" for i in range(EVIDENCE_MIN_TIMEFRAME_COVERAGE)],
+        }
+        reasons = diagnose_gate_failure(report)
+        # Gate with non-dict details is simply skipped — no error, no crash
+        assert isinstance(reasons, list)
