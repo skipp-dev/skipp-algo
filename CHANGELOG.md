@@ -16,6 +16,7 @@ All notable changes to this project are documented in this file.
   - **B5: SMC Setup Check** (`SMC_Setup_Check.pine`) — validiert BUS-Verbindungen zum Core Engine mit ✅/❌ Checklist. Zeigt Anleitung für nächste Schritte direkt im Chart. Kein leeres Dashboard mehr.
   - **C8: SMC Mobile Dashboard** (`SMC_Mobile_Dashboard.pine`) — Mobile-first 4-Zeilen Dashboard: Traffic-Light + Levels + Market + Quality. Keine Overlays, nur Table. Optimiert für kleine Screens.
   - **C9: AI Zone-Priorisierung** (`scripts/smc_zone_priority.py`) — Composite-Score (0–100) aus 3 Dimensionen: historische Performance (Ensemble, 0–30), aktueller Kontext (Regime/Vol/Session/Projektion/HTF, 0–35+15), News-Catalyst (0–10) minus Event-Risk-Penalty (0–50). Output: Rank (A/B/C/D), Top-Family, Catalyst, Reason. 5 neue `ZONE_PRIORITY_*` Exports in der Generated Library. 26 Unit-Tests.
+  - **B7: Signal Replay** Tab in `streamlit_terminal.py` — historische Signal-Timeline mit Aggregate-Metriken (Signals, Resolved, Hit Rate, Avg/Total P&L), Hit-Rate-Matrix nach Gap×RVOL Bucket, tägliche Signal-Timeline mit Expander pro Tag. 11 Unit-Tests.
   - **C10: Explain-Modus** im `SMC_Dashboard.pine` — neuer "Explain" View-Modus mit ✅/❌ Checklist (9 Kriterien: Struktur, Zone, Qualität, Freshness, Session, Market, Event, HTF, Pressure). Zeigt Next Step und erklärt WARUM der aktuelle Zone-State gilt.
   - **Strategiedokument** `docs/SYSTEM_REVIEW_AND_STRATEGY_2026_Q2.md` — vollständiges Systemreview mit Vergleichsmatrix, Designprinzipien und 10-Punkte-Umsetzungsplan (A1–C10).
 

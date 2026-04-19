@@ -342,6 +342,7 @@ from newsstack_fmp.ingest_fmp import FmpAdapter
 from newsstack_fmp.store_sqlite import SqliteStore
 from newsstack_fmp._bz_http import _WARNED_ENDPOINTS
 from open_prep.playbook import classify_recency as _classify_recency
+from open_prep.outcomes import _load_outcomes_range, compute_hit_rates
 from terminal_background_poller import BackgroundPoller
 from terminal_catalyst_state import (
     annotate_feed_with_ticker_catalyst_state,
@@ -2932,10 +2933,10 @@ else:
             st.code(_tb.format_exc(), language="python")
             logger.exception("Tab %s render error", label)
 
-    tab_rank, tab_actionable, tab_ai, tab_segments, tab_outlook, tab_feed, tab_bitcoin, tab_alerts, tab_table = st.tabs(
+    tab_rank, tab_actionable, tab_ai, tab_segments, tab_outlook, tab_feed, tab_bitcoin, tab_alerts, tab_table, tab_replay = st.tabs(
         ["🏆 Rankings", "🎯 Actionable", "🧠 AI Insights", "🏗️ Segments", "🔮 Outlook",
          "📰 Live Feed", "₿ Bitcoin",
-         "⚡ Alerts", "📊 Data Table"],
+         "⚡ Alerts", "📊 Data Table", "📜 Signal Replay"],
     )
 
     # ── TAB: Live Feed (with search + date filter) ──────────
@@ -4837,6 +4838,91 @@ else:
             )
         else:
             st.info("No data yet.")
+
+    # ── TAB: Signal Replay ──────────────────────────────────────
+    with tab_replay, _tab_guard("Signal Replay"):
+        st.header("📜 Signal Replay")
+        st.caption("Historical signal outcomes — per-day breakdown with hit rates and P&L.")
+
+        _replay_days = st.slider("Lookback (days)", min_value=5, max_value=90, value=20, key="replay_lookback")
+        _replay_records = _load_outcomes_range(lookback_days=_replay_days)
+
+        if not _replay_records:
+            st.info("No outcome data found. Run the Open Prep pipeline to generate signal history.")
+        else:
+            # ── Aggregate metrics ───────────────────────────────
+            _total = len(_replay_records)
+            _with_outcome = [r for r in _replay_records if r.get("profitable_30m") is not None]
+            _winners = [r for r in _with_outcome if r.get("profitable_30m") is True]
+            _losers = [r for r in _with_outcome if r.get("profitable_30m") is False]
+            _pending = _total - len(_with_outcome)
+
+            _hit_rate = len(_winners) / len(_with_outcome) if _with_outcome else 0.0
+            _pnl_values = [float(r.get("pnl_30m_pct") or 0) for r in _with_outcome]
+            _avg_pnl = sum(_pnl_values) / len(_pnl_values) if _pnl_values else 0.0
+            _total_pnl = sum(_pnl_values)
+
+            mcol1, mcol2, mcol3, mcol4, mcol5 = st.columns(5)
+            mcol1.metric("Signals", _total)
+            mcol2.metric("Resolved", len(_with_outcome))
+            mcol3.metric("Hit Rate", f"{_hit_rate:.1%}")
+            mcol4.metric("Avg P&L", f"{_avg_pnl:+.2f}%")
+            mcol5.metric("Total P&L", f"{_total_pnl:+.2f}%")
+
+            # ── Hit rate by bucket ──────────────────────────────
+            _bucket_rates = compute_hit_rates(lookback_days=_replay_days)
+            if _bucket_rates:
+                st.subheader("Hit Rate by Gap × RVOL Bucket")
+                _bucket_rows = []
+                for bkey, bdata in sorted(_bucket_rates.items()):
+                    gap_b, rvol_b = bkey.split(":", 1)
+                    _bucket_rows.append({
+                        "Gap": gap_b,
+                        "RVOL": rvol_b,
+                        "Trades": bdata["total"],
+                        "Wins": bdata["profitable"],
+                        "Hit Rate": f"{bdata['hit_rate']:.1%}",
+                        "Avg P&L": f"{bdata['avg_pnl_pct']:+.2f}%",
+                    })
+                st.dataframe(pd.DataFrame(_bucket_rows), hide_index=True, use_container_width=True)
+
+            # ── Daily breakdown ─────────────────────────────────
+            st.subheader("Daily Signal Timeline")
+            _by_date: dict[str, list[dict[str, Any]]] = {}
+            for r in _replay_records:
+                d = str(r.get("date", "unknown"))
+                _by_date.setdefault(d, []).append(r)
+
+            for _rd in sorted(_by_date.keys(), reverse=True):
+                _day_records = _by_date[_rd]
+                _day_resolved = [r for r in _day_records if r.get("profitable_30m") is not None]
+                _day_wins = sum(1 for r in _day_resolved if r.get("profitable_30m") is True)
+                _day_hr = _day_wins / len(_day_resolved) if _day_resolved else 0.0
+                _day_pnl = sum(float(r.get("pnl_30m_pct") or 0) for r in _day_resolved)
+
+                _day_label = f"📅 {_rd} — {len(_day_records)} signals"
+                if _day_resolved:
+                    _day_label += f" | HR {_day_hr:.0%} | P&L {_day_pnl:+.2f}%"
+                with st.expander(_day_label, expanded=(_rd == sorted(_by_date.keys(), reverse=True)[0])):
+                    _signal_rows = []
+                    for _sr in _day_records:
+                        _outcome_icon = "⏳"
+                        if _sr.get("profitable_30m") is True:
+                            _outcome_icon = "✅"
+                        elif _sr.get("profitable_30m") is False:
+                            _outcome_icon = "❌"
+                        _signal_rows.append({
+                            "": _outcome_icon,
+                            "Symbol": _sr.get("symbol", "?"),
+                            "Score": round(float(_sr.get("score") or 0), 2),
+                            "Gap%": f"{float(_sr.get('gap_pct') or 0):+.2f}",
+                            "RVOL": f"{float(_sr.get('rvol') or 0):.2f}",
+                            "Tier": _sr.get("confidence_tier", ""),
+                            "Regime": _sr.get("regime", ""),
+                            "P&L 30m": f"{float(_sr.get('pnl_30m_pct') or 0):+.2f}%" if _sr.get("pnl_30m_pct") is not None else "—",
+                            "Bucket": f"{_sr.get('gap_bucket_label', '')}:{_sr.get('rvol_bucket_label', '')}",
+                        })
+                    st.dataframe(pd.DataFrame(_signal_rows), hide_index=True, use_container_width=True)
 
 
 # ── Auto-refresh trigger ───────────────────────────────────────
