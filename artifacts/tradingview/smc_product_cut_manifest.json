@@ -151,6 +151,18 @@
       ]
     },
     {
+      "file": "SMC_Mobile_Dashboard.pine",
+      "script_name": "SMC Mobile",
+      "surface_role": "companion_operator_only",
+      "contract_tier": "lite_and_pro",
+      "consumer_role": "mobile_companion",
+      "validation_target": false,
+      "notes": [
+        "Mobile-first dashboard \u2014 4-row table, no overlays.",
+        "Traffic light + levels + market context + quality score."
+      ]
+    },
+    {
       "file": "SkippALGO_Confluence.pine",
       "script_name": "SkippALGO Confluence",
       "surface_role": "pro_primary",
@@ -210,7 +222,7 @@
   "surfaceRoleCounts": {
     "lite_primary": 1,
     "pro_primary": 3,
-    "companion_operator_only": 10,
+    "companion_operator_only": 11,
     "internal": 1,
     "legacy": 3
   },
@@ -243,7 +255,8 @@
     "SMC_Session_Context.pine",
     "SMC_Profile_Context.pine",
     "SMC_Liquidity_Structure.pine",
-    "SMC_Setup_Check.pine"
+    "SMC_Setup_Check.pine",
+    "SMC_Mobile_Dashboard.pine"
   ],
   "internalFiles": [
     "SMC_TV_Bridge.pine"

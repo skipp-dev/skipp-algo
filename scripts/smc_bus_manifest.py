@@ -68,6 +68,7 @@ CONSUMER_ROLE_VALUES: tuple[str, ...] = (
     'context_companion',
     'setup_utility',
     'confluence_hub',
+    'mobile_companion',
     'bridge',
     'legacy_monolith',
     'legacy_split',
@@ -224,6 +225,17 @@ SURFACE_DEFINITIONS: tuple[SurfaceDefinition, ...] = (
         notes = (
             'BUS connection validator — guides new users through initial setup.',
             'Reads 6 critical BUS channels and shows connection status with next-step instructions.',
+        ),
+    ),
+    SurfaceDefinition(
+        file = 'SMC_Mobile_Dashboard.pine',
+        script_name = 'SMC Mobile',
+        surface_role = 'companion_operator_only',
+        contract_tier = 'lite_and_pro',
+        consumer_role = 'mobile_companion',
+        notes = (
+            'Mobile-first dashboard — 4-row table, no overlays.',
+            'Traffic light + levels + market context + quality score.',
         ),
     ),
     SurfaceDefinition(

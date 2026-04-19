@@ -169,9 +169,9 @@
 | B5 | BUS-Auto-Connect | `SMC_Setup_Check.pine` | ✅ Umgesetzt | Validiert 6 kritische BUS-Channels, zeigt Verbindungsstatus mit ✅/❌, gibt klare Anleitung für nächste Schritte. |
 | B6 | Gehostetes Terminal | — | ⬜ Geplant | Cloud-Deployment mit Auth-Layer |
 | B7 | Signal-Replay / Journal | — | ⬜ Geplant | Historische Signal-Timeline im Terminal |
-| C8 | Mobile Dashboard | — | ⬜ Geplant | Dediziertes Mobile-Pine-Skript |
+| C8 | Mobile Dashboard | `SMC_Mobile_Dashboard.pine` | ✅ Umgesetzt | 4-Zeilen Mobile-Table: Traffic-Light + Levels + Market + Quality. Keine Overlays, keine Lines/Labels — nur Table. 6 BUS-Bindings. |
 | C9 | AI Zone-Priorisierung | — | ⬜ Geplant | Python-Pipeline für Zone-Ranking |
-| C10 | Explain this Zone | — | ⬜ Geplant | Dashboard-Erklärungsmodus |
+| C10 | Explain this Zone | `SMC_Dashboard.pine` | ✅ Umgesetzt | Neuer "Explain" View-Modus: 14-Zeilen ✅/❌ Checklist (Struktur, Zone, Qualität, Freshness, Session, Market, Event, HTF, Pressure) + Next Step. Erklärt WARUM der aktuelle State gilt. |
 
 ---
 
@@ -192,4 +192,4 @@ dieses Dokument bestimmt.
 *Erstellt: 19. April 2026 — Basierend auf vollständiger Systemanalyse aller 56 Pine-Skripte,
 120+ Python-Module, 1.023 Tests, 7 CI-Workflows und 160 Dokumentationsdateien.*
 
-*Aktualisiert: 19. April 2026 — Phase A (A1–A3) + Phase B Quick Wins (B4, B5) implementiert.*
+*Aktualisiert: 19. April 2026 — Phase A (A1–A3) + Phase B Quick Wins (B4, B5) + Phase C (C8, C10) implementiert.*

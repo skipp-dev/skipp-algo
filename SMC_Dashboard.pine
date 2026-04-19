@@ -20,7 +20,7 @@ var string g_bus_detail = "6. Operator Only - Detail Surface"
 var string g_bus_lean = "7. Operator Only - Lean Surface"
 var string g_local_debug = "8. Operator Only - Local Debug Mirrors"
 
-surface_mode = input.string("Decision Brief", "View", options = ["Focus", "Decision Brief", "Audit View"], group = g_surface, tooltip = "Focus: 3-row traffic light — just the essentials.\nDecision Brief: compact setup overview with context.\nAudit View: full expert table for review.")
+surface_mode = input.string("Decision Brief", "View", options = ["Focus", "Explain", "Decision Brief", "Audit View"], group = g_surface, tooltip = "Focus: 3-row traffic light — just the essentials.\nExplain: checklist showing why the current zone state holds.\nDecision Brief: compact setup overview with context.\nAudit View: full expert table for review.")
 show_table = input.bool(true, "Show Brief Panel", group = g_surface)
 show_risk_lines = input.bool(true, "Show Trade Plan", group = g_surface)
 show_state_bg = input.bool(false, "Highlight Live Setup", group = g_surface)
@@ -1326,6 +1326,67 @@ if show_table and barstate.islast
         dashboard_row(smc_dashboard, 1, "Plan", focus_levels, actionable_state ? color.new(color.teal, 85) : header_bg, txt)
         dashboard_row(smc_dashboard, 2, "Market", focus_context, focus_context_bg, txt)
         table.clear(smc_dashboard, 0, 3, 1, 61)
+    else if surface_mode == "Explain"
+        // ── EXPLAIN MODE (v7.2): Checklist explaining why the current zone state holds ──
+        // Shows each major criterion as ✅ / ❌ with what's met, what's missing, and the next step.
+        string ex_state_label = state_code >= 6 ? "🟢  ENTER LONG" : state_code == 5 ? "🟢  READY LONG" : state_code == 4 ? "🟡  CONFIRMED" : state_code == 3 ? "🟡  BUILDING" : state_code == 2 ? "🟡  ARMED" : state_code == 1 ? "⚪  IN ZONE" : state_code == -1 ? "🔴  BLOCKED" : "⚪  WAIT"
+        color ex_state_bg = state_code >= 5 ? color.new(color.green, 70) : state_code >= 2 ? color.new(color.orange, 70) : state_code == -1 ? color.new(color.red, 70) : color.new(color.gray, 80)
+        string ex_source = source_kind_text(source_code)
+        // ── Criterion checks ──
+        bool ex_struct_ok = row_status(lean_struct_row_code) >= 3
+        string ex_struct_event = row_reason(lean_struct_row_code) == 1 ? "BOS Bull" : row_reason(lean_struct_row_code) == 2 ? "CHoCH Bull" : row_reason(lean_struct_row_code) == 3 ? "BOS Bear" : row_reason(lean_struct_row_code) == 4 ? "CHoCH Bear" : "—"
+        bool ex_zone_ok = zone_code > 0
+        string ex_zone_type = zone_reason_text(zone_code)
+        bool ex_quality_ok = row_status(lean_sq_row_code) >= 3
+        string ex_quality_tier = decode_lean_sq_text(lean_sq_row_code)
+        bool ex_fresh_ok = row_status(lean_freshness_row_code) >= 3
+        string ex_fresh_label = row_status(lean_freshness_row_code) >= 5 ? "fresh" : row_status(lean_freshness_row_code) == 3 ? "aging" : "stale"
+        bool ex_session_ok = row_status(session_row_code) >= 5 or row_reason(session_row_code) == 2
+        bool ex_market_ok = row_status(market_row_code) >= 5 or (row_reason(market_row_code) == 1 and row_status(market_row_code) == 0)
+        bool ex_event_ok = row_status(event_risk_row_code) >= 4 or row_reason(event_risk_row_code) == 1
+        string ex_event_text = dashboard_compact_event_risk_text(event_risk_row_code)
+        int ex_htf_ok_count = (trend_htf_1 == 2 ? 1 : 0) + (trend_htf_2 == 2 ? 1 : 0) + (trend_htf_3 == 2 ? 1 : 0)
+        bool ex_htf_ok = ex_htf_ok_count >= 2
+        bool ex_pressure_ok = row_status(ltf_delta_row_code) >= 3
+        string ex_ready_blocker = decode_ready_gate_text(ready_gate_row_code)
+        string ex_strict_blocker = decode_strict_gate_text(strict_gate_row_code)
+        // ── Next step derivation ──
+        string ex_next_step = "Wait for a bullish structure break"
+        if state_code >= 6
+            ex_next_step := "Execute — follow the trade plan levels"
+        else if state_code == 5
+            ex_next_step := "Watch trigger level for break above"
+        else if state_code == 4
+            if ex_ready_blocker != "Ready"
+                ex_next_step := "Blocked by: " + ex_ready_blocker
+            else
+                ex_next_step := "Wait for Ready gate to clear"
+        else if state_code == 3 or state_code == 2
+            ex_next_step := "Zone reclaim in progress — wait for confirmation"
+        else if state_code == -1
+            ex_next_step := "Setup invalidated — wait for a fresh reclaim"
+        else if not ex_struct_ok
+            ex_next_step := "Need bullish BOS or CHoCH"
+        else if not ex_zone_ok
+            ex_next_step := "Price must enter a demand zone (OB/FVG)"
+        // ── Render ──
+        color pass = color.new(color.green, 75)
+        color fail = color.new(color.red, 75)
+        dashboard_row(smc_dashboard, 0, "SMC Explain", ex_state_label, ex_state_bg, txt)
+        dashboard_row(smc_dashboard, 1, "Zone Source", ex_source, header_bg, txt)
+        section_row(smc_dashboard, 2, "[ Checklist ]", header_bg, txt)
+        dashboard_row(smc_dashboard, 3, ex_struct_ok ? "✅ Structure" : "❌ Structure", ex_struct_event, ex_struct_ok ? pass : fail, txt)
+        dashboard_row(smc_dashboard, 4, ex_zone_ok ? "✅ Zone" : "❌ Zone", ex_zone_type, ex_zone_ok ? pass : fail, txt)
+        dashboard_row(smc_dashboard, 5, ex_quality_ok ? "✅ Signal Quality" : "❌ Signal Quality", ex_quality_tier, ex_quality_ok ? pass : fail, txt)
+        dashboard_row(smc_dashboard, 6, ex_fresh_ok ? "✅ Freshness" : "❌ Freshness", ex_fresh_label, ex_fresh_ok ? pass : fail, txt)
+        dashboard_row(smc_dashboard, 7, ex_session_ok ? "✅ Session" : "❌ Session", ex_session_ok ? "open" : "closed", ex_session_ok ? pass : fail, txt)
+        dashboard_row(smc_dashboard, 8, ex_market_ok ? "✅ Market Gate" : "❌ Market Gate", ex_market_ok ? "clear" : "blocked", ex_market_ok ? pass : fail, txt)
+        dashboard_row(smc_dashboard, 9, ex_event_ok ? "✅ Event Risk" : "❌ Event Risk", ex_event_text, ex_event_ok ? pass : fail, txt)
+        dashboard_row(smc_dashboard, 10, ex_htf_ok ? "✅ HTF Trend" : "❌ HTF Trend", str.tostring(ex_htf_ok_count) + "/3 bullish", ex_htf_ok ? pass : fail, txt)
+        dashboard_row(smc_dashboard, 11, ex_pressure_ok ? "✅ Pressure" : "❌ Pressure", ex_pressure_ok ? "supports long" : "mixed / against", ex_pressure_ok ? pass : fail, txt)
+        section_row(smc_dashboard, 12, "[ Next Step ]", header_bg, txt)
+        dashboard_row(smc_dashboard, 13, "→", ex_next_step, ex_state_bg, txt)
+        table.clear(smc_dashboard, 0, 14, 1, 61)
     else if compact_dashboard
         // WP-OV5: 5-row compact dashboard for mobile / small screens
         string lib_regime = mp.MARKET_REGIME

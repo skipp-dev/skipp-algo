@@ -1,0 +1,58 @@
+// This Pine Script® code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © preuss_steffen
+
+//@version=6
+
+// Product role: companion operator-only surface for mobile / small screens.
+// Product scope: this dashboard reflects the long-dip specialist mainline of SMC Core.
+
+indicator("SMC Mobile v7", "SMC Mobile v7", overlay = true)
+
+import preuss_steffen/smc_micro_profiles_generated/1 as mp
+
+var string g_bus = "Operator Only - BUS"
+
+src_bus_schema_version = input.source(close, "BUS SchemaVersion", group = g_bus, display = display.none)
+src_state_code         = input.source(close, "BUS StateCode",      group = g_bus, display = display.none)
+src_armed              = input.source(close, "BUS Armed",          group = g_bus, display = display.none)
+src_quality_score      = input.source(close, "BUS QualityScore",   group = g_bus, display = display.none)
+src_trigger            = input.source(close, "BUS Trigger",        group = g_bus, display = display.none)
+src_invalidation       = input.source(close, "BUS Invalidation",   group = g_bus, display = display.none)
+
+// ── BUS Schema Version Check ──
+int expected_bus_version = 7001
+bool bus_ok = math.round(src_bus_schema_version) == expected_bus_version
+
+// ── Decode ──
+int state_code = int(math.round(nz(src_state_code, 0.0)))
+bool actionable = state_code >= 5
+
+// ── Traffic light ──
+string action_text = state_code >= 6 ? "🟢 ENTRY" : state_code == 5 ? "🟢 READY" : state_code >= 2 ? "🟡 PREPARE" : state_code == -1 ? "🔴 BLOCKED" : "⚪ WAIT"
+color  action_bg   = state_code >= 5 ? color.new(color.green, 65) : state_code >= 2 ? color.new(color.orange, 65) : state_code == -1 ? color.new(color.red, 65) : color.new(color.gray, 75)
+
+// ── Levels ──
+string levels_text = actionable and not na(src_trigger) ? str.tostring(src_trigger, format.mintick) + " → " + str.tostring(src_invalidation, format.mintick) : "—"
+
+// ── Market context from generated library ──
+string context_text = mp.MARKET_REGIME + " · " + mp.TRADE_STATE
+
+// ── Render ──
+var table mob = table.new(position.bottom_right, 2, 4, border_width = 0)
+
+if barstate.islast and bus_ok
+    color txt = chart.fg_color
+    color hdr = color.new(color.black, 100)
+    table.cell(mob, 0, 0, "SMC",     text_color = txt, bgcolor = hdr,       text_size = size.normal, text_halign = text.align_left)
+    table.cell(mob, 1, 0, action_text, text_color = txt, bgcolor = action_bg, text_size = size.large,  text_halign = text.align_right)
+    table.cell(mob, 0, 1, "Levels",  text_color = txt, bgcolor = hdr,       text_size = size.normal, text_halign = text.align_left)
+    table.cell(mob, 1, 1, levels_text, text_color = txt, bgcolor = actionable ? color.new(color.teal, 80) : hdr, text_size = size.normal, text_halign = text.align_right)
+    table.cell(mob, 0, 2, "Market",  text_color = txt, bgcolor = hdr,       text_size = size.normal, text_halign = text.align_left)
+    table.cell(mob, 1, 2, context_text, text_color = txt, bgcolor = mp.TRADE_STATE == "BLOCKED" ? color.new(color.red, 75) : mp.TRADE_STATE == "DISCOURAGED" ? color.new(color.orange, 75) : color.new(color.teal, 80), text_size = size.normal, text_halign = text.align_right)
+    table.cell(mob, 0, 3, "Quality", text_color = txt, bgcolor = hdr,       text_size = size.normal, text_halign = text.align_left)
+    table.cell(mob, 1, 3, str.tostring(src_quality_score, '#'), text_color = txt, bgcolor = src_quality_score >= 70 ? color.new(color.green, 75) : src_quality_score >= 40 ? color.new(color.orange, 75) : color.new(color.gray, 80), text_size = size.normal, text_halign = text.align_right)
+else if barstate.islast and not bus_ok
+    table.cell(mob, 0, 0, "SMC Mobile", text_color = chart.fg_color, bgcolor = color.new(color.red, 70), text_size = size.normal)
+    table.cell(mob, 1, 0, "❌ Add SMC Core Engine first", text_color = chart.fg_color, bgcolor = color.new(color.red, 70), text_size = size.normal)
+
+// No overlays — mobile-optimized, table only
