@@ -335,3 +335,94 @@ class TestDiscoverCategoryCoverageNoProducer:
         # Unavailable categories get "not populated" note
         for cat in ("orderblocks", "fvg", "liquidity_sweeps"):
             assert any("not populated" in n for n in coverage[cat]["notes"])
+
+
+class TestCandidatePathsDedup:
+    def test_duplicate_paths_are_deduped(self, tmp_path: Path) -> None:
+        import smc_integration.structure_audit as mod
+        repo = tmp_path / "repo"
+        gen_dir = repo / "pine" / "generated"
+        gen_dir.mkdir(parents=True)
+        dup_file = gen_dir / "dup.json"
+        dup_file.write_text("{}", encoding="utf-8")
+        with patch.object(mod, "_REPO_ROOT", repo):
+            paths = mod._candidate_paths()
+        # Count occurrences of the dup file
+        count = sum(1 for p in paths if p == dup_file)
+        assert count <= 1
+
+
+class TestBuildStructureGapReportRealProviderWithPartialFields:
+    def test_partial_fields_produce_gaps(self) -> None:
+        from types import SimpleNamespace
+        from unittest.mock import MagicMock
+
+        import smc_integration.structure_audit as mod
+
+        fake_status = {
+            "selected_structure_source": "fake_provider",
+            "selected_structure_mode": "explicit",
+            "selected_has_structure_capability": True,
+            "any_registered_explicit_structure_provider": True,
+            "explicit_structure_provider_names": ["fake_provider"],
+            "notes": [],
+        }
+
+        fake_current = SimpleNamespace(
+            snapshot_structure_mode="explicit",
+            snapshot_meta_mode="merged",
+            currently_maps_structure=True,
+            currently_maps_meta=True,
+            currently_maps_technical=False,
+            currently_maps_news=False,
+            mapped_structure_fields=[],  # no fields → all four gaps
+        )
+        fake_potential = SimpleNamespace(can_supply_symbols=True)
+        fake_entry = SimpleNamespace(
+            name="fake_provider",
+            path_hint="reports/fake.json",
+            current=fake_current,
+            potential=fake_potential,
+            known_gaps=[],
+            capabilities=SimpleNamespace(has_structure=True, structure_mode="explicit"),
+            notes=[],
+        )
+
+        fake_source = SimpleNamespace(
+            name="fake_provider",
+            path_hint="reports/fake.json",
+            capabilities=SimpleNamespace(has_structure=True, structure_mode="explicit"),
+            notes=[],
+        )
+
+        with (
+            patch.object(mod, "discover_structure_source_candidates", return_value=[
+                {"path": "spec/examples/test.json", "evidence": ["bos"], "confidence": "high", "kind": "json", "notes": []}
+            ]),
+            patch.object(mod, "discover_structure_category_coverage", return_value={
+                cat: {"available": False, "producer": None, "source_evidence": [], "notes": []}
+                for cat in ["bos", "choch", "orderblocks", "fvg", "liquidity_sweeps"]
+            }),
+            patch("smc_integration.repo_sources.discover_structure_source_status", return_value=fake_status),
+            patch("smc_integration.repo_sources.discover_repo_sources", return_value=[fake_source]),
+            patch("smc_integration.provider_matrix.discover_provider_matrix", return_value=[fake_entry]),
+            patch("smc_integration.sources.structure_artifact_json.discover_normalized_contract_summary", return_value={
+                "mapped_auxiliary_categories": {},
+                "structure_profile_supported": False,
+                "structure_profiles_seen": [],
+                "diagnostics_available": False,
+                "auxiliary_available": False,
+                "event_logic_versions_seen": [],
+                "health": {"issue_count": 0, "issues": []},
+            }),
+            patch("smc_integration.extended_structure_discovery.build_extended_structure_discovery_report", return_value={}),
+        ):
+            report = mod.build_structure_gap_report()
+
+        # Should have per-field gap messages (lines 275, 277, 279, 281)
+        assert any("BOS/CHOCH" in g for g in report["gaps"])
+        assert any("orderblocks" in g for g in report["gaps"])
+        assert any("FVG" in g for g in report["gaps"])
+        assert any("liquidity sweeps" in g for g in report["gaps"])
+        # And spec/examples best-candidate gap (line 284)
+        assert any("schema examples" in g for g in report["gaps"])

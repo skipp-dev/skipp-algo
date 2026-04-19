@@ -306,3 +306,45 @@ class TestLoadSymbolsFromWatchlistCsv:
         monkeypatch.setattr(batch, "_descriptor_for_source_name", lambda n: SimpleNamespace(path_hint="x.txt"))
         with pytest.raises(NotImplementedError, match="does not support"):
             batch.load_symbols_from_watchlist_source(source="unknown_source")
+
+
+class TestLoadSymbolsFromWatchlistCsvSuccess:
+    def test_reads_csv_symbols(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+        csv_path = tmp_path / "watchlist.csv"
+        csv_path.write_text("symbol,weight\nAAPL,1.0\nMSFT,2.0\n", encoding="utf-8")
+        monkeypatch.setattr(batch, "_resolve_watchlist_source_name", lambda s: "databento_watchlist_csv")
+        monkeypatch.setattr(batch, "_descriptor_for_source_name", lambda n: SimpleNamespace(path_hint=str(csv_path)))
+        result = batch.load_symbols_from_watchlist_source(source="databento_watchlist_csv")
+        assert result == ["AAPL", "MSFT"]
+
+    def test_csv_empty_symbols_raises(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+        csv_path = tmp_path / "empty.csv"
+        csv_path.write_text("symbol\n\n  \n", encoding="utf-8")
+        monkeypatch.setattr(batch, "_resolve_watchlist_source_name", lambda s: "databento_watchlist_csv")
+        monkeypatch.setattr(batch, "_descriptor_for_source_name", lambda n: SimpleNamespace(path_hint=str(csv_path)))
+        with pytest.raises(ValueError, match="no symbols"):
+            batch.load_symbols_from_watchlist_source(source="databento_watchlist_csv")
+
+
+class TestLoadSymbolsFromWatchlistJsonErrors:
+    def test_json_source_missing_file_raises(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+        monkeypatch.setattr(batch, "_resolve_watchlist_source_name", lambda s: "fmp_watchlist_json")
+        monkeypatch.setattr(batch, "_descriptor_for_source_name", lambda n: SimpleNamespace(path_hint=str(tmp_path / "missing.json")))
+        with pytest.raises(FileNotFoundError, match="watchlist source not found"):
+            batch.load_symbols_from_watchlist_source(source="fmp_watchlist_json")
+
+    def test_json_non_dict_raises(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+        bad_path = tmp_path / "bad.json"
+        bad_path.write_text(json.dumps([1, 2, 3]), encoding="utf-8")
+        monkeypatch.setattr(batch, "_resolve_watchlist_source_name", lambda s: "tradingview_watchlist_json")
+        monkeypatch.setattr(batch, "_descriptor_for_source_name", lambda n: SimpleNamespace(path_hint=str(bad_path)))
+        with pytest.raises(ValueError, match="must be an object"):
+            batch.load_symbols_from_watchlist_source(source="tradingview_watchlist_json")
+
+    def test_json_empty_symbols_raises(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+        empty_path = tmp_path / "empty.json"
+        empty_path.write_text(json.dumps({"symbols": [{"symbol": ""}, {"symbol": " "}]}), encoding="utf-8")
+        monkeypatch.setattr(batch, "_resolve_watchlist_source_name", lambda s: "benzinga_watchlist_json")
+        monkeypatch.setattr(batch, "_descriptor_for_source_name", lambda n: SimpleNamespace(path_hint=str(empty_path)))
+        with pytest.raises(ValueError, match="no symbols"):
+            batch.load_symbols_from_watchlist_source(source="benzinga_watchlist_json")
