@@ -2050,3 +2050,494 @@ class TestWriteProviderHealthReport:
         write_provider_health_report({"status": "ok"}, None)
         captured = capsys.readouterr()
         assert '"status": "ok"' in captured.out
+
+
+# ── Smoke-check failure-path coverage ────────────────────────────
+
+
+def _stub_meta_ok(symbol, timeframe, source):
+    return {"asof_ts": 995.0}
+
+
+def _stub_structure_ok(symbol, timeframe, source):
+    return {
+        "bos": [{"id": 1}],
+        "orderblocks": [],
+        "fvg": [],
+        "liquidity_sweeps": [],
+    }
+
+
+def _stub_source_plan(**_kw):
+    return {
+        "snapshot_structure": "artifact_json",
+        "snapshot_meta": "symbol_timeframe",
+        "snapshot_technical": "none",
+        "snapshot_news": "none",
+    }
+
+
+def _stub_bundle_ok(*, symbol="X", timeframe="15m", **_kw):
+    return {
+        "snapshot": {
+            "symbol": symbol,
+            "timeframe": timeframe,
+            "generated_at": 1_000.0,
+            "structure": {
+                "bos": [{"id": 1}],
+                "orderblocks": [],
+                "fvg": [],
+                "liquidity_sweeps": [],
+            },
+        },
+        "source_plan": _stub_source_plan(),
+        "dashboard_payload": {},
+        "pine_payload": {},
+        "structure_context": {"meta": {"service": "stub"}},
+    }
+
+
+class TestSmokeSourcePlanFails:
+    def test_source_plan_resolution_failed(self, monkeypatch) -> None:
+        def _raise(**_kw):
+            raise RuntimeError("source plan boom")
+
+        monkeypatch.setattr(provider_health, "discover_composite_source_plan", _raise)
+
+        smoke = provider_health._run_smoke_checks(
+            symbols=["AAPL"],
+            timeframes=["15m"],
+            checked_at=1_000.0,
+            stale_after_seconds=None,
+        )
+        assert smoke["results"][0]["status"] == "fail"
+        assert any(f.get("code") == "SOURCE_PLAN_RESOLUTION_FAILED" for f in smoke["failures"])
+
+
+class TestSmokeStructureInputFails:
+    def test_structure_input_load_failed(self, monkeypatch) -> None:
+        monkeypatch.setattr(provider_health, "discover_composite_source_plan", _stub_source_plan)
+
+        def _raise(symbol, timeframe, source):
+            raise RuntimeError("structure load boom")
+
+        monkeypatch.setattr(provider_health, "load_raw_structure_input", _raise)
+
+        smoke = provider_health._run_smoke_checks(
+            symbols=["AAPL"],
+            timeframes=["15m"],
+            checked_at=1_000.0,
+            stale_after_seconds=None,
+        )
+        assert smoke["results"][0]["status"] == "fail"
+        assert any(f.get("code") == "STRUCTURE_INPUT_LOAD_FAILED" for f in smoke["failures"])
+
+
+class TestSmokeInvalidStructureShape:
+    def test_invalid_shape_is_failure(self, monkeypatch) -> None:
+        monkeypatch.setattr(provider_health, "discover_composite_source_plan", _stub_source_plan)
+        monkeypatch.setattr(
+            provider_health, "load_raw_structure_input",
+            lambda symbol, timeframe, source: {"wrong_key": []},
+        )
+        monkeypatch.setattr(provider_health, "load_raw_meta_input_composite", _stub_meta_ok)
+
+        smoke = provider_health._run_smoke_checks(
+            symbols=["AAPL"],
+            timeframes=["15m"],
+            checked_at=1_000.0,
+            stale_after_seconds=None,
+        )
+        assert smoke["results"][0]["status"] == "fail"
+        assert any(f.get("code") == "INVALID_STRUCTURE_SHAPE" for f in smoke["failures"])
+
+
+class TestSmokeMetaInputFails:
+    def test_meta_input_load_failed(self, monkeypatch) -> None:
+        monkeypatch.setattr(provider_health, "discover_composite_source_plan", _stub_source_plan)
+        monkeypatch.setattr(provider_health, "load_raw_structure_input", _stub_structure_ok)
+
+        def _raise(symbol, timeframe, source):
+            raise RuntimeError("meta boom")
+
+        monkeypatch.setattr(provider_health, "load_raw_meta_input_composite", _raise)
+
+        smoke = provider_health._run_smoke_checks(
+            symbols=["AAPL"],
+            timeframes=["15m"],
+            checked_at=1_000.0,
+            stale_after_seconds=None,
+        )
+        # meta load failure is captured but does NOT produce a hard fail
+        # because raw_meta becomes None and the code continues.
+        # However the failure IS added to the failures list.
+        assert any(f.get("code") == "META_INPUT_LOAD_FAILED" for f in smoke["failures"])
+
+    def test_meta_missing_asof_ts(self, monkeypatch) -> None:
+        monkeypatch.setattr(provider_health, "discover_composite_source_plan", _stub_source_plan)
+        monkeypatch.setattr(provider_health, "load_raw_structure_input", _stub_structure_ok)
+        monkeypatch.setattr(
+            provider_health, "load_raw_meta_input_composite",
+            lambda symbol, timeframe, source: {"no_asof": True},
+        )
+        monkeypatch.setattr(provider_health, "build_snapshot_bundle_for_symbol_timeframe", lambda **kw: _stub_bundle_ok(**kw))
+
+        smoke = provider_health._run_smoke_checks(
+            symbols=["AAPL"],
+            timeframes=["15m"],
+            checked_at=1_000.0,
+            stale_after_seconds=None,
+        )
+        assert any(w.get("code") == "MISSING_META_ASOF_TS" for w in smoke["warnings"])
+
+
+class TestSmokeBundleValidation:
+    """Cover bundle snapshot/payload/plan validation paths."""
+
+    def _patch_pre_bundle(self, monkeypatch) -> None:
+        monkeypatch.setattr(provider_health, "discover_composite_source_plan", _stub_source_plan)
+        monkeypatch.setattr(provider_health, "load_raw_structure_input", _stub_structure_ok)
+        monkeypatch.setattr(provider_health, "load_raw_meta_input_composite", _stub_meta_ok)
+
+    def test_no_snapshot_dict_is_failure(self, monkeypatch) -> None:
+        self._patch_pre_bundle(monkeypatch)
+        monkeypatch.setattr(
+            provider_health, "build_snapshot_bundle_for_symbol_timeframe",
+            lambda **kw: {
+                "snapshot": "not_a_dict",
+                "source_plan": None,
+                "dashboard_payload": None,
+                "pine_payload": None,
+            },
+        )
+
+        smoke = provider_health._run_smoke_checks(
+            symbols=["AAPL"], timeframes=["15m"], checked_at=1_000.0, stale_after_seconds=None,
+        )
+        codes = [f.get("code") for f in smoke["failures"]]
+        assert "INVALID_BUNDLE_SNAPSHOT" in codes
+        assert "MISSING_DASHBOARD_PAYLOAD" in codes
+        assert "MISSING_PINE_PAYLOAD" in codes
+
+    def test_invalid_snapshot_structure_shape(self, monkeypatch) -> None:
+        self._patch_pre_bundle(monkeypatch)
+        monkeypatch.setattr(
+            provider_health, "build_snapshot_bundle_for_symbol_timeframe",
+            lambda **kw: {
+                "snapshot": {
+                    "structure": {"wrong": []},
+                    "structure_context": {"leak": True},
+                },
+                "source_plan": _stub_source_plan(),
+                "dashboard_payload": {},
+                "pine_payload": {},
+            },
+        )
+
+        smoke = provider_health._run_smoke_checks(
+            symbols=["AAPL"], timeframes=["15m"], checked_at=1_000.0, stale_after_seconds=None,
+        )
+        codes = [f.get("code") for f in smoke["failures"]]
+        assert "INVALID_SNAPSHOT_STRUCTURE_SHAPE" in codes
+        assert "STRUCTURE_CONTEXT_POLLUTES_SNAPSHOT" in codes
+
+    def test_source_plan_mismatch(self, monkeypatch) -> None:
+        self._patch_pre_bundle(monkeypatch)
+        monkeypatch.setattr(
+            provider_health, "build_snapshot_bundle_for_symbol_timeframe",
+            lambda **kw: {
+                "snapshot": {
+                    "structure": {
+                        "bos": [{"id": 1}],
+                        "orderblocks": [],
+                        "fvg": [],
+                        "liquidity_sweeps": [],
+                    },
+                },
+                "source_plan": {"snapshot_structure": "DIFFERENT"},
+                "dashboard_payload": {},
+                "pine_payload": {},
+            },
+        )
+
+        smoke = provider_health._run_smoke_checks(
+            symbols=["AAPL"], timeframes=["15m"], checked_at=1_000.0, stale_after_seconds=None,
+        )
+        assert any(w.get("code") == "SOURCE_PLAN_MISMATCH" for w in smoke["warnings"])
+        assert any(d.get("code") == "SOURCE_PLAN_MISMATCH" for d in smoke["degradations"])
+
+    def test_missing_bundle_source_plan(self, monkeypatch) -> None:
+        self._patch_pre_bundle(monkeypatch)
+        monkeypatch.setattr(
+            provider_health, "build_snapshot_bundle_for_symbol_timeframe",
+            lambda **kw: {
+                "snapshot": {
+                    "structure": {
+                        "bos": [{"id": 1}],
+                        "orderblocks": [],
+                        "fvg": [],
+                        "liquidity_sweeps": [],
+                    },
+                },
+                "dashboard_payload": {},
+                "pine_payload": {},
+            },
+        )
+
+        smoke = provider_health._run_smoke_checks(
+            symbols=["AAPL"], timeframes=["15m"], checked_at=1_000.0, stale_after_seconds=None,
+        )
+        assert any(w.get("code") == "MISSING_BUNDLE_SOURCE_PLAN" for w in smoke["warnings"])
+
+
+class TestCollectArtifactHealthEdges:
+    def test_artifact_lookup_exception(self, monkeypatch) -> None:
+        monkeypatch.setattr(
+            provider_health.structure_artifact_json,
+            "discover_normalized_contract_summary",
+            _stub_contract_summary,
+        )
+        monkeypatch.setattr(
+            provider_health.structure_artifact_json,
+            "STRUCTURE_ARTIFACTS_DIR",
+            Path("/nonexistent"),
+        )
+
+        def _raise(symbol, timeframe):
+            raise RuntimeError("lookup boom")
+
+        monkeypatch.setattr(
+            provider_health.structure_artifact_json,
+            "has_artifact_for_symbol_timeframe",
+            _raise,
+        )
+
+        result = provider_health._collect_artifact_health(
+            symbols=["AAPL"],
+            timeframes=["15m"],
+            checked_at=1_000.0,
+            stale_after_seconds=None,
+        )
+        assert any(f.get("code") == "ARTIFACT_LOOKUP_FAILED" for f in result["failures"])
+
+
+class TestProviderDomainResultsWithEntries:
+    def test_warn_when_cannot_supply_symbols(self, monkeypatch) -> None:
+        from smc_integration.provider_matrix import (
+            ProviderCurrentMapping,
+            ProviderMatrixEntry,
+            ProviderPotential,
+        )
+
+        entry = ProviderMatrixEntry(
+            name="test_provider",
+            source_module="smc_integration.sources.test_provider",
+            path_hint="test.json",
+            source_format="json",
+            potential=ProviderPotential(
+                can_supply_symbols=False,
+                can_supply_volume_meta=False,
+                can_supply_technical_meta=False,
+                can_supply_news_meta=False,
+                can_supply_raw_bars=False,
+                can_supply_microstructure=False,
+                can_supply_precomputed_structure=False,
+            ),
+            current=ProviderCurrentMapping(
+                currently_maps_structure=False,
+                currently_maps_meta=False,
+                currently_maps_volume=False,
+                currently_maps_technical=False,
+                currently_maps_news=False,
+                snapshot_structure_mode="none",
+                snapshot_meta_mode="none",
+            ),
+            known_gaps=["no_symbols"],
+        )
+        monkeypatch.setattr(provider_health, "discover_provider_matrix", lambda: [entry])
+        rows = provider_health._provider_domain_results()
+        assert len(rows) == 1
+        assert rows[0]["status"] == "warn"
+        assert rows[0]["provider"] == "test_provider"
+        assert rows[0]["known_gaps"] == ["no_symbols"]
+
+
+class TestRunProviderHealthIncludeSmokeBundles:
+    def test_smoke_bundles_included_in_report(self, monkeypatch) -> None:
+        monkeypatch.setattr(provider_health, "discover_provider_matrix", lambda: [])
+        monkeypatch.setattr(provider_health, "discover_structure_source_status", _stub_structure_status)
+        monkeypatch.setattr(
+            provider_health.structure_artifact_json,
+            "discover_normalized_contract_summary",
+            _stub_contract_summary,
+        )
+        monkeypatch.setattr(
+            provider_health.structure_artifact_json,
+            "STRUCTURE_ARTIFACTS_DIR",
+            Path("/nonexistent"),
+        )
+        monkeypatch.setattr(
+            provider_health.structure_artifact_json,
+            "has_artifact_for_symbol_timeframe",
+            lambda symbol, timeframe: True,
+        )
+        monkeypatch.setattr(
+            provider_health,
+            "_run_smoke_checks",
+            lambda **_kw: {
+                "results": [],
+                "warnings": [],
+                "failures": [],
+                "degradations": [],
+                "domain_alerts": [],
+                "bundles": {("AAPL", "15m"): {"stub": True}},
+            },
+        )
+
+        report = provider_health.run_provider_health_check(
+            symbols=["AAPL"],
+            timeframes=["15m"],
+            checked_at=1_000.0,
+            include_smoke_bundles=True,
+        )
+        assert "smoke_bundles" in report
+        assert report["smoke_bundles"] == {("AAPL", "15m"): {"stub": True}}
+
+    def test_smoke_bundles_excluded_by_default(self, monkeypatch) -> None:
+        monkeypatch.setattr(provider_health, "discover_provider_matrix", lambda: [])
+        monkeypatch.setattr(provider_health, "discover_structure_source_status", _stub_structure_status)
+        monkeypatch.setattr(
+            provider_health.structure_artifact_json,
+            "discover_normalized_contract_summary",
+            _stub_contract_summary,
+        )
+        monkeypatch.setattr(
+            provider_health.structure_artifact_json,
+            "STRUCTURE_ARTIFACTS_DIR",
+            Path("/nonexistent"),
+        )
+        monkeypatch.setattr(
+            provider_health.structure_artifact_json,
+            "has_artifact_for_symbol_timeframe",
+            lambda symbol, timeframe: True,
+        )
+        monkeypatch.setattr(provider_health, "_run_smoke_checks", _stub_smoke_ok)
+
+        report = provider_health.run_provider_health_check(
+            symbols=["AAPL"],
+            timeframes=["15m"],
+            checked_at=1_000.0,
+        )
+        assert "smoke_bundles" not in report
+
+
+class TestCollectArtifactHealthFatalIssue:
+    """Cover line 600: health issue with a fatal code → failures.append."""
+
+    def test_fatal_health_issue_promotes_to_failure(self, monkeypatch) -> None:
+        monkeypatch.setattr(
+            provider_health.structure_artifact_json,
+            "discover_normalized_contract_summary",
+            lambda **_kw: {
+                "health": {
+                    "issues": [
+                        {"code": "INVALID_MANIFEST_JSON", "message": "corrupt json"},
+                    ],
+                },
+                "mapped_structure_categories": {},
+                "structure_profile_supported": False,
+                "diagnostics_available": False,
+            },
+        )
+        monkeypatch.setattr(
+            provider_health.structure_artifact_json,
+            "STRUCTURE_ARTIFACTS_DIR",
+            Path("/nonexistent"),
+        )
+        monkeypatch.setattr(
+            provider_health.structure_artifact_json,
+            "has_artifact_for_symbol_timeframe",
+            lambda symbol, timeframe: True,
+        )
+
+        result = provider_health._collect_artifact_health(
+            symbols=["AAPL"],
+            timeframes=["15m"],
+            checked_at=1_000.0,
+            stale_after_seconds=None,
+        )
+        assert result["status"] == "fail"
+        assert any(f.get("code") == "INVALID_MANIFEST_JSON" for f in result["failures"])
+
+
+class TestSmokeBundleInvalidStructureContextShape:
+    """Cover line 1081: bundle.structure_context exists but is not a dict."""
+
+    def test_non_dict_structure_context_is_warning(self, monkeypatch) -> None:
+        monkeypatch.setattr(provider_health, "discover_composite_source_plan", _stub_source_plan)
+        monkeypatch.setattr(provider_health, "load_raw_structure_input", _stub_structure_ok)
+        monkeypatch.setattr(provider_health, "load_raw_meta_input_composite", _stub_meta_ok)
+        monkeypatch.setattr(
+            provider_health, "build_snapshot_bundle_for_symbol_timeframe",
+            lambda **kw: {
+                "snapshot": {
+                    "structure": {
+                        "bos": [{"id": 1}],
+                        "orderblocks": [],
+                        "fvg": [],
+                        "liquidity_sweeps": [],
+                    },
+                },
+                "source_plan": _stub_source_plan(),
+                "dashboard_payload": {},
+                "pine_payload": {},
+                "structure_context": "not_a_dict",
+            },
+        )
+
+        smoke = provider_health._run_smoke_checks(
+            symbols=["AAPL"], timeframes=["15m"], checked_at=1_000.0, stale_after_seconds=None,
+        )
+        assert any(w.get("code") == "INVALID_STRUCTURE_CONTEXT_SHAPE" for w in smoke["warnings"])
+
+
+class TestRunProviderHealthStructureSourceHealthIssues:
+    """Cover line 1219: selected_health_issue_count > 0 → degradation."""
+
+    def test_health_issues_produce_degradation(self, monkeypatch) -> None:
+        monkeypatch.setattr(provider_health, "discover_provider_matrix", lambda: [])
+        monkeypatch.setattr(
+            provider_health,
+            "discover_structure_source_status",
+            lambda **_kw: {
+                "source": "auto",
+                "selected": "structure_artifact_json",
+                "selected_health_issue_count": 2,
+                "selected_health_issues": [{"code": "X"}, {"code": "Y"}],
+            },
+        )
+        monkeypatch.setattr(
+            provider_health.structure_artifact_json,
+            "discover_normalized_contract_summary",
+            _stub_contract_summary,
+        )
+        monkeypatch.setattr(
+            provider_health.structure_artifact_json,
+            "STRUCTURE_ARTIFACTS_DIR",
+            Path("/nonexistent"),
+        )
+        monkeypatch.setattr(
+            provider_health.structure_artifact_json,
+            "has_artifact_for_symbol_timeframe",
+            lambda symbol, timeframe: True,
+        )
+        monkeypatch.setattr(provider_health, "_run_smoke_checks", _stub_smoke_ok)
+
+        report = provider_health.run_provider_health_check(
+            symbols=["AAPL"],
+            timeframes=["15m"],
+            checked_at=1_000.0,
+        )
+        assert any(
+            d.get("code") == "STRUCTURE_SOURCE_HEALTH_ISSUES" for d in report["degradations_detected"]
+        )
