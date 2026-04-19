@@ -20,7 +20,7 @@ var string g_bus_detail = "6. Operator Only - Detail Surface"
 var string g_bus_lean = "7. Operator Only - Lean Surface"
 var string g_local_debug = "8. Operator Only - Local Debug Mirrors"
 
-surface_mode = input.string("Decision Brief", "View", options = ["Decision Brief", "Audit View"], group = g_surface, tooltip = "Decision Brief is the default linked companion surface. Audit View keeps the full expert table for review.")
+surface_mode = input.string("Decision Brief", "View", options = ["Focus", "Decision Brief", "Audit View"], group = g_surface, tooltip = "Focus: 3-row traffic light — just the essentials.\nDecision Brief: compact setup overview with context.\nAudit View: full expert table for review.")
 show_table = input.bool(true, "Show Brief Panel", group = g_surface)
 show_risk_lines = input.bool(true, "Show Trade Plan", group = g_surface)
 show_state_bg = input.bool(false, "Highlight Live Setup", group = g_surface)
@@ -1312,7 +1312,21 @@ var table smc_dashboard = table.new(position.bottom_right, 2, 62, border_width =
 if show_table and barstate.islast
     color txt = chart.fg_color
     color header_bg = color.new(color.black, 100)
-    if compact_dashboard
+    if surface_mode == "Focus"
+        // ── FOCUS MODE (v7.1): 3-row traffic light — just the essentials ──
+        // Row 0: Traffic light (🟢 / 🟡 / 🔴) + one-word action
+        // Row 1: Price levels (trigger + invalidation) if actionable
+        // Row 2: Market context (regime + trust) one-liner
+        string focus_action = state_code >= 6 ? "🟢  ENTRY" : state_code == 5 ? "🟢  READY" : state_code >= 2 ? "🟡  PREPARE" : state_code == -1 ? "🔴  BLOCKED" : "⚪  WAIT"
+        color focus_action_bg = state_code >= 5 ? color.new(color.green, 70) : state_code >= 2 ? color.new(color.orange, 70) : state_code == -1 ? color.new(color.red, 70) : color.new(color.gray, 80)
+        string focus_levels = actionable_state and not na(src_trigger) ? "Entry " + str.tostring(src_trigger, format.mintick) + " | Stop " + str.tostring(src_invalidation, format.mintick) : "—"
+        string focus_context = mp.MARKET_REGIME + " · " + mp.TRADE_STATE
+        color focus_context_bg = mp.TRADE_STATE == "BLOCKED" ? color.new(color.red, 80) : mp.TRADE_STATE == "DISCOURAGED" ? color.new(color.orange, 80) : color.new(color.teal, 85)
+        dashboard_row(smc_dashboard, 0, "SMC", focus_action, focus_action_bg, txt)
+        dashboard_row(smc_dashboard, 1, "Plan", focus_levels, actionable_state ? color.new(color.teal, 85) : header_bg, txt)
+        dashboard_row(smc_dashboard, 2, "Market", focus_context, focus_context_bg, txt)
+        table.clear(smc_dashboard, 0, 3, 1, 61)
+    else if compact_dashboard
         // WP-OV5: 5-row compact dashboard for mobile / small screens
         string lib_regime = mp.MARKET_REGIME
         float lib_vix = mp.VIX_LEVEL

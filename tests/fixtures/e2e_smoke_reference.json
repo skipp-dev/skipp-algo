@@ -1,5 +1,5 @@
 {
-  "dashboard_audit_row_count": 70,
+  "dashboard_audit_row_count": 73,
   "gate_names": [
     "measurement_lane",
     "post_release_validation",

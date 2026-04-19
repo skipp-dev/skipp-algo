@@ -5470,17 +5470,30 @@ if barstate.islast and show_dashboard and not compact_mode
 else if barstate.islast and compact_mode and not na(health_badge)
     label.delete(health_badge)
 
-// ── Alert Conditions (v5.5 MVP) ──
+// ── Alert Conditions (v5.5 MVP + v7.1 lifecycle & structure) ──
 string alert_product_state = resolve_core_product_state(long_visual_state)
 string alert_trust_tier = core_trust_tier_early
 bool alert_trust_degraded = alert_trust_tier == 'Degraded' and (na(alert_trust_tier[1]) or alert_trust_tier[1] != 'Degraded')
 bool alert_trust_insufficient = alert_trust_tier == 'Insufficient' and (na(alert_trust_tier[1]) or alert_trust_tier[1] != 'Insufficient')
 
+// Product state transitions
 alertcondition(alert_product_state == 'ENTER LONG' and alert_product_state[1] != 'ENTER LONG', 'SMC: Enter Long', 'SMC Trigger is live. Entry level reached.')
 alertcondition(alert_product_state == 'READY LONG' and alert_product_state[1] != 'READY LONG', 'SMC: Ready Long', 'SMC Setup is ready. Confirmed reclaim, watching for trigger.')
 alertcondition(alert_product_state == 'PREPARE LONG' and alert_product_state[1] != 'PREPARE LONG', 'SMC: Prepare Long', 'SMC Setup is preparing. Zone is active, waiting for confirmation.')
 alertcondition(alert_product_state == 'BLOCKED' and alert_product_state[1] != 'BLOCKED', 'SMC: Setup Blocked', 'SMC Setup is now blocked. Invalidation hit or regime issue.')
 alertcondition(alert_product_state == 'WAIT' and alert_product_state[1] != 'WAIT', 'SMC: Wait', 'No active setup — back to wait state.')
+
+// Structure break alerts (v7.1) — fire on confirmed bars when BOS or CHoCH occurs
+alertcondition(bull_bos_sig and barstate.isconfirmed, 'SMC: Bullish BOS', 'Bullish Break of Structure confirmed. Trend continuation signal.')
+alertcondition(bull_choch_sig and barstate.isconfirmed, 'SMC: Bullish CHoCH', 'Bullish Change of Character confirmed. Potential trend reversal to the upside.')
+alertcondition(bear_choch_sig and barstate.isconfirmed, 'SMC: Bearish CHoCH', 'Bearish Change of Character confirmed. Potential trend reversal to the downside.')
+alertcondition(bear_bos_sig and barstate.isconfirmed, 'SMC: Bearish BOS', 'Bearish Break of Structure confirmed. Downtrend continuation signal.')
+
+// Zone lifecycle alerts (v7.1) — fire on lifecycle state transitions
+alertcondition(long_state.armed and not long_state.armed[1] and barstate.isconfirmed, 'SMC: Zone Armed', 'A bullish zone has been armed. Price reclaimed a demand zone — watching for confirmation.')
+alertcondition(long_invalidated_now and barstate.isconfirmed, 'SMC: Zone Invalidated', 'Active zone setup invalidated. Price broke below invalidation level.')
+
+// Trust & risk alerts
 alertcondition(alert_trust_degraded, 'SMC: Trust Degraded', 'Trust tier dropped to degraded')
 alertcondition(alert_trust_insufficient, 'SMC: Trust Insufficient', 'Trust tier dropped to insufficient')
 alertcondition(not event_risk_gate_ok and barstate.isconfirmed, 'SMC: Event Risk Active', 'High-impact macro event blocking trades')

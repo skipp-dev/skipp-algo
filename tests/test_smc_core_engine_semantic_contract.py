@@ -457,6 +457,12 @@ EXPECTED_ALERT_TITLES = {
     "SMC: Prepare Long",
     "SMC: Setup Blocked",
     "SMC: Wait",
+    "SMC: Bullish BOS",
+    "SMC: Bullish CHoCH",
+    "SMC: Bearish CHoCH",
+    "SMC: Bearish BOS",
+    "SMC: Zone Armed",
+    "SMC: Zone Invalidated",
     "SMC: Trust Degraded",
     "SMC: Trust Insufficient",
     "SMC: Event Risk Active",
@@ -491,8 +497,8 @@ def test_trust_enforcement_suppresses_entry_at_insufficient() -> None:
     assert "'Blocked: Trust Insufficient'" in source
 
 
-def test_alertcondition_count_is_10() -> None:
+def test_alertcondition_count_is_16() -> None:
     source = _read(CORE_PATH)
     import re
     count = len(re.findall(r"alertcondition\(", source))
-    assert count == 10
+    assert count == 16

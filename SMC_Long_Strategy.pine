@@ -99,4 +99,66 @@ else
 
 plot(src_trigger, "Execution Trigger", color = color.new(color.aqua, 0), linewidth = 2, style = plot.style_linebr)
 plot(src_invalidation, "Execution Invalidation", color = color.new(color.orange, 0), linewidth = 2, style = plot.style_linebr)
+
+// ── Performance Summary Table (v7.1) ──
+// Shows key backtest metrics directly in the chart so users can see at a glance
+// whether the system works for the current symbol/timeframe combination.
+
+var string g_perf = "3. Performance Display"
+show_performance = input.bool(true, "Show Performance Table", group = g_perf, tooltip = "Display a compact performance summary table in the chart.")
+
+var int total_trades = 0
+var int winning_trades = 0
+var int losing_trades = 0
+var float total_r = 0.0
+var float max_drawdown_pct = 0.0
+var float peak_equity = 0.0
+var float gross_profit = 0.0
+var float gross_loss = 0.0
+var float best_trade_r = 0.0
+var float worst_trade_r = 0.0
+
+if strategy.closedtrades > 0
+    total_trades := strategy.closedtrades
+    winning_trades := strategy.wintrades
+    losing_trades := strategy.losstrades
+    gross_profit := strategy.grossprofit
+    gross_loss := math.abs(strategy.grossloss)
+
+    float current_equity = strategy.equity
+    peak_equity := math.max(peak_equity, current_equity)
+    float dd_pct = peak_equity > 0 ? (peak_equity - current_equity) / peak_equity * 100.0 : 0.0
+    max_drawdown_pct := math.max(max_drawdown_pct, dd_pct)
+
+float win_rate = total_trades > 0 ? winning_trades / total_trades * 100.0 : 0.0
+float profit_factor = gross_loss > 0 ? gross_profit / gross_loss : 0.0
+float avg_r = total_trades > 0 ? strategy.netprofit / (total_trades * (strategy.initial_capital * 0.01)) : 0.0
+
+var table perf_tbl = table.new(position.bottom_left, 2, 8, border_width = 0)
+
+perf_row(table tbl, int row, string label_text, string value_text, color bg, color txt) =>
+    table.cell(tbl, 0, row, label_text, bgcolor = bg, text_color = txt, text_halign = text.align_left, text_size = size.small)
+    table.cell(tbl, 1, row, value_text, bgcolor = bg, text_color = txt, text_halign = text.align_right, text_size = size.small)
+
+if show_performance and barstate.islast
+    color txt = chart.fg_color
+    color header_bg = color.new(color.black, 100)
+    color ok_bg = color.new(color.teal, 85)
+    color warn_bg = color.new(color.orange, 80)
+    color bad_bg = color.new(color.red, 80)
+
+    color wr_bg = win_rate >= 50 ? ok_bg : win_rate >= 40 ? warn_bg : bad_bg
+    color pf_bg = profit_factor >= 1.5 ? ok_bg : profit_factor >= 1.0 ? warn_bg : bad_bg
+    color dd_bg = max_drawdown_pct <= 10 ? ok_bg : max_drawdown_pct <= 20 ? warn_bg : bad_bg
+
+    perf_row(perf_tbl, 0, "SMC Strategy v7", total_trades > 0 ? "Performance" : "No Trades Yet", header_bg, txt)
+    perf_row(perf_tbl, 1, "Trades", str.tostring(total_trades) + "  (W:" + str.tostring(winning_trades) + " / L:" + str.tostring(losing_trades) + ")", ok_bg, txt)
+    perf_row(perf_tbl, 2, "Win Rate", str.tostring(win_rate, '#.#') + "%", wr_bg, txt)
+    perf_row(perf_tbl, 3, "Profit Factor", str.tostring(profit_factor, '#.##'), pf_bg, txt)
+    perf_row(perf_tbl, 4, "Net Profit", str.tostring(strategy.netprofit, '#.##'), strategy.netprofit >= 0 ? ok_bg : bad_bg, txt)
+    perf_row(perf_tbl, 5, "Max Drawdown", str.tostring(max_drawdown_pct, '#.#') + "%", dd_bg, txt)
+    perf_row(perf_tbl, 6, "Avg Trade", str.tostring(total_trades > 0 ? strategy.netprofit / total_trades : 0.0, '#.##'), total_trades > 0 and strategy.netprofit / total_trades > 0 ? ok_bg : warn_bg, txt)
+    perf_row(perf_tbl, 7, "Mode", backtest_mode ? "Backtest (pure signal)" : use_regime_gate ? "Live (regime gated)" : "Live (ungated)", header_bg, txt)
+else if barstate.islast and not show_performance
+    table.clear(perf_tbl, 0, 0, 1, 7)
 plot(use_take_profit ? (strategy.position_size > 0 ? active_take_profit : take_profit_price) : na, "Execution Take Profit", color = color.new(color.green, 0), linewidth = 1, style = plot.style_linebr)

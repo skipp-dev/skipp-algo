@@ -6,6 +6,14 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-19)
+
+- **Phase A Quick Wins — UX optimization (Strategie Q2 2026):**
+  - **A1: 6 neue Alert-Conditions** in `SMC_Core_Engine.pine` — Bullish/Bearish BOS, Bullish/Bearish CHoCH, Zone Armed, Zone Invalidated. Nutzer können jetzt über TradingView-Alerts direkt auf Struktur- und Lifecycle-Events reagieren (insgesamt 16 Alert-Conditions).
+  - **A2: Focus-Ansicht** im `SMC_Dashboard.pine` — neuer "Focus" View-Modus mit 3-Zeilen Traffic-Light (Ampel + Level + Market). Keine Konfiguration, keine Ablenkung — sofortige Orientierung.
+  - **A3: Performance-Tabelle** in `SMC_Long_Strategy.pine` — 8-Zeilen-Table zeigt Trades, Win Rate, Profit Factor, Net Profit, Max Drawdown, Avg Trade und aktuellen Modus. Farbkodiert nach Ergebnis-Qualität.
+  - **Strategiedokument** `docs/SYSTEM_REVIEW_AND_STRATEGY_2026_Q2.md` — vollständiges Systemreview mit Vergleichsmatrix, Designprinzipien und 10-Punkte-Umsetzungsplan (A1–C10).
+
 ### Changed (2026-04-09)
 
 - **SMC / Databento / NewsAPI.ai stabilization wave:**
