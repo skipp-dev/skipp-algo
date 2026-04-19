@@ -329,3 +329,38 @@ class TestLoadSymbolBarsForContextEdgeCases:
         monkeypatch.setattr(service, "load_export_bundle", lambda *a, **kw: bundle)
         bars = service._load_symbol_bars_for_context("AAPL", "15m")
         assert bars.empty
+
+
+class TestBuildMeasurementSummaryError:
+    def test_exception_returns_error_status(self, monkeypatch) -> None:
+        monkeypatch.setattr(service, "build_measurement_evidence", lambda *a, **kw: (_ for _ in ()).throw(RuntimeError("boom")))
+        result = service._build_measurement_summary("AAPL", "15m")
+        assert result["status"] == "error"
+        assert any("boom" in w for w in result["warnings"])
+
+
+class TestResolveSourceDescriptorUnknown:
+    def test_unknown_source_raises(self) -> None:
+        import pytest
+        with pytest.raises(ValueError, match="unknown source"):
+            service._resolve_source_descriptor(source="nonexistent_xyz", selected=None)
+
+    def test_selected_passthrough(self) -> None:
+        sentinel = object()
+        result = service._resolve_source_descriptor(source="anything", selected=sentinel)
+        assert result is sentinel
+
+
+class TestLoadStructureInputAndContextNonArtifact:
+    def test_non_artifact_source_returns_none_context(self, monkeypatch) -> None:
+        from types import SimpleNamespace
+
+        monkeypatch.setattr(
+            service,
+            "discover_composite_source_plan",
+            lambda **kw: {"structure": "fmp_watchlist_json", "volume": "fmp_watchlist_json", "technical": "fmp_watchlist_json", "news": "fmp_watchlist_json"},
+        )
+        monkeypatch.setattr(service, "load_raw_structure_input", lambda *a, **kw: {"bos": [], "orderblocks": [], "fvg": [], "liquidity_sweeps": []})
+        raw, ctx = service._load_structure_input_and_context("AAPL", "15m", source="fmp_watchlist_json")
+        assert ctx is None
+        assert isinstance(raw, dict)

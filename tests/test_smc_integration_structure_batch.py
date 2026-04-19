@@ -638,3 +638,141 @@ class TestLoadSymbolBarsFromWorkbook:
         result = _load_symbol_bars_from_workbook(wb, symbols[0])
         assert not result.empty
         assert "timestamp" in result.columns
+
+
+class TestLoadSymbolBarsFromWorkbookNoVolume:
+    def test_no_volume_column(self, tmp_path: Path) -> None:
+        from smc_integration.structure_batch import _load_symbol_bars_from_workbook
+
+        wb_path = tmp_path / "wb.xlsx"
+        rows = [
+            {"trade_date": "2026-03-05", "symbol": "AAPL", "open": 100, "high": 101, "low": 99, "close": 100.5},
+            {"trade_date": "2026-03-06", "symbol": "AAPL", "open": 101, "high": 102, "low": 100, "close": 101.2},
+        ]
+        with pd.ExcelWriter(wb_path, engine="openpyxl") as writer:
+            pd.DataFrame(rows).to_excel(writer, sheet_name="daily_bars", index=False)
+        result = _load_symbol_bars_from_workbook(wb_path, "AAPL")
+        assert not result.empty
+        assert "volume" not in result.columns
+
+    def test_no_usable_ohlc_raises(self, tmp_path: Path) -> None:
+        from smc_integration.structure_batch import _load_symbol_bars_from_workbook
+
+        wb_path = tmp_path / "wb.xlsx"
+        rows = [{"trade_date": None, "symbol": "AAPL", "open": None, "high": None, "low": None, "close": None}]
+        with pd.ExcelWriter(wb_path, engine="openpyxl") as writer:
+            pd.DataFrame(rows).to_excel(writer, sheet_name="daily_bars", index=False)
+        with pytest.raises(ValueError, match="no usable OHLC"):
+            _load_symbol_bars_from_workbook(wb_path, "AAPL")
+
+
+class TestLoadSymbolBarsFromCanonicalExportsReturnNone:
+    def test_no_intraday_returns_none(self, monkeypatch) -> None:
+        from smc_integration import structure_batch as mod
+
+        monkeypatch.setattr(mod, "load_export_bundle", lambda *a, **kw: {"frames": {}})
+        result = mod._load_symbol_bars_from_canonical_exports("AAPL", "15m", Path("/tmp/fake"))
+        assert result is None
+
+
+class TestBuildSingleSymbolStructureArtifactNoInput:
+    def test_no_workbook_or_bundle_raises(self, monkeypatch) -> None:
+        from smc_integration import structure_batch as mod
+
+        monkeypatch.setattr(mod, "_load_symbol_bars_from_canonical_exports", lambda *a, **kw: None)
+        with pytest.raises(ValueError, match="missing structure input"):
+            mod.build_single_symbol_structure_artifact(
+                workbook=None,
+                export_bundle_root=Path("/tmp/fake"),
+                symbol="AAPL",
+                timeframe="15m",
+                generated_at=1709253600.0,
+            )
+
+
+class TestBuildStructureArtifactBatchEdges:
+    def test_empty_timeframe_raises(self, tmp_path: Path, monkeypatch) -> None:
+        from smc_integration import structure_batch as mod
+
+        wb = make_minimal_workbook(tmp_path)
+        monkeypatch.setattr(mod, "resolve_structure_artifact_inputs", lambda **kw: {
+            "workbook_path": wb, "export_bundle_root": None, "warnings": [], "errors": [],
+        })
+        with pytest.raises(ValueError, match="timeframe must not be empty"):
+            mod.write_structure_artifacts_from_workbook(
+                workbook=wb,
+                timeframe="  ",
+                symbols=["AAPL"],
+                output_dir=tmp_path / "out",
+            )
+
+    def test_empty_symbols_no_workbook_raises(self, tmp_path: Path, monkeypatch) -> None:
+        from smc_integration import structure_batch as mod
+
+        monkeypatch.setattr(mod, "resolve_structure_artifact_inputs", lambda **kw: {
+            "workbook_path": None, "export_bundle_root": None, "warnings": [], "errors": [],
+        })
+        with pytest.raises(ValueError, match="symbols must not be empty"):
+            mod.write_structure_artifacts_from_workbook(
+                workbook=None,
+                timeframe="15m",
+                symbols=[],
+                output_dir=tmp_path / "out",
+            )
+
+    def test_preexisting_artifacts_fallback(self, tmp_path: Path, monkeypatch) -> None:
+        from smc_integration import structure_batch as mod
+
+        monkeypatch.setattr(mod, "resolve_structure_artifact_inputs", lambda **kw: {
+            "workbook_path": None, "export_bundle_root": None, "warnings": [], "errors": [],
+        })
+
+        out_dir = tmp_path / "artifacts"
+        out_dir.mkdir(parents=True)
+        artifact = {
+            "schema_version": "1.0",
+            "symbol": "AAPL",
+            "timeframe": "15m",
+            "coverage_mode": "partial",
+            "coverage": {"has_bos": True, "has_orderblocks": False, "has_fvg": False, "has_liquidity_sweeps": False},
+            "structure": {"bos": [{"kind": "BOS"}], "orderblocks": [], "fvg": [], "liquidity_sweeps": []},
+            "diagnostics": {"counts": {"bos": 1, "orderblocks": 0, "fvg": 0, "liquidity_sweeps": 0}, "warnings": []},
+        }
+        (out_dir / "AAPL_15m.structure.json").write_text(json.dumps(artifact), encoding="utf-8")
+
+        manifest = mod.write_structure_artifacts_from_workbook(
+            workbook=None,
+            timeframe="15m",
+            symbols=["AAPL"],
+            export_bundle_root=None,
+            output_dir=out_dir,
+        )
+        assert manifest["resolution_mode"] == "preexisting_artifacts"
+        assert manifest["counts"]["artifacts_written"] >= 1
+
+    def test_build_error_captured(self, tmp_path: Path, monkeypatch) -> None:
+        from smc_integration import structure_batch as mod
+
+        wb = make_minimal_workbook(tmp_path)
+        out_dir = tmp_path / "out"
+
+        monkeypatch.setattr(mod, "resolve_structure_artifact_inputs", lambda **kw: {
+            "workbook_path": wb, "export_bundle_root": None, "warnings": [], "errors": [],
+        })
+
+        orig_build = mod.build_single_symbol_structure_artifact
+
+        def _boom(**kwargs):
+            if kwargs.get("symbol") == "MSFT":
+                raise RuntimeError("test boom")
+            return orig_build(**kwargs)
+
+        monkeypatch.setattr(mod, "build_single_symbol_structure_artifact", _boom)
+        manifest = mod.write_structure_artifacts_from_workbook(
+            workbook=wb,
+            timeframe="1D",
+            symbols=["AAPL", "MSFT"],
+            output_dir=out_dir,
+        )
+        assert manifest["counts"]["errors"] >= 1
+        assert any(e["symbol"] == "MSFT" for e in manifest["errors"])

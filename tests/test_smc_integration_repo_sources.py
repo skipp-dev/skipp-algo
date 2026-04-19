@@ -201,3 +201,23 @@ class TestDiscoverCompositeSourcePlan:
     def test_explicit_structure_artifact_resolves_mode(self) -> None:
         plan = discover_composite_source_plan(source="structure_artifact_json", symbol="AAPL", timeframe="15m")
         assert "structure_resolution_mode" in plan
+
+
+class TestResolveAutoStructureSourceForSymbolTimeframe:
+    def test_returns_source_name(self) -> None:
+        from smc_integration.repo_sources import _resolve_auto_structure_source_for_symbol_timeframe
+        name = _resolve_auto_structure_source_for_symbol_timeframe("AAPL", "15m")
+        assert isinstance(name, str)
+        assert name
+
+    def test_nonexistent_symbol_falls_through(self) -> None:
+        from smc_integration.repo_sources import _resolve_auto_structure_source_for_symbol_timeframe
+        # Even with a bogus symbol, should still find a provider that can supply structure
+        name = _resolve_auto_structure_source_for_symbol_timeframe("__ZZZZ_NONEXISTENT__", "15m")
+        assert isinstance(name, str)
+
+
+class TestLoadRawStructureAutoErrors:
+    def test_auto_with_missing_symbol_raises(self) -> None:
+        with pytest.raises(ValueError):
+            load_raw_structure_input("__COMPLETELY_MISSING_XYZ__", "15m", source="auto")
