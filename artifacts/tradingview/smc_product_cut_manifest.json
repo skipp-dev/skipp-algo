@@ -139,6 +139,30 @@
       ]
     },
     {
+      "file": "SMC_Setup_Check.pine",
+      "script_name": "SMC Setup Check",
+      "surface_role": "companion_operator_only",
+      "contract_tier": "lite_and_pro",
+      "consumer_role": "setup_utility",
+      "validation_target": false,
+      "notes": [
+        "BUS connection validator \u2014 guides new users through initial setup.",
+        "Reads 6 critical BUS channels and shows connection status with next-step instructions."
+      ]
+    },
+    {
+      "file": "SkippALGO_Confluence.pine",
+      "script_name": "SkippALGO Confluence",
+      "surface_role": "pro_primary",
+      "contract_tier": "pro",
+      "consumer_role": "confluence_hub",
+      "validation_target": false,
+      "notes": [
+        "Multi-signal confluence aggregator (SMC BUS + trend + momentum + mean-reversion).",
+        "Produces 0-100 confluence score with traffic-light overlay."
+      ]
+    },
+    {
       "file": "SMC_TV_Bridge.pine",
       "script_name": "SMC TV Bridge",
       "surface_role": "internal",
@@ -185,15 +209,16 @@
   ],
   "surfaceRoleCounts": {
     "lite_primary": 1,
-    "pro_primary": 2,
-    "companion_operator_only": 9,
+    "pro_primary": 3,
+    "companion_operator_only": 10,
     "internal": 1,
     "legacy": 3
   },
   "mainlineSurfaceFiles": [
     "SMC_Core_Engine.pine",
     "SMC_Dashboard.pine",
-    "SMC_Long_Strategy.pine"
+    "SMC_Long_Strategy.pine",
+    "SkippALGO_Confluence.pine"
   ],
   "activeValidationFiles": [
     "SMC_Core_Engine.pine",
@@ -205,7 +230,8 @@
   ],
   "proPrimaryFiles": [
     "SMC_Dashboard.pine",
-    "SMC_Long_Strategy.pine"
+    "SMC_Long_Strategy.pine",
+    "SkippALGO_Confluence.pine"
   ],
   "companionOperatorOnlyFiles": [
     "SMC_Event_Overlay.pine",
@@ -216,7 +242,8 @@
     "SMC_Structure_Context.pine",
     "SMC_Session_Context.pine",
     "SMC_Profile_Context.pine",
-    "SMC_Liquidity_Structure.pine"
+    "SMC_Liquidity_Structure.pine",
+    "SMC_Setup_Check.pine"
   ],
   "internalFiles": [
     "SMC_TV_Bridge.pine"

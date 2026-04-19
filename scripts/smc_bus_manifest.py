@@ -66,6 +66,8 @@ CONSUMER_ROLE_VALUES: tuple[str, ...] = (
     'execution_wrapper',
     'overlay_companion',
     'context_companion',
+    'setup_utility',
+    'confluence_hub',
     'bridge',
     'legacy_monolith',
     'legacy_split',
@@ -211,6 +213,28 @@ SURFACE_DEFINITIONS: tuple[SurfaceDefinition, ...] = (
         consumer_role = 'context_companion',
         notes = (
             'Pro-only liquidity-structure companion.',
+        ),
+    ),
+    SurfaceDefinition(
+        file = 'SMC_Setup_Check.pine',
+        script_name = 'SMC Setup Check',
+        surface_role = 'companion_operator_only',
+        contract_tier = 'lite_and_pro',
+        consumer_role = 'setup_utility',
+        notes = (
+            'BUS connection validator — guides new users through initial setup.',
+            'Reads 6 critical BUS channels and shows connection status with next-step instructions.',
+        ),
+    ),
+    SurfaceDefinition(
+        file = 'SkippALGO_Confluence.pine',
+        script_name = 'SkippALGO Confluence',
+        surface_role = 'pro_primary',
+        contract_tier = 'pro',
+        consumer_role = 'confluence_hub',
+        notes = (
+            'Multi-signal confluence aggregator (SMC BUS + trend + momentum + mean-reversion).',
+            'Produces 0-100 confluence score with traffic-light overlay.',
         ),
     ),
     SurfaceDefinition(

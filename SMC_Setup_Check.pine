@@ -1,0 +1,101 @@
+// This Pine Script® code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © preuss_steffen
+
+//@version=6
+
+// ────────────────────────────────────────────────────────────────
+// SMC Setup Check v1 — validates that the BUS protocol is wired correctly.
+//
+// Add this indicator AFTER adding SMC Core Engine to the chart.
+// It reads the critical BUS channels and reports connection status.
+// Once everything is green, you can safely add Dashboard and Strategy.
+// ────────────────────────────────────────────────────────────────
+
+indicator("SMC Setup Check v1", "SMC Check", overlay = true)
+
+// ── BUS Bindings (minimal critical set) ──
+var string g_bus = "1. Link to SMC Core Engine"
+
+src_schema   = input.source(close, "BUS SchemaVersion",  group = g_bus, tooltip = "Open indicator settings and bind each row to the matching hidden BUS output from SMC Core Engine.\n\nBind order: SchemaVersion → StateCode → Armed → QualityScore → Trigger → Invalidation.")
+src_state    = input.source(close, "BUS StateCode",      group = g_bus)
+src_armed    = input.source(close, "BUS Armed",          group = g_bus)
+src_quality  = input.source(close, "BUS QualityScore",   group = g_bus)
+src_trigger  = input.source(close, "BUS Trigger",        group = g_bus)
+src_invalid  = input.source(close, "BUS Invalidation",   group = g_bus)
+
+// ── Detection Logic ──
+// BUS SchemaVersion is a constant (7001) emitted by Core Engine on every bar.
+// If we're still reading 'close', the source was never bound.
+float EXPECTED_SCHEMA = 7001
+
+bool schema_ok      = not na(src_schema) and src_schema == EXPECTED_SCHEMA
+bool state_ok       = schema_ok and not na(src_state)
+bool armed_ok       = schema_ok and not na(src_armed)
+bool quality_ok     = schema_ok and not na(src_quality)
+bool trigger_ok     = schema_ok  // trigger/invalidation are na when no zone is active — that's valid
+bool invalidation_ok = schema_ok
+
+bool all_ok = schema_ok and state_ok and armed_ok and quality_ok
+
+// ── Render ──
+var table check_tbl = table.new(position.middle_center, 2, 10, border_width = 0)
+
+status_icon(bool ok) => ok ? "✅" : "❌"
+status_bg(bool ok)   => ok ? color.new(color.teal, 80) : color.new(color.red, 75)
+
+check_row(table tbl, int row, string label_text, string value_text, bool ok) =>
+    table.cell(tbl, 0, row, label_text, bgcolor = status_bg(ok), text_color = chart.fg_color, text_halign = text.align_left,  text_size = size.normal)
+    table.cell(tbl, 1, row, value_text, bgcolor = status_bg(ok), text_color = chart.fg_color, text_halign = text.align_right, text_size = size.normal)
+
+if barstate.islast
+    color txt = chart.fg_color
+    color header_bg = color.new(color.black, 100)
+
+    if all_ok
+        // All good — show compact success message
+        table.cell(check_tbl, 0, 0, "SMC Setup Check", bgcolor = color.new(color.green, 70), text_color = txt, text_halign = text.align_left,  text_size = size.normal)
+        table.cell(check_tbl, 1, 0, "✅ All Connected",   bgcolor = color.new(color.green, 70), text_color = txt, text_halign = text.align_right, text_size = size.normal)
+
+        string state_label = src_state >= 6 ? "ENTER LONG" : src_state == 5 ? "READY LONG" : src_state >= 2 ? "PREPARE LONG" : src_state == -1 ? "BLOCKED" : "WAIT"
+        check_row(check_tbl, 1, "Core State", state_label, true)
+        check_row(check_tbl, 2, "Quality Score", str.tostring(src_quality, '#.##'), src_quality > 0)
+
+        bool has_zone = not na(src_trigger) and src_trigger > 0
+        check_row(check_tbl, 3, "Active Zone", has_zone ? "Trigger " + str.tostring(src_trigger, format.mintick) : "No active zone", has_zone)
+
+        table.cell(check_tbl, 0, 4, "", bgcolor = header_bg, text_color = txt, text_size = size.small)
+        table.cell(check_tbl, 1, 4, "", bgcolor = header_bg, text_color = txt, text_size = size.small)
+
+        table.cell(check_tbl, 0, 5, "Next Steps", bgcolor = header_bg, text_color = txt, text_halign = text.align_left, text_size = size.small)
+        table.cell(check_tbl, 1, 5, "Add Dashboard → bind its BUS inputs the same way.", bgcolor = header_bg, text_color = txt, text_halign = text.align_right, text_size = size.small)
+        table.cell(check_tbl, 0, 6, "",            bgcolor = header_bg, text_color = txt, text_size = size.small)
+        table.cell(check_tbl, 1, 6, "Add Strategy  → bind Armed..Invalidation (8 inputs).", bgcolor = header_bg, text_color = txt, text_halign = text.align_right, text_size = size.small)
+        table.cell(check_tbl, 0, 7, "",            bgcolor = header_bg, text_color = txt, text_size = size.small)
+        table.cell(check_tbl, 1, 7, "You can remove this Check indicator once setup is verified.", bgcolor = header_bg, text_color = txt, text_halign = text.align_right, text_size = size.small)
+
+        table.clear(check_tbl, 0, 8, 1, 9)
+    else
+        // Not connected — show diagnostic checklist
+        table.cell(check_tbl, 0, 0, "SMC Setup Check", bgcolor = color.new(color.red, 70), text_color = txt, text_halign = text.align_left,  text_size = size.normal)
+        table.cell(check_tbl, 1, 0, "⚠️ Setup Required",  bgcolor = color.new(color.red, 70), text_color = txt, text_halign = text.align_right, text_size = size.normal)
+
+        table.cell(check_tbl, 0, 1, "", bgcolor = header_bg, text_color = txt, text_size = size.small)
+        table.cell(check_tbl, 1, 1, "", bgcolor = header_bg, text_color = txt, text_size = size.small)
+
+        if not schema_ok
+            check_row(check_tbl, 2, status_icon(false) + "  Core Engine", "Not connected — add SMC Core Engine to the chart first", false)
+            check_row(check_tbl, 3, "",                                    "Then open this indicator's settings and bind BUS inputs.", false)
+        else
+            check_row(check_tbl, 2, status_icon(true) + "  Core Engine",  "Connected (Schema " + str.tostring(src_schema, '#') + ")", true)
+            check_row(check_tbl, 3, status_icon(state_ok) + "  StateCode",    state_ok ? "OK" : "Not bound — bind BUS StateCode", state_ok)
+
+        check_row(check_tbl, 4, status_icon(armed_ok)   + "  Armed",         armed_ok   ? "OK" : "Not bound — bind BUS Armed",        armed_ok)
+        check_row(check_tbl, 5, status_icon(quality_ok)  + "  QualityScore",  quality_ok  ? "OK" : "Not bound — bind BUS QualityScore", quality_ok)
+        check_row(check_tbl, 6, status_icon(trigger_ok)  + "  Trigger",       trigger_ok  ? "OK" : "Not bound — bind BUS Trigger",      trigger_ok)
+        check_row(check_tbl, 7, status_icon(invalidation_ok) + "  Invalidation", invalidation_ok ? "OK" : "Not bound — bind BUS Invalidation", invalidation_ok)
+
+        table.cell(check_tbl, 0, 8, "", bgcolor = header_bg, text_color = txt, text_size = size.small)
+        table.cell(check_tbl, 1, 8, "", bgcolor = header_bg, text_color = txt, text_size = size.small)
+
+        table.cell(check_tbl, 0, 9, "💡 How to bind", bgcolor = header_bg, text_color = txt, text_halign = text.align_left,  text_size = size.small)
+        table.cell(check_tbl, 1, 9, "Settings → each BUS row → select 'SMC Long-Dip Suite v7: BUS ...'", bgcolor = header_bg, text_color = txt, text_halign = text.align_right, text_size = size.small)

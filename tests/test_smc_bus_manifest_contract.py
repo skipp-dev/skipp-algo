@@ -336,7 +336,7 @@ def test_no_duplicate_files_in_surface_definitions() -> None:
 def test_mainline_hierarchy_has_exactly_one_lite_and_at_least_one_pro() -> None:
     assert len(MANIFEST.LITE_PRIMARY_FILES) == 1
     assert len(MANIFEST.PRO_PRIMARY_FILES) >= 1
-    assert len(MANIFEST.MAINLINE_SURFACE_FILES) == 3
+    assert len(MANIFEST.MAINLINE_SURFACE_FILES) == 4
 
 
 def test_every_pine_file_is_classified_or_explicitly_excluded() -> None:

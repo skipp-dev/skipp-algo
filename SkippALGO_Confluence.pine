@@ -1,0 +1,219 @@
+// This Pine Script® code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © preuss_steffen
+
+//@version=6
+
+// ────────────────────────────────────────────────────────────────
+// SkippALGO Confluence Hub v1
+//
+// Aggregates SMC zone lifecycle (via BUS) with built-in trend,
+// momentum, and mean-reversion signals into a single traffic-light
+// confluence score. One chart, one glance.
+//
+// Product scope: long-dip specialist — scores bullish setups only.
+//   Short-parity scoring requires a separate confluence track.
+//
+// Requirements:
+//   - SMC Core Engine must be on the same chart with BUS bound
+//   - No additional indicators required — trend/momentum computed internally
+// ────────────────────────────────────────────────────────────────
+
+import preuss_steffen/smc_micro_profiles_generated/1 as mp
+
+indicator("SkippALGO Confluence Hub v1", "Confluence", overlay = true)
+
+// ═══════════════════════════════════════════════════════════════
+//  1. INPUTS
+// ═══════════════════════════════════════════════════════════════
+
+var string g_display = "1. Display"
+show_table   = input.bool(true, "Show Confluence Panel",  group = g_display)
+show_bg      = input.bool(true, "Highlight Confluence BG", group = g_display, tooltip = "Tint the chart background when confluence is high.")
+
+var string g_bus = "2. SMC Core Link"
+src_schema     = input.source(close, "BUS SchemaVersion", group = g_bus, display = display.none, tooltip = "Bind to SMC Core Engine hidden BUS outputs.")
+src_state_code = input.source(close, "BUS StateCode",     group = g_bus, display = display.none)
+src_quality    = input.source(close, "BUS QualityScore",  group = g_bus, display = display.none)
+src_armed      = input.source(close, "BUS Armed",         group = g_bus, display = display.none)
+src_trigger    = input.source(close, "BUS Trigger",       group = g_bus, display = display.none)
+src_invalid    = input.source(close, "BUS Invalidation",  group = g_bus, display = display.none)
+
+var string g_trend = "3. Trend Parameters"
+ema_fast_len = input.int(21, "EMA Fast", minval = 5,  group = g_trend)
+ema_slow_len = input.int(55, "EMA Slow", minval = 10, group = g_trend)
+
+var string g_momentum = "4. Momentum Parameters"
+rsi_len      = input.int(14, "RSI Length",  minval = 5,  group = g_momentum)
+macd_fast    = input.int(12, "MACD Fast",   minval = 5,  group = g_momentum)
+macd_slow    = input.int(26, "MACD Slow",   minval = 10, group = g_momentum)
+macd_signal  = input.int(9,  "MACD Signal", minval = 3,  group = g_momentum)
+
+var string g_mr = "5. Mean-Reversion"
+bb_len       = input.int(20, "BB Length",     minval = 10, group = g_mr)
+bb_mult      = input.float(2.0, "BB StdDev",  minval = 1.0, step = 0.25, group = g_mr)
+
+// ═══════════════════════════════════════════════════════════════
+//  2. SMC CORE STATE (from BUS)
+// ═══════════════════════════════════════════════════════════════
+
+bool smc_connected = not na(src_schema) and src_schema == 7001
+int  smc_state     = smc_connected ? math.round(src_state_code) : 0
+bool smc_armed     = smc_connected and not na(src_armed) and src_armed > 0.5
+float smc_quality  = smc_connected and not na(src_quality) ? src_quality : 0.0
+
+// SMC score component (0–40 points)
+float smc_score = 0.0
+if smc_connected
+    if smc_state >= 6      // ENTER LONG
+        smc_score := 40.0
+    else if smc_state == 5 // READY LONG
+        smc_score := 35.0
+    else if smc_state >= 3 // PREPARE (confirmed/building)
+        smc_score := 20.0
+    else if smc_state == 2 // armed
+        smc_score := 10.0
+    // Quality bonus (max +5 within the 40 cap)
+    smc_score := math.min(40.0, smc_score + math.max(0.0, smc_quality) * 2.0)
+
+// ═══════════════════════════════════════════════════════════════
+//  3. TREND (EMA crossover + slope) — 0–25 points
+// ═══════════════════════════════════════════════════════════════
+
+float ema_f = ta.ema(close, ema_fast_len)
+float ema_s = ta.ema(close, ema_slow_len)
+
+bool ema_bull_cross   = ema_f > ema_s
+bool ema_bull_slope   = ema_f > ema_f[1] and ema_s > ema_s[1]
+bool price_above_emas = close > ema_f and close > ema_s
+
+float trend_score = 0.0
+if ema_bull_cross
+    trend_score += 10.0
+if ema_bull_slope
+    trend_score += 8.0
+if price_above_emas
+    trend_score += 7.0
+
+// ═══════════════════════════════════════════════════════════════
+//  4. MOMENTUM (RSI + MACD) — 0–20 points
+// ═══════════════════════════════════════════════════════════════
+
+float rsi = ta.rsi(close, rsi_len)
+[macd_line, signal_line, hist_line] = ta.macd(close, macd_fast, macd_slow, macd_signal)
+
+bool rsi_bullish    = rsi > 50 and rsi < 80
+bool macd_bullish   = macd_line > signal_line
+bool macd_rising    = hist_line > hist_line[1]
+
+float momentum_score = 0.0
+if rsi_bullish
+    momentum_score += 8.0
+if macd_bullish
+    momentum_score += 7.0
+if macd_rising
+    momentum_score += 5.0
+
+// ═══════════════════════════════════════════════════════════════
+//  5. MEAN-REVERSION (Bollinger Band position) — 0–15 points
+// ═══════════════════════════════════════════════════════════════
+
+float bb_basis = ta.sma(close, bb_len)
+float bb_dev   = ta.stdev(close, bb_len) * bb_mult
+float bb_upper = bb_basis + bb_dev
+float bb_lower = bb_basis - bb_dev
+
+// Where is price within the band? 0 = at lower, 1 = at upper
+float bb_position = bb_dev > 0 ? (close - bb_lower) / (bb_upper - bb_lower) : 0.5
+
+// For long bias: best entry near lower band, worst near upper
+// Score peaks when price is in lower half (mean-reversion dip)
+float mr_score = 0.0
+if bb_position < 0.3
+    mr_score := 15.0  // deep dip — high MR score
+else if bb_position < 0.5
+    mr_score := 10.0  // lower half — moderate
+else if bb_position < 0.7
+    mr_score := 5.0   // neutral zone
+// Above 0.7: extended, no MR credit
+
+// ═══════════════════════════════════════════════════════════════
+//  6. MARKET REGIME (from library) — penalty/bonus
+// ═══════════════════════════════════════════════════════════════
+
+float regime_modifier = 0.0
+if smc_connected
+    if mp.TRADE_STATE == "BLOCKED"
+        regime_modifier := -20.0
+    else if mp.TRADE_STATE == "DISCOURAGED"
+        regime_modifier := -10.0
+    if mp.HIGH_IMPACT_MACRO_TODAY
+        regime_modifier -= 5.0
+
+// ═══════════════════════════════════════════════════════════════
+//  7. CONFLUENCE SCORE (0–100)
+// ═══════════════════════════════════════════════════════════════
+
+float raw_score = smc_score + trend_score + momentum_score + mr_score + regime_modifier
+float confluence = math.max(0.0, math.min(100.0, raw_score))
+
+// Traffic light
+string traffic = confluence >= 70 ? "🟢  TRADE" : confluence >= 45 ? "🟡  WATCH" : "🔴  STAY AWAY"
+color  traffic_color = confluence >= 70 ? color.new(color.green, 70) : confluence >= 45 ? color.new(color.orange, 70) : color.new(color.red, 70)
+
+// ═══════════════════════════════════════════════════════════════
+//  8. RENDER
+// ═══════════════════════════════════════════════════════════════
+
+// Background tint
+bgcolor(show_bg and confluence >= 70 ? color.new(color.green, 92) : show_bg and confluence < 30 ? color.new(color.red, 95) : na)
+
+// Confluence table
+var table conf_tbl = table.new(position.top_right, 2, 8, border_width = 0)
+
+conf_row(table tbl, int row, string label_text, string value_text, color bg, color txt) =>
+    table.cell(tbl, 0, row, label_text, bgcolor = bg, text_color = txt, text_halign = text.align_left,  text_size = size.small)
+    table.cell(tbl, 1, row, value_text, bgcolor = bg, text_color = txt, text_halign = text.align_right, text_size = size.small)
+
+if show_table and barstate.islast
+    color txt = chart.fg_color
+    color header_bg = color.new(color.black, 100)
+    color ok_bg = color.new(color.teal, 85)
+    color warn_bg = color.new(color.orange, 80)
+    color dim_bg = color.new(color.gray, 85)
+
+    conf_row(conf_tbl, 0, "Confluence", traffic + "  " + str.tostring(confluence, '#') + "/100", traffic_color, txt)
+
+    // Component breakdown
+    color smc_bg = smc_connected ? (smc_score >= 20 ? ok_bg : warn_bg) : color.new(color.red, 80)
+    conf_row(conf_tbl, 1, "SMC Zone",  smc_connected ? str.tostring(smc_score, '#') + "/40" : "not linked", smc_bg, txt)
+    conf_row(conf_tbl, 2, "Trend",     str.tostring(trend_score, '#') + "/25", trend_score >= 15 ? ok_bg : trend_score >= 8 ? warn_bg : dim_bg, txt)
+    conf_row(conf_tbl, 3, "Momentum",  str.tostring(momentum_score, '#') + "/20", momentum_score >= 12 ? ok_bg : momentum_score >= 7 ? warn_bg : dim_bg, txt)
+    conf_row(conf_tbl, 4, "MR Dip",    str.tostring(mr_score, '#') + "/15", mr_score >= 10 ? ok_bg : mr_score >= 5 ? warn_bg : dim_bg, txt)
+
+    if regime_modifier < 0
+        conf_row(conf_tbl, 5, "Regime", str.tostring(regime_modifier, '#'), color.new(color.red, 80), txt)
+    else
+        conf_row(conf_tbl, 5, "Regime", "clear", ok_bg, txt)
+
+    // Market context from library
+    string market_ctx = mp.MARKET_REGIME + " · " + mp.TRADE_STATE
+    color market_bg = mp.TRADE_STATE == "BLOCKED" ? color.new(color.red, 80) : mp.TRADE_STATE == "DISCOURAGED" ? color.new(color.orange, 80) : ok_bg
+    conf_row(conf_tbl, 6, "Market", market_ctx, market_bg, txt)
+
+    // Risk plan if SMC has an active zone
+    bool has_zone = smc_connected and not na(src_trigger) and src_trigger > 0
+    if has_zone
+        string plan = "Entry " + str.tostring(src_trigger, format.mintick) + " | Stop " + str.tostring(src_invalid, format.mintick)
+        conf_row(conf_tbl, 7, "Plan", plan, ok_bg, txt)
+    else
+        conf_row(conf_tbl, 7, "Plan", "no active zone", dim_bg, txt)
+else if barstate.islast and not show_table
+    table.clear(conf_tbl, 0, 0, 1, 7)
+
+// ── Plots for external consumption ──
+plot(confluence, "Confluence Score", display = display.none)
+plot(smc_score,  "SMC Component",   display = display.none)
+
+// ── Alert Conditions ──
+alertcondition(confluence >= 70 and confluence[1] < 70, "Confluence: Trade Zone", "Confluence score crossed above 70 — conditions favor a long setup.")
+alertcondition(confluence < 30 and confluence[1] >= 30, "Confluence: Stay Away",  "Confluence score dropped below 30 — conditions deteriorated.")

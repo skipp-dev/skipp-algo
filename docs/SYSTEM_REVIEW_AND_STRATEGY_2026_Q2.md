@@ -165,8 +165,8 @@
 | A1 | Alert-Conditions | `SMC_Core_Engine.pine` | ✅ Umgesetzt | +6 neue Alerts: Bullish/Bearish BOS, Bullish/Bearish CHoCH, Zone Armed, Zone Invalidated. Insgesamt 16 Alert-Conditions. |
 | A2 | Focus-Ansicht im Dashboard | `SMC_Dashboard.pine` | ✅ Umgesetzt | Neuer View-Modus "Focus": 3-Zeilen Traffic-Light (Ampel + Level + Market). Bisherige Modi (Decision Brief, Audit View, Compact) bleiben erhalten. |
 | A3 | Strategy-Ergebnis-Tabelle | `SMC_Long_Strategy.pine` | ✅ Umgesetzt | 8-Zeilen Performance-Table: Trades, Win Rate, Profit Factor, Net Profit, Max Drawdown, Avg Trade, Mode. Farbkodiert (grün/gelb/rot) nach Qualität. |
-| B4 | Unified Signal Hub | — | ⬜ Geplant | Confluence-Skript für Multi-System-Aggregation |
-| B5 | BUS-Auto-Connect | — | ⬜ Geplant | Setup-Validierung als eigenständiges Skript |
+| B4 | Unified Signal Hub | `SkippALGO_Confluence.pine` | ✅ Umgesetzt | Confluence-Score (0–100) aus SMC Zone (40p) + Trend (25p) + Momentum (20p) + Mean-Reversion (15p) + Regime-Modifier. Traffic-Light: 🟢 TRADE / 🟡 WATCH / 🔴 STAY AWAY. 2 Alert-Conditions. |
+| B5 | BUS-Auto-Connect | `SMC_Setup_Check.pine` | ✅ Umgesetzt | Validiert 6 kritische BUS-Channels, zeigt Verbindungsstatus mit ✅/❌, gibt klare Anleitung für nächste Schritte. |
 | B6 | Gehostetes Terminal | — | ⬜ Geplant | Cloud-Deployment mit Auth-Layer |
 | B7 | Signal-Replay / Journal | — | ⬜ Geplant | Historische Signal-Timeline im Terminal |
 | C8 | Mobile Dashboard | — | ⬜ Geplant | Dediziertes Mobile-Pine-Skript |
@@ -192,4 +192,4 @@ dieses Dokument bestimmt.
 *Erstellt: 19. April 2026 — Basierend auf vollständiger Systemanalyse aller 56 Pine-Skripte,
 120+ Python-Module, 1.023 Tests, 7 CI-Workflows und 160 Dokumentationsdateien.*
 
-*Aktualisiert: 19. April 2026 — Phase A Quick Wins (A1, A2, A3) implementiert.*
+*Aktualisiert: 19. April 2026 — Phase A (A1–A3) + Phase B Quick Wins (B4, B5) implementiert.*
