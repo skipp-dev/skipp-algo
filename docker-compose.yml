@@ -1,0 +1,20 @@
+# ── SkippALGO Terminal — local / self-hosted deployment ────────
+services:
+  terminal:
+    build: .
+    container_name: skippalgo-terminal
+    restart: unless-stopped
+    ports:
+      - "${TERMINAL_PORT:-8501}:8501"
+    env_file:
+      - .env
+    environment:
+      - STREAMLIT_AUTH_TOKEN=${STREAMLIT_AUTH_TOKEN:-}
+      - SMC_TERMINAL_TEST_MODE=0
+    volumes:
+      - ./artifacts:/app/artifacts
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3

@@ -1,0 +1,24 @@
+# Docker build: exclude dev artifacts, tests, and large data files
+__pycache__/
+*.pyc
+*.pyo
+.git/
+.github/
+.pytest_cache/
+.coverage
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+dist/
+build/
+tests/
+docs/
+*.md
+!README.md
+*.pine
+*.bak
+*.bundle
+artifacts/ci/
+artifacts/review_*
+artifacts/open_prep/outcomes/feature_importance/
+node_modules/

@@ -566,6 +566,11 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
+# ── Auth guard (only active when STREAMLIT_AUTH_TOKEN is set) ────
+from terminal_auth import require_auth as _require_auth
+if not _require_auth():
+    st.stop()
+
 # ── Disable ALL Streamlit dimming / fading during reruns ─────────
 # Streamlit dims stale elements, fades containers during re-rendering,
 # and applies transition animations that wash out text.  Override
