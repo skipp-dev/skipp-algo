@@ -240,6 +240,14 @@ class ZoneProjectionBlock(TypedDict, total=False):
     ZONE_PROJ_SCORE: int
 
 
+class ZonePriorityBlock(TypedDict, total=False):
+    ZONE_PRIORITY_RANK: str           # "A" | "B" | "C" | "D"
+    ZONE_PRIORITY_SCORE: int          # 0–100
+    ZONE_PRIORITY_TOP_FAMILY: str     # "OB" | "FVG" | "BOS" | "SWEEP"
+    ZONE_PRIORITY_CATALYST: str       # "NEWS" | "EVENT" | "REGIME" | "NONE"
+    ZONE_PRIORITY_REASON: str
+
+
 class ProfileContextBlock(TypedDict, total=False):
     PROFILE_VOLUME_NODE: str     # "HVN" | "LVN" | "POC" | "NONE"
     PROFILE_VWAP_POSITION: str   # "ABOVE" | "BELOW" | "AT"
@@ -483,6 +491,7 @@ class EnrichmentDict(TypedDict, total=False):
     liquidity_pools: LiquidityPoolsBlock
     order_blocks: OrderBlocksBlock
     zone_projection: ZoneProjectionBlock
+    zone_priority: ZonePriorityBlock
     profile_context: ProfileContextBlock
     structure_state: StructureStateBlock
     imbalance_lifecycle: ImbalanceLifecycleBlock

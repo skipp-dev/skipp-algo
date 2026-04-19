@@ -170,7 +170,7 @@
 | B6 | Gehostetes Terminal | — | ⬜ Geplant | Cloud-Deployment mit Auth-Layer |
 | B7 | Signal-Replay / Journal | — | ⬜ Geplant | Historische Signal-Timeline im Terminal |
 | C8 | Mobile Dashboard | `SMC_Mobile_Dashboard.pine` | ✅ Umgesetzt | 4-Zeilen Mobile-Table: Traffic-Light + Levels + Market + Quality. Keine Overlays, keine Lines/Labels — nur Table. 6 BUS-Bindings. |
-| C9 | AI Zone-Priorisierung | — | ⬜ Geplant | Python-Pipeline für Zone-Ranking |
+| C9 | AI Zone-Priorisierung | `scripts/smc_zone_priority.py` | ✅ Umgesetzt | Composite-Score (0–100) aus 3 Dimensionen: historische Performance (Ensemble, 0–30), aktueller Kontext (Regime/Volatilität/Session/Projektion/HTF, 0–35+15 Bonus), News-Catalyst (0–10) minus Event-Risk-Penalty (0–50). Ableitung: Rank (A/B/C/D), Top-Family (OB/FVG/BOS/SWEEP), Catalyst (NEWS/EVENT/REGIME/NONE), Reason-String. 5 neue Pine-Exports in Generated Library. 26 Unit-Tests. |
 | C10 | Explain this Zone | `SMC_Dashboard.pine` | ✅ Umgesetzt | Neuer "Explain" View-Modus: 14-Zeilen ✅/❌ Checklist (Struktur, Zone, Qualität, Freshness, Session, Market, Event, HTF, Pressure) + Next Step. Erklärt WARUM der aktuelle State gilt. |
 
 ---

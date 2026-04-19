@@ -765,6 +765,7 @@ def build_enrichment(
     enrich_liquidity_pools: bool = False,
     enrich_order_blocks: bool = False,
     enrich_zone_projection: bool = False,
+    enrich_zone_priority: bool = False,
     enrich_profile_context: bool = False,
     enrich_structure_state: bool = False,
     enrich_imbalance_lifecycle: bool = False,
@@ -811,7 +812,7 @@ def build_enrichment(
     if not any([enrich_regime, enrich_news, enrich_calendar, enrich_layering, enrich_event_risk,
                 enrich_flow_qualifier, enrich_compression_regime, enrich_zone_intelligence, enrich_reversal_context,
                 enrich_session_context, enrich_liquidity_sweeps, enrich_liquidity_pools,
-                enrich_order_blocks, enrich_zone_projection, enrich_profile_context,
+                enrich_order_blocks, enrich_zone_projection, enrich_zone_priority, enrich_profile_context,
                 enrich_structure_state, enrich_imbalance_lifecycle, enrich_session_structure, enrich_range_regime,
                 enrich_range_profile_regime, enrich_short_interest, enrich_treasury, enrich_sector_rotation,
                 enrich_institutional, enrich_analyst, enrich_insider]):
@@ -1141,6 +1142,30 @@ def build_enrichment(
             snapshot=base_snapshot, symbol="",
         )
 
+    # ── Zone Priority (C9) ──────────────────────────────────────
+    if enrich_zone_priority:
+        from scripts.smc_zone_priority import build_zone_priority
+
+        # Gather context from already-computed enrichment blocks
+        _regime = (enrichment.get("regime") or {}).get("regime", "NEUTRAL")
+        _eq = enrichment.get("ensemble_quality") or {}
+        _news = enrichment.get("news") or {}
+        _er = enrichment.get("event_risk") or enrichment.get("event_risk_light") or {}
+        _sc = enrichment.get("session_context_light") or enrichment.get("session_context") or {}
+        _vr = enrichment.get("volatility_regime") or {}
+        _zp = enrichment.get("zone_projection") or {}
+
+        enrichment["zone_priority"] = build_zone_priority(
+            regime=str(_regime),
+            ensemble_score=float(_eq.get("score") or 0.0),
+            news_heat=float(_news.get("news_heat_global") or 0.0),
+            event_risk_level=str(_er.get("EVENT_RISK_LEVEL", "NONE")),
+            session_context=str(_sc.get("SESSION_CONTEXT", "")),
+            vol_regime=str(_vr.get("label", "NORMAL")),
+            zone_proj_score=int(_zp.get("ZONE_PROJ_SCORE", 0)),
+            htf_aligned=bool(_zp.get("ZONE_PROJ_HTF_ALIGNED", False)),
+        )
+
     # ── Profile Context (v5.2) ──────────────────────────────────
     if enrich_profile_context:
         from scripts.smc_profile_context import build_profile_context
@@ -1373,6 +1398,7 @@ def finalize_pipeline(
     enrich_liquidity_pools: bool = False,
     enrich_order_blocks: bool = False,
     enrich_zone_projection: bool = False,
+    enrich_zone_priority: bool = False,
     enrich_profile_context: bool = False,
     enrich_structure_state: bool = False,
     enrich_imbalance_lifecycle: bool = False,
@@ -1468,6 +1494,7 @@ def finalize_pipeline(
         enrich_liquidity_pools=enrich_liquidity_pools,
         enrich_order_blocks=enrich_order_blocks,
         enrich_zone_projection=enrich_zone_projection,
+        enrich_zone_priority=enrich_zone_priority,
         enrich_profile_context=enrich_profile_context,
         enrich_structure_state=enrich_structure_state,
         enrich_imbalance_lifecycle=enrich_imbalance_lifecycle,
@@ -1611,6 +1638,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--enrich-liquidity-pools", action="store_true", help="Add v5.2 liquidity pools (snapshot-derived)")
     parser.add_argument("--enrich-order-blocks", action="store_true", help="Add v5.2 order blocks (snapshot-derived)")
     parser.add_argument("--enrich-zone-projection", action="store_true", help="Add v5.2 zone projection (snapshot-derived)")
+    parser.add_argument("--enrich-zone-priority", action="store_true", help="Add v5.2 zone priority ranking (composite scoring)")
     parser.add_argument("--enrich-profile-context", action="store_true", help="Add v5.2 profile context (snapshot-derived)")
     parser.add_argument("--enrich-structure-state", action="store_true", help="Add v5.3 structure state (snapshot-derived)")
     parser.add_argument("--enrich-imbalance-lifecycle", action="store_true", help="Add v5.3 imbalance lifecycle (snapshot-derived)")
@@ -1724,6 +1752,7 @@ def _resolve_enrichment_flags(args: argparse.Namespace) -> dict[str, bool]:
         "enrich_liquidity_pools",
         "enrich_order_blocks",
         "enrich_zone_projection",
+        "enrich_zone_priority",
         "enrich_profile_context",
         "enrich_structure_state",
         "enrich_imbalance_lifecycle",

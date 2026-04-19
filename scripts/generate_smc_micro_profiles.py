@@ -1012,6 +1012,18 @@ def write_pine_library(
     content.append(f'export const string INSIDER_BUYING_TICKERS = "{",".join(ins.get("insider_buying_tickers") or [])}"')
     content.append(f'export const string INSIDER_SELLING_HEAVY_TICKERS = "{",".join(ins.get("insider_selling_heavy_tickers") or [])}"')
 
+    # ── Zone Priority (C9) ──────────────────────────────────────
+    from scripts.smc_zone_priority import DEFAULTS as _ZP_DEFAULTS
+
+    zp = enr.get("zone_priority") or {}
+    content.append("")
+    content.append("// ── Zone Priority ──")
+    content.append(f'export const string ZONE_PRIORITY_RANK = "{zp.get("ZONE_PRIORITY_RANK", _ZP_DEFAULTS["ZONE_PRIORITY_RANK"])}"')
+    content.append(f'export const int ZONE_PRIORITY_SCORE = {int(zp.get("ZONE_PRIORITY_SCORE", _ZP_DEFAULTS["ZONE_PRIORITY_SCORE"]))}')
+    content.append(f'export const string ZONE_PRIORITY_TOP_FAMILY = "{zp.get("ZONE_PRIORITY_TOP_FAMILY", _ZP_DEFAULTS["ZONE_PRIORITY_TOP_FAMILY"])}"')
+    content.append(f'export const string ZONE_PRIORITY_CATALYST = "{zp.get("ZONE_PRIORITY_CATALYST", _ZP_DEFAULTS["ZONE_PRIORITY_CATALYST"])}"')
+    content.append(f'export const string ZONE_PRIORITY_REASON = "{zp.get("ZONE_PRIORITY_REASON", _ZP_DEFAULTS["ZONE_PRIORITY_REASON"])}"')
+
     path.write_text("\n".join(content).rstrip() + "\n", encoding="utf-8")
 
 

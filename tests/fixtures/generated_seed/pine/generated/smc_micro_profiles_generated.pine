@@ -226,3 +226,10 @@ export const string ANALYST_HIGH_UPSIDE_TICKERS = ""
 // ── Insider Transactions ──
 export const string INSIDER_BUYING_TICKERS = ""
 export const string INSIDER_SELLING_HEAVY_TICKERS = ""
+
+// ── Zone Priority ──
+export const string ZONE_PRIORITY_RANK = "C"
+export const int ZONE_PRIORITY_SCORE = 0
+export const string ZONE_PRIORITY_TOP_FAMILY = "OB"
+export const string ZONE_PRIORITY_CATALYST = "NONE"
+export const string ZONE_PRIORITY_REASON = ""
