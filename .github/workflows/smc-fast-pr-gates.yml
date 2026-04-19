@@ -47,7 +47,7 @@ jobs:
         run: |
           python -m pytest -q --maxfail=1 \
             --cov=smc_integration \
-            --cov-fail-under=90 \
+            --cov-fail-under=95 \
             --cov-report=term-missing:skip-covered \
             tests/test_smc_integration_*.py
 

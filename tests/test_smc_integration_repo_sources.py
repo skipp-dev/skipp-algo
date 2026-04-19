@@ -221,3 +221,201 @@ class TestLoadRawStructureAutoErrors:
     def test_auto_with_missing_symbol_raises(self) -> None:
         with pytest.raises(ValueError):
             load_raw_structure_input("__COMPLETELY_MISSING_XYZ__", "15m", source="auto")
+
+
+# ---------------------------------------------------------------------------
+# Coverage-boost tests — targeted at uncovered lines
+# ---------------------------------------------------------------------------
+
+
+import time as _time
+import math as _math
+from smc_integration.repo_sources import (
+    _finalize_composite_meta,
+    _try_load_meta_domain,
+    _resolve_auto_structure_source_for_symbol_timeframe,
+)
+
+
+class TestFinalizeCompositeMetaMissingDomains:
+    """Cover lines 568-570: domain_meta is None diagnostics."""
+
+    def _volume_meta(self, asof_ts: float | None = None) -> dict:
+        ts = asof_ts or _time.time()
+        return {
+            "symbol": "AAPL",
+            "timeframe": "15m",
+            "volume": {
+                "value": {"regime": "NORMAL", "thin_fraction": 0.1},
+                "asof_ts": ts,
+                "stale": False,
+            },
+            "asof_ts": ts,
+            "provenance": ["test"],
+        }
+
+    def test_missing_technical_and_news_marks_stale(self) -> None:
+        now = _time.time()
+        result = _finalize_composite_meta(
+            symbol="AAPL",
+            timeframe="15m",
+            reference_time=now,
+            structure_source="structure_artifact_json",
+            planned_volume_source="databento_watchlist_csv",
+            volume_meta=self._volume_meta(now),
+            volume_domain_status="present",
+            actual_volume_source="databento_watchlist_csv",
+            volume_fallback_used=False,
+            planned_technical_source="fmp_watchlist_json",
+            technical_meta=None,
+            technical_domain_status="source_file_not_found",
+            actual_technical_source="fmp_watchlist_json",
+            technical_fallback_used=False,
+            planned_news_source="benzinga_watchlist_json",
+            news_meta=None,
+            news_domain_status="source_file_not_found",
+            actual_news_source="benzinga_watchlist_json",
+            news_fallback_used=False,
+            relax_missing_optional_domains=False,
+        )
+        diag = result["meta_domain_diagnostics"]
+        assert diag["technical_asof_ts"] is None
+        assert diag["technical_stale"] is True
+        assert diag["news_asof_ts"] is None
+        assert diag["news_stale"] is True
+
+    def test_relax_missing_optional_not_stale(self) -> None:
+        """Cover line 570: relax_missing_optional_domains=True for technical/news."""
+        now = _time.time()
+        result = _finalize_composite_meta(
+            symbol="AAPL",
+            timeframe="15m",
+            reference_time=now,
+            structure_source="structure_artifact_json",
+            planned_volume_source="databento_watchlist_csv",
+            volume_meta=self._volume_meta(now),
+            volume_domain_status="present",
+            actual_volume_source="databento_watchlist_csv",
+            volume_fallback_used=False,
+            planned_technical_source="fmp_watchlist_json",
+            technical_meta=None,
+            technical_domain_status="source_file_not_found",
+            actual_technical_source="fmp_watchlist_json",
+            technical_fallback_used=False,
+            planned_news_source="benzinga_watchlist_json",
+            news_meta=None,
+            news_domain_status="source_file_not_found",
+            actual_news_source="benzinga_watchlist_json",
+            news_fallback_used=False,
+            relax_missing_optional_domains=True,
+        )
+        diag = result["meta_domain_diagnostics"]
+        assert diag["technical_stale"] is False
+        assert diag["news_stale"] is False
+
+
+class TestFinalizeCompositeMetaInvalidAsofTs:
+    """Cover line 577-578: merged asof_ts NaN → invalid value."""
+
+    def test_nan_asof_ts_raises(self) -> None:
+        with pytest.raises(ValueError, match="invalid asof_ts"):
+            _finalize_composite_meta(
+                symbol="AAPL",
+                timeframe="15m",
+                reference_time=_time.time(),
+                structure_source="structure_artifact_json",
+                planned_volume_source="databento_watchlist_csv",
+                volume_meta={
+                    "symbol": "AAPL",
+                    "timeframe": "15m",
+                    "volume": {"value": {"regime": "NORMAL", "thin_fraction": 0.1}, "asof_ts": float("nan"), "stale": False},
+                    "asof_ts": float("nan"),
+                    "provenance": ["test"],
+                },
+                volume_domain_status="present",
+                actual_volume_source="databento_watchlist_csv",
+                volume_fallback_used=False,
+                planned_technical_source="fmp_watchlist_json",
+                technical_meta=None,
+                technical_domain_status="missing",
+                actual_technical_source="fmp_watchlist_json",
+                technical_fallback_used=False,
+                planned_news_source="benzinga_watchlist_json",
+                news_meta=None,
+                news_domain_status="missing",
+                actual_news_source="benzinga_watchlist_json",
+                news_fallback_used=False,
+                relax_missing_optional_domains=False,
+            )
+
+
+class TestFinalizeCompositeMetaStaleProvenance:
+    """Cover line 585: provenance is not a list → coerce to []."""
+
+    def test_non_list_provenance_coerced(self) -> None:
+        very_old = 1.0  # 1970-01-01
+        result = _finalize_composite_meta(
+            symbol="AAPL",
+            timeframe="15m",
+            reference_time=_time.time(),
+            structure_source="structure_artifact_json",
+            planned_volume_source="databento_watchlist_csv",
+            volume_meta={                "symbol": "AAPL",
+                "timeframe": "15m",                "volume": {"value": {"regime": "NORMAL", "thin_fraction": 0.1}, "asof_ts": very_old, "stale": False},
+                "asof_ts": very_old,
+                "provenance": "not_a_list",
+            },
+            volume_domain_status="present",
+            actual_volume_source="databento_watchlist_csv",
+            volume_fallback_used=False,
+            planned_technical_source="fmp_watchlist_json",
+            technical_meta=None,
+            technical_domain_status="missing",
+            actual_technical_source="fmp_watchlist_json",
+            technical_fallback_used=False,
+            planned_news_source="benzinga_watchlist_json",
+            news_meta=None,
+            news_domain_status="missing",
+            actual_news_source="benzinga_watchlist_json",
+            news_fallback_used=False,
+            relax_missing_optional_domains=True,
+        )
+        assert isinstance(result["provenance"], list)
+        assert "smc_integration:warning:stale_meta_asof_ts" in result["provenance"]
+
+
+class TestTryLoadMetaDomainEdges:
+    """Cover lines 410, 415, 420: non-auto mode raises, domain status hint."""
+
+    def test_non_auto_value_error_raises(self) -> None:
+        """Cover line 415: ValueError re-raised in non-auto mode."""
+        with pytest.raises(ValueError):
+            _try_load_meta_domain(
+                "volume", "__MISSING__", "15m", "databento_watchlist_csv", auto_mode=False,
+            )
+
+    def test_auto_mode_returns_none_on_missing(self) -> None:
+        meta, status, source = _try_load_meta_domain(
+            "volume", "__MISSING__", "15m", "databento_watchlist_csv", auto_mode=True,
+        )
+        assert meta is None
+        assert status in {"source_file_not_found", "source_validation_error", "domain_key_absent", "not_attempted_no_candidates"}
+
+
+class TestLoadRawStructureAutoFileNotFoundContinues:
+    """Cover lines 349-350: auto structure FileNotFoundError caught and continued."""
+
+    def test_auto_structure_catches_and_continues(self, monkeypatch) -> None:
+        import smc_integration.repo_sources as rs
+        from smc_integration.repo_sources import _SourceProvider
+
+        def _raise_fnf(symbol, timeframe):
+            raise FileNotFoundError("forced")
+
+        for name in list(rs._SOURCE_PROVIDERS):
+            orig = rs._SOURCE_PROVIDERS[name]
+            fake = _SourceProvider(descriptor=orig.descriptor, load_structure=_raise_fnf, load_meta=orig.load_meta)
+            monkeypatch.setitem(rs._SOURCE_PROVIDERS, name, fake)
+
+        with pytest.raises(FileNotFoundError, match="forced"):
+            load_raw_structure_input("AAPL", "15m", source="auto")
