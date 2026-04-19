@@ -1516,6 +1516,26 @@ class TestFailureSemantics:
         assert enriched[0]["failure_action"] == "advisory"
         assert enriched[1]["failure_action"] == "fallback"
 
+    def test_classify_domain_alerts_dropped_code(self) -> None:
+        alerts = [{"domain": "news", "code": "DROPPED_NEWS_DOMAIN", "severity": "warn"}]
+        enriched = provider_health.classify_domain_alerts_to_failure_actions(alerts)
+        assert enriched[0]["failure_action"] == "fallback"  # news/missing -> FALLBACK
+
+    def test_classify_domain_alerts_invalid_code(self) -> None:
+        alerts = [{"domain": "structure", "code": "INVALID_STRUCTURE_ARTIFACT", "severity": "error"}]
+        enriched = provider_health.classify_domain_alerts_to_failure_actions(alerts)
+        assert enriched[0]["failure_action"] == "hard_degrade"  # structure/invalid -> HARD_DEGRADE
+
+    def test_classify_domain_alerts_unknown_code(self) -> None:
+        alerts = [{"domain": "volume", "code": "COSMIC_RAY_HIT", "severity": "info"}]
+        enriched = provider_health.classify_domain_alerts_to_failure_actions(alerts)
+        assert enriched[0]["failure_action"] == "advisory"  # unknown -> ADVISORY
+
+    def test_classify_domain_alerts_silent_domain_drop(self) -> None:
+        alerts = [{"domain": "technical", "code": "SILENT_DOMAIN_DROP_TECH", "severity": "warn"}]
+        enriched = provider_health.classify_domain_alerts_to_failure_actions(alerts)
+        assert enriched[0]["failure_action"] == "fallback"  # technical/missing -> FALLBACK
+
     def test_worst_failure_action_picks_most_severe(self) -> None:
         enriched = [
             {"failure_action": "fallback"},
@@ -1526,6 +1546,17 @@ class TestFailureSemantics:
 
     def test_worst_failure_action_fallback_only(self) -> None:
         enriched = [{"failure_action": "fallback"}]
+        assert provider_health.worst_failure_action(enriched) == provider_health.FailureAction.FALLBACK
+
+    def test_worst_failure_action_ignores_invalid_values(self) -> None:
+        enriched = [
+            {"failure_action": "fallback"},
+            {"failure_action": "not_a_real_action"},
+        ]
+        assert provider_health.worst_failure_action(enriched) == provider_health.FailureAction.FALLBACK
+
+    def test_worst_failure_action_empty_string_ignored(self) -> None:
+        enriched = [{"failure_action": ""}]
         assert provider_health.worst_failure_action(enriched) == provider_health.FailureAction.FALLBACK
 
     def test_failure_semantics_matrix_covers_all_domains(self) -> None:
