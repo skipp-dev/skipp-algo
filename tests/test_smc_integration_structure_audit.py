@@ -306,3 +306,32 @@ class TestNotesFor:
         with patch.object(mod, "_REPO_ROOT", repo):
             notes = _notes_for(f, ["bos"])
         assert any("Pine runtime" in n for n in notes)
+
+
+class TestCandidatePaths:
+    def test_generated_dir_traversal(self, tmp_path: Path) -> None:
+        import smc_integration.structure_audit as mod
+        repo = tmp_path / "repo"
+        gen_dir = repo / "pine" / "generated"
+        gen_dir.mkdir(parents=True)
+        (gen_dir / "out.json").write_text("{}", encoding="utf-8")
+        (gen_dir / "out.pine").write_text("// pine", encoding="utf-8")
+        with patch.object(mod, "_REPO_ROOT", repo):
+            paths = mod._candidate_paths()
+        names = {p.name for p in paths}
+        assert "out.json" in names
+        assert "out.pine" in names
+
+
+class TestDiscoverCategoryCoverageNoProducer:
+    def test_no_producer_adds_notes(self) -> None:
+        mock_summary = {"mapped_structure_categories": {}}
+        with patch("smc_integration.sources.structure_artifact_json.discover_normalized_contract_summary", return_value=mock_summary):
+            from smc_integration.structure_audit import discover_structure_category_coverage
+            coverage = discover_structure_category_coverage()
+        # When no producer, bos and choch should have "No live" note
+        assert any("No live" in n for n in coverage["bos"]["notes"])
+        assert any("No live" in n for n in coverage["choch"]["notes"])
+        # Unavailable categories get "not populated" note
+        for cat in ("orderblocks", "fvg", "liquidity_sweeps"):
+            assert any("not populated" in n for n in coverage[cat]["notes"])
