@@ -760,9 +760,19 @@ def write_pine_library(
     # Lifts the canonical product trust state into Pine so consumers can
     # read state + action_impact + degradation reason directly instead
     # of recomputing it from STALE_PROVIDERS / PROVIDER_COUNT.
-    from scripts.smc_trust_state_export import render_trust_block_lines
+    from scripts.smc_trust_state_export import (
+        render_action_degradation_block_lines,
+        render_trust_block_lines,
+    )
 
     content.extend(render_trust_block_lines(enr))
+    content.append("")
+
+    # ── Action Degradation (ENG-WS2-04) ────────────────────────
+    # Deterministic mapping from the trust state above to a single
+    # product-action tier (none/selective/watchlist/no_trade) plus the
+    # UI-visible reason string. Pine consumers must not re-derive this.
+    content.extend(render_action_degradation_block_lines(enr))
     content.append("")
 
     # ── Volume regime ───────────────────────────────────────────

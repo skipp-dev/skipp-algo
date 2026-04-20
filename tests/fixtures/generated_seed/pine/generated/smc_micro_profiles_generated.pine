@@ -102,6 +102,11 @@ export const string TRUST_CAUSE_FAILURE_TYPE = ""
 export const string TRUST_CAUSE_CODE = ""
 export const string TRUST_DEGRADATION_REASON = ""
 
+// ── Action Degradation (ENG-WS2-04) ──
+export const string ACTION_DEGRADATION_TIER = "none"
+export const string ACTION_DEGRADATION_REASON = ""
+export const string ACTION_DEGRADATION_DERIVED_FROM = "healthy"
+
 // ── Volume Regime ──
 export const string VOLUME_LOW_TICKERS = ""
 export const string HOLIDAY_SUSPECT_TICKERS = ""
