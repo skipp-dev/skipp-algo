@@ -111,9 +111,11 @@ def _select_top_family(
     regime: str,
     vol_regime: str,
     htf_aligned: bool,
+    calibrated_family_weights: dict[str, float] | None = None,
 ) -> str:
     """Select the most favorable event family given current context."""
-    scores = dict(_FAMILY_BASE_PRIORITY)
+    base = calibrated_family_weights if calibrated_family_weights else _FAMILY_BASE_PRIORITY
+    scores = dict(base)
 
     # OB favored in normal / low-vol regimes with HTF alignment
     if htf_aligned:
@@ -200,6 +202,7 @@ def build_zone_priority(
     zone_proj_score: int = 0,
     htf_aligned: bool = False,
     overrides: dict[str, Any] | None = None,
+    calibrated_family_weights: dict[str, float] | None = None,
 ) -> dict[str, Any]:
     """Build a zone priority block from current context signals.
 
@@ -223,6 +226,10 @@ def build_zone_priority(
         Whether the zone is aligned with HTF trend.
     overrides : dict, optional
         Manual overrides — flat merge, last wins.
+    calibrated_family_weights : dict, optional
+        Calibrated family base-priority weights from
+        :func:`smc_zone_priority_calibration.calibrate_from_benchmark`.
+        When provided, replaces the hand-tuned ``_FAMILY_BASE_PRIORITY``.
     """
     result = dict(DEFAULTS)
 
@@ -263,6 +270,7 @@ def build_zone_priority(
         regime=regime.upper(),
         vol_regime=vol_regime.upper(),
         htf_aligned=htf_aligned,
+        calibrated_family_weights=calibrated_family_weights,
     )
     catalyst = _identify_catalyst(
         news_heat=news_heat,
