@@ -25,6 +25,17 @@ show_table = input.bool(true, "Show Brief Panel", group = g_surface)
 show_risk_lines = input.bool(true, "Show Trade Plan", group = g_surface)
 show_state_bg = input.bool(false, "Highlight Live Setup", group = g_surface)
 compact_dashboard = input.bool(false, "Compact Dashboard", group = g_surface, tooltip = "WP-OV5: Show only 5 key rows for mobile or small screens. Overrides Decision Brief when enabled.")
+color_theme = input.string("Standard", "Color Theme", options = ["Standard", "Colorblind Safe"], group = g_surface, tooltip = "Match this to the Core Engine color theme. Colorblind Safe replaces red/green with orange/blue.")
+
+// ── Dashboard color palette ───────────────────────────────────
+var bool _cb = color_theme == "Colorblind Safe"
+var color CLR_BULL      = _cb ? #1f77b4 : color.green
+var color CLR_BULL_ALT  = _cb ? color.new(#1f77b4, 20) : color.teal
+var color CLR_WARN      = _cb ? #17becf : color.aqua
+var color CLR_CAUTION   = _cb ? #bcbd22 : color.orange
+var color CLR_BUILDING  = _cb ? color.new(#bcbd22, 20) : color.yellow
+var color CLR_BEAR      = _cb ? #ff7f0e : color.red
+var color CLR_NEUTRAL   = color.gray
 
 src_bus_schema_version = input.source(close, "BUS SchemaVersion", group = g_bus_lifecycle, display = display.none, tooltip = "Bind first — must match the schema version published by SMC Core.")
 src_zone_active = input.source(close, "BUS ZoneActive", group = g_bus_lifecycle, display = display.none, tooltip = "Bind this section top-to-bottom to the matching hidden BUS series published by SMC Core.")
@@ -295,21 +306,21 @@ zone_row_code(int zone_code) =>
     pack_bus_row(zone_state, zone_code)
 
 status_bg(int state_value) =>
-    color bg = color.new(color.gray, 92)
+    color bg = color.new(CLR_NEUTRAL, 92)
     if state_value >= 6
-        bg := color.new(color.green, 70)
+        bg := color.new(CLR_BULL, 70)
     else if state_value == 5
-        bg := color.new(color.teal, 75)
+        bg := color.new(CLR_BULL_ALT, 75)
     else if state_value == 4
-        bg := color.new(color.green, 82)
+        bg := color.new(CLR_BULL, 82)
     else if state_value == 3
-        bg := color.new(color.aqua, 80)
+        bg := color.new(CLR_WARN, 80)
     else if state_value == 2
-        bg := color.new(color.orange, 82)
+        bg := color.new(CLR_CAUTION, 82)
     else if state_value == 1
-        bg := color.new(color.yellow, 84)
+        bg := color.new(CLR_BUILDING, 84)
     else if state_value == -1
-        bg := color.new(color.red, 82)
+        bg := color.new(CLR_BEAR, 82)
     bg
 
 dashboard_row(table tbl, int row, string label_text, string value_text, color bg, color txt) =>
@@ -1303,9 +1314,9 @@ string long_debug_text = row_status(debug_state_row_code) == 0 ? "off" : "state=
 
 bool actionable_state = state_code >= 5
 
-plot(show_risk_lines and actionable_state ? src_trigger : na, "Trade Trigger", color = color.new(color.aqua, 0), linewidth = 2, style = plot.style_linebr)
-plot(show_risk_lines and actionable_state ? src_invalidation : na, "Trade Invalidation", color = color.new(color.orange, 0), linewidth = 2, style = plot.style_linebr)
-bgcolor(show_state_bg and state_code >= 5 ? color.new(color.green, 90) : na)
+plot(show_risk_lines and actionable_state ? src_trigger : na, "Trade Trigger", color = color.new(CLR_WARN, 0), linewidth = 2, style = plot.style_linebr)
+plot(show_risk_lines and actionable_state ? src_invalidation : na, "Trade Invalidation", color = color.new(CLR_CAUTION, 0), linewidth = 2, style = plot.style_linebr)
+bgcolor(show_state_bg and state_code >= 5 ? color.new(CLR_BULL, 90) : na)
 
 var table smc_dashboard = table.new(position.bottom_right, 2, 63, border_width = 0)
 
@@ -1318,19 +1329,19 @@ if show_table and barstate.islast
         // Row 1: Price levels (trigger + invalidation) if actionable
         // Row 2: Market context (regime + trust) one-liner
         string focus_action = state_code >= 6 ? "🟢  ENTRY" : state_code == 5 ? "🟢  READY" : state_code >= 2 ? "🟡  PREPARE" : state_code == -1 ? "🔴  BLOCKED" : "⚪  WAIT"
-        color focus_action_bg = state_code >= 5 ? color.new(color.green, 70) : state_code >= 2 ? color.new(color.orange, 70) : state_code == -1 ? color.new(color.red, 70) : color.new(color.gray, 80)
+        color focus_action_bg = state_code >= 5 ? color.new(CLR_BULL, 70) : state_code >= 2 ? color.new(CLR_CAUTION, 70) : state_code == -1 ? color.new(CLR_BEAR, 70) : color.new(CLR_NEUTRAL, 80)
         string focus_levels = actionable_state and not na(src_trigger) ? "Entry " + str.tostring(src_trigger, format.mintick) + " | Stop " + str.tostring(src_invalidation, format.mintick) : "—"
         string focus_context = mp.MARKET_REGIME + " · " + mp.TRADE_STATE
-        color focus_context_bg = mp.TRADE_STATE == "BLOCKED" ? color.new(color.red, 80) : mp.TRADE_STATE == "DISCOURAGED" ? color.new(color.orange, 80) : color.new(color.teal, 85)
+        color focus_context_bg = mp.TRADE_STATE == "BLOCKED" ? color.new(CLR_BEAR, 80) : mp.TRADE_STATE == "DISCOURAGED" ? color.new(CLR_CAUTION, 80) : color.new(CLR_BULL_ALT, 85)
         dashboard_row(smc_dashboard, 0, "SMC", focus_action, focus_action_bg, txt)
-        dashboard_row(smc_dashboard, 1, "Plan", focus_levels, actionable_state ? color.new(color.teal, 85) : header_bg, txt)
+        dashboard_row(smc_dashboard, 1, "Plan", focus_levels, actionable_state ? color.new(CLR_BULL_ALT, 85) : header_bg, txt)
         dashboard_row(smc_dashboard, 2, "Market", focus_context, focus_context_bg, txt)
         table.clear(smc_dashboard, 0, 3, 1, 61)
     else if surface_mode == "Explain"
         // ── EXPLAIN MODE (v7.2): Checklist explaining why the current zone state holds ──
         // Shows each major criterion as ✅ / ❌ with what's met, what's missing, and the next step.
         string ex_state_label = state_code >= 6 ? "🟢  ENTER LONG" : state_code == 5 ? "🟢  READY LONG" : state_code == 4 ? "🟡  CONFIRMED" : state_code == 3 ? "🟡  BUILDING" : state_code == 2 ? "🟡  ARMED" : state_code == 1 ? "⚪  IN ZONE" : state_code == -1 ? "🔴  BLOCKED" : "⚪  WAIT"
-        color ex_state_bg = state_code >= 5 ? color.new(color.green, 70) : state_code >= 2 ? color.new(color.orange, 70) : state_code == -1 ? color.new(color.red, 70) : color.new(color.gray, 80)
+        color ex_state_bg = state_code >= 5 ? color.new(CLR_BULL, 70) : state_code >= 2 ? color.new(CLR_CAUTION, 70) : state_code == -1 ? color.new(CLR_BEAR, 70) : color.new(CLR_NEUTRAL, 80)
         string ex_source = source_kind_text(source_code)
         // ── Criterion checks ──
         bool ex_struct_ok = row_status(lean_struct_row_code) >= 3
@@ -1370,8 +1381,8 @@ if show_table and barstate.islast
         else if not ex_zone_ok
             ex_next_step := "Price must enter a demand zone (OB/FVG)"
         // ── Render ──
-        color pass = color.new(color.green, 75)
-        color fail = color.new(color.red, 75)
+        color pass = color.new(CLR_BULL, 75)
+        color fail = color.new(CLR_BEAR, 75)
         dashboard_row(smc_dashboard, 0, "SMC Explain", ex_state_label, ex_state_bg, txt)
         dashboard_row(smc_dashboard, 1, "Zone Source", ex_source, header_bg, txt)
         section_row(smc_dashboard, 2, "[ Checklist ]", header_bg, txt)
@@ -1393,7 +1404,7 @@ if show_table and barstate.islast
         float lib_vix = mp.VIX_LEVEL
         string lib_tone_c = mp.TONE
         string market_line = lib_regime + ' · VIX ' + str.tostring(lib_vix, '#.#') + ' · ' + lib_tone_c
-        color market_bg = mp.TRADE_STATE == "BLOCKED" ? color.new(color.red, 70) : mp.TRADE_STATE == "DISCOURAGED" ? color.new(color.orange, 70) : color.new(color.teal, 80)
+        color market_bg = mp.TRADE_STATE == "BLOCKED" ? color.new(CLR_BEAR, 70) : mp.TRADE_STATE == "DISCOURAGED" ? color.new(CLR_CAUTION, 70) : color.new(CLR_BULL_ALT, 80)
         dashboard_row(smc_dashboard, 0, "SMC Compact", "Decision Brief", header_bg, txt)
         dashboard_row(smc_dashboard, 1, "Market", market_line, market_bg, txt)
         dashboard_row(smc_dashboard, 2, "Structure", dashboard_compact_structure_text(state_code, zone_code, lean_struct_row_code, reclaim_code), status_bg(setup_state), txt)
@@ -1415,7 +1426,7 @@ if show_table and barstate.islast
             market_line += ' · Vol:' + lib_vol_regime_db
         if lib_macro_event
             market_line += ' · ' + lib_event_name
-        color market_bg = lib_trade_state == "BLOCKED" ? color.new(color.red, 70) : lib_trade_state == "DISCOURAGED" ? color.new(color.orange, 70) : color.new(color.teal, 80)
+        color market_bg = lib_trade_state == "BLOCKED" ? color.new(CLR_BEAR, 70) : lib_trade_state == "DISCOURAGED" ? color.new(CLR_CAUTION, 70) : color.new(CLR_BULL_ALT, 80)
 
         dashboard_row(smc_dashboard, 0, "SMC Long-Dip Dashboard v7", "Decision Brief | Linked setup active", header_bg, txt)
         dashboard_row(smc_dashboard, 1, "Market", market_line, market_bg, txt)
@@ -1429,7 +1440,7 @@ if show_table and barstate.islast
         string zp_line = zp_rank + " (" + str.tostring(zp_score) + "/100)"
         if zp_catalyst != "NONE" and zp_catalyst != ""
             zp_line += " · " + zp_catalyst
-        color zp_bg = zp_rank == "A" ? color.new(color.teal, 75) : zp_rank == "B" ? color.new(color.teal, 85) : zp_rank == "C" ? color.new(color.orange, 80) : color.new(color.red, 80)
+        color zp_bg = zp_rank == "A" ? color.new(CLR_BULL_ALT, 75) : zp_rank == "B" ? color.new(CLR_BULL_ALT, 85) : zp_rank == "C" ? color.new(CLR_CAUTION, 80) : color.new(CLR_BEAR, 80)
         dashboard_row(smc_dashboard, 5, "Zone Priority", zp_line, zp_bg, txt)
         dashboard_row(smc_dashboard, 6, "Trust / Data", dashboard_compact_trust_text(lean_sq_row_code, lean_freshness_row_code, volume_data_row_code, micro_fresh_row_code, event_risk_row_code, ready_gate_row_code, strict_gate_row_code, mp.ENSEMBLE_QUALITY_TIER), status_bg(dashboard_compact_trust_state(lean_sq_row_code, lean_freshness_row_code, volume_data_row_code, micro_fresh_row_code)), txt)
         dashboard_row(smc_dashboard, 7, "Short-term Pressure", dashboard_compact_pressure_text(ltf_delta_row_code, src_ltf_volume_delta, swing_row_code), status_bg(row_status(ltf_delta_row_code)), txt)
@@ -1482,7 +1493,7 @@ if show_table and barstate.islast
             _audit_zp_line += " · " + _audit_zp_catalyst
         if _audit_zp_reason != ""
             _audit_zp_line += " — " + _audit_zp_reason
-        color _audit_zp_bg = _audit_zp_rank == "A" ? color.new(color.teal, 75) : _audit_zp_rank == "B" ? color.new(color.teal, 85) : _audit_zp_rank == "C" ? color.new(color.orange, 80) : color.new(color.red, 80)
+        color _audit_zp_bg = _audit_zp_rank == "A" ? color.new(CLR_BULL_ALT, 75) : _audit_zp_rank == "B" ? color.new(CLR_BULL_ALT, 85) : _audit_zp_rank == "C" ? color.new(CLR_CAUTION, 80) : color.new(CLR_BEAR, 80)
         dashboard_row(smc_dashboard, 22, "Zone Priority", _audit_zp_line, _audit_zp_bg, txt)
         section_row(smc_dashboard, 23, "[ Gates ]", header_bg, txt)
         dashboard_row(smc_dashboard, 24, "Session", decode_session_text(session_row_code), status_bg(row_status(session_row_code)), txt)

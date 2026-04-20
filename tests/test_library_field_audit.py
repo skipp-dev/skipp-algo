@@ -196,3 +196,63 @@ def test_generator_sunset_warning_removed() -> None:
 
     assert DEPRECATED_FIELD_POLICY.get("sunset_date") == "2026-04-14"
     assert DEPRECATED_FIELD_POLICY.get("deprecatedGroups") == []
+
+
+# ── OV6: Reverse-direction audit (generated → consumer) ─────────
+
+
+# Fields intentionally generated without a Pine consumer today.
+# Infra/metadata fields are internal; enrichment-reserve fields are exported for
+# future Pine consumers or external tooling (Streamlit terminal, notebooks).
+_INFRA_ONLY: set[str] = {
+    # ── metadata / bookkeeping ──
+    "ASOF_TIME",
+    "UNIVERSE_SIZE",
+    "UNIVERSE_ID",
+    "REFRESH_COUNT",
+    "LOOKBACK_DAYS",
+    # ── enrichment reserve: consumed by Python backend / Streamlit only ──
+    "BPR_DIRECTION",
+    "BUY_SIDE_POOL_LEVEL",
+    "BUY_SIDE_POOL_STRENGTH",
+    "EARNINGS_AMC_TICKERS",
+    "EARNINGS_BMO_TICKERS",
+    "ENSEMBLE_AVAILABLE_COMPONENTS",
+    "HIGH_RISK_EVENT_TICKERS",
+    "HOLIDAY_SUSPECT_TICKERS",
+    "LIQUIDITY_TAKEN_DIRECTION",
+    "MACRO_BIAS",
+    "NEWS_HEAT_GLOBAL",
+    "NEWS_NEUTRAL_TICKERS",
+    "NEXT_EVENT_CLASS",
+    "VOLATILITY_ATR_RATIO",
+    "VOLATILITY_FALLBACK_REASON",
+    "VOLATILITY_PROXY_SOURCE",
+    "VOLATILITY_PROXY_SYMBOL",
+    "VOLATILITY_REGIME_CONFIDENCE",
+}
+
+
+def test_every_generated_field_has_pine_consumer() -> None:
+    """Every generated field must be consumed by at least one Pine script or be in _INFRA_ONLY."""
+    generated = _collect_generated_fields()
+    pine_refs = _collect_pine_mp_refs()
+
+    all_consumed: set[str] = set()
+    for refs in pine_refs.values():
+        all_consumed.update(refs)
+
+    unclaimed = sorted(generated - all_consumed - _INFRA_ONLY)
+    assert unclaimed == [], (
+        f"Generated fields with no Pine consumer (add mp.* usage or mark _INFRA_ONLY):\n"
+        + "\n".join(f"  {f}" for f in unclaimed)
+    )
+
+
+def test_infra_only_fields_are_generated() -> None:
+    """Prevent _INFRA_ONLY from going stale — every entry must still be generated."""
+    generated = _collect_generated_fields()
+    for field in _INFRA_ONLY:
+        assert field in generated, (
+            f"{field} is in _INFRA_ONLY but no longer generated — remove it"
+        )

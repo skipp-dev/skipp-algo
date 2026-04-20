@@ -1814,41 +1814,41 @@ resolve_long_visual_state_label(int long_visual_state) =>
 resolve_long_bg_color(int long_visual_state, color long_color_building) =>
     color bg_color = na
     if long_visual_state == -1
-        bg_color := color.new(color.red, 90)
+        bg_color := color.new(long_color_invalid, 90)
     else if long_visual_state == 1
-        bg_color := color.new(color.aqua, 92)
+        bg_color := color.new(long_color_zone, 92)
     else if long_visual_state == 2
-        bg_color := color.new(color.orange, 88)
+        bg_color := color.new(long_color_reclaim, 88)
     else if long_visual_state == 3
         bg_color := color.new(long_color_building, 84)
     else if long_visual_state == 4
-        bg_color := color.new(color.lime, 88)
+        bg_color := color.new(long_color_confirmed, 88)
     else if long_visual_state == 5
-        bg_color := color.new(color.green, 82)
+        bg_color := color.new(long_color_ready, 82)
     else if long_visual_state == 6
-        bg_color := color.new(color.green, 74)
+        bg_color := color.new(long_color_ready, 74)
     else if long_visual_state >= 7
-        bg_color := color.new(color.green, 66)
+        bg_color := color.new(long_color_ready, 66)
     bg_color
 
 resolve_long_bar_color(int long_visual_state, color long_color_building) =>
     color bar_color = na
     if long_visual_state == -1
-        bar_color := color.new(color.red, 0)
+        bar_color := color.new(long_color_invalid, 0)
     else if long_visual_state == 1
-        bar_color := color.new(color.aqua, 45)
+        bar_color := color.new(long_color_zone, 45)
     else if long_visual_state == 2
-        bar_color := color.new(color.orange, 25)
+        bar_color := color.new(long_color_reclaim, 25)
     else if long_visual_state == 3
         bar_color := color.new(long_color_building, 5)
     else if long_visual_state == 4
-        bar_color := color.new(color.lime, 0)
+        bar_color := color.new(long_color_confirmed, 0)
     else if long_visual_state == 5
-        bar_color := color.new(color.green, 0)
+        bar_color := color.new(long_color_ready, 0)
     else if long_visual_state == 6
-        bar_color := color.new(color.green, 0)
+        bar_color := color.new(long_color_ready, 0)
     else if long_visual_state >= 7
-        bar_color := color.new(color.teal, 0)
+        bar_color := color.new(BULL_HERO_READY, 0)
     bar_color
 
 resolve_event_risk_state(bool market_event_blocked, bool symbol_event_blocked, string event_window_state, string event_risk_level) =>
@@ -1891,13 +1891,13 @@ compose_health_badge_text(string signal_bias_alignment, string signal_quality_ti
     dir_icon + ' ' + signal_quality_tier + ' ' + str.tostring(signal_quality_score) + ' ' + tier_icon + ' | ' + event_icon + ' | ' + fresh_icon + warning_suffix + ' | data:' + data_icon
 
 resolve_health_badge_color(string signal_quality_tier) =>
-    color badge_color = color.new(color.red, 70)
+    color badge_color = color.new(BEAR_PRIMARY, 70)
     if signal_quality_tier == 'high'
-        badge_color := color.new(color.green, 70)
+        badge_color := color.new(BULL_PRIMARY, 70)
     else if signal_quality_tier == 'good'
-        badge_color := color.new(color.teal, 70)
+        badge_color := color.new(BULL_HERO_READY, 70)
     else if signal_quality_tier == 'ok'
-        badge_color := color.new(color.orange, 70)
+        badge_color := color.new(long_color_reclaim, 70)
     badge_color
 
 resolve_core_product_state(int long_visual_state) =>
@@ -4286,9 +4286,9 @@ var color bull_internal_css = color.new(bull_css, 78)
 var color bear_internal_css = color.new(bear_css, 78)
 
 var color long_color_zone = color_theme == 'Colorblind Safe' ? color.new(#1f77b4, 40) : color.aqua
-var color long_color_reclaim = color.orange
-var color long_color_reversal = color.yellow
-var color long_color_building = color.rgb(212, 170, 34)
+var color long_color_reclaim = color_theme == 'Colorblind Safe' ? #17becf : color.orange
+var color long_color_reversal = color_theme == 'Colorblind Safe' ? #bcbd22 : color.yellow
+var color long_color_building = color_theme == 'Colorblind Safe' ? color.new(#bcbd22, 20) : color.rgb(212, 170, 34)
 var color long_color_confirmed = color_theme == 'Colorblind Safe' ? #1f77b4 : color.lime
 var color long_color_ready = color_theme == 'Colorblind Safe' ? color.new(#1f77b4, 20) : color.green
 var color long_color_invalid = color_theme == 'Colorblind Safe' ? #ff7f0e : color.red

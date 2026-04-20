@@ -8,6 +8,12 @@ All notable changes to this project are documented in this file.
 
 ### Added (2026-04-20)
 
+- **Owner Review v2 (OV3–OV7):**
+  - **OV3: Performance Report Script** (`scripts/generate_performance_report.py`) — consolidated Markdown + JSON performance report from measurement benchmark artifacts. Computes weighted-mean KPIs (Brier, ECE, hit rate), letter grades (A–F), pass/fail gates vs `MeasurementShadowThresholds`. CLI: `--input-dir` / `--output-dir`. 14 unit tests.
+  - **OV4: Colorblind Palette** — Tableau-10 safe palette (bull=#1f77b4, bear=#ff7f0e, warn=#17becf, caution=#bcbd22) wired through Core Engine (3 lifecycle colors + 3 resolver functions), Dashboard (7 palette constants + all view modes), Mobile Dashboard (5 palette constants). Activated via existing `color_theme` input → "Colorblind Safe".
+  - **OV6: Library Field Audit** — reverse-direction test (`test_every_generated_field_has_pine_consumer`) ensures every generated field has at least one Pine consumer or is declared `_INFRA_ONLY`. 18 enrichment-reserve fields catalogued. Staleness guard for `_INFRA_ONLY`.
+  - **OV7: Enrichment A/B Framework** (`scripts/smc_ab_experiment.py`) — deterministic symbol-level experiment assignment (SHA-256 bucketing), flag resolution per arm, JSON experiment spec loading, provenance tagging. Comparison script (`scripts/run_ab_comparison.py`) diffs benchmark KPIs between arms with Markdown + JSON output. 16 unit tests.
+
 - **Hygiene & Feature Round:**
   - **Provider Health Tab** in `streamlit_terminal.py` — neues "🩺 Provider Health" Tab zeigt Gesamtstatus (Coverage/Warnings/Failures), Provider-Domain-Matrix mit Failure-Semantik, Domain-Alerts und Failure-Semantics-Referenz. Basiert auf `provider_health.py` API.
   - **Zone Priority → Pine Consumer** — `SMC_Dashboard.pine` zeigt Zone Priority in Decision Brief (Rank + Score + Catalyst, farbkodiert A/B/C/D) und Audit View (vollständige Details mit Top-Family und Reason). `SkippALGO_Confluence.pine` zeigt Zone Prio als neue Zeile 7 (Rank + Score/100 + Catalyst).
