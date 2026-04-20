@@ -75,11 +75,14 @@ def test_dashboard_has_companion_summary_and_pro_diagnostics() -> None:
     assert 'section_row(smc_dashboard, 1, "[ Decision Detail ]", header_bg, txt)' in source
     assert 'section_row(smc_dashboard, 10, "[ Lean Surface ]", header_bg, txt)' in source
     assert 'section_row(smc_dashboard, 18, "[ Trust & Provider ]", header_bg, txt)' in source
-    assert 'section_row(smc_dashboard, 23, "[ Gates ]", header_bg, txt)' in source
-    assert 'section_row(smc_dashboard, 31, "[ Quality Rows ]", header_bg, txt)' in source
-    assert 'section_row(smc_dashboard, 42, "[ Support / Metrics ]", header_bg, txt)' in source
-    assert 'section_row(smc_dashboard, 53, "[ Risk / Plan ]", header_bg, txt)' in source
-    assert 'section_row(smc_dashboard, 58, "[ Debug ]", header_bg, txt)' in source
+    assert 'section_row(smc_dashboard, 23, "[ Calibration Confidence ]", header_bg, txt)' in source
+    assert 'section_row(smc_dashboard, 26, "[ Per-Family Performance ]", header_bg, txt)' in source
+    assert 'section_row(smc_dashboard, 31, "[ FVG Health ]", header_bg, txt)' in source
+    assert 'section_row(smc_dashboard, 34, "[ Gates ]", header_bg, txt)' in source
+    assert 'section_row(smc_dashboard, 42, "[ Quality Rows ]", header_bg, txt)' in source
+    assert 'section_row(smc_dashboard, 53, "[ Support / Metrics ]", header_bg, txt)' in source
+    assert 'section_row(smc_dashboard, 64, "[ Risk / Plan ]", header_bg, txt)' in source
+    assert 'section_row(smc_dashboard, 69, "[ Debug ]", header_bg, txt)' in source
 
 
 def test_long_strategy_has_wrapper_controls_and_core_plan_outputs() -> None:

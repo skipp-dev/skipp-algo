@@ -1225,6 +1225,63 @@ decode_debug_flags_text(int row_code) =>
             label_text += str.length(label_text) > 0 ? " | Engine" : "Engine"
     label_text
 
+// ── Phase H: Calibration confidence indicator ─────────────────
+calibration_confidence_tier(float cal_weight) =>
+    cal_weight >= 0.80 ? "high" : cal_weight >= 0.65 ? "good" : cal_weight >= 0.50 ? "ok" : "low"
+
+calibration_confidence_state(float cal_weight) =>
+    cal_weight >= 0.80 ? 5 : cal_weight >= 0.65 ? 4 : cal_weight >= 0.50 ? 3 : 2
+
+resolve_family_cal_weight(string family) =>
+    float w = family == "OB" ? mp.ZONE_CAL_OB : family == "FVG" ? mp.ZONE_CAL_FVG : family == "BOS" ? mp.ZONE_CAL_BOS : family == "SWEEP" ? mp.ZONE_CAL_SWEEP : 0.50
+    w
+
+format_cal_weight(float w) =>
+    str.tostring(w * 100.0, "#.#") + "%"
+
+family_performance_text(string family, float cal_weight) =>
+    string tier = calibration_confidence_tier(cal_weight)
+    family + " " + format_cal_weight(cal_weight) + " (" + tier + ")"
+
+// ── Phase H: FVG health warning ───────────────────────────────
+resolve_fvg_health_score() =>
+    float score = 0.0
+    if mp.PRIMARY_FVG_SIDE == "NONE"
+        score := 0.0
+    else
+        score += mp.FVG_FRESH ? 30.0 : 0.0
+        score += mp.FVG_INVALIDATED ? -40.0 : 0.0
+        score += (1.0 - mp.FVG_FILL_PCT) * 30.0
+        score += math.min(mp.FVG_MATURITY_LEVEL, 3) * 10.0
+        score += mp.FVG_NET_IMBALANCE > 0 ? 10.0 : mp.FVG_NET_IMBALANCE < 0 ? -10.0 : 0.0
+    math.max(score, 0.0)
+
+fvg_health_tier(float score) =>
+    score >= 60.0 ? "healthy" : score >= 30.0 ? "aging" : score > 0.0 ? "weak" : "none"
+
+fvg_health_state(float score) =>
+    score >= 60.0 ? 5 : score >= 30.0 ? 3 : score > 0.0 ? 2 : 0
+
+fvg_health_text(float score) =>
+    if mp.PRIMARY_FVG_SIDE == "NONE"
+        "No active FVG"
+    else
+        string side = mp.PRIMARY_FVG_SIDE
+        string tier = fvg_health_tier(score)
+        string fill = str.tostring(mp.FVG_FILL_PCT * 100.0, "#") + "% filled"
+        string fresh_label = mp.FVG_FRESH ? "fresh" : mp.FVG_INVALIDATED ? "INVALIDATED" : "aging"
+        side + " | " + tier + " | " + fill + " | " + fresh_label
+
+fvg_health_warning_text(float score) =>
+    if mp.FVG_INVALIDATED
+        "⚠ FVG invalidated — zone reliability degraded"
+    else if mp.FVG_FILL_PCT >= 0.75 and not mp.FVG_FRESH
+        "⚠ FVG heavily filled (" + str.tostring(mp.FVG_FILL_PCT * 100.0, "#") + "%) — weakening support"
+    else if score < 30.0 and mp.PRIMARY_FVG_SIDE != "NONE"
+        "⚠ FVG health weak — consider reduced confidence"
+    else
+        ""
+
 quality_bounds_text(float score_value) =>
     str.tostring(score_value, "#.##") + "/100 | min 25"
 
@@ -1318,7 +1375,7 @@ plot(show_risk_lines and actionable_state ? src_trigger : na, "Trade Trigger", c
 plot(show_risk_lines and actionable_state ? src_invalidation : na, "Trade Invalidation", color = color.new(CLR_CAUTION, 0), linewidth = 2, style = plot.style_linebr)
 bgcolor(show_state_bg and state_code >= 5 ? color.new(CLR_BULL, 90) : na)
 
-var table smc_dashboard = table.new(position.bottom_right, 2, 63, border_width = 0)
+var table smc_dashboard = table.new(position.bottom_right, 2, 74, border_width = 0)
 
 if show_table and barstate.islast
     color txt = chart.fg_color
@@ -1336,7 +1393,7 @@ if show_table and barstate.islast
         dashboard_row(smc_dashboard, 0, "SMC", focus_action, focus_action_bg, txt)
         dashboard_row(smc_dashboard, 1, "Plan", focus_levels, actionable_state ? color.new(CLR_BULL_ALT, 85) : header_bg, txt)
         dashboard_row(smc_dashboard, 2, "Market", focus_context, focus_context_bg, txt)
-        table.clear(smc_dashboard, 0, 3, 1, 61)
+        table.clear(smc_dashboard, 0, 3, 1, 73)
     else if surface_mode == "Explain"
         // ── EXPLAIN MODE (v7.2): Checklist explaining why the current zone state holds ──
         // Shows each major criterion as ✅ / ❌ with what's met, what's missing, and the next step.
@@ -1395,9 +1452,16 @@ if show_table and barstate.islast
         dashboard_row(smc_dashboard, 9, ex_event_ok ? "✅ Event Risk" : "❌ Event Risk", ex_event_text, ex_event_ok ? pass : fail, txt)
         dashboard_row(smc_dashboard, 10, ex_htf_ok ? "✅ HTF Trend" : "❌ HTF Trend", str.tostring(ex_htf_ok_count) + "/3 bullish", ex_htf_ok ? pass : fail, txt)
         dashboard_row(smc_dashboard, 11, ex_pressure_ok ? "✅ Pressure" : "❌ Pressure", ex_pressure_ok ? "supports long" : "mixed / against", ex_pressure_ok ? pass : fail, txt)
-        section_row(smc_dashboard, 12, "[ Next Step ]", header_bg, txt)
-        dashboard_row(smc_dashboard, 13, "→", ex_next_step, ex_state_bg, txt)
-        table.clear(smc_dashboard, 0, 14, 1, 61)
+        // Phase H: FVG health checklist item
+        float _ex_fvg_health = resolve_fvg_health_score()
+        bool ex_fvg_ok = mp.PRIMARY_FVG_SIDE == "NONE" or _ex_fvg_health >= 30.0
+        string ex_fvg_label = mp.PRIMARY_FVG_SIDE == "NONE" ? "no FVG" : fvg_health_tier(_ex_fvg_health)
+        string _ex_fvg_warn = fvg_health_warning_text(_ex_fvg_health)
+        string ex_fvg_detail = _ex_fvg_warn != "" ? ex_fvg_label + " — " + _ex_fvg_warn : ex_fvg_label
+        dashboard_row(smc_dashboard, 12, ex_fvg_ok ? "✅ FVG Health" : "⚠ FVG Health", ex_fvg_detail, ex_fvg_ok ? pass : color.new(CLR_CAUTION, 75), txt)
+        section_row(smc_dashboard, 13, "[ Next Step ]", header_bg, txt)
+        dashboard_row(smc_dashboard, 14, "→", ex_next_step, ex_state_bg, txt)
+        table.clear(smc_dashboard, 0, 15, 1, 73)
     else if compact_dashboard
         // WP-OV5: 5-row compact dashboard for mobile / small screens
         string lib_regime = mp.MARKET_REGIME
@@ -1410,7 +1474,7 @@ if show_table and barstate.islast
         dashboard_row(smc_dashboard, 2, "Structure", dashboard_compact_structure_text(state_code, zone_code, lean_struct_row_code, reclaim_code), status_bg(setup_state), txt)
         dashboard_row(smc_dashboard, 3, "Trust / Data", dashboard_compact_trust_text(lean_sq_row_code, lean_freshness_row_code, volume_data_row_code, micro_fresh_row_code, event_risk_row_code, ready_gate_row_code, strict_gate_row_code, mp.ENSEMBLE_QUALITY_TIER), status_bg(dashboard_compact_trust_state(lean_sq_row_code, lean_freshness_row_code, volume_data_row_code, micro_fresh_row_code)), txt)
         dashboard_row(smc_dashboard, 4, "Risk Plan", dashboard_compact_risk_plan_text(actionable_state, src_trigger, src_stop_level, src_target_1, src_target_2), status_bg(actionable_state ? 5 : 0), txt)
-        table.clear(smc_dashboard, 0, 5, 1, 61)
+        table.clear(smc_dashboard, 0, 5, 1, 73)
     else if surface_mode == "Decision Brief"
         // Market Context from Library
         string lib_regime = mp.MARKET_REGIME
@@ -1445,7 +1509,7 @@ if show_table and barstate.islast
         dashboard_row(smc_dashboard, 6, "Trust / Data", dashboard_compact_trust_text(lean_sq_row_code, lean_freshness_row_code, volume_data_row_code, micro_fresh_row_code, event_risk_row_code, ready_gate_row_code, strict_gate_row_code, mp.ENSEMBLE_QUALITY_TIER), status_bg(dashboard_compact_trust_state(lean_sq_row_code, lean_freshness_row_code, volume_data_row_code, micro_fresh_row_code)), txt)
         dashboard_row(smc_dashboard, 7, "Short-term Pressure", dashboard_compact_pressure_text(ltf_delta_row_code, src_ltf_volume_delta, swing_row_code), status_bg(row_status(ltf_delta_row_code)), txt)
         dashboard_row(smc_dashboard, 8, "Risk Plan", dashboard_compact_risk_plan_text(actionable_state, src_trigger, src_stop_level, src_target_1, src_target_2), status_bg(actionable_state ? 5 : 0), txt)
-        table.clear(smc_dashboard, 0, 9, 1, 61)
+        table.clear(smc_dashboard, 0, 9, 1, 73)
     else
         dashboard_row(smc_dashboard, 0, "SMC Long-Dip Dashboard v7", "Audit View | Expert review only", header_bg, txt)
         // ── AUDIT: decision detail first, then lean review, diagnostics, risk plan, and explicit debug ──
@@ -1495,45 +1559,68 @@ if show_table and barstate.islast
             _audit_zp_line += " — " + _audit_zp_reason
         color _audit_zp_bg = _audit_zp_rank == "A" ? color.new(CLR_BULL_ALT, 75) : _audit_zp_rank == "B" ? color.new(CLR_BULL_ALT, 85) : _audit_zp_rank == "C" ? color.new(CLR_CAUTION, 80) : color.new(CLR_BEAR, 80)
         dashboard_row(smc_dashboard, 22, "Zone Priority", _audit_zp_line, _audit_zp_bg, txt)
-        section_row(smc_dashboard, 23, "[ Gates ]", header_bg, txt)
-        dashboard_row(smc_dashboard, 24, "Session", decode_session_text(session_row_code), status_bg(row_status(session_row_code)), txt)
-        dashboard_row(smc_dashboard, 25, "Market Gate", decode_market_text(market_row_code), status_bg(row_status(market_row_code)), txt)
-        dashboard_row(smc_dashboard, 26, "Vola Regime", decode_vola_text(vola_row_code), status_bg(row_status(vola_row_code)), txt)
-        dashboard_row(smc_dashboard, 27, "Micro Session", decode_micro_session_text(micro_session_row_code), status_bg(row_status(micro_session_row_code)), txt)
-        dashboard_row(smc_dashboard, 28, "Micro Fresh", decode_micro_fresh_text(micro_fresh_row_code, freshness_code, source_state_code), status_bg(row_status(micro_fresh_row_code)), txt)
-        dashboard_row(smc_dashboard, 29, "Volume Data", decode_volume_data_text(volume_data_row_code), status_bg(row_status(volume_data_row_code)), txt)
-        dashboard_row(smc_dashboard, 30, "Event Risk", decode_event_risk_text(event_risk_row_code), status_bg(row_status(event_risk_row_code)), txt)
-        section_row(smc_dashboard, 31, "[ Quality Rows ]", header_bg, txt)
-        dashboard_row(smc_dashboard, 32, "Primary | Quality Env", decode_quality_env_text(quality_env_row_code), primary_metric_bg(row_status(quality_env_row_code)), txt)
-        dashboard_row(smc_dashboard, 33, "Diag | Quality Strict", decode_quality_strict_text(quality_strict_row_code), diagnostic_metric_bg(row_status(quality_strict_row_code)), txt)
-        dashboard_row(smc_dashboard, 34, "Diag | Close Strength", decode_close_text(close_row_code), diagnostic_metric_bg(row_status(close_row_code)), txt)
-        dashboard_row(smc_dashboard, 35, "Diag | EMA Support", decode_ema_text(ema_row_code), diagnostic_metric_bg(row_status(ema_row_code)), txt)
-        dashboard_row(smc_dashboard, 36, "Diag | ADX", decode_adx_text(adx_row_code, src_adx_value), diagnostic_metric_bg(row_status(adx_row_code)), txt)
-        dashboard_row(smc_dashboard, 37, "Diag | Rel Volume", decode_relvol_text(relvol_row_code, src_relvol_value), diagnostic_metric_bg(row_status(relvol_row_code)), txt)
-        dashboard_row(smc_dashboard, 38, "Diag | VWAP Filter", decode_vwap_text(vwap_row_code, src_session_vwap), diagnostic_metric_bg(row_status(vwap_row_code)), txt)
-        dashboard_row(smc_dashboard, 39, "Diag | Context Quality", decode_context_quality_text(context_quality_row_code), diagnostic_metric_bg(row_status(context_quality_row_code)), txt)
-        dashboard_row(smc_dashboard, 40, "Primary | Signal + Ensemble", quality_stack_text(src_quality_score, lean_transport_row_code), primary_metric_bg(row_status(quality_score_row_code)), txt)
-        dashboard_row(smc_dashboard, 41, "Primary | Quality Clean", decode_quality_clean_text(quality_clean_row_code), primary_metric_bg(row_status(quality_clean_row_code)), txt)
-        section_row(smc_dashboard, 42, "[ Support / Metrics ]", header_bg, txt)
-        dashboard_row(smc_dashboard, 43, "SD Confluence", decode_sd_confluence_text(sd_confluence_row_code), status_bg(row_status(sd_confluence_row_code)), txt)
-        dashboard_row(smc_dashboard, 44, "SD Osc", decode_sd_osc_text(sd_osc_row_code), status_bg(row_status(sd_osc_row_code)), txt)
-        dashboard_row(smc_dashboard, 45, "Vol Regime | Lib", decode_vol_regime_stack_text(vol_regime_row_code, lean_transport_row_code), status_bg(row_status(vol_regime_row_code)), txt)
-        dashboard_row(smc_dashboard, 46, "Vol Squeeze", decode_vol_squeeze_text(vol_squeeze_row_code), status_bg(row_status(vol_squeeze_row_code)), txt)
-        dashboard_row(smc_dashboard, 47, "Vol Expand", decode_vol_expand_text(vol_expand_row_code), status_bg(row_status(vol_expand_row_code)), txt)
-        dashboard_row(smc_dashboard, 48, "Stretch", decode_stretch_text(stretch_row_code, src_stretch_z), status_bg(row_status(stretch_row_code)), txt)
-        dashboard_row(smc_dashboard, 49, "DDVI", decode_ddvi_text(ddvi_row_code), status_bg(row_status(ddvi_row_code)), txt)
-        dashboard_row(smc_dashboard, 50, "LTF Bias", decode_ltf_bias_text(ltf_bias_row_code, src_ltf_bull_share), status_bg(row_status(ltf_bias_row_code)), txt)
-        dashboard_row(smc_dashboard, 51, "LTF Delta", decode_ltf_delta_text(ltf_delta_row_code, src_ltf_volume_delta), status_bg(row_status(ltf_delta_row_code)), txt)
-        dashboard_row(smc_dashboard, 52, "Swing H/L", decode_swing_text(swing_row_code), status_bg(row_status(swing_row_code)), txt)
-        section_row(smc_dashboard, 53, "[ Risk / Plan ]", header_bg, txt)
-        dashboard_row(smc_dashboard, 54, "Long Zones", long_zones_text, status_bg(row_status(long_zones_row_code)), txt)
-        dashboard_row(smc_dashboard, 55, "Long Triggers", trigger_text(row_status(long_triggers_row_code) == 5, src_trigger, src_invalidation), status_bg(row_status(long_triggers_row_code)), txt)
-        dashboard_row(smc_dashboard, 56, "Micro Profile", decode_micro_profile_text(micro_profile_row_code), status_bg(row_status(micro_profile_row_code)), txt)
-        dashboard_row(smc_dashboard, 57, "Risk Plan", plan_text(row_status(risk_plan_row_code) == 5, src_trigger, src_stop_level, src_target_1, src_target_2), status_bg(row_status(risk_plan_row_code)), txt)
-        section_row(smc_dashboard, 58, "[ Debug ]", header_bg, txt)
-        dashboard_row(smc_dashboard, 59, "Ready Gate", decode_ready_gate_text(ready_gate_row_code), status_bg(row_status(ready_gate_row_code)), txt)
-        dashboard_row(smc_dashboard, 60, "Strict Gate", decode_strict_gate_text(strict_gate_row_code), status_bg(row_status(strict_gate_row_code)), txt)
-        dashboard_row(smc_dashboard, 61, "Debug Flags", decode_debug_flags_text(debug_flags_row_code), status_bg(row_status(debug_flags_row_code)), txt)
-        dashboard_row(smc_dashboard, 62, "Long Debug", long_debug_text, status_bg(row_status(debug_state_row_code)), txt)
+        // ── Phase H: Calibration Confidence + Per-Family Performance ──
+        float _audit_top_cal = resolve_family_cal_weight(_audit_zp_family)
+        int _audit_top_cal_state = calibration_confidence_state(_audit_top_cal)
+        string _audit_top_cal_text = _audit_zp_family + " " + format_cal_weight(_audit_top_cal) + " (" + calibration_confidence_tier(_audit_top_cal) + ")"
+        float _audit_cal_avg = (mp.ZONE_CAL_OB + mp.ZONE_CAL_FVG + mp.ZONE_CAL_BOS + mp.ZONE_CAL_SWEEP) / 4.0
+        int _audit_cal_avg_state = calibration_confidence_state(_audit_cal_avg)
+        section_row(smc_dashboard, 23, "[ Calibration Confidence ]", header_bg, txt)
+        dashboard_row(smc_dashboard, 24, "Top Family Confidence", _audit_top_cal_text, status_bg(_audit_top_cal_state), txt)
+        dashboard_row(smc_dashboard, 25, "Composite Confidence", format_cal_weight(_audit_cal_avg) + " (" + calibration_confidence_tier(_audit_cal_avg) + ")", status_bg(_audit_cal_avg_state), txt)
+        section_row(smc_dashboard, 26, "[ Per-Family Performance ]", header_bg, txt)
+        dashboard_row(smc_dashboard, 27, "OB", family_performance_text("OB", mp.ZONE_CAL_OB), status_bg(calibration_confidence_state(mp.ZONE_CAL_OB)), txt)
+        dashboard_row(smc_dashboard, 28, "FVG", family_performance_text("FVG", mp.ZONE_CAL_FVG), status_bg(calibration_confidence_state(mp.ZONE_CAL_FVG)), txt)
+        dashboard_row(smc_dashboard, 29, "BOS", family_performance_text("BOS", mp.ZONE_CAL_BOS), status_bg(calibration_confidence_state(mp.ZONE_CAL_BOS)), txt)
+        dashboard_row(smc_dashboard, 30, "SWEEP", family_performance_text("SWEEP", mp.ZONE_CAL_SWEEP), status_bg(calibration_confidence_state(mp.ZONE_CAL_SWEEP)), txt)
+        // ── Phase H: FVG Health Warning ──
+        float _audit_fvg_health = resolve_fvg_health_score()
+        string _audit_fvg_warn = fvg_health_warning_text(_audit_fvg_health)
+        section_row(smc_dashboard, 31, "[ FVG Health ]", header_bg, txt)
+        dashboard_row(smc_dashboard, 32, "FVG Status", fvg_health_text(_audit_fvg_health), status_bg(fvg_health_state(_audit_fvg_health)), txt)
+        if _audit_fvg_warn != ""
+            dashboard_row(smc_dashboard, 33, "FVG Warning", _audit_fvg_warn, color.new(CLR_CAUTION, 75), txt)
+        else
+            dashboard_row(smc_dashboard, 33, "FVG Warning", "—", header_bg, txt)
+        section_row(smc_dashboard, 34, "[ Gates ]", header_bg, txt)
+        dashboard_row(smc_dashboard, 35, "Session", decode_session_text(session_row_code), status_bg(row_status(session_row_code)), txt)
+        dashboard_row(smc_dashboard, 36, "Market Gate", decode_market_text(market_row_code), status_bg(row_status(market_row_code)), txt)
+        dashboard_row(smc_dashboard, 37, "Vola Regime", decode_vola_text(vola_row_code), status_bg(row_status(vola_row_code)), txt)
+        dashboard_row(smc_dashboard, 38, "Micro Session", decode_micro_session_text(micro_session_row_code), status_bg(row_status(micro_session_row_code)), txt)
+        dashboard_row(smc_dashboard, 39, "Micro Fresh", decode_micro_fresh_text(micro_fresh_row_code, freshness_code, source_state_code), status_bg(row_status(micro_fresh_row_code)), txt)
+        dashboard_row(smc_dashboard, 40, "Volume Data", decode_volume_data_text(volume_data_row_code), status_bg(row_status(volume_data_row_code)), txt)
+        dashboard_row(smc_dashboard, 41, "Event Risk", decode_event_risk_text(event_risk_row_code), status_bg(row_status(event_risk_row_code)), txt)
+        section_row(smc_dashboard, 42, "[ Quality Rows ]", header_bg, txt)
+        dashboard_row(smc_dashboard, 43, "Primary | Quality Env", decode_quality_env_text(quality_env_row_code), primary_metric_bg(row_status(quality_env_row_code)), txt)
+        dashboard_row(smc_dashboard, 44, "Diag | Quality Strict", decode_quality_strict_text(quality_strict_row_code), diagnostic_metric_bg(row_status(quality_strict_row_code)), txt)
+        dashboard_row(smc_dashboard, 45, "Diag | Close Strength", decode_close_text(close_row_code), diagnostic_metric_bg(row_status(close_row_code)), txt)
+        dashboard_row(smc_dashboard, 46, "Diag | EMA Support", decode_ema_text(ema_row_code), diagnostic_metric_bg(row_status(ema_row_code)), txt)
+        dashboard_row(smc_dashboard, 47, "Diag | ADX", decode_adx_text(adx_row_code, src_adx_value), diagnostic_metric_bg(row_status(adx_row_code)), txt)
+        dashboard_row(smc_dashboard, 48, "Diag | Rel Volume", decode_relvol_text(relvol_row_code, src_relvol_value), diagnostic_metric_bg(row_status(relvol_row_code)), txt)
+        dashboard_row(smc_dashboard, 49, "Diag | VWAP Filter", decode_vwap_text(vwap_row_code, src_session_vwap), diagnostic_metric_bg(row_status(vwap_row_code)), txt)
+        dashboard_row(smc_dashboard, 50, "Diag | Context Quality", decode_context_quality_text(context_quality_row_code), diagnostic_metric_bg(row_status(context_quality_row_code)), txt)
+        dashboard_row(smc_dashboard, 51, "Primary | Signal + Ensemble", quality_stack_text(src_quality_score, lean_transport_row_code), primary_metric_bg(row_status(quality_score_row_code)), txt)
+        dashboard_row(smc_dashboard, 52, "Primary | Quality Clean", decode_quality_clean_text(quality_clean_row_code), primary_metric_bg(row_status(quality_clean_row_code)), txt)
+        section_row(smc_dashboard, 53, "[ Support / Metrics ]", header_bg, txt)
+        dashboard_row(smc_dashboard, 54, "SD Confluence", decode_sd_confluence_text(sd_confluence_row_code), status_bg(row_status(sd_confluence_row_code)), txt)
+        dashboard_row(smc_dashboard, 55, "SD Osc", decode_sd_osc_text(sd_osc_row_code), status_bg(row_status(sd_osc_row_code)), txt)
+        dashboard_row(smc_dashboard, 56, "Vol Regime | Lib", decode_vol_regime_stack_text(vol_regime_row_code, lean_transport_row_code), status_bg(row_status(vol_regime_row_code)), txt)
+        dashboard_row(smc_dashboard, 57, "Vol Squeeze", decode_vol_squeeze_text(vol_squeeze_row_code), status_bg(row_status(vol_squeeze_row_code)), txt)
+        dashboard_row(smc_dashboard, 58, "Vol Expand", decode_vol_expand_text(vol_expand_row_code), status_bg(row_status(vol_expand_row_code)), txt)
+        dashboard_row(smc_dashboard, 59, "Stretch", decode_stretch_text(stretch_row_code, src_stretch_z), status_bg(row_status(stretch_row_code)), txt)
+        dashboard_row(smc_dashboard, 60, "DDVI", decode_ddvi_text(ddvi_row_code), status_bg(row_status(ddvi_row_code)), txt)
+        dashboard_row(smc_dashboard, 61, "LTF Bias", decode_ltf_bias_text(ltf_bias_row_code, src_ltf_bull_share), status_bg(row_status(ltf_bias_row_code)), txt)
+        dashboard_row(smc_dashboard, 62, "LTF Delta", decode_ltf_delta_text(ltf_delta_row_code, src_ltf_volume_delta), status_bg(row_status(ltf_delta_row_code)), txt)
+        dashboard_row(smc_dashboard, 63, "Swing H/L", decode_swing_text(swing_row_code), status_bg(row_status(swing_row_code)), txt)
+        section_row(smc_dashboard, 64, "[ Risk / Plan ]", header_bg, txt)
+        dashboard_row(smc_dashboard, 65, "Long Zones", long_zones_text, status_bg(row_status(long_zones_row_code)), txt)
+        dashboard_row(smc_dashboard, 66, "Long Triggers", trigger_text(row_status(long_triggers_row_code) == 5, src_trigger, src_invalidation), status_bg(row_status(long_triggers_row_code)), txt)
+        dashboard_row(smc_dashboard, 67, "Micro Profile", decode_micro_profile_text(micro_profile_row_code), status_bg(row_status(micro_profile_row_code)), txt)
+        dashboard_row(smc_dashboard, 68, "Risk Plan", plan_text(row_status(risk_plan_row_code) == 5, src_trigger, src_stop_level, src_target_1, src_target_2), status_bg(row_status(risk_plan_row_code)), txt)
+        section_row(smc_dashboard, 69, "[ Debug ]", header_bg, txt)
+        dashboard_row(smc_dashboard, 70, "Ready Gate", decode_ready_gate_text(ready_gate_row_code), status_bg(row_status(ready_gate_row_code)), txt)
+        dashboard_row(smc_dashboard, 71, "Strict Gate", decode_strict_gate_text(strict_gate_row_code), status_bg(row_status(strict_gate_row_code)), txt)
+        dashboard_row(smc_dashboard, 72, "Debug Flags", decode_debug_flags_text(debug_flags_row_code), status_bg(row_status(debug_flags_row_code)), txt)
+        dashboard_row(smc_dashboard, 73, "Long Debug", long_debug_text, status_bg(row_status(debug_state_row_code)), txt)
 else if barstate.islast
-    table.clear(smc_dashboard, 0, 0, 1, 62)
+    table.clear(smc_dashboard, 0, 0, 1, 73)

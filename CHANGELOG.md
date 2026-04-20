@@ -8,6 +8,11 @@ All notable changes to this project are documented in this file.
 
 ### Added (2026-04-20)
 
+- **Phase H — Pine Consumer Maturity:**
+  - **Calibration Confidence Indicator** — new `[ Calibration Confidence ]` section in Dashboard Audit View (rows 23–25) showing top-family calibration weight with tier label (high/good/ok/low) and composite confidence across all 4 families. Zone Priority + Calibration exports (`ZONE_CAL_OB/FVG/BOS/SWEEP` + Phase F contextual variants) added to the live generated library.
+  - **Per-Family Win Rates** — new `[ Per-Family Performance ]` section in Dashboard Audit View (rows 26–30) showing OB, FVG, BOS, SWEEP individually with calibrated historical performance weight as percentage and color-coded confidence tier.
+  - **FVG Health Warning** — composite health score (0–100) derived from `FVG_FRESH`, `FVG_INVALIDATED`, `FVG_FILL_PCT`, `FVG_MATURITY_LEVEL`, `FVG_NET_IMBALANCE`. New `[ FVG Health ]` section in Audit View (rows 31–33) with status + conditional warning. New `✅/⚠ FVG Health` checklist item in Explain mode. Warnings for invalidated FVGs, heavily filled zones (≥75%), and weak health.
+
 - **Owner Review v2 (OV3–OV7):**
   - **OV3: Performance Report Script** (`scripts/generate_performance_report.py`) — consolidated Markdown + JSON performance report from measurement benchmark artifacts. Computes weighted-mean KPIs (Brier, ECE, hit rate), letter grades (A–F), pass/fail gates vs `MeasurementShadowThresholds`. CLI: `--input-dir` / `--output-dir`. 14 unit tests.
   - **OV4: Colorblind Palette** — Tableau-10 safe palette (bull=#1f77b4, bear=#ff7f0e, warn=#17becf, caution=#bcbd22) wired through Core Engine (3 lifecycle colors + 3 resolver functions), Dashboard (7 palette constants + all view modes), Mobile Dashboard (5 palette constants). Activated via existing `color_theme` input → "Colorblind Safe".
