@@ -48,6 +48,11 @@ class Experiment:
         Hash salt for deterministic assignment.  Change this to re-randomise.
     split_pct:
         Percentage of symbols assigned to treatment (0–100).
+    treatment_weight_set:
+        Optional scorer weight-set label for the treatment arm.
+        When set, ``resolve_weight_set()`` returns this label for treatment
+        symbols and ``"default"`` for control.  The scorer loads the
+        corresponding ``weights_{label}.json`` via ``load_weight_set()``.
     """
 
     name: str
@@ -55,6 +60,7 @@ class Experiment:
     control_overrides: dict[str, bool] = field(default_factory=dict)
     salt: str = ""
     split_pct: int = 50
+    treatment_weight_set: str = ""
 
     def __post_init__(self) -> None:
         if not 0 <= self.split_pct <= 100:
@@ -78,12 +84,26 @@ class Experiment:
             return dict(self.treatment_overrides)
         return dict(self.control_overrides)
 
+    def resolve_weight_set(self, symbol: str) -> str:
+        """Return the scorer weight-set label for *symbol*'s arm.
+
+        Returns ``treatment_weight_set`` for treatment symbols when
+        configured, otherwise ``"default"`` for both arms.
+        """
+        if self.treatment_weight_set and self.assign(symbol) == "treatment":
+            return self.treatment_weight_set
+        return "default"
+
     def tag(self, symbol: str) -> dict[str, str]:
         """Return provenance metadata to embed in the manifest."""
-        return {
+        d = {
             "experiment_name": self.name,
             "experiment_arm": self.assign(symbol),
         }
+        ws = self.resolve_weight_set(symbol)
+        if ws != "default":
+            d["experiment_weight_set"] = ws
+        return d
 
 
 def load_experiment(path: Path) -> Experiment:
@@ -106,6 +126,7 @@ def load_experiment(path: Path) -> Experiment:
         control_overrides=raw.get("control_overrides", {}),
         salt=raw.get("salt", ""),
         split_pct=raw.get("split_pct", 50),
+        treatment_weight_set=raw.get("treatment_weight_set", ""),
     )
 
 

@@ -20,6 +20,7 @@ import math
 import os
 import tempfile
 from collections import deque
+from dataclasses import dataclass
 from datetime import date, datetime
 from pathlib import Path
 from typing import Any
@@ -290,6 +291,26 @@ FEATURE_KEYS: list[str] = [
     "zone_priority_score",
 ]
 
+# G1: Explicit mapping from feature importance keys → scorer weight keys.
+# ``zone_priority_score`` is a pass-through (not weighted in scorer.py).
+FEATURE_TO_WEIGHT_KEY: dict[str, str] = {
+    "gap_component": "gap",
+    "gap_sector_rel_component": "gap_sector_relative",
+    "rvol_component": "rvol",
+    "macro_component": "macro",
+    "momentum_component": "momentum_z",
+    "hvb_component": "hvb",
+    "earnings_bmo_component": "earnings_bmo",
+    "news_component": "news",
+    "ext_hours_component": "ext_hours",
+    "analyst_catalyst_component": "analyst_catalyst",
+    "vwap_distance_component": "vwap_distance",
+    "freshness_component": "freshness_decay",
+    "institutional_component": "institutional_quality",
+    "estimate_revision_component": "estimate_revision",
+    # zone_priority_score is not a weighted component; omitted intentionally.
+}
+
 FEATURE_IMPORTANCE_DIR = OUTCOMES_DIR / "feature_importance"
 _MAX_RING_BUFFER = 100_000
 
@@ -481,3 +502,126 @@ def compute_feature_importance(
             )
 
     return report
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# #4  G2 — Automated Scorer Weight Tuning
+# ═══════════════════════════════════════════════════════════════════════════
+
+# Bayesian smoothing factor for weight updates (same philosophy as zone
+# priority calibration): ``(1 - smoothing) × data_weight + smoothing × prior``.
+_SCORER_SMOOTHING = 0.3
+
+# Minimum labeled samples to attempt auto-tuning.
+_MIN_TUNING_SAMPLES = 30
+
+# Maximum weight drift allowed from DEFAULT_WEIGHTS before CI gate trips.
+_MAX_SCORER_DRIFT = 0.50  # absolute
+
+
+@dataclass
+class ScorerWeightUpdate:
+    """Result of a single weight auto-tuning run."""
+
+    updated_weights: dict[str, float]
+    prior_weights: dict[str, float]
+    deltas: dict[str, float]
+    feature_report: dict[str, Any]
+    labeled_samples: int
+    smoothing: float
+
+
+def compute_weight_adjustments(
+    feature_report: dict[str, Any],
+    current_weights: dict[str, float],
+    *,
+    smoothing: float = _SCORER_SMOOTHING,
+) -> ScorerWeightUpdate:
+    """Translate feature-importance rankings into Bayesian weight updates.
+
+    For each feature that maps to a scorer weight key:
+
+    1. Extract ``importance_normalized`` from the feature report (0–1).
+    2. Compute ``data_weight = current_weight × (0.5 + importance_normalized)``.
+       - Importance 1.0 → 50% upward scaling.
+       - Importance 0.0 → 50% downward scaling.
+    3. Bayesian blend: ``new = (1 - smoothing) × data_weight + smoothing × prior``.
+
+    Features without a weight mapping (``zone_priority_score``) are skipped.
+    Weights not covered by FEATURE_TO_WEIGHT_KEY (penalties, ewma) are
+    passed through unchanged.
+    """
+    if "error" in feature_report:
+        raise ValueError(
+            f"Cannot tune weights: {feature_report['error']} "
+            f"(labeled={feature_report.get('labeled_samples', 0)})"
+        )
+
+    from open_prep.scorer import DEFAULT_WEIGHTS
+
+    prior = dict(DEFAULT_WEIGHTS)
+    updated = dict(current_weights)
+    deltas: dict[str, float] = {}
+
+    features = feature_report.get("features", {})
+
+    for feat_key, weight_key in FEATURE_TO_WEIGHT_KEY.items():
+        feat = features.get(feat_key)
+        if feat is None:
+            continue
+        imp = feat.get("importance_normalized", 0.5)
+        cur = current_weights.get(weight_key, prior.get(weight_key, 0.5))
+        p = prior.get(weight_key, cur)
+
+        # Scale current weight by importance: range [0.5×, 1.5×].
+        data_weight = cur * (0.5 + imp)
+
+        # Bayesian blend with prior.
+        new_weight = (1 - smoothing) * data_weight + smoothing * p
+        new_weight = round(max(new_weight, 0.01), 4)  # floor at 0.01
+
+        updated[weight_key] = new_weight
+        deltas[weight_key] = round(new_weight - cur, 4)
+
+    return ScorerWeightUpdate(
+        updated_weights=updated,
+        prior_weights=prior,
+        deltas=deltas,
+        feature_report=feature_report,
+        labeled_samples=feature_report.get("labeled_samples", 0),
+        smoothing=smoothing,
+    )
+
+
+def check_scorer_drift(
+    weights: dict[str, float],
+    *,
+    max_drift: float = _MAX_SCORER_DRIFT,
+) -> list[str]:
+    """Return human-readable violation strings for excessive weight drift.
+
+    Compares *weights* against ``DEFAULT_WEIGHTS`` from scorer.py.
+    Each weight that drifts more than *max_drift* generates a violation.
+    """
+    from open_prep.scorer import DEFAULT_WEIGHTS
+
+    violations: list[str] = []
+    for key, default in DEFAULT_WEIGHTS.items():
+        current = weights.get(key, default)
+        drift = abs(current - default)
+        if drift > max_drift:
+            violations.append(
+                f"{key}: drift={drift:.4f} (default={default}, current={current})"
+            )
+    return violations
+
+
+def scorer_update_to_json(update: ScorerWeightUpdate) -> dict[str, Any]:
+    """Serialize a ScorerWeightUpdate for artifact persistence."""
+    return {
+        "updated_weights": update.updated_weights,
+        "prior_weights": update.prior_weights,
+        "deltas": {k: v for k, v in update.deltas.items() if abs(v) > 1e-6},
+        "labeled_samples": update.labeled_samples,
+        "smoothing": update.smoothing,
+    }
