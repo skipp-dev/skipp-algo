@@ -29,6 +29,102 @@ HERO_STATE_FIELDS: tuple[str, ...] = (
 )
 
 
+# WS1-FT-05 — Failure-class buckets for the post-release validation report.
+# Mirrors the evidence-lane drift vocabulary so an operator reading either
+# report sees the same three buckets (missing-artifact, stale-manifest,
+# semantic-drift) plus a small set of operationally distinct extras
+# (auth, surface_drift, policy). ``other`` is the catch-all for any code
+# that is not yet mapped, so a new failure code is loud rather than
+# silently miscategorised.
+FAILURE_CLASS_MISSING_ARTIFACT = "missing_artifact"
+FAILURE_CLASS_STALE_MANIFEST = "stale_manifest"
+FAILURE_CLASS_SEMANTIC_DRIFT = "semantic_drift"
+FAILURE_CLASS_AUTH = "auth"
+FAILURE_CLASS_SURFACE_DRIFT = "surface_drift"
+FAILURE_CLASS_POLICY = "policy"
+FAILURE_CLASS_OTHER = "other"
+
+POST_RELEASE_FAILURE_CLASSES: tuple[str, ...] = (
+    FAILURE_CLASS_MISSING_ARTIFACT,
+    FAILURE_CLASS_STALE_MANIFEST,
+    FAILURE_CLASS_SEMANTIC_DRIFT,
+    FAILURE_CLASS_AUTH,
+    FAILURE_CLASS_SURFACE_DRIFT,
+    FAILURE_CLASS_POLICY,
+    FAILURE_CLASS_OTHER,
+)
+
+_FAILURE_CODE_TO_CLASS: dict[str, str] = {
+    # Missing artefact: the inputs needed to even run validation are absent.
+    "POST_RELEASE_VALIDATION_FAILED": FAILURE_CLASS_MISSING_ARTIFACT,
+    "NO_TARGETS": FAILURE_CLASS_MISSING_ARTIFACT,
+    # Stale manifest: manifest exists but its publication state / version /
+    # timestamp does not match the validation report.
+    "PUBLISH_STATUS_NOT_PUBLISHED": FAILURE_CLASS_STALE_MANIFEST,
+    "VERSION_MISMATCH": FAILURE_CLASS_STALE_MANIFEST,
+    "MANIFEST_STALE": FAILURE_CLASS_STALE_MANIFEST,
+    "MANIFEST_MISSING_TIMESTAMP": FAILURE_CLASS_STALE_MANIFEST,
+    # Semantic drift: a real runtime target failed (compile / add-to-chart
+    # / runtime). This is the only post-release class that mirrors the
+    # evidence-lane semantic_drift bucket.
+    "TARGET_FAILED": FAILURE_CLASS_SEMANTIC_DRIFT,
+    # Auth-only failures.
+    "AUTH_NOT_REUSED": FAILURE_CLASS_AUTH,
+    "AUTH_FAILED": FAILURE_CLASS_AUTH,
+    # Surface drift: the Settings input tab for a target was not visible
+    # (preflight). WS1-FT-04 already downgrades this in the release-gate
+    # runner; here we just label it for triage.
+    "PREFLIGHT_FAILED": FAILURE_CLASS_SURFACE_DRIFT,
+    # Policy: validation refused to run because the readonly contract was
+    # not satisfied.
+    "READONLY_MODE_REQUIRED": FAILURE_CLASS_POLICY,
+}
+
+
+def _classify_failure_code(code: str) -> str:
+    return _FAILURE_CODE_TO_CLASS.get(code, FAILURE_CLASS_OTHER)
+
+
+def _build_failure_classification(
+    failure_codes: list[str],
+) -> dict[str, Any]:
+    """Bucket failure codes by class and surface a primary blocker.
+
+    The returned dict shape:
+
+    - ``buckets``: ``{class_name: [code, ...]}`` for every class in
+      :data:`POST_RELEASE_FAILURE_CLASSES`. Empty lists are kept so a
+      consumer can iterate the full vocabulary without key-existence
+      checks.
+    - ``primary_class``: the most specific failure class present, picked
+      in the priority order missing_artifact > stale_manifest >
+      semantic_drift > auth > surface_drift > policy > other. ``None``
+      when there are no failure codes.
+    - ``primary_blocker``: a single concise human-readable string of
+      the form ``"<class>: <code>"`` for the first code in the
+      ``primary_class`` bucket. ``None`` when there are no failure
+      codes.
+    """
+    buckets: dict[str, list[str]] = {cls: [] for cls in POST_RELEASE_FAILURE_CLASSES}
+    for code in failure_codes:
+        bucket = buckets.setdefault(_classify_failure_code(code), [])
+        bucket.append(code)
+
+    primary_class: str | None = None
+    primary_blocker: str | None = None
+    for cls in POST_RELEASE_FAILURE_CLASSES:
+        if buckets[cls]:
+            primary_class = cls
+            primary_blocker = f"{cls}: {buckets[cls][0]}"
+            break
+
+    return {
+        "buckets": buckets,
+        "primary_class": primary_class,
+        "primary_blocker": primary_blocker,
+    }
+
+
 def _build_hero_state_block(
     *,
     overall_status: str,
@@ -119,6 +215,7 @@ def run_post_release_validation(
             },
             "validated_target_count": 0,
             "failures": failures,
+            "failure_classification": _build_failure_classification(list(failure_codes)),
             "hero_state": _build_hero_state_block(
                 overall_status="fail",
                 failure_codes=list(failure_codes),
@@ -134,6 +231,7 @@ def run_post_release_validation(
         "validation_timestamp_iso": validation.get("validation_timestamp_iso", _iso_utc(checked_at)),
         "validated_target_count": int(validation.get("validated_target_count", 0) or 0),
         "failures": [],
+        "failure_classification": _build_failure_classification([]),
         "hero_state": _build_hero_state_block(
             overall_status="ok",
             failure_codes=[],

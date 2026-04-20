@@ -48,13 +48,19 @@ def test_evidence_lane_gate_per_scenario_row_shape() -> None:
             "scenario_id",
             "name",
             "status",
+            "drift_type",
+            "primary_blocker",
             "expected_action",
             "observed_action",
             "drifts",
+            "missing_keys",
         }
         assert row["status"] in {"ok", "fail"}
         assert row["expected_action"] == row["observed_action"]
         assert row["drifts"] == []
+        assert row["missing_keys"] == []
+        assert row["drift_type"] is None
+        assert row["primary_blocker"] is None
 
 
 def test_evidence_lane_gate_fails_on_synthetic_drift() -> None:
