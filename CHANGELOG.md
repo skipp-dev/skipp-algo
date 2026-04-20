@@ -19,6 +19,7 @@ All notable changes to this project are documented in this file.
   - **B7: Signal Replay** Tab in `streamlit_terminal.py` — historische Signal-Timeline mit Aggregate-Metriken (Signals, Resolved, Hit Rate, Avg/Total P&L), Hit-Rate-Matrix nach Gap×RVOL Bucket, tägliche Signal-Timeline mit Expander pro Tag. 11 Unit-Tests.
   - **B6: Gehostetes Terminal** — `Dockerfile`, `docker-compose.yml`, `.dockerignore` für Self-Hosted-Deployment. Token-basierter Auth-Guard `terminal_auth.py` (`STREAMLIT_AUTH_TOKEN` env var), timing-safe Vergleich, Zero-Friction lokal. 10 Unit-Tests.
   - **C10: Explain-Modus** im `SMC_Dashboard.pine` — neuer "Explain" View-Modus mit ✅/❌ Checklist (9 Kriterien: Struktur, Zone, Qualität, Freshness, Session, Market, Event, HTF, Pressure). Zeigt Next Step und erklärt WARUM der aktuelle Zone-State gilt.
+  - **Outcome Backfill Pipeline** (`open_prep/outcome_backfill.py`) — Post-Open-Job zum Auffüllen der bisher leeren `profitable_30m`/`pnl_30m_pct` Felder in Outcome-Dateien. Holt 1-min OHLCV-Bars von Databento für das [09:30–10:00 ET]-Fenster, berechnet 30-min P&L, aktualisiert Dateien atomar. CLI: `python -m open_prep.outcome_backfill [--date YYYY-MM-DD] [--lookback N] [--dry-run] [--feature-importance]`. Feature-Importance-Backfill schließt den Kalibrations-Feedback-Loop. 25 Unit-Tests.
   - **Strategiedokument** `docs/SYSTEM_REVIEW_AND_STRATEGY_2026_Q2.md` — vollständiges Systemreview mit Vergleichsmatrix, Designprinzipien und 10-Punkte-Umsetzungsplan (A1–C10).
 
 ### Changed (2026-04-09)

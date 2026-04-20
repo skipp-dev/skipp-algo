@@ -17,6 +17,7 @@ __all__: list[str] = [
     "log_redaction",
     "macro",
     "news",
+    "outcome_backfill",
     "outcomes",
     "realtime_signals",
     "regime",
