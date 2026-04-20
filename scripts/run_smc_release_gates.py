@@ -13,6 +13,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+from scripts.smc_pine_evidence_gate import build_evidence_lane_gate
 from scripts.verify_smc_micro_publish_contract import verify_publish_contract
 from smc_core.benchmark import EventFamily, build_benchmark, export_benchmark_artifacts
 from smc_core.scoring import (
@@ -1085,6 +1086,12 @@ def main() -> int:
         },
     })
 
+    # Pine evidence lane gate (WS1-FT-03) — read-only round-trip of the
+    # canonical Pine scenario catalog through the Hero State Contract using
+    # deterministic in-process fixtures. Blocks the structural pass when a
+    # canonical decision-case drifts from its expected Hero State.
+    gates.append(build_evidence_lane_gate())
+
     if not args.skip_publish_contract:
         gates.append(_run_publish_contract_gate(args))
 
@@ -1147,7 +1154,7 @@ def main() -> int:
     #   operational_release_pass: all gates including live-only are green
     ci_validatable_gates = [
         g for g in gates
-        if g.get("name") in {"publish_contract", "reference_bundle", "measurement_lane", "provider_health"}
+        if g.get("name") in {"publish_contract", "reference_bundle", "measurement_lane", "provider_health", "evidence_lane"}
     ]
     live_only_gates = [
         g for g in gates
