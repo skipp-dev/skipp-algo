@@ -37,7 +37,9 @@ A TradingView indicator suite that detects institutional buying zones (Order Blo
 2. **Trust-Tier system** — deterministic 4-level quality assessment
 3. **Regime-aware trading** — RISK_OFF = reduced exposure
 4. **10 granular alertconditions** — not just "Buy" / "Sell"
-5. **Backend pipeline** — 10 enrichment modules, 3 providers, 4500+ tests
+5. **Backend pipeline** — 10 enrichment modules, 3 providers, 5700+ tests
+6. **Calibration confidence** — per-family historical performance weights from measurement pipeline
+7. **FVG health monitoring** — composite health score for active Fair Value Gaps
 
 ## What we do NOT compete on
 

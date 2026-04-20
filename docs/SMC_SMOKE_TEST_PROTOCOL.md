@@ -64,6 +64,10 @@
 | Step | Result | Notes |
 |---|---|---|
 | 5 fields in compact mode? | ☐ Yes ☐ No | |
+| 74 rows in Audit View? | ☐ Yes ☐ No | |
+| Calibration Confidence section visible? | ☐ Yes ☐ No | |
+| Per-Family Performance section visible? | ☐ Yes ☐ No | |
+| FVG Health section visible? | ☐ Yes ☐ No | |
 | Values plausible? | ☐ Yes ☐ No | |
 
 ## 7. Alerts

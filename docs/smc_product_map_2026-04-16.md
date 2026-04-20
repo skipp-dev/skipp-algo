@@ -37,7 +37,7 @@ The core product. Changes here require compile + semantic contract tests.
 | SMC++/smc_observability_private.pine | library | Debug text composers |
 | SMC++/smc_context_resolvers.pine | library | Context resolution + BUS packing |
 | SMC++/smc_profile_engine.pine | library | Volume profile engine (Bucket, Profile types) |
-| pine/generated/smc_micro_profiles_generated.pine | library | Generated microstructure data (~290 fields) |
+| pine/generated/smc_micro_profiles_generated.pine | library | Generated microstructure data (~315 fields, incl. Zone Priority + Contextual Calibration) |
 | pine/generated/smc_micro_profiles_core_import_snippet.pine | snippet | Import bindings for generated library |
 
 ### Companion (12 files)
@@ -47,7 +47,7 @@ Do not constitute feature gaps when they lag behind engine development.
 
 | File | Type | Role |
 |------|------|------|
-| SMC_Dashboard.pine | indicator | Operator dashboard — Decision Brief, Audit View |
+| SMC_Dashboard.pine | indicator | Operator dashboard — Decision Brief, Audit View (74 rows incl. Calibration Confidence, Per-Family Performance, FVG Health) |
 | SMC_Long_Strategy.pine | strategy | Execution surface — 8-channel BUS contract |
 | SMC_Event_Overlay.pine | indicator | Event-risk verticals + restriction zones |
 | SMC_HTF_Confluence.pine | indicator | ATR regime + reversal context scores |

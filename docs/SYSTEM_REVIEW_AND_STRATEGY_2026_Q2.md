@@ -17,10 +17,10 @@
 | Pine LOC gesamt | ~24.400 |
 | TradingView Libraries | 14 (5 SkippALGO + 8 SMC++ + 1 Generated) |
 | Python Module | ~120+ |
-| Tests | 1.023 (97,7% Coverage, CI-enforced @ 95%) |
+| Tests | 5.700+ (97,7% Coverage, CI-enforced @ 95%) |
 | CI Workflows | 7 (inkl. 4×/Tag Auto-Refresh) |
 | Streamlit Tabs | 19 |
-| Dokumentation | ~160 Dateien |
+| Dokumentation | ~165 Dateien |
 
 ### Architektur-Stärken
 
@@ -171,7 +171,10 @@
 | B7 | Signal-Replay / Journal | `streamlit_terminal.py` | ✅ Umgesetzt | Neuer Tab "📜 Signal Replay": Aggregate-Metriken (Signals, Resolved, Hit Rate, Avg/Total P&L), Hit-Rate-Matrix nach Gap×RVOL Bucket, tägliche Signal-Timeline mit Expander pro Tag. Daten aus `open_prep/outcomes.py`. 11 Tests. |
 | C8 | Mobile Dashboard | `SMC_Mobile_Dashboard.pine` | ✅ Umgesetzt | 4-Zeilen Mobile-Table: Traffic-Light + Levels + Market + Quality. Keine Overlays, keine Lines/Labels — nur Table. 6 BUS-Bindings. |
 | C9 | AI Zone-Priorisierung | `scripts/smc_zone_priority.py` | ✅ Umgesetzt | Composite-Score (0–100) aus 3 Dimensionen: historische Performance (Ensemble, 0–30), aktueller Kontext (Regime/Volatilität/Session/Projektion/HTF, 0–35+15 Bonus), News-Catalyst (0–10) minus Event-Risk-Penalty (0–50). Ableitung: Rank (A/B/C/D), Top-Family (OB/FVG/BOS/SWEEP), Catalyst (NEWS/EVENT/REGIME/NONE), Reason-String. 5 neue Pine-Exports in Generated Library. 26 Unit-Tests. |
-| C10 | Explain this Zone | `SMC_Dashboard.pine` | ✅ Umgesetzt | Neuer "Explain" View-Modus: 14-Zeilen ✅/❌ Checklist (Struktur, Zone, Qualität, Freshness, Session, Market, Event, HTF, Pressure) + Next Step. Erklärt WARUM der aktuelle State gilt. |
+| C10 | Explain this Zone | `SMC_Dashboard.pine` | ✅ Umgesetzt | Neuer "Explain" View-Modus: 14-Zeilen ✅/❌ Checklist (Struktur, Zone, Qualität, Freshness, Session, Market, Event, HTF, Pressure) + Next Step + FVG Health Prüfung. Erklärt WARUM der aktuelle State gilt. |
+| H1 | Calibration Confidence | `SMC_Dashboard.pine` | ✅ Umgesetzt | Neuer `[ Calibration Confidence ]` Block in Audit View: Top Family Confidence + Composite Confidence über alle 4 Familien. Farbkodierte Tiers (high/good/ok/low). |
+| H2 | Per-Family Performance | `SMC_Dashboard.pine` | ✅ Umgesetzt | Neuer `[ Per-Family Performance ]` Block: OB/FVG/BOS/SWEEP Kalibrierungsgewichte als Prozent + Farbkodierung. |
+| H3 | FVG Health Warning | `SMC_Dashboard.pine` | ✅ Umgesetzt | Neuer `[ FVG Health ]` Block: Composite Health-Score (Freshness + Fill + Maturity + Invalidation + Net Imbalance). Warnungen bei invalidiertem, stark gefülltem oder schwachem FVG. In Explain-Mode als Checklist-Item. |
 
 ---
 
@@ -192,4 +195,4 @@ dieses Dokument bestimmt.
 *Erstellt: 19. April 2026 — Basierend auf vollständiger Systemanalyse aller 56 Pine-Skripte,
 120+ Python-Module, 1.023 Tests, 7 CI-Workflows und 160 Dokumentationsdateien.*
 
-*Aktualisiert: 19. April 2026 — Phase A (A1–A3) + Phase B Quick Wins (B4, B5) + Phase C (C8, C10) implementiert.*
+*Aktualisiert: 20. April 2026 — Phase H (H1–H3: Calibration Confidence, Per-Family Performance, FVG Health Warning) implementiert. Dashboard auf 74 Audit-Zeilen erweitert. Generated Library auf ~315 Felder gewachsen (Zone Priority + Contextual Calibration).*

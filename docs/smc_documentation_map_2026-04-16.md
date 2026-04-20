@@ -1,8 +1,8 @@
 # SMC Documentation Map
 
-Stand: 2026-04-16  
+Stand: 2026-04-20  
 Branch: `main`  
-Autorität: Canonical-Docs-Sweep nach Feature-Freeze-Beginn
+Autorität: Canonical-Docs-Sweep nach Feature-Freeze-Beginn, aktualisiert Phase H
 
 ---
 

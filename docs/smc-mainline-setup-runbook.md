@@ -66,7 +66,11 @@ Bind them strictly in the order they appear — top-to-bottom, group by group.
 
 - The **Decision Brief** surface is the default view. Use it for quick
   decision context.
-- **Audit View** is available via settings for deeper diagnostics.
+- **Audit View** is available via settings for deeper diagnostics. It now
+  shows 74 rows including Calibration Confidence, Per-Family Performance,
+  and FVG Health sections.
+- **Explain** mode shows a checklist explaining WHY the current state applies,
+  including FVG Health status.
 
 ## Step 3 — Add SMC Execution
 

@@ -140,14 +140,15 @@ fallback paths remain.
 
 The inter-indicator BUS uses packed float series (`input.source` bindings)
 with schema version `7001`.  Dashboard validates schema version on every bar
-and shows a mismatch warning label if outdated.  69 dashboard rows decode
-lifecycle, gate, diagnostic, quality, support, and debug state from packed BUS
-slots.
+and shows a mismatch warning label if outdated.  74 dashboard rows decode
+lifecycle, gate, calibration confidence, per-family performance, FVG health,
+diagnostic, quality, support, and debug state from packed BUS slots.
 
 ### Product cut
 
 Two product modes: "Decision Brief" (5–9 hero rows, compact) and "Audit View"
-(full 60+ row expert table including Trust & Provider section).  Compact
+(full 74-row expert table including Trust & Provider, Calibration Confidence,
+Per-Family Performance, and FVG Health sections).  Compact
 dashboard option available for mobile.
 
 ---

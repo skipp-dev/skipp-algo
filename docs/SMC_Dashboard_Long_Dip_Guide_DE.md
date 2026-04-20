@@ -11,9 +11,19 @@ Grundregel:
 - Je mehr Felder zusammenpassen, desto sauberer ist ein Setup.
 - Eine Zone allein ist kein Einstieg.
 
-## Neueste Aenderungen (Maerz 2026)
+## Neueste Aenderungen (April 2026)
 
-Die juengsten SMC++-Updates haben vor allem vier Dinge geschaerft:
+Die juengsten SMC++-Updates bringen drei Phase-H-Erweiterungen ("Pine Consumer Maturity"):
+
+- **Calibration Confidence Indicator** — die Audit View zeigt jetzt pro-Familie Kalibrierungsgewichte aus der Measurement-Pipeline. Ein neuer `[ Calibration Confidence ]`-Block zeigt das Vertrauen der Top-Familie und einen Composite-Durchschnitt ueber OB, FVG, BOS und SWEEP.
+- **Per-Family Performance** — ein neuer `[ Per-Family Performance ]`-Block in der Audit View zeigt jede Zone-Familie (OB, FVG, BOS, SWEEP) mit ihrem kalibrierten historischen Performance-Gewicht als Prozent und farbcodiertem Vertrauens-Tier (high / good / ok / low).
+- **FVG Health Warning** — die Explain-Mode-Checkliste enthaelt jetzt eine FVG-Health-Pruefung. Die Audit View bekommt einen `[ FVG Health ]`-Block mit Composite-Score aus Freshness, Invalidierungs-Status, Fill-Prozentsatz, Maturity und Net Imbalance. Warnungen erscheinen bei invalidiertem, stark gefuelltem (>=75%) oder schwachem FVG.
+- Die Audit View ist von 63 auf 74 Zeilen gewachsen.
+- Zone Priority (Rang, Score, Familie, Catalyst) wird jetzt in Decision Brief und Audit View angezeigt.
+
+### Vorherige Aenderungen (Maerz 2026)
+
+Die frueheren SMC++-Updates haben vor allem vier Dinge geschaerft:
 
 - Die `Watchlist` ist jetzt wieder bewusst generisch: Sie bedeutet nur, dass ein bullischer Trend plus eine aktive Pullback-Zone vorhanden sind.
 - Alles Strenge dahinter ist jetzt quellenspezifisch: Reclaim-Sequenz, Armed/Confirmed-Tracking und Invalidierung folgen dem konkreten OB- oder FVG-Objekt, das das Setup traegt.
@@ -58,6 +68,43 @@ Dieser Block zeigt die Freigaben und Sperren.
 - Quality Strict
 
 Hier geht es um die Frage: Darf das Setup unter den aktuellen Markt- und Ausfuehrungsbedingungen ueberhaupt weiterlaufen?
+
+### [ Calibration Confidence ]
+
+Dieser Block zeigt, wie belastbar das historische Performance-Profil jeder Zone-Familie ist.
+
+- Top Family Confidence — Kalibrierungsgewicht der dominanten Familie der Zone Priority
+- Composite Confidence — Durchschnittliches Kalibrierungsgewicht ueber OB, FVG, BOS, SWEEP
+
+Vertrauens-Tiers: high (>=80%), good (>=65%), ok (>=50%), low (<50%).
+
+Hier geht es um die Frage: Wie sehr kann man der aktuellen Familienwahl auf Basis historischer Messungen vertrauen?
+
+### [ Per-Family Performance ]
+
+Dieser Block zeigt die einzelnen Zone-Familien-Gewichte.
+
+- OB — Order Block Kalibrierungsgewicht
+- FVG — Fair Value Gap Kalibrierungsgewicht
+- BOS — Break of Structure Kalibrierungsgewicht
+- SWEEP — Liquidity Sweep Kalibrierungsgewicht
+
+Hoehere Gewichte bedeuten, dass die Familie historisch in aehnlichen Marktbedingungen besser abgeschnitten hat. Farbcodiert von gruen (high) bis orange (low).
+
+### [ FVG Health ]
+
+Dieser Block zeigt den aktuellen Zustand der aktiven FVG-Zone.
+
+- FVG Status — Seite, Health-Tier (healthy/aging/weak/none), Fill-Prozent, Freshness
+- FVG Warning — erscheint bei invalidiertem, stark gefuelltem oder schwachem FVG
+
+Health-Tiers:
+- **healthy** (>=60 Score): frisches FVG, niedriger Fill, gute Maturity
+- **aging** (>=30 Score): teilweise gefuellt oder nachlassende Freshness
+- **weak** (<30 Score): stark gefuellt, invalidiert oder schlechte Bedingungen
+- **none**: kein aktives FVG
+
+Hier geht es um die Frage: Ist die aktuelle FVG-Zone noch zuverlaessig genug, um einen Trade zu stuetzen?
 
 ### [ Quality ]
 

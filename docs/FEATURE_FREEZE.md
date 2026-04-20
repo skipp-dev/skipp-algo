@@ -38,6 +38,10 @@
     Institutional 3, Analyst 3, Insider 2) + FVG_NET_IMBALANCE in main seed eingefuegt
   - Alle 21 Felder im Generator, in der generierten Library (309 Exporte) und
     im Core Engine als Consumer verdrahtet
+  - Phase H (Pine Consumer Maturity): 25 weitere Exporte (Zone Priority 5 +
+    Zone Calibration 4 base + 16 Contextual Calibration Phase F) in der
+    generierten Library; Dashboard auf 74 Audit-Zeilen erweitert mit
+    Calibration Confidence, Per-Family Performance und FVG Health
   - 6 bisher konsumerlose Felder (MARKET_SHORT_INTEREST_AVG, SHORT_INTEREST_EXTREME,
     TREASURY_2Y_YIELD, SECTOR_LAGGING, SECTOR_STRONGEST, INSTITUTIONAL_DATA_AVAILABLE)
     in den Engine eingebunden; Consumer-Contract-Tests aktualisiert

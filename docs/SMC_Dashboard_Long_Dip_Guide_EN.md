@@ -11,9 +11,19 @@ Core rule:
 - The more fields align, the cleaner the setup.
 - A zone by itself is not an entry.
 
-## Recent Changes (March 2026)
+## Recent Changes (April 2026)
 
-The latest SMC++ updates tightened four areas in particular:
+The latest SMC++ updates added three Phase H "Pine Consumer Maturity" enhancements:
+
+- **Calibration Confidence Indicator** — the Audit View now shows per-family calibration weights from the measurement benchmark pipeline. A new `[ Calibration Confidence ]` section shows the top family's confidence and a composite average across OB, FVG, BOS, and SWEEP.
+- **Per-Family Performance** — a new `[ Per-Family Performance ]` section in the Audit View displays each zone family (OB, FVG, BOS, SWEEP) with its calibrated historical performance weight as a percentage and a color-coded confidence tier (high / good / ok / low).
+- **FVG Health Warning** — the Explain mode checklist now includes an FVG Health item. The Audit View gains a `[ FVG Health ]` section with a composite health score derived from freshness, invalidation state, fill percentage, maturity, and net imbalance. Warnings appear when an FVG is invalidated, heavily filled (≥75%), or in weak health.
+- The Audit View expanded from 63 to 74 rows to accommodate the new sections.
+- Zone Priority (rank, score, family, catalyst) is now displayed in both Decision Brief and Audit View.
+
+### Previous Changes (March 2026)
+
+The earlier SMC++ updates tightened four areas in particular:
 
 - `Watchlist` is intentionally generic again: it only means bullish trend plus an active pullback zone.
 - Everything strict behind it is now source-specific: reclaim sequencing, armed/confirmed tracking, and invalidation follow the actual OB or FVG that backs the setup.
@@ -53,6 +63,43 @@ This block shows release and block conditions.
 - Quality Strict
 
 This answers: Is the setup even allowed to keep progressing under the current market and execution conditions?
+
+### [ Calibration Confidence ]
+
+This block shows how reliable each zone family's historical performance is.
+
+- Top Family Confidence — the calibration weight of the zone priority's dominant family
+- Composite Confidence — average calibration weight across OB, FVG, BOS, SWEEP
+
+Confidence tiers: high (≥80%), good (≥65%), ok (≥50%), low (<50%).
+
+This answers: How much should you trust the current family selection based on historical measurement data?
+
+### [ Per-Family Performance ]
+
+This block shows individual zone family performance weights.
+
+- OB — Order Block calibration weight
+- FVG — Fair Value Gap calibration weight
+- BOS — Break of Structure calibration weight
+- SWEEP — Liquidity Sweep calibration weight
+
+Higher weights mean the family has historically performed better in similar market conditions. Color-coded from green (high) to orange (low).
+
+### [ FVG Health ]
+
+This block shows the current health of the active FVG zone.
+
+- FVG Status — side, health tier (healthy/aging/weak/none), fill percentage, freshness
+- FVG Warning — appears when the FVG is invalidated, heavily filled, or in weak health
+
+Health tiers:
+- **healthy** (≥60 score): fresh FVG, low fill, good maturity
+- **aging** (≥30 score): partially filled or losing freshness
+- **weak** (<30 score): heavily filled, invalidated, or poor conditions
+- **none**: no active FVG
+
+This answers: Is the current FVG zone still reliable enough to support a trade?
 
 ### [ Quality ]
 

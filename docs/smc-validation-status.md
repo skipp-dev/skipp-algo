@@ -15,6 +15,9 @@ It now anchors and propagates product metadata across:
 
 ## What Changed In This Phase
 
+- Phase H (Pine Consumer Maturity): Dashboard expanded to 74 Audit View rows with three new sections — Calibration Confidence, Per-Family Performance, and FVG Health
+- Generated library expanded with 25 new exports: Zone Priority (5 fields), Zone Priority Calibration (4 base + 16 contextual Phase F variants)
+- Explain mode now includes FVG Health checklist item
 - the residual-program closeout and the published senior-review follow-up are now tracked in [smc-residual-program-completion.md](smc-residual-program-completion.md), including the additive `volume_provenance` boundary and the published follow-up commit `8c6652db`
 - the active SMC core/dashboard path now carries library volatility + ensemble context through the existing lean BUS transport and renders it in the audit surface
 - the refresh workflow now restores known runtime artifacts before commit/push and verifies the generated library import bump explicitly
@@ -43,7 +46,7 @@ It now anchors and propagates product metadata across:
 
 ## Current Workspace Status
 
-Refresh date: 2026-04-14
+Refresh date: 2026-04-20
 
 - live TradingView automation prerequisites are present in this checkout
 - present locally: `scripts/tv_preflight.ts`, `scripts/tv_publish_micro_library.ts`, `scripts/create_tradingview_storage_state.ts`, the shared automation layer under `automation/tradingview/lib/...`, the `automation/tradingview/reports` folder, and auth artifacts under `automation/tradingview/auth/...`
