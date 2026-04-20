@@ -665,7 +665,7 @@ class TestFinalizePipelineE2E:
 
         manifest_path = Path(result["pine_paths"]["manifest_path"])
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-        assert manifest["enrichment_blocks"] == ["calendar", "meta", "news", "providers", "regime", "volume_regime"]
+        assert manifest["enrichment_blocks"] == ["calendar", "hero_state", "meta", "news", "providers", "regime", "volume_regime"]
 
     def test_finalize_pipeline_writes_library_provider_diagnostics_report(self, base_result, tmp_path):
         result = finalize_pipeline(

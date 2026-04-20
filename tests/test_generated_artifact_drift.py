@@ -200,8 +200,9 @@ class TestGeneratedArtifactDrift:
         # C9: Zone Priority adds 5 fields (RANK, SCORE, TOP_FAMILY, CATALYST, REASON). 135 → 140.
         # Calibration consumer adds 4 fields (ZONE_CAL_OB/FVG/BOS/SWEEP). 140 → 144.
         # Phase F: Contextual calibration adds 16 fields (4 families × 4 contexts). 144 → 160.
-        assert len(exports) == 160, (
-            f"Expected 160 export const fields for the current v6 shared-export contract, got {len(exports)}"
+        # Hero State Contract adds 7 fields. 160 → 167.
+        assert len(exports) == 167, (
+            f"Expected 167 export const fields for the current v6 shared-export contract, got {len(exports)}"
         )
 
     def test_event_risk_exports_stay_in_canonical_order(self, regenerated: Path):

@@ -1324,6 +1324,11 @@ def build_enrichment(
             logger.warning("Insider enrichment failed", exc_info=True)
             enrichment.setdefault("_diagnostics", {})["insider_error"] = str(exc)
 
+    # ── Hero State Contract ──────────────────────────────────────
+    from scripts.smc_hero_state import build_hero_state
+
+    enrichment["hero_state"] = build_hero_state(enrichment)
+
     # ── Meta ────────────────────────────────────────────────────
     prev_count = _read_previous_refresh_count(manifest_path)
     enrichment["meta"] = {

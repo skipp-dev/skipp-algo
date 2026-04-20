@@ -990,6 +990,20 @@ def write_pine_library(
     content.append(f'export const string INSIDER_BUYING_TICKERS = "{",".join(ins.get("insider_buying_tickers") or [])}"')
     content.append(f'export const string INSIDER_SELLING_HEAVY_TICKERS = "{",".join(ins.get("insider_selling_heavy_tickers") or [])}"')
 
+    # ── Hero State Contract ───────────────────────────────────────
+    from scripts.smc_hero_state import DEFAULTS as _HERO_DEFAULTS
+
+    hs = enr.get("hero_state") or {}
+    content.append("")
+    content.append("// ── Hero State ──")
+    content.append(f'export const string HERO_MARKET_MODE = "{hs.get("HERO_MARKET_MODE", _HERO_DEFAULTS["HERO_MARKET_MODE"])}"')
+    content.append(f'export const string HERO_BIAS = "{hs.get("HERO_BIAS", _HERO_DEFAULTS["HERO_BIAS"])}"')
+    content.append(f'export const string HERO_TRUST = "{hs.get("HERO_TRUST", _HERO_DEFAULTS["HERO_TRUST"])}"')
+    content.append(f'export const string HERO_SETUP_QUALITY = "{hs.get("HERO_SETUP_QUALITY", _HERO_DEFAULTS["HERO_SETUP_QUALITY"])}"')
+    content.append(f'export const string HERO_WHY_NOW = "{hs.get("HERO_WHY_NOW", _HERO_DEFAULTS["HERO_WHY_NOW"])}"')
+    content.append(f'export const string HERO_RISK = "{hs.get("HERO_RISK", _HERO_DEFAULTS["HERO_RISK"])}"')
+    content.append(f'export const string HERO_ACTION = "{hs.get("HERO_ACTION", _HERO_DEFAULTS["HERO_ACTION"])}"')
+
     # ── Zone Priority (C9) ──────────────────────────────────────
     from scripts.smc_zone_priority import DEFAULTS as _ZP_DEFAULTS
 

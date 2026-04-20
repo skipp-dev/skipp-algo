@@ -513,3 +513,5 @@ class EnrichmentDict(TypedDict, total=False):
     institutional: InstitutionalBlock
     analyst: AnalystBlock
     insider: InsiderBlock
+    # Hero State Contract
+    hero_state: dict[str, str]

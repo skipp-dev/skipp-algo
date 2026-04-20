@@ -44,6 +44,9 @@ ENRICHMENT_FIELDS = [
     "VOLATILITY_MODEL_SOURCE", "VOLATILITY_FALLBACK_REASON",
     "VOLATILITY_PROXY_SYMBOL", "VOLATILITY_PROXY_SOURCE",
     "ENSEMBLE_QUALITY_SCORE", "ENSEMBLE_QUALITY_TIER", "ENSEMBLE_AVAILABLE_COMPONENTS",
+    # Hero State
+    "HERO_MARKET_MODE", "HERO_BIAS", "HERO_TRUST", "HERO_SETUP_QUALITY",
+    "HERO_WHY_NOW", "HERO_RISK", "HERO_ACTION",
 ]
 
 LIST_FIELDS = [f"{n.upper()}_TICKERS" for n in LISTS]
@@ -231,6 +234,15 @@ def _full_enrichment() -> EnrichmentDict:
         "insider": {
             "insider_buying_tickers": ["AAPL"],
             "insider_selling_heavy_tickers": [],
+        },
+        "hero_state": {
+            "HERO_MARKET_MODE": "RISK_ON",
+            "HERO_BIAS": "FLAT",
+            "HERO_TRUST": "healthy",
+            "HERO_SETUP_QUALITY": "low",
+            "HERO_WHY_NOW": "FOMC Rate Decision",
+            "HERO_RISK": "",
+            "HERO_ACTION": "ACTIVE",
         },
         "meta": {
             "asof_time": "2026-03-28T14:30:00Z",
