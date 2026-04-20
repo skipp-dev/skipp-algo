@@ -42,6 +42,13 @@ jobs:
             [ -f "$summary" ] && python scripts/smc_performance_report.py "$summary" || true
           done
 
+      - name: Zone priority recalibration + drift check
+        run: |
+          python scripts/smc_zone_priority_calibration.py \
+            --benchmark-dir artifacts/ci/measurement_benchmark \
+            --output-path artifacts/ci/measurement_benchmark/zone_priority_calibration.json \
+            --check-drift 0.15
+
       - name: Upload measurement benchmark artifacts
         if: always()
         uses: actions/upload-artifact@v7

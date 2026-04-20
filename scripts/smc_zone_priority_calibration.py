@@ -67,10 +67,10 @@ class CalibrationResult:
 # ── Hand-tuned defaults (from C9 launch) ────────────────────────
 
 _DEFAULT_FAMILY_WEIGHTS: dict[str, float] = {
-    "OB": 0.72,
-    "FVG": 0.65,
-    "BOS": 0.58,
-    "SWEEP": 0.50,
+    "OB": 0.82,
+    "FVG": 0.61,
+    "BOS": 0.81,
+    "SWEEP": 0.73,
 }
 
 _DEFAULT_RANK_THRESHOLDS: dict[str, int] = {
@@ -271,6 +271,29 @@ def to_json(cal: CalibrationResult) -> dict[str, Any]:
     }
 
 
+def check_drift(
+    cal: CalibrationResult,
+    *,
+    max_drift: float = 0.15,
+) -> list[str]:
+    """Return a list of drift-violation messages.
+
+    A violation occurs when ``|calibrated - prior| > max_drift``
+    for any family.
+    """
+    violations: list[str] = []
+    for family in ("OB", "FVG", "BOS", "SWEEP"):
+        prior = _DEFAULT_FAMILY_WEIGHTS.get(family, 0.50)
+        calibrated = cal.family_weights.get(family, prior)
+        delta = abs(calibrated - prior)
+        if delta > max_drift:
+            violations.append(
+                f"{family}: drift {delta:.4f} exceeds threshold {max_drift:.2f} "
+                f"(prior={prior:.2f}, calibrated={calibrated:.4f})"
+            )
+    return violations
+
+
 def main(argv: list[str] | None = None) -> None:
     import argparse
 
@@ -286,6 +309,13 @@ def main(argv: list[str] | None = None) -> None:
         default=Path("artifacts/reports/zone_priority_calibration.json"),
     )
     parser.add_argument("--smoothing", type=float, default=0.3)
+    parser.add_argument(
+        "--check-drift",
+        type=float,
+        metavar="MAX_DRIFT",
+        default=None,
+        help="Fail with exit code 1 if any family weight drifts more than MAX_DRIFT from prior",
+    )
     args = parser.parse_args(argv)
 
     cal = calibrate_from_benchmark(args.benchmark_dir, smoothing=args.smoothing)
@@ -309,6 +339,17 @@ def main(argv: list[str] | None = None) -> None:
         delta = w - prior
         sign = "+" if delta >= 0 else ""
         print(f"  {fam}: {prior:.2f} → {w:.4f} ({sign}{delta:.4f})")
+
+    if args.check_drift is not None:
+        violations = check_drift(cal, max_drift=args.check_drift)
+        if violations:
+            print()
+            print(f"DRIFT CHECK FAILED (threshold={args.check_drift:.2f}):")
+            for v in violations:
+                print(f"  ✗ {v}")
+            raise SystemExit(1)
+        else:
+            print(f"\nDrift check passed (threshold={args.check_drift:.2f})")
 
 
 if __name__ == "__main__":

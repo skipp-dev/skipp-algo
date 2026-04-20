@@ -13,6 +13,7 @@ from scripts.smc_zone_priority_calibration import (
     FamilyStats,
     calibrate_from_benchmark,
     calibrate_weights,
+    check_drift,
     load_family_metrics,
     render_calibration_report,
     to_json,
@@ -126,8 +127,8 @@ def test_calibrate_weights_blends_prior_and_observed() -> None:
     stats["OB"].weights = [20]
 
     cal = calibrate_weights(stats, smoothing=0.3)
-    # Prior=0.72, Observed=0.80, Blended = 0.7*0.80 + 0.3*0.72 = 0.776
-    assert abs(cal["OB"] - 0.776) < 0.001
+    # Prior=0.82, Observed=0.80, Blended = 0.7*0.80 + 0.3*0.82 = 0.806
+    assert abs(cal["OB"] - 0.806) < 0.001
 
 
 def test_calibrate_weights_uses_prior_for_small_n() -> None:
@@ -137,15 +138,15 @@ def test_calibrate_weights_uses_prior_for_small_n() -> None:
 
     cal = calibrate_weights(stats, smoothing=0.3)
     # n < 5 → falls back to prior
-    assert cal["OB"] == 0.72
+    assert cal["OB"] == 0.82
 
 
 def test_calibrate_weights_all_defaults_when_empty() -> None:
     cal = calibrate_weights({})
-    assert cal["OB"] == 0.72
-    assert cal["FVG"] == 0.65
-    assert cal["BOS"] == 0.58
-    assert cal["SWEEP"] == 0.50
+    assert cal["OB"] == 0.82
+    assert cal["FVG"] == 0.61
+    assert cal["BOS"] == 0.81
+    assert cal["SWEEP"] == 0.73
 
 
 def test_calibrate_weights_clamped() -> None:
@@ -173,8 +174,8 @@ def test_calibrate_from_benchmark(tmp_path: Path) -> None:
     assert cal.total_events > 0
     assert cal.total_pairs > 0
     assert set(cal.family_weights.keys()) == {"OB", "FVG", "BOS", "SWEEP"}
-    # OB should be pulled up from 0.72 toward 0.90
-    assert cal.family_weights["OB"] > 0.72
+    # OB should be pulled up from 0.82 toward 0.90
+    assert cal.family_weights["OB"] > 0.82
 
 
 def test_calibrate_with_real_artifacts() -> None:
@@ -244,3 +245,93 @@ def test_build_zone_priority_default_weights_unchanged() -> None:
     result = build_zone_priority(regime="RISK_ON", htf_aligned=True)
     # OB should be top family in default mode with RISK_ON + HTF aligned
     assert result["ZONE_PRIORITY_TOP_FAMILY"] == "OB"
+
+
+# ── Drift check ──────────────────────────────────────────────────
+
+
+def test_check_drift_no_violations() -> None:
+    cal = CalibrationResult(
+        family_weights={"OB": 0.85, "FVG": 0.60, "BOS": 0.78, "SWEEP": 0.70},
+        rank_thresholds={"A": 75, "B": 50, "C": 25},
+        family_stats={},
+        total_events=100,
+        total_pairs=4,
+        source_dir="/tmp",
+    )
+    violations = check_drift(cal, max_drift=0.15)
+    assert violations == []
+
+
+def test_check_drift_catches_large_drift() -> None:
+    cal = CalibrationResult(
+        family_weights={"OB": 0.82, "FVG": 0.61, "BOS": 0.99, "SWEEP": 0.73},
+        rank_thresholds={"A": 75, "B": 50, "C": 25},
+        family_stats={},
+        total_events=100,
+        total_pairs=4,
+        source_dir="/tmp",
+    )
+    # BOS: |0.99 - 0.81| = 0.18 > 0.15
+    violations = check_drift(cal, max_drift=0.15)
+    assert len(violations) == 1
+    assert "BOS" in violations[0]
+    assert "0.1800" in violations[0]
+
+
+def test_check_drift_multiple_violations() -> None:
+    cal = CalibrationResult(
+        family_weights={"OB": 0.99, "FVG": 0.20, "BOS": 0.81, "SWEEP": 0.73},
+        rank_thresholds={"A": 75, "B": 50, "C": 25},
+        family_stats={},
+        total_events=100,
+        total_pairs=4,
+        source_dir="/tmp",
+    )
+    # OB: |0.99 - 0.82| = 0.17; FVG: |0.20 - 0.61| = 0.41
+    violations = check_drift(cal, max_drift=0.15)
+    assert len(violations) == 2
+    families = [v.split(":")[0] for v in violations]
+    assert "OB" in families
+    assert "FVG" in families
+
+
+def test_check_drift_cli_exits_on_violation(tmp_path: Path) -> None:
+    from scripts.smc_zone_priority_calibration import main
+
+    # Create benchmark data with extreme hit rates to cause drift
+    _write_scoring(tmp_path, "AAPL", "15m", _make_scoring("AAPL", "15m", {
+        "OB": {"n_events": 50, "hit_rate": 0.99},  # prior=0.82 → drift with smoothing=0
+        "FVG": {"n_events": 50, "hit_rate": 0.65},
+        "BOS": {"n_events": 50, "hit_rate": 0.58},
+        "SWEEP": {"n_events": 50, "hit_rate": 0.50},
+    }))
+
+    out = tmp_path / "out.json"
+    with pytest.raises(SystemExit, match="1"):
+        main([
+            "--benchmark-dir", str(tmp_path),
+            "--output-path", str(out),
+            "--smoothing", "0.0",        # pure data, no prior blend
+            "--check-drift", "0.15",
+        ])
+
+
+def test_check_drift_cli_passes_within_threshold(tmp_path: Path) -> None:
+    from scripts.smc_zone_priority_calibration import main
+
+    # Moderate hit rates — within drift threshold with smoothing
+    _write_scoring(tmp_path, "AAPL", "15m", _make_scoring("AAPL", "15m", {
+        "OB": {"n_events": 20, "hit_rate": 0.80},
+        "FVG": {"n_events": 20, "hit_rate": 0.60},
+        "BOS": {"n_events": 20, "hit_rate": 0.65},
+        "SWEEP": {"n_events": 20, "hit_rate": 0.55},
+    }))
+
+    out = tmp_path / "out.json"
+    # Should NOT raise
+    main([
+        "--benchmark-dir", str(tmp_path),
+        "--output-path", str(out),
+        "--check-drift", "0.15",
+    ])

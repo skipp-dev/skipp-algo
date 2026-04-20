@@ -74,10 +74,10 @@ _EVENT_RISK_PENALTIES: dict[str, float] = {
 # ── Family priority (historical long-dip hit rates) ────────────
 
 _FAMILY_BASE_PRIORITY: dict[str, float] = {
-    "OB": 0.72,       # Order Blocks: highest historical hit rate for long-dips
-    "FVG": 0.65,      # FVG: strong fill rate, good for entries
-    "BOS": 0.58,      # BOS: directional confirmation
-    "SWEEP": 0.50,    # Sweep reversals: volatile but lower base rate
+    "OB": 0.82,       # Order Blocks: highest historical hit rate for long-dips
+    "FVG": 0.61,      # FVG: strong fill rate, good for entries
+    "BOS": 0.81,      # BOS: directional confirmation
+    "SWEEP": 0.73,    # Sweep reversals: empirically higher than initial estimate
 }
 
 
