@@ -685,7 +685,7 @@ def test_micro_profile_row_encodes_modifier_presence_inline() -> None:
     assert 'micro_profile_row_code_from_code(int profile_code) =>' in dashboard_source
     assert 'int micro_profile_encoded = int(math.round(nz(src_micro_profile_code, 0.0)))' in dashboard_source
     assert 'int micro_profile_row_code = micro_profile_row_code_from_code(micro_profile_encoded)' in dashboard_source
-    assert 'dashboard_row(smc_dashboard, 55, "Micro Profile", decode_micro_profile_text(micro_profile_row_code), status_bg(row_status(micro_profile_row_code)), txt)' in dashboard_source
+    assert 'dashboard_row(smc_dashboard, 56, "Micro Profile", decode_micro_profile_text(micro_profile_row_code), status_bg(row_status(micro_profile_row_code)), txt)' in dashboard_source
 
     assert resolve_micro_profile_code(False, 'Default', '') == 0
     assert resolve_micro_profile_code(True, 'Default', '') == 1
@@ -753,12 +753,12 @@ def test_lifecycle_rows_reconstruct_from_state_and_meta_contract() -> None:
 def test_hard_gate_decoders_reproduce_current_bus_v2_contract() -> None:
     dashboard_source = _read(DASHBOARD_PATH)
 
-    assert 'dashboard_row(smc_dashboard, 23, "Session", decode_session_text(session_row_code)' in dashboard_source
-    assert 'dashboard_row(smc_dashboard, 24, "Market Gate", decode_market_text(market_row_code)' in dashboard_source
-    assert 'dashboard_row(smc_dashboard, 25, "Vola Regime", decode_vola_text(vola_row_code)' in dashboard_source
-    assert 'dashboard_row(smc_dashboard, 26, "Micro Session", decode_micro_session_text(micro_session_row_code)' in dashboard_source
-    assert 'dashboard_row(smc_dashboard, 27, "Micro Fresh", decode_micro_fresh_text(micro_fresh_row_code, freshness_code, source_state_code)' in dashboard_source
-    assert 'dashboard_row(smc_dashboard, 28, "Volume Data", decode_volume_data_text(volume_data_row_code)' in dashboard_source
+    assert 'dashboard_row(smc_dashboard, 24, "Session", decode_session_text(session_row_code)' in dashboard_source
+    assert 'dashboard_row(smc_dashboard, 25, "Market Gate", decode_market_text(market_row_code)' in dashboard_source
+    assert 'dashboard_row(smc_dashboard, 26, "Vola Regime", decode_vola_text(vola_row_code)' in dashboard_source
+    assert 'dashboard_row(smc_dashboard, 27, "Micro Session", decode_micro_session_text(micro_session_row_code)' in dashboard_source
+    assert 'dashboard_row(smc_dashboard, 28, "Micro Fresh", decode_micro_fresh_text(micro_fresh_row_code, freshness_code, source_state_code)' in dashboard_source
+    assert 'dashboard_row(smc_dashboard, 29, "Volume Data", decode_volume_data_text(volume_data_row_code)' in dashboard_source
 
     assert decode_session_text(pack_bus_row(0, 1)) == 'n/a'
     assert decode_session_text(pack_bus_row(0, 2)) == 'off'
@@ -806,7 +806,7 @@ def test_quality_score_uses_fixed_local_bounds_text() -> None:
     assert 'str.tostring(score_value, "#.##") + "/100 | min 25"' in dashboard_source
     assert 'quality_stack_text(float score_value, int ensemble_row_code) =>' in dashboard_source
     assert 'int lean_transport_row_code = pack_slot(src_lean_pack_b, 3)' in dashboard_source
-    assert 'dashboard_row(smc_dashboard, 39, "Primary | Signal + Ensemble", quality_stack_text(src_quality_score, lean_transport_row_code), primary_metric_bg(row_status(quality_score_row_code)), txt)' in dashboard_source
+    assert 'dashboard_row(smc_dashboard, 40, "Primary | Signal + Ensemble", quality_stack_text(src_quality_score, lean_transport_row_code), primary_metric_bg(row_status(quality_score_row_code)), txt)' in dashboard_source
 
     assert render_quality_bounds_text(74.0) == '74/100 | min 25'
     assert render_quality_stack_text(74.0, pack_bus_row(4, 21)) == '74/100 | min 25 | Ensemble good'
@@ -821,7 +821,7 @@ def test_lean_transport_row_exposes_ensemble_and_library_volatility() -> None:
     assert 'decode_ensemble_text(int row_code) =>' in dashboard_source
     assert 'decode_library_vol_text(int row_code) =>' in dashboard_source
     assert 'decode_vol_regime_stack_text(int row_code, int transport_row_code) =>' in dashboard_source
-    assert 'dashboard_row(smc_dashboard, 44, "Vol Regime | Lib", decode_vol_regime_stack_text(vol_regime_row_code, lean_transport_row_code), status_bg(row_status(vol_regime_row_code)), txt)' in dashboard_source
+    assert 'dashboard_row(smc_dashboard, 45, "Vol Regime | Lib", decode_vol_regime_stack_text(vol_regime_row_code, lean_transport_row_code), status_bg(row_status(vol_regime_row_code)), txt)' in dashboard_source
 
     transport_row = pack_bus_row(4, 21)
     assert decode_ensemble_text(transport_row) == 'good'

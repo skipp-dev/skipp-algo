@@ -343,6 +343,11 @@ from newsstack_fmp.store_sqlite import SqliteStore
 from newsstack_fmp._bz_http import _WARNED_ENDPOINTS
 from open_prep.playbook import classify_recency as _classify_recency
 from open_prep.outcomes import _load_outcomes_range, compute_hit_rates
+from smc_integration.provider_health import (
+    FailureAction,
+    _FAILURE_SEMANTICS_MATRIX,
+    run_provider_health_check,
+)
 from terminal_background_poller import BackgroundPoller
 from terminal_catalyst_state import (
     annotate_feed_with_ticker_catalyst_state,
@@ -2938,10 +2943,10 @@ else:
             st.code(_tb.format_exc(), language="python")
             logger.exception("Tab %s render error", label)
 
-    tab_rank, tab_actionable, tab_ai, tab_segments, tab_outlook, tab_feed, tab_bitcoin, tab_alerts, tab_table, tab_replay = st.tabs(
+    tab_rank, tab_actionable, tab_ai, tab_segments, tab_outlook, tab_feed, tab_bitcoin, tab_alerts, tab_table, tab_replay, tab_health = st.tabs(
         ["🏆 Rankings", "🎯 Actionable", "🧠 AI Insights", "🏗️ Segments", "🔮 Outlook",
          "📰 Live Feed", "₿ Bitcoin",
-         "⚡ Alerts", "📊 Data Table", "📜 Signal Replay"],
+         "⚡ Alerts", "📊 Data Table", "📜 Signal Replay", "🩺 Provider Health"],
     )
 
     # ── TAB: Live Feed (with search + date filter) ──────────
@@ -4928,6 +4933,115 @@ else:
                             "Bucket": f"{_sr.get('gap_bucket_label', '')}:{_sr.get('rvol_bucket_label', '')}",
                         })
                     st.dataframe(pd.DataFrame(_signal_rows), hide_index=True, use_container_width=True)
+
+    # ── TAB: Provider Health ────────────────────────────────────
+    with tab_health, _tab_guard("Provider Health"):
+        st.header("🩺 Provider Health")
+        st.caption("Live provider status, domain visibility, staleness, failure semantics, and fallback chains.")
+
+        try:
+            _health_report = run_provider_health_check()
+        except Exception as _health_exc:
+            st.error(f"Health check failed: {_health_exc}")
+            _health_report = None
+
+        if _health_report:
+            # ── Overall status badge ──────────────────────────
+            _overall = _health_report.get("overall_status", "unknown")
+            _status_icon = {"ok": "🟢", "warn": "🟡", "fail": "🔴"}.get(_overall, "⚪")
+            _checked_iso = _health_report.get("checked_at_iso", "")
+
+            hcol1, hcol2, hcol3, hcol4 = st.columns(4)
+            hcol1.metric("Status", f"{_status_icon} {_overall.upper()}")
+            _vis_score = _health_report.get("domain_visibility_score")
+            hcol2.metric("Domain Coverage", f"{_vis_score:.0%}" if _vis_score is not None else "—")
+            hcol3.metric("Warnings", len(_health_report.get("warnings", [])))
+            hcol4.metric("Failures", len(_health_report.get("failures", [])))
+
+            # ── Provider domain matrix ────────────────────────
+            _providers = _health_report.get("provider_domain_results", [])
+            if _providers:
+                st.subheader("Provider Domain Matrix")
+                _prov_rows = []
+                for _p in _providers:
+                    _prov_rows.append({
+                        "Provider": _p.get("provider", "?"),
+                        "Status": "✅" if _p.get("status") == "ok" else "⚠️",
+                        "Structure": "✅" if _p.get("maps_structure") else "—",
+                        "Meta": "✅" if _p.get("maps_meta") else "—",
+                        "Technical": "✅" if _p.get("maps_technical") else "—",
+                        "News": "✅" if _p.get("maps_news") else "—",
+                        "Gaps": ", ".join(_p.get("known_gaps", [])) or "none",
+                    })
+                st.dataframe(pd.DataFrame(_prov_rows), hide_index=True, use_container_width=True)
+
+            # ── Domain visibility breakdown ───────────────────
+            _vis = _health_report.get("domain_visibility", {})
+            _vis_rows_data = _vis.get("rows", [])
+            if _vis_rows_data:
+                st.subheader("Domain Visibility")
+                _dv_rows = []
+                for _vr in _vis_rows_data:
+                    _dv_rows.append({
+                        "Symbol": _vr.get("symbol", "?"),
+                        "TF": _vr.get("timeframe", "?"),
+                        "Score": f"{_vr.get('score', 0):.0%}",
+                        "Complete": "✅" if _vr.get("complete") else "❌",
+                        "Present": ", ".join(_vr.get("domains_present", [])),
+                        "Missing": ", ".join(_vr.get("domains_missing", [])) or "—",
+                    })
+                st.dataframe(pd.DataFrame(_dv_rows), hide_index=True, use_container_width=True)
+
+            # ── Domain alerts ─────────────────────────────────
+            _alerts = _health_report.get("domain_alerts", [])
+            if _alerts:
+                st.subheader(f"Domain Alerts ({len(_alerts)})")
+                _alert_rows = []
+                for _a in _alerts:
+                    _sev = str(_a.get("severity", "")).upper()
+                    _sev_icon = {"WARN": "⚠️", "INFO": "ℹ️", "ERROR": "🔴"}.get(_sev, "⚪")
+                    _alert_rows.append({
+                        "": _sev_icon,
+                        "Domain": _a.get("domain", "?"),
+                        "Code": _a.get("code", "?"),
+                        "Symbol": _a.get("symbol", ""),
+                        "Action": _a.get("failure_action", "—"),
+                        "Entry Risk": "⚠️" if _a.get("failure_affects_entry") else "—",
+                        "Message": str(_a.get("message", ""))[:120],
+                    })
+                st.dataframe(pd.DataFrame(_alert_rows), hide_index=True, use_container_width=True)
+
+            # ── Stale / missing artifacts ─────────────────────
+            _stale = _health_report.get("stale_artifacts", [])
+            _missing = _health_report.get("missing_artifacts", [])
+            if _stale or _missing:
+                st.subheader("Artifact Issues")
+                _art_rows = []
+                for _s in _stale:
+                    _art_rows.append({"Type": "⏰ Stale", "Code": _s.get("code", "?"), "Detail": str(_s.get("message", ""))[:150]})
+                for _m in _missing:
+                    _art_rows.append({"Type": "❌ Missing", "Code": _m.get("code", "?"), "Detail": str(_m.get("message", ""))[:150]})
+                st.dataframe(pd.DataFrame(_art_rows), hide_index=True, use_container_width=True)
+
+            # ── Failure semantics reference ───────────────────
+            with st.expander("📖 Failure Semantics Reference"):
+                _sem_rows = []
+                for _fs in _FAILURE_SEMANTICS_MATRIX:
+                    _action_icon = {
+                        FailureAction.FALLBACK: "🔄",
+                        FailureAction.ADVISORY: "ℹ️",
+                        FailureAction.SUPPRESS: "🚫",
+                        FailureAction.HARD_DEGRADE: "💀",
+                    }.get(_fs.action, "")
+                    _sem_rows.append({
+                        "Domain": _fs.domain,
+                        "Failure": _fs.failure_type,
+                        "Action": f"{_action_icon} {_fs.action.value}",
+                        "Entry Risk": "⚠️" if _fs.affects_entry else "—",
+                        "Max Hours": str(_fs.max_tolerable_hours) if _fs.max_tolerable_hours else "—",
+                        "Description": _fs.description,
+                    })
+                st.dataframe(pd.DataFrame(_sem_rows), hide_index=True, use_container_width=True)
 
 
 # ── Auto-refresh trigger ───────────────────────────────────────

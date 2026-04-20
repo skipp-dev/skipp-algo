@@ -1,0 +1,106 @@
+Review scope: SMC++/smc_core_types.pine, SMC++/smc_draw.pine, docs/tradingview-manual-publish-checklist.md
+
+1) Required for TradingView-hosted SMC
+- SMC++/smc_core_types.pine: YES. Checklist marks it as manual publish required, import path preuss_steffen/smc_core_types/1, and dependency root for smc_utils.
+- SMC++/smc_draw.pine: YES. Checklist marks it as manual publish required, import path preuss_steffen/smc_draw/1, and dependency root for smc_profile_engine.
+
+2) Compile-risk findings
+
+A. SMC++/smc_core_types.pine
+- Lines 3-4: Header placement looks correct for Pine v6 library files.
+  Context:
+    //@version=6
+    library("smc_core_types", overlay = true)
+  Risk: none.
+- Lines 10-26: exported enums only.
+  Risk: low. Surface is simple and dependency-free.
+- Minor publish-surface note: library name matches checklist/import identity (`smc_core_types`), so no naming mismatch found.
+
+Conclusion for smc_core_types:
+- No obvious syntax blocker.
+- No illegal export/type pattern found.
+- Looks compile-safe as-is.
+
+B. SMC++/smc_draw.pine
+- Lines 10-61: many exported types use fields declared as plain `string` while assigned special built-in enum-like constants such as `font.family_default`, `xloc.bar_index`, `yloc.price`, `label.style_label_down`, `size.normal`, `text.align_center`, `line.style_solid`, `extend.none`, `text.wrap_none`.
+  Context examples:
+    line 13: string text_font_family = font.family_default
+    line 14: string xloc = xloc.bar_index
+    line 15: string yloc = yloc.price
+    line 16: string style = label.style_label_down
+    line 17: string size = size.normal
+    line 18: string text_align = text.align_center
+    line 29: string style = line.style_solid
+    line 32: string extend = extend.none
+    line 43: string border_style = line.style_solid
+    line 45: string xloc = xloc.bar_index
+    line 46: string extend = extend.none
+    line 50-54 similar for text_* fields
+  Risk: medium/high. In Pine, these parameters are special value domains. Using raw `string` fields can compile in some contexts but is a recurring compile-risk in exported library type surfaces, especially when values are later passed into object constructors/setters that expect those specific domains. This is the biggest risk in the file.
+
+- Lines 21, 35-36, 57-58: exported types store `varip chart.point` fields.
+  Context:
+    varip chart.point point
+    varip chart.point start
+    varip chart.point end
+    varip chart.point left_top
+    varip chart.point right_bottom
+  Risk: medium. `chart.point` inside exported types can be valid, but `varip` on complex object fields in exported types is a known compile-sensitivity area for TradingView libraries. If the editor rejects exported library types with object-handle or point fields marked `varip`, these declarations are likely suspects.
+
+- Lines 67-81: `export method or_default(...)` overload set.
+  Context:
+    export method or_default(LineArgs args) =>
+    export method or_default(LabelArgs args) =>
+    ...
+  Risk: low/medium. Overloaded methods are generally allowed, but same-name exported method overloads on different receiver types can occasionally make publish/import diagnostics harder. Not an obvious blocker by itself.
+
+- Lines 87, 90, 94, 97, 102: exported functions omit explicit return type.
+  Risk: low. Pine generally infers these, but for library publish stability explicit return types can be safer. Not required unless editor complains.
+
+- Lines 111-124: exported methods mutate `chart.point` fields directly (`this.time :=`, `this.index :=`, `this.price :=`).
+  Risk: medium. If `chart.point` fields are immutable or restricted in current Pine v6 library context, this would fail. This pattern is more fragile than reconstructing points. Worth validating if compile issues persist.
+
+- Lines 195-236: calls to `label.new`, `line.new`, `box.new` use long positional argument lists.
+  Risk: medium. These constructors are sensitive to argument ordering across Pine versions. Because typed wrapper fields are currently generic strings, any mismatch becomes harder for the compiler to resolve. No immediate typo is visible, but this is a high-friction area.
+
+- Lines 251-267: hide methods set object coordinates/text to `na`.
+  Risk: low/medium. Usually valid, but if any setter rejects `na` for the corresponding type in library context, these can fail. Not first suspect.
+
+- Import/dependency correctness:
+  smc_draw has no imports, which matches checklist dependency graph. Library name `smc_draw` matches expected import path `preuss_steffen/smc_draw/1`.
+
+3) Concrete edit recommendations
+
+For SMC++/smc_core_types.pine
+- No edit required unless a live TradingView compile proves otherwise.
+- Keep header and library name exactly as-is.
+
+For SMC++/smc_draw.pine
+Priority 1:
+- Replace generic `string` field types for special style/location domains with the proper Pine parameter domain types if Pine accepts them in exported types, or otherwise normalize the library API to use plain strings only at the API edge and convert to built-ins inside draw/apply helpers.
+- Most likely compile-safe fallback if TradingView rejects current declarations:
+  - remove the explicit `string` type annotations from style/location/font/text option fields and let Pine infer from defaults, if allowed in type fields; or
+  - define those fields using the exact domain-compatible types supported by Pine editor; or
+  - if neither works, reduce exported type surface to only primitive-safe fields and move style constants resolution into non-exported helper logic.
+
+Priority 2:
+- If compile fails on exported `varip chart.point` fields, change:
+  - `varip chart.point point/start/end/left_top/right_bottom`
+  to
+  - `chart.point point/start/end/left_top/right_bottom`
+  first.
+- If still failing, consider replacing stored points with primitive coordinates (`int time/index`, `float price`) and create points only at draw time. That is a bigger API change, so only do it if needed.
+
+Priority 3:
+- If constructor overload resolution errors appear, rewrite `label.new`, `line.new`, and `box.new` calls using named arguments instead of long positional argument lists. That makes style-domain mismatches much easier to isolate and is the safest remediation for TradingView compile debugging.
+
+Priority 4:
+- If direct mutation of `chart.point` fails in lines 111-124, refactor update helpers to return rebuilt points instead of mutating fields in place.
+
+4) Whether changes are required
+- SMC++/smc_core_types.pine: No changes required based on static review.
+- SMC++/smc_draw.pine: No guaranteed syntax error found statically, but changes are likely required only if TradingView compile is currently failing. The most probable fix area is the exported type field declarations using `string` for style/xloc/yloc/font/text constants, followed by possible removal of `varip` from exported `chart.point` fields.
+
+Overall assessment
+- smc_core_types.pine: compile-safe.
+- smc_draw.pine: structurally plausible but not fully compile-safe with high confidence; it contains several known Pine library compile-risk patterns and is the stronger candidate for recent TradingView compile failures.

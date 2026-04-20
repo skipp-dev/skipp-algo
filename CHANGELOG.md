@@ -6,6 +6,19 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-20)
+
+- **Hygiene & Feature Round:**
+  - **Provider Health Tab** in `streamlit_terminal.py` — neues "🩺 Provider Health" Tab zeigt Gesamtstatus (Coverage/Warnings/Failures), Provider-Domain-Matrix mit Failure-Semantik, Domain-Alerts und Failure-Semantics-Referenz. Basiert auf `provider_health.py` API.
+  - **Zone Priority → Pine Consumer** — `SMC_Dashboard.pine` zeigt Zone Priority in Decision Brief (Rank + Score + Catalyst, farbkodiert A/B/C/D) und Audit View (vollständige Details mit Top-Family und Reason). `SkippALGO_Confluence.pine` zeigt Zone Prio als neue Zeile 7 (Rank + Score/100 + Catalyst).
+  - **Provider Health Tab Tests** (`tests/test_provider_health_tab.py`) — 5 Integrationstests für die Provider Health Imports.
+
+### Changed (2026-04-20)
+
+- **Sunset Warning Cleanup** — entfernt den 20-Zeilen-Sunset-Warning-Block aus `generate_smc_micro_profiles.py`. `DEPRECATED_COMPATIBILITY_GROUPS` ist seit 2026-04-14 leer; die Warnung war nur noch Noise. `DEPRECATED_FIELD_POLICY` bleibt im Manifest für Contract Verification.
+- **Stale asof_date Fixture Warnings** — `pyproject.toml` unterdrückt jetzt die 12 `UserWarning: Microstructure base asof_date is ... days old` Meldungen im Test-Output via `filterwarnings`.
+- **Dashboard Row Shift** — Audit View und Decision Brief Row-Nummern in 3 Test-Dateien und e2e-Smoke-Referenz aktualisiert (87→88 Audit Rows).
+
 ### Added (2026-04-19)
 
 - **Phase A+B+C — UX optimization (Strategie Q2 2026):**

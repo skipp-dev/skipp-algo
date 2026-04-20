@@ -185,37 +185,14 @@ def test_deprecated_field_policy_has_sunset_action() -> None:
     assert DEPRECATED_FIELD_POLICY.get("sunset_action") == "removed"
 
 
-def test_generator_logs_sunset_warning(caplog) -> None:
-    """write_pine_library logs a warning when sunset is near or past."""
-    import logging
-    from datetime import date as _date, timedelta
-    from unittest.mock import patch
+def test_generator_sunset_warning_removed() -> None:
+    """The sunset warning block was removed after deprecation completed (2026-04-14).
 
+    DEPRECATED_FIELD_POLICY still exists in the manifest for contract verification,
+    but the generator no longer logs sunset warnings since all deprecated groups
+    have been removed.
+    """
     from scripts.smc_bus_manifest import DEPRECATED_FIELD_POLICY
 
-    past_date = (_date.today() - timedelta(days=1)).isoformat()
-    patched_policy = {**DEPRECATED_FIELD_POLICY, "sunset_date": past_date}
-
-    with (
-        patch("scripts.smc_bus_manifest.DEPRECATED_FIELD_POLICY", patched_policy),
-        caplog.at_level(logging.WARNING, logger="scripts.generate_smc_micro_profiles"),
-    ):
-        # We don't need to run the full library write — just import and trigger
-        # the sunset check by calling write_pine_library with minimal args
-        from scripts.generate_smc_micro_profiles import write_pine_library
-        import tempfile
-
-        with tempfile.TemporaryDirectory() as td:
-            try:
-                write_pine_library(
-                    Path(td) / "test.pine",
-                    {name: [] for name in ["clean_reclaim", "stop_hunt_prone", "midday_dead", "rth_only", "weak_premarket", "weak_afterhours", "fast_decay"]},
-                    "2026-04-15",
-                    100,
-                )
-            except Exception:
-                pass  # May fail on missing enrichment data, that's OK
-
-    assert any("sunset" in r.message.lower() for r in caplog.records), (
-        "Expected sunset warning in log"
-    )
+    assert DEPRECATED_FIELD_POLICY.get("sunset_date") == "2026-04-14"
+    assert DEPRECATED_FIELD_POLICY.get("deprecatedGroups") == []

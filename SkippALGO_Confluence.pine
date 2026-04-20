@@ -168,7 +168,7 @@ color  traffic_color = confluence >= 70 ? color.new(color.green, 70) : confluenc
 bgcolor(show_bg and confluence >= 70 ? color.new(color.green, 92) : show_bg and confluence < 30 ? color.new(color.red, 95) : na)
 
 // Confluence table
-var table conf_tbl = table.new(position.top_right, 2, 8, border_width = 0)
+var table conf_tbl = table.new(position.top_right, 2, 9, border_width = 0)
 
 conf_row(table tbl, int row, string label_text, string value_text, color bg, color txt) =>
     table.cell(tbl, 0, row, label_text, bgcolor = bg, text_color = txt, text_halign = text.align_left,  text_size = size.small)
@@ -200,15 +200,25 @@ if show_table and barstate.islast
     color market_bg = mp.TRADE_STATE == "BLOCKED" ? color.new(color.red, 80) : mp.TRADE_STATE == "DISCOURAGED" ? color.new(color.orange, 80) : ok_bg
     conf_row(conf_tbl, 6, "Market", market_ctx, market_bg, txt)
 
+    // Zone Priority from generated library (C9)
+    string zp_rank = mp.ZONE_PRIORITY_RANK
+    int zp_score = mp.ZONE_PRIORITY_SCORE
+    string zp_catalyst = mp.ZONE_PRIORITY_CATALYST
+    string zp_line = zp_rank + " " + str.tostring(zp_score) + "/100"
+    if zp_catalyst != "NONE" and zp_catalyst != ""
+        zp_line += " · " + zp_catalyst
+    color zp_bg = zp_rank == "A" ? ok_bg : zp_rank == "B" ? ok_bg : zp_rank == "C" ? warn_bg : color.new(color.red, 80)
+    conf_row(conf_tbl, 7, "Zone Prio", zp_line, zp_bg, txt)
+
     // Risk plan if SMC has an active zone
     bool has_zone = smc_connected and not na(src_trigger) and src_trigger > 0
     if has_zone
         string plan = "Entry " + str.tostring(src_trigger, format.mintick) + " | Stop " + str.tostring(src_invalid, format.mintick)
-        conf_row(conf_tbl, 7, "Plan", plan, ok_bg, txt)
+        conf_row(conf_tbl, 8, "Plan", plan, ok_bg, txt)
     else
-        conf_row(conf_tbl, 7, "Plan", "no active zone", dim_bg, txt)
+        conf_row(conf_tbl, 8, "Plan", "no active zone", dim_bg, txt)
 else if barstate.islast and not show_table
-    table.clear(conf_tbl, 0, 0, 1, 7)
+    table.clear(conf_tbl, 0, 0, 1, 8)
 
 // ── Plots for external consumption ──
 plot(confluence, "Confluence Score", display = display.none)

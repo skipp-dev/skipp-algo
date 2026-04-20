@@ -64,9 +64,9 @@ def test_dashboard_has_companion_summary_and_pro_diagnostics() -> None:
     assert 'dashboard_row(smc_dashboard, 3, "Session / Market"' in source
     assert 'dashboard_row(smc_dashboard, 4, "Event Risk"' in source
     assert 'dashboard_compact_trust_text(' in source
-    assert 'dashboard_row(smc_dashboard, 5, "Trust / Data"' in source
-    assert 'dashboard_row(smc_dashboard, 6, "Short-term Pressure"' in source
-    assert 'dashboard_row(smc_dashboard, 7, "Risk Plan"' in source
+    assert 'dashboard_row(smc_dashboard, 6, "Trust / Data"' in source
+    assert 'dashboard_row(smc_dashboard, 7, "Short-term Pressure"' in source
+    assert 'dashboard_row(smc_dashboard, 8, "Risk Plan"' in source
     assert 'dashboard_row(smc_dashboard, 1, "Action"' not in source
     assert 'dashboard_row(smc_dashboard, 2, "Why now"' not in source
     assert 'Audit View | Expert review only' in source
@@ -75,11 +75,11 @@ def test_dashboard_has_companion_summary_and_pro_diagnostics() -> None:
     assert 'section_row(smc_dashboard, 1, "[ Decision Detail ]", header_bg, txt)' in source
     assert 'section_row(smc_dashboard, 10, "[ Lean Surface ]", header_bg, txt)' in source
     assert 'section_row(smc_dashboard, 18, "[ Trust & Provider ]", header_bg, txt)' in source
-    assert 'section_row(smc_dashboard, 22, "[ Gates ]", header_bg, txt)' in source
-    assert 'section_row(smc_dashboard, 30, "[ Quality Rows ]", header_bg, txt)' in source
-    assert 'section_row(smc_dashboard, 41, "[ Support / Metrics ]", header_bg, txt)' in source
-    assert 'section_row(smc_dashboard, 52, "[ Risk / Plan ]", header_bg, txt)' in source
-    assert 'section_row(smc_dashboard, 57, "[ Debug ]", header_bg, txt)' in source
+    assert 'section_row(smc_dashboard, 23, "[ Gates ]", header_bg, txt)' in source
+    assert 'section_row(smc_dashboard, 31, "[ Quality Rows ]", header_bg, txt)' in source
+    assert 'section_row(smc_dashboard, 42, "[ Support / Metrics ]", header_bg, txt)' in source
+    assert 'section_row(smc_dashboard, 53, "[ Risk / Plan ]", header_bg, txt)' in source
+    assert 'section_row(smc_dashboard, 58, "[ Debug ]", header_bg, txt)' in source
 
 
 def test_long_strategy_has_wrapper_controls_and_core_plan_outputs() -> None:

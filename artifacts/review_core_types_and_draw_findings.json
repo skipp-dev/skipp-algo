@@ -1,0 +1,94 @@
+{
+  "scope": [
+    "docs/tradingview-manual-publish-checklist.md",
+    "SMC++/smc_core_types.pine",
+    "SMC++/smc_draw.pine"
+  ],
+  "requiredForTradingViewHosting": {
+    "SMC++/smc_core_types.pine": {
+      "required": true,
+      "importPath": "preuss_steffen/smc_core_types/1",
+      "reason": "Manual publish required; dependency root for smc_utils."
+    },
+    "SMC++/smc_draw.pine": {
+      "required": true,
+      "importPath": "preuss_steffen/smc_draw/1",
+      "reason": "Manual publish required; dependency root for smc_profile_engine."
+    }
+  },
+  "findings": [
+    {
+      "file": "SMC++/smc_core_types.pine",
+      "lines": "3-4",
+      "severity": "info",
+      "issue": "Pine v6 header and library declaration placement are correct.",
+      "context": "//@version=6 / library("smc_core_types", overlay = true)"
+    },
+    {
+      "file": "SMC++/smc_core_types.pine",
+      "lines": "10-26",
+      "severity": "info",
+      "issue": "Export surface is limited to enums only; no obvious illegal export pattern.",
+      "context": "export enum SmcLibMovingAverage / LevelBreakMode / SignalMode"
+    },
+    {
+      "file": "SMC++/smc_draw.pine",
+      "lines": "13-18, 29-32, 43-46, 50-54",
+      "severity": "medium",
+      "issue": "Exported type fields are declared as plain string while holding Pine style/xloc/yloc/font/text constants.",
+      "context": "Examples: string xloc = xloc.bar_index; string style = label.style_label_down; string extend = extend.none"
+    },
+    {
+      "file": "SMC++/smc_draw.pine",
+      "lines": "21, 35-36, 57-58",
+      "severity": "medium",
+      "issue": "Exported types store varip chart.point fields, which is a known TradingView library compile-risk pattern.",
+      "context": "varip chart.point point/start/end/left_top/right_bottom"
+    },
+    {
+      "file": "SMC++/smc_draw.pine",
+      "lines": "111-124",
+      "severity": "medium",
+      "issue": "Methods directly mutate chart.point fields; this can be fragile in Pine library context.",
+      "context": "this.time := bar_time; this.index := bar_idx; this.price := price"
+    },
+    {
+      "file": "SMC++/smc_draw.pine",
+      "lines": "195-236",
+      "severity": "medium",
+      "issue": "Long positional constructor calls for label.new/line.new/box.new increase overload-resolution risk.",
+      "context": "object creation in draw(...) methods"
+    }
+  ],
+  "recommendedEdits": [
+    {
+      "file": "SMC++/smc_core_types.pine",
+      "required": false,
+      "edit": "No change recommended from static review."
+    },
+    {
+      "file": "SMC++/smc_draw.pine",
+      "required": false,
+      "edit": "First target if compile fails: replace or normalize string-typed style/location/font fields to Pine-compatible parameter domains or a safer primitive conversion pattern."
+    },
+    {
+      "file": "SMC++/smc_draw.pine",
+      "required": false,
+      "edit": "If TradingView rejects exported varip chart.point fields, remove varip from those exported fields first."
+    },
+    {
+      "file": "SMC++/smc_draw.pine",
+      "required": false,
+      "edit": "If constructor signature errors appear, rewrite label.new/line.new/box.new calls using named arguments."
+    },
+    {
+      "file": "SMC++/smc_draw.pine",
+      "required": false,
+      "edit": "If point mutation errors appear, refactor point updates to rebuild points instead of mutating chart.point fields directly."
+    }
+  ],
+  "overallAssessment": {
+    "SMC++/smc_core_types.pine": "compile-safe",
+    "SMC++/smc_draw.pine": "compile-risky but not proven broken by static review"
+  }
+}
