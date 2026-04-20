@@ -12,6 +12,52 @@ from scripts.verify_tradingview_post_release import (
     verify_post_release_validation,
 )
 
+# Hero State Contract block keys (PR 4 of 2026-04-20 deep-review).
+# These keys are emitted on every report so downstream consumers can read a
+# stable shape even before the readonly TradingView validation begins to
+# emit hero-specific signals. Values are populated from the existing
+# validation payload when available; otherwise they remain ``None`` (with
+# ``hero_state.ready == False``) rather than being absent.
+HERO_STATE_FIELDS: tuple[str, ...] = (
+    "market_mode",
+    "bias",
+    "trust",
+    "setup_quality",
+    "why_now",
+    "risk",
+    "action",
+)
+
+
+def _build_hero_state_block(
+    *,
+    overall_status: str,
+    failure_codes: list[str],
+    validation: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """Return the Hero State block for a post-release validation report.
+
+    The block is intentionally read-only: it summarises the *visible* product
+    state implied by the validation result without introducing a new hard
+    validation. Empty/None values mean "the readonly validation does not yet
+    expose this signal" rather than "the signal failed".
+    """
+    payload = (validation or {}).get("hero_state") if isinstance(validation, dict) else None
+    fields: dict[str, Any] = {key: None for key in HERO_STATE_FIELDS}
+    if isinstance(payload, dict):
+        for key in HERO_STATE_FIELDS:
+            value = payload.get(key)
+            if isinstance(value, str) and value:
+                fields[key] = value
+
+    ready = overall_status == "ok" and any(v is not None for v in fields.values())
+    return {
+        "ready": bool(ready),
+        "source": "validation_report" if isinstance(payload, dict) else "absent",
+        "fields": fields,
+        "failure_codes": list(failure_codes),
+    }
+
 
 def _iso_utc(ts: float) -> str:
     return datetime.fromtimestamp(float(ts), tz=UTC).isoformat()
@@ -53,6 +99,14 @@ def run_post_release_validation(
         failure_codes = getattr(exc, "failure_codes", None)
         if not failure_codes:
             failure_codes = ["POST_RELEASE_VALIDATION_FAILED"]
+        failures = [
+            {
+                "code": code,
+                "exception_type": type(exc).__name__,
+                "message": str(exc),
+            }
+            for code in failure_codes
+        ]
         return {
             **base_report,
             "overall_status": "fail",
@@ -64,14 +118,12 @@ def run_post_release_validation(
                 "validation_report_present": validation_report_present,
             },
             "validated_target_count": 0,
-            "failures": [
-                {
-                    "code": code,
-                    "exception_type": type(exc).__name__,
-                    "message": str(exc),
-                }
-                for code in failure_codes
-            ],
+            "failures": failures,
+            "hero_state": _build_hero_state_block(
+                overall_status="fail",
+                failure_codes=list(failure_codes),
+                validation=None,
+            ),
         }
 
     return {
@@ -82,6 +134,11 @@ def run_post_release_validation(
         "validation_timestamp_iso": validation.get("validation_timestamp_iso", _iso_utc(checked_at)),
         "validated_target_count": int(validation.get("validated_target_count", 0) or 0),
         "failures": [],
+        "hero_state": _build_hero_state_block(
+            overall_status="ok",
+            failure_codes=[],
+            validation=validation,
+        ),
     }
 
 

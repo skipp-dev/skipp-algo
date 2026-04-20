@@ -196,6 +196,114 @@ def classify_tv_gate_failure(gate: dict[str, Any]) -> str:
     return "unknown"
 
 
+# ---------------------------------------------------------------------------
+# Hero State Contract — product-state classification (PR 4 of 2026-04-20
+# Hero Surface deep-review).
+# ---------------------------------------------------------------------------
+# Failure-code vocabulary that maps a release-gate failure to a *visible
+# product state* of the Hero Surface, parallel to the TV-drift vocabulary
+# above. We do NOT introduce new hard validations here: the readonly TV
+# validation does not yet emit hero-specific codes. The classifier reuses
+# already-emitted codes so report consumers can read a hero-shaped product
+# state without touching upstream contracts.
+
+_HERO_DATA_ABSENT_CODES: frozenset[str] = frozenset({
+    # Hero state cannot be computed because its source data is absent.
+    "MISSING_ARTIFACT",
+    "STRUCTURE_INPUT_LOAD_FAILED",
+    "META_INPUT_LOAD_FAILED",
+    "SOURCE_PLAN_RESOLUTION_FAILED",
+    "MISSING_MANIFEST",
+})
+
+_HERO_DATA_STALE_CODES: frozenset[str] = frozenset({
+    # Hero state would be misleading because its inputs are stale.
+    "STALE_MANIFEST_GENERATED_AT",
+    "STALE_MANIFEST_FILE_MTIME",
+    "STALE_META_ASOF_TS",
+    "STALE_META_VOLUME_DOMAIN",
+    "STALE_META_TECHNICAL_DOMAIN",
+    "STALE_META_NEWS_DOMAIN",
+})
+
+_HERO_TRUST_DEGRADED_CODES: frozenset[str] = frozenset({
+    # Hero state is computable but trust is reduced — operator should see
+    # a degraded trust label rather than an action.
+    "DOMAIN_DROPPED_NEWS",
+    "DOMAIN_DROPPED_TECHNICAL",
+    "DOMAIN_DROP_DURING_BUILD",
+    "FALLBACK_META_VOLUME_DOMAIN",
+    "FALLBACK_META_TECHNICAL_DOMAIN",
+    "FALLBACK_META_NEWS_DOMAIN",
+    "SILENT_DOMAIN_DROP_NEWS",
+    "SILENT_DOMAIN_DROP_TECHNICAL",
+    "META_VOLUME_DOMAIN_STATUS",
+    "META_TECHNICAL_DOMAIN_STATUS",
+    "META_NEWS_DOMAIN_STATUS",
+})
+
+
+def classify_hero_product_state(gate: dict[str, Any]) -> str:
+    """Map a gate failure to a Hero Surface product state.
+
+    Returns one of:
+
+    ``"hero_ok"``
+        No failure codes — Hero state is valid for the gate.
+    ``"hero_data_absent"``
+        Every failure code is in :data:`_HERO_DATA_ABSENT_CODES` — the Hero
+        Surface should render the ``DATA_STALE`` / unavailable risk row.
+    ``"hero_data_stale"``
+        Every failure code is in :data:`_HERO_DATA_STALE_CODES` — the Hero
+        Surface should render a stale/aging trust label.
+    ``"hero_trust_degraded"``
+        Every failure code is in :data:`_HERO_TRUST_DEGRADED_CODES` — the
+        Hero Surface should render a degraded trust label.
+    ``"hero_external_tv_drift"``
+        Every failure code is in :data:`_TV_EXTERNAL_DRIFT_CODES` — Hero
+        Surface state is *not* affected; this is a TradingView-only issue.
+    ``"hero_mixed"``
+        The gate has codes from more than one of the categories above (e.g.
+        a real data-stale failure plus a TV-drift failure). Operators should
+        treat the data signal first.
+    ``"hero_unclassified"``
+        At least one failure code is not in any documented Hero category.
+        Reported as-is so we can grow the vocabulary intentionally rather
+        than silently swallow an unknown.
+    """
+    details = gate.get("details", {})
+    failure_codes: list[str] = [
+        str(item.get("code", "")).strip()
+        for item in details.get("failures", [])
+        if str(item.get("code", "")).strip()
+    ]
+    if not failure_codes:
+        return "hero_ok"
+
+    categories: list[str] = []
+    unknown: list[str] = []
+    for code in failure_codes:
+        if code in _HERO_DATA_ABSENT_CODES:
+            categories.append("hero_data_absent")
+        elif code in _HERO_DATA_STALE_CODES:
+            categories.append("hero_data_stale")
+        elif code in _HERO_TRUST_DEGRADED_CODES:
+            categories.append("hero_trust_degraded")
+        elif code in _TV_EXTERNAL_DRIFT_CODES:
+            categories.append("hero_external_tv_drift")
+        else:
+            unknown.append(code)
+
+    if unknown and not categories:
+        return "hero_unclassified"
+    if unknown:
+        return "hero_mixed"
+    distinct = set(categories)
+    if len(distinct) == 1:
+        return next(iter(distinct))
+    return "hero_mixed"
+
+
 def _gate_failure_is_data_absent(gate: dict[str, Any]) -> bool:
     """Return True if *every* failure signal in this gate is caused by absent data files.
 
@@ -812,6 +920,7 @@ def _run_post_release_validation_gate(report_path: str) -> dict[str, Any]:
     }
     if gate_status == "fail":
         gate["tv_failure_class"] = classify_tv_gate_failure(gate)
+        gate["hero_product_state"] = classify_hero_product_state(gate)
     return gate
 
 
