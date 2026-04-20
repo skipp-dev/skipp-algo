@@ -784,6 +784,15 @@ def write_pine_library(
     content.extend(render_hero_market_mode_block_lines(enr))
     content.append("")
 
+    # ── Hero Setup Quality (ENG-WS3-04) ────────────────────────
+    # Setup quality as a reasoned product object: tier + why_now +
+    # main_risk + family_health. Default and Audit views must read the
+    # same fields — no second quality classification path.
+    from scripts.smc_hero_setup_quality import render_hero_setup_quality_block_lines
+
+    content.extend(render_hero_setup_quality_block_lines(enr))
+    content.append("")
+
     # ── Volume regime ───────────────────────────────────────────
     vol = enr.get("volume_regime") or {}
     content.append("// ── Volume Regime ──")
