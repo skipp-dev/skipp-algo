@@ -108,6 +108,34 @@ def test_sweep_favored_in_extreme_vol() -> None:
     assert family in ("SWEEP", "OB")
 
 
+def test_fvg_penalized_in_eth_session() -> None:
+    """R4: FVG should be disfavored during extended trading hours."""
+    family_rth = _select_top_family(regime="NEUTRAL", vol_regime="HIGH_VOL", htf_aligned=False, session_context="ETH")
+    family_none = _select_top_family(regime="NEUTRAL", vol_regime="HIGH_VOL", htf_aligned=False)
+    # Without session context, FVG gets full bonus; with ETH it gets penalized
+    # so the top family should differ or at least FVG should not win in ETH
+    assert family_rth != "FVG" or family_none != "FVG"
+
+
+def test_fvg_boosted_in_rth_session() -> None:
+    """R4: FVG should get a boost during regular trading hours."""
+    # Use calibrated weights where FVG is close to OB so the RTH boost pushes it over
+    weights = {"OB": 0.72, "FVG": 0.70, "BOS": 0.65, "SWEEP": 0.60}
+    family = _select_top_family(
+        regime="NEUTRAL", vol_regime="HIGH_VOL", htf_aligned=False,
+        session_context="RTH", calibrated_family_weights=weights,
+    )
+    # FVG gets +0.08 (HIGH_VOL) +0.03 (NEUTRAL) +0.05 (RTH) = 0.86 vs OB 0.72
+    assert family == "FVG"
+
+
+def test_session_context_backward_compat() -> None:
+    """R4: Omitting session_context should not change existing behavior."""
+    family_old = _select_top_family(regime="RISK_ON", vol_regime="NORMAL", htf_aligned=True)
+    family_new = _select_top_family(regime="RISK_ON", vol_regime="NORMAL", htf_aligned=True, session_context=None)
+    assert family_old == family_new
+
+
 # ── Catalyst identification ────────────────────────────────────
 
 def test_news_catalyst_when_heat_high() -> None:

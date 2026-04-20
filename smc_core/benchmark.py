@@ -30,6 +30,7 @@ class EventFamilyKPI:
     mae: float = 0.0   # Maximum Adverse Excursion (mean)
     mfe: float = 0.0   # Maximum Favorable Excursion (mean)
     n_events: int = 0
+    partial_fill_pct_mean: float = 0.0  # Mean zone fill fraction for misses (0.0-1.0)
 
 
 @dataclass(slots=True)
@@ -67,10 +68,15 @@ def compute_event_family_kpi(
     ttm_total = 0.0
     mae_total = 0.0
     mfe_total = 0.0
+    partial_fill_miss_total = 0.0
+    miss_count = 0
 
     for e in events:
         if e.get("hit"):
             hits += 1
+        else:
+            partial_fill_miss_total += float(e.get("partial_fill_pct", 0))
+            miss_count += 1
         if e.get("invalidated"):
             invalids += 1
         ttm_total += float(e.get("time_to_mitigation", 0))
@@ -86,6 +92,7 @@ def compute_event_family_kpi(
         mae=round(mae_total / n, 4),
         mfe=round(mfe_total / n, 4),
         n_events=n,
+        partial_fill_pct_mean=round(partial_fill_miss_total / miss_count, 4) if miss_count > 0 else 0.0,
     )
 
 

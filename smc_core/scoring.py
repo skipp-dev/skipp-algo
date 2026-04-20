@@ -833,6 +833,50 @@ def label_bos_follow_through(
     return False
 
 
+def compute_fvg_partial_fill(
+    zone_low: float,
+    zone_high: float,
+    direction: str,
+    subsequent_highs: list[float],
+    subsequent_lows: list[float],
+) -> float:
+    """Compute the maximum partial fill fraction (0.0–1.0) of an FVG zone.
+
+    For a **bullish** FVG the zone expects price to dip into [zone_low, zone_high]
+    from above, so the deepest penetration is measured from zone_high downward
+    using subsequent lows.
+
+    For a **bearish** FVG the zone expects price to rally into [zone_low, zone_high]
+    from below, so the deepest penetration is measured from zone_low upward
+    using subsequent highs.
+
+    Returns 1.0 if fully filled, 0.0 if price never entered the zone.
+    """
+    if zone_low <= 0 or zone_high <= 0 or zone_high <= zone_low:
+        return 0.0
+
+    zone_size = zone_high - zone_low
+    normalized_direction = _normalize_market_direction(direction)
+
+    max_penetration = 0.0
+    if normalized_direction == "BULLISH":
+        # Bullish FVG: price should come down into the zone; lows matter
+        for low in subsequent_lows:
+            if low <= zone_high:
+                depth = min(zone_high - max(low, zone_low), zone_size)
+                max_penetration = max(max_penetration, depth)
+    elif normalized_direction == "BEARISH":
+        # Bearish FVG: price should come up into the zone; highs matter
+        for high in subsequent_highs:
+            if high >= zone_low:
+                depth = min(min(high, zone_high) - zone_low, zone_size)
+                max_penetration = max(max_penetration, depth)
+    else:
+        return 0.0
+
+    return round(min(max_penetration / zone_size, 1.0), 4)
+
+
 def _zone_touch_before_invalidation(
     zone_low: float,
     zone_high: float,
@@ -900,15 +944,53 @@ def label_fvg_mitigation(
     subsequent_lows: list[float],
     subsequent_closes: list[float],
 ) -> bool:
-    """Label whether an FVG was tagged/filled before invalidation."""
-    return _zone_touch_before_invalidation(
-        zone_low,
-        zone_high,
-        direction,
-        subsequent_highs,
-        subsequent_lows,
-        subsequent_closes,
-    )
+    """Label whether an FVG was tagged/filled before invalidation.
+
+    Uses a *two-consecutive-close* invalidation rule: the zone is only
+    considered invalidated when two consecutive bar closes breach the
+    opposite side.  This is less aggressive than the single-close rule
+    used for OBs, reflecting the empirical finding that FVG zones
+    frequently get a wick-through invalidation that reverses the next bar.
+    """
+    if zone_low <= 0 or zone_high <= 0 or zone_high < zone_low:
+        return False
+
+    normalized_direction = _normalize_market_direction(direction)
+    if normalized_direction not in {"BULLISH", "BEARISH"}:
+        return False
+
+    bar_count = max(len(subsequent_closes), len(subsequent_highs), len(subsequent_lows))
+    if bar_count == 0:
+        return False
+
+    touch_idx: int | None = None
+    invalid_idx: int | None = None
+    consecutive_invalid = 0
+    for idx in range(bar_count):
+        close = subsequent_closes[idx] if idx < len(subsequent_closes) else None
+        high = subsequent_highs[idx] if idx < len(subsequent_highs) else None
+        low = subsequent_lows[idx] if idx < len(subsequent_lows) else None
+
+        if normalized_direction == "BEARISH":
+            if touch_idx is None and high is not None and zone_low <= high <= zone_high:
+                touch_idx = idx
+            if close is not None and close > zone_high:
+                consecutive_invalid += 1
+                if consecutive_invalid >= 2 and invalid_idx is None:
+                    invalid_idx = idx - 1  # invalidation starts at first breach
+            else:
+                consecutive_invalid = 0
+        else:
+            if touch_idx is None and low is not None and zone_low <= low <= zone_high:
+                touch_idx = idx
+            if close is not None and close < zone_low:
+                consecutive_invalid += 1
+                if consecutive_invalid >= 2 and invalid_idx is None:
+                    invalid_idx = idx - 1
+            else:
+                consecutive_invalid = 0
+
+    return touch_idx is not None and (invalid_idx is None or touch_idx <= invalid_idx)
 
 
 def _summarize_scored_events(events: list[ScoredEvent]) -> tuple[int, float, float, float]:

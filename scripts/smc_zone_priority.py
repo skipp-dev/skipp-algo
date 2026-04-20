@@ -112,8 +112,13 @@ def _select_top_family(
     vol_regime: str,
     htf_aligned: bool,
     calibrated_family_weights: dict[str, float] | None = None,
+    session_context: str | None = None,
 ) -> str:
-    """Select the most favorable event family given current context."""
+    """Select the most favorable event family given current context.
+
+    ``session_context`` is one of ``"RTH"``, ``"ETH"``, ``"PRE_MARKET"``,
+    ``"AFTER_HOURS"`` or *None* (unknown / no session data).
+    """
     base = calibrated_family_weights if calibrated_family_weights else _FAMILY_BASE_PRIORITY
     scores = dict(base)
 
@@ -130,6 +135,15 @@ def _select_top_family(
         scores["FVG"] += 0.08
     if regime in ("RISK_ON", "NEUTRAL"):
         scores["FVG"] += 0.03
+
+    # R4: Session-dependent FVG adjustments (from FVG label audit data)
+    # FVG performs poorly during extended/after-hours sessions (thin liquidity
+    # leads to false invalidations).  Boost during RTH where fills are more
+    # reliable.
+    if session_context in ("ETH", "AFTER_HOURS", "PRE_MARKET"):
+        scores["FVG"] -= 0.10
+    elif session_context == "RTH":
+        scores["FVG"] += 0.05
 
     # BOS favored during strong trend confirmation
     if htf_aligned and regime == "RISK_ON":
@@ -271,6 +285,7 @@ def build_zone_priority(
         vol_regime=vol_regime.upper(),
         htf_aligned=htf_aligned,
         calibrated_family_weights=calibrated_family_weights,
+        session_context=session_context.upper() if session_context else None,
     )
     catalyst = _identify_catalyst(
         news_heat=news_heat,

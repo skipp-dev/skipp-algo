@@ -171,6 +171,11 @@ def _fvg_vs_family_comparison(kpis: list[dict[str, Any]]) -> dict[str, dict[str,
 
         mae_values = [float(k.get("mae", 0.0) or 0.0) for k in family_kpis]
         mfe_values = [float(k.get("mfe", 0.0) or 0.0) for k in family_kpis]
+        pfill_values = [
+            float(k.get("partial_fill_pct_mean", 0.0) or 0.0)
+            for k in family_kpis
+            if k.get("partial_fill_pct_mean") is not None
+        ]
 
         comparison[family] = {
             "total_events": total_events,
@@ -180,6 +185,7 @@ def _fvg_vs_family_comparison(kpis: list[dict[str, Any]]) -> dict[str, dict[str,
             "avg_invalidation_rate": round(avg_inv, 4),
             "avg_mae": round(sum(mae_values) / len(mae_values), 6) if mae_values else 0.0,
             "avg_mfe": round(sum(mfe_values) / len(mfe_values), 6) if mfe_values else 0.0,
+            "avg_partial_fill_pct": round(sum(pfill_values) / len(pfill_values), 4) if pfill_values else 0.0,
             "pairs": len(family_kpis),
         }
 

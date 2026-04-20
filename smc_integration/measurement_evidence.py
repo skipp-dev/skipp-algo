@@ -25,6 +25,7 @@ from smc_core.benchmark import EventFamily
 from smc_core.ensemble_quality import build_ensemble_quality, serialize_ensemble_quality
 from smc_core.scoring import (
     ScoredEvent,
+    compute_fvg_partial_fill,
     label_bos_follow_through,
     label_fvg_mitigation,
     label_orderblock_mitigation,
@@ -40,6 +41,7 @@ from smc_integration.sources import structure_artifact_json
 _FAMILIES: tuple[EventFamily, ...] = ("BOS", "OB", "FVG", "SWEEP")
 _BOS_LOOKAHEAD_BARS = 8
 _ZONE_LOOKAHEAD_BARS = 12
+_FVG_LOOKAHEAD_BARS = 20
 _SWEEP_LOOKAHEAD_BARS = 8
 _BOS_FOLLOW_THROUGH_THRESHOLD_PCT = 0.003
 _SWEEP_REVERSAL_THRESHOLD_PCT = 0.005
@@ -367,12 +369,19 @@ def _evaluate_zone_event(
 
     hit = mitigated_idx is not None and (invalid_idx is None or mitigated_idx <= invalid_idx)
     mae, mfe = _directional_excursions((low + high) / 2.0, direction, future)
+
+    # R3: Partial-fill tracking for FVG-type zones
+    future_highs = [float(v) for v in pd.to_numeric(future["high"], errors="coerce").dropna().tolist()]
+    future_lows = [float(v) for v in pd.to_numeric(future["low"], errors="coerce").dropna().tolist()]
+    partial_fill_pct = compute_fvg_partial_fill(low, high, direction, future_highs, future_lows)
+
     return {
         "hit": hit,
         "time_to_mitigation": float((mitigated_idx + 1) if hit and mitigated_idx is not None else 0.0),
         "invalidated": bool(invalid_idx is not None or not bool(event.get("valid", True))),
         "mae": mae,
         "mfe": mfe,
+        "partial_fill_pct": partial_fill_pct,
     }
 
 
@@ -860,7 +869,8 @@ def _score_zone_event(
     if anchor_idx is None or anchor_idx >= len(bars) - 1:
         return None
 
-    highs, lows, closes = _future_price_lists(bars, anchor_idx=anchor_idx, lookahead_bars=_ZONE_LOOKAHEAD_BARS)
+    lookahead = _FVG_LOOKAHEAD_BARS if family == "FVG" else _ZONE_LOOKAHEAD_BARS
+    highs, lows, closes = _future_price_lists(bars, anchor_idx=anchor_idx, lookahead_bars=lookahead)
     if not highs and not lows and not closes:
         return None
 

@@ -44,6 +44,25 @@ class TestEventFamilyKPI:
         assert kpi.hit_rate == 1.0
         assert kpi.invalidation_rate == 0.0
 
+    def test_partial_fill_pct_mean_for_misses(self) -> None:
+        """R3: partial_fill_pct_mean should average over misses only."""
+        events = [
+            {"hit": True, "time_to_mitigation": 3, "invalidated": False, "mae": 0, "mfe": 0, "partial_fill_pct": 1.0},
+            {"hit": False, "time_to_mitigation": 0, "invalidated": True, "mae": 0, "mfe": 0, "partial_fill_pct": 0.4},
+            {"hit": False, "time_to_mitigation": 0, "invalidated": True, "mae": 0, "mfe": 0, "partial_fill_pct": 0.6},
+        ]
+        kpi = compute_event_family_kpi(events, "FVG")
+        # Misses have partial_fill_pct 0.4 and 0.6 → mean 0.5
+        assert kpi.partial_fill_pct_mean == 0.5
+
+    def test_partial_fill_pct_all_hits(self) -> None:
+        """R3: When all events are hits, partial_fill_pct_mean should be 0.0."""
+        events = [
+            {"hit": True, "time_to_mitigation": 3, "invalidated": False, "mae": 0, "mfe": 0, "partial_fill_pct": 1.0},
+        ]
+        kpi = compute_event_family_kpi(events, "FVG")
+        assert kpi.partial_fill_pct_mean == 0.0
+
 
 # --- build_benchmark ---
 

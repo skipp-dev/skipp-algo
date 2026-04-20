@@ -12,6 +12,7 @@ from smc_core.scoring import (
     ScoredEvent,
     ScoringResult,
     brier_score,
+    compute_fvg_partial_fill,
     export_scoring_artifact,
     label_bos_follow_through,
     label_fvg_mitigation,
@@ -105,8 +106,81 @@ class TestZoneMitigationLabels:
     def test_fvg_bearish_mitigation(self) -> None:
         assert label_fvg_mitigation(100.0, 101.0, "BEAR", [100.6, 100.8], [99.7, 99.9], [100.4, 100.7]) is True
 
+    def test_fvg_single_close_beyond_does_not_invalidate(self) -> None:
+        """R2: A single close beyond the zone is NOT invalidation for FVGs."""
+        # Bearish FVG [100, 101]: bar-0 close > zone_high (101.2) then bar-1 back inside.
+        # Touch happens bar-1 (high 100.5 inside zone).
+        # Under old 1-bar rule this would be False; under 2-bar rule it's True.
+        assert label_fvg_mitigation(
+            100.0, 101.0, "BEAR",
+            [101.5, 100.5, 100.3],    # highs
+            [100.8, 99.8, 99.5],      # lows
+            [101.2, 100.3, 100.1],    # closes: bar-0 beyond, bar-1 inside → no invalidation
+        ) is True
 
-# --- Score Events ---
+    def test_fvg_two_consecutive_closes_invalidate(self) -> None:
+        """R2: Two consecutive closes beyond the zone DOES invalidate."""
+        # Bearish FVG [100, 101]: bar-0 close 101.2, bar-1 close 101.5 → invalidated.
+        # Touch at bar-2 is too late.
+        assert label_fvg_mitigation(
+            100.0, 101.0, "BEAR",
+            [101.5, 101.8, 100.5],    # highs
+            [100.8, 101.0, 99.8],     # lows
+            [101.2, 101.5, 100.3],    # closes: two consecutive beyond zone
+        ) is False
+
+    def test_fvg_bullish_two_bar_invalidation(self) -> None:
+        """R2: Bullish FVG also uses 2-bar rule."""
+        # Bullish FVG [99, 100]: two consecutive closes below 99 → invalidated.
+        assert label_fvg_mitigation(
+            99.0, 100.0, "BULL",
+            [99.5, 98.8, 99.2],       # highs
+            [98.5, 98.2, 99.0],       # lows
+            [98.7, 98.5, 99.5],       # closes: two consecutive below zone
+        ) is False
+
+    def test_ob_still_uses_single_bar_invalidation(self) -> None:
+        """OB keeps the stricter 1-bar invalidation — R2 is FVG-only."""
+        # Bullish OB [99, 100]: bar-0 close 98.7 is below zone → invalidation.
+        # Touch at bar-1 is too late.
+        assert label_orderblock_mitigation(
+            99.0, 100.0, "BULL",
+            [99.5, 99.5],
+            [98.5, 99.0],
+            [98.7, 99.5],            # single close below zone invalidates OB
+        ) is False
+
+
+class TestFVGPartialFill:
+    def test_bearish_full_fill(self) -> None:
+        # Price highs reach from zone_low to zone_high → 100% fill
+        pct = compute_fvg_partial_fill(100.0, 102.0, "BEAR", [102.0], [99.0])
+        assert pct == 1.0
+
+    def test_bearish_half_fill(self) -> None:
+        # Price high reaches midpoint of [100, 102] zone
+        pct = compute_fvg_partial_fill(100.0, 102.0, "BEAR", [101.0], [99.0])
+        assert pct == 0.5
+
+    def test_bearish_no_fill(self) -> None:
+        # Price never reaches zone
+        pct = compute_fvg_partial_fill(100.0, 102.0, "BEAR", [99.0], [98.0])
+        assert pct == 0.0
+
+    def test_bullish_full_fill(self) -> None:
+        pct = compute_fvg_partial_fill(98.0, 100.0, "BULL", [101.0], [98.0])
+        assert pct == 1.0
+
+    def test_bullish_partial_fill(self) -> None:
+        # Low dips to 99.0 in [98, 100] zone → 50% fill
+        pct = compute_fvg_partial_fill(98.0, 100.0, "BULL", [101.0], [99.0])
+        assert pct == 0.5
+
+    def test_empty_prices(self) -> None:
+        assert compute_fvg_partial_fill(100.0, 102.0, "BEAR", [], []) == 0.0
+
+    def test_invalid_zone(self) -> None:
+        assert compute_fvg_partial_fill(102.0, 100.0, "BEAR", [101.0], [99.0]) == 0.0
 
 
 class TestScoreEvents:
