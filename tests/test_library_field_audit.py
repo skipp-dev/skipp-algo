@@ -12,6 +12,12 @@ _PINE_DIR = ROOT
 _GENERATORS = [
     ROOT / "scripts" / "generate_smc_micro_profiles.py",
     ROOT / "scripts" / "smc_microstructure_base_runtime.py",
+    # ENG-WS2-02 / -04 trust + action degradation block helpers.
+    ROOT / "scripts" / "smc_trust_state_export.py",
+    # ENG-WS3-03 / -04 / -05 hero-surface block helpers.
+    ROOT / "scripts" / "smc_hero_market_mode.py",
+    ROOT / "scripts" / "smc_hero_setup_quality.py",
+    ROOT / "scripts" / "smc_hero_action.py",
 ]
 
 # Known orphan references that are tolerated until their Pine consumer is cleaned up.
@@ -145,6 +151,23 @@ def _collect_generated_fields() -> set[str]:
     fields = {f for f in fields if not f.endswith("_") or f in _INFRA_ONLY}
     # Dynamic list exports (render_list calls)
     fields.update(LIST_EXPORTS.values())
+    # Explicit Pine field tuples published by the helper modules. The
+    # regex-based scan above can miss exports rendered through a loop
+    # over an external tuple, so we always trust the tuple as the
+    # authoritative field list for that block.
+    from scripts.smc_trust_state_export import (
+        PINE_ACTION_DEGRADATION_FIELDS,
+        PINE_TRUST_FIELDS,
+    )
+    from scripts.smc_hero_market_mode import PINE_HERO_MARKET_FIELDS
+    from scripts.smc_hero_setup_quality import PINE_HERO_QUALITY_FIELDS
+    from scripts.smc_hero_action import PINE_HERO_ACTION_FIELDS
+
+    fields.update(PINE_TRUST_FIELDS)
+    fields.update(PINE_ACTION_DEGRADATION_FIELDS)
+    fields.update(PINE_HERO_MARKET_FIELDS)
+    fields.update(PINE_HERO_QUALITY_FIELDS)
+    fields.update(PINE_HERO_ACTION_FIELDS)
     return fields
 
 
@@ -227,10 +250,25 @@ def test_generator_sunset_warning_removed() -> None:
 # ── OV6: Reverse-direction audit (generated → consumer) ─────────
 
 
-# Fields intentionally generated without a Pine consumer today.
-# Infra/metadata fields are internal; enrichment-reserve fields are exported for
-# future Pine consumers or external tooling (Streamlit terminal, notebooks).
-_INFRA_ONLY: set[str] = {
+# Generated fields are categorised by *intended consumer* so the audit
+# can distinguish technical infra from a Pine-surface contract that is
+# advertised but not yet wired.
+#
+# Three categories, mutually exclusive:
+#
+# - PYTHON_ONLY_EXPORTS:   diagnostic / Python-side helpers; Pine MUST
+#   NOT depend on these. They show up in the library because the
+#   generator emits them (telemetry, calibration weights, ticker
+#   lists), but the Pine surface uses a rolled-up sibling instead.
+#
+# - RESERVED_PINE_EXPORTS: an explicit Pine-surface contract that is
+#   already exported by the generator, but no Pine consumer reads it
+#   yet. Tracked here on purpose so the debt is visible. New entries
+#   MUST point at a backlog ticket so we don't accumulate silent
+#   reservations.
+#
+# - everything else: must be referenced by at least one *.pine file.
+PYTHON_ONLY_EXPORTS: set[str] = {
     # ── metadata / bookkeeping ──
     "ASOF_TIME",
     "UNIVERSE_SIZE",
@@ -278,11 +316,59 @@ _INFRA_ONLY: set[str] = {
     "ZONE_CAL_FVG_HIGH_VOL",
     "ZONE_CAL_BOS_HIGH_VOL",
     "ZONE_CAL_SWEEP_HIGH_VOL",
+    # ── ENG-WS2-02 trust cause trail (diagnostic; Pine consumes only
+    # the rolled-up TRUST_STATE / TRUST_ACTION_IMPACT /
+    # TRUST_DEGRADATION_REASON; the cause sub-fields stay Python-side
+    # telemetry) ──
+    "TRUST_CAUSE_DOMAIN",
+    "TRUST_CAUSE_FAILURE_TYPE",
+    "TRUST_CAUSE_CODE",
+    # ── ENG-WS2-04 action degradation block (consumed by the Hero
+    # Action helper at generation time; Pine reads the rolled-up
+    # HERO_ACTION_* fields instead) ──
+    "ACTION_DEGRADATION_TIER",
+    "ACTION_DEGRADATION_REASON",
+    "ACTION_DEGRADATION_DERIVED_FROM",
 }
+
+# Pine-surface contracts that are exported but not yet consumed by any
+# *.pine file. Each entry is a real backlog item, not a hiding place
+# for technical debt. Add a # ENG-WS… comment when extending.
+RESERVED_PINE_EXPORTS: set[str] = set()
+
+# ENG-WS3-03 — Hero Market Mode head. Generator already emits the
+# block; dashboards still re-derive regime/bias/session/trust/freshness
+# locally. Wiring lands together with the Mobile + Default surface
+# reshape in the upcoming UI ticket.
+from scripts.smc_hero_market_mode import (  # noqa: E402
+    PINE_HERO_MARKET_FIELDS,
+)
+
+RESERVED_PINE_EXPORTS.update(PINE_HERO_MARKET_FIELDS)
+
+# ENG-WS3-04 — Hero Setup-Quality card. Same situation as above:
+# canonical card is exported, dashboards still pick from raw ensemble
+# fields. Wired in the same UI ticket as the Market head.
+from scripts.smc_hero_setup_quality import (  # noqa: E402
+    PINE_HERO_QUALITY_FIELDS,
+)
+
+RESERVED_PINE_EXPORTS.update(PINE_HERO_QUALITY_FIELDS)
+
+# ENG-WS3-05 — Hero Action recommendation. Exported as the canonical
+# verb + reason; Pine still derives the action label internally.
+from scripts.smc_hero_action import (  # noqa: E402
+    PINE_HERO_ACTION_FIELDS,
+)
+
+RESERVED_PINE_EXPORTS.update(PINE_HERO_ACTION_FIELDS)
+
+# Backwards-compatible alias (keeps any external callers happy).
+_INFRA_ONLY: set[str] = PYTHON_ONLY_EXPORTS | RESERVED_PINE_EXPORTS
 
 
 def test_every_generated_field_has_pine_consumer() -> None:
-    """Every generated field must be consumed by at least one Pine script or be in _INFRA_ONLY."""
+    """Every generated field must be consumed, python-only, or reserved."""
     generated = _collect_generated_fields()
     pine_refs = _collect_pine_mp_refs()
 
@@ -292,15 +378,40 @@ def test_every_generated_field_has_pine_consumer() -> None:
 
     unclaimed = sorted(generated - all_consumed - _INFRA_ONLY)
     assert unclaimed == [], (
-        f"Generated fields with no Pine consumer (add mp.* usage or mark _INFRA_ONLY):\n"
+        "Generated fields with no Pine consumer.\n"
+        "Decide on ownership: add a mp.* consumer, mark as PYTHON_ONLY_EXPORTS, "
+        "or list in RESERVED_PINE_EXPORTS with a backlog reference:\n"
         + "\n".join(f"  {f}" for f in unclaimed)
     )
 
 
+def test_python_only_and_reserved_categories_are_disjoint() -> None:
+    """A field cannot be both Python-only and a reserved Pine contract."""
+    overlap = sorted(PYTHON_ONLY_EXPORTS & RESERVED_PINE_EXPORTS)
+    assert overlap == [], (
+        "Fields appear in both PYTHON_ONLY_EXPORTS and RESERVED_PINE_EXPORTS "
+        "— pick exactly one ownership: " + ", ".join(overlap)
+    )
+
+
+def test_reserved_pine_exports_have_no_pine_consumer_yet() -> None:
+    """Reserved entries must stay reserved — once Pine consumes them, drop the entry."""
+    pine_refs = _collect_pine_mp_refs()
+    consumed: set[str] = set()
+    for refs in pine_refs.values():
+        consumed.update(refs)
+    landed = sorted(RESERVED_PINE_EXPORTS & consumed)
+    assert landed == [], (
+        "These RESERVED_PINE_EXPORTS now have a Pine consumer — "
+        "remove them from the reserved set: " + ", ".join(landed)
+    )
+
+
 def test_infra_only_fields_are_generated() -> None:
-    """Prevent _INFRA_ONLY from going stale — every entry must still be generated."""
+    """Prevent ownership lists from going stale — every entry must still be generated."""
     generated = _collect_generated_fields()
-    for field in _INFRA_ONLY:
+    for field in PYTHON_ONLY_EXPORTS | RESERVED_PINE_EXPORTS:
         assert field in generated, (
-            f"{field} is in _INFRA_ONLY but no longer generated — remove it"
+            f"{field} is declared as python-only / reserved "
+            "but is no longer generated — remove it."
         )
