@@ -137,7 +137,7 @@ Autorität: Canonical-Docs-Sweep nach Feature-Freeze-Beginn
 |----------|--------|
 | [PINE_INPUT_SURFACE.md](PINE_INPUT_SURFACE.md) | Input Surface Reduction |
 | [RUNTIME_BUDGET.md](RUNTIME_BUDGET.md) | Runtime Budget Inventory |
-| [LEGACY_REMOVAL_PLAN.md](LEGACY_REMOVAL_PLAN.md) | Legacy Removal Plan |
+| [LEGACY_REMOVAL_PLAN.md](archive/LEGACY_REMOVAL_PLAN.md) | Legacy Removal Plan (archived) |
 
 ---
 
@@ -198,30 +198,30 @@ aktuelle Wahrheit. Nicht ändern, nicht löschen.
 | Dokument | Kontext |
 |----------|---------|
 | [SkippALGO_Deep_Technical_Documentation.md](SkippALGO_Deep_Technical_Documentation.md) | v6.1–v6.2 Deep Technical Doc |
-| [SkippALGO_Deep_Technical_Documentation_v6.2.22.md](SkippALGO_Deep_Technical_Documentation_v6.2.22.md) | v6.2.22 Deep Technical Doc |
+| [SkippALGO_Deep_Technical_Documentation_v6.2.22.md](archive/SkippALGO_Deep_Technical_Documentation_v6.2.22.md) | v6.2.22 Deep Technical Doc |
 | [SkippALGO_Market_Structure.md](SkippALGO_Market_Structure.md) | v6.2 Market Structure |
 | [SkippALGO_Roadmap_Enhancements.md](SkippALGO_Roadmap_Enhancements.md) | v6.x Roadmap |
 | [SkippALGO_Tuning_Guide.md](SkippALGO_Tuning_Guide.md) | v6.x Tuning Guide |
 | [SkippALGO_Kurzfassung_Fuer_Nutzer.md](SkippALGO_Kurzfassung_Fuer_Nutzer.md) | v6.x Kurzfassung DE |
 
-### Historische CHANGELOGs & Updates
+### Historische CHANGELOGs & Updates (→ `docs/archive/`)
 
 | Dokument | Kontext |
 |----------|---------|
-| [CHANGELOG_v6.2.md](CHANGELOG_v6.2.md) | v6.2 Changelog |
-| [CHANGELOG_v6.2.7.md](CHANGELOG_v6.2.7.md) | v6.2.7 Changelog |
-| [CHANGELOG_v6.2.11_improvements.md](CHANGELOG_v6.2.11_improvements.md) | v6.2.11 |
-| [CHANGELOG_v6.2.18_entry_labels.md](CHANGELOG_v6.2.18_entry_labels.md) | v6.2.18 |
-| [CHANGELOG_v6.2.21_strict_mode_ux.md](CHANGELOG_v6.2.21_strict_mode_ux.md) | v6.2.21 |
-| [CHANGELOG_v6.2.25.md](CHANGELOG_v6.2.25.md) | v6.2.25 |
-| [CHANGELOG_v6.2_EvalBaselines.md](CHANGELOG_v6.2_EvalBaselines.md) | v6.2 Eval Baselines |
-| [CHANGELOG_v6.2_RepaintFix.md](CHANGELOG_v6.2_RepaintFix.md) | v6.2 Repaint Fix |
-| [CHANGELOG_v6.2.X_USI_Premium.md](CHANGELOG_v6.2.X_USI_Premium.md) | USI Premium |
+| [CHANGELOG_v6.2.md](archive/CHANGELOG_v6.2.md) | v6.2 Changelog |
+| [CHANGELOG_v6.2.7.md](archive/CHANGELOG_v6.2.7.md) | v6.2.7 Changelog |
+| [CHANGELOG_v6.2.11_improvements.md](archive/CHANGELOG_v6.2.11_improvements.md) | v6.2.11 |
+| [CHANGELOG_v6.2.18_entry_labels.md](archive/CHANGELOG_v6.2.18_entry_labels.md) | v6.2.18 |
+| [CHANGELOG_v6.2.21_strict_mode_ux.md](archive/CHANGELOG_v6.2.21_strict_mode_ux.md) | v6.2.21 |
+| [CHANGELOG_v6.2.25.md](archive/CHANGELOG_v6.2.25.md) | v6.2.25 |
+| [CHANGELOG_v6.2_EvalBaselines.md](archive/CHANGELOG_v6.2_EvalBaselines.md) | v6.2 Eval Baselines |
+| [CHANGELOG_v6.2_RepaintFix.md](archive/CHANGELOG_v6.2_RepaintFix.md) | v6.2 Repaint Fix |
+| [CHANGELOG_v6.2.X_USI_Premium.md](archive/CHANGELOG_v6.2.X_USI_Premium.md) | USI Premium |
 | [CHANGELOG_CHOCH_recent.md](CHANGELOG_CHOCH_recent.md) | CHoCH Changelog |
 | [RELEASE_SUMMARY_v6.3.9.md](RELEASE_SUMMARY_v6.3.9.md) | v6.3.9 Release |
-| [UPDATE_v6.1.1.md](UPDATE_v6.1.1.md) | v6.1.1 Update |
-| [UPDATE_v6.2_Infinite_TP_ATR.md](UPDATE_v6.2_Infinite_TP_ATR.md) | v6.2 Infinite TP |
-| [UPDATE_v6.2_Reversal_Fix.md](UPDATE_v6.2_Reversal_Fix.md) | v6.2 Reversal Fix |
+| [UPDATE_v6.1.1.md](archive/UPDATE_v6.1.1.md) | v6.1.1 Update |
+| [UPDATE_v6.2_Infinite_TP_ATR.md](archive/UPDATE_v6.2_Infinite_TP_ATR.md) | v6.2 Infinite TP |
+| [UPDATE_v6.2_Reversal_Fix.md](archive/UPDATE_v6.2_Reversal_Fix.md) | v6.2 Reversal Fix |
 
 ### Historische Reviews & Test Reports
 
@@ -235,8 +235,8 @@ aktuelle Wahrheit. Nicht ändern, nicht löschen.
 | [REVIEW_NewsAPI_Production_Readiness.md](REVIEW_NewsAPI_Production_Readiness.md) | NewsAPI Readiness Review |
 | [TEST_REPORT_v6.1.md](TEST_REPORT_v6.1.md) | v6.1 Test Report |
 | [TEST_REPORT_v6.3.md](TEST_REPORT_v6.3.md) | v6.3 Test Report |
-| [PR_v6.2.21_strict_mode_ux.md](PR_v6.2.21_strict_mode_ux.md) | v6.2.21 PR Draft |
-| [REPAIR_REPORT_v6.2.md](REPAIR_REPORT_v6.2.md) | v6.2 Repair Report |
+| [PR_v6.2.21_strict_mode_ux.md](archive/PR_v6.2.21_strict_mode_ux.md) | v6.2.21 PR Draft |
+| [REPAIR_REPORT_v6.2.md](archive/REPAIR_REPORT_v6.2.md) | v6.2 Repair Report |
 | [AUDIT_R5_CAT7_12.md](AUDIT_R5_CAT7_12.md) | Audit Round 5 |
 | [AUDIT_REPORT_Comprehensive.md](AUDIT_REPORT_Comprehensive.md) | Comprehensive Audit 2025-06 |
 
@@ -246,9 +246,9 @@ aktuelle Wahrheit. Nicht ändern, nicht löschen.
 |----------|---------|
 | [TROUBLESHOOTING.md](TROUBLESHOOTING.md) | v6.1 Troubleshooting |
 | [TROUBLESHOOTING_GHOST_SIGNALS.md](TROUBLESHOOTING_GHOST_SIGNALS.md) | Ghost Signals |
-| [TROUBLESHOOTING_v6.2_Exits.md](TROUBLESHOOTING_v6.2_Exits.md) | v6.2 Exits |
-| [TROUBLESHOOTING_v6.2.11_RevBuy.md](TROUBLESHOOTING_v6.2.11_RevBuy.md) | v6.2.11 RevBuy |
-| [TROUBLESHOOTING_v6.2.34_RevBuy_1530Bar.md](TROUBLESHOOTING_v6.2.34_RevBuy_1530Bar.md) | v6.2.34 RevBuy |
+| [TROUBLESHOOTING_v6.2_Exits.md](archive/TROUBLESHOOTING_v6.2_Exits.md) | v6.2 Exits |
+| [TROUBLESHOOTING_v6.2.11_RevBuy.md](archive/TROUBLESHOOTING_v6.2.11_RevBuy.md) | v6.2.11 RevBuy |
+| [TROUBLESHOOTING_v6.2.34_RevBuy_1530Bar.md](archive/TROUBLESHOOTING_v6.2.34_RevBuy_1530Bar.md) | v6.2.34 RevBuy |
 
 ---
 
