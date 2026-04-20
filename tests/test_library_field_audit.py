@@ -278,14 +278,6 @@ _INFRA_ONLY: set[str] = {
     "ZONE_CAL_FVG_HIGH_VOL",
     "ZONE_CAL_BOS_HIGH_VOL",
     "ZONE_CAL_SWEEP_HIGH_VOL",
-    # ── Hero State: Pine consumer arrives in PR 2 (Dashboard Hero Surface) ──
-    "HERO_MARKET_MODE",
-    "HERO_BIAS",
-    "HERO_TRUST",
-    "HERO_SETUP_QUALITY",
-    "HERO_WHY_NOW",
-    "HERO_RISK",
-    "HERO_ACTION",
 }
 
 
