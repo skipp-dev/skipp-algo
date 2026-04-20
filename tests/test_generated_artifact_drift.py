@@ -201,8 +201,11 @@ class TestGeneratedArtifactDrift:
         # Calibration consumer adds 4 fields (ZONE_CAL_OB/FVG/BOS/SWEEP). 140 → 144.
         # Phase F: Contextual calibration adds 16 fields (4 families × 4 contexts). 144 → 160.
         # Hero State Contract adds 7 fields. 160 → 167.
-        assert len(exports) == 167, (
-            f"Expected 167 export const fields for the current v6 shared-export contract, got {len(exports)}"
+        # ENG-WS2-02 trust block adds 6 fields (TRUST_STATE, TRUST_ACTION_IMPACT,
+        # TRUST_CAUSE_DOMAIN, TRUST_CAUSE_FAILURE_TYPE, TRUST_CAUSE_CODE,
+        # TRUST_DEGRADATION_REASON). 167 → 173.
+        assert len(exports) == 173, (
+            f"Expected 173 export const fields for the current v6 shared-export contract, got {len(exports)}"
         )
 
     def test_event_risk_exports_stay_in_canonical_order(self, regenerated: Path):

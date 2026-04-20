@@ -197,7 +197,7 @@ def test_release_runner_skips_publish_contract_gate_when_requested(monkeypatch) 
 
     assert rc == 0
     assert captured_reports[-1]["release_phase"] == "pre_publish"
-    assert [gate["name"] for gate in captured_reports[-1]["gates"]] == ["provider_health", "reference_bundle", "measurement_lane"]
+    assert [gate["name"] for gate in captured_reports[-1]["gates"]] == ["provider_health", "reference_bundle", "evidence_lane", "measurement_lane"]
 
 
 def test_release_runner_surfaces_provider_domain_alerts(monkeypatch) -> None:
@@ -316,7 +316,7 @@ def test_release_runner_adds_post_release_validation_gate_when_report_is_provide
     assert rc == 0
     assert captured_reports[-1]["release_phase"] == "post_publish"
     gate_names = [gate["name"] for gate in captured_reports[-1]["gates"]]
-    assert gate_names == ["provider_health", "reference_bundle", "post_release_validation", "measurement_lane"]
+    assert gate_names == ["provider_health", "reference_bundle", "evidence_lane", "post_release_validation", "measurement_lane"]
 
 
 def test_measurement_gate_uses_real_evidence(monkeypatch, tmp_path: Path) -> None:
