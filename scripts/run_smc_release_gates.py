@@ -198,6 +198,117 @@ def classify_tv_gate_failure(gate: dict[str, Any]) -> str:
 
 
 # ---------------------------------------------------------------------------
+# TV validation stage classification (WS1-FT-04)
+# ---------------------------------------------------------------------------
+# WS1-FT-04 normalises the post-release TV validation onto the real runtime
+# pipeline (compile / add-to-chart / runtime) and explicitly carves out the
+# input-tab visibility check as a *non-blocking* concern. This complements
+# the WP-R11 ``tv_failure_class`` vocabulary above with an orthogonal stage
+# vocabulary so reports can name the stage that drifted, and so the
+# release-gate runner can stop treating input-tab failures as hard release
+# preconditions.
+
+# Auth / session rotation — TV web auth, not a code or runtime problem.
+_TV_STAGE_AUTH_CODES: frozenset[str] = frozenset({
+    "AUTH_FAILED",
+    "AUTH_NOT_REUSED",
+})
+
+# Manifest / publish-state checks — happen before TV is even touched.
+_TV_STAGE_MANIFEST_CODES: frozenset[str] = frozenset({
+    "PUBLISH_STATUS_NOT_PUBLISHED",
+    "VERSION_MISMATCH",
+    "MANIFEST_STALE",
+    "MANIFEST_MISSING_TIMESTAMP",
+    "READONLY_MODE_REQUIRED",
+    "NO_TARGETS",
+})
+
+# Input-tab visibility — preflight discovers visible Pine inputs. WS1-FT-04
+# explicitly carves this stage out: a missing visible Settings input tab
+# must not block the release, only the real runtime path (compile, add to
+# chart, runtime check) should.
+_TV_STAGE_INPUT_VISIBILITY_CODES: frozenset[str] = frozenset({
+    "PREFLIGHT_FAILED",
+})
+
+# Compile / add-to-chart / runtime — the actual runtime pipeline. A failure
+# here is a real release blocker.
+_TV_STAGE_COMPILE_ADD_RUNTIME_CODES: frozenset[str] = frozenset({
+    "TARGET_FAILED",
+})
+
+
+def _classify_tv_failure_stage(code: str) -> str:
+    """Map a single failure code to a TV validation stage."""
+    if code in _TV_STAGE_AUTH_CODES:
+        return "auth"
+    if code in _TV_STAGE_MANIFEST_CODES:
+        return "manifest_or_publish"
+    if code in _TV_STAGE_INPUT_VISIBILITY_CODES:
+        return "input_visibility"
+    if code in _TV_STAGE_COMPILE_ADD_RUNTIME_CODES:
+        return "compile_add_runtime"
+    return "unknown"
+
+
+def classify_tv_validation_stage(gate: dict[str, Any]) -> dict[str, Any]:
+    """Classify the TV validation stage(s) involved in a gate's failures.
+
+    Returns a dict with three stable keys:
+
+    ``stage``
+        ``"ok"`` when the gate has no failure codes; otherwise the single
+        stage label when all failures share one stage, or ``"mixed"`` when
+        more than one stage is involved.
+    ``per_code``
+        Ordered list of ``{"code", "stage"}`` entries, one per failure code,
+        so reports can show *what kind* of TV check drifted.
+    ``release_blocking``
+        ``True`` when at least one failure is in a stage that should block a
+        release (compile/add/runtime, manifest/publish). ``False`` when every
+        failure is in a soft-only stage (auth, input_visibility) that should
+        not block a live release per WS1-FT-04.
+    """
+    details = gate.get("details", {})
+    failure_codes: list[str] = [
+        str(item.get("code", "")).strip()
+        for item in details.get("failures", [])
+        if str(item.get("code", "")).strip()
+    ]
+    if not failure_codes:
+        return {"stage": "ok", "per_code": [], "release_blocking": False}
+
+    per_code = [
+        {"code": code, "stage": _classify_tv_failure_stage(code)}
+        for code in failure_codes
+    ]
+    distinct = {entry["stage"] for entry in per_code}
+    stage = next(iter(distinct)) if len(distinct) == 1 else "mixed"
+    blocking_stages = {"compile_add_runtime", "manifest_or_publish", "unknown"}
+    release_blocking = any(entry["stage"] in blocking_stages for entry in per_code)
+    return {
+        "stage": stage,
+        "per_code": per_code,
+        "release_blocking": release_blocking,
+    }
+
+
+def _tv_gate_is_soft_only(gate: dict[str, Any]) -> bool:
+    """Return True when the gate's failures are all in soft-only TV stages.
+
+    WS1-FT-04 mandates that a missing input tab must not block a live
+    release; combined with the existing ``external_tv_drift`` carve-out for
+    pure auth failures this collapses to "no failure code is in a
+    release-blocking stage".
+    """
+    classification = classify_tv_validation_stage(gate)
+    if classification["stage"] == "ok":
+        return False
+    return not classification["release_blocking"]
+
+
+# ---------------------------------------------------------------------------
 # Hero State Contract — product-state classification (PR 4 of 2026-04-20
 # Hero Surface deep-review).
 # ---------------------------------------------------------------------------
@@ -922,6 +1033,7 @@ def _run_post_release_validation_gate(report_path: str) -> dict[str, Any]:
     if gate_status == "fail":
         gate["tv_failure_class"] = classify_tv_gate_failure(gate)
         gate["hero_product_state"] = classify_hero_product_state(gate)
+        gate["tv_validation_stage"] = classify_tv_validation_stage(gate)
     return gate
 
 
@@ -1124,6 +1236,22 @@ def main() -> int:
         },
     })
 
+    # WS1-FT-04: input-tab visibility (preflight) and pure auth failures
+    # are not real release blockers. They are stage-soft TV-validation
+    # failures that should not stop a live publish. We always downgrade
+    # such gates regardless of --ci-mode so the operational release pass
+    # is not gated on the input-tab being present in TV's Settings panel.
+    tv_soft_downgrades: list[str] = []
+    for gate in gates:
+        if gate.get("status") != "fail" or not gate.get("blocking", True):
+            continue
+        if gate.get("name") != "post_release_validation":
+            continue
+        if _tv_gate_is_soft_only(gate):
+            gate["blocking"] = False
+            gate["tv_soft_only_downgraded"] = True
+            tv_soft_downgrades.append(gate["name"])
+
     # --ci-mode: downgrade data-absent blocking gates to non-blocking.
     # Also downgrade TV-validation gates whose failures are purely external
     # UI/auth drift (WP-R11).
@@ -1176,6 +1304,7 @@ def main() -> int:
             "blocking": g.get("blocking", True),
             "review_reason": (
                 "ci_mode_downgraded" if g.get("ci_mode_downgraded")
+                else "tv_soft_only_downgraded" if g.get("tv_soft_only_downgraded")
                 else "soft_by_design"
             ),
         }
@@ -1206,6 +1335,7 @@ def main() -> int:
             "measurement_baseline_summary": args.measurement_baseline_summary,
             "ci_mode": ci_mode,
             "ci_mode_downgrades": ci_mode_downgrades,
+            "tv_soft_downgrades": tv_soft_downgrades,
             "exit_code": int(exit_code),
         },
         "runtime_metadata": runtime_metadata(),
