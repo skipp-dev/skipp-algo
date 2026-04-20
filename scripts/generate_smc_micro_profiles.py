@@ -1002,6 +1002,16 @@ def write_pine_library(
     content.append(f'export const string ZONE_PRIORITY_CATALYST = "{zp.get("ZONE_PRIORITY_CATALYST", _ZP_DEFAULTS["ZONE_PRIORITY_CATALYST"])}"')
     content.append(f'export const string ZONE_PRIORITY_REASON = "{zp.get("ZONE_PRIORITY_REASON", _ZP_DEFAULTS["ZONE_PRIORITY_REASON"])}"')
 
+    # ── Zone Priority Calibration Weights ────────────────────────
+    from scripts.smc_zone_priority import _FAMILY_BASE_PRIORITY as _ZP_FALLBACK
+
+    zpc = enr.get("zone_priority_calibration") or {}
+    content.append("")
+    content.append("// ── Zone Priority Calibration ──")
+    for fam in ("OB", "FVG", "BOS", "SWEEP"):
+        w = float(zpc.get(fam, _ZP_FALLBACK.get(fam, 0.50)))
+        content.append(f"export const float ZONE_CAL_{fam} = {w:.4f}")
+
     path.write_text("\n".join(content).rstrip() + "\n", encoding="utf-8")
 
 

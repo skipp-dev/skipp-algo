@@ -4243,6 +4243,22 @@ def _enrich_zone_priority(
     except Exception:
         return
 
+    # Load calibrated family weights (best-effort)
+    calibrated_fw: dict[str, float] | None = None
+    try:
+        from pathlib import Path as _P
+        import json as _json
+        for _cal_p in (
+            _P("artifacts/reports/zone_priority_calibration.json"),
+            _P("artifacts/ci/measurement_benchmark/zone_priority_calibration.json"),
+        ):
+            if _cal_p.exists():
+                _cal = _json.loads(_cal_p.read_text(encoding="utf-8"))
+                calibrated_fw = _cal.get("family_weights")
+                break
+    except Exception:
+        pass
+
     regime = getattr(regime_snapshot, "regime", "NEUTRAL") if regime_snapshot else "NEUTRAL"
     for row in ranked_v2:
         symbol = row.get("symbol", "")
@@ -4256,6 +4272,7 @@ def _enrich_zone_priority(
                 vol_regime=str(row.get("vol_regime", "NORMAL")),
                 zone_proj_score=int(row.get("consolidation_score", 0)),
                 htf_aligned=bool(row.get("htf_aligned", False)),
+                calibrated_family_weights=calibrated_fw,
             )
             row["zone_priority_rank"] = zp.get("ZONE_PRIORITY_RANK")
             row["zone_priority_score"] = zp.get("ZONE_PRIORITY_SCORE")

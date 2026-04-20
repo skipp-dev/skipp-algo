@@ -233,3 +233,9 @@ export const int ZONE_PRIORITY_SCORE = 0
 export const string ZONE_PRIORITY_TOP_FAMILY = "OB"
 export const string ZONE_PRIORITY_CATALYST = "NONE"
 export const string ZONE_PRIORITY_REASON = ""
+
+// ── Zone Priority Calibration ──
+export const float ZONE_CAL_OB = 0.8200
+export const float ZONE_CAL_FVG = 0.6100
+export const float ZONE_CAL_BOS = 0.8100
+export const float ZONE_CAL_SWEEP = 0.7300

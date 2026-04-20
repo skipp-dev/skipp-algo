@@ -1146,6 +1146,22 @@ def build_enrichment(
     if enrich_zone_priority:
         from scripts.smc_zone_priority import build_zone_priority
 
+        # Load calibrated family weights (best-effort)
+        _calibrated_fw: dict[str, float] | None = None
+        for _cal_candidate in (
+            Path("artifacts/reports/zone_priority_calibration.json"),
+            Path("artifacts/ci/measurement_benchmark/zone_priority_calibration.json"),
+        ):
+            if _cal_candidate.exists():
+                try:
+                    _cal_data = json.loads(_cal_candidate.read_text(encoding="utf-8"))
+                    _calibrated_fw = _cal_data.get("family_weights")
+                    if _calibrated_fw:
+                        logger.info("Zone priority: loaded calibrated weights from %s", _cal_candidate)
+                except Exception:
+                    pass
+                break
+
         # Gather context from already-computed enrichment blocks
         _regime = (enrichment.get("regime") or {}).get("regime", "NEUTRAL")
         _eq = enrichment.get("ensemble_quality") or {}
@@ -1164,7 +1180,11 @@ def build_enrichment(
             vol_regime=str(_vr.get("label", "NORMAL")),
             zone_proj_score=int(_zp.get("ZONE_PROJ_SCORE", 0)),
             htf_aligned=bool(_zp.get("ZONE_PROJ_HTF_ALIGNED", False)),
+            calibrated_family_weights=_calibrated_fw,
         )
+        # Attach calibrated weights for Pine export
+        if _calibrated_fw:
+            enrichment["zone_priority_calibration"] = _calibrated_fw
 
     # ── Profile Context (v5.2) ──────────────────────────────────
     if enrich_profile_context:
