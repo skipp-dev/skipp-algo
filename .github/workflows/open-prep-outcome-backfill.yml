@@ -73,12 +73,22 @@ jobs:
           fi
           python -m open_prep.outcome_backfill "${ARGS[@]}"
 
+      - name: Generate feature-importance report
+        # ENG-WS4-02: continuously regenerate the FI report so its status
+        # (ok / insufficient_labels / no_data) is always inspectable.
+        if: always()
+        run: |
+          set -euo pipefail
+          python -m open_prep.feature_importance_report --lookback 30
+
       - name: Upload run log
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: outcome-backfill-run-log
-          path: artifacts/open_prep/outcome_backfill/
+          path: |
+            artifacts/open_prep/outcome_backfill/
+            artifacts/open_prep/feature_importance/
           if-no-files-found: warn
 
       - name: Commit refreshed outcomes + run log
@@ -87,7 +97,7 @@ jobs:
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.noreply.github.com"
-          git add artifacts/open_prep/outcomes/ artifacts/open_prep/outcome_backfill/ || true
+          git add artifacts/open_prep/outcomes/ artifacts/open_prep/outcome_backfill/ artifacts/open_prep/feature_importance/ || true
           if git diff --staged --quiet; then
             echo "No changes to commit."
           else
