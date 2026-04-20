@@ -1,8 +1,0 @@
-asof_date,symbol,list_name,active_since,last_score,decision_source,decision_reason
-2026-03-23,AAA,clean_reclaim,2026-03-23,0.983333,generator,bootstrap activation on first snapshot
-2026-03-23,BBB,fast_decay,2026-03-23,0.833333,generator,bootstrap activation on first snapshot
-2026-03-23,CCC,midday_dead,2026-03-23,0.716667,generator,bootstrap activation on first snapshot
-2026-03-23,CCC,rth_only,2026-03-23,0.7,generator,bootstrap activation on first snapshot
-2026-03-23,BBB,stop_hunt_prone,2026-03-23,1.0,generator,bootstrap activation on first snapshot
-2026-03-23,CCC,weak_afterhours,2026-03-23,0.716667,generator,bootstrap activation on first snapshot
-2026-03-23,CCC,weak_premarket,2026-03-23,0.716667,generator,bootstrap activation on first snapshot

@@ -117,6 +117,16 @@ def _collect_generated_fields() -> set[str]:
         fields.update(re.findall(r'render_csv_export\(\s*"([A-Z_][A-Z0-9_]+)"', source))
         # f-string: f'export const {type} {FIELD_NAME}' — with literal field name in f-string
         fields.update(re.findall(r"export const (?:float|int|bool|string) ([A-Z_][A-Z0-9_]+)", source))
+        # f-string with loop variable, e.g. ZONE_CAL_{fam}: expand known patterns
+        for m in re.finditer(r'f"export const (?:float|int|bool|string) ([A-Z_][A-Z0-9_]*?)\{(\w+)\}', source):
+            prefix = m.group(1)
+            var_name = m.group(2)
+            # Resolve known loop variables
+            if var_name == "fam":
+                for fam in ("OB", "FVG", "BOS", "SWEEP"):
+                    fields.add(f"{prefix}{fam}")
+    # Remove partial f-string captures (e.g. 'ZONE_CAL_' without suffix)
+    fields = {f for f in fields if not f.endswith("_") or f in _INFRA_ONLY}
     # Dynamic list exports (render_list calls)
     fields.update(LIST_EXPORTS.values())
     return fields
@@ -230,6 +240,11 @@ _INFRA_ONLY: set[str] = {
     "VOLATILITY_PROXY_SOURCE",
     "VOLATILITY_PROXY_SYMBOL",
     "VOLATILITY_REGIME_CONFIDENCE",
+    # ── zone priority calibration weights (Python-side only) ──
+    "ZONE_CAL_OB",
+    "ZONE_CAL_FVG",
+    "ZONE_CAL_BOS",
+    "ZONE_CAL_SWEEP",
 }
 
 

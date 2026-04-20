@@ -198,8 +198,9 @@ class TestGeneratedArtifactDrift:
         # WP-8: removed 42 deprecated fields from generator output (Range Regime 11,
         # Range Profile Regime 22, Order Block Extended 9). 177 → 135.
         # C9: Zone Priority adds 5 fields (RANK, SCORE, TOP_FAMILY, CATALYST, REASON). 135 → 140.
-        assert len(exports) == 140, (
-            f"Expected 140 export const fields for the current v6 shared-export contract, got {len(exports)}"
+        # Calibration consumer adds 4 fields (ZONE_CAL_OB/FVG/BOS/SWEEP). 140 → 144.
+        assert len(exports) == 144, (
+            f"Expected 144 export const fields for the current v6 shared-export contract, got {len(exports)}"
         )
 
     def test_event_risk_exports_stay_in_canonical_order(self, regenerated: Path):
