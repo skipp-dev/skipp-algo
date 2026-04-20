@@ -452,12 +452,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Build a persistent SMC measurement benchmark artifact set.")
     parser.add_argument(
         "--symbols",
-        default=csv_from_values(RELEASE_REFERENCE_SYMBOLS[:1]),
+        default=csv_from_values(RELEASE_REFERENCE_SYMBOLS[:6]),
         help="Comma-separated symbols for the measurement benchmark run.",
     )
     parser.add_argument(
         "--timeframes",
-        default=csv_from_values(RELEASE_REFERENCE_TIMEFRAMES[:1]),
+        default=csv_from_values(RELEASE_REFERENCE_TIMEFRAMES[1:3]),
         help="Comma-separated timeframes for the measurement benchmark run.",
     )
     parser.add_argument(
