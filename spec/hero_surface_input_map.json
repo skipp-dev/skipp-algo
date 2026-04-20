@@ -1,0 +1,67 @@
+{
+  "_comment": "Hero Surface input grouping map (PR 3 of the 2026-04-20 Hero Surface deep-review). Documents the canonical surface-vs-operator partition for SMC_Dashboard.pine and SMC_Mobile_Dashboard.pine. Consumed by pine_input_surface.py regroup as a re-entrant safety net: re-running it must be a no-op against the current files. Surface inputs stay visible in the first product group; every BUS / operator-only binding stays in its own hidden group with display = display.none.",
+  "version": "1.0.0",
+  "files": {
+    "SMC_Dashboard.pine": {
+      "groups_order": [
+        "g_surface",
+        "g_bus_lifecycle",
+        "g_bus_diag_rows",
+        "g_bus_diag",
+        "g_bus_plan",
+        "g_bus_detail",
+        "g_bus_lean",
+        "g_local_debug"
+      ],
+      "group_var_prefix": "g_",
+      "defaults": {"display_none": false},
+      "assignments": {
+        "surface_mode":      {"group": "g_surface"},
+        "show_table":        {"group": "g_surface"},
+        "show_risk_lines":   {"group": "g_surface"},
+        "show_state_bg":     {"group": "g_surface"},
+        "compact_dashboard": {"group": "g_surface"},
+        "color_theme":       {"group": "g_surface"}
+      },
+      "operator_only_groups": [
+        "g_bus_lifecycle",
+        "g_bus_diag_rows",
+        "g_bus_diag",
+        "g_bus_plan",
+        "g_bus_detail",
+        "g_bus_lean",
+        "g_local_debug"
+      ],
+      "operator_only_must_be_display_none": true
+    },
+    "SMC_Mobile_Dashboard.pine": {
+      "groups_order": [
+        "g_mobile_surface",
+        "g_bus"
+      ],
+      "group_var_prefix": "g_",
+      "defaults": {"display_none": false},
+      "assignments": {
+        "color_theme": {"group": "g_mobile_surface"}
+      },
+      "operator_only_groups": [
+        "g_bus"
+      ],
+      "operator_only_must_be_display_none": true
+    }
+  },
+  "hero_state_consumers": [
+    "mp.HERO_MARKET_MODE",
+    "mp.HERO_BIAS",
+    "mp.HERO_TRUST",
+    "mp.HERO_SETUP_QUALITY",
+    "mp.HERO_WHY_NOW",
+    "mp.HERO_RISK",
+    "mp.HERO_ACTION"
+  ],
+  "invariants": [
+    "Every input in a Surface or Mobile Surface group is visible (no display.none).",
+    "Every input in any Operator Only group has display = display.none.",
+    "Hero state values are read exclusively from mp.HERO_* fields; surface code does not re-derive them."
+  ]
+}
