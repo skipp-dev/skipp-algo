@@ -1012,6 +1012,23 @@ def write_pine_library(
         w = float(zpc.get(fam, _ZP_FALLBACK.get(fam, 0.50)))
         content.append(f"export const float ZONE_CAL_{fam} = {w:.4f}")
 
+    # ── Phase F: Session-adjusted calibration weights ────────────
+    zpc_ctx = enr.get("zone_priority_contextual_calibration") or {}
+    ctx_weights = zpc_ctx.get("contextual_weights", {})
+    content.append("")
+    content.append("// ── Contextual Calibration (Phase F) ──")
+    for session in ("RTH", "ETH"):
+        session_w = ctx_weights.get("session", {}).get(session, {})
+        for fam in ("OB", "FVG", "BOS", "SWEEP"):
+            w = float(session_w.get(fam, zpc.get(fam, _ZP_FALLBACK.get(fam, 0.50))))
+            content.append(f"export const float ZONE_CAL_{fam}_{session} = {w:.4f}")
+
+    for vol in ("NORMAL", "HIGH_VOL"):
+        vol_w = ctx_weights.get("vol_regime", {}).get(vol, {})
+        for fam in ("OB", "FVG", "BOS", "SWEEP"):
+            w = float(vol_w.get(fam, zpc.get(fam, _ZP_FALLBACK.get(fam, 0.50))))
+            content.append(f"export const float ZONE_CAL_{fam}_{vol} = {w:.4f}")
+
     path.write_text("\n".join(content).rstrip() + "\n", encoding="utf-8")
 
 

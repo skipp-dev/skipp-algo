@@ -217,6 +217,7 @@ def build_zone_priority(
     htf_aligned: bool = False,
     overrides: dict[str, Any] | None = None,
     calibrated_family_weights: dict[str, float] | None = None,
+    contextual_calibration: Any | None = None,
 ) -> dict[str, Any]:
     """Build a zone priority block from current context signals.
 
@@ -244,8 +245,29 @@ def build_zone_priority(
         Calibrated family base-priority weights from
         :func:`smc_zone_priority_calibration.calibrate_from_benchmark`.
         When provided, replaces the hand-tuned ``_FAMILY_BASE_PRIORITY``.
+    contextual_calibration : ContextualCalibrationResult, optional
+        Phase F contextual calibration.  When provided, family weights are
+        resolved per session/vol_regime context using
+        :func:`resolve_contextual_weight`, overriding both global calibration
+        and hand-tuned defaults.  Falls back to ``calibrated_family_weights``
+        when no promoted bucket matches.
     """
     result = dict(DEFAULTS)
+
+    # ── Phase F: Resolve context-aware family weights ───────────
+    effective_weights = calibrated_family_weights
+    if contextual_calibration is not None:
+        from scripts.smc_zone_priority_calibration import resolve_contextual_weight
+
+        ctx_weights: dict[str, float] = {}
+        for fam in ("OB", "FVG", "BOS", "SWEEP"):
+            ctx_weights[fam] = resolve_contextual_weight(
+                contextual_calibration,
+                fam,
+                session_context=session_context or None,
+                vol_regime=vol_regime or None,
+            )
+        effective_weights = ctx_weights
 
     # ── Dimension 1: Historical performance context ─────────────
     # Ensemble score proxies historical performance (scoring + history components)
@@ -284,7 +306,7 @@ def build_zone_priority(
         regime=regime.upper(),
         vol_regime=vol_regime.upper(),
         htf_aligned=htf_aligned,
-        calibrated_family_weights=calibrated_family_weights,
+        calibrated_family_weights=effective_weights,
         session_context=session_context.upper() if session_context else None,
     )
     catalyst = _identify_catalyst(

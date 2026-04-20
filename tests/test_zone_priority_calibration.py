@@ -10,12 +10,18 @@ import pytest
 
 from scripts.smc_zone_priority_calibration import (
     CalibrationResult,
+    ContextualCalibrationResult,
     FamilyStats,
+    calibrate_contextual_weights,
     calibrate_from_benchmark,
     calibrate_weights,
+    check_contextual_promotion,
     check_drift,
+    contextual_to_json,
     load_family_metrics,
+    load_stratified_family_metrics,
     render_calibration_report,
+    resolve_contextual_weight,
     to_json,
 )
 
@@ -335,3 +341,246 @@ def test_check_drift_cli_passes_within_threshold(tmp_path: Path) -> None:
         "--output-path", str(out),
         "--check-drift", "0.15",
     ])
+
+
+# ── Benchmark fixture helpers ────────────────────────────────────
+
+
+def _make_benchmark(
+    symbol: str,
+    tf: str,
+    kpis: list[dict[str, Any]],
+    stratified: dict[str, list[dict[str, Any]]] | None = None,
+) -> dict[str, Any]:
+    return {
+        "schema_version": "2.0.0",
+        "symbol": symbol,
+        "timeframe": tf,
+        "generated_at": 0.0,
+        "kpis": kpis,
+        "stratified": stratified or {},
+    }
+
+
+def _write_benchmark(base: Path, symbol: str, tf: str, data: dict) -> None:
+    d = base / symbol / tf
+    d.mkdir(parents=True, exist_ok=True)
+    (d / f"benchmark_{symbol}_{tf}.json").write_text(
+        json.dumps(data), encoding="utf-8"
+    )
+
+
+def _kpi(family: str, n: int, hr: float) -> dict[str, Any]:
+    return {"family": family, "n_events": n, "hit_rate": hr}
+
+
+# ── Phase F: load_stratified_family_metrics ──────────────────────
+
+
+def test_load_stratified_aggregates_across_files(tmp_path: Path) -> None:
+    _write_benchmark(tmp_path, "AAPL", "15m", _make_benchmark("AAPL", "15m", [], {
+        "session:RTH": [_kpi("OB", 20, 0.90), _kpi("FVG", 15, 0.60)],
+        "vol_regime:HIGH_VOL": [_kpi("OB", 10, 0.80)],
+    }))
+    _write_benchmark(tmp_path, "MSFT", "15m", _make_benchmark("MSFT", "15m", [], {
+        "session:RTH": [_kpi("OB", 10, 0.70), _kpi("FVG", 20, 0.50)],
+    }))
+
+    buckets = load_stratified_family_metrics(tmp_path)
+    assert "session:RTH" in buckets
+    rth = buckets["session:RTH"]
+    # OB: 20 + 10 = 30 events
+    assert rth.family_stats["OB"].total_events == 30
+    assert rth.family_stats["OB"].pair_count == 2
+    # FVG: 15 + 20 = 35 events
+    assert rth.family_stats["FVG"].total_events == 35
+
+
+def test_load_stratified_skips_empty_buckets(tmp_path: Path) -> None:
+    _write_benchmark(tmp_path, "AAPL", "15m", _make_benchmark("AAPL", "15m", [], {
+        "session:RTH": [_kpi("OB", 0, 0.0)],
+    }))
+    buckets = load_stratified_family_metrics(tmp_path)
+    # n_events=0 → family should be absent from bucket (or bucket itself absent)
+    if "session:RTH" in buckets:
+        assert "OB" not in buckets["session:RTH"].family_stats
+
+
+# ── Phase F: calibrate_contextual_weights ────────────────────────
+
+
+def _build_bucket_stats(
+    context_key: str,
+    families: dict[str, tuple[int, float]],
+) -> dict:
+    """Helper to build ContextBucketStats-compatible data."""
+    from scripts.smc_zone_priority_calibration import ContextBucketStats
+    cbs = ContextBucketStats(context_key=context_key)
+    for fam, (n, hr) in families.items():
+        s = FamilyStats(family=fam)
+        s.total_events = n
+        s.total_hits = round(hr * n)
+        s.hit_rates = [hr]
+        s.weights = [n]
+        cbs.family_stats[fam] = s
+    return cbs
+
+
+def test_contextual_calibration_promotes_sufficient_buckets() -> None:
+    buckets = {
+        "session:RTH": _build_bucket_stats("session:RTH", {
+            "OB": (50, 0.90),  # enough events + high HR → promoted
+            "FVG": (50, 0.40),
+            "BOS": (50, 0.85),
+            "SWEEP": (50, 0.75),
+        }),
+    }
+    global_w = {"OB": 0.82, "FVG": 0.61, "BOS": 0.81, "SWEEP": 0.73}
+
+    ctx = calibrate_contextual_weights(buckets, global_w, min_events=30)
+    assert "session:RTH" in ctx.promoted_buckets
+    # OB observed 0.90, blended with 0.82 prior at 30% smoothing → 0.876
+    ob_w = ctx.contextual_weights["session"]["RTH"]["OB"]
+    assert abs(ob_w - 0.876) < 0.01
+
+
+def test_contextual_calibration_fallback_below_threshold() -> None:
+    buckets = {
+        "session:ETH": _build_bucket_stats("session:ETH", {
+            "OB": (5, 0.80),  # too few events → NOT promoted
+            "FVG": (5, 0.60),
+            "BOS": (5, 0.90),
+            "SWEEP": (5, 0.70),
+        }),
+    }
+    global_w = {"OB": 0.85, "FVG": 0.60, "BOS": 0.82, "SWEEP": 0.75}
+
+    ctx = calibrate_contextual_weights(buckets, global_w, min_events=30)
+    # No family has 30 events → not promoted
+    assert "session:ETH" not in ctx.promoted_buckets
+    # Weights should fall back to global
+    assert ctx.contextual_weights["session"]["ETH"]["OB"] == 0.85
+
+
+def test_contextual_calibration_json_roundtrip() -> None:
+    ctx = ContextualCalibrationResult(
+        contextual_weights={"session": {"RTH": {"OB": 0.87, "FVG": 0.52, "BOS": 0.85, "SWEEP": 0.74}}},
+        promoted_buckets=["session:RTH"],
+        global_weights={"OB": 0.82, "FVG": 0.61, "BOS": 0.81, "SWEEP": 0.73},
+        bucket_stats={},
+        min_bucket_events=30,
+    )
+    d = contextual_to_json(ctx)
+    assert isinstance(d, dict)
+    assert "contextual_weights" in d
+    assert "promoted_buckets" in d
+    json.dumps(d)  # must be serializable
+
+
+# ── Phase F: check_contextual_promotion ──────────────────────────
+
+
+def test_check_promotion_reports_significant_deltas() -> None:
+    ctx = ContextualCalibrationResult(
+        contextual_weights={"session": {"RTH": {"OB": 0.92, "FVG": 0.50, "BOS": 0.81, "SWEEP": 0.73}}},
+        promoted_buckets=["session:RTH"],
+        global_weights={"OB": 0.82, "FVG": 0.61, "BOS": 0.81, "SWEEP": 0.73},
+        bucket_stats={},
+        min_bucket_events=30,
+    )
+    summaries = check_contextual_promotion(ctx, brier_improvement_threshold=0.05)
+    assert len(summaries) == 1
+    assert "OB" in summaries[0]  # OB +0.10 > threshold
+    assert "FVG" in summaries[0]  # FVG -0.11 > threshold
+
+
+def test_check_promotion_empty_when_no_divergence() -> None:
+    ctx = ContextualCalibrationResult(
+        contextual_weights={"session": {"RTH": {"OB": 0.83, "FVG": 0.62, "BOS": 0.82, "SWEEP": 0.74}}},
+        promoted_buckets=["session:RTH"],
+        global_weights={"OB": 0.82, "FVG": 0.61, "BOS": 0.81, "SWEEP": 0.73},
+        bucket_stats={},
+        min_bucket_events=30,
+    )
+    # All deltas < 0.05
+    summaries = check_contextual_promotion(ctx, brier_improvement_threshold=0.05)
+    assert summaries == []
+
+
+# ── Phase F: resolve_contextual_weight ───────────────────────────
+
+
+def test_resolve_uses_session_context_when_promoted() -> None:
+    ctx = ContextualCalibrationResult(
+        contextual_weights={"session": {"RTH": {"OB": 0.92, "FVG": 0.50, "BOS": 0.85, "SWEEP": 0.73}}},
+        promoted_buckets=["session:RTH"],
+        global_weights={"OB": 0.82, "FVG": 0.61, "BOS": 0.81, "SWEEP": 0.73},
+        bucket_stats={},
+        min_bucket_events=30,
+    )
+    # Session-promoted → use contextual weight
+    assert resolve_contextual_weight(ctx, "OB", session_context="RTH") == 0.92
+    assert resolve_contextual_weight(ctx, "FVG", session_context="RTH") == 0.50
+
+
+def test_resolve_falls_back_to_global_when_not_promoted() -> None:
+    ctx = ContextualCalibrationResult(
+        contextual_weights={"session": {"ETH": {"OB": 0.82, "FVG": 0.61, "BOS": 0.81, "SWEEP": 0.73}}},
+        promoted_buckets=[],  # nothing promoted
+        global_weights={"OB": 0.85, "FVG": 0.60, "BOS": 0.82, "SWEEP": 0.75},
+        bucket_stats={},
+        min_bucket_events=30,
+    )
+    assert resolve_contextual_weight(ctx, "OB", session_context="ETH") == 0.85  # global fallback
+
+
+def test_resolve_uses_vol_regime_when_session_not_available() -> None:
+    ctx = ContextualCalibrationResult(
+        contextual_weights={
+            "vol_regime": {"HIGH_VOL": {"OB": 0.78, "FVG": 0.65, "BOS": 0.81, "SWEEP": 0.80}},
+        },
+        promoted_buckets=["vol_regime:HIGH_VOL"],
+        global_weights={"OB": 0.82, "FVG": 0.61, "BOS": 0.81, "SWEEP": 0.73},
+        bucket_stats={},
+        min_bucket_events=30,
+    )
+    # No session → falls through to vol_regime
+    assert resolve_contextual_weight(ctx, "FVG", vol_regime="HIGH_VOL") == 0.65
+
+
+def test_resolve_none_contextual_returns_default() -> None:
+    w = resolve_contextual_weight(None, "OB")
+    assert w == 0.82  # hand-tuned default
+
+
+# ── Phase F: build_zone_priority with contextual_calibration ─────
+
+
+def test_build_zone_priority_with_contextual_calibration() -> None:
+    from scripts.smc_zone_priority import build_zone_priority
+
+    ctx = ContextualCalibrationResult(
+        contextual_weights={
+            "session": {"RTH": {"OB": 0.40, "FVG": 0.95, "BOS": 0.40, "SWEEP": 0.40}},
+        },
+        promoted_buckets=["session:RTH"],
+        global_weights={"OB": 0.82, "FVG": 0.61, "BOS": 0.81, "SWEEP": 0.73},
+        bucket_stats={},
+        min_bucket_events=30,
+    )
+    result = build_zone_priority(
+        regime="NEUTRAL",
+        session_context="RTH",
+        vol_regime="NORMAL",
+        contextual_calibration=ctx,
+    )
+    # FVG base = 0.95 (from contextual) → should dominate after additive bonuses
+    assert result["ZONE_PRIORITY_TOP_FAMILY"] == "FVG"
+
+
+def test_build_zone_priority_contextual_none_backward_compat() -> None:
+    from scripts.smc_zone_priority import build_zone_priority
+
+    # contextual_calibration=None should not change behavior
+    result = build_zone_priority(regime="RISK_ON", htf_aligned=True, contextual_calibration=None)
+    assert result["ZONE_PRIORITY_TOP_FAMILY"] == "OB"

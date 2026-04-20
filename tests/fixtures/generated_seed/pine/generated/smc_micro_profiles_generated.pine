@@ -239,3 +239,21 @@ export const float ZONE_CAL_OB = 0.8200
 export const float ZONE_CAL_FVG = 0.6100
 export const float ZONE_CAL_BOS = 0.8100
 export const float ZONE_CAL_SWEEP = 0.7300
+
+// ── Contextual Calibration (Phase F) ──
+export const float ZONE_CAL_OB_RTH = 0.8200
+export const float ZONE_CAL_FVG_RTH = 0.6100
+export const float ZONE_CAL_BOS_RTH = 0.8100
+export const float ZONE_CAL_SWEEP_RTH = 0.7300
+export const float ZONE_CAL_OB_ETH = 0.8200
+export const float ZONE_CAL_FVG_ETH = 0.6100
+export const float ZONE_CAL_BOS_ETH = 0.8100
+export const float ZONE_CAL_SWEEP_ETH = 0.7300
+export const float ZONE_CAL_OB_NORMAL = 0.8200
+export const float ZONE_CAL_FVG_NORMAL = 0.6100
+export const float ZONE_CAL_BOS_NORMAL = 0.8100
+export const float ZONE_CAL_SWEEP_NORMAL = 0.7300
+export const float ZONE_CAL_OB_HIGH_VOL = 0.8200
+export const float ZONE_CAL_FVG_HIGH_VOL = 0.6100
+export const float ZONE_CAL_BOS_HIGH_VOL = 0.8100
+export const float ZONE_CAL_SWEEP_HIGH_VOL = 0.7300

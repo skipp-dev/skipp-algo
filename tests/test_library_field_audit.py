@@ -125,6 +125,22 @@ def _collect_generated_fields() -> set[str]:
             if var_name == "fam":
                 for fam in ("OB", "FVG", "BOS", "SWEEP"):
                     fields.add(f"{prefix}{fam}")
+        # f-string with two loop variables, e.g. ZONE_CAL_{fam}_{session}: expand cartesian
+        for m in re.finditer(
+            r'f"export const (?:float|int|bool|string) ([A-Z_][A-Z0-9_]*?)\{(\w+)\}_\{(\w+)\}',
+            source,
+        ):
+            prefix = m.group(1)
+            var1 = m.group(2)
+            var2 = m.group(3)
+            _LOOP_VARS: dict[str, tuple[str, ...]] = {
+                "fam": ("OB", "FVG", "BOS", "SWEEP"),
+                "session": ("RTH", "ETH"),
+                "vol": ("NORMAL", "HIGH_VOL"),
+            }
+            for v1 in _LOOP_VARS.get(var1, ()):
+                for v2 in _LOOP_VARS.get(var2, ()):
+                    fields.add(f"{prefix}{v1}_{v2}")
     # Remove partial f-string captures (e.g. 'ZONE_CAL_' without suffix)
     fields = {f for f in fields if not f.endswith("_") or f in _INFRA_ONLY}
     # Dynamic list exports (render_list calls)
@@ -245,6 +261,23 @@ _INFRA_ONLY: set[str] = {
     "ZONE_CAL_FVG",
     "ZONE_CAL_BOS",
     "ZONE_CAL_SWEEP",
+    # ── Phase F: contextual calibration weights ──
+    "ZONE_CAL_OB_RTH",
+    "ZONE_CAL_FVG_RTH",
+    "ZONE_CAL_BOS_RTH",
+    "ZONE_CAL_SWEEP_RTH",
+    "ZONE_CAL_OB_ETH",
+    "ZONE_CAL_FVG_ETH",
+    "ZONE_CAL_BOS_ETH",
+    "ZONE_CAL_SWEEP_ETH",
+    "ZONE_CAL_OB_NORMAL",
+    "ZONE_CAL_FVG_NORMAL",
+    "ZONE_CAL_BOS_NORMAL",
+    "ZONE_CAL_SWEEP_NORMAL",
+    "ZONE_CAL_OB_HIGH_VOL",
+    "ZONE_CAL_FVG_HIGH_VOL",
+    "ZONE_CAL_BOS_HIGH_VOL",
+    "ZONE_CAL_SWEEP_HIGH_VOL",
 }
 
 

@@ -64,6 +64,34 @@ class CalibrationResult:
     source_dir: str
 
 
+# ── Phase F: Contextual calibration ─────────────────────────────
+
+_MIN_BUCKET_EVENTS = 30  # minimum events per context-bucket for promotion
+_BRIER_IMPROVEMENT_THRESHOLD = 0.05  # 5pp improvement required
+_FAMILIES = ("OB", "FVG", "BOS", "SWEEP")
+
+
+@dataclass(slots=True)
+class ContextBucketStats:
+    """Per-family stats for one context bucket (e.g. session:RTH)."""
+
+    context_key: str
+    family_stats: dict[str, FamilyStats] = field(default_factory=dict)
+
+
+@dataclass(slots=True)
+class ContextualCalibrationResult:
+    """Contextual calibration: per-dimension, per-bucket family weights."""
+
+    # {dimension: {bucket: {family: weight}}}
+    # e.g. {"session": {"RTH": {"OB": 0.85, ...}}, "vol_regime": {...}}
+    contextual_weights: dict[str, dict[str, dict[str, float]]]
+    promoted_buckets: list[str]  # list of "dimension:bucket" keys that met thresholds
+    global_weights: dict[str, float]  # fallback
+    bucket_stats: dict[str, dict[str, dict[str, Any]]]  # per-bucket detail
+    min_bucket_events: int
+
+
 # ── Hand-tuned defaults (from C9 launch) ────────────────────────
 
 _DEFAULT_FAMILY_WEIGHTS: dict[str, float] = {
@@ -271,6 +299,217 @@ def to_json(cal: CalibrationResult) -> dict[str, Any]:
     }
 
 
+# ── F1: Contextual calibration pipeline ─────────────────────────
+
+
+def load_stratified_family_metrics(
+    benchmark_dir: Path,
+) -> dict[str, ContextBucketStats]:
+    """Walk benchmark artifacts and aggregate stratified per-bucket, per-family KPIs.
+
+    Returns ``{context_key: ContextBucketStats}`` where ``context_key`` is
+    e.g. ``"session:RTH"`` or ``"vol_regime:HIGH_VOL"``.
+    """
+    buckets: dict[str, ContextBucketStats] = {}
+
+    for bench_file in sorted(benchmark_dir.rglob("benchmark_*.json")):
+        try:
+            data = json.loads(bench_file.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            continue
+
+        stratified = data.get("stratified", {})
+        if not stratified:
+            continue
+
+        for context_key, kpi_list in stratified.items():
+            if not isinstance(kpi_list, list):
+                continue
+
+            if context_key not in buckets:
+                buckets[context_key] = ContextBucketStats(context_key=context_key)
+
+            bucket = buckets[context_key]
+            for kpi in kpi_list:
+                family = kpi.get("family", "")
+                n = int(kpi.get("n_events", 0))
+                hr = kpi.get("hit_rate")
+                if n == 0 or hr is None or family not in _FAMILIES:
+                    continue
+                hr = float(hr)
+                if math.isnan(hr):
+                    continue
+
+                if family not in bucket.family_stats:
+                    bucket.family_stats[family] = FamilyStats(family=family)
+
+                s = bucket.family_stats[family]
+                s.total_events += n
+                s.total_hits += round(hr * n)
+                s.pair_count += 1
+                s.hit_rates.append(hr)
+                s.weights.append(n)
+
+    return buckets
+
+
+def calibrate_contextual_weights(
+    bucket_stats: dict[str, ContextBucketStats],
+    global_weights: dict[str, float],
+    *,
+    smoothing: float = 0.3,
+    min_events: int = _MIN_BUCKET_EVENTS,
+) -> ContextualCalibrationResult:
+    """Produce per-context-bucket family weights where data is sufficient.
+
+    Buckets with fewer than ``min_events`` per family fall back to the
+    global calibrated weight.
+    """
+    contextual_weights: dict[str, dict[str, dict[str, float]]] = {}
+    promoted: list[str] = []
+    detail: dict[str, dict[str, dict[str, Any]]] = {}
+
+    for context_key, cbs in sorted(bucket_stats.items()):
+        parts = context_key.split(":", 1)
+        if len(parts) != 2:
+            continue
+        dimension, bucket = parts[0], parts[1]
+
+        if dimension not in contextual_weights:
+            contextual_weights[dimension] = {}
+
+        bucket_weights: dict[str, float] = {}
+        bucket_detail: dict[str, dict[str, Any]] = {}
+
+        any_promoted = False
+        for family in _FAMILIES:
+            prior = global_weights.get(family, _DEFAULT_FAMILY_WEIGHTS.get(family, 0.50))
+            fs = cbs.family_stats.get(family)
+
+            if fs is not None and fs.total_events >= min_events:
+                observed = fs.weighted_hit_rate
+                blended = (1.0 - smoothing) * observed + smoothing * prior
+                calibrated = round(max(0.0, min(1.0, blended)), 4)
+                bucket_weights[family] = calibrated
+                any_promoted = True
+                bucket_detail[family] = {
+                    "total_events": fs.total_events,
+                    "observed_hit_rate": round(observed, 4),
+                    "calibrated_weight": calibrated,
+                    "global_weight": prior,
+                    "promoted": True,
+                }
+            else:
+                bucket_weights[family] = prior
+                n = fs.total_events if fs else 0
+                bucket_detail[family] = {
+                    "total_events": n,
+                    "observed_hit_rate": round(fs.weighted_hit_rate, 4) if fs and fs.total_events > 0 else None,
+                    "calibrated_weight": prior,
+                    "global_weight": prior,
+                    "promoted": False,
+                }
+
+        contextual_weights[dimension][bucket] = bucket_weights
+        if dimension not in detail:
+            detail[dimension] = {}
+        detail[dimension][bucket] = bucket_detail
+
+        if any_promoted:
+            promoted.append(context_key)
+
+    return ContextualCalibrationResult(
+        contextual_weights=contextual_weights,
+        promoted_buckets=promoted,
+        global_weights=global_weights,
+        bucket_stats=detail,
+        min_bucket_events=min_events,
+    )
+
+
+def check_contextual_promotion(
+    ctx_cal: ContextualCalibrationResult,
+    *,
+    brier_improvement_threshold: float = _BRIER_IMPROVEMENT_THRESHOLD,
+) -> list[str]:
+    """Return human-readable summary of which buckets were promoted.
+
+    This function reports which context buckets have sufficient data
+    and diverge meaningfully from the global weight (> threshold).
+    """
+    summaries: list[str] = []
+    for context_key in sorted(ctx_cal.promoted_buckets):
+        parts = context_key.split(":", 1)
+        if len(parts) != 2:
+            continue
+        dimension, bucket = parts
+
+        bucket_w = ctx_cal.contextual_weights.get(dimension, {}).get(bucket, {})
+        diffs: list[str] = []
+        for family in _FAMILIES:
+            cw = bucket_w.get(family, 0.0)
+            gw = ctx_cal.global_weights.get(family, 0.0)
+            delta = cw - gw
+            if abs(delta) >= brier_improvement_threshold:
+                sign = "+" if delta >= 0 else ""
+                diffs.append(f"{family} {sign}{delta:.4f}")
+
+        if diffs:
+            summaries.append(f"{context_key}: {', '.join(diffs)}")
+
+    return summaries
+
+
+def contextual_to_json(ctx_cal: ContextualCalibrationResult) -> dict[str, Any]:
+    """Serialize contextual calibration for persistence."""
+    return {
+        "contextual_weights": ctx_cal.contextual_weights,
+        "promoted_buckets": ctx_cal.promoted_buckets,
+        "global_weights": ctx_cal.global_weights,
+        "bucket_stats": ctx_cal.bucket_stats,
+        "min_bucket_events": ctx_cal.min_bucket_events,
+    }
+
+
+def resolve_contextual_weight(
+    ctx_cal: ContextualCalibrationResult | None,
+    family: str,
+    *,
+    session_context: str | None = None,
+    vol_regime: str | None = None,
+) -> float:
+    """Resolve the best available calibrated weight for a family.
+
+    Lookup chain:
+      1. Session-specific weight (if ``session_context`` provided and promoted)
+      2. Vol-regime-specific weight (if ``vol_regime`` provided and promoted)
+      3. Global calibrated weight
+      4. Hand-tuned default
+
+    Only uses promoted buckets — unpromoted contexts fall through to global.
+    """
+    if ctx_cal is None:
+        return _DEFAULT_FAMILY_WEIGHTS.get(family, 0.50)
+
+    # Session-specific
+    if session_context:
+        session_key = f"session:{session_context.upper()}"
+        if session_key in ctx_cal.promoted_buckets:
+            session_w = ctx_cal.contextual_weights.get("session", {}).get(session_context.upper(), {})
+            if family in session_w:
+                return session_w[family]
+
+    # Vol-regime-specific
+    if vol_regime:
+        vol_key = f"vol_regime:{vol_regime.upper()}"
+        if vol_key in ctx_cal.promoted_buckets:
+            vol_w = ctx_cal.contextual_weights.get("vol_regime", {}).get(vol_regime.upper(), {})
+            if family in vol_w:
+                return vol_w[family]
+
+    return ctx_cal.global_weights.get(family, _DEFAULT_FAMILY_WEIGHTS.get(family, 0.50))
+
+
 def check_drift(
     cal: CalibrationResult,
     *,
@@ -339,6 +578,25 @@ def main(argv: list[str] | None = None) -> None:
         delta = w - prior
         sign = "+" if delta >= 0 else ""
         print(f"  {fam}: {prior:.2f} → {w:.4f} ({sign}{delta:.4f})")
+
+    # ── Phase F: Contextual calibration ─────────────────────────
+    bucket_stats = load_stratified_family_metrics(args.benchmark_dir)
+    ctx_cal = calibrate_contextual_weights(
+        bucket_stats, cal.family_weights, smoothing=args.smoothing,
+    )
+    ctx_path = args.output_path.with_name("zone_priority_contextual_calibration.json")
+    ctx_path.write_text(
+        json.dumps(contextual_to_json(ctx_cal), indent=2) + "\n", encoding="utf-8"
+    )
+    print(f"\nContextual calibration written to {ctx_path}")
+
+    promotions = check_contextual_promotion(ctx_cal)
+    if promotions:
+        print(f"Promoted buckets ({len(promotions)}):")
+        for p in promotions:
+            print(f"  ▸ {p}")
+    else:
+        print("No context buckets promoted (insufficient data or small deltas)")
 
     if args.check_drift is not None:
         violations = check_drift(cal, max_drift=args.check_drift)
