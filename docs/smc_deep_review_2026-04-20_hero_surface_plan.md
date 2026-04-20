@@ -154,6 +154,28 @@ Leseregel:
 - keine konkurrierenden Signale,
 - Risk-Plan nur bei `READY`, `ENTER` oder aktivem Trade-Kontext.
 
+## Hero-first Lesestufe (ENG-WS3-01)
+
+Die sichtbare Surface kennt genau drei Lesestufen, in fester Reihenfolge:
+
+1. **Hero** - Marktmodus, Setup-Qualitaet, Handlung. Drei Zeilen, drei
+   Botschaften, keine konkurrierende Primaerinformation. Pinned in
+   `scripts/smc_hero_information_architecture.HERO_PRIMARY_LINES`.
+2. **Compact** - Trust+Daten, Session/Markt, Event-Risk, Pressure,
+   Risk-Plan, Why-now, Struktur, Main-Blocker. Lesbar nach Hero, niemals
+   davor.
+3. **Pro** - Audit-Tabelle, BUS-Diagnostics, Calibration-Confidence,
+   Family-Performance, FVG-Health, Library-Diagnostics. Nur in der
+   Audit-View sichtbar.
+
+Jede sichtbare Zeile ist genau einer Stufe zugeordnet
+(`scripts/smc_hero_information_architecture.HERO_ROW_CATALOG`); doppelte
+Zuordnung ist ein Architekturfehler. Die View-Modi der Pine-Surface
+(`Focus`, `Hero`, `Decision Brief`, `Explain`, `Audit View`, `Mobile`)
+mappen deterministisch auf erlaubte Lesestufen
+(`VIEW_MODE_LEVELS`); kein View darf Zeilen einer Stufe rendern, die er
+nicht deklariert hat.
+
 ## State Model fuer die Hero Surface
 
 | Bereich | Empfohlene Zustandsklasse |
