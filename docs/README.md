@@ -67,3 +67,11 @@ Current workspace caveat:
 
 - the TradingView automation layer, reports path, and auth artifacts are present in this checkout, so the documented preflight and micro-library publish paths are reproducible locally again; inspect the latest staged report before assuming every run covered binding and runtime scopes
 - latest fully green SMC mainline evidence: `automation/tradingview/reports/preflight-2026-04-08T12-37-12-028Z.json`
+
+Current deep-review planning documents:
+
+- [smc_deep_review_2026-04-20_improvement_plan.md](smc_deep_review_2026-04-20_improvement_plan.md)
+- [engineering-program/smc_deep_review_2026-04-20_engineering_backlog.md](engineering-program/smc_deep_review_2026-04-20_engineering_backlog.md)
+- [smc_deep_review_2026-04-20_hero_surface_plan.md](smc_deep_review_2026-04-20_hero_surface_plan.md)
+- [smc_deep_review_2026-04-20_pine_evidence_first_ticketset.md](smc_deep_review_2026-04-20_pine_evidence_first_ticketset.md)
+- [smc_deep_review_2026-04-20_hero_surface_implementation_preparation.md](smc_deep_review_2026-04-20_hero_surface_implementation_preparation.md)
