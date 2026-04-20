@@ -118,6 +118,8 @@ def compare(
             "direction": _better_arrow(key, t, c),
         })
 
+    decision = decide_recommendation(rows)
+
     return {
         "experiment": experiment_name,
         "control_pairs": len(control_pairs),
@@ -125,6 +127,91 @@ def compare(
         "control_grade": _grade(getattr(ctrl_agg, "avg_calibrated_brier", 1.0)),
         "treatment_grade": _grade(getattr(treat_agg, "avg_calibrated_brier", 1.0)),
         "metrics": rows,
+        "recommendation": decision["recommendation"],
+        "recommendation_reason": decision["reason"],
+        "kpi_thresholds": decision["kpi_thresholds"],
+    }
+
+
+# ── Promotion decision (ENG-WS4-04) ────────────────────────────────────────
+
+
+# KPI thresholds binding the Promote / Hold / Rollback decision.
+# Lower-is-better metrics (brier, calibrated_brier, calibrated_ece):
+#   * PROMOTE if treatment improves both calibrated_brier AND calibrated_ece
+#     by at least PROMOTE_IMPROVEMENT, AND hit_rate does not regress by
+#     more than HIT_RATE_REGRESSION_TOLERANCE.
+#   * ROLLBACK if either calibrated_brier OR calibrated_ece regresses by
+#     more than ROLLBACK_REGRESSION.
+#   * HOLD otherwise.
+PROMOTE_IMPROVEMENT = 0.005
+ROLLBACK_REGRESSION = 0.010
+HIT_RATE_REGRESSION_TOLERANCE = 1.0  # percentage points
+
+
+def _row_by_metric(rows: list[dict[str, Any]], key: str) -> dict[str, Any] | None:
+    for row in rows:
+        if row.get("metric") == key:
+            return row
+    return None
+
+
+def decide_recommendation(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    """Map a comparison-metric table to a Promote/Hold/Rollback decision.
+
+    DoD: 'Comparison-Output enthaelt Promote/Hold/Rollback-Empfehlung'
+    and 'die Entscheidung ist an klare KPI-Schwellen gebunden'.
+    """
+    cb = _row_by_metric(rows, "calibrated_brier") or {}
+    ce = _row_by_metric(rows, "calibrated_ece") or {}
+    hr = _row_by_metric(rows, "hit_rate_pct") or {}
+
+    cb_delta = float(cb.get("delta") or 0.0)  # lower = better
+    ce_delta = float(ce.get("delta") or 0.0)
+    hr_delta = float(hr.get("delta") or 0.0)  # higher = better
+
+    thresholds = {
+        "promote_improvement": PROMOTE_IMPROVEMENT,
+        "rollback_regression": ROLLBACK_REGRESSION,
+        "hit_rate_regression_tolerance": HIT_RATE_REGRESSION_TOLERANCE,
+    }
+
+    # Rollback first — a regression on either calibration metric trumps.
+    if cb_delta > ROLLBACK_REGRESSION or ce_delta > ROLLBACK_REGRESSION:
+        return {
+            "recommendation": "rollback",
+            "reason": (
+                f"calibrated_brier delta {cb_delta:+.4f} or calibrated_ece delta "
+                f"{ce_delta:+.4f} exceeds rollback regression "
+                f"{ROLLBACK_REGRESSION:+.4f}"
+            ),
+            "kpi_thresholds": thresholds,
+        }
+
+    # Promote when both calibration metrics improve materially AND hit_rate
+    # does not regress more than the tolerance.
+    promote_cb = cb_delta <= -PROMOTE_IMPROVEMENT
+    promote_ce = ce_delta <= -PROMOTE_IMPROVEMENT
+    hit_rate_ok = hr_delta >= -HIT_RATE_REGRESSION_TOLERANCE
+    if promote_cb and promote_ce and hit_rate_ok:
+        return {
+            "recommendation": "promote",
+            "reason": (
+                f"calibrated_brier {cb_delta:+.4f} and calibrated_ece {ce_delta:+.4f} "
+                f"both improve by ≥{PROMOTE_IMPROVEMENT} and hit_rate delta "
+                f"{hr_delta:+.2f}pp within tolerance {HIT_RATE_REGRESSION_TOLERANCE}pp"
+            ),
+            "kpi_thresholds": thresholds,
+        }
+
+    return {
+        "recommendation": "hold",
+        "reason": (
+            f"deltas (calibrated_brier={cb_delta:+.4f}, calibrated_ece={ce_delta:+.4f}, "
+            f"hit_rate={hr_delta:+.2f}pp) do not meet promote thresholds and stay "
+            f"within rollback bounds"
+        ),
+        "kpi_thresholds": thresholds,
     }
 
 
@@ -149,6 +236,22 @@ def render_comparison(digest: dict[str, Any]) -> str:
             f"{row['direction']} |"
         )
     lines.append("")
+    # ENG-WS4-04: Promote / Hold / Rollback decision section.
+    rec = str(digest.get("recommendation") or "hold").upper()
+    reason = str(digest.get("recommendation_reason") or "")
+    thresholds = digest.get("kpi_thresholds") or {}
+    lines.append("## Recommendation")
+    lines.append("")
+    lines.append(f"**Decision:** `{rec}`")
+    lines.append("")
+    if reason:
+        lines.append(f"_{reason}_")
+        lines.append("")
+    if thresholds:
+        lines.append("KPI thresholds:")
+        for key, val in thresholds.items():
+            lines.append(f"- `{key}` = {val}")
+        lines.append("")
     return "\n".join(lines)
 
 
