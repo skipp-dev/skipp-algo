@@ -94,6 +94,14 @@ export const string TRADE_STATE = "ALLOWED"
 export const int PROVIDER_COUNT = 0
 export const string STALE_PROVIDERS = ""
 
+// ── Trust State (ENG-WS2-02) ──
+export const string TRUST_STATE = "healthy"
+export const string TRUST_ACTION_IMPACT = "none"
+export const string TRUST_CAUSE_DOMAIN = ""
+export const string TRUST_CAUSE_FAILURE_TYPE = ""
+export const string TRUST_CAUSE_CODE = ""
+export const string TRUST_DEGRADATION_REASON = ""
+
 // ── Volume Regime ──
 export const string VOLUME_LOW_TICKERS = ""
 export const string HOLIDAY_SUSPECT_TICKERS = ""

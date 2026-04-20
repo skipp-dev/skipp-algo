@@ -756,6 +756,15 @@ def write_pine_library(
     content.append(f'export const string STALE_PROVIDERS = "{prov.get("stale_providers") or ""}"')
     content.append("")
 
+    # ── Trust State (ENG-WS2-02) ────────────────────────────────
+    # Lifts the canonical product trust state into Pine so consumers can
+    # read state + action_impact + degradation reason directly instead
+    # of recomputing it from STALE_PROVIDERS / PROVIDER_COUNT.
+    from scripts.smc_trust_state_export import render_trust_block_lines
+
+    content.extend(render_trust_block_lines(enr))
+    content.append("")
+
     # ── Volume regime ───────────────────────────────────────────
     vol = enr.get("volume_regime") or {}
     content.append("// ── Volume Regime ──")
