@@ -4232,6 +4232,38 @@ def _fetch_quotes_with_atr(
     return quotes, atr_by_symbol, momentum_z_by_symbol, vwap_by_symbol, atr_fetch_errors, quote_fetch_diagnostics
 
 
+def _enrich_zone_priority(
+    ranked_v2: list[dict[str, Any]],
+    regime_snapshot: Any,
+    news_scores: dict[str, float],
+) -> None:
+    """Stamp zone_priority_rank/score onto each ranked_v2 row for outcome tracking."""
+    try:
+        from scripts.smc_zone_priority import build_zone_priority
+    except Exception:
+        return
+
+    regime = getattr(regime_snapshot, "regime", "NEUTRAL") if regime_snapshot else "NEUTRAL"
+    for row in ranked_v2:
+        symbol = row.get("symbol", "")
+        try:
+            zp = build_zone_priority(
+                regime=regime,
+                ensemble_score=float(row.get("score", 0.0)),
+                news_heat=float(news_scores.get(symbol, 0.0)),
+                event_risk_level=str(row.get("event_risk_level", "NONE")),
+                session_context="",
+                vol_regime=str(row.get("vol_regime", "NORMAL")),
+                zone_proj_score=int(row.get("consolidation_score", 0)),
+                htf_aligned=bool(row.get("htf_aligned", False)),
+            )
+            row["zone_priority_rank"] = zp.get("ZONE_PRIORITY_RANK")
+            row["zone_priority_score"] = zp.get("ZONE_PRIORITY_SCORE")
+        except Exception:
+            row["zone_priority_rank"] = None
+            row["zone_priority_score"] = None
+
+
 def _build_result_payload(
     *,
     config: OpenPrepConfig,
@@ -5172,6 +5204,7 @@ def generate_open_prep_result(
 
     # Store outcome snapshot for backward validation (profitable_30m backfilled later)
     try:
+        _enrich_zone_priority(ranked_v2, regime_snapshot, news_scores)
         outcome_records = prepare_outcome_snapshot(ranked_v2, today)
         store_daily_outcomes(today, outcome_records)
     except Exception as exc:

@@ -447,3 +447,103 @@ class TestFeatureImportanceBackfill:
         # Should have written a JSONL file.
         files = list(fi_dir.glob("fi_samples_*.jsonl"))
         assert len(files) == 1
+
+
+# ── Zone Priority → Outcome snapshot wiring ────────────────────────────────
+
+
+class TestZonePriorityOutcomeWiring:
+    """Verify zone_priority_rank/score flow through outcome records."""
+
+    def test_prepare_outcome_snapshot_includes_zone_priority_fields(self) -> None:
+        from open_prep.outcomes import prepare_outcome_snapshot
+
+        ranked = [
+            {
+                "symbol": "AAPL",
+                "gap_pct": 2.5,
+                "volume": 1_000_000,
+                "avg_volume": 500_000,
+                "score": 78.0,
+                "confidence_tier": "HIGH_CONVICTION",
+                "regime": "RISK_ON",
+                "zone_priority_rank": "A",
+                "zone_priority_score": 82,
+            },
+        ]
+        records = prepare_outcome_snapshot(ranked, date(2026, 4, 20))
+        assert len(records) == 1
+        rec = records[0]
+        assert rec["zone_priority_rank"] == "A"
+        assert rec["zone_priority_score"] == 82
+        assert rec["profitable_30m"] is None  # still pending
+
+    def test_prepare_outcome_snapshot_zone_priority_none_when_absent(self) -> None:
+        from open_prep.outcomes import prepare_outcome_snapshot
+
+        ranked = [
+            {
+                "symbol": "MSFT",
+                "gap_pct": 1.0,
+                "volume": 200_000,
+                "avg_volume": 200_000,
+                "score": 55.0,
+            },
+        ]
+        records = prepare_outcome_snapshot(ranked, date(2026, 4, 20))
+        rec = records[0]
+        assert rec["zone_priority_rank"] is None
+        assert rec["zone_priority_score"] is None
+
+    def test_zone_priority_survives_backfill_rewrite(self, tmp_path: Path) -> None:
+        """Extra zone_priority fields must survive the atomic rewrite in backfill."""
+        records = [
+            {
+                "date": "2026-04-18",
+                "symbol": "AAPL",
+                "gap_pct": 2.5,
+                "rvol": 2.0,
+                "score": 78.0,
+                "confidence_tier": "HIGH_CONVICTION",
+                "regime": "RISK_ON",
+                "zone_priority_rank": "B",
+                "zone_priority_score": 65,
+                "profitable_30m": None,
+                "pnl_30m_pct": None,
+            },
+        ]
+        path = tmp_path / "outcomes_2026-04-18.json"
+        _save_outcome_file(path, records)
+
+        loaded = json.loads(path.read_text(encoding="utf-8"))
+        assert loaded[0]["zone_priority_rank"] == "B"
+        assert loaded[0]["zone_priority_score"] == 65
+
+    def test_feature_keys_includes_zone_priority_score(self) -> None:
+        from open_prep.outcomes import FEATURE_KEYS
+
+        assert "zone_priority_score" in FEATURE_KEYS
+
+    def test_enrich_zone_priority_populates_rows(self) -> None:
+        from open_prep.run_open_prep import _enrich_zone_priority
+
+        class FakeRegime:
+            regime = "RISK_ON"
+
+        rows = [
+            {"symbol": "AAPL", "score": 80.0},
+            {"symbol": "MSFT", "score": 40.0},
+        ]
+        _enrich_zone_priority(rows, FakeRegime(), {"AAPL": 0.8, "MSFT": 0.1})
+        for row in rows:
+            assert "zone_priority_rank" in row
+            assert "zone_priority_score" in row
+            assert row["zone_priority_rank"] in ("A", "B", "C", "D")
+            assert isinstance(row["zone_priority_score"], (int, float))
+
+    def test_enrich_zone_priority_handles_none_regime(self) -> None:
+        from open_prep.run_open_prep import _enrich_zone_priority
+
+        rows = [{"symbol": "TSLA", "score": 50.0}]
+        _enrich_zone_priority(rows, None, {})
+        assert rows[0]["zone_priority_rank"] in ("A", "B", "C", "D")

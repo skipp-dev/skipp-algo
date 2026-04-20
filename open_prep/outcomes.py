@@ -259,6 +259,8 @@ def prepare_outcome_snapshot(
             "gap_bucket_label": _gap_bucket_label(gap_pct),
             "rvol_bucket_label": _rvol_bucket_label(rvol_ratio),
             "regime": row.get("regime"),
+            "zone_priority_rank": row.get("zone_priority_rank"),
+            "zone_priority_score": row.get("zone_priority_score"),
             "profitable_30m": None,  # Back-filled post-open
             "pnl_30m_pct": None,     # Back-filled post-open
         })
@@ -285,6 +287,7 @@ FEATURE_KEYS: list[str] = [
     "freshness_component",
     "institutional_component",
     "estimate_revision_component",
+    "zone_priority_score",
 ]
 
 FEATURE_IMPORTANCE_DIR = OUTCOMES_DIR / "feature_importance"
