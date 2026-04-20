@@ -395,7 +395,16 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main(argv: list[str] | None = None) -> None:
+def main(argv: list[str] | None = None) -> int:
+    """Backfill outcomes and return a process exit code.
+
+    Returns:
+        ``0`` if every record was either resolved or deliberately skipped,
+        ``2`` if at least one record failed (loud non-zero exit so a
+        scheduled workflow surfaces the failure instead of silently
+        succeeding) — ENG-WS4-01 DoD: 'Fehlfaelle sind sichtbar und nicht
+        still'.
+    """
     parser = build_parser()
     args = parser.parse_args(argv)
 
@@ -421,10 +430,91 @@ def main(argv: list[str] | None = None) -> None:
         f"across {summary['dates_processed']} date(s)."
     )
 
+    fi_written = 0
     if args.feature_importance and summary["resolved"] > 0:
-        n = backfill_feature_importance(lookback_days=args.lookback)
-        print(f"Feature importance: {n} labeled samples written.")
+        fi_written = backfill_feature_importance(lookback_days=args.lookback)
+        print(f"Feature importance: {fi_written} labeled samples written.")
+
+    # ── Persist run log (ENG-WS4-01 DoD: 'Ergebnisse sind persistiert
+    # und nachvollziehbar'). One JSON file per run, atomically written.
+    if not args.dry_run:
+        log_path = _write_backfill_run_log(
+            summary=summary,
+            feature_importance_samples=fi_written if args.feature_importance else None,
+            cli_args={
+                "date": args.date,
+                "lookback": args.lookback,
+                "dataset": args.dataset,
+                "feature_importance": bool(args.feature_importance),
+            },
+        )
+        print(f"Run log: {log_path}")
+
+    if int(summary.get("failed") or 0) > 0:
+        return 2
+    return 0
+
+
+# ── Run-log persistence (ENG-WS4-01) ────────────────────────────────────────
+
+BACKFILL_RUN_LOG_DIR = Path("artifacts/open_prep/outcome_backfill")
+
+
+def _write_backfill_run_log(
+    *,
+    summary: dict[str, Any],
+    feature_importance_samples: int | None,
+    cli_args: dict[str, Any],
+    log_dir: Path | None = None,
+) -> Path:
+    """Atomically write a per-run JSON log of the backfill outcome.
+
+    The log is timestamped to the second so concurrent invocations stay
+    distinct. A small ``latest.json`` pointer is also written so a
+    workflow can grab the last result without scanning the directory.
+    """
+    target_dir = log_dir if log_dir is not None else BACKFILL_RUN_LOG_DIR
+    target_dir.mkdir(parents=True, exist_ok=True)
+
+    now = datetime.now(_ET)
+    record = {
+        "run_id": now.strftime("%Y%m%dT%H%M%S"),
+        "started_at_et": now.isoformat(),
+        "resolved": int(summary.get("resolved") or 0),
+        "skipped": int(summary.get("skipped") or 0),
+        "failed": int(summary.get("failed") or 0),
+        "dates_processed": int(summary.get("dates_processed") or 0),
+        "feature_importance_samples": (
+            int(feature_importance_samples) if feature_importance_samples is not None else None
+        ),
+        "status": "failed" if int(summary.get("failed") or 0) > 0 else "ok",
+        "cli_args": cli_args,
+    }
+
+    out_path = target_dir / f"backfill_{record['run_id']}.json"
+    _atomic_write_json(out_path, record)
+
+    latest_path = target_dir / "latest.json"
+    _atomic_write_json(latest_path, record)
+
+    return out_path
+
+
+def _atomic_write_json(path: Path, payload: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp_name = tempfile.mkstemp(prefix=path.name + ".", dir=str(path.parent))
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            json.dump(payload, fh, indent=2, sort_keys=True)
+            fh.write("\n")
+        os.replace(tmp_name, path)
+    except Exception:
+        try:
+            os.unlink(tmp_name)
+        except OSError:
+            pass
+        raise
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

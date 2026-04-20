@@ -1,0 +1,96 @@
+name: open-prep-outcome-backfill
+
+# ENG-WS4-01: Outcome-Backfill automatisieren.
+# Runs the post-open outcome backfill on a regular schedule so labeled
+# outcomes (and the feature-importance feedback loop) keep growing
+# without manual intervention. Failures bubble up as a non-zero exit
+# code from `python -m open_prep.outcome_backfill`, which fails the
+# job loudly.
+
+on:
+  schedule:
+    # 11:15 ET on weekdays (15:15 UTC during EST, 16:15 UTC during EDT).
+    # Two cron entries cover both DST regimes; the runtime guard inside
+    # the script naturally skips dates with no pending outcomes.
+    - cron: "15 15 * * 1-5"
+    - cron: "15 16 * * 1-5"
+  workflow_dispatch:
+    inputs:
+      date:
+        description: "Optional explicit date to backfill (YYYY-MM-DD)"
+        required: false
+        default: ""
+      lookback:
+        description: "Number of recent outcome files to scan"
+        required: false
+        default: "5"
+      feature_importance:
+        description: "Also backfill feature-importance samples"
+        required: false
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: open-prep-outcome-backfill
+  cancel-in-progress: false
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run outcome backfill
+        env:
+          DATABENTO_API_KEY: ${{ secrets.DATABENTO_API_KEY }}
+        run: |
+          set -euo pipefail
+          ARGS=(--lookback "${{ github.event.inputs.lookback || '5' }}")
+          if [ -n "${{ github.event.inputs.date || '' }}" ]; then
+            ARGS+=(--date "${{ github.event.inputs.date }}")
+          fi
+          if [ "${{ github.event.inputs.feature_importance || 'true' }}" = "true" ]; then
+            ARGS+=(--feature-importance)
+          fi
+          python -m open_prep.outcome_backfill "${ARGS[@]}"
+
+      - name: Upload run log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: outcome-backfill-run-log
+          path: artifacts/open_prep/outcome_backfill/
+          if-no-files-found: warn
+
+      - name: Commit refreshed outcomes + run log
+        if: success()
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.noreply.github.com"
+          git add artifacts/open_prep/outcomes/ artifacts/open_prep/outcome_backfill/ || true
+          if git diff --staged --quiet; then
+            echo "No changes to commit."
+          else
+            git commit -m "chore(open_prep): outcome backfill ${GITHUB_RUN_ID}"
+            git push
+          fi
