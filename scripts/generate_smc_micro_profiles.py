@@ -775,6 +775,15 @@ def write_pine_library(
     content.extend(render_action_degradation_block_lines(enr))
     content.append("")
 
+    # ── Hero Market Mode (ENG-WS3-03) ──────────────────────────
+    # Single Hero-level head row: regime + bias + session + trust +
+    # freshness. Dashboards must read these fields and not recompute
+    # the head themselves (no second competing mode display).
+    from scripts.smc_hero_market_mode import render_hero_market_mode_block_lines
+
+    content.extend(render_hero_market_mode_block_lines(enr))
+    content.append("")
+
     # ── Volume regime ───────────────────────────────────────────
     vol = enr.get("volume_regime") or {}
     content.append("// ── Volume Regime ──")
