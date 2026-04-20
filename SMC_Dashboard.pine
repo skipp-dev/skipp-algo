@@ -677,6 +677,31 @@ dashboard_compact_trust_state(int lean_sq_row_code, int lean_freshness_row_code,
         state_code := 2
     state_code
 
+// ── Product Trust Badge (ENG-WS2-03) ──────────────────────────────
+// Reads the canonical product trust state emitted by the generated library
+// (mp.TRUST_STATE / mp.TRUST_ACTION_IMPACT / mp.TRUST_DEGRADATION_REASON,
+// per ENG-WS2-02) and renders a compact, single-glance badge that the
+// default surfaces (Decision Brief + Hero) and the mobile dashboard can
+// suffix onto their existing trust rows. The badge is purely additive: it
+// never replaces the existing operator-grade trust rendering, so existing
+// substring-based UI contracts stay intact.
+product_trust_badge_text(string trust_state, string degradation_reason) =>
+    string emoji = trust_state == "healthy" ? "✓" : trust_state == "degraded" ? "⚠ degraded" : trust_state == "stale" ? "⚠ stale" : trust_state == "watch_only" ? "⛔ watch-only" : trust_state == "unavailable" ? "⛔ no data" : "?"
+    string suffix = degradation_reason != "" ? " (" + degradation_reason + ")" : ""
+    emoji + suffix
+
+product_trust_badge_state(string trust_state) =>
+    int s = 5
+    if trust_state == "degraded"
+        s := 3
+    else if trust_state == "stale"
+        s := 2
+    else if trust_state == "watch_only"
+        s := 0
+    else if trust_state == "unavailable"
+        s := -1
+    s
+
 dashboard_compact_pressure_text(int ltf_delta_row_code, float ltf_volume_delta, int swing_row_code) =>
     int reason_code = row_reason(ltf_delta_row_code)
     int delta_state = row_status(ltf_delta_row_code)
@@ -1469,10 +1494,19 @@ if show_table and barstate.islast
         string lib_tone_c = mp.TONE
         string market_line = lib_regime + ' · VIX ' + str.tostring(lib_vix, '#.#') + ' · ' + lib_tone_c
         color market_bg = mp.TRADE_STATE == "BLOCKED" ? color.new(CLR_BEAR, 70) : mp.TRADE_STATE == "DISCOURAGED" ? color.new(CLR_CAUTION, 70) : color.new(CLR_BULL_ALT, 80)
+        // ENG-WS2-03: append the canonical product trust badge to the Trust /
+        // Data row so stale/degraded/watch-only is visible without entering
+        // Audit View. The legacy operator-grade trust text stays as the
+        // prefix; the badge is suffixed and the row state is clamped to the
+        // worse of the legacy state and the product trust state.
+        int _compact_legacy_trust_state = dashboard_compact_trust_state(lean_sq_row_code, lean_freshness_row_code, volume_data_row_code, micro_fresh_row_code)
+        int _compact_product_trust_state = product_trust_badge_state(mp.TRUST_STATE)
+        int _compact_trust_state = _compact_legacy_trust_state < _compact_product_trust_state ? _compact_legacy_trust_state : _compact_product_trust_state
+        string _compact_trust_text = dashboard_compact_trust_text(lean_sq_row_code, lean_freshness_row_code, volume_data_row_code, micro_fresh_row_code, event_risk_row_code, ready_gate_row_code, strict_gate_row_code, mp.ENSEMBLE_QUALITY_TIER) + " | data: " + product_trust_badge_text(mp.TRUST_STATE, mp.TRUST_DEGRADATION_REASON)
         dashboard_row(smc_dashboard, 0, "SMC Compact", "Decision Brief", header_bg, txt)
         dashboard_row(smc_dashboard, 1, "Market", market_line, market_bg, txt)
         dashboard_row(smc_dashboard, 2, "Structure", dashboard_compact_structure_text(state_code, zone_code, lean_struct_row_code, reclaim_code), status_bg(setup_state), txt)
-        dashboard_row(smc_dashboard, 3, "Trust / Data", dashboard_compact_trust_text(lean_sq_row_code, lean_freshness_row_code, volume_data_row_code, micro_fresh_row_code, event_risk_row_code, ready_gate_row_code, strict_gate_row_code, mp.ENSEMBLE_QUALITY_TIER), status_bg(dashboard_compact_trust_state(lean_sq_row_code, lean_freshness_row_code, volume_data_row_code, micro_fresh_row_code)), txt)
+        dashboard_row(smc_dashboard, 3, "Trust / Data", _compact_trust_text, status_bg(_compact_trust_state), txt)
         dashboard_row(smc_dashboard, 4, "Risk Plan", dashboard_compact_risk_plan_text(actionable_state, src_trigger, src_stop_level, src_target_1, src_target_2), status_bg(actionable_state ? 5 : 0), txt)
         table.clear(smc_dashboard, 0, 5, 1, 73)
     else if surface_mode == "Decision Brief"
@@ -1506,7 +1540,15 @@ if show_table and barstate.islast
             zp_line += " · " + zp_catalyst
         color zp_bg = zp_rank == "A" ? color.new(CLR_BULL_ALT, 75) : zp_rank == "B" ? color.new(CLR_BULL_ALT, 85) : zp_rank == "C" ? color.new(CLR_CAUTION, 80) : color.new(CLR_BEAR, 80)
         dashboard_row(smc_dashboard, 5, "Zone Priority", zp_line, zp_bg, txt)
-        dashboard_row(smc_dashboard, 6, "Trust / Data", dashboard_compact_trust_text(lean_sq_row_code, lean_freshness_row_code, volume_data_row_code, micro_fresh_row_code, event_risk_row_code, ready_gate_row_code, strict_gate_row_code, mp.ENSEMBLE_QUALITY_TIER), status_bg(dashboard_compact_trust_state(lean_sq_row_code, lean_freshness_row_code, volume_data_row_code, micro_fresh_row_code)), txt)
+        // ENG-WS2-03: same product trust badge augmentation as the SMC
+        // Compact view (see comment above). Decision Brief is also a
+        // default surface, so a degraded data lage must be visible here
+        // without switching to Audit View.
+        int _brief_legacy_trust_state = dashboard_compact_trust_state(lean_sq_row_code, lean_freshness_row_code, volume_data_row_code, micro_fresh_row_code)
+        int _brief_product_trust_state = product_trust_badge_state(mp.TRUST_STATE)
+        int _brief_trust_state = _brief_legacy_trust_state < _brief_product_trust_state ? _brief_legacy_trust_state : _brief_product_trust_state
+        string _brief_trust_text = dashboard_compact_trust_text(lean_sq_row_code, lean_freshness_row_code, volume_data_row_code, micro_fresh_row_code, event_risk_row_code, ready_gate_row_code, strict_gate_row_code, mp.ENSEMBLE_QUALITY_TIER) + " | data: " + product_trust_badge_text(mp.TRUST_STATE, mp.TRUST_DEGRADATION_REASON)
+        dashboard_row(smc_dashboard, 6, "Trust / Data", _brief_trust_text, status_bg(_brief_trust_state), txt)
         dashboard_row(smc_dashboard, 7, "Short-term Pressure", dashboard_compact_pressure_text(ltf_delta_row_code, src_ltf_volume_delta, swing_row_code), status_bg(row_status(ltf_delta_row_code)), txt)
         dashboard_row(smc_dashboard, 8, "Risk Plan", dashboard_compact_risk_plan_text(actionable_state, src_trigger, src_stop_level, src_target_1, src_target_2), status_bg(actionable_state ? 5 : 0), txt)
         table.clear(smc_dashboard, 0, 9, 1, 73)
@@ -1536,8 +1578,15 @@ if show_table and barstate.islast
         int h_quality_state = (h_quality == "high" or h_quality == "good") ? 5 : h_quality == "ok" ? 3 : 0
 
         string h_trust = mp.HERO_TRUST
-        int h_trust_state = h_trust == "healthy" ? 5 : h_trust == "warmup" ? 3 : h_trust == "degraded" ? 2 : -1
-        string h_trust_line = h_trust + ((h_trust == "degraded" or h_trust == "stale" or h_trust == "unavailable") ? " ⚠" : "")
+        // ENG-WS2-03: hero trust row now also carries the canonical product
+        // trust state + degradation reason coming from the generated library
+        // (mp.TRUST_STATE / mp.TRUST_DEGRADATION_REASON). Hero State stays
+        // the leading signal — the product trust badge is appended after a
+        // separator so a single-glance read still works.
+        int h_trust_state_legacy = h_trust == "healthy" ? 5 : h_trust == "warmup" ? 3 : h_trust == "degraded" ? 2 : -1
+        int h_trust_state_product = product_trust_badge_state(mp.TRUST_STATE)
+        int h_trust_state = h_trust_state_legacy < h_trust_state_product ? h_trust_state_legacy : h_trust_state_product
+        string h_trust_line = h_trust + ((h_trust == "degraded" or h_trust == "stale" or h_trust == "unavailable") ? " ⚠" : "") + " · data: " + product_trust_badge_text(mp.TRUST_STATE, mp.TRUST_DEGRADATION_REASON)
 
         string h_risk = mp.HERO_RISK
         string h_risk_line = h_risk != "" ? h_risk : "—"

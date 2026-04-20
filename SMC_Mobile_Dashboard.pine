@@ -48,7 +48,14 @@ string levels_text = actionable and not na(src_trigger) ? str.tostring(src_trigg
 // ── Market context from hero state ──
 string hero_market_m = mp.HERO_MARKET_MODE
 string hero_trust_m = mp.HERO_TRUST
-string context_text = hero_market_m + " · " + (hero_trust_m == "healthy" ? "✓" : hero_trust_m == "warmup" ? "warmup" : "⚠ " + hero_trust_m)
+// ENG-WS2-03: surface the canonical product trust state on mobile too so
+// stale/degraded/watch-only is visible without opening Audit View. The
+// generated library always emits mp.TRUST_STATE (default "healthy"), so
+// this is safe to read unconditionally.
+string product_trust_m = mp.TRUST_STATE
+string product_trust_emoji_m = product_trust_m == "healthy" ? "✓" : product_trust_m == "degraded" ? "⚠ degraded" : product_trust_m == "stale" ? "⚠ stale" : product_trust_m == "watch_only" ? "⛔ watch-only" : product_trust_m == "unavailable" ? "⛔ no data" : "?"
+string context_text = hero_market_m + " · " + product_trust_emoji_m
+bool product_trust_bad_m = product_trust_m == "degraded" or product_trust_m == "stale" or product_trust_m == "watch_only" or product_trust_m == "unavailable"
 
 // ── Quality from hero state ──
 string hero_quality_m = mp.HERO_SETUP_QUALITY
@@ -69,7 +76,7 @@ if barstate.islast and bus_ok
     table.cell(mob, 0, 1, "Levels",  text_color = txt, bgcolor = hdr,       text_size = size.normal, text_halign = text.align_left)
     table.cell(mob, 1, 1, levels_text, text_color = txt, bgcolor = actionable ? color.new(M_ALT, 80) : hdr, text_size = size.normal, text_halign = text.align_right)
     table.cell(mob, 0, 2, "Market",  text_color = txt, bgcolor = hdr,       text_size = size.normal, text_halign = text.align_left)
-    table.cell(mob, 1, 2, context_text, text_color = txt, bgcolor = hero_trust_m == "degraded" or hero_trust_m == "stale" or hero_trust_m == "unavailable" ? color.new(M_BEAR, 75) : hero_market_m == "BULLISH" ? color.new(M_ALT, 80) : hero_market_m == "BEARISH" or hero_market_m == "RISK_OFF" ? color.new(M_BEAR, 80) : color.new(M_NEUTRAL, 80), text_size = size.normal, text_halign = text.align_right)
+    table.cell(mob, 1, 2, context_text, text_color = txt, bgcolor = product_trust_bad_m or hero_trust_m == "degraded" or hero_trust_m == "stale" or hero_trust_m == "unavailable" ? color.new(M_BEAR, 75) : hero_market_m == "BULLISH" ? color.new(M_ALT, 80) : hero_market_m == "BEARISH" or hero_market_m == "RISK_OFF" ? color.new(M_BEAR, 80) : color.new(M_NEUTRAL, 80), text_size = size.normal, text_halign = text.align_right)
     table.cell(mob, 0, 3, "Quality", text_color = txt, bgcolor = hdr,       text_size = size.normal, text_halign = text.align_left)
     table.cell(mob, 1, 3, hero_quality_m, text_color = txt, bgcolor = hero_quality_m == "high" or hero_quality_m == "good" ? color.new(M_BULL, 75) : hero_quality_m == "ok" ? color.new(M_CAUTION, 75) : color.new(M_NEUTRAL, 80), text_size = size.normal, text_halign = text.align_right)
     table.cell(mob, 0, 4, "Context", text_color = txt, bgcolor = hdr,       text_size = size.normal, text_halign = text.align_left)
