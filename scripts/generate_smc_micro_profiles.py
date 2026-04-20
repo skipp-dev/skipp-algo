@@ -793,6 +793,16 @@ def write_pine_library(
     content.extend(render_hero_setup_quality_block_lines(enr))
     content.append("")
 
+    # ── Hero Action (ENG-WS3-05) ───────────────────────────────
+    # The single primary action recommendation: act / wait / watch /
+    # avoid (handeln/warten/beobachten/vermeiden). Composed
+    # deterministically from action degradation + setup quality —
+    # one action per state, never contradicting the main risk.
+    from scripts.smc_hero_action import render_hero_action_block_lines
+
+    content.extend(render_hero_action_block_lines(enr))
+    content.append("")
+
     # ── Volume regime ───────────────────────────────────────────
     vol = enr.get("volume_regime") or {}
     content.append("// ── Volume Regime ──")
