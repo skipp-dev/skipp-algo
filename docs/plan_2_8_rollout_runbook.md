@@ -599,6 +599,9 @@ read.
 - `tests/test_plan_2_8_ledger_first_green_index.py`
 - `tests/test_plan_2_8_digest_md_file_count.py`
 - `tests/test_plan_2_8_weekly_summary_hash_char_count.py`
+- `tests/test_plan_2_8_ledger_first_amber_index.py`
+- `tests/test_plan_2_8_digest_json_file_count.py`
+- `tests/test_plan_2_8_weekly_summary_non_ascii_char_count.py`
 - `tests/test_plan_2_8_alert_history.py`
 - `tests/test_plan_2_8_alert_history_summary.py`
 - `tests/test_plan_2_8_digest_rollup.py`

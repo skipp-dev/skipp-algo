@@ -6,6 +6,19 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-05-14) — Plan 2.8 first amber + json files + non-ascii
+
+- New `scripts/plan_2_8_ledger_first_amber_index.py` reports the
+  zero-based index of the first amber observation.
+- New `scripts/plan_2_8_digest_json_file_count.py` reports the
+  count of top-level ``.json`` files.
+- New `scripts/plan_2_8_weekly_summary_non_ascii_char_count.py`
+  counts code points with ord > 127 in the summary.
+- Weekly workflow wires the three new steps after the
+  hash-char upload.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six new
+  script+test pairs.
+
 ### Added (2026-05-14) — Plan 2.8 first green + md files + hash chars
 
 - New `scripts/plan_2_8_ledger_first_green_index.py` reports the
