@@ -431,6 +431,9 @@ read.
 - `tests/test_plan_2_8_ledger_recent_green_ratio.py`
 - `tests/test_plan_2_8_digest_median_size.py`
 - `tests/test_plan_2_8_weekly_summary_emphasis_count.py`
+- `tests/test_plan_2_8_ledger_status_streaks.py`
+- `tests/test_plan_2_8_digest_oldest_newest.py`
+- `tests/test_plan_2_8_weekly_summary_image_count.py`
 - `tests/test_plan_2_8_alert_history.py`
 - `tests/test_plan_2_8_alert_history_summary.py`
 - `tests/test_plan_2_8_digest_rollup.py`

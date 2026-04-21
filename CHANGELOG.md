@@ -6,6 +6,22 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-21) — Plan 2.8 status streaks + oldest/newest + image count
+
+- New `scripts/plan_2_8_ledger_status_streaks.py` reports the
+  current tail-end status streak (status, length, start_at,
+  end_at); ``{"found": false}`` when no valid records.
+- New `scripts/plan_2_8_digest_oldest_newest.py` reports the
+  oldest and newest files in the artifact dir by mtime; ties
+  broken on name ascending; subdirs ignored.
+- New `scripts/plan_2_8_weekly_summary_image_count.py` counts
+  ``![alt](src)`` image tags outside fenced code blocks and
+  reports both total and distinct src counts.
+- Weekly workflow wires the three new steps after emphasis
+  count.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six new
+  script+test pairs.
+
 ### Added (2026-04-21) — Plan 2.8 recent green ratio + median size + emphasis count
 
 - New `scripts/plan_2_8_ledger_recent_green_ratio.py` reports
