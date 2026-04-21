@@ -143,3 +143,34 @@ def test_cli_alerts_file_zero_when_no_drift(tmp_path: Path) -> None:
     assert rc == 0
     info = json.loads(alerts_file.read_text(encoding="utf-8"))
     assert info == {"has_alerts": False, "count": 0}
+
+
+def test_render_issue_body_appends_run_url_when_provided() -> None:
+    body = digest_mod.render_issue_body(
+        _digest_with_alert(),
+        run_url="https://github.com/skippALGO/skipp-algo/actions/runs/42",
+    )
+    assert "Workflow run: https://github.com/skippALGO/skipp-algo/actions/runs/42" in body
+
+
+def test_render_issue_body_omits_run_url_when_absent() -> None:
+    body = digest_mod.render_issue_body(_digest_with_alert())
+    assert "Workflow run:" not in body
+
+
+def test_cli_run_url_is_threaded_into_issue_body(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str],
+) -> None:
+    history = tmp_path / "hist.jsonl"
+    history.write_text("\n".join(json.dumps(s) for s in [
+        _snap("2026-04-14T07:00:00Z", "out/a", 0.40),
+        _snap("2026-04-21T07:00:00Z", "out/b", 0.50),
+    ]) + "\n", encoding="utf-8")
+    rc = digest_mod.main([
+        "--history", str(history),
+        "--format", "issue",
+        "--run-url", "https://example.invalid/run/9",
+    ])
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "Workflow run: https://example.invalid/run/9" in out

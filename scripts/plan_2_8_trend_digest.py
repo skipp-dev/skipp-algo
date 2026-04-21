@@ -244,14 +244,14 @@ def render_markdown(digest: dict[str, Any]) -> str:
     return "\n".join(lines) + "\n"
 
 
-def render_issue_body(digest: dict[str, Any]) -> str:
+def render_issue_body(digest: dict[str, Any], *, run_url: str | None = None) -> str:
     """Render a compact GitHub-issue body for the alerts list.
 
     Designed to be piped through ``gh issue create --body-file -``
     by the weekly-digest workflow when ``digest['alerts']`` is
     non-empty. The body is intentionally short: title-worthy summary,
     each alert as one bullet, plus a closing pointer to the full
-    digest artifact.
+    digest artifact and (optionally) the workflow run URL.
     """
     alerts = digest.get("alerts") or []
     cov = digest.get("coverage") or {}
@@ -277,6 +277,9 @@ def render_issue_body(digest: dict[str, Any]) -> str:
         "See the `plan-2-8-weekly-digest` workflow artifact for the full "
         "per-TF and per-family drift tables."
     )
+    if run_url:
+        lines.append("")
+        lines.append(f"Workflow run: {run_url}")
     return "\n".join(lines) + "\n"
 
 
@@ -301,6 +304,8 @@ def main(argv: list[str] | None = None) -> int:
                         help="If given, write a JSON file whose 'has_alerts' "
                              "key indicates whether at least one comparable "
                              "slice crossed the threshold (used by CI gating).")
+    parser.add_argument("--run-url", type=str, default=None,
+                        help="Optional workflow-run URL appended to issue body.")
     args = parser.parse_args(argv)
 
     try:
@@ -318,7 +323,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.format == "md":
         body = render_markdown(digest)
     elif args.format == "issue":
-        body = render_issue_body(digest)
+        body = render_issue_body(digest, run_url=args.run_url)
     else:
         body = json.dumps(digest, indent=2) + "\n"
 

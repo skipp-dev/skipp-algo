@@ -147,6 +147,14 @@ kept) and fail-soft, so a bad day never touches the bench outcome.
 Corrupt lines are preserved by default; pass `--drop-corrupt` to
 remove them during a one-shot cleanup.
 
+After the rotate step, the bench runs
+[`scripts/plan_2_8_history_validate.py`](../scripts/plan_2_8_history_validate.py)
+as a non-destructive integrity check (well-formed JSON, parseable
+`captured_at`, no `(captured_at, scoring_root)` duplicates). The
+report is uploaded as `plan_2_8_history_validate.json` and streamed
+into the run summary. Validation hits do not fail the bench — they
+are a warning signal that the archiver/rotator path needs a look.
+
 ## Weekly trend digest
 
 Every Monday at 12:00 UTC,
@@ -177,10 +185,14 @@ python scripts/plan_2_8_trend_digest.py \
 
 When the digest finds at least one comparable slice above
 `alert_threshold_pp`, the workflow also renders an issue-body
-(`--format issue`) and opens a GitHub issue labelled `plan-2.8,
-drift-alert`. The `permissions: issues: write` block is scoped to
-this workflow only. No issue is opened when the coverage status is
-`empty` / `warmup` or when every comparable slice is within
+(`--format issue`) and either opens a fresh GitHub issue labelled
+`plan-2.8,drift-alert`, or — when an open issue with that label
+pair already exists — appends a comment to the existing thread. The
+issue body carries a footer with the workflow-run URL so the
+artifact can be located even after the 90-day retention expires.
+The `permissions: issues: write` block is scoped to this workflow
+only. No issue is opened or commented on when the coverage status
+is `empty` / `warmup` or when every comparable slice is within
 threshold.
 
 ## Pin-test inventory
@@ -199,7 +211,9 @@ threshold.
 - `tests/test_plan_2_8_status_daily_workflow.py`
 - `tests/test_plan_2_8_history_archive.py`
 - `tests/test_plan_2_8_history_rotate.py`
+- `tests/test_plan_2_8_history_validate.py`
 - `tests/test_plan_2_8_rolling_workflow_rotate_wiring.py`
+- `tests/test_plan_2_8_rolling_workflow_validate_wiring.py`
 - `tests/test_plan_2_8_trend_digest.py`
 - `tests/test_plan_2_8_trend_digest_issue_body.py`
 - `tests/test_plan_2_8_weekly_digest_workflow.py`

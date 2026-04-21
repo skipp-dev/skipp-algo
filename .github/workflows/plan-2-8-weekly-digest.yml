@@ -102,11 +102,35 @@ jobs:
         if: steps.digest.outputs.has_alerts == 'True'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         shell: bash
         run: |
           set -euo pipefail
+          # Re-render the issue body with the workflow-run URL footer
+          # so the link survives even after the artifact is gone.
+          history="$(find artifacts/latest_bench -name plan_2_8_history.jsonl -print -quit)"
+          python scripts/plan_2_8_trend_digest.py \
+            --history            "${history}" \
+            --lookback-days      "${{ inputs.lookback_days || '7' }}" \
+            --alert-threshold-pp "${{ inputs.alert_threshold_pp || '0.05' }}" \
+            --min-events         "${{ inputs.min_events || '30' }}" \
+            --format             issue \
+            --run-url            "${RUN_URL}" \
+            --output             artifacts/plan_2_8_digest/issue_body.md \
+            > /dev/null
           title="Plan 2.8 weekly digest: drift alerts ($(date -u +%Y-%m-%d))"
-          gh issue create \
-            --title "${title}" \
-            --body-file artifacts/plan_2_8_digest/issue_body.md \
-            --label plan-2.8,drift-alert
+          # De-dup: if an open drift-alert issue exists, append a
+          # comment instead of opening a fresh one. This keeps the
+          # backlog readable across consecutive alerting weeks.
+          existing="$(gh issue list \
+            --label plan-2.8 --label drift-alert \
+            --state open --json number --jq '.[0].number' || echo '')"
+          if [ -n "${existing}" ]; then
+            gh issue comment "${existing}" \
+              --body-file artifacts/plan_2_8_digest/issue_body.md
+          else
+            gh issue create \
+              --title "${title}" \
+              --body-file artifacts/plan_2_8_digest/issue_body.md \
+              --label plan-2.8,drift-alert
+          fi

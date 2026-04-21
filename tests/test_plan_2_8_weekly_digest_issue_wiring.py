@@ -46,6 +46,26 @@ def test_issue_creation_step_present_and_conditional() -> None:
     assert "--label plan-2.8,drift-alert" in run
 
 
+def test_issue_step_dedups_via_existing_open_issue() -> None:
+    steps = _wf()["jobs"]["weekly-digest"]["steps"]
+    issue = next(s for s in steps if s.get("name") == "Open drift-alert issue")
+    run = issue["run"]
+    assert "gh issue list" in run
+    assert "--label plan-2.8" in run and "--label drift-alert" in run
+    assert "--state open" in run
+    assert "gh issue comment" in run
+
+
+def test_issue_step_threads_run_url_into_body() -> None:
+    steps = _wf()["jobs"]["weekly-digest"]["steps"]
+    issue = next(s for s in steps if s.get("name") == "Open drift-alert issue")
+    assert "RUN_URL" in issue["env"]
+    assert "github.run_id" in issue["env"]["RUN_URL"]
+    run = issue["run"]
+    assert "--run-url" in run
+    assert "${RUN_URL}" in run
+
+
 def test_issue_step_uses_github_token() -> None:
     steps = _wf()["jobs"]["weekly-digest"]["steps"]
     issue = next(s for s in steps if s.get("name") == "Open drift-alert issue")

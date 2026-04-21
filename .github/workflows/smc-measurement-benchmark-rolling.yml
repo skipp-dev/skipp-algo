@@ -158,6 +158,29 @@ jobs:
           fi
           true
 
+      - name: Plan 2.8 history validate (integrity check)
+        # Non-destructive shape + uniqueness check on the rotated
+        # history. Fail-soft: a validation hit only surfaces in the
+        # step summary; it must not affect the bench run outcome.
+        if: always()
+        run: |
+          set +e
+          history="${{ steps.meta.outputs.out_dir }}/plan_2_8_history.jsonl"
+          report="${{ steps.meta.outputs.out_dir }}/plan_2_8_history_validate.json"
+          if [ -s "${history}" ]; then
+            python scripts/plan_2_8_history_validate.py \
+              --history "${history}" \
+              --output  "${report}" \
+              --quiet
+            if [ -s "${report}" ] && [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+              echo '## Plan 2.8 history validate' >> "${GITHUB_STEP_SUMMARY}"
+              echo '```json' >> "${GITHUB_STEP_SUMMARY}"
+              cat "${report}" >> "${GITHUB_STEP_SUMMARY}"
+              echo '```' >> "${GITHUB_STEP_SUMMARY}"
+            fi
+          fi
+          true
+
       - name: Upload rolling benchmark artifacts
         if: always()
         uses: actions/upload-artifact@v7

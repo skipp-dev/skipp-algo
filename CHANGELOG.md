@@ -6,6 +6,32 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-21) — Plan 2.8 history validate + drift-alert dedup + run-url
+
+- `scripts/plan_2_8_history_validate.py`: non-destructive integrity
+  check (well-formed JSON, parseable `captured_at`, no duplicate
+  `(captured_at, scoring_root)` keys, `per_tf` shape). CLI exits
+  non-zero on validation hits, can write a JSON report.
+- `.github/workflows/smc-measurement-benchmark-rolling.yml`: new
+  fail-soft "Plan 2.8 history validate" step after the rotate step.
+  Uploads `plan_2_8_history_validate.json` and streams the report
+  into the run summary.
+- `scripts/plan_2_8_trend_digest.py`: `render_issue_body()` now
+  accepts an optional `run_url` and the CLI gains `--run-url` so the
+  weekly workflow can stamp the run link into the issue body.
+- `.github/workflows/plan-2-8-weekly-digest.yml`: drift-alert step
+  re-renders the issue body with the workflow-run URL footer, then
+  de-dups via `gh issue list --label plan-2.8 --label drift-alert
+  --state open` — comments on an existing open thread instead of
+  spawning a new issue every week the alert persists.
+- `scripts/plan_2_8_status.py`: Phase 1 anchors extended with the
+  validator and its pin-tests.
+- Docs: runbook gains a history-validate paragraph and an updated
+  drift-alert auto-issue note describing the de-dup behaviour. Pin-
+  test inventory refreshed.
+- Tests: +11 history-validate, +5 rolling-bench validate wiring,
+  +3 issue-body run_url, +2 weekly de-dup wiring (21 new).
+
 ### Added (2026-04-21) — Plan 2.8 drift-alert auto-issue + history rotation
 
 - `scripts/plan_2_8_trend_digest.py`: new `render_issue_body()` +
