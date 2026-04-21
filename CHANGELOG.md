@@ -6,6 +6,19 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-07-18) — Plan 2.8 object-field records + hqx + amp lines
+
+- New `scripts/plan_2_8_ledger_object_field_record_count.py` counts
+  records containing at least one top-level ``dict`` value.
+- New `scripts/plan_2_8_digest_hqx_file_count.py` counts top-level
+  ``.hqx`` files.
+- New `scripts/plan_2_8_weekly_summary_ampersand_line_count.py`
+  counts lines containing at least one ``&``.
+- Weekly workflow wires the three new fail-soft step pairs after the
+  pipe-line upload.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six new
+  script+test pairs.
+
 ### Added (2026-07-17) — Plan 2.8 array-field records + sit + pipe lines
 
 - New `scripts/plan_2_8_ledger_array_field_record_count.py` counts
