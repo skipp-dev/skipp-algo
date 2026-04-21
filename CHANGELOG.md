@@ -6,6 +6,19 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-06-01) — Plan 2.8 amber stddev + ico + dollar
+
+- New `scripts/plan_2_8_ledger_amber_index_stddev.py` reports the
+  population stddev of amber indices.
+- New `scripts/plan_2_8_digest_ico_file_count.py` counts top-level
+  ``.ico`` files.
+- New `scripts/plan_2_8_weekly_summary_dollar_char_count.py`
+  counts ``$`` characters in the summary.
+- Weekly workflow wires the three new steps after the grave
+  upload.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six new
+  script+test pairs.
+
 ### Added (2026-05-31) — Plan 2.8 green stddev + webp + grave
 
 - New `scripts/plan_2_8_ledger_green_index_stddev.py` reports the
