@@ -6,6 +6,21 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-21) — Plan 2.8 history backfill + ADR queue + weekly runcard
+
+- `scripts/plan_2_8_history_backfill.py`: merge two history JSONLs
+  de-duped on `(captured_at, scoring_root)`, atomic write via
+  tempfile, `--dry-run` for safe preview. Chronological sort
+  tolerates unparseable timestamps. +9 tests.
+- `scripts/plan_2_8_adr_queue.py`: parse `docs/DECISIONS.md`,
+  extract date/slug/status/decision-summary, filter by
+  `accepted`/`deferred`/`superseded`, render md/json/text. +12 tests.
+- `scripts/plan_2_8_weekly_runcard.py`: fold per-step digest
+  artifacts (digest/issue/snooze_lint/diff/movers/coverage/
+  stability/alert_history_summary) into a single operator runcard
+  md. Missing or empty sections are silently skipped. +10 tests.
+- Status anchors, runbook, and CHANGELOG refreshed.
+
 ### Added (2026-04-21) — Plan 2.8 snooze-lint + weekly alert-history summary step
 
 - `scripts/plan_2_8_snooze_lint.py`: validate

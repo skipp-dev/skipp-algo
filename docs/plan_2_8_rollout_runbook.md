@@ -335,6 +335,9 @@ read.
 - `tests/test_plan_2_8_history_stability.py`
 - `tests/test_plan_2_8_snooze_admin.py`
 - `tests/test_plan_2_8_snooze_lint.py`
+- `tests/test_plan_2_8_history_backfill.py`
+- `tests/test_plan_2_8_adr_queue.py`
+- `tests/test_plan_2_8_weekly_runcard.py`
 - `tests/test_plan_2_8_alert_history.py`
 - `tests/test_plan_2_8_alert_history_summary.py`
 - `tests/test_plan_2_8_digest_rollup.py`
