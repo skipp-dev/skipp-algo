@@ -6,6 +6,19 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-05-24) — Plan 2.8 first transition + gz + minus
+
+- New `scripts/plan_2_8_ledger_first_transition_index.py` surfaces
+  the first status change index.
+- New `scripts/plan_2_8_digest_gz_file_count.py` counts top-level
+  ``.gz`` files.
+- New `scripts/plan_2_8_weekly_summary_minus_char_count.py` counts
+  ``-`` characters in the summary.
+- Weekly workflow wires the three new steps after the plus-count
+  upload.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six new
+  script+test pairs.
+
 ### Added (2026-05-23) — Plan 2.8 status transitions + tar files + plus
 
 - New `scripts/plan_2_8_ledger_status_transition_count.py` counts
