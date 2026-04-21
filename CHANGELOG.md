@@ -6,6 +6,19 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-28) — Plan 2.8 median per status + unique ext + newlines
+
+- New `scripts/plan_2_8_ledger_median_run_length_per_status.py`
+  reports median run length per canonical status.
+- New `scripts/plan_2_8_digest_unique_extension_count.py`
+  reports count of distinct top-level extensions.
+- New `scripts/plan_2_8_weekly_summary_newline_count.py`
+  counts LF characters in the weekly summary body.
+- Weekly workflow wires the three new steps after the
+  tab-count upload.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six
+  new script+test pairs.
+
 ### Added (2026-04-28) — Plan 2.8 min per status + alpha + tabs
 
 - New `scripts/plan_2_8_ledger_min_run_length_per_status.py`
