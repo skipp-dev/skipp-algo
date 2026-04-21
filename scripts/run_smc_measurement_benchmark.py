@@ -17,6 +17,7 @@ if str(REPO_ROOT) not in sys.path:
 
 from smc_core.benchmark import BenchmarkResult, build_benchmark, export_benchmark_artifacts
 from smc_core.ensemble_quality import EnsembleQualityResult, export_ensemble_quality_artifact
+from smc_core.event_ledger import ledger_path_for_pair, write_event_ledger
 from smc_core.scoring import (
     ScoredEvent,
     export_scoring_artifact,
@@ -368,6 +369,17 @@ def run_pair(symbol: str, timeframe: str, *, output_root: Path) -> dict[str, Any
         schema_version=SCHEMA_VERSION,
     )
 
+    # Per-event ledger (Amendment A1.A) — JSONL sibling to scoring_*.json.
+    # Empty ledgers are still emitted so downstream consumers can rely on
+    # the path existing whenever the harness ran.
+    ledger_path = ledger_path_for_pair(pair_dir, symbol=symbol, timeframe=timeframe)
+    ledger_row_count = write_event_ledger(
+        getattr(scoring_result, "events", []) or [],
+        output_path=ledger_path,
+        symbol=symbol,
+        timeframe=timeframe,
+    )
+
     ensemble_payload = evidence.details.get("ensemble_quality") if isinstance(evidence.details, dict) else None
     ensemble_artifact_path = None
     if isinstance(ensemble_payload, dict) and ensemble_payload:
@@ -400,6 +412,8 @@ def run_pair(symbol: str, timeframe: str, *, output_root: Path) -> dict[str, Any
         "ensemble_quality_json": ensemble_artifact_path.name if ensemble_artifact_path is not None else None,
         "reliability_plot": reliability_plot_path.name,
         "stratification_plot": stratification_plot_path.name,
+        "event_ledger_jsonl": ledger_path.name,
+        "event_ledger_rows": ledger_row_count,
     }
     pair_summary = _build_pair_summary(
         symbol=symbol,
@@ -436,6 +450,7 @@ def run_pair(symbol: str, timeframe: str, *, output_root: Path) -> dict[str, Any
             summary_csv_path.name,
             artifacts["reliability_plot"],
             artifacts["stratification_plot"],
+            artifacts["event_ledger_jsonl"],
         ],
     }
     _write_json(pair_dir / "harness_manifest.json", harness_manifest)
