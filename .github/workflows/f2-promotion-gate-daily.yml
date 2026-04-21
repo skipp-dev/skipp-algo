@@ -266,6 +266,49 @@ jobs:
             } >> "${GITHUB_STEP_SUMMARY}"
           fi
 
+      - name: Operator runbook (consolidated)
+        # Always runs. Produces a pasteable Markdown digest that fuses
+        # the status snapshot, the 7-day weekly digest, and the tail of
+        # the rollback-history ring. Streams the Markdown directly to
+        # the step summary so on-call operators can eyeball it without
+        # downloading artifacts. Failure here MUST NOT mask the gate
+        # exit code.
+        if: always()
+        run: |
+          set +e
+          mkdir -p artifacts/ci/f2
+          python scripts/f2_runbook.py \
+            --spec            artifacts/experiments/f2_contextual_promotion.json \
+            --revert-journal  artifacts/ci/f2/revert_journal.jsonl \
+            --reports-dir     artifacts/reports \
+            --history         artifacts/ci/f2/rollback_history.json \
+            --window-days     7 \
+            --ring-tail       5 \
+            --output          artifacts/ci/f2/runbook.json \
+            --format          md \
+            > /tmp/runbook.md 2>/dev/null
+          if [ -s /tmp/runbook.md ] && [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+            cat /tmp/runbook.md >> "${GITHUB_STEP_SUMMARY}"
+          fi
+          true
+
+      - name: Prune stale archive entries (>90d)
+        # Always runs. Keeps contextual_calibration.archive/ bounded so
+        # the uploaded bundle does not bloat over time. Journals every
+        # prune to artifacts/ci/f2/cleanup_archives_journal.jsonl for
+        # audit. Failure MUST NOT mask the gate exit code.
+        if: always()
+        run: |
+          set +e
+          mkdir -p artifacts/ci/f2
+          python scripts/f2_cleanup_archives.py \
+            --archive-dir   artifacts/ci/f2/contextual_calibration.archive \
+            --max-age-days  90 \
+            --journal       artifacts/ci/f2/cleanup_archives_journal.jsonl \
+            --output        artifacts/ci/f2/cleanup_archives.json \
+            --quiet
+          true
+
       - name: Upload promotion-gate artifact
         if: always() && steps.locate.outputs.status == 'ready'
         uses: actions/upload-artifact@v4
@@ -276,6 +319,9 @@ jobs:
             artifacts/ci/f2/rollback_history.json
             artifacts/ci/f2/history_summary.json
             artifacts/ci/f2/status_snapshot.json
+            artifacts/ci/f2/runbook.json
+            artifacts/ci/f2/cleanup_archives.json
+            artifacts/ci/f2/cleanup_archives_journal.jsonl
             artifacts/ci/f2/revert_journal.jsonl
             artifacts/ci/f2/promote_journal.jsonl
             artifacts/ci/f2/contextual_calibration.archive/**

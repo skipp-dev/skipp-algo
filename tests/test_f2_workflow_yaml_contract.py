@@ -83,10 +83,12 @@ def test_step_order_matches_rollback_flow_contract() -> None:
     i_annotate = idx_starts("Annotate decision")
     i_summary  = idx_starts("Pipeline status summary")
     i_status   = idx_starts("Contextual arm status snapshot")
+    i_runbook  = idx_starts("Operator runbook")
+    i_cleanup  = idx_starts("Prune stale archive entries")
     i_upload   = idx_starts("Upload promotion-gate artifact")
 
     assert i_gate < i_append < i_issue < i_revert < i_annotate
-    assert i_annotate < i_summary < i_status < i_upload
+    assert i_annotate < i_summary < i_status < i_runbook < i_cleanup < i_upload
 
 
 def test_append_history_only_on_rc_zero() -> None:
@@ -122,6 +124,18 @@ def test_annotate_and_summary_run_on_always() -> None:
     assert "always()" in status_cond
 
 
+def test_runbook_and_cleanup_run_on_always() -> None:
+    runbook_cond = _step_by_name("Operator runbook")["if"]
+    cleanup_cond = _step_by_name("Prune stale archive entries")["if"]
+    assert "always()" in runbook_cond
+    assert "always()" in cleanup_cond
+    # Both must tolerate failure so the gate's rc stays the signal.
+    for step_name in ("Operator runbook", "Prune stale archive entries"):
+        run = _step_by_name(step_name)["run"]
+        assert "set +e" in run
+        assert run.rstrip().endswith("true")
+
+
 def test_upload_bundle_carries_revert_artifacts() -> None:
     step = _step_by_name("Upload promotion-gate artifact")
     paths = step["with"]["path"]
@@ -132,4 +146,7 @@ def test_upload_bundle_carries_revert_artifacts() -> None:
     assert "rollback_history.json" in paths
     assert "history_summary.json" in paths
     assert "status_snapshot.json" in paths
+    assert "runbook.json" in paths
+    assert "cleanup_archives.json" in paths
+    assert "cleanup_archives_journal.jsonl" in paths
     assert step["with"]["retention-days"] == 60

@@ -6,6 +6,24 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Changed (2026-04-21) — daily workflow wires runbook + archive cleanup
+
+- `.github/workflows/f2-promotion-gate-daily.yml`: two new
+  `always()` steps slotted between the status snapshot and the
+  upload — "Operator runbook (consolidated)" streams the
+  `f2_runbook.py --format md` output to `$GITHUB_STEP_SUMMARY`
+  (status + 7-day digest + ring tail) and "Prune stale archive
+  entries (>90d)" runs `f2_cleanup_archives.py` with a 90-day
+  retention policy and an audit journal. Both tolerate failure so
+  the gate's `rc` stays the primary signal. Upload bundle now
+  carries `runbook.json`, `cleanup_archives.json`, and
+  `cleanup_archives_journal.jsonl`.
+- `tests/test_f2_workflow_yaml_contract.py`: pin-tests extended to
+  assert (a) step order
+  `annotate < summary < status < runbook < cleanup < upload`,
+  (b) both new steps run on `always()` with `set +e` + trailing
+  `true`, (c) bundle includes the new files (10 tests, was 9).
+
 ### Added (2026-04-21) — consolidated F2 operator runbook
 
 - `scripts/f2_runbook.py`: one-shot report combining
