@@ -6,6 +6,27 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-21) — Q3/Q4 Plan §2.3 F2 contextual promotion gate
+
+- **F2 contextual promotion spec + gate evaluator (plan §2.3 F2 +
+  §2.4 G3):** New `artifacts/experiments/f2_contextual_promotion.json`
+  (schema_version=1) registers the experiment: control =
+  `zone_priority_calibration.json` (static global weights), treatment
+  = `zone_priority_contextual_calibration.json` (contextual + FVG
+  quality score), SPRT config (p0=0.55, p1=0.60, α=0.05, β=0.20,
+  max_n=600), rollback gate (2 consecutive worse runs on
+  `calibrated_brier`), promotion gate (SPRT H1 + KPI deltas + rollback
+  status) with `on_promote`/`on_reject` action lists, and data_window
+  (≥30 days, ≥600 events per arm). New `scripts/f2_experiment_spec.py`
+  exposes `load_f2_spec()`, `evaluate_rollback()` and
+  `evaluate_promotion(digest, spec, daily_deltas)` returning one of
+  `{promote, hold, rollback, insufficient_data}` directly from the
+  `run_ab_comparison` digest. 16 new tests covering loader
+  validation, all rollback-gate edge cases, and all five promotion
+  decision branches. The F2 promotion gate is now operationally
+  complete; only wall-clock blocker remains (30-day window once the
+  contextual arm is wired into the rolling workflow).
+
 ### Added (2026-04-21) — Q3/Q4 Plan §2.4 G3 SPRT wired into A/B comparison
 
 - **G3/F2 SPRT in `run_ab_comparison.py` (plan §2.4 G3):** New
