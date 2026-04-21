@@ -6,6 +6,19 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-06-11) — Plan 2.8 unknown min + flac + brace-open
+
+- New `scripts/plan_2_8_ledger_unknown_index_min.py` reports the
+  minimum index of an unknown status (-1 if none).
+- New `scripts/plan_2_8_digest_flac_file_count.py` counts
+  top-level ``.flac`` files.
+- New `scripts/plan_2_8_weekly_summary_brace_open_char_count.py`
+  counts ``{`` characters in the summary.
+- Weekly workflow wires the three new steps after the ``]`` char
+  upload.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six new
+  script+test pairs.
+
 ### Added (2026-06-10) — Plan 2.8 red min + ogg + bracket-close
 
 - New `scripts/plan_2_8_ledger_red_index_min.py` reports the
