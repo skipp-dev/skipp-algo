@@ -6,6 +6,28 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-21) — Plan 2.8 weekly history CSV + runbook link-check wiring + snooze expiry + manifest
+
+- Weekly digest workflow now (a) exports the last-365-day history
+  as `plan-2-8-history-csv` via `plan_2_8_history_export.py`, and
+  (b) runs `plan_2_8_runbook_link_check.py` against the rollout
+  runbook, appending its markdown report to the job summary.
+  Both steps are fail-soft and skip gracefully when inputs are
+  missing.
+- New `scripts/plan_2_8_snooze_expiry_report.py` categorises every
+  entry in `configs/plan_2_8_snoozes.json` as expired, expiring,
+  active, permanent, or malformed against a configurable horizon
+  (`--within-days`). Supports md/json output and a
+  `--fail-on-expired` guard for CI. +16 tests including two
+  weekly-workflow pin-tests.
+- New `scripts/plan_2_8_manifest.py` statically scans
+  `scripts/plan_2_8_*.py` and `tests/test_plan_2_8_*.py`, pairing
+  each script with its companion test and extracting CLI flags via
+  a regex probe (no exec). Includes a `--fail-on-missing-test`
+  guard so CI can assert that the Plan 2.8 test surface stays
+  complete. +13 tests, one sweeping the real repo.
+- Status anchors, runbook, and CHANGELOG refreshed.
+
 ### Added (2026-04-21) — Plan 2.8 compact status-runcard step + history CSV export + runbook link check
 
 - Weekly digest workflow now runs the compact status runcard

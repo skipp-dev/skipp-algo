@@ -548,6 +548,55 @@ jobs:
           if-no-files-found: ignore
           retention-days: 365
 
+      - name: Plan 2.8 history CSV export (last 365 days)
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          history="$(find artifacts/latest_bench -name plan_2_8_history.jsonl -print -quit)"
+          if [ -z "${history}" ] || [ ! -s "${history}" ]; then
+            echo "No history found; skipping CSV export."
+            exit 0
+          fi
+          mkdir -p artifacts/plan_2_8_digest
+          python scripts/plan_2_8_history_export.py \
+            --history       "${history}" \
+            --lookback-days 365 \
+            --output        artifacts/plan_2_8_digest/history.csv \
+            --quiet
+          true
+
+      - name: Upload Plan 2.8 history CSV
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-history-csv
+          path: artifacts/plan_2_8_digest/history.csv
+          if-no-files-found: ignore
+          retention-days: 365
+
+      - name: Plan 2.8 runbook link check
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          doc="docs/plan_2_8_rollout_runbook.md"
+          if [ ! -s "${doc}" ]; then
+            echo "No runbook doc; skipping link check."
+            exit 0
+          fi
+          mkdir -p artifacts/plan_2_8_digest
+          python scripts/plan_2_8_runbook_link_check.py \
+            --doc    "${doc}" \
+            --output artifacts/plan_2_8_digest/runbook_link_check.md \
+            > /dev/null
+          if [ -s artifacts/plan_2_8_digest/runbook_link_check.md ] \
+              && [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+            cat artifacts/plan_2_8_digest/runbook_link_check.md \
+              >> "${GITHUB_STEP_SUMMARY}"
+          fi
+          true
+
       - name: Open drift-alert issue
         if: steps.resolve_alerts.outputs.has_alerts == 'True'
         env:

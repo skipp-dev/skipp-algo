@@ -350,6 +350,8 @@ read.
 - `tests/test_plan_2_8_history_prune.py`
 - `tests/test_plan_2_8_history_export.py`
 - `tests/test_plan_2_8_runbook_link_check.py`
+- `tests/test_plan_2_8_snooze_expiry_report.py`
+- `tests/test_plan_2_8_manifest.py`
 - `tests/test_plan_2_8_alert_history.py`
 - `tests/test_plan_2_8_alert_history_summary.py`
 - `tests/test_plan_2_8_digest_rollup.py`
