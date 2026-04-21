@@ -1,0 +1,155 @@
+name: f2-promotion-gate-daily
+
+# F2 Contextual Promotion Gate — daily evaluation.
+#
+# Plan reference:
+#   smc_improvement_plan_q3_q4_2026-04-20.md §2.3 F2 + §2.4 G3
+# Spec:
+#   artifacts/experiments/f2_contextual_promotion.json
+# Decision memo:
+#   docs/f2_contextual_promotion_decision_2026-04-21.md
+#
+# Each day this workflow:
+#   1. Locates the most recent dual-arm artifact dirs produced by the
+#      rolling-benchmark workflow (control = static_global_weights,
+#      treatment = contextual_weights).
+#   2. Runs scripts/f2_run_promotion_gate.py against them and the
+#      shipping spec.
+#   3. Uploads the resulting promotion-gate JSON as an Actions artifact.
+#   4. Annotates the run with the decision and exits non-zero on
+#      'rollback' so the GitHub-Issue-Ping rule (plan §2.4 G2) can
+#      key off the workflow failure.
+#
+# Fail-soft semantics:
+#   * If either arm directory is missing yet (the rolling-benchmark
+#     workflow has not produced the contextual arm), the job exits 0
+#     with status=skipped so the wall-clock countdown to the 30-day
+#     window keeps ticking.
+#   * Configuration errors (missing spec, malformed history) exit 1
+#     and surface in CI normally.
+#   * decision==rollback exits 2 -> workflow marked failed.
+#
+# Nothing in this workflow mutates production calibration. Promotion
+# is a separate, manual follow-up step driven by the on_promote
+# action list in the spec.
+
+on:
+  schedule:
+    # 10:00 UTC daily — runs after smc-measurement-benchmark-rolling
+    # (07:30 UTC) and feature-importance-daily (09:00 UTC) so the
+    # dual-arm artifact dirs are guaranteed to be in place.
+    - cron: "0 10 * * *"
+  workflow_dispatch:
+    inputs:
+      date:
+        description: "Override the date sub-dir to evaluate (YYYY-MM-DD). Default: today UTC."
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: f2-promotion-gate-daily
+  cancel-in-progress: false
+
+jobs:
+  promotion-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+
+      - name: Resolve target date
+        id: date
+        run: |
+          if [ -n "${{ inputs.date }}" ]; then
+            echo "value=${{ inputs.date }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=$(date -u +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Locate dual-arm artifact dirs
+        id: locate
+        run: |
+          set +e
+          DATE="${{ steps.date.outputs.value }}"
+          CONTROL_DIR="artifacts/ci/f2/static_global_weights/${DATE}"
+          TREATMENT_DIR="artifacts/ci/f2/contextual_weights/${DATE}"
+          if [ ! -d "${CONTROL_DIR}" ] || [ ! -d "${TREATMENT_DIR}" ]; then
+            echo "status=skipped" >> "$GITHUB_OUTPUT"
+            echo "control_dir=${CONTROL_DIR}" >> "$GITHUB_OUTPUT"
+            echo "treatment_dir=${TREATMENT_DIR}" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "status=ready" >> "$GITHUB_OUTPUT"
+          echo "control_dir=${CONTROL_DIR}" >> "$GITHUB_OUTPUT"
+          echo "treatment_dir=${TREATMENT_DIR}" >> "$GITHUB_OUTPUT"
+
+      - name: Skip — dual-arm artifacts not yet produced
+        if: steps.locate.outputs.status == 'skipped'
+        run: |
+          echo "::notice title=f2-promotion-gate-daily::status=skipped reason='control or treatment artifact dir missing for ${{ steps.date.outputs.value }}'"
+          echo "  control:   ${{ steps.locate.outputs.control_dir }}"
+          echo "  treatment: ${{ steps.locate.outputs.treatment_dir }}"
+
+      - name: Run F2 promotion-gate orchestrator
+        id: gate
+        if: steps.locate.outputs.status == 'ready'
+        run: |
+          set +e
+          mkdir -p artifacts/reports
+          REPORT="artifacts/reports/f2_promotion_gate_${{ steps.date.outputs.value }}.json"
+          HISTORY_ARG=""
+          if [ -f "artifacts/ci/f2/rollback_history.json" ]; then
+            HISTORY_ARG="--rollback-history artifacts/ci/f2/rollback_history.json"
+          fi
+          python scripts/f2_run_promotion_gate.py \
+            --spec artifacts/experiments/f2_contextual_promotion.json \
+            --control-dir   "${{ steps.locate.outputs.control_dir }}" \
+            --treatment-dir "${{ steps.locate.outputs.treatment_dir }}" \
+            ${HISTORY_ARG} \
+            --output "${REPORT}" \
+            > gate_stdout.json
+          rc=$?
+          DECISION=$(python -c "import json,sys; print(json.load(open('${REPORT}'))['decision'])" 2>/dev/null || echo "unknown")
+          echo "rc=${rc}" >> "$GITHUB_OUTPUT"
+          echo "decision=${DECISION}" >> "$GITHUB_OUTPUT"
+          echo "report=${REPORT}" >> "$GITHUB_OUTPUT"
+          # Surface stdout for log-readability without failing on rc=2.
+          cat gate_stdout.json
+          # Exit code policy:
+          #   0 = promote / hold / insufficient_data  -> CI green
+          #   2 = rollback                            -> CI red (Issue ping)
+          #   1 = config error                        -> CI red (real bug)
+          if [ "${rc}" -eq 0 ] || [ "${rc}" -eq 2 ]; then
+            exit "${rc}"
+          fi
+          exit 1
+
+      - name: Annotate decision
+        if: always() && steps.locate.outputs.status == 'ready'
+        run: |
+          echo "::notice title=f2-promotion-gate-daily::date=${{ steps.date.outputs.value }} decision=${{ steps.gate.outputs.decision || 'unknown' }} rc=${{ steps.gate.outputs.rc || 'unknown' }}"
+
+      - name: Upload promotion-gate artifact
+        if: always() && steps.locate.outputs.status == 'ready'
+        uses: actions/upload-artifact@v4
+        with:
+          name: f2-promotion-gate-${{ steps.date.outputs.value }}-${{ github.run_id }}
+          path: |
+            artifacts/reports/f2_promotion_gate_*.json
+            gate_stdout.json
+          if-no-files-found: ignore
+          retention-days: 60
