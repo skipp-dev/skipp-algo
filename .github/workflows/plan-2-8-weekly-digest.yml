@@ -5549,6 +5549,75 @@ jobs:
           if-no-files-found: ignore
           retention-days: 365
 
+      - name: Plan 2.8 ledger green ratio
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          ledger="artifacts/plan_2_8_digest/state_ledger.jsonl"
+          [ -s "${ledger}" ] || exit 0
+          python scripts/plan_2_8_ledger_green_ratio.py \
+            --ledger "${ledger}" \
+            --format md \
+            --output artifacts/plan_2_8_digest/ledger_green_ratio.md \
+            > /dev/null
+          true
+
+      - name: Upload Plan 2.8 ledger green ratio
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-ledger-green-ratio
+          path: artifacts/plan_2_8_digest/ledger_green_ratio.md
+          if-no-files-found: ignore
+          retention-days: 365
+
+      - name: Plan 2.8 digest file size stddev
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          dir="artifacts/plan_2_8_digest"
+          [ -d "${dir}" ] || exit 0
+          python scripts/plan_2_8_digest_file_size_stddev.py \
+            --artifact-dir "${dir}" \
+            --format md \
+            --output artifacts/plan_2_8_digest/digest_file_size_stddev.md \
+            > /dev/null
+          true
+
+      - name: Upload Plan 2.8 digest file size stddev
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-digest-file-size-stddev
+          path: artifacts/plan_2_8_digest/digest_file_size_stddev.md
+          if-no-files-found: ignore
+          retention-days: 365
+
+      - name: Plan 2.8 weekly summary line length stddev
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          summary="artifacts/plan_2_8_digest/weekly_summary.md"
+          [ -s "${summary}" ] || exit 0
+          python scripts/plan_2_8_weekly_summary_line_length_stddev.py \
+            --summary "${summary}" \
+            --format md \
+            --output artifacts/plan_2_8_digest/summary_line_length_stddev.md \
+            > /dev/null
+          true
+
+      - name: Upload Plan 2.8 weekly summary line length stddev
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-weekly-summary-line-length-stddev
+          path: artifacts/plan_2_8_digest/summary_line_length_stddev.md
+          if-no-files-found: ignore
+          retention-days: 365
+
       - name: Open drift-alert issue
         if: steps.resolve_alerts.outputs.has_alerts == 'True'
         env:

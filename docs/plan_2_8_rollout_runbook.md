@@ -557,6 +557,9 @@ read.
 - `tests/test_plan_2_8_ledger_status_coverage.py`
 - `tests/test_plan_2_8_digest_min_file_size.py`
 - `tests/test_plan_2_8_weekly_summary_max_line_length.py`
+- `tests/test_plan_2_8_ledger_green_ratio.py`
+- `tests/test_plan_2_8_digest_file_size_stddev.py`
+- `tests/test_plan_2_8_weekly_summary_line_length_stddev.py`
 - `tests/test_plan_2_8_alert_history.py`
 - `tests/test_plan_2_8_alert_history_summary.py`
 - `tests/test_plan_2_8_digest_rollup.py`
