@@ -6,6 +6,19 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-05-14) — Plan 2.8 red streak + largest file + lowercase
+
+- New `scripts/plan_2_8_ledger_red_streak_max.py` reports the
+  longest consecutive red run.
+- New `scripts/plan_2_8_digest_largest_file_size.py` reports the
+  byte size of the largest top-level file.
+- New `scripts/plan_2_8_weekly_summary_lowercase_letter_count.py`
+  counts ASCII lowercase letters in the summary.
+- Weekly workflow wires the three new steps after the
+  uppercase-count upload.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six new
+  script+test pairs.
+
 ### Added (2026-05-14) — Plan 2.8 amber streak + size variance + uppercase
 
 - New `scripts/plan_2_8_ledger_amber_streak_max.py` reports the
