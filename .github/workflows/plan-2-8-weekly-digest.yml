@@ -5618,6 +5618,75 @@ jobs:
           if-no-files-found: ignore
           retention-days: 365
 
+      - name: Plan 2.8 ledger status entropy
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          ledger="artifacts/plan_2_8_digest/state_ledger.jsonl"
+          [ -s "${ledger}" ] || exit 0
+          python scripts/plan_2_8_ledger_status_entropy.py \
+            --ledger "${ledger}" \
+            --format md \
+            --output artifacts/plan_2_8_digest/ledger_status_entropy.md \
+            > /dev/null
+          true
+
+      - name: Upload Plan 2.8 ledger status entropy
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-ledger-status-entropy
+          path: artifacts/plan_2_8_digest/ledger_status_entropy.md
+          if-no-files-found: ignore
+          retention-days: 365
+
+      - name: Plan 2.8 digest file size range
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          dir="artifacts/plan_2_8_digest"
+          [ -d "${dir}" ] || exit 0
+          python scripts/plan_2_8_digest_file_size_range.py \
+            --artifact-dir "${dir}" \
+            --format md \
+            --output artifacts/plan_2_8_digest/digest_file_size_range.md \
+            > /dev/null
+          true
+
+      - name: Upload Plan 2.8 digest file size range
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-digest-file-size-range
+          path: artifacts/plan_2_8_digest/digest_file_size_range.md
+          if-no-files-found: ignore
+          retention-days: 365
+
+      - name: Plan 2.8 weekly summary unique word count
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          summary="artifacts/plan_2_8_digest/weekly_summary.md"
+          [ -s "${summary}" ] || exit 0
+          python scripts/plan_2_8_weekly_summary_unique_word_count.py \
+            --summary "${summary}" \
+            --format md \
+            --output artifacts/plan_2_8_digest/summary_unique_word_count.md \
+            > /dev/null
+          true
+
+      - name: Upload Plan 2.8 weekly summary unique word count
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-weekly-summary-unique-word-count
+          path: artifacts/plan_2_8_digest/summary_unique_word_count.md
+          if-no-files-found: ignore
+          retention-days: 365
+
       - name: Open drift-alert issue
         if: steps.resolve_alerts.outputs.has_alerts == 'True'
         env:

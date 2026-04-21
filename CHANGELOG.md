@@ -6,6 +6,19 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-05-08) — Plan 2.8 status entropy + size range + unique words
+
+- New `scripts/plan_2_8_ledger_status_entropy.py` reports the
+  Shannon entropy (base 2) of the status distribution.
+- New `scripts/plan_2_8_digest_file_size_range.py` reports
+  ``max - min`` of top-level regular-file sizes.
+- New `scripts/plan_2_8_weekly_summary_unique_word_count.py``
+  reports the count of distinct case-folded tokens.
+- Weekly workflow wires the three new steps after the
+  line-length-stddev upload.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six
+  new script+test pairs.
+
 ### Added (2026-05-07) — Plan 2.8 green ratio + size stddev + line stddev
 
 - New `scripts/plan_2_8_ledger_green_ratio.py` reports the
