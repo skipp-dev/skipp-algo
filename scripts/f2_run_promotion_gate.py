@@ -1,0 +1,199 @@
+"""F2 promotion-gate CLI orchestrator (plan §2.3 F2 + §2.4 G3).
+
+Single entry point that ties together:
+
+1. ``scripts.run_ab_comparison.compare`` — produces the digest with the
+   embedded ``sprt`` block.
+2. ``scripts.f2_experiment_spec.evaluate_promotion`` — maps the digest +
+   rollback history to one of ``{promote, hold, rollback,
+   insufficient_data}`` plus the canonical action list.
+
+Inputs
+------
+* ``--spec``           Path to the F2 experiment spec JSON.
+* ``--control-dir``    Benchmark artifact dir for the control arm
+                       (``benchmark_run_manifest.json`` + per-pair scoring).
+* ``--treatment-dir``  Benchmark artifact dir for the treatment arm.
+* ``--rollback-history`` Optional path to a JSON list of historical
+                       ``treatment - control`` deltas for the configured
+                       comparison metric. Used by the rollback gate.
+* ``--output``         Optional output path for the promotion-gate report
+                       JSON. Default: stdout only.
+
+Outputs
+-------
+A schema-pinned JSON document (``schema_version=1``) carrying the
+promotion-gate decision, the SPRT terminal report, the KPI deltas, the
+rollback-gate evaluation and the resolved action list. Designed to be
+checked in as a daily artifact when the rolling-benchmark workflow
+accumulates dual-arm output.
+
+Exit codes
+----------
+0  : decision in {promote, hold, rollback, insufficient_data}; report
+     written.
+1  : configuration error (missing spec, missing artifact dir, etc.).
+2  : decision == "rollback"; useful as a CI signal so the workflow can
+     trigger the GitHub-Issue-Ping per plan §2.4 G2.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from pathlib import Path
+from typing import Any
+
+from scripts.f2_experiment_spec import (
+    F2Spec,
+    evaluate_promotion,
+    load_f2_spec,
+)
+from scripts.generate_performance_report import load_benchmark
+from scripts.run_ab_comparison import compare
+
+
+REPORT_SCHEMA_VERSION = 1
+
+
+def _load_rollback_history(path: Path | None) -> list[float]:
+    if path is None:
+        return []
+    raw = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(raw, list):
+        raise ValueError(
+            f"rollback-history file {path} must contain a JSON list, got {type(raw).__name__}"
+        )
+    return [float(x) for x in raw]
+
+
+def _pair_dicts(pairs: list[Any]) -> list[dict[str, Any]]:
+    """Convert PairReport dataclasses to the dict shape compare() consumes.
+
+    Note on units: ``PairReport.hit_rate`` is loaded from scoring summaries
+    as a fraction in ``[0, 1]`` (the on-disk JSON convention from
+    ``smc_signal_quality``), but the downstream comparison + SPRT wiring
+    treats ``hit_rate_pct`` as a percent in ``[0, 100]``. We multiply by
+    100 here so the convention is consistent across the pipeline.
+    """
+    out: list[dict[str, Any]] = []
+    for p in pairs:
+        out.append({
+            "symbol": p.symbol,
+            "timeframe": p.timeframe,
+            "n_events": p.n_events,
+            "brier": p.brier,
+            "hit_rate_pct": p.hit_rate * 100.0,
+            "calibrated_brier": p.calibrated_brier,
+            "calibrated_ece": p.calibrated_ece,
+            "ensemble_score": p.ensemble_score,
+        })
+    return out
+
+
+def run_promotion_gate(
+    *,
+    spec: F2Spec,
+    control_dir: Path,
+    treatment_dir: Path,
+    rollback_history: list[float],
+) -> dict[str, Any]:
+    """Compute the F2 promotion-gate report for two benchmark artifact dirs."""
+    control_pairs = _pair_dicts(load_benchmark(control_dir))
+    treatment_pairs = _pair_dicts(load_benchmark(treatment_dir))
+    if not control_pairs:
+        raise ValueError(f"no benchmark pairs in control_dir={control_dir}")
+    if not treatment_pairs:
+        raise ValueError(f"no benchmark pairs in treatment_dir={treatment_dir}")
+
+    digest = compare(control_pairs, treatment_pairs, spec.name)
+    gate = evaluate_promotion(digest, spec, daily_deltas=rollback_history)
+
+    return {
+        "schema_version": REPORT_SCHEMA_VERSION,
+        "experiment": spec.name,
+        "plan_reference": spec.plan_reference,
+        "decision": gate["decision"],
+        "reason": gate["reason"],
+        "actions": list(gate["actions"]),
+        "sprt": digest.get("sprt"),
+        "kpi_metrics": digest.get("metrics"),
+        "rollback_history_len": len(rollback_history),
+        "rollback_triggered": (
+            len(rollback_history) >= spec.rollback_gate.consecutive_worse_runs
+            and all(
+                d > 0
+                for d in rollback_history[-spec.rollback_gate.consecutive_worse_runs:]
+            )
+        ),
+        "spec": {
+            "control_artifact": str(spec.control_artifact),
+            "treatment_artifact": str(spec.treatment_artifact),
+            "min_events_per_arm": spec.min_events_per_arm,
+            "min_days": spec.min_days,
+        },
+    }
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        description="F2 contextual-promotion gate orchestrator (plan §2.3 F2)"
+    )
+    parser.add_argument("--spec", type=Path, required=True,
+                        help="Path to the F2 experiment spec JSON.")
+    parser.add_argument("--control-dir", type=Path, required=True,
+                        help="Benchmark artifact dir for the control arm.")
+    parser.add_argument("--treatment-dir", type=Path, required=True,
+                        help="Benchmark artifact dir for the treatment arm.")
+    parser.add_argument("--rollback-history", type=Path, default=None,
+                        help=("Optional JSON list of historical "
+                              "treatment-control deltas for the rollback gate."))
+    parser.add_argument("--output", type=Path, default=None,
+                        help="Optional output path for the promotion-gate JSON.")
+    args = parser.parse_args(argv)
+
+    try:
+        spec = load_f2_spec(args.spec)
+    except (FileNotFoundError, ValueError) as exc:
+        print(f"ERROR: failed to load spec {args.spec}: {exc}", file=sys.stderr)
+        return 1
+
+    if not args.control_dir.exists():
+        print(f"ERROR: control_dir does not exist: {args.control_dir}", file=sys.stderr)
+        return 1
+    if not args.treatment_dir.exists():
+        print(f"ERROR: treatment_dir does not exist: {args.treatment_dir}", file=sys.stderr)
+        return 1
+
+    try:
+        rollback_history = _load_rollback_history(args.rollback_history)
+    except (FileNotFoundError, ValueError) as exc:
+        print(f"ERROR: failed to load rollback history: {exc}", file=sys.stderr)
+        return 1
+
+    try:
+        report = run_promotion_gate(
+            spec=spec,
+            control_dir=args.control_dir,
+            treatment_dir=args.treatment_dir,
+            rollback_history=rollback_history,
+        )
+    except (FileNotFoundError, ValueError) as exc:
+        print(f"ERROR: failed to compute promotion gate: {exc}", file=sys.stderr)
+        return 1
+
+    if args.output is not None:
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        args.output.write_text(
+            json.dumps(report, indent=2) + "\n", encoding="utf-8"
+        )
+    print(json.dumps(report, indent=2))
+
+    if report["decision"] == "rollback":
+        return 2
+    return 0
+
+
+if __name__ == "__main__":  # pragma: no cover
+    raise SystemExit(main())
