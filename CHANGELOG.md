@@ -6,6 +6,19 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-06-19) — Plan 2.8 unknown streak-count + mpg + ascii-printable
+
+- New `scripts/plan_2_8_ledger_unknown_streak_count.py` counts
+  distinct runs of unknown statuses.
+- New `scripts/plan_2_8_digest_mpg_file_count.py` counts
+  top-level ``.mpg`` files.
+- New `scripts/plan_2_8_weekly_summary_ascii_printable_char_count.py`
+  counts ASCII printable characters (0x20–0x7E).
+- Weekly workflow wires the three new steps after the space char
+  upload.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six new
+  script+test pairs.
+
 ### Added (2026-06-18) — Plan 2.8 red streak-count + flv + space
 
 - New `scripts/plan_2_8_ledger_red_streak_count.py` counts
