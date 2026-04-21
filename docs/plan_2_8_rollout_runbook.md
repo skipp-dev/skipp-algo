@@ -518,6 +518,9 @@ read.
 - `tests/test_plan_2_8_ledger_run_length_range.py`
 - `tests/test_plan_2_8_digest_lowercase_filename_count.py`
 - `tests/test_plan_2_8_weekly_summary_letter_count.py`
+- `tests/test_plan_2_8_ledger_mean_run_length_per_status.py`
+- `tests/test_plan_2_8_digest_hidden_file_count.py`
+- `tests/test_plan_2_8_weekly_summary_punctuation_count.py`
 - `tests/test_plan_2_8_alert_history.py`
 - `tests/test_plan_2_8_alert_history_summary.py`
 - `tests/test_plan_2_8_digest_rollup.py`
