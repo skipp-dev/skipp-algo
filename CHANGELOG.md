@@ -6,6 +6,21 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-26) — Plan 2.8 first unknown + mtime span + reference defs
+
+- New `scripts/plan_2_8_ledger_first_unknown.py` reports the
+  timestamp of the earliest unknown ledger record.
+- New `scripts/plan_2_8_digest_mtime_span.py` reports the
+  oldest→newest mtime span in hours across artifact files.
+- New `scripts/plan_2_8_weekly_summary_reference_defs.py`
+  counts Markdown link reference definitions (``[label]:
+  url``), returning a sorted label list; fenced blocks are
+  excluded.
+- Weekly workflow wires the three new steps after the
+  strikethrough-count upload.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six
+  new script+test pairs.
+
 ### Added (2026-04-25) — Plan 2.8 first amber + median mtime + strikethrough count
 
 - New `scripts/plan_2_8_ledger_first_amber.py` reports the

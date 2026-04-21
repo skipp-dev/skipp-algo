@@ -1,0 +1,84 @@
+"""Plan 2.8 digest mtime span.
+
+Reports the mtime span across top-level artifact-directory
+files: oldest mtime, newest mtime, and span in hours.
+Subdirectories are ignored. For a single file, the span is
+``0``. An empty directory returns ``found=False``.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any
+
+
+def _iso(t: float) -> str:
+    return datetime.fromtimestamp(t, tz=timezone.utc).isoformat()
+
+
+def build(root: Path) -> dict[str, Any]:
+    mtimes: list[float] = []
+    if root.exists():
+        for p in root.iterdir():
+            if p.is_file():
+                mtimes.append(p.stat().st_mtime)
+    if not mtimes:
+        return {"schema_version": 1, "found": False, "file_count": 0}
+    oldest = min(mtimes)
+    newest = max(mtimes)
+    span = round((newest - oldest) / 3600.0, 4)
+    return {
+        "schema_version": 1,
+        "found":          True,
+        "file_count":     len(mtimes),
+        "oldest_mtime":   _iso(oldest),
+        "newest_mtime":   _iso(newest),
+        "span_hours":     span,
+    }
+
+
+def render_markdown(report: dict[str, Any]) -> str:
+    if not report.get("found"):
+        return "# Plan 2.8 digest mtime span\n\n_none_\n"
+    return (
+        "# Plan 2.8 digest mtime span\n"
+        "\n"
+        f"- file_count: {report['file_count']}\n"
+        f"- oldest_mtime: {report['oldest_mtime']}\n"
+        f"- newest_mtime: {report['newest_mtime']}\n"
+        f"- span_hours: {report['span_hours']}\n"
+    )
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        description="Mtime span across artifact files.",
+    )
+    parser.add_argument("--artifact-dir", type=Path, required=True)
+    parser.add_argument("--format", choices=("md", "json"), default="md")
+    parser.add_argument("--output", type=Path, default=None)
+    args = parser.parse_args(argv)
+
+    if not args.artifact_dir.exists():
+        print(
+            f"ERROR: artifact dir not found: {args.artifact_dir}",
+            file=sys.stderr,
+        )
+        return 1
+
+    report = build(args.artifact_dir)
+    body = render_markdown(report) if args.format == "md" \
+        else json.dumps(report, indent=2) + "\n"
+    if args.output is not None:
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        args.output.write_text(body, encoding="utf-8")
+    print(body, end="")
+    return 0
+
+
+if __name__ == "__main__":  # pragma: no cover
+    raise SystemExit(main())

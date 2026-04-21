@@ -3686,6 +3686,75 @@ jobs:
           if-no-files-found: ignore
           retention-days: 365
 
+      - name: Plan 2.8 ledger first unknown
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          ledger="artifacts/plan_2_8_digest/state_ledger.jsonl"
+          [ -s "${ledger}" ] || exit 0
+          python scripts/plan_2_8_ledger_first_unknown.py \
+            --ledger "${ledger}" \
+            --format md \
+            --output artifacts/plan_2_8_digest/ledger_first_unknown.md \
+            > /dev/null
+          true
+
+      - name: Upload Plan 2.8 ledger first unknown
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-ledger-first-unknown
+          path: artifacts/plan_2_8_digest/ledger_first_unknown.md
+          if-no-files-found: ignore
+          retention-days: 365
+
+      - name: Plan 2.8 digest mtime span
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          dir="artifacts/plan_2_8_digest"
+          [ -d "${dir}" ] || exit 0
+          python scripts/plan_2_8_digest_mtime_span.py \
+            --artifact-dir "${dir}" \
+            --format md \
+            --output artifacts/plan_2_8_digest/digest_mtime_span.md \
+            > /dev/null
+          true
+
+      - name: Upload Plan 2.8 digest mtime span
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-digest-mtime-span
+          path: artifacts/plan_2_8_digest/digest_mtime_span.md
+          if-no-files-found: ignore
+          retention-days: 365
+
+      - name: Plan 2.8 weekly summary reference defs
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          summary="artifacts/plan_2_8_digest/weekly_summary.md"
+          [ -s "${summary}" ] || exit 0
+          python scripts/plan_2_8_weekly_summary_reference_defs.py \
+            --summary "${summary}" \
+            --format md \
+            --output artifacts/plan_2_8_digest/summary_reference_defs.md \
+            > /dev/null
+          true
+
+      - name: Upload Plan 2.8 weekly summary reference defs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-weekly-summary-reference-defs
+          path: artifacts/plan_2_8_digest/summary_reference_defs.md
+          if-no-files-found: ignore
+          retention-days: 365
+
       - name: Open drift-alert issue
         if: steps.resolve_alerts.outputs.has_alerts == 'True'
         env:
