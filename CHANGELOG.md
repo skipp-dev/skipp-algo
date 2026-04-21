@@ -6,6 +6,26 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-21) — Plan 2.8 flap rate + trend threshold + artifact catalog
+
+- New `scripts/plan_2_8_ledger_flap_rate.py` counts status
+  transitions grouped by ISO week of the later record and
+  reports total flips, weeks covered, and the average
+  flips-per-week. `--fail-on-flips` turns any observed flip
+  into rc=1.
+- New `scripts/plan_2_8_trend_threshold_alert.py` reads
+  `trend.json` and raises rc=1 (when `--fail-below` is set) if
+  the most recent week's green % is strictly below the
+  threshold; empty weeks list also fails.
+- New `scripts/plan_2_8_digest_artifact_catalog.py` walks the
+  digest artifact directory and emits a catalog classifying
+  each file as `known` (with a short description) or `unknown`
+  so stray outputs surface immediately. Subdirectories are
+  ignored.
+- Weekly digest wires flap rate, trend-threshold alert, and
+  artifact catalog; also emits `trend.json` alongside `trend.md`
+  so the threshold alert has a JSON input.
+
 ### Added (2026-04-21) — Plan 2.8 metadata diff + weekly trend + link check
 
 - New `scripts/plan_2_8_metadata_diff.py` compares current

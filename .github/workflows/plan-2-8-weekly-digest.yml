@@ -1458,6 +1458,11 @@ jobs:
             --format md \
             --output artifacts/plan_2_8_digest/trend.md \
             > /dev/null
+          python scripts/plan_2_8_ledger_trend.py \
+            --ledger "${ledger}" \
+            --format json \
+            --output artifacts/plan_2_8_digest/trend.json \
+            > /dev/null
           true
 
       - name: Upload Plan 2.8 ledger trend
@@ -1492,6 +1497,85 @@ jobs:
         with:
           name: plan-2-8-weekly-summary-linkcheck
           path: artifacts/plan_2_8_digest/weekly_summary_linkcheck.md
+          if-no-files-found: ignore
+          retention-days: 365
+
+      - name: Plan 2.8 ledger flap rate
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          ledger="artifacts/plan_2_8_digest/status_ledger.jsonl"
+          if [ ! -s "${ledger}" ]; then
+            echo "No ledger; skipping flap rate."
+            exit 0
+          fi
+          python scripts/plan_2_8_ledger_flap_rate.py \
+            --ledger "${ledger}" \
+            --format md \
+            --output artifacts/plan_2_8_digest/flap_rate.md \
+            > /dev/null
+          true
+
+      - name: Upload Plan 2.8 ledger flap rate
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-ledger-flap-rate
+          path: artifacts/plan_2_8_digest/flap_rate.md
+          if-no-files-found: ignore
+          retention-days: 365
+
+      - name: Plan 2.8 trend-threshold alert
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          trend="artifacts/plan_2_8_digest/trend.json"
+          if [ ! -s "${trend}" ]; then
+            echo "No trend JSON; skipping threshold alert."
+            exit 0
+          fi
+          python scripts/plan_2_8_trend_threshold_alert.py \
+            --trend-json "${trend}" \
+            --threshold  90 \
+            --format     md \
+            --output     artifacts/plan_2_8_digest/trend_threshold.md \
+            > /dev/null
+          true
+
+      - name: Upload Plan 2.8 trend-threshold alert
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-trend-threshold-alert
+          path: artifacts/plan_2_8_digest/trend_threshold.md
+          if-no-files-found: ignore
+          retention-days: 365
+
+      - name: Plan 2.8 digest artifact catalog
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          dir="artifacts/plan_2_8_digest"
+          if [ ! -d "${dir}" ]; then
+            echo "No artifact dir; skipping catalog."
+            exit 0
+          fi
+          python scripts/plan_2_8_digest_artifact_catalog.py \
+            --artifact-dir "${dir}" \
+            --format       md \
+            --output       "${dir}/artifact_catalog.md" \
+            > /dev/null
+          true
+
+      - name: Upload Plan 2.8 digest artifact catalog
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-digest-artifact-catalog
+          path: artifacts/plan_2_8_digest/artifact_catalog.md
           if-no-files-found: ignore
           retention-days: 365
 
