@@ -6,6 +6,19 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-06-30) — Plan 2.8 last record + iso + whitespace-only
+
+- New `scripts/plan_2_8_ledger_last_record_status.py` reports the
+  status of the last valid ledger record.
+- New `scripts/plan_2_8_digest_iso_file_count.py` counts top-level
+  ``.iso`` files.
+- New `scripts/plan_2_8_weekly_summary_whitespace_only_line_count.py`
+  counts non-empty lines that contain only whitespace.
+- Weekly workflow wires the three new steps after the trailing-space
+  line upload.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six new
+  script+test pairs.
+
 ### Added (2026-06-29) — Plan 2.8 first record + xvid + trailing-space
 
 - New `scripts/plan_2_8_ledger_first_record_status.py` reports the
