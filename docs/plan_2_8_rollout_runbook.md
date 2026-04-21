@@ -704,6 +704,9 @@ read.
 - `tests/test_plan_2_8_ledger_unknown_index_max.py`
 - `tests/test_plan_2_8_digest_mkv_file_count.py`
 - `tests/test_plan_2_8_weekly_summary_form_feed_char_count.py`
+- `tests/test_plan_2_8_ledger_green_streak_count.py`
+- `tests/test_plan_2_8_digest_avi_file_count.py`
+- `tests/test_plan_2_8_weekly_summary_vertical_tab_char_count.py`
 - `tests/test_plan_2_8_alert_history.py`
 - `tests/test_plan_2_8_alert_history_summary.py`
 - `tests/test_plan_2_8_digest_rollup.py`

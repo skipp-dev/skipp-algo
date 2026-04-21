@@ -6,6 +6,19 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-06-16) — Plan 2.8 green streak-count + avi + vertical-tab
+
+- New `scripts/plan_2_8_ledger_green_streak_count.py` counts
+  distinct runs of green statuses.
+- New `scripts/plan_2_8_digest_avi_file_count.py` counts
+  top-level ``.avi`` files.
+- New `scripts/plan_2_8_weekly_summary_vertical_tab_char_count.py`
+  counts ``\v`` bytes in the summary.
+- Weekly workflow wires the three new steps after the form-feed
+  upload.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six new
+  script+test pairs.
+
 ### Added (2026-06-15) — Plan 2.8 unknown max + mkv + form-feed
 
 - New `scripts/plan_2_8_ledger_unknown_index_max.py` reports the
