@@ -716,6 +716,9 @@ read.
 - `tests/test_plan_2_8_ledger_unknown_streak_count.py`
 - `tests/test_plan_2_8_digest_mpg_file_count.py`
 - `tests/test_plan_2_8_weekly_summary_ascii_printable_char_count.py`
+- `tests/test_plan_2_8_ledger_green_first_last_index_span.py`
+- `tests/test_plan_2_8_digest_m4v_file_count.py`
+- `tests/test_plan_2_8_weekly_summary_ascii_control_char_count.py`
 - `tests/test_plan_2_8_alert_history.py`
 - `tests/test_plan_2_8_alert_history_summary.py`
 - `tests/test_plan_2_8_digest_rollup.py`

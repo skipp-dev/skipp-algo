@@ -6,6 +6,19 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-06-20) — Plan 2.8 green span + m4v + ascii-control
+
+- New `scripts/plan_2_8_ledger_green_first_last_index_span.py`
+  reports the index span between the first and last green records.
+- New `scripts/plan_2_8_digest_m4v_file_count.py` counts top-level
+  ``.m4v`` files.
+- New `scripts/plan_2_8_weekly_summary_ascii_control_char_count.py`
+  counts ASCII control characters (``< 0x20`` or ``0x7F``).
+- Weekly workflow wires the three new steps after the ascii
+  printable upload.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six new
+  script+test pairs.
+
 ### Added (2026-06-19) — Plan 2.8 unknown streak-count + mpg + ascii-printable
 
 - New `scripts/plan_2_8_ledger_unknown_streak_count.py` counts
