@@ -6,6 +6,19 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-28) — Plan 2.8 run-length range + lowercase + letters
+
+- New `scripts/plan_2_8_ledger_run_length_range.py`
+  reports the max-minus-min of status run lengths.
+- New `scripts/plan_2_8_digest_lowercase_filename_count.py`
+  counts top-level files with no uppercase ASCII letters.
+- New `scripts/plan_2_8_weekly_summary_letter_count.py`
+  counts ASCII letter characters in the weekly summary.
+- Weekly workflow wires the three new steps after the
+  digit-count upload.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six
+  new script+test pairs.
+
 ### Added (2026-04-28) — Plan 2.8 shortest run + uppercase + digits
 
 - New `scripts/plan_2_8_ledger_shortest_run.py`
