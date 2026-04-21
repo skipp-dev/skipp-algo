@@ -1,0 +1,106 @@
+name: smc-measurement-benchmark-rolling
+
+# E3 — Rolling Benchmark (Q3/Q4 plan §2.2 E3).
+#
+# Runs the measurement-benchmark harness daily against the same 20-symbol
+# universe as the weekly full-corpus job, but writes its artifacts under
+# a dated sub-directory and keeps only the most recent 30 days on the
+# upload-artifact path. This gives us:
+#
+#   * a 30-day rolling window for drift detection alongside the
+#     weekly lifetime snapshot (from smc-measurement-benchmark.yml), and
+#   * a daily cadence that the Phase F / Phase G auto-tuner can consume
+#     without waiting a full calendar week.
+#
+# Nothing in this workflow mutates the checked-in lifetime corpus or
+# production calibration — it is purely observational.
+
+on:
+  schedule:
+    # 07:30 UTC daily — after the US cash session close and the
+    # outcome-backfill run have had time to land yesterday's labels.
+    - cron: "30 7 * * *"
+  workflow_dispatch:
+    inputs:
+      symbols:
+        description: "Comma-separated symbols (default: full 20-sym universe)"
+        required: false
+        default: ""
+      timeframes:
+        description: "Comma-separated timeframes (default: 15m,1H)"
+        required: false
+        default: "15m,1H"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: smc-measurement-benchmark-rolling
+  cancel-in-progress: false
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+jobs:
+  rolling-benchmark:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pytest
+
+      - name: Resolve run date + output dir
+        id: meta
+        run: |
+          RUN_DATE="$(date -u +'%Y-%m-%d')"
+          echo "run_date=${RUN_DATE}" >> "$GITHUB_OUTPUT"
+          echo "out_dir=artifacts/ci/measurement_benchmark_rolling/${RUN_DATE}" >> "$GITHUB_OUTPUT"
+
+      - name: Run daily rolling benchmark
+        env:
+          DATABENTO_API_KEY: ${{ secrets.DATABENTO_API_KEY }}
+        run: |
+          set -euo pipefail
+          SYMBOLS="${{ github.event.inputs.symbols }}"
+          if [ -z "${SYMBOLS}" ]; then
+            SYMBOLS="AAPL,MSFT,AMZN,GOOGL,META,NVDA,TSLA,JPM,BAC,GS,MS,V,UNH,JNJ,HD,XOM,CVX,COP,OXY,CAT"
+          fi
+          TIMEFRAMES="${{ github.event.inputs.timeframes || '15m,1H' }}"
+          python scripts/run_smc_measurement_benchmark.py \
+            --symbols "${SYMBOLS}" \
+            --timeframes "${TIMEFRAMES}" \
+            --output-dir "${{ steps.meta.outputs.out_dir }}"
+
+      - name: Zone priority + testable calibration (rolling)
+        if: always()
+        run: |
+          python scripts/smc_zone_priority_calibration.py \
+            --benchmark-dir "${{ steps.meta.outputs.out_dir }}" \
+            --output-path "${{ steps.meta.outputs.out_dir }}/zone_priority_calibration.json"
+
+      - name: FVG label audit (rolling)
+        if: always()
+        run: |
+          python scripts/fvg_label_audit.py \
+            --benchmark-dir "${{ steps.meta.outputs.out_dir }}" \
+            --output-path "${{ steps.meta.outputs.out_dir }}/fvg_label_audit.json"
+
+      - name: Upload rolling benchmark artifacts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: smc-measurement-benchmark-rolling-${{ steps.meta.outputs.run_date }}
+          path: ${{ steps.meta.outputs.out_dir }}
+          retention-days: 30

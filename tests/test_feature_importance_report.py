@@ -126,3 +126,106 @@ class TestWorkflowIntegration:
         text = Path(".github/workflows/open-prep-outcome-backfill.yml").read_text(encoding="utf-8")
         assert "python -m open_prep.feature_importance_report" in text
         assert "artifacts/open_prep/feature_importance/" in text
+
+
+# ── Ranking drift detection (E4) ─────────────────────────────────────
+
+
+class TestRankingDrift:
+    def test_extract_ranking_from_features_dict(self) -> None:
+        raw = {
+            "features": {
+                "a": {"importance_normalized": 0.9},
+                "b": {"importance_normalized": 0.1},
+                "c": {"importance_normalized": 0.5},
+            }
+        }
+        assert fr._extract_ranking(raw) == ["a", "c", "b"]
+
+    def test_extract_ranking_handles_missing(self) -> None:
+        assert fr._extract_ranking(None) == []
+        assert fr._extract_ranking({}) == []
+        assert fr._extract_ranking({"features": "not a dict"}) == []
+
+    def test_compute_ranking_drift_ok_when_stable(self) -> None:
+        drift = fr.compute_ranking_drift(
+            ["a", "b", "c", "d"], ["a", "b", "c", "d"],
+            position_threshold=3, top_n=10,
+        )
+        assert drift["status"] == "ok"
+        assert drift["max_position_delta"] == 0
+        assert drift["drifted_features"] == []
+
+    def test_compute_ranking_drift_warns_on_large_shift(self) -> None:
+        drift = fr.compute_ranking_drift(
+            current=["c", "a", "b"],
+            previous=["a", "b", "c"],
+            position_threshold=1, top_n=10,
+        )
+        assert drift["status"] == "warn"
+        # 'c' moved from pos 3 to pos 1 → delta -2, abs 2 > 1
+        names = {d["feature"] for d in drift["drifted_features"]}
+        assert "c" in names
+
+    def test_compute_ranking_drift_unknown_on_empty(self) -> None:
+        assert fr.compute_ranking_drift([], [])["status"] == "unknown"
+        assert fr.compute_ranking_drift(["a"], [])["status"] == "unknown"
+
+    def test_generate_report_attaches_drift_when_both_ok(self, monkeypatch) -> None:
+        monkeypatch.setattr(
+            fr, "compute_feature_importance",
+            lambda **kw: {
+                "labeled_samples": 100,
+                "total_samples": 120,
+                "features": {
+                    "a": {"importance_normalized": 0.9},
+                    "b": {"importance_normalized": 0.7},
+                    "c": {"importance_normalized": 0.5},
+                    "d": {"importance_normalized": 0.3},
+                    "e": {"importance_normalized": 0.1},
+                },
+            },
+        )
+        # previous ranking is reversed → top feature drifts 4 positions,
+        # which exceeds the default threshold of 3.
+        previous = {
+            "status": "ok",
+            "report": {
+                "features": {
+                    "a": {"importance_normalized": 0.1},
+                    "b": {"importance_normalized": 0.3},
+                    "c": {"importance_normalized": 0.5},
+                    "d": {"importance_normalized": 0.7},
+                    "e": {"importance_normalized": 0.9},
+                }
+            },
+        }
+        rec = fr.generate_report(lookback_days=30, min_samples=30, previous_report=previous)
+        assert rec["status"] == "ok"
+        drift = rec["ranking_drift"]
+        assert drift["status"] == "warn"
+        assert drift["max_position_delta"] >= 4
+
+    def test_generate_report_drift_unknown_when_no_prior(self, monkeypatch) -> None:
+        monkeypatch.setattr(
+            fr, "compute_feature_importance",
+            lambda **kw: {
+                "labeled_samples": 100,
+                "total_samples": 100,
+                "features": {"a": {"importance_normalized": 1.0}},
+            },
+        )
+        rec = fr.generate_report(lookback_days=30, min_samples=30, previous_report=None)
+        assert rec["ranking_drift"]["status"] == "unknown"
+
+    def test_load_previous_latest_missing(self, tmp_path) -> None:
+        assert fr._load_previous_latest(tmp_path) is None
+
+    def test_load_previous_latest_invalid_json(self, tmp_path) -> None:
+        (tmp_path / "latest.json").write_text("{not json", encoding="utf-8")
+        assert fr._load_previous_latest(tmp_path) is None
+
+    def test_load_previous_latest_roundtrip(self, tmp_path) -> None:
+        payload = {"status": "ok", "run_id": "x"}
+        (tmp_path / "latest.json").write_text(json.dumps(payload), encoding="utf-8")
+        assert fr._load_previous_latest(tmp_path) == payload
