@@ -848,6 +848,9 @@ read.
 - `tests/test_plan_2_8_ledger_false_value_count.py`
 - `tests/test_plan_2_8_digest_wasm_file_count.py`
 - `tests/test_plan_2_8_weekly_summary_period_line_count.py`
+- `tests/test_plan_2_8_ledger_single_key_record_count.py`
+- `tests/test_plan_2_8_digest_pem_file_count.py`
+- `tests/test_plan_2_8_weekly_summary_hyphen_line_count.py`
 - `tests/test_plan_2_8_alert_history.py`
 - `tests/test_plan_2_8_alert_history_summary.py`
 - `tests/test_plan_2_8_digest_rollup.py`
