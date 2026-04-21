@@ -185,6 +185,23 @@ jobs:
             gh issue create --title "${TITLE}" --body-file /tmp/issue_body.md --label f2-rollback
           fi
 
+      - name: Auto-revert contextual calibration (§2.4 G2)
+        # Demote the treatment artifact from production -> shadow and
+        # journal the action. No-op when the artifact does not exist
+        # yet (chicken-and-egg) or is already shadow. Failure here
+        # MUST NOT mask the gate exit code.
+        if: steps.locate.outputs.status == 'ready' && steps.gate.outputs.rc == '2'
+        run: |
+          set +e
+          mkdir -p artifacts/ci/f2
+          python scripts/f2_revert_contextual_weights.py \
+            --spec    artifacts/experiments/f2_contextual_promotion.json \
+            --report  "${{ steps.gate.outputs.report }}" \
+            --journal artifacts/ci/f2/revert_journal.jsonl
+          # Tolerate non-zero so the workflow's own rc=2 stays the
+          # primary signal.
+          true
+
       - name: Annotate decision
         if: always() && steps.locate.outputs.status == 'ready'
         run: |
@@ -225,6 +242,8 @@ jobs:
             artifacts/reports/f2_promotion_gate_*.json
             artifacts/ci/f2/rollback_history.json
             artifacts/ci/f2/history_summary.json
+            artifacts/ci/f2/revert_journal.jsonl
+            artifacts/ci/f2/contextual_calibration.archive/**
             gate_stdout.json
           if-no-files-found: ignore
           retention-days: 60

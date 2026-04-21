@@ -6,6 +6,37 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-21) — Q3/Q4 Plan §2.4 G2 automatic Revert
+
+- **F2 contextual-weights auto-revert:** New
+  `scripts/f2_revert_contextual_weights.py` closes the explicit
+  "automatic Revert" half of the §2.4 G2 rule (the Issue-Ping half
+  shipped in `2c284591`). Reads the F2 spec + the most recent
+  promotion-gate report, validates `decision == 'rollback'` (refuses
+  to demote any other decision unless `--force`), archives the live
+  treatment calibration JSON to
+  `artifacts/ci/f2/contextual_calibration.archive/<stem>_<UTC-ISO>.json`,
+  rewrites the live file with `status=shadow`, and appends a
+  `revert_history` entry that records the from-status, report path,
+  decision, and archive location. Always appends a JSONL line to
+  `artifacts/ci/f2/revert_journal.jsonl` (even on no-op paths) so
+  the audit trail is complete. Atomic writes via tempfile +
+  `os.replace`. Idempotent; no network. CLI exit codes: `0` on
+  success / no-op, `1` on missing spec/report/artifact-field /
+  malformed JSON / wrong decision without `--force`. 15 new tests;
+  total green across the F2/SPRT/AB chain now 155.
+- **Workflow auto-revert wiring:** Updated
+  `.github/workflows/f2-promotion-gate-daily.yml` with a new
+  "Auto-revert contextual calibration (§2.4 G2)" step that runs
+  only on `steps.gate.outputs.rc == '2'`, after the Issue-Ping
+  step. Failure is tolerated (`true` after `set +e`) so the
+  workflow's own rc=2 stays the primary signal. The journal file
+  and archive directory are added to the upload-artifact bundle.
+- **Issue body runbook updated:** Step 2 of the rollback Issue
+  body now reflects that the contextual JSON has *already* been
+  demoted automatically; operators are pointed at the journal +
+  archive instead of being asked to demote by hand.
+
 ### Added (2026-04-21) — Q3/Q4 Plan §2.3 F2 daily-history summarizer
 
 - **F2 history summarizer:** New `scripts/f2_summarize_history.py`

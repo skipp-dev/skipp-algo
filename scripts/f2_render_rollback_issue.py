@@ -116,9 +116,13 @@ def render_body(
         "promotion-gate JSON artifact and the linked workflow run."
     )
     lines.append(
-        "2. If the rollback is genuine, demote the contextual "
-        "calibration JSON back to the previous version and regen the "
-        "Pine export."
+        "2. The contextual calibration JSON has already been demoted "
+        "to `status=shadow` automatically by the daily workflow "
+        "(`scripts/f2_revert_contextual_weights.py`). Review the "
+        "`revert_journal.jsonl` and the archived copy under "
+        "`artifacts/ci/f2/contextual_calibration.archive/` in the "
+        "uploaded artifact. Regenerate the Pine export only if the "
+        "shipping artifact has changed."
     )
     lines.append(
         "3. After the manual review concludes, RESET the daily ring "
