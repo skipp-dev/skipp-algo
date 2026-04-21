@@ -6,6 +6,16 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-08-08) — Plan 2.8 nonempty records + p12 + bracket-close lines
+
+- `scripts/plan_2_8_ledger_nonempty_record_count.py` counts ledger
+  records with at least one top-level key.
+- `scripts/plan_2_8_digest_p12_file_count.py` counts top-level `.p12`
+  files.
+- `scripts/plan_2_8_weekly_summary_bracket_close_line_count.py` counts
+  lines containing an ASCII `]`.
+- Weekly digest workflow wires three fail-soft compute+upload step pairs.
+
 ### Added (2026-08-07) — Plan 2.8 empty records + pfx + bracket-open lines
 
 - `scripts/plan_2_8_ledger_empty_record_count.py` counts ledger records

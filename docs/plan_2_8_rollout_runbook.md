@@ -863,6 +863,9 @@ read.
 - `tests/test_plan_2_8_ledger_empty_record_count.py`
 - `tests/test_plan_2_8_digest_pfx_file_count.py`
 - `tests/test_plan_2_8_weekly_summary_bracket_open_line_count.py`
+- `tests/test_plan_2_8_ledger_nonempty_record_count.py`
+- `tests/test_plan_2_8_digest_p12_file_count.py`
+- `tests/test_plan_2_8_weekly_summary_bracket_close_line_count.py`
 - `tests/test_plan_2_8_alert_history.py`
 - `tests/test_plan_2_8_alert_history_summary.py`
 - `tests/test_plan_2_8_digest_rollup.py`
