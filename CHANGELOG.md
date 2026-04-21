@@ -6,6 +6,16 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-07-28) — Plan 2.8 empty arrays + ova + underscore lines
+
+- `scripts/plan_2_8_ledger_empty_array_value_count.py` counts top-level
+  empty-list values across ledger JSON-object records.
+- `scripts/plan_2_8_digest_ova_file_count.py` counts top-level `.ova`
+  files.
+- `scripts/plan_2_8_weekly_summary_underscore_line_count.py` counts lines
+  containing an ASCII `_`.
+- Weekly digest workflow wires three fail-soft compute+upload step pairs.
+
 ### Added (2026-07-27) — Plan 2.8 positive numbers + qcow2 + backslash lines
 
 - `scripts/plan_2_8_ledger_positive_number_value_count.py` counts top-level

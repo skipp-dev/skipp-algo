@@ -830,6 +830,9 @@ read.
 - `tests/test_plan_2_8_ledger_positive_number_value_count.py`
 - `tests/test_plan_2_8_digest_qcow2_file_count.py`
 - `tests/test_plan_2_8_weekly_summary_backslash_line_count.py`
+- `tests/test_plan_2_8_ledger_empty_array_value_count.py`
+- `tests/test_plan_2_8_digest_ova_file_count.py`
+- `tests/test_plan_2_8_weekly_summary_underscore_line_count.py`
 - `tests/test_plan_2_8_alert_history.py`
 - `tests/test_plan_2_8_alert_history_summary.py`
 - `tests/test_plan_2_8_digest_rollup.py`
