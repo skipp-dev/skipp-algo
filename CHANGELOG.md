@@ -6,6 +6,20 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-28) — Plan 2.8 run max + avg size + json-fence
+
+- New `scripts/plan_2_8_ledger_status_run_max.py`
+  reports the longest consecutive status run.
+- New `scripts/plan_2_8_digest_avg_size.py` reports
+  mean bytes per file across the artifact directory.
+- New `scripts/plan_2_8_weekly_summary_json_fence_count.py`
+  counts fenced code blocks whose info-string is
+  ``json``/``json5``/``jsonc``.
+- Weekly workflow wires the three new steps after the
+  yaml-fence upload.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six
+  new script+test pairs.
+
 ### Added (2026-04-28) — Plan 2.8 run summary + shortest filename + yaml-fence
 
 - New `scripts/plan_2_8_ledger_status_run_summary.py`
