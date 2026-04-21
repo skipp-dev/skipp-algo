@@ -6,6 +6,16 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-08-06) — Plan 2.8 odd-key records + der + paren-close lines
+
+- `scripts/plan_2_8_ledger_odd_key_record_count.py` counts ledger
+  records whose top-level key count is odd.
+- `scripts/plan_2_8_digest_der_file_count.py` counts top-level `.der`
+  files.
+- `scripts/plan_2_8_weekly_summary_paren_close_line_count.py` counts
+  lines containing an ASCII `)`.
+- Weekly digest workflow wires three fail-soft compute+upload step pairs.
+
 ### Added (2026-08-05) — Plan 2.8 even-key records + key + paren-open lines
 
 - `scripts/plan_2_8_ledger_even_key_record_count.py` counts ledger
