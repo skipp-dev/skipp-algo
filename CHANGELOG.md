@@ -6,6 +6,19 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-07-15) — Plan 2.8 object values + ace + question lines
+
+- New `scripts/plan_2_8_ledger_object_value_count.py` counts top-level
+  object-typed field values across ledger records.
+- New `scripts/plan_2_8_digest_ace_file_count.py` counts top-level
+  ``.ace`` files.
+- New `scripts/plan_2_8_weekly_summary_question_mark_line_count.py`
+  counts lines containing at least one ``?``.
+- Weekly workflow wires the three new fail-soft step pairs after the
+  semicolon-line upload.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six new
+  script+test pairs.
+
 ### Added (2026-07-14) — Plan 2.8 array values + lha + semicolon lines
 
 - New `scripts/plan_2_8_ledger_array_value_count.py` counts top-level
