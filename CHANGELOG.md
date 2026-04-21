@@ -6,6 +6,23 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-21) — Plan 2.8 recent green ratio + median size + emphasis count
+
+- New `scripts/plan_2_8_ledger_recent_green_ratio.py` reports
+  the green-share ratio over the trailing N ledger records
+  (``None`` when the window is empty); ``--fail-below-ratio``
+  for CI.
+- New `scripts/plan_2_8_digest_median_size.py` reports the
+  median file size across the artifact dir; subdirs ignored.
+- New `scripts/plan_2_8_weekly_summary_emphasis_count.py`
+  counts bold (``**...**``) and italic (``*...*`` or
+  ``_..._``) spans outside fenced code blocks; bold markers
+  stripped before italic scan to avoid double-counting.
+- Weekly workflow wires the three new steps after tables
+  count.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six new
+  script+test pairs.
+
 ### Added (2026-04-21) — Plan 2.8 last-N summary + mean size + tables count
 
 - New `scripts/plan_2_8_ledger_last_n_summary.py` reports

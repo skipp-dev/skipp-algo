@@ -2577,6 +2577,76 @@ jobs:
           if-no-files-found: ignore
           retention-days: 365
 
+      - name: Plan 2.8 ledger recent green ratio
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          ledger="artifacts/plan_2_8_digest/state_ledger.jsonl"
+          [ -s "${ledger}" ] || exit 0
+          python scripts/plan_2_8_ledger_recent_green_ratio.py \
+            --ledger "${ledger}" \
+            --last-n 10 \
+            --format md \
+            --output artifacts/plan_2_8_digest/ledger_recent_green_ratio.md \
+            > /dev/null
+          true
+
+      - name: Upload Plan 2.8 ledger recent green ratio
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-ledger-recent-green-ratio
+          path: artifacts/plan_2_8_digest/ledger_recent_green_ratio.md
+          if-no-files-found: ignore
+          retention-days: 365
+
+      - name: Plan 2.8 digest median size
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          dir="artifacts/plan_2_8_digest"
+          [ -d "${dir}" ] || exit 0
+          python scripts/plan_2_8_digest_median_size.py \
+            --artifact-dir "${dir}" \
+            --format md \
+            --output artifacts/plan_2_8_digest/digest_median_size.md \
+            > /dev/null
+          true
+
+      - name: Upload Plan 2.8 digest median size
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-digest-median-size
+          path: artifacts/plan_2_8_digest/digest_median_size.md
+          if-no-files-found: ignore
+          retention-days: 365
+
+      - name: Plan 2.8 weekly summary emphasis count
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          summary="artifacts/plan_2_8_digest/weekly_summary.md"
+          [ -s "${summary}" ] || exit 0
+          python scripts/plan_2_8_weekly_summary_emphasis_count.py \
+            --summary "${summary}" \
+            --format md \
+            --output artifacts/plan_2_8_digest/summary_emphasis_count.md \
+            > /dev/null
+          true
+
+      - name: Upload Plan 2.8 weekly summary emphasis count
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-weekly-summary-emphasis-count
+          path: artifacts/plan_2_8_digest/summary_emphasis_count.md
+          if-no-files-found: ignore
+          retention-days: 365
+
       - name: Open drift-alert issue
         if: steps.resolve_alerts.outputs.has_alerts == 'True'
         env:
