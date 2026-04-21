@@ -6,6 +6,26 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-21) — Plan 2.8 alert snooze + top movers
+
+- `scripts/plan_2_8_alert_snooze.py`: filter a trend-digest JSON
+  against a snooze config. Supports tf-only / tf+family matching,
+  optional ISO `expires`, invalid-timestamp safety (treated as
+  inactive). Does not mutate input; records the suppressed alerts
+  under a new `snoozed` key for triage.
+- `scripts/plan_2_8_top_movers.py`: rank TF×family slices by
+  `|delta_pp|` across a configurable lookback window. Honors
+  `min_events` floor; renders both "gainers" and "losers" tables.
+- `.github/workflows/plan-2-8-weekly-digest.yml`: new fail-soft
+  "Plan 2.8 top movers (30-day window)" step streams the table into
+  the run summary below the existing snapshot diff.
+- `scripts/plan_2_8_status.py`: Phase 1 anchors include the two
+  new helpers + their test files.
+- Docs: runbook gains a top-movers / alert-snooze section; pin-test
+  inventory refreshed.
+- Tests: +10 alert-snooze, +11 top-movers, +1 weekly workflow step
+  pin-test (22 new).
+
 ### Added (2026-04-21) — Plan 2.8 snapshot diff + drift-alert auto-close
 
 - `scripts/plan_2_8_history_diff.py`: diff any two snapshots in the

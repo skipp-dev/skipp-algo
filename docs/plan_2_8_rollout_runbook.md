@@ -215,6 +215,26 @@ python scripts/plan_2_8_history_diff.py \
   --latest-captured-at 2026-04-21T07:00:00Z
 ```
 
+### Top movers & alert snooze
+
+[`scripts/plan_2_8_top_movers.py`](../scripts/plan_2_8_top_movers.py)
+ranks TF×family slices by `|delta_pp|` across a lookback window (30d
+by default); the weekly workflow streams its output into the run
+summary alongside the snapshot diff.
+
+[`scripts/plan_2_8_alert_snooze.py`](../scripts/plan_2_8_alert_snooze.py)
+applies a snooze config to an existing digest JSON so operators can
+temporarily silence a known-noisy slice. Each snooze entry carries
+an optional `expires` ISO timestamp; invalid timestamps are treated
+as inactive so a typo never silently hides an alert.
+
+```
+python scripts/plan_2_8_alert_snooze.py \
+  --digest /tmp/digest.json \
+  --snooze configs/plan_2_8_snoozes.json \
+  --output /tmp/digest.snoozed.json
+```
+
 ## Pin-test inventory
 
 - `tests/test_plan_2_8_s0_pine_trend_tf_tooltips.py`
@@ -233,6 +253,8 @@ python scripts/plan_2_8_history_diff.py \
 - `tests/test_plan_2_8_history_rotate.py`
 - `tests/test_plan_2_8_history_validate.py`
 - `tests/test_plan_2_8_history_diff.py`
+- `tests/test_plan_2_8_top_movers.py`
+- `tests/test_plan_2_8_alert_snooze.py`
 - `tests/test_plan_2_8_rolling_workflow_rotate_wiring.py`
 - `tests/test_plan_2_8_rolling_workflow_validate_wiring.py`
 - `tests/test_plan_2_8_trend_digest.py`

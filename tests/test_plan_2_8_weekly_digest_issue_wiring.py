@@ -91,6 +91,20 @@ def test_history_diff_step_present_and_fail_soft() -> None:
     assert "GITHUB_STEP_SUMMARY" in run
 
 
+def test_top_movers_step_present_and_fail_soft() -> None:
+    steps = _wf()["jobs"]["weekly-digest"]["steps"]
+    movers = next(s for s in steps
+                  if s.get("name") == "Plan 2.8 top movers (30-day window)")
+    assert movers["if"].strip() == "always()"
+    run = movers["run"]
+    assert "scripts/plan_2_8_top_movers.py" in run
+    assert "--lookback-days 30" in run
+    assert "--top-n         5" in run
+    assert "set +e" in run
+    assert run.rstrip().endswith("true")
+    assert "GITHUB_STEP_SUMMARY" in run
+
+
 def test_issue_step_uses_github_token() -> None:
     steps = _wf()["jobs"]["weekly-digest"]["steps"]
     issue = next(s for s in steps if s.get("name") == "Open drift-alert issue")

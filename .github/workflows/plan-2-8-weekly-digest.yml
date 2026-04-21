@@ -181,3 +181,28 @@ jobs:
               >> "${GITHUB_STEP_SUMMARY}"
           fi
           true
+
+      - name: Plan 2.8 top movers (30-day window)
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          history="$(find artifacts/latest_bench -name plan_2_8_history.jsonl -print -quit)"
+          if [ -z "${history}" ]; then
+            echo "No history found; skipping top-movers."
+            exit 0
+          fi
+          mkdir -p artifacts/plan_2_8_digest
+          python scripts/plan_2_8_top_movers.py \
+            --history      "${history}" \
+            --lookback-days 30 \
+            --min-events    "${{ inputs.min_events || '30' }}" \
+            --top-n         5 \
+            --output        artifacts/plan_2_8_digest/top_movers.md \
+            > /dev/null
+          if [ -s artifacts/plan_2_8_digest/top_movers.md ] \
+              && [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+            cat artifacts/plan_2_8_digest/top_movers.md \
+              >> "${GITHUB_STEP_SUMMARY}"
+          fi
+          true
