@@ -6,6 +6,23 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-21) — Plan 2.8 Phase 1 per-TF family rollup + E2 verdict
+
+- `scripts/plan_2_8_tf_family_rollup.py`: aggregates
+  `scoring_<symbol>_<tf>.json` artifacts under a measurement-benchmark
+  root into per-TF event counts, per-TF hit rates, per-TF x per-family
+  hit rates, and two Phase-E2 verdicts mandated by the addendum
+  (W8 deliverable):
+    - `fvg_ttf_5m_vs_baseline`: FVG hit-rate on 5m vs the merged
+      15m+1H baseline (tests the TTF-artefact hypothesis D3).
+    - `bos_stability_4h_vs_baseline`: BOS hit-rate on 4H vs the
+      merged 15m+1H baseline (tests the 4H swing-stability claim).
+  Both verdicts report `insufficient_data` when either side carries
+  < 30 events, so downstream automation cannot act on noise. Schema
+  version 1. CLI: `--scoring-root`, `--timeframes`, `--output`,
+  `--format md|json`, `--quiet`. Tolerates unreadable files and
+  flags unknown timeframes. 12 tests.
+
 ### Added (2026-04-21) — Plan 2.8 S3.1 per-TF partitioning pin-test
 
 - `tests/test_plan_2_8_s3_1_per_tf_partitioning.py`: 4 structural
