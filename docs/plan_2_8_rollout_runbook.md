@@ -770,6 +770,9 @@ read.
 - `tests/test_plan_2_8_ledger_json_invalid_count.py`
 - `tests/test_plan_2_8_digest_ipa_file_count.py`
 - `tests/test_plan_2_8_weekly_summary_table_row_count.py`
+- `tests/test_plan_2_8_ledger_unique_record_count.py`
+- `tests/test_plan_2_8_digest_pkg_file_count.py`
+- `tests/test_plan_2_8_weekly_summary_table_separator_count.py`
 - `tests/test_plan_2_8_alert_history.py`
 - `tests/test_plan_2_8_alert_history_summary.py`
 - `tests/test_plan_2_8_digest_rollup.py`
