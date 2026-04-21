@@ -6,6 +6,19 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-05-17) — Plan 2.8 last red + csv files + semicolon
+
+- New `scripts/plan_2_8_ledger_last_red_index.py` reports the
+  zero-based index of the most recent red observation.
+- New `scripts/plan_2_8_digest_csv_file_count.py` counts top-level
+  ``.csv`` files.
+- New `scripts/plan_2_8_weekly_summary_semicolon_char_count.py`
+  counts ``;`` characters in the summary.
+- Weekly workflow wires the three new steps after the comma-count
+  upload.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six new
+  script+test pairs.
+
 ### Added (2026-05-16) — Plan 2.8 last amber + png files + comma
 
 - New `scripts/plan_2_8_ledger_last_amber_index.py` reports the
