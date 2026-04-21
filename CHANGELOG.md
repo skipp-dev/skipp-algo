@@ -6,6 +6,19 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-06-06) — Plan 2.8 red variance + psd + gt
+
+- New `scripts/plan_2_8_ledger_red_index_variance.py` reports the
+  population variance of red indices.
+- New `scripts/plan_2_8_digest_psd_file_count.py` counts top-level
+  ``.psd`` files.
+- New `scripts/plan_2_8_weekly_summary_gt_char_count.py` counts
+  ``>`` characters in the summary.
+- Weekly workflow wires the three new steps after the ``<`` char
+  upload.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six new
+  script+test pairs.
+
 ### Added (2026-06-05) — Plan 2.8 amber variance + avif + lt
 
 - New `scripts/plan_2_8_ledger_amber_index_variance.py` reports
