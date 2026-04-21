@@ -6,6 +6,24 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Changed (2026-04-21) — wire status inspector into daily workflow
+
+- `.github/workflows/f2-promotion-gate-daily.yml`: new `if: always()`
+  "Contextual arm status snapshot" step runs `f2_inspect_status.py`
+  after the history summary, writes `artifacts/ci/f2/status_snapshot.json`
+  and appends a fenced JSON block to `$GITHUB_STEP_SUMMARY`. Failure
+  tolerated with `|| true` so it cannot mask the gate's exit code.
+  Upload bundle now also carries `promote_journal.jsonl` and
+  `status_snapshot.json`.
+- `tests/test_f2_workflow_yaml_contract.py`: pinned the new step in
+  the ordering invariant (annotate < summary < status < upload),
+  pinned `always()` on the new step, and pinned the two new upload
+  paths.
+- `tests/test_f2_pipeline_e2e.py`: end-to-end now also calls the
+  inspector after the rotate step, asserting that artifact status,
+  revert-history length, journal counters, and latest report all
+  agree.
+
 ### Added (2026-04-21) — Q3/Q4 Plan §2.3 F2 + §2.4 G2 status inspector
 
 - `scripts/f2_inspect_status.py`: read-only operator inspector that

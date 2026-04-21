@@ -82,10 +82,11 @@ def test_step_order_matches_rollback_flow_contract() -> None:
     i_revert   = idx_starts("Auto-revert contextual calibration")
     i_annotate = idx_starts("Annotate decision")
     i_summary  = idx_starts("Pipeline status summary")
+    i_status   = idx_starts("Contextual arm status snapshot")
     i_upload   = idx_starts("Upload promotion-gate artifact")
 
     assert i_gate < i_append < i_issue < i_revert < i_annotate
-    assert i_annotate < i_summary < i_upload
+    assert i_annotate < i_summary < i_status < i_upload
 
 
 def test_append_history_only_on_rc_zero() -> None:
@@ -115,8 +116,10 @@ def test_auto_revert_only_on_rc_two() -> None:
 def test_annotate_and_summary_run_on_always() -> None:
     annotate_cond = _step_by_name("Annotate decision")["if"]
     summary_cond  = _step_by_name("Pipeline status summary")["if"]
+    status_cond   = _step_by_name("Contextual arm status snapshot")["if"]
     assert "always()" in annotate_cond
     assert "always()" in summary_cond
+    assert "always()" in status_cond
 
 
 def test_upload_bundle_carries_revert_artifacts() -> None:
@@ -124,7 +127,9 @@ def test_upload_bundle_carries_revert_artifacts() -> None:
     paths = step["with"]["path"]
     # `path:` is a multi-line string in upload-artifact@v4.
     assert "revert_journal.jsonl" in paths
+    assert "promote_journal.jsonl" in paths
     assert "contextual_calibration.archive/**" in paths
     assert "rollback_history.json" in paths
     assert "history_summary.json" in paths
+    assert "status_snapshot.json" in paths
     assert step["with"]["retention-days"] == 60

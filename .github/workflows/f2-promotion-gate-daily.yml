@@ -233,6 +233,31 @@ jobs:
             } >> "${GITHUB_STEP_SUMMARY}"
           fi
 
+      - name: Contextual arm status snapshot
+        # Always runs. Fuses the live treatment artifact, both journals
+        # (revert + promote), and the latest promotion-gate report into
+        # one operator-readable JSON. Failure here MUST NOT mask the
+        # gate exit code, so we tolerate a non-zero rc.
+        if: always()
+        run: |
+          mkdir -p artifacts/ci/f2
+          python scripts/f2_inspect_status.py \
+            --spec            artifacts/experiments/f2_contextual_promotion.json \
+            --revert-journal  artifacts/ci/f2/revert_journal.jsonl \
+            --promote-journal artifacts/ci/f2/promote_journal.jsonl \
+            --reports-dir     artifacts/reports \
+            --output          artifacts/ci/f2/status_snapshot.json || true
+          if [ -f artifacts/ci/f2/status_snapshot.json ] && [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+            {
+              echo '## F2 contextual arm status'
+              echo ''
+              echo '```json'
+              cat artifacts/ci/f2/status_snapshot.json
+              echo ''
+              echo '```'
+            } >> "${GITHUB_STEP_SUMMARY}"
+          fi
+
       - name: Upload promotion-gate artifact
         if: always() && steps.locate.outputs.status == 'ready'
         uses: actions/upload-artifact@v4
@@ -242,7 +267,9 @@ jobs:
             artifacts/reports/f2_promotion_gate_*.json
             artifacts/ci/f2/rollback_history.json
             artifacts/ci/f2/history_summary.json
+            artifacts/ci/f2/status_snapshot.json
             artifacts/ci/f2/revert_journal.jsonl
+            artifacts/ci/f2/promote_journal.jsonl
             artifacts/ci/f2/contextual_calibration.archive/**
             gate_stdout.json
           if-no-files-found: ignore

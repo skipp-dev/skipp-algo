@@ -22,6 +22,7 @@ import json
 from pathlib import Path
 
 from scripts.f2_append_rollback_history import append_history
+from scripts.f2_inspect_status import build_status
 from scripts.f2_render_rollback_issue import ISSUE_LABEL, render_body, render_title
 from scripts.f2_revert_contextual_weights import revert_contextual_weights
 from scripts.f2_rotate_rollback_history import rotate_history
@@ -173,6 +174,24 @@ def test_f2_pipeline_e2e_happy_then_rollback(tmp_path: Path) -> None:
     assert digest["decisions"]["rollback"] == 1
     assert digest["decisions"]["hold"] == 3
     assert digest["latest_sprt"]["decision"] == "accept_h0"
+
+    # ------------------------------------------------------------------
+    # Operator pings the inspector — must reflect: artifact demoted to
+    # shadow with one revert_history entry, revert_journal has one
+    # 'reverted' line, latest report still the rollback one.
+    # ------------------------------------------------------------------
+    status = build_status(
+        spec_path=spec_path,
+        revert_journal=journal_path,
+        reports_dir=reports_dir,
+    )
+    assert status["artifact"]["status"] == "shadow"
+    assert status["artifact"]["revert_history_len"] == 1
+    assert status["revert_journal"]["len"] == 1
+    assert status["revert_journal"]["actions"] == {"reverted": 1}
+    assert status["promote_journal"]["len"] == 0
+    assert status["latest_report"]["decision"] == "rollback"
+    assert status["latest_report"]["date"] == "2026-04-21"
 
 
 def test_f2_pipeline_e2e_revert_idempotent_on_second_rollback(tmp_path: Path) -> None:
