@@ -6,6 +6,19 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-05-04) — Plan 2.8 most common + executable + mean line
+
+- New `scripts/plan_2_8_ledger_most_common_status.py` reports
+  the most common canonical status.
+- New `scripts/plan_2_8_digest_executable_file_count.py`
+  counts executable top-level regular files.
+- New `scripts/plan_2_8_weekly_summary_mean_line_length.py`
+  reports mean line length across all lines.
+- Weekly workflow wires the three new steps after the
+  first-line-length upload.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six
+  new script+test pairs.
+
 ### Added (2026-05-03) — Plan 2.8 rarest + writable + first-line
 
 - New `scripts/plan_2_8_ledger_rarest_status.py` reports

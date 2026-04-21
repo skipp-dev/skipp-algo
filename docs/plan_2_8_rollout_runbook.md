@@ -548,6 +548,9 @@ read.
 - `tests/test_plan_2_8_ledger_rarest_status.py`
 - `tests/test_plan_2_8_digest_writable_file_count.py`
 - `tests/test_plan_2_8_weekly_summary_first_line_length.py`
+- `tests/test_plan_2_8_ledger_most_common_status.py`
+- `tests/test_plan_2_8_digest_executable_file_count.py`
+- `tests/test_plan_2_8_weekly_summary_mean_line_length.py`
 - `tests/test_plan_2_8_alert_history.py`
 - `tests/test_plan_2_8_alert_history_summary.py`
 - `tests/test_plan_2_8_digest_rollup.py`
