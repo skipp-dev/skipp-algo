@@ -632,6 +632,9 @@ read.
 - `tests/test_plan_2_8_ledger_unknown_index_mean.py`
 - `tests/test_plan_2_8_digest_zip_file_count.py`
 - `tests/test_plan_2_8_weekly_summary_underscore_char_count.py`
+- `tests/test_plan_2_8_ledger_status_transition_count.py`
+- `tests/test_plan_2_8_digest_tar_file_count.py`
+- `tests/test_plan_2_8_weekly_summary_plus_char_count.py`
 - `tests/test_plan_2_8_alert_history.py`
 - `tests/test_plan_2_8_alert_history_summary.py`
 - `tests/test_plan_2_8_digest_rollup.py`
