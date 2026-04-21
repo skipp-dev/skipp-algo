@@ -6,6 +6,19 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-21) — Plan 2.8 S3.1 per-TF partitioning pin-test
+
+- `tests/test_plan_2_8_s3_1_per_tf_partitioning.py`: 4 structural
+  tests pinning that `_path_token` is stable under the exact
+  `RELEASE_REFERENCE_TIMEFRAMES` strings (`"5m"`, `"15m"`, `"1H"`,
+  `"4H"`), that `_pair_output_dir` partitions all four TFs into
+  distinct directories under the symbol root (no collisions), and
+  that per-symbol separation is preserved. Addendum 2.8 Phase 1
+  deliverable: without this guard a regression could silently merge
+  5m + 15m events into the same scoring bucket and break per-chart_tf
+  calibration right at the layer the addendum is designed to
+  strengthen.
+
 ### Changed (2026-04-21) — Plan 2.8 S0 Pine MTF-stack tooltips
 
 - `SMC_Core_Engine.pine`: the three `Trend TF N` inputs (group
