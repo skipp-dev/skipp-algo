@@ -710,6 +710,9 @@ read.
 - `tests/test_plan_2_8_ledger_amber_streak_count.py`
 - `tests/test_plan_2_8_digest_wmv_file_count.py`
 - `tests/test_plan_2_8_weekly_summary_null_byte_char_count.py`
+- `tests/test_plan_2_8_ledger_red_streak_count.py`
+- `tests/test_plan_2_8_digest_flv_file_count.py`
+- `tests/test_plan_2_8_weekly_summary_space_char_count.py`
 - `tests/test_plan_2_8_alert_history.py`
 - `tests/test_plan_2_8_alert_history_summary.py`
 - `tests/test_plan_2_8_digest_rollup.py`

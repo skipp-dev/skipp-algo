@@ -6,6 +6,19 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-06-18) — Plan 2.8 red streak-count + flv + space
+
+- New `scripts/plan_2_8_ledger_red_streak_count.py` counts
+  distinct runs of red statuses.
+- New `scripts/plan_2_8_digest_flv_file_count.py` counts
+  top-level ``.flv`` files.
+- New `scripts/plan_2_8_weekly_summary_space_char_count.py`
+  counts ASCII space characters in the summary.
+- Weekly workflow wires the three new steps after the null-byte
+  upload.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six new
+  script+test pairs.
+
 ### Added (2026-06-17) — Plan 2.8 amber streak-count + wmv + null-byte
 
 - New `scripts/plan_2_8_ledger_amber_streak_count.py` counts
