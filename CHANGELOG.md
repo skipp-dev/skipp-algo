@@ -6,6 +6,25 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-21) — Plan 2.8 weekday histogram + summary index + gap detector
+
+- New `scripts/plan_2_8_ledger_weekday_histogram.py` buckets
+  records per UTC weekday (Mon=0..Sun=6) with name-friendly md
+  rendering; reports empty_weekdays list; `--fail-on-empty-weekdays N`
+  gates CI.
+- New `scripts/plan_2_8_digest_summary_index.py` walks an
+  artifact directory and builds a `.md` manifest with per-file
+  size and first `# ` heading (falls back to filename); non-md
+  files and subdirectories are ignored.
+- New `scripts/plan_2_8_ledger_gap_detector.py` reports gaps
+  between consecutive `captured_at` timestamps exceeding
+  `--threshold-hours` (default 24); `--fail-on-gaps` gates CI;
+  boundary (exactly threshold) is not flagged.
+- Weekly workflow wires weekday-histogram, summary-index, and
+  gap-detector steps after required-sections.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six new
+  script+test pairs.
+
 ### Added (2026-04-21) — Plan 2.8 hour histogram + stale report + required sections
 
 - New `scripts/plan_2_8_ledger_hour_histogram.py` buckets

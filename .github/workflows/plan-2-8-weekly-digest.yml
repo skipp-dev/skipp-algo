@@ -2074,6 +2074,85 @@ jobs:
           if-no-files-found: ignore
           retention-days: 365
 
+      - name: Plan 2.8 ledger weekday histogram
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          ledger="artifacts/plan_2_8_digest/status_ledger.jsonl"
+          if [ ! -s "${ledger}" ]; then
+            echo "No ledger; skipping weekday histogram."
+            exit 0
+          fi
+          python scripts/plan_2_8_ledger_weekday_histogram.py \
+            --ledger "${ledger}" \
+            --format md \
+            --output artifacts/plan_2_8_digest/weekday_histogram.md \
+            > /dev/null
+          true
+
+      - name: Upload Plan 2.8 ledger weekday histogram
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-ledger-weekday-histogram
+          path: artifacts/plan_2_8_digest/weekday_histogram.md
+          if-no-files-found: ignore
+          retention-days: 365
+
+      - name: Plan 2.8 digest summary index
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          dir="artifacts/plan_2_8_digest"
+          if [ ! -d "${dir}" ]; then
+            echo "No artifact dir; skipping summary index."
+            exit 0
+          fi
+          python scripts/plan_2_8_digest_summary_index.py \
+            --artifact-dir "${dir}" \
+            --format       md \
+            --output       "${dir}/summary_index.md" \
+            > /dev/null
+          true
+
+      - name: Upload Plan 2.8 digest summary index
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-digest-summary-index
+          path: artifacts/plan_2_8_digest/summary_index.md
+          if-no-files-found: ignore
+          retention-days: 365
+
+      - name: Plan 2.8 ledger gap detector
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          ledger="artifacts/plan_2_8_digest/status_ledger.jsonl"
+          if [ ! -s "${ledger}" ]; then
+            echo "No ledger; skipping gap detector."
+            exit 0
+          fi
+          python scripts/plan_2_8_ledger_gap_detector.py \
+            --ledger          "${ledger}" \
+            --threshold-hours 24 \
+            --format          md \
+            --output          artifacts/plan_2_8_digest/gaps.md \
+            > /dev/null
+          true
+
+      - name: Upload Plan 2.8 ledger gap detector
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-ledger-gap-detector
+          path: artifacts/plan_2_8_digest/gaps.md
+          if-no-files-found: ignore
+          retention-days: 365
+
       - name: Open drift-alert issue
         if: steps.resolve_alerts.outputs.has_alerts == 'True'
         env:
