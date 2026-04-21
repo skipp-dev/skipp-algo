@@ -6,6 +6,19 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-07-16) — Plan 2.8 null-field records + zoo + exclam lines
+
+- New `scripts/plan_2_8_ledger_null_field_record_count.py` counts
+  records containing at least one top-level ``null`` value.
+- New `scripts/plan_2_8_digest_zoo_file_count.py` counts top-level
+  ``.zoo`` files.
+- New `scripts/plan_2_8_weekly_summary_exclamation_line_count.py`
+  counts lines containing at least one ``!``.
+- Weekly workflow wires the three new fail-soft step pairs after the
+  question-mark-line upload.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six new
+  script+test pairs.
+
 ### Added (2026-07-15) — Plan 2.8 object values + ace + question lines
 
 - New `scripts/plan_2_8_ledger_object_value_count.py` counts top-level
