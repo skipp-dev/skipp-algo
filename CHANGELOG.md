@@ -6,6 +6,19 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-07-20) — Plan 2.8 bool-field records + lzh + hash lines
+
+- New `scripts/plan_2_8_ledger_bool_field_record_count.py` counts
+  records containing at least one top-level ``bool`` value.
+- New `scripts/plan_2_8_digest_lzh_file_count.py` counts top-level
+  ``.lzh`` files.
+- New `scripts/plan_2_8_weekly_summary_hash_line_count.py` counts
+  lines containing at least one ``#``.
+- Weekly workflow wires the three new fail-soft step pairs after the
+  at-sign-line upload.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six new
+  script+test pairs.
+
 ### Added (2026-07-19) — Plan 2.8 string-field records + z + at-sign lines
 
 - New `scripts/plan_2_8_ledger_string_field_record_count.py` counts

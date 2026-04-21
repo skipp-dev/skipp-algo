@@ -806,6 +806,9 @@ read.
 - `tests/test_plan_2_8_ledger_string_field_record_count.py`
 - `tests/test_plan_2_8_digest_z_file_count.py`
 - `tests/test_plan_2_8_weekly_summary_at_sign_line_count.py`
+- `tests/test_plan_2_8_ledger_bool_field_record_count.py`
+- `tests/test_plan_2_8_digest_lzh_file_count.py`
+- `tests/test_plan_2_8_weekly_summary_hash_line_count.py`
 - `tests/test_plan_2_8_alert_history.py`
 - `tests/test_plan_2_8_alert_history_summary.py`
 - `tests/test_plan_2_8_digest_rollup.py`
