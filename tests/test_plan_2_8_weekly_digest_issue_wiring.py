@@ -66,6 +66,31 @@ def test_issue_step_threads_run_url_into_body() -> None:
     assert "${RUN_URL}" in run
 
 
+def test_auto_close_step_present_and_conditional() -> None:
+    steps = _wf()["jobs"]["weekly-digest"]["steps"]
+    close = next(s for s in steps
+                 if s.get("name") == "Close drift-alert issues when alerts cleared")
+    assert close["if"] == "steps.digest.outputs.has_alerts == 'False'"
+    run = close["run"]
+    assert "gh issue list" in run
+    assert "--state open" in run
+    assert "gh issue close" in run
+    assert "--reason completed" in run
+    assert "RUN_URL" in close["env"]
+
+
+def test_history_diff_step_present_and_fail_soft() -> None:
+    steps = _wf()["jobs"]["weekly-digest"]["steps"]
+    diff = next(s for s in steps
+                if s.get("name") == "Plan 2.8 history snapshot diff (last two)")
+    assert diff["if"].strip() == "always()"
+    run = diff["run"]
+    assert "scripts/plan_2_8_history_diff.py" in run
+    assert "set +e" in run
+    assert run.rstrip().endswith("true")
+    assert "GITHUB_STEP_SUMMARY" in run
+
+
 def test_issue_step_uses_github_token() -> None:
     steps = _wf()["jobs"]["weekly-digest"]["steps"]
     issue = next(s for s in steps if s.get("name") == "Open drift-alert issue")

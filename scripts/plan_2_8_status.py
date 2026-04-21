@@ -48,6 +48,8 @@ PHASES: list[dict[str, Any]] = [
             ("required", "scripts/plan_2_8_history_rotate.py"),
             ("required", "scripts/plan_2_8_history_validate.py"),
             ("required", "tests/test_plan_2_8_history_validate.py"),
+            ("required", "scripts/plan_2_8_history_diff.py"),
+            ("required", "tests/test_plan_2_8_history_diff.py"),
             ("required", "tests/test_plan_2_8_rolling_workflow_rotate_wiring.py"),
             ("required", "tests/test_plan_2_8_rolling_workflow_validate_wiring.py"),
             ("required", "scripts/plan_2_8_trend_digest.py"),

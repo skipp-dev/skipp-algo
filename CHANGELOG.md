@@ -6,6 +6,25 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-21) — Plan 2.8 snapshot diff + drift-alert auto-close
+
+- `scripts/plan_2_8_history_diff.py`: diff any two snapshots in the
+  history JSONL (by captured_at or index). Emits per-TF and per-
+  TF×family HR-delta tables. Markdown/JSON output. Defaults to the
+  last two rows for quick "what changed since yesterday".
+- `.github/workflows/plan-2-8-weekly-digest.yml`: new
+  "Close drift-alert issues when alerts cleared" step — when the
+  digest reports zero comparable slices over threshold, any still-
+  open `plan-2.8,drift-alert` issues are auto-commented + closed.
+  Additional fail-soft step runs the snapshot-diff helper on the
+  last two rows and streams the table into the run summary.
+- `scripts/plan_2_8_status.py`: Phase 1 anchors include the diff
+  helper + its test file.
+- Docs: runbook gains an auto-close paragraph and an ad-hoc
+  snapshot-diff section; pin-test inventory refreshed.
+- Tests: +9 history-diff, +2 weekly-digest auto-close wiring, +1
+  history-diff workflow step (12 new).
+
 ### Added (2026-04-21) — Plan 2.8 history validate + drift-alert dedup + run-url
 
 - `scripts/plan_2_8_history_validate.py`: non-destructive integrity

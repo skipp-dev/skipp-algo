@@ -134,3 +134,50 @@ jobs:
               --body-file artifacts/plan_2_8_digest/issue_body.md \
               --label plan-2.8,drift-alert
           fi
+
+      - name: Close drift-alert issues when alerts cleared
+        if: steps.digest.outputs.has_alerts == 'False'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          # When the weekly digest finds no comparable slice over
+          # threshold, close any still-open drift-alert issues with
+          # a short note pointing at this run. Idempotent: a no-op
+          # when no matching open issue exists.
+          numbers="$(gh issue list \
+            --label plan-2.8 --label drift-alert \
+            --state open --json number --jq '.[].number' || echo '')"
+          if [ -z "${numbers}" ]; then
+            echo "No open drift-alert issues to close."
+            exit 0
+          fi
+          for n in ${numbers}; do
+            gh issue comment "${n}" \
+              --body "Plan 2.8 weekly digest now reports no slices over threshold. Closing automatically. Run: ${RUN_URL}"
+            gh issue close "${n}" --reason completed
+          done
+
+      - name: Plan 2.8 history snapshot diff (last two)
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          history="$(find artifacts/latest_bench -name plan_2_8_history.jsonl -print -quit)"
+          if [ -z "${history}" ]; then
+            echo "No history found; skipping diff."
+            exit 0
+          fi
+          mkdir -p artifacts/plan_2_8_digest
+          python scripts/plan_2_8_history_diff.py \
+            --history "${history}" \
+            --output  artifacts/plan_2_8_digest/snapshot_diff.md \
+            > /dev/null
+          if [ -s artifacts/plan_2_8_digest/snapshot_diff.md ] \
+              && [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+            cat artifacts/plan_2_8_digest/snapshot_diff.md \
+              >> "${GITHUB_STEP_SUMMARY}"
+          fi
+          true

@@ -195,6 +195,26 @@ only. No issue is opened or commented on when the coverage status
 is `empty` / `warmup` or when every comparable slice is within
 threshold.
 
+When the digest finds **no** comparable slice over threshold, the
+workflow automatically closes any still-open `plan-2.8, drift-alert`
+issues with a short comment linking back to the run. This keeps the
+backlog honest without a human having to sweep the queue every week.
+
+### Ad-hoc snapshot diff
+
+For incident triage, [`scripts/plan_2_8_history_diff.py`](../scripts/plan_2_8_history_diff.py)
+diffs any two snapshots in the history JSONL (by `captured_at` or
+by index). Default: last two rows. The weekly workflow also runs
+this helper for the most recent pair and streams the result into
+the run summary.
+
+```
+python scripts/plan_2_8_history_diff.py \
+  --history /path/to/plan_2_8_history.jsonl \
+  --prev-captured-at   2026-04-14T07:00:00Z \
+  --latest-captured-at 2026-04-21T07:00:00Z
+```
+
 ## Pin-test inventory
 
 - `tests/test_plan_2_8_s0_pine_trend_tf_tooltips.py`
@@ -212,6 +232,7 @@ threshold.
 - `tests/test_plan_2_8_history_archive.py`
 - `tests/test_plan_2_8_history_rotate.py`
 - `tests/test_plan_2_8_history_validate.py`
+- `tests/test_plan_2_8_history_diff.py`
 - `tests/test_plan_2_8_rolling_workflow_rotate_wiring.py`
 - `tests/test_plan_2_8_rolling_workflow_validate_wiring.py`
 - `tests/test_plan_2_8_trend_digest.py`
