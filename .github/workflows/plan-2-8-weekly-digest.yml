@@ -2294,6 +2294,77 @@ jobs:
           if-no-files-found: ignore
           retention-days: 365
 
+      - name: Plan 2.8 ledger first flip
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          ledger="artifacts/plan_2_8_ledger/status_ledger.jsonl"
+          [ -s "${ledger}" ] || exit 0
+          mkdir -p artifacts/plan_2_8_digest
+          python scripts/plan_2_8_ledger_first_flip.py \
+            --ledger "${ledger}" \
+            --format md \
+            --output artifacts/plan_2_8_digest/first_flip.md \
+            > /dev/null
+          true
+
+      - name: Upload Plan 2.8 ledger first flip
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-ledger-first-flip
+          path: artifacts/plan_2_8_digest/first_flip.md
+          if-no-files-found: ignore
+          retention-days: 365
+
+      - name: Plan 2.8 digest largest files
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          dir="artifacts/plan_2_8_digest"
+          [ -d "${dir}" ] || exit 0
+          python scripts/plan_2_8_digest_largest_files.py \
+            --artifact-dir "${dir}" \
+            --top-n 10 \
+            --format md \
+            --output artifacts/plan_2_8_digest/largest_files.md \
+            > /dev/null
+          true
+
+      - name: Upload Plan 2.8 digest largest files
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-digest-largest-files
+          path: artifacts/plan_2_8_digest/largest_files.md
+          if-no-files-found: ignore
+          retention-days: 365
+
+      - name: Plan 2.8 weekly summary code blocks
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          summary="artifacts/plan_2_8_digest/weekly_summary.md"
+          [ -s "${summary}" ] || exit 0
+          python scripts/plan_2_8_weekly_summary_code_blocks.py \
+            --summary "${summary}" \
+            --format md \
+            --output artifacts/plan_2_8_digest/summary_code_blocks.md \
+            > /dev/null
+          true
+
+      - name: Upload Plan 2.8 weekly summary code blocks
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-weekly-summary-code-blocks
+          path: artifacts/plan_2_8_digest/summary_code_blocks.md
+          if-no-files-found: ignore
+          retention-days: 365
+
       - name: Open drift-alert issue
         if: steps.resolve_alerts.outputs.has_alerts == 'True'
         env:

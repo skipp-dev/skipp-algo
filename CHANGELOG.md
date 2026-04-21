@@ -6,6 +6,24 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-21) — Plan 2.8 first flip + largest files + code blocks
+
+- New `scripts/plan_2_8_ledger_first_flip.py` mirrors
+  latest_flip but reports the earliest status transition in
+  the ledger; returns `{"found": false}` when none exists.
+- New `scripts/plan_2_8_digest_largest_files.py` lists the
+  top-N largest files in the artifact directory (descending;
+  ties broken by name); `--top-n 0` returns all;
+  subdirectories ignored.
+- New `scripts/plan_2_8_weekly_summary_code_blocks.py` counts
+  fenced code blocks in the weekly summary; reports
+  `unbalanced: true` when the final fence is unterminated;
+  `--fail-on-unbalanced` gates CI.
+- Weekly workflow wires first-flip, largest-files, and
+  code-blocks steps after word-count.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six new
+  script+test pairs.
+
 ### Added (2026-04-21) — Plan 2.8 latest flip + filetype breakdown + word count
 
 - New `scripts/plan_2_8_ledger_latest_flip.py` reports the
