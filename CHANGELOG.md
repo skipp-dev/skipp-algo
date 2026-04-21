@@ -6,6 +6,19 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-05-21) — Plan 2.8 red index mean + html files + pipe
+
+- New `scripts/plan_2_8_ledger_red_index_mean.py` reports the
+  arithmetic mean of red observation indices.
+- New `scripts/plan_2_8_digest_html_file_count.py` counts top-level
+  ``.html``/``.htm`` files.
+- New `scripts/plan_2_8_weekly_summary_pipe_char_count.py` counts
+  ``|`` characters in the summary.
+- Weekly workflow wires the three new steps after the
+  apostrophe-count upload.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six new
+  script+test pairs.
+
 ### Added (2026-05-20) — Plan 2.8 amber index mean + xml files + apostrophe
 
 - New `scripts/plan_2_8_ledger_amber_index_mean.py` reports the
