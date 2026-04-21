@@ -665,6 +665,9 @@ read.
 - `tests/test_plan_2_8_ledger_red_index_stddev.py`
 - `tests/test_plan_2_8_digest_bmp_file_count.py`
 - `tests/test_plan_2_8_weekly_summary_at_char_count.py`
+- `tests/test_plan_2_8_ledger_unknown_index_stddev.py`
+- `tests/test_plan_2_8_digest_tif_file_count.py`
+- `tests/test_plan_2_8_weekly_summary_ampersand_char_count.py`
 - `tests/test_plan_2_8_alert_history.py`
 - `tests/test_plan_2_8_alert_history_summary.py`
 - `tests/test_plan_2_8_digest_rollup.py`
