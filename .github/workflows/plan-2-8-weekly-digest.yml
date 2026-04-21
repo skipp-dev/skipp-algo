@@ -9758,6 +9758,75 @@ jobs:
           if-no-files-found: ignore
           retention-days: 365
 
+      - name: Plan 2.8 ledger status mode count
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          ledger="artifacts/plan_2_8_digest/state_ledger.jsonl"
+          [ -s "${ledger}" ] || exit 0
+          python scripts/plan_2_8_ledger_status_mode_count.py \
+            --ledger "${ledger}" \
+            --format md \
+            --output artifacts/plan_2_8_digest/ledger_status_mode_count.md \
+            > /dev/null
+          true
+
+      - name: Upload Plan 2.8 ledger status mode count
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-ledger-status-mode-count
+          path: artifacts/plan_2_8_digest/ledger_status_mode_count.md
+          if-no-files-found: ignore
+          retention-days: 365
+
+      - name: Plan 2.8 digest divx file count
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          dir="artifacts/plan_2_8_digest"
+          [ -d "${dir}" ] || exit 0
+          python scripts/plan_2_8_digest_divx_file_count.py \
+            --artifact-dir "${dir}" \
+            --format md \
+            --output artifacts/plan_2_8_digest/digest_divx_file_count.md \
+            > /dev/null
+          true
+
+      - name: Upload Plan 2.8 digest divx file count
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-digest-divx-file-count
+          path: artifacts/plan_2_8_digest/digest_divx_file_count.md
+          if-no-files-found: ignore
+          retention-days: 365
+
+      - name: Plan 2.8 weekly summary leading space line count
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          summary="artifacts/plan_2_8_digest/weekly_summary.md"
+          [ -s "${summary}" ] || exit 0
+          python scripts/plan_2_8_weekly_summary_leading_space_line_count.py \
+            --summary "${summary}" \
+            --format md \
+            --output artifacts/plan_2_8_digest/summary_leading_space_line_count.md \
+            > /dev/null
+          true
+
+      - name: Upload Plan 2.8 weekly summary leading space line count
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-weekly-summary-leading-space-line-count
+          path: artifacts/plan_2_8_digest/summary_leading_space_line_count.md
+          if-no-files-found: ignore
+          retention-days: 365
+
       - name: Open drift-alert issue
         if: steps.resolve_alerts.outputs.has_alerts == 'True'
         env:

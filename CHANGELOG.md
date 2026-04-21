@@ -6,6 +6,19 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-06-28) — Plan 2.8 status mode + divx + leading-space
+
+- New `scripts/plan_2_8_ledger_status_mode_count.py` reports the
+  frequency of the most-common status value.
+- New `scripts/plan_2_8_digest_divx_file_count.py` counts top-level
+  ``.divx`` files.
+- New `scripts/plan_2_8_weekly_summary_leading_space_line_count.py`
+  counts lines starting with a space character.
+- Weekly workflow wires the three new steps after the indent
+  line upload.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six new
+  script+test pairs.
+
 ### Added (2026-06-27) — Plan 2.8 invalid status + ts + indent-line
 
 - New `scripts/plan_2_8_ledger_invalid_status_count.py` counts

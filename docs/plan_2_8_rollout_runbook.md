@@ -740,6 +740,9 @@ read.
 - `tests/test_plan_2_8_ledger_invalid_status_count.py`
 - `tests/test_plan_2_8_digest_ts_file_count.py`
 - `tests/test_plan_2_8_weekly_summary_indent_line_count.py`
+- `tests/test_plan_2_8_ledger_status_mode_count.py`
+- `tests/test_plan_2_8_digest_divx_file_count.py`
+- `tests/test_plan_2_8_weekly_summary_leading_space_line_count.py`
 - `tests/test_plan_2_8_alert_history.py`
 - `tests/test_plan_2_8_alert_history_summary.py`
 - `tests/test_plan_2_8_digest_rollup.py`
