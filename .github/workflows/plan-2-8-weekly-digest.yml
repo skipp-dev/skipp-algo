@@ -1223,6 +1223,84 @@ jobs:
           if-no-files-found: ignore
           retention-days: 365
 
+      - name: Plan 2.8 ledger downtime
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          ledger="artifacts/plan_2_8_digest/status_ledger.jsonl"
+          if [ ! -s "${ledger}" ]; then
+            echo "No ledger; skipping downtime."
+            exit 0
+          fi
+          python scripts/plan_2_8_ledger_downtime.py \
+            --ledger "${ledger}" \
+            --format md \
+            --output artifacts/plan_2_8_digest/downtime.md \
+            > /dev/null
+          true
+
+      - name: Upload Plan 2.8 ledger downtime
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-ledger-downtime
+          path: artifacts/plan_2_8_digest/downtime.md
+          if-no-files-found: ignore
+          retention-days: 365
+
+      - name: Download prior Plan 2.8 weekly index
+        if: always()
+        uses: dawidd6/action-download-artifact@v6
+        with:
+          name: plan-2-8-weekly-index
+          name_is_regexp: true
+          path: artifacts/plan_2_8_prior_index
+          workflow_conclusion: ''
+          if_no_artifact_found: warn
+
+      - name: Plan 2.8 weekly-index diff
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          current="artifacts/plan_2_8_digest/index.json"
+          prior="artifacts/plan_2_8_prior_index/index.json"
+          if [ ! -s "${current}" ]; then
+            # try nested path from download
+            current_alt=$(find artifacts/plan_2_8_digest \
+              -maxdepth 3 -name index.json 2>/dev/null | head -1)
+            if [ -n "${current_alt}" ]; then
+              current="${current_alt}"
+            else
+              echo "No current index.json; skipping diff."
+              exit 0
+            fi
+          fi
+          if [ ! -s "${prior}" ]; then
+            prior_alt=$(find artifacts/plan_2_8_prior_index \
+              -maxdepth 3 -name index.json 2>/dev/null | head -1)
+            if [ -n "${prior_alt}" ]; then
+              prior="${prior_alt}"
+            fi
+          fi
+          python scripts/plan_2_8_digest_index_compare.py \
+            --prior   "${prior}" \
+            --current "${current}" \
+            --format  md \
+            --output  artifacts/plan_2_8_digest/index_diff.md \
+            > /dev/null
+          true
+
+      - name: Upload Plan 2.8 weekly-index diff
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-weekly-index-diff
+          path: artifacts/plan_2_8_digest/index_diff.md
+          if-no-files-found: ignore
+          retention-days: 365
+
       - name: Open drift-alert issue
         if: steps.resolve_alerts.outputs.has_alerts == 'True'
         env:

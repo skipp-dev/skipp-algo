@@ -6,6 +6,22 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-21) — Plan 2.8 ledger downtime + weekly rollup + index diff
+
+- New `scripts/plan_2_8_ledger_downtime.py` sums non-green
+  durations (amber / red / unknown) between consecutive ledger
+  entries. Trailing intervals are not counted.
+- New `scripts/plan_2_8_ledger_weekly_rollup.py` produces a
+  compact per-week rollup (status counts, flips, latest status).
+- New `scripts/plan_2_8_digest_index_compare.py` diffs the
+  current weekly `index.json` against the prior run's copy
+  (downloaded via `dawidd6/action-download-artifact@v6`) and
+  reports added / removed / size-changed files.
+- Weekly digest wires downtime, prior-index download, and the
+  index diff; three new uploads: `plan-2-8-ledger-downtime`,
+  `plan-2-8-weekly-index-diff`.
+- +42 tests plus two weekly-workflow pin-tests.
+
 ### Added (2026-04-21) — Plan 2.8 checksum verifier + status matrix + size budget
 
 - New `scripts/plan_2_8_checksum_verify.py` verifies a

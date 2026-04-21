@@ -374,6 +374,9 @@ read.
 - `tests/test_plan_2_8_checksum_verify.py`
 - `tests/test_plan_2_8_ledger_status_matrix.py`
 - `tests/test_plan_2_8_digest_size_budget.py`
+- `tests/test_plan_2_8_ledger_downtime.py`
+- `tests/test_plan_2_8_ledger_weekly_rollup.py`
+- `tests/test_plan_2_8_digest_index_compare.py`
 - `tests/test_plan_2_8_alert_history.py`
 - `tests/test_plan_2_8_alert_history_summary.py`
 - `tests/test_plan_2_8_digest_rollup.py`
