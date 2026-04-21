@@ -749,6 +749,9 @@ read.
 - `tests/test_plan_2_8_ledger_last_record_status.py`
 - `tests/test_plan_2_8_digest_iso_file_count.py`
 - `tests/test_plan_2_8_weekly_summary_whitespace_only_line_count.py`
+- `tests/test_plan_2_8_ledger_total_byte_size.py`
+- `tests/test_plan_2_8_digest_dmg_file_count.py`
+- `tests/test_plan_2_8_weekly_summary_empty_line_count.py`
 - `tests/test_plan_2_8_alert_history.py`
 - `tests/test_plan_2_8_alert_history_summary.py`
 - `tests/test_plan_2_8_digest_rollup.py`

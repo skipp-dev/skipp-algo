@@ -6,6 +6,19 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-07-01) — Plan 2.8 total bytes + dmg + empty-line
+
+- New `scripts/plan_2_8_ledger_total_byte_size.py` reports the raw
+  byte size of the ledger file.
+- New `scripts/plan_2_8_digest_dmg_file_count.py` counts top-level
+  ``.dmg`` files.
+- New `scripts/plan_2_8_weekly_summary_empty_line_count.py` counts
+  strictly-empty lines in the weekly summary.
+- Weekly workflow wires the three new steps after the
+  whitespace-only line upload.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six new
+  script+test pairs.
+
 ### Added (2026-06-30) — Plan 2.8 last record + iso + whitespace-only
 
 - New `scripts/plan_2_8_ledger_last_record_status.py` reports the
