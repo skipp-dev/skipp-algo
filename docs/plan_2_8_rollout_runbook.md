@@ -641,6 +641,9 @@ read.
 - `tests/test_plan_2_8_ledger_last_transition_index.py`
 - `tests/test_plan_2_8_digest_bz2_file_count.py`
 - `tests/test_plan_2_8_weekly_summary_equal_char_count.py`
+- `tests/test_plan_2_8_ledger_status_transition_rate.py`
+- `tests/test_plan_2_8_digest_xz_file_count.py`
+- `tests/test_plan_2_8_weekly_summary_asterisk_char_count.py`
 - `tests/test_plan_2_8_alert_history.py`
 - `tests/test_plan_2_8_alert_history_summary.py`
 - `tests/test_plan_2_8_digest_rollup.py`

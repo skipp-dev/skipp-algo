@@ -6,6 +6,19 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-05-26) — Plan 2.8 transition rate + xz + asterisk
+
+- New `scripts/plan_2_8_ledger_status_transition_rate.py` reports
+  the fraction of pairwise status transitions.
+- New `scripts/plan_2_8_digest_xz_file_count.py` counts top-level
+  ``.xz`` files.
+- New `scripts/plan_2_8_weekly_summary_asterisk_char_count.py`
+  counts ``*`` characters in the summary.
+- Weekly workflow wires the three new steps after the equal-count
+  upload.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six new
+  script+test pairs.
+
 ### Added (2026-05-25) — Plan 2.8 last transition + bz2 + equal
 
 - New `scripts/plan_2_8_ledger_last_transition_index.py` surfaces
