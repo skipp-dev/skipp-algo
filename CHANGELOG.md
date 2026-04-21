@@ -6,6 +6,16 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-07-31) — Plan 2.8 nested objects + pyc + colon lines
+
+- `scripts/plan_2_8_ledger_nested_object_value_count.py` counts top-level
+  dict values that contain at least one nested dict element.
+- `scripts/plan_2_8_digest_pyc_file_count.py` counts top-level `.pyc`
+  files.
+- `scripts/plan_2_8_weekly_summary_colon_line_count.py` counts lines
+  containing an ASCII `:`.
+- Weekly digest workflow wires three fail-soft compute+upload step pairs.
+
 ### Added (2026-07-30) — Plan 2.8 nested arrays + wim + plus lines
 
 - `scripts/plan_2_8_ledger_nested_array_value_count.py` counts top-level
