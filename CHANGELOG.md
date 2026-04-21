@@ -6,6 +6,19 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-07-13) — Plan 2.8 string values + arj + lead-colon
+
+- New `scripts/plan_2_8_ledger_string_value_count.py` counts top-level
+  string field values across ledger records.
+- New `scripts/plan_2_8_digest_arj_file_count.py` counts top-level
+  ``.arj`` files.
+- New `scripts/plan_2_8_weekly_summary_leading_colon_count.py` counts
+  lines whose first non-whitespace char is ``:``.
+- Weekly workflow wires the three new fail-soft step pairs after the
+  trailing-colon upload.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six new
+  script+test pairs.
+
 ### Added (2026-07-12) — Plan 2.8 number values + cab + trail-colon
 
 - New `scripts/plan_2_8_ledger_number_value_count.py` counts top-level
