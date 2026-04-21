@@ -6,6 +6,19 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-07-10) — Plan 2.8 null values + zst + tab-line
+
+- New `scripts/plan_2_8_ledger_null_value_count.py` counts top-level
+  ``null`` field values across ledger records.
+- New `scripts/plan_2_8_digest_zst_file_count.py` counts top-level
+  ``.zst`` files.
+- New `scripts/plan_2_8_weekly_summary_tab_line_count.py` counts lines
+  containing ASCII tab characters.
+- Weekly workflow wires the three new fail-soft step pairs after the
+  comment-line upload.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six new
+  script+test pairs.
+
 ### Added (2026-07-09) — Plan 2.8 field keys + rar + comment
 
 - New `scripts/plan_2_8_ledger_field_key_count.py` counts distinct
