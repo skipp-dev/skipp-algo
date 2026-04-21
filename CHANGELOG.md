@@ -6,6 +6,22 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-21) — Plan 2.8 amber ratio + name length stats + heading hierarchy
+
+- New `scripts/plan_2_8_ledger_amber_ratio.py` mirrors the
+  green-ratio helper for amber records; includes
+  ``--fail-above-ratio`` for CI alerts.
+- New `scripts/plan_2_8_digest_name_length_stats.py` reports
+  min/mean/max filename lengths; subdirs ignored; empty dirs
+  return zeros.
+- New `scripts/plan_2_8_weekly_summary_heading_hierarchy.py`
+  counts ATX headings per level (H1-H6) outside fenced code
+  blocks and reports the deepest level seen.
+- Weekly workflow wires the three new steps after paragraph
+  stats.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six new
+  script+test pairs.
+
 ### Added (2026-04-21) — Plan 2.8 distinct days + extension coverage + paragraph stats
 
 - New `scripts/plan_2_8_ledger_distinct_days.py` counts
