@@ -99,6 +99,28 @@ jobs:
             --benchmark-dir "${{ steps.meta.outputs.out_dir }}" \
             --output-path "${{ steps.meta.outputs.out_dir }}/fvg_label_audit.json"
 
+      - name: Plan 2.8 Phase 1 per-TF family rollup
+        # Aggregates scoring_<symbol>_<tf>.json artifacts emitted by the
+        # rolling benchmark into per-TF event counts + per-family HRs +
+        # the two Phase-E2 verdicts (FVG 5m vs baseline, BOS 4H vs
+        # baseline). Streams the Markdown view to the step summary so
+        # operators can eyeball progress toward the W8 deliverable
+        # without downloading artifacts. Fail-soft so a rollup hiccup
+        # cannot mask the benchmark outcome.
+        if: always()
+        run: |
+          set +e
+          python scripts/plan_2_8_tf_family_rollup.py \
+            --scoring-root "${{ steps.meta.outputs.out_dir }}" \
+            --timeframes   "5m,15m,1H,4H" \
+            --output       "${{ steps.meta.outputs.out_dir }}/plan_2_8_tf_family_rollup.json" \
+            --format       md \
+            > /tmp/rollup.md 2>/dev/null
+          if [ -s /tmp/rollup.md ] && [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+            cat /tmp/rollup.md >> "${GITHUB_STEP_SUMMARY}"
+          fi
+          true
+
       - name: Upload rolling benchmark artifacts
         if: always()
         uses: actions/upload-artifact@v7

@@ -6,6 +6,25 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Changed (2026-04-21) — Plan 2.8 rollup wired into rolling benchmark workflow
+
+- `.github/workflows/smc-measurement-benchmark-rolling.yml`: new
+  `always()` step "Plan 2.8 Phase 1 per-TF family rollup" slotted
+  between the FVG label audit and the artifact upload. Runs
+  `scripts/plan_2_8_tf_family_rollup.py` against the day's
+  scoring-artifact tree with the expanded `5m,15m,1H,4H` TF list,
+  writes `plan_2_8_tf_family_rollup.json` into the benchmark output
+  dir (automatically picked up by the existing directory-level
+  upload), and streams the Markdown view to `$GITHUB_STEP_SUMMARY`
+  so operators can eyeball the two Phase-E2 verdicts (FVG 5m vs
+  15m+1H baseline, BOS 4H vs 15m+1H baseline) on every daily run.
+  Fail-soft (`set +e` + trailing `true`) so a rollup hiccup cannot
+  mask the benchmark outcome.
+- `tests/test_plan_2_8_rolling_workflow_rollup_wiring.py`: 6
+  structural pin-tests (step present, order
+  `audit < rollup < upload`, all four TFs passed, markdown streams
+  to step summary, fail-soft, manifest lands in upload path).
+
 ### Added (2026-04-21) — Plan 2.8 Phase 1 per-TF family rollup + E2 verdict
 
 - `scripts/plan_2_8_tf_family_rollup.py`: aggregates
