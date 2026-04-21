@@ -683,6 +683,9 @@ read.
 - `tests/test_plan_2_8_ledger_green_index_min.py`
 - `tests/test_plan_2_8_digest_mp3_file_count.py`
 - `tests/test_plan_2_8_weekly_summary_paren_close_char_count.py`
+- `tests/test_plan_2_8_ledger_amber_index_min.py`
+- `tests/test_plan_2_8_digest_wav_file_count.py`
+- `tests/test_plan_2_8_weekly_summary_bracket_open_char_count.py`
 - `tests/test_plan_2_8_alert_history.py`
 - `tests/test_plan_2_8_alert_history_summary.py`
 - `tests/test_plan_2_8_digest_rollup.py`

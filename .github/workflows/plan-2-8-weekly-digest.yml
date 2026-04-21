@@ -8447,6 +8447,75 @@ jobs:
           if-no-files-found: ignore
           retention-days: 365
 
+      - name: Plan 2.8 ledger amber index min
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          ledger="artifacts/plan_2_8_digest/state_ledger.jsonl"
+          [ -s "${ledger}" ] || exit 0
+          python scripts/plan_2_8_ledger_amber_index_min.py \
+            --ledger "${ledger}" \
+            --format md \
+            --output artifacts/plan_2_8_digest/ledger_amber_index_min.md \
+            > /dev/null
+          true
+
+      - name: Upload Plan 2.8 ledger amber index min
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-ledger-amber-index-min
+          path: artifacts/plan_2_8_digest/ledger_amber_index_min.md
+          if-no-files-found: ignore
+          retention-days: 365
+
+      - name: Plan 2.8 digest wav file count
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          dir="artifacts/plan_2_8_digest"
+          [ -d "${dir}" ] || exit 0
+          python scripts/plan_2_8_digest_wav_file_count.py \
+            --artifact-dir "${dir}" \
+            --format md \
+            --output artifacts/plan_2_8_digest/digest_wav_file_count.md \
+            > /dev/null
+          true
+
+      - name: Upload Plan 2.8 digest wav file count
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-digest-wav-file-count
+          path: artifacts/plan_2_8_digest/digest_wav_file_count.md
+          if-no-files-found: ignore
+          retention-days: 365
+
+      - name: Plan 2.8 weekly summary bracket open char count
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          summary="artifacts/plan_2_8_digest/weekly_summary.md"
+          [ -s "${summary}" ] || exit 0
+          python scripts/plan_2_8_weekly_summary_bracket_open_char_count.py \
+            --summary "${summary}" \
+            --format md \
+            --output artifacts/plan_2_8_digest/summary_bracket_open_char_count.md \
+            > /dev/null
+          true
+
+      - name: Upload Plan 2.8 weekly summary bracket open char count
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-weekly-summary-bracket-open-char-count
+          path: artifacts/plan_2_8_digest/summary_bracket_open_char_count.md
+          if-no-files-found: ignore
+          retention-days: 365
+
       - name: Open drift-alert issue
         if: steps.resolve_alerts.outputs.has_alerts == 'True'
         env:
