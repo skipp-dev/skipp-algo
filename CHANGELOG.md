@@ -6,6 +6,22 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-22) — Plan 2.8 longest gap + duplicate sizes + longest line
+
+- New `scripts/plan_2_8_ledger_longest_gap.py` reports the
+  longest gap in hours between consecutive captures plus the
+  boundary timestamps; ``--fail-above-hours`` for CI.
+- New `scripts/plan_2_8_digest_duplicate_sizes.py` groups
+  artifact files by identical byte size to surface suspect
+  duplicates; ``--fail-on-duplicates`` for CI.
+- New `scripts/plan_2_8_weekly_summary_longest_line.py`
+  reports the longest line length and its 1-based line
+  number; ``--fail-above-length`` for CI.
+- Weekly workflow wires the three new steps after the
+  sha256 upload.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six
+  new script+test pairs.
+
 ### Added (2026-04-21) — Plan 2.8 captures per day + tiny files + summary sha256
 
 - New `scripts/plan_2_8_ledger_captures_per_day.py` groups
