@@ -343,6 +343,29 @@ jobs:
           fi
           true
 
+      - name: Plan 2.8 alert-history heatmap (90-day window)
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          log="artifacts/plan_2_8_alert_history/alert_history.jsonl"
+          if [ ! -s "${log}" ]; then
+            echo "No alert history yet; skipping heatmap."
+            exit 0
+          fi
+          mkdir -p artifacts/plan_2_8_digest
+          python scripts/plan_2_8_alert_history_heatmap.py \
+            --log            "${log}" \
+            --lookback-days  90 \
+            --output         artifacts/plan_2_8_digest/alert_history_heatmap.md \
+            > /dev/null
+          if [ -s artifacts/plan_2_8_digest/alert_history_heatmap.md ] \
+              && [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+            cat artifacts/plan_2_8_digest/alert_history_heatmap.md \
+              >> "${GITHUB_STEP_SUMMARY}"
+          fi
+          true
+
       - name: Open drift-alert issue
         if: steps.resolve_alerts.outputs.has_alerts == 'True'
         env:

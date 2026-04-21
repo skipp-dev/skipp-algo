@@ -6,6 +6,23 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-21) — Plan 2.8 weekly heatmap step + runbook TOC + status snapshot
+
+- Weekly digest workflow now runs the 90-day alert-history heatmap
+  (`plan_2_8_alert_history_heatmap.py`) after the CHANGELOG slice
+  step, appending its md to the GitHub step summary.
+- New `scripts/plan_2_8_runbook_toc.py` emits a table-of-contents
+  sidebar for `docs/plan_2_8_rollout_runbook.md`. Ignores fenced
+  code blocks; disambiguates duplicate slugs. md/json output,
+  tunable level range. +10 tests.
+- New `scripts/plan_2_8_status_snapshot.py` collapses
+  `health.json`, `runcard_index.json`, `coverage.json`, and
+  `digest.json` into a one-line JSON suitable for dashboards. md
+  render shows status/score/alerts/coverage/runcard presence.
+  Tolerates missing or malformed inputs. +10 tests (including
+  weekly heatmap pin-test).
+- Status anchors, runbook, and CHANGELOG refreshed.
+
 ### Added (2026-04-21) — Plan 2.8 runcard index + CHANGELOG slice step + digest compare + heatmap
 
 - Weekly digest workflow now runs `plan_2_8_runcard_index.py`
