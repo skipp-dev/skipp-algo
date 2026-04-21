@@ -6,6 +6,24 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-21) — Plan 2.8 compact status-runcard step + history CSV export + runbook link check
+
+- Weekly digest workflow now runs the compact status runcard
+  (`plan_2_8_runcard_from_status.py`) after the digest archive
+  and uploads it as `plan-2-8-status-runcard` (365d).
+- New `scripts/plan_2_8_history_export.py` converts
+  `plan_2_8_history.jsonl` to CSV with a stable 7-column schema
+  (`captured_at, scoring_root, tf, family, events, hit_rate_pct,
+  delta_pp`). Supports `--lookback-days` and `--fields` override.
+  Malformed/blank lines tolerated. +10 tests.
+- New `scripts/plan_2_8_runbook_link_check.py` verifies intra-doc
+  anchor links in `docs/plan_2_8_rollout_runbook.md` using the
+  same slug algorithm as the TOC helper. Ignores external and
+  cross-file links, skips fenced code. `--fail-on-broken` for CI.
+  +13 tests including a real-runbook sweep and weekly workflow
+  pin-test.
+- Status anchors, runbook, and CHANGELOG refreshed.
+
 ### Added (2026-04-21) — Plan 2.8 weekly archive+compare + compact status runcard + history prune
 
 - Weekly digest workflow now downloads the prior

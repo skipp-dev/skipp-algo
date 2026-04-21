@@ -510,6 +510,44 @@ jobs:
           if-no-files-found: ignore
           retention-days: 365
 
+      - name: Plan 2.8 compact status runcard
+        if: always()
+        env:
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        shell: bash
+        run: |
+          set +e
+          mkdir -p artifacts/plan_2_8_digest
+          args=""
+          for pair in \
+            "--status-snapshot:artifacts/plan_2_8_digest/status_snapshot.json" \
+            "--runcard-index:artifacts/plan_2_8_digest/runcard_index.json" \
+            "--health:artifacts/plan_2_8_digest/health.json" \
+          ; do
+            flag="${pair%%:*}"
+            path="${pair##*:}"
+            [ -s "${path}" ] && args="${args} ${flag} ${path}"
+          done
+          python scripts/plan_2_8_runcard_from_status.py ${args} \
+            --output  artifacts/plan_2_8_digest/status_runcard.md \
+            --run-url "${RUN_URL}" \
+            > /dev/null
+          if [ -s artifacts/plan_2_8_digest/status_runcard.md ] \
+              && [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+            cat artifacts/plan_2_8_digest/status_runcard.md \
+              >> "${GITHUB_STEP_SUMMARY}"
+          fi
+          true
+
+      - name: Upload Plan 2.8 status runcard
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-status-runcard
+          path: artifacts/plan_2_8_digest/status_runcard.md
+          if-no-files-found: ignore
+          retention-days: 365
+
       - name: Open drift-alert issue
         if: steps.resolve_alerts.outputs.has_alerts == 'True'
         env:
