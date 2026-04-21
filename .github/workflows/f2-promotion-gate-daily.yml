@@ -48,6 +48,9 @@ on:
 
 permissions:
   contents: read
+  # §2.4 G2 GitHub-Issue-Ping rule needs issues:write so the workflow
+  # can file a rollback issue when the gate exits with rc=2.
+  issues: write
 
 concurrency:
   group: f2-promotion-gate-daily
@@ -151,6 +154,36 @@ jobs:
             --history artifacts/ci/f2/rollback_history.json \
             --metric  calibrated_brier \
             --max-len 30
+
+      - name: Open rollback Issue (§2.4 G2 ping)
+        # Fires only on the rollback path. Idempotent-ish: searches for
+        # an open issue with the f2-rollback label and either comments
+        # or creates a new one. Failures here MUST NOT mask the gate
+        # failure -- the workflow still exits 2 because of the gate step.
+        if: steps.locate.outputs.status == 'ready' && steps.gate.outputs.rc == '2'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO:  ${{ github.repository }}
+        run: |
+          set -e
+          python scripts/f2_render_rollback_issue.py \
+            --report "${{ steps.gate.outputs.report }}" \
+            --date   "${{ steps.date.outputs.value }}" \
+            --workflow-run-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            --report-path "${{ steps.gate.outputs.report }}" \
+            --title-out /tmp/issue_title.txt \
+            --body-out  /tmp/issue_body.md
+          TITLE=$(cat /tmp/issue_title.txt)
+          # Look for an existing open rollback issue (any date) to avoid
+          # duplicates on consecutive bad days; comment on it instead.
+          EXISTING=$(gh issue list --state open --label f2-rollback --limit 1 --json number --jq '.[0].number' || true)
+          if [ -n "${EXISTING}" ]; then
+            echo "Existing rollback issue #${EXISTING} found; commenting."
+            gh issue comment "${EXISTING}" --body-file /tmp/issue_body.md
+          else
+            echo "No open rollback issue; creating new one."
+            gh issue create --title "${TITLE}" --body-file /tmp/issue_body.md --label f2-rollback
+          fi
 
       - name: Annotate decision
         if: always() && steps.locate.outputs.status == 'ready'

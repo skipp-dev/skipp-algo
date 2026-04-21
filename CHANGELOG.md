@@ -6,6 +6,31 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-21) — Q3/Q4 Plan §2.4 G2 GitHub-Issue-Ping
+
+- **F2 rollback Issue renderer:** New
+  `scripts/f2_render_rollback_issue.py` deterministically produces an
+  Issue title (`[F2 rollback] <decision> on <date>`) and full
+  Markdown body from a promotion-gate JSON report. Body includes the
+  KPI-delta table, SPRT terminal block, rollback-window history, a
+  link to the failing workflow run, the report path, and an operator
+  runbook that explicitly points at
+  `scripts/f2_rotate_rollback_history.py` for the post-review reset.
+  Stable label: `f2-rollback`. CLI exit codes: `0` on success, `1`
+  on missing/malformed report. 11 new tests; 124 total green across
+  the F2/SPRT/AB chain.
+- **Workflow ping wiring:** Updated
+  `.github/workflows/f2-promotion-gate-daily.yml`:
+  - Added `permissions: issues: write` (alongside existing
+    `contents: read`) so the job can file rollback Issues.
+  - New "Open rollback Issue" step runs only when
+    `steps.gate.outputs.rc == '2'`. Uses `gh issue list` + label
+    `f2-rollback` to dedupe: comments on the existing open Issue if
+    one is already filed, otherwise opens a fresh one with
+    `gh issue create --label f2-rollback`. The gate step's exit
+    code 2 still surfaces as a workflow failure (CI red), as
+    required by §2.4 G2.
+
 ### Added (2026-04-21) — Q3/Q4 Plan §2.4 G2 rollback-history rotate helper
 
 - **F2 rollback-history rotate/reset helper:** New
