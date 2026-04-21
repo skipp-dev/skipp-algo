@@ -6,6 +6,23 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-21) — Plan 2.8 latest flip + filetype breakdown + word count
+
+- New `scripts/plan_2_8_ledger_latest_flip.py` reports the
+  most-recent status transition (from/to + captured_at) in the
+  ledger; returns `{"found": false}` when no flip exists.
+- New `scripts/plan_2_8_digest_filetype_breakdown.py` groups
+  artifact files by lowercase extension (`""` bucket for files
+  without an extension) and reports count + total bytes per
+  group; subdirectories ignored.
+- New `scripts/plan_2_8_weekly_summary_word_count.py` counts
+  words, chars, non-whitespace chars, and lines in the weekly
+  summary file; `--fail-below-words N` gates CI.
+- Weekly workflow wires latest-flip, filetype-breakdown, and
+  word-count steps after summary-preview.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six new
+  script+test pairs.
+
 ### Added (2026-04-21) — Plan 2.8 transition matrix + hash inventory + summary preview
 
 - New `scripts/plan_2_8_ledger_transition_matrix.py` builds a
