@@ -1,0 +1,110 @@
+"""Plan 2.8 ledger status first/last timestamps.
+
+For each of the four valid statuses, reports the first and
+last ``captured_at`` timestamp (by insertion order). Statuses
+not observed are omitted entirely.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from pathlib import Path
+from typing import Any
+
+
+VALID_STATUSES = frozenset({"green", "amber", "red", "unknown"})
+_ORDER = ("green", "amber", "red", "unknown")
+
+
+def _iter_records(ledger: Path) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    if not ledger.exists():
+        return out
+    for line in ledger.read_text(encoding="utf-8").splitlines():
+        s = line.strip()
+        if not s:
+            continue
+        try:
+            rec = json.loads(s)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(rec, dict):
+            out.append(rec)
+    return out
+
+
+def compute(records: list[dict[str, Any]]) -> dict[str, Any]:
+    first: dict[str, str] = {}
+    last: dict[str, str] = {}
+    for rec in records:
+        raw = rec.get("status")
+        if not isinstance(raw, str):
+            continue
+        status = raw.strip().lower()
+        if status not in VALID_STATUSES:
+            continue
+        ts = rec.get("captured_at")
+        if not isinstance(ts, str) or not ts:
+            continue
+        first.setdefault(status, ts)
+        last[status] = ts
+    entries: list[dict[str, Any]] = []
+    for s in _ORDER:
+        if s in first:
+            entries.append({
+                "status": s,
+                "first":  first[s],
+                "last":   last[s],
+            })
+    return {
+        "schema_version": 1,
+        "status_count":   len(entries),
+        "entries":        entries,
+    }
+
+
+def render_markdown(report: dict[str, Any]) -> str:
+    lines = [
+        "# Plan 2.8 ledger status first/last",
+        "",
+        f"- status_count: {report['status_count']}",
+        "",
+    ]
+    if not report["entries"]:
+        lines.extend(["_none_", ""])
+    else:
+        for e in report["entries"]:
+            lines.append(
+                f"  - {e['status']}: first={e['first']} last={e['last']}",
+            )
+        lines.append("")
+    return "\n".join(lines)
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        description="First/last timestamp per observed status.",
+    )
+    parser.add_argument("--ledger", type=Path, required=True)
+    parser.add_argument("--format", choices=("md", "json"), default="md")
+    parser.add_argument("--output", type=Path, default=None)
+    args = parser.parse_args(argv)
+
+    if not args.ledger.exists():
+        print(f"ERROR: ledger not found: {args.ledger}", file=sys.stderr)
+        return 1
+
+    report = compute(_iter_records(args.ledger))
+    body = render_markdown(report) if args.format == "md" \
+        else json.dumps(report, indent=2) + "\n"
+    if args.output is not None:
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        args.output.write_text(body, encoding="utf-8")
+    print(body, end="")
+    return 0
+
+
+if __name__ == "__main__":  # pragma: no cover
+    raise SystemExit(main())

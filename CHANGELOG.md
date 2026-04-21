@@ -6,6 +6,22 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-28) — Plan 2.8 status first/last + basename length + shell-fence
+
+- New `scripts/plan_2_8_ledger_status_first_last.py`
+  reports the first and last timestamp per observed
+  ledger status.
+- New `scripts/plan_2_8_digest_basename_length_stats.py`
+  reports min/max/mean of file-basename lengths across
+  the top-level artifact directory.
+- New `scripts/plan_2_8_weekly_summary_shell_fence_count.py`
+  counts fenced code blocks whose info-string is
+  ``sh``/``bash``/``zsh``/``shell``.
+- Weekly workflow wires the three new steps after the
+  emoji-count upload.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six
+  new script+test pairs.
+
 ### Added (2026-04-28) — Plan 2.8 last unknown + line counts + emoji count
 
 - New `scripts/plan_2_8_ledger_last_unknown.py` reports

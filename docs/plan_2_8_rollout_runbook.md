@@ -488,6 +488,9 @@ read.
 - `tests/test_plan_2_8_ledger_last_unknown.py`
 - `tests/test_plan_2_8_digest_line_counts.py`
 - `tests/test_plan_2_8_weekly_summary_emoji_count.py`
+- `tests/test_plan_2_8_ledger_status_first_last.py`
+- `tests/test_plan_2_8_digest_basename_length_stats.py`
+- `tests/test_plan_2_8_weekly_summary_shell_fence_count.py`
 - `tests/test_plan_2_8_alert_history.py`
 - `tests/test_plan_2_8_alert_history_summary.py`
 - `tests/test_plan_2_8_digest_rollup.py`
