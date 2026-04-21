@@ -6,6 +6,19 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-05-14) — Plan 2.8 record byte mean + total bytes + vowels
+
+- New `scripts/plan_2_8_ledger_record_byte_size_mean.py` reports
+  mean UTF-8 byte length of non-blank ledger lines.
+- New `scripts/plan_2_8_digest_total_byte_size.py` reports the
+  total byte size of top-level regular files.
+- New `scripts/plan_2_8_weekly_summary_vowel_count.py` counts
+  ASCII vowels in the summary file.
+- Weekly workflow wires the three new steps after the
+  checkbox-count upload.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six new
+  script+test pairs.
+
 ### Added (2026-05-14) — Plan 2.8 obs-per-day + size mean + checkboxes
 
 - New `scripts/plan_2_8_ledger_observations_per_day_mean.py`
