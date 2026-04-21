@@ -6,6 +6,19 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-28) — Plan 2.8 total per status + symlinks + CR
+
+- New `scripts/plan_2_8_ledger_total_run_length_per_status.py`
+  reports total observations per canonical status.
+- New `scripts/plan_2_8_digest_symlink_count.py`
+  counts top-level symlink entries.
+- New `scripts/plan_2_8_weekly_summary_cr_count.py`
+  counts CR (``\r``) characters in the weekly summary.
+- Weekly workflow wires the three new steps after the
+  newline-count upload.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six
+  new script+test pairs.
+
 ### Added (2026-04-28) — Plan 2.8 median per status + unique ext + newlines
 
 - New `scripts/plan_2_8_ledger_median_run_length_per_status.py`

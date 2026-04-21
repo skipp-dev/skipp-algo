@@ -530,6 +530,9 @@ read.
 - `tests/test_plan_2_8_ledger_median_run_length_per_status.py`
 - `tests/test_plan_2_8_digest_unique_extension_count.py`
 - `tests/test_plan_2_8_weekly_summary_newline_count.py`
+- `tests/test_plan_2_8_ledger_total_run_length_per_status.py`
+- `tests/test_plan_2_8_digest_symlink_count.py`
+- `tests/test_plan_2_8_weekly_summary_cr_count.py`
 - `tests/test_plan_2_8_alert_history.py`
 - `tests/test_plan_2_8_alert_history_summary.py`
 - `tests/test_plan_2_8_digest_rollup.py`
