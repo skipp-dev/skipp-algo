@@ -6,6 +6,45 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-21) — Q3/Q4 Plan Amendment A1 (D4 + D2 + G1 closeout)
+
+- **A1.A — Per-Event Ledger (plan §A1.A):** New `smc_core/event_ledger.py`
+  reads/writes `events_<sym>_<tf>.jsonl` records carrying ScoredEvent
+  fields plus the new `features` dict. Schema-pinned with round-trip
+  tests; consumed by D4 recalibration and FI-drift downstream.
+- **A1.B — D4 FVG-Quality Recalibration Script
+  (plan §A1.B):** New `scripts/fvg_quality_recalibration.py` produces
+  `artifacts/reports/fvg_quality_calibration_shadow.json`. Pure-Python
+  L2 logistic regression (no numpy/scipy/sklearn dep), weights capped
+  to [0.05, 0.40] then re-normalised to sum 1.0. Acceptance gate
+  codified: top-quartile HR ≥ 0.70, bottom-quartile HR ≤ 0.55,
+  Spearman ≥ 0.20. Fail-soft semantics distinguish
+  `insufficient_features` vs `insufficient_events`. Shadow-only;
+  production `fvg_quality_calibration.json` is not mutated.
+- **A1.C — D2 Tri-Axis FVG Pine Codegen (plan §A1.C):** New
+  `smc_core/fvg_pine_emit.py` consumes `stratified_fvg_report()` JSON
+  and emits a deterministic Pine v5 const block of
+  `FVG_HEALTH_<SESSION>_<VOL>` + `_STATUS` (OK / WARN / WEAK / INSUF
+  on HR thresholds 0.70 / 0.55). Insufficient buckets render as
+  `"insufficient (n=N)"`. Wiring into `SMC_Core_Engine.pine` is the
+  remaining manual step (compile-only preflight).
+- **A1.D — G1 Baseline Seed Workflow (plan §A1.D):** New
+  `.github/workflows/smc-baseline-seed-rolling.yml` runs the daily
+  baseline-seed reproducibility check against the 20-symbol universe
+  and writes to `artifacts/ci/baseline_seed_rolling/YYYY-MM-DD/`.
+  Acceptance memo unblocks after 5 consecutive weekday green runs.
+- **D4 enricher (chains A1.B):** `ScoredEvent` gained
+  `features: dict[str, Any]` (frozen-safe via `field(default_factory=
+  dict)`). `smc_integration/measurement_evidence._score_zone_event`
+  now populates the five A1.B feature keys (`gap_size_atr`,
+  `htf_aligned`, `distance_to_price_atr`, `is_full_body`, `hurst_50`)
+  for the FVG family via new `_atr_at` (Wilder ATR) and
+  `_fvg_hurst_50` (delegating to `smc_core.fvg_quality.rolling_hurst`)
+  helpers. Missing ATR / Hurst → key omitted (no zero-fill, so
+  `insufficient_features` detection stays accurate). End-to-end chain
+  `_score_zone_event → ScoredEvent.features → event_ledger →
+  recalibration shadow JSON` now closes on the next CI rolling run.
+
 ### Added (2026-04-21) — Q3/Q4 Plan Phase E + F1 + E4
 
 - **E1 — Symbol-Expansion (plan §2.2):** Recurring measurement-benchmark
