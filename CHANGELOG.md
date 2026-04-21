@@ -6,6 +6,19 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-06-26) — Plan 2.8 captured-at missing + vob + line-separator
+
+- New `scripts/plan_2_8_ledger_captured_at_missing_count.py` counts
+  records where ``captured_at`` is missing or empty.
+- New `scripts/plan_2_8_digest_vob_file_count.py` counts top-level
+  ``.vob`` files.
+- New `scripts/plan_2_8_weekly_summary_line_separator_char_count.py`
+  counts U+2028 / U+2029 characters in the weekly summary.
+- Weekly workflow wires the three new steps after the zero-width
+  upload.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six new
+  script+test pairs.
+
 ### Added (2026-06-25) — Plan 2.8 captured-at present + mxf + zero-width
 
 - New `scripts/plan_2_8_ledger_captured_at_present_count.py` counts
