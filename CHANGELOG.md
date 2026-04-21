@@ -6,6 +6,19 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-07-04) — Plan 2.8 schema version + rpm + fenced-code
+
+- New `scripts/plan_2_8_ledger_schema_version_count.py` counts
+  distinct schema_version values observed in ledger records.
+- New `scripts/plan_2_8_digest_rpm_file_count.py` counts top-level
+  ``.rpm`` files.
+- New `scripts/plan_2_8_weekly_summary_fenced_code_block_count.py`
+  counts Markdown fenced code blocks.
+- Weekly workflow wires the three new steps after the numbered-line
+  upload.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six new
+  script+test pairs.
+
 ### Added (2026-07-03) — Plan 2.8 nonblank line + deb + numbered-line
 
 - New `scripts/plan_2_8_ledger_nonblank_line_count.py` counts

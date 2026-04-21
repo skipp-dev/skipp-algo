@@ -10172,6 +10172,75 @@ jobs:
           if-no-files-found: ignore
           retention-days: 365
 
+      - name: Plan 2.8 ledger schema version count
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          ledger="artifacts/plan_2_8_digest/state_ledger.jsonl"
+          [ -s "${ledger}" ] || exit 0
+          python scripts/plan_2_8_ledger_schema_version_count.py \
+            --ledger "${ledger}" \
+            --format md \
+            --output artifacts/plan_2_8_digest/ledger_schema_version_count.md \
+            > /dev/null
+          true
+
+      - name: Upload Plan 2.8 ledger schema version count
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-ledger-schema-version-count
+          path: artifacts/plan_2_8_digest/ledger_schema_version_count.md
+          if-no-files-found: ignore
+          retention-days: 365
+
+      - name: Plan 2.8 digest rpm file count
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          dir="artifacts/plan_2_8_digest"
+          [ -d "${dir}" ] || exit 0
+          python scripts/plan_2_8_digest_rpm_file_count.py \
+            --artifact-dir "${dir}" \
+            --format md \
+            --output artifacts/plan_2_8_digest/digest_rpm_file_count.md \
+            > /dev/null
+          true
+
+      - name: Upload Plan 2.8 digest rpm file count
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-digest-rpm-file-count
+          path: artifacts/plan_2_8_digest/digest_rpm_file_count.md
+          if-no-files-found: ignore
+          retention-days: 365
+
+      - name: Plan 2.8 weekly summary fenced code block count
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          summary="artifacts/plan_2_8_digest/weekly_summary.md"
+          [ -s "${summary}" ] || exit 0
+          python scripts/plan_2_8_weekly_summary_fenced_code_block_count.py \
+            --summary "${summary}" \
+            --format md \
+            --output artifacts/plan_2_8_digest/summary_fenced_code_block_count.md \
+            > /dev/null
+          true
+
+      - name: Upload Plan 2.8 weekly summary fenced code block count
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-weekly-summary-fenced-code-block-count
+          path: artifacts/plan_2_8_digest/summary_fenced_code_block_count.md
+          if-no-files-found: ignore
+          retention-days: 365
+
       - name: Open drift-alert issue
         if: steps.resolve_alerts.outputs.has_alerts == 'True'
         env:
