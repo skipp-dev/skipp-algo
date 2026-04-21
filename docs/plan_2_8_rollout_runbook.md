@@ -383,6 +383,9 @@ read.
 - `tests/test_plan_2_8_ledger_latest_status.py`
 - `tests/test_plan_2_8_ledger_longest_streak.py`
 - `tests/test_plan_2_8_digest_metadata.py`
+- `tests/test_plan_2_8_metadata_diff.py`
+- `tests/test_plan_2_8_ledger_trend.py`
+- `tests/test_plan_2_8_weekly_summary_linkcheck.py`
 - `tests/test_plan_2_8_alert_history.py`
 - `tests/test_plan_2_8_alert_history_summary.py`
 - `tests/test_plan_2_8_digest_rollup.py`

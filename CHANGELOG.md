@@ -6,6 +6,25 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-21) — Plan 2.8 metadata diff + weekly trend + link check
+
+- New `scripts/plan_2_8_metadata_diff.py` compares current
+  `metadata.json` against a prior copy (downloaded via
+  `dawidd6/action-download-artifact@v6`) and reports python
+  version change, script-count delta, and per-script size
+  deltas (added / removed / changed). Malformed or missing
+  prior is treated as an empty baseline.
+- New `scripts/plan_2_8_ledger_trend.py` buckets ledger records
+  by ISO week and reports per-week totals, green counts, and
+  green % (2dp) as JSON or a small markdown table.
+- New `scripts/plan_2_8_weekly_summary_linkcheck.py` scans
+  `weekly_summary.md` for internal anchor links and flags any
+  that point at missing headings; `--fail-on-broken` turns
+  broken links into rc=1.
+- Weekly digest wires prior-metadata download, metadata diff,
+  trend, and link check; artifacts uploaded with 365-day
+  retention.
+
 ### Added (2026-04-21) — Plan 2.8 latest status + longest streak + digest metadata
 
 - New `scripts/plan_2_8_ledger_latest_status.py` emits a tiny

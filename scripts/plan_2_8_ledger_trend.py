@@ -1,0 +1,132 @@
+"""Plan 2.8 ledger trend calculator.
+
+Buckets ledger records by ISO week and reports, per week:
+
+- total records
+- green records
+- green % (2dp)
+
+Useful as a per-week green-pct time series distinct from the
+rolling-window uptime helper.
+"""
+
+from __future__ import annotations
+
+import argparse
+import datetime as _dt
+import json
+import sys
+from pathlib import Path
+from typing import Any
+
+
+VALID_STATUSES = frozenset({"green", "amber", "red", "unknown"})
+
+
+def _parse_ts(raw: Any) -> _dt.datetime | None:
+    if not isinstance(raw, str):
+        return None
+    try:
+        return _dt.datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def _iter_records(ledger: Path) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    if not ledger.exists():
+        return out
+    for line in ledger.read_text(encoding="utf-8").splitlines():
+        s = line.strip()
+        if not s:
+            continue
+        try:
+            rec = json.loads(s)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(rec, dict):
+            out.append(rec)
+    return out
+
+
+def _bucket_key(ts: _dt.datetime) -> str:
+    iso = ts.isocalendar()
+    return f"{iso.year:04d}-W{iso.week:02d}"
+
+
+def compute(records: list[dict[str, Any]]) -> dict[str, Any]:
+    buckets: dict[str, dict[str, int]] = {}
+    skipped = 0
+    for rec in records:
+        ts = _parse_ts(rec.get("captured_at"))
+        raw = rec.get("status")
+        if ts is None or not isinstance(raw, str):
+            skipped += 1
+            continue
+        status = raw.strip().lower()
+        if status not in VALID_STATUSES:
+            skipped += 1
+            continue
+        key = _bucket_key(ts)
+        slot = buckets.setdefault(key, {"total": 0, "green": 0})
+        slot["total"] += 1
+        if status == "green":
+            slot["green"] += 1
+    weeks: list[dict[str, Any]] = []
+    for key in sorted(buckets):
+        slot = buckets[key]
+        pct = (slot["green"] / slot["total"] * 100.0) \
+            if slot["total"] else 0.0
+        weeks.append({
+            "week":     key,
+            "total":    slot["total"],
+            "green":    slot["green"],
+            "green_pct": round(pct, 2),
+        })
+    return {
+        "schema_version": 1,
+        "weeks":           weeks,
+        "skipped":         skipped,
+    }
+
+
+def render_markdown(report: dict[str, Any]) -> str:
+    lines = ["# Plan 2.8 weekly green trend", "",
+             "| week | total | green | green % |",
+             "|---|---:|---:|---:|"]
+    for w in report["weeks"]:
+        lines.append(
+            f"| {w['week']} | {w['total']} | {w['green']} "
+            f"| {w['green_pct']:.2f} |"
+        )
+    if not report["weeks"]:
+        lines.append("| _no records_ | 0 | 0 | 0.00 |")
+    lines.append("")
+    return "\n".join(lines) + "\n"
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        description="Compute a per-week green-pct trend.",
+    )
+    parser.add_argument("--ledger", type=Path, required=True)
+    parser.add_argument("--format", choices=("md", "json"), default="md")
+    parser.add_argument("--output", type=Path, default=None)
+    args = parser.parse_args(argv)
+
+    if not args.ledger.exists():
+        print(f"ERROR: ledger not found: {args.ledger}", file=sys.stderr)
+        return 1
+
+    report = compute(_iter_records(args.ledger))
+    body = render_markdown(report) if args.format == "md" \
+        else json.dumps(report, indent=2) + "\n"
+    if args.output is not None:
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        args.output.write_text(body, encoding="utf-8")
+    print(body, end="")
+    return 0
+
+
+if __name__ == "__main__":  # pragma: no cover
+    raise SystemExit(main())

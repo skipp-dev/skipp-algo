@@ -1400,6 +1400,101 @@ jobs:
           if-no-files-found: ignore
           retention-days: 365
 
+      - name: Download prior Plan 2.8 metadata
+        if: always()
+        uses: dawidd6/action-download-artifact@v6
+        with:
+          name: plan-2-8-digest-metadata
+          name_is_regexp: true
+          workflow: plan-2-8-weekly-digest.yml
+          workflow_conclusion: ''
+          path: artifacts/plan_2_8_digest_prior_metadata
+          if_no_artifact_found: warn
+
+      - name: Plan 2.8 metadata diff
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          current="artifacts/plan_2_8_digest/metadata.json"
+          if [ ! -s "${current}" ]; then
+            echo "No current metadata; skipping diff."
+            exit 0
+          fi
+          prior="$(find artifacts/plan_2_8_digest_prior_metadata \
+            -name metadata.json -print -quit 2>/dev/null)"
+          if [ -z "${prior}" ]; then
+            prior="/dev/null"
+          fi
+          python scripts/plan_2_8_metadata_diff.py \
+            --prior   "${prior}" \
+            --current "${current}" \
+            --format  md \
+            --output  artifacts/plan_2_8_digest/metadata_diff.md \
+            > /dev/null
+          true
+
+      - name: Upload Plan 2.8 metadata diff
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-metadata-diff
+          path: artifacts/plan_2_8_digest/metadata_diff.md
+          if-no-files-found: ignore
+          retention-days: 365
+
+      - name: Plan 2.8 ledger trend
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          ledger="artifacts/plan_2_8_digest/status_ledger.jsonl"
+          if [ ! -s "${ledger}" ]; then
+            echo "No ledger; skipping trend."
+            exit 0
+          fi
+          python scripts/plan_2_8_ledger_trend.py \
+            --ledger "${ledger}" \
+            --format md \
+            --output artifacts/plan_2_8_digest/trend.md \
+            > /dev/null
+          true
+
+      - name: Upload Plan 2.8 ledger trend
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-ledger-trend
+          path: artifacts/plan_2_8_digest/trend.md
+          if-no-files-found: ignore
+          retention-days: 365
+
+      - name: Plan 2.8 weekly-summary link check
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          summary="artifacts/plan_2_8_digest/weekly_summary.md"
+          if [ ! -s "${summary}" ]; then
+            echo "No weekly summary; skipping link check."
+            exit 0
+          fi
+          python scripts/plan_2_8_weekly_summary_linkcheck.py \
+            --input  "${summary}" \
+            --format md \
+            --output artifacts/plan_2_8_digest/weekly_summary_linkcheck.md \
+            > /dev/null
+          true
+
+      - name: Upload Plan 2.8 weekly-summary link check
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-weekly-summary-linkcheck
+          path: artifacts/plan_2_8_digest/weekly_summary_linkcheck.md
+          if-no-files-found: ignore
+          retention-days: 365
+
       - name: Open drift-alert issue
         if: steps.resolve_alerts.outputs.has_alerts == 'True'
         env:
