@@ -2365,6 +2365,77 @@ jobs:
           if-no-files-found: ignore
           retention-days: 365
 
+      - name: Plan 2.8 ledger status run length
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          ledger="artifacts/plan_2_8_ledger/status_ledger.jsonl"
+          [ -s "${ledger}" ] || exit 0
+          mkdir -p artifacts/plan_2_8_digest
+          python scripts/plan_2_8_ledger_status_run_length.py \
+            --ledger "${ledger}" \
+            --format md \
+            --output artifacts/plan_2_8_digest/status_run_length.md \
+            > /dev/null
+          true
+
+      - name: Upload Plan 2.8 ledger status run length
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-ledger-status-run-length
+          path: artifacts/plan_2_8_digest/status_run_length.md
+          if-no-files-found: ignore
+          retention-days: 365
+
+      - name: Plan 2.8 digest smallest files
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          dir="artifacts/plan_2_8_digest"
+          [ -d "${dir}" ] || exit 0
+          python scripts/plan_2_8_digest_smallest_files.py \
+            --artifact-dir "${dir}" \
+            --bottom-n 10 \
+            --format md \
+            --output artifacts/plan_2_8_digest/smallest_files.md \
+            > /dev/null
+          true
+
+      - name: Upload Plan 2.8 digest smallest files
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-digest-smallest-files
+          path: artifacts/plan_2_8_digest/smallest_files.md
+          if-no-files-found: ignore
+          retention-days: 365
+
+      - name: Plan 2.8 weekly summary link check
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          summary="artifacts/plan_2_8_digest/weekly_summary.md"
+          [ -s "${summary}" ] || exit 0
+          python scripts/plan_2_8_weekly_summary_link_check.py \
+            --summary "${summary}" \
+            --format md \
+            --output artifacts/plan_2_8_digest/summary_link_check.md \
+            > /dev/null
+          true
+
+      - name: Upload Plan 2.8 weekly summary link check
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-weekly-summary-link-check
+          path: artifacts/plan_2_8_digest/summary_link_check.md
+          if-no-files-found: ignore
+          retention-days: 365
+
       - name: Open drift-alert issue
         if: steps.resolve_alerts.outputs.has_alerts == 'True'
         env:

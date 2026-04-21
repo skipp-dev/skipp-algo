@@ -6,6 +6,24 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-21) — Plan 2.8 run length + smallest files + link check
+
+- New `scripts/plan_2_8_ledger_status_run_length.py`
+  run-length-encodes the ledger status series into segments
+  of `{status, length, start_at, end_at}`.
+- New `scripts/plan_2_8_digest_smallest_files.py` mirrors
+  largest_files but lists the bottom-N by size; subdirectories
+  ignored.
+- New `scripts/plan_2_8_weekly_summary_link_check.py` parses
+  `[text](target)` links and flags fragment-only links without
+  a matching heading anchor (GitHub-style slug); duplicate
+  missing fragments deduplicated;
+  `--fail-on-missing-fragments` gates CI.
+- Weekly workflow wires run-length, smallest-files, and
+  link-check steps after code-blocks.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six new
+  script+test pairs.
+
 ### Added (2026-04-21) — Plan 2.8 first flip + largest files + code blocks
 
 - New `scripts/plan_2_8_ledger_first_flip.py` mirrors
