@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex,nofollow" />
+  <title>SMC — The SMC Indicator With Measured Trust (Draft v0)</title>
+  <link rel="preconnect" href="https://rsms.me/" />
+  <link rel="stylesheet" href="https://rsms.me/inter/inter.css" />
+  <style>
+    :root {
+      --bg: #0e1116;
+      --fg: #e6edf3;
+      --muted: #8b95a1;
+      --accent: #2ea043;
+      --warn: #d29922;
+      --rule: #21262d;
+      --card: #161b22;
+      --max: 920px;
+    }
+    * { box-sizing: border-box; }
+    html { font-family: 'Inter', system-ui, -apple-system, sans-serif; font-feature-settings: 'cv11', 'ss01', 'ss03'; }
+    body { margin: 0; background: var(--bg); color: var(--fg); line-height: 1.55; }
+    .wrap { max-width: var(--max); margin: 0 auto; padding: 64px 24px; }
+    header.hero { text-align: left; padding-bottom: 48px; border-bottom: 1px solid var(--rule); }
+    .badge { display: inline-block; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin-bottom: 16px; }
+    h1 { font-size: 44px; line-height: 1.1; margin: 0 0 16px; letter-spacing: -0.02em; font-weight: 700; }
+    h2 { font-size: 22px; margin: 48px 0 12px; letter-spacing: -0.01em; }
+    h3 { font-size: 16px; margin: 0 0 8px; letter-spacing: 0; color: var(--fg); }
+    p.lede { font-size: 18px; color: var(--muted); max-width: 640px; margin: 0 0 24px; }
+    .ctas { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 8px; }
+    .cta { display: inline-block; padding: 10px 18px; border-radius: 6px; text-decoration: none; font-weight: 500; font-size: 14px; border: 1px solid var(--rule); color: var(--fg); background: var(--card); }
+    .cta.primary { background: var(--accent); border-color: var(--accent); color: #04130a; }
+    figure.shot { margin: 32px 0 0; padding: 24px; border: 1px dashed var(--rule); border-radius: 8px; color: var(--muted); text-align: center; }
+    figure.shot small { display: block; margin-top: 8px; font-size: 12px; }
+    .pillars { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin-top: 16px; }
+    .pillar { background: var(--card); border: 1px solid var(--rule); border-radius: 8px; padding: 20px; }
+    .pillar .num { font-size: 28px; font-weight: 700; letter-spacing: -0.02em; }
+    .pillar .num.small { font-size: 20px; }
+    .pillar p { color: var(--muted); font-size: 14px; margin: 8px 0 0; }
+    .pillar ul { padding-left: 18px; margin: 12px 0 0; color: var(--muted); font-size: 14px; }
+    .academic { background: var(--card); border: 1px solid var(--rule); border-radius: 8px; padding: 20px; margin-top: 24px; }
+    .academic ul { padding-left: 18px; margin: 12px 0 0; }
+    .academic li { margin-bottom: 8px; color: var(--muted); }
+    .academic li b { color: var(--fg); }
+    .pricing { background: var(--card); border: 1px solid var(--warn); border-radius: 8px; padding: 20px; margin-top: 24px; color: var(--muted); }
+    .pricing b { color: var(--fg); }
+    footer { color: var(--muted); font-size: 12px; margin-top: 64px; padding-top: 24px; border-top: 1px solid var(--rule); }
+    code { background: var(--card); padding: 1px 6px; border-radius: 3px; font-size: 13px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="hero">
+      <span class="badge">Draft v0 · not for launch</span>
+      <h1>The SMC indicator with <em>measured</em> trust.</h1>
+      <p class="lede">Not claimed. Measured on 258+ events across 12 pairs. Brier 0.168 · ECE 0.131 · 5,608 tests passing on the public benchmark.</p>
+      <div class="ctas">
+        <a class="cta primary" href="#proof">See the numbers</a>
+        <a class="cta" href="#dashboard">View live dashboard</a>
+      </div>
+    </header>
+
+    <figure id="dashboard" class="shot">
+      [Screenshot placeholder — Audit View rows 22–33 with annotation arrows on Brier · ECE · FVG Health · Trust Tier · Per-Family hit rates]
+      <small>Source: <code>SMC_Dashboard.pine</code> Audit View — replace with annotated PNG before v1.</small>
+    </figure>
+
+    <h2 id="proof">Three pillars, all verifiable</h2>
+    <div class="pillars">
+      <div class="pillar">
+        <h3>Measured</h3>
+        <div class="num">0.168</div>
+        <p>Brier score on the public calibration benchmark.</p>
+        <ul>
+          <li>ECE 0.131 (smECE in Q3)</li>
+          <li>5,608 tests passing</li>
+          <li>258 events · 12 pairs</li>
+        </ul>
+      </div>
+      <div class="pillar">
+        <h3>Regime-aware</h3>
+        <div class="num small">RTH × ETH × Vol</div>
+        <p>Family weights split by session and volatility regime, with contextual calibration on the Q3 roadmap.</p>
+        <ul>
+          <li>Session-aware family scoring</li>
+          <li>Volatility regime in weights</li>
+          <li>Contextual calibration → Q3 W6</li>
+        </ul>
+      </div>
+      <div class="pillar">
+        <h3>Trust you can see</h3>
+        <div class="num small">19+ rows</div>
+        <p>The Audit View exposes the evidence behind every signal: trust tier, provider state, per-family confidence, FVG health.</p>
+        <ul>
+          <li>Open code, public hashes</li>
+          <li>SHA-pinned calibration JSON</li>
+          <li>Reason field per zone</li>
+        </ul>
+      </div>
+    </div>
+
+    <h2>Academic grounding</h2>
+    <div class="academic">
+      <ul>
+        <li><b>Friday et al. 2026</b> — FVG + Order Blocks + Hurst classifier · 94.97% entry accuracy on BTC/USDT. <a href="https://ieeexplore.ieee.org/document/11389759/">IEEE Access · DOI 10.1109/ACCESS.2026.3517233</a></li>
+        <li><b>Parekh &amp; Heller 2026</b> — ICT in Pine v5 · +11pp WR. <a href="https://j.snerds.org/index.php/jse/article/view/132">JSE · DOI 10.64804/y4pjsg07</a></li>
+        <li><b>Hammer &amp; Patel 2025</b> — ICT session filter · drawdown reduction. <a href="https://34.172.72.90/index.php/jse/article/view/77">JSE · DOI 10.64804/37pe1x85</a></li>
+      </ul>
+    </div>
+
+    <h2>Pricing</h2>
+    <div class="pricing">
+      <b>Coming Q4 2026.</b> Monthly cancellable in two clicks. Opt-in renewal — we email seven days before any charge and you confirm. No dark patterns. Full refund if calibration grade drops below B for fourteen consecutive days.
+    </div>
+
+    <footer>
+      Draft v0 — Plan §1.2 · 21.04.2026. Source: <code>marketing/landing_v0.md</code>. Not indexed, not for public launch.
+    </footer>
+  </div>
+</body>
+</html>

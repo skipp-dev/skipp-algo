@@ -85,6 +85,213 @@ def test_dashboard_has_companion_summary_and_pro_diagnostics() -> None:
     assert 'section_row(smc_dashboard, 69, "[ Debug ]", header_bg, txt)' in source
 
 
+def test_dashboard_hero_surface_pins_one_liner_row_and_shifted_row_order() -> None:
+    """Plan 1.1 caveat resolution.
+
+    The Hero surface gained a product hero one-liner on row 1 (SMC · BIAS ·
+    TIER · Top FAM HR% · Zone N · ⚠BLOCKER), pushing the existing seven
+    decision-first rows from 1..7 down to 2..8 with `table.clear` extended
+    to 9. Pin every row so a future row insert/shift fails fast and
+    forces the author to update the IA contract together.
+    """
+    source = _read("SMC_Dashboard.pine")
+
+    assert 'dashboard_row(smc_dashboard, 0, "SMC Long-Dip Dashboard v7", "Hero | Decision-first surface"' in source
+    assert 'dashboard_row(smc_dashboard, 1, "Hero", _hero_one,' in source
+    assert 'dashboard_row(smc_dashboard, 2, "Market", h_market_line,' in source
+    assert 'dashboard_row(smc_dashboard, 3, "Action", h_action_line,' in source
+    assert 'dashboard_row(smc_dashboard, 4, "Why now", h_why_line,' in source
+    assert 'dashboard_row(smc_dashboard, 5, "Setup Quality", h_quality,' in source
+    assert 'dashboard_row(smc_dashboard, 6, "Trust", h_trust_line,' in source
+    assert 'dashboard_row(smc_dashboard, 7, "Risk", h_risk_line,' in source
+    assert 'dashboard_row(smc_dashboard, 8, "Risk Plan", dashboard_compact_risk_plan_text(' in source
+    assert "table.clear(smc_dashboard, 0, 9, 1, 73)" in source
+    # Hero one-liner contract: must be assembled from the generated mp.*
+    # contract (no hard-coded values) via the user-configurable token
+    # composer and must carry the canonical blocker prefix so a degraded
+    # read is visible at a glance.
+    assert 'string _hero_fam = mp.ZONE_PRIORITY_TOP_FAMILY' in source
+    assert 'string _hero_one = compose_hero_one_liner(hero_token_order, mp.HERO_BIAS, mp.HERO_TRUST, _hero_fam, _hero_fam_pct, mp.ZONE_PRIORITY_RANK, _hero_blocker)' in source
+    # Composer + token-order input must exist with the canonical default.
+    assert 'compose_hero_one_liner(string order_csv, string bias, string trust, string fam, int fam_pct, string zone, string blocker) =>' in source
+    assert 'hero_token_order = input.string("BIAS,TRUST,FAM,ZONE,BLOCKER", "Hero Token Order"' in source
+    assert '"\u26a0"' in source  # blocker glyph still rendered by composer
+
+
+def test_dashboard_explain_popup_tooltips_cover_zone_priority_and_per_family() -> None:
+    """Plan 1.5 — every Zone Priority row and every per-family row carries a
+    tooltip explaining family / calibrated weight / tier / source. The
+    helper itself must trim long strings to stay under Pine's tooltip
+    char limit."""
+    source = _read("SMC_Dashboard.pine")
+
+    # Helper exists and trims defensively.
+    assert "dashboard_row_tt(table tbl, int row, string label_text, string value_text, color bg, color txt, string tt) =>" in source
+    assert "str.length(tt) > 2000" in source
+    assert ", tooltip = _tt_safe)" in source
+
+    # Decision Brief Zone Priority popup.
+    assert 'string zp_brief_tt = "Zone " + zp_rank + " — Why?\\n' in source
+    assert 'dashboard_row_tt(smc_dashboard, 5, "Zone Priority", zp_line, zp_bg, txt, zp_brief_tt)' in source
+
+    # Audit Zone Priority popup carries calibrated weight + reason +
+    # SHA-anchored source for credibility.
+    assert 'string _audit_zp_tt = "Zone " + _audit_zp_rank + " — Why?\\n' in source
+    assert 'Source: zone_priority_calibration.json' in source
+    assert 'dashboard_row_tt(smc_dashboard, 22, "Zone Priority", _audit_zp_line, _audit_zp_bg, txt, _audit_zp_tt)' in source
+
+    # Per-family rows — each family gets a tooltip with its calibrated weight + tier.
+    for family, mp_field in (
+        ("OB", "mp.ZONE_CAL_OB"),
+        ("FVG", "mp.ZONE_CAL_FVG"),
+        ("BOS", "mp.ZONE_CAL_BOS"),
+        ("SWEEP", "mp.ZONE_CAL_SWEEP"),
+    ):
+        marker = f'dashboard_row_tt(smc_dashboard, '
+        per_family_tt_marker = f'"{family} — calibrated weight " '
+        assert marker in source
+        assert per_family_tt_marker in source, f"missing tooltip text for family {family}"
+        assert mp_field in source
+
+
+def test_dashboard_visual_consolidation_publishes_tier_and_icon_tokens() -> None:
+    """Plan 1.6 — single source of truth for tier colours and icon glyphs.
+    Hero one-liner must paint its background from these tokens."""
+    source = _read("SMC_Dashboard.pine")
+
+    assert "var color CLR_TIER_T1" in source
+    assert "var color CLR_TIER_T2" in source
+    assert "var color CLR_TIER_T3" in source
+    assert "var color CLR_TIER_T4" in source
+    assert 'var string ICON_UP   = "⬆"' in source
+    assert 'var string ICON_DOWN = "⬇"' in source
+    assert 'var string ICON_WARN = "⚠"' in source
+    assert 'var string ICON_OK   = "✅"' in source
+    # Hero one-liner background uses the new tier tokens (not raw colors).
+    assert "color _hero_one_bg = mp.HERO_TRUST == \"healthy\" ? color.new(CLR_TIER_T1," in source
+    assert "color.new(CLR_TIER_T4," in source
+
+
+def test_core_engine_quickstart_preset_publishes_effective_defaults_contract() -> None:
+    """Plan 1.4 caveat resolution.
+
+    The `quickstart_preset` input must do more than emit a status-line
+    label: it must publish a typed effective-defaults pack via the BUS
+    plot contract so downstream consumers (and tests) can pin the
+    preset → effective-values mapping. W1 will wire these BUS values
+    into the actual gate logic; the contract shape is locked here.
+    """
+    source = _read("SMC_Core_Engine.pine")
+
+    # Input declaration with all four classes + status-line emission.
+    assert "var string quickstart_preset = input.string('Custom', 'Quickstart Preset'" in source
+    for option in ("'Custom'", "'Mega-Cap US Tech'", "'Financial Services'", "'Energy'"):
+        assert option in source
+
+    # Effective-defaults helpers (pure functions of the preset name).
+    assert "preset_effective_rvol_min(string preset) =>" in source
+    assert "preset_effective_htf_bias_min(string preset) =>" in source
+    assert "preset_effective_fvg_quality_gate(string preset) =>" in source
+    assert "preset_effective_vol_regime_default(string preset) =>" in source
+    assert "preset_effective_class_code(string preset) =>" in source
+
+    # Hard-pin the curated mapping so a value tweak forces a deliberate edit.
+    assert "preset == 'Mega-Cap US Tech'   ? 1.30" in source  # rvol_min Tech
+    assert "preset == 'Financial Services' ? 1.20" in source  # rvol_min FinSvc
+    assert "preset == 'Energy' ? 1.10" in source              # rvol_min Energy
+    assert "preset == 'Mega-Cap US Tech'   ? 0.70" in source  # htf_bias_min Tech
+    assert "preset == 'Mega-Cap US Tech'   ? 2 :" in source   # fvg gate Tech (high)
+    assert "preset == 'Energy' ? 1 : 0"        in source      # vol regime default Energy
+    assert "preset == 'Mega-Cap US Tech'   ? 1 :" in source   # class code Tech
+
+    # BUS contract: the five hidden plots downstream consumers must read.
+    assert "plot(preset_effective_class_code(quickstart_preset),"        in source
+    assert "'BUS PresetClassCode'"     in source
+    assert "plot(preset_effective_rvol_min(quickstart_preset),"          in source
+    assert "'BUS PresetRvolMin'"       in source
+    assert "plot(preset_effective_htf_bias_min(quickstart_preset),"      in source
+    assert "'BUS PresetHtfBiasMin'"    in source
+    assert "plot(preset_effective_fvg_quality_gate(quickstart_preset),"  in source
+    assert "'BUS PresetFvgQualGate'"   in source
+    assert "plot(preset_effective_vol_regime_default(quickstart_preset),"in source
+    assert "'BUS PresetVolRegimeDef'"  in source
+
+
+def test_core_engine_quickstart_preset_rvol_floor_is_wired_into_effective_gate() -> None:
+    """Plan 1.4 W1 — RVOL is the first axis we actually wire end-to-end.
+
+    The preset acts as a *floor* (math.max), never a ceiling, so a Custom
+    preset (returns 0.0) is a no-op and a stricter preset can never relax
+    the user's own threshold. Lock the exact wiring so an accidental
+    `min` flip or removal fails the suite.
+    """
+    source = _read("SMC_Core_Engine.pine")
+    assert "effective_relvol_good := math.max(effective_relvol_good, preset_effective_rvol_min(quickstart_preset))" in source
+    # Helper must be declared before its first consumer; the consumer
+    # lives in the gate section much further down. A simple ordering
+    # assert catches forward references that would break Pine compile.
+    helper_idx = source.find("preset_effective_rvol_min(string preset) =>")
+    consumer_idx = source.find("math.max(effective_relvol_good, preset_effective_rvol_min(quickstart_preset))")
+    assert helper_idx > 0 and consumer_idx > 0, "helper or consumer missing"
+    assert helper_idx < consumer_idx, (
+        f"preset_effective_rvol_min helper (idx {helper_idx}) must be declared "
+        f"before its consumer (idx {consumer_idx}) — Pine forward refs do not compile"
+    )
+    # User-facing input tooltip must explain that the preset can raise the floor.
+    assert "Plan 1.4: when a Quickstart Preset other than Custom is active, the preset may raise this floor" in source
+
+
+def test_core_engine_quickstart_preset_htf_bias_floor_is_wired_into_context_quality() -> None:
+    """Plan 1.4 W2 — HTF bias is the second preset axis we wire end-to-end.
+
+    Same floor pattern as RVOL: the preset count can only raise the
+    user's own ``min_htf_alignment_count``, never lower it. The
+    helper ``preset_effective_htf_align_count`` translates the float
+    bias-min (0..1) into the integer count compute_context_quality()
+    actually uses (1..3).
+    """
+    source = _read("SMC_Core_Engine.pine")
+    assert "var int min_htf_alignment_count = input.int(2, 'HTF Bias Min Count'" in source
+    assert "int _htf_floor = math.max(min_htf_alignment_count, preset_effective_htf_align_count(quickstart_preset))" in source
+    assert "bool _htf_ok = _htf_count >= _htf_floor" in source
+    helper_idx = source.find("preset_effective_htf_align_count(string preset) =>")
+    consumer_idx = source.find("math.max(min_htf_alignment_count, preset_effective_htf_align_count(quickstart_preset))")
+    assert helper_idx > 0 and consumer_idx > 0, "helper or consumer missing"
+    assert helper_idx < consumer_idx, (
+        f"preset_effective_htf_align_count helper (idx {helper_idx}) must be declared "
+        f"before its consumer (idx {consumer_idx}) — Pine forward refs do not compile"
+    )
+    # The legacy hardcoded ">= 2" must be gone — otherwise the preset floor is dead code.
+    assert "_htf_ok = _htf_count >= 2" not in source, (
+        "legacy hardcoded HTF threshold still present; preset floor would be ignored"
+    )
+
+
+def test_dashboard_audit_view_has_why_this_tier_drilldown() -> None:
+    """Plan 1.5 follow-up — Audit View must surface a top-3 ranked
+    breakdown of the calibrated family weights so an operator can answer
+    'why does the engine pick OB over FVG today?' in one glance.
+
+    Read-only on the existing ZONE_CAL_* BUS contract; no engine change.
+    The drill-down is appended at rows 74/75 so the existing audit-row
+    pin tests keep working.
+    """
+    source = _read("SMC_Dashboard.pine")
+
+    # Table size + final clear range must accommodate the new rows.
+    assert "table.new(position.bottom_right, 2, 76, border_width = 0)" in source
+    assert "table.clear(smc_dashboard, 0, 0, 1, 75)" in source
+    # New rows pinned by section + content row.
+    assert 'section_row(smc_dashboard, 74, "[ Why this Tier? ]"' in source
+    assert 'dashboard_row_tt(smc_dashboard, 75, "Top-3 Weights",' in source
+    # Drill-down must read from the published BUS contract (no shadow source).
+    for fam in ("OB", "FVG", "BOS", "SWEEP"):
+        assert f"mp.ZONE_CAL_{fam}" in source
+    # The full ranked tooltip must include all four families and a source pointer.
+    assert "Why this Tier? Ranked calibrated weights" in source
+    assert "Source: zone_priority_calibration.json" in source
+
+
 def test_long_strategy_has_wrapper_controls_and_core_plan_outputs() -> None:
     source = _read("SMC_Long_Strategy.pine")
 

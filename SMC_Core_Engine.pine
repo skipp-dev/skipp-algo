@@ -2539,6 +2539,66 @@ var string long_user_preset = input.string('Standard', 'Trading Style', options 
 var bool compact_mode = input.bool(true, 'Focus View', group = g_mode, tooltip = 'Default first-run surface for solo operation or sharing. Suppresses debug overlays and keeps a single decision-first surface. Engine logic is unchanged; only the visible surface is reduced.')
 var string color_theme = input.string('Standard', 'Color Theme', options = ['Standard', 'Colorblind Safe'], group = g_mode, tooltip = 'Standard uses the classic red/green palette. Colorblind Safe replaces bull/bear colors with a blue/orange palette optimised for deuteranopia and protanopia. Warning/stale colors are unchanged.')
 
+// ── Quickstart Presets (Plan 1.4) ─────────────────────────────
+// Ticker-class presets seeded from the calibration benchmark
+// (`zone_priority_calibration.json`). Selecting a preset publishes the
+// active class on the status line so downstream consumers and the
+// dashboard can read it; existing inputs stay user-editable so power
+// users keep full control. Conditional `active=` gating of the
+// individual inputs lands in W1 once the preset \u2192 input mapping is
+// covered by tests.
+//
+//   MEGA_TECH      \u2014 AAPL, MSFT, GOOGL, NVDA, META, AMZN
+//                    Recommend RVOL >= 1.3, tighter ETH window,
+//                    htf_bias_min = 0.7, FVG quality gate = high.
+//                    Calibration evidence: AMZN/1H Grade A
+//                    (84% HR, ECE 0.035).
+//   FIN_SERVICES   \u2014 JPM, BAC, GS, MS
+//                    Recommend FOMC event-gate ON, earnings
+//                    kill-switch ON, vol_regime threshold tighter.
+//                    Calibration evidence: JPM/15m Grade A (82.6% HR).
+//   ENERGY         \u2014 XOM, CVX, COP, OXY
+//                    Recommend Vol-Regime default HIGH, OIL
+//                    event-gate ON, larger ATR-based zones.
+//                    Higher intraday vol \u2014 calibration uses regime split.
+//   CUSTOM         \u2014 Existing inputs apply as-is (default).
+var string quickstart_preset = input.string('Custom', 'Quickstart Preset', options = ['Custom', 'Mega-Cap US Tech', 'Financial Services', 'Energy'], group = g_mode, tooltip = 'Plan 1.4 preset library. Pick a ticker class to load curated defaults backed by the calibration benchmark.\n\nMega-Cap US Tech (AAPL/MSFT/GOOGL/NVDA/META/AMZN) \u2014 RVOL >= 1.3, tight ETH window, FVG quality gate high. Evidence: AMZN/1H Grade A (84% HR, ECE 0.035).\n\nFinancial Services (JPM/BAC/GS/MS) \u2014 FOMC event-gate, earnings kill-switch, tighter vol threshold. Evidence: JPM/15m Grade A (82.6% HR).\n\nEnergy (XOM/CVX/COP/OXY) \u2014 Vol-Regime default HIGH, OIL event-gate, larger ATR zones.\n\nCustom keeps the existing inputs as-is.', display = display.status_line)
+
+// Plan 1.4 W1 — effective-defaults helpers must be declared before
+// their first consumer (the effective_relvol_good chain in the gate
+// section). The matching BUS plots stay grouped with the rest of the
+// BUS contract further down so the surface stays readable.
+//
+// Encoded values (see preset tooltip for evidence):
+//   Mega-Cap US Tech    -> rvol_min 1.30, htf_bias_min 0.70, fvg_quality 2 (high), vol_regime_default 0 (NORMAL)
+//   Financial Services  -> rvol_min 1.20, htf_bias_min 0.60, fvg_quality 1 (med),  vol_regime_default 0 (NORMAL)
+//   Energy              -> rvol_min 1.10, htf_bias_min 0.55, fvg_quality 1 (med),  vol_regime_default 1 (HIGH)
+//   Custom              -> 0/0/0/0 (consumers fall back to their own input defaults)
+preset_effective_rvol_min(string preset) =>
+    preset == 'Mega-Cap US Tech'   ? 1.30 : preset == 'Financial Services' ? 1.20 : preset == 'Energy' ? 1.10 : 0.0
+
+preset_effective_htf_bias_min(string preset) =>
+    preset == 'Mega-Cap US Tech'   ? 0.70 : preset == 'Financial Services' ? 0.60 : preset == 'Energy' ? 0.55 : 0.0
+
+// Plan 1.4 W2 — Translate the float bias-min into the count of
+// bullish HTFs (0..3) that compute_context_quality() actually checks.
+// Mapping: ceil(bias_min * 3). Custom returns 0 (no-op floor).
+//   Energy 0.55 -> 2  (matches default)
+//   Financial Services 0.60 -> 2  (matches default)
+//   Mega-Cap US Tech 0.70 -> 3  (stricter than default; needs full HTF stack)
+preset_effective_htf_align_count(string preset) =>
+    int(math.ceil(preset_effective_htf_bias_min(preset) * 3.0))
+
+preset_effective_fvg_quality_gate(string preset) =>
+    preset == 'Mega-Cap US Tech'   ? 2 : preset == 'Financial Services' ? 1 : preset == 'Energy' ? 1 : 0
+
+preset_effective_vol_regime_default(string preset) =>
+    preset == 'Energy' ? 1 : 0
+
+preset_effective_class_code(string preset) =>
+    preset == 'Mega-Cap US Tech'   ? 1 : preset == 'Financial Services' ? 2 : preset == 'Energy' ? 3 : 0
+
+
 // ── Central color palette (WP-OV4) ────────────────────────────
 var color BULL_PRIMARY     = color_theme == 'Colorblind Safe' ? #1f77b4 : #089981
 var color BEAR_PRIMARY     = color_theme == 'Colorblind Safe' ? #ff7f0e : #f23645
@@ -2911,6 +2971,7 @@ var int score_weight_ema = input.int(1, 'EMA', minval = 0, maxval = 3, group = g
 var int score_weight_adx = input.int(2, 'ADX', minval = 0, maxval = 3, group = g_quality, inline = 'qw2', display = display.none)
 var int score_weight_close = input.int(1, 'Close', minval = 0, maxval = 3, group = g_quality, inline = 'qw3', display = display.none)
 var int score_weight_relvol = input.int(1, 'RelVol', minval = 0, maxval = 3, group = g_quality, inline = 'qw3', display = display.none)
+var int min_htf_alignment_count = input.int(2, 'HTF Bias Min Count', minval = 1, maxval = 3, group = g_quality, inline = 'qw4', tooltip = 'Minimum number of higher-timeframe streams (1..3) that must be bullish for htf_alignment_ok = true. Default 2 of 3 matches the existing context-quality contract.\n\nPlan 1.4: when a Quickstart Preset other than Custom is active, the preset may raise this floor (Mega-Cap US Tech requires 3, Financial Services / Energy stay at 2). The preset never lowers the floor.', display = display.none)
 
 // Confirmation rules
 var bool require_internal_break_for_confirm = input.bool(true, 'Require Internal Break For Confirm', group = g_long, inline = 'confirm', display = display.none)
@@ -2933,7 +2994,7 @@ var float adx_strong_min = input.float(25.0, 'Strong', minval = 1, step = 0.5, g
 // Relative volume
 var bool use_rel_volume = input.bool(true, 'Use Relative Volume', group = g_long, inline = 'rv', display = display.none)
 var int relvol_len = input.int(20, 'Length', minval = 1, group = g_long, inline = 'rv', display = display.none)
-var float relvol_good = input.float(1.2, 'Good x', minval = 0.1, step = 0.1, group = g_long, inline = 'rv', display = display.none)
+var float relvol_good = input.float(1.2, 'Good x', minval = 0.1, step = 0.1, group = g_long, inline = 'rv', display = display.none, tooltip = 'Minimum RVOL multiple for the relative-volume gate. Plan 1.4: when a Quickstart Preset other than Custom is active, the preset may raise this floor (math.max), it never lowers it. Effective value is published on BUS PresetRvolMin.')
 
 // Candle quality
 var bool use_strong_close_filter = input.bool(true, 'Use Strong Close Filter', group = g_long, inline = 'close', display = display.none)
@@ -3830,6 +3891,14 @@ float effective_fvg_reclaim_min_penetration = 0.0
 effective_fvg_reclaim_min_penetration := fvg_reclaim_min_penetration
 float effective_relvol_good = 0.0
 effective_relvol_good := relvol_good
+// Plan 1.4 W1 — wire Quickstart Preset RVOL floor into the effective
+// relvol gate. Preset acts as a floor only (math.max), so a Custom
+// preset (returns 0.0) is a no-op and a stricter preset never relaxes
+// the user's own threshold. Other preset axes (HTF bias, FVG quality,
+// vol regime default) stay BUS-published until their consumer
+// surfaces ship in Q3 (D4 / F3); the BUS already exposes the values
+// so dashboards and tests can pin the contract today.
+effective_relvol_good := math.max(effective_relvol_good, preset_effective_rvol_min(quickstart_preset))
 float effective_long_invalidation_atr_mult = 0.0
 effective_long_invalidation_atr_mult := long_invalidation_atr_mult
 bool effective_use_live_confirm_break = true
@@ -4933,7 +5002,11 @@ compute_context_quality() =>
         _htf_count += 1
     if mtf_trend_3 > 0
         _htf_count += 1
-    bool _htf_ok = _htf_count >= 2
+    // Plan 1.4 W2 — HTF bias floor is the preset's effective count, never
+    // below the user's own min_htf_alignment_count. math.max guarantees the
+    // preset can only raise the bar (Custom returns 0 → no-op).
+    int _htf_floor = math.max(min_htf_alignment_count, preset_effective_htf_align_count(quickstart_preset))
+    bool _htf_ok = _htf_count >= _htf_floor
     bool _ltf_ok = true
     if use_ltf_for_strict_entry_eff
         _ltf_ok := false
@@ -5401,6 +5474,18 @@ plot(cr.pack_bus_counts(array.size(ob_blocks_bull), array.size(fvgs_bull)), 'BUS
 // ── v5.5 Lean BUS Plots ──
 plot(cr.resolve_bus_lean_pack_a(lib_sq_score, lib_sq_tier, lib_sq_freshness, lib_sq_bias_alignment, lib_erl_window_state, lib_erl_level, lib_erl_market_blocked, lib_erl_symbol_blocked, lib_strl_trend_strength, lib_strl_fresh, lib_strl_last_event), 'BUS LeanPackA', display = display.none)
 plot(cr.resolve_bus_lean_pack_b(lib_obl_side, lib_obl_fresh, lib_obl_mitigation_state, lib_fvgl_side, lib_fvgl_fresh, lib_fvgl_invalidated, lib_scl_context_score, lib_scl_in_killzone, lib_ensemble_quality_score, lib_ensemble_quality_tier, lib_volatility_regime, lib_volatility_model_source), 'BUS LeanPackB', display = display.none)
+
+// ── BUS Quickstart Preset (Plan 1.4 caveat resolution) ──
+// Helpers live near the input declaration so the effective_* gate
+// chain can consume them. The hidden plots below expose the same
+// values as a stable contract for the dashboard and tests. RVOL is
+// wired (effective_relvol_good chain); HTF bias / FVG quality / vol
+// regime stay BUS-only until their consumer surfaces ship in Q3.
+plot(preset_effective_class_code(quickstart_preset),       'BUS PresetClassCode',     display = display.none)
+plot(preset_effective_rvol_min(quickstart_preset),         'BUS PresetRvolMin',       display = display.none)
+plot(preset_effective_htf_bias_min(quickstart_preset),     'BUS PresetHtfBiasMin',    display = display.none)
+plot(preset_effective_fvg_quality_gate(quickstart_preset), 'BUS PresetFvgQualGate',   display = display.none)
+plot(preset_effective_vol_regime_default(quickstart_preset),'BUS PresetVolRegimeDef', display = display.none)
 
 // ── Mini Health Badge (v5.5a) ──
 var label core_hero_card = na

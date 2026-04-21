@@ -87,8 +87,52 @@ Required environment variables for automation jobs:
 
 ---
 
+## Academic Grounding
+
+The SMC stack builds on published evidence for ICT / Smart-Money methods —
+not on anecdotal YouTube claims. The following peer-reviewed works are
+required reading for contributors and are consulted whenever scorer
+weights, calibration logic, or family priorities change:
+
+- **Friday et al. (2026)** — *FVG + Order Blocks + Hurst-Exponent
+  classifier* → 94.97% entry accuracy on BTC/USDT.
+  [IEEE Access, DOI 10.1109/ACCESS.2026.3517233](https://ieeexplore.ieee.org/document/11389759/).
+  Relevance: motivates our OB and FVG prioritization; basis for the
+  Hurst-augmented FVG quality filter on the Q3 backlog.
+- **Parekh & Heller (2026)** — *ICT concepts in Pine Script v5* →
+  +11pp win-rate improvement vs. baseline.
+  [JSE DOI 10.64804/y4pjsg07](https://j.snerds.org/index.php/jse/article/view/132).
+  Relevance: direct precursor to the `SMC_Core_Engine` architecture.
+- **Hammer & Patel (2025)** — *ICT session filters (RTH / ETH)* →
+  significant drawdown reduction in equity markets.
+  [JSE DOI 10.64804/37pe1x85](https://34.172.72.90/index.php/jse/article/view/77).
+  Relevance: justifies the session-aware calibration planned in
+  measurement Phase F2.
+
+**Our contribution on top:** calibration (Brier / smECE), Bayesian
+smoothing of family weights, and an explicit Trust Tier — none of which
+appear in the works above, but all of which are state-of-the-art for
+*honest uncertainty communication* (cf.
+[Rossellini et al. 2025, arXiv:2502.19851](https://arxiv.org/abs/2502.19851)
+and [Błasiok & Nakkiran 2023, smECE, arXiv:2309.12236](https://arxiv.org/abs/2309.12236)).
+
+We intentionally do **not** claim the headline accuracies from these
+papers as our own — our numbers are reported live in the calibration
+report and the Pine dashboard, on US-equity intraday data.
+
+> **See also:** the public-facing summary of this section lives on the
+> [Landing v0 draft](marketing/landing_v0.md) (rendered:
+> [`marketing/landing_v0.html`](marketing/landing_v0.html)) and the
+> three curated input bundles in
+> [`marketing/tradingview_indicator_templates.md`](marketing/tradingview_indicator_templates.md).
+> The Landing page is **not yet public** — pricing must land in Q4 first
+> (Plan §3.4).
+
+---
+
 ## Table of Contents
 
+- [Academic Grounding](#academic-grounding)
 - [Real-Time News Intelligence Dashboard](#real-time-news-intelligence-dashboard)
 - [Open-Prep Pipeline](#open-prep-pipeline)
 - [Databento Volatility Suite](#databento-volatility-suite)

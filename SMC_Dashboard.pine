@@ -26,6 +26,7 @@ show_risk_lines = input.bool(true, "Show Trade Plan", group = g_surface)
 show_state_bg = input.bool(false, "Highlight Live Setup", group = g_surface)
 compact_dashboard = input.bool(false, "Compact Dashboard", group = g_surface, tooltip = "WP-OV5: Show only 5 key rows for mobile or small screens. Overrides Decision Brief when enabled.")
 color_theme = input.string("Standard", "Color Theme", options = ["Standard", "Colorblind Safe"], group = g_surface, tooltip = "Match this to the Core Engine color theme. Colorblind Safe replaces red/green with orange/blue.")
+hero_token_order = input.string("BIAS,TRUST,FAM,ZONE,BLOCKER", "Hero Token Order", group = g_surface, tooltip = "Plan 1.1 follow-up — comma-separated tokens that compose the Hero one-liner after the fixed 'SMC' prefix. Vocabulary: BIAS, TRUST, FAM (top-family hit-rate %), ZONE (rank), BLOCKER (warning). Unknown tokens are ignored. Default 'BIAS,TRUST,FAM,ZONE,BLOCKER' matches the original hardcoded order. This input is the seam for the W22 preset/template marketplace (Plan §3.5) — users can already build their own Hero today.")
 
 // ── Dashboard color palette ───────────────────────────────────
 var bool _cb = color_theme == "Colorblind Safe"
@@ -36,6 +37,19 @@ var color CLR_CAUTION   = _cb ? #bcbd22 : color.orange
 var color CLR_BUILDING  = _cb ? color.new(#bcbd22, 20) : color.yellow
 var color CLR_BEAR      = _cb ? #ff7f0e : color.red
 var color CLR_NEUTRAL   = color.gray
+
+// ── Trust-Tier color tokens (Plan 1.6 visual consolidation) ──
+// Used by hero one-liner / future per-tier badges so users can read
+// trust on 10m distance without reading the table.
+var color CLR_TIER_T1   = _cb ? #1f77b4 : color.new(color.green,  0)
+var color CLR_TIER_T2   = _cb ? #17becf : color.new(color.teal,   0)
+var color CLR_TIER_T3   = _cb ? #bcbd22 : color.new(color.orange, 0)
+var color CLR_TIER_T4   = _cb ? #ff7f0e : color.new(color.red,    0)
+// Icon tokens — single source of truth so dashboards/labels stay consistent.
+var string ICON_UP   = "⬆"
+var string ICON_DOWN = "⬇"
+var string ICON_WARN = "⚠"
+var string ICON_OK   = "✅"
 
 src_bus_schema_version = input.source(close, "BUS SchemaVersion", group = g_bus_lifecycle, display = display.none, tooltip = "Bind first — must match the schema version published by SMC Core.")
 src_zone_active = input.source(close, "BUS ZoneActive", group = g_bus_lifecycle, display = display.none, tooltip = "Bind this section top-to-bottom to the matching hidden BUS series published by SMC Core.")
@@ -326,6 +340,38 @@ status_bg(int state_value) =>
 dashboard_row(table tbl, int row, string label_text, string value_text, color bg, color txt) =>
     table.cell(tbl, 0, row, label_text, bgcolor = bg, text_color = txt, text_halign = text.align_left)
     table.cell(tbl, 1, row, value_text, bgcolor = bg, text_color = txt, text_halign = text.align_left)
+
+// Plan 1.5 — Explain-popup variant: same row but with hover tooltip on both
+// cells. Pine label/cell tooltips have a hard 4096-char limit; we trim to
+// 2000 to stay safely below.
+dashboard_row_tt(table tbl, int row, string label_text, string value_text, color bg, color txt, string tt) =>
+    string _tt_safe = str.length(tt) > 2000 ? str.substring(tt, 0, 2000) + "…" : tt
+    table.cell(tbl, 0, row, label_text, bgcolor = bg, text_color = txt, text_halign = text.align_left, tooltip = _tt_safe)
+    table.cell(tbl, 1, row, value_text, bgcolor = bg, text_color = txt, text_halign = text.align_left, tooltip = _tt_safe)
+
+// Plan 1.1 follow-up — Hero one-liner composer. Walks user-defined
+// token order and emits the matching segment. Vocabulary fixed to keep
+// the surface tested; unknown tokens are ignored (no compile error so
+// users can copy-paste between layouts). The 'SMC' prefix is fixed.
+compose_hero_one_liner(string order_csv, string bias, string trust, string fam, int fam_pct, string zone, string blocker) =>
+    string _out = "SMC"
+    array<string> _toks = str.split(order_csv, ",")
+    for _i = 0 to array.size(_toks) - 1
+        string _tok = str.upper(str.replace_all(array.get(_toks, _i), " ", ""))
+        string _seg = ""
+        if _tok == "BIAS"
+            _seg := bias != "" ? bias : "FLAT"
+        else if _tok == "TRUST"
+            _seg := trust != "" ? trust : "—"
+        else if _tok == "FAM"
+            _seg := "Top " + (fam != "" ? fam : "—") + " " + str.tostring(fam_pct) + "%"
+        else if _tok == "ZONE"
+            _seg := "Zone " + (zone != "" ? zone : "—")
+        else if _tok == "BLOCKER"
+            _seg := blocker != "" ? "⚠" + blocker : ""
+        if _seg != ""
+            _out := _out + " · " + _seg
+    _out
 
 section_row(table tbl, int row, string title, color bg, color txt) =>
     dashboard_row(tbl, row, title, "", bg, txt)
@@ -1400,7 +1446,7 @@ plot(show_risk_lines and actionable_state ? src_trigger : na, "Trade Trigger", c
 plot(show_risk_lines and actionable_state ? src_invalidation : na, "Trade Invalidation", color = color.new(CLR_CAUTION, 0), linewidth = 2, style = plot.style_linebr)
 bgcolor(show_state_bg and state_code >= 5 ? color.new(CLR_BULL, 90) : na)
 
-var table smc_dashboard = table.new(position.bottom_right, 2, 74, border_width = 0)
+var table smc_dashboard = table.new(position.bottom_right, 2, 76, border_width = 0)
 
 if show_table and barstate.islast
     color txt = chart.fg_color
@@ -1539,7 +1585,9 @@ if show_table and barstate.islast
         if zp_catalyst != "NONE" and zp_catalyst != ""
             zp_line += " · " + zp_catalyst
         color zp_bg = zp_rank == "A" ? color.new(CLR_BULL_ALT, 75) : zp_rank == "B" ? color.new(CLR_BULL_ALT, 85) : zp_rank == "C" ? color.new(CLR_CAUTION, 80) : color.new(CLR_BEAR, 80)
-        dashboard_row(smc_dashboard, 5, "Zone Priority", zp_line, zp_bg, txt)
+        // Plan 1.5 — Explain-popup: hover shows family/HR/trust/reason for this zone.
+        string zp_brief_tt = "Zone " + zp_rank + " — Why?\nTop Family: " + mp.ZONE_PRIORITY_TOP_FAMILY + "\nScore: " + str.tostring(zp_score) + "/100\nTrust Tier: " + mp.HERO_TRUST + (mp.ZONE_PRIORITY_REASON != "" ? "\nReason: " + mp.ZONE_PRIORITY_REASON : "") + (zp_catalyst != "NONE" and zp_catalyst != "" ? "\nCatalyst: " + zp_catalyst : "")
+        dashboard_row_tt(smc_dashboard, 5, "Zone Priority", zp_line, zp_bg, txt, zp_brief_tt)
         // ENG-WS2-03: same product trust badge augmentation as the SMC
         // Compact view (see comment above). Decision Brief is also a
         // default surface, so a degraded data lage must be visible here
@@ -1593,14 +1641,23 @@ if show_table and barstate.islast
         int h_risk_state = (h_risk == "DATA_STALE" or h_risk == "EVENT_RISK") ? -1 : (h_risk == "VOLATILITY" or h_risk == "PROVIDER_GAPS") ? 2 : h_risk == "" ? 5 : 3
 
         dashboard_row(smc_dashboard, 0, "SMC Long-Dip Dashboard v7", "Hero | Decision-first surface", header_bg, txt)
-        dashboard_row(smc_dashboard, 1, "Market", h_market_line, h_market_bg, txt)
-        dashboard_row(smc_dashboard, 2, "Action", h_action_line, h_action_bg, txt)
-        dashboard_row(smc_dashboard, 3, "Why now", h_why_line, h_why_bg, txt)
-        dashboard_row(smc_dashboard, 4, "Setup Quality", h_quality, status_bg(h_quality_state), txt)
-        dashboard_row(smc_dashboard, 5, "Trust", h_trust_line, status_bg(h_trust_state), txt)
-        dashboard_row(smc_dashboard, 6, "Risk", h_risk_line, status_bg(h_risk_state), txt)
-        dashboard_row(smc_dashboard, 7, "Risk Plan", dashboard_compact_risk_plan_text(actionable_state, src_trigger, src_stop_level, src_target_1, src_target_2), status_bg(actionable_state ? 5 : 0), txt)
-        table.clear(smc_dashboard, 0, 8, 1, 73)
+        // Plan 1.1 — product hero one-liner subtitle: SMC · BIAS · TIER · Top FAM HR% · Zone #N · ⚠BLOCKER
+        // Reads from generated mp.* contract. Cheap to render, no extra state.
+        string _hero_fam = mp.ZONE_PRIORITY_TOP_FAMILY
+        float _hero_fam_w = resolve_family_cal_weight(_hero_fam)
+        int _hero_fam_pct = int(math.round(_hero_fam_w * 100))
+        string _hero_blocker = mp.HERO_RISK != "" ? mp.HERO_RISK : (mp.HERO_TRUST == "degraded" or mp.HERO_TRUST == "stale" ? "TRUST" : "")
+        string _hero_one = compose_hero_one_liner(hero_token_order, mp.HERO_BIAS, mp.HERO_TRUST, _hero_fam, _hero_fam_pct, mp.ZONE_PRIORITY_RANK, _hero_blocker)
+        color _hero_one_bg = mp.HERO_TRUST == "healthy" ? color.new(CLR_TIER_T1, 70) : mp.HERO_TRUST == "warmup" ? color.new(CLR_TIER_T2, 75) : mp.HERO_TRUST == "degraded" ? color.new(CLR_TIER_T3, 75) : color.new(CLR_TIER_T4, 75)
+        dashboard_row(smc_dashboard, 1, "Hero", _hero_one, _hero_one_bg, txt)
+        dashboard_row(smc_dashboard, 2, "Market", h_market_line, h_market_bg, txt)
+        dashboard_row(smc_dashboard, 3, "Action", h_action_line, h_action_bg, txt)
+        dashboard_row(smc_dashboard, 4, "Why now", h_why_line, h_why_bg, txt)
+        dashboard_row(smc_dashboard, 5, "Setup Quality", h_quality, status_bg(h_quality_state), txt)
+        dashboard_row(smc_dashboard, 6, "Trust", h_trust_line, status_bg(h_trust_state), txt)
+        dashboard_row(smc_dashboard, 7, "Risk", h_risk_line, status_bg(h_risk_state), txt)
+        dashboard_row(smc_dashboard, 8, "Risk Plan", dashboard_compact_risk_plan_text(actionable_state, src_trigger, src_stop_level, src_target_1, src_target_2), status_bg(actionable_state ? 5 : 0), txt)
+        table.clear(smc_dashboard, 0, 9, 1, 73)
     else
         dashboard_row(smc_dashboard, 0, "SMC Long-Dip Dashboard v7", "Audit View | Expert review only", header_bg, txt)
         // ── AUDIT: decision detail first, then lean review, diagnostics, risk plan, and explicit debug ──
@@ -1649,7 +1706,10 @@ if show_table and barstate.islast
         if _audit_zp_reason != ""
             _audit_zp_line += " — " + _audit_zp_reason
         color _audit_zp_bg = _audit_zp_rank == "A" ? color.new(CLR_BULL_ALT, 75) : _audit_zp_rank == "B" ? color.new(CLR_BULL_ALT, 85) : _audit_zp_rank == "C" ? color.new(CLR_CAUTION, 80) : color.new(CLR_BEAR, 80)
-        dashboard_row(smc_dashboard, 22, "Zone Priority", _audit_zp_line, _audit_zp_bg, txt)
+        // Plan 1.5 — Explain-popup with full reason + calibrated weight context.
+        float _audit_zp_top_w = resolve_family_cal_weight(_audit_zp_family)
+        string _audit_zp_tt = "Zone " + _audit_zp_rank + " — Why?\nTop Family: " + _audit_zp_family + " (calibrated weight " + format_cal_weight(_audit_zp_top_w) + ")\nScore: " + str.tostring(_audit_zp_score) + "/100\nTrust Tier: " + _audit_trust + " · Provider: " + _audit_prov + (_audit_zp_reason != "" ? "\nReason: " + _audit_zp_reason : "") + (_audit_zp_catalyst != "NONE" and _audit_zp_catalyst != "" ? "\nCatalyst: " + _audit_zp_catalyst : "") + "\nSource: zone_priority_calibration.json"
+        dashboard_row_tt(smc_dashboard, 22, "Zone Priority", _audit_zp_line, _audit_zp_bg, txt, _audit_zp_tt)
         // ── Phase H: Calibration Confidence + Per-Family Performance ──
         float _audit_top_cal = resolve_family_cal_weight(_audit_zp_family)
         int _audit_top_cal_state = calibration_confidence_state(_audit_top_cal)
@@ -1660,10 +1720,11 @@ if show_table and barstate.islast
         dashboard_row(smc_dashboard, 24, "Top Family Confidence", _audit_top_cal_text, status_bg(_audit_top_cal_state), txt)
         dashboard_row(smc_dashboard, 25, "Composite Confidence", format_cal_weight(_audit_cal_avg) + " (" + calibration_confidence_tier(_audit_cal_avg) + ")", status_bg(_audit_cal_avg_state), txt)
         section_row(smc_dashboard, 26, "[ Per-Family Performance ]", header_bg, txt)
-        dashboard_row(smc_dashboard, 27, "OB", family_performance_text("OB", mp.ZONE_CAL_OB), status_bg(calibration_confidence_state(mp.ZONE_CAL_OB)), txt)
-        dashboard_row(smc_dashboard, 28, "FVG", family_performance_text("FVG", mp.ZONE_CAL_FVG), status_bg(calibration_confidence_state(mp.ZONE_CAL_FVG)), txt)
-        dashboard_row(smc_dashboard, 29, "BOS", family_performance_text("BOS", mp.ZONE_CAL_BOS), status_bg(calibration_confidence_state(mp.ZONE_CAL_BOS)), txt)
-        dashboard_row(smc_dashboard, 30, "SWEEP", family_performance_text("SWEEP", mp.ZONE_CAL_SWEEP), status_bg(calibration_confidence_state(mp.ZONE_CAL_SWEEP)), txt)
+        // Plan 1.5 — per-family tooltips: calibrated weight + tier in hover.
+        dashboard_row_tt(smc_dashboard, 27, "OB",    family_performance_text("OB",    mp.ZONE_CAL_OB),    status_bg(calibration_confidence_state(mp.ZONE_CAL_OB)),    txt, "OB — calibrated weight "    + format_cal_weight(mp.ZONE_CAL_OB)    + " (" + calibration_confidence_tier(mp.ZONE_CAL_OB)    + ") · source: zone_priority_calibration.json")
+        dashboard_row_tt(smc_dashboard, 28, "FVG",   family_performance_text("FVG",   mp.ZONE_CAL_FVG),   status_bg(calibration_confidence_state(mp.ZONE_CAL_FVG)),   txt, "FVG — calibrated weight "   + format_cal_weight(mp.ZONE_CAL_FVG)   + " (" + calibration_confidence_tier(mp.ZONE_CAL_FVG)   + ") · source: zone_priority_calibration.json")
+        dashboard_row_tt(smc_dashboard, 29, "BOS",   family_performance_text("BOS",   mp.ZONE_CAL_BOS),   status_bg(calibration_confidence_state(mp.ZONE_CAL_BOS)),   txt, "BOS — calibrated weight "   + format_cal_weight(mp.ZONE_CAL_BOS)   + " (" + calibration_confidence_tier(mp.ZONE_CAL_BOS)   + ") · source: zone_priority_calibration.json")
+        dashboard_row_tt(smc_dashboard, 30, "SWEEP", family_performance_text("SWEEP", mp.ZONE_CAL_SWEEP), status_bg(calibration_confidence_state(mp.ZONE_CAL_SWEEP)), txt, "SWEEP — calibrated weight " + format_cal_weight(mp.ZONE_CAL_SWEEP) + " (" + calibration_confidence_tier(mp.ZONE_CAL_SWEEP) + ") · source: zone_priority_calibration.json")
         // ── Phase H: FVG Health Warning ──
         float _audit_fvg_health = resolve_fvg_health_score()
         string _audit_fvg_warn = fvg_health_warning_text(_audit_fvg_health)
@@ -1713,5 +1774,30 @@ if show_table and barstate.islast
         dashboard_row(smc_dashboard, 71, "Strict Gate", decode_strict_gate_text(strict_gate_row_code), status_bg(row_status(strict_gate_row_code)), txt)
         dashboard_row(smc_dashboard, 72, "Debug Flags", decode_debug_flags_text(debug_flags_row_code), status_bg(row_status(debug_flags_row_code)), txt)
         dashboard_row(smc_dashboard, 73, "Long Debug", long_debug_text, status_bg(row_status(debug_state_row_code)), txt)
+        // Plan 1.5 follow-up — Why this Tier? drill-down. Pure read-only on the
+        // already-published mp.ZONE_CAL_* contract — no engine change. Sorts the
+        // four families by calibrated weight and shows the top-3 inline so an
+        // operator can answer "why does the engine pick OB over FVG today?"
+        // in one glance. The full ranked breakdown lives in the tooltip.
+        section_row(smc_dashboard, 74, "[ Why this Tier? ]", header_bg, txt)
+        float _wt_ob    = mp.ZONE_CAL_OB
+        float _wt_fvg   = mp.ZONE_CAL_FVG
+        float _wt_bos   = mp.ZONE_CAL_BOS
+        float _wt_sweep = mp.ZONE_CAL_SWEEP
+        array<string> _wt_names = array.from("OB", "FVG", "BOS", "SWEEP")
+        array<float>  _wt_vals  = array.from(_wt_ob, _wt_fvg, _wt_bos, _wt_sweep)
+        // Simple O(n²) sort — n=4, no perf concern, no extra dependency.
+        for _wi = 0 to array.size(_wt_vals) - 2
+            for _wj = _wi + 1 to array.size(_wt_vals) - 1
+                if array.get(_wt_vals, _wj) > array.get(_wt_vals, _wi)
+                    float _tmp_v = array.get(_wt_vals, _wi)
+                    string _tmp_n = array.get(_wt_names, _wi)
+                    array.set(_wt_vals,  _wi, array.get(_wt_vals, _wj))
+                    array.set(_wt_names, _wi, array.get(_wt_names, _wj))
+                    array.set(_wt_vals,  _wj, _tmp_v)
+                    array.set(_wt_names, _wj, _tmp_n)
+        string _wt_top3 = array.get(_wt_names, 0) + " " + format_cal_weight(array.get(_wt_vals, 0)) + " · " + array.get(_wt_names, 1) + " " + format_cal_weight(array.get(_wt_vals, 1)) + " · " + array.get(_wt_names, 2) + " " + format_cal_weight(array.get(_wt_vals, 2))
+        string _wt_full = "Why this Tier? Ranked calibrated weights driving the Zone Priority pick:\n  1. " + array.get(_wt_names, 0) + " — " + format_cal_weight(array.get(_wt_vals, 0)) + " (" + calibration_confidence_tier(array.get(_wt_vals, 0)) + ")\n  2. " + array.get(_wt_names, 1) + " — " + format_cal_weight(array.get(_wt_vals, 1)) + " (" + calibration_confidence_tier(array.get(_wt_vals, 1)) + ")\n  3. " + array.get(_wt_names, 2) + " — " + format_cal_weight(array.get(_wt_vals, 2)) + " (" + calibration_confidence_tier(array.get(_wt_vals, 2)) + ")\n  4. " + array.get(_wt_names, 3) + " — " + format_cal_weight(array.get(_wt_vals, 3)) + " (" + calibration_confidence_tier(array.get(_wt_vals, 3)) + ")\nSource: zone_priority_calibration.json · BUS contract: ZONE_CAL_*"
+        dashboard_row_tt(smc_dashboard, 75, "Top-3 Weights", _wt_top3, status_bg(calibration_confidence_state(array.get(_wt_vals, 0))), txt, _wt_full)
 else if barstate.islast
-    table.clear(smc_dashboard, 0, 0, 1, 73)
+    table.clear(smc_dashboard, 0, 0, 1, 75)
