@@ -25,6 +25,7 @@ from smc_integration.sources import (
     benzinga_watchlist_json,
     databento_watchlist_csv,
     fmp_watchlist_json,
+    largecap_watchlist_json,
     live_news_snapshot_json,
     tradingview_watchlist_json,
 )
@@ -272,6 +273,8 @@ def test_missing_domain_marked_stale(monkeypatch, tmp_path: Path) -> None:
     # News also missing
     monkeypatch.setattr(benzinga_watchlist_json, "BENZINGA_WATCHLIST_JSON", tmp_path / "missing3.json")
     monkeypatch.setattr(live_news_snapshot_json, "LIVE_NEWS_SNAPSHOT_JSON", tmp_path / "missing4.json")
+    # Largecap scaffold also missing for this test (otherwise it satisfies AAPL).
+    monkeypatch.setattr(largecap_watchlist_json, "LARGECAP_WATCHLIST_JSON", tmp_path / "missing5.json")
 
     merged = load_raw_meta_input_composite("AAPL", "15m")
     diag = merged["meta_domain_diagnostics"]

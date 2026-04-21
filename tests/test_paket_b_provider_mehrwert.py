@@ -21,6 +21,7 @@ from smc_integration.sources import (
     benzinga_watchlist_json,
     databento_watchlist_csv,
     fmp_watchlist_json,
+    largecap_watchlist_json,
     live_news_snapshot_json,
     tradingview_watchlist_json,
 )
@@ -226,6 +227,7 @@ class TestB1DomainFallbackChain:
     def test_all_providers_exhausted(self, monkeypatch, tmp_path: Path) -> None:
         monkeypatch.setattr(fmp_watchlist_json, "FMP_WATCHLIST_JSON", tmp_path / "missing.json")
         monkeypatch.setattr(tradingview_watchlist_json, "TRADINGVIEW_WATCHLIST_JSON", tmp_path / "also_missing.json")
+        monkeypatch.setattr(largecap_watchlist_json, "LARGECAP_WATCHLIST_JSON", tmp_path / "largecap_missing.json")
 
         meta, status, actual = _try_load_meta_domain(
             "technical", "AAPL", "15m", "fmp_watchlist_json", auto_mode=True,
@@ -345,6 +347,7 @@ class TestB3EnhancedDiagnostics:
         monkeypatch.setattr(tradingview_watchlist_json, "TRADINGVIEW_WATCHLIST_JSON", tmp_path / "missing2.json")
         monkeypatch.setattr(benzinga_watchlist_json, "BENZINGA_WATCHLIST_JSON", tmp_path / "missing3.json")
         monkeypatch.setattr(live_news_snapshot_json, "LIVE_NEWS_SNAPSHOT_JSON", tmp_path / "missing4.json")
+        monkeypatch.setattr(largecap_watchlist_json, "LARGECAP_WATCHLIST_JSON", tmp_path / "missing5.json")
 
         merged = load_raw_meta_input_composite("AAPL", "15m")
         diag = merged["meta_domain_diagnostics"]

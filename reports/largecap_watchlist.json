@@ -1,0 +1,30 @@
+{
+  "generated_at": "2026-04-21T00:00:00+00:00",
+  "source": "static_largecap_scaffold",
+  "notes": [
+    "Neutral-default scaffold so health checks and integration tests don't FAIL for benchmark-universe large-caps when real screener sources don't list them.",
+    "volume_regime=NORMAL, thin_fraction=0.0, technical/news biases=NEUTRAL, strengths=0.0.",
+    "NOT for production signal derivation; a last-resort fallback only."
+  ],
+  "symbols": [
+    {"symbol": "AAPL",  "trade_date": "2026-04-21", "volume_regime": "NORMAL", "thin_fraction": 0.0, "technical": {"strength": 0.0, "bias": "NEUTRAL"}, "news": {"strength": 0.0, "bias": "NEUTRAL"}},
+    {"symbol": "MSFT",  "trade_date": "2026-04-21", "volume_regime": "NORMAL", "thin_fraction": 0.0, "technical": {"strength": 0.0, "bias": "NEUTRAL"}, "news": {"strength": 0.0, "bias": "NEUTRAL"}},
+    {"symbol": "AMZN",  "trade_date": "2026-04-21", "volume_regime": "NORMAL", "thin_fraction": 0.0, "technical": {"strength": 0.0, "bias": "NEUTRAL"}, "news": {"strength": 0.0, "bias": "NEUTRAL"}},
+    {"symbol": "GOOGL", "trade_date": "2026-04-21", "volume_regime": "NORMAL", "thin_fraction": 0.0, "technical": {"strength": 0.0, "bias": "NEUTRAL"}, "news": {"strength": 0.0, "bias": "NEUTRAL"}},
+    {"symbol": "META",  "trade_date": "2026-04-21", "volume_regime": "NORMAL", "thin_fraction": 0.0, "technical": {"strength": 0.0, "bias": "NEUTRAL"}, "news": {"strength": 0.0, "bias": "NEUTRAL"}},
+    {"symbol": "NVDA",  "trade_date": "2026-04-21", "volume_regime": "NORMAL", "thin_fraction": 0.0, "technical": {"strength": 0.0, "bias": "NEUTRAL"}, "news": {"strength": 0.0, "bias": "NEUTRAL"}},
+    {"symbol": "TSLA",  "trade_date": "2026-04-21", "volume_regime": "NORMAL", "thin_fraction": 0.0, "technical": {"strength": 0.0, "bias": "NEUTRAL"}, "news": {"strength": 0.0, "bias": "NEUTRAL"}},
+    {"symbol": "JPM",   "trade_date": "2026-04-21", "volume_regime": "NORMAL", "thin_fraction": 0.0, "technical": {"strength": 0.0, "bias": "NEUTRAL"}, "news": {"strength": 0.0, "bias": "NEUTRAL"}},
+    {"symbol": "BAC",   "trade_date": "2026-04-21", "volume_regime": "NORMAL", "thin_fraction": 0.0, "technical": {"strength": 0.0, "bias": "NEUTRAL"}, "news": {"strength": 0.0, "bias": "NEUTRAL"}},
+    {"symbol": "GS",    "trade_date": "2026-04-21", "volume_regime": "NORMAL", "thin_fraction": 0.0, "technical": {"strength": 0.0, "bias": "NEUTRAL"}, "news": {"strength": 0.0, "bias": "NEUTRAL"}},
+    {"symbol": "MS",    "trade_date": "2026-04-21", "volume_regime": "NORMAL", "thin_fraction": 0.0, "technical": {"strength": 0.0, "bias": "NEUTRAL"}, "news": {"strength": 0.0, "bias": "NEUTRAL"}},
+    {"symbol": "V",     "trade_date": "2026-04-21", "volume_regime": "NORMAL", "thin_fraction": 0.0, "technical": {"strength": 0.0, "bias": "NEUTRAL"}, "news": {"strength": 0.0, "bias": "NEUTRAL"}},
+    {"symbol": "UNH",   "trade_date": "2026-04-21", "volume_regime": "NORMAL", "thin_fraction": 0.0, "technical": {"strength": 0.0, "bias": "NEUTRAL"}, "news": {"strength": 0.0, "bias": "NEUTRAL"}},
+    {"symbol": "JNJ",   "trade_date": "2026-04-21", "volume_regime": "NORMAL", "thin_fraction": 0.0, "technical": {"strength": 0.0, "bias": "NEUTRAL"}, "news": {"strength": 0.0, "bias": "NEUTRAL"}},
+    {"symbol": "HD",    "trade_date": "2026-04-21", "volume_regime": "NORMAL", "thin_fraction": 0.0, "technical": {"strength": 0.0, "bias": "NEUTRAL"}, "news": {"strength": 0.0, "bias": "NEUTRAL"}},
+    {"symbol": "XOM",   "trade_date": "2026-04-21", "volume_regime": "NORMAL", "thin_fraction": 0.0, "technical": {"strength": 0.0, "bias": "NEUTRAL"}, "news": {"strength": 0.0, "bias": "NEUTRAL"}},
+    {"symbol": "CVX",   "trade_date": "2026-04-21", "volume_regime": "NORMAL", "thin_fraction": 0.0, "technical": {"strength": 0.0, "bias": "NEUTRAL"}, "news": {"strength": 0.0, "bias": "NEUTRAL"}},
+    {"symbol": "COP",   "trade_date": "2026-04-21", "volume_regime": "NORMAL", "thin_fraction": 0.0, "technical": {"strength": 0.0, "bias": "NEUTRAL"}, "news": {"strength": 0.0, "bias": "NEUTRAL"}},
+    {"symbol": "OXY",   "trade_date": "2026-04-21", "volume_regime": "NORMAL", "thin_fraction": 0.0, "technical": {"strength": 0.0, "bias": "NEUTRAL"}, "news": {"strength": 0.0, "bias": "NEUTRAL"}}
+  ]
+}

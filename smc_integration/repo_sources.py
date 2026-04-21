@@ -11,6 +11,7 @@ from .sources import (
     benzinga_watchlist_json,
     databento_watchlist_csv,
     fmp_watchlist_json,
+    largecap_watchlist_json,
     live_news_snapshot_json,
     structure_artifact_json,
     tradingview_watchlist_json,
@@ -44,6 +45,11 @@ _SOURCE_PROVIDERS: dict[str, _SourceProvider] = {
         descriptor=fmp_watchlist_json.describe_source(),
         load_structure=fmp_watchlist_json.load_raw_structure_input,
         load_meta=fmp_watchlist_json.load_raw_meta_input,
+    ),
+    "largecap_watchlist_json": _SourceProvider(
+        descriptor=largecap_watchlist_json.describe_source(),
+        load_structure=largecap_watchlist_json.load_raw_structure_input,
+        load_meta=largecap_watchlist_json.load_raw_meta_input,
     ),
     "live_news_snapshot_json": _SourceProvider(
         descriptor=live_news_snapshot_json.describe_source(),
@@ -102,14 +108,17 @@ _DOMAIN_SOURCE_ORDER: dict[str, list[str]] = {
         "fmp_watchlist_json",
         "tradingview_watchlist_json",
         "benzinga_watchlist_json",
+        "largecap_watchlist_json",
     ],
     "technical": [
         "fmp_watchlist_json",
         "tradingview_watchlist_json",
+        "largecap_watchlist_json",
     ],
     "news": [
         "live_news_snapshot_json",
         "benzinga_watchlist_json",
+        "largecap_watchlist_json",
     ],
 }
 
@@ -125,9 +134,9 @@ def _can_supply_domain(provider: _SourceProvider, domain: str) -> bool:
     if domain == "volume":
         return bool(caps.has_meta)
     if domain == "technical":
-        return provider.descriptor.name in {"fmp_watchlist_json", "tradingview_watchlist_json"}
+        return provider.descriptor.name in {"fmp_watchlist_json", "tradingview_watchlist_json", "largecap_watchlist_json"}
     if domain == "news":
-        return provider.descriptor.name in {"benzinga_watchlist_json", "live_news_snapshot_json"}
+        return provider.descriptor.name in {"benzinga_watchlist_json", "live_news_snapshot_json", "largecap_watchlist_json"}
     return False
 
 
