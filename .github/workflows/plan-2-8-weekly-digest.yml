@@ -818,6 +818,114 @@ jobs:
           if-no-files-found: ignore
           retention-days: 365
 
+      - name: Plan 2.8 alert trend gate
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          trend_md="artifacts/plan_2_8_digest/alert_trend.md"
+          archive="artifacts/plan_2_8_digest_archive"
+          if [ ! -d "${archive}" ]; then
+            echo "No archive; skipping alert trend gate."
+            exit 0
+          fi
+          python scripts/plan_2_8_alert_trend.py \
+            --archive-dir "${archive}" \
+            --format      json \
+            --output      artifacts/plan_2_8_digest/alert_trend.json \
+            > /dev/null
+          if [ ! -s artifacts/plan_2_8_digest/alert_trend.json ]; then
+            echo "No trend JSON; skipping alert trend gate."
+            exit 0
+          fi
+          python scripts/plan_2_8_alert_trend_gate.py \
+            --trend       artifacts/plan_2_8_digest/alert_trend.json \
+            --max-rising  5 \
+            --max-new     10 \
+            --format      md \
+            --output      artifacts/plan_2_8_digest/alert_trend_gate.md \
+            > /dev/null
+          if [ -s artifacts/plan_2_8_digest/alert_trend_gate.md ] \
+              && [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+            cat artifacts/plan_2_8_digest/alert_trend_gate.md \
+              >> "${GITHUB_STEP_SUMMARY}"
+          fi
+          true
+
+      - name: Upload Plan 2.8 alert trend gate
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-alert-trend-gate
+          path: artifacts/plan_2_8_digest/alert_trend_gate.md
+          if-no-files-found: ignore
+          retention-days: 365
+
+      - name: Plan 2.8 digest vs coverage projection
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          digest="$(find artifacts/plan_2_8_digest -name digest.json -print -quit)"
+          coverage="$(find artifacts/plan_2_8_digest -name 'coverage*.json' -print -quit)"
+          if [ -z "${digest}" ] || [ -z "${coverage}" ] \
+              || [ ! -s "${digest}" ] || [ ! -s "${coverage}" ]; then
+            echo "Digest or coverage missing; skipping projection."
+            exit 0
+          fi
+          python scripts/plan_2_8_digest_to_coverage.py \
+            --digest   "${digest}" \
+            --coverage "${coverage}" \
+            --format   md \
+            --output   artifacts/plan_2_8_digest/digest_vs_coverage.md \
+            > /dev/null
+          if [ -s artifacts/plan_2_8_digest/digest_vs_coverage.md ] \
+              && [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+            cat artifacts/plan_2_8_digest/digest_vs_coverage.md \
+              >> "${GITHUB_STEP_SUMMARY}"
+          fi
+          true
+
+      - name: Upload Plan 2.8 digest vs coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-digest-vs-coverage
+          path: artifacts/plan_2_8_digest/digest_vs_coverage.md
+          if-no-files-found: ignore
+          retention-days: 365
+
+      - name: Plan 2.8 runbook section check
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          doc="docs/plan_2_8_rollout_runbook.md"
+          if [ ! -s "${doc}" ]; then
+            echo "No runbook; skipping section check."
+            exit 0
+          fi
+          python scripts/plan_2_8_runbook_sections.py \
+            --doc    "${doc}" \
+            --format md \
+            --output artifacts/plan_2_8_digest/runbook_sections.md \
+            > /dev/null
+          if [ -s artifacts/plan_2_8_digest/runbook_sections.md ] \
+              && [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+            cat artifacts/plan_2_8_digest/runbook_sections.md \
+              >> "${GITHUB_STEP_SUMMARY}"
+          fi
+          true
+
+      - name: Upload Plan 2.8 runbook section report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-runbook-sections
+          path: artifacts/plan_2_8_digest/runbook_sections.md
+          if-no-files-found: ignore
+          retention-days: 365
+
       - name: Open drift-alert issue
         if: steps.resolve_alerts.outputs.has_alerts == 'True'
         env:

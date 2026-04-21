@@ -6,6 +6,33 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-21) — Plan 2.8 alert trend gate + digest-vs-coverage projection + runbook section check
+
+- New `scripts/plan_2_8_alert_trend_gate.py` turns the trend JSON
+  into a soft gate with configurable thresholds
+  (`--max-rising`, `--max-new`, `--max-falling`). Produces an md
+  summary plus JSON, supports `--fail-on-breach`, and defends
+  against bool-masquerading-as-int counts. +16 tests with a
+  weekly-workflow pin-test (thresholds: rising≤5, new≤10).
+- New `scripts/plan_2_8_digest_to_coverage.py` projects the
+  weekly digest's alerts onto the coverage slice by
+  `(tf, family)` and reports alerts-without-coverage,
+  coverage-without-alerts, and their intersection. Accepts
+  coverage either as an `{entries:[...]}` object or a bare list.
+  `--fail-on-gap` for CI gating. +15 tests, one weekly-workflow
+  pin-test.
+- New `scripts/plan_2_8_runbook_sections.py` verifies the
+  rollout runbook contains all canonical level-2 headings
+  (default set pinned to existing "Phase timeline (addendum §6)",
+  "Daily automation", "Status quick-check"). Skips fenced
+  blocks. `--fail-on-missing` for CI gating. +16 tests
+  including a real-runbook sweep and weekly pin-test.
+- Weekly digest now runs all three steps after the alert trend
+  step, appends each to the job summary, and uploads
+  `plan-2-8-alert-trend-gate`, `plan-2-8-digest-vs-coverage`,
+  and `plan-2-8-runbook-sections` (365d).
+- Status anchors, runbook, and CHANGELOG refreshed.
+
 ### Added (2026-04-21) — Plan 2.8 README badge markdown + alert trend aggregator
 
 - New `scripts/plan_2_8_badge_markdown.py` emits a README-ready

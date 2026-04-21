@@ -357,6 +357,9 @@ read.
 - `tests/test_plan_2_8_runcard_badge.py`
 - `tests/test_plan_2_8_badge_markdown.py`
 - `tests/test_plan_2_8_alert_trend.py`
+- `tests/test_plan_2_8_alert_trend_gate.py`
+- `tests/test_plan_2_8_digest_to_coverage.py`
+- `tests/test_plan_2_8_runbook_sections.py`
 - `tests/test_plan_2_8_alert_history.py`
 - `tests/test_plan_2_8_alert_history_summary.py`
 - `tests/test_plan_2_8_digest_rollup.py`
