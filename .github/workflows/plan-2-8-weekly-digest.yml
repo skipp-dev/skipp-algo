@@ -366,6 +366,76 @@ jobs:
           fi
           true
 
+      - name: Plan 2.8 runbook TOC sidebar
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          doc="docs/plan_2_8_rollout_runbook.md"
+          if [ ! -s "${doc}" ]; then
+            echo "No runbook doc; skipping TOC."
+            exit 0
+          fi
+          mkdir -p artifacts/plan_2_8_digest
+          python scripts/plan_2_8_runbook_toc.py \
+            --doc    "${doc}" \
+            --output artifacts/plan_2_8_digest/runbook_toc.md \
+            > /dev/null
+          python scripts/plan_2_8_runbook_toc.py \
+            --doc    "${doc}" \
+            --format json \
+            --output artifacts/plan_2_8_digest/runbook_toc.json \
+            > /dev/null
+          if [ -s artifacts/plan_2_8_digest/runbook_toc.md ] \
+              && [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+            cat artifacts/plan_2_8_digest/runbook_toc.md \
+              >> "${GITHUB_STEP_SUMMARY}"
+          fi
+          true
+
+      - name: Plan 2.8 status snapshot
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          mkdir -p artifacts/plan_2_8_digest
+          args=""
+          for pair in \
+            "--health:artifacts/plan_2_8_digest/health.json" \
+            "--runcard-index:artifacts/plan_2_8_digest/runcard_index.json" \
+            "--coverage:artifacts/plan_2_8_digest/coverage.json" \
+            "--digest:artifacts/plan_2_8_digest/digest.json" \
+          ; do
+            flag="${pair%%:*}"
+            path="${pair##*:}"
+            [ -s "${path}" ] && args="${args} ${flag} ${path}"
+          done
+          python scripts/plan_2_8_status_snapshot.py ${args} \
+            --format json \
+            --output artifacts/plan_2_8_digest/status_snapshot.json \
+            > /dev/null
+          python scripts/plan_2_8_status_snapshot.py ${args} \
+            --format md \
+            --output artifacts/plan_2_8_digest/status_snapshot.md \
+            > /dev/null
+          if [ -s artifacts/plan_2_8_digest/status_snapshot.md ] \
+              && [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+            cat artifacts/plan_2_8_digest/status_snapshot.md \
+              >> "${GITHUB_STEP_SUMMARY}"
+          fi
+          true
+
+      - name: Upload Plan 2.8 status snapshot
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-status-snapshot
+          path: |
+            artifacts/plan_2_8_digest/status_snapshot.json
+            artifacts/plan_2_8_digest/status_snapshot.md
+          if-no-files-found: ignore
+          retention-days: 365
+
       - name: Open drift-alert issue
         if: steps.resolve_alerts.outputs.has_alerts == 'True'
         env:

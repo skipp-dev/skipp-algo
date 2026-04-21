@@ -6,6 +6,20 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-21) — Plan 2.8 weekly snapshot + TOC steps + digest archive helper
+
+- Weekly digest workflow now writes a `runbook_toc.md/json` via
+  `plan_2_8_runbook_toc.py`, a one-line `status_snapshot.json`
+  plus md via `plan_2_8_status_snapshot.py`, and uploads the
+  status snapshot as `plan-2-8-status-snapshot` (365d retention).
+- New `scripts/plan_2_8_digest_archive.py`: copies the current
+  `digest.json` into a rotating archive keyed by `captured_at`
+  (YYYY-MM-DD). Supports a `--fallback-date`, `--keep` count-based
+  rotation, and `--emit-latest-two` for chaining into the digest
+  comparator. Same-date writes overwrite in place. +12 tests,
+  including two weekly workflow pin-tests.
+- Status anchors, runbook, and CHANGELOG refreshed.
+
 ### Added (2026-04-21) — Plan 2.8 weekly heatmap step + runbook TOC + status snapshot
 
 - Weekly digest workflow now runs the 90-day alert-history heatmap

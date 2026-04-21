@@ -345,6 +345,7 @@ read.
 - `tests/test_plan_2_8_alert_history_heatmap.py`
 - `tests/test_plan_2_8_runbook_toc.py`
 - `tests/test_plan_2_8_status_snapshot.py`
+- `tests/test_plan_2_8_digest_archive.py`
 - `tests/test_plan_2_8_alert_history.py`
 - `tests/test_plan_2_8_alert_history_summary.py`
 - `tests/test_plan_2_8_digest_rollup.py`
