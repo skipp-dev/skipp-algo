@@ -6,6 +6,19 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-28) — Plan 2.8 max per status + numeric + spaces
+
+- New `scripts/plan_2_8_ledger_max_run_length_per_status.py`
+  reports the longest run length per canonical status.
+- New `scripts/plan_2_8_digest_numeric_basename_count.py`
+  counts top-level files whose stem is digits only.
+- New `scripts/plan_2_8_weekly_summary_space_count.py`
+  counts ASCII U+0020 space characters.
+- Weekly workflow wires the three new steps after the
+  punctuation-count upload.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six
+  new script+test pairs.
+
 ### Added (2026-04-28) — Plan 2.8 mean per status + hidden + punctuation
 
 - New `scripts/plan_2_8_ledger_mean_run_length_per_status.py`
