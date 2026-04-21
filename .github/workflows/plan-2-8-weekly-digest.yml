@@ -1,0 +1,85 @@
+name: plan-2.8 weekly trend digest
+
+# Weekly Plan 2.8 trend digest. Pulls the long-running history JSONL
+# from the most-recent rolling-bench run, renders the digest with
+# scripts/plan_2_8_trend_digest.py, streams it into the run summary
+# and uploads the markdown as an artifact for offline review.
+
+on:
+  schedule:
+    - cron: "0 12 * * 1"   # Mondays, 12:00 UTC
+  workflow_dispatch:
+    inputs:
+      lookback_days:
+        description: "Days to look back for the comparison endpoint."
+        required: false
+        default: "7"
+      alert_threshold_pp:
+        description: "Per-slice drift threshold for alerts (pp)."
+        required: false
+        default: "0.05"
+      min_events:
+        description: "Minimum events per slice for a comparable verdict."
+        required: false
+        default: "30"
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  weekly-digest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Download latest rolling-bench artifact
+        id: download
+        uses: dawidd6/action-download-artifact@v6
+        with:
+          workflow: smc-measurement-benchmark-rolling.yml
+          name_is_regexp: true
+          name: '^smc-measurement-benchmark-rolling-.*$'
+          workflow_conclusion: ""
+          if_no_artifact_found: warn
+          path: artifacts/latest_bench
+
+      - name: Render weekly trend digest
+        id: digest
+        shell: bash
+        run: |
+          set +e
+          mkdir -p artifacts/plan_2_8_digest
+          history="$(find artifacts/latest_bench -name plan_2_8_history.jsonl -print -quit)"
+          if [ -z "${history}" ]; then
+            echo "No plan_2_8_history.jsonl found in latest bench artifact." \
+              | tee -a "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          python scripts/plan_2_8_trend_digest.py \
+            --history            "${history}" \
+            --lookback-days      "${{ inputs.lookback_days || '7' }}" \
+            --alert-threshold-pp "${{ inputs.alert_threshold_pp || '0.05' }}" \
+            --min-events         "${{ inputs.min_events || '30' }}" \
+            --output             artifacts/plan_2_8_digest/weekly_digest.md \
+            > /dev/null
+          if [ -s artifacts/plan_2_8_digest/weekly_digest.md ]; then
+            cat artifacts/plan_2_8_digest/weekly_digest.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+          true
+
+      - name: Upload weekly digest
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-weekly-digest
+          path: artifacts/plan_2_8_digest/weekly_digest.md
+          if-no-files-found: warn
+          retention-days: 90

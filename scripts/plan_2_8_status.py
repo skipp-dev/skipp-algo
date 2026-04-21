@@ -43,7 +43,11 @@ PHASES: list[dict[str, Any]] = [
             ("required", "tests/test_plan_2_8_s3_1_chart_tf_expansion.py"),
             ("required", "tests/test_plan_2_8_s3_1_per_tf_partitioning.py"),
             ("required", "tests/test_plan_2_8_rolling_workflow_rollup_wiring.py"),
+            ("required", "tests/test_plan_2_8_rolling_workflow_history_wiring.py"),
+            ("required", "scripts/plan_2_8_history_archive.py"),
+            ("required", "scripts/plan_2_8_trend_digest.py"),
             ("required", ".github/workflows/smc-measurement-benchmark-rolling.yml"),
+            ("required", ".github/workflows/plan-2-8-weekly-digest.yml"),
         ],
     },
     {

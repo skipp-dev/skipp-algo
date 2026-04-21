@@ -6,6 +6,58 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-21) — Plan 2.8 trend digest end-to-end
+
+- `scripts/plan_2_8_trend_digest.py`: pure-stdlib weekly digest
+  renderer over the JSONL history. Picks `(prev, latest)` endpoints
+  using the newest snapshot still satisfying `lookback_days`, then
+  reports per-TF and per-TF×family HR drift. A `comparable` flag is
+  set only when both endpoints have ≥`min_events` events; alerts
+  fire only on comparable slices whose absolute drift ≥
+  `alert_threshold_pp`. Three named statuses: `empty`, `warmup`
+  (history younger than the window), `ok`.
+- `.github/workflows/smc-measurement-benchmark-rolling.yml`: new
+  always() "Plan 2.8 history archive (snapshot append)" step
+  slotted between the rollup step and the artifact upload. Calls
+  `scripts/plan_2_8_history_archive.py` to fold the daily rollup
+  into `${out_dir}/plan_2_8_history.jsonl` so the file is uploaded
+  as part of the standard rolling-bench bundle. Fail-soft: missing
+  rollup or write hiccup must not affect the benchmark outcome.
+- `.github/workflows/plan-2-8-weekly-digest.yml`: Mondays at 12:00
+  UTC. Downloads the most recent `smc-measurement-benchmark-rolling-*`
+  artifact via `dawidd6/action-download-artifact@v6`, locates the
+  history JSONL, runs the digest renderer with operator-tunable
+  knobs (`lookback_days`, `min_events`, `alert_threshold_pp`),
+  streams the markdown into `$GITHUB_STEP_SUMMARY`, and uploads it
+  as the `plan-2-8-weekly-digest` artifact (90-day retention).
+- `scripts/plan_2_8_status.py`: Phase-1 anchor list expanded with
+  the new history-wiring pin-test, the digest script, and the
+  weekly-digest workflow file.
+- `docs/plan_2_8_rollout_runbook.md`: "Trend history" section
+  updated to reflect that the daily rolling-bench now writes the
+  history file automatically; new "Weekly trend digest" section
+  documents the workflow + knobs + ad-hoc local invocation.
+- Pin-tests:
+  - `tests/test_plan_2_8_trend_digest.py` (12 tests — empty/warmup
+    statuses, oldest-snapshot-satisfying-lookback selection,
+    per-TF + per-family drift math, alert emission above threshold,
+    no alert below threshold, `comparable=False` when min-events
+    unmet (silences alerts), markdown for warmup skips tables, ok
+    markdown has all sections, **end-to-end archive→digest** chain
+    pinning the schema contract, CLI write, CLI error path).
+  - `tests/test_plan_2_8_rolling_workflow_history_wiring.py` (5
+    tests — step present + always(), order
+    `rollup < archive < upload`, archiver invoked with rollup +
+    history paths, history written inside `out_dir` for upload,
+    fail-soft with `set +e` and existence guard).
+  - `tests/test_plan_2_8_weekly_digest_workflow.py` (6 tests — file
+    exists, Monday 12:00 UTC schedule + dispatch, default knob
+    values match the digest defaults, digest step wires all flags
+    and streams summary, artifact uploaded with `if: always()` and
+    ≥90-day retention, download step targets the
+    smc-measurement-benchmark-rolling workflow with
+    `name_is_regexp: true`).
+
 ### Added (2026-04-21) — Plan 2.8 daily heartbeat + history + ADR-body renderer
 
 - `.github/workflows/plan-2-8-status-daily.yml`: daily 06:15 UTC

@@ -122,7 +122,12 @@ as the `plan-2-8-status-report` artifact (30-day retention).
 
 ## Trend history
 
-Each daily rollup can be folded into a long-running JSONL via:
+Each daily rollup is folded into a long-running JSONL automatically by
+the rolling-bench workflow's "Plan 2.8 history archive" step. The
+history file lives at `${out_dir}/plan_2_8_history.jsonl` and is
+uploaded as part of the daily benchmark artifact.
+
+Manual append (e.g. backfilling from a re-downloaded artifact):
 
 ```
 python scripts/plan_2_8_history_archive.py \
@@ -134,6 +139,32 @@ The append is idempotent on `(captured_at, scoring_root)` and the
 projection drops the per-symbol noise so the file stays small enough
 to graph in a notebook or spreadsheet.
 
+## Weekly trend digest
+
+Every Monday at 12:00 UTC,
+[`.github/workflows/plan-2-8-weekly-digest.yml`](../.github/workflows/plan-2-8-weekly-digest.yml)
+pulls the most recent rolling-bench artifact, extracts its
+`plan_2_8_history.jsonl`, and runs
+[`scripts/plan_2_8_trend_digest.py`](../scripts/plan_2_8_trend_digest.py)
+over it. The markdown digest is streamed to the run summary and
+uploaded as the `plan-2-8-weekly-digest` artifact (90-day retention).
+
+Knobs (overridable via `workflow_dispatch`):
+
+- `lookback_days` (default 7): age of the comparison endpoint.
+- `min_events` (default 30): per-slice floor for a comparable verdict.
+- `alert_threshold_pp` (default 0.05): flag slices whose absolute HR
+  drift exceeds this value (only counted for comparable slices).
+
+Ad-hoc local digest:
+
+```
+python scripts/plan_2_8_trend_digest.py \
+  --history /path/to/plan_2_8_history.jsonl \
+  --lookback-days 7 \
+  --output /tmp/digest.md
+```
+
 ## Pin-test inventory
 
 - `tests/test_plan_2_8_s0_pine_trend_tf_tooltips.py`
@@ -141,6 +172,7 @@ to graph in a notebook or spreadsheet.
 - `tests/test_plan_2_8_s3_1_per_tf_partitioning.py`
 - `tests/test_plan_2_8_tf_family_rollup.py`
 - `tests/test_plan_2_8_rolling_workflow_rollup_wiring.py`
+- `tests/test_plan_2_8_rolling_workflow_history_wiring.py`
 - `tests/test_plan_2_8_q4_gate_bundle_builder.py`
 - `tests/test_plan_2_8_q4_gate_evaluator.py`
 - `tests/test_plan_2_8_q4_gate_evaluator_adr_body.py`
@@ -148,6 +180,8 @@ to graph in a notebook or spreadsheet.
 - `tests/test_plan_2_8_status.py`
 - `tests/test_plan_2_8_status_daily_workflow.py`
 - `tests/test_plan_2_8_history_archive.py`
+- `tests/test_plan_2_8_trend_digest.py`
+- `tests/test_plan_2_8_weekly_digest_workflow.py`
 - `tests/test_docs_decisions_adr.py`
 - `tests/test_append_adr.py`
 

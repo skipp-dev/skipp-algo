@@ -121,6 +121,24 @@ jobs:
           fi
           true
 
+      - name: Plan 2.8 history archive (snapshot append)
+        # Folds today's rollup into docs/plan_2_8_history.jsonl so the
+        # weekly trend digest has a stable, idempotent source of truth.
+        # Fail-soft: a missing rollup or a write hiccup must not affect
+        # the benchmark run outcome. The snapshot is uploaded as part
+        # of the standard rolling-bench artifact bundle.
+        if: always()
+        run: |
+          set +e
+          rollup="${{ steps.meta.outputs.out_dir }}/plan_2_8_tf_family_rollup.json"
+          if [ -s "${rollup}" ]; then
+            python scripts/plan_2_8_history_archive.py \
+              --rollup  "${rollup}" \
+              --history "${{ steps.meta.outputs.out_dir }}/plan_2_8_history.jsonl" \
+              || true
+          fi
+          true
+
       - name: Upload rolling benchmark artifacts
         if: always()
         uses: actions/upload-artifact@v7
