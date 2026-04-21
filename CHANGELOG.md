@@ -6,6 +6,21 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-28) — Plan 2.8 run count + longest filename + python-fence
+
+- New `scripts/plan_2_8_ledger_status_run_count.py`
+  reports the total number of distinct consecutive
+  status runs.
+- New `scripts/plan_2_8_digest_longest_filename.py`
+  reports the top-level file with the longest basename.
+- New `scripts/plan_2_8_weekly_summary_python_fence_count.py`
+  counts fenced code blocks whose info-string is
+  ``python``/``py``/``python3``.
+- Weekly workflow wires the three new steps after the
+  shell-fence upload.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six
+  new script+test pairs.
+
 ### Added (2026-04-28) — Plan 2.8 status first/last + basename length + shell-fence
 
 - New `scripts/plan_2_8_ledger_status_first_last.py`
