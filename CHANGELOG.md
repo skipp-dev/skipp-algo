@@ -6,6 +6,18 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-06-25) — Plan 2.8 captured-at present + mxf + zero-width
+
+- New `scripts/plan_2_8_ledger_captured_at_present_count.py` counts
+  records that carry a non-empty ``captured_at`` string.
+- New `scripts/plan_2_8_digest_mxf_file_count.py` counts top-level
+  ``.mxf`` files.
+- New `scripts/plan_2_8_weekly_summary_zero_width_char_count.py`
+  counts zero-width characters (U+200B / U+200C / U+200D).
+- Weekly workflow wires the three new steps after the bom upload.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six new
+  script+test pairs.
+
 ### Added (2026-06-24) — Plan 2.8 unique status + m2ts + bom
 
 - New `scripts/plan_2_8_ledger_unique_status_count.py` counts
