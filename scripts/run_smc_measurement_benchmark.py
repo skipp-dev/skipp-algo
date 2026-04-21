@@ -472,7 +472,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--timeframes",
-        default=csv_from_values(RELEASE_REFERENCE_TIMEFRAMES[1:3]),
+        # Plan 2.8 §3.1 (2026-04-21): expanded default from [15m,1H] to the
+        # full RELEASE_REFERENCE_TIMEFRAMES tuple (5m, 15m, 1H, 4H) so the
+        # rolling benchmark feeds Phase-E2 with finer-grained 5m events
+        # (FVG TTF hypothesis) and stabler 4H swings (BOS 4H proof-point).
+        default=csv_from_values(RELEASE_REFERENCE_TIMEFRAMES),
         help="Comma-separated timeframes for the measurement benchmark run.",
     )
     parser.add_argument(

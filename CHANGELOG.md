@@ -6,6 +6,31 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Changed (2026-04-21) — Plan 2.8 S3.1 Chart-TF expansion (5m + 4H added)
+
+- `scripts/run_smc_measurement_benchmark.py`: default `--timeframes`
+  expanded from `RELEASE_REFERENCE_TIMEFRAMES[1:3]` (15m, 1H) to
+  the full `RELEASE_REFERENCE_TIMEFRAMES` tuple (5m, 15m, 1H, 4H).
+  No code change elsewhere — `RELEASE_REFERENCE_TIMEFRAMES` already
+  carried all four TFs; only the rolling-benchmark default was
+  clamped to the 2-TF slice.
+- `.github/workflows/smc-measurement-benchmark-rolling.yml`:
+  `workflow_dispatch` `timeframes` input default + run-step shell
+  fallback both moved from `15m,1H` to `5m,15m,1H,4H`. The rolling
+  benchmark is what feeds F2's daily dual-arm artifact dirs, so the
+  expansion propagates automatically into Phase-E2 event collection
+  (5m for FVG TTF hypothesis, 4H for BOS swing stability).
+- `tests/test_plan_2_8_s3_1_chart_tf_expansion.py`: 4 pin-tests —
+  `RELEASE_REFERENCE_TIMEFRAMES == ("5m","15m","1H","4H")`, CLI
+  default covers all four, workflow-input default covers all four,
+  shell fallback covers all four and no stray `"15m,1H"` literals
+  remain.
+
+Rationale: Plan 2.8 §3.1 GO — event density ~3x on 5m (statistical
+belastbarkeit for per-context quality filter), 4H proof-point for
+BOS family stability, marketing anchor "kalibriert auf 5m/15m/1H/4H"
+vs. legacy "15m/1H". Cost: CI config only, benchmark runtime ~2x.
+
 ### Changed (2026-04-21) — daily workflow wires runbook + archive cleanup
 
 - `.github/workflows/f2-promotion-gate-daily.yml`: two new

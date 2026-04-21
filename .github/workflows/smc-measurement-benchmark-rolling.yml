@@ -27,9 +27,10 @@ on:
         required: false
         default: ""
       timeframes:
-        description: "Comma-separated timeframes (default: 15m,1H)"
+        # Plan 2.8 §3.1 (2026-04-21): expanded from 15m,1H to 5m,15m,1H,4H.
+        description: "Comma-separated timeframes (default: 5m,15m,1H,4H)"
         required: false
-        default: "15m,1H"
+        default: "5m,15m,1H,4H"
 
 permissions:
   contents: read
@@ -77,7 +78,8 @@ jobs:
           if [ -z "${SYMBOLS}" ]; then
             SYMBOLS="AAPL,MSFT,AMZN,GOOGL,META,NVDA,TSLA,JPM,BAC,GS,MS,V,UNH,JNJ,HD,XOM,CVX,COP,OXY,CAT"
           fi
-          TIMEFRAMES="${{ github.event.inputs.timeframes || '15m,1H' }}"
+          # Plan 2.8 §3.1 (2026-04-21): expanded from 15m,1H to 5m,15m,1H,4H.
+          TIMEFRAMES="${{ github.event.inputs.timeframes || '5m,15m,1H,4H' }}"
           python scripts/run_smc_measurement_benchmark.py \
             --symbols "${SYMBOLS}" \
             --timeframes "${TIMEFRAMES}" \
