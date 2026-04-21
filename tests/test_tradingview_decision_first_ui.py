@@ -53,7 +53,7 @@ def test_dashboard_has_companion_summary_and_pro_diagnostics() -> None:
 
     assert 'var string g_surface = "1. Product Surface"' in source
     assert 'var string g_bus_lifecycle = "2. Operator Only - Lifecycle BUS"' in source
-    assert 'var string g_local_debug = "8. Operator Only - Local Debug Mirrors"' in source
+    assert 'var string g_local_debug = "9. Operator Only - Local Debug Mirrors"' in source
     assert 'surface_mode = input.string("Decision Brief"' in source
     assert source.index('surface_mode = input.string("Decision Brief"') < source.index('src_zone_active = input.source(close, "BUS ZoneActive"')
     assert "dashboard_product_state_text(" in source
@@ -97,7 +97,7 @@ def test_dashboard_hero_surface_pins_one_liner_row_and_shifted_row_order() -> No
     source = _read("SMC_Dashboard.pine")
 
     assert 'dashboard_row(smc_dashboard, 0, "SMC Long-Dip Dashboard v7", "Hero | Decision-first surface"' in source
-    assert 'dashboard_row(smc_dashboard, 1, "Hero", _hero_one,' in source
+    assert 'dashboard_row_tt(smc_dashboard, 1, "Hero", _hero_one, _hero_one_bg, txt, _hero_one_tt)' in source
     assert 'dashboard_row(smc_dashboard, 2, "Market", h_market_line,' in source
     assert 'dashboard_row(smc_dashboard, 3, "Action", h_action_line,' in source
     assert 'dashboard_row(smc_dashboard, 4, "Why now", h_why_line,' in source
@@ -111,9 +111,9 @@ def test_dashboard_hero_surface_pins_one_liner_row_and_shifted_row_order() -> No
     # composer and must carry the canonical blocker prefix so a degraded
     # read is visible at a glance.
     assert 'string _hero_fam = mp.ZONE_PRIORITY_TOP_FAMILY' in source
-    assert 'string _hero_one = compose_hero_one_liner(hero_token_order, mp.HERO_BIAS, mp.HERO_TRUST, _hero_fam, _hero_fam_pct, mp.ZONE_PRIORITY_RANK, _hero_blocker)' in source
+    assert 'string _hero_one = compose_hero_one_liner(hero_token_order, mp.HERO_BIAS, mp.HERO_TRUST, _hero_fam, _hero_fam_pct, mp.ZONE_PRIORITY_RANK, _hero_blocker, calibration_sha)' in source
     # Composer + token-order input must exist with the canonical default.
-    assert 'compose_hero_one_liner(string order_csv, string bias, string trust, string fam, int fam_pct, string zone, string blocker) =>' in source
+    assert 'compose_hero_one_liner(string order_csv, string bias, string trust, string fam, int fam_pct, string zone, string blocker, string sha) =>' in source
     assert 'hero_token_order = input.string("BIAS,TRUST,FAM,ZONE,BLOCKER", "Hero Token Order"' in source
     assert '"\u26a0"' in source  # blocker glyph still rendered by composer
 
@@ -585,3 +585,74 @@ def test_ticker_heat_parses_and_adjusts_zones() -> None:
     assert "f_parse_ticker_heat(" in source
     assert "ticker_heat_adj" in source
     assert "Ticker Heat" in source
+
+
+def test_dashboard_subscribes_to_preset_bus_contract() -> None:
+    """Plan §2.5 H5 — Dashboard must consume the Engine's BUS Preset*
+    contract via input.source bindings, otherwise the onboarding tooltip
+    has no way to detect CUSTOM preset state.
+    """
+    source = _read("SMC_Dashboard.pine")
+
+    assert 'var string g_bus_preset = "8. Operator Only - Preset Contract"' in source
+    assert 'src_preset_class_code = input.source(close, "BUS PresetClassCode"' in source
+    assert 'src_preset_rvol_min = input.source(close, "BUS PresetRvolMin"' in source
+    assert 'src_preset_htf_bias_min = input.source(close, "BUS PresetHtfBiasMin"' in source
+    assert 'src_preset_fvg_qual_gate = input.source(close, "BUS PresetFvgQualGate"' in source
+    assert 'src_preset_vol_regime_def = input.source(close, "BUS PresetVolRegimeDef"' in source
+
+
+def test_dashboard_hero_row_carries_h5_onboarding_tooltip() -> None:
+    """Plan §2.5 H5 — When the bound preset class code is 0 (Custom) the
+    Hero row shows a 4-Click onboarding nudge, otherwise it shows a
+    calibrated-defaults hint citing the BUS Preset contract.
+    """
+    source = _read("SMC_Dashboard.pine")
+
+    assert "int _hero_preset_code = int(math.round(src_preset_class_code))" in source
+    assert "_hero_preset_code == 0 ?" in source
+    assert "4 Clicks to first calibrated signal" in source
+    assert "Quickstart Preset" in source
+    assert "preset never lowers your value" in source
+    assert 'dashboard_row_tt(smc_dashboard, 1, "Hero", _hero_one, _hero_one_bg, txt, _hero_one_tt)' in source
+
+
+def test_dashboard_calibration_sha_input_and_hero_sha_token() -> None:
+    """Plan §3.1.1 — the Calibration SHA input lets the operator anchor
+    a screenshot to a specific calibration_report version. The composer
+    must accept the SHA argument and emit a 'sha:<7chars>' segment when
+    the SHA token is present in Hero Token Order.
+    """
+    source = _read("SMC_Dashboard.pine")
+
+    assert 'calibration_sha = input.string("", "Calibration SHA"' in source
+    # Composer signature now carries an optional sha argument; SHA token
+    # branch trims the input to 7 chars (short-SHA convention).
+    assert 'else if _tok == "SHA"' in source
+    assert 'str.length(sha) > 7' in source
+    assert '"sha:" + _sha_trim' in source
+    # Hero call site must pass the calibration_sha through to the composer.
+    assert 'compose_hero_one_liner(hero_token_order, mp.HERO_BIAS, mp.HERO_TRUST, _hero_fam, _hero_fam_pct, mp.ZONE_PRIORITY_RANK, _hero_blocker, calibration_sha)' in source
+    # Hero Token Order tooltip must document the new SHA token so the
+    # surface stays self-explanatory.
+    assert "SHA (calibration SHA, requires Calibration SHA input below)" in source
+
+
+def test_dashboard_calibration_breach_banner_overrides_hero_blocker() -> None:
+    """Plan §3.1.2 — operator-controlled CAL-BREACH banner. When the
+    input is true the Hero blocker is overridden to 'CAL-BREACH' so the
+    SLO breach is visible at the surface even if no other risk is live.
+    The override is unconditional (not gated on existing blocker text)
+    so a 30-day SLO violation cannot be hidden by an empty risk field.
+    """
+    source = _read("SMC_Dashboard.pine")
+
+    assert 'calibration_breach_banner = input.bool(false, "Calibration Breach Banner"' in source
+    assert "if calibration_breach_banner" in source
+    assert '_hero_blocker := "CAL-BREACH"' in source
+    # The SLO doc must exist and reference the same threshold so the
+    # surface and the doc stay in sync.
+    slo = _read("docs/slo_calibration.md")
+    assert "smECE_30d ≤ 0.12" in slo
+    assert "CAL-BREACH" in slo
+    assert "Plan §3.1.2" in slo

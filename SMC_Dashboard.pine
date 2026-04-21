@@ -18,7 +18,8 @@ var string g_bus_diag = "4. Operator Only - Diagnostic Support"
 var string g_bus_plan = "5. Operator Only - Trade Plan"
 var string g_bus_detail = "6. Operator Only - Detail Surface"
 var string g_bus_lean = "7. Operator Only - Lean Surface"
-var string g_local_debug = "8. Operator Only - Local Debug Mirrors"
+var string g_bus_preset = "8. Operator Only - Preset Contract"
+var string g_local_debug = "9. Operator Only - Local Debug Mirrors"
 
 surface_mode = input.string("Decision Brief", "View", options = ["Focus", "Hero", "Explain", "Decision Brief", "Audit View"], group = g_surface, tooltip = "Focus: 3-row traffic light — just the essentials.\nHero: 7-row decision-first surface (action, market, quality, trust, why now, risk, plan) reading the hero state contract from the generated library.\nExplain: checklist showing why the current zone state holds.\nDecision Brief: compact setup overview with context.\nAudit View: full expert table for review.")
 show_table = input.bool(true, "Show Brief Panel", group = g_surface)
@@ -26,7 +27,9 @@ show_risk_lines = input.bool(true, "Show Trade Plan", group = g_surface)
 show_state_bg = input.bool(false, "Highlight Live Setup", group = g_surface)
 compact_dashboard = input.bool(false, "Compact Dashboard", group = g_surface, tooltip = "WP-OV5: Show only 5 key rows for mobile or small screens. Overrides Decision Brief when enabled.")
 color_theme = input.string("Standard", "Color Theme", options = ["Standard", "Colorblind Safe"], group = g_surface, tooltip = "Match this to the Core Engine color theme. Colorblind Safe replaces red/green with orange/blue.")
-hero_token_order = input.string("BIAS,TRUST,FAM,ZONE,BLOCKER", "Hero Token Order", group = g_surface, tooltip = "Plan 1.1 follow-up — comma-separated tokens that compose the Hero one-liner after the fixed 'SMC' prefix. Vocabulary: BIAS, TRUST, FAM (top-family hit-rate %), ZONE (rank), BLOCKER (warning). Unknown tokens are ignored. Default 'BIAS,TRUST,FAM,ZONE,BLOCKER' matches the original hardcoded order. This input is the seam for the W22 preset/template marketplace (Plan §3.5) — users can already build their own Hero today.")
+hero_token_order = input.string("BIAS,TRUST,FAM,ZONE,BLOCKER", "Hero Token Order", group = g_surface, tooltip = "Plan 1.1 follow-up — comma-separated tokens that compose the Hero one-liner after the fixed 'SMC' prefix. Vocabulary: BIAS, TRUST, FAM (top-family hit-rate %), ZONE (rank), BLOCKER (warning), SHA (calibration SHA, requires Calibration SHA input below). Unknown tokens are ignored. Default 'BIAS,TRUST,FAM,ZONE,BLOCKER' matches the original hardcoded order. This input is the seam for the W22 preset/template marketplace (Plan §3.5) — users can already build their own Hero today.")
+calibration_sha = input.string("", "Calibration SHA", group = g_surface, tooltip = "Plan §3.1.1 — paste the short git SHA of the calibration_report artifact you trust (e.g. 'a1b2c3d'). When set and the SHA token is present in Hero Token Order, the Hero one-liner appends 'sha:<7chars>' so a screenshot stays SHA-anchored. Empty by default → SHA segment is omitted (no surface change).")
+calibration_breach_banner = input.bool(false, "Calibration Breach Banner", group = g_surface, tooltip = "Plan §3.1.2 — manual operator switch for the rolling-30-day smECE SLO breach. Flip on when docs/slo_calibration.md mitigation pipeline is triggered. Hero one-liner then prepends '⚠CAL-BREACH' to the BLOCKER token. Auto-flip from the daily artifact stream lands once Plan W14–W15 ships the public dashboard.")
 
 // ── Dashboard color palette ───────────────────────────────────
 var bool _cb = color_theme == "Colorblind Safe"
@@ -110,6 +113,17 @@ src_ltf_volume_delta = input.source(close, "BUS LtfVolumeDelta", group = g_bus_d
 src_objects_count_pack = input.source(close, "BUS ObjectsCountPack", group = g_bus_detail, display = display.none)
 src_lean_pack_a = input.source(close, "BUS LeanPackA", group = g_bus_lean, display = display.none, tooltip = "Lean surface bindings are grouped last because they are additive hero-surface feeds.")
 src_lean_pack_b = input.source(close, "BUS LeanPackB", group = g_bus_lean, display = display.none)
+
+// Plan §2.5 H5 — Preset contract bindings. Bind these to the Engine's
+// 'BUS Preset*' hidden plots so the Hero can detect CUSTOM (class code 0)
+// and surface the 4-Click onboarding tooltip. Optional bindings: a missing
+// bind defaults to close → class code != 0 by accident, so the onboarding
+// tooltip falls back to the always-safe Hero text. No engine change.
+src_preset_class_code = input.source(close, "BUS PresetClassCode", group = g_bus_preset, display = display.none, tooltip = "Bind to the Engine's 'BUS PresetClassCode' hidden plot. 0 = Custom (onboarding tooltip), 1 = Mega-Cap US Tech, 2 = Financial Services, 3 = Energy. Plan §2.5 H5.")
+src_preset_rvol_min = input.source(close, "BUS PresetRvolMin", group = g_bus_preset, display = display.none)
+src_preset_htf_bias_min = input.source(close, "BUS PresetHtfBiasMin", group = g_bus_preset, display = display.none)
+src_preset_fvg_qual_gate = input.source(close, "BUS PresetFvgQualGate", group = g_bus_preset, display = display.none)
+src_preset_vol_regime_def = input.source(close, "BUS PresetVolRegimeDef", group = g_bus_preset, display = display.none)
 
 local_ob_debug_enabled = input.bool(false, "OB Debug Enabled", group = g_local_debug, display = display.none, tooltip = "Mirror the core's effective debug flags here if you want the local Debug Flags and Long Debug rows to match the core setup.")
 local_fvg_debug_enabled = input.bool(false, "FVG Debug Enabled", group = g_local_debug, display = display.none)
@@ -353,7 +367,8 @@ dashboard_row_tt(table tbl, int row, string label_text, string value_text, color
 // token order and emits the matching segment. Vocabulary fixed to keep
 // the surface tested; unknown tokens are ignored (no compile error so
 // users can copy-paste between layouts). The 'SMC' prefix is fixed.
-compose_hero_one_liner(string order_csv, string bias, string trust, string fam, int fam_pct, string zone, string blocker) =>
+// Plan §3.1.1 — added SHA token (optional, gated by non-empty sha arg).
+compose_hero_one_liner(string order_csv, string bias, string trust, string fam, int fam_pct, string zone, string blocker, string sha) =>
     string _out = "SMC"
     array<string> _toks = str.split(order_csv, ",")
     for _i = 0 to array.size(_toks) - 1
@@ -369,6 +384,9 @@ compose_hero_one_liner(string order_csv, string bias, string trust, string fam, 
             _seg := "Zone " + (zone != "" ? zone : "—")
         else if _tok == "BLOCKER"
             _seg := blocker != "" ? "⚠" + blocker : ""
+        else if _tok == "SHA"
+            string _sha_trim = str.length(sha) > 7 ? str.substring(sha, 0, 7) : sha
+            _seg := _sha_trim != "" ? "sha:" + _sha_trim : ""
         if _seg != ""
             _out := _out + " · " + _seg
     _out
@@ -1647,9 +1665,20 @@ if show_table and barstate.islast
         float _hero_fam_w = resolve_family_cal_weight(_hero_fam)
         int _hero_fam_pct = int(math.round(_hero_fam_w * 100))
         string _hero_blocker = mp.HERO_RISK != "" ? mp.HERO_RISK : (mp.HERO_TRUST == "degraded" or mp.HERO_TRUST == "stale" ? "TRUST" : "")
-        string _hero_one = compose_hero_one_liner(hero_token_order, mp.HERO_BIAS, mp.HERO_TRUST, _hero_fam, _hero_fam_pct, mp.ZONE_PRIORITY_RANK, _hero_blocker)
+        // Plan §3.1.2 — CAL-BREACH overrides any other blocker because the
+        // operator has explicitly flagged a 30-day smECE SLO breach.
+        if calibration_breach_banner
+            _hero_blocker := "CAL-BREACH"
+        string _hero_one = compose_hero_one_liner(hero_token_order, mp.HERO_BIAS, mp.HERO_TRUST, _hero_fam, _hero_fam_pct, mp.ZONE_PRIORITY_RANK, _hero_blocker, calibration_sha)
         color _hero_one_bg = mp.HERO_TRUST == "healthy" ? color.new(CLR_TIER_T1, 70) : mp.HERO_TRUST == "warmup" ? color.new(CLR_TIER_T2, 75) : mp.HERO_TRUST == "degraded" ? color.new(CLR_TIER_T3, 75) : color.new(CLR_TIER_T4, 75)
-        dashboard_row(smc_dashboard, 1, "Hero", _hero_one, _hero_one_bg, txt)
+        // Plan §2.5 H5 — Onboarding tooltip on Hero row when Custom preset
+        // is active. Reads BUS PresetClassCode (0 = Custom). When a curated
+        // preset is bound, the tooltip switches to a calibrated-defaults
+        // hint instead of the onboarding nudge, so the surface stays useful
+        // for advanced users.
+        int _hero_preset_code = int(math.round(src_preset_class_code))
+        string _hero_one_tt = _hero_preset_code == 0 ? "Onboarding · 4 Clicks to first calibrated signal:\n  1. Open Settings → Quickstart Preset.\n  2. Pick Mega-Cap US Tech / Financial Services / Energy.\n  3. Confirm — preset raises floors (RVOL, HTF Bias, FVG Quality), never lowers your inputs.\n  4. Watch the Hero row update; Trust badge turns T1/T2 once the calibrated stack agrees.\nSource: SMC_Core_Engine quickstart_preset · Plan §1.4 + §2.5 H5." : "Curated preset active (class " + str.tostring(_hero_preset_code) + ") — calibrated floors applied to RVOL/HTF/FVG/Vol inputs. You can still tighten any input above the preset floor; the preset never lowers your value.\nSource: BUS Preset* contract."
+        dashboard_row_tt(smc_dashboard, 1, "Hero", _hero_one, _hero_one_bg, txt, _hero_one_tt)
         dashboard_row(smc_dashboard, 2, "Market", h_market_line, h_market_bg, txt)
         dashboard_row(smc_dashboard, 3, "Action", h_action_line, h_action_bg, txt)
         dashboard_row(smc_dashboard, 4, "Why now", h_why_line, h_why_bg, txt)
