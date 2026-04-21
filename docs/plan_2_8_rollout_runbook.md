@@ -575,6 +575,9 @@ read.
 - `tests/test_plan_2_8_ledger_blank_line_count.py`
 - `tests/test_plan_2_8_digest_writable_fraction.py`
 - `tests/test_plan_2_8_weekly_summary_heading_count.py`
+- `tests/test_plan_2_8_ledger_unique_days.py`
+- `tests/test_plan_2_8_digest_total_line_count.py`
+- `tests/test_plan_2_8_weekly_summary_backtick_count.py`
 - `tests/test_plan_2_8_alert_history.py`
 - `tests/test_plan_2_8_alert_history_summary.py`
 - `tests/test_plan_2_8_digest_rollup.py`

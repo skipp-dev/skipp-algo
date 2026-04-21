@@ -6,6 +6,19 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-05-13) — Plan 2.8 unique days + total lines + backticks
+
+- New `scripts/plan_2_8_ledger_unique_days.py` reports the
+  count of distinct YYYY-MM-DD prefixes.
+- New `scripts/plan_2_8_digest_total_line_count.py` sums
+  lines across top-level text files.
+- New `scripts/plan_2_8_weekly_summary_backtick_count.py`
+  counts backtick characters in the summary.
+- Weekly workflow wires the three new steps after the
+  heading-count upload.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six
+  new script+test pairs.
+
 ### Added (2026-05-12) — Plan 2.8 ledger blanks + writable frac + headings
 
 - New `scripts/plan_2_8_ledger_blank_line_count.py` counts
