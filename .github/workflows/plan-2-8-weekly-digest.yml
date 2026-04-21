@@ -267,3 +267,26 @@ jobs:
               >> "${GITHUB_STEP_SUMMARY}"
           fi
           true
+
+      - name: Plan 2.8 slice coverage
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          history="$(find artifacts/latest_bench -name plan_2_8_history.jsonl -print -quit)"
+          if [ -z "${history}" ]; then
+            echo "No history found; skipping coverage."
+            exit 0
+          fi
+          mkdir -p artifacts/plan_2_8_digest
+          python scripts/plan_2_8_coverage.py \
+            --history    "${history}" \
+            --min-events "${{ inputs.min_events || '30' }}" \
+            --output     artifacts/plan_2_8_digest/coverage.md \
+            > /dev/null
+          if [ -s artifacts/plan_2_8_digest/coverage.md ] \
+              && [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+            cat artifacts/plan_2_8_digest/coverage.md \
+              >> "${GITHUB_STEP_SUMMARY}"
+          fi
+          true

@@ -255,6 +255,32 @@ reports how many TF×family slices in the latest snapshot sit below
 the `min_events` floor. Use `--fail-on-under` in CI to enforce a
 hard coverage bar before promoting a bench run.
 
+The weekly digest workflow now also streams this coverage report
+into the run summary (step "Plan 2.8 slice coverage").
+
+### Slice stability
+
+[`scripts/plan_2_8_history_stability.py`](../scripts/plan_2_8_history_stability.py)
+computes per-slice HR stddev across the last N snapshots. It surfaces
+slices whose calibration jitters week over week even when no
+individual alert fires. Use `--fail-on-unstable` in CI when
+investigating a regression suspect.
+
+### Managing the snooze config
+
+[`scripts/plan_2_8_snooze_admin.py`](../scripts/plan_2_8_snooze_admin.py)
+wraps [`configs/plan_2_8_snoozes.json`](../configs/plan_2_8_snoozes.json)
+with `add` / `list` / `expire` / `rm` subcommands so operators don’t
+hand-edit JSON:
+
+```
+python scripts/plan_2_8_snooze_admin.py add --tf 5m --family OB \
+    --reason 'warming up after Phase E2 promotion' \
+    --expires 2026-05-01T00:00:00Z
+python scripts/plan_2_8_snooze_admin.py list --active
+python scripts/plan_2_8_snooze_admin.py expire
+```
+
 ## Pin-test inventory
 
 - `tests/test_plan_2_8_s0_pine_trend_tf_tooltips.py`
@@ -276,6 +302,8 @@ hard coverage bar before promoting a bench run.
 - `tests/test_plan_2_8_top_movers.py`
 - `tests/test_plan_2_8_alert_snooze.py`
 - `tests/test_plan_2_8_coverage.py`
+- `tests/test_plan_2_8_history_stability.py`
+- `tests/test_plan_2_8_snooze_admin.py`
 - `tests/test_plan_2_8_monthly_digest_workflow.py`
 - `tests/test_plan_2_8_rolling_workflow_rotate_wiring.py`
 - `tests/test_plan_2_8_rolling_workflow_validate_wiring.py`

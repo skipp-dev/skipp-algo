@@ -143,3 +143,17 @@ def test_issue_step_runs_after_upload() -> None:
     steps = _wf()["jobs"]["weekly-digest"]["steps"]
     names = [s.get("name", "") for s in steps]
     assert names.index("Upload weekly digest") < names.index("Open drift-alert issue")
+
+
+def test_coverage_step_wired_fail_soft() -> None:
+    steps = _wf()["jobs"]["weekly-digest"]["steps"]
+    cov = next(s for s in steps if s.get("name") == "Plan 2.8 slice coverage")
+    assert cov["if"].strip() == "always()"
+    run = cov["run"]
+    assert "scripts/plan_2_8_coverage.py" in run
+    assert "set +e" in run
+    assert run.rstrip().endswith("true")
+    # Runs after top-movers so the summary flow reads coverage last.
+    names = [s.get("name", "") for s in steps]
+    assert names.index("Plan 2.8 top movers (30-day window)") \
+        < names.index("Plan 2.8 slice coverage")

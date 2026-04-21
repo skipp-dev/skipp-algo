@@ -6,6 +6,21 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-21) — Plan 2.8 weekly coverage step + snooze admin + stability metric
+
+- Weekly digest workflow now streams a fail-soft
+  `Plan 2.8 slice coverage` section into the run summary,
+  consuming `scripts/plan_2_8_coverage.py` against the latest
+  rolling-bench history. +1 pin-test.
+- `scripts/plan_2_8_snooze_admin.py`: operator CLI for the
+  drift-alert snooze config — `add` / `list` / `expire` / `rm`.
+  Atomic writes preserve the `_comment` scaffold; `list --active`
+  filters on `expires`. +10 tests.
+- `scripts/plan_2_8_history_stability.py`: per-slice HR stddev over
+  the last N snapshots. Flags slices jittering beyond a configurable
+  threshold with a `--fail-on-unstable` gate. +11 tests.
+- Status anchors, runbook, and CHANGELOG refreshed.
+
 ### Added (2026-04-21) — Plan 2.8 snooze config + monthly digest + coverage helper
 
 - `configs/plan_2_8_snoozes.json`: operator-managed drift-alert
