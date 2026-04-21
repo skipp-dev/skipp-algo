@@ -6,6 +6,19 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-05-09) — Plan 2.8 first obs + missing files + trailing ws
+
+- New `scripts/plan_2_8_ledger_first_observation.py` reports
+  the ``captured_at`` of the first valid ledger record.
+- New `scripts/plan_2_8_digest_missing_files.py` flags which
+  canonical digest files are missing from the output dir.
+- New `scripts/plan_2_8_weekly_summary_trailing_whitespace_count.py`
+  counts lines ending with space or tab.
+- Weekly workflow wires the three new steps after the
+  unique-word-count upload.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six
+  new script+test pairs.
+
 ### Added (2026-05-08) — Plan 2.8 status entropy + size range + unique words
 
 - New `scripts/plan_2_8_ledger_status_entropy.py` reports the

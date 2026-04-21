@@ -563,6 +563,9 @@ read.
 - `tests/test_plan_2_8_ledger_status_entropy.py`
 - `tests/test_plan_2_8_digest_file_size_range.py`
 - `tests/test_plan_2_8_weekly_summary_unique_word_count.py`
+- `tests/test_plan_2_8_ledger_first_observation.py`
+- `tests/test_plan_2_8_digest_missing_files.py`
+- `tests/test_plan_2_8_weekly_summary_trailing_whitespace_count.py`
 - `tests/test_plan_2_8_alert_history.py`
 - `tests/test_plan_2_8_alert_history_summary.py`
 - `tests/test_plan_2_8_digest_rollup.py`
