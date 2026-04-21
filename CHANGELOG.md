@@ -6,6 +6,20 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-28) — Plan 2.8 run min + total size + diff-fence
+
+- New `scripts/plan_2_8_ledger_status_run_min.py` reports
+  the shortest consecutive status run.
+- New `scripts/plan_2_8_digest_total_size.py` reports the
+  total byte size across top-level artifact files.
+- New `scripts/plan_2_8_weekly_summary_diff_fence_count.py`
+  counts fenced code blocks whose info-string is
+  ``diff``/``patch``.
+- Weekly workflow wires the three new steps after the
+  json-fence upload.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six
+  new script+test pairs.
+
 ### Added (2026-04-28) — Plan 2.8 run max + avg size + json-fence
 
 - New `scripts/plan_2_8_ledger_status_run_max.py`

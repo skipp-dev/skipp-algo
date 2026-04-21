@@ -500,6 +500,9 @@ read.
 - `tests/test_plan_2_8_ledger_status_run_max.py`
 - `tests/test_plan_2_8_digest_avg_size.py`
 - `tests/test_plan_2_8_weekly_summary_json_fence_count.py`
+- `tests/test_plan_2_8_ledger_status_run_min.py`
+- `tests/test_plan_2_8_digest_total_size.py`
+- `tests/test_plan_2_8_weekly_summary_diff_fence_count.py`
 - `tests/test_plan_2_8_alert_history.py`
 - `tests/test_plan_2_8_alert_history_summary.py`
 - `tests/test_plan_2_8_digest_rollup.py`
