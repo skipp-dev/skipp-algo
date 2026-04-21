@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from scripts.f2_inspect_status import build_status, main
+from scripts.f2_inspect_status import build_status, main, render_one_line
 
 
 def _write(path: Path, payload) -> None:
@@ -220,3 +220,75 @@ def test_cli_missing_spec_returns_one(tmp_path: Path, capsys: pytest.CaptureFixt
     rc = main(["--spec", str(tmp_path / "nope.json")])
     assert rc == 1
     assert "spec does not exist" in capsys.readouterr().err
+
+
+# ---------------------------------------------------------------------------
+# One-line / --quiet
+# ---------------------------------------------------------------------------
+
+
+def test_render_one_line_full(tmp_path: Path) -> None:
+    artifact = tmp_path / "t.json"
+    _write(artifact, {"status": "shadow"})
+    rj = _journal(tmp_path / "rj.jsonl",
+                  [{"action": "reverted"}, {"action": "noop_already_shadow"}])
+    pj = _journal(tmp_path / "pj.jsonl", [{"action": "promoted"}])
+    reports = tmp_path / "reports"
+    reports.mkdir()
+    _write(reports / "f2_promotion_gate_2026-04-21.json",
+           {"decision": "rollback"})
+
+    status = build_status(
+        spec_path=_spec(tmp_path, artifact),
+        revert_journal=rj, promote_journal=pj, reports_dir=reports,
+    )
+    line = render_one_line(status)
+    assert line == (
+        "f2[f2-test] artifact=shadow revert=2 promote=1 latest=2026-04-21:rollback"
+    )
+
+
+def test_render_one_line_handles_missing_pieces() -> None:
+    status = {
+        "experiment": None,
+        "artifact": {},
+        "revert_journal": {},
+        "promote_journal": {},
+        "latest_report": None,
+    }
+    line = render_one_line(status)
+    assert line == "f2[?] artifact=missing revert=0 promote=0 latest=none"
+
+
+def test_cli_quiet_prints_one_line(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    artifact = tmp_path / "t.json"
+    _write(artifact, {"status": "production"})
+    rc = main([
+        "--spec", str(_spec(tmp_path, artifact)),
+        "--quiet",
+    ])
+    assert rc == 0
+    out = capsys.readouterr().out.strip()
+    # Single line, no JSON braces.
+    assert "\n" not in out
+    assert out.startswith("f2[f2-test] artifact=production")
+    assert "{" not in out
+
+
+def test_cli_quiet_still_writes_full_json_to_output(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    artifact = tmp_path / "t.json"
+    _write(artifact, {"status": "production"})
+    out = tmp_path / "status.json"
+    rc = main([
+        "--spec", str(_spec(tmp_path, artifact)),
+        "--quiet",
+        "--output", str(out),
+    ])
+    assert rc == 0
+    # --output is the structured digest, --quiet only affects stdout.
+    data = json.loads(out.read_text(encoding="utf-8"))
+    assert data["artifact"]["status"] == "production"

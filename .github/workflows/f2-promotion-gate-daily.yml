@@ -247,6 +247,14 @@ jobs:
             --promote-journal artifacts/ci/f2/promote_journal.jsonl \
             --reports-dir     artifacts/reports \
             --output          artifacts/ci/f2/status_snapshot.json || true
+          # One-line annotation for log-readability. Tolerated on failure.
+          ONE_LINE=$(python scripts/f2_inspect_status.py \
+            --spec            artifacts/experiments/f2_contextual_promotion.json \
+            --revert-journal  artifacts/ci/f2/revert_journal.jsonl \
+            --promote-journal artifacts/ci/f2/promote_journal.jsonl \
+            --reports-dir     artifacts/reports \
+            --quiet 2>/dev/null || echo "f2[?] status_unavailable")
+          echo "::notice title=f2-contextual-arm::${ONE_LINE}"
           if [ -f artifacts/ci/f2/status_snapshot.json ] && [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
             {
               echo '## F2 contextual arm status'

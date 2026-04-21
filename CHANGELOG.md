@@ -6,6 +6,18 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-21) — `--quiet` one-line summary for status inspector
+
+- `scripts/f2_inspect_status.py`: new `render_one_line(status)` helper
+  + `--quiet` CLI flag. Compresses the digest to
+  `f2[<experiment>] artifact=<status> revert=<n> promote=<n> latest=<date>:<decision>`
+  for shell pipelines and CI annotations. `--output` still writes the
+  full JSON; `--quiet` only changes stdout. 4 new tests (20 total).
+- `.github/workflows/f2-promotion-gate-daily.yml`: status-snapshot step
+  now also emits a `::notice title=f2-contextual-arm::<one-line>`
+  annotation so the daily run state is visible in the workflow log
+  header without scrolling into the fenced JSON block.
+
 ### Changed (2026-04-21) — wire status inspector into daily workflow
 
 - `.github/workflows/f2-promotion-gate-daily.yml`: new `if: always()`

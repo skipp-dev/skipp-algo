@@ -160,6 +160,31 @@ def build_status(
     }
 
 
+def render_one_line(status: dict[str, Any]) -> str:
+    """Compress a status dict to a single human-readable line.
+
+    Format::
+
+        f2[<experiment>] artifact=<status> revert=<n> promote=<n> latest=<date>:<decision>
+
+    Designed for ``::notice`` annotations and shell pipelines. Missing
+    fields render as ``?``.
+    """
+    experiment = status.get("experiment") or "?"
+    artifact = (status.get("artifact") or {}).get("status") or "missing"
+    revert_n = (status.get("revert_journal") or {}).get("len", 0)
+    promote_n = (status.get("promote_journal") or {}).get("len", 0)
+    latest = status.get("latest_report") or {}
+    latest_str = (
+        f"{latest.get('date', '?')}:{latest.get('decision', '?')}"
+        if latest else "none"
+    )
+    return (
+        f"f2[{experiment}] artifact={artifact} "
+        f"revert={revert_n} promote={promote_n} latest={latest_str}"
+    )
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Inspect the live F2 contextual arm status across spec, artifact, journals and reports."
@@ -176,6 +201,8 @@ def main(argv: list[str] | None = None) -> int:
                         help="How many recent journal entries to include (default: 5).")
     parser.add_argument("--output", type=Path, default=None,
                         help="Optional output path for the JSON digest.")
+    parser.add_argument("--quiet", action="store_true",
+                        help="Print a single-line summary instead of the full JSON.")
     args = parser.parse_args(argv)
 
     try:
@@ -194,7 +221,10 @@ def main(argv: list[str] | None = None) -> int:
     if args.output is not None:
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(text + "\n", encoding="utf-8")
-    print(text)
+    if args.quiet:
+        print(render_one_line(status))
+    else:
+        print(text)
     return 0
 
 
