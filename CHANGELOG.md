@@ -6,6 +6,20 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-21) — F2 archive retention helper
+
+- `scripts/f2_cleanup_archives.py`: prunes
+  `contextual_calibration.archive/*.json` entries whose embedded
+  `YYYY-MM-DDTHH-MM-SSZ` suffix is older than `--max-age-days`
+  (default 90). Skips files without a parseable timestamp. Appends
+  structured manifest (schema_version=1) to
+  `artifacts/ci/f2/cleanup_archives_journal.jsonl` on real runs;
+  `--dry-run` previews without unlinking or journalling. Tolerates
+  missing archive dirs. CLI supports `--output`/`--quiet` for CI
+  use. 12 tests.
+- `tests/test_f2_helpers_convergence.py`: added
+  `f2_cleanup_archives` to `F2_HELPERS` (26 tests, was 24).
+
 ### Added (2026-04-21) — local dry-run simulator for the F2 chain
 
 - `scripts/f2_simulate_chain.py`: walks the full §2.4 G2 rollback
