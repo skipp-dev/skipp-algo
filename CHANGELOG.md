@@ -6,6 +6,19 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-07-02) — Plan 2.8 bytes-per-line mean + exe + bullet-line
+
+- New `scripts/plan_2_8_ledger_byte_size_per_line_mean.py` reports
+  the mean byte length of non-blank ledger lines.
+- New `scripts/plan_2_8_digest_exe_file_count.py` counts top-level
+  ``.exe`` files.
+- New `scripts/plan_2_8_weekly_summary_bullet_line_count.py` counts
+  Markdown unordered-list bullet lines.
+- Weekly workflow wires the three new steps after the empty-line
+  upload.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six new
+  script+test pairs.
+
 ### Added (2026-07-01) — Plan 2.8 total bytes + dmg + empty-line
 
 - New `scripts/plan_2_8_ledger_total_byte_size.py` reports the raw

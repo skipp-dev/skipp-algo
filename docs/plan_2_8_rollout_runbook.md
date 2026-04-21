@@ -752,6 +752,9 @@ read.
 - `tests/test_plan_2_8_ledger_total_byte_size.py`
 - `tests/test_plan_2_8_digest_dmg_file_count.py`
 - `tests/test_plan_2_8_weekly_summary_empty_line_count.py`
+- `tests/test_plan_2_8_ledger_byte_size_per_line_mean.py`
+- `tests/test_plan_2_8_digest_exe_file_count.py`
+- `tests/test_plan_2_8_weekly_summary_bullet_line_count.py`
 - `tests/test_plan_2_8_alert_history.py`
 - `tests/test_plan_2_8_alert_history_summary.py`
 - `tests/test_plan_2_8_digest_rollup.py`
