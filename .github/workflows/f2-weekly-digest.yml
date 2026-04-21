@@ -1,0 +1,102 @@
+name: f2-weekly-digest
+
+# F2 Contextual Promotion — weekly rolled-up digest.
+#
+# Plan reference:
+#   smc_improvement_plan_q3_q4_2026-04-20.md §2.3 F2 + §2.4 G3
+# Helper:
+#   scripts/f2_weekly_digest.py
+#
+# Each Monday this workflow downloads the most recent 7 days of
+# f2_promotion_gate_<DATE>.json reports from the daily workflow's
+# artifact, rolls them up, writes artifacts/ci/f2/weekly_digest.json,
+# and appends a Markdown timeline table to $GITHUB_STEP_SUMMARY.
+#
+# Fail-soft:
+#   * If no reports dir exists yet (chicken-and-egg before the daily
+#     workflow has produced any), the digest step writes nothing but
+#     the job exits 0.
+#   * Digest failure MUST NOT mark the job as "red-ops-signal"; we
+#     tolerate non-zero so scheduled runs stay quiet unless real
+#     tooling breaks.
+
+on:
+  schedule:
+    # 11:00 UTC Monday — runs after the 10:00 UTC daily gate.
+    - cron: "0 11 * * MON"
+  workflow_dispatch:
+    inputs:
+      window_days:
+        description: "Trailing window in days (default 7)."
+        required: false
+        default: "7"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: f2-weekly-digest
+  cancel-in-progress: false
+
+jobs:
+  digest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+
+      - name: Resolve window
+        id: window
+        run: |
+          if [ -n "${{ inputs.window_days }}" ]; then
+            echo "value=${{ inputs.window_days }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=7" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build weekly digest
+        id: digest
+        run: |
+          set +e
+          mkdir -p artifacts/ci/f2
+          if [ ! -d artifacts/reports ]; then
+            echo "::notice title=f2-weekly-digest::status=skipped reason='artifacts/reports missing'"
+            echo "status=skipped" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          python scripts/f2_weekly_digest.py \
+            --reports-dir artifacts/reports \
+            --window-days "${{ steps.window.outputs.value }}" \
+            --output      artifacts/ci/f2/weekly_digest.json \
+            --format      md > /tmp/digest.md
+          rc=$?
+          echo "status=built" >> "$GITHUB_OUTPUT"
+          # Tolerate non-zero so scheduled runs stay green unless
+          # the tooling itself is broken (exit 1 is an error there).
+          if [ "${rc}" -ne 0 ]; then
+            echo "::warning title=f2-weekly-digest::digest build exited ${rc}"
+          fi
+          if [ -f /tmp/digest.md ] && [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+            cat /tmp/digest.md >> "${GITHUB_STEP_SUMMARY}"
+          fi
+
+      - name: Upload digest artifact
+        if: steps.digest.outputs.status == 'built'
+        uses: actions/upload-artifact@v4
+        with:
+          name: f2-weekly-digest-${{ github.run_id }}
+          path: |
+            artifacts/ci/f2/weekly_digest.json
+          if-no-files-found: ignore
+          retention-days: 180

@@ -6,6 +6,23 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-21) — f2-weekly-digest workflow (Monday 11 UTC)
+
+- `.github/workflows/f2-weekly-digest.yml`: new scheduled workflow
+  that runs `scripts/f2_weekly_digest.py` every Monday 11:00 UTC
+  (after the 10:00 UTC daily gate), writes
+  `artifacts/ci/f2/weekly_digest.json`, and appends the Markdown
+  timeline table to `$GITHUB_STEP_SUMMARY`. Read-only permissions
+  (no Issue-ping). Uploads as a 180-day artifact so the rolled-up
+  view covers the §2.4 G3 30-day SPRT window plus historical
+  context. Fail-soft: no reports dir yet → exits green with a
+  `::notice` skip.
+- `tests/test_f2_weekly_digest_workflow_contract.py`: structural
+  pin-test for the new workflow (6 invariants: name, Monday 11 UTC
+  cron, `workflow_dispatch.inputs.window_days`, `contents: read`
+  permissions only, helper + reports-dir + md-format flag present,
+  upload retention 180 days).
+
 ### Added (2026-04-21) — Q3/Q4 Plan §2.4 G3 weekly digest helper
 
 - `scripts/f2_weekly_digest.py`: rolls up the last N days of
