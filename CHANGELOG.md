@@ -6,6 +6,15 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-07-23) — Plan 2.8 float values + img + caret lines
+
+- `scripts/plan_2_8_ledger_float_value_count.py` counts `float` top-level
+  values across ledger JSON-object records.
+- `scripts/plan_2_8_digest_img_file_count.py` counts top-level `.img` files.
+- `scripts/plan_2_8_weekly_summary_caret_line_count.py` counts lines
+  containing an ASCII `^`.
+- Weekly digest workflow wires three fail-soft compute+upload step pairs.
+
 ### Added (2026-07-22) — Plan 2.8 int values + vpk + percent lines
 
 - `scripts/plan_2_8_ledger_int_value_count.py` counts strict-int top-level
