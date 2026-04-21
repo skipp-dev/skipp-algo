@@ -6,6 +6,19 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-06-22) — Plan 2.8 red span + rm + ascii-hexdigit
+
+- New `scripts/plan_2_8_ledger_red_first_last_index_span.py`
+  reports the index span between the first and last red records.
+- New `scripts/plan_2_8_digest_rm_file_count.py` counts top-level
+  ``.rm`` files.
+- New `scripts/plan_2_8_weekly_summary_ascii_hexdigit_char_count.py`
+  counts ASCII hexdigits (0–9, a–f, A–F).
+- Weekly workflow wires the three new steps after the ascii
+  letter upload.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six new
+  script+test pairs.
+
 ### Added (2026-06-21) — Plan 2.8 amber span + 3gp + ascii-letter
 
 - New `scripts/plan_2_8_ledger_amber_first_last_index_span.py`
