@@ -455,6 +455,9 @@ read.
 - `tests/test_plan_2_8_ledger_first_green_age.py`
 - `tests/test_plan_2_8_digest_largest_file.py`
 - `tests/test_plan_2_8_weekly_summary_link_count.py`
+- `tests/test_plan_2_8_ledger_latest_captured_at.py`
+- `tests/test_plan_2_8_digest_smallest_file.py`
+- `tests/test_plan_2_8_weekly_summary_list_count.py`
 - `tests/test_plan_2_8_alert_history.py`
 - `tests/test_plan_2_8_alert_history_summary.py`
 - `tests/test_plan_2_8_digest_rollup.py`

@@ -6,6 +6,23 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-21) — Plan 2.8 latest captured_at + smallest file + list count
+
+- New `scripts/plan_2_8_ledger_latest_captured_at.py` reports
+  the most recent ``captured_at`` timestamp (status-agnostic)
+  and its age in hours relative to ``--now``
+  (``--fail-above-hours`` for CI).
+- New `scripts/plan_2_8_digest_smallest_file.py` reports the
+  smallest non-empty file in the artifact dir (ties broken
+  by name); ``--fail-below-bytes`` for CI.
+- New `scripts/plan_2_8_weekly_summary_list_count.py` counts
+  unordered list items (``-`` or ``*``) in the weekly
+  summary (horizontal rules and fenced code excluded).
+- Weekly workflow wires the three new steps after the link
+  count upload.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six
+  new script+test pairs.
+
 ### Added (2026-04-21) — Plan 2.8 first green age + largest file + link count
 
 - New `scripts/plan_2_8_ledger_first_green_age.py` reports
