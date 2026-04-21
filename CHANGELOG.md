@@ -6,6 +6,16 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-08-04) — Plan 2.8 multi-key records + crt + asterisk lines
+
+- `scripts/plan_2_8_ledger_multi_key_record_count.py` counts ledger
+  records that have two or more top-level keys.
+- `scripts/plan_2_8_digest_crt_file_count.py` counts top-level `.crt`
+  files.
+- `scripts/plan_2_8_weekly_summary_asterisk_line_count.py` counts lines
+  containing an ASCII `*`.
+- Weekly digest workflow wires three fail-soft compute+upload step pairs.
+
 ### Added (2026-08-03) — Plan 2.8 single-key records + pem + hyphen lines
 
 - `scripts/plan_2_8_ledger_single_key_record_count.py` counts ledger
