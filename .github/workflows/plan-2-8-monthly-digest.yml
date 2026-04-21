@@ -117,6 +117,28 @@ jobs:
           fi
           true
 
+      - name: Plan 2.8 deferred ADR queue
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          mkdir -p artifacts/plan_2_8_monthly
+          if [ ! -s docs/DECISIONS.md ]; then
+            echo "No DECISIONS.md; skipping ADR queue."
+            exit 0
+          fi
+          python scripts/plan_2_8_adr_queue.py \
+            --decisions docs/DECISIONS.md \
+            --status    deferred \
+            --output    artifacts/plan_2_8_monthly/adr_queue.md \
+            > /dev/null
+          if [ -s artifacts/plan_2_8_monthly/adr_queue.md ] \
+              && [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+            cat artifacts/plan_2_8_monthly/adr_queue.md \
+              >> "$GITHUB_STEP_SUMMARY"
+          fi
+          true
+
       - name: Upload monthly digest
         if: always()
         uses: actions/upload-artifact@v4

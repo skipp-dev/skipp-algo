@@ -245,6 +245,30 @@ jobs:
           fi
           true
 
+      - name: Assemble weekly runcard
+        if: always()
+        env:
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        shell: bash
+        run: |
+          set +e
+          mkdir -p artifacts/plan_2_8_digest
+          python scripts/plan_2_8_weekly_runcard.py \
+            --artifact-dir artifacts/plan_2_8_digest \
+            --output       artifacts/plan_2_8_digest/runcard.md \
+            --run-url      "${RUN_URL}" \
+            > /dev/null
+          true
+
+      - name: Upload weekly runcard
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-weekly-runcard
+          path: artifacts/plan_2_8_digest/runcard.md
+          if-no-files-found: ignore
+          retention-days: 180
+
       - name: Open drift-alert issue
         if: steps.resolve_alerts.outputs.has_alerts == 'True'
         env:

@@ -6,6 +6,20 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-21) — Plan 2.8 weekly runcard step + monthly ADR queue + rollout health
+
+- Weekly digest workflow now emits a consolidated operator runcard
+  (digest + coverage + stability + lint + history summary) and
+  uploads it as the `plan-2-8-weekly-runcard` artifact (180d).
+- Monthly digest workflow appends a deferred-ADR queue section
+  sourced from `docs/DECISIONS.md` via the new ADR queue helper.
+- New `scripts/plan_2_8_health.py` aggregator collapses the per-axis
+  JSON payloads (digest / coverage / stability) into a single
+  0..1 score + `green|amber|red` status + findings list. Supports
+  md/json output, `--fail-on-red`, and tolerates missing inputs.
+  +15 tests including weekly/monthly workflow pin-tests.
+- Status anchors, runbook, and CHANGELOG refreshed.
+
 ### Added (2026-04-21) — Plan 2.8 history backfill + ADR queue + weekly runcard
 
 - `scripts/plan_2_8_history_backfill.py`: merge two history JSONLs
