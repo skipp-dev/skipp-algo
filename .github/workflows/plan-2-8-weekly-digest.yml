@@ -1994,6 +1994,86 @@ jobs:
           if-no-files-found: ignore
           retention-days: 365
 
+      - name: Plan 2.8 ledger hour histogram
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          ledger="artifacts/plan_2_8_digest/status_ledger.jsonl"
+          if [ ! -s "${ledger}" ]; then
+            echo "No ledger; skipping hour histogram."
+            exit 0
+          fi
+          python scripts/plan_2_8_ledger_hour_histogram.py \
+            --ledger "${ledger}" \
+            --format md \
+            --output artifacts/plan_2_8_digest/hour_histogram.md \
+            > /dev/null
+          true
+
+      - name: Upload Plan 2.8 ledger hour histogram
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-ledger-hour-histogram
+          path: artifacts/plan_2_8_digest/hour_histogram.md
+          if-no-files-found: ignore
+          retention-days: 365
+
+      - name: Plan 2.8 digest stale report
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          dir="artifacts/plan_2_8_digest"
+          if [ ! -d "${dir}" ]; then
+            echo "No artifact dir; skipping stale report."
+            exit 0
+          fi
+          python scripts/plan_2_8_digest_stale_report.py \
+            --artifact-dir "${dir}" \
+            --warn-days    7 \
+            --stale-days   14 \
+            --format       md \
+            --output       "${dir}/stale_report.md" \
+            > /dev/null
+          true
+
+      - name: Upload Plan 2.8 digest stale report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-digest-stale-report
+          path: artifacts/plan_2_8_digest/stale_report.md
+          if-no-files-found: ignore
+          retention-days: 365
+
+      - name: Plan 2.8 weekly summary required sections
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          md="artifacts/plan_2_8_digest/weekly_summary.md"
+          if [ ! -s "${md}" ]; then
+            echo "No weekly_summary.md; skipping required-sections check."
+            exit 0
+          fi
+          python scripts/plan_2_8_weekly_summary_required_sections.py \
+            --input  "${md}" \
+            --format md \
+            --output artifacts/plan_2_8_digest/required_sections.md \
+            > /dev/null
+          true
+
+      - name: Upload Plan 2.8 weekly summary required sections
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-weekly-summary-required-sections
+          path: artifacts/plan_2_8_digest/required_sections.md
+          if-no-files-found: ignore
+          retention-days: 365
+
       - name: Open drift-alert issue
         if: steps.resolve_alerts.outputs.has_alerts == 'True'
         env:

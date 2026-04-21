@@ -6,6 +6,24 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-21) — Plan 2.8 hour histogram + stale report + required sections
+
+- New `scripts/plan_2_8_ledger_hour_histogram.py` buckets
+  records by UTC hour-of-day (0..23); reports empty_hours list;
+  `--fail-on-empty-hours N` gates CI.
+- New `scripts/plan_2_8_digest_stale_report.py` classifies
+  artifacts as fresh / warn / stale with configurable
+  `--warn-days` and `--stale-days` thresholds; subdirectories
+  are ignored; `--fail-on-stale` gates CI.
+- New `scripts/plan_2_8_weekly_summary_required_sections.py`
+  asserts `DEFAULT_REQUIRED` level-2 headings are present in
+  `weekly_summary.md`; `--fail-on-missing` gates CI.
+- Weekly workflow wires hour-histogram, stale-report
+  (warn=7/stale=14), and required-sections steps after TOC
+  checksum; each uploads its output as a retained artifact.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six new
+  script+test pairs.
+
 ### Added (2026-04-21) — Plan 2.8 status share + missing + TOC checksum
 
 - New `scripts/plan_2_8_ledger_status_share.py` computes

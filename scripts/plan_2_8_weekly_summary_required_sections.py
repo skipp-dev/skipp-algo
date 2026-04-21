@@ -1,0 +1,101 @@
+"""Plan 2.8 weekly-summary required-sections validator.
+
+Asserts that ``weekly_summary.md`` contains every entry in
+``DEFAULT_REQUIRED`` as a ``## `` heading. Reports any missing
+entries and exits non-zero under ``--fail-on-missing``.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import re
+import sys
+from pathlib import Path
+from typing import Any
+
+
+DEFAULT_REQUIRED: tuple[str, ...] = (
+    "Status ledger summary",
+    "Status flip alert",
+    "Downtime",
+    "Size budget",
+    "Archive index",
+    "Index diff",
+)
+
+
+_H2 = re.compile(r"^##\s+(.+?)\s*$")
+
+
+def _headings(text: str) -> list[str]:
+    out: list[str] = []
+    for line in text.splitlines():
+        m = _H2.match(line)
+        if m is not None:
+            out.append(m.group(1).strip())
+    return out
+
+
+def compute(text: str, *, required: tuple[str, ...]) -> dict[str, Any]:
+    found = _headings(text)
+    present = [h for h in required if h in found]
+    missing = [h for h in required if h not in found]
+    return {
+        "schema_version": 1,
+        "required":       list(required),
+        "present":        present,
+        "missing":        missing,
+    }
+
+
+def render_markdown(report: dict[str, Any]) -> str:
+    lines = [
+        "# Plan 2.8 weekly summary required sections",
+        "",
+        f"- required: {len(report['required'])}",
+        f"- present:  {len(report['present'])}",
+        f"- missing:  {len(report['missing'])}",
+        "",
+        "### Missing",
+        "",
+    ]
+    if report["missing"]:
+        lines.extend(f"- `{h}`" for h in report["missing"])
+    else:
+        lines.append("_(none)_")
+    lines.append("")
+    return "\n".join(lines) + "\n"
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        description="Validate required ##-headings in weekly_summary.md.",
+    )
+    parser.add_argument("--input",  type=Path, required=True)
+    parser.add_argument("--format", choices=("md", "json"), default="md")
+    parser.add_argument("--output", type=Path, default=None)
+    parser.add_argument("--fail-on-missing", action="store_true")
+    args = parser.parse_args(argv)
+
+    if not args.input.exists():
+        print(f"ERROR: input not found: {args.input}", file=sys.stderr)
+        return 1
+
+    report = compute(
+        args.input.read_text(encoding="utf-8"),
+        required=DEFAULT_REQUIRED,
+    )
+    body = render_markdown(report) if args.format == "md" \
+        else json.dumps(report, indent=2) + "\n"
+    if args.output is not None:
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        args.output.write_text(body, encoding="utf-8")
+    print(body, end="")
+    if args.fail_on_missing and report["missing"]:
+        return 1
+    return 0
+
+
+if __name__ == "__main__":  # pragma: no cover
+    raise SystemExit(main())
