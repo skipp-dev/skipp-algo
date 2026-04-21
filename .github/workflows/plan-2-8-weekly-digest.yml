@@ -2925,6 +2925,76 @@ jobs:
           if-no-files-found: ignore
           retention-days: 365
 
+      - name: Plan 2.8 ledger recent unknown ratio
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          ledger="artifacts/plan_2_8_digest/state_ledger.jsonl"
+          [ -s "${ledger}" ] || exit 0
+          python scripts/plan_2_8_ledger_unknown_ratio.py \
+            --ledger "${ledger}" \
+            --last-n 10 \
+            --format md \
+            --output artifacts/plan_2_8_digest/ledger_unknown_ratio.md \
+            > /dev/null
+          true
+
+      - name: Upload Plan 2.8 ledger recent unknown ratio
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-ledger-recent-unknown-ratio
+          path: artifacts/plan_2_8_digest/ledger_unknown_ratio.md
+          if-no-files-found: ignore
+          retention-days: 365
+
+      - name: Plan 2.8 digest empty files
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          dir="artifacts/plan_2_8_digest"
+          [ -d "${dir}" ] || exit 0
+          python scripts/plan_2_8_digest_empty_files.py \
+            --artifact-dir "${dir}" \
+            --format md \
+            --output artifacts/plan_2_8_digest/digest_empty_files.md \
+            > /dev/null
+          true
+
+      - name: Upload Plan 2.8 digest empty files
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-digest-empty-files
+          path: artifacts/plan_2_8_digest/digest_empty_files.md
+          if-no-files-found: ignore
+          retention-days: 365
+
+      - name: Plan 2.8 weekly summary horizontal-rule count
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          summary="artifacts/plan_2_8_digest/weekly_summary.md"
+          [ -s "${summary}" ] || exit 0
+          python scripts/plan_2_8_weekly_summary_hr_count.py \
+            --summary "${summary}" \
+            --format md \
+            --output artifacts/plan_2_8_digest/summary_hr_count.md \
+            > /dev/null
+          true
+
+      - name: Upload Plan 2.8 weekly summary horizontal-rule count
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-weekly-summary-hr-count
+          path: artifacts/plan_2_8_digest/summary_hr_count.md
+          if-no-files-found: ignore
+          retention-days: 365
+
       - name: Open drift-alert issue
         if: steps.resolve_alerts.outputs.has_alerts == 'True'
         env:

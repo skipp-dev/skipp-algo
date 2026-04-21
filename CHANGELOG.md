@@ -6,6 +6,23 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-21) — Plan 2.8 unknown ratio + empty files + hr count
+
+- New `scripts/plan_2_8_ledger_unknown_ratio.py` mirrors the
+  red/amber/green ratio helpers for ``unknown`` records;
+  ``--fail-above-ratio`` for CI.
+- New `scripts/plan_2_8_digest_empty_files.py` lists
+  zero-byte files (sorted by name) with ``--fail-on-empty``
+  for CI.
+- New `scripts/plan_2_8_weekly_summary_hr_count.py` counts
+  Markdown horizontal-rule lines (``---``/``___``/``***``
+  with three or more identical characters) outside fenced
+  code blocks.
+- Weekly workflow wires the three new steps after blockquote
+  count.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six new
+  script+test pairs.
+
 ### Added (2026-04-21) — Plan 2.8 red ratio + file age stats + blockquote count
 
 - New `scripts/plan_2_8_ledger_red_ratio.py` mirrors the
