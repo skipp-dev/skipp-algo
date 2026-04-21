@@ -6,6 +6,19 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-05-18) — Plan 2.8 last unknown + tsv files + colon
+
+- New `scripts/plan_2_8_ledger_last_unknown_index.py` reports the
+  zero-based index of the most recent unknown observation.
+- New `scripts/plan_2_8_digest_tsv_file_count.py` counts top-level
+  ``.tsv`` files.
+- New `scripts/plan_2_8_weekly_summary_colon_char_count.py` counts
+  ``:`` characters in the summary.
+- Weekly workflow wires the three new steps after the
+  semicolon-count upload.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six new
+  script+test pairs.
+
 ### Added (2026-05-17) — Plan 2.8 last red + csv files + semicolon
 
 - New `scripts/plan_2_8_ledger_last_red_index.py` reports the

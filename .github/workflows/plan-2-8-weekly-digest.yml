@@ -6929,6 +6929,75 @@ jobs:
           if-no-files-found: ignore
           retention-days: 365
 
+      - name: Plan 2.8 ledger last unknown index
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          ledger="artifacts/plan_2_8_digest/state_ledger.jsonl"
+          [ -s "${ledger}" ] || exit 0
+          python scripts/plan_2_8_ledger_last_unknown_index.py \
+            --ledger "${ledger}" \
+            --format md \
+            --output artifacts/plan_2_8_digest/ledger_last_unknown_index.md \
+            > /dev/null
+          true
+
+      - name: Upload Plan 2.8 ledger last unknown index
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-ledger-last-unknown-index
+          path: artifacts/plan_2_8_digest/ledger_last_unknown_index.md
+          if-no-files-found: ignore
+          retention-days: 365
+
+      - name: Plan 2.8 digest tsv file count
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          dir="artifacts/plan_2_8_digest"
+          [ -d "${dir}" ] || exit 0
+          python scripts/plan_2_8_digest_tsv_file_count.py \
+            --artifact-dir "${dir}" \
+            --format md \
+            --output artifacts/plan_2_8_digest/digest_tsv_file_count.md \
+            > /dev/null
+          true
+
+      - name: Upload Plan 2.8 digest tsv file count
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-digest-tsv-file-count
+          path: artifacts/plan_2_8_digest/digest_tsv_file_count.md
+          if-no-files-found: ignore
+          retention-days: 365
+
+      - name: Plan 2.8 weekly summary colon char count
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          summary="artifacts/plan_2_8_digest/weekly_summary.md"
+          [ -s "${summary}" ] || exit 0
+          python scripts/plan_2_8_weekly_summary_colon_char_count.py \
+            --summary "${summary}" \
+            --format md \
+            --output artifacts/plan_2_8_digest/summary_colon_char_count.md \
+            > /dev/null
+          true
+
+      - name: Upload Plan 2.8 weekly summary colon char count
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-weekly-summary-colon-char-count
+          path: artifacts/plan_2_8_digest/summary_colon_char_count.md
+          if-no-files-found: ignore
+          retention-days: 365
+
       - name: Open drift-alert issue
         if: steps.resolve_alerts.outputs.has_alerts == 'True'
         env:
