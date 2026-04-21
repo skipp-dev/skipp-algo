@@ -6,6 +6,22 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-23) — Plan 2.8 green streak history + oldest file + footnote count
+
+- New `scripts/plan_2_8_ledger_green_streak_history.py` lists
+  all past green-streak segments in chronological order with
+  length and duration-in-hours per segment.
+- New `scripts/plan_2_8_digest_oldest_file.py` reports the
+  single oldest artifact-directory file by mtime (subdirs
+  ignored).
+- New `scripts/plan_2_8_weekly_summary_footnote_count.py`
+  counts Markdown footnote references and definitions while
+  excluding fenced code blocks.
+- Weekly workflow wires the three new steps after the
+  longest-line upload.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six
+  new script+test pairs.
+
 ### Added (2026-04-22) — Plan 2.8 longest gap + duplicate sizes + longest line
 
 - New `scripts/plan_2_8_ledger_longest_gap.py` reports the
