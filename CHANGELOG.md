@@ -6,6 +6,19 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-05-19) — Plan 2.8 green index mean + log files + quote
+
+- New `scripts/plan_2_8_ledger_green_index_mean.py` reports the
+  arithmetic mean of green observation indices.
+- New `scripts/plan_2_8_digest_log_file_count.py` counts top-level
+  ``.log`` files.
+- New `scripts/plan_2_8_weekly_summary_quote_char_count.py` counts
+  ASCII double-quote characters in the summary.
+- Weekly workflow wires the three new steps after the colon-count
+  upload.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six new
+  script+test pairs.
+
 ### Added (2026-05-18) — Plan 2.8 last unknown + tsv files + colon
 
 - New `scripts/plan_2_8_ledger_last_unknown_index.py` reports the

@@ -620,6 +620,9 @@ read.
 - `tests/test_plan_2_8_ledger_last_unknown_index.py`
 - `tests/test_plan_2_8_digest_tsv_file_count.py`
 - `tests/test_plan_2_8_weekly_summary_colon_char_count.py`
+- `tests/test_plan_2_8_ledger_green_index_mean.py`
+- `tests/test_plan_2_8_digest_log_file_count.py`
+- `tests/test_plan_2_8_weekly_summary_quote_char_count.py`
 - `tests/test_plan_2_8_alert_history.py`
 - `tests/test_plan_2_8_alert_history_summary.py`
 - `tests/test_plan_2_8_digest_rollup.py`
