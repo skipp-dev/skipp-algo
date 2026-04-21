@@ -6,6 +6,19 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-06-24) — Plan 2.8 unique status + m2ts + bom
+
+- New `scripts/plan_2_8_ledger_unique_status_count.py` counts
+  distinct statuses observed in the ledger.
+- New `scripts/plan_2_8_digest_m2ts_file_count.py` counts top-level
+  ``.m2ts`` files.
+- New `scripts/plan_2_8_weekly_summary_bom_char_count.py` counts
+  U+FEFF BOM characters in the weekly summary.
+- Weekly workflow wires the three new steps after the ascii
+  alnum upload.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six new
+  script+test pairs.
+
 ### Added (2026-06-23) — Plan 2.8 unknown span + asf + ascii-alnum
 
 - New `scripts/plan_2_8_ledger_unknown_first_last_index_span.py`
