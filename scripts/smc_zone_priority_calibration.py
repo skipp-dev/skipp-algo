@@ -299,6 +299,96 @@ def to_json(cal: CalibrationResult) -> dict[str, Any]:
     }
 
 
+# ── F1: Testable calibration aggregate (smECE alongside ECE) ────
+
+
+def collect_calibration_arrays(
+    benchmark_dir: Path,
+) -> tuple[list[float], list[int]]:
+    """Reconstruct (predictions, outcomes) arrays from binned calibration in
+    every ``scoring_*.json`` artifact.
+
+    Each bin entry exposes ``predicted_mean``, ``observed_rate`` and
+    ``n_events``.  We expand to one (pred, outcome) per event: the
+    predicted mean is repeated, and the observed positives/negatives are
+    materialised as integer 0/1 outcomes.  This yields a corpus-level
+    array suitable for both ECE (binned) and smECE (kernel) without
+    requiring per-event scoring artifacts.
+    """
+    preds: list[float] = []
+    outs: list[int] = []
+    for scoring_file in sorted(benchmark_dir.rglob("scoring_*.json")):
+        try:
+            data = json.loads(scoring_file.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            continue
+        bins = (data.get("calibration") or {}).get("bins") or []
+        for b in bins:
+            n = int(b.get("n_events", 0) or 0)
+            if n <= 0:
+                continue
+            p_raw = b.get("predicted_mean")
+            r_raw = b.get("observed_rate")
+            if p_raw is None or r_raw is None:
+                continue
+            try:
+                p = float(p_raw)
+                r = float(r_raw)
+            except (TypeError, ValueError):
+                continue
+            if not (0.0 <= p <= 1.0) or not (0.0 <= r <= 1.0):
+                continue
+            positives = int(round(r * n))
+            positives = max(0, min(n, positives))
+            negatives = n - positives
+            preds.extend([p] * n)
+            outs.extend([1] * positives)
+            outs.extend([0] * negatives)
+    return preds, outs
+
+
+def compute_testable_calibration(
+    benchmark_dir: Path,
+) -> dict[str, Any]:
+    """Compute corpus-level ECE + smECE + dCE on the reconstructed arrays.
+
+    The smECE figure is the *testable* calibration metric advocated by
+    Błasiok & Nakkiran (2023) and is the F1 promotion-gate input.  All
+    three are reported so reviewers can spot grid-sensitivity drift in
+    the classical ECE.  Returns ``{}`` if no usable bins were found.
+    """
+    preds, outs = collect_calibration_arrays(benchmark_dir)
+    if not preds:
+        return {}
+
+    # Local import keeps the script importable without smc_core on path
+    # in environments that only need the family-weight aggregator.
+    try:
+        from smc_core.calibration_metrics import dce, ece, smooth_ece
+    except ImportError:
+        # When invoked as a CLI (python scripts/smc_zone_priority_calibration.py …)
+        # sys.path[0] is the scripts/ dir, so smc_core is not resolvable.
+        # Retry with the project root prepended.
+        import sys
+        project_root = str(Path(__file__).resolve().parent.parent)
+        if project_root not in sys.path:
+            sys.path.insert(0, project_root)
+        try:
+            from smc_core.calibration_metrics import dce, ece, smooth_ece
+        except ImportError:
+            return {"n_events": len(preds), "error": "smc_core.calibration_metrics unavailable"}
+
+    return {
+        "n_events": len(preds),
+        "positive_rate": round(sum(outs) / len(outs), 6),
+        "ece_binned_n10": round(ece(preds, outs, n_bins=10), 6),
+        "smooth_ece": round(smooth_ece(preds, outs), 6),
+        "dce_upper_bound": round(dce(preds, outs), 6),
+        "method": "binned_aggregate_reconstruction",
+        "source": "calibration.bins per scoring_*.json",
+    }
+
+
 # ── F1: Contextual calibration pipeline ─────────────────────────
 
 
@@ -559,10 +649,16 @@ def main(argv: list[str] | None = None) -> None:
 
     cal = calibrate_from_benchmark(args.benchmark_dir, smoothing=args.smoothing)
 
+    # F1: testable calibration (smECE alongside binned ECE) on the corpus.
+    testable = compute_testable_calibration(args.benchmark_dir)
+
     # Write JSON
     args.output_path.parent.mkdir(parents=True, exist_ok=True)
+    payload = to_json(cal)
+    if testable:
+        payload["testable_calibration"] = testable
     args.output_path.write_text(
-        json.dumps(to_json(cal), indent=2) + "\n", encoding="utf-8"
+        json.dumps(payload, indent=2) + "\n", encoding="utf-8"
     )
 
     # Write Markdown report alongside
@@ -578,6 +674,17 @@ def main(argv: list[str] | None = None) -> None:
         delta = w - prior
         sign = "+" if delta >= 0 else ""
         print(f"  {fam}: {prior:.2f} → {w:.4f} ({sign}{delta:.4f})")
+
+    if testable:
+        print()
+        print("Testable calibration (F1):")
+        print(f"  n_events    : {testable['n_events']}")
+        if "ece_binned_n10" in testable:
+            print(f"  ECE (n=10)  : {testable['ece_binned_n10']:.4f}")
+            print(f"  smECE       : {testable['smooth_ece']:.4f}  "
+                  "(Błasiok & Nakkiran 2023 — primary F1 gate)")
+            print(f"  dCE (upper) : {testable['dce_upper_bound']:.4f}  "
+                  "(Rossellini et al. 2025)")
 
     # ── Phase F: Contextual calibration ─────────────────────────
     bucket_stats = load_stratified_family_metrics(args.benchmark_dir)
