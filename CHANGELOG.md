@@ -6,6 +6,24 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-21) — Plan 2.8 README badge markdown + alert trend aggregator
+
+- New `scripts/plan_2_8_badge_markdown.py` emits a README-ready
+  single-line markdown image linking to the Plan 2.8 shields.io
+  endpoint badge, optionally wrapped in a click-through link.
+  URL-encodes the endpoint URL and guards the label against
+  stray `]`. +11 tests including a weekly-workflow pin-test.
+- New `scripts/plan_2_8_alert_trend.py` ingests the latest two
+  files from the Plan 2.8 digest archive and emits a per-
+  `(tf, family)` trend record: latest/prev events and
+  hit-rate, deltas, and a direction tag (`rising`, `falling`,
+  `flat`, `new`, `gone`). Tolerant of malformed or missing
+  archives. +17 tests including a weekly-workflow pin-test.
+- Weekly digest now uploads `plan-2-8-badge-markdown` and
+  `plan-2-8-alert-trend` (both retained 365 days) and appends the
+  trend report to the job summary.
+- Status anchors, runbook, and CHANGELOG refreshed.
+
 ### Added (2026-04-21) — Plan 2.8 digest schema validator + shields.io status badge
 
 - New `scripts/plan_2_8_digest_schema.py` validates the weekly

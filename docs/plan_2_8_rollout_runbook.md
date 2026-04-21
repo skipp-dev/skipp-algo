@@ -355,6 +355,8 @@ read.
 - `tests/test_plan_2_8_manifest_diff.py`
 - `tests/test_plan_2_8_digest_schema.py`
 - `tests/test_plan_2_8_runcard_badge.py`
+- `tests/test_plan_2_8_badge_markdown.py`
+- `tests/test_plan_2_8_alert_trend.py`
 - `tests/test_plan_2_8_alert_history.py`
 - `tests/test_plan_2_8_alert_history_summary.py`
 - `tests/test_plan_2_8_digest_rollup.py`

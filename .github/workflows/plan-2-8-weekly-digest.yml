@@ -759,6 +759,65 @@ jobs:
           if-no-files-found: ignore
           retention-days: 365
 
+      - name: Plan 2.8 README badge markdown
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          badge="artifacts/plan_2_8_digest/status_badge.json"
+          if [ ! -s "${badge}" ]; then
+            echo "No status badge JSON; skipping README badge."
+            exit 0
+          fi
+          mkdir -p artifacts/plan_2_8_digest
+          endpoint="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/main/artifacts/plan_2_8_digest/status_badge.json"
+          python scripts/plan_2_8_badge_markdown.py \
+            --endpoint-url "${endpoint}" \
+            --output       artifacts/plan_2_8_digest/badge.md \
+            > /dev/null
+          true
+
+      - name: Upload Plan 2.8 README badge markdown
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-badge-markdown
+          path: artifacts/plan_2_8_digest/badge.md
+          if-no-files-found: ignore
+          retention-days: 365
+
+      - name: Plan 2.8 alert trend
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          archive="artifacts/plan_2_8_digest_archive"
+          if [ ! -d "${archive}" ]; then
+            echo "No digest archive; skipping alert trend."
+            exit 0
+          fi
+          mkdir -p artifacts/plan_2_8_digest
+          python scripts/plan_2_8_alert_trend.py \
+            --archive-dir "${archive}" \
+            --format      md \
+            --output      artifacts/plan_2_8_digest/alert_trend.md \
+            > /dev/null
+          if [ -s artifacts/plan_2_8_digest/alert_trend.md ] \
+              && [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+            cat artifacts/plan_2_8_digest/alert_trend.md \
+              >> "${GITHUB_STEP_SUMMARY}"
+          fi
+          true
+
+      - name: Upload Plan 2.8 alert trend
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-alert-trend
+          path: artifacts/plan_2_8_digest/alert_trend.md
+          if-no-files-found: ignore
+          retention-days: 365
+
       - name: Open drift-alert issue
         if: steps.resolve_alerts.outputs.has_alerts == 'True'
         env:
