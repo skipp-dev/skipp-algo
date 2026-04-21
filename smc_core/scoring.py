@@ -52,6 +52,7 @@ class ScoredEvent:
     context: dict[str, str] = field(default_factory=dict)
     raw_score: float | None = None
     raw_score_name: str | None = None
+    features: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(slots=True)

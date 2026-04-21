@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import math
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -847,6 +848,124 @@ def _score_bos_event(
     )
 
 
+def _atr_at(bars: pd.DataFrame, anchor_idx: int, period: int = 14) -> float | None:
+    """ATR at ``anchor_idx`` from the prior ``period`` bars (Wilder-style mean).
+
+    Returns ``None`` when fewer than ``period`` prior bars exist or the
+    series is degenerate. Pure-pandas, no extra dependency.
+    """
+    if anchor_idx < period:
+        return None
+    window = bars.iloc[anchor_idx - period : anchor_idx]
+    if len(window) < period:
+        return None
+    high = pd.to_numeric(window.get("high"), errors="coerce")
+    low = pd.to_numeric(window.get("low"), errors="coerce")
+    close = pd.to_numeric(window.get("close"), errors="coerce")
+    prev_close = close.shift(1)
+    tr = pd.concat(
+        [
+            (high - low).abs(),
+            (high - prev_close).abs(),
+            (low - prev_close).abs(),
+        ],
+        axis=1,
+    ).max(axis=1)
+    tr = tr.dropna()
+    if tr.empty:
+        return None
+    atr = float(tr.mean())
+    if not math.isfinite(atr) or atr <= 0:
+        return None
+    return atr
+
+
+def _fvg_hurst_50(bars: pd.DataFrame, anchor_idx: int) -> float | None:
+    """Rolling-50-bar Hurst (R/S) on the closes leading up to ``anchor_idx``.
+
+    Delegates to :func:`smc_core.fvg_quality.rolling_hurst` so the same
+    estimator is used for scoring and for the per-event ledger.
+    """
+    from smc_core.fvg_quality import rolling_hurst
+
+    if anchor_idx < 50:
+        return None
+    closes_series = pd.to_numeric(
+        bars["close"].iloc[anchor_idx - 50 : anchor_idx], errors="coerce"
+    ).dropna()
+    if len(closes_series) < 16:
+        return None
+    return rolling_hurst([float(c) for c in closes_series.tolist()])
+
+
+def _fvg_quality_features(
+    *,
+    event: dict[str, Any],
+    bars: pd.DataFrame,
+    anchor_idx: int,
+    low: float,
+    high: float,
+    direction: str,
+    event_context: dict[str, str],
+    bias_direction: str,
+) -> dict[str, Any]:
+    """Return the five A1.B FVG quality features for a single event.
+
+    Output keys exactly match :data:`scripts.fvg_quality_recalibration.FEATURE_KEYS`
+    so the recalibration script picks them up via ``record["features"]``
+    without a translation step:
+
+    - ``gap_size_atr`` (float ≥ 0)
+    - ``htf_aligned`` (bool)
+    - ``distance_to_price_atr`` (float ≥ 0)
+    - ``is_full_body`` (bool)
+    - ``hurst_50`` (float in [0, 1] or omitted on insufficient data)
+
+    Missing ATR or Hurst is omitted (rather than zero-filled) so the
+    recalibration script's ``insufficient_features`` fallback can detect
+    the gap correctly.
+    """
+    features: dict[str, Any] = {}
+    atr = _atr_at(bars, anchor_idx)
+    if atr is not None:
+        gap = max(high - low, 0.0)
+        features["gap_size_atr"] = round(gap / atr, 4)
+        # Distance from the anchor candle's close to the zone midpoint.
+        anchor_close = float(
+            pd.to_numeric(bars["close"].iloc[anchor_idx], errors="coerce")
+        )
+        if math.isfinite(anchor_close):
+            mid = (high + low) / 2.0
+            features["distance_to_price_atr"] = round(abs(anchor_close - mid) / atr, 4)
+
+    bias_norm = (bias_direction or "").upper()
+    fvg_dir = direction.upper()
+    bullish_dir = fvg_dir in {"UP", "BULL", "BULLISH"}
+    bearish_dir = fvg_dir in {"DOWN", "BEAR", "BEARISH"}
+    bullish_bias = bias_norm in {"UP", "BULL", "BULLISH"}
+    bearish_bias = bias_norm in {"DOWN", "BEAR", "BEARISH"}
+    features["htf_aligned"] = bool(
+        (bullish_dir and bullish_bias) or (bearish_dir and bearish_bias)
+    )
+
+    # Anchor-candle full-body if |close - open| >= 0.7 * (high - low).
+    try:
+        open_ = float(pd.to_numeric(bars["open"].iloc[anchor_idx], errors="coerce"))
+        close_ = float(pd.to_numeric(bars["close"].iloc[anchor_idx], errors="coerce"))
+        bar_high = float(pd.to_numeric(bars["high"].iloc[anchor_idx], errors="coerce"))
+        bar_low = float(pd.to_numeric(bars["low"].iloc[anchor_idx], errors="coerce"))
+        rng = max(bar_high - bar_low, 1e-9)
+        body = abs(close_ - open_)
+        features["is_full_body"] = bool(body / rng >= 0.7)
+    except (KeyError, ValueError, TypeError):
+        features["is_full_body"] = False
+
+    hurst = _fvg_hurst_50(bars, anchor_idx)
+    if hurst is not None:
+        features["hurst_50"] = round(hurst, 4)
+    return features
+
+
 def _score_zone_event(
     event: dict[str, Any],
     bars: pd.DataFrame,
@@ -875,6 +994,18 @@ def _score_zone_event(
         return None
 
     label_fn = label_orderblock_mitigation if family == "OB" else label_fvg_mitigation
+    features: dict[str, Any] = {}
+    if family == "FVG":
+        features = _fvg_quality_features(
+            event=event,
+            bars=bars,
+            anchor_idx=anchor_idx,
+            low=low,
+            high=high,
+            direction=direction,
+            event_context=event_context,
+            bias_direction=bias_direction,
+        )
     return ScoredEvent(
         event_id=str(event.get("id", "")).strip(),
         family=family,
@@ -884,6 +1015,7 @@ def _score_zone_event(
         context=dict(event_context),
         raw_score=raw_score,
         raw_score_name=raw_score_name,
+        features=features,
     )
 
 
