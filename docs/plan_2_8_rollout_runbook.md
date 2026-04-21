@@ -536,6 +536,9 @@ read.
 - `tests/test_plan_2_8_ledger_run_length_iqr.py`
 - `tests/test_plan_2_8_digest_directory_count.py`
 - `tests/test_plan_2_8_weekly_summary_crlf_count.py`
+- `tests/test_plan_2_8_ledger_run_length_variance.py`
+- `tests/test_plan_2_8_digest_regular_file_count.py`
+- `tests/test_plan_2_8_weekly_summary_trailing_newline.py`
 - `tests/test_plan_2_8_alert_history.py`
 - `tests/test_plan_2_8_alert_history_summary.py`
 - `tests/test_plan_2_8_digest_rollup.py`

@@ -6,6 +6,19 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-30) — Plan 2.8 variance + regular files + trailing NL
+
+- New `scripts/plan_2_8_ledger_run_length_variance.py`
+  reports population variance of run lengths.
+- New `scripts/plan_2_8_digest_regular_file_count.py`
+  counts top-level regular-file entries.
+- New `scripts/plan_2_8_weekly_summary_trailing_newline.py`
+  probes whether the summary ends with a newline.
+- Weekly workflow wires the three new steps after the
+  crlf-count upload.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six
+  new script+test pairs.
+
 ### Added (2026-04-29) — Plan 2.8 iqr + directories + crlf
 
 - New `scripts/plan_2_8_ledger_run_length_iqr.py` reports
