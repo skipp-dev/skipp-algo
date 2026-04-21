@@ -6,6 +6,19 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-05-10) — Plan 2.8 last obs + size median + longest word
+
+- New `scripts/plan_2_8_ledger_last_observation.py` reports
+  the last ``captured_at`` string across valid records.
+- New `scripts/plan_2_8_digest_file_size_median.py` reports
+  the median of top-level regular-file sizes.
+- New `scripts/plan_2_8_weekly_summary_longest_word.py``
+  reports the longest whitespace token.
+- Weekly workflow wires the three new steps after the
+  trailing-whitespace-count upload.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six
+  new script+test pairs.
+
 ### Added (2026-05-09) — Plan 2.8 first obs + missing files + trailing ws
 
 - New `scripts/plan_2_8_ledger_first_observation.py` reports
