@@ -6,6 +6,24 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-21) — Q3/Q4 Plan §2.3 F2 daily workflow
+
+- **F2 promotion-gate daily workflow (plan §2.3 F2 + §2.4 G3):** New
+  `.github/workflows/f2-promotion-gate-daily.yml` wraps
+  `scripts/f2_run_promotion_gate.py` into a daily cron at 10:00 UTC
+  (after the rolling-benchmark at 07:30 and feature-importance at
+  09:00 so dual-arm artifact dirs are in place). Locates
+  `artifacts/ci/f2/{static_global_weights,contextual_weights}/<DATE>`,
+  runs the orchestrator with the shipping spec and optional rollback
+  history, uploads `artifacts/reports/f2_promotion_gate_<DATE>.json`
+  for 60 days. Fail-soft when arms are not yet produced
+  (`status=skipped`, exit 0) so the 30-day window countdown keeps
+  ticking. Exit-code policy: `0` on promote/hold/insufficient_data,
+  `2` on rollback (CI red → GitHub-Issue-Ping per §2.4 G2), `1` on
+  config error. Permissions: `contents: read` only — the workflow
+  never mutates production calibration; promotion is a separate
+  manual follow-up driven by the spec's `on_promote` action list.
+
 ### Added (2026-04-21) — Q3/Q4 Plan §2.3 F2 promotion-gate orchestrator
 
 - **F2 promotion-gate CLI orchestrator (plan §2.3 F2 + §2.4 G3):** New
