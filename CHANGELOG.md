@@ -6,6 +6,19 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-05-12) — Plan 2.8 ledger blanks + writable frac + headings
+
+- New `scripts/plan_2_8_ledger_blank_line_count.py` counts
+  whitespace-only lines in the ledger.
+- New `scripts/plan_2_8_digest_writable_fraction.py` reports
+  writable file share among top-level regular files.
+- New `scripts/plan_2_8_weekly_summary_heading_count.py`
+  counts ATX headings in the summary file.
+- Weekly workflow wires the three new steps after the
+  avg-word-length upload.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six
+  new script+test pairs.
+
 ### Added (2026-05-11) — Plan 2.8 malformed + readable frac + avg word
 
 - New `scripts/plan_2_8_ledger_malformed_count.py` counts
