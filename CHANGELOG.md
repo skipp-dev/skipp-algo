@@ -6,6 +6,19 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-05-11) — Plan 2.8 malformed + readable frac + avg word
+
+- New `scripts/plan_2_8_ledger_malformed_count.py` counts
+  non-JSON ledger lines.
+- New `scripts/plan_2_8_digest_readable_fraction.py` reports
+  readable file fraction among top-level regular files.
+- New `scripts/plan_2_8_weekly_summary_avg_word_length.py`
+  reports mean whitespace token length.
+- Weekly workflow wires the three new steps after the
+  longest-word upload.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six
+  new script+test pairs.
+
 ### Added (2026-05-10) — Plan 2.8 last obs + size median + longest word
 
 - New `scripts/plan_2_8_ledger_last_observation.py` reports
