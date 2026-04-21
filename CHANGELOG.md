@@ -6,6 +6,16 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-08-09) — Plan 2.8 top-key total + jks + brace-open lines
+
+- `scripts/plan_2_8_ledger_top_key_count_total.py` sums top-level key
+  counts across ledger records.
+- `scripts/plan_2_8_digest_jks_file_count.py` counts top-level `.jks`
+  files.
+- `scripts/plan_2_8_weekly_summary_brace_open_line_count.py` counts
+  lines containing an ASCII `{`.
+- Weekly digest workflow wires three fail-soft compute+upload step pairs.
+
 ### Added (2026-08-08) — Plan 2.8 nonempty records + p12 + bracket-close lines
 
 - `scripts/plan_2_8_ledger_nonempty_record_count.py` counts ledger
