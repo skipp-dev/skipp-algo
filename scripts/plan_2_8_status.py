@@ -1,0 +1,144 @@
+"""Quick-status helper for the Plan 2.8 rollout.
+
+Walks the repo for the artifacts each Plan-2.8 phase is supposed to
+produce and prints a compact phase-by-phase report. Read-only.
+
+Each phase has a list of *expected anchors* — file paths or workflow
+files. The script reports each anchor as ``ok``, ``missing``, or (for
+optional anchors) ``optional-missing``. Operators run this before a
+W13 review to confirm everything is in place; CI runs it as a daily
+sanity ping.
+
+Exit codes
+----------
+  0 = all required anchors present (some optional may be missing)
+  1 = at least one required anchor missing or unreadable
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from pathlib import Path
+from typing import Any
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+
+
+PHASES: list[dict[str, Any]] = [
+    {
+        "name": "Phase 0 - tooltips + grounding",
+        "anchors": [
+            ("required", "docs/smc_improvement_plan_addendum_2_8_mtf_scope_2026-04-21.md"),
+            ("required", "tests/test_plan_2_8_s0_pine_trend_tf_tooltips.py"),
+            ("required", "SMC_Core_Engine.pine"),
+        ],
+    },
+    {
+        "name": "Phase 1 - 4-TF benchmark + per-TF rollup",
+        "anchors": [
+            ("required", "scripts/plan_2_8_tf_family_rollup.py"),
+            ("required", "tests/test_plan_2_8_tf_family_rollup.py"),
+            ("required", "tests/test_plan_2_8_s3_1_chart_tf_expansion.py"),
+            ("required", "tests/test_plan_2_8_s3_1_per_tf_partitioning.py"),
+            ("required", "tests/test_plan_2_8_rolling_workflow_rollup_wiring.py"),
+            ("required", ".github/workflows/smc-measurement-benchmark-rolling.yml"),
+        ],
+    },
+    {
+        "name": "Phase 2 - A/B bundle builder",
+        "anchors": [
+            ("required", "scripts/plan_2_8_q4_gate_bundle_builder.py"),
+            ("required", "tests/test_plan_2_8_q4_gate_bundle_builder.py"),
+            ("optional", "artifacts/plan_2_8_q4_gate_bundle.json"),
+        ],
+    },
+    {
+        "name": "Phase 3 - Q4 gate evaluator + dryrun + ADR",
+        "anchors": [
+            ("required", "scripts/plan_2_8_q4_gate_evaluator.py"),
+            ("required", "tests/test_plan_2_8_q4_gate_evaluator.py"),
+            ("required", ".github/workflows/plan-2-8-q4-gate-dryrun.yml"),
+            ("required", "tests/test_plan_2_8_q4_gate_workflow.py"),
+            ("required", "scripts/append_adr.py"),
+            ("required", "tests/test_append_adr.py"),
+            ("required", "docs/DECISIONS.md"),
+            ("required", "tests/test_docs_decisions_adr.py"),
+            ("required", "docs/plan_2_8_rollout_runbook.md"),
+            ("required", "tests/test_plan_2_8_rollout_runbook.py"),
+        ],
+    },
+]
+
+
+def evaluate_status(repo_root: Path = REPO_ROOT) -> dict[str, Any]:
+    """Walk the phase anchor list under ``repo_root`` and return a status dict."""
+    phases_out: list[dict[str, Any]] = []
+    overall_ok = True
+    for phase in PHASES:
+        anchors_out: list[dict[str, Any]] = []
+        phase_ok = True
+        for kind, rel in phase["anchors"]:
+            path = repo_root / rel
+            present = path.exists()
+            if not present and kind == "required":
+                status = "missing"
+                phase_ok = False
+                overall_ok = False
+            elif not present:
+                status = "optional-missing"
+            else:
+                status = "ok"
+            anchors_out.append({"path": rel, "kind": kind, "status": status})
+        phases_out.append({
+            "name": phase["name"],
+            "ok": phase_ok,
+            "anchors": anchors_out,
+        })
+    return {
+        "schema_version": 1,
+        "ok": overall_ok,
+        "phases": phases_out,
+    }
+
+
+def render_markdown(status: dict[str, Any]) -> str:
+    lines: list[str] = []
+    lines.append("# Plan 2.8 phase status")
+    lines.append("")
+    lines.append(f"overall: **{'ok' if status['ok'] else 'INCOMPLETE'}**")
+    lines.append("")
+    for phase in status["phases"]:
+        marker = "ok" if phase["ok"] else "INCOMPLETE"
+        lines.append(f"## {phase['name']}  ({marker})")
+        lines.append("")
+        lines.append("| anchor | kind | status |")
+        lines.append("| --- | --- | :---: |")
+        for a in phase["anchors"]:
+            lines.append(f"| `{a['path']}` | {a['kind']} | {a['status']} |")
+        lines.append("")
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="Plan 2.8 rollout status report.")
+    parser.add_argument("--repo-root", type=Path, default=REPO_ROOT)
+    parser.add_argument("--format", choices=("md", "json"), default="md")
+    parser.add_argument("--output", type=Path, default=None)
+    args = parser.parse_args(argv)
+
+    status = evaluate_status(args.repo_root)
+    body = (
+        render_markdown(status) if args.format == "md"
+        else json.dumps(status, indent=2) + "\n"
+    )
+    if args.output is not None:
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        args.output.write_text(body, encoding="utf-8")
+    print(body, end="")
+    return 0 if status["ok"] else 1
+
+
+if __name__ == "__main__":  # pragma: no cover
+    raise SystemExit(main())

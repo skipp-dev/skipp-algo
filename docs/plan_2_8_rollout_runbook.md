@@ -10,7 +10,7 @@ and [`DECISIONS.md`](./DECISIONS.md).
 | --- | --- | --- | --- |
 | Phase 0 | W0–W2 | Pine tooltips on `Trend TF 1/2/3`, README grounding note, parent-plan xref | done |
 | Phase 1 | W3–W8 | 4-TF benchmark default (5m/15m/1H/4H), per-TF partitioning, per-TF×family rollup, Phase-E2 verdicts streamed to rolling-bench summary | done |
-| Phase 2 | W9–W12 | A/B experiment setup (3-TF arm vs 4-TF-2H arm) — bundle producer feeds `scripts/plan_2_8_q4_gate_evaluator.py` | in-flight |
+| Phase 2 | W9–W12 | A/B experiment setup (3-TF arm vs 4-TF-2H arm) — bundle builder ([`scripts/plan_2_8_q4_gate_bundle_builder.py`](../scripts/plan_2_8_q4_gate_bundle_builder.py)) projects two per-TF rollups + Brier values into the evaluator schema | scaffolded |
 | Phase 3 | W13 | Q4-gate review + ADR entry (accept or reject 2H promotion) | scheduled |
 
 ## Daily automation
@@ -75,6 +75,39 @@ Defaults pinned in
 `DEFAULT_BRIER_MAX_REGRESSION = 0.02`,
 `DEFAULT_MIN_EVENTS_PER_BUCKET = 30`).
 
+## Phase 2 bundle assembly (W9–W12)
+
+Once both arms of the A/B experiment have written `scoring_*.json`
+artifacts and the daily rolling-bench has produced their respective
+`plan_2_8_tf_family_rollup.json` manifests, fold them into a
+Q4-gate bundle:
+
+```
+python scripts/plan_2_8_q4_gate_bundle_builder.py \
+  --baseline-rollup  artifacts/ab_baseline/plan_2_8_tf_family_rollup.json \
+  --candidate-rollup artifacts/ab_candidate/plan_2_8_tf_family_rollup.json \
+  --brier-baseline   0.235 \
+  --brier-candidate  0.236 \
+  --output           artifacts/plan_2_8_q4_gate_bundle.json
+```
+
+Bucket keys default to the intersection of TF×family slices present
+in both rollups, sorted deterministically. Use repeated `--bucket
+<tf>/<family>` flags (e.g. `--bucket 5m/FVG --bucket 4H/BOS`) to
+restrict the set the W13 gate evaluates.
+
+## Status quick-check
+
+At any point during the rollout, run:
+
+```
+python scripts/plan_2_8_status.py
+```
+
+The helper walks the expected Phase 0–3 anchors (scripts, workflows,
+docs, pin-tests) and emits a markdown report. Exit code `0` =
+required anchors present, `1` = at least one missing.
+
 ## Pin-test inventory
 
 - `tests/test_plan_2_8_s0_pine_trend_tf_tooltips.py`
@@ -82,8 +115,10 @@ Defaults pinned in
 - `tests/test_plan_2_8_s3_1_per_tf_partitioning.py`
 - `tests/test_plan_2_8_tf_family_rollup.py`
 - `tests/test_plan_2_8_rolling_workflow_rollup_wiring.py`
+- `tests/test_plan_2_8_q4_gate_bundle_builder.py`
 - `tests/test_plan_2_8_q4_gate_evaluator.py`
 - `tests/test_plan_2_8_q4_gate_workflow.py`
+- `tests/test_plan_2_8_status.py`
 - `tests/test_docs_decisions_adr.py`
 - `tests/test_append_adr.py`
 

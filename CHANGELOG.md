@@ -6,6 +6,39 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-21) — Plan 2.8 Phase 2 bundle builder + status helper
+
+- `scripts/plan_2_8_q4_gate_bundle_builder.py`: pure-stdlib builder
+  that projects two `plan_2_8_tf_family_rollup.json` manifests (one
+  per A/B arm) plus operator-supplied Brier scores into the bundle
+  schema consumed by `plan_2_8_q4_gate_evaluator.py`. Bucket keys =
+  `"<tf>/<family>"` from the intersection of TF×family slices in
+  both rollups; deterministic ordering. Optional `--bucket
+  tf/family` flag (repeatable) restricts the set. `n_events`
+  reported per bucket is the candidate-arm count, matching addendum
+  §3.2 G3 which gates on treatment-arm exposure. Refuses to
+  fabricate Brier values.
+- `scripts/plan_2_8_status.py`: read-only walker that scans the
+  Phase 0–3 expected anchors (scripts, workflows, docs, pin-tests)
+  and emits a markdown / JSON status report. Required-anchor
+  failures exit `1`; optional-anchor absence is reported as
+  `optional-missing` and does not fail.
+- `docs/plan_2_8_rollout_runbook.md`: phase-2 row bumped from
+  `in-flight` to `scaffolded` with link to the new builder; new
+  "Phase 2 bundle assembly" section with concrete CLI snippet; new
+  "Status quick-check" section.
+- Pin-tests:
+  - `tests/test_plan_2_8_q4_gate_bundle_builder.py` (9 tests —
+    bucket intersection + sort order, Brier + sources passthrough,
+    `--bucket` filter preserves order, malformed/missing bucket
+    rejection, **end-to-end builder→evaluator pass-path**, **end-to-end
+    builder→evaluator G3-fail-path** pinning the schema contract
+    between the two scripts, CLI write, CLI error path).
+  - `tests/test_plan_2_8_status.py` (8 tests — phases 0–3 covered,
+    real-repo passes, empty-repo flags every required anchor as
+    missing, optional anchors flagged softly, markdown structure,
+    CLI happy path / failure path / `--output` writes).
+
 ### Added (2026-04-21) — Plan 2.8 Phase-2/3 operator surface
 
 - `.github/workflows/plan-2-8-q4-gate-dryrun.yml`: new manual-only
