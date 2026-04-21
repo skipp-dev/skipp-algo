@@ -6,6 +6,16 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-21) — Markdown render mode for status inspector
+
+- `scripts/f2_inspect_status.py`: new `render_markdown(status)` helper
+  + `--format md` CLI flag. Emits a compact operator-readable Markdown
+  block (Artifact / Revert Journal / Promote Journal / Latest report
+  sections) so the inspector is usable from the terminal without
+  piping through `jq`. JSON output unchanged when `--format` is
+  omitted; `--quiet` still wins over `--format` for stdout. 3 new
+  tests (23 total).
+
 ### Added (2026-04-21) — F2 helpers convergence-pin tests
 
 - `tests/test_f2_helpers_convergence.py`: cross-cutting invariants for

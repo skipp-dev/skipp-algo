@@ -185,6 +185,76 @@ def render_one_line(status: dict[str, Any]) -> str:
     )
 
 
+def render_markdown(status: dict[str, Any]) -> str:
+    """Render the status dict as a compact operator-readable Markdown
+    block. Designed to be pasted into a chat thread or used as the
+    ``$GITHUB_STEP_SUMMARY`` body without the surrounding fenced JSON.
+    """
+    lines: list[str] = []
+    experiment = status.get("experiment") or "?"
+    lines.append(f"# F2 contextual arm — `{experiment}`")
+    lines.append("")
+
+    artifact = status.get("artifact") or {}
+    art_status = artifact.get("status") or "missing"
+    lines.append("## Artifact")
+    lines.append("")
+    lines.append(f"- **status**: `{art_status}`")
+    lines.append(f"- **path**: `{artifact.get('path') or '(none)'}`")
+    lines.append(f"- **revert_history**: {artifact.get('revert_history_len', 0)} entries")
+    lines.append(f"- **promote_history**: {artifact.get('promote_history_len', 0)} entries")
+    last_revert = artifact.get("last_revert")
+    if last_revert:
+        lines.append(
+            f"- **last revert**: `{last_revert.get('reverted_at_utc', '?')}` "
+            f"from `{last_revert.get('from_status', '?')}`"
+        )
+    last_promote = artifact.get("last_promote")
+    if last_promote:
+        lines.append(
+            f"- **last promote**: `{last_promote.get('promoted_at_utc', '?')}` "
+            f"from `{last_promote.get('from_status', '?')}`"
+        )
+    lines.append("")
+
+    for kind in ("revert_journal", "promote_journal"):
+        j = status.get(kind) or {}
+        lines.append(f"## {kind.replace('_', ' ').title()}")
+        lines.append("")
+        lines.append(f"- **path**: `{j.get('path') or '(none)'}`")
+        lines.append(f"- **entries**: {j.get('len', 0)}")
+        actions = j.get("actions") or {}
+        if actions:
+            parts = ", ".join(f"`{k}`={v}" for k, v in sorted(actions.items()))
+            lines.append(f"- **actions**: {parts}")
+        tail = j.get("tail") or []
+        if tail:
+            lines.append("- **tail**:")
+            for entry in tail:
+                ts = entry.get("timestamp_utc", "?")
+                action = entry.get("action", "?")
+                lines.append(f"  - `{ts}` — `{action}`")
+        lines.append("")
+
+    latest = status.get("latest_report")
+    lines.append("## Latest promotion-gate report")
+    lines.append("")
+    if not latest:
+        lines.append("_No reports found._")
+    else:
+        lines.append(f"- **date**: `{latest.get('date', '?')}`")
+        lines.append(f"- **decision**: `{latest.get('decision', '?')}`")
+        sprt = latest.get("sprt") or {}
+        if sprt:
+            lines.append(
+                f"- **SPRT**: `{sprt.get('decision', '?')}` "
+                f"(n={sprt.get('n', '?')}, k={sprt.get('k', '?')}, "
+                f"llr={sprt.get('llr', '?')})"
+            )
+    lines.append("")
+    return "\n".join(lines)
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Inspect the live F2 contextual arm status across spec, artifact, journals and reports."
@@ -203,6 +273,8 @@ def main(argv: list[str] | None = None) -> int:
                         help="Optional output path for the JSON digest.")
     parser.add_argument("--quiet", action="store_true",
                         help="Print a single-line summary instead of the full JSON.")
+    parser.add_argument("--format", choices=["json", "md"], default="json",
+                        help="Stdout format (ignored when --quiet). Default: json.")
     args = parser.parse_args(argv)
 
     try:
@@ -223,6 +295,8 @@ def main(argv: list[str] | None = None) -> int:
         args.output.write_text(text + "\n", encoding="utf-8")
     if args.quiet:
         print(render_one_line(status))
+    elif args.format == "md":
+        print(render_markdown(status))
     else:
         print(text)
     return 0
