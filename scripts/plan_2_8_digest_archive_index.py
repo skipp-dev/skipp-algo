@@ -1,0 +1,95 @@
+"""Plan 2.8 digest-archive index.
+
+Scans a directory that contains prior weekly digest snapshots
+(one sub-directory per run) and reports, for each sub-directory,
+the file count and total size. Useful for reviewing retention.
+
+Pure stdlib.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from pathlib import Path
+from typing import Any
+
+
+def scan(archive_dir: Path) -> dict[str, Any]:
+    entries: list[dict[str, Any]] = []
+    if archive_dir.exists():
+        for child in sorted(archive_dir.iterdir()):
+            if not child.is_dir():
+                continue
+            file_count = 0
+            total_size = 0
+            for f in child.rglob("*"):
+                if not f.is_file():
+                    continue
+                file_count += 1
+                try:
+                    total_size += f.stat().st_size
+                except OSError:
+                    pass
+            entries.append({
+                "name":       child.name,
+                "files":      file_count,
+                "total_size": total_size,
+            })
+    return {
+        "schema_version": 1,
+        "archive_dir":    str(archive_dir),
+        "counts": {
+            "snapshots": len(entries),
+            "total_size": sum(e["total_size"] for e in entries),
+        },
+        "entries": entries,
+    }
+
+
+def render_markdown(report: dict[str, Any]) -> str:
+    c = report["counts"]
+    lines = [
+        "# Plan 2.8 digest archive index",
+        "",
+        f"- snapshots:  {c['snapshots']}",
+        f"- total size: {c['total_size']} bytes",
+        "",
+    ]
+    if not report["entries"]:
+        lines.append("_No archive snapshots present._")
+        return "\n".join(lines) + "\n"
+    lines.append("| snapshot | files | size (bytes) |")
+    lines.append("| --- | --- | --- |")
+    for row in report["entries"]:
+        lines.append(
+            f"| `{row['name']}` | {row['files']} | {row['total_size']} |",
+        )
+    return "\n".join(lines) + "\n"
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        description="Index the Plan 2.8 digest-archive directory.",
+    )
+    parser.add_argument("--archive-dir", type=Path, required=True)
+    parser.add_argument("--format", choices=("md", "json"), default="md")
+    parser.add_argument("--output", type=Path, default=None)
+    parser.add_argument("--fail-on-empty", action="store_true")
+    args = parser.parse_args(argv)
+
+    report = scan(args.archive_dir)
+    body = render_markdown(report) if args.format == "md" \
+        else json.dumps(report, indent=2) + "\n"
+    if args.output is not None:
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        args.output.write_text(body, encoding="utf-8")
+    print(body, end="")
+    if args.fail_on_empty and report["counts"]["snapshots"] == 0:
+        return 1
+    return 0
+
+
+if __name__ == "__main__":  # pragma: no cover
+    raise SystemExit(main())

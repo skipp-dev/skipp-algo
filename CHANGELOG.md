@@ -6,6 +6,25 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-21) — Plan 2.8 ledger stats + artifact checksums + archive index
+
+- New `scripts/plan_2_8_ledger_stats_json.py` buckets the status
+  ledger per ISO year-week (default) or per calendar month and
+  reports status counts per bucket, plus a skipped tally for
+  malformed records.
+- New `scripts/plan_2_8_artifact_checksum.py` computes SHA-256
+  for every file in the weekly artifact directory and emits both
+  `checksums.json` and `checksums.md`, with `--skip` support so
+  the checksum files themselves are excluded from the next run.
+- New `scripts/plan_2_8_digest_archive_index.py` indexes the
+  digest-archive directory, reporting file count + total size
+  per snapshot sub-directory.
+- Weekly digest now publishes `plan-2-8-artifact-checksums` and
+  `plan-2-8-digest-archive-index` (the latter is fail-soft when
+  the archive dir is absent).
+- +36 tests covering per-week/per-month bucketing, checksum
+  computation, archive scanning; two weekly-workflow pin-tests.
+
 ### Added (2026-04-21) — Plan 2.8 status flip alert + ledger CSV export + ledger validator
 
 - New `scripts/plan_2_8_status_flip_alert.py` detects status

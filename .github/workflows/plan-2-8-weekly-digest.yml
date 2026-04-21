@@ -1138,6 +1138,60 @@ jobs:
           if-no-files-found: ignore
           retention-days: 365
 
+      - name: Plan 2.8 artifact checksums
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          dir="artifacts/plan_2_8_digest"
+          if [ ! -d "${dir}" ]; then
+            echo "No artifact dir; skipping checksums."
+            exit 0
+          fi
+          python scripts/plan_2_8_artifact_checksum.py \
+            --artifact-dir "${dir}" \
+            --json-output  "${dir}/checksums.json" \
+            --md-output    "${dir}/checksums.md" \
+            --skip         checksums.json,checksums.md
+          true
+
+      - name: Upload Plan 2.8 artifact checksums
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-artifact-checksums
+          path: |
+            artifacts/plan_2_8_digest/checksums.json
+            artifacts/plan_2_8_digest/checksums.md
+          if-no-files-found: ignore
+          retention-days: 365
+
+      - name: Plan 2.8 digest archive index
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          archive="artifacts/plan_2_8_digest_archive"
+          if [ ! -d "${archive}" ]; then
+            echo "No digest archive dir; skipping index."
+            exit 0
+          fi
+          python scripts/plan_2_8_digest_archive_index.py \
+            --archive-dir "${archive}" \
+            --format      md \
+            --output      "artifacts/plan_2_8_digest/archive_index.md" \
+            > /dev/null
+          true
+
+      - name: Upload Plan 2.8 digest archive index
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-digest-archive-index
+          path: artifacts/plan_2_8_digest/archive_index.md
+          if-no-files-found: ignore
+          retention-days: 365
+
       - name: Open drift-alert issue
         if: steps.resolve_alerts.outputs.has_alerts == 'True'
         env:
