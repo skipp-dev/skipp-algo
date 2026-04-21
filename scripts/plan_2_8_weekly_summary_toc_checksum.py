@@ -1,0 +1,89 @@
+"""Plan 2.8 weekly-summary TOC-checksum helper.
+
+Extracts the ``## Contents`` block from a ``weekly_summary.md``
+file, normalises it (strip trailing whitespace per line, drop
+leading/trailing blank lines), and emits a stable SHA256
+checksum so silent TOC drift between runs is detectable.
+"""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import sys
+from pathlib import Path
+from typing import Any
+
+
+def extract(text: str) -> str:
+    lines = text.splitlines()
+    start: int | None = None
+    end: int | None = None
+    for idx, line in enumerate(lines):
+        if line.strip() == "## Contents":
+            start = idx + 1
+            break
+    if start is None:
+        return ""
+    for idx in range(start, len(lines)):
+        if lines[idx].startswith("## "):
+            end = idx
+            break
+    body = lines[start:end] if end is not None else lines[start:]
+    while body and not body[0].strip():
+        body.pop(0)
+    while body and not body[-1].strip():
+        body.pop()
+    return "\n".join(line.rstrip() for line in body)
+
+
+def compute(text: str) -> dict[str, Any]:
+    block = extract(text)
+    digest = hashlib.sha256(block.encode("utf-8")).hexdigest() \
+        if block else ""
+    return {
+        "schema_version": 1,
+        "present":        bool(block),
+        "lines":          len(block.splitlines()),
+        "sha256":         digest,
+    }
+
+
+def render_markdown(report: dict[str, Any]) -> str:
+    return (
+        "# Plan 2.8 weekly summary TOC checksum\n\n"
+        f"- present: {str(report['present']).lower()}\n"
+        f"- lines:   {report['lines']}\n"
+        f"- sha256:  {report['sha256'] or 'n/a'}\n"
+    )
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        description="Stable SHA256 of weekly_summary TOC.",
+    )
+    parser.add_argument("--input",  type=Path, required=True)
+    parser.add_argument("--format", choices=("md", "json"), default="md")
+    parser.add_argument("--output", type=Path, default=None)
+    parser.add_argument("--fail-on-missing", action="store_true")
+    args = parser.parse_args(argv)
+
+    if not args.input.exists():
+        print(f"ERROR: input not found: {args.input}", file=sys.stderr)
+        return 1
+
+    report = compute(args.input.read_text(encoding="utf-8"))
+    body = render_markdown(report) if args.format == "md" \
+        else json.dumps(report, indent=2) + "\n"
+    if args.output is not None:
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        args.output.write_text(body, encoding="utf-8")
+    print(body, end="")
+    if args.fail_on_missing and not report["present"]:
+        return 1
+    return 0
+
+
+if __name__ == "__main__":  # pragma: no cover
+    raise SystemExit(main())

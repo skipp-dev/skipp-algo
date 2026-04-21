@@ -401,6 +401,9 @@ read.
 - `tests/test_plan_2_8_ledger_best_day.py`
 - `tests/test_plan_2_8_digest_size_trend.py`
 - `tests/test_plan_2_8_weekly_summary_heading_order.py`
+- `tests/test_plan_2_8_ledger_status_share.py`
+- `tests/test_plan_2_8_digest_missing_artifacts.py`
+- `tests/test_plan_2_8_weekly_summary_toc_checksum.py`
 - `tests/test_plan_2_8_alert_history.py`
 - `tests/test_plan_2_8_alert_history_summary.py`
 - `tests/test_plan_2_8_digest_rollup.py`

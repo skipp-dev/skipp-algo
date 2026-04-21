@@ -6,6 +6,24 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-21) — Plan 2.8 status share + missing + TOC checksum
+
+- New `scripts/plan_2_8_ledger_status_share.py` computes
+  share-of-time per valid status across the full ledger;
+  percentages rounded to 2dp; `--fail-below-green` gates CI.
+- New `scripts/plan_2_8_digest_missing_artifacts.py` compares
+  filenames in the digest dir against a pinned `REQUIRED` tuple
+  (31 entries) and reports missing + extra files;
+  subdirectories are not counted; `--fail-on-missing` gates CI.
+- New `scripts/plan_2_8_weekly_summary_toc_checksum.py`
+  extracts the `## Contents` block from `weekly_summary.md`,
+  normalises line endings, strips leading/trailing blanks, and
+  emits a stable SHA256 so silent TOC drift is detectable.
+- Weekly workflow wires status-share, missing-artifacts, and
+  TOC-checksum steps after heading-order.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six new
+  script+test pairs.
+
 ### Added (2026-04-21) — Plan 2.8 best day + size trend + heading order
 
 - New `scripts/plan_2_8_ledger_best_day.py` mirrors worst-day

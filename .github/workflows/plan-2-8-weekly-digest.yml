@@ -1916,6 +1916,84 @@ jobs:
           if-no-files-found: ignore
           retention-days: 365
 
+      - name: Plan 2.8 ledger status share
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          ledger="artifacts/plan_2_8_digest/status_ledger.jsonl"
+          if [ ! -s "${ledger}" ]; then
+            echo "No ledger; skipping status share."
+            exit 0
+          fi
+          python scripts/plan_2_8_ledger_status_share.py \
+            --ledger "${ledger}" \
+            --format md \
+            --output artifacts/plan_2_8_digest/status_share.md \
+            > /dev/null
+          true
+
+      - name: Upload Plan 2.8 ledger status share
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-ledger-status-share
+          path: artifacts/plan_2_8_digest/status_share.md
+          if-no-files-found: ignore
+          retention-days: 365
+
+      - name: Plan 2.8 digest missing artifacts
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          dir="artifacts/plan_2_8_digest"
+          if [ ! -d "${dir}" ]; then
+            echo "No artifact dir; skipping missing-artifacts check."
+            exit 0
+          fi
+          python scripts/plan_2_8_digest_missing_artifacts.py \
+            --artifact-dir "${dir}" \
+            --format       md \
+            --output       "${dir}/missing_artifacts.md" \
+            > /dev/null
+          true
+
+      - name: Upload Plan 2.8 digest missing artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-digest-missing-artifacts
+          path: artifacts/plan_2_8_digest/missing_artifacts.md
+          if-no-files-found: ignore
+          retention-days: 365
+
+      - name: Plan 2.8 weekly summary TOC checksum
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          md="artifacts/plan_2_8_digest/weekly_summary.md"
+          if [ ! -s "${md}" ]; then
+            echo "No weekly_summary.md; skipping TOC checksum."
+            exit 0
+          fi
+          python scripts/plan_2_8_weekly_summary_toc_checksum.py \
+            --input  "${md}" \
+            --format md \
+            --output artifacts/plan_2_8_digest/toc_checksum.md \
+            > /dev/null
+          true
+
+      - name: Upload Plan 2.8 weekly summary TOC checksum
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-weekly-summary-toc-checksum
+          path: artifacts/plan_2_8_digest/toc_checksum.md
+          if-no-files-found: ignore
+          retention-days: 365
+
       - name: Open drift-alert issue
         if: steps.resolve_alerts.outputs.has_alerts == 'True'
         env:
