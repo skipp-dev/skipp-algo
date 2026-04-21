@@ -6,6 +6,17 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-21) — Q3/Q4 Plan §2.4 G2 workflow contract test
+
+- `tests/test_f2_workflow_yaml_contract.py`: structural pin-test for
+  `.github/workflows/f2-promotion-gate-daily.yml`. Asserts step ordering
+  (gate → append → issue → revert → annotate → summary → upload), the
+  `if:` conditional gates (rc=='0' guards append, rc=='2' guards
+  issue+revert, `always()` runs annotate/summary), `permissions:
+  issues: write`, the 10:00 UTC daily cron, and that the upload bundle
+  carries both `revert_journal.jsonl` and the
+  `contextual_calibration.archive/**` tree.
+
 ### Added (2026-04-21) — Q3/Q4 Plan §2.3 F2 + §2.4 G2 end-to-end test
 
 - `tests/test_f2_pipeline_e2e.py`: e2e regression test wiring all 5 operator-facing F2
