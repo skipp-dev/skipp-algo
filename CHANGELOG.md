@@ -6,6 +6,18 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-21) — Q3/Q4 Plan §2.3 F2 + §2.4 G2 status inspector
+
+- `scripts/f2_inspect_status.py`: read-only operator inspector that
+  fuses the live treatment artifact, both journals (revert + promote),
+  and the latest promotion-gate report into a single JSON digest. Pins
+  schema_version=1. Includes per-action counts + bounded `tail`
+  (default 5) for each journal, the artifact's current status with
+  inline `revert_history`/`promote_history` lengths, and the latest
+  report's date/decision/SPRT terminal block. Tolerates corrupt
+  artifact JSON, corrupt journal lines, missing reports dir, and a
+  spec without `arms.treatment.calibration_artifact`. 16 tests.
+
 ### Added (2026-04-21) — Q3/Q4 Plan §2.3 F2 ``on_promote`` operator helper
 
 - `scripts/f2_promote_contextual_weights.py`: symmetric counterpart to
