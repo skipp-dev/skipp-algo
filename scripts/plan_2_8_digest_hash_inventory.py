@@ -1,0 +1,96 @@
+"""Plan 2.8 digest hash inventory.
+
+Computes a SHA256 hash of every regular file in the artifact
+directory (subdirectories ignored). Useful for drift detection
+when comparing two consecutive runs: matching hashes imply
+byte-identical artifacts.
+"""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import sys
+from pathlib import Path
+from typing import Any
+
+
+_CHUNK = 65536
+
+
+def _sha256(path: Path) -> str:
+    h = hashlib.sha256()
+    with path.open("rb") as handle:
+        while True:
+            chunk = handle.read(_CHUNK)
+            if not chunk:
+                break
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def build(artifact_dir: Path) -> dict[str, Any]:
+    entries: list[dict[str, Any]] = []
+    if artifact_dir.is_dir():
+        for path in sorted(artifact_dir.iterdir()):
+            if not path.is_file():
+                continue
+            entries.append({
+                "name":   path.name,
+                "size":   path.stat().st_size,
+                "sha256": _sha256(path),
+            })
+    return {
+        "schema_version": 1,
+        "count":          len(entries),
+        "entries":        entries,
+    }
+
+
+def render_markdown(report: dict[str, Any]) -> str:
+    lines = [
+        "# Plan 2.8 digest hash inventory",
+        "",
+        f"- count: {report['count']}",
+        "",
+        "| file | size | sha256 |",
+        "|---|---:|---|",
+    ]
+    if report["entries"]:
+        for e in report["entries"]:
+            lines.append(
+                f"| `{e['name']}` | {e['size']} | `{e['sha256'][:16]}...` |"
+            )
+    else:
+        lines.append("| _none_ | 0 | - |")
+    lines.append("")
+    return "\n".join(lines) + "\n"
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        description="SHA256 inventory of artifact directory.",
+    )
+    parser.add_argument("--artifact-dir", type=Path, required=True)
+    parser.add_argument("--format", choices=("md", "json"), default="md")
+    parser.add_argument("--output", type=Path, default=None)
+    args = parser.parse_args(argv)
+
+    if not args.artifact_dir.is_dir():
+        print(f"ERROR: artifact dir not found: {args.artifact_dir}",
+              file=sys.stderr)
+        return 1
+
+    report = build(args.artifact_dir)
+    body = render_markdown(report) if args.format == "md" \
+        else json.dumps(report, indent=2) + "\n"
+    if args.output is not None:
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        args.output.write_text(body, encoding="utf-8")
+    print(body, end="")
+    return 0
+
+
+if __name__ == "__main__":  # pragma: no cover
+    raise SystemExit(main())

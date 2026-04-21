@@ -410,6 +410,9 @@ read.
 - `tests/test_plan_2_8_ledger_weekday_histogram.py`
 - `tests/test_plan_2_8_digest_summary_index.py`
 - `tests/test_plan_2_8_ledger_gap_detector.py`
+- `tests/test_plan_2_8_ledger_transition_matrix.py`
+- `tests/test_plan_2_8_digest_hash_inventory.py`
+- `tests/test_plan_2_8_weekly_summary_preview.py`
 - `tests/test_plan_2_8_alert_history.py`
 - `tests/test_plan_2_8_alert_history_summary.py`
 - `tests/test_plan_2_8_digest_rollup.py`

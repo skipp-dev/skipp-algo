@@ -6,6 +6,25 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-21) — Plan 2.8 transition matrix + hash inventory + summary preview
+
+- New `scripts/plan_2_8_ledger_transition_matrix.py` builds a
+  4x4 NxN status-transition matrix (green/amber/red/unknown)
+  from consecutive ledger records; only counts distinct
+  from->to pairs and reports `total_transitions`.
+- New `scripts/plan_2_8_digest_hash_inventory.py` computes a
+  SHA256 for every regular file in the artifact directory
+  (subdirectories ignored) for drift detection; deterministic
+  across calls.
+- New `scripts/plan_2_8_weekly_summary_preview.py` emits the
+  first N lines of `weekly_summary.md` as a fenced block with
+  `_empty_` placeholder when the summary is empty; negative
+  `--max-lines` is clamped to zero.
+- Weekly workflow wires transition-matrix, hash-inventory, and
+  summary-preview steps after gap-detector.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six new
+  script+test pairs.
+
 ### Added (2026-04-21) — Plan 2.8 weekday histogram + summary index + gap detector
 
 - New `scripts/plan_2_8_ledger_weekday_histogram.py` buckets
