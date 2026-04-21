@@ -6,6 +6,25 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-21) — Plan 2.8 digest schema validator + shields.io status badge
+
+- New `scripts/plan_2_8_digest_schema.py` validates the weekly
+  digest JSON against a lightweight, dependency-free schema
+  (required top-level keys + per-alert field types; unknown keys
+  tolerated). Supports md/json output and `--fail-on-invalid`.
+  +18 tests including a bool-as-int rejection guard and a
+  weekly-workflow pin-test.
+- New `scripts/plan_2_8_runcard_badge.py` emits a shields.io
+  endpoint-badge JSON (`schemaVersion: 1`) from either the
+  status snapshot or a bare rollout-health JSON. Maps
+  green/amber/red to brightgreen/yellow/red; any other value to
+  lightgrey. +14 tests with a weekly-workflow pin-test.
+- Weekly digest now runs both checks after the manifest diff,
+  appends the schema report to the job summary, and uploads
+  `plan-2-8-digest-schema-report` + `plan-2-8-status-badge`
+  (both retained 365 days).
+- Status anchors, runbook, and CHANGELOG refreshed.
+
 ### Added (2026-04-21) — Plan 2.8 weekly snooze-expiry + script manifest + manifest diff wiring
 
 - Weekly digest now surfaces a snooze-expiry report

@@ -696,6 +696,69 @@ jobs:
           if-no-files-found: ignore
           retention-days: 365
 
+      - name: Plan 2.8 digest schema check
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          digest="$(find artifacts/plan_2_8_digest -name digest.json -print -quit)"
+          if [ -z "${digest}" ] || [ ! -s "${digest}" ]; then
+            echo "No digest.json; skipping schema check."
+            exit 0
+          fi
+          mkdir -p artifacts/plan_2_8_digest
+          python scripts/plan_2_8_digest_schema.py \
+            --digest "${digest}" \
+            --format md \
+            --output artifacts/plan_2_8_digest/digest_schema.md \
+            > /dev/null
+          if [ -s artifacts/plan_2_8_digest/digest_schema.md ] \
+              && [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+            cat artifacts/plan_2_8_digest/digest_schema.md \
+              >> "${GITHUB_STEP_SUMMARY}"
+          fi
+          true
+
+      - name: Upload Plan 2.8 digest schema report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-digest-schema-report
+          path: artifacts/plan_2_8_digest/digest_schema.md
+          if-no-files-found: ignore
+          retention-days: 365
+
+      - name: Plan 2.8 shields.io status badge
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          snap="artifacts/plan_2_8_digest/status_snapshot.json"
+          health="artifacts/plan_2_8_digest/rollout_health.json"
+          if [ -s "${snap}" ]; then
+            input="${snap}"
+          elif [ -s "${health}" ]; then
+            input="${health}"
+          else
+            echo "No snapshot or health JSON; skipping badge."
+            exit 0
+          fi
+          mkdir -p artifacts/plan_2_8_digest
+          python scripts/plan_2_8_runcard_badge.py \
+            --input  "${input}" \
+            --output artifacts/plan_2_8_digest/status_badge.json \
+            > /dev/null
+          true
+
+      - name: Upload Plan 2.8 status badge
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-status-badge
+          path: artifacts/plan_2_8_digest/status_badge.json
+          if-no-files-found: ignore
+          retention-days: 365
+
       - name: Open drift-alert issue
         if: steps.resolve_alerts.outputs.has_alerts == 'True'
         env:
