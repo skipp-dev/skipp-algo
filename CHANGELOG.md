@@ -6,6 +6,26 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-21) — Plan 2.8 §3.2 Q4-Gate evaluator
+
+- `scripts/plan_2_8_q4_gate_evaluator.py`: pure evaluator for the
+  three cumulative Q4 gates the addendum §3.2 requires before any
+  4th-trend-layer (2H) promotion:
+    - **G1 uplift**: >= 3pp HR uplift in >= 2 of the tested context
+      buckets (`uplift_min_pp`, `uplift_min_buckets` configurable);
+    - **G2 Brier**: brier_candidate - brier_baseline <= 0.02
+      (`brier_max_regression` configurable);
+    - **G3 min-events**: every bucket carries >= 30 events after
+      promotion (`min_events_per_bucket` configurable, Blasiok &
+      Nakkiran 2023 smECE floor).
+  Consumes a minimal JSON bundle (`buckets[]` + `brier_baseline` +
+  `brier_candidate`) so it can plug into any A/B framework. Emits a
+  schema_version=1 verdict with `overall: pass|fail`, per-gate
+  reasons, per-bucket breakdown. CLI: `--bundle`, `--output`,
+  `--format md|json`, `--quiet`, plus tuning knobs for each
+  threshold. Mutates nothing — W13 operators can dry-run before
+  acting. 13 tests.
+
 ### Changed (2026-04-21) — Plan 2.8 rollup wired into rolling benchmark workflow
 
 - `.github/workflows/smc-measurement-benchmark-rolling.yml`: new
