@@ -6,6 +6,19 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-05-22) — Plan 2.8 unknown index mean + zip files + underscore
+
+- New `scripts/plan_2_8_ledger_unknown_index_mean.py` reports the
+  arithmetic mean of unknown observation indices.
+- New `scripts/plan_2_8_digest_zip_file_count.py` counts top-level
+  ``.zip`` files.
+- New `scripts/plan_2_8_weekly_summary_underscore_char_count.py`
+  counts ``_`` characters in the summary.
+- Weekly workflow wires the three new steps after the pipe-count
+  upload.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six new
+  script+test pairs.
+
 ### Added (2026-05-21) — Plan 2.8 red index mean + html files + pipe
 
 - New `scripts/plan_2_8_ledger_red_index_mean.py` reports the
