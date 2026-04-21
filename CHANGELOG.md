@@ -6,6 +6,19 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-07-14) — Plan 2.8 array values + lha + semicolon lines
+
+- New `scripts/plan_2_8_ledger_array_value_count.py` counts top-level
+  list-typed field values across ledger records.
+- New `scripts/plan_2_8_digest_lha_file_count.py` counts top-level
+  ``.lha`` files.
+- New `scripts/plan_2_8_weekly_summary_semicolon_line_count.py`
+  counts lines containing at least one semicolon.
+- Weekly workflow wires the three new fail-soft step pairs after the
+  leading-colon upload.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six new
+  script+test pairs.
+
 ### Added (2026-07-13) — Plan 2.8 string values + arj + lead-colon
 
 - New `scripts/plan_2_8_ledger_string_value_count.py` counts top-level
