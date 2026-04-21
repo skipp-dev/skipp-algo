@@ -6,6 +6,19 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-05-06) — Plan 2.8 coverage + min size + max line
+
+- New `scripts/plan_2_8_ledger_status_coverage.py` reports
+  fraction of canonical statuses observed.
+- New `scripts/plan_2_8_digest_min_file_size.py` reports
+  smallest top-level regular-file size.
+- New `scripts/plan_2_8_weekly_summary_max_line_length.py`
+  reports the longest line in the summary.
+- Weekly workflow wires the three new steps after the
+  median-line-length upload.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six
+  new script+test pairs.
+
 ### Added (2026-05-05) — Plan 2.8 set size + max size + median line
 
 - New `scripts/plan_2_8_ledger_status_set_size.py` reports
