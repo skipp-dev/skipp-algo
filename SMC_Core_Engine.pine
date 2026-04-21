@@ -2632,9 +2632,13 @@ var string ltf_timeframe = input.timeframe(DEFAULT_LTF_TIMEFRAME, 'Lower timefra
 var float ltf_bias_hint = input.float(0.55, 'Bull share hint', minval = 0.5, maxval = 1.0, step = 0.05, group = g_ltf, display = display.none)
 
 var g_mtf = '7. Advanced - Higher Timeframe Trend'
-var string mtf_trend_tf1 = input.timeframe(DEFAULT_TREND_TF_1, 'Trend TF 1', group = g_mtf, inline = 'mtf1', display = display.none)
-var string mtf_trend_tf2 = input.timeframe(DEFAULT_TREND_TF_2, 'Trend TF 2', group = g_mtf, inline = 'mtf2', display = display.none)
-var string mtf_trend_tf3 = input.timeframe(DEFAULT_TREND_TF_3, 'Trend TF 3', group = g_mtf, inline = 'mtf3', display = display.none)
+// Trend-stack intent: ICT-standard 3-layer hierarchy (4H / 1D / 1W) with
+// an adaptive IPDA dach-TF, factor-~4 spacing between adjacent layers.
+// See docs/smc_improvement_plan_addendum_2_8_mtf_scope_2026-04-21.md for
+// the deliberate decision against a Flux-style 7-TF bias stack.
+var string mtf_trend_tf1 = input.timeframe(DEFAULT_TREND_TF_1, 'Trend TF 1', group = g_mtf, inline = 'mtf1', display = display.none, tooltip = 'Trend Stack layer 1 (default 4H). Part of the ICT-standard 3-layer hierarchy 4H -> 1D -> 1W, factor-~4 spacing. Intentional over Flux-style 7-TF bias stacks: each layer is calibrated per-family x per-context. Custom TFs keep display but skip calibrated weights.')
+var string mtf_trend_tf2 = input.timeframe(DEFAULT_TREND_TF_2, 'Trend TF 2', group = g_mtf, inline = 'mtf2', display = display.none, tooltip = 'Trend Stack layer 2 (default 1D). Swing-context anchor on top of the intraday Chart-TF. Changing away from the default disables per-layer calibrated contribution.')
+var string mtf_trend_tf3 = input.timeframe(DEFAULT_TREND_TF_3, 'Trend TF 3', group = g_mtf, inline = 'mtf3', display = display.none, tooltip = 'Trend Stack layer 3 (default 1W). Macro-bias anchor. An adaptive IPDA dach-TF (D -> W -> M) sits above this layer automatically (see smc_core/htf_context.py::select_ipda_htf).')
 
 var g_dashboard = '8. Advanced - Dashboard Detail'
 var bool show_dashboard_ltf = input.bool(true, 'Show LTF details', group = g_dashboard, display = display.none)

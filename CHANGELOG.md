@@ -6,6 +6,21 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Changed (2026-04-21) — Plan 2.8 S0 Pine MTF-stack tooltips
+
+- `SMC_Core_Engine.pine`: the three `Trend TF N` inputs (group
+  `7. Advanced - Higher Timeframe Trend`) now carry explicit
+  tooltips that document the intentional ICT-standard 3-layer
+  hierarchy (4H / 1D / 1W), the factor-~4 spacing, the adaptive
+  IPDA dach-TF above layer 3, and the calibration caveat for
+  non-default custom TFs. Also added a comment block referencing
+  `docs/smc_improvement_plan_addendum_2_8_mtf_scope_2026-04-21.md`
+  so future readers can trace the "3 layers, not 7" decision.
+- `tests/test_plan_2_8_s0_pine_trend_tf_tooltips.py`: 4 structural
+  pin-tests (3-layer mention on TF1, calibration caveat on TF2,
+  IPDA + `select_ipda_htf` reference on TF3, all three have
+  non-empty tooltips).
+
 ### Changed (2026-04-21) — Plan 2.8 S3.1 Chart-TF expansion (5m + 4H added)
 
 - `scripts/run_smc_measurement_benchmark.py`: default `--timeframes`
