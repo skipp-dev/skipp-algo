@@ -677,6 +677,9 @@ read.
 - `tests/test_plan_2_8_ledger_red_index_variance.py`
 - `tests/test_plan_2_8_digest_psd_file_count.py`
 - `tests/test_plan_2_8_weekly_summary_gt_char_count.py`
+- `tests/test_plan_2_8_ledger_unknown_index_variance.py`
+- `tests/test_plan_2_8_digest_raw_file_count.py`
+- `tests/test_plan_2_8_weekly_summary_paren_open_char_count.py`
 - `tests/test_plan_2_8_alert_history.py`
 - `tests/test_plan_2_8_alert_history_summary.py`
 - `tests/test_plan_2_8_digest_rollup.py`
