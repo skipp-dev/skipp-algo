@@ -6,6 +6,25 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-21) — Plan 2.8 streak now + artifact age + month summary
+
+- New `scripts/plan_2_8_ledger_streak_now.py` computes the
+  trailing (current) streak of the latest status and its
+  `started_at` timestamp; emits markdown or JSON.
+- New `scripts/plan_2_8_digest_artifact_age.py` scans the
+  digest artifact directory and reports per-file size, mtime,
+  and age-in-days relative to now; subdirectories are ignored;
+  `--fail-on-older-than DAYS` gates CI on staleness.
+- New `scripts/plan_2_8_ledger_month_summary.py` groups ledger
+  records by calendar month (`YYYY-MM`) and reports per-status
+  counts plus a total; invalid statuses/timestamps are tallied
+  under `skipped`.
+- Weekly workflow wires streak-now, artifact-age, and
+  month-summary steps after the TOC step; each uploads its
+  output as a retained artifact.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six new
+  script+test pairs.
+
 ### Added (2026-04-21) — Plan 2.8 status today + recent changes + TOC-only
 
 - New `scripts/plan_2_8_ledger_status_today.py` returns the

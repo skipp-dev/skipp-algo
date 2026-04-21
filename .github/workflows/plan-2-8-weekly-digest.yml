@@ -1661,6 +1661,84 @@ jobs:
           if-no-files-found: ignore
           retention-days: 365
 
+      - name: Plan 2.8 ledger streak now
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          ledger="artifacts/plan_2_8_digest/status_ledger.jsonl"
+          if [ ! -s "${ledger}" ]; then
+            echo "No ledger; skipping streak-now."
+            exit 0
+          fi
+          python scripts/plan_2_8_ledger_streak_now.py \
+            --ledger "${ledger}" \
+            --format md \
+            --output artifacts/plan_2_8_digest/streak_now.md \
+            > /dev/null
+          true
+
+      - name: Upload Plan 2.8 ledger streak now
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-ledger-streak-now
+          path: artifacts/plan_2_8_digest/streak_now.md
+          if-no-files-found: ignore
+          retention-days: 365
+
+      - name: Plan 2.8 digest artifact age
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          dir="artifacts/plan_2_8_digest"
+          if [ ! -d "${dir}" ]; then
+            echo "No artifact dir; skipping age report."
+            exit 0
+          fi
+          python scripts/plan_2_8_digest_artifact_age.py \
+            --artifact-dir "${dir}" \
+            --format       md \
+            --output       "${dir}/artifact_age.md" \
+            > /dev/null
+          true
+
+      - name: Upload Plan 2.8 digest artifact age
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-digest-artifact-age
+          path: artifacts/plan_2_8_digest/artifact_age.md
+          if-no-files-found: ignore
+          retention-days: 365
+
+      - name: Plan 2.8 ledger month summary
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          ledger="artifacts/plan_2_8_digest/status_ledger.jsonl"
+          if [ ! -s "${ledger}" ]; then
+            echo "No ledger; skipping month summary."
+            exit 0
+          fi
+          python scripts/plan_2_8_ledger_month_summary.py \
+            --ledger "${ledger}" \
+            --format md \
+            --output artifacts/plan_2_8_digest/month_summary.md \
+            > /dev/null
+          true
+
+      - name: Upload Plan 2.8 ledger month summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-ledger-month-summary
+          path: artifacts/plan_2_8_digest/month_summary.md
+          if-no-files-found: ignore
+          retention-days: 365
+
       - name: Open drift-alert issue
         if: steps.resolve_alerts.outputs.has_alerts == 'True'
         env:
