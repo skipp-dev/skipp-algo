@@ -6,6 +6,19 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-21) — Q3/Q4 Plan §2.3 F2 ``on_promote`` operator helper
+
+- `scripts/f2_promote_contextual_weights.py`: symmetric counterpart to
+  the auto-revert helper. Operator-driven (the spec's `on_promote`
+  action list is intentionally a manual follow-up after a clean SPRT
+  `accept_h1` plus a clean rollback ring). Refuses unless the supplied
+  promotion-gate report has `decision == 'promote'` (or `--force`).
+  Archives the live shadow artifact to
+  `contextual_calibration.archive/<stem>_<UTC-ISO>.json`, rewrites the
+  live file with `status=production` and an appended `promote_history`
+  entry, and journals every run to `artifacts/ci/f2/promote_journal.jsonl`.
+  Atomic writes, idempotent (re-runs after promotion are no-ops). 16 tests.
+
 ### Added (2026-04-21) — Q3/Q4 Plan §2.4 G2 workflow contract test
 
 - `tests/test_f2_workflow_yaml_contract.py`: structural pin-test for
