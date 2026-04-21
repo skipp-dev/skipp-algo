@@ -20,7 +20,7 @@
 ### Plot Budget
 
 TradingView allows max 64 plots per script. Current usage: **58 / 64**.
-The active BUS export surface now consumes 59 hidden plots, so six free plot
+The active BUS export surface now consumes 64 hidden plots, so one free plot
 slots remain available after the final pack-retirement slice.
 
 The previous visible overlay plots (`Session VWAP`, `EMA Fast`, `EMA Slow`)
@@ -50,7 +50,7 @@ These fields are read from lean families and drive the engine directly.
 ### BUS Backward Compat (broad fields, Dashboard only)
 
 All BUS PackE/F/G fields, resolvers, and plot calls **removed in Phase B (AP6 v5.5b)**.
-The active dashboard now reads all 59 producer channels: explicit support-code
+The active dashboard now reads all 64 producer channels: explicit support-code
 channels (`LtfDeltaState`, `SafeTrendState`, `MicroProfileCode`,
 `ReadyBlockerCode`, `StrictBlockerCode`, `VolExpansionState`,
 `DdviContextState`), direct diagnostic/detail channels, and LeanPackA/B while
@@ -163,7 +163,7 @@ the relevant debug toggles locally instead of binding a dedicated BUS series.
 **Status**: DONE
 **Removed**: `BUS ReadyGateRow`, `BUS StrictGateRow`
 **Added**: `BUS ReadyStrictPack`
-**Current plot budget**: 59 / 64
+**Current plot budget**: 64 / 64
 
 This cut preserved the existing ready/strict reason-code semantics while
 packing both engine blocker rows into one BUS channel. The dashboard now

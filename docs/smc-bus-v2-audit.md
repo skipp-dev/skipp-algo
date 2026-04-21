@@ -4,10 +4,10 @@
 
 This document audits the current split between the producer in [SMC_Core_Engine.pine](../SMC_Core_Engine.pine#L5526-L5551), the dashboard consumer in [SMC_Dashboard.pine](../SMC_Dashboard.pine#L7-L29), and the strategy consumer in [SMC_Long_Strategy.pine](../SMC_Long_Strategy.pine#L7-L14).
 
-The current contract is a 59-channel hidden plot bus.
+The current contract is a 64-channel hidden plot bus.
 
-- The producer exports 59 hidden plots in [SMC_Core_Engine.pine](../SMC_Core_Engine.pine).
-- The dashboard binds 59 `input.source()` channels in [SMC_Dashboard.pine](../SMC_Dashboard.pine).
+- The producer exports 64 hidden plots in [SMC_Core_Engine.pine](../SMC_Core_Engine.pine).
+- The dashboard binds 64 `input.source()` channels in [SMC_Dashboard.pine](../SMC_Dashboard.pine).
 - The strategy binds 8 `input.source()` channels from the original contract in [SMC_Long_Strategy.pine](../SMC_Long_Strategy.pine#L7-L14).
 - The row-code transport format is defined in [SMC_Core_Engine.pine](../SMC_Core_Engine.pine#L1670-L1682) and decoded in [SMC_Dashboard.pine](../SMC_Dashboard.pine#L42-L84).
 

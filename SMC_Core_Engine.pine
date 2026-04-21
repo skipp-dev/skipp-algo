@@ -2581,7 +2581,7 @@ preset_effective_htf_bias_min(string preset) =>
     preset == 'Mega-Cap US Tech'   ? 0.70 : preset == 'Financial Services' ? 0.60 : preset == 'Energy' ? 0.55 : 0.0
 
 // Plan 1.4 W2 — Translate the float bias-min into the count of
-// bullish HTFs (0..3) that compute_context_quality() actually checks.
+// bullish HTFs (0..3) that the context-quality helper actually checks.
 // Mapping: ceil(bias_min * 3). Custom returns 0 (no-op floor).
 //   Energy 0.55 -> 2  (matches default)
 //   Financial Services 0.60 -> 2  (matches default)

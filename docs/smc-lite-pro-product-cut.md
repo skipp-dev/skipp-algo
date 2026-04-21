@@ -706,9 +706,9 @@ Pro umfasst:
 - `SMC_Core_Engine.pine`
 - `SMC_Dashboard.pine`
 - `SMC_Long_Strategy.pine`
-- den vollen 59-Kanal-BUS-Contract
+- den vollen 64-Kanal-BUS-Contract
 
-Das aktive Dashboard nutzt derzeit den kompletten 59-Kanal-Producer-Vertrag.
+Das aktive Dashboard nutzt derzeit den kompletten 64-Kanal-Producer-Vertrag.
 
 Pro darf bewusst mehr Friction haben, wenn diese Friction echte Diagnose- oder
 Automationsfaehigkeit liefert.
@@ -748,8 +748,8 @@ die sichtbaren `Session VWAP`-, `EMA Fast`- und `EMA Slow`-Overlays aus dem
 `BUS ModulePackB` durch `BUS VolExpandRow`, `BUS DdviRow`,
 `BUS StretchSupportMask` und `BUS LtfBiasHint` ersetzt.
 
-Die Engine liegt jetzt bei `59 / 64` Plots mit einem aktiven
-`59`-Kanal-Pro-Vertrag. `Swing` und `Objects` wurden zunaechst ueber
+Die Engine liegt jetzt bei `64 / 64` Plots mit einem aktiven
+`64`-Kanal-Pro-Vertrag. `Swing` und `Objects` wurden zunaechst ueber
 `BUS SwingRow` und `BUS ObjectsCountPack` aus `ModulePackC` herausgezogen;
 spaetere direkte Modul-Zeilen wurden nun in `BUS ModulePackD`
 konsolidiert. Die lokale Ableitung der Zeilen `Long Debug`,

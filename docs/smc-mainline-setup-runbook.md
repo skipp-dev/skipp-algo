@@ -47,7 +47,7 @@ SMC Core is the only producer. The remaining two scripts are consumers.
 
 ### Binding order
 
-Bind all 59 `input.source(...)` channels **top-to-bottom** against the
+Bind all 64 `input.source(...)` channels **top-to-bottom** against the
 matching Core BUS exports. The groups appear in this order:
 
 | # | Group | Channels |
@@ -138,7 +138,7 @@ Dashboard or Strategy row shows flat or unexpected data, check that the
 ### Binding count mismatch
 
 The preflight gate reports the expected and actual binding count. If the
-Dashboard reports fewer than 59 or the Strategy fewer than 8, some channels
+Dashboard reports fewer than 64 or the Strategy fewer than 8, some channels
 are still on their default source. Rebind the missing channels top-to-bottom.
 
 ### Binding order drift

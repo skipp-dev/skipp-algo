@@ -220,6 +220,13 @@ def test_c9_cut_partitions_the_pro_only_surface() -> None:
         'StrictBlockerCode',
         'VolExpansionState',
         'DdviContextState',
+        # Plan 1.4 / §2.5 H5 — Quickstart Preset contract: stable Pro-only,
+        # not part of the C9 reduce/detail/rebuild/legacy partitions.
+        'PresetClassCode',
+        'PresetRvolMin',
+        'PresetHtfBiasMin',
+        'PresetFvgQualGate',
+        'PresetVolRegimeDef',
     )
 
     c9_partition = (
@@ -265,10 +272,10 @@ def test_product_cut_payload_exports_governance_metadata() -> None:
         'tier': 'critical',
     }
     assert dashboard_target['bindingLabelGroups'][-1] == {
-        'label': 'BUS LeanPackB',
-        'group': 'g_bus_lean',
-        'groupTitle': 'Lean Surface',
-        'tier': 'critical',
+        'label': 'BUS PresetVolRegimeDef',
+        'group': 'g_bus_preset',
+        'groupTitle': 'Preset Contract',
+        'tier': 'diagnostic',
     }
     assert strategy_target['bindingContractKey'] == 'strategyBindings'
     assert strategy_target['bindingContractName'] == 'execution wrapper BUS bindings'

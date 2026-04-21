@@ -62,7 +62,7 @@ def test_checked_in_product_cut_artifact_exports_binding_contract_metadata() -> 
     assert dashboard_target['bindingContractName'] == 'dashboard companion BUS bindings'
     assert dashboard_target['bindingConsumerRole'] == 'dashboard_companion'
     assert dashboard_target['bindingLabelGroups'][0]['groupTitle'] == 'Lifecycle BUS'
-    assert dashboard_target['bindingLabelGroups'][-1]['groupTitle'] == 'Lean Surface'
+    assert dashboard_target['bindingLabelGroups'][-1]['groupTitle'] == 'Preset Contract'
     assert strategy_target['bindingContractKey'] == 'strategyBindings'
     assert strategy_target['bindingContractName'] == 'execution wrapper BUS bindings'
     assert strategy_target['bindingConsumerRole'] == 'execution_wrapper'

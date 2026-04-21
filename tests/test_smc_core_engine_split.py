@@ -239,7 +239,9 @@ def test_core_engine_ends_at_hidden_bus_boundary() -> None:
     assert "plot(cr.resolve_bus_lean_pack_b(lib_obl_side, lib_obl_fresh, lib_obl_mitigation_state, lib_fvgl_side, lib_fvgl_fresh, lib_fvgl_invalidated, lib_scl_context_score, lib_scl_in_killzone, lib_ensemble_quality_score, lib_ensemble_quality_tier, lib_volatility_regime, lib_volatility_model_source), 'BUS LeanPackB', display = display.none)" in source
     assert 'resolve_bus_debug_state_row(' not in source
     assert source.endswith('/////////////////////////////////////////////////////////////////////////////////')
-    assert "'BUS LeanPackB', display = display.none)\n\n// ── Mini Health Badge (v5.5a) ──" in source
+    # Plan 1.4 / §2.5 H5 — BUS Preset* hidden plots now follow LeanPackB; the
+    # health-badge marker pin moved to the last preset channel.
+    assert "'BUS PresetVolRegimeDef', display = display.none)\n\n// ── Mini Health Badge (v5.5a) ──" in source
 
 
 def test_core_engine_moves_secondary_overlay_lines_off_plot_budget() -> None:

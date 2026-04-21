@@ -49,7 +49,7 @@ Workspace refresh: 2026-04-07
 ## Recommended Order In TradingView
 
 1. Open and compile the core.
-2. Add the dashboard and bind all 59 `source` inputs to the core.
+2. Add the dashboard and bind all 64 `source` inputs to the core.
 3. Add the strategy and bind all 8 `source` inputs to the core.
 4. Execute the five validation scenarios on the same symbol and timeframe.
 5. Record all observations directly in the report template.
@@ -145,7 +145,7 @@ the dashboard reconstructs the former module and engine transport rows locally.
 
 1. The script compiles without errors.
 2. No visible runtime errors remain in the chart overlay.
-3. All 59 dashboard bindings listed in [tradingview-validation-checklist.md](tradingview-validation-checklist.md) are selectable.
+3. All 64 dashboard bindings listed in [tradingview-validation-checklist.md](tradingview-validation-checklist.md) are selectable.
 4. With `Focus View` enabled, the chart keeps one hero card, hides standalone warning labels plus strong/weak swing levels, and only shows `Core Trigger` / `Core Invalidation` once the setup is at least `Ready`.
 
 ### Producer Pass/Fail Criteria
@@ -154,7 +154,7 @@ Pass:
 
 1. Core compiles.
 2. No runtime error is visible.
-3. All 59 series are selectable.
+3. All 64 series are selectable.
 4. `Focus View` matches the compact first-run surface contract.
 
 Fail:
@@ -169,7 +169,7 @@ Fail:
 ### Dashboard Steps
 
 1. Add [../SMC_Dashboard.pine](../SMC_Dashboard.pine) to the same chart.
-2. Bind all 59 `input.source()` fields exactly to the core series.
+2. Bind all 64 `input.source()` fields exactly to the core series.
 3. Confirm that `View = Decision Brief` is active and that `Show Brief Panel` plus `Show Trade Plan` produce the expected companion cut.
 4. If you want to validate `Debug Flags` or `Long Debug`, set the three local debug mirror toggles in the dashboard to match the core's effective debug configuration.
 5. Check visibility and response of the following sections:
@@ -194,7 +194,7 @@ Capture rendered chart screenshots, not Pine editor screenshots.
 ### Dashboard Expected Observations
 
 1. The dashboard compiles without errors.
-2. All 59 bindings are fully selectable.
+2. All 64 bindings are fully selectable.
 3. The dashboard remains visible.
 4. The default companion surface shows `SMC Decision Board` with the row order `Structure`, `Session / Market`, `Event Risk`, `Data Quality`, `Short-term Pressure`, `Risk Plan`.
 5. The sections respond plausibly to the core state.
@@ -249,7 +249,7 @@ Expected:
 Pass:
 
 1. Dashboard compiles.
-2. All 59 bindings can be assigned.
+2. All 64 bindings can be assigned.
 3. All five scenarios show the expected response.
 4. No internal contradictions exist between lifecycle, exec tier, setup age, and risk lines.
 

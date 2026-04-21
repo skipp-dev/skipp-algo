@@ -1804,7 +1804,7 @@ if show_table and barstate.islast
         dashboard_row(smc_dashboard, 72, "Debug Flags", decode_debug_flags_text(debug_flags_row_code), status_bg(row_status(debug_flags_row_code)), txt)
         dashboard_row(smc_dashboard, 73, "Long Debug", long_debug_text, status_bg(row_status(debug_state_row_code)), txt)
         // Plan 1.5 follow-up — Why this Tier? drill-down. Pure read-only on the
-        // already-published mp.ZONE_CAL_* contract — no engine change. Sorts the
+        // already-published ZONE_CAL_* contract — no engine change. Sorts the
         // four families by calibrated weight and shows the top-3 inline so an
         // operator can answer "why does the engine pick OB over FVG today?"
         // in one glance. The full ranked breakdown lives in the tooltip.

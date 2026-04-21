@@ -550,6 +550,14 @@ ENGINE_BUS_CHANNELS: tuple[str, ...] = (
     'ObjectsCountPack',
     'LeanPackA',
     'LeanPackB',
+    # Plan 1.4 / §2.5 H5 — Quickstart Preset contract. Engine publishes the
+    # effective preset floors so the Hero / Dashboard can detect CUSTOM (class
+    # code 0) vs. a curated profile and surface why a floor was raised.
+    'PresetClassCode',
+    'PresetRvolMin',
+    'PresetHtfBiasMin',
+    'PresetFvgQualGate',
+    'PresetVolRegimeDef',
 )
 
 ENGINE_BUS_LABELS: tuple[str, ...] = tuple(f'BUS {channel}' for channel in ENGINE_BUS_CHANNELS)
@@ -656,6 +664,7 @@ DASHBOARD_GROUP_TITLES: tuple[str, ...] = (
     'Trade Plan',
     'Detail Surface',
     'Lean Surface',
+    'Preset Contract',
 )
 
 STRATEGY_GROUP_TITLES: tuple[str, ...] = (
@@ -670,6 +679,7 @@ DASHBOARD_GROUP_TITLES_BY_KEY: dict[str, str] = {
     'g_bus_plan': 'Trade Plan',
     'g_bus_detail': 'Detail Surface',
     'g_bus_lean': 'Lean Surface',
+    'g_bus_preset': 'Preset Contract',
 }
 
 STRATEGY_GROUP_TITLES_BY_KEY: dict[str, str] = {
@@ -738,6 +748,13 @@ DASHBOARD_BUS_BINDINGS: tuple[BusBinding, ...] = (
     BusBinding('BUS ObjectsCountPack', 'g_bus_detail'),
     BusBinding('BUS LeanPackA', 'g_bus_lean', 'critical'),
     BusBinding('BUS LeanPackB', 'g_bus_lean', 'critical'),
+    # Plan 1.4 / §2.5 H5 — Quickstart Preset contract bindings. Order mirrors
+    # the engine plot order; the Hero reads PresetClassCode to detect CUSTOM.
+    BusBinding('BUS PresetClassCode', 'g_bus_preset'),
+    BusBinding('BUS PresetRvolMin', 'g_bus_preset'),
+    BusBinding('BUS PresetHtfBiasMin', 'g_bus_preset'),
+    BusBinding('BUS PresetFvgQualGate', 'g_bus_preset'),
+    BusBinding('BUS PresetVolRegimeDef', 'g_bus_preset'),
 )
 
 STRATEGY_BUS_BINDINGS: tuple[BusBinding, ...] = (
