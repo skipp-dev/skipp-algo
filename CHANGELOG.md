@@ -6,6 +6,20 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-28) — Plan 2.8 last unknown + line counts + emoji count
+
+- New `scripts/plan_2_8_ledger_last_unknown.py` reports
+  the timestamp of the most recent unknown ledger record.
+- New `scripts/plan_2_8_digest_line_counts.py` reports
+  per-file newline-based line counts plus a grand total.
+- New `scripts/plan_2_8_weekly_summary_emoji_count.py`
+  counts ``:emoji:`` shortcodes while excluding fenced
+  blocks and inline code.
+- Weekly workflow wires the three new steps after the
+  autolink-count upload.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six
+  new script+test pairs.
+
 ### Added (2026-04-28) — Plan 2.8 last amber + word count + autolink count
 
 - New `scripts/plan_2_8_ledger_last_amber.py` reports the
