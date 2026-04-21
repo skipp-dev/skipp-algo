@@ -395,6 +395,9 @@ read.
 - `tests/test_plan_2_8_ledger_streak_now.py`
 - `tests/test_plan_2_8_digest_artifact_age.py`
 - `tests/test_plan_2_8_ledger_month_summary.py`
+- `tests/test_plan_2_8_ledger_worst_day.py`
+- `tests/test_plan_2_8_digest_catalog_diff.py`
+- `tests/test_plan_2_8_weekly_summary_section_stats.py`
 - `tests/test_plan_2_8_alert_history.py`
 - `tests/test_plan_2_8_alert_history_summary.py`
 - `tests/test_plan_2_8_digest_rollup.py`

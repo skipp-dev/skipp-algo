@@ -1,0 +1,101 @@
+"""Plan 2.8 weekly-summary section statistics.
+
+Parses a ``weekly_summary.md`` file and reports per-section
+(``## ``-level headings) line and word counts. Used to flag
+sections that silently went empty after a workflow change.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import re
+import sys
+from pathlib import Path
+from typing import Any
+
+
+_H2 = re.compile(r"^##\s+(.+?)\s*$")
+
+
+def compute(text: str) -> dict[str, Any]:
+    sections: list[dict[str, Any]] = []
+    current: dict[str, Any] | None = None
+    for line in text.splitlines():
+        m = _H2.match(line)
+        if m is not None:
+            if current is not None:
+                sections.append(current)
+            current = {
+                "heading": m.group(1).strip(),
+                "lines":   0,
+                "words":   0,
+            }
+            continue
+        if current is None:
+            continue
+        stripped = line.strip()
+        if not stripped:
+            continue
+        current["lines"] += 1
+        current["words"] += len(stripped.split())
+    if current is not None:
+        sections.append(current)
+    empty = [s["heading"] for s in sections if s["words"] == 0]
+    return {
+        "schema_version": 1,
+        "section_count":  len(sections),
+        "empty_sections": empty,
+        "sections":       sections,
+    }
+
+
+def render_markdown(report: dict[str, Any]) -> str:
+    lines = [
+        "# Plan 2.8 weekly summary - section stats",
+        "",
+        f"- sections: {report['section_count']}",
+        f"- empty:    {len(report['empty_sections'])}",
+        "",
+        "| heading | lines | words |",
+        "|---|---:|---:|",
+    ]
+    if report["sections"]:
+        for s in report["sections"]:
+            lines.append(
+                f"| {s['heading']} | {s['lines']} | {s['words']} |"
+            )
+    else:
+        lines.append("| _no sections_ | 0 | 0 |")
+    lines.append("")
+    return "\n".join(lines) + "\n"
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        description="Per-section stats of weekly_summary.md.",
+    )
+    parser.add_argument("--input",  type=Path, required=True)
+    parser.add_argument("--format", choices=("md", "json"), default="md")
+    parser.add_argument("--output", type=Path, default=None)
+    parser.add_argument("--fail-on-empty", action="store_true")
+    args = parser.parse_args(argv)
+
+    if not args.input.exists():
+        print(f"ERROR: input not found: {args.input}", file=sys.stderr)
+        return 1
+
+    report = compute(args.input.read_text(encoding="utf-8"))
+    body = render_markdown(report) if args.format == "md" \
+        else json.dumps(report, indent=2) + "\n"
+    if args.output is not None:
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        args.output.write_text(body, encoding="utf-8")
+    print(body, end="")
+    if args.fail_on_empty and report["empty_sections"]:
+        return 1
+    return 0
+
+
+if __name__ == "__main__":  # pragma: no cover
+    raise SystemExit(main())

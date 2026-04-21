@@ -1739,6 +1739,100 @@ jobs:
           if-no-files-found: ignore
           retention-days: 365
 
+      - name: Plan 2.8 ledger worst day
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          ledger="artifacts/plan_2_8_digest/status_ledger.jsonl"
+          if [ ! -s "${ledger}" ]; then
+            echo "No ledger; skipping worst day."
+            exit 0
+          fi
+          python scripts/plan_2_8_ledger_worst_day.py \
+            --ledger "${ledger}" \
+            --format md \
+            --output artifacts/plan_2_8_digest/worst_day.md \
+            > /dev/null
+          true
+
+      - name: Upload Plan 2.8 ledger worst day
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-ledger-worst-day
+          path: artifacts/plan_2_8_digest/worst_day.md
+          if-no-files-found: ignore
+          retention-days: 365
+
+      - name: Download Plan 2.8 prior artifact catalog
+        if: always()
+        uses: dawidd6/action-download-artifact@v6
+        with:
+          workflow:               plan-2-8-weekly-digest.yml
+          workflow_conclusion:    ''
+          name:                   plan-2-8-digest-artifact-catalog
+          name_is_regexp:         true
+          path:                   artifacts/plan_2_8_prior
+          if_no_artifact_found:   warn
+
+      - name: Plan 2.8 digest catalog diff
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          prior="artifacts/plan_2_8_prior/artifact_catalog.json"
+          curr="artifacts/plan_2_8_digest/artifact_catalog.json"
+          if [ ! -s "${curr}" ]; then
+            echo "No current catalog; skipping diff."
+            exit 0
+          fi
+          if [ ! -s "${prior}" ]; then
+            prior="${curr}"
+          fi
+          python scripts/plan_2_8_digest_catalog_diff.py \
+            --prior   "${prior}" \
+            --current "${curr}" \
+            --format  md \
+            --output  artifacts/plan_2_8_digest/catalog_diff.md \
+            > /dev/null
+          true
+
+      - name: Upload Plan 2.8 digest catalog diff
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-digest-catalog-diff
+          path: artifacts/plan_2_8_digest/catalog_diff.md
+          if-no-files-found: ignore
+          retention-days: 365
+
+      - name: Plan 2.8 weekly summary section stats
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          md="artifacts/plan_2_8_digest/weekly_summary.md"
+          if [ ! -s "${md}" ]; then
+            echo "No weekly_summary.md; skipping section stats."
+            exit 0
+          fi
+          python scripts/plan_2_8_weekly_summary_section_stats.py \
+            --input  "${md}" \
+            --format md \
+            --output artifacts/plan_2_8_digest/section_stats.md \
+            > /dev/null
+          true
+
+      - name: Upload Plan 2.8 weekly summary section stats
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-weekly-summary-section-stats
+          path: artifacts/plan_2_8_digest/section_stats.md
+          if-no-files-found: ignore
+          retention-days: 365
+
       - name: Open drift-alert issue
         if: steps.resolve_alerts.outputs.has_alerts == 'True'
         env:

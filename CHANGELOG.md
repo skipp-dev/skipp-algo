@@ -6,6 +6,26 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-21) — Plan 2.8 worst day + catalog diff + section stats
+
+- New `scripts/plan_2_8_ledger_worst_day.py` groups ledger
+  records by UTC date and flags the date with the most
+  non-green (amber+red) records; ties break by earliest date.
+- New `scripts/plan_2_8_digest_catalog_diff.py` compares two
+  artifact-catalog JSON outputs and reports added_known,
+  added_unknown, dropped, known→unknown, and unknown→known;
+  `--fail-on-unknown-growth` gates CI.
+- New `scripts/plan_2_8_weekly_summary_section_stats.py`
+  reports per-`##`-section line and word counts of
+  `weekly_summary.md` with an empty-section list; H1 headings
+  and pre-first-section content are ignored.
+- Weekly workflow wires worst-day, catalog-diff (with prior
+  catalog downloaded via download-artifact; falls back to the
+  current catalog when no prior exists), and section-stats
+  steps; each uploads its output as a retained artifact.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six new
+  script+test pairs.
+
 ### Added (2026-04-21) — Plan 2.8 streak now + artifact age + month summary
 
 - New `scripts/plan_2_8_ledger_streak_now.py` computes the
