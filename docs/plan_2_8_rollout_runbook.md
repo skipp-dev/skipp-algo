@@ -578,6 +578,9 @@ read.
 - `tests/test_plan_2_8_ledger_unique_days.py`
 - `tests/test_plan_2_8_digest_total_line_count.py`
 - `tests/test_plan_2_8_weekly_summary_backtick_count.py`
+- `tests/test_plan_2_8_ledger_observations_per_day_mean.py`
+- `tests/test_plan_2_8_digest_file_size_mean.py`
+- `tests/test_plan_2_8_weekly_summary_checkbox_count.py`
 - `tests/test_plan_2_8_alert_history.py`
 - `tests/test_plan_2_8_alert_history_summary.py`
 - `tests/test_plan_2_8_digest_rollup.py`

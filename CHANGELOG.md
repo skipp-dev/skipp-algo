@@ -6,6 +6,19 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-05-14) — Plan 2.8 obs-per-day + size mean + checkboxes
+
+- New `scripts/plan_2_8_ledger_observations_per_day_mean.py`
+  reports mean observations per distinct day.
+- New `scripts/plan_2_8_digest_file_size_mean.py` reports
+  the arithmetic mean of top-level regular-file sizes.
+- New `scripts/plan_2_8_weekly_summary_checkbox_count.py`
+  counts GFM task-list checkbox lines.
+- Weekly workflow wires the three new steps after the
+  backtick-count upload.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six
+  new script+test pairs.
+
 ### Added (2026-05-13) — Plan 2.8 unique days + total lines + backticks
 
 - New `scripts/plan_2_8_ledger_unique_days.py` reports the
