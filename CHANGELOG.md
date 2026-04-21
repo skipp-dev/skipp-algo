@@ -6,6 +6,19 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-21) — consolidated F2 operator runbook
+
+- `scripts/f2_runbook.py`: one-shot report combining
+  `build_status()` + `build_digest()` + latest rollback-history ring
+  tail into a pasteable Markdown document (Status / Weekly digest /
+  Recent ring sections). Also exposes public `build_runbook()` and
+  `render_markdown()` APIs. Supports `--format md|json`,
+  `--window-days`, `--ring-tail`, `--output`, `--quiet`. Schema
+  version 1. Long ring reasons truncated to keep the table
+  pasteable. 10 tests.
+- `tests/test_f2_helpers_convergence.py`: added `f2_runbook` to
+  `F2_HELPERS` (28 tests, was 26).
+
 ### Added (2026-04-21) — F2 archive retention helper
 
 - `scripts/f2_cleanup_archives.py`: prunes

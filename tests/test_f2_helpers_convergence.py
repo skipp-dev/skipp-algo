@@ -36,6 +36,7 @@ F2_HELPERS = [
     "scripts.f2_weekly_digest",
     "scripts.f2_simulate_chain",
     "scripts.f2_cleanup_archives",
+    "scripts.f2_runbook",
 ]
 
 
