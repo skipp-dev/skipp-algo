@@ -6,6 +6,19 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-05-14) — Plan 2.8 amber streak + size variance + uppercase
+
+- New `scripts/plan_2_8_ledger_amber_streak_max.py` reports the
+  longest consecutive amber run.
+- New `scripts/plan_2_8_digest_file_size_variance.py` reports
+  the population variance of top-level file sizes.
+- New `scripts/plan_2_8_weekly_summary_uppercase_letter_count.py`
+  counts ASCII uppercase letters in the summary.
+- Weekly workflow wires the three new steps after the
+  vowel-count upload.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six new
+  script+test pairs.
+
 ### Added (2026-05-14) — Plan 2.8 record byte mean + total bytes + vowels
 
 - New `scripts/plan_2_8_ledger_record_byte_size_mean.py` reports

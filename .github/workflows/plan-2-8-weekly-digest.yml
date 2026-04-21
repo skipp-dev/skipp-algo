@@ -6170,6 +6170,75 @@ jobs:
           if-no-files-found: ignore
           retention-days: 365
 
+      - name: Plan 2.8 ledger amber streak max
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          ledger="artifacts/plan_2_8_digest/state_ledger.jsonl"
+          [ -s "${ledger}" ] || exit 0
+          python scripts/plan_2_8_ledger_amber_streak_max.py \
+            --ledger "${ledger}" \
+            --format md \
+            --output artifacts/plan_2_8_digest/ledger_amber_streak_max.md \
+            > /dev/null
+          true
+
+      - name: Upload Plan 2.8 ledger amber streak max
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-ledger-amber-streak-max
+          path: artifacts/plan_2_8_digest/ledger_amber_streak_max.md
+          if-no-files-found: ignore
+          retention-days: 365
+
+      - name: Plan 2.8 digest file size variance
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          dir="artifacts/plan_2_8_digest"
+          [ -d "${dir}" ] || exit 0
+          python scripts/plan_2_8_digest_file_size_variance.py \
+            --artifact-dir "${dir}" \
+            --format md \
+            --output artifacts/plan_2_8_digest/digest_file_size_variance.md \
+            > /dev/null
+          true
+
+      - name: Upload Plan 2.8 digest file size variance
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-digest-file-size-variance
+          path: artifacts/plan_2_8_digest/digest_file_size_variance.md
+          if-no-files-found: ignore
+          retention-days: 365
+
+      - name: Plan 2.8 weekly summary uppercase letter count
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          summary="artifacts/plan_2_8_digest/weekly_summary.md"
+          [ -s "${summary}" ] || exit 0
+          python scripts/plan_2_8_weekly_summary_uppercase_letter_count.py \
+            --summary "${summary}" \
+            --format md \
+            --output artifacts/plan_2_8_digest/summary_uppercase_letter_count.md \
+            > /dev/null
+          true
+
+      - name: Upload Plan 2.8 weekly summary uppercase letter count
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-weekly-summary-uppercase-letter-count
+          path: artifacts/plan_2_8_digest/summary_uppercase_letter_count.md
+          if-no-files-found: ignore
+          retention-days: 365
+
       - name: Open drift-alert issue
         if: steps.resolve_alerts.outputs.has_alerts == 'True'
         env:
