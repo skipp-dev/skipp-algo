@@ -6,6 +6,21 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-21) — Plan 2.8 runcard index + CHANGELOG slice step + digest compare + heatmap
+
+- Weekly digest workflow now runs `plan_2_8_runcard_index.py`
+  (md+json) after the runcard upload, and emits a 14-day
+  `plan_2_8_changelog_digest.py` slice to the step summary.
+- New `scripts/plan_2_8_digest_compare.py`: diff two digest.json
+  snapshots on `(tf, family)` identity, report added/removed/
+  persistent alerts with md/json output and `--fail-on-added`
+  gate. +9 tests plus 2 workflow pin-tests.
+- New `scripts/plan_2_8_alert_history_heatmap.py`: weekday x
+  `tf/family` heatmap of the alert history, with optional
+  `--lookback-days`, tolerant of bad timestamps and malformed
+  JSONL lines. +11 tests.
+- Status anchors, runbook, and CHANGELOG refreshed.
+
 ### Added (2026-04-21) — Plan 2.8 health step + CHANGELOG slice + runcard index
 
 - Weekly digest workflow runs the rollout-health aggregator after

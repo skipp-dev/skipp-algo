@@ -297,6 +297,52 @@ jobs:
           if-no-files-found: ignore
           retention-days: 180
 
+      - name: Plan 2.8 runcard section index
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          mkdir -p artifacts/plan_2_8_digest
+          python scripts/plan_2_8_runcard_index.py \
+            --artifact-dir artifacts/plan_2_8_digest \
+            --format       json \
+            --output       artifacts/plan_2_8_digest/runcard_index.json \
+            > /dev/null
+          python scripts/plan_2_8_runcard_index.py \
+            --artifact-dir artifacts/plan_2_8_digest \
+            --format       md \
+            --output       artifacts/plan_2_8_digest/runcard_index.md \
+            > /dev/null
+          if [ -s artifacts/plan_2_8_digest/runcard_index.md ] \
+              && [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+            cat artifacts/plan_2_8_digest/runcard_index.md \
+              >> "${GITHUB_STEP_SUMMARY}"
+          fi
+          true
+
+      - name: Plan 2.8 CHANGELOG slice (last 14 days)
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          if [ ! -s CHANGELOG.md ]; then
+            echo "No CHANGELOG.md; skipping slice."
+            exit 0
+          fi
+          mkdir -p artifacts/plan_2_8_digest
+          python scripts/plan_2_8_changelog_digest.py \
+            --changelog      CHANGELOG.md \
+            --lookback-days  14 \
+            --limit          10 \
+            --output         artifacts/plan_2_8_digest/changelog_recent.md \
+            > /dev/null
+          if [ -s artifacts/plan_2_8_digest/changelog_recent.md ] \
+              && [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+            cat artifacts/plan_2_8_digest/changelog_recent.md \
+              >> "${GITHUB_STEP_SUMMARY}"
+          fi
+          true
+
       - name: Open drift-alert issue
         if: steps.resolve_alerts.outputs.has_alerts == 'True'
         env:
