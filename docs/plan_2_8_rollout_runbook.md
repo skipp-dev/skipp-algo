@@ -524,6 +524,9 @@ read.
 - `tests/test_plan_2_8_ledger_max_run_length_per_status.py`
 - `tests/test_plan_2_8_digest_numeric_basename_count.py`
 - `tests/test_plan_2_8_weekly_summary_space_count.py`
+- `tests/test_plan_2_8_ledger_min_run_length_per_status.py`
+- `tests/test_plan_2_8_digest_alpha_basename_count.py`
+- `tests/test_plan_2_8_weekly_summary_tab_count.py`
 - `tests/test_plan_2_8_alert_history.py`
 - `tests/test_plan_2_8_alert_history_summary.py`
 - `tests/test_plan_2_8_digest_rollup.py`
