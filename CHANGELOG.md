@@ -6,6 +6,19 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-07-07) — Plan 2.8 json-invalid + ipa + table-row
+
+- New `scripts/plan_2_8_ledger_json_invalid_count.py` counts ledger
+  entries that fail to parse as JSON.
+- New `scripts/plan_2_8_digest_ipa_file_count.py` counts top-level
+  ``.ipa`` files.
+- New `scripts/plan_2_8_weekly_summary_table_row_count.py` counts
+  Markdown table rows (header + data; separator excluded).
+- Weekly workflow wires the three new fail-soft step pairs after the
+  blockquote upload.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six new
+  script+test pairs.
+
 ### Added (2026-07-06) — Plan 2.8 json-valid + apk + blockquote
 
 - New `scripts/plan_2_8_ledger_json_valid_count.py` counts ledger
