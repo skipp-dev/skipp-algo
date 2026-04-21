@@ -6,6 +6,19 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-05-14) — Plan 2.8 first unknown + jsonl files + question
+
+- New `scripts/plan_2_8_ledger_first_unknown_index.py` reports the
+  zero-based index of the first unknown observation.
+- New `scripts/plan_2_8_digest_jsonl_file_count.py` reports the
+  count of top-level ``.jsonl`` files.
+- New `scripts/plan_2_8_weekly_summary_question_char_count.py`
+  counts ``?`` characters in the summary.
+- Weekly workflow wires the three new steps after the
+  sentence-count upload.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six new
+  script+test pairs.
+
 ### Added (2026-05-14) — Plan 2.8 first red + txt files + sentences
 
 - New `scripts/plan_2_8_ledger_first_red_index.py` reports the
