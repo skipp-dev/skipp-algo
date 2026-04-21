@@ -812,6 +812,9 @@ read.
 - `tests/test_plan_2_8_ledger_number_field_record_count.py`
 - `tests/test_plan_2_8_digest_pak_file_count.py`
 - `tests/test_plan_2_8_weekly_summary_dollar_line_count.py`
+- `tests/test_plan_2_8_ledger_int_value_count.py`
+- `tests/test_plan_2_8_digest_vpk_file_count.py`
+- `tests/test_plan_2_8_weekly_summary_percent_line_count.py`
 - `tests/test_plan_2_8_alert_history.py`
 - `tests/test_plan_2_8_alert_history_summary.py`
 - `tests/test_plan_2_8_digest_rollup.py`

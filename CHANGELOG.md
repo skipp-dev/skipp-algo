@@ -6,6 +6,15 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-07-22) — Plan 2.8 int values + vpk + percent lines
+
+- `scripts/plan_2_8_ledger_int_value_count.py` counts strict-int top-level
+  values across ledger JSON-object records (bools excluded).
+- `scripts/plan_2_8_digest_vpk_file_count.py` counts top-level `.vpk` files.
+- `scripts/plan_2_8_weekly_summary_percent_line_count.py` counts lines
+  containing an ASCII `%`.
+- Weekly digest workflow wires three fail-soft compute+upload step pairs.
+
 ### Added (2026-07-21) — Plan 2.8 number-field records + pak + dollar lines
 
 - New `scripts/plan_2_8_ledger_number_field_record_count.py` counts
