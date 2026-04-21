@@ -6,6 +6,22 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-21) — Plan 2.8 oldest captured_at + top ext + ordered list count
+
+- New `scripts/plan_2_8_ledger_oldest_captured_at.py` reports
+  the earliest ``captured_at`` in the ledger and its age in
+  hours relative to ``--now`` (``--fail-below-hours``).
+- New `scripts/plan_2_8_digest_ext_top.py` reports the most
+  common file extension in the artifact dir (ties broken
+  alphabetically, no-ext grouped); ``--fail-below-count``.
+- New `scripts/plan_2_8_weekly_summary_ordered_list_count.py`
+  counts ordered list items (``1.`` or ``1)``) in the weekly
+  summary (fenced code excluded).
+- Weekly workflow wires the three new steps after the list
+  count upload.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six
+  new script+test pairs.
+
 ### Added (2026-04-21) — Plan 2.8 latest captured_at + smallest file + list count
 
 - New `scripts/plan_2_8_ledger_latest_captured_at.py` reports
