@@ -6,6 +6,16 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-07-30) — Plan 2.8 nested arrays + wim + plus lines
+
+- `scripts/plan_2_8_ledger_nested_array_value_count.py` counts top-level
+  list values that contain at least one nested list element.
+- `scripts/plan_2_8_digest_wim_file_count.py` counts top-level `.wim`
+  files.
+- `scripts/plan_2_8_weekly_summary_plus_line_count.py` counts lines
+  containing an ASCII `+`.
+- Weekly digest workflow wires three fail-soft compute+upload step pairs.
+
 ### Added (2026-07-29) — Plan 2.8 empty objects + ovf + equals lines
 
 - `scripts/plan_2_8_ledger_empty_object_value_count.py` counts top-level

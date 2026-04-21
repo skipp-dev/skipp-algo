@@ -836,6 +836,9 @@ read.
 - `tests/test_plan_2_8_ledger_empty_object_value_count.py`
 - `tests/test_plan_2_8_digest_ovf_file_count.py`
 - `tests/test_plan_2_8_weekly_summary_equals_line_count.py`
+- `tests/test_plan_2_8_ledger_nested_array_value_count.py`
+- `tests/test_plan_2_8_digest_wim_file_count.py`
+- `tests/test_plan_2_8_weekly_summary_plus_line_count.py`
 - `tests/test_plan_2_8_alert_history.py`
 - `tests/test_plan_2_8_alert_history_summary.py`
 - `tests/test_plan_2_8_digest_rollup.py`
