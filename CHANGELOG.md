@@ -6,6 +6,19 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-28) — Plan 2.8 median run + empty file + non-blank
+
+- New `scripts/plan_2_8_ledger_median_run_length.py`
+  reports the median length of consecutive status runs.
+- New `scripts/plan_2_8_digest_empty_file_count.py`
+  reports the number of zero-byte artifact files.
+- New `scripts/plan_2_8_weekly_summary_non_blank_line_count.py`
+  counts lines containing any non-whitespace character.
+- Weekly workflow wires the three new steps after the
+  blank-line upload.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six
+  new script+test pairs.
+
 ### Added (2026-04-28) — Plan 2.8 avg run length + non-empty + blank-line
 
 - New `scripts/plan_2_8_ledger_avg_run_length.py` reports
