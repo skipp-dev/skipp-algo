@@ -6,6 +6,25 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-21) — Plan 2.8 distinct days + extension coverage + paragraph stats
+
+- New `scripts/plan_2_8_ledger_distinct_days.py` counts
+  distinct UTC days present in the ledger; malformed
+  timestamps and invalid statuses are skipped; days list is
+  sorted.
+- New `scripts/plan_2_8_digest_extension_coverage.py` reports
+  how many artifact files carry a suffix and the coverage
+  ratio; subdirectories ignored.
+- New `scripts/plan_2_8_weekly_summary_paragraph_stats.py`
+  counts paragraph runs (contiguous non-blank lines separated
+  by blank lines) and reports the mean lines/paragraph;
+  fenced-code markers are excluded to avoid inflating
+  paragraph counts.
+- Weekly workflow wires the three new steps after image
+  count.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six new
+  script+test pairs.
+
 ### Added (2026-04-21) — Plan 2.8 status streaks + oldest/newest + image count
 
 - New `scripts/plan_2_8_ledger_status_streaks.py` reports the

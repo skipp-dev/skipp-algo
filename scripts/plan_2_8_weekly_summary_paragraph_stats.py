@@ -1,0 +1,88 @@
+"""Plan 2.8 weekly summary paragraph stats.
+
+Reports paragraph statistics for the weekly summary:
+- ``paragraph_count`` — runs of one-or-more consecutive
+  non-blank lines, separated by blank lines.
+- ``avg_lines_per_paragraph`` — mean paragraph line count,
+  rounded to two decimals; ``0.0`` when empty.
+
+Headings, lists and fenced code blocks are included;
+code-fence markers themselves are excluded to prevent a lone
+``` from inflating the count.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import re
+import sys
+from pathlib import Path
+from typing import Any
+
+
+_FENCE = re.compile(r"^```")
+
+
+def compute(path: Path) -> dict[str, Any]:
+    if not path.exists():
+        return {
+            "schema_version":          1,
+            "paragraph_count":         0,
+            "avg_lines_per_paragraph": 0.0,
+        }
+    paragraphs: list[int] = []
+    current = 0
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if _FENCE.match(line.lstrip()):
+            continue
+        if line.strip() == "":
+            if current > 0:
+                paragraphs.append(current)
+                current = 0
+        else:
+            current += 1
+    if current > 0:
+        paragraphs.append(current)
+    avg = round(sum(paragraphs) / len(paragraphs), 2) if paragraphs else 0.0
+    return {
+        "schema_version":          1,
+        "paragraph_count":         len(paragraphs),
+        "avg_lines_per_paragraph": avg,
+    }
+
+
+def render_markdown(report: dict[str, Any]) -> str:
+    return (
+        "# Plan 2.8 weekly summary paragraph stats\n"
+        "\n"
+        f"- paragraph_count: {report['paragraph_count']}\n"
+        f"- avg_lines_per_paragraph: {report['avg_lines_per_paragraph']}\n"
+    )
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        description="Paragraph stats for the weekly summary.",
+    )
+    parser.add_argument("--summary", type=Path, required=True)
+    parser.add_argument("--format", choices=("md", "json"), default="md")
+    parser.add_argument("--output", type=Path, default=None)
+    args = parser.parse_args(argv)
+
+    if not args.summary.exists():
+        print(f"ERROR: summary not found: {args.summary}", file=sys.stderr)
+        return 1
+
+    report = compute(args.summary)
+    body = render_markdown(report) if args.format == "md" \
+        else json.dumps(report, indent=2) + "\n"
+    if args.output is not None:
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        args.output.write_text(body, encoding="utf-8")
+    print(body, end="")
+    return 0
+
+
+if __name__ == "__main__":  # pragma: no cover
+    raise SystemExit(main())
