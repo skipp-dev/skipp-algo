@@ -6,6 +6,19 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-05-31) — Plan 2.8 green stddev + webp + grave
+
+- New `scripts/plan_2_8_ledger_green_index_stddev.py` reports the
+  population stddev of green indices.
+- New `scripts/plan_2_8_digest_webp_file_count.py` counts
+  top-level ``.webp`` files.
+- New `scripts/plan_2_8_weekly_summary_grave_char_count.py` counts
+  grave accent characters in the summary.
+- Weekly workflow wires the three new steps after the tilde
+  upload.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six new
+  script+test pairs.
+
 ### Added (2026-05-30) — Plan 2.8 unknown median + jpg + tilde
 
 - New `scripts/plan_2_8_ledger_unknown_index_median.py` reports
