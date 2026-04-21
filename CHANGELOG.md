@@ -6,6 +6,19 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-07-09) — Plan 2.8 field keys + rar + comment
+
+- New `scripts/plan_2_8_ledger_field_key_count.py` counts distinct
+  top-level field keys across ledger records.
+- New `scripts/plan_2_8_digest_rar_file_count.py` counts top-level
+  ``.rar`` files.
+- New `scripts/plan_2_8_weekly_summary_comment_line_count.py` counts
+  Markdown/HTML comment lines.
+- Weekly workflow wires the three new fail-soft step pairs after the
+  table-separator upload.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six new
+  script+test pairs.
+
 ### Added (2026-07-08) — Plan 2.8 unique records + pkg + table-sep
 
 - New `scripts/plan_2_8_ledger_unique_record_count.py` counts unique
