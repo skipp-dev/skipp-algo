@@ -6,6 +6,19 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-07-05) — Plan 2.8 duplicate record + msi + hr-line
+
+- New `scripts/plan_2_8_ledger_duplicate_record_count.py` counts
+  duplicate records via canonical JSON key.
+- New `scripts/plan_2_8_digest_msi_file_count.py` counts top-level
+  ``.msi`` files.
+- New `scripts/plan_2_8_weekly_summary_horizontal_rule_count.py`
+  counts Markdown horizontal-rule lines.
+- Weekly workflow wires the three new steps after the fenced-code
+  upload.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six new
+  script+test pairs.
+
 ### Added (2026-07-04) — Plan 2.8 schema version + rpm + fenced-code
 
 - New `scripts/plan_2_8_ledger_schema_version_count.py` counts
