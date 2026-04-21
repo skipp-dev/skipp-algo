@@ -6,6 +6,16 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-08-01) — Plan 2.8 true values + pyo + comma lines
+
+- `scripts/plan_2_8_ledger_true_value_count.py` counts top-level boolean
+  ``true`` values across ledger JSON-object records.
+- `scripts/plan_2_8_digest_pyo_file_count.py` counts top-level `.pyo`
+  files.
+- `scripts/plan_2_8_weekly_summary_comma_line_count.py` counts lines
+  containing an ASCII `,`.
+- Weekly digest workflow wires three fail-soft compute+upload step pairs.
+
 ### Added (2026-07-31) — Plan 2.8 nested objects + pyc + colon lines
 
 - `scripts/plan_2_8_ledger_nested_object_value_count.py` counts top-level
