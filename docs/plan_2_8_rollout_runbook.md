@@ -425,6 +425,9 @@ read.
 - `tests/test_plan_2_8_ledger_longest_run.py`
 - `tests/test_plan_2_8_digest_size_histogram.py`
 - `tests/test_plan_2_8_weekly_summary_list_stats.py`
+- `tests/test_plan_2_8_ledger_last_n_summary.py`
+- `tests/test_plan_2_8_digest_mean_size.py`
+- `tests/test_plan_2_8_weekly_summary_tables_count.py`
 - `tests/test_plan_2_8_alert_history.py`
 - `tests/test_plan_2_8_alert_history_summary.py`
 - `tests/test_plan_2_8_digest_rollup.py`

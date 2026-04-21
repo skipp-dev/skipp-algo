@@ -6,6 +6,25 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-21) — Plan 2.8 last-N summary + mean size + tables count
+
+- New `scripts/plan_2_8_ledger_last_n_summary.py` reports
+  status counts within the trailing N ledger records;
+  `--last-n 0` means all records.
+- New `scripts/plan_2_8_digest_mean_size.py` reports the
+  arithmetic mean (rounded 2dp) of artifact-dir file sizes
+  alongside file_count and total_bytes; subdirectories
+  ignored.
+- New `scripts/plan_2_8_weekly_summary_tables_count.py`
+  counts pipe-table blocks in the weekly summary (contiguous
+  runs of two or more `|`-prefixed lines); content inside
+  fenced code blocks excluded; single `|` lines are not
+  counted as tables.
+- Weekly workflow wires last-N, mean-size, and tables-count
+  steps after list-stats.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six new
+  script+test pairs.
+
 ### Added (2026-04-21) — Plan 2.8 longest run + size histogram + list stats
 
 - New `scripts/plan_2_8_ledger_longest_run.py` reports the

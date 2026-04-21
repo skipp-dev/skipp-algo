@@ -2506,6 +2506,77 @@ jobs:
           if-no-files-found: ignore
           retention-days: 365
 
+      - name: Plan 2.8 ledger last-N summary
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          ledger="artifacts/plan_2_8_ledger/status_ledger.jsonl"
+          [ -s "${ledger}" ] || exit 0
+          mkdir -p artifacts/plan_2_8_digest
+          python scripts/plan_2_8_ledger_last_n_summary.py \
+            --ledger "${ledger}" \
+            --last-n 10 \
+            --format md \
+            --output artifacts/plan_2_8_digest/last_n_summary.md \
+            > /dev/null
+          true
+
+      - name: Upload Plan 2.8 ledger last-N summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-ledger-last-n-summary
+          path: artifacts/plan_2_8_digest/last_n_summary.md
+          if-no-files-found: ignore
+          retention-days: 365
+
+      - name: Plan 2.8 digest mean size
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          dir="artifacts/plan_2_8_digest"
+          [ -d "${dir}" ] || exit 0
+          python scripts/plan_2_8_digest_mean_size.py \
+            --artifact-dir "${dir}" \
+            --format md \
+            --output artifacts/plan_2_8_digest/mean_size.md \
+            > /dev/null
+          true
+
+      - name: Upload Plan 2.8 digest mean size
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-digest-mean-size
+          path: artifacts/plan_2_8_digest/mean_size.md
+          if-no-files-found: ignore
+          retention-days: 365
+
+      - name: Plan 2.8 weekly summary tables count
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          summary="artifacts/plan_2_8_digest/weekly_summary.md"
+          [ -s "${summary}" ] || exit 0
+          python scripts/plan_2_8_weekly_summary_tables_count.py \
+            --summary "${summary}" \
+            --format md \
+            --output artifacts/plan_2_8_digest/summary_tables_count.md \
+            > /dev/null
+          true
+
+      - name: Upload Plan 2.8 weekly summary tables count
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-weekly-summary-tables-count
+          path: artifacts/plan_2_8_digest/summary_tables_count.md
+          if-no-files-found: ignore
+          retention-days: 365
+
       - name: Open drift-alert issue
         if: steps.resolve_alerts.outputs.has_alerts == 'True'
         env:
