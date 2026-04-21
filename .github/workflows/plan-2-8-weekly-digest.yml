@@ -290,3 +290,27 @@ jobs:
               >> "${GITHUB_STEP_SUMMARY}"
           fi
           true
+
+      - name: Plan 2.8 slice stability (last 8 snapshots)
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          history="$(find artifacts/latest_bench -name plan_2_8_history.jsonl -print -quit)"
+          if [ -z "${history}" ]; then
+            echo "No history found; skipping stability."
+            exit 0
+          fi
+          mkdir -p artifacts/plan_2_8_digest
+          python scripts/plan_2_8_history_stability.py \
+            --history    "${history}" \
+            --window     8 \
+            --min-events "${{ inputs.min_events || '30' }}" \
+            --output     artifacts/plan_2_8_digest/stability.md \
+            > /dev/null
+          if [ -s artifacts/plan_2_8_digest/stability.md ] \
+              && [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+            cat artifacts/plan_2_8_digest/stability.md \
+              >> "${GITHUB_STEP_SUMMARY}"
+          fi
+          true

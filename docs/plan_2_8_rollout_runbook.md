@@ -281,6 +281,21 @@ python scripts/plan_2_8_snooze_admin.py list --active
 python scripts/plan_2_8_snooze_admin.py expire
 ```
 
+### Alert history log
+
+[`scripts/plan_2_8_alert_history.py`](../scripts/plan_2_8_alert_history.py)
+appends every fired drift alert to a long-running JSONL log, keyed by
+`(captured_at, tf, family)` so replays don’t duplicate rows. Useful
+for multi-quarter retrospectives on "which slices kept us noisy?".
+
+### N-week rolling HR trend
+
+[`scripts/plan_2_8_digest_rollup.py`](../scripts/plan_2_8_digest_rollup.py)
+buckets snapshots into ISO weeks (latest wins within a week) and
+emits a sparkline per TF×family over the last N weeks, with the
+first→last `trend_pp` delta. Ideal sidebar for the monthly digest
+to quickly spot sloping slices.
+
 ## Pin-test inventory
 
 - `tests/test_plan_2_8_s0_pine_trend_tf_tooltips.py`
@@ -304,6 +319,8 @@ python scripts/plan_2_8_snooze_admin.py expire
 - `tests/test_plan_2_8_coverage.py`
 - `tests/test_plan_2_8_history_stability.py`
 - `tests/test_plan_2_8_snooze_admin.py`
+- `tests/test_plan_2_8_alert_history.py`
+- `tests/test_plan_2_8_digest_rollup.py`
 - `tests/test_plan_2_8_monthly_digest_workflow.py`
 - `tests/test_plan_2_8_rolling_workflow_rotate_wiring.py`
 - `tests/test_plan_2_8_rolling_workflow_validate_wiring.py`

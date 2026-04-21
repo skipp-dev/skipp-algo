@@ -157,3 +157,17 @@ def test_coverage_step_wired_fail_soft() -> None:
     names = [s.get("name", "") for s in steps]
     assert names.index("Plan 2.8 top movers (30-day window)") \
         < names.index("Plan 2.8 slice coverage")
+
+
+def test_stability_step_wired_fail_soft() -> None:
+    steps = _wf()["jobs"]["weekly-digest"]["steps"]
+    stab = next(s for s in steps
+                if s.get("name") == "Plan 2.8 slice stability (last 8 snapshots)")
+    assert stab["if"].strip() == "always()"
+    run = stab["run"]
+    assert "scripts/plan_2_8_history_stability.py" in run
+    assert "set +e" in run
+    assert run.rstrip().endswith("true")
+    names = [s.get("name", "") for s in steps]
+    assert names.index("Plan 2.8 slice coverage") \
+        < names.index("Plan 2.8 slice stability (last 8 snapshots)")

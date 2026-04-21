@@ -6,6 +6,20 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-21) — Plan 2.8 weekly stability step + alert history + rolling HR trend
+
+- Weekly digest workflow now streams a fail-soft
+  `Plan 2.8 slice stability (last 8 snapshots)` section into the run
+  summary right after slice coverage. +1 pin-test.
+- `scripts/plan_2_8_alert_history.py`: append fired drift alerts to
+  a long-running JSONL log, de-duped on `(captured_at, tf, family)`
+  for replay safety. Atomic rewrite-through-tempfile. Accepts both
+  list-shaped and digest-shaped payloads. +8 tests.
+- `scripts/plan_2_8_digest_rollup.py`: N-week rolling HR trend per
+  slice with sparkline rendering. ISO-week bucketing (latest
+  snapshot wins within a week). +10 tests.
+- Status anchors, runbook, and CHANGELOG refreshed.
+
 ### Added (2026-04-21) — Plan 2.8 weekly coverage step + snooze admin + stability metric
 
 - Weekly digest workflow now streams a fail-soft
