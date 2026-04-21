@@ -1,0 +1,67 @@
+{
+  "schema_version": 1,
+  "name": "f2-contextual-zone-priority-promotion",
+  "plan_reference": "smc_improvement_plan_q3_q4_2026-04-20.md §2.3 F2 + §2.4 G3",
+  "decision_memo": "docs/f2_contextual_promotion_decision_2026-04-21.md",
+  "status": "registered",
+  "registered_at": "2026-04-21",
+
+  "arms": {
+    "control": {
+      "label": "static_global_weights",
+      "calibration_artifact": "artifacts/reports/zone_priority_calibration.json",
+      "description": "In-production global zone-priority weights (lifetime corpus, 10 025 events / 78 pairs)."
+    },
+    "treatment": {
+      "label": "contextual_weights_plus_quality_score",
+      "calibration_artifact": "artifacts/reports/zone_priority_contextual_calibration.json",
+      "description": "Session × vol_regime stratified weights plus FVG quality score from D4 enricher.",
+      "depends_on": [
+        "scripts/fvg_quality_recalibration.py shadow JSON has status=ok",
+        "smc_integration/measurement_evidence._score_zone_event populates ScoredEvent.features"
+      ]
+    }
+  },
+
+  "sprt": {
+    "p0": 0.55,
+    "p1": 0.60,
+    "alpha": 0.05,
+    "beta": 0.20,
+    "max_n": 600,
+    "rationale": "p0=0.55 = lifetime-corpus median family hit-rate; p1=0.60 = +5pp minimum-detectable effect (plan §2.4 G3); alpha=0.05 / beta=0.20 conventional gate; max_n=600 ≈ 30 days at ~20 events/day per arm."
+  },
+
+  "rollback_gate": {
+    "consecutive_worse_runs": 2,
+    "comparison_metric": "calibrated_brier",
+    "rationale": "G2 rollback rule (plan §2.4): if treatment is worse than control on calibrated_brier in 2 consecutive daily rolling-benchmark runs, automatic revert + GitHub-Issue-Ping."
+  },
+
+  "promotion_gate": {
+    "requires": [
+      "sprt.decision == 'accept_h1'",
+      "calibrated_brier delta <= -0.005",
+      "calibrated_ece delta <= -0.005",
+      "hit_rate delta >= -1.0pp",
+      "rollback_gate.consecutive_worse_runs == 0 over the full window"
+    ],
+    "on_promote": [
+      "Update artifacts/reports/zone_priority_calibration.json with contextual weights.",
+      "Bump zone_priority_contextual_calibration.json status from shadow -> production.",
+      "Regenerate Pine exports via scripts/generate_smc_micro_profiles.py.",
+      "Append entry to docs/CALIBRATION_DECISIONS.md with the SPRT report digest."
+    ],
+    "on_reject": [
+      "Keep static global weights; treatment artifact stays shadow-only.",
+      "Append entry to docs/CALIBRATION_DECISIONS.md documenting the H0 acceptance."
+    ]
+  },
+
+  "data_window": {
+    "min_days": 30,
+    "min_events_per_arm": 600,
+    "starts_when": "scripts/fvg_quality_recalibration.py shadow JSON first reports status=ok with n_fvg >= 30 and acceptance criteria met.",
+    "evaluation_cadence": "daily (07:30 UTC, smc-measurement-benchmark-rolling.yml)"
+  }
+}
