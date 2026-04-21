@@ -3755,6 +3755,75 @@ jobs:
           if-no-files-found: ignore
           retention-days: 365
 
+      - name: Plan 2.8 ledger last red
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          ledger="artifacts/plan_2_8_digest/state_ledger.jsonl"
+          [ -s "${ledger}" ] || exit 0
+          python scripts/plan_2_8_ledger_last_red.py \
+            --ledger "${ledger}" \
+            --format md \
+            --output artifacts/plan_2_8_digest/ledger_last_red.md \
+            > /dev/null
+          true
+
+      - name: Upload Plan 2.8 ledger last red
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-ledger-last-red
+          path: artifacts/plan_2_8_digest/ledger_last_red.md
+          if-no-files-found: ignore
+          retention-days: 365
+
+      - name: Plan 2.8 digest per-extension bytes
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          dir="artifacts/plan_2_8_digest"
+          [ -d "${dir}" ] || exit 0
+          python scripts/plan_2_8_digest_per_ext_bytes.py \
+            --artifact-dir "${dir}" \
+            --format md \
+            --output artifacts/plan_2_8_digest/digest_per_ext_bytes.md \
+            > /dev/null
+          true
+
+      - name: Upload Plan 2.8 digest per-extension bytes
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-digest-per-ext-bytes
+          path: artifacts/plan_2_8_digest/digest_per_ext_bytes.md
+          if-no-files-found: ignore
+          retention-days: 365
+
+      - name: Plan 2.8 weekly summary HTML tag count
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          summary="artifacts/plan_2_8_digest/weekly_summary.md"
+          [ -s "${summary}" ] || exit 0
+          python scripts/plan_2_8_weekly_summary_html_tag_count.py \
+            --summary "${summary}" \
+            --format md \
+            --output artifacts/plan_2_8_digest/summary_html_tag_count.md \
+            > /dev/null
+          true
+
+      - name: Upload Plan 2.8 weekly summary HTML tag count
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-weekly-summary-html-tag-count
+          path: artifacts/plan_2_8_digest/summary_html_tag_count.md
+          if-no-files-found: ignore
+          retention-days: 365
+
       - name: Open drift-alert issue
         if: steps.resolve_alerts.outputs.has_alerts == 'True'
         env:

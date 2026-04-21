@@ -6,6 +6,21 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-27) — Plan 2.8 last red + per-ext bytes + HTML tag count
+
+- New `scripts/plan_2_8_ledger_last_red.py` reports the
+  timestamp of the most recent red ledger record.
+- New `scripts/plan_2_8_digest_per_ext_bytes.py` reports
+  total bytes per file extension (``(none)`` bucket for
+  suffix-less files), sorted by bytes descending.
+- New `scripts/plan_2_8_weekly_summary_html_tag_count.py`
+  counts raw HTML tag occurrences while excluding fenced
+  blocks, inline code, and HTML comments.
+- Weekly workflow wires the three new steps after the
+  reference-defs upload.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six
+  new script+test pairs.
+
 ### Added (2026-04-26) — Plan 2.8 first unknown + mtime span + reference defs
 
 - New `scripts/plan_2_8_ledger_first_unknown.py` reports the

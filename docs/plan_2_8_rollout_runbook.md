@@ -479,6 +479,9 @@ read.
 - `tests/test_plan_2_8_ledger_first_unknown.py`
 - `tests/test_plan_2_8_digest_mtime_span.py`
 - `tests/test_plan_2_8_weekly_summary_reference_defs.py`
+- `tests/test_plan_2_8_ledger_last_red.py`
+- `tests/test_plan_2_8_digest_per_ext_bytes.py`
+- `tests/test_plan_2_8_weekly_summary_html_tag_count.py`
 - `tests/test_plan_2_8_alert_history.py`
 - `tests/test_plan_2_8_alert_history_summary.py`
 - `tests/test_plan_2_8_digest_rollup.py`
