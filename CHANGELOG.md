@@ -6,6 +6,18 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-21) — F2 helpers convergence-pin tests
+
+- `tests/test_f2_helpers_convergence.py`: cross-cutting invariants for
+  the 8 F2 helpers — every script exposes a callable `main()`, every
+  CLI accepts `--help` and exits 0 with `usage:` text, revert+promote
+  share `ARCHIVE_SUBDIR_DEFAULT='contextual_calibration.archive'`,
+  both journals live under `artifacts/ci/f2/` (and are distinct files
+  so they cannot clobber each other), `SUMMARY_SCHEMA_VERSION` and
+  `STATUS_SCHEMA_VERSION` are positive integers, and the
+  `f2-rollback` Issue label stays pinned (also referenced verbatim in
+  the workflow YAML). 20 tests, ~1.4 s.
+
 ### Added (2026-04-21) — `--quiet` one-line summary for status inspector
 
 - `scripts/f2_inspect_status.py`: new `render_one_line(status)` helper
