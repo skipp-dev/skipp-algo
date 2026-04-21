@@ -6,6 +6,23 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-21) — Plan 2.8 latest status + longest streak + digest metadata
+
+- New `scripts/plan_2_8_ledger_latest_status.py` emits a tiny
+  artifact with the most recent valid-status record (status +
+  captured_at + run_url); empty or all-invalid ledgers yield
+  `status = "unknown"`.
+- New `scripts/plan_2_8_ledger_longest_streak.py` reports the
+  longest consecutive run of each status (green / amber / red /
+  unknown) with start/end captured_at and length. Records with
+  invalid statuses are dropped before streak computation.
+- New `scripts/plan_2_8_digest_metadata.py` captures
+  generator-side metadata (python version, platform, UTC
+  captured_at, size+mtime of each `plan_2_8_*.py`) so weekly
+  outputs are self-describing.
+- Weekly digest uploads the new `latest_status.json` and
+  `metadata.json` artifacts.
+
 ### Added (2026-04-21) — Plan 2.8 ledger uptime % + file manifest + weekly summary index
 
 - New `scripts/plan_2_8_ledger_uptime_pct.py` computes green

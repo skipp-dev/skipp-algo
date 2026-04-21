@@ -1353,6 +1353,53 @@ jobs:
           if-no-files-found: ignore
           retention-days: 365
 
+      - name: Plan 2.8 latest status
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          ledger="artifacts/plan_2_8_digest/status_ledger.jsonl"
+          if [ ! -s "${ledger}" ]; then
+            echo "No ledger; skipping latest-status."
+            exit 0
+          fi
+          python scripts/plan_2_8_ledger_latest_status.py \
+            --ledger "${ledger}" \
+            --format json \
+            --output artifacts/plan_2_8_digest/latest_status.json \
+            > /dev/null
+          true
+
+      - name: Upload Plan 2.8 latest status
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-latest-status
+          path: artifacts/plan_2_8_digest/latest_status.json
+          if-no-files-found: ignore
+          retention-days: 365
+
+      - name: Plan 2.8 digest metadata
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          python scripts/plan_2_8_digest_metadata.py \
+            --scripts-dir scripts \
+            --format json \
+            --output artifacts/plan_2_8_digest/metadata.json \
+            > /dev/null
+          true
+
+      - name: Upload Plan 2.8 digest metadata
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-digest-metadata
+          path: artifacts/plan_2_8_digest/metadata.json
+          if-no-files-found: ignore
+          retention-days: 365
+
       - name: Open drift-alert issue
         if: steps.resolve_alerts.outputs.has_alerts == 'True'
         env:
