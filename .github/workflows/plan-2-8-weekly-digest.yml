@@ -245,6 +245,34 @@ jobs:
           fi
           true
 
+      - name: Plan 2.8 rollout health
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          d="artifacts/plan_2_8_digest/digest.json"
+          c="artifacts/plan_2_8_digest/coverage.json"
+          s="artifacts/plan_2_8_digest/stability.json"
+          args=""
+          [ -s "${d}" ] && args="${args} --digest ${d}"
+          [ -s "${c}" ] && args="${args} --coverage ${c}"
+          [ -s "${s}" ] && args="${args} --stability ${s}"
+          mkdir -p artifacts/plan_2_8_digest
+          python scripts/plan_2_8_health.py ${args} \
+            --format json \
+            --output artifacts/plan_2_8_digest/health.json \
+            > /dev/null
+          python scripts/plan_2_8_health.py ${args} \
+            --format md \
+            --output artifacts/plan_2_8_digest/health.md \
+            > /dev/null
+          if [ -s artifacts/plan_2_8_digest/health.md ] \
+              && [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+            cat artifacts/plan_2_8_digest/health.md \
+              >> "${GITHUB_STEP_SUMMARY}"
+          fi
+          true
+
       - name: Assemble weekly runcard
         if: always()
         env:
@@ -394,6 +422,12 @@ jobs:
             --min-events "${{ inputs.min_events || '30' }}" \
             --output     artifacts/plan_2_8_digest/coverage.md \
             > /dev/null
+          python scripts/plan_2_8_coverage.py \
+            --history    "${history}" \
+            --min-events "${{ inputs.min_events || '30' }}" \
+            --format     json \
+            --output     artifacts/plan_2_8_digest/coverage.json \
+            > /dev/null
           if [ -s artifacts/plan_2_8_digest/coverage.md ] \
               && [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
             cat artifacts/plan_2_8_digest/coverage.md \
@@ -417,6 +451,13 @@ jobs:
             --window     8 \
             --min-events "${{ inputs.min_events || '30' }}" \
             --output     artifacts/plan_2_8_digest/stability.md \
+            > /dev/null
+          python scripts/plan_2_8_history_stability.py \
+            --history    "${history}" \
+            --window     8 \
+            --min-events "${{ inputs.min_events || '30' }}" \
+            --format     json \
+            --output     artifacts/plan_2_8_digest/stability.json \
             > /dev/null
           if [ -s artifacts/plan_2_8_digest/stability.md ] \
               && [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then

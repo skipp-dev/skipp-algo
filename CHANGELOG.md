@@ -6,6 +6,23 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-21) — Plan 2.8 health step + CHANGELOG slice + runcard index
+
+- Weekly digest workflow runs the rollout-health aggregator after
+  coverage+stability and now also emits `coverage.json` and
+  `stability.json` so the aggregator has structured inputs. Health
+  md is appended to `GITHUB_STEP_SUMMARY`; no fail-on-red in CI.
+- New `scripts/plan_2_8_changelog_digest.py` scrapes dated `Added/
+  Changed/Fixed/Removed (YYYY-MM-DD) - title` entries from
+  `CHANGELOG.md` and renders md/json for status sidebars. Supports
+  `--lookback-days` and `--limit`. +10 tests.
+- New `scripts/plan_2_8_runcard_index.py` scans the digest artifact
+  dir, reports which runcard sections are present/missing/empty,
+  renders md/json, and supports `--min-present` for CI gates. +12
+  tests including section-map lockstep with
+  `plan_2_8_weekly_runcard.SECTION_MAP`.
+- Status anchors, runbook, and CHANGELOG refreshed.
+
 ### Added (2026-04-21) — Plan 2.8 weekly runcard step + monthly ADR queue + rollout health
 
 - Weekly digest workflow now emits a consolidated operator runcard
