@@ -6,6 +6,46 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-21) — Plan 2.8 daily heartbeat + history + ADR-body renderer
+
+- `.github/workflows/plan-2-8-status-daily.yml`: daily 06:15 UTC
+  heartbeat that runs `scripts/plan_2_8_status.py`. Streams the
+  markdown report into `$GITHUB_STEP_SUMMARY`, uploads it as the
+  `plan-2-8-status-report` artifact (30-day retention), and fails
+  the workflow only when a *required* anchor goes missing.
+- `scripts/plan_2_8_history_archive.py`: idempotent JSONL archiver
+  that projects each daily `plan_2_8_tf_family_rollup.json` into a
+  compact per-TF×family snapshot (`captured_at`, `scoring_root`,
+  `files_scanned`, `per_tf`) and appends it to a long-running
+  history file. Dedup key = `(captured_at, scoring_root)`. Tolerates
+  pre-existing corrupt lines without overwriting them.
+- `scripts/plan_2_8_q4_gate_evaluator.py`: new
+  `render_adr_body(verdict)` plus `--format adr` CLI choice. Emits a
+  four-section ADR skeleton (`## Decision`, `## Alternatives
+  considered`, `## Consequences`, `## Evidence`) with the actual gate
+  numbers in-line, ready to pipe straight into
+  `scripts/append_adr.py --alternatives-file …` for the W13
+  decision record. Pass/fail branches each enumerate the
+  corresponding rejected alternatives.
+- `docs/plan_2_8_rollout_runbook.md`: new "Trend history" section
+  with the archiver CLI snippet, expanded "Status quick-check"
+  pointing at the new daily workflow, and the W13 ADR step rewritten
+  to use `--format adr | append_adr.py --alternatives-file`.
+- Pin-tests:
+  - `tests/test_plan_2_8_status_daily_workflow.py` (5 tests — file
+    exists, `schedule` + `workflow_dispatch` triggers, `15 6 * * *`
+    cron, status step wires script + summary streaming, artifact
+    uploaded with `if: always()`).
+  - `tests/test_plan_2_8_history_archive.py` (7 tests — append
+    writes JSONL with projection, idempotence on key, dedup key
+    includes `scoring_root`, tolerates corrupt existing lines,
+    creates parent directories, CLI write+dedup, CLI error path).
+  - `tests/test_plan_2_8_q4_gate_evaluator_adr_body.py` (6 tests —
+    all four ADR sections present, pass-path promotes 2H, fail-path
+    rejects with failed gate name listed, evidence cites all three
+    gates, Brier numbers formatted with sign, CLI `--format adr`
+    emits the decision block).
+
 ### Added (2026-04-21) — Plan 2.8 Phase 2 bundle builder + status helper
 
 - `scripts/plan_2_8_q4_gate_bundle_builder.py`: pure-stdlib builder

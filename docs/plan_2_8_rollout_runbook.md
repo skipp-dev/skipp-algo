@@ -46,13 +46,20 @@ and [`DECISIONS.md`](./DECISIONS.md).
    summary shows the verdict; the JSON is uploaded as the
    `plan-2-8-q4-gate-verdict` artifact (90-day retention).
 
-3. **Record the decision.** Regardless of outcome, append an ADR:
+3. **Record the decision.** Regardless of outcome, append an ADR.
+   The evaluator can render the body skeleton directly:
+
    ```
+   python scripts/plan_2_8_q4_gate_evaluator.py \
+     --bundle artifacts/plan_2_8_q4_gate_bundle.json \
+     --format adr \
+     > /tmp/adr_body.md
+
    python scripts/append_adr.py \
      --slug "<pass|reject> 2H 4th HTF layer" \
-     --decision "<one-liner>" \
+     --decision "<one-liner from /tmp/adr_body.md>" \
      --evidence "artifacts/q4_gate/plan_2_8_q4_gate_verdict.json (overall: <pass|fail>)" \
-     --alternatives-file /tmp/alts.md \
+     --alternatives-file /tmp/adr_body.md \
      --consequences "<operator impact>" \
      --status accepted
    ```
@@ -108,6 +115,25 @@ The helper walks the expected Phase 0–3 anchors (scripts, workflows,
 docs, pin-tests) and emits a markdown report. Exit code `0` =
 required anchors present, `1` = at least one missing.
 
+The daily heartbeat workflow
+[`.github/workflows/plan-2-8-status-daily.yml`](../.github/workflows/plan-2-8-status-daily.yml)
+runs the same script every day at 06:15 UTC and uploads the report
+as the `plan-2-8-status-report` artifact (30-day retention).
+
+## Trend history
+
+Each daily rollup can be folded into a long-running JSONL via:
+
+```
+python scripts/plan_2_8_history_archive.py \
+  --rollup  artifacts/<run>/plan_2_8_tf_family_rollup.json \
+  --history docs/plan_2_8_history.jsonl
+```
+
+The append is idempotent on `(captured_at, scoring_root)` and the
+projection drops the per-symbol noise so the file stays small enough
+to graph in a notebook or spreadsheet.
+
 ## Pin-test inventory
 
 - `tests/test_plan_2_8_s0_pine_trend_tf_tooltips.py`
@@ -117,8 +143,11 @@ required anchors present, `1` = at least one missing.
 - `tests/test_plan_2_8_rolling_workflow_rollup_wiring.py`
 - `tests/test_plan_2_8_q4_gate_bundle_builder.py`
 - `tests/test_plan_2_8_q4_gate_evaluator.py`
+- `tests/test_plan_2_8_q4_gate_evaluator_adr_body.py`
 - `tests/test_plan_2_8_q4_gate_workflow.py`
 - `tests/test_plan_2_8_status.py`
+- `tests/test_plan_2_8_status_daily_workflow.py`
+- `tests/test_plan_2_8_history_archive.py`
 - `tests/test_docs_decisions_adr.py`
 - `tests/test_append_adr.py`
 

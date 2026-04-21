@@ -1,0 +1,47 @@
+name: plan-2.8 status daily
+
+# Daily heartbeat for the Plan 2.8 rollout. Walks the Phase 0-3
+# anchor list (see scripts/plan_2_8_status.py) and fails the workflow
+# only when a *required* anchor goes missing. Markdown report is
+# streamed into the run summary.
+
+on:
+  schedule:
+    - cron: "15 6 * * *"   # 06:15 UTC, before the rolling-bench job
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  status:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Run plan-2.8 status report
+        id: report
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/plan_2_8_status
+          python scripts/plan_2_8_status.py \
+            --format md \
+            --output artifacts/plan_2_8_status/report.md \
+            | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload status report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-status-report
+          path: artifacts/plan_2_8_status/report.md
+          if-no-files-found: warn
+          retention-days: 30

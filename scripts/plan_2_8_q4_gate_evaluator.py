@@ -176,6 +176,93 @@ def render_markdown(verdict: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def render_adr_body(verdict: dict[str, Any]) -> str:
+    """Render an ADR-shaped decision/alternatives/consequences/evidence body.
+
+    The output is meant to be piped into ``scripts/append_adr.py``
+    (typically via ``--decision``, ``--alternatives-file`` and
+    ``--consequences``) so the W13 reject/accept decision lands in
+    ``docs/DECISIONS.md`` with the actual gate numbers in-line.
+
+    The body is structured as four ``## <section>`` blocks so callers
+    can split on the headers to isolate fields.
+    """
+    overall = verdict.get("overall", "?")
+    gates = verdict.get("gates") or {}
+    br = verdict.get("brier") or {}
+
+    g1 = gates.get("G1_uplift", {})
+    g2 = gates.get("G2_brier", {})
+    g3 = gates.get("G3_min_events", {})
+
+    decision = (
+        "Promote 2H 4th HTF trend layer over the 3-TF baseline."
+        if overall == "pass"
+        else "Reject 2H 4th HTF trend layer; keep the 3-TF baseline."
+    )
+
+    failed = [name for name, g in gates.items() if not g.get("passed")]
+    if overall == "pass":
+        alts_lines = [
+            "- *Reject 2H promotion.* Rejected: all three Q4 gates passed.",
+            "- *Defer to next 13-week window.* Rejected: no remaining "
+            "unknowns once the gates pass.",
+        ]
+    else:
+        alts_lines = [
+            "- *Promote 2H layer anyway.* Rejected: would bypass at least "
+            f"one failed Q4 gate ({', '.join(failed) or 'none'}).",
+            "- *Defer 13 weeks and re-run gates after more data accrues.* "
+            "Recommended fallback when only G3 (events) is the blocker.",
+            "- *Drop the 2H investigation entirely.* Rejected: addendum "
+            "S6 explicitly schedules a single retry window.",
+        ]
+
+    consequences = (
+        "4th trend layer (2H) becomes part of the runtime stack; calibration "
+        "story expands; downstream Pine Trend TF inputs may need a 4th slot."
+        if overall == "pass"
+        else (
+            "Backlog item stays on the 13-week deferral track. The 3-TF "
+            "baseline (4H/1D/1W) remains the production stack. "
+            "Re-evaluate at the next addendum-S6 window."
+        )
+    )
+
+    lines: list[str] = []
+    lines.append("## Decision")
+    lines.append("")
+    lines.append(decision)
+    lines.append("")
+    lines.append("## Alternatives considered")
+    lines.append("")
+    lines.extend(alts_lines)
+    lines.append("")
+    lines.append("## Consequences")
+    lines.append("")
+    lines.append(consequences)
+    lines.append("")
+    lines.append("## Evidence")
+    lines.append("")
+    lines.append(f"- overall: `{overall}`")
+    lines.append(
+        f"- G1 uplift: passed={g1.get('passed')!r}, "
+        f"buckets={g1.get('uplift_bucket_count')!r} "
+        f"({', '.join(g1.get('uplift_buckets') or []) or 'none'})"
+    )
+    lines.append(
+        f"- G2 Brier: passed={g2.get('passed')!r}, "
+        f"regression={g2.get('brier_regression', 0.0):+.4f} "
+        f"(baseline={br.get('baseline', 0.0):.4f}, "
+        f"candidate={br.get('candidate', 0.0):.4f})"
+    )
+    lines.append(
+        f"- G3 min-events: passed={g3.get('passed')!r}, "
+        f"under_threshold={', '.join(g3.get('under_threshold_buckets') or []) or 'none'}"
+    )
+    return "\n".join(lines)
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Evaluate Plan 2.8 Q4-gate (addendum §3.2).",
@@ -188,8 +275,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--min-events-per-bucket", type=int, default=DEFAULT_MIN_EVENTS_PER_BUCKET)
     parser.add_argument("--output", type=Path, default=None,
                         help="Optional path to write the verdict JSON.")
-    parser.add_argument("--format", choices=("md", "json"), default="md",
-                        help="Stdout format (default: md).")
+    parser.add_argument("--format", choices=("md", "json", "adr"), default="md",
+                        help="Stdout format (default: md). 'adr' renders an "
+                             "ADR-body skeleton suitable for append_adr.py.")
     parser.add_argument("--quiet", action="store_true",
                         help="Suppress stdout body; still writes --output if given.")
     args = parser.parse_args(argv)
@@ -214,6 +302,8 @@ def main(argv: list[str] | None = None) -> int:
     if not args.quiet:
         if args.format == "md":
             print(render_markdown(verdict))
+        elif args.format == "adr":
+            print(render_adr_body(verdict))
         else:
             print(json.dumps(verdict, indent=2))
     return 0
