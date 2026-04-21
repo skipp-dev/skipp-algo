@@ -1,0 +1,86 @@
+"""Plan 2.8 weekly summary table count.
+
+Counts Markdown pipe-tables in the weekly summary outside
+fenced code blocks. A table is detected by a header row
+(``| a | b |``) followed by a separator row with dashes
+(``| --- | --- |``). Pipes inside fenced code blocks do not
+count.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import re
+import sys
+from pathlib import Path
+from typing import Any
+
+
+_FENCE = re.compile(r"^```")
+_SEP = re.compile(r"^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*$")
+
+
+def _is_header(line: str) -> bool:
+    s = line.strip()
+    if "|" not in s:
+        return False
+    cells = [c.strip() for c in s.strip("|").split("|")]
+    return any(c for c in cells) and len(cells) >= 2
+
+
+def compute(path: Path) -> dict[str, Any]:
+    if not path.exists():
+        return {"schema_version": 1, "table_count": 0}
+    in_fence = False
+    prev: str | None = None
+    count = 0
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if _FENCE.match(line.lstrip()):
+            in_fence = not in_fence
+            prev = None
+            continue
+        if in_fence:
+            prev = None
+            continue
+        if prev is not None and _SEP.match(line) and _is_header(prev):
+            count += 1
+            prev = None
+            continue
+        prev = line
+    return {"schema_version": 1, "table_count": count}
+
+
+def render_markdown(report: dict[str, Any]) -> str:
+    return (
+        "# Plan 2.8 weekly summary table count\n"
+        "\n"
+        f"- table_count: {report['table_count']}\n"
+    )
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        description="Count Markdown pipe-tables in weekly summary.",
+    )
+    parser.add_argument("--summary", type=Path, required=True)
+    parser.add_argument("--format", choices=("md", "json"), default="md")
+    parser.add_argument("--output", type=Path, default=None)
+    args = parser.parse_args(argv)
+
+    if not args.summary.exists():
+        print(f"ERROR: summary not found: {args.summary}", file=sys.stderr)
+        return 1
+
+    report = compute(args.summary)
+    body = render_markdown(report) if args.format == "md" \
+        else json.dumps(report, indent=2) + "\n"
+    if args.output is not None:
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        args.output.write_text(body, encoding="utf-8")
+    print(body, end="")
+    return 0
+
+
+if __name__ == "__main__":  # pragma: no cover
+    raise SystemExit(main())

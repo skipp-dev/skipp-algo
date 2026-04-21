@@ -6,6 +6,21 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-21) — Plan 2.8 unique statuses + size sum + table count
+
+- New `scripts/plan_2_8_ledger_unique_statuses.py` lists the
+  distinct valid statuses seen in the ledger with per-status
+  counts (``--fail-below-count`` for CI).
+- New `scripts/plan_2_8_digest_size_sum.py` reports the total
+  byte size of artifact-dir files (``--fail-above-bytes``).
+- New `scripts/plan_2_8_weekly_summary_table_count.py` counts
+  Markdown pipe-tables in the weekly summary (fenced code
+  excluded).
+- Weekly workflow wires the three new steps after the
+  inline-code upload.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six
+  new script+test pairs.
+
 ### Added (2026-04-21) — Plan 2.8 median gap + empty ratio + inline-code count
 
 - New `scripts/plan_2_8_ledger_median_gap.py` reports the
