@@ -127,6 +127,124 @@ def build_benchmark(
     )
 
 
+# --- D2: tri-axis FVG breakdown (Plan §2.1 D2) ---
+
+# Minimum events per (session × htf_bias × vol_regime) bucket required
+# before a hit-rate is considered statistically meaningful. Buckets
+# below the floor are reported with ``insufficient = True`` and a
+# ``hit_rate`` of ``None`` so downstream consumers cannot accidentally
+# act on noise. Five matches the project-wide minimum already used in
+# benchmark KPIs.
+_FVG_BUCKET_MIN_EVENTS = 5
+
+
+@dataclass(slots=True, frozen=True)
+class StratifiedFvgBucket:
+    """Single (session × htf_bias × vol_regime) cell of the D2 report."""
+
+    session: str
+    htf_bias: str
+    vol_regime: str
+    n_events: int
+    hits: int
+    hit_rate: float | None
+    insufficient: bool
+
+
+def stratified_fvg_report(
+    events: list[dict[str, Any]],
+    *,
+    min_events: int = _FVG_BUCKET_MIN_EVENTS,
+) -> dict[str, Any]:
+    """Plan §2.1 D2 — tri-axis FVG hit-rate report.
+
+    Aggregates evaluated FVG events by ``session × htf_bias × vol_regime``
+    and returns a deterministic, JSON-serialisable summary suitable for
+    the dashboard's FVG Health tooltip and the calibration report.
+
+    Each event must expose ``hit`` (bool / int) plus the three context
+    keys (``session``, ``htf_bias``, ``vol_regime``). Missing keys fall
+    back to ``"UNKNOWN"`` so the report stays defensive against partial
+    inputs.
+
+    The function intentionally returns ``hit_rate = None`` for buckets
+    below ``min_events`` rather than zero — a 0% hit rate from one event
+    is not the same signal as a 0% hit rate from 25 events, and
+    flattening them would silently lie to the operator.
+
+    The output also includes an ``actionable_buckets`` list of
+    ``(bucket_key, hit_rate, n_events)`` tuples for buckets that meet
+    the floor and exceed ``hit_rate >= 0.70`` — these are the contexts
+    that the plan requires before FVG can be promoted from a tie-breaker
+    to a contextual gate (Phase F2 wiring).
+    """
+    by_bucket: dict[tuple[str, str, str], list[int]] = {}
+    for event in events:
+        if not isinstance(event, dict):
+            continue
+        session = str(event.get("session") or "UNKNOWN").strip().upper() or "UNKNOWN"
+        htf_bias = str(event.get("htf_bias") or "UNKNOWN").strip().upper() or "UNKNOWN"
+        vol_regime = str(event.get("vol_regime") or "UNKNOWN").strip().upper() or "UNKNOWN"
+        hit_raw = event.get("hit", False)
+        hit_val = 1 if bool(hit_raw) else 0
+        by_bucket.setdefault((session, htf_bias, vol_regime), []).append(hit_val)
+
+    buckets: list[StratifiedFvgBucket] = []
+    for (session, htf_bias, vol_regime), hits in sorted(by_bucket.items()):
+        n_events = len(hits)
+        hit_count = sum(hits)
+        insufficient = n_events < min_events
+        hit_rate = None if insufficient else round(hit_count / n_events, 4)
+        buckets.append(
+            StratifiedFvgBucket(
+                session=session,
+                htf_bias=htf_bias,
+                vol_regime=vol_regime,
+                n_events=n_events,
+                hits=hit_count,
+                hit_rate=hit_rate,
+                insufficient=insufficient,
+            )
+        )
+
+    actionable = [
+        {
+            "session": b.session,
+            "htf_bias": b.htf_bias,
+            "vol_regime": b.vol_regime,
+            "n_events": b.n_events,
+            "hit_rate": b.hit_rate,
+        }
+        for b in buckets
+        if not b.insufficient and b.hit_rate is not None and b.hit_rate >= 0.70
+    ]
+
+    total_events = sum(b.n_events for b in buckets)
+    total_hits = sum(b.hits for b in buckets)
+    overall_hit_rate = round(total_hits / total_events, 4) if total_events else None
+
+    return {
+        "min_events": min_events,
+        "total_events": total_events,
+        "total_buckets": len(buckets),
+        "actionable_bucket_count": len(actionable),
+        "overall_hit_rate": overall_hit_rate,
+        "buckets": [
+            {
+                "session": b.session,
+                "htf_bias": b.htf_bias,
+                "vol_regime": b.vol_regime,
+                "n_events": b.n_events,
+                "hits": b.hits,
+                "hit_rate": b.hit_rate,
+                "insufficient": b.insufficient,
+            }
+            for b in buckets
+        ],
+        "actionable_buckets": actionable,
+    }
+
+
 # --- Artifact manifest ---
 
 
