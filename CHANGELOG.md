@@ -6,6 +6,19 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-05-01) — Plan 2.8 observations + binary + heading
+
+- New `scripts/plan_2_8_ledger_observation_count.py` reports
+  total valid status observations.
+- New `scripts/plan_2_8_digest_binary_file_count.py` counts
+  top-level files containing NUL bytes.
+- New `scripts/plan_2_8_weekly_summary_starts_with_heading.py`
+  probes whether the summary starts with an H1 line.
+- Weekly workflow wires the three new steps after the
+  trailing-newline upload.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six
+  new script+test pairs.
+
 ### Added (2026-04-30) — Plan 2.8 variance + regular files + trailing NL
 
 - New `scripts/plan_2_8_ledger_run_length_variance.py`
