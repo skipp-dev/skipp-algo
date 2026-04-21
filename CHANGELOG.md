@@ -6,6 +6,26 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-21) — Plan 2.8 status ledger append + summariser
+
+- New `scripts/plan_2_8_status_ledger.py` appends a single
+  JSONL observation (`captured_at`, `status`, optional
+  `run_url`) each week, carrying over the prior weekly
+  artifact by downloading `plan-2-8-status-ledger` via
+  `dawidd6/action-download-artifact@v6` with
+  `name_is_regexp: true`. Handles both status-snapshot and
+  bare health-rollup payloads. +14 tests with weekly-workflow
+  pin-tests for download + append + upload steps.
+- New `scripts/plan_2_8_status_ledger_summarize.py` summarises
+  the ledger into `{counts, total, pct_green, current_status,
+  current_streak, last_flip}`, tolerating blank and malformed
+  lines. Supports md/json output. +14 tests including a
+  weekly-workflow pin-test.
+- Weekly digest chains download→append→upload→summary, attaches
+  the summary to the job summary, and uploads both the ledger
+  and its summary (365d).
+- Status anchors, runbook, and CHANGELOG refreshed.
+
 ### Added (2026-04-21) — Plan 2.8 alert trend gate + digest-vs-coverage projection + runbook section check
 
 - New `scripts/plan_2_8_alert_trend_gate.py` turns the trend JSON

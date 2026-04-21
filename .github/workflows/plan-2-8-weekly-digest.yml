@@ -926,6 +926,88 @@ jobs:
           if-no-files-found: ignore
           retention-days: 365
 
+      - name: Download prior Plan 2.8 status ledger
+        if: always()
+        continue-on-error: true
+        uses: dawidd6/action-download-artifact@v6
+        with:
+          workflow:       plan-2-8-weekly-digest.yml
+          workflow_conclusion: ''
+          name:           plan-2-8-status-ledger
+          name_is_regexp: true
+          path:           artifacts/plan_2_8_prior_ledger
+          if_no_artifact_found: warn
+
+      - name: Plan 2.8 status ledger append
+        if: always()
+        shell: bash
+        env:
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set +e
+          snap="artifacts/plan_2_8_digest/status_snapshot.json"
+          health="artifacts/plan_2_8_digest/rollout_health.json"
+          if [ -s "${snap}" ]; then
+            input="${snap}"
+          elif [ -s "${health}" ]; then
+            input="${health}"
+          else
+            echo "No snapshot or health JSON; skipping ledger append."
+            exit 0
+          fi
+          mkdir -p artifacts/plan_2_8_digest
+          ledger="artifacts/plan_2_8_digest/status_ledger.jsonl"
+          prior="$(find artifacts/plan_2_8_prior_ledger -name status_ledger.jsonl -print -quit)"
+          if [ -n "${prior}" ] && [ -s "${prior}" ]; then
+            cp "${prior}" "${ledger}"
+          fi
+          python scripts/plan_2_8_status_ledger.py \
+            --input   "${input}" \
+            --ledger  "${ledger}" \
+            --run-url "${RUN_URL}" \
+            > /dev/null
+          true
+
+      - name: Upload Plan 2.8 status ledger
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-status-ledger
+          path: artifacts/plan_2_8_digest/status_ledger.jsonl
+          if-no-files-found: ignore
+          retention-days: 365
+
+      - name: Plan 2.8 status ledger summary
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          ledger="artifacts/plan_2_8_digest/status_ledger.jsonl"
+          if [ ! -s "${ledger}" ]; then
+            echo "No ledger to summarise; skipping."
+            exit 0
+          fi
+          python scripts/plan_2_8_status_ledger_summarize.py \
+            --ledger "${ledger}" \
+            --format md \
+            --output artifacts/plan_2_8_digest/status_ledger_summary.md \
+            > /dev/null
+          if [ -s artifacts/plan_2_8_digest/status_ledger_summary.md ] \
+              && [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+            cat artifacts/plan_2_8_digest/status_ledger_summary.md \
+              >> "${GITHUB_STEP_SUMMARY}"
+          fi
+          true
+
+      - name: Upload Plan 2.8 status ledger summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-status-ledger-summary
+          path: artifacts/plan_2_8_digest/status_ledger_summary.md
+          if-no-files-found: ignore
+          retention-days: 365
+
       - name: Open drift-alert issue
         if: steps.resolve_alerts.outputs.has_alerts == 'True'
         env:
