@@ -446,6 +446,9 @@ read.
 - `tests/test_plan_2_8_ledger_unknown_ratio.py`
 - `tests/test_plan_2_8_digest_empty_files.py`
 - `tests/test_plan_2_8_weekly_summary_hr_count.py`
+- `tests/test_plan_2_8_ledger_median_gap.py`
+- `tests/test_plan_2_8_digest_empty_ratio.py`
+- `tests/test_plan_2_8_weekly_summary_inline_code_count.py`
 - `tests/test_plan_2_8_alert_history.py`
 - `tests/test_plan_2_8_alert_history_summary.py`
 - `tests/test_plan_2_8_digest_rollup.py`

@@ -1,0 +1,72 @@
+r"""Plan 2.8 weekly summary inline-code count.
+
+Counts single-backtick inline-code spans (``\`x\```) in the
+weekly summary outside fenced code blocks. A span requires
+non-empty content between two backticks on the same line.
+Double-backtick or longer runs used as span delimiters are
+not matched; this helper targets the common single-backtick
+case used by the digest output.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import re
+import sys
+from pathlib import Path
+from typing import Any
+
+
+_FENCE = re.compile(r"^```")
+_INLINE = re.compile(r"(?<!`)`([^`\n]+?)`(?!`)")
+
+
+def compute(path: Path) -> dict[str, Any]:
+    if not path.exists():
+        return {"schema_version": 1, "inline_code_count": 0}
+    in_fence = False
+    count = 0
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if _FENCE.match(line.lstrip()):
+            in_fence = not in_fence
+            continue
+        if in_fence:
+            continue
+        count += len(_INLINE.findall(line))
+    return {"schema_version": 1, "inline_code_count": count}
+
+
+def render_markdown(report: dict[str, Any]) -> str:
+    return (
+        "# Plan 2.8 weekly summary inline-code count\n"
+        "\n"
+        f"- inline_code_count: {report['inline_code_count']}\n"
+    )
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        description="Count inline-code spans in weekly summary.",
+    )
+    parser.add_argument("--summary", type=Path, required=True)
+    parser.add_argument("--format", choices=("md", "json"), default="md")
+    parser.add_argument("--output", type=Path, default=None)
+    args = parser.parse_args(argv)
+
+    if not args.summary.exists():
+        print(f"ERROR: summary not found: {args.summary}", file=sys.stderr)
+        return 1
+
+    report = compute(args.summary)
+    body = render_markdown(report) if args.format == "md" \
+        else json.dumps(report, indent=2) + "\n"
+    if args.output is not None:
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        args.output.write_text(body, encoding="utf-8")
+    print(body, end="")
+    return 0
+
+
+if __name__ == "__main__":  # pragma: no cover
+    raise SystemExit(main())

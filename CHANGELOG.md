@@ -6,6 +6,22 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-21) — Plan 2.8 median gap + empty ratio + inline-code count
+
+- New `scripts/plan_2_8_ledger_median_gap.py` reports the
+  median gap in hours between consecutive ledger captures
+  (``--fail-above-hours`` for CI).
+- New `scripts/plan_2_8_digest_empty_ratio.py` reports the
+  share of zero-byte files in the artifact directory
+  (``--fail-above-ratio`` for CI).
+- New `scripts/plan_2_8_weekly_summary_inline_code_count.py`
+  counts single-backtick inline-code spans in the weekly
+  summary (fenced code excluded).
+- Weekly workflow wires the three new steps after the
+  horizontal-rule upload.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six
+  new script+test pairs.
+
 ### Added (2026-04-21) — Plan 2.8 unknown ratio + empty files + hr count
 
 - New `scripts/plan_2_8_ledger_unknown_ratio.py` mirrors the
