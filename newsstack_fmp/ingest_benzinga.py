@@ -522,21 +522,29 @@ class BenzingaWsAdapter:
             logger.error("BenzingaWsAdapter requires 'websockets' package.  pip install websockets")
             return
 
+        # Benzinga WS authenticates via ?token=<key> query string.
+        # The Authorization header path returns HTTP 401.  Verified live 2026-04-21.
+        sep = "&" if "?" in self.ws_url else "?"
+        connect_url = f"{self.ws_url}{sep}token={self.api_key}"
+        masked_url = f"{self.ws_url}{sep}token=***"
+
         backoff = 1.0
         while not self._stop_event.is_set():
             try:
                 async with websockets.connect(
-                    self.ws_url,
-                    additional_headers={"Authorization": f"Token {self.api_key}"},
+                    connect_url,
                     ping_interval=20,
                     ping_timeout=20,
                 ) as ws:
-                    logger.info("BenzingaWsAdapter: connected to %s", self.ws_url)
+                    logger.info("BenzingaWsAdapter: connected to %s", masked_url)
                     backoff = 1.0
 
-                    # Auth / subscribe handshake (adjust to real Benzinga WS protocol)
+                    # Optional subscribe handshake; server pushes news regardless.
                     auth_msg = json.dumps({"action": "subscribe", "data": {"streams": ["news"]}})
-                    await ws.send(auth_msg)
+                    try:
+                        await ws.send(auth_msg)
+                    except Exception:
+                        pass
 
                     async for message in ws:
                         if self._stop_event.is_set():
@@ -579,14 +587,31 @@ class BenzingaWsAdapter:
 
     @staticmethod
     def _extract_payloads(msg: Any) -> list[dict[str, Any]]:
-        """Unpack WS message into a list of raw dicts."""
+        """Unpack WS message into a list of raw dicts.
+
+        Benzinga's live WS (api_version=websocket/v1, kind=News/v1) wraps the
+        actual article in ``msg["data"]["content"]``.  Older/simulated messages
+        may put the article directly under ``msg["data"]`` or at the top level.
+        """
+
+        def _unwrap_content(d: dict[str, Any]) -> dict[str, Any]:
+            content = d.get("content")
+            if isinstance(content, dict):
+                merged = dict(content)
+                # Preserve envelope action/id without overwriting content fields.
+                for k in ("action",):
+                    if k in d and k not in merged:
+                        merged[k] = d[k]
+                return merged
+            return d
+
         if isinstance(msg, dict) and "data" in msg:
             data = msg["data"]
             if isinstance(data, list):
-                return [d for d in data if isinstance(d, dict)]
-            return [data] if isinstance(data, dict) else []
+                return [_unwrap_content(d) for d in data if isinstance(d, dict)]
+            return [_unwrap_content(data)] if isinstance(data, dict) else []
         if isinstance(msg, list):
-            return [m for m in msg if isinstance(m, dict)]
+            return [_unwrap_content(m) for m in msg if isinstance(m, dict)]
         if isinstance(msg, dict):
-            return [msg]
+            return [_unwrap_content(msg)]
         return []
