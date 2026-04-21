@@ -4445,6 +4445,75 @@ jobs:
           if-no-files-found: ignore
           retention-days: 365
 
+      - name: Plan 2.8 ledger stddev run length
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          ledger="artifacts/plan_2_8_digest/state_ledger.jsonl"
+          [ -s "${ledger}" ] || exit 0
+          python scripts/plan_2_8_ledger_stddev_run_length.py \
+            --ledger "${ledger}" \
+            --format md \
+            --output artifacts/plan_2_8_digest/ledger_stddev_run_length.md \
+            > /dev/null
+          true
+
+      - name: Upload Plan 2.8 ledger stddev run length
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-ledger-stddev-run-length
+          path: artifacts/plan_2_8_digest/ledger_stddev_run_length.md
+          if-no-files-found: ignore
+          retention-days: 365
+
+      - name: Plan 2.8 digest file count by ext
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          dir="artifacts/plan_2_8_digest"
+          [ -d "${dir}" ] || exit 0
+          python scripts/plan_2_8_digest_file_count_by_ext.py \
+            --artifact-dir "${dir}" \
+            --format md \
+            --output artifacts/plan_2_8_digest/digest_file_count_by_ext.md \
+            > /dev/null
+          true
+
+      - name: Upload Plan 2.8 digest file count by ext
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-digest-file-count-by-ext
+          path: artifacts/plan_2_8_digest/digest_file_count_by_ext.md
+          if-no-files-found: ignore
+          retention-days: 365
+
+      - name: Plan 2.8 weekly summary whitespace ratio
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          summary="artifacts/plan_2_8_digest/weekly_summary.md"
+          [ -s "${summary}" ] || exit 0
+          python scripts/plan_2_8_weekly_summary_whitespace_ratio.py \
+            --summary "${summary}" \
+            --format md \
+            --output artifacts/plan_2_8_digest/summary_whitespace_ratio.md \
+            > /dev/null
+          true
+
+      - name: Upload Plan 2.8 weekly summary whitespace ratio
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-weekly-summary-whitespace-ratio
+          path: artifacts/plan_2_8_digest/summary_whitespace_ratio.md
+          if-no-files-found: ignore
+          retention-days: 365
+
       - name: Open drift-alert issue
         if: steps.resolve_alerts.outputs.has_alerts == 'True'
         env:

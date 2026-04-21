@@ -509,6 +509,9 @@ read.
 - `tests/test_plan_2_8_ledger_median_run_length.py`
 - `tests/test_plan_2_8_digest_empty_file_count.py`
 - `tests/test_plan_2_8_weekly_summary_non_blank_line_count.py`
+- `tests/test_plan_2_8_ledger_stddev_run_length.py`
+- `tests/test_plan_2_8_digest_file_count_by_ext.py`
+- `tests/test_plan_2_8_weekly_summary_whitespace_ratio.py`
 - `tests/test_plan_2_8_alert_history.py`
 - `tests/test_plan_2_8_alert_history_summary.py`
 - `tests/test_plan_2_8_digest_rollup.py`
