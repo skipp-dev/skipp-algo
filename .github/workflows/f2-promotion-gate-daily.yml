@@ -138,6 +138,20 @@ jobs:
           fi
           exit 1
 
+      - name: Append rollback history
+        # Run BEFORE annotate/upload so the bounded-ring file the next
+        # day's gate consumes is part of this run's uploaded artifact.
+        # Skip on rollback rc=2 to avoid double-counting after the
+        # gate already tripped (next manual review owns the reset).
+        if: steps.locate.outputs.status == 'ready' && steps.gate.outputs.rc == '0'
+        run: |
+          mkdir -p artifacts/ci/f2
+          python scripts/f2_append_rollback_history.py \
+            --report  "${{ steps.gate.outputs.report }}" \
+            --history artifacts/ci/f2/rollback_history.json \
+            --metric  calibrated_brier \
+            --max-len 30
+
       - name: Annotate decision
         if: always() && steps.locate.outputs.status == 'ready'
         run: |
@@ -150,6 +164,7 @@ jobs:
           name: f2-promotion-gate-${{ steps.date.outputs.value }}-${{ github.run_id }}
           path: |
             artifacts/reports/f2_promotion_gate_*.json
+            artifacts/ci/f2/rollback_history.json
             gate_stdout.json
           if-no-files-found: ignore
           retention-days: 60

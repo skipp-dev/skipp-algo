@@ -6,6 +6,26 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-21) — Q3/Q4 Plan §2.4 G2 rollback-history feedback loop
+
+- **F2 rollback-history append helper:** New
+  `scripts/f2_append_rollback_history.py` reads the daily promotion-
+  gate JSON report and appends the `calibrated_brier` `delta`
+  (treatment − control) to a bounded JSON ring at
+  `artifacts/ci/f2/rollback_history.json` (default `--max-len 30`,
+  configurable). Atomic write via tempfile + `os.replace`. CLI exit
+  codes: `0` on success, `1` on missing report / malformed JSON /
+  missing metric. 12 new tests; 100 total green across the
+  F2/SPRT/AB chain.
+- **F2 daily workflow wiring:** Updated
+  `.github/workflows/f2-promotion-gate-daily.yml` to invoke the
+  helper after a green gate run (`steps.gate.outputs.rc == '0'`)
+  and include `artifacts/ci/f2/rollback_history.json` in the
+  uploaded artifact bundle. Skipped when the gate already exited
+  with `rc=2` (rollback) so the next manual review owns the reset.
+  Closes the loop: the file the helper produces is exactly the
+  `--rollback-history` input the next day's gate consumes.
+
 ### Added (2026-04-21) — Q3/Q4 Plan §2.3 F2 daily workflow
 
 - **F2 promotion-gate daily workflow (plan §2.3 F2 + §2.4 G3):** New
