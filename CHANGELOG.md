@@ -6,6 +6,19 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-05-25) — Plan 2.8 last transition + bz2 + equal
+
+- New `scripts/plan_2_8_ledger_last_transition_index.py` surfaces
+  the last status change index.
+- New `scripts/plan_2_8_digest_bz2_file_count.py` counts top-level
+  ``.bz2`` files.
+- New `scripts/plan_2_8_weekly_summary_equal_char_count.py` counts
+  ``=`` characters in the summary.
+- Weekly workflow wires the three new steps after the minus-count
+  upload.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six new
+  script+test pairs.
+
 ### Added (2026-05-24) — Plan 2.8 first transition + gz + minus
 
 - New `scripts/plan_2_8_ledger_first_transition_index.py` surfaces
