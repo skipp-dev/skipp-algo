@@ -6,6 +6,26 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-21) — Plan 2.8 weekly archive+compare + compact status runcard + history prune
+
+- Weekly digest workflow now downloads the prior
+  `plan-2-8-digest-archive` artifact, archives the fresh
+  `digest.json` under its `captured_at` date, and when at least
+  two dated archives exist compares them via
+  `plan_2_8_digest_compare.py`; results are appended to the step
+  summary and the rotating archive is re-uploaded (365d).
+- New `scripts/plan_2_8_runcard_from_status.py` renders a slim
+  one-page status runcard from machine-readable JSON
+  (`status_snapshot.json`, `runcard_index.json`, `health.json`).
+  Missing inputs render as `n/a` / unknown. +9 tests plus 2
+  workflow pin-tests for archive+compare wiring.
+- New `scripts/plan_2_8_history_prune.py` prunes
+  `plan_2_8_history.jsonl` to the last N days (default 365),
+  atomic rewrite, `--dry-run`, `--drop-undated`, `--output`.
+  Malformed JSON lines are counted, blank lines ignored. +10
+  tests.
+- Status anchors, runbook, and CHANGELOG refreshed.
+
 ### Added (2026-04-21) — Plan 2.8 weekly snapshot + TOC steps + digest archive helper
 
 - Weekly digest workflow now writes a `runbook_toc.md/json` via

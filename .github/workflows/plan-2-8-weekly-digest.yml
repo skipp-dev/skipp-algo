@@ -436,6 +436,80 @@ jobs:
           if-no-files-found: ignore
           retention-days: 365
 
+      - name: Download Plan 2.8 digest archive
+        if: always()
+        continue-on-error: true
+        uses: dawidd6/action-download-artifact@v6
+        with:
+          name: plan-2-8-digest-archive
+          name_is_regexp: true
+          path: artifacts/_download/plan_2_8_digest_archive
+          workflow: plan-2-8-weekly-digest.yml
+          workflow_conclusion: ""
+          if_no_artifact_found: warn
+
+      - name: Plan 2.8 digest archive + weekly compare
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          digest="artifacts/plan_2_8_digest/digest.json"
+          if [ ! -s "${digest}" ]; then
+            echo "No digest.json; skipping archive+compare."
+            exit 0
+          fi
+          # Prime archive dir with any previously-uploaded snapshots.
+          mkdir -p artifacts/plan_2_8_digest_archive
+          if compgen -G "artifacts/_download/plan_2_8_digest_archive/**/*.json" > /dev/null; then
+            cp -n artifacts/_download/plan_2_8_digest_archive/**/*.json \
+              artifacts/plan_2_8_digest_archive/ 2>/dev/null
+          fi
+          python scripts/plan_2_8_digest_archive.py \
+            --digest      "${digest}" \
+            --archive-dir artifacts/plan_2_8_digest_archive \
+            --keep        26 \
+            --emit-latest-two \
+            > artifacts/plan_2_8_digest/archive_report.txt
+          # Last two lines of the report are the archive paths; diff if >=2.
+          paths=$(tail -n 2 artifacts/plan_2_8_digest/archive_report.txt)
+          count=$(echo "${paths}" | wc -l | tr -d ' ')
+          if [ "${count}" -ge 2 ]; then
+            baseline=$(echo "${paths}" | head -n 1)
+            current=$( echo "${paths}" | tail -n 1)
+            if [ "${baseline}" != "${current}" ]; then
+              python scripts/plan_2_8_digest_compare.py \
+                --baseline "${baseline}" \
+                --current  "${current}" \
+                --output   artifacts/plan_2_8_digest/weekly_compare.md \
+                > /dev/null
+              python scripts/plan_2_8_digest_compare.py \
+                --baseline "${baseline}" \
+                --current  "${current}" \
+                --format   json \
+                --output   artifacts/plan_2_8_digest/weekly_compare.json \
+                > /dev/null
+              if [ -s artifacts/plan_2_8_digest/weekly_compare.md ] \
+                  && [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+                cat artifacts/plan_2_8_digest/weekly_compare.md \
+                  >> "${GITHUB_STEP_SUMMARY}"
+              fi
+            else
+              echo "Only one dated archive; skipping compare."
+            fi
+          else
+            echo "Fewer than two dated archives yet; skipping compare."
+          fi
+          true
+
+      - name: Upload Plan 2.8 digest archive
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-digest-archive
+          path: artifacts/plan_2_8_digest_archive
+          if-no-files-found: ignore
+          retention-days: 365
+
       - name: Open drift-alert issue
         if: steps.resolve_alerts.outputs.has_alerts == 'True'
         env:
