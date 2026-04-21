@@ -6,6 +6,20 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-28) — Plan 2.8 avg run length + non-empty + blank-line
+
+- New `scripts/plan_2_8_ledger_avg_run_length.py` reports
+  the mean length of consecutive status runs.
+- New `scripts/plan_2_8_digest_non_empty_file_count.py`
+  reports the number of top-level artifact files with
+  size greater than zero.
+- New `scripts/plan_2_8_weekly_summary_blank_line_count.py`
+  counts whitespace-only lines in the weekly summary.
+- Weekly workflow wires the three new steps after the
+  diff-fence upload.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six
+  new script+test pairs.
+
 ### Added (2026-04-28) — Plan 2.8 run min + total size + diff-fence
 
 - New `scripts/plan_2_8_ledger_status_run_min.py` reports
