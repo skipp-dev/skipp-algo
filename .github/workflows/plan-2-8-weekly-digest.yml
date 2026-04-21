@@ -7688,6 +7688,75 @@ jobs:
           if-no-files-found: ignore
           retention-days: 365
 
+      - name: Plan 2.8 ledger red index median
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          ledger="artifacts/plan_2_8_digest/state_ledger.jsonl"
+          [ -s "${ledger}" ] || exit 0
+          python scripts/plan_2_8_ledger_red_index_median.py \
+            --ledger "${ledger}" \
+            --format md \
+            --output artifacts/plan_2_8_digest/ledger_red_index_median.md \
+            > /dev/null
+          true
+
+      - name: Upload Plan 2.8 ledger red index median
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-ledger-red-index-median
+          path: artifacts/plan_2_8_digest/ledger_red_index_median.md
+          if-no-files-found: ignore
+          retention-days: 365
+
+      - name: Plan 2.8 digest gif file count
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          dir="artifacts/plan_2_8_digest"
+          [ -d "${dir}" ] || exit 0
+          python scripts/plan_2_8_digest_gif_file_count.py \
+            --artifact-dir "${dir}" \
+            --format md \
+            --output artifacts/plan_2_8_digest/digest_gif_file_count.md \
+            > /dev/null
+          true
+
+      - name: Upload Plan 2.8 digest gif file count
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-digest-gif-file-count
+          path: artifacts/plan_2_8_digest/digest_gif_file_count.md
+          if-no-files-found: ignore
+          retention-days: 365
+
+      - name: Plan 2.8 weekly summary caret char count
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          summary="artifacts/plan_2_8_digest/weekly_summary.md"
+          [ -s "${summary}" ] || exit 0
+          python scripts/plan_2_8_weekly_summary_caret_char_count.py \
+            --summary "${summary}" \
+            --format md \
+            --output artifacts/plan_2_8_digest/summary_caret_char_count.md \
+            > /dev/null
+          true
+
+      - name: Upload Plan 2.8 weekly summary caret char count
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-weekly-summary-caret-char-count
+          path: artifacts/plan_2_8_digest/summary_caret_char_count.md
+          if-no-files-found: ignore
+          retention-days: 365
+
       - name: Open drift-alert issue
         if: steps.resolve_alerts.outputs.has_alerts == 'True'
         env:

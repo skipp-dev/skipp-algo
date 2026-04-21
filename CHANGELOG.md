@@ -6,6 +6,19 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-05-29) — Plan 2.8 red median + gif + caret
+
+- New `scripts/plan_2_8_ledger_red_index_median.py` reports the
+  median index of red records.
+- New `scripts/plan_2_8_digest_gif_file_count.py` counts top-level
+  ``.gif`` files.
+- New `scripts/plan_2_8_weekly_summary_caret_char_count.py` counts
+  ``^`` characters in the summary.
+- Weekly workflow wires the three new steps after the backslash
+  upload.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six new
+  script+test pairs.
+
 ### Added (2026-05-28) — Plan 2.8 amber median + svg + backslash
 
 - New `scripts/plan_2_8_ledger_amber_index_median.py` reports the
