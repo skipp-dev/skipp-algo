@@ -139,6 +139,25 @@ jobs:
           fi
           true
 
+      - name: Plan 2.8 history rotate (trim snapshots)
+        # Caps the rolling history JSONL so long-running benches don't
+        # balloon the artifact bundle or slow the weekly digest. Default
+        # policy: keep at most 366 snapshots (~1y of daily runs) and drop
+        # anything older than 400 days. Fail-soft: rotation errors must
+        # never affect the benchmark run outcome.
+        if: always()
+        run: |
+          set +e
+          history="${{ steps.meta.outputs.out_dir }}/plan_2_8_history.jsonl"
+          if [ -s "${history}" ]; then
+            python scripts/plan_2_8_history_rotate.py \
+              --history      "${history}" \
+              --max-rows     366 \
+              --max-age-days 400 \
+              || true
+          fi
+          true
+
       - name: Upload rolling benchmark artifacts
         if: always()
         uses: actions/upload-artifact@v7

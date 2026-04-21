@@ -6,6 +6,32 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-21) — Plan 2.8 drift-alert auto-issue + history rotation
+
+- `scripts/plan_2_8_trend_digest.py`: new `render_issue_body()` +
+  `has_alerts()` helpers plus `--format issue` / `--alerts-file` CLI
+  flags so the weekly workflow can emit a compact GitHub-issue body
+  alongside the existing markdown digest.
+- `.github/workflows/plan-2-8-weekly-digest.yml`: after rendering
+  the digest, also writes `issue_body.md` + `alerts.json`, surfaces
+  `has_alerts` as a step output, and opens a `plan-2.8,drift-alert`
+  labelled issue via `gh issue create` when the flag is `True`. New
+  scoped `permissions: issues: write`.
+- `scripts/plan_2_8_history_rotate.py`: size-bound the rolling
+  history JSONL by `--max-rows` and/or `--max-age-days`. Atomic
+  rewrite, keeps a `.bak`, fail-soft rollback on write errors,
+  corrupt-line preservation (opt-in drop).
+- `.github/workflows/smc-measurement-benchmark-rolling.yml`: new
+  "Plan 2.8 history rotate" fail-soft step after the archive step,
+  capped at 366 snapshots / 400 days by default.
+- `scripts/plan_2_8_status.py`: Phase 1 anchors extended with the
+  rotate helper + its pin-test + the digest-issue renderer + the
+  weekly issue-wiring pin-test.
+- Docs: runbook gains history-rotation and drift-alert auto-issue
+  sections; pin-test inventory refreshed.
+- Tests: +8 digest-issue body, +5 weekly issue wiring, +11 history
+  rotate, +4 rolling-bench rotate wiring (28 new).
+
 ### Added (2026-04-21) — Plan 2.8 trend digest end-to-end
 
 - `scripts/plan_2_8_trend_digest.py`: pure-stdlib weekly digest

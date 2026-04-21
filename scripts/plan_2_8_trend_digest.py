@@ -244,6 +244,46 @@ def render_markdown(digest: dict[str, Any]) -> str:
     return "\n".join(lines) + "\n"
 
 
+def render_issue_body(digest: dict[str, Any]) -> str:
+    """Render a compact GitHub-issue body for the alerts list.
+
+    Designed to be piped through ``gh issue create --body-file -``
+    by the weekly-digest workflow when ``digest['alerts']`` is
+    non-empty. The body is intentionally short: title-worthy summary,
+    each alert as one bullet, plus a closing pointer to the full
+    digest artifact.
+    """
+    alerts = digest.get("alerts") or []
+    cov = digest.get("coverage") or {}
+    thresholds = digest.get("thresholds") or {}
+    lines: list[str] = []
+    lines.append("# Plan 2.8 weekly digest - drift alerts")
+    lines.append("")
+    lines.append(f"- alerts: **{len(alerts)}**")
+    lines.append(f"- previous snapshot: `{cov.get('previous_captured_at') or '-'}`")
+    lines.append(f"- latest snapshot:   `{cov.get('latest_captured_at') or '-'}`")
+    lines.append(f"- threshold (pp):    {thresholds.get('alert_threshold_pp')}")
+    lines.append(f"- min_events floor:  {thresholds.get('min_events')}")
+    lines.append("")
+    lines.append("## Slices over threshold")
+    lines.append("")
+    for a in alerts:
+        lines.append(
+            f"- `{a['tf']}/{a['family']}` drift {a['delta_pp']:+.3f} "
+            f"(hr_prev={a['hr_prev']:.3f}, hr_latest={a['hr_latest']:.3f})"
+        )
+    lines.append("")
+    lines.append(
+        "See the `plan-2-8-weekly-digest` workflow artifact for the full "
+        "per-TF and per-family drift tables."
+    )
+    return "\n".join(lines) + "\n"
+
+
+def has_alerts(digest: dict[str, Any]) -> bool:
+    return bool(digest.get("alerts"))
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Render a weekly trend digest from a Plan 2.8 history JSONL.",
@@ -253,8 +293,14 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--min-events", type=int, default=30)
     parser.add_argument("--alert-threshold-pp", type=float, default=0.05)
     parser.add_argument("--output", type=Path, default=None,
-                        help="Write the markdown digest to this path.")
-    parser.add_argument("--format", choices=("md", "json"), default="md")
+                        help="Write the rendered body to this path.")
+    parser.add_argument("--format", choices=("md", "json", "issue"), default="md",
+                        help="'md' = full digest, 'json' = raw verdict, "
+                             "'issue' = compact GitHub-issue body for alerts.")
+    parser.add_argument("--alerts-file", type=Path, default=None,
+                        help="If given, write a JSON file whose 'has_alerts' "
+                             "key indicates whether at least one comparable "
+                             "slice crossed the threshold (used by CI gating).")
     args = parser.parse_args(argv)
 
     try:
@@ -269,12 +315,24 @@ def main(argv: list[str] | None = None) -> int:
         min_events=args.min_events,
         alert_threshold_pp=args.alert_threshold_pp,
     )
-    body = render_markdown(digest) if args.format == "md" \
-        else json.dumps(digest, indent=2) + "\n"
+    if args.format == "md":
+        body = render_markdown(digest)
+    elif args.format == "issue":
+        body = render_issue_body(digest)
+    else:
+        body = json.dumps(digest, indent=2) + "\n"
 
     if args.output is not None:
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(body, encoding="utf-8")
+    if args.alerts_file is not None:
+        args.alerts_file.parent.mkdir(parents=True, exist_ok=True)
+        args.alerts_file.write_text(
+            json.dumps({"has_alerts": has_alerts(digest),
+                        "count": len(digest.get("alerts") or [])}, indent=2)
+            + "\n",
+            encoding="utf-8",
+        )
     print(body, end="")
     return 0
 

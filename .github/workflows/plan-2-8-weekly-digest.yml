@@ -26,6 +26,7 @@ on:
 permissions:
   contents: read
   actions: read
+  issues: write
 
 jobs:
   weekly-digest:
@@ -70,9 +71,22 @@ jobs:
             --min-events         "${{ inputs.min_events || '30' }}" \
             --output             artifacts/plan_2_8_digest/weekly_digest.md \
             > /dev/null
+          # Also render the issue-body + alerts summary for downstream steps.
+          python scripts/plan_2_8_trend_digest.py \
+            --history            "${history}" \
+            --lookback-days      "${{ inputs.lookback_days || '7' }}" \
+            --alert-threshold-pp "${{ inputs.alert_threshold_pp || '0.05' }}" \
+            --min-events         "${{ inputs.min_events || '30' }}" \
+            --format             issue \
+            --output             artifacts/plan_2_8_digest/issue_body.md \
+            --alerts-file        artifacts/plan_2_8_digest/alerts.json \
+            > /dev/null
           if [ -s artifacts/plan_2_8_digest/weekly_digest.md ]; then
             cat artifacts/plan_2_8_digest/weekly_digest.md >> "$GITHUB_STEP_SUMMARY"
           fi
+          # Propagate has_alerts to the next step without failing the run.
+          has=$(python -c "import json,sys;print(json.load(open('artifacts/plan_2_8_digest/alerts.json'))['has_alerts'])" 2>/dev/null || echo False)
+          echo "has_alerts=${has}" >> "$GITHUB_OUTPUT"
           true
 
       - name: Upload weekly digest
@@ -83,3 +97,16 @@ jobs:
           path: artifacts/plan_2_8_digest/weekly_digest.md
           if-no-files-found: warn
           retention-days: 90
+
+      - name: Open drift-alert issue
+        if: steps.digest.outputs.has_alerts == 'True'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          title="Plan 2.8 weekly digest: drift alerts ($(date -u +%Y-%m-%d))"
+          gh issue create \
+            --title "${title}" \
+            --body-file artifacts/plan_2_8_digest/issue_body.md \
+            --label plan-2.8,drift-alert

@@ -139,6 +139,14 @@ The append is idempotent on `(captured_at, scoring_root)` and the
 projection drops the per-symbol noise so the file stays small enough
 to graph in a notebook or spreadsheet.
 
+After the archive step, the same workflow runs
+[`scripts/plan_2_8_history_rotate.py`](../scripts/plan_2_8_history_rotate.py)
+to cap the file at 366 snapshots / 400 days — a full year of daily
+runs plus a small grace window. Rotation is atomic (`<path>.bak` is
+kept) and fail-soft, so a bad day never touches the bench outcome.
+Corrupt lines are preserved by default; pass `--drop-corrupt` to
+remove them during a one-shot cleanup.
+
 ## Weekly trend digest
 
 Every Monday at 12:00 UTC,
@@ -165,6 +173,16 @@ python scripts/plan_2_8_trend_digest.py \
   --output /tmp/digest.md
 ```
 
+### Drift-alert auto-issues
+
+When the digest finds at least one comparable slice above
+`alert_threshold_pp`, the workflow also renders an issue-body
+(`--format issue`) and opens a GitHub issue labelled `plan-2.8,
+drift-alert`. The `permissions: issues: write` block is scoped to
+this workflow only. No issue is opened when the coverage status is
+`empty` / `warmup` or when every comparable slice is within
+threshold.
+
 ## Pin-test inventory
 
 - `tests/test_plan_2_8_s0_pine_trend_tf_tooltips.py`
@@ -180,8 +198,12 @@ python scripts/plan_2_8_trend_digest.py \
 - `tests/test_plan_2_8_status.py`
 - `tests/test_plan_2_8_status_daily_workflow.py`
 - `tests/test_plan_2_8_history_archive.py`
+- `tests/test_plan_2_8_history_rotate.py`
+- `tests/test_plan_2_8_rolling_workflow_rotate_wiring.py`
 - `tests/test_plan_2_8_trend_digest.py`
+- `tests/test_plan_2_8_trend_digest_issue_body.py`
 - `tests/test_plan_2_8_weekly_digest_workflow.py`
+- `tests/test_plan_2_8_weekly_digest_issue_wiring.py`
 - `tests/test_docs_decisions_adr.py`
 - `tests/test_append_adr.py`
 
