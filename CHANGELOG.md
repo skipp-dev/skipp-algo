@@ -6,6 +6,20 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-21) — Q3/Q4 Plan §2.4 G3 weekly digest helper
+
+- `scripts/f2_weekly_digest.py`: rolls up the last N days of
+  `f2_promotion_gate_<DATE>.json` reports into a single JSON digest
+  (schema_version=1) — per-day timeline with brier delta + SPRT n/k,
+  decision counters, SPRT-decision counters, trailing
+  `consecutive_worse` / `consecutive_better` runs. `--format md` emits
+  a Markdown timeline table suitable for the 30-day SPRT window
+  operator review. Default window 7 days; `--window-days` overrides.
+  Tolerates unreadable report files and non-matching filenames. 16
+  tests.
+- `tests/test_f2_helpers_convergence.py`: added the new module to the
+  parametrized `F2_HELPERS` list (22 tests, was 20).
+
 ### Added (2026-04-21) — Markdown render mode for status inspector
 
 - `scripts/f2_inspect_status.py`: new `render_markdown(status)` helper

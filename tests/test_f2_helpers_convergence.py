@@ -33,6 +33,7 @@ F2_HELPERS = [
     "scripts.f2_promote_contextual_weights",
     "scripts.f2_summarize_history",
     "scripts.f2_inspect_status",
+    "scripts.f2_weekly_digest",
 ]
 
 
