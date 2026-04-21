@@ -107,7 +107,10 @@ weights, calibration logic, or family priorities change:
   significant drawdown reduction in equity markets.
   [JSE DOI 10.64804/37pe1x85](https://34.172.72.90/index.php/jse/article/view/77).
   Relevance: justifies the session-aware calibration planned in
-  measurement Phase F2.
+  measurement Phase F2. The HTF trend stack follows the ICT-standard
+  3-layer hierarchy (4H / 1D / 1W) with an adaptive IPDA range,
+  consistent with Hammer & Patel's session-filter findings
+  (see `docs/smc_improvement_plan_addendum_2_8_mtf_scope_2026-04-21.md`).
 
 **Our contribution on top:** calibration (Brier / smECE), Bayesian
 smoothing of family weights, and an explicit Trust Tier — none of which

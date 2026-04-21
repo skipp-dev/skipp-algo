@@ -266,3 +266,8 @@ Das Deep-Review-Programm gilt als erfolgreich, wenn gleichzeitig gilt:
   `docs/engineering-program/smc_deep_review_2026-04-20_engineering_backlog.md`
 - Fokusdokument fuer Pine- und Dashboard-Umsetzung:
   `docs/smc_deep_review_2026-04-20_hero_surface_plan.md`
+- MTF-Scope-Entscheidung (2.8, 2026-04-21 Accepted):
+  `docs/smc_improvement_plan_addendum_2_8_mtf_scope_2026-04-21.md` —
+  dokumentiert warum der 3-Ebenen-HTF-Stack (4H / 1D / 1W) + adaptiver IPDA
+  bleibt und ausschliesslich die Chart-TF-Benchmark-Abdeckung (5m + 4H)
+  erweitert wird. Eine Flux-style 7-TF-Kopie wird explizit abgelehnt.
