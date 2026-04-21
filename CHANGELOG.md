@@ -6,6 +6,20 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-21) — local dry-run simulator for the F2 chain
+
+- `scripts/f2_simulate_chain.py`: walks the full §2.4 G2 rollback
+  chain locally against synthetic fixtures — seeds a spec +
+  production artifact, writes N day reports, runs
+  append → render-issue → revert → rotate → summarize → inspect →
+  weekly-digest, and persists a `simulation_manifest.json`
+  (schema_version=1) with the narrative + every intermediate record.
+  Default fixture = 2 clean days + worse day + rollback day. Custom
+  `days` list supported for no-rollback walks. No network, no CI.
+  `--quiet` prints only the manifest path for scripting. 8 tests.
+- `tests/test_f2_helpers_convergence.py`: added `f2_simulate_chain`
+  to the parametrized `F2_HELPERS` list (24 tests, was 22).
+
 ### Added (2026-04-21) — f2-weekly-digest workflow (Monday 11 UTC)
 
 - `.github/workflows/f2-weekly-digest.yml`: new scheduled workflow

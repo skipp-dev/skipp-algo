@@ -34,6 +34,7 @@ F2_HELPERS = [
     "scripts.f2_summarize_history",
     "scripts.f2_inspect_status",
     "scripts.f2_weekly_digest",
+    "scripts.f2_simulate_chain",
 ]
 
 
