@@ -6,6 +6,19 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-05-14) — Plan 2.8 unknown streak + nonempty files + tabs
+
+- New `scripts/plan_2_8_ledger_unknown_streak_max.py` reports the
+  longest consecutive unknown run.
+- New `scripts/plan_2_8_digest_nonempty_file_count.py` reports the
+  count of top-level files with size > 0.
+- New `scripts/plan_2_8_weekly_summary_tab_char_count.py` counts
+  ASCII tab characters in the summary.
+- Weekly workflow wires the three new steps after the
+  whitespace-count upload.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six new
+  script+test pairs.
+
 ### Added (2026-05-14) — Plan 2.8 green streak + smallest file + whitespace
 
 - New `scripts/plan_2_8_ledger_green_streak_max.py` reports the
