@@ -6,6 +6,19 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-28) — Plan 2.8 shortest run + uppercase + digits
+
+- New `scripts/plan_2_8_ledger_shortest_run.py`
+  reports the minimum status run length.
+- New `scripts/plan_2_8_digest_uppercase_filename_count.py`
+  counts top-level files with uppercase ASCII letters.
+- New `scripts/plan_2_8_weekly_summary_digit_count.py`
+  counts ASCII digit characters in the weekly summary.
+- Weekly workflow wires the three new steps after the
+  whitespace-ratio upload.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six
+  new script+test pairs.
+
 ### Added (2026-04-28) — Plan 2.8 stddev run + ext counts + whitespace
 
 - New `scripts/plan_2_8_ledger_stddev_run_length.py`
