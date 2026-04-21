@@ -743,6 +743,9 @@ read.
 - `tests/test_plan_2_8_ledger_status_mode_count.py`
 - `tests/test_plan_2_8_digest_divx_file_count.py`
 - `tests/test_plan_2_8_weekly_summary_leading_space_line_count.py`
+- `tests/test_plan_2_8_ledger_first_record_status.py`
+- `tests/test_plan_2_8_digest_xvid_file_count.py`
+- `tests/test_plan_2_8_weekly_summary_trailing_space_line_count.py`
 - `tests/test_plan_2_8_alert_history.py`
 - `tests/test_plan_2_8_alert_history_summary.py`
 - `tests/test_plan_2_8_digest_rollup.py`

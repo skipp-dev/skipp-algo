@@ -6,6 +6,19 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-06-29) — Plan 2.8 first record + xvid + trailing-space
+
+- New `scripts/plan_2_8_ledger_first_record_status.py` reports the
+  status of the first valid ledger record.
+- New `scripts/plan_2_8_digest_xvid_file_count.py` counts top-level
+  ``.xvid`` files.
+- New `scripts/plan_2_8_weekly_summary_trailing_space_line_count.py`
+  counts lines ending with space or tab.
+- Weekly workflow wires the three new steps after the leading-space
+  line upload.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six new
+  script+test pairs.
+
 ### Added (2026-06-28) — Plan 2.8 status mode + divx + leading-space
 
 - New `scripts/plan_2_8_ledger_status_mode_count.py` reports the
