@@ -6,6 +6,19 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-06-23) — Plan 2.8 unknown span + asf + ascii-alnum
+
+- New `scripts/plan_2_8_ledger_unknown_first_last_index_span.py`
+  reports the index span between the first and last unknown records.
+- New `scripts/plan_2_8_digest_asf_file_count.py` counts top-level
+  ``.asf`` files.
+- New `scripts/plan_2_8_weekly_summary_ascii_alnum_char_count.py`
+  counts ASCII alphanumerics (A–Z, a–z, 0–9).
+- Weekly workflow wires the three new steps after the ascii
+  hexdigit upload.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six new
+  script+test pairs.
+
 ### Added (2026-06-22) — Plan 2.8 red span + rm + ascii-hexdigit
 
 - New `scripts/plan_2_8_ledger_red_first_last_index_span.py`
