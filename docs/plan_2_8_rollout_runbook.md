@@ -470,6 +470,9 @@ read.
 - `tests/test_plan_2_8_ledger_green_streak_history.py`
 - `tests/test_plan_2_8_digest_oldest_file.py`
 - `tests/test_plan_2_8_weekly_summary_footnote_count.py`
+- `tests/test_plan_2_8_ledger_first_red.py`
+- `tests/test_plan_2_8_digest_newest_file.py`
+- `tests/test_plan_2_8_weekly_summary_bold_count.py`
 - `tests/test_plan_2_8_alert_history.py`
 - `tests/test_plan_2_8_alert_history_summary.py`
 - `tests/test_plan_2_8_digest_rollup.py`

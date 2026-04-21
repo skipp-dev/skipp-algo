@@ -6,6 +6,20 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-24) — Plan 2.8 first red + newest file + bold count
+
+- New `scripts/plan_2_8_ledger_first_red.py` reports the
+  timestamp of the earliest red ledger record.
+- New `scripts/plan_2_8_digest_newest_file.py` reports the
+  single newest artifact-directory file by mtime.
+- New `scripts/plan_2_8_weekly_summary_bold_count.py` counts
+  ``**bold**`` and ``__bold__`` strong-emphasis spans while
+  excluding fenced blocks and inline code.
+- Weekly workflow wires the three new steps after the
+  footnote-count upload.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six
+  new script+test pairs.
+
 ### Added (2026-04-23) — Plan 2.8 green streak history + oldest file + footnote count
 
 - New `scripts/plan_2_8_ledger_green_streak_history.py` lists
