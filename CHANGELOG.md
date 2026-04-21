@@ -6,6 +6,24 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-21) — Q3/Q4 Plan §2.4 G2 rollback-history rotate helper
+
+- **F2 rollback-history rotate/reset helper:** New
+  `scripts/f2_rotate_rollback_history.py`, an operator-callable
+  companion to `f2_append_rollback_history.py`. After a rollback
+  decision (gate exit code 2) and the manual review checklist, the
+  daily ring at `artifacts/ci/f2/rollback_history.json` MUST be
+  reset so the next day's gate does not immediately re-fire on
+  stale history. The helper archives the live file to
+  `artifacts/ci/f2/rollback_history.archive/<UTC-ISO>.json` (or a
+  caller-supplied `--archive-dir`) and replaces it with `[]` (or a
+  caller-supplied `--seed` JSON list). Atomic write via tempfile +
+  `os.replace`. `--allow-empty` lets operators bootstrap a fresh
+  ring when the live file does not yet exist. Refuses archive-name
+  collisions to preserve the audit trail. CLI exit codes: `0` on
+  success, `1` on configuration error. 13 new tests; 113 total
+  green across the F2/SPRT/AB chain.
+
 ### Added (2026-04-21) — Q3/Q4 Plan §2.4 G2 rollback-history feedback loop
 
 - **F2 rollback-history append helper:** New
