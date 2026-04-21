@@ -6,6 +6,19 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-05-14) — Plan 2.8 green streak + smallest file + whitespace
+
+- New `scripts/plan_2_8_ledger_green_streak_max.py` reports the
+  longest consecutive green run.
+- New `scripts/plan_2_8_digest_smallest_file_size.py` reports the
+  byte size of the smallest top-level file.
+- New `scripts/plan_2_8_weekly_summary_whitespace_char_count.py`
+  counts ASCII whitespace characters in the summary.
+- Weekly workflow wires the three new steps after the
+  lowercase-count upload.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six new
+  script+test pairs.
+
 ### Added (2026-05-14) — Plan 2.8 red streak + largest file + lowercase
 
 - New `scripts/plan_2_8_ledger_red_streak_max.py` reports the

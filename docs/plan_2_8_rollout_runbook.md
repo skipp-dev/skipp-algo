@@ -590,6 +590,9 @@ read.
 - `tests/test_plan_2_8_ledger_red_streak_max.py`
 - `tests/test_plan_2_8_digest_largest_file_size.py`
 - `tests/test_plan_2_8_weekly_summary_lowercase_letter_count.py`
+- `tests/test_plan_2_8_ledger_green_streak_max.py`
+- `tests/test_plan_2_8_digest_smallest_file_size.py`
+- `tests/test_plan_2_8_weekly_summary_whitespace_char_count.py`
 - `tests/test_plan_2_8_alert_history.py`
 - `tests/test_plan_2_8_alert_history_summary.py`
 - `tests/test_plan_2_8_digest_rollup.py`
