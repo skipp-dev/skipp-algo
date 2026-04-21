@@ -2436,6 +2436,76 @@ jobs:
           if-no-files-found: ignore
           retention-days: 365
 
+      - name: Plan 2.8 ledger longest run
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          ledger="artifacts/plan_2_8_ledger/status_ledger.jsonl"
+          [ -s "${ledger}" ] || exit 0
+          mkdir -p artifacts/plan_2_8_digest
+          python scripts/plan_2_8_ledger_longest_run.py \
+            --ledger "${ledger}" \
+            --format md \
+            --output artifacts/plan_2_8_digest/longest_run.md \
+            > /dev/null
+          true
+
+      - name: Upload Plan 2.8 ledger longest run
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-ledger-longest-run
+          path: artifacts/plan_2_8_digest/longest_run.md
+          if-no-files-found: ignore
+          retention-days: 365
+
+      - name: Plan 2.8 digest size histogram
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          dir="artifacts/plan_2_8_digest"
+          [ -d "${dir}" ] || exit 0
+          python scripts/plan_2_8_digest_size_histogram.py \
+            --artifact-dir "${dir}" \
+            --format md \
+            --output artifacts/plan_2_8_digest/size_histogram.md \
+            > /dev/null
+          true
+
+      - name: Upload Plan 2.8 digest size histogram
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-digest-size-histogram
+          path: artifacts/plan_2_8_digest/size_histogram.md
+          if-no-files-found: ignore
+          retention-days: 365
+
+      - name: Plan 2.8 weekly summary list stats
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          summary="artifacts/plan_2_8_digest/weekly_summary.md"
+          [ -s "${summary}" ] || exit 0
+          python scripts/plan_2_8_weekly_summary_list_stats.py \
+            --summary "${summary}" \
+            --format md \
+            --output artifacts/plan_2_8_digest/summary_list_stats.md \
+            > /dev/null
+          true
+
+      - name: Upload Plan 2.8 weekly summary list stats
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-weekly-summary-list-stats
+          path: artifacts/plan_2_8_digest/summary_list_stats.md
+          if-no-files-found: ignore
+          retention-days: 365
+
       - name: Open drift-alert issue
         if: steps.resolve_alerts.outputs.has_alerts == 'True'
         env:

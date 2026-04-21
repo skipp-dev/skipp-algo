@@ -6,6 +6,24 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-21) — Plan 2.8 longest run + size histogram + list stats
+
+- New `scripts/plan_2_8_ledger_longest_run.py` reports the
+  longest consecutive run of each status in the ledger with
+  start/end timestamps; statuses that never appear return
+  length 0.
+- New `scripts/plan_2_8_digest_size_histogram.py` buckets
+  artifact files into five fixed size ranges (<1KB, 1-10KB,
+  10-100KB, 100KB-1MB, >=1MB); boundary at 1024 bytes moves
+  to the 1-10KB bucket.
+- New `scripts/plan_2_8_weekly_summary_list_stats.py` counts
+  bullet (`-`/`*`) vs numbered (`N.`) list items in the
+  summary, skipping content inside fenced code blocks.
+- Weekly workflow wires longest-run, size-histogram, and
+  list-stats steps after link-check.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six new
+  script+test pairs.
+
 ### Added (2026-04-21) — Plan 2.8 run length + smallest files + link check
 
 - New `scripts/plan_2_8_ledger_status_run_length.py`
