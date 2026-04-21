@@ -1,0 +1,77 @@
+"""Plan 2.8 digest median mtime.
+
+Reports the median mtime across top-level artifact-directory
+files. For even counts, the lower of the two middle values
+is used (deterministic). Subdirectories are ignored.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any
+
+
+def build(root: Path) -> dict[str, Any]:
+    mtimes: list[float] = []
+    if root.exists():
+        for p in root.iterdir():
+            if not p.is_file():
+                continue
+            mtimes.append(p.stat().st_mtime)
+    if not mtimes:
+        return {"schema_version": 1, "found": False, "file_count": 0}
+    mtimes.sort()
+    mid = (len(mtimes) - 1) // 2
+    val = mtimes[mid]
+    iso = datetime.fromtimestamp(val, tz=timezone.utc).isoformat()
+    return {
+        "schema_version": 1,
+        "found":          True,
+        "file_count":     len(mtimes),
+        "median_mtime":   iso,
+    }
+
+
+def render_markdown(report: dict[str, Any]) -> str:
+    if not report.get("found"):
+        return "# Plan 2.8 digest median mtime\n\n_none_\n"
+    return (
+        "# Plan 2.8 digest median mtime\n"
+        "\n"
+        f"- file_count: {report['file_count']}\n"
+        f"- median_mtime: {report['median_mtime']}\n"
+    )
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        description="Median mtime across artifact files.",
+    )
+    parser.add_argument("--artifact-dir", type=Path, required=True)
+    parser.add_argument("--format", choices=("md", "json"), default="md")
+    parser.add_argument("--output", type=Path, default=None)
+    args = parser.parse_args(argv)
+
+    if not args.artifact_dir.exists():
+        print(
+            f"ERROR: artifact dir not found: {args.artifact_dir}",
+            file=sys.stderr,
+        )
+        return 1
+
+    report = build(args.artifact_dir)
+    body = render_markdown(report) if args.format == "md" \
+        else json.dumps(report, indent=2) + "\n"
+    if args.output is not None:
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        args.output.write_text(body, encoding="utf-8")
+    print(body, end="")
+    return 0
+
+
+if __name__ == "__main__":  # pragma: no cover
+    raise SystemExit(main())

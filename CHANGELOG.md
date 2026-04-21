@@ -6,6 +6,21 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-25) — Plan 2.8 first amber + median mtime + strikethrough count
+
+- New `scripts/plan_2_8_ledger_first_amber.py` reports the
+  timestamp of the earliest amber ledger record.
+- New `scripts/plan_2_8_digest_median_mtime.py` reports the
+  median mtime across top-level artifact files (lower
+  middle for even counts).
+- New `scripts/plan_2_8_weekly_summary_strikethrough_count.py`
+  counts ``~~text~~`` spans while excluding fenced blocks
+  and inline code.
+- Weekly workflow wires the three new steps after the
+  bold-count upload.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six
+  new script+test pairs.
+
 ### Added (2026-04-24) — Plan 2.8 first red + newest file + bold count
 
 - New `scripts/plan_2_8_ledger_first_red.py` reports the
