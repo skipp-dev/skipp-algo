@@ -6,6 +6,24 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-21) — Plan 2.8 ledger prune + run stamp + weekly artifact index
+
+- New `scripts/plan_2_8_status_ledger_prune.py` trims the status
+  ledger to the last N records (default 104, ~2 years of weekly
+  runs) via an atomic `tempfile` + `os.replace` rewrite. Blank and
+  malformed lines are dropped.
+- New `scripts/plan_2_8_run_stamp.py` writes a self-describing
+  JSON stamp (`run_id`, `run_url`, `sha`, `ref`, `actor`,
+  `captured_at`) with `GITHUB_*` env fallback.
+- New `scripts/plan_2_8_weekly_index.py` scans the weekly artifact
+  directory and emits `index.md` + `index.json` listing every
+  produced artifact with its size.
+- Weekly digest now prunes the ledger, emits the run stamp, and
+  publishes the artifact index (also appended to the job summary).
+  Three new uploads: `plan-2-8-run-stamp`, `plan-2-8-weekly-index`.
+- +27 tests covering prune/index/stamp helpers plus three
+  weekly-workflow pin-tests.
+
 ### Added (2026-04-21) — Plan 2.8 status ledger append + summariser
 
 - New `scripts/plan_2_8_status_ledger.py` appends a single

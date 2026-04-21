@@ -1008,6 +1008,80 @@ jobs:
           if-no-files-found: ignore
           retention-days: 365
 
+      - name: Plan 2.8 status ledger prune
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          ledger="artifacts/plan_2_8_digest/status_ledger.jsonl"
+          if [ ! -s "${ledger}" ]; then
+            echo "No ledger to prune; skipping."
+            exit 0
+          fi
+          python scripts/plan_2_8_status_ledger_prune.py \
+            --ledger "${ledger}" --keep 104
+          true
+
+      - name: Plan 2.8 run stamp
+        if: always()
+        shell: bash
+        env:
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set +e
+          mkdir -p artifacts/plan_2_8_digest
+          python scripts/plan_2_8_run_stamp.py \
+            --output  artifacts/plan_2_8_digest/run_stamp.json \
+            --run-url "${RUN_URL}" \
+            --quiet
+          true
+
+      - name: Upload Plan 2.8 run stamp
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-run-stamp
+          path: artifacts/plan_2_8_digest/run_stamp.json
+          if-no-files-found: ignore
+          retention-days: 365
+
+      - name: Plan 2.8 weekly artifact index
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          dir="artifacts/plan_2_8_digest"
+          if [ ! -d "${dir}" ]; then
+            echo "No artifact dir; skipping index."
+            exit 0
+          fi
+          python scripts/plan_2_8_weekly_index.py \
+            --artifact-dir "${dir}" \
+            --format       md \
+            --output       "${dir}/index.md" \
+            > /dev/null
+          python scripts/plan_2_8_weekly_index.py \
+            --artifact-dir "${dir}" \
+            --format       json \
+            --output       "${dir}/index.json" \
+            > /dev/null
+          if [ -s "${dir}/index.md" ] \
+              && [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+            cat "${dir}/index.md" >> "${GITHUB_STEP_SUMMARY}"
+          fi
+          true
+
+      - name: Upload Plan 2.8 weekly artifact index
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-weekly-index
+          path: |
+            artifacts/plan_2_8_digest/index.md
+            artifacts/plan_2_8_digest/index.json
+          if-no-files-found: ignore
+          retention-days: 365
+
       - name: Open drift-alert issue
         if: steps.resolve_alerts.outputs.has_alerts == 'True'
         env:
