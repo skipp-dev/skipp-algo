@@ -6,6 +6,19 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-05-03) — Plan 2.8 rarest + writable + first-line
+
+- New `scripts/plan_2_8_ledger_rarest_status.py` reports
+  the rarest canonical status.
+- New `scripts/plan_2_8_digest_writable_file_count.py`
+  counts writable top-level regular files.
+- New `scripts/plan_2_8_weekly_summary_first_line_length.py`
+  reports length of first non-blank line.
+- Weekly workflow wires the three new steps after the
+  last-line-length upload.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six
+  new script+test pairs.
+
 ### Added (2026-05-02) — Plan 2.8 per-status observations + readable + last-line
 
 - New `scripts/plan_2_8_ledger_observations_by_status.py`
