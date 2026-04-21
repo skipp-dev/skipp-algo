@@ -6,6 +6,25 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-21) — Plan 2.8 weekly snooze-expiry + script manifest + manifest diff wiring
+
+- Weekly digest now surfaces a snooze-expiry report
+  (`plan_2_8_snooze_expiry_report.py`) as both a job-summary
+  section and `plan-2-8-snooze-expiry` artifact.
+- Weekly digest runs `plan_2_8_manifest.py` (static scan of
+  `scripts/plan_2_8_*.py` ↔ `tests/test_plan_2_8_*.py`) and
+  uploads `plan-2-8-manifest`.
+- New `scripts/plan_2_8_manifest_diff.py` diffs the prior weekly
+  manifest against the current one, reporting
+  `added_scripts`, `removed_scripts`, `newly_testless`,
+  `newly_tested`, and per-script CLI flag deltas (as md/json).
+  Wired into weekly digest, downloading the prior manifest via
+  `dawidd6/action-download-artifact@v6` with
+  `name_is_regexp: true`. Uploads `plan-2-8-manifest-diff`.
+  Supports `--fail-on-regression` for CI gates. +17 tests,
+  including two weekly-workflow pin-tests.
+- Status anchors, runbook, and CHANGELOG refreshed.
+
 ### Added (2026-04-21) — Plan 2.8 weekly history CSV + runbook link-check wiring + snooze expiry + manifest
 
 - Weekly digest workflow now (a) exports the last-365-day history

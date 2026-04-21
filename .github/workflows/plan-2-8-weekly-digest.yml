@@ -597,6 +597,105 @@ jobs:
           fi
           true
 
+      - name: Plan 2.8 snooze expiry report
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          cfg="configs/plan_2_8_snoozes.json"
+          if [ ! -s "${cfg}" ]; then
+            echo "No snooze config; skipping expiry report."
+            exit 0
+          fi
+          mkdir -p artifacts/plan_2_8_digest
+          python scripts/plan_2_8_snooze_expiry_report.py \
+            --config      "${cfg}" \
+            --within-days 14 \
+            --output      artifacts/plan_2_8_digest/snooze_expiry.md \
+            > /dev/null
+          if [ -s artifacts/plan_2_8_digest/snooze_expiry.md ] \
+              && [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+            cat artifacts/plan_2_8_digest/snooze_expiry.md \
+              >> "${GITHUB_STEP_SUMMARY}"
+          fi
+          true
+
+      - name: Upload Plan 2.8 snooze expiry report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-snooze-expiry
+          path: artifacts/plan_2_8_digest/snooze_expiry.md
+          if-no-files-found: ignore
+          retention-days: 365
+
+      - name: Plan 2.8 script manifest
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          mkdir -p artifacts/plan_2_8_digest
+          python scripts/plan_2_8_manifest.py \
+            --format json \
+            --output artifacts/plan_2_8_digest/manifest.json \
+            > /dev/null
+          true
+
+      - name: Upload Plan 2.8 script manifest
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-manifest
+          path: artifacts/plan_2_8_digest/manifest.json
+          if-no-files-found: ignore
+          retention-days: 365
+
+      - name: Download prior Plan 2.8 manifest
+        if: always()
+        continue-on-error: true
+        uses: dawidd6/action-download-artifact@v6
+        with:
+          workflow:       plan-2-8-weekly-digest.yml
+          workflow_conclusion: ''
+          name:           plan-2-8-manifest
+          name_is_regexp: true
+          path:           artifacts/plan_2_8_prior_manifest
+          if_no_artifact_found: warn
+
+      - name: Plan 2.8 manifest diff
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          prior="$(find artifacts/plan_2_8_prior_manifest -name manifest.json -print -quit)"
+          current="artifacts/plan_2_8_digest/manifest.json"
+          if [ -z "${prior}" ] || [ ! -s "${prior}" ] \
+              || [ ! -s "${current}" ]; then
+            echo "No prior manifest; skipping diff."
+            exit 0
+          fi
+          python scripts/plan_2_8_manifest_diff.py \
+            --baseline "${prior}" \
+            --current  "${current}" \
+            --format   md \
+            --output   artifacts/plan_2_8_digest/manifest_diff.md \
+            > /dev/null
+          if [ -s artifacts/plan_2_8_digest/manifest_diff.md ] \
+              && [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+            cat artifacts/plan_2_8_digest/manifest_diff.md \
+              >> "${GITHUB_STEP_SUMMARY}"
+          fi
+          true
+
+      - name: Upload Plan 2.8 manifest diff
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-manifest-diff
+          path: artifacts/plan_2_8_digest/manifest_diff.md
+          if-no-files-found: ignore
+          retention-days: 365
+
       - name: Open drift-alert issue
         if: steps.resolve_alerts.outputs.has_alerts == 'True'
         env:
