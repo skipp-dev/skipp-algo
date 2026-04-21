@@ -377,6 +377,9 @@ read.
 - `tests/test_plan_2_8_ledger_downtime.py`
 - `tests/test_plan_2_8_ledger_weekly_rollup.py`
 - `tests/test_plan_2_8_digest_index_compare.py`
+- `tests/test_plan_2_8_ledger_uptime_pct.py`
+- `tests/test_plan_2_8_digest_file_manifest.py`
+- `tests/test_plan_2_8_weekly_summary_index.py`
 - `tests/test_plan_2_8_alert_history.py`
 - `tests/test_plan_2_8_alert_history_summary.py`
 - `tests/test_plan_2_8_digest_rollup.py`

@@ -6,6 +6,25 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-21) — Plan 2.8 ledger uptime % + file manifest + weekly summary index
+
+- New `scripts/plan_2_8_ledger_uptime_pct.py` computes green
+  uptime as a percentage over the last N weeks, using the most
+  recent record before the cutoff as a window anchor so partial
+  spans aren't dropped.
+- New `scripts/plan_2_8_digest_file_manifest.py` walks
+  `scripts/plan_2_8_*.py` and `tests/test_plan_2_8_*.py` and
+  reports orphan scripts and orphan tests (self and
+  `plan_2_8_status.py` are excluded from the scan).
+- New `scripts/plan_2_8_weekly_summary_index.py` aggregates the
+  weekly markdown reports (summary, flip-alert, downtime,
+  size-budget, archive-index, index-diff) into a single
+  `weekly_summary.md` with a table of contents; missing inputs
+  become `_(missing)_` placeholders so the output always has the
+  full section skeleton.
+- Weekly digest uploads the new `uptime.md` and
+  `weekly_summary.md` artifacts.
+
 ### Added (2026-04-21) — Plan 2.8 ledger downtime + weekly rollup + index diff
 
 - New `scripts/plan_2_8_ledger_downtime.py` sums non-green
