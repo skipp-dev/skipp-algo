@@ -6,6 +6,19 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-07-06) — Plan 2.8 json-valid + apk + blockquote
+
+- New `scripts/plan_2_8_ledger_json_valid_count.py` counts ledger
+  entries that parse as valid JSON.
+- New `scripts/plan_2_8_digest_apk_file_count.py` counts top-level
+  ``.apk`` files.
+- New `scripts/plan_2_8_weekly_summary_blockquote_line_count.py`
+  counts Markdown blockquote lines.
+- Weekly workflow wires the three new fail-soft step pairs after the
+  horizontal-rule upload.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six new
+  script+test pairs.
+
 ### Added (2026-07-05) — Plan 2.8 duplicate record + msi + hr-line
 
 - New `scripts/plan_2_8_ledger_duplicate_record_count.py` counts

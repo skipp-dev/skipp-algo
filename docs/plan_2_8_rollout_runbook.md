@@ -764,6 +764,9 @@ read.
 - `tests/test_plan_2_8_ledger_duplicate_record_count.py`
 - `tests/test_plan_2_8_digest_msi_file_count.py`
 - `tests/test_plan_2_8_weekly_summary_horizontal_rule_count.py`
+- `tests/test_plan_2_8_ledger_json_valid_count.py`
+- `tests/test_plan_2_8_digest_apk_file_count.py`
+- `tests/test_plan_2_8_weekly_summary_blockquote_line_count.py`
 - `tests/test_plan_2_8_alert_history.py`
 - `tests/test_plan_2_8_alert_history_summary.py`
 - `tests/test_plan_2_8_digest_rollup.py`
