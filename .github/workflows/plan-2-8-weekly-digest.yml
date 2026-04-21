@@ -96,6 +96,28 @@ jobs:
             > /dev/null
           true
 
+      - name: Lint snooze config
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          mkdir -p artifacts/plan_2_8_digest
+          if [ ! -s configs/plan_2_8_snoozes.json ]; then
+            echo "No snooze config; skipping lint."
+            exit 0
+          fi
+          python scripts/plan_2_8_snooze_lint.py \
+            --config configs/plan_2_8_snoozes.json \
+            --warn-only \
+            --output artifacts/plan_2_8_digest/snooze_lint.md \
+            > /dev/null
+          if [ -s artifacts/plan_2_8_digest/snooze_lint.md ] \
+              && [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+            cat artifacts/plan_2_8_digest/snooze_lint.md \
+              >> "${GITHUB_STEP_SUMMARY}"
+          fi
+          true
+
       - name: Apply alert snooze config
         id: snooze
         if: always()
@@ -198,6 +220,30 @@ jobs:
           path: artifacts/plan_2_8_alert_history/alert_history.jsonl
           if-no-files-found: ignore
           retention-days: 365
+
+      - name: Plan 2.8 alert-history summary (90-day window)
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          log="artifacts/plan_2_8_alert_history/alert_history.jsonl"
+          if [ ! -s "${log}" ]; then
+            echo "No alert history yet; skipping summary."
+            exit 0
+          fi
+          mkdir -p artifacts/plan_2_8_digest
+          python scripts/plan_2_8_alert_history_summary.py \
+            --log           "${log}" \
+            --lookback-days 90 \
+            --top-n         10 \
+            --output        artifacts/plan_2_8_digest/alert_history_summary.md \
+            > /dev/null
+          if [ -s artifacts/plan_2_8_digest/alert_history_summary.md ] \
+              && [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+            cat artifacts/plan_2_8_digest/alert_history_summary.md \
+              >> "${GITHUB_STEP_SUMMARY}"
+          fi
+          true
 
       - name: Open drift-alert issue
         if: steps.resolve_alerts.outputs.has_alerts == 'True'

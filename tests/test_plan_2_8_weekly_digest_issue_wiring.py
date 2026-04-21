@@ -192,3 +192,33 @@ def test_alert_history_uploaded_with_long_retention() -> None:
     assert up["with"]["retention-days"] == 365
     assert up["with"]["name"] == "plan-2-8-alert-history"
     assert up["with"]["if-no-files-found"] == "ignore"
+
+
+def test_snooze_lint_step_wired() -> None:
+    steps = _wf()["jobs"]["weekly-digest"]["steps"]
+    li = next(s for s in steps if s.get("name") == "Lint snooze config")
+    assert li["if"].strip() == "always()"
+    run = li["run"]
+    assert "scripts/plan_2_8_snooze_lint.py" in run
+    assert "--warn-only" in run
+    assert run.rstrip().endswith("true")
+    # Must precede the snooze apply step so operators see findings
+    # *before* their config is consumed.
+    names = [s.get("name", "") for s in steps]
+    assert names.index("Lint snooze config") \
+        < names.index("Apply alert snooze config")
+
+
+def test_alert_history_summary_step_wired() -> None:
+    steps = _wf()["jobs"]["weekly-digest"]["steps"]
+    su = next(s for s in steps
+              if s.get("name") == "Plan 2.8 alert-history summary (90-day window)")
+    assert su["if"].strip() == "always()"
+    run = su["run"]
+    assert "scripts/plan_2_8_alert_history_summary.py" in run
+    assert "--lookback-days 90" in run
+    assert run.rstrip().endswith("true")
+    # Must run after the upload step so the artifact is guaranteed on disk.
+    names = [s.get("name", "") for s in steps]
+    assert names.index("Upload alert history log") \
+        < names.index("Plan 2.8 alert-history summary (90-day window)")

@@ -6,6 +6,22 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-21) — Plan 2.8 snooze-lint + weekly alert-history summary step
+
+- `scripts/plan_2_8_snooze_lint.py`: validate
+  `configs/plan_2_8_snoozes.json` — flags missing `tf`, stale
+  entries (expired `expires`), unparseable timestamps, duplicate
+  `(tf, family)` pairs. Supports `--warn-only` for advisory CI use.
+  +13 tests.
+- Weekly digest workflow runs `snooze_lint` in warn-only mode
+  *before* applying the snooze so operators see issues in the run
+  summary without breaking the digest. +1 pin-test.
+- Weekly digest workflow now also runs
+  `plan_2_8_alert_history_summary.py` on the rolling
+  `alert_history.jsonl` (90-day window) after the upload step and
+  streams the ranked table into the run summary. +1 pin-test.
+- Status anchors, runbook, and CHANGELOG refreshed.
+
 ### Added (2026-04-21) — Plan 2.8 alert-history wiring + monthly rollup + summary CLI
 
 - Weekly digest workflow now appends fired alerts to a long-running

@@ -61,6 +61,8 @@ PHASES: list[dict[str, Any]] = [
             ("required", "tests/test_plan_2_8_history_stability.py"),
             ("required", "scripts/plan_2_8_snooze_admin.py"),
             ("required", "tests/test_plan_2_8_snooze_admin.py"),
+            ("required", "scripts/plan_2_8_snooze_lint.py"),
+            ("required", "tests/test_plan_2_8_snooze_lint.py"),
             ("required", "scripts/plan_2_8_alert_history.py"),
             ("required", "tests/test_plan_2_8_alert_history.py"),
             ("required", "scripts/plan_2_8_alert_history_summary.py"),

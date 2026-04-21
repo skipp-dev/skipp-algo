@@ -281,6 +281,12 @@ python scripts/plan_2_8_snooze_admin.py list --active
 python scripts/plan_2_8_snooze_admin.py expire
 ```
 
+[`scripts/plan_2_8_snooze_lint.py`](../scripts/plan_2_8_snooze_lint.py)
+validates the config shape, flags stale or malformed entries, and
+catches duplicate `(tf, family)` pairs. The weekly workflow runs it
+in `--warn-only` mode before the snooze is applied so operators see
+issues in the run summary without blocking the digest.
+
 ### Alert history log
 
 [`scripts/plan_2_8_alert_history.py`](../scripts/plan_2_8_alert_history.py)
@@ -328,6 +334,7 @@ read.
 - `tests/test_plan_2_8_coverage.py`
 - `tests/test_plan_2_8_history_stability.py`
 - `tests/test_plan_2_8_snooze_admin.py`
+- `tests/test_plan_2_8_snooze_lint.py`
 - `tests/test_plan_2_8_alert_history.py`
 - `tests/test_plan_2_8_alert_history_summary.py`
 - `tests/test_plan_2_8_digest_rollup.py`
