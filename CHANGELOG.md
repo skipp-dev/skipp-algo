@@ -6,6 +6,19 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-05-14) — Plan 2.8 first green + md files + hash chars
+
+- New `scripts/plan_2_8_ledger_first_green_index.py` reports the
+  zero-based index of the first green observation.
+- New `scripts/plan_2_8_digest_md_file_count.py` reports the
+  count of top-level ``.md`` files.
+- New `scripts/plan_2_8_weekly_summary_hash_char_count.py`
+  counts ``#`` characters in the summary.
+- Weekly workflow wires the three new steps after the
+  tab-count upload.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six new
+  script+test pairs.
+
 ### Added (2026-05-14) — Plan 2.8 unknown streak + nonempty files + tabs
 
 - New `scripts/plan_2_8_ledger_unknown_streak_max.py` reports the
