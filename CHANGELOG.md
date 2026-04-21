@@ -6,6 +6,16 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-07-24) — Plan 2.8 empty strings + bin + tilde lines
+
+- `scripts/plan_2_8_ledger_empty_string_value_count.py` counts top-level
+  empty-string values across ledger JSON-object records.
+- `scripts/plan_2_8_digest_bin_file_count.py` counts top-level `.bin`
+  files.
+- `scripts/plan_2_8_weekly_summary_tilde_line_count.py` counts lines
+  containing an ASCII `~`.
+- Weekly digest workflow wires three fail-soft compute+upload step pairs.
+
 ### Added (2026-07-23) — Plan 2.8 float values + img + caret lines
 
 - `scripts/plan_2_8_ledger_float_value_count.py` counts `float` top-level
