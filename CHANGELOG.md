@@ -6,6 +6,22 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-21) — Plan 2.8 checksum verifier + status matrix + size budget
+
+- New `scripts/plan_2_8_checksum_verify.py` verifies a
+  `checksums.json` manifest against a directory, reporting
+  missing/mismatched/extra files with opt-in failure on each.
+- New `scripts/plan_2_8_ledger_status_matrix.py` builds a
+  `from→to` status transition matrix over the ledger (invalid /
+  non-string statuses break the chain so they never fabricate
+  transitions).
+- New `scripts/plan_2_8_digest_size_budget.py` enforces a per-file
+  byte budget (default 1 MiB) on the weekly artifact directory;
+  supports `--fail-on-breach` for CI.
+- Weekly digest now emits and uploads the size-budget report.
+- +41 tests covering verification/matrix/budget; one
+  weekly-workflow pin-test.
+
 ### Added (2026-04-21) — Plan 2.8 ledger stats + artifact checksums + archive index
 
 - New `scripts/plan_2_8_ledger_stats_json.py` buckets the status

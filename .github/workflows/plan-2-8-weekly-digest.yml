@@ -1192,6 +1192,37 @@ jobs:
           if-no-files-found: ignore
           retention-days: 365
 
+      - name: Plan 2.8 digest size budget
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          dir="artifacts/plan_2_8_digest"
+          if [ ! -d "${dir}" ]; then
+            echo "No artifact dir; skipping size budget."
+            exit 0
+          fi
+          python scripts/plan_2_8_digest_size_budget.py \
+            --artifact-dir "${dir}" \
+            --max-bytes    1048576 \
+            --format       md \
+            --output       "${dir}/size_budget.md" \
+            > /dev/null
+          if [ -s "${dir}/size_budget.md" ] \
+              && [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+            cat "${dir}/size_budget.md" >> "${GITHUB_STEP_SUMMARY}"
+          fi
+          true
+
+      - name: Upload Plan 2.8 digest size budget
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-digest-size-budget
+          path: artifacts/plan_2_8_digest/size_budget.md
+          if-no-files-found: ignore
+          retention-days: 365
+
       - name: Open drift-alert issue
         if: steps.resolve_alerts.outputs.has_alerts == 'True'
         env:

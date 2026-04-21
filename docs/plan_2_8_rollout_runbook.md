@@ -371,6 +371,9 @@ read.
 - `tests/test_plan_2_8_ledger_stats_json.py`
 - `tests/test_plan_2_8_artifact_checksum.py`
 - `tests/test_plan_2_8_digest_archive_index.py`
+- `tests/test_plan_2_8_checksum_verify.py`
+- `tests/test_plan_2_8_ledger_status_matrix.py`
+- `tests/test_plan_2_8_digest_size_budget.py`
 - `tests/test_plan_2_8_alert_history.py`
 - `tests/test_plan_2_8_alert_history_summary.py`
 - `tests/test_plan_2_8_digest_rollup.py`
