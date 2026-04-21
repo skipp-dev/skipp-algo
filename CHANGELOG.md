@@ -6,6 +6,24 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-21) — Plan 2.8 captures per day + tiny files + summary sha256
+
+- New `scripts/plan_2_8_ledger_captures_per_day.py` groups
+  ledger records by UTC date and reports per-day capture
+  counts; malformed timestamps and invalid statuses are
+  skipped; days sorted ascending.
+- New `scripts/plan_2_8_digest_tiny_files.py` lists artifact
+  files below a configurable byte threshold (default 100B);
+  boundary is exclusive; subdirs ignored;
+  ``--fail-on-tiny`` for CI.
+- New `scripts/plan_2_8_weekly_summary_sha256.py` computes a
+  stable SHA256 fingerprint of the full weekly summary along
+  with size and line counts.
+- Weekly workflow wires the three new steps after the
+  ordered-list-count upload.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six new
+  script+test pairs.
+
 ### Added (2026-04-21) — Plan 2.8 oldest captured_at + top ext + ordered list count
 
 - New `scripts/plan_2_8_ledger_oldest_captured_at.py` reports

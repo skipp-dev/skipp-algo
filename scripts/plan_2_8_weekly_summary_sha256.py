@@ -1,0 +1,83 @@
+"""Plan 2.8 weekly summary SHA256.
+
+Computes the SHA256 digest of the weekly summary file as a
+stable fingerprint for change detection. ``size_bytes`` and
+``line_count`` are also reported. Missing files return zeros
+and ``sha256`` = ``None``.
+"""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import sys
+from pathlib import Path
+from typing import Any
+
+
+_CHUNK = 65536
+
+
+def compute(path: Path) -> dict[str, Any]:
+    if not path.exists():
+        return {
+            "schema_version": 1,
+            "sha256":         None,
+            "size_bytes":     0,
+            "line_count":     0,
+        }
+    h = hashlib.sha256()
+    size = 0
+    with path.open("rb") as fh:
+        while True:
+            chunk = fh.read(_CHUNK)
+            if not chunk:
+                break
+            h.update(chunk)
+            size += len(chunk)
+    line_count = len(path.read_text(encoding="utf-8").splitlines())
+    return {
+        "schema_version": 1,
+        "sha256":         h.hexdigest(),
+        "size_bytes":     size,
+        "line_count":     line_count,
+    }
+
+
+def render_markdown(report: dict[str, Any]) -> str:
+    sha = report["sha256"] or "_none_"
+    return (
+        "# Plan 2.8 weekly summary sha256\n"
+        "\n"
+        f"- sha256: {sha}\n"
+        f"- size_bytes: {report['size_bytes']}\n"
+        f"- line_count: {report['line_count']}\n"
+    )
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        description="SHA256 fingerprint of the weekly summary.",
+    )
+    parser.add_argument("--summary", type=Path, required=True)
+    parser.add_argument("--format", choices=("md", "json"), default="md")
+    parser.add_argument("--output", type=Path, default=None)
+    args = parser.parse_args(argv)
+
+    if not args.summary.exists():
+        print(f"ERROR: summary not found: {args.summary}", file=sys.stderr)
+        return 1
+
+    report = compute(args.summary)
+    body = render_markdown(report) if args.format == "md" \
+        else json.dumps(report, indent=2) + "\n"
+    if args.output is not None:
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        args.output.write_text(body, encoding="utf-8")
+    print(body, end="")
+    return 0
+
+
+if __name__ == "__main__":  # pragma: no cover
+    raise SystemExit(main())
