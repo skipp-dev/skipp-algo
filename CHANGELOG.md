@@ -6,6 +6,25 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-21) — Q3/Q4 Plan §2.3 F2 promotion-gate orchestrator
+
+- **F2 promotion-gate CLI orchestrator (plan §2.3 F2 + §2.4 G3):** New
+  `scripts/f2_run_promotion_gate.py` is a single CLI entry point that
+  ties `run_ab_comparison.compare()` to
+  `f2_experiment_spec.evaluate_promotion()`. Inputs: `--spec`,
+  `--control-dir`, `--treatment-dir`, optional `--rollback-history`
+  and `--output`. Output: schema-pinned (`schema_version=1`) JSON
+  carrying the `{promote, hold, rollback, insufficient_data}`
+  decision, the SPRT terminal report, the KPI deltas, the
+  rollback-gate evaluation and the resolved action list. Exit codes:
+  `0` on promote/hold/insufficient_data, `1` on configuration error,
+  `2` on rollback (CI signal for the §2.4 G2 GitHub-Issue-Ping rule).
+  Includes the unit-conversion fix in `_pair_dicts`:
+  `PairReport.hit_rate` is a 0..1 fraction on disk but the SPRT
+  wiring expects 0..100 percent, so the adapter multiplies by 100 to
+  keep the convention consistent across the pipeline. 8 new tests
+  (88 total green across the full F2/SPRT/AB chain).
+
 ### Added (2026-04-21) — Q3/Q4 Plan §2.3 F2 contextual promotion gate
 
 - **F2 contextual promotion spec + gate evaluator (plan §2.3 F2 +
