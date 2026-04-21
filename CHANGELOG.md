@@ -6,6 +6,21 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-21) — Plan 2.8 first green age + largest file + link count
+
+- New `scripts/plan_2_8_ledger_first_green_age.py` reports
+  hours since the first green ledger capture relative to
+  ``--now`` (``--fail-below-hours`` for CI).
+- New `scripts/plan_2_8_digest_largest_file.py` reports the
+  largest artifact file by byte size (ties broken by name).
+- New `scripts/plan_2_8_weekly_summary_link_count.py` counts
+  Markdown inline links ``[text](url)`` and their distinct
+  targets (images and fenced code excluded).
+- Weekly workflow wires the three new steps after the table
+  count upload.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six
+  new script+test pairs.
+
 ### Added (2026-04-21) — Plan 2.8 unique statuses + size sum + table count
 
 - New `scripts/plan_2_8_ledger_unique_statuses.py` lists the
