@@ -6,6 +6,16 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-07-25) — Plan 2.8 zero numbers + vhd + backtick lines
+
+- `scripts/plan_2_8_ledger_zero_number_value_count.py` counts top-level
+  zero-valued numeric values (bools excluded) across ledger records.
+- `scripts/plan_2_8_digest_vhd_file_count.py` counts top-level `.vhd`
+  files.
+- `scripts/plan_2_8_weekly_summary_backtick_line_count.py` counts lines
+  containing an ASCII backtick.
+- Weekly digest workflow wires three fail-soft compute+upload step pairs.
+
 ### Added (2026-07-24) — Plan 2.8 empty strings + bin + tilde lines
 
 - `scripts/plan_2_8_ledger_empty_string_value_count.py` counts top-level
