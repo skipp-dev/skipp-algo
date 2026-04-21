@@ -41,7 +41,12 @@ def test_empty_alphabetical_tie() -> None:
 
 
 def test_rarest_is_red() -> None:
-    recs = [_r("green")] * 5 + [_r("amber")] * 3 + [_r("red")]
+    recs = (
+        [_r("green")] * 5
+        + [_r("amber")] * 3
+        + [_r("red")]
+        + [_r("unknown")] * 2
+    )
     rep = rs.compute(recs)
     assert rep["rarest_status"] == "red"
     assert rep["count"] == 1
