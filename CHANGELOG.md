@@ -6,6 +6,13 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-21) — Q3/Q4 Plan §2.3 F2 + §2.4 G2 end-to-end test
+
+- `tests/test_f2_pipeline_e2e.py`: e2e regression test wiring all 5 operator-facing F2
+  helpers together against synthetic fixtures (append → render-issue → revert → rotate →
+  summarize). Covers the two-clean-days-then-rollback walkthrough plus revert idempotency
+  on a re-run. Pure-Python, no benchmark I/O. Guards every helper in one place.
+
 ### Added (2026-04-21) — Q3/Q4 Plan §2.4 G2 automatic Revert
 
 - **F2 contextual-weights auto-revert:** New
