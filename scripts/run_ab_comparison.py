@@ -35,6 +35,7 @@ from scripts.generate_performance_report import (
     load_benchmark,
     PairReport,
 )
+from scripts.smc_sprt_stop_rule import SPRTConfig, terminal_decision
 
 
 def _delta(treatment: float, control: float) -> str:
@@ -120,6 +121,8 @@ def compare(
 
     decision = decide_recommendation(rows)
 
+    sprt = _sprt_decision(ctrl_agg, treat_agg)
+
     return {
         "experiment": experiment_name,
         "control_pairs": len(control_pairs),
@@ -130,6 +133,67 @@ def compare(
         "recommendation": decision["recommendation"],
         "recommendation_reason": decision["reason"],
         "kpi_thresholds": decision["kpi_thresholds"],
+        "sprt": sprt,
+    }
+
+
+# ── G3/F2 SPRT terminal decision ───────────────────────────────────────────
+
+
+# Wald SPRT parameters bound to the comparison output. p0/p1 follow plan
+# §2.4 G3: minimum-detectable effect of +5 percentage points hit-rate
+# improvement over a 0.55 baseline (the lifetime-corpus median across
+# families). alpha=0.05, beta=0.20 are the conventional gate settings.
+SPRT_P0 = 0.55
+SPRT_P1 = 0.60
+SPRT_ALPHA = 0.05
+SPRT_BETA = 0.20
+
+
+def _sprt_decision(ctrl_agg: Any, treat_agg: Any) -> dict[str, Any]:
+    """Compute the terminal SPRT decision for the treatment arm.
+
+    Single-arm Wald SPRT: tests treatment hit rate against the *fixed*
+    baseline ``SPRT_P0`` (lifetime-corpus median), not against the
+    in-experiment control. This matches the F2 promotion-gate semantics
+    in ``docs/f2_contextual_promotion_decision_2026-04-21.md`` step 3.
+
+    Returns a structured dict with the decision, totals, and the
+    resolved Wald bounds. Hit-rate values arrive as percentages
+    (0–100); we convert to fractions before deriving k.
+    """
+    n = int(getattr(treat_agg, "total_events", 0) or 0)
+    hr_pct = float(getattr(treat_agg, "avg_hit_rate", 0.0) or 0.0)
+    # avg_hit_rate is in percent; clamp into [0, 100] before conversion.
+    hr_pct = max(0.0, min(100.0, hr_pct))
+    k = round(n * hr_pct / 100.0)
+
+    config = SPRTConfig(
+        p0=SPRT_P0,
+        p1=SPRT_P1,
+        alpha=SPRT_ALPHA,
+        beta=SPRT_BETA,
+    )
+    state, decision = terminal_decision(n=n, k=k, config=config)
+    return {
+        "decision": decision,
+        "n": state.n,
+        "k": state.k,
+        "hit_rate": round(state.hit_rate, 4),
+        "llr": round(state.llr, 4),
+        "wald_upper": round(config.upper_bound, 4),
+        "wald_lower": round(config.lower_bound, 4),
+        "config": {
+            "p0": SPRT_P0,
+            "p1": SPRT_P1,
+            "alpha": SPRT_ALPHA,
+            "beta": SPRT_BETA,
+        },
+        # Mirror the control arm's totals so the report is self-contained.
+        "control_n": int(getattr(ctrl_agg, "total_events", 0) or 0),
+        "control_hit_rate": round(
+            float(getattr(ctrl_agg, "avg_hit_rate", 0.0) or 0.0) / 100.0, 4
+        ),
     }
 
 
@@ -251,6 +315,26 @@ def render_comparison(digest: dict[str, Any]) -> str:
         lines.append("KPI thresholds:")
         for key, val in thresholds.items():
             lines.append(f"- `{key}` = {val}")
+        lines.append("")
+    sprt = digest.get("sprt") or {}
+    if sprt:
+        lines.append("## SPRT Stop-Rule (G3/F2)")
+        lines.append("")
+        lines.append(f"**Terminal decision:** `{str(sprt.get('decision') or '').upper()}`")
+        lines.append("")
+        lines.append(
+            f"- treatment n={sprt.get('n')}, k={sprt.get('k')}, "
+            f"hit_rate={sprt.get('hit_rate')}"
+        )
+        lines.append(
+            f"- LLR = {sprt.get('llr')} (Wald bounds: "
+            f"lower={sprt.get('wald_lower')}, upper={sprt.get('wald_upper')})"
+        )
+        cfg = sprt.get("config") or {}
+        lines.append(
+            f"- config: p0={cfg.get('p0')}, p1={cfg.get('p1')}, "
+            f"alpha={cfg.get('alpha')}, beta={cfg.get('beta')}"
+        )
         lines.append("")
     return "\n".join(lines)
 

@@ -180,6 +180,42 @@ def evaluate_paired(
     return evaluate(discordant, config)
 
 
+def terminal_decision(
+    n: int, k: int, config: SPRTConfig
+) -> tuple[SPRTState, Decision]:
+    """Compute the SPRT decision from aggregated totals (order-independent).
+
+    The terminal LLR after consuming ``n`` Bernoulli observations with ``k``
+    hits is the closed-form sum::
+
+        llr = k * ln(p1/p0) + (n - k) * ln((1 - p1)/(1 - p0))
+
+    This bypasses the per-step early-stop logic and reports the decision
+    that *would* have been reached if the test had been allowed to run to
+    completion at sample size ``n``. This is the right call site for
+    post-hoc analysis of fixed-window A/B benchmarks (plan §2.4 G3:
+    "SPRT *or* fixes N").
+
+    Returns ``"max_n_reached"`` only when the LLR is strictly inside both
+    Wald bounds — the gate cannot promote (accept_h1) or reject
+    (accept_h0) on inconclusive evidence even at terminal n.
+    """
+    if n < 0 or k < 0 or k > n:
+        raise ValueError(f"invalid totals: n={n}, k={k}")
+    if n == 0:
+        return SPRTState(), "max_n_reached"
+    llr = (
+        k * math.log(config.p1 / config.p0)
+        + (n - k) * math.log((1.0 - config.p1) / (1.0 - config.p0))
+    )
+    state = SPRTState(n=n, k=k, llr=llr)
+    if llr >= config.upper_bound:
+        return state, "accept_h1"
+    if llr <= config.lower_bound:
+        return state, "accept_h0"
+    return state, "max_n_reached"
+
+
 # ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------

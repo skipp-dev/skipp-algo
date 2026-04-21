@@ -1,0 +1,138 @@
+"""Tests for SPRT integration in run_ab_comparison + terminal_decision helper."""
+
+from __future__ import annotations
+
+import pytest
+
+from scripts.run_ab_comparison import (
+    SPRT_P0,
+    _sprt_decision,
+    compare,
+    render_comparison,
+)
+from scripts.smc_sprt_stop_rule import SPRTConfig, terminal_decision
+
+
+# ---------------------------------------------------------------------------
+# terminal_decision (closed-form aggregate SPRT)
+# ---------------------------------------------------------------------------
+
+
+def test_terminal_decision_accepts_h1_on_strong_aggregate() -> None:
+    cfg = SPRTConfig(p0=0.5, p1=0.6, alpha=0.05, beta=0.20)
+    state, decision = terminal_decision(n=500, k=320, config=cfg)
+    assert decision == "accept_h1"
+    assert state.n == 500 and state.k == 320
+
+
+def test_terminal_decision_accepts_h0_on_low_hit_rate() -> None:
+    cfg = SPRTConfig(p0=0.5, p1=0.6, alpha=0.05, beta=0.20)
+    state, decision = terminal_decision(n=500, k=200, config=cfg)
+    assert decision == "accept_h0"
+
+
+def test_terminal_decision_max_n_when_inconclusive() -> None:
+    cfg = SPRTConfig(p0=0.5, p1=0.6, alpha=0.05, beta=0.20)
+    # Hit-rate exactly midway — LLR will straddle bounds.
+    state, decision = terminal_decision(n=20, k=11, config=cfg)
+    assert decision == "max_n_reached"
+
+
+def test_terminal_decision_zero_n_returns_inconclusive() -> None:
+    cfg = SPRTConfig(p0=0.5, p1=0.6)
+    state, decision = terminal_decision(n=0, k=0, config=cfg)
+    assert decision == "max_n_reached"
+    assert state.n == 0 and state.k == 0
+
+
+def test_terminal_decision_validates_invariants() -> None:
+    cfg = SPRTConfig(p0=0.5, p1=0.6)
+    with pytest.raises(ValueError):
+        terminal_decision(n=10, k=11, config=cfg)
+    with pytest.raises(ValueError):
+        terminal_decision(n=-1, k=0, config=cfg)
+
+
+# ---------------------------------------------------------------------------
+# _sprt_decision wiring
+# ---------------------------------------------------------------------------
+
+
+class _Agg:
+    """Stand-in for AggregateReport with only the attrs _sprt_decision reads."""
+
+    def __init__(self, total_events: int, avg_hit_rate: float) -> None:
+        self.total_events = total_events
+        self.avg_hit_rate = avg_hit_rate
+
+
+def test_sprt_decision_promotes_when_treatment_beats_baseline() -> None:
+    # Baseline p0=0.55, target p1=0.60. Treatment hits 64% on 800 events
+    # -> strongly accept_h1.
+    ctrl = _Agg(total_events=800, avg_hit_rate=55.0)
+    treat = _Agg(total_events=800, avg_hit_rate=64.0)
+    sprt = _sprt_decision(ctrl, treat)
+    assert sprt["decision"] == "accept_h1"
+    assert sprt["n"] == 800
+    assert sprt["k"] == round(800 * 0.64)
+    assert sprt["config"]["p0"] == SPRT_P0
+
+
+def test_sprt_decision_rejects_when_treatment_below_baseline() -> None:
+    ctrl = _Agg(total_events=800, avg_hit_rate=55.0)
+    treat = _Agg(total_events=800, avg_hit_rate=48.0)
+    sprt = _sprt_decision(ctrl, treat)
+    assert sprt["decision"] == "accept_h0"
+
+
+def test_sprt_decision_inconclusive_for_small_sample() -> None:
+    ctrl = _Agg(total_events=20, avg_hit_rate=55.0)
+    treat = _Agg(total_events=20, avg_hit_rate=60.0)
+    sprt = _sprt_decision(ctrl, treat)
+    assert sprt["decision"] == "max_n_reached"
+
+
+def test_sprt_decision_clamps_invalid_hit_rate() -> None:
+    # Defensive: avg_hit_rate occasionally arrives as a fraction in legacy
+    # fixtures or with NaN-ish overflow. Clamp keeps k in [0, n].
+    ctrl = _Agg(total_events=100, avg_hit_rate=55.0)
+    treat = _Agg(total_events=100, avg_hit_rate=250.0)
+    sprt = _sprt_decision(ctrl, treat)
+    # 250% clamped to 100% -> 100 hits
+    assert sprt["k"] == 100
+
+
+# ---------------------------------------------------------------------------
+# End-to-end: compare() and render_comparison() include SPRT block
+# ---------------------------------------------------------------------------
+
+
+def _pair(n_events: int, hit_rate: float, brier: float = 0.18) -> dict:
+    return {
+        "symbol": "AAPL",
+        "timeframe": "15m",
+        "n_events": n_events,
+        "brier": brier,
+        "hit_rate_pct": hit_rate,
+        "calibrated_brier": brier,
+        "calibrated_ece": 0.10,
+        "ensemble_score": 0.5,
+    }
+
+
+def test_compare_attaches_sprt_block() -> None:
+    control = [_pair(800, 55.0)]
+    treatment = [_pair(800, 64.0)]
+    digest = compare(control, treatment, "test-exp")
+    assert "sprt" in digest
+    assert digest["sprt"]["decision"] == "accept_h1"
+
+
+def test_render_comparison_includes_sprt_section() -> None:
+    control = [_pair(800, 55.0)]
+    treatment = [_pair(800, 64.0)]
+    digest = compare(control, treatment, "test-exp")
+    md = render_comparison(digest)
+    assert "## SPRT Stop-Rule (G3/F2)" in md
+    assert "ACCEPT_H1" in md
+    assert "Wald bounds" in md
