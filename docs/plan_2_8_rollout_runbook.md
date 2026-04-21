@@ -440,6 +440,9 @@ read.
 - `tests/test_plan_2_8_ledger_amber_ratio.py`
 - `tests/test_plan_2_8_digest_name_length_stats.py`
 - `tests/test_plan_2_8_weekly_summary_heading_hierarchy.py`
+- `tests/test_plan_2_8_ledger_red_ratio.py`
+- `tests/test_plan_2_8_digest_file_age_stats.py`
+- `tests/test_plan_2_8_weekly_summary_blockquote_count.py`
 - `tests/test_plan_2_8_alert_history.py`
 - `tests/test_plan_2_8_alert_history_summary.py`
 - `tests/test_plan_2_8_digest_rollup.py`

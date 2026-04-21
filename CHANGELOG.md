@@ -6,6 +6,23 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-21) — Plan 2.8 red ratio + file age stats + blockquote count
+
+- New `scripts/plan_2_8_ledger_red_ratio.py` mirrors the
+  amber-ratio helper for red records; includes
+  ``--fail-above-ratio`` for CI.
+- New `scripts/plan_2_8_digest_file_age_stats.py` reports
+  min/mean/max file age (seconds since mtime) for the
+  artifact dir; negative ages are clamped to zero; subdirs
+  ignored; ``now_ts`` injection keeps tests deterministic.
+- New `scripts/plan_2_8_weekly_summary_blockquote_count.py`
+  counts blockquote lines and distinct blockquote blocks
+  outside fenced code blocks.
+- Weekly workflow wires the three new steps after heading
+  hierarchy.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six new
+  script+test pairs.
+
 ### Added (2026-04-21) — Plan 2.8 amber ratio + name length stats + heading hierarchy
 
 - New `scripts/plan_2_8_ledger_amber_ratio.py` mirrors the
