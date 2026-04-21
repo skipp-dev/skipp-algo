@@ -6,6 +6,19 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-05-05) — Plan 2.8 set size + max size + median line
+
+- New `scripts/plan_2_8_ledger_status_set_size.py` reports
+  the count of distinct canonical statuses observed.
+- New `scripts/plan_2_8_digest_max_file_size.py` reports
+  the largest top-level regular-file size.
+- New `scripts/plan_2_8_weekly_summary_median_line_length.py`
+  reports median line length across the summary.
+- Weekly workflow wires the three new steps after the
+  mean-line-length upload.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six
+  new script+test pairs.
+
 ### Added (2026-05-04) — Plan 2.8 most common + executable + mean line
 
 - New `scripts/plan_2_8_ledger_most_common_status.py` reports
