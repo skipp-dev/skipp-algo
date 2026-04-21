@@ -6,6 +6,23 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-21) — docs/DECISIONS.md ADR scaffolding
+
+- `docs/DECISIONS.md`: new append-only architectural decision log
+  with canonical ADR format (Context / Decision / Alternatives
+  considered / Consequences / Evidence / Status). First entry:
+  **2026-04-21 — 3-layer HTF trend stack over Flux-style 7-TF
+  bias**, closing the Plan 2.8 addendum §7 risk-mitigation ask for
+  a canonical reject-reason location. The entry enumerates all
+  three rejected alternatives (Flux 7-TF, 4th intraday layer /
+  30m vs 2H, sub-minute LTF) and cross-references the pin-tests
+  and the Q4-gate evaluator that would re-open the deferred 2H
+  branch.
+- `tests/test_docs_decisions_adr.py`: 6 structural pin-tests
+  (file exists, required subsections, Plan 2.8 ADR present, ADR
+  cross-references addendum + all four pin-tests + Q4 evaluator,
+  all three rejected alternatives listed, `Status. accepted.`).
+
 ### Added (2026-04-21) — Plan 2.8 §3.2 Q4-Gate evaluator
 
 - `scripts/plan_2_8_q4_gate_evaluator.py`: pure evaluator for the
