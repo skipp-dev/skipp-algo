@@ -6,6 +6,44 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-21) — Plan 2.8 Phase-2/3 operator surface
+
+- `.github/workflows/plan-2-8-q4-gate-dryrun.yml`: new manual-only
+  (`workflow_dispatch`) W13 dry-run workflow. Inputs: `bundle_path`
+  plus all four threshold knobs (`uplift_min_pp`,
+  `uplift_min_buckets`, `brier_max_regression`,
+  `min_events_per_bucket`) defaulted to the addendum values
+  (`0.03` / `2` / `0.02` / `30`). Streams the verdict markdown into
+  `$GITHUB_STEP_SUMMARY` and uploads the JSON as the
+  `plan-2-8-q4-gate-verdict` artifact (90-day retention).
+- `scripts/append_adr.py`: ADR appender helper enforcing the
+  canonical shape (Context / Decision / Alternatives considered /
+  Consequences / Evidence / Status), with date validation,
+  status whitelist (`accepted` / `deferred` / `superseded by ...`),
+  `--dry-run`, and file-based `--context-file` /
+  `--alternatives-file` inputs for longer sections. Enables the W13
+  ADR workflow the rollout runbook describes.
+- `docs/plan_2_8_rollout_runbook.md`: operator-facing rollout
+  runbook: phase timeline (0/1 done, 2 in-flight, 3 scheduled), the
+  daily rolling-bench automation pointer, the W13 Q4-gate
+  review checklist with a concrete bundle example, the three-gate
+  summary table, the shipped pin-test inventory, and the
+  "Phase 2 not ready by W12" deferral escalation.
+- Pin-tests:
+  - `tests/test_plan_2_8_q4_gate_workflow.py` (6 tests — file exists,
+    `workflow_dispatch`-only trigger, all five inputs present, default
+    thresholds match the addendum, evaluator step wires all knobs and
+    streams summary, artifact uploaded with `if: always()`).
+  - `tests/test_append_adr.py` (11 tests — render required
+    subsections, header shape, date/slug/decision validation, status
+    whitelist, empty-alternatives placeholder, append ordering,
+    `## Entries` section required, CLI dry-run, CLI write, CLI error
+    exit code).
+  - `tests/test_plan_2_8_rollout_runbook.py` (6 tests — title, three
+    gates documented with thresholds, cross-references to shipped
+    tooling, four-phase table, Phase 0/1 marked done, default
+    constants cited verbatim).
+
 ### Added (2026-04-21) — docs/DECISIONS.md ADR scaffolding
 
 - `docs/DECISIONS.md`: new append-only architectural decision log
