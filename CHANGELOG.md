@@ -6,6 +6,25 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-21) — Q3/Q4 Plan §2.4 G3 SPRT stop-rule
+
+- **G3 / F2 SPRT stop-rule (plan §2.4 G3):** New
+  `scripts/smc_sprt_stop_rule.py` implements one-sided two-hypothesis
+  Wald SPRT on a single arm's binary outcomes (H0: p = p0 baseline,
+  H1: p = p1 target). Pure Python (`math.log` only); no numpy/scipy
+  dependency. `SPRTConfig` validates `p1 > p0`, error rates in
+  (0, 0.5), `max_n >= 1`. `decide()` returns
+  `{accept_h0, accept_h1, continue, max_n_reached}` so the gate
+  cannot loop forever in CI. `evaluate_paired()` provides the
+  McNemar-style discordant-pair filter for paired (control,
+  treatment) tuples. CLI emits a schema-pinned `schema_version=1`
+  report with `decision`, `n`, `k`, `hit_rate`, `llr`, Wald bounds
+  and the resolved config. Unblocks F2 contextual-promotion gate
+  (`docs/f2_contextual_promotion_decision_2026-04-21.md` step 3)
+  and G3 30-day A/B once arms are wired into the rolling benchmark.
+  17 new tests (incl. deterministic Monte-Carlo H1-truth check at
+  ≥70 % acceptance rate).
+
 ### Added (2026-04-21) — Q3/Q4 Plan Amendment A1 (D4 + D2 + G1 closeout)
 
 - **A1.A — Per-Event Ledger (plan §A1.A):** New `smc_core/event_ledger.py`
