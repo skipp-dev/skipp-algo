@@ -1833,6 +1833,89 @@ jobs:
           if-no-files-found: ignore
           retention-days: 365
 
+      - name: Plan 2.8 ledger best day
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          ledger="artifacts/plan_2_8_digest/status_ledger.jsonl"
+          if [ ! -s "${ledger}" ]; then
+            echo "No ledger; skipping best day."
+            exit 0
+          fi
+          python scripts/plan_2_8_ledger_best_day.py \
+            --ledger "${ledger}" \
+            --format md \
+            --output artifacts/plan_2_8_digest/best_day.md \
+            > /dev/null
+          true
+
+      - name: Upload Plan 2.8 ledger best day
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-ledger-best-day
+          path: artifacts/plan_2_8_digest/best_day.md
+          if-no-files-found: ignore
+          retention-days: 365
+
+      - name: Plan 2.8 digest size trend
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          prior="artifacts/plan_2_8_prior"
+          curr="artifacts/plan_2_8_digest"
+          if [ ! -d "${curr}" ]; then
+            echo "No current dir; skipping size trend."
+            exit 0
+          fi
+          if [ ! -d "${prior}" ]; then
+            prior="${curr}"
+          fi
+          python scripts/plan_2_8_digest_size_trend.py \
+            --prior   "${prior}" \
+            --current "${curr}" \
+            --format  md \
+            --output  artifacts/plan_2_8_digest/size_trend.md \
+            > /dev/null
+          true
+
+      - name: Upload Plan 2.8 digest size trend
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-digest-size-trend
+          path: artifacts/plan_2_8_digest/size_trend.md
+          if-no-files-found: ignore
+          retention-days: 365
+
+      - name: Plan 2.8 weekly summary heading order
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          md="artifacts/plan_2_8_digest/weekly_summary.md"
+          if [ ! -s "${md}" ]; then
+            echo "No weekly_summary.md; skipping heading-order check."
+            exit 0
+          fi
+          python scripts/plan_2_8_weekly_summary_heading_order.py \
+            --input  "${md}" \
+            --format md \
+            --output artifacts/plan_2_8_digest/heading_order.md \
+            > /dev/null
+          true
+
+      - name: Upload Plan 2.8 weekly summary heading order
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-weekly-summary-heading-order
+          path: artifacts/plan_2_8_digest/heading_order.md
+          if-no-files-found: ignore
+          retention-days: 365
+
       - name: Open drift-alert issue
         if: steps.resolve_alerts.outputs.has_alerts == 'True'
         env:

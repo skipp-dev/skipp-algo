@@ -6,6 +6,26 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-21) — Plan 2.8 best day + size trend + heading order
+
+- New `scripts/plan_2_8_ledger_best_day.py` mirrors worst-day
+  and flags the UTC date with the most green records; ties
+  break by earliest date.
+- New `scripts/plan_2_8_digest_size_trend.py` compares total
+  bytes in two artifact directories (prior vs current) and
+  reports delta_bytes and delta_pct (`None` when prior=0);
+  `--fail-on-drop-pct` gates CI on sudden shrinkage;
+  subdirectories are not counted.
+- New `scripts/plan_2_8_weekly_summary_heading_order.py`
+  validates that `##` headings in `weekly_summary.md` appear in
+  `DEFAULT_ORDER` and reports missing, extra, and misorder;
+  `--fail-on-misorder` gates CI.
+- Weekly workflow wires best-day, size-trend (reuses the
+  prior-catalog download dir), and heading-order steps after
+  section-stats.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six new
+  script+test pairs.
+
 ### Added (2026-04-21) — Plan 2.8 worst day + catalog diff + section stats
 
 - New `scripts/plan_2_8_ledger_worst_day.py` groups ledger
