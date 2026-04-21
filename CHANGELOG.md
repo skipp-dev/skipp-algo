@@ -6,6 +6,19 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-06-21) — Plan 2.8 amber span + 3gp + ascii-letter
+
+- New `scripts/plan_2_8_ledger_amber_first_last_index_span.py`
+  reports the index span between the first and last amber records.
+- New `scripts/plan_2_8_digest_threegp_file_count.py` counts
+  top-level ``.3gp`` files.
+- New `scripts/plan_2_8_weekly_summary_ascii_letter_char_count.py`
+  counts ASCII letters (A–Z, a–z).
+- Weekly workflow wires the three new steps after the ascii
+  control upload.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six new
+  script+test pairs.
+
 ### Added (2026-06-20) — Plan 2.8 green span + m4v + ascii-control
 
 - New `scripts/plan_2_8_ledger_green_first_last_index_span.py`
