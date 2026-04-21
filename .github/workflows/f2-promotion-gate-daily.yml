@@ -190,6 +190,32 @@ jobs:
         run: |
           echo "::notice title=f2-promotion-gate-daily::date=${{ steps.date.outputs.value }} decision=${{ steps.gate.outputs.decision || 'unknown' }} rc=${{ steps.gate.outputs.rc || 'unknown' }}"
 
+      - name: Pipeline status summary
+        # Always runs (even on skip / rollback / config error) so each
+        # run leaves an operator-readable digest of where F2 stands
+        # right now: history length / last delta / trend / consecutive
+        # worse-or-better counts / per-decision counts / latest report
+        # decision + SPRT terminal block. Failure here MUST NOT mask
+        # the gate exit code, so we tolerate a non-zero rc.
+        if: always()
+        run: |
+          mkdir -p artifacts/ci/f2
+          python scripts/f2_summarize_history.py \
+            --history      artifacts/ci/f2/rollback_history.json \
+            --reports-dir  artifacts/reports \
+            --trend-window 30 \
+            --output       artifacts/ci/f2/history_summary.json || true
+          if [ -f artifacts/ci/f2/history_summary.json ] && [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+            {
+              echo '## F2 history summary'
+              echo ''
+              echo '```json'
+              cat artifacts/ci/f2/history_summary.json
+              echo ''
+              echo '```'
+            } >> "${GITHUB_STEP_SUMMARY}"
+          fi
+
       - name: Upload promotion-gate artifact
         if: always() && steps.locate.outputs.status == 'ready'
         uses: actions/upload-artifact@v4
@@ -198,6 +224,7 @@ jobs:
           path: |
             artifacts/reports/f2_promotion_gate_*.json
             artifacts/ci/f2/rollback_history.json
+            artifacts/ci/f2/history_summary.json
             gate_stdout.json
           if-no-files-found: ignore
           retention-days: 60

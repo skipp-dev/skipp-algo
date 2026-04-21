@@ -6,6 +6,33 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-21) — Q3/Q4 Plan §2.3 F2 daily-history summarizer
+
+- **F2 history summarizer:** New `scripts/f2_summarize_history.py`
+  closes out the F2 operator toolset (append / rotate / render-issue /
+  **summarize**). Reads
+  `artifacts/ci/f2/rollback_history.json` (treatment − control
+  `calibrated_brier` deltas) and optionally a directory of
+  `f2_promotion_gate_*.json` reports, then emits a small
+  `schema_version=1` digest with: history length / last delta /
+  trailing-mean trend (default 30-day window) / consecutive worse
+  vs better counts (matching the §2.4 G2 rollback rule), per-decision
+  counts (`promote/hold/rollback/insufficient_data`), the latest
+  report path + date + decision, and the verbatim latest SPRT
+  terminal block. Pure-Python, deterministic, no network. Useful as
+  input for a future Pine HUD row or weekly Slack digest. CLI exit
+  codes: `0` on success, `1` on `--trend-window<1` or non-list
+  history. 16 new tests; 140 total green across the F2/SPRT/AB chain.
+- **Workflow wiring:** Updated
+  `.github/workflows/f2-promotion-gate-daily.yml` to invoke the
+  summarizer as an `if: always()` step (skip / rollback / config
+  error all surface a digest). Writes
+  `artifacts/ci/f2/history_summary.json` (now also in the uploaded
+  artifact bundle) and appends a fenced JSON block to
+  `$GITHUB_STEP_SUMMARY` so the Actions tab shows current pipeline
+  state at a glance. Failure of this step is tolerated (`|| true`)
+  so it can never mask the gate's exit code.
+
 ### Added (2026-04-21) — Q3/Q4 Plan §2.4 G2 GitHub-Issue-Ping
 
 - **F2 rollback Issue renderer:** New
