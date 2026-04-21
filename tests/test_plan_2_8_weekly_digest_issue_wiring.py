@@ -31,15 +31,14 @@ def test_digest_step_also_renders_issue_body_and_alerts_file() -> None:
     assert "--format             issue" in run
     assert "--output             artifacts/plan_2_8_digest/issue_body.md" in run
     assert "--alerts-file        artifacts/plan_2_8_digest/alerts.json" in run
-    # has_alerts propagated via GITHUB_OUTPUT.
-    assert "has_alerts=" in run
-    assert "$GITHUB_OUTPUT" in run
+    # Also emits a JSON digest for the snooze step.
+    assert "digest.json" in run
 
 
 def test_issue_creation_step_present_and_conditional() -> None:
     steps = _wf()["jobs"]["weekly-digest"]["steps"]
     issue = next(s for s in steps if s.get("name") == "Open drift-alert issue")
-    assert issue["if"] == "steps.digest.outputs.has_alerts == 'True'"
+    assert issue["if"] == "steps.resolve_alerts.outputs.has_alerts == 'True'"
     run = issue["run"]
     assert "gh issue create" in run
     assert "--body-file artifacts/plan_2_8_digest/issue_body.md" in run
@@ -70,7 +69,7 @@ def test_auto_close_step_present_and_conditional() -> None:
     steps = _wf()["jobs"]["weekly-digest"]["steps"]
     close = next(s for s in steps
                  if s.get("name") == "Close drift-alert issues when alerts cleared")
-    assert close["if"] == "steps.digest.outputs.has_alerts == 'False'"
+    assert close["if"] == "steps.resolve_alerts.outputs.has_alerts == 'False'"
     run = close["run"]
     assert "gh issue list" in run
     assert "--state open" in run
@@ -103,6 +102,35 @@ def test_top_movers_step_present_and_fail_soft() -> None:
     assert "set +e" in run
     assert run.rstrip().endswith("true")
     assert "GITHUB_STEP_SUMMARY" in run
+
+
+def test_snooze_step_present_and_always_runs() -> None:
+    steps = _wf()["jobs"]["weekly-digest"]["steps"]
+    snooze = next(s for s in steps if s.get("id") == "snooze")
+    assert snooze["if"].strip() == "always()"
+    run = snooze["run"]
+    assert "scripts/plan_2_8_alert_snooze.py" in run
+    assert "configs/plan_2_8_snoozes.json" in run
+    assert "digest.snoozed.json" in run
+    assert "render_issue_body" in run
+
+
+def test_resolve_alerts_step_emits_final_has_alerts() -> None:
+    steps = _wf()["jobs"]["weekly-digest"]["steps"]
+    resolve = next(s for s in steps if s.get("id") == "resolve_alerts")
+    assert resolve["if"].strip() == "always()"
+    run = resolve["run"]
+    assert "alerts.json" in run
+    assert "has_alerts=" in run
+    assert "$GITHUB_OUTPUT" in run
+
+
+def test_snooze_config_file_exists_and_is_valid_json() -> None:
+    import json as _json
+    cfg = Path(__file__).resolve().parents[1] / "configs" / "plan_2_8_snoozes.json"
+    assert cfg.exists()
+    data = _json.loads(cfg.read_text(encoding="utf-8"))
+    assert isinstance(data.get("snoozes"), list)
 
 
 def test_issue_step_uses_github_token() -> None:

@@ -84,9 +84,70 @@ jobs:
           if [ -s artifacts/plan_2_8_digest/weekly_digest.md ]; then
             cat artifacts/plan_2_8_digest/weekly_digest.md >> "$GITHUB_STEP_SUMMARY"
           fi
-          # Propagate has_alerts to the next step without failing the run.
-          has=$(python -c "import json,sys;print(json.load(open('artifacts/plan_2_8_digest/alerts.json'))['has_alerts'])" 2>/dev/null || echo False)
+          # Also render a JSON digest so downstream steps can apply
+          # the operator snooze config without re-reading the history.
+          python scripts/plan_2_8_trend_digest.py \
+            --history            "${history}" \
+            --lookback-days      "${{ inputs.lookback_days || '7' }}" \
+            --alert-threshold-pp "${{ inputs.alert_threshold_pp || '0.05' }}" \
+            --min-events         "${{ inputs.min_events || '30' }}" \
+            --format             json \
+            --output             artifacts/plan_2_8_digest/digest.json \
+            > /dev/null
+          true
+
+      - name: Apply alert snooze config
+        id: snooze
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          config="configs/plan_2_8_snoozes.json"
+          digest="artifacts/plan_2_8_digest/digest.json"
+          if [ ! -s "${digest}" ]; then
+            echo "No digest.json to snooze; skipping."
+            echo "applied=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # Pass-through when config missing or has no entries.
+          if [ ! -s "${config}" ] || ! python -c "import json,sys;c=json.load(open('${config}'));sys.exit(0 if c.get('snoozes') else 1)" 2>/dev/null; then
+            echo "No active snooze entries; pass-through."
+            echo "applied=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          python scripts/plan_2_8_alert_snooze.py \
+            --digest "${digest}" \
+            --snooze "${config}" \
+            --output artifacts/plan_2_8_digest/digest.snoozed.json \
+            > /dev/null
+          # Re-render issue body and alerts file from the filtered digest.
+          python -c "
+          import json
+          from pathlib import Path
+          import importlib.util
+          spec = importlib.util.spec_from_file_location('td', 'scripts/plan_2_8_trend_digest.py')
+          m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+          d = json.load(open('artifacts/plan_2_8_digest/digest.snoozed.json'))
+          Path('artifacts/plan_2_8_digest/issue_body.md').write_text(m.render_issue_body(d), encoding='utf-8')
+          Path('artifacts/plan_2_8_digest/alerts.json').write_text(
+            json.dumps({'has_alerts': m.has_alerts(d),
+                        'count': len(d.get('alerts') or [])}, indent=2) + '\n',
+            encoding='utf-8',
+          )
+          "
+          echo "applied=true" >> "$GITHUB_OUTPUT"
+          true
+
+      - name: Resolve final has_alerts
+        id: resolve_alerts
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          alerts="artifacts/plan_2_8_digest/alerts.json"
+          has=$(python -c "import json;print(json.load(open('${alerts}'))['has_alerts'])" 2>/dev/null || echo False)
           echo "has_alerts=${has}" >> "$GITHUB_OUTPUT"
+          echo "Final has_alerts=${has}"
           true
 
       - name: Upload weekly digest
@@ -99,7 +160,7 @@ jobs:
           retention-days: 90
 
       - name: Open drift-alert issue
-        if: steps.digest.outputs.has_alerts == 'True'
+        if: steps.resolve_alerts.outputs.has_alerts == 'True'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
@@ -136,7 +197,7 @@ jobs:
           fi
 
       - name: Close drift-alert issues when alerts cleared
-        if: steps.digest.outputs.has_alerts == 'False'
+        if: steps.resolve_alerts.outputs.has_alerts == 'False'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}

@@ -1,0 +1,103 @@
+name: Plan 2.8 Monthly Digest
+
+on:
+  schedule:
+    - cron: '0 13 1 * *'  # 1st of month, 13:00 UTC
+  workflow_dispatch:
+    inputs:
+      lookback_days:
+        description: 'Days between comparison endpoints'
+        required: false
+        default: '30'
+      alert_threshold_pp:
+        description: 'Absolute HR drift (0..1) to flag a slice'
+        required: false
+        default: '0.05'
+      min_events:
+        description: 'Per-slice events floor for a comparable verdict'
+        required: false
+        default: '30'
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  monthly-digest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Download latest rolling bench artifact
+        uses: dawidd6/action-download-artifact@v6
+        with:
+          workflow: smc-measurement-benchmark-rolling.yml
+          name: '^smc-measurement-benchmark-rolling-.*$'
+          name_is_regexp: true
+          workflow_conclusion: ''
+          if_no_artifact_found: warn
+          path: artifacts/latest_bench
+
+      - name: Render monthly trend digest
+        id: digest
+        shell: bash
+        run: |
+          set +e
+          mkdir -p artifacts/plan_2_8_monthly
+          history="$(find artifacts/latest_bench -name plan_2_8_history.jsonl -print -quit)"
+          if [ -z "${history}" ]; then
+            echo "No plan_2_8_history.jsonl found in latest bench artifact." \
+              | tee -a "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          python scripts/plan_2_8_trend_digest.py \
+            --history            "${history}" \
+            --lookback-days      "${{ inputs.lookback_days || '30' }}" \
+            --alert-threshold-pp "${{ inputs.alert_threshold_pp || '0.05' }}" \
+            --min-events         "${{ inputs.min_events || '30' }}" \
+            --output             artifacts/plan_2_8_monthly/monthly_digest.md \
+            > /dev/null
+          if [ -s artifacts/plan_2_8_monthly/monthly_digest.md ] \
+              && [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+            cat artifacts/plan_2_8_monthly/monthly_digest.md \
+              >> "$GITHUB_STEP_SUMMARY"
+          fi
+          true
+
+      - name: Plan 2.8 top movers (monthly)
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          history="$(find artifacts/latest_bench -name plan_2_8_history.jsonl -print -quit)"
+          if [ -z "${history}" ]; then
+            echo "No history; skipping top-movers."
+            exit 0
+          fi
+          mkdir -p artifacts/plan_2_8_monthly
+          python scripts/plan_2_8_top_movers.py \
+            --history       "${history}" \
+            --lookback-days "${{ inputs.lookback_days || '30' }}" \
+            --min-events    "${{ inputs.min_events || '30' }}" \
+            --top-n         10 \
+            --output        artifacts/plan_2_8_monthly/top_movers.md \
+            > /dev/null
+          if [ -s artifacts/plan_2_8_monthly/top_movers.md ] \
+              && [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+            cat artifacts/plan_2_8_monthly/top_movers.md \
+              >> "$GITHUB_STEP_SUMMARY"
+          fi
+          true
+
+      - name: Upload monthly digest
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-monthly-digest
+          path: artifacts/plan_2_8_monthly
+          if-no-files-found: warn
+          retention-days: 365

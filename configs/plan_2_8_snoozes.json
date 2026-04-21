@@ -1,0 +1,4 @@
+{
+  "_comment": "Operator-managed snooze list for Plan 2.8 drift alerts. Each entry may specify tf (required for tf-scoped), family (optional), expires (ISO8601, optional — absent = indefinite), and reason (free-text). Invalid timestamps are ignored (alert fires).",
+  "snoozes": []
+}

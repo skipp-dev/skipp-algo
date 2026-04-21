@@ -235,6 +235,26 @@ python scripts/plan_2_8_alert_snooze.py \
   --output /tmp/digest.snoozed.json
 ```
 
+The weekly digest workflow now reads
+[`configs/plan_2_8_snoozes.json`](../configs/plan_2_8_snoozes.json) at
+run-time: when the file contains active `snoozes`, the workflow
+recomputes `has_alerts` from the snoozed digest, so suppressed
+slices never open a GitHub issue. Commit the file with a PR so the
+team can review the scope and expiry.
+
+### Monthly digest & slice coverage
+
+[`.github/workflows/plan-2-8-monthly-digest.yml`](../.github/workflows/plan-2-8-monthly-digest.yml)
+runs on the 1st of every month at 13:00 UTC and emits a monthly
+trend digest + top-movers (10 slices) from the same rolling-bench
+history. Artifacts carry a 365-day retention so retros always have
+a year of context to reach back to.
+
+[`scripts/plan_2_8_coverage.py`](../scripts/plan_2_8_coverage.py)
+reports how many TF×family slices in the latest snapshot sit below
+the `min_events` floor. Use `--fail-on-under` in CI to enforce a
+hard coverage bar before promoting a bench run.
+
 ## Pin-test inventory
 
 - `tests/test_plan_2_8_s0_pine_trend_tf_tooltips.py`
@@ -255,6 +275,8 @@ python scripts/plan_2_8_alert_snooze.py \
 - `tests/test_plan_2_8_history_diff.py`
 - `tests/test_plan_2_8_top_movers.py`
 - `tests/test_plan_2_8_alert_snooze.py`
+- `tests/test_plan_2_8_coverage.py`
+- `tests/test_plan_2_8_monthly_digest_workflow.py`
 - `tests/test_plan_2_8_rolling_workflow_rotate_wiring.py`
 - `tests/test_plan_2_8_rolling_workflow_validate_wiring.py`
 - `tests/test_plan_2_8_trend_digest.py`

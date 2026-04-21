@@ -6,6 +6,32 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-21) — Plan 2.8 snooze config + monthly digest + coverage helper
+
+- `configs/plan_2_8_snoozes.json`: operator-managed drift-alert
+  snooze list (empty by default). Weekly digest workflow now loads
+  it, re-renders the digest via `plan_2_8_alert_snooze.py`, and
+  resolves final `has_alerts` from the filtered result so suppressed
+  slices never open/reopen GitHub issues.
+- `.github/workflows/plan-2-8-weekly-digest.yml`: new `snoozed`
+  pass-through pipeline — `digest` step emits a JSON digest, new
+  `snooze` step applies config if present, new `resolve_alerts` step
+  sets the final `has_alerts` output consumed by the open/close
+  steps.
+- `.github/workflows/plan-2-8-monthly-digest.yml`: schedule
+  `0 13 1 * *` + dispatch. Runs the trend digest at 30d lookback and
+  top-movers with `--top-n 10`. 365-day artifact retention.
+- `scripts/plan_2_8_coverage.py`: report TF×family slices in the
+  latest snapshot that are below `min_events`. Optional
+  `--fail-on-under` for hard CI gating.
+- `scripts/plan_2_8_status.py`: Phase 1 anchors include the snooze
+  config, coverage helper, and monthly workflow + tests.
+- Docs: runbook notes the weekly snooze behaviour and adds sections
+  for monthly digest and slice coverage; pin-test inventory
+  refreshed.
+- Tests: +10 coverage, +7 monthly workflow, +3 weekly digest wiring
+  (20 new).
+
 ### Added (2026-04-21) — Plan 2.8 alert snooze + top movers
 
 - `scripts/plan_2_8_alert_snooze.py`: filter a trend-digest JSON
