@@ -6,7 +6,54 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-21) — Q3/Q4 Plan Phase E + F1 + E4
+
+- **E1 — Symbol-Expansion (plan §2.2):** Recurring measurement-benchmark
+  workflow universe extended from 12 → 20 symbols (adds GOOGL, META,
+  NVDA, TSLA, V, UNH, HD, CVX, COP, OXY, BAC, GS, MS). All three preset
+  cohorts (Tech-Megacap, Financials, Energy) now covered.
+- **E2 — Timeframe-Expansion (plan §2.2):** 5m and 4H added alongside
+  existing 15m/1H. Workflow now produces 80 (sym × tf) artifact dirs.
+- **E3 — Rolling Benchmark (plan §2.2):** New
+  `.github/workflows/smc-measurement-benchmark-rolling.yml` runs the
+  20-sym universe daily at 07:30 UTC, writes to dated sub-dirs
+  (`artifacts/ci/measurement_benchmark_rolling/YYYY-MM-DD/`), and
+  retains 30 days. Includes per-day zone-priority calibration (with
+  smECE) + FVG label audit. Purely observational; does not mutate
+  checked-in lifetime corpus or production calibration.
+- **E4 — FI Ranking-Drift Alert (plan §2.2):**
+  `open_prep/feature_importance_report.py` now reads the previous
+  `latest.json` before overwriting and attaches a `ranking_drift` block
+  to the new record (status ∈ {ok, warn, unknown}, max_position_delta,
+  drifted_features). Drifted = top-10 position shift > 3. Features
+  dropping out of top-10 count as position N+1 so silent churn cannot
+  hide drift. Advisory signal; CLI prints the drifted feature rows.
+- **F1 — Testable Calibration alongside ECE (plan §2.3):**
+  `scripts/smc_zone_priority_calibration.py` reconstructs corpus-level
+  (pred, outcome) arrays from `calibration.bins` in every
+  `scoring_*.json` and emits `testable_calibration` with binned ECE
+  (n=10), smECE (Błasiok & Nakkiran 2023, kernel) and dCE upper bound
+  (Rossellini et al. 2025). smECE is the primary F1 promotion-gate
+  input; ECE kept for back-compat. Project-root `sys.path` fallback so
+  the `smc_core` import works from CLI invocation.
+
+### Evidence (Databento live, 10 025 events / 78 pairs)
+
+- FVG hit-rate **56.1 %** vs BOS **86.8 %** — confirms WP21 FVG
+  weakness at 55× sample size; not a small-sample artifact.
+- `session:ASIA` boosts every family's HR (OB +0.3005, FVG +0.1175,
+  SWEEP +0.1338) — coherent regime signal.
+- `session:NY_AM` FVG underperformance -0.0812 at n=2 662 — single
+  largest actionable lever.
+- Aggregate smECE 0.1349, ECE 0.1332, dCE 0.1260 — all three agree;
+  grid-artifact risk is low.
+- Production `artifacts/reports/zone_priority_calibration.json`
+  intentionally NOT bumped: global OB drift -0.3534 exceeds the 0.15
+  drift-gate. F2 contextual promotion gated on G3 30-day A/B with
+  SPRT/fixed-N stop rule per plan.
+
 ### Added (2026-04-20)
+
 
 - **Phase H — Pine Consumer Maturity:**
   - **Calibration Confidence Indicator** — new `[ Calibration Confidence ]` section in Dashboard Audit View (rows 23–25) showing top-family calibration weight with tier label (high/good/ok/low) and composite confidence across all 4 families. Zone Priority + Calibration exports (`ZONE_CAL_OB/FVG/BOS/SWEEP` + Phase F contextual variants) added to the live generated library.
