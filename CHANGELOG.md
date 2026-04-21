@@ -6,6 +6,19 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-06-27) — Plan 2.8 invalid status + ts + indent-line
+
+- New `scripts/plan_2_8_ledger_invalid_status_count.py` counts
+  records whose ``status`` is not in the canonical four values.
+- New `scripts/plan_2_8_digest_ts_file_count.py` counts top-level
+  ``.ts`` files.
+- New `scripts/plan_2_8_weekly_summary_indent_line_count.py` counts
+  lines starting with space or tab.
+- Weekly workflow wires the three new steps after the line
+  separator upload.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six new
+  script+test pairs.
+
 ### Added (2026-06-26) — Plan 2.8 captured-at missing + vob + line-separator
 
 - New `scripts/plan_2_8_ledger_captured_at_missing_count.py` counts
