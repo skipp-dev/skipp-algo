@@ -6,6 +6,23 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-21) — Q3/Q4 Plan §2.4 G3 SPRT wired into A/B comparison
+
+- **G3/F2 SPRT in `run_ab_comparison.py` (plan §2.4 G3):** New
+  `terminal_decision(n, k, config)` helper in
+  `scripts/smc_sprt_stop_rule.py` runs a closed-form aggregate Wald
+  SPRT (LLR = `k·ln(p1/p0) + (n-k)·ln((1-p1)/(1-p0))`) against the
+  lifetime baseline (p0=0.55, p1=0.60, α=0.05, β=0.20). Order-
+  independent, the right call site for post-hoc analysis of fixed-
+  window A/B benchmarks (plan: "SPRT *or* fixes N"). `compare()`
+  output now carries a `sprt` block and `render_comparison()` emits
+  a `## SPRT Stop-Rule (G3/F2)` markdown section with the terminal
+  decision, totals, LLR vs Wald bounds and the resolved config.
+  F2 promotion gate now consumes the SPRT terminal decision directly
+  from `artifacts/reports/ab_comparison.json` on the next G3 30-day
+  window completion. 12 new tests; 52 total green across SPRT module
+  + comparison wiring.
+
 ### Added (2026-04-21) — Q3/Q4 Plan §2.4 G3 SPRT stop-rule
 
 - **G3 / F2 SPRT stop-rule (plan §2.4 G3):** New
