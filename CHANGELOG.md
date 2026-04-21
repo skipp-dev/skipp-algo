@@ -6,6 +6,19 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-06-14) — Plan 2.8 red max + webm + carriage-return
+
+- New `scripts/plan_2_8_ledger_red_index_max.py` reports the
+  maximum index of a red status (-1 if none).
+- New `scripts/plan_2_8_digest_webm_file_count.py` counts
+  top-level ``.webm`` files.
+- New `scripts/plan_2_8_weekly_summary_carriage_return_char_count.py`
+  counts ``\r`` bytes in the summary.
+- Weekly workflow wires the three new steps after the newline char
+  upload.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six new
+  script+test pairs.
+
 ### Added (2026-06-13) — Plan 2.8 amber max + mov + newline
 
 - New `scripts/plan_2_8_ledger_amber_index_max.py` reports the
