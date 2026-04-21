@@ -6,6 +6,19 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-05-02) — Plan 2.8 per-status observations + readable + last-line
+
+- New `scripts/plan_2_8_ledger_observations_by_status.py`
+  reports observation counts split by canonical status.
+- New `scripts/plan_2_8_digest_readable_file_count.py`
+  counts readable top-level regular files.
+- New `scripts/plan_2_8_weekly_summary_last_line_length.py`
+  reports length of last non-blank line.
+- Weekly workflow wires the three new steps after the
+  starts-with-heading upload.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six
+  new script+test pairs.
+
 ### Added (2026-05-01) — Plan 2.8 observations + binary + heading
 
 - New `scripts/plan_2_8_ledger_observation_count.py` reports

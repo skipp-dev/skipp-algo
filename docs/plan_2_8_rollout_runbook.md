@@ -542,6 +542,9 @@ read.
 - `tests/test_plan_2_8_ledger_observation_count.py`
 - `tests/test_plan_2_8_digest_binary_file_count.py`
 - `tests/test_plan_2_8_weekly_summary_starts_with_heading.py`
+- `tests/test_plan_2_8_ledger_observations_by_status.py`
+- `tests/test_plan_2_8_digest_readable_file_count.py`
+- `tests/test_plan_2_8_weekly_summary_last_line_length.py`
 - `tests/test_plan_2_8_alert_history.py`
 - `tests/test_plan_2_8_alert_history_summary.py`
 - `tests/test_plan_2_8_digest_rollup.py`
