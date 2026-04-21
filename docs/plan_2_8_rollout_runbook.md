@@ -782,6 +782,9 @@ read.
 - `tests/test_plan_2_8_ledger_bool_value_count.py`
 - `tests/test_plan_2_8_digest_lz_file_count.py`
 - `tests/test_plan_2_8_weekly_summary_all_caps_line_count.py`
+- `tests/test_plan_2_8_ledger_number_value_count.py`
+- `tests/test_plan_2_8_digest_cab_file_count.py`
+- `tests/test_plan_2_8_weekly_summary_trailing_colon_count.py`
 - `tests/test_plan_2_8_alert_history.py`
 - `tests/test_plan_2_8_alert_history_summary.py`
 - `tests/test_plan_2_8_digest_rollup.py`

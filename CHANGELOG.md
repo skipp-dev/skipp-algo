@@ -6,6 +6,19 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-07-12) — Plan 2.8 number values + cab + trail-colon
+
+- New `scripts/plan_2_8_ledger_number_value_count.py` counts top-level
+  numeric field values (ints/floats, excluding bools).
+- New `scripts/plan_2_8_digest_cab_file_count.py` counts top-level
+  ``.cab`` files.
+- New `scripts/plan_2_8_weekly_summary_trailing_colon_count.py` counts
+  lines whose rstripped form ends with ``:``.
+- Weekly workflow wires the three new fail-soft step pairs after the
+  all-caps upload.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six new
+  script+test pairs.
+
 ### Added (2026-07-11) — Plan 2.8 bool values + lz + all-caps
 
 - New `scripts/plan_2_8_ledger_bool_value_count.py` counts top-level
