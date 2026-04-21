@@ -6,6 +6,21 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-28) — Plan 2.8 run summary + shortest filename + yaml-fence
+
+- New `scripts/plan_2_8_ledger_status_run_summary.py`
+  enumerates every consecutive status run with start,
+  end, and length.
+- New `scripts/plan_2_8_digest_shortest_filename.py`
+  reports the top-level file with the shortest basename.
+- New `scripts/plan_2_8_weekly_summary_yaml_fence_count.py`
+  counts fenced code blocks whose info-string is
+  ``yaml``/``yml``.
+- Weekly workflow wires the three new steps after the
+  python-fence upload.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six
+  new script+test pairs.
+
 ### Added (2026-04-28) — Plan 2.8 run count + longest filename + python-fence
 
 - New `scripts/plan_2_8_ledger_status_run_count.py`
