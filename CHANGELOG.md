@@ -6,6 +6,19 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-07-11) — Plan 2.8 bool values + lz + all-caps
+
+- New `scripts/plan_2_8_ledger_bool_value_count.py` counts top-level
+  boolean field values across ledger records.
+- New `scripts/plan_2_8_digest_lz_file_count.py` counts top-level
+  ``.lz`` files.
+- New `scripts/plan_2_8_weekly_summary_all_caps_line_count.py` counts
+  lines whose letters are all uppercase.
+- Weekly workflow wires the three new fail-soft step pairs after the
+  tab-line upload.
+- `scripts/plan_2_8_status.py` Phase 1 anchors pin the six new
+  script+test pairs.
+
 ### Added (2026-07-10) — Plan 2.8 null values + zst + tab-line
 
 - New `scripts/plan_2_8_ledger_null_value_count.py` counts top-level
