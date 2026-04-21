@@ -6,6 +6,20 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-21) — Plan 2.8 alert-history wiring + monthly rollup + summary CLI
+
+- Weekly digest workflow now appends fired alerts to a long-running
+  `alert_history.jsonl` via `scripts/plan_2_8_alert_history.py` and
+  publishes it as the `plan-2-8-alert-history` artifact (365-day
+  retention). +2 pin-tests.
+- Monthly digest workflow now streams the 8-week rolling HR trend
+  from `scripts/plan_2_8_digest_rollup.py` into the run summary.
+  +1 pin-test.
+- `scripts/plan_2_8_alert_history_summary.py`: read the alert log
+  and rank TF×family slices by frequency within a lookback window,
+  with `last_delta_pp` + `max_abs_delta_pp` context. +9 tests.
+- Status anchors, runbook, and CHANGELOG refreshed.
+
 ### Added (2026-04-21) — Plan 2.8 weekly stability step + alert history + rolling HR trend
 
 - Weekly digest workflow now streams a fail-soft

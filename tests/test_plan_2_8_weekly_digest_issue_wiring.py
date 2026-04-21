@@ -171,3 +171,24 @@ def test_stability_step_wired_fail_soft() -> None:
     names = [s.get("name", "") for s in steps]
     assert names.index("Plan 2.8 slice coverage") \
         < names.index("Plan 2.8 slice stability (last 8 snapshots)")
+
+
+def test_alert_history_append_step_wired() -> None:
+    steps = _wf()["jobs"]["weekly-digest"]["steps"]
+    ah = next(s for s in steps if s.get("name") == "Append alerts to history log")
+    assert ah["if"].strip() == "always()"
+    run = ah["run"]
+    assert "plan_2_8_alert_history.py" in run
+    assert "alert_history.jsonl" in run
+    assert "RUN_URL" in ah["env"]
+    assert run.rstrip().endswith("true")
+
+
+def test_alert_history_uploaded_with_long_retention() -> None:
+    steps = _wf()["jobs"]["weekly-digest"]["steps"]
+    up = next(s for s in steps
+              if s.get("name") == "Upload alert history log")
+    assert up["uses"].startswith("actions/upload-artifact@v4")
+    assert up["with"]["retention-days"] == 365
+    assert up["with"]["name"] == "plan-2-8-alert-history"
+    assert up["with"]["if-no-files-found"] == "ignore"

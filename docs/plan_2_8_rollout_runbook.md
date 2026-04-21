@@ -287,14 +287,23 @@ python scripts/plan_2_8_snooze_admin.py expire
 appends every fired drift alert to a long-running JSONL log, keyed by
 `(captured_at, tf, family)` so replays don’t duplicate rows. Useful
 for multi-quarter retrospectives on "which slices kept us noisy?".
+The weekly digest workflow runs this append step after the digest
+upload and publishes the rolling log as the `plan-2-8-alert-history`
+artifact with 365-day retention.
+
+[`scripts/plan_2_8_alert_history_summary.py`](../scripts/plan_2_8_alert_history_summary.py)
+reads that log and ranks TF×family slices by how many times they
+fired inside a configurable lookback window — helpful when
+triaging chronic offenders for snooze or calibration review.
 
 ### N-week rolling HR trend
 
 [`scripts/plan_2_8_digest_rollup.py`](../scripts/plan_2_8_digest_rollup.py)
 buckets snapshots into ISO weeks (latest wins within a week) and
 emits a sparkline per TF×family over the last N weeks, with the
-first→last `trend_pp` delta. Ideal sidebar for the monthly digest
-to quickly spot sloping slices.
+first→last `trend_pp` delta. The monthly digest workflow streams
+this rollup into the run summary as a quick "is this slice sloping?"
+read.
 
 ## Pin-test inventory
 
@@ -320,6 +329,7 @@ to quickly spot sloping slices.
 - `tests/test_plan_2_8_history_stability.py`
 - `tests/test_plan_2_8_snooze_admin.py`
 - `tests/test_plan_2_8_alert_history.py`
+- `tests/test_plan_2_8_alert_history_summary.py`
 - `tests/test_plan_2_8_digest_rollup.py`
 - `tests/test_plan_2_8_monthly_digest_workflow.py`
 - `tests/test_plan_2_8_rolling_workflow_rotate_wiring.py`

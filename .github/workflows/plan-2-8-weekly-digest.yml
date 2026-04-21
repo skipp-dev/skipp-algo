@@ -159,6 +159,46 @@ jobs:
           if-no-files-found: warn
           retention-days: 90
 
+      - name: Append alerts to history log
+        if: always()
+        env:
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        shell: bash
+        run: |
+          set +e
+          snoozed="artifacts/plan_2_8_digest/digest.snoozed.json"
+          digest="artifacts/plan_2_8_digest/digest.json"
+          src="${snoozed}"
+          [ -s "${src}" ] || src="${digest}"
+          if [ ! -s "${src}" ]; then
+            echo "No digest payload available; skipping alert-history append."
+            exit 0
+          fi
+          mkdir -p artifacts/plan_2_8_alert_history
+          # Re-use the rolling-bench history file's captured_at as the
+          # alert key — stable across replays of the same digest run.
+          history="$(find artifacts/latest_bench -name plan_2_8_history.jsonl -print -quit)"
+          captured="$(python -c "import json,sys; d=json.load(open('${src}')); print(d.get('coverage',{}).get('latest_captured_at') or '')")"
+          if [ -z "${captured}" ]; then
+            captured="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          fi
+          python scripts/plan_2_8_alert_history.py \
+            --alerts     "${src}" \
+            --log        artifacts/plan_2_8_alert_history/alert_history.jsonl \
+            --captured-at "${captured}" \
+            --run-url    "${RUN_URL}" \
+            || true
+          true
+
+      - name: Upload alert history log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-alert-history
+          path: artifacts/plan_2_8_alert_history/alert_history.jsonl
+          if-no-files-found: ignore
+          retention-days: 365
+
       - name: Open drift-alert issue
         if: steps.resolve_alerts.outputs.has_alerts == 'True'
         env:

@@ -93,6 +93,30 @@ jobs:
           fi
           true
 
+      - name: Plan 2.8 rolling HR trend (8 weeks)
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          history="$(find artifacts/latest_bench -name plan_2_8_history.jsonl -print -quit)"
+          if [ -z "${history}" ]; then
+            echo "No history; skipping rollup."
+            exit 0
+          fi
+          mkdir -p artifacts/plan_2_8_monthly
+          python scripts/plan_2_8_digest_rollup.py \
+            --history    "${history}" \
+            --weeks      8 \
+            --min-events "${{ inputs.min_events || '30' }}" \
+            --output     artifacts/plan_2_8_monthly/rollup.md \
+            > /dev/null
+          if [ -s artifacts/plan_2_8_monthly/rollup.md ] \
+              && [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+            cat artifacts/plan_2_8_monthly/rollup.md \
+              >> "$GITHUB_STEP_SUMMARY"
+          fi
+          true
+
       - name: Upload monthly digest
         if: always()
         uses: actions/upload-artifact@v4

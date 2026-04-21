@@ -72,3 +72,16 @@ def test_upload_artifact_has_one_year_retention() -> None:
     up = next(s for s in steps if s.get("name") == "Upload monthly digest")
     assert up["with"]["name"] == "plan-2-8-monthly-digest"
     assert up["with"]["retention-days"] == 365
+
+
+def test_monthly_rollup_step_wired_fail_soft() -> None:
+    data = _wf()
+    steps = data["jobs"]["monthly-digest"]["steps"]
+    rl = next(s for s in steps
+              if s.get("name") == "Plan 2.8 rolling HR trend (8 weeks)")
+    assert rl["if"].strip() == "always()"
+    run = rl["run"]
+    assert "scripts/plan_2_8_digest_rollup.py" in run
+    assert "--weeks      8" in run
+    assert "set +e" in run
+    assert run.rstrip().endswith("true")
