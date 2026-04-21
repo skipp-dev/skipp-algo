@@ -824,6 +824,9 @@ read.
 - `tests/test_plan_2_8_ledger_zero_number_value_count.py`
 - `tests/test_plan_2_8_digest_vhd_file_count.py`
 - `tests/test_plan_2_8_weekly_summary_backtick_line_count.py`
+- `tests/test_plan_2_8_ledger_negative_number_value_count.py`
+- `tests/test_plan_2_8_digest_vmdk_file_count.py`
+- `tests/test_plan_2_8_weekly_summary_slash_line_count.py`
 - `tests/test_plan_2_8_alert_history.py`
 - `tests/test_plan_2_8_alert_history_summary.py`
 - `tests/test_plan_2_8_digest_rollup.py`

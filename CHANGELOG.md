@@ -6,6 +6,17 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-07-26) — Plan 2.8 negative numbers + vmdk + slash lines
+
+- `scripts/plan_2_8_ledger_negative_number_value_count.py` counts top-level
+  numeric values strictly less than zero (bools excluded) across ledger
+  records.
+- `scripts/plan_2_8_digest_vmdk_file_count.py` counts top-level `.vmdk`
+  files.
+- `scripts/plan_2_8_weekly_summary_slash_line_count.py` counts lines
+  containing an ASCII `/`.
+- Weekly digest workflow wires three fail-soft compute+upload step pairs.
+
 ### Added (2026-07-25) — Plan 2.8 zero numbers + vhd + backtick lines
 
 - `scripts/plan_2_8_ledger_zero_number_value_count.py` counts top-level
