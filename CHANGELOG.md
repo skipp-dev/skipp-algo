@@ -6,6 +6,22 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-21) — Plan 2.8 status today + recent changes + TOC-only
+
+- New `scripts/plan_2_8_ledger_status_today.py` returns the
+  ledger record captured on a target UTC date (defaults to
+  today); when multiple records match the day, the latest is
+  returned. Invalid ISO dates and missing ledgers fail cleanly.
+- New `scripts/plan_2_8_digest_recent_changes.py` walks the
+  ledger and returns only *transitions* (status-change records);
+  synthesises no initial entry. `--limit N` keeps the tail.
+- New `scripts/plan_2_8_weekly_summary_toc_only.py` extracts
+  just the `## Contents` block from `weekly_summary.md` and
+  emits it as a standalone artifact; weekly wires this into
+  `$GITHUB_STEP_SUMMARY` so the run page shows the TOC inline.
+- Weekly digest wires all three steps; each uploads a 365-day
+  retention artifact.
+
 ### Added (2026-04-21) — Plan 2.8 flap rate + trend threshold + artifact catalog
 
 - New `scripts/plan_2_8_ledger_flap_rate.py` counts status

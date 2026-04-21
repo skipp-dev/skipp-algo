@@ -1579,6 +1579,88 @@ jobs:
           if-no-files-found: ignore
           retention-days: 365
 
+      - name: Plan 2.8 status today
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          ledger="artifacts/plan_2_8_digest/status_ledger.jsonl"
+          if [ ! -s "${ledger}" ]; then
+            echo "No ledger; skipping status-today."
+            exit 0
+          fi
+          python scripts/plan_2_8_ledger_status_today.py \
+            --ledger "${ledger}" \
+            --format md \
+            --output artifacts/plan_2_8_digest/status_today.md \
+            > /dev/null
+          true
+
+      - name: Upload Plan 2.8 status today
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-status-today
+          path: artifacts/plan_2_8_digest/status_today.md
+          if-no-files-found: ignore
+          retention-days: 365
+
+      - name: Plan 2.8 recent status changes
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          ledger="artifacts/plan_2_8_digest/status_ledger.jsonl"
+          if [ ! -s "${ledger}" ]; then
+            echo "No ledger; skipping recent-changes."
+            exit 0
+          fi
+          python scripts/plan_2_8_digest_recent_changes.py \
+            --ledger "${ledger}" \
+            --limit  10 \
+            --format md \
+            --output artifacts/plan_2_8_digest/recent_changes.md \
+            > /dev/null
+          true
+
+      - name: Upload Plan 2.8 recent status changes
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-recent-changes
+          path: artifacts/plan_2_8_digest/recent_changes.md
+          if-no-files-found: ignore
+          retention-days: 365
+
+      - name: Plan 2.8 weekly-summary TOC only
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          summary="artifacts/plan_2_8_digest/weekly_summary.md"
+          if [ ! -s "${summary}" ]; then
+            echo "No weekly summary; skipping TOC-only."
+            exit 0
+          fi
+          python scripts/plan_2_8_weekly_summary_toc_only.py \
+            --input  "${summary}" \
+            --output artifacts/plan_2_8_digest/weekly_summary_toc.md \
+            > /dev/null
+          if [ -s artifacts/plan_2_8_digest/weekly_summary_toc.md ]; then
+            cat artifacts/plan_2_8_digest/weekly_summary_toc.md \
+              >> "${GITHUB_STEP_SUMMARY}"
+          fi
+          true
+
+      - name: Upload Plan 2.8 weekly-summary TOC
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-weekly-summary-toc
+          path: artifacts/plan_2_8_digest/weekly_summary_toc.md
+          if-no-files-found: ignore
+          retention-days: 365
+
       - name: Open drift-alert issue
         if: steps.resolve_alerts.outputs.has_alerts == 'True'
         env:

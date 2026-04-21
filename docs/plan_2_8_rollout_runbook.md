@@ -389,6 +389,9 @@ read.
 - `tests/test_plan_2_8_ledger_flap_rate.py`
 - `tests/test_plan_2_8_trend_threshold_alert.py`
 - `tests/test_plan_2_8_digest_artifact_catalog.py`
+- `tests/test_plan_2_8_ledger_status_today.py`
+- `tests/test_plan_2_8_digest_recent_changes.py`
+- `tests/test_plan_2_8_weekly_summary_toc_only.py`
 - `tests/test_plan_2_8_alert_history.py`
 - `tests/test_plan_2_8_alert_history_summary.py`
 - `tests/test_plan_2_8_digest_rollup.py`
