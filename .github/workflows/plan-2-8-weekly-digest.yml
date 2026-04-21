@@ -1008,6 +1008,62 @@ jobs:
           if-no-files-found: ignore
           retention-days: 365
 
+      - name: Plan 2.8 status ledger flip alert
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          ledger="artifacts/plan_2_8_digest/status_ledger.jsonl"
+          if [ ! -s "${ledger}" ]; then
+            echo "No ledger; skipping flip alert."
+            exit 0
+          fi
+          python scripts/plan_2_8_status_flip_alert.py \
+            --ledger "${ledger}" \
+            --weeks  12 \
+            --format md \
+            --output artifacts/plan_2_8_digest/status_flip_alert.md \
+            > /dev/null
+          if [ -s artifacts/plan_2_8_digest/status_flip_alert.md ] \
+              && [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+            cat artifacts/plan_2_8_digest/status_flip_alert.md \
+              >> "${GITHUB_STEP_SUMMARY}"
+          fi
+          true
+
+      - name: Upload Plan 2.8 status flip alert
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-status-flip-alert
+          path: artifacts/plan_2_8_digest/status_flip_alert.md
+          if-no-files-found: ignore
+          retention-days: 365
+
+      - name: Plan 2.8 ledger CSV export
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          ledger="artifacts/plan_2_8_digest/status_ledger.jsonl"
+          if [ ! -s "${ledger}" ]; then
+            echo "No ledger; skipping CSV export."
+            exit 0
+          fi
+          python scripts/plan_2_8_ledger_csv_export.py \
+            --ledger "${ledger}" \
+            --output artifacts/plan_2_8_digest/status_ledger.csv
+          true
+
+      - name: Upload Plan 2.8 ledger CSV
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-ledger-csv
+          path: artifacts/plan_2_8_digest/status_ledger.csv
+          if-no-files-found: ignore
+          retention-days: 365
+
       - name: Plan 2.8 status ledger prune
         if: always()
         shell: bash

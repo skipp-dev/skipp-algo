@@ -6,6 +6,25 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-04-21) — Plan 2.8 status flip alert + ledger CSV export + ledger validator
+
+- New `scripts/plan_2_8_status_flip_alert.py` detects status
+  transitions in the last N weeks of the ledger (default 12) and
+  emits a markdown alert (or JSON), with optional
+  `--fail-on-flip`.
+- New `scripts/plan_2_8_ledger_csv_export.py` converts the
+  JSONL ledger to CSV (mirrors the `plan_2_8_history_export.py`
+  shape), default fields `captured_at,status,run_url`.
+- New `scripts/plan_2_8_ledger_validate.py` validates every
+  ledger record (`captured_at` ISO-parseable, `status` in the
+  allowed set), reports invalid lines with reason, supports
+  `--fail-on-invalid`.
+- Weekly digest now emits the flip alert and CSV alongside the
+  ledger summary; two new uploads: `plan-2-8-status-flip-alert`,
+  `plan-2-8-ledger-csv`.
+- +42 tests covering flip detection, CSV rendering, and
+  validator checks; two weekly-workflow pin-tests.
+
 ### Added (2026-04-21) — Plan 2.8 ledger prune + run stamp + weekly artifact index
 
 - New `scripts/plan_2_8_status_ledger_prune.py` trims the status

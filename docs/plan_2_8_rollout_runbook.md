@@ -365,6 +365,9 @@ read.
 - `tests/test_plan_2_8_status_ledger_prune.py`
 - `tests/test_plan_2_8_weekly_index.py`
 - `tests/test_plan_2_8_run_stamp.py`
+- `tests/test_plan_2_8_status_flip_alert.py`
+- `tests/test_plan_2_8_ledger_csv_export.py`
+- `tests/test_plan_2_8_ledger_validate.py`
 - `tests/test_plan_2_8_alert_history.py`
 - `tests/test_plan_2_8_alert_history_summary.py`
 - `tests/test_plan_2_8_digest_rollup.py`
