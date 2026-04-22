@@ -6,6 +6,17 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-10-12) — Plan 2.8 list/dict/string records + ada + trailing-plus lines
+
+- `scripts/plan_2_8_ledger_list_or_dict_or_string_only_record_count.py`
+  counts non-empty ledger records whose every value is ``list``,
+  ``dict``, or ``str``.
+- `scripts/plan_2_8_digest_ada_file_count.py` counts top-level `.ada`
+  files.
+- `scripts/plan_2_8_weekly_summary_trailing_plus_line_count.py` counts
+  non-empty lines whose last character is ``+``.
+- Weekly digest workflow wires three fail-soft compute+upload step pairs.
+
 ### Added (2026-10-11) — Plan 2.8 list/string records + pas + leading-plus lines
 
 - `scripts/plan_2_8_ledger_list_or_string_only_record_count.py` counts
