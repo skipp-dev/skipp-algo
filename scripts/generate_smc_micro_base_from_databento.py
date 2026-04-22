@@ -1148,6 +1148,7 @@ def build_enrichment(
 
         # Load calibrated family weights (best-effort)
         _calibrated_fw: dict[str, float] | None = None
+        _calibrated_meta: dict[str, Any] | None = None
         for _cal_candidate in (
             Path("artifacts/reports/zone_priority_calibration.json"),
             Path("artifacts/ci/measurement_benchmark/zone_priority_calibration.json"),
@@ -1158,6 +1159,31 @@ def build_enrichment(
                     _calibrated_fw = _cal_data.get("family_weights")
                     if _calibrated_fw:
                         logger.info("Zone priority: loaded calibrated weights from %s", _cal_candidate)
+                    # Phase H consumer inputs — best-effort, neutral on miss.
+                    _calibrated_meta = {
+                        "family_stats": _cal_data.get("family_stats"),
+                        "total_events": _cal_data.get("total_events"),
+                    }
+                    # Pull smECE from the per-bucket sibling if present (F3 follow-on).
+                    _per_bucket_path = _cal_candidate.with_name(
+                        "zone_priority_per_bucket_calibration.json"
+                    )
+                    if _per_bucket_path.exists():
+                        try:
+                            _pb = json.loads(_per_bucket_path.read_text(encoding="utf-8"))
+                            # Use the largest "ok" bucket as the corpus proxy
+                            # (matches what compute_testable_calibration would
+                            # report on the global corpus).
+                            ok_buckets = [
+                                v for v in _pb.values()
+                                if isinstance(v, dict) and v.get("status") == "ok"
+                                and v.get("smooth_ece") is not None
+                            ]
+                            if ok_buckets:
+                                largest = max(ok_buckets, key=lambda v: v.get("n_events", 0))
+                                _calibrated_meta["smooth_ece"] = largest["smooth_ece"]
+                        except Exception:
+                            pass
                 except Exception:
                     pass
                 break
@@ -1185,6 +1211,11 @@ def build_enrichment(
         # Attach calibrated weights for Pine export
         if _calibrated_fw:
             enrichment["zone_priority_calibration"] = _calibrated_fw
+        # Attach Phase H consumer inputs (confidence + per-family HR).
+        # Trend (H3) requires a history feed which is not yet sourced
+        # — generator falls back to "STABLE" via DEFAULTS until then.
+        if _calibrated_meta:
+            enrichment["zone_priority_calibration_meta"] = _calibrated_meta
 
     # ── Profile Context (v5.2) ──────────────────────────────────
     if enrich_profile_context:

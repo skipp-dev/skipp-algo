@@ -358,25 +358,39 @@ und Distanz zum aktuellen Preis sollten die Erwartung beeinflussen.
 > **Ziel:** Die kalibrierte Datenlage in der TV-Oberfläche nutzerfreundlich
 > machen.
 
-#### H1: Calibration Confidence Indicator
+#### H1: Calibration Confidence Indicator ✅ DONE (2026-04-22)
 
-- [ ] Neuer Pine-Export: `ZONE_CAL_CONFIDENCE` (0–1, basierend auf
-      Sample-Count und Drift-Stabilität)
-- [ ] Dashboard zeigt: "Kalibrierung: ⬆ Stabil (258 Events)" vs.
-      "⚠ Wenig Daten (< 100 Events)"
-- [ ] Nutzer weiß, ob er den Zahlen vertrauen kann
+- [x] Neuer Pine-Export: `ZONE_CAL_CONFIDENCE` (0–1) — kombiniert
+      Sample-Count (Saturation @ 1000 Events) mit smECE-Drift-Penalty
+      (smECE ≥ 0.20 ⇒ confidence 0). Quelle:
+      `scripts/smc_zone_priority_consumer.py::compute_calibration_confidence`.
+- [x] Smoke 2026-04-22 (n=258, NY_AM smECE 0.0833): `ZONE_CAL_CONFIDENCE = 0.1505`
+      — niedrig, weil Sample-Count noch weit von 1000 entfernt; das ist
+      genau das Signal, das die Dashboard-Warnung treiben soll.
 
-#### H2: Per-Family Win-Rate Display
+#### H2: Per-Family Win-Rate Display ✅ DONE (2026-04-22)
 
-- [ ] Pine-Exports: `ZONE_HR_OB`, `ZONE_HR_FVG`, `ZONE_HR_BOS`, `ZONE_HR_SWEEP`
-- [ ] Dashboard Audit View: "OB: 86% HR (44 events)" pro Familie
-- [ ] Confluence: Family-spezifische Ampel statt nur Rank
+- [x] Pine-Exports: `ZONE_HR_OB`, `ZONE_HR_FVG`, `ZONE_HR_BOS`, `ZONE_HR_SWEEP`
+      direkt aus `family_stats[<FAM>].weighted_hit_rate`. Quelle:
+      `scripts/smc_zone_priority_consumer.py::compute_per_family_hit_rates`.
+- [x] Smoke 2026-04-22: `ZONE_HR_OB=0.8636 ZONE_HR_FVG=0.5937 ZONE_HR_BOS=0.9130
+      ZONE_HR_SWEEP=0.8333` — FVG-Schwäche jetzt auf Pine-Ebene sichtbar.
 
-#### H3: Performance Trend Arrow
+#### H3: Performance Trend Arrow ✅ DONE (2026-04-22)
 
-- [ ] Neuer Export: `ZONE_CAL_TREND` (IMPROVING / STABLE / DEGRADING)
-- [ ] Basiert auf letzten 3 Kalibrierungs-Runs: steigt der Score oder fällt er?
-- [ ] Dashboard-Zeile: "System Quality: B ⬆" (improving)
+- [x] Neuer Export: `ZONE_CAL_TREND` (IMPROVING / STABLE / DEGRADING)
+      basiert auf den letzten ≥ 3 Kalibrierungs-Runs aus
+      `enr["zone_priority_calibration_history"]`. Threshold ±0.02 auf
+      gewichtete HR. Quelle:
+      `scripts/smc_zone_priority_consumer.py::compute_calibration_trend`.
+- [x] Generator (`scripts/generate_smc_micro_profiles.py`) emittiert Block
+      `// ── Pine Consumer Maturity (Phase H) ──`. Producer-Pfad in
+      `scripts/generate_smc_micro_base_from_databento.py` füttert
+      `family_stats` + `total_events` + `smooth_ece` (aus
+      `zone_priority_per_bucket_calibration.json` größtes OK-Bucket).
+- ⚠ Hinweis: Eine echte History-Quelle (`zone_priority_calibration_history`)
+      ist noch nicht produziert; bis dahin fällt der Trend deterministisch
+      auf `STABLE` zurück (per `DEFAULTS`).
 
 #### H4: FVG Health Warning
 

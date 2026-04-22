@@ -1099,6 +1099,44 @@ def write_pine_library(
             w = float(vol_w.get(fam, zpc.get(fam, _ZP_FALLBACK.get(fam, 0.50))))
             content.append(f"export const float ZONE_CAL_{fam}_{vol} = {w:.4f}")
 
+    # ── Phase H: Pine Consumer Maturity ──────────────────────────
+    # Confidence + per-family hit rates + trend, derived from the
+    # already-loaded calibration JSON plus optional inputs:
+    #   enr["zone_priority_calibration_meta"]["smooth_ece"] (F3)
+    #   enr["zone_priority_calibration_meta"]["total_events"] (F1)
+    #   enr["zone_priority_calibration_meta"]["family_stats"] (F1)
+    #   enr["zone_priority_calibration_history"] (H3 trend)
+    # Falls back to neutral DEFAULTS when any source is missing — the
+    # Pine consumer always sees a renderable value.
+    from scripts.smc_zone_priority_consumer import (
+        DEFAULTS as _ZH_DEFAULTS,
+        build_consumer_exports,
+    )
+
+    zpc_meta = enr.get("zone_priority_calibration_meta") or {}
+    consumer = build_consumer_exports(
+        family_stats=zpc_meta.get("family_stats"),
+        total_events=zpc_meta.get("total_events"),
+        smooth_ece=zpc_meta.get("smooth_ece"),
+        history=enr.get("zone_priority_calibration_history"),
+    )
+    content.append("")
+    content.append("// ── Pine Consumer Maturity (Phase H) ──")
+    content.append(
+        f"export const float ZONE_CAL_CONFIDENCE = "
+        f"{float(consumer.get('ZONE_CAL_CONFIDENCE', _ZH_DEFAULTS['ZONE_CAL_CONFIDENCE'])):.4f}"
+    )
+    for fam in ("OB", "FVG", "BOS", "SWEEP"):
+        key = f"ZONE_HR_{fam}"
+        content.append(
+            f"export const float {key} = "
+            f"{float(consumer.get(key, _ZH_DEFAULTS[key])):.4f}"
+        )
+    content.append(
+        f'export const string ZONE_CAL_TREND = '
+        f'"{consumer.get("ZONE_CAL_TREND", _ZH_DEFAULTS["ZONE_CAL_TREND"])}"'
+    )
+
     path.write_text("\n".join(content).rstrip() + "\n", encoding="utf-8")
 
 
