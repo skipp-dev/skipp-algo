@@ -6,6 +6,16 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-09-14) — Plan 2.8 nonzero-float records + nix + trailing-paren lines
+
+- `scripts/plan_2_8_ledger_nonzero_float_only_record_count.py` counts
+  non-empty ledger records whose every value is a non-zero ``float``.
+- `scripts/plan_2_8_digest_nix_file_count.py` counts top-level `.nix`
+  files.
+- `scripts/plan_2_8_weekly_summary_trailing_paren_line_count.py` counts
+  non-empty lines whose last character is ``)``.
+- Weekly digest workflow wires three fail-soft compute+upload step pairs.
+
 ### Added (2026-09-13) — Plan 2.8 negative-float records + ps1 + leading-paren lines
 
 - `scripts/plan_2_8_ledger_negative_float_only_record_count.py` counts
