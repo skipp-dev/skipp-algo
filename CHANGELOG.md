@@ -6,6 +6,17 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-09-18) — Plan 2.8 float-or-string-or-null records + java + trailing-brace lines
+
+- `scripts/plan_2_8_ledger_float_or_string_or_null_record_count.py`
+  counts non-empty ledger records whose every value is a ``float``,
+  ``str``, or ``None``.
+- `scripts/plan_2_8_digest_java_file_count.py` counts top-level `.java`
+  files.
+- `scripts/plan_2_8_weekly_summary_trailing_brace_line_count.py` counts
+  non-empty lines whose last character is ``}``.
+- Weekly digest workflow wires three fail-soft compute+upload step pairs.
+
 ### Added (2026-09-17) — Plan 2.8 bool-or-string-or-null records + go + leading-brace lines
 
 - `scripts/plan_2_8_ledger_bool_or_string_or_null_record_count.py`
