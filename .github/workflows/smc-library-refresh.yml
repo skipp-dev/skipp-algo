@@ -483,15 +483,36 @@ jobs:
           PY
 
       # ── Version bump + commit (skip when unchanged or breaking) ─
-      - name: Bump library version in SMC_Core_Engine.pine
+      - name: Bump library version in all pine consumers
         if: steps.diff.outputs.changed == 'true' && steps.breaking.outputs.breaking != 'true' && github.ref == 'refs/heads/main'
         run: |
           NEW_VERSION=$(jq -r '.library_version' pine/generated/smc_micro_profiles_generated.json)
-          sed -i "s|import preuss_steffen/smc_micro_profiles_generated/[0-9]*|import preuss_steffen/smc_micro_profiles_generated/${NEW_VERSION}|" SMC_Core_Engine.pine
-          if ! grep -q "import preuss_steffen/smc_micro_profiles_generated/${NEW_VERSION}" SMC_Core_Engine.pine; then
-            echo "::error::Failed to update SMC_Core_Engine.pine to library version ${NEW_VERSION}."
+          PIN_PATTERN='import preuss_steffen/smc_micro_profiles_generated/[0-9]*'
+          REPLACEMENT="import preuss_steffen/smc_micro_profiles_generated/${NEW_VERSION}"
+          # Enumerate every top-level .pine that pins the library. Fixture
+          # and generated paths are excluded — they have their own
+          # snapshot flow. Closes the 2026-04-22 gap where only
+          # SMC_Core_Engine.pine was repinned, leaving 13 other
+          # consumers stranded on the previous library version.
+          mapfile -t PINE_CONSUMERS < <(grep -lrE "${PIN_PATTERN}" . \
+            --include='*.pine' \
+            --exclude-dir=tests \
+            --exclude-dir=pine \
+            --exclude-dir=node_modules \
+            --exclude-dir=.git | sort -u)
+          if [ ${#PINE_CONSUMERS[@]} -eq 0 ]; then
+            echo "::error::No pine consumers found for library pin. Refusing to proceed."
             exit 1
           fi
+          echo "Pinning ${#PINE_CONSUMERS[@]} pine consumers to library ${NEW_VERSION}:"
+          printf '  %s\n' "${PINE_CONSUMERS[@]}"
+          for f in "${PINE_CONSUMERS[@]}"; do
+            sed -i "s|${PIN_PATTERN}|${REPLACEMENT}|g" "$f"
+            if ! grep -qF "${REPLACEMENT}" "$f"; then
+              echo "::error::Failed to pin ${f} to library version ${NEW_VERSION}."
+              exit 1
+            fi
+          done
 
       - name: Commit and push changes
         id: commit_push
@@ -507,7 +528,22 @@ jobs:
             artifacts/databento_volatility_cache/ \
             artifacts/smc_microstructure_exports/smc_live_news_snapshot.json \
             artifacts/smc_microstructure_exports/smc_live_news_state.json || true
-          git add pine/generated/ SMC_Core_Engine.pine artifacts/tradingview/library_release_manifest.json
+          git add pine/generated/ \
+            SMC_Core_Engine.pine \
+            SMC_Dashboard.pine \
+            SMC_Mobile_Dashboard.pine \
+            SMC_Long_Strategy.pine \
+            SkippALGO_Confluence.pine \
+            SMC_Structure_Context.pine \
+            SMC_Session_Context.pine \
+            SMC_Profile_Context.pine \
+            SMC_Orderflow_Overlay.pine \
+            SMC_Liquidity_Structure.pine \
+            SMC_Liquidity_Context.pine \
+            SMC_Imbalance_Context.pine \
+            SMC_HTF_Confluence.pine \
+            SMC_Event_Overlay.pine \
+            artifacts/tradingview/library_release_manifest.json
           if ! git diff --quiet; then
             echo "::error::Unexpected tracked changes remain unstaged before refresh commit."
             git status --short
