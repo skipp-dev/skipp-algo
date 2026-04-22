@@ -6,6 +6,16 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-09-02) — Plan 2.8 nonzero-int records + bak + trailing-digit lines
+
+- `scripts/plan_2_8_ledger_nonzero_int_only_record_count.py` counts
+  non-empty ledger records whose every value is a nonzero ``int``.
+- `scripts/plan_2_8_digest_bak_file_count.py` counts top-level `.bak`
+  files.
+- `scripts/plan_2_8_weekly_summary_trailing_digit_line_count.py` counts
+  non-empty lines whose last character is an ASCII digit.
+- Weekly digest workflow wires three fail-soft compute+upload step pairs.
+
 ### Added (2026-09-01) — Plan 2.8 negative-int records + lock + leading-digit lines
 
 - `scripts/plan_2_8_ledger_negative_int_only_record_count.py` counts
