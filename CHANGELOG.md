@@ -6,6 +6,16 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-11-02) — Plan 2.8 nonempty-list-or-dict-or-null records + lhs + leading-exclamation-mark lines
+
+- `scripts/plan_2_8_ledger_nonempty_list_or_dict_or_null_only_record_count.py`
+  counts ledger records whose every value is a non-empty list, non-empty dict,
+  or null.
+- `scripts/plan_2_8_digest_lhs_file_count.py` counts top-level `.lhs` files.
+- `scripts/plan_2_8_weekly_summary_leading_exclamation_mark_line_count.py`
+  counts non-empty lines whose first character is ``!``.
+- Weekly digest workflow wires three fail-soft compute+upload step pairs.
+
 ### Added (2026-11-01) — Plan 2.8 bool-or-list records + pxd + trailing-question-mark lines
 
 - `scripts/plan_2_8_ledger_bool_or_list_only_record_count.py`
