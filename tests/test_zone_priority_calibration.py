@@ -584,3 +584,129 @@ def test_build_zone_priority_contextual_none_backward_compat() -> None:
     # contextual_calibration=None should not change behavior
     result = build_zone_priority(regime="RISK_ON", htf_aligned=True, contextual_calibration=None)
     assert result["ZONE_PRIORITY_TOP_FAMILY"] == "OB"
+
+
+# ── F3 follow-on: per-bucket testable calibration (smECE) ──────
+
+
+def _write_stratified_scoring(
+    base: Path,
+    symbol: str,
+    tf: str,
+    stratified: dict[str, dict[str, Any]],
+) -> None:
+    """Write a scoring_*.json carrying the ``stratified_calibration``
+    schema consumed by ``collect_calibration_arrays_per_bucket``.
+    """
+    d = base / symbol / tf
+    d.mkdir(parents=True, exist_ok=True)
+    (d / f"scoring_{symbol}_{tf}.json").write_text(
+        json.dumps(
+            {
+                "schema_version": "2.0.0",
+                "symbol": symbol,
+                "timeframe": tf,
+                "stratified_calibration": stratified,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
+def _bin(predicted: float, observed: float, n: int) -> dict[str, Any]:
+    return {
+        "bin_index": int(predicted * 10),
+        "lower_bound": round(predicted - 0.05, 2),
+        "upper_bound": round(predicted + 0.05, 2),
+        "predicted_mean": predicted,
+        "observed_rate": observed,
+        "n_events": n,
+    }
+
+
+def test_collect_calibration_arrays_per_bucket_groups_by_dim_bucket(tmp_path: Path) -> None:
+    from scripts.smc_zone_priority_calibration import (
+        collect_calibration_arrays_per_bucket,
+    )
+
+    # Two scoring files contributing to the same session:RTH bucket so the
+    # collector must aggregate (not overwrite) across symbols.
+    stratified_a = {
+        "session": {
+            "groups": {
+                "RTH": {"bins": [_bin(0.6, 0.7, 50)]},
+                "ASIA": {"bins": [_bin(0.4, 0.5, 20)]},
+            }
+        }
+    }
+    stratified_b = {
+        "session": {
+            "groups": {
+                "RTH": {"bins": [_bin(0.7, 0.65, 30)]},
+            }
+        }
+    }
+    _write_stratified_scoring(tmp_path, "AAPL", "5m", stratified_a)
+    _write_stratified_scoring(tmp_path, "MSFT", "5m", stratified_b)
+
+    arrays = collect_calibration_arrays_per_bucket(tmp_path)
+    assert set(arrays) == {"session:RTH", "session:ASIA"}
+
+    rth_preds, rth_outs = arrays["session:RTH"]
+    # 50 + 30 events aggregated.
+    assert len(rth_preds) == 80
+    assert len(rth_outs) == 80
+    # ASIA bucket carried only the 20-event bin.
+    assert len(arrays["session:ASIA"][0]) == 20
+
+
+def test_compute_per_bucket_testable_calibration_skips_small_buckets(tmp_path: Path) -> None:
+    from scripts.smc_zone_priority_calibration import (
+        compute_per_bucket_testable_calibration,
+    )
+
+    stratified = {
+        "session": {
+            "groups": {
+                "RTH": {
+                    # 4 well-calibrated bins, 80 total events — passes the
+                    # min_events=30 gate and should report finite metrics.
+                    "bins": [
+                        _bin(0.2, 0.2, 20),
+                        _bin(0.4, 0.4, 20),
+                        _bin(0.6, 0.6, 20),
+                        _bin(0.8, 0.8, 20),
+                    ]
+                },
+                "ASIA": {"bins": [_bin(0.5, 0.5, 10)]},  # < 30 → skipped
+            }
+        }
+    }
+    _write_stratified_scoring(tmp_path, "AAPL", "5m", stratified)
+
+    result = compute_per_bucket_testable_calibration(tmp_path)
+    assert set(result) == {"session:RTH", "session:ASIA"}
+
+    rth = result["session:RTH"]
+    assert rth["status"] == "ok"
+    assert rth["n_events"] == 80
+    # Perfectly calibrated synthetic bins → smECE should be very small.
+    assert rth["smooth_ece"] < 0.10
+    assert rth["ece_binned_n10"] < 0.10
+    assert "dce_upper_bound" in rth
+
+    asia = result["session:ASIA"]
+    assert asia["status"] == "insufficient_events"
+    assert asia["n_events"] == 10
+    assert asia["min_events"] == 30
+    # Skipped buckets must NOT carry metric fields.
+    assert "smooth_ece" not in asia
+
+
+def test_compute_per_bucket_testable_calibration_empty_corpus(tmp_path: Path) -> None:
+    from scripts.smc_zone_priority_calibration import (
+        compute_per_bucket_testable_calibration,
+    )
+
+    # No scoring files → empty dict, no crash.
+    assert compute_per_bucket_testable_calibration(tmp_path) == {}

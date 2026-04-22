@@ -389,6 +389,130 @@ def compute_testable_calibration(
     }
 
 
+# ── F3 follow-on: per-bucket testable calibration (smECE) ──────
+
+
+def collect_calibration_arrays_per_bucket(
+    benchmark_dir: Path,
+) -> dict[str, tuple[list[float], list[int]]]:
+    """Reconstruct ``(preds, outs)`` arrays separately for each
+    ``"<dimension>:<bucket>"`` group surfaced in
+    ``stratified_calibration[<dim>].groups[<bucket>].bins``.
+
+    Mirrors :func:`collect_calibration_arrays` but stratifies the corpus
+    so each context bucket can be measured independently. Empty / invalid
+    bins are skipped silently. Returned dict order is deterministic
+    (sorted by ``"<dim>:<bucket>"`` key).
+    """
+    per_bucket: dict[str, tuple[list[float], list[int]]] = {}
+
+    for scoring_file in sorted(benchmark_dir.rglob("scoring_*.json")):
+        try:
+            data = json.loads(scoring_file.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            continue
+
+        stratified = data.get("stratified_calibration") or {}
+        if not isinstance(stratified, dict):
+            continue
+
+        for dim, dim_payload in stratified.items():
+            if not isinstance(dim_payload, dict):
+                continue
+            groups = dim_payload.get("groups") or {}
+            if not isinstance(groups, dict):
+                continue
+
+            for bucket, bucket_payload in groups.items():
+                if not isinstance(bucket_payload, dict):
+                    continue
+                bins = bucket_payload.get("bins") or []
+                if not bins:
+                    continue
+
+                key = f"{dim}:{bucket}"
+                preds, outs = per_bucket.setdefault(key, ([], []))
+                for b in bins:
+                    n = int(b.get("n_events", 0) or 0)
+                    if n <= 0:
+                        continue
+                    p_raw = b.get("predicted_mean")
+                    r_raw = b.get("observed_rate")
+                    if p_raw is None or r_raw is None:
+                        continue
+                    try:
+                        p = float(p_raw)
+                        r = float(r_raw)
+                    except (TypeError, ValueError):
+                        continue
+                    if not (0.0 <= p <= 1.0) or not (0.0 <= r <= 1.0):
+                        continue
+                    positives = max(0, min(n, int(round(r * n))))
+                    preds.extend([p] * n)
+                    outs.extend([1] * positives)
+                    outs.extend([0] * (n - positives))
+
+    return {k: per_bucket[k] for k in sorted(per_bucket)}
+
+
+def compute_per_bucket_testable_calibration(
+    benchmark_dir: Path,
+    *,
+    min_events: int = 30,
+) -> dict[str, dict[str, Any]]:
+    """Compute smECE / ECE / dCE per ``"<dim>:<bucket>"`` group.
+
+    Buckets with fewer than ``min_events`` reconstructed events are
+    flagged with ``status='insufficient_events'`` and have no metric
+    fields — matching the F1 promotion-gate threshold so the report
+    is directly comparable. Returns ``{}`` when no usable bins exist
+    in the corpus.
+    """
+    arrays = collect_calibration_arrays_per_bucket(benchmark_dir)
+    if not arrays:
+        return {}
+
+    # Same lazy import dance as compute_testable_calibration.
+    try:
+        from smc_core.calibration_metrics import dce, ece, smooth_ece
+    except ImportError:
+        import sys
+        project_root = str(Path(__file__).resolve().parent.parent)
+        if project_root not in sys.path:
+            sys.path.insert(0, project_root)
+        try:
+            from smc_core.calibration_metrics import dce, ece, smooth_ece
+        except ImportError:
+            return {
+                key: {
+                    "n_events": len(preds),
+                    "status": "metrics_unavailable",
+                }
+                for key, (preds, _outs) in arrays.items()
+            }
+
+    out: dict[str, dict[str, Any]] = {}
+    for key, (preds, outs) in arrays.items():
+        n = len(preds)
+        if n < min_events:
+            out[key] = {
+                "n_events": n,
+                "status": "insufficient_events",
+                "min_events": min_events,
+            }
+            continue
+
+        out[key] = {
+            "n_events": n,
+            "positive_rate": round(sum(outs) / n, 6),
+            "ece_binned_n10": round(ece(preds, outs, n_bins=10), 6),
+            "smooth_ece": round(smooth_ece(preds, outs), 6),
+            "dce_upper_bound": round(dce(preds, outs), 6),
+            "status": "ok",
+        }
+    return out
+
+
 # ── F1: Contextual calibration pipeline ─────────────────────────
 
 
@@ -704,6 +828,29 @@ def main(argv: list[str] | None = None) -> None:
             print(f"  ▸ {p}")
     else:
         print("No context buckets promoted (insufficient data or small deltas)")
+
+    # ── F3 follow-on: per-bucket testable calibration (smECE) ──
+    per_bucket = compute_per_bucket_testable_calibration(args.benchmark_dir)
+    if per_bucket:
+        per_bucket_path = args.output_path.with_name(
+            "zone_priority_per_bucket_calibration.json"
+        )
+        per_bucket_path.write_text(
+            json.dumps(per_bucket, indent=2) + "\n", encoding="utf-8"
+        )
+        print(f"\nPer-bucket testable calibration written to {per_bucket_path}")
+        ok_buckets = [(k, v) for k, v in per_bucket.items() if v.get("status") == "ok"]
+        skipped = [k for k, v in per_bucket.items() if v.get("status") != "ok"]
+        if ok_buckets:
+            print(f"Per-bucket smECE ({len(ok_buckets)} buckets >= 30 events):")
+            for key, payload in ok_buckets:
+                print(
+                    f"  {key}: smECE={payload['smooth_ece']:.4f}  "
+                    f"ECE={payload['ece_binned_n10']:.4f}  "
+                    f"n={payload['n_events']}"
+                )
+        if skipped:
+            print(f"Skipped {len(skipped)} bucket(s) with < 30 events")
 
     if args.check_drift is not None:
         violations = check_drift(cal, max_drift=args.check_drift)

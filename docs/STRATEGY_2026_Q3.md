@@ -303,10 +303,13 @@ und Distanz zum aktuellen Preis sollten die Erwartung beeinflussen.
       `effective_weights`-Pfad ersetzt `calibrated_family_weights` durch
       bucket-spezifische Werte; `_VOL_REGIME_SCORES` (additive Komponente)
       bleibt unangetastet als zweite, orthogonale Stellschraube.
-- ⚠ Hinweis: Die F1-Promotion-Metrik ist Brier-basiert; eine separate
-      ECE-Δ-Messung pro Bucket ist als Folge-Audit offen
-      (`scripts/smc_zone_priority_calibration.py::compute_testable_calibration`
-      liefert `smECE` heute nur global, nicht per Bucket).
+- ⚠ Hinweis: Die F1-Promotion-Metrik ist Brier-basiert; die separate
+      ECE-Δ-Messung pro Bucket ist als Folge-Audit nachgezogen
+      (`scripts/smc_zone_priority_calibration.py::compute_per_bucket_testable_calibration`
+      schreibt `zone_priority_per_bucket_calibration.json` mit smECE/ECE/dCE
+      je `<dim>:<bucket>` ≥ 30 Events). Smoke 2026-04-22 (n=10064): NY_AM
+      smECE 0.083 → klar bestes Bucket; LONDON 0.233 / ASIA 0.202 /
+      HIGH_VOL 0.168 → Kandidaten für nächste Re-Kalibrierungs-Runde.
 
 ### Phase G — Feature Importance → Automated Scorer Tuning (Wochen 5–8)
 
