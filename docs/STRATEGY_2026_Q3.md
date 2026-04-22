@@ -127,13 +127,17 @@ und trotzdem profitabel sein.
 >
 > **Lesart:** auf der NORMAL-Volume-Achse und in NY_AM/LONDON liefert die strikte
 > Definition Treffer-Quoten von ~88%, was FVG aus dem unteren Drittel der
-> Familienrangliste in Reichweite von BOS rückt. **Einzige Inversion:**
-> session:ASIA zeigt mit nur 109 Events einen leichten Rückgang (0.752 →
-> 0.670) — bei <120 Events zu klein für Promotion, aber als Audit-Punkt im
-> Q3-Backlog vorgemerkt. Reproduzierbar via
-> `python scripts/fvg_label_audit_q3.py --root artifacts/ci/measurement_benchmark_2026-04-22_partial50_v3 --format json`.
+> Familienrangliste in Reichweite von BOS rückt. Die scheinbare ASIA-Inversion
+> (0.752 → 0.670 bei n=109) wurde nachträglich als reines Datenquellen-Artefakt
+> identifiziert (100% midnight-UTC-Resampler-Bars) und mit einer 24-h-Real-
+> Daten-Stichprobe (60 Tage × 9 Symbole, n=158 ASIA) widerlegt: ASIA liefert
+> dort lenient 0.367 / strict50 **0.873** (Δ **+0.506**, höchster Lift aller
+> Sessions). Detail: `docs/FVG_LABEL_AUDIT_Q3.md` §5b.4. Reproduzierbar via
+> `python scripts/fvg_label_audit_q3.py --root artifacts/ci/measurement_benchmark_2026-04-22_partial50_v3 --format json`
+> bzw. `python scripts/fvg_asia_real_sample.py --days 60`.
 > Pipeline-Commits: `3746b36e` (Bridge-Emission), `18110767` (KPI-Aggregation),
-> `1c06bc22` (flat-key-Lese-Fix nach v2-Snapshot mit `null` HR).
+> `1c06bc22` (flat-key-Lese-Fix nach v2-Snapshot mit `null` HR), `2d7badea`
+> (ASIA-Artefakt-Diagnose), `47408627` (ASIA-Real-Daten-Refutation).
 
 #### D2: FVG per-Context Breakdown ✅ DONE (2026-04-22) — massiv bestätigt
 
