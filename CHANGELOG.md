@@ -6,6 +6,17 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-10-04) — Plan 2.8 dict/null/string records + nim + trailing-percent lines
+
+- `scripts/plan_2_8_ledger_dict_or_null_or_string_only_record_count.py`
+  counts non-empty ledger records whose every value is ``dict``,
+  ``str``, or ``None``.
+- `scripts/plan_2_8_digest_nim_file_count.py` counts top-level `.nim`
+  files.
+- `scripts/plan_2_8_weekly_summary_trailing_percent_line_count.py`
+  counts non-empty lines whose last character is ``%``.
+- Weekly digest workflow wires three fail-soft compute+upload step pairs.
+
 ### Added (2026-10-03) — Plan 2.8 list/null/string records + cr + leading-percent lines
 
 - `scripts/plan_2_8_ledger_list_or_null_or_string_only_record_count.py`
