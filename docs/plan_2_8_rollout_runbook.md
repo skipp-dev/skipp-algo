@@ -872,6 +872,9 @@ read.
 - `tests/test_plan_2_8_ledger_top_key_count_max.py`
 - `tests/test_plan_2_8_digest_keystore_file_count.py`
 - `tests/test_plan_2_8_weekly_summary_brace_close_line_count.py`
+- `tests/test_plan_2_8_ledger_top_key_count_min.py`
+- `tests/test_plan_2_8_digest_pkcs12_file_count.py`
+- `tests/test_plan_2_8_weekly_summary_angle_open_line_count.py`
 - `tests/test_plan_2_8_alert_history.py`
 - `tests/test_plan_2_8_alert_history_summary.py`
 - `tests/test_plan_2_8_digest_rollup.py`

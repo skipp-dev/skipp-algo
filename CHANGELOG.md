@@ -6,6 +6,16 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-08-11) — Plan 2.8 top-key min + pkcs12 + angle-open lines
+
+- `scripts/plan_2_8_ledger_top_key_count_min.py` reports min top-level
+  key count across ledger records.
+- `scripts/plan_2_8_digest_pkcs12_file_count.py` counts top-level
+  `.pkcs12` files.
+- `scripts/plan_2_8_weekly_summary_angle_open_line_count.py` counts
+  lines containing an ASCII `<`.
+- Weekly digest workflow wires three fail-soft compute+upload step pairs.
+
 ### Added (2026-08-10) — Plan 2.8 top-key max + keystore + brace-close lines
 
 - `scripts/plan_2_8_ledger_top_key_count_max.py` reports max top-level
