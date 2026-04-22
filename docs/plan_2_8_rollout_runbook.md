@@ -1124,6 +1124,9 @@ read.
 - `tests/test_plan_2_8_ledger_nonempty_list_or_dict_or_null_only_record_count.py`
 - `tests/test_plan_2_8_digest_lhs_file_count.py`
 - `tests/test_plan_2_8_weekly_summary_leading_exclamation_mark_line_count.py`
+- `tests/test_plan_2_8_ledger_nonempty_string_or_int_only_record_count.py`
+- `tests/test_plan_2_8_digest_rhs_file_count.py`
+- `tests/test_plan_2_8_weekly_summary_trailing_exclamation_mark_line_count.py`
 - `tests/test_plan_2_8_alert_history.py`
 - `tests/test_plan_2_8_alert_history_summary.py`
 - `tests/test_plan_2_8_digest_rollup.py`
