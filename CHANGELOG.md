@@ -6,6 +6,15 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-11-09) — Plan 2.8 nonempty-int-or-null records + d + trailing-asterisk lines
+
+- `scripts/plan_2_8_ledger_nonempty_int_or_null_only_record_count.py`
+  counts ledger records whose every value is a non-empty int or null.
+- `scripts/plan_2_8_digest_d_file_count.py` counts top-level `.d` files.
+- `scripts/plan_2_8_weekly_summary_trailing_asterisk_line_count.py`
+  counts non-empty lines whose last character is ``*``.
+- Weekly digest workflow wires three fail-soft compute+upload step pairs.
+
 ### Added (2026-11-08) — Plan 2.8 nonempty-string-or-null-or-float records + svelte + leading-asterisk lines
 
 - `scripts/plan_2_8_ledger_nonempty_string_or_null_or_float_only_record_count.py`
