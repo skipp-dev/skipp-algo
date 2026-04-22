@@ -6,6 +6,17 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-09-20) — Plan 2.8 numeric-or-bool records + swift + trailing-quote lines
+
+- `scripts/plan_2_8_ledger_numeric_or_bool_only_record_count.py`
+  counts non-empty ledger records whose every value is a ``bool``,
+  ``int``, or ``float``.
+- `scripts/plan_2_8_digest_swift_file_count.py` counts top-level
+  `.swift` files.
+- `scripts/plan_2_8_weekly_summary_trailing_quote_line_count.py` counts
+  non-empty lines whose last character is ``"``.
+- Weekly digest workflow wires three fail-soft compute+upload step pairs.
+
 ### Added (2026-09-19) — Plan 2.8 numeric-or-string records + kt + leading-quote lines
 
 - `scripts/plan_2_8_ledger_numeric_or_string_only_record_count.py`
