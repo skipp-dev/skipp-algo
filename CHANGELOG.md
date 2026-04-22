@@ -6,6 +6,17 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-08-27) — Plan 2.8 numeric-only records + toml + single-word lines
+
+- `scripts/plan_2_8_ledger_numeric_only_record_count.py` counts non-empty
+  ledger records whose every value is a plain numeric type (``int`` or
+  ``float``, excluding ``bool``).
+- `scripts/plan_2_8_digest_toml_file_count.py` counts top-level `.toml`
+  files.
+- `scripts/plan_2_8_weekly_summary_single_word_line_count.py` counts
+  lines containing exactly one whitespace-separated token.
+- Weekly digest workflow wires three fail-soft compute+upload step pairs.
+
 ### Added (2026-08-26) — Plan 2.8 heterogeneous-value records + skr + single-char lines
 
 - `scripts/plan_2_8_ledger_heterogeneous_value_record_count.py` counts
