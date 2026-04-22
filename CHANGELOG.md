@@ -6,6 +6,16 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-08-10) — Plan 2.8 top-key max + keystore + brace-close lines
+
+- `scripts/plan_2_8_ledger_top_key_count_max.py` reports max top-level
+  key count across ledger records.
+- `scripts/plan_2_8_digest_keystore_file_count.py` counts top-level
+  `.keystore` files.
+- `scripts/plan_2_8_weekly_summary_brace_close_line_count.py` counts
+  lines containing an ASCII `}`.
+- Weekly digest workflow wires three fail-soft compute+upload step pairs.
+
 ### Added (2026-08-09) — Plan 2.8 top-key total + jks + brace-open lines
 
 - `scripts/plan_2_8_ledger_top_key_count_total.py` sums top-level key
