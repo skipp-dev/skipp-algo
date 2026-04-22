@@ -6,6 +6,17 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-08-17) — Plan 2.8 null-only records + p7s + mixed-case lines
+
+- `scripts/plan_2_8_ledger_null_only_record_count.py` counts ledger
+  records whose every top-level value is JSON ``null`` (empty objects
+  excluded).
+- `scripts/plan_2_8_digest_p7s_file_count.py` counts top-level `.p7s`
+  files.
+- `scripts/plan_2_8_weekly_summary_mixed_case_line_count.py` counts
+  lines containing both an ASCII uppercase and lowercase letter.
+- Weekly digest workflow wires three fail-soft compute+upload step pairs.
+
 ### Added (2026-08-16) — Plan 2.8 bool-only records + p7m + digit-only lines
 
 - `scripts/plan_2_8_ledger_bool_only_record_count.py` counts ledger
