@@ -57,32 +57,53 @@ def aggregate(root: Path) -> dict:
         }
 
     fvg_per_strat: dict[str, dict] = {}
+    per_family_per_context: dict[str, dict[str, dict]] = {}
     for (strat_key, fam), rows in sorted(by_strat_family.items()):
-        if fam != "FVG":
-            continue
         n = sum(r["n_events"] for r in rows)
         if n == 0:
             continue
-        fvg_per_strat[strat_key] = {
+        bucket = {
             "n_events": n,
             "hit_rate": round(_weighted(rows, "hit_rate"), 4),
             "partial_fill_pct_mean": round(
                 _weighted(rows, "partial_fill_pct_mean"), 4,
             ),
         }
+        per_family_per_context.setdefault(fam, {})[strat_key] = bucket
+        if fam == "FVG":
+            fvg_per_strat[strat_key] = bucket
 
-    overall_fvg = [r for (tf, fam), rows in by_tf_family.items()
-                   if fam == "FVG" for r in rows]
-    overall = {
-        "n_events": sum(r["n_events"] for r in overall_fvg),
-        "hit_rate": round(_weighted(overall_fvg, "hit_rate"), 4),
-        "ttm_mean": round(_weighted(overall_fvg, "time_to_mitigation_mean"), 2),
-        "partial_fill_pct_mean": round(
-            _weighted(overall_fvg, "partial_fill_pct_mean"), 4,
-        ),
-    }
-    return {"per_tf": per_tf, "fvg_per_context": fvg_per_strat,
-            "fvg_overall": overall, "source_root": str(root),
+    per_family_overall: dict[str, dict] = {}
+    for fam in ("OB", "FVG", "BOS", "SWEEP"):
+        rows_fam = [r for (tf, f), rows in by_tf_family.items()
+                    if f == fam for r in rows]
+        n = sum(r["n_events"] for r in rows_fam)
+        if n == 0:
+            continue
+        per_family_overall[fam] = {
+            "n_events": n,
+            "hit_rate": round(_weighted(rows_fam, "hit_rate"), 4),
+            "ttm_mean": round(
+                _weighted(rows_fam, "time_to_mitigation_mean"), 2,
+            ),
+            "partial_fill_pct_mean": round(
+                _weighted(rows_fam, "partial_fill_pct_mean"), 4,
+            ),
+            "invalidation_rate": round(
+                _weighted(rows_fam, "invalidation_rate"), 4,
+            ),
+        }
+
+    overall = per_family_overall.get("FVG", {
+        "n_events": 0, "hit_rate": 0.0, "ttm_mean": 0.0,
+        "partial_fill_pct_mean": 0.0,
+    })
+    return {"per_tf": per_tf,
+            "fvg_per_context": fvg_per_strat,
+            "fvg_overall": overall,
+            "per_family_overall": per_family_overall,
+            "per_family_per_context": per_family_per_context,
+            "source_root": str(root),
             "n_files": sum(1 for _ in _iter_benchmark_files(root))}
 
 
@@ -118,6 +139,21 @@ def main(argv: list[str] | None = None) -> int:
     for ctx, k in result["fvg_per_context"].items():
         print(f"| {ctx} | {k['n_events']} | {k['hit_rate']:.3f} | "
               f"{k['partial_fill_pct_mean']:.3f} |")
+    print("\n## Per-family overall (4-TF aggregate)\n")
+    print("| Family | n | HR | TTM | partial_fill | inval_rate |")
+    print("|---|---:|---:|---:|---:|---:|")
+    for fam, k in result["per_family_overall"].items():
+        print(f"| {fam} | {k['n_events']} | {k['hit_rate']:.3f} | "
+              f"{k['ttm_mean']} | {k['partial_fill_pct_mean']:.3f} | "
+              f"{k['invalidation_rate']:.3f} |")
+    print("\n## Per-family per-context\n")
+    print("| Family | Context | n | HR | partial_fill |")
+    print("|---|---|---:|---:|---:|")
+    for fam, ctxs in result["per_family_per_context"].items():
+        for ctx, k in ctxs.items():
+            print(f"| {fam} | {ctx} | {k['n_events']} | "
+                  f"{k['hit_rate']:.3f} | "
+                  f"{k['partial_fill_pct_mean']:.3f} |")
     print("\n## FVG overall\n")
     o = result["fvg_overall"]
     print(f"- n_events: {o['n_events']}")
