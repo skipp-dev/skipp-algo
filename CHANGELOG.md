@@ -6,6 +6,16 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-10-20) — Plan 2.8 nonempty-list-or-nonempty-dict records + f90 + trailing-pipe lines
+
+- `scripts/plan_2_8_ledger_nonempty_list_or_nonempty_dict_only_record_count.py`
+  counts non-empty ledger records whose every value is a non-empty list
+  or non-empty ``dict``.
+- `scripts/plan_2_8_digest_f90_file_count.py` counts top-level `.f90` files.
+- `scripts/plan_2_8_weekly_summary_trailing_pipe_line_count.py`
+  counts non-empty lines whose last character is ``|``.
+- Weekly digest workflow wires three fail-soft compute+upload step pairs.
+
 ### Added (2026-10-19) — Plan 2.8 empty-list-or-empty-dict records + ado + leading-pipe lines
 
 - `scripts/plan_2_8_ledger_empty_list_or_empty_dict_only_record_count.py`
