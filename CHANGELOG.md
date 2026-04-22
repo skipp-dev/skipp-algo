@@ -6,6 +6,16 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-08-30) — Plan 2.8 int-or-null records + conf + long lines
+
+- `scripts/plan_2_8_ledger_int_or_null_only_record_count.py` counts
+  non-empty ledger records whose every value is either ``int`` or null.
+- `scripts/plan_2_8_digest_conf_file_count.py` counts top-level `.conf`
+  files.
+- `scripts/plan_2_8_weekly_summary_long_line_count.py` counts lines
+  whose length is at least 80 characters.
+- Weekly digest workflow wires three fail-soft compute+upload step pairs.
+
 ### Added (2026-08-29) — Plan 2.8 bool-or-null records + cfg + short lines
 
 - `scripts/plan_2_8_ledger_bool_or_null_only_record_count.py` counts
