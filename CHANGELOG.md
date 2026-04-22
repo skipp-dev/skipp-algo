@@ -6,6 +6,15 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-10-31) — Plan 2.8 bool-or-dict records + pyx + leading-question-mark lines
+
+- `scripts/plan_2_8_ledger_bool_or_dict_only_record_count.py`
+  counts ledger records whose every value is a bool or dict.
+- `scripts/plan_2_8_digest_pyx_file_count.py` counts top-level `.pyx` files.
+- `scripts/plan_2_8_weekly_summary_leading_question_mark_line_count.py`
+  counts non-empty lines whose first character is ``?``.
+- Weekly digest workflow wires three fail-soft compute+upload step pairs.
+
 ### Added (2026-10-30) — Plan 2.8 nonempty-string-or-null records + exs + trailing-period lines
 
 - `scripts/plan_2_8_ledger_nonempty_string_or_null_only_record_count.py`
