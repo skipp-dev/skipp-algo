@@ -6,6 +6,16 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-09-03) — Plan 2.8 numeric-or-null records + tmp + leading-hyphen lines
+
+- `scripts/plan_2_8_ledger_numeric_or_null_only_record_count.py` counts
+  non-empty ledger records whose every value is a number or null.
+- `scripts/plan_2_8_digest_tmp_file_count.py` counts top-level `.tmp`
+  files.
+- `scripts/plan_2_8_weekly_summary_leading_hyphen_line_count.py` counts
+  non-empty lines whose first character is an ASCII hyphen.
+- Weekly digest workflow wires three fail-soft compute+upload step pairs.
+
 ### Added (2026-09-02) — Plan 2.8 nonzero-int records + bak + trailing-digit lines
 
 - `scripts/plan_2_8_ledger_nonzero_int_only_record_count.py` counts
