@@ -6,6 +6,16 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-10-11) — Plan 2.8 list/string records + pas + leading-plus lines
+
+- `scripts/plan_2_8_ledger_list_or_string_only_record_count.py` counts
+  non-empty ledger records whose every value is ``list`` or ``str``.
+- `scripts/plan_2_8_digest_pas_file_count.py` counts top-level
+  `.pas` files.
+- `scripts/plan_2_8_weekly_summary_leading_plus_line_count.py` counts
+  non-empty lines whose first character is ``+``.
+- Weekly digest workflow wires three fail-soft compute+upload step pairs.
+
 ### Added (2026-10-10) — Plan 2.8 dict/string records + vb + trailing-star lines
 
 - `scripts/plan_2_8_ledger_dict_or_string_only_record_count.py` counts
