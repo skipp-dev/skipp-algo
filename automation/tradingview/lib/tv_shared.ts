@@ -2995,8 +2995,45 @@ export function settingsDialogTitleMatchesScriptName(scriptName: string, dialogT
   if (!normalizedTitle) {
     return false;
   }
-
   return scriptNameAppearsInUiText(scriptName, normalizedTitle);
+}
+
+/**
+ * Strict (not loose / not substring) check that `actualTitle` matches at least
+ * one of the candidate script names exactly (case-insensitive, after whitespace
+ * normalization, with optional trailing version suffix like " v1.2" or
+ * " version 3"). Used by the preflight identity assertion to catch the
+ * 2026-04-22 substring-collision class where a third-party public script
+ * shared a prefix with one of our preflight targets.
+ *
+ * Returns false on any candidate that is empty/whitespace-only.
+ */
+export function isExactScriptNameMatch(actualTitle: string, ...candidateNames: string[]): boolean {
+  const normalizedActual = normalizeUiText(actualTitle);
+  if (!normalizedActual) {
+    return false;
+  }
+  for (const candidate of candidateNames) {
+    if (!candidate) continue;
+    if (uiTextContainsExactScriptName(candidate, actualTitle)) {
+      return true;
+    }
+    if (canonicalSemanticVersionSuffixMatch(candidate, actualTitle)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Reads the visible TradingView indicator-settings dialog title, or null when
+ * no titled dialog is present. Intended for post-openSettingsForScript
+ * identity assertions in preflight runs.
+ */
+export async function readOpenedScriptIdentity(page: Page): Promise<string | null> {
+  const dialogs = await collectVisibleDialogSnapshots(page).catch(() => []);
+  const titledDialog = dialogs.find((dialog) => normalizeUiText(dialog.title).length > 0);
+  return titledDialog ? titledDialog.title : null;
 }
 
 async function collectVisibleDialogSnapshots(page: Page): Promise<VisibleDialogSnapshot[]> {
