@@ -57,6 +57,26 @@ export function describeScriptRowLocatorSpecs(): ScriptRowLocatorSpec[] {
   ];
 }
 
+export type ScriptRowMatchKind = "exact" | "loose";
+
+export interface ScriptRowOptions {
+  /**
+   * When true, scriptRow returns ONLY locators that:
+   *   - are scoped to the indicators dialog or menu-inner overlay,
+   *   - filter on `[data-id^="USER;"]` (private user scripts),
+   *   - require an exact (case-insensitive) script-title match (with optional
+   *     trailing version suffix like " v1.2" or " version 3").
+   *
+   * Loose / fuzzy / global-page-scope fallbacks are suppressed. This prevents
+   * the 2026-04-22 substring collision class where a third-party public script
+   * such as "SMC Execution Engine (Free) by @abdallacrypto v1.3" would match
+   * a preflight target named "SMC Execution". Pre-2026-04-22 callers that
+   * tolerated loose matching (drafts, exploratory probes) can omit the option
+   * for back-compat behavior.
+   */
+  strict?: boolean;
+}
+
 export const tvSelectors = {
   pineEditor(page: Page): Locator[] {
     return [
@@ -149,11 +169,22 @@ export const tvSelectors = {
     ];
   },
 
-  scriptRow(page: Page, scriptName: string): Locator[] {
+  scriptRow(page: Page, scriptName: string, opts: ScriptRowOptions = {}): Locator[] {
     const [exact, loose] = scriptNamePatterns(scriptName);
     const dialog = page.locator('[role="dialog"]');
     const indicatorsDialog = page.locator('[data-name="indicators-dialog"]');
     const menuInner = page.locator('[data-name="menu-inner"]');
+
+    if (opts.strict) {
+      // Strict mode: USER-scoped, exact pattern only. No loose, no fuzzy, no
+      // global-page scope. See ScriptRowOptions docstring for rationale.
+      return [
+        indicatorsDialog.locator('[data-id^="USER;"]').filter({ hasText: exact }),
+        menuInner.locator('[data-id^="USER;"]').filter({ hasText: exact }),
+        dialog.locator('[data-id^="USER;"]').filter({ hasText: exact }),
+      ];
+    }
+
     const patterns = { exact, loose } as const;
     const scopes = {
       dialog,

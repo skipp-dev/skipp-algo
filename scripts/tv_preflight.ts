@@ -16,6 +16,7 @@ import {
   ensurePineEditor,
   gotoChart,
   isScriptVisibleOnChartSurface,
+  isExactScriptNameMatch,
   isSignInModalVisible,
   newTradingViewSession,
   openFreshUntitledPineDraft,
@@ -24,6 +25,7 @@ import {
   openSettingsForScript,
   parseInputSourceLabels,
   probeRuntimeSmoke,
+  readOpenedScriptIdentity,
   refreshChartScriptInstance,
   removeVisibleChartScriptInstances,
   saveScript,
@@ -182,8 +184,8 @@ function fallbackDefaultTargets(): ReleaseTarget[] {
     },
     {
       file: "SMC_Dashboard.pine",
-      scriptName: "SMC Decision Board",
-      savedScriptName: "SMC Dashboard",
+      scriptName: "SMC Long-Dip Dashboard v7",
+      savedScriptName: "SMC Long-Dip Dashboard v7",
       checkInputs: true,
       addToChart: true,
       minInputs: 58,
@@ -193,8 +195,8 @@ function fallbackDefaultTargets(): ReleaseTarget[] {
     },
     {
       file: "SMC_Long_Strategy.pine",
-      scriptName: "SMC Execution",
-      savedScriptName: "SMC Long Strategy",
+      scriptName: "SMC Long-Dip Strategy v7",
+      savedScriptName: "SMC Long-Dip Strategy v7",
       checkInputs: true,
       addToChart: true,
       minInputs: 8,
@@ -286,6 +288,46 @@ function describeTradingViewScriptTarget(target: ReleaseTarget): string {
   return savedScriptName === targetScriptName
     ? targetScriptName
     : `${targetScriptName} (saved script: ${savedScriptName})`;
+}
+
+/**
+ * Defensive identity guard for the 2026-04-22 substring-collision class.
+ *
+ * After openSettingsForScript() returns truthy, read the actual visible
+ * settings-dialog title and require an EXACT (case-insensitive) match
+ * against either `target.scriptName` or `target.savedScriptName`. If the
+ * dialog title is non-empty but does not strictly match either candidate
+ * — for example because TradingView opened the third-party
+ *   "SMC Execution Engine (Free) by @abdallacrypto v1.3"
+ * — fail loudly with a diagnostic message instead of letting the cryptic
+ * "binding labels missing" assertion fire later.
+ *
+ * No-op if the dialog reports no title (back-compat: the existing
+ * verifyOpenedSettingsDialogIdentity flow already handles that case).
+ */
+async function assertOpenedScriptIdentityOrThrow(
+  page: import("playwright").Page,
+  target: ReleaseTarget,
+): Promise<void> {
+  const actualScriptIdentity = await readOpenedScriptIdentity(page);
+  if (actualScriptIdentity === null) {
+    return;
+  }
+  const candidateNames = [target.scriptName, target.savedScriptName ?? ""].filter((name) => name && name.length > 0);
+  if (isExactScriptNameMatch(actualScriptIdentity, ...candidateNames)) {
+    return;
+  }
+  const candidateDescription = candidateNames
+    .map((name) => `"${name}"`)
+    .join(" or ");
+  throw new Error(
+    `TradingView opened the wrong script: expected ${candidateDescription}, ` +
+    `but the settings dialog reports "${actualScriptIdentity}". ` +
+    `This is the 2026-04-22 substring-collision class ` +
+    `(third-party scripts whose title contains the preflight target name as a prefix). ` +
+    `Ensure the saved TradingView script uses a unique, non-substring-of-third-party title ` +
+    `and rerun the preflight.`,
+  );
 }
 
 function buildMissingExistingScriptError(
@@ -637,6 +679,7 @@ async function main(): Promise<number> {
         if (settingsOpened !== true) {
           throw new Error(`Settings opened for the wrong TradingView script: ${target.scriptName}`);
         }
+        await assertOpenedScriptIdentityOrThrow(session.page, target);
         targetResult.settings_open_ok = true;
         await openInputsTab(session.page);
         targetResult.inputs_tab_ok = true;
@@ -659,6 +702,7 @@ async function main(): Promise<number> {
           if (reopenedSettings !== true) {
             throw new Error(`Settings reopened for the wrong TradingView script after refresh: ${target.scriptName}`);
           }
+          await assertOpenedScriptIdentityOrThrow(session.page, target);
           targetResult.settings_open_ok = true;
           await openInputsTab(session.page);
           targetResult.inputs_tab_ok = true;

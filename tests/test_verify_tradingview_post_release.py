@@ -34,7 +34,7 @@ def _valid_report(*, execution_mode: str = "readonly") -> dict:
         "overall_preflight_ok": True,
         "targets": [
             {
-                "scriptName": "SMC Decision Board",
+                "scriptName": "SMC Long-Dip Dashboard v7",
                 "overall_preflight_ok": True,
             }
         ],
@@ -99,11 +99,11 @@ def test_verify_post_release_validation_rejects_failed_target(tmp_path: Path) ->
     validation_report_path = tmp_path / "tv_post_release_validation.json"
 
     report = _valid_report()
-    report["targets"] = [{"scriptName": "SMC Decision Board", "overall_preflight_ok": False, "error": "compile mismatch"}]
+    report["targets"] = [{"scriptName": "SMC Long-Dip Dashboard v7", "overall_preflight_ok": False, "error": "compile mismatch"}]
     _write_json(release_manifest_path, _valid_manifest())
     _write_json(validation_report_path, report)
 
-    with pytest.raises(RuntimeError, match="SMC Decision Board"):
+    with pytest.raises(RuntimeError, match="SMC Long-Dip Dashboard v7"):
         verify_post_release_validation(release_manifest_path, validation_report_path)
 
 

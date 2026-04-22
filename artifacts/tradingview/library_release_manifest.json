@@ -29,12 +29,12 @@
       "role": "producer"
     },
     {
-      "scriptName": "SMC Decision Board",
+      "scriptName": "SMC Long-Dip Dashboard v7",
       "file": "SMC_Dashboard.pine",
       "role": "dashboard_companion"
     },
     {
-      "scriptName": "SMC Execution",
+      "scriptName": "SMC Long-Dip Strategy v7",
       "file": "SMC_Long_Strategy.pine",
       "role": "execution_wrapper"
     }
@@ -296,11 +296,11 @@
         },
         {
           "file": "SMC_Dashboard.pine",
-          "scriptName": "SMC Decision Board",
+          "scriptName": "SMC Long-Dip Dashboard v7",
           "checkInputs": true,
           "addToChart": true,
           "minInputs": 58,
-          "savedScriptName": "SMC Dashboard",
+          "savedScriptName": "SMC Long-Dip Dashboard v7",
           "bindingContractKey": "dashboardBindings",
           "bindingContractName": "dashboard companion BUS bindings",
           "bindingConsumerRole": "dashboard_companion",
@@ -667,11 +667,11 @@
         },
         {
           "file": "SMC_Dashboard.pine",
-          "scriptName": "SMC Decision Board",
+          "scriptName": "SMC Long-Dip Dashboard v7",
           "checkInputs": true,
           "addToChart": true,
           "minInputs": 58,
-          "savedScriptName": "SMC Dashboard",
+          "savedScriptName": "SMC Long-Dip Dashboard v7",
           "bindingContractKey": "dashboardBindings",
           "bindingContractName": "dashboard companion BUS bindings",
           "bindingConsumerRole": "dashboard_companion",
@@ -1030,11 +1030,11 @@
         },
         {
           "file": "SMC_Long_Strategy.pine",
-          "scriptName": "SMC Execution",
+          "scriptName": "SMC Long-Dip Strategy v7",
           "checkInputs": true,
           "addToChart": true,
           "minInputs": 8,
-          "savedScriptName": "SMC Long Strategy",
+          "savedScriptName": "SMC Long-Dip Strategy v7",
           "bindingContractKey": "strategyBindings",
           "bindingContractName": "execution wrapper BUS bindings",
           "bindingConsumerRole": "execution_wrapper",
@@ -1101,11 +1101,11 @@
         },
         {
           "file": "SMC_Dashboard.pine",
-          "scriptName": "SMC Decision Board",
+          "scriptName": "SMC Long-Dip Dashboard v7",
           "checkInputs": true,
           "addToChart": true,
           "minInputs": 58,
-          "savedScriptName": "SMC Dashboard",
+          "savedScriptName": "SMC Long-Dip Dashboard v7",
           "bindingContractKey": "dashboardBindings",
           "bindingContractName": "dashboard companion BUS bindings",
           "bindingConsumerRole": "dashboard_companion",
@@ -1464,11 +1464,11 @@
         },
         {
           "file": "SMC_Long_Strategy.pine",
-          "scriptName": "SMC Execution",
+          "scriptName": "SMC Long-Dip Strategy v7",
           "checkInputs": true,
           "addToChart": true,
           "minInputs": 8,
-          "savedScriptName": "SMC Long Strategy",
+          "savedScriptName": "SMC Long-Dip Strategy v7",
           "bindingContractKey": "strategyBindings",
           "bindingContractName": "execution wrapper BUS bindings",
           "bindingConsumerRole": "execution_wrapper",

@@ -175,12 +175,25 @@ test("open script surface readiness accepts any scoped ready picker state", () =
 
 test("open script search names include legacy aliases for renamed scripts", () => {
   assert.deepEqual(resolveOpenScriptSearchNames("SMC Core"), ["SMC Core", "SMC Core Engine"]);
+  // Canonical (post-2026-04-22 collision fix) names map back to both layers of legacy saved titles.
+  assert.deepEqual(
+    resolveOpenScriptSearchNames("SMC Long-Dip Dashboard v7"),
+    ["SMC Long-Dip Dashboard v7", "SMC Decision Board", "SMC Dashboard"],
+  );
+  assert.deepEqual(
+    resolveOpenScriptSearchNames("SMC Long-Dip Strategy v7"),
+    ["SMC Long-Dip Strategy v7", "SMC Execution", "SMC Long Strategy"],
+  );
+  // Pre-rename callers continue to work.
   assert.deepEqual(resolveOpenScriptSearchNames("SMC Decision Board"), ["SMC Decision Board", "SMC Dashboard"]);
   assert.deepEqual(resolveOpenScriptSearchNames("SMC Execution"), ["SMC Execution", "SMC Long Strategy"]);
 });
 
 test("open script search names normalize whitespace and de-duplicate", () => {
-  assert.deepEqual(resolveOpenScriptSearchNames("  SMC   Decision   Board  "), ["SMC Decision Board", "SMC Dashboard"]);
+  assert.deepEqual(
+    resolveOpenScriptSearchNames("  SMC   Long-Dip   Dashboard   v7  "),
+    ["SMC Long-Dip Dashboard v7", "SMC Decision Board", "SMC Dashboard"],
+  );
 });
 
 test("indicator private script matching requires a visible My scripts row", () => {

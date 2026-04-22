@@ -741,9 +741,18 @@ function canonicalVersionMetadataMatch(scriptName: string, uiText: string): bool
 }
 
 function legacyOpenScriptNames(scriptName: string): string[] {
+  // Back-compat aliases: when callers pass the new canonical name, also try
+  // the older saved names so any TradingView account still on the pre-rename
+  // saved title resolves. When callers pass an even-older legacy name, keep
+  // the old fallback chain so deployments mid-rename keep working.
+  // See PREFLIGHT_*_TARGETS rationale in scripts/smc_bus_manifest.py.
   switch (normalizeUiText(scriptName).toLowerCase()) {
     case "smc core":
       return ["SMC Core Engine"];
+    case "smc long-dip dashboard v7":
+      return ["SMC Decision Board", "SMC Dashboard"];
+    case "smc long-dip strategy v7":
+      return ["SMC Execution", "SMC Long Strategy"];
     case "smc decision board":
       return ["SMC Dashboard"];
     case "smc execution":
@@ -2343,7 +2352,7 @@ async function addScriptToChartViaIndicators(page: Page, scriptName: string): Pr
 
   let selectedRow = await clickVisibleWithFallback(
     page,
-    tvSelectors.scriptRow(page, scriptName),
+    tvSelectors.scriptRow(page, scriptName, { strict: true }),
     "add-to-chart-indicators-row",
     3_000,
     1_000,
@@ -2986,8 +2995,45 @@ export function settingsDialogTitleMatchesScriptName(scriptName: string, dialogT
   if (!normalizedTitle) {
     return false;
   }
-
   return scriptNameAppearsInUiText(scriptName, normalizedTitle);
+}
+
+/**
+ * Strict (not loose / not substring) check that `actualTitle` matches at least
+ * one of the candidate script names exactly (case-insensitive, after whitespace
+ * normalization, with optional trailing version suffix like " v1.2" or
+ * " version 3"). Used by the preflight identity assertion to catch the
+ * 2026-04-22 substring-collision class where a third-party public script
+ * shared a prefix with one of our preflight targets.
+ *
+ * Returns false on any candidate that is empty/whitespace-only.
+ */
+export function isExactScriptNameMatch(actualTitle: string, ...candidateNames: string[]): boolean {
+  const normalizedActual = normalizeUiText(actualTitle);
+  if (!normalizedActual) {
+    return false;
+  }
+  for (const candidate of candidateNames) {
+    if (!candidate) continue;
+    if (uiTextContainsExactScriptName(candidate, actualTitle)) {
+      return true;
+    }
+    if (canonicalSemanticVersionSuffixMatch(candidate, actualTitle)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Reads the visible TradingView indicator-settings dialog title, or null when
+ * no titled dialog is present. Intended for post-openSettingsForScript
+ * identity assertions in preflight runs.
+ */
+export async function readOpenedScriptIdentity(page: Page): Promise<string | null> {
+  const dialogs = await collectVisibleDialogSnapshots(page).catch(() => []);
+  const titledDialog = dialogs.find((dialog) => normalizeUiText(dialog.title).length > 0);
+  return titledDialog ? titledDialog.title : null;
 }
 
 async function collectVisibleDialogSnapshots(page: Page): Promise<VisibleDialogSnapshot[]> {
@@ -3791,7 +3837,7 @@ async function openSettingsFromLegendContainer(page: Page, scriptName: string): 
 
 async function openSettingsFromScriptText(page: Page, scriptName: string): Promise<boolean> {
   tracePageEvent(page, "script-settings-text-start", scriptName);
-  for (const locator of tvSelectors.scriptRow(page, scriptName)) {
+  for (const locator of tvSelectors.scriptRow(page, scriptName, { strict: true })) {
     const scriptText = await firstVisibleLocator(locator, 1_200);
     if (!scriptText) {
       continue;
@@ -4163,7 +4209,7 @@ export async function openExistingScript(page: Page, scriptName: string): Promis
 
       const clickedScript = await clickVisibleWithFallback(
         page,
-        tvSelectors.scriptRow(page, searchName),
+        tvSelectors.scriptRow(page, searchName, { strict: true }),
         "open-script-row",
         3_000,
         1_000,
@@ -4173,7 +4219,7 @@ export async function openExistingScript(page: Page, scriptName: string): Promis
       let dialogStillVisible = await hasVisibleOpenScriptSurface(page, 750);
 
       if (dialogStillVisible && clickedScript) {
-        await doubleClickVisible(page, tvSelectors.scriptRow(page, searchName), "open-script-row-confirm", 2_000, 1_000);
+        await doubleClickVisible(page, tvSelectors.scriptRow(page, searchName, { strict: true }), "open-script-row-confirm", 2_000, 1_000);
         dialogStillVisible = await hasVisibleOpenScriptSurface(page, 750);
       }
 
