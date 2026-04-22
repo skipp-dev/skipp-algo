@@ -36,7 +36,7 @@ if str(REPO_ROOT) not in sys.path:
 
 from smc_core.event_ledger import read_event_ledger  # noqa: E402
 
-REPORT_VERSION = "1.0"
+REPORT_VERSION = "1.1"
 WEIGHT_CAP_LO = 0.05
 WEIGHT_CAP_HI = 0.40
 MIN_FVG_EVENTS = 30
@@ -44,6 +44,14 @@ QUARTILE_MIN_EVENTS = 8
 ACCEPT_TOP_HR = 0.70
 ACCEPT_BOTTOM_HR = 0.55
 ACCEPT_SPEARMAN = 0.20
+
+# Outcome label source. ``outcome`` keeps the legacy lenient label
+# (touch-anchor mitigation) used by Amendment A1.B since day one.
+# ``partial_50`` switches to the strict ``features.label_partial_50``
+# label promoted by D1/D3 of the Q3 FVG audit. Adding new sources
+# here is the single place you need to touch.
+LABEL_SOURCES: tuple[str, ...] = ("outcome", "partial_50")
+DEFAULT_LABEL_SOURCE = "outcome"
 
 # Order is meaningful: it pins the column order of feature matrices
 # downstream and matches the legacy weight table in fvg_quality.py.
@@ -79,9 +87,11 @@ class RecalibrationReport:
 
     report_version: str = REPORT_VERSION
     status: str = "ok"
+    label_source: str = DEFAULT_LABEL_SOURCE
     n_events_total: int = 0
     n_fvg_events: int = 0
     n_with_features: int = 0
+    n_with_label: int = 0
     weights_legacy: dict[str, float] = field(default_factory=dict)
     weights_shadow: dict[str, float] = field(default_factory=dict)
     quartiles: list[QuartileStat] = field(default_factory=list)
@@ -274,25 +284,68 @@ def _rank(values: list[float]) -> list[float]:
     return ranks
 
 
-def recalibrate(ledger_paths: list[Path]) -> RecalibrationReport:
+def _resolve_outcome(record: dict[str, Any], label_source: str) -> int | None:
+    """Pick the binary outcome label from a ledger record.
+
+    Returns ``None`` if the requested label is missing or non-binary so
+    the caller can drop the row instead of biasing the fit. The legacy
+    ``outcome`` source treats any falsy/missing value as 0; the strict
+    ``partial_50`` source requires an explicit boolean in
+    ``features.label_partial_50``.
+    """
+    if label_source == "outcome":
+        if record.get("outcome") is None:
+            return None
+        return 1 if record.get("outcome") else 0
+    if label_source == "partial_50":
+        features = record.get("features") or {}
+        value = features.get("label_partial_50")
+        if value is None:
+            return None
+        if isinstance(value, bool):
+            return 1 if value else 0
+        if value in (1, 0):
+            return int(value)
+        return None
+    raise ValueError(f"unknown label_source: {label_source!r}")
+
+
+def recalibrate(
+    ledger_paths: list[Path],
+    *,
+    label_source: str = DEFAULT_LABEL_SOURCE,
+) -> RecalibrationReport:
     """Run the full recalibration pipeline and return a report."""
-    report = RecalibrationReport(weights_legacy=dict(LEGACY_WEIGHTS))
+    if label_source not in LABEL_SOURCES:
+        raise ValueError(
+            f"label_source must be one of {LABEL_SOURCES!r}, got {label_source!r}"
+        )
+    report = RecalibrationReport(
+        label_source=label_source,
+        weights_legacy=dict(LEGACY_WEIGHTS),
+    )
     rows: list[dict[str, float]] = []
     outcomes: list[int] = []
     n_total = 0
     n_fvg = 0
+    n_with_label = 0
     for record in iter_fvg_events(ledger_paths):
         n_total += 1
         n_fvg += 1
+        label = _resolve_outcome(record, label_source)
+        if label is None:
+            continue
+        n_with_label += 1
         feats = _row_features(record)
         if feats is None:
             continue
         rows.append(feats)
-        outcomes.append(1 if record.get("outcome") else 0)
+        outcomes.append(label)
 
     report.n_events_total = n_total
     report.n_fvg_events = n_fvg
     report.n_with_features = len(rows)
+    report.n_with_label = n_with_label
 
     if len(rows) < MIN_FVG_EVENTS:
         # If FVG event count itself is the bottleneck, label that. If we
@@ -371,15 +424,27 @@ def main(argv: list[str] | None = None) -> int:
         type=Path,
         default=REPO_ROOT / "artifacts/reports/fvg_quality_calibration_shadow.json",
     )
+    parser.add_argument(
+        "--label-source",
+        choices=LABEL_SOURCES,
+        default=DEFAULT_LABEL_SOURCE,
+        help=(
+            "Outcome label to fit against. 'outcome' = legacy lenient "
+            "hit (default); 'partial_50' = strict features.label_partial_50 "
+            "promoted in the Q3 FVG audit (D1/D3)."
+        ),
+    )
     args = parser.parse_args(argv)
 
     paths = sorted(args.corpus_dir.rglob("events_*.jsonl"))
-    report = recalibrate(paths)
+    report = recalibrate(paths, label_source=args.label_source)
     write_shadow_json(report, args.output)
     accept_status = "PASS" if report.acceptance and all(report.acceptance.values()) else "PENDING"
     print(
         f"FVG-Quality recal status={report.status} "
-        f"n_fvg={report.n_fvg_events} n_with_features={report.n_with_features} "
+        f"label={report.label_source} "
+        f"n_fvg={report.n_fvg_events} n_with_label={report.n_with_label} "
+        f"n_with_features={report.n_with_features} "
         f"acceptance={accept_status} "
         f"shadow={args.output}"
     )

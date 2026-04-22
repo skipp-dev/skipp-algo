@@ -1,0 +1,56 @@
+{
+  "report_version": "1.1",
+  "status": "ok",
+  "label_source": "outcome",
+  "n_events_total": 5710,
+  "n_fvg_events": 5710,
+  "n_with_features": 3573,
+  "n_with_label": 5710,
+  "weights_legacy": {
+    "gap_size_atr": 0.3,
+    "htf_aligned": 0.25,
+    "distance_to_price_atr": 0.15,
+    "is_full_body": 0.1,
+    "hurst_50": 0.2
+  },
+  "weights_shadow": {
+    "gap_size_atr": 0.4884,
+    "htf_aligned": 0.061,
+    "distance_to_price_atr": 0.3285,
+    "is_full_body": 0.061,
+    "hurst_50": 0.061
+  },
+  "quartiles": [
+    {
+      "quartile": 1,
+      "n": 893,
+      "hits": 264,
+      "hit_rate": 0.2956
+    },
+    {
+      "quartile": 2,
+      "n": 893,
+      "hits": 477,
+      "hit_rate": 0.5342
+    },
+    {
+      "quartile": 3,
+      "n": 893,
+      "hits": 557,
+      "hit_rate": 0.6237
+    },
+    {
+      "quartile": 4,
+      "n": 894,
+      "hits": 688,
+      "hit_rate": 0.7696
+    }
+  ],
+  "spearman_score_outcome": 0.428,
+  "acceptance": {
+    "top_quartile_hr_ge_0_70": true,
+    "bottom_quartile_hr_le_0_55": true,
+    "spearman_ge_0_20": true
+  },
+  "notes": []
+}

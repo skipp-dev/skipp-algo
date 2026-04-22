@@ -224,6 +224,52 @@ liefert die **höchste strict HR im gesamten Audit (0.929)**.
    gelten. `hurst_50` wird in der Re-Calibration auf Gewicht 0.0
    gesetzt.
 
+## 5. Shadow-Recalibration mit `--label-source partial_50` (2026-04-22)
+
+Mit `scripts/fvg_quality_recalibration.py --label-source partial_50`
+ist der erste maschinelle Strict-Label-Fit erzeugt. Snapshot:
+`artifacts/ci/measurement_benchmark_2026-04-22_partial50_v3` (n=3573
+FVG-Events mit allen 5 Features, von 5710 FVG-Events insgesamt).
+
+| Label              | TopQ HR | BottomQ HR | Spearman | Acceptance |
+|--------------------|---------|------------|----------|------------|
+| `outcome` (legacy) | 0.770   | 0.296      | +0.428   | **PASS**   |
+| `partial_50`       | 0.641   | 0.944      | +0.087   | **PENDING**|
+
+Shadow-JSONs:
+- `artifacts/reports/fvg_quality_calibration_shadow_lenient.json`
+- `artifacts/reports/fvg_quality_calibration_shadow_strict50.json`
+
+**Befund 5.1 — Strict-Fit invertiert die Quartil-Ordnung.** Q1
+(niedrigste Scores) erreicht 94.4% HR, Q4 (höchste Scores) nur 64.1%.
+Das bestätigt §3.3 quantitativ: bigger gap / further distance ist
+unter strict label *negativ* mit Hit Rate korreliert.
+
+**Befund 5.2 — `_normalise_to_weights()` strippt Vorzeichen.** Die
+Funktion nimmt `abs(beta)` vor der Normierung, deshalb sind die
+gelisteten `weights_shadow` für strict optisch ähnlich zu lenient
+(z. B. `gap_size_atr` 0.412, `distance_to_price_atr` 0.412), aber
+ohne erhaltene Richtung. Vor jeder echten Promotion muss die
+Normierung um eine Vorzeichen-erhaltende Variante erweitert werden,
+sonst lässt sich der Strict-Fit nicht korrekt deployen.
+
+**Konsequenz für die D3-Promotion:** Acceptance-Gate `PENDING` ist
+korrekt — Production-Gewichte in `smc_core/fvg_quality.py` bleiben
+gepinnt. Die Promotion benötigt zwei zusätzliche Folge-Patches,
+bevor sie freigegeben wird:
+
+1. Vorzeichen-erhaltende `_normalise_to_weights_signed()` in
+   `scripts/fvg_quality_recalibration.py` (Single-File-Change, additiv
+   per `--signed-weights` Flag, eigener PR — kein Pine-Touch).
+2. Re-Run gegen den strict-Snapshot mit signed weights, anschließend
+   Vergleich der Q4 vs Q1 HR. Erst wenn die Quartile monoton steigend
+   sind und das Acceptance-Gate `PASS` zeigt, kann die Promotion in
+   `smc_core/fvg_quality.py` (und ihrer Pine-Spiegelung in
+   `SMC_Core_Engine.pine::fvg_quality_score`) per Single-PR landen.
+
+Der Strict-Snapshot bleibt damit das D3-Promotion-Bauteil; die
+Production-Gewichte werden erst nach Patch (1) und (2) angefasst.
+
 ---
 
 *Erstellt mit `scripts/fvg_quality_d4_audit.py`. Re-runnable gegen

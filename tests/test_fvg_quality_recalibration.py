@@ -8,7 +8,9 @@ from pathlib import Path
 import pytest
 
 from scripts.fvg_quality_recalibration import (
+    DEFAULT_LABEL_SOURCE,
     FEATURE_KEYS,
+    LABEL_SOURCES,
     LEGACY_WEIGHTS,
     MIN_FVG_EVENTS,
     QUARTILE_MIN_EVENTS,
@@ -163,8 +165,9 @@ def test_write_shadow_json(tmp_path: Path) -> None:
     output = tmp_path / "shadow.json"
     write_shadow_json(report, output)
     payload = json.loads(output.read_text(encoding="utf-8"))
-    assert payload["report_version"] == "1.0"
+    assert payload["report_version"] == "1.1"
     assert payload["status"] == "ok"
+    assert payload["label_source"] == "outcome"
     assert "weights_shadow" in payload
     assert isinstance(payload["quartiles"], list)
 
@@ -188,3 +191,57 @@ def test_features_in_context_fallback(tmp_path: Path) -> None:
     report = recalibrate([path])
     assert report.status == "ok"
     assert report.n_with_features == 60
+
+
+# --------------------------------------------------------------------- #
+# REPORT_VERSION 1.1 — strict label_partial_50 source (Q3 D3 promotion) #
+# --------------------------------------------------------------------- #
+
+
+def test_label_sources_constant_pinned() -> None:
+    # Pin the supported label sources so adding a new one is a
+    # deliberate, test-visible decision.
+    assert LABEL_SOURCES == ("outcome", "partial_50")
+    assert DEFAULT_LABEL_SOURCE == "outcome"
+
+
+def test_label_source_partial_50_uses_strict_label(tmp_path: Path) -> None:
+    # Same features as the separable corpus, but the lenient outcome
+    # is INVERTED relative to the strict label so the two label sources
+    # produce different fits — proves the flag is actually wired.
+    records = _separable_corpus(80)
+    for rec in records:
+        rec["features"]["label_partial_50"] = bool(rec["outcome"])
+        rec["outcome"] = not bool(rec["outcome"])
+    path = _ledger(tmp_path, records)
+
+    lenient = recalibrate([path], label_source="outcome")
+    strict = recalibrate([path], label_source="partial_50")
+
+    assert lenient.status == "ok"
+    assert strict.status == "ok"
+    assert lenient.label_source == "outcome"
+    assert strict.label_source == "partial_50"
+    assert lenient.n_with_label == 80
+    assert strict.n_with_label == 80
+    # The two fits must disagree on the top-quartile direction because
+    # the label is inverted.
+    assert lenient.quartiles[-1].hit_rate != strict.quartiles[-1].hit_rate
+
+
+def test_label_source_partial_50_drops_rows_without_label(tmp_path: Path) -> None:
+    records = _separable_corpus(80)
+    # Half the rows lack the strict label.
+    for i, rec in enumerate(records):
+        if i % 2 == 0:
+            rec["features"]["label_partial_50"] = bool(rec["outcome"])
+    path = _ledger(tmp_path, records)
+    report = recalibrate([path], label_source="partial_50")
+    assert report.n_fvg_events == 80
+    assert report.n_with_label == 40
+
+
+def test_label_source_invalid_raises(tmp_path: Path) -> None:
+    path = _ledger(tmp_path, _separable_corpus(40))
+    with pytest.raises(ValueError):
+        recalibrate([path], label_source="bogus")
