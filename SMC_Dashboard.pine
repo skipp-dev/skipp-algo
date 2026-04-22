@@ -1325,6 +1325,25 @@ resolve_family_cal_weight(string family) =>
     float w = family == "OB" ? mp.ZONE_CAL_OB : family == "FVG" ? mp.ZONE_CAL_FVG : family == "BOS" ? mp.ZONE_CAL_BOS : family == "SWEEP" ? mp.ZONE_CAL_SWEEP : 0.50
     w
 
+// ── Q3 F2: session-aware family weight ────────────────────────
+// Picks the session-specific calibrated weight (ZONE_CAL_<FAM>_<SESSION>)
+// when mp.SESSION_CONTEXT matches a promoted bucket (ASIA/LONDON/NY_AM,
+// see scripts/smc_zone_priority_calibration.py); falls back to the
+// global ZONE_CAL_<FAM> for NY_PM/NONE so unmeasured contexts keep
+// the smoothed prior. Audit motivation: NY_AM FVG calibration is
+// 0.4961 vs ASIA 0.6948 — the global 0.5773 was hiding a 20pp HR
+// spread (docs/FVG_LABEL_AUDIT_Q3.md §2).
+resolve_family_cal_weight_session(string family, string session_context) =>
+    float global_w = resolve_family_cal_weight(family)
+    float w = global_w
+    if session_context == "ASIA"
+        w := family == "OB" ? mp.ZONE_CAL_OB_ASIA : family == "FVG" ? mp.ZONE_CAL_FVG_ASIA : family == "BOS" ? mp.ZONE_CAL_BOS_ASIA : family == "SWEEP" ? mp.ZONE_CAL_SWEEP_ASIA : global_w
+    else if session_context == "LONDON"
+        w := family == "OB" ? mp.ZONE_CAL_OB_LONDON : family == "FVG" ? mp.ZONE_CAL_FVG_LONDON : family == "BOS" ? mp.ZONE_CAL_BOS_LONDON : family == "SWEEP" ? mp.ZONE_CAL_SWEEP_LONDON : global_w
+    else if session_context == "NY_AM"
+        w := family == "OB" ? mp.ZONE_CAL_OB_NY_AM : family == "FVG" ? mp.ZONE_CAL_FVG_NY_AM : family == "BOS" ? mp.ZONE_CAL_BOS_NY_AM : family == "SWEEP" ? mp.ZONE_CAL_SWEEP_NY_AM : global_w
+    w
+
 format_cal_weight(float w) =>
     str.tostring(w * 100.0, "#.#") + "%"
 
@@ -1812,10 +1831,15 @@ if show_table and barstate.islast
         // operator can answer "why does the engine pick OB over FVG today?"
         // in one glance. The full ranked breakdown lives in the tooltip.
         section_row(smc_dashboard, 74, "[ Why this Tier? ]", header_bg, txt)
-        float _wt_ob    = mp.ZONE_CAL_OB
-        float _wt_fvg   = mp.ZONE_CAL_FVG
-        float _wt_bos   = mp.ZONE_CAL_BOS
-        float _wt_sweep = mp.ZONE_CAL_SWEEP
+        // Q3 F2 wiring: surface session-aware weights when the live
+        // session matches a promoted bucket; otherwise fall back to the
+        // global ZONE_CAL_<FAM>. The original ZONE_CAL_<FAM> reads
+        // are preserved by resolve_family_cal_weight_session() for any
+        // unmatched session (NY_PM/NONE).
+        float _wt_ob    = resolve_family_cal_weight_session("OB",    mp.SESSION_CONTEXT)
+        float _wt_fvg   = resolve_family_cal_weight_session("FVG",   mp.SESSION_CONTEXT)
+        float _wt_bos   = resolve_family_cal_weight_session("BOS",   mp.SESSION_CONTEXT)
+        float _wt_sweep = resolve_family_cal_weight_session("SWEEP", mp.SESSION_CONTEXT)
         array<string> _wt_names = array.from("OB", "FVG", "BOS", "SWEEP")
         array<float>  _wt_vals  = array.from(_wt_ob, _wt_fvg, _wt_bos, _wt_sweep)
         // Simple O(n²) sort — n=4, no perf concern, no extra dependency.
