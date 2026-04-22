@@ -2352,7 +2352,7 @@ async function addScriptToChartViaIndicators(page: Page, scriptName: string): Pr
 
   let selectedRow = await clickVisibleWithFallback(
     page,
-    tvSelectors.scriptRow(page, scriptName),
+    tvSelectors.scriptRow(page, scriptName, { strict: true }),
     "add-to-chart-indicators-row",
     3_000,
     1_000,
@@ -3800,7 +3800,7 @@ async function openSettingsFromLegendContainer(page: Page, scriptName: string): 
 
 async function openSettingsFromScriptText(page: Page, scriptName: string): Promise<boolean> {
   tracePageEvent(page, "script-settings-text-start", scriptName);
-  for (const locator of tvSelectors.scriptRow(page, scriptName)) {
+  for (const locator of tvSelectors.scriptRow(page, scriptName, { strict: true })) {
     const scriptText = await firstVisibleLocator(locator, 1_200);
     if (!scriptText) {
       continue;
@@ -4172,7 +4172,7 @@ export async function openExistingScript(page: Page, scriptName: string): Promis
 
       const clickedScript = await clickVisibleWithFallback(
         page,
-        tvSelectors.scriptRow(page, searchName),
+        tvSelectors.scriptRow(page, searchName, { strict: true }),
         "open-script-row",
         3_000,
         1_000,
@@ -4182,7 +4182,7 @@ export async function openExistingScript(page: Page, scriptName: string): Promis
       let dialogStillVisible = await hasVisibleOpenScriptSurface(page, 750);
 
       if (dialogStillVisible && clickedScript) {
-        await doubleClickVisible(page, tvSelectors.scriptRow(page, searchName), "open-script-row-confirm", 2_000, 1_000);
+        await doubleClickVisible(page, tvSelectors.scriptRow(page, searchName, { strict: true }), "open-script-row-confirm", 2_000, 1_000);
         dialogStillVisible = await hasVisibleOpenScriptSurface(page, 750);
       }
 
