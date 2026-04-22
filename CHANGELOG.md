@@ -6,6 +6,17 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-08-14) — Plan 2.8 string-only records + p7b + uppercase lines
+
+- `scripts/plan_2_8_ledger_string_only_record_count.py` counts ledger
+  records whose every top-level value is a string (excluding empty
+  objects).
+- `scripts/plan_2_8_digest_p7b_file_count.py` counts top-level `.p7b`
+  files.
+- `scripts/plan_2_8_weekly_summary_uppercase_line_count.py` counts
+  lines containing at least one ASCII uppercase letter.
+- Weekly digest workflow wires three fail-soft compute+upload step pairs.
+
 ### Added (2026-08-13) — Plan 2.8 non-dict records + cert + digit lines
 
 - `scripts/plan_2_8_ledger_non_dict_record_count.py` counts ledger

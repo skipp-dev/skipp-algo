@@ -881,6 +881,9 @@ read.
 - `tests/test_plan_2_8_ledger_non_dict_record_count.py`
 - `tests/test_plan_2_8_digest_cert_file_count.py`
 - `tests/test_plan_2_8_weekly_summary_digit_line_count.py`
+- `tests/test_plan_2_8_ledger_string_only_record_count.py`
+- `tests/test_plan_2_8_digest_p7b_file_count.py`
+- `tests/test_plan_2_8_weekly_summary_uppercase_line_count.py`
 - `tests/test_plan_2_8_alert_history.py`
 - `tests/test_plan_2_8_alert_history_summary.py`
 - `tests/test_plan_2_8_digest_rollup.py`
