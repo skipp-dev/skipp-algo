@@ -6,6 +6,17 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-10-08) — Plan 2.8 numeric/bool/string records + fsi + trailing-amp lines
+
+- `scripts/plan_2_8_ledger_numeric_or_bool_or_string_only_record_count.py`
+  counts non-empty ledger records whose every value is ``int``,
+  ``float``, ``bool``, or ``str``.
+- `scripts/plan_2_8_digest_fsi_file_count.py` counts top-level
+  `.fsi` files.
+- `scripts/plan_2_8_weekly_summary_trailing_amp_line_count.py` counts
+  non-empty lines whose last character is ``&``.
+- Weekly digest workflow wires three fail-soft compute+upload step pairs.
+
 ### Added (2026-10-07) — Plan 2.8 numeric/bool/null records + fs + leading-amp lines
 
 - `scripts/plan_2_8_ledger_numeric_or_bool_or_null_only_record_count.py`
