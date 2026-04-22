@@ -6,6 +6,17 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-09-11) — Plan 2.8 string-or-float records + awk + trailing-lowercase lines
+
+- `scripts/plan_2_8_ledger_string_or_float_only_record_count.py` counts
+  non-empty ledger records whose every value is a ``str`` or ``float``.
+- `scripts/plan_2_8_digest_awk_file_count.py` counts top-level `.awk`
+  files.
+- `scripts/plan_2_8_weekly_summary_trailing_lowercase_line_count.py`
+  counts non-empty lines whose last character is an ASCII lowercase
+  letter.
+- Weekly digest workflow wires three fail-soft compute+upload step pairs.
+
 ### Added (2026-09-10) — Plan 2.8 float-or-int records + zsh + leading-lowercase lines
 
 - `scripts/plan_2_8_ledger_float_or_int_only_record_count.py` counts

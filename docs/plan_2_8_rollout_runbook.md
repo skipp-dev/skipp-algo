@@ -965,6 +965,9 @@ read.
 - `tests/test_plan_2_8_ledger_float_or_int_only_record_count.py`
 - `tests/test_plan_2_8_digest_zsh_file_count.py`
 - `tests/test_plan_2_8_weekly_summary_leading_lowercase_line_count.py`
+- `tests/test_plan_2_8_ledger_string_or_float_only_record_count.py`
+- `tests/test_plan_2_8_digest_awk_file_count.py`
+- `tests/test_plan_2_8_weekly_summary_trailing_lowercase_line_count.py`
 - `tests/test_plan_2_8_alert_history.py`
 - `tests/test_plan_2_8_alert_history_summary.py`
 - `tests/test_plan_2_8_digest_rollup.py`
