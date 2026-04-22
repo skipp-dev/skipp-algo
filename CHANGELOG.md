@@ -6,6 +6,15 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-10-24) — Plan 2.8 numeric-or-dict-or-null records + mli + trailing-underscore lines
+
+- `scripts/plan_2_8_ledger_numeric_or_dict_or_null_only_record_count.py`
+  counts ledger records whose every value is a number, dict, or null.
+- `scripts/plan_2_8_digest_mli_file_count.py` counts top-level `.mli` files.
+- `scripts/plan_2_8_weekly_summary_trailing_underscore_line_count.py`
+  counts non-empty lines whose last character is ``_``.
+- Weekly digest workflow wires three fail-soft compute+upload step pairs.
+
 ### Added (2026-10-23) — Plan 2.8 dict-or-list-or-bool records + f08 + leading-underscore lines
 
 - `scripts/plan_2_8_ledger_dict_or_list_or_bool_only_record_count.py`
