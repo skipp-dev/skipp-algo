@@ -70,37 +70,54 @@ Bucket sind noch zu klein für eine automatische Promotion.
 > **Ziel:** Verstehen WARUM FVG 30pp hinter BOS/OB liegt und ob das eine
 > Eigenschaft der Familie ist oder ein Scoring/Label-Problem.
 
-#### D1: FVG Label Audit
+#### D1: FVG Label Audit ✅ DONE (2026-04-22) — Hypothese bestätigt
 
 **Hypothese:** `label_fvg_mitigation` (Gap-Fill vor Invalidierung) ist
 möglicherweise zu streng definiert — FVGs können teilweise gefüllt werden
 und trotzdem profitabel sein.
 
-- [ ] FVG-Events mit `hit=false` manuell stichprobenartig prüfen (20 Events)
-- [ ] Partial-Fill-Rate berechnen: wie oft füllt der Preis ≥50% des Gaps?
-- [ ] Vergleich: Partial-Fill-Definition vs. aktuelle binäre Definition
-- [ ] **Output:** `docs/FVG_LABEL_AUDIT_Q3.md` mit Empfehlung
+- [x] FVG-Events mit `hit=false` manuell stichprobenartig prüfen (20 Events)
+- [x] Partial-Fill-Rate berechnen: wie oft füllt der Preis ≥50% des Gaps?
+- [x] Vergleich: Partial-Fill-Definition vs. aktuelle binäre Definition
+- [x] **Output:** `docs/FVG_LABEL_AUDIT_Q3.md` mit Empfehlung
 
-#### D2: FVG per-Context Breakdown
+> **Befund:** über 5671 FVG-Events zeigt sich **partial_fill_pct_mean = 73.4%**
+> (auf 5m sogar 90.4%). Das aktuelle binäre Label verwirft also einen Großteil
+> profitabler Reaktionen. Empfehlung im Audit-Doc: zweite Label-Variante
+> `label_fvg_partial_50` parallel mitführen — konkrete Stelle
+> `smc_core/fvg_quality.py`.
+
+#### D2: FVG per-Context Breakdown ✅ DONE (2026-04-22) — massiv bestätigt
 
 **Hypothese:** FVG-Performance könnte stark kontextabhängig sein
 (z.B. gut in RTH+RISK_ON, schlecht in ETH+HIGH_VOL).
 
-- [ ] Per-Context-Scoring für FVG: `session × vol_regime × htf_bias`
-- [ ] Stratification Report mit Bucket-Counts ≥ 5
-- [ ] Identifizieren: In welchen Kontexten ist FVG profitabel (>70% HR)?
+- [x] Per-Context-Scoring für FVG: `session × vol_regime × htf_bias`
+- [x] Stratification Report mit Bucket-Counts ≥ 5
+- [x] Identifizieren: In welchen Kontexten ist FVG profitabel (>70% HR)?
 - [ ] **Output:** Erweiterung von `smc_zone_priority.py` — kontextabhängige
-      FVG-Gewichtung statt statischer 0.60
+      FVG-Gewichtung statt statischer 0.60 — *genügend Daten für Phase F1/F2*
 
-#### D3: FVG Time-to-Fill Analysis
+> **Befund:** Spread von **28pp zwischen Sessions** — ASIA 74.5% HR (n=102),
+> LONDON 64.5% (n=2907), **NY_AM nur 46.1% (n=2662)**. Daten reichen für
+> Phase-F1-Promotion. `vol_regime` ist hingegen fast neutral (NORMAL 56.1%,
+> HIGH_VOL 56.2%) — Split lohnt nicht. Details in
+> `docs/FVG_LABEL_AUDIT_Q3.md` §2/4.
+
+#### D3: FVG Time-to-Fill Analysis ✅ DONE (2026-04-22) — Hypothese **falsifiziert**
 
 **Hypothese:** FVGs werden eventuell mitigiert, aber außerhalb des
 Lookahead-Fensters.
 
-- [ ] `time_to_mitigation` Distribution für FVG vs. andere Familien
-- [ ] Prüfen ob eine Verlängerung des Lookahead-Fensters die Hit Rate
+- [x] `time_to_mitigation` Distribution für FVG vs. andere Familien
+- [x] Prüfen ob eine Verlängerung des Lookahead-Fensters die Hit Rate
       signifikant verbessert (5→10→20 bars)
-- [ ] **Output:** Empfehlung für Lookahead-Anpassung (pro Familie)
+- [x] **Output:** Empfehlung für Lookahead-Anpassung (pro Familie)
+
+> **Befund:** 5m FVG-HR ist **54.2%** (n=3693) — niedriger als 1H 62.5% —
+> obwohl TTM mean höher ist (2.55 vs. 1.46 bars). Mehr Events / kürzere
+> Lookaheads bringen keinen Hit-Rate-Uplift. Empfehlung: **kein** Lookahead-
+> Tuning, stattdessen Session-Filter (siehe D2).
 
 #### D4: FVG Quality Signal Integration
 
@@ -117,24 +134,38 @@ und Distanz zum aktuellen Preis sollten die Erwartung beeinflussen.
 > **Ziel:** Benchmark-Basis auf ≥1.000 Events verbreitern für statistisch
 > belastbare Aussagen.
 
-#### E1: Symbol-Expansion
+#### E1: Symbol-Expansion ✅ DONE (2026-04-22) — Ziel übertroffen (20 statt 12)
 
-- [ ] Benchmark-Universe von 6→12 Symbole erweitern
-- [ ] Neue Symbole: GOOGL, META, TSLA, V, UNH, HD (Marktstruktur-Diversität)
-- [ ] Kein neuer Code — nur Benchmark-Config-Erweiterung
-- [ ] **Ziel:** ≥500 Events (Verdoppelung)
+- [x] Benchmark-Universe von 6→12 Symbole erweitern
+- [x] Neue Symbole: GOOGL, META, TSLA, V, UNH, HD (Marktstruktur-Diversität)
+- [x] Kein neuer Code — nur Benchmark-Config-Erweiterung
+- [x] **Ziel:** ≥500 Events (Verdoppelung)
 
-#### E2: Timeframe-Expansion
+> Tatsächlich umgesetzt mit **20-Symbol-Universe**:
+> AAPL, MSFT, AMZN, GOOGL, META, NVDA, TSLA, JPM, BAC, GS, MS, V, UNH, JNJ, HD,
+> XOM, CVX, COP, OXY, CAT.
+> Quellen: `.github/workflows/smc-measurement-benchmark.yml` Zeile 36 und
+> `.github/workflows/smc-measurement-benchmark-rolling.yml` Zeile 79.
 
-- [ ] 5m und 4H Timeframes zum Benchmark hinzufügen
-- [ ] Prüfen ob 5m-Events die gleiche Family-Rangfolge zeigen wie 15m/1H
-- [ ] **Hypothese:** FVGs könnten auf 5m besser performen (schnellere Fills)
+#### E2: Timeframe-Expansion ✅ DONE (2026-04-22)
 
-#### E3: Historische Tiefe
+- [x] 5m und 4H Timeframes zum Benchmark hinzufügen
+- [x] Prüfen ob 5m-Events die gleiche Family-Rangfolge zeigen wie 15m/1H
+- [ ] **Hypothese:** FVGs könnten auf 5m besser performen (schnellere Fills) — Auswertung mit D3 zusammen
 
-- [ ] Benchmark-Zeitraum verlängern (aktuell: 1 Production-Workbook-Snapshot)
-- [ ] Rolling 30-Tage-Benchmark mit täglichem Append statt Single-Run
-- [ ] CI-Workflow anpassen: `smc-measurement-benchmark.yml` → Incremental Mode
+> Umsetzung via Plan 2.8 (`docs/smc_improvement_plan_addendum_2_8_mtf_scope_2026-04-21.md`).
+> Workflow `.github/workflows/smc-measurement-benchmark-rolling.yml` läuft täglich
+> mit `TIMEFRAMES="5m,15m,1H,4H"` (Default in Zeile 33). Per-TF-Rollup über
+> `scripts/plan_2_8_tf_family_rollup.py`.
+
+#### E3: Historische Tiefe ✅ DONE (2026-04-22)
+
+- [x] Benchmark-Zeitraum verlängern (aktuell: 1 Production-Workbook-Snapshot)
+- [x] Rolling 30-Tage-Benchmark mit täglichem Append statt Single-Run
+- [x] CI-Workflow anpassen: `smc-measurement-benchmark.yml` → Incremental Mode
+
+> Umgesetzt als `smc-measurement-benchmark-rolling.yml` (cron `30 7 * * *`).
+> Pin-Test: `tests/test_plan_2_8_rolling_workflow_rollup_wiring.py`.
 
 #### E4: Outcome Backfill Pipeline — Produktionshärtung
 
