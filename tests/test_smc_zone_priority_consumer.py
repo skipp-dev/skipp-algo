@@ -8,10 +8,16 @@ import pytest
 
 from scripts.smc_zone_priority_consumer import (
     DEFAULTS,
+    HR_SENTINEL_DEGRADED,
+    TRUST_DEGRADED,
+    TRUST_FRESH,
+    TRUST_UNAVAILABLE,
     build_consumer_exports,
+    classify_trust_state,
     compute_calibration_confidence,
     compute_calibration_trend,
     compute_per_family_hit_rates,
+    degrade_family_hit_rates,
 )
 
 
@@ -26,6 +32,7 @@ def test_defaults_have_required_keys() -> None:
         "ZONE_HR_BOS",
         "ZONE_HR_SWEEP",
         "ZONE_CAL_TREND",
+        "ZONE_CAL_TRUST",
     }
 
 
@@ -33,6 +40,7 @@ def test_defaults_are_neutral() -> None:
     assert DEFAULTS["ZONE_CAL_CONFIDENCE"] == 0.0
     assert DEFAULTS["ZONE_HR_OB"] == 0.0
     assert DEFAULTS["ZONE_CAL_TREND"] == "STABLE"
+    assert DEFAULTS["ZONE_CAL_TRUST"] == TRUST_UNAVAILABLE
 
 
 # ── H1: Calibration Confidence ─────────────────────────────────
@@ -187,10 +195,11 @@ def test_trend_handles_none_and_empty() -> None:
 
 
 def test_build_consumer_exports_full_payload() -> None:
+    # High enough confidence to stay FRESH: 1000 events, clean ECE.
     out = build_consumer_exports(
         family_stats=_REAL_STATS,
-        total_events=258,           # the Q2 baseline corpus size
-        smooth_ece=0.05,
+        total_events=1000,
+        smooth_ece=0.0,
         history=[
             {"weighted_hit_rate": 0.70},
             {"weighted_hit_rate": 0.74},
@@ -199,9 +208,10 @@ def test_build_consumer_exports_full_payload() -> None:
     )
     # Keys complete.
     assert set(out) == set(DEFAULTS)
-    # 258/1000 events × (1 - 5*0.05=0.75) penalty = 0.1935
-    assert out["ZONE_CAL_CONFIDENCE"] == pytest.approx(0.1935, abs=1e-4)
-    # Hit rates pass through.
+    # 1000/1000 events, no ECE penalty -> confidence 1.0.
+    assert out["ZONE_CAL_CONFIDENCE"] == pytest.approx(1.0, abs=1e-4)
+    assert out["ZONE_CAL_TRUST"] == TRUST_FRESH
+    # Hit rates pass through unchanged.
     assert out["ZONE_HR_OB"] == 0.8636
     # Trend captured.
     assert out["ZONE_CAL_TREND"] == "IMPROVING"
@@ -212,3 +222,111 @@ def test_build_consumer_exports_defaults_on_empty() -> None:
         family_stats=None, total_events=None, smooth_ece=None, history=None
     )
     assert out == DEFAULTS
+
+
+# ── Trust gating (P0 — ADR 2026-04-22) ───────────────────────────
+
+
+def test_classify_trust_fresh_above_threshold() -> None:
+    assert classify_trust_state(0.35) == TRUST_FRESH
+    assert classify_trust_state(1.0) == TRUST_FRESH
+
+
+def test_classify_trust_degraded_below_threshold() -> None:
+    # The exact 258-event / smECE=0.0833 symptom from the H2 smoke.
+    assert classify_trust_state(0.1505) == TRUST_DEGRADED
+    assert classify_trust_state(0.29) == TRUST_DEGRADED
+
+
+def test_classify_trust_unavailable_on_zero_or_invalid() -> None:
+    assert classify_trust_state(0.0) == TRUST_UNAVAILABLE
+    assert classify_trust_state(-0.1) == TRUST_UNAVAILABLE
+    assert classify_trust_state(float("nan")) == TRUST_UNAVAILABLE
+    assert classify_trust_state("bad") == TRUST_UNAVAILABLE
+
+
+def test_classify_trust_custom_threshold() -> None:
+    assert classify_trust_state(0.20, min_confidence=0.10) == TRUST_FRESH
+    assert classify_trust_state(0.20, min_confidence=0.50) == TRUST_DEGRADED
+
+
+def test_degrade_family_hit_rates_replaces_when_not_fresh() -> None:
+    hrs = {
+        "ZONE_HR_OB": 0.8636,
+        "ZONE_HR_FVG": 0.5937,
+        "ZONE_HR_BOS": 0.913,
+        "ZONE_HR_SWEEP": 0.8333,
+    }
+    out = degrade_family_hit_rates(hrs, TRUST_DEGRADED)
+    assert all(v == HR_SENTINEL_DEGRADED for v in out.values())
+    assert set(out) == set(hrs)
+
+
+def test_degrade_family_hit_rates_passthrough_when_fresh() -> None:
+    hrs = {"ZONE_HR_OB": 0.55}
+    assert degrade_family_hit_rates(hrs, TRUST_FRESH) == hrs
+
+
+def test_aggregator_degrades_ob_hr_on_subsaturation_sample() -> None:
+    """Pin the exact 2026-04-22 symptom: 258-event corpus, smECE
+    0.0833, OB weighted_hit_rate 0.8636 — must degrade to sentinel.
+    """
+    out = build_consumer_exports(
+        family_stats=_REAL_STATS,
+        total_events=258,
+        smooth_ece=0.0833,
+        history=None,
+    )
+    assert out["ZONE_CAL_CONFIDENCE"] < 0.30
+    assert out["ZONE_CAL_TRUST"] == TRUST_DEGRADED
+    # The critical assertion — the user MUST NOT see 0.8636 here.
+    assert out["ZONE_HR_OB"] == HR_SENTINEL_DEGRADED
+    assert out["ZONE_HR_FVG"] == HR_SENTINEL_DEGRADED
+    assert out["ZONE_HR_BOS"] == HR_SENTINEL_DEGRADED
+    assert out["ZONE_HR_SWEEP"] == HR_SENTINEL_DEGRADED
+
+
+def test_aggregator_keeps_hr_when_confidence_is_high() -> None:
+    """v3-corpus-shaped input (n=10 004, clean ECE) stays FRESH and
+    passes HRs through unchanged."""
+    out = build_consumer_exports(
+        family_stats=_REAL_STATS,
+        total_events=10_004,
+        smooth_ece=0.02,
+        history=None,
+    )
+    assert out["ZONE_CAL_TRUST"] == TRUST_FRESH
+    assert out["ZONE_HR_OB"] == 0.8636  # passthrough (fixture value)
+
+
+def test_aggregator_custom_min_confidence_override() -> None:
+    """Lower gate via kwarg flips the sub-saturation case to FRESH."""
+    out = build_consumer_exports(
+        family_stats=_REAL_STATS,
+        total_events=258,
+        smooth_ece=0.0833,
+        history=None,
+        min_confidence=0.10,
+    )
+    assert out["ZONE_CAL_TRUST"] == TRUST_FRESH
+    assert out["ZONE_HR_OB"] == 0.8636
+
+
+def test_aggregator_unavailable_when_confidence_zero() -> None:
+    out = build_consumer_exports(
+        family_stats=_REAL_STATS,
+        total_events=0,
+        smooth_ece=0.0,
+        history=None,
+    )
+    assert out["ZONE_CAL_CONFIDENCE"] == 0.0
+    assert out["ZONE_CAL_TRUST"] == TRUST_UNAVAILABLE
+    # UNAVAILABLE preserves passthrough so the Pine consumer still
+    # falls back to its <= 0.0 neutral guard rather than treating the
+    # corpus as actively-degraded.
+    assert out["ZONE_HR_OB"] == 0.8636
+
+
+def test_degrade_family_hit_rates_passthrough_when_unavailable() -> None:
+    hrs = {"ZONE_HR_OB": 0.55}
+    assert degrade_family_hit_rates(hrs, TRUST_UNAVAILABLE) == hrs

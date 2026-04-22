@@ -311,3 +311,4 @@ export const float ZONE_HR_FVG = 0.0000
 export const float ZONE_HR_BOS = 0.0000
 export const float ZONE_HR_SWEEP = 0.0000
 export const string ZONE_CAL_TREND = "STABLE"
+export const string ZONE_CAL_TRUST = "UNAVAILABLE"

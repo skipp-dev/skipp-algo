@@ -78,3 +78,60 @@ user-configurable 7-TF bias stacks.
   reconsidering the "4th trend layer deferred" branch.
 
 **Status.** accepted.
+
+### 2026-04-22 - Degrade per-family HR display on sub-saturation corpora
+
+**Context.** The Phase H2 smoke on 2026-04-22 surfaced
+`ZONE_HR_OB=0.8636` from a 258-event corpus while the v3 audit
+corpus (n=952 OB events) showed OB HR=0.3675 — a 50 pp gap. The
+existing `ZONE_CAL_CONFIDENCE=0.15` signal was visible but not
+enforced: Pine rendered the overstated number regardless.
+
+**Decision.** Gate the per-family `ZONE_HR_<FAM>` Pine exports on
+`ZONE_CAL_CONFIDENCE >= 0.30`. Below the threshold the consumer
+emits the sentinel `-1.0` and Pine renders `—`. A new scalar
+export `ZONE_CAL_TRUST ∈ {FRESH, DEGRADED, STALE, UNAVAILABLE}`
+carries the classification for the Dashboard trust row.
+
+The `0.30` threshold reflects the saturation curve in
+`compute_calibration_confidence`: 300 events at `smECE = 0` —
+well above the Blasiok-Nakkiran 30/bucket floor — produce
+`confidence ≈ 0.30`. Below that, the sub-saturation/ECE-penalty
+combination dominates and the rendered HR is statistically
+indistinguishable from noise.
+
+**Alternatives considered.**
+- *Hard-zero degraded HRs.* Rejected — `0.0` is the "pre-calibration"
+  default and would collapse two semantically distinct states.
+- *Render the value with a warning badge.* Rejected — the H2 smoke
+  proved that an inline badge does not prevent users from reading
+  the number as truth.
+- *NaN sentinel.* Rejected — Pine `const float` has no `na`; `-1.0`
+  is clamp-safe and unambiguous.
+- *Degrade on `UNAVAILABLE` too.* Rejected — `UNAVAILABLE` means
+  "no calibration data flowed through" and the upstream defaults
+  already carry the neutral `0.0` values that Pine consumers guard
+  with `zone_hr_<fam> <= 0.0`. The sentinel is reserved for
+  "calibration ran, result not trustworthy".
+
+**Consequences.**
+- Eliminates the 50 pp OB misdisplay without waiting for WS2.
+- Adds the `ZONE_CAL_TRUST` export as a forward-compatible hook
+  for the WS2 Trust-State refactor — `STALE` is already in the
+  vocabulary, to be wired in when freshness metadata lands.
+- Existing Pine guards (`SMC_Dashboard.pine` L1399, L1593:
+  `mp.ZONE_HR_FVG <= 0.0`) catch the new `-1.0` sentinel without
+  Pine-side code changes.
+- One-line change to the Q3 H2 smoke expectation (it now reports
+  `DEGRADED`, not 0.8636).
+
+**Evidence.**
+- [`scripts/smc_zone_priority_consumer.py`](../scripts/smc_zone_priority_consumer.py)
+  `classify_trust_state` and `degrade_family_hit_rates`.
+- [`tests/test_smc_zone_priority_consumer.py`](../tests/test_smc_zone_priority_consumer.py)
+  `test_aggregator_degrades_ob_hr_on_subsaturation_sample` pins
+  the regression.
+- [`docs/FVG_LABEL_AUDIT_Q3.md`](FVG_LABEL_AUDIT_Q3.md) §5 (the
+  OB prior mismatch).
+
+**Status.** accepted.

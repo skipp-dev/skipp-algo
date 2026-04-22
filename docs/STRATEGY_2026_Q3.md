@@ -13,7 +13,10 @@
 ### 1.1 Family Hit Rates — Kalibrierte Gewichte
 
 > **Quelle (2026-04-22):** 4-TF-Plan-2.8-Universum, 10 004 Events / 78 (Symbol×TF)-Pairs aus
-> `artifacts/ci/measurement_benchmark_combined_2026-04-21/zone_priority_calibration.json`.
+> `artifacts/ci/measurement_benchmark_combined_2026-04-21/zone_priority_calibration.json`
+> (family-summed: BOS 1606 + FVG 5671 + OB 952 + SWEEP 1775; älteres Aggregat
+> 10 064 wurde in Q4-Cron-Logs an einigen Stellen weiter gepflegt — die
+> family-summed Zahl ist die Single-Source-of-Truth).
 > Reproduzierbar via `python scripts/fvg_label_audit_q3.py`.
 
 | Family | Events | Hit Rate | Prior | Kalibriert | Δ vs Prior | Bewertung |
@@ -237,12 +240,13 @@ und Distanz zum aktuellen Preis sollten die Erwartung beeinflussen.
 - [x] Prüfen ob 5m-Events die gleiche Family-Rangfolge zeigen wie 15m/1H
 - [x] **Hypothese:** ~~FVGs könnten auf 5m besser performen (schnellere Fills)~~
       → **falsifiziert** (Corpus `measurement_benchmark_2026-04-22_partial50_v3`,
-      n=5710 FVG events): 5m FVG HR = **0.549** (n=3693, schlechtester TF),
+      n=5671 FVG events): 5m FVG HR = **0.542** (n=3693, schlechtester TF),
       1H = **0.644** (n=790, bester), 15m = 0.592, 4H = 0.574. Hypothese
       umgekehrt — kürzere TFs erzeugen mehr Mikro-Fills/falsche
       Invalidationen statt schnellerer Hits. **Implikation:** für die
       Pine-Konsumenten lohnt es sich, FVG-Gewichte auf 5m im
       Contextual-Calibration-Pfad (Phase F) gezielt niedriger zu setzen.
+      *Single-Source-of-Truth:* `docs/FVG_LABEL_AUDIT_Q3.md` §1.
 
 > Umsetzung via Plan 2.8 (`docs/smc_improvement_plan_addendum_2_8_mtf_scope_2026-04-21.md`).
 > Workflow `.github/workflows/smc-measurement-benchmark-rolling.yml` läuft täglich
@@ -292,7 +296,8 @@ und Distanz zum aktuellen Preis sollten die Erwartung beeinflussen.
       bestehenden `zone_priority_calibration.json` (CLI-Pfad in
       `smc_zone_priority_calibration.py::main`, Z. 694–698).
 - [x] **Smoke 2026-04-22** auf `measurement_benchmark_2026-04-22_partial50_v3`
-      (n=10064): 7 promoted buckets über `htf_bias`, `session`, `vol_regime`
+      (n=10 004 Events, family-summed: BOS 1606 + FVG 5671 + OB 952 + SWEEP 1775):
+      7 promoted buckets über `htf_bias`, `session`, `vol_regime`
       (z.B. `session:ASIA OB +0.3016`, `session:NY_AM OB −0.0896`).
 
 #### F2: Session-Adjusted Zone Priority ✅ DONE (2026-04-22)
@@ -332,6 +337,8 @@ und Distanz zum aktuellen Preis sollten die Erwartung beeinflussen.
       je `<dim>:<bucket>` ≥ 30 Events). Smoke 2026-04-22 (n=10064): NY_AM
       smECE 0.083 → klar bestes Bucket; LONDON 0.233 / ASIA 0.202 /
       HIGH_VOL 0.168 → Kandidaten für nächste Re-Kalibrierungs-Runde.
+      Sample-Count 10 004 = family-summed (BOS+FVG+OB+SWEEP); §1 ist
+      Single-Source-of-Truth.
 
 ### Phase G — Feature Importance → Automated Scorer Tuning (Wochen 5–8)
 
@@ -389,6 +396,13 @@ und Distanz zum aktuellen Preis sollten die Erwartung beeinflussen.
 - [x] Smoke 2026-04-22 (n=258, NY_AM smECE 0.0833): `ZONE_CAL_CONFIDENCE = 0.1505`
       — niedrig, weil Sample-Count noch weit von 1000 entfernt; das ist
       genau das Signal, das die Dashboard-Warnung treiben soll.
+      **Update 2026-04-22 (P0-Fix, ADR „Degrade per-family HR display on
+      sub-saturation corpora"):** der niedrige Confidence-Wert wird jetzt
+      hart in `ZONE_CAL_TRUST = DEGRADED` übersetzt; Sub-saturation-Korpora
+      liefern den Sentinel `-1.0` für die Per-Family-HR-Exports, sodass die
+      H2-Smoke-Werte (ZONE_HR_OB=0.8636 etc.) nicht länger ungeprüft auf der
+      Pine-Surface erscheinen. Pin-Test:
+      `tests/test_smc_zone_priority_consumer.py::test_aggregator_degrades_ob_hr_on_subsaturation_sample`.
 
 #### H2: Per-Family Win-Rate Display ✅ DONE (2026-04-22)
 
@@ -397,6 +411,11 @@ und Distanz zum aktuellen Preis sollten die Erwartung beeinflussen.
       `scripts/smc_zone_priority_consumer.py::compute_per_family_hit_rates`.
 - [x] Smoke 2026-04-22: `ZONE_HR_OB=0.8636 ZONE_HR_FVG=0.5937 ZONE_HR_BOS=0.9130
       ZONE_HR_SWEEP=0.8333` — FVG-Schwäche jetzt auf Pine-Ebene sichtbar.
+      **P0-Fix 2026-04-22:** diese 258-Event-Werte werden über das neue
+      Trust-Gate (`ZONE_CAL_CONFIDENCE < 0.30`) ab sofort als
+      `HR_SENTINEL_DEGRADED = -1.0` ausgeliefert; Pine rendert sie als
+      „—" (siehe ADR „Degrade per-family HR display on sub-saturation
+      corpora" in `docs/DECISIONS.md`).
 
 #### H3: Performance Trend Arrow ✅ DONE (2026-04-22)
 

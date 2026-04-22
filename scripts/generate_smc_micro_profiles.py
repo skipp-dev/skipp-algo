@@ -1136,6 +1136,13 @@ def write_pine_library(
         f'export const string ZONE_CAL_TREND = '
         f'"{consumer.get("ZONE_CAL_TREND", _ZH_DEFAULTS["ZONE_CAL_TREND"])}"'
     )
+    # WS2 trust scaffold (ADR 2026-04-22): degraded corpora suppress
+    # per-family HR display in Pine via the -1.0 sentinel; this scalar
+    # carries the trust classification for dashboards / alerts.
+    content.append(
+        f'export const string ZONE_CAL_TRUST = '
+        f'"{consumer.get("ZONE_CAL_TRUST", _ZH_DEFAULTS["ZONE_CAL_TRUST"])}"'
+    )
 
     path.write_text("\n".join(content).rstrip() + "\n", encoding="utf-8")
 

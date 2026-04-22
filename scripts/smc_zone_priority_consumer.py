@@ -23,6 +23,24 @@ from typing import Any
 
 # Public surface --------------------------------------------------
 
+# Trust-state vocabulary shared with the Pine consumer. ``FRESH`` is
+# the happy path; ``DEGRADED`` flags "calibrated but low-confidence"
+# (sub-saturation sample or elevated smECE) and instructs Pine to
+# treat per-family hit rates as unrenderable. ``STALE`` /
+# ``UNAVAILABLE`` are reserved for the WS2 freshness refactor and
+# currently only emitted on missing inputs.
+TRUST_FRESH: str = "FRESH"
+TRUST_DEGRADED: str = "DEGRADED"
+TRUST_STALE: str = "STALE"
+TRUST_UNAVAILABLE: str = "UNAVAILABLE"
+
+# Sentinel propagated to Pine when confidence gating suppresses a
+# family hit rate. ``-1.0`` is unambiguously outside the valid
+# ``[0, 1]`` HR range; the existing Pine consumer guards (e.g.
+# ``mp.ZONE_HR_FVG <= 0.0`` in SMC_Dashboard.pine) already treat
+# this as "no renderable value".
+HR_SENTINEL_DEGRADED: float = -1.0
+
 DEFAULTS: dict[str, Any] = {
     "ZONE_CAL_CONFIDENCE": 0.0,
     "ZONE_HR_OB": 0.0,
@@ -30,6 +48,7 @@ DEFAULTS: dict[str, Any] = {
     "ZONE_HR_BOS": 0.0,
     "ZONE_HR_SWEEP": 0.0,
     "ZONE_CAL_TREND": "STABLE",
+    "ZONE_CAL_TRUST": TRUST_UNAVAILABLE,
 }
 
 _FAMILIES: tuple[str, ...] = ("OB", "FVG", "BOS", "SWEEP")
@@ -49,6 +68,15 @@ _ECE_PENALTY_SLOPE = 5.0  # smECE 0.20 → penalty 1.0 → confidence 0
 # same threshold that promotes a contextual calibration to live.
 _TREND_MIN_RUNS = 3
 _TREND_DELTA = 0.02
+
+# Trust gating. Below this confidence the per-family HR exports are
+# degraded to HR_SENTINEL_DEGRADED. The threshold 0.30 corresponds
+# to ~300 events at smECE=0 on the 1000-event saturation curve —
+# well above the Blasiok & Nakkiran (2023) 30-events-per-bucket
+# smECE floor and safely above the 258-event Q2 baseline that
+# previously leaked an overstated OB HR (0.8636) into Pine.
+# Configurable per call for experiments / tests.
+_TRUST_MIN_CONFIDENCE = 0.30
 
 
 # H1 — Calibration Confidence -------------------------------------
@@ -181,6 +209,54 @@ def compute_calibration_trend(
     return "STABLE"
 
 
+# Trust state + degradation ---------------------------------------
+
+
+def classify_trust_state(
+    confidence: float,
+    *,
+    min_confidence: float = _TRUST_MIN_CONFIDENCE,
+) -> str:
+    """Map a confidence score to the ``ZONE_CAL_TRUST`` vocabulary.
+
+    ``confidence >= min_confidence``    -> ``FRESH``
+    ``0 < confidence <  min_confidence`` -> ``DEGRADED``
+    ``confidence <= 0`` / NaN / invalid  -> ``UNAVAILABLE``
+
+    ``STALE`` is reserved for freshness-metadata-driven decisions
+    that the WS2 refactor will wire in later; this helper never
+    emits it on its own.
+    """
+    try:
+        c = float(confidence)
+    except (TypeError, ValueError):
+        return TRUST_UNAVAILABLE
+    if c != c:  # NaN guard
+        return TRUST_UNAVAILABLE
+    if c <= 0.0:
+        return TRUST_UNAVAILABLE
+    if c < float(min_confidence):
+        return TRUST_DEGRADED
+    return TRUST_FRESH
+
+
+def degrade_family_hit_rates(
+    hit_rates: dict[str, float],
+    trust_state: str,
+) -> dict[str, float]:
+    """Replace family HRs with :data:`HR_SENTINEL_DEGRADED` when the
+    trust state is ``DEGRADED`` (data exists but is not trustworthy).
+
+    ``FRESH`` and ``UNAVAILABLE`` are passed through: ``FRESH`` is the
+    happy path, and ``UNAVAILABLE`` means "no calibration data" — the
+    upstream defaults already carry neutral ``0.0`` values that Pine
+    consumers guard with ``zone_hr_<fam> <= 0.0``.
+    """
+    if trust_state == TRUST_DEGRADED:
+        return {key: HR_SENTINEL_DEGRADED for key in hit_rates}
+    return dict(hit_rates)
+
+
 # Aggregator used by the Pine generator ---------------------------
 
 
@@ -190,15 +266,31 @@ def build_consumer_exports(
     total_events: int | float | None,
     smooth_ece: float | None,
     history: list[dict[str, Any]] | None = None,
+    min_confidence: float = _TRUST_MIN_CONFIDENCE,
 ) -> dict[str, Any]:
     """Combine all Phase H signals into the dict the Pine generator
     consumes. Always returns the full key set defined in
     :data:`DEFAULTS`.
+
+    Trust gating: when ``ZONE_CAL_CONFIDENCE < min_confidence`` the
+    per-family ``ZONE_HR_<FAM>`` values are replaced with
+    :data:`HR_SENTINEL_DEGRADED` and ``ZONE_CAL_TRUST`` is set to
+    ``DEGRADED``. This prevents the Pine consumer from displaying a
+    high hit-rate number backed by an under-saturated corpus (the
+    2026-04-22 symptom: 258-event smoke leaked
+    ZONE_HR_OB=0.8636 while the v3 corpus n=952 showed OB HR=0.3675).
     """
     out: dict[str, Any] = dict(DEFAULTS)
-    out["ZONE_CAL_CONFIDENCE"] = compute_calibration_confidence(
+    confidence = compute_calibration_confidence(
         total_events=total_events, smooth_ece=smooth_ece
     )
-    out.update(compute_per_family_hit_rates(family_stats))
+    out["ZONE_CAL_CONFIDENCE"] = confidence
+    trust = classify_trust_state(confidence, min_confidence=min_confidence)
+    out["ZONE_CAL_TRUST"] = trust
+    out.update(
+        degrade_family_hit_rates(
+            compute_per_family_hit_rates(family_stats), trust
+        )
+    )
     out["ZONE_CAL_TREND"] = compute_calibration_trend(history)
     return out
