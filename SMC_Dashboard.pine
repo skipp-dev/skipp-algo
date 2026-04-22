@@ -1390,6 +1390,29 @@ fvg_health_warning_text(float score) =>
     else
         ""
 
+// Phase H4 calibration-driven FVG warning. Fires when the calibrated
+// per-family hit rate drops below 65% (the strategy-doc threshold) so
+// users see a system-wide signal even when no live FVG is active.
+// Renders nothing when ZONE_HR_FVG is unset (== 0.0 default) so the
+// dashboard stays quiet on first install / before calibration runs.
+fvg_calibration_warning_text(float zone_hr_fvg) =>
+    if zone_hr_fvg <= 0.0
+        ""
+    else if zone_hr_fvg < 0.65
+        "⚠ FVG zones underperforming (" + str.tostring(zone_hr_fvg * 100.0, "#") + "% HR) — prefer OB/BOS setups"
+    else
+        ""
+
+// Combine live-zone and calibration warnings — calibration takes
+// precedence when both fire because it speaks to system reliability
+// rather than a single zone's lifecycle.
+fvg_combined_warning_text(float score, float zone_hr_fvg) =>
+    string cal_warn = fvg_calibration_warning_text(zone_hr_fvg)
+    if cal_warn != ""
+        cal_warn
+    else
+        fvg_health_warning_text(score)
+
 quality_bounds_text(float score_value) =>
     str.tostring(score_value, "#.##") + "/100 | min 25"
 
@@ -1564,9 +1587,12 @@ if show_table and barstate.islast
         float _ex_fvg_health = resolve_fvg_health_score()
         bool ex_fvg_ok = mp.PRIMARY_FVG_SIDE == "NONE" or _ex_fvg_health >= 30.0
         string ex_fvg_label = mp.PRIMARY_FVG_SIDE == "NONE" ? "no FVG" : fvg_health_tier(_ex_fvg_health)
-        string _ex_fvg_warn = fvg_health_warning_text(_ex_fvg_health)
+        string _ex_fvg_warn = fvg_combined_warning_text(_ex_fvg_health, mp.ZONE_HR_FVG)
         string ex_fvg_detail = _ex_fvg_warn != "" ? ex_fvg_label + " — " + _ex_fvg_warn : ex_fvg_label
-        dashboard_row(smc_dashboard, 12, ex_fvg_ok ? "✅ FVG Health" : "⚠ FVG Health", ex_fvg_detail, ex_fvg_ok ? pass : color.new(CLR_CAUTION, 75), txt)
+        // Calibrated-HR drives a hard fail too — not just live-zone health.
+        bool ex_fvg_cal_ok = mp.ZONE_HR_FVG <= 0.0 or mp.ZONE_HR_FVG >= 0.65
+        bool ex_fvg_pass = ex_fvg_ok and ex_fvg_cal_ok
+        dashboard_row(smc_dashboard, 12, ex_fvg_pass ? "✅ FVG Health" : "⚠ FVG Health", ex_fvg_detail, ex_fvg_pass ? pass : color.new(CLR_CAUTION, 75), txt)
         section_row(smc_dashboard, 13, "[ Next Step ]", header_bg, txt)
         dashboard_row(smc_dashboard, 14, "→", ex_next_step, ex_state_bg, txt)
         table.clear(smc_dashboard, 0, 15, 1, 73)
@@ -1778,7 +1804,7 @@ if show_table and barstate.islast
         dashboard_row_tt(smc_dashboard, 30, "SWEEP", family_performance_text("SWEEP", mp.ZONE_CAL_SWEEP), status_bg(calibration_confidence_state(mp.ZONE_CAL_SWEEP)), txt, "SWEEP — calibrated weight " + format_cal_weight(mp.ZONE_CAL_SWEEP) + " (" + calibration_confidence_tier(mp.ZONE_CAL_SWEEP) + ") · source: zone_priority_calibration.json")
         // ── Phase H: FVG Health Warning ──
         float _audit_fvg_health = resolve_fvg_health_score()
-        string _audit_fvg_warn = fvg_health_warning_text(_audit_fvg_health)
+        string _audit_fvg_warn = fvg_combined_warning_text(_audit_fvg_health, mp.ZONE_HR_FVG)
         section_row(smc_dashboard, 31, "[ FVG Health ]", header_bg, txt)
         dashboard_row(smc_dashboard, 32, "FVG Status", fvg_health_text(_audit_fvg_health), status_bg(fvg_health_state(_audit_fvg_health)), txt)
         if _audit_fvg_warn != ""

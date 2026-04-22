@@ -1216,6 +1216,25 @@ def build_enrichment(
         # — generator falls back to "STABLE" via DEFAULTS until then.
         if _calibrated_meta:
             enrichment["zone_priority_calibration_meta"] = _calibrated_meta
+        # H3 trend feed — load the rolling history JSONL written by
+        # smc_zone_priority_calibration.py::append_history_entry. Limited
+        # to the most recent 10 entries to bound enrichment size; the
+        # consumer's compute_calibration_trend only inspects the first
+        # and last anyway.
+        try:
+            from scripts.smc_zone_priority_calibration import load_history_entries
+            for _cal_candidate in (
+                Path("artifacts/reports/zone_priority_calibration.json"),
+                Path("artifacts/ci/measurement_benchmark/zone_priority_calibration.json"),
+            ):
+                if _cal_candidate.exists():
+                    _history = load_history_entries(_cal_candidate, limit=10)
+                    if _history:
+                        enrichment["zone_priority_calibration_history"] = _history
+                    break
+        except Exception:
+            # Non-fatal: trend simply falls back to STABLE via DEFAULTS.
+            pass
 
     # ── Profile Context (v5.2) ──────────────────────────────────
     if enrich_profile_context:

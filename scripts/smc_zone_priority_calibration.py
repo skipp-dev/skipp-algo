@@ -22,6 +22,7 @@ from __future__ import annotations
 import json
 import math
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -297,6 +298,113 @@ def to_json(cal: CalibrationResult) -> dict[str, Any]:
         "total_pairs": cal.total_pairs,
         "source_dir": cal.source_dir,
     }
+
+
+# ── H3: Calibration history feed ────────────────────────────────
+
+
+_HISTORY_RETENTION = 50  # keep the last N entries (rolling window)
+
+
+def append_history_entry(
+    output_path: Path,
+    *,
+    cal: CalibrationResult,
+    testable: dict[str, Any] | None = None,
+    history_filename: str = "zone_priority_calibration_history.jsonl",
+) -> Path:
+    """Append a compact calibration record to the rolling history JSONL.
+
+    The Pine consumer (:func:`smc_zone_priority_consumer.compute_calibration_trend`)
+    reads the last few entries to classify the trajectory as
+    IMPROVING / STABLE / DEGRADING. Each entry is one JSON line so
+    multiple runs can append without collision.
+
+    The retention window keeps the file from growing unboundedly. We
+    rewrite the file in-place when truncation is needed, which is
+    safe because the file is only consumed by single-reader pipelines.
+    """
+    history_path = output_path.with_name(history_filename)
+    history_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Compute the corpus-level weighted hit rate from family stats so
+    # the trend formula matches what the dashboard surfaces. Skip
+    # families with no events to avoid div-by-zero distortion.
+    total_events = 0
+    total_hits = 0
+    for fam_stats in cal.family_stats.values():
+        n = int(fam_stats.get("total_events", 0) or 0)
+        h = int(fam_stats.get("total_hits", 0) or 0)
+        if n > 0:
+            total_events += n
+            total_hits += h
+    weighted_hr = (total_hits / total_events) if total_events > 0 else 0.0
+
+    entry: dict[str, Any] = {
+        "timestamp": datetime.now(UTC).isoformat(),
+        "weighted_hit_rate": round(weighted_hr, 6),
+        "total_events": total_events,
+        "family_weights": dict(cal.family_weights),
+        "family_stats": dict(cal.family_stats),
+        "source_dir": cal.source_dir,
+    }
+    if testable:
+        # Surface smECE so trend consumers can also reason about drift.
+        if "smooth_ece" in testable:
+            entry["smooth_ece"] = testable["smooth_ece"]
+
+    # Read existing entries, append, truncate to retention window.
+    existing: list[dict[str, Any]] = []
+    if history_path.exists():
+        for line in history_path.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                existing.append(json.loads(line))
+            except json.JSONDecodeError:
+                # Skip corrupt lines — a future entry will overwrite.
+                continue
+
+    existing.append(entry)
+    if len(existing) > _HISTORY_RETENTION:
+        existing = existing[-_HISTORY_RETENTION:]
+
+    history_path.write_text(
+        "\n".join(json.dumps(e) for e in existing) + "\n",
+        encoding="utf-8",
+    )
+    return history_path
+
+
+def load_history_entries(
+    output_path: Path,
+    *,
+    limit: int | None = None,
+    history_filename: str = "zone_priority_calibration_history.jsonl",
+) -> list[dict[str, Any]]:
+    """Load the rolling history alongside ``output_path``.
+
+    Returns the entries oldest → newest (matching what the Pine
+    consumer's :func:`compute_calibration_trend` expects). When
+    ``limit`` is set, only the last ``limit`` entries are returned.
+    Missing or unreadable files yield ``[]``.
+    """
+    history_path = output_path.with_name(history_filename)
+    if not history_path.exists():
+        return []
+    entries: list[dict[str, Any]] = []
+    for line in history_path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            entries.append(json.loads(line))
+        except json.JSONDecodeError:
+            continue
+    if limit is not None and limit > 0:
+        entries = entries[-limit:]
+    return entries
 
 
 # ── F1: Testable calibration aggregate (smECE alongside ECE) ────
@@ -784,6 +892,11 @@ def main(argv: list[str] | None = None) -> None:
     args.output_path.write_text(
         json.dumps(payload, indent=2) + "\n", encoding="utf-8"
     )
+
+    # H3 history feed — append a compact history entry alongside the
+    # calibration JSON so consumers (Pine ZONE_CAL_TREND) can detect
+    # IMPROVING / DEGRADING trajectories across runs.
+    append_history_entry(args.output_path, cal=cal, testable=testable)
 
     # Write Markdown report alongside
     md_path = args.output_path.with_suffix(".md")

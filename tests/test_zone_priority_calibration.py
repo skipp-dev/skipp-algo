@@ -710,3 +710,121 @@ def test_compute_per_bucket_testable_calibration_empty_corpus(tmp_path: Path) ->
 
     # No scoring files → empty dict, no crash.
     assert compute_per_bucket_testable_calibration(tmp_path) == {}
+
+
+# ── H3: Calibration history feed (rolling JSONL) ──────────────
+
+
+def test_append_history_entry_creates_file(tmp_path: Path) -> None:
+    from scripts.smc_zone_priority_calibration import (
+        CalibrationResult,
+        append_history_entry,
+    )
+
+    cal = CalibrationResult(
+        family_weights={"OB": 0.85, "FVG": 0.60, "BOS": 0.88, "SWEEP": 0.80},
+        rank_thresholds={"A": 75, "B": 50, "C": 25},
+        family_stats={
+            "OB":    {"total_events": 44, "total_hits": 38},
+            "FVG":   {"total_events": 96, "total_hits": 57},
+            "BOS":   {"total_events": 46, "total_hits": 42},
+            "SWEEP": {"total_events": 72, "total_hits": 60},
+        },
+        total_events=258,
+        total_pairs=48,
+        source_dir="x",
+    )
+    out = tmp_path / "zone_priority_calibration.json"
+    history_path = append_history_entry(out, cal=cal, testable={"smooth_ece": 0.05})
+    assert history_path.exists()
+    lines = history_path.read_text().strip().splitlines()
+    assert len(lines) == 1
+    entry = json.loads(lines[0])
+    assert entry["weighted_hit_rate"] == round(197 / 258, 6)
+    assert entry["total_events"] == 258
+    assert entry["smooth_ece"] == 0.05
+    assert "timestamp" in entry
+    assert entry["family_weights"] == cal.family_weights
+
+
+def test_append_history_entry_appends_and_truncates(tmp_path: Path) -> None:
+    from scripts.smc_zone_priority_calibration import (
+        CalibrationResult,
+        append_history_entry,
+        load_history_entries,
+    )
+
+    cal = CalibrationResult(
+        family_weights={"OB": 0.85, "FVG": 0.60, "BOS": 0.88, "SWEEP": 0.80},
+        rank_thresholds={"A": 75, "B": 50, "C": 25},
+        family_stats={"OB": {"total_events": 10, "total_hits": 7}},
+        total_events=10,
+        total_pairs=1,
+        source_dir="x",
+    )
+    out = tmp_path / "zone_priority_calibration.json"
+
+    # 60 appends → file should be capped at the 50-entry retention window.
+    for _ in range(60):
+        append_history_entry(out, cal=cal)
+
+    entries = load_history_entries(out)
+    assert len(entries) == 50
+    # Newest-last ordering preserved.
+    assert all("timestamp" in e for e in entries)
+
+
+def test_load_history_entries_missing_file(tmp_path: Path) -> None:
+    from scripts.smc_zone_priority_calibration import load_history_entries
+
+    out = tmp_path / "zone_priority_calibration.json"
+    assert load_history_entries(out) == []
+
+
+def test_load_history_entries_with_limit(tmp_path: Path) -> None:
+    from scripts.smc_zone_priority_calibration import (
+        CalibrationResult,
+        append_history_entry,
+        load_history_entries,
+    )
+
+    cal = CalibrationResult(
+        family_weights={"OB": 0.5, "FVG": 0.5, "BOS": 0.5, "SWEEP": 0.5},
+        rank_thresholds={"A": 75, "B": 50, "C": 25},
+        family_stats={"OB": {"total_events": 10, "total_hits": 5}},
+        total_events=10,
+        total_pairs=1,
+        source_dir="x",
+    )
+    out = tmp_path / "zone_priority_calibration.json"
+    for _ in range(5):
+        append_history_entry(out, cal=cal)
+
+    last_three = load_history_entries(out, limit=3)
+    assert len(last_three) == 3
+
+
+def test_history_feeds_compute_calibration_trend(tmp_path: Path) -> None:
+    """End-to-end: history → consumer trend classifier."""
+    from scripts.smc_zone_priority_calibration import (
+        CalibrationResult,
+        append_history_entry,
+        load_history_entries,
+    )
+    from scripts.smc_zone_priority_consumer import compute_calibration_trend
+
+    out = tmp_path / "zone_priority_calibration.json"
+    # Three runs with rising weighted HR → IMPROVING.
+    for hits in (30, 40, 50):
+        cal = CalibrationResult(
+            family_weights={"OB": 0.5, "FVG": 0.5, "BOS": 0.5, "SWEEP": 0.5},
+            rank_thresholds={"A": 75, "B": 50, "C": 25},
+            family_stats={"OB": {"total_events": 100, "total_hits": hits}},
+            total_events=100,
+            total_pairs=1,
+            source_dir="x",
+        )
+        append_history_entry(out, cal=cal)
+
+    history = load_history_entries(out)
+    assert compute_calibration_trend(history) == "IMPROVING"
