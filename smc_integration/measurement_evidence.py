@@ -335,6 +335,7 @@ def _evaluate_zone_event(
     bars: pd.DataFrame,
     *,
     diagnostics_by_id: dict[str, dict[str, Any]],
+    emit_partial_50: bool = False,
 ) -> dict[str, Any] | None:
     low = float(event.get("low", 0.0) or 0.0)
     high = float(event.get("high", 0.0) or 0.0)
@@ -377,7 +378,7 @@ def _evaluate_zone_event(
     future_lows = [float(v) for v in pd.to_numeric(future["low"], errors="coerce").dropna().tolist()]
     partial_fill_pct = compute_fvg_partial_fill(low, high, direction, future_highs, future_lows)
 
-    return {
+    payload: dict[str, Any] = {
         "hit": hit,
         "time_to_mitigation": float((mitigated_idx + 1) if hit and mitigated_idx is not None else 0.0),
         "invalidated": bool(invalid_idx is not None or not bool(event.get("valid", True))),
@@ -385,6 +386,18 @@ def _evaluate_zone_event(
         "mfe": mfe,
         "partial_fill_pct": partial_fill_pct,
     }
+    # Q3 D1 follow-up #1b: surface the strict partial-50 label on the
+    # benchmark/stratified payload (FVG only) so the next cron snapshot
+    # carries it through to ``fvg_label_audit_q3.py`` aggregation. The
+    # lenient ``hit`` flag stays canonical for legacy KPIs.
+    if emit_partial_50:
+        future_closes = [
+            float(v) for v in pd.to_numeric(future["close"], errors="coerce").dropna().tolist()
+        ]
+        payload["label_partial_50"] = bool(
+            label_fvg_partial_50(low, high, direction, future_highs, future_lows, future_closes)
+        )
+    return payload
 
 
 def _expected_reversal_direction(side: str) -> str:
@@ -1324,7 +1337,12 @@ def build_measurement_evidence(symbol: str, timeframe: str) -> MeasurementEviden
         _append_stratified_event(stratified_events, f"vol_regime:{vol_regime.label}", "OB", evaluated)
 
     for event in effective_structure["fvg"]:
-        evaluated = _evaluate_zone_event(event, resampled_bars, diagnostics_by_id=fvg_diagnostics)
+        evaluated = _evaluate_zone_event(
+            event,
+            resampled_bars,
+            diagnostics_by_id=fvg_diagnostics,
+            emit_partial_50=True,
+        )
         if evaluated is None:
             skipped_counts["FVG"] += 1
             continue
