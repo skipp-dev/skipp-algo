@@ -16658,6 +16658,75 @@ jobs:
           if-no-files-found: ignore
           retention-days: 365
 
+      - name: Plan 2.8 ledger numeric or null or string only record count
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          ledger="$(find artifacts/latest_bench -name plan_2_8_history.jsonl -print -quit)"
+          [ -s "${ledger}" ] || { echo "no ledger"; exit 0; }
+          mkdir -p artifacts/plan_2_8_digest
+          python scripts/plan_2_8_ledger_numeric_or_null_or_string_only_record_count.py \
+            --ledger "${ledger}" \
+            --format md \
+            --output artifacts/plan_2_8_digest/ledger_numeric_or_null_or_string_only_record_count.md \
+            > /dev/null
+          true
+
+      - name: Upload Plan 2.8 ledger numeric or null or string only record count
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-ledger-numeric-or-null-or-string-only-record-count
+          path: artifacts/plan_2_8_digest/ledger_numeric_or_null_or_string_only_record_count.md
+          if-no-files-found: ignore
+          retention-days: 365
+
+      - name: Plan 2.8 digest vala file count
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          [ -d artifacts/plan_2_8_digest ] || { echo "no dir"; exit 0; }
+          python scripts/plan_2_8_digest_vala_file_count.py \
+            --artifact-dir artifacts/plan_2_8_digest \
+            --format md \
+            --output artifacts/plan_2_8_digest/digest_vala_file_count.md \
+            > /dev/null
+          true
+
+      - name: Upload Plan 2.8 digest vala file count
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-digest-vala-file-count
+          path: artifacts/plan_2_8_digest/digest_vala_file_count.md
+          if-no-files-found: ignore
+          retention-days: 365
+
+      - name: Plan 2.8 weekly summary trailing caret line count
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          summary="artifacts/plan_2_8_digest/weekly_summary.md"
+          [ -s "${summary}" ] || { echo "no summary"; exit 0; }
+          python scripts/plan_2_8_weekly_summary_trailing_caret_line_count.py \
+            --summary "${summary}" \
+            --format md \
+            --output artifacts/plan_2_8_digest/summary_trailing_caret_line_count.md \
+            > /dev/null
+          true
+
+      - name: Upload Plan 2.8 weekly summary trailing caret line count
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plan-2-8-weekly-summary-trailing-caret-line-count
+          path: artifacts/plan_2_8_digest/summary_trailing_caret_line_count.md
+          if-no-files-found: ignore
+          retention-days: 365
+
       - name: Open drift-alert issue
         if: steps.resolve_alerts.outputs.has_alerts == 'True'
         env:

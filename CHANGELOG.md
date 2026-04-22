@@ -6,6 +6,17 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-10-06) — Plan 2.8 numeric/null/string records + vala + trailing-caret lines
+
+- `scripts/plan_2_8_ledger_numeric_or_null_or_string_only_record_count.py`
+  counts non-empty ledger records whose every value is ``int`` (not
+  ``bool``), ``float``, ``str``, or ``None``.
+- `scripts/plan_2_8_digest_vala_file_count.py` counts top-level
+  `.vala` files.
+- `scripts/plan_2_8_weekly_summary_trailing_caret_line_count.py`
+  counts non-empty lines whose last character is ``^``.
+- Weekly digest workflow wires three fail-soft compute+upload step pairs.
+
 ### Added (2026-10-05) — Plan 2.8 list/dict/null/string records + zig + leading-caret lines
 
 - `scripts/plan_2_8_ledger_list_or_dict_or_null_or_string_only_record_count.py`
