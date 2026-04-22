@@ -980,6 +980,9 @@ read.
 - `tests/test_plan_2_8_ledger_string_or_int_or_null_record_count.py`
 - `tests/test_plan_2_8_digest_tex_file_count.py`
 - `tests/test_plan_2_8_weekly_summary_leading_bracket_line_count.py`
+- `tests/test_plan_2_8_ledger_bool_or_int_or_null_record_count.py`
+- `tests/test_plan_2_8_digest_rs_file_count.py`
+- `tests/test_plan_2_8_weekly_summary_trailing_bracket_line_count.py`
 - `tests/test_plan_2_8_alert_history.py`
 - `tests/test_plan_2_8_alert_history_summary.py`
 - `tests/test_plan_2_8_digest_rollup.py`
