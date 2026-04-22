@@ -147,8 +147,11 @@ und trotzdem profitabel sein.
 - [x] Per-Context-Scoring für FVG: `session × vol_regime × htf_bias`
 - [x] Stratification Report mit Bucket-Counts ≥ 5
 - [x] Identifizieren: In welchen Kontexten ist FVG profitabel (>70% HR)?
-- [ ] **Output:** Erweiterung von `smc_zone_priority.py` — kontextabhängige
-      FVG-Gewichtung statt statischer 0.60 — *genügend Daten für Phase F1/F2*
+- [x] **Output:** Erweiterung von `smc_zone_priority.py` — kontextabhängige
+      FVG-Gewichtung statt statischer 0.60. Geliefert via F1
+      (`contextual_calibration` Parameter, 2026-04-22) und F2
+      (`session_calibration` Shortcut, Commit `70c24dd7`). NY_AM erreicht
+      jetzt `FVG = 0.4961` vs ASIA `0.6948` tatsächlich Pine.
 
 > **Befund:** Spread von **28pp zwischen Sessions** — ASIA 74.5% HR (n=102),
 > LONDON 64.5% (n=2907), **NY_AM nur 46.1% (n=2662)**. Daten reichen für
@@ -255,11 +258,19 @@ und Distanz zum aktuellen Preis sollten die Erwartung beeinflussen.
 > Umgesetzt als `smc-measurement-benchmark-rolling.yml` (cron `30 7 * * *`).
 > Pin-Test: `tests/test_plan_2_8_rolling_workflow_rollup_wiring.py`.
 
-#### E4: Outcome Backfill Pipeline — Produktionshärtung
+#### E4: Outcome Backfill Pipeline — Produktionshärtung ✅ DONE (2026-04-22)
 
-- [ ] `outcome_backfill.py` → Täglicher Cron/CI statt manuell
-- [ ] Automatische Feature-Importance-Berechnung nach Backfill
-- [ ] Alerting bei Feature-Importance-Ranking-Drift (analog zum Weight-Drift-Gate)
+- [x] `outcome_backfill.py` → Täglicher Cron/CI statt manuell
+      (`.github/workflows/open-prep-outcome-backfill.yml`, cron 11:15 ET).
+- [x] Automatische Feature-Importance-Berechnung nach Backfill
+      (`.github/workflows/feature-importance-daily.yml`, cron 09:00 UTC,
+      lookback default 7 d, `open_prep.feature_importance_report`).
+- [x] Alerting bei Feature-Importance-Ranking-Drift (analog zum
+      Weight-Drift-Gate). `compute_ranking_drift` markiert
+      `drift_status=warn`; der Workflow parst das Token und emittiert
+      sowohl `::warning` als auch einen `$GITHUB_STEP_SUMMARY`-Eintrag
+      mit der Per-Feature-Delta-Liste. Pin-Test:
+      `tests/test_feature_importance_daily_workflow.py`.
 
 ### Phase F — Contextual Calibration Promotion (Wochen 4–7)
 

@@ -65,18 +65,46 @@ jobs:
           # G1 acceptance gate keeps ticking even before day-5.
           if grep -q "status=no_data" fi_report.log; then
             echo "fi_status=no_data" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          if [ "$rc" -ne 0 ]; then
+          elif [ "$rc" -ne 0 ]; then
             echo "fi_status=error" >> "$GITHUB_OUTPUT"
             exit "$rc"
+          else
+            echo "fi_status=ok" >> "$GITHUB_OUTPUT"
           fi
-          echo "fi_status=ok" >> "$GITHUB_OUTPUT"
+          # E4-3 (Q3): surface the ranking_drift status so the daily run
+          # behaves like the existing weight-drift-gate. The script
+          # itself stays exit-0 (fail-soft); we only emit a workflow
+          # annotation + step-summary line. Parses the single-line
+          # "drift_status=…" token written by the script.
+          drift_status=$(grep -oE 'drift_status=[a-z]+' fi_report.log | head -1 | cut -d= -f2)
+          drift_max=$(grep -oE 'drift_max_delta=[0-9]+' fi_report.log | head -1 | cut -d= -f2)
+          echo "drift_status=${drift_status:-unknown}" >> "$GITHUB_OUTPUT"
+          echo "drift_max_delta=${drift_max:-0}" >> "$GITHUB_OUTPUT"
+          exit 0
 
       - name: Annotate status
         if: always()
         run: |
-          echo "::notice title=feature-importance-daily::status=${{ steps.fi.outputs.fi_status || 'unknown' }} lookback=${{ inputs.lookback || '7' }}"
+          echo "::notice title=feature-importance-daily::status=${{ steps.fi.outputs.fi_status || 'unknown' }} lookback=${{ inputs.lookback || '7' }} drift_status=${{ steps.fi.outputs.drift_status || 'unknown' }} drift_max_delta=${{ steps.fi.outputs.drift_max_delta || '0' }}"
+          {
+            echo "## feature-importance-daily"
+            echo ""
+            echo "- status: \`${{ steps.fi.outputs.fi_status || 'unknown' }}\`"
+            echo "- ranking_drift: \`${{ steps.fi.outputs.drift_status || 'unknown' }}\` (max position delta: \`${{ steps.fi.outputs.drift_max_delta || '0' }}\`)"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Alert on ranking drift
+        if: steps.fi.outputs.drift_status == 'warn'
+        run: |
+          echo "::warning title=feature-importance ranking drift::Top feature ranking shifted by ≥${{ steps.fi.outputs.drift_max_delta }} positions vs the previous ok report. See fi_report.log for the per-feature delta list."
+          {
+            echo ""
+            echo "### ⚠ Ranking drift detected"
+            echo ""
+            echo '```'
+            grep -A20 "Feature-importance ranking drift" fi_report.log || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload report artifact
         if: always()
