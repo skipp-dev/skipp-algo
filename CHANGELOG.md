@@ -6,6 +6,15 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-11-01) — Plan 2.8 bool-or-list records + pxd + trailing-question-mark lines
+
+- `scripts/plan_2_8_ledger_bool_or_list_only_record_count.py`
+  counts ledger records whose every value is a bool or list.
+- `scripts/plan_2_8_digest_pxd_file_count.py` counts top-level `.pxd` files.
+- `scripts/plan_2_8_weekly_summary_trailing_question_mark_line_count.py`
+  counts non-empty lines whose last character is ``?``.
+- Weekly digest workflow wires three fail-soft compute+upload step pairs.
+
 ### Added (2026-10-31) — Plan 2.8 bool-or-dict records + pyx + leading-question-mark lines
 
 - `scripts/plan_2_8_ledger_bool_or_dict_only_record_count.py`
