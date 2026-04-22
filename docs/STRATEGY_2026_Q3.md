@@ -232,7 +232,14 @@ und Distanz zum aktuellen Preis sollten die Erwartung beeinflussen.
 
 - [x] 5m und 4H Timeframes zum Benchmark hinzufügen
 - [x] Prüfen ob 5m-Events die gleiche Family-Rangfolge zeigen wie 15m/1H
-- [ ] **Hypothese:** FVGs könnten auf 5m besser performen (schnellere Fills) — Auswertung mit D3 zusammen
+- [x] **Hypothese:** ~~FVGs könnten auf 5m besser performen (schnellere Fills)~~
+      → **falsifiziert** (Corpus `measurement_benchmark_2026-04-22_partial50_v3`,
+      n=5710 FVG events): 5m FVG HR = **0.549** (n=3693, schlechtester TF),
+      1H = **0.644** (n=790, bester), 15m = 0.592, 4H = 0.574. Hypothese
+      umgekehrt — kürzere TFs erzeugen mehr Mikro-Fills/falsche
+      Invalidationen statt schnellerer Hits. **Implikation:** für die
+      Pine-Konsumenten lohnt es sich, FVG-Gewichte auf 5m im
+      Contextual-Calibration-Pfad (Phase F) gezielt niedriger zu setzen.
 
 > Umsetzung via Plan 2.8 (`docs/smc_improvement_plan_addendum_2_8_mtf_scope_2026-04-21.md`).
 > Workflow `.github/workflows/smc-measurement-benchmark-rolling.yml` läuft täglich
