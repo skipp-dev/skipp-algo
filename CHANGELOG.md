@@ -6,6 +6,16 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-08-26) — Plan 2.8 heterogeneous-value records + skr + single-char lines
+
+- `scripts/plan_2_8_ledger_heterogeneous_value_record_count.py` counts
+  non-empty ledger records whose values span more than one type bucket.
+- `scripts/plan_2_8_digest_skr_file_count.py` counts top-level `.skr`
+  files.
+- `scripts/plan_2_8_weekly_summary_single_char_line_count.py` counts
+  lines that are exactly one character long.
+- Weekly digest workflow wires three fail-soft compute+upload step pairs.
+
 ### Added (2026-08-25) — Plan 2.8 homogeneous-value records + pkr + space-only lines
 
 - `scripts/plan_2_8_ledger_homogeneous_value_record_count.py` counts
