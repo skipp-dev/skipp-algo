@@ -36,7 +36,7 @@ if str(REPO_ROOT) not in sys.path:
 
 from smc_core.event_ledger import read_event_ledger  # noqa: E402
 
-REPORT_VERSION = "1.1"
+REPORT_VERSION = "1.2"
 WEIGHT_CAP_LO = 0.05
 WEIGHT_CAP_HI = 0.40
 MIN_FVG_EVENTS = 30
@@ -44,6 +44,17 @@ QUARTILE_MIN_EVENTS = 8
 ACCEPT_TOP_HR = 0.70
 ACCEPT_BOTTOM_HR = 0.55
 ACCEPT_SPEARMAN = 0.20
+
+# Relative acceptance gate — base-rate aware. The strict ``partial_50``
+# label has a ~80% positive base rate, so the absolute 0.55 floor for
+# bottom-quartile HR cannot be hit even by a perfect ranker. Relative
+# mode replaces the two HR gates with deltas around the corpus base
+# rate. Spearman gate is unchanged (label-scale invariant).
+ACCEPT_TOP_HR_DELTA = 0.10  # top quartile must beat base rate by +10pp
+ACCEPT_BOTTOM_HR_DELTA = 0.15  # bottom quartile must trail by -15pp
+
+ACCEPTANCE_MODES: tuple[str, ...] = ("absolute", "relative")
+DEFAULT_ACCEPTANCE_MODE = "absolute"
 
 # Outcome label source. ``outcome`` keeps the legacy lenient label
 # (touch-anchor mitigation) used by Amendment A1.B since day one.
@@ -96,6 +107,8 @@ class RecalibrationReport:
     weights_shadow: dict[str, float] = field(default_factory=dict)
     weight_directions: dict[str, int] = field(default_factory=dict)
     signed_weights: bool = False
+    acceptance_mode: str = DEFAULT_ACCEPTANCE_MODE
+    base_rate: float = float("nan")
     quartiles: list[QuartileStat] = field(default_factory=list)
     spearman_score_outcome: float = float("nan")
     acceptance: dict[str, bool] = field(default_factory=dict)
@@ -349,15 +362,22 @@ def recalibrate(
     *,
     label_source: str = DEFAULT_LABEL_SOURCE,
     signed_weights: bool = False,
+    acceptance_mode: str = DEFAULT_ACCEPTANCE_MODE,
 ) -> RecalibrationReport:
     """Run the full recalibration pipeline and return a report."""
     if label_source not in LABEL_SOURCES:
         raise ValueError(
             f"label_source must be one of {LABEL_SOURCES!r}, got {label_source!r}"
         )
+    if acceptance_mode not in ACCEPTANCE_MODES:
+        raise ValueError(
+            f"acceptance_mode must be one of {ACCEPTANCE_MODES!r}, "
+            f"got {acceptance_mode!r}"
+        )
     report = RecalibrationReport(
         label_source=label_source,
         signed_weights=signed_weights,
+        acceptance_mode=acceptance_mode,
         weights_legacy=dict(LEGACY_WEIGHTS),
     )
     rows: list[dict[str, float]] = []
@@ -429,16 +449,28 @@ def recalibrate(
 
     top = quartiles[-1] if quartiles else None
     bottom = quartiles[0] if quartiles else None
+    base_rate = sum(outcomes) / len(outcomes) if outcomes else float("nan")
+    report.base_rate = round(base_rate, 4) if outcomes else float("nan")
+    if acceptance_mode == "absolute":
+        top_threshold = ACCEPT_TOP_HR
+        bottom_threshold = ACCEPT_BOTTOM_HR
+        top_key = "top_quartile_hr_ge_0_70"
+        bottom_key = "bottom_quartile_hr_le_0_55"
+    else:
+        top_threshold = base_rate + ACCEPT_TOP_HR_DELTA
+        bottom_threshold = base_rate - ACCEPT_BOTTOM_HR_DELTA
+        top_key = "top_quartile_hr_ge_base_plus_0_10"
+        bottom_key = "bottom_quartile_hr_le_base_minus_0_15"
     report.acceptance = {
-        "top_quartile_hr_ge_0_70": bool(
+        top_key: bool(
             top is not None
             and top.n >= QUARTILE_MIN_EVENTS
-            and top.hit_rate >= ACCEPT_TOP_HR
+            and top.hit_rate >= top_threshold
         ),
-        "bottom_quartile_hr_le_0_55": bool(
+        bottom_key: bool(
             bottom is not None
             and bottom.n >= QUARTILE_MIN_EVENTS
-            and bottom.hit_rate <= ACCEPT_BOTTOM_HR
+            and bottom.hit_rate <= bottom_threshold
         ),
         "spearman_ge_0_20": bool(
             not math.isnan(report.spearman_score_outcome)
@@ -495,6 +527,18 @@ def main(argv: list[str] | None = None) -> int:
             "gap_size_atr) cannot mis-rank events."
         ),
     )
+    parser.add_argument(
+        "--acceptance-mode",
+        choices=ACCEPTANCE_MODES,
+        default=DEFAULT_ACCEPTANCE_MODE,
+        help=(
+            "Acceptance gate scoring. 'absolute' = legacy fixed thresholds "
+            "(top HR>=0.70, bottom HR<=0.55). 'relative' = base-rate "
+            "aware (top HR>=base+0.10, bottom HR<=base-0.15) — required "
+            "for high-base-rate labels like partial_50 where bottom-HR "
+            "cannot drop to 0.55 even with a perfect ranker."
+        ),
+    )
     args = parser.parse_args(argv)
 
     paths = sorted(args.corpus_dir.rglob("events_*.jsonl"))
@@ -502,6 +546,7 @@ def main(argv: list[str] | None = None) -> int:
         paths,
         label_source=args.label_source,
         signed_weights=args.signed_weights,
+        acceptance_mode=args.acceptance_mode,
     )
     write_shadow_json(report, args.output)
     accept_status = "PASS" if report.acceptance and all(report.acceptance.values()) else "PENDING"

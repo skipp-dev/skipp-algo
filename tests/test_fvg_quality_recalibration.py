@@ -8,6 +8,10 @@ from pathlib import Path
 import pytest
 
 from scripts.fvg_quality_recalibration import (
+    ACCEPT_BOTTOM_HR_DELTA,
+    ACCEPT_TOP_HR_DELTA,
+    ACCEPTANCE_MODES,
+    DEFAULT_ACCEPTANCE_MODE,
     DEFAULT_LABEL_SOURCE,
     FEATURE_KEYS,
     LABEL_SOURCES,
@@ -165,9 +169,10 @@ def test_write_shadow_json(tmp_path: Path) -> None:
     output = tmp_path / "shadow.json"
     write_shadow_json(report, output)
     payload = json.loads(output.read_text(encoding="utf-8"))
-    assert payload["report_version"] == "1.1"
+    assert payload["report_version"] == "1.2"
     assert payload["status"] == "ok"
     assert payload["label_source"] == "outcome"
+    assert payload["acceptance_mode"] == "absolute"
     assert "weights_shadow" in payload
     assert isinstance(payload["quartiles"], list)
 
@@ -338,3 +343,80 @@ def test_signed_weights_monotone_quartiles(tmp_path: Path) -> None:
     hrs = [q.hit_rate for q in report.quartiles]
     # Strictly non-decreasing — top quartile must beat bottom.
     assert hrs[-1] >= hrs[0]
+
+
+# --------------------------------------------------------------------- #
+# --acceptance-mode relative — base-rate-aware gates (Q3 D3 promotion)  #
+# --------------------------------------------------------------------- #
+
+
+def test_acceptance_modes_constant_pinned() -> None:
+    assert ACCEPTANCE_MODES == ("absolute", "relative")
+    assert DEFAULT_ACCEPTANCE_MODE == "absolute"
+    assert ACCEPT_TOP_HR_DELTA == 0.10
+    assert ACCEPT_BOTTOM_HR_DELTA == 0.15
+
+
+def test_relative_mode_uses_base_rate_keys(tmp_path: Path) -> None:
+    path = _ledger(tmp_path, _separable_corpus(80))
+    report = recalibrate([path], acceptance_mode="relative")
+    assert report.acceptance_mode == "relative"
+    # Relative-mode gate keys must replace the absolute ones.
+    assert set(report.acceptance.keys()) == {
+        "top_quartile_hr_ge_base_plus_0_10",
+        "bottom_quartile_hr_le_base_minus_0_15",
+        "spearman_ge_0_20",
+    }
+    # Base-rate populated.
+    assert 0.0 <= report.base_rate <= 1.0
+
+
+def test_relative_mode_passes_high_base_rate_corpus(tmp_path: Path) -> None:
+    # Build a corpus with ~75% base rate but a clearly separable
+    # ranker — absolute mode would fail bottom-HR<=0.55 (because no
+    # quartile dips that low under high base rate); relative mode must
+    # pass.
+    records = []
+    for i in range(60):
+        records.append(
+            _fvg_record(
+                idx=i,
+                outcome=True,
+                features={
+                    "gap_size_atr": 1.5,
+                    "htf_aligned": True,
+                    "distance_to_price_atr": 0.4,
+                    "is_full_body": True,
+                    "hurst_50": 0.7,
+                },
+            )
+        )
+    for i in range(60, 80):
+        # Bottom 25% — all misses, kept ranker-separable.
+        records.append(
+            _fvg_record(
+                idx=i,
+                outcome=False,
+                features={
+                    "gap_size_atr": 0.3,
+                    "htf_aligned": False,
+                    "distance_to_price_atr": 2.5,
+                    "is_full_body": False,
+                    "hurst_50": 0.35,
+                },
+            )
+        )
+    path = _ledger(tmp_path, records)
+    report = recalibrate([path], acceptance_mode="relative")
+    assert report.base_rate >= 0.70
+    # Top must beat base by +10pp; bottom must trail by -15pp.
+    top_hr = report.quartiles[-1].hit_rate
+    bottom_hr = report.quartiles[0].hit_rate
+    assert top_hr >= report.base_rate + 0.10 - 1e-6
+    assert bottom_hr <= report.base_rate - 0.15 + 1e-6
+
+
+def test_acceptance_mode_invalid_raises(tmp_path: Path) -> None:
+    path = _ledger(tmp_path, _separable_corpus(40))
+    with pytest.raises(ValueError):
+        recalibrate([path], acceptance_mode="bogus")

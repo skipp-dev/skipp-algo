@@ -311,6 +311,52 @@ Strict-Snapshot zeigt monotone Quartile + starkes Spearman.
 Voraussetzung (2) wird erst freigegeben, wenn das Acceptance-Gate
 für strict re-tuned ist.
 
+### 5.2 Relative Acceptance Gate (2026-04-22 Folge-Patch 2)
+
+Patch (2) gelandet: neuer `--acceptance-mode {absolute,relative}`-Flag
+plus base-rate-aware Schwellen in
+`scripts/fvg_quality_recalibration.py`. Bei `relative` werden die
+beiden HR-Gates an die Corpus-Base-Rate gekoppelt:
+
+| Gate                                | absolute | relative              |
+|-------------------------------------|----------|-----------------------|
+| `top_quartile_hr_ge_*`              | ≥ 0.70   | ≥ Base-Rate + 0.10    |
+| `bottom_quartile_hr_le_*`           | ≤ 0.55   | ≤ Base-Rate − 0.15    |
+| `spearman_ge_0_20`                  | ≥ 0.20   | ≥ 0.20 (unverändert)  |
+
+`report_version` 1.1 → 1.2; neue Felder `acceptance_mode`,
+`base_rate`. Default bleibt `absolute`, damit alle Bestands-Aufrufer
+bit-identisch sind.
+
+Re-Run gegen den v3-Snapshot mit
+`--label-source partial_50 --signed-weights --acceptance-mode relative`:
+
+| Metrik                            | Wert       |
+|-----------------------------------|------------|
+| Base Rate (strict)                | **0.822**  |
+| Q1 HR                             | 0.641      |
+| Q4 HR                             | 0.943      |
+| Spearman                          | +0.474     |
+| `top_quartile_hr_ge_base_plus_0_10`   | **PASS** (0.943 ≥ 0.922) |
+| `bottom_quartile_hr_le_base_minus_0_15` | **PASS** (0.641 ≤ 0.672) |
+| `spearman_ge_0_20`                | **PASS** (+0.474 ≥ 0.20) |
+
+**Acceptance Gate: PASS (3/3)** unter strict label + signed weights +
+relative mode. Damit ist Voraussetzung (2) aus §5 erfüllt — der
+strict-Pfad hat einen vollständig validierten Shadow.
+
+Shadow-JSON: `artifacts/reports/fvg_quality_calibration_shadow_strict50_signed_relative.json`.
+
+**Status:** Beide Voraussetzungen für die D3-Promotion sind jetzt
+erfüllt. Die nächste Promotion-PR kann den Strict-Shadow
+(`weights_shadow` + `weight_directions`) als neue
+Production-Pinnung in `smc_core/fvg_quality.py` übernehmen — gemeinsam
+mit der Pine-Spiegelung in `SMC_Core_Engine.pine::fvg_quality_score`
+(Single-PR-Discipline, vgl.
+`/memories/repo/preset-bus-channel-wiring-debt.md`). Diese Promotion
+ist nicht Teil dieses Patches; sie braucht eine explizite Freigabe,
+weil sie mindestens 9 Stellen pro BUS/Weight-Surface-Change berührt.
+
 ---
 
 *Erstellt mit `scripts/fvg_quality_d4_audit.py`. Re-runnable gegen
