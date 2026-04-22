@@ -2324,6 +2324,7 @@ const float DEFAULT_OB_FILTER_MAX_MULT = 2.5
 const float DEFAULT_FVG_MIN_SIZE_MULT = 0.5
 const float DEFAULT_FVG_FILL_TARGET_PCT = 60.0
 const string DEFAULT_LTF_TIMEFRAME = '1'
+const string DEFAULT_TREND_TF_0 = '120'
 const string DEFAULT_TREND_TF_1 = '240'
 const string DEFAULT_TREND_TF_2 = '1D'
 const string DEFAULT_TREND_TF_3 = '1W'
@@ -2636,6 +2637,16 @@ var g_mtf = '7. Advanced - Higher Timeframe Trend'
 // an adaptive IPDA dach-TF, factor-~4 spacing between adjacent layers.
 // See docs/smc_improvement_plan_addendum_2_8_mtf_scope_2026-04-21.md for
 // the deliberate decision against a Flux-style 7-TF bias stack.
+//
+// Addendum 2.8 Phase 3 (W14-W20) — optional 2H 4th layer scaffolded
+// behind a feature-flag, default OFF. Promotion is gated on the Q4 W13
+// A/B verdict (G1 ≥3pp uplift / G2 Brier ≤0.02 / G3 ≥30 events per
+// bucket). When the gate fires GO, only `enable_trend_tf_0` defaults
+// flip to true; calibration weights then absorb the 4th layer in
+// `smc_core/scoring.py`. Until then the input renders inactive and
+// the engine stays on the published 3-layer stack.
+var bool enable_trend_tf_0 = input.bool(false, 'Enable 2H pre-trend layer (Q4-gated)', group = g_mtf, display = display.none, tooltip = 'Addendum 2.8 Phase 3 scaffold. Default OFF until the Q4 W13 A/B-Gate (3 cumulative thresholds in scripts/plan_2_8_q4_gate_evaluator.py) returns GO. Enabling without a green gate is unsupported because per-family calibrated weights for the 2H layer are not yet published; the 4th icon would render uncalibrated.')
+var string mtf_trend_tf0 = input.timeframe(DEFAULT_TREND_TF_0, 'Trend TF 0 (optional 2H)', group = g_mtf, inline = 'mtf0', display = display.none, tooltip = 'Optional pre-layer between Chart-TF and Trend TF 1 (default 2H). Only consumed when "Enable 2H pre-trend layer (Q4-gated)" is on. See docs/smc_improvement_plan_addendum_2_8_mtf_scope_2026-04-21.md §6 Phase 3.')
 var string mtf_trend_tf1 = input.timeframe(DEFAULT_TREND_TF_1, 'Trend TF 1', group = g_mtf, inline = 'mtf1', display = display.none, tooltip = 'Trend Stack layer 1 (default 4H). Part of the ICT-standard 3-layer hierarchy 4H -> 1D -> 1W, factor-~4 spacing. Intentional over Flux-style 7-TF bias stacks: each layer is calibrated per-family x per-context. Custom TFs keep display but skip calibrated weights.')
 var string mtf_trend_tf2 = input.timeframe(DEFAULT_TREND_TF_2, 'Trend TF 2', group = g_mtf, inline = 'mtf2', display = display.none, tooltip = 'Trend Stack layer 2 (default 1D). Swing-context anchor on top of the intraday Chart-TF. Changing away from the default disables per-layer calibrated contribution.')
 var string mtf_trend_tf3 = input.timeframe(DEFAULT_TREND_TF_3, 'Trend TF 3', group = g_mtf, inline = 'mtf3', display = display.none, tooltip = 'Trend Stack layer 3 (default 1W). Macro-bias anchor. An adaptive IPDA dach-TF (D -> W -> M) sits above this layer automatically (see smc_core/htf_context.py::select_ipda_htf).')

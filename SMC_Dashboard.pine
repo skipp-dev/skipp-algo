@@ -1741,7 +1741,7 @@ if show_table and barstate.islast
         dashboard_row(smc_dashboard, 4, "Trend", trend_text(trend_now), status_bg(trend_now == 2 ? 5 : trend_now == 0 ? -1 : 0), txt)
         // Addendum 2.8 (2026-04-21) — intentional 3-layer ICT trend stack;
         // see docs/smc_improvement_plan_addendum_2_8_mtf_scope_2026-04-21.md
-        string _htf_trend_tt = "Trend Stack: 4H · 1D · 1W (ICT-standard 3-layer, factor-~4 spacing).\nIntentional scope: 3 layers + adaptive IPDA, not a 7-TF stack. A 4th intermediate layer (2H) is Q4-backlog, gated on ≥1000-event A/B uplift.\nSource: Addendum 2.8 (docs/smc_improvement_plan_addendum_2_8_mtf_scope_2026-04-21.md)"
+        string _htf_trend_tt = "Trend Stack: 4H · 1D · 1W (ICT-standard 3-layer, factor-~4 spacing).\nIntentional scope: 3 layers + adaptive IPDA, not a 7-TF stack. A 4th intermediate layer (2H) is scaffolded behind a feature-flag (SMC_Core_Engine.pine: enable_trend_tf_0, default OFF) and gated on the Q4 W13 A/B verdict (G1 ≥3pp HR uplift / G2 Brier ≤0.02 / G3 ≥30 events per bucket).\nSource: Addendum 2.8 (docs/smc_improvement_plan_addendum_2_8_mtf_scope_2026-04-21.md)"
         dashboard_row_tt(smc_dashboard, 5, "HTF Trend", "HTF1:" + trend_text(trend_htf_1) + " | HTF2:" + trend_text(trend_htf_2) + " | HTF3:" + trend_text(trend_htf_3), status_bg(htf_state), txt, _htf_trend_tt)
         dashboard_row(smc_dashboard, 6, "Long Setup", setup_text(state_code, source_code), status_bg(setup_state), txt)
         dashboard_row(smc_dashboard, 7, "Setup Age", setup_age_text(state_code, freshness_code), status_bg(setup_age_state), txt)

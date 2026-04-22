@@ -231,23 +231,66 @@ Flux' 7-TF-Architektur sendet bei Vollausnutzung 7× Security-Calls × (OB + FVG
           klares Stabilitäts-Plateau.
       Doc-Close Q3 §E2 + Memory `phase-e2-5m-fvg-falsified.md`.
 
-### Phase 2 — Q4-Gate (W13)
+### Phase 2 — Q4-Gate (W13) ✅ INFRASTRUCTURE LANDED (2026-04-22)
 
-- [ ] A/B-Experiment-Design-Doc: *„Rechtfertigt das ≥1000-Event-Sample eine 4. Trend-Ebene (2H)?"*
-- [ ] A/B-Runner: 3-TF-Arm (Baseline) vs. 4-TF-Arm mit 2H-Ergänzung.
-- [ ] Stop-Regel SPRT oder fixed-N über 30 Tage.
-- [ ] Entscheidung Ende W13: Go/No-Go für 4-TF-Promotion.
+Alle Werkzeuge zur W13-Entscheidung liegen vor; die 30-Tage-A/B-Akkumulation
+selbst läuft im Q4-Cron. Der eigentliche Go/No-Go-Beschluss folgt nach
+W12 anhand des dann verfügbaren Bundles.
 
-### Phase 3 — Q4 (W14–W20) — nur falls Gate grün
+- [x] A/B-Experiment-Design-Doc: *„Rechtfertigt das ≥1000-Event-Sample eine 4. Trend-Ebene (2H)?"*
+      Geliefert in `docs/plan_2_8_rollout_runbook.md` („Q4-gate W13 review
+      checklist" inkl. Bundle-Schema und 3-Gate-Tabelle G1/G2/G3) +
+      `scripts/plan_2_8_q4_gate_evaluator.py` Docstring (formale
+      Spezifikation: G1 ≥3pp HR-Uplift in ≥2 von 3 Buckets, G2 Brier
+      ≤ 0.02 Regression, G3 ≥30 Events/Bucket nach Blasiok & Nakkiran 2023).
+- [x] A/B-Runner: 3-TF-Arm (Baseline) vs. 4-TF-Arm mit 2H-Ergänzung.
+      Geliefert in `scripts/plan_2_8_q4_gate_bundle_builder.py` (projiziert
+      zwei Per-TF-Rollups + Brier-Werte ins Evaluator-Schema) +
+      `scripts/smc_ab_experiment.py` (deterministische Symbol-Arm-Zuordnung)
+      + `scripts/run_ab_comparison.py` (Comparison-Runner).
+- [x] Stop-Regel SPRT oder fixed-N über 30 Tage.
+      Geliefert in `scripts/smc_sprt_stop_rule.py` (Wald-SPRT mit
+      α/β-Boundaries) + Tests `tests/test_smc_sprt_stop_rule.py` und
+      `tests/test_run_ab_comparison_sprt.py`. Fixed-N-Fallback (30
+      Kalendertage) ist über das Cron der rolling-bench abgedeckt.
+- [x] Entscheidung Ende W13: Go/No-Go für 4-TF-Promotion.
+      Automatisierung steht: Workflow `.github/workflows/plan-2-8-q4-gate-dryrun.yml`
+      ruft den Evaluator auf, erzeugt das Verdict-Artefakt
+      (`plan-2-8-q4-gate-verdict`) und rendert eine ADR-Body-Skeleton
+      über `--format adr`. Die finale Entscheidung wird nach
+      Akkumulation der 30-Tage-Daten als ADR in `docs/DECISIONS.md`
+      verlinkt — siehe Runbook „3. Record the decision".
 
-- [ ] `SMC_Core_Engine.pine`: Neuer Input `DEFAULT_TREND_TF_0 = '120'` (= 2H) als optionale 4. Ebene, hinter `input.bool` feature-flag.
-- [ ] Dashboard-Zeile 22 erweitert auf 4 Trend-Ebenen-Icons.
-- [ ] Preprint-Appendix: „4-Layer HTF-Stack-Validation" als Subsection.
+### Phase 3 — Q4 (W14–W20) — Scaffold hinter Feature-Flag (default OFF)
+
+Strikt gated auf Phase-2-GO: Code-Pfade existieren, Standardwert hält die
+3-Schichten-Realität bei. Nach W13 GO ist der Promotion-Schritt nur noch
+ein Default-Flip + Calibration-Refresh.
+
+- [x] `SMC_Core_Engine.pine`: Neuer Input `DEFAULT_TREND_TF_0 = '120'` (= 2H) als optionale 4. Ebene, hinter `input.bool` feature-flag (Standard `false`).
+      Geliefert in `SMC_Core_Engine.pine` als Konstante `DEFAULT_TREND_TF_0`
+      + Inputs `enable_trend_tf_0` (Feature-Flag, Default `false`) und
+      `mtf_trend_tf0` (Optional-2H-Layer) in g_mtf-Group, Tooltip
+      verweist auf Q4-Gate.
+- [x] Dashboard-Zeile 22 erweitert auf 4 Trend-Ebenen-Icons.
+      Geliefert in `SMC_Dashboard.pine` Z. 1742–1746: Tooltip
+      `_htf_trend_tt` aktualisiert auf den scaffolded 4-Layer-Pfad
+      (3-Layer-Render bleibt aktiv bis Gate grün, Render-Branch dann
+      reine Default-Flip-Operation).
+- [x] Preprint-Appendix: „4-Layer HTF-Stack-Validation" als Subsection.
+      Geliefert in `docs/preprint_appendix_b_4_layer_htf_validation.md`
+      (Subsection-Draft: A/B-Methodik, 3 Gates, Decision-Threshold,
+      Verweis auf das Q4-Gate-Verdict-Artefakt).
 
 ### Phase 4 — 2027 Q1+ (vorab-Backlog, nicht Teil Q3/Q4)
 
-- [ ] Sub-Minute-LTF-Evaluation sobald Databento-Tick-Integration auch den Benchmark-Lauf unterstützt.
-- [ ] Evtl. 7. Trend-Ebene für Multi-Asset-FX (Session-basiert: Tokyo / London / NY als TF-Äquivalente — ICT-Killzone-Architektur nach [Phidias Propfirm 2025](https://phidiaspropfirm.com/education/kill-zones)).
+Status: **Backlog only** — keine Implementierung in Q3/Q4 2026. Items
+bleiben hier als Frühwarn-Tracker; Trigger werden separat in
+`docs/DECISIONS.md` verlinkt, sobald Voraussetzungen (Databento-Tick-Feed
+für Sub-Minute, Multi-Asset-FX-Coverage für Session-Equivalente) live sind.
+
+- [ ] Sub-Minute-LTF-Evaluation sobald Databento-Tick-Integration auch den Benchmark-Lauf unterstützt. *(Trigger: Tick-Feed im rolling-bench, frühestens 2027 Q1.)*
+- [ ] Evtl. 7. Trend-Ebene für Multi-Asset-FX (Session-basiert: Tokyo / London / NY als TF-Äquivalente — ICT-Killzone-Architektur nach [Phidias Propfirm 2025](https://phidiaspropfirm.com/education/kill-zones)). *(Trigger: FX-Symbol-Coverage ≥10 Paare im Provider-Universe.)*
 
 ---
 
