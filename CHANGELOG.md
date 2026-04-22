@@ -6,115 +6,6 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
-### Added (2026-11-13) — Plan 2.8 nonempty-string-or-int-or-bool records + tcl + trailing-gt lines
-
-- `scripts/plan_2_8_ledger_nonempty_string_or_int_or_bool_only_record_count.py`
-  counts ledger records whose every value is a non-empty string, int, or bool.
-- `scripts/plan_2_8_digest_tcl_file_count.py` counts top-level `.tcl` files.
-- `scripts/plan_2_8_weekly_summary_trailing_gt_line_count.py`
-  counts non-empty lines whose last character is ``>``.
-- Weekly digest workflow wires three fail-soft compute+upload step pairs.
-
-### Added (2026-11-12) — Plan 2.8 nonempty-list-or-null-or-bool records + raku + leading-gt lines
-
-- `scripts/plan_2_8_ledger_nonempty_list_or_null_or_bool_only_record_count.py`
-  counts ledger records whose every value is a non-empty list, null, or bool.
-- `scripts/plan_2_8_digest_raku_file_count.py` counts top-level `.raku` files.
-- `scripts/plan_2_8_weekly_summary_leading_gt_line_count.py`
-  counts non-empty lines whose first character is ``>``.
-- Weekly digest workflow wires three fail-soft compute+upload step pairs.
-
-### Added (2026-11-11) — Plan 2.8 nonempty-dict-or-null-or-bool records + kotlin + trailing-lt lines
-
-- `scripts/plan_2_8_ledger_nonempty_dict_or_null_or_bool_only_record_count.py`
-  counts ledger records whose every value is a non-empty dict, null, or bool.
-- `scripts/plan_2_8_digest_kotlin_file_count.py` counts top-level `.kt` files.
-- `scripts/plan_2_8_weekly_summary_trailing_lt_line_count.py`
-  counts non-empty lines whose last character is ``<``.
-- Weekly digest workflow wires three fail-soft compute+upload step pairs.
-
-### Added (2026-11-10) — Plan 2.8 nonempty-float-or-null records + ml + leading-lt lines
-
-- `scripts/plan_2_8_ledger_nonempty_float_or_null_only_record_count.py`
-  counts ledger records whose every value is a non-empty float or null.
-- `scripts/plan_2_8_digest_ml_file_count.py` counts top-level `.ml` files.
-- `scripts/plan_2_8_weekly_summary_leading_lt_line_count.py`
-  counts non-empty lines whose first character is ``<``.
-- Weekly digest workflow wires three fail-soft compute+upload step pairs.
-
-### Added (2026-11-09) — Plan 2.8 nonempty-int-or-null records + d + trailing-asterisk lines
-
-- `scripts/plan_2_8_ledger_nonempty_int_or_null_only_record_count.py`
-  counts ledger records whose every value is a non-empty int or null.
-- `scripts/plan_2_8_digest_d_file_count.py` counts top-level `.d` files.
-- `scripts/plan_2_8_weekly_summary_trailing_asterisk_line_count.py`
-  counts non-empty lines whose last character is ``*``.
-- Weekly digest workflow wires three fail-soft compute+upload step pairs.
-
-### Added (2026-11-08) — Plan 2.8 nonempty-string-or-null-or-float records + svelte + leading-asterisk lines
-
-- `scripts/plan_2_8_ledger_nonempty_string_or_null_or_float_only_record_count.py`
-  counts ledger records whose every value is a non-empty string, null, or float.
-- `scripts/plan_2_8_digest_svelte_file_count.py` counts top-level `.svelte` files.
-- `scripts/plan_2_8_weekly_summary_leading_asterisk_line_count.py`
-  counts non-empty lines whose first character is ``*``.
-- Weekly digest workflow wires three fail-soft compute+upload step pairs.
-
-### Added (2026-11-07) — Plan 2.8 nonempty-string-or-null-or-int records + vue + trailing-ampersand lines
-
-- `scripts/plan_2_8_ledger_nonempty_string_or_null_or_int_only_record_count.py`
-  counts ledger records whose every value is a non-empty string, null, or int.
-- `scripts/plan_2_8_digest_vue_file_count.py` counts top-level `.vue` files.
-- `scripts/plan_2_8_weekly_summary_trailing_ampersand_line_count.py`
-  counts non-empty lines whose last character is ``&``.
-- Weekly digest workflow wires three fail-soft compute+upload step pairs.
-
-### Added (2026-11-06) — Plan 2.8 nonempty-string-or-null-or-bool records + tsx + leading-ampersand lines
-
-- `scripts/plan_2_8_ledger_nonempty_string_or_null_or_bool_only_record_count.py`
-  counts ledger records whose every value is a non-empty string, null, or bool.
-- `scripts/plan_2_8_digest_tsx_file_count.py` counts top-level `.tsx` files.
-- `scripts/plan_2_8_weekly_summary_leading_ampersand_line_count.py`
-  counts non-empty lines whose first character is ``&``.
-- Weekly digest workflow wires three fail-soft compute+upload step pairs.
-
-### Added (2026-11-05) — Plan 2.8 nonempty-string-or-bool records + jsx + trailing-at-sign lines
-
-- `scripts/plan_2_8_ledger_nonempty_string_or_bool_only_record_count.py`
-  counts ledger records whose every value is a non-empty string or bool.
-- `scripts/plan_2_8_digest_jsx_file_count.py` counts top-level `.jsx` files.
-- `scripts/plan_2_8_weekly_summary_trailing_at_sign_line_count.py`
-  counts non-empty lines whose last character is ``@``.
-- Weekly digest workflow wires three fail-soft compute+upload step pairs.
-
-### Added (2026-11-04) — Plan 2.8 nonempty-string-or-float records + odin + leading-at-sign lines
-
-- `scripts/plan_2_8_ledger_nonempty_string_or_float_only_record_count.py`
-  counts ledger records whose every value is a non-empty string or float.
-- `scripts/plan_2_8_digest_odin_file_count.py` counts top-level `.odin` files.
-- `scripts/plan_2_8_weekly_summary_leading_at_sign_line_count.py`
-  counts non-empty lines whose first character is ``@``.
-- Weekly digest workflow wires three fail-soft compute+upload step pairs.
-
-### Added (2026-11-03) — Plan 2.8 nonempty-string-or-int records + rhs + trailing-exclamation-mark lines
-
-- `scripts/plan_2_8_ledger_nonempty_string_or_int_only_record_count.py`
-  counts ledger records whose every value is a non-empty string or non-bool int.
-- `scripts/plan_2_8_digest_rhs_file_count.py` counts top-level `.rhs` files.
-- `scripts/plan_2_8_weekly_summary_trailing_exclamation_mark_line_count.py`
-  counts non-empty lines whose last character is ``!``.
-- Weekly digest workflow wires three fail-soft compute+upload step pairs.
-
-### Added (2026-11-02) — Plan 2.8 nonempty-list-or-dict-or-null records + lhs + leading-exclamation-mark lines
-
-- `scripts/plan_2_8_ledger_nonempty_list_or_dict_or_null_only_record_count.py`
-  counts ledger records whose every value is a non-empty list, non-empty dict,
-  or null.
-- `scripts/plan_2_8_digest_lhs_file_count.py` counts top-level `.lhs` files.
-- `scripts/plan_2_8_weekly_summary_leading_exclamation_mark_line_count.py`
-  counts non-empty lines whose first character is ``!``.
-- Weekly digest workflow wires three fail-soft compute+upload step pairs.
-
 ### Added (2026-11-01) — Plan 2.8 bool-or-list records + pxd + trailing-question-mark lines
 
 - `scripts/plan_2_8_ledger_bool_or_list_only_record_count.py`
@@ -131,33 +22,6 @@ All notable changes to this project are documented in this file.
 - `scripts/plan_2_8_digest_pyx_file_count.py` counts top-level `.pyx` files.
 - `scripts/plan_2_8_weekly_summary_leading_question_mark_line_count.py`
   counts non-empty lines whose first character is ``?``.
-- Weekly digest workflow wires three fail-soft compute+upload step pairs.
-
-### Added (2026-10-30) — Plan 2.8 nonempty-string-or-null records + exs + trailing-period lines
-
-- `scripts/plan_2_8_ledger_nonempty_string_or_null_only_record_count.py`
-  counts ledger records whose every value is a non-empty string or null.
-- `scripts/plan_2_8_digest_exs_file_count.py` counts top-level `.exs` files.
-- `scripts/plan_2_8_weekly_summary_trailing_period_line_count.py`
-  counts non-empty lines whose last character is ``.``.
-- Weekly digest workflow wires three fail-soft compute+upload step pairs.
-
-### Added (2026-10-29) — Plan 2.8 nonempty-dict-or-null records + hrl + leading-period lines
-
-- `scripts/plan_2_8_ledger_nonempty_dict_or_null_only_record_count.py`
-  counts ledger records whose every value is a non-empty dict or null.
-- `scripts/plan_2_8_digest_hrl_file_count.py` counts top-level `.hrl` files.
-- `scripts/plan_2_8_weekly_summary_leading_period_line_count.py`
-  counts non-empty lines whose first character is ``.``.
-- Weekly digest workflow wires three fail-soft compute+upload step pairs.
-
-### Added (2026-10-28) — Plan 2.8 nonempty-list-or-null records + pp + trailing-comma lines
-
-- `scripts/plan_2_8_ledger_nonempty_list_or_null_only_record_count.py`
-  counts ledger records whose every value is a non-empty list or null.
-- `scripts/plan_2_8_digest_pp_file_count.py` counts top-level `.pp` files.
-- `scripts/plan_2_8_weekly_summary_trailing_comma_line_count.py`
-  counts non-empty lines whose last character is ``,``.
 - Weekly digest workflow wires three fail-soft compute+upload step pairs.
 
 ### Added (2026-10-27) — Plan 2.8 bool-or-list-or-null records + cbl + leading-comma lines
@@ -223,16 +87,6 @@ All notable changes to this project are documented in this file.
   counts non-empty lines whose first character is ``~``.
 - Weekly digest workflow wires three fail-soft compute+upload step pairs.
 
-### Added (2026-10-20) — Plan 2.8 nonempty-list-or-nonempty-dict records + f90 + trailing-pipe lines
-
-- `scripts/plan_2_8_ledger_nonempty_list_or_nonempty_dict_only_record_count.py`
-  counts non-empty ledger records whose every value is a non-empty list
-  or non-empty ``dict``.
-- `scripts/plan_2_8_digest_f90_file_count.py` counts top-level `.f90` files.
-- `scripts/plan_2_8_weekly_summary_trailing_pipe_line_count.py`
-  counts non-empty lines whose last character is ``|``.
-- Weekly digest workflow wires three fail-soft compute+upload step pairs.
-
 ### Added (2026-10-19) — Plan 2.8 empty-list-or-empty-dict records + ado + leading-pipe lines
 
 - `scripts/plan_2_8_ledger_empty_list_or_empty_dict_only_record_count.py`
@@ -279,25 +133,6 @@ All notable changes to this project are documented in this file.
 - `scripts/plan_2_8_digest_mm_file_count.py` counts top-level `.mm` files.
 - `scripts/plan_2_8_weekly_summary_leading_slash_line_count.py`
   counts non-empty lines whose first character is ``/``.
-- Weekly digest workflow wires three fail-soft compute+upload step pairs.
-
-### Added (2026-10-14) — Plan 2.8 nonempty-dict records + m + trailing-equals lines
-
-- `scripts/plan_2_8_ledger_nonempty_dict_only_record_count.py` counts
-  non-empty ledger records whose every value is a non-empty ``dict``.
-- `scripts/plan_2_8_digest_m_file_count.py` counts top-level `.m` files.
-- `scripts/plan_2_8_weekly_summary_trailing_equals_line_count.py`
-  counts non-empty lines whose last character is ``=``.
-- Weekly digest workflow wires three fail-soft compute+upload step pairs.
-
-### Added (2026-10-13) — Plan 2.8 nonempty-list records + adb + leading-equals lines
-
-- `scripts/plan_2_8_ledger_nonempty_list_only_record_count.py` counts
-  non-empty ledger records whose every value is a non-empty ``list``.
-- `scripts/plan_2_8_digest_adb_file_count.py` counts top-level `.adb`
-  files.
-- `scripts/plan_2_8_weekly_summary_leading_equals_line_count.py` counts
-  non-empty lines whose first character is ``=``.
 - Weekly digest workflow wires three fail-soft compute+upload step pairs.
 
 ### Added (2026-10-12) — Plan 2.8 list/dict/string records + ada + trailing-plus lines
@@ -668,17 +503,6 @@ All notable changes to this project are documented in this file.
   files.
 - `scripts/plan_2_8_weekly_summary_trailing_uppercase_line_count.py`
   counts non-empty lines whose last character is an ASCII uppercase
-  letter.
-- Weekly digest workflow wires three fail-soft compute+upload step pairs.
-
-### Added (2026-09-08) — Plan 2.8 nonempty-string records + yaml + leading-uppercase lines
-
-- `scripts/plan_2_8_ledger_nonempty_string_only_record_count.py` counts
-  non-empty ledger records whose every value is a non-empty ``str``.
-- `scripts/plan_2_8_digest_yaml_file_count.py` counts top-level `.yaml`
-  files.
-- `scripts/plan_2_8_weekly_summary_leading_uppercase_line_count.py`
-  counts non-empty lines whose first character is an ASCII uppercase
   letter.
 - Weekly digest workflow wires three fail-soft compute+upload step pairs.
 
