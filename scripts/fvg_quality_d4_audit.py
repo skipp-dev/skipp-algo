@@ -209,6 +209,46 @@ def main() -> int:
                 f"Q4 (n={far_n:4d}) strict={far_str}"
             )
 
+    # 7b. Per-symbol robustness check (D4.7) — count how many symbols
+    # confirm the Q1>Q4 inversion. Used as a sanity gate before D3
+    # promotion PR.
+    if dist_q is not None:
+        print("\n--- distance_to_price_atr × symbol (robustness check) ---")
+        syms = sorted({e.get("symbol") for e in ev if e.get("symbol")})
+        confirms = 0
+        deltas: list[float] = []
+        for sym in syms:
+            sym_ev = [e for e in ev if e.get("symbol") == sym]
+            close_b = [
+                e for e in sym_ev
+                if (e.get("features") or {}).get("distance_to_price_atr") is not None
+                and (e.get("features") or {})["distance_to_price_atr"] <= dist_q[0]
+            ]
+            far_b = [
+                e for e in sym_ev
+                if (e.get("features") or {}).get("distance_to_price_atr") is not None
+                and (e.get("features") or {})["distance_to_price_atr"] > dist_q[2]
+            ]
+            c_hr, c_n = _rollup(close_b, "strict")
+            f_hr, f_n = _rollup(far_b, "strict")
+            if c_hr is None or f_hr is None or c_n == 0 or f_n == 0:
+                continue
+            d = c_hr - f_hr
+            deltas.append(d)
+            if d > 0:
+                confirms += 1
+            flag = "✓" if d > 0 else "✗"
+            print(
+                f"  {sym:6s} Q1(n={c_n:4d})={c_hr:.4f}  "
+                f"Q4(n={f_n:4d})={f_hr:.4f}  Δ={d:+.3f} {flag}"
+            )
+        if deltas:
+            print(
+                f"  ⇒ {confirms}/{len(deltas)} symbols confirm Q1>Q4 inversion. "
+                f"Median Δ={statistics.median(deltas):+.3f}, "
+                f"Mean Δ={statistics.fmean(deltas):+.3f}"
+            )
+
     # 8. Top / Bottom quality combos (need both quantile sets)
     if gap_q is not None and dist_q is not None:
         print("\n--- Top-quality combo (aligned & full_body & gap≥Q3 & dist≤Q1) ---")

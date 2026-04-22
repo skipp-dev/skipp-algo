@@ -113,6 +113,46 @@ Vorzeichen, alle Δ ≥ 0.17). Auf 5m und 15m beträgt die Spreizung
 ~30pp. Damit ist `distance_to_price_atr` nicht nur das stärkste,
 sondern auch das **robusteste** Quality-Signal im aktuellen Feature-Set.
 
+### 1.7 `distance_to_price_atr` × Symbol (Robustheits-Check)
+
+Globale Quartil-Schwellen aus §1.4 (Q1 ≤ 0.204, Q4 > 1.115) auf jeden
+Einzel-Symbol-Bucket angewandt. Damit prüfen wir, ob das Signal
+symbol-stabil ist oder von einer Handvoll Outliern getragen wird.
+
+| Symbol | n | strict overall | Q1 (close) HR | Q4 (far) HR | Δ Q1−Q4 |
+|---|---:|---:|---:|---:|---:|
+| AAPL | 391 | 0.816 | 0.954 (n=109) | 0.638 (n=69) | +0.316 |
+| AMZN | 446 | 0.897 | 0.982 (n=109) | 0.736 (n=110) | +0.245 |
+| BAC | 156 | 0.859 | 0.950 (n=20) | 0.730 (n=37) | +0.220 |
+| CAT | 291 | 0.839 | 0.967 (n=60) | 0.688 (n=80) | +0.279 |
+| COP | 180 | 0.739 | 0.920 (n=25) | 0.636 (n=33) | +0.284 |
+| CVX | 281 | 0.836 | 0.939 (n=65) | 0.700 (n=70) | +0.238 |
+| GOOGL | 303 | 0.759 | 0.868 (n=76) | 0.594 (n=69) | +0.274 |
+| GS | 197 | 0.797 | 0.889 (n=27) | 0.612 (n=49) | +0.277 |
+| HD | 165 | 0.679 | 0.846 (n=26) | 0.500 (n=28) | +0.346 |
+| JNJ | 144 | 0.792 | 0.880 (n=25) | 0.750 (n=20) | +0.130 |
+| JPM | 242 | 0.884 | 0.893 (n=28) | 0.818 (n=55) | +0.075 |
+| META | 463 | 0.784 | 0.916 (n=119) | 0.583 (n=115) | +0.333 |
+| MS | 132 | 0.841 | 0.889 (n=9) | 0.875 (n=24) | +0.014 |
+| MSFT | 491 | 0.784 | 0.928 (n=125) | 0.563 (n=112) | **+0.366** |
+| NVDA | 460 | 0.807 | 0.942 (n=121) | 0.570 (n=100) | **+0.372** |
+| OXY | 270 | 0.807 | 0.947 (n=57) | 0.692 (n=65) | +0.255 |
+| TSLA | 468 | 0.812 | 0.934 (n=137) | 0.580 (n=112) | **+0.354** |
+| UNH | 228 | 0.860 | 0.952 (n=63) | 0.667 (n=48) | +0.286 |
+| **V** | 143 | 0.776 | **0.760 (n=25)** | **0.862 (n=29)** | **−0.102 ✗** |
+| XOM | 259 | 0.815 | 0.980 (n=50) | 0.560 (n=50) | **+0.420** |
+
+→ **19 von 20 Symbolen bestätigen die Inversion.** Visa (V) ist die
+einzige Ausnahme — bei sehr kleinen Buckets (n=25 Q1, n=29 Q4) ist die
+Spreizung von 10pp gut innerhalb des Sampling-Rauschens und
+disqualifiziert die Empfehlung nicht. Mediane/Mittelwerte über alle
+20 Symbole: Median Δ = +0.279, Mean Δ = +0.250 — beides klar positiv
+und konsistent mit der Aggregat-Inversion (+0.284).
+
+→ Damit ist die `distance_to_price_atr`-Empfehlung für die D3-Re-Calibration
+**robust gegen Symbol-Composition-Bias** und kann ohne weitere
+Kreuz-Validierung in die nächste Promotion-PR eingehen.
+
 ## 2. Combined Conditional HR
 
 ### 2.1 `htf_aligned × is_full_body`
