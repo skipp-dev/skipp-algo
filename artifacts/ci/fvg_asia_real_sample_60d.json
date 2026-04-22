@@ -1,0 +1,143 @@
+{
+  "source": "databento DBEQ.BASIC ohlcv-5m, full 24h",
+  "window": {
+    "start": "2026-02-21T00:00:00+00:00",
+    "end": "2026-04-22T00:00:00+00:00"
+  },
+  "universe": [
+    "TSLA",
+    "NVDA",
+    "AAPL",
+    "AMZN",
+    "META",
+    "MSFT",
+    "GOOGL",
+    "SPY",
+    "QQQ"
+  ],
+  "timeframes": [
+    "5m",
+    "15m",
+    "1H"
+  ],
+  "summary": {
+    "n_total": 20045,
+    "per_session": [
+      {
+        "session": "ASIA",
+        "n_events": 158,
+        "lenient_hr": 0.3671,
+        "strict_partial_50_hr": 0.8734,
+        "delta_strict_minus_lenient": 0.5063,
+        "tf_breakout": {
+          "5m": 27,
+          "15m": 60,
+          "1H": 71
+        },
+        "symbol_breakout": {
+          "TSLA": 10,
+          "NVDA": 6,
+          "AAPL": 6,
+          "AMZN": 5,
+          "META": 18,
+          "MSFT": 14,
+          "GOOGL": 5,
+          "SPY": 43,
+          "QQQ": 51
+        }
+      },
+      {
+        "session": "LONDON",
+        "n_events": 5108,
+        "lenient_hr": 0.6686,
+        "strict_partial_50_hr": 0.9278,
+        "delta_strict_minus_lenient": 0.2592,
+        "tf_breakout": {
+          "5m": 3271,
+          "15m": 1412,
+          "1H": 425
+        },
+        "symbol_breakout": {
+          "TSLA": 624,
+          "NVDA": 650,
+          "AAPL": 361,
+          "AMZN": 461,
+          "META": 452,
+          "MSFT": 494,
+          "GOOGL": 361,
+          "SPY": 802,
+          "QQQ": 903
+        }
+      },
+      {
+        "session": "NONE",
+        "n_events": 4640,
+        "lenient_hr": 0.5287,
+        "strict_partial_50_hr": 0.9062,
+        "delta_strict_minus_lenient": 0.3776,
+        "tf_breakout": {
+          "5m": 3196,
+          "15m": 1157,
+          "1H": 287
+        },
+        "symbol_breakout": {
+          "TSLA": 505,
+          "NVDA": 430,
+          "AAPL": 349,
+          "AMZN": 345,
+          "META": 533,
+          "MSFT": 545,
+          "GOOGL": 348,
+          "SPY": 737,
+          "QQQ": 848
+        }
+      },
+      {
+        "session": "NY_AM",
+        "n_events": 5931,
+        "lenient_hr": 0.5969,
+        "strict_partial_50_hr": 0.8933,
+        "delta_strict_minus_lenient": 0.2964,
+        "tf_breakout": {
+          "5m": 4107,
+          "15m": 1400,
+          "1H": 424
+        },
+        "symbol_breakout": {
+          "TSLA": 712,
+          "NVDA": 606,
+          "AAPL": 631,
+          "AMZN": 635,
+          "META": 665,
+          "MSFT": 693,
+          "GOOGL": 678,
+          "SPY": 668,
+          "QQQ": 643
+        }
+      },
+      {
+        "session": "NY_PM",
+        "n_events": 4208,
+        "lenient_hr": 0.5658,
+        "strict_partial_50_hr": 0.9389,
+        "delta_strict_minus_lenient": 0.3731,
+        "tf_breakout": {
+          "5m": 3034,
+          "15m": 943,
+          "1H": 231
+        },
+        "symbol_breakout": {
+          "TSLA": 514,
+          "NVDA": 420,
+          "AAPL": 495,
+          "AMZN": 419,
+          "META": 511,
+          "MSFT": 447,
+          "GOOGL": 450,
+          "SPY": 473,
+          "QQQ": 479
+        }
+      }
+    ]
+  }
+}
