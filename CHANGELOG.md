@@ -6,6 +6,17 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-09-21) — Plan 2.8 positive-or-zero int records + rb + leading-apostrophe lines
+
+- `scripts/plan_2_8_ledger_positive_or_zero_int_only_record_count.py`
+  counts non-empty ledger records whose every value is a non-negative
+  ``int`` (excluding ``bool``).
+- `scripts/plan_2_8_digest_rb_file_count.py` counts top-level `.rb`
+  files.
+- `scripts/plan_2_8_weekly_summary_leading_apostrophe_line_count.py`
+  counts non-empty lines whose first character is ``'``.
+- Weekly digest workflow wires three fail-soft compute+upload step pairs.
+
 ### Added (2026-09-20) — Plan 2.8 numeric-or-bool records + swift + trailing-quote lines
 
 - `scripts/plan_2_8_ledger_numeric_or_bool_only_record_count.py`
