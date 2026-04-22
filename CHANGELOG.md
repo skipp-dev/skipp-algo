@@ -6,6 +6,16 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-10-18) — Plan 2.8 dict-or-empty-list records + do + trailing-backslash lines
+
+- `scripts/plan_2_8_ledger_dict_or_empty_list_only_record_count.py`
+  counts non-empty ledger records whose every value is a dict or an
+  empty ``list``.
+- `scripts/plan_2_8_digest_do_file_count.py` counts top-level `.do` files.
+- `scripts/plan_2_8_weekly_summary_trailing_backslash_line_count.py`
+  counts non-empty lines whose last character is ``\``.
+- Weekly digest workflow wires three fail-soft compute+upload step pairs.
+
 ### Added (2026-10-17) — Plan 2.8 list-or-empty-dict records + sas + leading-backslash lines
 
 - `scripts/plan_2_8_ledger_list_or_empty_dict_only_record_count.py`
