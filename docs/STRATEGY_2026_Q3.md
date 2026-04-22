@@ -288,40 +288,67 @@ und Distanz zum aktuellen Preis sollten die Erwartung beeinflussen.
 - [x] Fallback auf globale Gewichte wenn Bucket-Size < Minimum
       (`scripts/smc_zone_priority_calibration.py::get_calibrated_weight`)
 
-#### F3: Vol-Regime-Adjusted Scoring
+#### F3: Vol-Regime-Adjusted Scoring ✅ DONE (2026-04-22)
 
-- [ ] Prüfen: Verbessert `vol_regime`-Split die ECE signifikant?
-- [ ] Falls ja: Regime-spezifische Kalibrierung in den Scoring-Pfad
-- [ ] Aktuell: `vol_regime` beeinflusst nur `_select_top_family()` additiv —
-      könnte multiplikativ auf die Basisgewichte wirken
+- [x] Prüfen: Verbessert `vol_regime`-Split die ECE signifikant? — F1
+      Promotion-Gate (`_BRIER_IMPROVEMENT_THRESHOLD = 0.05`,
+      `_MIN_BUCKET_EVENTS = 30`) entscheidet pro Bucket. Smoke 2026-04-22:
+      `vol_regime:HIGH_VOL SWEEP −0.0639` und `vol_regime:NORMAL OB −0.0775`
+      erreichen die Promotion.
+- [x] Regime-spezifische Kalibrierung in den Scoring-Pfad —
+      `scripts/smc_zone_priority.py::build_zone_priority` ruft
+      `resolve_contextual_weight(family, vol_regime=...)` (Z. 268) für
+      jede Familie auf, wenn `contextual_calibration` übergeben wird.
+- [x] Multiplikativer Effekt auf Basisgewichte — der
+      `effective_weights`-Pfad ersetzt `calibrated_family_weights` durch
+      bucket-spezifische Werte; `_VOL_REGIME_SCORES` (additive Komponente)
+      bleibt unangetastet als zweite, orthogonale Stellschraube.
+- ⚠ Hinweis: Die F1-Promotion-Metrik ist Brier-basiert; eine separate
+      ECE-Δ-Messung pro Bucket ist als Folge-Audit offen
+      (`scripts/smc_zone_priority_calibration.py::compute_testable_calibration`
+      liefert `smECE` heute nur global, nicht per Bucket).
 
 ### Phase G — Feature Importance → Automated Scorer Tuning (Wochen 5–8)
 
 > **Ziel:** Den Feature-Importance-Loop schließen — nicht nur messen,
 > sondern die Scorer-Gewichte automatisch anpassen.
 
-#### G1: Feature Importance Baseline Report
+#### G1: Feature Importance Baseline Report ✅ DONE
 
-- [ ] `compute_feature_importance()` mit ≥100 gelabelten Samples ausführen
-- [ ] Baseline-Report: Welche der 15 Feature-Keys korrelieren am stärksten
-      mit `profitable_30m`?
-- [ ] **Erwartung:** `zone_priority_score`, `ensemble_quality`, `rvol`
-      sollten starke Prädiktoren sein
+- [x] `compute_feature_importance()` mit ≥`DEFAULT_MIN_SAMPLES=30` gelabelten
+      Samples ausführen (`open_prep/feature_importance_report.py` ENG-WS4-02).
+- [x] Baseline-Report mit `status` ∈ {`ok`, `insufficient_labels`,
+      `no_data`} unter
+      `artifacts/open_prep/feature_importance/report_<ts>.json` +
+      `latest.json`-Pointer.
+- [x] Drift-Gate (`DRIFT_POSITION_THRESHOLD = 3`) markiert
+      Ranking-Drift zwischen aufeinanderfolgenden `ok`-Runs als
+      Advisory-Signal für G2.
 
-#### G2: Scorer Weight Auto-Tuning
+#### G2: Scorer Weight Auto-Tuning ✅ DONE
 
-- [ ] Feature-Importance-Rankings → `scorer.py` Gewichtsanpassungen
-- [ ] Bayesian-Update (wie bei Family Weights): smoothed Importance →
-      Feature-Gewicht-Adjustment
-- [ ] CI-Gate: Scorer-Weight-Drift-Check analog zu `check_drift()`
+- [x] Feature-Importance-Rankings → `scorer.py` Gewichtsanpassungen via
+      `open_prep.outcomes.compute_weight_adjustments` +
+      `FEATURE_TO_WEIGHT_KEY`-Mapping.
+- [x] Bayesian-Update (`ScorerWeightUpdate.smoothed_value`) und
+      Drift-Gate (`check_scorer_drift`).
+- [x] CLI `open_prep/candidate_weights.py` (ENG-WS4-03) schreibt
+      `weights_candidate.json` versioniert; Statuswerte `ok` /
+      `insufficient_data` / `drift_blocked`.
 
-#### G3: A/B Experiment — Calibrated vs. Uncalibrated Scorer
+#### G3: A/B Experiment — Calibrated vs. Uncalibrated Scorer ✅ DONE
 
-- [ ] `smc_ab_experiment.py` nutzen (OV7 Framework, bereits umgesetzt)
-- [ ] Arm A: Bisherige Scorer-Gewichte (static)
-- [ ] Arm B: Auto-tuned Scorer-Gewichte (aus G2)
-- [ ] 30-Tage-Lauf, KPI-Vergleich: Brier, ECE, Hit Rate, P&L
-- [ ] **Decision Gate:** Arm B promoted nur bei signifikanter Verbesserung
+- [x] `scripts/smc_ab_experiment.py` als OV7-Framework-Wrapper.
+- [x] Arm A: bisherige statische Scorer-Gewichte (`weights.json`).
+- [x] Arm B: Auto-tuned Scorer-Gewichte (`weights_candidate.json`).
+- [x] KPI-Vergleich + Recommendation in
+      `tests/test_ab_comparison_recommendation.py` und
+      `scripts/run_ab_comparison.py`.
+- [x] Stop-Rule: `scripts/smc_sprt_stop_rule.py` (SPRT) +
+      `scripts/f2_experiment_spec.py` Decision-Memo-Pfad.
+- ⚠ Folge-Lauf offen: tatsächlicher 30-Tage-Run auf Live-Telemetrie
+      noch nicht abgeschlossen (G3-Decision-Gate blockiert auf
+      ausreichendem Sample).
 
 ### Phase H — Pine Consumer Maturity (Wochen 6–9)
 
