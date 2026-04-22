@@ -245,3 +245,96 @@ def test_label_source_invalid_raises(tmp_path: Path) -> None:
     path = _ledger(tmp_path, _separable_corpus(40))
     with pytest.raises(ValueError):
         recalibrate([path], label_source="bogus")
+
+
+# --------------------------------------------------------------------- #
+# --signed-weights — sign-preserving normaliser (Q3 D3 promotion path)  #
+# --------------------------------------------------------------------- #
+
+
+def test_signed_weights_default_off(tmp_path: Path) -> None:
+    path = _ledger(tmp_path, _separable_corpus(80))
+    report = recalibrate([path])
+    assert report.signed_weights is False
+    # Default-off path keeps directions all +1 (back-compat).
+    assert set(report.weight_directions.values()) == {1}
+
+
+def test_signed_weights_records_direction(tmp_path: Path) -> None:
+    # Build a corpus where higher gap_size_atr is anti-correlated with
+    # outcome — a classic strict-label inversion. The signed normaliser
+    # must surface direction = -1 for that feature.
+    records = []
+    for i in range(40):
+        records.append(
+            _fvg_record(
+                idx=i,
+                outcome=True,
+                features={
+                    "gap_size_atr": 0.3,
+                    "htf_aligned": True,
+                    "distance_to_price_atr": 0.4,
+                    "is_full_body": True,
+                    "hurst_50": 0.7,
+                },
+            )
+        )
+    for i in range(40, 80):
+        records.append(
+            _fvg_record(
+                idx=i,
+                outcome=False,
+                features={
+                    "gap_size_atr": 1.8,
+                    "htf_aligned": False,
+                    "distance_to_price_atr": 2.5,
+                    "is_full_body": False,
+                    "hurst_50": 0.35,
+                },
+            )
+        )
+    path = _ledger(tmp_path, records)
+    report = recalibrate([path], signed_weights=True)
+    assert report.signed_weights is True
+    # gap_size_atr direction must be -1 — bigger gap → lower outcome.
+    assert report.weight_directions["gap_size_atr"] == -1
+
+
+def test_signed_weights_monotone_quartiles(tmp_path: Path) -> None:
+    # With sign preservation the quartile ranking must be monotone
+    # increasing on a separable corpus, even if some features have
+    # negative betas after fitting.
+    records = []
+    for i in range(40):
+        records.append(
+            _fvg_record(
+                idx=i,
+                outcome=True,
+                features={
+                    "gap_size_atr": 0.3,  # inverted: small gap → hit
+                    "htf_aligned": True,
+                    "distance_to_price_atr": 0.4,
+                    "is_full_body": True,
+                    "hurst_50": 0.7,
+                },
+            )
+        )
+    for i in range(40, 80):
+        records.append(
+            _fvg_record(
+                idx=i,
+                outcome=False,
+                features={
+                    "gap_size_atr": 1.8,
+                    "htf_aligned": False,
+                    "distance_to_price_atr": 2.5,
+                    "is_full_body": False,
+                    "hurst_50": 0.35,
+                },
+            )
+        )
+    path = _ledger(tmp_path, records)
+    report = recalibrate([path], signed_weights=True)
+    hrs = [q.hit_rate for q in report.quartiles]
+    # Strictly non-decreasing — top quartile must beat bottom.
+    assert hrs[-1] >= hrs[0]

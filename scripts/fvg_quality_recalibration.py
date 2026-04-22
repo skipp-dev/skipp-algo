@@ -94,6 +94,8 @@ class RecalibrationReport:
     n_with_label: int = 0
     weights_legacy: dict[str, float] = field(default_factory=dict)
     weights_shadow: dict[str, float] = field(default_factory=dict)
+    weight_directions: dict[str, int] = field(default_factory=dict)
+    signed_weights: bool = False
     quartiles: list[QuartileStat] = field(default_factory=list)
     spearman_score_outcome: float = float("nan")
     acceptance: dict[str, bool] = field(default_factory=dict)
@@ -225,6 +227,38 @@ def _normalise_to_weights(beta: list[float]) -> dict[str, float]:
     return {key: round(value / cap_total, 4) for key, value in capped.items()}
 
 
+def _signed_directions(beta: list[float]) -> dict[str, int]:
+    """Return per-feature direction (+1 / -1) preserved from the raw
+    L2-logreg fit. A direction of -1 means the feature value should be
+    *inverted* before being multiplied by the matching weight in
+    :func:`_normalise_to_weights`. Zero-coefficient features are mapped
+    to +1 so a downstream consumer never has to special-case them.
+    """
+    out: dict[str, int] = {}
+    for i, key in enumerate(FEATURE_KEYS):
+        out[key] = -1 if beta[i] < 0 else 1
+    return out
+
+
+def _score_with_directions(
+    row: dict[str, float],
+    weights: dict[str, float],
+    directions: dict[str, int],
+    means: dict[str, float],
+) -> float:
+    """Score one row honouring per-feature direction.
+
+    Each feature is centred at its corpus mean before the sign is
+    applied so a positive direction always means "above mean lifts the
+    score" regardless of the raw feature scale.
+    """
+    total = 0.0
+    for key in FEATURE_KEYS:
+        centred = row[key] - means[key]
+        total += weights[key] * directions[key] * centred
+    return total
+
+
 def _quartiles(scores: list[float], outcomes: list[int]) -> list[QuartileStat]:
     if not scores:
         return []
@@ -314,6 +348,7 @@ def recalibrate(
     ledger_paths: list[Path],
     *,
     label_source: str = DEFAULT_LABEL_SOURCE,
+    signed_weights: bool = False,
 ) -> RecalibrationReport:
     """Run the full recalibration pipeline and return a report."""
     if label_source not in LABEL_SOURCES:
@@ -322,6 +357,7 @@ def recalibrate(
         )
     report = RecalibrationReport(
         label_source=label_source,
+        signed_weights=signed_weights,
         weights_legacy=dict(LEGACY_WEIGHTS),
     )
     rows: list[dict[str, float]] = []
@@ -368,11 +404,24 @@ def recalibrate(
 
     beta, _bias = _l2_logreg(matrix, outcomes)
     report.weights_shadow = _normalise_to_weights(beta)
-
-    scores = []
-    for row in rows:
-        s = sum(report.weights_shadow[k] * row[k] for k in FEATURE_KEYS)
-        scores.append(s)
+    if signed_weights:
+        report.weight_directions = _signed_directions(beta)
+        means = {
+            key: sum(row[key] for row in rows) / len(rows)
+            for key in FEATURE_KEYS
+        }
+        scores = [
+            _score_with_directions(
+                row, report.weights_shadow, report.weight_directions, means
+            )
+            for row in rows
+        ]
+    else:
+        report.weight_directions = {key: 1 for key in FEATURE_KEYS}
+        scores = []
+        for row in rows:
+            s = sum(report.weights_shadow[k] * row[k] for k in FEATURE_KEYS)
+            scores.append(s)
 
     quartiles = _quartiles(scores, outcomes)
     report.quartiles = quartiles
@@ -434,10 +483,26 @@ def main(argv: list[str] | None = None) -> int:
             "promoted in the Q3 FVG audit (D1/D3)."
         ),
     )
+    parser.add_argument(
+        "--signed-weights",
+        action="store_true",
+        help=(
+            "Preserve per-feature beta sign from the L2-logreg fit. "
+            "Reports a `weight_directions` dict (+/-1 per feature) and "
+            "computes scores with mean-centred, sign-adjusted features. "
+            "Required for the strict-label promotion path so a feature "
+            "whose direction inverts under the strict label (e.g. "
+            "gap_size_atr) cannot mis-rank events."
+        ),
+    )
     args = parser.parse_args(argv)
 
     paths = sorted(args.corpus_dir.rglob("events_*.jsonl"))
-    report = recalibrate(paths, label_source=args.label_source)
+    report = recalibrate(
+        paths,
+        label_source=args.label_source,
+        signed_weights=args.signed_weights,
+    )
     write_shadow_json(report, args.output)
     accept_status = "PASS" if report.acceptance and all(report.acceptance.values()) else "PENDING"
     print(

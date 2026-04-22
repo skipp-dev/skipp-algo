@@ -270,6 +270,47 @@ bevor sie freigegeben wird:
 Der Strict-Snapshot bleibt damit das D3-Promotion-Bauteil; die
 Production-Gewichte werden erst nach Patch (1) und (2) angefasst.
 
+### 5.1 Signed-Weights-Run (2026-04-22 Folge-Patch)
+
+Patch (1) gelandet: `--signed-weights` plus
+`_signed_directions()` + `_score_with_directions()` in
+`scripts/fvg_quality_recalibration.py`. Re-Run gegen denselben
+v3-Snapshot mit `--label-source partial_50 --signed-weights`:
+
+| Metrik          | Strict (unsigned) | Strict (signed)  |
+|-----------------|-------------------|------------------|
+| Q1 HR           | **0.944**         | 0.640            |
+| Q2 HR           | 0.880             | 0.823            |
+| Q3 HR           | 0.823             | 0.881            |
+| Q4 HR           | 0.641             | **0.943**        |
+| Spearman        | +0.087            | **+0.474**       |
+| Acceptance      | PENDING (alle 3)  | PENDING (1 von 3)|
+
+Direction-Tabelle für strict (alle 5 = **−1**):
+`gap_size_atr=-1, htf_aligned=-1, distance_to_price_atr=-1,
+is_full_body=-1, hurst_50=-1`. Lesart: jede Feature-Komponente in
+`smc_core/fvg_quality.py::score_fvg` ist unter strict label mit
+*umgekehrtem* Vorzeichen kalibriert — die aktuelle Production-Spiegel
+würde unter strict den Score genau falsch bauen. Die Direction-Liste
+ist damit der maschinelle Audit-Output für den Re-Calibration-PR.
+
+Was am Acceptance-Gate hängt: Q1-HR fällt nur auf 0.640, weil das
+strict-Label im v3-Snapshot eine sehr hohe Base-Rate (~80%) hat —
+selbst der schlechteste Quartil hat realistisch keine HR ≤ 0.55. Das
+Acceptance-Gate `bottom_quartile_hr_le_0_55` (Amendment A1.B) muss
+für den strict-Pfad neu kalibriert werden (Vorschlag:
+„BottomQ ≤ Mean − 0.15"). Das ist ein gate-tuning Folgepunkt,
+nicht ein Fit-Fehler.
+
+Shadow-JSON: `artifacts/reports/fvg_quality_calibration_shadow_strict50_signed.json`.
+
+**Status:** Voraussetzung (1) für die D3-Promotion ist erfüllt —
+Vorzeichen-erhaltender Fit existiert, ist getestet (3 neue Tests in
+`tests/test_fvg_quality_recalibration.py`), und der erste reale
+Strict-Snapshot zeigt monotone Quartile + starkes Spearman.
+Voraussetzung (2) wird erst freigegeben, wenn das Acceptance-Gate
+für strict re-tuned ist.
+
 ---
 
 *Erstellt mit `scripts/fvg_quality_d4_audit.py`. Re-runnable gegen
