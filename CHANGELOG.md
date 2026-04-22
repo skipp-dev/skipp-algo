@@ -6,6 +6,16 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-08-31) — Plan 2.8 positive-int records + env + medium lines
+
+- `scripts/plan_2_8_ledger_positive_int_only_record_count.py` counts
+  non-empty ledger records whose every value is a positive ``int``.
+- `scripts/plan_2_8_digest_env_file_count.py` counts top-level `.env`
+  files.
+- `scripts/plan_2_8_weekly_summary_medium_line_count.py` counts lines
+  whose length is between 10 and 79 characters inclusive.
+- Weekly digest workflow wires three fail-soft compute+upload step pairs.
+
 ### Added (2026-08-30) — Plan 2.8 int-or-null records + conf + long lines
 
 - `scripts/plan_2_8_ledger_int_or_null_only_record_count.py` counts
