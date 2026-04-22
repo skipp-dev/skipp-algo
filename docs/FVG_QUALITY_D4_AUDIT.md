@@ -22,6 +22,7 @@ zentralen Quality-Features **null bis invers korreliert**:
 | `is_full_body` (T vs F) | **−0.021** | +0.000 |
 | `gap_size_atr` (Q4 vs Q1) | **−0.239** | **+0.554** |
 | `distance_to_price_atr` (Q4 vs Q1) | **−0.284** | **+0.327** |
+| `hurst_50` (Q4 vs Q1, n=3573) | **+0.000** | +0.018 |
 
 **Konsequenz:** Die in `smc_core/fvg_quality.py` fixierten Gewichte
 (`gap_size_atr 0.30`, `htf_aligned 0.25`, `is_full_body 0.10`,
@@ -84,6 +85,34 @@ Richtung des aktuellen Score-Beitrags müsste validiert werden
 (je näher, desto besser; das Gewicht 0.15 sollte deutlich höher
 sein und negative Distanz bestrafen, nicht belohnen).
 
+### 1.5 `hurst_50` (Quartile, n=3573 — Coverage 62.6%)
+
+| Quartil | Range | n | strict HR | lenient HR |
+|---|---|---:|---:|---:|
+| Q1 (most mean-rev) | ≤ 0.469 | 896 | 0.8147 | 0.5480 |
+| Q2 | 0.469–0.501 | 892 | **0.8419** | 0.5549 |
+| Q3 | 0.501–0.532 | 893 | 0.8186 | 0.5543 |
+| Q4 (most trending) | > 0.532 | 892 | 0.8128 | 0.5661 |
+
+→ **Faktisch flach.** Max-Min strict Δ = 0.029 (innerhalb des
+Sampling-Rauschens). Aktuelles Gewicht 0.20 ist datenfrei. Coverage
+muss vor jeder Hurst-Re-Kalibrierung von 62.6% auf ≥95% gehoben
+werden, sonst sind die Quartile nicht repräsentativ.
+
+### 1.6 `distance_to_price_atr` × Timeframe (Q1 closest vs Q4 farthest)
+
+| TF  | Q1 n | Q1 strict HR | Q4 n | Q4 strict HR | Δ Q1−Q4 |
+|---|---:|---:|---:|---:|---:|
+| 5m  | 1023 | **0.9345** |  841 | 0.6373 | **+0.297** |
+| 15m |  142 | **0.9437** |  246 | 0.6341 | **+0.310** |
+| 1H  |   86 | 0.8837 |  137 | 0.7153 | +0.168 |
+| 4H  |   25 | 0.8800 |   51 | 0.6863 | +0.194 |
+
+→ Inversion ist **TF-übergreifend stabil** (jeder TF zeigt das gleiche
+Vorzeichen, alle Δ ≥ 0.17). Auf 5m und 15m beträgt die Spreizung
+~30pp. Damit ist `distance_to_price_atr` nicht nur das stärkste,
+sondern auch das **robusteste** Quality-Signal im aktuellen Feature-Set.
+
 ## 2. Combined Conditional HR
 
 ### 2.1 `htf_aligned × is_full_body`
@@ -133,6 +162,12 @@ liefert die **höchste strict HR im gesamten Audit (0.929)**.
    werden, sonst schlagen die `insufficient_features`-Fallbacks zu
    und verwässern jede Re-Kalibrierung.
 
+   **Update §1.5:** Selbst bei voller Coverage ist `hurst_50` unter
+   strict label faktisch ein Null-Signal (max Quartil-Δ = 0.029).
+   Die Empfehlung verschiebt sich von „erst Coverage heben" zu
+   „Gewicht von 0.20 auf 0.0 droppen, bis ein anderer Use-Case für
+   Hurst gefunden ist".
+
 ## 4. Nächste Schritte
 
 1. **D4 in STRATEGY §3.D4 als DONE markieren** mit dem o.g. Verdikt.
@@ -141,6 +176,13 @@ liefert die **höchste strict HR im gesamten Audit (0.929)**.
    sonst regressiert die FVG-Quality-Komponente.
 3. **`hurst_50` D4.5 audit** als Folge-Auftrag (eigener Snapshot mit
    ≥95% Coverage erforderlich).
+
+   **Update §1.5 (2026-04-22 follow-up):** Auf Basis der vorhandenen
+   62.6%-Coverage ist Hurst bereits auswertbar und liefert max-min
+   Δ = 0.029 — kein verwertbares Signal. Die Coverage-Erhöhung kann
+   damit *nicht* als Voraussetzung für die Promotion-Re-Calibration
+   gelten. `hurst_50` wird in der Re-Calibration auf Gewicht 0.0
+   gesetzt.
 
 ---
 

@@ -161,7 +161,55 @@ def main() -> int:
             ]
             _print_bucket(f"aligned={ha!s} full_body={fb!s}", sel)
 
-    # 6. Top / Bottom quality combos (need both quantile sets)
+    # 6. hurst_50 quartiles (D4.5 — coverage 62.6% in v3 snapshot)
+    print("\n--- hurst_50 (quartiles) ---")
+    hs = [(e, (e.get("features") or {}).get("hurst_50")) for e in ev]
+    hs = [(e, x) for e, x in hs if x is not None]
+    hs.sort(key=lambda t: t[1])
+    print(
+        f"  n_with_hurst_50 = {len(hs)} "
+        f"({100 * len(hs) / max(len(ev), 1):.1f}% coverage)"
+    )
+    if len(hs) >= 4:
+        hurst_q = statistics.quantiles([x for _, x in hs], n=4)
+        print(f"  Q1={hurst_q[0]:.3f} Q2={hurst_q[1]:.3f} Q3={hurst_q[2]:.3f}")
+        for name, lo, hi in (
+            ("Q1 (most mean-rev)", float("-inf"), hurst_q[0]),
+            ("Q2", hurst_q[0], hurst_q[1]),
+            ("Q3", hurst_q[1], hurst_q[2]),
+            ("Q4 (most trending)", hurst_q[2], float("inf")),
+        ):
+            sel = [e for e, x in hs if lo < x <= hi]
+            _print_bucket(name, sel)
+
+    # 7. Per-TF breakdown of the dominant signal: distance_to_price_atr
+    if dist_q is not None:
+        print(
+            "\n--- distance_to_price_atr × timeframe (Q1 closest vs Q4 farthest) ---"
+        )
+        tfs = sorted({e.get("timeframe") for e in ev if e.get("timeframe")})
+        for tf in tfs:
+            tf_ev = [e for e in ev if e.get("timeframe") == tf]
+            close_b = [
+                e for e in tf_ev
+                if (e.get("features") or {}).get("distance_to_price_atr") is not None
+                and (e.get("features") or {})["distance_to_price_atr"] <= dist_q[0]
+            ]
+            far_b = [
+                e for e in tf_ev
+                if (e.get("features") or {}).get("distance_to_price_atr") is not None
+                and (e.get("features") or {})["distance_to_price_atr"] > dist_q[2]
+            ]
+            close_hr, close_n = _rollup(close_b, "strict")
+            far_hr, far_n = _rollup(far_b, "strict")
+            close_str = f"{close_hr:.4f}" if close_hr is not None else "—"
+            far_str = f"{far_hr:.4f}" if far_hr is not None else "—"
+            print(
+                f"  TF {tf:4s}: Q1 (n={close_n:4d}) strict={close_str}  "
+                f"Q4 (n={far_n:4d}) strict={far_str}"
+            )
+
+    # 8. Top / Bottom quality combos (need both quantile sets)
     if gap_q is not None and dist_q is not None:
         print("\n--- Top-quality combo (aligned & full_body & gap≥Q3 & dist≤Q1) ---")
         top = [
