@@ -6,6 +6,16 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-09-04) — Plan 2.8 string-or-bool records + dat + trailing-hyphen lines
+
+- `scripts/plan_2_8_ledger_string_or_bool_only_record_count.py` counts
+  non-empty ledger records whose every value is a ``str`` or ``bool``.
+- `scripts/plan_2_8_digest_dat_file_count.py` counts top-level `.dat`
+  files.
+- `scripts/plan_2_8_weekly_summary_trailing_hyphen_line_count.py` counts
+  non-empty lines whose last character is an ASCII hyphen.
+- Weekly digest workflow wires three fail-soft compute+upload step pairs.
+
 ### Added (2026-09-03) — Plan 2.8 numeric-or-null records + tmp + leading-hyphen lines
 
 - `scripts/plan_2_8_ledger_numeric_or_null_only_record_count.py` counts
