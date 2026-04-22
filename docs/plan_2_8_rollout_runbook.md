@@ -923,6 +923,9 @@ read.
 - `tests/test_plan_2_8_ledger_numeric_only_record_count.py`
 - `tests/test_plan_2_8_digest_toml_file_count.py`
 - `tests/test_plan_2_8_weekly_summary_single_word_line_count.py`
+- `tests/test_plan_2_8_ledger_string_or_null_only_record_count.py`
+- `tests/test_plan_2_8_digest_ini_file_count.py`
+- `tests/test_plan_2_8_weekly_summary_multi_word_line_count.py`
 - `tests/test_plan_2_8_alert_history.py`
 - `tests/test_plan_2_8_alert_history_summary.py`
 - `tests/test_plan_2_8_digest_rollup.py`

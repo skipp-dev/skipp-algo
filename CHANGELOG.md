@@ -6,6 +6,16 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-08-28) — Plan 2.8 string-or-null records + ini + multi-word lines
+
+- `scripts/plan_2_8_ledger_string_or_null_only_record_count.py` counts
+  non-empty ledger records whose every value is either ``str`` or null.
+- `scripts/plan_2_8_digest_ini_file_count.py` counts top-level `.ini`
+  files.
+- `scripts/plan_2_8_weekly_summary_multi_word_line_count.py` counts
+  lines containing two or more whitespace-separated tokens.
+- Weekly digest workflow wires three fail-soft compute+upload step pairs.
+
 ### Added (2026-08-27) — Plan 2.8 numeric-only records + toml + single-word lines
 
 - `scripts/plan_2_8_ledger_numeric_only_record_count.py` counts non-empty
