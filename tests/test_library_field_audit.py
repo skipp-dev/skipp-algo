@@ -164,12 +164,19 @@ def _collect_generated_fields() -> set[str]:
     from scripts.smc_hero_market_mode import PINE_HERO_MARKET_FIELDS
     from scripts.smc_hero_setup_quality import PINE_HERO_QUALITY_FIELDS
     from scripts.smc_hero_action import PINE_HERO_ACTION_FIELDS
+    # ZONE_HR_<FAM> per-family hit-rate exports are emitted by
+    # generate_smc_micro_profiles.py via a two-stage f-string
+    # indirection (``key = f"ZONE_HR_{fam}"``) that the regex above
+    # cannot resolve. Pin to the canonical DEFAULTS dict in
+    # smc_zone_priority_consumer (see ADR 2026-04-22).
+    from scripts.smc_zone_priority_consumer import DEFAULTS as _ZH_DEFAULTS
 
     fields.update(PINE_TRUST_FIELDS)
     fields.update(PINE_ACTION_DEGRADATION_FIELDS)
     fields.update(PINE_HERO_MARKET_FIELDS)
     fields.update(PINE_HERO_QUALITY_FIELDS)
     fields.update(PINE_HERO_ACTION_FIELDS)
+    fields.update(_ZH_DEFAULTS.keys())
     return fields
 
 
@@ -197,6 +204,29 @@ def test_all_pine_mp_refs_resolve_to_generated_fields() -> None:
     assert orphans == [], (
         f"Pine mp.* references to non-existent library fields:\n"
         + "\n".join(orphans)
+    )
+
+
+@pytest.mark.parametrize("family", ["OB", "FVG", "BOS", "SWEEP"])
+def test_zone_hr_family_export_is_audit_visible(family: str) -> None:
+    """Regression pin (ADR 2026-04-22): every ZONE_HR_<FAM> export must be
+    discoverable by the orphan audit, even though the generator emits them
+    through a two-stage f-string indirection that the regex scan cannot
+    resolve. Wired via the canonical DEFAULTS import in
+    :func:`_collect_generated_fields`.
+    """
+    from scripts.smc_zone_priority_consumer import FAMILIES
+
+    assert family in FAMILIES, (
+        f"Test fixture drift: {family!r} not in canonical FAMILIES tuple "
+        f"({FAMILIES!r}). Update both together."
+    )
+    generated = _collect_generated_fields()
+    field = f"ZONE_HR_{family}"
+    assert field in generated, (
+        f"Canonical export {field!r} is invisible to the orphan audit. "
+        f"Check scripts/smc_zone_priority_consumer.DEFAULTS and the\n"
+        f"DEFAULTS import in tests/test_library_field_audit.py."
     )
 
 
@@ -373,6 +403,23 @@ from scripts.smc_hero_action import (  # noqa: E402
 )
 
 RESERVED_PINE_EXPORTS.update(PINE_HERO_ACTION_FIELDS)
+
+# ADR 2026-04-22 — Phase H Pine Consumer Maturity scaffolding. The
+# generator emits these via smc_zone_priority_consumer.DEFAULTS, but
+# only ZONE_HR_FVG currently has a Pine consumer (SMC_Dashboard.pine
+# audit + ex-band warnings). The remaining trust scalars and per-family
+# HR exports are reserved for the upcoming Pine consumer expansion
+# (P0-Folge-Patch — wires OB/BOS/SWEEP audit blocks + dashboard trust
+# pill). Surfaced by the orphan-audit fix that wired DEFAULTS into the
+# generated-field collection.
+RESERVED_PINE_EXPORTS.update({
+    "ZONE_CAL_CONFIDENCE",
+    "ZONE_CAL_TREND",
+    "ZONE_CAL_TRUST",
+    "ZONE_HR_OB",
+    "ZONE_HR_BOS",
+    "ZONE_HR_SWEEP",
+})
 
 # Backwards-compatible alias (keeps any external callers happy).
 _INFRA_ONLY: set[str] = PYTHON_ONLY_EXPORTS | RESERVED_PINE_EXPORTS

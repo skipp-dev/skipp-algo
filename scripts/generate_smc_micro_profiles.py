@@ -1110,6 +1110,7 @@ def write_pine_library(
     # Pine consumer always sees a renderable value.
     from scripts.smc_zone_priority_consumer import (
         DEFAULTS as _ZH_DEFAULTS,
+        FAMILIES as _ZH_FAMILIES,
         build_consumer_exports,
     )
 
@@ -1126,7 +1127,7 @@ def write_pine_library(
         f"export const float ZONE_CAL_CONFIDENCE = "
         f"{float(consumer.get('ZONE_CAL_CONFIDENCE', _ZH_DEFAULTS['ZONE_CAL_CONFIDENCE'])):.4f}"
     )
-    for fam in ("OB", "FVG", "BOS", "SWEEP"):
+    for fam in _ZH_FAMILIES:
         key = f"ZONE_HR_{fam}"
         content.append(
             f"export const float {key} = "

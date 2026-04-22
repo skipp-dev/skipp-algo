@@ -51,7 +51,12 @@ DEFAULTS: dict[str, Any] = {
     "ZONE_CAL_TRUST": TRUST_UNAVAILABLE,
 }
 
-_FAMILIES: tuple[str, ...] = ("OB", "FVG", "BOS", "SWEEP")
+# Canonical family list for the per-family ZONE_HR_<FAM> exports.
+# Public so downstream callers (notably generate_smc_micro_profiles.py and
+# tests/test_library_field_audit.py) can pin to the same single source of
+# truth instead of redeclaring the tuple — see ADR 2026-04-22.
+FAMILIES: tuple[str, ...] = ("OB", "FVG", "BOS", "SWEEP")
+_FAMILIES: tuple[str, ...] = FAMILIES  # Backwards-compatible alias.
 
 # H1 confidence tuning. The 1000-event saturation point matches the Q3
 # success-target ("Total Events ≥ 1.000") in docs/STRATEGY_2026_Q3.md.
