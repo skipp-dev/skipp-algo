@@ -6,6 +6,16 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-08-25) — Plan 2.8 homogeneous-value records + pkr + space-only lines
+
+- `scripts/plan_2_8_ledger_homogeneous_value_record_count.py` counts
+  non-empty ledger records whose every value shares the same type bucket.
+- `scripts/plan_2_8_digest_pkr_file_count.py` counts top-level `.pkr`
+  files.
+- `scripts/plan_2_8_weekly_summary_space_only_line_count.py` counts
+  non-empty lines whose every char is an ASCII space (excludes tabs).
+- Weekly digest workflow wires three fail-soft compute+upload step pairs.
+
 ### Added (2026-08-24) — Plan 2.8 float-only records + gpx + digit-or-space lines
 
 - `scripts/plan_2_8_ledger_float_only_record_count.py` counts non-empty

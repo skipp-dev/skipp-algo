@@ -914,6 +914,9 @@ read.
 - `tests/test_plan_2_8_ledger_float_only_record_count.py`
 - `tests/test_plan_2_8_digest_gpx_file_count.py`
 - `tests/test_plan_2_8_weekly_summary_digit_or_space_line_count.py`
+- `tests/test_plan_2_8_ledger_homogeneous_value_record_count.py`
+- `tests/test_plan_2_8_digest_pkr_file_count.py`
+- `tests/test_plan_2_8_weekly_summary_space_only_line_count.py`
 - `tests/test_plan_2_8_alert_history.py`
 - `tests/test_plan_2_8_alert_history_summary.py`
 - `tests/test_plan_2_8_digest_rollup.py`
