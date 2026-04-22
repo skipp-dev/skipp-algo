@@ -388,15 +388,26 @@ und Distanz zum aktuellen Preis sollten die Erwartung beeinflussen.
       `scripts/generate_smc_micro_base_from_databento.py` füttert
       `family_stats` + `total_events` + `smooth_ece` (aus
       `zone_priority_per_bucket_calibration.json` größtes OK-Bucket).
-- ⚠ Hinweis: Eine echte History-Quelle (`zone_priority_calibration_history`)
+- ⚠ ~~Hinweis: Eine echte History-Quelle (`zone_priority_calibration_history`)
       ist noch nicht produziert; bis dahin fällt der Trend deterministisch
-      auf `STABLE` zurück (per `DEFAULTS`).
+      auf `STABLE` zurück (per `DEFAULTS`).~~ ✅ CLOSED 2026-04-22 — rolling
+      JSONL via `scripts/smc_zone_priority_calibration.py::append_history_entry`
+      (Retention 50). Producer (`generate_smc_micro_base_from_databento.py`)
+      lädt die letzten 10 Einträge via `load_history_entries` in
+      `enr["zone_priority_calibration_history"]`. CLI smoke v3:
+      `weighted_hit_rate=0.607`, `smooth_ece=0.137`.
 
-#### H4: FVG Health Warning
+#### H4: FVG Health Warning ✅ DONE (2026-04-22)
 
-- [ ] Wenn FVG Hit Rate < 65%: explizite Dashboard-Warnung
-- [ ] "⚠ FVG zones underperforming (59% HR) — prefer OB/BOS setups"
-- [ ] Automatisch aus kalibriertem Gewicht abgeleitet
+- [x] Wenn FVG Hit Rate < 65%: explizite Dashboard-Warnung
+      (`SMC_Dashboard.pine::fvg_calibration_warning_text`).
+- [x] "⚠ FVG zones underperforming (XX% HR) — prefer OB/BOS setups" —
+      Setup-Check Row 12 + Audit-View Row 33 nutzen
+      `fvg_combined_warning_text` (Calibration-Warning hat Vorrang vor
+      live-zone health). Setup-Check failt jetzt auch dann, wenn nur
+      `ZONE_HR_FVG < 0.65` (live FVG Health unverändert grün).
+- [x] Automatisch aus kalibriertem Gewicht abgeleitet via `mp.ZONE_HR_FVG`
+      (Phase H Export, Default 0.0 bleibt stumm bis erste Kalibrierung).
 
 ---
 
