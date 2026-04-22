@@ -198,6 +198,17 @@ und Distanz zum aktuellen Preis sollten die Erwartung beeinflussen.
 > verstärkt der Quality-Score genau die falschen Events. Single-PR-
 > Discipline: Promotion und Re-Calibration müssen als ein Commit
 > landen.
+>
+> **D3-Promotion gelandet (2026-04-22):** `smc_core/fvg_quality.py`
+> jetzt auf `WEIGHT_VERSION = "strict_v1_no_hurst"` (Gewichte
+> `0.45 / 0.0735 / 0.45 / 0.0515 / 0.0` mit Direktionen
+> `{-1, -1, -1, -1, 0}`). `scripts/fvg_quality_recalibration.py`
+> Defaults: `label_source=partial_50`, `signed_weights=True`,
+> `acceptance_mode=relative`. Pine-Spiegel
+> `SMC_Core_Engine.pine::fvg_quality_score` ist NICHT mit-promoted
+> (Pine-vs-Python-Feature-Disjunktion — siehe
+> `docs/FVG_QUALITY_D4_AUDIT.md` §6 + Memory
+> `fvg-quality-pine-python-feature-disjunction.md`).
 
 ### Phase E — Scale & Diversification (Wochen 2–5)
 

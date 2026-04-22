@@ -63,6 +63,68 @@ _MULTIPLIER_MIN = 0.5
 _MULTIPLIER_MAX = 1.5
 
 
+# --- Weight versioning (Q3 D3 promotion, 2026-04-22) -------------------
+#
+# Two weight regimes coexist so a caller can pick the semantic it
+# wants without touching the function body:
+#
+# * LENIENT_WEIGHTS — the original D4-scaffold weights. Tuned for the
+#   "outcome" label (full hit). Higher feature values lift the score.
+# * STRICT_V1_NO_HURST_WEIGHTS — promoted from the L2-logreg
+#   recalibration on the strict ``partial_50`` label (≥50% partial
+#   fill). Re-normalised after dropping ``hurst_50`` (audit §1.5: null
+#   signal). Pairs with ``STRICT_V1_NO_HURST_DIRECTIONS`` (all -1
+#   except hurst=0) and ``STRICT_V1_NO_HURST_MEANS`` (component-space
+#   neutral = 0.5).
+#
+# Production default flips to STRICT in this commit. Callers that need
+# the old behaviour for a back-compat path can pass LENIENT_WEIGHTS +
+# LENIENT_DIRECTIONS + LENIENT_MEANS explicitly.
+
+LENIENT_WEIGHTS: dict[str, float] = {
+    "gap_size_atr": 0.30,
+    "htf_aligned": 0.25,
+    "distance_to_price_atr": 0.15,
+    "is_full_body": 0.10,
+    "hurst_50": 0.20,
+}
+LENIENT_DIRECTIONS: dict[str, int] = {k: 1 for k in LENIENT_WEIGHTS}
+LENIENT_MEANS: dict[str, float] = {k: 0.0 for k in LENIENT_WEIGHTS}
+
+STRICT_V1_NO_HURST_WEIGHTS: dict[str, float] = {
+    "gap_size_atr": 0.45,
+    "htf_aligned": 0.0735,
+    "distance_to_price_atr": 0.45,
+    "is_full_body": 0.0515,
+    "hurst_50": 0.0,
+}
+STRICT_V1_NO_HURST_DIRECTIONS: dict[str, int] = {
+    "gap_size_atr": -1,
+    "htf_aligned": -1,
+    "distance_to_price_atr": -1,
+    "is_full_body": -1,
+    "hurst_50": 0,  # 0 = unused (audit §1.5: hurst is null-signal under strict)
+}
+STRICT_V1_NO_HURST_MEANS: dict[str, float] = {k: 0.5 for k in STRICT_V1_NO_HURST_WEIGHTS}
+
+WEIGHT_VERSION = "strict_v1_no_hurst"
+DEFAULT_WEIGHTS = STRICT_V1_NO_HURST_WEIGHTS
+DEFAULT_DIRECTIONS = STRICT_V1_NO_HURST_DIRECTIONS
+DEFAULT_MEANS = STRICT_V1_NO_HURST_MEANS
+
+# Component name → feature name map. Components live in [0,1] after
+# the per-component transform; the directions/means dicts above are
+# keyed by *feature* name, so we need to translate when applying the
+# signed formula.
+_COMPONENT_TO_FEATURE: dict[str, str] = {
+    "gap_size": "gap_size_atr",
+    "htf_aligned": "htf_aligned",
+    "distance": "distance_to_price_atr",
+    "full_body": "is_full_body",
+    "hurst": "hurst_50",
+}
+
+
 @dataclass(slots=True, frozen=True)
 class FvgQualityScore:
     score: float
@@ -152,7 +214,42 @@ def _component_hurst(hurst: float | None) -> float:
     return _clamp(0.5 + 1.5 * (hurst - 0.5), 0.0, 1.0)
 
 
-def score_fvg(event: dict[str, Any]) -> FvgQualityScore:
+def _score_with_directions(
+    components: dict[str, float],
+    weights: dict[str, float],
+    directions: dict[str, int],
+    means: dict[str, float],
+) -> float:
+    """Signed weighted sum honouring per-feature direction.
+
+    Mirrors :func:`scripts.fvg_quality_recalibration._score_with_directions`
+    but operates on *components* (already in ``[0, 1]``) instead of
+    raw features. Each component is centred at its supplied mean
+    before the sign is applied. ``direction == 0`` disables the
+    feature entirely (e.g. ``hurst_50`` under ``strict_v1_no_hurst``).
+
+    Score is ``0.5 + Σ w·d·(comp − mean)`` clamped to ``[0, 1]``.
+    Means default to ``0.5`` (component midpoint) so a component value
+    of ``0.5`` always contributes zero — neutral.
+    """
+    raw = 0.0
+    for comp_key, feature_key in _COMPONENT_TO_FEATURE.items():
+        d = directions.get(feature_key, 1)
+        if d == 0:
+            continue
+        w = weights.get(feature_key, 0.0)
+        m = means.get(feature_key, 0.5)
+        raw += w * d * (components[comp_key] - m)
+    return _clamp(0.5 + raw, 0.0, 1.0)
+
+
+def score_fvg(
+    event: dict[str, Any],
+    *,
+    weights: dict[str, float] | None = None,
+    directions: dict[str, int] | None = None,
+    means: dict[str, float] | None = None,
+) -> FvgQualityScore:
     """Compute the quality score for one FVG event.
 
     The event is expected to expose:
@@ -167,7 +264,27 @@ def score_fvg(event: dict[str, Any]) -> FvgQualityScore:
     than silently skipped — the score is only useful if every feature
     is accounted for. Downstream callers can inspect the ``components``
     dict to see which feature drove the final number.
+
+    Mode semantics
+    --------------
+    Default (production, since Q3 D3 promotion 2026-04-22):
+        ``weights = STRICT_V1_NO_HURST_WEIGHTS``,
+        ``directions = STRICT_V1_NO_HURST_DIRECTIONS`` (all -1, hurst=0),
+        ``means = STRICT_V1_NO_HURST_MEANS`` (all 0.5).
+        **Minimal** features → HIGH tier (score → 1.0). Maxed features
+        → LOW tier. Tier semantics are inverted relative to the
+        legacy lenient regime — see audit §2–3 for the empirical
+        basis (HR 0.943 in Q4 of the strict-label fit).
+
+    Legacy back-compat (lenient label):
+        Pass ``weights=LENIENT_WEIGHTS, directions=LENIENT_DIRECTIONS,
+        means=LENIENT_MEANS``. Maxed features → HIGH tier. Used only
+        by callers that haven't migrated to the strict label yet.
     """
+    weights = weights if weights is not None else DEFAULT_WEIGHTS
+    directions = directions if directions is not None else DEFAULT_DIRECTIONS
+    means = means if means is not None else DEFAULT_MEANS
+
     gap = float(event.get("gap_size_atr", 0.0) or 0.0)
     htf = bool(event.get("htf_aligned", False))
     dist = float(event.get("distance_to_price_atr", 10.0) or 10.0)
@@ -189,13 +306,22 @@ def score_fvg(event: dict[str, Any]) -> FvgQualityScore:
         "full_body": 1.0 if full_body else 0.0,
         "hurst": _component_hurst(hurst),
     }
-    score = (
-        0.30 * components["gap_size"]
-        + 0.25 * components["htf_aligned"]
-        + 0.15 * components["distance"]
-        + 0.10 * components["full_body"]
-        + 0.20 * components["hurst"]
-    )
+
+    # Fast-path: pure lenient regime (all directions +1, all means 0)
+    # uses the original weighted-sum formula so the legacy pin in
+    # ``test_components_sum_weighted_to_score`` and any historical
+    # callers see byte-identical scores.
+    if (
+        all(directions.get(k, 1) == 1 for k in weights)
+        and all(abs(means.get(k, 0.0)) < 1e-9 for k in weights)
+    ):
+        score = sum(
+            weights.get(feature_key, 0.0) * components[comp_key]
+            for comp_key, feature_key in _COMPONENT_TO_FEATURE.items()
+        )
+    else:
+        score = _score_with_directions(components, weights, directions, means)
+
     score = round(_clamp(score, 0.0, 1.0), 4)
 
     tier = "LOW"

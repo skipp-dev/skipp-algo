@@ -36,7 +36,7 @@ if str(REPO_ROOT) not in sys.path:
 
 from smc_core.event_ledger import read_event_ledger  # noqa: E402
 
-REPORT_VERSION = "1.2"
+REPORT_VERSION = "2.0"
 WEIGHT_CAP_LO = 0.05
 WEIGHT_CAP_HI = 0.40
 MIN_FVG_EVENTS = 30
@@ -54,7 +54,7 @@ ACCEPT_TOP_HR_DELTA = 0.10  # top quartile must beat base rate by +10pp
 ACCEPT_BOTTOM_HR_DELTA = 0.15  # bottom quartile must trail by -15pp
 
 ACCEPTANCE_MODES: tuple[str, ...] = ("absolute", "relative")
-DEFAULT_ACCEPTANCE_MODE = "absolute"
+DEFAULT_ACCEPTANCE_MODE = "relative"
 
 # Outcome label source. ``outcome`` keeps the legacy lenient label
 # (touch-anchor mitigation) used by Amendment A1.B since day one.
@@ -62,7 +62,7 @@ DEFAULT_ACCEPTANCE_MODE = "absolute"
 # label promoted by D1/D3 of the Q3 FVG audit. Adding new sources
 # here is the single place you need to touch.
 LABEL_SOURCES: tuple[str, ...] = ("outcome", "partial_50")
-DEFAULT_LABEL_SOURCE = "outcome"
+DEFAULT_LABEL_SOURCE = "partial_50"
 
 # Order is meaningful: it pins the column order of feature matrices
 # downstream and matches the legacy weight table in fvg_quality.py.
@@ -73,12 +73,34 @@ FEATURE_KEYS: tuple[str, ...] = (
     "is_full_body",
     "hurst_50",
 )
-LEGACY_WEIGHTS = {
+LENIENT_WEIGHTS = {
     "gap_size_atr": 0.30,
     "htf_aligned": 0.25,
     "distance_to_price_atr": 0.15,
     "is_full_body": 0.10,
     "hurst_50": 0.20,
+}
+# Back-compat alias — some legacy memos / shadow JSON readers still
+# import ``LEGACY_WEIGHTS``. Keep both names pointing at the same
+# dict so we never break a downstream pin by accident.
+LEGACY_WEIGHTS = LENIENT_WEIGHTS
+
+# Promoted strict regime (Q3 D3, 2026-04-22). Mirrors the constants
+# in ``smc_core.fvg_quality`` — DRY: keep both files in sync when
+# the strict weights are re-tuned.
+STRICT_WEIGHTS = {
+    "gap_size_atr": 0.45,
+    "htf_aligned": 0.0735,
+    "distance_to_price_atr": 0.45,
+    "is_full_body": 0.0515,
+    "hurst_50": 0.0,
+}
+STRICT_DIRECTIONS = {
+    "gap_size_atr": -1,
+    "htf_aligned": -1,
+    "distance_to_price_atr": -1,
+    "is_full_body": -1,
+    "hurst_50": 0,
 }
 
 
@@ -106,7 +128,7 @@ class RecalibrationReport:
     weights_legacy: dict[str, float] = field(default_factory=dict)
     weights_shadow: dict[str, float] = field(default_factory=dict)
     weight_directions: dict[str, int] = field(default_factory=dict)
-    signed_weights: bool = False
+    signed_weights: bool = True
     acceptance_mode: str = DEFAULT_ACCEPTANCE_MODE
     base_rate: float = float("nan")
     quartiles: list[QuartileStat] = field(default_factory=list)
@@ -361,7 +383,7 @@ def recalibrate(
     ledger_paths: list[Path],
     *,
     label_source: str = DEFAULT_LABEL_SOURCE,
-    signed_weights: bool = False,
+    signed_weights: bool = True,
     acceptance_mode: str = DEFAULT_ACCEPTANCE_MODE,
 ) -> RecalibrationReport:
     """Run the full recalibration pipeline and return a report."""
@@ -517,14 +539,15 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument(
         "--signed-weights",
-        action="store_true",
+        action=argparse.BooleanOptionalAction,
+        default=True,
         help=(
             "Preserve per-feature beta sign from the L2-logreg fit. "
             "Reports a `weight_directions` dict (+/-1 per feature) and "
             "computes scores with mean-centred, sign-adjusted features. "
-            "Required for the strict-label promotion path so a feature "
-            "whose direction inverts under the strict label (e.g. "
-            "gap_size_atr) cannot mis-rank events."
+            "Default ON since Q3 D3 promotion (2026-04-22) — pass "
+            "`--no-signed-weights` to fall back to the legacy unsigned "
+            "normaliser."
         ),
     )
     parser.add_argument(

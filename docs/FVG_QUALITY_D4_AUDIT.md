@@ -359,6 +359,51 @@ weil sie mindestens 9 Stellen pro BUS/Weight-Surface-Change berührt.
 
 ---
 
+## 6. Promotion landed (2026-04-22)
+
+D3-Promotion in `smc_core/fvg_quality.py` gelandet (Commit-Trail
+`9a79553a → 3f7bd4fe → <Promotion>`). Production-Default-Score nutzt
+jetzt das Strict-Regime — kürzeres `WEIGHT_VERSION = "strict_v1_no_hurst"`
+mit re-normalisiertem Gewichtsvektor (Hurst auf 0 entfernt, Audit
+§1.5: Null-Signal):
+
+| Feature                  | Lenient | Strict v1 (no Hurst) | Direction |
+|--------------------------|--------:|---------------------:|----------:|
+| `gap_size_atr`           |   0.30  |               0.45   |    −1     |
+| `htf_aligned`            |   0.25  |               0.0735 |    −1     |
+| `distance_to_price_atr`  |   0.15  |               0.45   |    −1     |
+| `is_full_body`           |   0.10  |               0.0515 |    −1     |
+| `hurst_50`               |   0.20  |               0.00   |     0     |
+
+Score-Formel signed: `score = clamp(0.5 + Σ w·d·(comp − 0.5), 0, 1)`,
+direction = 0 deaktiviert das Feature. Tier-Schwellen (`HIGH ≥ 0.70`,
+`MEDIUM ≥ 0.50`, `LOW ≥ 0`) bleiben numerisch — die *Bedeutung*
+dreht sich: HIGH meint jetzt „strict-favourable" (kleine Gaps,
+nahe Preis, kein HTF-Hype). Pin-Tests:
+`tests/test_fvg_quality.py::test_tier_semantics_inverted_under_strict`
++ `test_strict_v1_no_hurst_constants_pinned`.
+
+**Pine-Helper `SMC_Core_Engine.pine::fvg_quality_score` NICHT
+promoted.** Dokumentierte Begründung in Memory
+`/memories/repo/fvg-quality-pine-python-feature-disjunction.md`:
+Pine und Python verwenden disjunkte Feature-Sets (Pine:
+`unfilled_component`, `not filled`, `total_volume>0`; Python:
+`htf_aligned`, `distance_to_price_atr`, `hurst_50`). Eine echte
+Spiegelung erfordert Pine-`FVG`-Type-Erweiterung — eigene Phase E0,
+nicht Teil dieser Promotion.
+
+`recalibrate()`-Defaults gleichzeitig geflippt:
+`label_source="partial_50"`, `signed_weights=True`,
+`acceptance_mode="relative"`. `report_version` 1.2 → 2.0.
+`LEGACY_WEIGHTS` bleibt als Alias für Back-Compat-Importer erhalten.
+
+CI-Callsite-Grep (Schritt 0 des Promotion-Plans):
+`measurement_evidence.py` referenziert nur `FEATURE_KEYS` (Konstante,
+keine Verhaltensänderung); kein Workflow ruft `recalibrate()` ohne
+explizite Args auf. Default-Flip ist sicher.
+
+---
+
 *Erstellt mit `scripts/fvg_quality_d4_audit.py`. Re-runnable gegen
 jeden Benchmark-Snapshot, der `events_*.jsonl` mit `label_partial_50`
 und A1.B-FVG-Quality-Features enthält (ab Bridge-Commit `3746b36e`).*

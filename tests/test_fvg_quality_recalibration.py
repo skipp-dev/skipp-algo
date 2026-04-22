@@ -16,8 +16,11 @@ from scripts.fvg_quality_recalibration import (
     FEATURE_KEYS,
     LABEL_SOURCES,
     LEGACY_WEIGHTS,
+    LENIENT_WEIGHTS,
     MIN_FVG_EVENTS,
     QUARTILE_MIN_EVENTS,
+    STRICT_DIRECTIONS,
+    STRICT_WEIGHTS,
     WEIGHT_CAP_HI,
     WEIGHT_CAP_LO,
     recalibrate,
@@ -77,6 +80,11 @@ def _separable_corpus(n: int = 80) -> list[dict]:
     """Build a corpus where high-gap + htf-aligned + high-hurst events
     are mostly hits and the inverse class are mostly misses. The
     L2-logistic should recover that ranking.
+
+    Both labels (``outcome`` and ``features.label_partial_50``) are
+    populated identically so the corpus works under either label
+    source — important since the post-promotion default is
+    ``label_source="partial_50"``.
     """
     records: list[dict] = []
     for i in range(n // 2):
@@ -90,6 +98,7 @@ def _separable_corpus(n: int = 80) -> list[dict]:
                     "distance_to_price_atr": 0.4,
                     "is_full_body": True,
                     "hurst_50": 0.7,
+                    "label_partial_50": True,
                 },
             )
         )
@@ -104,6 +113,7 @@ def _separable_corpus(n: int = 80) -> list[dict]:
                     "distance_to_price_atr": 2.5,
                     "is_full_body": False,
                     "hurst_50": 0.35,
+                    "label_partial_50": False,
                 },
             )
         )
@@ -112,7 +122,7 @@ def _separable_corpus(n: int = 80) -> list[dict]:
 
 def test_recalibrate_separable(tmp_path: Path) -> None:
     path = _ledger(tmp_path, _separable_corpus(80))
-    report = recalibrate([path])
+    report = recalibrate([path], acceptance_mode="absolute")
     assert report.status == "ok"
     assert report.n_with_features == 80
     # All five feature weights present, summing to ~1.0 after cap+norm.
@@ -144,7 +154,7 @@ def test_min_event_floor(tmp_path: Path) -> None:
 
 def test_acceptance_gate_pass_on_strong_corpus(tmp_path: Path) -> None:
     path = _ledger(tmp_path, _separable_corpus(120))
-    report = recalibrate([path])
+    report = recalibrate([path], acceptance_mode="absolute")
     # Strong synthetic separation should pass all three acceptance checks.
     assert report.acceptance["top_quartile_hr_ge_0_70"] is True
     assert report.acceptance["bottom_quartile_hr_le_0_55"] is True
@@ -157,8 +167,9 @@ def test_random_outcomes_dont_pass_acceptance(tmp_path: Path) -> None:
     records = _separable_corpus(80)
     for i, rec in enumerate(records):
         rec["outcome"] = bool(i % 2)
+        rec["features"]["label_partial_50"] = bool(i % 2)
     path = _ledger(tmp_path, records)
-    report = recalibrate([path])
+    report = recalibrate([path], acceptance_mode="absolute")
     # All three should be False (or at least not all True).
     assert not all(report.acceptance.values())
 
@@ -169,10 +180,10 @@ def test_write_shadow_json(tmp_path: Path) -> None:
     output = tmp_path / "shadow.json"
     write_shadow_json(report, output)
     payload = json.loads(output.read_text(encoding="utf-8"))
-    assert payload["report_version"] == "1.2"
+    assert payload["report_version"] == "2.0"
     assert payload["status"] == "ok"
-    assert payload["label_source"] == "outcome"
-    assert payload["acceptance_mode"] == "absolute"
+    assert payload["label_source"] == "partial_50"
+    assert payload["acceptance_mode"] == "relative"
     assert "weights_shadow" in payload
     assert isinstance(payload["quartiles"], list)
 
@@ -207,7 +218,7 @@ def test_label_sources_constant_pinned() -> None:
     # Pin the supported label sources so adding a new one is a
     # deliberate, test-visible decision.
     assert LABEL_SOURCES == ("outcome", "partial_50")
-    assert DEFAULT_LABEL_SOURCE == "outcome"
+    assert DEFAULT_LABEL_SOURCE == "partial_50"
 
 
 def test_label_source_partial_50_uses_strict_label(tmp_path: Path) -> None:
@@ -220,8 +231,8 @@ def test_label_source_partial_50_uses_strict_label(tmp_path: Path) -> None:
         rec["outcome"] = not bool(rec["outcome"])
     path = _ledger(tmp_path, records)
 
-    lenient = recalibrate([path], label_source="outcome")
-    strict = recalibrate([path], label_source="partial_50")
+    lenient = recalibrate([path], label_source="outcome", acceptance_mode="absolute", signed_weights=True)
+    strict = recalibrate([path], label_source="partial_50", acceptance_mode="absolute", signed_weights=True)
 
     assert lenient.status == "ok"
     assert strict.status == "ok"
@@ -229,9 +240,9 @@ def test_label_source_partial_50_uses_strict_label(tmp_path: Path) -> None:
     assert strict.label_source == "partial_50"
     assert lenient.n_with_label == 80
     assert strict.n_with_label == 80
-    # The two fits must disagree on the top-quartile direction because
-    # the label is inverted.
-    assert lenient.quartiles[-1].hit_rate != strict.quartiles[-1].hit_rate
+    # The two fits must disagree on per-feature direction because
+    # the labels are inverted.
+    assert lenient.weight_directions != strict.weight_directions
 
 
 def test_label_source_partial_50_drops_rows_without_label(tmp_path: Path) -> None:
@@ -240,6 +251,8 @@ def test_label_source_partial_50_drops_rows_without_label(tmp_path: Path) -> Non
     for i, rec in enumerate(records):
         if i % 2 == 0:
             rec["features"]["label_partial_50"] = bool(rec["outcome"])
+        else:
+            rec["features"].pop("label_partial_50", None)
     path = _ledger(tmp_path, records)
     report = recalibrate([path], label_source="partial_50")
     assert report.n_fvg_events == 80
@@ -257,11 +270,18 @@ def test_label_source_invalid_raises(tmp_path: Path) -> None:
 # --------------------------------------------------------------------- #
 
 
-def test_signed_weights_default_off(tmp_path: Path) -> None:
+def test_signed_weights_default_on_post_promotion(tmp_path: Path) -> None:
+    # Post Q3 D3 promotion (2026-04-22) the default flipped to True.
     path = _ledger(tmp_path, _separable_corpus(80))
     report = recalibrate([path])
+    assert report.signed_weights is True
+
+
+def test_signed_weights_explicit_off_back_compat(tmp_path: Path) -> None:
+    # Opt-out path keeps directions all +1 (legacy back-compat).
+    path = _ledger(tmp_path, _separable_corpus(80))
+    report = recalibrate([path], signed_weights=False, acceptance_mode="absolute")
     assert report.signed_weights is False
-    # Default-off path keeps directions all +1 (back-compat).
     assert set(report.weight_directions.values()) == {1}
 
 
@@ -299,7 +319,7 @@ def test_signed_weights_records_direction(tmp_path: Path) -> None:
             )
         )
     path = _ledger(tmp_path, records)
-    report = recalibrate([path], signed_weights=True)
+    report = recalibrate([path], signed_weights=True, label_source="outcome", acceptance_mode="absolute")
     assert report.signed_weights is True
     # gap_size_atr direction must be -1 — bigger gap → lower outcome.
     assert report.weight_directions["gap_size_atr"] == -1
@@ -339,7 +359,7 @@ def test_signed_weights_monotone_quartiles(tmp_path: Path) -> None:
             )
         )
     path = _ledger(tmp_path, records)
-    report = recalibrate([path], signed_weights=True)
+    report = recalibrate([path], signed_weights=True, label_source="outcome", acceptance_mode="absolute")
     hrs = [q.hit_rate for q in report.quartiles]
     # Strictly non-decreasing — top quartile must beat bottom.
     assert hrs[-1] >= hrs[0]
@@ -352,7 +372,7 @@ def test_signed_weights_monotone_quartiles(tmp_path: Path) -> None:
 
 def test_acceptance_modes_constant_pinned() -> None:
     assert ACCEPTANCE_MODES == ("absolute", "relative")
-    assert DEFAULT_ACCEPTANCE_MODE == "absolute"
+    assert DEFAULT_ACCEPTANCE_MODE == "relative"
     assert ACCEPT_TOP_HR_DELTA == 0.10
     assert ACCEPT_BOTTOM_HR_DELTA == 0.15
 
@@ -407,7 +427,7 @@ def test_relative_mode_passes_high_base_rate_corpus(tmp_path: Path) -> None:
             )
         )
     path = _ledger(tmp_path, records)
-    report = recalibrate([path], acceptance_mode="relative")
+    report = recalibrate([path], acceptance_mode="relative", label_source="outcome")
     assert report.base_rate >= 0.70
     # Top must beat base by +10pp; bottom must trail by -15pp.
     top_hr = report.quartiles[-1].hit_rate
@@ -420,3 +440,36 @@ def test_acceptance_mode_invalid_raises(tmp_path: Path) -> None:
     path = _ledger(tmp_path, _separable_corpus(40))
     with pytest.raises(ValueError):
         recalibrate([path], acceptance_mode="bogus")
+
+
+# --------------------------------------------------------------------- #
+# Q3 D3 promotion (2026-04-22) — promoted-constants pin                 #
+# --------------------------------------------------------------------- #
+
+
+def test_lenient_legacy_alias_unchanged() -> None:
+    # ``LEGACY_WEIGHTS`` must remain a backward-compatible alias for
+    # ``LENIENT_WEIGHTS`` so historical importers don't break.
+    assert LEGACY_WEIGHTS is LENIENT_WEIGHTS
+    assert LENIENT_WEIGHTS == {
+        "gap_size_atr": 0.30,
+        "htf_aligned": 0.25,
+        "distance_to_price_atr": 0.15,
+        "is_full_body": 0.10,
+        "hurst_50": 0.20,
+    }
+
+
+def test_strict_weights_and_directions_pinned() -> None:
+    # Mirrors smc_core.fvg_quality.STRICT_V1_NO_HURST_WEIGHTS — DRY
+    # check ensures the two files cannot drift silently.
+    from smc_core.fvg_quality import (
+        STRICT_V1_NO_HURST_DIRECTIONS,
+        STRICT_V1_NO_HURST_WEIGHTS,
+    )
+    assert STRICT_WEIGHTS == STRICT_V1_NO_HURST_WEIGHTS
+    assert STRICT_DIRECTIONS == STRICT_V1_NO_HURST_DIRECTIONS
+
+
+def test_default_acceptance_mode_relative_post_promotion() -> None:
+    assert DEFAULT_ACCEPTANCE_MODE == "relative"

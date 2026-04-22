@@ -6,6 +6,42 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Changed (2026-04-22) — D3 Promotion: FVG quality strict regime
+
+**Major behavioural change.** `smc_core.fvg_quality.score_fvg()` now
+defaults to the **strict** weight regime promoted from the D4 audit:
+
+- `WEIGHT_VERSION = "strict_v1_no_hurst"`
+- Weights: `gap_size_atr=0.45`, `htf_aligned=0.0735`,
+  `distance_to_price_atr=0.45`, `is_full_body=0.0515`, `hurst_50=0.0`
+- Directions: all `-1` except `hurst_50=0` (disabled — audit §1.5
+  null-signal)
+- Score formula: `clamp(0.5 + Σ w·d·(comp − 0.5), 0, 1)`
+- **Tier semantics inverted**: under the strict default, HIGH tier
+  means "strict-favourable" (small gaps, near-price, no HTF hype) —
+  the empirical opposite of the previous lenient regime. Tier
+  thresholds (HIGH ≥ 0.70, MEDIUM ≥ 0.50) remain numerically
+  unchanged.
+
+`scripts/fvg_quality_recalibration.py` defaults flipped to match:
+`label_source="partial_50"`, `signed_weights=True`,
+`acceptance_mode="relative"`. `report_version` 1.2 → 2.0.
+`LEGACY_WEIGHTS` retained as alias for `LENIENT_WEIGHTS`
+(back-compat). New constants `STRICT_WEIGHTS`, `STRICT_DIRECTIONS`
+mirror the production-side pinning.
+
+`SMC_Core_Engine.pine::fvg_quality_score` is **NOT** mirror-promoted.
+Pine and Python use disjoint feature sets (Pine reads
+`fill_current_ratio`, `not filled`, `total_volume>0`; Python reads
+`htf_aligned`, `distance_to_price_atr`, `hurst_50`). True mirroring
+needs a Pine `FVG`-type extension and is deferred to a separate
+phase. Documented in
+`/memories/repo/fvg-quality-pine-python-feature-disjunction.md`.
+
+Refs: `docs/D3_PROMOTION_REVIEW_2026-04-22.md`,
+`docs/FVG_QUALITY_D4_AUDIT.md` §6,
+`docs/STRATEGY_2026_Q3.md` §D3+§D4.
+
 ### Added (2026-11-01) — Plan 2.8 bool-or-list records + pxd + trailing-question-mark lines
 
 - `scripts/plan_2_8_ledger_bool_or_list_only_record_count.py`
