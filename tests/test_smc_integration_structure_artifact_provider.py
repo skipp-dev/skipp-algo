@@ -501,7 +501,7 @@ def test_discover_normalized_contract_summary_repo_state_only_rejects_noncanonic
 
         (artifact_dir / "manifest_15m.json").write_text(
                 json.dumps({
-                    "schema_version": "2.0.0",
+                    "schema_version": "2.1.0",
                     "generated_at": 1709254000.0,
                     "timeframe": "15m",
                     "producer": {
@@ -575,7 +575,7 @@ def test_load_raw_structure_input_rejects_noncanonical_manifest_provenance(
 
         (artifact_dir / "manifest_15m.json").write_text(
                 json.dumps({
-                    "schema_version": "2.0.0",
+                    "schema_version": "2.1.0",
                     "generated_at": 1709254000.0,
                     "timeframe": "15m",
                     "producer": {

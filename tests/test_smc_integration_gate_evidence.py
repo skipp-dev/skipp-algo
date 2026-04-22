@@ -387,7 +387,7 @@ def test_gate_evidence_aggregates_measurement_artifacts(monkeypatch, tmp_path: P
     _write_json(
         measurement_dir / "benchmark_AAPL_15m.json",
         {
-            "schema_version": "2.0.0",
+            "schema_version": "2.1.0",
             "symbol": "AAPL",
             "timeframe": "15m",
             "generated_at": now_ts - 60.0,
@@ -411,7 +411,7 @@ def test_gate_evidence_aggregates_measurement_artifacts(monkeypatch, tmp_path: P
     _write_json(
         measurement_dir / "manifest.json",
         {
-            "schema_version": "2.0.0",
+            "schema_version": "2.1.0",
             "generated_at": now_ts - 60.0,
             "artifacts": ["benchmark_AAPL_15m.json"],
         },
@@ -419,7 +419,7 @@ def test_gate_evidence_aggregates_measurement_artifacts(monkeypatch, tmp_path: P
     _write_json(
         measurement_dir / "scoring_AAPL_15m.json",
         {
-            "schema_version": "2.0.0",
+            "schema_version": "2.1.0",
             "symbol": "AAPL",
             "timeframe": "15m",
             "generated_at": now_ts - 60.0,
@@ -491,7 +491,7 @@ def test_gate_evidence_aggregates_measurement_artifacts(monkeypatch, tmp_path: P
     _write_json(
         measurement_dir / "measurement_manifest.json",
         {
-            "schema_version": "2.0.0",
+            "schema_version": "2.1.0",
             "generated_at": now_ts - 60.0,
             "symbol": "AAPL",
             "timeframe": "15m",
@@ -636,7 +636,7 @@ def test_gate_evidence_detects_measurement_history_regression(monkeypatch, tmp_p
         _write_json(
             measurement_dir / "benchmark_AAPL_15m.json",
             {
-                "schema_version": "2.0.0",
+                "schema_version": "2.1.0",
                 "symbol": "AAPL",
                 "timeframe": "15m",
                 "generated_at": checked_at,
@@ -651,7 +651,7 @@ def test_gate_evidence_detects_measurement_history_regression(monkeypatch, tmp_p
         _write_json(
             measurement_dir / "manifest.json",
             {
-                "schema_version": "2.0.0",
+                "schema_version": "2.1.0",
                 "generated_at": checked_at,
                 "artifacts": ["benchmark_AAPL_15m.json"],
             },
@@ -659,7 +659,7 @@ def test_gate_evidence_detects_measurement_history_regression(monkeypatch, tmp_p
         _write_json(
             measurement_dir / "scoring_AAPL_15m.json",
             {
-                "schema_version": "2.0.0",
+                "schema_version": "2.1.0",
                 "symbol": "AAPL",
                 "timeframe": "15m",
                 "generated_at": checked_at,
@@ -730,7 +730,7 @@ def test_gate_evidence_detects_measurement_history_regression(monkeypatch, tmp_p
         _write_json(
             measurement_dir / "measurement_manifest.json",
             {
-                "schema_version": "2.0.0",
+                "schema_version": "2.1.0",
                 "generated_at": checked_at,
                 "symbol": "AAPL",
                 "timeframe": "15m",
@@ -914,7 +914,7 @@ def test_gate_evidence_surfaces_contextual_recommendation_and_promotion(monkeypa
         _write_json(
             measurement_dir / "benchmark_AAPL_15m.json",
             {
-                "schema_version": "2.0.0",
+                "schema_version": "2.1.0",
                 "symbol": "AAPL",
                 "timeframe": "15m",
                 "generated_at": checked_at,
@@ -925,7 +925,7 @@ def test_gate_evidence_surfaces_contextual_recommendation_and_promotion(monkeypa
         _write_json(
             measurement_dir / "manifest.json",
             {
-                "schema_version": "2.0.0",
+                "schema_version": "2.1.0",
                 "generated_at": checked_at,
                 "artifacts": ["benchmark_AAPL_15m.json"],
             },
@@ -933,7 +933,7 @@ def test_gate_evidence_surfaces_contextual_recommendation_and_promotion(monkeypa
         _write_json(
             measurement_dir / "scoring_AAPL_15m.json",
             {
-                "schema_version": "2.0.0",
+                "schema_version": "2.1.0",
                 "symbol": "AAPL",
                 "timeframe": "15m",
                 "generated_at": checked_at,
@@ -977,7 +977,7 @@ def test_gate_evidence_surfaces_contextual_recommendation_and_promotion(monkeypa
         _write_json(
             measurement_dir / "measurement_manifest.json",
             {
-                "schema_version": "2.0.0",
+                "schema_version": "2.1.0",
                 "generated_at": checked_at,
                 "symbol": "AAPL",
                 "timeframe": "15m",
