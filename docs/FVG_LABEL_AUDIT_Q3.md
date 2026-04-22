@@ -1,11 +1,12 @@
 # FVG Label Audit Q3
 
 > **Q3 Strategie-Plan Phase D1 — Output-Doc.**
-> **Datum:** 2026-04-22
-> **Quelle:** `artifacts/ci/measurement_benchmark_combined_2026-04-21/`
-> (78 benchmark JSONs — 20 Symbole × 4 TFs)
-> **Aggregator:** `scripts/fvg_label_audit_q3.py`
-> **Re-run:** `python scripts/fvg_label_audit_q3.py`
+> **Datum:** 2026-04-22 (Strict-A/B-Update)
+> **Quelle (lenient/Bestand):** `artifacts/ci/measurement_benchmark_combined_2026-04-21/`
+> **Quelle (strict ≥50% A/B):** `artifacts/ci/measurement_benchmark_2026-04-22_partial50_v3/`
+> (jeweils 80 benchmark JSONs — 20 Symbole × 4 TFs)
+> **Aggregator:** `scripts/fvg_label_audit_q3.py --root <root>`
+> **Re-run:** `python scripts/fvg_label_audit_q3.py --root artifacts/ci/measurement_benchmark_2026-04-22_partial50_v3`
 
 ---
 
@@ -122,18 +123,78 @@ Sonst optimieren wir auf alte Annahmen.
 
 ---
 
+## 5b. Strict ≥50% A/B (Benchmark v3, 2026-04-22, n=5710 FVG)
+
+Die zweite Label-Variante `label_fvg_partial_50` läuft seit dem v3-Snapshot
+end-to-end durch (Bridge `3746b36e` → KPI-Aggregation `18110767`/`1c06bc22`).
+Reproduzierbar via `python scripts/fvg_label_audit_q3.py --root artifacts/ci/measurement_benchmark_2026-04-22_partial50_v3 --format json`.
+
+### 5b.1 Per-TF (FVG only)
+
+| TF  | n    | lenient HR | strict ≥50% HR | Δ |
+|-----|-----:|-----------:|---------------:|--:|
+| 5m  | 3693 | 0.5421     | **0.9128**     | **+0.371** |
+| 15m |  797 | 0.5884     | 0.8494         | +0.261 |
+| 1H  |  790 | 0.6291     | 0.8000         | +0.171 |
+| 4H  |  430 | 0.5419     | 0.7767         | +0.235 |
+
+**Beobachtung:** Auf 5m ist der Hebel am größten (+37.1pp) — passt zur
+Original-Hypothese aus §4 D1, dass die binäre Definition gerade auf der
+schnellen TF die meiste Reaktion verwirft (90.4% partial_fill).
+
+### 5b.2 Per-Context overall (FVG, alle TFs)
+
+| Kontext             | n    | lenient HR | strict ≥50% HR | Δ |
+|---------------------|-----:|-----------:|---------------:|--:|
+| session:NY_AM       | 2691 | 0.460      | **0.879**      | **+0.419** |
+| session:LONDON      | 2910 | 0.646      | 0.885          | +0.239 |
+| session:ASIA        |  109 | 0.752      | 0.670          | −0.083 |
+| htf_bias:BULLISH    | 3413 | 0.554      | 0.899          | +0.345 |
+| htf_bias:BEARISH    | 2297 | 0.571      | 0.848          | +0.277 |
+| vol_regime:NORMAL   | 5563 | 0.561      | 0.879          | +0.319 |
+| vol_regime:HIGH_VOL |  137 | 0.562      | 0.861          | +0.299 |
+| vol_regime:LOW_VOL  |   10 | 0.500      | 0.500          | ±0.000 |
+
+**Verdict:** D1-Hypothese quantitativ bestätigt. NY_AM springt von
+„unter 50% / Loser-Bucket" auf 87.9% — d.h. der NY_AM-Verlust war fast
+ausschließlich „Reaktion ≥50% gefüllt, aber kein vollständiges Mitigation
+vor Invalidierung". Einzige Inversion ist `session:ASIA` (n=109, kein
+Promotion-Quorum).
+
+### 5b.3 FVG strict overall
+
+- n_events: 5710 (4-TF, 20 Symbole, Plan-2.8-Universum)
+- lenient HR: 0.561 (`label_fvg_mitigation`)
+- strict ≥50% HR: **0.878** (`label_fvg_partial_50`)
+- Δ: **+0.318** absolute → die strikte Definition lifted FVG aus dem
+  unteren Drittel in BOS-Reichweite (BOS overall 0.867).
+
+---
+
 ## 6. Nächste konkrete Schritte (priorisiert)
 
 1. **Phase F1/F2 starten** — Session-spezifische FVG-Gewichtung
    produzieren. Die statistische Belastbarkeit (n=2662 für NY_AM) ist
-   mehr als ausreichend.
+   mehr als ausreichend. ✅ DONE (commits `13dfc36b`/`f25fc690`).
 2. **Label-Variante `label_fvg_partial_50`** in `smc_core/fvg_quality.py`
-   ergänzen + zweiter Benchmark-Lauf zur Validierung.
-3. **Strategie-Doc §1.1 aktualisieren** mit den neuen 4-TF-Zahlen.
-4. **D3-Hypothese im Strategie-Doc als falsifiziert markieren.**
+   ergänzen + zweiter Benchmark-Lauf zur Validierung. ✅ DONE
+   (`smc_core/scoring.py`, 12 Tests, Bridge-Commit `3746b36e`,
+   KPI-Aggregation `18110767`/`1c06bc22`, v3-Snapshot 2026-04-22).
+3. **Strategie-Doc §1.1 aktualisieren** mit den neuen 4-TF-Zahlen. ✅ DONE
+   (`209068be` 4-TF-Tabelle, `46870a9a` Strict-A/B-Tabelle).
+4. **D3-Hypothese im Strategie-Doc als falsifiziert markieren.** ✅ DONE.
+5. **D3-Folge:** Promotion-Entscheidung — `label_fvg_partial_50` als
+   primäres FVG-Outcome im Scorer? Datenlage stützt es (Δ +0.318 overall),
+   aber Promotion verschiebt sämtliche kalibrierten FVG-Gewichte. Wenn
+   Promotion: einen kompletten Re-Calibration-Run + Snapshot pinnen,
+   bevor der Scorer umgestellt wird.
+6. **ASIA-Inversion (n=109, Δ −0.083)**: zu kleine Stichprobe, vor
+   Promotion durch zusätzlichen ASIA-Sample-Run mit n≥500 absichern.
 
 ---
 
 *Erstellt mit `scripts/fvg_label_audit_q3.py` gegen
-`measurement_benchmark_combined_2026-04-21`. Re-runnable: jeder
-neue Rolling-Bench-Snapshot wird automatisch aufaggregiert.*
+`measurement_benchmark_combined_2026-04-21` (lenient) und
+`measurement_benchmark_2026-04-22_partial50_v3` (strict A/B).
+Re-runnable: jeder neue Rolling-Bench-Snapshot wird automatisch
+aufaggregiert.*
