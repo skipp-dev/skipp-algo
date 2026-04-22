@@ -1130,6 +1130,9 @@ read.
 - `tests/test_plan_2_8_ledger_nonempty_string_or_float_only_record_count.py`
 - `tests/test_plan_2_8_digest_odin_file_count.py`
 - `tests/test_plan_2_8_weekly_summary_leading_at_sign_line_count.py`
+- `tests/test_plan_2_8_ledger_nonempty_string_or_bool_only_record_count.py`
+- `tests/test_plan_2_8_digest_jsx_file_count.py`
+- `tests/test_plan_2_8_weekly_summary_trailing_at_sign_line_count.py`
 - `tests/test_plan_2_8_alert_history.py`
 - `tests/test_plan_2_8_alert_history_summary.py`
 - `tests/test_plan_2_8_digest_rollup.py`
