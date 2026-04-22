@@ -908,6 +908,9 @@ read.
 - `tests/test_plan_2_8_ledger_mixed_value_record_count.py`
 - `tests/test_plan_2_8_digest_asc_file_count.py`
 - `tests/test_plan_2_8_weekly_summary_printable_line_count.py`
+- `tests/test_plan_2_8_ledger_int_only_record_count.py`
+- `tests/test_plan_2_8_digest_kbx_file_count.py`
+- `tests/test_plan_2_8_weekly_summary_letter_or_space_line_count.py`
 - `tests/test_plan_2_8_alert_history.py`
 - `tests/test_plan_2_8_alert_history_summary.py`
 - `tests/test_plan_2_8_digest_rollup.py`
