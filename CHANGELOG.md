@@ -6,6 +6,16 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-10-17) — Plan 2.8 list-or-empty-dict records + sas + leading-backslash lines
+
+- `scripts/plan_2_8_ledger_list_or_empty_dict_only_record_count.py`
+  counts non-empty ledger records whose every value is a list or an
+  empty ``dict``.
+- `scripts/plan_2_8_digest_sas_file_count.py` counts top-level `.sas` files.
+- `scripts/plan_2_8_weekly_summary_leading_backslash_line_count.py`
+  counts non-empty lines whose first character is ``\``.
+- Weekly digest workflow wires three fail-soft compute+upload step pairs.
+
 ### Added (2026-10-16) — Plan 2.8 empty-dict records + r + trailing-slash lines
 
 - `scripts/plan_2_8_ledger_empty_dict_only_record_count.py` counts
