@@ -6,6 +6,17 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-09-30) — Plan 2.8 list/dict/null records + hs + trailing-at lines
+
+- `scripts/plan_2_8_ledger_list_or_dict_or_null_only_record_count.py`
+  counts non-empty ledger records whose every value is ``list``,
+  ``dict``, or ``None``.
+- `scripts/plan_2_8_digest_hs_file_count.py` counts top-level `.hs`
+  files.
+- `scripts/plan_2_8_weekly_summary_trailing_at_line_count.py`
+  counts non-empty lines whose last character is ``@``.
+- Weekly digest workflow wires three fail-soft compute+upload step pairs.
+
 ### Added (2026-09-29) — Plan 2.8 zero-float records + erl + leading-at lines
 
 - `scripts/plan_2_8_ledger_zero_float_only_record_count.py`
