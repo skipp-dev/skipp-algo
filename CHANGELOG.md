@@ -6,6 +6,16 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-09-01) — Plan 2.8 negative-int records + lock + leading-digit lines
+
+- `scripts/plan_2_8_ledger_negative_int_only_record_count.py` counts
+  non-empty ledger records whose every value is a negative ``int``.
+- `scripts/plan_2_8_digest_lock_file_count.py` counts top-level `.lock`
+  files.
+- `scripts/plan_2_8_weekly_summary_leading_digit_line_count.py` counts
+  non-empty lines whose first character is an ASCII digit.
+- Weekly digest workflow wires three fail-soft compute+upload step pairs.
+
 ### Added (2026-08-31) — Plan 2.8 positive-int records + env + medium lines
 
 - `scripts/plan_2_8_ledger_positive_int_only_record_count.py` counts
