@@ -12,7 +12,12 @@ from __future__ import annotations
 
 from enum import Enum
 
-SCHEMA_VERSION = "2.0.0"
+# 2.1.0 (2026-04-23): additive Phase-H field ZONE_CAL_TRUST in pine library
+#   (consumers without the field continue to function — purely informational).
+#   Explicit MINOR bump unblocks the breaking-change governance gate which
+#   defensively escalated the field-count change to MAJOR (see
+#   docs/release_process/breaking_change_gate_runbook.md and issue #16).
+SCHEMA_VERSION = "2.1.0"
 
 
 class VersionChangeType(str, Enum):
