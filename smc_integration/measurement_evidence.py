@@ -29,6 +29,7 @@ from smc_core.scoring import (
     compute_fvg_partial_fill,
     label_bos_follow_through,
     label_fvg_mitigation,
+    label_fvg_partial_50,
     label_orderblock_mitigation,
     label_sweep_reversal,
     score_events,
@@ -1005,6 +1006,13 @@ def _score_zone_event(
             direction=direction,
             event_context=event_context,
             bias_direction=bias_direction,
+        )
+        # Q3 D1 follow-up: emit the strict partial-50 label alongside the
+        # lenient any-touch outcome so the next benchmark snapshot has a
+        # clean A/B for FVG_LABEL_AUDIT_Q3 (see docs/STRATEGY_2026_Q3.md
+        # §2.D1). Kept inside ``features`` to stay schema-compatible.
+        features["label_partial_50"] = bool(
+            label_fvg_partial_50(low, high, direction, highs, lows, closes)
         )
     return ScoredEvent(
         event_id=str(event.get("id", "")).strip(),
