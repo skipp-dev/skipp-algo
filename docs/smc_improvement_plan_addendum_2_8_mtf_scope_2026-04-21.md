@@ -194,17 +194,42 @@ Flux' 7-TF-Architektur sendet bei Vollausnutzung 7× Security-Calls × (OB + FVG
 
 ## 6. Rollout-Plan
 
-### Phase 0 — Sofort (W0–W1)
+### Phase 0 — Sofort (W0–W1) ✅ DONE (2026-04-22)
 
-- [ ] Parent-Plan um Querverweis auf dieses Addendum ergänzen (Abschnitt „2.8 MTF Scope").
-- [ ] README-Section *„Academic Grounding"* (Priority-1-Item 1.3) um 1 Satz erweitern: *„The HTF trend stack follows the ICT-standard 3-layer hierarchy (4H / 1D / 1W) with an adaptive IPDA range, consistent with [Hammer & Patel 2025](https://34.172.72.90/index.php/jse/article/view/77) session-filter findings."*
-- [ ] Pine-Dashboard-Legende Zeile 22: Tooltip ergänzen um *„Trend Stack: 4H · 1D · 1W (ICT-standard 3-layer, factor-~4 spacing)"* — damit Nutzer sehen, dass die Struktur *intentional* und nicht unterdimensioniert ist.
+- [x] Parent-Plan um Querverweis auf dieses Addendum ergänzen (Abschnitt „2.8 MTF Scope").
+      Geliefert in `docs/smc_deep_review_2026-04-20_improvement_plan.md` Z. 269–270
+      („MTF-Scope-Entscheidung (2.8, 2026-04-21 Accepted)“).
+- [x] README-Section *„Academic Grounding“* (Priority-1-Item 1.3) um 1 Satz erweitern: *„The HTF trend stack follows the ICT-standard 3-layer hierarchy (4H / 1D / 1W) with an adaptive IPDA range, consistent with [Hammer & Patel 2025](https://34.172.72.90/index.php/jse/article/view/77) session-filter findings.“*
+      Geliefert in `README.md` Z. 111–113.
+- [x] Pine-Dashboard-Legende Zeile 22: Tooltip ergänzen um *„Trend Stack: 4H · 1D · 1W (ICT-standard 3-layer, factor-~4 spacing)“* — damit Nutzer sehen, dass die Struktur *intentional* und nicht unterdimensioniert ist.
+      Geliefert in `SMC_Dashboard.pine` Z. 1742–1746 (Variable `_htf_trend_tt`,
+      via `dashboard_row_tt(...)` an die HTF-Trend-Zeile gebunden).
 
-### Phase 1 — Q3 (W3–W8)
+### Phase 1 — Q3 (W3–W8) ✅ DONE (2026-04-22)
 
-- [ ] Phase E2 (Chart-TF-Expansion) liefert 5m- und 4H-Benchmark-Runs.
-- [ ] `smc_core/calibration.py` loggt Events zusätzlich per `chart_tf`-Achse (aktuell nur symbol + chart_tf integriert in `scoring_{symbol}_{timeframe}.json` — siehe `smc_core/scoring.py` Zeile 1083; bestätigen dass 5m/4H korrekt persistiert werden).
-- [ ] Out-of-Sample-Auswertung Ende W8: Per-Family-HR für 5m (→ FVG-TTF-Hypothese D3 validieren) und 4H (→ BOS-Stabilität validieren).
+- [x] Phase E2 (Chart-TF-Expansion) liefert 5m- und 4H-Benchmark-Runs.
+      Geliefert via `smc-measurement-benchmark-rolling.yml`
+      (`TIMEFRAMES="5m,15m,1H,4H"`); Out-of-Sample-Corpus
+      `artifacts/ci/measurement_benchmark_2026-04-22_partial50_v3` enthält
+      80 `scoring_<sym>_<tf>.json`-Artefakte (20 Symbole × 4 TFs). Doc-Close
+      Q3 §E2 → Commit `e37bcaa9`.
+- [x] `smc_core/calibration.py` loggt Events zusätzlich per `chart_tf`-Achse (aktuell nur symbol + chart_tf integriert in `scoring_{symbol}_{timeframe}.json` — siehe `smc_core/scoring.py` Zeile 1083; bestätigen dass 5m/4H korrekt persistiert werden).
+      → Bestätigt: `export_scoring_artifact()` in `smc_core/scoring.py` (jetzt
+      L1130–1170) schreibt pro `(symbol, timeframe)` ein eigenes JSON; im
+      v3-Korpus liegen je 20 Dateien für 5m/15m/1H/4H. Hinweis: das im
+      Addendum referenzierte `smc_core/calibration.py` existiert nicht
+      separat — Family-Metriken werden direkt in der Scoring-Pipeline
+      pro TF persistiert (`family_metrics.{OB,FVG,BOS,SWEEP}`).
+- [x] Out-of-Sample-Auswertung Ende W8: Per-Family-HR für 5m (→ FVG-TTF-Hypothese D3 validieren) und 4H (→ BOS-Stabilität validieren).
+      → v3-Korpus 2026-04-22 (n=10 064 Events):
+        • **FVG TTF-Hypothese D3 falsifiziert** — 5m FVG HR=**0.549**
+          (n=3693), 1H FVG HR=**0.644** (n=790, bester TF). Schnellere
+          TFs erzeugen mehr False-Invalidations statt schnellerer Hits.
+        • **BOS-Stabilität auf 4H/1H bestätigt** — 4H BOS HR=**0.908**
+          (n=119), 1H BOS HR=**0.906** (n=203); 5m BOS fällt auf
+          0.844 (n=1032), 15m auf 0.846 (n=260). 4H/1H bilden ein
+          klares Stabilitäts-Plateau.
+      Doc-Close Q3 §E2 + Memory `phase-e2-5m-fvg-falsified.md`.
 
 ### Phase 2 — Q4-Gate (W13)
 
