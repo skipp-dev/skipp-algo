@@ -31,6 +31,11 @@ class EventFamilyKPI:
     mfe: float = 0.0   # Maximum Favorable Excursion (mean)
     n_events: int = 0
     partial_fill_pct_mean: float = 0.0  # Mean zone fill fraction for misses (0.0-1.0)
+    # Strict ≥50% partial-fill hit rate (D1 label_fvg_partial_50). Only emitted
+    # when the underlying events carry ``features.label_partial_50`` (currently
+    # FVG only); ``None`` keeps non-FVG / legacy fixtures untouched.
+    partial_50_hit_rate: float | None = None
+    partial_50_n_events: int = 0
 
 
 @dataclass(slots=True)
@@ -70,6 +75,8 @@ def compute_event_family_kpi(
     mfe_total = 0.0
     partial_fill_miss_total = 0.0
     miss_count = 0
+    partial_50_hits = 0
+    partial_50_n = 0
 
     for e in events:
         if e.get("hit"):
@@ -82,6 +89,13 @@ def compute_event_family_kpi(
         ttm_total += float(e.get("time_to_mitigation", 0))
         mae_total += float(e.get("mae", 0))
         mfe_total += float(e.get("mfe", 0))
+        feats = e.get("features")
+        if isinstance(feats, dict) and "label_partial_50" in feats:
+            label = feats.get("label_partial_50")
+            if label is not None:
+                partial_50_n += 1
+                if bool(label):
+                    partial_50_hits += 1
 
     n = len(events)
     return EventFamilyKPI(
@@ -93,6 +107,8 @@ def compute_event_family_kpi(
         mfe=round(mfe_total / n, 4),
         n_events=n,
         partial_fill_pct_mean=round(partial_fill_miss_total / miss_count, 4) if miss_count > 0 else 0.0,
+        partial_50_hit_rate=round(partial_50_hits / partial_50_n, 4) if partial_50_n > 0 else None,
+        partial_50_n_events=partial_50_n,
     )
 
 

@@ -63,6 +63,34 @@ class TestEventFamilyKPI:
         kpi = compute_event_family_kpi(events, "FVG")
         assert kpi.partial_fill_pct_mean == 0.0
 
+    def test_partial_50_hit_rate_aggregates_strict_label(self) -> None:
+        """D1 bridge: features.label_partial_50 should aggregate into a strict HR."""
+        events = [
+            {"hit": True, "time_to_mitigation": 1, "invalidated": False, "mae": 0, "mfe": 0,
+             "features": {"label_partial_50": True}},
+            {"hit": True, "time_to_mitigation": 1, "invalidated": False, "mae": 0, "mfe": 0,
+             "features": {"label_partial_50": False}},
+            {"hit": False, "time_to_mitigation": 0, "invalidated": True, "mae": 0, "mfe": 0,
+             "features": {"label_partial_50": False}},
+            {"hit": False, "time_to_mitigation": 0, "invalidated": True, "mae": 0, "mfe": 0,
+             "features": {"label_partial_50": True}},
+        ]
+        kpi = compute_event_family_kpi(events, "FVG")
+        assert kpi.partial_50_n_events == 4
+        assert kpi.partial_50_hit_rate == 0.5
+        # Lenient hit_rate stays 2/4 = 0.5 from the ``hit`` field —
+        # strict rate must coexist with it without overwriting.
+        assert kpi.hit_rate == 0.5
+
+    def test_partial_50_absent_when_label_missing(self) -> None:
+        """Backward compat: events without features.label_partial_50 -> None."""
+        events = [
+            {"hit": True, "time_to_mitigation": 3, "invalidated": False, "mae": 0, "mfe": 0},
+            {"hit": False, "time_to_mitigation": 5, "invalidated": True, "mae": 0, "mfe": 0},
+        ]
+        kpi = compute_event_family_kpi(events, "OB")
+        assert kpi.partial_50_n_events == 0
+        assert kpi.partial_50_hit_rate is None
 
 # --- build_benchmark ---
 

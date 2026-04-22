@@ -31,6 +31,27 @@ def _weighted(rows: list[dict], key: str) -> float:
     return sum(r.get(key, 0.0) * r["n_events"] for r in rows) / total_n
 
 
+def _weighted_partial_50(rows: list[dict]) -> tuple[float | None, int]:
+    """Weight ``partial_50_hit_rate`` by ``partial_50_n_events``.
+
+    Returns ``(rate_or_None, total_partial_50_n)``. Rows without the
+    strict label (legacy benchmarks) contribute zero events and are
+    skipped — never poison the average with a default 0.0.
+    """
+    total_n = 0
+    weighted_sum = 0.0
+    for r in rows:
+        n = int(r.get("partial_50_n_events", 0) or 0)
+        rate = r.get("partial_50_hit_rate")
+        if n <= 0 or rate is None:
+            continue
+        total_n += n
+        weighted_sum += float(rate) * n
+    if total_n == 0:
+        return None, 0
+    return weighted_sum / total_n, total_n
+
+
 def aggregate(root: Path) -> dict:
     by_tf_family: dict[tuple[str, str], list[dict]] = defaultdict(list)
     by_strat_family: dict[tuple[str, str], list[dict]] = defaultdict(list)
@@ -46,6 +67,7 @@ def aggregate(root: Path) -> dict:
 
     per_tf: dict[str, dict[str, dict]] = {}
     for (tf, fam), rows in sorted(by_tf_family.items()):
+        p50_rate, p50_n = _weighted_partial_50(rows)
         per_tf.setdefault(tf, {})[fam] = {
             "n_events": sum(r["n_events"] for r in rows),
             "hit_rate": round(_weighted(rows, "hit_rate"), 4),
@@ -54,6 +76,8 @@ def aggregate(root: Path) -> dict:
                 _weighted(rows, "partial_fill_pct_mean"), 4,
             ),
             "invalidation_rate": round(_weighted(rows, "invalidation_rate"), 4),
+            "partial_50_hit_rate": round(p50_rate, 4) if p50_rate is not None else None,
+            "partial_50_n_events": p50_n,
         }
 
     fvg_per_strat: dict[str, dict] = {}
@@ -62,12 +86,15 @@ def aggregate(root: Path) -> dict:
         n = sum(r["n_events"] for r in rows)
         if n == 0:
             continue
+        p50_rate, p50_n = _weighted_partial_50(rows)
         bucket = {
             "n_events": n,
             "hit_rate": round(_weighted(rows, "hit_rate"), 4),
             "partial_fill_pct_mean": round(
                 _weighted(rows, "partial_fill_pct_mean"), 4,
             ),
+            "partial_50_hit_rate": round(p50_rate, 4) if p50_rate is not None else None,
+            "partial_50_n_events": p50_n,
         }
         per_family_per_context.setdefault(fam, {})[strat_key] = bucket
         if fam == "FVG":
@@ -80,6 +107,7 @@ def aggregate(root: Path) -> dict:
         n = sum(r["n_events"] for r in rows_fam)
         if n == 0:
             continue
+        p50_rate, p50_n = _weighted_partial_50(rows_fam)
         per_family_overall[fam] = {
             "n_events": n,
             "hit_rate": round(_weighted(rows_fam, "hit_rate"), 4),
@@ -92,6 +120,8 @@ def aggregate(root: Path) -> dict:
             "invalidation_rate": round(
                 _weighted(rows_fam, "invalidation_rate"), 4,
             ),
+            "partial_50_hit_rate": round(p50_rate, 4) if p50_rate is not None else None,
+            "partial_50_n_events": p50_n,
         }
 
     overall = per_family_overall.get("FVG", {
@@ -140,12 +170,15 @@ def main(argv: list[str] | None = None) -> int:
         print(f"| {ctx} | {k['n_events']} | {k['hit_rate']:.3f} | "
               f"{k['partial_fill_pct_mean']:.3f} |")
     print("\n## Per-family overall (4-TF aggregate)\n")
-    print("| Family | n | HR | TTM | partial_fill | inval_rate |")
-    print("|---|---:|---:|---:|---:|---:|")
+    print("| Family | n | HR | TTM | partial_fill | inval_rate | strict≥50 HR | strict n |")
+    print("|---|---:|---:|---:|---:|---:|---:|---:|")
     for fam, k in result["per_family_overall"].items():
+        p50 = k.get("partial_50_hit_rate")
+        p50_n = k.get("partial_50_n_events", 0)
+        p50_str = f"{p50:.3f}" if p50 is not None else "—"
         print(f"| {fam} | {k['n_events']} | {k['hit_rate']:.3f} | "
               f"{k['ttm_mean']} | {k['partial_fill_pct_mean']:.3f} | "
-              f"{k['invalidation_rate']:.3f} |")
+              f"{k['invalidation_rate']:.3f} | {p50_str} | {p50_n} |")
     print("\n## Per-family per-context\n")
     print("| Family | Context | n | HR | partial_fill |")
     print("|---|---|---:|---:|---:|")
