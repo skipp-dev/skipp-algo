@@ -6,6 +6,17 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-09-29) — Plan 2.8 zero-float records + erl + leading-at lines
+
+- `scripts/plan_2_8_ledger_zero_float_only_record_count.py`
+  counts non-empty ledger records whose every value is exactly the
+  float ``0.0`` (excludes ``int`` and ``bool``).
+- `scripts/plan_2_8_digest_erl_file_count.py` counts top-level `.erl`
+  files.
+- `scripts/plan_2_8_weekly_summary_leading_at_line_count.py`
+  counts non-empty lines whose first character is ``@``.
+- Weekly digest workflow wires three fail-soft compute+upload step pairs.
+
 ### Added (2026-09-28) — Plan 2.8 zero-int records + ex + trailing-dollar lines
 
 - `scripts/plan_2_8_ledger_zero_int_only_record_count.py`
