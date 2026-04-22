@@ -6,6 +6,15 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-10-26) — Plan 2.8 bool-or-dict-or-null records + cob + trailing-semicolon lines
+
+- `scripts/plan_2_8_ledger_bool_or_dict_or_null_only_record_count.py`
+  counts ledger records whose every value is bool, dict, or null.
+- `scripts/plan_2_8_digest_cob_file_count.py` counts top-level `.cob` files.
+- `scripts/plan_2_8_weekly_summary_trailing_semicolon_line_count.py`
+  counts non-empty lines whose last character is ``;``.
+- Weekly digest workflow wires three fail-soft compute+upload step pairs.
+
 ### Added (2026-10-25) — Plan 2.8 numeric-or-list-or-null records + hpp + leading-semicolon lines
 
 - `scripts/plan_2_8_ledger_numeric_or_list_or_null_only_record_count.py`
