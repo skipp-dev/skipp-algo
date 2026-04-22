@@ -277,9 +277,13 @@ und Distanz zum aktuellen Preis sollten die Erwartung beeinflussen.
       (n=10064): 7 promoted buckets über `htf_bias`, `session`, `vol_regime`
       (z.B. `session:ASIA OB +0.3016`, `session:NY_AM OB −0.0896`).
 
-#### F2: Session-Adjusted Zone Priority
+#### F2: Session-Adjusted Zone Priority ✅ DONE (2026-04-22)
 
-- [ ] `build_zone_priority()` → optionaler `session_calibration` Parameter
+- [x] `build_zone_priority()` → optionaler `session_calibration` Parameter
+      (`{session_label: {family: weight}}`). Wins über
+      `contextual_calibration` und `calibrated_family_weights` nur, wenn
+      der aktive `session_context` als Key vorliegt; partial maps bleiben
+      back-compat (übrige Familien behalten _FAMILY_BASE_PRIORITY).
 - [x] Session-spezifische Family-Gewichte aus Benchmark-Bucket-Stats
 - [x] Pine-Exports: `ZONE_CAL_<FAM>_ASIA / _LONDON / _NY_AM` (Q3 F1
       wiring 2026-04-22, Commit folgt). Vorher hatten `_RTH/_ETH` keinen

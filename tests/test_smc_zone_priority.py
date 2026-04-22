@@ -211,3 +211,55 @@ def test_zone_priority_block_in_enrichment_dict() -> None:
     from scripts.smc_enrichment_types import EnrichmentDict
     hints = EnrichmentDict.__annotations__
     assert "zone_priority" in hints
+
+
+# ── F2: session_calibration shortcut ───────────────────────────
+
+def test_session_calibration_overrides_top_family() -> None:
+    """An explicit session bucket must steer top-family selection."""
+    # Default contextual: FVG already wins under RISK_ON+RTH+NORMAL because
+    # RTH adds +0.05 to FVG. We force OB by giving it a huge session weight.
+    result = build_zone_priority(
+        regime="RISK_ON",
+        ensemble_score=0.5,
+        session_context="RTH",
+        vol_regime="NORMAL",
+        htf_aligned=True,
+        session_calibration={"RTH": {"OB": 0.95, "FVG": 0.10, "BOS": 0.20, "SWEEP": 0.15}},
+    )
+    assert result["ZONE_PRIORITY_TOP_FAMILY"] == "OB"
+
+
+def test_session_calibration_silent_when_session_unknown() -> None:
+    """Empty / unmatched session_context must not crash and must not bias."""
+    result = build_zone_priority(
+        regime="NEUTRAL",
+        session_context="",
+        session_calibration={"RTH": {"OB": 0.99}},
+    )
+    # No exception, score remains a valid int.
+    assert isinstance(result["ZONE_PRIORITY_SCORE"], int)
+
+
+def test_session_calibration_partial_map_keeps_other_weights() -> None:
+    """A partial dict (one family only) must not zero-out the rest."""
+    result = build_zone_priority(
+        regime="NEUTRAL",
+        session_context="RTH",
+        vol_regime="NORMAL",
+        # Only override FVG; OB/BOS/SWEEP must keep their _FAMILY_BASE_PRIORITY.
+        session_calibration={"RTH": {"FVG": 0.99}},
+    )
+    # FVG should now win because its weight is overwhelmingly high.
+    assert result["ZONE_PRIORITY_TOP_FAMILY"] == "FVG"
+
+
+def test_session_calibration_wins_over_calibrated_family_weights() -> None:
+    result = build_zone_priority(
+        regime="NEUTRAL",
+        session_context="ETH",
+        vol_regime="NORMAL",
+        calibrated_family_weights={"OB": 0.30, "FVG": 0.30, "BOS": 0.30, "SWEEP": 0.30},
+        session_calibration={"ETH": {"BOS": 0.95}},
+    )
+    assert result["ZONE_PRIORITY_TOP_FAMILY"] == "BOS"

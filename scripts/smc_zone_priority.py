@@ -218,6 +218,7 @@ def build_zone_priority(
     overrides: dict[str, Any] | None = None,
     calibrated_family_weights: dict[str, float] | None = None,
     contextual_calibration: Any | None = None,
+    session_calibration: dict[str, dict[str, float]] | None = None,
 ) -> dict[str, Any]:
     """Build a zone priority block from current context signals.
 
@@ -251,6 +252,13 @@ def build_zone_priority(
         :func:`resolve_contextual_weight`, overriding both global calibration
         and hand-tuned defaults.  Falls back to ``calibrated_family_weights``
         when no promoted bucket matches.
+    session_calibration : dict, optional
+        Phase F2 ergonomic shortcut: ``{session_label: {family: weight}}``
+        mapping that injects session-bucket weights without requiring a full
+        ``ContextualCalibrationResult``.  Wins over ``contextual_calibration``
+        and ``calibrated_family_weights`` only when ``session_context``
+        resolves to a key in the dict; otherwise the existing precedence
+        (contextual → global → hand-tuned) applies.
     """
     result = dict(DEFAULTS)
 
@@ -268,6 +276,19 @@ def build_zone_priority(
                 vol_regime=vol_regime or None,
             )
         effective_weights = ctx_weights
+
+    # ── Phase F2: Session-only injection (ergonomic shortcut) ────
+    # Only fires when the active session bucket is present in the dict;
+    # missing/unknown sessions silently fall back to the precedence
+    # established above so callers can pass a partial map.
+    if session_calibration and session_context:
+        bucket = session_calibration.get(session_context.upper())
+        if bucket:
+            merged = dict(effective_weights or _FAMILY_BASE_PRIORITY)
+            for fam, weight in bucket.items():
+                if fam in merged:
+                    merged[fam] = float(weight)
+            effective_weights = merged
 
     # ── Dimension 1: Historical performance context ─────────────
     # Ensemble score proxies historical performance (scoring + history components)
