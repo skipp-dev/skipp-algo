@@ -110,6 +110,31 @@ und trotzdem profitabel sein.
 > `smc_integration/measurement_evidence.py` (Z. 996) optional gegen das neue
 > Label tauschen, sobald der nächste Benchmark-Run das Side-by-Side liefern soll.
 
+> **A/B-Validierung (2026-04-22, Benchmark v3, 5710 FVG-Events / 4 TFs):**
+> die strikte ≥50%-Definition ist deutlich großzügiger als die binäre
+> Mitigation-Definition und bestätigt die Hypothese aus D1 quantitativ.
+>
+> | Bezug                        | n    | lenient HR (`label_fvg_mitigation`) | strict ≥50% HR (`label_fvg_partial_50`) | Δ |
+> |------------------------------|-----:|------------------------------------:|----------------------------------------:|---:|
+> | **FVG overall (4-TF)**       | 5710 | **0.561**                          | **0.878**                              | **+0.318** |
+> | session:NY_AM                | 2691 | 0.460                              | 0.879                                  | +0.419 |
+> | session:LONDON               | 2910 | 0.646                              | 0.885                                  | +0.239 |
+> | session:ASIA                 |  109 | 0.752                              | 0.670                                  | −0.083 |
+> | htf_bias:BULLISH             | 3413 | 0.554                              | 0.899                                  | +0.345 |
+> | htf_bias:BEARISH             | 2297 | 0.571                              | 0.848                                  | +0.277 |
+> | vol_regime:NORMAL            | 5563 | 0.561                              | 0.879                                  | +0.319 |
+> | vol_regime:HIGH_VOL          |  137 | 0.562                              | 0.861                                  | +0.299 |
+>
+> **Lesart:** auf der NORMAL-Volume-Achse und in NY_AM/LONDON liefert die strikte
+> Definition Treffer-Quoten von ~88%, was FVG aus dem unteren Drittel der
+> Familienrangliste in Reichweite von BOS rückt. **Einzige Inversion:**
+> session:ASIA zeigt mit nur 109 Events einen leichten Rückgang (0.752 →
+> 0.670) — bei <120 Events zu klein für Promotion, aber als Audit-Punkt im
+> Q3-Backlog vorgemerkt. Reproduzierbar via
+> `python scripts/fvg_label_audit_q3.py --root artifacts/ci/measurement_benchmark_2026-04-22_partial50_v3 --format json`.
+> Pipeline-Commits: `3746b36e` (Bridge-Emission), `18110767` (KPI-Aggregation),
+> `1c06bc22` (flat-key-Lese-Fix nach v2-Snapshot mit `null` HR).
+
 #### D2: FVG per-Context Breakdown ✅ DONE (2026-04-22) — massiv bestätigt
 
 **Hypothese:** FVG-Performance könnte stark kontextabhängig sein
