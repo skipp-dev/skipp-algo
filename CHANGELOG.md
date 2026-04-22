@@ -6,6 +6,17 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-09-25) — Plan 2.8 list-or-null records + dart + leading-tab lines
+
+- `scripts/plan_2_8_ledger_list_or_null_only_record_count.py`
+  counts non-empty ledger records whose every value is a ``list`` or
+  ``None``.
+- `scripts/plan_2_8_digest_dart_file_count.py` counts top-level `.dart`
+  files.
+- `scripts/plan_2_8_weekly_summary_leading_tab_line_count.py`
+  counts non-empty lines whose first character is a tab.
+- Weekly digest workflow wires three fail-soft compute+upload step pairs.
+
 ### Added (2026-09-24) — Plan 2.8 negative-or-zero float records + pl + trailing-backtick lines
 
 - `scripts/plan_2_8_ledger_negative_or_zero_float_only_record_count.py`
