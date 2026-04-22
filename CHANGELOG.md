@@ -6,6 +6,16 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-08-12) — Plan 2.8 top-key unique + cer + angle-close lines
+
+- `scripts/plan_2_8_ledger_top_key_count_unique.py` reports number of
+  distinct top-level key counts seen across ledger records.
+- `scripts/plan_2_8_digest_cer_file_count.py` counts top-level `.cer`
+  files.
+- `scripts/plan_2_8_weekly_summary_angle_close_line_count.py` counts
+  lines containing an ASCII `>`.
+- Weekly digest workflow wires three fail-soft compute+upload step pairs.
+
 ### Added (2026-08-11) — Plan 2.8 top-key min + pkcs12 + angle-open lines
 
 - `scripts/plan_2_8_ledger_top_key_count_min.py` reports min top-level
