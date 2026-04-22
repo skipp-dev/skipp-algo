@@ -6,6 +6,17 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-08-22) — Plan 2.8 mixed-value records + asc + printable lines
+
+- `scripts/plan_2_8_ledger_mixed_value_record_count.py` counts ledger
+  records that contain both at least one scalar and at least one
+  collection value (empty objects excluded).
+- `scripts/plan_2_8_digest_asc_file_count.py` counts top-level `.asc`
+  files.
+- `scripts/plan_2_8_weekly_summary_printable_line_count.py` counts
+  non-empty lines whose every character is printable ASCII (0x20-0x7E).
+- Weekly digest workflow wires three fail-soft compute+upload step pairs.
+
 ### Added (2026-08-21) — Plan 2.8 collection-only records + pgp + alnum-only lines
 
 - `scripts/plan_2_8_ledger_collection_only_record_count.py` counts
