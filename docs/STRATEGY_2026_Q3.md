@@ -167,15 +167,33 @@ Lookahead-Fensters.
 > Lookaheads bringen keinen Hit-Rate-Uplift. Empfehlung: **kein** Lookahead-
 > Tuning, stattdessen Session-Filter (siehe D2).
 
-#### D4: FVG Quality Signal Integration
+#### D4: FVG Quality Signal Integration ✅ DONE (2026-04-22) — Hypothese **partiell falsifiziert**
 
 **Hypothese:** Nicht alle FVGs sind gleichwertig — Größe, HTF-Alignment
 und Distanz zum aktuellen Preis sollten die Erwartung beeinflussen.
 
-- [ ] FVG-Event-Attribute auswerten: `gap_size_atr`, `distance_to_price`,
+- [x] FVG-Event-Attribute auswerten: `gap_size_atr`, `distance_to_price_atr`,
       `htf_aligned`, `is_full_body`
-- [ ] Conditional Hit Rates: große HTF-aligned FVGs vs. kleine unaligned
-- [ ] **Output:** FVG Quality Filter Kriterien für die Scoring Pipeline
+- [x] Conditional Hit Rates: große HTF-aligned FVGs vs. kleine unaligned
+- [x] **Output:** FVG Quality Filter Kriterien für die Scoring Pipeline →
+      `docs/FVG_QUALITY_D4_AUDIT.md`
+
+> **Befund (n=5710, strict ≥50% Label):** Unter dem D1-empfohlenen
+> strict label sind die zentralen Quality-Features **null bis invers**
+> korreliert mit Hit Rate:
+> - `htf_aligned` Δ = **−0.034** (Gewicht 0.25 ist datenfrei)
+> - `is_full_body` Δ = **−0.021** (Gewicht 0.10 ist Rauschen)
+> - `gap_size_atr` Q4 vs Q1: **0.657 vs 0.897** (invers; aktuelles
+>   Gewicht 0.30 belohnt Loser unter strict)
+> - `distance_to_price_atr` Q4 vs Q1: **0.647 vs 0.931** (einziges
+>   monoton starkes Signal — näher = besser)
+>
+> **Konsequenz für D3-Promotion:** Eine Umstellung auf strict label
+> als primäres FVG-Outcome muss **zwingend** mit einer Re-Kalibrierung
+> der `smc_core/fvg_quality.py`-Gewichte verbunden sein, sonst
+> verstärkt der Quality-Score genau die falschen Events. Single-PR-
+> Discipline: Promotion und Re-Calibration müssen als ein Commit
+> landen.
 
 ### Phase E — Scale & Diversification (Wochen 2–5)
 
