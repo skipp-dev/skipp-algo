@@ -12,20 +12,29 @@
 
 ### 1.1 Family Hit Rates — Kalibrierte Gewichte
 
-| Family | Events | Hit Rate | Prior | Kalibriert | Δ | Bewertung |
-|--------|-------:|----------:|------:|-----------:|---:|-----------|
-| **BOS** | 46 | **91.3%** | 0.81 | 0.8821 | +7.2% | ⬆ Stärkste Familie — überperformt deutlich |
-| **OB** | 44 | **86.4%** | 0.82 | 0.8505 | +3.1% | ⬆ Solide, leicht über Prior |
-| **SWEEP** | 72 | **83.3%** | 0.73 | 0.8023 | +7.2% | ⬆ Stärker als erwartet |
-| **FVG** | 96 | **59.4%** | 0.61 | 0.5986 | −1.1% | ⬇ **Schwächste Familie** — braucht Untersuchung |
+> **Quelle (2026-04-22):** 4-TF-Plan-2.8-Universum, 10 004 Events / 78 (Symbol×TF)-Pairs aus
+> `artifacts/ci/measurement_benchmark_combined_2026-04-21/zone_priority_calibration.json`.
+> Reproduzierbar via `python scripts/fvg_label_audit_q3.py`.
 
-**Kernbefund:** FVG hat die meisten Events (96, 37% aller Events), aber die schlechteste Hit Rate (59.4%). Das ist das größte Verbesserungspotenzial im gesamten System.
+| Family | Events | Hit Rate | Prior | Kalibriert | Δ vs Prior | Bewertung |
+|--------|-------:|----------:|------:|-----------:|-----------:|-----------|
+| **BOS**   | 1 606 | **85.7%** | 0.81 | 0.8432 | +4.1% | ⬆ Stärkste Familie — bestätigt Q2 |
+| **SWEEP** | 1 775 | **65.4%** | 0.73 | 0.6765 | −7.3% | ↘ Unter Prior — Q2-Stichprobe war zu optimistisch |
+| **FVG**   | 5 671 | **56.3%** | 0.61 | 0.5773 | −5.4% | ↘ Schwächste auf Volumen — Hauptverbesserungsfeld |
+| **OB**    |   952 | **31.5%** | 0.82 | 0.4666 | −43.1% | ⬇ **Krasse Underperformance** — Prior basierte auf 44 Events; Bayesian-Smoothing zieht den Wert noch nach oben |
 
-> **Caveat (2026-04-22):** Die obigen Zahlen stammen aus dem 258-Event-Q2-Kalibrierungssatz.
-> Auf dem 4-TF-Plan-2.8-Universum (5671 FVG- + 952 OB-Events) liegt **OB bei 31–49% HR**
-> statt 86.4%, **FVG bei 56.1%** statt 59.4%. Details:
-> [docs/FVG_LABEL_AUDIT_Q3.md](FVG_LABEL_AUDIT_Q3.md). Die Q3-Retro muss
-> diese Tabelle gegen die größere Stichprobe austauschen.
+**Kernbefund:** FVG ist mit 5 671 Events (57% aller Events) die häufigste Familie und liegt
+mit 56.3% HR nahe Prior — Verbesserungsfeld bleibt aber vorrangig wegen Volumen. **OB**
+hat mit 31.5% HR die größte Prior-Realität-Lücke (Q2-Prior war 0.82): Smoothing federt
+das ab, aber operativ ist OB als Standalone-Familie auf 4-TF aktuell nicht profitabel.
+**SWEEP** liegt 7pp unter Prior und sollte nicht mehr als „bessere Alternative zu FVG"
+priorisiert werden.
+
+> **Historischer Kontext (Q2-Kalibrierung, 2026-Q1):** 258 Events / 12 Pairs ergaben
+> BOS 91.3% / OB 86.4% / SWEEP 83.3% / FVG 59.4%. Die Q2-Stichprobe war zu klein
+> und kursorisch im Universum verzerrt; sämtliche Plan-2.8-Entscheidungen sollen
+> die Tabelle oben verwenden, nicht die Q2-Werte. Tiefenanalyse:
+> [docs/FVG_LABEL_AUDIT_Q3.md](FVG_LABEL_AUDIT_Q3.md).
 
 ### 1.2 Scoring-Qualität
 
