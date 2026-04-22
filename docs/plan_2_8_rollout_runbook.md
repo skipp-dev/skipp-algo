@@ -1103,6 +1103,9 @@ read.
 - `tests/test_plan_2_8_ledger_bool_or_dict_or_null_only_record_count.py`
 - `tests/test_plan_2_8_digest_cob_file_count.py`
 - `tests/test_plan_2_8_weekly_summary_trailing_semicolon_line_count.py`
+- `tests/test_plan_2_8_ledger_bool_or_list_or_null_only_record_count.py`
+- `tests/test_plan_2_8_digest_cbl_file_count.py`
+- `tests/test_plan_2_8_weekly_summary_leading_comma_line_count.py`
 - `tests/test_plan_2_8_alert_history.py`
 - `tests/test_plan_2_8_alert_history_summary.py`
 - `tests/test_plan_2_8_digest_rollup.py`
