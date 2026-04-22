@@ -89,13 +89,21 @@ def compute_event_family_kpi(
         ttm_total += float(e.get("time_to_mitigation", 0))
         mae_total += float(e.get("mae", 0))
         mfe_total += float(e.get("mfe", 0))
-        feats = e.get("features")
-        if isinstance(feats, dict) and "label_partial_50" in feats:
-            label = feats.get("label_partial_50")
-            if label is not None:
-                partial_50_n += 1
-                if bool(label):
-                    partial_50_hits += 1
+        # D1 strict label: ``measurement_evidence._evaluate_zone_event``
+        # writes it as a flat ``label_partial_50`` key on the payload
+        # (FVG path only). The scoring pipeline mirrors it under
+        # ``features.label_partial_50`` for ScoredEvent dicts. Accept
+        # either to stay schema-tolerant; ``None`` means the label was
+        # not emitted (legacy fixtures, non-FVG families).
+        label = e.get("label_partial_50")
+        if label is None:
+            feats = e.get("features")
+            if isinstance(feats, dict):
+                label = feats.get("label_partial_50")
+        if label is not None:
+            partial_50_n += 1
+            if bool(label):
+                partial_50_hits += 1
 
     n = len(events)
     return EventFamilyKPI(

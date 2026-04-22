@@ -82,6 +82,22 @@ class TestEventFamilyKPI:
         # strict rate must coexist with it without overwriting.
         assert kpi.hit_rate == 0.5
 
+    def test_partial_50_hit_rate_aggregates_flat_payload_key(self) -> None:
+        """D1 bridge: payload from ``_evaluate_zone_event`` carries the
+        label as a flat ``label_partial_50`` key (no nested ``features``
+        dict). The KPI reader must accept that shape."""
+        events = [
+            {"hit": True, "time_to_mitigation": 1, "invalidated": False, "mae": 0, "mfe": 0,
+             "label_partial_50": True},
+            {"hit": False, "time_to_mitigation": 0, "invalidated": True, "mae": 0, "mfe": 0,
+             "label_partial_50": False},
+            {"hit": False, "time_to_mitigation": 0, "invalidated": True, "mae": 0, "mfe": 0,
+             "label_partial_50": True},
+        ]
+        kpi = compute_event_family_kpi(events, "FVG")
+        assert kpi.partial_50_n_events == 3
+        assert kpi.partial_50_hit_rate == round(2 / 3, 4)
+
     def test_partial_50_absent_when_label_missing(self) -> None:
         """Backward compat: events without features.label_partial_50 -> None."""
         events = [
