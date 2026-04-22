@@ -1067,6 +1067,9 @@ read.
 - `tests/test_plan_2_8_ledger_nonempty_dict_only_record_count.py`
 - `tests/test_plan_2_8_digest_m_file_count.py`
 - `tests/test_plan_2_8_weekly_summary_trailing_equals_line_count.py`
+- `tests/test_plan_2_8_ledger_empty_list_only_record_count.py`
+- `tests/test_plan_2_8_digest_mm_file_count.py`
+- `tests/test_plan_2_8_weekly_summary_leading_slash_line_count.py`
 - `tests/test_plan_2_8_alert_history.py`
 - `tests/test_plan_2_8_alert_history_summary.py`
 - `tests/test_plan_2_8_digest_rollup.py`
