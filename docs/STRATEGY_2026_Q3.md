@@ -21,6 +21,12 @@
 
 **Kernbefund:** FVG hat die meisten Events (96, 37% aller Events), aber die schlechteste Hit Rate (59.4%). Das ist das größte Verbesserungspotenzial im gesamten System.
 
+> **Caveat (2026-04-22):** Die obigen Zahlen stammen aus dem 258-Event-Q2-Kalibrierungssatz.
+> Auf dem 4-TF-Plan-2.8-Universum (5671 FVG- + 952 OB-Events) liegt **OB bei 31–49% HR**
+> statt 86.4%, **FVG bei 56.1%** statt 59.4%. Details:
+> [docs/FVG_LABEL_AUDIT_Q3.md](FVG_LABEL_AUDIT_Q3.md). Die Q3-Retro muss
+> diese Tabelle gegen die größere Stichprobe austauschen.
+
 ### 1.2 Scoring-Qualität
 
 | Metrik | Wert | Gate | Einordnung |
@@ -83,9 +89,17 @@ und trotzdem profitabel sein.
 
 > **Befund:** über 5671 FVG-Events zeigt sich **partial_fill_pct_mean = 73.4%**
 > (auf 5m sogar 90.4%). Das aktuelle binäre Label verwirft also einen Großteil
-> profitabler Reaktionen. Empfehlung im Audit-Doc: zweite Label-Variante
-> `label_fvg_partial_50` parallel mitführen — konkrete Stelle
-> `smc_core/fvg_quality.py`.
+> profitabler Reaktionen.
+>
+> **Umsetzung (2026-04-22, Commit folgt):** zweite Label-Variante
+> `label_fvg_partial_50(zone_low, zone_high, direction, highs, lows, closes,
+> *, fill_threshold=0.5)` ist in `smc_core/scoring.py` (Sibling von
+> `label_fvg_mitigation`) implementiert und in
+> `tests/test_smc_scoring.py::TestLabelFvgPartial50` mit 12 Tests abgedeckt.
+> Die Funktion teilt die 2-Bar-Invalidierungsregel mit dem alten Label, sodass
+> ein A/B-Diff den Fill-Tiefen-Effekt isoliert. **Nächster Schritt:**
+> `smc_integration/measurement_evidence.py` (Z. 996) optional gegen das neue
+> Label tauschen, sobald der nächste Benchmark-Run das Side-by-Side liefern soll.
 
 #### D2: FVG per-Context Breakdown ✅ DONE (2026-04-22) — massiv bestätigt
 

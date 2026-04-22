@@ -994,6 +994,88 @@ def label_fvg_mitigation(
     return touch_idx is not None and (invalid_idx is None or touch_idx <= invalid_idx)
 
 
+def label_fvg_partial_50(
+    zone_low: float,
+    zone_high: float,
+    direction: str,
+    subsequent_highs: list[float],
+    subsequent_lows: list[float],
+    subsequent_closes: list[float],
+    *,
+    fill_threshold: float = 0.50,
+) -> bool:
+    """Label whether an FVG was filled at least ``fill_threshold`` before invalidation.
+
+    Stricter sibling of :func:`label_fvg_mitigation` motivated by the
+    Q3 FVG label audit (``docs/FVG_LABEL_AUDIT_Q3.md``): the binary
+    "any-touch" label counted shallow wicks as hits, but
+    ``partial_fill_pct_mean`` of 0.73 across 5671 events showed that a
+    large share of "missed" FVGs *did* react with a meaningful (≥ 50 %)
+    fill before invalidation. This label requires a real penetration
+    of at least ``fill_threshold`` of the zone size before the same
+    two-consecutive-close invalidation rule fires.
+
+    The function shares the FVG-specific 2-bar invalidation rule with
+    :func:`label_fvg_mitigation` so a side-by-side label diff isolates
+    the *fill-depth* effect, not the invalidation rule.
+
+    Parameters
+    ----------
+    fill_threshold:
+        Minimum fraction of the zone size (``0.0–1.0``) that price must
+        penetrate to count as a hit. Defaults to ``0.50``; pass other
+        values (e.g. ``0.30`` or ``0.70``) to sweep the threshold.
+    """
+    if zone_low <= 0 or zone_high <= 0 or zone_high <= zone_low:
+        return False
+    if not 0.0 <= fill_threshold <= 1.0:
+        return False
+
+    normalized_direction = _normalize_market_direction(direction)
+    if normalized_direction not in {"BULLISH", "BEARISH"}:
+        return False
+
+    bar_count = max(len(subsequent_closes), len(subsequent_highs), len(subsequent_lows))
+    if bar_count == 0:
+        return False
+
+    zone_size = zone_high - zone_low
+    threshold_depth = fill_threshold * zone_size
+
+    fill_idx: int | None = None
+    invalid_idx: int | None = None
+    consecutive_invalid = 0
+    for idx in range(bar_count):
+        close = subsequent_closes[idx] if idx < len(subsequent_closes) else None
+        high = subsequent_highs[idx] if idx < len(subsequent_highs) else None
+        low = subsequent_lows[idx] if idx < len(subsequent_lows) else None
+
+        if normalized_direction == "BEARISH":
+            if fill_idx is None and high is not None and high >= zone_low:
+                depth = min(min(high, zone_high) - zone_low, zone_size)
+                if depth >= threshold_depth:
+                    fill_idx = idx
+            if close is not None and close > zone_high:
+                consecutive_invalid += 1
+                if consecutive_invalid >= 2 and invalid_idx is None:
+                    invalid_idx = idx - 1
+            else:
+                consecutive_invalid = 0
+        else:
+            if fill_idx is None and low is not None and low <= zone_high:
+                depth = min(zone_high - max(low, zone_low), zone_size)
+                if depth >= threshold_depth:
+                    fill_idx = idx
+            if close is not None and close < zone_low:
+                consecutive_invalid += 1
+                if consecutive_invalid >= 2 and invalid_idx is None:
+                    invalid_idx = idx - 1
+            else:
+                consecutive_invalid = 0
+
+    return fill_idx is not None and (invalid_idx is None or fill_idx <= invalid_idx)
+
+
 def _summarize_scored_events(events: list[ScoredEvent]) -> tuple[int, float, float, float]:
     if not events:
         return 0, float("nan"), float("nan"), float("nan")

@@ -16,6 +16,7 @@ from smc_core.scoring import (
     export_scoring_artifact,
     label_bos_follow_through,
     label_fvg_mitigation,
+    label_fvg_partial_50,
     label_orderblock_mitigation,
     label_sweep_reversal,
     log_score,
@@ -181,6 +182,115 @@ class TestFVGPartialFill:
 
     def test_invalid_zone(self) -> None:
         assert compute_fvg_partial_fill(102.0, 100.0, "BEAR", [101.0], [99.0]) == 0.0
+
+
+class TestLabelFvgPartial50:
+    """Q3 D1 follow-up — stricter "≥50% fill before invalidation" label."""
+
+    def test_bearish_full_fill_is_hit(self) -> None:
+        # High reaches above zone_high → 100 % fill → hit.
+        assert label_fvg_partial_50(
+            100.0, 102.0, "BEAR",
+            [102.0], [99.0], [101.5],
+        ) is True
+
+    def test_bearish_exactly_half_fill_is_hit(self) -> None:
+        # High exactly at midpoint 101.0 = 50 % fill → hit.
+        assert label_fvg_partial_50(
+            100.0, 102.0, "BEAR",
+            [101.0], [99.0], [100.5],
+        ) is True
+
+    def test_bearish_shallow_wick_is_miss(self) -> None:
+        # High at 100.5 = 25 % fill → miss under partial-50, but
+        # would be a hit under the lenient label_fvg_mitigation.
+        assert label_fvg_partial_50(
+            100.0, 102.0, "BEAR",
+            [100.5], [99.5], [100.0],
+        ) is False
+        assert label_fvg_mitigation(
+            100.0, 102.0, "BEAR",
+            [100.5], [99.5], [100.0],
+        ) is True
+
+    def test_bullish_partial_fill_below_threshold_is_miss(self) -> None:
+        # Bullish FVG [98, 100], low at 99.5 → 25 % fill → miss.
+        assert label_fvg_partial_50(
+            98.0, 100.0, "BULL",
+            [101.0], [99.5], [100.5],
+        ) is False
+
+    def test_bullish_deep_fill_before_invalidation_is_hit(self) -> None:
+        # Bullish FVG [98, 100], low 98.5 = 75 % fill → hit.
+        assert label_fvg_partial_50(
+            98.0, 100.0, "BULL",
+            [101.0], [98.5], [99.5],
+        ) is True
+
+    def test_shallow_touch_then_invalidation_is_miss(self) -> None:
+        # Bearish FVG [100, 101]: bar-0 wicks 30 % (high 100.3, below
+        # the 50 % threshold), then bars 1+2 close above zone → invalidated.
+        # No ≥50 % fill ever happened → miss.
+        assert label_fvg_partial_50(
+            100.0, 101.0, "BEAR",
+            [100.3, 100.4, 101.2],
+            [99.8, 100.0, 100.5],
+            [100.2, 101.2, 101.5],
+        ) is False
+        # Lenient label *would* count the bar-0 wick as a hit.
+        assert label_fvg_mitigation(
+            100.0, 101.0, "BEAR",
+            [100.3, 100.4, 101.2],
+            [99.8, 100.0, 100.5],
+            [100.2, 101.2, 101.5],
+        ) is True
+
+    def test_single_close_beyond_does_not_invalidate(self) -> None:
+        # Bearish FVG [100, 101]: one close beyond, then fills 100 %.
+        assert label_fvg_partial_50(
+            100.0, 101.0, "BEAR",
+            [101.2, 101.0, 100.5],
+            [100.8, 99.9, 99.5],
+            [101.2, 100.3, 100.0],
+        ) is True
+
+    def test_invalid_zone_returns_false(self) -> None:
+        assert label_fvg_partial_50(
+            102.0, 100.0, "BEAR",
+            [101.0], [99.0], [100.5],
+        ) is False
+
+    def test_unknown_direction_returns_false(self) -> None:
+        assert label_fvg_partial_50(
+            100.0, 102.0, "SIDEWAYS",
+            [101.5], [99.5], [100.5],
+        ) is False
+
+    def test_threshold_out_of_range_returns_false(self) -> None:
+        assert label_fvg_partial_50(
+            100.0, 102.0, "BEAR",
+            [102.0], [99.0], [101.5],
+            fill_threshold=1.5,
+        ) is False
+
+    def test_custom_threshold_30pct(self) -> None:
+        # 25 % fill should still miss at threshold 0.30.
+        assert label_fvg_partial_50(
+            100.0, 102.0, "BEAR",
+            [100.5], [99.5], [100.0],
+            fill_threshold=0.30,
+        ) is False
+        # 35 % fill comfortably above 30 % threshold → hit.
+        assert label_fvg_partial_50(
+            100.0, 102.0, "BEAR",
+            [100.7], [99.5], [100.0],
+            fill_threshold=0.30,
+        ) is True
+
+    def test_empty_subsequents_is_miss(self) -> None:
+        assert label_fvg_partial_50(
+            100.0, 102.0, "BEAR", [], [], [],
+        ) is False
 
 
 class TestScoreEvents:
