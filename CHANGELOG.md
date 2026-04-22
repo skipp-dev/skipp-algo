@@ -6,6 +6,17 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-08-15) — Plan 2.8 number-only records + p7c + lowercase lines
+
+- `scripts/plan_2_8_ledger_number_only_record_count.py` counts ledger
+  records whose every top-level value is a number (int or float; bool
+  excluded; empty objects excluded).
+- `scripts/plan_2_8_digest_p7c_file_count.py` counts top-level `.p7c`
+  files.
+- `scripts/plan_2_8_weekly_summary_lowercase_line_count.py` counts
+  lines containing at least one ASCII lowercase letter.
+- Weekly digest workflow wires three fail-soft compute+upload step pairs.
+
 ### Added (2026-08-14) — Plan 2.8 string-only records + p7b + uppercase lines
 
 - `scripts/plan_2_8_ledger_string_only_record_count.py` counts ledger
