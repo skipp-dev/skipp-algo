@@ -158,8 +158,31 @@ schnellen TF die meiste Reaktion verwirft (90.4% partial_fill).
 **Verdict:** D1-Hypothese quantitativ bestätigt. NY_AM springt von
 „unter 50% / Loser-Bucket" auf 87.9% — d.h. der NY_AM-Verlust war fast
 ausschließlich „Reaktion ≥50% gefüllt, aber kein vollständiges Mitigation
-vor Invalidierung". Einzige Inversion ist `session:ASIA` (n=109, kein
-Promotion-Quorum).
+vor Invalidierung". Einzige Inversion ist `session:ASIA` (n=109) — siehe
+§5b.4: vollständig durch midnight-UTC-Artefakt der 15m-Resampler-Kante
+erklärt, kein realer ASIA-Sample.
+
+### 5b.4 ASIA-Bucket: midnight-UTC Artefakt (geschlossen)
+
+`scripts/fvg_session_artifact_diagnosis.py` (gegen den
+v3-Snapshot) zeigt:
+
+| Session | n   | midnight-UTC n | midnight-UTC % | TF breakout                              | Verdict   |
+|---------|----:|---------------:|---------------:|------------------------------------------|-----------|
+| ASIA    | 109 |            109 |        100.0%  | 15m:109                                  | ARTIFACT  |
+| LONDON  |2910 |              0 |          0.0%  | 5m:2076, 15m:387, 1H:362, 4H:85          | ok        |
+| NY_AM   |2691 |              0 |          0.0%  | 5m:1617, 1H:428, 4H:345, 15m:301         | ok        |
+
+**Verdict:** Die Source-Bars (`full_universe_second_detail_open`)
+decken nur 11–14 UTC ab (US-Open-Fenster). Echte ASIA-Trades (22–07
+UTC) sind im Datensatz nicht enthalten. Die 109 ASIA-Events sind
+ausschließlich 15m-Resampler-Synthetic-Bars an Tagesgrenzen mit
+`timestamp == 00:00:00 UTC`, die der Session-Klassifikator nominell
+ins ASIA-Fenster mappt — kein realer ASIA-Trading-Inhalt. **ToDo
+„ASIA-Inversion durch n≥500 absichern" geschlossen als „nicht
+fixbar aus aktuellem Export-Bundle".** ASIA-Bucket aus Promotion-
+Entscheidungen ausschließen, bis ein 24-h-Bar-Quellenbundle bereit
+steht (Folge-Issue, kein Q3-Blocker).
 
 ### 5b.3 FVG strict overall
 
@@ -188,8 +211,12 @@ Promotion-Quorum).
    aber Promotion verschiebt sämtliche kalibrierten FVG-Gewichte. Wenn
    Promotion: einen kompletten Re-Calibration-Run + Snapshot pinnen,
    bevor der Scorer umgestellt wird.
-6. **ASIA-Inversion (n=109, Δ −0.083)**: zu kleine Stichprobe, vor
-   Promotion durch zusätzlichen ASIA-Sample-Run mit n≥500 absichern.
+6. **ASIA-Inversion (n=109, Δ −0.083)**: ✅ DONE — diagnostiziert als
+   midnight-UTC-Resampler-Artefakt (100% der ASIA-Events haben
+   `timestamp == 00:00:00 UTC` auf 15m), siehe §5b.4. ASIA-Bucket aus
+   Promotion-Entscheidungen ausschließen; echter ASIA-Sample erfordert
+   24-h-Bar-Quellenbundle (Folge-Issue, kein Q3-Blocker).
+   Diagnose-Tool: `scripts/fvg_session_artifact_diagnosis.py`.
 
 ---
 
