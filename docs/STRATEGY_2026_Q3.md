@@ -259,14 +259,23 @@ und Distanz zum aktuellen Preis sollten die Erwartung beeinflussen.
 > **Ziel:** Die Measurement Lane zeigt bereits kontextuelle Verbesserungen —
 > diese in die Produktion überführen.
 
-#### F1: Contextual Weight Promotion Pipeline
+#### F1: Contextual Weight Promotion Pipeline ✅ DONE (2026-04-22)
 
-- [ ] `check_contextual_promotion()` Funktion: automatisch entscheiden ob
+- [x] `check_contextual_promotion()` Funktion: automatisch entscheiden ob
       ein Context-Dimension-Split die Kalibrierung verbessert
-- [ ] Kriterien: ≥30 Events pro Bucket, Brier-Improvement ≥5%, stabil
-      über 3 aufeinanderfolgende Runs
-- [ ] **Output:** `zone_priority_contextual_calibration.json` neben dem
-      bestehenden `zone_priority_calibration.json`
+      (`scripts/smc_zone_priority_calibration.py::check_contextual_promotion`,
+      Z. 520).
+- [x] Kriterien: ≥30 Events pro Bucket (`_MIN_BUCKET_EVENTS=30`),
+      Brier-Improvement ≥5% (`_BRIER_IMPROVEMENT_THRESHOLD=0.05`),
+      stabil über 3 aufeinanderfolgende Runs
+      (`ContextualCalibrationPromotionPolicy.min_history_runs=3` in
+      `smc_integration/release_policy.py`).
+- [x] **Output:** `zone_priority_contextual_calibration.json` neben dem
+      bestehenden `zone_priority_calibration.json` (CLI-Pfad in
+      `smc_zone_priority_calibration.py::main`, Z. 694–698).
+- [x] **Smoke 2026-04-22** auf `measurement_benchmark_2026-04-22_partial50_v3`
+      (n=10064): 7 promoted buckets über `htf_bias`, `session`, `vol_regime`
+      (z.B. `session:ASIA OB +0.3016`, `session:NY_AM OB −0.0896`).
 
 #### F2: Session-Adjusted Zone Priority
 
