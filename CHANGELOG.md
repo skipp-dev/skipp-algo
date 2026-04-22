@@ -6,6 +6,17 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-08-18) — Plan 2.8 array-only records + csr + ascii-only lines
+
+- `scripts/plan_2_8_ledger_array_only_record_count.py` counts ledger
+  records whose every top-level value is a JSON array (empty objects
+  excluded).
+- `scripts/plan_2_8_digest_csr_file_count.py` counts top-level `.csr`
+  files.
+- `scripts/plan_2_8_weekly_summary_ascii_only_line_count.py` counts
+  lines whose every character is ASCII (codepoint < 128).
+- Weekly digest workflow wires three fail-soft compute+upload step pairs.
+
 ### Added (2026-08-17) — Plan 2.8 null-only records + p7s + mixed-case lines
 
 - `scripts/plan_2_8_ledger_null_only_record_count.py` counts ledger
