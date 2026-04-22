@@ -6,6 +6,17 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-08-21) — Plan 2.8 collection-only records + pgp + alnum-only lines
+
+- `scripts/plan_2_8_ledger_collection_only_record_count.py` counts
+  ledger records whose every top-level value is a JSON list or object
+  (empty objects excluded).
+- `scripts/plan_2_8_digest_pgp_file_count.py` counts top-level `.pgp`
+  files.
+- `scripts/plan_2_8_weekly_summary_alnum_only_line_count.py` counts
+  non-empty lines whose every character is an ASCII letter or digit.
+- Weekly digest workflow wires three fail-soft compute+upload step pairs.
+
 ### Added (2026-08-20) — Plan 2.8 scalar-only records + gpg + letter-only lines
 
 - `scripts/plan_2_8_ledger_scalar_only_record_count.py` counts ledger
