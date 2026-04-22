@@ -6,6 +6,16 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-08-13) — Plan 2.8 non-dict records + cert + digit lines
+
+- `scripts/plan_2_8_ledger_non_dict_record_count.py` counts ledger
+  records whose JSON payload is not an object.
+- `scripts/plan_2_8_digest_cert_file_count.py` counts top-level `.cert`
+  files.
+- `scripts/plan_2_8_weekly_summary_digit_line_count.py` counts lines
+  containing at least one ASCII digit.
+- Weekly digest workflow wires three fail-soft compute+upload step pairs.
+
 ### Added (2026-08-12) — Plan 2.8 top-key unique + cer + angle-close lines
 
 - `scripts/plan_2_8_ledger_top_key_count_unique.py` reports number of
