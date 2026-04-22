@@ -6,6 +6,17 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-09-23) — Plan 2.8 positive-or-zero float records + lua + leading-backtick lines
+
+- `scripts/plan_2_8_ledger_positive_or_zero_float_only_record_count.py`
+  counts non-empty ledger records whose every value is a non-negative
+  ``float`` (excludes ``int`` and ``bool``).
+- `scripts/plan_2_8_digest_lua_file_count.py` counts top-level `.lua`
+  files.
+- `scripts/plan_2_8_weekly_summary_leading_backtick_line_count.py`
+  counts non-empty lines whose first character is `` ` ``.
+- Weekly digest workflow wires three fail-soft compute+upload step pairs.
+
 ### Added (2026-09-22) — Plan 2.8 negative-or-zero int records + scala + trailing-apostrophe lines
 
 - `scripts/plan_2_8_ledger_negative_or_zero_int_only_record_count.py`

@@ -1001,6 +1001,9 @@ read.
 - `tests/test_plan_2_8_ledger_negative_or_zero_int_only_record_count.py`
 - `tests/test_plan_2_8_digest_scala_file_count.py`
 - `tests/test_plan_2_8_weekly_summary_trailing_apostrophe_line_count.py`
+- `tests/test_plan_2_8_ledger_positive_or_zero_float_only_record_count.py`
+- `tests/test_plan_2_8_digest_lua_file_count.py`
+- `tests/test_plan_2_8_weekly_summary_leading_backtick_line_count.py`
 - `tests/test_plan_2_8_alert_history.py`
 - `tests/test_plan_2_8_alert_history_summary.py`
 - `tests/test_plan_2_8_digest_rollup.py`
