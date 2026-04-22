@@ -6,6 +6,16 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-08-16) — Plan 2.8 bool-only records + p7m + digit-only lines
+
+- `scripts/plan_2_8_ledger_bool_only_record_count.py` counts ledger
+  records whose every top-level value is a bool (empty objects excluded).
+- `scripts/plan_2_8_digest_p7m_file_count.py` counts top-level `.p7m`
+  files.
+- `scripts/plan_2_8_weekly_summary_digit_only_line_count.py` counts
+  non-empty lines whose every character is an ASCII digit.
+- Weekly digest workflow wires three fail-soft compute+upload step pairs.
+
 ### Added (2026-08-15) — Plan 2.8 number-only records + p7c + lowercase lines
 
 - `scripts/plan_2_8_ledger_number_only_record_count.py` counts ledger
