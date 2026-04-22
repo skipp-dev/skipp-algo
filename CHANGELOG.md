@@ -6,6 +6,18 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-09-10) — Plan 2.8 float-or-int records + zsh + leading-lowercase lines
+
+- `scripts/plan_2_8_ledger_float_or_int_only_record_count.py` counts
+  non-empty ledger records whose every value is a ``float`` or non-bool
+  ``int``.
+- `scripts/plan_2_8_digest_zsh_file_count.py` counts top-level `.zsh`
+  files.
+- `scripts/plan_2_8_weekly_summary_leading_lowercase_line_count.py`
+  counts non-empty lines whose first character is an ASCII lowercase
+  letter.
+- Weekly digest workflow wires three fail-soft compute+upload step pairs.
+
 ### Added (2026-09-09) — Plan 2.8 single-char records + bash + trailing-uppercase lines
 
 - `scripts/plan_2_8_ledger_single_char_string_only_record_count.py`
