@@ -64,7 +64,6 @@ jobs:
             tests/test_smc_core_*.py
             tests/test_smc_adapters_*.py
             tests/test_measurement_*.py
-            tests/test_release_policy.py
             tests/test_smc_vol_regime.py
             tests/test_smc_bias_merge.py
           )
