@@ -397,15 +397,22 @@ def validate_surface_definitions() -> list[str]:
 
     return errors
 
+# Canonical TradingView script identity per docs/SMC_PRODUCT_IDENTITY.md.
+# Names MUST be unique enough to never appear as a substring of any third-party
+# script title in TradingView's user library. Rationale: 2026-04-22 collision
+# where the previous bare name 'SMC Execution' substring-matched the public
+# 'SMC Execution Engine (Free) by @abdallacrypto v1.3' script during the
+# settings-dialog identity check, causing the preflight to read the wrong
+# script's input bindings.
 PREFLIGHT_CORE_DASHBOARD_TARGETS: tuple[PreflightTarget, ...] = (
     PreflightTarget('SMC_Core_Engine.pine', 'SMC Core', False, False),
-    PreflightTarget('SMC_Dashboard.pine', 'SMC Decision Board', True, True, 58, 'SMC Dashboard', 'dashboardBindings'),
+    PreflightTarget('SMC_Dashboard.pine', 'SMC Long-Dip Dashboard v7', True, True, 58, 'SMC Long-Dip Dashboard v7', 'dashboardBindings'),
 )
 
 PREFLIGHT_MAINLINE_TARGETS: tuple[PreflightTarget, ...] = (
     PreflightTarget('SMC_Core_Engine.pine', 'SMC Core', False, False),
-    PreflightTarget('SMC_Dashboard.pine', 'SMC Decision Board', True, True, 58, 'SMC Dashboard', 'dashboardBindings'),
-    PreflightTarget('SMC_Long_Strategy.pine', 'SMC Execution', True, True, 8, 'SMC Long Strategy', 'strategyBindings'),
+    PreflightTarget('SMC_Dashboard.pine', 'SMC Long-Dip Dashboard v7', True, True, 58, 'SMC Long-Dip Dashboard v7', 'dashboardBindings'),
+    PreflightTarget('SMC_Long_Strategy.pine', 'SMC Long-Dip Strategy v7', True, True, 8, 'SMC Long-Dip Strategy v7', 'strategyBindings'),
 )
 
 PREFLIGHT_DECISION_FIRST_TARGETS: tuple[PreflightTarget, ...] = PREFLIGHT_MAINLINE_TARGETS

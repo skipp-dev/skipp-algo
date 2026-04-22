@@ -69,8 +69,8 @@ function makeProductCutSummary(): LibraryReleaseManifest["productCut"] {
       smcCoreDashboard: [{ file: "SMC_Core_Engine.pine", scriptName: "SMC Core", checkInputs: false, addToChart: false }],
       smcMainline: [{
         file: "SMC_Dashboard.pine",
-        scriptName: "SMC Decision Board",
-        savedScriptName: "SMC Dashboard",
+        scriptName: "SMC Long-Dip Dashboard v7",
+        savedScriptName: "SMC Long-Dip Dashboard v7",
         checkInputs: true,
         addToChart: true,
         minInputs: 58,
@@ -86,8 +86,8 @@ function makeProductCutSummary(): LibraryReleaseManifest["productCut"] {
       }],
       smcDecisionFirst: [{
         file: "SMC_Long_Strategy.pine",
-        scriptName: "SMC Execution",
-        savedScriptName: "SMC Long Strategy",
+        scriptName: "SMC Long-Dip Strategy v7",
+        savedScriptName: "SMC Long-Dip Strategy v7",
         checkInputs: true,
         addToChart: true,
         minInputs: 8,
@@ -333,7 +333,7 @@ test("target overall preflight fails when an error is present", () => {
 test("preflight schema helpers require staged report fields", () => {
   const target = {
     file: "SMC_Dashboard.pine",
-    scriptName: "SMC Decision Board",
+    scriptName: "SMC Long-Dip Dashboard v7",
     execution_mode: "mutating",
     auth_mode: "storage_state",
     auth_source_path: "automation/tradingview/auth/storage-state.json",

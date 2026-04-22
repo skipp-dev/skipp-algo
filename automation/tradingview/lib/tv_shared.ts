@@ -741,9 +741,18 @@ function canonicalVersionMetadataMatch(scriptName: string, uiText: string): bool
 }
 
 function legacyOpenScriptNames(scriptName: string): string[] {
+  // Back-compat aliases: when callers pass the new canonical name, also try
+  // the older saved names so any TradingView account still on the pre-rename
+  // saved title resolves. When callers pass an even-older legacy name, keep
+  // the old fallback chain so deployments mid-rename keep working.
+  // See PREFLIGHT_*_TARGETS rationale in scripts/smc_bus_manifest.py.
   switch (normalizeUiText(scriptName).toLowerCase()) {
     case "smc core":
       return ["SMC Core Engine"];
+    case "smc long-dip dashboard v7":
+      return ["SMC Decision Board", "SMC Dashboard"];
+    case "smc long-dip strategy v7":
+      return ["SMC Execution", "SMC Long Strategy"];
     case "smc decision board":
       return ["SMC Dashboard"];
     case "smc execution":

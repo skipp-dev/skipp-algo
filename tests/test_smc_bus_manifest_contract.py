@@ -258,9 +258,14 @@ def test_product_cut_payload_exports_governance_metadata() -> None:
     assert payload['contracts']['lite'] == list(MANIFEST.LITE_BUS_LABELS)
     assert payload['contracts']['strategyBindings'] == list(MANIFEST.STRATEGY_BUS_LABELS)
     assert tuple(payload['preflightScopes'].keys()) == ('smcCoreDashboard', 'smcMainline', 'smcDecisionFirst')
-    assert payload['preflightScopes']['smcCoreDashboard'][1]['savedScriptName'] == 'SMC Dashboard'
-    assert payload['preflightScopes']['smcMainline'][1]['savedScriptName'] == 'SMC Dashboard'
-    assert payload['preflightScopes']['smcMainline'][2]['savedScriptName'] == 'SMC Long Strategy'
+    # Canonical unique TV script identities (no third-party substring collision).
+    # See PREFLIGHT_*_TARGETS rationale comment in scripts/smc_bus_manifest.py.
+    assert payload['preflightScopes']['smcCoreDashboard'][1]['scriptName'] == 'SMC Long-Dip Dashboard v7'
+    assert payload['preflightScopes']['smcCoreDashboard'][1]['savedScriptName'] == 'SMC Long-Dip Dashboard v7'
+    assert payload['preflightScopes']['smcMainline'][1]['scriptName'] == 'SMC Long-Dip Dashboard v7'
+    assert payload['preflightScopes']['smcMainline'][1]['savedScriptName'] == 'SMC Long-Dip Dashboard v7'
+    assert payload['preflightScopes']['smcMainline'][2]['scriptName'] == 'SMC Long-Dip Strategy v7'
+    assert payload['preflightScopes']['smcMainline'][2]['savedScriptName'] == 'SMC Long-Dip Strategy v7'
     assert dashboard_target['bindingContractKey'] == 'dashboardBindings'
     assert dashboard_target['bindingContractName'] == 'dashboard companion BUS bindings'
     assert dashboard_target['bindingConsumerRole'] == 'dashboard_companion'

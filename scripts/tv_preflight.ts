@@ -182,8 +182,8 @@ function fallbackDefaultTargets(): ReleaseTarget[] {
     },
     {
       file: "SMC_Dashboard.pine",
-      scriptName: "SMC Decision Board",
-      savedScriptName: "SMC Dashboard",
+      scriptName: "SMC Long-Dip Dashboard v7",
+      savedScriptName: "SMC Long-Dip Dashboard v7",
       checkInputs: true,
       addToChart: true,
       minInputs: 58,
@@ -193,8 +193,8 @@ function fallbackDefaultTargets(): ReleaseTarget[] {
     },
     {
       file: "SMC_Long_Strategy.pine",
-      scriptName: "SMC Execution",
-      savedScriptName: "SMC Long Strategy",
+      scriptName: "SMC Long-Dip Strategy v7",
+      savedScriptName: "SMC Long-Dip Strategy v7",
       checkInputs: true,
       addToChart: true,
       minInputs: 8,

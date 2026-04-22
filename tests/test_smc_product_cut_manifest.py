@@ -104,9 +104,9 @@ def test_library_release_manifest_tracks_product_cut_roles() -> None:
         'BUS LeanPackB',
     ]
     assert set(payload['productCut']['preflightScopes'].keys()) == {'smcCoreDashboard', 'smcMainline', 'smcDecisionFirst'}
-    assert payload['productCut']['preflightScopes']['smcCoreDashboard'][1]['savedScriptName'] == 'SMC Dashboard'
-    assert payload['productCut']['preflightScopes']['smcMainline'][1]['savedScriptName'] == 'SMC Dashboard'
-    assert payload['productCut']['preflightScopes']['smcMainline'][2]['savedScriptName'] == 'SMC Long Strategy'
+    assert payload['productCut']['preflightScopes']['smcCoreDashboard'][1]['savedScriptName'] == 'SMC Long-Dip Dashboard v7'
+    assert payload['productCut']['preflightScopes']['smcMainline'][1]['savedScriptName'] == 'SMC Long-Dip Dashboard v7'
+    assert payload['productCut']['preflightScopes']['smcMainline'][2]['savedScriptName'] == 'SMC Long-Dip Strategy v7'
     assert payload['productCut']['preflightScopes']['smcMainline'][1]['bindingContractKey'] == 'dashboardBindings'
     assert payload['productCut']['preflightScopes']['smcMainline'][2]['bindingContractKey'] == 'strategyBindings'
     assert payload['productCut']['deprecatedFieldPolicy']['mode'] == 'compatibility_only'

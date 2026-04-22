@@ -100,13 +100,13 @@ test("openScriptIdentity probes exact and fuzzy title contexts", () => {
     },
   };
 
-  const locators = tvSelectors.openScriptIdentity(fakePage as never, "SMC Decision Board");
+  const locators = tvSelectors.openScriptIdentity(fakePage as never, "SMC Long-Dip Dashboard v7");
 
   assert.equal(locators.length, 12);
   assert.equal(calls.some((call) => call.includes("pine-dialog")), false);
   assert.equal(calls.some((call) => call.includes('[data-name*="editor" i]')), false);
-  assert.equal(calls.some((call) => call.startsWith("title:") && call.includes("Board")), true);
-  assert.equal(calls.some((call) => call.startsWith("filter:") && call.includes("Board")), true);
+  assert.equal(calls.some((call) => call.startsWith("title:") && call.includes("Dashboard")), true);
+  assert.equal(calls.some((call) => call.startsWith("filter:") && call.includes("Dashboard")), true);
 });
 
 test("scriptLegendContainers only anchor exact script text descendants", () => {
