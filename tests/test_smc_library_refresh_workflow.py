@@ -29,7 +29,29 @@ def test_refresh_commit_step_restores_runtime_artifacts_before_commit() -> None:
     assert 'artifacts/databento_volatility_cache/' in workflow_text
     assert 'artifacts/smc_microstructure_exports/smc_live_news_snapshot.json' in workflow_text
     assert 'artifacts/smc_microstructure_exports/smc_live_news_state.json' in workflow_text
-    assert 'git add pine/generated/ SMC_Core_Engine.pine artifacts/tradingview/library_release_manifest.json' in workflow_text
+    # Workflow `git add` step was expanded by PR #13 into a multi-line continuation
+    # listing all 14 Pine consumers. Pin each required path individually instead of a
+    # single concatenated substring so further consumer additions don't silently break
+    # the assertion form.
+    assert 'git add pine/generated/ \\' in workflow_text
+    for path in (
+        'SMC_Core_Engine.pine',
+        'SMC_Dashboard.pine',
+        'SMC_Mobile_Dashboard.pine',
+        'SMC_Long_Strategy.pine',
+        'SkippALGO_Confluence.pine',
+        'SMC_Structure_Context.pine',
+        'SMC_Session_Context.pine',
+        'SMC_Profile_Context.pine',
+        'SMC_Orderflow_Overlay.pine',
+        'SMC_Liquidity_Structure.pine',
+        'SMC_Liquidity_Context.pine',
+        'SMC_Imbalance_Context.pine',
+        'SMC_HTF_Confluence.pine',
+        'SMC_Event_Overlay.pine',
+        'artifacts/tradingview/library_release_manifest.json',
+    ):
+        assert path in workflow_text, f"workflow git add step missing: {path}"
     assert 'Unexpected tracked changes remain unstaged before refresh commit.' in workflow_text
 
 
