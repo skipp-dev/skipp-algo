@@ -1403,6 +1403,35 @@ fvg_calibration_warning_text(float zone_hr_fvg) =>
     else
         ""
 
+// Phase H follow-on (issue #16 c) — generalized per-family hit-rate
+// warning. Returns the family ticker tag when the calibrated HR is
+// below the 65% threshold and the field is initialised; empty otherwise.
+zone_hr_family_below_threshold(float zone_hr) =>
+    zone_hr > 0.0 and zone_hr < 0.65
+
+// Aggregate calibration warning across all four zone families. Returns
+// a single warning string listing every family currently underperforming
+// so the dashboard surfaces system-wide cal degradation in one slot,
+// rather than four duplicated warnings. Quiet when all families are
+// healthy or uninitialised.
+zone_cal_aggregate_warning_text() =>
+    string tags = ""
+    if zone_hr_family_below_threshold(mp.ZONE_HR_FVG)
+        tags := "FVG"
+    if zone_hr_family_below_threshold(mp.ZONE_HR_OB)
+        tags := tags == "" ? "OB" : tags + "/OB"
+    if zone_hr_family_below_threshold(mp.ZONE_HR_BOS)
+        tags := tags == "" ? "BOS" : tags + "/BOS"
+    if zone_hr_family_below_threshold(mp.ZONE_HR_SWEEP)
+        tags := tags == "" ? "SWEEP" : tags + "/SWEEP"
+    tags == "" ? "" : "⚠ Cal-HR weak: " + tags
+
+// Map mp.ZONE_CAL_TRUST to a compact glyph for the audit row suffix.
+// "OK" → 🔒, "DEGRADED" → ⚠, "UNAVAILABLE" → ❓, anything else → "?".
+// Empty when the field is the default empty string (uninitialised).
+zone_cal_trust_glyph(string trust_state) =>
+    trust_state == "OK" ? "🔒" : trust_state == "DEGRADED" ? "⚠" : trust_state == "UNAVAILABLE" ? "❓" : trust_state == "" ? "" : "?"
+
 // Combine live-zone and calibration warnings — calibration takes
 // precedence when both fire because it speaks to system reliability
 // rather than a single zone's lifecycle.
@@ -1583,15 +1612,24 @@ if show_table and barstate.islast
         dashboard_row(smc_dashboard, 9, ex_event_ok ? "✅ Event Risk" : "❌ Event Risk", ex_event_text, ex_event_ok ? pass : fail, txt)
         dashboard_row(smc_dashboard, 10, ex_htf_ok ? "✅ HTF Trend" : "❌ HTF Trend", str.tostring(ex_htf_ok_count) + "/3 bullish", ex_htf_ok ? pass : fail, txt)
         dashboard_row(smc_dashboard, 11, ex_pressure_ok ? "✅ Pressure" : "❌ Pressure", ex_pressure_ok ? "supports long" : "mixed / against", ex_pressure_ok ? pass : fail, txt)
-        // Phase H: FVG health checklist item
+        // Phase H: FVG health checklist item (Phase-H follow-on issue #16:
+        // now also surfaces aggregate cal-HR warnings for OB/BOS/SWEEP and
+        // the ZONE_CAL_TRUST glyph as a row suffix.)
         float _ex_fvg_health = resolve_fvg_health_score()
         bool ex_fvg_ok = mp.PRIMARY_FVG_SIDE == "NONE" or _ex_fvg_health >= 30.0
         string ex_fvg_label = mp.PRIMARY_FVG_SIDE == "NONE" ? "no FVG" : fvg_health_tier(_ex_fvg_health)
         string _ex_fvg_warn = fvg_combined_warning_text(_ex_fvg_health, mp.ZONE_HR_FVG)
-        string ex_fvg_detail = _ex_fvg_warn != "" ? ex_fvg_label + " — " + _ex_fvg_warn : ex_fvg_label
+        string _ex_zone_cal_warn = zone_cal_aggregate_warning_text()
+        string _ex_trust_glyph = zone_cal_trust_glyph(mp.ZONE_CAL_TRUST)
+        string _ex_fvg_combined = _ex_fvg_warn != "" and _ex_zone_cal_warn != "" ? _ex_fvg_warn + " | " + _ex_zone_cal_warn : _ex_fvg_warn != "" ? _ex_fvg_warn : _ex_zone_cal_warn
+        string ex_fvg_detail = _ex_fvg_combined != "" ? ex_fvg_label + " — " + _ex_fvg_combined : ex_fvg_label
+        ex_fvg_detail := _ex_trust_glyph != "" ? ex_fvg_detail + " " + _ex_trust_glyph : ex_fvg_detail
         // Calibrated-HR drives a hard fail too — not just live-zone health.
+        // Any family below threshold OR DEGRADED/UNAVAILABLE trust state fails the row.
         bool ex_fvg_cal_ok = mp.ZONE_HR_FVG <= 0.0 or mp.ZONE_HR_FVG >= 0.65
-        bool ex_fvg_pass = ex_fvg_ok and ex_fvg_cal_ok
+        bool ex_zone_cal_ok = _ex_zone_cal_warn == ""
+        bool ex_trust_ok = mp.ZONE_CAL_TRUST != "DEGRADED" and mp.ZONE_CAL_TRUST != "UNAVAILABLE"
+        bool ex_fvg_pass = ex_fvg_ok and ex_fvg_cal_ok and ex_zone_cal_ok and ex_trust_ok
         dashboard_row(smc_dashboard, 12, ex_fvg_pass ? "✅ FVG Health" : "⚠ FVG Health", ex_fvg_detail, ex_fvg_pass ? pass : color.new(CLR_CAUTION, 75), txt)
         section_row(smc_dashboard, 13, "[ Next Step ]", header_bg, txt)
         dashboard_row(smc_dashboard, 14, "→", ex_next_step, ex_state_bg, txt)

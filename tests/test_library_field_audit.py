@@ -405,20 +405,15 @@ from scripts.smc_hero_action import (  # noqa: E402
 RESERVED_PINE_EXPORTS.update(PINE_HERO_ACTION_FIELDS)
 
 # ADR 2026-04-22 — Phase H Pine Consumer Maturity scaffolding. The
-# generator emits these via smc_zone_priority_consumer.DEFAULTS, but
-# only ZONE_HR_FVG currently has a Pine consumer (SMC_Dashboard.pine
-# audit + ex-band warnings). The remaining trust scalars and per-family
-# HR exports are reserved for the upcoming Pine consumer expansion
-# (P0-Folge-Patch — wires OB/BOS/SWEEP audit blocks + dashboard trust
-# pill). Surfaced by the orphan-audit fix that wired DEFAULTS into the
-# generated-field collection.
+# generator emits these via smc_zone_priority_consumer.DEFAULTS. Issue
+# #16 (c) wired ZONE_CAL_TRUST + ZONE_HR_{OB,BOS,SWEEP} into the
+# SMC_Dashboard FVG audit row (aggregate cal warning + trust glyph
+# suffix). The remaining two scalars (ZONE_CAL_CONFIDENCE,
+# ZONE_CAL_TREND) are still scaffold-only and will be wired in a
+# follow-up dashboard tooltip patch (Phase H tooltip expansion).
 RESERVED_PINE_EXPORTS.update({
     "ZONE_CAL_CONFIDENCE",
     "ZONE_CAL_TREND",
-    "ZONE_CAL_TRUST",
-    "ZONE_HR_OB",
-    "ZONE_HR_BOS",
-    "ZONE_HR_SWEEP",
 })
 
 # Backwards-compatible alias (keeps any external callers happy).
