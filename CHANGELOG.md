@@ -6,6 +6,16 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-09-05) — Plan 2.8 int-or-bool records + sh + trailing-punct lines
+
+- `scripts/plan_2_8_ledger_int_or_bool_only_record_count.py` counts
+  non-empty ledger records whose every value is an ``int`` or ``bool``.
+- `scripts/plan_2_8_digest_sh_file_count.py` counts top-level `.sh`
+  files.
+- `scripts/plan_2_8_weekly_summary_trailing_punct_line_count.py` counts
+  non-empty lines whose last character is ``. ! ?``.
+- Weekly digest workflow wires three fail-soft compute+upload step pairs.
+
 ### Added (2026-09-04) — Plan 2.8 string-or-bool records + dat + trailing-hyphen lines
 
 - `scripts/plan_2_8_ledger_string_or_bool_only_record_count.py` counts

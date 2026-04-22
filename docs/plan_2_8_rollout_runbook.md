@@ -947,6 +947,9 @@ read.
 - `tests/test_plan_2_8_ledger_string_or_bool_only_record_count.py`
 - `tests/test_plan_2_8_digest_dat_file_count.py`
 - `tests/test_plan_2_8_weekly_summary_trailing_hyphen_line_count.py`
+- `tests/test_plan_2_8_ledger_int_or_bool_only_record_count.py`
+- `tests/test_plan_2_8_digest_sh_file_count.py`
+- `tests/test_plan_2_8_weekly_summary_trailing_punct_line_count.py`
 - `tests/test_plan_2_8_alert_history.py`
 - `tests/test_plan_2_8_alert_history_summary.py`
 - `tests/test_plan_2_8_digest_rollup.py`
