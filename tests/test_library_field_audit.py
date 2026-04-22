@@ -141,7 +141,9 @@ def _collect_generated_fields() -> set[str]:
             var2 = m.group(3)
             _LOOP_VARS: dict[str, tuple[str, ...]] = {
                 "fam": ("OB", "FVG", "BOS", "SWEEP"),
-                "session": ("RTH", "ETH"),
+                # Q3 F1 wiring: session taxonomy is ASIA/LONDON/NY_AM
+                # (mirrors scripts/smc_zone_priority_calibration.py).
+                "session": ("ASIA", "LONDON", "NY_AM"),
                 "vol": ("NORMAL", "HIGH_VOL"),
             }
             for v1 in _LOOP_VARS.get(var1, ()):
@@ -300,14 +302,23 @@ PYTHON_ONLY_EXPORTS: set[str] = {
     "ZONE_CAL_BOS",
     "ZONE_CAL_SWEEP",
     # ── Phase F: contextual calibration weights ──
-    "ZONE_CAL_OB_RTH",
-    "ZONE_CAL_FVG_RTH",
-    "ZONE_CAL_BOS_RTH",
-    "ZONE_CAL_SWEEP_RTH",
-    "ZONE_CAL_OB_ETH",
-    "ZONE_CAL_FVG_ETH",
-    "ZONE_CAL_BOS_ETH",
-    "ZONE_CAL_SWEEP_ETH",
+    # Session keys mirror the upstream taxonomy from
+    # scripts/smc_zone_priority_calibration.py (ASIA/LONDON/NY_AM).
+    # Q3 F1 wiring (2026-04-22) replaced the legacy RTH/ETH stubs that
+    # never matched any bucket — see docs/STRATEGY_2026_Q3.md §F1 and
+    # docs/FVG_LABEL_AUDIT_Q3.md §2.
+    "ZONE_CAL_OB_ASIA",
+    "ZONE_CAL_FVG_ASIA",
+    "ZONE_CAL_BOS_ASIA",
+    "ZONE_CAL_SWEEP_ASIA",
+    "ZONE_CAL_OB_LONDON",
+    "ZONE_CAL_FVG_LONDON",
+    "ZONE_CAL_BOS_LONDON",
+    "ZONE_CAL_SWEEP_LONDON",
+    "ZONE_CAL_OB_NY_AM",
+    "ZONE_CAL_FVG_NY_AM",
+    "ZONE_CAL_BOS_NY_AM",
+    "ZONE_CAL_SWEEP_NY_AM",
     "ZONE_CAL_OB_NORMAL",
     "ZONE_CAL_FVG_NORMAL",
     "ZONE_CAL_BOS_NORMAL",

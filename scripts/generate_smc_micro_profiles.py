@@ -1078,8 +1078,17 @@ def write_pine_library(
     ctx_weights = zpc_ctx.get("contextual_weights", {})
     content.append("")
     content.append("// ── Contextual Calibration (Phase F) ──")
-    for session in ("RTH", "ETH"):
-        session_w = ctx_weights.get("session", {}).get(session, {})
+    # Q3 F1 wiring: the session taxonomy upstream is now ASIA / LONDON /
+    # NY_AM (see scripts/smc_zone_priority_calibration.py). The legacy
+    # RTH/ETH keys never matched any bucket, so previously every
+    # ZONE_CAL_<FAM>_RTH/ETH constant emitted the global fallback. We
+    # now emit one constant per actual session bucket so the
+    # NY_AM-specific FVG calibration (~0.50 vs ASIA ~0.69, see
+    # docs/FVG_LABEL_AUDIT_Q3.md §2) reaches Pine consumers.
+    session_buckets = ctx_weights.get("session", {})
+    session_keys = sorted(session_buckets.keys()) if session_buckets else ("ASIA", "LONDON", "NY_AM")
+    for session in session_keys:
+        session_w = session_buckets.get(session, {})
         for fam in ("OB", "FVG", "BOS", "SWEEP"):
             w = float(session_w.get(fam, zpc.get(fam, _ZP_FALLBACK.get(fam, 0.50))))
             content.append(f"export const float ZONE_CAL_{fam}_{session} = {w:.4f}")

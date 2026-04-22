@@ -283,14 +283,18 @@ export const float ZONE_CAL_BOS = 0.8100
 export const float ZONE_CAL_SWEEP = 0.7300
 
 // ── Contextual Calibration (Phase F) ──
-export const float ZONE_CAL_OB_RTH = 0.8200
-export const float ZONE_CAL_FVG_RTH = 0.6100
-export const float ZONE_CAL_BOS_RTH = 0.8100
-export const float ZONE_CAL_SWEEP_RTH = 0.7300
-export const float ZONE_CAL_OB_ETH = 0.8200
-export const float ZONE_CAL_FVG_ETH = 0.6100
-export const float ZONE_CAL_BOS_ETH = 0.8100
-export const float ZONE_CAL_SWEEP_ETH = 0.7300
+export const float ZONE_CAL_OB_ASIA = 0.8200
+export const float ZONE_CAL_FVG_ASIA = 0.6100
+export const float ZONE_CAL_BOS_ASIA = 0.8100
+export const float ZONE_CAL_SWEEP_ASIA = 0.7300
+export const float ZONE_CAL_OB_LONDON = 0.8200
+export const float ZONE_CAL_FVG_LONDON = 0.6100
+export const float ZONE_CAL_BOS_LONDON = 0.8100
+export const float ZONE_CAL_SWEEP_LONDON = 0.7300
+export const float ZONE_CAL_OB_NY_AM = 0.8200
+export const float ZONE_CAL_FVG_NY_AM = 0.6100
+export const float ZONE_CAL_BOS_NY_AM = 0.8100
+export const float ZONE_CAL_SWEEP_NY_AM = 0.7300
 export const float ZONE_CAL_OB_NORMAL = 0.8200
 export const float ZONE_CAL_FVG_NORMAL = 0.6100
 export const float ZONE_CAL_BOS_NORMAL = 0.8100

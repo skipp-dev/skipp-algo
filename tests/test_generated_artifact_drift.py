@@ -199,13 +199,26 @@ class TestGeneratedArtifactDrift:
         # Range Profile Regime 22, Order Block Extended 9). 177 → 135.
         # C9: Zone Priority adds 5 fields (RANK, SCORE, TOP_FAMILY, CATALYST, REASON). 135 → 140.
         # Calibration consumer adds 4 fields (ZONE_CAL_OB/FVG/BOS/SWEEP). 140 → 144.
-        # Phase F: Contextual calibration adds 16 fields (4 families × 4 contexts). 144 → 160.
-        # Hero State Contract adds 7 fields. 160 → 167.
+        # Phase F: Contextual calibration adds 20 fields:
+        # - 4 families × 3 sessions (ASIA/LONDON/NY_AM, Q3 F1 wiring 2026-04-22) = 12
+        # - 4 families × 2 vol regimes (NORMAL/HIGH_VOL) = 8
+        # 144 → 164.
+        # Hero State Contract adds 7 fields. 164 → 171.
         # ENG-WS2-02 trust block adds 6 fields (TRUST_STATE, TRUST_ACTION_IMPACT,
         # TRUST_CAUSE_DOMAIN, TRUST_CAUSE_FAILURE_TYPE, TRUST_CAUSE_CODE,
-        # TRUST_DEGRADATION_REASON). 167 → 173.
-        assert len(exports) == 173, (
-            f"Expected 173 export const fields for the current v6 shared-export contract, got {len(exports)}"
+        # TRUST_DEGRADATION_REASON). 171 → 177.
+        # ENG-WS2-04 action degradation adds 3 fields (ACTION_DEGRADATION_TIER,
+        # ACTION_DEGRADATION_REASON, ACTION_DEGRADATION_DERIVED_FROM). 177 → 180.
+        # ENG-WS3-03 hero market mode adds 5 fields (HERO_MARKET_REGIME, _BIAS,
+        # _SESSION, _TRUST, _FRESHNESS). 180 → 185.
+        # ENG-WS3-04 hero setup quality adds 4 fields (HERO_QUALITY_TIER,
+        # HERO_QUALITY_WHY_NOW, HERO_QUALITY_MAIN_RISK, HERO_QUALITY_FAMILY_HEALTH).
+        # 185 → 189.
+        # ENG-WS3-05 hero action adds 5 fields (HERO_ACTION_VERB, HERO_ACTION_VERB_DE,
+        # HERO_ACTION_REASON, HERO_ACTION_DEGRADATION, HERO_ACTION_QUALITY).
+        # 189 → 194.
+        assert len(exports) == 194, (
+            f"Expected 194 export const fields for the current v6 shared-export contract, got {len(exports)}"
         )
 
     def test_event_risk_exports_stay_in_canonical_order(self, regenerated: Path):

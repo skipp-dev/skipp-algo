@@ -204,9 +204,13 @@ und Distanz zum aktuellen Preis sollten die Erwartung beeinflussen.
 #### F2: Session-Adjusted Zone Priority
 
 - [ ] `build_zone_priority()` → optionaler `session_calibration` Parameter
-- [ ] RTH-spezifische vs. ETH-spezifische Family-Gewichte
-- [ ] Pine-Exports: `ZONE_CAL_OB_RTH`, `ZONE_CAL_OB_ETH` etc.
-- [ ] Fallback auf globale Gewichte wenn Bucket-Size < Minimum
+- [x] Session-spezifische Family-Gewichte aus Benchmark-Bucket-Stats
+- [x] Pine-Exports: `ZONE_CAL_<FAM>_ASIA / _LONDON / _NY_AM` (Q3 F1
+      wiring 2026-04-22, Commit folgt). Vorher hatten `_RTH/_ETH` keinen
+      passenden Bucket → Fallback-Wert. Jetzt erreicht u.a. NY_AM
+      `FVG = 0.4961` (vs. ASIA `0.6948`) tatsächlich Pine.
+- [x] Fallback auf globale Gewichte wenn Bucket-Size < Minimum
+      (`scripts/smc_zone_priority_calibration.py::get_calibrated_weight`)
 
 #### F3: Vol-Regime-Adjusted Scoring
 
