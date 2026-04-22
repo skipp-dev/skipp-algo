@@ -1154,6 +1154,9 @@ read.
 - `tests/test_plan_2_8_ledger_nonempty_list_or_null_or_bool_only_record_count.py`
 - `tests/test_plan_2_8_digest_raku_file_count.py`
 - `tests/test_plan_2_8_weekly_summary_leading_gt_line_count.py`
+- `tests/test_plan_2_8_ledger_nonempty_string_or_int_or_bool_only_record_count.py`
+- `tests/test_plan_2_8_digest_tcl_file_count.py`
+- `tests/test_plan_2_8_weekly_summary_trailing_gt_line_count.py`
 - `tests/test_plan_2_8_alert_history.py`
 - `tests/test_plan_2_8_alert_history_summary.py`
 - `tests/test_plan_2_8_digest_rollup.py`

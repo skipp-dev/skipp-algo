@@ -6,6 +6,15 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-11-13) — Plan 2.8 nonempty-string-or-int-or-bool records + tcl + trailing-gt lines
+
+- `scripts/plan_2_8_ledger_nonempty_string_or_int_or_bool_only_record_count.py`
+  counts ledger records whose every value is a non-empty string, int, or bool.
+- `scripts/plan_2_8_digest_tcl_file_count.py` counts top-level `.tcl` files.
+- `scripts/plan_2_8_weekly_summary_trailing_gt_line_count.py`
+  counts non-empty lines whose last character is ``>``.
+- Weekly digest workflow wires three fail-soft compute+upload step pairs.
+
 ### Added (2026-11-12) — Plan 2.8 nonempty-list-or-null-or-bool records + raku + leading-gt lines
 
 - `scripts/plan_2_8_ledger_nonempty_list_or_null_or_bool_only_record_count.py`
