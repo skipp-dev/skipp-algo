@@ -6,6 +6,17 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-09-08) — Plan 2.8 nonempty-string records + yaml + leading-uppercase lines
+
+- `scripts/plan_2_8_ledger_nonempty_string_only_record_count.py` counts
+  non-empty ledger records whose every value is a non-empty ``str``.
+- `scripts/plan_2_8_digest_yaml_file_count.py` counts top-level `.yaml`
+  files.
+- `scripts/plan_2_8_weekly_summary_leading_uppercase_line_count.py`
+  counts non-empty lines whose first character is an ASCII uppercase
+  letter.
+- Weekly digest workflow wires three fail-soft compute+upload step pairs.
+
 ### Added (2026-09-07) — Plan 2.8 string-or-int records + py + trailing-alpha lines
 
 - `scripts/plan_2_8_ledger_string_or_int_only_record_count.py` counts
