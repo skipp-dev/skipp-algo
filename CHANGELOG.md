@@ -6,6 +6,16 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-10-01) — Plan 2.8 list-only records + jl + leading-hash lines
+
+- `scripts/plan_2_8_ledger_list_only_record_count.py` counts non-empty
+  ledger records whose every value is a ``list``.
+- `scripts/plan_2_8_digest_jl_file_count.py` counts top-level `.jl`
+  files.
+- `scripts/plan_2_8_weekly_summary_leading_hash_line_count.py`
+  counts non-empty lines whose first character is ``#``.
+- Weekly digest workflow wires three fail-soft compute+upload step pairs.
+
 ### Added (2026-09-30) — Plan 2.8 list/dict/null records + hs + trailing-at lines
 
 - `scripts/plan_2_8_ledger_list_or_dict_or_null_only_record_count.py`
