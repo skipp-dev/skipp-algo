@@ -952,3 +952,31 @@ def test_support_code_reconstruction_fallbacks_stay_closed_under_unknown_codes()
     assert ddvi_row_code_from_state(0) == pack_bus_row(0, 1)
     assert ddvi_row_code_from_state(7) == pack_bus_row(0, 1)
     assert ddvi_row_code_from_state(99) == pack_bus_row(0, 1)
+
+# Q3 F2 — Dashboard must consume session-aware ZONE_CAL_<FAM>_<SESSION>
+# constants, not bare ZONE_CAL_<FAM>. Without this assertion a refactor
+# can silently revert the wiring since both forms compile and tests stay
+# green. See docs/STRATEGY_2026_Q3.md §F2 + commit f25fc690.
+def test_dashboard_resolves_session_aware_cal_weights_for_top3_widget():
+    text = _read(DASHBOARD_PATH)
+    for fam in ('OB', 'FVG', 'BOS', 'SWEEP'):
+        pattern = (
+            r'resolve_family_cal_weight_session\(\s*"'
+            + fam
+            + r'"\s*,\s*mp\.SESSION_CONTEXT\s*\)'
+        )
+        assert re.search(pattern, text), (
+            f'Top-3 weights widget must consume session-aware ZONE_CAL '
+            f'for family {fam}; missing call matching pattern: {pattern}'
+        )
+
+
+def test_dashboard_helper_references_all_promoted_session_buckets():
+    text = _read(DASHBOARD_PATH)
+    for session in ('ASIA', 'LONDON', 'NY_AM'):
+        for fam in ('OB', 'FVG', 'BOS', 'SWEEP'):
+            const = f'mp.ZONE_CAL_{fam}_{session}'
+            assert const in text, (
+                f'resolve_family_cal_weight_session() must reference '
+                f'{const}; F1 generator emits it but F2 helper drops it.'
+            )
