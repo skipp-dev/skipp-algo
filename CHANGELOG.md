@@ -6,6 +6,17 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Added (2026-09-27) — Plan 2.8 list-or-dict records + elm + leading-dollar lines
+
+- `scripts/plan_2_8_ledger_list_or_dict_only_record_count.py`
+  counts non-empty ledger records whose every value is a ``list`` or
+  ``dict``.
+- `scripts/plan_2_8_digest_elm_file_count.py` counts top-level `.elm`
+  files.
+- `scripts/plan_2_8_weekly_summary_leading_dollar_line_count.py`
+  counts non-empty lines whose first character is ``$``.
+- Weekly digest workflow wires three fail-soft compute+upload step pairs.
+
 ### Added (2026-09-26) — Plan 2.8 dict-or-null records + groovy + trailing-tab lines
 
 - `scripts/plan_2_8_ledger_dict_or_null_only_record_count.py`
