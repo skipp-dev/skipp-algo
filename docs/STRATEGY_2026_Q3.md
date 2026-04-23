@@ -308,6 +308,15 @@ und Distanz zum aktuellen Preis sollten die Erwartung beeinflussen.
       (n=10 004 Events, family-summed: BOS 1606 + FVG 5671 + OB 952 + SWEEP 1775):
       7 promoted buckets über `htf_bias`, `session`, `vol_regime`
       (z.B. `session:ASIA OB +0.3016`, `session:NY_AM OB −0.0896`).
+- [x] **v4 corpus 2026-04-23** auf `artifacts/ci/measurement_benchmark_combined_2026-04-23/`
+      (n=10 064 Events, family-summed: BOS 1614 + FVG 5710 + OB 966 + SWEEP 1774;
+      80/80 pairs `bars_source_mode='canonical_export_bundle'` nach Manifest-
+      Poisoning-Fix in PR #33). Per-TF: 5m 6 223, 15m 1 585, 1H 1 471, 4H 785.
+      Reproduziert die 7 Promotion-Buckets aus dem v3-Smoke deckungsgleich
+      (LONDON OB/SWEEP, ASIA OB/FVG/SWEEP, HIGH_VOL SWEEP, NY_AM OB/FVG/BOS,
+      htf_bias BEAR/BULL OB) — keine Drift in der Promotion-Auswahl, keine
+      neue F2-Promotion-Eligibility (siehe F2-Caveat unten, smECE bleibt
+      über Q4-Target).
 
 #### F2: Session-Adjusted Zone Priority ◐ INFRASTRUCTURE DONE — Auto-Promotion deferred (2026-04-23 Caveat)
 
@@ -334,6 +343,14 @@ und Distanz zum aktuellen Preis sollten die Erwartung beeinflussen.
       Weight-Change. Promotion entscheidet sich erst nach G3-Sample-
       Akkumulation und F1-Re-Kalibrierung; ASIA bleibt bis dahin
       stärkster Promotion-Kandidat (kohärenter Lift über alle 4 Familien).
+
+      **v4 corpus 2026-04-23 Re-Check (n=10 064, identisches 20×4 Universum):**
+      Gate-Status unverändert — globale OB-Drift −0.3508 (vs −0.3534), F1 smECE
+      0.137 (vs 0.135), per-Bucket smECE LONDON 0.233 / ASIA 0.202 /
+      HIGH_VOL 0.168 / NY_AM 0.083 / NORMAL 0.137. Promotion bleibt
+      G3-blockiert; v4-Run dient als Drift-Sanity (keine Regime-Verschiebung
+      gegen v3) und als sauberer Baseline-Snapshot für die nächste rolling-
+      bench Cron-Generation (PR #33: Azure-SAS-Bundle + Canonical-Write-Guard).
 
 #### F3: Vol-Regime-Adjusted Scoring ✅ DONE (2026-04-22)
 

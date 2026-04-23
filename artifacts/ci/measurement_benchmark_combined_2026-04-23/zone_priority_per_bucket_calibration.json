@@ -1,0 +1,63 @@
+{
+  "htf_bias:BEARISH": {
+    "n_events": 4134,
+    "positive_rate": 0.611756,
+    "ece_binned_n10": 0.135208,
+    "smooth_ece": 0.137049,
+    "dce_upper_bound": 0.121592,
+    "status": "ok"
+  },
+  "htf_bias:BULLISH": {
+    "n_events": 5930,
+    "positive_rate": 0.603879,
+    "ece_binned_n10": 0.135781,
+    "smooth_ece": 0.139175,
+    "dce_upper_bound": 0.131201,
+    "status": "ok"
+  },
+  "session:ASIA": {
+    "n_events": 289,
+    "positive_rate": 0.809689,
+    "ece_binned_n10": 0.19308,
+    "smooth_ece": 0.201952,
+    "dce_upper_bound": 0.185672,
+    "status": "ok"
+  },
+  "session:LONDON": {
+    "n_events": 4249,
+    "positive_rate": 0.671217,
+    "ece_binned_n10": 0.230033,
+    "smooth_ece": 0.232841,
+    "dce_upper_bound": 0.230033,
+    "status": "ok"
+  },
+  "session:NY_AM": {
+    "n_events": 5526,
+    "positive_rate": 0.547231,
+    "ece_binned_n10": 0.073185,
+    "smooth_ece": 0.083256,
+    "dce_upper_bound": 0.074172,
+    "status": "ok"
+  },
+  "vol_regime:HIGH_VOL": {
+    "n_events": 255,
+    "positive_rate": 0.603922,
+    "ece_binned_n10": 0.150941,
+    "smooth_ece": 0.168128,
+    "dce_upper_bound": 0.146885,
+    "status": "ok"
+  },
+  "vol_regime:LOW_VOL": {
+    "n_events": 24,
+    "status": "insufficient_events",
+    "min_events": 30
+  },
+  "vol_regime:NORMAL": {
+    "n_events": 9785,
+    "positive_rate": 0.606745,
+    "ece_binned_n10": 0.135505,
+    "smooth_ece": 0.137216,
+    "dce_upper_bound": 0.127466,
+    "status": "ok"
+  }
+}

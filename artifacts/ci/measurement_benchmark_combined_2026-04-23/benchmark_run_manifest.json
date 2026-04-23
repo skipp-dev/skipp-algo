@@ -1,0 +1,600 @@
+{
+  "artifacts": [
+    "benchmark_run_summary.csv",
+    "benchmark_run_manifest.json"
+  ],
+  "generated_at": 1776943434.74823,
+  "generator": "scripts/run_smc_measurement_benchmark.py",
+  "output_dir": "artifacts/ci/measurement_benchmark_combined_2026-04-23",
+  "pair_runs": [
+    {
+      "artifact_dir": "AAPL/5m",
+      "harness_manifest_path": "AAPL/5m/harness_manifest.json",
+      "summary_path": "AAPL/5m/measurement_summary_AAPL_5m.json",
+      "symbol": "AAPL",
+      "timeframe": "5m"
+    },
+    {
+      "artifact_dir": "AAPL/15m",
+      "harness_manifest_path": "AAPL/15m/harness_manifest.json",
+      "summary_path": "AAPL/15m/measurement_summary_AAPL_15m.json",
+      "symbol": "AAPL",
+      "timeframe": "15m"
+    },
+    {
+      "artifact_dir": "AAPL/1H",
+      "harness_manifest_path": "AAPL/1H/harness_manifest.json",
+      "summary_path": "AAPL/1H/measurement_summary_AAPL_1H.json",
+      "symbol": "AAPL",
+      "timeframe": "1H"
+    },
+    {
+      "artifact_dir": "AAPL/4H",
+      "harness_manifest_path": "AAPL/4H/harness_manifest.json",
+      "summary_path": "AAPL/4H/measurement_summary_AAPL_4H.json",
+      "symbol": "AAPL",
+      "timeframe": "4H"
+    },
+    {
+      "artifact_dir": "MSFT/5m",
+      "harness_manifest_path": "MSFT/5m/harness_manifest.json",
+      "summary_path": "MSFT/5m/measurement_summary_MSFT_5m.json",
+      "symbol": "MSFT",
+      "timeframe": "5m"
+    },
+    {
+      "artifact_dir": "MSFT/15m",
+      "harness_manifest_path": "MSFT/15m/harness_manifest.json",
+      "summary_path": "MSFT/15m/measurement_summary_MSFT_15m.json",
+      "symbol": "MSFT",
+      "timeframe": "15m"
+    },
+    {
+      "artifact_dir": "MSFT/1H",
+      "harness_manifest_path": "MSFT/1H/harness_manifest.json",
+      "summary_path": "MSFT/1H/measurement_summary_MSFT_1H.json",
+      "symbol": "MSFT",
+      "timeframe": "1H"
+    },
+    {
+      "artifact_dir": "MSFT/4H",
+      "harness_manifest_path": "MSFT/4H/harness_manifest.json",
+      "summary_path": "MSFT/4H/measurement_summary_MSFT_4H.json",
+      "symbol": "MSFT",
+      "timeframe": "4H"
+    },
+    {
+      "artifact_dir": "AMZN/5m",
+      "harness_manifest_path": "AMZN/5m/harness_manifest.json",
+      "summary_path": "AMZN/5m/measurement_summary_AMZN_5m.json",
+      "symbol": "AMZN",
+      "timeframe": "5m"
+    },
+    {
+      "artifact_dir": "AMZN/15m",
+      "harness_manifest_path": "AMZN/15m/harness_manifest.json",
+      "summary_path": "AMZN/15m/measurement_summary_AMZN_15m.json",
+      "symbol": "AMZN",
+      "timeframe": "15m"
+    },
+    {
+      "artifact_dir": "AMZN/1H",
+      "harness_manifest_path": "AMZN/1H/harness_manifest.json",
+      "summary_path": "AMZN/1H/measurement_summary_AMZN_1H.json",
+      "symbol": "AMZN",
+      "timeframe": "1H"
+    },
+    {
+      "artifact_dir": "AMZN/4H",
+      "harness_manifest_path": "AMZN/4H/harness_manifest.json",
+      "summary_path": "AMZN/4H/measurement_summary_AMZN_4H.json",
+      "symbol": "AMZN",
+      "timeframe": "4H"
+    },
+    {
+      "artifact_dir": "GOOGL/5m",
+      "harness_manifest_path": "GOOGL/5m/harness_manifest.json",
+      "summary_path": "GOOGL/5m/measurement_summary_GOOGL_5m.json",
+      "symbol": "GOOGL",
+      "timeframe": "5m"
+    },
+    {
+      "artifact_dir": "GOOGL/15m",
+      "harness_manifest_path": "GOOGL/15m/harness_manifest.json",
+      "summary_path": "GOOGL/15m/measurement_summary_GOOGL_15m.json",
+      "symbol": "GOOGL",
+      "timeframe": "15m"
+    },
+    {
+      "artifact_dir": "GOOGL/1H",
+      "harness_manifest_path": "GOOGL/1H/harness_manifest.json",
+      "summary_path": "GOOGL/1H/measurement_summary_GOOGL_1H.json",
+      "symbol": "GOOGL",
+      "timeframe": "1H"
+    },
+    {
+      "artifact_dir": "GOOGL/4H",
+      "harness_manifest_path": "GOOGL/4H/harness_manifest.json",
+      "summary_path": "GOOGL/4H/measurement_summary_GOOGL_4H.json",
+      "symbol": "GOOGL",
+      "timeframe": "4H"
+    },
+    {
+      "artifact_dir": "META/5m",
+      "harness_manifest_path": "META/5m/harness_manifest.json",
+      "summary_path": "META/5m/measurement_summary_META_5m.json",
+      "symbol": "META",
+      "timeframe": "5m"
+    },
+    {
+      "artifact_dir": "META/15m",
+      "harness_manifest_path": "META/15m/harness_manifest.json",
+      "summary_path": "META/15m/measurement_summary_META_15m.json",
+      "symbol": "META",
+      "timeframe": "15m"
+    },
+    {
+      "artifact_dir": "META/1H",
+      "harness_manifest_path": "META/1H/harness_manifest.json",
+      "summary_path": "META/1H/measurement_summary_META_1H.json",
+      "symbol": "META",
+      "timeframe": "1H"
+    },
+    {
+      "artifact_dir": "META/4H",
+      "harness_manifest_path": "META/4H/harness_manifest.json",
+      "summary_path": "META/4H/measurement_summary_META_4H.json",
+      "symbol": "META",
+      "timeframe": "4H"
+    },
+    {
+      "artifact_dir": "NVDA/5m",
+      "harness_manifest_path": "NVDA/5m/harness_manifest.json",
+      "summary_path": "NVDA/5m/measurement_summary_NVDA_5m.json",
+      "symbol": "NVDA",
+      "timeframe": "5m"
+    },
+    {
+      "artifact_dir": "NVDA/15m",
+      "harness_manifest_path": "NVDA/15m/harness_manifest.json",
+      "summary_path": "NVDA/15m/measurement_summary_NVDA_15m.json",
+      "symbol": "NVDA",
+      "timeframe": "15m"
+    },
+    {
+      "artifact_dir": "NVDA/1H",
+      "harness_manifest_path": "NVDA/1H/harness_manifest.json",
+      "summary_path": "NVDA/1H/measurement_summary_NVDA_1H.json",
+      "symbol": "NVDA",
+      "timeframe": "1H"
+    },
+    {
+      "artifact_dir": "NVDA/4H",
+      "harness_manifest_path": "NVDA/4H/harness_manifest.json",
+      "summary_path": "NVDA/4H/measurement_summary_NVDA_4H.json",
+      "symbol": "NVDA",
+      "timeframe": "4H"
+    },
+    {
+      "artifact_dir": "TSLA/5m",
+      "harness_manifest_path": "TSLA/5m/harness_manifest.json",
+      "summary_path": "TSLA/5m/measurement_summary_TSLA_5m.json",
+      "symbol": "TSLA",
+      "timeframe": "5m"
+    },
+    {
+      "artifact_dir": "TSLA/15m",
+      "harness_manifest_path": "TSLA/15m/harness_manifest.json",
+      "summary_path": "TSLA/15m/measurement_summary_TSLA_15m.json",
+      "symbol": "TSLA",
+      "timeframe": "15m"
+    },
+    {
+      "artifact_dir": "TSLA/1H",
+      "harness_manifest_path": "TSLA/1H/harness_manifest.json",
+      "summary_path": "TSLA/1H/measurement_summary_TSLA_1H.json",
+      "symbol": "TSLA",
+      "timeframe": "1H"
+    },
+    {
+      "artifact_dir": "TSLA/4H",
+      "harness_manifest_path": "TSLA/4H/harness_manifest.json",
+      "summary_path": "TSLA/4H/measurement_summary_TSLA_4H.json",
+      "symbol": "TSLA",
+      "timeframe": "4H"
+    },
+    {
+      "artifact_dir": "JPM/5m",
+      "harness_manifest_path": "JPM/5m/harness_manifest.json",
+      "summary_path": "JPM/5m/measurement_summary_JPM_5m.json",
+      "symbol": "JPM",
+      "timeframe": "5m"
+    },
+    {
+      "artifact_dir": "JPM/15m",
+      "harness_manifest_path": "JPM/15m/harness_manifest.json",
+      "summary_path": "JPM/15m/measurement_summary_JPM_15m.json",
+      "symbol": "JPM",
+      "timeframe": "15m"
+    },
+    {
+      "artifact_dir": "JPM/1H",
+      "harness_manifest_path": "JPM/1H/harness_manifest.json",
+      "summary_path": "JPM/1H/measurement_summary_JPM_1H.json",
+      "symbol": "JPM",
+      "timeframe": "1H"
+    },
+    {
+      "artifact_dir": "JPM/4H",
+      "harness_manifest_path": "JPM/4H/harness_manifest.json",
+      "summary_path": "JPM/4H/measurement_summary_JPM_4H.json",
+      "symbol": "JPM",
+      "timeframe": "4H"
+    },
+    {
+      "artifact_dir": "BAC/5m",
+      "harness_manifest_path": "BAC/5m/harness_manifest.json",
+      "summary_path": "BAC/5m/measurement_summary_BAC_5m.json",
+      "symbol": "BAC",
+      "timeframe": "5m"
+    },
+    {
+      "artifact_dir": "BAC/15m",
+      "harness_manifest_path": "BAC/15m/harness_manifest.json",
+      "summary_path": "BAC/15m/measurement_summary_BAC_15m.json",
+      "symbol": "BAC",
+      "timeframe": "15m"
+    },
+    {
+      "artifact_dir": "BAC/1H",
+      "harness_manifest_path": "BAC/1H/harness_manifest.json",
+      "summary_path": "BAC/1H/measurement_summary_BAC_1H.json",
+      "symbol": "BAC",
+      "timeframe": "1H"
+    },
+    {
+      "artifact_dir": "BAC/4H",
+      "harness_manifest_path": "BAC/4H/harness_manifest.json",
+      "summary_path": "BAC/4H/measurement_summary_BAC_4H.json",
+      "symbol": "BAC",
+      "timeframe": "4H"
+    },
+    {
+      "artifact_dir": "GS/5m",
+      "harness_manifest_path": "GS/5m/harness_manifest.json",
+      "summary_path": "GS/5m/measurement_summary_GS_5m.json",
+      "symbol": "GS",
+      "timeframe": "5m"
+    },
+    {
+      "artifact_dir": "GS/15m",
+      "harness_manifest_path": "GS/15m/harness_manifest.json",
+      "summary_path": "GS/15m/measurement_summary_GS_15m.json",
+      "symbol": "GS",
+      "timeframe": "15m"
+    },
+    {
+      "artifact_dir": "GS/1H",
+      "harness_manifest_path": "GS/1H/harness_manifest.json",
+      "summary_path": "GS/1H/measurement_summary_GS_1H.json",
+      "symbol": "GS",
+      "timeframe": "1H"
+    },
+    {
+      "artifact_dir": "GS/4H",
+      "harness_manifest_path": "GS/4H/harness_manifest.json",
+      "summary_path": "GS/4H/measurement_summary_GS_4H.json",
+      "symbol": "GS",
+      "timeframe": "4H"
+    },
+    {
+      "artifact_dir": "MS/5m",
+      "harness_manifest_path": "MS/5m/harness_manifest.json",
+      "summary_path": "MS/5m/measurement_summary_MS_5m.json",
+      "symbol": "MS",
+      "timeframe": "5m"
+    },
+    {
+      "artifact_dir": "MS/15m",
+      "harness_manifest_path": "MS/15m/harness_manifest.json",
+      "summary_path": "MS/15m/measurement_summary_MS_15m.json",
+      "symbol": "MS",
+      "timeframe": "15m"
+    },
+    {
+      "artifact_dir": "MS/1H",
+      "harness_manifest_path": "MS/1H/harness_manifest.json",
+      "summary_path": "MS/1H/measurement_summary_MS_1H.json",
+      "symbol": "MS",
+      "timeframe": "1H"
+    },
+    {
+      "artifact_dir": "MS/4H",
+      "harness_manifest_path": "MS/4H/harness_manifest.json",
+      "summary_path": "MS/4H/measurement_summary_MS_4H.json",
+      "symbol": "MS",
+      "timeframe": "4H"
+    },
+    {
+      "artifact_dir": "V/5m",
+      "harness_manifest_path": "V/5m/harness_manifest.json",
+      "summary_path": "V/5m/measurement_summary_V_5m.json",
+      "symbol": "V",
+      "timeframe": "5m"
+    },
+    {
+      "artifact_dir": "V/15m",
+      "harness_manifest_path": "V/15m/harness_manifest.json",
+      "summary_path": "V/15m/measurement_summary_V_15m.json",
+      "symbol": "V",
+      "timeframe": "15m"
+    },
+    {
+      "artifact_dir": "V/1H",
+      "harness_manifest_path": "V/1H/harness_manifest.json",
+      "summary_path": "V/1H/measurement_summary_V_1H.json",
+      "symbol": "V",
+      "timeframe": "1H"
+    },
+    {
+      "artifact_dir": "V/4H",
+      "harness_manifest_path": "V/4H/harness_manifest.json",
+      "summary_path": "V/4H/measurement_summary_V_4H.json",
+      "symbol": "V",
+      "timeframe": "4H"
+    },
+    {
+      "artifact_dir": "UNH/5m",
+      "harness_manifest_path": "UNH/5m/harness_manifest.json",
+      "summary_path": "UNH/5m/measurement_summary_UNH_5m.json",
+      "symbol": "UNH",
+      "timeframe": "5m"
+    },
+    {
+      "artifact_dir": "UNH/15m",
+      "harness_manifest_path": "UNH/15m/harness_manifest.json",
+      "summary_path": "UNH/15m/measurement_summary_UNH_15m.json",
+      "symbol": "UNH",
+      "timeframe": "15m"
+    },
+    {
+      "artifact_dir": "UNH/1H",
+      "harness_manifest_path": "UNH/1H/harness_manifest.json",
+      "summary_path": "UNH/1H/measurement_summary_UNH_1H.json",
+      "symbol": "UNH",
+      "timeframe": "1H"
+    },
+    {
+      "artifact_dir": "UNH/4H",
+      "harness_manifest_path": "UNH/4H/harness_manifest.json",
+      "summary_path": "UNH/4H/measurement_summary_UNH_4H.json",
+      "symbol": "UNH",
+      "timeframe": "4H"
+    },
+    {
+      "artifact_dir": "JNJ/5m",
+      "harness_manifest_path": "JNJ/5m/harness_manifest.json",
+      "summary_path": "JNJ/5m/measurement_summary_JNJ_5m.json",
+      "symbol": "JNJ",
+      "timeframe": "5m"
+    },
+    {
+      "artifact_dir": "JNJ/15m",
+      "harness_manifest_path": "JNJ/15m/harness_manifest.json",
+      "summary_path": "JNJ/15m/measurement_summary_JNJ_15m.json",
+      "symbol": "JNJ",
+      "timeframe": "15m"
+    },
+    {
+      "artifact_dir": "JNJ/1H",
+      "harness_manifest_path": "JNJ/1H/harness_manifest.json",
+      "summary_path": "JNJ/1H/measurement_summary_JNJ_1H.json",
+      "symbol": "JNJ",
+      "timeframe": "1H"
+    },
+    {
+      "artifact_dir": "JNJ/4H",
+      "harness_manifest_path": "JNJ/4H/harness_manifest.json",
+      "summary_path": "JNJ/4H/measurement_summary_JNJ_4H.json",
+      "symbol": "JNJ",
+      "timeframe": "4H"
+    },
+    {
+      "artifact_dir": "HD/5m",
+      "harness_manifest_path": "HD/5m/harness_manifest.json",
+      "summary_path": "HD/5m/measurement_summary_HD_5m.json",
+      "symbol": "HD",
+      "timeframe": "5m"
+    },
+    {
+      "artifact_dir": "HD/15m",
+      "harness_manifest_path": "HD/15m/harness_manifest.json",
+      "summary_path": "HD/15m/measurement_summary_HD_15m.json",
+      "symbol": "HD",
+      "timeframe": "15m"
+    },
+    {
+      "artifact_dir": "HD/1H",
+      "harness_manifest_path": "HD/1H/harness_manifest.json",
+      "summary_path": "HD/1H/measurement_summary_HD_1H.json",
+      "symbol": "HD",
+      "timeframe": "1H"
+    },
+    {
+      "artifact_dir": "HD/4H",
+      "harness_manifest_path": "HD/4H/harness_manifest.json",
+      "summary_path": "HD/4H/measurement_summary_HD_4H.json",
+      "symbol": "HD",
+      "timeframe": "4H"
+    },
+    {
+      "artifact_dir": "XOM/5m",
+      "harness_manifest_path": "XOM/5m/harness_manifest.json",
+      "summary_path": "XOM/5m/measurement_summary_XOM_5m.json",
+      "symbol": "XOM",
+      "timeframe": "5m"
+    },
+    {
+      "artifact_dir": "XOM/15m",
+      "harness_manifest_path": "XOM/15m/harness_manifest.json",
+      "summary_path": "XOM/15m/measurement_summary_XOM_15m.json",
+      "symbol": "XOM",
+      "timeframe": "15m"
+    },
+    {
+      "artifact_dir": "XOM/1H",
+      "harness_manifest_path": "XOM/1H/harness_manifest.json",
+      "summary_path": "XOM/1H/measurement_summary_XOM_1H.json",
+      "symbol": "XOM",
+      "timeframe": "1H"
+    },
+    {
+      "artifact_dir": "XOM/4H",
+      "harness_manifest_path": "XOM/4H/harness_manifest.json",
+      "summary_path": "XOM/4H/measurement_summary_XOM_4H.json",
+      "symbol": "XOM",
+      "timeframe": "4H"
+    },
+    {
+      "artifact_dir": "CVX/5m",
+      "harness_manifest_path": "CVX/5m/harness_manifest.json",
+      "summary_path": "CVX/5m/measurement_summary_CVX_5m.json",
+      "symbol": "CVX",
+      "timeframe": "5m"
+    },
+    {
+      "artifact_dir": "CVX/15m",
+      "harness_manifest_path": "CVX/15m/harness_manifest.json",
+      "summary_path": "CVX/15m/measurement_summary_CVX_15m.json",
+      "symbol": "CVX",
+      "timeframe": "15m"
+    },
+    {
+      "artifact_dir": "CVX/1H",
+      "harness_manifest_path": "CVX/1H/harness_manifest.json",
+      "summary_path": "CVX/1H/measurement_summary_CVX_1H.json",
+      "symbol": "CVX",
+      "timeframe": "1H"
+    },
+    {
+      "artifact_dir": "CVX/4H",
+      "harness_manifest_path": "CVX/4H/harness_manifest.json",
+      "summary_path": "CVX/4H/measurement_summary_CVX_4H.json",
+      "symbol": "CVX",
+      "timeframe": "4H"
+    },
+    {
+      "artifact_dir": "COP/5m",
+      "harness_manifest_path": "COP/5m/harness_manifest.json",
+      "summary_path": "COP/5m/measurement_summary_COP_5m.json",
+      "symbol": "COP",
+      "timeframe": "5m"
+    },
+    {
+      "artifact_dir": "COP/15m",
+      "harness_manifest_path": "COP/15m/harness_manifest.json",
+      "summary_path": "COP/15m/measurement_summary_COP_15m.json",
+      "symbol": "COP",
+      "timeframe": "15m"
+    },
+    {
+      "artifact_dir": "COP/1H",
+      "harness_manifest_path": "COP/1H/harness_manifest.json",
+      "summary_path": "COP/1H/measurement_summary_COP_1H.json",
+      "symbol": "COP",
+      "timeframe": "1H"
+    },
+    {
+      "artifact_dir": "COP/4H",
+      "harness_manifest_path": "COP/4H/harness_manifest.json",
+      "summary_path": "COP/4H/measurement_summary_COP_4H.json",
+      "symbol": "COP",
+      "timeframe": "4H"
+    },
+    {
+      "artifact_dir": "OXY/5m",
+      "harness_manifest_path": "OXY/5m/harness_manifest.json",
+      "summary_path": "OXY/5m/measurement_summary_OXY_5m.json",
+      "symbol": "OXY",
+      "timeframe": "5m"
+    },
+    {
+      "artifact_dir": "OXY/15m",
+      "harness_manifest_path": "OXY/15m/harness_manifest.json",
+      "summary_path": "OXY/15m/measurement_summary_OXY_15m.json",
+      "symbol": "OXY",
+      "timeframe": "15m"
+    },
+    {
+      "artifact_dir": "OXY/1H",
+      "harness_manifest_path": "OXY/1H/harness_manifest.json",
+      "summary_path": "OXY/1H/measurement_summary_OXY_1H.json",
+      "symbol": "OXY",
+      "timeframe": "1H"
+    },
+    {
+      "artifact_dir": "OXY/4H",
+      "harness_manifest_path": "OXY/4H/harness_manifest.json",
+      "summary_path": "OXY/4H/measurement_summary_OXY_4H.json",
+      "symbol": "OXY",
+      "timeframe": "4H"
+    },
+    {
+      "artifact_dir": "CAT/5m",
+      "harness_manifest_path": "CAT/5m/harness_manifest.json",
+      "summary_path": "CAT/5m/measurement_summary_CAT_5m.json",
+      "symbol": "CAT",
+      "timeframe": "5m"
+    },
+    {
+      "artifact_dir": "CAT/15m",
+      "harness_manifest_path": "CAT/15m/harness_manifest.json",
+      "summary_path": "CAT/15m/measurement_summary_CAT_15m.json",
+      "symbol": "CAT",
+      "timeframe": "15m"
+    },
+    {
+      "artifact_dir": "CAT/1H",
+      "harness_manifest_path": "CAT/1H/harness_manifest.json",
+      "summary_path": "CAT/1H/measurement_summary_CAT_1H.json",
+      "symbol": "CAT",
+      "timeframe": "1H"
+    },
+    {
+      "artifact_dir": "CAT/4H",
+      "harness_manifest_path": "CAT/4H/harness_manifest.json",
+      "summary_path": "CAT/4H/measurement_summary_CAT_4H.json",
+      "symbol": "CAT",
+      "timeframe": "4H"
+    }
+  ],
+  "schema_version": "3.0.0",
+  "symbols": [
+    "AAPL",
+    "MSFT",
+    "AMZN",
+    "GOOGL",
+    "META",
+    "NVDA",
+    "TSLA",
+    "JPM",
+    "BAC",
+    "GS",
+    "MS",
+    "V",
+    "UNH",
+    "JNJ",
+    "HD",
+    "XOM",
+    "CVX",
+    "COP",
+    "OXY",
+    "CAT"
+  ],
+  "timeframes": [
+    "5m",
+    "15m",
+    "1H",
+    "4H"
+  ]
+}

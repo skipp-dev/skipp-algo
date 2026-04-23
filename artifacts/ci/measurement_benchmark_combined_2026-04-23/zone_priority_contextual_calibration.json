@@ -1,0 +1,322 @@
+{
+  "contextual_weights": {
+    "htf_bias": {
+      "BEARISH": {
+        "OB": 0.4044,
+        "FVG": 0.5741,
+        "BOS": 0.8418,
+        "SWEEP": 0.6663
+      },
+      "BULLISH": {
+        "OB": 0.3918,
+        "FVG": 0.5622,
+        "BOS": 0.8708,
+        "SWEEP": 0.6603
+      }
+    },
+    "session": {
+      "ASIA": {
+        "OB": 0.7708,
+        "FVG": 0.7012,
+        "BOS": 0.8637,
+        "SWEEP": 0.8008
+      },
+      "LONDON": {
+        "OB": 0.3733,
+        "FVG": 0.6271,
+        "BOS": 0.8265,
+        "SWEEP": 0.6094
+      },
+      "NY_AM": {
+        "OB": 0.3796,
+        "FVG": 0.4966,
+        "BOS": 0.893,
+        "SWEEP": 0.6656
+      }
+    },
+    "vol_regime": {
+      "HIGH_VOL": {
+        "OB": 0.4908,
+        "FVG": 0.568,
+        "BOS": 0.8791,
+        "SWEEP": 0.6144
+      },
+      "LOW_VOL": {
+        "OB": 0.4692,
+        "FVG": 0.582,
+        "BOS": 0.8428,
+        "SWEEP": 0.6783
+      },
+      "NORMAL": {
+        "OB": 0.3917,
+        "FVG": 0.5671,
+        "BOS": 0.8593,
+        "SWEEP": 0.6635
+      }
+    }
+  },
+  "promoted_buckets": [
+    "htf_bias:BEARISH",
+    "htf_bias:BULLISH",
+    "session:ASIA",
+    "session:LONDON",
+    "session:NY_AM",
+    "vol_regime:HIGH_VOL",
+    "vol_regime:NORMAL"
+  ],
+  "global_weights": {
+    "OB": 0.4692,
+    "FVG": 0.582,
+    "BOS": 0.8428,
+    "SWEEP": 0.6783
+  },
+  "bucket_stats": {
+    "htf_bias": {
+      "BEARISH": {
+        "OB": {
+          "total_events": 478,
+          "observed_hit_rate": 0.3766,
+          "calibrated_weight": 0.4044,
+          "global_weight": 0.4692,
+          "promoted": true
+        },
+        "FVG": {
+          "total_events": 2297,
+          "observed_hit_rate": 0.5707,
+          "calibrated_weight": 0.5741,
+          "global_weight": 0.582,
+          "promoted": true
+        },
+        "BOS": {
+          "total_events": 624,
+          "observed_hit_rate": 0.8413,
+          "calibrated_weight": 0.8418,
+          "global_weight": 0.8428,
+          "promoted": true
+        },
+        "SWEEP": {
+          "total_events": 735,
+          "observed_hit_rate": 0.6612,
+          "calibrated_weight": 0.6663,
+          "global_weight": 0.6783,
+          "promoted": true
+        }
+      },
+      "BULLISH": {
+        "OB": {
+          "total_events": 488,
+          "observed_hit_rate": 0.3586,
+          "calibrated_weight": 0.3918,
+          "global_weight": 0.4692,
+          "promoted": true
+        },
+        "FVG": {
+          "total_events": 3413,
+          "observed_hit_rate": 0.5538,
+          "calibrated_weight": 0.5622,
+          "global_weight": 0.582,
+          "promoted": true
+        },
+        "BOS": {
+          "total_events": 990,
+          "observed_hit_rate": 0.8828,
+          "calibrated_weight": 0.8708,
+          "global_weight": 0.8428,
+          "promoted": true
+        },
+        "SWEEP": {
+          "total_events": 1039,
+          "observed_hit_rate": 0.6526,
+          "calibrated_weight": 0.6603,
+          "global_weight": 0.6783,
+          "promoted": true
+        }
+      }
+    },
+    "session": {
+      "ASIA": {
+        "OB": {
+          "total_events": 50,
+          "observed_hit_rate": 0.9,
+          "calibrated_weight": 0.7708,
+          "global_weight": 0.4692,
+          "promoted": true
+        },
+        "FVG": {
+          "total_events": 109,
+          "observed_hit_rate": 0.7523,
+          "calibrated_weight": 0.7012,
+          "global_weight": 0.582,
+          "promoted": true
+        },
+        "BOS": {
+          "total_events": 55,
+          "observed_hit_rate": 0.8727,
+          "calibrated_weight": 0.8637,
+          "global_weight": 0.8428,
+          "promoted": true
+        },
+        "SWEEP": {
+          "total_events": 75,
+          "observed_hit_rate": 0.8533,
+          "calibrated_weight": 0.8008,
+          "global_weight": 0.6783,
+          "promoted": true
+        }
+      },
+      "LONDON": {
+        "OB": {
+          "total_events": 283,
+          "observed_hit_rate": 0.3321,
+          "calibrated_weight": 0.3733,
+          "global_weight": 0.4692,
+          "promoted": true
+        },
+        "FVG": {
+          "total_events": 2910,
+          "observed_hit_rate": 0.6464,
+          "calibrated_weight": 0.6271,
+          "global_weight": 0.582,
+          "promoted": true
+        },
+        "BOS": {
+          "total_events": 787,
+          "observed_hit_rate": 0.8196,
+          "calibrated_weight": 0.8265,
+          "global_weight": 0.8428,
+          "promoted": true
+        },
+        "SWEEP": {
+          "total_events": 269,
+          "observed_hit_rate": 0.5799,
+          "calibrated_weight": 0.6094,
+          "global_weight": 0.6783,
+          "promoted": true
+        }
+      },
+      "NY_AM": {
+        "OB": {
+          "total_events": 633,
+          "observed_hit_rate": 0.3412,
+          "calibrated_weight": 0.3796,
+          "global_weight": 0.4692,
+          "promoted": true
+        },
+        "FVG": {
+          "total_events": 2691,
+          "observed_hit_rate": 0.4601,
+          "calibrated_weight": 0.4966,
+          "global_weight": 0.582,
+          "promoted": true
+        },
+        "BOS": {
+          "total_events": 772,
+          "observed_hit_rate": 0.9145,
+          "calibrated_weight": 0.893,
+          "global_weight": 0.8428,
+          "promoted": true
+        },
+        "SWEEP": {
+          "total_events": 1430,
+          "observed_hit_rate": 0.6601,
+          "calibrated_weight": 0.6656,
+          "global_weight": 0.6783,
+          "promoted": true
+        }
+      }
+    },
+    "vol_regime": {
+      "HIGH_VOL": {
+        "OB": {
+          "total_events": 34,
+          "observed_hit_rate": 0.5,
+          "calibrated_weight": 0.4908,
+          "global_weight": 0.4692,
+          "promoted": true
+        },
+        "FVG": {
+          "total_events": 137,
+          "observed_hit_rate": 0.562,
+          "calibrated_weight": 0.568,
+          "global_weight": 0.582,
+          "promoted": true
+        },
+        "BOS": {
+          "total_events": 38,
+          "observed_hit_rate": 0.8947,
+          "calibrated_weight": 0.8791,
+          "global_weight": 0.8428,
+          "promoted": true
+        },
+        "SWEEP": {
+          "total_events": 46,
+          "observed_hit_rate": 0.587,
+          "calibrated_weight": 0.6144,
+          "global_weight": 0.6783,
+          "promoted": true
+        }
+      },
+      "LOW_VOL": {
+        "OB": {
+          "total_events": 6,
+          "observed_hit_rate": 1.0,
+          "calibrated_weight": 0.4692,
+          "global_weight": 0.4692,
+          "promoted": false
+        },
+        "FVG": {
+          "total_events": 10,
+          "observed_hit_rate": 0.5,
+          "calibrated_weight": 0.582,
+          "global_weight": 0.582,
+          "promoted": false
+        },
+        "BOS": {
+          "total_events": 4,
+          "observed_hit_rate": 0.75,
+          "calibrated_weight": 0.8428,
+          "global_weight": 0.8428,
+          "promoted": false
+        },
+        "SWEEP": {
+          "total_events": 4,
+          "observed_hit_rate": 1.0,
+          "calibrated_weight": 0.6783,
+          "global_weight": 0.6783,
+          "promoted": false
+        }
+      },
+      "NORMAL": {
+        "OB": {
+          "total_events": 926,
+          "observed_hit_rate": 0.3585,
+          "calibrated_weight": 0.3917,
+          "global_weight": 0.4692,
+          "promoted": true
+        },
+        "FVG": {
+          "total_events": 5563,
+          "observed_hit_rate": 0.5607,
+          "calibrated_weight": 0.5671,
+          "global_weight": 0.582,
+          "promoted": true
+        },
+        "BOS": {
+          "total_events": 1572,
+          "observed_hit_rate": 0.8664,
+          "calibrated_weight": 0.8593,
+          "global_weight": 0.8428,
+          "promoted": true
+        },
+        "SWEEP": {
+          "total_events": 1724,
+          "observed_hit_rate": 0.6572,
+          "calibrated_weight": 0.6635,
+          "global_weight": 0.6783,
+          "promoted": true
+        }
+      }
+    }
+  },
+  "min_bucket_events": 30
+}

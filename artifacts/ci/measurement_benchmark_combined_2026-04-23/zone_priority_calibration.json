@@ -1,0 +1,63 @@
+{
+  "family_weights": {
+    "OB": 0.4692,
+    "FVG": 0.582,
+    "BOS": 0.8428,
+    "SWEEP": 0.6783
+  },
+  "rank_thresholds": {
+    "A": 75,
+    "B": 50,
+    "C": 25
+  },
+  "family_stats": {
+    "BOS": {
+      "total_events": 1614,
+      "total_hits": 1383,
+      "pair_count": 80,
+      "simple_hit_rate": 0.8569,
+      "weighted_hit_rate": 0.8569,
+      "prior_weight": 0.81,
+      "calibrated_weight": 0.8428
+    },
+    "FVG": {
+      "total_events": 5710,
+      "total_hits": 3255,
+      "pair_count": 80,
+      "simple_hit_rate": 0.5701,
+      "weighted_hit_rate": 0.5701,
+      "prior_weight": 0.61,
+      "calibrated_weight": 0.582
+    },
+    "OB": {
+      "total_events": 966,
+      "total_hits": 308,
+      "pair_count": 80,
+      "simple_hit_rate": 0.3188,
+      "weighted_hit_rate": 0.3188,
+      "prior_weight": 0.82,
+      "calibrated_weight": 0.4692
+    },
+    "SWEEP": {
+      "total_events": 1774,
+      "total_hits": 1164,
+      "pair_count": 79,
+      "simple_hit_rate": 0.6561,
+      "weighted_hit_rate": 0.6561,
+      "prior_weight": 0.73,
+      "calibrated_weight": 0.6783
+    }
+  },
+  "total_events": 10064,
+  "total_pairs": 319,
+  "source_dir": "artifacts/ci/measurement_benchmark_combined_2026-04-23",
+  "testable_calibration": {
+    "n_events": 10064,
+    "positive_rate": 0.607114,
+    "ece_binned_n10": 0.135546,
+    "smooth_ece": 0.137226,
+    "dce_upper_bound": 0.12782,
+    "method": "binned_aggregate_reconstruction",
+    "source": "calibration.bins per scoring_*.json"
+  }
+}
