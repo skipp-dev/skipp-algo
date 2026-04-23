@@ -188,3 +188,56 @@ jobs:
           name: smc-measurement-benchmark-rolling-${{ steps.meta.outputs.run_date }}
           path: ${{ steps.meta.outputs.out_dir }}
           retention-days: 30
+          # Idempotent same-day reruns (manual or backfill) must not 409.
+          overwrite: true
+
+      - name: F2 dual-arm contextual calibration (G3 wiring)
+        # Plan §2.3 F2 / §2.4 G3. Re-scores the per-event JSONL ledgers
+        # produced above twice — once with the global family weights
+        # (control arm) and once with the contextual fallback cascade
+        # (treatment arm) — and writes the two artifact trees the
+        # f2-promotion-gate-daily workflow consumes. Without this step
+        # the gate exits status=skipped indefinitely and the 30-day
+        # SPRT countdown never starts. Fail-soft: a non-zero exit must
+        # NOT mark the rolling-bench run failed; it only means the
+        # promotion-gate stays on status=skipped that day.
+        if: always()
+        env:
+          RUN_DATE: ${{ steps.meta.outputs.run_date }}
+          OUT_DIR:  ${{ steps.meta.outputs.out_dir }}
+        run: |
+          set +e
+          python scripts/f2_apply_contextual_calibration.py \
+            --control-dir          "${OUT_DIR}" \
+            --contextual-cal       "${OUT_DIR}/zone_priority_contextual_calibration.json" \
+            --global-cal           "${OUT_DIR}/zone_priority_calibration.json" \
+            --output-dir-control   "artifacts/ci/f2/static_global_weights/${RUN_DATE}" \
+            --output-dir-treatment "artifacts/ci/f2/contextual_weights/${RUN_DATE}"
+          rc=$?
+          {
+            echo "## F2 dual-arm wiring (G3)"
+            echo ""
+            echo "- run_date: ${RUN_DATE}"
+            echo "- exit_code: ${rc}"
+            echo "- control:   artifacts/ci/f2/static_global_weights/${RUN_DATE}"
+            echo "- treatment: artifacts/ci/f2/contextual_weights/${RUN_DATE}"
+          } >> "${GITHUB_STEP_SUMMARY:-/dev/null}" || true
+          # Fail-soft: an empty-events rc=2 or a missing-input rc=1 must
+          # not affect the rolling-bench outcome. The promotion-gate
+          # workflow surfaces the same condition as status=skipped.
+          exit 0
+
+      - name: Upload F2 dual-arm artifacts
+        # Published as a separate, named artifact so the
+        # f2-promotion-gate-daily workflow can pull it via
+        # actions/download-artifact@v4 with its cross-workflow
+        # `workflow:` parameter.
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: f2-dual-arm-${{ steps.meta.outputs.run_date }}
+          path: artifacts/ci/f2/
+          retention-days: 45
+          if-no-files-found: ignore
+          # Same-day rerun safety (audit H6).
+          overwrite: true

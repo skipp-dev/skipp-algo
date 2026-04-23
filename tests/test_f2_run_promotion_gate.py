@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import json
 from pathlib import Path
 
@@ -13,6 +14,30 @@ from scripts.f2_experiment_spec import load_f2_spec
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SHIPPED_SPEC = REPO_ROOT / "artifacts" / "experiments" / "f2_contextual_promotion.json"
+
+
+def _live_spec():
+    """Return the shipped spec with ``status='live'``.
+
+    The shipped spec sits at ``status='plumbing_only'`` while the
+    audit-driven follow-up PRs (#43 frozen artifact, #44 paired-SPRT)
+    are pending. Tests that exercise the *underlying* gate logic
+    (promote / rollback / insufficient_data) need to override that
+    guard so they keep verifying the math, not the guard.
+    """
+    return dataclasses.replace(load_f2_spec(SHIPPED_SPEC), status="live")
+
+
+def _write_live_spec_copy(tmp_path: Path) -> Path:
+    """Write a tmp copy of the shipped spec with ``status='live'``.
+
+    Used by the CLI tests where we cannot pass a dataclass through.
+    """
+    spec_dict = json.loads(SHIPPED_SPEC.read_text(encoding="utf-8"))
+    spec_dict["status"] = "live"
+    out = tmp_path / "spec_live.json"
+    out.write_text(json.dumps(spec_dict), encoding="utf-8")
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -109,7 +134,7 @@ def _make_arm_dir(
 
 
 def test_run_promotion_gate_promotes_on_strong_treatment(tmp_path: Path) -> None:
-    spec = load_f2_spec(SHIPPED_SPEC)
+    spec = _live_spec()
     control = _make_arm_dir(
         tmp_path, arm_name="control",
         n_events=800, hit_rate=0.55, brier=0.22, ece=0.12,
@@ -128,10 +153,13 @@ def test_run_promotion_gate_promotes_on_strong_treatment(tmp_path: Path) -> None
     assert report["decision"] == "promote"
     assert report["actions"]
     assert report["sprt"]["decision"] == "accept_h1"
+    # Status banner present and clean on a live spec.
+    assert report["spec_status"] == "live"
+    assert report["warnings"] == []
 
 
 def test_run_promotion_gate_rolls_back_on_sprt_h0(tmp_path: Path) -> None:
-    spec = load_f2_spec(SHIPPED_SPEC)
+    spec = _live_spec()
     control = _make_arm_dir(
         tmp_path, arm_name="control",
         n_events=800, hit_rate=0.55, brier=0.18, ece=0.10,
@@ -151,7 +179,7 @@ def test_run_promotion_gate_rolls_back_on_sprt_h0(tmp_path: Path) -> None:
 
 
 def test_run_promotion_gate_rolls_back_on_consecutive_worse_runs(tmp_path: Path) -> None:
-    spec = load_f2_spec(SHIPPED_SPEC)
+    spec = _live_spec()
     control = _make_arm_dir(
         tmp_path, arm_name="control",
         n_events=800, hit_rate=0.58, brier=0.18, ece=0.10,
@@ -171,7 +199,7 @@ def test_run_promotion_gate_rolls_back_on_consecutive_worse_runs(tmp_path: Path)
 
 
 def test_run_promotion_gate_insufficient_data(tmp_path: Path) -> None:
-    spec = load_f2_spec(SHIPPED_SPEC)
+    spec = _live_spec()
     control = _make_arm_dir(
         tmp_path, arm_name="control",
         n_events=50, hit_rate=0.55, brier=0.20, ece=0.10,
@@ -201,8 +229,9 @@ def test_cli_returns_0_on_promote(tmp_path: Path) -> None:
     treatment = _make_arm_dir(tmp_path, arm_name="treat",
                               n_events=800, hit_rate=0.64, brier=0.18, ece=0.08)
     output = tmp_path / "report.json"
+    spec_path = _write_live_spec_copy(tmp_path)
     rc = main([
-        "--spec", str(SHIPPED_SPEC),
+        "--spec", str(spec_path),
         "--control-dir", str(control),
         "--treatment-dir", str(treatment),
         "--output", str(output),
@@ -255,3 +284,103 @@ def test_cli_loads_rollback_history(tmp_path: Path) -> None:
     report = json.loads(output.read_text(encoding="utf-8"))
     assert report["rollback_triggered"] is True
     assert report["rollback_history_len"] == 2
+
+
+# ---------------------------------------------------------------------------
+# Spec-status guard (audit C1/C2/C3 follow-up)
+# ---------------------------------------------------------------------------
+
+
+def test_spec_status_plumbing_only_blocks_promote(tmp_path: Path) -> None:
+    """spec.status='plumbing_only' coerces a promote decision to hold."""
+    spec = dataclasses.replace(_live_spec(), status="plumbing_only")
+    control = _make_arm_dir(
+        tmp_path, arm_name="control",
+        n_events=800, hit_rate=0.55, brier=0.22, ece=0.12,
+    )
+    treatment = _make_arm_dir(
+        tmp_path, arm_name="treatment",
+        n_events=800, hit_rate=0.64, brier=0.18, ece=0.08,
+    )
+    report = run_promotion_gate(
+        spec=spec,
+        control_dir=control,
+        treatment_dir=treatment,
+        rollback_history=[],
+    )
+    # Underlying SPRT/KPI math still says promote ...
+    assert report["sprt"]["decision"] == "accept_h1"
+    # ... but the guard demotes the surfaced decision to hold.
+    assert report["decision"] == "hold"
+    assert report["spec_status"] == "plumbing_only"
+    assert any("plumbing_only" in w for w in report["warnings"])
+    assert any("promote disabled" in a.lower() for a in report["actions"])
+
+
+def test_spec_status_plumbing_only_keeps_rollback_path(tmp_path: Path) -> None:
+    """spec.status='plumbing_only' does NOT mask a rollback decision."""
+    spec = dataclasses.replace(_live_spec(), status="plumbing_only")
+    control = _make_arm_dir(
+        tmp_path, arm_name="control",
+        n_events=800, hit_rate=0.55, brier=0.18, ece=0.10,
+    )
+    treatment = _make_arm_dir(
+        tmp_path, arm_name="treatment",
+        n_events=800, hit_rate=0.45, brier=0.25, ece=0.15,
+    )
+    report = run_promotion_gate(
+        spec=spec,
+        control_dir=control,
+        treatment_dir=treatment,
+        rollback_history=[],
+    )
+    assert report["decision"] == "rollback"
+    # Warning still surfaced — operators must see the spec is non-live.
+    assert any("plumbing_only" in w for w in report["warnings"])
+
+
+def test_spec_status_warning_surfaces_for_hold_decision(tmp_path: Path) -> None:
+    """A non-live spec attaches the banner even when the natural decision is hold."""
+    spec = dataclasses.replace(_live_spec(), status="plumbing_only")
+    control = _make_arm_dir(
+        tmp_path, arm_name="control",
+        n_events=50, hit_rate=0.55, brier=0.20, ece=0.10,
+    )
+    treatment = _make_arm_dir(
+        tmp_path, arm_name="treatment",
+        n_events=50, hit_rate=0.65, brier=0.18, ece=0.08,
+    )
+    report = run_promotion_gate(
+        spec=spec,
+        control_dir=control,
+        treatment_dir=treatment,
+        rollback_history=[],
+    )
+    assert report["decision"] == "insufficient_data"
+    assert report["spec_status"] == "plumbing_only"
+    assert report["warnings"]
+
+
+def test_cli_shipped_spec_does_not_promote_under_plumbing_only(tmp_path: Path) -> None:
+    """Belt-and-braces: the *literal shipped spec* must NOT promote.
+
+    This pins the behavior across the audit follow-up window: even
+    with a strong treatment, a CI run loading the actual on-disk spec
+    must surface ``decision=hold`` until the spec is flipped to
+    ``status=live`` in PR #44.
+    """
+    control = _make_arm_dir(tmp_path, arm_name="ctrl",
+                            n_events=800, hit_rate=0.55, brier=0.22, ece=0.12)
+    treatment = _make_arm_dir(tmp_path, arm_name="treat",
+                              n_events=800, hit_rate=0.64, brier=0.18, ece=0.08)
+    output = tmp_path / "report.json"
+    rc = main([
+        "--spec", str(SHIPPED_SPEC),
+        "--control-dir", str(control),
+        "--treatment-dir", str(treatment),
+        "--output", str(output),
+    ])
+    assert rc == 0
+    report = json.loads(output.read_text(encoding="utf-8"))
+    assert report["spec_status"] == "plumbing_only"
+    assert report["decision"] == "hold"

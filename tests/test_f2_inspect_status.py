@@ -249,7 +249,8 @@ def test_render_one_line_full(tmp_path: Path) -> None:
     )
     line = render_one_line(status)
     assert line == (
-        "f2[f2-test] artifact=shadow revert=2 promote=1 latest=2026-04-21:rollback"
+        "f2[f2-test] spec_status=registered "
+        "artifact=shadow revert=2 promote=1 latest=2026-04-21:rollback"
     )
 
 
@@ -262,7 +263,9 @@ def test_render_one_line_handles_missing_pieces() -> None:
         "latest_report": None,
     }
     line = render_one_line(status)
-    assert line == "f2[?] artifact=missing revert=0 promote=0 latest=none"
+    assert line == (
+        "f2[?] spec_status=? artifact=missing revert=0 promote=0 latest=none"
+    )
 
 
 def test_cli_quiet_prints_one_line(
@@ -278,7 +281,7 @@ def test_cli_quiet_prints_one_line(
     out = capsys.readouterr().out.strip()
     # Single line, no JSON braces.
     assert "\n" not in out
-    assert out.startswith("f2[f2-test] artifact=production")
+    assert out.startswith("f2[f2-test] spec_status=registered artifact=production")
     assert "{" not in out
 
 

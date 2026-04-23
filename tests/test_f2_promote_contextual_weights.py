@@ -18,10 +18,11 @@ def _write(path: Path, payload) -> None:
     path.write_text(json.dumps(payload), encoding="utf-8")
 
 
-def _spec(tmp: Path, artifact: Path) -> Path:
+def _spec(tmp: Path, artifact: Path, *, status: str = "live") -> Path:
     p = tmp / "spec.json"
     _write(p, {
         "name": "f2",
+        "status": status,
         "arms": {"treatment": {"calibration_artifact": str(artifact)}},
     })
     return p
@@ -185,7 +186,7 @@ def test_promote_missing_spec_raises(tmp_path: Path) -> None:
 
 def test_promote_missing_treatment_field_raises(tmp_path: Path) -> None:
     spec = tmp_path / "spec.json"
-    _write(spec, {"arms": {"treatment": {}}})  # no calibration_artifact
+    _write(spec, {"status": "live", "arms": {"treatment": {}}})  # no calibration_artifact
     with pytest.raises(ValueError, match="calibration_artifact"):
         promote_contextual_weights(
             spec_path=spec,
@@ -290,3 +291,75 @@ def test_cli_missing_spec_returns_one(tmp_path: Path, capsys: pytest.CaptureFixt
     ])
     assert rc == 1
     assert "spec does not exist" in capsys.readouterr().err
+
+
+# ---------------------------------------------------------------------------
+# Spec-status guard (audit C1/C2/C3 follow-up)
+# ---------------------------------------------------------------------------
+
+
+def test_promote_refuses_when_spec_status_is_plumbing_only(tmp_path: Path) -> None:
+    artifact = tmp_path / "treatment.json"
+    _write(artifact, {"status": "shadow"})
+    spec_path = _spec(tmp_path, artifact, status="plumbing_only")
+
+    with pytest.raises(ValueError, match="spec.status="):
+        promote_contextual_weights(
+            spec_path=spec_path,
+            report_path=_report(tmp_path),
+            journal_path=tmp_path / "j.jsonl",
+        )
+    # Artifact untouched.
+    assert json.loads(artifact.read_text(encoding="utf-8")) == {"status": "shadow"}
+
+
+def test_promote_refuses_when_spec_status_is_registered(tmp_path: Path) -> None:
+    artifact = tmp_path / "treatment.json"
+    _write(artifact, {"status": "shadow"})
+    # Spec without an explicit status field defaults to 'registered',
+    # which is also not 'live' and therefore must be refused.
+    spec_path = tmp_path / "spec_no_status.json"
+    _write(spec_path, {
+        "name": "f2",
+        "arms": {"treatment": {"calibration_artifact": str(artifact)}},
+    })
+    with pytest.raises(ValueError, match="registered"):
+        promote_contextual_weights(
+            spec_path=spec_path,
+            report_path=_report(tmp_path),
+            journal_path=tmp_path / "j.jsonl",
+        )
+
+
+def test_promote_force_does_not_bypass_spec_status_gate(tmp_path: Path) -> None:
+    """``--force`` may bypass the report-decision check, but not the spec-status gate."""
+    artifact = tmp_path / "treatment.json"
+    _write(artifact, {"status": "shadow"})
+    spec_path = _spec(tmp_path, artifact, status="plumbing_only")
+    report_path = _report(tmp_path, decision="hold")  # also non-promote
+
+    with pytest.raises(ValueError, match="spec.status="):
+        promote_contextual_weights(
+            spec_path=spec_path,
+            report_path=report_path,
+            journal_path=tmp_path / "j.jsonl",
+            force=True,
+        )
+
+
+def test_cli_refuses_with_exit_1_when_spec_status_not_live(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    artifact = tmp_path / "treatment.json"
+    _write(artifact, {"status": "shadow"})
+    spec_path = _spec(tmp_path, artifact, status="plumbing_only")
+    report_path = _report(tmp_path)
+
+    rc = main([
+        "--spec", str(spec_path),
+        "--report", str(report_path),
+        "--journal", str(tmp_path / "j.jsonl"),
+    ])
+    assert rc == 1
+    captured = capsys.readouterr()
+    assert "spec.status=" in captured.err
