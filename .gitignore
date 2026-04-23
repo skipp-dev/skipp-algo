@@ -61,3 +61,6 @@ artifacts/ops_run_stdout*.txt
 artifacts/ops_run_time*.txt
 artifacts/tmp_*.py
 artifacts/ops_run_measure.py
+
+# Editable-install metadata (added 2026-04-23 with pyproject [tool.setuptools] block)
+*.egg-info/
