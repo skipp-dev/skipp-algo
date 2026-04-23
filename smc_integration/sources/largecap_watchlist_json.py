@@ -12,6 +12,7 @@ real data sources win whenever they cover the symbol.
 from __future__ import annotations
 
 import json
+import time
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -102,8 +103,15 @@ def load_raw_meta_input(symbol: str, timeframe: str) -> dict[str, Any]:
 
     trade_date = str(row.get("trade_date", "")).strip()
     asof_ts_opt = _coerce_optional_float(row.get("asof_ts"))
+    asof_strategy = str(payload.get("asof_strategy", "")).strip().lower()
     if asof_ts_opt is not None:
         asof_ts = asof_ts_opt
+    elif asof_strategy == "now":
+        # Scaffold opt-in: stamp meta with current time so this last-resort
+        # fallback never trips the 48h _META_DOMAIN_STALE_HOURS gate. Real
+        # provider sources still win whenever they cover the symbol; this
+        # only applies when the largecap scaffold is the actual chosen source.
+        asof_ts = float(time.time())
     elif trade_date:
         asof_ts = _asof_ts_from_trade_date(trade_date)
     else:
