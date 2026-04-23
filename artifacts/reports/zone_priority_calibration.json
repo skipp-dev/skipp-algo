@@ -1,0 +1,80 @@
+{
+  "family_weights": {
+    "OB": 0.4782,
+    "FVG": 0.582,
+    "BOS": 0.8488,
+    "SWEEP": 0.6799
+  },
+  "rank_thresholds": {
+    "A": 75,
+    "B": 50,
+    "C": 25
+  },
+  "family_stats": {
+    "BOS": {
+      "total_events": 988,
+      "total_hits": 855,
+      "pair_count": 48,
+      "simple_hit_rate": 0.8654,
+      "weighted_hit_rate": 0.8654,
+      "prior_weight": 0.81,
+      "calibrated_weight": 0.8488
+    },
+    "FVG": {
+      "total_events": 3388,
+      "total_hits": 1931,
+      "pair_count": 48,
+      "simple_hit_rate": 0.57,
+      "weighted_hit_rate": 0.5699,
+      "prior_weight": 0.61,
+      "calibrated_weight": 0.582
+    },
+    "OB": {
+      "total_events": 603,
+      "total_hits": 200,
+      "pair_count": 48,
+      "simple_hit_rate": 0.3317,
+      "weighted_hit_rate": 0.3317,
+      "prior_weight": 0.82,
+      "calibrated_weight": 0.4782
+    },
+    "SWEEP": {
+      "total_events": 1133,
+      "total_hits": 746,
+      "pair_count": 48,
+      "simple_hit_rate": 0.6584,
+      "weighted_hit_rate": 0.6584,
+      "prior_weight": 0.73,
+      "calibrated_weight": 0.6799
+    }
+  },
+  "total_events": 6112,
+  "total_pairs": 192,
+  "source_dir": "artifacts/reports/benchmark_corpus",
+  "frozen_provenance": {
+    "frozen": true,
+    "status": "shadow",
+    "frozen_at": "2026-04-23T15:14:46+00:00",
+    "generated_at": "2026-04-23T15:14:47+00:00",
+    "benchmark_dir": "artifacts/reports/benchmark_corpus",
+    "benchmark_corpus_ephemeral": true,
+    "benchmark_manifest_sha256": "8b27c4292880e24f765d851b1b426a1b8155102f7a4c84ccaca776413e6898b2",
+    "n_events": 6112,
+    "max_event_timestamp_utc": null,
+    "source_commit": "15ea844ca506ea8f0d40c24e3c47a56e03e45930",
+    "generator_script_path": "smc_zone_priority_calibration.py",
+    "generator_script_sha256": "7ecb47a1987f90606dacaa96ee079b1afd356c500edc4ac7add90c437ee11c82",
+    "smoothing": 0.3,
+    "min_events_per_bucket": 30,
+    "regeneration_instructions": "docs/f2_contextual_promotion_decision_2026-04-21.md#regeneration-recipe"
+  },
+  "testable_calibration": {
+    "n_events": 6112,
+    "positive_rate": 0.610602,
+    "ece_binned_n10": 0.132014,
+    "smooth_ece": 0.134909,
+    "dce_upper_bound": 0.122597,
+    "method": "binned_aggregate_reconstruction",
+    "source": "calibration.bins per scoring_*.json"
+  }
+}
