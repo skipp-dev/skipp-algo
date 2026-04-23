@@ -65,9 +65,14 @@ jobs:
           python-version: "3.13"
 
       - name: Install dependencies
+        # NOTE: avoid `pip install -e .` until PR #27
+        # (chore/pyproject-setuptools-packages) lands — the flat-layout
+        # auto-discovery currently aborts with "Multiple top-level
+        # packages discovered". Mirror the validate job in ci.yml,
+        # which is the contract that proves this set is sufficient.
         run: |
           python -m pip install --upgrade pip
-          pip install -e .
+          python -m pip install -r requirements.txt pytest pyyaml
 
       - name: Resolve corpus directory
         id: corpus
