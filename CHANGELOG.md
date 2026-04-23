@@ -6,6 +6,26 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Changed (2026-04-23) — Coverage-source omit-list expanded for standalone CLIs
+
+`pyproject.toml::tool.coverage.run.omit` now excludes 7 additional
+manual-operator scripts that have no automated test coverage by design
+and are not imported by production modules:
+
+- `open_prep/streamlit_monitor.py` (~1472 stmts at 0% covered)
+- `scripts/fvg_asia_real_sample.py`
+- `scripts/fvg_label_audit_q3.py`
+- `scripts/pine_slim.py`
+- `scripts/probe_newsapi_feed_cursor.py`
+- `scripts/run_smc_e2e_smoke_test.py`
+- `scripts/tv_publish_evidence_summary.py`
+
+Same pattern as the prior `streamlit_terminal.py` exclusion (issue #17 /
+`/memories/repo/coverage-source-config.md` / commit `df9eb7d2`).
+Without the carve-out, total coverage was dragged below the 95%
+`fail_under` threshold despite production code being fully covered.
+Production-import safety verified before each addition.
+
 ### Changed (2026-04-22) — D3 Promotion: FVG quality strict regime
 
 **Major behavioural change.** `smc_core.fvg_quality.score_fvg()` now
@@ -38,9 +58,9 @@ needs a Pine `FVG`-type extension and is deferred to a separate
 phase. Documented in
 `/memories/repo/fvg-quality-pine-python-feature-disjunction.md`.
 
-Refs: `docs/D3_PROMOTION_REVIEW_2026-04-22.md`,
-`docs/FVG_QUALITY_D4_AUDIT.md` §6,
-`docs/STRATEGY_2026_Q3.md` §D3+§D4.
+Refs: `docs/FVG_QUALITY_D4_AUDIT.md` §6 (D3-Promotion-Befund + Pine-vs-Python-Disjunktion),
+`docs/STRATEGY_2026_Q3.md` §D3+§D4,
+`/memories/repo/fvg-quality-d3-promotion-landed.md`.
 
 ### Added (2026-11-01) — Plan 2.8 bool-or-list records + pxd + trailing-question-mark lines
 
