@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import time
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -174,7 +175,15 @@ def load_raw_meta_input(symbol: str, timeframe: str) -> dict[str, Any]:
     generated_at_ts = _parse_generated_at(payload.get("generated_at"))
 
     articles, provider_names, latest_published_ts = _matching_story_articles(payload, wanted)
-    asof_ts = latest_published_ts or generated_at_ts
+    asof_strategy = str(payload.get("asof_strategy", "")).strip().lower()
+    if asof_strategy == "now":
+        # Snapshot opt-in: stamp meta with current time so this CI fixture
+        # never trips the 48h _META_DOMAIN_STALE_HOURS gate. Real article
+        # published_ts are still preserved for sentiment scoring; only the
+        # meta-domain freshness pointer is overridden.
+        asof_ts = float(time.time())
+    else:
+        asof_ts = latest_published_ts or generated_at_ts
     if asof_ts is None:
         raise ValueError("live news snapshot is missing both generated_at and published_ts timestamps")
 

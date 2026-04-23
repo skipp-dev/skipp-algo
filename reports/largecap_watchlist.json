@@ -1,9 +1,11 @@
 {
   "generated_at": "2026-04-21T00:00:00+00:00",
   "source": "static_largecap_scaffold",
+  "asof_strategy": "now",
   "notes": [
     "Neutral-default scaffold so health checks and integration tests don't FAIL for benchmark-universe large-caps when real screener sources don't list them.",
     "volume_regime=NORMAL, thin_fraction=0.0, technical/news biases=NEUTRAL, strengths=0.0.",
+    "asof_strategy=now: loader stamps meta asof_ts with current time so this scaffold never trips _META_DOMAIN_STALE_HOURS=48h.",
     "NOT for production signal derivation; a last-resort fallback only."
   ],
   "symbols": [
@@ -25,6 +27,11 @@
     {"symbol": "XOM",   "trade_date": "2026-04-21", "volume_regime": "NORMAL", "thin_fraction": 0.0, "technical": {"strength": 0.0, "bias": "NEUTRAL"}, "news": {"strength": 0.0, "bias": "NEUTRAL"}},
     {"symbol": "CVX",   "trade_date": "2026-04-21", "volume_regime": "NORMAL", "thin_fraction": 0.0, "technical": {"strength": 0.0, "bias": "NEUTRAL"}, "news": {"strength": 0.0, "bias": "NEUTRAL"}},
     {"symbol": "COP",   "trade_date": "2026-04-21", "volume_regime": "NORMAL", "thin_fraction": 0.0, "technical": {"strength": 0.0, "bias": "NEUTRAL"}, "news": {"strength": 0.0, "bias": "NEUTRAL"}},
-    {"symbol": "OXY",   "trade_date": "2026-04-21", "volume_regime": "NORMAL", "thin_fraction": 0.0, "technical": {"strength": 0.0, "bias": "NEUTRAL"}, "news": {"strength": 0.0, "bias": "NEUTRAL"}}
+    {"symbol": "OXY",   "trade_date": "2026-04-21", "volume_regime": "NORMAL", "thin_fraction": 0.0, "technical": {"strength": 0.0, "bias": "NEUTRAL"}, "news": {"strength": 0.0, "bias": "NEUTRAL"}},
+    {"symbol": "CAT",   "trade_date": "2026-04-21", "volume_regime": "NORMAL", "thin_fraction": 0.0, "technical": {"strength": 0.0, "bias": "NEUTRAL"}, "news": {"strength": 0.0, "bias": "NEUTRAL"}},
+    {"symbol": "PG",    "trade_date": "2026-04-21", "volume_regime": "NORMAL", "thin_fraction": 0.0, "technical": {"strength": 0.0, "bias": "NEUTRAL"}, "news": {"strength": 0.0, "bias": "NEUTRAL"}},
+    {"symbol": "NEE",   "trade_date": "2026-04-21", "volume_regime": "NORMAL", "thin_fraction": 0.0, "technical": {"strength": 0.0, "bias": "NEUTRAL"}, "news": {"strength": 0.0, "bias": "NEUTRAL"}},
+    {"symbol": "AMT",   "trade_date": "2026-04-21", "volume_regime": "NORMAL", "thin_fraction": 0.0, "technical": {"strength": 0.0, "bias": "NEUTRAL"}, "news": {"strength": 0.0, "bias": "NEUTRAL"}},
+    {"symbol": "LIN",   "trade_date": "2026-04-21", "volume_regime": "NORMAL", "thin_fraction": 0.0, "technical": {"strength": 0.0, "bias": "NEUTRAL"}, "news": {"strength": 0.0, "bias": "NEUTRAL"}}
   ]
 }

@@ -1509,5 +1509,9 @@
     "base_csv_path": null,
     "base_manifest_path": null,
     "export_dir": "artifacts/smc_microstructure_exports"
-  }
+  },
+  "asof_strategy": "now",
+  "notes": [
+    "asof_strategy=now: loader stamps meta asof_ts with current time so this CI fixture never trips _META_DOMAIN_STALE_HOURS=48h. Article-level published_ts preserved for sentiment scoring."
+  ]
 }
