@@ -12,10 +12,30 @@ HERO_SETUP_QUALITY : str   — "high", "good", "ok", "low"
 HERO_WHY_NOW       : str   — compact catalyst/reason text
 HERO_RISK          : str   — dominant risk factor
 HERO_ACTION        : str   — "ACTIVE", "WATCH", "AVOID", "BLOCKED"
+
+Vocabulary pins
+---------------
+``HERO_TRUST``, ``HERO_SETUP_QUALITY``, and ``HERO_ACTION`` are
+exposed as module-level constants and frozensets below. These pin
+the exact literals that Pine dashboards compare against. They also
+document the cross-vocabulary mappings used by:
+
+- ``smc_integration.trust_state.TrustState`` (canonical 5-state
+  trust enum) via :func:`project_trust_state_to_hero`.
+- ``scripts.smc_hero_action._ACTION_TABLE`` (Producer-B quality
+  vocabulary ``excellent/good/limited/avoid``) via
+  :data:`HERO_QUALITY_A_TO_B`.
+
+Boundary-Contract Improvement Plan 2026-04-23, F-2 / F-4 / F-6 /
+PR-BC-04 — DO NOT rename these literals without bumping
+``library_field_version`` in the generated Pine library.
 """
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from smc_integration.trust_state import TrustState
 
 
 DEFAULTS: dict[str, str] = {
@@ -29,6 +49,115 @@ DEFAULTS: dict[str, str] = {
 }
 
 
+# ── HERO_TRUST vocabulary (F-2, PR-BC-04) ─────────────────────────────
+#
+# Hero-local trust vocabulary — SUPERSET of the canonical ``TrustState``
+# enum (see ``smc_integration.trust_state.TrustState`` for the 5-state
+# enum). Mapping ``TrustState`` → ``HERO_TRUST``:
+#
+#   TrustState.HEALTHY      → "healthy"
+#   TrustState.DEGRADED     → "degraded"
+#   TrustState.STALE        → "stale"
+#   TrustState.WATCH_ONLY   → "degraded"   # Hero collapses (info loss)
+#   TrustState.UNAVAILABLE  → "unavailable"
+#
+# ``"warmup"`` is Hero-local (no ``TrustState`` counterpart) — it
+# signals an aging freshness signal before full degradation. Pine
+# dashboards render it as amber (T2).
+#
+# Pine-boundary contract: ``SMC_Dashboard.pine:1753,1768,1774`` and
+# ``SMC_Mobile_Dashboard.pine:50,55`` compare this value to lowercase
+# literals. DO NOT rename without bumping ``library_field_version``.
+HERO_TRUST_HEALTHY: str = "healthy"
+HERO_TRUST_WARMUP: str = "warmup"
+HERO_TRUST_DEGRADED: str = "degraded"
+HERO_TRUST_STALE: str = "stale"
+HERO_TRUST_UNAVAILABLE: str = "unavailable"
+
+HERO_TRUST_VOCAB: frozenset[str] = frozenset({
+    HERO_TRUST_HEALTHY,
+    HERO_TRUST_WARMUP,
+    HERO_TRUST_DEGRADED,
+    HERO_TRUST_STALE,
+    HERO_TRUST_UNAVAILABLE,
+})
+
+
+# ── HERO_SETUP_QUALITY vocabulary (F-4, PR-BC-04) ─────────────────────
+#
+# Producer-A vocabulary (live Pine consumer, passthrough of
+# ``SIGNAL_QUALITY_TIER``):
+#
+#   "high"   — top-tier setup, maximum confidence
+#   "good"   — standard setup
+#   "ok"     — marginal (minimum for ACTIVE)
+#   "low"    — below threshold (default; WATCH/AVOID)
+#
+# Producer-B (``scripts/smc_hero_setup_quality.py`` +
+# ``_ACTION_TABLE`` in ``scripts/smc_hero_action.py``) emits a
+# parallel 4-tier ``excellent/good/limited/avoid`` vocabulary on the
+# RESERVED field ``HERO_QUALITY_TIER`` — reconciliation is planned
+# for a WS3-UI follow-up. ``HERO_QUALITY_A_TO_B`` declares the bridge
+# so the convergence is trivial.
+HERO_SETUP_QUALITY_HIGH: str = "high"
+HERO_SETUP_QUALITY_GOOD: str = "good"
+HERO_SETUP_QUALITY_OK: str = "ok"
+HERO_SETUP_QUALITY_LOW: str = "low"
+
+HERO_SETUP_QUALITY_VOCAB: frozenset[str] = frozenset({
+    HERO_SETUP_QUALITY_HIGH,
+    HERO_SETUP_QUALITY_GOOD,
+    HERO_SETUP_QUALITY_OK,
+    HERO_SETUP_QUALITY_LOW,
+})
+
+HERO_QUALITY_A_TO_B: dict[str, str] = {
+    HERO_SETUP_QUALITY_HIGH: "excellent",
+    HERO_SETUP_QUALITY_GOOD: "good",
+    HERO_SETUP_QUALITY_OK: "limited",
+    HERO_SETUP_QUALITY_LOW: "avoid",
+}
+
+
+# ── HERO_ACTION vocabulary (F-6 docs, PR-BC-04) ───────────────────────
+#
+# Producer-A vocabulary — live Pine consumer (``SMC_Dashboard.pine``
+# ~line 1728, read-passthrough, no literal gate today). The parallel
+# reserved field ``HERO_ACTION_VERB`` uses a lowercase verb vocabulary
+# (``act/wait/watch/avoid`` + DE variants) — reconciliation is
+# deferred to a WS3 ticket.
+HERO_ACTION_ACTIVE: str = "ACTIVE"
+HERO_ACTION_WATCH: str = "WATCH"
+HERO_ACTION_AVOID: str = "AVOID"
+HERO_ACTION_BLOCKED: str = "BLOCKED"
+
+HERO_ACTION_VOCAB: frozenset[str] = frozenset({
+    HERO_ACTION_ACTIVE,
+    HERO_ACTION_WATCH,
+    HERO_ACTION_AVOID,
+    HERO_ACTION_BLOCKED,
+})
+
+
+def project_trust_state_to_hero(state: "TrustState") -> str:
+    """Translate a canonical ``TrustState`` into the Hero-local vocab.
+
+    Single source of truth for the ``WATCH_ONLY`` → ``"degraded"``
+    collapse. Used when ``TrustStateAssessment`` is wired into Hero
+    (ENG-WS2-03). Keep the mapping here so the information-loss point
+    is obvious and testable.
+    """
+    from smc_integration.trust_state import TrustState
+
+    return {
+        TrustState.HEALTHY: HERO_TRUST_HEALTHY,
+        TrustState.DEGRADED: HERO_TRUST_DEGRADED,
+        TrustState.STALE: HERO_TRUST_STALE,
+        TrustState.WATCH_ONLY: HERO_TRUST_DEGRADED,
+        TrustState.UNAVAILABLE: HERO_TRUST_UNAVAILABLE,
+    }[state]
+
+
 def _derive_trust(
     *,
     signal_freshness: str,
@@ -39,14 +168,14 @@ def _derive_trust(
     stale_count = len([s for s in stale_providers.split(",") if s.strip()])
 
     if signal_freshness == "stale" and stale_count >= 2:
-        return "unavailable"
+        return HERO_TRUST_UNAVAILABLE
     if signal_freshness == "stale":
-        return "stale"
+        return HERO_TRUST_STALE
     if stale_count >= 2 or ensemble_tier == "low":
-        return "degraded"
+        return HERO_TRUST_DEGRADED
     if signal_freshness == "aging":
-        return "warmup"
-    return "healthy"
+        return HERO_TRUST_WARMUP
+    return HERO_TRUST_HEALTHY
 
 
 def _derive_bias(*, regime: str, trade_state: str) -> str:
