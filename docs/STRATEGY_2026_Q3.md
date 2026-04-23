@@ -10,6 +10,15 @@
 
 ## 1. Was die Daten sagen
 
+> **Reproducibility-Hinweis:** Pfade unter `artifacts/ci/...` und
+> `artifacts/reports/...` werden nur im CI-Run materialisiert und sind
+> nicht im Git committed. Lokal werden sie regeneriert via
+> `python scripts/run_smc_measurement_benchmark.py` bzw. via
+> Re-Run der Workflows `smc-measurement-benchmark-rolling.yml` /
+> `feature-importance-daily.yml` (Artefakte 90 Tage in der Action-UI).
+> Persistent committed sind nur `artifacts/experiments/*.json`
+> (z.B. `f2_contextual_promotion.json` als F2-Decision-Snapshot).
+
 ### 1.1 Family Hit Rates — Kalibrierte Gewichte
 
 > **Quelle (2026-04-22):** 4-TF-Plan-2.8-Universum, 10 004 Events / 78 (Symbol×TF)-Pairs aus
@@ -300,7 +309,7 @@ und Distanz zum aktuellen Preis sollten die Erwartung beeinflussen.
       7 promoted buckets über `htf_bias`, `session`, `vol_regime`
       (z.B. `session:ASIA OB +0.3016`, `session:NY_AM OB −0.0896`).
 
-#### F2: Session-Adjusted Zone Priority ✅ DONE (2026-04-22)
+#### F2: Session-Adjusted Zone Priority ◐ INFRASTRUCTURE DONE — Auto-Promotion deferred (2026-04-23 Caveat)
 
 - [x] `build_zone_priority()` → optionaler `session_calibration` Parameter
       (`{session_label: {family: weight}}`). Wins über
@@ -314,6 +323,17 @@ und Distanz zum aktuellen Preis sollten die Erwartung beeinflussen.
       `FVG = 0.4961` (vs. ASIA `0.6948`) tatsächlich Pine.
 - [x] Fallback auf globale Gewichte wenn Bucket-Size < Minimum
       (`scripts/smc_zone_priority_calibration.py::get_calibrated_weight`)
+- ⚠ **Promotion-Caveat (2026-04-23):** Code-Pfad ist live, aber die
+      tatsächliche Auto-Promotion der 7 ASIA/NY_AM/HIGH_VOL-Buckets ist
+      **nicht** in Produktion gelandet. Begründung in
+      [`docs/f2_contextual_promotion_decision_2026-04-21.md`](./f2_contextual_promotion_decision_2026-04-21.md):
+      (1) globale OB-Drift −0.3534 sprengt das 0.15-Drift-Gate,
+      (2) F1 smECE 0.1349 > Q4-Target 0.03 ⇒ Bucket-Promotion auf
+      mis-kalibriertem Zero-Point unzulässig,
+      (3) Plan §2.4 G3 fordert 30-Tage A/B (SPRT) vor Brier/ECE-basiertem
+      Weight-Change. Promotion entscheidet sich erst nach G3-Sample-
+      Akkumulation und F1-Re-Kalibrierung; ASIA bleibt bis dahin
+      stärkster Promotion-Kandidat (kohärenter Lift über alle 4 Familien).
 
 #### F3: Vol-Regime-Adjusted Scoring ✅ DONE (2026-04-22)
 
@@ -454,16 +474,28 @@ und Distanz zum aktuellen Preis sollten die Erwartung beeinflussen.
 
 ## 4. Erfolgsmessung Q3
 
-| Metrik | Aktuell (Q2 Ende) | Ziel Q3 Ende |
-|--------|-------------------|--------------|
-| Overall Grade | B | **A** (≥75% gewichtete HR) |
-| Total Events (Benchmark) | 258 | **≥1.000** |
-| FVG Hit Rate | 59.4% | **≥70%** (oder bewusst niedrigere Gewichtung) |
-| Cal. ECE (Avg) | 0.1309 | **≤0.10** |
-| Cal. Brier (Avg) | 0.1676 | **≤0.15** |
-| Feature Importance Samples | 0 (pipeline built) | **≥500 gelabelt** |
-| Symbole im Benchmark | 6 | **12** |
-| Timeframes im Benchmark | 2 (15m, 1H) | **4 (5m, 15m, 1H, 4H)** |
+> **Refresh 2026-04-23:** Die ursprüngliche Tabelle vom 20.04. listete
+> nur die Q2-Ende-Werte. Sie wird hier auf den v3-Korpus
+> (`measurement_benchmark_2026-04-22_partial50_v3`, n=10 004 family-summed,
+> 20 Symbole × 4 TFs) und die F2-Promotion-Decision gehoben. Single-Source-
+> of-Truth-Werte: §1.1 (Family-HRs) und
+> [`docs/f2_contextual_promotion_decision_2026-04-21.md`](./f2_contextual_promotion_decision_2026-04-21.md).
+
+| Metrik | Q2-Ende | Aktuell (2026-04-22) | Ziel Q3 Ende | Status |
+|--------|---------|----------------------|--------------|--------|
+| Overall Grade | B | B (gewichtete HR 76.4 %, F1-smECE 0.1349 noch über A-Korridor) | **A** (≥75 % gewichtete HR + ECE ≤ 0.10) | ◐ HR erfüllt, ECE offen |
+| Total Events (Benchmark) | 258 | **10 004** (BOS 1 606 + FVG 5 671 + OB 952 + SWEEP 1 775) | **≥1 000** | ✅ ~10× übererfüllt |
+| FVG Hit Rate | 59.4 % | 56.3 % lenient · **87.8 %** strict ≥50 % (D1, n=5 710) | **≥70 %** (oder bewusst niedrigere Gewichtung) | ✅ unter strict-Label; ⚠ unter lenient bewusst niedriger gewichtet |
+| Cal. ECE (Avg) | 0.1309 | F1 global **0.1349**; bestes Bucket NY_AM **0.083** | **≤0.10** | ⚠ global noch offen, NY_AM-Bucket erfüllt |
+| Cal. Brier (Avg) | 0.1676 | 0.1676 (Δ unter Promotion-Gate 0.05) | **≤0.15** | ⚠ offen |
+| Feature Importance Samples | 0 (pipeline built) | täglicher Cron läuft (lookback 7 d) | **≥500 gelabelt** | ◐ Akkumulation läuft |
+| Symbole im Benchmark | 6 | **20** (AAPL/MSFT/AMZN/GOOGL/META/NVDA/TSLA/JPM/BAC/GS/MS/V/UNH/JNJ/HD/XOM/CVX/COP/OXY/CAT) | **12** | ✅ übertroffen |
+| Timeframes im Benchmark | 2 (15m, 1H) | **4 (5m, 15m, 1H, 4H)** | **4 (5m, 15m, 1H, 4H)** | ✅ erfüllt |
+
+**Lesart der Restlücken:** der Q3-A-Grade hängt jetzt nicht mehr an Sample-
+Größe oder TF-Coverage (beides ✅), sondern allein am ECE-Korridor — F2-Memo
+empfiehlt vor weiterer Bucket-Promotion eine F1-Re-Kalibrierung auf ECE ≤ 0.03
+und das 30-Tage-G3-A/B (siehe Q3 §G3 ⚠).
 
 ---
 

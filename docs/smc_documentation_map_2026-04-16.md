@@ -1,8 +1,9 @@
 # SMC Documentation Map
 
-Stand: 2026-04-20  
-Branch: `main`  
-Autorität: Canonical-Docs-Sweep nach Feature-Freeze-Beginn, aktualisiert Phase H
+Stand: 2026-04-23 (Refresh: Q3 Strategy + ADR section added)
+Branch: `main`
+Autorität: Canonical-Docs-Sweep nach Feature-Freeze-Beginn, fortlaufend
+gepflegt; jüngste Updates folgen Phase H + Plan 2.8 + Q3-Pipeline-Closure.
 
 ---
 
@@ -22,6 +23,23 @@ Autorität: Canonical-Docs-Sweep nach Feature-Freeze-Beginn, aktualisiert Phase 
 ---
 
 ## Kanonische Dokumentation (Canonical Current)
+
+### Q3 2026 Strategy, ADRs & Decision Memos (jüngste Schicht)
+
+| Dokument | Inhalt |
+|----------|--------|
+| [STRATEGY_2026_Q3.md](STRATEGY_2026_Q3.md) | Q3-Fahrplan (Phasen D/E/F/G/H), KPI-Tabelle v3-Korpus |
+| [DECISIONS.md](DECISIONS.md) | ADR-Log (3-Layer-MTF, ZONE_HR-Degradation, Soft-Push) |
+| [smc_improvement_plan_addendum_2_8_mtf_scope_2026-04-21.md](smc_improvement_plan_addendum_2_8_mtf_scope_2026-04-21.md) | Plan 2.8 — MTF-Scope-Entscheidung + Q4-Gate-Pfad |
+| [f2_contextual_promotion_decision_2026-04-21.md](f2_contextual_promotion_decision_2026-04-21.md) | F2-Promotion-Decision-Memo (Auto-Promotion deferred) |
+| [plan_2_8_rollout_runbook.md](plan_2_8_rollout_runbook.md) | Plan-2.8 Rollout + Q4-Gate Bundle-Schema |
+| [preprint_appendix_b_4_layer_htf_validation.md](preprint_appendix_b_4_layer_htf_validation.md) | Preprint-Appendix B: 4-Layer HTF Validation |
+| [release_process/breaking_change_gate_runbook.md](release_process/breaking_change_gate_runbook.md) | Schema-Bump-Runbook (MAJOR/MINOR Decision Tree) |
+| [FVG_LABEL_AUDIT_Q3.md](FVG_LABEL_AUDIT_Q3.md) | D1 FVG-Label-Audit (lenient vs strict ≥50%) |
+| [FVG_QUALITY_D4_AUDIT.md](FVG_QUALITY_D4_AUDIT.md) | D3/D4 Quality-Feature-Audit + Pine-vs-Python-Disjunktion |
+| [g1_baseline_seed_started_2026-04-21.md](g1_baseline_seed_started_2026-04-21.md) | G1 Baseline-Seed Memo |
+| [sample_expansion_e1_e2_evidence_2026-04-21.md](sample_expansion_e1_e2_evidence_2026-04-21.md) | E1/E2 Sample-Expansion Evidenz |
+| [slo_calibration.md](slo_calibration.md) | SLO/Calibration Targets |
 
 ### Architektur & Verträge
 

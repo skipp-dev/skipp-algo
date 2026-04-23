@@ -135,3 +135,78 @@ indistinguishable from noise.
   OB prior mismatch).
 
 **Status.** accepted.
+
+### 2026-04-23 - Soft-fail the live-news refresh push step
+
+**Context.** Since 2026-04-20 the
+[`smc-live-newsapi-refresh.yml`](../.github/workflows/smc-live-newsapi-refresh.yml)
+cron has produced 52 consecutive run failures. Root cause is *not* the
+refresh logic — the snapshot is built and uploaded as an artifact every
+run — but the trailing `git push` step, which `main`'s branch protection
+rejects because direct pushes are no longer allowed (PRs only). Every
+failure paged on-call without representing real data degradation.
+
+A separate but adjacent symptom landed the same day in
+[#24 (`a8d8ffb7`)](https://github.com/skippALGO/skipp-algo/pull/24):
+143 `STALE_META_*_DOMAIN` failures from the `provider_health` release
+gate were caused by static `asof_ts` stamps in
+`reports/largecap_watchlist.json` and the live-news snapshot. That fix
+is a *hard* fix (loaders now stamp `asof_ts` at load time when
+`asof_strategy: "now"` is set) and restores the gate's intended
+semantics — it is **not** the soft-bypass this ADR records.
+
+**Decision.** Mark the *commit/push* step in
+`smc-live-newsapi-refresh.yml` as `continue-on-error: true` and
+downgrade push/rebase failure annotations from `::error::` to
+`::warning::` (commits `3b9f9458` / [#25](https://github.com/skippALGO/skipp-algo/pull/25)).
+The artifact upload (`actions/upload-artifact@v4` of
+`smc_live_news_snapshot.json`) remains the **authoritative delivery
+channel**; downstream consumers already prefer the artifact over
+the committed copy.
+
+The `provider_health` gate itself stays hard. Only the cosmetic
+`git push` failure is soft.
+
+**Alternatives considered.**
+
+- *Switch the workflow to open a PR via `peter-evans/create-pull-request`.*
+  Deferred — adds a second moving part (PR auto-merge policy) for a
+  payload that is consumed exclusively from the artifact channel.
+  Reconsider when at least one consumer reads the committed copy.
+- *Carve out a branch-protection exemption for the
+  `github-actions[bot]` actor.* Rejected — weakens the
+  PR-only invariant for every workflow on `main`, not just this one.
+- *Stop committing the snapshot at all (artifact-only).* Deferred —
+  the committed copy is still useful as a human-readable diff trail
+  in `git log`. Revisit if the soft-push starts masking real
+  refresh-logic regressions.
+- *Keep failing loud.* Rejected — 52 consecutive failures had already
+  trained on-call to ignore the alert; the signal-to-noise ratio
+  inverted the gate.
+
+**Consequences.**
+
+- On-call paging from this workflow drops to zero unless the refresh
+  *itself* fails (artifact step is still hard).
+- Loss of the auto-commit timeline on `main` — diff-archaeology on
+  the snapshot now requires pulling artifacts from the workflow run
+  page. Acceptable because the artifact retention (90 d default) is
+  longer than the operational lookback window.
+- Re-hardening trigger: when branch protection learns to allow
+  `[skip ci]`-tagged bot-commits, or when the workflow is migrated
+  to a PR-based delivery, the `continue-on-error` line is removed
+  and the warning annotation is restored to `::error::`. This ADR
+  is then superseded.
+
+**Evidence.**
+
+- [`.github/workflows/smc-live-newsapi-refresh.yml`](../.github/workflows/smc-live-newsapi-refresh.yml)
+  — `Commit snapshot updates` step carries
+  `continue-on-error: true` and the inline rationale comment.
+- Commit `3b9f9458` ([#25](https://github.com/skippALGO/skipp-algo/pull/25))
+  — soft-push wiring + warning-level annotations.
+- Commit `a8d8ffb7` ([#24](https://github.com/skippALGO/skipp-algo/pull/24))
+  — adjacent `provider_health` hard fix
+  (`asof_strategy: "now"` marker; not part of the soft-bypass).
+
+**Status.** accepted.
