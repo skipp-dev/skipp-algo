@@ -37,9 +37,12 @@ def test_batch_export_profile_passthrough_and_default() -> None:
     output_dir = ROOT / "reports" / "_tmp_structure_profile_passthrough"
     output_dir.mkdir(parents=True, exist_ok=True)
 
+    # NOTE: timeframe="1D" because the production workbook only ships the
+    # `daily_bars` sheet. Intraday timeframes are rejected by the workbook
+    # fallback gate (see smc_integration/structure_batch.py).
     default_manifest = write_structure_artifacts_from_workbook(
         workbook=WORKBOOK,
-        timeframe="15m",
+        timeframe="1D",
         symbols=symbol,
         output_dir=output_dir,
         generated_at=1709254000.0,
@@ -48,7 +51,7 @@ def test_batch_export_profile_passthrough_and_default() -> None:
 
     explicit_manifest = write_structure_artifacts_from_workbook(
         workbook=WORKBOOK,
-        timeframe="15m",
+        timeframe="1D",
         symbols=symbol,
         output_dir=output_dir,
         generated_at=1709254000.0,
@@ -68,7 +71,7 @@ def test_unknown_profile_fails_fast() -> None:
     with pytest.raises(ValueError, match="unknown structure profile"):
         write_structure_artifacts_from_workbook(
             workbook=WORKBOOK,
-            timeframe="15m",
+            timeframe="1D",
             symbols=_sample_symbols(1),
             output_dir=ROOT / "reports" / "_tmp_structure_profile_unknown",
             generated_at=1709254000.0,
