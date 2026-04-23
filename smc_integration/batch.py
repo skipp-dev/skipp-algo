@@ -6,10 +6,15 @@ import time
 from pathlib import Path
 from typing import Any
 
+from smc_core._pytest_canonical_write_guard import (
+    guard_against_canonical_repo_write_under_pytest,
+)
 from smc_core.schema_version import SCHEMA_VERSION
 
 from .repo_sources import discover_repo_sources, select_best_source, select_best_volume_source
 from .service import build_snapshot_bundle_for_symbol_timeframe
+
+_CANONICAL_SNAPSHOT_BUNDLE_DIRS = ("reports/smc_snapshot_bundles",)
 
 
 def _normalize_symbols(symbols: list[str]) -> list[str]:
@@ -205,6 +210,11 @@ def write_snapshot_bundles_for_symbols(
         raise ValueError("symbols must contain at least one non-empty symbol")
 
     out_dir = Path(output_dir).expanduser()
+    guard_against_canonical_repo_write_under_pytest(
+        out_dir,
+        canonical_relative_paths=_CANONICAL_SNAPSHOT_BUNDLE_DIRS,
+        caller="write_snapshot_bundles_for_symbols",
+    )
     out_dir.mkdir(parents=True, exist_ok=True)
 
     resolved_source_name = _resolve_structure_source_name(source)

@@ -12,7 +12,15 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Literal
 
+from smc_core._pytest_canonical_write_guard import (
+    guard_against_canonical_repo_write_under_pytest,
+)
 from smc_core.schema_version import SCHEMA_VERSION
+
+_CANONICAL_BENCHMARK_OUTPUT_DIRS = (
+    "artifacts/ci/measurement_benchmark",
+    "artifacts/reports/smc_measurement_benchmark",
+)
 
 EventFamily = Literal["BOS", "OB", "FVG", "SWEEP"]
 
@@ -291,6 +299,11 @@ def export_benchmark_artifacts(
       1. ``benchmark_{symbol}_{timeframe}.json`` — KPIs + stratifications.
       2. ``manifest.json`` — artifact registry.
     """
+    guard_against_canonical_repo_write_under_pytest(
+        output_dir,
+        canonical_relative_paths=_CANONICAL_BENCHMARK_OUTPUT_DIRS,
+        caller="export_benchmark_artifacts",
+    )
     output_dir.mkdir(parents=True, exist_ok=True)
 
     # Main KPI artifact
