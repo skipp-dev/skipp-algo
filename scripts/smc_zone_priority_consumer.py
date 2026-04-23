@@ -56,7 +56,6 @@ DEFAULTS: dict[str, Any] = {
 # tests/test_library_field_audit.py) can pin to the same single source of
 # truth instead of redeclaring the tuple — see ADR 2026-04-22.
 FAMILIES: tuple[str, ...] = ("OB", "FVG", "BOS", "SWEEP")
-_FAMILIES: tuple[str, ...] = FAMILIES  # Backwards-compatible alias.
 
 # H1 confidence tuning. The 1000-event saturation point matches the Q3
 # success-target ("Total Events ≥ 1.000") in docs/STRATEGY_2026_Q3.md.
@@ -125,11 +124,11 @@ def compute_per_family_hit_rates(
     families. Missing / malformed stats default to ``0.0`` so the
     Pine consumer always sees a renderable float.
     """
-    out: dict[str, float] = {f"ZONE_HR_{fam}": 0.0 for fam in _FAMILIES}
+    out: dict[str, float] = {f"ZONE_HR_{fam}": 0.0 for fam in FAMILIES}
     if not isinstance(family_stats, dict):
         return out
 
-    for fam in _FAMILIES:
+    for fam in FAMILIES:
         stats = family_stats.get(fam)
         if not isinstance(stats, dict):
             continue
@@ -181,7 +180,7 @@ def compute_calibration_trend(
         if raw is None:
             stats = entry.get("family_stats") or {}
             family_hrs = []
-            for fam in _FAMILIES:
+            for fam in FAMILIES:
                 fs = stats.get(fam)
                 if isinstance(fs, dict):
                     fhr = fs.get("weighted_hit_rate")
