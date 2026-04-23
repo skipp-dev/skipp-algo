@@ -828,3 +828,219 @@ def test_history_feeds_compute_calibration_trend(tmp_path: Path) -> None:
 
     history = load_history_entries(out)
     assert compute_calibration_trend(history) == "IMPROVING"
+
+
+# ── F2 frozen-artifact provenance (PR #43) ─────────────────────
+
+
+def _write_minimal_corpus(tmp_path: Path) -> None:
+    """Write a tiny benchmark corpus + a manifest file for hashing."""
+    _write_scoring(tmp_path, "AAPL", "15m", _make_scoring("AAPL", "15m", {
+        "OB": {"n_events": 50, "hit_rate": 0.80},
+        "FVG": {"n_events": 40, "hit_rate": 0.55},
+        "BOS": {"n_events": 30, "hit_rate": 0.60},
+        "SWEEP": {"n_events": 30, "hit_rate": 0.45},
+    }))
+    (tmp_path / "benchmark_run_manifest.json").write_text(
+        json.dumps({"corpus": "synthetic", "n_pairs": 1}, indent=2),
+        encoding="utf-8",
+    )
+
+
+def test_build_frozen_provenance_emits_required_keys(tmp_path: Path) -> None:
+    from scripts.smc_zone_priority_calibration import build_frozen_provenance
+
+    _write_minimal_corpus(tmp_path)
+    block = build_frozen_provenance(
+        benchmark_dir=tmp_path,
+        status="shadow",
+        frozen_at="2026-04-23T20:00:00+00:00",
+        smoothing=0.3,
+        min_events_per_bucket=30,
+        n_events=10025,
+    )
+
+    required = {
+        "frozen", "status", "frozen_at", "generated_at",
+        "benchmark_dir", "benchmark_corpus_ephemeral",
+        "benchmark_manifest_sha256", "n_events", "max_event_timestamp_utc",
+        "source_commit", "generator_script_path", "generator_script_sha256",
+        "smoothing", "min_events_per_bucket", "regeneration_instructions",
+    }
+    assert required.issubset(block.keys()), required - block.keys()
+    assert block["frozen"] is True
+    assert block["status"] == "shadow"
+    assert block["benchmark_corpus_ephemeral"] is True
+    assert block["smoothing"] == 0.3
+    assert block["min_events_per_bucket"] == 30
+    assert block["n_events"] == 10025
+    assert isinstance(block["benchmark_manifest_sha256"], str)
+    assert len(block["benchmark_manifest_sha256"]) == 64
+
+
+def test_build_frozen_provenance_rejects_invalid_status(tmp_path: Path) -> None:
+    from scripts.smc_zone_priority_calibration import build_frozen_provenance
+
+    with pytest.raises(ValueError, match="status"):
+        build_frozen_provenance(
+            benchmark_dir=tmp_path,
+            status="plumbing_only",
+            frozen_at="2026-04-23T20:00:00+00:00",
+            smoothing=0.3,
+            min_events_per_bucket=30,
+        )
+
+
+def test_build_frozen_provenance_uses_supplied_corpus_hash(tmp_path: Path) -> None:
+    from scripts.smc_zone_priority_calibration import build_frozen_provenance
+
+    _write_minimal_corpus(tmp_path)
+    explicit = "a" * 64
+    block = build_frozen_provenance(
+        benchmark_dir=tmp_path,
+        status="shadow",
+        frozen_at="2026-04-23T20:00:00+00:00",
+        smoothing=0.3,
+        min_events_per_bucket=30,
+        corpus_manifest_hash=explicit,
+    )
+    assert block["benchmark_manifest_sha256"] == explicit
+
+
+def test_build_frozen_provenance_handles_missing_manifest(tmp_path: Path) -> None:
+    from scripts.smc_zone_priority_calibration import build_frozen_provenance
+
+    block = build_frozen_provenance(
+        benchmark_dir=tmp_path,
+        status="shadow",
+        frozen_at="2026-04-23T20:00:00+00:00",
+        smoothing=0.3,
+        min_events_per_bucket=30,
+    )
+    assert block["benchmark_manifest_sha256"] is None
+
+
+def test_to_json_omits_frozen_provenance_by_default() -> None:
+    cal = CalibrationResult(
+        family_weights={"OB": 0.6}, rank_thresholds={"A": 75, "B": 50, "C": 25},
+        family_stats={}, total_events=0, total_pairs=0, source_dir="x",
+    )
+    payload = to_json(cal)
+    assert "frozen_provenance" not in payload
+
+
+def test_to_json_attaches_frozen_provenance_when_supplied() -> None:
+    cal = CalibrationResult(
+        family_weights={"OB": 0.6}, rank_thresholds={"A": 75, "B": 50, "C": 25},
+        family_stats={}, total_events=0, total_pairs=0, source_dir="x",
+    )
+    block = {"frozen": True, "status": "shadow"}
+    payload = to_json(cal, frozen_provenance=block)
+    assert payload["frozen_provenance"] == block
+
+
+def test_contextual_to_json_attaches_frozen_provenance() -> None:
+    ctx = ContextualCalibrationResult(
+        contextual_weights={}, promoted_buckets=[],
+        global_weights={"OB": 0.6}, bucket_stats={}, min_bucket_events=30,
+    )
+    block = {"frozen": True, "status": "production"}
+    payload = contextual_to_json(ctx, frozen_provenance=block)
+    assert payload["frozen_provenance"] == block
+    assert "global_weights" in payload
+    assert "promoted_buckets" in payload
+
+
+def test_cli_frozen_writes_provenance_to_both_files(tmp_path: Path) -> None:
+    from scripts.smc_zone_priority_calibration import main
+
+    _write_minimal_corpus(tmp_path)
+    out = tmp_path / "out" / "zone_priority_calibration.json"
+    main([
+        "--benchmark-dir", str(tmp_path),
+        "--output-path", str(out),
+        "--smoothing", "0.3",
+        "--frozen",
+        "--frozen-at", "2026-04-23T20:00:00+00:00",
+        "--status", "shadow",
+    ])
+
+    main_payload = json.loads(out.read_text(encoding="utf-8"))
+    ctx_path = out.with_name("zone_priority_contextual_calibration.json")
+    ctx_payload = json.loads(ctx_path.read_text(encoding="utf-8"))
+
+    for payload in (main_payload, ctx_payload):
+        assert "frozen_provenance" in payload, list(payload.keys())
+        prov = payload["frozen_provenance"]
+        assert prov["frozen"] is True
+        assert prov["status"] == "shadow"
+        assert prov["frozen_at"] == "2026-04-23T20:00:00+00:00"
+        assert prov["smoothing"] == 0.3
+        assert prov["benchmark_corpus_ephemeral"] is True
+
+
+def test_cli_without_frozen_omits_provenance(tmp_path: Path) -> None:
+    from scripts.smc_zone_priority_calibration import main
+
+    _write_minimal_corpus(tmp_path)
+    out = tmp_path / "zone_priority_calibration.json"
+    main([
+        "--benchmark-dir", str(tmp_path),
+        "--output-path", str(out),
+        "--smoothing", "0.3",
+    ])
+
+    main_payload = json.loads(out.read_text(encoding="utf-8"))
+    ctx_payload = json.loads(
+        out.with_name("zone_priority_contextual_calibration.json")
+        .read_text(encoding="utf-8")
+    )
+    assert "frozen_provenance" not in main_payload
+    assert "frozen_provenance" not in ctx_payload
+
+
+def test_cli_status_default_is_shadow(tmp_path: Path) -> None:
+    from scripts.smc_zone_priority_calibration import main
+
+    _write_minimal_corpus(tmp_path)
+    out = tmp_path / "zone_priority_calibration.json"
+    main([
+        "--benchmark-dir", str(tmp_path),
+        "--output-path", str(out),
+        "--frozen",
+    ])
+    payload = json.loads(out.read_text(encoding="utf-8"))
+    assert payload["frozen_provenance"]["status"] == "shadow"
+
+
+def test_cli_contextual_output_path_override(tmp_path: Path) -> None:
+    from scripts.smc_zone_priority_calibration import main
+
+    _write_minimal_corpus(tmp_path)
+    out = tmp_path / "out" / "zone_priority_calibration.json"
+    custom_ctx = tmp_path / "elsewhere" / "ctx.json"
+    main([
+        "--benchmark-dir", str(tmp_path),
+        "--output-path", str(out),
+        "--contextual-output-path", str(custom_ctx),
+        "--frozen",
+    ])
+    assert custom_ctx.is_file()
+    assert not out.with_name("zone_priority_contextual_calibration.json").exists()
+
+
+def test_cli_corpus_manifest_hash_override(tmp_path: Path) -> None:
+    from scripts.smc_zone_priority_calibration import main
+
+    _write_minimal_corpus(tmp_path)
+    out = tmp_path / "zone_priority_calibration.json"
+    explicit = "f" * 64
+    main([
+        "--benchmark-dir", str(tmp_path),
+        "--output-path", str(out),
+        "--frozen",
+        "--corpus-manifest-hash", explicit,
+    ])
+    payload = json.loads(out.read_text(encoding="utf-8"))
+    assert payload["frozen_provenance"]["benchmark_manifest_sha256"] == explicit
+
