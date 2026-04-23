@@ -24,7 +24,7 @@ def test_structure_manifest_contains_required_keys() -> None:
 
     manifest = write_structure_artifacts_from_workbook(
         workbook=WORKBOOK,
-        timeframe="15m",
+        timeframe="1D",
         symbols=symbols,
         output_dir=output_dir,
         generated_at=1709254000.0,
@@ -43,7 +43,7 @@ def test_structure_manifest_counts_and_flags_are_correct() -> None:
 
     manifest = write_structure_artifacts_from_workbook(
         workbook=WORKBOOK,
-        timeframe="15m",
+        timeframe="1D",
         symbols=symbols,
         output_dir=output_dir,
         generated_at=1709254000.0,
@@ -81,7 +81,7 @@ def test_structure_manifest_category_flags_match_artifact_payload() -> None:
 
     manifest = write_structure_artifacts_from_workbook(
         workbook=WORKBOOK,
-        timeframe="15m",
+        timeframe="1D",
         symbols=symbols,
         output_dir=output_dir,
         generated_at=1709254000.0,
@@ -109,14 +109,14 @@ def test_structure_manifest_paths_are_deterministic() -> None:
 
     manifest = write_structure_artifacts_from_workbook(
         workbook=WORKBOOK,
-        timeframe="15m",
+        timeframe="1D",
         symbols=symbols,
         output_dir=output_dir,
         generated_at=1709254000.0,
     )
 
-    assert manifest["artifacts"][0]["artifact_path"].endswith(f"{symbols[0]}_15m.structure.json")
-    assert str(manifest["manifest_path"]).endswith("manifest_15m.json")
+    assert manifest["artifacts"][0]["artifact_path"].endswith(f"{symbols[0]}_1D.structure.json")
+    assert str(manifest["manifest_path"]).endswith("manifest_1D.json")
 
 
 def test_structure_manifest_is_json_stable() -> None:
@@ -126,14 +126,14 @@ def test_structure_manifest_is_json_stable() -> None:
 
     one = write_structure_artifacts_from_workbook(
         workbook=WORKBOOK,
-        timeframe="15m",
+        timeframe="1D",
         symbols=symbols,
         output_dir=output_dir,
         generated_at=1709254000.0,
     )
     two = write_structure_artifacts_from_workbook(
         workbook=WORKBOOK,
-        timeframe="15m",
+        timeframe="1D",
         symbols=symbols,
         output_dir=output_dir,
         generated_at=1709254000.0,
