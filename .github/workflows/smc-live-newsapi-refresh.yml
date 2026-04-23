@@ -89,7 +89,14 @@ jobs:
             artifacts/smc_microstructure_exports/smc_live_news_state.json
           retention-days: 14
 
+      # Direct push to main is blocked by branch-protection ruleset 12576994
+      # (PR-required + fast-gates required). The artifact upload above is the
+      # authoritative live-snapshot delivery channel; the optional commit
+      # below is a best-effort convenience for git-tracked staleness floors
+      # and MUST NOT fail the workflow when the ruleset rejects it.
+      # Tracking issue: see repo memory `live-newsapi-refresh-push-blocked`.
       - name: Commit snapshot updates
+        continue-on-error: true
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
