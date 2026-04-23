@@ -7,6 +7,26 @@ requires-python = ">=3.12"
 [project.optional-dependencies]
 vol-regime = ["arch>=7.2.0"]
 
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+# Explicit package list to disambiguate flat-layout discovery (CI was failing
+# with "Multiple top-level packages discovered"). Top-level standalone modules
+# (terminal_*, databento_*, scripts/*) are not exposed via install — tests and
+# CLI entrypoints reach them through `pythonpath = ["."]` (pytest) and direct
+# `python scripts/...` invocation.
+[tool.setuptools]
+packages = [
+    "newsstack_fmp",
+    "open_prep",
+    "smc_core",
+    "smc_integration",
+    "smc_adapters",
+    "smc_tv_bridge",
+    "terminal_tabs",
+]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
