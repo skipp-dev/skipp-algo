@@ -55,7 +55,6 @@ from open_prep.technical_analysis import (
     validate_data_quality,
 )
 
-
 # ---------------------------------------------------------------------------
 # _unit_scale / _safe_float / apply_diminishing_returns / _ema
 # ---------------------------------------------------------------------------
@@ -216,7 +215,7 @@ def test_detect_consolidation_atr_ratio_score_bands() -> None:
     assert out_tight["atr_contracted"] is True
     assert out_loose["atr_contracted"] is False
     # None ATR uses neutral 0.5 — sits between tight (1.0) and loose (0.3).
-    assert 0.0 < out_none["score"]
+    assert out_none["score"] > 0.0
 
 
 def test_detect_consolidation_negative_when_no_squeeze() -> None:
