@@ -142,3 +142,134 @@ class TestBuildHeroState:
         result = build_hero_state({})
         assert set(result.keys()) == set(DEFAULTS.keys())
         assert len(result) == 7
+
+
+# ── Boundary-Contract Vocabulary Pins (F-2, F-4, F-6 · PR-BC-04) ──────
+
+
+class TestHeroTrustVocabularyPins:
+    """Pine-boundary F-2: SMC_Dashboard.pine:1753,1774 compare to
+    lowercase ``HERO_TRUST`` literals. Pin the exact values and the
+    declared vocabulary frozenset so a rename is a test failure.
+    """
+
+    def test_hero_trust_literals_pinned(self) -> None:
+        from scripts.smc_hero_state import (
+            HERO_TRUST_DEGRADED,
+            HERO_TRUST_HEALTHY,
+            HERO_TRUST_STALE,
+            HERO_TRUST_UNAVAILABLE,
+            HERO_TRUST_WARMUP,
+        )
+        assert HERO_TRUST_HEALTHY == "healthy"
+        assert HERO_TRUST_WARMUP == "warmup"
+        assert HERO_TRUST_DEGRADED == "degraded"
+        assert HERO_TRUST_STALE == "stale"
+        assert HERO_TRUST_UNAVAILABLE == "unavailable"
+
+    def test_derive_trust_returns_value_in_declared_vocab(self) -> None:
+        from scripts.smc_hero_state import HERO_TRUST_VOCAB
+
+        combos = [
+            ("fresh", "", "high"),
+            ("fresh", "", "low"),
+            ("aging", "", "good"),
+            ("stale", "", "good"),
+            ("stale", "a,b", "good"),
+            ("fresh", "a,b", "high"),
+        ]
+        for freshness, stale, tier in combos:
+            out = _derive_trust(
+                signal_freshness=freshness,
+                stale_providers=stale,
+                ensemble_tier=tier,
+            )
+            assert out in HERO_TRUST_VOCAB, f"Unknown trust state: {out!r}"
+
+    def test_project_trust_state_covers_all_enum_members(self) -> None:
+        """Every ``TrustState`` must have a Hero mapping. Missing entries
+        raise ``KeyError`` — a clear signal before WS2-03 wires
+        ``TrustStateAssessment`` into Hero.
+        """
+        from scripts.smc_hero_state import HERO_TRUST_VOCAB, project_trust_state_to_hero
+        from smc_integration.trust_state import TrustState
+
+        for member in TrustState:
+            result = project_trust_state_to_hero(member)
+            assert isinstance(result, str)
+            assert result in HERO_TRUST_VOCAB
+
+    def test_project_trust_state_collapses_watch_only_to_degraded(self) -> None:
+        """Document the single information-loss point (F-2, §5.3)."""
+        from scripts.smc_hero_state import HERO_TRUST_DEGRADED, project_trust_state_to_hero
+        from smc_integration.trust_state import TrustState
+
+        assert project_trust_state_to_hero(TrustState.WATCH_ONLY) == HERO_TRUST_DEGRADED
+
+
+class TestHeroSetupQualityVocabularyPins:
+    """F-4: pin both Producer-A and Producer-B quality vocabularies and
+    prove the A→B bridge covers the full ``_ACTION_TABLE`` domain so a
+    future WS3 convergence is trivial.
+    """
+
+    def test_hero_setup_quality_matches_pine_literal_vocab(self) -> None:
+        from scripts.smc_hero_state import (
+            DEFAULTS,
+            HERO_SETUP_QUALITY_VOCAB,
+            build_hero_state,
+        )
+
+        assert DEFAULTS["HERO_SETUP_QUALITY"] in HERO_SETUP_QUALITY_VOCAB
+        for tier in ["high", "good", "ok", "low"]:
+            out = build_hero_state({
+                "signal_quality": {"SIGNAL_QUALITY_TIER": tier},
+            })
+            assert out["HERO_SETUP_QUALITY"] in HERO_SETUP_QUALITY_VOCAB
+
+    def test_hero_quality_a_to_b_covers_full_domain(self) -> None:
+        from scripts.smc_hero_state import HERO_QUALITY_A_TO_B, HERO_SETUP_QUALITY_VOCAB
+
+        assert set(HERO_QUALITY_A_TO_B.keys()) == set(HERO_SETUP_QUALITY_VOCAB)
+
+    def test_hero_quality_a_to_b_targets_action_table_domain(self) -> None:
+        """Every Producer-B key in ``_ACTION_TABLE`` must be reachable
+        via ``HERO_QUALITY_A_TO_B``. Lackmus test for WS3 convergence.
+        """
+        from scripts.smc_hero_action import _ACTION_TABLE
+        from scripts.smc_hero_state import HERO_QUALITY_A_TO_B
+
+        producer_b_domain = {quality for (_deg, quality) in _ACTION_TABLE.keys()}
+        assert set(HERO_QUALITY_A_TO_B.values()) == producer_b_domain
+
+
+class TestHeroActionVocabularyPins:
+    """F-6 docs: pin the Producer-A action vocabulary so the WS3
+    reconciliation with the reserved ``HERO_ACTION_VERB`` (lowercase
+    verb vocabulary) starts from a known-safe baseline.
+    """
+
+    def test_hero_action_literals_pinned(self) -> None:
+        from scripts.smc_hero_state import (
+            HERO_ACTION_ACTIVE,
+            HERO_ACTION_AVOID,
+            HERO_ACTION_BLOCKED,
+            HERO_ACTION_WATCH,
+        )
+        assert HERO_ACTION_ACTIVE == "ACTIVE"
+        assert HERO_ACTION_WATCH == "WATCH"
+        assert HERO_ACTION_AVOID == "AVOID"
+        assert HERO_ACTION_BLOCKED == "BLOCKED"
+
+    def test_derive_action_returns_value_in_declared_vocab(self) -> None:
+        from scripts.smc_hero_state import HERO_ACTION_VOCAB
+
+        trade_states = ["ALLOWED", "SELECTIVE", "WATCH", "AVOID", "BLOCKED"]
+        trust_states = ["healthy", "warmup", "degraded", "stale", "unavailable"]
+        for ts in trade_states:
+            for trust in trust_states:
+                out = _derive_action(trade_state=ts, trust=trust)
+                assert out in HERO_ACTION_VOCAB, (
+                    f"_derive_action({ts!r}, {trust!r}) -> {out!r} "
+                    f"not in HERO_ACTION_VOCAB"
+                )
