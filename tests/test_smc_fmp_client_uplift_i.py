@@ -1,0 +1,678 @@
+"""Coverage uplift bucket I — `scripts/smc_fmp_client.py`.
+
+Targets the standalone FMP client's HTTP layer, parsing, and the long
+tail of pipeline accessor methods that previously had no coverage:
+retry behaviour, market-P/E discovery paths, sector performance
+fallbacks, and the simple list/dict accessors.
+
+All HTTP I/O is patched at module level (`urlopen`, `time.sleep`); no
+network is touched.
+"""
+
+from __future__ import annotations
+
+import io
+import json
+import math
+import urllib.error
+from datetime import date
+from typing import Any
+from unittest.mock import MagicMock, patch
+
+import pytest
+
+from scripts import smc_fmp_client as mod
+from scripts.smc_fmp_client import (
+    SMCFMPClient,
+    _aggregate_sector_snapshot_rows,
+    _coerce_finite_float,
+    _prev_trading_day,
+    _today_et,
+)
+
+# ── module-level helpers ───────────────────────────────────────
+
+
+class TestCoerceFiniteFloat:
+    def test_returns_none_for_bool(self):
+        assert _coerce_finite_float(True) is None
+        assert _coerce_finite_float(False) is None
+
+    def test_returns_none_for_none_and_empty(self):
+        assert _coerce_finite_float(None) is None
+        assert _coerce_finite_float("") is None
+
+    def test_returns_none_for_non_numeric_type(self):
+        assert _coerce_finite_float([1.0]) is None
+        assert _coerce_finite_float({"v": 1}) is None
+
+    def test_returns_none_for_unparseable_string(self):
+        assert _coerce_finite_float("not-a-number") is None
+
+    def test_returns_none_for_inf_and_nan(self):
+        assert _coerce_finite_float(math.inf) is None
+        assert _coerce_finite_float(-math.inf) is None
+        assert _coerce_finite_float(math.nan) is None
+
+    def test_parses_int_float_and_string(self):
+        assert _coerce_finite_float(3) == 3.0
+        assert _coerce_finite_float(2.5) == 2.5
+        assert _coerce_finite_float("4.25") == 4.25
+
+
+class TestTodayEt:
+    def test_today_et_returns_date(self):
+        d = _today_et()
+        assert isinstance(d, date)
+
+
+class TestPrevTradingDay:
+    def test_skips_weekend_from_monday_to_friday(self):
+        # Monday → previous Friday
+        monday = date(2026, 4, 20)
+        assert _prev_trading_day(monday) == date(2026, 4, 17)
+
+    def test_returns_previous_weekday_from_friday(self):
+        friday = date(2026, 4, 17)
+        assert _prev_trading_day(friday) == date(2026, 4, 16)
+
+    def test_skips_saturday_and_sunday_from_sunday(self):
+        sunday = date(2026, 4, 19)
+        assert _prev_trading_day(sunday) == date(2026, 4, 17)
+
+
+class TestAggregateSectorSnapshotRows:
+    def test_skips_rows_without_sector(self):
+        out = _aggregate_sector_snapshot_rows([{"sector": "", "averageChange": 1.0}, {"averageChange": 2.0}])
+        assert out == []
+
+    def test_skips_rows_without_numeric_change(self):
+        out = _aggregate_sector_snapshot_rows([{"sector": "Tech", "averageChange": "junk"}])
+        assert out == []
+
+    def test_falls_back_to_changes_percentage(self):
+        out = _aggregate_sector_snapshot_rows([{"sector": "Tech", "changesPercentage": 1.5}])
+        assert out == [{"sector": "Tech", "changesPercentage": 1.5}]
+
+    def test_averages_multiple_rows_per_sector(self):
+        out = _aggregate_sector_snapshot_rows(
+            [
+                {"sector": "Tech", "averageChange": 1.0},
+                {"sector": "Tech", "averageChange": 3.0},
+                {"sector": "Energy", "averageChange": -1.0},
+            ]
+        )
+        out_by_sector = {row["sector"]: row["changesPercentage"] for row in out}
+        assert out_by_sector["Tech"] == pytest.approx(2.0)
+        assert out_by_sector["Energy"] == pytest.approx(-1.0)
+
+
+# ── HTTP layer (`_get`, `_parse`) ──────────────────────────────
+
+
+def _make_response(payload: str) -> MagicMock:
+    """Return a context-manager mock yielding a response with ``read()``."""
+    cm = MagicMock()
+    cm.__enter__.return_value.read.return_value = payload.encode("utf-8")
+    cm.__exit__.return_value = False
+    return cm
+
+
+class TestParse:
+    def test_parse_rejects_html_doctype(self):
+        with pytest.raises(RuntimeError, match="HTML"):
+            SMCFMPClient._parse("/x", "<!DOCTYPE html><html></html>")
+
+    def test_parse_rejects_html_tag(self):
+        with pytest.raises(RuntimeError, match="HTML"):
+            SMCFMPClient._parse("/x", "<html><body>x</body></html>")
+
+    def test_parse_raises_on_error_status(self):
+        payload = json.dumps({"status": "error", "message": "bad key"})
+        with pytest.raises(RuntimeError, match="bad key"):
+            SMCFMPClient._parse("/x", payload)
+
+    def test_parse_returns_normal_payload(self):
+        out = SMCFMPClient._parse("/x", json.dumps([{"a": 1}]))
+        assert out == [{"a": 1}]
+
+
+class TestHttpGetRetry:
+    def test_get_succeeds_first_try(self):
+        c = SMCFMPClient(api_key="k")
+        resp = _make_response(json.dumps([{"x": 1}]))
+        with patch.object(mod, "urlopen", return_value=resp):
+            out = c._get("/p", {"symbol": "AAPL"})
+        assert out == [{"x": 1}]
+
+    def test_get_retries_on_429_then_succeeds(self):
+        c = SMCFMPClient(api_key="k", retry_attempts=3)
+        err = urllib.error.HTTPError("u", 429, "rate", {}, io.BytesIO(b""))
+        ok = _make_response(json.dumps([{"y": 2}]))
+        with patch.object(mod, "urlopen", side_effect=[err, ok]), patch.object(mod.time, "sleep") as sleep_mock:
+            out = c._get("/p", {})
+        assert out == [{"y": 2}]
+        assert sleep_mock.called
+
+    def test_get_does_not_retry_on_404(self):
+        c = SMCFMPClient(api_key="k", retry_attempts=3)
+        err = urllib.error.HTTPError("u", 404, "missing", {}, io.BytesIO(b""))
+        with patch.object(mod, "urlopen", side_effect=err), pytest.raises(RuntimeError, match="HTTP 404"):
+            c._get("/p", {})
+
+    def test_get_raises_after_http_retries_exhausted(self):
+        c = SMCFMPClient(api_key="k", retry_attempts=2)
+        err = urllib.error.HTTPError("u", 503, "down", {}, io.BytesIO(b""))
+        with (
+            patch.object(mod, "urlopen", side_effect=[err, err]),
+            patch.object(mod.time, "sleep"),
+            pytest.raises(RuntimeError, match="HTTP 503"),
+        ):
+            c._get("/p", {})
+
+    def test_get_retries_url_error_then_succeeds(self):
+        c = SMCFMPClient(api_key="k", retry_attempts=3)
+        err = urllib.error.URLError("dns down")
+        ok = _make_response(json.dumps({"z": 3}))
+        with patch.object(mod, "urlopen", side_effect=[err, ok]), patch.object(mod.time, "sleep"):
+            out = c._get("/p", {})
+        assert out == {"z": 3}
+
+    def test_get_raises_after_url_error_exhausted(self):
+        c = SMCFMPClient(api_key="k", retry_attempts=2)
+        err = urllib.error.URLError("dns down")
+        with (
+            patch.object(mod, "urlopen", side_effect=[err, err]),
+            patch.object(mod.time, "sleep"),
+            pytest.raises(RuntimeError, match="network error"),
+        ):
+            c._get("/p", {})
+
+    def test_get_drops_none_params_and_injects_apikey(self):
+        c = SMCFMPClient(api_key="MYKEY")
+        resp = _make_response(json.dumps({}))
+        with patch.object(mod, "urlopen", return_value=resp) as urlopen_mock:
+            c._get("/p", {"symbol": "AAPL", "extra": None})
+        called_request = urlopen_mock.call_args[0][0]
+        full_url = called_request.full_url
+        assert "apikey=MYKEY" in full_url
+        assert "extra" not in full_url
+        assert "symbol=AAPL" in full_url
+
+
+# ── pipeline accessor methods ──────────────────────────────────
+
+
+def _patch_get(client: SMCFMPClient, return_value: Any):
+    return patch.object(client, "_get", return_value=return_value)
+
+
+def _patch_get_raises(client: SMCFMPClient, exc: Exception):
+    return patch.object(client, "_get", side_effect=exc)
+
+
+class TestGetIndexQuote:
+    def test_returns_dict_payload_directly(self):
+        c = SMCFMPClient(api_key="k")
+        with _patch_get(c, {"symbol": "VIX", "price": 12.3}):
+            out = c.get_index_quote("^VIX")
+        assert out == {"symbol": "VIX", "price": 12.3}
+
+    def test_returns_matching_row_from_list(self):
+        c = SMCFMPClient(api_key="k")
+        rows = [{"symbol": "OTHER", "price": 1}, {"symbol": "AAPL", "price": 9}]
+        with _patch_get(c, rows):
+            out = c.get_index_quote("AAPL")
+        assert out == {"symbol": "AAPL", "price": 9}
+
+    def test_falls_back_to_first_dict_when_no_match(self):
+        c = SMCFMPClient(api_key="k")
+        with _patch_get(c, [{"symbol": "X", "price": 5}]):
+            out = c.get_index_quote("AAPL")
+        assert out == {"symbol": "X", "price": 5}
+
+    def test_returns_empty_on_runtime_error(self):
+        c = SMCFMPClient(api_key="k")
+        with _patch_get_raises(c, RuntimeError("boom")):
+            assert c.get_index_quote("AAPL") == {}
+
+    def test_returns_empty_when_payload_is_garbage(self):
+        c = SMCFMPClient(api_key="k")
+        with _patch_get(c, "not-a-dict"):
+            assert c.get_index_quote("AAPL") == {}
+
+
+class TestGetCompanyProfile:
+    def test_returns_empty_for_empty_symbol(self):
+        c = SMCFMPClient(api_key="k")
+        assert c.get_company_profile("") == {}
+
+    def test_returns_dict_payload(self):
+        c = SMCFMPClient(api_key="k")
+        with _patch_get(c, {"symbol": "AAPL", "price": 100.0}):
+            out = c.get_company_profile("aapl")
+        assert out["symbol"] == "AAPL"
+
+    def test_returns_matching_row_from_list(self):
+        c = SMCFMPClient(api_key="k")
+        rows = [{"symbol": "X", "price": 1}, {"symbol": "AAPL", "price": 2}]
+        with _patch_get(c, rows):
+            out = c.get_company_profile("AAPL")
+        assert out == {"symbol": "AAPL", "price": 2}
+
+    def test_falls_back_to_first_dict_when_no_match(self):
+        c = SMCFMPClient(api_key="k")
+        with _patch_get(c, [{"symbol": "X", "price": 1}]):
+            out = c.get_company_profile("AAPL")
+        assert out == {"symbol": "X", "price": 1}
+
+    def test_returns_empty_on_runtime_error(self):
+        c = SMCFMPClient(api_key="k")
+        with _patch_get_raises(c, RuntimeError("boom")):
+            assert c.get_company_profile("AAPL") == {}
+
+
+class TestGetAnalystEstimates:
+    def test_returns_empty_for_empty_symbol(self):
+        c = SMCFMPClient(api_key="k")
+        assert c.get_analyst_estimates("") == []
+
+    def test_returns_list_payload(self):
+        c = SMCFMPClient(api_key="k")
+        with _patch_get(c, [{"epsAvg": 1.0}, {"epsAvg": 2.0}]):
+            out = c.get_analyst_estimates("AAPL", limit=2)
+        assert len(out) == 2
+
+    def test_clamps_limit_to_minimum_of_one(self):
+        c = SMCFMPClient(api_key="k")
+        with patch.object(c, "_get", return_value=[]) as get_mock:
+            c.get_analyst_estimates("AAPL", limit=0)
+        assert get_mock.call_args[0][1]["limit"] == 1
+
+    def test_uses_default_period_when_blank(self):
+        c = SMCFMPClient(api_key="k")
+        with patch.object(c, "_get", return_value=[]) as get_mock:
+            c.get_analyst_estimates("AAPL", period="   ")
+        assert get_mock.call_args[0][1]["period"] == "quarter"
+
+    def test_returns_empty_on_runtime_error(self):
+        c = SMCFMPClient(api_key="k")
+        with _patch_get_raises(c, RuntimeError("boom")):
+            assert c.get_analyst_estimates("AAPL") == []
+
+
+class TestGetRatiosTtm:
+    def test_returns_empty_for_empty_symbol(self):
+        c = SMCFMPClient(api_key="k")
+        assert c.get_ratios_ttm("") == []
+
+    def test_returns_list_payload(self):
+        c = SMCFMPClient(api_key="k")
+        with _patch_get(c, [{"pe": 25.0}]):
+            assert c.get_ratios_ttm("AAPL") == [{"pe": 25.0}]
+
+    def test_returns_empty_on_runtime_error(self):
+        c = SMCFMPClient(api_key="k")
+        with _patch_get_raises(c, RuntimeError("boom")):
+            assert c.get_ratios_ttm("AAPL") == []
+
+    def test_returns_empty_when_payload_is_dict(self):
+        c = SMCFMPClient(api_key="k")
+        with _patch_get(c, {"pe": 25.0}):
+            assert c.get_ratios_ttm("AAPL") == []
+
+
+class TestGetKeyMetricsTtm:
+    def test_returns_empty_for_empty_symbol(self):
+        c = SMCFMPClient(api_key="k")
+        assert c.get_key_metrics_ttm("") == []
+
+    def test_returns_list_payload(self):
+        c = SMCFMPClient(api_key="k")
+        with _patch_get(c, [{"marketCap": 1e12}]):
+            assert c.get_key_metrics_ttm("AAPL") == [{"marketCap": 1e12}]
+
+    def test_returns_empty_on_runtime_error(self):
+        c = SMCFMPClient(api_key="k")
+        with _patch_get_raises(c, RuntimeError("boom")):
+            assert c.get_key_metrics_ttm("AAPL") == []
+
+
+# ── market-P/E forward (the largest uncovered block) ──────────
+
+
+class TestGetMarketPeForward:
+    def test_uses_fallback_symbols_when_no_symbol_passed(self):
+        c = SMCFMPClient(api_key="k")
+        with (
+            patch.object(c, "get_index_quote", return_value={"forwardPE": 21.5, "price": 500.0}),
+            patch.object(c, "get_company_profile", return_value={}),
+            patch.object(c, "get_ratios_ttm", return_value=[]),
+            patch.object(c, "get_key_metrics_ttm", return_value=[]),
+            patch.object(c, "get_analyst_estimates", return_value=[]),
+        ):
+            out = c.get_market_pe_forward()
+        assert out == 21.5
+        diag = c._last_market_pe_forward_diagnostics
+        assert diag["status"] == "ok"
+        assert diag["source_category"] == "direct_forward"
+        assert diag["field"] == "forwardPE"
+        assert "SPY" in diag["attempted_symbols"]
+
+    def test_explicit_symbol_only_attempts_that_symbol(self):
+        c = SMCFMPClient(api_key="k")
+        with (
+            patch.object(c, "get_index_quote", return_value={"price": 100.0, "forwardPE": 18.0}),
+            patch.object(c, "get_company_profile", return_value={}),
+            patch.object(c, "get_ratios_ttm", return_value=[]),
+            patch.object(c, "get_key_metrics_ttm", return_value=[]),
+            patch.object(c, "get_analyst_estimates", return_value=[]),
+        ):
+            out = c.get_market_pe_forward("aapl")
+        assert out == 18.0
+        diag = c._last_market_pe_forward_diagnostics
+        assert diag["attempted_symbols"] == ["AAPL"]
+        assert diag["symbol"] == "AAPL"
+
+    def test_records_error_status_when_underlying_call_raises(self):
+        c = SMCFMPClient(api_key="k")
+        with patch.object(c, "get_index_quote", side_effect=RuntimeError("net down")):
+            out = c.get_market_pe_forward("SPY")
+        assert out is None
+        diag = c._last_market_pe_forward_diagnostics
+        assert diag["status"] == "error"
+        assert "net down" in diag["error"]
+
+    def test_analyst_derived_path_when_no_direct_pe(self):
+        c = SMCFMPClient(api_key="k")
+        analyst_rows = [
+            {"epsAvg": 1.0},
+            {"epsAvg": 2.0},
+            {"epsAvg": 3.0},
+            {"epsAvg": 4.0},
+        ]
+        with (
+            patch.object(c, "get_index_quote", return_value={"price": 100.0}),
+            patch.object(c, "get_company_profile", return_value={}),
+            patch.object(c, "get_ratios_ttm", return_value=[]),
+            patch.object(c, "get_key_metrics_ttm", return_value=[]),
+            patch.object(c, "get_analyst_estimates", return_value=analyst_rows),
+        ):
+            out = c.get_market_pe_forward("SPY")
+        assert out == pytest.approx(10.0)  # 100 / (1+2+3+4)
+        diag = c._last_market_pe_forward_diagnostics
+        assert diag["source_category"] == "analyst_derived"
+        assert diag["estimate_count"] == 4
+        assert diag["field"] == "epsAvg"
+
+    def test_falls_back_to_approximate_ttm(self):
+        c = SMCFMPClient(api_key="k")
+        with (
+            patch.object(c, "get_index_quote", return_value={"price": 100.0}),
+            patch.object(c, "get_company_profile", return_value={}),
+            patch.object(c, "get_ratios_ttm", return_value=[{"pe": 17.5}]),
+            patch.object(c, "get_key_metrics_ttm", return_value=[]),
+            patch.object(c, "get_analyst_estimates", return_value=[]),
+        ):
+            out = c.get_market_pe_forward("SPY")
+        assert out == 17.5
+        diag = c._last_market_pe_forward_diagnostics
+        assert diag["source_category"] == "approximate_ttm"
+        assert diag["field"] == "pe"
+
+    def test_returns_none_when_nothing_resolves(self):
+        c = SMCFMPClient(api_key="k")
+        with (
+            patch.object(c, "get_index_quote", return_value={}),
+            patch.object(c, "get_company_profile", return_value={}),
+            patch.object(c, "get_ratios_ttm", return_value=[]),
+            patch.object(c, "get_key_metrics_ttm", return_value=[]),
+            patch.object(c, "get_analyst_estimates", return_value=[]),
+        ):
+            out = c.get_market_pe_forward()
+        assert out is None
+        diag = c._last_market_pe_forward_diagnostics
+        assert diag["status"] == "unavailable"
+
+    def test_uses_previous_close_when_price_missing(self):
+        c = SMCFMPClient(api_key="k")
+        with (
+            patch.object(c, "get_index_quote", return_value={"previousClose": 50.0}),
+            patch.object(c, "get_company_profile", return_value={}),
+            patch.object(c, "get_ratios_ttm", return_value=[]),
+            patch.object(c, "get_key_metrics_ttm", return_value=[]),
+            patch.object(
+                c,
+                "get_analyst_estimates",
+                return_value=[{"epsAvg": 1.0}] * 4,
+            ),
+        ):
+            out = c.get_market_pe_forward("SPY")
+        assert out == pytest.approx(12.5)
+
+
+# ── sector performance (multi-day fallback loop) ───────────────
+
+
+class TestGetSectorPerformance:
+    def test_returns_rows_on_first_attempt(self):
+        c = SMCFMPClient(api_key="k")
+        rows = [{"sector": "Tech", "averageChange": 1.0}]
+        with patch.object(c, "_get", return_value=rows):
+            out = c.get_sector_performance()
+        assert out and out[0]["sector"] == "Tech"
+        diag = c._last_sector_performance_diagnostics
+        assert diag["status"] == "ok"
+        assert diag["used_fallback_previous_trading_day"] is False
+        assert diag["raw_row_count"] == 1
+        assert diag["returned_row_count"] == 1
+
+    def test_falls_back_to_previous_trading_day(self):
+        c = SMCFMPClient(api_key="k")
+        rows = [{"sector": "Tech", "averageChange": 1.0}]
+        # First attempt empty, second returns rows
+        with patch.object(c, "_get", side_effect=[[], rows]):
+            out = c.get_sector_performance()
+        assert out
+        diag = c._last_sector_performance_diagnostics
+        assert diag["used_fallback_previous_trading_day"] is True
+        assert len(diag["attempted_dates"]) == 2
+
+    def test_returns_empty_when_all_attempts_empty(self):
+        c = SMCFMPClient(api_key="k")
+        with patch.object(c, "_get", return_value=[]):
+            out = c.get_sector_performance()
+        assert out == []
+        diag = c._last_sector_performance_diagnostics
+        assert diag["status"] == "empty"
+        assert len(diag["attempted_dates"]) == 6
+
+    def test_records_error_status_on_runtime_error(self):
+        c = SMCFMPClient(api_key="k")
+        with patch.object(c, "_get", side_effect=RuntimeError("rate limited")):
+            out = c.get_sector_performance()
+        assert out == []
+        diag = c._last_sector_performance_diagnostics
+        assert diag["status"] == "error"
+        assert "rate limited" in diag["error"]
+
+
+# ── simple list/dict accessors ─────────────────────────────────
+
+
+class TestGetStockLatestNews:
+    def test_returns_list_with_symbol_param(self):
+        c = SMCFMPClient(api_key="k")
+        with patch.object(c, "_get", return_value=[{"title": "x"}]) as get_mock:
+            out = c.get_stock_latest_news(symbol="aapl", limit=10)
+        assert out == [{"title": "x"}]
+        assert get_mock.call_args[0][1]["symbol"] == "AAPL"
+        assert get_mock.call_args[0][1]["limit"] == 10
+
+    def test_returns_list_without_symbol(self):
+        c = SMCFMPClient(api_key="k")
+        with patch.object(c, "_get", return_value=[]) as get_mock:
+            out = c.get_stock_latest_news()
+        assert out == []
+        assert "symbol" not in get_mock.call_args[0][1]
+
+    def test_returns_empty_on_runtime_error(self):
+        c = SMCFMPClient(api_key="k")
+        with patch.object(c, "_get", side_effect=RuntimeError("boom")):
+            assert c.get_stock_latest_news() == []
+
+
+class TestGetEarningsCalendar:
+    def test_returns_list_payload(self):
+        c = SMCFMPClient(api_key="k")
+        rows = [{"symbol": "AAPL", "date": "2026-04-25"}]
+        with patch.object(c, "_get", return_value=rows):
+            out = c.get_earnings_calendar(date(2026, 4, 20), date(2026, 4, 25))
+        assert out == rows
+
+    def test_returns_empty_on_runtime_error(self):
+        c = SMCFMPClient(api_key="k")
+        with patch.object(c, "_get", side_effect=RuntimeError("x")):
+            out = c.get_earnings_calendar(date(2026, 4, 20), date(2026, 4, 25))
+        assert out == []
+
+
+class TestGetMacroCalendar:
+    def test_records_ok_diagnostics_on_success(self):
+        c = SMCFMPClient(api_key="k")
+        rows = [{"event": "CPI"}]
+        with patch.object(c, "_get", return_value=rows):
+            out = c.get_macro_calendar(date(2026, 4, 20), date(2026, 4, 25))
+        assert out == rows
+        diag = c._last_macro_calendar_diagnostics
+        assert diag["status"] == "ok"
+        assert diag["returned_row_count"] == 1
+
+    def test_records_error_diagnostics_on_runtime_error(self):
+        c = SMCFMPClient(api_key="k")
+        with patch.object(c, "_get", side_effect=RuntimeError("dead")):
+            out = c.get_macro_calendar(date(2026, 4, 20), date(2026, 4, 25))
+        assert out == []
+        diag = c._last_macro_calendar_diagnostics
+        assert diag["status"] == "error"
+        assert "dead" in diag["error"]
+
+
+class TestGetShortInterest:
+    def test_returns_dict_for_symbols_with_short_pct(self):
+        c = SMCFMPClient(api_key="k")
+        responses = {
+            "AAPL": [{"shortPercentFloat": 1.234}],
+            "TSLA": [{"shortPercentFloat": 5.678}],
+        }
+
+        def fake_get(path, params):
+            return responses.get(params.get("symbol"), [])
+
+        with patch.object(c, "_get", side_effect=fake_get):
+            out = c.get_short_interest(["aapl", "tsla", "MISS"])
+        assert out == {"AAPL": 1.23, "TSLA": 5.68}
+
+    def test_skips_blank_symbols(self):
+        c = SMCFMPClient(api_key="k")
+        with patch.object(c, "_get", return_value=[{"shortPercentFloat": 1.0}]) as get_mock:
+            out = c.get_short_interest(["", "  "])
+        assert out == {}
+        assert not get_mock.called
+
+    def test_skips_symbols_with_exception(self):
+        c = SMCFMPClient(api_key="k")
+        with patch.object(c, "_get", side_effect=RuntimeError("x")):
+            out = c.get_short_interest(["AAPL"])
+        assert out == {}
+
+    def test_skips_rows_without_short_percent_float(self):
+        c = SMCFMPClient(api_key="k")
+        with patch.object(c, "_get", return_value=[{"other": 1}]):
+            out = c.get_short_interest(["AAPL"])
+        assert out == {}
+
+
+class TestGetTreasuryYields:
+    def test_returns_yields_and_inversion(self):
+        c = SMCFMPClient(api_key="k")
+        with patch.object(c, "_get", return_value=[{"year2": 5.0, "year10": 4.0}]):
+            out = c.get_treasury_yields()
+        assert out == {"2y": 5.0, "10y": 4.0, "spread": -1.0, "inverted": True}
+
+    def test_returns_zero_fallback_on_exception(self):
+        c = SMCFMPClient(api_key="k")
+        with patch.object(c, "_get", side_effect=RuntimeError("x")):
+            out = c.get_treasury_yields()
+        assert out == {"2y": 0.0, "10y": 0.0, "spread": 0.0, "inverted": False}
+
+    def test_returns_zero_fallback_when_payload_is_empty(self):
+        c = SMCFMPClient(api_key="k")
+        with patch.object(c, "_get", return_value=[]):
+            out = c.get_treasury_yields()
+        assert out["2y"] == 0.0
+        assert out["inverted"] is False
+
+
+class TestGetInstitutionalHolders:
+    def test_returns_list_payload(self):
+        c = SMCFMPClient(api_key="k")
+        with patch.object(c, "_get", return_value=[{"holder": "X"}]):
+            assert c.get_institutional_holders("AAPL") == [{"holder": "X"}]
+
+    def test_returns_empty_for_blank_symbol(self):
+        c = SMCFMPClient(api_key="k")
+        assert c.get_institutional_holders("") == []
+
+    def test_returns_empty_on_exception(self):
+        c = SMCFMPClient(api_key="k")
+        with patch.object(c, "_get", side_effect=RuntimeError("x")):
+            assert c.get_institutional_holders("AAPL") == []
+
+
+class TestGetInsiderTrading:
+    def test_returns_list_payload(self):
+        c = SMCFMPClient(api_key="k")
+        with patch.object(c, "_get", return_value=[{"name": "x"}]) as get_mock:
+            out = c.get_insider_trading("AAPL", limit=5)
+        assert out == [{"name": "x"}]
+        assert get_mock.call_args[0][1]["limit"] == 5
+
+    def test_returns_empty_for_blank_symbol(self):
+        c = SMCFMPClient(api_key="k")
+        assert c.get_insider_trading("") == []
+
+    def test_returns_empty_on_exception(self):
+        c = SMCFMPClient(api_key="k")
+        with patch.object(c, "_get", side_effect=RuntimeError("x")):
+            assert c.get_insider_trading("AAPL") == []
+
+
+class TestGetTechnicalIndicator:
+    def test_returns_dict_payload(self):
+        c = SMCFMPClient(api_key="k")
+        with patch.object(c, "_get", return_value={"rsi": 55.0}):
+            out = c.get_technical_indicator("aapl", "1day", "rsi")
+        assert out == {"rsi": 55.0}
+
+    def test_returns_first_dict_from_list(self):
+        c = SMCFMPClient(api_key="k")
+        with patch.object(c, "_get", return_value=[{"ema": 100.0}, {"ema": 99.0}]):
+            out = c.get_technical_indicator("AAPL", "1day", "ema")
+        assert out == {"ema": 100.0}
+
+    def test_passes_period_when_provided(self):
+        c = SMCFMPClient(api_key="k")
+        with patch.object(c, "_get", return_value={}) as get_mock:
+            c.get_technical_indicator("AAPL", "1day", "ema", indicator_period=20)
+        assert get_mock.call_args[0][1]["periodLength"] == 20
+
+    def test_returns_empty_on_runtime_error(self):
+        c = SMCFMPClient(api_key="k")
+        with patch.object(c, "_get", side_effect=RuntimeError("x")):
+            assert c.get_technical_indicator("AAPL", "1day", "ema") == {}
+
+    def test_returns_empty_when_payload_is_garbage(self):
+        c = SMCFMPClient(api_key="k")
+        with patch.object(c, "_get", return_value="not-useful"):
+            assert c.get_technical_indicator("AAPL", "1day", "ema") == {}
