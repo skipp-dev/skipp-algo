@@ -407,6 +407,43 @@ class TestCLI:
         assert call_kwargs["target_dates"] == [date(2026, 4, 18)]
         assert call_kwargs["dry_run"] is True
 
+    def test_main_partial_failure_exits_zero(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # Regression: a backfill that resolved most rows but failed on a
+        # few legacy data gaps must NOT turn the workflow permanently
+        # red. The failed count is preserved in the JSON run log.
+        monkeypatch.setattr(
+            "open_prep.outcome_backfill.backfill_outcomes",
+            MagicMock(return_value={
+                "resolved": 18, "skipped": 0, "failed": 3, "dates_processed": 3,
+            }),
+        )
+        assert main(["--date", "2026-04-18", "--dry-run"]) == 0
+
+    def test_main_no_progress_with_failures_exits_two(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # Real failure mode: nothing resolved AND at least one failure.
+        monkeypatch.setattr(
+            "open_prep.outcome_backfill.backfill_outcomes",
+            MagicMock(return_value={
+                "resolved": 0, "skipped": 0, "failed": 5, "dates_processed": 1,
+            }),
+        )
+        assert main(["--date", "2026-04-18", "--dry-run"]) == 2
+
+    def test_main_clean_run_exits_zero(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(
+            "open_prep.outcome_backfill.backfill_outcomes",
+            MagicMock(return_value={
+                "resolved": 5, "skipped": 0, "failed": 0, "dates_processed": 1,
+            }),
+        )
+        assert main(["--date", "2026-04-18", "--dry-run"]) == 0
+
 
 # ── Feature importance backfill ─────────────────────────────────────────────
 
