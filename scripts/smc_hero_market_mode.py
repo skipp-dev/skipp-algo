@@ -109,12 +109,26 @@ def _session_label(enrichment: Mapping[str, Any]) -> str:
 
 
 def _regime_label(enrichment: Mapping[str, Any]) -> str:
+    """Return the upper-case regime label for the Hero Market Mode block.
+
+    Pine consumers — e.g. ``SMC_Mobile_Dashboard.pine:79`` which
+    compares ``mp.HERO_MARKET_MODE`` against literals ``"BULLISH"``,
+    ``"BEARISH"``, ``"RISK_OFF"`` — treat regime labels as UPPERCASE
+    string identifiers. Producer A (``scripts/smc_hero_state.py``)
+    emits ``HERO_MARKET_MODE`` as UPPERCASE passthrough; this helper
+    feeds the reserved ``HERO_MARKET_REGIME`` export (currently not
+    yet Pine-consumed) and must stay case-consistent so a future
+    migration from ``HERO_MARKET_MODE`` to ``HERO_MARKET_REGIME`` does
+    not silently lose every Pine colour / gate branch.
+
+    Boundary-Contract Improvement Plan 2026-04-23, F-1 / PR-BC-03.
+    """
     regime = enrichment.get("regime") or {}
     if isinstance(regime, Mapping):
         value = regime.get("regime")
         if value:
-            return str(value).lower()
-    return "neutral"
+            return str(value).upper()
+    return "NEUTRAL"
 
 
 def _macro_bias(enrichment: Mapping[str, Any]) -> float:
