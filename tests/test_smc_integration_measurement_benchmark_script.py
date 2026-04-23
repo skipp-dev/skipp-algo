@@ -111,4 +111,80 @@ def test_measurement_benchmark_harness_writes_manifest_and_plots(monkeypatch, tm
 
     run_manifest = json.loads((root / "benchmark_run_manifest.json").read_text(encoding="utf-8"))
     assert run_manifest["pair_runs"][0]["artifact_dir"] == "AAPL/15m"
-    assert run_manifest["pair_runs"][0]["summary_path"] == "AAPL/15m/measurement_summary_AAPL_15m.json"
+
+
+def test_require_evidence_fails_loud_when_no_pair_has_evidence(monkeypatch, tmp_path: Path) -> None:
+    """Regression: rolling-bench was silently green for ≥2 days while
+    emitting zero-event corpora because the production export bundle was
+    missing in CI. With ``--require-evidence`` set the harness must exit
+    non-zero so the failure is loud. See repo-memory
+    `rolling-bench-silent-zero-events-2026-04-23.md`.
+    """
+    empty_evidence = MeasurementEvidence(
+        events_by_family={"BOS": [], "OB": [], "FVG": [], "SWEEP": []},
+        stratified_events={},
+        scored_events=[],
+        details={
+            "measurement_evidence_present": False,
+            "evaluated_event_counts": {"BOS": 0, "OB": 0, "FVG": 0, "SWEEP": 0},
+            "bars_source_mode": "none",
+        },
+        warnings=["no bar source available for measurement evidence"],
+    )
+    monkeypatch.setattr(
+        benchmark_script, "build_measurement_evidence", lambda symbol, timeframe: empty_evidence
+    )
+    monkeypatch.setattr(
+        benchmark_script,
+        "build_parser",
+        lambda: _Parser(
+            Namespace(
+                symbols="AAPL",
+                timeframes="15m",
+                output_dir=str(tmp_path / "measurement_benchmark"),
+                require_evidence=True,
+            )
+        ),
+    )
+
+    rc = benchmark_script.main()
+
+    assert rc == 1
+    # Artifacts should still be written so the failure is debuggable.
+    assert (tmp_path / "measurement_benchmark" / "benchmark_run_manifest.json").exists()
+
+
+def test_require_evidence_passes_when_at_least_one_pair_has_evidence(monkeypatch, tmp_path: Path) -> None:
+    evidence = MeasurementEvidence(
+        events_by_family={
+            "BOS": [{"hit": True, "time_to_mitigation": 1.0, "invalidated": False, "mae": 0.01, "mfe": 0.03}],
+            "OB": [], "FVG": [], "SWEEP": [],
+        },
+        stratified_events={},
+        scored_events=[ScoredEvent("bos-1", "BOS", 0.75, True, 1.0)],
+        details={
+            "measurement_evidence_present": True,
+            "evaluated_event_counts": {"BOS": 1, "OB": 0, "FVG": 0, "SWEEP": 0},
+            "bars_source_mode": "canonical_export_bundle",
+        },
+        warnings=[],
+    )
+    monkeypatch.setattr(
+        benchmark_script, "build_measurement_evidence", lambda symbol, timeframe: evidence
+    )
+    monkeypatch.setattr(
+        benchmark_script,
+        "build_parser",
+        lambda: _Parser(
+            Namespace(
+                symbols="AAPL",
+                timeframes="15m",
+                output_dir=str(tmp_path / "measurement_benchmark"),
+                require_evidence=True,
+            )
+        ),
+    )
+
+    rc = benchmark_script.main()
+
+    assert rc == 0

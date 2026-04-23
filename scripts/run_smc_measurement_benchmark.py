@@ -484,6 +484,16 @@ def build_parser() -> argparse.ArgumentParser:
         default="artifacts/ci/measurement_benchmark",
         help="Directory where the benchmark harness writes its artifacts.",
     )
+    parser.add_argument(
+        "--require-evidence",
+        action="store_true",
+        help=(
+            "Exit non-zero if NO pair produced measurement evidence "
+            "(bars_source_mode=='none' for all symbols) or every pair "
+            "emitted zero events. Prevents a silently-green CI run when "
+            "the export bundle is missing or the data feed broke."
+        ),
+    )
     return parser
 
 
@@ -547,6 +557,38 @@ def main() -> int:
     }
     _write_json(output_root / "benchmark_run_manifest.json", run_manifest)
     print(json.dumps(run_manifest, indent=2, sort_keys=True))
+
+    if getattr(args, "require_evidence", False):
+        # Fail-loud guard (2026-04-23): the rolling-bench workflow ran
+        # silently green for ≥2 days while emitting zero-event corpora
+        # because the production export bundle was unavailable in CI.
+        # See repo-memory `rolling-bench-silent-zero-events-2026-04-23.md`.
+        evidence_present = sum(
+            1 for row in run_summary_rows if row["measurement_evidence_present"]
+        )
+        total_events = sum(int(row["n_events"] or 0) for row in run_summary_rows)
+        if evidence_present == 0 or total_events == 0:
+            none_pairs = [
+                f"{row['symbol']}/{row['timeframe']}"
+                for row in run_summary_rows
+                if not row["measurement_evidence_present"]
+            ]
+            print(
+                "ERROR: --require-evidence: no pair produced measurement "
+                f"evidence (evidence_present={evidence_present}, "
+                f"total_events={total_events}). "
+                f"bars_source_mode='none' or zero events on all "
+                f"{len(run_summary_rows)} pairs.",
+                file=sys.stderr,
+            )
+            if none_pairs:
+                print(
+                    f"  Affected pairs (sample): {', '.join(none_pairs[:5])}"
+                    + (f" (+{len(none_pairs) - 5} more)" if len(none_pairs) > 5 else ""),
+                    file=sys.stderr,
+                )
+            return 1
+
     return 0
 
 
