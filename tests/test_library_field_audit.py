@@ -404,17 +404,13 @@ from scripts.smc_hero_action import (  # noqa: E402
 
 RESERVED_PINE_EXPORTS.update(PINE_HERO_ACTION_FIELDS)
 
-# ADR 2026-04-22 — Phase H Pine Consumer Maturity scaffolding. The
-# generator emits these via smc_zone_priority_consumer.DEFAULTS. Issue
-# #16 (c) wired ZONE_CAL_TRUST + ZONE_HR_{OB,BOS,SWEEP} into the
-# SMC_Dashboard FVG audit row (aggregate cal warning + trust glyph
-# suffix). The remaining two scalars (ZONE_CAL_CONFIDENCE,
-# ZONE_CAL_TREND) are still scaffold-only and will be wired in a
-# follow-up dashboard tooltip patch (Phase H tooltip expansion).
-RESERVED_PINE_EXPORTS.update({
-    "ZONE_CAL_CONFIDENCE",
-    "ZONE_CAL_TREND",
-})
+# Phase H Pine consumer maturity is now complete: ZONE_CAL_TRUST and the
+# per-family ZONE_HR_{OB,BOS,SWEEP} were wired into the audit row 12
+# composite warning + trust glyph by issue #16 (c). The follow-up tooltip
+# patch then wired the remaining two scalars (ZONE_CAL_CONFIDENCE +
+# ZONE_CAL_TREND) into the row 12 hover tooltip via dashboard_row_tt, so
+# the entire ZONE_CAL_* scaffolding block from ADR 2026-04-22 has landed
+# Pine consumers and no longer needs reservation.
 
 # Backwards-compatible alias (keeps any external callers happy).
 _INFRA_ONLY: set[str] = PYTHON_ONLY_EXPORTS | RESERVED_PINE_EXPORTS

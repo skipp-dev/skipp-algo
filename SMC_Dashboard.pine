@@ -1432,6 +1432,17 @@ zone_cal_aggregate_warning_text() =>
 zone_cal_trust_glyph(string trust_state) =>
     trust_state == "OK" ? "🔒" : trust_state == "DEGRADED" ? "⚠" : trust_state == "UNAVAILABLE" ? "❓" : trust_state == "" ? "" : "?"
 
+// Phase H follow-on (issue #16, deferred tooltip patch) — render the
+// per-family calibration confidence (H1, 0–1) and trend (H3, IMPROVING/
+// STABLE/DEGRADING) as a single tooltip line. Returns "" when the
+// confidence field is at its default sentinel (0.0) so the dashboard
+// stays quiet on first install / before calibration runs.
+zone_cal_diagnostics_tooltip_text(float zone_cal_confidence, string zone_cal_trend) =>
+    if zone_cal_confidence <= 0.0
+        ""
+    else
+        "Cal conf " + str.tostring(zone_cal_confidence, "#.##") + " · trend " + zone_cal_trend
+
 // Combine live-zone and calibration warnings — calibration takes
 // precedence when both fire because it speaks to system reliability
 // rather than a single zone's lifecycle.
@@ -1630,7 +1641,14 @@ if show_table and barstate.islast
         bool ex_zone_cal_ok = _ex_zone_cal_warn == ""
         bool ex_trust_ok = mp.ZONE_CAL_TRUST != "DEGRADED" and mp.ZONE_CAL_TRUST != "UNAVAILABLE"
         bool ex_fvg_pass = ex_fvg_ok and ex_fvg_cal_ok and ex_zone_cal_ok and ex_trust_ok
-        dashboard_row(smc_dashboard, 12, ex_fvg_pass ? "✅ FVG Health" : "⚠ FVG Health", ex_fvg_detail, ex_fvg_pass ? pass : color.new(CLR_CAUTION, 75), txt)
+        // Tooltip carries calibration confidence (H1) + trend (H3) for
+        // diagnostic depth; falls back to plain dashboard_row when the
+        // confidence field is uninitialised (sentinel 0.0).
+        string _ex_fvg_tt = zone_cal_diagnostics_tooltip_text(mp.ZONE_CAL_CONFIDENCE, mp.ZONE_CAL_TREND)
+        if _ex_fvg_tt == ""
+            dashboard_row(smc_dashboard, 12, ex_fvg_pass ? "✅ FVG Health" : "⚠ FVG Health", ex_fvg_detail, ex_fvg_pass ? pass : color.new(CLR_CAUTION, 75), txt)
+        else
+            dashboard_row_tt(smc_dashboard, 12, ex_fvg_pass ? "✅ FVG Health" : "⚠ FVG Health", ex_fvg_detail, ex_fvg_pass ? pass : color.new(CLR_CAUTION, 75), txt, _ex_fvg_tt)
         section_row(smc_dashboard, 13, "[ Next Step ]", header_bg, txt)
         dashboard_row(smc_dashboard, 14, "→", ex_next_step, ex_state_bg, txt)
         table.clear(smc_dashboard, 0, 15, 1, 73)
