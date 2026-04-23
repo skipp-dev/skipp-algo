@@ -169,6 +169,8 @@ def test_resolution_metadata_appears_in_output_manifest(tmp_path: Path, monkeypa
             str(workbook),
             "--symbols-source",
             str(symbols_source),
+            "--structure-artifacts-dir",
+            str(tmp_path / "reports" / "smc_structure_artifacts"),
             "--generated-at",
             "1709254000.0",
         ]

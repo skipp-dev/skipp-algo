@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -20,6 +21,28 @@ logger = logging.getLogger(__name__)
 DEFAULT_WORKBOOK = Path("artifacts/smc_microstructure_exports/databento_volatility_production_workbook.xlsx")
 DEFAULT_OUTPUT_DIR = Path("reports") / "smc_structure_artifacts"
 DEFAULT_EXPORT_DIR = Path("artifacts") / "smc_microstructure_exports"
+
+
+def _guard_against_canonical_repo_write_under_pytest(output_dir: Path) -> None:
+    """Refuse to write structure manifests into the canonical repo path while pytest is active.
+
+    Test isolation bugs (forgetting to redirect ``--structure-artifacts-dir`` to a
+    tmp_path) silently overwrite the real repo's ``reports/smc_structure_artifacts/``
+    with pytest-tmp provenance. That poisons downstream measurement-benchmark runs.
+    """
+    if "PYTEST_CURRENT_TEST" not in os.environ:
+        return
+    try:
+        candidate = Path(output_dir).expanduser().resolve()
+    except OSError:
+        return
+    canonical_dir = (Path(__file__).resolve().parent.parent / DEFAULT_OUTPUT_DIR).resolve()
+    if candidate == canonical_dir:
+        raise RuntimeError(
+            "write_structure_artifacts_from_workbook refused to write into the canonical "
+            f"repo path '{canonical_dir}' while pytest is active. Redirect output_dir "
+            "to tmp_path in your test (e.g. pass --structure-artifacts-dir <tmp>)."
+        )
 
 def _load_symbol_bars_from_canonical_exports(symbol: str, timeframe: str, export_dir: Path | None) -> pd.DataFrame | None:
     if export_dir is None:
@@ -462,6 +485,7 @@ def write_structure_artifacts_from_workbook(
     structure_profile: str = "hybrid_default",
 ) -> dict[str, Any]:
     structure_profile = validate_structure_profile(structure_profile)
+    _guard_against_canonical_repo_write_under_pytest(output_dir)
     explicit_workbook_requested = workbook is not None
     explicit_bundle_requested = export_bundle_root is not None
     explicit_workbook_path = Path(workbook).expanduser() if workbook is not None else None

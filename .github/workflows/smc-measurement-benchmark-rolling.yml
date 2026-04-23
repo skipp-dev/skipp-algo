@@ -69,6 +69,43 @@ jobs:
           echo "run_date=${RUN_DATE}" >> "$GITHUB_OUTPUT"
           echo "out_dir=artifacts/ci/measurement_benchmark_rolling/${RUN_DATE}" >> "$GITHUB_OUTPUT"
 
+      - name: Download production export bundle from Azure Blob
+        # The rolling bench needs the ~1 GB databento_volatility_production_*
+        # parquet/xlsx bundle to emit non-zero events. The bundle is gitignored
+        # and lives in Azure Blob; we hydrate artifacts/smc_microstructure_exports/
+        # from a SAS-scoped container URL stored as the
+        # SMC_PRODUCTION_BUNDLE_SAS_URL secret.
+        #
+        # SAS URL format (operator-managed):
+        #   https://<account>.blob.core.windows.net/<container>?<sas-token>
+        # The container should mirror the canonical layout, i.e. contain the
+        # databento_volatility_production_<DATE>_<TIME>.{xlsx,parquet} files
+        # plus the *_manifest.json directly at its root.
+        #
+        # Fail-soft: if the secret is unset (e.g. a fork PR without secrets),
+        # we still run the benchmark — the --require-evidence guard added in
+        # PR #30 will turn the run red so the silent-zero-events drift cannot
+        # come back unnoticed.
+        env:
+          BUNDLE_AZURE_SAS_URL: ${{ secrets.SMC_PRODUCTION_BUNDLE_SAS_URL }}
+        run: |
+          set -euo pipefail
+          if [ -z "${BUNDLE_AZURE_SAS_URL:-}" ]; then
+            echo "::warning title=Production bundle missing::SMC_PRODUCTION_BUNDLE_SAS_URL secret not set; rolling-bench will fail loud via --require-evidence."
+            exit 0
+          fi
+          mkdir -p artifacts/smc_microstructure_exports
+          # azcopy v10 — fastest, supports SAS URLs natively, no auth setup.
+          curl -sSL -o /tmp/azcopy.tar.gz https://aka.ms/downloadazcopy-v10-linux
+          mkdir -p /tmp/azcopy-extract
+          tar -xzf /tmp/azcopy.tar.gz -C /tmp/azcopy-extract --strip-components=1
+          AZCOPY_BIN="$(find /tmp/azcopy-extract -name azcopy -type f | head -1)"
+          chmod +x "${AZCOPY_BIN}"
+          "${AZCOPY_BIN}" copy "${BUNDLE_AZURE_SAS_URL}" artifacts/smc_microstructure_exports/ --recursive=true --output-level=essential
+          echo "Downloaded files:"
+          ls -lh artifacts/smc_microstructure_exports/ | head -20
+          echo "Total size: $(du -sh artifacts/smc_microstructure_exports/ | cut -f1)"
+
       - name: Run daily rolling benchmark
         env:
           DATABENTO_API_KEY: ${{ secrets.DATABENTO_API_KEY }}
