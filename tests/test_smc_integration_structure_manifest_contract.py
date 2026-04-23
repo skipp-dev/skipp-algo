@@ -24,7 +24,7 @@ def test_structure_manifest_contract_has_profile_version_and_aggregates() -> Non
 
     manifest = write_structure_artifacts_from_workbook(
         workbook=WORKBOOK,
-        timeframe="15m",
+        timeframe="1D",
         symbols=symbols,
         output_dir=output_dir,
         generated_at=1709254000.0,
@@ -76,7 +76,7 @@ def test_structure_manifest_contract_is_deterministic() -> None:
 
     one = write_structure_artifacts_from_workbook(
         workbook=WORKBOOK,
-        timeframe="15m",
+        timeframe="1D",
         symbols=symbols,
         output_dir=output_dir,
         generated_at=1709254000.0,
@@ -84,7 +84,7 @@ def test_structure_manifest_contract_is_deterministic() -> None:
     )
     two = write_structure_artifacts_from_workbook(
         workbook=WORKBOOK,
-        timeframe="15m",
+        timeframe="1D",
         symbols=symbols,
         output_dir=output_dir,
         generated_at=1709254000.0,
