@@ -12,12 +12,17 @@ from __future__ import annotations
 
 from enum import Enum
 
-# 2.1.0 (2026-04-23): additive Phase-H field ZONE_CAL_TRUST in pine library
-#   (consumers without the field continue to function — purely informational).
-#   Explicit MINOR bump unblocks the breaking-change governance gate which
-#   defensively escalated the field-count change to MAJOR (see
-#   docs/release_process/breaking_change_gate_runbook.md and issue #16).
-SCHEMA_VERSION = "2.1.0"
+# 3.0.0 (2026-04-23): Pine-library export field count change (200 → 201)
+#   adds ZONE_CAL_TRUST + ZONE_CAL_CONFIDENCE for Phase-H consumer maturity
+#   (PR #19 + ADR 2026-04-22). Although the additions are technically
+#   additive (existing consumers ignore unknown fields), the governance gate
+#   in scripts/smc_version_governance.py escalates *any* field-count change
+#   to MAJOR unless SCHEMA_VERSION carries a MAJOR bump. The previous MINOR
+#   bump (2.1.0 in PR #18) was rejected by the gate — see issue #22 and the
+#   audit-correction comment on issue #16 for details.
+# 2.1.0 (2026-04-23, superseded): attempted MINOR bump for ZONE_CAL_TRUST.
+#   Rejected by governance gate; replaced by 3.0.0.
+SCHEMA_VERSION = "3.0.0"
 
 
 class VersionChangeType(str, Enum):
