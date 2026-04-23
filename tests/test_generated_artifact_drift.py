@@ -222,8 +222,12 @@ class TestGeneratedArtifactDrift:
         # ZONE_CAL_TRUST scalar (ADR 2026-04-22 — degrade per-family HR
         # display on sub-saturation corpora). Net add of this commit: +1.
         # 200 → 201.
-        assert len(exports) == 201, (
-            f"Expected 201 export const fields for the current v6 shared-export contract, got {len(exports)}"
+        # F-3 (Boundary-Contract Plan 2026-04-23, PR-BC-02): +1 additive
+        # Pine-library const `HR_SENTINEL_DEGRADED` so consumers can
+        # reference the sentinel by symbol instead of hardcoding -1.0.
+        # 201 → 202.
+        assert len(exports) == 202, (
+            f"Expected 202 export const fields for the current v6 shared-export contract, got {len(exports)}"
         )
 
     def test_event_risk_exports_stay_in_canonical_order(self, regenerated: Path):
@@ -252,7 +256,7 @@ class TestGeneratedArtifactDrift:
             (regenerated / "pine" / "generated" / "smc_micro_profiles_generated.json").read_text()
         )
         assert "library_field_version" in manifest
-        assert manifest["library_field_version"] == "v5.5b"
+        assert manifest["library_field_version"] == "v5.5c"
         assert "asof_time" in manifest
         assert "refresh_count" in manifest
         assert "enrichment_blocks" in manifest

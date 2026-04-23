@@ -305,6 +305,7 @@ export const float ZONE_CAL_BOS_HIGH_VOL = 0.8100
 export const float ZONE_CAL_SWEEP_HIGH_VOL = 0.7300
 
 // ── Pine Consumer Maturity (Phase H) ──
+export const float HR_SENTINEL_DEGRADED = -1.0000
 export const float ZONE_CAL_CONFIDENCE = 0.0000
 export const float ZONE_HR_OB = 0.0000
 export const float ZONE_HR_FVG = 0.0000
