@@ -15,6 +15,7 @@ from datetime import UTC, datetime
 from io import BytesIO
 from pathlib import Path
 from typing import Any
+import zipfile
 
 import pandas as pd
 from openpyxl.styles import Alignment, Font, PatternFill
@@ -111,6 +112,7 @@ def create_excel_workbook_bytes(
     minute_detail: pd.DataFrame | None = None,
     second_detail: pd.DataFrame | None = None,
     additional_sheets: dict[str, pd.DataFrame] | None = None,
+    generated_at: float | None = None,
 ) -> bytes:
     def _write_chunked_sheet(writer: pd.ExcelWriter, frame: pd.DataFrame, *, sheet_name: str) -> None:
         prepared = prepare_frame_for_excel(frame)
@@ -186,7 +188,55 @@ def create_excel_workbook_bytes(
                     end_color="63BE7B",
                 ),
             )
-    return output.getvalue()
+
+        # Pin docProps/core.xml timestamps so byte output is deterministic for a
+        # fixed generated_at. Without this, openpyxl writes datetime.utcnow()
+        # into <dcterms:created>/<dcterms:modified>, making two calls with the
+        # same input produce different bytes (CI flake on PR #31).
+        if generated_at is not None:
+            pinned = datetime.fromtimestamp(float(generated_at), tz=UTC).replace(tzinfo=None)
+            workbook.properties.created = pinned
+            workbook.properties.modified = pinned
+    raw = output.getvalue()
+    if generated_at is not None:
+        raw = _normalize_xlsx_zip_timestamps(raw, generated_at=float(generated_at))
+    return raw
+
+
+def _normalize_xlsx_zip_timestamps(raw: bytes, *, generated_at: float) -> bytes:
+    """Rewrite an xlsx zip so every entry has a deterministic mtime.
+
+    Python's :mod:`zipfile` stamps each :class:`zipfile.ZipInfo` with the
+    wall-clock time at write. That bleeds into the central directory and the
+    per-entry local headers, so two byte-identical workbook payloads written a
+    second apart produce different bytes. By round-tripping the archive with a
+    pinned ``date_time`` we guarantee byte-stability for a fixed input.
+    """
+    pinned_dt = datetime.fromtimestamp(generated_at, tz=UTC)
+    pinned_tuple = (
+        pinned_dt.year,
+        pinned_dt.month,
+        pinned_dt.day,
+        pinned_dt.hour,
+        pinned_dt.minute,
+        pinned_dt.second,
+    )
+    src = BytesIO(raw)
+    dst = BytesIO()
+    with zipfile.ZipFile(src, "r") as src_zip, zipfile.ZipFile(
+        dst, "w", compression=zipfile.ZIP_DEFLATED
+    ) as dst_zip:
+        # Sort entries by filename so the central directory order is stable
+        # across runs. openpyxl writes via a temp staging area whose iteration
+        # order is not guaranteed deterministic.
+        for info in sorted(src_zip.infolist(), key=lambda i: i.filename):
+            data = src_zip.read(info.filename)
+            new_info = zipfile.ZipInfo(filename=info.filename, date_time=pinned_tuple)
+            new_info.compress_type = info.compress_type
+            new_info.external_attr = info.external_attr
+            new_info.create_system = info.create_system
+            dst_zip.writestr(new_info, data)
+    return dst.getvalue()
 
 
 def write_databento_production_workbook_from_frames(
@@ -205,6 +255,7 @@ def write_databento_production_workbook_from_frames(
         minute_detail=minute_detail,
         second_detail=second_detail,
         additional_sheets=additional_sheets,
+        generated_at=generated_at,
     )
     path.write_bytes(payload)
 

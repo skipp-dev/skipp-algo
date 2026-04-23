@@ -35,6 +35,14 @@ def test_shared_workbook_writer_is_deterministic_for_fixed_input(tmp_path: Path)
         generated_at=1_700_000_000.0,
         additional_sheets=additional,
     )
+    # Sleep across a full second to force openpyxl's internal datetime.utcnow()
+    # to differ between the two writes. Pre-fix this caused docProps/core.xml
+    # <dcterms:created>/<dcterms:modified> to drift and the byte comparison
+    # failed on CI (PR #31). Post-fix, generated_at pins both timestamps so
+    # the workbooks remain byte-identical regardless of wall-clock skew.
+    import time as _time
+
+    _time.sleep(1.1)
     right = write_databento_production_workbook_from_frames(
         summary=summary,
         output_path=tmp_path / "right.xlsx",
