@@ -1,0 +1,86 @@
+{
+  "generated_at": "2026-04-23T21:45:24.564008+00:00",
+  "pairs": [
+    {
+      "cme_symbol": "6E.c.0",
+      "error": "empty",
+      "last_raw_price": null,
+      "last_spot_price": null,
+      "n_bars": 0,
+      "spot_symbol": "EURUSD",
+      "timeframe": "15m"
+    },
+    {
+      "cme_symbol": "6E.c.0",
+      "error": "empty",
+      "last_raw_price": null,
+      "last_spot_price": null,
+      "n_bars": 0,
+      "spot_symbol": "EURUSD",
+      "timeframe": "1H"
+    },
+    {
+      "cme_symbol": "6B.c.0",
+      "error": "empty",
+      "last_raw_price": null,
+      "last_spot_price": null,
+      "n_bars": 0,
+      "spot_symbol": "GBPUSD",
+      "timeframe": "15m"
+    },
+    {
+      "cme_symbol": "6B.c.0",
+      "error": "empty",
+      "last_raw_price": null,
+      "last_spot_price": null,
+      "n_bars": 0,
+      "spot_symbol": "GBPUSD",
+      "timeframe": "1H"
+    },
+    {
+      "cme_symbol": "6A.c.0",
+      "error": "empty",
+      "last_raw_price": null,
+      "last_spot_price": null,
+      "n_bars": 0,
+      "spot_symbol": "AUDUSD",
+      "timeframe": "15m"
+    },
+    {
+      "cme_symbol": "6A.c.0",
+      "error": "empty",
+      "last_raw_price": null,
+      "last_spot_price": null,
+      "n_bars": 0,
+      "spot_symbol": "AUDUSD",
+      "timeframe": "1H"
+    },
+    {
+      "cme_symbol": "6J.c.0",
+      "error": "empty",
+      "last_raw_price": null,
+      "last_spot_price": null,
+      "n_bars": 0,
+      "spot_symbol": "USDJPY",
+      "timeframe": "15m"
+    },
+    {
+      "cme_symbol": "6J.c.0",
+      "error": "empty",
+      "last_raw_price": null,
+      "last_spot_price": null,
+      "n_bars": 0,
+      "spot_symbol": "USDJPY",
+      "timeframe": "1H"
+    }
+  ],
+  "source": {
+    "commit_sha": null,
+    "workflow_run": null
+  },
+  "status": "AWAITING_DATA",
+  "timeframes": [
+    "15m",
+    "1H"
+  ]
+}
