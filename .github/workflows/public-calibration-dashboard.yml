@@ -1,0 +1,70 @@
+name: public-calibration-dashboard
+
+# Q3/Q4 plan §3.1.1: emit `calibration_report_public.json` daily and
+# commit it under `docs/calibration/` so the GitHub-Pages dashboard
+# (docs/calibration/index.html) always serves the latest evidence.
+
+on:
+  schedule:
+    # 04:30 UTC weekdays — runs after the rolling benchmark settles.
+    - cron: "30 4 * * 1-5"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: public-calibration-dashboard
+  cancel-in-progress: false
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+jobs:
+  emit-public-report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install minimal deps
+        # The emitter is stdlib-only; install nothing heavy.
+        run: python -m pip install --upgrade pip
+
+      - name: Emit public calibration report
+        env:
+          GITHUB_SHA: ${{ github.sha }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          python -m scripts.emit_public_calibration_report
+
+      - name: Upload public report artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: calibration-report-public
+          path: |
+            docs/calibration/calibration_report_public.json
+            docs/calibration/calibration_report_public_history.jsonl
+          if-no-files-found: warn
+
+      - name: Commit refreshed public report
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/calibration/calibration_report_public.json \
+                  docs/calibration/calibration_report_public_history.jsonl || true
+          if git diff --staged --quiet; then
+            echo "No changes to commit."
+          else
+            git commit -m "chore(docs): public calibration report ${GITHUB_RUN_ID}"
+            git push
+          fi

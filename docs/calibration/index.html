@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SkippALGO — Public Calibration Dashboard</title>
+  <meta name="description" content="SHA-verifiable calibration evidence for the SkippALGO SMC pipeline. Updated daily.">
+  <style>
+    :root {
+      --bg: #0d1117;
+      --panel: #161b22;
+      --panel-2: #1f2630;
+      --fg: #e6edf3;
+      --muted: #8b949e;
+      --accent: #58a6ff;
+      --good: #3fb950;
+      --warn: #d29922;
+      --bad: #f85149;
+      --grid: #30363d;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; background: var(--bg); color: var(--fg); font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; }
+    .container { max-width: 960px; margin: 0 auto; padding: 32px 20px 64px; }
+    header h1 { font-size: 22px; margin: 0 0 4px; font-weight: 600; }
+    header p { margin: 0; color: var(--muted); font-size: 13px; }
+    header a { color: var(--accent); text-decoration: none; }
+    header a:hover { text-decoration: underline; }
+    .meta-row { display: flex; flex-wrap: wrap; gap: 12px; margin: 16px 0 24px; font-size: 12px; color: var(--muted); }
+    .meta-row code { background: var(--panel-2); padding: 2px 6px; border-radius: 4px; color: var(--fg); font-size: 11px; }
+    .grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); margin-bottom: 24px; }
+    .card { background: var(--panel); border: 1px solid var(--grid); border-radius: 8px; padding: 16px; }
+    .card h2 { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; margin: 0 0 8px; color: var(--muted); font-weight: 500; }
+    .metric { font-size: 24px; font-weight: 600; line-height: 1.2; }
+    .metric.good { color: var(--good); }
+    .metric.warn { color: var(--warn); }
+    .metric.bad { color: var(--bad); }
+    .sub { font-size: 11px; color: var(--muted); margin-top: 4px; }
+    .panel { background: var(--panel); border: 1px solid var(--grid); border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+    .panel h2 { font-size: 14px; margin: 0 0 12px; font-weight: 600; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--grid); }
+    th { color: var(--muted); font-weight: 500; font-size: 11px; text-transform: uppercase; }
+    .placeholder { color: var(--muted); font-style: italic; padding: 16px 0; text-align: center; }
+    svg.spark { width: 100%; height: 60px; display: block; }
+    .spark-row { display: grid; grid-template-columns: 80px 1fr 60px; align-items: center; gap: 8px; padding: 4px 0; font-size: 12px; }
+    .spark-row .label { color: var(--muted); }
+    .spark-row .value { text-align: right; font-variant-numeric: tabular-nums; }
+    footer { color: var(--muted); font-size: 12px; margin-top: 32px; text-align: center; }
+    footer a { color: var(--accent); text-decoration: none; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>SkippALGO Public Calibration Dashboard</h1>
+      <p>SHA-verifiable calibration evidence for the SMC pipeline. Source &amp; methodology: <a href="https://github.com/skippALGO/skipp-algo">github.com/skippALGO/skipp-algo</a>.</p>
+    </header>
+
+    <div class="meta-row" id="meta-row">
+      <span>Loading…</span>
+    </div>
+
+    <div class="grid" id="metric-grid"></div>
+
+    <div class="panel">
+      <h2>Family weights</h2>
+      <table id="weights-table">
+        <thead><tr><th>Family</th><th>Weight</th></tr></thead>
+        <tbody><tr><td colspan="2" class="placeholder">Loading…</td></tr></tbody>
+      </table>
+    </div>
+
+    <div class="panel">
+      <h2>Recent trend</h2>
+      <div id="sparks"><div class="placeholder">Loading…</div></div>
+    </div>
+
+    <footer>
+      Generated daily by <code>scripts/emit_public_calibration_report.py</code>.
+      Schema: <code id="schema-version">—</code>.
+      Raw artifact: <a href="calibration_report_public.json">calibration_report_public.json</a> ·
+      <a href="calibration_report_public_history.jsonl">history.jsonl</a>.
+    </footer>
+  </div>
+
+<script>
+const REPORT_URL = "calibration_report_public.json";
+const HISTORY_URL = "calibration_report_public_history.jsonl";
+
+function fmtNum(v, digits) {
+  if (v === null || v === undefined || Number.isNaN(v)) return "—";
+  return Number(v).toFixed(digits);
+}
+
+function fmtPct(v) {
+  if (v === null || v === undefined || Number.isNaN(v)) return "—";
+  return (v * 100).toFixed(1) + "%";
+}
+
+function classifyMetric(name, v) {
+  if (v === null || v === undefined) return "";
+  // ECE / smECE: lower is better. Plan SLO: ECE ≤ 0.12.
+  if (name === "ece" || name === "smooth_ece" || name === "dce") {
+    if (v <= 0.10) return "good";
+    if (v <= 0.15) return "warn";
+    return "bad";
+  }
+  // Brier: lower is better. Heuristic thresholds.
+  if (name === "brier") {
+    if (v <= 0.20) return "good";
+    if (v <= 0.25) return "warn";
+    return "bad";
+  }
+  // Hit rate: higher is better.
+  if (name === "weighted_hit_rate") {
+    if (v >= 0.65) return "good";
+    if (v >= 0.55) return "warn";
+    return "bad";
+  }
+  return "";
+}
+
+function metricCard(label, value, fmt, name, sub) {
+  const cls = classifyMetric(name, value);
+  const formatted = fmt === "pct" ? fmtPct(value) : fmtNum(value, 4);
+  return `<div class="card">
+    <h2>${label}</h2>
+    <div class="metric ${cls}">${formatted}</div>
+    <div class="sub">${sub || ""}</div>
+  </div>`;
+}
+
+function shortSha(sha) {
+  if (!sha) return "—";
+  return String(sha).slice(0, 7);
+}
+
+function buildSparkline(values, width, height) {
+  const valid = values.filter(v => v !== null && v !== undefined && !Number.isNaN(v));
+  if (valid.length < 2) {
+    return `<svg class="spark" viewBox="0 0 ${width} ${height}"><text x="0" y="${height/2}" fill="#8b949e" font-size="11">Need ≥2 data points</text></svg>`;
+  }
+  const min = Math.min(...valid);
+  const max = Math.max(...valid);
+  const span = (max - min) || 1;
+  const stepX = width / (values.length - 1);
+  const points = values.map((v, i) => {
+    if (v === null || v === undefined || Number.isNaN(v)) return null;
+    const x = i * stepX;
+    const y = height - ((v - min) / span) * height;
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  }).filter(Boolean).join(" ");
+  return `<svg class="spark" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none">
+    <polyline points="${points}" fill="none" stroke="#58a6ff" stroke-width="1.5"/>
+  </svg>`;
+}
+
+function renderSparkRow(label, values, latest, fmt) {
+  const fmtVal = fmt === "pct" ? fmtPct(latest) : fmtNum(latest, 4);
+  return `<div class="spark-row">
+    <div class="label">${label}</div>
+    <div>${buildSparkline(values, 400, 40)}</div>
+    <div class="value">${fmtVal}</div>
+  </div>`;
+}
+
+async function loadHistory() {
+  try {
+    const res = await fetch(HISTORY_URL, { cache: "no-cache" });
+    if (!res.ok) return [];
+    const txt = await res.text();
+    return txt.split("\n").map(line => line.trim()).filter(Boolean).map(line => {
+      try { return JSON.parse(line); } catch (e) { return null; }
+    }).filter(Boolean);
+  } catch (e) {
+    return [];
+  }
+}
+
+async function main() {
+  let report;
+  try {
+    const res = await fetch(REPORT_URL, { cache: "no-cache" });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    report = await res.json();
+  } catch (e) {
+    document.getElementById("meta-row").innerHTML =
+      `<span class="placeholder">Failed to load ${REPORT_URL}: ${e.message}</span>`;
+    return;
+  }
+
+  document.getElementById("schema-version").textContent = report.schema_version || "—";
+
+  const src = report.source || {};
+  document.getElementById("meta-row").innerHTML = `
+    <span>Generated: <code>${report.generated_at || "—"}</code></span>
+    <span>Status: <code>${report.status || "—"}</code></span>
+    <span>Commit: <code>${shortSha(src.commit_sha)}</code></span>
+    <span>Run: <code>${src.workflow_run || "—"}</code></span>
+  `;
+
+  if (report.status !== "ok") {
+    document.getElementById("metric-grid").innerHTML =
+      `<div class="card"><div class="placeholder">No calibration corpus yet. The first scheduled benchmark run will populate this dashboard.</div></div>`;
+    document.querySelector("#weights-table tbody").innerHTML =
+      `<tr><td colspan="2" class="placeholder">—</td></tr>`;
+    document.getElementById("sparks").innerHTML = `<div class="placeholder">—</div>`;
+    return;
+  }
+
+  const m = report.metrics || {};
+  const grid = document.getElementById("metric-grid");
+  grid.innerHTML = [
+    metricCard("Events", report.n_events, "int", "n_events", "labeled corpus size"),
+    metricCard("Hit rate", report.weighted_hit_rate, "pct", "weighted_hit_rate", "weighted across families"),
+    metricCard("smECE", m.smooth_ece, "num", "smooth_ece", "Błasiok-Nakkiran 2023"),
+    metricCard("ECE (n=10)", m.ece, "num", "ece", "binned, legacy"),
+    metricCard("Brier", m.brier, "num", "brier", "lower is better"),
+  ].join("");
+
+  const weights = report.family_weights || {};
+  const wTbody = document.querySelector("#weights-table tbody");
+  const wRows = Object.keys(weights).sort().map(fam =>
+    `<tr><td>${fam}</td><td>${fmtNum(weights[fam], 4)}</td></tr>`
+  ).join("");
+  wTbody.innerHTML = wRows || `<tr><td colspan="2" class="placeholder">No family weights in source.</td></tr>`;
+
+  const history = await loadHistory();
+  const sparksDiv = document.getElementById("sparks");
+  if (history.length < 2) {
+    sparksDiv.innerHTML = `<div class="placeholder">Need ≥2 history entries for trend (currently ${history.length}).</div>`;
+    return;
+  }
+  const eceSeries   = history.map(h => (h.metrics || {}).ece ?? null);
+  const smeceSeries = history.map(h => (h.metrics || {}).smooth_ece ?? null);
+  const brierSeries = history.map(h => (h.metrics || {}).brier ?? null);
+  const hrSeries    = history.map(h => h.weighted_hit_rate ?? null);
+  const last = history[history.length - 1];
+  sparksDiv.innerHTML = [
+    renderSparkRow("Hit rate",  hrSeries,    last.weighted_hit_rate,           "pct"),
+    renderSparkRow("smECE",     smeceSeries, (last.metrics || {}).smooth_ece, "num"),
+    renderSparkRow("ECE",       eceSeries,   (last.metrics || {}).ece,        "num"),
+    renderSparkRow("Brier",     brierSeries, (last.metrics || {}).brier,      "num"),
+  ].join("");
+}
+
+main();
+</script>
+</body>
+</html>
