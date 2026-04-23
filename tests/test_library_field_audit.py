@@ -404,6 +404,15 @@ from scripts.smc_hero_action import (  # noqa: E402
 
 RESERVED_PINE_EXPORTS.update(PINE_HERO_ACTION_FIELDS)
 
+# F-3 (Boundary-Contract Plan 2026-04-23, PR-BC-02) — Pine sentinel
+# constant for degraded per-family HR exports (e.g. ZONE_HR_FVG).
+# Library exports the constant so consumers can write
+# ``mp.ZONE_HR_FVG == mp.HR_SENTINEL_DEGRADED`` instead of hardcoding
+# -1.0. The 14 Pine consumers are bumped from
+# ``import .../smc_micro_profiles_generated/1`` to ``/2`` in a follow-up
+# PR after the next TradingView library re-publish (plan §3.7 step 7).
+RESERVED_PINE_EXPORTS.add("HR_SENTINEL_DEGRADED")
+
 # Phase H Pine consumer maturity is now complete: ZONE_CAL_TRUST and the
 # per-family ZONE_HR_{OB,BOS,SWEEP} were wired into the audit row 12
 # composite warning + trust glyph by issue #16 (c). The follow-up tooltip

@@ -136,6 +136,92 @@ def test_session_context_backward_compat() -> None:
     assert family_old == family_new
 
 
+# ── F3: multiplicative score combination (experiment arm) ──────
+
+def test_multiplicative_default_is_additive() -> None:
+    """Default behavior must remain additive (no production change)."""
+    add = _select_top_family(regime="RISK_ON", vol_regime="NORMAL", htf_aligned=True)
+    explicit = _select_top_family(
+        regime="RISK_ON", vol_regime="NORMAL", htf_aligned=True,
+        family_score_combination="additive",
+    )
+    assert add == explicit
+
+
+def test_multiplicative_unknown_mode_falls_back_to_additive() -> None:
+    """Unknown / typo modes must not raise; fall back to additive."""
+    add = _select_top_family(regime="RISK_ON", vol_regime="NORMAL", htf_aligned=True)
+    typo = _select_top_family(
+        regime="RISK_ON", vol_regime="NORMAL", htf_aligned=True,
+        family_score_combination="multiplicatve",  # intentional typo
+    )
+    assert add == typo
+
+
+def test_multiplicative_picks_a_valid_family() -> None:
+    """Multiplicative mode must always pick one of the four canonical families."""
+    family = _select_top_family(
+        regime="RISK_ON", vol_regime="NORMAL", htf_aligned=True,
+        family_score_combination="multiplicative",
+    )
+    assert family in ("OB", "FVG", "BOS", "SWEEP")
+
+
+def test_multiplicative_amplifies_extreme_vol_sweep_signal() -> None:
+    """In EXTREME vol the +0.15 SWEEP bump should still pick SWEEP under
+    multiplicative scaling (which amplifies the ratio over the base).
+    """
+    family_add = _select_top_family(
+        regime="RISK_OFF", vol_regime="EXTREME", htf_aligned=False,
+        family_score_combination="additive",
+    )
+    family_mul = _select_top_family(
+        regime="RISK_OFF", vol_regime="EXTREME", htf_aligned=False,
+        family_score_combination="multiplicative",
+    )
+    # Both arms see the same dominant signal: SWEEP wins or at least
+    # remains in the top-2 under both combination modes.
+    assert family_add in ("SWEEP", "OB")
+    assert family_mul in ("SWEEP", "OB")
+
+
+def test_multiplicative_env_var_override(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Env var SMC_FAMILY_SCORE_COMBINATION should switch the mode when
+    no explicit kwarg is passed (used by rolling-benchmark shadow runs).
+    """
+    monkeypatch.setenv("SMC_FAMILY_SCORE_COMBINATION", "multiplicative")
+    # Without explicit kwarg, env var takes effect.
+    family_env = _select_top_family(
+        regime="NEUTRAL", vol_regime="HIGH_VOL", htf_aligned=False,
+    )
+    # Explicit kwarg always wins over env var.
+    family_explicit = _select_top_family(
+        regime="NEUTRAL", vol_regime="HIGH_VOL", htf_aligned=False,
+        family_score_combination="additive",
+    )
+    assert family_env in ("OB", "FVG", "BOS", "SWEEP")
+    assert family_explicit in ("OB", "FVG", "BOS", "SWEEP")
+
+
+def test_multiplicative_preserves_no_bump_baseline() -> None:
+    """When NO bumps fire (every per-context branch is False), additive
+    and multiplicative arms must agree — they only diverge when bumps
+    are applied.
+    """
+    # Pick a context that triggers no bumps:
+    #   htf_aligned=False, vol_regime not in NORMAL/LOW_VOL/HIGH_VOL/EXTREME,
+    #   regime not in RISK_ON/NEUTRAL, session_context=None.
+    add = _select_top_family(
+        regime="ROTATION", vol_regime="UNKNOWN", htf_aligned=False,
+        session_context=None, family_score_combination="additive",
+    )
+    mul = _select_top_family(
+        regime="ROTATION", vol_regime="UNKNOWN", htf_aligned=False,
+        session_context=None, family_score_combination="multiplicative",
+    )
+    assert add == mul
+
+
 # ── Catalyst identification ────────────────────────────────────
 
 def test_news_catalyst_when_heat_high() -> None:

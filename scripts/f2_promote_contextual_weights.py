@@ -120,6 +120,21 @@ def promote_contextual_weights(
     if not isinstance(report, dict):
         raise ValueError(f"report {report_path} must contain a JSON object")
 
+    # Spec-status guard (audit C1/C2/C3 follow-up). The `--force` switch
+    # may bypass a non-promote *report* decision (e.g. operator override
+    # during a known transient SPRT noise event), but it MUST NOT bypass
+    # the spec-status gate: while `status != "live"`, the statistical
+    # apparatus is known-broken and any "promote" outcome is meaningless.
+    spec_status = spec.get("status", "registered")
+    if spec_status != "live":
+        raise ValueError(
+            f"refusing to promote: spec.status={spec_status!r} "
+            "(expected 'live'). Promote pathway is gated until the "
+            "frozen treatment artifact (PR #43) and paired Brier-SPRT "
+            "with cross-day state (PR #44) land. See "
+            "docs/f2_contextual_promotion_decision_2026-04-21.md."
+        )
+
     decision = report.get("decision")
     if decision != "promote" and not force:
         raise ValueError(

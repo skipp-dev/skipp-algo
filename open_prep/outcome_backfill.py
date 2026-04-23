@@ -450,7 +450,16 @@ def main(argv: list[str] | None = None) -> int:
         )
         print(f"Run log: {log_path}")
 
-    if int(summary.get("failed") or 0) > 0:
+    # Exit non-zero only when the backfill made no progress at all
+    # (resolved == 0 AND failed > 0). Per-symbol "failed" counts are
+    # normal and expected — they capture data gaps for delisted /
+    # halted / missing-bar-data symbols and would otherwise turn the
+    # workflow permanently red on any single legacy bad row. The exact
+    # counts are still preserved in the JSON run log for inspection
+    # and the FI report's `insufficient_labels` state.
+    resolved = int(summary.get("resolved") or 0)
+    failed = int(summary.get("failed") or 0)
+    if resolved == 0 and failed > 0:
         return 2
     return 0
 

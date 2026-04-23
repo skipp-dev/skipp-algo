@@ -1,0 +1,70 @@
+name: fvg-context-pine-refresh
+
+# Q3/Q4 plan §D2: refresh `pine/generated/fvg_context_health.pine` from
+# the latest event ledgers so the SMC_Dashboard FVG Status row can
+# render per-context (session × vol_regime) hit-rate cells.
+
+on:
+  schedule:
+    # 05:15 UTC weekdays — runs after the rolling benchmark settles.
+    - cron: "15 5 * * 1-5"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: fvg-context-pine-refresh
+  cancel-in-progress: false
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+jobs:
+  emit-pine-snippet:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install minimal deps
+        # The emitter depends on smc_core (already in repo) and stdlib only.
+        run: python -m pip install --upgrade pip
+
+      - name: Emit FVG context Pine snippet
+        env:
+          GITHUB_SHA: ${{ github.sha }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          python -m scripts.emit_fvg_context_pine
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: fvg-context-pine
+          path: |
+            pine/generated/fvg_context_health.pine
+            pine/generated/fvg_context_health.json
+          if-no-files-found: warn
+
+      - name: Commit refreshed snippet
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add pine/generated/fvg_context_health.pine \
+                  pine/generated/fvg_context_health.json || true
+          if git diff --staged --quiet; then
+            echo "No changes to commit."
+          else
+            git commit -m "chore(pine): FVG context health snapshot ${GITHUB_RUN_ID}"
+            git push
+          fi

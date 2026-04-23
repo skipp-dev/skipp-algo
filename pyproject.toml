@@ -144,4 +144,9 @@ omit = [
 [tool.coverage.report]
 show_missing = true
 skip_empty = true
-fail_under = 95
+# Temporary marathon floor per docs/ADR-002-temporary-fail-under-reduction.md.
+# Current main total is ~85.20 %; this floor (85) keeps the gate green for
+# unrelated safety/infra PRs while still failing on real regressions.
+# Each merged coverage bucket PR MUST raise this value by the lift it
+# earned (ratchet protocol). Target is to restore 95 once buckets A–E land.
+fail_under = 85

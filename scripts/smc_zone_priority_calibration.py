@@ -19,8 +19,10 @@ Usage
 
 from __future__ import annotations
 
+import hashlib
 import json
 import math
+import subprocess
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -288,9 +290,19 @@ def render_calibration_report(cal: CalibrationResult) -> str:
     return "\n".join(lines)
 
 
-def to_json(cal: CalibrationResult) -> dict[str, Any]:
-    """Serialize the calibration result for persistence."""
-    return {
+def to_json(
+    cal: CalibrationResult,
+    *,
+    frozen_provenance: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Serialize the calibration result for persistence.
+
+    When ``frozen_provenance`` is supplied, it is attached under the
+    ``frozen_provenance`` key. The block is purely additive metadata —
+    no existing consumer reads it, but it makes the artifact
+    self-auditable (corpus hash, source commit, generation time, etc.).
+    """
+    payload: dict[str, Any] = {
         "family_weights": cal.family_weights,
         "rank_thresholds": cal.rank_thresholds,
         "family_stats": cal.family_stats,
@@ -298,6 +310,9 @@ def to_json(cal: CalibrationResult) -> dict[str, Any]:
         "total_pairs": cal.total_pairs,
         "source_dir": cal.source_dir,
     }
+    if frozen_provenance is not None:
+        payload["frozen_provenance"] = frozen_provenance
+    return payload
 
 
 # ── H3: Calibration history feed ────────────────────────────────
@@ -782,15 +797,27 @@ def check_contextual_promotion(
     return summaries
 
 
-def contextual_to_json(ctx_cal: ContextualCalibrationResult) -> dict[str, Any]:
-    """Serialize contextual calibration for persistence."""
-    return {
+def contextual_to_json(
+    ctx_cal: ContextualCalibrationResult,
+    *,
+    frozen_provenance: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Serialize contextual calibration for persistence.
+
+    When ``frozen_provenance`` is supplied, it is attached under the
+    ``frozen_provenance`` key (purely additive metadata; consumers do
+    not read it).
+    """
+    payload: dict[str, Any] = {
         "contextual_weights": ctx_cal.contextual_weights,
         "promoted_buckets": ctx_cal.promoted_buckets,
         "global_weights": ctx_cal.global_weights,
         "bucket_stats": ctx_cal.bucket_stats,
         "min_bucket_events": ctx_cal.min_bucket_events,
     }
+    if frozen_provenance is not None:
+        payload["frozen_provenance"] = frozen_provenance
+    return payload
 
 
 def resolve_contextual_weight(
@@ -855,6 +882,101 @@ def check_drift(
     return violations
 
 
+# ── F2 frozen-artifact provenance (PR #43) ───────────────────────
+
+
+def _sha256_of_file(path: Path) -> str:
+    """Return the hex-encoded SHA-256 digest of a file's contents."""
+    h = hashlib.sha256()
+    with path.open("rb") as f:
+        for chunk in iter(lambda: f.read(65536), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def _git_rev(repo_root: Path) -> str | None:
+    """Return the current git HEAD commit SHA, or ``None`` if unavailable."""
+    try:
+        out = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=repo_root,
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=5,
+        )
+    except (subprocess.SubprocessError, FileNotFoundError, OSError):
+        return None
+    sha = out.stdout.strip()
+    return sha or None
+
+
+def build_frozen_provenance(
+    *,
+    benchmark_dir: Path,
+    status: str,
+    frozen_at: str,
+    smoothing: float,
+    min_events_per_bucket: int,
+    corpus_manifest_hash: str | None = None,
+    generator_script_path: Path | None = None,
+    repo_root: Path | None = None,
+    n_events: int | None = None,
+    max_event_timestamp_utc: str | None = None,
+) -> dict[str, Any]:
+    """Build the ``frozen_provenance`` block written into both calibration JSONs.
+
+    The block is self-auditable: an operator can re-derive the same
+    artifact by checking out ``source_commit`` and running the script
+    against a corpus whose ``benchmark_run_manifest.json`` SHA-256
+    matches ``benchmark_manifest_sha256``.
+
+    All fields except ``benchmark_dir``, ``status``, ``frozen_at``,
+    ``smoothing`` and ``min_events_per_bucket`` are best-effort:
+    missing values are recorded as ``None`` rather than raising.
+    """
+    if status not in {"shadow", "production"}:
+        raise ValueError(
+            f"frozen status must be 'shadow' or 'production', got {status!r}"
+        )
+
+    manifest_path = benchmark_dir / "benchmark_run_manifest.json"
+    manifest_sha = corpus_manifest_hash
+    if manifest_sha is None and manifest_path.is_file():
+        manifest_sha = _sha256_of_file(manifest_path)
+
+    script_sha: str | None = None
+    if generator_script_path is None:
+        generator_script_path = Path(__file__).resolve()
+    if generator_script_path.is_file():
+        script_sha = _sha256_of_file(generator_script_path)
+
+    if repo_root is None:
+        repo_root = Path(__file__).resolve().parent.parent
+    source_commit = _git_rev(repo_root)
+
+    return {
+        "frozen": True,
+        "status": status,
+        "frozen_at": frozen_at,
+        "generated_at": datetime.now(UTC).isoformat(timespec="seconds"),
+        "benchmark_dir": str(benchmark_dir),
+        "benchmark_corpus_ephemeral": True,
+        "benchmark_manifest_sha256": manifest_sha,
+        "n_events": n_events,
+        "max_event_timestamp_utc": max_event_timestamp_utc,
+        "source_commit": source_commit,
+        "generator_script_path": str(generator_script_path.name),
+        "generator_script_sha256": script_sha,
+        "smoothing": smoothing,
+        "min_events_per_bucket": min_events_per_bucket,
+        "regeneration_instructions": (
+            "docs/f2_contextual_promotion_decision_2026-04-21.md"
+            "#regeneration-recipe"
+        ),
+    }
+
+
 def main(argv: list[str] | None = None) -> None:
     import argparse
 
@@ -877,16 +999,79 @@ def main(argv: list[str] | None = None) -> None:
         default=None,
         help="Fail with exit code 1 if any family weight drifts more than MAX_DRIFT from prior",
     )
+
+    # ── F2 frozen-artifact controls (PR #43) ────────────────────
+    parser.add_argument(
+        "--frozen",
+        action="store_true",
+        help=(
+            "Mark this run as producing a frozen calibration artifact; "
+            "writes a `frozen_provenance` block into both JSON outputs."
+        ),
+    )
+    parser.add_argument(
+        "--frozen-at",
+        type=str,
+        default=None,
+        metavar="ISO_TIMESTAMP",
+        help=(
+            "UTC timestamp recorded in `frozen_provenance.frozen_at`. "
+            "Defaults to the current UTC time when --frozen is set."
+        ),
+    )
+    parser.add_argument(
+        "--status",
+        choices=("shadow", "production"),
+        default="shadow",
+        help=(
+            "Lifecycle stage recorded in `frozen_provenance.status` "
+            "(default: shadow). Only meaningful with --frozen."
+        ),
+    )
+    parser.add_argument(
+        "--contextual-output-path",
+        type=Path,
+        default=None,
+        metavar="PATH",
+        help=(
+            "Override the contextual sibling output path. "
+            "Defaults to `<output-path>/../zone_priority_contextual_calibration.json`."
+        ),
+    )
+    parser.add_argument(
+        "--corpus-manifest-hash",
+        type=str,
+        default=None,
+        metavar="SHA256",
+        help=(
+            "Pre-computed SHA-256 of the benchmark `benchmark_run_manifest.json`. "
+            "If omitted and --frozen is set, the hash is computed from disk."
+        ),
+    )
     args = parser.parse_args(argv)
 
     cal = calibrate_from_benchmark(args.benchmark_dir, smoothing=args.smoothing)
+
+    # ── F2 frozen-artifact provenance (PR #43) ───────────────────
+    frozen_provenance: dict[str, Any] | None = None
+    if args.frozen:
+        frozen_at = args.frozen_at or datetime.now(UTC).isoformat(timespec="seconds")
+        frozen_provenance = build_frozen_provenance(
+            benchmark_dir=args.benchmark_dir,
+            status=args.status,
+            frozen_at=frozen_at,
+            smoothing=args.smoothing,
+            min_events_per_bucket=_MIN_BUCKET_EVENTS,
+            corpus_manifest_hash=args.corpus_manifest_hash,
+            n_events=cal.total_events or None,
+        )
 
     # F1: testable calibration (smECE alongside binned ECE) on the corpus.
     testable = compute_testable_calibration(args.benchmark_dir)
 
     # Write JSON
     args.output_path.parent.mkdir(parents=True, exist_ok=True)
-    payload = to_json(cal)
+    payload = to_json(cal, frozen_provenance=frozen_provenance)
     if testable:
         payload["testable_calibration"] = testable
     args.output_path.write_text(
@@ -928,9 +1113,17 @@ def main(argv: list[str] | None = None) -> None:
     ctx_cal = calibrate_contextual_weights(
         bucket_stats, cal.family_weights, smoothing=args.smoothing,
     )
-    ctx_path = args.output_path.with_name("zone_priority_contextual_calibration.json")
+    if args.contextual_output_path is not None:
+        ctx_path = args.contextual_output_path
+        ctx_path.parent.mkdir(parents=True, exist_ok=True)
+    else:
+        ctx_path = args.output_path.with_name("zone_priority_contextual_calibration.json")
     ctx_path.write_text(
-        json.dumps(contextual_to_json(ctx_cal), indent=2) + "\n", encoding="utf-8"
+        json.dumps(
+            contextual_to_json(ctx_cal, frozen_provenance=frozen_provenance),
+            indent=2,
+        ) + "\n",
+        encoding="utf-8",
     )
     print(f"\nContextual calibration written to {ctx_path}")
 

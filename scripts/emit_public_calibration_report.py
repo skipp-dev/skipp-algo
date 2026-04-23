@@ -1,0 +1,361 @@
+"""Emit the daily public calibration report (Q3/Q4 plan §3.1.1).
+
+This is the SHA-verifiable, redacted-for-public-consumption snapshot that
+backs the GitHub-Pages dashboard at ``docs/calibration/index.html``.
+
+Inputs (best-effort, all optional):
+* ``--input-cal PATH`` — a ``zone_priority_calibration.json`` (or
+  ``zone_priority_contextual_calibration.json``) artifact emitted by
+  the rolling benchmark. When omitted, the latest matching artifact
+  under ``artifacts/reports/`` is used; if none is present, the
+  emitted report carries ``status: "awaiting_first_run"`` rather
+  than failing — so the workflow stays green on a clean checkout.
+* ``--history PATH`` — alternate history JSONL location. Defaults to
+  the sibling of the calibration source (matching
+  :func:`scripts.smc_zone_priority_calibration.append_history_entry`).
+* ``--output PATH`` — where to write the public artifact. Defaults to
+  ``docs/calibration/calibration_report_public.json``.
+
+Outputs:
+* The public JSON, with the schema documented in :data:`PUBLIC_SCHEMA_VERSION`.
+* A sibling ``calibration_report_public_history.jsonl`` capped at
+  ``HISTORY_RETENTION`` entries so the dashboard sparkline stays bounded.
+
+The public artifact is intentionally a **subset** of the internal
+calibration artifact: per-symbol breakdowns, raw event counts per
+context, and benchmark-source paths are stripped. What remains is the
+calibration evidence a reviewer needs to verify the headline claims:
+
+* Corpus size (``n_events``)
+* Family weights (``family_weights``)
+* Calibration metrics (``ece``, ``smooth_ece``, ``brier``)
+* Weighted hit rate (``weighted_hit_rate``)
+* Source identifier (``source_commit_sha``, ``source_workflow_run``)
+* Schema version + emission timestamp.
+
+The trailing history JSONL feeds the dashboard's ECE / Brier / HR
+sparkline.
+
+Exit codes:
+* 0 — public artifact written (even if input was missing)
+* 1 — fatal error (cannot write output, malformed --input-cal JSON)
+
+Usage::
+
+    python -m scripts.emit_public_calibration_report
+    python -m scripts.emit_public_calibration_report \\
+        --input-cal artifacts/reports/zone_priority_calibration.json
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import sys
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import Any
+
+PUBLIC_SCHEMA_VERSION = "1.0.0"
+HISTORY_RETENTION = 90  # ~3 months at one entry per day
+DEFAULT_OUTPUT = Path("docs/calibration/calibration_report_public.json")
+DEFAULT_HISTORY_FILENAME = "calibration_report_public_history.jsonl"
+DEFAULT_SEARCH_DIR = Path("artifacts/reports")
+_CAL_FILENAME_CANDIDATES = (
+    "zone_priority_contextual_calibration.json",
+    "zone_priority_calibration.json",
+)
+
+
+def _find_latest_calibration_artifact(search_dir: Path) -> Path | None:
+    """Return the most recently modified known calibration artifact.
+
+    Prefers the contextual variant (richer schema). Returns ``None``
+    when neither is present so the caller can emit an
+    ``awaiting_first_run`` report instead of failing.
+    """
+    if not search_dir.is_dir():
+        return None
+    candidates: list[Path] = []
+    for name in _CAL_FILENAME_CANDIDATES:
+        candidates.extend(search_dir.rglob(name))
+    if not candidates:
+        return None
+    return max(candidates, key=lambda p: p.stat().st_mtime)
+
+
+def _coerce_float(val: Any) -> float | None:
+    """Best-effort float coercion that drops None / NaN / non-numeric."""
+    if val is None:
+        return None
+    try:
+        f = float(val)
+    except (TypeError, ValueError):
+        return None
+    if f != f:  # NaN
+        return None
+    return f
+
+
+def _extract_weighted_hit_rate(payload: dict[str, Any]) -> float | None:
+    """Pull the corpus-level weighted hit rate from ``family_stats`` (if any).
+
+    Mirrors :func:`scripts.smc_zone_priority_calibration.append_history_entry`
+    so the headline figure on the dashboard matches the trend feed.
+    """
+    family_stats = payload.get("family_stats") or {}
+    total_events = 0
+    total_hits = 0
+    for fam_stats in family_stats.values():
+        if not isinstance(fam_stats, dict):
+            continue
+        try:
+            n = int(fam_stats.get("total_events") or 0)
+            h = int(fam_stats.get("total_hits") or 0)
+        except (TypeError, ValueError):
+            continue
+        if n > 0:
+            total_events += n
+            total_hits += h
+    if total_events <= 0:
+        return None
+    return round(total_hits / total_events, 6)
+
+
+def _extract_calibration_metrics(payload: dict[str, Any]) -> dict[str, float]:
+    """Pull ECE / smECE / Brier / dCE from the testable_calibration block."""
+    testable = payload.get("testable_calibration") or {}
+    metrics: dict[str, float] = {}
+    for src_key, dest_key in (
+        ("ece_binned_n10", "ece"),
+        ("smooth_ece", "smooth_ece"),
+        ("dce_upper_bound", "dce"),
+        ("brier", "brier"),
+        ("positive_rate", "positive_rate"),
+    ):
+        v = _coerce_float(testable.get(src_key))
+        if v is not None:
+            metrics[dest_key] = round(v, 6)
+    # Fall back to top-level brier / ece if present (older artifacts).
+    for src_key, dest_key in (("brier_score", "brier"), ("ece", "ece")):
+        if dest_key not in metrics:
+            v = _coerce_float(payload.get(src_key))
+            if v is not None:
+                metrics[dest_key] = round(v, 6)
+    return metrics
+
+
+def _extract_n_events(payload: dict[str, Any]) -> int | None:
+    """Prefer ``testable_calibration.n_events``; fall back to family-stats sum."""
+    testable = payload.get("testable_calibration") or {}
+    try:
+        n = int(testable.get("n_events") or 0)
+        if n > 0:
+            return n
+    except (TypeError, ValueError):
+        pass
+    family_stats = payload.get("family_stats") or {}
+    total = 0
+    for fam_stats in family_stats.values():
+        if not isinstance(fam_stats, dict):
+            continue
+        try:
+            total += int(fam_stats.get("total_events") or 0)
+        except (TypeError, ValueError):
+            continue
+    return total or None
+
+
+def build_public_report(
+    cal_payload: dict[str, Any] | None,
+    *,
+    source_path: Path | None,
+    source_commit_sha: str | None,
+    source_workflow_run: str | None,
+) -> dict[str, Any]:
+    """Construct the public-report dict from a calibration artifact.
+
+    A ``None`` payload yields a status=``awaiting_first_run`` shell so the
+    dashboard can render a useful "no data yet" panel instead of a 404.
+    """
+    now = datetime.now(UTC).isoformat()
+    if cal_payload is None:
+        return {
+            "schema_version": PUBLIC_SCHEMA_VERSION,
+            "generated_at": now,
+            "status": "awaiting_first_run",
+            "source": {
+                "path": None,
+                "commit_sha": source_commit_sha,
+                "workflow_run": source_workflow_run,
+            },
+        }
+
+    metrics = _extract_calibration_metrics(cal_payload)
+    n_events = _extract_n_events(cal_payload)
+    weighted_hr = _extract_weighted_hit_rate(cal_payload)
+    family_weights_raw = cal_payload.get("family_weights") or {}
+    family_weights: dict[str, float] = {}
+    for fam, w in family_weights_raw.items():
+        v = _coerce_float(w)
+        if v is not None:
+            family_weights[str(fam)] = round(v, 6)
+
+    return {
+        "schema_version": PUBLIC_SCHEMA_VERSION,
+        "generated_at": now,
+        "status": "ok",
+        "n_events": n_events,
+        "weighted_hit_rate": weighted_hr,
+        "family_weights": family_weights,
+        "metrics": metrics,
+        "source": {
+            "path": str(source_path) if source_path else None,
+            "commit_sha": source_commit_sha,
+            "workflow_run": source_workflow_run,
+        },
+    }
+
+
+def append_public_history(
+    output_path: Path,
+    report: dict[str, Any],
+    *,
+    history_filename: str = DEFAULT_HISTORY_FILENAME,
+    retention: int = HISTORY_RETENTION,
+) -> Path:
+    """Append a compact history line for the dashboard sparkline.
+
+    Skips the append silently when ``status != "ok"`` so the
+    ``awaiting_first_run`` placeholder doesn't dilute the trend feed.
+    Truncates to ``retention`` entries when needed.
+    """
+    history_path = output_path.with_name(history_filename)
+    if report.get("status") != "ok":
+        # Make sure the file at least exists for the dashboard fetch.
+        history_path.parent.mkdir(parents=True, exist_ok=True)
+        if not history_path.exists():
+            history_path.write_text("", encoding="utf-8")
+        return history_path
+
+    entry = {
+        "timestamp": report.get("generated_at"),
+        "n_events": report.get("n_events"),
+        "weighted_hit_rate": report.get("weighted_hit_rate"),
+        "metrics": report.get("metrics") or {},
+        "source_commit_sha": (report.get("source") or {}).get("commit_sha"),
+    }
+
+    history_path.parent.mkdir(parents=True, exist_ok=True)
+    existing: list[dict[str, Any]] = []
+    if history_path.exists():
+        for line in history_path.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                existing.append(json.loads(line))
+            except json.JSONDecodeError:
+                continue
+
+    existing.append(entry)
+    if len(existing) > retention:
+        existing = existing[-retention:]
+
+    history_path.write_text(
+        "\n".join(json.dumps(e, sort_keys=True) for e in existing) + "\n",
+        encoding="utf-8",
+    )
+    return history_path
+
+
+def write_report(report: dict[str, Any], output_path: Path) -> None:
+    """Atomically write the public report JSON."""
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path = output_path.with_suffix(output_path.suffix + ".tmp")
+    tmp_path.write_text(
+        json.dumps(report, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    tmp_path.replace(output_path)
+
+
+def _parse_args(argv: list[str] | None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Emit the public calibration report (Q3/Q4 §3.1.1).",
+    )
+    parser.add_argument(
+        "--input-cal",
+        type=Path,
+        default=None,
+        help="Path to a zone_priority(_contextual)_calibration.json. "
+             "When omitted, the latest matching file under "
+             f"{DEFAULT_SEARCH_DIR}/ is used.",
+    )
+    parser.add_argument(
+        "--search-dir",
+        type=Path,
+        default=DEFAULT_SEARCH_DIR,
+        help=f"Directory to scan when --input-cal is omitted (default: {DEFAULT_SEARCH_DIR}).",
+    )
+    parser.add_argument(
+        "--output",
+        type=Path,
+        default=DEFAULT_OUTPUT,
+        help=f"Destination for the public JSON (default: {DEFAULT_OUTPUT}).",
+    )
+    parser.add_argument(
+        "--commit-sha",
+        default=os.environ.get("GITHUB_SHA"),
+        help="Source commit SHA (default: $GITHUB_SHA).",
+    )
+    parser.add_argument(
+        "--workflow-run",
+        default=os.environ.get("GITHUB_RUN_ID"),
+        help="Source workflow run id (default: $GITHUB_RUN_ID).",
+    )
+    return parser.parse_args(argv)
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = _parse_args(argv)
+
+    cal_path: Path | None = args.input_cal
+    if cal_path is None:
+        cal_path = _find_latest_calibration_artifact(args.search_dir)
+
+    cal_payload: dict[str, Any] | None = None
+    if cal_path is not None:
+        try:
+            cal_payload = json.loads(cal_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as exc:
+            print(f"ERROR: malformed calibration JSON at {cal_path}: {exc}", file=sys.stderr)
+            return 1
+        except OSError as exc:
+            print(f"ERROR: cannot read calibration source {cal_path}: {exc}", file=sys.stderr)
+            return 1
+
+    report = build_public_report(
+        cal_payload,
+        source_path=cal_path,
+        source_commit_sha=args.commit_sha,
+        source_workflow_run=args.workflow_run,
+    )
+
+    try:
+        write_report(report, args.output)
+    except OSError as exc:
+        print(f"ERROR: cannot write public report to {args.output}: {exc}", file=sys.stderr)
+        return 1
+
+    history_path = append_public_history(args.output, report)
+
+    print(
+        f"Public calibration report: status={report['status']} "
+        f"output={args.output} history={history_path}"
+    )
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

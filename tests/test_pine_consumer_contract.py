@@ -859,15 +859,22 @@ class TestV55DriftGuard:
 
 
 class TestV55bContractSync:
-    """Ensure repo docs, generator, and manifest stay aligned at v5.5b."""
+    """Ensure repo docs, generator, and manifest stay aligned at v5.5c.
 
-    def test_manifest_field_version_is_v55b(self):
+    v5.5c (F-3, Boundary-Contract Plan 2026-04-23) additively exports
+    ``HR_SENTINEL_DEGRADED`` so Pine consumers can reference the sentinel
+    by symbol instead of hardcoding ``-1.0``. The lean-contract principles
+    (Signal Quality Primacy, No Shadow Logic, etc.) are unchanged, so
+    ``docs/v5_5_lean_contract.md`` continues to describe the surface.
+    """
+
+    def test_manifest_field_version_is_v55c(self):
         import json
         manifest = json.loads(
             (ROOT / "pine/generated/smc_micro_profiles_generated.json").read_text()
         )
-        assert manifest["library_field_version"] == "v5.5b", (
-            f"Manifest library_field_version should be v5.5b, got {manifest['library_field_version']}"
+        assert manifest["library_field_version"] == "v5.5c", (
+            f"Manifest library_field_version should be v5.5c, got {manifest['library_field_version']}"
         )
 
     def test_contract_doc_references_v55b(self):

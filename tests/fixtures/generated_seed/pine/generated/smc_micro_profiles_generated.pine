@@ -108,7 +108,7 @@ export const string ACTION_DEGRADATION_REASON = ""
 export const string ACTION_DEGRADATION_DERIVED_FROM = "healthy"
 
 // ── Hero Market Mode (ENG-WS3-03) ──
-export const string HERO_MARKET_REGIME = "neutral"
+export const string HERO_MARKET_REGIME = "NEUTRAL"
 export const string HERO_MARKET_BIAS = "neutral"
 export const string HERO_MARKET_SESSION = "unknown"
 export const string HERO_MARKET_TRUST = "trusted"
@@ -305,10 +305,11 @@ export const float ZONE_CAL_BOS_HIGH_VOL = 0.8100
 export const float ZONE_CAL_SWEEP_HIGH_VOL = 0.7300
 
 // ── Pine Consumer Maturity (Phase H) ──
+export const float HR_SENTINEL_DEGRADED = -1.0000
 export const float ZONE_CAL_CONFIDENCE = 0.0000
-export const float ZONE_HR_OB = 0.0000
-export const float ZONE_HR_FVG = 0.0000
-export const float ZONE_HR_BOS = 0.0000
-export const float ZONE_HR_SWEEP = 0.0000
+export const float ZONE_HR_OB = -1.0000
+export const float ZONE_HR_FVG = -1.0000
+export const float ZONE_HR_BOS = -1.0000
+export const float ZONE_HR_SWEEP = -1.0000
 export const string ZONE_CAL_TREND = "STABLE"
 export const string ZONE_CAL_TRUST = "UNAVAILABLE"

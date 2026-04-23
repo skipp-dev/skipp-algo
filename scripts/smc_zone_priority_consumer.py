@@ -23,16 +23,41 @@ from typing import Any
 
 # Public surface --------------------------------------------------
 
-# Trust-state vocabulary shared with the Pine consumer. ``FRESH`` is
-# the happy path; ``DEGRADED`` flags "calibrated but low-confidence"
-# (sub-saturation sample or elevated smECE) and instructs Pine to
-# treat per-family hit rates as unrenderable. ``STALE`` /
-# ``UNAVAILABLE`` are reserved for the WS2 freshness refactor and
-# currently only emitted on missing inputs.
-TRUST_FRESH: str = "FRESH"
-TRUST_DEGRADED: str = "DEGRADED"
-TRUST_STALE: str = "STALE"
-TRUST_UNAVAILABLE: str = "UNAVAILABLE"
+# Trust-state vocabulary shared with the Pine consumer
+# (``SMC_Dashboard.pine::zone_cal_trust_glyph``). The Pine side is the
+# canonical UI surface and its glyph map is authoritative:
+#   "OK"          -> 🔒 (healthy, fully trusted)
+#   "DEGRADED"    -> ⚠ (calibrated but low-confidence / smECE drift)
+#   "STALE"       -> ⏱ (reserved for WS2 freshness refactor)
+#   "UNAVAILABLE" -> ❔ (no calibration data or confidence ≤ 0)
+#
+# Python-side constants are written against this Pine-boundary vocab
+# so the export value and the dashboard glyph always agree. Renaming
+# ``TRUST_FRESH`` from "FRESH" → "OK" fixes a silent vocab-mismatch
+# that caused the dashboard glyph to fall back to "?" despite a
+# healthy corpus (see ADR 2026-04-23 — OB-Export-Degradierung).
+#
+# Pine-boundary contract — DO NOT rename these values without
+# updating SMC_Dashboard.pine:1429-1434 in the same PR *and*
+# bumping ``library_field_version``. Boundary-literal pins live in
+# ``tests/test_pine_boundary_literals.py`` (F-7).
+TRUST_FRESH: str = "OK"            # pinned: SMC_Dashboard.pine:1434
+TRUST_DEGRADED: str = "DEGRADED"   # pinned: SMC_Dashboard.pine:1434
+TRUST_STALE: str = "STALE"         # reserved WS2 — not yet in Pine glyph
+TRUST_UNAVAILABLE: str = "UNAVAILABLE"  # pinned: SMC_Dashboard.pine:1434
+
+# Calibration-trend vocabulary — emitted on ``ZONE_CAL_TREND`` and
+# consumed by ``SMC_Dashboard.pine:1440`` via plain text concatenation
+# (no literal gate on the Pine side). Keep frozen; adding a token
+# here requires a Pine-side glyph/color branch first, otherwise the
+# new string leaks silently into the tooltip (F-11). Value-space pin
+# lives in ``tests/test_smc_zone_priority_consumer.py``.
+TREND_IMPROVING: str = "IMPROVING"
+TREND_STABLE: str = "STABLE"
+TREND_DEGRADING: str = "DEGRADING"
+TREND_VOCAB: frozenset[str] = frozenset(
+    {TREND_IMPROVING, TREND_STABLE, TREND_DEGRADING}
+)
 
 # Sentinel propagated to Pine when confidence gating suppresses a
 # family hit rate. ``-1.0`` is unambiguously outside the valid
@@ -248,15 +273,28 @@ def degrade_family_hit_rates(
     hit_rates: dict[str, float],
     trust_state: str,
 ) -> dict[str, float]:
-    """Replace family HRs with :data:`HR_SENTINEL_DEGRADED` when the
-    trust state is ``DEGRADED`` (data exists but is not trustworthy).
+    """Replace family HRs with :data:`HR_SENTINEL_DEGRADED` for all
+    non-``FRESH`` trust states except ``STALE`` (ADR 2026-04-23).
 
-    ``FRESH`` and ``UNAVAILABLE`` are passed through: ``FRESH`` is the
-    happy path, and ``UNAVAILABLE`` means "no calibration data" — the
-    upstream defaults already carry neutral ``0.0`` values that Pine
-    consumers guard with ``zone_hr_<fam> <= 0.0``.
+    Degradation matrix:
+
+    * ``TRUST_FRESH`` ("OK") — passthrough; healthy corpus.
+    * ``TRUST_DEGRADED``     — sentinel ``-1.0``; sub-saturation /
+      smECE drift.
+    * ``TRUST_STALE``        — passthrough; reserved for the WS2
+      freshness refactor and treated as advisory-only (data is
+      still considered valid, the consumer surface flags it).
+    * ``TRUST_UNAVAILABLE``  — sentinel ``-1.0``; no calibration
+      signal. Stricter than the previous passthrough behaviour to
+      prevent leaks when callers supply ``family_stats`` without
+      ``total_events`` (the 2026-04-22 symptom: 258-event smoke
+      leaked ``ZONE_HR_OB=0.8636`` while trust was UNAVAILABLE).
+
+    The ``-1.0`` sentinel is unambiguously outside the valid HR
+    range; existing Pine consumer guards (``mp.ZONE_HR_FVG <= 0.0``
+    in ``SMC_Dashboard.pine``) treat it as "no renderable value".
     """
-    if trust_state == TRUST_DEGRADED:
+    if trust_state in (TRUST_DEGRADED, TRUST_UNAVAILABLE):
         return {key: HR_SENTINEL_DEGRADED for key in hit_rates}
     return dict(hit_rates)
 

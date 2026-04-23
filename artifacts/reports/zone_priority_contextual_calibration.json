@@ -1,0 +1,339 @@
+{
+  "contextual_weights": {
+    "htf_bias": {
+      "BEARISH": {
+        "OB": 0.4083,
+        "FVG": 0.565,
+        "BOS": 0.837,
+        "SWEEP": 0.6567
+      },
+      "BULLISH": {
+        "OB": 0.4001,
+        "FVG": 0.5626,
+        "BOS": 0.8753,
+        "SWEEP": 0.6726
+      }
+    },
+    "session": {
+      "ASIA": {
+        "OB": 0.4782,
+        "FVG": 0.582,
+        "BOS": 0.8488,
+        "SWEEP": 0.6799
+      },
+      "LONDON": {
+        "OB": 0.4007,
+        "FVG": 0.6232,
+        "BOS": 0.8182,
+        "SWEEP": 0.596
+      },
+      "NY_AM": {
+        "OB": 0.4041,
+        "FVG": 0.5112,
+        "BOS": 0.8854,
+        "SWEEP": 0.6752
+      }
+    },
+    "vol_regime": {
+      "HIGH_VOL": {
+        "OB": 0.4935,
+        "FVG": 0.568,
+        "BOS": 0.8809,
+        "SWEEP": 0.6149
+      },
+      "LOW_VOL": {
+        "OB": 0.4782,
+        "FVG": 0.5331,
+        "BOS": 0.8488,
+        "SWEEP": 0.6799
+      },
+      "NORMAL": {
+        "OB": 0.3996,
+        "FVG": 0.5641,
+        "BOS": 0.855,
+        "SWEEP": 0.6672
+      }
+    }
+  },
+  "promoted_buckets": [
+    "htf_bias:BEARISH",
+    "htf_bias:BULLISH",
+    "session:LONDON",
+    "session:NY_AM",
+    "vol_regime:HIGH_VOL",
+    "vol_regime:LOW_VOL",
+    "vol_regime:NORMAL"
+  ],
+  "global_weights": {
+    "OB": 0.4782,
+    "FVG": 0.582,
+    "BOS": 0.8488,
+    "SWEEP": 0.6799
+  },
+  "bucket_stats": {
+    "htf_bias": {
+      "BEARISH": {
+        "OB": {
+          "total_events": 333,
+          "observed_hit_rate": 0.3784,
+          "calibrated_weight": 0.4083,
+          "global_weight": 0.4782,
+          "promoted": true
+        },
+        "FVG": {
+          "total_events": 1723,
+          "observed_hit_rate": 0.5577,
+          "calibrated_weight": 0.565,
+          "global_weight": 0.582,
+          "promoted": true
+        },
+        "BOS": {
+          "total_events": 494,
+          "observed_hit_rate": 0.832,
+          "calibrated_weight": 0.837,
+          "global_weight": 0.8488,
+          "promoted": true
+        },
+        "SWEEP": {
+          "total_events": 552,
+          "observed_hit_rate": 0.6467,
+          "calibrated_weight": 0.6567,
+          "global_weight": 0.6799,
+          "promoted": true
+        }
+      },
+      "BULLISH": {
+        "OB": {
+          "total_events": 270,
+          "observed_hit_rate": 0.3667,
+          "calibrated_weight": 0.4001,
+          "global_weight": 0.4782,
+          "promoted": true
+        },
+        "FVG": {
+          "total_events": 1665,
+          "observed_hit_rate": 0.5543,
+          "calibrated_weight": 0.5626,
+          "global_weight": 0.582,
+          "promoted": true
+        },
+        "BOS": {
+          "total_events": 494,
+          "observed_hit_rate": 0.8866,
+          "calibrated_weight": 0.8753,
+          "global_weight": 0.8488,
+          "promoted": true
+        },
+        "SWEEP": {
+          "total_events": 581,
+          "observed_hit_rate": 0.6695,
+          "calibrated_weight": 0.6726,
+          "global_weight": 0.6799,
+          "promoted": true
+        }
+      }
+    },
+    "session": {
+      "ASIA": {
+        "OB": {
+          "total_events": 2,
+          "observed_hit_rate": 1.0,
+          "calibrated_weight": 0.4782,
+          "global_weight": 0.4782,
+          "promoted": false
+        },
+        "FVG": {
+          "total_events": 7,
+          "observed_hit_rate": 0.8571,
+          "calibrated_weight": 0.582,
+          "global_weight": 0.582,
+          "promoted": false
+        },
+        "BOS": {
+          "total_events": 6,
+          "observed_hit_rate": 1.0,
+          "calibrated_weight": 0.8488,
+          "global_weight": 0.8488,
+          "promoted": false
+        },
+        "SWEEP": {
+          "total_events": 7,
+          "observed_hit_rate": 0.7143,
+          "calibrated_weight": 0.6799,
+          "global_weight": 0.6799,
+          "promoted": false
+        }
+      },
+      "LONDON": {
+        "OB": {
+          "total_events": 166,
+          "observed_hit_rate": 0.3675,
+          "calibrated_weight": 0.4007,
+          "global_weight": 0.4782,
+          "promoted": true
+        },
+        "FVG": {
+          "total_events": 1576,
+          "observed_hit_rate": 0.6409,
+          "calibrated_weight": 0.6232,
+          "global_weight": 0.582,
+          "promoted": true
+        },
+        "BOS": {
+          "total_events": 436,
+          "observed_hit_rate": 0.805,
+          "calibrated_weight": 0.8182,
+          "global_weight": 0.8488,
+          "promoted": true
+        },
+        "SWEEP": {
+          "total_events": 150,
+          "observed_hit_rate": 0.56,
+          "calibrated_weight": 0.596,
+          "global_weight": 0.6799,
+          "promoted": true
+        }
+      },
+      "NY_AM": {
+        "OB": {
+          "total_events": 435,
+          "observed_hit_rate": 0.3724,
+          "calibrated_weight": 0.4041,
+          "global_weight": 0.4782,
+          "promoted": true
+        },
+        "FVG": {
+          "total_events": 1805,
+          "observed_hit_rate": 0.4809,
+          "calibrated_weight": 0.5112,
+          "global_weight": 0.582,
+          "promoted": true
+        },
+        "BOS": {
+          "total_events": 546,
+          "observed_hit_rate": 0.9011,
+          "calibrated_weight": 0.8854,
+          "global_weight": 0.8488,
+          "promoted": true
+        },
+        "SWEEP": {
+          "total_events": 976,
+          "observed_hit_rate": 0.6732,
+          "calibrated_weight": 0.6752,
+          "global_weight": 0.6799,
+          "promoted": true
+        }
+      }
+    },
+    "vol_regime": {
+      "HIGH_VOL": {
+        "OB": {
+          "total_events": 34,
+          "observed_hit_rate": 0.5,
+          "calibrated_weight": 0.4935,
+          "global_weight": 0.4782,
+          "promoted": true
+        },
+        "FVG": {
+          "total_events": 137,
+          "observed_hit_rate": 0.562,
+          "calibrated_weight": 0.568,
+          "global_weight": 0.582,
+          "promoted": true
+        },
+        "BOS": {
+          "total_events": 38,
+          "observed_hit_rate": 0.8947,
+          "calibrated_weight": 0.8809,
+          "global_weight": 0.8488,
+          "promoted": true
+        },
+        "SWEEP": {
+          "total_events": 46,
+          "observed_hit_rate": 0.587,
+          "calibrated_weight": 0.6149,
+          "global_weight": 0.6799,
+          "promoted": true
+        }
+      },
+      "LOW_VOL": {
+        "OB": {
+          "total_events": 6,
+          "observed_hit_rate": 0.3333,
+          "calibrated_weight": 0.4782,
+          "global_weight": 0.4782,
+          "promoted": false
+        },
+        "FVG": {
+          "total_events": 41,
+          "observed_hit_rate": 0.5122,
+          "calibrated_weight": 0.5331,
+          "global_weight": 0.582,
+          "promoted": true
+        },
+        "BOS": {
+          "total_events": 9,
+          "observed_hit_rate": 0.8889,
+          "calibrated_weight": 0.8488,
+          "global_weight": 0.8488,
+          "promoted": false
+        },
+        "SWEEP": {
+          "total_events": 14,
+          "observed_hit_rate": 0.6429,
+          "calibrated_weight": 0.6799,
+          "global_weight": 0.6799,
+          "promoted": false
+        }
+      },
+      "NORMAL": {
+        "OB": {
+          "total_events": 563,
+          "observed_hit_rate": 0.3659,
+          "calibrated_weight": 0.3996,
+          "global_weight": 0.4782,
+          "promoted": true
+        },
+        "FVG": {
+          "total_events": 3210,
+          "observed_hit_rate": 0.5564,
+          "calibrated_weight": 0.5641,
+          "global_weight": 0.582,
+          "promoted": true
+        },
+        "BOS": {
+          "total_events": 941,
+          "observed_hit_rate": 0.8576,
+          "calibrated_weight": 0.855,
+          "global_weight": 0.8488,
+          "promoted": true
+        },
+        "SWEEP": {
+          "total_events": 1073,
+          "observed_hit_rate": 0.6617,
+          "calibrated_weight": 0.6672,
+          "global_weight": 0.6799,
+          "promoted": true
+        }
+      }
+    }
+  },
+  "min_bucket_events": 30,
+  "frozen_provenance": {
+    "frozen": true,
+    "status": "shadow",
+    "frozen_at": "2026-04-23T15:14:46+00:00",
+    "generated_at": "2026-04-23T15:14:47+00:00",
+    "benchmark_dir": "artifacts/reports/benchmark_corpus",
+    "benchmark_corpus_ephemeral": true,
+    "benchmark_manifest_sha256": "8b27c4292880e24f765d851b1b426a1b8155102f7a4c84ccaca776413e6898b2",
+    "n_events": 6112,
+    "max_event_timestamp_utc": null,
+    "source_commit": "15ea844ca506ea8f0d40c24e3c47a56e03e45930",
+    "generator_script_path": "smc_zone_priority_calibration.py",
+    "generator_script_sha256": "7ecb47a1987f90606dacaa96ee079b1afd356c500edc4ac7add90c437ee11c82",
+    "smoothing": 0.3,
+    "min_events_per_bucket": 30,
+    "regeneration_instructions": "docs/f2_contextual_promotion_decision_2026-04-21.md#regeneration-recipe"
+  }
+}

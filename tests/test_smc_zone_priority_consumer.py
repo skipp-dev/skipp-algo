@@ -11,6 +11,7 @@ from scripts.smc_zone_priority_consumer import (
     HR_SENTINEL_DEGRADED,
     TRUST_DEGRADED,
     TRUST_FRESH,
+    TRUST_STALE,
     TRUST_UNAVAILABLE,
     build_consumer_exports,
     classify_trust_state,
@@ -218,10 +219,29 @@ def test_build_consumer_exports_full_payload() -> None:
 
 
 def test_build_consumer_exports_defaults_on_empty() -> None:
+    """Empty input -> trust=UNAVAILABLE. After ADR 2026-04-23
+    (D-2 fix) UNAVAILABLE degrades family HRs to the sentinel, so
+    the shape no longer equals the static :data:`DEFAULTS` fallback
+    (which still carries neutral ``0.0`` for back-compat callers
+    that never go through ``build_consumer_exports``).
+
+    Both ``0.0`` and ``-1.0`` satisfy the Pine consumer guard
+    ``mp.ZONE_HR_FVG <= 0.0`` so the dashboard renders identically.
+    """
     out = build_consumer_exports(
         family_stats=None, total_events=None, smooth_ece=None, history=None
     )
-    assert out == DEFAULTS
+    # Non-HR / non-trust keys still fall back to the static defaults.
+    assert out["ZONE_CAL_CONFIDENCE"] == DEFAULTS["ZONE_CAL_CONFIDENCE"]
+    assert out["ZONE_CAL_TREND"] == DEFAULTS["ZONE_CAL_TREND"]
+    assert out["ZONE_CAL_TRUST"] == TRUST_UNAVAILABLE
+    # Family HRs degrade to the sentinel under UNAVAILABLE.
+    assert out["ZONE_HR_OB"] == HR_SENTINEL_DEGRADED
+    assert out["ZONE_HR_FVG"] == HR_SENTINEL_DEGRADED
+    assert out["ZONE_HR_BOS"] == HR_SENTINEL_DEGRADED
+    assert out["ZONE_HR_SWEEP"] == HR_SENTINEL_DEGRADED
+    # Key set is still complete.
+    assert set(out) == set(DEFAULTS)
 
 
 # ── Trust gating (P0 — ADR 2026-04-22) ───────────────────────────
@@ -312,7 +332,16 @@ def test_aggregator_custom_min_confidence_override() -> None:
     assert out["ZONE_HR_OB"] == 0.8636
 
 
-def test_aggregator_unavailable_when_confidence_zero() -> None:
+def test_aggregator_unavailable_degrades_family_hrs() -> None:
+    """Supersedes ``test_aggregator_unavailable_when_confidence_zero``
+    (ADR 2026-04-23 — OB-Export-Degradierung).
+
+    When ``total_events=0`` but ``family_stats`` is non-empty, the
+    legacy behaviour silently leaked ``OB HR=0.8636`` to Pine because
+    trust was UNAVAILABLE and ``degrade_family_hit_rates`` granted
+    passthrough. After the fix UNAVAILABLE degrades family HRs just
+    like DEGRADED so the under-saturated smoke run cannot leak.
+    """
     out = build_consumer_exports(
         family_stats=_REAL_STATS,
         total_events=0,
@@ -321,12 +350,123 @@ def test_aggregator_unavailable_when_confidence_zero() -> None:
     )
     assert out["ZONE_CAL_CONFIDENCE"] == 0.0
     assert out["ZONE_CAL_TRUST"] == TRUST_UNAVAILABLE
-    # UNAVAILABLE preserves passthrough so the Pine consumer still
-    # falls back to its <= 0.0 neutral guard rather than treating the
-    # corpus as actively-degraded.
-    assert out["ZONE_HR_OB"] == 0.8636
+    # The critical assertion inversion — must NOT leak 0.8636.
+    assert out["ZONE_HR_OB"] == HR_SENTINEL_DEGRADED
+    assert out["ZONE_HR_FVG"] == HR_SENTINEL_DEGRADED
+    assert out["ZONE_HR_BOS"] == HR_SENTINEL_DEGRADED
+    assert out["ZONE_HR_SWEEP"] == HR_SENTINEL_DEGRADED
 
 
-def test_degrade_family_hit_rates_passthrough_when_unavailable() -> None:
+def test_degrade_family_hit_rates_degrades_unavailable() -> None:
+    """UNAVAILABLE is now as strict as DEGRADED — callers that supply
+    ``family_stats`` without ``total_events`` get the sentinel, not
+    passthrough. Protects against the 2026-04-22 symptom pattern.
+    """
+    hrs = {
+        "ZONE_HR_OB": 0.8636,
+        "ZONE_HR_FVG": 0.5937,
+        "ZONE_HR_BOS": 0.913,
+        "ZONE_HR_SWEEP": 0.8333,
+    }
+    out = degrade_family_hit_rates(hrs, TRUST_UNAVAILABLE)
+    assert all(v == HR_SENTINEL_DEGRADED for v in out.values())
+    assert set(out) == set(hrs)
+
+
+def test_degrade_family_hit_rates_passthrough_on_stale() -> None:
+    """STALE is advisory-only (reserved for WS2) — HRs still render
+    in the Pine dashboard. No degrade.
+    """
     hrs = {"ZONE_HR_OB": 0.55}
-    assert degrade_family_hit_rates(hrs, TRUST_UNAVAILABLE) == hrs
+    assert degrade_family_hit_rates(hrs, TRUST_STALE) == hrs
+
+
+# ── Pine-Boundary Vokabular (D-1 Regression, ADR 2026-04-23) ───────────
+
+
+def test_trust_fresh_constant_matches_pine_glyph_literal() -> None:
+    """The TRUST_FRESH string must be the exact literal the Pine
+    dashboard's ``zone_cal_trust_glyph()`` branches on. Any drift
+    here causes the 🔒 glyph to fall back to '?' silently. The
+    hard-coded expected value prevents a future commit from
+    re-renaming the constant without reviewing the Pine surface.
+    """
+    assert TRUST_FRESH == "OK"
+
+
+def test_trust_vocabulary_is_distinct_and_uppercase() -> None:
+    """Pine's string-comparison guard uses literal uppercase tokens
+    (see ``SMC_Dashboard.pine::zone_cal_trust_glyph`` and the
+    ``ex_trust_ok`` gate). Pin the full surface.
+    """
+    assert TRUST_FRESH == "OK"
+    assert TRUST_DEGRADED == "DEGRADED"
+    assert TRUST_STALE == "STALE"
+    assert TRUST_UNAVAILABLE == "UNAVAILABLE"
+    # Disjoint — no accidental alias.
+    assert len({TRUST_FRESH, TRUST_DEGRADED, TRUST_STALE, TRUST_UNAVAILABLE}) == 4
+
+
+def test_build_consumer_exports_emits_ok_literal_on_healthy_corpus() -> None:
+    """End-to-end pin: v3-shaped input (n=10 004, clean ECE) must
+    emit the literal Pine token ``"OK"``, not the legacy ``"FRESH"``.
+    """
+    out = build_consumer_exports(
+        family_stats=_REAL_STATS,
+        total_events=10_004,
+        smooth_ece=0.02,
+        history=None,
+    )
+    assert out["ZONE_CAL_TRUST"] == "OK"
+    assert out["ZONE_HR_OB"] == 0.8636  # passthrough unchanged
+
+
+# ── ZONE_CAL_TREND frozen-vocab (F-11, PR-BC-01) ─────────────────
+
+
+def test_compute_calibration_trend_returns_value_in_frozen_vocab() -> None:
+    """Any trend string reaching Pine MUST belong to ``TREND_VOCAB`` —
+    otherwise the Dashboard tooltip (SMC_Dashboard.pine:1440-1444)
+    silently concatenates arbitrary text, because there is no literal
+    gate on the Pine side.
+    """
+    from scripts.smc_zone_priority_consumer import (
+        TREND_VOCAB,
+        compute_calibration_trend,
+    )
+
+    # Positive path — enough history to make a call.
+    out = compute_calibration_trend([{"weighted_hit_rate": 0.5}] * 20)
+    assert out in TREND_VOCAB
+
+    # Edge: empty history → STABLE.
+    assert compute_calibration_trend([]) in TREND_VOCAB
+    assert compute_calibration_trend(None) in TREND_VOCAB
+
+    # Edge: singleton / below min_runs → STABLE.
+    assert compute_calibration_trend([{"weighted_hit_rate": 0.5}]) in TREND_VOCAB
+
+    # Exercise each branch explicitly to pin the full value space.
+    rising = [{"weighted_hit_rate": v} for v in (0.30, 0.40, 0.50)]
+    falling = [{"weighted_hit_rate": v} for v in (0.60, 0.50, 0.40)]
+    flat = [{"weighted_hit_rate": 0.50}] * 3
+    assert compute_calibration_trend(rising) in TREND_VOCAB
+    assert compute_calibration_trend(falling) in TREND_VOCAB
+    assert compute_calibration_trend(flat) in TREND_VOCAB
+
+
+def test_trend_vocab_constants_pinned() -> None:
+    """Pin the three trend literal values; a rename of a constant
+    without a Pine-side branch update would regress silently.
+    """
+    from scripts.smc_zone_priority_consumer import (
+        TREND_DEGRADING,
+        TREND_IMPROVING,
+        TREND_STABLE,
+        TREND_VOCAB,
+    )
+
+    assert TREND_IMPROVING == "IMPROVING"
+    assert TREND_STABLE == "STABLE"
+    assert TREND_DEGRADING == "DEGRADING"
+    assert TREND_VOCAB == frozenset({"IMPROVING", "STABLE", "DEGRADING"})
