@@ -110,13 +110,39 @@ def run_promotion_gate(
     digest = compare(control_pairs, treatment_pairs, spec.name)
     gate = evaluate_promotion(digest, spec, daily_deltas=rollback_history)
 
+    # ── Spec-status guard (audit findings C1/C2/C3 follow-up) ────────────
+    # When ``spec.status != "live"`` the underlying statistical apparatus
+    # is known-broken (see docs/f2_contextual_promotion_decision_2026-04-21.md
+    # ``2026-04-23 — G3 Dual-Arm Wiring Operationalized`` addendum).
+    # Force the decision to ``hold`` and surface a structured warning so
+    # the promote pathway cannot fire by accident before PR #43/#44 land.
+    warnings: list[str] = []
+    decision = gate["decision"]
+    reason = gate["reason"]
+    actions = list(gate["actions"])
+    if spec.status != "live":
+        if decision == "promote":
+            decision = "hold"
+            reason = (
+                f"spec.status={spec.status!r} (not 'live'); promote path "
+                "disabled per audit findings C1/C2/C3"
+            )
+            actions = ["Keep static global weights — promote disabled."]
+        warnings.append(
+            f"spec.status={spec.status!r}; statistical basis pending "
+            "(A1/A2/A3 — see PR #43/#44). Brier/ECE deltas may be "
+            "in-sample-biased; SPRT is single-arm vs fixed p0=0.55."
+        )
+
     return {
         "schema_version": REPORT_SCHEMA_VERSION,
         "experiment": spec.name,
         "plan_reference": spec.plan_reference,
-        "decision": gate["decision"],
-        "reason": gate["reason"],
-        "actions": list(gate["actions"]),
+        "spec_status": spec.status,
+        "decision": decision,
+        "reason": reason,
+        "actions": actions,
+        "warnings": warnings,
         "sprt": digest.get("sprt"),
         "kpi_metrics": digest.get("metrics"),
         "rollback_history_len": len(rollback_history),

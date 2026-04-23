@@ -188,6 +188,8 @@ jobs:
           name: smc-measurement-benchmark-rolling-${{ steps.meta.outputs.run_date }}
           path: ${{ steps.meta.outputs.out_dir }}
           retention-days: 30
+          # Idempotent same-day reruns (manual or backfill) must not 409.
+          overwrite: true
 
       - name: F2 dual-arm contextual calibration (G3 wiring)
         # Plan §2.3 F2 / §2.4 G3. Re-scores the per-event JSONL ledgers
@@ -237,3 +239,5 @@ jobs:
           path: artifacts/ci/f2/
           retention-days: 45
           if-no-files-found: ignore
+          # Same-day rerun safety (audit H6).
+          overwrite: true

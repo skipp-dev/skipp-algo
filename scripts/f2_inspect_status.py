@@ -145,6 +145,7 @@ def build_status(
         "schema_version": STATUS_SCHEMA_VERSION,
         "spec": str(spec_path),
         "experiment": spec.get("name"),
+        "spec_status": spec.get("status", "registered"),
         "artifact": _artifact_status(artifact_path),
         "revert_journal": {
             "path": str(revert_journal) if revert_journal else None,
@@ -171,6 +172,7 @@ def render_one_line(status: dict[str, Any]) -> str:
     fields render as ``?``.
     """
     experiment = status.get("experiment") or "?"
+    spec_status = status.get("spec_status") or "?"
     artifact = (status.get("artifact") or {}).get("status") or "missing"
     revert_n = (status.get("revert_journal") or {}).get("len", 0)
     promote_n = (status.get("promote_journal") or {}).get("len", 0)
@@ -180,7 +182,8 @@ def render_one_line(status: dict[str, Any]) -> str:
         if latest else "none"
     )
     return (
-        f"f2[{experiment}] artifact={artifact} "
+        f"f2[{experiment}] spec_status={spec_status} "
+        f"artifact={artifact} "
         f"revert={revert_n} promote={promote_n} latest={latest_str}"
     )
 
@@ -192,8 +195,21 @@ def render_markdown(status: dict[str, Any]) -> str:
     """
     lines: list[str] = []
     experiment = status.get("experiment") or "?"
+    spec_status = status.get("spec_status") or "?"
     lines.append(f"# F2 contextual arm — `{experiment}`")
     lines.append("")
+    if spec_status != "live":
+        lines.append(
+            f"> ⚠️ **spec_status = `{spec_status}`** — promote pathway is "
+            "disabled by `scripts/f2_run_promotion_gate.py` and "
+            "`scripts/f2_promote_contextual_weights.py`. The dual-arm "
+            "deltas surfaced below are operational plumbing only and "
+            "are NOT a basis for a promote decision until the frozen "
+            "treatment artifact (PR #43) and paired Brier-SPRT with "
+            "cross-day state (PR #44) land. See "
+            "`docs/f2_contextual_promotion_decision_2026-04-21.md`."
+        )
+        lines.append("")
 
     artifact = status.get("artifact") or {}
     art_status = artifact.get("status") or "missing"

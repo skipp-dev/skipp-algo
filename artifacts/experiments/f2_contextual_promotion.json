@@ -3,7 +3,11 @@
   "name": "f2-contextual-zone-priority-promotion",
   "plan_reference": "smc_improvement_plan_q3_q4_2026-04-20.md §2.3 F2 + §2.4 G3",
   "decision_memo": "docs/f2_contextual_promotion_decision_2026-04-21.md",
-  "status": "registered",
+  "status": "plumbing_only",
+  "status_history": [
+    {"status": "registered", "at": "2026-04-21", "note": "Initial spec registration."},
+    {"status": "plumbing_only", "at": "2026-04-23", "note": "G3 dual-arm wiring landed (PR #42). Promote pathway disabled until A1 (frozen treatment artifact, PR #43) and A2/A3 (paired Brier-SPRT + cross-day state, PR #44) close in-sample leakage and single-arm-vs-fixed-p0 defects identified in audit."}
+  ],
   "registered_at": "2026-04-21",
 
   "arms": {

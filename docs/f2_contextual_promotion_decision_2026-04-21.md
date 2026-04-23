@@ -119,5 +119,44 @@ Pinned by
 The first rolling-bench run on `main` after this PR merges will
 publish `f2-dual-arm-<DATE>`. The next 10:00 UTC promotion-gate run
 will then exit with `decision ∈ {insufficient_data, hold, promote,
-rollback}` instead of `status=skipped`, starting the 30-day SPRT
-window per spec (`max_n = 600` events per arm).
+rollback}` instead of `status=skipped`.
+
+> ### 2026-04-23 follow-up — countdown does NOT start with this PR
+>
+> A pre-merge audit of the dual-arm chain found three statistical
+> defects that make the *first* set of dual-arm Brier/ECE deltas
+> meaningless as a basis for a `promote` decision:
+>
+> 1. **In-sample leakage (C1, A1).** The treatment arm reads
+>    `zone_priority_contextual_calibration.json` that is fit from
+>    the same per-event ledger the post-processor then re-scores.
+>    Brier-delta is therefore a structural overfit, not a forecast
+>    of out-of-sample lift. Resolved by PR #43 (Frozen Treatment
+>    Artifact: a one-time fit from `combined_2026-04-21` plus an
+>    explicit timestamp filter, `status="shadow"` until promote).
+> 2. **Single-arm SPRT vs fixed `p0=0.55` (C2, A2).** The current
+>    `_sprt_decision()` tests `treat.hit_rate` against a fixed
+>    `p0=0.55`; it never compares treatment to control. Combined
+>    with `hit_rate ≡ outcome_mean` from `_summarize_scored_events`,
+>    the SPRT decision is mathematically independent of the
+>    contextual weights. Resolved by PR #44 (paired Brier-delta
+>    Gaussian-SPRT: `d_i = (p_treat_i − y_i)² − (p_ctrl_i − y_i)²`,
+>    one-sided, with `event_id` + `outcome` paired-equivalence pin).
+> 3. **SPRT terminates in a single day (C3, A3).** With ~1.6k
+>    events/day vs `max_n=600`, SPRT converges to accept/reject in
+>    one run, so a hit-rate sitting in `[0.56, 0.59]` would loop on
+>    `insufficient_data` indefinitely without any 30-day window
+>    actually elapsing. Resolved by PR #44 (cross-day SPRT state at
+>    `artifacts/ci/f2/sprt_state.json` so the trial state persists
+>    between daily runs).
+>
+> Operational guard while #43/#44 are open: the spec ships at
+> `status="plumbing_only"`. Both `scripts/f2_run_promotion_gate.py`
+> and `scripts/f2_promote_contextual_weights.py` refuse to surface
+> `decision="promote"` (the gate coerces to `hold`; the promoter
+> raises `ValueError` and the CLI exits 1) until the spec is
+> flipped to `status="live"` as part of PR #44. The
+> rolling-bench plumbing keeps running daily so we accumulate
+> operator telemetry, but the **real 30-day SPRT countdown only
+> starts after PR #44 lands**.
+

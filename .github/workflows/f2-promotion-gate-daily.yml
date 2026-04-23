@@ -99,28 +99,54 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           GH_REPO:  ${{ github.repository }}
           ART_NAME: f2-dual-arm-${{ steps.date.outputs.value }}
+          DATE:     ${{ steps.date.outputs.value }}
         run: |
           set +e
           mkdir -p artifacts/ci/f2
-          # Find the most recent successful (or completed) rolling-bench
-          # run that uploaded our artifact. Fall back gracefully to
-          # status=skipped if nothing matches.
-          RUN_ID=$(gh run list \
+          # Audit H7 fix: iterate the most-recent N rolling-bench runs
+          # and take the FIRST one whose artifact actually downloads.
+          # Previously we used `head -n 1` which silently ate the case
+          # where the newest completed run never produced the artifact
+          # (e.g. early-step failure before the upload step).
+          RUN_IDS=$(gh run list \
             --workflow smc-measurement-benchmark-rolling.yml \
             --branch main \
-            --limit 5 \
-            --json databaseId,status,conclusion \
-            --jq '.[] | select(.status=="completed") | .databaseId' \
-            | head -n 1)
-          if [ -z "${RUN_ID}" ]; then
+            --limit 8 \
+            --json databaseId,status \
+            --jq '.[] | select(.status=="completed") | .databaseId')
+          if [ -z "${RUN_IDS}" ]; then
             echo "::notice title=f2-promotion-gate::no recent rolling-bench run found"
             exit 0
           fi
-          gh run download "${RUN_ID}" \
-            --name "${ART_NAME}" \
-            --dir artifacts/ci/f2/ \
-            || echo "::notice title=f2-promotion-gate::artifact ${ART_NAME} not found on run ${RUN_ID}"
-          # Audit what we got.
+          DOWNLOADED_RUN=""
+          for rid in ${RUN_IDS}; do
+            rm -rf artifacts/ci/f2/_attempt
+            mkdir -p artifacts/ci/f2/_attempt
+            if gh run download "${rid}" \
+                --name "${ART_NAME}" \
+                --dir  artifacts/ci/f2/_attempt/ 2>/dev/null; then
+              # Promote the attempt into place.
+              cp -R artifacts/ci/f2/_attempt/. artifacts/ci/f2/ 2>/dev/null || true
+              rm -rf artifacts/ci/f2/_attempt
+              DOWNLOADED_RUN="${rid}"
+              echo "::notice title=f2-promotion-gate::artifact ${ART_NAME} fetched from run ${rid}"
+              break
+            fi
+          done
+          rm -rf artifacts/ci/f2/_attempt
+          if [ -z "${DOWNLOADED_RUN}" ]; then
+            echo "::notice title=f2-promotion-gate::artifact ${ART_NAME} not found on the last 8 completed rolling-bench runs"
+            exit 0
+          fi
+          # Audit B6: detect a date mismatch (e.g. backfill or weekend
+          # gap) where the artifact we got is older than the run we are
+          # gating. The presence/absence of the per-DATE subdir is the
+          # authoritative signal — the locate step uses it directly —
+          # but we surface a notice here so the run summary is honest.
+          if [ ! -d "artifacts/ci/f2/contextual_weights/${DATE}" ] \
+             || [ ! -d "artifacts/ci/f2/static_global_weights/${DATE}" ]; then
+            echo "::notice title=f2-promotion-gate::date mismatch — artifact does not contain per-DATE subdirs for ${DATE}; gate will status=skipped"
+          fi
           ls -R artifacts/ci/f2/ 2>/dev/null | head -40 || true
           exit 0
 
@@ -247,6 +273,29 @@ jobs:
         if: always() && steps.locate.outputs.status == 'ready'
         run: |
           echo "::notice title=f2-promotion-gate-daily::date=${{ steps.date.outputs.value }} decision=${{ steps.gate.outputs.decision || 'unknown' }} rc=${{ steps.gate.outputs.rc || 'unknown' }}"
+
+      - name: Stalled-gate streak alert (audit M8 follow-up)
+        # Always runs (even on skip / rollback / config error). Detects
+        # multi-day skipped/insufficient_data/hold streaks that would
+        # otherwise silently extend the 30-day countdown. Failure here
+        # MUST NOT mask the gate exit code; the script itself never
+        # returns non-zero on alert (it emits ::warning::).
+        if: always()
+        run: |
+          python scripts/f2_status_alert.py \
+            --reports-dir artifacts/reports \
+            --threshold   3 \
+            > artifacts/ci/f2/status_alert.json || true
+          if [ -f artifacts/ci/f2/status_alert.json ] && [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+            {
+              echo '## F2 stalled-gate streak alert'
+              echo ''
+              echo '```json'
+              cat artifacts/ci/f2/status_alert.json
+              echo ''
+              echo '```'
+            } >> "${GITHUB_STEP_SUMMARY}"
+          fi
 
       - name: Pipeline status summary
         # Always runs (even on skip / rollback / config error) so each
