@@ -541,6 +541,13 @@ def save_vd_snapshot(
         "streak":    0,
         "category":  f"snapshot {datetime.fromtimestamp(now_epoch, tz=UTC).strftime('%H:%M:%S')} UTC",
         "event":     f"feed_age={_newest_age:.0f}m",
+        # NOTE (F-9, Boundary-Contract Plan 2026-04-23): materiality="OK"
+        # here is a deliberate _META sentinel. Consumer rows use the
+        # "HIGH"/"MEDIUM"/"LOW" enum space; the Streamlit layer filters
+        # out `symbol == "_META"` before applying materiality-based
+        # styling. If that filter is ever removed, this row will render
+        # as OK-materiality — acceptable (meta-rows render below the
+        # divider) but callers should be aware.
         "materiality": _stale_warn or "OK",
         "headline":  f"{len(rows)} symbols · newest {_newest_age:.0f}m ago",
     }
