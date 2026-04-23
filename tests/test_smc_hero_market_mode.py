@@ -19,11 +19,11 @@ from scripts.smc_hero_market_mode import (
 class TestDataclass:
     def test_as_dict_carries_five_keys(self) -> None:
         head = HeroMarketMode(
-            regime="risk_on", bias="long", session="us_open",
+            regime="RISK_ON", bias="long", session="us_open",
             trust="trusted", freshness="fresh",
         )
         assert head.as_dict() == {
-            "regime": "risk_on",
+            "regime": "RISK_ON",
             "bias": "long",
             "session": "us_open",
             "trust": "trusted",
@@ -108,13 +108,28 @@ class TestTrustAndFreshnessLabels:
 
 
 class TestRegimeAndSession:
-    def test_regime_lowercased(self) -> None:
+    def test_regime_is_uppercase_passthrough(self) -> None:
+        """SMC_Mobile_Dashboard.pine:79 compares mp.HERO_MARKET_MODE to
+        UPPERCASE literals. Producer A emits UPPER; Producer B
+        (HERO_MARKET_REGIME) must stay case-consistent to prevent
+        drift when consumers migrate (F-1, PR-BC-03).
+        """
         head = derive_hero_market_mode({"regime": {"regime": "RISK_ON", "macro_bias": 0.0}})
-        assert head.regime == "risk_on"
+        assert head.regime == "RISK_ON"
 
-    def test_regime_default_neutral(self) -> None:
-        head = derive_hero_market_mode({})
-        assert head.regime == "neutral"
+    def test_regime_lower_input_upcased(self) -> None:
+        head = derive_hero_market_mode({"regime": {"regime": "bullish"}})
+        assert head.regime == "BULLISH"
+
+    def test_regime_mixed_case_input_upcased(self) -> None:
+        head = derive_hero_market_mode({"regime": {"regime": "Bearish"}})
+        assert head.regime == "BEARISH"
+
+    def test_regime_default_is_uppercase_neutral(self) -> None:
+        assert derive_hero_market_mode({}).regime == "NEUTRAL"
+
+    def test_regime_handles_none_regime_block(self) -> None:
+        assert derive_hero_market_mode({"regime": None}).regime == "NEUTRAL"
 
     def test_session_prefers_session_context_light(self) -> None:
         head = derive_hero_market_mode({
@@ -141,7 +156,7 @@ class TestEmptyEnrichmentDefaults:
     def test_full_default_head(self) -> None:
         head = derive_hero_market_mode({})
         assert head == HeroMarketMode(
-            regime="neutral",
+            regime="NEUTRAL",
             bias="neutral",
             session="unknown",
             trust="trusted",
@@ -178,7 +193,7 @@ class TestPineRendering:
                 "derived_from_overall_status": "fail",
             },
         }))
-        assert 'HERO_MARKET_REGIME = "risk_off"' in text
+        assert 'HERO_MARKET_REGIME = "RISK_OFF"' in text
         assert 'HERO_MARKET_BIAS = "short"' in text
         assert 'HERO_MARKET_SESSION = "us_close"' in text
         assert 'HERO_MARKET_TRUST = "watch_only"' in text
@@ -206,7 +221,7 @@ class TestPineLibraryEmission:
         )
         text = out.read_text(encoding="utf-8")
         assert "// ── Hero Market Mode (ENG-WS3-03) ──" in text
-        assert 'export const string HERO_MARKET_REGIME = "risk_on"' in text
+        assert 'export const string HERO_MARKET_REGIME = "RISK_ON"' in text
         assert 'export const string HERO_MARKET_BIAS = "long"' in text
         assert 'export const string HERO_MARKET_SESSION = "us_open"' in text
         assert 'export const string HERO_MARKET_TRUST = "trusted"' in text
@@ -224,7 +239,7 @@ class TestPineLibraryEmission:
             enrichment={"providers": {"provider_count": 0, "stale_providers": ""}},
         )
         text = out.read_text(encoding="utf-8")
-        assert 'export const string HERO_MARKET_REGIME = "neutral"' in text
+        assert 'export const string HERO_MARKET_REGIME = "NEUTRAL"' in text
         assert 'export const string HERO_MARKET_BIAS = "neutral"' in text
         assert 'export const string HERO_MARKET_SESSION = "unknown"' in text
         assert 'export const string HERO_MARKET_TRUST = "trusted"' in text

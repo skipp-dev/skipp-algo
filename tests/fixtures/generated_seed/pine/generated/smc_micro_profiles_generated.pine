@@ -108,7 +108,7 @@ export const string ACTION_DEGRADATION_REASON = ""
 export const string ACTION_DEGRADATION_DERIVED_FROM = "healthy"
 
 // ── Hero Market Mode (ENG-WS3-03) ──
-export const string HERO_MARKET_REGIME = "neutral"
+export const string HERO_MARKET_REGIME = "NEUTRAL"
 export const string HERO_MARKET_BIAS = "neutral"
 export const string HERO_MARKET_SESSION = "unknown"
 export const string HERO_MARKET_TRUST = "trusted"
