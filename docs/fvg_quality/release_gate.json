@@ -1,0 +1,20 @@
+{
+  "bottom_threshold": 0.55,
+  "failure_reasons": [
+    "no_events_loaded"
+  ],
+  "generated_at": "2026-04-23T21:41:09.374636+00:00",
+  "loader_warnings": [
+    "no --root supplied (awaiting first run)"
+  ],
+  "min_events_per_quartile": 20,
+  "quartiles": [],
+  "release_gate": "AWAITING_DATA",
+  "source": {
+    "commit_sha": null,
+    "root": null,
+    "workflow_run": null
+  },
+  "top_threshold": 0.75,
+  "total_events": 0
+}
