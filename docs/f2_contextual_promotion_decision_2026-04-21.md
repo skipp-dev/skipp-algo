@@ -55,3 +55,69 @@ python scripts/smc_zone_priority_calibration.py \
 ```
 
 Outputs: `zone_priority_calibration.json` (+ testable_calibration block), `zone_priority_contextual_calibration.json`, `zone_priority_calibration.md`.
+
+## 2026-04-23 — G3 Dual-Arm Wiring Operationalized
+
+The promotion-gate workflow (`f2-promotion-gate-daily.yml`) had been
+exiting `status=skipped` every day because the rolling-bench workflow
+emits a single-arm artifact tree but the gate expects two parallel
+arms (`artifacts/ci/f2/{static_global_weights,contextual_weights}/<DATE>/`).
+This PR closes that gap **without** running the harness twice.
+
+### What landed
+
+- New post-processor `scripts/f2_apply_contextual_calibration.py`
+  reads each pair's per-event JSONL ledger
+  (`events_<SYMBOL>_<TF>.jsonl`, schema `EVENT_LEDGER_SCHEMA_VERSION = 1.0`)
+  and re-scores every event twice in-place:
+  - **control arm** — `predicted_prob` blended with the family's
+    *global* calibrated weight from `zone_priority_calibration.json`.
+  - **treatment arm** — `predicted_prob` blended with the family's
+    *contextual* weight resolved through
+    `resolve_contextual_weight()` (session → vol_regime → global →
+    default).
+  Both arms run through the *same* blending transform so the SPRT
+  delta isolates the context dimension, not the blending function.
+- Blending formula (default, `--blend-mode anchor`):
+
+      p_blended = clip(0.5 + (base - 0.5) + alpha*(w - 0.5), 0.05, 0.95)
+
+  with `alpha = 1.0`. Additive Bayesian-prior shift (Dawid 1982 /
+  Platt 1999) — preserves the directional signal coming out of
+  `_directional_probability` while folding in the family hit-rate.
+- Workflow `smc-measurement-benchmark-rolling.yml` gains a new
+  fail-soft step that invokes the post-processor and a new
+  `f2-dual-arm-<DATE>` upload-artifact.
+- Workflow `f2-promotion-gate-daily.yml` gains a fail-soft
+  `gh run download` step that pulls the dual-arm artifact from the
+  most-recent rolling-bench run on `main`. The locate step is
+  unchanged — `status=skipped` now only fires on a real download
+  failure.
+
+### Causal-correctness invariants
+
+- The `outcome` label is **never** rewritten — only `predicted_prob`
+  is mutated, so this path cannot leak look-ahead.
+- The post-processor can never mark the rolling-bench run failed
+  (`exit 0` even on rc=2 / rc=1).
+- An empty `promoted_buckets` set causes the treatment arm to fall
+  back to global weights → arms become byte-identical → gate
+  correctly converges to `insufficient_data`. Pinned by
+  `tests/test_f2_apply_contextual_calibration.py::test_empty_promoted_buckets_make_treatment_equal_to_control`.
+
+### Determinism
+
+The post-processor is byte-stable across reruns:
+- `generated_at = 0.0` in all emitted JSON,
+- `artifact_dir` is relative to the arm root (no absolute paths),
+- `json.dumps(..., sort_keys=True, indent=2)` everywhere.
+Pinned by
+`tests/test_f2_apply_contextual_calibration.py::test_post_processor_is_byte_deterministic`.
+
+### Expected 30-day countdown
+
+The first rolling-bench run on `main` after this PR merges will
+publish `f2-dual-arm-<DATE>`. The next 10:00 UTC promotion-gate run
+will then exit with `decision ∈ {insufficient_data, hold, promote,
+rollback}` instead of `status=skipped`, starting the 30-day SPRT
+window per spec (`max_n = 600` events per arm).

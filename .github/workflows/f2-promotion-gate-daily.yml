@@ -51,6 +51,9 @@ permissions:
   # §2.4 G2 GitHub-Issue-Ping rule needs issues:write so the workflow
   # can file a rollback issue when the gate exits with rc=2.
   issues: write
+  # §2.4 G3 dual-arm wiring — `gh run list` + `gh run download` need
+  # actions:read to fetch the rolling-bench artifact.
+  actions: read
 
 concurrency:
   group: f2-promotion-gate-daily
@@ -82,6 +85,44 @@ jobs:
           else
             echo "value=$(date -u +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
           fi
+
+      - name: Download F2 dual-arm artifact (from rolling-bench)
+        # Plan §2.4 G3 — the rolling-bench workflow publishes
+        # `f2-dual-arm-<DATE>` containing the two artifact dirs the gate
+        # consumes. We fetch it here BEFORE the locate step using the
+        # `gh` CLI so we can resolve the most-recent matching run of the
+        # rolling-bench workflow (this is a scheduled workflow, not a
+        # workflow_run trigger). Soft-fail: if the artifact is missing
+        # yet, the locate step exits with status=skipped exactly as it
+        # did before this wiring landed.
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO:  ${{ github.repository }}
+          ART_NAME: f2-dual-arm-${{ steps.date.outputs.value }}
+        run: |
+          set +e
+          mkdir -p artifacts/ci/f2
+          # Find the most recent successful (or completed) rolling-bench
+          # run that uploaded our artifact. Fall back gracefully to
+          # status=skipped if nothing matches.
+          RUN_ID=$(gh run list \
+            --workflow smc-measurement-benchmark-rolling.yml \
+            --branch main \
+            --limit 5 \
+            --json databaseId,status,conclusion \
+            --jq '.[] | select(.status=="completed") | .databaseId' \
+            | head -n 1)
+          if [ -z "${RUN_ID}" ]; then
+            echo "::notice title=f2-promotion-gate::no recent rolling-bench run found"
+            exit 0
+          fi
+          gh run download "${RUN_ID}" \
+            --name "${ART_NAME}" \
+            --dir artifacts/ci/f2/ \
+            || echo "::notice title=f2-promotion-gate::artifact ${ART_NAME} not found on run ${RUN_ID}"
+          # Audit what we got.
+          ls -R artifacts/ci/f2/ 2>/dev/null | head -40 || true
+          exit 0
 
       - name: Locate dual-arm artifact dirs
         id: locate
