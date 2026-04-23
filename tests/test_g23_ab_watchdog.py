@@ -1,0 +1,318 @@
+"""Tests for scripts/g23_ab_watchdog.py — Q3/Q4 G2/G3 governance gate."""
+from __future__ import annotations
+
+import json
+import sys
+from pathlib import Path
+
+import pytest
+
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
+from scripts import g23_ab_watchdog as wd  # noqa: E402
+from scripts.smc_sprt_stop_rule import SPRTConfig  # noqa: E402
+
+
+# ── helpers ────────────────────────────────────────────────────────────────
+
+
+def _comparison(
+    *,
+    treatment_n: int,
+    treatment_hr: float,
+    control_n: int,
+    control_hr: float,
+    decision: str = "continue",
+) -> dict:
+    """Build a minimal `ab_comparison.json`-shaped dict."""
+    return {
+        "experiment": "test-exp",
+        "sprt": {
+            "decision": decision,
+            "n": treatment_n,
+            "k": round(treatment_n * treatment_hr),
+            "hit_rate": round(treatment_hr, 4),
+            "control_n": control_n,
+            "control_hit_rate": round(control_hr, 4),
+        },
+    }
+
+
+def _entry(*, treatment_underperformed: bool, treatment_n: int = 100,
+           treatment_k: int = 60, control_n: int = 100, control_hr: float = 0.55) -> dict:
+    return {
+        "timestamp": "2026-01-01T00:00:00+00:00",
+        "experiment": "test-exp",
+        "control_n": control_n,
+        "control_k": round(control_n * control_hr),
+        "control_hit_rate": control_hr,
+        "treatment_n": treatment_n,
+        "treatment_k": treatment_k,
+        "treatment_hit_rate": treatment_k / treatment_n if treatment_n else 0.0,
+        "treatment_underperformed": treatment_underperformed,
+        "sprt_decision_single_run": "continue",
+        "source": {"path": None, "commit_sha": None, "workflow_run": None},
+    }
+
+
+# ── coercion / extraction ──────────────────────────────────────────────────
+
+
+def test_coerce_int_handles_none_and_garbage():
+    assert wd._coerce_int(None) == 0
+    assert wd._coerce_int("nope") == 0
+    assert wd._coerce_int("12") == 12
+
+
+def test_coerce_float_returns_none_on_nan():
+    assert wd._coerce_float(float("nan")) is None
+    assert wd._coerce_float(None) is None
+    assert wd._coerce_float("0.5") == 0.5
+
+
+def test_extract_arm_totals_derives_control_k_from_hit_rate():
+    comp = _comparison(treatment_n=200, treatment_hr=0.62,
+                       control_n=180, control_hr=0.55)
+    c_n, c_k, t_n, t_k = wd._extract_arm_totals(comp)
+    assert (c_n, c_k, t_n, t_k) == (180, 99, 200, 124)
+
+
+def test_extract_arm_totals_handles_missing_sprt_block():
+    c_n, c_k, t_n, t_k = wd._extract_arm_totals({})
+    assert (c_n, c_k, t_n, t_k) == (0, 0, 0, 0)
+
+
+def test_treatment_underperformed_true_when_le_control():
+    assert wd._treatment_underperformed(_comparison(
+        treatment_n=100, treatment_hr=0.50, control_n=100, control_hr=0.55))
+    # equal → also underperformed (≤)
+    assert wd._treatment_underperformed(_comparison(
+        treatment_n=100, treatment_hr=0.55, control_n=100, control_hr=0.55))
+
+
+def test_treatment_underperformed_false_when_gt_control():
+    assert not wd._treatment_underperformed(_comparison(
+        treatment_n=100, treatment_hr=0.60, control_n=100, control_hr=0.55))
+
+
+def test_treatment_underperformed_false_when_data_missing():
+    assert not wd._treatment_underperformed({"sprt": {}})
+
+
+# ── history I/O ────────────────────────────────────────────────────────────
+
+
+def test_load_history_returns_empty_when_missing(tmp_path):
+    assert wd.load_history(tmp_path / "missing.jsonl") == []
+
+
+def test_load_history_skips_malformed_lines(tmp_path):
+    p = tmp_path / "h.jsonl"
+    p.write_text('{"a":1}\nNOT JSON\n{"b":2}\n', encoding="utf-8")
+    out = wd.load_history(p)
+    assert out == [{"a": 1}, {"b": 2}]
+
+
+def test_append_history_truncates_to_retention_window(tmp_path, monkeypatch):
+    monkeypatch.setattr(wd, "HISTORY_RETENTION", 3)
+    p = tmp_path / "h.jsonl"
+    for i in range(5):
+        wd.append_history(p, {"i": i})
+    out = wd.load_history(p)
+    assert [e["i"] for e in out] == [2, 3, 4]
+
+
+def test_append_history_writes_atomically(tmp_path):
+    p = tmp_path / "h.jsonl"
+    wd.append_history(p, {"i": 1})
+    # No leftover .tmp file.
+    assert not p.with_suffix(".jsonl.tmp").exists()
+    assert p.exists()
+
+
+# ── streak detection (G2 rollback gate) ───────────────────────────────────
+
+
+def test_streak_zero_when_history_empty():
+    assert wd.consecutive_underperform_streak([]) == 0
+
+
+def test_streak_counts_only_trailing_losses():
+    history = [
+        _entry(treatment_underperformed=True),
+        _entry(treatment_underperformed=False),
+        _entry(treatment_underperformed=True),
+        _entry(treatment_underperformed=True),
+    ]
+    assert wd.consecutive_underperform_streak(history) == 2
+
+
+def test_streak_resets_on_first_win_from_tail():
+    history = [
+        _entry(treatment_underperformed=True),
+        _entry(treatment_underperformed=True),
+        _entry(treatment_underperformed=False),
+    ]
+    assert wd.consecutive_underperform_streak(history) == 0
+
+
+# ── aggregated SPRT (G3 stop rule) ────────────────────────────────────────
+
+
+def test_aggregated_sprt_returns_no_data_when_history_empty():
+    cfg = SPRTConfig(p0=0.55, p1=0.60, alpha=0.05, beta=0.20)
+    out = wd.aggregated_sprt([], config=cfg)
+    assert out["decision"] == "no_data"
+    assert out["n"] == 0
+
+
+def test_aggregated_sprt_sums_across_window():
+    cfg = SPRTConfig(p0=0.55, p1=0.60, alpha=0.05, beta=0.20)
+    # Build a strongly winning treatment that should accept_h1.
+    history = [
+        _entry(treatment_underperformed=False, treatment_n=500, treatment_k=350)
+        for _ in range(10)
+    ]
+    out = wd.aggregated_sprt(history, config=cfg)
+    assert out["n"] == 5000 and out["k"] == 3500
+    assert out["decision"] == "accept_h1"
+
+
+def test_aggregated_sprt_accepts_h0_on_strong_loss():
+    cfg = SPRTConfig(p0=0.55, p1=0.60, alpha=0.05, beta=0.20)
+    history = [
+        _entry(treatment_underperformed=True, treatment_n=500, treatment_k=200)
+        for _ in range(10)
+    ]
+    out = wd.aggregated_sprt(history, config=cfg)
+    assert out["decision"] == "accept_h0"
+
+
+# ── evaluate_signals composition ──────────────────────────────────────────
+
+
+def test_evaluate_signals_flags_rollback_on_streak():
+    cfg = SPRTConfig(p0=0.55, p1=0.60, alpha=0.05, beta=0.20)
+    history = [
+        _entry(treatment_underperformed=True, treatment_n=10, treatment_k=2),
+        _entry(treatment_underperformed=True, treatment_n=10, treatment_k=2),
+    ]
+    sig = wd.evaluate_signals(history, rollback_streak=2, config=cfg)
+    assert sig["rollback_required"] is True
+    assert sig["underperform_streak"] == 2
+    assert wd.select_exit_code(sig) == wd.EXIT_ROLLBACK
+
+
+def test_evaluate_signals_does_not_flag_rollback_below_threshold():
+    cfg = SPRTConfig(p0=0.55, p1=0.60, alpha=0.05, beta=0.20)
+    history = [_entry(treatment_underperformed=True, treatment_n=10, treatment_k=2)]
+    sig = wd.evaluate_signals(history, rollback_streak=2, config=cfg)
+    assert sig["rollback_required"] is False
+    assert wd.select_exit_code(sig) == wd.EXIT_OK
+
+
+def test_evaluate_signals_promotion_ready_emits_exit_3():
+    cfg = SPRTConfig(p0=0.55, p1=0.60, alpha=0.05, beta=0.20)
+    history = [
+        _entry(treatment_underperformed=False, treatment_n=500, treatment_k=350)
+        for _ in range(10)
+    ]
+    sig = wd.evaluate_signals(history, rollback_streak=2, config=cfg)
+    assert sig["promotion_ready"] is True
+    assert wd.select_exit_code(sig) == wd.EXIT_PROMOTION_READY
+
+
+def test_evaluate_signals_futility_emits_exit_4():
+    cfg = SPRTConfig(p0=0.55, p1=0.60, alpha=0.05, beta=0.20)
+    history = [
+        _entry(treatment_underperformed=True, treatment_n=500, treatment_k=200)
+        for _ in range(10)
+    ]
+    sig = wd.evaluate_signals(history, rollback_streak=99, config=cfg)
+    # rollback_streak set high so only futility fires.
+    assert sig["stop_for_futility"] is True
+    assert wd.select_exit_code(sig) == wd.EXIT_FUTILITY
+
+
+# ── markdown render ───────────────────────────────────────────────────────
+
+
+def test_render_status_markdown_handles_empty_history():
+    cfg = SPRTConfig(p0=0.55, p1=0.60, alpha=0.05, beta=0.20)
+    sig = wd.evaluate_signals([], rollback_streak=2, config=cfg)
+    md = wd.render_status_markdown(sig, history=[], generated_at="2026-01-01T00:00:00+00:00", source_commit_sha=None)
+    assert "awaiting_first_run" in md
+    assert "G2/G3 A/B Watchdog" in md
+
+
+def test_render_status_markdown_reports_rollback_yes():
+    cfg = SPRTConfig(p0=0.55, p1=0.60, alpha=0.05, beta=0.20)
+    history = [
+        _entry(treatment_underperformed=True, treatment_n=10, treatment_k=2),
+        _entry(treatment_underperformed=True, treatment_n=10, treatment_k=2),
+    ]
+    sig = wd.evaluate_signals(history, rollback_streak=2, config=cfg)
+    md = wd.render_status_markdown(sig, history=history, generated_at="t", source_commit_sha="abc1234567")
+    assert "rollback required" in md
+    assert "**YES**" in md
+
+
+# ── CLI / main ────────────────────────────────────────────────────────────
+
+
+def test_main_without_input_evaluates_existing_history(tmp_path, monkeypatch):
+    history_path = tmp_path / "h.jsonl"
+    status_md = tmp_path / "s.md"
+    history_path.parent.mkdir(parents=True, exist_ok=True)
+    history_path.write_text(json.dumps(_entry(treatment_underperformed=False)) + "\n",
+                            encoding="utf-8")
+    rc = wd.main([
+        "--history", str(history_path),
+        "--status-md", str(status_md),
+    ])
+    assert rc == wd.EXIT_OK
+    assert status_md.exists()
+
+
+def test_main_with_input_appends_and_returns_rollback_when_streak_met(tmp_path):
+    history_path = tmp_path / "h.jsonl"
+    status_md = tmp_path / "s.md"
+    # Seed one losing entry already.
+    history_path.parent.mkdir(parents=True, exist_ok=True)
+    history_path.write_text(json.dumps(_entry(treatment_underperformed=True,
+                                              treatment_n=10, treatment_k=2)) + "\n",
+                            encoding="utf-8")
+    # Provide a fresh losing comparison as input → second loss → streak = 2.
+    inp = tmp_path / "comp.json"
+    inp.write_text(json.dumps(_comparison(
+        treatment_n=10, treatment_hr=0.20, control_n=10, control_hr=0.55)),
+        encoding="utf-8")
+    rc = wd.main([
+        "--input", str(inp),
+        "--history", str(history_path),
+        "--status-md", str(status_md),
+        "--rollback-streak", "2",
+    ])
+    assert rc == wd.EXIT_ROLLBACK
+
+
+def test_main_handles_unreadable_input(tmp_path):
+    rc = wd.main([
+        "--input", str(tmp_path / "missing.json"),
+        "--history", str(tmp_path / "h.jsonl"),
+        "--status-md", str(tmp_path / "s.md"),
+    ])
+    assert rc == wd.EXIT_FATAL
+
+
+def test_main_handles_malformed_input_json(tmp_path):
+    inp = tmp_path / "bad.json"
+    inp.write_text("not json", encoding="utf-8")
+    rc = wd.main([
+        "--input", str(inp),
+        "--history", str(tmp_path / "h.jsonl"),
+        "--status-md", str(tmp_path / "s.md"),
+    ])
+    assert rc == wd.EXIT_FATAL
