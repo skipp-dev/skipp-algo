@@ -1,0 +1,140 @@
+name: g23-ab-watchdog
+
+# Q3/Q4 plan §G2 (rollback gate, line 414) + §G3 (30-day SPRT stop rule, line 415).
+# Daily watchdog: re-runs SPRT over the rolling A/B comparison history and
+# publishes the resulting decision under docs/ab/ so reviewers can see the
+# current promotion / rollback posture at a glance.
+#
+# This workflow does NOT execute the comparison benchmark itself; it only
+# evaluates whatever history has accumulated. The comparison job (run by
+# the existing measurement-benchmark pipeline) feeds entries into the
+# history JSONL via `--input ab_comparison.json`. When called without
+# --input the watchdog re-evaluates the existing window and refreshes the
+# Markdown surface, which is what we want on a daily cadence.
+
+on:
+  schedule:
+    # 05:30 UTC weekdays — 1 h after the public-calibration-dashboard run
+    # so the latest comparison artifact (if any) has already landed.
+    - cron: "30 5 * * 1-5"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  group: g23-ab-watchdog
+  cancel-in-progress: false
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+jobs:
+  watchdog:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install minimal deps
+        run: python -m pip install --upgrade pip
+
+      - name: Run G2/G3 watchdog
+        id: watchdog
+        env:
+          GITHUB_SHA: ${{ github.sha }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+        run: |
+          set +e
+          python -m scripts.g23_ab_watchdog \
+            --history docs/ab/g23_history.jsonl \
+            --status-md docs/ab/g23_status.md
+          rc=$?
+          echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
+          # Exit codes 2/3/4 are governance signals, not failures —
+          # fold them into success so the workflow can post-process.
+          case "$rc" in
+            0|2|3|4) exit 0 ;;
+            *)       exit "$rc" ;;
+          esac
+
+      - name: Upload watchdog artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: g23-ab-watchdog
+          path: |
+            docs/ab/g23_history.jsonl
+            docs/ab/g23_status.md
+          if-no-files-found: warn
+
+      - name: Commit refreshed status
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/ab/g23_status.md docs/ab/g23_history.jsonl || true
+          if git diff --staged --quiet; then
+            echo "No changes to commit."
+          else
+            git commit -m "chore(docs): g23 watchdog status ${GITHUB_RUN_ID}"
+            git push
+          fi
+
+      - name: Open issue on §G2 rollback signal
+        if: steps.watchdog.outputs.exit_code == '2'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const status = fs.existsSync('docs/ab/g23_status.md')
+              ? fs.readFileSync('docs/ab/g23_status.md', 'utf8')
+              : '(status file missing)';
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: '§G2 rollback signal — A/B treatment underperforming',
+              body: `Plan §G2 rollback gate fired (consecutive-loss streak met).\n\n${status}`,
+              labels: ['governance', 'g2-rollback'],
+            });
+
+      - name: Open issue on §G3 promotion-ready signal
+        if: steps.watchdog.outputs.exit_code == '3'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const status = fs.existsSync('docs/ab/g23_status.md')
+              ? fs.readFileSync('docs/ab/g23_status.md', 'utf8')
+              : '(status file missing)';
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: '§G3 promotion-ready — SPRT accept_h1',
+              body: `Plan §G3 stop rule reached \`accept_h1\`. Treatment arm ready for promotion review.\n\n${status}`,
+              labels: ['governance', 'g3-promotion'],
+            });
+
+      - name: Open issue on §G3 futility signal
+        if: steps.watchdog.outputs.exit_code == '4'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const status = fs.existsSync('docs/ab/g23_status.md')
+              ? fs.readFileSync('docs/ab/g23_status.md', 'utf8')
+              : '(status file missing)';
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: '§G3 futility — SPRT accept_h0',
+              body: `Plan §G3 stop rule reached \`accept_h0\`. Treatment arm should be retired.\n\n${status}`,
+              labels: ['governance', 'g3-futility'],
+            });
