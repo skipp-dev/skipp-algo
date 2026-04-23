@@ -30,6 +30,7 @@ color_theme = input.string("Standard", "Color Theme", options = ["Standard", "Co
 hero_token_order = input.string("BIAS,TRUST,FAM,ZONE,BLOCKER", "Hero Token Order", group = g_surface, tooltip = "Plan 1.1 follow-up — comma-separated tokens that compose the Hero one-liner after the fixed 'SMC' prefix. Vocabulary: BIAS, TRUST, FAM (top-family hit-rate %), ZONE (rank), BLOCKER (warning), SHA (calibration SHA, requires Calibration SHA input below). Unknown tokens are ignored. Default 'BIAS,TRUST,FAM,ZONE,BLOCKER' matches the original hardcoded order. This input is the seam for the W22 preset/template marketplace (Plan §3.5) — users can already build their own Hero today.")
 calibration_sha = input.string("", "Calibration SHA", group = g_surface, tooltip = "Plan §3.1.1 — paste the short git SHA of the calibration_report artifact you trust (e.g. 'a1b2c3d'). When set and the SHA token is present in Hero Token Order, the Hero one-liner appends 'sha:<7chars>' so a screenshot stays SHA-anchored. Empty by default → SHA segment is omitted (no surface change).")
 calibration_breach_banner = input.bool(false, "Calibration Breach Banner", group = g_surface, tooltip = "Plan §3.1.2 — manual operator switch for the rolling-30-day smECE SLO breach. Flip on when docs/slo_calibration.md mitigation pipeline is triggered. Hero one-liner then prepends '⚠CAL-BREACH' to the BLOCKER token. Auto-flip from the daily artifact stream lands once Plan W14–W15 ships the public dashboard.")
+fvg_context_health_text = input.string("", "FVG Context Health (paste from sidecar)", group = g_surface, tooltip = "Plan §D2 — paste the operator-summary line from the latest pine/generated/fvg_context_health.json sidecar (e.g. '⚠ FVG weak in ETH+HIGH (41% HR, 12 events); OK in RTH+NORMAL (72% HR, 34 events)'). Renders as a tooltip on the FVG Status row (line 32) and an extra hint row (32a). Empty by default → tooltip falls back to the legacy single-number summary (no surface change). Auto-flip from the daily artifact stream lands once the smc_micro_profiles_generated library exposes per-context FVG fields (separate library republish PR).")
 
 // ── Dashboard color palette ───────────────────────────────────
 var bool _cb = color_theme == "Colorblind Safe"
@@ -1824,7 +1825,12 @@ if show_table and barstate.islast
         string _audit_degrad_text = (_audit_degraded ? (_audit_trust == "insufficient" ? "Insufficient — no measurement data" : "Degraded — " + (_audit_prov != "ok" ? "provider issue" : "data stale")) : "No degradation") + _audit_warn_suffix
         int _audit_degrad_state = _audit_degraded ? (_audit_trust == "insufficient" ? -1 : 2) : _audit_warn_raw != "" and _audit_warn_raw != "n/a" ? 3 : 5
         section_row(smc_dashboard, 18, "[ Trust & Provider ]", header_bg, txt)
-        dashboard_row(smc_dashboard, 19, "Trust Tier", _audit_trust + " | quality " + _audit_sq_tier + " | " + _audit_sq_fresh, status_bg(_audit_trust_state), txt)
+        // Plan §3.1.1 — append SHA-anchored calibration receipt so a screenshot
+        // of row 19 is independently verifiable against zone_priority_calibration.json.
+        // Empty calibration_sha input → suffix omitted (no surface change).
+        string _audit_cal_sha_trim = str.length(calibration_sha) > 7 ? str.substring(calibration_sha, 0, 7) : calibration_sha
+        string _audit_cal_sha_suffix = _audit_cal_sha_trim != "" ? " (cal sha " + _audit_cal_sha_trim + ")" : ""
+        dashboard_row(smc_dashboard, 19, "Trust Tier", _audit_trust + " | quality " + _audit_sq_tier + " | " + _audit_sq_fresh + _audit_cal_sha_suffix, status_bg(_audit_trust_state), txt)
         dashboard_row(smc_dashboard, 20, "Provider State", _audit_prov, status_bg(_audit_prov_state), txt)
         dashboard_row(smc_dashboard, 21, "Degradation", _audit_degrad_text, status_bg(_audit_degrad_state), txt)
         // Zone Priority from generated library (C9)
@@ -1862,7 +1868,12 @@ if show_table and barstate.islast
         float _audit_fvg_health = resolve_fvg_health_score()
         string _audit_fvg_warn = fvg_combined_warning_text(_audit_fvg_health, mp.ZONE_HR_FVG)
         section_row(smc_dashboard, 31, "[ FVG Health ]", header_bg, txt)
-        dashboard_row(smc_dashboard, 32, "FVG Status", fvg_health_text(_audit_fvg_health), status_bg(fvg_health_state(_audit_fvg_health)), txt)
+        // Plan §D2 — per-context tooltip + optional warn-row from operator-pasted
+        // pine/generated/fvg_context_health.json sidecar. Empty input → legacy
+        // single-number FVG Status row only (no surface change).
+        string _audit_fvg_status_label = fvg_health_text(_audit_fvg_health)
+        string _audit_fvg_ctx_tt = fvg_context_health_text != "" ? "FVG per-context (D2):\n" + fvg_context_health_text + "\nSource: pine/generated/fvg_context_health.json" : "FVG Status — single-number summary. Paste per-context detail into the 'FVG Context Health' input to see the D2 breakdown."
+        dashboard_row_tt(smc_dashboard, 32, "FVG Status", _audit_fvg_status_label, status_bg(fvg_health_state(_audit_fvg_health)), txt, _audit_fvg_ctx_tt)
         if _audit_fvg_warn != ""
             dashboard_row(smc_dashboard, 33, "FVG Warning", _audit_fvg_warn, color.new(CLR_CAUTION, 75), txt)
         else
