@@ -1111,6 +1111,7 @@ def write_pine_library(
     from scripts.smc_zone_priority_consumer import (
         DEFAULTS as _ZH_DEFAULTS,
         FAMILIES as _ZH_FAMILIES,
+        HR_SENTINEL_DEGRADED as _ZH_HR_SENTINEL,
         build_consumer_exports,
     )
 
@@ -1123,6 +1124,18 @@ def write_pine_library(
     )
     content.append("")
     content.append("// ── Pine Consumer Maturity (Phase H) ──")
+    # F-3 (Boundary-Contract Plan 2026-04-23): export the HR sentinel
+    # as a first-class Pine library constant so consumers can assert
+    # ``mp.ZONE_HR_FVG == mp.HR_SENTINEL_DEGRADED`` instead of
+    # hardcoding ``-1.0``. Emitted additively — Pine consumers must
+    # opt-in by importing the new symbol (library_field_version
+    # ``v5.5b`` → ``v5.5c``). The sentinel is distinct from the ``0.0``
+    # neutral-default: ``0.0`` means "no calibration data yet",
+    # ``HR_SENTINEL_DEGRADED`` (-1.0) means "suppressed due to
+    # sub-saturation corpus" (see ADR 2026-04-22).
+    content.append(
+        f"export const float HR_SENTINEL_DEGRADED = {_ZH_HR_SENTINEL:.4f}"
+    )
     content.append(
         f"export const float ZONE_CAL_CONFIDENCE = "
         f"{float(consumer.get('ZONE_CAL_CONFIDENCE', _ZH_DEFAULTS['ZONE_CAL_CONFIDENCE'])):.4f}"
@@ -1381,10 +1394,10 @@ def write_manifest(
         "exported_lists": LIST_EXPORTS,
         "list_counts": {name: len(symbols) for name, symbols in lists.items()},
         "enrichment_blocks": sorted((normalized_enrichment or {}).keys()),
-        "library_field_version": "v5.5b",
+        "library_field_version": "v5.5c",
         "deprecated_field_policy": {
             "mode": "compatibility_only",
-            "preferred_field_version": "v5.5b",
+            "preferred_field_version": "v5.5c",
             "extension_allowed": False,
             "deprecated_groups": DEPRECATED_COMPATIBILITY_GROUPS,
         },
