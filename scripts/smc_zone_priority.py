@@ -106,6 +106,55 @@ def _rank_from_score(score: int) -> str:
     return "D"
 
 
+# ── F3: vol-regime / context bump combination mode ─────────────
+#
+# ``additive`` is the historical formula (production default).  In
+# ``multiplicative`` mode every per-context bump ``b`` is applied as
+# ``score *= (1 + b)`` instead of ``score += b``.  The two are equivalent
+# for a single bump only when the base score is exactly 1.0; with the
+# real ``_FAMILY_BASE_PRIORITY`` (0.61–0.82) multiplicative scaling
+# preserves the ordering of bumps but amplifies the spread between
+# strongly-favored and disfavored families, which is what the F3
+# experiment in ``smc_improvement_plan_q3_q4_2026-04-20.md`` (line 397)
+# asks us to A/B against the additive baseline.
+#
+# Default is ``additive`` so this commit is a no-op for production.  The
+# rolling benchmark and zone-priority calibration scripts can flip the
+# mode via the ``family_score_combination`` keyword (or the
+# ``SMC_FAMILY_SCORE_COMBINATION`` env var) to run a shadow arm without
+# touching any production config.
+FAMILY_SCORE_COMBINATION_ADDITIVE = "additive"
+FAMILY_SCORE_COMBINATION_MULTIPLICATIVE = "multiplicative"
+_VALID_FAMILY_SCORE_COMBINATIONS = (
+    FAMILY_SCORE_COMBINATION_ADDITIVE,
+    FAMILY_SCORE_COMBINATION_MULTIPLICATIVE,
+)
+DEFAULT_FAMILY_SCORE_COMBINATION = FAMILY_SCORE_COMBINATION_ADDITIVE
+
+
+def _resolve_family_score_combination(explicit: str | None) -> str:
+    """Resolve the score-combination mode with env-var fallback.
+
+    Precedence: explicit kwarg > ``SMC_FAMILY_SCORE_COMBINATION`` env >
+    ``DEFAULT_FAMILY_SCORE_COMBINATION``.  Unknown values fall back to
+    the default rather than raising, so a typo in CI never bricks the
+    production scoring path.
+    """
+    import os
+    candidate = (explicit or os.environ.get("SMC_FAMILY_SCORE_COMBINATION") or "").strip().lower()
+    if candidate in _VALID_FAMILY_SCORE_COMBINATIONS:
+        return candidate
+    return DEFAULT_FAMILY_SCORE_COMBINATION
+
+
+def _apply_bump(scores: dict[str, float], family: str, bump: float, mode: str) -> None:
+    """Apply ``bump`` to ``scores[family]`` under the chosen combination mode."""
+    if mode == FAMILY_SCORE_COMBINATION_MULTIPLICATIVE:
+        scores[family] *= (1.0 + bump)
+    else:  # additive (default)
+        scores[family] += bump
+
+
 def _select_top_family(
     *,
     regime: str,
@@ -113,45 +162,51 @@ def _select_top_family(
     htf_aligned: bool,
     calibrated_family_weights: dict[str, float] | None = None,
     session_context: str | None = None,
+    family_score_combination: str | None = None,
 ) -> str:
     """Select the most favorable event family given current context.
 
     ``session_context`` is one of ``"RTH"``, ``"ETH"``, ``"PRE_MARKET"``,
     ``"AFTER_HOURS"`` or *None* (unknown / no session data).
+
+    ``family_score_combination`` is ``"additive"`` (default, production)
+    or ``"multiplicative"`` (F3 experiment arm).  See module docstring
+    on :data:`DEFAULT_FAMILY_SCORE_COMBINATION` for resolution rules.
     """
+    mode = _resolve_family_score_combination(family_score_combination)
     base = calibrated_family_weights if calibrated_family_weights else _FAMILY_BASE_PRIORITY
     scores = dict(base)
 
     # OB favored in normal / low-vol regimes with HTF alignment
     if htf_aligned:
-        scores["OB"] += 0.10
+        _apply_bump(scores, "OB", 0.10, mode)
     if vol_regime in ("NORMAL", "LOW_VOL"):
-        scores["OB"] += 0.05
+        _apply_bump(scores, "OB", 0.05, mode)
     if regime == "RISK_ON":
-        scores["OB"] += 0.05
+        _apply_bump(scores, "OB", 0.05, mode)
 
     # FVG favored in trending / higher-vol regimes
     if vol_regime == "HIGH_VOL":
-        scores["FVG"] += 0.08
+        _apply_bump(scores, "FVG", 0.08, mode)
     if regime in ("RISK_ON", "NEUTRAL"):
-        scores["FVG"] += 0.03
+        _apply_bump(scores, "FVG", 0.03, mode)
 
     # R4: Session-dependent FVG adjustments (from FVG label audit data)
     # FVG performs poorly during extended/after-hours sessions (thin liquidity
     # leads to false invalidations).  Boost during RTH where fills are more
     # reliable.
     if session_context in ("ETH", "AFTER_HOURS", "PRE_MARKET"):
-        scores["FVG"] -= 0.10
+        _apply_bump(scores, "FVG", -0.10, mode)
     elif session_context == "RTH":
-        scores["FVG"] += 0.05
+        _apply_bump(scores, "FVG", 0.05, mode)
 
     # BOS favored during strong trend confirmation
     if htf_aligned and regime == "RISK_ON":
-        scores["BOS"] += 0.12
+        _apply_bump(scores, "BOS", 0.12, mode)
 
     # SWEEP favored in extreme vol for mean-reversion
     if vol_regime == "EXTREME":
-        scores["SWEEP"] += 0.15
+        _apply_bump(scores, "SWEEP", 0.15, mode)
 
     return max(scores, key=lambda k: scores[k])
 
