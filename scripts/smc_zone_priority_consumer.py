@@ -36,10 +36,28 @@ from typing import Any
 # ``TRUST_FRESH`` from "FRESH" → "OK" fixes a silent vocab-mismatch
 # that caused the dashboard glyph to fall back to "?" despite a
 # healthy corpus (see ADR 2026-04-23 — OB-Export-Degradierung).
-TRUST_FRESH: str = "OK"
-TRUST_DEGRADED: str = "DEGRADED"
-TRUST_STALE: str = "STALE"
-TRUST_UNAVAILABLE: str = "UNAVAILABLE"
+#
+# Pine-boundary contract — DO NOT rename these values without
+# updating SMC_Dashboard.pine:1429-1434 in the same PR *and*
+# bumping ``library_field_version``. Boundary-literal pins live in
+# ``tests/test_pine_boundary_literals.py`` (F-7).
+TRUST_FRESH: str = "OK"            # pinned: SMC_Dashboard.pine:1434
+TRUST_DEGRADED: str = "DEGRADED"   # pinned: SMC_Dashboard.pine:1434
+TRUST_STALE: str = "STALE"         # reserved WS2 — not yet in Pine glyph
+TRUST_UNAVAILABLE: str = "UNAVAILABLE"  # pinned: SMC_Dashboard.pine:1434
+
+# Calibration-trend vocabulary — emitted on ``ZONE_CAL_TREND`` and
+# consumed by ``SMC_Dashboard.pine:1440`` via plain text concatenation
+# (no literal gate on the Pine side). Keep frozen; adding a token
+# here requires a Pine-side glyph/color branch first, otherwise the
+# new string leaks silently into the tooltip (F-11). Value-space pin
+# lives in ``tests/test_smc_zone_priority_consumer.py``.
+TREND_IMPROVING: str = "IMPROVING"
+TREND_STABLE: str = "STABLE"
+TREND_DEGRADING: str = "DEGRADING"
+TREND_VOCAB: frozenset[str] = frozenset(
+    {TREND_IMPROVING, TREND_STABLE, TREND_DEGRADING}
+)
 
 # Sentinel propagated to Pine when confidence gating suppresses a
 # family hit rate. ``-1.0`` is unambiguously outside the valid

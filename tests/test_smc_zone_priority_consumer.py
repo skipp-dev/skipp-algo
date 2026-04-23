@@ -419,3 +419,54 @@ def test_build_consumer_exports_emits_ok_literal_on_healthy_corpus() -> None:
     )
     assert out["ZONE_CAL_TRUST"] == "OK"
     assert out["ZONE_HR_OB"] == 0.8636  # passthrough unchanged
+
+
+# ── ZONE_CAL_TREND frozen-vocab (F-11, PR-BC-01) ─────────────────
+
+
+def test_compute_calibration_trend_returns_value_in_frozen_vocab() -> None:
+    """Any trend string reaching Pine MUST belong to ``TREND_VOCAB`` —
+    otherwise the Dashboard tooltip (SMC_Dashboard.pine:1440-1444)
+    silently concatenates arbitrary text, because there is no literal
+    gate on the Pine side.
+    """
+    from scripts.smc_zone_priority_consumer import (
+        TREND_VOCAB,
+        compute_calibration_trend,
+    )
+
+    # Positive path — enough history to make a call.
+    out = compute_calibration_trend([{"weighted_hit_rate": 0.5}] * 20)
+    assert out in TREND_VOCAB
+
+    # Edge: empty history → STABLE.
+    assert compute_calibration_trend([]) in TREND_VOCAB
+    assert compute_calibration_trend(None) in TREND_VOCAB
+
+    # Edge: singleton / below min_runs → STABLE.
+    assert compute_calibration_trend([{"weighted_hit_rate": 0.5}]) in TREND_VOCAB
+
+    # Exercise each branch explicitly to pin the full value space.
+    rising = [{"weighted_hit_rate": v} for v in (0.30, 0.40, 0.50)]
+    falling = [{"weighted_hit_rate": v} for v in (0.60, 0.50, 0.40)]
+    flat = [{"weighted_hit_rate": 0.50}] * 3
+    assert compute_calibration_trend(rising) in TREND_VOCAB
+    assert compute_calibration_trend(falling) in TREND_VOCAB
+    assert compute_calibration_trend(flat) in TREND_VOCAB
+
+
+def test_trend_vocab_constants_pinned() -> None:
+    """Pin the three trend literal values; a rename of a constant
+    without a Pine-side branch update would regress silently.
+    """
+    from scripts.smc_zone_priority_consumer import (
+        TREND_DEGRADING,
+        TREND_IMPROVING,
+        TREND_STABLE,
+        TREND_VOCAB,
+    )
+
+    assert TREND_IMPROVING == "IMPROVING"
+    assert TREND_STABLE == "STABLE"
+    assert TREND_DEGRADING == "DEGRADING"
+    assert TREND_VOCAB == frozenset({"IMPROVING", "STABLE", "DEGRADING"})
