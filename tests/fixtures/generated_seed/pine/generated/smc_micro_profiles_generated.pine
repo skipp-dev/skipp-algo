@@ -306,9 +306,9 @@ export const float ZONE_CAL_SWEEP_HIGH_VOL = 0.7300
 
 // ── Pine Consumer Maturity (Phase H) ──
 export const float ZONE_CAL_CONFIDENCE = 0.0000
-export const float ZONE_HR_OB = 0.0000
-export const float ZONE_HR_FVG = 0.0000
-export const float ZONE_HR_BOS = 0.0000
-export const float ZONE_HR_SWEEP = 0.0000
+export const float ZONE_HR_OB = -1.0000
+export const float ZONE_HR_FVG = -1.0000
+export const float ZONE_HR_BOS = -1.0000
+export const float ZONE_HR_SWEEP = -1.0000
 export const string ZONE_CAL_TREND = "STABLE"
 export const string ZONE_CAL_TRUST = "UNAVAILABLE"
