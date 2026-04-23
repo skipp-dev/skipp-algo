@@ -1,0 +1,29 @@
+name: manifest-pytest-poison-scan
+
+on:
+  pull_request:
+    paths:
+      - '**/manifest*.json'
+      - 'scripts/scan_manifests_for_pytest_provenance.py'
+      - '.github/workflows/manifest-pytest-poison-scan.yml'
+  push:
+    branches: [main]
+
+jobs:
+  scan:
+    name: scan tracked manifests for pytest provenance
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Scan tracked manifest*.json for pytest-of-* provenance
+        run: |
+          python scripts/scan_manifests_for_pytest_provenance.py --all-tracked
