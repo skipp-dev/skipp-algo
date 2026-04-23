@@ -1,0 +1,169 @@
+name: fvg-quality-recal-shadow-daily
+
+# Plan §D4 — daily *shadow* FVG-quality recalibration.
+#
+# Runs scripts/fvg_quality_recalibration.py against the most recent
+# rolling-benchmark corpus and writes a shadow JSON to
+#   artifacts/reports/fvg_quality_calibration_shadow.json
+# that is uploaded as a workflow artifact only.
+#
+# This workflow is fail-soft by design — it MUST NOT mutate the pinned
+# production weights in smc_core/fvg_quality.py or the checked-in
+# zone_priority_calibration.json. Production weights stay frozen until
+# G3 A/B (Amendment A1.E) signs off.
+#
+# Acceptance gate (recorded in the shadow JSON; not enforced here):
+#   * Top-quartile HR    >= 0.70  (or >= base + 0.10 in relative mode)
+#   * Bottom-quartile HR <= 0.55  (or <= base - 0.15 in relative mode)
+#   * Quality-score Spearman correlation with outcome >= 0.20
+#
+# Schedule: 08:00 UTC weekdays, after smc-measurement-benchmark-rolling
+# (07:30 UTC) so the latest corpus is available via workflow artifacts.
+#
+# When no rolling-bench corpus has been produced yet (clean checkout,
+# fresh fork), the run still completes green and emits a shadow JSON
+# with status=no_data — the wall-clock countdown to the §D4 acceptance
+# gate keeps ticking just like feature-importance-daily.yml.
+
+on:
+  schedule:
+    - cron: "0 8 * * 1-5"
+  workflow_dispatch:
+    inputs:
+      corpus-dir:
+        description: "Optional path under the checkout to use as --corpus-dir (skips artifact discovery)."
+        required: false
+        default: ""
+      label-source:
+        description: "outcome (lenient) | partial_50 (strict)"
+        required: false
+        default: "partial_50"
+      acceptance-mode:
+        description: "absolute | relative"
+        required: false
+        default: "relative"
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: fvg-quality-recal-shadow-daily
+  cancel-in-progress: false
+
+jobs:
+  recalibrate-shadow:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+
+      - name: Resolve corpus directory
+        id: corpus
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INPUT_DIR: ${{ inputs.corpus-dir }}
+        run: |
+          set -euo pipefail
+          # Priority 1: explicit dispatch input.
+          if [ -n "${INPUT_DIR}" ] && [ -d "${INPUT_DIR}" ]; then
+            echo "corpus_dir=${INPUT_DIR}" >> "$GITHUB_OUTPUT"
+            echo "source=input" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # Priority 2: most recent rolling-benchmark workflow artifact.
+          mkdir -p artifacts/ci/measurement_benchmark_rolling/_workflow_download
+          download_dir="artifacts/ci/measurement_benchmark_rolling/_workflow_download"
+          latest_run=$(gh run list \
+            --workflow=smc-measurement-benchmark-rolling.yml \
+            --status=success \
+            --limit=1 \
+            --json databaseId \
+            --jq '.[0].databaseId' || true)
+          if [ -n "${latest_run}" ]; then
+            echo "::notice title=corpus-source::Trying rolling-bench run ${latest_run}"
+            if gh run download "${latest_run}" --dir "${download_dir}" 2>/dev/null; then
+              # Find first sub-dir that contains events_*.jsonl OR scoring_*.json
+              found=$(find "${download_dir}" -type f \( -name "events_*.jsonl" -o -name "scoring_*_*.json" \) -print -quit || true)
+              if [ -n "${found}" ]; then
+                root=$(dirname "${found}")
+                echo "corpus_dir=${root}" >> "$GITHUB_OUTPUT"
+                echo "source=rolling-bench-artifact" >> "$GITHUB_OUTPUT"
+                exit 0
+              fi
+            fi
+          fi
+          # Priority 3: fail-soft empty dir (recal will emit status=no_data).
+          mkdir -p artifacts/ci/_empty_corpus
+          echo "corpus_dir=artifacts/ci/_empty_corpus" >> "$GITHUB_OUTPUT"
+          echo "source=empty-fallback" >> "$GITHUB_OUTPUT"
+
+      - name: Run FVG-quality recalibration (shadow)
+        id: recal
+        env:
+          CORPUS_DIR: ${{ steps.corpus.outputs.corpus_dir }}
+          LABEL_SOURCE: ${{ inputs.label-source || 'partial_50' }}
+          ACCEPT_MODE: ${{ inputs.acceptance-mode || 'relative' }}
+        run: |
+          set +e
+          python scripts/fvg_quality_recalibration.py \
+            --corpus-dir "${CORPUS_DIR}" \
+            --label-source "${LABEL_SOURCE}" \
+            --acceptance-mode "${ACCEPT_MODE}" \
+            --output artifacts/reports/fvg_quality_calibration_shadow.json \
+            2>&1 | tee recal.log
+          rc=$?
+          if [ "$rc" -ne 0 ]; then
+            echo "recal_status=error" >> "$GITHUB_OUTPUT"
+            exit "$rc"
+          fi
+          status=$(grep -oE 'status=[a-z_]+' recal.log | head -1 | cut -d= -f2)
+          accept=$(grep -oE 'acceptance=[A-Z]+' recal.log | head -1 | cut -d= -f2)
+          n_label=$(grep -oE 'n_with_label=[0-9]+' recal.log | head -1 | cut -d= -f2)
+          n_feat=$(grep -oE 'n_with_features=[0-9]+' recal.log | head -1 | cut -d= -f2)
+          echo "recal_status=${status:-unknown}" >> "$GITHUB_OUTPUT"
+          echo "acceptance=${accept:-PENDING}" >> "$GITHUB_OUTPUT"
+          echo "n_with_label=${n_label:-0}" >> "$GITHUB_OUTPUT"
+          echo "n_with_features=${n_feat:-0}" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Annotate shadow result
+        if: always()
+        run: |
+          {
+            echo "## fvg-quality-recal-shadow-daily"
+            echo ""
+            echo "- corpus source: \`${{ steps.corpus.outputs.source }}\`"
+            echo "- corpus dir: \`${{ steps.corpus.outputs.corpus_dir }}\`"
+            echo "- label source: \`${{ inputs.label-source || 'partial_50' }}\`"
+            echo "- acceptance mode: \`${{ inputs.acceptance-mode || 'relative' }}\`"
+            echo "- recal status: \`${{ steps.recal.outputs.recal_status || 'unknown' }}\`"
+            echo "- acceptance: \`${{ steps.recal.outputs.acceptance || 'PENDING' }}\`"
+            echo "- n_with_label: \`${{ steps.recal.outputs.n_with_label || 0 }}\`"
+            echo "- n_with_features: \`${{ steps.recal.outputs.n_with_features || 0 }}\`"
+            echo ""
+            echo "Production weights remain pinned (Plan §D4 — shadow only)."
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "::notice title=fvg-quality-recal-shadow::status=${{ steps.recal.outputs.recal_status || 'unknown' }} acceptance=${{ steps.recal.outputs.acceptance || 'PENDING' }} n_label=${{ steps.recal.outputs.n_with_label || 0 }} n_features=${{ steps.recal.outputs.n_with_features || 0 }}"
+
+      - name: Upload shadow JSON + log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fvg-quality-recal-shadow-${{ github.run_id }}
+          path: |
+            artifacts/reports/fvg_quality_calibration_shadow.json
+            recal.log
+          if-no-files-found: ignore
+          retention-days: 30
