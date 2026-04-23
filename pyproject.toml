@@ -94,6 +94,7 @@ check_untyped_defs = false
 # 95% fail_under threshold (streamlit_terminal.py alone is ~2580 stmts at
 # ~16% covered). Per-module Streamlit tests still run; they just no longer
 # gate the SMC suite. Re-add only with an explicit policy decision.
+# Also excludes scripts/run_smc_release_gates.py — release-gate orchestrator, only consumed by the smoke test (already excluded).
 source = [
     "newsstack_fmp",
     "open_prep",
@@ -119,6 +120,7 @@ omit = [
     "scripts/probe_newsapi_feed_cursor.py",
     "scripts/run_smc_e2e_smoke_test.py",
     "scripts/tv_publish_evidence_summary.py",
+    "scripts/run_smc_release_gates.py",
 ]
 
 [tool.coverage.report]
