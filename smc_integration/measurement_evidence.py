@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import logging
 import math
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -8,6 +9,8 @@ from pathlib import Path
 from typing import Any
 
 import pandas as pd
+
+logger = logging.getLogger(__name__)
 
 from databento_reference import get_reference_event_risk_snapshot
 from scripts.explicit_structure_from_bars import build_explicit_structure_from_bars, resample_bars_to_timeframe
@@ -22,6 +25,7 @@ from scripts.smc_session_context_light import build_session_context_light
 from scripts.smc_structure_state import build_structure_state
 from scripts.smc_structure_state_light import build_structure_state_light
 from smc_core.bias_merge import merge_bias
+from smc_integration.timeframes import is_daily_timeframe
 from smc_core.benchmark import EventFamily
 from smc_core.ensemble_quality import build_ensemble_quality, serialize_ensemble_quality
 from smc_core.scoring import (
@@ -160,24 +164,34 @@ def _load_source_bars(symbol: str, timeframe: str, resolved_inputs: dict[str, An
     workbook_path = resolved.get("workbook_path")
     symbol_name = str(symbol).strip().upper()
     canonical_tf = str(timeframe).strip()
+    daily = is_daily_timeframe(canonical_tf)
 
+    bundle_load_failed = False
     if export_bundle_root is not None:
-        required_frames = ("daily_bars",) if canonical_tf == "1D" else ("full_universe_second_detail_open",)
+        required_frames = ("daily_bars",) if daily else ("full_universe_second_detail_open",)
         try:
             bundle = load_export_bundle(
                 export_bundle_root,
                 required_frames=required_frames,
                 manifest_prefix="databento_volatility_production_",
             )
-        except Exception:
+        except Exception as exc:
+            logger.warning(
+                "canonical export bundle unavailable for symbol=%s timeframe=%s export_bundle_root=%s: %s",
+                symbol_name,
+                canonical_tf,
+                export_bundle_root,
+                exc,
+            )
             bundle = None
+            bundle_load_failed = True
 
         if isinstance(bundle, dict):
             frames = bundle.get("frames", {})
-            if canonical_tf == "1D":
-                daily = frames.get("daily_bars")
-                if isinstance(daily, pd.DataFrame) and not daily.empty:
-                    filtered = daily.loc[daily.get("symbol", "").astype(str).str.strip().str.upper().eq(symbol_name)].copy()
+            if daily:
+                daily_frame = frames.get("daily_bars")
+                if isinstance(daily_frame, pd.DataFrame) and not daily_frame.empty:
+                    filtered = daily_frame.loc[daily_frame.get("symbol", "").astype(str).str.strip().str.upper().eq(symbol_name)].copy()
                     bars = _normalize_numeric_bars(filtered, timestamp_column="trade_date")
                     if not bars.empty:
                         return bars.reset_index(drop=True), "canonical_export_bundle"
@@ -191,10 +205,16 @@ def _load_source_bars(symbol: str, timeframe: str, resolved_inputs: dict[str, An
                     if not bars.empty:
                         return bars.reset_index(drop=True), "canonical_export_bundle"
 
-    if canonical_tf == "1D" and isinstance(workbook_path, Path) and workbook_path.exists():
+    if daily and isinstance(workbook_path, Path) and workbook_path.exists():
         try:
             daily_bars = pd.read_excel(workbook_path, sheet_name="daily_bars")
-        except Exception:
+        except Exception as exc:
+            logger.warning(
+                "workbook daily_bars sheet unreadable for symbol=%s workbook_path=%s: %s",
+                symbol_name,
+                workbook_path,
+                exc,
+            )
             daily_bars = pd.DataFrame()
         if not daily_bars.empty:
             daily_bars["symbol"] = daily_bars.get("symbol", "").astype(str).str.strip().str.upper()
@@ -202,6 +222,18 @@ def _load_source_bars(symbol: str, timeframe: str, resolved_inputs: dict[str, An
             bars = _normalize_numeric_bars(filtered, timestamp_column="trade_date")
             if not bars.empty:
                 return bars.reset_index(drop=True), "workbook_fallback"
+
+    if not daily and (bundle_load_failed or export_bundle_root is None):
+        # No intraday source available: workbook only ships daily_bars, so an
+        # intraday request that misses the canonical bundle silently degrades
+        # to empty bars. Surface this so callers / monitoring can react instead
+        # of treating the empty frame as "no events".
+        logger.warning(
+            "no intraday source available for symbol=%s timeframe=%s; workbook fallback is daily-only and bundle is %s",
+            symbol_name,
+            canonical_tf,
+            "unavailable" if bundle_load_failed else "missing",
+        )
 
     return _empty_bars(), "none"
 

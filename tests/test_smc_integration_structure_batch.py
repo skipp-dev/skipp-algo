@@ -58,7 +58,7 @@ def test_structure_batch_writes_one_artifact_per_symbol(tmp_path: Path) -> None:
 
     manifest = write_structure_artifacts_from_workbook(
         workbook=workbook,
-        timeframe="15m",
+        timeframe="1D",
         symbols=symbols,
         output_dir=output_dir,
         generated_at=1709254000.0,
@@ -69,7 +69,7 @@ def test_structure_batch_writes_one_artifact_per_symbol(tmp_path: Path) -> None:
     assert manifest["counts"]["errors"] == 0
 
     for symbol in symbols:
-        path = output_dir / f"{symbol}_15m.structure.json"
+        path = output_dir / f"{symbol}_1D.structure.json"
         assert path.exists()
 
 
@@ -80,14 +80,14 @@ def test_structure_batch_file_naming_is_deterministic(tmp_path: Path) -> None:
 
     write_structure_artifacts_from_workbook(
         workbook=workbook,
-        timeframe="15m",
+        timeframe="1D",
         symbols=symbols,
         output_dir=output_dir,
         generated_at=1709254000.0,
     )
 
     names = sorted(item.name for item in output_dir.glob("*.structure.json"))
-    assert names == sorted([f"{symbols[0]}_15m.structure.json", f"{symbols[1]}_15m.structure.json"])
+    assert names == sorted([f"{symbols[0]}_1D.structure.json", f"{symbols[1]}_1D.structure.json"])
 
 
 def test_structure_batch_is_stable_for_fixed_generated_at(tmp_path: Path) -> None:
@@ -99,38 +99,106 @@ def test_structure_batch_is_stable_for_fixed_generated_at(tmp_path: Path) -> Non
 
     write_structure_artifacts_from_workbook(
         workbook=workbook,
-        timeframe="15m",
+        timeframe="1D",
         symbols=symbols,
         output_dir=out_one,
         generated_at=1709254000.0,
     )
     write_structure_artifacts_from_workbook(
         workbook=workbook,
-        timeframe="15m",
+        timeframe="1D",
         symbols=symbols,
         output_dir=out_two,
         generated_at=1709254000.0,
     )
 
-    one_payload = json.loads((out_one / f"{symbols[0]}_15m.structure.json").read_text(encoding="utf-8"))
-    two_payload = json.loads((out_two / f"{symbols[0]}_15m.structure.json").read_text(encoding="utf-8"))
+    one_payload = json.loads((out_one / f"{symbols[0]}_1D.structure.json").read_text(encoding="utf-8"))
+    two_payload = json.loads((out_two / f"{symbols[0]}_1D.structure.json").read_text(encoding="utf-8"))
     assert one_payload == two_payload
 
 
-def test_structure_batch_keeps_categories_honest(tmp_path: Path) -> None:
-    workbook = make_minimal_workbook(tmp_path)
-    symbols = _sample_symbols(workbook, limit=1)
-    output_dir = tmp_path / "output"
+def _make_populated_daily_workbook(
+    tmp_path: Path, *, symbol: str = "AAPL", num_bars: int = 25
+) -> Path:
+    """Produce a workbook whose ``daily_bars`` sheet contains an oscillating
+    price path + explicit BULL-FVG gap bars, such that
+    ``build_explicit_structure_from_bars(timeframe="1D")`` yields at least
+    one non-empty category (bos and/or fvg). Reuses the canonical gap pattern
+    from ``test_explicit_structure_from_bars.py`` (bar1.high=100, bar3.low=103)
+    anchored inside a 25-day oscillation to also produce swings/BOS.
+    """
+    assert num_bars >= 20, "populated fixture needs >= 20 bars to produce structures"
+    rows: list[dict] = []
+    # Oscillating baseline to create swing highs/lows (BOS candidates).
+    for idx in range(num_bars):
+        ts = pd.Timestamp("2026-03-01", tz="UTC") + pd.Timedelta(days=idx)
+        phase = idx % 6
+        # Zig-zag in 6-bar waves around a rising mean -> swing structure.
+        base = 100.0 + idx * 0.3
+        if phase in (0, 1):
+            high = base + 2.0
+            low = base - 0.5
+            close = base + 1.5
+            open_ = base + 0.1
+        elif phase in (2, 3):
+            high = base + 0.5
+            low = base - 2.0
+            close = base - 1.5
+            open_ = base - 0.1
+        else:
+            high = base + 1.2
+            low = base - 1.2
+            close = base + 0.8
+            open_ = base - 0.2
+        rows.append(
+            {
+                "trade_date": ts.strftime("%Y-%m-%d"),
+                "symbol": symbol,
+                "open": float(open_),
+                "high": float(high),
+                "low": float(low),
+                "close": float(close),
+                "volume": 1000.0 + idx,
+            }
+        )
+    # Inject a canonical 3-bar BULL-FVG (bar[n-3].high < bar[n-1].low) near the
+    # end to guarantee fvg detection regardless of zig-zag edge cases.
+    fvg_anchor = pd.Timestamp("2026-03-01", tz="UTC") + pd.Timedelta(days=num_bars - 3)
+    rows[-3] = {
+        "trade_date": fvg_anchor.strftime("%Y-%m-%d"),
+        "symbol": symbol,
+        "open": 97.0, "high": 100.0, "low": 95.0, "close": 99.0,
+        "volume": 1500.0,
+    }
+    rows[-2] = {
+        "trade_date": (fvg_anchor + pd.Timedelta(days=1)).strftime("%Y-%m-%d"),
+        "symbol": symbol,
+        "open": 100.0, "high": 101.0, "low": 98.0, "close": 100.5,
+        "volume": 1600.0,
+    }
+    rows[-1] = {
+        "trade_date": (fvg_anchor + pd.Timedelta(days=2)).strftime("%Y-%m-%d"),
+        "symbol": symbol,
+        "open": 104.0, "high": 108.0, "low": 103.0, "close": 107.0,
+        "volume": 1700.0,
+    }
 
-    write_structure_artifacts_from_workbook(
-        workbook=workbook,
-        timeframe="15m",
-        symbols=symbols,
-        output_dir=output_dir,
-        generated_at=1709254000.0,
+    workbook = (
+        tmp_path
+        / "artifacts"
+        / "smc_microstructure_exports"
+        / "databento_volatility_production_workbook.xlsx"
     )
+    workbook.parent.mkdir(parents=True, exist_ok=True)
+    with pd.ExcelWriter(workbook, engine="openpyxl") as writer:
+        pd.DataFrame(rows).to_excel(writer, sheet_name="daily_bars", index=False)
+    return workbook
 
-    payload = json.loads((output_dir / f"{symbols[0]}_15m.structure.json").read_text(encoding="utf-8"))
+
+def _assert_coverage_invariants(payload: dict) -> None:
+    """Shared invariant: coverage flags + diagnostic counts mirror the actual
+    structure lists. Holds regardless of whether structures are empty or not.
+    """
     structure = payload["structure"]
     diagnostics = payload["diagnostics"]
     auxiliary = payload["auxiliary"]
@@ -148,6 +216,68 @@ def test_structure_batch_keeps_categories_honest(tmp_path: Path) -> None:
     assert diagnostics["event_logic_version"] == "v2"
 
 
+def test_structure_batch_keeps_categories_honest_when_empty(tmp_path: Path) -> None:
+    """Empty-structure case: 2-bar minimal workbook cannot produce BOS/FVG,
+    so all structure lists remain empty. The invariant ``has_X == bool(X)``
+    must still hold — this guards against coverage flags drifting to True
+    when lists are empty (e.g. stale defaults, copy-paste bugs).
+    """
+    workbook = make_minimal_workbook(tmp_path)
+    symbols = _sample_symbols(workbook, limit=1)
+    output_dir = tmp_path / "output"
+
+    write_structure_artifacts_from_workbook(
+        workbook=workbook,
+        timeframe="1D",
+        symbols=symbols,
+        output_dir=output_dir,
+        generated_at=1709254000.0,
+    )
+
+    payload = json.loads((output_dir / f"{symbols[0]}_1D.structure.json").read_text(encoding="utf-8"))
+    _assert_coverage_invariants(payload)
+    # Pin the empty-case expectation explicitly: 2 bars cannot yield structures.
+    assert payload["structure"]["bos"] == []
+    assert payload["structure"]["fvg"] == []
+    assert payload["coverage"]["has_bos"] is False
+    assert payload["coverage"]["has_fvg"] is False
+
+
+def test_structure_batch_keeps_categories_honest_when_populated(tmp_path: Path) -> None:
+    """Populated-structure case: 25-bar workbook with oscillating swings and
+    an explicit BULL-FVG triplet must yield at least one non-empty category.
+    Without this test, the invariant test is a tautology (empty list == empty
+    list trivially). This pins ``has_X == bool(X)`` against the TRUE branch
+    of the bool, which the empty fixture cannot exercise.
+    """
+    symbol = "AAPL"
+    workbook = _make_populated_daily_workbook(tmp_path, symbol=symbol, num_bars=25)
+    output_dir = tmp_path / "output"
+
+    write_structure_artifacts_from_workbook(
+        workbook=workbook,
+        timeframe="1D",
+        symbols=[symbol],
+        output_dir=output_dir,
+        generated_at=1709254000.0,
+    )
+
+    payload = json.loads((output_dir / f"{symbol}_1D.structure.json").read_text(encoding="utf-8"))
+    _assert_coverage_invariants(payload)
+
+    # Guarantee the populated branch actually fires — otherwise this test
+    # would regress silently to a tautology identical to the _when_empty case.
+    structure = payload["structure"]
+    any_populated = any(
+        bool(structure[key]) for key in ("bos", "orderblocks", "fvg", "liquidity_sweeps")
+    )
+    assert any_populated, (
+        "populated fixture produced zero structures — fixture drift suspected. "
+        "Bars were designed to trigger BULL-FVG at tail and swing BOS mid-series. "
+        f"Structure payload: {structure}"
+    )
+
+
 def test_structure_batch_records_selected_profile_in_source(tmp_path: Path) -> None:
     workbook = make_minimal_workbook(tmp_path)
     symbols = _sample_symbols(workbook, limit=1)
@@ -155,14 +285,14 @@ def test_structure_batch_records_selected_profile_in_source(tmp_path: Path) -> N
 
     write_structure_artifacts_from_workbook(
         workbook=workbook,
-        timeframe="15m",
+        timeframe="1D",
         symbols=symbols,
         output_dir=output_dir,
         generated_at=1709254000.0,
         structure_profile="conservative",
     )
 
-    payload = json.loads((output_dir / f"{symbols[0]}_15m.structure.json").read_text(encoding="utf-8"))
+    payload = json.loads((output_dir / f"{symbols[0]}_1D.structure.json").read_text(encoding="utf-8"))
     assert payload["source"]["structure_profile"] == "conservative"
     assert payload["diagnostics"]["structure_profile_used"] == "conservative"
 
@@ -178,7 +308,7 @@ def test_structure_batch_explicit_workbook_ignores_autoresolved_bundle(monkeypat
 
     write_structure_artifacts_from_workbook(
         workbook=workbook,
-        timeframe="15m",
+        timeframe="1D",
         symbols=[symbol],
         output_dir=baseline_dir,
         generated_at=1709254000.0,
@@ -203,14 +333,14 @@ def test_structure_batch_explicit_workbook_ignores_autoresolved_bundle(monkeypat
 
     write_structure_artifacts_from_workbook(
         workbook=workbook,
-        timeframe="15m",
+        timeframe="1D",
         symbols=[symbol],
         output_dir=controlled_dir,
         generated_at=1709254000.0,
     )
 
-    baseline_payload = json.loads((baseline_dir / f"{symbol}_15m.structure.json").read_text(encoding="utf-8"))
-    controlled_payload = json.loads((controlled_dir / f"{symbol}_15m.structure.json").read_text(encoding="utf-8"))
+    baseline_payload = json.loads((baseline_dir / f"{symbol}_1D.structure.json").read_text(encoding="utf-8"))
+    controlled_payload = json.loads((controlled_dir / f"{symbol}_1D.structure.json").read_text(encoding="utf-8"))
 
     assert controlled_payload == baseline_payload
     assert controlled_payload["source"]["canonical_upstream"] == "workbook_fallback"
@@ -680,7 +810,7 @@ class TestBuildSingleSymbolStructureArtifactNoInput:
         from smc_integration import structure_batch as mod
 
         monkeypatch.setattr(mod, "_load_symbol_bars_from_canonical_exports", lambda *a, **kw: None)
-        with pytest.raises(ValueError, match="missing structure input"):
+        with pytest.raises(ValueError, match="only supported for 1D"):
             mod.build_single_symbol_structure_artifact(
                 workbook=None,
                 export_bundle_root=Path("/tmp/fake"),
@@ -688,6 +818,99 @@ class TestBuildSingleSymbolStructureArtifactNoInput:
                 timeframe="15m",
                 generated_at=1709253600.0,
             )
+
+    def test_no_workbook_or_bundle_raises_for_daily(self, monkeypatch) -> None:
+        from smc_integration import structure_batch as mod
+
+        monkeypatch.setattr(mod, "_load_symbol_bars_from_canonical_exports", lambda *a, **kw: None)
+        with pytest.raises(ValueError, match="missing structure input"):
+            mod.build_single_symbol_structure_artifact(
+                workbook=None,
+                export_bundle_root=Path("/tmp/fake"),
+                symbol="AAPL",
+                timeframe="1D",
+                generated_at=1709253600.0,
+            )
+
+    def test_intraday_with_workbook_only_raises(self, tmp_path: Path, monkeypatch) -> None:
+        from smc_integration import structure_batch as mod
+
+        monkeypatch.setattr(mod, "_load_symbol_bars_from_canonical_exports", lambda *a, **kw: None)
+        wb = make_minimal_workbook(tmp_path)
+        with pytest.raises(ValueError, match="only supported for 1D"):
+            mod.build_single_symbol_structure_artifact(
+                workbook=wb,
+                export_bundle_root=None,
+                symbol="AAPL",
+                timeframe="15m",
+                generated_at=1709253600.0,
+            )
+
+
+class TestWorkbookFallbackGate:
+    """Regression guard: workbook fallback must refuse intraday timeframes.
+
+    Prior bug: ``build_single_symbol_structure_artifact`` silently fed daily
+    bars from the workbook into ``build_explicit_structure_from_bars(timeframe="15m")``,
+    producing artifacts that claimed intraday provenance while containing daily
+    OHLC. ``measurement_evidence._load_source_bars`` already had the 1D gate;
+    this suite pins the same gate in ``structure_batch`` and guards the shared
+    :func:`smc_integration.timeframes.is_daily_timeframe` helper against regressions
+    (casing, whitespace, synonyms).
+    """
+
+    @pytest.mark.parametrize("intraday_tf", ["5m", "15m", "1H", "4H", "30m"])
+    def test_workbook_fallback_rejects_intraday_timeframe(self, tmp_path: Path, monkeypatch, intraday_tf: str) -> None:
+        from smc_integration import structure_batch as mod
+
+        monkeypatch.setattr(mod, "_load_symbol_bars_from_canonical_exports", lambda *a, **kw: None)
+        wb = make_minimal_workbook(tmp_path)
+        with pytest.raises(ValueError, match="only supported for 1D"):
+            mod.build_single_symbol_structure_artifact(
+                workbook=wb,
+                export_bundle_root=None,
+                symbol="AAPL",
+                timeframe=intraday_tf,
+                generated_at=0.0,
+            )
+
+    @pytest.mark.parametrize("daily_tf", ["1D", "1d", " 1D ", "D", "daily", "DAILY", "1day"])
+    def test_workbook_fallback_accepts_daily_synonyms(self, tmp_path: Path, monkeypatch, daily_tf: str) -> None:
+        from smc_integration import structure_batch as mod
+
+        # Daily synonyms must NOT trigger the intraday reject. Route canonical
+        # loader to None so the code path reaches the workbook fallback branch.
+        monkeypatch.setattr(mod, "_load_symbol_bars_from_canonical_exports", lambda *a, **kw: None)
+        wb = make_minimal_workbook(tmp_path)
+        # Must not raise ValueError with "only supported for 1D". It may still
+        # succeed (workbook has the symbol) or raise an unrelated error; we
+        # only assert the intraday gate is not tripped.
+        try:
+            mod.build_single_symbol_structure_artifact(
+                workbook=wb,
+                export_bundle_root=None,
+                symbol="AAPL",
+                timeframe=daily_tf,
+                generated_at=0.0,
+            )
+        except ValueError as exc:
+            assert "only supported for 1D" not in str(exc), (
+                f"daily synonym {daily_tf!r} was wrongly rejected by intraday gate"
+            )
+
+    def test_is_daily_timeframe_helper_contract(self) -> None:
+        from smc_integration.timeframes import is_daily_timeframe
+
+        assert is_daily_timeframe("1D")
+        assert is_daily_timeframe("1d")
+        assert is_daily_timeframe(" 1D ")
+        assert is_daily_timeframe("D")
+        assert is_daily_timeframe("daily")
+        assert is_daily_timeframe("DAILY")
+        assert not is_daily_timeframe("15m")
+        assert not is_daily_timeframe("1H")
+        assert not is_daily_timeframe("")
+        assert not is_daily_timeframe("1W")
 
 
 class TestBuildStructureArtifactBatchEdges:

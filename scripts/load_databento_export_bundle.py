@@ -37,8 +37,20 @@ def _resolve_manifest_from_directory(
 ) -> Path | None:
     required = set(required_frames or ())
     for manifest_path in _manifest_candidates(directory, manifest_prefix=manifest_prefix):
-        if (not required or required.issubset(_manifest_frame_names(manifest_path))) and _manifest_json_is_parseable(manifest_path):
-            return manifest_path
+        if not _manifest_json_is_parseable(manifest_path):
+            continue
+        frame_names = _manifest_frame_names(manifest_path)
+        if not frame_names:
+            # Sub-manifests (e.g. ``..._smc_microstructure_base_manifest.json``)
+            # match the same ``{prefix}*_manifest.json`` glob but reference no
+            # sibling ``{basename}__*.parquet`` frames. Skipping them prevents
+            # such sub-manifests from hijacking default selection when no
+            # ``required_frames`` filter is supplied (which would otherwise
+            # silently return an empty bundle).
+            continue
+        if required and not required.issubset(frame_names):
+            continue
+        return manifest_path
     return None
 
 

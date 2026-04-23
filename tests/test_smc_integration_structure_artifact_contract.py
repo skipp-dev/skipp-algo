@@ -31,7 +31,7 @@ def test_structure_artifact_contract_is_schema_valid_and_consistent() -> None:
 
     manifest = write_structure_artifacts_from_workbook(
         workbook=WORKBOOK,
-        timeframe="15m",
+        timeframe="1D",
         symbols=[symbol],
         output_dir=output_dir,
         generated_at=1709254000.0,
