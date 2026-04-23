@@ -160,3 +160,113 @@ rollback}` instead of `status=skipped`.
 > operator telemetry, but the **real 30-day SPRT countdown only
 > starts after PR #44 lands**.
 
+
+<a id="regeneration-recipe"></a>
+
+## Regeneration recipe (PR #43 frozen artifact, Option C)
+
+This recipe is referenced by `frozen_provenance.regeneration_instructions` in
+both `artifacts/reports/zone_priority_calibration.json` and
+`artifacts/reports/zone_priority_contextual_calibration.json`. The recipe
+is the **authoritative** way to re-derive a frozen artifact for audit;
+running these steps on the same `source_commit` against a corpus whose
+`benchmark_run_manifest.json` matches `benchmark_manifest_sha256` MUST
+produce byte-identical JSON outputs (modulo the `generated_at` and
+`frozen_at` timestamps).
+
+### Prerequisites
+
+- Databento Python client installed and authenticated
+  (`DATABENTO_API_KEY` env var or `~/.databento/credentials`)
+- Working tree at `source_commit` recorded in the existing artifact's
+  `frozen_provenance.source_commit`
+- Disk space for the corpus (~200 MB for 90 days, ~10 k events)
+
+### Step 1 — Pull the corpus
+
+```bash
+# Replace <START> / <END> with the dates from frozen_provenance
+# (or pick a fresh 90-day window for a re-calibration).
+python scripts/run_smc_measurement_benchmark.py \
+  --output-dir artifacts/ci/measurement_benchmark_combined_<END> \
+  --start-date <START> --window-days 90 \
+  --symbols <SYMBOL_LIST> --timeframes 5m,15m
+```
+
+Inputs to record after the run completes:
+
+| Field | How to get it |
+|---|---|
+| `benchmark_manifest_sha256` | `shasum -a 256 artifacts/ci/measurement_benchmark_combined_<END>/benchmark_run_manifest.json` |
+| `n_events` | `jq '.n_events // .total_events' artifacts/ci/measurement_benchmark_combined_<END>/benchmark_run_manifest.json` |
+| `max_event_timestamp_utc` | `jq -r '.max_event_timestamp_utc // .end_date' …/benchmark_run_manifest.json` |
+
+### Step 2 — Run frozen calibration
+
+```bash
+python scripts/smc_zone_priority_calibration.py \
+  --benchmark-dir artifacts/ci/measurement_benchmark_combined_<END> \
+  --output-path artifacts/reports/zone_priority_calibration.json \
+  --smoothing 0.3 \
+  --frozen \
+  --status shadow \
+  --frozen-at <ISO_UTC_NOW> \
+  --corpus-manifest-hash <SHA_FROM_STEP_1>
+```
+
+Defaults:
+- `--status shadow` — required initial state. Promotion to
+  `production` is a separate, governed event (see "Promotion to
+  production" below).
+- `--smoothing 0.3` — must match prior frozen runs; changing this
+  invalidates SPRT comparisons.
+- `--frozen-at` — defaults to `now()` when omitted; pin it explicitly
+  for reproducibility.
+
+### Step 3 — Verify outputs
+
+```bash
+ls -1 artifacts/reports/zone_priority_*calibration*.json
+jq '.frozen_provenance' artifacts/reports/zone_priority_contextual_calibration.json
+jq '.promoted_buckets | length' artifacts/reports/zone_priority_contextual_calibration.json
+```
+
+Expected:
+- Two `*_calibration.json` files plus their `*.md` siblings
+- `frozen_provenance` block populated in both JSONs (status=shadow,
+  matching `benchmark_manifest_sha256` and `source_commit`)
+- `promoted_buckets` length > 0 (at least the global weights must promote;
+  bucket count depends on corpus volume)
+
+### Step 4 — Commit
+
+Commit only the four files under `artifacts/reports/`:
+
+```bash
+git add artifacts/reports/zone_priority_calibration.json \
+        artifacts/reports/zone_priority_calibration.md \
+        artifacts/reports/zone_priority_contextual_calibration.json
+git commit -m "data(f2): regenerate frozen contextual calibration artifact (corpus <START>–<END>)"
+```
+
+Do **NOT** commit the `artifacts/ci/measurement_benchmark_combined_<END>/`
+corpus — it is reproducible from Databento (see
+[docs/sample_expansion_e1_e2_evidence_2026-04-21.md](sample_expansion_e1_e2_evidence_2026-04-21.md)
+for why corpus dirs are intentionally ephemeral).
+
+### Promotion to production
+
+Flipping `frozen_provenance.status` from `shadow` to `production`
+requires a separate calibration run with `--status production` after
+the SPRT in `f2_run_promotion_gate.py` has signaled significance over
+≥30 calendar days against the new corpus. Do not hand-edit the
+JSONs — re-run the script.
+
+### Why Option C is temporary
+
+This recipe is currently the only path to regenerate the artifact and
+is documented as a permanent record-of-process. The follow-up
+[issue #43](https://github.com/skippALGO/skipp-algo/issues/43) tracks
+moving regeneration into a `workflow_dispatch`-only GitHub Actions
+workflow (`f2-frozen-artifact-bootstrap.yml`) so future re-calibrations
+do not require operator-local Databento setup.
