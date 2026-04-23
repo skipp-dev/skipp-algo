@@ -35,7 +35,7 @@ def _make_scoring(
     family_metrics: dict[str, dict[str, Any]],
 ) -> dict[str, Any]:
     return {
-        "schema_version": "2.1.0",
+        "schema_version": "3.0.0",
         "symbol": symbol,
         "timeframe": tf,
         "n_events": sum(fm.get("n_events", 0) for fm in family_metrics.values()),
@@ -108,7 +108,7 @@ def test_load_aggregates_across_pairs(tmp_path: Path) -> None:
 
 
 def test_load_skips_empty_family_metrics(tmp_path: Path) -> None:
-    data = {"schema_version": "2.1.0", "family_metrics": {}}
+    data = {"schema_version": "3.0.0", "family_metrics": {}}
     d = tmp_path / "AAPL" / "15m"
     d.mkdir(parents=True)
     (d / "scoring_AAPL_15m.json").write_text(json.dumps(data))
@@ -353,7 +353,7 @@ def _make_benchmark(
     stratified: dict[str, list[dict[str, Any]]] | None = None,
 ) -> dict[str, Any]:
     return {
-        "schema_version": "2.1.0",
+        "schema_version": "3.0.0",
         "symbol": symbol,
         "timeframe": tf,
         "generated_at": 0.0,
@@ -603,7 +603,7 @@ def _write_stratified_scoring(
     (d / f"scoring_{symbol}_{tf}.json").write_text(
         json.dumps(
             {
-                "schema_version": "2.1.0",
+                "schema_version": "3.0.0",
                 "symbol": symbol,
                 "timeframe": tf,
                 "stratified_calibration": stratified,

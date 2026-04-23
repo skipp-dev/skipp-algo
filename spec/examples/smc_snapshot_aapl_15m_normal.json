@@ -2,7 +2,7 @@
   "symbol": "AAPL",
   "timeframe": "15m",
   "generated_at": 1709253600,
-  "schema_version": "2.1.0",
+  "schema_version": "3.0.0",
   "structure": {
     "bos": [
       {

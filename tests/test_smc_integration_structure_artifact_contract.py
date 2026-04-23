@@ -115,7 +115,7 @@ def test_explicit_workbook_does_not_use_inferred_canonical_export_bundle(
         captured["workbook"] = workbook
         captured["export_bundle_root"] = export_bundle_root
         return {
-            "schema_version": "2.1.0",
+            "schema_version": "3.0.0",
             "generated_at": generated_at,
             "symbol": symbol,
             "timeframe": timeframe,
@@ -224,7 +224,7 @@ def test_explicit_workbook_does_not_use_inferred_canonical_workbook(
         captured["workbook"] = workbook
         captured["export_bundle_root"] = export_bundle_root
         return {
-            "schema_version": "2.1.0",
+            "schema_version": "3.0.0",
             "generated_at": generated_at,
             "symbol": symbol,
             "timeframe": timeframe,

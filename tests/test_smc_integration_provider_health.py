@@ -78,7 +78,7 @@ def _write_real_manifest_artifact_fixture(tmp_path: Path, *, observed_workbook: 
     manifest_path.write_text(
         json.dumps(
             {
-                "schema_version": "2.1.0",
+                "schema_version": "3.0.0",
                 "generated_at": generated_at,
                 "timeframe": "15m",
                 "producer": {

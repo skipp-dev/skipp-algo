@@ -1,5 +1,5 @@
 {
-  "schema_version": "2.1.0",
+  "schema_version": "3.0.0",
   "generated_at": 1774960979.833833,
   "generator": "scripts/generate_showcase_summary.py",
   "source_fixture": "tests/fixtures/reference_enrichment.json",
