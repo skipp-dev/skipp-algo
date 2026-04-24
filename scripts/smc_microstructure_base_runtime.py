@@ -17,6 +17,7 @@ from databento_provider import list_recent_trading_days
 from databento_utils import US_EASTERN_TZ
 from scripts.databento_production_export import run_production_export_pipeline
 from scripts.generate_smc_micro_profiles import load_schema, run_generation
+from scripts.smc_atomic_write import atomic_write_csv, atomic_write_parquet
 from scripts.load_databento_export_bundle import load_export_bundle
 from scripts.smc_enrichment_types import EnrichmentDict
 
@@ -267,10 +268,11 @@ def _write_incremental_base_seed(
 ) -> None:
     paths = _incremental_base_seed_paths(export_dir)
     paths["seed_dir"].mkdir(parents=True, exist_ok=True)
-    pd.DataFrame(daily_bars).to_parquet(paths["daily_bars"], index=False)
-    pd.DataFrame(daily_features).to_parquet(paths["daily_features"], index=False)
-    pd.DataFrame(symbol_day_features).to_parquet(paths["symbol_day_features"], index=False)
-    pd.DataFrame(symbol_day_diagnostics).to_parquet(paths["symbol_day_diagnostics"], index=False)
+    # A-1: atomic writes (tempfile + os.replace) to prevent truncated parquet on crash.
+    atomic_write_parquet(pd.DataFrame(daily_bars), paths["daily_bars"], index=False)
+    atomic_write_parquet(pd.DataFrame(daily_features), paths["daily_features"], index=False)
+    atomic_write_parquet(pd.DataFrame(symbol_day_features), paths["symbol_day_features"], index=False)
+    atomic_write_parquet(pd.DataFrame(symbol_day_diagnostics), paths["symbol_day_diagnostics"], index=False)
     payload = {
         "bundle_manifest_path": str(bundle_manifest_path),
         "asof_date": str(asof_date),
@@ -2087,8 +2089,9 @@ def generate_base_from_bundle(
         mapping_payload["bundle_manifest_path"] = str(bundle_payload["manifest_path"])
     output_paths = build_default_output_paths(bundle_payload["base_prefix"], target_dir, mapping_payload["asof_date"])
     output_paths["base_csv"].parent.mkdir(parents=True, exist_ok=True)
-    base_snapshot.to_csv(output_paths["base_csv"], index=False)
-    symbol_day_features.to_parquet(output_paths["micro_day_parquet"], index=False)
+    # A-1: atomic writes.
+    atomic_write_csv(base_snapshot, output_paths["base_csv"], index=False)
+    atomic_write_parquet(symbol_day_features, output_paths["micro_day_parquet"], index=False)
     workbook_warning: str | None = None
     workbook_written = False
     if write_xlsx:
@@ -2147,8 +2150,10 @@ def _build_incremental_bundle_payload(
     generated_at = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
     base_prefix = f"databento_volatility_production_incremental_{generated_at}"
     manifest_path = export_dir / f"{base_prefix}_manifest.json"
-    pd.DataFrame(daily_bars).to_parquet(export_dir / f"{base_prefix}__daily_bars.parquet", index=False)
-    pd.DataFrame(daily_features).to_parquet(
+    # A-1: atomic writes.
+    atomic_write_parquet(pd.DataFrame(daily_bars), export_dir / f"{base_prefix}__daily_bars.parquet", index=False)
+    atomic_write_parquet(
+        pd.DataFrame(daily_features),
         export_dir / f"{base_prefix}__daily_symbol_features_full_universe.parquet",
         index=False,
     )
@@ -2335,7 +2340,7 @@ def run_databento_base_scan_pipeline(
                     )
                     output_paths = build_default_output_paths(bundle_payload["base_prefix"], export_dir, str(max(trading_days).isoformat()))
                     if not session_minute_detail.empty:
-                        session_minute_detail.to_parquet(output_paths["session_minute_parquet"], index=False)
+                        atomic_write_parquet(session_minute_detail, output_paths["session_minute_parquet"], index=False)
 
                     _progress("Step 12/12: Building SMC microstructure base snapshot from incremental seed + delta...")
                     base_snapshot_started_at = time_module.perf_counter()
@@ -2345,8 +2350,9 @@ def run_databento_base_scan_pipeline(
                     )
                     mapping_payload["bundle_manifest_path"] = str(bundle_payload["manifest_path"])
                     output_paths["base_csv"].parent.mkdir(parents=True, exist_ok=True)
-                    base_snapshot.to_csv(output_paths["base_csv"], index=False)
-                    merged_symbol_day_features.to_parquet(output_paths["micro_day_parquet"], index=False)
+                    # A-1: atomic writes.
+                    atomic_write_csv(base_snapshot, output_paths["base_csv"], index=False)
+                    atomic_write_parquet(merged_symbol_day_features, output_paths["micro_day_parquet"], index=False)
                     workbook_warning: str | None = None
                     workbook_written = False
                     if write_xlsx:
@@ -2524,7 +2530,7 @@ def run_databento_base_scan_pipeline(
     )
     output_paths = build_default_output_paths(bundle_payload["base_prefix"], export_dir, str(max(trading_days).isoformat()))
     if not session_minute_detail.empty:
-        session_minute_detail.to_parquet(output_paths["session_minute_parquet"], index=False)
+        atomic_write_parquet(session_minute_detail, output_paths["session_minute_parquet"], index=False)
 
     _progress("Step 12/12: Building SMC microstructure base snapshot...")
     base_snapshot_started_at = time_module.perf_counter()
