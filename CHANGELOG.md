@@ -6,6 +6,63 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Tests / Quality (2026-04-24) — SPRT Decision Vocab + httpx Client Budget + Float-Eq Discipline + Pine Security Per-File Budget
+
+Vier kleine Pins, alle Tripwire/Budget-Stil:
+
+**SPRT Decision Vocab Pin**
+
+- Neuer Pin [`tests/test_sprt_decision_vocab_pin.py`](tests/test_sprt_decision_vocab_pin.py):
+  friert die 5er-Membership des `Decision`-Literal in
+  [`scripts/smc_sprt_stop_rule.py`](scripts/smc_sprt_stop_rule.py)
+  ein (`continue`, `accept_h0`, `accept_h1`, `max_n_reached`,
+  `inconclusive`), prüft `INCONCLUSIVE_DECISIONS ⊆ Decision`, und
+  verifiziert dass `decide()` / `evaluate()` / `terminal_decision()`
+  vocab-member zurückgeben (nicht `None` / free-form). Verhindert
+  silent gate-deadlock bei Decision-Drift. (6 tests)
+
+**NewsAPI httpx.Client Instantiation Budget**
+
+- Neuer Pin [`tests/test_newsapi_ai_client_instantiation_budget.py`](tests/test_newsapi_ai_client_instantiation_budget.py):
+  friert Anzahl der `httpx.Client(...)` Konstruktionen in
+  [`scripts/smc_newsapi_ai.py`](scripts/smc_newsapi_ai.py) auf 4
+  (eine Fallback pro public fetch). Jede Konstruktion muss
+  `if client is None:` guard ≤ 3 Zeilen davor haben. Bei 5. Fetch:
+  shared `_get_or_create_client(client)` helper extrahieren statt
+  Budget bumpen. (3 tests)
+
+**`smc_core/` Float-Equality Discipline (Regression-Pin)**
+
+- Neuer Pin [`tests/test_smc_core_float_equality_discipline.py`](tests/test_smc_core_float_equality_discipline.py):
+  verbietet `==` / `!=` gegen Float-Literale (`0.0`, `1.5`, `2e-3`)
+  in `smc_core/*.py`. Discovery: smc_core 100% sauber — Pin friert
+  das gegen ULP-Equality-Regression ein. Konvention:
+  `math.isclose(...)` für Wertvergleich, `abs(x) < eps` für
+  Zero-Check. (2 tests)
+
+**Pine `request.security` Per-File Budget**
+
+- Neuer Pin [`tests/test_pine_request_security_per_file_budget.py`](tests/test_pine_request_security_per_file_budget.py):
+  ergänzt PR #132's qualitative Discipline um quantitatives Budget:
+  - `SMC_Core_Engine.pine` ≤ 6 Calls (current=5)
+  - `SMC++/smc_utils.pine` ≤ 5 Calls (current=4)
+  Neue Calls forcieren explizite Budget-Bumps. Stale-Entry-Test
+  fängt verschwundene/leere Budget-Einträge. (2 tests)
+
+**Acceptance**
+
+- 13/13 neue Tests grün (6 + 3 + 2 + 2).
+
+**Pattern-Notes**
+
+- Vocab-Triangle wächst: SPRT `Decision` ist die 5. eingefrorene
+  Vocab-Surface (nach `HERO_TRUST`, `HERO_SETUP_QUALITY`,
+  `HERO_ACTION`, `TrustState`).
+- Budget-Pins komplementär zu Discipline-Pins (PR #132 D verbietet
+  *was nicht erlaubt*, dieser PR limitiert *wieviel erlaubt*).
+- Float-Eq-Pin erneut "freeze the good state" — Audit-Backlog wandert
+  von Bug-Fix zu Regression-Guard.
+
 ### Tests / Quality / Pine (2026-04-24) — Cross-Language Vocab + A/B Discipline + Test Health
 
 Drei pin-Erweiterungen aus dem Backlog von PR #130 (I-2 Folgearbeit
