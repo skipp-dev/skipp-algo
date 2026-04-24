@@ -45,7 +45,12 @@
   in `scripts/smc_newsapi_ai.py` (PR #98). Audit-Text war stale —
   `terminal_newsapi.py` ist Decommissioned-Stub.
 - **A-3**: Streamlit `session_state` Invalidations-Versionsschlüssel.
-- **D-1**: Legacy-Pine in `pine/legacy/` verschieben (Manifest-Pfade mit ziehen).
+- ~~**D-1**: Legacy-Pine in `pine/legacy/` verschieben (Manifest-Pfade mit ziehen).~~
+  → Phase 1 erledigt durch [`PINE_LEGACY.md`](../PINE_LEGACY.md):
+  Index-Datei klassifiziert die 24 Root-Pine-Files als `LEGACY` / aktiv.
+  Physischer Move ("D-1 v2") bleibt offen, bis
+  `pine_apply_surface_reduction.py`, `test_usi_lint.py`, README,
+  CHANGELOG und `docs/*.md` atomar mit-aktualisiert werden.
 - **D-2**: Schema-Version-Historie in `CHANGELOG.md` migrieren.
 
 ---
