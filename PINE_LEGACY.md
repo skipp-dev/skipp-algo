@@ -87,8 +87,7 @@ Generated 2026-04-24 by enumerating root-level `*.pine` files that are
 | `Breakout_Finder_Intelligent.pine`                          |  342 | LEGACY      |                                                |
 | `VWAP_Long_Reclaim_Indicator.pine`                          |  330 | LEGACY      |                                                |
 | `CHOCH-Strategy.pine`                                       |  324 | LEGACY      |                                                |
-| `CHOCH.pine`                                                |  282 | LEGACY      | duplicate of `CHoCH.pine` (case-only)          |
-| `CHoCH.pine`                                                |  282 | LEGACY      |                                                |
+| `CHoCH.pine`                                                |  282 | LEGACY      | (note: `CHOCH.pine` case variant existed historically; not present at HEAD) |
 | `BTC 3m EV Scalper BALANCED (Harmonized).pine`              |  242 | LEGACY      | space + parens in filename — handle with quoting |
 | `USI_Lines.pine`                                            |  227 | LEGACY      |                                                |
 | `CHOCH-Indicator.pine`                                      |  224 | LEGACY      |                                                |

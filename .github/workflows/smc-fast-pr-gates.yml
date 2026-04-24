@@ -63,6 +63,37 @@ jobs:
             --timeframes "15m" \
             --output artifacts/ci/smc_fast_health_report.json
 
+      # PINE_LEGACY.md drift check (D-1 v2 follow-up): every root-level
+      # *.pine file must be classified in the index, and every index
+      # entry must still exist. Sub-second; fails the gate on drift.
+      - name: Check PINE_LEGACY.md drift
+        if: steps.gate.outputs.run_heavy == 'true'
+        run: python scripts/check_pine_legacy_drift.py
+
+      # library_release_manifest.json drift check (B follow-up to PR
+      # #105): every path the manifest references (sourceManifest,
+      # sourceSnippet, consumers, productCut.{manifestPath,mainlineFiles})
+      # must exist on disk. Sub-second; prevents silent renames from
+      # breaking the TradingView publishing pipeline.
+      - name: Check library_release_manifest drift
+        if: steps.gate.outputs.run_heavy == 'true'
+        run: python scripts/check_library_release_manifest_drift.py
+
+      # T-3 re-introduction guard: forbid the redundant
+      # `request.security(syminfo.tickerid, timeframe.period, ...)`
+      # pattern (same symbol AND same timeframe is a no-op wrapper).
+      # External-symbol calls like `request.security(symbol,
+      # timeframe.period, ...)` remain legitimate and are not flagged.
+      - name: Check Pine same-TF request.security pattern
+        if: steps.gate.outputs.run_heavy == 'true'
+        run: |
+          if grep -rnE 'request\.security\(\s*syminfo\.tickerid\s*,\s*timeframe\.period' --include='*.pine' .; then
+            echo "::error::Found redundant same-symbol/same-TF request.security() call (T-3 guard)."
+            echo "Use direct field access instead of request.security(syminfo.tickerid, timeframe.period, ...)."
+            exit 1
+          fi
+          echo "OK: no redundant same-TF request.security() patterns."
+
       - name: Run fast SMC integration tests
         if: steps.gate.outputs.run_heavy == 'true'
         run: |
