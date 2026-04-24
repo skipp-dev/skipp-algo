@@ -6,6 +6,58 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Documentation (2026-04-24) — SMC System Full-Surface Review report
+
+Audit-only Review nach `/memories/repo/smc-system-review-prompt-2026-04-24.md`
+über das gesamte Repo (HEAD `fef44cdb`, post #121). Adressiert alle
+40 Bug-Klassen der Checkliste, davon 31 als clean mit grep-Beleg
+markiert, 4 mit neuem Pin in dieser PR geschlossen, 2 MEDIUM ohne
+Test (HERO_BIAS/HERO_MARKET_MODE Vocab-Lücke; zwei `continue-on-error`
+Workflows), 2 LOW (fehlende `tests/conftest.py`; `_derive_bias`
+default-FLAT statt UNKNOWN), 2 INVESTIGATE (Atomic-Write 1003 vs 92
+Triage; F2 dual-arm wiring statisch nicht reproduzierbar).
+
+Zero HIGH-Findings — die Hardening-Welle PRs #80–#122 hat die
+hochfrequenten Defekt-Klassen geschlossen. Report:
+[docs/audits/smc-system-review-2026-04-24.md](docs/audits/smc-system-review-2026-04-24.md).
+
+### Tests / Quality (2026-04-24) — Audit-getriebene Pins (lru_cache / Pine-Library / HERO observed-vocab / ADR-0005 islands)
+
+Vier additive Test-Module, die die im Review identifizierten
+Observability-Lücken schließen. Pure stdlib, zero source changes.
+
+- **`@lru_cache` Bounded-Sweep** (`tests/test_lru_cache_bounded_sweep.py`):
+  AST-Scan über alle in-repo `*.py` (excl. `.venv`/`site-packages`)
+  asserted, dass jeder `@lru_cache` ein explizites `maxsize=N` trägt
+  (auch `maxsize=None` wird abgelehnt). Schließt Bug-Klasse #29
+  (PR #98 A-2). Aktueller Stand: 3 Hits, alle bounded — Test pinnt
+  den clean state.
+- **Pine-Library-Versions-Skew Gate**
+  (`tests/test_pine_library_version_consistency.py`): scant alle
+  `*.pine` Dateien (excl. `pine/legacy/`, `tests/fixtures/`) auf
+  `import preuss_steffen/<lib>/<N>` und assertet dass jede Library
+  exakt eine Major-Version über alle Konsumenten hat. Schließt
+  Bug-Klasse #16 (Issue #59). Aktueller Stand: 14 Imports, alle `/1`.
+- **HERO observed-vocab Pin**
+  (`tests/test_hero_observed_vocab_pin.py`): pinnt die *observed*
+  Werte für `HERO_BIAS` (`{LONG, SHORT, FLAT}` aus `_derive_bias`-
+  Returns) und `HERO_MARKET_MODE` (`{BULLISH, BEARISH, NEUTRAL,
+  RISK_OFF}` aus Docstring + DEFAULTS) ohne Source-Änderung.
+  Adressiert Bug-Klasse #17 / #19 (M-1 im Audit-Report). Migrations-
+  Rezept im Test-Docstring für die spätere strikte
+  `HERO_BIAS_VOCAB`-Variante.
+- **ADR-0005 Extended-Islands Audit**
+  (`tests/test_adr_0005_extended_islands_audit.py`): re-importiert
+  `BANNED_ROOTS` und den AST-Scanner aus dem kanonischen ADR-0005
+  Test (PR #120) und auditiert drei sekundäre pure-stdlib Inseln
+  (`scripts/smc_hero_state.py`, `scripts/smc_hero_action.py`,
+  `scripts/smc_pine_evidence_gate.py`). Failure zwingt zu einer
+  expliziten Entscheidung: in `RUNTIME_FILES` promoten oder aus
+  `_AUDIT_FILES` entfernen mit CHANGELOG-Begründung. Disjoint-
+  Property gegen `RUNTIME_FILES` ebenfalls gepinnt.
+
+12 neue Tests, ~430 LOC Tests + 1 Audit-Report, zero source changes.
+
 ### Tests / Quality (2026-04-24) — BH property test, Brier/ECE closed-form pin, SPRT boundary precision, CHANGELOG category lint
 
 Four additive, source-untouched test modules tightening the
