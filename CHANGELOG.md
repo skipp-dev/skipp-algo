@@ -6,6 +6,59 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Tests / Quality (2026-04-24) — BH property test, Brier/ECE closed-form pin, SPRT boundary precision, CHANGELOG category lint
+
+Four additive, source-untouched test modules tightening the
+measurement-runtime contract on top of the PR #120 / #121 schema-pin
++ ADR-0005 work. Pure stdlib, no new runtime imports.
+
+- **`benjamini_hochberg` property test**
+  (`tests/test_benjamini_hochberg_property.py`, ~150 LOC, 35 cases):
+  pins the BH step-up contract directly on the helper —
+  empty-input shape, output-length invariance, monotonicity of
+  adjusted p-values along the sorted axis, [0, 1] adjusted range,
+  q=0/q=1 edge cases, sorted-prefix structure of the rejection set,
+  threshold-separation property, shuffle invariance, and a B&H 1995
+  textbook three-p-value worked example. Existing tests covered the
+  `digest["fdr"]` payload but not the helper's mathematical
+  invariants in isolation.
+- **`_metric_brier` / `_metric_ece` closed-form pin**
+  (`tests/test_metric_brier_ece_pin.py`, ~135 LOC, 13 cases):
+  locks the calibration-metric closed forms against silent
+  re-implementation drift. Brier: perfect prediction → 0, fully
+  inverted → 1, all-0.5 baseline → 0.25, two-event hand-checked
+  average. ECE: perfect calibration → 0, total miscalibration in
+  one bucket → 1.0, two-bin weighted average, probability clipping
+  on out-of-range inputs, NaN on empty input, [0, 1] bound on
+  random fuzz. These metrics feed the calibration-FDR layer
+  (`digest["fdr_calibration"]`).
+- **`terminal_decision` SPRT boundary-precision pin**
+  (`tests/test_terminal_decision_boundary.py`, ~120 LOC, 9 cases):
+  computes the exact integer `k` at which the LLR crosses each
+  Wald bound for `(n, p0, p1, alpha, beta) = (200|500|1000, 0.5,
+  0.6, 0.05, 0.20)` and asserts that the inclusive-boundary
+  classification (`llr >= upper_bound` → `accept_h1`,
+  `llr <= lower_bound` → `accept_h0`) is preserved to the integer
+  step. Plus a closed-form LLR pin
+  (`llr = k·ln(p1/p0) + (n-k)·ln((1-p1)/(1-p0))`) at five
+  representative `(n, k)` points. Catches the off-by-one
+  comparison-operator drift that the four-variant decision pin
+  (PR #120) cannot see.
+- **CHANGELOG `[Unreleased]` category lint**
+  (`tests/test_changelog_format_lint.py`, ~95 LOC, 2 cases): asserts
+  that the first `## [...]` versioned heading is `[Unreleased]` and
+  that every `###` sub-header inside `[Unreleased]` uses a category
+  from the active whitelist (`Added`, `Changed`, `Deprecated`,
+  `Removed`, `Fixed`, `Security`, `Documentation`,
+  `Tests / Quality`, `Schema Versions`, `Evidence`, `Verification`).
+  Date and uniqueness checks are deliberately omitted because the
+  existing repo convention legitimately repeats e.g. multiple
+  `### Verification` blocks per day and uses date-range headers.
+
+All four modules are pure-stdlib (no scipy/sklearn/pandas) and
+respect the ADR-0005 measurement-runtime fence. Total addition:
+**62 tests, ~500 LOC, zero source changes**.
+
 ### Tests / Quality (2026-04-24) — `_normal_cdf` accuracy pin + SPRT Wald-bounds property test + ADR-0005 pre-commit CLI
 
 Three additive hardening pieces, no source changes to the runtime
