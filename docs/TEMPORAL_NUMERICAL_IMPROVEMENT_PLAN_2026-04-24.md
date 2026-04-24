@@ -35,7 +35,6 @@
 ## Backlog (P2 ohne PR — Owner zu vergeben)
 - **T-3**: `request.security` Same-TF-Pattern entfernen (rein kosmetisch, kein Korrektheits-Bug).
 - **N-2/N-3/N-4**: `math.isclose` / Sentinel-`None` migrieren — niedrige Wahrscheinlichkeit, kein P0/P1.
-- **TZ-2**: Session-Fenster-Intent dokumentieren (UTC-fix vs. lokal). Issue eröffnen, kein Code-Patch.
 - **SPRT-1**: Sentinel-Decision `"inconclusive"` in `smc_sprt_stop_rule.py`.
 - **S-2**: Benjamini-Hochberg in `run_ab_comparison.py`.
 - **S-4**: Eligibility-Policy als Doku-Block.
@@ -52,9 +51,11 @@
 |---|---|---|
 | 1 (T-1) | #89 | gemerged |
 | 2 (A-1) | #90 | gemerged |
-| 3 (S-1) | #93 | armed (auto-merge) |
-| 4 (P1: T-2/T-4/N-1/E-1/E-2) | #91 | armed (auto-merge) |
-| 5 (P2 quick-wins: S-3) | #92 | armed (auto-merge) |
+| 3 (S-1) | #93 | gemerged |
+| 4 (P1: T-2/T-4/N-1/E-1/E-2) | #91 | gemerged |
+| 5 (P2 quick-wins: S-3) | #92 | gemerged |
+| Follow-up TZ-2 Lock-Down | #95 | gemerged |
+| Follow-up Tracking-Update | #94 | gemerged |
 
 ### Aus Scope ausgenommen (begründet)
 - **TZ-1** (`utc=True` everywhere): die einzigen `pd.to_datetime`-Call-Sites auf
@@ -62,8 +63,27 @@
   `market_structure_features.py:213`) verwenden bereits `utc=True`. Restliche
   Call-Sites sind auf Date-Only-Spalten — `utc=True` würde bei
   Local-Timezones um Mitternacht 1-Tages-Shifts riskieren.
+- **TZ-2** (Session-Fenster DST-Drift): Intent als **UTC-fixiert by design**
+  geklärt (Sommer-Local-Anchor BST/EDT in festem UTC). Header-Kommentar über
+  `SESSIONS` in `scripts/smc_session_context_block.py` und vier Lock-Down-Tests
+  (`test_tz2_*` in `tests/test_smc_session_context_block.py`) nageln den
+  Kontrakt fest. Geliefert in PR #95.
 - **D-3** (`BEST_V1_WEIGHTS` parallel): Symbol existiert nicht; gemeinte
   `LENIENT_WEIGHTS` ist aktiver Test-Baseline-Import. Kein Dead-Code.
 - **D-1, D-2** (Legacy-Pine verschieben, Schema-History): reine
   Aufräum-Arbeiten ohne Sicherheits-/Korrektheits-Impact, separates Backlog.
+
+### Lessons Learned (Konvention für nächsten Audit-Zyklus)
+- **MED-Bündel ≤ 3 Findings pro PR.** Bundle 4 (PR #91) hat fünf P1-Findings
+  (T-2/T-4/N-1/E-1/E-2) zusammengefasst. Hier ohne Folgekosten gemerged, aber
+  bei späterer Test-Flakiness wäre die Root-Cause-Isolation pro Finding
+  teurer gewesen. Künftig MED/P1 nur in Drei-Findings-Häppchen.
+- **Audit-Symbole vor Implementierung verifizieren.** D-3 zeigte auf
+  `BEST_V1_WEIGHTS`, das es nicht gibt (gemeint war `LENIENT_WEIGHTS`).
+  Schnelle `grep`-Verifikation hat ~30 Min Implementierungszeit gespart.
+- **TZ-Findings nicht als reine Doku-Aufgabe parken.** TZ-2 wurde initial
+  als „Issue eröffnen, kein Code-Patch" gelistet. Erst der Lock-Down-Test
+  garantiert, dass Intent (UTC-fixiert) nicht durch ein späteres
+  „DST-Bugfix"-Refactor verloren geht. Regel: jeder TZ-Intent-Befund braucht
+  mindestens einen DST-invarianten Test.
 
