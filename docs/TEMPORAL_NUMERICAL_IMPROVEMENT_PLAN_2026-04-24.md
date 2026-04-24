@@ -37,15 +37,16 @@
 - **N-2/N-3/N-4**: `math.isclose` / Sentinel-`None` migrieren — niedrige Wahrscheinlichkeit, kein P0/P1.
 - **SPRT-1**: Sentinel-Decision `"inconclusive"` in `smc_sprt_stop_rule.py`.
 - **S-2**: Benjamini-Hochberg in `run_ab_comparison.py`.
-- ~~**S-4**: Eligibility-Policy als Doku-Block.~~ → erledigt durch
-  [`docs/adr/0002-promotion-eligibility-policy.md`](adr/0002-promotion-eligibility-policy.md)
-  (PR #99).
+- **S-4**: Eligibility-Policy als Doku-Block.
 - **E-3**: Strategischer Refactor (`@resilient`-Decorator), eigenes Quartal.
-- ~~**A-2**: `lru_cache(maxsize=1024)` für Newsapi-Clients.~~ → erledigt
-  in `scripts/smc_newsapi_ai.py` (PR #98). Audit-Text war stale —
-  `terminal_newsapi.py` ist Decommissioned-Stub.
+- **A-2**: `lru_cache(maxsize=1024)` für Newsapi-Clients.
 - **A-3**: Streamlit `session_state` Invalidations-Versionsschlüssel.
-- **D-1**: Legacy-Pine in `pine/legacy/` verschieben (Manifest-Pfade mit ziehen).
+- ~~**D-1**: Legacy-Pine in `pine/legacy/` verschieben (Manifest-Pfade mit ziehen).~~
+  → Phase 1 erledigt durch [`PINE_LEGACY.md`](../PINE_LEGACY.md):
+  Index-Datei klassifiziert die 24 Root-Pine-Files als `LEGACY` / aktiv.
+  Physischer Move ("D-1 v2") bleibt offen, bis
+  `pine_apply_surface_reduction.py`, `test_usi_lint.py`, README,
+  CHANGELOG und `docs/*.md` atomar mit-aktualisiert werden.
 - **D-2**: Schema-Version-Historie in `CHANGELOG.md` migrieren.
 
 ---
