@@ -12,7 +12,9 @@ Beyond the shared core each vocab has its own surface:
 * ``HERO_TRUST_VOCAB`` adds ``"warmup"`` (hero-only — initial bootstrap
   state before the first measurement window completes).
 * ``TrustState`` adds ``WATCH_ONLY = "watch_only"`` (product-only —
-  dashboard remains visible but trades are advisory-only).
+  dashboard remains visible but the action surface is downgraded to
+  *no new entries*; this is stricter than ``DEGRADED``, which is
+  advisory-only and still permits entries).
 
 The two vocabs are NOT the same set; this pin freezes the *relationship*
 so that a future refactor cannot:

@@ -42,6 +42,12 @@ _SAME_TF_RE = re.compile(
 )
 
 
+# Match a real ``lookahead = ...`` named-argument assignment in the call
+# body. Plain substring search would false-positive on identifiers like
+# ``use_lookahead_flag`` or on the word appearing inside a comment/string.
+_LOOKAHEAD_KWARG_RE = re.compile(r"\blookahead\s*=")
+
+
 def _active_pine_files() -> list[Path]:
     out: list[Path] = []
     for p in REPO_ROOT.rglob("*.pine"):
@@ -99,7 +105,7 @@ def test_every_active_request_security_call_specifies_lookahead() -> None:
             # argument in Pine v5/v6 — it always behaves as lookahead_off.
             if "request.security_lower_tf" in match.group(0):
                 continue
-            if "lookahead" in body:
+            if _LOOKAHEAD_KWARG_RE.search(body):
                 continue
             line_no = text.count("\n", 0, match.start()) + 1
             offenders.append(f"{path.relative_to(REPO_ROOT).as_posix()}:{line_no}")
