@@ -235,3 +235,153 @@ def test_fdr_layer_is_advisory_only_recommendation_unchanged() -> None:
     digest = compare(ctrl, treat, "advisory-only")
     # FDR may reject BOS, but recommendation is hold (no calibration delta).
     assert digest["recommendation"] in {"hold", "rollback"}, digest["recommendation"]
+
+
+def test_fdr_layer_advisory_only_byte_identity_recommendation_sprt() -> None:
+    """Strict mirror of ``test_compare_advisory_only_does_not_change_recommendation``.
+
+    Symmetry guard: the calibration-FDR test (S-2 follow-up) asserts that
+    toggling ``enable_calibration_fdr`` between two ``compare()`` calls
+    leaves ``recommendation`` / ``recommendation_reason`` / ``sprt``
+    byte-identical. Hit-rate FDR has no enable flag (it is always-on),
+    so the equivalent invariant is: removing ``family_metrics`` (which
+    disables FDR computation entirely) versus including ``family_metrics``
+    that produce a strong rejection must not perturb the same three
+    decision-driving fields, because all three derive only from the
+    top-level brier / ECE / log-score / hit-rate aggregates.
+    """
+    # Top-level metrics are byte-identical across both runs.
+    base_ctrl = {
+        "symbol": "AAPL", "timeframe": "5m", "n_events": 200,
+        "brier": 0.20, "calibrated_brier": 0.20, "calibrated_ece": 0.05,
+        "raw_ece": 0.05, "log_score": 0.5, "hit_rate_pct": 50.0,
+    }
+    base_treat = {
+        "symbol": "AAPL", "timeframe": "5m", "n_events": 200,
+        "brier": 0.18, "calibrated_brier": 0.18, "calibrated_ece": 0.04,
+        "raw_ece": 0.04, "log_score": 0.5, "hit_rate_pct": 60.0,
+    }
+    # Variant A: family_metrics with strong lift → FDR rejects.
+    ctrl_with = [{**base_ctrl, "family_metrics": {"BOS": {"n_events": 200, "hit_rate": 0.50}}}]
+    treat_with = [{**base_treat, "family_metrics": {"BOS": {"n_events": 200, "hit_rate": 0.80}}}]
+    # Variant B: no family_metrics at all → FDR has nothing to test.
+    ctrl_without = [{**base_ctrl, "family_metrics": {}}]
+    treat_without = [{**base_treat, "family_metrics": {}}]
+
+    digest_with = compare(ctrl_with, treat_with, "symmetry-guard")
+    digest_without = compare(ctrl_without, treat_without, "symmetry-guard")
+
+    # Byte-identical decision-driving fields.
+    assert digest_with["recommendation"] == digest_without["recommendation"]
+    assert digest_with["recommendation_reason"] == digest_without["recommendation_reason"]
+    assert digest_with["sprt"] == digest_without["sprt"]
+    # And the FDR layer was actually exercised non-trivially in variant A.
+    assert "BOS" in digest_with["fdr"]["rejected_families"]
+    assert digest_without["fdr"]["families"] == []
+
+
+# ---------------------------------------------------------------------------
+# Schema-pin smoke test: ``digest["fdr_calibration"]`` field set
+# ---------------------------------------------------------------------------
+#
+# Pins the canonical key set for the calibration-FDR advisory block. Any
+# stealth field add/rename here must be paired with a major schema version
+# bump (per ``schema-version-bump-must-be-major-on-field-count-change``
+# convention). This test fails loudly if a new key is added without
+# updating both the pin below and the schema version contract.
+
+
+_FDR_CALIBRATION_DISABLED_KEYS = frozenset({"skipped_reason", "method"})
+
+_FDR_CALIBRATION_ACTIVE_KEYS = frozenset({
+    "method",
+    "q",
+    "B",
+    "seed",
+    "metrics_tested",
+    "tested_cells",
+    "skipped_cells",
+    "rejected_cells",
+    "threshold_p_value",
+    "min_events_per_arm",
+    "notes",
+    "cells",
+})
+
+_FDR_CALIBRATION_CELL_KEYS = frozenset({
+    "family",
+    "metric",
+    "n_control",
+    "n_treatment",
+    "metric_control",
+    "metric_treatment",
+    "delta",
+    "p_value",
+    "adjusted_p_value",
+    "rejected",
+    "lower_is_better",
+    "skipped_reason",
+})
+
+
+def _calibration_pair() -> dict:
+    return {
+        "symbol": "AAPL", "timeframe": "5m", "n_events": 100,
+        "brier": 0.20, "calibrated_brier": 0.20, "calibrated_ece": 0.05,
+        "raw_ece": 0.05, "log_score": 0.5, "hit_rate_pct": 50.0,
+        "family_metrics": {"BOS": {"n_events": 100, "hit_rate": 0.5}},
+    }
+
+
+def test_fdr_calibration_schema_pin_disabled() -> None:
+    digest = compare([_calibration_pair()], [_calibration_pair()], "schema-pin-disabled")
+    block = digest["fdr_calibration"]
+    assert set(block.keys()) == _FDR_CALIBRATION_DISABLED_KEYS, (
+        f"fdr_calibration disabled-variant key set drifted: {set(block.keys())}. "
+        "Update the schema version (major bump) and the pin in this test."
+    )
+    assert block["method"] == "permutation_bh"
+    assert block["skipped_reason"] == "disabled"
+
+
+def test_fdr_calibration_schema_pin_ledger_missing() -> None:
+    digest = compare(
+        [_calibration_pair()],
+        [_calibration_pair()],
+        "schema-pin-ledger-missing",
+        enable_calibration_fdr=True,
+    )
+    block = digest["fdr_calibration"]
+    assert set(block.keys()) == _FDR_CALIBRATION_DISABLED_KEYS, (
+        f"fdr_calibration ledger-missing-variant key set drifted: {set(block.keys())}. "
+        "Update the schema version (major bump) and the pin in this test."
+    )
+    assert block["skipped_reason"] == "ledger_not_provided"
+
+
+def test_fdr_calibration_schema_pin_active() -> None:
+    """Active layer (ledgers provided): top-level + per-cell field set is pinned."""
+    # Minimal ledger with enough events to get past MIN_EVENTS_PER_ARM_FOR_BOOTSTRAP.
+    ctrl_ledger = [("BOS", 0.5, i % 2 == 0) for i in range(60)]
+    treat_ledger = [("BOS", 0.5, i % 2 == 0) for i in range(60)]
+    digest = compare(
+        [_calibration_pair()],
+        [_calibration_pair()],
+        "schema-pin-active",
+        control_ledgers=[ctrl_ledger],
+        treatment_ledgers=[treat_ledger],
+        enable_calibration_fdr=True,
+        calibration_fdr_B=50,
+    )
+    block = digest["fdr_calibration"]
+    assert set(block.keys()) == _FDR_CALIBRATION_ACTIVE_KEYS, (
+        f"fdr_calibration active-variant key set drifted: {set(block.keys())}. "
+        "Update the schema version (major bump) and the pin in this test."
+    )
+    # At least one cell must exist so we can pin its key set too.
+    assert len(block["cells"]) >= 1
+    for cell in block["cells"]:
+        assert set(cell.keys()) == _FDR_CALIBRATION_CELL_KEYS, (
+            f"fdr_calibration cell key set drifted: {set(cell.keys())}. "
+            "Update the schema version (major bump) and the pin in this test."
+        )
