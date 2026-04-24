@@ -6,6 +6,42 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Tests / Quality (2026-04-24) — `except Exception: pass` defense pin (frozen-inventory budget)
+
+Defense-Pin friert die aktuelle Anzahl und exakten Locations aller
+`except Exception: pass` (und `: continue`) Sites in First-Party-
+Produktionscode ein. Klasse "broad-except + silent body" schluckt
+Exceptions ohne Spur — Bugs werden so unsichtbar. Wir haben 11
+legitime Sites (DNS-Best-Effort, `conn.close()`, optionales
+`yfinance`/`ws`, Module-Import-Fallback, Wall-Clock-Fallback); statt
+jeden zu refactorn, frieren wir den Stand ein und blocken neue Sites.
+
+**Defense-Pin (`tests/test_broad_except_silent_budget.py`)**
+
+AST-Walk über alle First-Party `*.py` (Top-Level + Subdirs außer
+`tests/`, `scripts/`, `docs/`, `SMC++/`, Caches, Venvs). "Broad" =
+`except Exception`, `except BaseException`, bare `except:`, oder
+Tuple das einen davon enthält. Spezifische Exception-Typen
+(`OSError`, `ValueError`, …) sind explizit nicht abgedeckt.
+
+`_FROZEN_SITES` enthält alle 11 vorhandenen Sites als
+`(rel_path, lineno)`. Drei Sub-Tests:
+
+1. `test_first_party_files_present` — Pfaddrift-Wächter (≥ 50 Dateien).
+2. `test_no_unexpected_broad_except_silent_sites` — neue Sites lassen
+   die Suite fail; PR-Author muss entweder Exception-Typ verengen +
+   loggen, oder Site mit Justification in `_FROZEN_SITES` aufnehmen.
+3. `test_frozen_sites_still_match` — parametrierter Stale-Check
+   (13 Tests, einer pro Eintrag): Refactors, die einen Site verschieben,
+   müssen die Linenummer im selben PR aktualisieren.
+
+**Production behaviour unchanged.** Reine Tripwire — kein Code-Change.
+
+**Warum jetzt:** Die 11 Sites sind real, intentional, und werden ohne
+Pin schleichend mehr. Defense-Pin pro frozen-inventory ist das
+gleiche Pattern wie FDR/SPRT vocab pins — billig (sub-Sekunde, AST
+only) und blockt eine ganze Bug-Klasse strukturell.
+
 ### Tests / Quality (2026-04-24) — terminal_*.py httpx timeout named-constant discipline
 
 - Neuer Pin [`tests/test_terminal_httpx_timeout_named.py`](tests/test_terminal_httpx_timeout_named.py):
