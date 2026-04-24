@@ -1,0 +1,130 @@
+name: run-open-prep-daily
+
+# Daily pre-open scoring run. Generates a fresh `outcomes_<date>.json`
+# that the existing `open-prep-outcome-backfill` workflow will label
+# ~30 min after RTH open via Databento RTH bars. This is what grows
+# the FI labeled-sample corpus toward the G1 acceptance gate (>= 30
+# labeled samples). Without this scheduled producer, the backfill has
+# nothing new to label and the FI report stays at `insufficient_labels`.
+
+on:
+  schedule:
+    # 13:00 UTC weekdays — covers both DST regimes:
+    #   * EDT (UTC-4): 09:00 ET — 30 min before RTH open at 09:30 ET.
+    #   * EST (UTC-5): 08:00 ET — 90 min before RTH open at 09:30 ET.
+    # Both windows are firmly inside the pre-open window the scorer
+    # is designed for.
+    - cron: "0 13 * * 1-5"
+  workflow_dispatch:
+    inputs:
+      universe_source:
+        description: "Universe source: fmp_us_mid_large (default) or static"
+        required: false
+        default: "fmp_us_mid_large"
+      top:
+        description: "How many ranked candidates to keep"
+        required: false
+        default: "10"
+      trade_cards:
+        description: "How many trade cards to generate"
+        required: false
+        default: "5"
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: run-open-prep-daily
+  cancel-in-progress: false
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  PYTHONUNBUFFERED: "1"
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run open-prep scoring
+        env:
+          FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
+          DATABENTO_API_KEY: ${{ secrets.DATABENTO_API_KEY }}
+          BENZINGA_API_KEY: ${{ secrets.BENZINGA_API_KEY }}
+          NEWSAPI_AI_KEY: ${{ secrets.NEWSAPI_AI_KEY }}
+          OPEN_PREP_LOG_LEVEL: INFO
+          OPEN_PREP_CODE_VERSION: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/open_prep/runs
+          UNIVERSE="${{ github.event.inputs.universe_source || 'fmp_us_mid_large' }}"
+          TOP="${{ github.event.inputs.top || '10' }}"
+          CARDS="${{ github.event.inputs.trade_cards || '5' }}"
+          DATE_TAG="$(date -u +%Y%m%dT%H%M%SZ)"
+          OUT="artifacts/open_prep/runs/run_${DATE_TAG}.json"
+          # Stream stdout (the result payload) to a per-run artifact for
+          # later inspection; the side-effect we actually care about is
+          # `artifacts/open_prep/outcomes/outcomes_<today>.json` which
+          # `store_daily_outcomes()` writes during the run and which the
+          # outcome-backfill workflow later resolves into FI labels.
+          python -m open_prep.run_open_prep \
+            --universe-source "$UNIVERSE" \
+            --top "$TOP" \
+            --trade-cards "$CARDS" \
+            --pre-open-only \
+            > "$OUT"
+          echo "Wrote run payload: $OUT ($(wc -c < "$OUT") bytes)"
+          ls -la artifacts/open_prep/outcomes/ || true
+
+      - name: Upload run artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: run-open-prep-${{ github.run_id }}
+          path: |
+            artifacts/open_prep/runs/
+            artifacts/open_prep/outcomes/
+          if-no-files-found: warn
+
+      - name: Commit fresh outcomes via auto-merge PR
+        # Direct push to `main` is blocked by repository rulesets, so
+        # we follow the same pattern as open-prep-outcome-backfill: push
+        # to a short-lived branch and open an auto-merging PR.
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add artifacts/open_prep/outcomes/ || true
+          if git diff --staged --quiet; then
+            echo "No new outcomes to commit."
+            exit 0
+          fi
+          BRANCH="bot/run-open-prep-${GITHUB_RUN_ID}"
+          git checkout -b "$BRANCH"
+          git commit -m "chore(open_prep): daily run outcomes ${GITHUB_RUN_ID}"
+          git push -u origin "$BRANCH"
+          gh pr create \
+            --base main \
+            --head "$BRANCH" \
+            --title "chore(open_prep): daily run outcomes ${GITHUB_RUN_ID}" \
+            --body "Automated pre-open scoring run from \`run-open-prep-daily\` (run ${GITHUB_RUN_ID}). Adds today's outcomes_*.json so the outcome-backfill workflow can label it later for the FI corpus." \
+            --label automated,open-prep || true
+          gh pr merge "$BRANCH" --auto --squash --delete-branch || true
