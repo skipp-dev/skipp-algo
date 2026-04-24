@@ -6,6 +6,47 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Tests / Quality (2026-04-24) — `assert` in production code defense pin (frozen-inventory budget)
+
+Defense-Pin friert die aktuelle Anzahl und exakten Locations aller
+`assert`-Statements in First-Party-Produktionscode ein. `assert` wird
+unter `python -O` / `PYTHONOPTIMIZE=1` vom Interpreter komplett
+entfernt — jede Logik, die darauf beruht (Runtime-Contracts oder
+Type-Narrowing für mypy/pyright), ändert in Optimised-Builds still ihr
+Verhalten. Latente Bug-Klasse, auch wenn jeder Einzelort heute "klar
+sicher" aussieht.
+
+**Defense-Pin (`tests/test_assert_in_production_budget.py`)**
+
+AST-Walk über alle First-Party `*.py` (Top-Level + Subdirs außer
+`tests/`, `scripts/`, `docs/`, `SMC++/`, Caches, Venvs). Sammelt jeden
+`ast.Assert`-Knoten.
+
+`_FROZEN_SITES` enthält die 4 vorhandenen Sites — alle sind narrow
+`assert <var> is not None`-Type-Narrowing-Crutches direkt vor dem
+Use-Site:
+
+- `databento_volatility_screener.py:1109` — Retry-Loop `last_error`
+- `databento_universe.py:314` — Retry-Loop `last_error`
+- `newsstack_fmp/ingest_benzinga.py:211` — `httpx` response narrowing
+- `newsstack_fmp/shared_fetch.py:128` — Cache-Payload narrowing
+
+Drei Sub-Tests:
+
+1. `test_first_party_files_present` — Pfaddrift-Wächter (≥ 50 Dateien).
+2. `test_no_unexpected_assert_sites` — Tripwire: jeder neue `assert`
+   schlägt fehl. Autor muss entweder durch explizites
+   `if not …: raise` ersetzen (bevorzugt für Runtime-Contracts), oder
+   — nur falls es ein narrow Type-Narrowing-Crutch direkt am Use-Site
+   ist — den Eintrag mit Begründung zu `_FROZEN_SITES` hinzufügen.
+3. `test_frozen_sites_still_match` (parametrisiert, 4 Einträge) —
+   zwingt Refactors, Linenos in derselben PR mitzuziehen; verhindert
+   dass das Inventar zu einer Free-Pass-Liste verfault.
+
+**Produktionsverhalten unverändert.** Reines AST-Tripwire,
+sub-Sekunde. Gleiches Defense-Pin-Pattern wie FDR / SPRT-Vocab /
+broad-except.
+
 ### Tests / Quality (2026-04-24) — terminal_*.py httpx timeout named-constant discipline
 
 - Neuer Pin [`tests/test_terminal_httpx_timeout_named.py`](tests/test_terminal_httpx_timeout_named.py):
