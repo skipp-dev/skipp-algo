@@ -18,3 +18,14 @@ repos:
         language: system
         files: 'manifest[^/]*\.json$'
         pass_filenames: true
+
+      # ADR-0005 enforcement: the measurement runtime must remain
+      # importable using only the Python 3.13 stdlib. Same AST scan as
+      # tests/test_adr_0005_pure_stdlib_runtime.py, exposed as a
+      # standalone CLI so contributors catch violations pre-push.
+      - id: adr-0005-pure-stdlib-runtime
+        name: ADR-0005 pure-stdlib measurement runtime
+        entry: python scripts/check_adr_0005_pure_stdlib.py
+        language: system
+        files: '^scripts/(run_ab_comparison|smc_sprt_stop_rule)\.py$'
+        pass_filenames: true
