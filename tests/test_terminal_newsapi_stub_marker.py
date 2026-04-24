@@ -28,6 +28,17 @@ def test_active_implementation_exists() -> None:
     )
 
 
+def test_stub_file_exists() -> None:
+    # Sanity: assert the stub exists before any test reads it, so a
+    # rename/move surfaces as a clear assertion message instead of a
+    # downstream FileNotFoundError from read_text().
+    assert _STUB_PATH.is_file(), (
+        f"expected NewsAPI stub at {_STUB_PATH} — if the stub was moved "
+        "or renamed, update _STUB_PATH in this pin (and the L-1 audit "
+        "anchor) accordingly."
+    )
+
+
 def test_stub_docstring_cross_references_active_module() -> None:
     src = _STUB_PATH.read_text(encoding="utf-8")
     tree = ast.parse(src)
