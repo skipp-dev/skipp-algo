@@ -10,12 +10,14 @@ from pathlib import Path
 import pytest
 
 from scripts.smc_sprt_stop_rule import (
+    INCONCLUSIVE_DECISIONS,
     SPRTConfig,
     SPRTState,
     decide,
     evaluate,
     evaluate_paired,
     main,
+    terminal_decision,
     update,
 )
 
@@ -134,6 +136,65 @@ def test_evaluate_max_n_on_ambiguous_data() -> None:
     state, decision = evaluate(outcomes, cfg)
     assert decision == "max_n_reached"
     assert state.n == 10
+
+
+# ---------------------------------------------------------------------------
+# SPRT-1: "inconclusive" sentinel for terminal_decision
+# ---------------------------------------------------------------------------
+
+
+def test_terminal_decision_returns_inconclusive_when_llr_inside_bounds() -> None:
+    cfg = SPRTConfig(p0=0.5, p1=0.7, alpha=0.05, beta=0.20)
+    # n=4 with k=2 → LLR ~ 0; well inside Wald bounds.
+    state, decision = terminal_decision(n=4, k=2, config=cfg)
+    assert decision == "inconclusive"
+    assert state.n == 4 and state.k == 2
+
+
+def test_terminal_decision_zero_n_is_inconclusive_not_max_n_reached() -> None:
+    """Regression: empty totals must surface as 'inconclusive', not 'max_n_reached'.
+
+    'max_n_reached' is reserved for the streaming evaluator hitting an
+    explicit observation cap; n=0 carries no cap semantics.
+    """
+    cfg = SPRTConfig(p0=0.5, p1=0.7)
+    state, decision = terminal_decision(n=0, k=0, config=cfg)
+    assert decision == "inconclusive"
+    assert state.n == 0 and state.k == 0
+
+
+def test_terminal_decision_still_accepts_h1_on_strong_evidence() -> None:
+    cfg = SPRTConfig(p0=0.5, p1=0.7, alpha=0.05, beta=0.20)
+    state, decision = terminal_decision(n=100, k=85, config=cfg)
+    assert decision == "accept_h1"
+
+
+def test_terminal_decision_still_accepts_h0_on_low_hit_rate() -> None:
+    cfg = SPRTConfig(p0=0.5, p1=0.7, alpha=0.05, beta=0.20)
+    state, decision = terminal_decision(n=100, k=20, config=cfg)
+    assert decision == "accept_h0"
+
+
+def test_evaluate_streaming_max_n_distinct_from_terminal_inconclusive() -> None:
+    """max_n_reached vs inconclusive are *not* aliased — they carry
+    different operational semantics (see module docstring)."""
+    cfg = SPRTConfig(p0=0.5, p1=0.7, alpha=0.05, beta=0.20, max_n=10)
+    streaming_state, streaming_decision = evaluate([True, False] * 5, cfg)
+    terminal_state, terminal_dec = terminal_decision(
+        n=streaming_state.n, k=streaming_state.k, config=cfg
+    )
+    assert streaming_decision == "max_n_reached"
+    assert terminal_dec == "inconclusive"
+    # But both are members of the no-action set.
+    assert streaming_decision in INCONCLUSIVE_DECISIONS
+    assert terminal_dec in INCONCLUSIVE_DECISIONS
+
+
+def test_inconclusive_decisions_tuple_is_disjoint_from_action_decisions() -> None:
+    """Regression guard: accept_h0/accept_h1 must never be in the
+    'no-action' set or downstream gates would silently stop promoting."""
+    forbidden = {"accept_h0", "accept_h1"}
+    assert forbidden.isdisjoint(set(INCONCLUSIVE_DECISIONS))
 
 
 def test_evaluate_under_h1_truth_decides_h1_with_high_prob() -> None:

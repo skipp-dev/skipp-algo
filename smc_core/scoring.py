@@ -321,7 +321,12 @@ def _fit_platt_scaler(raw_probabilities: list[float], outcomes: list[bool]) -> t
         return None
 
     features = [_logit(probability) for probability in raw_probabilities]
-    if max(features) - min(features) < 1e-6:
+    # N-2/3/4: explicit absolute-tolerance via math.isclose so the
+    # near-zero-spread rejection is unambiguous (no platform-dependent
+    # round-off semantics from raw `<` on floats). Tolerance pinned to the
+    # historical 1e-6 threshold to preserve byte-identical Platt outputs
+    # for existing calibration artifacts.
+    if math.isclose(max(features), min(features), abs_tol=1e-6):
         return None
 
     slope = 1.0

@@ -257,7 +257,7 @@ def evaluate_promotion(
             "actions": (),
         }
 
-    # SPRT inconclusive (continue or max_n_reached without verdict).
+    # SPRT inconclusive (continue, max_n_reached, or inconclusive without verdict).
     return {
         "decision": "hold",
         "reason": (

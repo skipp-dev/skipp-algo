@@ -311,9 +311,15 @@ def score_fvg(
     # uses the original weighted-sum formula so the legacy pin in
     # ``test_components_sum_weighted_to_score`` and any historical
     # callers see byte-identical scores.
+    # N-2/3/4: explicit absolute-tolerance via math.isclose for the
+    # "means are effectively zero" check; the previous `abs(...) < 1e-9`
+    # form is correct but the math.isclose call documents intent and
+    # standardizes on the convention used elsewhere in smc_core.
     if (
         all(directions.get(k, 1) == 1 for k in weights)
-        and all(abs(means.get(k, 0.0)) < 1e-9 for k in weights)
+        and all(
+            math.isclose(means.get(k, 0.0), 0.0, abs_tol=1e-9) for k in weights
+        )
     ):
         score = sum(
             weights.get(feature_key, 0.0) * components[comp_key]
