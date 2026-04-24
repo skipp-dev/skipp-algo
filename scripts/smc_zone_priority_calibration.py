@@ -72,6 +72,9 @@ class CalibrationResult:
     total_events: int
     total_pairs: int
     source_dir: str
+    # Optional walk-forward CV evidence (audit S-1). ``None`` if the corpus
+    # was too small for the requested ``n_splits`` or CV was skipped.
+    walk_forward_cv: dict[str, Any] | None = None
 
 
 # ── Phase F: Contextual calibration ─────────────────────────────
@@ -118,11 +121,11 @@ _DEFAULT_RANK_THRESHOLDS: dict[str, int] = {
 }
 
 
-def load_family_metrics(benchmark_dir: Path) -> dict[str, FamilyStats]:
-    """Walk benchmark_dir/{SYMBOL}/{TF}/scoring_*.json and aggregate family_metrics."""
+def _aggregate_scoring_files(scoring_files: list[Path]) -> dict[str, FamilyStats]:
+    """Aggregate ``family_metrics`` from a list of scoring JSON files."""
     stats: dict[str, FamilyStats] = {}
 
-    for scoring_file in sorted(benchmark_dir.rglob("scoring_*.json")):
+    for scoring_file in scoring_files:
         try:
             data = json.loads(scoring_file.read_text(encoding="utf-8"))
         except (json.JSONDecodeError, OSError):
@@ -152,6 +155,100 @@ def load_family_metrics(benchmark_dir: Path) -> dict[str, FamilyStats]:
             s.weights.append(n)
 
     return stats
+
+
+def load_family_metrics(benchmark_dir: Path) -> dict[str, FamilyStats]:
+    """Walk benchmark_dir/{SYMBOL}/{TF}/scoring_*.json and aggregate family_metrics."""
+    return _aggregate_scoring_files(sorted(benchmark_dir.rglob("scoring_*.json")))
+
+
+def compute_walk_forward_cv_hr(
+    benchmark_dir: Path,
+    *,
+    n_splits: int = 5,
+) -> dict[str, Any]:
+    """Walk-forward cross-validated hit-rate per family (audit finding S-1).
+
+    The existing ``calibrate_from_benchmark`` pipeline calibrates and reports
+    HRs on the **same** corpus — that is in-sample by construction. This
+    helper splits the scoring files chronologically (sorted by path, which
+    already encodes ``benchmark_dir/{SYMBOL}/{TF}/`` and the file's
+    timestamp suffix) into ``n_splits`` consecutive folds and reports the
+    **out-of-sample** hit-rate per family as ``mean ± std`` across folds.
+
+    Returns a dict::
+
+        {
+            "n_splits": int,
+            "n_files_total": int,
+            "per_family": {
+                "<family>": {
+                    "cv_hr_mean": float,
+                    "cv_hr_std": float,
+                    "cv_hr_folds": [float, ...],
+                    "fold_event_counts": [int, ...],
+                },
+                ...
+            },
+        }
+
+    The function is purely additive — it does not mutate ``CalibrationResult``
+    and does not change the existing gate behaviour. Operators can call this
+    alongside ``calibrate_from_benchmark`` to get a CV-aware sanity check.
+
+    See: ``docs/TEMPORAL_NUMERICAL_IMPROVEMENT_PLAN_2026-04-24.md`` (S-1).
+    """
+    if n_splits < 2:
+        raise ValueError("n_splits must be >= 2 for walk-forward CV")
+
+    files = sorted(benchmark_dir.rglob("scoring_*.json"))
+    n_files = len(files)
+    if n_files < n_splits:
+        raise ValueError(
+            f"need at least n_splits={n_splits} scoring files, got {n_files}"
+        )
+
+    fold_size = n_files // n_splits
+    families_seen: set[str] = set()
+    per_fold_hr: dict[str, list[float]] = {}
+    per_fold_n: dict[str, list[int]] = {}
+
+    for fold_idx in range(n_splits):
+        start = fold_idx * fold_size
+        end = (fold_idx + 1) * fold_size if fold_idx < n_splits - 1 else n_files
+        test_files = files[start:end]
+        if not test_files:
+            continue
+        fold_stats = _aggregate_scoring_files(test_files)
+        for family, s in fold_stats.items():
+            families_seen.add(family)
+            per_fold_hr.setdefault(family, []).append(s.weighted_hit_rate)
+            per_fold_n.setdefault(family, []).append(s.total_events)
+
+    per_family: dict[str, dict[str, Any]] = {}
+    for family in sorted(families_seen):
+        hrs = per_fold_hr.get(family, [])
+        ns = per_fold_n.get(family, [])
+        if not hrs:
+            continue
+        mean = sum(hrs) / len(hrs)
+        if len(hrs) > 1:
+            variance = sum((hr - mean) ** 2 for hr in hrs) / (len(hrs) - 1)
+            std = math.sqrt(variance)
+        else:
+            std = 0.0
+        per_family[family] = {
+            "cv_hr_mean": round(mean, 4),
+            "cv_hr_std": round(std, 4),
+            "cv_hr_folds": [round(hr, 4) for hr in hrs],
+            "fold_event_counts": ns,
+        }
+
+    return {
+        "n_splits": n_splits,
+        "n_files_total": n_files,
+        "per_family": per_family,
+    }
 
 
 def calibrate_weights(
@@ -205,8 +302,15 @@ def calibrate_from_benchmark(
     benchmark_dir: Path,
     *,
     smoothing: float = 0.3,
+    cv_n_splits: int = 5,
 ) -> CalibrationResult:
-    """End-to-end calibration: load → aggregate → calibrate."""
+    """End-to-end calibration: load → aggregate → calibrate.
+
+    When the corpus contains at least ``cv_n_splits`` scoring files, an
+    additive walk-forward CV block is attached to the result (audit S-1).
+    The CV is **observational only**; it does not influence weights or
+    thresholds — operators read it to detect overfitting drift.
+    """
     stats = load_family_metrics(benchmark_dir)
 
     family_weights = calibrate_weights(stats, smoothing=smoothing)
@@ -228,6 +332,16 @@ def calibrate_from_benchmark(
         total_events += s.total_events
         total_pairs += s.pair_count
 
+    walk_forward_cv: dict[str, Any] | None = None
+    try:
+        walk_forward_cv = compute_walk_forward_cv_hr(
+            benchmark_dir, n_splits=cv_n_splits
+        )
+    except ValueError:
+        # Corpus too small for the requested fold count — skip silently;
+        # the field is documented as optional.
+        walk_forward_cv = None
+
     return CalibrationResult(
         family_weights=family_weights,
         rank_thresholds=rank_thresholds,
@@ -235,6 +349,7 @@ def calibrate_from_benchmark(
         total_events=total_events,
         total_pairs=total_pairs,
         source_dir=str(benchmark_dir),
+        walk_forward_cv=walk_forward_cv,
     )
 
 
@@ -317,6 +432,8 @@ def to_json(
         "total_pairs": cal.total_pairs,
         "source_dir": cal.source_dir,
     }
+    if cal.walk_forward_cv is not None:
+        payload["walk_forward_cv"] = cal.walk_forward_cv
     if frozen_provenance is not None:
         payload["frozen_provenance"] = frozen_provenance
     return payload
