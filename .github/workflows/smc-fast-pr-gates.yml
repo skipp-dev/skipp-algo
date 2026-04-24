@@ -63,6 +63,13 @@ jobs:
             --timeframes "15m" \
             --output artifacts/ci/smc_fast_health_report.json
 
+      # PINE_LEGACY.md drift check (D-1 v2 follow-up): every root-level
+      # *.pine file must be classified in the index, and every index
+      # entry must still exist. Sub-second; fails the gate on drift.
+      - name: Check PINE_LEGACY.md drift
+        if: steps.gate.outputs.run_heavy == 'true'
+        run: python scripts/check_pine_legacy_drift.py
+
       - name: Run fast SMC integration tests
         if: steps.gate.outputs.run_heavy == 'true'
         run: |
