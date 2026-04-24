@@ -26,6 +26,27 @@ All notable changes to this project are documented in this file.
   Tripwire, kein Allowlist nötig. Closes "f-string baut Message immer,
   auch bei DEBUG-off" Bug-Klasse + Performance-Falle bei teuren `repr`-
   Aufrufen in disabled Levels.
+### Tests / Quality (2026-04-24) — `# noqa` frozen-inventory budget (with code-set capture)
+
+- Neuer Pin [`tests/test_noqa_budget.py`](tests/test_noqa_budget.py)
+  friert die aktuelle Inventur von 27 `# noqa`-Suppressions in
+  First-Party-Production ein. Kategorien aktuell:
+  - `F401` (re-export only `__init__.py` imports — `terminal_tabs`)
+  - `E402` (deferred imports nach `sys.path`-Manipulation / atexit)
+  - `F401, F811` (typing-only optional imports — `terminal_bitcoin`)
+  - `PLW0603` (Modul-Singleton `global` — bereits via
+    `test_global_statement_budget.py` separat gepinnt)
+  - `PERF203` (explicit retry-loop `try/except` shape)
+  - `ANN001` (`*args, **kwargs` callback signature)
+- Ledger erfasst zusätzlich das exakte Code-Set je Site — wenn
+  jemand stillschweigend eine Suppression erweitert (z.B. `F811` zu
+  einem bestehenden `# noqa: F401` hinzufügt), schlägt der Stale-Site-
+  Guard mit dem Code-Tuple-Vergleich an.
+- Drei Schichten: no-new-sites Tripwire + parametrisierter Stale-Site-
+  Guard (line + sorted-codes tuple) + bidirektionale Inventur-Parity.
+  Jede neue `# noqa` zwingt Review (could the lint be fixed instead?).
+- 30 Tests grün, keine Produktions-Anpassungen nötig. Closes
+  "stille Lint-Suppression-Erweiterung" Bug-Klasse.
 
 ### Tests / Quality (2026-04-24) — `except Exception: pass` defense pin (frozen-inventory budget)
 
