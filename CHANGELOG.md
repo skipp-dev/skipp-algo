@@ -6,6 +6,14 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Documentation (2026-04-24) — D-2: SCHEMA_VERSION history consolidated
+
+Pulled `smc_core.schema_version.SCHEMA_VERSION` history out of inline
+module comments into the dedicated **Schema Versions** section below
+(closes audit-backlog item D-2). Inline comments in
+`smc_core/schema_version.py` retain only the **current** version
+note + a pointer to this CHANGELOG section.
+
 ### Changed (2026-04-23) — Coverage-source omit-list expanded for standalone CLIs
 
 `pyproject.toml::tool.coverage.run.omit` now excludes 7 additional
@@ -5350,6 +5358,35 @@ vs. legacy "15m/1H". Cost: CI config only, benchmark runtime ~2x.
   ### Changed
 
   - **Fallback activated by default:** `entryBehaviorProfile` now defaults to `Legacy (v6.3.9-like)` in both indicator and strategy for immediate v6.3.9-like signal timing behavior out of the box.
+
+---
+
+## Schema Versions
+
+Canonical version pin: [`smc_core/schema_version.py::SCHEMA_VERSION`](smc_core/schema_version.py).
+Versioning policy lives in [`docs/schema_versioning.md`](docs/schema_versioning.md);
+the breaking-change gate runbook in
+[`docs/release_process/breaking_change_gate_runbook.md`](docs/release_process/breaking_change_gate_runbook.md).
+
+Bump rules (semver):
+
+- **PATCH** (`x.y.Z`): internal-only changes (docs, comments, refactors) — no payload change.
+- **MINOR** (`x.Y.z`): additive, backwards-compatible field additions — consumers can ignore new fields.
+- **MAJOR** (`X.y.z`): breaking changes that require consumer updates. The
+  governance gate (`scripts/smc_version_governance.py`) escalates **any**
+  export field-count delta to MAJOR, including purely additive new fields.
+  See `/memories/repo/schema-version-bump-must-be-major-on-field-count-change.md`.
+
+| Version | Date | Commit | Bump | Notes |
+|---|---|---|---|---|
+| **3.0.0** | 2026-04-23 | `f7884602` (#23, fix #22) | MAJOR | Pine-library export field count 200 → 201 (`ZONE_CAL_TRUST` + `ZONE_CAL_CONFIDENCE` for Phase-H consumer maturity, ADR 2026-04-22, PR #19). Although additive, the governance gate rejected the prior MINOR bump as 2.1.0; this MAJOR bump is the canonical landing. Bulk-updated all `"schema_version": "2.1.0"` pins in tests / spec / pine fixtures. |
+| ~~2.1.0~~ | ~~2026-04-23~~ | `9e46947c` (#18, **superseded**) | ~~MINOR~~ | Attempted MINOR bump for `ZONE_CAL_TRUST`. Rejected by governance gate — refresh-run #24807633995 skipped TV-publish + library-bump steps because field-count change requires MAJOR. Replaced by 3.0.0. |
+| **2.0.0** | 2026-03-30 | `54f44acf` | MAJOR | SMC v5.5 Lean — all 9 Arbeitspakete delivered. First major payload restructuring under the consolidated `smc_core` layering. |
+| 1.2.0 | 2026-03-27 | `65bb2238` | MINOR | Meta-enrichment (calendar risk, enriched news, regime bridge) — additive 35-test surface. |
+| 1.1.0 | 2026-03-27 | `e49a51f5` | MINOR | Schema-versioning enforcement: consolidated to single source-of-truth, semver utilities + 18 enforcement tests. |
+| **1.0.0** | 2026-03-26 | `0dff8eff` | MAJOR | Initial introduction of `smc_core/schema_version.py` with `SCHEMA_VERSION = "1.0.0"` (Phase-1 domain core + layering). |
+
+---
 
 ## [v6.3.13] - 2026-02-16
 
