@@ -52,6 +52,7 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
@@ -518,8 +519,16 @@ jobs:
         id: commit_push
         if: steps.diff.outputs.changed == 'true' && steps.breaking.outputs.breaking != 'true' && steps.tv_post_release.outcome == 'success' && steps.release_gates.outcome == 'success' && github.ref == 'refs/heads/main'
         env:
+          GH_TOKEN: ${{ github.token }}
           GITHUB_TOKEN: ${{ github.token }}
         run: |
+          # The repo's `main-governance` ruleset only targets ~DEFAULT_BRANCH,
+          # so direct `git push origin HEAD:main` is rejected with GH013
+          # ("Required status check 'fast-gates' is expected"). Use the same
+          # bot/* PR + auto-merge pattern as run-open-prep-daily.yml and
+          # open-prep-outcome-backfill.yml. The CI skip-pattern in
+          # smc-fast-pr-gates.yml + ci.yml short-circuits heavy steps for
+          # bot/* heads, so the PR merges in seconds without burning CI.
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git config --local --unset-all http.https://github.com/.extraheader || true
@@ -555,26 +564,17 @@ jobs:
             exit 0
           fi
 
+          BRANCH="bot/library-refresh-${GITHUB_RUN_ID}"
+          git checkout -b "$BRANCH"
           git commit -m "chore: library refresh ${REFRESH_DATE} (run ${{ github.run_number }})"
-
-          for attempt in 1 2 3; do
-            if git push origin HEAD:main; then
-              exit 0
-            fi
-
-            if [ "$attempt" -eq 3 ]; then
-              echo "::error::Failed to push refresh commit after ${attempt} attempts."
-              exit 1
-            fi
-
-            echo "::warning::Push rejected on attempt ${attempt}; rebasing refresh commit onto origin/main and retrying."
-            git fetch origin main
-            if ! git rebase origin/main; then
-              git rebase --abort || true
-              echo "::error::Refresh commit conflicts with newer origin/main. Re-run the workflow on the latest main."
-              exit 1
-            fi
-          done
+          git push -u origin "$BRANCH"
+          gh pr create \
+            --base main \
+            --head "$BRANCH" \
+            --label automated \
+            --title "chore: library refresh ${REFRESH_DATE} (run ${{ github.run_number }})" \
+            --body "Automated SMC library refresh from \`smc-library-refresh\` (run ${GITHUB_RUN_ID}). Pine library content + manifest. Heavy CI is skipped for bot/* PRs (validation already happened in the refresh workflow itself: TV preflight + post-release validation + release gates)." || true
+          gh pr merge "$BRANCH" --auto --squash --delete-branch || true
 
       # ── Signal alerts (non-blocking) ────────────────────────────
       - name: Evaluate and send alerts
