@@ -1,0 +1,43 @@
+# ADR Index
+
+This directory contains the Architecture Decision Records (ADRs) for the
+SkippAlgo repository. Each ADR captures the *context*, *decision*, and
+*consequences* of a single architecturally significant choice. ADRs are
+**append-only** — to revise a decision, add a new ADR that supersedes the
+old one and update the table below.
+
+## Status legend
+
+- **Accepted** — in force, enforced by tests/CI where applicable.
+- **Superseded** — kept for history; replaced by a newer ADR.
+- **Proposed** — draft under discussion; not yet enforced.
+
+## Index
+
+| #    | Title | Status | Date | Enforced by |
+| ---- | ----- | ------ | ---- | ----------- |
+| 0001 | [Structure contract normalization](0001-structure-contract-normalization.md) | Accepted | 2026-Q1 | `tests/test_smc_structure_contract_*.py` |
+| 0002 | [Promotion eligibility policy](0002-promotion-eligibility-policy.md) | Accepted | 2026-Q1 | `tests/test_smc_promotion_*.py` |
+| 0003 | [Pine legacy physical-move resolver](0003-pine-legacy-physical-move-resolver.md) | Accepted | 2026-Q1 | `tests/test_pine_*.py` |
+| 0004 | [Resilient vs circuit-breaker](0004-resilient-vs-circuit-breaker.md) | Accepted | 2026-Q1 | runtime resiliency layer |
+| 0005 | [Pure-stdlib measurement runtime](0005-pure-stdlib-measurement-runtime.md) | Accepted | 2026-04 | `tests/test_smc_measurement_*.py` (no scipy/sklearn import) |
+| 0006 | [HERO Vocab Discipline](0006-hero-vocab-discipline.md) | Accepted | 2026-04-24 | `tests/test_hero_observed_vocab_pin.py` |
+| 0007 | [HERO Field Invariants](0007-hero-field-invariants.md) | Accepted | 2026-04-24 | `tests/test_hero_risk_vocab_and_reachability_pin.py`, `tests/test_hero_schema_fingerprint.py` |
+
+## Reservation rule
+
+The next free ADR number is **0008**. To avoid concurrent-PR collisions:
+
+1. Reserve the next number by opening the PR with the file already named
+   (e.g. `docs/adr/0008-foo.md`) before the rebase race window closes.
+2. If two PRs collide on the same number, the second to merge renames its
+   ADR to the next free slot and updates this index in the same commit.
+3. Superseded ADRs keep their original number — never renumber.
+
+## Authoring guide
+
+- Use the existing ADRs as templates. Aim for one *Decision* per ADR.
+- Include a *Consequences* section (positive and negative).
+- Where the ADR is *enforced* by tests, list those tests in the index
+  table so reviewers can locate the guard rails quickly.
+- Cross-reference related ADRs in the *Related* metadata header.

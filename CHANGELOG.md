@@ -6,6 +6,69 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Schema Versions (2026-04-24) — HERO_RISK_VOCAB + Reachability + Schema-Fingerprint
+
+Erweitert die HERO Vocab Discipline (ADR-0006) auf die letzte
+controlled-vocabulary Achse und fügt eine Schema-Fingerprint Pin hinzu,
+die Drift in einer einzigen Tripwire fängt:
+
+- **`HERO_RISK_VOCAB = frozenset({"", "DATA_STALE", "EVENT_RISK", "VOLATILITY", "PROVIDER_GAPS"})`**
+  mit benannten Konstanten `HERO_RISK_NONE/DATA_STALE/EVENT_RISK/VOLATILITY/PROVIDER_GAPS`.
+  Der **Empty-String Sentinel** (`HERO_RISK_NONE = ""`) ist Teil des
+  Pine Boundary Contract: `SMC_Dashboard.pine:1769` gated den Blocker-
+  Badge auf `mp.HERO_RISK != ""`. Das Sentinel jetzt benannt — wire
+  format unverändert.
+- `_derive_risk` und `_derive_action` nutzen jetzt benannte Konstanten
+  statt bare string-literals (analog zu `_derive_bias` aus PR #125).
+- **Schema-Fingerprint Pin** (`tests/test_hero_schema_fingerprint.py`):
+  SHA-256 Hash über alle 6 HERO Vocabs + Field-Order +
+  `library_field_version="v5.5c"` Literal aus dem Generator. Jede
+  Drift bricht die Pin und zwingt zu deliberater Co-Update.
+
+**Pine boundary contract:** Pin-Failure-Message enthält die
+Auto-Update Recipe (`python -c "from tests.test_hero_schema_fingerprint
+import compute_fingerprint; print(compute_fingerprint())"`).
+
+### Tests / Quality (2026-04-24) — HERO Reachability + Roundtrip + Workflow CoE Semantik + Pine Library Permissions
+
+- **`tests/test_hero_risk_vocab_and_reachability_pin.py`** (7 Tests):
+  pinnt HERO_RISK_VOCAB, dass `HERO_RISK_NONE == ""` bleibt, und
+  Reachability — jeder Vocab-Member von HERO_RISK / HERO_ACTION /
+  HERO_TRUST / HERO_BIAS muss von mindestens einem Branch des
+  jeweiligen `_derive_*` Helpers zurückgegeben werden (Dead-Vocab
+  Check via AST-Analyse von Return-Statements).
+- **`tests/test_hero_schema_fingerprint.py`** (3 Tests): Fingerprint
+  + `library_field_version` Literal Pin + 7-Field-Order vs Module
+  Docstring Konsistenz.
+- **`tests/test_smc_micro_profiles_generator_roundtrip.py`** (6 Tests):
+  ruft `build_hero_state` mit synthetischen Enrichment-Dicts auf,
+  formatiert die 7 HERO-Felder exakt wie der Pine-Generator
+  (`scripts/generate_smc_micro_profiles.py:1046-1052`) und assertiert
+  dass jeder emittierte String ein Vocab-Member ist. Schließt die
+  Lücke zwischen In-Process Vocab-Pin und On-Disk Pine Library.
+- **`tests/test_workflow_continue_on_error_semantics.py`** (2 Tests):
+  jede `continue-on-error: true` Step muss eine advisory-Keyword im
+  `name:` führen (Notify/Send/Publish/Telegram/Probe/Summary/Advisory/
+  Best-effort/Download/Commit/Run evidence gate/Run TradingView/Run
+  deeper/Run E2E). Verhindert, dass kritische Steps still
+  schluckweise fehlschlagen.
+- **`tests/test_pine_library_import_permissions.py`** (2 Tests):
+  Per-Library Allowlist von Importer-Pfad-Präfixen. `*_private`
+  Libraries (smc_bus_private, smc_lifecycle_private,
+  smc_observability_private, smc_profile_engine, smc_context_resolvers)
+  dürfen nur aus `SMC_Core_Engine.pine` und `SMC++/` importiert
+  werden. Verhindert dass interne Bus/Lifecycle/Observability-State
+  über Public-Pine-Konsumenten leakt.
+
+### Documentation (2026-04-24) — ADR-0007 HERO Field Invariants + ADR Index
+
+- [docs/adr/0007-hero-field-invariants.md](docs/adr/0007-hero-field-invariants.md):
+  pinnt die 7-Felder-Tabelle der HERO-Achsen mit Vocab-Constant,
+  Default, Pine-Konsumenten und der `""`-Sentinel-Regel für HERO_RISK.
+- [docs/adr/README.md](docs/adr/README.md): Index aller ADRs (0001–0007)
+  mit Status, Datum, und Reservation-Rule für die nächste freie ADR-
+  Nummer (0008).
+
 ### Schema Versions (2026-04-24) — HERO_BIAS_VOCAB + HERO_MARKET_MODE_VOCAB formalisiert (ADR-0006)
 
 Schließt M-1 aus dem SMC System Review (PR #123): die beiden HERO-Achsen
