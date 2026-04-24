@@ -59,6 +59,19 @@
   pro Family, BH-FDR mit `q=0.05`). Surfaced als `digest["fdr"]` und
   in der Markdown-Rendering-Section. **Advisory-only**:
   beeinflusst Promote/Hold/Rollback nicht.
+  - **S-2 follow-up (Bootstrap-Calibration-FDR)**: erledigt.
+    Permutation-basierter BH-FDR-Layer über `family×{brier,ece}` Cells in
+    `_calibration_fdr_layer(...)` (Phipson-Smyth `(r+1)/(B+1)`-Korrektur,
+    `MIN_EVENTS_PER_ARM_FOR_BOOTSTRAP=30`, `B=2000`, `seed=42`,
+    joint BH über alle 8 Cells). CLI-Flag `--enable-calibration-fdr`
+    (opt-in, default off) + Ledger-Loader via
+    `smc_core.event_ledger.read_event_ledger`. Surfaced als
+    `digest["fdr_calibration"]` und Markdown-Section.
+    **Advisory-only** — Recommendation/SPRT/Hit-Rate-FDR byte-identisch
+    (Regression-Test in `test_run_ab_comparison_calibration_fdr.py`).
+    Test bewertet **Post-Calibration-Probabilities** im Ledger ohne
+    Platt-Refit pro Permutation (Design-Memo §3.2 Option A).
+    Block-Bootstrap (serielle Korrelation) als Backlog-Item.
 - ~~**S-4**: Eligibility-Policy als Doku-Block.~~ → erledigt durch
   [`docs/adr/0002-promotion-eligibility-policy.md`](adr/0002-promotion-eligibility-policy.md)
   (PR #99).

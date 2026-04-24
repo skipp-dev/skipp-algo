@@ -25,9 +25,11 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import random
 import sys
+from collections import defaultdict
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable, Sequence
 
 # Re-use the report helpers from the performance report generator.
 from scripts.generate_performance_report import (
@@ -92,8 +94,21 @@ def compare(
     control_pairs: list[dict[str, Any]],
     treatment_pairs: list[dict[str, Any]],
     experiment_name: str,
+    *,
+    control_ledgers: Sequence[Sequence[tuple[str, float, bool]]] | None = None,
+    treatment_ledgers: Sequence[Sequence[tuple[str, float, bool]]] | None = None,
+    enable_calibration_fdr: bool = False,
+    calibration_fdr_B: int = 2000,
+    calibration_fdr_seed: int = 42,
 ) -> dict[str, Any]:
-    """Build the comparison digest."""
+    """Build the comparison digest.
+
+    When ``enable_calibration_fdr`` is True and per-event ledgers for both
+    arms are provided, an additional ``digest["fdr_calibration"]`` block
+    is computed (permutation-based BH-FDR over family×{brier,ece}). This
+    layer is **advisory** — it never alters the Promote/Hold/Rollback
+    recommendation. See :func:`_calibration_fdr_layer` for the contract.
+    """
     ctrl_reports = [_dict_to_pair(p) for p in control_pairs]
     treat_reports = [_dict_to_pair(p) for p in treatment_pairs]
     ctrl_agg = _aggregate(ctrl_reports)
@@ -126,6 +141,14 @@ def compare(
 
     fdr = _family_fdr_layer(control_pairs, treatment_pairs)
 
+    fdr_calibration = _calibration_fdr_layer(
+        control_ledgers=control_ledgers,
+        treatment_ledgers=treatment_ledgers,
+        enabled=enable_calibration_fdr,
+        B=calibration_fdr_B,
+        seed=calibration_fdr_seed,
+    )
+
     return {
         "experiment": experiment_name,
         "control_pairs": len(control_pairs),
@@ -138,6 +161,7 @@ def compare(
         "kpi_thresholds": decision["kpi_thresholds"],
         "sprt": sprt,
         "fdr": fdr,
+        "fdr_calibration": fdr_calibration,
     }
 
 
@@ -323,6 +347,248 @@ def _family_fdr_layer(
             round(float(bh["threshold"]), 6) if bh["threshold"] is not None else None
         ),
         "families": families,
+    }
+
+
+# ── S-2 follow-up: Bootstrap-FDR for calibration metrics (advisory) ────────
+
+
+# Bootstrap / permutation parameters for the calibration-FDR layer.
+# B=2000 is the standard P0 budget; raise via CLI for sharper p-values
+# (compute scales O(B * total_events_per_cell)). Seed is fixed so reports
+# are byte-reproducible — override only for sanity-rerun checks.
+BOOTSTRAP_B = 2000
+BOOTSTRAP_SEED = 42
+BOOTSTRAP_FDR_Q = FDR_Q
+ECE_BIN_COUNT = 10
+# Permutation granularity is unreliable below this per-arm event count.
+# Below the threshold we skip the cell with reason="insufficient_events".
+MIN_EVENTS_PER_ARM_FOR_BOOTSTRAP = 30
+
+
+def _metric_brier(events: Sequence[tuple[float, bool]]) -> float:
+    """Brier score: mean((p - o)^2). NaN on empty input."""
+    if not events:
+        return float("nan")
+    return sum((p - (1.0 if o else 0.0)) ** 2 for p, o in events) / len(events)
+
+
+def _metric_ece(
+    events: Sequence[tuple[float, bool]], bins: int = ECE_BIN_COUNT
+) -> float:
+    """Expected Calibration Error: weighted |avg_prob - avg_outcome| per bin.
+
+    Bin assignment matches ``smc_core/scoring._bucket_index`` (10 equal-width
+    bins on [0, 1], probabilities clipped). NaN on empty input.
+    """
+    if not events:
+        return float("nan")
+    buckets: dict[int, list[tuple[float, float]]] = defaultdict(list)
+    for p, o in events:
+        p_clip = min(max(float(p), 0.0), 1.0)
+        idx = min(int(p_clip * bins), bins - 1)
+        buckets[idx].append((p_clip, 1.0 if o else 0.0))
+    n = len(events)
+    ece = 0.0
+    for bucket in buckets.values():
+        w = len(bucket) / n
+        mp = sum(p for p, _ in bucket) / len(bucket)
+        mo = sum(o for _, o in bucket) / len(bucket)
+        ece += w * abs(mp - mo)
+    return ece
+
+
+_METRIC_FNS: dict[str, Callable[[Sequence[tuple[float, bool]]], float]] = {
+    "brier": _metric_brier,
+    "ece": _metric_ece,
+}
+
+
+def _permutation_p_delta_metric(
+    *,
+    treatment: Sequence[tuple[float, bool]],
+    control: Sequence[tuple[float, bool]],
+    metric_fn: Callable[[Sequence[tuple[float, bool]]], float],
+    lower_is_better: bool = True,
+    B: int = BOOTSTRAP_B,
+    seed: int = BOOTSTRAP_SEED,
+) -> float | None:
+    """Two-sample permutation p-value on a prediction-accuracy metric.
+
+    One-sided H1 for lower-is-better metrics:
+        H1: metric(treatment) < metric(control)  (treatment strictly better)
+    For upper-is-better metrics, the inequality flips.
+
+    Uses classical Fisher permutation (resampling labels without
+    replacement from the pooled sample) and the Phipson-Smyth
+    ``(r + 1) / (B + 1)`` correction (Phipson & Smyth 2010) so the
+    returned p-value is never exactly 0 — preventing downstream
+    ``log(p)`` from diverging.
+
+    Returns ``None`` if either arm is empty or below
+    :data:`MIN_EVENTS_PER_ARM_FOR_BOOTSTRAP`.
+    """
+    n_t = len(treatment)
+    n_c = len(control)
+    if n_t == 0 or n_c == 0:
+        return None
+    if n_t < MIN_EVENTS_PER_ARM_FOR_BOOTSTRAP or n_c < MIN_EVENTS_PER_ARM_FOR_BOOTSTRAP:
+        return None
+    obs_delta = metric_fn(treatment) - metric_fn(control)
+    if math.isnan(obs_delta):
+        return None
+
+    rng = random.Random(seed)
+    pooled = list(treatment) + list(control)
+    m = len(pooled)
+    indices = list(range(m))
+
+    at_least_as_extreme = 0
+    for _ in range(B):
+        rng.shuffle(indices)
+        perm_t = [pooled[i] for i in indices[:n_t]]
+        perm_c = [pooled[i] for i in indices[n_t:]]
+        perm_delta = metric_fn(perm_t) - metric_fn(perm_c)
+        if lower_is_better:
+            if perm_delta <= obs_delta:
+                at_least_as_extreme += 1
+        else:
+            if perm_delta >= obs_delta:
+                at_least_as_extreme += 1
+    # Phipson-Smyth correction.
+    return (at_least_as_extreme + 1) / (B + 1)
+
+
+def _aggregate_ledger_by_family(
+    ledgers: Sequence[Sequence[tuple[str, float, bool]]],
+) -> dict[str, list[tuple[float, bool]]]:
+    """Concatenate per-pair ledgers into per-family ``(prob, outcome)`` lists."""
+    agg: dict[str, list[tuple[float, bool]]] = defaultdict(list)
+    for ledger in ledgers:
+        for row in ledger:
+            family, prob, outcome = row[0], float(row[1]), bool(row[2])
+            agg[family].append((prob, outcome))
+    return agg
+
+
+def _calibration_fdr_layer(
+    *,
+    control_ledgers: Sequence[Sequence[tuple[str, float, bool]]] | None,
+    treatment_ledgers: Sequence[Sequence[tuple[str, float, bool]]] | None,
+    enabled: bool,
+    B: int = BOOTSTRAP_B,
+    seed: int = BOOTSTRAP_SEED,
+    q: float = BOOTSTRAP_FDR_Q,
+    metrics: Sequence[str] = ("brier", "ece"),
+) -> dict[str, Any]:
+    """Permutation-based BH-FDR layer over family×{brier,ece} cells.
+
+    Tests treatment-improves-on-control (lower-is-better) per cell, then
+    applies Benjamini-Hochberg jointly over all tested cells (4 families ×
+    2 metrics = 8 tests in the typical SMC setup).
+
+    The layer is **advisory only**: the result is surfaced as
+    ``digest["fdr_calibration"]`` and as a section in the markdown report
+    but never alters the Promote/Hold/Rollback recommendation, the SPRT
+    decision, or the hit-rate FDR layer (``digest["fdr"]``). This contract
+    is asserted by the regression test in
+    ``tests/test_run_ab_comparison_calibration_fdr.py``.
+
+    Test runs against post-calibration probabilities as recorded in the
+    event ledger; the calibrator itself is **not** re-fit per permutation
+    (P0 design — see design memo §3.2 Option A). Output ``notes`` field
+    documents this conditioning.
+    """
+    if not enabled:
+        return {"skipped_reason": "disabled", "method": "permutation_bh"}
+    if control_ledgers is None or treatment_ledgers is None:
+        return {"skipped_reason": "ledger_not_provided", "method": "permutation_bh"}
+
+    ctrl_by_fam = _aggregate_ledger_by_family(control_ledgers)
+    treat_by_fam = _aggregate_ledger_by_family(treatment_ledgers)
+    common_families = sorted(set(ctrl_by_fam) & set(treat_by_fam))
+
+    cells: list[dict[str, Any]] = []
+    pvals: list[float] = []
+    p_indices: list[int] = []  # index into ``cells`` for each tested p-value
+
+    for fam_idx, family in enumerate(common_families):
+        ctrl_events = ctrl_by_fam[family]
+        treat_events = treat_by_fam[family]
+        for metric_name in metrics:
+            metric_fn = _METRIC_FNS[metric_name]
+            n_c = len(ctrl_events)
+            n_t = len(treat_events)
+            mc = metric_fn(ctrl_events)
+            mt = metric_fn(treat_events)
+            # Per-cell seed: derive deterministically so adding a family
+            # does not shift seeds of pre-existing cells.
+            cell_seed = seed + 1000 * fam_idx + (1 if metric_name == "ece" else 0)
+            p = _permutation_p_delta_metric(
+                treatment=treat_events,
+                control=ctrl_events,
+                metric_fn=metric_fn,
+                lower_is_better=True,
+                B=B,
+                seed=cell_seed,
+            )
+            entry: dict[str, Any] = {
+                "family": family,
+                "metric": metric_name,
+                "n_control": n_c,
+                "n_treatment": n_t,
+                "metric_control": (
+                    None if math.isnan(mc) else round(mc, 6)
+                ),
+                "metric_treatment": (
+                    None if math.isnan(mt) else round(mt, 6)
+                ),
+                "delta": (
+                    None if (math.isnan(mc) or math.isnan(mt)) else round(mt - mc, 6)
+                ),
+                "p_value": None if p is None else round(p, 6),
+                "adjusted_p_value": None,
+                "rejected": False,
+                "lower_is_better": True,
+                "skipped_reason": (
+                    None if p is not None else "insufficient_events_for_bootstrap"
+                ),
+            }
+            if p is not None:
+                p_indices.append(len(cells))
+                pvals.append(p)
+            cells.append(entry)
+
+    bh = benjamini_hochberg(pvals, q=q)
+    for slot, cell_idx in enumerate(p_indices):
+        cells[cell_idx]["rejected"] = bool(bh["rejected"][slot])
+        cells[cell_idx]["adjusted_p_value"] = round(float(bh["adjusted"][slot]), 6)
+
+    rejected_cells = [
+        {"family": c["family"], "metric": c["metric"]}
+        for c in cells
+        if c["rejected"]
+    ]
+
+    return {
+        "method": "permutation_bh",
+        "q": q,
+        "B": B,
+        "seed": seed,
+        "metrics_tested": list(metrics),
+        "tested_cells": len(pvals),
+        "skipped_cells": len(cells) - len(pvals),
+        "rejected_cells": rejected_cells,
+        "threshold_p_value": (
+            round(float(bh["threshold"]), 6) if bh["threshold"] is not None else None
+        ),
+        "min_events_per_arm": MIN_EVENTS_PER_ARM_FOR_BOOTSTRAP,
+        "notes": (
+            "Test evaluates post-calibration probabilities as recorded in "
+            "event_ledger. Calibrator is not re-fit per permutation; results "
+            "are conditional on observed calibrator fit."
+        ),
+        "cells": cells,
     }
 
 
@@ -545,7 +811,68 @@ def render_comparison(digest: dict[str, Any]) -> str:
                 f"{'✓' if fam['rejected'] else '·'} |"
             )
         lines.append("")
+    fdr_cal = digest.get("fdr_calibration") or {}
+    if fdr_cal and fdr_cal.get("cells"):
+        lines.append("## Calibration FDR (Permutation-BH, advisory)")
+        lines.append("")
+        lines.append(
+            f"_q = {fdr_cal.get('q')}, B = {fdr_cal.get('B')}, "
+            f"seed = {fdr_cal.get('seed')}, tested = {fdr_cal.get('tested_cells')}, "
+            f"skipped = {fdr_cal.get('skipped_cells')}, "
+            f"rejected = {len(fdr_cal.get('rejected_cells') or [])}_"
+        )
+        lines.append("")
+        lines.append(f"_{fdr_cal.get('notes', '')}_")
+        lines.append("")
+        lines.append(
+            "| Family | Metric | n(C) | n(T) | metric(C) | metric(T) | \u0394 | p | adj. p | rejected |"
+        )
+        lines.append(
+            "|---|---|---:|---:|---:|---:|---:|---:|---:|:---:|"
+        )
+        for cell in fdr_cal["cells"]:
+            lines.append(
+                f"| {cell['family']} | {cell['metric']} | {cell['n_control']} | "
+                f"{cell['n_treatment']} | {cell['metric_control']} | "
+                f"{cell['metric_treatment']} | {cell['delta']} | "
+                f"{cell['p_value']} | {cell['adjusted_p_value']} | "
+                f"{'✓' if cell['rejected'] else '·'} |"
+            )
+        lines.append("")
     return "\n".join(lines)
+
+
+def _load_ledgers_for_dir(
+    benchmark_dir: Path,
+) -> list[list[tuple[str, float, bool]]]:
+    """Load all per-pair event ledgers (events_*.jsonl) under ``benchmark_dir``.
+
+    Returns a list of per-pair ledgers; each ledger is a list of
+    ``(family, predicted_prob, outcome)`` tuples. Pairs without a ledger
+    sibling produce an empty list (so per-pair indexing is preserved
+    relative to ``load_benchmark``).
+    """
+    from smc_core.event_ledger import read_event_ledger
+
+    ledgers: list[list[tuple[str, float, bool]]] = []
+    # Sorted glob keeps order deterministic across filesystems.
+    for ledger_path in sorted(benchmark_dir.rglob("events_*.jsonl")):
+        rows: list[tuple[str, float, bool]] = []
+        for record in read_event_ledger(ledger_path):
+            family = str(record.get("family", ""))
+            if not family:
+                continue
+            prob_raw = record.get("predicted_prob")
+            if prob_raw is None:
+                continue
+            try:
+                prob = float(prob_raw)
+            except (TypeError, ValueError):
+                continue
+            outcome = bool(record.get("outcome", False))
+            rows.append((family, prob, outcome))
+        ledgers.append(rows)
+    return ledgers
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -554,6 +881,28 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--treatment-dir", type=Path, required=True)
     parser.add_argument("--experiment-name", type=str, default="unnamed")
     parser.add_argument("--output-dir", type=Path, default=Path("artifacts/reports"))
+    parser.add_argument(
+        "--enable-calibration-fdr",
+        action="store_true",
+        help=(
+            "Compute permutation-based BH-FDR over family×{brier,ece} cells "
+            "using per-event ledgers (events_<SYM>_<TF>.jsonl) sibling to "
+            "each scoring_*.json. Advisory only — does not change the "
+            "Promote/Hold/Rollback recommendation."
+        ),
+    )
+    parser.add_argument(
+        "--calibration-fdr-B",
+        type=int,
+        default=BOOTSTRAP_B,
+        help=f"Permutation count per cell (default {BOOTSTRAP_B}).",
+    )
+    parser.add_argument(
+        "--calibration-fdr-seed",
+        type=int,
+        default=BOOTSTRAP_SEED,
+        help=f"Permutation seed (default {BOOTSTRAP_SEED}, fixed for reproducibility).",
+    )
     args = parser.parse_args(argv)
 
     control_pairs = load_benchmark(args.control_dir)
@@ -566,7 +915,22 @@ def main(argv: list[str] | None = None) -> None:
         print(f"ERROR: no benchmark pairs in {args.treatment_dir}", file=sys.stderr)
         sys.exit(1)
 
-    digest = compare(control_pairs, treatment_pairs, args.experiment_name)
+    control_ledgers = None
+    treatment_ledgers = None
+    if args.enable_calibration_fdr:
+        control_ledgers = _load_ledgers_for_dir(args.control_dir)
+        treatment_ledgers = _load_ledgers_for_dir(args.treatment_dir)
+
+    digest = compare(
+        control_pairs,
+        treatment_pairs,
+        args.experiment_name,
+        control_ledgers=control_ledgers,
+        treatment_ledgers=treatment_ledgers,
+        enable_calibration_fdr=args.enable_calibration_fdr,
+        calibration_fdr_B=args.calibration_fdr_B,
+        calibration_fdr_seed=args.calibration_fdr_seed,
+    )
     report = render_comparison(digest)
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
