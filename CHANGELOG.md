@@ -6,6 +6,27 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Tests / Quality (2026-04-24) — terminal_*.py httpx timeout named-constant discipline
+
+- Neuer Pin [`tests/test_terminal_httpx_timeout_named.py`](tests/test_terminal_httpx_timeout_named.py):
+  AST-walk über alle `terminal_*.py`-Module. Jeder
+  `httpx.Client(timeout=…)`-Konstruktor und jeder direkte Call von
+  `httpx.{get,post,put,delete,patch,head,options,request,stream}(...)`
+  mit explizitem `timeout=`-kwarg muss als Wert eine `Name`/`Attribute`
+  -Referenz übergeben (z.B. `_API_TIMEOUT`) — keine bare numerische
+  Literale. Macht Timeouts auf Modul-Ebene grep-bar und auditierbar.
+  Site-Allowlist + Stale-Entry-Test (aktuell leer).
+- Companion zur Per-Script httpx-Schutzschicht aus PR #133:
+  budget × singleton-guard × timeout-consistency × **named timeout**.
+
+**Produktions-Anpassungen** (zwei harmlose Konstanten-Promotions, damit der Pin universell anwendbar ist):
+- `terminal_bitcoin.py`: neue Modul-Konstante `_API_TIMEOUT = 15.0`;
+  `httpx.Client(timeout=15.0)` und `make_fmp_client(..., timeout_seconds=15.0)`
+  konsumieren jetzt `_API_TIMEOUT`.
+- `terminal_notifications.py`: neue Modul-Konstante `_WEBHOOK_TIMEOUT = 10`;
+  Discord-Webhook `httpx.post(..., timeout=10)` konsumiert jetzt
+  `_WEBHOOK_TIMEOUT`.
+
 ### Tests / Quality (2026-04-24) — SPRT decide() AST + Decision-Consumer Coverage + httpx Timeout Consistency + Test-File Naming + CHANGELOG Unreleased Format
 
 Fünf kleine Tripwire-Pins, alle ohne Surface-Risiko (regression-guard):

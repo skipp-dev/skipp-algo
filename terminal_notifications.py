@@ -144,6 +144,7 @@ def _is_market_hours() -> bool:
 _last_notified: dict[str, float] = {}
 _throttle_lock = threading.Lock()
 _THROTTLE_DICT_MAX = 500
+_WEBHOOK_TIMEOUT = 10  # seconds; baseline for one-shot notification webhooks
 
 
 def _is_throttled(symbol: str, throttle_s: int) -> bool:
@@ -225,7 +226,7 @@ def _send_discord(webhook_url: str, text: str) -> bool:
             webhook_url,
             content=payload,
             headers={"Content-Type": "application/json"},
-            timeout=10,
+            timeout=_WEBHOOK_TIMEOUT,
             follow_redirects=False,
         )
         resp.raise_for_status()
