@@ -30,6 +30,10 @@ artifacts/terminal_vd.jsonl
 *.bak
 artifacts/terminal_*.jsonl
 artifacts/open_prep/outcomes/*.json
+# …but allow the daily outcomes_<date>.json files that the
+# run-open-prep-daily / outcome-backfill workflows commit,
+# since they are the FI-corpus source of truth on main.
+!artifacts/open_prep/outcomes/outcomes_*.json
 
 # TradingView Playwright automation artifacts
 automation/tradingview/auth/storage-state.json
