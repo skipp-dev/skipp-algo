@@ -6,6 +6,61 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Tests / Quality (2026-04-24) — SPRT decide() AST + Decision-Consumer Coverage + httpx Timeout Consistency + Test-File Naming + CHANGELOG Unreleased Format
+
+Fünf kleine Tripwire-Pins, alle ohne Surface-Risiko (regression-guard):
+
+**SPRT `decide()` AST Return-Literal Pin**
+
+- Neuer Pin [`tests/test_sprt_decide_ast_return_literal.py`](tests/test_sprt_decide_ast_return_literal.py):
+  AST-Walk über [`scripts/smc_sprt_stop_rule.py`](scripts/smc_sprt_stop_rule.py)`::decide`
+  stellt sicher dass *jeder* `Return`-Knoten ein `Constant(str)` aus
+  dem 5er-Vocab ist (kein dynamisches `f"..."`, keine Variable).
+  Schließt die "structural ↔ usage"-Lücke zur Vocab-Membership-Pin
+  von PR #133. (3 tests)
+
+**SPRT Decision-Consumer Coverage Pin**
+
+- Neuer Pin [`tests/test_sprt_decision_consumer_coverage.py`](tests/test_sprt_decision_consumer_coverage.py):
+  jede Datei unter `scripts/` die SPRT-Decision-Sentinels referenziert
+  muss ≥ 2 verschiedene Sentinels nutzen, oder explizit auf
+  `_SINGLE_BRANCH_ALLOWLIST` stehen. Verhindert silent fall-through
+  bei Vocab-Erweiterung. Allowlist-Stale-Test fängt veraltete
+  Einträge. (3 tests)
+
+**httpx.Client Timeout-Consistency Pin**
+
+- Neuer Pin [`tests/test_newsapi_ai_client_timeout_consistency.py`](tests/test_newsapi_ai_client_timeout_consistency.py):
+  ergänzt PR #133's Budget+Guard-Pin um Wert-Konsistenz: alle 4
+  `httpx.Client(timeout=20.0)` müssen denselben Timeout haben. (2 tests)
+
+**Test-File Naming-Convention Pin**
+
+- Neuer Pin [`tests/test_test_file_naming_convention.py`](tests/test_test_file_naming_convention.py):
+  jede `tests/test_*.py` muss ≥ 1 `def test_*` definieren — sonst
+  dead test code (kein pytest-discovery). Allowlist für legacy
+  module-level-assert smoke-scripts. (3 tests)
+
+**CHANGELOG Unreleased-Subsection Format Pin**
+
+- Neuer Pin [`tests/test_changelog_unreleased_subsection_format.py`](tests/test_changelog_unreleased_subsection_format.py):
+  jede `### `-Subsection im `## [Unreleased]`-Block ab Enforcement-
+  Datum 2026-04-22 muss canonical format folgen:
+  `### <Category> (YYYY-MM-DD) — <Title>` (em-dash U+2014). Historische
+  Einträge grandfathered. (2 tests)
+
+**Acceptance**
+
+- 13/13 neue Tests grün (3 + 3 + 2 + 3 + 2).
+
+**Pattern-Notes**
+
+- SPRT-Schutz jetzt 3-fach: Vocab-Membership (PR #133) ×
+  Producer-Struktur (decide-AST) × Consumer-Coverage.
+- httpx-Schutz jetzt 3-fach: Budget × Guard × Timeout-Consistency.
+- CHANGELOG-Pin ist date-scoped (≥ 2026-04-22) — convention-
+  introduction ohne historischen Big-Bang.
+
 ### Tests / Quality (2026-04-24) — SPRT Decision Vocab + httpx Client Budget + Float-Eq Discipline + Pine Security Per-File Budget
 
 Vier kleine Pins, alle Tripwire/Budget-Stil:
