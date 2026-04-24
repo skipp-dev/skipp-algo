@@ -54,6 +54,10 @@
   [`docs/adr/0002-promotion-eligibility-policy.md`](adr/0002-promotion-eligibility-policy.md)
   (PR #99).
 - **E-3**: Strategischer Refactor (`@resilient`-Decorator), eigenes Quartal.
+  - **Pilot/Foundation gelandet**: `smc_core/resilient.py` +
+    17 Contract-Tests (`tests/test_smc_core_resilient.py`).
+    Decorator + API stehen; per-Adapter-Migration (Finnhub, FMP,
+    Newsapi, Databento) bleibt eigene PR-Serie.
 - ~~**A-2**: `lru_cache(maxsize=1024)` für Newsapi-Clients.~~ → erledigt
   in `scripts/smc_newsapi_ai.py` (PR #98). Audit-Text war stale —
   `terminal_newsapi.py` ist Decommissioned-Stub.
