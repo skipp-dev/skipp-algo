@@ -6,6 +6,33 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Tests / Quality (2026-04-24) — AST-Pin Triple: lru_cache / to_datetime utc / pytest-xdist parametrize Determinismus
+
+Drei reine Tripwire-Pins (kein Verhaltens-Risiko, AST-only) gegen
+hochfrequente Bug-Klassen aus PRs #98, #95, #104 (Klassen #4, #25, #29
+des SMC System Review Prompts):
+
+- **`tests/test_lru_cache_maxsize_discipline.py`** (3 Tests, Klasse #29):
+  jeder `@lru_cache` Decorator muss explizit `maxsize=N` führen — bare
+  `@lru_cache()` Default ist unbounded und leakt Memory in Long-Running
+  Streamlit/Terminal Sessions (PR #98 / A-2). Baseline pinnt die 3
+  bekannten Sites (`smc_newsapi_ai.py` × 2 + `newsstack_fmp/_market_cal.py`).
+- **`tests/test_to_datetime_utc_discipline.py`** (3 Tests, Klasse #4):
+  jeder `pd.to_datetime(frame["col"])` Call mit Timestamp-Spalte
+  (timestamp/ts/ts_event/ts_recv/datetime/...) muss `utc=True` führen.
+  Date-only Spalten (trade_date/asof_date/...) sind explizit allowlisted.
+  Aktuell 0 Verstöße — Pin verhindert Re-Introduktion (PR #95 / TZ-1/TZ-2).
+- **`tests/test_pytest_xdist_parametrize_determinism.py`** (2 Tests,
+  Klasse #25): jeder `@pytest.mark.parametrize` darf seine Argument-
+  Quelle nicht aus `set(...)` / `dict.keys()` / `os.listdir(...)` /
+  `glob.glob(...)` / `Path.iterdir()` / Set-Literal lesen ohne
+  `sorted(...)` Wrapper. Verhindert Worker-Collection-Mismatch unter
+  `pytest-xdist` (PR #104). Aktuell 0 Verstöße.
+
+**Test footprint:** +8 neue Tests, alle grün. Baseline-Drift-Failures
+liefern Auto-Update Recipe in der Failure-Message.
+
+
 ### Tests / Quality (2026-04-24) — Audit-Followup Pins (workflow continue-on-error / raw write call sites / Pine legacy isolation / Pine active surface inventory)
 
 Vier additive Inventory-Pin-Tests, die die im Audit (PR #123) gefundenen
