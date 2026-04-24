@@ -290,3 +290,63 @@ class TestOverrides:
             overrides={"NOT_A_FIELD": 42},
         )
         assert "NOT_A_FIELD" not in result
+
+
+# ── TZ-2 lock-down: session windows are FIXED UTC, NOT DST-aware ─
+# These tests pin the audit-2026-04-24 contract: SESSIONS are encoded
+# in UTC and intentionally do NOT shift with European/US DST. They
+# align with the *summer* local trading clock (BST/EDT). In winter,
+# local exchange opens drift ~1h vs. these windows — by design.
+# If you find yourself "fixing" these tests, read the comment block
+# at the top of `scripts/smc_session_context_block.py` first.
+
+
+def test_tz2_london_summer_open_is_in_window_bst_07_00_utc() -> None:
+    # 2025-07-15 08:00 BST = 07:00 UTC → first second of LONDON window.
+    ts = datetime(2025, 7, 15, 7, 0, 0, tzinfo=timezone.utc)
+    result = build_session_context_block(timestamp=ts)
+    assert result["SESSION_CONTEXT"] == "LONDON"
+
+
+def test_tz2_london_winter_open_drifts_outside_window_gmt_08_00_utc() -> None:
+    # 2025-12-15 08:00 GMT = 08:00 UTC → LSE has just opened locally,
+    # but our UTC-fixed window started at 07:00 UTC, so we are already
+    # 1h INTO the LONDON session. This test pins that: winter local
+    # opens are NOT the boundary; UTC is.
+    ts_one_hour_in = datetime(2025, 12, 15, 8, 0, 0, tzinfo=timezone.utc)
+    result = build_session_context_block(timestamp=ts_one_hour_in)
+    assert result["SESSION_CONTEXT"] == "LONDON"
+
+    # Conversely, the local-equivalent of "London open in winter" — i.e.
+    # 07:00 UTC on a winter day — must STILL be classified as LONDON.
+    # That is the lock-down: winter and summer behave identically when
+    # measured in UTC.
+    ts_winter_07_utc = datetime(2025, 12, 15, 7, 0, 0, tzinfo=timezone.utc)
+    assert build_session_context_block(timestamp=ts_winter_07_utc)["SESSION_CONTEXT"] == "LONDON"
+
+
+def test_tz2_ny_session_uses_summer_clock_anchor() -> None:
+    # 13:30 UTC = 09:30 EDT (NYSE summer open) and 08:30 EST (winter,
+    # 1h before NYSE open). Both must map to NY_AM in our UTC-fixed model.
+    summer = datetime(2025, 7, 15, 13, 30, 0, tzinfo=timezone.utc)
+    winter = datetime(2025, 12, 15, 13, 30, 0, tzinfo=timezone.utc)
+    assert build_session_context_block(timestamp=summer)["SESSION_CONTEXT"] == "NY_AM"
+    assert build_session_context_block(timestamp=winter)["SESSION_CONTEXT"] == "NY_AM"
+
+
+def test_tz2_session_classification_is_dst_invariant() -> None:
+    """For every defined session, the same UTC-time-of-day must classify
+    identically on a BST-period date and a GMT-period date."""
+    from scripts.smc_session_context_block import SESSIONS
+
+    bst_date = datetime(2025, 7, 15, tzinfo=timezone.utc)
+    gmt_date = datetime(2025, 12, 15, tzinfo=timezone.utc)
+
+    for label, (start, _end) in SESSIONS.items():
+        bst_ts = bst_date.replace(hour=start.hour, minute=start.minute)
+        gmt_ts = gmt_date.replace(hour=start.hour, minute=start.minute)
+        bst_label = build_session_context_block(timestamp=bst_ts)["SESSION_CONTEXT"]
+        gmt_label = build_session_context_block(timestamp=gmt_ts)["SESSION_CONTEXT"]
+        assert bst_label == gmt_label == label, (
+            f"DST-drift detected for {label}: BST={bst_label} GMT={gmt_label}"
+        )
