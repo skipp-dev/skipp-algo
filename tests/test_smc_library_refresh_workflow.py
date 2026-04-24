@@ -67,14 +67,31 @@ def test_refresh_workflow_surfaces_first_failing_gate_test() -> None:
     assert '### First Failing Gate Test' in workflow_text
 
 
-def test_refresh_commit_step_keeps_non_fast_forward_retry_loop() -> None:
+def test_refresh_commit_step_uses_bot_pr_auto_merge_pattern() -> None:
+    """The refresh workflow no longer pushes directly to main (blocked by the
+    `main-governance` ruleset / required `fast-gates` check). Instead it opens
+    a `bot/library-refresh-${run_id}` PR with the `automated` label and arms
+    auto-merge — same pattern as `run-open-prep-daily.yml` and
+    `open-prep-outcome-backfill.yml`. Pin the new mechanism so the next
+    refactor doesn't silently regress us back to direct-push (which would
+    fail at runtime with GH013)."""
     workflow_text = _read(WORKFLOW_PATH)
 
-    assert 'for attempt in 1 2 3; do' in workflow_text
-    assert 'if git push origin HEAD:main; then' in workflow_text
-    assert 'git fetch origin main' in workflow_text
-    assert 'if ! git rebase origin/main; then' in workflow_text
-    assert 'Refresh commit conflicts with newer origin/main. Re-run the workflow on the latest main.' in workflow_text
+    # Bot/* branch naming pinned to the workflow run id for traceability.
+    assert 'BRANCH="bot/library-refresh-${GITHUB_RUN_ID}"' in workflow_text
+    assert 'git checkout -b "$BRANCH"' in workflow_text
+    assert 'git push -u origin "$BRANCH"' in workflow_text
+    # PR creation with the automated label so CI skip-pattern short-circuits
+    # heavy steps (validation already happened inside the refresh workflow).
+    assert 'gh pr create \\' in workflow_text
+    assert '--label automated \\' in workflow_text
+    assert '--head "$BRANCH" \\' in workflow_text
+    # Auto-merge arming + branch cleanup.
+    assert 'gh pr merge "$BRANCH" --auto --squash --delete-branch' in workflow_text
+    # Reason for the indirection must remain documented inline so the next
+    # editor knows not to "simplify" back to direct push.
+    assert 'main-governance' in workflow_text
+    assert "Required status check 'fast-gates' is expected" in workflow_text
 
 
 def test_refresh_workflow_surfaces_provider_health_signals_in_summary_and_notification() -> None:
