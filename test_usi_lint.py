@@ -75,7 +75,13 @@ def lint_pine(path):
     return errors
 
 if __name__ == "__main__":
-    path = sys.argv[1] if len(sys.argv) > 1 else "USI.pine"
+    if len(sys.argv) > 1:
+        path = sys.argv[1]
+    else:
+        # Default resolves USI.pine via the ADR-0003 resolver shim, so the
+        # script keeps working after the D-1 v2 physical move to pine/legacy/.
+        from scripts.pine_path_resolver import resolve_pine_file
+        path = str(resolve_pine_file("USI.pine"))
     errs = lint_pine(path)
     if errs:
         print(f"❌ {len(errs)} issue(s) found in {path}:")

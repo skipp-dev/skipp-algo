@@ -13,6 +13,8 @@ import re
 import sys
 from pathlib import Path
 
+from scripts.pine_path_resolver import resolve_pine_file
+
 # ── SMC++ display.none reduction ──────────────────────────────────────
 # These vars KEEP status-line visibility (core controls); all others get display.none
 SMC_CORE_VARS = {
@@ -556,26 +558,27 @@ def apply_skippalgo_expert_display_none(path: Path, dry_run: bool) -> int:
 
 def main():
     dry_run = "--dry-run" in sys.argv
-    base = Path(__file__).parent
 
     # 1. SMC++.pine — add display.none to expert inputs
-    smc_path = base / "SMC++.pine"
-    if smc_path.exists():
+    try:
+        smc_path = resolve_pine_file("SMC++.pine")
+    except FileNotFoundError:
+        print("SMC++.pine not found")
+    else:
         n = apply_smc_display_none(smc_path, dry_run)
         print(f"{'[DRY RUN] ' if dry_run else ''}SMC++.pine: {n} inputs → display.none")
-    else:
-        print(f"SMC++.pine not found at {smc_path}")
 
     # 2. QuickALGO.pine (formerly SkippALGO.pine) — group ungrouped inputs + expert display.none
     for name in ["QuickALGO.pine", "SkippALGO.pine", "SkippALGO_Strategy.pine"]:
-        path = base / name
-        if path.exists():
-            n = apply_skippalgo_grouping(path, dry_run)
-            print(f"{'[DRY RUN] ' if dry_run else ''}{name}: {n} inputs grouped")
-            n2 = apply_skippalgo_expert_display_none(path, dry_run)
-            print(f"{'[DRY RUN] ' if dry_run else ''}{name}: {n2} expert inputs → display.none")
-        else:
+        try:
+            path = resolve_pine_file(name)
+        except FileNotFoundError:
             print(f"{name} not found")
+            continue
+        n = apply_skippalgo_grouping(path, dry_run)
+        print(f"{'[DRY RUN] ' if dry_run else ''}{name}: {n} inputs grouped")
+        n2 = apply_skippalgo_expert_display_none(path, dry_run)
+        print(f"{'[DRY RUN] ' if dry_run else ''}{name}: {n2} expert inputs → display.none")
 
 
 if __name__ == "__main__":

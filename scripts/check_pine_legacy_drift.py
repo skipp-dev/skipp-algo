@@ -19,6 +19,11 @@ new ``*.pine`` at the root, nothing today forces them to update
 
 It exits non-zero when either invariant is violated and prints the diff.
 Designed to be wired into ``smc-fast-pr-gates`` as a sub-second step.
+
+**D-1 v2 extension** (ADR-0003): LEGACY files now physically live under
+``pine/legacy/``. The lint scans **both** the repo root and
+``pine/legacy/`` and additionally fails when a basename appears in both
+locations (collision — the resolver shim cannot disambiguate).
 """
 
 from __future__ import annotations
@@ -31,11 +36,24 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 INDEX_FILE = REPO_ROOT / "PINE_LEGACY.md"
+LEGACY_DIR = REPO_ROOT / "pine" / "legacy"
 
 
 def list_root_pine_files(root: Path) -> set[str]:
-    """Return the basenames of all root-level ``*.pine`` files."""
+    """Return basenames of all root-level ``*.pine`` files."""
     return {p.name for p in root.glob("*.pine") if p.is_file()}
+
+
+def list_legacy_pine_files(legacy_dir: Path) -> set[str]:
+    """Return basenames of all ``pine/legacy/*.pine`` files."""
+    if not legacy_dir.is_dir():
+        return set()
+    return {p.name for p in legacy_dir.glob("*.pine") if p.is_file()}
+
+
+def find_basename_collisions(root: Path, legacy_dir: Path) -> set[str]:
+    """Return basenames present in BOTH root and ``pine/legacy/``."""
+    return list_root_pine_files(root) & list_legacy_pine_files(legacy_dir)
 
 
 def parse_index_file_names(index_path: Path) -> set[str]:
@@ -76,29 +94,50 @@ def main(argv: list[str] | None = None) -> int:
         default=INDEX_FILE,
         help="Path to PINE_LEGACY.md (default: <root>/PINE_LEGACY.md).",
     )
+    parser.add_argument(
+        "--legacy-dir",
+        type=Path,
+        default=None,
+        help="Path to pine/legacy/ (default: <root>/pine/legacy/).",
+    )
     args = parser.parse_args(argv)
 
-    actual = list_root_pine_files(args.root)
+    legacy_dir = args.legacy_dir if args.legacy_dir is not None else args.root / "pine" / "legacy"
+    root_files = list_root_pine_files(args.root)
+    legacy_files = list_legacy_pine_files(legacy_dir)
+    actual = root_files | legacy_files
     indexed = parse_index_file_names(args.index)
 
     missing_from_index = sorted(actual - indexed)
     stale_in_index = sorted(indexed - actual)
+    collisions = sorted(root_files & legacy_files)
 
-    if not missing_from_index and not stale_in_index:
-        print(f"OK: PINE_LEGACY.md is in sync ({len(actual)} root *.pine files).")
+    if not missing_from_index and not stale_in_index and not collisions:
+        print(
+            f"OK: PINE_LEGACY.md is in sync "
+            f"({len(root_files)} root + {len(legacy_files)} pine/legacy *.pine files)."
+        )
         return 0
 
-    print("FAIL: PINE_LEGACY.md is out of sync with root *.pine files.")
+    print("FAIL: PINE_LEGACY.md / pine-tree are out of sync.")
     if missing_from_index:
         print()
-        print("Missing from PINE_LEGACY.md (add these as LEGACY or active):")
+        print("Missing from PINE_LEGACY.md (add as LEGACY or active):")
         for name in missing_from_index:
             print(f"  + {name}")
     if stale_in_index:
         print()
-        print("Stale entries in PINE_LEGACY.md (file no longer at root):")
+        print("Stale entries in PINE_LEGACY.md (file no longer present):")
         for name in stale_in_index:
             print(f"  - {name}")
+    if collisions:
+        print()
+        print(
+            "Basename collisions (same name in repo root AND pine/legacy/ — "
+            "resolver cannot disambiguate):"
+        )
+        for name in collisions:
+            print(f"  ! {name}")
     print()
     print("Update PINE_LEGACY.md or move/rename the file accordingly.")
     return 1
