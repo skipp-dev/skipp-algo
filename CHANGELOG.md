@@ -6,6 +6,42 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Tests / Quality (2026-04-24) — FDR Defense + CHANGELOG Date Monotonicity + terminal_*_state Import Boundary
+
+Drei reine Tripwire-Pins (8 Tests, alle grün lokal):
+
+**A — A/B-Comparison FDR-Defense**
+- Neuer Pin [`tests/test_run_ab_comparison_fdr_defense.py`](tests/test_run_ab_comparison_fdr_defense.py):
+  AST-walked Strukturschutz für `scripts/run_ab_comparison.py`. Pinnt
+  Präsenz von `benjamini_hochberg`/`_family_fdr_layer`-Defs, dass
+  `FDR_Q` ein `float`-Literal in (0, 1) bleibt, und dass `compare()`
+  den `_family_fdr_layer` aufruft. Verhindert stilles Entkoppeln des
+  BH-FDR-Layers (würde unkorrigierte p-Werte ausliefern).
+
+**B — CHANGELOG `[Unreleased]` Date-Monotonicity**
+- Neuer Pin [`tests/test_changelog_unreleased_date_monotonicity.py`](tests/test_changelog_unreleased_date_monotonicity.py):
+  Companion zum Format-Pin aus PR #133. Datierte Einträge im
+  `## [Unreleased]`-Block müssen von oben nach unten chronologisch
+  nicht-aufsteigend sein. Catcht Merge-Konflikt-Artefakte (alter
+  Eintrag landet versehentlich oben) und Rück-Datierungen.
+  Enforcement ab `_ENFORCEMENT_FROM_DATE = "2026-04-22"`; Plan-2.8-
+  Planungseinträge (separater Roadmap-Ledger) per Title-Filter
+  exempt.
+
+**C — `terminal_*_state.py` Import-Boundary**
+- Neuer Pin [`tests/test_terminal_state_import_boundary.py`](tests/test_terminal_state_import_boundary.py):
+  State-Layer-Module (`terminal_*_state.py`) dürfen keine non-state
+  `terminal_*.py`-Module importieren — schützt die in
+  `/memories/repo/terminal-*-state-layer.md` dokumentierte Layering-
+  Disziplin und verhindert Zyklen zwischen Feed/UI und State Store.
+  `terminal_feed_state.py`'s pre-existierende Kopplungen zu
+  `terminal_export`/`terminal_poller`/`terminal_ui_helpers` sind im
+  `_IMPORT_ALLOWLIST` mit Begründung dokumentiert; jede *neue*
+  Kopplung erfordert explizite Allowlist-Erweiterung.
+
+Pattern: alle drei Pins sind Defense-Pins (defending working
+invariants), keine Produktionsänderungen.
+
 ### Tests / Quality / Pine (2026-04-24) — Cross-Language Vocab + A/B Discipline + Test Health
 
 Drei pin-Erweiterungen aus dem Backlog von PR #130 (I-2 Folgearbeit
