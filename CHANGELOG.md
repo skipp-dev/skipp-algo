@@ -6,6 +6,20 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Tests / Quality (2026-04-24) — dynamic-execution & shell-injection zero-tripwires
+
+- Neuer Pin [`tests/test_dynamic_exec_and_shell_tripwires.py`](tests/test_dynamic_exec_and_shell_tripwires.py)
+  bündelt fünf Zero-Inventory-Tripwires:
+  `exec(...)`, `eval(...)`, `compile(...)`, `input(...)` und
+  `subprocess.{run,Popen,call,check_call,check_output}(..., shell=True)`.
+  Aktuelle Production-Inventur: **0 Treffer für jeden** — pure Tripwires
+  gegen Wiedereinführung von Arbitrary-Code-Execution- bzw.
+  Shell-Injection-Vektoren.
+- AST-basiert: bare-Name-Call für die Builtins (vermeidet False-Positive
+  auf pandas/numpy `df.eval(...)`-Methode), Attribute- oder Name-Call
+  mit `shell=True`-Konstante für die subprocess-Variante.
+- Defense-only, keine Production-Änderungen.
+
 ### Tests / Quality (2026-04-24) — no eager-format in `logger.<level>(...)` calls
 
 - Neuer Pin [`tests/test_no_eager_format_in_logger_calls.py`](tests/test_no_eager_format_in_logger_calls.py)
