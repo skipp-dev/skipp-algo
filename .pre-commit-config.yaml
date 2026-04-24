@@ -1,0 +1,20 @@
+# Pre-commit configuration for skipp-algo.
+#
+# Currently exposes a single local hook that refuses to commit/push
+# manifest files leaking pytest provenance (`pytest-of-<user>`,
+# `/var/folders/.../T/pytest`, `/tmp/pytest-of-`). The same scanner runs
+# in CI via `.github/workflows/manifest-pytest-poison-scan.yml` against
+# the entire tracked tree, so this hook is a fast pre-commit fail-fast.
+#
+# Setup (optional, recommended for committers):
+#   pip install pre-commit
+#   pre-commit install
+repos:
+  - repo: local
+    hooks:
+      - id: scan-manifests-for-pytest-provenance
+        name: scan manifests for pytest provenance
+        entry: python scripts/scan_manifests_for_pytest_provenance.py
+        language: system
+        files: 'manifest[^/]*\.json$'
+        pass_filenames: true
