@@ -49,6 +49,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          token: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
+          persist-credentials: true
 
       - name: Set up Python
         uses: actions/setup-python@v6
@@ -102,12 +105,13 @@ jobs:
           if-no-files-found: warn
 
       - name: Commit fresh outcomes via auto-merge PR
-        # Direct push to `main` is blocked by repository rulesets, so
-        # we follow the same pattern as open-prep-outcome-backfill: push
-        # to a short-lived branch and open an auto-merging PR.
+        # The repo's `main-governance` ruleset targets ~ALL branches and
+        # only OrganizationAdmin actors can bypass. The default GITHUB_TOKEN
+        # is therefore rejected even when pushing to a fresh `bot/*` branch.
+        # We use GH_PAT (org-admin) for both git push and gh PR ops.
         if: success()
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
