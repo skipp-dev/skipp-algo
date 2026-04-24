@@ -146,7 +146,10 @@ class TestIsLiveOrderStatus:
     def test_live(self, status):
         assert _is_live_order_status(status) is True
 
-    @pytest.mark.parametrize("status", list(mod.TERMINAL_ORDER_STATUSES))
+    # NOTE: sorted() is required for pytest-xdist worker collection determinism.
+    # mod.TERMINAL_ORDER_STATUSES is a set/frozenset; iteration order varies per
+    # worker which causes "Different tests were collected between gw0 and gw1".
+    @pytest.mark.parametrize("status", sorted(mod.TERMINAL_ORDER_STATUSES))
     def test_terminal(self, status):
         assert _is_live_order_status(status) is False
 
