@@ -50,8 +50,20 @@
 ## Tracking
 | Bundle | PR | Status |
 |---|---|---|
-| 1 (T-1) | — | offen |
-| 2 (A-1) | — | offen |
-| 3 (S-1) | — | offen |
-| 4 (P1) | — | offen |
-| 5 (P2 quick-wins) | — | offen |
+| 1 (T-1) | #89 | gemerged |
+| 2 (A-1) | #90 | gemerged |
+| 3 (S-1) | #93 | armed (auto-merge) |
+| 4 (P1: T-2/T-4/N-1/E-1/E-2) | #91 | armed (auto-merge) |
+| 5 (P2 quick-wins: S-3) | #92 | armed (auto-merge) |
+
+### Aus Scope ausgenommen (begründet)
+- **TZ-1** (`utc=True` everywhere): die einzigen `pd.to_datetime`-Call-Sites auf
+  echten Timestamp-Spalten (`smc_microstructure_base_runtime.py:1419`,
+  `market_structure_features.py:213`) verwenden bereits `utc=True`. Restliche
+  Call-Sites sind auf Date-Only-Spalten — `utc=True` würde bei
+  Local-Timezones um Mitternacht 1-Tages-Shifts riskieren.
+- **D-3** (`BEST_V1_WEIGHTS` parallel): Symbol existiert nicht; gemeinte
+  `LENIENT_WEIGHTS` ist aktiver Test-Baseline-Import. Kein Dead-Code.
+- **D-1, D-2** (Legacy-Pine verschieben, Schema-History): reine
+  Aufräum-Arbeiten ohne Sicherheits-/Korrektheits-Impact, separates Backlog.
+
