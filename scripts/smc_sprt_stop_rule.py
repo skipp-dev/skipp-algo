@@ -42,6 +42,32 @@ Determinism / fail-soft
   except parameter validation in :class:`SPRTConfig`.
 * ``max_n`` clamp degrades to ``"max_n_reached"`` decision so the gate cannot
   loop forever in CI.
+
+Decision sentinel semantics (SPRT-1)
+------------------------------------
+The :data:`Decision` literal carries five disjoint outcomes:
+
+* ``"accept_h1"``     — promote treatment (LLR crossed Wald upper bound).
+* ``"accept_h0"``     — reject treatment (LLR crossed Wald lower bound).
+* ``"continue"``      — streaming evaluator only; LLR still inside bounds
+                        and ``max_n`` (if any) not yet reached. Never
+                        emitted by :func:`terminal_decision`.
+* ``"max_n_reached"`` — streaming evaluator hit the hard observation cap
+                        before crossing a Wald bound. Distinct from
+                        ``"inconclusive"`` because it indicates the test
+                        was *truncated* — additional data could change
+                        the verdict.
+* ``"inconclusive"``  — closed-form / post-hoc evaluator: at the supplied
+                        sample size ``n`` the LLR sits strictly between
+                        the Wald bounds. Distinct from ``"max_n_reached"``
+                        because no streaming cap was involved; the test
+                        ran to completion at fixed n. Both downstream
+                        gates (g23_ab_watchdog promotion-ready, F2
+                        rollback) treat ``"inconclusive"`` and
+                        ``"max_n_reached"`` identically (= no action),
+                        but reports preserve the distinction so
+                        operators can tell *why* the test did not
+                        conclude.
 """
 
 from __future__ import annotations
@@ -53,7 +79,17 @@ from pathlib import Path
 from typing import Iterable, Literal
 
 
-Decision = Literal["accept_h0", "accept_h1", "continue", "max_n_reached"]
+Decision = Literal[
+    "accept_h0",
+    "accept_h1",
+    "continue",
+    "max_n_reached",
+    "inconclusive",
+]
+
+# Both sentinels mean "no promotion, no rejection" for downstream gates.
+# Kept as a tuple so consumers can iterate without re-listing the strings.
+INCONCLUSIVE_DECISIONS: tuple[Decision, ...] = ("max_n_reached", "inconclusive")
 
 
 @dataclass(frozen=True)
@@ -196,14 +232,18 @@ def terminal_decision(
     post-hoc analysis of fixed-window A/B benchmarks (plan §2.4 G3:
     "SPRT *or* fixes N").
 
-    Returns ``"max_n_reached"`` only when the LLR is strictly inside both
-    Wald bounds — the gate cannot promote (accept_h1) or reject
-    (accept_h0) on inconclusive evidence even at terminal n.
+    Returns ``"inconclusive"`` (SPRT-1) when the LLR is strictly inside both
+    Wald bounds at terminal n — the gate cannot promote (accept_h1) or
+    reject (accept_h0) on inconclusive evidence. This sentinel is distinct
+    from the streaming-only ``"max_n_reached"`` because no observation cap
+    was involved; the test simply ran to completion at fixed n with
+    insufficient evidence either way. Downstream gates treat both as
+    no-action (see :data:`INCONCLUSIVE_DECISIONS`).
     """
     if n < 0 or k < 0 or k > n:
         raise ValueError(f"invalid totals: n={n}, k={k}")
     if n == 0:
-        return SPRTState(), "max_n_reached"
+        return SPRTState(), "inconclusive"
     llr = (
         k * math.log(config.p1 / config.p0)
         + (n - k) * math.log((1.0 - config.p1) / (1.0 - config.p0))
@@ -213,7 +253,7 @@ def terminal_decision(
         return state, "accept_h1"
     if llr <= config.lower_bound:
         return state, "accept_h0"
-    return state, "max_n_reached"
+    return state, "inconclusive"
 
 
 # ---------------------------------------------------------------------------

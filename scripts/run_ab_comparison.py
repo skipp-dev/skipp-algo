@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import sys
 from pathlib import Path
 from typing import Any
@@ -123,6 +124,8 @@ def compare(
 
     sprt = _sprt_decision(ctrl_agg, treat_agg)
 
+    fdr = _family_fdr_layer(control_pairs, treatment_pairs)
+
     return {
         "experiment": experiment_name,
         "control_pairs": len(control_pairs),
@@ -134,6 +137,192 @@ def compare(
         "recommendation_reason": decision["reason"],
         "kpi_thresholds": decision["kpi_thresholds"],
         "sprt": sprt,
+        "fdr": fdr,
+    }
+
+
+# ── S-2: Per-family Benjamini-Hochberg FDR (advisory) ──────────────────────
+
+
+# Per-family q-value cap used by the BH procedure. ADR-0002 §6 placeholder
+# binds operators to a single global FDR control level; 0.05 matches the
+# SPRT alpha already in use so the two layers stay coherent. Bumping this
+# constant downstream affects ONLY the advisory rejection flag, not the
+# Promote/Hold/Rollback decision.
+FDR_Q = 0.05
+
+
+def benjamini_hochberg(pvals: list[float], q: float = FDR_Q) -> dict[str, Any]:
+    """Benjamini-Hochberg FDR control on a list of p-values.
+
+    Implements the classical Benjamini-Hochberg step-up procedure
+    (B&H 1995): orders p-values ascending, finds the largest rank ``k``
+    where ``p_(k) <= k/m * q``, and rejects all hypotheses with rank ≤ k.
+
+    Returns a dict with:
+      * ``rejected`` — list[bool] in the *original* input order.
+      * ``adjusted`` — list[float] of BH-adjusted p-values
+        (``p_(k) * m / k``, monotonised), in original input order.
+      * ``threshold`` — the largest p-value that passes BH at ``q``,
+        or ``None`` if no rejections.
+      * ``q`` — the cap used.
+
+    Pure stdlib (no scipy/statsmodels) so this stays in the lean
+    measurement-runtime contract.
+    """
+    m = len(pvals)
+    if m == 0:
+        return {"rejected": [], "adjusted": [], "threshold": None, "q": q}
+    # Validate inputs (advisory layer must never raise on already-clamped data).
+    sanitized = [max(0.0, min(1.0, float(p))) for p in pvals]
+    indexed = sorted(range(m), key=lambda i: sanitized[i])
+    sorted_p = [sanitized[i] for i in indexed]
+    # Step-up: largest k with p_(k) <= (k/m) * q.
+    threshold_rank = -1
+    for k_minus_1, p in enumerate(sorted_p):
+        rank = k_minus_1 + 1  # 1-indexed
+        if p <= (rank / m) * q:
+            threshold_rank = rank
+    threshold_p = sorted_p[threshold_rank - 1] if threshold_rank > 0 else None
+    # BH-adjusted p-values: monotone non-decreasing from largest to smallest.
+    adj_sorted = [0.0] * m
+    running_min = 1.0
+    for i in range(m - 1, -1, -1):
+        rank = i + 1
+        adj = sorted_p[i] * m / rank
+        running_min = min(running_min, adj)
+        adj_sorted[i] = min(running_min, 1.0)
+    rejected_sorted = [
+        (i + 1) <= threshold_rank for i in range(m)
+    ] if threshold_rank > 0 else [False] * m
+    # Map back to original order.
+    adjusted = [0.0] * m
+    rejected = [False] * m
+    for sorted_idx, orig_idx in enumerate(indexed):
+        adjusted[orig_idx] = adj_sorted[sorted_idx]
+        rejected[orig_idx] = rejected_sorted[sorted_idx]
+    return {
+        "rejected": rejected,
+        "adjusted": adjusted,
+        "threshold": threshold_p,
+        "q": q,
+    }
+
+
+def _normal_cdf(x: float) -> float:
+    """Standard-normal CDF via math.erf (stdlib only)."""
+    return 0.5 * (1.0 + math.erf(x / math.sqrt(2.0)))
+
+
+def _two_proportion_z_pvalue(
+    *,
+    k_treat: int,
+    n_treat: int,
+    k_ctrl: int,
+    n_ctrl: int,
+) -> float | None:
+    """One-sided pooled-variance z-test p-value for treatment > control.
+
+    Returns ``None`` when either arm has zero events or pooled variance is
+    degenerate (both arms have identical zero/all-hit rates) — caller must
+    skip such families from the BH input list to keep ranks well-defined.
+    """
+    if n_treat <= 0 or n_ctrl <= 0:
+        return None
+    p_treat = k_treat / n_treat
+    p_ctrl = k_ctrl / n_ctrl
+    p_pool = (k_treat + k_ctrl) / (n_treat + n_ctrl)
+    if math.isclose(p_pool, 0.0, abs_tol=1e-12) or math.isclose(p_pool, 1.0, abs_tol=1e-12):
+        return None
+    se = math.sqrt(p_pool * (1.0 - p_pool) * (1.0 / n_treat + 1.0 / n_ctrl))
+    if math.isclose(se, 0.0, abs_tol=1e-12):
+        return None
+    z = (p_treat - p_ctrl) / se
+    # One-sided: p = P(Z > z)
+    return max(0.0, min(1.0, 1.0 - _normal_cdf(z)))
+
+
+def _family_fdr_layer(
+    control_pairs: list[dict[str, Any]],
+    treatment_pairs: list[dict[str, Any]],
+    *,
+    q: float = FDR_Q,
+) -> dict[str, Any]:
+    """Build the per-family BH-FDR advisory layer.
+
+    For each family present in *both* arms with non-zero event counts,
+    computes a one-sided two-proportion z-test p-value (treatment > control
+    on hit rate), then applies Benjamini-Hochberg at ``q`` to control the
+    family-wise false-discovery rate.
+
+    The output is **advisory only**: it does not alter the
+    Promote/Hold/Rollback decision. Operators inspect the rejection set to
+    distinguish "treatment beats control on family X with FDR-controlled
+    confidence" from "treatment looks better on family X but the difference
+    is not significant after correcting for testing K families".
+    """
+    def _aggregate_family_events(
+        pairs: list[dict[str, Any]],
+    ) -> dict[str, tuple[int, int]]:
+        agg: dict[str, tuple[int, int]] = {}
+        for pair in pairs:
+            for fam, fm in (pair.get("family_metrics") or {}).items():
+                n = int(fm.get("n_events", 0) or 0)
+                hr = float(fm.get("hit_rate", 0.0) or 0.0)
+                # hit_rate may be stored as fraction OR percentage
+                # (legacy artifacts). Auto-detect: values > 1.0 are %.
+                if hr > 1.0:
+                    hr = hr / 100.0
+                k = round(n * max(0.0, min(1.0, hr)))
+                prev_n, prev_k = agg.get(fam, (0, 0))
+                agg[fam] = (prev_n + n, prev_k + k)
+        return agg
+
+    ctrl_fam = _aggregate_family_events(control_pairs)
+    treat_fam = _aggregate_family_events(treatment_pairs)
+    common = sorted(set(ctrl_fam) & set(treat_fam))
+
+    families: list[dict[str, Any]] = []
+    pvals: list[float] = []
+    p_indices: list[int] = []  # index into ``families`` for each p-value
+    for fam in common:
+        n_ctrl, k_ctrl = ctrl_fam[fam]
+        n_treat, k_treat = treat_fam[fam]
+        p = _two_proportion_z_pvalue(
+            k_treat=k_treat, n_treat=n_treat, k_ctrl=k_ctrl, n_ctrl=n_ctrl
+        )
+        entry = {
+            "family": fam,
+            "n_control": n_ctrl,
+            "n_treatment": n_treat,
+            "hit_rate_control": round(k_ctrl / n_ctrl, 4) if n_ctrl else None,
+            "hit_rate_treatment": round(k_treat / n_treat, 4) if n_treat else None,
+            "p_value": None if p is None else round(p, 6),
+            "rejected": False,
+            "adjusted_p_value": None,
+            "skipped_reason": None if p is not None else "degenerate_or_empty",
+        }
+        if p is not None:
+            p_indices.append(len(families))
+            pvals.append(p)
+        families.append(entry)
+
+    bh = benjamini_hochberg(pvals, q=q)
+    for slot, fam_idx in enumerate(p_indices):
+        families[fam_idx]["rejected"] = bool(bh["rejected"][slot])
+        families[fam_idx]["adjusted_p_value"] = round(float(bh["adjusted"][slot]), 6)
+
+    rejected_families = [e["family"] for e in families if e["rejected"]]
+    return {
+        "method": "benjamini_hochberg",
+        "q": q,
+        "tested_families": len(pvals),
+        "skipped_families": len(families) - len(pvals),
+        "rejected_families": rejected_families,
+        "threshold_p_value": (
+            round(float(bh["threshold"]), 6) if bh["threshold"] is not None else None
+        ),
+        "families": families,
     }
 
 
@@ -335,6 +524,26 @@ def render_comparison(digest: dict[str, Any]) -> str:
             f"- config: p0={cfg.get('p0')}, p1={cfg.get('p1')}, "
             f"alpha={cfg.get('alpha')}, beta={cfg.get('beta')}"
         )
+        lines.append("")
+    fdr = digest.get("fdr") or {}
+    if fdr and fdr.get("families"):
+        lines.append("## Per-Family FDR (Benjamini-Hochberg, advisory)")
+        lines.append("")
+        lines.append(
+            f"_q = {fdr.get('q')}, tested = {fdr.get('tested_families')}, "
+            f"skipped = {fdr.get('skipped_families')}, "
+            f"rejected = {len(fdr.get('rejected_families') or [])}_"
+        )
+        lines.append("")
+        lines.append("| Family | n(C) | n(T) | HR(C) | HR(T) | p | adj. p | rejected |")
+        lines.append("|---|---:|---:|---:|---:|---:|---:|:---:|")
+        for fam in fdr["families"]:
+            lines.append(
+                f"| {fam['family']} | {fam['n_control']} | {fam['n_treatment']} | "
+                f"{fam['hit_rate_control']} | {fam['hit_rate_treatment']} | "
+                f"{fam['p_value']} | {fam['adjusted_p_value']} | "
+                f"{'✓' if fam['rejected'] else '·'} |"
+            )
         lines.append("")
     return "\n".join(lines)
 

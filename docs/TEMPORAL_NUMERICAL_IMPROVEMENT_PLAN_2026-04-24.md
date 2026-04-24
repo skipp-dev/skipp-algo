@@ -34,9 +34,22 @@
 
 ## Backlog (P2 ohne PR — Owner zu vergeben)
 - **T-3**: `request.security` Same-TF-Pattern entfernen (rein kosmetisch, kein Korrektheits-Bug).
-- **N-2/N-3/N-4**: `math.isclose` / Sentinel-`None` migrieren — niedrige Wahrscheinlichkeit, kein P0/P1.
-- **SPRT-1**: Sentinel-Decision `"inconclusive"` in `smc_sprt_stop_rule.py`.
-- **S-2**: Benjamini-Hochberg in `run_ab_comparison.py`.
+- ~~**N-2/N-3/N-4**: `math.isclose` / Sentinel-`None` migrieren — niedrige Wahrscheinlichkeit, kein P0/P1.~~
+  → erledigt in [`smc_core/scoring.py`](../smc_core/scoring.py) und
+  [`smc_core/fvg_quality.py`](../smc_core/fvg_quality.py): explizite
+  `math.isclose`-Form mit dokumentierter `abs_tol`. Vollständige
+  Migration der übrigen Hit-Points bleibt als Konvention dokumentiert.
+- ~~**SPRT-1**: Sentinel-Decision `"inconclusive"` in `smc_sprt_stop_rule.py`.~~
+  → erledigt: neue Decision-Literal-Variante `"inconclusive"` plus
+  `INCONCLUSIVE_DECISIONS`-Tuple. `terminal_decision()` gibt jetzt
+  `"inconclusive"` statt `"max_n_reached"` zurück, wenn die LLR an einem
+  fixen n innerhalb der Wald-Bounds liegt.
+- ~~**S-2**: Benjamini-Hochberg in `run_ab_comparison.py`.~~
+  → erledigt: `benjamini_hochberg(pvals, q)` Helper +
+  `_family_fdr_layer(...)` advisor-Layer (Two-Proportion-Z-Test
+  pro Family, BH-FDR mit `q=0.05`). Surfaced als `digest["fdr"]` und
+  in der Markdown-Rendering-Section. **Advisory-only**:
+  beeinflusst Promote/Hold/Rollback nicht.
 - ~~**S-4**: Eligibility-Policy als Doku-Block.~~ → erledigt durch
   [`docs/adr/0002-promotion-eligibility-policy.md`](adr/0002-promotion-eligibility-policy.md)
   (PR #99).
@@ -44,7 +57,11 @@
 - ~~**A-2**: `lru_cache(maxsize=1024)` für Newsapi-Clients.~~ → erledigt
   in `scripts/smc_newsapi_ai.py` (PR #98). Audit-Text war stale —
   `terminal_newsapi.py` ist Decommissioned-Stub.
-- **A-3**: Streamlit `session_state` Invalidations-Versionsschlüssel.
+- ~~**A-3**: Streamlit `session_state` Invalidations-Versionsschlüssel.~~
+  → erledigt in `streamlit_terminal.py` und
+  `databento_volatility_screener.py` (PR #101): Schema-Version-Konstante
+  + Invalidations-Helper, der bei Bump nur **derived** State-Keys verwirft
+  und User-Inputs (API-Keys, Sidebar-Toggles) erhält.
 - ~~**D-1**: Legacy-Pine in `pine/legacy/` verschieben (Manifest-Pfade mit ziehen).~~
   → Phase 1 erledigt durch [`PINE_LEGACY.md`](../PINE_LEGACY.md):
   Index-Datei klassifiziert die 24 Root-Pine-Files als `LEGACY` / aktiv.
