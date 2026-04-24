@@ -37,6 +37,10 @@ int state_code = int(math.round(nz(src_state_code, 0.0)))
 bool actionable = state_code >= 5
 
 // ── Traffic light — hero action from generated library ──
+// HERO_ACTION vocab anchor (cross-checked by tests/test_pine_python_vocab_cross_check.py):
+//   "ACTIVE", "WATCH", "AVOID", "BLOCKED"  ← keep in sync with scripts/smc_hero_state.py::HERO_ACTION_VOCAB
+// HERO_BIAS vocab anchor:
+//   "LONG", "SHORT", "FLAT"
 string hero_action_m = mp.HERO_ACTION
 string hero_bias_m = mp.HERO_BIAS
 string action_text = hero_action_m == "ACTIVE" ? (hero_bias_m == "LONG" ? "🟢 ACTIVE LONG" : hero_bias_m == "SHORT" ? "🟢 ACTIVE SHORT" : "🟢 ACTIVE") : hero_action_m == "BLOCKED" ? "🔴 BLOCKED" : hero_action_m == "AVOID" ? "🔴 AVOID" : "⚪ WATCH"
@@ -46,6 +50,8 @@ color  action_bg   = hero_action_m == "ACTIVE" ? color.new(M_BULL, 65) : hero_ac
 string levels_text = actionable and not na(src_trigger) ? str.tostring(src_trigger, format.mintick) + " → " + str.tostring(src_invalidation, format.mintick) : "—"
 
 // ── Market context from hero state ──
+// HERO_MARKET_MODE vocab anchor (cross-checked by tests/test_pine_python_vocab_cross_check.py):
+//   "BULLISH", "BEARISH", "NEUTRAL", "RISK_OFF"  ← keep in sync with scripts/smc_hero_state.py
 string hero_market_m = mp.HERO_MARKET_MODE
 string hero_trust_m = mp.HERO_TRUST
 // ENG-WS2-03: surface the canonical product trust state on mobile too so

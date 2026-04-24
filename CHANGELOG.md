@@ -6,6 +6,60 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Tests / Quality / Pine (2026-04-24) — Cross-Language Vocab + A/B Discipline + Test Health
+
+Drei pin-Erweiterungen aus dem Backlog von PR #130 (I-2 Folgearbeit
+Pine-Schicht, plus zwei kleinere Disziplin-Pins):
+
+**A — Pine ↔ Python Vocab Cross-Check**
+- Neuer Pin [`tests/test_pine_python_vocab_cross_check.py`](tests/test_pine_python_vocab_cross_check.py):
+  jeder Token in `HERO_TRUST_VOCAB`, `HERO_ACTION_VOCAB`,
+  `HERO_SETUP_QUALITY_VOCAB`, `HERO_MARKET_MODE_VOCAB`,
+  `HERO_BIAS_VOCAB`, `TRUST_STATE_VALUES` muss als quoted-literal in
+  mindestens einer der zugeordneten Pine-Surfaces erscheinen
+  (Dashboard / Mobile-Dashboard / Core-Engine).
+- Echte Drift gefunden und behoben: `"WATCH"` (HERO_ACTION) und
+  `"NEUTRAL"` (HERO_MARKET_MODE) wurden in
+  [`SMC_Mobile_Dashboard.pine`](SMC_Mobile_Dashboard.pine) nur als
+  default-else-branch gerendert (`"⚪ WATCH"`) — Vocab-Anchor-Kommentare
+  hinzugefügt. Ergänzt I-2 aus PR #130 (Python-Side Fingerprint Gate)
+  um die Pine-Render-Schicht.
+
+**B — A/B-Comparison Multiple-Hypothesis Discipline (Regression-Pin)**
+- Neuer Pin [`tests/test_ab_comparison_multiple_hypothesis_discipline.py`](tests/test_ab_comparison_multiple_hypothesis_discipline.py):
+  friert die existierende BH-FDR-Disziplin in
+  [`scripts/run_ab_comparison.py`](scripts/run_ab_comparison.py) ein —
+  `benjamini_hochberg()` Helper, beide FDR-Layer
+  (`_family_fdr_layer`, `_calibration_fdr_layer`),
+  `"method": "benjamini_hochberg"` Self-Identification, und jede
+  `"p_value"` Field-Emission braucht ein `"adjusted_p_value"`-Sibling.
+- Numerische Korrektheit ist bereits durch
+  `test_benjamini_hochberg_property.py`,
+  `test_run_ab_comparison_fdr.py` und
+  `test_run_ab_comparison_calibration_fdr.py` abgedeckt; dieser Pin
+  schützt nur vor stillem Refactor-Verlust.
+
+**C — Test-Suite Health Discipline (Regression-Pin)**
+- Neuer Pin [`tests/test_test_suite_health_discipline.py`](tests/test_test_suite_health_discipline.py):
+  friert den aktuellen gesunden Zustand der Test-Suite ein —
+  0 non-strict `xfail` (silent passing wenn Bug behoben) und jeder
+  `skip`/`skipif`-Marker mit `reason=` Argument. Marker-Body wird
+  paren-balanced über bis zu 12 Zeilen verfolgt, damit multi-line
+  `skipif(cond, reason=...)` mit nested parens (`os.environ.get(...)`)
+  korrekt erkannt wird. Allowlist `_XFAIL_ALLOWLIST` für legitime
+  Ausnahmen (aktuell leer).
+
+**Acceptance / Test-Suite-Beweis**
+- Alle 11 neuen Tests grün
+  (6 vocab cross-check + 3 ab-comparison + 2 test-health).
+
+**Quervergleich zum Audit-Backlog**
+- Verlängert I-2 (Single Source of Truth Vocab Fingerprint, PR #130) in
+  die Pine-Render-Schicht.
+- Konvertiert eine ursprünglich als "fehlend" markierte FDR-Discipline-
+  Lücke in einen Regression-Pin nach Discovery, dass die BH-Korrektur
+  bereits implementiert war.
+
 ### Tests / Quality / Workflows (2026-04-24) — Audit-Followup Combo (M-1 / M-4 / L-1 / L-2 / I-1 / I-2)
 
 Sechs Punkte aus dem Backlog von
