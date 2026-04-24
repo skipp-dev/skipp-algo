@@ -6,6 +6,27 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Tests / Quality (2026-04-24) — `__import__()` budget + TODO/FIXME zero-tripwire
+
+- Neuer Pin [`tests/test_dynamic_import_and_todo_tripwires.py`](tests/test_dynamic_import_and_todo_tripwires.py)
+  bündelt zwei Defense-Schichten:
+  1. **`__import__("...")` budget**: 5 bekannte Lazy-Import-Sites in
+     `open_prep/streamlit_monitor.py` (Streamlit-Reload-Hot-Path,
+     `time.{time,monotonic}` Import inside-fence) eingefroren via
+     no-new-sites Tripwire + parametrisierter Stale-Site-Guard +
+     bidirektionale Inventur-Parity. Jeder neue `__import__`-Call
+     fordert bewussten Review (top-level `import` oder
+     `importlib.import_module(...)` bevorzugen, damit static-analysis
+     und Dependency-Graphen die Dependency sehen).
+  2. **TODO/FIXME/XXX/HACK zero-tripwire**: Production-Code enthält
+     aktuell **0 Marker** in Comments — alle Notes leben in `docs/`,
+     `scripts/` und Tracker. Reine Tripwire — neuer Marker forciert
+     Issue-Filing, Fix oder Move-to-docs. Whole-word Match in
+     Comment-Position (`# … TODO …`), keine String/Identifier-False-
+     Positives.
+- 9 Tests grün, keine Produktions-Anpassungen nötig. Closes
+  "stille Lazy-Imports + verwesende Marker rutschen rein" Bug-Klasse.
+
 ### Tests / Quality (2026-04-24) — `except Exception: pass` defense pin (frozen-inventory budget)
 
 Defense-Pin friert die aktuelle Anzahl und exakten Locations aller
