@@ -184,6 +184,35 @@ HERO_MARKET_MODE_VOCAB: frozenset[str] = frozenset({
 })
 
 
+# ── HERO_RISK vocabulary (PR-AUDIT-2026-04-24, ADR-0006 §"Out of scope") ─────
+#
+# Producer-A vocabulary — emitted by :func:`_derive_risk`, exported as
+# Pine const ``HERO_RISK`` via
+# ``scripts/generate_smc_micro_profiles.py:1051``. Pine consumer
+# ``SMC_Dashboard.pine:1769`` uses the EMPTY-STRING sentinel
+# (``mp.HERO_RISK != "" ? ...``) to gate the blocker badge — the empty
+# string IS part of the contract and MUST NOT be normalised to e.g.
+# ``"NONE"`` without a Pine-side migration + library_field_version bump.
+#
+# Tests asserting ``result["HERO_RISK"] == ""`` (e.g.
+# ``tests/test_smc_hero_state.py:100``,
+# ``tests/test_smc_pine_evidence_fixtures.py:100``) document the
+# sentinel-as-contract.
+HERO_RISK_NONE: str = ""  # sentinel: "no dominant risk" — Pine-gated by `!= ""`.
+HERO_RISK_DATA_STALE: str = "DATA_STALE"
+HERO_RISK_EVENT_RISK: str = "EVENT_RISK"
+HERO_RISK_VOLATILITY: str = "VOLATILITY"
+HERO_RISK_PROVIDER_GAPS: str = "PROVIDER_GAPS"
+
+HERO_RISK_VOCAB: frozenset[str] = frozenset({
+    HERO_RISK_NONE,
+    HERO_RISK_DATA_STALE,
+    HERO_RISK_EVENT_RISK,
+    HERO_RISK_VOLATILITY,
+    HERO_RISK_PROVIDER_GAPS,
+})
+
+
 def project_trust_state_to_hero(state: "TrustState") -> str:
     """Translate a canonical ``TrustState`` into the Hero-local vocab.
 
@@ -239,16 +268,20 @@ def _derive_bias(*, regime: str, trade_state: str) -> str:
 
 
 def _derive_action(*, trade_state: str, trust: str) -> str:
-    """Map trade state and trust into a product action."""
-    if trust in ("unavailable", "stale"):
-        return "WATCH"
+    """Map trade state and trust into a product action.
+
+    Returns one of :data:`HERO_ACTION_VOCAB`. See ADR-0006 for the
+    vocabulary contract.
+    """
+    if trust in (HERO_TRUST_UNAVAILABLE, HERO_TRUST_STALE):
+        return HERO_ACTION_WATCH
     if trade_state == "BLOCKED":
-        return "BLOCKED"
+        return HERO_ACTION_BLOCKED
     if trade_state == "AVOID":
-        return "AVOID"
+        return HERO_ACTION_AVOID
     if trade_state == "WATCH":
-        return "WATCH"
-    return "ACTIVE"
+        return HERO_ACTION_WATCH
+    return HERO_ACTION_ACTIVE
 
 
 def _derive_why_now(
@@ -276,17 +309,23 @@ def _derive_risk(
     vol_regime: str,
     trust: str,
 ) -> str:
-    """Identify the dominant risk factor."""
-    if trust in ("unavailable", "stale"):
-        return "DATA_STALE"
+    """Identify the dominant risk factor.
+
+    Returns one of :data:`HERO_RISK_VOCAB`. The empty-string sentinel
+    :data:`HERO_RISK_NONE` is part of the Pine boundary contract
+    (``SMC_Dashboard.pine:1769`` uses ``mp.HERO_RISK != ""`` as a gate)
+    and MUST be preserved.
+    """
+    if trust in (HERO_TRUST_UNAVAILABLE, HERO_TRUST_STALE):
+        return HERO_RISK_DATA_STALE
     if event_risk_level in ("HIGH", "CRITICAL"):
-        return "EVENT_RISK"
+        return HERO_RISK_EVENT_RISK
     if vol_regime in ("EXTREME", "HIGH_VOL"):
-        return "VOLATILITY"
+        return HERO_RISK_VOLATILITY
     stale_count = len([s for s in stale_providers.split(",") if s.strip()])
     if stale_count >= 2:
-        return "PROVIDER_GAPS"
-    return ""
+        return HERO_RISK_PROVIDER_GAPS
+    return HERO_RISK_NONE
 
 
 def build_hero_state(enrichment: dict[str, Any]) -> dict[str, str]:
