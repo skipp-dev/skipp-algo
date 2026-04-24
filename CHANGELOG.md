@@ -6,6 +6,118 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Tests / Quality (2026-04-24) — SPRT decide() AST + Decision-Consumer Coverage + httpx Timeout Consistency + Test-File Naming + CHANGELOG Unreleased Format
+
+Fünf kleine Tripwire-Pins, alle ohne Surface-Risiko (regression-guard):
+
+**SPRT `decide()` AST Return-Literal Pin**
+
+- Neuer Pin [`tests/test_sprt_decide_ast_return_literal.py`](tests/test_sprt_decide_ast_return_literal.py):
+  AST-Walk über [`scripts/smc_sprt_stop_rule.py`](scripts/smc_sprt_stop_rule.py)`::decide`
+  stellt sicher dass *jeder* `Return`-Knoten ein `Constant(str)` aus
+  dem 5er-Vocab ist (kein dynamisches `f"..."`, keine Variable).
+  Schließt die "structural ↔ usage"-Lücke zur Vocab-Membership-Pin
+  von PR #133. (3 tests)
+
+**SPRT Decision-Consumer Coverage Pin**
+
+- Neuer Pin [`tests/test_sprt_decision_consumer_coverage.py`](tests/test_sprt_decision_consumer_coverage.py):
+  jede Datei unter `scripts/` die SPRT-Decision-Sentinels referenziert
+  muss ≥ 2 verschiedene Sentinels nutzen, oder explizit auf
+  `_SINGLE_BRANCH_ALLOWLIST` stehen. Verhindert silent fall-through
+  bei Vocab-Erweiterung. Allowlist-Stale-Test fängt veraltete
+  Einträge. (3 tests)
+
+**httpx.Client Timeout-Consistency Pin**
+
+- Neuer Pin [`tests/test_newsapi_ai_client_timeout_consistency.py`](tests/test_newsapi_ai_client_timeout_consistency.py):
+  ergänzt PR #133's Budget+Guard-Pin um Wert-Konsistenz: alle 4
+  `httpx.Client(timeout=20.0)` müssen denselben Timeout haben. (2 tests)
+
+**Test-File Naming-Convention Pin**
+
+- Neuer Pin [`tests/test_test_file_naming_convention.py`](tests/test_test_file_naming_convention.py):
+  jede `tests/test_*.py` muss ≥ 1 `def test_*` definieren — sonst
+  dead test code (kein pytest-discovery). Allowlist für legacy
+  module-level-assert smoke-scripts. (3 tests)
+
+**CHANGELOG Unreleased-Subsection Format Pin**
+
+- Neuer Pin [`tests/test_changelog_unreleased_subsection_format.py`](tests/test_changelog_unreleased_subsection_format.py):
+  jede `### `-Subsection im `## [Unreleased]`-Block ab Enforcement-
+  Datum 2026-04-22 muss canonical format folgen:
+  `### <Category> (YYYY-MM-DD) — <Title>` (em-dash U+2014). Historische
+  Einträge grandfathered. (2 tests)
+
+**Acceptance**
+
+- 13/13 neue Tests grün (3 + 3 + 2 + 3 + 2).
+
+**Pattern-Notes**
+
+- SPRT-Schutz jetzt 3-fach: Vocab-Membership (PR #133) ×
+  Producer-Struktur (decide-AST) × Consumer-Coverage.
+- httpx-Schutz jetzt 3-fach: Budget × Guard × Timeout-Consistency.
+- CHANGELOG-Pin ist date-scoped (≥ 2026-04-22) — convention-
+  introduction ohne historischen Big-Bang.
+
+### Tests / Quality (2026-04-24) — SPRT Decision Vocab + httpx Client Budget + Float-Eq Discipline + Pine Security Per-File Budget
+
+Vier kleine Pins, alle Tripwire/Budget-Stil:
+
+**SPRT Decision Vocab Pin**
+
+- Neuer Pin [`tests/test_sprt_decision_vocab_pin.py`](tests/test_sprt_decision_vocab_pin.py):
+  friert die 5er-Membership des `Decision`-Literal in
+  [`scripts/smc_sprt_stop_rule.py`](scripts/smc_sprt_stop_rule.py)
+  ein (`continue`, `accept_h0`, `accept_h1`, `max_n_reached`,
+  `inconclusive`), prüft `INCONCLUSIVE_DECISIONS ⊆ Decision`, und
+  verifiziert dass `decide()` / `evaluate()` / `terminal_decision()`
+  vocab-member zurückgeben (nicht `None` / free-form). Verhindert
+  silent gate-deadlock bei Decision-Drift. (6 tests)
+
+**NewsAPI httpx.Client Instantiation Budget**
+
+- Neuer Pin [`tests/test_newsapi_ai_client_instantiation_budget.py`](tests/test_newsapi_ai_client_instantiation_budget.py):
+  friert Anzahl der `httpx.Client(...)` Konstruktionen in
+  [`scripts/smc_newsapi_ai.py`](scripts/smc_newsapi_ai.py) auf 4
+  (eine Fallback pro public fetch). Jede Konstruktion muss
+  `if client is None:` guard ≤ 3 Zeilen davor haben. Bei 5. Fetch:
+  shared `_get_or_create_client(client)` helper extrahieren statt
+  Budget bumpen. (3 tests)
+
+**`smc_core/` Float-Equality Discipline (Regression-Pin)**
+
+- Neuer Pin [`tests/test_smc_core_float_equality_discipline.py`](tests/test_smc_core_float_equality_discipline.py):
+  verbietet `==` / `!=` gegen Float-Literale (`0.0`, `1.5`, `2e-3`)
+  in `smc_core/*.py`. Discovery: smc_core 100% sauber — Pin friert
+  das gegen ULP-Equality-Regression ein. Konvention:
+  `math.isclose(...)` für Wertvergleich, `abs(x) < eps` für
+  Zero-Check. (2 tests)
+
+**Pine `request.security` Per-File Budget**
+
+- Neuer Pin [`tests/test_pine_request_security_per_file_budget.py`](tests/test_pine_request_security_per_file_budget.py):
+  ergänzt PR #132's qualitative Discipline um quantitatives Budget:
+  - `SMC_Core_Engine.pine` ≤ 6 Calls (current=5)
+  - `SMC++/smc_utils.pine` ≤ 5 Calls (current=4)
+  Neue Calls forcieren explizite Budget-Bumps. Stale-Entry-Test
+  fängt verschwundene/leere Budget-Einträge. (2 tests)
+
+**Acceptance**
+
+- 13/13 neue Tests grün (6 + 3 + 2 + 2).
+
+**Pattern-Notes**
+
+- Vocab-Triangle wächst: SPRT `Decision` ist die 5. eingefrorene
+  Vocab-Surface (nach `HERO_TRUST`, `HERO_SETUP_QUALITY`,
+  `HERO_ACTION`, `TrustState`).
+- Budget-Pins komplementär zu Discipline-Pins (PR #132 D verbietet
+  *was nicht erlaubt*, dieser PR limitiert *wieviel erlaubt*).
+- Float-Eq-Pin erneut "freeze the good state" — Audit-Backlog wandert
+  von Bug-Fix zu Regression-Guard.
+
 ### Tests / Quality / Pine (2026-04-24) — Cross-Language Vocab + A/B Discipline + Test Health
 
 Drei pin-Erweiterungen aus dem Backlog von PR #130 (I-2 Folgearbeit
