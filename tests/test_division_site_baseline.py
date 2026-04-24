@@ -16,7 +16,7 @@ This is the same pattern as the ``@lru_cache`` baseline-pin in
 ``test_lru_cache_maxsize_discipline.py`` (PR #127).
 
 Currently expected:
-- ``smc_core/scoring.py``: 27 divisions
+- ``smc_core/scoring.py``: 28 divisions (27 ``a / b`` + 1 ``a /= b``)
 - ``smc_core/fvg_quality.py``: 7 divisions
 
 If a division is removed (refactor to multiplication, vectorisation,
@@ -33,28 +33,39 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 # Baseline of approved division-site counts per audited file.
 # Format: relative_path → expected_count.
 _BASELINE_DIVISION_COUNT: dict[str, int] = {
-    "smc_core/scoring.py": 27,
+    # Includes ``BinOp(op=Div)`` (``a / b``) AND ``AugAssign(op=Div)``
+    # (``a /= b``) — the audit-relevant question (denominator non-zero?)
+    # applies to both forms.
+    "smc_core/scoring.py": 28,
     "smc_core/fvg_quality.py": 7,
 }
 
 
 def _count_divisions(path: Path) -> int:
-    """Count ``ast.BinOp`` nodes with ``ast.Div`` operator in *path*."""
+    """Count ``a / b`` and ``a /= b`` divisions in *path*.
+
+    Includes both ``ast.BinOp(op=ast.Div)`` and
+    ``ast.AugAssign(op=ast.Div)`` so an in-place divide
+    (``total /= len(features)``) cannot bypass the baseline pin.
+    """
     tree = ast.parse(path.read_text(encoding="utf-8"))
     return sum(
         1
         for node in ast.walk(tree)
-        if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Div)
+        if (isinstance(node, ast.BinOp) and isinstance(node.op, ast.Div))
+        or (isinstance(node, ast.AugAssign) and isinstance(node.op, ast.Div))
     )
 
 
 def _collect_division_lines(path: Path) -> list[int]:
-    """Return a sorted list of line numbers for each division site."""
+    """Return a sorted list of line numbers for each division site
+    (including ``/=`` augmented assignments)."""
     tree = ast.parse(path.read_text(encoding="utf-8"))
     return sorted(
         node.lineno
         for node in ast.walk(tree)
-        if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Div)
+        if (isinstance(node, ast.BinOp) and isinstance(node.op, ast.Div))
+        or (isinstance(node, ast.AugAssign) and isinstance(node.op, ast.Div))
     )
 
 

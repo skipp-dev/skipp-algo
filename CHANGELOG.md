@@ -6,6 +6,37 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Tests / Quality (2026-04-24) — `open()` text-mode encoding discipline (+3 production fixes)
+
+Schließt eine plattform-abhängige Quelle für stillen Daten-Drift in
+First-Party-Produktionscode. Pythons Default-Textencoding ist OS-abhängig
+(macOS/Linux: `utf-8`, Windows: `cp1252`); fehlt `encoding=` an einem
+text-mode `open(...)`, schreibt/liest derselbe Code je nach Host
+unterschiedliche Bytes — eine Klasse von Bug, die wir bei `.env`- und
+Lock-Dateien bereits gesehen haben.
+
+**Tripwire-Pin (`tests/test_open_encoding_discipline.py`)**
+AST-Walk über alle First-Party `*.py` (Top-Level + Subdirs außer
+`tests/`, `scripts/`, `docs/`, `SMC++/`, Caches, Venvs). Jeder
+`open(...)`-Aufruf, der text-mode ist (Default oder Mode ohne `b`) und
+kein `encoding=`-Keyword führt, lässt die Suite rot werden. Binär-Modi
+(`"rb"`, `"wb"`, `"ab"`, `"r+b"`, …) sind exempt. Statisch nicht
+auflösbare Modi gelten konservativ als Text. Drei Sub-Tests:
+1. `test_first_party_files_present` — Pfaddrift-Wächter (≥ 50 Dateien).
+2. `test_open_calls_specify_encoding` — die eigentliche Disziplin.
+3. `test_file_allowlist_entries_still_apply` — parametrierte
+   Allowlist-Hygiene (Allowlist aktuell leer, kein Eintrag verschimmelt).
+
+**Production Fixes (3 Sites)**
+- `open_prep/realtime_signals.py:251` — Engine-Lockfile
+  (`open(_RT_ENGINE_LOCK_FILE, "w")` → `encoding="utf-8"`).
+- `open_prep/realtime_signals.py:2601` — Stdlib-Fallback `.env`-Loader.
+- `test_usi_lint.py:6` — Top-Level Pine-Linter.
+
+**Warum jetzt:** Defense-in-Depth-Tripwire (sub-Sekunde, AST only)
+gegen die Klasse "silent platform-dependent default". Allowlist startet
+leer und wird durch den Stale-Check selbst gepflegt.
+
 ### Fixes & Pins (2026-04-24) — System Review 2026-04-24 Followup (H-1, L-3, M-3)
 
 Adressiert die drei priorisierten Backlog-Items aus
@@ -38,7 +69,7 @@ Adressiert die drei priorisierten Backlog-Items aus
   sensitive action `secrets.GH_PAT` in Proximity hat (±100 Zeilen,
   passt für die größten step bodies).
 - Pin entdeckte 2 echte Verstöße in `smc-library-refresh.yml:580/586`
-  (`gh pr create` + `gh pr merge` für `bot/library-refresh-${RUN_ID}`
+  (`gh pr create` + `gh pr merge` für `bot/library-refresh-${GITHUB_RUN_ID}`
   PRs ohne GH_PAT). Fix angewendet: Step "Commit and push changes"
   nutzt jetzt das kanonische
   `${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}` ternary.

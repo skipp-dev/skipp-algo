@@ -43,10 +43,18 @@ WORKFLOWS_DIR = REPO_ROOT / ".github" / "workflows"
 
 # Sensitive actions that need fast-gates to trigger downstream.
 _SENSITIVE_PATTERNS: tuple[re.Pattern[str], ...] = (
-    re.compile(r"\bgh\s+pr\s+create\b"),
-    re.compile(r"\bgh\s+pr\s+edit\b"),
-    re.compile(r"\bgh\s+pr\s+merge\b"),
-    re.compile(r"git\s+push[^\n]*\borigin\s+bot/"),
+    # ``gh pr <create|edit|comment|merge>`` — any PR-mutating subcommand.
+    re.compile(r"\bgh\s+pr\s+(?:create|edit|comment|merge)\b"),
+    # Literal ``bot/...`` push (optionally quoted).
+    re.compile(r"git\s+push[^\n]*\borigin\s+['\"]?bot/"),
+    # Variable push: ``git push origin "$BRANCH"`` / ``${BRANCH}``.
+    re.compile(
+        r"git\s+push[^\n]*\borigin\s+['\"]?\$"
+        r"(?:\{[A-Za-z_][A-Za-z0-9_]*\}|[A-Za-z_][A-Za-z0-9_]*)"
+    ),
+    # Shell assignment of a ``bot/...`` ref (e.g.
+    # ``BRANCH="bot/library-refresh-${GITHUB_RUN_ID}"``).
+    re.compile(r"\b[A-Za-z_][A-Za-z0-9_]*=['\"]bot/"),
     re.compile(r"peter-evans/create-pull-request"),
 )
 
@@ -56,13 +64,18 @@ _SENSITIVE_PATTERNS: tuple[re.Pattern[str], ...] = (
 # the sensitive command — this is a structural heuristic, not a YAML
 # parse, but it has zero false positives on the current workflow set.
 _GH_PAT_HINT = re.compile(r"\bsecrets\.GH_PAT\b")
+# A step is GH_PAT-aware only if it *binds* the secret to
+# GH_TOKEN/GITHUB_TOKEN via the canonical ternary fallback. A bare
+# mention in a comment or unrelated env var is not enough.
+_GH_PAT_BINDING = re.compile(
+    r"\b(?:GH_TOKEN|GITHUB_TOKEN)\s*:\s*[^\n]*\bsecrets\.GH_PAT\b"
+)
 
-# Window (in lines) around the sensitive command to scan for GH_PAT.
-# Sized to cover the largest current step body — the smc-library-refresh
-# "Commit and push changes" step is ~75 lines from env block to the
-# `gh pr create` line. 100 leaves headroom without crossing into
-# neighbouring steps (which start with a ``- name:`` indented at 6 cols).
-_PROXIMITY_LINES = 100
+# Step boundary inside a workflow YAML: a list-item starting a new
+# step (``- name:`` at any indentation). Used to bound the proximity
+# scan to the enclosing step so a neighbouring step's GH_PAT mention
+# can't satisfy the pin for an unrelated step.
+_STEP_BOUNDARY = re.compile(r"^\s*-\s+name:\s")
 
 
 def _iter_workflow_files() -> list[Path]:
@@ -72,22 +85,53 @@ def _iter_workflow_files() -> list[Path]:
     return out
 
 
+def _step_bounds(lines: list[str], idx: int) -> tuple[int, int]:
+    """Return the half-open ``(start, end)`` range of the step
+    enclosing ``lines[idx]``. Walks backward to the nearest ``- name:``
+    (or BOF) and forward to the next ``- name:`` (or EOF)."""
+    start = 0
+    for j in range(idx, -1, -1):
+        if _STEP_BOUNDARY.match(lines[j]):
+            start = j
+            break
+    end = len(lines)
+    for j in range(idx + 1, len(lines)):
+        if _STEP_BOUNDARY.match(lines[j]):
+            end = j
+            break
+    return start, end
+
+
+def _strip_comments(lines: list[str]) -> list[str]:
+    """Return ``lines`` with comment-only lines removed so a rationale
+    comment cannot satisfy the pin."""
+    return [ln for ln in lines if not ln.lstrip().startswith("#")]
+
+
 def _find_violations(path: Path) -> list[tuple[int, str]]:
     text = path.read_text(encoding="utf-8")
     lines = text.splitlines()
     violations: list[tuple[int, str]] = []
     for idx, line in enumerate(lines):
-        # Skip comments — they describe patterns rather than execute them.
-        stripped = line.lstrip()
-        if stripped.startswith("#"):
+        # Skip comment-only lines — they describe patterns rather than
+        # execute them.
+        if line.lstrip().startswith("#"):
             continue
         for pat in _SENSITIVE_PATTERNS:
             if not pat.search(line):
                 continue
-            window_start = max(0, idx - _PROXIMITY_LINES)
-            window_end = min(len(lines), idx + _PROXIMITY_LINES + 1)
-            window = "\n".join(lines[window_start:window_end])
-            if _GH_PAT_HINT.search(window):
+            # Bound the scan to the enclosing step (between two
+            # ``- name:`` markers) and strip comment-only lines so a
+            # nearby rationale comment mentioning ``secrets.GH_PAT``
+            # cannot satisfy the pin.
+            step_start, step_end = _step_bounds(lines, idx)
+            step_exec = "\n".join(_strip_comments(lines[step_start:step_end]))
+            # Require BOTH a mention of the secret AND an actual
+            # binding to GH_TOKEN / GITHUB_TOKEN via the canonical
+            # ternary. The mention check catches obvious absences;
+            # the binding check rules out cases where the secret is
+            # referenced for an unrelated purpose.
+            if _GH_PAT_HINT.search(step_exec) and _GH_PAT_BINDING.search(step_exec):
                 continue
             violations.append((idx + 1, line.strip()))
     return violations
