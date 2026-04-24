@@ -6,6 +6,23 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Tests / Quality (2026-04-24) — weak-hash (md5/sha1) budget pin
+
+- Neuer Pin [`tests/test_weak_hash_budget.py`](tests/test_weak_hash_budget.py)
+  friert die aktuelle Inventur von 13 `hashlib.md5(...)` /
+  `hashlib.sha1(...)` Sites in First-Party-Production ein. Alle 13 sind
+  intentional Non-Security Cache-Key/Dedup-Digests (Newsstack-Fingerprint,
+  Databento-Cache-Versioning, Dirty-Flag-Manager, Open-Prep-Real-time
+  signals, Terminal-Poller-Title-Hash). Reine Tripwire — jede neue
+  md5/sha1-Site failed `test_no_new_weak_hash_sites` und zwingt einen
+  bewussten Review (SHA-256 statt md5/sha1, oder dokumentierte Non-
+  Security-Begründung + `usedforsecurity=False` + Ledger-Update).
+- Drei Schichten: no-new-sites Tripwire + parametrisierter Stale-Site-
+  Guard (jede Ledger-Zeile muss noch eine `hashlib.<algo>(...)` Call
+  treffen) + Inventur-Parity-Check (Ledger ∪ Scan müssen identisch sein).
+- 16 Tests grün, keine Produktions-Anpassungen nötig. Closes "neue
+  schwache Hashes rutschen unbemerkt rein" Bug-Klasse.
+
 ### Tests / Quality (2026-04-24) — `except Exception: pass` defense pin (frozen-inventory budget)
 
 Defense-Pin friert die aktuelle Anzahl und exakten Locations aller
