@@ -136,7 +136,30 @@ _BASE = "https://finnhub.io/api/v1"
 
 
 def _get(path: str, params: dict[str, Any] | None = None) -> Any:
-    """GET from Finnhub.  Returns parsed JSON or empty dict on error."""
+    """GET from Finnhub.  Returns parsed JSON or empty dict on error.
+
+    NOTE (E-3 audit, ``smc_core.resilient``):
+        This function is intentionally **not** wrapped with
+        ``@smc_core.resilient.resilient``. The decorator's contract is
+        *retry-within-call with sleeps* — the wrapper blocks the calling
+        thread for up to ``base_delay * 2^retries`` seconds. That is the
+        right shape for batch / script adapters (see the FMP client
+        migration in PR-stack on ``feat/e3-fmp-client-resilient-migration``)
+        but the wrong shape for this module: the Streamlit terminal
+        polls Finnhub from a UI thread and must remain *fail-fast +
+        skip*. Returning ``{}`` immediately on error lets the next
+        polling cycle retry without freezing the tab.
+
+        The 403-permanent-disable on ``/social-sentiment`` and the
+        429-skip-window on the rest of the API are a custom *circuit
+        breaker* policy that ``@resilient`` cannot express today
+        (its ``exceptions=`` filter retries; it does not permanently
+        disable a call site or skip a global window). A future
+        ``@circuit_breaker`` companion to ``@resilient`` would be the
+        right fit. Logged as a follow-up in
+        ``docs/TEMPORAL_NUMERICAL_IMPROVEMENT_PLAN_2026-04-24.md``
+        under E-3.
+    """
     key = _api_key()
     if not key:
         return {}

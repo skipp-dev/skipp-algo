@@ -64,6 +64,43 @@ class TestSMCFMPClientInterface:
         assert c.retry_attempts == 2
         assert c.timeout_seconds == 12.0
 
+    def test_get_uses_resilient_decorator(self):
+        """E-3 migration regression guard.
+
+        ``_get`` constructs a ``@resilient`` wrapper per call. Verifies
+        the wiring exists (``smc_core.resilient`` is imported and the
+        wrapper exposes the introspection attribute) so a regression
+        cannot silently revert to the hand-rolled retry loop.
+        """
+        import scripts.smc_fmp_client as mod
+        from smc_core.resilient import resilient as _resilient_marker
+
+        assert mod.resilient is _resilient_marker
+        # Wrapping is per-call; confirm by patching urlopen and
+        # capturing the ``__resilient__`` attribute that the decorator
+        # attaches to the wrapper.
+        captured: dict[str, object] = {}
+        original_resilient = mod.resilient
+
+        def _spy_resilient(**kwargs):
+            decorator = original_resilient(**kwargs)
+
+            def _wrap(func):
+                wrapped = decorator(func)
+                captured["config"] = wrapped.__resilient__  # type: ignore[attr-defined]
+                return wrapped
+
+            return _wrap
+
+        c = SMCFMPClient(api_key="k", retry_attempts=3)
+        with patch.object(mod, "resilient", side_effect=_spy_resilient), \
+             patch.object(mod, "urlopen", side_effect=RuntimeError("stop")):
+            with pytest.raises(RuntimeError):
+                c._get("/any", {})
+        assert captured["config"]["retries"] == 2  # retry_attempts=3 → 2 extras
+        assert captured["config"]["base_delay"] == 0.5
+        assert captured["config"]["max_delay"] == 4.0
+
 
 # ── 2. No open_prep at runtime ─────────────────────────────────
 

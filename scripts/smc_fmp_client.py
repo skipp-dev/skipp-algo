@@ -25,9 +25,14 @@ from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 from zoneinfo import ZoneInfo
 
+from smc_core.resilient import resilient
+
 logger = logging.getLogger(__name__)
 
 _BASE_URL = "https://financialmodelingprep.com"
+# HTTP status codes worth a retry. Anything else is treated as fatal so
+# we don't silently swallow auth/404 problems via the @resilient pilot.
+_RETRIABLE_HTTP_CODES = frozenset({429, 500, 502, 503, 504})
 _US_EASTERN = ZoneInfo("America/New_York")
 _MARKET_PE_FORWARD_SYMBOL = "SPY"
 _MARKET_PE_FORWARD_FALLBACK_SYMBOLS: tuple[str, ...] = (
@@ -129,33 +134,66 @@ class SMCFMPClient:
     # ── HTTP layer ──────────────────────────────────────────────
 
     def _get(self, path: str, params: dict[str, Any]) -> Any:
+        """E-3 migration: bounded retry via ``smc_core.resilient``.
+
+        The previous hand-rolled loop used linear backoff
+        (``0.5 * (attempt + 1)``) over the same retriable HTTP code set.
+        ``@resilient`` provides bounded **exponential** backoff with full
+        jitter and a single tested retry primitive across adapters.
+
+        Semantics preserved:
+
+        * Number of attempts honors instance-level
+          ``self.retry_attempts`` (1 → no retries, 2 → one retry, …).
+        * Only ``429 / 500 / 502 / 503 / 504`` and pure ``URLError`` are
+          retried; ``404 / 401 / 403`` propagate immediately as fatal
+          ``RuntimeError``.
+        * After all retries are exhausted the call still raises
+          ``RuntimeError`` (`on_failure` re-wraps the last exception),
+          keeping the existing error contract consumers depend on.
+        """
         query = {k: v for k, v in params.items() if v is not None}
         query.setdefault("apikey", self.api_key)
         url = f"{_BASE_URL}{path}?{urlencode(query, doseq=True)}"
         request = Request(url, headers={"User-Agent": "skipp-algo/1.0"})
 
-        max_attempts = max(self.retry_attempts, 1)
-        for attempt in range(max_attempts):
+        def _do_request() -> Any:
             try:
-                with urlopen(request, timeout=self.timeout_seconds,
-                             context=_build_tls_context()) as resp:
+                with urlopen(
+                    request,
+                    timeout=self.timeout_seconds,
+                    context=_build_tls_context(),
+                ) as resp:
                     payload = resp.read().decode("utf-8")
                 return self._parse(path, payload)
             except urllib.error.HTTPError as exc:
-                if exc.code in {429, 500, 502, 503, 504} and attempt + 1 < max_attempts:
-                    time.sleep(0.5 * (attempt + 1))
-                    continue
-                raise RuntimeError(
-                    f"FMP HTTP {exc.code} on {path}"
-                ) from exc
-            except urllib.error.URLError as exc:
-                if attempt + 1 < max_attempts:
-                    time.sleep(0.5 * (attempt + 1))
-                    continue
-                raise RuntimeError(
-                    f"FMP network error on {path}: {exc}"
-                ) from exc
-        raise RuntimeError(f"FMP retries exhausted on {path}")
+                if exc.code in _RETRIABLE_HTTP_CODES:
+                    raise  # let @resilient retry
+                # Non-retriable HTTP code → fail fast as before.
+                raise RuntimeError(f"FMP HTTP {exc.code} on {path}") from exc
+
+        def _on_failure(exc: BaseException) -> Any:
+            if isinstance(exc, urllib.error.HTTPError):
+                raise RuntimeError(f"FMP HTTP {exc.code} on {path}") from exc
+            raise RuntimeError(f"FMP network error on {path}: {exc}") from exc
+
+        # Build the decorator per-call so the runtime ``retry_attempts``
+        # field stays honored. ``retries`` is *additional* attempts after
+        # the first one, hence ``retry_attempts - 1`` (clamped to 0).
+        max_extra = max(self.retry_attempts - 1, 0)
+        wrapped = resilient(
+            retries=max_extra,
+            base_delay=0.5,
+            max_delay=4.0,
+            exceptions=(urllib.error.URLError,),  # covers HTTPError too
+            on_failure=_on_failure,
+            # Late-bound sleep lookup so test fixtures that monkey-patch
+            # ``time.sleep`` after this module is imported still observe
+            # the call (the decorator's default would otherwise capture
+            # the original reference at construction time).
+            sleep=lambda delay: time.sleep(delay),
+        )(_do_request)
+        return wrapped()
 
     @staticmethod
     def _parse(path: str, payload: str) -> Any:
