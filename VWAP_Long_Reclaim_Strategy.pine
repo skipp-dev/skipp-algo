@@ -12,7 +12,8 @@ strategy(
     pyramiding=1,
     commission_type=strategy.commission.percent,
     commission_value=0.025,
-    process_orders_on_close=true,
+    // T-2 (TEMPORAL_NUMERICAL_AUDIT_2026-04-24): tick-only execution.
+    process_orders_on_close=false,
     calc_on_every_tick=true
 )
 

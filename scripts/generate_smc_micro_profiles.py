@@ -1336,8 +1336,12 @@ def write_manifest(
         try:
             prev = json.loads(path.read_text(encoding="utf-8"))
             prev_schema = prev.get("schema_version", "")
-        except Exception:
-            pass
+        except Exception:  # noqa: BLE001 - E-1: log instead of silent pass
+            logger.warning(
+                "Failed to read previous manifest schema_version from %s",
+                path,
+                exc_info=True,
+            )
 
     if prev_schema:
         change_type = classify_version_change(prev_schema, SCHEMA_VERSION).value

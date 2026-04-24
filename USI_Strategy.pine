@@ -342,10 +342,14 @@ if doShort
 //====================
 // Alerts
 //====================
-alertcondition(buySignal,   title="USI Flip BUY",   message="{{ticker}} — USI Flip BUY on {{interval}}")
-alertcondition(shortSignal, title="USI Flip SHORT",  message="{{ticker}} — USI Flip SHORT on {{interval}}")
-alertcondition(doBuy,       title="BUY Signal",      message="{{ticker}} — BUY on {{interval}}")
-alertcondition(doShort,     title="SHORT Signal",    message="{{ticker}} — SHORT on {{interval}}")
-alertcondition(doExit,      title="EXIT Signal",     message="{{ticker}} — EXIT LONG on {{interval}}")
-alertcondition(doCover,     title="COVER Signal",    message="{{ticker}} — COVER SHORT on {{interval}}")
-alertcondition(buySignal or shortSignal, title="USI Flip Any", message="{{ticker}} — USI Flip on {{interval}}")
+// T-4 (TEMPORAL_NUMERICAL_AUDIT_2026-04-24): bar-close gate.
+// alertcondition evaluiert intrabar; ohne barstate.isconfirmed-Guard kann ein
+// Alert intrabar feuern, der am Close nicht mehr gilt (Repaint).
+bool _alertGate = barstate.isconfirmed
+alertcondition(buySignal   and _alertGate, title="USI Flip BUY",   message="{{ticker}} — USI Flip BUY on {{interval}}")
+alertcondition(shortSignal and _alertGate, title="USI Flip SHORT",  message="{{ticker}} — USI Flip SHORT on {{interval}}")
+alertcondition(doBuy       and _alertGate, title="BUY Signal",      message="{{ticker}} — BUY on {{interval}}")
+alertcondition(doShort     and _alertGate, title="SHORT Signal",    message="{{ticker}} — SHORT on {{interval}}")
+alertcondition(doExit      and _alertGate, title="EXIT Signal",     message="{{ticker}} — EXIT LONG on {{interval}}")
+alertcondition(doCover     and _alertGate, title="COVER Signal",    message="{{ticker}} — COVER SHORT on {{interval}}")
+alertcondition((buySignal or shortSignal) and _alertGate, title="USI Flip Any", message="{{ticker}} — USI Flip on {{interval}}")

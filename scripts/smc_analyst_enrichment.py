@@ -1,7 +1,15 @@
 """Analyst consensus enrichment for SMC micro-profile generation."""
 from __future__ import annotations
 
+import logging
 from typing import Any
+
+logger = logging.getLogger(__name__)
+
+# E-2 (TEMPORAL_NUMERICAL_AUDIT_2026-04-24): warn when more than this fraction
+# of per-symbol enrichment calls fail. We log instead of raising so existing
+# runs continue, but the operator gets a structured signal.
+_FAILURE_RATE_WARN_THRESHOLD = 0.10
 
 
 def compute_analyst_enrichment(
@@ -18,6 +26,7 @@ def compute_analyst_enrichment(
     strong_buy: list[str] = []
     underperform: list[str] = []
     high_upside: list[str] = []
+    failed: list[tuple[str, str]] = []  # E-2: per-symbol failure tracking
 
     for symbol in symbols[:50]:
         sym = str(symbol).strip().upper()
@@ -51,8 +60,19 @@ def compute_analyst_enrichment(
             avg_target = float(latest.get("estimatedEpsAvg") or 0)
             if price > 0 and avg_target > 0 and (avg_target / price - 1) > 0.30:
                 high_upside.append(sym)
-        except Exception:
+        except Exception as exc:  # noqa: BLE001 - E-2: track per-symbol failures
+            failed.append((sym, type(exc).__name__))
+            logger.warning("analyst enrichment failed for %s: %s", sym, exc)
             continue
+
+    if symbols and len(failed) / len(symbols) > _FAILURE_RATE_WARN_THRESHOLD:
+        logger.warning(
+            "analyst enrichment failure rate %.1f%% (%d/%d) exceeds %.0f%% threshold",
+            100 * len(failed) / len(symbols),
+            len(failed),
+            len(symbols),
+            100 * _FAILURE_RATE_WARN_THRESHOLD,
+        )
 
     return {
         "analyst_strong_buy_tickers": sorted(strong_buy),

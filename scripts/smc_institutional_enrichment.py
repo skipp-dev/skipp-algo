@@ -1,7 +1,14 @@
 """Institutional accumulation / distribution enrichment."""
 from __future__ import annotations
 
+import logging
 from typing import Any
+
+logger = logging.getLogger(__name__)
+
+# E-2 (TEMPORAL_NUMERICAL_AUDIT_2026-04-24): warn when more than this fraction
+# of per-symbol enrichment calls fail.
+_FAILURE_RATE_WARN_THRESHOLD = 0.10
 
 
 def compute_institutional_enrichment(
@@ -16,6 +23,7 @@ def compute_institutional_enrichment(
     """
     accumulation: list[str] = []
     distribution: list[str] = []
+    failed: list[tuple[str, str]] = []  # E-2: per-symbol failure tracking
 
     for symbol in symbols[:30]:
         sym = str(symbol).strip().upper()
@@ -33,8 +41,19 @@ def compute_institutional_enrichment(
                     accumulation.append(sym)
                 elif change_pct < -0.05:
                     distribution.append(sym)
-        except Exception:
+        except Exception as exc:  # noqa: BLE001 - E-2: track per-symbol failures
+            failed.append((sym, type(exc).__name__))
+            logger.warning("institutional enrichment failed for %s: %s", sym, exc)
             continue
+
+    if symbols and len(failed) / len(symbols) > _FAILURE_RATE_WARN_THRESHOLD:
+        logger.warning(
+            "institutional enrichment failure rate %.1f%% (%d/%d) exceeds %.0f%% threshold",
+            100 * len(failed) / len(symbols),
+            len(failed),
+            len(symbols),
+            100 * _FAILURE_RATE_WARN_THRESHOLD,
+        )
 
     return {
         "institutional_accumulation_tickers": sorted(accumulation),

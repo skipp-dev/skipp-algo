@@ -63,7 +63,10 @@ class EnrichmentAnalysisResult:
     def lift(self, bucket_label: str) -> float:
         """Return the mean-PnL lift of *bucket_label* over baseline."""
         bucket = self.buckets.get(bucket_label)
-        if bucket is None or bucket.count == 0 or self.baseline_mean_pnl == 0.0:
+        # N-1 (TEMPORAL_NUMERICAL_AUDIT_2026-04-24): epsilon-guard against near-zero
+        # baselines. ``== 0.0`` would let values like 1e-17 through and produce
+        # massive outlier lift values.
+        if bucket is None or bucket.count == 0 or abs(self.baseline_mean_pnl) < 1e-12:
             return 0.0
         return (bucket.mean_pnl - self.baseline_mean_pnl) / abs(self.baseline_mean_pnl)
 
