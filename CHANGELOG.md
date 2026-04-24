@@ -6,6 +6,61 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Tests / Quality (2026-04-24) — Schema-pin trilogy + ADR-0005 AST guard + degenerate-branch coverage
+
+Hardens the A/B-comparison digest contract and the ADR-0005
+"pure-stdlib measurement runtime" constraint with static, additive
+tests (no source changes).
+
+- **SPRT schema-pin** (`tests/test_run_ab_comparison_sprt.py`): pins
+  the top-level (`{decision, n, k, hit_rate, llr, wald_upper,
+  wald_lower, config, control_n, control_hit_rate}`) and `config`
+  sub-block (`{p0, p1, alpha, beta}`) key sets of `digest["sprt"]`
+  across all four decision variants (`accept_h1`, `accept_h0`,
+  `inconclusive`, `zero_n`). Closes the symmetry gap left by the
+  hit-rate FDR pin (#119) and the calibration-FDR pin (#118):
+  `digest["sprt"]` was the last advisory layer without a
+  stealth-field guard.
+- **`_two_proportion_z_pvalue` degenerate gap-fill**
+  (`tests/test_run_ab_comparison_fdr.py`): adds the missing
+  `n_ctrl=0`-only branch (mirror of the existing `n_treat=0` test)
+  and one end-to-end test asserting `_family_fdr_layer` records
+  `skipped_reason="degenerate_or_empty"` and excludes the family
+  from the BH input list.
+- **ADR-0005 enforcement**
+  (`tests/test_adr_0005_pure_stdlib_runtime.py`): static `ast`
+  parse over `scripts/run_ab_comparison.py` and
+  `scripts/smc_sprt_stop_rule.py` asserts no
+  `numpy`/`scipy`/`pandas`/`statsmodels`/`sklearn`/`torch`/
+  `tensorflow` imports (top-level or `from`-form). Failure message
+  tells contributors to supersede ADR-0005 first if the constraint
+  is intentionally lifted.
+
+Field add/rename in any of the three pinned blocks must be paired
+with a major schema version bump per the
+`schema-version-bump-must-be-major-on-field-count-change`
+convention.
+
+Verification: `60 passed in 1.10s` for the four affected test
+modules.
+
+### Documentation (2026-04-24) — Schema-pin trilogy backfill for #117–#119
+
+Backfills CHANGELOG entries for three S-2 follow-up PRs that landed
+without `[Unreleased]` notes:
+
+- **#117** (S-2 calibration-FDR bootstrap): adds the
+  `digest["fdr_calibration"]` block with bootstrap-resampled,
+  Benjamini-Hochberg-corrected p-values for per-(symbol,timeframe)
+  Brier and ECE deltas. Advisory only — does not alter
+  Promote/Hold/Rollback.
+- **#118** (symmetry guard + schema-pin for `fdr_calibration` +
+  ADR-0005): pins the field set of `digest["fdr_calibration"]` and
+  formalises the pure-stdlib constraint for the measurement runtime
+  in `docs/adr/0005-pure-stdlib-measurement-runtime.md`.
+- **#119** (schema-pin for `digest["fdr"]` hit-rate block): mirrors
+  #118 for the older hit-rate FDR layer (#102).
+
 ### Documentation (2026-04-24) — D-2: SCHEMA_VERSION history consolidated
 
 Pulled `smc_core.schema_version.SCHEMA_VERSION` history out of inline

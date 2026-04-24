@@ -127,6 +127,49 @@ def test_z_pvalue_degenerate_pool_returns_none() -> None:
     assert _two_proportion_z_pvalue(k_treat=0, n_treat=10, k_ctrl=0, n_ctrl=20) is None
 
 
+def test_z_pvalue_zero_control_arm_returns_none() -> None:
+    # Mirror of the n_treat=0 case: caller passes a control arm with no
+    # observed events for the family. Guard the second branch of the
+    # ``n_treat <= 0 or n_ctrl <= 0`` early-return so future refactors
+    # cannot drop one half silently.
+    assert _two_proportion_z_pvalue(k_treat=10, n_treat=20, k_ctrl=0, n_ctrl=0) is None
+
+
+def test_family_fdr_layer_marks_degenerate_family_skipped() -> None:
+    """End-to-end: a family that triggers the None p-value path is recorded
+    with ``skipped_reason='degenerate_or_empty'`` and excluded from the
+    BH input. Guards the wiring between ``_two_proportion_z_pvalue`` and
+    ``_family_fdr_layer`` so the skip reason cannot be silently renamed.
+    """
+    from scripts.run_ab_comparison import _family_fdr_layer
+
+    def pair(family_metrics: dict[str, dict]) -> dict:
+        return {
+            "symbol": "AAPL", "timeframe": "5m", "n_events": 100,
+            "brier": 0.20, "calibrated_brier": 0.20, "calibrated_ece": 0.05,
+            "raw_ece": 0.05, "log_score": 0.5, "hit_rate_pct": 50.0,
+            "family_metrics": family_metrics,
+        }
+
+    # Family BOS: both arms 0/n events → pooled p=0 → degenerate.
+    # Family FVG: clean signal → testable.
+    ctrl = [pair({"BOS": {"n_events": 50, "hit_rate": 0.0},
+                  "FVG": {"n_events": 200, "hit_rate": 0.50}})]
+    treat = [pair({"BOS": {"n_events": 50, "hit_rate": 0.0},
+                   "FVG": {"n_events": 200, "hit_rate": 0.70}})]
+    out = _family_fdr_layer(ctrl, treat)
+
+    by_fam = {e["family"]: e for e in out["families"]}
+    assert by_fam["BOS"]["p_value"] is None
+    assert by_fam["BOS"]["skipped_reason"] == "degenerate_or_empty"
+    assert by_fam["BOS"]["adjusted_p_value"] is None
+    assert by_fam["BOS"]["rejected"] is False
+    assert by_fam["FVG"]["p_value"] is not None
+    assert by_fam["FVG"]["skipped_reason"] is None
+    assert out["tested_families"] == 1
+    assert out["skipped_families"] == 1
+
+
 # ---------------------------------------------------------------------------
 # _family_fdr_layer() integration
 # ---------------------------------------------------------------------------

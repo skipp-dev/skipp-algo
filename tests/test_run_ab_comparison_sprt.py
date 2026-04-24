@@ -136,3 +136,79 @@ def test_render_comparison_includes_sprt_section() -> None:
     assert "## SPRT Stop-Rule (G3/F2)" in md
     assert "ACCEPT_H1" in md
     assert "Wald bounds" in md
+
+
+# ---------------------------------------------------------------------------
+# Schema-pin smoke test: ``digest["sprt"]`` field set
+# ---------------------------------------------------------------------------
+#
+# Symmetric to the schema-pin tests landed in PR #118
+# (``digest["fdr_calibration"]``) and PR #119 (``digest["fdr"]``). The
+# SPRT layer is the third advisory block in the A/B digest and the only
+# one without a stealth-field guard. Any add/rename here must be paired
+# with a major schema version bump per the
+# ``schema-version-bump-must-be-major-on-field-count-change`` convention.
+
+
+_SPRT_TOPLEVEL_KEYS = frozenset({
+    "decision",
+    "n",
+    "k",
+    "hit_rate",
+    "llr",
+    "wald_upper",
+    "wald_lower",
+    "config",
+    "control_n",
+    "control_hit_rate",
+})
+
+_SPRT_CONFIG_KEYS = frozenset({"p0", "p1", "alpha", "beta"})
+
+
+def _check_sprt_block(block: dict) -> None:
+    assert set(block.keys()) == _SPRT_TOPLEVEL_KEYS, (
+        f"sprt top-level key set drifted: {set(block.keys())}. "
+        "Update the schema version (major bump) and the pin in this test."
+    )
+    assert set(block["config"].keys()) == _SPRT_CONFIG_KEYS, (
+        f"sprt config key set drifted: {set(block['config'].keys())}. "
+        "Update the schema version (major bump) and the pin in this test."
+    )
+
+
+def test_sprt_schema_pin_accept_h1() -> None:
+    """Strong-evidence variant: decision == accept_h1, all fields populated."""
+    ctrl = _Agg(total_events=800, avg_hit_rate=55.0)
+    treat = _Agg(total_events=800, avg_hit_rate=64.0)
+    block = _sprt_decision(ctrl, treat)
+    _check_sprt_block(block)
+    assert block["decision"] == "accept_h1"
+
+
+def test_sprt_schema_pin_accept_h0() -> None:
+    """Reject-evidence variant: decision == accept_h0."""
+    ctrl = _Agg(total_events=800, avg_hit_rate=55.0)
+    treat = _Agg(total_events=800, avg_hit_rate=48.0)
+    block = _sprt_decision(ctrl, treat)
+    _check_sprt_block(block)
+    assert block["decision"] == "accept_h0"
+
+
+def test_sprt_schema_pin_inconclusive() -> None:
+    """Insufficient-evidence variant: decision == inconclusive (small n)."""
+    ctrl = _Agg(total_events=20, avg_hit_rate=55.0)
+    treat = _Agg(total_events=20, avg_hit_rate=60.0)
+    block = _sprt_decision(ctrl, treat)
+    _check_sprt_block(block)
+    assert block["decision"] == "inconclusive"
+
+
+def test_sprt_schema_pin_zero_n() -> None:
+    """Empty-arms variant: still pins all fields, decision == inconclusive."""
+    ctrl = _Agg(total_events=0, avg_hit_rate=0.0)
+    treat = _Agg(total_events=0, avg_hit_rate=0.0)
+    block = _sprt_decision(ctrl, treat)
+    _check_sprt_block(block)
+    assert block["decision"] == "inconclusive"
+    assert block["n"] == 0 and block["k"] == 0
