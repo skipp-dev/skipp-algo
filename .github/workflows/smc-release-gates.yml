@@ -166,6 +166,9 @@ jobs:
 
       - name: Run TradingView post-release validation
         id: tv_validation
+        # CONTINUE-ON-ERROR-INTENTIONAL: TV automation is flaky external integration;
+        # outcome is consumed downstream via steps.tv_validation.outcome rather
+        # than aborting the release-gates job.
         continue-on-error: true
         env:
           TV_HEADLESS: "1"

@@ -6,6 +6,82 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Tests / Quality / Workflows (2026-04-24) — Audit-Followup Combo (M-1 / M-4 / L-1 / L-2 / I-1 / I-2)
+
+Sechs Punkte aus dem Backlog von
+[`docs/reviews/2026-04-24-system-review.md`](docs/reviews/2026-04-24-system-review.md)
+in einem PR — alle audit-getrieben, alle pin-geschützt:
+
+**M-1 — `continue-on-error: true` muss Begründung deklarieren**
+- Neuer Pin [`tests/test_workflow_continue_on_error_discipline.py`](tests/test_workflow_continue_on_error_discipline.py):
+  jeder `continue-on-error: true` Step braucht innerhalb ±5 Zeilen
+  einen `# CONTINUE-ON-ERROR-INTENTIONAL: <Begründung>` Marker.
+- 12 bestehende Sites in 5 Workflows mit Markern annotiert
+  (notification best-effort, optional artifact downloads, advisory
+  measurement runs, flaky TV automation). Future silent-skips zwingen
+  Reviewer zu expliziter Begründung.
+
+**M-4 — Pine-Resolver-Disziplin**
+- Neuer AST-Pin [`tests/test_pine_apply_surface_resolver_discipline.py`](tests/test_pine_apply_surface_resolver_discipline.py):
+  jedes `*.pine` String-Literal in `pine_apply_surface_reduction.py`
+  muss erstes Argument von `resolve_pine_file(...)` sein (direkt oder
+  via for-loop variable). Verhindert direktes `Path("X.pine")` /
+  `open("X.pine")` das die Search-Dirs (repo-root + `pine/legacy/`)
+  bypassen würde.
+- Audit-Retraction: `resolve_pine_file()` deckt `pine/legacy/`
+  bereits ab — D-1 v2 physische Migration hat heute schon
+  funktioniert. Pin ist defense-in-depth gegen künftige Direkt-Pfad-
+  Regression.
+
+**L-1 — terminal_newsapi.py Stub Cross-Reference**
+- Module docstring erweitert: explizit auf
+  `scripts/smc_newsapi_ai.py` (~750 Zeilen, active path) hingewiesen
+  + Audit-Anker `L-1` für grep.
+- Neuer Pin [`tests/test_terminal_newsapi_stub_marker.py`](tests/test_terminal_newsapi_stub_marker.py):
+  enforces dass die Cross-Reference + der `L-1` Anker in der docstring
+  bleiben.
+
+**L-2 — F2 Promotion-Gate "skipped" Visibility**
+- `.github/workflows/f2-promotion-gate-daily.yml` skip-step:
+  `::notice` → `::warning` (mit Audit-Begründung als Kommentar).
+  Jeder skipped Daily-Run zeigt jetzt eine gelbe Banner-Annotation
+  im Run-Summary; "stuck on skipped for weeks" Drift wird sichtbar
+  ohne externe Counter-Ledger.
+- Neuer Pin [`tests/test_workflow_f2_skip_visibility.py`](tests/test_workflow_f2_skip_visibility.py).
+
+**I-1 — Numerical Audit Anchor Pin**
+- Neuer Pin [`tests/test_enrichment_value_analysis_audit_anchor.py`](tests/test_enrichment_value_analysis_audit_anchor.py):
+  enforces dass der Comment-Anker
+  `N-1 (TEMPORAL_NUMERICAL_AUDIT_2026-04-24)` und der Epsilon-Guard
+  `abs(self.baseline_mean_pnl) < 1e-12` in
+  `scripts/smc_enrichment_value_analysis.py` erhalten bleiben.
+  Verhindert dass eine Routine-"Comment cleanup" Pass die
+  Audit-Begründung silent dropt.
+
+**I-2 — Central Vocabulary Fingerprint Gate**
+- Neuer zentraler Pin [`tests/test_central_vocab_fingerprint_gate.py`](tests/test_central_vocab_fingerprint_gate.py)
+  als single-source-of-truth über alle kanonischen Vocabularies:
+  - `HERO_TRUST_VOCAB` (5)
+  - `HERO_SETUP_QUALITY_VOCAB` (4)
+  - `HERO_ACTION_VOCAB` (4)
+  - `HERO_DEFAULTS_KEYS` (7)
+  - `TRUST_STATE_VALUES` (5)
+  - `ACTION_IMPACTS` (4)
+- Jede Vocabulary wird zu sortiertem JSON serialisiert + sha256
+  truncated → 16-hex Fingerprint. Drift in irgendeiner Vocabulary
+  bricht den Pin und zwingt Reviewer zu bewusster Baseline-Bump
+  (mit confirm dass downstream Pine/dashboard/alert contracts den
+  neuen Token verstehen).
+- Cross-check: `TrustState` enum vs. `all_trust_states()` iterator
+  müssen exakt übereinstimmen (verhindert vergessenen Iterator-Update).
+
+**Test-Footprint:** +6 neue Test-Files mit zusammen 16 Tests, alle grün.
+Drei Source-Edits (`terminal_newsapi.py` docstring,
+`f2-promotion-gate-daily.yml` notice→warning, 5 Workflows mit Markern).
+Audit-Item M-4 mit Retraction-Notiz: `resolve_pine_file()` deckt das
+Szenario bereits ab; Pin bleibt als regression guard.
+
+
 ### Tests / Quality (2026-04-24) — AST-Pin Triple: lru_cache / to_datetime utc / pytest-xdist parametrize Determinismus
 
 Drei reine Tripwire-Pins (kein Verhaltens-Risiko, AST-only) gegen

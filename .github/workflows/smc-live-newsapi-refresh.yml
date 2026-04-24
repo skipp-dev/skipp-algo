@@ -101,6 +101,8 @@ jobs:
       # branch-protection/ruleset configuration before expecting this step
       # to succeed.
       - name: Commit snapshot updates
+        # CONTINUE-ON-ERROR-INTENTIONAL: snapshot commit is best-effort; ruleset
+        # may transiently block bot push, run still succeeds (idempotent next tick).
         continue-on-error: true
         run: |
           git config user.name "github-actions[bot]"

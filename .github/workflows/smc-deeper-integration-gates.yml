@@ -48,6 +48,9 @@ jobs:
             --output artifacts/ci/smc_deeper_health_report.json
 
       - name: Run deeper measurement lane export
+        # CONTINUE-ON-ERROR-INTENTIONAL: measurement-lane export is advisory
+        # (writes report artifact); a failure here must not abort the
+        # subsequent gates job.
         continue-on-error: true
         run: |
           python scripts/run_smc_release_gates.py \
@@ -89,6 +92,9 @@ jobs:
 
       - name: Run E2E structural smoke test (advisory)
         id: e2e_smoke
+        # CONTINUE-ON-ERROR-INTENTIONAL: smoke test is explicitly advisory
+        # (name suffix says so); outcome is captured via $smoke_exit env for
+        # downstream reporting rather than failing the job.
         continue-on-error: true
         run: |
           python scripts/e2e_smoke_ci.py \
