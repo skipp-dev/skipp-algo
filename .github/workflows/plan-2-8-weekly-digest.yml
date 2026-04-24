@@ -438,6 +438,9 @@ jobs:
 
       - name: Download Plan 2.8 digest archive
         if: always()
+        # CONTINUE-ON-ERROR-INTENTIONAL: prior-archive download is optional;
+        # first run / archive-not-found is a legitimate cold-start state and
+        # must not abort the weekly digest job.
         continue-on-error: true
         uses: dawidd6/action-download-artifact@v6
         with:
@@ -652,6 +655,9 @@ jobs:
 
       - name: Download prior Plan 2.8 manifest
         if: always()
+        # CONTINUE-ON-ERROR-INTENTIONAL: prior-manifest download is optional;
+        # first run has no prior artifact to fetch — diff step handles missing
+        # baseline gracefully.
         continue-on-error: true
         uses: dawidd6/action-download-artifact@v6
         with:
@@ -928,6 +934,9 @@ jobs:
 
       - name: Download prior Plan 2.8 status ledger
         if: always()
+        # CONTINUE-ON-ERROR-INTENTIONAL: prior-ledger download is optional;
+        # first run has no prior ledger — ledger update step initialises a
+        # fresh ledger when missing.
         continue-on-error: true
         uses: dawidd6/action-download-artifact@v6
         with:
