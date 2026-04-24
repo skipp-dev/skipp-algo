@@ -22,11 +22,18 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import random
 import subprocess
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+
+# S-3 (TEMPORAL_NUMERICAL_AUDIT_2026-04-24): defense-in-depth seed for the
+# calibration pipeline. Currently no stochastic ops in this module, but a
+# future contributor adding e.g. ``np.random.choice`` for tie-breaking would
+# silently break reproducibility without this guard.
+_CALIBRATION_RANDOM_SEED = 42
 
 
 @dataclass(slots=True)
@@ -979,6 +986,15 @@ def build_frozen_provenance(
 
 def main(argv: list[str] | None = None) -> None:
     import argparse
+
+    # S-3: defense-in-depth — set Python + NumPy seeds before any pipeline op.
+    random.seed(_CALIBRATION_RANDOM_SEED)
+    try:
+        import numpy as _np  # local import to keep module-level NumPy optional
+
+        _np.random.seed(_CALIBRATION_RANDOM_SEED)
+    except ImportError:  # pragma: no cover - NumPy is a hard dep elsewhere
+        pass
 
     parser = argparse.ArgumentParser(description="Calibrate zone priority weights from benchmark data")
     parser.add_argument(
