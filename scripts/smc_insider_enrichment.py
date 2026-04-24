@@ -1,8 +1,15 @@
 """Insider transaction enrichment for SMC micro-profile generation."""
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any
+
+logger = logging.getLogger(__name__)
+
+# E-2 (TEMPORAL_NUMERICAL_AUDIT_2026-04-24): warn when more than this fraction
+# of per-symbol enrichment calls fail.
+_FAILURE_RATE_WARN_THRESHOLD = 0.10
 
 
 def compute_insider_enrichment(
@@ -15,6 +22,7 @@ def compute_insider_enrichment(
     """
     buying: list[str] = []
     selling_heavy: list[str] = []
+    failed: list[tuple[str, str]] = []  # E-2: per-symbol failure tracking
     cutoff = (datetime.now(timezone.utc) - timedelta(days=30)).strftime("%Y-%m-%d")
 
     for symbol in symbols[:30]:
@@ -48,8 +56,19 @@ def compute_insider_enrichment(
                 buying.append(sym)
             if sell_value > 2_000_000:
                 selling_heavy.append(sym)
-        except Exception:
+        except Exception as exc:  # noqa: BLE001 - E-2: track per-symbol failures
+            failed.append((sym, type(exc).__name__))
+            logger.warning("insider enrichment failed for %s: %s", sym, exc)
             continue
+
+    if symbols and len(failed) / len(symbols) > _FAILURE_RATE_WARN_THRESHOLD:
+        logger.warning(
+            "insider enrichment failure rate %.1f%% (%d/%d) exceeds %.0f%% threshold",
+            100 * len(failed) / len(symbols),
+            len(failed),
+            len(symbols),
+            100 * _FAILURE_RATE_WARN_THRESHOLD,
+        )
 
     return {
         "insider_buying_tickers": sorted(buying),
