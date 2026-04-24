@@ -145,8 +145,18 @@ omit = [
 show_missing = true
 skip_empty = true
 # Temporary marathon floor per docs/ADR-002-temporary-fail-under-reduction.md.
-# Current main total is ~85.20 %; this floor (85) keeps the gate green for
-# unrelated safety/infra PRs while still failing on real regressions.
 # Each merged coverage bucket PR MUST raise this value by the lift it
 # earned (ratchet protocol). Target is to restore 95 once buckets A–E land.
-fail_under = 85
+#
+# Ratchet history (oldest first):
+#   85 — initial ADR-002 floor (#41), TOTAL ~85.20 %
+#   86 — buckets F/H/I/J/N landed (PR #68/#69/#70/#71/#73);
+#        projected TOTAL ~86.5 %, leaving ~0.5 pp headroom.
+#        Lift breakdown (newly covered statements):
+#          • bucket I (smc_fmp_client.py 56→99 %)            +147
+#          • bucket J (execute_ibkr_watchlist.py 60→94 %)    +172
+#          • bucket H (run_open_prep.py 59→69 %)             +274
+#          • bucket F (open_prep/scorer.py 78→91 %)           +44
+#          • bucket N (databento_production_export 83→90 %) +112
+#        Σ ≈ 749 / 58642 stmts ≈ +1.28 pp.
+fail_under = 86
