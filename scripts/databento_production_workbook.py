@@ -212,6 +212,8 @@ def _normalize_xlsx_zip_timestamps(raw: bytes, *, generated_at: float) -> bytes:
     second apart produce different bytes. By round-tripping the archive with a
     pinned ``date_time`` we guarantee byte-stability for a fixed input.
     """
+    import re
+
     pinned_dt = datetime.fromtimestamp(generated_at, tz=UTC)
     pinned_tuple = (
         pinned_dt.year,
@@ -221,6 +223,18 @@ def _normalize_xlsx_zip_timestamps(raw: bytes, *, generated_at: float) -> bytes:
         pinned_dt.minute,
         pinned_dt.second,
     )
+    pinned_iso = pinned_dt.strftime("%Y-%m-%dT%H:%M:%SZ").encode("ascii")
+    # openpyxl stamps docProps/core.xml's <dcterms:created>/<dcterms:modified>
+    # with datetime.utcnow() at save time, even if workbook.properties.modified
+    # was set earlier — pandas's writer reassigns it on context exit. Rewrite
+    # the embedded XML so a fixed generated_at produces byte-stable output.
+    _DCTERMS_RE = re.compile(
+        rb'(<dcterms:(?:created|modified)[^>]*>)[^<]*(</dcterms:(?:created|modified)>)'
+    )
+
+    def _pin_core_xml(blob: bytes) -> bytes:
+        return _DCTERMS_RE.sub(rb"\1" + pinned_iso + rb"\2", blob)
+
     src = BytesIO(raw)
     dst = BytesIO()
     with zipfile.ZipFile(src, "r") as src_zip, zipfile.ZipFile(
@@ -231,6 +245,8 @@ def _normalize_xlsx_zip_timestamps(raw: bytes, *, generated_at: float) -> bytes:
         # order is not guaranteed deterministic.
         for info in sorted(src_zip.infolist(), key=lambda i: i.filename):
             data = src_zip.read(info.filename)
+            if info.filename == "docProps/core.xml":
+                data = _pin_core_xml(data)
             new_info = zipfile.ZipInfo(filename=info.filename, date_time=pinned_tuple)
             new_info.compress_type = info.compress_type
             new_info.external_attr = info.external_attr
