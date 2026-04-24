@@ -385,3 +385,84 @@ def test_fdr_calibration_schema_pin_active() -> None:
             f"fdr_calibration cell key set drifted: {set(cell.keys())}. "
             "Update the schema version (major bump) and the pin in this test."
         )
+
+
+# ---------------------------------------------------------------------------
+# Schema-pin smoke test: ``digest["fdr"]`` hit-rate field set
+# ---------------------------------------------------------------------------
+#
+# Mirrors the calibration-FDR schema-pin (above). The hit-rate FDR layer is
+# always-on (no enable flag), so two variants exist: "no common families"
+# (empty ``families`` list, no per-family schema check) and "common families
+# present" (full output including per-family entries). Any stealth field
+# add/rename here must be paired with a major schema version bump per the
+# ``schema-version-bump-must-be-major-on-field-count-change`` convention.
+
+
+_FDR_TOPLEVEL_KEYS = frozenset({
+    "method",
+    "q",
+    "tested_families",
+    "skipped_families",
+    "rejected_families",
+    "threshold_p_value",
+    "families",
+})
+
+_FDR_FAMILY_ENTRY_KEYS = frozenset({
+    "family",
+    "n_control",
+    "n_treatment",
+    "hit_rate_control",
+    "hit_rate_treatment",
+    "p_value",
+    "rejected",
+    "adjusted_p_value",
+    "skipped_reason",
+})
+
+
+def _fdr_pair(family_metrics: dict[str, dict] | None = None) -> dict:
+    return {
+        "symbol": "AAPL", "timeframe": "5m", "n_events": 100,
+        "brier": 0.20, "calibrated_brier": 0.20, "calibrated_ece": 0.05,
+        "raw_ece": 0.05, "log_score": 0.5, "hit_rate_pct": 50.0,
+        "family_metrics": family_metrics if family_metrics is not None else {},
+    }
+
+
+def test_fdr_schema_pin_no_common_families() -> None:
+    """No common families → top-level keys still pinned, families list empty."""
+    digest = compare(
+        [_fdr_pair({"BOS": {"n_events": 50, "hit_rate": 0.5}})],
+        [_fdr_pair({"FVG": {"n_events": 50, "hit_rate": 0.5}})],
+        "fdr-pin-no-common",
+    )
+    block = digest["fdr"]
+    assert set(block.keys()) == _FDR_TOPLEVEL_KEYS, (
+        f"fdr top-level key set drifted: {set(block.keys())}. "
+        "Update the schema version (major bump) and the pin in this test."
+    )
+    assert block["method"] == "benjamini_hochberg"
+    assert block["families"] == []
+    assert block["tested_families"] == 0
+
+
+def test_fdr_schema_pin_with_families() -> None:
+    """Common families present → top-level + per-family key sets pinned."""
+    digest = compare(
+        [_fdr_pair({"BOS": {"n_events": 200, "hit_rate": 0.50}})],
+        [_fdr_pair({"BOS": {"n_events": 200, "hit_rate": 0.80}})],
+        "fdr-pin-with-families",
+    )
+    block = digest["fdr"]
+    assert set(block.keys()) == _FDR_TOPLEVEL_KEYS, (
+        f"fdr top-level key set drifted: {set(block.keys())}. "
+        "Update the schema version (major bump) and the pin in this test."
+    )
+    assert len(block["families"]) >= 1
+    for fam in block["families"]:
+        assert set(fam.keys()) == _FDR_FAMILY_ENTRY_KEYS, (
+            f"fdr per-family key set drifted: {set(fam.keys())}. "
+            "Update the schema version (major bump) and the pin in this test."
+        )
