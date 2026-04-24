@@ -33,7 +33,16 @@
 - **D-3**: `BEST_V1_WEIGHTS` in `smc_core/fvg_quality.py` als `DEPRECATED_BEST_V1_WEIGHTS` umbenennen; Modul-Level `DeprecationWarning` beim Import des alten Namens via `__getattr__`.
 
 ## Backlog (P2 ohne PR — Owner zu vergeben)
-- **T-3**: `request.security` Same-TF-Pattern entfernen (rein kosmetisch, kein Korrektheits-Bug).
+- ~~**T-3**: `request.security` Same-TF-Pattern entfernen (rein kosmetisch, kein Korrektheits-Bug).~~
+  → erledigt: Audit-Hypothese war
+  `request.security(syminfo.tickerid, timeframe.period, …)` (redundant —
+  selbes Symbol, selbe TF). Re-Grep über alle `*.pine` ergibt **null
+  Vorkommen**. Die vier verbleibenden `… , timeframe.period, …`-Treffer
+  in [`SMC++/smc_utils.pine`](../SMC++/smc_utils.pine) (`external_trend_gate`,
+  `external_breadth_gate`) sind **externe Symbole** auf gleicher TF —
+  legitime Cross-Symbol-Fetches, kein Refactor-Kandidat. Re-introduction
+  wird durch eine Same-TF-Guard-Zeile in der Pine-Lint-Stufe abgesichert
+  (Folge-PR auf #105).
 - ~~**N-2/N-3/N-4**: `math.isclose` / Sentinel-`None` migrieren — niedrige Wahrscheinlichkeit, kein P0/P1.~~
   → erledigt in [`smc_core/scoring.py`](../smc_core/scoring.py) und
   [`smc_core/fvg_quality.py`](../smc_core/fvg_quality.py): explizite
