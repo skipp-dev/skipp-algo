@@ -6,6 +6,19 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Tests / Quality (2026-04-24) — `# type: ignore` per-file count budget
+
+- Neuer Pin [`tests/test_type_ignore_budget.py`](tests/test_type_ignore_budget.py)
+  fixiert die `# type: ignore`-Suppressionen pro Datei als Budget
+  (Zeilen-genaue Ledger wären zu churn-anfällig in den dichten
+  pandas/streamlit-Bridge-Files). Aktuell 19 Dateien / 81 Suppressions
+  (top: `terminal_bitcoin.py` 18, `open_prep/streamlit_monitor.py` 18,
+  `terminal_poller.py` 13). Drei-Schicht-Schutz: kein Datei-Count darf
+  über sein Budget steigen, neue Dateien dürfen ohne Ledger-Eintrag
+  gar keine `# type: ignore` einführen, und Stale-Einträge werden
+  geflaggt. Reduktion erwünscht — fallender Count soll Budget senken.
+- Defense-only, keine Production-Änderungen.
+
 ### Tests / Quality (2026-04-24) — no eager-format in `logger.<level>(...)` calls
 
 - Neuer Pin [`tests/test_no_eager_format_in_logger_calls.py`](tests/test_no_eager_format_in_logger_calls.py)
