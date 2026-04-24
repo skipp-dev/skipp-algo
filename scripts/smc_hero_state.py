@@ -139,6 +139,51 @@ HERO_ACTION_VOCAB: frozenset[str] = frozenset({
 })
 
 
+# ── HERO_BIAS vocabulary (PR-AUDIT-2026-04-24, ADR-0006) ───────────────
+#
+# Producer-A vocabulary — emitted by :func:`_derive_bias`, consumed by
+# Pine generated library (``smc_micro_profiles_generated.pine``) via
+# ``scripts/generate_smc_micro_profiles.py:1047`` as a const string.
+#
+# Pine boundary contract: this is a 3-state directional bias.
+# DO NOT rename without bumping ``library_field_version`` in the
+# generated Pine library (ADR-0006 §3).
+HERO_BIAS_LONG: str = "LONG"
+HERO_BIAS_SHORT: str = "SHORT"
+HERO_BIAS_FLAT: str = "FLAT"
+
+HERO_BIAS_VOCAB: frozenset[str] = frozenset({
+    HERO_BIAS_LONG,
+    HERO_BIAS_SHORT,
+    HERO_BIAS_FLAT,
+})
+
+
+# ── HERO_MARKET_MODE vocabulary (PR-AUDIT-2026-04-24, ADR-0006) ──────────
+#
+# Producer-A vocabulary — passthrough of the upstream ``regime`` field
+# (see ``scripts/smc_hero_market_mode.py::_regime_label``). Pine
+# consumers (``SMC_Mobile_Dashboard.pine:79``) compare against the
+# literals ``"BULLISH"``, ``"BEARISH"``, ``"RISK_OFF"``; ``"NEUTRAL"``
+# is the default sentinel used when no upstream regime is known.
+#
+# This vocab is NORMATIVE for downstream Pine consumers but NOT
+# enforced at write time — ``_regime_label`` will pass through any
+# UPPERCASE string from upstream. Adding a new value here forces a
+# parallel Pine-side branch update (ADR-0006 §2).
+HERO_MARKET_MODE_BULLISH: str = "BULLISH"
+HERO_MARKET_MODE_BEARISH: str = "BEARISH"
+HERO_MARKET_MODE_NEUTRAL: str = "NEUTRAL"
+HERO_MARKET_MODE_RISK_OFF: str = "RISK_OFF"
+
+HERO_MARKET_MODE_VOCAB: frozenset[str] = frozenset({
+    HERO_MARKET_MODE_BULLISH,
+    HERO_MARKET_MODE_BEARISH,
+    HERO_MARKET_MODE_NEUTRAL,
+    HERO_MARKET_MODE_RISK_OFF,
+})
+
+
 def project_trust_state_to_hero(state: "TrustState") -> str:
     """Translate a canonical ``TrustState`` into the Hero-local vocab.
 
@@ -179,14 +224,18 @@ def _derive_trust(
 
 
 def _derive_bias(*, regime: str, trade_state: str) -> str:
-    """Translate regime + trade_state into a directional bias."""
+    """Translate regime + trade_state into a directional bias.
+
+    Returns one of :data:`HERO_BIAS_VOCAB` (``LONG`` / ``SHORT`` /
+    ``FLAT``). See ADR-0006 for the vocabulary contract.
+    """
     if trade_state in ("BLOCKED", "AVOID"):
-        return "FLAT"
-    if regime in ("BULLISH",):
-        return "LONG"
-    if regime in ("BEARISH", "RISK_OFF"):
-        return "SHORT"
-    return "FLAT"
+        return HERO_BIAS_FLAT
+    if regime == HERO_MARKET_MODE_BULLISH:
+        return HERO_BIAS_LONG
+    if regime in (HERO_MARKET_MODE_BEARISH, HERO_MARKET_MODE_RISK_OFF):
+        return HERO_BIAS_SHORT
+    return HERO_BIAS_FLAT
 
 
 def _derive_action(*, trade_state: str, trust: str) -> str:
