@@ -128,6 +128,7 @@ jobs:
           gh pr create \
             --base main \
             --head "$BRANCH" \
+            --label automated \
             --title "chore(open_prep): daily run outcomes ${GITHUB_RUN_ID}" \
             --body "Automated pre-open scoring run from \`run-open-prep-daily\` (run ${GITHUB_RUN_ID}). Adds today's outcomes_*.json so the outcome-backfill workflow can label it later for the FI corpus." || true
           gh pr merge "$BRANCH" --auto --squash --delete-branch || true

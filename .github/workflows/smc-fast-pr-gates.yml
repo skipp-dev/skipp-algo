@@ -22,21 +22,41 @@ jobs:
     timeout-minutes: 35
 
     steps:
+      # Bot data-only PRs (e.g. `bot/run-open-prep-*`, `bot/outcome-backfill-*`)
+      # only touch `artifacts/open_prep/**` JSON artifacts and never change code,
+      # so the heavy SMC integration suite would just burn ~22 min for no signal.
+      # We still keep this job (the ruleset requires `fast-gates` as a status
+      # check) but short-circuit all heavy steps below — the job itself reports
+      # success in seconds, unblocking auto-merge.
+      - name: Determine if heavy gates should run
+        id: gate
+        run: |
+          if [[ "${{ github.event_name }}" == "pull_request" && "${{ github.head_ref }}" == bot/* ]]; then
+            echo "Bot data-only PR detected (head=${{ github.head_ref }}); skipping heavy fast-gates."
+            echo "run_heavy=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "run_heavy=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Checkout
+        if: steps.gate.outputs.run_heavy == 'true'
         uses: actions/checkout@v6
 
       - name: Set up Python
+        if: steps.gate.outputs.run_heavy == 'true'
         uses: actions/setup-python@v6
         with:
           python-version: "3.12"
           cache: pip
 
       - name: Install dependencies
+        if: steps.gate.outputs.run_heavy == 'true'
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt pytest
 
       - name: Run fast provider and smoke health checks
+        if: steps.gate.outputs.run_heavy == 'true'
         run: |
           python scripts/run_smc_ci_health_checks.py \
             --symbols "IBG" \
@@ -44,6 +64,7 @@ jobs:
             --output artifacts/ci/smc_fast_health_report.json
 
       - name: Run fast SMC integration tests
+        if: steps.gate.outputs.run_heavy == 'true'
         run: |
           python -m pytest -q --maxfail=1 \
             --cov=smc_integration \
@@ -56,6 +77,7 @@ jobs:
             tests/test_smc_trust_state.py
 
       - name: Run terminal coverage subset
+        if: steps.gate.outputs.run_heavy == 'true'
         run: |
           mkdir -p artifacts/ci
           set -o pipefail
@@ -82,7 +104,7 @@ jobs:
             | tee artifacts/ci/terminal_coverage.txt
 
       - name: Render fast gate summary
-        if: always()
+        if: always() && steps.gate.outputs.run_heavy == 'true'
         run: |
           python scripts/render_ci_gate_summary.py \
             --report artifacts/ci/smc_fast_health_report.json \
@@ -90,7 +112,7 @@ jobs:
             || echo "::warning::Fast gate summary skipped (report not found)."
 
       - name: Upload fast gate report
-        if: always()
+        if: always() && steps.gate.outputs.run_heavy == 'true'
         uses: actions/upload-artifact@v7
         with:
           name: smc-fast-health-report

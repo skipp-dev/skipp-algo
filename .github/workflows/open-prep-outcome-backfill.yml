@@ -119,6 +119,7 @@ jobs:
           gh pr create \
             --base main \
             --head "$BRANCH" \
+            --label automated \
             --title "chore(open_prep): outcome backfill ${GITHUB_RUN_ID}" \
             --body "Automated outcome backfill + feature-importance artifacts from run ${GITHUB_RUN_ID}." || true
           gh pr merge "$BRANCH" --auto --squash --delete-branch || true
