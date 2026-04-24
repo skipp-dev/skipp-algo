@@ -75,6 +75,20 @@
     nicht ausdrücken kann. Inline-NOTE im Modul dokumentiert die
     Abgrenzung; folgende E-3-Iteration könnte ein
     `@circuit_breaker`-Companion ergänzen.
+  - **Reality-Check (`databento_client.py:_databento_get_range_with_retry`)**:
+    bewusst **nicht** in dieser Iteration migriert. Drei Shape-Mismatches:
+    (a) Retryability-Predicate ist Message-Substring-Filter über
+    beliebige `Exception`-Typen (`"read timed out"`, `"429"`, `"502"`,
+    `"connection reset"`, …), nicht Exception-Class-Filter — die
+    `@resilient`-API `exceptions=(...)` passt strukturell nicht;
+    (b) Funktion ist dupliziert in `databento_volatility_screener.py`
+    mit fünf Test-Fixtures, die direkt
+    `databento_volatility_screener.time_module.sleep` monkey-patchen —
+    saubere Migration verlangt vorher Dedup; (c)
+    `_normalize_tls_certificate_env()`-Side-Effect pro Attempt gehört
+    semantisch nicht in den generischen Decorator. Eigene PR mit
+    Predicate-Adapter (z.B. `RetriablePredicate`) und
+    Volatility-Screener-Dedup vorgesehen.
 - ~~**A-2**: `lru_cache(maxsize=1024)` für Newsapi-Clients.~~ → erledigt
   in `scripts/smc_newsapi_ai.py` (PR #98). Audit-Text war stale —
   `terminal_newsapi.py` ist Decommissioned-Stub.
