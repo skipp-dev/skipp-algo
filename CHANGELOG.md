@@ -62,6 +62,24 @@ Tuple das einen davon enthält. Spezifische Exception-Typen
 Pin schleichend mehr. Defense-Pin pro frozen-inventory ist das
 gleiche Pattern wie FDR/SPRT vocab pins — billig (sub-Sekunde, AST
 only) und blockt eine ganze Bug-Klasse strukturell.
+### Tests / Quality (2026-04-24) — HTTP client discipline: no `requests` library + urllib `urlopen()` timeout pin
+
+- Neuer Pin [`tests/test_http_client_discipline.py`](tests/test_http_client_discipline.py)
+  bündelt zwei Schutzschichten über denselben First-Party-AST-Walk:
+  1. **`requests`-Library bleibt out-of-bounds in Production.** Codebase
+     hat auf `httpx` standardisiert (Quartett: budget × singleton ×
+     timeout-consistency × named-timeout). Jeder neue `import requests`,
+     `from requests import …` oder `requests.<method>(...)`-Call würde
+     diese Disziplin lautlos umgehen → reine Tripwire, kein Allowlist
+     (Inventur aktuell 0).
+  2. **`urlopen(...)` muss `timeout=` mitgeben.** `urllib.request.urlopen`
+     defaultet auf einen blockierenden Socket ohne Timeout → kann einen
+     Worker-Thread unbegrenzt festsetzen. Alle 8 aktuellen
+     Produktions-Sites passen `timeout=` (mixed: bare `urlopen` nach
+     `from urllib.request import urlopen` und qualified
+     `urllib.request.urlopen`). Frozen-Site-Tripwire + parametrisierter
+     Stale-Site-Guard sperrt die Inventur ein.
+- 12 Tests grün, keine Produktions-Anpassungen nötig.
 
 ### Tests / Quality (2026-04-24) — terminal_*.py httpx timeout named-constant discipline
 
