@@ -67,6 +67,37 @@
     17 Contract-Tests (`tests/test_smc_core_resilient.py`).
     Decorator + API stehen; per-Adapter-Migration (Finnhub, FMP,
     Newsapi, Databento) bleibt eigene PR-Serie.
+  - **Erste Migration (FMP) gelandet** auf
+    `feat/e3-fmp-client-resilient-migration`:
+    `scripts/smc_fmp_client.py:_get` ersetzt die hand-rolled Retry-Schleife
+    durch `@resilient(retries=…, base_delay=0.5, max_delay=4.0,
+    exceptions=(URLError,), on_failure=_wrap_fatal)`. Semantik
+    identisch (gleiche retriable HTTP-Codes, gleiche Fail-Fast für
+    404/401/403, gleiche Anzahl Versuche), Backoff jetzt exponentiell
+    mit Full-Jitter statt linear. Regression-Test bestätigt das Wiring.
+  - **Reality-Check (`terminal_finnhub.py:_get`)**: bewusst **nicht**
+    migriert. Modul läuft auf der Streamlit-UI-Thread; `@resilient`
+    blockiert per Design die aufrufende Thread für `base_delay·2^retries`
+    Sekunden — UI-incompatibel. Außerdem ist das 403-`/social-sentiment`-
+    Permanent-Disable und das globale 429-Skip-Window ein
+    *Circuit-Breaker*-Muster, das die heutige `exceptions=`-Filter-API
+    nicht ausdrücken kann. Inline-NOTE im Modul dokumentiert die
+    Abgrenzung; folgende E-3-Iteration könnte ein
+    `@circuit_breaker`-Companion ergänzen.
+  - **Reality-Check (`databento_client.py:_databento_get_range_with_retry`)**:
+    bewusst **nicht** in dieser Iteration migriert. Drei Shape-Mismatches:
+    (a) Retryability-Predicate ist Message-Substring-Filter über
+    beliebige `Exception`-Typen (`"read timed out"`, `"429"`, `"502"`,
+    `"connection reset"`, …), nicht Exception-Class-Filter — die
+    `@resilient`-API `exceptions=(...)` passt strukturell nicht;
+    (b) Funktion ist dupliziert in `databento_volatility_screener.py`
+    mit fünf Test-Fixtures, die direkt
+    `databento_volatility_screener.time_module.sleep` monkey-patchen —
+    saubere Migration verlangt vorher Dedup; (c)
+    `_normalize_tls_certificate_env()`-Side-Effect pro Attempt gehört
+    semantisch nicht in den generischen Decorator. Eigene PR mit
+    Predicate-Adapter (z.B. `RetriablePredicate`) und
+    Volatility-Screener-Dedup vorgesehen.
 - ~~**A-2**: `lru_cache(maxsize=1024)` für Newsapi-Clients.~~ → erledigt
   in `scripts/smc_newsapi_ai.py` (PR #98). Audit-Text war stale —
   `terminal_newsapi.py` ist Decommissioned-Stub.
