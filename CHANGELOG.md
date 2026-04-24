@@ -6,6 +6,27 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Tests / Quality (2026-04-24) — no eager-format in `logger.<level>(...)` calls
+
+- Neuer Pin [`tests/test_no_eager_format_in_logger_calls.py`](tests/test_no_eager_format_in_logger_calls.py)
+  verbietet eager-evaluierte Message-Templates an Logger-Methoden in
+  Produktion. Logger-API will ein **Lazy**-Format-Template + positional
+  args, damit die Interpolation erst nach dem Level-Filter passiert
+  und structured-log-Handler die Argument-Trennung sehen.
+- AST-Erkennung deckt drei eager-Formen am ersten Message-Argument ab
+  (zweites bei `logger.log(LEVEL, msg, …)`):
+  1. **f-string** (`ast.JoinedStr`)
+  2. **`%`/`+`-BinOp** auf Strings (`"foo %s" % bar`, `"foo " + bar`)
+  3. **`.format(...)`** Call
+- Logger-Detection: `logger`/`log`/`_logger`/`_log`/`LOGGER`/`LOG` als
+  `Name` oder `Attribute`-Zugriff (deckt `self.logger.info(...)` und
+  `cls._log.info(...)` ab); Methoden-Set
+  `{debug, info, warning, warn, error, critical, exception, log}`.
+- Aktuelle Inventur: **0 Verstöße** in Production-`*.py` — pure
+  Tripwire, kein Allowlist nötig. Closes "f-string baut Message immer,
+  auch bei DEBUG-off" Bug-Klasse + Performance-Falle bei teuren `repr`-
+  Aufrufen in disabled Levels.
+
 ### Tests / Quality (2026-04-24) — `except Exception: pass` defense pin (frozen-inventory budget)
 
 Defense-Pin friert die aktuelle Anzahl und exakten Locations aller
