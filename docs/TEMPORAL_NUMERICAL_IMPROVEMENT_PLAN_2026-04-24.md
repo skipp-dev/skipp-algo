@@ -109,9 +109,15 @@
 - ~~**D-1**: Legacy-Pine in `pine/legacy/` verschieben (Manifest-Pfade mit ziehen).~~
   → Phase 1 erledigt durch [`PINE_LEGACY.md`](../PINE_LEGACY.md):
   Index-Datei klassifiziert die 24 Root-Pine-Files als `LEGACY` / aktiv.
-  Physischer Move ("D-1 v2") bleibt offen, bis
-  `pine_apply_surface_reduction.py`, `test_usi_lint.py`, README,
-  CHANGELOG und `docs/*.md` atomar mit-aktualisiert werden.
+  Drift-Lint
+  ([`scripts/check_pine_legacy_drift.py`](../scripts/check_pine_legacy_drift.py))
+  in `smc-fast-pr-gates` verhindert stille Drift (PR #105).
+  **D-1 v2** (physischer Move) jetzt entscheidungsreif:
+  [`docs/adr/0003-pine-legacy-physical-move-resolver.md`](adr/0003-pine-legacy-physical-move-resolver.md)
+  empfiehlt Resolver-Shim statt Sweep-Refactor. Implementierung als
+  separate PR (≈Tag), da Tier-1-Konsumenten (`smc_bus_manifest.py`,
+  `smc_file_lifecycle.py`, `pine_apply_surface_reduction.py`)
+  bare-basename-Lookup verwenden.
 - ~~**D-2**: Schema-Version-Historie in `CHANGELOG.md` migrieren.~~
   → erledigt: neue Top-Level-Sektion **"Schema Versions"** in
   [`CHANGELOG.md`](../CHANGELOG.md) konsolidiert die volle Bump-Historie
