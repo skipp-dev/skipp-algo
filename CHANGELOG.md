@@ -6,6 +6,45 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Tests / Quality (2026-04-24) — `_normal_cdf` accuracy pin + SPRT Wald-bounds property test + ADR-0005 pre-commit CLI
+
+Three additive hardening pieces, no source changes to the runtime
+itself:
+
+- **`_normal_cdf` accuracy pin**
+  (`tests/test_normal_cdf_accuracy_pin.py`): pins
+  `scripts.run_ab_comparison._normal_cdf` against 13 reference
+  points spanning [-3, 3] to 1e-9 absolute tolerance. The function
+  underpins every p-value in `digest['fdr']` and `digest['fdr_calibration']`;
+  a polynomial-approximation replacement (Abramowitz & Stegun, etc.)
+  would diverge by ~1e-7 and trip the pin. Also pins `_normal_cdf(0)
+  == 0.5` exactly, symmetry (`cdf(-x) + cdf(x) == 1`), monotonicity,
+  and [0, 1] bounds at finite extremes.
+- **SPRT Wald-bounds property test**
+  (`tests/test_sprt_wald_bounds_property.py`): pins the closed-form
+  Wald-A / Wald-B formulas of `SPRTConfig.upper_bound` /
+  `lower_bound` over a 7×6 = 42-point grid of (alpha, beta) pairs
+  spanning the validation range (0, 0.5). Also asserts sign
+  invariants (upper > 0, lower < 0), strict separation, and
+  monotonicity in alpha/beta. A stealth refactor that swaps
+  numerator/denominator or substitutes an "equivalent" expression
+  would silently invert promote/hold/rollback decisions for the
+  SPRT layer.
+- **ADR-0005 pre-commit CLI**
+  (`scripts/check_adr_0005_pure_stdlib.py`,
+  `tests/test_check_adr_0005_pure_stdlib_cli.py`,
+  `.pre-commit-config.yaml`): wraps the AST scan from PR #120
+  (`tests/test_adr_0005_pure_stdlib_runtime.py`) as a standalone
+  CLI and registers it as a pre-commit hook scoped to
+  `^scripts/(run_ab_comparison|smc_sprt_stop_rule)\.py$`.
+  Re-imports `RUNTIME_FILES` and `BANNED_ROOTS` from the test
+  module so the two stay in lock-step (single source of truth).
+  Contributors now catch ADR-0005 violations pre-push without
+  spinning up the full test suite.
+
+Verification: `251 passed in 1.46s` for the 7 affected test
+modules.
+
 ### Tests / Quality (2026-04-24) — Schema-pin trilogy + ADR-0005 AST guard + degenerate-branch coverage
 
 Hardens the A/B-comparison digest contract and the ADR-0005
