@@ -83,7 +83,8 @@ jobs:
           python scripts/run_smc_measurement_benchmark.py \
             --symbols "${SYMBOLS}" \
             --timeframes "${TIMEFRAMES}" \
-            --output-dir "${{ steps.meta.outputs.out_dir }}"
+            --output-dir "${{ steps.meta.outputs.out_dir }}" \
+            --require-evidence
 
       - name: Zone priority + testable calibration (rolling)
         if: always()
