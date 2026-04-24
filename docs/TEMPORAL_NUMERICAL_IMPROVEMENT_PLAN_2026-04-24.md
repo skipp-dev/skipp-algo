@@ -81,7 +81,13 @@
   Physischer Move ("D-1 v2") bleibt offen, bis
   `pine_apply_surface_reduction.py`, `test_usi_lint.py`, README,
   CHANGELOG und `docs/*.md` atomar mit-aktualisiert werden.
-- **D-2**: Schema-Version-Historie in `CHANGELOG.md` migrieren.
+- ~~**D-2**: Schema-Version-Historie in `CHANGELOG.md` migrieren.~~
+  → erledigt: neue Top-Level-Sektion **"Schema Versions"** in
+  [`CHANGELOG.md`](../CHANGELOG.md) konsolidiert die volle Bump-Historie
+  (1.0.0 → 1.1.0 → 1.2.0 → 2.0.0 → 2.1.0 [superseded] → 3.0.0) inkl.
+  Commit-SHAs, Daten und Begründungen. Inline-Kommentar in
+  [`smc_core/schema_version.py`](../smc_core/schema_version.py) auf den
+  aktuellen Pin reduziert mit Pointer auf den Changelog.
 
 ---
 
