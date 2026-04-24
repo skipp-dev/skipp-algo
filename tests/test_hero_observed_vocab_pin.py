@@ -1,22 +1,24 @@
-"""Observed-vocabulary pin for ``HERO_BIAS`` and ``HERO_MARKET_MODE``.
+"""Strict-vocabulary pin for ``HERO_BIAS`` and ``HERO_MARKET_MODE``.
 
-Phase-6 / Bug-Class #17 (``HERO_MARKET_MODE`` UNKNOWN marker) and #20
-(``HERO_TRUST`` / ``HERO_MARKET_TRUST`` overlap) from
-``smc-system-review-2026-04-24.md``.
+History
+=======
 
-``scripts/smc_hero_state.py`` declares formal ``frozenset`` vocabularies
-for ``HERO_TRUST``, ``HERO_SETUP_QUALITY`` and ``HERO_ACTION``. The two
-remaining hero channels — ``HERO_BIAS`` and ``HERO_MARKET_MODE`` — are
-documented in the module docstring (lines 8-9) but have **no formal
-constant**. The bias derivation (``_derive_bias``) emits values from
-``{"LONG", "SHORT", "FLAT"}`` and ``DEFAULTS["HERO_MARKET_MODE"] ==
-"NEUTRAL"`` with the docstring listing ``BULLISH / BEARISH / NEUTRAL /
-RISK_OFF``.
+Previous incarnation (PR #123) was an *observed*-values pin because
+``scripts/smc_hero_state.py`` had no formal frozenset for these two
+hero channels. ADR-0006 (PR-AUDIT-2026-04-24) introduced
+``HERO_BIAS_VOCAB`` and ``HERO_MARKET_MODE_VOCAB`` alongside the
+pre-existing ``HERO_TRUST_VOCAB`` / ``HERO_SETUP_QUALITY_VOCAB`` /
+``HERO_ACTION_VOCAB``.
 
-This module pins those **observed** value sets without modifying the
-source (audit-only, additive). When ``smc_hero_state`` introduces a new
-bias or market-mode value, this test fails and forces an explicit
-update of either the formal vocab or this whitelist.
+This module now does **strict** vocab pinning: every string literal
+that ``_derive_bias`` returns must appear in ``HERO_BIAS_VOCAB`` (and
+vice versa); ``DEFAULTS["HERO_MARKET_MODE"]`` must appear in
+``HERO_MARKET_MODE_VOCAB``; the docstring contract line must enumerate
+exactly ``HERO_MARKET_MODE_VOCAB``; the formal vocabs themselves must
+not silently drift.
+
+Companion: ``tests/test_pine_library_version_consistency.py`` and
+``docs/adr/0006-hero-vocab-discipline.md``.
 """
 
 from __future__ import annotations
@@ -25,80 +27,133 @@ import ast
 import re
 from pathlib import Path
 
-import pytest
-
 REPO_ROOT = Path(__file__).resolve().parent.parent
 _HERO_STATE_PATH = REPO_ROOT / "scripts" / "smc_hero_state.py"
 
-# Pinned observed values.
-_OBSERVED_BIAS_VALUES: frozenset[str] = frozenset({"LONG", "SHORT", "FLAT"})
-
-# From module docstring (lines 8-9) and DEFAULTS:
-_OBSERVED_MARKET_MODE_VALUES: frozenset[str] = frozenset({
+# Source-of-truth pin. Drift here = breaking change requiring CHANGELOG
+# entry + library_field_version bump in smc_micro_profiles_generated.pine.
+_EXPECTED_BIAS_VOCAB: frozenset[str] = frozenset({"LONG", "SHORT", "FLAT"})
+_EXPECTED_MARKET_MODE_VOCAB: frozenset[str] = frozenset({
     "BULLISH",
     "BEARISH",
     "NEUTRAL",
     "RISK_OFF",
 })
 
-# Helper-function names we walk for string-literal returns.
 _BIAS_DERIVE_FN = "_derive_bias"
 
 
-def _string_literal_returns(source: str, fn_name: str) -> set[str]:
-    """Collect every string ``return`` literal inside ``fn_name``."""
+def _resolve_constant_returns(source: str, fn_name: str) -> set[str]:
+    """Collect every ``return`` value inside ``fn_name``, resolving names.
+
+    Handles two forms:
+    * ``return "FLAT"`` — direct string literal.
+    * ``return HERO_BIAS_FLAT`` — module-level string constant; resolved
+      via a single-pass scan of top-level ``Name = "literal"`` assigns.
+    """
     tree = ast.parse(source)
+    name_to_value: dict[str, str] = {}
+    for node in tree.body:
+        if isinstance(node, ast.Assign) and isinstance(node.value, ast.Constant):
+            if isinstance(node.value.value, str):
+                for tgt in node.targets:
+                    if isinstance(tgt, ast.Name):
+                        name_to_value[tgt.id] = node.value.value
+        elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
+            if isinstance(node.value, ast.Constant) and isinstance(node.value.value, str):
+                name_to_value[node.target.id] = node.value.value
+
     out: set[str] = set()
     for node in ast.walk(tree):
         if not isinstance(node, ast.FunctionDef) or node.name != fn_name:
             continue
         for sub in ast.walk(node):
-            if isinstance(sub, ast.Return) and isinstance(sub.value, ast.Constant):
-                if isinstance(sub.value.value, str):
-                    out.add(sub.value.value)
+            if not isinstance(sub, ast.Return):
+                continue
+            val = sub.value
+            if isinstance(val, ast.Constant) and isinstance(val.value, str):
+                out.add(val.value)
+            elif isinstance(val, ast.Name) and val.id in name_to_value:
+                out.add(name_to_value[val.id])
     return out
 
 
-def test_hero_bias_observed_values_match_pin() -> None:
-    """Pin: ``_derive_bias`` emits exactly the documented bias vocabulary."""
+def _load_vocab(name: str) -> frozenset[str]:
+    """Load a module-level ``frozenset[str]`` constant from smc_hero_state."""
+    import importlib
+
+    module = importlib.import_module("scripts.smc_hero_state")
+    value = getattr(module, name)
+    assert isinstance(value, frozenset), f"{name} is not a frozenset"
+    return value
+
+
+def test_hero_bias_vocab_exists_and_matches_pin() -> None:
+    """``HERO_BIAS_VOCAB`` must exist as a frozenset and equal the pin."""
+    vocab = _load_vocab("HERO_BIAS_VOCAB")
+    assert vocab == _EXPECTED_BIAS_VOCAB, (
+        f"HERO_BIAS_VOCAB drift: actual={sorted(vocab)} "
+        f"expected={sorted(_EXPECTED_BIAS_VOCAB)}. Either: (a) update the "
+        "pin AND bump library_field_version in smc_micro_profiles_generated; "
+        "or (b) revert the source change."
+    )
+
+
+def test_hero_market_mode_vocab_exists_and_matches_pin() -> None:
+    """``HERO_MARKET_MODE_VOCAB`` must exist as a frozenset and equal the pin."""
+    vocab = _load_vocab("HERO_MARKET_MODE_VOCAB")
+    assert vocab == _EXPECTED_MARKET_MODE_VOCAB, (
+        f"HERO_MARKET_MODE_VOCAB drift: actual={sorted(vocab)} "
+        f"expected={sorted(_EXPECTED_MARKET_MODE_VOCAB)}. Same migration "
+        "recipe as HERO_BIAS_VOCAB."
+    )
+
+
+def test_derive_bias_returns_only_vocab_members() -> None:
+    """Every literal/constant ``_derive_bias`` returns must be in the vocab."""
     source = _HERO_STATE_PATH.read_text(encoding="utf-8")
-    observed = _string_literal_returns(source, _BIAS_DERIVE_FN)
+    observed = _resolve_constant_returns(source, _BIAS_DERIVE_FN)
     assert observed, (
-        f"Could not extract any string-literal returns from "
-        f"{_BIAS_DERIVE_FN}() — file structure changed?"
+        f"Could not extract any return values from {_BIAS_DERIVE_FN}() — "
+        "file structure changed?"
     )
-    assert observed == _OBSERVED_BIAS_VALUES, (
-        f"HERO_BIAS observed-vocabulary drift in {_HERO_STATE_PATH.name}::"
-        f"{_BIAS_DERIVE_FN}: returns={sorted(observed)}, "
-        f"pinned={sorted(_OBSERVED_BIAS_VALUES)}.\n\n"
-        "Either: (a) update the pin (and document via CHANGELOG with a "
-        "schema-version bump if HERO_BIAS feeds a downstream Pine bus); "
-        "or (b) introduce a formal HERO_BIAS_VOCAB frozenset alongside "
-        "HERO_TRUST_VOCAB / HERO_SETUP_QUALITY_VOCAB / HERO_ACTION_VOCAB."
+    extra = observed - _EXPECTED_BIAS_VOCAB
+    missing = _EXPECTED_BIAS_VOCAB - observed
+    assert not extra, (
+        f"{_BIAS_DERIVE_FN} returns NEW values outside HERO_BIAS_VOCAB: "
+        f"{sorted(extra)}. Add them to HERO_BIAS_VOCAB (with CHANGELOG + "
+        "library_field_version bump) or remove from the function."
+    )
+    assert not missing, (
+        f"HERO_BIAS_VOCAB pins {sorted(missing)} that {_BIAS_DERIVE_FN} "
+        "no longer emits. Either restore the branch or shrink the vocab."
     )
 
 
-def test_hero_market_mode_default_in_observed_set() -> None:
-    """Pin: ``DEFAULTS['HERO_MARKET_MODE']`` is one of the observed values."""
-    from scripts.smc_hero_state import DEFAULTS
+def test_hero_market_mode_default_is_in_vocab() -> None:
+    """``DEFAULTS['HERO_MARKET_MODE']`` must be a member of the vocab."""
+    from scripts.smc_hero_state import DEFAULTS, HERO_MARKET_MODE_VOCAB
 
     default_value = DEFAULTS["HERO_MARKET_MODE"]
-    assert default_value in _OBSERVED_MARKET_MODE_VALUES, (
-        f"DEFAULTS['HERO_MARKET_MODE']={default_value!r} not in pinned "
-        f"observed set {sorted(_OBSERVED_MARKET_MODE_VALUES)}. Either "
-        "the default drifted (update DEFAULTS or this pin) or the "
-        "observed set is stale."
+    assert default_value in HERO_MARKET_MODE_VOCAB, (
+        f"DEFAULTS['HERO_MARKET_MODE']={default_value!r} not in vocab "
+        f"{sorted(HERO_MARKET_MODE_VOCAB)}."
     )
 
 
-def test_hero_market_mode_docstring_lists_observed_values() -> None:
-    """Pin: the module docstring still enumerates the observed values.
+def test_hero_bias_default_is_in_vocab() -> None:
+    """``DEFAULTS['HERO_BIAS']`` must be a member of the vocab."""
+    from scripts.smc_hero_state import DEFAULTS, HERO_BIAS_VOCAB
 
-    The line ``HERO_MARKET_MODE   : str   — e.g. "BULLISH", "BEARISH",
-    "NEUTRAL", "RISK_OFF"`` is the closest thing to a formal vocab
-    declaration. If it disappears or drifts, downstream consumers
-    (Pine TV, Streamlit dashboards) lose the only contract anchor.
-    """
+    default_value = DEFAULTS["HERO_BIAS"]
+    assert default_value in HERO_BIAS_VOCAB, (
+        f"DEFAULTS['HERO_BIAS']={default_value!r} not in vocab "
+        f"{sorted(HERO_BIAS_VOCAB)}."
+    )
+
+
+def test_hero_market_mode_docstring_lists_vocab() -> None:
+    """Module docstring must enumerate exactly ``HERO_MARKET_MODE_VOCAB``."""
     text = _HERO_STATE_PATH.read_text(encoding="utf-8")
     docstring_match = re.search(
         r'HERO_MARKET_MODE\s*:\s*str\s*\u2014\s*e\.g\.\s*("[^"]+"(?:\s*,\s*"[^"]+")*)',
@@ -106,32 +161,32 @@ def test_hero_market_mode_docstring_lists_observed_values() -> None:
     )
     assert docstring_match, (
         "HERO_MARKET_MODE docstring contract line missing or reformatted "
-        "in scripts/smc_hero_state.py. The current pin relies on this "
-        "line being the single source of truth for the value vocabulary."
+        "in scripts/smc_hero_state.py."
     )
     quoted = re.findall(r'"([^"]+)"', docstring_match.group(1))
     documented = set(quoted)
-    assert documented == _OBSERVED_MARKET_MODE_VALUES, (
-        f"HERO_MARKET_MODE docstring lists {sorted(documented)}, pin "
-        f"expected {sorted(_OBSERVED_MARKET_MODE_VALUES)}. Update one "
-        "to match the other (and bump SCHEMA_VERSION if values changed)."
+    assert documented == _EXPECTED_MARKET_MODE_VOCAB, (
+        f"HERO_MARKET_MODE docstring lists {sorted(documented)}, vocab "
+        f"is {sorted(_EXPECTED_MARKET_MODE_VOCAB)}. Sync them."
     )
 
 
-def test_hero_module_still_lacks_formal_market_mode_and_bias_vocab() -> None:
-    """Investigate-marker: this test PASSES today and documents the
-    audit gap. When a future PR introduces ``HERO_BIAS_VOCAB`` and/or
-    ``HERO_MARKET_MODE_VOCAB``, this assertion will fail and the PR
-    author should: (a) delete this test, and (b) replace
-    ``test_hero_bias_observed_values_match_pin`` with a strict
-    ``set(_derive_bias literals) == HERO_BIAS_VOCAB`` test.
-    """
-    text = _HERO_STATE_PATH.read_text(encoding="utf-8")
-    has_bias_vocab = "HERO_BIAS_VOCAB" in text
-    has_market_mode_vocab = "HERO_MARKET_MODE_VOCAB" in text
-    assert not has_bias_vocab and not has_market_mode_vocab, (
-        "scripts/smc_hero_state.py now declares HERO_BIAS_VOCAB and/or "
-        "HERO_MARKET_MODE_VOCAB. Migrate this test to a strict "
-        "frozenset-equality pin and remove this guard. See the docstring "
-        "of this test for the migration recipe."
+def test_all_hero_vocab_constants_are_frozensets() -> None:
+    """Belt-and-braces: all 5 hero vocabs are immutable frozensets."""
+    import scripts.smc_hero_state as hs
+
+    expected_vocabs = (
+        "HERO_TRUST_VOCAB",
+        "HERO_SETUP_QUALITY_VOCAB",
+        "HERO_ACTION_VOCAB",
+        "HERO_BIAS_VOCAB",
+        "HERO_MARKET_MODE_VOCAB",
     )
+    for name in expected_vocabs:
+        value = getattr(hs, name, None)
+        assert isinstance(value, frozenset), (
+            f"{name} must be exposed as a frozenset (got {type(value).__name__})."
+        )
+        assert value, f"{name} must not be empty."
+        for item in value:
+            assert isinstance(item, str), f"{name} contains non-str member: {item!r}"

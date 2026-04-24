@@ -6,6 +6,45 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Schema Versions (2026-04-24) — HERO_BIAS_VOCAB + HERO_MARKET_MODE_VOCAB formalisiert (ADR-0006)
+
+Schließt M-1 aus dem SMC System Review (PR #123): die beiden HERO-Achsen
+ohne formales Vocab erhalten jetzt Producer-A `frozenset` Konstanten in
+`scripts/smc_hero_state.py` analog zu HERO_TRUST_VOCAB / HERO_SETUP_QUALITY_VOCAB
+/ HERO_ACTION_VOCAB.
+
+- **`HERO_BIAS_VOCAB = frozenset({"LONG", "SHORT", "FLAT"})`** mit
+  benannten Konstanten `HERO_BIAS_LONG/SHORT/FLAT`. `_derive_bias`
+  nutzt jetzt diese Konstanten statt bare string-literals.
+- **`HERO_MARKET_MODE_VOCAB = frozenset({"BULLISH", "BEARISH", "NEUTRAL", "RISK_OFF"})`**
+  mit benannten Konstanten `HERO_MARKET_MODE_BULLISH/BEARISH/NEUTRAL/RISK_OFF`.
+  Vocab ist normativ für Pine-Konsumenten (`SMC_Mobile_Dashboard.pine:79`)
+  aber nicht write-time enforced — `_regime_label` ist Passthrough für
+  upstream Regime-Strings.
+
+**Pine boundary contract:** Diese Vocabs werden via
+`scripts/generate_smc_micro_profiles.py:1046-1047` als Pine const strings
+in `smc_micro_profiles_generated.pine` exportiert. Jede Vocab-Änderung
+erfordert einen `library_field_version` Bump (siehe
+[docs/adr/0006-hero-vocab-discipline.md](docs/adr/0006-hero-vocab-discipline.md)).
+
+### Documentation (2026-04-24) — ADR-0006 HERO Vocabulary Discipline
+
+[docs/adr/0006-hero-vocab-discipline.md](docs/adr/0006-hero-vocab-discipline.md):
+formalisiert die Disziplin, dass jede Pine-konsumierte HERO_*-Achse
+benannte String-Konstanten + `frozenset` + strict-pin-Test braucht.
+Begründet den `frozenset` über `Enum`/`Literal`/YAML-Manifest. Definiert
+Versionierungsregel und Migrations-Recipe.
+
+### Tests / Quality (2026-04-24) — strict HERO vocab pin (replaces observed pin)
+
+`tests/test_hero_observed_vocab_pin.py` von "observed" auf strict-mode
+migriert (ADR-0006 §4): assertet jetzt direkte frozenset-Equality gegen
+die formalen `HERO_BIAS_VOCAB` / `HERO_MARKET_MODE_VOCAB` Konstanten,
+plus AST-Walker mit Name-Resolution (kann jetzt sowohl bare-literal
+returns als auch named-constant returns aufdecken). 7 cases, alle grün.
+Migrations-Pfad aus PR #123 §"Migration recipe" befolgt.
+
 ### Documentation (2026-04-24) — SMC System Full-Surface Review report
 
 Audit-only Review nach `/memories/repo/smc-system-review-prompt-2026-04-24.md`
