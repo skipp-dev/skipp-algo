@@ -31,11 +31,15 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 TARGET_DIR = REPO_ROOT / "smc_core"
 
 # Detect equality/inequality against any float literal: 0.0, 1.5, -3.14,
-# 2e-3, etc. Integer literals are intentionally allowed (counters).
+# 2e-3, 1e6, .5, 1., etc. Integer literals are intentionally allowed
+# (counters). The float-literal alternation accepts:
+#   - decimal-with-optional-fraction (1.5, 1., 0.0) +/- exponent
+#   - leading-decimal (.5, .25e-3)
+#   - exponent-only (1e6, 2e-3)  — unambiguously float in Python
 _FLOAT_EQ_RE = re.compile(
-    r"(?:==|!=)\s*-?\d+\.\d+(?:[eE][+-]?\d+)?\b"
+    r"(?:==|!=)\s*-?(?:(?:\d+\.\d*|\.\d+)(?:[eE][+-]?\d+)?|\d+[eE][+-]?\d+)\b"
     r"|"
-    r"-?\d+\.\d+(?:[eE][+-]?\d+)?\s*(?:==|!=)"
+    r"-?(?:(?:\d+\.\d*|\.\d+)(?:[eE][+-]?\d+)?|\d+[eE][+-]?\d+)\s*(?:==|!=)"
 )
 
 
@@ -47,10 +51,18 @@ def _strip_comments_and_strings(text: str) -> str:
     """Best-effort: drop ``# ...`` to end of line, and triple-quoted
     docstrings. Single/double-quoted string literals containing ``==``
     are rare in this codebase; perfect tokenization is not required for
-    a tripwire of this scope."""
+    a tripwire of this scope.
+
+    Replace removed regions with the same number of newlines so reported
+    line numbers in violations still match the original source.
+    """
+
+    def _preserve_newlines(match: re.Match[str]) -> str:
+        return "\n" * match.group(0).count("\n")
+
     text = re.sub(r"#[^\n]*", "", text)
-    text = re.sub(r'"""[\s\S]*?"""', "", text)
-    text = re.sub(r"'''[\s\S]*?'''", "", text)
+    text = re.sub(r'"""[\s\S]*?"""', _preserve_newlines, text)
+    text = re.sub(r"'''[\s\S]*?'''", _preserve_newlines, text)
     return text
 
 
