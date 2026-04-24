@@ -536,6 +536,59 @@ from terminal_newsapi import (
 logger = logging.getLogger(__name__)
 
 
+# A-3: Bump this string whenever the *shape* of any cached/derived session_state
+# entry changes (e.g. ClassifiedItem field count, ticker_*_state schema, feed
+# row dict layout). The init block invalidates derived state when the version
+# stored in the user's session no longer matches this constant.
+# Format: ISO-date + suffix; suffix bumped within a day if multiple migrations.
+_SESSION_SCHEMA_VERSION = "2026-04-24.0"
+
+# Keys that are *derived/cached* from on-disk artifacts or upstream config.
+# They are safe to drop on a schema-version change because they will be
+# rehydrated from JSONL/SQLite on the next rerun. NEVER list user-input keys
+# (api keys, sidebar toggles, manually entered symbols) here — those would
+# silently disappear on a deploy.
+_SESSION_DERIVED_STATE_KEYS: tuple[str, ...] = (
+    "feed",
+    "live_story_state",
+    "cursor",
+    "provider_cursors",
+    "ticker_catalyst_state",
+    "ticker_reaction_state",
+    "ticker_resolution_state",
+    "ticker_posture_state",
+    "ticker_attention_state",
+    "_cached_technicals",
+    "total_items_ingested",
+)
+
+
+def _invalidate_session_state_on_schema_change() -> None:
+    """Drop derived session_state when SCHEMA version bumps.
+
+    Idempotent: if the version already matches, this is a no-op. Run BEFORE
+    any of the lazy ``if "feed" not in st.session_state`` init guards so the
+    next checks recreate the dropped entries with the new shape.
+    """
+    current = st.session_state.get("_session_schema_ver")
+    if current == _SESSION_SCHEMA_VERSION:
+        return
+    dropped: list[str] = []
+    for key in _SESSION_DERIVED_STATE_KEYS:
+        if key in st.session_state:
+            del st.session_state[key]
+            dropped.append(key)
+    st.session_state["_session_schema_ver"] = _SESSION_SCHEMA_VERSION
+    if current is not None:
+        logger.info(
+            "Session schema version changed %s → %s; invalidated %d derived keys (%s)",
+            current,
+            _SESSION_SCHEMA_VERSION,
+            len(dropped),
+            ", ".join(dropped) if dropped else "none",
+        )
+
+
 def _build_test_terminal_config() -> TerminalConfig:
     cfg = TerminalConfig()
     overrides: dict[str, Any] = {}
@@ -1442,6 +1495,11 @@ def _resync_feed_from_jsonl() -> None:
             st.session_state["provider_cursors"] = dict(result.provider_cursors)
 
     st.session_state.last_resync_ts = time.time()
+
+
+# A-3: Invalidate stale derived state BEFORE the lazy init guards below so that
+# a schema bump cleanly rebuilds feed/ticker_*_state with the new shape.
+_invalidate_session_state_on_schema_change()
 
 
 if "cfg" not in st.session_state:
