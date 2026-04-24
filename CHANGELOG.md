@@ -6,6 +6,22 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Tests / Quality (2026-04-24) — `time.sleep(...)` frozen-inventory budget
+
+- Neuer Pin [`tests/test_time_sleep_budget.py`](tests/test_time_sleep_budget.py)
+  friert die aktuelle Inventur von 26 `time.sleep(...)`-Sites in
+  First-Party-Production ein. Alle 26 sind legitim:
+  - Rate-Limit zwischen API-Calls (TradingView 429, FMP, Benzinga)
+  - Retry-Backoff (exponential `2 ** attempt`)
+  - Inter-Poll-Throttle (Streamlit/realtime poll loops)
+  - SQLite-Contention-Backoff
+- Drei Schichten: no-new-sites Tripwire + parametrisierter Stale-Site-
+  Guard + bidirektionale Inventur-Parity. Jede neue `time.sleep`-Site
+  fordert bewussten Review (asyncio? threaded worker? statt
+  fixed wall-clock pause? `await asyncio.sleep(...)`?).
+- 29 Tests grün, keine Produktions-Anpassungen nötig. Closes
+  "stiller Event-Loop-Block / Spin-Wait rutscht rein" Bug-Klasse.
+
 ### Tests / Quality (2026-04-24) — `except Exception: pass` defense pin (frozen-inventory budget)
 
 Defense-Pin friert die aktuelle Anzahl und exakten Locations aller
