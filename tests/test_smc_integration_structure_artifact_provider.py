@@ -51,7 +51,7 @@ def test_structure_artifact_provider_resolves_manifest_artifact(monkeypatch, tmp
 
     manifest = write_structure_artifacts_from_workbook(
         workbook=WORKBOOK_PATH,
-        timeframe="15m",
+        timeframe="1D",
         symbols=["AAPL"],
         output_dir=artifact_dir,
         generated_at=1709253600.0,
@@ -62,7 +62,7 @@ def test_structure_artifact_provider_resolves_manifest_artifact(monkeypatch, tmp
     monkeypatch.setattr(structure_artifact_json, "STRUCTURE_ARTIFACTS_DIR", artifact_dir)
     monkeypatch.setattr(structure_artifact_json, "STRUCTURE_ARTIFACT_JSON", tmp_path / "does_not_exist.json")
 
-    raw_structure = structure_artifact_json.load_raw_structure_input("AAPL", "15m")
+    raw_structure = structure_artifact_json.load_raw_structure_input("AAPL", "1D")
     structure = build_structure_from_raw(raw_structure)
 
     assert set(raw_structure.keys()) == {"bos", "orderblocks", "fvg", "liquidity_sweeps"}

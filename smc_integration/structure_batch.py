@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -13,6 +14,9 @@ from scripts.explicit_structure_profiles import EVENT_LOGIC_VERSION, validate_st
 from scripts.load_databento_export_bundle import load_export_bundle
 from smc_core.schema_version import SCHEMA_VERSION
 from smc_integration.artifact_resolution import resolve_structure_artifact_inputs
+from smc_integration.timeframes import is_daily_timeframe
+
+logger = logging.getLogger(__name__)
 DEFAULT_WORKBOOK = Path("artifacts/smc_microstructure_exports/databento_volatility_production_workbook.xlsx")
 DEFAULT_OUTPUT_DIR = Path("reports") / "smc_structure_artifacts"
 DEFAULT_EXPORT_DIR = Path("artifacts") / "smc_microstructure_exports"
@@ -20,21 +24,28 @@ DEFAULT_EXPORT_DIR = Path("artifacts") / "smc_microstructure_exports"
 def _load_symbol_bars_from_canonical_exports(symbol: str, timeframe: str, export_dir: Path | None) -> pd.DataFrame | None:
     if export_dir is None:
         return None
-    required_frames = ("daily_bars",) if str(timeframe).strip() == "1D" else ("full_universe_second_detail_open",)
+    required_frames = ("daily_bars",) if is_daily_timeframe(timeframe) else ("full_universe_second_detail_open",)
     try:
         bundle = load_export_bundle(
             export_dir,
             required_frames=required_frames,
             manifest_prefix="databento_volatility_production_",
         )
-    except Exception:
+    except Exception as exc:
+        logger.warning(
+            "canonical export bundle unavailable for symbol=%s timeframe=%s export_dir=%s: %s",
+            symbol,
+            timeframe,
+            export_dir,
+            exc,
+        )
         return None
 
     frames = bundle.get("frames", {})
     symbol_name = str(symbol).strip().upper()
     canonical_tf = str(timeframe).strip()
 
-    if canonical_tf == "1D":
+    if is_daily_timeframe(canonical_tf):
         daily = frames.get("daily_bars")
         if isinstance(daily, pd.DataFrame) and not daily.empty:
             bars = daily.copy()
@@ -66,6 +77,12 @@ def _load_symbol_bars_from_canonical_exports(symbol: str, timeframe: str, export
 
 
 def _load_symbol_bars_from_workbook(workbook: Path, symbol: str) -> pd.DataFrame:
+    """Load daily OHLC bars for ``symbol`` from the production workbook.
+
+    The workbook only ships the ``daily_bars`` sheet, so this helper is
+    intentionally daily-only. Callers MUST NOT use it for intraday timeframes
+    or they will silently feed daily OHLC into intraday structure detection.
+    """
     daily_bars = pd.read_excel(workbook, sheet_name="daily_bars")
     bars = daily_bars.copy()
     bars["symbol"] = bars.get("symbol", "").astype(str).str.strip().str.upper()
@@ -212,6 +229,23 @@ def build_single_symbol_structure_artifact(
     canonical_bars = _load_symbol_bars_from_canonical_exports(resolved_symbol, timeframe, export_bundle_root)
     source_mode = "canonical_export_bundle"
     if canonical_bars is None or canonical_bars.empty:
+        if not is_daily_timeframe(timeframe):
+            # The workbook only ships ``daily_bars``; using it for an intraday
+            # timeframe would feed daily OHLC into ``build_explicit_structure_from_bars``
+            # under an intraday label, silently producing wrong-frequency structure.
+            # Refuse instead of producing a misleading artifact. The message is
+            # verbose on purpose: this error surfaces through the per-symbol
+            # ``errors[]`` of the batch manifest, so an on-call operator must be
+            # able to triage and remediate from a single log line.
+            raise ValueError(
+                f"Workbook fallback is only supported for 1D (daily) timeframe; "
+                f"got timeframe={timeframe!r} for symbol={resolved_symbol}. "
+                "The production workbook contains only the 'daily_bars' sheet, so "
+                "intraday timeframes require a canonical export bundle with the "
+                "'full_universe_second_detail_open' parquet frame. "
+                "Fix: provide --export-bundle-root pointing to an intraday-enabled "
+                "bundle, or change --timeframe to 1D."
+            )
         if workbook is None:
             raise ValueError("missing structure input: neither export bundle root nor workbook is available")
         canonical_bars = _load_symbol_bars_from_workbook(workbook, resolved_symbol)

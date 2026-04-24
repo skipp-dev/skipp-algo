@@ -36,9 +36,33 @@ def _resolve_manifest_from_directory(
     manifest_prefix: str | None = None,
 ) -> Path | None:
     required = set(required_frames or ())
-    for manifest_path in _manifest_candidates(directory, manifest_prefix=manifest_prefix):
-        if (not required or required.issubset(_manifest_frame_names(manifest_path))) and _manifest_json_is_parseable(manifest_path):
-            return manifest_path
+    candidates = _manifest_candidates(directory, manifest_prefix=manifest_prefix)
+    parseable_empty: Path | None = None
+    for manifest_path in candidates:
+        if not _manifest_json_is_parseable(manifest_path):
+            continue
+        frame_names = _manifest_frame_names(manifest_path)
+        if not frame_names:
+            # Sub-manifests (e.g. ``..._smc_microstructure_base_manifest.json``)
+            # match the same ``{prefix}*_manifest.json`` glob but reference no
+            # sibling ``{basename}__*.parquet`` frames. When a real
+            # frame-bearing manifest also lives in the directory, skipping the
+            # empty one prevents the sub-manifest from hijacking default
+            # selection (and silently returning an empty bundle).
+            #
+            # However, when *no* frame-bearing manifest is present the empty
+            # manifest is a legitimate standalone metadata file (e.g. an
+            # exact-named watchlist export whose parquets are not bundle-
+            # prefixed). We fall back to it below so metadata discovery keeps
+            # working for those flows.
+            if parseable_empty is None:
+                parseable_empty = manifest_path
+            continue
+        if required and not required.issubset(frame_names):
+            continue
+        return manifest_path
+    if not required:
+        return parseable_empty
     return None
 
 

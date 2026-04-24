@@ -2151,6 +2151,12 @@ def test_build_data_status_result_prefers_older_parseable_manifest(tmp_path: Pat
 def test_resolve_manifest_path_accepts_directory_and_basename(tmp_path: Path) -> None:
     manifest_path = tmp_path / "bundle_20260307_120000_manifest.json"
     manifest_path.write_text("{}", encoding="utf-8")
+    # A resolvable bundle must have at least one sibling parquet frame; a manifest
+    # without siblings is a sub-manifest / orphan and is intentionally skipped by
+    # ``_resolve_manifest_from_directory`` so it cannot hijack default selection.
+    pd.DataFrame({"symbol": ["AAA"]}).to_parquet(
+        tmp_path / "bundle_20260307_120000__daily_bars.parquet", index=False
+    )
 
     assert resolve_manifest_path(tmp_path) == manifest_path
     assert resolve_manifest_path(tmp_path / "bundle_20260307_120000") == manifest_path

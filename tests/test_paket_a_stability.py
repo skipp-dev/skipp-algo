@@ -160,7 +160,7 @@ class TestA3StructureResolutionMode:
         workbook = Path(__file__).resolve().parents[1] / "databento_volatility_production_20260307_114724.xlsx"
         write_structure_artifacts_from_workbook(
             workbook=workbook,
-            timeframe="15m",
+            timeframe="1D",
             symbols=["AAPL"],
             output_dir=artifact_dir,
             generated_at=1709253600.0,
@@ -170,7 +170,7 @@ class TestA3StructureResolutionMode:
         monkeypatch.setattr(structure_artifact_json, "STRUCTURE_ARTIFACTS_DIR", artifact_dir)
         monkeypatch.setattr(structure_artifact_json, "STRUCTURE_ARTIFACT_JSON", tmp_path / "nonexistent.json")
 
-        mode = structure_artifact_json.resolve_artifact_mode("AAPL", "15m")
+        mode = structure_artifact_json.resolve_artifact_mode("AAPL", "1D")
         assert mode == "manifest"
 
     def test_resolve_mode_legacy_single(self, monkeypatch, tmp_path: Path) -> None:
