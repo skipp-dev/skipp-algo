@@ -2376,11 +2376,16 @@ build_dynamic_alert_message(bool enabled, bool condition, string event_name, str
     else
         ''
 
+// T-1 (Temporal-Numerical Audit 2026-04-24): bar-close gate.
+// Vorher: `alert.freq_all` + kein `barstate.isconfirmed`-Guard ließ dynamische
+// Long-Alerts (Strict/Best/Ready/Confirmed/Clean/Early/Armed/Watchlist) intrabar
+// feuern und mutierte `seen_keys` schon vor dem Close, wodurch ein
+// Bar-Close-Alert dann unterdrückt wurde. Jetzt: nur am bestätigten Bar-Close.
 emit_dynamic_alert_if_allowed(string seen_keys, bool event_active, string seen_key, string event_name, string detail, float level, int direction, float ltf_bull_share, float ltf_volume_delta, bool ltf_price_only_context, string mode_text) =>
     next_seen_keys = seen_keys
-    if event_active and not str.contains(seen_keys, seen_key)
+    if event_active and barstate.isconfirmed and not str.contains(seen_keys, seen_key)
         next_seen_keys := seen_keys + seen_key
-        alert(build_dynamic_alert_message(true, true, event_name, detail, level, direction, ltf_bull_share, ltf_volume_delta, ltf_price_only_context, mode_text), alert.freq_all)
+        alert(build_dynamic_alert_message(true, true, event_name, detail, level, direction, ltf_bull_share, ltf_volume_delta, ltf_price_only_context, mode_text), alert.freq_once_per_bar_close)
     next_seen_keys
 
 emit_priority_long_dynamic_alerts(string seen_keys, bool already_sent, bool invalidated_active, bool strict_active, bool best_active, bool ready_active, bool confirmed_active, bool clean_active, bool early_active, bool armed_plus_active, bool armed_active, bool watchlist_active, string long_invalidated_alert_key, string long_invalidated_alert_name, string long_entry_strict_alert_key, string long_entry_strict_alert_name, string long_entry_best_alert_key, string long_entry_best_alert_name, string long_ready_alert_key, string long_ready_alert_name, string long_confirmed_alert_key, string long_confirmed_alert_name, string long_clean_alert_key, string long_clean_alert_name, string long_early_alert_key, string long_early_alert_name, string long_armed_plus_alert_key, string long_armed_plus_alert_name, string long_armed_alert_key, string long_armed_alert_name, string long_watchlist_alert_key, string long_watchlist_alert_name, string long_setup_source_display, string long_strict_alert_suffix, string long_environment_alert_suffix, string long_micro_alert_suffix, string long_score_detail_suffix, string signal_mode_text, float ltf_bull_share_context, float ltf_volume_delta_context, bool ltf_price_only_context, string long_last_invalid_source, float long_last_invalid_level, float long_trigger_level, float long_invalidation_level, float long_entry_strict_alert_level, float long_entry_best_alert_level, float long_clean_alert_level, float long_early_alert_level, float long_watchlist_alert_level) =>
