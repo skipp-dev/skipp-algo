@@ -1044,3 +1044,103 @@ def test_cli_corpus_manifest_hash_override(tmp_path: Path) -> None:
     payload = json.loads(out.read_text(encoding="utf-8"))
     assert payload["frozen_provenance"]["benchmark_manifest_sha256"] == explicit
 
+
+
+# ── Walk-forward CV (audit S-1) ──────────────────────────────────
+
+
+from scripts.smc_zone_priority_calibration import compute_walk_forward_cv_hr
+
+
+def _write_cv_corpus(tmp_path: Path, n_files: int = 6) -> None:
+    """Write n_files scoring files with monotonically decreasing OB HR
+    so folds produce non-trivial mean/std."""
+    for i in range(n_files):
+        sym = f"SYM{i:02d}"
+        hr = 0.9 - 0.05 * i  # 0.90, 0.85, 0.80, ...
+        _write_scoring(tmp_path, sym, "15m", _make_scoring(sym, "15m", {
+            "OB": {"n_events": 20, "hit_rate": hr},
+            "FVG": {"n_events": 10, "hit_rate": 0.55},
+        }))
+
+
+def test_walk_forward_cv_returns_per_family_block(tmp_path: Path) -> None:
+    _write_cv_corpus(tmp_path, n_files=6)
+    cv = compute_walk_forward_cv_hr(tmp_path, n_splits=3)
+
+    assert cv["n_splits"] == 3
+    assert cv["n_files_total"] == 6
+    assert "OB" in cv["per_family"]
+    ob = cv["per_family"]["OB"]
+    assert "cv_hr_mean" in ob
+    assert "cv_hr_std" in ob
+    assert len(ob["cv_hr_folds"]) == 3
+    assert all(0.0 <= hr <= 1.0 for hr in ob["cv_hr_folds"])
+    # decreasing HR series → first fold > last fold
+    assert ob["cv_hr_folds"][0] > ob["cv_hr_folds"][-1]
+    # std must be finite & strictly positive for non-constant folds
+    assert ob["cv_hr_std"] > 0.0
+
+
+def test_walk_forward_cv_constant_hr_zero_std(tmp_path: Path) -> None:
+    for i in range(4):
+        sym = f"SYM{i:02d}"
+        _write_scoring(tmp_path, sym, "15m", _make_scoring(sym, "15m", {
+            "OB": {"n_events": 10, "hit_rate": 0.70},
+        }))
+    cv = compute_walk_forward_cv_hr(tmp_path, n_splits=2)
+    ob = cv["per_family"]["OB"]
+    assert ob["cv_hr_mean"] == 0.70
+    assert ob["cv_hr_std"] == 0.0
+
+
+def test_walk_forward_cv_rejects_too_few_files(tmp_path: Path) -> None:
+    _write_scoring(tmp_path, "AAPL", "15m", _make_scoring("AAPL", "15m", {
+        "OB": {"n_events": 10, "hit_rate": 0.50},
+    }))
+    with pytest.raises(ValueError, match="at least n_splits"):
+        compute_walk_forward_cv_hr(tmp_path, n_splits=5)
+
+
+def test_walk_forward_cv_rejects_n_splits_lt_2(tmp_path: Path) -> None:
+    _write_scoring(tmp_path, "AAPL", "15m", _make_scoring("AAPL", "15m", {
+        "OB": {"n_events": 10, "hit_rate": 0.50},
+    }))
+    with pytest.raises(ValueError, match="n_splits"):
+        compute_walk_forward_cv_hr(tmp_path, n_splits=1)
+
+
+def test_calibrate_from_benchmark_attaches_cv_block(tmp_path: Path) -> None:
+    _write_cv_corpus(tmp_path, n_files=6)
+    cal = calibrate_from_benchmark(tmp_path, cv_n_splits=3)
+
+    assert cal.walk_forward_cv is not None
+    assert cal.walk_forward_cv["n_splits"] == 3
+    assert "OB" in cal.walk_forward_cv["per_family"]
+
+
+def test_calibrate_from_benchmark_omits_cv_when_corpus_too_small(
+    tmp_path: Path,
+) -> None:
+    _write_scoring(tmp_path, "AAPL", "15m", _make_scoring("AAPL", "15m", {
+        "OB": {"n_events": 10, "hit_rate": 0.80},
+    }))
+    cal = calibrate_from_benchmark(tmp_path, cv_n_splits=5)
+    assert cal.walk_forward_cv is None
+
+
+def test_to_json_includes_cv_block_when_present(tmp_path: Path) -> None:
+    _write_cv_corpus(tmp_path, n_files=6)
+    cal = calibrate_from_benchmark(tmp_path, cv_n_splits=3)
+    payload = to_json(cal)
+    assert "walk_forward_cv" in payload
+    assert payload["walk_forward_cv"]["n_splits"] == 3
+
+
+def test_to_json_omits_cv_block_when_absent(tmp_path: Path) -> None:
+    _write_scoring(tmp_path, "AAPL", "15m", _make_scoring("AAPL", "15m", {
+        "OB": {"n_events": 10, "hit_rate": 0.80},
+    }))
+    cal = calibrate_from_benchmark(tmp_path, cv_n_splits=5)
+    payload = to_json(cal)
+    assert "walk_forward_cv" not in payload
