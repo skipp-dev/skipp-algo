@@ -100,7 +100,12 @@ def _build_keyword_patterns(symbols: list[str]) -> dict[str, re.Pattern[str]]:
     return patterns
 
 
-@lru_cache(maxsize=None)
+# Bounded cache (A-2): the per-symbol compiled-regex cache is keyed by ticker.
+# Universe is ~500 symbols typical, ~1k worst-case. maxsize=1024 keeps memory
+# bounded across long-running workers without measurable thrash for in-scope
+# universes; oversized universes degrade to recompiling least-recently-used
+# patterns (which is strictly cheaper than the previous unbounded growth).
+@lru_cache(maxsize=1024)
 def _strict_market_context_pattern(symbol: str) -> re.Pattern[str]:
     escaped = re.escape(symbol)
     return re.compile(
@@ -109,7 +114,7 @@ def _strict_market_context_pattern(symbol: str) -> re.Pattern[str]:
     )
 
 
-@lru_cache(maxsize=None)
+@lru_cache(maxsize=1024)  # A-2: bounded; see _strict_market_context_pattern.
 def _uppercase_exact_pattern(symbol: str) -> re.Pattern[str]:
     escaped = re.escape(symbol)
     return re.compile(rf"(?<![A-Za-z0-9])\$?{escaped}(?![A-Za-z0-9])")
