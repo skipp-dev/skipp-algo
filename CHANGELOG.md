@@ -6,6 +6,43 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Tests / Quality (2026-04-24) — Audit-Followup Pins (workflow continue-on-error / raw write call sites / Pine legacy isolation / Pine active surface inventory)
+
+Vier additive Inventory-Pin-Tests, die die im Audit (PR #123) gefundenen
+Observability-Lücken auf konkrete Allowlists herunterbrechen. Pure
+stdlib, zero source changes.
+
+- **`tests/test_workflow_continue_on_error_inventory.py`** (~120 LOC,
+  4 cases): pinnt die exakten 12 `continue-on-error: true` Vorkommen
+  über 5 Workflows (smc-live-newsapi-refresh, smc-library-refresh ×6,
+  smc-deeper-integration-gates ×2, plan-2-8-weekly-digest ×3,
+  smc-release-gates) auf konkrete Zeilennummern. Schließt M-2 aus dem
+  Audit. Failure zwingt zu expliziter Begründung im Allowlist-Kommentar.
+  Korrigiert die Audit-Behauptung "nur 2 Workflows" — tatsächlich 5.
+- **`tests/test_atomic_write_call_sites.py`** (~165 LOC, 4 cases):
+  AST-basierter Sweep findet alle `open(..., "w"/"wb"/"x"/"a")`,
+  `Path.open(...)`, `os.fdopen(...)` Schreib-Call-Sites in
+  `scripts/`. 14 erlaubte Files mit Begründung in `_ALLOWED_RAW_WRITE_FILES`
+  (alle entweder `os.fdopen+os.replace` atomic-Pattern, append-mode
+  JSONL, oder one-shot CSV nicht im Pipeline-Konsum). Schließt I-1
+  Triage-Frage aus dem Audit (1003 vs 92 war grep-noise; echte Zahl
+  ~14). Pin-Test pruned zusätzlich stale Allowlist-Einträge.
+- **`tests/test_pine_legacy_isolation.py`** (~155 LOC, 4 cases):
+  pinnt die 23 legacy `*.pine` Files unter `pine/legacy/` als exakte
+  Inventory, verbietet Re-Introduktion am Repo-Root, und assertet
+  dass nur explizit erlaubte Tooling-Files (`smc_bus_manifest.py`,
+  `smc_file_lifecycle.py`, `smc_surface_matrix.py`,
+  `pine_apply_surface_reduction.py`, `test_usi_lint.py`) legacy-Namen
+  referenzieren dürfen. Audit-Item G/H zusammengefasst.
+- **`tests/test_pine_active_surface_inventory.py`** (~95 LOC, 4 cases):
+  pinnt die 30-File aktive Pine-Oberfläche (17 Root-Orchestratoren +
+  5 `pine/skipp_*.pine` Libraries + 8 `SMC++/smc_*.pine` private
+  Libraries). Neue `*.pine` am Root zwingt zu expliziter Klassifikation
+  (Orchestrator vs Library vs Legacy). Audit-Item H Inventory.
+
+Verifikation: `21 passed in 5.28s` für die 4 neuen Module. Zero source
+changes. Pure stdlib (respects ADR-0005).
+
 ### Tests / Quality (2026-04-24) — BH property test, Brier/ECE closed-form pin, SPRT boundary precision, CHANGELOG category lint
 
 Four additive, source-untouched test modules tightening the
