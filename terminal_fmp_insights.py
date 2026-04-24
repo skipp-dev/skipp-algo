@@ -22,6 +22,7 @@ from typing import Any, cast
 import httpx
 
 from open_prep_boundary import FMPClientLike, make_fmp_client
+from smc_core.resilient import resilient
 
 logger = logging.getLogger(__name__)
 
@@ -346,6 +347,44 @@ class FMPLLMResponse:
     error: str = ""
 
 
+class _OpenAIEmptyChoices(Exception):
+    """Internal sentinel: OpenAI returned a 200 with no choices."""
+
+
+@resilient(
+    retries=2,
+    base_delay=2.0,
+    max_delay=2.0,
+    exceptions=(httpx.ReadTimeout,),
+    on_retry=lambda exc, attempt, delay: logger.warning(
+        "OpenAI read timeout (attempt %d), retrying in %.1fs\u2026", attempt, delay,
+    ),
+)
+def _call_openai_chat(payload: dict[str, Any], api_key: str) -> str:
+    """Single-shot OpenAI chat-completion call.
+
+    Retries only on ``httpx.ReadTimeout`` (handled by ``@resilient``).
+    Raises ``httpx.HTTPStatusError`` on non-2xx responses (caller decides
+    how to surface), and ``_OpenAIEmptyChoices`` when the API returns a
+    200 with an empty ``choices`` array.
+    """
+    with httpx.Client(timeout=_API_TIMEOUT) as client:
+        resp = client.post(
+            "https://api.openai.com/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
+            json=payload,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+    choices = data.get("choices") or []
+    if not choices:
+        raise _OpenAIEmptyChoices()
+    return choices[0].get("message", {}).get("content", "").strip()
+
+
 def query_fmp_llm(
     question: str,
     context_json: str,
@@ -403,59 +442,40 @@ def query_fmp_llm(
         "temperature": temperature,
     }
 
-    _MAX_RETRIES = 2
-    for _attempt in range(1, _MAX_RETRIES + 1):
-        try:
-            with httpx.Client(timeout=_API_TIMEOUT) as client:
-                resp = client.post(
-                    "https://api.openai.com/v1/chat/completions",
-                    headers={
-                        "Authorization": f"Bearer {api_key}",
-                        "Content-Type": "application/json",
-                    },
-                    json=payload,
-                )
-                resp.raise_for_status()
-                data = resp.json()
-                choices = data.get("choices") or []
-                if not choices:
-                    return FMPLLMResponse(
-                        answer="", model=model, cached=False,
-                        context_articles=n_articles, context_tickers=n_tickers,
-                        fmp_tickers=n_fmp,
-                        error="OpenAI returned empty choices",
-                    )
-                answer = choices[0].get("message", {}).get("content", "").strip()
-                break  # success
-        except httpx.ReadTimeout:
-            if _attempt < _MAX_RETRIES:
-                logger.warning("OpenAI read timeout (attempt %d/%d), retrying…", _attempt, _MAX_RETRIES)
-                time.sleep(2)
-                continue
-            return FMPLLMResponse(
-                answer="", model=model, cached=False,
-                context_articles=n_articles, context_tickers=n_tickers,
-                fmp_tickers=n_fmp,
-                error="OpenAI API read timeout after retries — try a simpler question or retry.",
-            )
-        except httpx.HTTPStatusError as exc:
-            _safe = _APIKEY_RE.sub(r"\1=***", str(exc))
-            logger.warning("OpenAI API error (FMP AI): %s", _safe, exc_info=True)
-            return FMPLLMResponse(
-                answer="", model=model, cached=False,
-                context_articles=n_articles, context_tickers=n_tickers,
-                fmp_tickers=n_fmp,
-                error=f"OpenAI API error: {exc.response.status_code}",
-            )
-        except Exception as exc:
-            _safe = _APIKEY_RE.sub(r"\1=***", str(exc))
-            logger.warning("OpenAI query failed (FMP AI): %s", _safe, exc_info=True)
-            return FMPLLMResponse(
-                answer="", model=model, cached=False,
-                context_articles=n_articles, context_tickers=n_tickers,
-                fmp_tickers=n_fmp,
-                error=f"Query failed: {_safe}",
-            )
+    try:
+        answer = _call_openai_chat(payload, api_key)
+    except httpx.ReadTimeout:
+        return FMPLLMResponse(
+            answer="", model=model, cached=False,
+            context_articles=n_articles, context_tickers=n_tickers,
+            fmp_tickers=n_fmp,
+            error="OpenAI API read timeout after retries — try a simpler question or retry.",
+        )
+    except httpx.HTTPStatusError as exc:
+        _safe = _APIKEY_RE.sub(r"\1=***", str(exc))
+        logger.warning("OpenAI API error (FMP AI): %s", _safe, exc_info=True)
+        return FMPLLMResponse(
+            answer="", model=model, cached=False,
+            context_articles=n_articles, context_tickers=n_tickers,
+            fmp_tickers=n_fmp,
+            error=f"OpenAI API error: {exc.response.status_code}",
+        )
+    except _OpenAIEmptyChoices:
+        return FMPLLMResponse(
+            answer="", model=model, cached=False,
+            context_articles=n_articles, context_tickers=n_tickers,
+            fmp_tickers=n_fmp,
+            error="OpenAI returned empty choices",
+        )
+    except Exception as exc:
+        _safe = _APIKEY_RE.sub(r"\1=***", str(exc))
+        logger.warning("OpenAI query failed (FMP AI): %s", _safe, exc_info=True)
+        return FMPLLMResponse(
+            answer="", model=model, cached=False,
+            context_articles=n_articles, context_tickers=n_tickers,
+            fmp_tickers=n_fmp,
+            error=f"Query failed: {_safe}",
+        )
 
     _set_cached(ck, answer)
     return FMPLLMResponse(

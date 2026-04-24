@@ -75,6 +75,12 @@
     identisch (gleiche retriable HTTP-Codes, gleiche Fail-Fast für
     404/401/403, gleiche Anzahl Versuche), Backoff jetzt exponentiell
     mit Full-Jitter statt linear. Regression-Test bestätigt das Wiring.
+  - **Zweite Migration (OpenAI in `terminal_fmp_insights._call_openai_chat`)**:
+    `@resilient(retries=2, base_delay=2.0, max_delay=2.0,
+    exceptions=(httpx.ReadTimeout,), on_retry=…)`. Retry nur auf
+    Read-Timeouts, fail-fast auf `HTTPStatusError`. Neue Sentinel-
+    Exception `_OpenAIEmptyChoices` für 200-mit-leeren-Choices.
+    4 neue Tests in `tests/test_terminal_fmp_insights_resilient.py`.
   - **Reality-Check (`terminal_finnhub.py:_get`)**: bewusst **nicht**
     migriert. Modul läuft auf der Streamlit-UI-Thread; `@resilient`
     blockiert per Design die aufrufende Thread für `base_delay·2^retries`
