@@ -67,6 +67,7 @@ jobs:
         if: steps.gate.outputs.run_heavy == 'true'
         run: |
           python -m pytest -q --maxfail=1 \
+            -n auto --dist=loadfile \
             --cov=smc_integration \
             --cov-fail-under=95 \
             --cov-report=term-missing:skip-covered \
@@ -82,6 +83,7 @@ jobs:
           mkdir -p artifacts/ci
           set -o pipefail
           python -m pytest -q --maxfail=1 \
+            -n auto --dist=loadfile \
             --cov-fail-under=20 \
             --cov=streamlit_terminal \
             --cov=streamlit_terminal_alerts \

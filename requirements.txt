@@ -20,4 +20,5 @@ arch>=7.2.0
 certifi>=2024.0.0
 coverage>=7.6.0
 pytest-cov>=6.0.0
+pytest-xdist>=3.6.0
 PyYAML>=6.0

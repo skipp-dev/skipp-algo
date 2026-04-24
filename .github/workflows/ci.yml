@@ -60,7 +60,7 @@ jobs:
       - name: Run Python tests
         if: steps.gate.outputs.run_heavy == 'true'
         run: |
-          python -m pytest -q --maxfail=1 --cov --cov-report=term-missing:skip-covered
+          python -m pytest -q --maxfail=1 -n auto --dist=loadfile --cov --cov-report=term-missing:skip-covered
       - name: E2E structural smoke test
         if: steps.gate.outputs.run_heavy == 'true'
         run: python scripts/e2e_smoke_ci.py
