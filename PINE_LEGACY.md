@@ -11,23 +11,42 @@
 ## Why an index instead of a `git mv` to `pine/legacy/`?
 
 A physical move was the audit's recommendation, but it has real blast
-radius:
+radius. The blockers fall into two tiers:
 
+**Tier-1 — bare-filename lookup keys (architectural).** Several modules
+resolve Pine files by **bare basename**, not by relative path:
+
+- [`scripts/smc_bus_manifest.py`](scripts/smc_bus_manifest.py) —
+  `SURFACE_DEFINITIONS[*].file` and the `NON_SMC_PINE_FILES` frozenset
+  both store bare names (`'QuickALGO.pine'`, `'USI.pine'`, …).
+- [`scripts/smc_file_lifecycle.py`](scripts/smc_file_lifecycle.py) —
+  `EXPLICIT_OVERRIDES` and `SURFACE_MATRIX[*].name` use bare names;
+  `classify_file(filename)` does dict lookup by basename.
 - [`pine_apply_surface_reduction.py`](pine_apply_surface_reduction.py#L569)
-  hard-codes `"QuickALGO.pine"`, `"SkippALGO.pine"`, `"SkippALGO_Strategy.pine"`.
+  hard-codes `["QuickALGO.pine", "SkippALGO.pine", "SkippALGO_Strategy.pine"]`.
+
+A physical move to `pine/legacy/` either (a) requires a sweeping
+refactor of every consumer to use relative paths, or (b) needs a
+path-resolution shim layer that recovers a file from its bare name.
+Neither is a single-PR change — it deserves a mini-RFC.
+
+**Tier-2 — verbatim references (mechanical sed scope).**
+
 - [`test_usi_lint.py`](test_usi_lint.py#L78) defaults `sys.argv[1]` to
   `"USI.pine"`.
-- [`README.md`](README.md), [`CHANGELOG.md`](CHANGELOG.md), and several
-  `docs/*.md` files reference the root paths verbatim.
+- [`README.md`](README.md), [`CHANGELOG.md`](CHANGELOG.md),
+  [`docs/smc_product_map_2026-04-16.md`](docs/smc_product_map_2026-04-16.md)
+  and several `docs/*.md` files reference the root paths verbatim.
 - Operators may have **TradingView "saved scripts" with the root paths**
   recorded in their script-source URLs.
 
-The audit's intent — *"klar als legacy markieren, separates Backlog"* —
-is delivered by this index: every file's status is now machine-grep-able
-and visible at the root level without changing any path.
+Tier-2 alone is mechanical; Tier-1 is the real blocker. The audit's
+intent — *"klar als legacy markieren, separates Backlog"* — is
+delivered by this index plus the drift-lint described below.
 
-A future physical move stays an option (D-1 v2). When that happens,
-the consumers above must be updated atomically with the moves.
+A future physical move stays an option (D-1 v2). When it happens, all
+the consumers above must be updated atomically with the moves and the
+bare-name lookup convention has to be either replaced or wrapped.
 
 ## Active SMC suite (DO NOT touch in legacy sweeps)
 
@@ -121,5 +140,10 @@ When adding a new `.pine` file at the repo root:
 2. If it is a one-off / experiment → add to **Legacy / standalone**
    here with the LOC and a one-line note.
 
-Drift detection is currently manual; a CI lint that diffs the root
-`*.pine` set against this file is a follow-up if D-1 v2 is delayed.
+**Drift detection is enforced in CI.**
+[`scripts/check_pine_legacy_drift.py`](scripts/check_pine_legacy_drift.py)
+runs as part of [`smc-fast-pr-gates`](.github/workflows/smc-fast-pr-gates.yml)
+and fails the build whenever:
+
+- A root-level `*.pine` file is missing from this index, **or**
+- A file mentioned in this index is missing from the repo root.
