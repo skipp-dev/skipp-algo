@@ -6,6 +6,17 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Tests / Quality (2026-04-24) — `nonlocal` keyword frozen-inventory budget
+
+- Neuer Pin [`tests/test_nonlocal_budget.py`](tests/test_nonlocal_budget.py)
+  fixiert die 5 bekannten `nonlocal`-Sites (4× progress-bar-Closure in
+  `databento_volatility_screener.py`, 1× weighted-aggregate Accumulator
+  in `smc_core/ensemble_quality.py`). Drei-Schicht-Schutz:
+  Tripwire gegen neue Sites, parametrisierter Stale-Site-Test und
+  Inventur-Parität. Per-Site Namen-Tuple wird gefroren — fängt also
+  auch stille Erweiterungen einer bestehenden `nonlocal`-Deklaration.
+- Defense-only, keine Production-Änderungen.
+
 ### Tests / Quality (2026-04-24) — no eager-format in `logger.<level>(...)` calls
 
 - Neuer Pin [`tests/test_no_eager_format_in_logger_calls.py`](tests/test_no_eager_format_in_logger_calls.py)
