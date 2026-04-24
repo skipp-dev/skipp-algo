@@ -48,6 +48,11 @@ from strategy_config import (
 
 logger = logging.getLogger(__name__)
 
+# A-3: Bump when the shape of dvs_watchlist_result / dvs_bullish_quality_result
+# (or any cached-derived dvs_* session_state entry) changes. See the
+# invalidation block in run_streamlit_app() for the affected keys.
+_DVS_SESSION_SCHEMA_VERSION = "2026-04-24.0"
+
 _API_KEY_REDACTION_PATTERNS = (
     re.compile(r"(api[_-]?key=)([^&\s]+)", flags=re.IGNORECASE),
     re.compile(r"(token=)([^&\s]+)", flags=re.IGNORECASE),
@@ -4465,6 +4470,21 @@ def run_streamlit_app() -> None:
 
     st.title("Databento Volatility Screener")
     st.caption("Single point of view for data freshness, pipeline actions, top-N watchlist and per-entry strategy details.")
+
+    # A-3: Schema-version invalidation. Bump _DVS_SESSION_SCHEMA_VERSION when
+    # the shape of cached results (dvs_watchlist_result / dvs_bullish_quality_result)
+    # changes (new columns, renamed keys). Drops only derived caches — never
+    # user inputs (api keys, sidebar selections).
+    _dvs_derived_keys = (
+        "dvs_watchlist_result",
+        "dvs_bullish_quality_result",
+        "dvs_run_logs",
+    )
+    _dvs_current_ver = st.session_state.get("_dvs_session_schema_ver")
+    if _dvs_current_ver != _DVS_SESSION_SCHEMA_VERSION:
+        for _k in _dvs_derived_keys:
+            st.session_state.pop(_k, None)
+        st.session_state["_dvs_session_schema_ver"] = _DVS_SESSION_SCHEMA_VERSION
 
     if "dvs_databento_api_key" not in st.session_state:
         st.session_state["dvs_databento_api_key"] = os.getenv("DATABENTO_API_KEY", "")
