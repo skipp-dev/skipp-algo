@@ -140,7 +140,10 @@ class TestTechScoreContract:
 class TestRegimeContract:
     """Regime provider must expose valid labels and bounded thin_fraction."""
 
-    @pytest.mark.parametrize("label", list(REGIME_VALID_LABELS))
+    # NOTE: sorted() is required for pytest-xdist worker collection determinism.
+    # REGIME_VALID_LABELS is a set/frozenset; iteration order varies per worker
+    # which causes "Different tests were collected between gw0 and gw1" errors.
+    @pytest.mark.parametrize("label", sorted(REGIME_VALID_LABELS))
     def test_valid_regime_labels(self, label: str) -> None:
         provider = StubRegimeProvider(regime_label=label)
         assert provider.regime == label
