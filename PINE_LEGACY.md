@@ -1,52 +1,37 @@
 # Pine Script Status Index — Legacy vs. Active
 
-> **Closes the D-1 backlog item** from
-> [`docs/TEMPORAL_NUMERICAL_IMPROVEMENT_PLAN_2026-04-24.md`](docs/TEMPORAL_NUMERICAL_IMPROVEMENT_PLAN_2026-04-24.md)
-> (Phase 1 — index-only; physical move stays open as D-1 v2).
+> **Closes the D-1 backlog item** (Phase 1, index) and the **D-1 v2**
+> follow-up (Phase 2, physical move + resolver shim per
+> [ADR-0003](docs/adr/0003-pine-legacy-physical-move-resolver.md)) from
+> [`docs/TEMPORAL_NUMERICAL_IMPROVEMENT_PLAN_2026-04-24.md`](docs/TEMPORAL_NUMERICAL_IMPROVEMENT_PLAN_2026-04-24.md).
 >
 > Audit-Befund (`/Users/steffenpreuss/Downloads/TEMPORAL_NUMERICAL_AUDIT_2026-04-24.md`):
 > *"Legacy-Pine-Assets `QuickALGO.pine` (4732 LOC), `SkippALGO_Confluence.pine`
 > (229 LOC) weiterhin im Root — 7 Dead Code, LOW, Aufräum-Arbeiten."*
 
-## Why an index instead of a `git mv` to `pine/legacy/`?
+## Physical layout (D-1 v2 — ADR-0003 resolver shim)
 
-A physical move was the audit's recommendation, but it has real blast
-radius. The blockers fall into two tiers:
+LEGACY `*.pine` files now live under `pine/legacy/`. Active SMC suite
+files stay at the repo root (no TradingView saved-script breakage for
+active consumers). `SkippALGO_Confluence.pine` and `test_div.pine` stay
+at the root — the former is reclassified as active, the latter is a
+test fixture.
 
-**Tier-1 — bare-filename lookup keys (architectural).** Several modules
-resolve Pine files by **bare basename**, not by relative path:
+Consumers that resolve Pine files **by bare basename** —
+[`scripts/smc_bus_manifest.py`](scripts/smc_bus_manifest.py),
+[`scripts/smc_file_lifecycle.py`](scripts/smc_file_lifecycle.py),
+[`pine_apply_surface_reduction.py`](pine_apply_surface_reduction.py),
+[`test_usi_lint.py`](test_usi_lint.py) — either continue to use
+basenames as **lookup keys** (lifecycle/manifest classifiers) or open
+the file via
+[`scripts/pine_path_resolver.resolve_pine_file`](scripts/pine_path_resolver.py)
+(file-opening sites). The resolver searches root then `pine/legacy/`
+and fails on collision.
 
-- [`scripts/smc_bus_manifest.py`](scripts/smc_bus_manifest.py) —
-  `SURFACE_DEFINITIONS[*].file` and the `NON_SMC_PINE_FILES` frozenset
-  both store bare names (`'QuickALGO.pine'`, `'USI.pine'`, …).
-- [`scripts/smc_file_lifecycle.py`](scripts/smc_file_lifecycle.py) —
-  `EXPLICIT_OVERRIDES` and `SURFACE_MATRIX[*].name` use bare names;
-  `classify_file(filename)` does dict lookup by basename.
-- [`pine_apply_surface_reduction.py`](pine_apply_surface_reduction.py#L569)
-  hard-codes `["QuickALGO.pine", "SkippALGO.pine", "SkippALGO_Strategy.pine"]`.
-
-A physical move to `pine/legacy/` either (a) requires a sweeping
-refactor of every consumer to use relative paths, or (b) needs a
-path-resolution shim layer that recovers a file from its bare name.
-Neither is a single-PR change — it deserves a mini-RFC.
-
-**Tier-2 — verbatim references (mechanical sed scope).**
-
-- [`test_usi_lint.py`](test_usi_lint.py#L78) defaults `sys.argv[1]` to
-  `"USI.pine"`.
-- [`README.md`](README.md), [`CHANGELOG.md`](CHANGELOG.md),
-  [`docs/smc_product_map_2026-04-16.md`](docs/smc_product_map_2026-04-16.md)
-  and several `docs/*.md` files reference the root paths verbatim.
-- Operators may have **TradingView "saved scripts" with the root paths**
-  recorded in their script-source URLs.
-
-Tier-2 alone is mechanical; Tier-1 is the real blocker. The audit's
-intent — *"klar als legacy markieren, separates Backlog"* — is
-delivered by this index plus the drift-lint described below.
-
-A future physical move stays an option (D-1 v2). When it happens, all
-the consumers above must be updated atomically with the moves and the
-bare-name lookup convention has to be either replaced or wrapped.
+Drift-lint enforces the layout in CI: every `*.pine` file in either
+root or `pine/legacy/` must be indexed below, and no basename may
+appear in both locations — see
+[`scripts/check_pine_legacy_drift.py`](scripts/check_pine_legacy_drift.py).
 
 ## Active SMC suite (DO NOT touch in legacy sweeps)
 

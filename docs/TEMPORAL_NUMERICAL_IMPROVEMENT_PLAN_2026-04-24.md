@@ -118,12 +118,20 @@
   Drift-Lint
   ([`scripts/check_pine_legacy_drift.py`](../scripts/check_pine_legacy_drift.py))
   in `smc-fast-pr-gates` verhindert stille Drift (PR #105).
-  **D-1 v2** (physischer Move) jetzt entscheidungsreif:
+  ~~**D-1 v2** (physischer Move) jetzt entscheidungsreif:
   [`docs/adr/0003-pine-legacy-physical-move-resolver.md`](adr/0003-pine-legacy-physical-move-resolver.md)
-  empfiehlt Resolver-Shim statt Sweep-Refactor. Implementierung als
-  separate PR (≈Tag), da Tier-1-Konsumenten (`smc_bus_manifest.py`,
-  `smc_file_lifecycle.py`, `pine_apply_surface_reduction.py`)
-  bare-basename-Lookup verwenden.
+  empfiehlt Resolver-Shim statt Sweep-Refactor.~~ → **D-1 v2 erledigt:**
+  23 LEGACY-`*.pine` nach `pine/legacy/` verschoben (`SkippALGO_Confluence.pine`
+  bleibt aktiv im Root, `test_div.pine` bleibt Test-Fixture). Resolver-Shim
+  [`scripts/pine_path_resolver.py`](../scripts/pine_path_resolver.py)
+  liefert `resolve_pine_file(basename)` mit Such-Reihenfolge Root → `pine/legacy/`
+  und Kollisions-Detect. File-Opener
+  [`pine_apply_surface_reduction.py`](../pine_apply_surface_reduction.py) und
+  [`test_usi_lint.py`](../test_usi_lint.py) auf Resolver gewired; Klassifikatoren
+  ([`scripts/smc_bus_manifest.py`](../scripts/smc_bus_manifest.py),
+  [`scripts/smc_file_lifecycle.py`](../scripts/smc_file_lifecycle.py)) behalten
+  bare-basename-Lookups (reine Tag-Maps, kein I/O). Drift-Lint scannt jetzt
+  beide Verzeichnisse und failt auf Basename-Kollisionen.
 - ~~**D-2**: Schema-Version-Historie in `CHANGELOG.md` migrieren.~~
   → erledigt: neue Top-Level-Sektion **"Schema Versions"** in
   [`CHANGELOG.md`](../CHANGELOG.md) konsolidiert die volle Bump-Historie
