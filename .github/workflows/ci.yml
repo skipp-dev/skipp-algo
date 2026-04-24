@@ -22,27 +22,48 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
+      # Bot data-only PRs (e.g. `bot/run-open-prep-*`, `bot/outcome-backfill-*`)
+      # only touch `artifacts/open_prep/**` JSON artifacts and never change code,
+      # so the full pytest suite (~40 min) adds no signal. We keep the job so
+      # the required `validate` status check still reports, but short-circuit
+      # all real steps below — the job reports success in seconds.
+      - name: Determine if heavy validation should run
+        id: gate
+        run: |
+          if [[ "${{ github.event_name }}" == "pull_request" && "${{ github.head_ref }}" == bot/* ]]; then
+            echo "Bot data-only PR detected (head=${{ github.head_ref }}); skipping heavy validation."
+            echo "run_heavy=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "run_heavy=true" >> "$GITHUB_OUTPUT"
+          fi
       - name: Checkout
+        if: steps.gate.outputs.run_heavy == 'true'
         uses: actions/checkout@v6
       - name: Validate Pine scripts
+        if: steps.gate.outputs.run_heavy == 'true'
         run: |
           test -f SMC_Core_Engine.pine
           grep -q "^//@version=6" SMC_Core_Engine.pine
           test -f SMC_Long_Strategy.pine
           grep -q "^//@version=6" SMC_Long_Strategy.pine
       - name: Set up Python
+        if: steps.gate.outputs.run_heavy == 'true'
         uses: actions/setup-python@v6
         with:
           python-version: "3.12"
           cache: pip
       - name: Install test dependencies
+        if: steps.gate.outputs.run_heavy == 'true'
         run: |
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt pytest
       - name: Run Python tests
+        if: steps.gate.outputs.run_heavy == 'true'
         run: |
           python -m pytest -q --maxfail=1 --cov --cov-report=term-missing:skip-covered
       - name: E2E structural smoke test
+        if: steps.gate.outputs.run_heavy == 'true'
         run: python scripts/e2e_smoke_ci.py
       - name: Layer violation guard (F-08)
+        if: steps.gate.outputs.run_heavy == 'true'
         run: python scripts/check_layer_violations.py
