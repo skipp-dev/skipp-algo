@@ -11,6 +11,7 @@ Covers:
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 
 import pytest
@@ -327,7 +328,7 @@ class TestGovernanceCLI:
 
         import subprocess
         result = subprocess.run(
-            ["python", "scripts/smc_version_governance.py",
+            [sys.executable, "scripts/smc_version_governance.py",
              "--old-manifest", str(old), "--new-manifest", str(new)],
             capture_output=True, text=True,
             cwd=str(Path(__file__).resolve().parents[1]),
@@ -344,7 +345,7 @@ class TestGovernanceCLI:
 
         import subprocess
         result = subprocess.run(
-            ["python", "scripts/smc_version_governance.py",
+            [sys.executable, "scripts/smc_version_governance.py",
              "--old-manifest", str(old), "--new-manifest", str(new)],
             capture_output=True, text=True,
             cwd=str(Path(__file__).resolve().parents[1]),
@@ -360,7 +361,7 @@ class TestGovernanceCLI:
 
         import subprocess
         result = subprocess.run(
-            ["python", "scripts/smc_version_governance.py",
+            [sys.executable, "scripts/smc_version_governance.py",
              "--old-manifest", str(old), "--new-manifest", str(new)],
             capture_output=True, text=True,
             cwd=str(Path(__file__).resolve().parents[1]),
@@ -380,7 +381,7 @@ class TestGovernanceCLI:
 
         import subprocess
         result = subprocess.run(
-            ["python", "scripts/smc_version_governance.py",
+            [sys.executable, "scripts/smc_version_governance.py",
              "--old-manifest", str(old_manifest), "--new-manifest", str(new_manifest),
              "--old-library", str(old_lib), "--library", str(new_lib)],
             capture_output=True, text=True,
@@ -404,7 +405,7 @@ class TestGovernanceCLI:
 
         import subprocess
         result = subprocess.run(
-            ["python", "scripts/smc_version_governance.py",
+            [sys.executable, "scripts/smc_version_governance.py",
              "--old-manifest", str(old_manifest), "--new-manifest", str(new_manifest),
              "--old-library", str(old_lib), "--library", str(new_lib)],
             capture_output=True, text=True,
