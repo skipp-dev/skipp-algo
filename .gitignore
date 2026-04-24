@@ -25,6 +25,12 @@ open_prep/latest_realtime_signals.json
 artifacts/terminal_feed.jsonl
 artifacts/terminal_vd.jsonl
 
+# Coverage runtime DB (shouldn't be committed; tracked accidentally in
+# 6035b2b1, untracked in chore/untrack-coverage-and-feed).
+.coverage
+.coverage.*
+htmlcov/
+
 # Local runtime/backup artifacts
 :memory:
 *.bak
