@@ -1,0 +1,223 @@
+"""Audit pins: HTTP client discipline in production modules.
+
+Two sibling pins enforced over the same first-party AST walk:
+
+1. **No ``requests`` library** in production.
+
+   The codebase standardised on ``httpx`` (with the budget × singleton ×
+   timeout-consistency × named-timeout Quartett pinned elsewhere).
+   Any new ``import requests`` / ``from requests import ...`` / call to
+   ``requests.<method>(...)`` would silently bypass that discipline.
+   This pin freezes the inventory at zero — no allowlist.
+
+2. **``urlopen()`` must pass ``timeout=``** in production.
+
+   ``urllib.request.urlopen`` defaults to a *blocking* socket with no
+   timeout, which can wedge a worker thread indefinitely.  All eight
+   current production sites already pass ``timeout=``; this pin freezes
+   that invariant.  Detection covers both bound forms:
+
+   * ``urlopen(req, timeout=...)``  (after ``from urllib.request import urlopen``)
+   * ``urllib.request.urlopen(req, timeout=...)``
+"""
+
+from __future__ import annotations
+
+import ast
+from pathlib import Path
+
+import pytest
+
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+
+_DIR_EXCLUDE = frozenset(
+    {
+        ".git",
+        ".github",
+        ".mypy_cache",
+        ".pytest_cache",
+        ".ruff_cache",
+        ".venv",
+        "venv",
+        "node_modules",
+        "artifacts",
+        "docs",
+        "scripts",
+        "tests",
+        "SMC++",
+    }
+)
+
+
+def _iter_prod_files() -> list[Path]:
+    out: list[Path] = []
+    for path in _REPO_ROOT.rglob("*.py"):
+        if any(part in _DIR_EXCLUDE for part in path.relative_to(_REPO_ROOT).parts):
+            continue
+        out.append(path)
+    return sorted(out)
+
+
+# ---------------------------------------------------------------------------
+# Pin 1: no ``requests`` library in production.
+# ---------------------------------------------------------------------------
+
+
+def _requests_violations(tree: ast.AST) -> list[tuple[int, str]]:
+    hits: list[tuple[int, str]] = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                root = alias.name.split(".", 1)[0]
+                if root == "requests":
+                    hits.append((node.lineno, f"import {alias.name}"))
+        elif isinstance(node, ast.ImportFrom):
+            if node.module and node.module.split(".", 1)[0] == "requests":
+                hits.append((node.lineno, f"from {node.module} import ..."))
+        elif isinstance(node, ast.Call):
+            func = node.func
+            if (
+                isinstance(func, ast.Attribute)
+                and isinstance(func.value, ast.Name)
+                and func.value.id == "requests"
+            ):
+                hits.append((node.lineno, f"requests.{func.attr}(...)"))
+    return hits
+
+
+def test_no_requests_library_in_production() -> None:
+    """Tripwire: ``requests`` library must not appear in production modules."""
+    violations: list[str] = []
+    for path in _iter_prod_files():
+        rel = path.relative_to(_REPO_ROOT).as_posix()
+        try:
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+        except SyntaxError as exc:  # pragma: no cover - defensive
+            violations.append(f"{rel}: parse error {exc!r}")
+            continue
+        for lineno, label in _requests_violations(tree):
+            violations.append(
+                f"{rel}:{lineno}: {label} — codebase uses httpx; do not "
+                f"reintroduce the ``requests`` library (bypasses httpx "
+                f"timeout/budget/singleton discipline)."
+            )
+    assert not violations, (
+        "Production ``requests`` library usage detected:\n  - "
+        + "\n  - ".join(violations)
+    )
+
+
+# ---------------------------------------------------------------------------
+# Pin 2: every prod ``urlopen()`` call must pass ``timeout=``.
+# ---------------------------------------------------------------------------
+
+
+def _is_urlopen_call(node: ast.Call) -> bool:
+    func = node.func
+    # Bare ``urlopen(...)`` (after ``from urllib.request import urlopen``).
+    if isinstance(func, ast.Name) and func.id == "urlopen":
+        return True
+    # ``urllib.request.urlopen(...)``.
+    if (
+        isinstance(func, ast.Attribute)
+        and func.attr == "urlopen"
+        and isinstance(func.value, ast.Attribute)
+        and func.value.attr == "request"
+        and isinstance(func.value.value, ast.Name)
+        and func.value.value.id == "urllib"
+    ):
+        return True
+    return False
+
+
+def _has_timeout_kwarg(node: ast.Call) -> bool:
+    return any(kw.arg == "timeout" for kw in node.keywords)
+
+
+# Frozen inventory of compliant urlopen call sites at the time this pin
+# landed.  Used by the stale-site guard below.  Extend deliberately when
+# new compliant sites are added (or removed when a site moves).
+_FROZEN_URLOPEN_SITES: frozenset[tuple[str, int]] = frozenset(
+    {
+        ("databento_universe.py", 307),
+        ("databento_volatility_screener.py", 1102),
+        ("open_prep/bea.py", 94),
+        ("open_prep/macro.py", 545),
+        ("terminal_finnhub.py", 176),
+        ("terminal_notifications.py", 201),
+        ("terminal_notifications.py", 265),
+        ("terminal_tradingview_news.py", 366),
+    }
+)
+
+
+def _all_urlopen_sites() -> list[tuple[str, int, ast.Call]]:
+    sites: list[tuple[str, int, ast.Call]] = []
+    for path in _iter_prod_files():
+        rel = path.relative_to(_REPO_ROOT).as_posix()
+        try:
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+        except SyntaxError:  # pragma: no cover - defensive
+            continue
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Call) and _is_urlopen_call(node):
+                sites.append((rel, node.lineno, node))
+    return sites
+
+
+def test_urlopen_calls_pass_timeout() -> None:
+    """Every production ``urlopen(...)`` call must pass ``timeout=``."""
+    violations: list[str] = []
+    for rel, lineno, node in _all_urlopen_sites():
+        if not _has_timeout_kwarg(node):
+            violations.append(
+                f"{rel}:{lineno}: urlopen(...) without ``timeout=`` — "
+                f"add an explicit timeout (urllib defaults to blocking, "
+                f"which can wedge a worker thread indefinitely)."
+            )
+    assert not violations, (
+        "urllib urlopen timeout discipline violations:\n  - "
+        + "\n  - ".join(violations)
+    )
+
+
+def test_no_new_urlopen_sites() -> None:
+    """Tripwire: any new ``urlopen`` site requires explicit ledger update."""
+    current = {(rel, lineno) for rel, lineno, _ in _all_urlopen_sites()}
+    new_sites = sorted(current - _FROZEN_URLOPEN_SITES)
+    assert not new_sites, (
+        "New urlopen call site detected — extend _FROZEN_URLOPEN_SITES "
+        "after confirming the call passes timeout=:\n  - "
+        + "\n  - ".join(f"{rel}:{lineno}" for rel, lineno in new_sites)
+    )
+
+
+@pytest.mark.parametrize(("rel", "lineno"), sorted(_FROZEN_URLOPEN_SITES))
+def test_frozen_urlopen_site_still_present(rel: str, lineno: int) -> None:
+    """Stale guard: every frozen site must still be a ``urlopen`` call."""
+    path = _REPO_ROOT / rel
+    assert path.is_file(), f"{rel} no longer exists — refresh frozen ledger"
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    for node in ast.walk(tree):
+        if (
+            isinstance(node, ast.Call)
+            and node.lineno == lineno
+            and _is_urlopen_call(node)
+        ):
+            assert _has_timeout_kwarg(node), (
+                f"{rel}:{lineno}: urlopen(...) lost its timeout= kwarg"
+            )
+            return
+    raise AssertionError(
+        f"{rel}:{lineno} is no longer a urlopen(...) call — refresh "
+        f"_FROZEN_URLOPEN_SITES."
+    )
+
+
+def test_prod_file_inventory_sane() -> None:
+    """Path-drift sanity: production scan must find a non-trivial set."""
+    files = _iter_prod_files()
+    assert len(files) >= 50, (
+        f"Production *.py scan only found {len(files)} files — "
+        f"_DIR_EXCLUDE may be over-broad or sparse-checkout incomplete."
+    )
