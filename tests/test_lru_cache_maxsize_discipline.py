@@ -66,10 +66,24 @@ def _is_lru_cache_decorator(node: ast.expr) -> bool:
 
 
 def _has_explicit_maxsize(node: ast.expr) -> bool:
-    """Return True iff the decorator is a ``Call`` with a ``maxsize=`` kwarg."""
+    """Return True iff the decorator is a ``Call`` with a ``maxsize=`` kwarg
+    whose value is **not** the literal ``None``.
+
+    ``@lru_cache(maxsize=None)`` is *technically* explicit but semantically
+    equivalent to an unbounded cache — the very bug class this pin is
+    meant to prevent. If unbounded is intentional, switch to
+    ``@functools.cache`` (forces the dev to spell out the choice).
+    """
     if not isinstance(node, ast.Call):
         return False
-    return any(kw.arg == "maxsize" for kw in node.keywords)
+    for kw in node.keywords:
+        if kw.arg != "maxsize":
+            continue
+        # Reject ``maxsize=None`` — explicit-but-unbounded is still unbounded.
+        if isinstance(kw.value, ast.Constant) and kw.value.value is None:
+            return False
+        return True
+    return False
 
 
 def _collect_lru_cache_sites(path: Path) -> list[tuple[str, str, int, bool]]:
@@ -129,7 +143,10 @@ def test_lru_cache_sites_match_baseline() -> None:
 # variant where someone writes ``@lru_cache  # comment`` and the AST
 # parses it but a future contributor copy-pastes the line and drops
 # the parens. Skips third-party.
-_BARE_LRU_RE = re.compile(r"^\s*@(functools\.)?lru_cache\s*$", re.MULTILINE)
+_BARE_LRU_RE = re.compile(
+    r"^\s*@(functools\.)?lru_cache\s*(?:#.*)?$",
+    re.MULTILINE,
+)
 
 
 def test_no_bare_lru_cache_decorator_lines() -> None:
