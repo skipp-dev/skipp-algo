@@ -6,6 +6,15 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Defense Pin — `print()` Call Budget (2026-04-23)
+
+- Added `tests/test_print_call_budget_pin.py` (defense-only).
+- Freezes `print()` call count at 38 across 7 CLI/script files.
+  New production `print()` calls require explicit budget bump + review
+  (bypasses logging framework: no level/handler/test-capture, leakage risk).
+  Drift detector forces lowering when count drops > 5 below budget.
+- OWASP A09 Logging Failures.
+
 ### Hardening (2026-04-25) — `assert` → `raise` Migration (Production)
 
 - Migration der 4 verbliebenen `assert`-Statements in First-Party-Production
