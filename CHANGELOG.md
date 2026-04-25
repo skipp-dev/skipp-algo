@@ -29,6 +29,22 @@ All notable changes to this project are documented in this file.
   rely on `KeyboardInterrupt` propagating out of an outer `try`/
   `except KeyboardInterrupt`. Pinning the (path, line) is the right
   primitive.
+
+### Tests / Quality (2026-04-26) — Defense ledger: HTTP `.post(...)` egress (5 sites)
+
+- Added `tests/test_http_post_egress_ledger.py` (1 test) pinning
+  every outbound HTTP POST call site by `(path, line)`. POST is the
+  canonical write-edge of the system — every entry is a candidate
+  data-egress leak (API keys, prompts, payloads). Locked sites:
+  - `terminal_notifications.py:225` (notification webhook)
+  - `terminal_export.py:874` (FMP/news export webhook)
+  - `terminal_fmp_insights.py:372` (OpenAI chat completions)
+  - `streamlit_terminal.py:2275` (live terminal alert webhook fan-out)
+  - `terminal_ai_insights.py:245` (OpenAI chat completions)
+  Detection is transport-agnostic (`.post(...)` attribute match),
+  so a switch from `httpx` to `requests` or a new SDK still trips
+  the pin. Complements the `http_client_discipline` `timeout=`
+  invariant.
 - Defense-only — no production changes.
 
 ### Tests / Quality (2026-04-25) — Defense ledger: `os.unlink` / `os.remove` (23 sites)
