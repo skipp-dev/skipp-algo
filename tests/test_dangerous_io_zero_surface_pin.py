@@ -1,0 +1,155 @@
+"""Zero-surface pin for dangerous IO/process primitives.
+
+Three small surfaces, each currently confined to a known set of files. Any
+new caller in production code (outside ``tests/``, ``scripts/``, vendor and
+cache directories) will trip these guards so that introducing them becomes
+a deliberate, reviewed action.
+
+Surfaces:
+
+* ``os.kill(pid, sig)`` — process signalling. Allowed only as
+  signal-0 liveness probes inside ``open_prep/realtime_signals.py``.
+* ``shutil.rmtree(...)`` — recursive deletion. Allowed only inside
+  ``scripts/`` (one-shot artifact refresh tooling).
+* ``socket.socket(...)`` — raw socket creation. Allowed only inside
+  ``scripts/`` (local port-probe helpers).
+
+The point is *zero new surface in production*: tests assert the AST hit
+set equals the explicit allow-list. If a legitimate new caller is needed,
+update the allow-list in the same PR with a brief justification in the
+commit message.
+"""
+
+from __future__ import annotations
+
+import ast
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+
+_DIR_EXCLUDE = {
+    ".git",
+    ".github",
+    ".mypy_cache",
+    ".pytest_cache",
+    ".ruff_cache",
+    ".venv",
+    "venv",
+    "node_modules",
+    "artifacts",
+    "docs",
+    "tests",
+    "SMC++",
+}
+
+
+def _iter_py_files() -> list[Path]:
+    out: list[Path] = []
+    for path in ROOT.rglob("*.py"):
+        rel = path.relative_to(ROOT)
+        if any(part in _DIR_EXCLUDE or part.startswith(".") for part in rel.parts):
+            continue
+        out.append(path)
+    return out
+
+
+def _attr_call_sites(attr_owner: str, attr_name: str) -> set[tuple[str, int]]:
+    """Return ``{(relpath, lineno)}`` for every ``owner.attr(...)`` call."""
+
+    sites: set[tuple[str, int]] = set()
+    for path in _iter_py_files():
+        try:
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+        except (SyntaxError, UnicodeDecodeError):
+            continue
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            func = node.func
+            if not isinstance(func, ast.Attribute) or func.attr != attr_name:
+                continue
+            value = func.value
+            if not isinstance(value, ast.Name) or value.id != attr_owner:
+                continue
+            sites.add((str(path.relative_to(ROOT)), node.lineno))
+    return sites
+
+
+# --- os.kill -----------------------------------------------------------------
+
+# Signal-0 liveness probes for the realtime engine PID file. Every one of these
+# call sites passes ``0`` as the signal, so they cannot terminate a process —
+# they merely check existence. New non-zero ``os.kill`` callers must be
+# explicitly added below with justification.
+OS_KILL_ALLOWED: set[tuple[str, int]] = {
+    ("open_prep/realtime_signals.py", 172),
+    ("open_prep/realtime_signals.py", 198),
+}
+
+
+def test_os_kill_zero_surface_pin() -> None:
+    sites = _attr_call_sites("os", "kill")
+    unexpected = sites - OS_KILL_ALLOWED
+    assert not unexpected, (
+        "New os.kill(...) call site detected. Process signalling must remain "
+        "confined to the realtime engine liveness probes. If genuinely needed, "
+        "add the new (path, line) pair to OS_KILL_ALLOWED in this test with "
+        "a justification in the commit message.\n"
+        f"unexpected = {sorted(unexpected)}"
+    )
+
+    missing = OS_KILL_ALLOWED - sites
+    assert not missing, (
+        "OS_KILL_ALLOWED entries no longer present in code. Update the "
+        "allow-list to match the current call sites.\n"
+        f"missing = {sorted(missing)}"
+    )
+
+
+# --- shutil.rmtree -----------------------------------------------------------
+
+# Recursive deletion is destructive and must stay out of production runtime
+# code. The only legitimate caller today is the artifact-refresh tooling under
+# ``scripts/``.
+SHUTIL_RMTREE_ALLOWED_DIR_PREFIXES: tuple[str, ...] = ("scripts/",)
+
+
+def test_shutil_rmtree_zero_surface_pin() -> None:
+    sites = _attr_call_sites("shutil", "rmtree")
+    leaks = {
+        (path, lineno)
+        for (path, lineno) in sites
+        if not path.startswith(SHUTIL_RMTREE_ALLOWED_DIR_PREFIXES)
+    }
+    assert not leaks, (
+        "shutil.rmtree(...) found outside the allowed scripts/ surface. "
+        "Recursive deletion is destructive — wrap the deletion behind an "
+        "explicit confirmation flag, or move the helper into scripts/.\n"
+        f"leaks = {sorted(leaks)}"
+    )
+
+
+# --- socket.socket -----------------------------------------------------------
+
+# Raw socket creation in production code is almost always a smell — networking
+# should go through the dedicated provider clients (Databento, Finnhub, FMP,
+# etc.) that already centralise retry/auth/telemetry. The only allowed caller
+# today is the local port-probe helper in scripts/.
+SOCKET_SOCKET_ALLOWED_DIR_PREFIXES: tuple[str, ...] = ("scripts/",)
+
+
+def test_socket_socket_zero_surface_pin() -> None:
+    sites = _attr_call_sites("socket", "socket")
+    leaks = {
+        (path, lineno)
+        for (path, lineno) in sites
+        if not path.startswith(SOCKET_SOCKET_ALLOWED_DIR_PREFIXES)
+    }
+    assert not leaks, (
+        "socket.socket(...) found outside the allowed scripts/ surface. "
+        "Production network access should go through the dedicated provider "
+        "clients (Databento/Finnhub/FMP) which centralise retry/auth/telemetry. "
+        "If a raw socket is genuinely required, add the file prefix to "
+        "SOCKET_SOCKET_ALLOWED_DIR_PREFIXES with justification.\n"
+        f"leaks = {sorted(leaks)}"
+    )

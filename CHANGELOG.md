@@ -6,6 +6,24 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Tests / Quality (2026-04-25) — Defense pin: dangerous IO/process primitives zero-surface
+
+- Added `tests/test_dangerous_io_zero_surface_pin.py` (3 tests) pinning
+  three small IO/process surfaces, each currently confined to a
+  known-good caller set so any new caller in production trips the guard:
+  - `os.kill(pid, sig)` — process signalling. Allow-listed only as the
+    two signal-0 liveness probes inside
+    `open_prep/realtime_signals.py:172,198`. Any new call site (or any
+    drift from those line numbers) fails the test.
+  - `shutil.rmtree(...)` — recursive deletion. Allow-listed only inside
+    `scripts/` (artifact-refresh tooling). Recursive deletion is
+    destructive and must stay out of runtime code.
+  - `socket.socket(...)` — raw socket creation. Allow-listed only
+    inside `scripts/` (local port-probe helpers). Production network
+    access should go through the dedicated provider clients
+    (Databento/Finnhub/FMP) that already centralise retry/auth/telemetry.
+- Defense-only — no production changes.
+
 ### Tests / Quality (2026-04-25) — Defense pin: exec / tempfile.mktemp / subprocess shell=True zero-surface
 
 - Added `tests/test_exec_mktemp_shelltrue_zero_surface.py` (3 tests)
