@@ -6,6 +6,31 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Tests / Quality (2026-04-25) — ADR-0006 Doc + Salvaged Pins from PR #123
+
+Net-additive salvage from the closed PR #123 (`chore/smc-system-review-2026-04-24`),
+which was closed as superseded after #186 shipped its production half. These five
+files have **zero overlap** with anything on main and were trial-tested green
+against post-#186 state (15 passed).
+
+- `docs/adr/0006-hero-vocab-discipline.md` (NEW): ADR completing the documentation
+  for the HERO vocab discipline whose runtime contract was restored by hotfix #186.
+- `tests/test_adr_0005_extended_islands_audit.py` (NEW): audit pin for ADR-0005
+  extended-islands invariants.
+- `tests/test_hero_observed_vocab_pin.py` (NEW): observed-vocab pin — gates that
+  every value emitted at runtime by `build_hero_state` belongs to the corresponding
+  `HERO_*_VOCAB` frozenset (closes the gap between *defined* vocab and
+  *actually-emitted* values).
+- `tests/test_lru_cache_bounded_sweep.py` (NEW): cross-repo sweep that every
+  `@functools.lru_cache(...)` carries an explicit `maxsize=` (companion to the
+  existing `test_lru_cache_maxsize_discipline.py`).
+- `tests/test_pine_library_version_consistency.py` (NEW): pin that the generated
+  Pine library's `library_field_version` matches the Python-side schema version,
+  so a vocab change without a version bump fails fast.
+
+No production-code changes. No test deletions. No conflicts with the recently
+merged audit wave (#186, #188–#193).
+
 ### Fixed (2026-04-25) — Restore Missing HERO Vocab Constants + Bundled Ledger Drift (Main-RED Hotfix)
 
 - **Primary fix:** `scripts/smc_hero_state.py`: restore `HERO_BIAS_VOCAB`,
