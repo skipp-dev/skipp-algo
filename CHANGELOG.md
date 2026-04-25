@@ -122,6 +122,20 @@ All notable changes to this project are documented in this file.
     (CWE-347). Repo doesn't use PyJWT today; pin prevents future drift.
 - All three surfaces empty in first-party non-test code; pin keeps
   them empty.
+
+### Tests / Quality (2026-04-25) — Defense pin: pickle write-side + os.path.join absolute-path zero-surface
+
+- Added `tests/test_pickle_write_and_abs_pathjoin_zero_surface.py`
+  (2 tests) pinning two more empty surfaces:
+  - **Pickle write side** — `pickle.dump(s)` (also `cPickle` / `dill` /
+    `marshal`). Symmetric guard for the read-side ban in #202: if no
+    code produces pickled bytes, no code can ever be tempted to
+    consume them.
+  - **`os.path.join(base, "/abs")` foot-gun (CWE-22)** — `os.path.join`
+    silently *discards* every component before an absolute path. Pin
+    the literal-absolute case to zero (variable second args still
+    require call-site sanitization).
+- Both surfaces empty in first-party non-test code today.
 - Defense-only — no production changes.
 
 ### Tests / Quality (2026-04-25) — Defense pin: datetime tz-safety zero-surface (4 shapes)
