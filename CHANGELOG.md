@@ -6,6 +6,20 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Tests / Quality (2026-04-25) — Defense pin: triple zero-surface (os.system + input + assert)
+
+- Added `tests/test_os_system_input_assert_zero_surface.py` pinning three
+  cheap-to-pin invariants in first-party non-test code:
+  - **CWE-78**: no `os.system(...)` calls (closes the backdoor left by the
+    subprocess shell-injection pin in #201).
+  - **CWE-400**: no blocking `input(...)` calls (keeps automated runs
+    deterministic; surface is empty today).
+  - **CWE-617**: no `assert` statements in production code (Python `-O`
+    strips them; assertions belong only under `tests/`).
+- Defense-only — no production changes; AST scan walks every first-party
+  `*.py` and excludes `tests/`, `.venv`, `node_modules`, `artifacts`,
+  `docs`, `SMC++`. Any reintroduction is a forced design decision.
+
 ### Tests / Quality (2026-04-25) — Defense pin: urllib.urlopen ledger + mandatory timeout=
 
 New `tests/test_urllib_urlopen_ledger.py` (7 tests) — sister of the
