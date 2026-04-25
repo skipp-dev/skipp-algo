@@ -6,6 +6,25 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Tests / Quality (2026-04-25) — Pine `request.security` HTF discipline
+
+- Neuer Pin [`tests/test_pine_request_security_htf_pin.py`](tests/test_pine_request_security_htf_pin.py)
+  schützt jeden `request.security(...)`-Aufruf in den standalone `*.pine`-
+  Dateien gegen Same-TF-Aufrufe. Same-TF (`timeframe.period`, `""`,
+  `syminfo.period`) ist äquivalent zum normalen Series-Zugriff, kostet aber
+  ein Slot des Request-Quotas und führt bei vergessenem `lookahead_off` zu
+  stiller Repaint-Drift.
+  - **Layer 1 — Zero-Tripwire**: `tf`-Argument darf keine der drei
+    Same-TF-Konstanten sein. Inventar 0.
+  - **Layer 2 — Total-Budget**: genau 3 Aufrufe in `*.pine` (alle in
+    `SMC_Core_Engine.pine`: HTF-Trend `get_confirmed_structure_trend` Zeile
+    2367 + 2× HTF-FVG-Detect Zeilen 4693/4694). Neue HTF-Aufrufe sind
+    erlaubt, müssen aber Ledger + CHANGELOG mit aktualisieren.
+  - **Layer 3 — Per-File-Ledger**: `SMC_Core_Engine.pine: 3` eingefroren.
+  - **Layer 4 — Datei-Existenz**: Ledger-Datei muss existieren.
+  - **Layer 5 — Inventar-Sanity**: ≥15 Pine-Dateien sichtbar.
+- Defense-only — kein Pine-Code geändert.
+
 ### Tests / Quality (2026-04-25) — silent-security & boundary 6-fold bundle
 
 - Neuer Pin [`tests/test_silent_security_and_boundary_bundle.py`](tests/test_silent_security_and_boundary_bundle.py)
