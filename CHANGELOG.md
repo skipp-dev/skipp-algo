@@ -54,29 +54,21 @@ All notable changes to this project are documented in this file.
   `except KeyboardInterrupt`. Pinning the (path, line) is the right
   primitive.
 
-### Tests / Quality (2026-04-26) — Defense ledger: HTTP POST egress (5 + 3 sites)
+### Tests / Quality (2026-04-26) — Defense pin: `hmac.*` zero-surface (2 sites)
 
-- Added `tests/test_http_post_egress_ledger.py` (3 tests) pinning
-  every outbound HTTP POST call site by `(path, line)` across both
-  canonical egress shapes. POST is the write-edge of the system —
-  every entry is a candidate data-egress leak (API keys, prompts,
-  payloads).
-  Shape 1 — `<expr>.post(...)` (transport-agnostic attribute match,
-  5 sites):
-  - `terminal_notifications.py:225` (notification webhook)
-  - `terminal_export.py:874` (FMP/news export webhook)
-  - `terminal_fmp_insights.py:372` (OpenAI chat completions)
-  - `streamlit_terminal.py:2275` (live terminal alert webhook fan-out)
-  - `terminal_ai_insights.py:245` (OpenAI chat completions)
-  Shape 2 — `urllib.request.Request(..., method="POST")` (low-level
-  POST that bypasses shape 1, 3 sites):
-  - `terminal_notifications.py:197` (generic webhook helper)
-  - `terminal_notifications.py:262` (Pushover messages API)
-  - `open_prep/alerts.py:396` (open-prep alerts dispatcher)
-  Plus a `test_http_post_inventory_sane` guard that fails closed if
-  `_iter_py_files()` returns < 50 files (sparse-checkout / layout
-  drift would otherwise silently false-pass). Complements the
-  `http_client_discipline` `timeout=` invariant.
+- Added `tests/test_hmac_auth_zero_surface.py` (1 test) pinning every
+  production `hmac.<attr>(...)` call by `(path, line, attr)`.
+  `hmac` is the project's *only* primitive for authenticated message
+  integrity (webhook signing) and constant-time secret compare
+  (token / API-key auth). Drift is invisible at runtime but creates
+  signature-verification breakage or a timing oracle (CWE-208).
+  Locked sites:
+  - `terminal_export.py:727` — `hmac.new(secret, payload, sha256)` for
+    outbound webhook signing.
+  - `terminal_auth.py:32` — `hmac.compare_digest(...)` constant-time
+    auth-token comparison.
+  New `hmac.*` callers must be added with a security-review note in
+  the PR description.
 - Defense-only — no production changes.
 
 ### Tests / Quality (2026-04-25) — Defense ledger: `os.unlink` / `os.remove` (23 sites)
