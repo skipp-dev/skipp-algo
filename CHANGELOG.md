@@ -50,6 +50,19 @@ All notable changes to this project are documented in this file.
     `test_hashlib_weak_hash_ledger.py` and `test_nonlocal_budget.py`);
   - failing if anyone flips an entry from `"always"` to `"ignore"` /
     `"default"` (second test asserts the literal action explicitly).
+
+### Tests / Quality (2026-04-25) — Defense pin: `globals()` zero-surface
+
+- Added `tests/test_globals_call_zero_surface.py` (1 test) pinning the
+  single legitimate `globals()` call site at `streamlit_terminal.py:2226`
+  (read-only `globals().get("_INTEL_ENABLED", False)` lookup whose target
+  is bound by the sidebar toggle block above). `globals()` defeats
+  static analysis and is the stepping stone to `globals()[name] = ...`
+  mutation; the codebase has been moving toward explicit dataclass /
+  TypedDict context layers (see `terminal_attention_state` /
+  `terminal_posture_state`) for exactly this reason. Any new call site
+  (or any drift from that line number) now fails CI and forces a
+  reviewed allow-list update.
 - Defense-only — no production changes.
 
 ### Tests / Quality (2026-04-25) — Defense pin: dangerous IO/process primitives zero-surface
