@@ -105,7 +105,7 @@ def cluster_hash(headline: str, tickers: list[str]) -> str:
     """
     # Normalise tickers to uppercase so mixed-case inputs hash identically.
     key = f"{_norm(headline)}|{','.join(sorted(set(t.upper() for t in tickers)))}"
-    return hashlib.sha1(key.encode("utf-8")).hexdigest()
+    return hashlib.sha1(key.encode("utf-8"), usedforsecurity=False).hexdigest()
 
 
 def classify_and_score(
