@@ -40,20 +40,20 @@ def test_skip_step_uses_warning_annotation() -> None:
         if lines[j].lstrip().startswith("- name:"):
             end = j
             break
-    body = "\n".join(lines[start:end])
-    assert _WARNING_RE.search(body), (
-        f"step {_SKIP_STEP_NAME!r} in {_WORKFLOW.name} must emit a "
-        "GitHub Actions ``::warning`` (not ``::notice``) so each skipped "
-        "run is visible in the run-summary banner. Audit finding L-2 "
-        "(Klasse #24 + #32)."
-    )
     # Inspect only the executable shell content (drop comment-only lines)
-    # so the rationale comment can mention "::notice" without tripping
-    # the pin.
+    # so a rationale comment can mention either annotation type without
+    # tripping the pin in either direction.
     exec_lines = [
         line for line in lines[start:end] if not line.lstrip().startswith("#")
     ]
     exec_body = "\n".join(exec_lines)
+    assert _WARNING_RE.search(exec_body), (
+        f"step {_SKIP_STEP_NAME!r} in {_WORKFLOW.name} must emit a "
+        "GitHub Actions ``::warning`` (not ``::notice``) so each skipped "
+        "run is visible in the run-summary banner. Audit finding L-2 "
+        "(Klasse #24 + #32). The warning must appear in executable shell "
+        "content, not just a comment."
+    )
     assert "::notice" not in exec_body, (
         f"step {_SKIP_STEP_NAME!r} in {_WORKFLOW.name} must NOT emit "
         "``::notice`` for the skipped path — the audit (L-2) requires "

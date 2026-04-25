@@ -27,6 +27,14 @@ DEFAULTS: dict[str, Any] = {
 
 FRESHNESS_MAX_BARS = 10
 
+# Epsilon for OB-level domain-boundary comparisons. Sits well above the
+# IEEE-754 subnormal range (≈ 5e-324) and well below any tradable price
+# (a real OB level is at least one tick — for equities that is ≥ 1e-2).
+# Used in place of ``level == 0.0`` to defend against silent drift if
+# upstream ever switches from "literal sentinel" to a computed value.
+# See `docs/reviews/2026-04-24-system-review.md` finding H-1.
+_OB_LEVEL_EPS = 1e-12
+
 
 def _mitigation_state(freshness_bars: int, mitigated: bool) -> str:
     """Derive OB lifecycle state from age and mitigation flag.
@@ -87,8 +95,19 @@ def build_ob_context_light(
     bull_level = float(ob.get("NEAREST_BULL_OB_LEVEL", 0.0))
     bear_level = float(ob.get("NEAREST_BEAR_OB_LEVEL", 0.0))
 
-    # No OBs at all
-    if bull_freshness == 0 and bear_freshness == 0 and bull_level == 0.0 and bear_level == 0.0:
+    # No OBs at all. Use an absolute-value epsilon comparison instead of
+    # ``== 0.0`` to be robust against IEEE-754 subnormals that may slip
+    # through if upstream sources start computing the level (today they
+    # store a literal sentinel, but the price-equality form would silently
+    # drift if that ever changes). _OB_LEVEL_EPS sits well above the
+    # subnormal range and well below any tradable price; see system review
+    # 2026-04-24, finding H-1.
+    if (
+        bull_freshness == 0
+        and bear_freshness == 0
+        and abs(bull_level) < _OB_LEVEL_EPS
+        and abs(bear_level) < _OB_LEVEL_EPS
+    ):
         if overrides:
             for k, v in overrides.items():
                 if k in result:

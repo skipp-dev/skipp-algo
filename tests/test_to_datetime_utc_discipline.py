@@ -47,6 +47,11 @@ _TIMESTAMP_COLUMN_NAMES: frozenset[str] = frozenset({
     "published_at",
     "created_at",
     "updated_at",
+    # Already-utc=True call sites in the repo — added so a future regression
+    # that drops the kwarg on these specific columns is caught by the pin.
+    "generated_at",            # databento_volatility_screener.py
+    "snapshot_at",             # databento_volatility_screener.py
+    "current_price_timestamp", # scripts/databento_production_export.py
 })
 
 # Column names whose values are dates (utc=True is irrelevant / wrong).
