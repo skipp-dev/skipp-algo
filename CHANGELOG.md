@@ -6,6 +6,30 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Engineering throughput (2026-04-26) — Sprint template + Day-1 inventory tool
+
+- New `spec/sprint_template.md` — verbindliches Skelett für jeden
+  C-Sprint (Outcome, Day-1-Inventur, T1–T7 mit Stop-Kriterien und
+  Evidenz-Markern, 2-Iterations-Limit, Definition of Done, Out-of-Scope).
+  Replaces ad-hoc per-sprint structure; cuts sprint-plan authoring
+  from ~1 day to ~2-3 hours.
+- New `scripts/sprint_inventory.py` — stdlib-only AST tool that lists
+  existing functions / classes / modules whose name or docstring
+  mentions a topic keyword. Markdown or `--json` output, `--out` writes
+  to disk. Intended as Day-1 step of every C-sprint per the template:
+  `python scripts/sprint_inventory.py outcome backfill --out spec/sprints/c2_inventory.md`
+- Smoke-validated on real repo: `bootstrap permutation walk-forward`
+  surfaces `_permutation_p_delta_metric` (`scripts/run_ab_comparison.py:409`),
+  `compute_walk_forward_cv_hr` (`scripts/smc_zone_priority_calibration.py:167`),
+  and the FDR layer — exactly the "extend, don't rebuild" prompts the
+  Day-1 discipline is meant to provide.
+- Pinned by 13 unit tests in `tests/test_sprint_inventory.py`
+  (file/function/class/docstring matching, tests-dir + `__pycache__`
+  exclusion, JSON parsability, CLI smoke, OR-semantics for multi-keyword).
+- Background: empirically 30–50 % of every recent C-sprint turned out
+  to be extending an existing module rather than greenfield (see
+  repo-memory `q3q4-plan-progress-2026-04-23-eod.md`).
+
 ### Tests / Quality (2026-04-26) — Defense ledger: `while True:` site lock (10 sites)
 
 - Added `tests/test_while_true_termination_ledger.py` (1 test)
