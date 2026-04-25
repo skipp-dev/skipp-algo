@@ -218,6 +218,21 @@ merged audit wave (#186, #188–#193).
   bei neuen `var`/`varip`-Deklarationen.
 - Ledger-Stand 2026-04-25 captured.
 
+### Hardening (2026-04-25) — Pin: GitHub-Actions Workflow `permissions:` explizit
+
+- Neuer Pin [`tests/test_workflow_permissions_pin.py`](tests/test_workflow_permissions_pin.py)
+  prüft, dass jede Datei in `.github/workflows/*.{yml,yaml}` einen expliziten
+  `permissions:`-Block deklariert — entweder Top-Level (bevorzugt, least-privilege
+  als Default) oder auf jedem Job einzeln.
+- Hintergrund: Ohne expliziten Block bekommt `GITHUB_TOKEN` weite Default-Schreibrechte
+  (`contents`, `issues`, `pull-requests`, `checks`, …). Eine kompromittierte
+  Action-Dependency könnte Code pushen, Branches löschen, Reviews dismissen.
+- Stand: 21/23 Workflows hatten bereits Top-Level-`permissions:`,
+  1/23 (`smc-release-gates.yml`) Job-Level (akzeptiert), 1/23
+  (`manifest-pytest-poison-scan.yml`) ohne — in diesem PR mit
+  `permissions: { contents: read }` versorgt.
+- OWASP A05 (Security Misconfiguration) + Supply-Chain-Härtung.
+
 ### Hardening (2026-04-25) — `usedforsecurity=False` Flag auf allen md5/sha1-Aufrufen
 
 - An 7 Sites `usedforsecurity=False` zu bestehenden `hashlib.md5(...)` /
