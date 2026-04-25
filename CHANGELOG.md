@@ -12,15 +12,17 @@ All notable changes to this project are documented in this file.
   `addopts = "-n auto --dist=loadfile"`. This aligns the local default
   with the CI `validate` invocation (`pytest -n auto --dist=loadfile`)
   that has been the supported mode since the AST determinism pin
-  landed in PR #104. `pytest-xdist>=3.6.0` is already pinned in
-  `requirements.txt` (3.8.0 installed), so no dependency change.
+  landed in PR #104. `requirements.txt` already includes the
+  `pytest-xdist>=3.6.0` requirement constraint, so no dependency-file
+  change is needed.
 - Fixed one determinism regression caught by
   `tests/test_pytest_xdist_parametrize_determinism.py`:
   `tests/test_hero_defaults_vocab_coverage.py:41` consumed
   `_VOCAB_MAP.items()` directly; now wrapped in `sorted(...)` so all
   xdist workers collect the same parametrize ids.
-- Override locally with `pytest -p no:xdist` or `pytest -n0` for
-  interactive `pdb` debugging.
+- Override locally with `pytest -n0` for interactive `pdb` debugging.
+  To disable the plugin entirely, also clear `addopts`:
+  `pytest -o addopts= -p no:xdist`.
 - Safety rationale documented inline in `pyproject.toml`. Existing
   guards (`structure_batch._guard_against_canonical_repo_write_under_pytest`,
   `sys.executable` in subprocess tests per PR #40) remain the

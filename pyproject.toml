@@ -32,8 +32,8 @@ testpaths = ["tests"]
 pythonpath = ["."]
 # Default to parallel execution to match CI (`pytest -n auto --dist=loadfile`).
 # Rationale (chore/pytest-xdist-local-default):
-#   * pytest-xdist 3.8.0 is already pinned in requirements.txt and used by
-#     `.github/workflows/ci.yml` for the validate job.
+#   * pytest-xdist is already required in requirements.txt (>=3.6.0) and
+#     used by `.github/workflows/ci.yml` for the validate job.
 #   * `--dist=loadfile` keeps every test in a file on the same worker, which
 #     preserves module-level fixture state and is required by tests that
 #     touch shared on-disk artifacts (see repo-memory
@@ -41,8 +41,9 @@ pythonpath = ["."]
 #   * Determinism is guarded by `tests/test_pytest_xdist_parametrize_determinism.py`
 #     (AST pin landed in PR #104), so non-deterministic parametrize sources
 #     can no longer regress and break worker collection.
-# Override locally with `pytest -p no:xdist` or `pytest -n0` for interactive
-# debugging (pdb / breakpoints do not work under xdist workers).
+# Override locally with `pytest -n0` for interactive debugging (pdb /
+# breakpoints do not work under xdist workers). To disable the plugin
+# entirely, also clear addopts: `pytest -o addopts= -p no:xdist`.
 addopts = "-n auto --dist=loadfile"
 filterwarnings = [
     "ignore:Microstructure base asof_date is .* days old:UserWarning",
