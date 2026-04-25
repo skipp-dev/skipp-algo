@@ -6,6 +6,18 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Tests / Quality (2026-04-25) — Defense pin: `atexit.register(...)` zero-surface
+
+- Added `tests/test_atexit_register_zero_surface.py` (1 test) pinning
+  the single legitimate `atexit.register(...)` call site at
+  `terminal_bitcoin.py:106` (closes a lazily-created httpx client).
+  `atexit` handlers run after structured logging has been torn down,
+  swallow exceptions silently, and can deadlock pytest workers / CI
+  runners / Streamlit reload cycles if they block on network I/O. Any
+  new call site (or any drift from that line number) fails the test
+  and forces a deliberate, reviewed allow-list update.
+- Defense-only — no production changes.
+
 ### Tests / Quality (2026-04-25) — Defense pin: dangerous IO/process primitives zero-surface
 
 - Added `tests/test_dangerous_io_zero_surface_pin.py` (3 tests) pinning
