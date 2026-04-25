@@ -6,6 +6,18 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Defense Pin (2026-04-23) — Silent Except Budget
+
+- `tests/test_silent_except_budget_pin.py`: AST-Pin auf 66 silent
+  `except: pass` / `except: ...`-Handler über 28 Dateien.
+  - Top-Distribution: `open_prep/run_open_prep.py:17`,
+    `terminal_export.py:6`, `open_prep/realtime_signals.py:5`,
+    `newsstack_fmp/store_sqlite.py:4`,
+    `open_prep/streamlit_monitor.py:3`.
+  - Drift-Detector erzwingt Budget-Senkung wenn Count >5 unter Budget fällt.
+  - OWASP A09 (Logging Failures) + A04 (Insecure Design): silent handlers
+    schlucken Auth-/Token-/Decryption-/Netzwerk-Fehler ohne Trail.
+
 ### Hardening (2026-04-25) — `assert` → `raise` Migration (Production)
 
 - Migration der 4 verbliebenen `assert`-Statements in First-Party-Production
