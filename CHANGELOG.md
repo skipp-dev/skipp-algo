@@ -112,6 +112,24 @@ New `tests/test_socket_bind_loopback_pin.py` (6 tests). Two layers:
 
 Defense-only — no production changes.
 
+### Tests / Quality (2026-04-25) — Defense pin: httpx mandatory timeout= invariant
+
+New `tests/test_httpx_timeout_invariant.py` (2 tests) — sister of
+the urllib.urlopen invariant (#204) extended to httpx, the repo's
+primary HTTP client. Two call shapes covered:
+
+- `test_every_httpx_client_constructor_passes_timeout`
+  → `httpx.Client(...)` and `httpx.AsyncClient(...)` MUST pass
+  `timeout=` explicitly. Today: 21 sites across 11 files, all pass.
+- `test_every_httpx_module_level_verb_passes_timeout`
+  → `httpx.get / post / put / delete / patch / head / options /
+  request / stream` MUST pass `timeout=`. Today: 1 site
+  (`terminal_notifications.py:225 httpx.post`), passes.
+
+Out of scope: instance-method calls like `client.get(...)` (those
+inherit the client's timeout, which the constructor invariant already
+covers). Defense-only — no production changes.
+
 ### Tests / Quality (2026-04-25) — Defense pin: os.environ mutation site ledger
 
 New `tests/test_os_environ_mutation_ledger.py` (AST-based, 13 tests) freezes
