@@ -29,11 +29,20 @@ locations (collision — the resolver shim cannot disambiguate).
 from __future__ import annotations
 
 import argparse
+import os
 import re
 import sys
 from pathlib import Path
 
-from scripts.pine_path_resolver import PINE_LEGACY_DIR
+# Allow direct script invocation (``python scripts/check_pine_legacy_drift.py``)
+# in addition to module form. ``smc-fast-pr-gates`` runs this script
+# directly, so the repo root must be on ``sys.path`` before the
+# ``scripts.pine_path_resolver`` import below resolves.
+_REPO_ROOT_FOR_BOOTSTRAP = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _REPO_ROOT_FOR_BOOTSTRAP not in sys.path:
+    sys.path.insert(0, _REPO_ROOT_FOR_BOOTSTRAP)
+
+from scripts.pine_path_resolver import PINE_LEGACY_DIR  # noqa: E402
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
