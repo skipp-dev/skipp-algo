@@ -78,6 +78,21 @@ All notable changes to this project are documented in this file.
   ledger explicitly). Same drift-protection pattern as
   `test_warnings_simplefilter_ledger.py` /
   `test_os_unlink_remove_ledger.py`.
+
+### Tests / Quality (2026-04-25) — Defense pin: `asyncio.new_event_loop` / `asyncio.set_event_loop` zero-surface
+
+- Added `tests/test_asyncio_event_loop_zero_surface.py` (4 tests)
+  pinning the manual asyncio event-loop installation pair. Manual
+  `asyncio.new_event_loop()` + `asyncio.set_event_loop(loop)` is a
+  known foot-gun: it competes with `asyncio.run` on the same thread
+  and produces flaky `RuntimeError: no current event loop in thread X`
+  / `This event loop is already running` failures. The only
+  legitimate shape is owning a loop on a non-main thread for its
+  full lifetime. Locked sites:
+  - `asyncio.new_event_loop`: `newsstack_fmp/ingest_benzinga.py:509`
+  - `asyncio.set_event_loop`: `newsstack_fmp/ingest_benzinga.py:510`
+  Both inside the `BenzingaWsAdapter._run_loop` daemon-thread entry
+  point, which owns the loop for the websocket session.
 - Defense-only — no production changes.
 
 ### Tests / Quality (2026-04-25) — Defense pin: `atexit.register(...)` zero-surface
