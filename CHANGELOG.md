@@ -6,6 +6,28 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Tests / Quality (2026-04-25) — six-fold zero-tripwire bundle
+
+- Neuer Pin [`tests/test_six_zero_tripwires_bundle.py`](tests/test_six_zero_tripwires_bundle.py)
+  bündelt sechs zero-inventory Defense-Layer in einem PR:
+  1. **Python `from x import *`** in Production verboten (linter-defeat,
+     Namespace-Opazität). Inventar 0.
+  2. **`pytest.mark.xfail` / `pytest.xfail()`** komplett verboten — Tests
+     müssen entweder grün laufen oder mit Reason geskipt werden, xfail
+     versteckt Regressions. Inventar 0.
+  3. **Repo-tracked Secret-shaped Filenames**: `.env*`, `*.pem`, `*.key`,
+     `id_rsa*`, `*_secret*`, `*.p12`, `*.pfx` dürfen nicht committed sein.
+     Allowlist für `.env.example/.sample/.template`. Inventar 0.
+  4. **Pine deprecated `study(...)`** verboten (Pine v4 → v5 mit
+     `indicator(...)`). Inventar 0.
+  5. **Pine `//@version=N` Pflicht** mit N ≥ 5 für alle Standalone-
+     `.pine`-Dateien (Generated `_snippet.pine` Fragmente exempt).
+     Erlaubt führendes Whitespace nach `//`.
+  6. **YAML Workflow + docker-compose Parse-Tripwire**: alle
+     `.github/**/*.yml`/`*.yaml` und `docker-compose.yml` müssen via
+     `yaml.safe_load` parsen. Fängt Syntax-Bricks vor CI.
+- Defense-only, keine Production-Änderungen.
+
 ### Tests / Quality (2026-04-24) — serialization & shell-injection zero-tripwires + `__all__` integrity
 
 - Neuer Pin [`tests/test_serialization_and_shell_tripwires.py`](tests/test_serialization_and_shell_tripwires.py)
