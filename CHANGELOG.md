@@ -6,6 +6,291 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Fixed (2026-04-25) — `_FROZEN_URLOPEN_SITES` Line Bump
+
+- `tests/test_http_client_discipline.py`:
+  bump `_FROZEN_URLOPEN_SITES` entry for `databento_volatility_screener.py`
+  from line 1102 → 1109. The `urlopen(request, timeout=30, context=_ssl_ctx)`
+  in `_download_nasdaq_trader_text` shifted 7 lines down after a
+  `logger.warning(...)` was inserted above it (same root cause as the
+  env-subscript bump in PR #184). Pure line drift; the call still passes
+  `timeout=`.
+
+### Fixed (2026-04-25) — `_ALLOWED` Workflow continue-on-error Line Bumps
+
+- `tests/test_workflow_continue_on_error_inventory.py`:
+  re-sync `_ALLOWED` line numbers for 5 workflows after upstream YAML
+  edits. All entries are pure line drift; the same set of best-effort
+  hops remains tolerated:
+  - `smc-live-newsapi-refresh.yml`: 104 → 106
+  - `smc-library-refresh.yml`: {162, 370, 583, 723, 740} → {165, 376, 592, 735, 755}
+  - `smc-deeper-integration-gates.yml`: {51, 92} → {54, 98}
+  - `plan-2-8-weekly-digest.yml`: {441, 655, 931} → {444, 661, 940}
+  - `smc-release-gates.yml`: 169 → 172
+
+### Fixed (2026-04-25) — `_FROZEN_ENV_SUBSCRIPT_SITES` Line Bump
+
+- `tests/test_mutable_defaults_and_loads_pins.py`:
+  bump frozen `os.environ[X]` subscript ledger entry for
+  `databento_volatility_screener.py` from line 773 → 780. The
+  assignment `os.environ[env_name] = cafile` shifted 7 lines down
+  after a `logger.warning(...)` was inserted above it (no functional
+  change). This unblocks the CI `validate` check that was failing
+  on every PR with `AssertionError: New os.environ[X] subscript
+  site(s)`.
+
+### Fixed (2026-04-25) — Reconcile assert ledger after zero-budget migration
+
+- `tests/test_assert_and_open_encoding_pin.py`:
+  drop `_FROZEN_ASSERT_COUNTS` to `{}`. The four prod `assert`
+  sites pinned by PR #166 were migrated to explicit `raise` blocks
+  in PR #171 (zero-budget pin). The legacy ledger was never updated,
+  so `test_assert_total_frozen` failed with `expected 4, got 0` on
+  every PR. The `test_assert_no_new_files` guard remains in place
+  (now paired with the dedicated zero-budget pin from #171).
+
+### Fixed (2026-04-25) — `broad_except_silent` Line Bump
+
+- `tests/test_broad_except_silent_budget.py`:
+  bump `_FROZEN_SITES` entry for `newsstack_fmp/ingest_benzinga.py`
+  from line 546 → 547. The `except Exception:` around `ws.send(auth_msg)`
+  shifted by one line after upstream edits. Pure line drift; identical
+  silent-handler kept. Same drift class as the env-subscript bump above.
+
+### Tests / Quality (2026-04-25) — Extend CHANGELOG ALLOWED_CATEGORIES
+
+- `tests/test_changelog_format_lint.py`:
+  add `Hardening`, `Tests / Quality / Pine`, `Tests / Quality / Workflows`
+  to `ALLOWED_CATEGORIES`. All three are in active use in `[Unreleased]`
+  (introduced by merged PRs #170, #171, #177, #131, #130 etc.).
+  The whitelist had lagged real usage, so the lint test was failing
+  on `main`; it was masked by `pytest --maxfail=1` + alphabetical
+  ordering (the assert-ledger drift fixed above failed first).
+
+### Hardening (2026-04-25) — Pin: `sys.exit` 7-Site Ledger + bare `exit/quit` Tripwire
+
+- Neuer Pin [`tests/test_sys_exit_ledger_pin.py`](tests/test_sys_exit_ledger_pin.py)
+  mit 2 Layern:
+  1. **`sys.exit` 7-Site Frozen Ledger** — alle CLI/`__main__`-Guards:
+     `open_prep/{candidate_weights:241, feature_importance_report:351,
+     outcome_backfill:529}`, `pine_input_surface.py:{400,402}`,
+     `test_usi_lint.py:{90,93}`. Library-Code muss `raise`-en, nicht
+     den Prozess killen.
+  2. **Bare `exit()` / `quit()` Zero-Tripwire** — REPL-Helper, fehlen
+     in embedded interpreters / stripped builds → Crash-on-Import.
+     Heute 0.
+- 10/10 Tests grün (1× tripwire + 2× ledger guards + 7× parametrised existence).
+- Defense-only.
+- OWASP A09 (Logging & Monitoring Failures — silent process termination).
+
+### Hardening (2026-04-25) — `assert` → `raise` Migration (Production)
+
+- Migration der 4 verbliebenen `assert`-Statements in First-Party-Production
+  zu expliziten `if … : raise RuntimeError(...)`-Blöcken:
+  - `databento_universe.py:314` (retry-loop type-narrowing)
+  - `databento_volatility_screener.py:1116` (retry-loop type-narrowing)
+  - `newsstack_fmp/ingest_benzinga.py:211` (HTTPStatusError response narrowing)
+  - `newsstack_fmp/shared_fetch.py:128` (cached_payload narrowing nach reusability check)
+- Hintergrund: `assert`-Statements werden unter `python -O` (Optimisation
+  Mode) silently stripped — Type-Narrowing-Asserts kollabieren dann zu
+  latenten `AttributeError`/`TypeError`-Bugs irgendwo downstream. Explizite
+  `raise`-Statements überleben `-O` und liefern eine deterministische,
+  diagnoseable Fehlerklasse.
+- Pin: `tests/test_no_prod_assert_pin.py` (2 Layers — global zero-budget
+  + parametrised per-site sentinel). Verhindert Regression. Ledger im
+  bestehenden `tests/test_assert_and_open_encoding_pin.py` (PR #166)
+  bleibt als Obergrenze; dieser Pin enforced den jetzigen Zustand (0).
+- Verhalten: Bei legitimer "this can't happen"-Zustand wird `RuntimeError`
+  geworfen statt `AssertionError`. Keine ID-Rotation, keine Schema-Änderung.
+
+### Hardening (2026-04-25) — `usedforsecurity=False` Flag auf allen md5/sha1-Aufrufen
+
+- An 7 Sites `usedforsecurity=False` zu bestehenden `hashlib.md5(...)` /
+  `hashlib.sha1(...)` Aufrufen hinzugefügt:
+  [`databento_utils.py`](databento_utils.py),
+  [`databento_volatility_screener.py`](databento_volatility_screener.py) (3×),
+  [`open_prep/dirty_flag_manager.py`](open_prep/dirty_flag_manager.py),
+  [`open_prep/realtime_signals.py`](open_prep/realtime_signals.py),
+  [`newsstack_fmp/scoring.py`](newsstack_fmp/scoring.py).
+- Effekt: keine ID-Rotation (Digest-Bytes unverändert), aber explizite
+  Annotation der Non-Crypto-Intent. Macht Bandit B324 / Ruff S324 stumm
+  und erlaubt Ausführung unter FIPS-Mode-Interpretern, wo md5/sha1 sonst
+  `ValueError` werfen.
+- Neuer Pin [`tests/test_weak_hash_usedforsecurity_pin.py`](tests/test_weak_hash_usedforsecurity_pin.py)
+  parametrisiert über jeden weak-hash-Aufruf und erzwingt das Flag bei
+  allen zukünftigen Erweiterungen. Komplementär zum Count-Ledger aus
+  PR #169 ([`tests/test_weak_hash_pin.py`](tests/test_weak_hash_pin.py)).
+
+### Tests / Quality (2026-04-25) — Pine `alertcondition()` + Declaration-Pin
+
+- Neuer Pin [`tests/test_pine_alertcondition_and_declaration_pin.py`](tests/test_pine_alertcondition_and_declaration_pin.py)
+  fixiert zwei Pine-Surface-Eigenschaften:
+  1. **`alertcondition()` Ledger**: Total = 20 in 3 Dateien
+     (`SMC_Core_Engine.pine` 16, `SMC_Event_Overlay.pine` 2,
+     `SkippALGO_Confluence.pine` 2). Schutz gegen unbeabsichtigtes
+     Hinzufügen neuer User-sichtbarer Alert-Slots ohne Compile-Preflight-
+     Registrierung.
+  2. **Single-Declaration-Discipline**: Jede `*.pine`-Datei hat genau
+     eine `indicator(...)`/`strategy(...)`/`library(...)` Top-Level-
+     Deklaration und der Kind ist gepinnt (16 Dateien, davon 1
+     `strategy` = `SMC_Long_Strategy.pine`, Rest `indicator`). Eine
+     zweite Deklaration würde die erste in TradingView still
+     überschatten; ein Wechsel `indicator <-> strategy` ist breaking.
+- Helper `_strip_strings_and_comments` ist quote/`//`-comment-aware.
+  Generiertes `_snippet.pine` ausgeschlossen. Reine Test-Schicht,
+  0 Pine-Codeänderung.
+
+### Tests / Quality (2026-04-25) — Pine `request.security` HTF discipline
+
+- Neuer Pin [`tests/test_pine_request_security_htf_pin.py`](tests/test_pine_request_security_htf_pin.py)
+  schützt jeden `request.security(...)`-Aufruf in den standalone `*.pine`-
+  Dateien gegen Same-TF-Aufrufe. Same-TF (`timeframe.period`, `""`,
+  `syminfo.period`) ist äquivalent zum normalen Series-Zugriff, kostet aber
+  ein Slot des Request-Quotas und führt bei vergessenem `lookahead_off` zu
+  stiller Repaint-Drift.
+  - **Layer 1 — Zero-Tripwire**: `tf`-Argument darf keine der drei
+    Same-TF-Konstanten sein. Inventar 0.
+  - **Layer 2 — Total-Budget**: genau 3 Aufrufe in `*.pine` (alle in
+    `SMC_Core_Engine.pine`: HTF-Trend `get_confirmed_structure_trend` Zeile
+    2367 + 2× HTF-FVG-Detect Zeilen 4693/4694). Neue HTF-Aufrufe sind
+    erlaubt, müssen aber Ledger + CHANGELOG mit aktualisieren.
+  - **Layer 3 — Per-File-Ledger**: `SMC_Core_Engine.pine: 3` eingefroren.
+  - **Layer 4 — Datei-Existenz**: Ledger-Datei muss existieren.
+  - **Layer 5 — Inventar-Sanity**: ≥15 Pine-Dateien sichtbar.
+- Defense-only — kein Pine-Code geändert.
+### Tests / Quality (2026-04-25) — prod `print()` ledger
+
+- Neuer Pin [`tests/test_prod_print_ledger.py`](tests/test_prod_print_ledger.py)
+  fixiert die `print()`-Verteilung über First-Party-Prod-`*.py` (7 Dateien,
+  Total = 38). Service-Code (`databento_*`, `terminal_*`, `streamlit_*`)
+  loggt über `logging`; CLI-Skripte (`pine_input_surface.py`,
+  `pine_apply_surface_reduction.py`, `test_usi_lint.py`) und Reporting-
+  Helfer (`open_prep/{candidate_weights,feature_importance_report,
+  outcome_backfill}.py`, `smc_integration/provider_health.py`) dürfen
+  nach stdout schreiben. Der Pin sorgt dafür, dass kein Service-Modul
+  versehentlich anfängt zu printen (würde z.B. JSON-RPC stdio oder Pine-
+  Surface-Reduction-Artefakte zerstören).
+- Drei-Lagen-Schutz: total-budget + no-new-files + no-stale-entries +
+  parametrisierter per-File-Count + Datei-Existenz. Reine Test-Schicht.
+### Tests / Quality (2026-04-25) — prod `assert` + `open()` encoding pin
+
+- Neuer Pin [`tests/test_assert_and_open_encoding_pin.py`](tests/test_assert_and_open_encoding_pin.py)
+  fixiert zwei stille Drift-Quellen:
+  1. **Prod-`assert` Ledger** (4 Sites:
+     `databento_volatility_screener.py`, `databento_universe.py`,
+     `newsstack_fmp/ingest_benzinga.py`, `newsstack_fmp/shared_fetch.py`).
+     Schutz gegen `python -O`/`PYTHONOPTIMIZE`-Builds, die `assert` zum
+     No-Op machen — neue Sites zwingen Review (raise vs. ledger-bump).
+  2. **Text-Mode `open()` ohne `encoding=`** (3 Sites:
+     `open_prep/realtime_signals.py` ×2, `test_usi_lint.py` ×1). Verhindert
+     stille Fallback-Drift auf `locale.getencoding()`. Binary-Mode
+     (`"rb"`/`"wb"`) wird per AST-Mode-Literal ausgeklammert.
+- Drei-Lagen-Schutz pro Layer: total-budget + no-new-files +
+  no-stale-entries + parametrisierter per-File-Count + Datei-Existenz.
+  Inventar-Sanity ≥30 Prod-`*.py`. Reine Test-Schicht.
+
+### Tests / Quality (2026-04-25) — silent-security & boundary 6-fold bundle
+
+- Neuer Pin [`tests/test_silent_security_and_boundary_bundle.py`](tests/test_silent_security_and_boundary_bundle.py)
+  bündelt sechs Defense-Layer in einem PR:
+  1. **TLS `verify=False`** in beliebigen Call-Kwargs verboten
+     (httpx/requests). MITM-Schutz darf nicht abgeschaltet werden.
+     Inventar 0, reine Tripwire.
+  2. **`tempfile.mktemp`** verboten (Race-Condition-Klasse vor
+     `mkstemp()`). Inventar 0.
+  3. **stdlib `xml.*` Imports** verboten — XXE-anfällig, `defusedxml`
+     verwenden. Inventar 0.
+  4. **`warnings.simplefilter("ignore")` / `filterwarnings("ignore")`**
+     in Production verboten — versteckt Deprecation/Runtime-Warnings.
+     Inventar 0.
+  5. **`logging.basicConfig(...)`** Frozen-7-Site-Ledger
+     (`newsstack_fmp/run.py`, 5× `open_prep/*.py` Entry-Points,
+     `smc_tv_bridge/smc_api.py`). Library-Code darf den Root-Logger
+     nicht konfigurieren.
+  6. **`sys.path.insert/append`** Frozen-6-Site-Ledger (Streamlit-Shims
+     + `smc_tv_bridge/smc_api.py` + `open_prep/{realtime_signals,
+     streamlit_monitor}.py`). Path-Hacks bleiben auf bekannte
+     Entry-Point-Shims beschränkt.
+- Drei-Schichten-Guard pro Ledger + parametrisierte Datei-Existenz +
+  Inventar-Sanity. Defense-only.
+
+### Tests / Quality (2026-04-25) — six-fold zero-tripwire bundle
+
+- Neuer Pin [`tests/test_six_zero_tripwires_bundle.py`](tests/test_six_zero_tripwires_bundle.py)
+  bündelt sechs zero-inventory Defense-Layer in einem PR:
+  1. **Python `from x import *`** in Production verboten (linter-defeat,
+     Namespace-Opazität). Inventar 0.
+  2. **`pytest.mark.xfail` / `pytest.xfail()`** komplett verboten — Tests
+     müssen entweder grün laufen oder mit Reason geskipt werden, xfail
+     versteckt Regressions. Inventar 0.
+  3. **Repo-tracked Secret-shaped Filenames**: `.env*`, `*.pem`, `*.key`,
+     `id_rsa*`, `*_secret*`, `*.p12`, `*.pfx` dürfen nicht committed sein.
+     Allowlist für `.env.example/.sample/.template`. Inventar 0.
+  4. **Pine deprecated `study(...)`** verboten (Pine v4 → v5 mit
+     `indicator(...)`). Inventar 0.
+  5. **Pine `//@version=N` Pflicht** mit N ≥ 5 für alle Standalone-
+     `.pine`-Dateien (Generated `_snippet.pine` Fragmente exempt).
+     Erlaubt führendes Whitespace nach `//`.
+  6. **YAML Workflow + docker-compose Parse-Tripwire**: alle
+     `.github/**/*.yml`/`*.yaml` und `docker-compose.yml` müssen via
+     `yaml.safe_load` parsen. Fängt Syntax-Bricks vor CI.
+- Defense-only, keine Production-Änderungen.
+### Tests / Quality (2026-04-25) — mutable defaults + json.load + os.environ subscript
+
+- Neuer Pin [`tests/test_mutable_defaults_and_loads_pins.py`](tests/test_mutable_defaults_and_loads_pins.py)
+  bündelt drei AST/Text-Layer:
+  1. **Mutable default arguments** verboten (`def f(x=[])`/`{}`/`set()`/
+     `list()`/`dict()`). Klassischer Python-Footgun (shared state über
+     alle Calls). Inventar 0, pure Tripwire.
+  2. **`json.load(...)` Site-Ledger** — 9 frozen Sites in `open_prep/`.
+     Jeder Call ist eine Untrusted-Parse-Boundary; neue Sites brauchen
+     Review (try/except, Size-Limit) bevor sie ins Ledger aufgenommen
+     werden.
+  3. **`os.environ[X]` Subscript-Ledger** — 6 frozen Sites. Subscript
+     wirft `KeyError` bei fehlender Variable; neue Sites müssen
+     bewusst zwischen Hard-Fail vs. `.get(X, default)` entscheiden.
+- Defense-only.
+### Tests / Quality (2026-04-25) — GitHub Actions trusted-publisher allowlist
+
+- Neuer Pin [`tests/test_gha_action_allowlist.py`](tests/test_gha_action_allowlist.py)
+  verlangt für jede `uses:`-Zeile in `.github/workflows/*.y*ml`
+  entweder einen 40-Zeichen-SHA-Pin oder einen Eintrag in der
+  eingefrorenen Trusted-Publisher-Liste (8 owner/repo: `actions/*`,
+  `dawidd6/action-download-artifact`).
+- Verteidigung gegen Tag-Mutation-Supply-Chain-Angriffe auf
+  ungeprüfte Drittanbieter-Actions. Lokale `./...` und `docker://...`
+  Actions sind ausgenommen.
+- Drei-Schichten-Guard: Pin-or-allowlist, no-stale-entries, Form-Sanity
+  + Inventur-Sanity (≥10 uses-Zeilen). Defense-only.
+
+### Tests / Quality (2026-04-24) — serialization & shell-injection zero-tripwires + `__all__` integrity
+
+- Neuer Pin [`tests/test_serialization_and_shell_tripwires.py`](tests/test_serialization_and_shell_tripwires.py)
+  bündelt drei Defense-Schichten:
+  1. **Insecure-Deserialization-Tripwires** (CWE-502): `pickle`,
+     `cPickle`, `marshal`, `shelve` — alle vier aktuell nicht in
+     Production importiert. Schaltet RCE-Klasse präventiv aus.
+  2. **Shell-Injection-Tripwires**: `os.system(...)` und `os.popen(...)`
+     komplettieren das in PR #154 etablierte `subprocess(..., shell=True)`-
+     Verbot.
+  3. **`__all__`-Integritätsprüfung**: jeder via `__all__` exportierte
+     Name muss tatsächlich auf Top-Level definiert oder importiert sein
+     (inkl. Top-Level-If/Try-Blöcken für Optional-Dependency-Patterns).
+     Fängt den klassischen "Helper gelöscht, `__all__` vergessen"-Bug.
+- Defense-only, keine Production-Änderungen.
+
+### Tests / Quality (2026-04-24) — `# type: ignore` per-file count budget
+
+- Neuer Pin [`tests/test_type_ignore_budget.py`](tests/test_type_ignore_budget.py)
+  fixiert die `# type: ignore`-Suppressionen pro Datei als Budget
+  (Zeilen-genaue Ledger wären zu churn-anfällig in den dichten
+  pandas/streamlit-Bridge-Files). Aktuell 19 Dateien / 81 Suppressions
+  (top: `terminal_bitcoin.py` 18, `open_prep/streamlit_monitor.py` 18,
+  `terminal_poller.py` 13). Drei-Schicht-Schutz: kein Datei-Count darf
+  über sein Budget steigen, neue Dateien dürfen ohne Ledger-Eintrag
+  gar keine `# type: ignore` einführen, und Stale-Einträge werden
+  geflaggt. Reduktion erwünscht — fallender Count soll Budget senken.
+
 ### Tests / Quality (2026-04-24) — `nonlocal` keyword frozen-inventory budget
 
 - Neuer Pin [`tests/test_nonlocal_budget.py`](tests/test_nonlocal_budget.py)
@@ -37,6 +322,27 @@ All notable changes to this project are documented in this file.
   Tripwire, kein Allowlist nötig. Closes "f-string baut Message immer,
   auch bei DEBUG-off" Bug-Klasse + Performance-Falle bei teuren `repr`-
   Aufrufen in disabled Levels.
+### Tests / Quality (2026-04-24) — `# noqa` frozen-inventory budget (with code-set capture)
+
+- Neuer Pin [`tests/test_noqa_budget.py`](tests/test_noqa_budget.py)
+  friert die aktuelle Inventur von 27 `# noqa`-Suppressions in
+  First-Party-Production ein. Kategorien aktuell:
+  - `F401` (re-export only `__init__.py` imports — `terminal_tabs`)
+  - `E402` (deferred imports nach `sys.path`-Manipulation / atexit)
+  - `F401, F811` (typing-only optional imports — `terminal_bitcoin`)
+  - `PLW0603` (Modul-Singleton `global` — bereits via
+    `test_global_statement_budget.py` separat gepinnt)
+  - `PERF203` (explicit retry-loop `try/except` shape)
+  - `ANN001` (`*args, **kwargs` callback signature)
+- Ledger erfasst zusätzlich das exakte Code-Set je Site — wenn
+  jemand stillschweigend eine Suppression erweitert (z.B. `F811` zu
+  einem bestehenden `# noqa: F401` hinzufügt), schlägt der Stale-Site-
+  Guard mit dem Code-Tuple-Vergleich an.
+- Drei Schichten: no-new-sites Tripwire + parametrisierter Stale-Site-
+  Guard (line + sorted-codes tuple) + bidirektionale Inventur-Parity.
+  Jede neue `# noqa` zwingt Review (could the lint be fixed instead?).
+- 30 Tests grün, keine Produktions-Anpassungen nötig. Closes
+  "stille Lint-Suppression-Erweiterung" Bug-Klasse.
 
 ### Tests / Quality (2026-04-24) — `except Exception: pass` defense pin (frozen-inventory budget)
 

@@ -311,7 +311,8 @@ def _download_nasdaq_trader_text(url: str) -> str:
             last_error = exc
             if attempt < 2:
                 time_module.sleep(0.5 * (2 ** attempt))
-    assert last_error is not None
+    if last_error is None:
+        raise RuntimeError("retry loop exited without success or recorded error")
     raise last_error
 
 
