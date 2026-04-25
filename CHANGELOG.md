@@ -6,6 +6,20 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Tests / Quality (2026-04-25) — Weak-hash (md5/sha1) usage ledger
+
+- Neuer Pin [`tests/test_weak_hash_pin.py`](tests/test_weak_hash_pin.py)
+  fixiert die 13 `hashlib.md5(...)` / `hashlib.sha1(...)` /
+  `hashlib.new("md5"|"sha1", ...)` Aufrufe in 8 First-Party-Prod-Modulen.
+  Diese Stellen nutzen Weak-Hashes ausschließlich für **non-cryptographic
+  Content-Addressing** (Cache-Schlüssel, Dirty-Flag-Fingerprints,
+  Dedupe-IDs) — niemals für Auth/Integrity. Schutz gegen versehentliche
+  Re-Use von md5/sha1 in Security-Kontexten und gegen unkontrolliertes
+  Wachstum dieser Surface.
+- 5-Layer-Defense: Total-Budget (13), no-new-files, no-stale-entries,
+  parametrised per-file count, parametrised file-exists. Reine Test-
+  Schicht, 0 Prod-Codeänderung.
+
 ### Tests / Quality (2026-04-25) — Pine `request.security` HTF discipline
 
 - Neuer Pin [`tests/test_pine_request_security_htf_pin.py`](tests/test_pine_request_security_htf_pin.py)
