@@ -200,7 +200,7 @@ def _detect_rt_engine_pid() -> int | None:
             continue
         try:
             _RT_ENGINE_PID_FILE.parent.mkdir(parents=True, exist_ok=True)
-            _RT_ENGINE_PID_FILE.write_text(str(pid))
+            _RT_ENGINE_PID_FILE.write_text(str(pid), encoding="utf-8")
         except OSError:
             pass
         return pid
@@ -345,7 +345,7 @@ def _ensure_rt_engine_running_locked(
             )
             logger.warning("RT engine exited immediately after launch (code=%s)", proc.returncode)
             return False
-        _RT_ENGINE_PID_FILE.write_text(str(proc.pid))
+        _RT_ENGINE_PID_FILE.write_text(str(proc.pid), encoding="utf-8")
         _update_rt_engine_status(running=True, pid=proc.pid, error=None)
         logger.info("RT engine started (PID %d, log: %s)", proc.pid, _RT_ENGINE_LOG_FILE)
         return True
