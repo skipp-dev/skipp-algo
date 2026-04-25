@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from scripts.smc_atomic_write import atomic_write_text
+
 import argparse
 import glob
 import hashlib
@@ -790,7 +792,7 @@ def _render(report: dict[str, Any], output: str) -> None:
         return
     out_path = Path(output)
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    out_path.write_text(text + "\n", encoding="utf-8")
+    atomic_write_text(text + "\n", out_path)
 
 
 def _write_evidence_index(summary: dict[str, Any], output: str) -> None:
@@ -819,10 +821,7 @@ def _write_evidence_index(summary: dict[str, Any], output: str) -> None:
         "entries": entries,
     }
     index_path.parent.mkdir(parents=True, exist_ok=True)
-    index_path.write_text(
-        json.dumps(index_payload, indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
-    )
+    atomic_write_text(json.dumps(index_payload, indent=2, sort_keys=True) + "\n", index_path)
 
 
 def build_parser() -> argparse.ArgumentParser:

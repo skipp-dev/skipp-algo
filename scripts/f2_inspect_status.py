@@ -23,6 +23,8 @@ Pure-Python, read-only, no network.
 
 from __future__ import annotations
 
+from scripts.smc_atomic_write import atomic_write_text
+
 import argparse
 import json
 import re
@@ -308,7 +310,7 @@ def main(argv: list[str] | None = None) -> int:
     text = json.dumps(status, indent=2)
     if args.output is not None:
         args.output.parent.mkdir(parents=True, exist_ok=True)
-        args.output.write_text(text + "\n", encoding="utf-8")
+        atomic_write_text(text + "\n", args.output)
     if args.quiet:
         print(render_one_line(status))
     elif args.format == "md":

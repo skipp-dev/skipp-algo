@@ -11,7 +11,7 @@ from typing import Any, cast
 import pandas as pd
 
 from smc_core.schema_version import SCHEMA_VERSION, VersionChangeType, classify_version_change
-from scripts.smc_atomic_write import atomic_write_csv
+from scripts.smc_atomic_write import atomic_write_csv, atomic_write_text
 from scripts.smc_enrichment_types import EnrichmentDict
 
 logger = logging.getLogger(__name__)
@@ -1159,7 +1159,7 @@ def write_pine_library(
         f'"{consumer.get("ZONE_CAL_TRUST", _ZH_DEFAULTS["ZONE_CAL_TRUST"])}"'
     )
 
-    path.write_text("\n".join(content).rstrip() + "\n", encoding="utf-8")
+    atomic_write_text("\n".join(content).rstrip() + "\n", path)
 
 
 def render_output_path(root: Path, template: str, asof_date: str) -> Path:
@@ -1236,7 +1236,7 @@ def write_diff_report(path: Path, previous_state: pd.DataFrame, new_state: pd.Da
         if not added and not removed:
             lines.append("- No changes")
         lines.append("")
-    path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
+    atomic_write_text("\n".join(lines).rstrip() + "\n", path)
 
 
 def write_core_import_snippet(path: Path, *, library_owner: str, library_name: str, library_version: int) -> str:
@@ -1256,7 +1256,7 @@ def write_core_import_snippet(path: Path, *, library_owner: str, library_name: s
         "string weak_afterhours_tickers_effective = mp.WEAK_AFTERHOURS_TICKERS",
         "string fast_decay_tickers_effective = mp.FAST_DECAY_TICKERS",
     ]
-    path.write_text("\n".join(content) + "\n", encoding="utf-8")
+    atomic_write_text("\n".join(content) + "\n", path)
     return import_path
 
 
@@ -1302,7 +1302,7 @@ def write_readiness_report(path: Path, assessment: dict[str, Any]) -> None:
         "",
     ])
     lines.extend([f"- {column}" for column in extra] or ["- None"])
-    path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
+    atomic_write_text("\n".join(lines).rstrip() + "\n", path)
 
 
 def write_manifest(
@@ -1426,7 +1426,7 @@ def write_manifest(
         "asof_time": ((normalized_enrichment or {}).get("meta") or {}).get("asof_time", ""),
         "refresh_count": int(((normalized_enrichment or {}).get("meta") or {}).get("refresh_count", 0)),
     }
-    path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    atomic_write_text(json.dumps(payload, indent=2) + "\n", path)
 
 
 def run_generation(

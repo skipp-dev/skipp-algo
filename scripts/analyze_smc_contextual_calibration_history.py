@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from scripts.smc_atomic_write import atomic_write_text
+
 import argparse
 import csv
 import json
@@ -54,12 +56,12 @@ def _render(payload: dict[str, Any], output: str) -> None:
 
     output_path = Path(output)
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(rendered + "\n", encoding="utf-8")
+    atomic_write_text(rendered + "\n", output_path)
 
 
 def _write_text(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(text.rstrip() + "\n", encoding="utf-8")
+    atomic_write_text(text.rstrip() + "\n", path)
 
 
 def _write_csv(path: Path, *, fieldnames: list[str], rows: list[dict[str, Any]]) -> None:

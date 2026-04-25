@@ -38,6 +38,8 @@ How to update the reference file:
 """
 from __future__ import annotations
 
+from scripts.smc_atomic_write import atomic_write_text
+
 import argparse
 import json
 import sys
@@ -218,10 +220,7 @@ def main() -> int:
     if args.update_reference:
         ref_path = Path(args.reference)
         ref_path.parent.mkdir(parents=True, exist_ok=True)
-        ref_path.write_text(
-            json.dumps(current, indent=2, sort_keys=True) + "\n",
-            encoding="utf-8",
-        )
+        atomic_write_text(json.dumps(current, indent=2, sort_keys=True) + "\n", ref_path)
         print(f"Reference updated: {ref_path}")
         return 0
 

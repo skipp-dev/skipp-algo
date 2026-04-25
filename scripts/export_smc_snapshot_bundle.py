@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from scripts.smc_atomic_write import atomic_write_text
+
 import argparse
 import json
 from pathlib import Path
@@ -55,7 +57,7 @@ def export_snapshot_bundle(
         output = Path("reports") / f"smc_snapshot_bundle_{safe_symbol}_{safe_timeframe}.json"
 
     output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(json.dumps(bundle, indent=2, sort_keys=True), encoding="utf-8")
+    atomic_write_text(json.dumps(bundle, indent=2, sort_keys=True), output)
     return output
 
 

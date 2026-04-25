@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from scripts.smc_atomic_write import atomic_write_text
+
 import argparse
 import json
 import os
@@ -319,7 +321,7 @@ def main() -> int:
     if not output_path.is_absolute():
         output_path = PROJECT_ROOT / output_path
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(json.dumps(payload, indent=2, ensure_ascii=True), encoding="utf-8")
+    atomic_write_text(json.dumps(payload, indent=2, ensure_ascii=True), output_path)
     print(json.dumps(payload, indent=2, ensure_ascii=True))
     print(f"Wrote probe summary to {output_path}")
     return 0

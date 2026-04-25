@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from scripts.smc_atomic_write import atomic_write_text
+
 import argparse
 import json
 import time
@@ -166,7 +168,7 @@ def _render(report: dict[str, Any], output: str) -> None:
         return
     path = Path(output)
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(rendered + "\n", encoding="utf-8")
+    atomic_write_text(rendered + "\n", path)
 
 
 def run_post_release_validation(

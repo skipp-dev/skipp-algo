@@ -11,6 +11,8 @@ Pure stdlib, read-only.
 
 from __future__ import annotations
 
+from scripts.smc_atomic_write import atomic_write_text
+
 import argparse
 import datetime as _dt
 import json
@@ -144,7 +146,7 @@ def main(argv: list[str] | None = None) -> int:
         else json.dumps(report, indent=2) + "\n"
     if args.output is not None:
         args.output.parent.mkdir(parents=True, exist_ok=True)
-        args.output.write_text(body, encoding="utf-8")
+        atomic_write_text(body, args.output)
     print(body, end="")
     if args.fail_on_under and report["counts"].get("under", 0):
         return 1

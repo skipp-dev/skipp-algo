@@ -207,7 +207,7 @@ def write_mapping_report(path: Path, payload: dict[str, Any]) -> None:
     for status in payload["mapping_status"]:
         source_columns = ", ".join(status["source_columns"]) if status["source_columns"] else ""
         lines.append(md_row(status["field"], status["status"], status["source_sheet"], source_columns, status["note"]))
-    path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
+    atomic_write_text("\n".join(lines).rstrip() + "\n", path)
 
 
 def build_default_output_paths(workbook_path: Path, asof_date: str) -> tuple[Path, Path, Path]:
@@ -431,7 +431,7 @@ def _save_newsapi_feed_state(
         "last_seen_news_uri": str(last_seen_news_uri or "").strip(),
     }
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    atomic_write_text(json.dumps(payload, indent=2) + "\n", path)
 
 
 def _load_live_news_snapshot(path: Path | None) -> dict[str, Any] | None:
@@ -742,7 +742,7 @@ def _write_library_provider_diagnostics_report(
         symbols_count=symbols_count,
     )
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    atomic_write_text(json.dumps(payload, indent=2) + "\n", path)
     return payload
 
 

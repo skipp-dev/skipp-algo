@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from scripts.smc_atomic_write import atomic_write_text
+
 import argparse
 import json
 from pathlib import Path
@@ -14,7 +16,7 @@ DEFAULT_OUTPUT = Path("reports") / "extended_structure_discovery_report.json"
 def export_extended_structure_discovery_report(*, output: Path = DEFAULT_OUTPUT) -> Path:
     payload = build_extended_structure_discovery_report()
     output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    atomic_write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", output)
     return output
 
 

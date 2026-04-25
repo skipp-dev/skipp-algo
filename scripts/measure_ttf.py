@@ -32,6 +32,8 @@ Design notes
 
 from __future__ import annotations
 
+from scripts.smc_atomic_write import atomic_write_text
+
 import json
 from pathlib import Path
 from statistics import median
@@ -208,7 +210,7 @@ def _main(argv: list[str] | None = None) -> int:
     summary = measure(events)
     text = json.dumps(summary, indent=2, sort_keys=True)
     if args.output:
-        args.output.write_text(text + "\n", encoding="utf-8")
+        atomic_write_text(text + "\n", args.output)
     else:
         print(text)
     return 0

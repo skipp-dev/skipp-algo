@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from scripts.smc_atomic_write import atomic_write_text
+
 import argparse
 import json
 import math
@@ -209,7 +211,7 @@ def generate_performance_report(
     lines += _section_conclusion(benchmark_summary)
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text("\n".join(lines), encoding="utf-8")
+    atomic_write_text("\n".join(lines), output_path)
     return output_path
 
 

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from scripts.smc_atomic_write import atomic_write_text
+
 import argparse
 import csv
 import json
@@ -229,7 +231,7 @@ def main() -> None:
         output_path = Path(args.supervisor_json).expanduser()
         event_log_path = Path(args.supervisor_events_csv).expanduser()
         output_path.parent.mkdir(parents=True, exist_ok=True)
-        output_path.write_text(json.dumps(result, indent=2, default=str), encoding="utf-8")
+        atomic_write_text(json.dumps(result, indent=2, default=str), output_path)
         write_execution_event_log_csv(event_log, event_log_path)
         print("SUPERVISOR_JSON", output_path)
         print("SUPERVISOR_EVENTS_CSV", event_log_path)
@@ -276,7 +278,7 @@ def main() -> None:
     output_path = Path(args.supervisor_json).expanduser()
     event_log_path = Path(args.supervisor_events_csv).expanduser()
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(json.dumps(result, indent=2, default=str), encoding="utf-8")
+    atomic_write_text(json.dumps(result, indent=2, default=str), output_path)
     write_execution_event_log_csv(result["event_log"], event_log_path)
 
     print("SELECTED_TRADE_DATE", selected_trade_date.isoformat())

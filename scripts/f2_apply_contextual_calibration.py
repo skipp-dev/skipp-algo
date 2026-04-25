@@ -81,6 +81,8 @@ Exit codes
 
 from __future__ import annotations
 
+from scripts.smc_atomic_write import atomic_write_text
+
 import argparse
 import json
 import sys
@@ -336,10 +338,7 @@ def _write_arm(
         # Relative to ``out_dir`` so the on-disk JSON is byte-stable across
         # runs from different working directories (CI vs local vs tmp).
         summary["artifact_dir"] = rel_dir
-        summary_path.write_text(
-            json.dumps(summary, indent=2, sort_keys=True),
-            encoding="utf-8",
-        )
+        atomic_write_text(json.dumps(summary, indent=2, sort_keys=True), summary_path)
         pair_runs.append({
             "symbol": symbol,
             "timeframe": timeframe,
@@ -357,10 +356,7 @@ def _write_arm(
         "pair_runs": pair_runs,
     }
     manifest_path = out_dir / "benchmark_run_manifest.json"
-    manifest_path.write_text(
-        json.dumps(manifest, indent=2, sort_keys=True),
-        encoding="utf-8",
-    )
+    atomic_write_text(json.dumps(manifest, indent=2, sort_keys=True), manifest_path)
     return manifest
 
 

@@ -19,6 +19,8 @@ Usage
 
 from __future__ import annotations
 
+from scripts.smc_atomic_write import atomic_write_text
+
 import hashlib
 import json
 import math
@@ -509,10 +511,7 @@ def append_history_entry(
     if len(existing) > _HISTORY_RETENTION:
         existing = existing[-_HISTORY_RETENTION:]
 
-    history_path.write_text(
-        "\n".join(json.dumps(e) for e in existing) + "\n",
-        encoding="utf-8",
-    )
+    atomic_write_text("\n".join(json.dumps(e) for e in existing) + "\n", history_path)
     return history_path
 
 
@@ -1207,9 +1206,7 @@ def main(argv: list[str] | None = None) -> None:
     payload = to_json(cal, frozen_provenance=frozen_provenance)
     if testable:
         payload["testable_calibration"] = testable
-    args.output_path.write_text(
-        json.dumps(payload, indent=2) + "\n", encoding="utf-8"
-    )
+    atomic_write_text(json.dumps(payload, indent=2) + "\n", args.output_path)
 
     # H3 history feed — append a compact history entry alongside the
     # calibration JSON so consumers (Pine ZONE_CAL_TREND) can detect
@@ -1218,7 +1215,7 @@ def main(argv: list[str] | None = None) -> None:
 
     # Write Markdown report alongside
     md_path = args.output_path.with_suffix(".md")
-    md_path.write_text(render_calibration_report(cal), encoding="utf-8")
+    atomic_write_text(render_calibration_report(cal), md_path)
 
     print(f"Calibration written to {args.output_path}")
     print(f"Report written to {md_path}")
@@ -1251,13 +1248,10 @@ def main(argv: list[str] | None = None) -> None:
         ctx_path.parent.mkdir(parents=True, exist_ok=True)
     else:
         ctx_path = args.output_path.with_name("zone_priority_contextual_calibration.json")
-    ctx_path.write_text(
-        json.dumps(
+    atomic_write_text(json.dumps(
             contextual_to_json(ctx_cal, frozen_provenance=frozen_provenance),
             indent=2,
-        ) + "\n",
-        encoding="utf-8",
-    )
+        ) + "\n", ctx_path)
     print(f"\nContextual calibration written to {ctx_path}")
 
     promotions = check_contextual_promotion(ctx_cal)
@@ -1274,9 +1268,7 @@ def main(argv: list[str] | None = None) -> None:
         per_bucket_path = args.output_path.with_name(
             "zone_priority_per_bucket_calibration.json"
         )
-        per_bucket_path.write_text(
-            json.dumps(per_bucket, indent=2) + "\n", encoding="utf-8"
-        )
+        atomic_write_text(json.dumps(per_bucket, indent=2) + "\n", per_bucket_path)
         print(f"\nPer-bucket testable calibration written to {per_bucket_path}")
         ok_buckets = [(k, v) for k, v in per_bucket.items() if v.get("status") == "ok"]
         skipped = [k for k, v in per_bucket.items() if v.get("status") != "ok"]

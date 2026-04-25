@@ -9,6 +9,8 @@ Usage:
 
 from __future__ import annotations
 
+from scripts.smc_atomic_write import atomic_write_text
+
 import argparse
 import json
 import re
@@ -158,7 +160,7 @@ def main() -> None:
 
     if args.out:
         args.out.parent.mkdir(parents=True, exist_ok=True)
-        args.out.write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
+        atomic_write_text(json.dumps(summary, indent=2) + "\n", args.out)
         print(f"Evidence summary written to {args.out}")
     else:
         print(json.dumps(summary, indent=2))

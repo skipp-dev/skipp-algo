@@ -42,7 +42,6 @@ SCRIPTS_DIR = REPO_ROOT / "scripts"
 # without going through smc_atomic_write. Each entry's value is a brief
 # rationale string (not asserted, but read by future maintainers).
 _ALLOWED_RAW_WRITE_FILES: dict[str, str] = {
-    "generate_showcase_summary.py": "showcase artifacts (advisory, not pipeline-consumed)",
     "plan_2_8_history_backfill.py": "fdopen + os.replace atomic pattern (json snapshots)",
     "plan_2_8_snooze_admin.py": "fdopen + os.replace atomic pattern (json snapshots)",
     "plan_2_8_alert_history.py": "fdopen + os.replace atomic pattern (json snapshots)",

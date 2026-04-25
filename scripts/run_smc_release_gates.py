@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from scripts.smc_atomic_write import atomic_write_text
+
 import argparse
 import json
 import math
@@ -585,7 +587,7 @@ def _write_measurement_manifest(
         },
         "warnings": list(warnings),
     }
-    manifest_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    atomic_write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", manifest_path)
     return manifest_path
 
 
@@ -1044,7 +1046,7 @@ def _render(report: dict[str, Any], output: str) -> None:
         return
     path = Path(output)
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(rendered + "\n", encoding="utf-8")
+    atomic_write_text(rendered + "\n", path)
 
 
 def build_parser() -> argparse.ArgumentParser:

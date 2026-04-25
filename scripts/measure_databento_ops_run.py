@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from scripts.smc_atomic_write import atomic_write_text
+
 import argparse
 from dataclasses import asdict
 import json
@@ -184,7 +186,7 @@ def main() -> int:
     if not databento_api_key:
         report["error"] = "DATABENTO_API_KEY missing"
         report["finished_at"] = _iso_now()
-        report_path.write_text(json.dumps(report, indent=2, ensure_ascii=True), encoding="utf-8")
+        atomic_write_text(json.dumps(report, indent=2, ensure_ascii=True), report_path)
         print(json.dumps(report, indent=2, ensure_ascii=True))
         return 2
 
@@ -224,7 +226,7 @@ def main() -> int:
         }
         report["findings"].append("Refresh Data Basis failed before watchlist generation.")
         report["finished_at"] = _iso_now()
-        report_path.write_text(json.dumps(report, indent=2, ensure_ascii=True), encoding="utf-8")
+        atomic_write_text(json.dumps(report, indent=2, ensure_ascii=True), report_path)
         print(json.dumps(report, indent=2, ensure_ascii=True))
         return 1
 
@@ -253,7 +255,7 @@ def main() -> int:
             }
             report["findings"].append("Generate Watchlist failed.")
             report["finished_at"] = _iso_now()
-            report_path.write_text(json.dumps(report, indent=2, ensure_ascii=True), encoding="utf-8")
+            atomic_write_text(json.dumps(report, indent=2, ensure_ascii=True), report_path)
             print(json.dumps(report, indent=2, ensure_ascii=True))
             return 1
     else:
@@ -291,7 +293,7 @@ def main() -> int:
     report["total_duration_minutes"] = round(total_seconds / 60.0, 3)
     report["finished_at"] = _iso_now()
 
-    report_path.write_text(json.dumps(report, indent=2, ensure_ascii=True), encoding="utf-8")
+    atomic_write_text(json.dumps(report, indent=2, ensure_ascii=True), report_path)
     print(json.dumps(report, indent=2, ensure_ascii=True))
     return 0
 

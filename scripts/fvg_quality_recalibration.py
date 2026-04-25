@@ -22,6 +22,8 @@ expected state until the enrichers are wired in a follow-up batch.
 
 from __future__ import annotations
 
+from scripts.smc_atomic_write import atomic_write_text
+
 import argparse
 import json
 import math
@@ -511,7 +513,7 @@ def write_shadow_json(report: RecalibrationReport, path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = asdict(report)
     payload["quartiles"] = [asdict(q) for q in report.quartiles]
-    path.write_text(json.dumps(payload, indent=2, default=str), encoding="utf-8")
+    atomic_write_text(json.dumps(payload, indent=2, default=str), path)
 
 
 def main(argv: list[str] | None = None) -> int:

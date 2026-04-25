@@ -36,6 +36,8 @@ Pine HUD row or a weekly Slack digest.
 
 from __future__ import annotations
 
+from scripts.smc_atomic_write import atomic_write_text
+
 import argparse
 import json
 import re
@@ -217,7 +219,7 @@ def main(argv: list[str] | None = None) -> int:
     text = json.dumps(summary, indent=2) + "\n"
     if args.output:
         args.output.parent.mkdir(parents=True, exist_ok=True)
-        args.output.write_text(text, encoding="utf-8")
+        atomic_write_text(text, args.output)
     else:
         sys.stdout.write(text)
     return 0

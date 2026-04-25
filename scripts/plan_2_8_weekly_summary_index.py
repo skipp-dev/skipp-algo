@@ -8,6 +8,8 @@ output is always complete. Pure stdlib.
 
 from __future__ import annotations
 
+from scripts.smc_atomic_write import atomic_write_text
+
 import argparse
 import sys
 from pathlib import Path
@@ -77,7 +79,7 @@ def main(argv: list[str] | None = None) -> int:
 
     body = build(args.artifact_dir)
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(body, encoding="utf-8")
+    atomic_write_text(body, args.output)
     if not args.quiet:
         sys.stdout.write(body)
     return 0
