@@ -1,6 +1,6 @@
 # SMC System Review 2026-04-24
 
-> Full-Surface Audit per [`/memories/repo/smc-system-review-prompt-2026-04-24.md`](../../README.md). Audit-only — keine Code-Änderungen. Pure grep + AST + read_file Belege.
+> Full-Surface Audit per Memory-stored prompt `smc-system-review-prompt-2026-04-24.md` (Copilot persistent memory, not in repo). See repo [`README.md`](../../README.md) für Methodologie-Kontext. Audit-only — keine Code-Änderungen. Pure grep + AST + read_file Belege.
 
 ## Summary
 
@@ -9,9 +9,9 @@
 - **Bug-Klassen-Checkliste:** 40/40 mit Beleg adressiert (10 neue Findings, 30 mit grep-Beleg als clean markiert)
 - **Vier hochfrequente Klassen:**
   - Boundary-Vokabular-Drift (#13–#20): clean — addressed durch PRs #123/#124/#125/#126 (HERO vocab discipline cluster), 12 hero/trust pin tests vorhanden ([tests/test_smc_hero_market_mode.py](../../tests/test_smc_hero_market_mode.py), [tests/test_smc_trust_state.py](../../tests/test_smc_trust_state.py))
-  - Silent-Except (#21–#24): partial — F-2 (M-3) workflow `continue-on-error: true` Sites enumeriert (4 hits in [.github/workflows/smc-library-refresh.yml](../../.github/workflows/smc-library-refresh.yml) + 1 in `smc-live-newsapi-refresh.yml`)
+  - Silent-Except (#21–#24): partial — F-2 (siehe M-1 / L-2) workflow `continue-on-error: true` Sites enumeriert (5 hits in [.github/workflows/smc-library-refresh.yml](../../.github/workflows/smc-library-refresh.yml#L165) — davon 1 explizit downstream gegated via `steps.gates.outcome` — + 1 in [.github/workflows/smc-live-newsapi-refresh.yml](../../.github/workflows/smc-live-newsapi-refresh.yml#L106))
   - Atomic-Write (#5–#6): clean — addressed durch PR #90 + PR #124 (call-site pin); 35 atomic-write usages vs 6 raw `to_parquet/to_csv` (alle in expliziter atomic-write Wrapping)
-  - SCHEMA_VERSION-Drift (#31, #39): clean — `_SESSION_SCHEMA_VERSION = "2026-04-24.0"` invalidation guard wired in [streamlit_terminal.py#L544](../../streamlit_terminal.py)
+  - SCHEMA_VERSION-Drift (#31, #39): clean — `_SESSION_SCHEMA_VERSION = "2026-04-24.0"` invalidation guard wired in [streamlit_terminal.py#L544](../../streamlit_terminal.py#L544)
 - **Ein neues HIGH-Finding** (H-1) erfüllt Erfolgskriterium der Vier-Klassen-Coverage.
 
 ---
@@ -20,15 +20,15 @@
 
 | # | Datei:Zeilen | Phase | Klasse | Severity | Bug in einem Satz |
 |---|---|---|---|---|---|
-| H-1 | [scripts/smc_ob_context_light.py#L91](../../scripts/smc_ob_context_light.py) | 4 | #7 (Float `==0.0`) | HIGH | OB-Freshness-Score vergleicht `bull_level == 0.0 and bear_level == 0.0` zur Domain-Grenze — IEEE-754 floats von rolling aggregations können bei vollständig leeren Books `±1e-300` liefern und das Reset-Path silently umgehen. |
-| M-1 | [.github/workflows/smc-library-refresh.yml#L162](../../.github/workflows/smc-library-refresh.yml) | 7 | #24 (`continue-on-error` als pass) | MED | 4 Workflow-Steps mit `continue-on-error: true` ohne nachgelagerten Erfolgs-Check — silent skip wirkt wie pass (siehe auch f2-promotion-gate-daily.yml#L161 explizites `status=skipped`). |
-| M-2 | [scripts/smc_macro_bias.py#L468](../../scripts/smc_macro_bias.py) | 4 | #7 (Float `!=0.0`) | MED | `contribution != 0.0` als Sentinel-Discriminator für "event audit row vorhanden" — sub-epsilon Beiträge unter Numerik-Drift falsch klassifiziert. |
-| M-3 | [.github/workflows/plan-2-8-weekly-digest.yml#L13217](../../.github/workflows/plan-2-8-weekly-digest.yml) | 8 | #26 (Workflow GITHUB_TOKEN für PR creation) | MED | `GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}` für PR-CRUD — fast-gates triggern auf solche PRs nicht (siehe Memory `bot-pr-needs-pat-not-github-token.md`). |
-| M-4 | [pine_apply_surface_reduction.py#L572](../../pine_apply_surface_reduction.py) | 6 | #35 (Pine legacy hardcoded paths) | MED | `for name in ["QuickALGO.pine", "SkippALGO.pine", "SkippALGO_Strategy.pine"]` — D-1 v2 physische Migration nach `pine/legacy/` würde silent break (PR #124 isolation pin verhindert Re-Adoption, aber das Original-Hardcode existiert noch). |
-| L-1 | [terminal_newsapi.py](../../terminal_newsapi.py) | 9 | #40 (Decommissioned stub) | LOW | 44-Zeilen Stub-Datei am Top-Level neben dem 749-Zeilen `scripts/smc_newsapi_ai.py` — Audit-Empfehlungen ohne grep auf beide Pfade landen falsch (nur Doku-Hinweis nötig, kein Verhaltens-Bug). |
-| L-2 | [.github/workflows/f2-promotion-gate-daily.yml#L161](../../.github/workflows/f2-promotion-gate-daily.yml) | 7 | #24 + #32 (F2 dual-arm wiring gap) | LOW | `status=skipped` als legitimes Outcome — beobachtbarer Zustand seit Wochen, by-design dokumentiert, aber kein expliziter Counter-Alert für "nie über skipped hinaus". |
-| L-3 | [smc_core/scoring.py#L181](../../smc_core/scoring.py) | 4 | #8 (Division ohne Epsilon) | LOW | `math.log(clipped / (1.0 - clipped))` — `clipped` muss strikt <1 sein; falls Caller-Clipping fehlt → `ZeroDivisionError` statt graceful fallback. (Ist heute durch Caller geschützt; Boundary-Pin fehlt aber.) |
-| I-1 | [scripts/smc_enrichment_value_analysis.py#L67](../../scripts/smc_enrichment_value_analysis.py) | 4 | #7 | INVESTIGATE | Comment dokumentiert bewusst Float-Vergleichs-Semantik — Code-Site scheint korrekt, aber das Kommentar-Anchor sollte als grep-anchor für künftige Reviews bleiben. Untersuchen ob `math.isclose`-Migration fällig. |
+| H-1 | [scripts/smc_ob_context_light.py#L91](../../scripts/smc_ob_context_light.py#L91) | 4 | #7 (Float `==0.0`) | HIGH | OB-Freshness-Score vergleicht `bull_level == 0.0 and bear_level == 0.0` zur Domain-Grenze — IEEE-754 floats von rolling aggregations können bei vollständig leeren Books `±1e-300` liefern und das Reset-Path silently umgehen. |
+| M-1 | [.github/workflows/smc-library-refresh.yml#L165](../../.github/workflows/smc-library-refresh.yml#L165) | 7 | #24 (`continue-on-error` als pass) | MED | 5 Workflow-Steps mit `continue-on-error: true` (L165, L376, L592, L735, L755). 1 davon (L165 `gates`) ist explizit über `steps.gates.outcome == 'failure'` downstream gegated („Abort on gate failure") und damit *enforced*; die übrigen 4 sind best-effort ohne nachgelagerten Erfolgs-Check und wirken silent-skip-as-pass (vgl. f2-promotion-gate-daily.yml#L161 explizites `status=skipped`). |
+| M-2 | [scripts/smc_macro_bias.py#L468](../../scripts/smc_macro_bias.py#L468) | 4 | #7 (Float `!=0.0`) | MED | `contribution != 0.0` als Sentinel-Discriminator für "event audit row vorhanden" — sub-epsilon Beiträge unter Numerik-Drift falsch klassifiziert. |
+| M-3 | [.github/workflows/plan-2-8-weekly-digest.yml#L13226](../../.github/workflows/plan-2-8-weekly-digest.yml#L13226) | 8 | #26 (Workflow `GITHUB_TOKEN` für `gh issue`-Operationen) | MED | `GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}` wird an dieser Stelle für `gh issue list/comment/create/close` verwendet (nicht für PR-CRUD). Auch Issue-Aktivität triggert keine fast-gates auf nachfolgende Bot-PRs; Memory-Anker bleibt `bot-pr-needs-pat-not-github-token.md`. Echte PR-CRUD passiert in `smc-library-refresh.yml` „Commit and push changes", das via PR #129 bereits auf den `secrets.GH_PAT`-Ternary umgestellt wurde. |
+| M-4 | [pine_apply_surface_reduction.py#L572](../../pine_apply_surface_reduction.py#L572) | 6 | #35 (Pine legacy hardcoded paths) | MED | `for name in ["QuickALGO.pine", "SkippALGO.pine", "SkippALGO_Strategy.pine"]` — D-1 v2 physische Migration nach `pine/legacy/` würde silent break (PR #124 isolation pin verhindert Re-Adoption, aber das Original-Hardcode existiert noch). |
+| L-1 | [terminal_newsapi.py](../../terminal_newsapi.py) | 9 | #40 (Decommissioned stub) | LOW | Schmale Stub-Datei am Top-Level (Größenordnung Dutzende Zeilen, nicht hart pinnen) neben dem ~750-Zeilen `scripts/smc_newsapi_ai.py` — Audit-Empfehlungen ohne grep auf beide Pfade landen falsch (nur Doku-Hinweis nötig, kein Verhaltens-Bug). |
+| L-2 | [.github/workflows/f2-promotion-gate-daily.yml#L161](../../.github/workflows/f2-promotion-gate-daily.yml#L161) | 7 | #24 + #32 (F2 dual-arm wiring gap) | LOW | `status=skipped` als legitimes Outcome — beobachtbarer Zustand seit Wochen, by-design dokumentiert, aber kein expliziter Counter-Alert für "nie über skipped hinaus". |
+| L-3 | [smc_core/scoring.py#L181](../../smc_core/scoring.py#L181) | 4 | #8 (Division ohne Epsilon) | LOW | `math.log(clipped / (1.0 - clipped))` — `clipped` muss strikt <1 sein; falls Caller-Clipping fehlt → `ZeroDivisionError` statt graceful fallback. (Ist heute durch Caller geschützt; Boundary-Pin fehlt aber.) |
+| I-1 | [scripts/smc_enrichment_value_analysis.py#L67](../../scripts/smc_enrichment_value_analysis.py#L67) | 4 | #7 | INVESTIGATE | Comment dokumentiert bewusst Float-Vergleichs-Semantik — Code-Site scheint korrekt, aber das Kommentar-Anchor sollte als grep-anchor für künftige Reviews bleiben. Untersuchen ob `math.isclose`-Migration fällig. |
 | I-2 | (cross-cutting) | 6 | #19 (Vocab-Fingerprint Gate) | INVESTIGATE | Es existieren 12 hero/trust pin-tests, aber **kein** zentraler `test_*vocab*fingerprint*.py` als single-source-of-truth über alle möglichen Field-Value-Räume. Drift wird erkannt, aber per-File. |
 
 ---
@@ -37,7 +37,7 @@
 
 ### H-1: OB-Freshness-Score-Reset bei `level == 0.0` Domain-Grenze
 
-**Datei:** [scripts/smc_ob_context_light.py#L91](../../scripts/smc_ob_context_light.py)
+**Datei:** [scripts/smc_ob_context_light.py#L91](../../scripts/smc_ob_context_light.py#L91)
 
 ```python
 if bull_freshness == 0 and bear_freshness == 0 and bull_level == 0.0 and bear_level == 0.0:
@@ -101,7 +101,7 @@ if bull_freshness == 0 and bear_freshness == 0 and bull_level == 0.0 and bear_le
 | 27 | GITHUB_TOKEN-PR triggert fast-gates nicht | linked → M-3 | siehe M-3 Memory `bot-pr-needs-pat-not-github-token.md` |
 | 28 | Streamlit-Stack in Coverage-Scope | clean | `pyproject.toml` `[tool.coverage.run]` excludes `streamlit_*`/`terminal_export`/`terminal_notifications`/`terminal_ui_helpers` per Memory `coverage-source-config.md` |
 | 29 | `@lru_cache` ohne maxsize | clean (NEU pinned) | PR #127 (`tests/test_lru_cache_maxsize_discipline.py`) — 3 baseline sites alle bounded |
-| 30 | Streamlit session_state SCHEMA_VERSION-skew | clean | [streamlit_terminal.py#L544](../../streamlit_terminal.py) `_SESSION_SCHEMA_VERSION = "2026-04-24.0"` + invalidation helper |
+| 30 | Streamlit session_state SCHEMA_VERSION-skew | clean | [streamlit_terminal.py#L544](../../streamlit_terminal.py#L544) `_SESSION_SCHEMA_VERSION = "2026-04-24.0"` + invalidation helper |
 | 31 | Field-Add ohne SCHEMA_VERSION Major-Bump | clean | adressiert PR #22 + Memory `schema-version-bump-must-be-major-on-field-count-change.md` |
 | 32 | F2 dual-arm wiring gap | linked → L-2 | `f2-promotion-gate-daily.yml#L161` `status=skipped` ist by-design Coverage-Marker |
 | 33 | F2 SPRT cross-day state reset | INVESTIGATE | Issue #45 — kein expliziter Test gefunden für `plumbing_only → live` flip-state-reset; outside scope dieses Audits, eigene Issue tracken |
