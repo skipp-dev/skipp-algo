@@ -248,7 +248,7 @@ def ensure_rt_engine_running(
 
     # Use a file lock to prevent TOCTOU race between concurrent callers
     _RT_ENGINE_LOCK_FILE.parent.mkdir(parents=True, exist_ok=True)
-    lock_fd = open(_RT_ENGINE_LOCK_FILE, "w")
+    lock_fd = open(_RT_ENGINE_LOCK_FILE, "w", encoding="utf-8")
     try:
         fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
     except OSError:
@@ -2598,7 +2598,7 @@ def main() -> None:
     except ImportError:
         # python-dotenv not installed — minimal stdlib fallback
         if env_path.is_file():
-            with open(env_path) as fh:
+            with open(env_path, encoding="utf-8") as fh:
                 for line in fh:
                     line = line.strip()
                     if not line or line.startswith("#") or "=" not in line:

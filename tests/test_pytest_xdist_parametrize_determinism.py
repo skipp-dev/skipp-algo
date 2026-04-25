@@ -101,15 +101,77 @@ def _classify_argument_source(arg: ast.expr) -> str | None:
     return None
 
 
+def _describe_reference_source(arg: ast.expr) -> str | None:
+    """Return a human-readable description for a direct ``Name`` /
+    ``Attribute`` source (e.g. ``REGIME_VALID_LABELS`` or
+    ``mod.SOME_SET``)."""
+    if isinstance(arg, ast.Name):
+        return arg.id
+    if isinstance(arg, ast.Attribute):
+        parts: list[str] = []
+        current: ast.expr = arg
+        while isinstance(current, ast.Attribute):
+            parts.append(current.attr)
+            current = current.value
+        if isinstance(current, ast.Name):
+            parts.append(current.id)
+        return ".".join(reversed(parts)) if parts else arg.attr
+    return None
+
+
 def _walk_arg_for_unsorted_source(arg: ast.expr, parents: dict[int, ast.AST]) -> list[str]:
-    """Find non-deterministic sub-expressions not wrapped in sorted()."""
+    """Find non-deterministic sub-expressions not wrapped in sorted().
+
+    Two flagged shapes:
+
+    1. Direct calls / literals matched by :func:`_classify_argument_source`
+       (``set(...)``, ``frozenset(...)``, ``os.listdir(...)``,
+       ``glob.glob(...)``, ``.keys()`` / ``.values()`` / ``.items()``,
+       set literals & comprehensions).
+    2. ``list(<Name|Attribute>)`` / ``tuple(<Name|Attribute>)``
+       pass-through wrappers around a non-literal source — the exact
+       ``list(REGIME_VALID_LABELS)`` regression class from PR #104. The
+       wrapper hides whether the inner iterable is ordered, and the AST
+       cannot prove it; the wrapper itself is the smell.
+
+    A bare ``Name`` / ``Attribute`` argument is **not** flagged on its
+    own because a constant like ``parametrize('x', MY_LIST)`` is
+    legitimately ordered. Wrap-detection covers the regression vector
+    without false positives on ordered constants.
+
+    Each unique kind is reported only once per parametrize site.
+    """
     findings: list[str] = []
+    seen: set[str] = set()
     for node in ast.walk(arg):
-        kind = _classify_argument_source(node)
+        kind: str | None = None
+
+        # Shape 2: list(<Name|Attribute>) / tuple(<Name|Attribute>)
+        # pass-through wrapper. We deliberately do NOT flag list([...])
+        # / tuple((1,2,3)) — those wrap a literal-iterable inner that
+        # is provably ordered.
+        if (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id in {"list", "tuple"}
+            and len(node.args) == 1
+            and not node.keywords
+            and isinstance(node.args[0], ast.Name | ast.Attribute)
+        ):
+            inner = _describe_reference_source(node.args[0])
+            if inner is not None:
+                kind = f"{node.func.id}({inner})"
+
+        # Shape 1 fallback.
+        if kind is None:
+            kind = _classify_argument_source(node)
         if kind is None:
             continue
         if _is_in_sorted(node, parents):
             continue
+        if kind in seen:
+            continue
+        seen.add(kind)
         findings.append(kind)
     return findings
 

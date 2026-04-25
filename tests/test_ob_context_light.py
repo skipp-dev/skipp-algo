@@ -115,3 +115,51 @@ class TestOverrides:
             overrides={"OB_FRESH": False}
         )
         assert result["OB_FRESH"] is False
+
+
+class TestEmptyOBSubnormalRobustness:
+    """Regression: H-1 (system review 2026-04-24).
+
+    The "no OBs at all" early-return previously used ``level == 0.0``
+    which would silently fail for IEEE-754 subnormals if upstream ever
+    switches the empty-sentinel from a literal 0.0 to a computed value.
+    The fix uses ``abs(level) < _OB_LEVEL_EPS`` (1e-12) — well above the
+    subnormal range and well below any tradable price.
+    """
+
+    def test_subnormal_bull_level_still_treated_as_empty(self):
+        import math
+        ob = {
+            "BULL_OB_FRESHNESS": 0,
+            "BEAR_OB_FRESHNESS": 0,
+            "NEAREST_BULL_OB_LEVEL": math.ulp(0.0),  # ≈ 5e-324, smallest subnormal
+            "NEAREST_BEAR_OB_LEVEL": 0.0,
+        }
+        result = build_ob_context_light(order_blocks=ob, current_price=100.0)
+        assert result == DEFAULTS, (
+            "Subnormal bull level slipped past the empty-OB early-return — "
+            "the level == 0.0 comparison has regressed to exact equality."
+        )
+
+    def test_subnormal_negative_levels_still_treated_as_empty(self):
+        import math
+        ob = {
+            "BULL_OB_FRESHNESS": 0,
+            "BEAR_OB_FRESHNESS": 0,
+            "NEAREST_BULL_OB_LEVEL": -math.ulp(0.0),
+            "NEAREST_BEAR_OB_LEVEL": math.ulp(0.0),
+        }
+        result = build_ob_context_light(order_blocks=ob, current_price=100.0)
+        assert result == DEFAULTS
+
+    def test_real_level_just_above_eps_is_not_treated_as_empty(self):
+        """Sanity: a real OB level (1e-2 / one tick) must NOT be empty."""
+        ob = {
+            "BULL_OB_FRESHNESS": 5,
+            "BEAR_OB_FRESHNESS": 0,
+            "NEAREST_BULL_OB_LEVEL": 1e-2,
+            "NEAREST_BEAR_OB_LEVEL": 0.0,
+        }
+        result = build_ob_context_light(order_blocks=ob, current_price=100.0)
+        assert result["PRIMARY_OB_SIDE"] == "BULL"
+
