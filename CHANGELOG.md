@@ -6,6 +6,21 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Hardening (2026-04-25) — Pin: `urllib` Network Discipline (Timeout + Call-Site Ledger)
+
+- Neuer Pin [`tests/test_urllib_network_discipline_pin.py`](tests/test_urllib_network_discipline_pin.py)
+  mit 2 Layern:
+  1. **Zero-Tripwire**: jeder `urlopen()` ohne explizites `timeout=`
+     (kw oder 3. Positional) failed. Heute 0. Verhindert
+     Slow-Loris-DoS-Surface durch `timeout=None` Default.
+  2. **Frozen Call-Site Ledger** (5 Sites): 2× `urlopen` +
+     3× `Request` in `terminal_notifications.py` und
+     `open_prep/alerts.py`. Neue Network-Calls erfordern
+     Ledger-Eintrag → erzwungenes Surface-Review.
+- 8/8 Tests grün (1× tripwire + 2× ledger guards + 5× parametrised existence).
+- Defense-only.
+- OWASP A05 (Security Misconfiguration) + CWE-400 (Resource Exhaustion).
+
 ### Hardening (2026-04-25) — `assert` → `raise` Migration (Production)
 
 - Migration der 4 verbliebenen `assert`-Statements in First-Party-Production
