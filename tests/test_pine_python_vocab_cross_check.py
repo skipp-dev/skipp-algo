@@ -1,6 +1,9 @@
-"""Cross-language pin: every Python Hero/Trust/Action vocab token must be
-rendered or compared against by at least one of the corresponding Pine
-surfaces.
+"""Cross-language pin: every Python Hero/Trust/Action vocab token must
+appear as a quoted literal in at least one of the corresponding Pine
+surfaces. "Quoted literal" here is deliberately broad and includes
+render-time strings, equality-comparison literals, and dedicated
+vocab-anchor comments (e.g. ``// vocab-anchor: "healthy"``) — i.e. the
+test enforces *textual* presence, not runtime use.
 
 This complements ``tests/test_central_vocab_fingerprint_gate.py``: the
 fingerprint pin freezes the Python-side vocabularies, while this pin
@@ -45,7 +48,13 @@ def _pine_text(*relpaths: str) -> str:
 
 
 def _quoted_present(token: str, text: str) -> bool:
-    """Return True iff ``"token"`` appears as a quoted literal in text."""
+    """Return True iff ``"token"`` appears anywhere in the Pine text as a
+    quoted literal. This intentionally includes occurrences inside Pine
+    line comments (e.g. the ``// vocab-anchor: "…"`` markers added to
+    SMC_Mobile_Dashboard.pine): an anchor comment is the deliberate,
+    reviewable way to acknowledge a token whose runtime rendering lives
+    elsewhere, and is sufficient to satisfy this textual pin.
+    """
     pattern = r'"' + re.escape(token) + r'"'
     return re.search(pattern, text) is not None
 
@@ -108,7 +117,8 @@ def test_python_vocab_token_is_referenced_by_pine_surface(
     missing = [t for t in tokens if not _quoted_present(t, text)]
     assert not missing, (
         f"Pine ↔ Python vocab drift detected for {vocab_name}: "
-        f"the following Python tokens are NOT rendered/compared in any of "
+        f"the following Python tokens do NOT appear as a quoted literal "
+        f"(render-time, comparison, or vocab-anchor comment) in any of "
         f"{list(pine_files)}: {missing}. "
         f"Either add a quoted-literal branch for each missing token in the "
         f"Pine surface(s), or — if the token was removed from Python — "
