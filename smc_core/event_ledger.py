@@ -26,7 +26,7 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Iterable, Iterator
 
-EVENT_LEDGER_SCHEMA_VERSION = "1.0"
+from smc_core.schema_version import EVENT_LEDGER_SCHEMA_VERSION  # re-export for back-compat
 
 
 @dataclass(slots=True)

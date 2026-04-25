@@ -140,7 +140,7 @@ def _has_timeout_kwarg(node: ast.Call) -> bool:
 _FROZEN_URLOPEN_SITES: frozenset[tuple[str, int]] = frozenset(
     {
         ("databento_universe.py", 307),
-        ("databento_volatility_screener.py", 1109),
+        ("databento_volatility_screener.py", 1110),
         ("open_prep/bea.py", 94),
         ("open_prep/macro.py", 545),
         ("terminal_finnhub.py", 176),

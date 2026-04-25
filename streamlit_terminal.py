@@ -541,7 +541,8 @@ logger = logging.getLogger(__name__)
 # row dict layout). The init block invalidates derived state when the version
 # stored in the user's session no longer matches this constant.
 # Format: ISO-date + suffix; suffix bumped within a day if multiple migrations.
-_SESSION_SCHEMA_VERSION = "2026-04-24.0"
+# Source of truth: smc_core.schema_version.SESSION_SCHEMA_VERSION (H-6).
+from smc_core.schema_version import SESSION_SCHEMA_VERSION as _SESSION_SCHEMA_VERSION
 
 # Keys that are *derived/cached* from on-disk artifacts or upstream config.
 # They are safe to drop on a schema-version change because they will be
