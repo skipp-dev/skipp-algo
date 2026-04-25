@@ -199,6 +199,25 @@ All notable changes to this project are documented in this file.
   no-stale-entries + parametrisierter per-File-Count + Datei-Existenz.
   Inventar-Sanity ≥30 Prod-`*.py`. Reine Test-Schicht.
 
+### Tests / Quality (2026-04-25) — dangerous-call zero-tripwire 6-fold bundle
+
+- Neuer Pin [`tests/test_dangerous_call_tripwires.py`](tests/test_dangerous_call_tripwires.py)
+  bündelt sechs AST-Scans über first-party Prod-`*.py` — alle Inventare 0,
+  reine Tripwires gegen Wiederauftauchen historisch katastrophaler
+  Primitive:
+  1. **`import pickle` / `from pickle import …` / `import cPickle`** —
+     Pickle-Deserialisierung = Arbitrary Code Execution. Use json/msgpack.
+  2. **`pickle.load(...)` / `pickle.loads(...)`** — Defence-in-Depth via
+     Attribute-Call (für Re-Export-Module).
+  3. **`os.system(...)`** — Shell-Injection-Vektor; spawnt Shell. Use
+     `subprocess.run([...], shell=False)`.
+  4. **`subprocess.<call>(..., shell=True)`** — gleiche Wurzel.
+  5. **`eval(...)`** — Code aus String. Use `ast.literal_eval` für Safe-
+     Constants.
+  6. **`exec(...)`** — gleiche Wurzel.
+- Plus Inventory-Sanity ≥30 Prod-Dateien.
+- Defense-only. 0 Prod-Codeänderung.
+
 ### Tests / Quality (2026-04-25) — silent-security & boundary 6-fold bundle
 
 - Neuer Pin [`tests/test_silent_security_and_boundary_bundle.py`](tests/test_silent_security_and_boundary_bundle.py)
