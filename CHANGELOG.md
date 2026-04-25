@@ -96,6 +96,20 @@ New `tests/test_socket_bind_loopback_pin.py` (6 tests). Two layers:
   `scripts/start_open_prep_suite.py` (`socket()@15`, `bind()@18`),
   a port-finding helper that loopback-binds to `("127.0.0.1", port)`.
 
+### Tests / Quality (2026-04-25) — Defense pin: hashlib.md5 / sha1 weak-hash ledger
+
+New `tests/test_hashlib_weak_hash_ledger.py` (12 tests) freezes the
+inventory of weak-hash call sites: 13 sites across 8 files (`md5` and
+`sha1`). All current uses are non-security fingerprints (cache keys,
+dedup IDs, atomic-write content hashes) — the pin documents that and
+forces any new use through review. Test message points reviewers at
+SHA-256 / BLAKE2 if a new use crosses into auth / signature /
+integrity territory.
+
+Detection: direct `hashlib.md5(...)` / `hashlib.sha1(...)` plus
+`hashlib.new("md5"|"sha1", ...)` constant variants. HMAC / PBKDF2 /
+scrypt are out of scope (legacy-compat algorithm names internally).
+
 Defense-only — no production changes.
 
 ### Tests / Quality (2026-04-25) — Defense pin: os.environ mutation site ledger
