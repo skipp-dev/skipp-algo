@@ -39,9 +39,12 @@ ALLOWED_CATEGORIES = frozenset({
     # Repo-local extensions in active use:
     "Documentation",
     "Tests / Quality",
+    "Tests / Quality / Pine",
+    "Tests / Quality / Workflows",
     "Schema Versions",
     "Evidence",
     "Verification",
+    "Hardening",
 })
 
 _CATEGORY_RE = re.compile(r"^###\s+([A-Za-z][A-Za-z /]*?)(?:\s*\(|\s*—|\s*-|\s*$)")
