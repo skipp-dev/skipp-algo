@@ -82,6 +82,22 @@ this pin freezes a *call shape* — different layer, same defense.
 All 3 current `NamedTemporaryFile` sites already pass
 `delete=False`. Defense-only — no production changes.
 
+### Tests / Quality (2026-04-25) — Defense pin: socket.socket / bind() ledger + loopback-only invariant
+
+New `tests/test_socket_bind_loopback_pin.py` (6 tests). Two layers:
+
+- **Layer 1 (hard invariant, CWE-1327 / unintended-exposure)**: every
+  `.bind(...)` whose host arg is a string literal MUST bind to a
+  loopback address (`127.0.0.1` / `localhost` / `::1` / `127.*`).
+  Calls with non-literal host args are silently skipped (the ledger
+  catches their existence regardless). Empty-string host (`""` =
+  all-interfaces) is explicitly forbidden.
+- **Layer 2 (per-(file, lineno) ledger)**: only 1 site —
+  `scripts/start_open_prep_suite.py` (`socket()@15`, `bind()@18`),
+  a port-finding helper that loopback-binds to `("127.0.0.1", port)`.
+
+Defense-only — no production changes.
+
 ### Tests / Quality (2026-04-25) — Defense pin: os.environ mutation site ledger
 
 New `tests/test_os_environ_mutation_ledger.py` (AST-based, 13 tests) freezes
