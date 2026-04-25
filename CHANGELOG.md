@@ -32,6 +32,21 @@ All notable changes to this project are documented in this file.
   `*.py` and excludes `tests/`, `.venv`, `node_modules`, `artifacts`,
   `docs`, `SMC++`. Any reintroduction is a forced design decision.
 
+### Tests / Quality (2026-04-25) — Defense pin: library-discipline zero-surface (requests / asyncio / shutil.copy)
+
+- Added `tests/test_library_discipline_zero_surface.py` (3 tests)
+  pinning three "this codebase doesn't use that library / API"
+  invariants, each a deliberate architectural choice that has held
+  to date:
+  - **No `requests.<verb>(...)`** — codebase is exclusively on `httpx`
+    (see #208). Mixing libs doubles connection-pool/TLS/timeout surface.
+  - **No `asyncio.run` / `asyncio.create_task`** — codebase is
+    synchronous + threaded (see the `threading.Thread` daemon= pin #211).
+  - **No `shutil.copy` / `shutil.copyfile`** — both non-atomic; use the
+    atomic-write helpers in `scripts/smc_atomic_write.py` (sister of #207).
+- All three surfaces empty in first-party non-test code today.
+- Defense-only — no production changes.
+
 ### Tests / Quality (2026-04-25) — Defense pin: urllib.urlopen ledger + mandatory timeout=
 
 New `tests/test_urllib_urlopen_ledger.py` (7 tests) — sister of the
