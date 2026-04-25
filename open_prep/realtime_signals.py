@@ -183,6 +183,7 @@ def _detect_rt_engine_pid() -> int | None:
             capture_output=True,
             text=True,
             timeout=5,
+            check=False,
         )
     except Exception:
         return None

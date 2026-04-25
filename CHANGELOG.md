@@ -6,6 +6,21 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Tests / Quality (2026-04-25) — Defense pin: subprocess.run(...) must pass explicit check=
+
+- Added `tests/test_subprocess_run_check_invariant.py` (1 test) enforcing
+  that every `subprocess.run(...)` call in first-party non-test code passes
+  an explicit `check=` kwarg (CWE-754 — improper check of unusual or
+  exceptional condition).
+- Default is `check=False` → non-zero exits silently swallowed → callers
+  proceed with empty stdout under the illusion of success.
+- Fixed the only offender: `open_prep/realtime_signals.py:181` (the
+  `pgrep` lookup) now passes `check=False` explicitly. Surface today:
+  7 sites, **100% compliant**.
+- Sister of the threading.Thread daemon= (#211), httpx timeout= (#208),
+  mkdir/makedirs exist_ok= (#216), tempfile.NamedTemporaryFile delete=
+  (#207) invariants. No ledger.
+
 ### Tests / Quality (2026-04-25) — Defense pin: mkdir / makedirs must pass explicit exist_ok=
 
 - Added `tests/test_mkdir_makedirs_exist_ok_invariant.py` (2 tests)
