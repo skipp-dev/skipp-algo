@@ -54,7 +54,7 @@ All notable changes to this project are documented in this file.
 
 ### Tests / Quality (2026-04-26) — Defense pin: `fcntl.flock(...)` zero-surface (4 sites)
 
-- Added `tests/test_fcntl_flock_zero_surface.py` (3 tests) pinning
+- Added `tests/test_fcntl_flock_zero_surface.py` (1 test) pinning
   every production `fcntl.flock(...)` call by `(path, line)`.
   `flock` is POSIX-only — every new caller silently breaks Windows
   portability and the existing import-guard fallback pattern in

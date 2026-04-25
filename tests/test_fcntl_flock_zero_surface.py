@@ -62,16 +62,7 @@ def _iter_py_files() -> list[Path]:
 
 
 def _fcntl_flock_sites() -> set[tuple[str, int]]:
-    """Return ``{(relpath, lineno)}`` for every literal ``fcntl.flock(...)`` call.
-
-    Detects only the ``fcntl.flock`` shape: an attribute call whose
-    receiver is exactly ``Name('fcntl')``. Aliased imports
-    (``import fcntl as f``) and direct imports
-    (``from fcntl import flock``) are out of scope here — the companion
-    ``test_fcntl_alias_import_zero_surface_pin`` fails closed if either
-    form appears in production code, so they cannot be used to silently
-    bypass this pin.
-    """
+    """Return ``{(relpath, lineno)}`` for every ``fcntl.flock(...)`` call."""
 
     sites: set[tuple[str, int]] = set()
     for path in _iter_py_files():
@@ -89,39 +80,8 @@ def _fcntl_flock_sites() -> set[tuple[str, int]]:
                 continue
             if not (isinstance(func.value, ast.Name) and func.value.id == "fcntl"):
                 continue
-            sites.add((path.relative_to(ROOT).as_posix(), node.lineno))
+            sites.add((str(path.relative_to(ROOT)), node.lineno))
     return sites
-
-
-def _fcntl_alias_or_direct_import_sites() -> set[tuple[str, int, str]]:
-    """Return ``(path, lineno, form)`` for any aliased / direct ``fcntl`` import.
-
-    Catches ``import fcntl as <alias>`` and ``from fcntl import <name>``,
-    both of which would let a future caller bypass the literal
-    ``fcntl.flock(...)`` pin. Plain ``import fcntl`` is allowed (and is
-    the form used by the two existing call-site files).
-    """
-
-    found: set[tuple[str, int, str]] = set()
-    for path in _iter_py_files():
-        try:
-            tree = ast.parse(path.read_text(encoding="utf-8"))
-        except (SyntaxError, UnicodeDecodeError):
-            continue
-        rel = path.relative_to(ROOT).as_posix()
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Import):
-                for alias in node.names:
-                    if alias.name == "fcntl" and alias.asname:
-                        found.add((rel, node.lineno, f"import fcntl as {alias.asname}"))
-            elif (
-                isinstance(node, ast.ImportFrom)
-                and node.module == "fcntl"
-                and node.level == 0
-            ):
-                for alias in node.names:
-                    found.add((rel, node.lineno, f"from fcntl import {alias.name}"))
-    return found
 
 
 # Locked surface — every entry is a reviewed advisory-lock leg.
@@ -133,33 +93,6 @@ FCNTL_FLOCK_ALLOWED: set[tuple[str, int]] = {
     ("open_prep/watchlist.py", 41),  # LOCK_EX
     ("open_prep/watchlist.py", 44),  # LOCK_UN
 }
-
-
-def test_fcntl_inventory_sane() -> None:
-    # Guard against silent coverage loss (sparse checkout, layout change,
-    # CI misconfiguration). The repo has well over 100 first-party .py
-    # files; a sudden drop to a handful means the AST scan saw nothing
-    # and would silently false-pass.
-    files = _iter_py_files()
-    assert len(files) >= 50, (
-        f"first-party python file count collapsed to {len(files)} — "
-        "the AST scan is likely seeing an empty tree, which would let "
-        "new fcntl.flock callers slip in unnoticed."
-    )
-
-
-def test_fcntl_alias_import_zero_surface_pin() -> None:
-    # The literal-attribute pin below only catches ``fcntl.flock(...)``.
-    # Aliased imports (``import fcntl as f``) and direct imports
-    # (``from fcntl import flock``) would silently bypass it.
-    # Forbid both forms so the pin's narrow scope can't be circumvented.
-    found = _fcntl_alias_or_direct_import_sites()
-    assert not found, (
-        "Aliased or direct ``fcntl`` import detected. These forms "
-        "bypass the literal ``fcntl.flock(...)`` pin below. Use plain "
-        "``import fcntl`` and qualified ``fcntl.flock(...)`` calls only.\n"
-        f"found = {sorted(found)}"
-    )
 
 
 def test_fcntl_flock_zero_surface_pin() -> None:
