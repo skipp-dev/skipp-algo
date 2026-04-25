@@ -16,6 +16,24 @@ the inventory of `os.environ[K] = V` (WRITE) and `os.environ.setdefault(K, V)`
 kind (`.update`, `.pop`, ...) without a ledger update. Defense-only — no
 production changes.
 
+### Tests / Quality (2026-04-25) — Defense pin: dynamic-exec + pickle zero-surface invariant
+
+New `tests/test_dynamic_exec_and_pickle_zero_surface.py` (3 tests) freezes
+two adjacent CWE families at **zero** sites in first-party code:
+
+- **CWE-95 (dynamic exec)**: bare `eval(...) / exec(...) / compile(...)`
+  builtin calls. False-positive scope is narrow — only `ast.Name` calls
+  are matched, so `re.compile`, `pandas.eval`, etc. are ignored.
+- **CWE-502 (unsafe deserialization)**: `pickle / cPickle / dill / marshal`
+  imports AND `<mod>.load|loads|Unpickler(...)` call sites. Two-layer
+  check (import + call) so even a "imported but not yet called" creep is
+  flagged.
+
+Both surfaces are currently empty; the tests are pure invariants and
+require zero ledger maintenance unless someone genuinely needs to
+re-open a surface (in which case the test message documents the
+escape-hatch convention). Defense-only — no production changes.
+
 ### Fixed (2026-04-25) — main RED hotfix: continue-on-error inventory line resync
 
 `tests/test_workflow_continue_on_error_inventory.py` `_ALLOWED` for
