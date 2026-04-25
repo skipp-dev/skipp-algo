@@ -170,7 +170,14 @@ jobs:
       - name: Skip — dual-arm artifacts not yet produced
         if: steps.locate.outputs.status == 'skipped'
         run: |
-          echo "::notice title=f2-promotion-gate-daily::status=skipped reason='control or treatment artifact dir missing for ${{ steps.date.outputs.value }}'"
+          # L-2 (audit 2026-04-24, Klasse #24+#32): emit ::warning instead of
+          # ::notice so each consecutive skipped run surfaces in the GitHub
+          # Actions run summary banner. The "skipped" outcome is by-design
+          # while F2 dual-arm artifacts are still being generated upstream,
+          # but a warning per run is the cheapest way to detect "stuck on
+          # skipped for weeks" drift without a separate counter ledger.
+          # Pin: tests/test_workflow_f2_skip_visibility.py
+          echo "::warning title=f2-promotion-gate-daily::status=skipped reason='control or treatment artifact dir missing for ${{ steps.date.outputs.value }}' — see audit L-2"
           echo "  control:   ${{ steps.locate.outputs.control_dir }}"
           echo "  treatment: ${{ steps.locate.outputs.treatment_dir }}"
 

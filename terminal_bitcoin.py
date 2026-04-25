@@ -73,6 +73,7 @@ except ImportError:
 # ── Config ───────────────────────────────────────────────────────
 
 _FMP_BASE = "https://financialmodelingprep.com/stable"
+_API_TIMEOUT = 15.0  # seconds; httpx.Client + FMP client share this baseline
 
 
 def _fmp_key() -> str:
@@ -83,7 +84,7 @@ def _make_fmp_client() -> FMPClientLike | None:
     api_key = _fmp_key()
     if not api_key:
         return None
-    return make_fmp_client(api_key, retry_attempts=1, timeout_seconds=15.0)
+    return make_fmp_client(api_key, retry_attempts=1, timeout_seconds=_API_TIMEOUT)
 
 
 # ── HTTP client singleton ────────────────────────────────────────
@@ -101,7 +102,7 @@ def _get_client() -> httpx.Client | None:
             return _client
         if not _HTTPX:
             return None
-        _client = httpx.Client(timeout=15.0)
+        _client = httpx.Client(timeout=_API_TIMEOUT)
         atexit.register(_client.close)
         return _client
 

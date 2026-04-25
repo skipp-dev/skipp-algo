@@ -1,0 +1,124 @@
+"""Inventory pin for ``continue-on-error: true`` in GitHub Actions workflows.
+
+Background
+==========
+
+Audit `docs/audits/smc-system-review-2026-04-24.md` (M-2) flagged
+``continue-on-error: true`` as a silent-degradation surface. The original
+report listed only 2 hits (newsapi-refresh + library-refresh) but a fuller
+sweep found 12 hits across 6 workflows. This test pins the **exact**
+allowed inventory.
+
+Failure semantics
+=================
+
+Adding a new ``continue-on-error: true`` line — or removing an existing one
+— forces an explicit decision: update the ``_ALLOWED`` map below with a
+short rationale comment in the PR description. This prevents silent-fail
+patterns from spreading without review.
+
+Note: The test does **not** demand that the workflow file itself carry an
+inline comment (YAML noise). The single source of truth is this test.
+"""
+from __future__ import annotations
+
+from pathlib import Path
+
+import pytest
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
+WORKFLOWS_DIR = REPO_ROOT / ".github" / "workflows"
+
+# Allowed continue-on-error sites: workflow-relative-path -> set of 1-based line numbers.
+# Each entry is intentionally explicit; do NOT collapse with wildcards.
+# Adding/removing lines here MUST be paired with a CHANGELOG entry that
+# justifies the silent-fail tolerance (typically: best-effort notification
+# step, optional gate, or non-blocking observability hop).
+_ALLOWED: dict[str, frozenset[int]] = {
+    # Best-effort live news refresh: NewsAPI 5xx is tolerated to keep cron green.
+    "smc-live-newsapi-refresh.yml": frozenset({106}),
+    # Library refresh: 6 best-effort hops (gates probe, TV publish, telegram pings).
+    "smc-library-refresh.yml": frozenset({165, 376, 592, 735, 755}),
+    # Deeper integration gates: 2 advisory-only probes.
+    "smc-deeper-integration-gates.yml": frozenset({54, 98}),
+    # Weekly digest: 3 best-effort delivery hops.
+    "plan-2-8-weekly-digest.yml": frozenset({444, 661, 940}),
+    # Release gates: 1 advisory metric collection hop.
+    "smc-release-gates.yml": frozenset({172}),
+}
+
+
+def _scan_workflow(path: Path) -> frozenset[int]:
+    """Return the set of 1-based line numbers carrying ``continue-on-error: true``."""
+    hits: set[int] = set()
+    for idx, raw in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+        # Match exact ``continue-on-error: true`` ignoring leading whitespace.
+        # Reject ``continue-on-error: false`` and templated variants.
+        stripped = raw.strip()
+        if stripped == "continue-on-error: true":
+            hits.add(idx)
+    return frozenset(hits)
+
+
+def _all_workflows() -> list[Path]:
+    return sorted(WORKFLOWS_DIR.glob("*.yml")) + sorted(WORKFLOWS_DIR.glob("*.yaml"))
+
+
+def test_workflows_directory_exists() -> None:
+    """Sanity: the workflows directory must be present."""
+    assert WORKFLOWS_DIR.is_dir(), f"missing workflows dir: {WORKFLOWS_DIR}"
+    files = _all_workflows()
+    assert len(files) >= 5, f"unexpectedly few workflow files: {len(files)}"
+
+
+def test_continue_on_error_inventory_matches_allowed() -> None:
+    """Pin the exact set of ``continue-on-error: true`` lines per workflow."""
+    observed: dict[str, frozenset[int]] = {}
+    for wf in _all_workflows():
+        hits = _scan_workflow(wf)
+        if hits:
+            observed[wf.name] = hits
+
+    extra_files = set(observed) - set(_ALLOWED)
+    missing_files = set(_ALLOWED) - set(observed)
+
+    assert not extra_files, (
+        f"NEW workflow(s) introduced continue-on-error: true: {sorted(extra_files)}. "
+        "Update _ALLOWED in this test with rationale, or remove the silent-fail."
+    )
+    assert not missing_files, (
+        f"Workflow(s) no longer carry continue-on-error: {sorted(missing_files)}. "
+        "Remove the entry from _ALLOWED."
+    )
+
+    diffs: list[str] = []
+    for name, allowed_lines in _ALLOWED.items():
+        seen = observed[name]
+        added = seen - allowed_lines
+        removed = allowed_lines - seen
+        if added or removed:
+            diffs.append(
+                f"  {name}: added={sorted(added)} removed={sorted(removed)} "
+                f"(seen={sorted(seen)}, allowed={sorted(allowed_lines)})"
+            )
+    assert not diffs, (
+        "continue-on-error inventory drift:\n" + "\n".join(diffs)
+        + "\nUpdate _ALLOWED with rationale, or revert the workflow change."
+    )
+
+
+def test_continue_on_error_count_pin() -> None:
+    """Belt-and-braces: total count must equal sum of _ALLOWED."""
+    expected = sum(len(v) for v in _ALLOWED.values())
+    actual = sum(len(_scan_workflow(wf)) for wf in _all_workflows())
+    assert actual == expected, (
+        f"continue-on-error total drift: expected {expected}, observed {actual}. "
+        "See per-file test for details."
+    )
+
+
+@pytest.mark.parametrize("name,lines", sorted(_ALLOWED.items()))
+def test_each_allowed_workflow_file_exists(name: str, lines: frozenset[int]) -> None:
+    """Per-file sanity that the allowlist references real files."""
+    assert (WORKFLOWS_DIR / name).is_file(), f"allowlist references missing workflow: {name}"
+    assert lines, f"empty allowlist for {name} — remove the key entirely"
