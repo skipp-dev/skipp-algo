@@ -6,6 +6,22 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Hardening (2026-04-25) — Pin: F-String-in-Logger Budget (Eager-Eval Anti-Pattern)
+
+- Neuer Pin [`tests/test_fstring_logging_budget_pin.py`](tests/test_fstring_logging_budget_pin.py)
+  mit 2 Layern:
+  1. **F-String-Logging Budget** = 44 (kann nur sinken). AST scant
+     `logger.{debug,info,warning,error,critical,exception,log}(f"...")`.
+     Top: streamlit_terminal.py:16, open_prep/streamlit_monitor.py:11,
+     databento_volatility_screener.py:8, terminal_tabs/_shared.py:5.
+  2. **Drift-Detector** — wenn aktueller Stand >5 unter Budget,
+     erzwingt Budget-Senkung.
+- F-Strings werden auch bei gefiltertem Log-Level evaluiert (wasted CPU)
+  und können `__repr__`-Exceptions in Stacktraces leaken. Lazy Form:
+  `logger.info("x=%s", x)`.
+- 2/2 Tests grün. Defense-only.
+- OWASP A09 (Logging & Monitoring).
+
 ### Hardening (2026-04-25) — `assert` → `raise` Migration (Production)
 
 - Migration der 4 verbliebenen `assert`-Statements in First-Party-Production
