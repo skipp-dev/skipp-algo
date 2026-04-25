@@ -51,6 +51,13 @@ _ENV_SYMBOLS = "SMC_RELEASE_SYMBOLS"
 _ENV_TIMEFRAMES = "SMC_RELEASE_TIMEFRAMES"
 _ENV_STALE_SECONDS = "SMC_RELEASE_STALE_SECONDS"
 
+# Hard ceiling for the `git rev-parse HEAD` lookup in resolve_git_commit().
+# Local git should answer in milliseconds; if it stalls longer than this
+# (lock contention, network filesystem) we'd rather lose the commit hash
+# than wedge a CI job for the default subprocess-without-timeout duration
+# (which is unbounded). Seconds.
+_GIT_REV_PARSE_TIMEOUT = 5.0
+
 # ---------------------------------------------------------------------------
 # Structured failure-reason codes emitted by release gates.
 # ---------------------------------------------------------------------------
@@ -1061,6 +1068,7 @@ def resolve_git_commit() -> str | None:
             check=False,
             capture_output=True,
             text=True,
+            timeout=_GIT_REV_PARSE_TIMEOUT,
         )
     except Exception:
         return None

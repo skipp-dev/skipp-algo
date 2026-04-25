@@ -603,6 +603,43 @@ Drei Sub-Tests:
 sub-Sekunde. Gleiches Defense-Pin-Pattern wie FDR / SPRT-Vocab /
 broad-except.
 
+### Tests / Quality (2026-04-24) — Blocking `subprocess.*` timeout discipline (+1 production fix)
+
+Schließt einen CI-Hänger-Korridor: blockierende `subprocess`-Aufrufe
+(`run`, `check_output`, `check_call`, `call`) warten ohne `timeout=`
+unbeschränkt auf das Kind. Genau diesen Bug hatten wir bereits einmal
+am `git rev-parse HEAD`-Site in `smc_integration/release_policy.py` —
+wenn das lokale Git unter Lock-Contention oder auf einem Network-FS
+festhängt, wedget der ganze Job.
+
+**Tripwire-Pin (`tests/test_subprocess_timeout_discipline.py`)**
+AST-Walk über alle First-Party `*.py` (Top-Level + Subdirs außer
+`tests/`, `scripts/`, `docs/`, `SMC++/`, Caches, Venvs). Fail wenn ein
+`subprocess.<run|check_output|check_call|call>(...)` ohne `timeout=`
+auftaucht. `subprocess.Popen` ist **bewusst exempt** — es ist das
+Launch-Primitiv für detached, langlaufende Kinder (z. B. der
+`open_prep/realtime_signals.py`-Engine-Boot), wo ein Timeout am Spawn
+selbst keinen Sinn ergibt. Drei Sub-Tests:
+
+1. `test_first_party_files_present` — Pfaddrift-Wächter (≥ 50 Dateien).
+2. `test_blocking_subprocess_calls_specify_timeout` — die Disziplin.
+3. `test_site_allowlist_entries_still_apply` — parametrierter
+   Stale-Allowlist-Wächter (Allowlist startet leer).
+
+**Production Fix (1 Site)**
+
+- `smc_integration/release_policy.py:1059` — `resolve_git_commit()` ruft
+  `git rev-parse HEAD` ohne Timeout. Hängendes Git → CI hängt unbegrenzt.
+  Fix: neuer Modul-Konstant `_GIT_REV_PARSE_TIMEOUT = 5.0` (lokales Git
+  antwortet im Millisekundenbereich; lieber Commit-Hash verlieren als
+  Job wedgen) und Übergabe an `subprocess.run(..., timeout=…)`.
+
+**Warum jetzt:** Vervollständigt die Timeout-Disziplin-Familie:
+**httpx** Quartett (Budget × Singleton × Timeout-Konsistenz × Named-Timeout)
++ jetzt **subprocess** Blocking-Timeout-Pin. Gleiche Bug-Klasse "default
+unbounded wait" für die zwei wichtigsten Out-of-Process-Kanäle
+geschlossen.
+
 ### Tests / Quality (2026-04-24) — terminal_*.py httpx timeout named-constant discipline
 
 - Neuer Pin [`tests/test_terminal_httpx_timeout_named.py`](tests/test_terminal_httpx_timeout_named.py):
