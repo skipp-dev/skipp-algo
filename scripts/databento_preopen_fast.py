@@ -483,17 +483,16 @@ def _write_fast_outputs(
     quality_window_status_latest: pd.DataFrame,
     manifest: dict[str, Any],
 ) -> dict[str, Path]:
+    # H-2/M-1 (system review 2026-04-24): delegate to canonical helpers in
+    # scripts.smc_atomic_write. Local thin wrappers preserve original
+    # call-site signature (positional path-first).
+    from scripts.smc_atomic_write import atomic_write_parquet, atomic_write_text
+
     def _write_parquet_atomic(path: Path, frame: pd.DataFrame) -> None:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        tmp_path = path.with_name(f".{path.name}.tmp")
-        frame.to_parquet(tmp_path, index=False)
-        tmp_path.replace(path)
+        atomic_write_parquet(frame, path, index=False)
 
     def _write_text_atomic(path: Path, text: str) -> None:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        tmp_path = path.with_name(f".{path.name}.tmp")
-        tmp_path.write_text(text, encoding="utf-8")
-        tmp_path.replace(path)
+        atomic_write_text(text, path)
 
     def _merge_by_trade_date(existing_path: Path, current_frame: pd.DataFrame) -> pd.DataFrame:
         def _is_effectively_empty(frame: pd.DataFrame) -> bool:

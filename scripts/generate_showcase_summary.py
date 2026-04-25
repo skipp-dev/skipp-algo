@@ -160,26 +160,25 @@ def main() -> None:
 
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
+    from scripts.smc_atomic_write import atomic_write_json, atomic_write_text
+
     # 1. Adapter summary
     summary_path = OUTPUT_DIR / "showcase_adapter_summary.json"
-    with open(summary_path, "w") as f:
-        json.dump(summary, f, indent=2)
+    atomic_write_json(summary, summary_path, indent=2)
 
     # Legacy path (backward compat for existing tests)
     LEGACY_OUTPUT.parent.mkdir(parents=True, exist_ok=True)
-    with open(LEGACY_OUTPUT, "w") as f:
-        json.dump(summary, f, indent=2)
+    atomic_write_json(summary, LEGACY_OUTPUT, indent=2)
 
     # 2. Pine lean surface
     pine_path = OUTPUT_DIR / "showcase_lean_surface.pine"
-    pine_path.write_text(pine_surface, encoding="utf-8")
+    atomic_write_text(pine_surface, pine_path)
 
     # 3. Manifest
     artifacts = ["showcase_adapter_summary.json", "showcase_lean_surface.pine"]
     manifest = generate_manifest(summary, artifacts)
     manifest_path = OUTPUT_DIR / "showcase_manifest.json"
-    with open(manifest_path, "w") as f:
-        json.dump(manifest, f, indent=2)
+    atomic_write_json(manifest, manifest_path, indent=2)
 
     rel = OUTPUT_DIR.relative_to(ROOT)
     print(f"Showcase artifacts written to {rel}/")
