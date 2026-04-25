@@ -691,6 +691,61 @@ Pine-Schicht, plus zwei kleinere Disziplin-Pins):
   Lücke in einen Regression-Pin nach Discovery, dass die BH-Korrektur
   bereits implementiert war.
 
+### Tests / Quality / Pine (2026-04-24) — Hero Defaults Coverage + Pine Security Discipline + Trust-State Relationship
+
+Drei kleine, hochpräzise Pins als Erweiterung der Vocab-Triangle aus
+PR #130 / #131:
+
+**E — Hero-Defaults Vocab-Coverage**
+
+- Neuer Pin [`tests/test_hero_defaults_vocab_coverage.py`](tests/test_hero_defaults_vocab_coverage.py):
+  jeder `DEFAULTS[k]`-Wert in [`scripts/smc_hero_state.py`](scripts/smc_hero_state.py)
+  für `HERO_TRUST` / `HERO_SETUP_QUALITY` / `HERO_ACTION` muss Element
+  des entsprechenden Vocab-`frozenset` sein. Schließt die dritte Ecke
+  des Vocab-Schutz-Dreiecks (Membership-Fingerprint, Pine-Render-
+  Coverage, Default-Coverage).
+
+**D — Pine `request.security` Discipline (Regression-Pin)**
+
+- Neuer Pin [`tests/test_pine_request_security_discipline.py`](tests/test_pine_request_security_discipline.py):
+  zwei Invarianten für aktive (non-legacy) Pine-Files:
+  1. Kein same-symbol+same-TF
+     `request.security(syminfo.tickerid, timeframe.period, ...)`
+     (Pine-Antipattern: extra security context für no-op).
+  2. Jede `request.security()` Call muss `lookahead=` explizit
+     spezifizieren (default unterscheidet sich zwischen Pine-Versionen,
+     silent future-bar leakage = lookahead-bias bug).
+- `request.security_lower_tf` ausgenommen (kein `lookahead=` Argument).
+- Discovery: aktive Surface bereits sauber; Pin schützt vor Regression.
+
+**F — Hero ↔ TrustState Relationship-Invariant**
+
+- Neuer Pin [`tests/test_hero_trust_state_relationship.py`](tests/test_hero_trust_state_relationship.py):
+  friert die Beziehung zwischen `HERO_TRUST_VOCAB` (Hero-Layer) und der
+  `TrustState`-Enum (Product-Trust-Layer) ein:
+  - **Shared core** `{healthy, degraded, stale, unavailable}` muss in
+    beiden Vocabs vorhanden sein.
+  - **Hero-only** `{warmup}` darf nicht in `TrustState` lecken.
+  - **TrustState-only** `{watch_only}` darf nicht in `HERO_TRUST_VOCAB`
+    lecken.
+  - Keine undokumentierten Tokens außerhalb dieser Drei-Partition.
+
+**Acceptance / Test-Suite-Beweis**
+
+- 9/9 neue Tests grün (3 + 2 + 4).
+
+**Discovery-Notes**
+
+- Ursprünglich geplantes F (Pine-Legacy-Move + Inventory-Pin) bereits
+  vollständig erledigt durch
+  [`tests/test_pine_active_surface_inventory.py`](tests/test_pine_active_surface_inventory.py)
+  + [`tests/test_pine_legacy_isolation.py`](tests/test_pine_legacy_isolation.py)
+  + [`tests/test_pine_library_version_consistency.py`](tests/test_pine_library_version_consistency.py).
+  Pivot auf Relationship-Invariant als nächst-höchstwertigen Pin.
+- D ist (analog zu B in PR #131) ein Regression-Guard: aktive Pine-
+  Surface war bereits sauber. Audit-Backlog entwickelt sich zu
+  "freeze the good state" statt "fix the bad state".
+
 ### Tests / Quality / Workflows (2026-04-24) — Audit-Followup Combo (M-1 / M-4 / L-1 / L-2 / I-1 / I-2)
 
 Sechs Punkte aus dem Backlog von
