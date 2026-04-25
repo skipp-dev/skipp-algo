@@ -334,6 +334,17 @@ All notable changes to this project are documented in this file.
 - Reduktionen sind explizit erwünscht; jedes Reduzieren erfordert
   Decrement im Ledger.
 
+### Tests / Quality (2026-04-25) — bare `# type: ignore` site ledger
+
+- Neuer Pin [`tests/test_bare_type_ignore_ledger.py`](tests/test_bare_type_ignore_ledger.py)
+  friert die 15 bestehenden bare `# type: ignore` Sites ein
+  (1× `newsstack_fmp/_bz_http.py`, 14× `terminal_bitcoin.py`).
+  Komplementiert PR #152 (per-file Count Budget): neue Suppressions
+  müssen narrowed sein (`# type: ignore[return-value]` etc.) oder mit
+  Begründung ins Ledger.
+- Drei-Schichten-Guard: no-new-sites + stale-entry + parametrisierte
+  Datei-Existenz-Sanity. Defense-only.
+
 ### Tests / Quality (2026-04-24) — serialization & shell-injection zero-tripwires + `__all__` integrity
 
 - Neuer Pin [`tests/test_serialization_and_shell_tripwires.py`](tests/test_serialization_and_shell_tripwires.py)
