@@ -17,6 +17,34 @@ All notable changes to this project are documented in this file.
   on every PR with `AssertionError: New os.environ[X] subscript
   site(s)`.
 
+### Fixed (2026-04-25) — Reconcile assert ledger after zero-budget migration
+
+- `tests/test_assert_and_open_encoding_pin.py`:
+  drop `_FROZEN_ASSERT_COUNTS` to `{}`. The four prod `assert`
+  sites pinned by PR #166 were migrated to explicit `raise` blocks
+  in PR #171 (zero-budget pin). The legacy ledger was never updated,
+  so `test_assert_total_frozen` failed with `expected 4, got 0` on
+  every PR. The `test_assert_no_new_files` guard remains in place
+  (now paired with the dedicated zero-budget pin from #171).
+
+### Fixed (2026-04-25) — `broad_except_silent` Line Bump
+
+- `tests/test_broad_except_silent_budget.py`:
+  bump `_FROZEN_SITES` entry for `newsstack_fmp/ingest_benzinga.py`
+  from line 546 → 547. The `except Exception:` around `ws.send(auth_msg)`
+  shifted by one line after upstream edits. Pure line drift; identical
+  silent-handler kept. Same drift class as the env-subscript bump above.
+
+### Tests / Quality (2026-04-25) — Extend CHANGELOG ALLOWED_CATEGORIES
+
+- `tests/test_changelog_format_lint.py`:
+  add `Hardening`, `Tests / Quality / Pine`, `Tests / Quality / Workflows`
+  to `ALLOWED_CATEGORIES`. All three are in active use in `[Unreleased]`
+  (introduced by merged PRs #170, #171, #177, #131, #130 etc.).
+  The whitelist had lagged real usage, so the lint test was failing
+  on `main`; it was masked by `pytest --maxfail=1` + alphabetical
+  ordering (the assert-ledger drift fixed above failed first).
+
 ### Hardening (2026-04-25) — Pin: `sys.exit` 7-Site Ledger + bare `exit/quit` Tripwire
 
 - Neuer Pin [`tests/test_sys_exit_ledger_pin.py`](tests/test_sys_exit_ledger_pin.py)
