@@ -112,6 +112,18 @@ All notable changes to this project are documented in this file.
 - All six surfaces are **zero** today; this pin keeps them that way.
 - Sister of #214 (pickle write + os.path.join), #219 (pickle read + eval),
   #209 (os.system / input / assert).
+
+### Tests / Quality (2026-04-25) — Defense pin: zero-surface — pickle.load(s) read side + eval()
+
+- Added `tests/test_pickle_read_and_eval_zero_surface.py` (2 tests) banning
+  in first-party non-test code:
+  - **CWE-502**: `pickle.load`, `pickle.loads`, `cPickle.load(s)`,
+    `dill.load(s)`, `marshal.load(s)` — read-side counterpart of #214
+    (which closed the write side).
+  - **CWE-95**: built-in `eval(...)` — code injection vector.
+- Both surfaces are **zero** today; this pin keeps them that way.
+- Sister of #214 (pickle write side + os.path.join literal absolute),
+  #212 (TLS / JWT skip-verify), #209 (os.system / input / assert).
 - Defense-only — no production changes.
 
 ### Tests / Quality (2026-04-25) — Defense ledger: Path.read_text/write_text without encoding=
