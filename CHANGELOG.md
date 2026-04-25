@@ -6,6 +6,19 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Tests / Quality (2026-04-25) — Defense pin: time.sleep(...) growth ledger
+
+- Added `tests/test_time_sleep_ledger.py` (18 tests: total / no-new-files /
+  per-file parametrized) freezing today's surface of `time.sleep(...)`
+  calls in first-party non-test code: **28 sites across 16 files**.
+- Synchronous `time.sleep` blocks the calling thread/event-loop; in async
+  contexts it stalls every co-routine on the same loop, in handlers it
+  ties up a worker, and in uncapped retry loops it produces self-DoS
+  (CWE-400 — Uncontrolled Resource Consumption).
+- The ledger may only **shrink**. New sites must either migrate to
+  `asyncio.sleep` / scheduled callback / backoff-capped retry helper, or
+  be added to `_FROZEN_SITES` under explicit review.
+
 ### Tests / Quality (2026-04-25) — Defense pin: subprocess.run(...) must pass explicit check=
 
 - Added `tests/test_subprocess_run_check_invariant.py` (1 test) enforcing
