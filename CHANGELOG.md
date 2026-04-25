@@ -6,7 +6,7 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
-### Fix (2026-04-25) — `_FROZEN_ENV_SUBSCRIPT_SITES` Line Bump
+### Fixed (2026-04-25) — `_FROZEN_ENV_SUBSCRIPT_SITES` Line Bump
 
 - `tests/test_mutable_defaults_and_loads_pins.py`:
   bump frozen `os.environ[X]` subscript ledger entry for
