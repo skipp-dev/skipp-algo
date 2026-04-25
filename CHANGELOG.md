@@ -54,6 +54,24 @@ require zero ledger maintenance unless someone genuinely needs to
 re-open a surface (in which case the test message documents the
 escape-hatch convention). Defense-only — no production changes.
 
+### Tests / Quality (2026-04-25) — Defense pin: yaml + xml zero-surface invariant
+
+New `tests/test_yaml_xml_zero_surface.py` (2 tests) — sister of the
+`dynamic-exec + pickle` zero-surface pin — freezes two more adjacent
+CWE families at **zero** sites in first-party code:
+
+- **CWE-502 (unsafe YAML)**: `yaml.load / load_all / full_load /
+  full_load_all / unsafe_load / unsafe_load_all` calls. PyYAML's
+  `yaml.load` on untrusted input is arbitrary code execution; only
+  `yaml.safe_load` is generally safe.
+- **CWE-611 (XML / XXE)**: any import of stdlib `xml.*` or
+  third-party `lxml*`. Historically all carry XXE / billion-laughs /
+  external-DTD risk. Repo doesn't need XML at all today, so the
+  cleanest invariant is to forbid the import surface entirely.
+
+Both surfaces are currently empty; tests are pure invariants with no
+ledger to maintain. Defense-only — no production changes.
+
 ### Fixed (2026-04-25) — main RED hotfix: continue-on-error inventory line resync
 
 `tests/test_workflow_continue_on_error_inventory.py` `_ALLOWED` for
