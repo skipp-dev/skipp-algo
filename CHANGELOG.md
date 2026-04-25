@@ -57,6 +57,18 @@ All notable changes to this project are documented in this file.
   - `tests/test_silent_security_and_boundary_bundle.py`: realtime_signals 1061/2629 → 1062/2630
   No production change — pure ledger line-number drift fix.
 
+
+### Tests / Quality (2026-04-25) — Defense ledger: built-in open() text-mode without encoding=
+
+- Added `tests/test_builtin_open_encoding_ledger.py` (5 tests) freezing
+  today's surface of built-in `open(...)` text-mode calls in first-party
+  non-test code that omit an explicit `encoding=` kwarg.
+- Mirror of #218 (Path text-IO encoding= ledger) — same locale-fallback
+  hazard (`locale.getpreferredencoding(False)` differs by platform).
+- Frozen surface: **4 sites across 3 files** (all under `scripts/`).
+  Total + no_new_files + per-file line invariants. Ledger may only shrink.
+- Defense-only — no production changes.
+
 ### Tests / Quality (2026-04-25) — Defense pin: mkdir / makedirs must pass explicit exist_ok=
 
 - Added `tests/test_mkdir_makedirs_exist_ok_invariant.py` (2 tests)
