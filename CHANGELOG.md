@@ -898,6 +898,79 @@ des SMC System Review Prompts):
 **Test footprint:** +8 neue Tests, alle grün. Baseline-Drift-Failures
 liefern Auto-Update Recipe in der Failure-Message.
 
+### Tests / Quality (2026-04-24) — `open()` text-mode encoding discipline (+3 production fixes)
+
+Schließt eine plattform-abhängige Quelle für stillen Daten-Drift in
+First-Party-Produktionscode. Pythons Default-Textencoding ist OS-abhängig
+(macOS/Linux: `utf-8`, Windows: `cp1252`); fehlt `encoding=` an einem
+text-mode `open(...)`, schreibt/liest derselbe Code je nach Host
+unterschiedliche Bytes — eine Klasse von Bug, die wir bei `.env`- und
+Lock-Dateien bereits gesehen haben.
+
+**Tripwire-Pin (`tests/test_open_encoding_discipline.py`)**
+AST-Walk über alle First-Party `*.py` (Top-Level + Subdirs außer
+`tests/`, `scripts/`, `docs/`, `SMC++/`, Caches, Venvs). Jeder
+`open(...)`-Aufruf, der text-mode ist (Default oder Mode ohne `b`) und
+kein `encoding=`-Keyword führt, lässt die Suite rot werden. Binär-Modi
+(`"rb"`, `"wb"`, `"ab"`, `"r+b"`, …) sind exempt. Statisch nicht
+auflösbare Modi gelten konservativ als Text. Drei Sub-Tests:
+1. `test_first_party_files_present` — Pfaddrift-Wächter (≥ 50 Dateien).
+2. `test_open_calls_specify_encoding` — die eigentliche Disziplin.
+3. `test_file_allowlist_entries_still_apply` — parametrierte
+   Allowlist-Hygiene (Allowlist aktuell leer, kein Eintrag verschimmelt).
+
+**Production Fixes (3 Sites)**
+- `open_prep/realtime_signals.py:251` — Engine-Lockfile
+  (`open(_RT_ENGINE_LOCK_FILE, "w")` → `encoding="utf-8"`).
+- `open_prep/realtime_signals.py:2601` — Stdlib-Fallback `.env`-Loader.
+- `test_usi_lint.py:6` — Top-Level Pine-Linter.
+
+**Warum jetzt:** Defense-in-Depth-Tripwire (sub-Sekunde, AST only)
+gegen die Klasse "silent platform-dependent default". Allowlist startet
+leer und wird durch den Stale-Check selbst gepflegt.
+
+### Fixes & Pins (2026-04-24) — System Review 2026-04-24 Followup (H-1, L-3, M-3)
+
+Adressiert die drei priorisierten Backlog-Items aus
+[`docs/reviews/2026-04-24-system-review.md`](docs/reviews/2026-04-24-system-review.md):
+
+**H-1 — `scripts/smc_ob_context_light.py` Empty-OB Subnormal-Robustheit**
+- `bull_level == 0.0 and bear_level == 0.0` → `abs(...) < _OB_LEVEL_EPS` (1e-12)
+- Neue `_OB_LEVEL_EPS` Konstante zwischen IEEE-754 subnormal range (5e-324)
+  und kleinster realer Tick-Größe (1e-2). Defense-in-depth: heute liefert
+  Upstream einen Literal-Sentinel, aber Comparison-Form würde silent driften
+  wenn das je auf computed-value umgestellt wird.
+- 3 neue Regression-Tests in `tests/test_ob_context_light.py`
+  (subnormal positive, subnormal negative, sanity-check für 1e-2 als active OB).
+
+**L-3 — Division-Site Baseline-Pin (`tests/test_division_site_baseline.py`)**
+- AST-Pin im Stil des `lru_cache` baseline-pin (PR #127): pinnt die exakte
+  Anzahl `a / b` Divisionen pro audited file (`smc_core/scoring.py`: 27,
+  `smc_core/fvg_quality.py`: 7).
+- Jede neue Division zwingt Reviewer zu confirm denominator ist non-zero
+  (literal, structural, oder epsilon-guarded) bevor Baseline gebumpt wird.
+- 2 neue Tests, beide grün.
+
+**M-3 — Workflow `GH_PAT` Discipline (`tests/test_workflow_gh_pat_discipline.py`)**
+- Audit-Retraction: ursprüngliche M-3 Finding-Beschreibung war zu breit —
+  `gh issue create/comment` und `gh run list/download` sind mit
+  `GITHUB_TOKEN` legitim. Nur `gh pr create/edit/merge`,
+  `git push origin bot/*` und `peter-evans/create-pull-request`
+  brauchen `GH_PAT` damit fast-gates triggert.
+- Neuer Pin walkt alle `.github/workflows/*.yml` und enforces dass jede
+  sensitive action `secrets.GH_PAT` in Proximity hat (±100 Zeilen,
+  passt für die größten step bodies).
+- Pin entdeckte 2 echte Verstöße in `smc-library-refresh.yml:580/586`
+  (`gh pr create` + `gh pr merge` für `bot/library-refresh-${GITHUB_RUN_ID}`
+  PRs ohne GH_PAT). Fix angewendet: Step "Commit and push changes"
+  nutzt jetzt das kanonische
+  `${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}` ternary.
+- 2 neue Tests, beide grün.
+
+**Test footprint:** +7 neue Tests, alle grün. Zwei Source-Edits
+(`smc_ob_context_light.py` + `smc-library-refresh.yml`), beide
+audit-driven, beide mit Pin-Schutz gegen Regression.
+
 
 ### Tests / Quality (2026-04-24) — Audit-Followup Pins (workflow continue-on-error / raw write call sites / Pine legacy isolation / Pine active surface inventory)
 
