@@ -6,6 +6,26 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Tests / Quality (2026-04-25) — Defense pin: urllib.urlopen ledger + mandatory timeout=
+
+New `tests/test_urllib_urlopen_ledger.py` (7 tests) — sister of the
+`subprocess` shell-injection pin (#201). Two layers:
+
+- **Layer 1 (hard invariant, CWE-1088 / availability)**: every
+  `urlopen(...)` call MUST pass `timeout=` as a keyword argument. A
+  missing timeout makes the caller block on a slow / hung server
+  forever — the most common availability bug in Python network code.
+  This is not a per-site ledger; it is an absolute invariant.
+- **Layer 2 (per-(file, lineno) ledger)**: 4 sites pinned across 3
+  files — `terminal_notifications.py:201,265`,
+  `scripts/smc_alert_notifier.py:482`,
+  `scripts/verify_branch_protection.py:103`. Refuses both new and
+  removed sites; line-number-aware (similar to the
+  `subprocess` ledger).
+
+All 4 currently pass `timeout=10` or `timeout=15`. Defense-only — no
+production changes.
+
 ### Tests / Quality (2026-04-25) — Defense pin: os.environ mutation site ledger
 
 New `tests/test_os_environ_mutation_ledger.py` (AST-based, 13 tests) freezes
