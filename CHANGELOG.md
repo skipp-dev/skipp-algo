@@ -6,6 +6,16 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Tests / Quality (2026-04-25) — Defense pin: os.environ mutation site ledger
+
+New `tests/test_os_environ_mutation_ledger.py` (AST-based, 13 tests) freezes
+the inventory of `os.environ[K] = V` (WRITE) and `os.environ.setdefault(K, V)`
+(SDFLT) sites in first-party production / scripts / streamlit code:
+9 sites total — 6 WRITE (CA-bundle wiring + Streamlit secrets fall-through),
+3 SDFLT (NewsAPI / Streamlit operator-set defaults). Refuses any new mutation
+kind (`.update`, `.pop`, ...) without a ledger update. Defense-only — no
+production changes.
+
 ### Fixed (2026-04-25) — main RED hotfix: continue-on-error inventory line resync
 
 `tests/test_workflow_continue_on_error_inventory.py` `_ALLOWED` for
