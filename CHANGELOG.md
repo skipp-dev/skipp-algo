@@ -597,6 +597,25 @@ merged audit wave (#186, #188–#193).
 - 29 Tests grün, keine Produktions-Anpassungen nötig. Closes
   "stiller Event-Loop-Block / Spin-Wait rutscht rein" Bug-Klasse.
 
+### Tests / Quality (2026-04-24) — `global` statement frozen-inventory budget
+
+- Neuer Pin [`tests/test_global_statement_budget.py`](tests/test_global_statement_budget.py)
+  friert die aktuelle Inventur von 26 `global`-Statements in
+  First-Party-Production ein (alle dokumentierte Modul-Singletons:
+  TradingView/Finnhub 429-Backoff-Counter, Lazy-Provider-Singletons in
+  `newsstack_fmp/pipeline.py`, Regime-State-Remembrance,
+  Streamlit-Tab-Availability-Flags, Databento Quote/Dataset Caches).
+- Ledger erfasst zusätzlich die deklarierten Namen je Site — wenn
+  jemand stillschweigend einen neuen Namen an ein bestehendes
+  `global` anhängt, schlägt der Stale-Site-Guard an (Names-Tuple
+  Vergleich).
+- Drei Schichten: no-new-sites Tripwire + parametrisierter Stale-Site-
+  Guard (line + names tuple) + bidirektionale Inventur-Parity. Jeder
+  neue `global` zwingt Review (class attribute? injected dependency?
+  `contextvars.ContextVar`?).
+- 29 Tests grün, keine Produktions-Anpassungen nötig. Closes
+  "stille neue Modul-State-Mutation rutscht rein" Bug-Klasse.
+
 ### Tests / Quality (2026-04-24) — `except Exception: pass` defense pin (frozen-inventory budget)
 
 Defense-Pin friert die aktuelle Anzahl und exakten Locations aller
