@@ -15,6 +15,7 @@ import json
 import os
 import stat
 import tempfile
+import threading
 from pathlib import Path
 from typing import Any
 
@@ -28,6 +29,15 @@ __all__ = [
 ]
 
 
+# ``os.umask`` is process-global state with no read-only accessor on
+# POSIX — the only way to read it is to set a new value and restore
+# the old one. If two threads do that concurrently, one can observe
+# the other's transient ``0`` and infer ``0o666`` for "any umask".
+# Serialise the read window so the racy interval is never visible to
+# another thread (Copilot review of PR #195).
+_UMASK_LOCK = threading.Lock()
+
+
 def _default_mode_for_new_file() -> int:
     """Return the mode a fresh ``open(path, 'w')`` would use under the
     current umask (i.e. ``0o666 & ~umask``).
@@ -38,11 +48,15 @@ def _default_mode_for_new_file() -> int:
     (Copilot review of PR #189), we read the umask once at write time
     and chmod the temp file before the ``os.replace``.
     """
-    # ``os.umask`` is the only POSIX way to read the umask; it requires
-    # a transient set+restore. Worst case (concurrent umask change in
-    # another thread) we mis-read by one cycle; the next write wins.
-    umask = os.umask(0)
-    os.umask(umask)
+    # Serialised under ``_UMASK_LOCK`` so a concurrent caller in this
+    # process cannot observe the transient ``0`` umask we set to read
+    # the current value. Cross-process umask changes are still racy
+    # (no portable cross-process lock), but in that case the next
+    # write wins — and cross-process umask churn is not a real
+    # production pattern.
+    with _UMASK_LOCK:
+        umask = os.umask(0)
+        os.umask(umask)
     return 0o666 & ~umask
 
 
