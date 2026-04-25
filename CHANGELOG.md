@@ -98,6 +98,20 @@ All notable changes to this project are documented in this file.
   hazard (`locale.getpreferredencoding(False)` differs by platform).
 - Frozen surface: **4 sites across 3 files** (all under `scripts/`).
   Total + no_new_files + per-file line invariants. Ledger may only shrink.
+
+### Tests / Quality (2026-04-25) — Defense pin: zero-surface — dangerous builtins / os process APIs
+
+- Added `tests/test_dangerous_builtins_zero_surface.py` (6 tests) banning
+  in first-party non-test code:
+  - `os.popen(...)` (CWE-78 alternative path; sister of #209's `os.system` ban)
+  - `os.spawn*(...)` (legacy process-spawn family)
+  - `os.exec*(...)` (process replacement)
+  - `os.fork()` (bypasses our threading + asyncio model)
+  - built-in `compile(...)` (CWE-95 dynamic code compilation)
+  - built-in `breakpoint()` (left-in debugger)
+- All six surfaces are **zero** today; this pin keeps them that way.
+- Sister of #214 (pickle write + os.path.join), #219 (pickle read + eval),
+  #209 (os.system / input / assert).
 - Defense-only — no production changes.
 
 ### Tests / Quality (2026-04-25) — Defense ledger: Path.read_text/write_text without encoding=
