@@ -30,6 +30,9 @@ var string g_display = "1. Display"
 show_table   = input.bool(true, "Show Confluence Panel",  group = g_display)
 show_bg      = input.bool(true, "Highlight Confluence BG", group = g_display, tooltip = "Tint the chart background when confluence is high.")
 
+var string g_alerts = "6. Alerts"
+barCloseOnly = input.bool(true, "Alerts nur am Bar-Close", group = g_alerts, tooltip = "Wenn aktiv, feuern Alerts nur auf bestätigten (geschlossenen) Bars. Verhindert Repaint/Flicker während der laufenden Bar.")
+
 var string g_bus = "2. SMC Core Link"
 src_schema     = input.source(close, "BUS SchemaVersion", group = g_bus, display = display.none, tooltip = "Bind to SMC Core Engine hidden BUS outputs.")
 src_state_code = input.source(close, "BUS StateCode",     group = g_bus, display = display.none)
@@ -225,5 +228,6 @@ plot(confluence, "Confluence Score", display = display.none)
 plot(smc_score,  "SMC Component",   display = display.none)
 
 // ── Alert Conditions ──
-alertcondition(confluence >= 70 and confluence[1] < 70, "Confluence: Trade Zone", "Confluence score crossed above 70 — conditions favor a long setup.")
-alertcondition(confluence < 30 and confluence[1] >= 30, "Confluence: Stay Away",  "Confluence score dropped below 30 — conditions deteriorated.")
+_alertGate = barCloseOnly ? barstate.isconfirmed : true
+alertcondition(confluence >= 70 and confluence[1] < 70 and _alertGate, "Confluence: Trade Zone", "Confluence score crossed above 70 — conditions favor a long setup.")
+alertcondition(confluence < 30 and confluence[1] >= 30 and _alertGate, "Confluence: Stay Away",  "Confluence score dropped below 30 — conditions deteriorated.")

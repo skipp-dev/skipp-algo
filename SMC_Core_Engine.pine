@@ -5582,11 +5582,11 @@ bool alert_trust_degraded = alert_trust_tier == 'Degraded' and (na(alert_trust_t
 bool alert_trust_insufficient = alert_trust_tier == 'Insufficient' and (na(alert_trust_tier[1]) or alert_trust_tier[1] != 'Insufficient')
 
 // Product state transitions
-alertcondition(alert_product_state == 'ENTER LONG' and alert_product_state[1] != 'ENTER LONG', 'SMC: Enter Long', 'SMC Trigger is live. Entry level reached.')
-alertcondition(alert_product_state == 'READY LONG' and alert_product_state[1] != 'READY LONG', 'SMC: Ready Long', 'SMC Setup is ready. Confirmed reclaim, watching for trigger.')
-alertcondition(alert_product_state == 'PREPARE LONG' and alert_product_state[1] != 'PREPARE LONG', 'SMC: Prepare Long', 'SMC Setup is preparing. Zone is active, waiting for confirmation.')
-alertcondition(alert_product_state == 'BLOCKED' and alert_product_state[1] != 'BLOCKED', 'SMC: Setup Blocked', 'SMC Setup is now blocked. Invalidation hit or regime issue.')
-alertcondition(alert_product_state == 'WAIT' and alert_product_state[1] != 'WAIT', 'SMC: Wait', 'No active setup — back to wait state.')
+alertcondition(alert_product_state == 'ENTER LONG' and alert_product_state[1] != 'ENTER LONG' and barstate.isconfirmed, 'SMC: Enter Long', 'SMC Trigger is live. Entry level reached.')
+alertcondition(alert_product_state == 'READY LONG' and alert_product_state[1] != 'READY LONG' and barstate.isconfirmed, 'SMC: Ready Long', 'SMC Setup is ready. Confirmed reclaim, watching for trigger.')
+alertcondition(alert_product_state == 'PREPARE LONG' and alert_product_state[1] != 'PREPARE LONG' and barstate.isconfirmed, 'SMC: Prepare Long', 'SMC Setup is preparing. Zone is active, waiting for confirmation.')
+alertcondition(alert_product_state == 'BLOCKED' and alert_product_state[1] != 'BLOCKED' and barstate.isconfirmed, 'SMC: Setup Blocked', 'SMC Setup is now blocked. Invalidation hit or regime issue.')
+alertcondition(alert_product_state == 'WAIT' and alert_product_state[1] != 'WAIT' and barstate.isconfirmed, 'SMC: Wait', 'No active setup — back to wait state.')
 
 // Structure break alerts (v7.1) — fire on confirmed bars when BOS or CHoCH occurs
 alertcondition(bull_bos_sig and barstate.isconfirmed, 'SMC: Bullish BOS', 'Bullish Break of Structure confirmed. Trend continuation signal.')
@@ -5599,8 +5599,8 @@ alertcondition(long_state.armed and not long_state.armed[1] and barstate.isconfi
 alertcondition(long_invalidated_now and barstate.isconfirmed, 'SMC: Zone Invalidated', 'Active zone setup invalidated. Price broke below invalidation level.')
 
 // Trust & risk alerts
-alertcondition(alert_trust_degraded, 'SMC: Trust Degraded', 'Trust tier dropped to degraded')
-alertcondition(alert_trust_insufficient, 'SMC: Trust Insufficient', 'Trust tier dropped to insufficient')
+alertcondition(alert_trust_degraded and barstate.isconfirmed, 'SMC: Trust Degraded', 'Trust tier dropped to degraded')
+alertcondition(alert_trust_insufficient and barstate.isconfirmed, 'SMC: Trust Insufficient', 'Trust tier dropped to insufficient')
 alertcondition(not event_risk_gate_ok and barstate.isconfirmed, 'SMC: Event Risk Active', 'High-impact macro event blocking trades')
 alertcondition(lib_has_macro_event and barstate.islastconfirmedhistory, 'SMC: High Impact Macro Today', 'High impact macro event today. Reduce position sizes.')
 alertcondition(lib_has_earnings and barstate.islastconfirmedhistory, 'SMC: Earnings Today', 'This ticker has earnings today. Exercise caution.')
