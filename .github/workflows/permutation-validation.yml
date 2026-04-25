@@ -1,0 +1,54 @@
+name: permutation-validation
+
+# Sprint C4 / T5 — weekly Monte-Carlo validation of
+# scripts/strategy_permutation.py. Runs:
+#   - Power test (≥80% rejection on synthetic edge over 100 reps)
+#   - Type-I error (≤6% false-positives on noise over 100 reps)
+#   - Determinism, skip below MIN_EVENTS, Phipson-Smyth bounds
+#
+# Plan: docs/SPRINT_PLAN_C4_PERMUTATION_TEST_2026-04-26.md §T5
+
+on:
+  schedule:
+    - cron: "0 8 * * 1"  # Monday 08:00 UTC (1h after C3 run)
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: permutation-validation
+  cancel-in-progress: false
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install minimal deps
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install numpy scipy
+
+      - name: Run C4 permutation validation
+        run: python -m scripts.c4_permutation_validation
+
+      - name: Upload artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: c4-permutation-validation
+          path: artifacts/c4_permutation_validation.json
+          if-no-files-found: warn
