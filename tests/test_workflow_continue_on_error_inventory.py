@@ -36,15 +36,15 @@ WORKFLOWS_DIR = REPO_ROOT / ".github" / "workflows"
 # step, optional gate, or non-blocking observability hop).
 _ALLOWED: dict[str, frozenset[int]] = {
     # Best-effort live news refresh: NewsAPI 5xx is tolerated to keep cron green.
-    "smc-live-newsapi-refresh.yml": frozenset({104}),
+    "smc-live-newsapi-refresh.yml": frozenset({106}),
     # Library refresh: 6 best-effort hops (gates probe, TV publish, telegram pings).
-    "smc-library-refresh.yml": frozenset({162, 370, 583, 723, 740}),
+    "smc-library-refresh.yml": frozenset({165, 376, 592, 735, 755}),
     # Deeper integration gates: 2 advisory-only probes.
-    "smc-deeper-integration-gates.yml": frozenset({51, 92}),
+    "smc-deeper-integration-gates.yml": frozenset({54, 98}),
     # Weekly digest: 3 best-effort delivery hops.
-    "plan-2-8-weekly-digest.yml": frozenset({441, 655, 931}),
+    "plan-2-8-weekly-digest.yml": frozenset({444, 661, 940}),
     # Release gates: 1 advisory metric collection hop.
-    "smc-release-gates.yml": frozenset({169}),
+    "smc-release-gates.yml": frozenset({172}),
 }
 
 
