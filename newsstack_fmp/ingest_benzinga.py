@@ -208,7 +208,8 @@ class BenzingaRestAdapter:
                         continue
                     raise
                 except httpx.HTTPStatusError as exc:
-                    assert r is not None
+                    if r is None:
+                        raise RuntimeError("HTTPStatusError raised without a response object") from exc
                     if r.status_code == 400 and not last_variant:
                         logger.warning(
                             "Benzinga rejected historical news request shape (%s); retrying with provider fallback.",
