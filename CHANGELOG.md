@@ -6,6 +6,15 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Defense Pin — `global` Statement Budget (2026-04-23)
+
+- Added `tests/test_global_statement_budget_pin.py` (defense-only).
+- Freezes `global` statement count at 26 across 11 files.
+  New `global` introduces hidden write side-effects + shared mutable state
+  (test pollution, race conditions in Streamlit/async paths). Drift detector
+  forces lowering when count drops > 5 below budget.
+- OWASP A04 Insecure Design.
+
 ### Hardening (2026-04-25) — `assert` → `raise` Migration (Production)
 
 - Migration der 4 verbliebenen `assert`-Statements in First-Party-Production
