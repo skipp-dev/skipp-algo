@@ -514,6 +514,10 @@ class TestZonePriorityOutcomeWiring:
         assert rec["zone_priority_rank"] == "A"
         assert rec["zone_priority_score"] == 82
         assert rec["profitable_30m"] is None  # still pending
+        # Sprint C1: regime_at_entry alias must mirror legacy `regime`
+        # so C5 stratification + C9 drift watchdog can read the same key.
+        assert rec["regime"] == "RISK_ON"
+        assert rec["regime_at_entry"] == "RISK_ON"
 
     def test_prepare_outcome_snapshot_zone_priority_none_when_absent(self) -> None:
         from open_prep.outcomes import prepare_outcome_snapshot
