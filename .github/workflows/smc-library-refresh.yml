@@ -525,8 +525,17 @@ jobs:
         id: commit_push
         if: steps.diff.outputs.changed == 'true' && steps.breaking.outputs.breaking != 'true' && steps.tv_post_release.outcome == 'success' && steps.release_gates.outcome == 'success' && github.ref == 'refs/heads/main'
         env:
-          GH_TOKEN: ${{ github.token }}
-          GITHUB_TOKEN: ${{ github.token }}
+          # GH_PAT is required so the bot/* push + `gh pr create` below
+          # actually trigger downstream workflows (notably fast-gates).
+          # PRs/pushes created with the default GITHUB_TOKEN do NOT spawn
+          # child workflows (GitHub suppresses webhook events for token-
+          # generated actions), which would leave `gh pr merge --auto`
+          # waiting forever on a check that never runs. Falls back to
+          # github.token only on forks where the secret is unavailable.
+          # See `/memories/repo/bot-pr-needs-pat-not-github-token.md`
+          # and tests/test_workflow_gh_pat_discipline.py.
+          GH_TOKEN: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
+          GITHUB_TOKEN: ${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}
         run: |
           # The repo's `main-governance` ruleset only targets ~DEFAULT_BRANCH,
           # so direct `git push origin HEAD:main` is rejected with GH013

@@ -103,6 +103,16 @@ All notable changes to this project are documented in this file.
 - Verhalten: Bei legitimer "this can't happen"-Zustand wird `RuntimeError`
   geworfen statt `AssertionError`. Keine ID-Rotation, keine Schema-Änderung.
 
+### Defense (2026-04-25) — `shell=True` / `os.popen` Zero-Tripwire
+
+- Neuer `tests/test_shell_true_tripwire.py` mit 2 Layers (beide aktuell 0):
+  1. **No-shell-True**: `subprocess.run/Popen/call/check_output(..., shell=True)`
+     auf jeder Call-Site verboten. AST-Detection per `kw.arg=='shell'` mit
+     `ast.Constant(value=True)`.
+  2. **No-os.popen**: `os.popen(...)` (immer shell-mode, immer shell-injection-prone).
+- OWASP A03 Defense. Codebase aktuell sauber → Tripwire lockt jede neue
+  Regression sofort. Standard `_DIR_EXCLUDE`.
+
 ### Hardening (2026-04-25) — `usedforsecurity=False` Flag auf allen md5/sha1-Aufrufen
 
 - An 7 Sites `usedforsecurity=False` zu bestehenden `hashlib.md5(...)` /
@@ -139,6 +149,20 @@ All notable changes to this project are documented in this file.
 - Helper `_strip_strings_and_comments` ist quote/`//`-comment-aware.
   Generiertes `_snippet.pine` ausgeschlossen. Reine Test-Schicht,
   0 Pine-Codeänderung.
+
+### Tests / Quality (2026-04-25) — Weak-hash (md5/sha1) usage ledger
+
+- Neuer Pin [`tests/test_weak_hash_pin.py`](tests/test_weak_hash_pin.py)
+  fixiert die 13 `hashlib.md5(...)` / `hashlib.sha1(...)` /
+  `hashlib.new("md5"|"sha1", ...)` Aufrufe in 8 First-Party-Prod-Modulen.
+  Diese Stellen nutzen Weak-Hashes ausschließlich für **non-cryptographic
+  Content-Addressing** (Cache-Schlüssel, Dirty-Flag-Fingerprints,
+  Dedupe-IDs) — niemals für Auth/Integrity. Schutz gegen versehentliche
+  Re-Use von md5/sha1 in Security-Kontexten und gegen unkontrolliertes
+  Wachstum dieser Surface.
+- 5-Layer-Defense: Total-Budget (13), no-new-files, no-stale-entries,
+  parametrised per-file count, parametrised file-exists. Reine Test-
+  Schicht, 0 Prod-Codeänderung.
 
 ### Tests / Quality (2026-04-25) — Pine `request.security` HTF discipline
 
@@ -188,6 +212,25 @@ All notable changes to this project are documented in this file.
 - Drei-Lagen-Schutz pro Layer: total-budget + no-new-files +
   no-stale-entries + parametrisierter per-File-Count + Datei-Existenz.
   Inventar-Sanity ≥30 Prod-`*.py`. Reine Test-Schicht.
+
+### Tests / Quality (2026-04-25) — dangerous-call zero-tripwire 6-fold bundle
+
+- Neuer Pin [`tests/test_dangerous_call_tripwires.py`](tests/test_dangerous_call_tripwires.py)
+  bündelt sechs AST-Scans über first-party Prod-`*.py` — alle Inventare 0,
+  reine Tripwires gegen Wiederauftauchen historisch katastrophaler
+  Primitive:
+  1. **`import pickle` / `from pickle import …` / `import cPickle`** —
+     Pickle-Deserialisierung = Arbitrary Code Execution. Use json/msgpack.
+  2. **`pickle.load(...)` / `pickle.loads(...)`** — Defence-in-Depth via
+     Attribute-Call (für Re-Export-Module).
+  3. **`os.system(...)`** — Shell-Injection-Vektor; spawnt Shell. Use
+     `subprocess.run([...], shell=False)`.
+  4. **`subprocess.<call>(..., shell=True)`** — gleiche Wurzel.
+  5. **`eval(...)`** — Code aus String. Use `ast.literal_eval` für Safe-
+     Constants.
+  6. **`exec(...)`** — gleiche Wurzel.
+- Plus Inventory-Sanity ≥30 Prod-Dateien.
+- Defense-only. 0 Prod-Codeänderung.
 
 ### Tests / Quality (2026-04-25) — loopback & Docker base-image pin
 
@@ -280,6 +323,18 @@ All notable changes to this project are documented in this file.
 - Drei-Schichten-Guard: Pin-or-allowlist, no-stale-entries, Form-Sanity
   + Inventur-Sanity (≥10 uses-Zeilen). Defense-only.
 
+### Tests / Quality (2026-04-25) — pytest.skip per-file count budget
+
+- Neuer Pin [`tests/test_pytest_skip_budget.py`](tests/test_pytest_skip_budget.py)
+  friert die aktuelle pytest-Skip-Verteilung als per-file Budget ein
+  (`_FROZEN_FILE_COUNTS`, 13 Files / 15 Skip-Sites). Drei-Schichten-Guard:
+  - **No new sites:** unbekannte Files mit Skips schlagen Alarm.
+  - **No count growth:** Files dürfen ihr Budget nicht überschreiten.
+  - **Bidirektional:** veraltete Ledger-Einträge (Datei hat keine Skips
+     mehr) müssen entfernt werden.
+- Reduktionen sind explizit erwünscht; jedes Reduzieren erfordert
+  Decrement im Ledger.
+
 ### Tests / Quality (2026-04-24) — serialization & shell-injection zero-tripwires + `__all__` integrity
 
 - Neuer Pin [`tests/test_serialization_and_shell_tripwires.py`](tests/test_serialization_and_shell_tripwires.py)
@@ -294,6 +349,21 @@ All notable changes to this project are documented in this file.
      Name muss tatsächlich auf Top-Level definiert oder importiert sein
      (inkl. Top-Level-If/Try-Blöcken für Optional-Dependency-Patterns).
      Fängt den klassischen "Helper gelöscht, `__all__` vergessen"-Bug.
+
+### Tests / Quality (2026-04-24) — Pine same-TF `request.security` + legacy root tripwires
+
+- Neuer Pin [`tests/test_pine_audit_pins.py`](tests/test_pine_audit_pins.py)
+  bündelt zwei Pine-spezifische Defense-Layer:
+  1. **Same-TF `request.security`-Tripwire** verbietet das stille
+     No-Op-Pattern `request.security(syminfo.tickerid, timeframe.period, …)`,
+     das nur die aktuelle Bar zurückgibt und unnötig die Cross-Script-
+     Latenz zahlt. Aktuell 0 Treffer in allen `*.pine`-Dateien.
+  2. **Pine-Legacy-Root-Tripwire** sperrt die 23 nach `pine/legacy/`
+     verschobenen Skripte (BFI/CHOCH/QuickALGO/REV/USI/VWAP/etc.)
+     gegen ein Wieder-Auftauchen im Repo-Root. Bidirektionaler
+     Inventar-Check stellt sicher, dass die Ledger-Einträge unter
+     `pine/legacy/` existieren — verhindert Silent-Drift in beide
+     Richtungen.
 - Defense-only, keine Production-Änderungen.
 
 ### Tests / Quality (2026-04-24) — `# type: ignore` per-file count budget
@@ -307,6 +377,16 @@ All notable changes to this project are documented in this file.
   über sein Budget steigen, neue Dateien dürfen ohne Ledger-Eintrag
   gar keine `# type: ignore` einführen, und Stale-Einträge werden
   geflaggt. Reduktion erwünscht — fallender Count soll Budget senken.
+
+### Tests / Quality (2026-04-24) — `nonlocal` keyword frozen-inventory budget
+
+- Neuer Pin [`tests/test_nonlocal_budget.py`](tests/test_nonlocal_budget.py)
+  fixiert die 5 bekannten `nonlocal`-Sites (4× progress-bar-Closure in
+  `databento_volatility_screener.py`, 1× weighted-aggregate Accumulator
+  in `smc_core/ensemble_quality.py`). Drei-Schicht-Schutz:
+  Tripwire gegen neue Sites, parametrisierter Stale-Site-Test und
+  Inventur-Parität. Per-Site Namen-Tuple wird gefroren — fängt also
+  auch stille Erweiterungen einer bestehenden `nonlocal`-Deklaration.
 - Defense-only, keine Production-Änderungen.
 
 ### Tests / Quality (2026-04-24) — no eager-format in `logger.<level>(...)` calls
@@ -350,6 +430,27 @@ All notable changes to this project are documented in this file.
   Jede neue `# noqa` zwingt Review (could the lint be fixed instead?).
 - 30 Tests grün, keine Produktions-Anpassungen nötig. Closes
   "stille Lint-Suppression-Erweiterung" Bug-Klasse.
+
+### Tests / Quality (2026-04-24) — `__import__()` budget + TODO/FIXME zero-tripwire
+
+- Neuer Pin [`tests/test_dynamic_import_and_todo_tripwires.py`](tests/test_dynamic_import_and_todo_tripwires.py)
+  bündelt zwei Defense-Schichten:
+  1. **`__import__("...")` budget**: 5 bekannte Lazy-Import-Sites in
+     `open_prep/streamlit_monitor.py` (Streamlit-Reload-Hot-Path,
+     `time.{time,monotonic}` Import inside-fence) eingefroren via
+     no-new-sites Tripwire + parametrisierter Stale-Site-Guard +
+     bidirektionale Inventur-Parity. Jeder neue `__import__`-Call
+     fordert bewussten Review (top-level `import` oder
+     `importlib.import_module(...)` bevorzugen, damit static-analysis
+     und Dependency-Graphen die Dependency sehen).
+  2. **TODO/FIXME/XXX/HACK zero-tripwire**: Production-Code enthält
+     aktuell **0 Marker** in Comments — alle Notes leben in `docs/`,
+     `scripts/` und Tracker. Reine Tripwire — neuer Marker forciert
+     Issue-Filing, Fix oder Move-to-docs. Whole-word Match in
+     Comment-Position (`# … TODO …`), keine String/Identifier-False-
+     Positives.
+- 9 Tests grün, keine Produktions-Anpassungen nötig. Closes
+  "stille Lazy-Imports + verwesende Marker rutschen rein" Bug-Klasse.
 
 ### Tests / Quality (2026-04-24) — `except Exception: pass` defense pin (frozen-inventory budget)
 
@@ -405,6 +506,47 @@ only) und blockt eine ganze Bug-Klasse strukturell.
      Stale-Site-Guard sperrt die Inventur ein.
 - 12 Tests grün, keine Produktions-Anpassungen nötig.
 
+### Tests / Quality (2026-04-24) — `assert` in production code defense pin (frozen-inventory budget)
+
+Defense-Pin friert die aktuelle Anzahl und exakten Locations aller
+`assert`-Statements in First-Party-Produktionscode ein. `assert` wird
+unter `python -O` / `PYTHONOPTIMIZE=1` vom Interpreter komplett
+entfernt — jede Logik, die darauf beruht (Runtime-Contracts oder
+Type-Narrowing für mypy/pyright), ändert in Optimised-Builds still ihr
+Verhalten. Latente Bug-Klasse, auch wenn jeder Einzelort heute "klar
+sicher" aussieht.
+
+**Defense-Pin (`tests/test_assert_in_production_budget.py`)**
+
+AST-Walk über alle First-Party `*.py` (Top-Level + Subdirs außer
+`tests/`, `scripts/`, `docs/`, `SMC++/`, Caches, Venvs). Sammelt jeden
+`ast.Assert`-Knoten.
+
+`_FROZEN_SITES` enthält die 4 vorhandenen Sites — alle sind narrow
+`assert <var> is not None`-Type-Narrowing-Crutches direkt vor dem
+Use-Site:
+
+- `databento_volatility_screener.py:1109` — Retry-Loop `last_error`
+- `databento_universe.py:314` — Retry-Loop `last_error`
+- `newsstack_fmp/ingest_benzinga.py:211` — `httpx` response narrowing
+- `newsstack_fmp/shared_fetch.py:128` — Cache-Payload narrowing
+
+Drei Sub-Tests:
+
+1. `test_first_party_files_present` — Pfaddrift-Wächter (≥ 50 Dateien).
+2. `test_no_unexpected_assert_sites` — Tripwire: jeder neue `assert`
+   schlägt fehl. Autor muss entweder durch explizites
+   `if not …: raise` ersetzen (bevorzugt für Runtime-Contracts), oder
+   — nur falls es ein narrow Type-Narrowing-Crutch direkt am Use-Site
+   ist — den Eintrag mit Begründung zu `_FROZEN_SITES` hinzufügen.
+3. `test_frozen_sites_still_match` (parametrisiert, 4 Einträge) —
+   zwingt Refactors, Linenos in derselben PR mitzuziehen; verhindert
+   dass das Inventar zu einer Free-Pass-Liste verfault.
+
+**Produktionsverhalten unverändert.** Reines AST-Tripwire,
+sub-Sekunde. Gleiches Defense-Pin-Pattern wie FDR / SPRT-Vocab /
+broad-except.
+
 ### Tests / Quality (2026-04-24) — terminal_*.py httpx timeout named-constant discipline
 
 - Neuer Pin [`tests/test_terminal_httpx_timeout_named.py`](tests/test_terminal_httpx_timeout_named.py):
@@ -425,6 +567,39 @@ only) und blockt eine ganze Bug-Klasse strukturell.
 - `terminal_notifications.py`: neue Modul-Konstante `_WEBHOOK_TIMEOUT = 10`;
   Discord-Webhook `httpx.post(..., timeout=10)` konsumiert jetzt
   `_WEBHOOK_TIMEOUT`.
+
+### Tests / Quality (2026-04-24) — `open()` text-mode encoding discipline (+3 production fixes)
+
+Schließt eine plattform-abhängige Quelle für stillen Daten-Drift in
+First-Party-Produktionscode. Pythons Default-Textencoding ist OS-abhängig
+(macOS/Linux: `utf-8`, Windows: `cp1252`); fehlt `encoding=` an einem
+text-mode `open(...)`, schreibt/liest derselbe Code je nach Host
+unterschiedliche Bytes — eine Klasse von Bug, die wir bei `.env`- und
+Lock-Dateien bereits gesehen haben.
+
+**Tripwire-Pin (`tests/test_open_encoding_discipline.py`)**
+AST-Walk über alle First-Party `*.py` (Top-Level + Subdirs außer
+`tests/`, `scripts/`, `docs/`, `SMC++/`, Caches, Venvs). Jeder
+`open(...)`-Aufruf, der text-mode ist (Default oder Mode ohne `b`) und
+kein `encoding=`-Keyword führt, lässt die Suite rot werden. Binär-Modi
+(`"rb"`, `"wb"`, `"ab"`, `"r+b"`, …) sind exempt. Statisch nicht
+auflösbare Modi gelten konservativ als Text. Drei Sub-Tests:
+
+1. `test_first_party_files_present` — Pfaddrift-Wächter (≥ 50 Dateien).
+2. `test_open_calls_specify_encoding` — die eigentliche Disziplin.
+3. `test_file_allowlist_entries_still_apply` — parametrierte
+   Allowlist-Hygiene (Allowlist aktuell leer, kein Eintrag verschimmelt).
+
+**Production Fixes (3 Sites)**
+
+- `open_prep/realtime_signals.py:251` — Engine-Lockfile
+  (`open(_RT_ENGINE_LOCK_FILE, "w")` → `encoding="utf-8"`).
+- `open_prep/realtime_signals.py:2601` — Stdlib-Fallback `.env`-Loader.
+- `test_usi_lint.py:6` — Top-Level Pine-Linter.
+
+**Warum jetzt:** Defense-in-Depth-Tripwire (sub-Sekunde, AST only)
+gegen die Klasse "silent platform-dependent default". Allowlist startet
+leer und wird durch den Stale-Check selbst gepflegt.
 
 ### Tests / Quality (2026-04-24) — SPRT decide() AST + Decision-Consumer Coverage + httpx Timeout Consistency + Test-File Naming + CHANGELOG Unreleased Format
 
@@ -538,6 +713,42 @@ Vier kleine Pins, alle Tripwire/Budget-Stil:
 - Float-Eq-Pin erneut "freeze the good state" — Audit-Backlog wandert
   von Bug-Fix zu Regression-Guard.
 
+### Tests / Quality (2026-04-24) — FDR Defense + CHANGELOG Date Monotonicity + terminal_*_state Import Boundary
+
+Drei reine Tripwire-Pins (8 Tests, alle grün lokal):
+
+**A — A/B-Comparison FDR-Defense**
+- Neuer Pin [`tests/test_run_ab_comparison_fdr_defense.py`](tests/test_run_ab_comparison_fdr_defense.py):
+  AST-walked Strukturschutz für `scripts/run_ab_comparison.py`. Pinnt
+  Präsenz von `benjamini_hochberg`/`_family_fdr_layer`-Defs, dass
+  `FDR_Q` ein `float`-Literal in (0, 1) bleibt, und dass `compare()`
+  den `_family_fdr_layer` aufruft. Verhindert stilles Entkoppeln des
+  BH-FDR-Layers (würde unkorrigierte p-Werte ausliefern).
+
+**B — CHANGELOG `[Unreleased]` Date-Monotonicity**
+- Neuer Pin [`tests/test_changelog_unreleased_date_monotonicity.py`](tests/test_changelog_unreleased_date_monotonicity.py):
+  Companion zum Format-Pin aus PR #133. Datierte Einträge im
+  `## [Unreleased]`-Block müssen von oben nach unten chronologisch
+  nicht-aufsteigend sein. Catcht Merge-Konflikt-Artefakte (alter
+  Eintrag landet versehentlich oben) und Rück-Datierungen.
+  Enforcement ab `_ENFORCEMENT_FROM_DATE = "2026-04-22"`; Plan-2.8-
+  Planungseinträge (separater Roadmap-Ledger) per Title-Filter
+  exempt.
+
+**C — `terminal_*_state.py` Import-Boundary**
+- Neuer Pin [`tests/test_terminal_state_import_boundary.py`](tests/test_terminal_state_import_boundary.py):
+  State-Layer-Module (`terminal_*_state.py`) dürfen keine non-state
+  `terminal_*.py`-Module importieren — schützt die in
+  `/memories/repo/terminal-*-state-layer.md` dokumentierte Layering-
+  Disziplin und verhindert Zyklen zwischen Feed/UI und State Store.
+  `terminal_feed_state.py`'s pre-existierende Kopplungen zu
+  `terminal_export`/`terminal_poller`/`terminal_ui_helpers` sind im
+  `_IMPORT_ALLOWLIST` mit Begründung dokumentiert; jede *neue*
+  Kopplung erfordert explizite Allowlist-Erweiterung.
+
+Pattern: alle drei Pins sind Defense-Pins (defending working
+invariants), keine Produktionsänderungen.
+
 ### Tests / Quality / Pine (2026-04-24) — Cross-Language Vocab + A/B Discipline + Test Health
 
 Drei pin-Erweiterungen aus dem Backlog von PR #130 (I-2 Folgearbeit
@@ -591,6 +802,61 @@ Pine-Schicht, plus zwei kleinere Disziplin-Pins):
 - Konvertiert eine ursprünglich als "fehlend" markierte FDR-Discipline-
   Lücke in einen Regression-Pin nach Discovery, dass die BH-Korrektur
   bereits implementiert war.
+
+### Tests / Quality / Pine (2026-04-24) — Hero Defaults Coverage + Pine Security Discipline + Trust-State Relationship
+
+Drei kleine, hochpräzise Pins als Erweiterung der Vocab-Triangle aus
+PR #130 / #131:
+
+**E — Hero-Defaults Vocab-Coverage**
+
+- Neuer Pin [`tests/test_hero_defaults_vocab_coverage.py`](tests/test_hero_defaults_vocab_coverage.py):
+  jeder `DEFAULTS[k]`-Wert in [`scripts/smc_hero_state.py`](scripts/smc_hero_state.py)
+  für `HERO_TRUST` / `HERO_SETUP_QUALITY` / `HERO_ACTION` muss Element
+  des entsprechenden Vocab-`frozenset` sein. Schließt die dritte Ecke
+  des Vocab-Schutz-Dreiecks (Membership-Fingerprint, Pine-Render-
+  Coverage, Default-Coverage).
+
+**D — Pine `request.security` Discipline (Regression-Pin)**
+
+- Neuer Pin [`tests/test_pine_request_security_discipline.py`](tests/test_pine_request_security_discipline.py):
+  zwei Invarianten für aktive (non-legacy) Pine-Files:
+  1. Kein same-symbol+same-TF
+     `request.security(syminfo.tickerid, timeframe.period, ...)`
+     (Pine-Antipattern: extra security context für no-op).
+  2. Jede `request.security()` Call muss `lookahead=` explizit
+     spezifizieren (default unterscheidet sich zwischen Pine-Versionen,
+     silent future-bar leakage = lookahead-bias bug).
+- `request.security_lower_tf` ausgenommen (kein `lookahead=` Argument).
+- Discovery: aktive Surface bereits sauber; Pin schützt vor Regression.
+
+**F — Hero ↔ TrustState Relationship-Invariant**
+
+- Neuer Pin [`tests/test_hero_trust_state_relationship.py`](tests/test_hero_trust_state_relationship.py):
+  friert die Beziehung zwischen `HERO_TRUST_VOCAB` (Hero-Layer) und der
+  `TrustState`-Enum (Product-Trust-Layer) ein:
+  - **Shared core** `{healthy, degraded, stale, unavailable}` muss in
+    beiden Vocabs vorhanden sein.
+  - **Hero-only** `{warmup}` darf nicht in `TrustState` lecken.
+  - **TrustState-only** `{watch_only}` darf nicht in `HERO_TRUST_VOCAB`
+    lecken.
+  - Keine undokumentierten Tokens außerhalb dieser Drei-Partition.
+
+**Acceptance / Test-Suite-Beweis**
+
+- 9/9 neue Tests grün (3 + 2 + 4).
+
+**Discovery-Notes**
+
+- Ursprünglich geplantes F (Pine-Legacy-Move + Inventory-Pin) bereits
+  vollständig erledigt durch
+  [`tests/test_pine_active_surface_inventory.py`](tests/test_pine_active_surface_inventory.py)
+  + [`tests/test_pine_legacy_isolation.py`](tests/test_pine_legacy_isolation.py)
+  + [`tests/test_pine_library_version_consistency.py`](tests/test_pine_library_version_consistency.py).
+  Pivot auf Relationship-Invariant als nächst-höchstwertigen Pin.
+- D ist (analog zu B in PR #131) ein Regression-Guard: aktive Pine-
+  Surface war bereits sauber. Audit-Backlog entwickelt sich zu
+  "freeze the good state" statt "fix the bad state".
 
 ### Tests / Quality / Workflows (2026-04-24) — Audit-Followup Combo (M-1 / M-4 / L-1 / L-2 / I-1 / I-2)
 
@@ -693,6 +959,79 @@ des SMC System Review Prompts):
 
 **Test footprint:** +8 neue Tests, alle grün. Baseline-Drift-Failures
 liefern Auto-Update Recipe in der Failure-Message.
+
+### Tests / Quality (2026-04-24) — `open()` text-mode encoding discipline (+3 production fixes)
+
+Schließt eine plattform-abhängige Quelle für stillen Daten-Drift in
+First-Party-Produktionscode. Pythons Default-Textencoding ist OS-abhängig
+(macOS/Linux: `utf-8`, Windows: `cp1252`); fehlt `encoding=` an einem
+text-mode `open(...)`, schreibt/liest derselbe Code je nach Host
+unterschiedliche Bytes — eine Klasse von Bug, die wir bei `.env`- und
+Lock-Dateien bereits gesehen haben.
+
+**Tripwire-Pin (`tests/test_open_encoding_discipline.py`)**
+AST-Walk über alle First-Party `*.py` (Top-Level + Subdirs außer
+`tests/`, `scripts/`, `docs/`, `SMC++/`, Caches, Venvs). Jeder
+`open(...)`-Aufruf, der text-mode ist (Default oder Mode ohne `b`) und
+kein `encoding=`-Keyword führt, lässt die Suite rot werden. Binär-Modi
+(`"rb"`, `"wb"`, `"ab"`, `"r+b"`, …) sind exempt. Statisch nicht
+auflösbare Modi gelten konservativ als Text. Drei Sub-Tests:
+1. `test_first_party_files_present` — Pfaddrift-Wächter (≥ 50 Dateien).
+2. `test_open_calls_specify_encoding` — die eigentliche Disziplin.
+3. `test_file_allowlist_entries_still_apply` — parametrierte
+   Allowlist-Hygiene (Allowlist aktuell leer, kein Eintrag verschimmelt).
+
+**Production Fixes (3 Sites)**
+- `open_prep/realtime_signals.py:251` — Engine-Lockfile
+  (`open(_RT_ENGINE_LOCK_FILE, "w")` → `encoding="utf-8"`).
+- `open_prep/realtime_signals.py:2601` — Stdlib-Fallback `.env`-Loader.
+- `test_usi_lint.py:6` — Top-Level Pine-Linter.
+
+**Warum jetzt:** Defense-in-Depth-Tripwire (sub-Sekunde, AST only)
+gegen die Klasse "silent platform-dependent default". Allowlist startet
+leer und wird durch den Stale-Check selbst gepflegt.
+
+### Fixes & Pins (2026-04-24) — System Review 2026-04-24 Followup (H-1, L-3, M-3)
+
+Adressiert die drei priorisierten Backlog-Items aus
+[`docs/reviews/2026-04-24-system-review.md`](docs/reviews/2026-04-24-system-review.md):
+
+**H-1 — `scripts/smc_ob_context_light.py` Empty-OB Subnormal-Robustheit**
+- `bull_level == 0.0 and bear_level == 0.0` → `abs(...) < _OB_LEVEL_EPS` (1e-12)
+- Neue `_OB_LEVEL_EPS` Konstante zwischen IEEE-754 subnormal range (5e-324)
+  und kleinster realer Tick-Größe (1e-2). Defense-in-depth: heute liefert
+  Upstream einen Literal-Sentinel, aber Comparison-Form würde silent driften
+  wenn das je auf computed-value umgestellt wird.
+- 3 neue Regression-Tests in `tests/test_ob_context_light.py`
+  (subnormal positive, subnormal negative, sanity-check für 1e-2 als active OB).
+
+**L-3 — Division-Site Baseline-Pin (`tests/test_division_site_baseline.py`)**
+- AST-Pin im Stil des `lru_cache` baseline-pin (PR #127): pinnt die exakte
+  Anzahl `a / b` Divisionen pro audited file (`smc_core/scoring.py`: 27,
+  `smc_core/fvg_quality.py`: 7).
+- Jede neue Division zwingt Reviewer zu confirm denominator ist non-zero
+  (literal, structural, oder epsilon-guarded) bevor Baseline gebumpt wird.
+- 2 neue Tests, beide grün.
+
+**M-3 — Workflow `GH_PAT` Discipline (`tests/test_workflow_gh_pat_discipline.py`)**
+- Audit-Retraction: ursprüngliche M-3 Finding-Beschreibung war zu breit —
+  `gh issue create/comment` und `gh run list/download` sind mit
+  `GITHUB_TOKEN` legitim. Nur `gh pr create/edit/merge`,
+  `git push origin bot/*` und `peter-evans/create-pull-request`
+  brauchen `GH_PAT` damit fast-gates triggert.
+- Neuer Pin walkt alle `.github/workflows/*.yml` und enforces dass jede
+  sensitive action `secrets.GH_PAT` in Proximity hat (±100 Zeilen,
+  passt für die größten step bodies).
+- Pin entdeckte 2 echte Verstöße in `smc-library-refresh.yml:580/586`
+  (`gh pr create` + `gh pr merge` für `bot/library-refresh-${GITHUB_RUN_ID}`
+  PRs ohne GH_PAT). Fix angewendet: Step "Commit and push changes"
+  nutzt jetzt das kanonische
+  `${{ secrets.GH_PAT != '' && secrets.GH_PAT || github.token }}` ternary.
+- 2 neue Tests, beide grün.
+
+**Test footprint:** +7 neue Tests, alle grün. Zwei Source-Edits
+(`smc_ob_context_light.py` + `smc-library-refresh.yml`), beide
+audit-driven, beide mit Pin-Schutz gegen Regression.
 
 
 ### Tests / Quality (2026-04-24) — Audit-Followup Pins (workflow continue-on-error / raw write call sites / Pine legacy isolation / Pine active surface inventory)
