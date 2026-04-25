@@ -250,7 +250,10 @@ def build_cache_path(
     safe_dataset = dataset.replace(".", "_").replace("/", "_")
     normalized = [str(part).replace(":", "-").replace("/", "_").replace(" ", "_") for part in parts]
     cache_version = CACHE_VERSION_BY_CATEGORY.get(category, CACHE_VERSION)
-    digest = hashlib.sha1("|".join([cache_version, category, dataset, *normalized]).encode("utf-8")).hexdigest()[:12]
+    digest = hashlib.sha1(
+        "|".join([cache_version, category, dataset, *normalized]).encode("utf-8"),
+        usedforsecurity=False,
+    ).hexdigest()[:12]
     directory = get_cache_root(cache_dir) / category / safe_dataset
     directory.mkdir(parents=True, exist_ok=True)
     filename = "__".join(normalized + [digest]) + suffix
@@ -370,7 +373,11 @@ def _normalize_symbols(symbols: set[str] | list[str] | tuple[str, ...]) -> list[
 
 def _symbol_scope_token(symbols: set[str] | list[str] | tuple[str, ...]) -> str:
     normalized = _normalize_symbols(symbols)
-    digest = hashlib.sha1("|".join(normalized).encode("utf-8")).hexdigest()[:12] if normalized else "empty"
+    digest = (
+        hashlib.sha1("|".join(normalized).encode("utf-8"), usedforsecurity=False).hexdigest()[:12]
+        if normalized
+        else "empty"
+    )
     return f"{len(normalized)}_{digest}"
 
 
@@ -385,7 +392,7 @@ def _symbol_day_scope_token(symbol_day_scope: pd.DataFrame | None) -> str:
         return "empty"
     scope = scope.drop_duplicates(subset=["trade_date", "symbol"]).sort_values(["trade_date", "symbol"])
     payload = "|".join(f"{row.trade_date}:{row.symbol}" for row in scope.itertuples(index=False))
-    digest = hashlib.sha1(payload.encode("utf-8")).hexdigest()[:12]
+    digest = hashlib.sha1(payload.encode("utf-8"), usedforsecurity=False).hexdigest()[:12]
     return f"{len(scope)}_{digest}"
 
 
@@ -1106,7 +1113,8 @@ def _download_nasdaq_trader_text(url: str) -> str:
             last_error = exc
             if attempt < 2:
                 time_module.sleep(0.5 * (2 ** attempt))
-    assert last_error is not None
+    if last_error is None:
+        raise RuntimeError("retry loop exited without success or recorded error")
     raise last_error
 
 
