@@ -35,6 +35,28 @@ All notable changes to this project are documented in this file.
   mkdir/makedirs exist_ok= (#216), tempfile.NamedTemporaryFile delete=
   (#207) invariants. No ledger.
 
+### Tests / Quality (2026-04-25) — Fix: add scripts/check_pine_legacy_drift.py to sys.path ledger
+
+- The pre-existing `scripts/check_pine_legacy_drift.py` script bootstraps
+  the repo root onto `sys.path` so it can import `scripts.pine_path_resolver`
+  when invoked directly by `smc-fast-pr-gates` (rather than via
+  `python -m`). The site is justified and documented in-place but had
+  not been added to `tests/test_sys_path_mutation_ledger.py::_FROZEN_SITES`,
+  causing the `validate` job to fail across all open PRs.
+- Added the entry (count=1). No production change.
+- Also bumped the frozen line for `streamlit_terminal.py`'s `global` site
+  in `tests/test_global_statement_budget.py` from 602 → 603 (line drifted
+  by one after the prior unrelated edit landed on `main`). No production
+  change.
+- Bumped further drifted ledger line numbers caused by the same +1 shift
+  in `open_prep/realtime_signals.py` and an independent +1 shift in
+  `databento_volatility_screener.py`:
+  - `tests/test_time_sleep_budget.py`: realtime_signals 264/337/1589/2690/2703 → 265/338/1590/2691/2704
+  - `tests/test_mutable_defaults_and_loads_pins.py`: realtime_signals 1455/2573/2609 → 1456/2574/2610; databento_volatility_screener 780 → 781
+  - `tests/test_random_tempfile_ledger_pin.py`: realtime_signals 2495/2536 → 2496/2537; databento_volatility_screener 298 → 299
+  - `tests/test_silent_security_and_boundary_bundle.py`: realtime_signals 1061/2629 → 1062/2630
+  No production change — pure ledger line-number drift fix.
+
 ### Tests / Quality (2026-04-25) — Defense pin: mkdir / makedirs must pass explicit exist_ok=
 
 - Added `tests/test_mkdir_makedirs_exist_ok_invariant.py` (2 tests)
