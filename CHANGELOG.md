@@ -6,6 +6,20 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Tests / Quality (2026-04-25) — Defense pin: exec / tempfile.mktemp / subprocess shell=True zero-surface
+
+- Added `tests/test_exec_mktemp_shelltrue_zero_surface.py` (3 tests)
+  pinning three classic foot-guns at zero offenders today:
+  - `exec(...)` — CWE-95 (Code Injection). Closes the gap left by
+    #219 which banned `eval(...)` and `pickle.load(s)`.
+  - `tempfile.mktemp(...)` — CWE-377 / CWE-367 (TOCTOU race);
+    deprecated since Python 2.3. Use `tempfile.mkstemp` or
+    `tempfile.NamedTemporaryFile`.
+  - `subprocess.*(..., shell=True, ...)` — CWE-78 (OS Command
+    Injection); applies to `run / Popen / call / check_call /
+    check_output`. Use list-form invocation without `shell=`.
+- Defense-only — no production changes.
+
 ### Tests / Quality (2026-04-25) — Defense pin: subprocess.run(...) must pass explicit check=
 
 - Added `tests/test_subprocess_run_check_invariant.py` (1 test) enforcing
