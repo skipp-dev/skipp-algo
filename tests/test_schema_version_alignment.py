@@ -71,23 +71,55 @@ def test_databento_volatility_screener_uses_canonical_session_version() -> None:
 
 
 def test_no_duplicate_session_schema_literal_in_streamlit_modules() -> None:
-    """Static guard: no ``"2026-04-...0"`` literal outside the canonical home."""
-    from pathlib import Path
+    """AST guard: no ``YYYY-MM-DD.N`` literal outside the canonical home.
+
+    Walks ``ast.Constant`` string values (so the scan is quote-style
+    agnostic and ignores ``#`` comments automatically) and skips
+    docstring constants on Module/Class/Function/AsyncFunction nodes
+    (so descriptive prose remains free).
+    """
+    import ast
     import re
+    from pathlib import Path
 
     repo_root = Path(__file__).resolve().parent.parent
-    suspect = re.compile(r'"\d{4}-\d{2}-\d{2}\.\d+"')
+    pattern = re.compile(r"\d{4}-\d{2}-\d{2}\.\d+")
+
+    def _docstring_constant_ids(tree: ast.AST) -> set[int]:
+        """Return id() of every Constant node that is a docstring."""
+        ids: set[int] = set()
+        for node in ast.walk(tree):
+            if isinstance(
+                node,
+                (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef),
+            ):
+                body = getattr(node, "body", None)
+                if not body:
+                    continue
+                first = body[0]
+                if (
+                    isinstance(first, ast.Expr)
+                    and isinstance(first.value, ast.Constant)
+                    and isinstance(first.value.value, str)
+                ):
+                    ids.add(id(first.value))
+        return ids
+
     for name in ("streamlit_terminal.py", "databento_volatility_screener.py"):
         text = (repo_root / name).read_text(encoding="utf-8")
-        # Strip comments before matching so doc-strings/comments don't fail.
-        body_lines = [
-            line.split("#", 1)[0]
-            for line in text.splitlines()
-        ]
-        body = "\n".join(body_lines)
-        matches = suspect.findall(body)
-        assert not matches, (
-            f"{name} contains an inline date-suffix schema literal "
-            f"({matches}) — import SESSION_SCHEMA_VERSION from "
-            "smc_core.schema_version instead (H-6 alignment)."
+        tree = ast.parse(text, filename=name)
+        docstring_ids = _docstring_constant_ids(tree)
+        violations: list[str] = []
+        for node in ast.walk(tree):
+            if not (isinstance(node, ast.Constant) and isinstance(node.value, str)):
+                continue
+            if id(node) in docstring_ids:
+                continue
+            if pattern.search(node.value):
+                violations.append(f"  {name}:{node.lineno}: {node.value!r}")
+        assert not violations, (
+            f"{name} contains an inline date-suffix schema literal — "
+            "import SESSION_SCHEMA_VERSION from "
+            "smc_core.schema_version instead (H-6 alignment).\n"
+            + "\n".join(violations)
         )

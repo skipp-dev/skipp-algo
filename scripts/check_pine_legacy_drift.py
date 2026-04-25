@@ -38,7 +38,6 @@ from scripts.pine_path_resolver import PINE_LEGACY_DIR
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 INDEX_FILE = REPO_ROOT / "PINE_LEGACY.md"
-LEGACY_DIR = REPO_ROOT / "pine" / "legacy"
 
 
 def list_root_pine_files(root: Path) -> set[str]:
