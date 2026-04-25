@@ -22,6 +22,23 @@ All notable changes to this project are documented in this file.
     deletes a file. Complements
     `tests/test_dangerous_io_zero_surface_pin.py` which already
     confines `shutil.rmtree(...)` to `scripts/`.
+
+### Tests / Quality (2026-04-25) — Defense pin: dynamic `setattr` / `hasattr` zero-surface (CWE-470)
+
+- Added `tests/test_dynamic_setattr_hasattr_zero_surface.py` (2 tests)
+  pinning the *write* (`setattr`) and *probe* (`hasattr`) reflection
+  counterparts of the existing dynamic-`getattr` ledger
+  (`test_dynamic_getattr_ledger.py`). Same security family (CWE-470 —
+  unsafe reflection): runtime attribute names defeat static analysis,
+  hide cross-module coupling, and are dangerous when any caller can
+  influence the name string. Locked sites:
+  - `setattr`: `terminal_live_story_state.py:50` (`_set_field` helper,
+    name from a trusted in-module field-name registry)
+  - `hasattr`: `streamlit_terminal.py:597` (test-mode config
+    field-existence probe over a trusted override mapping)
+  Literal-name calls (`setattr(obj, "field", v)` /
+  `hasattr(obj, "field")`) are statically equivalent to plain
+  attribute access and are intentionally not tracked.
 - Defense-only — no production changes.
 
 ### Tests / Quality (2026-04-25) — Defense pin: `atexit.register(...)` zero-surface
