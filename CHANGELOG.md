@@ -6,6 +6,21 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Hardening (2026-04-25) — Pin: Lint-Suppression Budget (`# type: ignore` + `# noqa`)
+
+- Neuer Pin [`tests/test_lint_suppression_budget_pin.py`](tests/test_lint_suppression_budget_pin.py)
+  mit 3 Layern:
+  1. **`# type: ignore` Budget** = 81 (kann nur sinken, nie wachsen).
+  2. **`# noqa` Budget** = 27 (kann nur sinken, nie wachsen).
+  3. **Drift-Detector** — wenn aktueller Stand >5 unter Budget,
+     erzwingt Budget-Senkung, um Verbesserung zu locken.
+- Verhindert silentes Anwachsen permanenter Lint-/Typecheck-Suppressions
+  (technische Schuld). Senken jederzeit erlaubt; Erhöhen erfordert
+  expliziten Review (Edit dieser Datei).
+- 3/3 Tests grün.
+- Defense-only.
+- OWASP A04 (Insecure Design — silent verification relaxation).
+
 ### Hardening (2026-04-25) — `assert` → `raise` Migration (Production)
 
 - Migration der 4 verbliebenen `assert`-Statements in First-Party-Production
