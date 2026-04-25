@@ -72,7 +72,7 @@ Permutations-Tests für Strategien haben drei klassische Schemata:
 
 **Schema B — Entry-Time-Permutation (rigoros / empfohlen)**
 - Null-Hypothese H0: Setup-Detection ist zufällig — gleicher Bias-Pfad würde mit zufälligen Entry-Zeitpunkten dasselbe Ergebnis liefern
-- Permutation: gleiche Anzahl Entries, aber zufällig im Markt verteilt, gleicher Hold-Zeitraum, gleicher Symbol-Universum
+- Permutation: gleiche Anzahl Entries, aber zufällig im Markt verteilt, gleicher Hold-Zeitraum, gleiches Symbol-Universum
 - Begründung: Tests "schlägt das Setup einen zufälligen Random-Entry-Benchmark?" — die wirklich relevante Frage
 - Quelle: [White's Reality Check / Aronson](https://financial-hacker.com/whites-reality-check/), [USU SPA-Thesis](https://digitalcommons.usu.edu/cgi/viewcontent.cgi?article=2535&context=gradreports)
 

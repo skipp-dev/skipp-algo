@@ -36,7 +36,7 @@ C3 liefert genau eine der neun Mindestkennzahlen direkt — die untere Grenze de
 | Benjamini-Hochberg FDR | ✅ existiert | `scripts/run_ab_comparison.py:182-235` |
 | Fisher-Permutation mit Phipson-Smyth | ✅ existiert | `scripts/run_ab_comparison.py:409-462` |
 | `_calibration_fdr_layer` Orchestrator | ✅ existiert | `scripts/run_ab_comparison.py:476-600` |
-| Bootstrap-Design-Skizze | ✅ existiert | [BOOTSTRAP_CALIBRATION_FDR_DESIGN_2026-04-24.md](sandbox:/home/user/workspace/BOOTSTRAP_CALIBRATION_FDR_DESIGN_2026-04-24.md) |
+| Bootstrap-Design-Skizze (Calibration-FDR) | ⚠ nur als Code-Kommentare in `scripts/run_ab_comparison.py:358-369` (Konstanten) und `:409` (Permutation) | — |
 | `BOOTSTRAP_B`, `BOOTSTRAP_SEED`, `MIN_EVENTS_PER_ARM_FOR_BOOTSTRAP` Konstanten | ✅ existiert | `scripts/run_ab_comparison.py:358-369` |
 | Stationary / Block-Bootstrap (Politis-Romano) | ❌ fehlt | — |
 | BCa-CI (bias-corrected and accelerated) | ❌ fehlt | — |

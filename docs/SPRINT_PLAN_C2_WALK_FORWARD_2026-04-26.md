@@ -85,7 +85,7 @@ Konsequente Anwendung der Hebel aus der Speed-Diskussion:
 - ✅ Methode `split(timestamps: np.ndarray) -> Iterator[tuple[np.ndarray, np.ndarray]]` liefert (train_idx, test_idx) chronologisch geordnet
 - ✅ Purging entfernt aus dem Trainingsset alle Trades, deren `exit_timestamp_utc` in den Test-Zeitraum hineinragt — verhindert Label-Leakage ([Wikipedia Purged CV](https://en.wikipedia.org/wiki/Purged_cross-validation))
 - ✅ Embargo entfernt nach Testperiode `embargo_size` Beobachtungen aus den nachfolgenden Trainingssets — verhindert Auto-Korrelations-Leakage
-- 🧪 Unit-Test: 3 Folds, gepruefte Train-Test-Indizes haben keine zeitliche Überlappung mit Test-Set ± purge/embargo
+- 🧪 Unit-Test: 3 Folds, geprüfte Train-Test-Indizes haben keine zeitliche Überlappung mit Test-Set ± purge/embargo
 
 **Default-Parameter** (Empfehlung [Surmount.ai](https://surmount.ai/blogs/walk-forward-analysis-vs-backtesting-pros-cons-best-practices)):
 - Rolling Window, train 2–4 Jahre × Test 3–6 Monate, IS:OOS = 70:30 oder 80:20
