@@ -6,6 +6,25 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Tests / Quality (2026-04-25) — Pine `alertcondition()` + Declaration-Pin
+
+- Neuer Pin [`tests/test_pine_alertcondition_and_declaration_pin.py`](tests/test_pine_alertcondition_and_declaration_pin.py)
+  fixiert zwei Pine-Surface-Eigenschaften:
+  1. **`alertcondition()` Ledger**: Total = 20 in 3 Dateien
+     (`SMC_Core_Engine.pine` 16, `SMC_Event_Overlay.pine` 2,
+     `SkippALGO_Confluence.pine` 2). Schutz gegen unbeabsichtigtes
+     Hinzufügen neuer User-sichtbarer Alert-Slots ohne Compile-Preflight-
+     Registrierung.
+  2. **Single-Declaration-Discipline**: Jede `*.pine`-Datei hat genau
+     eine `indicator(...)`/`strategy(...)`/`library(...)` Top-Level-
+     Deklaration und der Kind ist gepinnt (16 Dateien, davon 1
+     `strategy` = `SMC_Long_Strategy.pine`, Rest `indicator`). Eine
+     zweite Deklaration würde die erste in TradingView still
+     überschatten; ein Wechsel `indicator <-> strategy` ist breaking.
+- Helper `_strip_strings_and_comments` ist quote/`//`-comment-aware.
+  Generiertes `_snippet.pine` ausgeschlossen. Reine Test-Schicht,
+  0 Pine-Codeänderung.
+
 ### Tests / Quality (2026-04-25) — Pine `request.security` HTF discipline
 
 - Neuer Pin [`tests/test_pine_request_security_htf_pin.py`](tests/test_pine_request_security_htf_pin.py)
