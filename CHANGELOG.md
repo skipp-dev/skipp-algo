@@ -113,6 +113,22 @@ All notable changes to this project are documented in this file.
 - OWASP A03 Defense. Codebase aktuell sauber → Tripwire lockt jede neue
   Regression sofort. Standard `_DIR_EXCLUDE`.
 
+### Defense (2026-04-25) — Pine `var` / `varip` Declaration-Budget Pin
+
+- Neuer `tests/test_pine_var_budget_pin.py` mit 4 Layers:
+  1. **Total-Budget**: Sum aller `var`/`varip`-Deklarationen über alle
+     `.pine`-Dateien ≤ 859 (current state).
+  2. **No-Unledgered-File**: Jede neue `.pine`-Datei mit ≥1 Deklaration
+     muss explizit ins Ledger aufgenommen werden.
+  3. **No-Stale-Entries**: Ledger-Einträge müssen weiterhin existieren.
+  4. **Per-File-Budget** (parametrisiert, 36 Sites): Jede einzelne Datei
+     darf ihren eingefrorenen Stand nicht überschreiten.
+- Top-Site: `SMC_Core_Engine.pine: 415` (Bloat-Indikator — markiert für
+  künftiges Refactor in Library/Context-Module).
+- Verhindert "stealth state growth" und zwingt deliberate Ledger-Updates
+  bei neuen `var`/`varip`-Deklarationen.
+- Ledger-Stand 2026-04-25 captured.
+
 ### Hardening (2026-04-25) — `usedforsecurity=False` Flag auf allen md5/sha1-Aufrufen
 
 - An 7 Sites `usedforsecurity=False` zu bestehenden `hashlib.md5(...)` /
