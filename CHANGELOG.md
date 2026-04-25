@@ -136,6 +136,15 @@ All notable changes to this project are documented in this file.
   pin keeps them empty. Detection is by attribute name (covers every
   binding style: `datetime.datetime.now()`, `dt.now()`,
   `from datetime import datetime` then `datetime.now()`, etc.).
+
+### Tests / Quality (2026-04-25) — Defense pin: threading.Thread daemon= invariant (5 sites compliant)
+
+- Added `tests/test_threading_thread_daemon_invariant.py` enforcing
+  that every `threading.Thread(...)` constructor passes an explicit
+  `daemon=` kwarg. Sister of the httpx / urlopen `timeout=` invariants.
+- Surface today: 5 `threading.Thread` sites across 3 files, all 100%
+  compliant. No ledger to maintain — any new construction without
+  `daemon=` fails CI immediately.
 - Defense-only — no production changes; one test, one assertion.
 
 ### Tests / Quality (2026-04-25) — Defense pin: urllib.urlopen ledger + mandatory timeout=
