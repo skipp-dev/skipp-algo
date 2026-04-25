@@ -40,6 +40,24 @@ _DECORATOR_RE = re.compile(
     r"^[ \t]*@pytest\.mark\.(skipif|skip|xfail)\b", re.MULTILINE
 )
 
+# Module-level marker assignments such as
+#   pytestmark = pytest.mark.skipif(...)
+#   pytestmark = [pytest.mark.skip(reason=...), ...]
+# are NOT decorators and would otherwise slip past _DECORATOR_RE. We
+# additionally scan for any ``pytest.mark.(skip|skipif|xfail)(`` call
+# expression so the discipline applies to module/class-level markers too.
+_PYTESTMARK_CALL_RE = re.compile(
+    r"\bpytest\.mark\.(skipif|skip|xfail)\s*\(", re.MULTILINE
+)
+
+# A reason argument is considered non-empty if it is followed by a
+# non-empty string literal. ``reason=\"\"``, ``reason=''``, ``reason=None``
+# all count as empty/missing for the purposes of this pin.
+_NONEMPTY_REASON_RE = re.compile(
+    r"reason\s*=\s*(?:[rRbBuU]{0,2}((?:\"\"\"|'''|\"|'))(?P<body>.*?)\1)",
+    re.DOTALL,
+)
+
 # Skip this file itself: its docstring necessarily contains the literal
 # strings we are forbidding elsewhere, which would otherwise cause a
 # false self-trigger.
@@ -78,9 +96,26 @@ def _decorator_body(text_lines: list[str], start_line_idx: int) -> str:
 def _iter_markers(path: Path):
     text = path.read_text(encoding="utf-8")
     lines = text.splitlines()
+    seen: set[tuple[int, str]] = set()
     for match in _DECORATOR_RE.finditer(text):
         line_no = text.count("\n", 0, match.start()) + 1
         marker = match.group(1)
+        key = (line_no, marker)
+        if key in seen:
+            continue
+        seen.add(key)
+        body = _decorator_body(lines, line_no - 1)
+        yield line_no, marker, body
+    # Also catch module/class-level pytestmark assignments and any other
+    # ``pytest.mark.<skip|skipif|xfail>(...)`` call sites that aren't
+    # introduced by an ``@`` decorator.
+    for match in _PYTESTMARK_CALL_RE.finditer(text):
+        line_no = text.count("\n", 0, match.start()) + 1
+        marker = match.group(1)
+        key = (line_no, marker)
+        if key in seen:
+            continue
+        seen.add(key)
         body = _decorator_body(lines, line_no - 1)
         yield line_no, marker, body
 
@@ -114,12 +149,14 @@ def test_every_skip_marker_has_a_reason() -> None:
         for line_no, marker, body in _iter_markers(path):
             if marker not in ("skip", "skipif"):
                 continue
-            if "reason=" in body:
+            match = _NONEMPTY_REASON_RE.search(body)
+            if match is not None and match.group("body").strip():
                 continue
             offenders.append(f"{rel}:{line_no} ({marker})")
     assert not offenders, (
-        "Found skip/skipif decorator without an explicit reason= in:\n  - "
+        "Found skip/skipif marker without an explicit non-empty reason= in:\n  - "
         + "\n  - ".join(offenders)
         + "\n\nEvery skip must explain why it is skipped so reviewers can "
-        "tell whether the condition still applies."
+        "tell whether the condition still applies. ``reason=\"\"``, "
+        "``reason=''`` and ``reason=None`` do NOT satisfy this pin."
     )
