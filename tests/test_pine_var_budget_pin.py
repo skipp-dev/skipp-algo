@@ -56,7 +56,7 @@ _DECL_RE = re.compile(r"^\s*(?:var|varip)\s+\w", re.MULTILINE)
 _FROZEN_LEDGER: dict[str, int] = {
     "SMC_Core_Engine.pine": 415,
     "SMC_Dashboard.pine": 27,
-    "SMC_Event_Overlay.pine": 11,
+    "SMC_Event_Overlay.pine": 13,
     "SMC_HTF_Confluence.pine": 8,
     "SMC_Imbalance_Context.pine": 14,
     "SMC_Liquidity_Context.pine": 12,
@@ -69,7 +69,7 @@ _FROZEN_LEDGER: dict[str, int] = {
     "SMC_Setup_Check.pine": 2,
     "SMC_Structure_Context.pine": 10,
     "SMC_TV_Bridge.pine": 3,
-    "SkippALGO_Confluence.pine": 6,
+    "SkippALGO_Confluence.pine": 7,
     "pine/legacy/BFI-Reversal.pine": 37,
     "pine/legacy/BTC 3m EV Scalper BALANCED (Harmonized).pine": 6,
     "pine/legacy/Breakout_Finder_Intelligent.pine": 6,
@@ -92,7 +92,7 @@ _FROZEN_LEDGER: dict[str, int] = {
     "test_div.pine": 2,
 }
 
-_TOTAL_BUDGET = 859  # captured 2026-04-25
+_TOTAL_BUDGET = 862  # bumped 2026-04-25 for H-1 bar-close gate (Confluence +1, Event_Overlay +2)
 
 
 def _iter_pine() -> list[Path]:

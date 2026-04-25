@@ -37,6 +37,9 @@ var color col_zone_post        = input.color(color.new(color.red, 88),    "Post-
 var color col_label_text       = input.color(color.white,                 "Label text color",  group = g_ev)
 src_lean_pack_a                = input.source(close, "BUS LeanPackA",     group = g_ev, tooltip = "Connect to 'BUS LeanPackA' output of SMC Core.")
 
+var g_alerts = "Alerts"
+var bool barCloseOnly          = input.bool(true,  "Alerts nur am Bar-Close",  group = g_alerts, tooltip = "Wenn aktiv, feuern Alerts nur auf bestätigten (geschlossenen) Bars. Verhindert Repaint/Flicker während der laufenden Bar.")
+
 // ── Library fields (static per refresh) ─────────────────────────
 
 string ev_window      = mp.EVENT_WINDOW_STATE      // CLEAR | PRE_EVENT | POST_EVENT | COOLDOWN
@@ -154,11 +157,12 @@ string rt_status = overlay_event_status_text(lean_erl_row_code())
 plotchar(show_any ? 0 : na, "Event Status", "•", location.bottom, size = size.tiny, display = display.status_line, char = rt_status)
 
 // ── Alerts ──────────────────────────────────────────────────────
+_alertGate = barCloseOnly ? barstate.isconfirmed : true
 
-alertcondition(show_any and window_just_started and is_blocked,
+alertcondition(show_any and window_just_started and is_blocked and _alertGate,
      title = "Event Hard Block Started",
      message = "🚫 Event hard block: {{ticker}} — " + ev_name)
 
-alertcondition(show_any and window_just_started and not is_blocked,
+alertcondition(show_any and window_just_started and not is_blocked and _alertGate,
      title = "Event Window Started",
      message = "⏳ Event window: {{ticker}} — " + ev_name + " (" + ev_impact + ")")
