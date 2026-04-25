@@ -161,7 +161,7 @@ def test_no_stale_json_load_ledger_entries() -> None:
 _FROZEN_ENV_SUBSCRIPT_SITES: frozenset[tuple[str, int]] = frozenset(
     {
         ("databento_client.py", 60),
-        ("databento_volatility_screener.py", 773),
+        ("databento_volatility_screener.py", 780),
         ("open_prep/macro.py", 140),
         ("open_prep/realtime_signals.py", 2609),
         ("open_prep/streamlit_monitor.py", 74),
