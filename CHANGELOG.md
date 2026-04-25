@@ -259,6 +259,23 @@ merged audit wave (#186, #188–#193).
   von `>=` zu `==` (separate Entscheidung).
 - OWASP A06 (Vulnerable Components) + A08 (Software & Data Integrity).
 
+### Hardening (2026-04-25) — Pin: `random.*` + `tempfile.*` Ledger (2-Layer)
+
+- Neuer Pin [`tests/test_random_tempfile_ledger_pin.py`](tests/test_random_tempfile_ledger_pin.py)
+  mit 2 Defense-Layern:
+  1. **`random.*` 1-Site Ledger** — 1 legitimer Non-Security-Site
+     (`open_prep/error_taxonomy.py:111`, Retry-Jitter). Neue Sites
+     müssen reviewed werden — bei Security-Verwendung ist `secrets`
+     Pflicht (Mersenne Twister ist nicht kryptografisch).
+  2. **`tempfile.*` Method-Allowlist + 20-Site Ledger** — nur
+     `tempfile.mkstemp` erlaubt. Verbietet `mktemp` (CWE-377 Race),
+     `NamedTemporaryFile(delete=False, …)` (Resource-Leaks),
+     `gettempdir()` (Race-Window). Alle 20 bestehenden Sites nutzen
+     bereits `mkstemp` für Atomic-Write — keine Prod-Änderungen.
+- 25/25 Tests grün (2× random + 3× tempfile + 20× parametrised existence).
+- Defense-only, 0 Prod-Änderungen.
+- OWASP A02 (Cryptographic Failures) + CWE-377 (Insecure Temp File).
+
 ### Hardening (2026-04-25) — `usedforsecurity=False` Flag auf allen md5/sha1-Aufrufen
 
 - An 7 Sites `usedforsecurity=False` zu bestehenden `hashlib.md5(...)` /
