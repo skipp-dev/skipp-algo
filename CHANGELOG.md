@@ -87,6 +87,19 @@ All notable changes to this project are documented in this file.
   Total + no_new_files + per-file line invariants. Ledger may only shrink.
 - Defense-only — no production changes.
 
+### Tests / Quality (2026-04-25) — Defense ledger: Path.read_text/write_text without encoding=
+
+- Added `tests/test_path_text_io_encoding_ledger.py` (11 tests) freezing
+  today's surface of `Path.read_text(...)` / `Path.write_text(...)` calls
+  in first-party non-test code that omit an explicit `encoding=` kwarg.
+- Default falls back to `locale.getpreferredencoding(False)` → UTF-8 on
+  Linux/macOS, cp1252 on Windows containers, ASCII on stripped-down CI →
+  silent encoding drift / artifact corruption.
+- Frozen surface: **24 sites across 8 files**. Total + no_new_files +
+  per-file line invariants — ledger may only shrink.
+- Sister of #213 (silent-error-swallow ledger). Defense-only — no
+  production changes.
+
 ### Tests / Quality (2026-04-25) — Defense pin: mkdir / makedirs must pass explicit exist_ok=
 
 - Added `tests/test_mkdir_makedirs_exist_ok_invariant.py` (2 tests)
