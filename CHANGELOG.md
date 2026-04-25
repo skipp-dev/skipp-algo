@@ -306,6 +306,18 @@ All notable changes to this project are documented in this file.
 - Drei-Schichten-Guard: Pin-or-allowlist, no-stale-entries, Form-Sanity
   + Inventur-Sanity (≥10 uses-Zeilen). Defense-only.
 
+### Tests / Quality (2026-04-25) — pytest.skip per-file count budget
+
+- Neuer Pin [`tests/test_pytest_skip_budget.py`](tests/test_pytest_skip_budget.py)
+  friert die aktuelle pytest-Skip-Verteilung als per-file Budget ein
+  (`_FROZEN_FILE_COUNTS`, 13 Files / 15 Skip-Sites). Drei-Schichten-Guard:
+  - **No new sites:** unbekannte Files mit Skips schlagen Alarm.
+  - **No count growth:** Files dürfen ihr Budget nicht überschreiten.
+  - **Bidirektional:** veraltete Ledger-Einträge (Datei hat keine Skips
+     mehr) müssen entfernt werden.
+- Reduktionen sind explizit erwünscht; jedes Reduzieren erfordert
+  Decrement im Ledger.
+
 ### Tests / Quality (2026-04-24) — serialization & shell-injection zero-tripwires + `__all__` integrity
 
 - Neuer Pin [`tests/test_serialization_and_shell_tripwires.py`](tests/test_serialization_and_shell_tripwires.py)
