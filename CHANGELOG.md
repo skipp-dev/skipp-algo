@@ -24,6 +24,20 @@ All notable changes to this project are documented in this file.
   - **Layer 4 — Datei-Existenz**: Ledger-Datei muss existieren.
   - **Layer 5 — Inventar-Sanity**: ≥15 Pine-Dateien sichtbar.
 - Defense-only — kein Pine-Code geändert.
+### Tests / Quality (2026-04-25) — prod `print()` ledger
+
+- Neuer Pin [`tests/test_prod_print_ledger.py`](tests/test_prod_print_ledger.py)
+  fixiert die `print()`-Verteilung über First-Party-Prod-`*.py` (7 Dateien,
+  Total = 38). Service-Code (`databento_*`, `terminal_*`, `streamlit_*`)
+  loggt über `logging`; CLI-Skripte (`pine_input_surface.py`,
+  `pine_apply_surface_reduction.py`, `test_usi_lint.py`) und Reporting-
+  Helfer (`open_prep/{candidate_weights,feature_importance_report,
+  outcome_backfill}.py`, `smc_integration/provider_health.py`) dürfen
+  nach stdout schreiben. Der Pin sorgt dafür, dass kein Service-Modul
+  versehentlich anfängt zu printen (würde z.B. JSON-RPC stdio oder Pine-
+  Surface-Reduction-Artefakte zerstören).
+- Drei-Lagen-Schutz: total-budget + no-new-files + no-stale-entries +
+  parametrisierter per-File-Count + Datei-Existenz. Reine Test-Schicht.
 
 ### Tests / Quality (2026-04-25) — silent-security & boundary 6-fold bundle
 
