@@ -6,6 +6,28 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Fixed (2026-04-25) — `_FROZEN_URLOPEN_SITES` Line Bump
+
+- `tests/test_http_client_discipline.py`:
+  bump `_FROZEN_URLOPEN_SITES` entry for `databento_volatility_screener.py`
+  from line 1102 → 1109. The `urlopen(request, timeout=30, context=_ssl_ctx)`
+  in `_download_nasdaq_trader_text` shifted 7 lines down after a
+  `logger.warning(...)` was inserted above it (same root cause as the
+  env-subscript bump in PR #184). Pure line drift; the call still passes
+  `timeout=`.
+
+### Fixed (2026-04-25) — `_ALLOWED` Workflow continue-on-error Line Bumps
+
+- `tests/test_workflow_continue_on_error_inventory.py`:
+  re-sync `_ALLOWED` line numbers for 5 workflows after upstream YAML
+  edits. All entries are pure line drift; the same set of best-effort
+  hops remains tolerated:
+  - `smc-live-newsapi-refresh.yml`: 104 → 106
+  - `smc-library-refresh.yml`: {162, 370, 583, 723, 740} → {165, 376, 592, 735, 755}
+  - `smc-deeper-integration-gates.yml`: {51, 92} → {54, 98}
+  - `plan-2-8-weekly-digest.yml`: {441, 655, 931} → {444, 661, 940}
+  - `smc-release-gates.yml`: 169 → 172
+
 ### Fixed (2026-04-25) — `_FROZEN_ENV_SUBSCRIPT_SITES` Line Bump
 
 - `tests/test_mutable_defaults_and_loads_pins.py`:
