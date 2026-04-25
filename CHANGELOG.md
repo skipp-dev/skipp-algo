@@ -243,6 +243,22 @@ merged audit wave (#186, #188–#193).
   `permissions: { contents: read }` versorgt.
 - OWASP A05 (Security Misconfiguration) + Supply-Chain-Härtung.
 
+### Hardening (2026-04-25) — Pin: `requirements.txt` Discipline (3-Layer)
+
+- Neuer Pin [`tests/test_requirements_discipline_pin.py`](tests/test_requirements_discipline_pin.py)
+  mit 3 Defense-Layern für `requirements.txt`:
+  1. **Specifier-Pflicht** (parametrisiert per Zeile, 23 deps): jede Zeile
+     muss `>=`/`==`/`~=`/`<`/`>`/`!=` tragen — keine bare `requests`-Imports
+     mehr möglich.
+  2. **Index-URL-Allowlist** (zero-tripwire): kein `--index-url` /
+     `--extra-index-url` erlaubt — Defense gegen Dependency-Confusion.
+  3. **Linecount-Budget** (gefroren bei 23): neue Deps müssen Budget
+     bewusst aktualisieren, surface-growth wird im Review sichtbar.
+- Future Work (nicht-blockierend): Migration zu
+  `pip-compile --generate-hashes` für SHA-256-Pinning. Erfordert Wechsel
+  von `>=` zu `==` (separate Entscheidung).
+- OWASP A06 (Vulnerable Components) + A08 (Software & Data Integrity).
+
 ### Hardening (2026-04-25) — `usedforsecurity=False` Flag auf allen md5/sha1-Aufrufen
 
 - An 7 Sites `usedforsecurity=False` zu bestehenden `hashlib.md5(...)` /
