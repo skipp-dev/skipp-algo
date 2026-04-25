@@ -1006,7 +1006,7 @@ def _quote_hash(q: dict[str, Any]) -> str:
     """Deterministic hash of the price+volume+changesPercentage fields."""
     key = (f"{q.get('price','')},{q.get('lastPrice','')},"
            f"{q.get('volume','')},{q.get('changesPercentage','')}")
-    return hashlib.md5(key.encode()).hexdigest()[:12]
+    return hashlib.md5(key.encode(), usedforsecurity=False).hexdigest()[:12]
 
 
 def _format_age_hms(seconds: float) -> str:
