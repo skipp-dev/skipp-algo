@@ -194,6 +194,21 @@ All notable changes to this project are documented in this file.
     the literal-absolute case to zero (variable second args still
     require call-site sanitization).
 - Both surfaces empty in first-party non-test code today.
+
+### Tests / Quality (2026-04-25) — Defense pin: silent error swallow ledger + bare-except zero-surface
+
+- Added `tests/test_silent_error_swallow_pin.py` (17 tests) pinning two
+  closely related "errors disappear" shapes:
+  - **Bare `except:`** — zero-surface invariant (catches BaseException;
+    breaks Ctrl-C). 0 sites today.
+  - **`except Exception: pass`** — frozen 17-site ledger across 13
+    files. Mix of opportunistic best-effort cleanup, data-source
+    fallbacks, and Streamlit UI guards. New silent swallows must
+    either fix the swallow, log it, or extend `_FROZEN_SITES` with
+    justification.
+- Per-file parametrized line-drift tests + total-count + no-new-files +
+  no-removed-files (same ledger pattern as the hashlib pin #206 and
+  the urllib timeout ledger #204).
 - Defense-only — no production changes.
 
 ### Tests / Quality (2026-04-25) — Defense pin: datetime tz-safety zero-surface (4 shapes)
