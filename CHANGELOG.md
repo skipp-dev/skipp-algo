@@ -57,6 +57,22 @@ All notable changes to this project are documented in this file.
   Surface-Reduction-Artefakte zerstören).
 - Drei-Lagen-Schutz: total-budget + no-new-files + no-stale-entries +
   parametrisierter per-File-Count + Datei-Existenz. Reine Test-Schicht.
+### Tests / Quality (2026-04-25) — prod `assert` + `open()` encoding pin
+
+- Neuer Pin [`tests/test_assert_and_open_encoding_pin.py`](tests/test_assert_and_open_encoding_pin.py)
+  fixiert zwei stille Drift-Quellen:
+  1. **Prod-`assert` Ledger** (4 Sites:
+     `databento_volatility_screener.py`, `databento_universe.py`,
+     `newsstack_fmp/ingest_benzinga.py`, `newsstack_fmp/shared_fetch.py`).
+     Schutz gegen `python -O`/`PYTHONOPTIMIZE`-Builds, die `assert` zum
+     No-Op machen — neue Sites zwingen Review (raise vs. ledger-bump).
+  2. **Text-Mode `open()` ohne `encoding=`** (3 Sites:
+     `open_prep/realtime_signals.py` ×2, `test_usi_lint.py` ×1). Verhindert
+     stille Fallback-Drift auf `locale.getencoding()`. Binary-Mode
+     (`"rb"`/`"wb"`) wird per AST-Mode-Literal ausgeklammert.
+- Drei-Lagen-Schutz pro Layer: total-budget + no-new-files +
+  no-stale-entries + parametrisierter per-File-Count + Datei-Existenz.
+  Inventar-Sanity ≥30 Prod-`*.py`. Reine Test-Schicht.
 
 ### Tests / Quality (2026-04-25) — silent-security & boundary 6-fold bundle
 
