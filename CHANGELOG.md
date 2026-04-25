@@ -6,6 +6,18 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Tests / Quality (2026-04-25) — Defense pin: mkdir / makedirs must pass explicit exist_ok=
+
+- Added `tests/test_mkdir_makedirs_exist_ok_invariant.py` (2 tests)
+  enforcing that every `*.mkdir(...)` and `os.makedirs(...)` call in
+  first-party non-test code passes an explicit `exist_ok=` kwarg.
+- Default is `exist_ok=False` → `FileExistsError` on the second
+  invocation: race-condition + bug-on-restart foot-gun. Surface
+  today: 555 `*.mkdir` + 9 `os.makedirs` sites, **100% compliant**.
+- Sister of the threading.Thread daemon= (#211), httpx timeout= (#208),
+  and tempfile.NamedTemporaryFile delete= (#207) invariants. No ledger.
+- Defense-only — no production changes.
+
 ### Tests / Quality (2026-04-25) — Defense pin: triple zero-surface (os.system + input + assert)
 
 - Added `tests/test_os_system_input_assert_zero_surface.py` pinning three
