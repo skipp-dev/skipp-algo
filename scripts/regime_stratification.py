@@ -1,0 +1,270 @@
+"""Regime-conditional aggregation for trade outcomes (Sprint C5 / T3).
+
+Splits a trade list by ``regime_at_entry`` (or any caller-supplied
+column) and computes per-regime metrics + a regime-frequency-weighted
+aggregate. Designed to make the implicit assumption "the aggregate
+Sharpe is the right Sharpe" testable: a setup whose 95% of profit
+comes from one regime will be flagged here even if the aggregate
+Sharpe looks fine.
+
+Reuses ``MIN_EVENTS_PER_ARM_FOR_BOOTSTRAP`` from
+``scripts.run_ab_comparison`` as the per-regime n-floor so we stay
+consistent with the C3/C4 pipelines.
+
+Out-of-scope here (explicit deferrals from
+``docs/SPRINT_PLAN_C5_REGIME_STRATIFICATION_2026-04-26.md``):
+
+- T1 data-contract audit doc — separate PR
+- T2 historical regime backfill — only needed if T1 finds gaps
+- T4 regime-stratified bootstrap / permutation calls — wait for the
+  C3/C4 modules to land in main
+- T5 regime-transition early warning — stretch
+"""
+
+from __future__ import annotations
+
+import math
+import statistics
+from collections import OrderedDict
+from collections.abc import Callable, Iterable, Mapping, Sequence
+from typing import Any
+
+__all__ = [
+    "MIN_TRADES_PER_REGIME",
+    "stratify_trades_by_regime",
+    "compute_regime_conditional_metrics",
+    "compute_regime_aware_aggregate",
+    "detect_regime_concentration",
+]
+
+
+# Mirror of ``MIN_EVENTS_PER_ARM_FOR_BOOTSTRAP`` in
+# scripts/run_ab_comparison.py — kept as a local constant so this module
+# does not pull the scripts package at import time. If the canonical
+# constant moves, update this in lockstep.
+MIN_TRADES_PER_REGIME = 30
+
+
+# A "trade" in this module is a Mapping with at minimum:
+#   - "pnl" (float, signed return or R-multiple)
+#   - the regime column (default "regime_at_entry")
+Trade = Mapping[str, Any]
+
+
+def stratify_trades_by_regime(
+    trades: Sequence[Trade],
+    *,
+    regime_col: str = "regime_at_entry",
+) -> dict[str, list[Trade]]:
+    """Split a trade sequence into per-regime buckets.
+
+    Trades whose regime label is missing or falsy are bucketed under
+    ``"UNKNOWN"`` so the caller can spot data-contract gaps rather
+    than getting silent drops.
+
+    Returns an ``OrderedDict`` so iteration order is deterministic
+    (alphabetical by regime label, with ``"UNKNOWN"`` last).
+    """
+
+    buckets: dict[str, list[Trade]] = {}
+    for trade in trades:
+        regime = trade.get(regime_col)
+        key = str(regime) if regime else "UNKNOWN"
+        buckets.setdefault(key, []).append(trade)
+
+    def sort_key(name: str) -> tuple[int, str]:
+        return (1 if name == "UNKNOWN" else 0, name)
+
+    return OrderedDict((k, buckets[k]) for k in sorted(buckets, key=sort_key))
+
+
+def _sharpe(pnls: Sequence[float]) -> float | None:
+    if len(pnls) < 2:
+        return None
+    mean = statistics.fmean(pnls)
+    var = statistics.variance(pnls)  # ddof=1
+    if var <= 0.0:
+        return None
+    return mean / math.sqrt(var)
+
+
+def _max_drawdown(pnls: Sequence[float]) -> float:
+    """Max drawdown of the cumulative PnL curve (additive PnL).
+
+    Returns a non-positive number; 0.0 if the curve never drops.
+    """
+
+    if not pnls:
+        return 0.0
+    cum = 0.0
+    peak = 0.0
+    max_dd = 0.0
+    for p in pnls:
+        cum += p
+        if cum > peak:
+            peak = cum
+        dd = cum - peak
+        if dd < max_dd:
+            max_dd = dd
+    return max_dd
+
+
+def _win_rate(pnls: Sequence[float]) -> float | None:
+    if not pnls:
+        return None
+    wins = sum(1 for p in pnls if p > 0)
+    return wins / len(pnls)
+
+
+def _profit_factor(pnls: Sequence[float]) -> float | None:
+    gains = sum(p for p in pnls if p > 0)
+    losses = -sum(p for p in pnls if p < 0)
+    if losses <= 0.0:
+        return None
+    return gains / losses
+
+
+_DEFAULT_METRIC_FNS: dict[str, Callable[[Sequence[float]], float | None]] = {
+    "sharpe": _sharpe,
+    "max_dd": _max_drawdown,
+    "win_rate": _win_rate,
+    "profit_factor": _profit_factor,
+}
+
+
+def compute_regime_conditional_metrics(
+    trades_per_regime: Mapping[str, Sequence[Trade]],
+    *,
+    pnl_col: str = "pnl",
+    metric_fns: Mapping[str, Callable[[Sequence[float]], float | None]] | None = None,
+    min_n_per_regime: int = MIN_TRADES_PER_REGIME,
+) -> dict[str, dict[str, Any]]:
+    """Per-regime metrics + ``regime_frequency_pct`` + n-floor handling.
+
+    Skipped regimes are still present in the output with
+    ``{"skipped_reason": "insufficient_n", "n": ...}`` so downstream
+    code (BH-FDR aggregation, dashboard) can see *why* a cell is empty.
+    """
+
+    fns = dict(metric_fns) if metric_fns is not None else dict(_DEFAULT_METRIC_FNS)
+    total_n = sum(len(t) for t in trades_per_regime.values())
+    out: dict[str, dict[str, Any]] = {}
+    for regime, trades in trades_per_regime.items():
+        n = len(trades)
+        freq_pct = (n / total_n) if total_n > 0 else 0.0
+        if n < min_n_per_regime:
+            out[regime] = {
+                "skipped_reason": "insufficient_n",
+                "n": n,
+                "regime_frequency_pct": freq_pct,
+            }
+            continue
+        pnls = [float(t[pnl_col]) for t in trades]
+        record: dict[str, Any] = {"n": n, "regime_frequency_pct": freq_pct}
+        for name, fn in fns.items():
+            record[name] = fn(pnls)
+        out[regime] = record
+    return out
+
+
+def compute_regime_aware_aggregate(
+    per_regime: Mapping[str, Mapping[str, Any]],
+    *,
+    metric: str = "sharpe",
+    freq_weighting: bool = True,
+) -> dict[str, Any]:
+    """Frequency-weighted aggregate of a single per-regime metric.
+
+    Skipped regimes are excluded from both the numerator and the
+    denominator so the aggregate is computed only over regimes that
+    cleared ``min_n_per_regime``.
+
+    Returns:
+        ``{"value": float | None, "method": str, "regimes_used": list[str],
+        "regimes_skipped": list[str]}``
+    """
+
+    used: list[str] = []
+    skipped: list[str] = []
+    contributions: list[tuple[float, float]] = []
+    for regime, record in per_regime.items():
+        if record.get("skipped_reason"):
+            skipped.append(regime)
+            continue
+        value = record.get(metric)
+        if value is None:
+            skipped.append(regime)
+            continue
+        weight = float(record.get("regime_frequency_pct", 0.0)) if freq_weighting else 1.0
+        used.append(regime)
+        contributions.append((float(value), weight))
+
+    if not contributions:
+        return {
+            "value": None,
+            "method": "frequency_weighted" if freq_weighting else "equal_weighted",
+            "regimes_used": used,
+            "regimes_skipped": skipped,
+        }
+    total_weight = sum(w for _, w in contributions)
+    if total_weight <= 0.0:
+        # Frequency weighting with all-zero frequencies — fall back to
+        # equal weighting so we don't report None when we actually have
+        # data.
+        agg = sum(v for v, _ in contributions) / len(contributions)
+        method = "equal_weighted_fallback"
+    else:
+        agg = sum(v * w for v, w in contributions) / total_weight
+        method = "frequency_weighted" if freq_weighting else "equal_weighted"
+    return {
+        "value": agg,
+        "method": method,
+        "regimes_used": used,
+        "regimes_skipped": skipped,
+    }
+
+
+def detect_regime_concentration(
+    trades_per_regime: Mapping[str, Sequence[Trade]],
+    *,
+    pnl_col: str = "pnl",
+    threshold: float = 0.80,
+) -> dict[str, Any]:
+    """Flag setups whose ≥``threshold`` of total positive PnL is one regime.
+
+    Concentration risk is the C5 headline finding: a setup that looks
+    fine in aggregate but lives or dies by one regime is a regime-bet,
+    not an alpha-bet. Anything at-or-above ``threshold`` is reported
+    via ``concentrated=True`` plus the dominant regime.
+
+    Returns:
+        ``{"concentrated": bool, "dominant_regime": str | None,
+        "share_of_total_pnl": float, "threshold": float,
+        "per_regime_pnl": {regime: float}}``
+    """
+
+    if not (0.0 < threshold <= 1.0):
+        raise ValueError(f"threshold must be in (0,1], got {threshold}")
+    per_regime_pnl: dict[str, float] = {}
+    for regime, trades in trades_per_regime.items():
+        per_regime_pnl[regime] = sum(float(t[pnl_col]) for t in trades)
+    # Concentration is defined on positive contributions only — a
+    # negative-PnL regime can't "dominate" via positive concentration.
+    positive_total = sum(v for v in per_regime_pnl.values() if v > 0.0)
+    if positive_total <= 0.0:
+        return {
+            "concentrated": False,
+            "dominant_regime": None,
+            "share_of_total_pnl": 0.0,
+            "threshold": threshold,
+            "per_regime_pnl": per_regime_pnl,
+        }
+    dominant_regime, dominant_pnl = max(per_regime_pnl.items(), key=lambda kv: kv[1])
+    share = dominant_pnl / positive_total if dominant_pnl > 0 else 0.0
+    return {
+        "concentrated": share >= threshold,
+        "dominant_regime": dominant_regime if share > 0 else None,
+        "share_of_total_pnl": share,
+        "threshold": threshold,
+        "per_regime_pnl": per_regime_pnl,
+    }
