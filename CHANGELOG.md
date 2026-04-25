@@ -6,6 +6,31 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Tests / Quality (2026-04-25) — silent-security & boundary 6-fold bundle
+
+- Neuer Pin [`tests/test_silent_security_and_boundary_bundle.py`](tests/test_silent_security_and_boundary_bundle.py)
+  bündelt sechs Defense-Layer in einem PR:
+  1. **TLS `verify=False`** in beliebigen Call-Kwargs verboten
+     (httpx/requests). MITM-Schutz darf nicht abgeschaltet werden.
+     Inventar 0, reine Tripwire.
+  2. **`tempfile.mktemp`** verboten (Race-Condition-Klasse vor
+     `mkstemp()`). Inventar 0.
+  3. **stdlib `xml.*` Imports** verboten — XXE-anfällig, `defusedxml`
+     verwenden. Inventar 0.
+  4. **`warnings.simplefilter("ignore")` / `filterwarnings("ignore")`**
+     in Production verboten — versteckt Deprecation/Runtime-Warnings.
+     Inventar 0.
+  5. **`logging.basicConfig(...)`** Frozen-7-Site-Ledger
+     (`newsstack_fmp/run.py`, 5× `open_prep/*.py` Entry-Points,
+     `smc_tv_bridge/smc_api.py`). Library-Code darf den Root-Logger
+     nicht konfigurieren.
+  6. **`sys.path.insert/append`** Frozen-6-Site-Ledger (Streamlit-Shims
+     + `smc_tv_bridge/smc_api.py` + `open_prep/{realtime_signals,
+     streamlit_monitor}.py`). Path-Hacks bleiben auf bekannte
+     Entry-Point-Shims beschränkt.
+- Drei-Schichten-Guard pro Ledger + parametrisierte Datei-Existenz +
+  Inventar-Sanity. Defense-only.
+
 ### Tests / Quality (2026-04-25) — six-fold zero-tripwire bundle
 
 - Neuer Pin [`tests/test_six_zero_tripwires_bundle.py`](tests/test_six_zero_tripwires_bundle.py)
