@@ -6,6 +6,16 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Fixed (2026-04-25) — main RED hotfix: continue-on-error inventory line resync
+
+`tests/test_workflow_continue_on_error_inventory.py` `_ALLOWED` for
+`smc-library-refresh.yml` was pinned to lines `{592, 735, 755}` for the three
+best-effort sites (alerts dispatch, breaking-change notify, end-of-run status).
+Actual offsets in the workflow on `main` are `{601, 744, 764}` (+9 line shift)
+— the three sites are unchanged in content; only their position drifted. This
+left every PR's `validate` job RED. Resync `_ALLOWED` to the real offsets;
+no semantic change to silent-fail surface inventory (still 5 lines, same 3 hops).
+
 ### Tests / Quality (2026-04-25) — ADR-0006 Doc + Salvaged Pins from PR #123
 
 Net-additive salvage from the closed PR #123 (`chore/smc-system-review-2026-04-24`),
