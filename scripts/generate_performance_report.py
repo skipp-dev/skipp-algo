@@ -10,6 +10,8 @@ Usage:
 
 from __future__ import annotations
 
+from scripts.smc_atomic_write import atomic_write_text
+
 import argparse
 import json
 import math
@@ -396,12 +398,12 @@ def main() -> int:
 
     report_md = render_report(pairs, generated_at=generated_at)
     md_path = output_dir / "performance_report.md"
-    md_path.write_text(report_md, encoding="utf-8")
+    atomic_write_text(report_md, md_path)
     print(f"Report written: {md_path}")
 
     digest = build_digest(pairs, generated_at=generated_at)
     json_path = output_dir / "performance_report.json"
-    json_path.write_text(json.dumps(digest, indent=2) + "\n", encoding="utf-8")
+    atomic_write_text(json.dumps(digest, indent=2) + "\n", json_path)
     print(f"Digest written: {json_path}")
 
     print(f"\n{report_md}")

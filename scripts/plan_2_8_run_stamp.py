@@ -14,6 +14,8 @@ Pure stdlib.
 
 from __future__ import annotations
 
+from scripts.smc_atomic_write import atomic_write_text
+
 import argparse
 import datetime as _dt
 import json
@@ -72,7 +74,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     body = json.dumps(stamp, indent=2) + "\n"
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(body, encoding="utf-8")
+    atomic_write_text(body, args.output)
     if not args.quiet:
         print(body, end="")
     return 0

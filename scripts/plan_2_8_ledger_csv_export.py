@@ -6,6 +6,8 @@ emits ``captured_at,status,run_url`` by default. Pure stdlib.
 
 from __future__ import annotations
 
+from scripts.smc_atomic_write import atomic_write_text
+
 import argparse
 import csv
 import io
@@ -78,7 +80,7 @@ def main(argv: list[str] | None = None) -> int:
     body = render_csv(records, fields=fields)
     if args.output is not None:
         args.output.parent.mkdir(parents=True, exist_ok=True)
-        args.output.write_text(body, encoding="utf-8")
+        atomic_write_text(body, args.output)
     else:
         sys.stdout.write(body)
     return 0

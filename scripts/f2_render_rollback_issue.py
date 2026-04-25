@@ -17,6 +17,8 @@ Pure-Python, no network. Tested.
 
 from __future__ import annotations
 
+from scripts.smc_atomic_write import atomic_write_text
+
 import argparse
 import json
 import sys
@@ -176,9 +178,9 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     if args.title_out:
-        args.title_out.write_text(title + "\n", encoding="utf-8")
+        atomic_write_text(title + "\n", args.title_out)
     if args.body_out:
-        args.body_out.write_text(body + "\n", encoding="utf-8")
+        atomic_write_text(body + "\n", args.body_out)
     if not args.title_out and not args.body_out:
         # Default to stdout: title on first line, blank, then body.
         print(title)

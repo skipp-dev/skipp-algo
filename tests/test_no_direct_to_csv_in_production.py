@@ -45,9 +45,7 @@ _FILE_LEVEL_EXEMPT: dict[str, str] = {
 _BANNED_METHOD_NAMES: frozenset[str] = frozenset({
     "to_csv",
     "to_parquet",
-    # ``write_text`` is intentionally NOT included here: M-2 (system review
-    # 2026-04-24) tracks the pre-existing ``write_text`` backlog in
-    # calibration/sprt/f2 modules. Add it once that migration lands.
+    "write_text",
 })
 
 

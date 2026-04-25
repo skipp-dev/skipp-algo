@@ -19,6 +19,8 @@ Usage::
 
 from __future__ import annotations
 
+from scripts.smc_atomic_write import atomic_write_text
+
 import json
 import math
 from dataclasses import dataclass, field
@@ -540,13 +542,11 @@ def main(argv: list[str] | None = None) -> None:
 
     # Write JSON
     args.output_path.parent.mkdir(parents=True, exist_ok=True)
-    args.output_path.write_text(
-        json.dumps(to_json(audit), indent=2) + "\n", encoding="utf-8"
-    )
+    atomic_write_text(json.dumps(to_json(audit), indent=2) + "\n", args.output_path)
 
     # Write Markdown report
     md_path = args.output_path.with_suffix(".md")
-    md_path.write_text(render_audit_report(audit), encoding="utf-8")
+    atomic_write_text(render_audit_report(audit), md_path)
 
     print(f"FVG audit written to {args.output_path}")
     print(f"Report written to {md_path}")

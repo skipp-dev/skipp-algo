@@ -29,6 +29,8 @@ Exit codes
 
 from __future__ import annotations
 
+from scripts.smc_atomic_write import atomic_write_text
+
 import argparse
 import json
 import sys
@@ -49,7 +51,7 @@ SIM_SCHEMA_VERSION = 1
 
 def _write_json(path: Path, payload: Any) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    atomic_write_text(json.dumps(payload, indent=2) + "\n", path)
 
 
 def _synthetic_report(*, decision: str, brier_delta: float) -> dict[str, Any]:
@@ -151,7 +153,7 @@ def simulate(
             report_path=str(rollback_report),
         )
         issue_body_path = workdir / "issue_body.md"
-        issue_body_path.write_text(issue_body, encoding="utf-8")
+        atomic_write_text(issue_body, issue_body_path)
 
         revert_record = revert_contextual_weights(
             spec_path=spec_path,

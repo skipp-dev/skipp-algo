@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from scripts.smc_atomic_write import atomic_write_text
+
 import csv
 import json
 import logging
@@ -661,12 +663,12 @@ def load_live_news_state(path: Path) -> dict[str, Any]:
 def save_live_news_state(path: Path, state: dict[str, Any]) -> None:
     normalized = _normalize_state(state)
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(normalized, indent=2) + "\n", encoding="utf-8")
+    atomic_write_text(json.dumps(normalized, indent=2) + "\n", path)
 
 
 def write_live_news_snapshot(path: Path, snapshot: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(snapshot, indent=2) + "\n", encoding="utf-8")
+    atomic_write_text(json.dumps(snapshot, indent=2) + "\n", path)
 
 
 def _story_score(entry: dict[str, Any], *, age_minutes: float | None) -> float:

@@ -19,6 +19,8 @@ Pure-Python, read-only, no network. Schema-pinned (``schema_version``).
 
 from __future__ import annotations
 
+from scripts.smc_atomic_write import atomic_write_text
+
 import argparse
 import json
 import re
@@ -204,7 +206,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.output is not None:
         args.output.parent.mkdir(parents=True, exist_ok=True)
-        args.output.write_text(json.dumps(digest, indent=2) + "\n", encoding="utf-8")
+        atomic_write_text(json.dumps(digest, indent=2) + "\n", args.output)
     if args.format == "md":
         print(render_markdown(digest))
     else:

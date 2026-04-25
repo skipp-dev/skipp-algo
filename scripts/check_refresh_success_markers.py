@@ -18,6 +18,8 @@ Programmatic::
 
 from __future__ import annotations
 
+from scripts.smc_atomic_write import atomic_write_text
+
 import argparse
 import json
 import logging
@@ -190,7 +192,7 @@ def _render(report: dict[str, Any], output: str) -> None:
         sys.stdout.write(text)
     else:
         Path(output).parent.mkdir(parents=True, exist_ok=True)
-        Path(output).write_text(text, encoding="utf-8")
+        atomic_write_text(text, Path(output))
 
 
 def main() -> int:

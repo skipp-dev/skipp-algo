@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from scripts.smc_atomic_write import atomic_write_text
+
 from datetime import UTC, datetime
 from html import escape
 import sys
@@ -216,9 +218,9 @@ def main() -> None:
 </html>
 """
 
-    html_path.write_text(html, encoding="utf-8")
+    atomic_write_text(html, html_path)
     # Excel can open HTML content with .xls extension.
-    xls_path.write_text(html, encoding="utf-8")
+    atomic_write_text(html, xls_path)
 
     print(html_path)
     print(xls_path)

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from scripts.smc_atomic_write import atomic_write_text
+
 import argparse
 import json
 import csv
@@ -151,7 +153,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     if isinstance(manifest_path_value, str) and manifest_path_value.strip():
         manifest_path = Path(manifest_path_value).expanduser()
         if manifest_path.exists():
-            manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True), encoding="utf-8")
+            atomic_write_text(json.dumps(manifest, indent=2, sort_keys=True), manifest_path)
 
     print(json.dumps(manifest, indent=2, sort_keys=True))
     return 0

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from scripts.smc_atomic_write import atomic_write_text
+
 import csv
 import json
 import os
@@ -188,7 +190,7 @@ def main() -> None:
 </body>
 </html>
 """
-    html_path.write_text(html, encoding="utf-8")
+    atomic_write_text(html, html_path)
 
     print(json.dumps(
         {

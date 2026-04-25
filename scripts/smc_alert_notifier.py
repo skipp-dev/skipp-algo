@@ -20,6 +20,8 @@ configure via env vars or CLI flags.
 
 from __future__ import annotations
 
+from scripts.smc_atomic_write import atomic_write_text
+
 import argparse
 import json
 import logging
@@ -384,7 +386,7 @@ def load_previous_fingerprint(path: Path) -> dict[str, str]:
 def save_fingerprint(path: Path, state: dict[str, str]) -> None:
     fp = _state_fingerprint(state)
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(fp, indent=2) + "\n", encoding="utf-8")
+    atomic_write_text(json.dumps(fp, indent=2) + "\n", path)
 
 
 def suppress_duplicates(

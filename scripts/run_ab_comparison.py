@@ -22,6 +22,8 @@ Output
 
 from __future__ import annotations
 
+from scripts.smc_atomic_write import atomic_write_text
+
 import argparse
 import json
 import math
@@ -934,10 +936,8 @@ def main(argv: list[str] | None = None) -> None:
     report = render_comparison(digest)
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
-    (args.output_dir / "ab_comparison.md").write_text(report, encoding="utf-8")
-    (args.output_dir / "ab_comparison.json").write_text(
-        json.dumps(digest, indent=2) + "\n", encoding="utf-8"
-    )
+    atomic_write_text(report, (args.output_dir / "ab_comparison.md"))
+    atomic_write_text(json.dumps(digest, indent=2) + "\n", (args.output_dir / "ab_comparison.json"))
     print(f"Comparison written to {args.output_dir}")
     print(f"  Control grade:   {digest['control_grade']}")
     print(f"  Treatment grade: {digest['treatment_grade']}")

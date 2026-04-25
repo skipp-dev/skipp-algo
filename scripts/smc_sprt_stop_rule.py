@@ -72,6 +72,8 @@ The :data:`Decision` literal carries five disjoint outcomes:
 
 from __future__ import annotations
 
+from scripts.smc_atomic_write import atomic_write_text
+
 import json
 import math
 from dataclasses import dataclass, field
@@ -322,7 +324,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.output is not None:
         args.output.parent.mkdir(parents=True, exist_ok=True)
-        args.output.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+        atomic_write_text(json.dumps(report, indent=2) + "\n", args.output)
 
     print(json.dumps(report, indent=2))
     return 0

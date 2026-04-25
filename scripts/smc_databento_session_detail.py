@@ -10,6 +10,8 @@ runtime module.
 """
 from __future__ import annotations
 
+from scripts.smc_atomic_write import atomic_write_text
+
 import hashlib
 import json
 import logging
@@ -382,7 +384,7 @@ def collect_full_universe_session_minute_detail(
                     "trade_day": trade_day.isoformat(),
                     "runtime_unsupported_symbols": sorted(day_runtime_unsupported_symbols),
                 }
-                cache_meta_path.write_text(json.dumps(cache_meta_payload, indent=2), encoding="utf-8")
+                atomic_write_text(json.dumps(cache_meta_payload, indent=2), cache_meta_path)
 
         if day_frame is not None and not day_frame.empty:
             all_rows.append(day_frame)

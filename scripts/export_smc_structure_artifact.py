@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from scripts.smc_atomic_write import atomic_write_text
+
 import argparse
 import json
 from datetime import UTC, datetime
@@ -206,7 +208,7 @@ def export_structure_artifact(
         structure_profile=structure_profile,
     )
     output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    atomic_write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", output)
     return output
 
 

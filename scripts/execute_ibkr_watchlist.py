@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from scripts.smc_atomic_write import atomic_write_text
+
 import argparse
 import json
 import math
@@ -1079,7 +1081,7 @@ def main() -> None:
     )
     output_json = Path(args.output_json).expanduser()
     output_json.parent.mkdir(parents=True, exist_ok=True)
-    output_json.write_text(json.dumps(preview_payload, indent=2, default=str), encoding="utf-8")
+    atomic_write_text(json.dumps(preview_payload, indent=2, default=str), output_json)
 
     print("WATCHLIST_SOURCE", source_metadata)
     print("SELECTED_TRADE_DATE", selected_trade_date.isoformat())

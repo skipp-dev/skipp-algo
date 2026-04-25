@@ -21,6 +21,8 @@ Typical use (e.g. at W13 recording a Q4-gate reject reason):
 
 from __future__ import annotations
 
+from scripts.smc_atomic_write import atomic_write_text
+
 import argparse
 import datetime as _dt
 import re
@@ -91,7 +93,7 @@ def append_entry(decisions_path: Path, entry: str) -> None:
         raise ValueError(
             f"{decisions_path} has no '{ENTRIES_HEADER}' section; refusing to append")
     text = text.rstrip() + "\n\n" + entry.rstrip() + "\n"
-    decisions_path.write_text(text, encoding="utf-8")
+    atomic_write_text(text, decisions_path)
 
 
 def main(argv: list[str] | None = None) -> int:

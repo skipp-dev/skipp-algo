@@ -48,6 +48,8 @@ Usage::
 """
 from __future__ import annotations
 
+from scripts.smc_atomic_write import atomic_write_text
+
 import argparse
 import json
 import os
@@ -235,7 +237,7 @@ def append_public_history(
         # Make sure the file at least exists for the dashboard fetch.
         history_path.parent.mkdir(parents=True, exist_ok=True)
         if not history_path.exists():
-            history_path.write_text("", encoding="utf-8")
+            atomic_write_text("", history_path)
         return history_path
 
     entry = {
@@ -262,10 +264,7 @@ def append_public_history(
     if len(existing) > retention:
         existing = existing[-retention:]
 
-    history_path.write_text(
-        "\n".join(json.dumps(e, sort_keys=True) for e in existing) + "\n",
-        encoding="utf-8",
-    )
+    atomic_write_text("\n".join(json.dumps(e, sort_keys=True) for e in existing) + "\n", history_path)
     return history_path
 
 
@@ -273,6 +272,7 @@ def write_report(report: dict[str, Any], output_path: Path) -> None:
     """Atomically write the public report JSON."""
     output_path.parent.mkdir(parents=True, exist_ok=True)
     tmp_path = output_path.with_suffix(output_path.suffix + ".tmp")
+    # ATOMIC-WRITE-EXEMPT: tmp+replace pattern (atomic by construction).
     tmp_path.write_text(
         json.dumps(report, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",

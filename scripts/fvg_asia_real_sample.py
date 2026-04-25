@@ -35,6 +35,8 @@ Run::
 
 from __future__ import annotations
 
+from scripts.smc_atomic_write import atomic_write_text
+
 import argparse
 import json
 import os
@@ -364,7 +366,7 @@ def main(argv: list[str] | None = None) -> int:
     _print_md(report)
     if args.output is not None:
         args.output.parent.mkdir(parents=True, exist_ok=True)
-        args.output.write_text(json.dumps(report, indent=2))
+        atomic_write_text(json.dumps(report, indent=2), args.output)
         print(f"\n# wrote {args.output}", file=sys.stderr)
 
     asia_n = next(

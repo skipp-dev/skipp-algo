@@ -21,6 +21,8 @@ Exit codes
 
 from __future__ import annotations
 
+from scripts.smc_atomic_write import atomic_write_text
+
 import argparse
 import json
 import sys
@@ -146,7 +148,7 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(json.dumps(bundle, indent=2) + "\n", encoding="utf-8")
+    atomic_write_text(json.dumps(bundle, indent=2) + "\n", args.output)
     print(f"wrote bundle with {len(bundle['buckets'])} bucket(s) to {args.output}")
     return 0
 

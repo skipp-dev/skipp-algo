@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from scripts.smc_atomic_write import atomic_write_text
+
 import argparse
 import json
 import os
@@ -34,7 +36,7 @@ def _read_json(path: Path) -> dict[str, Any]:
 
 def _write_json(path: Path, payload: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    atomic_write_text(json.dumps(payload, indent=2) + "\n", path)
 
 
 def _relative_report_path(release_manifest_path: Path, validation_report_path: Path) -> str:
@@ -194,7 +196,7 @@ def _render(report: dict[str, Any], output: str) -> None:
         return
     path = Path(output)
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(rendered + "\n", encoding="utf-8")
+    atomic_write_text(rendered + "\n", path)
 
 
 def build_parser() -> argparse.ArgumentParser:

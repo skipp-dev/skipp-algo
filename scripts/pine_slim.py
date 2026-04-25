@@ -19,6 +19,8 @@ Safety:
  - Dry-run mode shows what would change without writing.
 """
 
+from scripts.smc_atomic_write import atomic_write_text
+
 import argparse
 import re
 import sys
@@ -207,7 +209,7 @@ def slim_file(path: Path, dry_run: bool = False) -> tuple[int, int]:
     saved = old_count - new_count
 
     if not dry_run:
-        path.write_text('\n'.join(lines), encoding='utf-8')
+        atomic_write_text('\n'.join(lines), path)
         print(f"  ✓ Replaced {replaced} functions, saved {saved} lines ({old_count} → {new_count})")
     else:
         print(f"  [DRY RUN] Would replace {replaced} functions, save {saved} lines ({old_count} → {new_count})")

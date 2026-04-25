@@ -179,6 +179,7 @@ def append_history(history_path: Path, entry: dict[str, Any]) -> list[dict[str, 
     if len(existing) > HISTORY_RETENTION:
         existing = existing[-HISTORY_RETENTION:]
     tmp = history_path.with_suffix(history_path.suffix + ".tmp")
+    # ATOMIC-WRITE-EXEMPT: tmp+replace pattern (atomic by construction).
     tmp.write_text(
         "\n".join(json.dumps(e, sort_keys=True) for e in existing) + "\n",
         encoding="utf-8",
@@ -314,6 +315,7 @@ def render_status_markdown(
 def write_status(path: Path, content: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_suffix(path.suffix + ".tmp")
+    # ATOMIC-WRITE-EXEMPT: tmp+replace pattern (atomic by construction).
     tmp.write_text(content, encoding="utf-8")
     tmp.replace(path)
 

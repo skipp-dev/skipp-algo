@@ -15,6 +15,8 @@ Any input file that is missing or empty is skipped without failure
 
 from __future__ import annotations
 
+from scripts.smc_atomic_write import atomic_write_text
+
 import argparse
 import datetime as _dt
 import sys
@@ -100,7 +102,7 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     body = render_runcard(args.artifact_dir, run_url=args.run_url)
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(body, encoding="utf-8")
+    atomic_write_text(body, args.output)
     print(body, end="")
     return 0
 

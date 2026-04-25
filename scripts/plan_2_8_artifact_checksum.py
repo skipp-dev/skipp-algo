@@ -7,6 +7,8 @@ stdlib.
 
 from __future__ import annotations
 
+from scripts.smc_atomic_write import atomic_write_text
+
 import argparse
 import hashlib
 import json
@@ -95,14 +97,10 @@ def main(argv: list[str] | None = None) -> int:
     report = compute(args.artifact_dir, skip_names=skip_names)
     if args.json_output is not None:
         args.json_output.parent.mkdir(parents=True, exist_ok=True)
-        args.json_output.write_text(
-            json.dumps(report, indent=2) + "\n", encoding="utf-8",
-        )
+        atomic_write_text(json.dumps(report, indent=2) + "\n", args.json_output)
     if args.md_output is not None:
         args.md_output.parent.mkdir(parents=True, exist_ok=True)
-        args.md_output.write_text(
-            render_markdown(report), encoding="utf-8",
-        )
+        atomic_write_text(render_markdown(report), args.md_output)
     if args.json_output is None and args.md_output is None:
         sys.stdout.write(json.dumps(report, indent=2) + "\n")
     return 0

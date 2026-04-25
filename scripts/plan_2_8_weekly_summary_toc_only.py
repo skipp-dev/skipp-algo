@@ -8,6 +8,8 @@ standalone markdown artifact. Useful for inlining into
 
 from __future__ import annotations
 
+from scripts.smc_atomic_write import atomic_write_text
+
 import argparse
 import sys
 from pathlib import Path
@@ -49,7 +51,7 @@ def main(argv: list[str] | None = None) -> int:
     body = extract(args.input.read_text(encoding="utf-8"))
     if args.output is not None:
         args.output.parent.mkdir(parents=True, exist_ok=True)
-        args.output.write_text(body, encoding="utf-8")
+        atomic_write_text(body, args.output)
     print(body, end="")
     if args.fail_on_empty and not body.strip():
         return 1

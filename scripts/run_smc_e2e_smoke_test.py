@@ -18,6 +18,8 @@ with fixture data (where zero events are expected and acceptable).
 """
 from __future__ import annotations
 
+from scripts.smc_atomic_write import atomic_write_text
+
 import argparse
 import json
 import sys
@@ -223,7 +225,7 @@ def main() -> int:
     else:
         out = Path(args.output)
         out.parent.mkdir(parents=True, exist_ok=True)
-        out.write_text(rendered + "\n", encoding="utf-8")
+        atomic_write_text(rendered + "\n", out)
         print(f"[smoke] Report written to {out}")
 
     verdict = "PASS" if all_pass else "FAIL"

@@ -17,7 +17,7 @@ from databento_provider import list_recent_trading_days
 from databento_utils import US_EASTERN_TZ
 from scripts.databento_production_export import run_production_export_pipeline
 from scripts.generate_smc_micro_profiles import load_schema, run_generation
-from scripts.smc_atomic_write import atomic_write_csv, atomic_write_parquet
+from scripts.smc_atomic_write import atomic_write_csv, atomic_write_parquet, atomic_write_text
 from scripts.load_databento_export_bundle import load_export_bundle
 from scripts.smc_enrichment_types import EnrichmentDict
 
@@ -279,7 +279,7 @@ def _write_incremental_base_seed(
         "trade_dates_covered": [str(item) for item in trade_dates_covered],
         "generated_at": datetime.now(UTC).isoformat(timespec="seconds"),
     }
-    paths["manifest"].write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    atomic_write_text(json.dumps(payload, indent=2) + "\n", paths["manifest"])
 
 
 def _resolve_incremental_trade_days(trading_days: list[date], previous_asof_date: date | None) -> list[date]:
@@ -1966,7 +1966,7 @@ def write_mapping_report(path: Path, payload: dict[str, Any]) -> None:
     for status in payload["mapping_status"]:
         source_columns = ", ".join(status["source_columns"]) if status["source_columns"] else ""
         lines.append(md_row(status["field"], status["status"], status["source_sheet"], source_columns, status["note"]))
-    path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
+    atomic_write_text("\n".join(lines).rstrip() + "\n", path)
 
 
 def write_base_workbook(path: Path, base_snapshot: pd.DataFrame, mapping_payload: dict[str, Any]) -> None:
@@ -2037,7 +2037,7 @@ def write_base_manifest(
         "tradingview_publish_required": True,
         "tradingview_publish_note": "The Pine library artifact is ready for manual TradingView publish; SMC_Core_Engine already imports the generated library path.",
     }
-    path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    atomic_write_text(json.dumps(payload, indent=2) + "\n", path)
 
 
 def build_default_output_paths(base_prefix: str, output_dir: Path, asof_date: str) -> dict[str, Path]:
@@ -2113,7 +2113,7 @@ def generate_base_from_bundle(
     if write_xlsx and not workbook_written:
         effective_output_paths.pop("base_xlsx", None)
     write_mapping_report(output_paths["mapping_md"], mapping_payload)
-    output_paths["mapping_json"].write_text(json.dumps(mapping_payload, indent=2) + "\n", encoding="utf-8")
+    atomic_write_text(json.dumps(mapping_payload, indent=2) + "\n", output_paths["mapping_json"])
     write_base_manifest(
         output_paths["base_manifest"],
         bundle_manifest_path=Path(bundle_payload["manifest_path"]),
@@ -2162,7 +2162,7 @@ def _build_incremental_bundle_payload(
         "export_generated_at": datetime.now(UTC).isoformat(timespec="seconds"),
         "incremental_base_only": True,
     }
-    manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+    atomic_write_text(json.dumps(manifest, indent=2) + "\n", manifest_path)
     return {
         "manifest_path": manifest_path,
         "bundle_dir": export_dir,
@@ -2374,7 +2374,7 @@ def run_databento_base_scan_pipeline(
                     if write_xlsx and not workbook_written:
                         effective_output_paths.pop("base_xlsx", None)
                     write_mapping_report(output_paths["mapping_md"], mapping_payload)
-                    output_paths["mapping_json"].write_text(json.dumps(mapping_payload, indent=2) + "\n", encoding="utf-8")
+                    atomic_write_text(json.dumps(mapping_payload, indent=2) + "\n", output_paths["mapping_json"])
                     write_base_manifest(
                         output_paths["base_manifest"],
                         bundle_manifest_path=Path(bundle_payload["manifest_path"]),
@@ -2572,7 +2572,7 @@ def run_databento_base_scan_pipeline(
             if isinstance(manifest_payload, dict):
                 manifest_payload["production_workbook_path"] = str(canonical_production_workbook) if canonical_production_workbook else None
                 manifest_payload["canonical_upstream_artifact"] = "databento_production_export_bundle"
-                Path(base_manifest_path).write_text(json.dumps(manifest_payload, indent=2) + "\n", encoding="utf-8")
+                atomic_write_text(json.dumps(manifest_payload, indent=2) + "\n", Path(base_manifest_path))
         except Exception:
             logger.warning("Failed to enrich base manifest with production workbook lineage", exc_info=True)
     try:
