@@ -1064,14 +1064,13 @@ def poll_live_news_bus(
 
 
 def _resolve_manifest_path(export_dir: Path) -> Path:
-    manifests = sorted(
-        export_dir.glob("*__smc_microstructure_base_manifest.json"),
-        key=lambda path: path.stat().st_mtime,
-        reverse=True,
+    from scripts.smc_artifact_resolver import latest_by_filename_iso
+    manifest = latest_by_filename_iso(
+        export_dir.glob("*__smc_microstructure_base_manifest.json")
     )
-    if not manifests:
+    if manifest is None:
         raise FileNotFoundError(f"No SMC base manifest found in {export_dir}")
-    return manifests[0]
+    return manifest
 
 
 def _resolve_path_from_manifest(raw_path: str, manifest_path: Path) -> Path:

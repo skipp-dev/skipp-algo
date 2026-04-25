@@ -113,10 +113,9 @@ def resolve_base_manifest_for_csv(base_csv_path: Path, export_dir: Path) -> Path
         if companion_manifest.exists():
             return companion_manifest
 
-    manifests = sorted(
-        export_dir.glob("*__smc_microstructure_base_manifest.json"),
-        key=lambda path: path.stat().st_mtime,
-        reverse=True,
+    from scripts.smc_artifact_resolver import sorted_by_filename_iso
+    manifests = sorted_by_filename_iso(
+        export_dir.glob("*__smc_microstructure_base_manifest.json")
     )
     target_path = base_csv_path.resolve(strict=False)
     for manifest_path in manifests:

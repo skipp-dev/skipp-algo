@@ -71,10 +71,11 @@ def _safe_iso_from_file(path: Path) -> str | None:
 def _latest_manifest_path(export_dir: Path) -> Path | None:
     if not export_dir.exists():
         return None
-    manifests = sorted(export_dir.glob("databento_*_manifest.json"), key=lambda candidate: candidate.stat().st_mtime, reverse=True)
-    if not manifests:
-        manifests = sorted(export_dir.glob("*_manifest.json"), key=lambda candidate: candidate.stat().st_mtime, reverse=True)
-    return manifests[0] if manifests else None
+    from scripts.smc_artifact_resolver import latest_by_filename_iso
+    manifest = latest_by_filename_iso(export_dir.glob("databento_*_manifest.json"))
+    if manifest is None:
+        manifest = latest_by_filename_iso(export_dir.glob("*_manifest.json"))
+    return manifest
 
 
 def _build_status_after_run(export_dir: Path, *, stale_after_minutes: int = 60) -> dict[str, Any]:

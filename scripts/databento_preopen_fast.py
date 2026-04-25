@@ -138,13 +138,12 @@ def _resolve_full_history_bundle_input(bundle: str | Path | None, export_dir: Pa
     if candidate.is_file():
         return candidate
     if candidate.is_dir():
-        manifests = sorted(
-            candidate.glob("databento_volatility_production_*_manifest.json"),
-            key=lambda path: path.stat().st_mtime,
-            reverse=True,
+        from scripts.smc_artifact_resolver import latest_by_filename_iso
+        manifest = latest_by_filename_iso(
+            candidate.glob("databento_volatility_production_*_manifest.json")
         )
-        if manifests:
-            return manifests[0]
+        if manifest is not None:
+            return manifest
     return candidate
 
 
