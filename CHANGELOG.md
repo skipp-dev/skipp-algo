@@ -6,6 +6,24 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Hardening (2026-04-25) — `usedforsecurity=False` Flag auf allen md5/sha1-Aufrufen
+
+- An 7 Sites `usedforsecurity=False` zu bestehenden `hashlib.md5(...)` /
+  `hashlib.sha1(...)` Aufrufen hinzugefügt:
+  [`databento_utils.py`](databento_utils.py),
+  [`databento_volatility_screener.py`](databento_volatility_screener.py) (3×),
+  [`open_prep/dirty_flag_manager.py`](open_prep/dirty_flag_manager.py),
+  [`open_prep/realtime_signals.py`](open_prep/realtime_signals.py),
+  [`newsstack_fmp/scoring.py`](newsstack_fmp/scoring.py).
+- Effekt: keine ID-Rotation (Digest-Bytes unverändert), aber explizite
+  Annotation der Non-Crypto-Intent. Macht Bandit B324 / Ruff S324 stumm
+  und erlaubt Ausführung unter FIPS-Mode-Interpretern, wo md5/sha1 sonst
+  `ValueError` werfen.
+- Neuer Pin [`tests/test_weak_hash_usedforsecurity_pin.py`](tests/test_weak_hash_usedforsecurity_pin.py)
+  parametrisiert über jeden weak-hash-Aufruf und erzwingt das Flag bei
+  allen zukünftigen Erweiterungen. Komplementär zum Count-Ledger aus
+  PR #169 ([`tests/test_weak_hash_pin.py`](tests/test_weak_hash_pin.py)).
+
 ### Tests / Quality (2026-04-25) — Pine `alertcondition()` + Declaration-Pin
 
 - Neuer Pin [`tests/test_pine_alertcondition_and_declaration_pin.py`](tests/test_pine_alertcondition_and_declaration_pin.py)
