@@ -54,7 +54,7 @@ All notable changes to this project are documented in this file.
 
 ### Tests / Quality (2026-04-26) — Defense ledger: `subprocess.run` / `subprocess.Popen` site lock (3 sites)
 
-- Added `tests/test_subprocess_spawn_sites_ledger.py` (2 tests)
+- Added `tests/test_subprocess_spawn_sites_ledger.py` (4 tests)
   pinning every production process-spawn call by `(path, line)`.
   Complements the existing kwarg-shape invariants
   (`test_subprocess_run_check_invariant.py` for `check=`,
@@ -64,12 +64,14 @@ All notable changes to this project are documented in this file.
   doubles as a one-grep audit of every place we shell out, and
   forces a reviewer to ask "is this new shell-out actually
   necessary?". Locked sites:
-  - `subprocess.run`: `smc_integration/release_policy.py:1066`
-    (`git rev-parse HEAD` for release-manifest provenance) +
-    `open_prep/realtime_signals.py:181` (`pgrep` to discover
-    daemon PID)
-  - `subprocess.Popen`: `open_prep/realtime_signals.py:325`
-    (detached re-launch of the realtime-signals daemon)
+  - `subprocess.run`:
+    - `smc_integration/release_policy.py:1066`
+      (`git rev-parse HEAD` for release-manifest provenance)
+    - `open_prep/realtime_signals.py:181`
+      (`pgrep` to discover daemon PID)
+  - `subprocess.Popen`:
+    - `open_prep/realtime_signals.py:325`
+      (detached re-launch of the realtime-signals daemon)
 - Defense-only — no production changes.
 
 ### Tests / Quality (2026-04-25) — Defense ledger: `os.unlink` / `os.remove` (23 sites)

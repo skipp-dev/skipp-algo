@@ -71,8 +71,13 @@ def _subprocess_attr_sites(attr: str) -> set[tuple[str, int]]:
     (``import subprocess as sp``) and direct imports
     (``from subprocess import run``) are intentionally out of scope here
     — the companion ``test_subprocess_alias_import_zero_surface_pin``
-    fails closed if either form appears in production code, so they
-    cannot be used to silently bypass this ledger.
+    separately fails closed if either import form appears in production
+    code, while this helper remains limited to literal
+    ``subprocess.<attr>(...)`` call sites. In-module rebindings
+    (e.g. ``sp = subprocess; sp.run(...)`` or
+    ``run = subprocess.run; run(...)``) are NOT detected by either
+    helper and would still bypass the ledger; treat the pin as a
+    high-signal review gate, not a hermetic bypass-proof guarantee.
     """
 
     sites: set[tuple[str, int]] = set()
