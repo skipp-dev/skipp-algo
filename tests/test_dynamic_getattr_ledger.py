@@ -1,0 +1,128 @@
+"""Defense ledger for dynamic ``getattr(obj, <non-literal>)`` call sites.
+
+``getattr(obj, "literal_attr")`` is fine — the attribute name is part of
+the source and visible to refactoring tools / static analysis. Calls
+where the attribute name is a *runtime expression* (variable,
+parameter, or computed string) are different:
+
+* they defeat static analysis — Pyright/Pylance can no longer prove
+  which attributes are touched, so renaming the underlying field is
+  silently broken;
+* they widen the attack surface for any caller that controls the name
+  argument (CWE-470 — unsafe reflection);
+* they hide coupling between modules: ``getattr(state, name)`` quietly
+  reaches across whatever the producer of ``name`` chose to emit.
+
+The repository currently has 10 such call sites, all in well-understood
+state-layer accessors and scoring helpers. Locking them with a ledger
+gives drift detection (line shifts surface here) and a growth gate
+(new dynamic-attr lookups must extend the ledger explicitly with a
+justification — same pattern as
+``test_warnings_simplefilter_ledger.py`` and
+``test_os_unlink_remove_ledger.py``).
+"""
+
+from __future__ import annotations
+
+import ast
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+
+_DIR_EXCLUDE = {
+    ".git",
+    ".github",
+    ".mypy_cache",
+    ".pytest_cache",
+    ".ruff_cache",
+    ".venv",
+    "venv",
+    "node_modules",
+    "artifacts",
+    "docs",
+    "tests",
+    "SMC++",
+    "scripts",
+}
+
+
+def _iter_py_files() -> list[Path]:
+    out: list[Path] = []
+    for path in ROOT.rglob("*.py"):
+        rel = path.relative_to(ROOT)
+        if any(part in _DIR_EXCLUDE or part.startswith(".") for part in rel.parts):
+            continue
+        out.append(path)
+    return out
+
+
+def _dynamic_getattr_sites() -> set[tuple[str, int]]:
+    """Return ``{(relpath, lineno)}`` for every ``getattr(obj, <expr>)``
+    call where the second argument is *not* a string literal.
+
+    A literal name (``getattr(obj, "field")``) is treated as safe and
+    does not enter the ledger — it is statically analysable and equals
+    plain attribute access.
+    """
+
+    sites: set[tuple[str, int]] = set()
+    for path in _iter_py_files():
+        try:
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+        except (SyntaxError, UnicodeDecodeError):
+            continue
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            func = node.func
+            if not isinstance(func, ast.Name) or func.id != "getattr":
+                continue
+            if len(node.args) < 2:
+                continue
+            name_arg = node.args[1]
+            if isinstance(name_arg, ast.Constant) and isinstance(name_arg.value, str):
+                continue
+            sites.add((str(path.relative_to(ROOT)), node.lineno))
+    return sites
+
+
+# Locked ledger of every production dynamic-name ``getattr(...)`` site.
+# Adding a new caller? Append the (path, line) tuple in the same PR
+# with a justification in the commit message; better yet, prefer a
+# small ``Mapping[str, Callable]`` / TypedDict accessor so the set of
+# valid names is statically visible.
+DYNAMIC_GETATTR_LEDGER: set[tuple[str, int]] = {
+    ("smc_core/event_ledger.py", 72),
+    ("smc_core/scoring.py", 291),
+    ("streamlit_terminal_alerts.py", 34),
+    ("terminal_attention_state.py", 46),
+    ("terminal_catalyst_state.py", 32),
+    ("terminal_live_story_state.py", 43),
+    ("terminal_poller.py", 1154),
+    ("terminal_posture_state.py", 54),
+    ("terminal_reaction_state.py", 50),
+    ("terminal_resolution_state.py", 44),
+}
+
+
+def test_dynamic_getattr_ledger_exact() -> None:
+    sites = _dynamic_getattr_sites()
+
+    unexpected = sites - DYNAMIC_GETATTR_LEDGER
+    assert not unexpected, (
+        "New / drifted dynamic-name getattr(obj, <expr>) call site "
+        "detected. Dynamic reflection defeats static analysis (CWE-470). "
+        "Prefer a small ``Mapping[str, Callable]`` / TypedDict accessor "
+        "so the set of valid names is statically visible. If the dynamic "
+        "lookup is genuinely required, append the (path, line) tuple to "
+        "DYNAMIC_GETATTR_LEDGER with a justification in the commit message.\n"
+        f"unexpected = {sorted(unexpected)}"
+    )
+
+    missing = DYNAMIC_GETATTR_LEDGER - sites
+    assert not missing, (
+        "DYNAMIC_GETATTR_LEDGER entries no longer present in code. If a "
+        "lookup was deliberately removed or refactored to literal "
+        "attribute access, drop the matching tuple from the ledger.\n"
+        f"missing = {sorted(missing)}"
+    )
