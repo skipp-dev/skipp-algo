@@ -83,6 +83,31 @@ def test_tests_dir_is_excluded(sample_repo: Path) -> None:
     assert all("tests/" not in h.path for h in result.hits)
 
 
+def test_exclude_only_applies_to_repo_relative_parts(tmp_path: Path) -> None:
+    """A parent directory named like an excluded part must NOT exclude in-repo files.
+
+    Regression: previously ``py.parts`` was used (absolute parts), so a repo
+    checked out under e.g. ``~/reports/<repo>`` would silently drop every
+    file because ``reports`` is in ``_EXCLUDE_PARTS``. Switched to
+    ``py.relative_to(root).parts``.
+    """
+    parent = tmp_path / "reports" / "myrepo"
+    (parent / "smc_core").mkdir(parents=True)
+    (parent / "smc_core" / "outcomes.py").write_text(
+        "def compute_outcome(): pass\n", encoding="utf-8",
+    )
+    result = sprint_inventory.run_inventory(("outcome",), rel_root=parent)
+    assert any(h.name == "compute_outcome" for h in result.hits), (
+        "in-repo files were dropped because parent path contains 'reports'"
+    )
+
+
+def test_paths_use_posix_separator(sample_repo: Path) -> None:
+    """All emitted paths must use forward slashes for cross-platform output."""
+    result = sprint_inventory.run_inventory(("outcome",), rel_root=sample_repo)
+    assert all("\\" not in h.path for h in result.hits)
+
+
 def test_pycache_is_excluded(sample_repo: Path) -> None:
     result = sprint_inventory.run_inventory(("outcome",), rel_root=sample_repo)
     assert all("__pycache__" not in h.path for h in result.hits)

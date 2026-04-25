@@ -37,9 +37,13 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
-# Production scope — same packages as ``[tool.coverage.run] source`` in
-# ``pyproject.toml`` plus the standalone ``terminal_*`` / ``databento_*``
-# / top-level scripts. ``tests/`` is excluded by design; ``__pycache__``,
+# Production scope. Top-level standalone modules (``terminal_*``,
+# ``databento_*``, ``streamlit_*`` and other repo-root ``*.py``) are
+# picked up via the explicit ``root.glob("*.py")`` in
+# ``_iter_python_files``. Sub-package directories listed below are
+# the production package set surfaced by the layout in ``pyproject.toml``
+# (``[tool.setuptools] packages``) plus ``scripts/`` for the standalone
+# CLI entry points. ``tests/`` is excluded by design; ``__pycache__``,
 # ``.venv``, and ``artifacts/`` are excluded for noise.
 _INCLUDE_DIRS: tuple[str, ...] = (
     "newsstack_fmp",
@@ -50,7 +54,6 @@ _INCLUDE_DIRS: tuple[str, ...] = (
     "smc_tv_bridge",
     "terminal_tabs",
     "scripts",
-    "smc_core",
 )
 _EXCLUDE_PARTS: frozenset[str] = frozenset({
     "__pycache__",
@@ -82,7 +85,7 @@ class _InventoryResult:
 
 
 def _iter_python_files(root: Path) -> list[Path]:
-    """Yield every production ``*.py`` under repo, excluding noise dirs."""
+    """Return every production ``*.py`` under repo, excluding noise dirs."""
     out: list[Path] = []
     # Top-level standalone modules (terminal_*, databento_*, streamlit_*,
     # SMC_*.pine is excluded automatically by the .py glob).
@@ -95,13 +98,15 @@ def _iter_python_files(root: Path) -> list[Path]:
         if not sub_path.is_dir():
             continue
         for py in sorted(sub_path.rglob("*.py")):
-            if any(part in _EXCLUDE_PARTS for part in py.parts):
+            # Use the repo-relative parts so a parent directory named like
+            # an excluded segment (e.g. cwd under ``~/reports/...``)
+            # cannot accidentally exclude in-repo files.
+            if any(part in _EXCLUDE_PARTS for part in py.relative_to(root).parts):
                 continue
             if py.name.startswith("test_"):
                 continue
             out.append(py)
-    # De-duplicate (scripts/ overlaps with top-level glob? It doesn't, but
-    # be explicit so the loop above can be reordered without surprise).
+    # De-duplicate while preserving discovery order.
     seen: set[Path] = set()
     deduped: list[Path] = []
     for p in out:
@@ -133,7 +138,8 @@ def _scan_file(path: Path, keywords: tuple[str, ...], rel_root: Path) -> list[_H
         source = path.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError):
         return []
-    rel = str(path.relative_to(rel_root))
+    # Normalize to posix separators so output is identical on Windows.
+    rel = path.relative_to(rel_root).as_posix()
 
     hits: list[_Hit] = []
 
