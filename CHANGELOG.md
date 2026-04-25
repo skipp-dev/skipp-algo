@@ -24,6 +24,19 @@ All notable changes to this project are documented in this file.
     (Databento/Finnhub/FMP) that already centralise retry/auth/telemetry.
 - Defense-only — no production changes.
 
+### Tests / Quality (2026-04-25) — Hotfix: ledger line-number drift after upstream merges
+
+- Bumped frozen line numbers in two ledger tests after an upstream
+  insertion in `open_prep/realtime_signals.py` and
+  `databento_volatility_screener.py` shifted production lines by +1:
+  - `tests/test_hashlib_weak_hash_ledger.py`: `realtime_signals.py`
+    `md5` site `1009 → 1010`.
+  - `tests/test_nonlocal_budget.py`: `databento_volatility_screener.py`
+    `4686/4687/4688/4689 → 4687/4688/4689/4690`
+    (`_fast_progress_pct/_step/_total/_eta_smooth_seconds`).
+- Defense-only — no production changes. Unblocks `main` and the open
+  defense-pin queue.
+
 ### Tests / Quality (2026-04-25) — Defense pin: exec / tempfile.mktemp / subprocess shell=True zero-surface
 
 - Added `tests/test_exec_mktemp_shelltrue_zero_surface.py` (3 tests)

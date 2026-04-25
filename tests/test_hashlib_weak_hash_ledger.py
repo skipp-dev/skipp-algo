@@ -60,7 +60,7 @@ _FROZEN_SITES: dict[str, dict[str, frozenset[int]]] = {
         "sha1": frozenset({183}),
     },
     "open_prep/dirty_flag_manager.py": {"md5": frozenset({74})},
-    "open_prep/realtime_signals.py": {"md5": frozenset({1009})},
+    "open_prep/realtime_signals.py": {"md5": frozenset({1010})},
     "terminal_poller.py": {"md5": frozenset({189, 228})},
 }
 
