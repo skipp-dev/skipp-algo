@@ -20,6 +20,7 @@ from scripts.generate_smc_micro_profiles import (
     write_pine_library,
     write_readiness_report,
 )
+from scripts.smc_atomic_write import atomic_write_csv
 from scripts.smc_enrichment_types import EnrichmentDict
 from scripts.smc_micro_generator import GenerationResult
 
@@ -52,8 +53,8 @@ def publish_generation_result(
     state_path.parent.mkdir(parents=True, exist_ok=True)
 
     # Write data artifacts
-    result.features_df.to_csv(features_path, index=False)
-    result.state_df.to_csv(state_path, index=False)
+    atomic_write_csv(result.features_df, features_path, index=False)
+    atomic_write_csv(result.state_df, state_path, index=False)
     write_lists_csv(lists_path, result.state_df, result.asof_date)
     write_diff_report(diff_report_path, result.previous_state, result.state_df, result.asof_date)
 

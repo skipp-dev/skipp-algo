@@ -11,6 +11,7 @@ from typing import Any, cast
 import pandas as pd
 
 from smc_core.schema_version import SCHEMA_VERSION, VersionChangeType, classify_version_change
+from scripts.smc_atomic_write import atomic_write_csv
 from scripts.smc_enrichment_types import EnrichmentDict
 
 logger = logging.getLogger(__name__)
@@ -1176,7 +1177,7 @@ def write_lists_csv(path: Path, state: pd.DataFrame, asof_date: str) -> None:
     rows.sort(key=lambda record: (str(record.get("list_name", "")), str(record.get("symbol", ""))))
     active = pd.DataFrame(rows, columns=["symbol", "list_name", "active_since", "last_score", "decision_source", "decision_reason"])
     active.insert(0, "asof_date", asof_date)
-    active.to_csv(path, index=False)
+    atomic_write_csv(active, path, index=False)
 
 
 def write_diff_report(path: Path, previous_state: pd.DataFrame, new_state: pd.DataFrame, asof_date: str) -> None:

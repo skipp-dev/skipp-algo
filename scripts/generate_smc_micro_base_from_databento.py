@@ -17,6 +17,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from scripts.generate_smc_micro_profiles import load_schema, write_pine_library
+from scripts.smc_atomic_write import atomic_write_csv, atomic_write_text
 from scripts.smc_microstructure_base_runtime import (
     ETF_KEYWORDS,
     MappingStatus,
@@ -1805,9 +1806,9 @@ def main() -> None:
     report_json = args.report_json or default_json
     output_csv.parent.mkdir(parents=True, exist_ok=True)
     report_json.parent.mkdir(parents=True, exist_ok=True)
-    output.to_csv(output_csv, index=False)
+    atomic_write_csv(output, output_csv, index=False)
     write_mapping_report(report_md, payload)
-    report_json.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    atomic_write_text(json.dumps(payload, indent=2) + "\n", report_json)
 
 
 def _resolve_enrichment_flags(args: argparse.Namespace) -> dict[str, bool]:

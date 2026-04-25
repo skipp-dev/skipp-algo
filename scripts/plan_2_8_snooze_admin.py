@@ -54,6 +54,10 @@ def _save(path: Path, data: dict[str, Any]) -> None:
     )
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            # ATOMIC-WRITE-EXEMPT: target ``fh`` is the tempfile descriptor
+            # opened above; ``os.replace(tmp, path)`` below makes the write
+            # atomic. Equivalent to ``atomic_write_json`` but inline because
+            # we need a trailing newline + sort_keys=False semantics.
             json.dump(data, fh, indent=2, sort_keys=False)
             fh.write("\n")
         os.replace(tmp, path)

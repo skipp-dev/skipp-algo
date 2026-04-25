@@ -72,6 +72,7 @@ from scripts.databento_production_workbook import (
     write_databento_production_workbook_from_frames,
 )
 from scripts.market_structure_features import build_market_structure_feature_frame
+from scripts.smc_atomic_write import atomic_write_csv
 
 
 # Compatibility seam for tests: keep the historic patch target while still
@@ -1738,7 +1739,7 @@ def _write_csv_exports(export_dir: Path, named_frames: dict[str, pd.DataFrame]) 
     export_dir.mkdir(parents=True, exist_ok=True)
     for name, frame in named_frames.items():
         path = export_dir / f"{name}.csv"
-        frame.to_csv(path, index=False)
+        atomic_write_csv(frame, path, index=False)
         created[name] = path
     return created
 
