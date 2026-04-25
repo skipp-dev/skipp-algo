@@ -277,6 +277,21 @@ All notable changes to this project are documented in this file.
      Name muss tatsächlich auf Top-Level definiert oder importiert sein
      (inkl. Top-Level-If/Try-Blöcken für Optional-Dependency-Patterns).
      Fängt den klassischen "Helper gelöscht, `__all__` vergessen"-Bug.
+
+### Tests / Quality (2026-04-24) — Pine same-TF `request.security` + legacy root tripwires
+
+- Neuer Pin [`tests/test_pine_audit_pins.py`](tests/test_pine_audit_pins.py)
+  bündelt zwei Pine-spezifische Defense-Layer:
+  1. **Same-TF `request.security`-Tripwire** verbietet das stille
+     No-Op-Pattern `request.security(syminfo.tickerid, timeframe.period, …)`,
+     das nur die aktuelle Bar zurückgibt und unnötig die Cross-Script-
+     Latenz zahlt. Aktuell 0 Treffer in allen `*.pine`-Dateien.
+  2. **Pine-Legacy-Root-Tripwire** sperrt die 23 nach `pine/legacy/`
+     verschobenen Skripte (BFI/CHOCH/QuickALGO/REV/USI/VWAP/etc.)
+     gegen ein Wieder-Auftauchen im Repo-Root. Bidirektionaler
+     Inventar-Check stellt sicher, dass die Ledger-Einträge unter
+     `pine/legacy/` existieren — verhindert Silent-Drift in beide
+     Richtungen.
 - Defense-only, keine Production-Änderungen.
 
 ### Tests / Quality (2026-04-24) — `# type: ignore` per-file count budget
