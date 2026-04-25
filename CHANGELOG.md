@@ -6,6 +6,103 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Fixed (2026-04-25) — `_FROZEN_URLOPEN_SITES` Line Bump
+
+- `tests/test_http_client_discipline.py`:
+  bump `_FROZEN_URLOPEN_SITES` entry for `databento_volatility_screener.py`
+  from line 1102 → 1109. The `urlopen(request, timeout=30, context=_ssl_ctx)`
+  in `_download_nasdaq_trader_text` shifted 7 lines down after a
+  `logger.warning(...)` was inserted above it (same root cause as the
+  env-subscript bump in PR #184). Pure line drift; the call still passes
+  `timeout=`.
+
+### Fixed (2026-04-25) — `_ALLOWED` Workflow continue-on-error Line Bumps
+
+- `tests/test_workflow_continue_on_error_inventory.py`:
+  re-sync `_ALLOWED` line numbers for 5 workflows after upstream YAML
+  edits. All entries are pure line drift; the same set of best-effort
+  hops remains tolerated:
+  - `smc-live-newsapi-refresh.yml`: 104 → 106
+  - `smc-library-refresh.yml`: {162, 370, 583, 723, 740} → {165, 376, 592, 735, 755}
+  - `smc-deeper-integration-gates.yml`: {51, 92} → {54, 98}
+  - `plan-2-8-weekly-digest.yml`: {441, 655, 931} → {444, 661, 940}
+  - `smc-release-gates.yml`: 169 → 172
+
+### Fixed (2026-04-25) — `_FROZEN_ENV_SUBSCRIPT_SITES` Line Bump
+
+- `tests/test_mutable_defaults_and_loads_pins.py`:
+  bump frozen `os.environ[X]` subscript ledger entry for
+  `databento_volatility_screener.py` from line 773 → 780. The
+  assignment `os.environ[env_name] = cafile` shifted 7 lines down
+  after a `logger.warning(...)` was inserted above it (no functional
+  change). This unblocks the CI `validate` check that was failing
+  on every PR with `AssertionError: New os.environ[X] subscript
+  site(s)`.
+
+### Fixed (2026-04-25) — Reconcile assert ledger after zero-budget migration
+
+- `tests/test_assert_and_open_encoding_pin.py`:
+  drop `_FROZEN_ASSERT_COUNTS` to `{}`. The four prod `assert`
+  sites pinned by PR #166 were migrated to explicit `raise` blocks
+  in PR #171 (zero-budget pin). The legacy ledger was never updated,
+  so `test_assert_total_frozen` failed with `expected 4, got 0` on
+  every PR. The `test_assert_no_new_files` guard remains in place
+  (now paired with the dedicated zero-budget pin from #171).
+
+### Fixed (2026-04-25) — `broad_except_silent` Line Bump
+
+- `tests/test_broad_except_silent_budget.py`:
+  bump `_FROZEN_SITES` entry for `newsstack_fmp/ingest_benzinga.py`
+  from line 546 → 547. The `except Exception:` around `ws.send(auth_msg)`
+  shifted by one line after upstream edits. Pure line drift; identical
+  silent-handler kept. Same drift class as the env-subscript bump above.
+
+### Tests / Quality (2026-04-25) — Extend CHANGELOG ALLOWED_CATEGORIES
+
+- `tests/test_changelog_format_lint.py`:
+  add `Hardening`, `Tests / Quality / Pine`, `Tests / Quality / Workflows`
+  to `ALLOWED_CATEGORIES`. All three are in active use in `[Unreleased]`
+  (introduced by merged PRs #170, #171, #177, #131, #130 etc.).
+  The whitelist had lagged real usage, so the lint test was failing
+  on `main`; it was masked by `pytest --maxfail=1` + alphabetical
+  ordering (the assert-ledger drift fixed above failed first).
+
+### Hardening (2026-04-25) — Pin: `sys.exit` 7-Site Ledger + bare `exit/quit` Tripwire
+
+- Neuer Pin [`tests/test_sys_exit_ledger_pin.py`](tests/test_sys_exit_ledger_pin.py)
+  mit 2 Layern:
+  1. **`sys.exit` 7-Site Frozen Ledger** — alle CLI/`__main__`-Guards:
+     `open_prep/{candidate_weights:241, feature_importance_report:351,
+     outcome_backfill:529}`, `pine_input_surface.py:{400,402}`,
+     `test_usi_lint.py:{90,93}`. Library-Code muss `raise`-en, nicht
+     den Prozess killen.
+  2. **Bare `exit()` / `quit()` Zero-Tripwire** — REPL-Helper, fehlen
+     in embedded interpreters / stripped builds → Crash-on-Import.
+     Heute 0.
+- 10/10 Tests grün (1× tripwire + 2× ledger guards + 7× parametrised existence).
+- Defense-only.
+- OWASP A09 (Logging & Monitoring Failures — silent process termination).
+
+### Hardening (2026-04-25) — `assert` → `raise` Migration (Production)
+
+- Migration der 4 verbliebenen `assert`-Statements in First-Party-Production
+  zu expliziten `if … : raise RuntimeError(...)`-Blöcken:
+  - `databento_universe.py:314` (retry-loop type-narrowing)
+  - `databento_volatility_screener.py:1116` (retry-loop type-narrowing)
+  - `newsstack_fmp/ingest_benzinga.py:211` (HTTPStatusError response narrowing)
+  - `newsstack_fmp/shared_fetch.py:128` (cached_payload narrowing nach reusability check)
+- Hintergrund: `assert`-Statements werden unter `python -O` (Optimisation
+  Mode) silently stripped — Type-Narrowing-Asserts kollabieren dann zu
+  latenten `AttributeError`/`TypeError`-Bugs irgendwo downstream. Explizite
+  `raise`-Statements überleben `-O` und liefern eine deterministische,
+  diagnoseable Fehlerklasse.
+- Pin: `tests/test_no_prod_assert_pin.py` (2 Layers — global zero-budget
+  + parametrised per-site sentinel). Verhindert Regression. Ledger im
+  bestehenden `tests/test_assert_and_open_encoding_pin.py` (PR #166)
+  bleibt als Obergrenze; dieser Pin enforced den jetzigen Zustand (0).
+- Verhalten: Bei legitimer "this can't happen"-Zustand wird `RuntimeError`
+  geworfen statt `AssertionError`. Keine ID-Rotation, keine Schema-Änderung.
+
 ### Defense (2026-04-25) — Pine `var` / `varip` Declaration-Budget Pin
 
 - Neuer `tests/test_pine_var_budget_pin.py` mit 4 Layers:
