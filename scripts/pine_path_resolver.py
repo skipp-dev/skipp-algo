@@ -20,7 +20,12 @@ from typing import Sequence
 
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-SEARCH_DIRS: tuple[Path, ...] = (REPO_ROOT, REPO_ROOT / "pine" / "legacy")
+# Single source of truth for the LEGACY pine directory location (H-8,
+# system review 2026-04-24). All non-test code that needs to address
+# this directory MUST import :data:`PINE_LEGACY_DIR` rather than
+# rebuilding ``"pine/legacy"`` as a string literal.
+PINE_LEGACY_DIR: Path = REPO_ROOT / "pine" / "legacy"
+SEARCH_DIRS: tuple[Path, ...] = (REPO_ROOT, PINE_LEGACY_DIR)
 
 
 class CollisionError(RuntimeError):

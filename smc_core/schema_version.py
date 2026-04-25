@@ -21,6 +21,23 @@ from enum import Enum
 SCHEMA_VERSION = "3.0.0"
 
 
+# ---------------------------------------------------------------------------
+# Sub-artifact schema versions (H-6, system review 2026-04-24).
+# Single source of truth for downstream-persisted schemas. Each entry
+# tracks a separate artifact family with its own evolution cadence:
+#
+#   * EVENT_LEDGER_SCHEMA_VERSION — JSONL records emitted by
+#     :mod:`smc_core.event_ledger`. Bumped on field add/remove.
+#   * SESSION_SCHEMA_VERSION — Streamlit-app derived-state cache key
+#     (``streamlit_terminal`` + ``databento_volatility_screener``).
+#     Date-suffix scheme (``YYYY-MM-DD.N``) intentionally distinct
+#     from semver because it busts in-memory derived caches, not a
+#     persisted on-disk schema.
+# ---------------------------------------------------------------------------
+EVENT_LEDGER_SCHEMA_VERSION = "1.0"
+SESSION_SCHEMA_VERSION = "2026-04-24.0"
+
+
 class VersionChangeType(str, Enum):
     """Classification of a semver transition."""
 

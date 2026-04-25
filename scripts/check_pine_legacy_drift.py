@@ -33,6 +33,8 @@ import re
 import sys
 from pathlib import Path
 
+from scripts.pine_path_resolver import PINE_LEGACY_DIR
+
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 INDEX_FILE = REPO_ROOT / "PINE_LEGACY.md"
@@ -102,7 +104,16 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
-    legacy_dir = args.legacy_dir if args.legacy_dir is not None else args.root / "pine" / "legacy"
+    if args.legacy_dir is not None:
+        legacy_dir = args.legacy_dir
+    elif args.root == PINE_LEGACY_DIR.parent.parent:
+        # Default repo layout — use the canonical constant so the
+        # location stays single-sourced (H-8).
+        legacy_dir = PINE_LEGACY_DIR
+    else:
+        # Test/alternate roots: derive from the supplied --root so the
+        # CLI remains relocatable.
+        legacy_dir = args.root / "pine" / "legacy"
     root_files = list_root_pine_files(args.root)
     legacy_files = list_legacy_pine_files(legacy_dir)
     actual = root_files | legacy_files

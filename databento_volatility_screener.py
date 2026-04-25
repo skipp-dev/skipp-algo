@@ -51,7 +51,8 @@ logger = logging.getLogger(__name__)
 # A-3: Bump when the shape of dvs_watchlist_result / dvs_bullish_quality_result
 # (or any cached-derived dvs_* session_state entry) changes. See the
 # invalidation block in run_streamlit_app() for the affected keys.
-_DVS_SESSION_SCHEMA_VERSION = "2026-04-24.0"
+# Source of truth: smc_core.schema_version.SESSION_SCHEMA_VERSION (H-6).
+from smc_core.schema_version import SESSION_SCHEMA_VERSION as _DVS_SESSION_SCHEMA_VERSION
 
 _API_KEY_REDACTION_PATTERNS = (
     re.compile(r"(api[_-]?key=)([^&\s]+)", flags=re.IGNORECASE),
