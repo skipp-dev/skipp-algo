@@ -6,6 +6,24 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Tests / Quality (2026-04-25) — Defense ledger: `os.unlink` / `os.remove` (23 sites)
+
+- Added `tests/test_os_unlink_remove_ledger.py` (1 test) pinning every
+  production `os.unlink(...)` / `os.remove(...)` call site (23 entries
+  spanning the open-prep pipeline, terminal export, and newsstack
+  helpers). File deletion is destructive and irreversible — locking
+  the locations means:
+  - drift detection: any line shift surfaces in the same PR (same
+    pattern as `test_hashlib_weak_hash_ledger.py` /
+    `test_nonlocal_budget.py` / `test_warnings_simplefilter_ledger.py`);
+  - growth gate: new callers must explicitly extend the ledger with a
+    justification in the commit message;
+  - surface map: doubles as a quick audit of every place the codebase
+    deletes a file. Complements
+    `tests/test_dangerous_io_zero_surface_pin.py` which already
+    confines `shutil.rmtree(...)` to `scripts/`.
+- Defense-only — no production changes.
+
 ### Tests / Quality (2026-04-25) — Defense pin: `atexit.register(...)` zero-surface
 
 - Added `tests/test_atexit_register_zero_surface.py` (1 test) pinning
