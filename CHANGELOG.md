@@ -6,6 +6,26 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Hardening (2026-04-25) — `assert` → `raise` Migration (Production)
+
+- Migration der 4 verbliebenen `assert`-Statements in First-Party-Production
+  zu expliziten `if … : raise RuntimeError(...)`-Blöcken:
+  - `databento_universe.py:314` (retry-loop type-narrowing)
+  - `databento_volatility_screener.py:1116` (retry-loop type-narrowing)
+  - `newsstack_fmp/ingest_benzinga.py:211` (HTTPStatusError response narrowing)
+  - `newsstack_fmp/shared_fetch.py:128` (cached_payload narrowing nach reusability check)
+- Hintergrund: `assert`-Statements werden unter `python -O` (Optimisation
+  Mode) silently stripped — Type-Narrowing-Asserts kollabieren dann zu
+  latenten `AttributeError`/`TypeError`-Bugs irgendwo downstream. Explizite
+  `raise`-Statements überleben `-O` und liefern eine deterministische,
+  diagnoseable Fehlerklasse.
+- Pin: `tests/test_no_prod_assert_pin.py` (2 Layers — global zero-budget
+  + parametrised per-site sentinel). Verhindert Regression. Ledger im
+  bestehenden `tests/test_assert_and_open_encoding_pin.py` (PR #166)
+  bleibt als Obergrenze; dieser Pin enforced den jetzigen Zustand (0).
+- Verhalten: Bei legitimer "this can't happen"-Zustand wird `RuntimeError`
+  geworfen statt `AssertionError`. Keine ID-Rotation, keine Schema-Änderung.
+
 ### Hardening (2026-04-25) — `usedforsecurity=False` Flag auf allen md5/sha1-Aufrufen
 
 - An 7 Sites `usedforsecurity=False` zu bestehenden `hashlib.md5(...)` /
