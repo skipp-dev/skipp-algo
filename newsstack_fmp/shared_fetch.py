@@ -125,7 +125,8 @@ def fetch_cached_batch(
     with _file_lock(lock_path):
         cached_payload = _read_payload(cache_path)
         if _payload_is_reusable(cached_payload, ttl_seconds=effective_ttl_seconds, min_cursor=min_cursor):
-            assert cached_payload is not None
+            if cached_payload is None:
+                raise RuntimeError("_payload_is_reusable returned True for None payload")
             return _filtered_batch(_payload_to_batch(provider, cached_payload, from_cache=True), min_cursor=min_cursor)
 
         raw_items = _coerce_news_items(fetcher())
