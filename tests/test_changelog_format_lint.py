@@ -45,9 +45,11 @@ ALLOWED_CATEGORIES = frozenset({
     "Evidence",
     "Verification",
     "Hardening",
+    "Defense",
+    "Fixes & Pins",
 })
 
-_CATEGORY_RE = re.compile(r"^###\s+([A-Za-z][A-Za-z /]*?)(?:\s*\(|\s*—|\s*-|\s*$)")
+_CATEGORY_RE = re.compile(r"^###\s+([A-Za-z][A-Za-z /&]*?)(?:\s*\(|\s*—|\s*-|\s*$)")
 
 
 def _read_unreleased_block() -> list[str]:

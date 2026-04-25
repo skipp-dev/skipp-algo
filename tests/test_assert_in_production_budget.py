@@ -22,14 +22,7 @@ _DIR_EXCLUDE = frozenset(
     }
 )
 
-_FROZEN_SITES: frozenset[tuple[str, int]] = frozenset(
-    {
-        ("databento_volatility_screener.py", 1109),
-        ("databento_universe.py", 314),
-        ("newsstack_fmp/ingest_benzinga.py", 211),
-        ("newsstack_fmp/shared_fetch.py", 128),
-    }
-)
+_FROZEN_SITES: frozenset[tuple[str, int]] = frozenset()
 
 
 def _iter_first_party_py_files() -> list[Path]:

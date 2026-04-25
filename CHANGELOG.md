@@ -6,6 +6,46 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Fixed (2026-04-25) — Restore Missing HERO Vocab Constants + Bundled Ledger Drift (Main-RED Hotfix)
+
+- **Primary fix:** `scripts/smc_hero_state.py`: restore `HERO_BIAS_VOCAB`,
+  `HERO_MARKET_MODE_VOCAB`, and `HERO_RISK_VOCAB` (plus their per-value
+  string constants and the `HERO_RISK_NONE = ""` Pine boundary sentinel)
+  that were referenced by tests landed via PR #143 ("recover PR #126
+  onto main") but whose production-side counterparts were never folded
+  into `main`. CI on `main` was failing at COLLECTION with
+  `ImportError: cannot import name 'HERO_BIAS_VOCAB'` since
+  `ebcd622f`, blocking every open auto-merge PR (#150/#174/#175/#176).
+- Refactor `_derive_bias`, `_derive_action`, and `_derive_risk` to
+  return the named constants instead of bare string literals. Pure
+  behavioural no-op — every literal value is preserved exactly,
+  including the empty-string sentinel that gates
+  `SMC_Dashboard.pine:1769` (`mp.HERO_RISK != ""`).
+- Source-of-truth: extracted from PR #123
+  (`chore/smc-system-review-2026-04-24`), which carries the production
+  half of ADR-0006 but is otherwise blocked by extensive add/add
+  conflicts with the freshly-merged pin wave.
+- **Bundled drift fixes (only surfaced once collection succeeds):**
+  - `tests/test_changelog_format_lint.py`: extend `ALLOWED_CATEGORIES`
+    with `Defense` and `Fixes & Pins`; widen `_CATEGORY_RE` to allow
+    `&` so multi-word categories like `Fixes & Pins` parse cleanly.
+  - `tests/test_assert_and_open_encoding_pin.py`: drop both entries
+    from `_FROZEN_OPEN_COUNTS` — `open_prep/realtime_signals.py` and
+    `test_usi_lint.py` no longer have any text-mode `open()` without
+    `encoding=` (PR #138 cleared them; the pin was never bumped).
+  - `tests/test_assert_in_production_budget.py`: clear `_FROZEN_SITES`
+    to `frozenset()` — all 4 production `assert` sites
+    (`databento_volatility_screener`, `databento_universe`,
+    `newsstack_fmp/ingest_benzinga`, `newsstack_fmp/shared_fetch`)
+    were already removed.
+  - `tests/test_nonlocal_budget.py`: bump 4 `databento_volatility_screener.py`
+    `_fast_progress_*` / `_fast_eta_smooth_seconds` lines 4678–4681 → 4686–4689.
+  - `tests/test_time_sleep_budget.py`: bump
+    `newsstack_fmp/shared_fetch.py` 272 → 273.
+- Local pin sweep: `pytest -k "ledger or pin or budget or format_lint or vocab or hero"`
+  → 2439 passed, 5 skipped (was: ImportError at collection on `main`,
+  cascading 14+ test failures behind it).
+
 ### Fixed (2026-04-25) — `_FROZEN_URLOPEN_SITES` Line Bump
 
 - `tests/test_http_client_discipline.py`:

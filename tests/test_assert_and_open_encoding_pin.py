@@ -139,10 +139,7 @@ def test_assert_files_exist(rel: str) -> None:
 # Layer B — text-mode `open()` without `encoding=`
 # ---------------------------------------------------------------------------
 
-_FROZEN_OPEN_COUNTS: dict[str, int] = {
-    "open_prep/realtime_signals.py": 2,
-    "test_usi_lint.py": 1,
-}
+_FROZEN_OPEN_COUNTS: dict[str, int] = {}
 _FROZEN_OPEN_TOTAL = sum(_FROZEN_OPEN_COUNTS.values())
 
 
