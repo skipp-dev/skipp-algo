@@ -71,7 +71,7 @@ def _make_fingerprint(features: dict[str, Any]) -> str:
         else:
             parts.append(f"{key}=None")
     raw = "|".join(parts)
-    return hashlib.md5(raw.encode("utf-8")).hexdigest()
+    return hashlib.md5(raw.encode("utf-8"), usedforsecurity=False).hexdigest()
 
 
 class PipelineDirtyManager:
