@@ -26,6 +26,21 @@ New `tests/test_urllib_urlopen_ledger.py` (7 tests) — sister of the
 All 4 currently pass `timeout=10` or `timeout=15`. Defense-only — no
 production changes.
 
+### Tests / Quality (2026-04-25) — Defense pin: tempfile.NamedTemporaryFile mandatory delete= kwarg
+
+New `tests/test_tempfile_namedtemp_delete_kwarg_invariant.py` (1
+test) freezes the call shape: every
+`tempfile.NamedTemporaryFile(...)` MUST pass `delete=` as an
+explicit keyword argument. The default `delete=True` is the wrong
+default for the atomic-write pattern used throughout this repo
+(open temp → write → fsync → `os.replace`); without `delete=False`
+the temp file vanishes before the rename and corrupts output.
+
+Sister of #176 (which freezes the *inventory* of `tempfile.*` calls);
+this pin freezes a *call shape* — different layer, same defense.
+All 3 current `NamedTemporaryFile` sites already pass
+`delete=False`. Defense-only — no production changes.
+
 ### Tests / Quality (2026-04-25) — Defense pin: os.environ mutation site ledger
 
 New `tests/test_os_environ_mutation_ledger.py` (AST-based, 13 tests) freezes
