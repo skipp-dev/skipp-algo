@@ -10,9 +10,8 @@ known foot-gun:
   thread (e.g. a daemon worker that owns a websocket session).
 * When mis-applied it leaks loops, double-installs handlers,
   competes with ``asyncio.run`` on the same thread, and produces
-  the dreaded ``RuntimeError: There is no current event loop in
-  thread 'X'`` / ``This event loop is already running`` failures
-  in tests.
+  the dreaded ``RuntimeError: There is no current event loop in thread 'X'``
+  / ``This event loop is already running`` failures in tests.
 
 Today the production tree has exactly one legitimate usage pair —
 the ``BenzingaWsAdapter._run_loop`` daemon-thread entry point in
@@ -61,12 +60,16 @@ def _iter_py_files() -> list[Path]:
 
 
 def _asyncio_attr_call_sites(attr: str) -> set[tuple[str, int]]:
-    """Return ``{(relpath, lineno)}`` for ``asyncio.<attr>(...)`` calls.
+    """Return ``{(relpath, lineno)}`` for literal ``asyncio.<attr>(...)`` calls.
 
-    Detects the ``asyncio.<attr>`` shape (the only shape used in the
-    tree). Matching by attribute on a ``Name('asyncio')`` keeps the
-    pin precise — re-bound aliases would intentionally trip the
-    ``unexpected`` assertion.
+    Detects only the ``asyncio.<attr>`` shape currently used in the
+    tree: an attribute call whose receiver is exactly ``Name('asyncio')``.
+    This helper does *not* resolve imported aliases or direct-name imports,
+    so forms like ``import asyncio as aio; aio.<attr>(...)`` and
+    ``from asyncio import <attr>; <attr>(...)`` are intentionally out of
+    scope for this pin — adding such a form would bypass the allow-list.
+    The companion ``test_asyncio_alias_import_zero_surface_pin`` below
+    fails closed if either alias form appears in production code.
     """
 
     sites: set[tuple[str, int]] = set()
@@ -85,7 +88,7 @@ def _asyncio_attr_call_sites(attr: str) -> set[tuple[str, int]]:
                 continue
             if not (isinstance(func.value, ast.Name) and func.value.id == "asyncio"):
                 continue
-            sites.add((str(path.relative_to(ROOT)), node.lineno))
+            sites.add((path.relative_to(ROOT).as_posix(), node.lineno))
     return sites
 
 
@@ -99,6 +102,61 @@ NEW_EVENT_LOOP_ALLOWED: set[tuple[str, int]] = {
 SET_EVENT_LOOP_ALLOWED: set[tuple[str, int]] = {
     ("newsstack_fmp/ingest_benzinga.py", 510),
 }
+
+
+def _asyncio_alias_or_direct_import_sites() -> set[tuple[str, int, str]]:
+    """Return ``(path, lineno, form)`` for any aliased / direct ``asyncio`` import.
+
+    Catches ``import asyncio as <alias>`` and
+    ``from asyncio import <name>``, both of which would let a future
+    caller bypass the literal ``asyncio.<attr>(...)`` pins.
+    """
+
+    found: set[tuple[str, int, str]] = set()
+    for path in _iter_py_files():
+        try:
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+        except (SyntaxError, UnicodeDecodeError):
+            continue
+        rel = path.relative_to(ROOT).as_posix()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    if alias.name == "asyncio" and alias.asname:
+                        found.add((rel, node.lineno, f"import asyncio as {alias.asname}"))
+            elif isinstance(node, ast.ImportFrom) and node.module == "asyncio" and node.level == 0:
+                for alias in node.names:
+                    found.add((rel, node.lineno, f"from asyncio import {alias.name}"))
+    return found
+
+
+def test_asyncio_inventory_sane() -> None:
+    # Guard against silent coverage loss (sparse checkout, layout change,
+    # CI misconfiguration). The repo has well over 100 first-party .py
+    # files; a sudden drop to a handful means the AST scan saw nothing
+    # and would silently false-pass.
+    files = _iter_py_files()
+    assert len(files) >= 50, (
+        f"first-party python file count collapsed to {len(files)} — "
+        "the AST scan is likely seeing an empty tree, which would let "
+        "new asyncio.new_event_loop / set_event_loop callers slip in "
+        "unnoticed."
+    )
+
+
+def test_asyncio_alias_import_zero_surface_pin() -> None:
+    # The literal-attribute pins below only catch ``asyncio.<attr>(...)``.
+    # Aliased imports (``import asyncio as aio``) and direct imports
+    # (``from asyncio import new_event_loop``) would silently bypass them.
+    # Forbid both forms so the pin's narrow scope can't be circumvented.
+    found = _asyncio_alias_or_direct_import_sites()
+    assert not found, (
+        "Aliased or direct ``asyncio`` import detected. These forms "
+        "bypass the literal ``asyncio.<attr>(...)`` pins below. Use "
+        "plain ``import asyncio`` and qualified ``asyncio.<attr>(...)`` "
+        "calls only.\n"
+        f"found = {sorted(found)}"
+    )
 
 
 def test_asyncio_new_event_loop_zero_surface_pin() -> None:
