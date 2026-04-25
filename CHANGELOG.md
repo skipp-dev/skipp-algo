@@ -6,6 +6,22 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Hardening (2026-04-25) — Pin: `sys.exit` 7-Site Ledger + bare `exit/quit` Tripwire
+
+- Neuer Pin [`tests/test_sys_exit_ledger_pin.py`](tests/test_sys_exit_ledger_pin.py)
+  mit 2 Layern:
+  1. **`sys.exit` 7-Site Frozen Ledger** — alle CLI/`__main__`-Guards:
+     `open_prep/{candidate_weights:241, feature_importance_report:351,
+     outcome_backfill:529}`, `pine_input_surface.py:{400,402}`,
+     `test_usi_lint.py:{90,93}`. Library-Code muss `raise`-en, nicht
+     den Prozess killen.
+  2. **Bare `exit()` / `quit()` Zero-Tripwire** — REPL-Helper, fehlen
+     in embedded interpreters / stripped builds → Crash-on-Import.
+     Heute 0.
+- 10/10 Tests grün (1× tripwire + 2× ledger guards + 7× parametrised existence).
+- Defense-only.
+- OWASP A09 (Logging & Monitoring Failures — silent process termination).
+
 ### Hardening (2026-04-25) — `assert` → `raise` Migration (Production)
 
 - Migration der 4 verbliebenen `assert`-Statements in First-Party-Production
