@@ -14,7 +14,7 @@ integrity (webhook signing) and constant-time secret comparison
   fine, but each one MUST be appended to the allow-list below to
   prove a security review happened.
 
-This test only enumerates ``(path, line)`` for every
+This test only enumerates ``(path, line, attr)`` for every
 ``hmac.<attr>(...)`` call discovered via AST.  It does not import
 production modules and does not modify any production file.
 """
@@ -53,9 +53,10 @@ def _iter_py_files() -> list[Path]:
     out: list[Path] = []
     for p in ROOT.rglob("*.py"):
         rel_parts = p.relative_to(ROOT).parts
-        if any(part in _DIR_EXCLUDE for part in rel_parts[:-1]):
-            continue
-        if rel_parts[0] in _DIR_EXCLUDE:
+        # Exclude dot-directories and any path segment matching an
+        # excluded directory name. Single check covers both nested
+        # and top-level cases.
+        if any(part in _DIR_EXCLUDE or part.startswith(".") for part in rel_parts[:-1]):
             continue
         out.append(p)
     return out
