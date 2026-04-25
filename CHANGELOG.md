@@ -6,6 +6,17 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Fix (2026-04-25) — `_FROZEN_ENV_SUBSCRIPT_SITES` Line Bump
+
+- `tests/test_mutable_defaults_and_loads_pins.py`:
+  bump frozen `os.environ[X]` subscript ledger entry for
+  `databento_volatility_screener.py` from line 773 → 780. The
+  assignment `os.environ[env_name] = cafile` shifted 7 lines down
+  after a `logger.warning(...)` was inserted above it (no functional
+  change). This unblocks the CI `validate` check that was failing
+  on every PR with `AssertionError: New os.environ[X] subscript
+  site(s)`.
+
 ### Hardening (2026-04-25) — Pin: `sys.exit` 7-Site Ledger + bare `exit/quit` Tripwire
 
 - Neuer Pin [`tests/test_sys_exit_ledger_pin.py`](tests/test_sys_exit_ledger_pin.py)
