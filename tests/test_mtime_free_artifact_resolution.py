@@ -71,3 +71,39 @@ def test_unstamped_filenames_sort_after_stamped(tmp_path: Path) -> None:
 def test_returns_none_on_empty(tmp_path: Path) -> None:
     assert latest_by_filename_iso(tmp_path.glob("nope-*")) is None
     assert sorted_by_filename_iso(tmp_path.glob("nope-*")) == []
+
+
+def test_underscore_token_trailing_z_is_recognised(tmp_path: Path) -> None:
+    """Backend artifacts emit ``YYYYMMDD_HHMMSSZ`` (trailing Z) too —
+    the resolver must treat it as stamped and order it correctly
+    (Copilot review of PR #191)."""
+    older = tmp_path / "metrics_20260101_000000Z.json"
+    newer = tmp_path / "metrics_20260102_000000Z.json"
+    unstamped = tmp_path / "metrics_README.json"
+    for p in (older, newer, unstamped):
+        p.write_text("{}", encoding="utf-8")
+
+    chosen = latest_by_filename_iso(tmp_path.glob("metrics_*.json"))
+    assert chosen == newer
+
+    ordered = sorted_by_filename_iso(tmp_path.glob("metrics_*.json"))
+    assert ordered[0] == newer
+    assert ordered[1] == older
+    # Unstamped sorts last under reverse=True ordering.
+    assert ordered[-1] == unstamped
+
+
+def test_underscore_token_with_and_without_z_compare_equal(tmp_path: Path) -> None:
+    """``20260405_080817`` and ``20260405_080817Z`` represent the same
+    instant (UTC by repo convention) and must sort as equal — tie
+    broken by filename (Copilot review of PR #191)."""
+    a = tmp_path / "snap_20260405_080817.json"
+    b = tmp_path / "snap_20260405_080817Z.json"
+    for p in (a, b):
+        p.write_text("{}", encoding="utf-8")
+
+    ordered = sorted_by_filename_iso(tmp_path.glob("snap_*.json"))
+    # Equal timestamp class — alphabetical name break gives "...Z.json"
+    # second under reverse=True (since 'Z' > '.').
+    assert {p.name for p in ordered} == {a.name, b.name}
+    assert ordered[0].name == b.name  # snap_..._080817Z.json wins on name break

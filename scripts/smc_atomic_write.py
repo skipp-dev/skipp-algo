@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import os
+import stat
 import tempfile
 from pathlib import Path
 from typing import Any
@@ -27,14 +28,48 @@ __all__ = [
 ]
 
 
+def _default_mode_for_new_file() -> int:
+    """Return the mode a fresh ``open(path, 'w')`` would use under the
+    current umask (i.e. ``0o666 & ~umask``).
+
+    ``tempfile.mkstemp`` always creates files with mode ``0o600``,
+    overriding the user's umask. To keep ``atomic_write_*`` byte-for-byte
+    compatible with the historical ``Path.write_text(...)`` behaviour
+    (Copilot review of PR #189), we read the umask once at write time
+    and chmod the temp file before the ``os.replace``.
+    """
+    # ``os.umask`` is the only POSIX way to read the umask; it requires
+    # a transient set+restore. Worst case (concurrent umask change in
+    # another thread) we mis-read by one cycle; the next write wins.
+    umask = os.umask(0)
+    os.umask(umask)
+    return 0o666 & ~umask
+
+
+def _resolve_destination_mode(target: Path) -> int:
+    """Mode bits to apply to the temp file before ``os.replace``.
+
+    If ``target`` already exists, preserve its mode bits so a directory
+    that has explicit permissions (e.g. ``0o644`` for shared dashboard
+    output) is not silently downgraded to the ``mkstemp`` default of
+    ``0o600``. Otherwise honour the process umask.
+    """
+    try:
+        return stat.S_IMODE(target.stat().st_mode)
+    except FileNotFoundError:
+        return _default_mode_for_new_file()
+
+
 def _atomic_write(df: pd.DataFrame, target: Path, suffix: str, writer_name: str, **kwargs: Any) -> None:
     target = Path(target)
     target.parent.mkdir(parents=True, exist_ok=True)
+    mode = _resolve_destination_mode(target)
     fd, tmp_name = tempfile.mkstemp(prefix=target.name + ".", suffix=suffix, dir=str(target.parent))
     os.close(fd)
     tmp_path = Path(tmp_name)
     try:
         getattr(df, writer_name)(tmp_path, **kwargs)
+        os.chmod(tmp_path, mode)
         os.replace(tmp_path, target)
     except BaseException:
         tmp_path.unlink(missing_ok=True)
@@ -61,6 +96,7 @@ def atomic_write_text(
     """Write ``text`` to ``target`` via tempfile + os.replace."""
     target_path = Path(target)
     target_path.parent.mkdir(parents=True, exist_ok=True)
+    mode = _resolve_destination_mode(target_path)
     fd, tmp_name = tempfile.mkstemp(
         prefix=target_path.name + ".", suffix=".tmp", dir=str(target_path.parent)
     )
@@ -68,6 +104,7 @@ def atomic_write_text(
     try:
         with os.fdopen(fd, "w", encoding=encoding, newline=newline) as fh:
             fh.write(text)
+        os.chmod(tmp_path, mode)
         os.replace(tmp_path, target_path)
     except BaseException:
         tmp_path.unlink(missing_ok=True)
