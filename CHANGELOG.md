@@ -119,6 +119,18 @@ All notable changes to this project are documented in this file.
      wirft `KeyError` bei fehlender Variable; neue Sites müssen
      bewusst zwischen Hard-Fail vs. `.get(X, default)` entscheiden.
 - Defense-only.
+### Tests / Quality (2026-04-25) — GitHub Actions trusted-publisher allowlist
+
+- Neuer Pin [`tests/test_gha_action_allowlist.py`](tests/test_gha_action_allowlist.py)
+  verlangt für jede `uses:`-Zeile in `.github/workflows/*.y*ml`
+  entweder einen 40-Zeichen-SHA-Pin oder einen Eintrag in der
+  eingefrorenen Trusted-Publisher-Liste (8 owner/repo: `actions/*`,
+  `dawidd6/action-download-artifact`).
+- Verteidigung gegen Tag-Mutation-Supply-Chain-Angriffe auf
+  ungeprüfte Drittanbieter-Actions. Lokale `./...` und `docker://...`
+  Actions sind ausgenommen.
+- Drei-Schichten-Guard: Pin-or-allowlist, no-stale-entries, Form-Sanity
+  + Inventur-Sanity (≥10 uses-Zeilen). Defense-only.
 
 ### Tests / Quality (2026-04-24) — serialization & shell-injection zero-tripwires + `__all__` integrity
 
