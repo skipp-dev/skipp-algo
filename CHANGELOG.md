@@ -6,6 +6,22 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Tests / Quality (2026-04-24) — serialization & shell-injection zero-tripwires + `__all__` integrity
+
+- Neuer Pin [`tests/test_serialization_and_shell_tripwires.py`](tests/test_serialization_and_shell_tripwires.py)
+  bündelt drei Defense-Schichten:
+  1. **Insecure-Deserialization-Tripwires** (CWE-502): `pickle`,
+     `cPickle`, `marshal`, `shelve` — alle vier aktuell nicht in
+     Production importiert. Schaltet RCE-Klasse präventiv aus.
+  2. **Shell-Injection-Tripwires**: `os.system(...)` und `os.popen(...)`
+     komplettieren das in PR #154 etablierte `subprocess(..., shell=True)`-
+     Verbot.
+  3. **`__all__`-Integritätsprüfung**: jeder via `__all__` exportierte
+     Name muss tatsächlich auf Top-Level definiert oder importiert sein
+     (inkl. Top-Level-If/Try-Blöcken für Optional-Dependency-Patterns).
+     Fängt den klassischen "Helper gelöscht, `__all__` vergessen"-Bug.
+- Defense-only, keine Production-Änderungen.
+
 ### Tests / Quality (2026-04-24) — `# type: ignore` per-file count budget
 
 - Neuer Pin [`tests/test_type_ignore_budget.py`](tests/test_type_ignore_budget.py)
