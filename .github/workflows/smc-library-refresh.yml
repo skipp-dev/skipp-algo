@@ -159,6 +159,9 @@ jobs:
       # ── Evidence gates ──────────────────────────────────────────
       - name: Run evidence gate tests
         id: gates
+        # CONTINUE-ON-ERROR-INTENTIONAL: gates outcome is consumed downstream
+        # via steps.gates.outcome / outputs (see breaking-change + alerts steps);
+        # advisory failures must not abort the refresh pipeline.
         continue-on-error: true
         run: |
           shopt -s nullglob
@@ -367,6 +370,9 @@ jobs:
       - name: Run TradingView post-release validation
         id: tv_post_release_raw
         if: steps.diff.outputs.changed == 'true' && steps.breaking.outputs.breaking != 'true' && github.ref == 'refs/heads/main'
+        # CONTINUE-ON-ERROR-INTENTIONAL: TV automation is flaky external integration;
+        # outcome is consumed by downstream alert step (steps.tv_post_release_raw.outcome)
+        # rather than treated as hard fail.
         continue-on-error: true
         env:
           TV_HEADLESS: "1"
@@ -589,6 +595,9 @@ jobs:
       - name: Evaluate and send alerts
         id: alerts
         if: always() && steps.diff.outputs.changed == 'true' && steps.breaking.outputs.breaking != 'true' && github.ref == 'refs/heads/main'
+        # CONTINUE-ON-ERROR-INTENTIONAL: alert dispatch is best-effort notification;
+        # missing TELEGRAM/SMTP secrets or transient delivery errors must not fail
+        # the refresh job (artifacts already produced).
         continue-on-error: true
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
@@ -729,6 +738,9 @@ jobs:
       # ── Breaking-change notification ────────────────────────────
       - name: Notify on breaking change
         if: steps.breaking.outputs.breaking == 'true'
+        # CONTINUE-ON-ERROR-INTENTIONAL: breaking-change Telegram notify is
+        # best-effort; the breaking-change gate itself already blocked auto-commit
+        # (visible via job conclusion), so notify failure must not mask that signal.
         continue-on-error: true
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
@@ -746,6 +758,9 @@ jobs:
       # ── End-of-run status notification ──────────────────────────
       - name: Send end-of-run status notification
         if: always()
+        # CONTINUE-ON-ERROR-INTENTIONAL: end-of-run Telegram heartbeat is
+        # best-effort observability; failure must not flip job conclusion since
+        # the actual work (refresh + commit) is upstream.
         continue-on-error: true
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
