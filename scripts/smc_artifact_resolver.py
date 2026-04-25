@@ -52,7 +52,7 @@ from typing import Iterable
 # ``YYYY-MM-DDTHH-MM-SS-mmmZ`` (TradingView/automation reports).
 _ISO_TOKEN_RE = re.compile(
     r"(\d{8}T\d{6}Z?)"                        # 20260405T080817Z
-    r"|(\d{8}_\d{6})"                         # 20260405_080817
+    r"|(\d{8}_\d{6}Z?)"                       # 20260405_080817 / 20260405_080817Z
     r"|(\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z)"  # 2026-04-04T05-11-50-564Z
     r"|(\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}Z?)"       # 2026-04-04T05-11-50Z
     r"|(\d{4}-\d{2}-\d{2})",                          # 2026-04-04
@@ -64,11 +64,16 @@ def _filename_sort_key(path: Path) -> tuple[str, str]:
 
     ``iso_token`` is the empty string when no recognised timestamp is in
     the filename; this keeps unstamped files stable but ranks them below
-    stamped ones under ``reverse=True`` ordering.
+    stamped ones under ``reverse=True`` ordering. The token is normalised
+    by stripping a trailing ``Z`` so ``20260405_080817`` and
+    ``20260405_080817Z`` (which represent the same instant — UTC is
+    implied by repo convention) sort as a single equivalence class.
     """
     name = path.name
     match = _ISO_TOKEN_RE.search(name)
     token = match.group(0) if match else ""
+    if token.endswith("Z"):
+        token = token[:-1]
     return (token, name)
 
 

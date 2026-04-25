@@ -7,13 +7,20 @@ output) when the underlying writer raises mid-flight.
 
 from __future__ import annotations
 
+import os
+import stat
 from pathlib import Path
 from unittest.mock import patch
 
 import pandas as pd
 import pytest
 
-from scripts.smc_atomic_write import atomic_write_csv, atomic_write_parquet
+from scripts.smc_atomic_write import (
+    atomic_write_csv,
+    atomic_write_json,
+    atomic_write_parquet,
+    atomic_write_text,
+)
 
 
 def _df() -> pd.DataFrame:
@@ -81,3 +88,66 @@ def test_atomic_write_csv_leaves_target_untouched_on_writer_failure(tmp_path: Pa
     assert target.read_bytes() == original_bytes
     siblings = [p for p in target.parent.iterdir() if p != target]
     assert siblings == []
+
+
+# ---------------------------------------------------------------------------
+# Permission preservation (Copilot review of PR #189).
+# ``tempfile.mkstemp`` creates files with mode 0o600 by default; without
+# explicit chmod, every atomic write would silently downgrade existing
+# files to owner-only access. Verify the chmod restores both umask-derived
+# defaults for new files and the existing mode bits when overwriting.
+# ---------------------------------------------------------------------------
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX permission semantics only")
+def test_atomic_write_text_preserves_existing_target_mode(tmp_path: Path) -> None:
+    target = tmp_path / "out.txt"
+    target.write_text("seed", encoding="utf-8")
+    os.chmod(target, 0o644)
+
+    atomic_write_text("after", target)
+
+    mode = stat.S_IMODE(target.stat().st_mode)
+    assert mode == 0o644, f"expected 0o644 preserved, got {oct(mode)}"
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX permission semantics only")
+def test_atomic_write_text_honours_umask_for_new_file(tmp_path: Path) -> None:
+    target = tmp_path / "fresh.txt"
+    saved_umask = os.umask(0o022)
+    try:
+        atomic_write_text("hello", target)
+    finally:
+        os.umask(saved_umask)
+
+    mode = stat.S_IMODE(target.stat().st_mode)
+    # 0o666 & ~0o022 == 0o644
+    assert mode == 0o644, (
+        f"expected 0o644 from umask 022, got {oct(mode)} "
+        "(mkstemp default 0o600 leaked through)"
+    )
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX permission semantics only")
+def test_atomic_write_csv_preserves_existing_target_mode(tmp_path: Path) -> None:
+    target = tmp_path / "out.csv"
+    target.write_text("seed", encoding="utf-8")
+    os.chmod(target, 0o640)
+
+    atomic_write_csv(_df(), target, index=False)
+
+    mode = stat.S_IMODE(target.stat().st_mode)
+    assert mode == 0o640, f"expected 0o640 preserved, got {oct(mode)}"
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX permission semantics only")
+def test_atomic_write_json_honours_umask_for_new_file(tmp_path: Path) -> None:
+    target = tmp_path / "fresh.json"
+    saved_umask = os.umask(0o027)
+    try:
+        atomic_write_json({"k": "v"}, target)
+    finally:
+        os.umask(saved_umask)
+
+    mode = stat.S_IMODE(target.stat().st_mode)
+    # 0o666 & ~0o027 == 0o640
+    assert mode == 0o640, f"expected 0o640 from umask 027, got {oct(mode)}"

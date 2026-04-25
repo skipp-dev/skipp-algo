@@ -54,21 +54,90 @@ def _iter_root_pine_files() -> Iterator[Path]:
         yield p
 
 
+def _strip_pine_strings_and_line_comments(src: str) -> str:
+    """Replace string-literal contents and ``//`` line comments with spaces.
+
+    Pine string literals (``'…'`` and ``"…"``) and ``//`` line
+    comments may contain unbalanced parentheses, commas, or
+    accepted-token spellings (e.g. an alert message that mentions
+    ``barstate.isconfirmed``). Without sanitising them, the
+    paren-balanced extractor below can drift across calls and the
+    accepted-token search can produce false positives. This helper
+    blanks out their contents while preserving line numbers and the
+    delimiters themselves so downstream offsets remain valid.
+
+    Hardening recommended by Copilot review of PR #190.
+    """
+    out: list[str] = []
+    i = 0
+    n = len(src)
+    while i < n:
+        ch = src[i]
+        # Line comment — wipe to end of line, preserve newline.
+        if ch == "/" and i + 1 < n and src[i + 1] == "/":
+            out.append("//")
+            i += 2
+            while i < n and src[i] != "\n":
+                out.append(" ")
+                i += 1
+            continue
+        # String literal — wipe contents but keep delimiters.
+        if ch in ("'", '"'):
+            quote = ch
+            out.append(quote)
+            i += 1
+            while i < n and src[i] != quote:
+                if src[i] == "\\" and i + 1 < n:
+                    out.append("  ")
+                    i += 2
+                    continue
+                out.append("\n" if src[i] == "\n" else " ")
+                i += 1
+            if i < n:
+                out.append(quote)
+                i += 1
+            continue
+        out.append(ch)
+        i += 1
+    return "".join(out)
+
+
 def _alertcondition_call_blocks(src: str) -> list[str]:
-    """Return the source text of each ``alertcondition(...)`` call (paren-balanced)."""
+    """Return the **first argument** (condition expression) of each
+    ``alertcondition(...)`` call, paren-balanced.
+
+    The accepted-token check intentionally inspects the *condition
+    only* — a token appearing in the ``title=`` or ``message=`` slots
+    must not be allowed to satisfy the gate (Copilot review of
+    PR #190). Strings and ``//`` comments are sanitised first so an
+    unbalanced ``)`` in a literal does not corrupt depth tracking.
+    """
+    sanitized = _strip_pine_strings_and_line_comments(src)
     blocks: list[str] = []
-    for m in _ALERTCOND_RE.finditer(src):
+    for m in _ALERTCOND_RE.finditer(sanitized):
         i = m.end()  # just past the opening "("
         depth = 1
-        n = len(src)
+        first_arg_end: int | None = None
+        n = len(sanitized)
         while i < n and depth > 0:
-            ch = src[i]
+            ch = sanitized[i]
             if ch == "(":
                 depth += 1
             elif ch == ")":
                 depth -= 1
+                if depth == 0:
+                    if first_arg_end is None:
+                        first_arg_end = i
+                    break
+            elif ch == "," and depth == 1 and first_arg_end is None:
+                first_arg_end = i
             i += 1
-        blocks.append(src[m.end():i - 1])
+        if depth != 0 or first_arg_end is None:
+            # Malformed (unterminated call) — record full remainder so
+            # the violation message still surfaces something useful.
+            blocks.append(sanitized[m.end():])
+            continue
+        blocks.append(sanitized[m.end():first_arg_end])
     return blocks
 
 
