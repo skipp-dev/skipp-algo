@@ -52,6 +52,21 @@ All notable changes to this project are documented in this file.
      `.github/**/*.yml`/`*.yaml` und `docker-compose.yml` müssen via
      `yaml.safe_load` parsen. Fängt Syntax-Bricks vor CI.
 - Defense-only, keine Production-Änderungen.
+### Tests / Quality (2026-04-25) — mutable defaults + json.load + os.environ subscript
+
+- Neuer Pin [`tests/test_mutable_defaults_and_loads_pins.py`](tests/test_mutable_defaults_and_loads_pins.py)
+  bündelt drei AST/Text-Layer:
+  1. **Mutable default arguments** verboten (`def f(x=[])`/`{}`/`set()`/
+     `list()`/`dict()`). Klassischer Python-Footgun (shared state über
+     alle Calls). Inventar 0, pure Tripwire.
+  2. **`json.load(...)` Site-Ledger** — 9 frozen Sites in `open_prep/`.
+     Jeder Call ist eine Untrusted-Parse-Boundary; neue Sites brauchen
+     Review (try/except, Size-Limit) bevor sie ins Ledger aufgenommen
+     werden.
+  3. **`os.environ[X]` Subscript-Ledger** — 6 frozen Sites. Subscript
+     wirft `KeyError` bei fehlender Variable; neue Sites müssen
+     bewusst zwischen Hard-Fail vs. `.get(X, default)` entscheiden.
+- Defense-only.
 
 ### Tests / Quality (2026-04-24) — serialization & shell-injection zero-tripwires + `__all__` integrity
 
