@@ -81,6 +81,9 @@ def _find_latest_calibration_artifact(search_dir: Path) -> Path | None:
         candidates.extend(search_dir.rglob(name))
     if not candidates:
         return None
+    # MTIME-RESOLVER-EXEMPT: candidates are fixed-name files in different
+    # subdirs (zone_priority_calibration.json, zone_priority_contextual_calibration.json);
+    # filenames carry no timestamp, so mtime is the intended freshness signal.
     return max(candidates, key=lambda p: p.stat().st_mtime)
 
 

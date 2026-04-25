@@ -1155,6 +1155,8 @@ def _load_fundamental_reference(
         cached = _read_cached_frame(cache_path)
         if cached is not None:
             if cached.empty and cache_path.exists():
+                # MTIME-RESOLVER-EXEMPT: TTL on a negative cache file —
+                # mtime is the freshness signal we want here.
                 age_seconds = (datetime.now(UTC) - datetime.fromtimestamp(cache_path.stat().st_mtime, tz=UTC)).total_seconds()
                 if age_seconds > FUNDAMENTAL_REFERENCE_EMPTY_CACHE_TTL_SECONDS:
                     logger.info(

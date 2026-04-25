@@ -17,8 +17,9 @@ def _manifest_frame_names(manifest_path: Path) -> set[str]:
 
 
 def _manifest_candidates(directory: Path, *, manifest_prefix: str | None = None) -> list[Path]:
+    from scripts.smc_artifact_resolver import sorted_by_filename_iso
     pattern = f"{manifest_prefix}*_manifest.json" if manifest_prefix else "*_manifest.json"
-    return sorted(directory.glob(pattern), key=lambda path: path.stat().st_mtime, reverse=True)
+    return sorted_by_filename_iso(directory.glob(pattern))
 
 
 def _manifest_json_is_parseable(manifest_path: Path) -> bool:

@@ -65,6 +65,8 @@ def _parse_report_timestamp(report: dict[str, Any], path: Path) -> float | None:
         return float(refreshed)
 
     try:
+        # MTIME-RESOLVER-EXEMPT: fallback timestamp for reports lacking an
+        # explicit checked_at/generated_at field — used for age display only.
         return float(path.stat().st_mtime)
     except Exception:
         return None

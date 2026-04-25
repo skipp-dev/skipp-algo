@@ -174,6 +174,9 @@ def _load_watchlist_inputs(export_dir: Path) -> tuple[pd.DataFrame, pd.DataFrame
 
     if daily is not None and premarket is not None:
         exact_paths = [path for path in (daily_path, premarket_path, diagnostics_path) if path.exists()]
+        # MTIME-RESOLVER-EXEMPT: source_data_fetched_at is a display-only
+        # "when did we last refresh these inputs" timestamp — mtime is the
+        # canonical signal because the upstream files have no embedded ts.
         exact_source_data_fetched_at = (
             datetime.fromtimestamp(max(path.stat().st_mtime for path in exact_paths), tz=UTC).isoformat(timespec="seconds")
             if exact_paths

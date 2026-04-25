@@ -71,13 +71,15 @@ def resolve_production_workbook_path(
     if canonical.exists():
         return canonical
 
-    timestamped = sorted(base_dir.glob(LEGACY_WORKBOOK_GLOB), key=lambda path: path.stat().st_mtime, reverse=True)
-    if timestamped:
-        return timestamped[0]
+    from scripts.smc_artifact_resolver import latest_by_filename_iso
 
-    legacy_root = sorted(root.glob(LEGACY_WORKBOOK_GLOB), key=lambda path: path.stat().st_mtime, reverse=True)
-    if legacy_root:
-        return legacy_root[0]
+    timestamped = latest_by_filename_iso(base_dir.glob(LEGACY_WORKBOOK_GLOB))
+    if timestamped is not None:
+        return timestamped
+
+    legacy_root = latest_by_filename_iso(root.glob(LEGACY_WORKBOOK_GLOB))
+    if legacy_root is not None:
+        return legacy_root
 
     raise FileNotFoundError(
         "No Databento production workbook found. Expected canonical path "

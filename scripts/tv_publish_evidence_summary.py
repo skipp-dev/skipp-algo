@@ -39,10 +39,10 @@ PREFLIGHT_EVIDENCE_STALE_DAYS = 14
 
 def _find_latest_report(pattern: str) -> tuple[Path | None, dict[str, Any] | None]:
     """Find the most recent JSON report matching a glob pattern."""
-    matches = sorted(REPORTS_DIR.glob(pattern), key=lambda p: p.stat().st_mtime, reverse=True)
-    if not matches:
+    from scripts.smc_artifact_resolver import latest_by_filename_iso
+    path = latest_by_filename_iso(REPORTS_DIR.glob(pattern))
+    if path is None:
         return None, None
-    path = matches[0]
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
         return path, data if isinstance(data, dict) else None
@@ -54,14 +54,12 @@ def _find_latest_screenshot(library: str) -> Path | None:
     """Find the most recent screenshot for a library."""
     if not SCREENSHOTS_DIR.exists():
         return None
-    candidates = sorted(
-        [p for p in SCREENSHOTS_DIR.iterdir()
-         if p.suffix == ".png" and library.replace("_", "-") in p.name.lower()
-         or library in p.name.lower()],
-        key=lambda p: p.stat().st_mtime,
-        reverse=True,
+    from scripts.smc_artifact_resolver import latest_by_filename_iso
+    return latest_by_filename_iso(
+        p for p in SCREENSHOTS_DIR.iterdir()
+        if p.suffix == ".png" and (library.replace("_", "-") in p.name.lower()
+                                   or library in p.name.lower())
     )
-    return candidates[0] if candidates else None
 
 
 def _is_stale(path: Path | None, max_days: int) -> bool:
