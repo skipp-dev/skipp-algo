@@ -1166,7 +1166,7 @@ def test_invalidated_alert_has_single_preset_definition_without_failed_alias() -
     assert "alertcondition(directional_trend_started, 'Trend Direction Changed'" not in source
     assert "const string TXT_LONG_INVALIDATED = 'Long Invalidated'" in source
     assert 'compute_long_dynamic_alert_gates(bool enable_dynamic_alerts, bool long_invalidate_signal' in source
-    assert "alertcondition(alert_product_state == 'BLOCKED' and alert_product_state[1] != 'BLOCKED', 'SMC: Setup Blocked', 'SMC Setup is now blocked. Invalidation hit or regime issue.')" in source
+    assert "alertcondition(alert_product_state == 'BLOCKED' and alert_product_state[1] != 'BLOCKED' and barstate.isconfirmed, 'SMC: Setup Blocked', 'SMC Setup is now blocked. Invalidation hit or regime issue.')" in source
 
 
 def test_confirmed_only_touch_state_updates_are_gated_by_state_update_bar_ok() -> None:
