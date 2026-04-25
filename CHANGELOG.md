@@ -39,6 +39,20 @@ All notable changes to this project are documented in this file.
   Literal-name calls (`setattr(obj, "field", v)` /
   `hasattr(obj, "field")`) are statically equivalent to plain
   attribute access and are intentionally not tracked.
+
+### Tests / Quality (2026-04-25) — Defense ledger: dynamic `getattr(obj, <expr>)` (10 sites)
+
+- Added `tests/test_dynamic_getattr_ledger.py` (1 test) pinning every
+  production `getattr(obj, <non-literal>)` call site (10 entries across
+  the SMC core, terminal state layers, and Streamlit alerts). Dynamic
+  reflection defeats static analysis (CWE-470), hides cross-module
+  coupling, and makes refactor-renames silently break. Literal-name
+  `getattr(obj, "field")` is treated as safe and stays out of the
+  ledger. Locking the dynamic call sites gives drift detection (line
+  shifts surface here) and a growth gate (new lookups must extend the
+  ledger explicitly). Same drift-protection pattern as
+  `test_warnings_simplefilter_ledger.py` /
+  `test_os_unlink_remove_ledger.py`.
 - Defense-only — no production changes.
 
 ### Tests / Quality (2026-04-25) — Defense pin: `atexit.register(...)` zero-surface
