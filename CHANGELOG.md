@@ -6,6 +6,16 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Defense (2026-04-25) — `shell=True` / `os.popen` Zero-Tripwire
+
+- Neuer `tests/test_shell_true_tripwire.py` mit 2 Layers (beide aktuell 0):
+  1. **No-shell-True**: `subprocess.run/Popen/call/check_output(..., shell=True)`
+     auf jeder Call-Site verboten. AST-Detection per `kw.arg=='shell'` mit
+     `ast.Constant(value=True)`.
+  2. **No-os.popen**: `os.popen(...)` (immer shell-mode, immer shell-injection-prone).
+- OWASP A03 Defense. Codebase aktuell sauber → Tripwire lockt jede neue
+  Regression sofort. Standard `_DIR_EXCLUDE`.
+
 ### Hardening (2026-04-25) — `usedforsecurity=False` Flag auf allen md5/sha1-Aufrufen
 
 - An 7 Sites `usedforsecurity=False` zu bestehenden `hashlib.md5(...)` /
