@@ -45,6 +45,20 @@ All notable changes to this project are documented in this file.
   - **No `shutil.copy` / `shutil.copyfile`** — both non-atomic; use the
     atomic-write helpers in `scripts/smc_atomic_write.py` (sister of #207).
 - All three surfaces empty in first-party non-test code today.
+
+### Tests / Quality (2026-04-25) — Defense pin: TLS context tampering + JWT skip-verify zero-surface
+
+- Added `tests/test_tls_jwt_verification_zero_surface.py` (3 tests)
+  pinning three "skip-the-verification" call shapes that the existing
+  `verify=False` tripwire (in the silent-security bundle) does NOT catch:
+  - `ssl._create_unverified_context(...)` — disables TLS hostname +
+    chain verification (CWE-295).
+  - `ssl.CERT_NONE` (and bare `CERT_NONE` after `from ssl import …`)
+    — marker for "trust any peer cert" (CWE-295).
+  - `jwt.decode(..., verify=False)` — silently accepts unsigned tokens
+    (CWE-347). Repo doesn't use PyJWT today; pin prevents future drift.
+- All three surfaces empty in first-party non-test code; pin keeps
+  them empty.
 - Defense-only — no production changes.
 
 ### Tests / Quality (2026-04-25) — Defense pin: urllib.urlopen ledger + mandatory timeout=
