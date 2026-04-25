@@ -127,6 +127,17 @@ All notable changes to this project are documented in this file.
 - Sister of #213 (silent-error-swallow ledger). Defense-only — no
   production changes.
 
+### Tests / Quality (2026-04-25) — Defense ledger: `# noqa` suppression growth
+
+- Added `tests/test_noqa_suppression_ledger.py` (29 tests) freezing today's
+  surface of `# noqa` lint-suppression markers in first-party non-test code.
+- Total + no_new_files + per-file count invariants. Ledger may only **shrink**.
+- Frozen surface: **50 suppressions across 27 files**. Adding a new
+  suppression requires a deliberate ledger bump in the same PR; removing
+  one is welcome and leaves the test green.
+- Sister of #213 (silent-error-swallow ledger), #218 (Path text-IO encoding),
+  #220 (built-in open encoding). Defense-only — no production changes.
+
 ### Tests / Quality (2026-04-25) — Defense pin: mkdir / makedirs must pass explicit exist_ok=
 
 - Added `tests/test_mkdir_makedirs_exist_ok_invariant.py` (2 tests)
