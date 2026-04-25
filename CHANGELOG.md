@@ -248,6 +248,23 @@ All notable changes to this project are documented in this file.
 - Plus Inventory-Sanity ≥30 Prod-Dateien.
 - Defense-only. 0 Prod-Codeänderung.
 
+### Tests / Quality (2026-04-25) — loopback & Docker base-image pin
+
+- Neuer Pin [`tests/test_loopback_and_baseimage_pin.py`](tests/test_loopback_and_baseimage_pin.py)
+  fixiert zwei stille Drift-Quellen:
+  1. **Loopback-Ledger** (`localhost` / `127.0.0.1`): Total-Budget = 8 Sites
+     plus per-File-Ledger (5 Dateien) plus Datei-Existenz-Parametrisierung.
+     Verhindert sowohl heimliche neue Loopback-Bindings (Telemetry-Server,
+     hartkodierte Client-URLs) als auch das versehentliche Entfernen der
+     definierten Schutz-Regexes (`open_prep/alerts.py`,
+     `streamlit_terminal_alerts.py`, `newsstack_fmp/enrich.py` Private-Network
+     Filter).
+  2. **Dockerfile FROM Form-Sanity**: genau eine `FROM`-Zeile, jede Base
+     muss einen expliziten Tag oder einen `sha256`-Digest tragen, kein
+     `:latest`. Schützt vor stillem Base-Image-Drift bei Rebuilds.
+- Inventar-Sanity: ≥30 Prod-`*.py`. Reine Test-Schicht, keine Prod-Code-
+  Änderungen.
+
 ### Tests / Quality (2026-04-25) — silent-security & boundary 6-fold bundle
 
 - Neuer Pin [`tests/test_silent_security_and_boundary_bundle.py`](tests/test_silent_security_and_boundary_bundle.py)
