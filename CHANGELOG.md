@@ -144,6 +144,21 @@ CWE families at **zero** sites in first-party code:
 Both surfaces are currently empty; tests are pure invariants with no
 ledger to maintain. Defense-only — no production changes.
 
+### Tests / Quality (2026-04-25) — Defense pin: subprocess shell-injection surface
+
+New `tests/test_subprocess_shell_injection_pin.py` (AST-based, 14 tests)
+freezes two layers:
+
+- **Hard invariant**: `subprocess.X(..., shell=True)` count must remain `0`
+  in first-party code. Any new occurrence trips `test_no_shell_true_anywhere`
+  (CWE-78 surface kept empty).
+- **Per-(file, attr) ledger**: 11 spawn sites in 7 files
+  (`run`, `Popen`, `check_output`) — adding/removing/swapping requires an
+  explicit ledger bump. Refuses brand-new `subprocess.<attr>` spawning
+  methods via `_SPAWN_ATTRS` allow-list.
+
+Defense-only — no production changes.
+
 ### Fixed (2026-04-25) — main RED hotfix: continue-on-error inventory line resync
 
 `tests/test_workflow_continue_on_error_inventory.py` `_ALLOWED` for
