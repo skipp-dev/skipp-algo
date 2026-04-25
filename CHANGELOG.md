@@ -6,6 +6,31 @@ All notable changes to this project are documented in this file.
 
 ## [Unreleased]
 
+### Tests / Quality (2026-04-26) — Defense ledger: `while True:` site lock (10 sites)
+
+- Added `tests/test_while_true_termination_ledger.py` (1 test)
+  pinning every `while True:` loop in production by `(path, line)`.
+  Unbounded loops are a CWE-835 surface (loop with unreachable exit
+  condition); the most common refactoring foot-gun is removing the
+  only `break`/`return`/`raise` from the body. Locked sites span
+  pollers, watchers, websocket runners, and signal-driven main
+  loops:
+  - `databento_volatility_screener.py:1051`
+  - `terminal_background_poller.py:160`, `:341`
+  - `databento_universe.py:248`
+  - `open_prep/realtime_signals.py:2661`
+  - `open_prep/macro.py:81`
+  - `smc_core/resilient.py:79`
+  - `newsstack_fmp/ingest_benzinga.py:498`
+  - `newsstack_fmp/shared_fetch.py:265`
+  - `newsstack_fmp/pipeline.py:817`
+  A strict body-must-contain-`break` invariant was considered and
+  rejected because some legitimate signal-driven main loops here
+  rely on `KeyboardInterrupt` propagating out of an outer `try`/
+  `except KeyboardInterrupt`. Pinning the (path, line) is the right
+  primitive.
+- Defense-only — no production changes.
+
 ### Tests / Quality (2026-04-25) — Defense ledger: `os.unlink` / `os.remove` (23 sites)
 
 - Added `tests/test_os_unlink_remove_ledger.py` (1 test) pinning every
