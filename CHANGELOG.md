@@ -119,6 +119,16 @@ All notable changes to this project are documented in this file.
      wirft `KeyError` bei fehlender Variable; neue Sites müssen
      bewusst zwischen Hard-Fail vs. `.get(X, default)` entscheiden.
 - Defense-only.
+### Tests / Quality (2026-04-25) — bare `# type: ignore` site ledger
+
+- Neuer Pin [`tests/test_bare_type_ignore_ledger.py`](tests/test_bare_type_ignore_ledger.py)
+  friert die 15 bestehenden bare `# type: ignore` Sites ein
+  (1× `newsstack_fmp/_bz_http.py`, 14× `terminal_bitcoin.py`).
+  Komplementiert PR #152 (per-file Count Budget): neue Suppressions
+  müssen narrowed sein (`# type: ignore[return-value]` etc.) oder mit
+  Begründung ins Ledger.
+- Drei-Schichten-Guard: no-new-sites + stale-entry + parametrisierte
+  Datei-Existenz-Sanity. Defense-only.
 
 ### Tests / Quality (2026-04-24) — serialization & shell-injection zero-tripwires + `__all__` integrity
 
