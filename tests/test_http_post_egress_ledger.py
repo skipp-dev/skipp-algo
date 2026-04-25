@@ -1,0 +1,217 @@
+"""Defense ledger: HTTP POST egress sites (``.post(...)`` + ``Request(method="POST")``).
+
+Outbound HTTP POST is the canonical *write* edge of the system —
+where the application sends user / market data over the network to
+external services (webhooks, OpenAI, Discord). Pinning every call
+site by ``(path, line)`` means a new outbound POST must be a
+deliberate, reviewed change instead of a copy-paste, which gives
+us a single grep-able list of all data-egress edges for review.
+
+Why this matters:
+
+* Every entry here is a candidate for a leak — keys, prompts,
+  payloads, customer secrets — going to a URL that may or may not
+  be in the allow-list.
+* It catches accidentally re-using an outbound client for a new
+  destination without explicit review (Discord webhook URL,
+  OpenAI chat completions, FMP webhook export, terminal
+  notifications).
+* It also catches *transport switches* (e.g. ``requests`` instead
+  of ``httpx`` / a new SDK that calls ``.post(...)``) which would
+  otherwise bypass the existing ``http_client_discipline`` ledger
+  for ``timeout=`` invariants.
+
+This test pins **two** detection shapes that together cover every
+POST-egress pattern present in the tree today:
+
+1. ``<expr>.post(...)`` — attribute-name match, transport-agnostic
+   (covers ``requests.post``, ``httpx.AsyncClient().post``,
+   ``session.post``, OpenAI client ``.post`` shims, etc.).
+2. ``urllib.request.Request(..., method="POST")`` — the low-level
+   POST shape that has no ``.post(...)`` attribute call and would
+   otherwise silently bypass shape (1).
+
+Sites where ``post`` is something other than an HTTP method (e.g.
+test fixtures, dataframe ``.post(...)`` — neither exists in this
+tree) would intentionally surface and require an allow-list review.
+
+Defense-only — no production changes.
+"""
+
+from __future__ import annotations
+
+import ast
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+
+_DIR_EXCLUDE = {
+    ".git",
+    ".github",
+    ".mypy_cache",
+    ".pytest_cache",
+    ".ruff_cache",
+    ".venv",
+    "venv",
+    "node_modules",
+    "artifacts",
+    "docs",
+    "tests",
+    "SMC++",
+    "scripts",
+}
+
+
+def _iter_py_files() -> list[Path]:
+    out: list[Path] = []
+    for path in ROOT.rglob("*.py"):
+        rel = path.relative_to(ROOT)
+        if any(part in _DIR_EXCLUDE or part.startswith(".") for part in rel.parts):
+            continue
+        out.append(path)
+    return out
+
+
+def _post_call_sites() -> set[tuple[str, int]]:
+    """Return ``{(relpath, lineno)}`` for every ``<expr>.post(...)`` call."""
+
+    sites: set[tuple[str, int]] = set()
+    for path in _iter_py_files():
+        try:
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+        except (SyntaxError, UnicodeDecodeError):
+            continue
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            func = node.func
+            if not isinstance(func, ast.Attribute):
+                continue
+            if func.attr != "post":
+                continue
+            sites.add((path.relative_to(ROOT).as_posix(), node.lineno))
+    return sites
+
+
+def _request_method_post_sites() -> set[tuple[str, int]]:
+    """Return ``{(relpath, lineno)}`` for ``Request(..., method="POST")`` calls.
+
+    Catches the low-level ``urllib.request.Request`` POST shape that
+    bypasses the ``.post(...)`` attribute-call detector. Match is on
+    ``func.attr == 'Request'`` *or* ``func.id == 'Request'`` plus a
+    keyword ``method="POST"`` (case-insensitive constant).
+    """
+
+    sites: set[tuple[str, int]] = set()
+    for path in _iter_py_files():
+        try:
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+        except (SyntaxError, UnicodeDecodeError):
+            continue
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            func = node.func
+            name = None
+            if isinstance(func, ast.Attribute):
+                name = func.attr
+            elif isinstance(func, ast.Name):
+                name = func.id
+            if name != "Request":
+                continue
+            for kw in node.keywords:
+                if kw.arg != "method":
+                    continue
+                v = kw.value
+                if isinstance(v, ast.Constant) and isinstance(v.value, str) and v.value.upper() == "POST":
+                    sites.add((path.relative_to(ROOT).as_posix(), node.lineno))
+                    break
+    return sites
+
+
+# Locked outbound HTTP POST surface — every entry is a reviewed,
+# legitimate egress edge to a known external service.
+HTTP_POST_LEDGER: set[tuple[str, int]] = {
+    # Notification webhook fan-out (Discord/Slack-style).
+    ("terminal_notifications.py", 225),
+    # FMP/news export webhook (raw body, no redirects).
+    ("terminal_export.py", 874),
+    # OpenAI chat completions — FMP insights enrichment.
+    ("terminal_fmp_insights.py", 372),
+    # Webhook fan-out from the live Streamlit terminal alert path.
+    ("streamlit_terminal.py", 2275),
+    # OpenAI chat completions — terminal AI insights enrichment.
+    ("terminal_ai_insights.py", 245),
+}
+
+
+# Locked low-level POST surface — `urllib.request.Request(..., method="POST")`
+# sites that bypass the .post(...) attribute-call detector above.
+URLLIB_REQUEST_POST_LEDGER: set[tuple[str, int]] = {
+    # Generic POST webhook helper (Slack/Discord-shape).
+    ("terminal_notifications.py", 197),
+    # Pushover messages API.
+    ("terminal_notifications.py", 262),
+    # Open-prep alerts dispatcher (Slack/webhook).
+    ("open_prep/alerts.py", 396),
+}
+
+
+def test_http_post_inventory_sane() -> None:
+    files = _iter_py_files()
+    assert len(files) >= 50, (
+        f"first-party python file count collapsed to {len(files)} — "
+        "the AST scan is likely seeing an empty tree, which would let "
+        "new outbound POST callers slip in unnoticed."
+    )
+
+
+def test_urllib_request_method_post_ledger_pin() -> None:
+    sites = _request_method_post_sites()
+
+    unexpected = sites - URLLIB_REQUEST_POST_LEDGER
+    assert not unexpected, (
+        "New ``Request(..., method=\"POST\")`` call site detected. "
+        "This low-level POST shape bypasses the ``.post(...)`` ledger "
+        "above and is the second canonical egress path. If this is a "
+        "legitimate new outbound POST, append the (path, line) tuple "
+        "to URLLIB_REQUEST_POST_LEDGER and document the destination + "
+        "auth posture in the commit message.\n"
+        f"unexpected = {sorted(unexpected)}"
+    )
+
+    missing = URLLIB_REQUEST_POST_LEDGER - sites
+    assert not missing, (
+        "URLLIB_REQUEST_POST_LEDGER entries no longer present at the "
+        "recorded (path, line). Update the ledger to match the current "
+        "call sites and verify the underlying egress destination is "
+        "unchanged.\n"
+        f"missing = {sorted(missing)}"
+    )
+
+
+def test_http_post_egress_ledger_pin() -> None:
+    sites = _post_call_sites()
+
+    unexpected = sites - HTTP_POST_LEDGER
+    assert not unexpected, (
+        "New ``.post(...)`` call site detected. Outbound HTTP POST is "
+        "the canonical write-edge of the system — every new caller is "
+        "a candidate data-egress leak (API keys, prompts, payloads). "
+        "If this is a legitimate new outbound POST, append the "
+        "(path, line) tuple to HTTP_POST_LEDGER and document the "
+        "destination + auth posture in the commit message. If this is "
+        "NOT an HTTP POST (e.g. an unrelated ``.post`` method on a "
+        "different object), rename the method or refactor to avoid "
+        "ambiguity with the egress ledger.\n"
+        f"unexpected = {sorted(unexpected)}"
+    )
+
+    missing = HTTP_POST_LEDGER - sites
+    assert not missing, (
+        "HTTP_POST_LEDGER entries no longer present at the recorded "
+        "(path, line). The line numbers below have shifted upstream — "
+        "update the ledger to match the current call sites and verify "
+        "the underlying egress destination is unchanged.\n"
+        f"missing = {sorted(missing)}"
+    )
