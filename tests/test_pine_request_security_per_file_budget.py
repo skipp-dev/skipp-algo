@@ -36,6 +36,8 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+from tests._pine_text import strip_pine_strings_and_line_comments
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
 # Per-file budget = current_count + 1 (small headroom for low-friction
@@ -59,58 +61,9 @@ def _active_pine_files() -> list[Path]:
     return sorted(files)
 
 
-def _strip_pine_strings_and_comments(text: str) -> str:
-    """Blank out Pine line comments (``// ...``) and quoted string
-    literals (single/double, with backslash escapes) so textual mentions
-    like tooltip examples do not count as call sites.
-
-    Newlines are preserved so any future line-accurate diagnostics keep
-    matching the original source.
-    """
-    out: list[str] = []
-    i = 0
-    n = len(text)
-    in_string = False
-    string_delim = ""
-    while i < n:
-        ch = text[i]
-        nxt = text[i + 1] if i + 1 < n else ""
-        if in_string:
-            if ch == "\\" and i + 1 < n:
-                out.append("\n" if text[i + 1] == "\n" else " ")
-                out.append(" ")
-                i += 2
-                continue
-            if ch == string_delim:
-                in_string = False
-                string_delim = ""
-                out.append(" ")
-                i += 1
-                continue
-            out.append("\n" if ch == "\n" else " ")
-            i += 1
-            continue
-        if ch in ("'", '"'):
-            in_string = True
-            string_delim = ch
-            out.append(" ")
-            i += 1
-            continue
-        if ch == "/" and nxt == "/":
-            out.append("  ")
-            i += 2
-            while i < n and text[i] != "\n":
-                out.append(" ")
-                i += 1
-            continue
-        out.append(ch)
-        i += 1
-    return "".join(out)
-
-
 def _count_security_calls(path: Path) -> int:
     text = path.read_text(encoding="utf-8")
-    sanitized = _strip_pine_strings_and_comments(text)
+    sanitized = strip_pine_strings_and_line_comments(text)
     return len(_CALL_RE.findall(sanitized))
 
 
