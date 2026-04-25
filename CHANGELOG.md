@@ -31,6 +31,30 @@ against post-#186 state (15 passed).
 No production-code changes. No test deletions. No conflicts with the recently
 merged audit wave (#186, #188–#193).
 
+### Defense (2026-04-25) — `sys.path` Mutation Site Ledger
+
+- New defense pin `tests/test_sys_path_mutation_ledger.py`: AST-based
+  inventory of every first-party `sys.path.insert(...)` /
+  `sys.path.append(...)` site, frozen by `(file, count)`. Currently
+  37 files / 38 sites (only `scripts/smc_zone_priority_calibration.py`
+  has count 2, two `__main__`-style entry blocks).
+- Three checks: (1) no new file may introduce a mutation without a
+  ledger bump in the same PR, (2) a frozen site disappearing must drop
+  the entry explicitly (so we don't silently regress later), (3) the
+  per-file count must match exactly. Aggregate cross-check against
+  `_FROZEN_TOTAL` catches drift the per-file parametrize might miss.
+- Rationale: mutating `sys.path` at import time is a load-order
+  foot-gun (same `import foo` resolves differently depending on which
+  script booted the process), masks packaging bugs (missing console
+  scripts / `__init__.py`), and is exactly the line that has to come
+  out when a script is later promoted to a CLI / module / library —
+  but tends to stick around because nobody notices it. The ledger
+  forces the conversation in PR review.
+- AST is used so textual occurrences inside triple-quoted subprocess
+  runner strings (e.g. `scripts/measure_databento_ops_run.py:116`)
+  are correctly excluded.
+- Defense-only — no production code changes.
+
 ### Fixed (2026-04-25) — Restore Missing HERO Vocab Constants + Bundled Ledger Drift (Main-RED Hotfix)
 
 - **Primary fix:** `scripts/smc_hero_state.py`: restore `HERO_BIAS_VOCAB`,
