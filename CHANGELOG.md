@@ -34,6 +34,22 @@ All notable changes to this project are documented in this file.
   runners / Streamlit reload cycles if they block on network I/O. Any
   new call site (or any drift from that line number) fails the test
   and forces a deliberate, reviewed allow-list update.
+
+### Tests / Quality (2026-04-25) — Defense ledger: `warnings.simplefilter("always")` (6 sites)
+
+- Added `tests/test_warnings_simplefilter_ledger.py` (2 tests) pinning
+  the 6 production `warnings.simplefilter(...)` call sites
+  (`databento_volatility_screener.py:554/1573/2090/2536/2653` +
+  `databento_universe.py:163`). Every site currently passes the literal
+  `"always"` action — the loud / safe behavior that surfaces warnings
+  to the surrounding `warnings.catch_warnings()` block. Complements
+  `test_silent_security_and_boundary_bundle.py` Layer 4 (which bans
+  the silent `"ignore"` counterpart) by:
+  - locking the locations so any drift forces a deliberate ledger
+    update in the same PR (same drift-protection pattern used by
+    `test_hashlib_weak_hash_ledger.py` and `test_nonlocal_budget.py`);
+  - failing if anyone flips an entry from `"always"` to `"ignore"` /
+    `"default"` (second test asserts the literal action explicitly).
 - Defense-only — no production changes.
 
 ### Tests / Quality (2026-04-25) — Defense pin: dangerous IO/process primitives zero-surface
