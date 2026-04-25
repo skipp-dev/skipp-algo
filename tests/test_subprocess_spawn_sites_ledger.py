@@ -64,7 +64,16 @@ def _iter_py_files() -> list[Path]:
 
 
 def _subprocess_attr_sites(attr: str) -> set[tuple[str, int]]:
-    """Return ``{(relpath, lineno)}`` for ``subprocess.<attr>(...)`` calls."""
+    """Return ``{(relpath, lineno)}`` for literal ``subprocess.<attr>(...)`` calls.
+
+    Detects only the ``subprocess.<attr>`` shape: an attribute call whose
+    receiver is exactly ``Name('subprocess')``. Aliased imports
+    (``import subprocess as sp``) and direct imports
+    (``from subprocess import run``) are intentionally out of scope here
+    — the companion ``test_subprocess_alias_import_zero_surface_pin``
+    fails closed if either form appears in production code, so they
+    cannot be used to silently bypass this ledger.
+    """
 
     sites: set[tuple[str, int]] = set()
     for path in _iter_py_files():
@@ -82,8 +91,38 @@ def _subprocess_attr_sites(attr: str) -> set[tuple[str, int]]:
                 continue
             if not (isinstance(func.value, ast.Name) and func.value.id == "subprocess"):
                 continue
-            sites.add((str(path.relative_to(ROOT)), node.lineno))
+            sites.add((path.relative_to(ROOT).as_posix(), node.lineno))
     return sites
+
+
+def _subprocess_alias_or_direct_import_sites() -> set[tuple[str, int, str]]:
+    """Return ``(path, lineno, form)`` for any aliased / direct ``subprocess`` import.
+
+    Catches ``import subprocess as <alias>`` and
+    ``from subprocess import <name>``, both of which would let a future
+    caller bypass the literal ``subprocess.<attr>(...)`` ledger.
+    """
+
+    found: set[tuple[str, int, str]] = set()
+    for path in _iter_py_files():
+        try:
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+        except (SyntaxError, UnicodeDecodeError):
+            continue
+        rel = path.relative_to(ROOT).as_posix()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    if alias.name == "subprocess" and alias.asname:
+                        found.add((rel, node.lineno, f"import subprocess as {alias.asname}"))
+            elif (
+                isinstance(node, ast.ImportFrom)
+                and node.module == "subprocess"
+                and node.level == 0
+            ):
+                for alias in node.names:
+                    found.add((rel, node.lineno, f"from subprocess import {alias.name}"))
+    return found
 
 
 # Locked surface — every entry is a reviewed external command.
@@ -98,6 +137,34 @@ SUBPROCESS_POPEN_LEDGER: set[tuple[str, int]] = {
     # Detached re-launch of the realtime-signals daemon.
     ("open_prep/realtime_signals.py", 325),
 }
+
+
+def test_subprocess_inventory_sane() -> None:
+    # Guard against silent coverage loss (sparse checkout, layout change,
+    # CI misconfiguration). The repo has well over 100 first-party .py
+    # files; a sudden drop to a handful means the AST scan saw nothing
+    # and would silently false-pass.
+    files = _iter_py_files()
+    assert len(files) >= 50, (
+        f"first-party python file count collapsed to {len(files)} — "
+        "the AST scan is likely seeing an empty tree, which would let "
+        "new subprocess.run / subprocess.Popen callers slip in unnoticed."
+    )
+
+
+def test_subprocess_alias_import_zero_surface_pin() -> None:
+    # The ledgers below only catch literal ``subprocess.<attr>(...)``.
+    # Aliased imports (``import subprocess as sp``) and direct imports
+    # (``from subprocess import run``) would silently bypass them.
+    # Forbid both forms so the ledger's narrow scope can't be circumvented.
+    found = _subprocess_alias_or_direct_import_sites()
+    assert not found, (
+        "Aliased or direct ``subprocess`` import detected. These forms "
+        "bypass the ``subprocess.<attr>(...)`` ledgers below. Use "
+        "plain ``import subprocess`` and qualified "
+        "``subprocess.run(...)`` / ``subprocess.Popen(...)`` calls only.\n"
+        f"found = {sorted(found)}"
+    )
 
 
 def test_subprocess_run_site_ledger_pin() -> None:
