@@ -70,12 +70,10 @@ def _parse(p: Path) -> ast.AST | None:
 # ---------------------------------------------------------------------------
 
 # Frozen ledger: rel-path -> number of `assert` statements.
-_FROZEN_ASSERT_COUNTS: dict[str, int] = {
-    "databento_volatility_screener.py": 1,
-    "databento_universe.py": 1,
-    "newsstack_fmp/ingest_benzinga.py": 1,
-    "newsstack_fmp/shared_fetch.py": 1,
-}
+# All four prior sites were migrated to explicit raise blocks in PR #171
+# (chore: migrate prod asserts to explicit raise + zero-budget pin).
+# This ledger is now zero — `test_assert_no_new_files` keeps the door shut.
+_FROZEN_ASSERT_COUNTS: dict[str, int] = {}
 _FROZEN_ASSERT_TOTAL = sum(_FROZEN_ASSERT_COUNTS.values())
 
 
