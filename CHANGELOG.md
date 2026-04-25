@@ -76,6 +76,20 @@ All notable changes to this project are documented in this file.
   them empty.
 - Defense-only — no production changes.
 
+### Tests / Quality (2026-04-25) — Defense pin: datetime tz-safety zero-surface (4 shapes)
+
+- Added `tests/test_datetime_tz_safety_zero_surface.py` pinning the four
+  call shapes that produce a *naive* (no `tzinfo`) datetime:
+  - `datetime.utcnow()` (deprecated in Python 3.12)
+  - `datetime.utcfromtimestamp(...)` (deprecated in Python 3.12)
+  - `*.now()` without `tz=` / `tzinfo=`
+  - `*.fromtimestamp(...)` without `tz=` / `tzinfo=`
+- All four surfaces are empty in first-party non-test code today; the
+  pin keeps them empty. Detection is by attribute name (covers every
+  binding style: `datetime.datetime.now()`, `dt.now()`,
+  `from datetime import datetime` then `datetime.now()`, etc.).
+- Defense-only — no production changes; one test, one assertion.
+
 ### Tests / Quality (2026-04-25) — Defense pin: urllib.urlopen ledger + mandatory timeout=
 
 New `tests/test_urllib_urlopen_ledger.py` (7 tests) — sister of the
