@@ -121,9 +121,11 @@ def _build_one_intent(
             f"stop_loss must differ from entry for {symbol!r}; "
             "zero-risk orders bypass per-trade loss limits"
         )
-    # Float-tolerance guard: a stop within 1bp of entry is effectively
-    # a zero-risk trade and divides by ~zero in the R-multiple.
-    if abs(stop_loss - entry_price) < 1e-6 * max(abs(entry_price), 1.0):
+    # Float-tolerance guard: a stop within 1bp (1e-4 = 0.01%) of entry
+    # is effectively a zero-risk trade and divides by ~zero in the
+    # R-multiple. Anchor at max(|entry|, 1.0) so sub-dollar prices keep
+    # an absolute floor.
+    if abs(stop_loss - entry_price) < 1e-4 * max(abs(entry_price), 1.0):
         raise ValueError(
             f"stop_loss within 1bp of entry for {symbol!r}; reject as zero-risk"
         )

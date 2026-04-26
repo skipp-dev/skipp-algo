@@ -18,6 +18,13 @@ Reuse:
   FDR aggregation in :func:`aggregate_permutation_results`.
 - Phipson-Smyth ``(r + 1) / (B + 1)`` correction lifted from
   ``scripts/run_ab_comparison.py:_permutation_p_delta_metric``.
+
+Caveats:
+- Schema-A profit-factor permutations have a non-unit expected null
+  mean under skewed P&L distributions. The PF p-value reported by
+  :func:`permutation_test_profit_factor` is therefore mis-calibrated
+  and should be interpreted as a sanity check only. Schema B (entry-time
+  permutation) lands the calibrated version.
 """
 
 from __future__ import annotations
@@ -186,9 +193,9 @@ def permutation_test_profit_factor(
 
     # For PF, "edge" means observed > 1.0 vs null around 1.0; we still
     # report Phipson-Smyth p-values relative to the null distribution.
-    # Caveat (documented in module docstring): under skewed P&L the
-    # Schema-A null PF has a non-unit expected value, so this p-value
-    # is mis-calibrated. Use Schema B once available.
+    # See module docstring "Caveats" — Schema-A PF p-values are
+    # mis-calibrated under skewed P&L; use Schema B for the calibrated
+    # version once available.
     p_one = _permutation_p_value(pf_obs, null_pf, side="one_sided")
 
     return {
