@@ -59,9 +59,9 @@ def stratify_trades_by_regime(
 ) -> dict[str, list[Trade]]:
     """Split a trade sequence into per-regime buckets.
 
-    Trades whose regime label is missing or falsy are bucketed under
-    ``"UNKNOWN"`` so the caller can spot data-contract gaps rather
-    than getting silent drops.
+    Trades whose regime label is ``None`` or an empty string are
+    bucketed under ``"UNKNOWN"`` so the caller can spot data-contract
+    gaps rather than getting silent drops.
 
     Non-string regime labels (numbers, dicts, etc.) are coerced via
     ``str(...)``. Callers that emit a ``dict`` regime label will see
@@ -71,6 +71,11 @@ def stratify_trades_by_regime(
     representation makes the defect visible on the dashboard instead
     of crashing with an unhashable-key error.
 
+    Note: legitimately-falsy non-None labels such as ``0`` or
+    ``False`` are stringified (``"0"``, ``"False"``) rather than
+    bucketed as UNKNOWN — only ``None`` and ``""`` are treated as
+    missing so numeric/boolean regime IDs survive intact.
+
     Returns an ``OrderedDict`` so iteration order is deterministic
     (alphabetical by regime label, with ``"UNKNOWN"`` last).
     """
@@ -78,7 +83,10 @@ def stratify_trades_by_regime(
     buckets: dict[str, list[Trade]] = {}
     for trade in trades:
         regime = trade.get(regime_col)
-        key = str(regime) if regime else "UNKNOWN"
+        if regime is None or regime == "":
+            key = "UNKNOWN"
+        else:
+            key = str(regime)
         buckets.setdefault(key, []).append(trade)
 
     def sort_key(name: str) -> tuple[int, str]:
@@ -177,9 +185,30 @@ def compute_regime_conditional_metrics(
 ) -> dict[str, dict[str, Any]]:
     """Per-regime metrics + ``regime_frequency_pct`` + n-floor handling.
 
-    Skipped regimes are still present in the output with
-    ``{"skipped_reason": "insufficient_n", "n": ...}`` so downstream
-    code (BH-FDR aggregation, dashboard) can see *why* a cell is empty.
+    Output schema per regime:
+      - ``n`` (int): *raw* trade count for the regime, always equal to
+        ``len(trades_per_regime[regime])``. Used as the canonical
+        weight base for ``regime_frequency_pct`` so weights stay
+        consistent across skipped and active regimes.
+      - ``n_finite`` (int, optional): number of finite PnLs after
+        dropping NaN/inf; emitted only when at least one drop
+        occurred or the regime was skipped because ``n_finite`` fell
+        below the floor.
+      - ``n_non_finite_dropped`` (int, optional): explicit drop
+        count, emitted only when ``> 0``.
+      - ``regime_frequency_pct`` (float in [0, 1]): ``n / total_n``
+        across *all* regimes (raw counts), independent of any
+        non-finite filtering — keeps the aggregate weights consistent
+        when a regime drops some trades.
+      - ``skipped_reason`` (str, optional): one of
+        ``"insufficient_n"`` (raw trade count below the floor) or
+        ``"insufficient_finite_n"`` (raw count was sufficient but the
+        finite count after the non-finite filter was not). Distinct
+        reasons let the dashboard surface upstream data-feed defects
+        separately from regime sparsity.
+      - per-metric numeric values (``sharpe``, ``max_dd``,
+        ``win_rate``, ``profit_factor``, …) only on non-skipped
+        regimes.
     """
 
     fns = dict(metric_fns) if metric_fns is not None else dict(_DEFAULT_METRIC_FNS)
@@ -212,11 +241,17 @@ def compute_regime_conditional_metrics(
                 "regime_frequency_pct": freq_pct,
             }
             continue
+        # Keep ``n`` aligned with the raw regime size so callers that
+        # reconstruct ``regime_frequency_pct`` from ``n / sum(n)``
+        # land on the same number we recorded. The actual evaluation
+        # count after the non-finite filter is exposed separately as
+        # ``n_finite`` whenever it differs.
         record: dict[str, Any] = {
-            "n": len(pnls),
+            "n": n,
             "regime_frequency_pct": freq_pct,
         }
         if n_dropped > 0:
+            record["n_finite"] = len(pnls)
             record["n_non_finite_dropped"] = n_dropped
         for name, fn in fns.items():
             record[name] = fn(pnls)

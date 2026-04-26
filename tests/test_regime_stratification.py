@@ -344,7 +344,8 @@ def test_metrics_drops_non_finite_pnls_with_recorded_count() -> None:
     assert math.isfinite(record["sharpe"])
     # Drops are surfaced.
     assert record["n_non_finite_dropped"] == 8
-    assert record["n"] == 30  # 38 raw - 8 dropped
+    assert record["n"] == 38  # raw count, kept aligned with regime_frequency_pct
+    assert record["n_finite"] == 30  # finite count actually fed to the metrics
 
 
 def test_metrics_skipped_with_insufficient_finite_n_after_drop() -> None:
@@ -361,3 +362,21 @@ def test_metrics_skipped_with_insufficient_finite_n_after_drop() -> None:
     assert record["skipped_reason"] == "insufficient_finite_n"
     assert record["n_finite"] == 20
     assert record["n_non_finite_dropped"] == 15
+
+
+def test_stratify_preserves_falsy_non_none_labels() -> None:
+    """C-sprint deep-review C5 followup (Copilot #306): integer ``0``
+    and boolean ``False`` are valid regime IDs and must survive as
+    ``"0"``/``"False"`` instead of being collapsed into UNKNOWN."""
+
+    trades = [
+        {"regime_at_entry": 0, "pnl": 1.0},
+        {"regime_at_entry": False, "pnl": -1.0},
+        {"regime_at_entry": None, "pnl": 0.0},
+        {"regime_at_entry": "", "pnl": 0.0},
+    ]
+    buckets = rs.stratify_trades_by_regime(trades)
+    assert "0" in buckets
+    assert "False" in buckets
+    assert buckets["UNKNOWN"]
+    assert len(buckets["UNKNOWN"]) == 2  # only None and "" map to UNKNOWN
