@@ -1,0 +1,56 @@
+"""PPO-based order slicer (optional ``stable_baselines3`` dependency).
+
+Wraps ``stable_baselines3.PPO`` over a ``gymnasium`` shim of
+``rl.simulator.ExecutionEnv``. When sb3/gymnasium are absent, the class
+exposes ``available = False`` and instantiating raises a clear
+``RuntimeError``. Callers should branch on ``PPOSlicer.available`` and use
+``EpsilonGreedyTwapAgent`` otherwise.
+"""
+from __future__ import annotations
+
+from typing import Any
+
+try:  # pragma: no cover - exercised only in environments with sb3
+    import gymnasium as gym  # type: ignore  # noqa: F401
+    from stable_baselines3 import PPO  # type: ignore
+
+    _HAS_DEPS = True
+except Exception:  # pragma: no cover - the absence is the locally tested path
+    gym = None  # type: ignore
+    PPO = None  # type: ignore
+    _HAS_DEPS = False
+
+
+class PPOSlicer:
+    """Production wrapper around ``sb3.PPO``."""
+
+    available: bool = _HAS_DEPS
+    name = "ppo"
+
+    def __init__(self, *, learning_rate: float = 3e-4, n_steps: int = 512, seed: int = 0) -> None:
+        if not _HAS_DEPS:
+            raise RuntimeError(
+                "stable-baselines3 / gymnasium are not installed. Install via "
+                "'pip install -r requirements-rl.txt' or use "
+                "rl.agents.EpsilonGreedyTwapAgent."
+            )
+        self.learning_rate = float(learning_rate)
+        self.n_steps = int(n_steps)
+        self.seed = int(seed)
+        self._model: Any = None
+
+    def fit(self, env: Any, total_timesteps: int = 50_000) -> "PPOSlicer":  # pragma: no cover
+        self._model = PPO(
+            "MlpPolicy", env, learning_rate=self.learning_rate, n_steps=self.n_steps, seed=self.seed
+        )
+        self._model.learn(total_timesteps=total_timesteps)
+        return self
+
+    def predict(self, obs):  # pragma: no cover
+        if self._model is None:
+            raise RuntimeError("PPOSlicer.fit(...) must be called first")
+        action, _ = self._model.predict(obs, deterministic=True)
+        return action
+
+
+__all__ = ["PPOSlicer"]
