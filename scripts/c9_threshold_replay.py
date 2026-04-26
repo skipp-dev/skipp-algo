@@ -1,0 +1,370 @@
+"""C9/T7 — Threshold-replay sensitivity tool.
+
+Replays historical outcome streams against the C9 drift detectors at a
+grid of threshold settings and reports True-Positive / False-Positive
+rates per setting.  The output is written as JSON so a follow-up can
+plot the sensitivity curve and lock the production thresholds.
+
+Pure-stdlib + numpy.  Designed to be driven from a Python entry point
+(``replay_thresholds(...)``) so tests can stay deterministic without
+reading from disk.
+
+The acceptance bar from
+``docs/SPRINT_PLAN_C9_DRIFT_ALERT_2026-04-26.md`` §T7 is
+≥ 80 % TPR at < 10 % FPR on the synthetic episode bank emitted by
+:func:`build_synthetic_episodes`.
+"""
+
+from __future__ import annotations
+
+import json
+from collections.abc import Iterable, Sequence
+from dataclasses import asdict, dataclass, field
+from pathlib import Path
+from typing import Any
+
+import numpy as np
+
+from scripts.drift_alert import (
+    DriftSeverity,
+    ks_two_sample,
+    population_stability_index,
+    psi_severity,
+)
+
+__all__ = [
+    "DEFAULT_KS_GRID",
+    "DEFAULT_PSI_GRID",
+    "Episode",
+    "ReplayResult",
+    "ThresholdSetting",
+    "build_synthetic_episodes",
+    "evaluate_setting",
+    "format_markdown_table",
+    "main",
+    "replay_thresholds",
+    "write_report",
+]
+
+
+# ── Episode bank ────────────────────────────────────────────────────
+
+
+@dataclass(frozen=True)
+class Episode:
+    """One labelled outcome window."""
+
+    label: str  # episode identifier
+    is_drift: bool  # ground truth
+    baseline: tuple[float, ...]  # backtest sample
+    live: tuple[float, ...]  # live sample
+
+
+def _rng(seed: int) -> np.random.Generator:
+    return np.random.default_rng(seed)
+
+
+def build_synthetic_episodes(
+    *,
+    n_normal: int = 20,
+    n_drift: int = 10,
+    sample_size: int = 60,
+    seed: int = 7,
+) -> list[Episode]:
+    """Build a deterministic synthetic episode bank.
+
+    Normal episodes draw both baseline and live from N(0, 1).  Drift
+    episodes shift the live mean by +0.5σ — large enough that a
+    well-tuned KS threshold should catch most of them while a
+    poorly-tuned one rejects too many normals.
+    """
+    if n_normal < 1 or n_drift < 1:
+        raise ValueError("episode counts must be positive")
+    if sample_size < 5:
+        raise ValueError("sample_size too small")
+
+    rng = _rng(seed)
+    episodes: list[Episode] = []
+    for i in range(n_normal):
+        baseline = rng.normal(0.0, 1.0, sample_size)
+        live = rng.normal(0.0, 1.0, sample_size)
+        episodes.append(
+            Episode(
+                label=f"normal_{i:02d}",
+                is_drift=False,
+                baseline=tuple(float(x) for x in baseline),
+                live=tuple(float(x) for x in live),
+            )
+        )
+    for i in range(n_drift):
+        baseline = rng.normal(0.0, 1.0, sample_size)
+        live = rng.normal(0.5, 1.0, sample_size)
+        episodes.append(
+            Episode(
+                label=f"drift_{i:02d}",
+                is_drift=True,
+                baseline=tuple(float(x) for x in baseline),
+                live=tuple(float(x) for x in live),
+            )
+        )
+    return episodes
+
+
+# ── Detector consensus ─────────────────────────────────────────────
+
+
+def _ks_severity(p_value: float | None, *, p_yellow: float, p_red: float) -> DriftSeverity:
+    if p_value is None:
+        return "green"
+    if p_value < p_red:
+        return "red"
+    if p_value < p_yellow:
+        return "yellow"
+    return "green"
+
+
+@dataclass(frozen=True)
+class ThresholdSetting:
+    """One point in the threshold-tuning grid."""
+
+    ks_p_red: float
+    ks_p_yellow: float
+    psi_n_buckets: int = 10
+    consensus_min: int = 2  # detectors firing red+ for episode-level fire
+
+    def key(self) -> str:
+        return (
+            f"ks_red={self.ks_p_red:.4f}_"
+            f"ks_yellow={self.ks_p_yellow:.4f}_"
+            f"psi_bins={self.psi_n_buckets}_"
+            f"consensus={self.consensus_min}"
+        )
+
+
+# Sensible production-candidate grids.  Memory hint:
+# default ks_p_red is 0.01 in `compute_drift_report` (drift_alert.py:198).
+DEFAULT_KS_GRID: tuple[tuple[float, float], ...] = (
+    (0.01, 0.05),
+    (0.005, 0.025),
+    (0.02, 0.10),
+    (0.001, 0.01),
+)
+DEFAULT_PSI_GRID: tuple[int, ...] = (5, 10, 20)
+
+
+def _is_drift_severity(severity: DriftSeverity) -> bool:
+    return severity in {"yellow", "red"}
+
+
+def _episode_fires(episode: Episode, setting: ThresholdSetting) -> bool:
+    """Apply the 4-detector consensus from the C9 sprint plan."""
+    baseline = np.asarray(episode.baseline, dtype=np.float64)
+    live = np.asarray(episode.live, dtype=np.float64)
+
+    fires = 0
+
+    # Detector 1: KS p-value
+    _stat, p = ks_two_sample(baseline, live)
+    if _is_drift_severity(
+        _ks_severity(p, p_yellow=setting.ks_p_yellow, p_red=setting.ks_p_red)
+    ):
+        fires += 1
+
+    # Detector 2: PSI
+    psi = population_stability_index(baseline, live, n_buckets=setting.psi_n_buckets)
+    if psi is not None and _is_drift_severity(psi_severity(psi)):
+        fires += 1
+
+    # Detector 3: mean-shift (≥ 0.3σ of baseline std)
+    bstd = float(baseline.std(ddof=0))
+    if bstd > 0:
+        mean_shift = abs(float(live.mean()) - float(baseline.mean())) / bstd
+        if mean_shift >= 0.3:
+            fires += 1
+
+    # Detector 4: variance ratio outside [0.5, 2.0]
+    lstd = float(live.std(ddof=0))
+    if bstd > 0 and lstd > 0:
+        ratio = lstd / bstd
+        if ratio < 0.5 or ratio > 2.0:
+            fires += 1
+
+    return fires >= setting.consensus_min
+
+
+# ── Replay ──────────────────────────────────────────────────────────
+
+
+@dataclass
+class ReplayResult:
+    setting: ThresholdSetting
+    n_drift: int
+    n_normal: int
+    true_positive: int
+    false_positive: int
+    fired_episodes: list[str] = field(default_factory=list)
+
+    @property
+    def tpr(self) -> float:
+        return self.true_positive / self.n_drift if self.n_drift else 0.0
+
+    @property
+    def fpr(self) -> float:
+        return self.false_positive / self.n_normal if self.n_normal else 0.0
+
+    @property
+    def passes_acceptance(self) -> bool:
+        """Sprint-plan §T7 acceptance: TPR ≥ 0.80 ∧ FPR < 0.10."""
+        return self.tpr >= 0.80 and self.fpr < 0.10
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "setting": asdict(self.setting),
+            "setting_key": self.setting.key(),
+            "n_drift": self.n_drift,
+            "n_normal": self.n_normal,
+            "true_positive": self.true_positive,
+            "false_positive": self.false_positive,
+            "tpr": round(self.tpr, 4),
+            "fpr": round(self.fpr, 4),
+            "passes_acceptance": self.passes_acceptance,
+            "fired_episodes": list(self.fired_episodes),
+        }
+
+
+def evaluate_setting(
+    episodes: Sequence[Episode],
+    setting: ThresholdSetting,
+) -> ReplayResult:
+    n_drift = sum(1 for e in episodes if e.is_drift)
+    n_normal = len(episodes) - n_drift
+
+    tp = 0
+    fp = 0
+    fired: list[str] = []
+    for ep in episodes:
+        if _episode_fires(ep, setting):
+            fired.append(ep.label)
+            if ep.is_drift:
+                tp += 1
+            else:
+                fp += 1
+    return ReplayResult(
+        setting=setting,
+        n_drift=n_drift,
+        n_normal=n_normal,
+        true_positive=tp,
+        false_positive=fp,
+        fired_episodes=fired,
+    )
+
+
+def replay_thresholds(
+    episodes: Sequence[Episode],
+    *,
+    settings: Iterable[ThresholdSetting] | None = None,
+) -> list[ReplayResult]:
+    if settings is None:
+        settings = _default_grid()
+    return [evaluate_setting(episodes, s) for s in settings]
+
+
+def _default_grid() -> list[ThresholdSetting]:
+    out: list[ThresholdSetting] = []
+    for ks_red, ks_yellow in DEFAULT_KS_GRID:
+        for psi_bins in DEFAULT_PSI_GRID:
+            for consensus in (2, 3):
+                out.append(
+                    ThresholdSetting(
+                        ks_p_red=ks_red,
+                        ks_p_yellow=ks_yellow,
+                        psi_n_buckets=psi_bins,
+                        consensus_min=consensus,
+                    )
+                )
+    return out
+
+
+# ── Reporting ───────────────────────────────────────────────────────
+
+
+def format_markdown_table(results: Sequence[ReplayResult]) -> str:
+    header = (
+        "| ks_p_red | ks_p_yellow | psi_bins | consensus |"
+        " TPR | FPR | passes |\n"
+        "|---|---|---|---|---|---|---|"
+    )
+    rows = [header]
+    for r in results:
+        s = r.setting
+        rows.append(
+            f"| {s.ks_p_red:.4f} | {s.ks_p_yellow:.4f} | {s.psi_n_buckets}"
+            f" | {s.consensus_min} | {r.tpr:.2f} | {r.fpr:.2f}"
+            f" | {'✅' if r.passes_acceptance else '❌'} |"
+        )
+    return "\n".join(rows)
+
+
+def write_report(
+    results: Sequence[ReplayResult],
+    path: Path | str,
+) -> Path:
+    p = Path(path)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "schema_version": "1.0.0",
+        "n_settings": len(results),
+        "results": [r.to_dict() for r in results],
+        "passing_settings": [
+            r.setting.key() for r in results if r.passes_acceptance
+        ],
+    }
+    p.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+    return p
+
+
+# ── CLI ─────────────────────────────────────────────────────────────
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        description="C9/T7 threshold-replay sensitivity tool",
+    )
+    parser.add_argument(
+        "--out",
+        type=Path,
+        default=Path("cache/c9/threshold_replay.json"),
+        help="Output JSON path",
+    )
+    parser.add_argument("--n-normal", type=int, default=20)
+    parser.add_argument("--n-drift", type=int, default=10)
+    parser.add_argument("--sample-size", type=int, default=60)
+    parser.add_argument("--seed", type=int, default=7)
+    parser.add_argument(
+        "--print-table",
+        action="store_true",
+        help="Also print markdown table to stdout",
+    )
+    args = parser.parse_args(argv)
+
+    episodes = build_synthetic_episodes(
+        n_normal=args.n_normal,
+        n_drift=args.n_drift,
+        sample_size=args.sample_size,
+        seed=args.seed,
+    )
+    results = replay_thresholds(episodes)
+    out = write_report(results, args.out)
+
+    print(f"Wrote {out} ({len(results)} settings)")
+    passing = [r for r in results if r.passes_acceptance]
+    print(f"Passing acceptance (TPR≥0.80, FPR<0.10): {len(passing)}/{len(results)}")
+    if args.print_table:
+        print(format_markdown_table(results))
+    return 0
+
+
+if __name__ == "__main__":  # pragma: no cover
+    raise SystemExit(main())
