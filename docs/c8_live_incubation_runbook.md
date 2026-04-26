@@ -87,10 +87,12 @@ incident review before the next session.
 
 - ≥ 30 live trades closed
 - live-Sharpe ÷ backtest-Sharpe ≥ 0.50 (drift_score ≥ 0.50 — looser
-  than Phase-A; this is below the code's `concerning` band of 0.40
-  but above `fail`. Verdict must still be `pass` or `acceptable`,
-  i.e. drift_score ≥ 0.65; the 0.50 line is a *necessary but not
-  sufficient* watch-marker for Phase-B reviews.)
+  than Phase-A. With code's `_VERDICT_BANDS` at 0.85/0.65/0.40, a
+  drift_score of 0.50 sits *inside* the `concerning` band (0.40–0.65)
+  but above the `fail` cutoff at 0.40. The verdict must still be
+  `pass` or `acceptable`, i.e. drift_score ≥ 0.65; the 0.50 line is
+  therefore a *necessary but not sufficient* watch-marker for Phase-B
+  reviews.)
 - Kill-switch never fired
 - Max-DD live < 2× backtest-Max-DD
 - Drift verdict `pass` or `acceptable`

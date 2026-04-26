@@ -207,6 +207,29 @@ def test_load_live_outcomes_with_coverage_complete(tmp_path: Path) -> None:
     assert cov["missing_dates"] == []
 
 
+def test_load_live_outcomes_with_coverage_does_not_admit_dates_outside_window(
+    tmp_path: Path,
+) -> None:
+    """Regression for Copilot review on PR #304: an off-by-one between
+    the cutoff filter (``file_date < today - timedelta(days=window_days)``)
+    and the expected window (last ``window_days`` calendar days from
+    ``today``) previously admitted one extra older date, inflating
+    ``days_present`` past ``days_expected``.
+    """
+    today = date(2026, 4, 26)
+    # Write 3 in-window dates + 1 older outlier exactly on the
+    # previous boundary (today - window_days).
+    for offset in range(3):
+        _write_outcomes(tmp_path, today - timedelta(days=offset), [{"pnl_30m_pct": 0.01}])
+    _write_outcomes(tmp_path, today - timedelta(days=3), [{"pnl_30m_pct": 0.99}])
+    out, cov = load_live_outcomes_with_coverage(tmp_path, window_days=3, today=today)
+    assert cov["days_present"] == 3
+    assert cov["days_expected"] == 3
+    assert cov["window_complete"] is True
+    # Outlier value 0.99 must NOT have been loaded.
+    assert all(rec["pnl_30m_pct"] != 0.99 for rec in out)
+
+
 # ---------------------------------------------------------------------------
 # write_report — atomic write
 # ---------------------------------------------------------------------------

@@ -98,6 +98,7 @@ def load_live_outcomes_with_coverage(
         (today - timedelta(days=offset)).isoformat()
         for offset in range(window_days)
     ]
+    expected_set = set(expected)
     if not outcomes_dir.exists():
         return [], {
             "days_present": 0,
@@ -105,7 +106,6 @@ def load_live_outcomes_with_coverage(
             "missing_dates": expected,
             "window_complete": False,
         }
-    cutoff = today - timedelta(days=window_days)
     out: list[dict[str, Any]] = []
     seen: set[str] = set()
     for path in sorted(outcomes_dir.glob("outcomes_*.json")):
@@ -114,7 +114,13 @@ def load_live_outcomes_with_coverage(
             file_date = date.fromisoformat(path.stem.replace("outcomes_", ""))
         except ValueError:
             continue
-        if file_date < cutoff or file_date > today:
+        # Only load dates that fall inside the expected window. Using
+        # an explicit set membership avoids an off-by-one between the
+        # cutoff filter and the expected-dates window (Copilot review
+        # PR #304: `cutoff = today - timedelta(days=window_days)` plus
+        # `file_date < cutoff` would have admitted one extra older
+        # date, inflating `days_present` past `days_expected`).
+        if file_date.isoformat() not in expected_set:
             continue
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
