@@ -260,6 +260,10 @@ def prepare_outcome_snapshot(
             "gap_bucket_label": _gap_bucket_label(gap_pct),
             "rvol_bucket_label": _rvol_bucket_label(rvol_ratio),
             "regime": row.get("regime"),
+            # Sprint C1: explicit alias consumed by the C5 regime
+            # stratification + C9 drift watchdog. We emit BOTH keys so
+            # legacy tooling that reads ``regime`` keeps working.
+            "regime_at_entry": row.get("regime"),
             "zone_priority_rank": row.get("zone_priority_rank"),
             "zone_priority_score": row.get("zone_priority_score"),
             "profitable_30m": None,  # Back-filled post-open
