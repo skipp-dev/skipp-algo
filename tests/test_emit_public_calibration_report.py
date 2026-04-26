@@ -265,3 +265,49 @@ def test_write_report_is_atomic(tmp_path: Path) -> None:
     write_report({"x": 1}, output)
     assert output.exists()
     assert not output.with_suffix(output.suffix + ".tmp").exists()
+
+
+# ── track_record_gate (schema 1.1.0 additive field) ─────────────────
+
+
+def test_build_public_report_omits_track_record_gate_when_not_provided() -> None:
+    report = build_public_report(
+        None, source_path=None, source_commit_sha="abc", source_workflow_run="1",
+    )
+    assert "track_record_gate" not in report
+
+
+def test_build_public_report_includes_track_record_gate_on_placeholder() -> None:
+    gate = {"status": "yellow", "n_trades": 50, "checks": [], "summary": {}}
+    report = build_public_report(
+        None,
+        source_path=None,
+        source_commit_sha="abc",
+        source_workflow_run="1",
+        track_record_gate=gate,
+    )
+    assert report["status"] == "awaiting_first_run"
+    assert report["track_record_gate"] == gate
+
+
+def test_build_public_report_includes_track_record_gate_on_ok_payload() -> None:
+    payload = {
+        "family_weights": {"OB": 0.85},
+        "family_stats": {"OB": {"total_events": 100, "total_hits": 60}},
+        "calibration": {"ece": 0.05, "smooth_ece": 0.05, "brier": 0.20},
+    }
+    gate = {"status": "green", "n_trades": 200, "checks": [], "summary": {}}
+    report = build_public_report(
+        payload,
+        source_path=None,
+        source_commit_sha="abc",
+        source_workflow_run="1",
+        track_record_gate=gate,
+    )
+    assert report["status"] == "ok"
+    assert report["track_record_gate"]["status"] == "green"
+
+
+def test_schema_version_is_1_1_0_after_track_record_gate_addition() -> None:
+    assert PUBLIC_SCHEMA_VERSION == "1.1.0"
+
