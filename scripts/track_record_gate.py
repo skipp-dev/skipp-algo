@@ -316,6 +316,8 @@ def evaluate_track_record_gate(
 
     summary: dict[str, Any] = {
         "win_rate": wr,
+        "win_rate_threshold": wr_threshold,
+        "rr_target": float(rr_target),
         "sharpe": sr,
         "max_drawdown": dd,
         "profit_factor": pf,
@@ -353,3 +355,60 @@ def verdict_to_dict(verdict: TrackRecordGateVerdict) -> dict[str, Any]:
         ],
         "summary": verdict.summary,
     }
+
+
+def evaluate_track_record_gate_per_variant(
+    returns_by_variant: dict[str, Sequence[float]],
+    *,
+    walk_forward_efficiency_by_variant: dict[str, float] | None = None,
+    permutation_p_by_variant: dict[str, float] | None = None,
+    fdr_rate_by_variant: dict[str, float] | None = None,
+    per_regime_hit_rate_spread_by_variant: dict[str, float] | None = None,
+    rr_target: float = 1.0,
+    sharpe_freq: int = 252,
+    bootstrap_B: int = 500,
+    bootstrap_seed: int = 42,
+) -> dict[str, dict[str, Any]]:
+    """Compute one verdict per variant — closes the C7 per-row gating gap.
+
+    Returns ``{variant: verdict_dict}`` where each value is the dict
+    form produced by :func:`verdict_to_dict` plus a ``failures`` list
+    of human-readable reasons for ``red`` checks. The companion
+    ``per_variant`` block is consumed by ``build_dashboard_payload``
+    via :func:`scripts.build_dashboard_payload._per_variant_gate_status`.
+
+    The optional per-variant scalar dicts (WFE, permutation-p, FDR,
+    regime spread) mirror the kwargs of :func:`evaluate_track_record_gate`;
+    a missing key skips that check for that variant rather than failing it.
+    """
+
+    wfe = walk_forward_efficiency_by_variant or {}
+    perm = permutation_p_by_variant or {}
+    fdr = fdr_rate_by_variant or {}
+    spread = per_regime_hit_rate_spread_by_variant or {}
+
+    out: dict[str, dict[str, Any]] = {}
+    for variant, returns in returns_by_variant.items():
+        verdict = evaluate_track_record_gate(
+            returns,
+            rr_target=rr_target,
+            walk_forward_efficiency=wfe.get(variant),
+            permutation_p=perm.get(variant),
+            fdr_rate=fdr.get(variant),
+            per_regime_hit_rate_spread=spread.get(variant),
+            sharpe_freq=sharpe_freq,
+            bootstrap_B=bootstrap_B,
+            bootstrap_seed=bootstrap_seed,
+        )
+        as_dict = verdict_to_dict(verdict)
+        as_dict["failures"] = [
+            (
+                f"{c.name}={c.value:.4f} vs threshold {c.threshold:.4f}"
+                if c.value is not None and c.threshold is not None
+                else c.name
+            )
+            for c in verdict.checks
+            if c.status == RED
+        ]
+        out[variant] = as_dict
+    return out

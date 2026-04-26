@@ -55,6 +55,12 @@ _ALLOWED_RAW_WRITE_FILES: dict[str, str] = {
     "plan_2_8_history_archive.py": "JSONL history append (mode='a', not pipeline-consumed)",
     "plan_2_8_status_ledger.py": "JSONL status ledger append (mode='a', not pipeline-consumed)",
     "render_ci_gate_summary.py": "GitHub Actions $GITHUB_STEP_SUMMARY append (mode='a')",
+    "backfill_live_outcomes.py": "fdopen + os.replace atomic pattern (audit JSON snapshots)",
+    "build_backtest_reference.py": "fdopen + os.replace atomic pattern (drift reference + drift-input JSON)",
+    "build_track_record_gate.py": "fdopen + os.replace atomic pattern (track_record_gate cache JSON)",
+    "compute_live_drift.py": "fdopen + os.replace atomic pattern (drift verdict JSON)",
+    "run_drift_watchdog.py": "fdopen + os.replace atomic pattern (drift_report JSON)",
+    "run_smc_live_incubation.py": "audit JSONL append (mode='a', append-only ledger)",
     # smc_atomic_write itself implements the primitive — exempt by definition.
     "smc_atomic_write.py": "implements the atomic write primitive",
 }
