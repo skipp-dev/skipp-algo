@@ -74,7 +74,30 @@ def store_daily_outcomes(
     run_date: date,
     outcomes: list[dict[str, Any]],
 ) -> Path:
-    """Persist daily outcome records.
+    """Persist daily outcome records as the *full* daily aggregate.
+
+    .. warning::
+        This function performs an **atomic overwrite** of the per-day
+        artefact ``artifacts/open_prep/outcomes/outcomes_<date>.json``,
+        not an append. The caller is responsible for assembling the
+        *complete* list of records for ``run_date`` before invoking
+        this function — calling it twice on the same day with disjoint
+        record sets clobbers the first run.
+
+        The outcome ledger therefore assumes a **single writer per
+        day**: the daily ``open_prep`` cron is the sole producer.
+        Sprint-Plan-Wording "Live-Outcome-Stream" notwithstanding, this
+        is a daily-aggregate writer, not a streaming append. A future
+        truly-streaming variant must use either (a) JSONL append with
+        per-record dedup keys ``(symbol, gap_bucket, rvol_bucket, ts)``
+        or (b) a file-lock around a read-merge-replace cycle.
+
+        Tests:
+        - ``tests/test_open_prep.py::test_store_daily_outcomes_*`` pin
+          the atomic-overwrite invariant (second write wins).
+        - ``tests/test_open_prep.py::test_store_daily_outcomes_single_writer_invariant``
+          documents the single-writer contract with an explicit
+          regression assertion.
 
     Each record should contain at minimum::
 

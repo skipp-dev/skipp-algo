@@ -6,12 +6,14 @@ import numpy as np
 
 from scripts.track_record_gate import (
     GREEN,
+    KNOWN_GATE_CHECK_NAMES,
     RED,
     SKIPPED,
     YELLOW,
     GateCheck,
     TrackRecordGateVerdict,
     evaluate_track_record_gate,
+    evaluate_track_record_gate_per_variant,
     verdict_to_dict,
 )
 
@@ -154,3 +156,72 @@ def test_verdict_to_dict_is_json_friendly() -> None:
     assert back["n_trades"] == verdict.n_trades
     assert isinstance(back["checks"], list)
     assert all(set(c.keys()) == {"name", "status", "value", "threshold", "detail"} for c in back["checks"])
+
+
+# ---------------------------------------------------------------------------
+# Contract pin: every emitted check name must be in KNOWN_GATE_CHECK_NAMES
+# (C-sprint deep-review MAJOR fix — unknown failure codes were silently
+# coerced on the Streamlit dashboard).
+# ---------------------------------------------------------------------------
+
+
+def _all_emitted_check_names(verdict: TrackRecordGateVerdict) -> list[str]:
+    return [c.name for c in verdict.checks]
+
+
+def test_evaluate_emits_all_known_check_names_on_full_input() -> None:
+    """A verdict computed with every optional kwarg supplied must emit
+    exactly :data:`KNOWN_GATE_CHECK_NAMES` and nothing else.
+    """
+    verdict = evaluate_track_record_gate(
+        _profitable_returns(),
+        walk_forward_efficiency=0.6,
+        permutation_p=0.01,
+        fdr_rate=0.05,
+        per_regime_hit_rate_spread=0.10,
+        bootstrap_B=50,
+    )
+    emitted = _all_emitted_check_names(verdict)
+    # Order must be stable too — consumer code may rely on it.
+    assert tuple(emitted) == KNOWN_GATE_CHECK_NAMES
+
+
+def test_known_gate_check_names_match_emitted_with_minimal_input() -> None:
+    """Even with all optional kwargs absent, the same name set is emitted
+    (some statuses become SKIPPED, but no name disappears).
+    """
+    verdict = evaluate_track_record_gate(_profitable_returns(), bootstrap_B=50)
+    emitted = set(_all_emitted_check_names(verdict))
+    assert emitted == set(KNOWN_GATE_CHECK_NAMES)
+
+
+def test_per_variant_failures_only_reference_known_check_names() -> None:
+    """The per-variant ``failures`` list (consumed by tab_track_record)
+    must only mention names from :data:`KNOWN_GATE_CHECK_NAMES`.
+    """
+    out = evaluate_track_record_gate_per_variant(
+        {"sample": _losing_returns()},
+        walk_forward_efficiency_by_variant={"sample": 0.20},
+        permutation_p_by_variant={"sample": 0.30},
+    )
+    failures = out["sample"]["failures"]
+    # ``failures`` strings start with ``f"{c.name}=..."`` (or just
+    # ``c.name`` when value/threshold are None) — extract the leading
+    # token before ``=`` or whitespace.
+    leading_names = [f.split("=", 1)[0].split()[0] for f in failures]
+    unknown = [n for n in leading_names if n not in KNOWN_GATE_CHECK_NAMES]
+    assert not unknown, f"per-variant failures referenced unknown check(s): {unknown}"
+
+
+def test_min_trl_no_edge_fires_red_not_skipped() -> None:
+    """When ``sr_hat <= sr_star`` the MinTRL check now fires RED with a
+    detail string, instead of being silently SKIPPED (C-sprint deep-
+    review MAJOR fix).
+    """
+    verdict = evaluate_track_record_gate(_losing_returns(n=300), bootstrap_B=50)
+    min_trl_checks = [c for c in verdict.checks if c.name == "min_trl_within_n"]
+    assert len(min_trl_checks) == 1
+    check = min_trl_checks[0]
+    assert check.status == RED
+    assert "no detectable edge" in check.detail
+    assert verdict.status == RED
