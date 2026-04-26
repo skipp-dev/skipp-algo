@@ -144,14 +144,17 @@ def run_walk_forward(
     # contiguous train/test windows. A descending or shuffled
     # ``timestamps`` array would silently produce splits with
     # look-ahead leakage. Fail loud at the boundary.
-    if ts_arr.size >= 2 and bool(np.any(np.diff(ts_arr) < 0)):
-        bad = int(np.argmax(np.diff(ts_arr) < 0))
-        raise ValueError(
-            "run_walk_forward: timestamps must be monotonically "
-            "non-decreasing to avoid look-ahead leakage in the "
-            f"walk-forward splits; first decrease at index {bad} "
-            f"({int(ts_arr[bad])} > {int(ts_arr[bad + 1])})."
-        )
+    if ts_arr.size >= 2:
+        diffs = np.diff(ts_arr)
+        decreases = diffs < 0
+        if bool(decreases.any()):
+            bad = int(np.argmax(decreases))
+            raise ValueError(
+                "run_walk_forward: timestamps must be monotonically "
+                "non-decreasing to avoid look-ahead leakage in the "
+                f"walk-forward splits; first decrease at index {bad} "
+                f"({int(ts_arr[bad])} > {int(ts_arr[bad + 1])})."
+            )
 
     splits = list(
         splitter.split(
