@@ -58,6 +58,47 @@ def test_stratify_custom_regime_col() -> None:
 
 
 # ---------------------------------------------------------------------------
+# unknown_regime_share
+# ---------------------------------------------------------------------------
+
+
+def test_unknown_regime_share_empty_mapping_is_zero() -> None:
+    assert rs.unknown_regime_share({}) == 0.0
+
+
+def test_unknown_regime_share_no_unknown_bucket_is_zero() -> None:
+    trades = [
+        {"regime_at_entry": "RISK_ON", "pnl": 0.01},
+        {"regime_at_entry": "RISK_OFF", "pnl": -0.005},
+    ]
+    buckets = rs.stratify_trades_by_regime(trades)
+    assert "UNKNOWN" not in buckets
+    assert rs.unknown_regime_share(buckets) == 0.0
+
+
+def test_unknown_regime_share_mixed_buckets_returns_correct_fraction() -> None:
+    trades = [
+        {"regime_at_entry": "RISK_ON", "pnl": 0.01},
+        {"regime_at_entry": "RISK_ON", "pnl": 0.02},
+        {"regime_at_entry": "RISK_OFF", "pnl": -0.005},
+        {"regime_at_entry": None, "pnl": 0.001},
+        {"regime_at_entry": "", "pnl": 0.002},
+    ]
+    buckets = rs.stratify_trades_by_regime(trades)
+    # 2 of 5 trades fall into UNKNOWN.
+    assert rs.unknown_regime_share(buckets) == pytest.approx(2 / 5)
+
+
+def test_unknown_regime_share_all_unknown_returns_one() -> None:
+    trades = [
+        {"regime_at_entry": None, "pnl": 0.001},
+        {"regime_at_entry": "", "pnl": 0.002},
+    ]
+    buckets = rs.stratify_trades_by_regime(trades)
+    assert rs.unknown_regime_share(buckets) == 1.0
+
+
+# ---------------------------------------------------------------------------
 # compute_regime_conditional_metrics
 # ---------------------------------------------------------------------------
 

@@ -189,7 +189,15 @@ def permutation_test_profit_factor(
     permuted = _permute_outcome_sign(arr, B=B, seed=seed)
     pos = np.where(permuted > 0, permuted, 0.0).sum(axis=1)
     neg = -np.where(permuted < 0, permuted, 0.0).sum(axis=1)
-    null_pf = np.where(neg > 0, pos / np.maximum(neg, 1e-12), np.nan)
+    # Compute pos/neg only where neg is meaningfully positive (>= eps);
+    # ``np.where(neg > 0, pos / np.maximum(neg, 1e-12), np.nan)`` would
+    # still evaluate the division for every element first (creating
+    # extreme intermediate values) and the ``np.maximum`` floor would
+    # silently distort the statistic for very small ``neg``. ``np.divide``
+    # with ``where=`` skips the division entirely outside the mask.
+    eps = 1e-12
+    null_pf = np.full(neg.shape, np.nan, dtype=np.float64)
+    np.divide(pos, neg, out=null_pf, where=neg > eps)
 
     # For PF, "edge" means observed > 1.0 vs null around 1.0; we still
     # report Phipson-Smyth p-values relative to the null distribution.
