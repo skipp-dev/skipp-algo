@@ -23,6 +23,7 @@ packages = [
     "ml.drift",
     "ml.features",
     "ml.inference",
+    "ml.stacking",
     "ml.training",
     "newsstack_fmp",
     "open_prep",
