@@ -227,6 +227,35 @@ def test_aggregate_unknown_share_kwarg_is_optional() -> None:
     assert "warning" not in out
 
 
+def test_aggregate_freq_weighting_uses_finite_count_not_raw_n() -> None:
+    """Copilot #306: weights must reflect finite trade count, not raw n.
+
+    A regime that lost most of its trades to NaN/inf upstream-data
+    defects must not be weighted as if all of them contributed to the
+    metric — otherwise a poisoned regime can dominate the aggregate.
+    """
+
+    # RISK_ON: 100 raw trades, all finite → weight = 100
+    # RISK_OFF: 100 raw trades, only 10 finite → weight should be 10, not 100
+    per_regime = {
+        "RISK_ON": {"sharpe": 1.0, "regime_frequency_pct": 0.5, "n": 100},
+        "RISK_OFF": {
+            "sharpe": -1.0,
+            "regime_frequency_pct": 0.5,
+            "n": 100,
+            "n_finite": 10,
+            "n_non_finite_dropped": 90,
+        },
+    }
+    out = rs.compute_regime_aware_aggregate(per_regime, metric="sharpe")
+    # With raw-n weighting (the bug): (1.0*100 + -1.0*100) / 200 == 0.0
+    # With finite-count weighting (the fix): (1.0*100 + -1.0*10) / 110 ≈ 0.818
+    assert out["value"] > 0.7, (
+        f"finite-count weighting should down-weight RISK_OFF; got {out['value']}"
+    )
+    assert math.isclose(out["value"], (1.0 * 100 + -1.0 * 10) / 110)
+
+
 # ---------------------------------------------------------------------------
 # detect_regime_concentration
 # ---------------------------------------------------------------------------
@@ -306,3 +335,77 @@ def test_end_to_end_regime_concentration_invalidates_naive_aggregate() -> None:
     # Total positive PnL all comes from RISK_ON → fully concentrated.
     assert concentration["concentrated"] is True
     assert concentration["dominant_regime"] == "RISK_ON"
+
+
+# ---------------------------------------------------------------------------
+# Negative-case coverage (C-sprint deep-review C5)
+# ---------------------------------------------------------------------------
+
+
+def test_stratify_coerces_dict_regime_label_via_str() -> None:
+    """A producer-side bug that emits a dict regime label must not
+    crash with an unhashable-key error. The label is coerced via
+    ``str()`` so the defect surfaces on the dashboard as a weirdly-
+    named bucket instead of silently dropping the trades.
+    """
+    trades = [{"regime_at_entry": {"phase": "A"}, "pnl": 0.01}]
+    buckets = rs.stratify_trades_by_regime(trades)
+    assert "{'phase': 'A'}" in buckets
+    assert len(buckets["{'phase': 'A'}"]) == 1
+
+
+def test_metrics_drops_non_finite_pnls_with_recorded_count() -> None:
+    """NaN / inf PnLs must NOT silently propagate to a NaN Sharpe or
+    a 0.0 max-DD that the dashboard then renders as a healthy regime
+    (C-sprint deep-review C5 finding).
+    """
+    trades = _make_trades(n_per_regime={"R": 30})
+    # Inject 5 NaN and 3 inf trades.
+    for _ in range(5):
+        trades.append({"regime_at_entry": "R", "pnl": float("nan")})
+    for _ in range(3):
+        trades.append({"regime_at_entry": "R", "pnl": float("inf")})
+    buckets = rs.stratify_trades_by_regime(trades)
+    metrics = rs.compute_regime_conditional_metrics(buckets, min_n_per_regime=10)
+    record = metrics["R"]
+    # Sharpe is computed on finite PnLs only.
+    assert record["sharpe"] is not None
+    assert math.isfinite(record["sharpe"])
+    # Drops are surfaced.
+    assert record["n_non_finite_dropped"] == 8
+    assert record["n"] == 38  # raw count, kept aligned with regime_frequency_pct
+    assert record["n_finite"] == 30  # finite count actually fed to the metrics
+
+
+def test_metrics_skipped_with_insufficient_finite_n_after_drop() -> None:
+    """If non-finite drops push the regime below the n-floor, the
+    record reports skipped_reason='insufficient_finite_n' (distinct
+    from 'insufficient_n') so the operator can tell the difference
+    between *not enough trades* and *not enough valid trades*.
+    """
+    trades = [{"regime_at_entry": "R", "pnl": float("nan")} for _ in range(15)]
+    trades += [{"regime_at_entry": "R", "pnl": 0.01} for _ in range(20)]
+    buckets = rs.stratify_trades_by_regime(trades)
+    metrics = rs.compute_regime_conditional_metrics(buckets, min_n_per_regime=30)
+    record = metrics["R"]
+    assert record["skipped_reason"] == "insufficient_finite_n"
+    assert record["n_finite"] == 20
+    assert record["n_non_finite_dropped"] == 15
+
+
+def test_stratify_preserves_falsy_non_none_labels() -> None:
+    """C-sprint deep-review C5 followup (Copilot #306): integer ``0``
+    and boolean ``False`` are valid regime IDs and must survive as
+    ``"0"``/``"False"`` instead of being collapsed into UNKNOWN."""
+
+    trades = [
+        {"regime_at_entry": 0, "pnl": 1.0},
+        {"regime_at_entry": False, "pnl": -1.0},
+        {"regime_at_entry": None, "pnl": 0.0},
+        {"regime_at_entry": "", "pnl": 0.0},
+    ]
+    buckets = rs.stratify_trades_by_regime(trades)
+    assert "0" in buckets
+    assert "False" in buckets
+    assert buckets["UNKNOWN"]
+    assert len(buckets["UNKNOWN"]) == 2  # only None and "" map to UNKNOWN

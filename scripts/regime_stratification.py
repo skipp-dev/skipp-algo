@@ -59,9 +59,22 @@ def stratify_trades_by_regime(
 ) -> dict[str, list[Trade]]:
     """Split a trade sequence into per-regime buckets.
 
-    Trades whose regime label is missing or falsy are bucketed under
-    ``"UNKNOWN"`` so the caller can spot data-contract gaps rather
-    than getting silent drops.
+    Trades whose regime label is ``None`` or an empty string are
+    bucketed under ``"UNKNOWN"`` so the caller can spot data-contract
+    gaps rather than getting silent drops.
+
+    Non-string regime labels (numbers, dicts, etc.) are coerced via
+    ``str(...)``. Callers that emit a ``dict`` regime label will see
+    e.g. ``"{'phase': 'A'}"`` as the bucket name — by design, since
+    the upstream regime-tagging contract is *string label per trade*
+    and a dict label indicates a producer-side bug. The stringified
+    representation makes the defect visible on the dashboard instead
+    of crashing with an unhashable-key error.
+
+    Note: legitimately-falsy non-None labels such as ``0`` or
+    ``False`` are stringified (``"0"``, ``"False"``) rather than
+    bucketed as UNKNOWN — only ``None`` and ``""`` are treated as
+    missing so numeric/boolean regime IDs survive intact.
 
     Returns an ``OrderedDict`` so iteration order is deterministic
     (alphabetical by regime label, with ``"UNKNOWN"`` last).
@@ -70,7 +83,10 @@ def stratify_trades_by_regime(
     buckets: dict[str, list[Trade]] = {}
     for trade in trades:
         regime = trade.get(regime_col)
-        key = str(regime) if regime else "UNKNOWN"
+        if regime is None or regime == "":
+            key = "UNKNOWN"
+        else:
+            key = str(regime)
         buckets.setdefault(key, []).append(trade)
 
     def sort_key(name: str) -> tuple[int, str]:
@@ -135,6 +151,16 @@ def _win_rate(pnls: Sequence[float]) -> float | None:
 
 
 def _profit_factor(pnls: Sequence[float]) -> float | None:
+    """Sum of positive PnLs over the absolute sum of negative PnLs.
+
+    Returns ``None`` when there are no losing trades, since the
+    canonical "gross-profit / gross-loss" definition is undefined
+    (loss-denominator is zero). The caller should treat the ``None``
+    as *insufficient data to compute*, not as *infinite profit factor*
+    — the dashboard renderer therefore prints a dash for the cell
+    rather than ``+inf``.
+    """
+
     gains = sum(p for p in pnls if p > 0)
     losses = -sum(p for p in pnls if p < 0)
     if losses <= 0.0:
@@ -159,9 +185,30 @@ def compute_regime_conditional_metrics(
 ) -> dict[str, dict[str, Any]]:
     """Per-regime metrics + ``regime_frequency_pct`` + n-floor handling.
 
-    Skipped regimes are still present in the output with
-    ``{"skipped_reason": "insufficient_n", "n": ...}`` so downstream
-    code (BH-FDR aggregation, dashboard) can see *why* a cell is empty.
+    Output schema per regime:
+      - ``n`` (int): *raw* trade count for the regime, always equal to
+        ``len(trades_per_regime[regime])``. Used as the canonical
+        weight base for ``regime_frequency_pct`` so weights stay
+        consistent across skipped and active regimes.
+      - ``n_finite`` (int, optional): number of finite PnLs after
+        dropping NaN/inf; emitted only when at least one drop
+        occurred or the regime was skipped because ``n_finite`` fell
+        below the floor.
+      - ``n_non_finite_dropped`` (int, optional): explicit drop
+        count, emitted only when ``> 0``.
+      - ``regime_frequency_pct`` (float in [0, 1]): ``n / total_n``
+        across *all* regimes (raw counts), independent of any
+        non-finite filtering — keeps the aggregate weights consistent
+        when a regime drops some trades.
+      - ``skipped_reason`` (str, optional): one of
+        ``"insufficient_n"`` (raw trade count below the floor) or
+        ``"insufficient_finite_n"`` (raw count was sufficient but the
+        finite count after the non-finite filter was not). Distinct
+        reasons let the dashboard surface upstream data-feed defects
+        separately from regime sparsity.
+      - per-metric numeric values (``sharpe``, ``max_dd``,
+        ``win_rate``, ``profit_factor``, …) only on non-skipped
+        regimes.
     """
 
     fns = dict(metric_fns) if metric_fns is not None else dict(_DEFAULT_METRIC_FNS)
@@ -177,8 +224,35 @@ def compute_regime_conditional_metrics(
                 "regime_frequency_pct": freq_pct,
             }
             continue
-        pnls = [float(t[pnl_col]) for t in trades]
-        record: dict[str, Any] = {"n": n, "regime_frequency_pct": freq_pct}
+        # C-sprint deep-review: filter non-finite PnLs at the boundary
+        # so a NaN/inf data-feed defect cannot silently produce a NaN
+        # Sharpe / 0.0 max_dd that the dashboard then renders as a
+        # healthy regime. Drops are recorded so the operator can spot
+        # the upstream gap.
+        raw_pnls = [float(t[pnl_col]) for t in trades]
+        pnls = [p for p in raw_pnls if math.isfinite(p)]
+        n_dropped = len(raw_pnls) - len(pnls)
+        if len(pnls) < min_n_per_regime:
+            out[regime] = {
+                "skipped_reason": "insufficient_finite_n",
+                "n": n,
+                "n_finite": len(pnls),
+                "n_non_finite_dropped": n_dropped,
+                "regime_frequency_pct": freq_pct,
+            }
+            continue
+        # Keep ``n`` aligned with the raw regime size so callers that
+        # reconstruct ``regime_frequency_pct`` from ``n / sum(n)``
+        # land on the same number we recorded. The actual evaluation
+        # count after the non-finite filter is exposed separately as
+        # ``n_finite`` whenever it differs.
+        record: dict[str, Any] = {
+            "n": n,
+            "regime_frequency_pct": freq_pct,
+        }
+        if n_dropped > 0:
+            record["n_finite"] = len(pnls)
+            record["n_non_finite_dropped"] = n_dropped
         for name, fn in fns.items():
             record[name] = fn(pnls)
         out[regime] = record
@@ -198,6 +272,13 @@ def compute_regime_aware_aggregate(
     Skipped regimes are excluded from both the numerator and the
     denominator so the aggregate is computed only over regimes that
     cleared ``min_n_per_regime``.
+
+    Weighting (when ``freq_weighting=True``): each non-skipped regime
+    contributes its *finite* trade count (``n_finite`` if non-finite
+    PnLs were dropped, else raw ``n``) — i.e. the actual sample count
+    behind the metric value, not the raw regime frequency. This avoids
+    over-weighting regimes that lost a large fraction of their trades
+    to NaN/inf upstream-data defects (Copilot #306 follow-up).
 
     When ``unknown_share`` is provided (the value returned by
     :func:`unknown_regime_share` for the same trade-set) and exceeds
@@ -226,7 +307,18 @@ def compute_regime_aware_aggregate(
         if value is None:
             skipped.append(regime)
             continue
-        weight = float(record.get("regime_frequency_pct", 0.0)) if freq_weighting else 1.0
+        if freq_weighting:
+            # C-sprint Copilot #306: weight by the *finite* trade count
+            # actually used to compute the metric (``n_finite`` if drops
+            # occurred, else raw ``n``) — not by the raw
+            # ``regime_frequency_pct`` which still includes non-finite
+            # trades. Otherwise a regime that lost (e.g.) half its
+            # trades to NaN PnLs would be weighted as if all of them
+            # contributed to the metric, mis-weighting the aggregate
+            # toward regimes with high upstream-data drop rates.
+            weight = float(record.get("n_finite", record.get("n", 0)))
+        else:
+            weight = 1.0
         used.append(regime)
         contributions.append((float(value), weight))
 
@@ -251,10 +343,12 @@ def compute_regime_aware_aggregate(
     total_weight = sum(w for _, w in contributions)
     if total_weight <= 0.0:  # pragma: no cover - defensive: unreachable
         # Defensive guard only. With ``freq_weighting=True`` each weight
-        # is ``n / total_n`` for an admitted regime (``n >=
-        # min_n_per_regime > 0``) so the sum is always > 0; with
-        # ``freq_weighting=False`` weights are 1.0 each. Kept so a
-        # future caller passing custom weights can't get a ZeroDivision.
+        # is the regime's finite trade count (``n_finite`` if drops
+        # occurred, else raw ``n``); a non-skipped regime by
+        # construction has ``n_finite >= min_n_per_regime > 0`` so the
+        # sum is always > 0. With ``freq_weighting=False`` weights are
+        # 1.0 each. Kept so a future caller passing custom weights
+        # can't get a ZeroDivision.
         agg = sum(v for v, _ in contributions) / len(contributions)
         method = "equal_weighted_fallback"
     else:
