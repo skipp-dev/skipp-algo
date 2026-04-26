@@ -32,6 +32,7 @@ from typing import Any
 __all__ = [
     "MIN_TRADES_PER_REGIME",
     "stratify_trades_by_regime",
+    "unknown_regime_share",
     "compute_regime_conditional_metrics",
     "compute_regime_aware_aggregate",
     "detect_regime_concentration",
@@ -76,6 +77,23 @@ def stratify_trades_by_regime(
         return (1 if name == "UNKNOWN" else 0, name)
 
     return OrderedDict((k, buckets[k]) for k in sorted(buckets, key=sort_key))
+
+
+def unknown_regime_share(
+    trades_per_regime: Mapping[str, Sequence[Trade]],
+) -> float:
+    """Fraction of trades that fell into the ``"UNKNOWN"`` bucket.
+
+    A high share (> 0.10) usually means the upstream pipeline forgot
+    to emit ``regime_at_entry`` and the per-regime stratification is
+    effectively un-stratified. The caller should surface this as a
+    warning on the dashboard payload.
+    """
+
+    total = sum(len(t) for t in trades_per_regime.values())
+    if total <= 0:
+        return 0.0
+    return len(trades_per_regime.get("UNKNOWN", [])) / total
 
 
 def _sharpe(pnls: Sequence[float]) -> float | None:

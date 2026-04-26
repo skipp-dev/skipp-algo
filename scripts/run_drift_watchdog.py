@@ -9,6 +9,12 @@ Designed to be run from a weekly cron (Sprint C9 / T5) and to feed the
 GitHub-issue-on-red automation (Sprint C9 / T4) defined in
 ``.github/workflows/drift-watchdog.yml``.
 
+.. note::
+    FIXME(C9/T7-finalize-2026Q3): the default p-value bands and PSI
+    thresholds in this script are *interim* values from C9/T7. They
+    must be re-locked once ≥ 90 days of live data are available — see
+    ``docs/c9_threshold_tuning.md``. Tracking issue: TBD.
+
 Usage
 -----
 
