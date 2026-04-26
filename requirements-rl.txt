@@ -1,0 +1,7 @@
+# Optional RL dependencies for the C12 RL-Execution layer.
+# The rl/ pipeline runs end-to-end on numpy alone (TWAP/VWAP/eps-greedy
+# baselines). Install only when training PPO/SAC agents.
+gymnasium>=0.29.0
+stable-baselines3>=2.3.0
+torch>=2.2.0
+optuna>=3.5.0
