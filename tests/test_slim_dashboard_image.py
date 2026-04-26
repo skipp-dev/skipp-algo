@@ -79,3 +79,17 @@ def test_slim_dockerfile_uses_dashboard_requirements() -> None:
     # Entry must be the slim entry, not the full trader app.
     assert "streamlit_dashboard.py" in contents
     assert "streamlit_terminal.py" not in contents
+
+
+def test_run_dashboard_sh_native_mode_runs_streamlit_dashboard() -> None:
+    """C-sprint deep-review C7 fix: native mode of ``run_dashboard.sh``
+    previously launched ``streamlit_terminal.py`` (the live news /
+    trading terminal) instead of the read-only Track-Record Dashboard.
+    Pin the entrypoint here so the regression cannot recur silently.
+    """
+    from pathlib import Path
+
+    repo_root = Path(__file__).resolve().parents[1]
+    script = (repo_root / "scripts" / "run_dashboard.sh").read_text(encoding="utf-8")
+    assert "streamlit run streamlit_dashboard.py" in script
+    assert "streamlit run streamlit_terminal.py" not in script

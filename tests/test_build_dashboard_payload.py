@@ -221,3 +221,56 @@ def test_dashboard_payload_version_is_semver() -> None:
     assert len(parts) == 3, f"expected MAJOR.MINOR.PATCH, got {DASHBOARD_PAYLOAD_VERSION}"
     for p in parts:
         assert p.isdigit(), f"non-numeric semver part: {p!r}"
+
+
+def test_partial_join_walk_forward_plus_bootstrap_only(tmp_path: Path) -> None:
+    """Realistic partial state: walk-forward + bootstrap-CI present,
+    permutation / regime / psr_mintrl missing. Variant must surface
+    *both* the present numeric fields and ``None`` for the missing
+    ones, with a warnings entry per absent sidecar (C-sprint deep-
+    review C7 finding).
+    """
+    date = "2026-04-26"
+    _write(
+        tmp_path / f"walk_forward_{date}.json",
+        {
+            "variants": [
+                {
+                    "setup_type": "smc_breaker",
+                    "symbol_group": "btc",
+                    "regime": "RISK_ON",
+                    "n_trades": 100,
+                    "wfe": 0.71,
+                }
+            ]
+        },
+    )
+    _write(
+        tmp_path / f"bootstrap_ci_{date}.json",
+        {
+            "variants": [
+                {
+                    "setup_type": "smc_breaker",
+                    "symbol_group": "btc",
+                    "regime": "RISK_ON",
+                    "sharpe_ci_low": 0.10,
+                    "sharpe_ci_high": 0.40,
+                }
+            ]
+        },
+    )
+    payload = build_dashboard_payload(tmp_path, now=_FROZEN_NOW)
+    assert len(payload["variants"]) == 1
+    v = payload["variants"][0]
+    # Present fields preserved.
+    assert v["wfe"] == 0.71
+    assert v["bootstrap_ci_low"] == 0.10
+    assert v["bootstrap_ci_high"] == 0.40
+    # Missing fields → None.
+    assert v["perm_p"] is None
+    assert v["psr_at_0"] is None
+    assert v["regime_concentration"] is None
+    # Warnings cover at least the three missing sidecars.
+    warning_blob = "\n".join(payload["warnings"])
+    for missing in ("permutation", "regime", "psr"):
+        assert missing in warning_blob, f"missing warning for {missing!r}"

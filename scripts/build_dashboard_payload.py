@@ -380,6 +380,17 @@ def build_dashboard_payload(
         ``scripts.track_record_gate.verdict_to_dict``. If not provided
         explicitly, the loader will look for
         ``track_record_gate_<date>.json`` in ``cache_dir``.
+
+        **Important**: this dict must be **pre-computed** by an upstream
+        offline run of ``scripts.track_record_gate.evaluate_track_record_gate``
+        (or its per-variant sibling). The aggregator does NOT re-run
+        the gate here — doing so would (a) drag the bootstrap-CI
+        dependency into the dashboard image, breaking the C7/T8 slim-
+        image policy documented in ``Dockerfile.dashboard``, and
+        (b) re-execute a multi-second probabilistic computation on
+        every dashboard refresh. If the file is missing, the dashboard
+        renders the gate cell as ``"missing"`` rather than computing
+        a fresh verdict.
     now
         Injection seam for deterministic tests. Defaults to UTC now.
 
