@@ -302,12 +302,16 @@ def evaluate_track_record_gate(
     if n >= 30:
         psr_dict = probabilistic_sharpe(arr.tolist(), sr_star=0.0, annualize=False)
         psr_value = psr_dict["psr"]
-        # ``min_trl`` raises ValueError when ``sr_hat <= sr_star`` (no
-        # detectable edge). Previously the caller swallowed that as
-        # SKIPPED, which let red gates pass silently. Track the
-        # condition explicitly so the check fires RED with a clear
-        # detail string instead of silently skipping (C-sprint deep-
+        # ``min_trl`` raises ValueError on two distinct conditions:
+        # (a) ``sr_hat <= sr_star`` — no detectable edge,
+        # (b) ``denom_inner <= 0`` — non-Gaussian variance-term
+        #     collapse driven by extreme skew/kurtosis.
+        # Both are RED outcomes for the gate, but the detail string
+        # must reflect the actual cause so reviewers don't chase the
+        # wrong remediation. Previously this branch swallowed both as
+        # SKIPPED, which let red gates pass silently (C-sprint deep-
         # review MAJOR fix).
+        min_trl_failure_detail: str | None = None
         try:
             min_trl_value = float(
                 min_trl(
@@ -318,9 +322,17 @@ def evaluate_track_record_gate(
                     alpha=0.05,
                 )
             )
-        except ValueError:
+        except ValueError as exc:
             min_trl_value = None
             min_trl_no_edge = True
+            msg = str(exc).lower()
+            if "variance term" in msg:
+                min_trl_failure_detail = (
+                    "non-Gaussian variance term collapsed "
+                    "(extreme skew/kurtosis)"
+                )
+            else:
+                min_trl_failure_detail = "sr_hat <= sr_star (no detectable edge)"
     checks.append(
         _check(
             "psr_sr_star_zero",
@@ -337,7 +349,8 @@ def evaluate_track_record_gate(
                     status=RED,
                     value=None,
                     threshold=float(n),
-                    detail="sr_hat <= sr_star (no detectable edge)",
+                    detail=min_trl_failure_detail
+                    or "sr_hat <= sr_star (no detectable edge)",
                 )
             )
         else:

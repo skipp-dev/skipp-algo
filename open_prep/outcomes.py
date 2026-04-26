@@ -89,15 +89,17 @@ def store_daily_outcomes(
         Sprint-Plan-Wording "Live-Outcome-Stream" notwithstanding, this
         is a daily-aggregate writer, not a streaming append. A future
         truly-streaming variant must use either (a) JSONL append with
-        per-record dedup keys ``(symbol, gap_bucket, rvol_bucket, ts)``
-        or (b) a file-lock around a read-merge-replace cycle.
+        per-record dedup keys ``(symbol, gap_bucket_label,
+        rvol_bucket_label, ts)`` (matching the field names used in the
+        record schema below) or (b) a file-lock around a read-merge-
+        replace cycle.
 
         Tests:
-        - ``tests/test_open_prep.py::test_store_daily_outcomes_*`` pin
-          the atomic-overwrite invariant (second write wins).
-        - ``tests/test_open_prep.py::test_store_daily_outcomes_single_writer_invariant``
-          documents the single-writer contract with an explicit
-          regression assertion.
+        - ``tests/test_open_prep.py`` pins the atomic-overwrite
+          invariant (second write wins).
+        - ``tests/test_outcomes_single_writer.py`` documents the
+          single-writer contract with an explicit regression
+          assertion (overwrite-second-wins + atomic-on-failure).
 
     Each record should contain at minimum::
 
