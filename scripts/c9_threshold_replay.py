@@ -187,8 +187,12 @@ def _episode_fires(episode: Episode, setting: ThresholdSetting) -> bool:
     of the four detectors below cross their drift threshold. Two-of-four
     consensus is the C9/T7 interim rule that trades single-detector
     sensitivity for a lower false-positive rate against the small
-    pre-90-day sample. Re-tune once we have the lock-in data — see
-    ``run_drift_watchdog.py`` FIXME(C9/T7-finalize-2026Q3).
+    pre-90-day sample. Re-tune once we have the lock-in data — tracking
+    issue: https://github.com/skippALGO/skipp-algo/issues/298 (see also
+    ``run_drift_watchdog.py`` and the anchor test
+    ``tests/test_c9_threshold_finalisation_anchor.py`` which fires the
+    moment both (a) ≥ 1 family hits 28+ live-incubation days and (b)
+    these literals are still unchanged).
 
     Detectors:
         1. KS p-value vs ``ks_p_yellow``/``ks_p_red`` — distribution-shape change.
@@ -223,7 +227,8 @@ def _episode_fires(episode: Episode, setting: ThresholdSetting) -> bool:
         fires += 1
 
     # Detector 3: mean-shift (>= 0.3 sigma of baseline std) — bauchgefühl,
-    # see docstring; tracking re-tune via C9/T7-finalize-2026Q3.
+    # see docstring; tracking re-tune via
+    # https://github.com/skippALGO/skipp-algo/issues/298.
     bstd = float(baseline.std(ddof=0))
     if bstd > 0:
         mean_shift = abs(float(live.mean()) - float(baseline.mean())) / bstd
@@ -231,7 +236,8 @@ def _episode_fires(episode: Episode, setting: ThresholdSetting) -> bool:
             fires += 1
 
     # Detector 4: variance ratio outside [0.5, 2.0] — bauchgefühl, see
-    # docstring; tracking re-tune via C9/T7-finalize-2026Q3.
+    # docstring; tracking re-tune via
+    # https://github.com/skippALGO/skipp-algo/issues/298.
     lstd = float(live.std(ddof=0))
     if bstd > 0 and lstd > 0:
         ratio = lstd / bstd
