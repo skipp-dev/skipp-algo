@@ -1,0 +1,141 @@
+"""Tests for terminal_tabs.drift_loader (C8/T6)."""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+from terminal_tabs.drift_loader import (
+    DRIFT_FILENAME_PATTERN,
+    _filter_excluded_variants,
+    list_drift_dates,
+    load_drift_artifact,
+    resolve_drift_path,
+)
+
+
+def _write(path: Path, payload: dict | str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if isinstance(payload, str):
+        path.write_text(payload, encoding="utf-8")
+    else:
+        path.write_text(json.dumps(payload), encoding="utf-8")
+
+
+def test_filename_pattern_matches_canonical() -> None:
+    assert DRIFT_FILENAME_PATTERN.match("drift_2026-04-26.json")
+    assert not DRIFT_FILENAME_PATTERN.match("drift_2026-4-26.json")
+    assert not DRIFT_FILENAME_PATTERN.match("drift_latest.json")
+    assert not DRIFT_FILENAME_PATTERN.match("backtest_2026-04-26.json")
+
+
+def test_list_drift_dates_returns_empty_when_no_dir(tmp_path: Path) -> None:
+    assert list_drift_dates(tmp_path) == []
+
+
+def test_list_drift_dates_skips_non_matching(tmp_path: Path) -> None:
+    live = tmp_path / "live"
+    live.mkdir()
+    (live / "drift_2026-04-25.json").write_text("{}")
+    (live / "drift_2026-04-26.json").write_text("{}")
+    (live / "README.md").write_text("nope")
+    (live / "drift_latest.json").write_text("{}")
+    assert list_drift_dates(tmp_path) == ["2026-04-25", "2026-04-26"]
+
+
+def test_resolve_drift_path_explicit_date(tmp_path: Path) -> None:
+    _write(tmp_path / "live" / "drift_2026-04-26.json", {})
+    p = resolve_drift_path(tmp_path, as_of_date="2026-04-26")
+    assert p is not None
+    assert p.name == "drift_2026-04-26.json"
+
+
+def test_resolve_drift_path_explicit_missing_returns_none(tmp_path: Path) -> None:
+    _write(tmp_path / "live" / "drift_2026-04-26.json", {})
+    assert resolve_drift_path(tmp_path, as_of_date="2026-04-30") is None
+
+
+def test_resolve_drift_path_picks_newest(tmp_path: Path) -> None:
+    _write(tmp_path / "live" / "drift_2026-04-25.json", {})
+    _write(tmp_path / "live" / "drift_2026-04-27.json", {})
+    _write(tmp_path / "live" / "drift_2026-04-26.json", {})
+    p = resolve_drift_path(tmp_path)
+    assert p is not None and p.name == "drift_2026-04-27.json"
+
+
+def test_resolve_drift_path_none_when_empty(tmp_path: Path) -> None:
+    assert resolve_drift_path(tmp_path) is None
+
+
+def test_load_drift_artifact_returns_payload(tmp_path: Path) -> None:
+    payload = {
+        "computed_at": "2026-04-26T09:00:00Z",
+        "live_window_days": 90,
+        "variants": [
+            {
+                "variant": "v01",
+                "n_live_trades": 30,
+                "live_sharpe": 0.7,
+                "backtest_sharpe": 0.8,
+                "drift_score": 0.92,
+                "verdict": "pass",
+            }
+        ],
+    }
+    _write(tmp_path / "live" / "drift_2026-04-26.json", payload)
+    out = load_drift_artifact(tmp_path)
+    assert out == payload
+
+
+def test_load_drift_artifact_returns_none_on_corrupt(tmp_path: Path) -> None:
+    _write(tmp_path / "live" / "drift_2026-04-26.json", "{not json")
+    assert load_drift_artifact(tmp_path) is None
+
+
+def test_load_drift_artifact_returns_none_on_non_object(tmp_path: Path) -> None:
+    _write(tmp_path / "live" / "drift_2026-04-26.json", "[1,2,3]")
+    assert load_drift_artifact(tmp_path) is None
+
+
+def test_load_drift_artifact_none_on_empty_dir(tmp_path: Path) -> None:
+    assert load_drift_artifact(tmp_path) is None
+
+
+def test_load_drift_artifact_feeds_build_live_view(tmp_path: Path) -> None:
+    """Smoke: loader output is consumed by the C7 tab without errors."""
+    from terminal_tabs.tab_live_incubation import build_live_view
+
+    _write(
+        tmp_path / "live" / "drift_2026-04-26.json",
+        {
+            "computed_at": "2026-04-26T09:00:00Z",
+            "live_window_days": 90,
+            "variants": [
+                {
+                    "variant": "v01",
+                    "n_live_trades": 30,
+                    "live_sharpe": 0.7,
+                    "backtest_sharpe": 0.8,
+                    "drift_score": 0.92,
+                    "verdict": "pass",
+                }
+            ],
+        },
+    )
+    payload = load_drift_artifact(tmp_path)
+    view = build_live_view(payload)
+    assert view["status"] != "awaiting_c8"
+    assert len(view["rows"]) == 1
+
+
+def test_filter_excluded_variants_drops_listed(tmp_path: Path) -> None:
+    payload = {"variants": [{"variant": "v01"}, {"variant": "v02"}]}
+    out = _filter_excluded_variants(payload, excluded=["v01"])
+    assert out is not None
+    assert [v["variant"] for v in out["variants"]] == ["v02"]
+
+
+def test_filter_excluded_variants_passthrough_when_none() -> None:
+    payload = {"variants": [{"variant": "v01"}]}
+    assert _filter_excluded_variants(payload, excluded=None) is payload
+    assert _filter_excluded_variants(None, excluded=["v01"]) is None
