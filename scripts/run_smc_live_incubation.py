@@ -203,12 +203,18 @@ def run_live_incubation(
     # variant the gate decided on. compute_live_drift (C8/T4) groups
     # by this key; without it the drift cron sees no variants and
     # emits an empty report.
+    #
+    # build_ibkr_intents_from_smc_setups returns "one intent per input
+    # record, in the original order" (see smc_to_ibkr_adapter docstring),
+    # so we zip tradable ↔ intents and use intent.order_ref as the
+    # canonical key. This handles both explicit setup['order_ref'] and
+    # the synthesized "smc-{symbol}-{trade_date}-port{port}" form.
     variant_by_order_ref: dict[str, str] = {}
-    for setup in tradable:
-        order_ref = setup.get("order_ref")
-        variant = setup.get("variant")
-        if isinstance(order_ref, str) and isinstance(variant, str):
-            variant_by_order_ref[order_ref] = variant
+    if len(tradable) == len(intents):
+        for setup, intent in zip(tradable, intents):
+            variant = setup.get("variant")
+            if isinstance(variant, str):
+                variant_by_order_ref[intent.order_ref] = variant
 
     submission_results = submit_fn(intents)
     submission_by_intent = {

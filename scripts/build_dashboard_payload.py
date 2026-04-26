@@ -303,7 +303,14 @@ def _build_variants(
             "psr": psr_at_0,
             "min_trl": min_trl_at_0,
             "walk_forward_efficiency": wfe,
-            "walk_forward_mode": str(raw.get("walk_forward_mode", "anchored")),
+            "walk_forward_mode": (
+                # Preserve a missing/explicit-None walk_forward_mode as None so
+                # the consumer's `... or "anchored"` default applies; coercing
+                # via str() would emit the literal string "None".
+                str(raw["walk_forward_mode"])
+                if raw.get("walk_forward_mode") is not None
+                else None
+            ),
             "walk_forward_folds": wf_folds_list,
             "max_drawdown": max_dd,
             "bootstrap": bootstrap_block,
