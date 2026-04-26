@@ -52,20 +52,26 @@ All notable changes to this project are documented in this file.
   `except KeyboardInterrupt`. Pinning the (path, line) is the right
   primitive.
 
-### Tests / Quality (2026-04-26) — Defense pin: `fcntl.flock(...)` zero-surface (4 sites)
+### Tests / Quality (2026-04-26) — Defense ledger: `subprocess.run` / `subprocess.Popen` site lock (3 sites)
 
-- Added `tests/test_fcntl_flock_zero_surface.py` (3 tests) pinning
-  every production `fcntl.flock(...)` call by `(path, line)`.
-  `flock` is POSIX-only — every new caller silently breaks Windows
-  portability and the existing import-guard fallback pattern in
-  `open_prep/watchlist.py`. Mis-matched `LOCK_EX` / `LOCK_UN` pairs
-  cause silent deadlocks. Locked sites:
-  - `open_prep/realtime_signals.py:254` (`LOCK_EX|LOCK_NB`) +
-    `:280` (`LOCK_UN`) — daemon PID-file singleton lock.
-  - `open_prep/watchlist.py:41` (`LOCK_EX`) + `:44` (`LOCK_UN`) —
-    watchlist read/write critical section.
-  Each acquire must be paired with a release in a `try`/`finally`
-  and BOTH legs appended to the allow-list when adding a caller.
+- Added `tests/test_subprocess_spawn_sites_ledger.py` (4 tests)
+  pinning every production process-spawn call by `(path, line)`.
+  Complements the existing kwarg-shape invariants
+  (`test_subprocess_run_check_invariant.py` for `check=`,
+  `test_dangerous_call_tripwires.py` /
+  `test_shell_true_tripwire.py` for `shell=True`) — neither covers
+  *where* commands are spawned. The site ledger surfaces drift,
+  doubles as a one-grep audit of every place we shell out, and
+  forces a reviewer to ask "is this new shell-out actually
+  necessary?". Locked sites:
+  - `subprocess.run`:
+    - `smc_integration/release_policy.py:1066`
+      (`git rev-parse HEAD` for release-manifest provenance)
+    - `open_prep/realtime_signals.py:181`
+      (`pgrep` to discover daemon PID)
+  - `subprocess.Popen`:
+    - `open_prep/realtime_signals.py:325`
+      (detached re-launch of the realtime-signals daemon)
 - Defense-only — no production changes.
 
 ### Tests / Quality (2026-04-25) — Defense ledger: `os.unlink` / `os.remove` (23 sites)
