@@ -1,0 +1,15 @@
+{
+  "schema_version": "1.2.0",
+  "pinned_module": "scripts/emit_public_calibration_report.py",
+  "pinned_blocks": [
+    "PUBLIC_SCHEMA_VERSION",
+    "build_public_report"
+  ],
+  "pinned_source_sha256": "3f00d1b0efd8d7baefbb1de75ff5c650cc81bdabd9f70fd393924db7839a6058",
+  "additive_fields_introduced": {
+    "1.1.0": ["track_record_gate"],
+    "1.2.0": ["regime_stratified"]
+  },
+  "drift_policy": "If the SHA changes: (1) decide whether the change is intentional and whether it breaks the public-report contract; (2) if breaking, bump PUBLIC_SCHEMA_VERSION (semver MAJOR/MINOR per docs/schema_versioning.md), append an additive_fields_introduced entry, write a CHANGELOG entry plus an ADR; (3) if non-breaking (cosmetic docstring, type-only refactor) just update the SHA. Producer/consumer roundtrip pin lives in tests/test_public_schema_pin.py.",
+  "notes": "Companion to ml/schemas/v1_input_schema.json (C10 input schema). This pin protects the *public* calibration report contract (consumed by the dashboard + the freeze_exit gate)."
+}

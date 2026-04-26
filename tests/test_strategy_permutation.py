@@ -67,6 +67,29 @@ def test_unknown_schema_rejected() -> None:
         sp.permutation_test_sharpe(returns, schema="entry_time", B=100, seed=1)  # type: ignore[arg-type]
 
 
+@pytest.mark.xfail(
+    strict=False,
+    reason=(
+        "C4/T-followup: Schema B (entry-time block-permutation) is "
+        "deferred per docs/SPRINT_PLAN_C4_PERMUTATION_TEST_2026-04-26.md. "
+        "Until Schema B lands, the gate's permutation_p check is "
+        "advisory only; this xfail keeps the deferral visible in the "
+        "skip ledger."
+    ),
+)
+def test_schema_b_entry_time_block_permutation_supported() -> None:
+    """Future: Schema-B (entry-time block-permutation) preserves the
+    intra-day clustering structure of trades and gives a defensible
+    p-value for the gate. Until then, ``schema='entry_time'`` raises
+    ValueError; this test will pass once the implementation lands.
+    """
+    rng = np.random.default_rng(0)
+    returns = rng.normal(0.001, 0.01, size=80)
+    out = sp.permutation_test_sharpe(returns, schema="entry_time", B=100, seed=1)
+    assert "p_value_one_sided" in out
+    assert 0.0 < out["p_value_one_sided"] <= 1.0
+
+
 # ---------------------------------------------------------------------------
 # Phipson-Smyth correction guarantees
 # ---------------------------------------------------------------------------
