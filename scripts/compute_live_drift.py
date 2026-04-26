@@ -65,6 +65,7 @@ __all__ = [
     "drift_score",
     "ks_two_sample",
     "main",
+    "max_drawdown_fraction",
 ]
 
 
@@ -80,6 +81,8 @@ class DriftVerdict:
     slippage_ks_p: float | None
     hr_in_bootstrap_ci: bool | None
     verdict: str
+    live_max_dd: float | None = None
+    backtest_max_dd: float | None = None
 
     def to_json(self) -> dict[str, Any]:
         return {
@@ -93,6 +96,12 @@ class DriftVerdict:
             ),
             "hr_in_bootstrap_ci": self.hr_in_bootstrap_ci,
             "verdict": self.verdict,
+            "live_max_dd": (
+                None if self.live_max_dd is None else round(self.live_max_dd, 6)
+            ),
+            "backtest_max_dd": (
+                None if self.backtest_max_dd is None else round(self.backtest_max_dd, 6)
+            ),
         }
 
 
@@ -112,6 +121,26 @@ def annualised_sharpe(returns: Sequence[float]) -> float:
     if sd <= 0.0 or not math.isfinite(sd):
         return 0.0
     return float(arr.mean() / sd * math.sqrt(_TRADING_DAYS_PER_YEAR))
+
+
+def max_drawdown_fraction(returns: Sequence[float]) -> float | None:
+    """Peak-to-trough drawdown as a positive fraction of the peak equity.
+
+    Treats ``returns`` as additive equity-curve increments (R-multiples
+    or fractional). Returns ``None`` when fewer than 2 samples are
+    available so callers can render a "no data" placeholder rather than
+    a misleading 0.0.
+    """
+    arr = np.asarray(list(returns), dtype=float)
+    if arr.size < 2:
+        return None
+    equity = 1.0 + np.cumsum(arr)
+    peaks = np.maximum.accumulate(equity)
+    # Guard against zero/negative peaks to keep the ratio bounded.
+    safe_peaks = np.where(peaks <= 0, 1.0, peaks)
+    drawdowns = (peaks - equity) / safe_peaks
+    dd = float(np.max(drawdowns))
+    return max(0.0, dd) if math.isfinite(dd) else None
 
 
 def drift_score(live_sharpe: float, backtest_sharpe: float) -> float:
@@ -267,6 +296,8 @@ def compute_live_drift(
         backtest_sharpe = _coerce_float(ref.get("sharpe")) or 0.0
         ci_low = _coerce_float(ref.get("hit_rate_ci_low"))
         ci_high = _coerce_float(ref.get("hit_rate_ci_high"))
+        backtest_max_dd = _coerce_float(ref.get("max_dd"))
+        ref_slippage_raw = ref.get("slippage_samples")
 
         returns: list[float] = []
         slippage: list[float] = []
@@ -296,6 +327,8 @@ def compute_live_drift(
                     slippage_ks_p=None,
                     hr_in_bootstrap_ci=None,
                     verdict="insufficient_sample",
+                    live_max_dd=max_drawdown_fraction(returns),
+                    backtest_max_dd=backtest_max_dd,
                 ).to_json(),
             )
             continue
@@ -306,17 +339,28 @@ def compute_live_drift(
 
         ks_p: float | None = None
         if slippage:
-            # Reference slippage sample, generated deterministically from
-            # the expected mean/std so the test is reproducible without
-            # plumbing an RNG through the public API.
-            ref_n = max(len(slippage), 100)
-            rng = np.random.default_rng(seed=12345)
-            ref_sample = rng.normal(
-                loc=expected_slippage_mean,
-                scale=max(expected_slippage_std, 1e-9),
-                size=ref_n,
-            )
-            _, ks_p = ks_two_sample(slippage, ref_sample.tolist())
+            # Prefer a real backtest-slippage sample if the reference
+            # carries one; otherwise fall back to a deterministic
+            # Normal(expected_mean, expected_std) reference. The
+            # synthetic fallback is statistically weak vs fat-tailed
+            # real slippage — see C8 review notes.
+            ref_sample: list[float]
+            if isinstance(ref_slippage_raw, list) and ref_slippage_raw:
+                ref_sample = [
+                    s for s in (
+                        _coerce_float(x) for x in ref_slippage_raw
+                    ) if s is not None
+                ]
+            else:
+                ref_n = max(len(slippage), 100)
+                rng = np.random.default_rng(seed=12345)
+                ref_sample = rng.normal(
+                    loc=expected_slippage_mean,
+                    scale=max(expected_slippage_std, 1e-9),
+                    size=ref_n,
+                ).tolist()
+            if ref_sample:
+                _, ks_p = ks_two_sample(slippage, ref_sample)
 
         hr_in_ci: bool | None = None
         if hits and ci_low is not None and ci_high is not None:
@@ -333,6 +377,8 @@ def compute_live_drift(
                 slippage_ks_p=ks_p,
                 hr_in_bootstrap_ci=hr_in_ci,
                 verdict=verdict,
+                live_max_dd=max_drawdown_fraction(returns),
+                backtest_max_dd=backtest_max_dd,
             ).to_json(),
         )
 

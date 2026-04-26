@@ -122,6 +122,43 @@ def _gate_status_from_track_record(gate: dict[str, Any] | None) -> str:
     return "unknown"
 
 
+def _per_variant_gate_status(
+    track_record_gate: dict[str, Any] | None,
+    variant_key: str,
+    fallback: str,
+) -> tuple[str, list[str]]:
+    """Look up a per-variant gate verdict; fall back to the global status.
+
+    Returns ``(status, failures)`` where ``failures`` is a list of
+    human-readable reasons for ``red`` verdicts. The ``track_record_gate``
+    payload may carry a ``per_variant`` block (additive in 1.1.0+) of
+    the shape::
+
+        {
+            "status": "green",
+            "per_variant": {
+                "smc_breaker_btc": {"status": "yellow", "failures": [...]},
+                ...
+            }
+        }
+
+    When ``per_variant`` is absent we surface the global status on every
+    row so the legacy single-verdict track-record-gate stays usable.
+    """
+    if track_record_gate is None:
+        return fallback, []
+    per = track_record_gate.get("per_variant")
+    if not isinstance(per, dict):
+        return fallback, []
+    entry = per.get(variant_key)
+    if not isinstance(entry, dict):
+        return fallback, []
+    status = _gate_status_from_track_record(entry)
+    failures_raw = entry.get("failures") or []
+    failures = [str(f) for f in failures_raw if isinstance(f, (str, int, float))]
+    return status, failures
+
+
 def _global_summary(variants: Iterable[dict[str, Any]]) -> dict[str, int]:
     """Aggregate gate counts for the top-of-page traffic light."""
     counts = {"total_variants": 0, "gate_green": 0, "gate_amber": 0, "gate_red": 0}
@@ -163,7 +200,7 @@ def _build_variants(
     regime_index = _index_by_variant(regime, key="variants")
     psr_index = _index_by_variant(psr_mintrl, key="variants")
 
-    gate_status = _gate_status_from_track_record(track_record_gate)
+    global_status = _gate_status_from_track_record(track_record_gate)
 
     out: list[dict[str, Any]] = []
     for raw in raw_variants:
@@ -172,36 +209,116 @@ def _build_variants(
         setup_type = str(raw.get("setup_type", ""))
         symbol_group = str(raw.get("symbol_group", ""))
         key = (setup_type, symbol_group)
+        # Composite variant key — matches the C8 drift artifact convention
+        # (e.g. "smc_breaker_btc") and the columns the C7 tabs read.
+        variant_key = (
+            f"{setup_type}_{symbol_group}" if setup_type and symbol_group
+            else (setup_type or symbol_group)
+        )
         bootstrap_row = bootstrap_index.get(key, {})
         perm_row = perm_index.get(key, {})
         regime_row = regime_index.get(key, {})
         psr_row = psr_index.get(key, {})
-        out.append(
-            {
-                "setup_type": setup_type,
-                "symbol_group": symbol_group,
-                "regime": str(raw.get("regime", "")),
-                "n_trades": int(raw.get("n_trades", 0)),
-                "hit_rate": _coerce_optional_float(raw.get("hit_rate")),
-                "sharpe": _coerce_optional_float(raw.get("sharpe")),
-                "bootstrap_ci_low": _coerce_optional_float(
-                    bootstrap_row.get("sharpe_ci_low")
-                ),
-                "bootstrap_ci_high": _coerce_optional_float(
-                    bootstrap_row.get("sharpe_ci_high")
-                ),
-                "perm_p": _coerce_optional_float(perm_row.get("p_value")),
-                "bh_fdr_pass": bool(perm_row.get("bh_fdr_pass", False)),
-                "psr_at_0": _coerce_optional_float(psr_row.get("psr_at_0")),
-                "min_trl_at_0": _coerce_optional_int(psr_row.get("min_trl_at_0")),
-                "wfe": _coerce_optional_float(raw.get("wfe")),
-                "max_dd": _coerce_optional_float(raw.get("max_dd")),
-                "regime_concentration": _coerce_optional_float(
-                    regime_row.get("regime_concentration")
-                ),
-                "gate_status": gate_status,
-            }
+
+        variant_status, variant_failures = _per_variant_gate_status(
+            track_record_gate, variant_key, global_status
         )
+
+        sharpe_ci_low = _coerce_optional_float(bootstrap_row.get("sharpe_ci_low"))
+        sharpe_ci_high = _coerce_optional_float(bootstrap_row.get("sharpe_ci_high"))
+        perm_p = _coerce_optional_float(perm_row.get("p_value"))
+        psr_at_0 = _coerce_optional_float(psr_row.get("psr_at_0"))
+        min_trl_at_0 = _coerce_optional_int(psr_row.get("min_trl_at_0"))
+        wfe = _coerce_optional_float(raw.get("wfe"))
+        max_dd = _coerce_optional_float(raw.get("max_dd"))
+
+        # Sub-blocks for the C7 tab_calibration_detail drill-down.
+        bootstrap_block: dict[str, Any] = {}
+        if bootstrap_row:
+            samples_raw = bootstrap_row.get("sharpe_samples") or []
+            samples = [
+                _coerce_optional_float(s) for s in samples_raw if s is not None
+            ]
+            bootstrap_block = {
+                "sharpe_samples": [s for s in samples if s is not None],
+                "n_bootstraps": int(bootstrap_row.get("n_bootstraps", 0) or 0),
+            }
+        perm_block: dict[str, Any] = {}
+        if perm_row:
+            null_raw = perm_row.get("null_samples") or []
+            null = [_coerce_optional_float(s) for s in null_raw if s is not None]
+            perm_block = {
+                "observed": _coerce_optional_float(perm_row.get("observed")),
+                "null_samples": [s for s in null if s is not None],
+                "schema": str(perm_row.get("schema", "outcome_sign")),
+            }
+        regime_block: dict[str, Any] = {}
+        if regime_row:
+            per_regime = regime_row.get("per_regime") or {}
+            regime_block = {
+                k: dict(v) for k, v in per_regime.items()
+                if isinstance(v, dict)
+            }
+            agg = _coerce_optional_float(
+                regime_row.get("aggregate_freq_weighted_sharpe")
+            )
+            if agg is not None:
+                regime_block["aggregate_freq_weighted_sharpe"] = agg
+            if regime_row.get("regime_concentration_warning"):
+                regime_block["regime_concentration_warning"] = True
+        wf_folds = raw.get("walk_forward_folds")
+        wf_folds_list = (
+            [dict(f) for f in wf_folds if isinstance(f, dict)]
+            if isinstance(wf_folds, list) else []
+        )
+
+        row: dict[str, Any] = {
+            # Legacy keys (pinned by tests, kept for backward compat).
+            "setup_type": setup_type,
+            "symbol_group": symbol_group,
+            "regime": str(raw.get("regime", "")),
+            "n_trades": int(raw.get("n_trades", 0)),
+            "hit_rate": _coerce_optional_float(raw.get("hit_rate")),
+            "sharpe": _coerce_optional_float(raw.get("sharpe")),
+            "bootstrap_ci_low": sharpe_ci_low,
+            "bootstrap_ci_high": sharpe_ci_high,
+            "perm_p": perm_p,
+            "bh_fdr_pass": bool(perm_row.get("bh_fdr_pass", False)),
+            "psr_at_0": psr_at_0,
+            "min_trl_at_0": min_trl_at_0,
+            "wfe": wfe,
+            "max_dd": max_dd,
+            "regime_concentration": _coerce_optional_float(
+                regime_row.get("regime_concentration")
+            ),
+            "gate_status": variant_status,
+            # Consumer-friendly aliases consumed by terminal_tabs/* (C7/T3-T6).
+            "variant": variant_key,
+            "sharpe_ci_low": sharpe_ci_low,
+            "sharpe_ci_high": sharpe_ci_high,
+            "permutation_p_value": perm_p,
+            "permutation_schema": (
+                str(perm_row.get("schema", "outcome_sign")) if perm_row else None
+            ),
+            "psr": psr_at_0,
+            "min_trl": min_trl_at_0,
+            "walk_forward_efficiency": wfe,
+            "walk_forward_mode": (
+                # Preserve a missing/explicit-None walk_forward_mode as None so
+                # the consumer's `... or "anchored"` default applies; coercing
+                # via str() would emit the literal string "None".
+                str(raw["walk_forward_mode"])
+                if raw.get("walk_forward_mode") is not None
+                else None
+            ),
+            "walk_forward_folds": wf_folds_list,
+            "max_drawdown": max_dd,
+            "bootstrap": bootstrap_block,
+            "permutation": perm_block,
+            "regime_stratified": regime_block,
+            "gate_failures": variant_failures,
+        }
+        out.append(row)
     return out
 
 

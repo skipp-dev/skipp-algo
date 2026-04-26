@@ -113,7 +113,14 @@ def _utc_iso(now: datetime | None) -> str:
 
 
 def _atomic_append_audit(path: Path, records: list[dict[str, Any]]) -> None:
-    """Append ``records`` to a JSONL audit file atomically (rewrite-in-full)."""
+    """Append ``records`` to a JSONL audit file atomically (rewrite-in-full).
+
+    Note: O(n²) over the lifetime of the file because every call reads
+    the prior content and rewrites the whole thing. Acceptable for
+    Phase-A/B (≤ a few hundred records over weeks); for Phase-C (full
+    size, 90+ days, multi-symbol) switch to a streaming append + nightly
+    rotation. See docs/c8_live_incubation_runbook.md.
+    """
     path.parent.mkdir(parents=True, exist_ok=True)
     existing: list[str] = []
     if path.exists():
@@ -192,6 +199,23 @@ def run_live_incubation(
         tradable, execution_cfg, size_scale=size_scale
     )
 
+    # Map intent.order_ref → variant so the audit log carries the
+    # variant the gate decided on. compute_live_drift (C8/T4) groups
+    # by this key; without it the drift cron sees no variants and
+    # emits an empty report.
+    #
+    # build_ibkr_intents_from_smc_setups returns "one intent per input
+    # record, in the original order" (see smc_to_ibkr_adapter docstring),
+    # so we zip tradable ↔ intents and use intent.order_ref as the
+    # canonical key. This handles both explicit setup['order_ref'] and
+    # the synthesized "smc-{symbol}-{trade_date}-port{port}" form.
+    variant_by_order_ref: dict[str, str] = {}
+    if len(tradable) == len(intents):
+        for setup, intent in zip(tradable, intents):
+            variant = setup.get("variant")
+            if isinstance(variant, str):
+                variant_by_order_ref[intent.order_ref] = variant
+
     submission_results = submit_fn(intents)
     submission_by_intent = {
         result.get("intent_id"): result for result in submission_results
@@ -205,6 +229,7 @@ def run_live_incubation(
                 "ts": timestamp,
                 "phase": phase,
                 "intent_id": intent.order_ref,
+                "variant": variant_by_order_ref.get(intent.order_ref, ""),
                 "symbol": intent.symbol,
                 "action": str(result.get("action", "unknown")),
                 "entry_price": float(intent.entry_limit),

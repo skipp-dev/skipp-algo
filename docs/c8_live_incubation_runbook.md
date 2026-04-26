@@ -104,17 +104,39 @@ C8 and tracked under the future Scale-Phase backlog.
 
 ## Daily monitoring (during all live phases)
 
-A cron job runs the drift detector each session close:
+The daily cron is a four-step pipeline. Each step writes an atomic
+artefact and is safe to retry:
 
 ```bash
+DATE=$(date -u +%Y-%m-%d)        # ISO-8601 — must use dashes so the
+                                  # drift_loader regex matches.
+
+# 1. Backfill outcomes onto the audit log (idempotent).
+python -m scripts.backfill_live_outcomes \
+  cache/live/incubation_${DATE}.jsonl
+
+# 2. Convert audit JSONL → drift-input JSONL (variant/return/slippage/hit).
+python -m scripts.build_backtest_reference drift-input \
+  --audit-jsonl cache/live/incubation_${DATE}.jsonl \
+  --output cache/live/drift_input_${DATE}.jsonl
+
+# 3. Refresh backtest_reference from the latest C2/C3 artefacts.
+python -m scripts.build_backtest_reference backtest-reference \
+  --walk-forward cache/calibration/walk_forward_${DATE}.json \
+  --bootstrap-ci cache/calibration/bootstrap_ci_${DATE}.json \
+  --output cache/calibration/backtest_reference_${DATE}.json
+
+# 4. Compute live-vs-backtest drift.
 python -m scripts.compute_live_drift \
-  --live-jsonl cache/live/incubation_$(date -u +%Y%m%d).jsonl \
-  --backtest-calibration cache/calibration/c2_walk_forward.json \
-  --output cache/live/drift_$(date -u +%Y%m%d).json
+  --live-jsonl cache/live/drift_input_${DATE}.jsonl \
+  --backtest-calibration cache/calibration/backtest_reference_${DATE}.json \
+  --output cache/live/drift_${DATE}.json
 ```
 
 The C7 `tab_live_incubation` panel renders the resulting JSON and the
-audit-log kill-switch entries.
+audit-log kill-switch entries.  The drift loader (C8/T6) only matches
+ISO-formatted filenames (`drift_YYYY-MM-DD.json`), so step 4's
+`--output` MUST use the dashed `${DATE}` form above.
 
 Weekly manual review by Steffen reads the last seven `drift_*.json`
 files plus the audit log for halt records.

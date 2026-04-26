@@ -170,6 +170,26 @@ def test_audit_log_appends_across_runs(tmp_path: Path) -> None:
     assert [rec["symbol"] for rec in records] == ["BTC", "ETH"]
 
 
+def test_audit_carries_variant_when_order_ref_is_synthesized(tmp_path: Path) -> None:
+    """Regression for PR #286 review: setups without explicit order_ref
+    get a synthesized one in build_ibkr_intents_from_smc_setups; the
+    variant must still propagate to the audit row.
+    """
+    audit = tmp_path / "audit.jsonl"
+    run_live_incubation(
+        setup_records=[_setup(variant="smc_breaker_btc")],  # no order_ref
+        gate_status_by_variant={"smc_breaker_btc": "green"},
+        risk_limits=RiskLimits(),
+        account_state=_healthy_state(),
+        execution_cfg=IBKRExecutionConfig(),
+        audit_path=audit,
+        now=_FROZEN_NOW,
+    )
+    [record] = _read_audit(audit)
+    assert record["variant"] == "smc_breaker_btc"
+    assert record["intent_id"].startswith("smc-BTC-2026-04-26-port")
+
+
 def test_atomic_write_leaves_no_tmp_file(tmp_path: Path) -> None:
     audit = tmp_path / "audit.jsonl"
     run_live_incubation(
