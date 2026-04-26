@@ -1,0 +1,37 @@
+{
+  "schema_version": "v1",
+  "purpose": "Pin the HERO vocabulary frozensets that future ML-layer trainers (C10) will consume as categorical feature inputs.",
+  "source_module": "scripts/smc_hero_state.py",
+  "source_symbols": [
+    "HERO_TRUST_VOCAB",
+    "HERO_SETUP_QUALITY_VOCAB",
+    "HERO_ACTION_VOCAB",
+    "HERO_BIAS_VOCAB",
+    "HERO_MARKET_MODE_VOCAB",
+    "HERO_RISK_VOCAB"
+  ],
+  "pinned_source_sha256": "fd1c51b323ae88d62e9b79c0e2c7686f4f6a83f62e95c624b24251852f4a93e4",
+  "sha_method": {
+    "tool": "ast.unparse",
+    "scope": "module-level AnnAssign nodes whose target name starts with HERO_ and ends with _VOCAB",
+    "joiner": "\\n\\n",
+    "encoding": "utf-8"
+  },
+  "vocabularies": {
+    "HERO_TRUST_VOCAB": ["healthy", "warmup", "degraded", "stale", "unavailable"],
+    "HERO_SETUP_QUALITY_VOCAB": ["high", "good", "ok", "low"],
+    "HERO_ACTION_VOCAB": ["ACTIVE", "WATCH", "AVOID", "BLOCKED"],
+    "HERO_BIAS_VOCAB": ["LONG", "SHORT", "FLAT"],
+    "HERO_MARKET_MODE_VOCAB": ["BULLISH", "BEARISH", "NEUTRAL", "RISK_OFF"],
+    "HERO_RISK_VOCAB_note": "HERO_RISK uses an empty-string sentinel as part of its Pine boundary contract; full vocabulary list captured at pin time, see source for live values."
+  },
+  "consumer_contract": {
+    "categorical_encoding": "These vocabularies are the authoritative categorical-feature set for the future ML layer. Encoders must use the exact string values above.",
+    "drift_changes_break": "Any vocabulary drift bumps schema_version to v2 and requires a CHANGELOG + library_field_version bump per ADR-0006."
+  },
+  "audit_trail": {
+    "created_at": "2026-04-26",
+    "created_by_pr": "sprint/c10-foundation",
+    "companion_test": "tests/test_hero_observed_vocab_pin.py (already enforces vocab-drift detection at the source)"
+  }
+}

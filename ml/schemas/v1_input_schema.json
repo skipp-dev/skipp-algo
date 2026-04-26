@@ -1,0 +1,47 @@
+{
+  "schema_version": "v1",
+  "purpose": "Pin the FamilyScoringMetrics input contract for future ML-layer trainers (C10).",
+  "source_module": "smc_core/scoring.py",
+  "source_symbols": [
+    "EventFamily",
+    "FamilyScoringMetrics"
+  ],
+  "pinned_source_sha256": "7ade242a0f1b53d15320d3843ab2b3066a56bce5f23885dc2950a3ec4c7d3dc2",
+  "sha_method": {
+    "tool": "ast.unparse",
+    "ordering": [
+      "EventFamily",
+      "FamilyScoringMetrics"
+    ],
+    "joiner": "\\n\\n",
+    "encoding": "utf-8"
+  },
+  "family_literal": [
+    "BOS",
+    "OB",
+    "FVG",
+    "SWEEP"
+  ],
+  "family_metrics_fields": [
+    {"name": "family", "type": "EventFamily", "default": null},
+    {"name": "n_events", "type": "int", "default": 0},
+    {"name": "brier_score", "type": "float", "default": "nan"},
+    {"name": "log_score", "type": "float", "default": "nan"},
+    {"name": "hit_rate", "type": "float", "default": "nan"}
+  ],
+  "consumer_contract": {
+    "trainers": [
+      "ml/training/xgb_family_trainer.py (C10-T2, future)",
+      "ml/training/lgbm_family_trainer.py (C10-T5, future)"
+    ],
+    "predictors": [
+      "ml/inference/family_predictor.py (C10-T3, future)"
+    ],
+    "drift_changes_break": "Any change to the pinned source blocks bumps schema_version to v2 and requires a CHANGELOG + ADR entry."
+  },
+  "audit_trail": {
+    "created_at": "2026-04-26",
+    "created_by_pr": "sprint/c10-foundation",
+    "follow_up_pr": "C10 full sprint (deferred; see docs/SPRINT_PLAN_C10_ML_LAYER_2026-04-26.md)"
+  }
+}
