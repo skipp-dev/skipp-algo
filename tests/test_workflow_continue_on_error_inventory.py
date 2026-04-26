@@ -48,6 +48,9 @@ _ALLOWED: dict[str, frozenset[int]] = {
     "plan-2-8-weekly-digest.yml": frozenset({444, 661, 940}),
     # Release gates: 1 advisory metric collection hop.
     "smc-release-gates.yml": frozenset({172}),
+    # Drift watchdog: red verdict is intentionally non-fatal so the follow-up
+    # step can convert it into a GitHub issue (silent-fail by design — see C9/T4).
+    "drift-watchdog.yml": frozenset({52}),
 }
 
 
