@@ -16,6 +16,7 @@ Roadmap: docs/IMPROVEMENTS_C2_C12_ROADMAP_2026-04-26.md#x3
 """
 from __future__ import annotations
 
+import functools
 import hashlib
 import json
 import os
@@ -56,8 +57,13 @@ class RunManifest(TypedDict, total=False):
     extras: dict[str, Any]
 
 
+@functools.lru_cache(maxsize=1)
 def _git_sha() -> str:
-    """Best-effort ``git rev-parse HEAD``; falls back to empty string."""
+    """Best-effort ``git rev-parse HEAD``; falls back to empty string.
+
+    Cached for the lifetime of the process to avoid spawning a
+    subprocess on every ``build_manifest`` call.
+    """
     sha = os.environ.get("GIT_SHA")
     if sha:
         return sha
@@ -74,8 +80,16 @@ def _git_sha() -> str:
 
 
 def fingerprint_data(payload: Any) -> str:
-    """Stable sha256 hex of any JSON-serialisable payload (sorted keys)."""
-    blob = json.dumps(payload, sort_keys=True, default=str).encode("utf-8")
+    """Stable sha256 hex of any JSON-serialisable payload (sorted keys).
+
+    The payload must be strictly JSON-serialisable: ``dict``, ``list``,
+    ``tuple``, ``str``, ``int``, ``float``, ``bool``, or ``None``. Types
+    like ``set``, ``Path`` or ``datetime`` are rejected via ``TypeError``
+    rather than coerced to a possibly non-deterministic string, because
+    the stability guarantee is the entire point of this function.
+    Callers needing those types should canonicalise them first.
+    """
+    blob = json.dumps(payload, sort_keys=True).encode("utf-8")
     return hashlib.sha256(blob).hexdigest()
 
 
@@ -109,6 +123,12 @@ def build_manifest(
         raise ValueError("sprint must be a non-empty string")
     if seed < 0:
         raise ValueError(f"seed must be >= 0, got {seed}")
+    if not isinstance(dataset_fingerprint, str) or not dataset_fingerprint:
+        raise ValueError("dataset_fingerprint must be a non-empty string")
+    if not isinstance(wf_scheme, str) or not wf_scheme:
+        raise ValueError("wf_scheme must be a non-empty string")
+    if wf_embargo < 0:
+        raise ValueError(f"wf_embargo must be >= 0, got {wf_embargo}")
     manifest: RunManifest = {
         "schema_version": MANIFEST_SCHEMA_VERSION,
         "sprint": sprint,
@@ -139,10 +159,14 @@ def validate(manifest: Mapping[str, Any]) -> None:
             f"unsupported schema_version: {manifest['schema_version']} "
             f"(expected {MANIFEST_SCHEMA_VERSION})"
         )
-    if not isinstance(manifest["seed"], int):
-        raise ValueError(f"seed must be int, got {type(manifest['seed']).__name__}")
-    if not isinstance(manifest["wf_embargo"], int):
-        raise ValueError("wf_embargo must be int")
+    # ``bool`` is a subclass of ``int`` in Python; reject it explicitly so
+    # ``True``/``False`` are not silently accepted as seed/embargo values.
+    seed = manifest["seed"]
+    if type(seed) is not int:
+        raise ValueError(f"seed must be int, got {type(seed).__name__}")
+    embargo = manifest["wf_embargo"]
+    if type(embargo) is not int:
+        raise ValueError(f"wf_embargo must be int, got {type(embargo).__name__}")
 
 
 def attach(
@@ -170,6 +194,10 @@ def attach(
 
 def extract(payload: Mapping[str, Any]) -> RunManifest:
     """Pull the embedded ``run_manifest`` and ``validate`` it before returning."""
+    if not isinstance(payload, Mapping):
+        raise ValueError(
+            f"payload must be a mapping, got {type(payload).__name__}"
+        )
     if "run_manifest" not in payload:
         raise ValueError("payload has no 'run_manifest' key")
     manifest = payload["run_manifest"]

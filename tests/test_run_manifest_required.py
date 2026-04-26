@@ -162,3 +162,39 @@ def test_module_exports() -> None:
         "RunManifest", "REQUIRED_FIELDS", "MANIFEST_SCHEMA_VERSION",
     ):
         assert hasattr(rm, name), name
+
+
+# --- Sprint X3 follow-up: stricter validation ---------------------------
+
+
+def test_validate_rejects_bool_for_int_fields() -> None:
+    m = _base_manifest()
+    m["seed"] = True
+    with pytest.raises(ValueError, match="seed must be int"):
+        validate(m)
+    m = _base_manifest()
+    m["wf_embargo"] = False
+    with pytest.raises(ValueError, match="wf_embargo must be int"):
+        validate(m)
+
+
+def test_extract_non_mapping_raises_valueerror() -> None:
+    with pytest.raises(ValueError, match="payload must be a mapping"):
+        extract(["run_manifest"])  # type: ignore[arg-type]
+
+
+def test_build_manifest_requires_non_empty_dataset_fingerprint() -> None:
+    with pytest.raises(ValueError, match="dataset_fingerprint"):
+        build_manifest(sprint="C2", seed=1, dataset_fingerprint="")
+
+
+def test_build_manifest_requires_non_negative_embargo() -> None:
+    with pytest.raises(ValueError, match="wf_embargo"):
+        build_manifest(
+            sprint="C2", seed=1, dataset_fingerprint="x", wf_embargo=-1
+        )
+
+
+def test_fingerprint_data_rejects_non_json_types() -> None:
+    with pytest.raises(TypeError):
+        fingerprint_data({"s": {1, 2, 3}})
