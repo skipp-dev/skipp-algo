@@ -225,10 +225,12 @@ def compute_regime_aware_aggregate(
             "regimes_skipped": skipped,
         }
     total_weight = sum(w for _, w in contributions)
-    if total_weight <= 0.0:
-        # Frequency weighting with all-zero frequencies — fall back to
-        # equal weighting so we don't report None when we actually have
-        # data.
+    if total_weight <= 0.0:  # pragma: no cover - defensive: unreachable
+        # Defensive guard only. With ``freq_weighting=True`` each weight
+        # is ``n / total_n`` for an admitted regime (``n >=
+        # min_n_per_regime > 0``) so the sum is always > 0; with
+        # ``freq_weighting=False`` weights are 1.0 each. Kept so a
+        # future caller passing custom weights can't get a ZeroDivision.
         agg = sum(v for v, _ in contributions) / len(contributions)
         method = "equal_weighted_fallback"
     else:
