@@ -73,6 +73,12 @@ def _atomic_write_jsonl(path: Path, records: list[dict[str, Any]]) -> None:
             for record in records:
                 fh.write(json.dumps(record, sort_keys=True))
                 fh.write("\n")
+            # C-sprint deep-review: flush+fsync before os.replace so a
+            # crash between buffer-write and disk-sync does not leave
+            # a truncated outcome ledger (downstream calibration
+            # producers treat each line as a committed outcome).
+            fh.flush()
+            os.fsync(fh.fileno())
         os.replace(tmp_path, path)
     except BaseException:
         tmp_path.unlink(missing_ok=True)
