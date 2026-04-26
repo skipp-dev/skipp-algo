@@ -141,6 +141,13 @@ def _bca_ci(
     p_hi_num = z0 + z_alpha_hi
     p_lo = _phi(z0 + p_lo_num / (1.0 - a * p_lo_num))
     p_hi = _phi(z0 + p_hi_num / (1.0 - a * p_hi_num))
+    # C-sprint deep-review C3: ``_phi`` returns a value in (0, 1) so
+    # numerically ``p_lo``/``p_hi`` may land within 1e-12 of the
+    # boundary and trigger an opaque ``np.quantile`` warning. Clamp
+    # to a safe interior just like ``proportion_below`` above so the
+    # quantile lookup is always well-defined.
+    p_lo = min(max(p_lo, 1e-9), 1.0 - 1e-9)
+    p_hi = min(max(p_hi, 1e-9), 1.0 - 1e-9)
     lo = float(np.quantile(boot, p_lo))
     hi = float(np.quantile(boot, p_hi))
     return lo, hi

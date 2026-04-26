@@ -67,6 +67,16 @@ def _safe_evaluate(
 ) -> np.ndarray:
     out = evaluate_fn(params, returns)
     if out is None:
+        # C-sprint deep-review C2: ``None`` from ``evaluate_fn`` is
+        # treated identically to an empty trade-list here, but the two
+        # are semantically distinct. ``None`` typically signals a
+        # callsite-side bug (forgot to ``return``), while an empty
+        # list is legitimate ("strategy was flat for the window"). The
+        # current contract collapses both to "no trades" because the
+        # downstream metrics aggregator already handles empty-window
+        # cases gracefully and a hard-fail here would block legitimate
+        # all-flat folds. If you need to distinguish, wrap
+        # ``evaluate_fn`` and raise upstream.
         return np.empty(0, dtype=np.float64)
     arr = np.asarray(out, dtype=np.float64)
     if arr.ndim != 1:
@@ -128,6 +138,19 @@ def run_walk_forward(
         raise ValueError(
             f"returns and timestamps must have same shape; "
             f"got {ret_arr.shape} vs {ts_arr.shape}"
+        )
+    # C-sprint deep-review C2: timestamps must be monotonically
+    # non-decreasing for the walk-forward splitter to produce
+    # contiguous train/test windows. A descending or shuffled
+    # ``timestamps`` array would silently produce splits with
+    # look-ahead leakage. Fail loud at the boundary.
+    if ts_arr.size >= 2 and bool(np.any(np.diff(ts_arr) < 0)):
+        bad = int(np.argmax(np.diff(ts_arr) < 0))
+        raise ValueError(
+            "run_walk_forward: timestamps must be monotonically "
+            "non-decreasing to avoid look-ahead leakage in the "
+            f"walk-forward splits; first decrease at index {bad} "
+            f"({int(ts_arr[bad])} > {int(ts_arr[bad + 1])})."
         )
 
     splits = list(
