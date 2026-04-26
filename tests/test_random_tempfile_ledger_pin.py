@@ -57,7 +57,7 @@ _TEMPFILE_LEDGER: frozenset[tuple[str, int, str]] = frozenset({
     ("open_prep/outcome_backfill.py", 87, "mkstemp"),
     ("open_prep/outcome_backfill.py", 514, "mkstemp"),
     ("open_prep/outcomes.py", 95, "mkstemp"),
-    ("open_prep/outcomes.py", 363, "mkstemp"),
+    ("open_prep/outcomes.py", 367, "mkstemp"),
     ("open_prep/realtime_signals.py", 109, "mkstemp"),
     ("open_prep/realtime_signals.py", 2496, "mkstemp"),
     ("open_prep/realtime_signals.py", 2537, "mkstemp"),
