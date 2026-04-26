@@ -13,9 +13,16 @@
   "pinned_source_sha256": "fd1c51b323ae88d62e9b79c0e2c7686f4f6a83f62e95c624b24251852f4a93e4",
   "sha_method": {
     "tool": "ast.unparse",
-    "scope": "module-level AnnAssign nodes whose target name starts with HERO_ and ends with _VOCAB",
+    "scope": "module-level AnnAssign or Assign nodes whose target name starts with HERO_ and ends with _VOCAB",
     "joiner": "\\n\\n",
-    "encoding": "utf-8"
+    "encoding": "utf-8",
+    "note": "Both typed (AnnAssign) and untyped (Assign) bindings are hashed so a drive-by removal of the type annotation cannot silently bypass the pin."
+  },
+  "drift_policy": {
+    "cosmetic_docstring": "Update SHA only; no schema_version bump. Add a one-line CHANGELOG note.",
+    "new_vocab_value_added": "MAJOR — bump schema_version to v2 and add ADR (training-data implication).",
+    "vocab_value_removed_or_renamed": "MAJOR — bump schema_version to v2 and add migration ADR.",
+    "new_vocab_set_added": "MINOR — append to source_symbols and update SHA; no schema_version bump."
   },
   "vocabularies": {
     "HERO_TRUST_VOCAB": ["healthy", "warmup", "degraded", "stale", "unavailable"],

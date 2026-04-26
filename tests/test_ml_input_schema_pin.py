@@ -56,15 +56,35 @@ def _scoring_blocks() -> list[str]:
 
 
 def _hero_vocab_blocks() -> list[str]:
-    src = (REPO_ROOT / "scripts" / "smc_hero_state.py").read_text()
+    """Collect every ``HERO_*_VOCAB`` top-level binding.
+
+    Both ``AnnAssign`` (typed: ``HERO_X_VOCAB: frozenset = ...``) and
+    plain ``Assign`` (``HERO_X_VOCAB = ...``) are picked up, so a
+    drive-by removal of the type annotation cannot silently bypass the
+    SHA pin.
+    """
+    src = (REPO_ROOT / "scripts" / "smc_hero_state.py").read_text(
+        encoding="utf-8"
+    )
     tree = ast.parse(src)
     blocks: list[tuple[int, str]] = []
-    for node in ast.walk(tree):
+    seen: set[str] = set()
+    for node in ast.iter_child_nodes(tree):
+        target_name: str | None = None
         if isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
-            name = node.target.id
-            if name.startswith("HERO_") and name.endswith("_VOCAB"):
-                # Use lineno for stable, source-order traversal.
-                blocks.append((node.lineno, ast.unparse(node)))
+            target_name = node.target.id
+        elif isinstance(node, ast.Assign) and len(node.targets) == 1:
+            tgt = node.targets[0]
+            if isinstance(tgt, ast.Name):
+                target_name = tgt.id
+        if not target_name:
+            continue
+        if not (target_name.startswith("HERO_") and target_name.endswith("_VOCAB")):
+            continue
+        if target_name in seen:
+            continue
+        seen.add(target_name)
+        blocks.append((node.lineno, ast.unparse(node)))
     blocks.sort()
     return [block for _, block in blocks]
 
@@ -118,3 +138,61 @@ def test_input_schema_pins_known_metric_fields() -> None:
         "log_score",
         "hit_rate",
     ]
+
+
+def test_hero_vocab_collector_handles_untyped_assign() -> None:
+    """A drive-by removal of the type annotation must not bypass the pin.
+
+    Synthesise a tiny module with one AnnAssign and one Assign that
+    both match ``HERO_*_VOCAB`` and confirm both are picked up by the
+    same logic ``_hero_vocab_blocks`` uses.
+    """
+    src = (
+        "from __future__ import annotations\n"
+        "HERO_TYPED_VOCAB: frozenset[str] = frozenset({'a'})\n"
+        "HERO_UNTYPED_VOCAB = frozenset({'b'})\n"
+        "OTHER_VOCAB = frozenset({'c'})\n"
+    )
+    tree = ast.parse(src)
+    found: list[str] = []
+    for node in ast.iter_child_nodes(tree):
+        target_name: str | None = None
+        if isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
+            target_name = node.target.id
+        elif isinstance(node, ast.Assign) and len(node.targets) == 1:
+            tgt = node.targets[0]
+            if isinstance(tgt, ast.Name):
+                target_name = tgt.id
+        if (
+            target_name
+            and target_name.startswith("HERO_")
+            and target_name.endswith("_VOCAB")
+        ):
+            found.append(target_name)
+    assert found == ["HERO_TYPED_VOCAB", "HERO_UNTYPED_VOCAB"]
+
+
+def test_input_schema_documents_drift_policy() -> None:
+    schema = json.loads(
+        (ML_SCHEMA_DIR / "v1_input_schema.json").read_text(encoding="utf-8")
+    )
+    assert "drift_policy" in schema
+    for required in (
+        "cosmetic_docstring",
+        "field_added",
+        "field_removed_or_renamed",
+    ):
+        assert required in schema["drift_policy"], required
+
+
+def test_hero_features_schema_documents_drift_policy() -> None:
+    schema = json.loads(
+        (ML_SCHEMA_DIR / "v1_hero_features.json").read_text(encoding="utf-8")
+    )
+    assert "drift_policy" in schema
+    for required in (
+        "cosmetic_docstring",
+        "new_vocab_value_added",
+        "vocab_value_removed_or_renamed",
+    ):
+        assert required in schema["drift_policy"], required

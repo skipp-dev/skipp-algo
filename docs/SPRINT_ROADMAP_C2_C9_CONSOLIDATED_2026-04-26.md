@@ -258,3 +258,23 @@ Diese kommen explizit **nach** Track-Record-Gate-Pass, nicht davor.
 Alle in dieser Roadmap referenzierten Pfade, Zeilennummern, Symbole sind via `grep` und `read` im Repo `skippALGO/skipp-algo` belegt. Bei jeder Änderung des Repos sind die Referenzen neu zu verifizieren.
 
 Letzte Verifikation: 2026-04-26 in `/tmp/skipp-review` auf `main`-Branch nach `git pull`.
+
+## Extension scope: C10–C12 (post-2026-04-26 batch)
+
+Diese Roadmap ist auf C2-C9 konsolidiert. Die folgenden Sprints
+erweitern den Scope und sind in eigenen Plan-Dokumenten gepinnt:
+
+| Sprint | Status | Plan-Dokument |
+|---|---|---|
+| **C10** — ML-Layer (XGBoost / LightGBM trainer) | scaffolded (schema-pin only); full sprint deferred | `docs/SPRINT_PLAN_C10_ML_LAYER_2026-04-26.md` (im PR #293) |
+| **C11** — *reserviert / übersprungen* | nicht im aktuellen Plan; Nummer reserviert um die externe Sprint-Nummerierung stabil zu halten | — |
+| **C12** — RL-Execution (trigger gate stub) | scaffolded (trigger-stub + Phase-B-anchor only); full sprint blockiert auf erfolgreiche C8-Phase-B-Inkubation | `docs/SPRINT_PLAN_C12_RL_EXECUTION_2026-04-26.md` (im PR #293) |
+
+**C11-Skip-Begründung.** Die ursprünglich für C11 angedachte
+Komponente (online-learning-Loop für Family-Brier-Decay) ist
+strukturell auf den C8-Phase-B-Stream angewiesen, der frühestens nach
+90 Tagen Live-Inkubation Daten liefert. Eine Vorab-Implementierung
+würde gegen Synthetik-Daten kalibrieren — gleiche Fehlerklasse wie
+"GREEN gegen Paper-Track" in C12. Die Nummer bleibt reserviert,
+damit sich die externe Roadmap-Kommunikation nicht verschiebt; ein
+Wiederaufnehmen ist nach C8-Phase-B-Sign-off vorgesehen.

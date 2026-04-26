@@ -14,7 +14,14 @@
       "FamilyScoringMetrics"
     ],
     "joiner": "\\n\\n",
-    "encoding": "utf-8"
+    "encoding": "utf-8",
+    "note": "ast.unparse normalises whitespace and strips comments. Cosmetic docstring edits inside the pinned blocks therefore CHANGE the SHA but DO NOT change the consumer contract \u2014 see drift_policy.cosmetic_docstring."
+  },
+  "drift_policy": {
+    "cosmetic_docstring": "Update pinned_source_sha256 only; no schema_version bump. Add a one-line CHANGELOG note.",
+    "field_added": "MINOR \u2014 add to family_metrics_fields, update SHA; no schema_version bump (additive contract).",
+    "field_removed_or_renamed": "MAJOR \u2014 bump schema_version to v2 and add ADR.",
+    "default_value_changed": "MAJOR \u2014 bump schema_version to v2 (training-data implication)."
   },
   "family_literal": [
     "BOS",
