@@ -41,9 +41,10 @@ jobs:
       - name: Install runtime dependencies
         run: |
           python -m pip install --upgrade pip
-          # The watchdog module is pure stdlib + numpy; install the
-          # repo requirements so the import surface matches main.
-          pip install -r requirements.txt
+          # The watchdog module is pure stdlib + numpy. Install only
+          # numpy (not the full requirements.txt) so the cron stays
+          # fast and free of databento/httpx/streamlit transitive deps.
+          pip install numpy
 
       - name: Run drift watchdog
         id: watchdog

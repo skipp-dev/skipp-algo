@@ -70,13 +70,20 @@ def build_synthetic_episodes(
     n_drift: int = 10,
     sample_size: int = 60,
     seed: int = 7,
+    mix_distributions: bool = False,
 ) -> list[Episode]:
     """Build a deterministic synthetic episode bank.
 
-    Normal episodes draw both baseline and live from N(0, 1).  Drift
-    episodes shift the live mean by +0.5σ — large enough that a
-    well-tuned KS threshold should catch most of them while a
-    poorly-tuned one rejects too many normals.
+    Default (``mix_distributions=False``): normals draw both baseline and
+    live from N(0, 1); drifts shift the live mean by +0.5σ — large
+    enough that a well-tuned K-S threshold should catch most of them
+    while a poorly-tuned one rejects too many normals.
+
+    With ``mix_distributions=True`` every third normal/drift episode is
+    drawn from a heavy-tailed Student-t(df=4) or a positively-skewed
+    lognormal so the tuning grid does not over-fit the Gaussian
+    assumption — the C9 deep-review caveat. The mix is deterministic
+    given ``seed`` so the tuner output is still reproducible.
     """
     if n_normal < 1 or n_drift < 1:
         raise ValueError("episode counts must be positive")
@@ -84,10 +91,28 @@ def build_synthetic_episodes(
         raise ValueError("sample_size too small")
 
     rng = _rng(seed)
+
+    def _draw_pair(i: int, *, drift: bool) -> tuple[np.ndarray, np.ndarray]:
+        family = i % 3 if mix_distributions else 0
+        if family == 1:
+            # Heavy-tailed (t with df=4 has finite variance ≈ 2).
+            base = rng.standard_t(df=4, size=sample_size)
+            live_raw = rng.standard_t(df=4, size=sample_size)
+            shift = 0.5 if drift else 0.0
+            return base, live_raw + shift
+        if family == 2:
+            # Skewed lognormal centred at zero.
+            base = rng.lognormal(mean=0.0, sigma=0.5, size=sample_size) - 1.0
+            live_raw = rng.lognormal(mean=0.0, sigma=0.5, size=sample_size) - 1.0
+            shift = 0.5 if drift else 0.0
+            return base, live_raw + shift
+        base = rng.normal(0.0, 1.0, sample_size)
+        live_raw = rng.normal(0.5 if drift else 0.0, 1.0, sample_size)
+        return base, live_raw
+
     episodes: list[Episode] = []
     for i in range(n_normal):
-        baseline = rng.normal(0.0, 1.0, sample_size)
-        live = rng.normal(0.0, 1.0, sample_size)
+        baseline, live = _draw_pair(i, drift=False)
         episodes.append(
             Episode(
                 label=f"normal_{i:02d}",
@@ -97,8 +122,7 @@ def build_synthetic_episodes(
             )
         )
     for i in range(n_drift):
-        baseline = rng.normal(0.0, 1.0, sample_size)
-        live = rng.normal(0.5, 1.0, sample_size)
+        baseline, live = _draw_pair(i, drift=True)
         episodes.append(
             Episode(
                 label=f"drift_{i:02d}",

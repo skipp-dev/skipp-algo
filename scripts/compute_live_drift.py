@@ -162,25 +162,13 @@ def _verdict_for(score: float) -> str:
 def _kolmogorov_sf(d: float, n_eff: float) -> float:
     """Two-sided Kolmogorov asymptotic survival function.
 
-    Uses the convergent series sum_{k=1..} 2 (-1)^(k-1) exp(-2 k^2 lam^2)
-    with lam = (sqrt(n_eff) + 0.12 + 0.11/sqrt(n_eff)) * d.  Same form
-    as ``scipy.stats.kstwobign.sf`` and the original Press et al recipe.
+    Thin wrapper around :func:`scripts._kolmogorov.kolmogorov_sf_two_sample`
+    so this module and ``scripts.drift_alert`` emit identical p-values
+    (single source of truth for the C9 K-S detector).
     """
-    if n_eff <= 0.0 or d <= 0.0:
-        return 1.0
-    sqrt_n = math.sqrt(n_eff)
-    lam = (sqrt_n + 0.12 + 0.11 / sqrt_n) * d
-    if lam <= 0.0:
-        return 1.0
-    s = 0.0
-    sign = 1.0
-    for k in range(1, 101):
-        term = 2.0 * sign * math.exp(-2.0 * (k * lam) ** 2)
-        s += term
-        if abs(term) < 1e-12:
-            break
-        sign = -sign
-    return float(max(0.0, min(1.0, s)))
+    from scripts._kolmogorov import kolmogorov_sf_two_sample
+
+    return kolmogorov_sf_two_sample(d, n_eff)
 
 
 def ks_two_sample(a: Sequence[float], b: Sequence[float]) -> tuple[float, float]:
