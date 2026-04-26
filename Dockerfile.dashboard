@@ -24,6 +24,13 @@ RUN apt-get update && \
 # Slim runtime: streamlit + numpy + pandas + plotly only.
 # DO NOT install requirements.txt here — that pulls httpx / databento /
 # ML deps which the read-only dashboard does not need (C7/T8 surface).
+# Specifically excluded (see scripts/build_dashboard_payload.py
+# docstring): scripts/track_record_gate.py and its bootstrap-CI deps.
+# The dashboard reads pre-computed track_record_gate_<date>.json
+# sidecars produced by an upstream offline run; it never re-evaluates
+# the gate at request time. Adding the gate module here would re-pull
+# the heavy probabilistic dependencies and break the slim-image
+# contract pinned by tests/test_slim_dashboard_image.py.
 COPY requirements-dashboard.txt ./requirements-dashboard.txt
 RUN pip install --no-cache-dir -r requirements-dashboard.txt
 

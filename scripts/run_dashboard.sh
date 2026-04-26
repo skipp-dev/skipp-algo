@@ -26,6 +26,13 @@ fi
 
 cd "$REPO_ROOT"
 export SKIPP_DASHBOARD_CACHE_DIR="$CACHE_DIR"
-exec streamlit run streamlit_terminal.py \
+# C-sprint deep-review C7 fix: native mode was previously launching
+# ``streamlit_terminal.py`` (the live news / trading terminal) instead
+# of ``streamlit_dashboard.py`` (the read-only Track-Record Dashboard).
+# The Dockerfile.dashboard ENTRYPOINT already points at
+# streamlit_dashboard.py — this brings the native launcher back in
+# line with the container surface so reviewers and operators see the
+# same UI in both modes.
+exec streamlit run streamlit_dashboard.py \
     --server.port="$PORT" \
     --server.headless=true
