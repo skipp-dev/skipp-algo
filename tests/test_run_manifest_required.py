@@ -95,6 +95,25 @@ def test_extract_missing_key_raises() -> None:
         extract({"foo": "bar"})
 
 
+def test_attach_refuses_to_overwrite_by_default() -> None:
+    m = build_manifest(sprint="X", seed=0, dataset_fingerprint="x")
+    payload = attach({}, m)
+    m2 = build_manifest(sprint="Y", seed=1, dataset_fingerprint="y")
+    with pytest.raises(ValueError, match="already has"):
+        attach(payload, m2)
+    out = attach(payload, m2, overwrite=True)
+    assert out["run_manifest"]["sprint"] == "Y"
+
+
+def test_validate_rejects_non_mapping() -> None:
+    from governance.run_manifest import REQUIRED_FIELDS, validate
+
+    with pytest.raises(ValueError, match="must be a mapping"):
+        validate(list(REQUIRED_FIELDS))  # type: ignore[arg-type]
+    with pytest.raises(ValueError, match="must be a mapping"):
+        extract({"run_manifest": list(REQUIRED_FIELDS)})
+
+
 def test_serialization_round_trip(tmp_path: Path) -> None:
     m = build_manifest(sprint="C6", seed=1, dataset_fingerprint="fp")
     payload = attach({"x": [1.0, 2.5]}, m)

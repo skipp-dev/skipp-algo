@@ -10,7 +10,7 @@ This module provides a single ``build_manifest(...)`` helper plus a
 canonical reproducibility tuple. CI test
 ``tests/test_run_manifest_required.py`` round-trips the schema.
 
-Numpy-only, stdlib-only.
+Stdlib-only.
 
 Roadmap: docs/IMPROVEMENTS_C2_C12_ROADMAP_2026-04-26.md#x3
 """
@@ -127,6 +127,10 @@ def build_manifest(
 
 def validate(manifest: Mapping[str, Any]) -> None:
     """Raise ``ValueError`` if ``manifest`` is missing a required field."""
+    if not isinstance(manifest, Mapping):
+        raise ValueError(
+            f"manifest must be a mapping, got {type(manifest).__name__}"
+        )
     missing = [k for k in REQUIRED_FIELDS if k not in manifest]
     if missing:
         raise ValueError(f"manifest missing required fields: {missing}")
@@ -141,11 +145,24 @@ def validate(manifest: Mapping[str, Any]) -> None:
         raise ValueError("wf_embargo must be int")
 
 
-def attach(payload: dict[str, Any], manifest: RunManifest) -> dict[str, Any]:
+def attach(
+    payload: dict[str, Any],
+    manifest: RunManifest,
+    *,
+    overwrite: bool = False,
+) -> dict[str, Any]:
     """Return a shallow-copied ``payload`` with ``manifest`` injected under
-    the canonical key ``run_manifest``."""
+    the canonical key ``run_manifest``.
+
+    Raises ``ValueError`` if ``payload`` already has a ``run_manifest`` key
+    unless ``overwrite=True``.
+    """
     if not isinstance(payload, dict):
         raise TypeError(f"payload must be a dict, got {type(payload).__name__}")
+    if "run_manifest" in payload and not overwrite:
+        raise ValueError(
+            "payload already has a 'run_manifest' key; pass overwrite=True to replace"
+        )
     out = dict(payload)
     out["run_manifest"] = dict(manifest)
     return out
