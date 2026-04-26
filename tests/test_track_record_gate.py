@@ -225,3 +225,53 @@ def test_min_trl_no_edge_fires_red_not_skipped() -> None:
     assert check.status == RED
     assert "no detectable edge" in check.detail
     assert verdict.status == RED
+
+
+# ---------------------------------------------------------------------------
+# Negative-case coverage (C-sprint deep-review MINOR finding)
+# ---------------------------------------------------------------------------
+
+
+def test_evaluate_empty_returns_raises_value_error() -> None:
+    """Zero-length returns must explicitly raise so callers do not
+    accidentally dispatch the gate on empty data and render a
+    misleading "all-skipped" row."""
+    import pytest
+
+    with pytest.raises(ValueError):
+        evaluate_track_record_gate(np.array([], dtype=np.float64), bootstrap_B=10)
+
+
+def test_evaluate_all_nan_returns_raises_value_error() -> None:
+    """All-NaN returns must not be silently treated as zero-edge data."""
+    import pytest
+
+    arr = np.array([np.nan] * 50, dtype=np.float64)
+    with pytest.raises(ValueError):
+        evaluate_track_record_gate(arr, bootstrap_B=10)
+
+
+def test_evaluate_zero_variance_returns_raises_value_error() -> None:
+    """Constant returns crash deep inside the bootstrap CI helpers; the
+    gate must fail loud at its boundary so callers get a clear
+    remediation message instead of an IndexError from numpy.
+    """
+    import pytest
+
+    arr = np.full(60, 0.001, dtype=np.float64)
+    with pytest.raises(ValueError, match="zero-variance"):
+        evaluate_track_record_gate(arr, bootstrap_B=20)
+
+
+def test_per_variant_unknown_optional_key_raises_value_error() -> None:
+    """Typo in optional dict (e.g. wrong-case variant key) must raise
+    instead of silently producing SKIPPED checks the dashboard then
+    renders as healthy (C-sprint deep-review MINOR fix).
+    """
+    import pytest
+
+    with pytest.raises(ValueError, match="walk_forward_efficiency_by_variant"):
+        evaluate_track_record_gate_per_variant(
+            {"sample": _profitable_returns()},
+            walk_forward_efficiency_by_variant={"SAMPLE": 0.6},  # case typo
+        )
