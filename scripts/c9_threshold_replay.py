@@ -79,11 +79,16 @@ def build_synthetic_episodes(
     enough that a well-tuned K-S threshold should catch most of them
     while a poorly-tuned one rejects too many normals.
 
-    With ``mix_distributions=True`` every third normal/drift episode is
-    drawn from a heavy-tailed Student-t(df=4) or a positively-skewed
-    lognormal so the tuning grid does not over-fit the Gaussian
-    assumption — the C9 deep-review caveat. The mix is deterministic
-    given ``seed`` so the tuner output is still reproducible.
+    With ``mix_distributions=True`` the episode index ``i`` is mapped
+    to one of three distribution families via ``i % 3`` — about one
+    third Gaussian, one third heavy-tailed Student-t(df=4), and one
+    third right-skewed lognormal — so the tuning grid does not
+    over-fit the Gaussian assumption (the C9 deep-review caveat).
+    Note that the lognormal arm is **median-centred** (``lognormal(…)
+    - 1.0``) rather than mean-centred; the residual non-zero mean is
+    intentional because real drift signals also have non-zero baseline
+    mean. The mix is deterministic given ``seed`` so the tuner output
+    stays reproducible.
     """
     if n_normal < 1 or n_drift < 1:
         raise ValueError("episode counts must be positive")
@@ -101,7 +106,10 @@ def build_synthetic_episodes(
             shift = 0.5 if drift else 0.0
             return base, live_raw + shift
         if family == 2:
-            # Skewed lognormal centred at zero.
+            # Right-skewed lognormal, median-centred (lognormal - 1.0
+            # subtracts the median, not the mean; the residual positive
+            # mean is left in deliberately so the drift detector does
+            # not get a perfectly mean-centred null sample).
             base = rng.lognormal(mean=0.0, sigma=0.5, size=sample_size) - 1.0
             live_raw = rng.lognormal(mean=0.0, sigma=0.5, size=sample_size) - 1.0
             shift = 0.5 if drift else 0.0

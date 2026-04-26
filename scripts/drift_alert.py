@@ -29,7 +29,7 @@ from typing import Literal, Sequence
 
 import numpy as np
 
-from scripts._kolmogorov import kolmogorov_q, kolmogorov_sf_two_sample
+from scripts._kolmogorov import kolmogorov_sf_two_sample
 
 DriftSeverity = Literal["green", "yellow", "red"]
 
@@ -310,7 +310,13 @@ def compute_drift_report(
         a = np.asarray(baseline, dtype=np.float64)
         b = np.asarray(live, dtype=np.float64)
         stat, p = ks_two_sample(a, b)
-        psi_value = population_stability_index(a, b, n_buckets=psi_n_buckets)
+        # PSI is only meaningful in the consensus path — the legacy
+        # K-S-only branch must preserve the original findings schema
+        # (no ``psi`` key) and must not raise on a freshly-constructed
+        # ``psi_n_buckets`` that the caller never opted into.
+        psi_value: float | None = None
+        if enable_consensus:
+            psi_value = population_stability_index(a, b, n_buckets=psi_n_buckets)
         if not enable_consensus:
             if p is None:
                 severity: DriftSeverity = "green"
