@@ -52,21 +52,20 @@ All notable changes to this project are documented in this file.
   `except KeyboardInterrupt`. Pinning the (path, line) is the right
   primitive.
 
-### Tests / Quality (2026-04-26) — Defense pin: `hmac.*` zero-surface (2 sites)
+### Tests / Quality (2026-04-26) — Defense pin: `fcntl.flock(...)` zero-surface (4 sites)
 
-- Added `tests/test_hmac_auth_zero_surface.py` (1 test) pinning every
-  production `hmac.<attr>(...)` call by `(path, line, attr)`.
-  `hmac` is the project's *only* primitive for authenticated message
-  integrity (webhook signing) and constant-time secret compare
-  (token / API-key auth). Drift is invisible at runtime but creates
-  signature-verification breakage or a timing oracle (CWE-208).
-  Locked sites:
-  - `terminal_export.py:727` — `hmac.new(secret, payload, sha256)` for
-    outbound webhook signing.
-  - `terminal_auth.py:32` — `hmac.compare_digest(...)` constant-time
-    auth-token comparison.
-  New `hmac.*` callers must be added with a security-review note in
-  the PR description.
+- Added `tests/test_fcntl_flock_zero_surface.py` (3 tests) pinning
+  every production `fcntl.flock(...)` call by `(path, line)`.
+  `flock` is POSIX-only — every new caller silently breaks Windows
+  portability and the existing import-guard fallback pattern in
+  `open_prep/watchlist.py`. Mis-matched `LOCK_EX` / `LOCK_UN` pairs
+  cause silent deadlocks. Locked sites:
+  - `open_prep/realtime_signals.py:254` (`LOCK_EX|LOCK_NB`) +
+    `:280` (`LOCK_UN`) — daemon PID-file singleton lock.
+  - `open_prep/watchlist.py:41` (`LOCK_EX`) + `:44` (`LOCK_UN`) —
+    watchlist read/write critical section.
+  Each acquire must be paired with a release in a `try`/`finally`
+  and BOTH legs appended to the allow-list when adding a caller.
 - Defense-only — no production changes.
 
 ### Tests / Quality (2026-04-25) — Defense ledger: `os.unlink` / `os.remove` (23 sites)
