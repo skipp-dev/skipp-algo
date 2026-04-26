@@ -231,11 +231,29 @@ def sharpe_ci(
         )
         sr_boot = (boot.mean(axis=1) / np.where(boot.std(axis=1, ddof=1) == 0, np.nan, boot.std(axis=1, ddof=1))) * sqrt_freq
         sr_boot = sr_boot[np.isfinite(sr_boot)]
-        # Jackknife.
-        jk = np.empty(arr.size, dtype=np.float64)
-        for i in range(arr.size):
-            jk[i] = _sharpe_periodic(np.delete(arr, i)) * sqrt_freq
-        ci_low, ci_high = _bca_ci(sr_boot, sr_obs, jk, alpha)
+        # Vectorised leave-one-out Sharpe (was O(n^2) via np.delete in
+        # a Python loop). Use the closed-form leave-one-out mean/var so
+        # the jackknife is O(n) — material for n in the few-hundreds
+        # range we hit on per-variant tracks.
+        n = arr.size
+        if n >= 2:
+            total = float(arr.sum())
+            sq_total = float((arr * arr).sum())
+            loo_mean = (total - arr) / (n - 1)
+            # Population sum of squared deviations for the leave-one-out
+            # subset, then convert to sample variance with ddof=1.
+            loo_sumsq = sq_total - arr * arr - (n - 1) * (loo_mean * loo_mean)
+            loo_var = loo_sumsq / (n - 2) if n >= 3 else np.zeros_like(loo_mean)
+            loo_std = np.sqrt(np.where(loo_var > 0, loo_var, np.nan))
+            jk = np.where(loo_std > 0, loo_mean / loo_std, np.nan) * sqrt_freq
+            jk = jk[np.isfinite(jk)]
+        else:
+            jk = np.empty(0, dtype=np.float64)
+        if jk.size < 2:
+            # Fall back to percentile CI when the jackknife collapses.
+            ci_low, ci_high = _percentile_ci(sr_boot, alpha)
+        else:
+            ci_low, ci_high = _bca_ci(sr_boot, sr_obs, jk, alpha)
     else:
         raise ValueError(f"unknown method: {method!r}")
 

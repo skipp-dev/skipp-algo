@@ -43,6 +43,20 @@ def test_gate_thresholds_have_required_fields() -> None:
         assert {"name", "value", "rationale"} <= entry.keys()
 
 
+def test_min_psr_threshold_single_sourced_from_gate_module() -> None:
+    """C6 deep-review fix: methodology drawer must read the gate constant.
+
+    Hardcoding 0.95 here was a literal duplicate of
+    scripts.track_record_gate.MIN_PSR — drift between the two would
+    show up as the sidebar advertising a threshold the gate does not
+    enforce. Pin the relationship.
+    """
+    from scripts.track_record_gate import MIN_PSR
+
+    psr_entry = next(e for e in GATE_THRESHOLDS if e["name"] == "min_psr")
+    assert psr_entry["value"] == MIN_PSR
+
+
 def test_freshness_label_unknown_when_missing() -> None:
     assert freshness_label(computed_at=None) == "unknown"
     assert freshness_label(computed_at="not-a-date") == "unknown"

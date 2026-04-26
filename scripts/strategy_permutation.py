@@ -198,6 +198,14 @@ def permutation_test_profit_factor(
         "p_value_one_sided": float(p_one),
         "B": int(B),
         "n": int(arr.size),
+        # C4 deep-review caveat (also in the docstring above): the
+        # Schema-A null-PF distribution has a non-unit expected value
+        # under skewed P&L, so this p-value is *mis-calibrated as a
+        # PF-edge test*. Mark every emission so dashboard / public
+        # report consumers can render the warning explicitly instead of
+        # relying on readers to find the docstring.
+        "caveat": "schema_a_null_miscal_under_skew",
+        "caveat_replacement": "schema_b_entry_time_permutation_pending",
     }
 
 
