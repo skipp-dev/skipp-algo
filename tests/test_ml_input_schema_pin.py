@@ -41,7 +41,7 @@ def _hash_blocks(blocks: list[str]) -> str:
 
 
 def _scoring_blocks() -> list[str]:
-    src = (REPO_ROOT / "smc_core" / "scoring.py").read_text()
+    src = (REPO_ROOT / "smc_core" / "scoring.py").read_text(encoding="utf-8")
     tree = ast.parse(src)
     blocks: dict[str, str] = {}
     for node in ast.walk(tree):
@@ -75,7 +75,7 @@ def test_ml_schemas_dir_exists() -> None:
 
 def test_input_schema_pin_matches_source() -> None:
     schema_path = ML_SCHEMA_DIR / "v1_input_schema.json"
-    schema = json.loads(schema_path.read_text())
+    schema = json.loads(schema_path.read_text(encoding="utf-8"))
     expected_sha = schema["pinned_source_sha256"]
     actual_sha = _hash_blocks(_scoring_blocks())
     assert actual_sha == expected_sha, (
@@ -88,7 +88,7 @@ def test_input_schema_pin_matches_source() -> None:
 
 def test_hero_features_pin_matches_source() -> None:
     schema_path = ML_SCHEMA_DIR / "v1_hero_features.json"
-    schema = json.loads(schema_path.read_text())
+    schema = json.loads(schema_path.read_text(encoding="utf-8"))
     expected_sha = schema["pinned_source_sha256"]
     actual_sha = _hash_blocks(_hero_vocab_blocks())
     assert actual_sha == expected_sha, (
@@ -100,12 +100,16 @@ def test_hero_features_pin_matches_source() -> None:
 
 
 def test_input_schema_lists_four_families() -> None:
-    schema = json.loads((ML_SCHEMA_DIR / "v1_input_schema.json").read_text())
+    schema = json.loads(
+        (ML_SCHEMA_DIR / "v1_input_schema.json").read_text(encoding="utf-8")
+    )
     assert sorted(schema["family_literal"]) == ["BOS", "FVG", "OB", "SWEEP"]
 
 
 def test_input_schema_pins_known_metric_fields() -> None:
-    schema = json.loads((ML_SCHEMA_DIR / "v1_input_schema.json").read_text())
+    schema = json.loads(
+        (ML_SCHEMA_DIR / "v1_input_schema.json").read_text(encoding="utf-8")
+    )
     field_names = [f["name"] for f in schema["family_metrics_fields"]]
     assert field_names == [
         "family",
