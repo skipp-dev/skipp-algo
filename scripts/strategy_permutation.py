@@ -189,9 +189,9 @@ def permutation_test_profit_factor(
     permuted = _permute_outcome_sign(arr, B=B, seed=seed)
     pos = np.where(permuted > 0, permuted, 0.0).sum(axis=1)
     neg = -np.where(permuted < 0, permuted, 0.0).sum(axis=1)
-    # Compute pos/neg only where neg is meaningfully positive (>= eps);
-    # ``np.where(neg > 0, pos / np.maximum(neg, 1e-12), np.nan)`` would
-    # still evaluate the division for every element first (creating
+    # Compute pos/neg only where neg is *strictly* greater than eps
+    # (mask: ``neg > eps``); ``np.where(neg > 0, pos / np.maximum(neg, 1e-12), np.nan)``
+    # would still evaluate the division for every element first (creating
     # extreme intermediate values) and the ``np.maximum`` floor would
     # silently distort the statistic for very small ``neg``. ``np.divide``
     # with ``where=`` skips the division entirely outside the mask.

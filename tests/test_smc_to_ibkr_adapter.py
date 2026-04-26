@@ -92,14 +92,19 @@ def test_zero_risk_order_is_rejected() -> None:
 
 
 def test_stop_within_one_bp_of_entry_is_rejected() -> None:
-    """Float-tolerance guard: stop within 1bp (1e-4 of |entry|, abs floor 1.0)
-    is treated as zero-risk and rejected."""
+    """Float-tolerance guard: stop less than 1bp (1e-4 of |entry|, abs floor 1.0)
+    from entry is treated as zero-risk and rejected.
+
+    Long-side bracket orders place ``stopLossPrice`` *below* the entry
+    limit, so the test uses a stop just below entry while still inside
+    the 1bp tolerance band — this stays representative of real inputs.
+    """
     cfg = IBKRExecutionConfig()
-    # entry=102.34 -> threshold = 1e-4 * 102.34 = ~0.0102. A 0.005
-    # spread is well inside that band.
-    with pytest.raises(ValueError, match="within 1bp of entry"):
+    # entry=102.34 -> threshold = 1e-4 * 102.34 = ~0.01023. A 0.005
+    # spread with the stop just below entry is well inside that band.
+    with pytest.raises(ValueError, match="less than 1bp from entry"):
         build_ibkr_intents_from_smc_setups(
-            [_setup(entry=102.34, stop_loss=102.345)], cfg
+            [_setup(entry=102.34, stop_loss=102.335)], cfg
         )
 
 
@@ -115,13 +120,17 @@ def test_stop_just_outside_one_bp_is_accepted() -> None:
 
 def test_zero_risk_guard_uses_absolute_floor_for_subdollar_prices() -> None:
     """For sub-dollar prices the threshold is anchored at max(|entry|, 1.0) =
-    1.0, so the absolute spread must exceed 1e-4 (= 1bp on a $1 reference)."""
+    1.0, so the absolute spread must exceed 1e-4 (= 1bp on a $1 reference).
+
+    Stop is just below entry to remain representative of long-side
+    bracket-order semantics.
+    """
     cfg = IBKRExecutionConfig()
     # entry=0.50, threshold = 1e-4 * max(0.50, 1.0) = 1e-4. A 5e-5 spread
-    # is inside the floor.
-    with pytest.raises(ValueError, match="within 1bp of entry"):
+    # below entry is inside the floor.
+    with pytest.raises(ValueError, match="less than 1bp from entry"):
         build_ibkr_intents_from_smc_setups(
-            [_setup(entry=0.50, stop_loss=0.50005, take_profit=0.55)], cfg
+            [_setup(entry=0.50, stop_loss=0.49995, take_profit=0.55)], cfg
         )
     # 5e-4 spread on the same 0.50 price is comfortably outside the floor.
     [intent] = build_ibkr_intents_from_smc_setups(
