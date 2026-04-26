@@ -340,6 +340,7 @@ def evaluate_track_record_gate(
     psr_value: float | None = None
     min_trl_value: float | None = None
     min_trl_no_edge = False
+    min_trl_failure_detail: str | None = None
     if n >= 30:
         try:
             psr_dict = probabilistic_sharpe(arr.tolist(), sr_star=0.0, annualize=False)
@@ -377,7 +378,6 @@ def evaluate_track_record_gate(
             # wrong remediation. Previously this branch swallowed both as
             # SKIPPED, which let red gates pass silently (C-sprint deep-
             # review MAJOR fix).
-            min_trl_failure_detail: str | None = None
             try:
                 min_trl_value = float(
                     min_trl(
@@ -440,6 +440,7 @@ def evaluate_track_record_gate(
                     name="min_trl_within_n",
                     status=SKIPPED,
                     threshold=float(n),
+                    detail=min_trl_failure_detail or "",
                 )
             )
     else:

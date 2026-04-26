@@ -232,21 +232,17 @@ def test_min_trl_no_edge_fires_red_not_skipped() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_evaluate_handles_empty_returns_without_raising() -> None:
-    """Zero-length returns must produce a well-formed verdict (everything
-    skipped) instead of raising — callers should be able to render an
-    empty-result row on the dashboard.
-    """
+def test_evaluate_empty_returns_raises_value_error() -> None:
+    """Zero-length returns must explicitly raise so callers do not
+    accidentally dispatch the gate on empty data and render a
+    misleading "all-skipped" row."""
     import pytest
 
     with pytest.raises(ValueError):
-        # Zero returns must explicitly fail with a clear ValueError
-        # rather than coerce to empty array silently — opinion: callers
-        # should not dispatch the gate on empty data.
         evaluate_track_record_gate(np.array([], dtype=np.float64), bootstrap_B=10)
 
 
-def test_evaluate_handles_all_nan_returns() -> None:
+def test_evaluate_all_nan_returns_raises_value_error() -> None:
     """All-NaN returns must not be silently treated as zero-edge data."""
     import pytest
 
@@ -255,7 +251,7 @@ def test_evaluate_handles_all_nan_returns() -> None:
         evaluate_track_record_gate(arr, bootstrap_B=10)
 
 
-def test_evaluate_handles_zero_variance_returns() -> None:
+def test_evaluate_zero_variance_returns_raises_value_error() -> None:
     """Constant returns crash deep inside the bootstrap CI helpers; the
     gate must fail loud at its boundary so callers get a clear
     remediation message instead of an IndexError from numpy.
