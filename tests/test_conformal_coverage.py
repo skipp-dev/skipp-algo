@@ -84,6 +84,20 @@ def test_split_conformal_calibration_length_mismatch() -> None:
         cls.calibrate(np.array([0.5, 0.6]), np.array([0]))
 
 
+def test_split_conformal_empty_calibration_raises() -> None:
+    cls = SplitConformalClassifier(alpha=0.1)
+    with pytest.raises(ValueError, match="empty"):
+        cls.calibrate(np.zeros(0), np.zeros(0, dtype=int))
+
+
+def test_adaptive_conformal_rejects_unsupported_probs_shape() -> None:
+    from ml.calibration.conformal import AdaptiveConformalClassifier
+
+    cls = AdaptiveConformalClassifier(alpha=0.1)
+    with pytest.raises(ValueError, match="Unsupported"):
+        cls.calibrate(np.zeros((5, 3)), np.zeros(5, dtype=int))
+
+
 def test_split_conformal_set_sizes_in_one_or_two() -> None:
     probs, y = _synthetic_probs_and_labels(n=2000, seed=14)
     cls = SplitConformalClassifier(alpha=0.1).calibrate(probs[:1000], y[:1000])

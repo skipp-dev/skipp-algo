@@ -67,6 +67,19 @@ def test_meta_learner_validates_shapes() -> None:
         mdl.fit(np.zeros(5), np.zeros(5))
     with pytest.raises(ValueError, match="len"):
         mdl.fit(np.zeros((5, 2)), np.zeros(4))
+    with pytest.raises(ValueError, match="family"):
+        mdl.fit(np.zeros((5, 0)), np.zeros(5))
+
+
+def test_meta_learner_predict_proba_validates_shape() -> None:
+    rng = np.random.default_rng(0)
+    P = rng.uniform(0.1, 0.9, size=(80, 3))
+    y = (rng.uniform(size=80) < 0.5).astype(int)
+    mdl = StackedMetaLearner().fit(P, y)
+    with pytest.raises(ValueError, match="2D"):
+        mdl.predict_proba(np.zeros(3))
+    with pytest.raises(ValueError, match="families"):
+        mdl.predict_proba(np.zeros((4, 5)))
 
 
 def test_mean_of_family_baseline() -> None:

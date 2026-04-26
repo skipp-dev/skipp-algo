@@ -22,7 +22,6 @@ Roadmap: docs/IMPROVEMENTS_C2_C12_ROADMAP_2026-04-26.md#c101
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
 
 import numpy as np
 
@@ -106,6 +105,8 @@ class StackedMetaLearner:
         y = np.asarray(y, dtype=float)
         if P.ndim != 2:
             raise ValueError(f"P must be 2D, got shape {P.shape}")
+        if P.shape[1] < 1:
+            raise ValueError("P must have at least one family column")
         if P.shape[0] != y.shape[0]:
             raise ValueError("len(P) must equal len(y)")
         n, k = P.shape
@@ -157,6 +158,13 @@ class StackedMetaLearner:
         if self.weights_ is None:
             raise RuntimeError("StackedMetaLearner is not fitted")
         P = np.asarray(P, dtype=float)
+        if P.ndim != 2:
+            raise ValueError(f"P must be 2D, got shape {P.shape}")
+        if P.shape[1] != self.weights_.shape[0]:
+            raise ValueError(
+                f"P has {P.shape[1]} families, but model was fitted with "
+                f"{self.weights_.shape[0]}"
+            )
         L = _logit(P)
         return _sigmoid(L @ self.weights_ + self.intercept_)
 

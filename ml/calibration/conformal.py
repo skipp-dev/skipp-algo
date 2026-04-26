@@ -82,6 +82,8 @@ class SplitConformalClassifier:
         y = np.asarray(y_cal, dtype=int)
         if p1.shape[0] != y.shape[0]:
             raise ValueError("calibration prob/label length mismatch")
+        if p1.size == 0:
+            raise ValueError("calibration set is empty")
         # Conformity score: 1 - p_correct = "how non-conforming was this".
         scores = np.where(y == 1, 1.0 - p1, p1)
         n = scores.size
@@ -144,9 +146,11 @@ class AdaptiveConformalClassifier:
 
     def _to_p1(self, probs: np.ndarray) -> np.ndarray:
         probs = np.asarray(probs, dtype=float)
+        if probs.ndim == 1:
+            return probs
         if probs.ndim == 2 and probs.shape[1] == 2:
             return probs[:, 1]
-        return probs
+        raise ValueError(f"Unsupported probs shape {probs.shape}")
 
     def _q(self, scores: np.ndarray) -> float:
         n = scores.size
