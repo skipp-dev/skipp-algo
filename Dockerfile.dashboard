@@ -1,0 +1,49 @@
+# ── SkippALGO Track-Record Dashboard — production image (C7/T8) ──
+#
+# Slimmer than the trader-terminal image: only the read-only
+# track-record dashboard surface (tabs from terminal_tabs/ +
+# scripts/build_dashboard_payload.py) is exposed.  Mount the
+# `cache/` directory at runtime as a volume.
+#
+# Build:   docker build -f Dockerfile.dashboard -t skipp-dashboard .
+# Run:     ./scripts/run_dashboard.sh
+#
+# Auth is intentionally OUT OF SCOPE for C7/T8 — see
+# docs/SPRINT_PLAN_C7_DASHBOARD_2026-04-26.md §T8.  Front the
+# container with an SSO-aware reverse proxy in production.
+
+FROM python:3.13-slim AS base
+
+WORKDIR /app
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        curl ca-certificates && \
+    rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy only what the dashboard needs to keep the image small.
+COPY streamlit_terminal.py ./
+COPY terminal_tabs/ ./terminal_tabs/
+COPY scripts/build_dashboard_payload.py ./scripts/build_dashboard_payload.py
+COPY docs/c7_dashboard_user_guide.md ./docs/c7_dashboard_user_guide.md
+
+ENV STREAMLIT_SERVER_HEADLESS=true \
+    STREAMLIT_SERVER_ADDRESS=0.0.0.0 \
+    STREAMLIT_SERVER_PORT=8501 \
+    STREAMLIT_BROWSER_GATHER_USAGE_STATS=false \
+    STREAMLIT_SERVER_FILE_WATCHER_TYPE=none \
+    SKIPP_DASHBOARD_CACHE_DIR=/app/cache
+
+EXPOSE 8501
+
+# `cache/` is expected to be mounted read-only at runtime.
+VOLUME ["/app/cache"]
+
+HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
+    CMD curl -f http://localhost:8501/_stcore/health || exit 1
+
+ENTRYPOINT ["streamlit", "run", "streamlit_terminal.py", \
+    "--server.port=8501", "--server.address=0.0.0.0"]
