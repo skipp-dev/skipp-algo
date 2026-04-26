@@ -97,23 +97,11 @@ _FROZEN_SITES: frozenset[tuple[str, int, tuple[str, ...]]] = frozenset(
         ("terminal_bitcoin.py", 68, ("F401", "F811")),
         ("terminal_finnhub.py", 172, ("PLW0603",)),
         ("terminal_finnhub.py", 197, ("PLW0603",)),
-        ("terminal_tabs/__init__.py", 7, ("F401",)),
-        ("terminal_tabs/__init__.py", 8, ("F401",)),
-        ("terminal_tabs/__init__.py", 9, ("F401",)),
-        ("terminal_tabs/__init__.py", 10, ("F401",)),
-        ("terminal_tabs/__init__.py", 11, ("F401",)),
-        ("terminal_tabs/__init__.py", 12, ("F401",)),
-        ("terminal_tabs/__init__.py", 13, ("F401",)),
-        ("terminal_tabs/__init__.py", 14, ("F401",)),
-        ("terminal_tabs/__init__.py", 15, ("F401",)),
-        ("terminal_tabs/__init__.py", 16, ("F401",)),
-        ("terminal_tabs/__init__.py", 17, ("F401",)),
-        ("terminal_tabs/__init__.py", 18, ("F401",)),
-        ("terminal_tabs/__init__.py", 19, ("F401",)),
-        ("terminal_tabs/__init__.py", 20, ("F401",)),
-        ("terminal_tabs/__init__.py", 21, ("F401",)),
-        ("terminal_tabs/__init__.py", 22, ("F401",)),
-        ("terminal_tabs/__init__.py", 23, ("F401",)),
+        # NOTE: The 17 ``terminal_tabs/__init__.py`` ``F401`` sites
+        # (formerly lines 7-23) were retired in PR #290 — the package
+        # now uses a lazy ``__getattr__`` resolver instead of eager
+        # ``from .tab_xxx import render as render_xxx  # noqa: F401``
+        # re-exports, so no suppressions are needed.
     }
 )
 

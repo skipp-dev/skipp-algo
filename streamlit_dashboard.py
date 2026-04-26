@@ -12,8 +12,10 @@ Surface (read-only):
 * Live Incubation — drift artifact viewer
 * Methodology — sidebar drawer with thresholds + freshness badge
 
-All four tabs are pure (numpy/pandas/plotly only); ``streamlit`` is
-imported lazily inside the ``render(...)`` helpers.
+The four C7 sub-modules (``tab_track_record``, ``tab_calibration_detail``,
+``tab_live_incubation``, ``methodology_drawer``) are pure Python plus
+numpy/pandas/plotly; they do **not** transitively import the trader-side
+providers, so importing them here is safe inside the slim image.
 """
 
 from __future__ import annotations
@@ -29,10 +31,10 @@ from scripts.build_dashboard_payload import build_dashboard_payload
 # Import C7 sub-modules directly (NOT via ``from terminal_tabs import …``)
 # so the slim Docker image does not trigger the trader-tab re-exports
 # in ``terminal_tabs/__init__.py`` which depend on httpx/databento.
-from terminal_tabs import methodology_drawer  # noqa: E402  (lazy-safe; minimal deps)
-from terminal_tabs import tab_calibration_detail  # noqa: E402
-from terminal_tabs import tab_live_incubation  # noqa: E402
-from terminal_tabs import tab_track_record  # noqa: E402
+from terminal_tabs import methodology_drawer
+from terminal_tabs import tab_calibration_detail
+from terminal_tabs import tab_live_incubation
+from terminal_tabs import tab_track_record
 from terminal_tabs.dashboard_cache import DEFAULT_TTL_SECONDS, TTLCache
 from terminal_tabs.drift_loader import list_drift_dates, load_drift_artifact
 

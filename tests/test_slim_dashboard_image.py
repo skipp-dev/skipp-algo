@@ -71,7 +71,8 @@ def test_slim_dockerfile_uses_dashboard_requirements() -> None:
 
     from pathlib import Path
 
-    contents = Path("Dockerfile.dashboard").read_text(encoding="utf-8")
+    repo_root = Path(__file__).resolve().parents[1]
+    contents = (repo_root / "Dockerfile.dashboard").read_text(encoding="utf-8")
     assert "requirements-dashboard.txt" in contents
     # Must NOT pip-install the full requirements.txt — that would defeat the slim sprint.
     assert "pip install --no-cache-dir -r requirements.txt" not in contents
