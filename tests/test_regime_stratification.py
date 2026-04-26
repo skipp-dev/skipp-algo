@@ -306,3 +306,58 @@ def test_end_to_end_regime_concentration_invalidates_naive_aggregate() -> None:
     # Total positive PnL all comes from RISK_ON → fully concentrated.
     assert concentration["concentrated"] is True
     assert concentration["dominant_regime"] == "RISK_ON"
+
+
+# ---------------------------------------------------------------------------
+# Negative-case coverage (C-sprint deep-review C5)
+# ---------------------------------------------------------------------------
+
+
+def test_stratify_coerces_dict_regime_label_via_str() -> None:
+    """A producer-side bug that emits a dict regime label must not
+    crash with an unhashable-key error. The label is coerced via
+    ``str()`` so the defect surfaces on the dashboard as a weirdly-
+    named bucket instead of silently dropping the trades.
+    """
+    trades = [{"regime_at_entry": {"phase": "A"}, "pnl": 0.01}]
+    buckets = rs.stratify_trades_by_regime(trades)
+    assert "{'phase': 'A'}" in buckets
+    assert len(buckets["{'phase': 'A'}"]) == 1
+
+
+def test_metrics_drops_non_finite_pnls_with_recorded_count() -> None:
+    """NaN / inf PnLs must NOT silently propagate to a NaN Sharpe or
+    a 0.0 max-DD that the dashboard then renders as a healthy regime
+    (C-sprint deep-review C5 finding).
+    """
+    trades = _make_trades(n_per_regime={"R": 30})
+    # Inject 5 NaN and 3 inf trades.
+    for _ in range(5):
+        trades.append({"regime_at_entry": "R", "pnl": float("nan")})
+    for _ in range(3):
+        trades.append({"regime_at_entry": "R", "pnl": float("inf")})
+    buckets = rs.stratify_trades_by_regime(trades)
+    metrics = rs.compute_regime_conditional_metrics(buckets, min_n_per_regime=10)
+    record = metrics["R"]
+    # Sharpe is computed on finite PnLs only.
+    assert record["sharpe"] is not None
+    assert math.isfinite(record["sharpe"])
+    # Drops are surfaced.
+    assert record["n_non_finite_dropped"] == 8
+    assert record["n"] == 30  # 38 raw - 8 dropped
+
+
+def test_metrics_skipped_with_insufficient_finite_n_after_drop() -> None:
+    """If non-finite drops push the regime below the n-floor, the
+    record reports skipped_reason='insufficient_finite_n' (distinct
+    from 'insufficient_n') so the operator can tell the difference
+    between *not enough trades* and *not enough valid trades*.
+    """
+    trades = [{"regime_at_entry": "R", "pnl": float("nan")} for _ in range(15)]
+    trades += [{"regime_at_entry": "R", "pnl": 0.01} for _ in range(20)]
+    buckets = rs.stratify_trades_by_regime(trades)
+    metrics = rs.compute_regime_conditional_metrics(buckets, min_n_per_regime=30)
+    record = metrics["R"]
+    assert record["skipped_reason"] == "insufficient_finite_n"
+    assert record["n_finite"] == 20
+    assert record["n_non_finite_dropped"] == 15

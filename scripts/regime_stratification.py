@@ -63,6 +63,14 @@ def stratify_trades_by_regime(
     ``"UNKNOWN"`` so the caller can spot data-contract gaps rather
     than getting silent drops.
 
+    Non-string regime labels (numbers, dicts, etc.) are coerced via
+    ``str(...)``. Callers that emit a ``dict`` regime label will see
+    e.g. ``"{'phase': 'A'}"`` as the bucket name — by design, since
+    the upstream regime-tagging contract is *string label per trade*
+    and a dict label indicates a producer-side bug. The stringified
+    representation makes the defect visible on the dashboard instead
+    of crashing with an unhashable-key error.
+
     Returns an ``OrderedDict`` so iteration order is deterministic
     (alphabetical by regime label, with ``"UNKNOWN"`` last).
     """
@@ -135,6 +143,16 @@ def _win_rate(pnls: Sequence[float]) -> float | None:
 
 
 def _profit_factor(pnls: Sequence[float]) -> float | None:
+    """Sum of positive PnLs over the absolute sum of negative PnLs.
+
+    Returns ``None`` when there are no losing trades, since the
+    canonical "gross-profit / gross-loss" definition is undefined
+    (loss-denominator is zero). The caller should treat the ``None``
+    as *insufficient data to compute*, not as *infinite profit factor*
+    — the dashboard renderer therefore prints a dash for the cell
+    rather than ``+inf``.
+    """
+
     gains = sum(p for p in pnls if p > 0)
     losses = -sum(p for p in pnls if p < 0)
     if losses <= 0.0:
@@ -177,8 +195,29 @@ def compute_regime_conditional_metrics(
                 "regime_frequency_pct": freq_pct,
             }
             continue
-        pnls = [float(t[pnl_col]) for t in trades]
-        record: dict[str, Any] = {"n": n, "regime_frequency_pct": freq_pct}
+        # C-sprint deep-review: filter non-finite PnLs at the boundary
+        # so a NaN/inf data-feed defect cannot silently produce a NaN
+        # Sharpe / 0.0 max_dd that the dashboard then renders as a
+        # healthy regime. Drops are recorded so the operator can spot
+        # the upstream gap.
+        raw_pnls = [float(t[pnl_col]) for t in trades]
+        pnls = [p for p in raw_pnls if math.isfinite(p)]
+        n_dropped = len(raw_pnls) - len(pnls)
+        if len(pnls) < min_n_per_regime:
+            out[regime] = {
+                "skipped_reason": "insufficient_finite_n",
+                "n": n,
+                "n_finite": len(pnls),
+                "n_non_finite_dropped": n_dropped,
+                "regime_frequency_pct": freq_pct,
+            }
+            continue
+        record: dict[str, Any] = {
+            "n": len(pnls),
+            "regime_frequency_pct": freq_pct,
+        }
+        if n_dropped > 0:
+            record["n_non_finite_dropped"] = n_dropped
         for name, fn in fns.items():
             record[name] = fn(pnls)
         out[regime] = record
