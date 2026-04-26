@@ -36,10 +36,10 @@ def _runbook_text() -> str:
 
 def _phase_section(text: str, header: str) -> str:
     """Extract a single Phase-X section between ``## Phase-X`` and the
-    next top-level ``## `` heading.
+    next top-level ``## `` heading or end-of-file.
     """
     pattern = re.compile(
-        rf"^## {re.escape(header)}.*?(?=^## )",
+        rf"^## {re.escape(header)}.*?(?=^## |\Z)",
         re.DOTALL | re.MULTILINE,
     )
     m = pattern.search(text)
@@ -146,3 +146,19 @@ def test_manual_signoff_contract_documented() -> None:
     forbidden = {"auto_promote", "auto_advance", "auto_signoff"}
     fields = {f for f in PhasePassCriteria.__dataclass_fields__}
     assert not (fields & forbidden), f"forbidden auto-promotion field present: {fields & forbidden}"
+
+
+def test_phase_pass_criteria_registry_is_immutable() -> None:
+    """The registry must be a read-only mapping so a downstream test
+    cannot accidentally mutate the canonical Phase-A/B/C contract."""
+    from scripts import run_smc_live_incubation as runner
+
+    with pytest.raises(TypeError):
+        runner.PHASE_PASS_CRITERIA["paper"] = runner.PHASE_C_CRITERIA  # type: ignore[index]
+
+
+def test_phase_section_extracts_last_section_in_file() -> None:
+    """``_phase_section`` must terminate on EOF as well as the next ``##``."""
+    text = "## Phase-A — Paper\nx = 1\n\n## Phase-Z — Last\ny = 42\n"
+    section = _phase_section(text, "Phase-Z")
+    assert "y = 42" in section

@@ -38,10 +38,11 @@ import json
 import logging
 import os
 import tempfile
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
+from types import MappingProxyType
 from typing import Any
 
 from scripts.live_risk_limits import (
@@ -144,11 +145,13 @@ PHASE_C_CRITERIA = PhasePassCriteria(
 )
 
 
-PHASE_PASS_CRITERIA: dict[str, PhasePassCriteria] = {
-    PHASE_A_CRITERIA.phase: PHASE_A_CRITERIA,
-    PHASE_B_CRITERIA.phase: PHASE_B_CRITERIA,
-    PHASE_C_CRITERIA.phase: PHASE_C_CRITERIA,
-}
+PHASE_PASS_CRITERIA: Mapping[str, PhasePassCriteria] = MappingProxyType(
+    {
+        PHASE_A_CRITERIA.phase: PHASE_A_CRITERIA,
+        PHASE_B_CRITERIA.phase: PHASE_B_CRITERIA,
+        PHASE_C_CRITERIA.phase: PHASE_C_CRITERIA,
+    }
+)
 
 
 SubmitFn = Callable[[Sequence[IBKROrderIntent]], list[dict[str, Any]]]
