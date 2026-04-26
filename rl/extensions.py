@@ -16,7 +16,7 @@ breaking the existing rl/simulator/execution_env contract:
    simulator then runs against the stressed stream to expose worst-case
    IS / max-DD.
 
-3. RLWalkForwardConfig + walk_forward_episodes(n_episodes, config) —
+3. RLWalkForwardConfig + walk_forward_episodes(config) —
    Wraps ml.walkforward with episode-aware semantics (each "sample" is
    one full RL episode). Embargoes between train/val episode blocks.
 
@@ -30,6 +30,8 @@ Roadmap: docs/IMPROVEMENTS_C2_C12_ROADMAP_2026-04-26.md#c121
 from __future__ import annotations
 
 import json
+import math
+import os
 import time
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
@@ -55,7 +57,8 @@ def cvar(returns: Sequence[float], alpha: float = 0.05) -> float:
     if not returns:
         return 0.0
     sorted_r = sorted(returns)
-    n_tail = max(1, int(round(alpha * len(sorted_r))))
+    # Monotone tail size in alpha: ceil avoids bankers-rounding flips.
+    n_tail = max(1, math.ceil(alpha * len(sorted_r)))
     tail = sorted_r[:n_tail]
     return sum(tail) / len(tail)
 
@@ -104,9 +107,10 @@ def adversarial_bar_replay(
         the helper expects each bar to expose a ``.return_pct`` or
         ``["return_pct"]`` field; raises if neither is present.
 
-    The returned stream has the original bars in order, then the worst
-    bars repeated at evenly-spaced insertion points, doubling the
-    apparent stress without altering the population mean too aggressively.
+    The returned stream preserves the original bar order and inserts
+    copies of the worst bars back into the stream at approximately
+    evenly-spaced insertion points, increasing apparent stress without
+    altering the population mean too aggressively.
     """
     if n_worst < 0:
         raise ValueError(f"n_worst must be >= 0, got {n_worst}")
@@ -157,6 +161,8 @@ class RLWalkForwardConfig:
     train_episodes: int | None = None  # required for scheme='rolling'
 
     def __post_init__(self) -> None:
+        if self.n_folds < 1:
+            raise ValueError(f"n_folds must be >= 1, got {self.n_folds}")
         if self.n_episodes < self.n_folds + 1:
             raise ValueError(
                 f"need n_episodes >= n_folds+1, got {self.n_episodes}/{self.n_folds}"
@@ -227,8 +233,10 @@ class ConstraintHitLog:
     surface reward-mis-specification (e.g. "size > cap fired 23x today
     => the agent's reward is rewarding sizes it can't deploy").
 
-    Atomic per-line writes (one JSON object per line + flush) so a
-    crash never corrupts an earlier hit.
+    Per-line writes are flushed and ``os.fsync()``'d so a process crash
+    cannot drop a successfully-recorded hit. ``read_all()`` tolerates a
+    truncated last line (a crash mid-append) without losing earlier
+    valid records.
     """
 
     def __init__(self, path: Path | str) -> None:
@@ -248,6 +256,7 @@ class ConstraintHitLog:
         with self.path.open("a", encoding="utf-8") as fh:
             fh.write(line)
             fh.flush()
+            os.fsync(fh.fileno())
 
     def record_clamp(
         self,
@@ -274,10 +283,20 @@ class ConstraintHitLog:
         if not self.path.exists():
             return []
         out: list[dict[str, Any]] = []
-        for line in self.path.read_text(encoding="utf-8").splitlines():
+        lines = self.path.read_text(encoding="utf-8").splitlines()
+        nonblank_idx = [i for i, ln in enumerate(lines) if ln.strip()]
+        last_nonblank = nonblank_idx[-1] if nonblank_idx else -1
+        for i, line in enumerate(lines):
             if not line.strip():
                 continue
-            out.append(json.loads(line))
+            try:
+                out.append(json.loads(line))
+            except json.JSONDecodeError:
+                # Tolerate a truncated final line from a crash mid-append;
+                # earlier records remain readable.
+                if i == last_nonblank:
+                    break
+                raise
         return out
 
     def __len__(self) -> int:

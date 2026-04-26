@@ -164,6 +164,13 @@ def test_wf_episodes_validation() -> None:
         RLWalkForwardConfig(n_episodes=20, n_folds=3, scheme="rolling")
 
 
+def test_wf_episodes_n_folds_must_be_positive() -> None:
+    with pytest.raises(ValueError, match="n_folds"):
+        RLWalkForwardConfig(n_episodes=20, n_folds=0)
+    with pytest.raises(ValueError, match="n_folds"):
+        RLWalkForwardConfig(n_episodes=20, n_folds=-1)
+
+
 # ---------------------------------------------------------------------------
 # ConstraintHitLog
 # ---------------------------------------------------------------------------
@@ -211,6 +218,18 @@ def test_audit_log_empty_file_is_empty(tmp_path: Path) -> None:
     log = ConstraintHitLog(tmp_path / "missing.ndjson")
     assert log.read_all() == []
     assert len(log) == 0
+
+
+def test_audit_log_truncated_last_line_is_tolerated(tmp_path: Path) -> None:
+    log = ConstraintHitLog(tmp_path / "trunc.ndjson")
+    log.record_clamp(constraint="a", requested=1.0, enforced=0.5)
+    log.record_clamp(constraint="b", requested=2.0, enforced=1.0)
+    # Simulate a crash that left a partial last line
+    with log.path.open("a", encoding="utf-8") as fh:
+        fh.write('{"constraint": "c", "requ')  # truncated, no newline
+    rows = log.read_all()
+    assert len(rows) == 2
+    assert [r["constraint"] for r in rows] == ["a", "b"]
 
 
 def test_audit_log_one_json_object_per_line(tmp_path: Path) -> None:
