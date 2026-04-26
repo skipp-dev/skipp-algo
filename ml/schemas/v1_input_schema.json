@@ -49,6 +49,6 @@
   "audit_trail": {
     "created_at": "2026-04-26",
     "created_by_pr": "sprint/c10-foundation",
-    "follow_up_pr": "C10 full sprint (deferred; see docs/SPRINT_PLAN_C10_ML_LAYER_2026-04-26.md)"
+    "follow_up_pr": "sprint/c10-ml-layer (active implementation; see docs/SPRINT_PLAN_C10_ML_LAYER_2026-04-26.md)"
   }
 }

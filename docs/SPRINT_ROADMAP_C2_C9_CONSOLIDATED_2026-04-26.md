@@ -266,9 +266,17 @@ erweitern den Scope und sind in eigenen Plan-Dokumenten gepinnt:
 
 | Sprint | Status | Plan-Dokument |
 |---|---|---|
-| **C10** — ML-Layer (XGBoost / LightGBM trainer) | scaffolded (schema-pin only); full sprint deferred | `docs/SPRINT_PLAN_C10_ML_LAYER_2026-04-26.md` (im PR #293) |
+| **C10** — ML-Layer (XGBoost / LightGBM / numpy baseline) | aktive Implementierung (Branch `sprint/c10-ml-layer`) — Pipeline scaffolded, läuft Ende-zu-Ende auf Synthetik, Live-Daten-Wiring ist ein Dataset-Swap | `docs/SPRINT_PLAN_C10_ML_LAYER_2026-04-26.md`, `ml/README.md` |
 | **C11** — *reserviert / übersprungen* | nicht im aktuellen Plan; Nummer reserviert um die externe Sprint-Nummerierung stabil zu halten | — |
-| **C12** — RL-Execution (trigger gate stub) | scaffolded (trigger-stub + Phase-B-anchor only); full sprint blockiert auf erfolgreiche C8-Phase-B-Inkubation | `docs/SPRINT_PLAN_C12_RL_EXECUTION_2026-04-26.md` (im PR #293) |
+| **C12** — RL-Execution (Slippage-Modell + Order-Slicing-Env + Safety) | aktive Implementierung (Branch `sprint/c12-rl-execution`) — Pipeline scaffolded, läuft Ende-zu-Ende auf Synthetik, Live-Daten-Wiring ist ein Dataset-Swap | `docs/SPRINT_PLAN_C12_RL_EXECUTION_2026-04-26.md`, `rl/README.md` |
+
+**C10/C12 Bereitschafts-Vertrag.** Beide Sprints sind nicht "deferred" — die
+Module sind so gebaut, dass die Heavy-Library-Backends (xgboost / lightgbm /
+stable-baselines3 / gymnasium) **optional** sind: Numpy-only Baselines
+(`LogisticBaseline` für C10, TWAP/VWAP für C12) bieten den vollen
+Inferenz- / Execution-Vertrag ohne weitere Installs. Sobald Live-Daten aus
+C8-Phase-B verfügbar sind, ist das Onboarding nur noch Dataset-Konstruktion
+und ein atomarer Predictor- / Policy-Swap.
 
 **C11-Skip-Begründung.** Die ursprünglich für C11 angedachte
 Komponente (online-learning-Loop für Family-Brier-Decay) ist
