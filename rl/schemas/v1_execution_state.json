@@ -1,0 +1,34 @@
+{
+  "schema_version": "v1",
+  "purpose": "Pin the proposed RL execution-state contract for the future RL-execution layer (C12). Schema is a forward-looking proposal; no live consumer exists today.",
+  "trigger_status": "BLOCKED",
+  "trigger_reason": "C12 requires at least one SMC family to have been live in C8 incubation for >= 4 weeks. As of pin date, no family meets this condition. See scripts/check_c12_trigger.py for the live check.",
+  "proposed_state_fields": [
+    {"name": "remaining_qty", "type": "float", "unit": "shares_or_contracts", "note": "Outstanding order quantity to be filled."},
+    {"name": "remaining_time", "type": "float", "unit": "seconds", "note": "Remaining time-budget for the order."},
+    {"name": "current_volatility", "type": "float", "unit": "annualized_pct", "note": "Realized volatility estimate at decision time."},
+    {"name": "current_spread", "type": "float", "unit": "bps", "note": "Bid-ask spread at decision time."},
+    {"name": "recent_volume_profile", "type": "array<float>", "unit": "normalized", "note": "Volume distribution over the last K bars; K is a hyperparameter."},
+    {"name": "signal_strength", "type": "float", "unit": "probability", "note": "Calibrated P(profitable) from the C10 ML layer or rule-based fallback."}
+  ],
+  "proposed_action_space": {
+    "phase_b_slicing": {
+      "type": "discrete",
+      "components": [
+        {"name": "slice_size", "values": [0.0, 0.05, 0.10, 0.25, 0.50, 1.00], "unit": "fraction_of_remaining_qty"},
+        {"name": "order_type", "values": ["limit_at_mid", "limit_aggressive", "market"]}
+      ]
+    },
+    "phase_c_sizing": {
+      "type": "continuous",
+      "range": [0.0, 0.01],
+      "unit": "fraction_of_account_equity",
+      "hard_cap_note": "Risk-Manager veto enforces this cap unconditionally; RL output is advisory."
+    }
+  },
+  "audit_trail": {
+    "created_at": "2026-04-26",
+    "created_by_pr": "sprint/c10-foundation",
+    "follow_up_pr": "C12 full sprint (deferred until trigger gate is GREEN; see docs/SPRINT_PLAN_C12_RL_EXECUTION_2026-04-26.md)"
+  }
+}
