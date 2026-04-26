@@ -32,9 +32,11 @@ class ProbabilityCalibrator(ABC):
 
 @dataclass
 class PlattCalibrator(ProbabilityCalibrator):
-    """Sigmoid (Platt) calibration: P = 1 / (1 + exp(a*x + b)).
+    """Sigmoid (Platt) calibration: P = 1 / (1 + exp(-(a*x + b))).
 
-    Fitted via 50 iterations of Newton-Raphson on the binary cross-entropy.
+    Fitted with gradient descent + backtracking line search on the binary
+    cross-entropy using Platt-smoothed targets (Lin-Lin-Weng 2007), for up
+    to 2000 iterations. Numerically stable for arbitrary score scales.
     """
 
     a: float = 0.0
@@ -42,14 +44,15 @@ class PlattCalibrator(ProbabilityCalibrator):
     name: str = "platt"
 
     def fit(self, raw_scores: Sequence[float], y_true: Sequence[float]) -> "PlattCalibrator":
-        """Platt scaling = 1-D logistic regression of y on raw_scores.
-
-        Uses gradient descent with backtracking line search on the smoothed
-        Platt prior targets (Lin-Lin-Weng 2007). Numerically stable for
-        arbitrary score scales.
-        """
+        """Fit on (raw_scores, y_true) via GD + backtracking line search."""
         x = np.asarray(raw_scores, dtype=float)
         y = np.asarray(y_true, dtype=float)
+        if x.size == 0:
+            raise ValueError("PlattCalibrator.fit: empty raw_scores")
+        if x.shape != y.shape:
+            raise ValueError(
+                f"PlattCalibrator.fit: shape mismatch raw_scores={x.shape} y_true={y.shape}"
+            )
         n = float(x.size)
         prior1 = float((y > 0.5).sum())
         prior0 = n - prior1
@@ -158,8 +161,13 @@ class IsotonicCalibrator(ProbabilityCalibrator):
         if self.x_breaks is None or self.y_breaks is None:
             raise RuntimeError("calibrator not fitted")
         x = np.asarray(raw_scores, dtype=float)
-        return np.interp(x, self.x_breaks, self.y_breaks, left=float(self.y_breaks[0]),
-                         right=float(self.y_breaks[-1]))
+        return np.interp(
+            x,
+            self.x_breaks,
+            self.y_breaks,
+            left=float(self.y_breaks[0]),
+            right=float(self.y_breaks[-1]),
+        )
 
     @property
     def version(self) -> str:

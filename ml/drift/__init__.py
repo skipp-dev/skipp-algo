@@ -5,11 +5,12 @@ from dataclasses import dataclass
 from typing import Sequence
 
 from ml.metrics import population_stability_index
+from ml.types import EventFamily
 
 
 @dataclass(frozen=True)
 class MLDriftAlert:
-    family: str
+    family: EventFamily
     psi: float
     severity: str  # "ok", "warn", "alarm"
     threshold_warn: float
@@ -30,7 +31,7 @@ class MLDriftDetector:
 
     def evaluate(
         self,
-        family: str,
+        family: EventFamily,
         reference_probs: Sequence[float],
         live_probs: Sequence[float],
     ) -> MLDriftAlert:

@@ -28,12 +28,12 @@ from ml.features import (
     vpin,
 )
 from ml.inference import FamilyPredictor, ModelArtifact
-from ml.metrics import brier_score, log_loss, roc_auc, expected_calibration_error
+from ml.metrics import brier_score, expected_calibration_error, log_loss, roc_auc
 from ml.training import FamilyDataset, LogisticBaseline
-from ml.types import MLPrediction, TrainingReport
+from ml.types import EventFamily, MLPrediction, TrainingReport
 
 
-def _make_synthetic_dataset(family: str, n: int = 600, seed: int = 0):
+def _make_synthetic_dataset(family: EventFamily, n: int = 600, seed: int = 0):
     rng = np.random.default_rng(seed)
     X = rng.normal(0.0, 1.0, size=(n, 6))
     # Linear logit so logistic regression is well-calibrated by construction.
@@ -42,7 +42,7 @@ def _make_synthetic_dataset(family: str, n: int = 600, seed: int = 0):
     p = 1.0 / (1.0 + np.exp(-logits))
     y = (rng.uniform(size=n) < p).astype(float)
     return FamilyDataset(
-        family=family,  # type: ignore[arg-type]
+        family=family,
         X=X,
         y=y,
         feature_names=("f0", "f1", "f2", "f3", "f4", "f5"),

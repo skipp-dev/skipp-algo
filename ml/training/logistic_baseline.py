@@ -69,7 +69,8 @@ class LogisticBaseline(BaseFamilyTrainer):
             prev_loss = loss
         return {"w": w, "mean": mean, "std": std}
 
-    def _predict_proba(self, payload: Any, X: np.ndarray) -> np.ndarray:
+    @staticmethod
+    def _predict_proba(payload: Any, X: np.ndarray) -> np.ndarray:
         Xn = (X - payload["mean"]) / payload["std"]
         Xb = np.hstack([Xn, np.ones((Xn.shape[0], 1))])
         return _sigmoid(Xb @ payload["w"])

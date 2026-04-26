@@ -63,7 +63,8 @@ class LGBMFamilyTrainer(BaseFamilyTrainer):
         clf.fit(X, y)
         return clf
 
-    def _predict_proba(self, payload: Any, X: np.ndarray) -> np.ndarray:  # pragma: no cover
+    @staticmethod
+    def _predict_proba(payload: Any, X: np.ndarray) -> np.ndarray:  # pragma: no cover
         return payload.predict_proba(X)[:, 1]
 
 

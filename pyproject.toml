@@ -18,6 +18,12 @@ build-backend = "setuptools.build_meta"
 # `python scripts/...` invocation.
 [tool.setuptools]
 packages = [
+    "ml",
+    "ml.calibration",
+    "ml.drift",
+    "ml.features",
+    "ml.inference",
+    "ml.training",
     "newsstack_fmp",
     "open_prep",
     "smc_core",

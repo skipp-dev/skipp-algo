@@ -5,7 +5,7 @@ import hashlib
 import json
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Any, Sequence
+from typing import Any
 
 import numpy as np
 
@@ -74,8 +74,9 @@ class BaseFamilyTrainer(ABC):
     def _fit_one(self, X: np.ndarray, y: np.ndarray) -> Any:
         """Fit on a single training split; return backend payload."""
 
+    @staticmethod
     @abstractmethod
-    def _predict_proba(self, payload: Any, X: np.ndarray) -> np.ndarray:
+    def _predict_proba(payload: Any, X: np.ndarray) -> np.ndarray:
         """Return P(y=1) for each row of X."""
 
     def fit(self, dataset: FamilyDataset) -> tuple[FittedModel, TrainingReport]:
@@ -101,9 +102,16 @@ class BaseFamilyTrainer(ABC):
         final_payload = self._fit_one(X, y)
         in_sample = self._predict_proba(final_payload, X)
 
-        avg = lambda key: float(np.mean([m[key] for m in fold_metrics]))  # noqa: E731
+        def avg(key: str) -> float:
+            return float(np.mean([m[key] for m in fold_metrics]))
+
         version = self._make_version(dataset)
 
+        # ``predict_proba`` closes over the *backend-class* (not ``self``) so
+        # the FittedModel artifact stays self-contained: detached from the
+        # trainer instance, picklable, and re-bindable to a freshly-imported
+        # backend type without keeping the trainer alive.
+        backend_predict = type(self)._predict_proba
         fitted = FittedModel(
             family=dataset.family,
             backend=self.backend,
@@ -111,7 +119,7 @@ class BaseFamilyTrainer(ABC):
             feature_names=dataset.feature_names,
             payload=final_payload,
             extra={
-                "predict_proba": lambda X_new: self._predict_proba(final_payload, X_new),
+                "predict_proba": _make_predict_proba(backend_predict, final_payload),
                 "in_sample_brier": brier_score(y, in_sample),
             },
         )
@@ -128,14 +136,33 @@ class BaseFamilyTrainer(ABC):
         )
         return fitted, report
 
-    def _make_version(self, dataset: FamilyDataset) -> str:
-        h = hashlib.sha256()
-        h.update(self.backend.encode())
-        h.update(dataset.family.encode())
-        h.update(dataset.features_sha.encode())
-        h.update(str(self.seed).encode())
-        h.update(str(dataset.X.shape).encode())
-        return f"{self.backend}-{dataset.family.lower()}-{h.hexdigest()[:12]}"
+    def _make_version(self, dataset: FamilyDataset) -> str:  # noqa: D401
+        return _hash_version(self.backend, dataset, self.seed)
+
+
+def _hash_version(backend: str, dataset: FamilyDataset, seed: int) -> str:
+    h = hashlib.sha256()
+    h.update(backend.encode())
+    h.update(dataset.family.encode())
+    h.update(dataset.features_sha.encode())
+    h.update(str(seed).encode())
+    h.update(str(dataset.X.shape).encode())
+    return f"{backend}-{dataset.family.lower()}-{h.hexdigest()[:12]}"
+
+
+def _make_predict_proba(backend_predict, payload):
+    """Build a self-contained predict_proba bound to ``payload`` only.
+
+    ``backend_predict`` is the (now staticmethod) ``_predict_proba`` callable
+    on the backend class. The returned closure captures only ``payload`` and
+    the static function — not the trainer instance, keeping the FittedModel
+    artifact picklable and decoupled from the live trainer object.
+    """
+
+    def _predict(X_new: np.ndarray) -> np.ndarray:
+        return backend_predict(payload, X_new)
+
+    return _predict
 
 
 __all__ = ["BaseFamilyTrainer", "FamilyDataset", "FittedModel"]

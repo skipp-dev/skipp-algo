@@ -7,16 +7,31 @@ import numpy as np
 
 
 def realized_volatility(close: Sequence[float], window: int = 20) -> np.ndarray:
-    """Rolling realized volatility from log returns. Output aligned to input."""
+    """Rolling realized volatility from log returns. Output aligned to input.
+
+    Vectorized O(n) implementation using cumulative sums of log returns.
+    """
     c = np.asarray(close, dtype=float)
     if c.size < 2:
         return np.zeros_like(c)
     log_ret = np.diff(np.log(np.maximum(c, 1e-12)), prepend=np.log(max(c[0], 1e-12)))
+    idx = np.arange(c.size)
+    lo = np.maximum(0, idx - window + 1)
+    counts = (idx - lo + 1).astype(float)
+
+    cumsum = np.cumsum(log_ret)
+    cumsum_sq = np.cumsum(log_ret * log_ret)
+
+    sum_ret = cumsum - np.where(lo > 0, cumsum[lo - 1], 0.0)
+    sum_sq = cumsum_sq - np.where(lo > 0, cumsum_sq[lo - 1], 0.0)
+
+    mean = sum_ret / counts
+    var = sum_sq / counts - mean * mean
+    var = np.maximum(var, 0.0)
+
     out = np.zeros_like(c)
-    for i in range(c.size):
-        lo = max(0, i - window + 1)
-        seg = log_ret[lo : i + 1]
-        out[i] = float(np.std(seg, ddof=0)) if seg.size > 1 else 0.0
+    valid = counts > 1
+    out[valid] = np.sqrt(var[valid])
     return out
 
 
