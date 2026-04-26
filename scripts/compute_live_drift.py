@@ -1,0 +1,391 @@
+"""C8/T4 — Live-vs-Backtest drift detector.
+
+Compares per-variant live performance (Sharpe, slippage distribution,
+hit-rate) against the backtest-OOS reference produced by C2 walk-forward
+and C3 bootstrap.  Emits a per-variant drift verdict plus a JSON
+artifact suitable for the C7 dashboard tab and the C8/T6 monitoring.
+
+Pure-stdlib + numpy.  No scipy.  The 2-sample KS test is implemented
+in :func:`ks_two_sample` against the standard Kolmogorov asymptotic
+distribution, which is the same one ``scipy.stats.ks_2samp`` falls
+back to once ``min(n, m)`` exceeds the small-sample threshold.
+
+Schema (additive only; bump the consumer when fields are removed)::
+
+    {
+      "computed_at": "2026-04-26T13:30:00+00:00",
+      "live_window_days": 90,
+      "variants": [
+        {
+          "variant": "smc_breaker_btc",
+          "n_live_trades": 24,
+          "live_sharpe": 0.71,
+          "backtest_sharpe": 0.93,
+          "drift_score": 0.76,
+          "slippage_ks_p": 0.32,
+          "hr_in_bootstrap_ci": true,
+          "verdict": "acceptable"
+        }
+      ]
+    }
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import math
+import os
+import sys
+import tempfile
+from collections.abc import Iterable, Mapping, Sequence
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import Any
+
+import numpy as np
+
+# Drift verdict bands (multiplicative live/backtest Sharpe ratio)
+_VERDICT_BANDS: tuple[tuple[float, str], ...] = (
+    (0.85, "pass"),
+    (0.65, "acceptable"),
+    (0.40, "concerning"),
+)
+# Anything below 0.40 → "fail".
+
+_DEFAULT_EXPECTED_SLIPPAGE_MEAN = 0.005  # 0.5% per the sprint plan
+_DEFAULT_EXPECTED_SLIPPAGE_STD = 0.003
+_TRADING_DAYS_PER_YEAR = 252
+
+__all__ = [
+    "DriftVerdict",
+    "annualised_sharpe",
+    "compute_live_drift",
+    "drift_score",
+    "ks_two_sample",
+    "main",
+]
+
+
+@dataclass(frozen=True)
+class DriftVerdict:
+    """Per-variant drift assessment."""
+
+    variant: str
+    n_live_trades: int
+    live_sharpe: float
+    backtest_sharpe: float
+    drift_score: float
+    slippage_ks_p: float | None
+    hr_in_bootstrap_ci: bool | None
+    verdict: str
+
+    def to_json(self) -> dict[str, Any]:
+        return {
+            "variant": self.variant,
+            "n_live_trades": self.n_live_trades,
+            "live_sharpe": round(self.live_sharpe, 6),
+            "backtest_sharpe": round(self.backtest_sharpe, 6),
+            "drift_score": round(self.drift_score, 6),
+            "slippage_ks_p": (
+                None if self.slippage_ks_p is None else round(self.slippage_ks_p, 6)
+            ),
+            "hr_in_bootstrap_ci": self.hr_in_bootstrap_ci,
+            "verdict": self.verdict,
+        }
+
+
+# ── statistics ──────────────────────────────────────────────────────
+
+
+def annualised_sharpe(returns: Sequence[float]) -> float:
+    """Bailey-Lopez-de-Prado-style annualised Sharpe.
+
+    Returns 0.0 for fewer than 2 samples or zero std.  Daily-bar
+    convention (252 trading days/year).
+    """
+    arr = np.asarray(list(returns), dtype=float)
+    if arr.size < 2:
+        return 0.0
+    sd = float(arr.std(ddof=1))
+    if sd <= 0.0 or not math.isfinite(sd):
+        return 0.0
+    return float(arr.mean() / sd * math.sqrt(_TRADING_DAYS_PER_YEAR))
+
+
+def drift_score(live_sharpe: float, backtest_sharpe: float) -> float:
+    """Drift = live / max(backtest, 0.001), capped to [0.0, 1.5]."""
+    denom = max(float(backtest_sharpe), 0.001)
+    raw = float(live_sharpe) / denom
+    if not math.isfinite(raw):
+        return 0.0
+    return float(max(0.0, min(1.5, raw)))
+
+
+def _verdict_for(score: float) -> str:
+    for threshold, label in _VERDICT_BANDS:
+        if score >= threshold:
+            return label
+    return "fail"
+
+
+def _kolmogorov_sf(d: float, n_eff: float) -> float:
+    """Two-sided Kolmogorov asymptotic survival function.
+
+    Uses the convergent series sum_{k=1..} 2 (-1)^(k-1) exp(-2 k^2 lam^2)
+    with lam = (sqrt(n_eff) + 0.12 + 0.11/sqrt(n_eff)) * d.  Same form
+    as ``scipy.stats.kstwobign.sf`` and the original Press et al recipe.
+    """
+    if n_eff <= 0.0 or d <= 0.0:
+        return 1.0
+    sqrt_n = math.sqrt(n_eff)
+    lam = (sqrt_n + 0.12 + 0.11 / sqrt_n) * d
+    if lam <= 0.0:
+        return 1.0
+    s = 0.0
+    sign = 1.0
+    for k in range(1, 101):
+        term = 2.0 * sign * math.exp(-2.0 * (k * lam) ** 2)
+        s += term
+        if abs(term) < 1e-12:
+            break
+        sign = -sign
+    return float(max(0.0, min(1.0, s)))
+
+
+def ks_two_sample(a: Sequence[float], b: Sequence[float]) -> tuple[float, float]:
+    """Two-sample Kolmogorov-Smirnov test (statistic, asymptotic p).
+
+    Returns ``(0.0, 1.0)`` if either sample is empty.
+    """
+    x = np.sort(np.asarray(list(a), dtype=float))
+    y = np.sort(np.asarray(list(b), dtype=float))
+    n, m = x.size, y.size
+    if n == 0 or m == 0:
+        return 0.0, 1.0
+    data = np.concatenate([x, y])
+    cdf_x = np.searchsorted(x, data, side="right") / n
+    cdf_y = np.searchsorted(y, data, side="right") / m
+    d = float(np.max(np.abs(cdf_x - cdf_y)))
+    n_eff = (n * m) / (n + m)
+    p = _kolmogorov_sf(d, n_eff)
+    return d, p
+
+
+# ── data loading ────────────────────────────────────────────────────
+
+
+def _read_jsonl(path: Path) -> list[dict[str, Any]]:
+    if not path.exists():
+        return []
+    out: list[dict[str, Any]] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            obj = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(obj, dict):
+            out.append(obj)
+    return out
+
+
+def _group_by_variant(rows: Iterable[Mapping[str, Any]]) -> dict[str, list[dict[str, Any]]]:
+    out: dict[str, list[dict[str, Any]]] = {}
+    for row in rows:
+        v = row.get("variant")
+        if not isinstance(v, str) or not v:
+            continue
+        out.setdefault(v, []).append(dict(row))
+    return out
+
+
+def _coerce_float(x: Any) -> float | None:
+    try:
+        v = float(x)
+    except (TypeError, ValueError):
+        return None
+    return v if math.isfinite(v) else None
+
+
+# ── public entry point ──────────────────────────────────────────────
+
+
+def compute_live_drift(
+    *,
+    live_rows: Sequence[Mapping[str, Any]] | None = None,
+    backtest_reference: Mapping[str, Mapping[str, Any]] | None = None,
+    live_jsonl: Path | None = None,
+    backtest_calibration: Path | None = None,
+    min_trades: int = 15,
+    expected_slippage_mean: float = _DEFAULT_EXPECTED_SLIPPAGE_MEAN,
+    expected_slippage_std: float = _DEFAULT_EXPECTED_SLIPPAGE_STD,
+    live_window_days: int = 90,
+    now: datetime | None = None,
+) -> dict[str, Any]:
+    """Compute per-variant drift verdicts.
+
+    Either pass already-loaded ``live_rows`` and ``backtest_reference``
+    (preferred for tests) or point at JSONL/JSON files on disk.
+
+    Each live row must carry at least ``variant`` and ``return`` (the
+    realised per-trade return as a fraction, e.g. R-multiple / position
+    size).  Optional keys: ``slippage`` (per-trade slippage as a
+    fraction), ``hit`` (bool, 1 = trade was a winner).
+
+    ``backtest_reference`` is a ``{variant: {sharpe, hit_rate_ci_low,
+    hit_rate_ci_high}}`` dict, typically the C2 walk-forward + C3
+    bootstrap output.
+
+    Variants below ``min_trades`` live trades are returned with
+    verdict ``insufficient_sample``; a warning marker but never an
+    error so cron callers can still emit the artifact safely.
+    """
+    if live_rows is None:
+        if live_jsonl is None:
+            raise ValueError("either live_rows or live_jsonl must be provided")
+        live_rows = _read_jsonl(Path(live_jsonl))
+    if backtest_reference is None:
+        if backtest_calibration is None:
+            raise ValueError(
+                "either backtest_reference or backtest_calibration must be provided",
+            )
+        with Path(backtest_calibration).open("r", encoding="utf-8") as fh:
+            payload = json.load(fh)
+        backtest_reference = payload.get("backtest_reference") or {}
+
+    grouped = _group_by_variant(live_rows)
+    when = (now or datetime.now(UTC)).isoformat()
+    verdicts: list[dict[str, Any]] = []
+
+    for variant in sorted(grouped):
+        rows = grouped[variant]
+        ref = backtest_reference.get(variant) or {}
+        backtest_sharpe = _coerce_float(ref.get("sharpe")) or 0.0
+        ci_low = _coerce_float(ref.get("hit_rate_ci_low"))
+        ci_high = _coerce_float(ref.get("hit_rate_ci_high"))
+
+        returns: list[float] = []
+        slippage: list[float] = []
+        hits: list[int] = []
+        for r in rows:
+            ret = _coerce_float(r.get("return"))
+            if ret is not None:
+                returns.append(ret)
+            slip = _coerce_float(r.get("slippage"))
+            if slip is not None:
+                slippage.append(slip)
+            h = r.get("hit")
+            if isinstance(h, bool):
+                hits.append(1 if h else 0)
+            elif isinstance(h, (int, float)):
+                hits.append(1 if h else 0)
+
+        n_live = len(returns)
+        if n_live < min_trades:
+            verdicts.append(
+                DriftVerdict(
+                    variant=variant,
+                    n_live_trades=n_live,
+                    live_sharpe=annualised_sharpe(returns),
+                    backtest_sharpe=backtest_sharpe,
+                    drift_score=0.0,
+                    slippage_ks_p=None,
+                    hr_in_bootstrap_ci=None,
+                    verdict="insufficient_sample",
+                ).to_json(),
+            )
+            continue
+
+        live_sharpe = annualised_sharpe(returns)
+        score = drift_score(live_sharpe, backtest_sharpe)
+        verdict = _verdict_for(score)
+
+        ks_p: float | None = None
+        if slippage:
+            # Reference slippage sample, generated deterministically from
+            # the expected mean/std so the test is reproducible without
+            # plumbing an RNG through the public API.
+            ref_n = max(len(slippage), 100)
+            rng = np.random.default_rng(seed=12345)
+            ref_sample = rng.normal(
+                loc=expected_slippage_mean,
+                scale=max(expected_slippage_std, 1e-9),
+                size=ref_n,
+            )
+            _, ks_p = ks_two_sample(slippage, ref_sample.tolist())
+
+        hr_in_ci: bool | None = None
+        if hits and ci_low is not None and ci_high is not None:
+            hr = sum(hits) / len(hits)
+            hr_in_ci = bool(ci_low <= hr <= ci_high)
+
+        verdicts.append(
+            DriftVerdict(
+                variant=variant,
+                n_live_trades=n_live,
+                live_sharpe=live_sharpe,
+                backtest_sharpe=backtest_sharpe,
+                drift_score=score,
+                slippage_ks_p=ks_p,
+                hr_in_bootstrap_ci=hr_in_ci,
+                verdict=verdict,
+            ).to_json(),
+        )
+
+    return {
+        "computed_at": when,
+        "live_window_days": live_window_days,
+        "variants": verdicts,
+    }
+
+
+# ── atomic JSON write ───────────────────────────────────────────────
+
+
+def _atomic_write_json(path: Path, payload: Mapping[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp_name = tempfile.mkstemp(prefix=".drift_", suffix=".tmp", dir=str(path.parent))
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            json.dump(payload, fh, indent=2, sort_keys=True)
+            fh.write("\n")
+        os.replace(tmp_name, path)
+    except Exception:
+        try:
+            os.unlink(tmp_name)
+        except OSError:
+            pass
+        raise
+
+
+# ── CLI ────────────────────────────────────────────────────────────
+
+
+def _build_arg_parser() -> argparse.ArgumentParser:
+    p = argparse.ArgumentParser(description="Compute live-vs-backtest drift metrics")
+    p.add_argument("--live-jsonl", type=Path, required=True)
+    p.add_argument("--backtest-calibration", type=Path, required=True)
+    p.add_argument("--output", type=Path, required=True)
+    p.add_argument("--min-trades", type=int, default=15)
+    p.add_argument("--live-window-days", type=int, default=90)
+    return p
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    args = _build_arg_parser().parse_args(argv)
+    report = compute_live_drift(
+        live_jsonl=args.live_jsonl,
+        backtest_calibration=args.backtest_calibration,
+        min_trades=args.min_trades,
+        live_window_days=args.live_window_days,
+    )
+    _atomic_write_json(args.output, report)
+    return 0
+
+
+if __name__ == "__main__":  # pragma: no cover
+    sys.exit(main())
