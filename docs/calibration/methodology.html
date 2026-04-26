@@ -1,0 +1,267 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SkippALGO — Track-Record Methodology</title>
+  <meta name="description" content="Peer-reviewed statistical methodology behind the SkippALGO SMC public calibration dashboard.">
+  <style>
+    :root {
+      --bg: #0d1117;
+      --panel: #161b22;
+      --panel-2: #1f2630;
+      --fg: #e6edf3;
+      --muted: #8b949e;
+      --accent: #58a6ff;
+      --good: #3fb950;
+      --warn: #d29922;
+      --bad: #f85149;
+      --grid: #30363d;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; background: var(--bg); color: var(--fg); font: 14px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; }
+    .container { max-width: 880px; margin: 0 auto; padding: 32px 20px 64px; }
+    header h1 { font-size: 22px; margin: 0 0 4px; font-weight: 600; }
+    header p { margin: 0; color: var(--muted); font-size: 13px; }
+    header a { color: var(--accent); text-decoration: none; }
+    header a:hover { text-decoration: underline; }
+    nav.breadcrumb { font-size: 12px; color: var(--muted); margin: 8px 0 24px; }
+    nav.breadcrumb a { color: var(--accent); text-decoration: none; }
+    h2 { font-size: 16px; margin: 32px 0 8px; font-weight: 600; }
+    h3 { font-size: 14px; margin: 20px 0 6px; font-weight: 600; color: var(--fg); }
+    p { margin: 8px 0; }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .panel { background: var(--panel); border: 1px solid var(--grid); border-radius: 8px; padding: 16px 20px; margin: 16px 0; }
+    .panel.tldr { border-left: 3px solid var(--accent); }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; margin: 12px 0; }
+    th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--grid); vertical-align: top; }
+    th { color: var(--muted); font-weight: 500; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
+    code { background: var(--panel-2); padding: 1px 6px; border-radius: 4px; font-size: 12px; color: var(--fg); }
+    .formula { background: var(--panel-2); padding: 12px 16px; border-radius: 6px; margin: 10px 0; font-family: "SF Mono", "Menlo", "Consolas", monospace; font-size: 13px; color: var(--fg); overflow-x: auto; }
+    ol, ul { margin: 6px 0 12px 24px; padding: 0; }
+    li { margin: 4px 0; }
+    .ref-list { list-style: none; margin-left: 0; }
+    .ref-list li { padding: 6px 0; border-bottom: 1px solid var(--grid); }
+    .ref-list li:last-child { border-bottom: none; }
+    .ref-cite { color: var(--muted); font-size: 12px; display: block; margin-top: 2px; }
+    .badge { display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 10px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; margin-right: 6px; }
+    .badge.calib { background: rgba(88, 166, 255, 0.15); color: var(--accent); }
+    .badge.fdr { background: rgba(63, 185, 80, 0.15); color: var(--good); }
+    .badge.trade { background: rgba(210, 153, 34, 0.15); color: var(--warn); }
+    .badge.drift { background: rgba(248, 81, 73, 0.15); color: var(--bad); }
+    footer { color: var(--muted); font-size: 12px; margin-top: 48px; text-align: center; border-top: 1px solid var(--grid); padding-top: 16px; }
+    footer a { color: var(--accent); }
+    .toc { background: var(--panel-2); border-radius: 6px; padding: 12px 20px; margin: 16px 0 24px; font-size: 13px; }
+    .toc ul { margin: 4px 0 4px 16px; }
+    .gate-status { color: var(--good); font-weight: 600; }
+    .gate-status.warn { color: var(--warn); }
+    .disclaimer { color: var(--muted); font-size: 12px; font-style: normal; border-left: 2px solid var(--grid); padding-left: 12px; margin: 24px 0 0; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Track-Record Methodology</h1>
+      <p>Peer-reviewed statistical foundation behind the <a href="index.html">public calibration dashboard</a>. Source: <a href="https://github.com/skippALGO/skipp-algo">github.com/skippALGO/skipp-algo</a>.</p>
+    </header>
+
+    <nav class="breadcrumb">
+      <a href="index.html">← Dashboard</a>
+    </nav>
+
+    <div class="panel tldr">
+      <strong>One-paragraph summary.</strong> The track record evaluates four structurally independent SMC setup families — Break-of-Structure (BOS), Order-Block (OB), Fair-Value-Gap (FVG), Liquidity-Sweep (SWEEP) — against an event-by-event ledger. Each detected setup emits a calibrated probability; the realised outcome (win/loss, R-multiple, FVG fill) is automatically backfilled. The resulting <code>(predicted_prob, outcome)</code> pairs feed a pipeline of walk-forward validation, bootstrap confidence intervals, permutation tests with Phipson-Smyth correction, Benjamini-Hochberg FDR control across families × metrics, Probabilistic Sharpe Ratio, and a mandatory live-incubation phase of three months minimum. Every method below is peer-reviewed and cited. We invented none of them. The combination — and the public, automated, cron-published full history with no cherry-picking — is the differentiator.
+    </div>
+
+    <div class="toc">
+      <strong>Contents</strong>
+      <ul>
+        <li><a href="#families">The four setup families</a></li>
+        <li><a href="#pipeline">How a trade enters the track record</a></li>
+        <li><a href="#stats">Statistical hardening, step by step</a></li>
+        <li><a href="#refs">Academic references</a></li>
+        <li><a href="#gate">Promotion gate — when a setup becomes "active"</a></li>
+        <li><a href="#limits">Known limits and accepted residual risk</a></li>
+        <li><a href="#repro">Reproducibility</a></li>
+      </ul>
+    </div>
+
+    <h2 id="families">The four setup families</h2>
+    <p>The setup type is a hard four-value enumeration in the codebase (<a href="https://github.com/skippALGO/skipp-algo/blob/main/smc_core/scoring.py">smc_core/scoring.py:33</a>): <code>EventFamily = Literal["BOS", "OB", "FVG", "SWEEP"]</code>. Each detected setup lands in exactly one family. Aggregation is strictly per family — mixing would superimpose probability distributions and invalidate the statistics.</p>
+
+    <table>
+      <thead><tr><th>Family</th><th>Smart-Money concept</th><th>Outcome definition</th></tr></thead>
+      <tbody>
+        <tr><td><strong>BOS</strong></td><td>Break of Structure (higher high / lower low)</td><td>Follow-through holds the break across the holding period</td></tr>
+        <tr><td><strong>OB</strong></td><td>Order Block (last high-volume zone before break)</td><td>Price retests and respects the zone</td></tr>
+        <tr><td><strong>FVG</strong></td><td>Fair Value Gap (unfilled price imbalance)</td><td>Gap fills within holding period (FVG fill)</td></tr>
+        <tr><td><strong>SWEEP</strong></td><td>Liquidity Sweep (stop-hunt past key level)</td><td>Price reverses after sweep, closes beyond sweep level</td></tr>
+      </tbody>
+    </table>
+
+    <h2 id="pipeline">How a trade enters the track record</h2>
+
+    <h3>1 · Event ledger entry on detection</h3>
+    <p>When the SMC core detects a setup, it appends a row to the event ledger (<a href="https://github.com/skippALGO/skipp-algo/blob/main/smc_core/event_ledger.py">smc_core/event_ledger.py:37–54</a>):</p>
+    <div class="formula">{"family": "FVG", "predicted_prob": 0.65, "outcome": null, "features": {...}, "outcome_extras": {...}, "timestamp": "..."}</div>
+    <p><code>predicted_prob</code> is the post-calibration probability — it has already passed the Platt-scaling layer.</p>
+
+    <h3>2 · Outcome backfill</h3>
+    <p>After 1d / 3d / 5d forward-holding period, <code>outcome</code> is automatically backfilled. R-multiple and win/loss flag are added in <code>outcome_extras</code>. Pipeline: <a href="https://github.com/skippALGO/skipp-algo/blob/main/.github/workflows/open-prep-outcome-backfill.yml">open-prep-outcome-backfill.yml</a>.</p>
+
+    <h3>3 · Daily aggregation per family</h3>
+    <p><a href="https://github.com/skippALGO/skipp-algo/blob/main/scripts/emit_public_calibration_report.py">emit_public_calibration_report.py</a> aggregates to one row per day in <code>calibration_report_public.json</code> and appends to <code>calibration_report_public_history.jsonl</code>.</p>
+
+    <h3>4 · Cron publication</h3>
+    <p><a href="https://github.com/skippALGO/skipp-algo/blob/main/.github/workflows/public-calibration-dashboard.yml">public-calibration-dashboard.yml</a> runs weekdays at 04:30 UTC and commits updates to the repo. Output is publicly readable, SHA-verifiable, and cannot be silently rewritten.</p>
+
+    <h2 id="stats">Statistical hardening, step by step</h2>
+
+    <h3>Brier score and ECE — calibration metrics</h3>
+    <table>
+      <thead><tr><th>Metric</th><th>What it measures</th><th>Lower is better</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Brier score</strong></td><td>Mean squared error <code>(p − outcome)²</code> across events</td><td>Yes</td></tr>
+        <tr><td><strong>ECE</strong></td><td>Expected Calibration Error: weighted bin-wise gap between predicted and observed frequency</td><td>Yes</td></tr>
+        <tr><td><strong>smECE</strong></td><td>Smooth, bin-free ECE robust to bin-cutoff sensitivity</td><td>Yes</td></tr>
+        <tr><td><strong>Hit rate</strong></td><td>Share of correct directional calls</td><td>No (higher is better)</td></tr>
+      </tbody>
+    </table>
+
+    <h3>Walk-forward validation</h3>
+    <p>Strictly rolling windows: train calibrator on months 1–6, test on month 7, slide forward by one month, repeat. <strong>No re-optimisation on out-of-sample results.</strong> Walk-forward efficiency (WFE) must exceed 50%.</p>
+
+    <h3>Bootstrap confidence intervals</h3>
+    <p>Per-trade resampling with 2000 iterations for Sharpe, profit factor, win rate, max drawdown. BCa intervals preferred over naive percentile. The lower 95% CI of Sharpe must exceed 0.3.</p>
+
+    <h3>Permutation test with Phipson-Smyth correction</h3>
+    <p>Brier and ECE have no closed-form null distribution. We use the permutation test:</p>
+    <ol>
+      <li>Pool all events from treatment and control arms</li>
+      <li>Randomly partition into the original sizes</li>
+      <li>Compute Brier difference under this synthetic world</li>
+      <li>Repeat 2000 times (<code>BOOTSTRAP_B = 2000</code>, <code>BOOTSTRAP_SEED = 42</code>)</li>
+      <li>Compute the p-value with the <strong>Phipson-Smyth formula</strong>:</li>
+    </ol>
+    <div class="formula">p = (r + 1) / (B + 1)</div>
+    <p>The +1 correction prevents <code>p = 0</code> — necessary because downstream log-transforms in combined-evidence layers would otherwise blow up.</p>
+
+    <h3>Benjamini-Hochberg FDR correction</h3>
+    <p>With 4 families × 3 metrics = <strong>12 simultaneous tests</strong>, the naive false-positive probability under H₀ without correction is:</p>
+    <div class="formula">1 − (1 − 0.05)^12 ≈ 0.46</div>
+    <p>That is: under a null treatment, almost every other run would falsely flag "significant". BH-FDR sorts the 12 raw p-values ascending and controls the expected false-discovery rate at q = 0.05. We correct <strong>jointly</strong> across all 12 cells, not per metric — separate corrections would inflate effective FDR to ~0.15 (Simes-Bonferroni argument).</p>
+
+    <h3>Regime stratification</h3>
+    <p>Market-regime tagger (Bull / Bear / Range / Vola-High / Vola-Low) based on SPY returns. Per setup × regime: separate win rate, Sharpe, n. Edges must hold in more than one regime, otherwise the family is downgraded to "incubation".</p>
+
+    <h3>Probabilistic Sharpe Ratio + MinTRL</h3>
+    <p>Adjusts the observed Sharpe for skewness and kurtosis of returns. <code>PSR(SR*=0)</code> must exceed 0.95. <strong>MinTRL</strong> states explicitly how many additional trades are needed to prove SR &gt; threshold — preventing premature promotion.</p>
+
+    <h3>Live incubation</h3>
+    <p>Even after a perfect backtest, a strategy is sellable only after 3–6 months of live trading without re-optimisation. Phase A (4 weeks paper trading at 100% size), Phase B (3–6 months live at 10–25% size). The live-Sharpe ÷ backtest-Sharpe ratio must be ≥ 0.50.</p>
+
+    <h3>Drift alarm with 4-detector consensus</h3>
+    <table>
+      <thead><tr><th>Detector</th><th>Drift type</th><th>Threshold</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Page-Hinkley</strong></td><td>Gradual drift, streaming</td><td>PH(t) &gt; 3σ·√w</td></tr>
+        <tr><td><strong>CUSUM</strong></td><td>Abrupt drift</td><td>C⁺(t) &gt; 5σ with k = 0.5σ</td></tr>
+        <tr><td><strong>KS-test (windowed)</strong></td><td>Distribution shift</td><td>p &lt; 0.05 + effect size</td></tr>
+        <tr><td><strong>PSI</strong></td><td>Feature stability (Population Stability Index)</td><td>&lt; 0.10 stable, 0.10–0.25 minor, &gt; 0.25 major</td></tr>
+      </tbody>
+    </table>
+    <p>Consensus rule: ≥ 2-of-4 = "concerning", ≥ 3-of-4 = "critical" + auto-halt hook. Daily cron via <a href="https://github.com/skippALGO/skipp-algo/blob/main/.github/workflows/smc-drift-monitor.yml">smc-drift-monitor.yml</a>.</p>
+
+    <h2 id="refs">Academic references</h2>
+    <p>Every method above is peer-reviewed and cited. The combination is what is novel — not the individual building blocks.</p>
+
+    <h3>Calibration methodology <span class="badge calib">CALIB</span></h3>
+    <ul class="ref-list">
+      <li><a href="https://journals.ametsoc.org/view/journals/mwre/78/1/1520-0493_1950_078_0001_vofeit_2_0_co_2.xml">Brier (1950) — Verification of Forecasts Expressed in Terms of Probability</a><span class="ref-cite">Monthly Weather Review · original Brier-score definition</span></li>
+      <li><a href="https://arxiv.org/abs/1706.04599">Guo, Pleiss, Sun, Weinberger (2017) — On Calibration of Modern Neural Networks</a><span class="ref-cite">ICML · modern ECE definition</span></li>
+      <li><a href="https://arxiv.org/abs/1909.10155">Kumar, Liang, Ma (2019) — Verified Uncertainty Calibration</a><span class="ref-cite">NeurIPS · bootstrap CIs for ECE · <a href="https://github.com/p-lambda/verified_calibration">verified_calibration on GitHub</a></span></li>
+      <li><a href="https://arxiv.org/abs/2309.12236">Błasiok, Nakkiran (2023) — Smooth ECE</a><span class="ref-cite">bin-free smECE variant we report alongside classic ECE</span></li>
+      <li><a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC10952221/">Collins, Riley (2022) — Calibration Instability via Bootstrap</a><span class="ref-cite">Statistics in Medicine</span></li>
+    </ul>
+
+    <h3>Permutation test and FDR <span class="badge fdr">FDR</span></h3>
+    <ul class="ref-list">
+      <li>Fisher (1935) — The Design of Experiments<span class="ref-cite">original permutation test</span></li>
+      <li><a href="https://www.jstor.org/stable/2346101">Benjamini, Hochberg (1995) — Controlling the False Discovery Rate</a><span class="ref-cite">Journal of the Royal Statistical Society B · BH original paper</span></li>
+      <li><a href="https://www.degruyter.com/document/doi/10.2202/1544-6115.1585/html">Phipson, Smyth (2010) — Permutation P-values should never be zero</a><span class="ref-cite">SAGMB · the (B+1)/(M+1) correction we use</span></li>
+      <li><a href="https://arxiv.org/abs/2005.01457">Noma, Shinozaki, Iba, Teramukai, Furukawa (2021) — Confidence intervals of prediction-accuracy measures via bootstrap</a><span class="ref-cite">Statistics in Medicine · location-shifted bootstrap</span></li>
+    </ul>
+
+    <h3>Trading-specific multiple testing <span class="badge trade">TRADE</span></h3>
+    <ul class="ref-list">
+      <li><a href="https://papers.ssrn.com/sol3/papers.cfm?abstract_id=1821643">Bailey, López de Prado (2012) — The Sharpe Ratio Efficient Frontier</a><span class="ref-cite">Journal of Risk · PSR and MinTRL</span></li>
+      <li><a href="https://www.davidhbailey.com/dhbpapers/deflated-sharpe.pdf">Bailey, López de Prado (2014) — The Deflated Sharpe Ratio</a><span class="ref-cite">Journal of Portfolio Management · multiple-testing correction for Sharpe</span></li>
+      <li><a href="https://people.duke.edu/~charvey/Research/Published_Papers/P120_Backtesting.PDF">Harvey, Liu, Zhu (2015) — Backtesting</a><span class="ref-cite">Duke working paper · Bonferroni / Holm / BH-Yekutieli for trading strategies</span></li>
+    </ul>
+
+    <h3>Walk-forward and drift detection <span class="badge drift">DRIFT</span></h3>
+    <ul class="ref-list">
+      <li>Pardo (2008) — The Evaluation and Optimization of Trading Strategies, 2nd ed., Wiley<span class="ref-cite">walk-forward classic · <a href="https://help.tradestation.com/09_01/tswfo/topics/perform_cluster_analysis.htm">TradeStation implementation</a></span></li>
+      <li><a href="https://www.jstor.org/stable/2333009">Page (1954) — Continuous Inspection Schemes</a><span class="ref-cite">Biometrika · CUSUM and Page-Hinkley</span></li>
+      <li><a href="https://www.federalreserve.gov/econres/notes/feds-notes/credit-scoring-drift-and-population-stability-index-20180511.html">Federal Reserve Notes (2018) — PSI for credit-score drift</a><span class="ref-cite">Population Stability Index for production drift</span></li>
+      <li><a href="https://arxiv.org/abs/1711.01070">Pilavakis, Paparoditis, Sapatinas (2018) — Moving block bootstrap</a><span class="ref-cite">block-permutation for serially correlated events (planned follow-up)</span></li>
+    </ul>
+
+    <h2 id="gate">Promotion gate — when a setup becomes "active"</h2>
+    <p>A setup family is marked <span class="gate-status">active</span> on the public dashboard only when <strong>all 17 minimum requirements are satisfied simultaneously</strong>. Until then it remains <span class="gate-status warn">incubation</span> or <span class="gate-status warn">inactive</span> — honestly, never hidden.</p>
+    <table>
+      <thead><tr><th>#</th><th>Requirement</th><th>Source sprint</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>n ≥ 100 OOS trades</td><td>C1 + C2</td></tr>
+        <tr><td>2</td><td>Win rate ≥ 55% at R/R = 1, or ≥ 45% at R/R ≥ 1.5</td><td>C1</td></tr>
+        <tr><td>3</td><td>Sharpe ratio ≥ 1.0</td><td>C2</td></tr>
+        <tr><td>4</td><td>Bootstrap 95% CI low &gt; 0.3</td><td>C3</td></tr>
+        <tr><td>5</td><td>Max drawdown &lt; 15%</td><td>C2</td></tr>
+        <tr><td>6</td><td>FDR rate &lt; 10%</td><td>C4</td></tr>
+        <tr><td>7</td><td>Walk-forward efficiency &gt; 50%</td><td>C2</td></tr>
+        <tr><td>8</td><td>Permutation p &lt; 0.05</td><td>C4</td></tr>
+        <tr><td>9</td><td>Per-regime spread &lt; 20%</td><td>C5</td></tr>
+        <tr><td>10</td><td>PSR(SR*=0) ≥ 0.95</td><td>C6</td></tr>
+        <tr><td>11</td><td>MinTRL ≤ available n</td><td>C6</td></tr>
+        <tr><td>12</td><td>3-second readability on dashboard</td><td>C7</td></tr>
+        <tr><td>13</td><td>≥ 3 months live incubation</td><td>C8</td></tr>
+        <tr><td>14</td><td>≥ 30 live trades</td><td>C8</td></tr>
+        <tr><td>15</td><td>Live-Sharpe ÷ backtest-Sharpe ≥ 0.50</td><td>C8</td></tr>
+        <tr><td>16</td><td>Drift cron green for ≥ 30 days</td><td>C9</td></tr>
+        <tr><td>17</td><td>Auto-halt hook not triggered</td><td>C9</td></tr>
+      </tbody>
+    </table>
+
+    <h2 id="limits">Known limits and accepted residual risk</h2>
+    <table>
+      <thead><tr><th>Limit</th><th>Implication</th><th>Mitigation</th></tr></thead>
+      <tbody>
+        <tr><td>Serial correlation of events</td><td>FVG bursts on trend days violate i.i.d. assumption of vanilla permutation</td><td>Planned: block permutation with block length √n (<a href="https://arxiv.org/abs/1711.01070">Pilavakis et al. 2018</a>)</td></tr>
+        <tr><td>Calibrator-fit uncertainty</td><td>Permutation evaluates model + Platt-calibrator jointly, not the model alone under per-permutation refit</td><td>Operationally acceptable — operator cares about end-to-end output. Documented in JSON output.</td></tr>
+        <tr><td>Asymmetric sample sizes</td><td>If treatment has 10× more events than control (n &lt; 30), p-value resolution becomes coarse</td><td>Minimum n per family per arm is required; otherwise marked "degenerate" and no test is reported</td></tr>
+        <tr><td>Regime change during incubation</td><td>A bull-to-bear transition mid-incubation can destabilise a setup family</td><td>Per-regime spread (req. #9) checks ex-ante; drift cron (C9) detects ex-post</td></tr>
+        <tr><td>Survivorship bias</td><td>Today's delisted symbols are absent from backtest</td><td>Broad symbol universe + transparent universe definition in repo</td></tr>
+        <tr><td>Look-ahead bias in pipeline</td><td>Future bars could unintentionally leak into setup detection</td><td>Continuous temporal-numerical audit (<a href="https://github.com/skippALGO/skipp-algo">TEMPORAL_NUMERICAL_AUDIT</a>)</td></tr>
+      </tbody>
+    </table>
+
+    <h2 id="repro">Reproducibility</h2>
+    <ul>
+      <li><strong>Determinism:</strong> <code>BOOTSTRAP_SEED = 42</code> hard-coded. Re-run with the same seed reproduces identical output bit-for-bit.</li>
+      <li><strong>Pure-Python stdlib:</strong> no NumPy/SciPy hard dependency for the statistics layer.</li>
+      <li><strong>SHA verification:</strong> every dashboard commit embeds <code>commit_sha</code> in the report; every outcome entry is git-tagged.</li>
+      <li><strong>Open source:</strong> the full statistics layer is readable in the repo — no black-box model, no proprietary algorithm.</li>
+      <li><strong>Audit trail:</strong> the history file is append-only — no rewrite of past entries.</li>
+    </ul>
+
+    <p class="disclaimer"><strong>Disclaimer.</strong> Backtest results and live incubation are not a guarantee of future returns. Markets can transition into regimes where historical edges do not hold. The track record is intended as a methodologically robust benchmark, not as a promise — the honest "inactive" labelling of failing families is part of that discipline.</p>
+
+    <footer>
+      <a href="index.html">← Back to dashboard</a> ·
+      Source: <a href="https://github.com/skippALGO/skipp-algo">github.com/skippALGO/skipp-algo</a> ·
+      Detailed design: <a href="https://github.com/skippALGO/skipp-algo/blob/main/docs/METHODOLOGY_SMC_TRACK_RECORD_2026-04-26.md">METHODOLOGY_SMC_TRACK_RECORD.md</a>
+    </footer>
+  </div>
+</body>
+</html>
