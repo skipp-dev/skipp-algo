@@ -133,7 +133,8 @@ def probabilistic_sharpe_robust(
     itself is unchanged so the point statistic remains identifiable.
 
     Returns the same keys as :func:`probabilistic_sharpe` plus
-    ``moments_estimator`` (string flag).
+    ``moments_estimator`` (numeric flag: ``0.0`` for ``"sample"``,
+    ``1.0`` for ``"winsorized"`` — the dict is ``dict[str, float]``).
     """
     n = len(returns)
     if n < MIN_OBSERVATIONS_FOR_PSR:
@@ -159,19 +160,19 @@ def probabilistic_sharpe_robust(
     trimmed = _winsorize(returns, winsor_alpha)
     skew_w, kurt_w = compute_skew_kurtosis(trimmed)
     # Compute Sharpe on the *original* returns (point statistic preserved),
-    # but feed the robust moments into the PSR formula by re-using
-    # probabilistic_sharpe via the ``sharpe_hat`` override and a
-    # synthetic series that yields the same moments.
+    # then plug the robust moments into the closed-form PSR formula.
     mean = sum(returns) / n
     var = sum((r - mean) ** 2 for r in returns) / (n - 1)
     if var <= 0.0:
         raise ValueError("variance is zero — returns are constant")
     sharpe = mean / math.sqrt(var)
+    # Match probabilistic_sharpe's convention: the internal Sharpe stays
+    # at per-period frequency. Only sr_star (caller-supplied, possibly
+    # annual) is rescaled back to per-period for comparison.
+    sr_internal = sharpe
     if annualize:
-        sr_internal = sharpe / math.sqrt(periods_per_year)
         sr_star_internal = sr_star / math.sqrt(periods_per_year)
     else:
-        sr_internal = sharpe
         sr_star_internal = sr_star
 
     denom_inner = 1.0 - skew_w * sr_internal + ((kurt_w - 1.0) / 4.0) * sr_internal ** 2

@@ -22,7 +22,8 @@ Roadmap: docs/IMPROVEMENTS_C2_C12_ROADMAP_2026-04-26.md#c51
 """
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping, Sequence
+import bisect
+from collections.abc import Mapping, Sequence
 from typing import Any
 
 TRANSITION_LABEL = "TRANSITION"
@@ -65,7 +66,9 @@ def assign_transition_bucket(
 
       - ``regime_at_entry`` (or ``regime_col``) replaced with
         ``transition_label``,
-      - ``regime_original``: the pre-rewrite label (preserved for audit).
+      - ``regime_original``: the pre-rewrite label (preserved for audit;
+        always uses the fixed key ``regime_original`` regardless of the
+        user-supplied ``regime_col``).
     """
     if bars_around < 0:
         raise ValueError(f"bars_around must be >= 0, got {bars_around}")
@@ -73,10 +76,10 @@ def assign_transition_bucket(
         return []
 
     regimes: list[Any] = [t.get(regime_col) for t in trades]
-    bars: list[int] = [int(t[bar_index_col]) for t in trades]
+    bars: list[Any] = [t[bar_index_col] for t in trades]
 
     # Indices where the regime label changes (compared to previous trade).
-    change_bars: list[int] = []
+    change_bars: list[Any] = []
     for i in range(1, len(regimes)):
         if regimes[i] != regimes[i - 1]:
             change_bars.append(bars[i])
@@ -84,12 +87,22 @@ def assign_transition_bucket(
     if bars_around == 0 or not change_bars:
         return [dict(t) for t in trades]
 
+    # change_bars is in monotonic order (bars are monotonic by contract).
+    # Use bisect to find the nearest change in O(log n) instead of O(n).
     out: list[dict[str, Any]] = []
     for trade, bar in zip(trades, bars):
         new = dict(trade)
-        # Distance to nearest regime-change bar.
-        nearest = min(abs(bar - cb) for cb in change_bars)
+        idx = bisect.bisect_left(change_bars, bar)
+        candidates = []
+        if idx < len(change_bars):
+            candidates.append(abs(bar - change_bars[idx]))
+        if idx > 0:
+            candidates.append(abs(bar - change_bars[idx - 1]))
+        nearest = min(candidates) if candidates else float("inf")
         if nearest <= bars_around:
+            # ``regime_original`` is the fixed audit key regardless of
+            # the user-supplied ``regime_col`` to keep downstream
+            # consumers (PromotionGate, dashboards) unambiguous.
             new["regime_original"] = trade.get(regime_col)
             new[regime_col] = transition_label
         out.append(new)
@@ -112,6 +125,10 @@ def transition_share(
     n = len(original_trades)
     if n == 0:
         return 0.0
+    if len(rewritten_trades) != n:
+        raise ValueError(
+            f"original/rewritten length mismatch: {n} vs {len(rewritten_trades)}"
+        )
     n_trans = sum(
         1 for t in rewritten_trades if t.get(regime_col) == transition_label
     )

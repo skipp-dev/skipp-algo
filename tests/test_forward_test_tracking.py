@@ -140,3 +140,15 @@ def test_demote_threshold_can_be_relaxed() -> None:
 def test_evr_zero_live_brier_yields_zero_ratio() -> None:
     """Perfect live calibration is allowed (ratio == 0)."""
     assert expected_vs_realized_ratio(0.0, 0.10) == 0.0
+
+
+def test_undefined_brier_ratio_blocks_promote() -> None:
+    """When both Brier inputs are provided but the ratio is undefined
+    (walkforward_brier <= 0 or non-finite), the decision must not be
+    promote — it must surface the issue as an explicit blocker.
+    """
+    decision, blockers = dynamic_incubation_decision(
+        **_ok_kwargs(live_brier=0.10, walkforward_brier=0.0)
+    )
+    assert decision == "continue"
+    assert any("live_vs_wf_brier_ratio_undefined" in b for b in blockers)

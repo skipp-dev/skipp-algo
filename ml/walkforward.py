@@ -67,8 +67,9 @@ def walk_forward_splits(
     Parameters
     ----------
     scheme:
-        ``"expanding"`` / ``"anchored"`` (default) keep all earlier samples
-        in train. ``"rolling"`` uses a fixed window of length ``train_size``.
+        ``"expanding"`` (default) and ``"anchored"`` keep all earlier
+        samples in train. ``"rolling"`` uses a fixed window of length
+        ``train_size``.
     embargo:
         Number of bars dropped between train and val (anti-autocorrelation).
     outcome_horizon:
@@ -77,6 +78,8 @@ def walk_forward_splits(
         purged. Either an int (constant horizon) or a 1-D array length
         ``n_samples``. ``None`` keeps the legacy behaviour.
     """
+    if n_folds < 1:
+        raise ValueError(f"n_folds must be >= 1, got {n_folds}")
     if n_samples < (n_folds + 1):
         raise ValueError(f"n_samples={n_samples} too small for n_folds={n_folds}")
     if embargo < 0:
@@ -90,7 +93,10 @@ def walk_forward_splits(
     if outcome_horizon is None:
         horizons = None
     elif np.isscalar(outcome_horizon):
-        horizons = np.full(n_samples, int(outcome_horizon), dtype=np.int64)
+        scalar = int(outcome_horizon)  # type: ignore[arg-type]
+        if scalar < 0:
+            raise ValueError("outcome_horizon must be >= 0")
+        horizons = np.full(n_samples, scalar, dtype=np.int64)
     else:
         horizons = np.asarray(outcome_horizon, dtype=np.int64).ravel()
         if horizons.size != n_samples:

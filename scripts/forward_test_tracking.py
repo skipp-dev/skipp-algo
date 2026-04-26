@@ -94,7 +94,12 @@ def dynamic_incubation_decision(
     # Demote first — a blown live/wf ratio overrides any pending promote.
     if live_brier is not None and walkforward_brier is not None:
         ratio = expected_vs_realized_ratio(live_brier, walkforward_brier)
-        if ratio is not None and ratio > crit.demote_ratio_threshold:
+        if ratio is None:
+            # Both inputs were provided but the ratio is undefined
+            # (walkforward_brier <= 0 or non-finite). Treat as a blocker
+            # rather than silently allowing promotion.
+            blockers.append("live_vs_wf_brier_ratio_undefined")
+        elif ratio > crit.demote_ratio_threshold:
             return (
                 "demote",
                 [

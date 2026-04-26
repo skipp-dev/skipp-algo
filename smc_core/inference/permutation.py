@@ -108,6 +108,11 @@ def block_permutation_test(
     n_t = t.size
     pooled = np.concatenate([t, c])
     n = pooled.size
+    if block_size >= n:
+        raise ValueError(
+            f"block_size must be smaller than pooled sample size ({n}), "
+            f"got {block_size}"
+        )
 
     observed = float(statistic(t, c))
     rng = np.random.default_rng(seed)

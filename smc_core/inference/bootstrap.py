@@ -4,8 +4,8 @@ Wraps the per-statistic BCa logic that was previously private to
 ``scripts/performance_inference._bca_ci`` so any caller (Per-Familie ML
 brier intervals, regime-stratified PSR, RL implementation-shortfall) can
 use BCa without re-implementing the math. The stationary-block
-resampling primitive remains in ``scripts/bootstrap_methods`` and is
-re-exported here for a single import surface.
+resampling primitive is implemented in this module alongside the BCa
+helpers so callers have a single import surface.
 
 API surface::
 
@@ -273,6 +273,10 @@ def bootstrap_ci(
     elif method == "basic":
         lo, hi = _basic(boot, observed, alpha)
     elif method == "bca":
+        if arr.size < 2:
+            raise ValueError(
+                f"method='bca' requires at least 2 observations, got n={arr.size}"
+            )
         jk = _jackknife(arr, statistic)
         lo, hi = _bca(boot, observed, jk, alpha)
     else:  # pragma: no cover - guarded by Literal
